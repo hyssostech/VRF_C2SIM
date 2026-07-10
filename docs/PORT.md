@@ -545,7 +545,19 @@ durations; add formations + explicit targets). Do NOT dumb coa-gpt down to the b
 interface - extend the interface up. One real coa-gpt-side fix: timing hygiene (the
 12,000,000 ms / 3.3-hr delay; set SimulationRealtimeMultiple so scenarios are watchable).
 
-Status (2026-07-09): fix IDENTIFIED + prototyped, NOT yet runtime-verified.
+Status (2026-07-10): FIX LIVE-VERIFIED in the .NET port. The disaggregated aggregate
+14.MechBn - the canonical "frozen" unit - MOVED. With `Vrf:AggregateFormation=Wedge` the
+app set the formation before the move and 14.MechBn tracked its route from lon 16.3907 to
+16.4792 (30 position samples, ~the full route to 16.483; visually confirmed in the GUI),
+then was killed by an enemy en route (realistic combat, not a defect - which is why it never
+reported task-complete). So the sec-5 "aggregates freeze" limitation is a bare-implementation
+artifact, SOLVED by setting a valid formation - exactly as hypothesized. The fix is committed
+as an OPT-IN enrichment (`Vrf:AggregateFormation`, default "" = golden parity); enabling it is
+the deliberate step past the frozen golden behavior. Open follow-ups: does "Wedge" hold across
+ALL COA-STP1 aggregate types (sec 5 sub-question); pick the formation per unit/task rather than
+a global constant; and the fuller two-layer TaskActionCode->vrftask mapping above.
+
+Prior status (2026-07-09): fix IDENTIFIED + prototyped, NOT yet runtime-verified.
 - Fix: `controller->setAggregateFormation(leaderUuid, formationName)` BEFORE moveAlongRoute
   (no-op on non-aggregates). moveAlongRoute carries no formation; the aggregate holds a
   formation state whose model-set default is unresolvable ("column-left") -> frozen set
