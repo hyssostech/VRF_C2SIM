@@ -174,7 +174,11 @@ LIVE-PROVEN end to end (run 3212): tasking the ENTITY 1.BdeHQ ran the FULL chain
 geodetic read -> CreateRoute (3 pts) -> deferred MoveAlongRoute (fired on the route's
 ObjectCreated). So the pipeline is complete for entity units.
 
-AGGREGATE geodetic (14.MechBn) - isolated + FIXED (verification pending): with entities
+AGGREGATE geodetic (14.MechBn) - isolated + FIXED + LIVE-VERIFIED (2026-07-10, after a
+VR-Forces scenario reload): with the static_cast fallback the golden order tasks 14.MechBn
+end to end - "CreateRoute 'T1_1_4_A ROUTE' (3 pts) for 14.MechBn" -> route created ->
+"MoveAlongRoute issued". So BOTH entity and disaggregated-aggregate tasking now work live.
+History (pre-fix): with entities
 well-settled the entity tasks fine but 14.MechBn still ABANDONED at point 0, so it is
 aggregate-specific, NOT timing. Cause: the port's dynamic_cast<DtReflectedAggregate*> misses
 the disaggregated aggregate (concrete reflected type / RTTI across the MAK DLL boundary), where
