@@ -448,9 +448,17 @@ Do not re-add it.
     both (9/9 checks). Deferred: health enrichment (no bridge health this slice; golden's
     empty health was the sec-6 bug, so OMITTED not emitted-empty), aggregate-component
     de-dup + bundling, and TaskCompletionSource/timeout + delay/predecessor sequencing.
-  - REMAINING: TaskCompletionSource/timeout + task delay/predecessor sequencing; report
-    enrichment (health/dedup/bundling); THEN the semantic-mapping layer (bare movement
-    projector -> real vrftasks) - see sec 10. Then a LIVE run. Roadmap in docs/APP.md.
+  - Task sequencing DONE + offline-verified (2026-07-10): `TaskSequencer` replaces
+    executeTask's busy-waits with async gating - a task awaits its startAfterTaskUuid
+    predecessor (completed off `OnVrfTaskCompleted`), then its start delay, before the
+    bridge work is marshalled onto the tick thread (OnOrder -> RunTaskAsync). THE FIX for
+    the sec-6 infinite busy-wait: the predecessor wait is bounded by
+    Vrf:TaskPredecessorTimeoutSeconds (default 600 s), dispatching anyway on timeout. Not
+    reproduced (behavior-neutral, golden = 0 timing): the C++ doubled-wait bug + time-
+    multiple scaling. `--sequencer-selftest` 5/5. Inherited limitation: one current-task-
+    per-unit correlation (the bridge callback lacks the task uuid).
+  - REMAINING: report enrichment (health/dedup/bundling); THEN the semantic-mapping layer
+    (bare movement projector -> real vrftasks) - see sec 10. Then a LIVE run. docs/APP.md.
 - **Phase 5 - parity**: diff .NET vs C++ message streams against the golden trace (LIVE run).
 
 ---

@@ -57,6 +57,14 @@ public sealed class VrfC2SimService : BackgroundService
     // to fill the TaskStatus report's CurrentTask.
     private readonly ConcurrentDictionary<string, string> _currentTaskUuidByName = new();
 
+    // Sequences task starts (predecessor completion + start delay), replacing the C++
+    // busy-waits with async gating + a timeout. See TaskSequencer.
+    private readonly TaskSequencer _sequencer = new();
+
+    // The service lifetime token, captured in ExecuteAsync so task orchestrations started
+    // from SDK-event threads can cancel their waits on shutdown.
+    private CancellationToken _stoppingToken = CancellationToken.None;
+
     // Commands from SDK-event threads are queued here and executed on the tick thread.
     private readonly ConcurrentQueue<Action> _tickActions = new();
     private volatile bool _stopTick;
@@ -96,6 +104,8 @@ public sealed class VrfC2SimService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        _stoppingToken = stoppingToken;
+
         // 1. Start VR-Forces (the bridge owns the controller/exConn).
         var cfg = BuildStartupConfig();
         _log.LogInformation("Starting VrfBridge (protocol={Protocol}, federation={Fed})...",
@@ -295,19 +305,33 @@ public sealed class VrfC2SimService : BackgroundService
                               task.TaskeeUuid, task.TaskName);
                 continue;
             }
-            // Delay / predecessor sequencing EXECUTION is deferred to the completion-future
-            // slice (the busy-wait -> TaskCompletionSource+timeout rework). The golden-trace
-            // order carries zero timing, so immediate dispatch is parity-faithful there;
-            // warn if a non-golden order actually relies on timing.
-            if (task.SimulationStartMs > 0 || task.RelativeDelayMs > 0 || task.StartAfterTaskUuid.Length > 0)
-                _log.LogWarning("Task '{Name}' carries timing (simStartMs={Sim} relDelayMs={Rel} startAfter={After}); " +
-                                "delay/sequencing not yet ported - executing immediately.",
-                                task.TaskName, task.SimulationStartMs, task.RelativeDelayMs,
-                                task.StartAfterTaskUuid.Length == 0 ? "(none)" : task.StartAfterTaskUuid);
-
+            // Orchestrate the task off-thread: wait for its predecessor + start delay
+            // (TaskSequencer), THEN marshal the bridge work onto the tick thread. The C++
+            // busy-waited inline (one detached thread per task); this awaits without
+            // blocking, and bounds the predecessor wait with a timeout (PORT.md sec 6).
             var t = task;
             var u = unit;
-            _tickActions.Enqueue(() => ExecuteTaskOnTick(t, u));
+            _ = RunTaskAsync(t, u);
+        }
+    }
+
+    private async Task RunTaskAsync(OrderTask task, CreatedUnit unit)
+    {
+        try
+        {
+            var timeout = TimeSpan.FromSeconds(Math.Max(1, _vrf.TaskPredecessorTimeoutSeconds));
+            var gate = await _sequencer.WaitForStartAsync(task.StartAfterTaskUuid, task.SimulationStartMs,
+                                                          task.RelativeDelayMs, timeout, _stoppingToken);
+            if (gate == GateResult.PredecessorTimeout)
+                _log.LogWarning("Task '{Task}' predecessor {Pred} did not complete within {Secs}s; " +
+                                "dispatching anyway (not hanging - the C++ busy-wait bug).",
+                                task.TaskName, task.StartAfterTaskUuid, _vrf.TaskPredecessorTimeoutSeconds);
+            _tickActions.Enqueue(() => ExecuteTaskOnTick(task, unit));
+        }
+        catch (OperationCanceledException) { /* service stopping */ }
+        catch (Exception e)
+        {
+            _log.LogError("Task '{Task}' orchestration failed: {Msg}", task.TaskName, e.Message);
         }
     }
 
@@ -454,6 +478,11 @@ public sealed class VrfC2SimService : BackgroundService
             return;
         }
         _currentTaskUuidByName.TryGetValue(name, out var taskUuid);
+
+        // Release any task gated on this one (parity: setTaskIsComplete unblocked the C++
+        // busy-wait on getTaskIsComplete; here it completes the successor's await).
+        _sequencer.CompleteTask(taskUuid);
+
         var report = ReportBuilder.BuildTaskCompleteReport(taskeeUuid, taskUuid ?? "", IsoNow(), NewReportId());
         _log.LogInformation("SENT TASK STATUS REPORT (TASKCMPLT) taskee={Uuid} task={Task}.",
                             taskeeUuid, taskUuid ?? "(none)");

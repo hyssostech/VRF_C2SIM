@@ -27,6 +27,10 @@ if (args.Length >= 2 && args[0] == "--parse-order")
 if (args.Length > 0 && args[0] == "--report-selftest")
     return ReportSelfTest.Run();
 
+// Offline task-sequencer check: predecessor gating / delay / timeout (no bridge).
+if (args.Length > 0 && args[0] == "--sequencer-selftest")
+    return SequencerSelfTest.Run();
+
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddHostedService<VrfC2SimService>();
 await builder.Build().RunAsync();

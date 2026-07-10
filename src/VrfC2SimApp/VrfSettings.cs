@@ -20,4 +20,9 @@ public class VrfSettings
     // The C2SIM SystemName this interface answers to. MUST equal the pushed
     // init's SystemName or 0 units are created (RUNBOOK sec 2).
     public string ClientId { get; set; } = "STP";
+
+    // How long a task waits for its startAfterTaskUuid predecessor to complete before
+    // giving up and dispatching anyway (the fix for the C++ infinite busy-wait, PORT.md
+    // sec 6). The golden aggregate completion took ~9 min, so 600 s is a safe default.
+    public int TaskPredecessorTimeoutSeconds { get; set; } = 600;
 }

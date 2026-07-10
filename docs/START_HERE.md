@@ -70,7 +70,11 @@ Three locations are in play:
     not the C++ malformed strings). `OnVrfTaskCompleted`/`OnVrfTextReport` correlate +
     PushReportMessage. `--report-selftest` builds + round-trips both (9/9). Deferred:
     health/dedup/bundling, TaskCompletionSource/timeout + delay sequencing.
-  - REMAINING: TaskCompletionSource/timeout + delay/predecessor sequencing; then a LIVE run.
+  - Task sequencing DONE + offline-verified (2026-07-10): `TaskSequencer` replaces the C++
+    busy-waits with async gating - a task awaits its predecessor (via OnVrfTaskCompleted)
+    + start delay before dispatch, with a timeout (fixes the sec-6 infinite wait).
+    `--sequencer-selftest` 5/5.
+  - REMAINING: report enrichment (health/dedup/bundling); then a LIVE run.
 
 The aggregate-movement fix (`SetAggregateFormation(uuid,"Wedge")` before move; PORT.md
 sec 10) lives in the port's `src/VrfFacade/`. The C++ live proof was never landed and
@@ -136,6 +140,8 @@ it loads the bridge assembly for value types):
   - expect 1 MOVE task T1_1_4_A, taskee 670cfe3a..., ROE ROETight, 2 inline points.
 - `VrfC2SimApp.exe --report-selftest` - builds + round-trips a TASKCMPLT + a position
   report via the SDK schema types; expect 9/9 checks pass.
+- `VrfC2SimApp.exe --sequencer-selftest` - task-start gating (predecessor / delay /
+  timeout); expect 5/5 checks pass.
 PATH for the exe: `C:\MAK\vrforces5.0.2\bin64;C:\MAK\vrlink5.8\bin64;C:\MAK\makRti4.6b\bin`.
 
 LIVE run (RUNBOOK first): needs VR-Forces (HLA CWIX-2024) + the C2SIM container up, MAK
@@ -145,13 +151,10 @@ on PATH. `dotnet run --project src/VrfC2SimApp -c Release`; push init/order with
 ## The immediate next task
 
 Continue the Phase 4 parity port in `VrfC2SimService` (docs/APP.md "What is DONE vs TODO"):
-1. TaskCompletionSource/timeout + task delay/predecessor SEQUENCING: OnOrder currently
-   parses timing (SimulationStartMs / RelativeDelayMs / StartAfterTaskUuid) but executes
-   immediately; wire a completion signal off OnVrfTaskCompleted so startAfterTaskUuid tasks
-   wait for their predecessor (with a timeout, replacing the C++ busy-wait).
-2. Report enrichment (deferred from the reports slice): EntityHealthStatus (needs bridge
+1. Report enrichment (deferred from the reports slice): EntityHealthStatus (needs bridge
    health), aggregate-component de-dup, multi-content bundling.
-3. LIVE run + golden-trace parity diff (needs the runtime env - RUNBOOK).
+2. LIVE run + golden-trace parity diff (needs the runtime env - RUNBOOK). Post-gold test
+   data has been added under `data/` (user-provided).
 
 Keep `docs/PORT.md` + `docs/APP.md` current AS you work; after any context compaction
 re-read them before deciding anything.

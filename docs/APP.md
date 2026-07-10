@@ -98,8 +98,8 @@ Order translation (bare movement) - DONE + VERIFIED offline (2026-07-10):
   ROETight, 2 inline points; E_cohq_noaffected -> affectedEntity empty; C_agg_selftarget
   -> taskee==affected). Execution wiring is live-run-pending (see risks below).
 - NOT in this slice (deliberate): the two-layer TaskActionCode -> vrftask mapping
-  (PORT.md sec 10), the formation spike, the report/TASKCMPLT path, and delay/predecessor
-  SEQUENCING (parsed + warned, but executed immediately; the golden orders carry 0 timing).
+  (PORT.md sec 10), the formation spike, and the report/TASKCMPLT path. (delay/predecessor
+  SEQUENCING landed later - see "Task sequencing" below.)
 - LIVE-RUN RISKS: (a) RESOLVED (2026-07-10) - the facade's `TryGetEntityGeodetic` now
   resolves the location from EITHER a DtReflectedEntity (entityStateRep) OR a
   DtReflectedAggregate (aggregateStateRep), both sharing DtBaseEntityStateRepository::
@@ -131,8 +131,30 @@ Reports out - DONE + VERIFIED offline (2026-07-10):
 - DEFERRED (documented): EntityHealthStatus enrichment (this slice has no health data from
   the bridge; the golden's empty health was the sec-6 bug, so health is OMITTED not emitted
   empty); aggregate-component report de-dup + multi-content BUNDLING (each report is emitted
-  singly - semantically equivalent to the consumer); TaskCompletionSource/timeout + task
-  delay/predecessor SEQUENCING (still executed immediately - golden orders are 0-timing).
+  singly - semantically equivalent to the consumer).
+
+Task sequencing - DONE + VERIFIED offline (2026-07-10):
+- `TaskSequencer` (pure) replaces executeTask's busy-waits (C2SIMinterface.cpp:2087-2154)
+  with async gating: a task with `startAfterTaskUuid` awaits that predecessor's completion,
+  then any absolute (SimulationTime) or relative start delay, before dispatching. OnOrder
+  now runs each task via `RunTaskAsync` (off-thread await of the gate) and only marshals the
+  bridge work onto the tick thread once the gate opens - so nothing blocks the tick loop.
+- Completion signal: `OnVrfTaskCompleted` calls `_sequencer.CompleteTask(currentTaskUuid)`,
+  releasing any successor (parity: setTaskIsComplete unblocking getTaskIsComplete).
+- THE FIX for the C++ infinite busy-wait (PORT.md sec 6): the predecessor wait is bounded by
+  `Vrf:TaskPredecessorTimeoutSeconds` (default 600 s ~= the golden completion time); on
+  timeout the task dispatches anyway with a warning instead of hanging forever.
+- NOT reproduced (C++ quirks, behavior-neutral for the 0-timing golden orders): the delay is
+  applied ONCE (the C++ doubled-wait loop is a bug) and UNSCALED (sim time-multiple scaling
+  is a later refinement).
+- Verified offline (`--sequencer-selftest`, 5/5): waits while a predecessor is pending;
+  proceeds on completion; proceeds immediately if the predecessor already completed
+  (completer-first race); the start delay elapses; the predecessor timeout fires (no infinite
+  wait).
+- KNOWN LIMITATION (inherited, not a regression): one current-task-per-unit correlation - the
+  bridge's TaskCompleted carries only the marking + task type, not the C2SIM task uuid, so if
+  a unit is re-tasked before its prior task completes, the completion is attributed to the
+  latest task (same as the C++ getCurrentTaskUuid). Fine for one-task-at-a-time golden orders.
 
 TODO - the Phase 4 PARITY PORT (the real content; each maps to a C++ source):
 1. `InitParser` refinements: parse `DirectionPhi` if a schema instance carries it;
