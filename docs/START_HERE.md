@@ -74,33 +74,54 @@ Three locations are in play:
     busy-waits with async gating - a task awaits its predecessor (via OnVrfTaskCompleted)
     + start delay before dispatch, with a timeout (fixes the sec-6 infinite wait).
     `--sequencer-selftest` 5/5.
-  - REMAINING: report enrichment (health/dedup/bundling); then a LIVE run.
+- **Phase 5** (LIVE run vs VR-Forces): DONE + verified (2026-07-10). The .NET port runs the
+  FULL golden-trace pipeline live against VR-Forces HLA + a freshly-redeployed c2sim-server
+  4.8.4.9: deploy -> HLA join (RTI 4.6.1) -> late-join (49 units + 4 areas) -> order over
+  STOMP -> parse -> taskee resolve -> CreateRoute + MoveAlongRoute (entity 1.BdeHQ AND
+  disaggregated aggregate 14.MechBn) -> sim runs -> unit MOVES -> COMPLETES -> TASKCMPLT
+  report pushed (+ position reports) -> clean stop (no stale federate). Six bugs found+fixed
+  LIVE (all in RUNBOOK sec 7): no late-join (JoinSession); parsers assumed <MessageBody>
+  root vs the SDK's bare-body live events; empty status body (GetStatus trigger); missing
+  Run() (sim clock never started); disaggregated-aggregate geodetic (static_cast fallback);
+  RTI-4.6.1/license/cwd/FOM launch env. New tools: `StopIface` (clean stop), `StompProbe`.
+- **Aggregate movement (Phase 4+ enrichment)**: `Vrf:AggregateFormation` (opt-in, default
+  "" = golden parity) sets a valid formation ("Wedge") before the move. LIVE-VERIFIED:
+  14.MechBn - the canonical frozen aggregate - MOVED its full route. COA-STP1 live run
+  (128 units, 42-task order, clientId C2SIM) validated the pipeline AT SCALE (0 abandons,
+  sequencer gated 32 temporal deps, 32 aggregates formation-set+moved) BUT only ~3 of 32
+  aggregates completed - "some move, most stuck": Wedge is NECESSARY but NOT SUFFICIENT for
+  the COA-STP1 aggregate types (deeper subordinate/per-type/vrftask condition; PORT.md sec 10).
 
-The aggregate-movement fix (`SetAggregateFormation(uuid,"Wedge")` before move; PORT.md
-sec 10) lives in the port's `src/VrfFacade/`. The C++ live proof was never landed and
-is NOT worth more time (RUNBOOK sec 6); its real validation is the .NET port.
+Net: the port reproduces the full C2SIM<->VR-Forces loop live and moves aggregates. What
+remains is quality/parity polish + the two-layer semantic-mapping arc (see "next task" below).
 
 ## Repo state (git log is authoritative)
 
-- THIS repo `VRF_C2SIM` (branch `main`), newest first (key commits):
+- THIS repo `VRF_C2SIM` (branch `main`), HEAD `fcba5f4` (25 ahead of origin, UNPUSHED),
+  newest first (key commits, Phase 5 live run at top):
   ```
-  378c71c Phase 4: InitParser via SDK schema types - OnInitialization end-to-end
-  3a9c28b Phase 4: init translation core (UnitTranslator, verified)
-  834c62b Phase 2: complete the VrfBridge facade surface
-  9b8061d Phase 2 slice 2: inbound callbacks -> managed events
-  a39e25f Phase 2: runtime-load smoke PASSES
-  b24c380 Phase 2 slice 1: VrfBridge builds green under the HLA MAK set
-  7c6c5a6 Port products: import bridge-spikes, tools, docs+golden-trace
-  0462a79 Initial commit
+  fcba5f4 docs: COA-STP1 live run - pipeline flawless at scale; Wedge necessary-not-sufficient
+  e6d8beb docs: aggregate formation fix LIVE-VERIFIED - 14.MechBn MOVED
+  80e4b15 Phase 4+ enrichment: opt-in SetAggregateFormation before move (unblock aggregates)
+  8ed890e Phase 5: sim Run() + TimeMultiplier - FULL golden-trace pipeline live-verified
+  83812c6 Phase 5: facade TryGetEntityGeodetic static_cast fallback for aggregates
+  ff4705c Phase 5: port runs live end-to-end - late-join, bare-body parse, GetStatus clean-stop
+  9d63084 Phase 5 live bring-up: FOM config + StopIface + runtime findings
+  e5ead75 Phase 4: --parse-init clientId arg; validate vs data/
+  44323e7 Phase 4: task sequencing - async predecessor/delay gate
+  66cb45e Phase 4: reports out - OnVrfTaskCompleted/OnVrfTextReport
+  57930ba Phase 4: facade TryGetEntityGeodetic resolves aggregates
+  03e3a09 Phase 4: OnOrder <- executeTask (bare movement), schema-typed OrderParser
   ```
 - The fork `OpenC2SIM.github.io` (`dev/sdk-fixes`) tracks the submodule pointer; latest
-  `baaec08` (-> 378c71c). Local only, NOT pushed.
+  `222fddf` (-> `fcba5f4`). Local only, NOT pushed.
 - The C++ repo `c2simVRFinterfacev2.36`: HEAD `b87fc9b`. Working tree still holds the
   UNCOMMITTED formation spike (deliberately not committed there).
 - The SDK (`dev/sdk-fixes`): `f738edf` (static-state fixes + tests), `3b7cd33` (net10).
 
 `build/` `bin/` `obj/` are gitignored (rebuild them); `docs/golden-trace/*.log` is
-force-tracked (parity oracle).
+force-tracked (parity oracle). `data/` (user-provided post-gold scenarios: COA-STP1,
+VRF-All-entities) is UNTRACKED - decide whether to track it.
 
 ## Where everything lives (all in THIS repo)
 
@@ -108,14 +129,21 @@ force-tracked (parity oracle).
   `remoteControlInit.{h,cxx}`). Carries the SetAggregateFormation fix.
 - `src/VrfBridge/` - the `/clr:netcore` managed bridge (wraps VrfFacade; the only managed TU).
 - `src/VrfC2SimApp/` - the .NET app (net10 host):
-  - `VrfC2SimService.cs` - the interface: SDK events <-> bridge commands/events.
-  - `InitParser.cs` - schema-typed init deserialization (C2SIM.Schema102).
+  - `VrfC2SimService.cs` - the interface: SDK events <-> bridge commands/events (init,
+    order, reports, late-join, Run, clean-stop, aggregate formation).
+  - `InitParser.cs` / `OrderParser.cs` - schema-typed init/order deserialization
+    (C2SIM.Schema102; root-robust: envelope OR bare live-event body).
   - `UnitTranslator.cs` - the create* dispatch/factories (pure, verified).
-  - `InitModels.cs`, `VrfSettings.cs`, `appsettings.json`.
-  - `TranslatorSelfTest.cs` / `InitParseCheck.cs` - offline checks (see Run below).
+  - `ReportBuilder.cs` - schema-typed TASKCMPLT + PositionReport builder (serialize).
+  - `TaskSequencer.cs` - async predecessor/delay gating (replaces the C++ busy-waits).
+  - `InitModels.cs`, `OrderModels.cs`, `VrfSettings.cs`, `appsettings.json`.
+  - offline selftests: `TranslatorSelfTest.cs`, `InitParseCheck.cs`, `OrderParseCheck.cs`,
+    `ReportSelfTest.cs`, `SequencerSelfTest.cs` (see Run below).
 - `bridge-spikes/` - the proven C++/CLI spikes + native probe (the bridge's templates).
-- `docs/golden-trace/` - the PARITY ORACLE.
-- `tools/` - .NET SDK helpers: `PushInit`, `PushOrder`, `ListenReports`, `SdkVerify`.
+- `docs/golden-trace/` - the PARITY ORACLE. `data/` (untracked) - post-gold scenarios.
+- `tools/` - .NET SDK helpers: `PushInit`, `PushOrder`, `ListenReports`, `SdkVerify`,
+  `StopIface` (clean stop = STOP+RESET -> UNINITIALIZED), `StompProbe` (subscribe + log
+  every inbound event - the STOMP-receive diagnostic).
 
 ## Build
 
@@ -144,22 +172,41 @@ it loads the bridge assembly for value types):
   timeout); expect 5/5 checks pass.
 PATH for the exe: `C:\MAK\vrforces5.0.2\bin64;C:\MAK\vrlink5.8\bin64;C:\MAK\makRti4.6b\bin`.
 
-LIVE run (RUNBOOK first): needs VR-Forces (HLA CWIX-2024) + the C2SIM container up, MAK
-on PATH. `dotnet run --project src/VrfC2SimApp -c Release`; push init/order with
-`tools/PushInit` + `tools/PushOrder`; diff against `docs/golden-trace/*`.
+NOTE the offline PATH above uses `makRti4.6b` (fine - it only LOADS the bridge DLLs). A
+LIVE run MUST use `makRti4.6.1` (match VR-Forces' federation RTI) - see RUNBOOK sec 7.
+
+LIVE run - the FULL recipe is RUNBOOK sec 7 (read it; the golden run + COA-STP1 followed
+it exactly). In short: redeploy c2sim-server if gone (from Downloads/Docker.zip); launch env
+= RTI 4.6.1 on PATH + `MAKLMGRD_LICENSE_FILE` from Machine scope + cwd=`C:\MAK\vrforces5.0.2\bin64`
++ `--contentRoot=<exe dir>` + a FRESH `Vrf__ApplicationNumber`; PushInit FIRST then start the
+app (it late-joins); clean-stop with `tools/StopIface`. Useful env knobs: `Vrf__ClientId`
+(STP / C2SIM / VRF per the init's SystemName), `Vrf__TimeMultiplier` (e.g. 20 = fast clock),
+`Vrf__AggregateFormation` (e.g. Wedge = move aggregates; "" = golden parity),
+`Vrf__TaskPredecessorTimeoutSeconds`. Reload the VR-Forces scenario between heavy runs
+(entities accumulate -> creates stop reflecting after ~2-3 runs).
 
 ## The immediate next task
 
-Continue the Phase 4 parity port in `VrfC2SimService` (docs/APP.md "What is DONE vs TODO"):
-1. Report enrichment (deferred from the reports slice): EntityHealthStatus (needs bridge
-   health), aggregate-component de-dup, multi-content bundling.
-2. LIVE run + golden-trace parity diff (needs the runtime env - RUNBOOK). Post-gold test
-   data (user-provided, untracked) is under `data/`: COA-STP1 init (128 units / 35 areas)
-   + order (42 tasks, 32 with startAfterTaskUuid), VRF-All-entities init (43 units / 26
-   areas) + VRF-Approved order (85 tasks). All FOUR parse clean offline via `--parse-init
-   <f> <clientId>` / `--parse-order <f>` (COA-STP1 -> 128 creatable for clientId C2SIM),
-   validating the parse/translate/sequence surface against large, verb-rich data before
-   the live run.
+Phase 1-5 are DONE (the port runs the full C2SIM<->VR-Forces loop live + moves aggregates).
+Remaining work, roughly by priority (details: docs/APP.md TODO, PORT.md sec 6/10):
+
+1. **Aggregate deep-dive** (the live-open question): most COA-STP1 aggregates stay stuck even
+   with `Wedge` (necessary-not-sufficient; PORT.md sec 10). Diagnose - compare a MOVING vs a
+   STUCK aggregate's VR-Forces Subsystems tab (formation valid for the type? subordinates
+   present "2 of 4"? damage?) - then per-unit-type formation and/or the PROPER vrftask
+   (`planAndMoveToTask` / `moveIntoFormationTask`), which is the first real slice of #4.
+2. **Report-stream parity polish**: EntityHealthStatus (needs the bridge to surface health),
+   aggregate-component de-dup, multi-content bundling. Position reports work but are chatty.
+3. **Deferred C++-bug fixes** (PORT.md sec 6): distinct C2SimUuid/VrfUuid types (setTarget
+   no-op); aggregate health/heading. And the `OnObjectInitialization` STUB (needed only for
+   orders that task via a named map-graphic Route, not inline points).
+4. **Two-layer semantic mapping** (the big value-add, PORT.md sec 10 / TASK_EXPANSION_PLAN):
+   map C2SIM `TaskActionCode` -> the right VR-Forces vrftask (fireAtTargetTask, breachTask,
+   moveIntoFormationTask, ...) instead of collapsing every verb to moveAlongRoute.
+5. **Formal golden-trace message diff** (byte-level parity, not just behavioral).
+6. **Housekeeping**: PUSH the branches (port main / fork / SDK are all local-only);
+   delete the retained C++ originals (migration step 1); decouple the SDK ProjectReference
+   (published nuget); decide whether to track `data/`.
 
 Keep `docs/PORT.md` + `docs/APP.md` current AS you work; after any context compaction
 re-read them before deciding anything.

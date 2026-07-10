@@ -24,20 +24,25 @@ flailed by trusting a compaction summary instead of the docs and code):
   3. docs/APP.md           - the CURRENT work: the .NET app, its data flow, and the
                              Phase 4 parity-port DONE-vs-TODO list
   4. docs/PHASE2_BRIDGE.md - reference: the C++/CLI bridge (DONE) + proven build config
-  5. docs/RUNBOOK.md       - runtime procedure (only when running against live VR-Forces);
-                             read sec 4 (CLEAN STOP) + sec 6 (loopback blocker) before any run
+  5. docs/RUNBOOK.md       - runtime procedure for a LIVE VR-Forces run. Read sec 7 (the
+                             FULL .NET-port live recipe: deploy, launch env, the 6 fixed
+                             bugs) + sec 4 (CLEAN STOP) before any run.
   6. docs/PHASE1_REWIRE.md, docs/TASK_EXPANSION_PLAN.md - history / verb-mapping blueprint
 Then run `git log --oneline` in the PORT repo (authoritative for state) and in the fork
 (the submodule pointer).
 
-State: Phase 1 (C++ facade rewire) DONE. Port products migrated into VRF_C2SIM (C++
-originals retained pending review then deletion). Phase 2 (the VrfBridge C++/CLI bridge)
-DONE + verified: full facade surface + callbacks, builds green under the HLA MAK set,
-runtime-load smoke passes. Phase 3 (.NET app skeleton) wires the C2SIM SDK <-> bridge.
-Phase 4 IN PROGRESS: OnInitialization DONE + offline-verified (InitParser deserializes via
-the SDK's schema types; UnitTranslator ports the create* factories; STP init -> 80 units,
-49 creatable, 4 areas = golden trace). Latest submodule commit 378c71c. NEXT: OnOrder <-
-executeTask, then reports <- reportCallback, then a LIVE run + golden-trace diff.
+State: Phases 1-5 DONE. The .NET port RUNS THE FULL C2SIM<->VR-Forces LOOP LIVE (verified
+2026-07-10 vs VR-Forces HLA + c2sim-server 4.8.4.9): join -> late-join (49 units) -> order
+over STOMP -> parse -> task (entity + disaggregated aggregate) -> sim runs -> unit moves ->
+completes -> TASKCMPLT + position reports -> clean stop, no stale federate. Aggregate movement
+works via opt-in `Vrf:AggregateFormation` (14.MechBn moved). COA-STP1 (128 units, 42 tasks)
+validated the pipeline AT SCALE but showed Wedge is necessary-not-sufficient for its aggregate
+types (PORT.md sec 10). Latest port HEAD `fcba5f4`; submodule pointer `222fddf`; ALL local/UNPUSHED.
+NEXT (START_HERE "immediate next task"): (1) aggregate deep-dive (why most COA-STP1 aggregates
+stay stuck - per-type formation / planAndMoveToTask); (2) report parity polish (health/dedup/
+bundling); (3) deferred sec-6 bug fixes + the OnObjectInitialization stub; (4) the two-layer
+TaskActionCode->vrftask semantic mapping (the big value-add); (5) formal golden-trace diff;
+(6) housekeeping (PUSH branches, delete C++ originals, decouple SDK, decide on `data/`).
 
 Non-negotiables (where earlier sessions went wrong - do not repeat):
 - READ the docs above BEFORE acting; after any compaction re-read them; trust docs + code
@@ -49,11 +54,17 @@ Non-negotiables (where earlier sessions went wrong - do not repeat):
 - Parse C2SIM messages by DESERIALIZING into the SDK's XSD-generated schema types
   (C2SIM.Schema10x via C2SIMSDK.ToC2SIMObject<T>), NOT by hand-navigating element names off a
   sample. InitParser is the pattern to follow for OnOrder. The C2SIM XSDs + OWL are in the repo.
-- Verify parity-critical logic OFFLINE where possible before a live run: the app has
-  `--translator-selftest` and `--parse-init <file>` modes that need no VR-Forces.
-- If/when running against live VR-Forces: confirm env (PORT.md sec 4 + RUNBOOK sec 1); judge
-  "connected" by THREAD COUNT not the block-buffered log; STOP CLEANLY (server -> UNINITIALIZED),
-  NEVER force-kill a joined federate; do NOT restart the C2SIM broker as a habit (RUNBOOK sec 6).
+- Verify parity-critical logic OFFLINE first (no VR-Forces): `--translator-selftest`,
+  `--parse-init <file> [clientId]`, `--parse-order <file>`, `--report-selftest`,
+  `--sequencer-selftest` (all self-check; expect the counts in START_HERE "Run / verify").
+- For a LIVE VR-Forces run, follow RUNBOOK sec 7 EXACTLY (it is the proven recipe): RTI
+  **4.6.1** on PATH (NOT 4.6b - that only works for the offline DLL-load), `MAKLMGRD_LICENSE_FILE`
+  from Machine scope, cwd=VRF bin64 + `--contentRoot`, matching FED/FOM, a FRESH appNumber;
+  PushInit BEFORE starting the app (it late-joins); STOP CLEANLY via `tools/StopIface`
+  (server -> UNINITIALIZED), NEVER force-kill a joined federate; RELOAD the VR-Forces scenario
+  between heavy runs (entities accumulate -> creates stop reflecting). Do NOT restart the C2SIM
+  broker as a habit (RUNBOOK sec 6). (The .NET app's console log FLUSHES - read it directly,
+  unlike the block-buffered C++ interface.)
 - Keep docs/PORT.md, docs/APP.md, docs/START_HERE.md current AS you work.
 
 Start by reading START_HERE.md, then report the git state and exactly what you'll do first.

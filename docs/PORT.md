@@ -4,8 +4,9 @@ Single source of truth for the decisions and findings behind porting the GMU
 c2simVRFinterface (C++) to .NET on top of the HyssosTech C2SIM .NET SDK.
 Read this before re-opening any settled question. ASCII-only per repo policy.
 
-Last updated: 2026-07 (initial port design + Phase 1 facade extraction + full rewire +
-runtime golden-trace verify; only the mechanical lifecycle Start-switch remains).
+Last updated: 2026-07-10 (Phases 1-5 DONE: the .NET port runs the full C2SIM<->VR-Forces
+loop LIVE + moves aggregates. See sec 8 phase status, sec 10 aggregate finding, and
+docs/RUNBOOK.md sec 7 for the live recipe. Remaining: parity polish + two-layer mapping).
 
 Two repos are in play:
 - This one: `c2simVRFinterfacev2.36` (the C++ interface being ported; now git-tracked).

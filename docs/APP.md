@@ -1,8 +1,11 @@
-# The .NET app (src/VrfC2SimApp) - Phase 3/4
+# The .NET app (src/VrfC2SimApp) - Phase 3/4/5
 
-Status: SKELETON, compiles green (2026-07-09). The C2SIM<->VR-Forces wiring +
-lifecycle are real; the C2SIM XML parse/translate is stubbed (the parity port).
-ASCII-only.
+Status: LIVE-VERIFIED end to end (2026-07-10). The app runs the full C2SIM<->VR-Forces
+loop against live VR-Forces: init -> create -> order -> task -> move -> complete ->
+TASKCMPLT + position reports -> clean stop; and moves aggregates (opt-in formation). See
+docs/RUNBOOK.md sec 7 for the live recipe + the six bugs fixed live, and PORT.md sec 8/10
+for phase status + the aggregate finding. What remains is parity polish + the two-layer
+semantic-mapping arc (docs/START_HERE.md "immediate next task"). ASCII-only.
 
 ## What it is
 
