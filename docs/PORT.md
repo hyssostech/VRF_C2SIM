@@ -409,10 +409,16 @@ Do not re-add it.
   is retired against the REAL facade, not just the spikes. Ijwhost.dll auto-copies. Slice 1
   is the outbound path (lifecycle + CreateEntity + MoveAlongRoute + SetAggregateFormation);
   callbacks + full surface + runtime-load smoke are next. Full detail: docs/PHASE2_BRIDGE.md.
-- **Phase 3 - C2SIM half on the .NET SDK**: not started.
+- **Phase 3 - C2SIM half on the .NET SDK**: STARTED 2026-07-09. `src/VrfC2SimApp`
+  (a Host + BackgroundService) constructs + wires the C2SIM SDK and VrfBridge with
+  full lifecycle (Start -> single-threaded tick loop -> Connect -> clean stop) and
+  all event subscriptions + name->uuid correlation. Compiles green (references the
+  bridge DLL + the SDK via ProjectReference). See docs/APP.md.
 - **Phase 4 - glue** (extractC2simInit, executeTask, reportCallback ported to .NET;
-  busy-waits -> TaskCompletionSource + timeout): not started. PLUS the semantic-mapping
-  layer (bare movement projector -> real vrftasks) - see sec 10 for scope.
+  busy-waits -> TaskCompletionSource + timeout): NOT started - these are the stubbed
+  translation handlers in VrfC2SimService (each TODO names its C++ source). PLUS the
+  semantic-mapping layer (bare movement projector -> real vrftasks) - see sec 10.
+  This is the next major chunk; roadmap in docs/APP.md "What is DONE vs TODO".
 - **Phase 5 - parity**: diff .NET vs C++ message streams against the golden trace.
 
 ---

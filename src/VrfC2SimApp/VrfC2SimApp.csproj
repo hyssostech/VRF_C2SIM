@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <!-- x64/win-x64: the bridge is a native x64 (/clr:netcore) assembly -->
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <RootNamespace>VrfC2SimApp</RootNamespace>
+    <AssemblyName>VrfC2SimApp</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The C++/CLI bridge (CopyLocal drops VrfBridge.dll beside the exe). -->
+    <Reference Include="VrfBridge">
+      <HintPath>..\VrfBridge\build\Release\VrfBridge.dll</HintPath>
+    </Reference>
+    <!-- The C2SIM .NET SDK. NOTE: relative path crosses OUT of the VRF_C2SIM
+         submodule into the fork's SDK tree (dev/sdk-fixes, unpushed). A future
+         step decouples this via a published SDK nuget. -->
+    <ProjectReference Include="..\..\..\..\Library\CS\C2SIMSDK\C2SIMSDK\C2SIMSDK.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- IJW bootstrap next to the exe (a bare <Reference> does not copy it). -->
+    <None Include="..\VrfBridge\build\Release\Ijwhost.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0" />
+  </ItemGroup>
+</Project>

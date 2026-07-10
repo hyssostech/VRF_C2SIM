@@ -108,13 +108,18 @@ VS2019 BuildTools v142 - see that repo and RUNBOOK.md.
 
 ## The immediate next task
 
-Continue Phase 2 per `docs/PHASE2_BRIDGE.md` "Next":
-1. Runtime-load smoke (construct + dispose the bridge in-process with MAK on PATH) -
-   the honest proof of the seam; build-green does not prove load.
-2. Callbacks slice (facade `std::function` -> managed events via `gcroot`).
-3. Fill out the remaining facade surface.
-4. The .NET app on the C2SIM SDK - where the two-layer C2SIM-semantics -> vrftasks
-   mapping (PORT.md sec 10, TASK_EXPANSION_PLAN.md) lives.
+Phase 2 (the bridge) is COMPLETE: full facade surface + callbacks, builds green,
+runtime-load smoke passes. The .NET app skeleton (`src/VrfC2SimApp`) compiles and
+wires both halves (docs/APP.md).
+
+The next major chunk is the Phase 4 PARITY PORT - fill in the stubbed translation
+handlers in `VrfC2SimService` (see docs/APP.md "What is DONE vs TODO"):
+1. `OnInitialization` <- extractC2simInit + C2SIMxmlHandler (parse init -> Create*).
+   The biggest single piece.
+2. `OnOrder` <- executeTask (parse -> tasking); bare MoveAlongRoute first for parity,
+   THEN the two-layer TaskActionCode -> vrftask mapping (PORT.md sec 10).
+3. `OnVrfTaskCompleted` / `OnVrfTextReport` <- reportCallback (build + push reports).
+Then a live run + golden-trace parity diff (needs the runtime env - RUNBOOK).
 
 Keep `docs/PORT.md` + `docs/PHASE2_BRIDGE.md` current AS you work; after any context
 compaction re-read them before deciding anything.

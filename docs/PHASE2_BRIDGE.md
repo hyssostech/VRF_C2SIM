@@ -121,9 +121,10 @@ Mechanism + the one gotcha:
    intentionally NOT exposed - the port owns the controller via Start. Builds 0/0.
 4. The .NET app: host the C2SIM SDK (event-driven: InitializationReceived /
    ObjectInitializationReceived / OrderReceived / ReportReceived in; PushReportMessage
-   / PushCommand out) and drive VrfBridge. This is Phase 3-4 - the two-layer
-   C2SIM-semantics -> vrftasks mapping (PORT.md sec 10, TASK_EXPANSION_PLAN.md) lives
-   in the app + grows the facade toward intent-level verbs.
+   / PushCommand out) and drive VrfBridge. STARTED - the skeleton compiles and wires
+   both halves; see docs/APP.md. The Phase 4 parity port (extractC2simInit /
+   executeTask / reportCallback) + the two-layer C2SIM-semantics -> vrftasks mapping
+   (PORT.md sec 10, TASK_EXPANSION_PLAN.md) are the stubbed handlers in it.
 
 ## Notes / risks
 

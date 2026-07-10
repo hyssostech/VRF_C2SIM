@@ -1,0 +1,23 @@
+namespace VrfC2SimApp;
+
+/// <summary>
+/// VR-Forces side configuration (bound from the "Vrf" section of appsettings.json).
+/// Mirrors the fields of the bridge's StartupConfig plus the C2SIM clientId.
+/// </summary>
+public class VrfSettings
+{
+    public string Protocol { get; set; } = "Hla1516e"; // "Hla1516e" | "Dis"
+    public int ApplicationNumber { get; set; } = 3201;
+    public int SiteId { get; set; } = 1;
+    public int SessionId { get; set; } = 1;
+    public string HostInetAddr { get; set; } = "127.0.0.1";
+
+    // HLA 1516e
+    public string Federation { get; set; } = "";       // --execName (e.g. CWIX-2024)
+    public string FedFileName { get; set; } = "";       // full path, optional
+    public List<string> FomModules { get; set; } = new();
+
+    // The C2SIM SystemName this interface answers to. MUST equal the pushed
+    // init's SystemName or 0 units are created (RUNBOOK sec 2).
+    public string ClientId { get; set; } = "STP";
+}
