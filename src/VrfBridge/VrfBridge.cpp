@@ -7,14 +7,19 @@
 |  so no boost/MAK type crosses the managed boundary - only POD    |
 |  marshalled through msclr.                                       |
 |                                                                  |
-|  Slice 1: the OUTBOUND path (lifecycle + create + task).         |
-|  Slice 2: INBOUND callbacks - the facade's std::function members |
-|  are wired (in the ctor, before Start) to managed events via a   |
-|  native lambda capturing a gcroot back to this bridge. Dispatch  |
-|  is SYNCHRONOUS on the VR-Forces tick thread (Phase 1 parity); a |
-|  future step marshals off-thread. Because the native facade      |
-|  holds a gcroot to this managed object, the consumer MUST Dispose |
-|  the bridge (the .NET app owns one long-lived bridge and does).  |
+|  Surface: the full vrf::VrfFacade command + observation API      |
+|  (lifecycle, sim control, create*, setters, tasking, scripted    |
+|  tasks, state read) plus the 4 inbound events. Transition-only   |
+|  facade members (StartAdopting, GetController, RegisterInbound)  |
+|  are intentionally NOT exposed - the port owns the controller via |
+|  Start.                                                          |
+|                                                                  |
+|  Callbacks: the facade's std::function members are wired (ctor,   |
+|  before Start) to managed events via namespace-scope native       |
+|  functor thunks holding a gcroot (a managed member may not define  |
+|  a lambda - C3923). Dispatch is SYNCHRONOUS on the VRF tick        |
+|  thread (Phase 1 parity). The facade holds a gcroot to this       |
+|  object, so the consumer MUST Dispose the bridge.                 |
 *-----------------------------------------------------------------*/
 
 #include "VrfFacade.h"
@@ -22,6 +27,7 @@
 #include <msclr/marshal_cppstd.h>
 #include <msclr/gcroot.h>
 #include <string>
+#include <vector>
 
 using namespace System;
 using namespace System::Collections::Generic;
@@ -33,6 +39,9 @@ namespace VrfC2Sim {
 
 public enum class VrfProtocol { Dis, Hla1516e };
 public enum class Force { Friendly, Opposing, Neutral };
+public enum class AggregateState { Aggregated, Disaggregated };
+public enum class Roe { FireAtWill, HoldFire, FireWhenFiredUpon };
+public enum class ScriptVarKind { ObjectUuid, Real };
 
 public value struct Geodetic {
     double LatDeg;
@@ -48,6 +57,21 @@ public value struct EntityTypeSpec {
     int Subcategory;
     int Specific;
     int Extra;
+};
+
+// One variable of a VR-Forces scripted (Lua) task/set. Mirrors vrf::ScriptVar.
+public value struct ScriptVar {
+    ScriptVarKind Kind;
+    String^ Name;
+    String^ UuidValue; // used when Kind == ObjectUuid
+    double  RealValue; // used when Kind == Real
+
+    static ScriptVar Object(String^ name, String^ uuid) {
+        ScriptVar v; v.Kind = ScriptVarKind::ObjectUuid; v.Name = name; v.UuidValue = uuid; return v;
+    }
+    static ScriptVar Number(String^ name, double value) {
+        ScriptVar v; v.Kind = ScriptVarKind::Real; v.Name = name; v.RealValue = value; return v;
+    }
 };
 
 public ref class StartupConfig {
@@ -157,6 +181,10 @@ public:
     void Run()   { _facade->Run(); }
     void Pause() { _facade->Pause(); }
     void SetTimeMultiplier(int multiple) { _facade->SetTimeMultiplier(multiple); }
+    void SetExerciseStartTime(int year, int month, int day,
+                              int hour, int minute, int second) {
+        _facade->SetExerciseStartTime(year, month, day, hour, minute, second);
+    }
 
     // -- object creation (async; completion via the ObjectCreated event) --
     void CreateEntity(EntityTypeSpec type, Geodetic pos, Force force,
@@ -165,13 +193,80 @@ public:
                               headingDeg, ToStd(name));
     }
 
+    // Convenience overload: the interface always uses Disaggregated + subordinates.
+    void CreateAggregate(EntityTypeSpec type, Geodetic pos, Force force,
+                         double headingDeg, String^ name) {
+        CreateAggregate(type, pos, force, headingDeg, name,
+                        AggregateState::Disaggregated, true);
+    }
+    void CreateAggregate(EntityTypeSpec type, Geodetic pos, Force force,
+                         double headingDeg, String^ name,
+                         AggregateState state, bool createSubordinates) {
+        _facade->CreateAggregate(ToNative(type), ToNative(pos), ToNative(force),
+                                 headingDeg, ToStd(name), ToNative(state),
+                                 createSubordinates);
+    }
+
+    void CreateWaypoint(Geodetic pos, String^ name) {
+        _facade->CreateWaypoint(ToNative(pos), ToStd(name));
+    }
+
+    void CreateRoute(IEnumerable<Geodetic>^ points, String^ name) {
+        _facade->CreateRoute(ToNativePoints(points), ToStd(name));
+    }
+
+    // uuid empty -> nullUUID. The C2SIM interface assigns the area's C2SIM uuid.
+    void CreateControlArea(IEnumerable<Geodetic>^ perimeter, String^ name, String^ label) {
+        CreateControlArea(perimeter, name, label, nullptr);
+    }
+    void CreateControlArea(IEnumerable<Geodetic>^ perimeter, String^ name,
+                           String^ label, String^ uuid) {
+        _facade->CreateControlArea(ToNativePoints(perimeter), ToStd(name),
+                                   ToStd(label), ToStd(uuid));
+    }
+
+    // -- attribute setters -------------------------------------------
+    void SetAltitude(String^ uuid, double altitudeMeters) {
+        _facade->SetAltitude(ToStd(uuid), altitudeMeters);
+    }
+    void SetLocation(String^ uuid, Geodetic pos) { // magic move
+        _facade->SetLocation(ToStd(uuid), ToNative(pos));
+    }
+    void SetTarget(String^ uuid, String^ targetUuid) {
+        _facade->SetTarget(ToStd(uuid), ToStd(targetUuid));
+    }
+    void SetRulesOfEngagement(String^ uuid, Roe roe) {
+        _facade->SetRulesOfEngagement(ToStd(uuid), ToNative(roe));
+    }
+
     // -- tasking -----------------------------------------------------
+    void MoveToLocation(String^ uuid, Geodetic pos) {
+        _facade->MoveToLocation(ToStd(uuid), ToNative(pos));
+    }
     void MoveAlongRoute(String^ uuid, String^ routeUuid) {
         _facade->MoveAlongRoute(ToStd(uuid), ToStd(routeUuid));
     }
-
     void SetAggregateFormation(String^ uuid, String^ formationName) {
         _facade->SetAggregateFormation(ToStd(uuid), ToStd(formationName));
+    }
+    void RunScriptedTask(String^ uuid, String^ scriptId, IEnumerable<ScriptVar>^ vars) {
+        _facade->RunScriptedTask(ToStd(uuid), ToStd(scriptId), ToNativeVars(vars));
+    }
+    void SendScriptedSet(String^ uuid, String^ scriptId, IEnumerable<ScriptVar>^ vars) {
+        _facade->SendScriptedSet(ToStd(uuid), ToStd(scriptId), ToNativeVars(vars));
+    }
+
+    // -- state read (pure; does NOT task the unit) -------------------
+    // Returns false (and a zeroed result) if no reflected entity exists for the
+    // uuid (e.g. an aggregate, which has no DtReflectedEntity).
+    bool TryGetEntityGeodetic(String^ uuid,
+                              [System::Runtime::InteropServices::Out] Geodetic% result) {
+        vrf::Geodetic n;
+        bool ok = _facade->TryGetEntityGeodetic(ToStd(uuid), n);
+        Geodetic g;
+        g.LatDeg = n.latDeg; g.LonDeg = n.lonDeg; g.AltMeters = n.altMeters;
+        result = g;
+        return ok;
     }
 
 internal:
@@ -215,6 +310,18 @@ private:
             default:              return vrf::Force::Friendly;
         }
     }
+    static vrf::AggregateState ToNative(AggregateState s) {
+        return (s == AggregateState::Aggregated)
+                   ? vrf::AggregateState::Aggregated
+                   : vrf::AggregateState::Disaggregated;
+    }
+    static vrf::Roe ToNative(Roe r) {
+        switch (r) {
+            case Roe::HoldFire:           return vrf::Roe::HoldFire;
+            case Roe::FireWhenFiredUpon:  return vrf::Roe::FireWhenFiredUpon;
+            default:                      return vrf::Roe::FireAtWill;
+        }
+    }
     static vrf::Geodetic ToNative(Geodetic g) {
         vrf::Geodetic n;
         n.latDeg = g.LatDeg; n.lonDeg = g.LonDeg; n.altMeters = g.AltMeters;
@@ -226,6 +333,21 @@ private:
         n.category = t.Category; n.subcategory = t.Subcategory;
         n.specific = t.Specific; n.extra = t.Extra;
         return n;
+    }
+    static std::vector<vrf::Geodetic> ToNativePoints(IEnumerable<Geodetic>^ pts) {
+        std::vector<vrf::Geodetic> out;
+        if (pts != nullptr) for each (Geodetic g in pts) out.push_back(ToNative(g));
+        return out;
+    }
+    static std::vector<vrf::ScriptVar> ToNativeVars(IEnumerable<ScriptVar>^ vars) {
+        std::vector<vrf::ScriptVar> out;
+        if (vars != nullptr) for each (ScriptVar v in vars) {
+            if (v.Kind == ScriptVarKind::ObjectUuid)
+                out.push_back(vrf::ScriptVar::Object(ToStd(v.Name), ToStd(v.UuidValue)));
+            else
+                out.push_back(vrf::ScriptVar::Number(ToStd(v.Name), v.RealValue));
+        }
+        return out;
     }
 };
 

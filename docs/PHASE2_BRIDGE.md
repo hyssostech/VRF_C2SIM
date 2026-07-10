@@ -111,8 +111,14 @@ Mechanism + the one gotcha:
    `C:\MAK\vrforces5.0.2\bin64;C:\MAK\vrlink5.8\bin64;C:\MAK\makRti4.6b\bin` on PATH.
    The seam (net10 -> C++/CLI -> native facade -> MAK DLLs, in-process) is PROVEN.
 2. CALLBACKS slice - DONE (2026-07-09). See "What slice 2 adds" above.
-3. Fill out the remaining facade surface (aggregates, waypoint/route/control area,
-   the other setters, MoveToLocation, scripted task/set, TryGetEntityGeodetic).
+3. Fill out the remaining facade surface - DONE (2026-07-09). VrfBridge now mirrors
+   the full command + observation API: CreateAggregate (+ convenience overload),
+   CreateWaypoint / CreateRoute / CreateControlArea (IEnumerable<Geodetic>),
+   SetAltitude / SetLocation / SetTarget / SetRulesOfEngagement, SetExerciseStartTime,
+   MoveToLocation, RunScriptedTask / SendScriptedSet (IEnumerable<ScriptVar>),
+   TryGetEntityGeodetic ([Out] Geodetic%). Transition-only facade members
+   (StartAdopting / GetController / GetExConn / RegisterInboundCallbacks) are
+   intentionally NOT exposed - the port owns the controller via Start. Builds 0/0.
 4. The .NET app: host the C2SIM SDK (event-driven: InitializationReceived /
    ObjectInitializationReceived / OrderReceived / ReportReceived in; PushReportMessage
    / PushCommand out) and drive VrfBridge. This is Phase 3-4 - the two-layer
