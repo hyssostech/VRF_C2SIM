@@ -79,6 +79,27 @@ crosses the managed boundary; only POD marshalled via `msclr/marshal_cppstd.h`.
 Deliberately partial - the point of slice 1 was to retire the "does the real facade
 compile+link as a /clr:netcore DLL under the HLA set" risk. It does.
 
+## What slice 2 adds (inbound callbacks) - DONE
+
+The facade's 4 `std::function` members are wired (in the ctor, BEFORE Start) to
+managed events: `ObjectCreated`, `TextReport`, `TaskCompleted` (with typed
+`*EventArgs`) and `ScenarioClosed`. Verified: a .NET consumer subscribes and the
+bridge still loads + constructs + disposes clean (smoke EXITCODE 0). Firing them
+end-to-end needs a live scenario (a later step).
+
+Mechanism + the one gotcha:
+- A managed member function may NOT define a lambda (local class) - `error C3923`.
+  So the callback bodies are namespace-scope NATIVE functor structs
+  (`ObjectCreatedThunk` etc.), each holding an `msclr::gcroot<VrfBridge^>`, assigned
+  to the facade's `std::function`s. Their `operator()` marshals the POD payload and
+  raises the event.
+- Dispatch is SYNCHRONOUS on the VR-Forces tick thread (Phase 1 parity). A UI
+  consumer must marshal to its thread; a console/service handles it inline.
+- LIFETIME: the native facade holds a gcroot to the managed bridge, so the bridge
+  is rooted for the facade's lifetime. The consumer MUST Dispose the bridge (which
+  deletes the facade, releasing the gcroots). The .NET app owns one long-lived
+  bridge and disposes it - fine. Do not abandon a bridge undisposed.
+
 ## Next (ordered)
 
 1. RUNTIME SMOKE - DONE (2026-07-09). `src/SmokeTest` constructs + disposes VrfBridge
@@ -89,10 +110,7 @@ compile+link as a /clr:netcore DLL under the HLA set" risk. It does.
    null-safe. Run: `dotnet build src/SmokeTest -c Release` then run the exe with
    `C:\MAK\vrforces5.0.2\bin64;C:\MAK\vrlink5.8\bin64;C:\MAK\makRti4.6b\bin` on PATH.
    The seam (net10 -> C++/CLI -> native facade -> MAK DLLs, in-process) is PROVEN.
-2. CALLBACKS slice: wire the facade's 4 `std::function` members
-   (OnObjectCreated/OnTextReport/OnTaskCompleted/OnScenarioClosed) to managed events
-   via a native lambda capturing `gcroot<VrfBridge^>`. Phase-1 parity keeps the
-   dispatch synchronous (on the VRF tick thread); a later step marshals off-thread.
+2. CALLBACKS slice - DONE (2026-07-09). See "What slice 2 adds" above.
 3. Fill out the remaining facade surface (aggregates, waypoint/route/control area,
    the other setters, MoveToLocation, scripted task/set, TryGetEntityGeodetic).
 4. The .NET app: host the C2SIM SDK (event-driven: InitializationReceived /

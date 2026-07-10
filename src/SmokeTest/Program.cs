@@ -14,6 +14,15 @@ try
     {
         Console.WriteLine("[PASS] new VrfBridge() - IJW load + native vrf::VrfFacade constructed in-process");
         Console.WriteLine($"       BackendCount() before Start = {bridge.BackendCount()} (expected 0)");
+
+        // Subscribe to the inbound events (slice 2). We cannot FIRE them without a
+        // live VR-Forces + a running scenario, but subscribing proves the managed
+        // event surface is consumable and the gcroot callback thunks are wired.
+        bridge.ObjectCreated  += (s, e) => Console.WriteLine($"       ObjectCreated: {e.Name} -> {e.Uuid}");
+        bridge.TaskCompleted  += (s, e) => Console.WriteLine($"       TaskCompleted: {e.UnitMarking} / {e.TaskType}");
+        bridge.TextReport     += (s, e) => Console.WriteLine($"       TextReport: {e.Text}");
+        bridge.ScenarioClosed += (s, e) => Console.WriteLine("       ScenarioClosed");
+        Console.WriteLine("[PASS] subscribed to ObjectCreated / TaskCompleted / TextReport / ScenarioClosed");
     }
     Console.WriteLine("[PASS] dispose - native facade teardown (~VrfFacade -> Stop) ran without fault\n");
     Console.WriteLine("SMOKE PASSED - the managed bridge loads and the native facade lives in-process under net10.");
