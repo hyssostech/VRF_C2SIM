@@ -115,3 +115,51 @@ not depend on this run. Its real home is the .NET port (VRF_C2SIM), whose STOMP 
 .NET SDK - which demonstrably works (PushInit). Decision: do NOT sink more time into the
 deprecated-C++ live proof. If a visual is later deemed essential, the next lever is a full
 Docker Desktop / container RECREATE (not just restart), which is disruptive.
+
+## 7. Running the .NET PORT (VrfC2SimApp) live - hard-won 2026-07-10
+
+First live bring-up of the .NET port. The C2SIM server had been removed; redeployed from
+`Downloads/Docker.zip` (c2sim-docker-4.8.4.9-rev1 + c2simFiles-v3) per its `.docx`:
+`docker image load -i c2sim-docker-4.8.4.9-rev1.tar.gz`, untar c2simFiles, then
+`docker run -d --name c2sim-server -v "<host>\c2simFiles\c2simFiles":/opt/c2simFiles -p 8080:8080 -p 61613:61613 <imageId>`.
+Verify: REST `http://127.0.0.1:8080/C2SIMServer` -> HTTP 200; 8080/61613 open + fast.
+
+LAUNCH ENV that actually works (four things the offline docs got wrong or omitted):
+1. **Runtime RTI must be 4.6.1, NOT 4.6b.** VR-Forces' rtiexec is `C:\MAK\makRti4.6.1`
+   (`MAK_RTIDIR`/`RTI_RID_FILE` both 4.6.1). The bridge is *built* against 4.6b libs but
+   runs fine on 4.6.1 (proven: the app logged "Using MAK ... RTI version 4.6.1" and joined).
+   So PATH = `C:\MAK\vrforces5.0.2\bin64;C:\MAK\vrlink5.8\bin64;C:\MAK\makRti4.6.1\bin;...`.
+   (The START_HERE/APP.md offline PATH lists 4.6b - fine for `--parse-*` which only LOAD the
+   DLLs, WRONG for a live join, which must match the federation's RTI = 4.6.1.)
+2. **`MAKLMGRD_LICENSE_FILE` must point at the RENEWED license.** A shell may inherit a STALE
+   session value pointing at a now-deleted expired `.lic` -> the RTI/VR-Link license checkout
+   HANGS in `bridge.Start()` before any socket (low CPU, threads decreasing, 0 connections).
+   Fix: `$env:MAKLMGRD_LICENSE_FILE = [Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','Machine')`.
+3. **cwd must be `C:\MAK\vrforces5.0.2\bin64`** (as for the C++ interface) so Legion finds
+   `vrfLegion.lua` + terrain data. Wrong cwd -> `FATAL[Legion] ... vrfLegion.lua ... No such file`
+   then an SEHException. Since the .NET host loads appsettings from cwd, pass
+   `--contentRoot="<exe dir>"` so config still loads while cwd = VRF bin64.
+4. **FED file + FOM modules MUST match VR-Forces**, else `bridge.Start()` crashes `0xC0000005`
+   after "addInteractionCallback - bad class name: Data/RadioSignal.*/Comment" (missing FOM
+   class handles). Set in appsettings `Vrf`: `FedFileName=RPR_FOM_v2.0_1516-2010.xml`,
+   `FomModules=[MAK-VRFExt-6_evolved.xml, MAK-DIGuy-7_evolved.xml, MAK-LgrControl-2_evolved.xml]`
+   (all resolve from VRF bin64). Read VR-Forces' own `--fedFileName/--fomModules` off its
+   command line if they differ. Use a FRESH `Vrf__ApplicationNumber` each run (stale-federate).
+
+With all four, the app JOINS HLA (RTI ports established, no crash) and logs "Connected to
+C2SIM". Clean stop: `tools/StopIface` drives the server STOP->RESET->UNINITIALIZED (the
+RUNBOOK sec-4 tool, now built) - the interface is meant to catch UNINITIALIZED and resign.
+
+TWO OPEN PORT GAPS found at this point (block a full golden-trace run; NOT env issues):
+- **No late-join.** The app subscribes to future broadcasts but never QUERYINITs the CURRENT
+  init on connect, so a push-init-first flow leaves it with 0 units. FIX: after `_sdk.Connect()`,
+  call `_sdk.JoinSession()` (REST QUERYINIT, returns the shared `C2SIMInitializationBody`) and
+  feed it through the OnInitialization path (wrap in `<MessageBody>` or make InitParser accept
+  the bare init body).
+- **App receives NO STOMP broadcasts.** Connected to 61613 but got neither the init nor the
+  STOP/RESET status (so OnStatusChanged never fired -> no clean resign; had to graceful-taskkill,
+  which does NOT run the shutdown/resign -> possible stale federate). NOT a ProtocolVersion
+  filter (the SDK dispatch at C2SIMSSDK.cs:647 keys only on body element name, no version gate).
+  The C++ interface DOES receive the UNINITIALIZED broadcast (sec 4), so this is a .NET-SDK
+  STOMP-subscription-vs-Apollo-broker issue to root-cause (start with C2SIMClientSTOMPLib
+  Connect/Subscribe against the real Apollo broker; the SDK's own tests use a FAKE broker).
