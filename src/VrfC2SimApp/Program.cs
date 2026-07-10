@@ -15,6 +15,10 @@ using VrfC2SimApp;
 if (args.Length > 0 && args[0] == "--translator-selftest")
     return TranslatorSelfTest.Run();
 
+// Offline init-parse check: parse a C2SIM init file and print a summary (no bridge).
+if (args.Length >= 2 && args[0] == "--parse-init")
+    return InitParseCheck.Run(args[1]);
+
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddHostedService<VrfC2SimService>();
 await builder.Build().RunAsync();

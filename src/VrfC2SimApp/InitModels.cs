@@ -18,6 +18,7 @@ public record InitUnit
     public string DisEntityType { get; init; } = "";    // "k.d.c.cat.sub.spec.extra"
     public int DisDomain { get; init; }
     public string DirectionPhi { get; init; } = "";     // heading source (may be empty)
+    public string SuperiorUuid { get; init; } = "";     // for the missing-coords fallback
 }
 
 /// <summary>A tactical area / control graphic (perimeter of geodetic points).</summary>

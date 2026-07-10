@@ -66,11 +66,22 @@ Init translation core - DONE + VERIFIED (2026-07-09):
   SetAltitude applied on ObjectCreated (async analog of C++ waitForData+SetAltitude).
 - Verified by `--translator-selftest` (18 cases, all pass) - no VR-Forces needed.
 
+Init parse - DONE + VERIFIED (2026-07-09):
+- `InitParser` DESERIALIZES the init into the SDK's XSD-generated schema types
+  (C2SIM.Schema102 via ToC2SIMObject) - it follows the C2SIM schema, NOT the shape of
+  any one sample - then collects Unit/ForceSide/TacticalArea from the typed graph and
+  reads typed properties. Domain behavior mirrors the C++: first-ForceSide-is-blue
+  hostility, SystemEntityList -> SystemName, and the order-dependent superior-unit
+  coordinate cascade for units missing their own lat/lon.
+- Verified offline against the golden-trace STP init (`--parse-init`): 80 units,
+  49 creatable (clientId STP), 4 areas - matching the golden trace's 49 creates + 4 areas.
+- OnInitialization now runs end-to-end (parse -> translate -> enqueue Create*), pending
+  a LIVE run for the final visual/parity confirmation.
+
 TODO - the Phase 4 PARITY PORT (the real content; each maps to a C++ source):
-1. `InitParser.Parse` <- C2SIMxmlHandler: extract InitUnit/InitArea from the init XML
-   (element map documented in InitParser.cs). The last piece before OnInitialization
-   runs end-to-end: stable UUID-ordered iteration, superior-unit lat/lon fallback,
-   name assignment when empty.
+1. `InitParser` refinements: parse `DirectionPhi` if a schema instance carries it;
+   handle schema versions beyond 1.0.2 (select by the SDK ProtocolVersion) if servers
+   send them; empty-name assignment. None block the golden-trace scenario.
 2. `OnOrder` <- executeTask: parse tasks, resolve taskee C2SIM uuid -> VRF uuid,
    enqueue tasking. Bare `MoveAlongRoute` first (parity), THEN the two-layer
    TaskActionCode -> vrftask mapping (PORT.md sec 10 / TASK_EXPANSION_PLAN.md).
