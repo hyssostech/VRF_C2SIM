@@ -170,10 +170,21 @@ PORT GAPS found + FIXED this session (the app now runs live end-to-end):
 - Also aligned appsettings `C2SIM` to the proven tool values: `ProtocolVersion=CWIX2024v1.0.2`,
   `RestPassword=v0lgenau` (for the REST GetStatus/QUERYINIT/report-push calls).
 
-ONE REMAINING ITEM (does not block the pipeline): tasking `14.MechBn` (the golden order) ABANDONS
-at point 0 - `TryGetEntityGeodetic` returns false for that DISAGGREGATED aggregate (the known
-"frozen" unit, PORT.md sec 5). Everything upstream works (order received -> parsed -> taskee
-resolved to its VRF uuid). Likely the disaggregated-aggregate reflection edge case (the port's
-dynamic_cast/aggregateStateRep may be stricter than the C++ static_cast, or the reflected object
-isn't available yet) - next: try an ENTITY-level taskee to isolate aggregate-vs-timing, and
-compare against the C++ static_cast behavior for a disaggregated set.
+LIVE-PROVEN end to end (run 3212): tasking the ENTITY 1.BdeHQ ran the FULL chain - point-0
+geodetic read -> CreateRoute (3 pts) -> deferred MoveAlongRoute (fired on the route's
+ObjectCreated). So the pipeline is complete for entity units.
+
+AGGREGATE geodetic (14.MechBn) - isolated + FIXED (verification pending): with entities
+well-settled the entity tasks fine but 14.MechBn still ABANDONED at point 0, so it is
+aggregate-specific, NOT timing. Cause: the port's dynamic_cast<DtReflectedAggregate*> misses
+the disaggregated aggregate (concrete reflected type / RTTI across the MAK DLL boundary), where
+the C++ oracle's blind static_cast read the base myStateRep and worked. FIX applied in
+VrfFacade::TryGetEntityGeodetic: after the typed entity/aggregate casts, fall back to the C++
+static_cast base-state read. Builds 0/0. NOT yet live-verified: the very next run's creates
+fired ZERO ObjectCreated callbacks - the federation had DEGRADED after ~5 runs (accumulated
+VR-Forces entities + the early force-killed 3210 federate). Recover per sec 5 (reload the
+VR-Forces scenario in the GUI to clear accumulated entities / stale federates), then re-run
+the golden move order and confirm 14.MechBn tasks (point 0 -> route -> move -> TASKCMPLT).
+OPERATIONAL NOTE for repeated live runs: entities VR-Forces creates on the interface's behalf
+PERSIST across a clean interface resign; several back-to-back runs accumulate them and can stop
+new creates from reflecting - reload the scenario between heavy runs.

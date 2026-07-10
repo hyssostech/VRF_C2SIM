@@ -478,6 +478,14 @@ bool VrfFacade::TryGetEntityGeodetic(const std::string& uuid, Geodetic& out) con
         sr = ent->entityStateRep();
     else if (DtReflectedAggregate* agg = dynamic_cast<DtReflectedAggregate*>(obj))
         sr = agg->aggregateStateRep();
+    // Parity fallback: the C++ oracle getUnitGeodeticFromSim read the base state repository
+    // via a BLIND static_cast to DtReflectedEntity* and it worked for a disaggregated
+    // aggregate (11/14.MechBn moved, PORT.md sec 5). Live-verified here: the typed path
+    // resolves entities, but the aggregate dynamic_cast misses (concrete reflected type /
+    // RTTI across the MAK DLL boundary), so 14.MechBn abandoned. static_cast reads the same
+    // base-offset myStateRep, so location() still yields the object's location.
+    if (!sr)
+        sr = static_cast<DtReflectedEntity*>(obj)->entityStateRep();
     if (!sr) return false;
     DtVector geoLocation = sr->location();
     DtGeodeticCoord geod;
