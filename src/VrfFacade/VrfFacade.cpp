@@ -27,6 +27,8 @@
 #include <vrftasks/textReport.h>
 #include <vl/exerciseConn.h>
 #include <vl/reflectedEntity.h>
+#include <vl/reflectedAggregate.h>
+#include <vl/aggregateStateRepository.h>
 #include <vlutil/vlProcessControl.h>
 #include <vrftasks/scriptedTaskTask.h>
 #include <vrftasks/scriptedTaskSet.h>
@@ -461,11 +463,23 @@ bool VrfFacade::TryGetEntityGeodetic(const std::string& uuid, Geodetic& out) con
     if (!p_->uuidMgr) return false;
     DtReflectedObject* obj = p_->uuidMgr->reflectedObjectFor(DtUUID(uuid));
     if (!obj) return false;
-    DtReflectedEntity* ent = dynamic_cast<DtReflectedEntity*>(obj);
-    if (!ent) return false;
-    DtEntityStateRepository* esr = ent->entityStateRep();
-    if (!esr) return false;
-    DtVector geoLocation = esr->location();
+
+    // Resolve the location from EITHER an entity or an aggregate. The C++ oracle
+    // getUnitGeodeticFromSim static_cast'd every reflected object to DtReflectedEntity*
+    // (wrong-type UB for an aggregate, but it happened to yield a usable location, so the
+    // disaggregated aggregate 11.MechBn moved - PORT.md sec 5/8). This port handles the
+    // aggregate case PROPERLY: DtReflectedAggregate exposes aggregateStateRep(), whose
+    // DtAggregateStateRepository shares DtBaseEntityStateRepository::location() with an
+    // entity's DtEntityStateRepository - so both paths return the same geocentric vector.
+    // Without this, dynamic_cast<DtReflectedEntity*> returns null for an aggregate and the
+    // caller ABANDONS the task, breaking the golden aggregate-move.
+    DtBaseEntityStateRepository* sr = nullptr;
+    if (DtReflectedEntity* ent = dynamic_cast<DtReflectedEntity*>(obj))
+        sr = ent->entityStateRep();
+    else if (DtReflectedAggregate* agg = dynamic_cast<DtReflectedAggregate*>(obj))
+        sr = agg->aggregateStateRep();
+    if (!sr) return false;
+    DtVector geoLocation = sr->location();
     DtGeodeticCoord geod;
     geod.setGeocentric(geoLocation);
     out.latDeg = geod.lat() * kDegRadFactor;

@@ -62,8 +62,10 @@ Three locations are in play:
     point 0 -> inline route points -> ROE + parity-no-op SetTarget -> CreateRoute +
     deferred MoveAlongRoute. `--parse-order` matches ALL golden orders. Deferred: reports,
     the two-layer vrftask map, the formation spike, delay/predecessor sequencing.
-  - REMAINING: reports <- reportCallback (+ busy-wait -> completion-with-timeout);
-    reconcile the facade's aggregate TryGetEntityGeodetic (PORT.md sec 8); then a LIVE run.
+  - Facade aggregate `TryGetEntityGeodetic` reconcile DONE (2026-07-10): resolves point 0
+    from an entity OR an aggregate (aggregateStateRep), so the golden 11.MechBn aggregate-
+    move no longer abandons. Builds 0/0; live confirmation pends the run.
+  - REMAINING: reports <- reportCallback (+ busy-wait -> completion-with-timeout); then a LIVE run.
 
 The aggregate-movement fix (`SetAggregateFormation(uuid,"Wedge")` before move; PORT.md
 sec 10) lives in the port's `src/VrfFacade/`. The C++ live proof was never landed and
@@ -140,10 +142,7 @@ Continue the Phase 4 parity port in `VrfC2SimService` (docs/APP.md "What is DONE
    position reports and `PushReportMessage`. Pairs with converting the C++ busy-waits to
    TaskCompletionSource + timeout, and re-homes task delay/predecessor SEQUENCING here
    (OnOrder currently parses timing but executes immediately).
-2. Reconcile the facade's aggregate `TryGetEntityGeodetic` (dynamic_cast -> null for a
-   DtReflectedAggregate) so a disaggregated aggregate's live location resolves for OnOrder
-   point 0 - else the golden 11.MechBn aggregate-move abandons (PORT.md sec 8).
-3. LIVE run + golden-trace parity diff (needs the runtime env - RUNBOOK).
+2. LIVE run + golden-trace parity diff (needs the runtime env - RUNBOOK).
 
 Keep `docs/PORT.md` + `docs/APP.md` current AS you work; after any context compaction
 re-read them before deciding anything.

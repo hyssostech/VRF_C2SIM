@@ -100,12 +100,17 @@ Order translation (bare movement) - DONE + VERIFIED offline (2026-07-10):
 - NOT in this slice (deliberate): the two-layer TaskActionCode -> vrftask mapping
   (PORT.md sec 10), the formation spike, the report/TASKCMPLT path, and delay/predecessor
   SEQUENCING (parsed + warned, but executed immediately; the golden orders carry 0 timing).
-- LIVE-RUN RISKS to resolve before the parity run: (a) `TryGetEntityGeodetic` uses
-  dynamic_cast in the port facade -> returns null for a DISAGGREGATED AGGREGATE, so the
-  golden aggregate-move (11.MechBn) would hit ABANDON TASK until the facade is reconciled
-  (PORT.md sec 8); (b) taskee resolution shares `_vrfUuidByName` with the create
-  correlation - if VRF truncates markings to 10 chars while plan.Name is the full name,
-  names >10 chars would miss (the STP scenario pins max-name-length to 10, so golden is safe).
+- LIVE-RUN RISKS: (a) RESOLVED (2026-07-10) - the facade's `TryGetEntityGeodetic` now
+  resolves the location from EITHER a DtReflectedEntity (entityStateRep) OR a
+  DtReflectedAggregate (aggregateStateRep), both sharing DtBaseEntityStateRepository::
+  location(), so a disaggregated aggregate's point 0 resolves and the golden 11.MechBn
+  aggregate-move no longer abandons. This is numerically identical to the C++ oracle
+  (its UB static_cast and this dynamic_cast read the SAME myStateRep->location()), just
+  without the undefined behavior. Builds 0/0 under the HLA MAK set; runtime (live
+  aggregate) confirmation still pends the live run. (b) taskee resolution shares
+  `_vrfUuidByName` with the create correlation - if VRF truncates markings to 10 chars
+  while plan.Name is the full name, names >10 chars would miss (the STP scenario pins
+  max-name-length to 10, so golden is safe).
 
 TODO - the Phase 4 PARITY PORT (the real content; each maps to a C++ source):
 1. `InitParser` refinements: parse `DirectionPhi` if a schema instance carries it;
@@ -119,9 +124,8 @@ TODO - the Phase 4 PARITY PORT (the real content; each maps to a C++ source):
    types (setTarget), completion futures with timeout (not busy-wait), aggregate
    health/heading. The bridge already exposes the seams for these.
 4. Parse StatusChanged via a deserialized SystemState (not a substring test).
-5. Reconcile the facade's `TryGetEntityGeodetic` aggregate handling (dynamic_cast ->
-   null for DtReflectedAggregate) so a disaggregated aggregate's live location resolves
-   for OnOrder point 0 (else the golden aggregate-move abandons; PORT.md sec 8).
+5. DONE (2026-07-10): facade `TryGetEntityGeodetic` now handles aggregates (see the
+   Order-translation risk (a) note above).
 
 ## Run (once the parity port lands; needs the live env - RUNBOOK)
 

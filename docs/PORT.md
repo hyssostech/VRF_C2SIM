@@ -432,13 +432,15 @@ Do not re-add it.
     `--parse-order` against ALL golden orders. NOT included (deferred): the two-layer
     TaskActionCode->vrftask map (sec 10), the formation spike, reports, and delay/
     predecessor SEQUENCING (parsed+warned, executed immediately - golden orders are 0-timing).
-    LIVE-RUN BLOCKER carried forward: the facade's dynamic_cast TryGetEntityGeodetic
-    returns null for a disaggregated aggregate -> golden 11.MechBn would ABANDON TASK
-    until reconciled (this section, Phase 1 note). See docs/APP.md.
+  - Facade aggregate-geodetic reconcile DONE (2026-07-10): `TryGetEntityGeodetic` now
+    resolves the location from a DtReflectedEntity (entityStateRep) OR a
+    DtReflectedAggregate (aggregateStateRep) - both share DtBaseEntityStateRepository::
+    location(), so a disaggregated aggregate's point 0 resolves and 11.MechBn no longer
+    abandons. Numerically identical to the oracle's UB static_cast (same myStateRep->
+    location()) but type-safe. Builds 0/0; live-aggregate confirmation pends the live run.
   - REMAINING: reports <- reportCallback (+ busy-wait -> completion-with-timeout, which
-    also re-homes task delay/predecessor sequencing); reconcile the facade aggregate-
-    geodetic path; THEN the semantic-mapping layer (bare movement projector -> real
-    vrftasks) - see sec 10. Roadmap in docs/APP.md "What is DONE vs TODO".
+    also re-homes task delay/predecessor sequencing); THEN the semantic-mapping layer
+    (bare movement projector -> real vrftasks) - see sec 10. Roadmap in docs/APP.md.
 - **Phase 5 - parity**: diff .NET vs C++ message streams against the golden trace (LIVE run).
 
 ---
