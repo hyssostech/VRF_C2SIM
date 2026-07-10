@@ -1,0 +1,253 @@
+/*----------------------------------------------------------------*
+|  VrfFacade.h                                                     |
+|                                                                  |
+|  A pure-native C++ boundary around the MAK VR-Forces remote      |
+|  control API. It exposes ONLY std:: and POD types - no Dt* MAK   |
+|  types appear here - so a C++/CLI (.NET) layer, or an            |
+|  out-of-process adapter, can consume it without seeing the       |
+|  boost-heavy MAK headers. Every MAK type stays inside            |
+|  VrfFacade.cpp behind a pimpl.                                   |
+|                                                                  |
+|  Phase 1 goal: the existing C2SIM interface is rebuilt on top    |
+|  of this facade with behavior unchanged (verified against the    |
+|  golden trace). No C2SIM / STOMP / Xerces logic lives here -     |
+|  this is strictly the VR-Forces control + observation surface    |
+|  the interface actually uses at runtime.                         |
+*-----------------------------------------------------------------*/
+
+#pragma once
+
+#include <string>
+#include <vector>
+#include <functional>
+
+namespace vrf {
+
+// ------------------------------------------------------------------
+// POD value types (degrees / metres; no MAK types)
+// ------------------------------------------------------------------
+
+// Geodetic position. Latitude/longitude in DEGREES, altitude in metres.
+// The facade converts to/from MAK's geocentric DtVector internally.
+struct Geodetic {
+    double latDeg = 0.0;
+    double lonDeg = 0.0;
+    double altMeters = 0.0;
+};
+
+// DIS entity-type 7-tuple (kind, domain, country, category,
+// subcategory, specific, extra) - exactly the DtEntityType arguments.
+struct EntityTypeSpec {
+    int kind = 0, domain = 0, country = 0, category = 0,
+        subcategory = 0, specific = 0, extra = 0;
+};
+
+enum class Force { Friendly, Opposing, Neutral };
+
+enum class Roe { FireAtWill, HoldFire, FireWhenFiredUpon };
+
+// How an aggregate is created. The current interface always uses
+// Disaggregated + createSubordinates=true; both are exposed here so the
+// port can change them without editing the facade (see golden-trace note
+// on aggregate movement).
+enum class AggregateState { Aggregated, Disaggregated };
+
+// One variable of a VR-Forces scripted task (Lua). Either an object
+// reference (by UUID) or a real number, matching DtRwObjectName / DtRwReal.
+struct ScriptVar {
+    enum class Kind { ObjectUuid, Real } kind = Kind::Real;
+    std::string name;        // e.g. "pickupPoint", "altitudeAgl"
+    std::string uuidValue;   // used when kind == ObjectUuid
+    double      realValue = 0.0; // used when kind == Real
+
+    static ScriptVar Object(const std::string& n, const std::string& uuid) {
+        ScriptVar v; v.kind = Kind::ObjectUuid; v.name = n; v.uuidValue = uuid; return v;
+    }
+    static ScriptVar Number(const std::string& n, double val) {
+        ScriptVar v; v.kind = Kind::Real; v.name = n; v.realValue = val; return v;
+    }
+};
+
+// ------------------------------------------------------------------
+// Startup configuration (replaces the synthetic vrfArgv[] in main.cxx)
+// ------------------------------------------------------------------
+
+enum class Protocol { DIS, HLA1516e };
+
+struct StartupConfig {
+    Protocol protocol = Protocol::HLA1516e;
+
+    // Common
+    int applicationNumber = 3201;
+    int siteId = 1;
+    int sessionId = 1;
+    std::string hostInetAddr = "127.0.0.1"; // controller host address (setHostInetAddr)
+
+    // DIS
+    std::string deviceAddress = "127.0.0.1"; // --deviceAddress (broadcast/loopback)
+    int disVersion = 7;
+    int disPort = 3000;
+
+    // HLA 1516e
+    std::string federation;                  // --execName
+    std::string fedFileName;                 // --fedFileName (full path)
+    std::vector<std::string> fomModules;     // --fomModules (full paths, in order)
+    std::string rprFomVersion = "2.0";
+};
+
+// ------------------------------------------------------------------
+// Event payloads (POD). Delivered on the VR-Forces message/tick thread,
+// exactly where the corresponding MAK callbacks fire today. (A future
+// .NET layer must copy + marshal these off-thread; Phase 1 keeps the
+// same synchronous dispatch as the current code for behavior parity.)
+// ------------------------------------------------------------------
+
+// Fired when VR-Forces confirms creation of an object the facade requested
+// (entity, aggregate, waypoint, route, control area). Correlate by 'name'.
+struct ObjectCreated {
+    std::string name;      // the unique name passed to Create*
+    std::string entityId;  // DtEntityIdentifier string
+    std::string uuid;      // VRF UUID string (what SetAltitude/tasking use)
+};
+
+// Raw VR-Forces radio "text-report" (Lua-emitted POSITION / OBSERVATION).
+struct TextReport {
+    std::string text;
+};
+
+// VR-Forces "task-completed-report".
+struct TaskCompleted {
+    std::string unitMarking; // transmitter().markingText()
+    std::string taskType;    // taskCompleted().string(), e.g. "move-along"
+};
+
+// ------------------------------------------------------------------
+// The facade
+// ------------------------------------------------------------------
+
+class VrfFacade {
+public:
+    VrfFacade();
+    ~VrfFacade();
+    VrfFacade(const VrfFacade&) = delete;
+    VrfFacade& operator=(const VrfFacade&) = delete;
+
+    // -- lifecycle ------------------------------------------------
+    // Builds the exercise connection + remote controller, registers the
+    // internal callbacks, and joins the federation/DIS network. Returns
+    // false on failure. Must be called once before anything else.
+    bool Start(const StartupConfig& cfg);
+
+    // Transition-only (Phase 1 rewire) alternative to Start: instead of
+    // creating its own controller/exConn/uuidMgr, the facade ADOPTS ones that
+    // the caller already created and still owns. Used while call sites migrate
+    // onto the facade one batch at a time - both the caller's existing path and
+    // the facade drive the same controller, so the build stays green between
+    // batches. The void* args are, in order, a
+    // makVrf::DtVrlinkVrfRemoteController* (pass the BASE pointer), a
+    // DtExerciseConn*, and a makVrf::DtUUIDNetworkManager*. Does NOT register
+    // the inbound callbacks (the caller still owns them during the transition,
+    // so registering here would double-fire) and does NOT take ownership
+    // (Stop() will not delete an adopted controller). Returns false on failure.
+    bool StartAdopting(void* controllerPtr, void* exConnPtr, void* uuidMgrPtr);
+
+    // Transition accessors: hand the facade-owned controller / exercise
+    // connection back to legacy code (textIf) as opaque void* during the
+    // rewire, so textIf->controller() and textIf's exConn keep working while
+    // state reads (getUnitGeodeticFromSim, backends) and a few dead paths still
+    // live in the interface. The void* are a
+    // makVrf::DtVrlinkVrfRemoteController* and a DtExerciseConn*. Removed in
+    // Phase 4 when those uses move into the .NET port.
+    void* GetController() const;
+    void* GetExConn() const;
+
+    // Transition (final flip): register the inbound report / scenario-close
+    // trampolines on the adopted controller, so the facade (not textIf) fires
+    // OnTextReport / OnTaskCompleted / OnScenarioClosed. Only for StartAdopting
+    // mode (Start() already registers them). Call once after StartAdopting AND
+    // remove textIf's own registration, or the callbacks double-fire. (Object-
+    // created stays per-call; it already routes through the facade.)
+    void RegisterInboundCallbacks();
+
+    // Tears down the controller and connection (only those the facade owns;
+    // an adopted controller/exConn is left for its owner to delete).
+    void Stop();
+
+    // One iteration of the drive loop: advances the sim clock, drains
+    // input, and ticks the controller. The caller owns the loop + sleep.
+    void Tick();
+
+    int  BackendCount() const;
+    bool AllBackendsReady() const;
+
+    // -- scenario / simulation control ----------------------------
+    void Run();
+    void Pause();
+    void SetTimeMultiplier(int multiple);
+    void SetExerciseStartTime(int year, int month, int day,
+                              int hour, int minute, int second);
+
+    // -- object creation (asynchronous) ---------------------------
+    // These return immediately; completion arrives via OnObjectCreated
+    // with a matching 'name'. The caller correlates and may then use the
+    // reported uuid for SetAltitude / tasking.
+    void CreateEntity(const EntityTypeSpec& type, const Geodetic& pos,
+                      Force force, double headingDeg, const std::string& name);
+
+    void CreateAggregate(const EntityTypeSpec& type, const Geodetic& pos,
+                         Force force, double headingDeg, const std::string& name,
+                         AggregateState state = AggregateState::Disaggregated,
+                         bool createSubordinates = true);
+
+    void CreateWaypoint(const Geodetic& pos, const std::string& name);
+
+    void CreateRoute(const std::vector<Geodetic>& points, const std::string& name);
+
+    // uuid: the VRF UUID to assign the created tactical graphic. The C2SIM
+    // interface passes the area's C2SIM uuid here today; empty -> nullUUID.
+    void CreateControlArea(const std::vector<Geodetic>& perimeter,
+                           const std::string& name, const std::string& label,
+                           const std::string& uuid = "");
+
+    // -- attribute setters ----------------------------------------
+    void SetAltitude(const std::string& uuid, double altitudeMeters);
+    void SetLocation(const std::string& uuid, const Geodetic& pos); // magic move
+    void SetTarget(const std::string& uuid, const std::string& targetUuid);
+    void SetRulesOfEngagement(const std::string& uuid, Roe roe);
+
+    // -- tasking --------------------------------------------------
+    void MoveToLocation(const std::string& uuid, const Geodetic& pos);
+    void MoveAlongRoute(const std::string& uuid, const std::string& routeUuid);
+
+    // Set an aggregate's formation by name ("Wedge","Column","Line","Vee","Echelon").
+    // Safe no-op on non-aggregate entities. A disaggregated aggregate needs a VALID
+    // formation for its set-maneuver; without one VRF keeps an unresolvable default
+    // and the unit will not move (Phase 4 spike - not parity; see PORT.md sec 10).
+    void SetAggregateFormation(const std::string& uuid, const std::string& formationName);
+
+    // Scripted (Lua) task, sent via a task message (e.g. evacuate_civilians).
+    void RunScriptedTask(const std::string& uuid, const std::string& scriptId,
+                         const std::vector<ScriptVar>& vars);
+
+    // Scripted (Lua) set-data, sent via a set-data message (e.g. set_point_agl).
+    void SendScriptedSet(const std::string& uuid, const std::string& scriptId,
+                         const std::vector<ScriptVar>& vars);
+
+    // -- state read (pure; does NOT task the unit) ----------------
+    // Reads the reflected entity's current geocentric location and returns
+    // it as geodetic. Returns false if no reflected entity exists for the
+    // uuid (e.g. an aggregate, which has no DtReflectedEntity).
+    bool TryGetEntityGeodetic(const std::string& uuid, Geodetic& out) const;
+
+    // -- events (set before Start; called on the VRF message thread) ---
+    std::function<void(const ObjectCreated&)> OnObjectCreated;
+    std::function<void(const TextReport&)>    OnTextReport;
+    std::function<void(const TaskCompleted&)> OnTaskCompleted;
+    std::function<void()>                     OnScenarioClosed;
+
+private:
+    struct Impl;
+    Impl* p_ = nullptr; // all MAK Dt* types live behind here, in VrfFacade.cpp
+};
+
+} // namespace vrf

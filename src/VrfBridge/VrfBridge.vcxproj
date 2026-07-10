@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <ProjectGuid>{C2510001-0001-4E5F-9A0B-000000000001}</ProjectGuid>
+    <RootNamespace>VrfC2Sim</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <!-- MAK install roots (match the C++ interface's HLA vcxproj) -->
+    <VrfDir>C:/MAK/vrforces5.0.2</VrfDir>
+    <VrlDir>C:/MAK/vrlink5.8</VrlDir>
+    <RtiDir>C:/MAK/makRti4.6b</RtiDir>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CLRSupport>NetCore</CLRSupport>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <!-- HLA1516e include set from c2simVRFHLA1516e.vcxproj -->
+      <AdditionalIncludeDirectories>$(VrfDir)/include;$(VrlDir)/include;$(RtiDir)/include/HLA1516E;$(RtiDir)/include;..\VrfFacade;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <!-- HLA1516e consumer defines, matching the interface's Release ClCompile -->
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NO_DFD_SUPPORT;NDEBUG;NOMINMAX;BOOST_NO_RVALUE_REFERENCES;_SCL_SECURE_NO_WARNINGS;_CRT_SECURE_NO_WARNINGS;DT_DLL_BUILD;DT_USE_DLL;DtHLA=1;DtHLA_1516=1;RTI_USES_STD_FSTREAM=1;DtHLA_1516_EVOLVED=1;IS_64BIT;RELEASE_PLUGIN_SUPPORT;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <Optimization>MaxSpeed</Optimization>
+      <!-- /clr requires async EH for the managed TU; native TUs override to Sync below -->
+      <ExceptionHandling>Async</ExceptionHandling>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <!-- boost / VR-Forces headers are loud under /clr; silence the known ones -->
+      <DisableSpecificWarnings>4793;4835;4564;4652;4691;4949;4005;4251;4267;4275;4675;4250</DisableSpecificWarnings>
+      <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <AdditionalLibraryDirectories>$(VrfDir)/lib64;$(VrlDir)/lib64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <!-- HLA1516e link set (facade subset of the interface's Release deps; no xerces/C2SIMClientLib) -->
+      <AdditionalDependencies>vrfcontrol.lib;vrlinkNetworkInterfaceHLA1516e.lib;vrfMsgTransport.lib;vrfExtProtocol.lib;readerWriter.lib;vrfmsgs.lib;vrfplan.lib;vrftasks.lib;vrfutil.lib;vlHLA1516e.lib;vl.lib;vlutil.lib;matrix.lib;mtl.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>build\Release\</OutDir>
+    <IntDir>build\Release\obj\</IntDir>
+    <TargetName>VrfBridge</TargetName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Native TUs: compiled WITHOUT /clr (boost-heavy MAK code), Sync EH to match the interface -->
+    <ClCompile Include="..\VrfFacade\VrfFacade.cpp">
+      <CompileAsManaged>false</CompileAsManaged>
+      <ExceptionHandling>Sync</ExceptionHandling>
+    </ClCompile>
+    <ClCompile Include="..\VrfFacade\remoteControlInit.cxx">
+      <CompileAsManaged>false</CompileAsManaged>
+      <ExceptionHandling>Sync</ExceptionHandling>
+    </ClCompile>
+    <!-- Managed wrapper TU: compiled with /clr:netcore (project default) -->
+    <ClCompile Include="VrfBridge.cpp" />
+    <ClInclude Include="..\VrfFacade\VrfFacade.h" />
+    <ClInclude Include="..\VrfFacade\remoteControlInit.h" />
+  </ItemGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

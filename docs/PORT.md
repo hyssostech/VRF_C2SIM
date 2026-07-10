@@ -402,8 +402,13 @@ Do not re-add it.
     interface's proven `deleteDtList` (save next; delete `list.remove(item)`). Pre-existing
     facade bug (never runtime-tested until the rewire routed area/route creation through
     the facade), not a parity regression.
-- **Phase 2 - managed bridge**: risk RETIRED by spikes #1/#2 (in-process C++/CLI works).
-  Build the real bridge after Phase 1.
+- **Phase 2 - managed bridge**: STARTED 2026-07-09; slice 1 BUILDS GREEN. The real
+  bridge lives in `src/` (VrfFacade native + VrfBridge /clr:netcore DLL). `VrfFacade.cpp`
+  compiles native + `VrfBridge.cpp` compiles /clr:netcore + they LINK into VrfBridge.dll
+  under the full HLA1516e MAK set (0 warn/0 err, VS18 MSBuild) - the central Phase 2 risk
+  is retired against the REAL facade, not just the spikes. Ijwhost.dll auto-copies. Slice 1
+  is the outbound path (lifecycle + CreateEntity + MoveAlongRoute + SetAggregateFormation);
+  callbacks + full surface + runtime-load smoke are next. Full detail: docs/PHASE2_BRIDGE.md.
 - **Phase 3 - C2SIM half on the .NET SDK**: not started.
 - **Phase 4 - glue** (extractC2simInit, executeTask, reportCallback ported to .NET;
   busy-waits -> TaskCompletionSource + timeout): not started. PLUS the semantic-mapping
