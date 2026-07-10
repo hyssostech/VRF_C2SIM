@@ -30,10 +30,19 @@ public static class InitParser
         var data = new InitData();
         if (string.IsNullOrWhiteSpace(xml)) return data;
 
-        S.MessageBodyType body;
-        try { body = C2SIMSDK.ToC2SIMObject<S.MessageBodyType>(xml); }
-        catch { return data; }
-        if (body?.Item is not S.C2SIMInitializationBodyType init) return data;
+        // Root-robust: a pushed init FILE is <MessageBody>-rooted, but the SDK's live
+        // InitializationReceived event (and JoinSession/QUERYINIT) deliver the BARE
+        // <C2SIMInitializationBody>. Try the envelope first, then the bare body directly
+        // (both C2SIMInitializationBodyType carries [XmlRoot], so it deserializes alone).
+        S.C2SIMInitializationBodyType init = null;
+        try { init = C2SIMSDK.ToC2SIMObject<S.MessageBodyType>(xml)?.Item as S.C2SIMInitializationBodyType; }
+        catch { /* not MessageBody-rooted */ }
+        if (init == null)
+        {
+            try { init = C2SIMSDK.ToC2SIMObject<S.C2SIMInitializationBodyType>(xml); }
+            catch { return data; }
+        }
+        if (init == null) return data;
 
         // SystemName: SystemEntityList (ActorReference UUIDs -> SystemName).
         var systemNameByUuid = new Dictionary<string, string>();

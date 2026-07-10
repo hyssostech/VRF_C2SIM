@@ -29,11 +29,19 @@ public static class OrderParser
         var data = new OrderData();
         if (string.IsNullOrWhiteSpace(xml)) return data;
 
-        S.MessageBodyType body;
-        try { body = C2SIMSDK.ToC2SIMObject<S.MessageBodyType>(xml); }
-        catch { return data; }
-        if (body?.Item is not S.DomainMessageBodyType dmb) return data;
-        if (dmb.Item is not S.OrderBodyType order) return data;
+        // Root-robust: an order FILE is <MessageBody><DomainMessageBody><OrderBody>, but
+        // the SDK's live OrderReceived event delivers the BARE <OrderBody> (the dispatch
+        // descends into DomainMessageBody). Try the envelope first, then the bare OrderBody
+        // directly (OrderBodyType carries [XmlRoot], so it deserializes alone).
+        S.OrderBodyType order = null;
+        try { order = (C2SIMSDK.ToC2SIMObject<S.MessageBodyType>(xml)?.Item as S.DomainMessageBodyType)?.Item as S.OrderBodyType; }
+        catch { /* not MessageBody-rooted */ }
+        if (order == null)
+        {
+            try { order = C2SIMSDK.ToC2SIMObject<S.OrderBodyType>(xml); }
+            catch { return data; }
+        }
+        if (order == null) return data;
 
         data.OrderId = (order.OrderID ?? "").Trim();
 

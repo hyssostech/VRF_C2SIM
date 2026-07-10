@@ -150,16 +150,30 @@ With all four, the app JOINS HLA (RTI ports established, no crash) and logs "Con
 C2SIM". Clean stop: `tools/StopIface` drives the server STOP->RESET->UNINITIALIZED (the
 RUNBOOK sec-4 tool, now built) - the interface is meant to catch UNINITIALIZED and resign.
 
-TWO OPEN PORT GAPS found at this point (block a full golden-trace run; NOT env issues):
-- **No late-join.** The app subscribes to future broadcasts but never QUERYINITs the CURRENT
-  init on connect, so a push-init-first flow leaves it with 0 units. FIX: after `_sdk.Connect()`,
-  call `_sdk.JoinSession()` (REST QUERYINIT, returns the shared `C2SIMInitializationBody`) and
-  feed it through the OnInitialization path (wrap in `<MessageBody>` or make InitParser accept
-  the bare init body).
-- **App receives NO STOMP broadcasts.** Connected to 61613 but got neither the init nor the
-  STOP/RESET status (so OnStatusChanged never fired -> no clean resign; had to graceful-taskkill,
-  which does NOT run the shutdown/resign -> possible stale federate). NOT a ProtocolVersion
-  filter (the SDK dispatch at C2SIMSSDK.cs:647 keys only on body element name, no version gate).
-  The C++ interface DOES receive the UNINITIALIZED broadcast (sec 4), so this is a .NET-SDK
-  STOMP-subscription-vs-Apollo-broker issue to root-cause (start with C2SIMClientSTOMPLib
-  Connect/Subscribe against the real Apollo broker; the SDK's own tests use a FAKE broker).
+PORT GAPS found + FIXED this session (the app now runs live end-to-end):
+- **STOMP receive works** - the earlier "receives nothing" was a MISDIAGNOSIS. `tools/StompProbe`
+  (subscribe + hook every event) proved the SDK receives the init + status broadcasts fine, with
+  BOTH the app's `1.0.2` and the tools' `CWIX2024v1.0.2` settings. The app only *looked* dead
+  because of the three real gaps below (it doesn't log raw/received messages).
+- **No late-join (FIXED).** The app only subscribed to FUTURE broadcasts; with push-init-first it
+  created 0 units. FIX: after `_sdk.Connect()`, call `_sdk.JoinSession()` (REST QUERYINIT) and feed
+  the result through `ProcessInitialization`. Verified live: "late-join QUERYINIT ... 49 units".
+- **Parsers assumed `<MessageBody>` root (FIXED).** The SDK's live events deliver the BARE inner
+  body (`<C2SIMInitializationBody>`, `<OrderBody>`), but InitParser/OrderParser (tested on FILES)
+  expected the full envelope -> 0 units / no task on live events. FIX: try the envelope, then the
+  bare body directly (both body types carry `[XmlRoot]`). Verified: init + order both parse live.
+- **Empty status body (FIXED).** The STOMP status broadcast body is empty `<SystemMessageBody/>`
+  and the header has no state, so `OnStatusChanged`'s `e.Body.Contains("UNINITIALIZED")` NEVER
+  matched -> no clean stop. FIX: treat the event as a trigger and read the real state via REST
+  `GetStatus()` (== `C2SIMServerStatus.UNINITIALIZED`). Verified: StopIface -> app resigns clean,
+  rtiexec back to 2 (no stale federate).
+- Also aligned appsettings `C2SIM` to the proven tool values: `ProtocolVersion=CWIX2024v1.0.2`,
+  `RestPassword=v0lgenau` (for the REST GetStatus/QUERYINIT/report-push calls).
+
+ONE REMAINING ITEM (does not block the pipeline): tasking `14.MechBn` (the golden order) ABANDONS
+at point 0 - `TryGetEntityGeodetic` returns false for that DISAGGREGATED aggregate (the known
+"frozen" unit, PORT.md sec 5). Everything upstream works (order received -> parsed -> taskee
+resolved to its VRF uuid). Likely the disaggregated-aggregate reflection edge case (the port's
+dynamic_cast/aggregateStateRep may be stricter than the C++ static_cast, or the reflected object
+isn't available yet) - next: try an ENTITY-level taskee to isolate aggregate-vs-timing, and
+compare against the C++ static_cast behavior for a disaggregated set.

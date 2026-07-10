@@ -131,6 +131,24 @@ public sealed class VrfC2SimService : BackgroundService
             await _sdk.Connect();
             _log.LogInformation("Connected to C2SIM ({Rest} / {Stomp}). clientId={ClientId}.",
                                 _sdk.RestEndpoint, _sdk.StompEndpoint, _vrf.ClientId);
+
+            // Late-join (parity: the C++ interface QUERYINITs at startup, RUNBOOK sec 3):
+            // pull the CURRENT shared init, since the server is typically already RUNNING
+            // with an init pushed BEFORE we connected. STOMP only delivers FUTURE messages,
+            // so without this we would create 0 units.
+            try
+            {
+                string shared = await _sdk.JoinSession();
+                if (!string.IsNullOrWhiteSpace(shared) && shared.Contains("<Unit", StringComparison.Ordinal))
+                    ProcessInitialization(shared, "late-join QUERYINIT");
+                else
+                    _log.LogInformation("Late-join: server has no current init to share ({Len} chars).",
+                                        shared?.Length ?? 0);
+            }
+            catch (Exception ex)
+            {
+                _log.LogWarning("Late-join QUERYINIT failed: {Msg}", C2SIMSDK.GetRootException(ex).Message);
+            }
         }
         catch (Exception e)
         {
@@ -190,24 +208,43 @@ public sealed class VrfC2SimService : BackgroundService
 
     private void OnStatusChanged(object sender, C2SIMSDK.C2SIMNotificationEventParams e)
     {
-        // The interface exits when the server broadcasts UNINITIALIZED (RUNBOOK sec 4).
-        // TODO(parity): deserialize e.Body and switch on SystemStateCode instead of a
-        // substring test.
-        if (e.Body != null && e.Body.Contains("UNINITIALIZED", StringComparison.OrdinalIgnoreCase))
+        // The STOMP status broadcast body is EMPTY (<SystemMessageBody/>) and the header
+        // carries no state - so a substring test on e.Body NEVER matches. Use this event
+        // purely as a trigger and read the real state via REST GetStatus() (which parses
+        // sessionState, like the C++ interface). The interface exits on UNINITIALIZED
+        // (RUNBOOK sec 4) - e.g. driven there by tools/StopIface (STOP then RESET).
+        _ = OnStatusChangedAsync();
+    }
+
+    private async Task OnStatusChangedAsync()
+    {
+        C2SIMSDK.C2SIMServerStatus status;
+        try { status = await _sdk.GetStatus(); }
+        catch (Exception ex)
         {
-            _log.LogInformation("C2SIM server -> UNINITIALIZED; initiating clean stop.");
+            _log.LogWarning("GetStatus failed: {Msg}", C2SIMSDK.GetRootException(ex).Message);
+            return;
+        }
+        _log.LogInformation("C2SIM server state -> {State}.", status);
+        if (status == C2SIMSDK.C2SIMServerStatus.UNINITIALIZED)
+        {
+            _log.LogInformation("Server UNINITIALIZED; initiating clean stop.");
             _life.StopApplication();
         }
     }
 
     private void OnInitialization(object sender, C2SIMSDK.C2SIMNotificationEventParams e)
-    {
-        _log.LogInformation("C2SIM Initialization received ({Len} bytes).", e.Body?.Length ?? 0);
+        => ProcessInitialization(e.Body, "InitializationReceived");
 
-        // Parse (InitParser is a stub until the parse slice lands) then dispatch each
-        // unit through UnitTranslator (the faithful port of extractC2simInit's factories).
+    // Shared by the live InitializationReceived event and the on-connect late-join
+    // (JoinSession/QUERYINIT). Parses the init then dispatches each unit through
+    // UnitTranslator (the faithful port of extractC2simInit's factories).
+    private void ProcessInitialization(string body, string source)
+    {
+        _log.LogInformation("C2SIM Initialization ({Source}, {Len} bytes).", source, body?.Length ?? 0);
+
         InitData init;
-        try { init = InitParser.Parse(e.Body); }
+        try { init = InitParser.Parse(body); }
         catch (Exception ex) { _log.LogError("Init parse failed: {Msg}", ex.Message); return; }
 
         int planned = 0;
