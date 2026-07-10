@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- The C++/CLI bridge. CopyLocal (default) drops VrfBridge.dll beside the exe. -->
+    <Reference Include="VrfBridge">
+      <HintPath>..\VrfBridge\build\Release\VrfBridge.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <!-- IJW bootstrap: required next to the consumer exe for a /clr:netcore assembly.
+         A bare <Reference> does NOT copy it (PORT.md sec 3), so copy it explicitly. -->
+    <None Include="..\VrfBridge\build\Release\Ijwhost.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+</Project>

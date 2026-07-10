@@ -18,6 +18,9 @@ src/
   VrfBridge/
     VrfBridge.vcxproj   /clr:netcore DLL, v143, net10.0, x64
     VrfBridge.cpp       the ONLY managed TU: ref class VrfBridge + POD mirrors
+  SmokeTest/
+    SmokeTest.csproj    net10 console referencing VrfBridge.dll (+ copies Ijwhost.dll)
+    Program.cs          construct + dispose the bridge; the runtime-load proof
 ```
 
 ## Build (verified 2026-07-09, 0 warn / 0 err)
@@ -78,11 +81,14 @@ compile+link as a /clr:netcore DLL under the HLA set" risk. It does.
 
 ## Next (ordered)
 
-1. RUNTIME SMOKE (not yet done): a tiny .NET console that references VrfBridge.dll,
-   does `using (new VrfBridge()) {}` with the MAK bin dirs on PATH. Proves the IJW
-   load + native facade construct in-process (the spike-#2 result, now with the real
-   facade). No VR-Forces needed (construction doesn't Start). This is the honest
-   end-to-end proof of the seam; build-green alone does not prove load.
+1. RUNTIME SMOKE - DONE (2026-07-09). `src/SmokeTest` constructs + disposes VrfBridge
+   with the MAK bin dirs on PATH; EXITCODE 0. The MAK static init ran in-process (the
+   "RDTSCP Timing Probe" line - the spike-#2 signature, now via the REAL facade),
+   `new VrfBridge()` built vrf::VrfFacade over IJW, `BackendCount()` marshalled
+   managed->native->managed (returned 0 pre-Start), and dispose ran ~VrfFacade->Stop()
+   null-safe. Run: `dotnet build src/SmokeTest -c Release` then run the exe with
+   `C:\MAK\vrforces5.0.2\bin64;C:\MAK\vrlink5.8\bin64;C:\MAK\makRti4.6b\bin` on PATH.
+   The seam (net10 -> C++/CLI -> native facade -> MAK DLLs, in-process) is PROVEN.
 2. CALLBACKS slice: wire the facade's 4 `std::function` members
    (OnObjectCreated/OnTextReport/OnTaskCompleted/OnScenarioClosed) to managed events
    via a native lambda capturing `gcroot<VrfBridge^>`. Phase-1 parity keeps the
