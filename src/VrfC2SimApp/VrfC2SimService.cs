@@ -35,6 +35,18 @@ public sealed class VrfC2SimService : BackgroundService
     // (parity: onVrfObjectCreated in C2SIMinterface.cpp).
     private readonly ConcurrentDictionary<string, string> _vrfUuidByName = new();
 
+    // C2SIM unit-uuid -> what we created for it, retained from OnInitialization so OnOrder
+    // can resolve a task's PerformingEntity (a C2SIM uuid) to the VRF object's name (the
+    // _vrfUuidByName key) and its SIDC (for the ground-clamp test). Parity: executeTask
+    // looks the taskee up in the C++ unit map by taskeeUuid (C2SIMinterface.cpp:2044).
+    private readonly ConcurrentDictionary<string, CreatedUnit> _unitByC2SimUuid = new();
+
+    // Route name -> taskee VRF uuid, for a move deferred until the route's ObjectCreated
+    // fires. Mirrors executeTask waiting for the route to register before moveAlongRoute
+    // (C2SIMinterface.cpp:2408-2421): createRoute is async, so MoveAlongRoute cannot be
+    // issued in the same tick as CreateRoute.
+    private readonly ConcurrentDictionary<string, string> _pendingRouteMove = new();
+
     // Commands from SDK-event threads are queued here and executed on the tick thread.
     private readonly ConcurrentQueue<Action> _tickActions = new();
     private volatile bool _stopTick;
@@ -42,6 +54,9 @@ public sealed class VrfC2SimService : BackgroundService
     // Post-create SetAltitude, deferred until ObjectCreated delivers the VRF uuid
     // (parity: the C++ factories waitForData then SetAltitude - here it is async).
     private readonly ConcurrentDictionary<string, double> _pendingAltitude = new();
+
+    /// <summary>What OnInitialization created for one C2SIM unit, so OnOrder can task it.</summary>
+    private readonly record struct CreatedUnit(string Name, string SymbolId, bool IsAggregate);
 
     public VrfC2SimService(ILoggerFactory loggerFactory, IConfiguration config,
                            IHostApplicationLifetime life)
@@ -201,6 +216,9 @@ public sealed class VrfC2SimService : BackgroundService
             if (plan.PostCreateAltitude is double alt)
                 _pendingAltitude[plan.Name] = alt;
 
+            // Retain the taskee lookup so OnOrder can resolve PerformingEntity -> VRF uuid.
+            _unitByC2SimUuid[unit.Uuid] = new CreatedUnit(plan.Name, unit.SymbolId, plan.IsAggregate);
+
             var p = plan;
             _tickActions.Enqueue(() =>
             {
@@ -240,10 +258,129 @@ public sealed class VrfC2SimService : BackgroundService
     private void OnOrder(object sender, C2SIMSDK.C2SIMNotificationEventParams e)
     {
         _log.LogInformation("C2SIM Order received ({Len} bytes).", e.Body?.Length ?? 0);
-        // TODO(parity, Phase 4): port executeTask. Parse the order's tasks; resolve the
-        // taskee C2SIM uuid -> VRF uuid via _vrfUuidByName; enqueue the tasking
-        // (createRoute + MoveAlongRoute today; the two-layer TaskActionCode -> vrftask
-        // mapping is the Phase 4+ enrichment, PORT.md sec 10 / TASK_EXPANSION_PLAN.md).
+
+        // Bare-movement parity port of executeTask (C2SIMinterface.cpp:2028). Parse the
+        // order's tasks; for each, resolve the taskee (PerformingEntity, a C2SIM uuid) to
+        // the unit we created at init, then enqueue the tasking onto the tick thread. The
+        // two-layer TaskActionCode -> vrftask mapping is the Phase 4+ enrichment
+        // (PORT.md sec 10 / TASK_EXPANSION_PLAN.md); this reproduces the bare projector.
+        OrderData order;
+        try { order = OrderParser.Parse(e.Body); }
+        catch (Exception ex) { _log.LogError("Order parse failed: {Msg}", ex.Message); return; }
+
+        foreach (var task in order.Tasks)
+        {
+            if (string.IsNullOrEmpty(task.TaskeeUuid))
+            {
+                _log.LogWarning("Order task '{Name}' has no PerformingEntity - skipping.", task.TaskName);
+                continue;
+            }
+            // Parity: executeTask errors if the taskee was never in the initialization
+            // (C2SIMinterface.cpp:1965). Here the taskee must be one we created at init.
+            if (!_unitByC2SimUuid.TryGetValue(task.TaskeeUuid, out var unit))
+            {
+                _log.LogError("TASKEEUUID {Uuid} NOT FOUND IN C2SIMINITIALIZATION - CANNOT EXECUTE TASK '{Name}'.",
+                              task.TaskeeUuid, task.TaskName);
+                continue;
+            }
+            // Delay / predecessor sequencing EXECUTION is deferred to the completion-future
+            // slice (the busy-wait -> TaskCompletionSource+timeout rework). The golden-trace
+            // order carries zero timing, so immediate dispatch is parity-faithful there;
+            // warn if a non-golden order actually relies on timing.
+            if (task.SimulationStartMs > 0 || task.RelativeDelayMs > 0 || task.StartAfterTaskUuid.Length > 0)
+                _log.LogWarning("Task '{Name}' carries timing (simStartMs={Sim} relDelayMs={Rel} startAfter={After}); " +
+                                "delay/sequencing not yet ported - executing immediately.",
+                                task.TaskName, task.SimulationStartMs, task.RelativeDelayMs,
+                                task.StartAfterTaskUuid.Length == 0 ? "(none)" : task.StartAfterTaskUuid);
+
+            var t = task;
+            var u = unit;
+            _tickActions.Enqueue(() => ExecuteTaskOnTick(t, u));
+        }
+    }
+
+    /// <summary>
+    /// Runs on the VRF tick thread: the bare-movement body of executeTask
+    /// (C2SIMinterface.cpp:2213-2424). Reads the taskee's live location as point 0,
+    /// ground-clamps, appends the task's inline route points, applies ROE + the
+    /// (parity no-op) SetTarget, then MoveToLocation (single point) or CreateRoute +
+    /// deferred MoveAlongRoute.
+    /// </summary>
+    private void ExecuteTaskOnTick(OrderTask task, CreatedUnit unit)
+    {
+        // Resolve the VRF uuid via the created object's name. Parity: executeTask drops
+        // the task if the unit was not created (C2SIMinterface.cpp:2046-2050).
+        if (!_vrfUuidByName.TryGetValue(unit.Name, out var vrfUuid))
+        {
+            _log.LogWarning("DROPPING TASK '{Task}' BECAUSE UNIT {Uuid} ({Name}) WAS NOT CREATED.",
+                            task.TaskName, task.TaskeeUuid, unit.Name);
+            return;
+        }
+
+        // Ground units clamp elevation to 100 (VRF ground-clamping; :2237, :2266, :2290).
+        bool isGround = unit.SymbolId.Length > 2 && unit.SymbolId[2] == 'G';
+
+        // Point 0 = the unit's live location from the sim (getUnitGeodeticFromSim, :2228).
+        // KNOWN LIVE-RUN RISK (PORT.md sec 8): the port facade's TryGetEntityGeodetic uses
+        // dynamic_cast and returns null for a DISAGGREGATED AGGREGATE (DtReflectedAggregate),
+        // whereas the C++ oracle's static_cast returns a location and the aggregate moves.
+        // So this abandon-path may fire for aggregates until the facade is reconciled -
+        // that is the golden-aggregate-move blocker to resolve before the live parity run.
+        if (!_bridge.TryGetEntityGeodetic(vrfUuid, out var live))
+        {
+            _log.LogWarning("ABANDONING TASK '{Task}': could not read live location for {Name} ({Vrf}).",
+                            task.TaskName, unit.Name, vrfUuid);
+            return;
+        }
+
+        var routeGeo = new List<Geodetic>
+        {
+            new() { LatDeg = live.LatDeg, LonDeg = live.LonDeg, AltMeters = isGround ? 100.0 : live.AltMeters }
+        };
+
+        // Parity: no route points -> error, cannot execute (:2206-2210).
+        if (task.Points.Count == 0)
+        {
+            _log.LogError("NO LOCATION GIVEN - CAN'T EXECUTE TASK '{Task}'.", task.TaskName);
+            return;
+        }
+        foreach (var p in task.Points)
+            routeGeo.Add(new Geodetic
+            {
+                LatDeg = p.Lat,
+                LonDeg = p.Lon,
+                AltMeters = isGround ? 100.0 : (p.Elev ?? 0.0)
+            });
+
+        // Rules of engagement (:2374-2379): ROEFree -> FireAtWill, ROEHold -> HoldFire,
+        // everything else (incl. ROETight) -> FireWhenFiredUpon.
+        Roe roe = task.RuleOfEngagementCode == "ROEFree" ? Roe.FireAtWill
+                : task.RuleOfEngagementCode == "ROEHold" ? Roe.HoldFire
+                : Roe.FireWhenFiredUpon;
+        _bridge.SetRulesOfEngagement(vrfUuid, roe);
+
+        // SetTarget - PARITY of the known bug (PORT.md sec 6, C2SIMinterface.cpp:2385):
+        // the C++ passes the C2SIM taskee uuid where VRF expects a VRF uuid, plus the
+        // affected entity's C2SIM uuid, so it is a silent no-op in VRF. Reproduced here;
+        // the fix (distinct C2SimUuid/VrfUuid types) is a later Phase 4 item.
+        _bridge.SetTarget(task.TaskeeUuid, task.AffectedEntity);
+
+        // Single point -> MoveToLocation; otherwise CreateRoute then move along it (:2393).
+        if (routeGeo.Count == 1)
+        {
+            _bridge.MoveToLocation(vrfUuid, routeGeo[^1]);
+            _log.LogInformation("Task '{Task}': MoveToLocation for {Name} ({Vrf}).",
+                                task.TaskName, unit.Name, vrfUuid);
+            return;
+        }
+
+        // CreateRoute is async; defer MoveAlongRoute until the route's ObjectCreated fires
+        // (parity: the C++ waits for the route to register before moveAlongRoute, :2408-2421).
+        string routeName = task.TaskName + " ROUTE";
+        _pendingRouteMove[routeName] = vrfUuid;
+        _bridge.CreateRoute(routeGeo, routeName);
+        _log.LogInformation("Task '{Task}': CreateRoute '{Route}' ({Count} pts) for {Name}; move deferred to route-created.",
+                            task.TaskName, routeName, routeGeo.Count, unit.Name);
     }
 
     private void OnReport(object sender, C2SIMSDK.C2SIMNotificationEventParams e)
@@ -274,6 +411,16 @@ public sealed class VrfC2SimService : BackgroundService
         // already runs on the tick thread, so the bridge call is safe here.
         if (!string.IsNullOrEmpty(e.Name) && _pendingAltitude.TryRemove(e.Name, out var alt))
             _bridge.SetAltitude(e.Uuid, alt);
+
+        // If this created object is a route awaiting its move, issue it now that the
+        // route is registered (parity: executeTask's wait-then-moveAlongRoute, :2408-2421).
+        // MoveAlongRoute resolves the route by name, so pass e.Name (== routeName).
+        if (!string.IsNullOrEmpty(e.Name) && _pendingRouteMove.TryRemove(e.Name, out var taskeeVrfUuid))
+        {
+            _bridge.MoveAlongRoute(taskeeVrfUuid, e.Name);
+            _log.LogInformation("Route '{Route}' created; MoveAlongRoute issued for {Vrf}.",
+                                e.Name, taskeeVrfUuid);
+        }
     }
 
     private void OnVrfTaskCompleted(object sender, TaskCompletedEventArgs e)

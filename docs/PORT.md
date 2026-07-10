@@ -420,9 +420,25 @@ Do not re-add it.
     schema-driven, not hand-parsed - and `UnitTranslator` faithfully ports
     extractC2simInit's dispatch + all 11 create* factories. Offline-verified against the
     STP init: 80 units, 49 creatable, 4 areas (matches the golden trace's 49 + 4).
-  - REMAINING: `OnOrder` <- executeTask; reports <- reportCallback (+ busy-wait ->
-    completion-with-timeout); THEN the semantic-mapping layer (bare movement projector
-    -> real vrftasks) - see sec 10. Roadmap in docs/APP.md "What is DONE vs TODO".
+  - `OnOrder` (bare movement) DONE + offline-verified (2026-07-10): `OrderParser`
+    deserializes the order via the SDK schema types (C2SIM.Schema102, same as InitParser;
+    MessageBody->DomainMessageBody->OrderBody->Task->ManeuverWarfareTask) with the C++
+    field mapping (taskee=PerformingEntity, roe=WeaponRuleOfEngagementCode, delays via a
+    faithful findTotalIsoMs incl. its 30h/month quirk). `OnOrder` resolves the taskee
+    (new `_unitByC2SimUuid` from init) and enqueues the bare-movement body of executeTask
+    on the tick thread: live point 0 (TryGetEntityGeodetic), ground-clamp, inline route
+    points, ROE, the parity-no-op SetTarget, CreateRoute + a MoveAlongRoute deferred to
+    the route's ObjectCreated (mirrors the C++ wait-for-route). Verified offline with
+    `--parse-order` against ALL golden orders. NOT included (deferred): the two-layer
+    TaskActionCode->vrftask map (sec 10), the formation spike, reports, and delay/
+    predecessor SEQUENCING (parsed+warned, executed immediately - golden orders are 0-timing).
+    LIVE-RUN BLOCKER carried forward: the facade's dynamic_cast TryGetEntityGeodetic
+    returns null for a disaggregated aggregate -> golden 11.MechBn would ABANDON TASK
+    until reconciled (this section, Phase 1 note). See docs/APP.md.
+  - REMAINING: reports <- reportCallback (+ busy-wait -> completion-with-timeout, which
+    also re-homes task delay/predecessor sequencing); reconcile the facade aggregate-
+    geodetic path; THEN the semantic-mapping layer (bare movement projector -> real
+    vrftasks) - see sec 10. Roadmap in docs/APP.md "What is DONE vs TODO".
 - **Phase 5 - parity**: diff .NET vs C++ message streams against the golden trace (LIVE run).
 
 ---

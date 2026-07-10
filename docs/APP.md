@@ -78,19 +78,50 @@ Init parse - DONE + VERIFIED (2026-07-09):
 - OnInitialization now runs end-to-end (parse -> translate -> enqueue Create*), pending
   a LIVE run for the final visual/parity confirmation.
 
+Order translation (bare movement) - DONE + VERIFIED offline (2026-07-10):
+- `OrderParser` DESERIALIZES the order into the SDK schema types (C2SIM.Schema102 via
+  ToC2SIMObject, same approach as InitParser): MessageBody -> DomainMessageBody ->
+  OrderBody -> Task[] -> ManeuverWarfareTask. Field mapping mirrors the C++ SAX handler
+  (C2SIMxmlHandler.cpp): taskeeUuid=PerformingEntity, taskUuid=UUID, taskName=Name,
+  mapGraphicUuid=MapGraphicID, roe=WeaponRuleOfEngagementCode; delays via a faithful
+  port of findTotalIsoMs (INCLUDING its 30*60*60-sec/month quirk - parity, not fixed).
+- `OnOrder` wired: parse -> resolve each task's PerformingEntity (C2SIM uuid) to the
+  unit created at init (new `_unitByC2SimUuid` retained from OnInitialization) -> enqueue
+  `ExecuteTaskOnTick` on the tick thread. The executor is the bare-movement body of
+  executeTask: point 0 = the taskee's live sim location (`TryGetEntityGeodetic`),
+  ground-clamp to 100 for `SIDC[2]=='G'`, append the task's INLINE route points, apply
+  ROE (ROEFree->FireAtWill / ROEHold->HoldFire / else->FireWhenFiredUpon) and the parity
+  no-op `SetTarget(taskeeC2SimUuid, affectedEntity)`, then CreateRoute + a MoveAlongRoute
+  DEFERRED to the route's ObjectCreated (mirrors the C++ wait-for-route-then-move).
+- Verified offline (`--parse-order`) against ALL golden-trace orders: the parse matches
+  each order (e.g. 1_VRF_Move_Order -> 1 MOVE task T1_1_4_A, taskee 670cfe3a..., ROE
+  ROETight, 2 inline points; E_cohq_noaffected -> affectedEntity empty; C_agg_selftarget
+  -> taskee==affected). Execution wiring is live-run-pending (see risks below).
+- NOT in this slice (deliberate): the two-layer TaskActionCode -> vrftask mapping
+  (PORT.md sec 10), the formation spike, the report/TASKCMPLT path, and delay/predecessor
+  SEQUENCING (parsed + warned, but executed immediately; the golden orders carry 0 timing).
+- LIVE-RUN RISKS to resolve before the parity run: (a) `TryGetEntityGeodetic` uses
+  dynamic_cast in the port facade -> returns null for a DISAGGREGATED AGGREGATE, so the
+  golden aggregate-move (11.MechBn) would hit ABANDON TASK until the facade is reconciled
+  (PORT.md sec 8); (b) taskee resolution shares `_vrfUuidByName` with the create
+  correlation - if VRF truncates markings to 10 chars while plan.Name is the full name,
+  names >10 chars would miss (the STP scenario pins max-name-length to 10, so golden is safe).
+
 TODO - the Phase 4 PARITY PORT (the real content; each maps to a C++ source):
 1. `InitParser` refinements: parse `DirectionPhi` if a schema instance carries it;
    handle schema versions beyond 1.0.2 (select by the SDK ProtocolVersion) if servers
    send them; empty-name assignment. None block the golden-trace scenario.
-2. `OnOrder` <- executeTask: parse tasks, resolve taskee C2SIM uuid -> VRF uuid,
-   enqueue tasking. Bare `MoveAlongRoute` first (parity), THEN the two-layer
-   TaskActionCode -> vrftask mapping (PORT.md sec 10 / TASK_EXPANSION_PLAN.md).
-3. `OnVrfTaskCompleted` / `OnVrfTextReport` <- reportCallback / reportGenerator:
-   build C2SIM status + position reports and `PushReportMessage`.
-4. Fix the known C++ bugs in the port (PORT.md sec 6): distinct C2SimUuid/VrfUuid
+2. `OnVrfTaskCompleted` / `OnVrfTextReport` <- reportCallback / reportGenerator:
+   build C2SIM status + position reports and `PushReportMessage`. (Pairs with converting
+   the C++ busy-waits to TaskCompletionSource + timeout, and re-homes task-delay/predecessor
+   SEQUENCING here - OnOrder currently executes immediately.)
+3. Fix the known C++ bugs in the port (PORT.md sec 6): distinct C2SimUuid/VrfUuid
    types (setTarget), completion futures with timeout (not busy-wait), aggregate
    health/heading. The bridge already exposes the seams for these.
-5. Parse StatusChanged via a deserialized SystemState (not a substring test).
+4. Parse StatusChanged via a deserialized SystemState (not a substring test).
+5. Reconcile the facade's `TryGetEntityGeodetic` aggregate handling (dynamic_cast ->
+   null for DtReflectedAggregate) so a disaggregated aggregate's live location resolves
+   for OnOrder point 0 (else the golden aggregate-move abandons; PORT.md sec 8).
 
 ## Run (once the parity port lands; needs the live env - RUNBOOK)
 

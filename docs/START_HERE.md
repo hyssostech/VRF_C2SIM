@@ -56,7 +56,14 @@ Three locations are in play:
     not hand-parsed - and `UnitTranslator` faithfully ports extractC2simInit's dispatch +
     all 11 create* factories. Offline-verified: the STP init -> 80 units, 49 creatable,
     4 areas (matches the golden trace's 49 + 4).
-  - REMAINING: `OnOrder` <- executeTask; reports <- reportCallback; then a LIVE run.
+  - `OnOrder` (bare movement) DONE + offline-verified (2026-07-10): `OrderParser`
+    deserializes the order via C2SIM.Schema102 (same as InitParser) and `OnOrder` ports
+    the bare-movement body of executeTask - resolve taskee (PerformingEntity) -> live
+    point 0 -> inline route points -> ROE + parity-no-op SetTarget -> CreateRoute +
+    deferred MoveAlongRoute. `--parse-order` matches ALL golden orders. Deferred: reports,
+    the two-layer vrftask map, the formation spike, delay/predecessor sequencing.
+  - REMAINING: reports <- reportCallback (+ busy-wait -> completion-with-timeout);
+    reconcile the facade's aggregate TryGetEntityGeodetic (PORT.md sec 8); then a LIVE run.
 
 The aggregate-movement fix (`SetAggregateFormation(uuid,"Wedge")` before move; PORT.md
 sec 10) lives in the port's `src/VrfFacade/`. The C++ live proof was never landed and
@@ -118,6 +125,8 @@ it loads the bridge assembly for value types):
 - `VrfC2SimApp.exe --translator-selftest` - 18-case parity check of UnitTranslator.
 - `VrfC2SimApp.exe --parse-init docs\golden-trace\STP-...Initialization.xml STP`
   - expect 80 units, 49 creatable, 4 areas.
+- `VrfC2SimApp.exe --parse-order docs\golden-trace\orders\1_VRF_Move_Order.xml`
+  - expect 1 MOVE task T1_1_4_A, taskee 670cfe3a..., ROE ROETight, 2 inline points.
 PATH for the exe: `C:\MAK\vrforces5.0.2\bin64;C:\MAK\vrlink5.8\bin64;C:\MAK\makRti4.6b\bin`.
 
 LIVE run (RUNBOOK first): needs VR-Forces (HLA CWIX-2024) + the C2SIM container up, MAK
@@ -127,12 +136,13 @@ on PATH. `dotnet run --project src/VrfC2SimApp -c Release`; push init/order with
 ## The immediate next task
 
 Continue the Phase 4 parity port in `VrfC2SimService` (docs/APP.md "What is DONE vs TODO"):
-1. `OnOrder` <- executeTask: deserialize the order (SDK schema types, like InitParser),
-   resolve the taskee C2SIM-uuid -> VRF-uuid via `_vrfUuidByName`, enqueue the tasking
-   (bare `CreateRoute` + `MoveAlongRoute` FIRST for parity; the two-layer TaskActionCode
-   -> vrftask mapping is the Phase 4+ enrichment - PORT.md sec 10 / TASK_EXPANSION_PLAN.md).
-2. `OnVrfTaskCompleted` / `OnVrfTextReport` <- reportCallback: build C2SIM status +
-   position reports and `PushReportMessage`.
+1. `OnVrfTaskCompleted` / `OnVrfTextReport` <- reportCallback: build C2SIM status +
+   position reports and `PushReportMessage`. Pairs with converting the C++ busy-waits to
+   TaskCompletionSource + timeout, and re-homes task delay/predecessor SEQUENCING here
+   (OnOrder currently parses timing but executes immediately).
+2. Reconcile the facade's aggregate `TryGetEntityGeodetic` (dynamic_cast -> null for a
+   DtReflectedAggregate) so a disaggregated aggregate's live location resolves for OnOrder
+   point 0 - else the golden 11.MechBn aggregate-move abandons (PORT.md sec 8).
 3. LIVE run + golden-trace parity diff (needs the runtime env - RUNBOOK).
 
 Keep `docs/PORT.md` + `docs/APP.md` current AS you work; after any context compaction

@@ -19,6 +19,10 @@ if (args.Length > 0 && args[0] == "--translator-selftest")
 if (args.Length >= 2 && args[0] == "--parse-init")
     return InitParseCheck.Run(args[1]);
 
+// Offline order-parse check: parse a C2SIM order file and print a summary (no bridge).
+if (args.Length >= 2 && args[0] == "--parse-order")
+    return OrderParseCheck.Run(args[1]);
+
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddHostedService<VrfC2SimService>();
 await builder.Build().RunAsync();
