@@ -65,7 +65,12 @@ Three locations are in play:
   - Facade aggregate `TryGetEntityGeodetic` reconcile DONE (2026-07-10): resolves point 0
     from an entity OR an aggregate (aggregateStateRep), so the golden 11.MechBn aggregate-
     move no longer abandons. Builds 0/0; live confirmation pends the run.
-  - REMAINING: reports <- reportCallback (+ busy-wait -> completion-with-timeout); then a LIVE run.
+  - Reports out DONE + offline-verified (2026-07-10): `ReportBuilder` builds C2SIM
+    TaskStatus (TASKCMPLT) + PositionReport bodies via the SDK schema types (serialize,
+    not the C++ malformed strings). `OnVrfTaskCompleted`/`OnVrfTextReport` correlate +
+    PushReportMessage. `--report-selftest` builds + round-trips both (9/9). Deferred:
+    health/dedup/bundling, TaskCompletionSource/timeout + delay sequencing.
+  - REMAINING: TaskCompletionSource/timeout + delay/predecessor sequencing; then a LIVE run.
 
 The aggregate-movement fix (`SetAggregateFormation(uuid,"Wedge")` before move; PORT.md
 sec 10) lives in the port's `src/VrfFacade/`. The C++ live proof was never landed and
@@ -129,6 +134,8 @@ it loads the bridge assembly for value types):
   - expect 80 units, 49 creatable, 4 areas.
 - `VrfC2SimApp.exe --parse-order docs\golden-trace\orders\1_VRF_Move_Order.xml`
   - expect 1 MOVE task T1_1_4_A, taskee 670cfe3a..., ROE ROETight, 2 inline points.
+- `VrfC2SimApp.exe --report-selftest` - builds + round-trips a TASKCMPLT + a position
+  report via the SDK schema types; expect 9/9 checks pass.
 PATH for the exe: `C:\MAK\vrforces5.0.2\bin64;C:\MAK\vrlink5.8\bin64;C:\MAK\makRti4.6b\bin`.
 
 LIVE run (RUNBOOK first): needs VR-Forces (HLA CWIX-2024) + the C2SIM container up, MAK
@@ -138,11 +145,13 @@ on PATH. `dotnet run --project src/VrfC2SimApp -c Release`; push init/order with
 ## The immediate next task
 
 Continue the Phase 4 parity port in `VrfC2SimService` (docs/APP.md "What is DONE vs TODO"):
-1. `OnVrfTaskCompleted` / `OnVrfTextReport` <- reportCallback: build C2SIM status +
-   position reports and `PushReportMessage`. Pairs with converting the C++ busy-waits to
-   TaskCompletionSource + timeout, and re-homes task delay/predecessor SEQUENCING here
-   (OnOrder currently parses timing but executes immediately).
-2. LIVE run + golden-trace parity diff (needs the runtime env - RUNBOOK).
+1. TaskCompletionSource/timeout + task delay/predecessor SEQUENCING: OnOrder currently
+   parses timing (SimulationStartMs / RelativeDelayMs / StartAfterTaskUuid) but executes
+   immediately; wire a completion signal off OnVrfTaskCompleted so startAfterTaskUuid tasks
+   wait for their predecessor (with a timeout, replacing the C++ busy-wait).
+2. Report enrichment (deferred from the reports slice): EntityHealthStatus (needs bridge
+   health), aggregate-component de-dup, multi-content bundling.
+3. LIVE run + golden-trace parity diff (needs the runtime env - RUNBOOK).
 
 Keep `docs/PORT.md` + `docs/APP.md` current AS you work; after any context compaction
 re-read them before deciding anything.

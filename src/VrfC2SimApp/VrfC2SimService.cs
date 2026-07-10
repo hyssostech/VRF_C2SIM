@@ -47,6 +47,16 @@ public sealed class VrfC2SimService : BackgroundService
     // issued in the same tick as CreateRoute.
     private readonly ConcurrentDictionary<string, string> _pendingRouteMove = new();
 
+    // Object name -> C2SIM unit uuid (inverse of _unitByC2SimUuid), so the VRF report
+    // callbacks - which carry the object's marking/name, not its C2SIM uuid - can name the
+    // subject of a report (parity: onTaskCompleted/onTextReport getUnitByName -> unit->uuid).
+    private readonly ConcurrentDictionary<string, string> _c2SimUuidByName = new();
+
+    // Object name -> its current task's C2SIM uuid, set when OnOrder dispatches a task
+    // (parity: setUnitCurrentTaskUuid, C2SIMinterface.cpp:2165), read by OnVrfTaskCompleted
+    // to fill the TaskStatus report's CurrentTask.
+    private readonly ConcurrentDictionary<string, string> _currentTaskUuidByName = new();
+
     // Commands from SDK-event threads are queued here and executed on the tick thread.
     private readonly ConcurrentQueue<Action> _tickActions = new();
     private volatile bool _stopTick;
@@ -216,8 +226,10 @@ public sealed class VrfC2SimService : BackgroundService
             if (plan.PostCreateAltitude is double alt)
                 _pendingAltitude[plan.Name] = alt;
 
-            // Retain the taskee lookup so OnOrder can resolve PerformingEntity -> VRF uuid.
+            // Retain the taskee lookup so OnOrder can resolve PerformingEntity -> VRF uuid,
+            // and the inverse (name -> uuid) so the report callbacks can name their subject.
             _unitByC2SimUuid[unit.Uuid] = new CreatedUnit(plan.Name, unit.SymbolId, plan.IsAggregate);
+            _c2SimUuidByName[plan.Name] = unit.Uuid;
 
             var p = plan;
             _tickActions.Enqueue(() =>
@@ -316,6 +328,11 @@ public sealed class VrfC2SimService : BackgroundService
                             task.TaskName, task.TaskeeUuid, unit.Name);
             return;
         }
+
+        // Record this task as the unit's current task (parity: setUnitCurrentTaskUuid,
+        // :2165) so OnVrfTaskCompleted can name it in the TaskStatus report.
+        if (!string.IsNullOrEmpty(task.TaskUuid))
+            _currentTaskUuidByName[unit.Name] = task.TaskUuid;
 
         // Ground units clamp elevation to 100 (VRF ground-clamping; :2237, :2266, :2290).
         bool isGround = unit.SymbolId.Length > 2 && unit.SymbolId[2] == 'G';
@@ -426,17 +443,70 @@ public sealed class VrfC2SimService : BackgroundService
     private void OnVrfTaskCompleted(object sender, TaskCompletedEventArgs e)
     {
         _log.LogInformation("VRF task complete: {Unit} / {Task}", e.UnitMarking, e.TaskType);
-        // TODO(parity, Phase 4): port reportCallback's TASKCMPLT path - build a C2SIM
-        // status report for e.UnitMarking and push it. For now, wiring only.
-        // _ = PushReportAsync(BuildTaskStatusReport(e));
+
+        // Port of executeTask's TASKCMPLT emit (C2SIMinterface.cpp:2435), triggered here by
+        // the completion callback instead of a busy-wait. Resolve the marking -> taskee
+        // C2SIM uuid + current task uuid, then push a TaskStatus (TASKCMPLT) report.
+        string name = e.UnitMarking ?? "";
+        if (!_c2SimUuidByName.TryGetValue(name, out var taskeeUuid))
+        {
+            _log.LogWarning("Task-complete for '{Name}' but no C2SIM uuid known - no report sent.", name);
+            return;
+        }
+        _currentTaskUuidByName.TryGetValue(name, out var taskUuid);
+        var report = ReportBuilder.BuildTaskCompleteReport(taskeeUuid, taskUuid ?? "", IsoNow(), NewReportId());
+        _log.LogInformation("SENT TASK STATUS REPORT (TASKCMPLT) taskee={Uuid} task={Task}.",
+                            taskeeUuid, taskUuid ?? "(none)");
+        _ = PushReportAsync(report);
     }
 
     private void OnVrfTextReport(object sender, TextReportEventArgs e)
     {
         _log.LogDebug("VRF text-report: {Text}", e.Text);
-        // TODO(parity, Phase 4): port reportGenerator/position-report path - parse the
-        // Lua-emitted POSITION/OBSERVATION text into a C2SIM PositionReport + push.
+
+        // Port of onTextReport's POSITION path (textIf.cxx:1029-1085): the Lua tracking
+        // script emits `POSITION "entity name" <latDeg> <lonDeg>`. Parse it, resolve the
+        // name -> C2SIM uuid, and push a PositionReport. (Aggregate-component de-dup and
+        // multi-content bundling - textIf.cxx:1046-1066 - are deferred; each POSITION line
+        // emits one report here. Non-POSITION text is ignored, as in the C++.)
+        if (!TryParsePosition(e.Text, out var objectName, out double lat, out double lon))
+            return;
+        if (!_c2SimUuidByName.TryGetValue(objectName, out var uuid))
+        {
+            // Not one of our units (e.g. an aggregate subordinate) - the C++ returns here too.
+            _log.LogDebug("POSITION for unknown/uncreated '{Name}' - ignored.", objectName);
+            return;
+        }
+        var report = ReportBuilder.BuildPositionReport(uuid, lat, lon, IsoNow(), NewReportId());
+        _log.LogDebug("Position report for {Name} ({Uuid}) {Lat}/{Lon}.", objectName, uuid, lat, lon);
+        _ = PushReportAsync(report);
     }
+
+    // Parse `POSITION "entity name" <latDeg> <lonDeg>` (faithful to the C++ strtok parse,
+    // textIf.cxx:1029-1036: keyword, then the quoted name, then two space-separated numbers).
+    private static bool TryParsePosition(string text, out string name, out double lat, out double lon)
+    {
+        name = ""; lat = 0; lon = 0;
+        if (string.IsNullOrEmpty(text)) return false;
+        text = text.Trim();
+        if (!text.StartsWith("POSITION", StringComparison.Ordinal)) return false;
+        int q1 = text.IndexOf('"');
+        int q2 = q1 >= 0 ? text.IndexOf('"', q1 + 1) : -1;
+        if (q1 < 0 || q2 < 0) return false;
+        name = text.Substring(q1 + 1, q2 - q1 - 1);
+        var rest = text.Substring(q2 + 1)
+                       .Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+        if (rest.Length < 2) return false;
+        return double.TryParse(rest[0], System.Globalization.NumberStyles.Float,
+                               System.Globalization.CultureInfo.InvariantCulture, out lat)
+            && double.TryParse(rest[1], System.Globalization.NumberStyles.Float,
+                               System.Globalization.CultureInfo.InvariantCulture, out lon);
+    }
+
+    private static string IsoNow()
+        => DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static string NewReportId() => Guid.NewGuid().ToString();
 
     private void OnVrfScenarioClosed(object sender, EventArgs e)
     {

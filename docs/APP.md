@@ -112,18 +112,38 @@ Order translation (bare movement) - DONE + VERIFIED offline (2026-07-10):
   while plan.Name is the full name, names >10 chars would miss (the STP scenario pins
   max-name-length to 10, so golden is safe).
 
+Reports out - DONE + VERIFIED offline (2026-07-10):
+- `ReportBuilder` (pure) CONSTRUCTS the SDK schema types (ReportBodyType with a TaskStatus
+  or PositionReportContent) and SERIALIZES via C2SIMSDK.FromC2SIMObject - the output analog
+  of the schema-typed parse path. It deliberately does NOT reproduce the C++ hand-assembled
+  report strings (textIf.cxx): that assembly emits MALFORMED xml for the task-status report
+  (stray/duplicated ReportID/ReportingEntity fragments) and EMPTY enum-valued health; the
+  schema-typed build is well-formed + schema-valid with the same semantic content.
+- `OnVrfTaskCompleted` -> TaskStatus (TASKCMPLT) report: resolve the marking -> taskee
+  C2SIM uuid (new `_c2SimUuidByName`) + current task uuid (new `_currentTaskUuidByName`, set
+  when OnOrder dispatches) -> build + PushReportMessage. This is executeTask's :2435 emit,
+  triggered by the completion callback instead of a busy-wait.
+- `OnVrfTextReport` -> PositionReport: parse `POSITION "name" <lat> <lon>` (faithful to the
+  C++ strtok parse), resolve name -> C2SIM uuid, build + push.
+- Verified offline (`--report-selftest`): builds a TASKCMPLT + a position report, prints
+  them (match the golden capture structure), and round-trips each through ToC2SIMObject -
+  9/9 field checks pass.
+- DEFERRED (documented): EntityHealthStatus enrichment (this slice has no health data from
+  the bridge; the golden's empty health was the sec-6 bug, so health is OMITTED not emitted
+  empty); aggregate-component report de-dup + multi-content BUNDLING (each report is emitted
+  singly - semantically equivalent to the consumer); TaskCompletionSource/timeout + task
+  delay/predecessor SEQUENCING (still executed immediately - golden orders are 0-timing).
+
 TODO - the Phase 4 PARITY PORT (the real content; each maps to a C++ source):
 1. `InitParser` refinements: parse `DirectionPhi` if a schema instance carries it;
    handle schema versions beyond 1.0.2 (select by the SDK ProtocolVersion) if servers
    send them; empty-name assignment. None block the golden-trace scenario.
-2. `OnVrfTaskCompleted` / `OnVrfTextReport` <- reportCallback / reportGenerator:
-   build C2SIM status + position reports and `PushReportMessage`. (Pairs with converting
-   the C++ busy-waits to TaskCompletionSource + timeout, and re-homes task-delay/predecessor
-   SEQUENCING here - OnOrder currently executes immediately.)
-3. Fix the known C++ bugs in the port (PORT.md sec 6): distinct C2SimUuid/VrfUuid
+2. Fix the known C++ bugs in the port (PORT.md sec 6): distinct C2SimUuid/VrfUuid
    types (setTarget), completion futures with timeout (not busy-wait), aggregate
    health/heading. The bridge already exposes the seams for these.
-4. Parse StatusChanged via a deserialized SystemState (not a substring test).
+3. Parse StatusChanged via a deserialized SystemState (not a substring test).
+4. Report enrichment: EntityHealthStatus (needs health from the bridge), aggregate-component
+   de-dup, and multi-content bundling - all deferred from the reports-out slice above.
 5. DONE (2026-07-10): facade `TryGetEntityGeodetic` now handles aggregates (see the
    Order-translation risk (a) note above).
 

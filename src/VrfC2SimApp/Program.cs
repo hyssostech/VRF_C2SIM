@@ -23,6 +23,10 @@ if (args.Length >= 2 && args[0] == "--parse-init")
 if (args.Length >= 2 && args[0] == "--parse-order")
     return OrderParseCheck.Run(args[1]);
 
+// Offline report-builder check: build + round-trip a task-status + position report (no bridge).
+if (args.Length > 0 && args[0] == "--report-selftest")
+    return ReportSelfTest.Run();
+
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddHostedService<VrfC2SimService>();
 await builder.Build().RunAsync();

@@ -438,9 +438,19 @@ Do not re-add it.
     location(), so a disaggregated aggregate's point 0 resolves and 11.MechBn no longer
     abandons. Numerically identical to the oracle's UB static_cast (same myStateRep->
     location()) but type-safe. Builds 0/0; live-aggregate confirmation pends the live run.
-  - REMAINING: reports <- reportCallback (+ busy-wait -> completion-with-timeout, which
-    also re-homes task delay/predecessor sequencing); THEN the semantic-mapping layer
-    (bare movement projector -> real vrftasks) - see sec 10. Roadmap in docs/APP.md.
+  - Reports out DONE + offline-verified (2026-07-10): `ReportBuilder` CONSTRUCTS the SDK
+    schema types (ReportBodyType with TaskStatus / PositionReportContent) and SERIALIZES
+    via FromC2SIMObject (the output analog of the schema-typed parse), NOT the C++
+    hand-assembled strings - which emit MALFORMED task-status xml + empty enum health.
+    `OnVrfTaskCompleted` -> TASKCMPLT report (correlate marking -> taskee uuid + current
+    task uuid via new `_c2SimUuidByName`/`_currentTaskUuidByName`); `OnVrfTextReport` parses
+    `POSITION "name" lat lon` -> PositionReport. `--report-selftest` builds + round-trips
+    both (9/9 checks). Deferred: health enrichment (no bridge health this slice; golden's
+    empty health was the sec-6 bug, so OMITTED not emitted-empty), aggregate-component
+    de-dup + bundling, and TaskCompletionSource/timeout + delay/predecessor sequencing.
+  - REMAINING: TaskCompletionSource/timeout + task delay/predecessor sequencing; report
+    enrichment (health/dedup/bundling); THEN the semantic-mapping layer (bare movement
+    projector -> real vrftasks) - see sec 10. Then a LIVE run. Roadmap in docs/APP.md.
 - **Phase 5 - parity**: diff .NET vs C++ message streams against the golden trace (LIVE run).
 
 ---
