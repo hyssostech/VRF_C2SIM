@@ -16,8 +16,9 @@ if (args.Length > 0 && args[0] == "--translator-selftest")
     return TranslatorSelfTest.Run();
 
 // Offline init-parse check: parse a C2SIM init file and print a summary (no bridge).
+// Optional 3rd arg is the clientId (SystemName) whose units WOULD be created; default STP.
 if (args.Length >= 2 && args[0] == "--parse-init")
-    return InitParseCheck.Run(args[1]);
+    return InitParseCheck.Run(args[1], args.Length >= 3 ? args[2] : "STP");
 
 // Offline order-parse check: parse a C2SIM order file and print a summary (no bridge).
 if (args.Length >= 2 && args[0] == "--parse-order")

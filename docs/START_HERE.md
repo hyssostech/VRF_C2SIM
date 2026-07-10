@@ -154,7 +154,12 @@ Continue the Phase 4 parity port in `VrfC2SimService` (docs/APP.md "What is DONE
 1. Report enrichment (deferred from the reports slice): EntityHealthStatus (needs bridge
    health), aggregate-component de-dup, multi-content bundling.
 2. LIVE run + golden-trace parity diff (needs the runtime env - RUNBOOK). Post-gold test
-   data has been added under `data/` (user-provided).
+   data (user-provided, untracked) is under `data/`: COA-STP1 init (128 units / 35 areas)
+   + order (42 tasks, 32 with startAfterTaskUuid), VRF-All-entities init (43 units / 26
+   areas) + VRF-Approved order (85 tasks). All FOUR parse clean offline via `--parse-init
+   <f> <clientId>` / `--parse-order <f>` (COA-STP1 -> 128 creatable for clientId C2SIM),
+   validating the parse/translate/sequence surface against large, verb-rich data before
+   the live run.
 
 Keep `docs/PORT.md` + `docs/APP.md` current AS you work; after any context compaction
 re-read them before deciding anything.
