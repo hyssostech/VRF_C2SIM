@@ -11,6 +11,11 @@ using VrfC2SimApp;
 //   C:\MAK\vrforces5.0.2\bin64;C:\MAK\vrlink5.8\bin64;C:\MAK\makRti4.6b\bin
 // and VR-Forces (HLA CWIX-2024) + the C2SIM server must be up (see docs/RUNBOOK.md).
 
+// Offline parity self-test of the C2SIM->VRF unit translation (no host, no VR-Forces).
+if (args.Length > 0 && args[0] == "--translator-selftest")
+    return TranslatorSelfTest.Run();
+
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddHostedService<VrfC2SimService>();
 await builder.Build().RunAsync();
+return 0;

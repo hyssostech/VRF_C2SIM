@@ -39,6 +39,10 @@ public sealed class VrfC2SimService : BackgroundService
     private readonly ConcurrentQueue<Action> _tickActions = new();
     private volatile bool _stopTick;
 
+    // Post-create SetAltitude, deferred until ObjectCreated delivers the VRF uuid
+    // (parity: the C++ factories waitForData then SetAltitude - here it is async).
+    private readonly ConcurrentDictionary<string, double> _pendingAltitude = new();
+
     public VrfC2SimService(ILoggerFactory loggerFactory, IConfiguration config,
                            IHostApplicationLifetime life)
     {
@@ -164,10 +168,65 @@ public sealed class VrfC2SimService : BackgroundService
     private void OnInitialization(object sender, C2SIMSDK.C2SIMNotificationEventParams e)
     {
         _log.LogInformation("C2SIM Initialization received ({Len} bytes).", e.Body?.Length ?? 0);
-        // TODO(parity, Phase 4): port extractC2simInit + C2SIMxmlHandler. Parse the init
-        // into ForceSides/units/routes/areas; only act if SystemName == _vrf.ClientId
-        // (RUNBOOK sec 2). Enqueue bridge.CreateEntity / CreateAggregate / CreateRoute /
-        // CreateControlArea on _tickActions. VRF uuids arrive later via ObjectCreated.
+
+        // Parse (InitParser is a stub until the parse slice lands) then dispatch each
+        // unit through UnitTranslator (the faithful port of extractC2simInit's factories).
+        InitData init;
+        try { init = InitParser.Parse(e.Body); }
+        catch (Exception ex) { _log.LogError("Init parse failed: {Msg}", ex.Message); return; }
+
+        int planned = 0;
+        foreach (var u in init.Units)
+        {
+            if (string.IsNullOrEmpty(u.Uuid)) continue;
+            if (u.SystemName != _vrf.ClientId) continue;          // only our units (RUNBOOK sec 2)
+            if (string.IsNullOrEmpty(u.HostilityCode))
+            {
+                _log.LogWarning("Unit {Name} missing Hostility - skipping.", u.Name);
+                continue;
+            }
+
+            var unit = u;
+            if (string.IsNullOrEmpty(unit.Latitude) || string.IsNullOrEmpty(unit.Longitude))
+            {
+                // TODO(parity): fall back to the SUPERIOR unit's lat/lon (needs the
+                // superior map from the parser). For now, skip.
+                _log.LogWarning("Unit {Name} missing lat/lon - skipping (parent fallback TODO).", unit.Name);
+                continue;
+            }
+            if (string.IsNullOrEmpty(unit.ElevationAgl))
+                unit = unit with { ElevationAgl = "1000.0" };     // ground-clamp default (:1445-1446)
+
+            var plan = UnitTranslator.Plan(unit);
+            if (plan.PostCreateAltitude is double alt)
+                _pendingAltitude[plan.Name] = alt;
+
+            var p = plan;
+            _tickActions.Enqueue(() =>
+            {
+                if (p.IsAggregate)
+                    _bridge.CreateAggregate(p.Type, p.Pos, p.Force, p.HeadingDeg, p.Name,
+                                            AggregateState.Disaggregated, true);
+                else
+                    _bridge.CreateEntity(p.Type, p.Pos, p.Force, p.HeadingDeg, p.Name);
+            });
+            planned++;
+        }
+
+        foreach (var a in init.Areas)
+        {
+            var area = a;
+            _tickActions.Enqueue(() =>
+            {
+                var pts = area.Points
+                    .Select(pt => new Geodetic { LatDeg = pt.Lat, LonDeg = pt.Lon, AltMeters = pt.Elev })
+                    .ToList();
+                _bridge.CreateControlArea(pts, area.Name, "TacticalArea", area.Uuid);
+            });
+        }
+
+        _log.LogInformation("Init dispatched: {Units} units + {Areas} areas queued for creation.",
+                            planned, init.Areas.Count);
     }
 
     private void OnObjectInitialization(object sender, C2SIMSDK.C2SIMNotificationEventParams e)
@@ -210,6 +269,11 @@ public sealed class VrfC2SimService : BackgroundService
         if (!string.IsNullOrEmpty(e.Name))
             _vrfUuidByName[e.Name] = e.Uuid;
         _log.LogDebug("VRF created {Name} -> {Uuid}", e.Name, e.Uuid);
+
+        // Apply any deferred SetAltitude now that we have the uuid. This callback
+        // already runs on the tick thread, so the bridge call is safe here.
+        if (!string.IsNullOrEmpty(e.Name) && _pendingAltitude.TryRemove(e.Name, out var alt))
+            _bridge.SetAltitude(e.Uuid, alt);
     }
 
     private void OnVrfTaskCompleted(object sender, TaskCompletedEventArgs e)

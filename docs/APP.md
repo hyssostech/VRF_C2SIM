@@ -57,9 +57,20 @@ DONE (this skeleton):
 - All event subscriptions + name->uuid correlation + the tick-action queue.
 - Builds green (0 errors).
 
+Init translation core - DONE + VERIFIED (2026-07-09):
+- `UnitTranslator` is a faithful, pure port of extractC2simInit's dispatch + all 11
+  create* factories (exact DIS 7-tuples, force rules, the two divergent heading
+  formulas - RW/MQ1 divide phi, others don't - and the post-create SetAltitude rules).
+- `OnInitialization` wired: parse -> guard (systemName/hostility/coords) -> plan ->
+  enqueue CreateEntity/CreateAggregate + areas -> CreateControlArea; deferred
+  SetAltitude applied on ObjectCreated (async analog of C++ waitForData+SetAltitude).
+- Verified by `--translator-selftest` (18 cases, all pass) - no VR-Forces needed.
+
 TODO - the Phase 4 PARITY PORT (the real content; each maps to a C++ source):
-1. `OnInitialization` <- extractC2simInit + C2SIMxmlHandler: parse the init into
-   units/routes/areas; enqueue the Create* calls. This is the biggest single piece.
+1. `InitParser.Parse` <- C2SIMxmlHandler: extract InitUnit/InitArea from the init XML
+   (element map documented in InitParser.cs). The last piece before OnInitialization
+   runs end-to-end: stable UUID-ordered iteration, superior-unit lat/lon fallback,
+   name assignment when empty.
 2. `OnOrder` <- executeTask: parse tasks, resolve taskee C2SIM uuid -> VRF uuid,
    enqueue tasking. Bare `MoveAlongRoute` first (parity), THEN the two-layer
    TaskActionCode -> vrftask mapping (PORT.md sec 10 / TASK_EXPANSION_PLAN.md).
