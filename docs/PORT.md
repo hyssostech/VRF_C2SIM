@@ -553,9 +553,22 @@ then was killed by an enemy en route (realistic combat, not a defect - which is 
 reported task-complete). So the sec-5 "aggregates freeze" limitation is a bare-implementation
 artifact, SOLVED by setting a valid formation - exactly as hypothesized. The fix is committed
 as an OPT-IN enrichment (`Vrf:AggregateFormation`, default "" = golden parity); enabling it is
-the deliberate step past the frozen golden behavior. Open follow-ups: does "Wedge" hold across
-ALL COA-STP1 aggregate types (sec 5 sub-question); pick the formation per unit/task rather than
-a global constant; and the fuller two-layer TaskActionCode->vrftask mapping above.
+the deliberate step past the frozen golden behavior.
+
+COA-STP1 live run (2026-07-10, clientId C2SIM, Wedge on, 20x): answers the sec-5 sub-question.
+The PIPELINE scaled flawlessly - 128 units + 35 areas created, the 42-task / 76KB order parsed,
+32 aggregates formation-set + routed + moved, the TaskSequencer gated the 32 temporal deps live
+(30 predecessor-timeouts, the fail-safe), 0 taskee-not-found, 0 ABANDON (the static_cast geodetic
+fallback held for ALL aggregates), 0 errors; 9 tasks had no location points (order data). BUT of
+the 32 tasked aggregates only ~3 completed a route - "some move, most stuck" (visually confirmed).
+So `Wedge` is NECESSARY but NOT SUFFICIENT for the COA-STP1 aggregate TYPES: a global constant
+formation moves some (14.MechBn, ~3 here) but most need more. Deeper condition (as sec 5
+hypothesized): likely disaggregation/subordinate state ("2 of 4"), a per-unit-type formation
+(Wedge may be inapplicable to a scout section / arty battery / company), and/or the PROPER
+vrftask - `moveIntoFormationTask + requestAvailableFormationsAdmin` or `planAndMoveToTask` (sec-10
+table), not bare moveAlongRoute + setAggregateFormation. i.e. the two-layer mapping is the real
+fix for these; our formation enrichment is the first rung. NOT a port/pipeline defect - a VRF
+aggregate-maneuver characteristic, now precisely localized.
 
 Prior status (2026-07-09): fix IDENTIFIED + prototyped, NOT yet runtime-verified.
 - Fix: `controller->setAggregateFormation(leaderUuid, formationName)` BEFORE moveAlongRoute
