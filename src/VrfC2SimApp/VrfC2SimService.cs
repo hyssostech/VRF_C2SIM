@@ -459,6 +459,19 @@ public sealed class VrfC2SimService : BackgroundService
         // the fix (distinct C2SimUuid/VrfUuid types) is a later Phase 4 item.
         _bridge.SetTarget(task.TaskeeUuid, task.AffectedEntity);
 
+        // ENRICHMENT (opt-in via Vrf:AggregateFormation; "" = off = golden parity, PORT.md
+        // sec 10): a disaggregated aggregate freezes on moveAlongRoute because its default
+        // formation is unresolvable ("column-left"). Setting a VALID formation before the
+        // move unblocks it (no-op on non-aggregate entities). Set here, before CreateRoute,
+        // so it applies during the route-creation round-trip ahead of the deferred move
+        // (the C++ spike used SetAggregateFormation + DtSleep(.5) right before MoveAlongRoute).
+        if (!string.IsNullOrEmpty(_vrf.AggregateFormation))
+        {
+            _bridge.SetAggregateFormation(vrfUuid, _vrf.AggregateFormation);
+            _log.LogInformation("Set aggregate formation '{Form}' on {Name} ({Vrf}) before move.",
+                                _vrf.AggregateFormation, unit.Name, vrfUuid);
+        }
+
         // Single point -> MoveToLocation; otherwise CreateRoute then move along it (:2393).
         if (routeGeo.Count == 1)
         {

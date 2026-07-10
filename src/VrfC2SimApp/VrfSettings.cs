@@ -21,6 +21,13 @@ public class VrfSettings
     // init's SystemName or 0 units are created (RUNBOOK sec 2).
     public string ClientId { get; set; } = "STP";
 
+    // Aggregate formation set before a move (PORT.md sec 10 enrichment). "" = OFF (golden
+    // parity: bare moveAlongRoute, disaggregated aggregates freeze on their unresolvable
+    // default formation). A VALID Title-Case name ("Wedge"/"Column"/"Line"/"Vee"/"Echelon")
+    // unblocks aggregate movement; no-op on non-aggregate entities. Opt-in - it deliberately
+    // diverges from the frozen golden-trace behavior.
+    public string AggregateFormation { get; set; } = "";
+
     // Simulation time multiple applied on Run (parity: C++ SetTimeMultiplier from the
     // server sim multiple, C2SIMinterface.cpp:1844). 1 = real-time (golden default);
     // higher runs the VR-Forces clock faster (useful to watch/verify scenarios quickly).
