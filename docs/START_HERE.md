@@ -1,4 +1,4 @@
-# START HERE - resuming the C2SIM VR-Forces -> .NET port
+# START HERE - the C2SIM VR-Forces -> .NET port
 
 If you are picking this up in a fresh session with no prior context, read
 this first. It gives you everything to continue with zero loss. ASCII-only.
@@ -7,124 +7,114 @@ this first. It gives you everything to continue with zero loss. ASCII-only.
 
 Porting the GMU `c2simVRFinterface` (C++, wraps MAK VR-Forces via
 `DtVrfRemoteController`) to .NET on top of the HyssosTech C2SIM .NET SDK.
-Two repos:
-- THIS repo `c2simVRFinterfacev2.36` - the C++ interface being ported.
-- The SDK `OpenC2SIM.github.io` at `Software/Library/CS/C2SIMSDK`, work on
-  branch `dev/sdk-fixes` (NOT merged, NOT pushed).
+
+Three locations are in play:
+- THIS repo `VRF_C2SIM` - the .NET port and its HOME. Nested submodule under the
+  fork at `Software/Interfaces/VRF_C2SIM`. All port docs + products live here now.
+  This is the SINGLE SOURCE OF TRUTH.
+- The DEPRECATED C++ interface `c2simVRFinterfacev2.36` (separate repo at
+  `C:\Users\PauloBarthelmess\Source\Repos\C2SIM\c2simVRFinterfacev2.36`). Ported
+  FROM. Kept as the FROZEN parity oracle + the only rig that can regenerate a
+  golden trace. Do NOT develop the port there.
+- The SDK `OpenC2SIM.github.io` at `Software/Library/CS/C2SIMSDK`, branch
+  `dev/sdk-fixes` (NOT merged, NOT pushed). The C2SIM half of the port rides on it.
 
 ## Read in this order
 
 1. `docs/PORT.md` - the master reference. Every settled decision WITH its
    evidence (feasibility, architecture, toolchain, environment, golden-trace
-   baseline, interface bugs, SDK changes, decisions log). This is the source
-   of truth; trust it over any summarized recollection.
-2. `docs/PHASE1_REWIRE.md` - the current actionable task: wiring the interface
-   onto `VrfFacade`, with the full call-site catalogue and the verify procedure.
-3. This file for repo state, build/run commands, and where artifacts live.
+   baseline, interface bugs, SDK changes, decisions log). Trust it over any
+   summarized recollection. ESP. sec 8 (phase status) + sec 10 (the two-layer
+   semantic-mapping target).
+2. `docs/PHASE2_BRIDGE.md` - the CURRENT actionable work: the C++/CLI bridge in
+   `src/`, the proven build config, and the ordered next steps.
+3. `docs/RUNBOOK.md` - operational runtime procedure (only needed to run the C++
+   parity rig or, later, the .NET app against live VR-Forces).
+4. This file for repo state, build commands, and where artifacts live.
+5. History/reference as needed: `docs/PHASE1_REWIRE.md` (the completed C++ facade
+   rewire), `docs/TASK_EXPANSION_PLAN.md` (verb -> vrftask blueprint).
 
-## Current status
+## Current status (2026-07-09)
 
-Phase 1 rewire: DONE and verified - the interface runs 100% through VrfFacade and
-reproduced golden-trace-02 (PORT.md sec 8). Phases 0 and 2-risk are done.
+- **Phase 1** (C++ facade extraction + full rewire): DONE and verified in the C++
+  repo - the interface runs 100% through `VrfFacade` and reproduced golden-trace-02.
+- **Migration to the port**: the port-bound products (`bridge-spikes/`, `tools/`,
+  `docs/` incl. `golden-trace/`) were COPIED from the C++ repo into THIS repo
+  (submodule commit `7c6c5a6`). The C++-repo originals are retained pending review,
+  then deletion (migration "step 1", deferred). `VrfFacade.{h,cpp}` intentionally
+  stays in BOTH: the C++ repo keeps its FROZEN parity copy; the port has its own
+  evolving copy in `src/VrfFacade/` (they are MEANT to diverge - parity is the
+  golden trace, not source identity).
+- **Phase 2** (the managed bridge): STARTED; slice 1 BUILDS GREEN (submodule
+  `b24c380`). `src/VrfFacade/VrfFacade.cpp` compiles NATIVE + `src/VrfBridge/
+  VrfBridge.cpp` compiles `/clr:netcore` + they LINK into `VrfBridge.dll` under the
+  full HLA1516e MAK set (0 warn/0 err, VS18 MSBuild). Ijwhost.dll auto-copies. This
+  retires the central Phase 2 risk against the REAL facade. Slice 1 is the outbound
+  path only (lifecycle + CreateEntity + MoveAlongRoute + SetAggregateFormation).
+  See PHASE2_BRIDGE.md.
 
-Session 2026-07-09 (post-rewire) outcomes - READ PORT.md sec 10 + docs/RUNBOOK.md:
-- COA-STP1 adversarial test: rewire is CLEAN. The aggregate "freeze" is VR-Forces'
-  disaggregated-set-maneuver behaviour (invalid default formation), not a port bug
-  (PORT.md sec 5 + 10).
-- Bare-support finding + two-layer target architecture: the C++ interface uses ~4 of
-  263 `vrftasks` and ignores C2SIM `TaskActionCode` (every maneuver -> moveAlongRoute).
-  The port should map C2SIM semantics -> real vrftasks. PORT.md sec 10.
-- Aggregate-MOVEMENT FIX (validated vs MAK API/docs, prototyped as an uncommitted C++
-  spike, clean build): `controller->setAggregateFormation(uuid,"Wedge")` before
-  `moveAlongRoute`. Its real home is the .NET port, not the deprecated C++. PORT.md sec 10.
-- VRF_C2SIM (.NET port home): created PUBLIC at github.com/hyssostech/VRF_C2SIM and wired
-  as a submodule under the fork's `Software/Interfaces/VRF_C2SIM` (committed LOCALLY, not
-  pushed - commit 6185848 on `dev/sdk-fixes`).
-- docs/RUNBOOK.md: the operational runtime procedure (launch cmd, push-init-then-run,
-  CLEAN STOP via UNINITIALIZED, block-buffered-stdout + fresh-appNumber gotchas). READ IT.
+The aggregate-movement fix (`setAggregateFormation(uuid,"Wedge")` before move;
+PORT.md sec 10) now lives in the port's `src/VrfFacade/` - its correct home. The
+C++ live visual proof was never landed and is explicitly NOT worth more time
+(RUNBOOK sec 6); the fix's real validation is in the .NET port.
 
-OPEN / not landed: the live movement proof. The Dockered C2SIM loopback proxy went slow
-(self-inflicted by over-restarting Docker this session), which stalls the interface's STOMP
-connect (0 units). The METHOD is sound - it ran many times this session. RUNBOOK sec 6 has the
-fix: if a raw TCP connect to 127.0.0.1:61613 isn't near-instant, restart Docker Desktop, then
-run RUNBOOK sec 3 (push init -> start interface -> push order).
+## Repo state (git log is authoritative)
 
-## Repo state
+- THIS repo `VRF_C2SIM` (branch `main`), newest first:
+  ```
+  b24c380 Phase 2 slice 1: VrfBridge C++/CLI bridge builds green under the HLA MAK set
+  7c6c5a6 Port products: import bridge-spikes, tools, docs+golden-trace from C++ repo
+  0462a79 Initial commit
+  ```
+- The fork `OpenC2SIM.github.io` (branch `dev/sdk-fixes`) tracks the submodule
+  pointer: `0b902b0` (-> b24c380), `95887aa` (-> 7c6c5a6), `6185848` (add submodule).
+  Local only, not pushed.
+- The C++ repo `c2simVRFinterfacev2.36`: HEAD `b87fc9b` (Phase 1 complete). Working
+  tree still holds the UNCOMMITTED C++ formation spike (VrfFacade.*, C2SIMinterface.cpp)
+  - deliberately not committed there; the fix moved to the port.
+- The SDK (`dev/sdk-fixes`): commits `f738edf` (static-state fixes + tests), `3b7cd33`
+  (net10). Not merged/pushed.
 
-THIS repo is git-tracked (it was not before - `git init` this effort).
-`git log --oneline` should show, oldest to newest:
-```
-191933a Baseline: working c2simVRF interface (golden-trace instrumented)
-2d0b1c1 Phase 1: add VrfFacade.h - the pure-native VRF boundary contract
-01431ea Phase 1: implement VrfFacade.cpp (compiles clean, DIS + HLA, unwired)
-7806ffd Phase 1: add VrfFacade.{h,cpp} to HLA vcxproj (compiles, unwired)
-06e4278 Phase 1: capture decisions + rewire plan in docs/
-b7df10e Phase 1: preserve session artifacts in-repo + add START_HERE
-```
-(There may be later commits from the rewire - `git log` is authoritative.)
-Every commit builds. `bin64/` and `build64/` are gitignored (rebuild them).
-The SDK repo is on branch `dev/sdk-fixes`, commits `f738edf` (static-state
-fixes + tests) and `3b7cd33` (net10). Not merged/pushed - do that when ready.
+`build/` `bin/` `obj/` are gitignored (rebuild them); `docs/golden-trace/*.log` is
+force-tracked (parity oracle).
 
-## Where everything lives (all in THIS repo now - nothing depends on the volatile session scratchpad)
+## Where everything lives (all in THIS repo)
 
-- `VrfFacade.h` / `VrfFacade.cpp` - the facade (contract + impl). In the HLA vcxproj.
-- `docs/golden-trace/` - the PARITY ORACLE. The ported code must reproduce these:
-  - `golden-trace-02_init-and-tasking.log` - late-join init (49 creates + 4 areas)
-    and full tasking (order -> route -> move -> TASKCMPLT).
-  - `golden-trace-report_generation.log` - reportGenerator poll path.
-  - `reports-captured_wire-xml.log` - the actual PositionReport XML on the wire.
-  - `c2sim-bus_order-echo.log` - order the server echoed on STOMP.
-  - `STP-TC-small-6-12-24_Initialization.xml` - the init to push (80 units, STP).
-  - `orders/1_VRF_Move_Order.xml` - the tasking order to push for the task trace.
-  - `orders/{A..G}*.xml` - the experiment-matrix orders (the destroyed-unit probe).
-- `bridge-spikes/` - the two proven C++/CLI spikes + the native isolation probe.
-  `VrfBridgeSpike` (matrix), `VrfControlSpike` (boost-heavy vrfcontrol), `NativeProbe`.
-  These are the PROOF that in-process C++/CLI works AND the working vcxproj templates
-  for the real bridge. Build with VS2022+ MSBuild (net10, v143). See PORT.md sec 2-3.
-- `tools/` - .NET helpers using the SDK: `PushInit` (reset+share an init),
-  `PushOrder` (push an order, log STOMP echo), `ListenReports` (capture reports),
-  `SdkVerify` (the offline SDK checks). They reference the SDK csproj by absolute
-  path and target net6 - bump to net10 if rebuilding (the SDK is net10 now).
+- `src/VrfFacade/` - port-owned native facade (`VrfFacade.{h,cpp}` + the verbatim-MAK
+  `remoteControlInit.{h,cxx}` it constructs). Evolves toward the two-layer model.
+- `src/VrfBridge/` - the `/clr:netcore` managed bridge (`VrfBridge.vcxproj` +
+  `VrfBridge.cpp`). Wraps VrfFacade; the only managed TU.
+- `bridge-spikes/` - the proven C++/CLI spikes + native probe. The templates the
+  real bridge was built from. `VrfControlSpike` (boost-heavy) is the closest model.
+- `docs/golden-trace/` - the PARITY ORACLE the ported code must reproduce
+  (golden-trace-02 init+tasking, report generation, wire XML, the STP init, orders/).
+- `tools/` - .NET SDK helpers: `PushInit`, `PushOrder`, `ListenReports`, `SdkVerify`
+  (net10; reference the SDK csproj by absolute path).
 
 ## Build
 
-Interface (HLA1516e, the target protocol) with VS2019 BuildTools v142:
+The bridge (HLA1516e, the target protocol) with the VS18 (net10-capable) MSBuild -
+NOT VS2019 BuildTools, which lacks the .NET SDK resolver the netcore C++/CLI path
+needs (PORT.md sec 3):
 ```
-"C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin\MSBuild.exe" ^
-    c2simVRFHLA1516e.sln /p:Configuration=Release /p:Platform=x64 /m
+& "C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe" `
+    src\VrfBridge\VrfBridge.vcxproj /p:Configuration=Release /p:Platform=x64 /m
 ```
-Standalone compile-check of just the facade (fast, no link) - see PORT.md sec 3
-for the exact `cl /c` invocation with the MAK include/define set (both DIS and
-HLA variants were verified this way).
+-> `src/VrfBridge/build/Release/VrfBridge.dll` (+ Ijwhost.dll). Full config +
+rationale in `docs/PHASE2_BRIDGE.md`.
 
-## Run / verify (reproduce the golden trace)
-
-READ `docs/RUNBOOK.md` FIRST for the operational procedure - launch command + arg map,
-the push-init-then-run order, the CLEAN STOP (drive the C2SIM server to UNINITIALIZED so
-the interface resigns - do NOT force-kill, which strands an RTI federate and forces a
-VR-Forces reload), and the gotchas (block-buffered stdout, fresh appNumber per run). Those
-cost a whole session to rediscover once; do not repeat it.
-
-Full procedure in PHASE1_REWIRE.md "Verification". Prerequisites:
-- MAK license valid (expires 15-sep-2026); `MAKLMGRD_LICENSE_FILE` points at it.
-- Env for the exe: `QT_QPA_PLATFORM_PLUGIN_PATH=C:\MAK\vrforces5.0.2\bin64\platforms`,
-  and `C:\MAK\vrforces5.0.2\bin64;C:\MAK\vrlink5.8\bin64;C:\MAK\makRti4.6.1\bin` on PATH.
-- VR-Forces running HLA1516e, federation CWIX-2024, session 1.
-- C2SIM container `c2sim-server` up (8080 REST, 61613 STOMP). Stop any process on
-  IPv4 8080 first (a COA-GPT tileserver shadows it).
-- Push the STP init with `tools/PushInit`, then run the interface:
-  `bin64\c2simVRFHLA1516e.exe 127.0.0.1 8080 61613 STP 0 0 3 127.0.0.1 0 0 0 1 3201 1 3 0 0 CWIX-2024 0`
-  (debug=0; debug=1 is broken - see PORT.md sec 6). Push an order with `tools/PushOrder`.
-- Diff the new run against `docs/golden-trace/*`.
+The C++ parity rig (only to regenerate a golden trace) builds in the C++ repo with
+VS2019 BuildTools v142 - see that repo and RUNBOOK.md.
 
 ## The immediate next task
 
-Do the rewire per `docs/PHASE1_REWIRE.md`: add the `StartAdopting` transition
-scaffold, move the ~40 command call sites onto the facade in green-building
-batches, relocate the three callbacks as the atomic final step, then verify
-against the golden trace. Parity rule: reproduce behavior, do NOT fix the
-interface bugs (those get fixed in the .NET port, Phase 4).
+Continue Phase 2 per `docs/PHASE2_BRIDGE.md` "Next":
+1. Runtime-load smoke (construct + dispose the bridge in-process with MAK on PATH) -
+   the honest proof of the seam; build-green does not prove load.
+2. Callbacks slice (facade `std::function` -> managed events via `gcroot`).
+3. Fill out the remaining facade surface.
+4. The .NET app on the C2SIM SDK - where the two-layer C2SIM-semantics -> vrftasks
+   mapping (PORT.md sec 10, TASK_EXPANSION_PLAN.md) lives.
 
-Keep `docs/PORT.md` (decisions/status) current AS you work, and after any
-context compaction re-read it before deciding anything.
+Keep `docs/PORT.md` + `docs/PHASE2_BRIDGE.md` current AS you work; after any context
+compaction re-read them before deciding anything.
