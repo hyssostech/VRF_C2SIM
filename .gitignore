@@ -1,0 +1,34 @@
+# Build output
+build64/
+bin64/
+*.dir/
+x64/
+Debug/
+Release/
+# .NET / spike / tool build output
+bin/
+obj/
+build/
+
+# VS / MSBuild cruft
+.vs/
+*.sdf
+*.suo
+*.user
+*.opensdf
+*.VC.db
+*.VC.opendb
+*.ipch
+*.pdb
+*.ilk
+*.exp
+*.log
+*.tlog
+*.lastbuildstate
+*.obj
+
+# scratch
+*.dmp
+
+# ...but the golden-trace logs are the port's parity oracle - keep them
+!docs/golden-trace/*.log

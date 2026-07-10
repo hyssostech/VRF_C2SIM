@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <ProjectGuid>{A1B2C3D4-0003-4E5F-9A0B-000000000003}</ProjectGuid>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <VrfDir>C:/MAK/vrforces5.0.2</VrfDir>
+    <VrlDir>C:/MAK/vrlink5.8</VrlDir>
+    <RtiDir>C:/MAK/makRti4.6.1</RtiDir>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <!-- NO CLRSupport: pure native, this is the whole point of the isolation test -->
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <AdditionalIncludeDirectories>$(VrfDir)/include;$(VrlDir)/include;$(RtiDir)/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NO_DFD_SUPPORT;NDEBUG;NOMINMAX;BOOST_NO_RVALUE_REFERENCES;_SCL_SECURE_NO_WARNINGS;_CRT_SECURE_NO_WARNINGS;DT_USE_DLL;DtDIS=1;IS_64BIT;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <AdditionalLibraryDirectories>$(VrfDir)/lib64;$(VrlDir)/lib64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>vrfcontrol.lib;vrfmsgs.lib;vrfMsgTransport.lib;vrfutil.lib;vrfplan.lib;vrftasks.lib;vrfExtProtocol.lib;readerWriter.lib;vrlinkNetworkInterfaceDIS.lib;vl.lib;vlDIS.lib;vlutil.lib;matrix.lib;mtl.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>build\Release\</OutDir>
+    <IntDir>build\Release\obj\</IntDir>
+    <TargetName>NativeProbe</TargetName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ClCompile Include="native_probe.cpp" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

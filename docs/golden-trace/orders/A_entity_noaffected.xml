@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<MessageBody xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.sisostds.org/schemas/C2SIM/1.1">
+  <DomainMessageBody>
+    <OrderBody>
+      <FromSender>00000000-0000-0001-0001-000000000000</FromSender>
+      <ToReceiver>00000000-0007-0001-0000-000000000000</ToReceiver>
+      <IssuedTime>
+        <IsoDateTime>2026-07-08T19:20:00Z</IsoDateTime>
+      </IssuedTime>
+      <OrderID>aaaa0001-1111-4c22-9aa1-0e5b7c9d000a</OrderID>
+      <Task>
+        <ManeuverWarfareTask>
+          <Location>
+            <GeodeticCoordinate>
+              <Latitude>58.6752856770139</Latitude>
+              <Longitude>16.3970394424815</Longitude>
+            </GeodeticCoordinate>
+          </Location>
+          <Location>
+            <GeodeticCoordinate>
+              <Latitude>58.6752072607911</Latitude>
+              <Longitude>16.4828633358011</Longitude>
+            </GeodeticCoordinate>
+          </Location>
+          <Name>TA_ENT_NA</Name>
+          <UUID>aaaa0001-2222-4c22-9aa1-0e5b7c9d000a</UUID>
+          <DesiredEffectCode>TaskSuccess</DesiredEffectCode>
+          <Duration>
+            <IsoTimeDuration>P00Y00M00DT00H10M00S</IsoTimeDuration>
+          </Duration>
+          <PerformingEntity>670cfdb2-6c43-f267-ad7f-bd6e739def24</PerformingEntity><!--1.BdeHQ, entity-level TANK-->
+          <StartTime>
+            <SimulationTime>
+              <DelayTimeAmount>
+                <IsoTimeDuration>P00Y00M00DT00H00M00S</IsoTimeDuration>
+              </DelayTimeAmount>
+            </SimulationTime>
+          </StartTime>
+          <TaskActionCode>MOVE</TaskActionCode>
+          <RuleOfEngagement>
+            <MipWeaponUseROE>
+              <WeaponROECode>
+                <WeaponRuleOfEngagementCode>ROETight</WeaponRuleOfEngagementCode>
+              </WeaponROECode>
+            </MipWeaponUseROE>
+          </RuleOfEngagement>
+        </ManeuverWarfareTask>
+      </Task>
+    </OrderBody>
+  </DomainMessageBody>
+</MessageBody>

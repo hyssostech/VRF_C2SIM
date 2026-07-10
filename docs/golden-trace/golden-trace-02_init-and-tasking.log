@@ -1,0 +1,838 @@
+checking for RDTSCP instruction...Success.  Using RDTSCP for time
+RDTSCP Timing Probe: 2441132535 ticks per second
+Starting VR-Forces C2SIM Interface v2.36 compatible << c2simVersion << using C2SIMv1.0.1
+using server address: 127.0.0.1
+using REST port: 8080
+using STOMP port: 61613
+using client ID: STP
+expecting C2SIMv1.0.1 input
+not sending blue tracking reports
+not sending red tracking reports
+VRForces address set to:127.0.0.1
+using VRF lua script report generator
+blue force name defaulting to first XML ForceSide entry
+setting Session ID to: 1
+setting remote interface application number to:3201
+setting remote interface site number to:1
+not sending blue obervation reports
+not sending red observation reports
+RepondToTimeMultipleC2SIM:0
+not bundling reports
+HLA federation:CWIX-2024
+accepting C2SIM Orders from any sending system
+VR-Forces arguments:--rprFomVersion 2.0|--fomModules C:\MAK\vrforces5.0.2\bin64\MAK-VRFExt-6_evolved.xml|--fomModules C:\MAK\vrforces5.0.2\bin64\MAK-DIGuy-7_evolved.xml|-a 3201|-s 1|--execName CWIX-2024|--fedFileName C:\MAK\vrforces5.0.2\bin64\RPR_FOM_v2.0_1516-2010.xml|-n 1|
+Using MAK Technologies' RTI version 4.6.1 HLA 1516-2010 for Microsoft Visual C++ version 14.0 Release Mode.
+Connected to RTI Assistant.
+Loading Config File: C:\MAK\makRti4.6.1\rid.mtl
+INFO[Util] 18:33:55.746 T:22324 MAK::DtInitializer::loadConfigScript: Loading config file: vrfLegion.lua
+SessionId set to:1
+HostInetAddr set to:127.0.0.1
+BACKEND COUNT:0
+boost shows local IP address as:Legatus
+connecting STOMP stream to 127.0.0.1:61613
+CONNECTION RESPONSE:CONNECTED
+SYSTEM STATE AT CONNECTION:RUNNING|
+SERVER ALREADY RUNNING - REQUESTING LATE JOIN INITIALIZATION
+received INIT XML file, length:118891
+SETTING VRFORCES STARTED
+BACKEND COUNT:0
+WAITING FOR VRFORCES BACKENDS
+VRFORCES BACKENDS READY
+STARTING XML PARSE
+using default first blue for name from first ForceSide in C2SIMInitializationBody:NATO Coalition
+*******************************************************************************************************
+WARNING - UNIT NAME:111.MechBnHq OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:111.MechBn
+*******************************************************************************************************
+******************************************************************************************************
+WARNING - UNIT NAME:112.MechCoy OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:112.MechCo
+******************************************************************************************************
+*******************************************************************************************************
+WARNING - UNIT NAME:1121.MechPlt OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:1121.MechP
+*******************************************************************************************************
+*******************************************************************************************************
+WARNING - UNIT NAME:1122.MechPlt OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:1122.MechP
+*******************************************************************************************************
+*******************************************************************************************************
+WARNING - UNIT NAME:1123.MechPlt OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:1123.MechP
+*******************************************************************************************************
+******************************************************************************************************
+WARNING - UNIT NAME:113.MechCoy OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:113.MechCo
+******************************************************************************************************
+*******************************************************************************************************
+WARNING - UNIT NAME:1131.MechPlt OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:1131.MechP
+*******************************************************************************************************
+*******************************************************************************************************
+WARNING - UNIT NAME:1132.MechPlt OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:1132.MechP
+*******************************************************************************************************
+*******************************************************************************************************
+WARNING - UNIT NAME:1133.MechPlt OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:1133.MechP
+*******************************************************************************************************
+******************************************************************************************************
+WARNING - UNIT NAME:114.MechCoy OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:114.MechCo
+******************************************************************************************************
+*******************************************************************************************************
+WARNING - UNIT NAME:1141.MechPlt OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:1141.MechP
+*******************************************************************************************************
+*******************************************************************************************************
+WARNING - UNIT NAME:1142.MechPlt OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:1142.MechP
+*******************************************************************************************************
+*******************************************************************************************************
+WARNING - UNIT NAME:1143.MechPlt OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:1143.MechP
+*******************************************************************************************************
+******************************************************************************************************
+WARNING - UNIT NAME:115.MechCoy OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:115.MechCo
+******************************************************************************************************
+*******************************************************************************************************
+WARNING - UNIT NAME:1151.MechPlt OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:1151.MechP
+*******************************************************************************************************
+*******************************************************************************************************
+WARNING - UNIT NAME:1152.MechPlt OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:1152.MechP
+*******************************************************************************************************
+*******************************************************************************************************
+WARNING - UNIT NAME:1153.MechPlt OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:1153.MechP
+*******************************************************************************************************
+*******************************************************************************************************
+WARNING - UNIT NAME:121.MechBnHq OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:121.MechBn
+*******************************************************************************************************
+******************************************************************************************************
+WARNING - UNIT NAME:122.MechCoy OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:122.MechCo
+******************************************************************************************************
+*******************************************************************************************************
+WARNING - UNIT NAME:1221.MechPlt OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:1221.MechP
+*******************************************************************************************************
+*******************************************************************************************************
+WARNING - UNIT NAME:1222.MechPlt OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:1222.MechP
+*******************************************************************************************************
+*******************************************************************************************************
+WARNING - UNIT NAME:1223.MechPlt OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:1223.MechP
+*******************************************************************************************************
+******************************************************************************************************
+WARNING - UNIT NAME:123.MechCoy OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:123.MechCo
+******************************************************************************************************
+*******************************************************************************************************
+WARNING - UNIT NAME:1231.MechPlt OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:1231.MechP
+*******************************************************************************************************
+*******************************************************************************************************
+WARNING - UNIT NAME:1232.MechPlt OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:1232.MechP
+*******************************************************************************************************
+*******************************************************************************************************
+WARNING - UNIT NAME:1233.MechPlt OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:1233.MechP
+*******************************************************************************************************
+******************************************************************************************************
+WARNING - UNIT NAME:124.MechCoy OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:124.MechCo
+******************************************************************************************************
+*******************************************************************************************************
+WARNING - UNIT NAME:1241.MechPlt OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:1241.MechP
+*******************************************************************************************************
+*******************************************************************************************************
+WARNING - UNIT NAME:1242.MechPlt OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:1242.MechP
+*******************************************************************************************************
+*******************************************************************************************************
+WARNING - UNIT NAME:1243.MechPlt OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:1243.MechP
+*******************************************************************************************************
+********************************************************************************************************
+WARNING - UNIT NAME:125.MortarCoy OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:125.Mortar
+********************************************************************************************************
+*******************************************************************************************************
+WARNING - UNIT NAME:131.MechBnHq OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:131.MechBn
+*******************************************************************************************************
+******************************************************************************************************
+WARNING - UNIT NAME:132.MechCoy OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:132.MechCo
+******************************************************************************************************
+******************************************************************************************************
+WARNING - UNIT NAME:133.MechCoy OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:133.MechCo
+******************************************************************************************************
+******************************************************************************************************
+WARNING - UNIT NAME:134.MechCoy OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:134.MechCo
+******************************************************************************************************
+********************************************************************************************************
+WARNING - UNIT NAME:135.MortarCoy OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:135.Mortar
+********************************************************************************************************
+*******************************************************************************************************
+WARNING - UNIT NAME:141.MechBnHq OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:141.MechBn
+*******************************************************************************************************
+******************************************************************************************************
+WARNING - UNIT NAME:142.MechCoy OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:142.MechCo
+******************************************************************************************************
+Unit 142.MechCo c67aa71b-459b-1d99-b195-5fb58dc66542 RESOURCE Name:30MM|OnHandQuantity:288|OperationalQuantity:288|RequiredOnHandQuantity:288|
+Unit 142.MechCo c67aa71b-459b-1d99-b195-5fb58dc66542 RESOURCE Name:35MM|OnHandQuantity:14000|OperationalQuantity:14000|RequiredOnHandQuantity:14000|
+Unit 142.MechCo c67aa71b-459b-1d99-b195-5fb58dc66542 RESOURCE Name:40MM|OnHandQuantity:760|OperationalQuantity:760|RequiredOnHandQuantity:760|
+Unit 142.MechCo c67aa71b-459b-1d99-b195-5fb58dc66542 RESOURCE Name:5.56MM|OnHandQuantity:34100|OperationalQuantity:34100|RequiredOnHandQuantity:34100|
+Unit 142.MechCo c67aa71b-459b-1d99-b195-5fb58dc66542 RESOURCE Name:7.62MM|OnHandQuantity:24320|OperationalQuantity:24320|RequiredOnHandQuantity:24320|
+Unit 142.MechCo c67aa71b-459b-1d99-b195-5fb58dc66542 RESOURCE Name:Diesel|OnHandQuantity:16960|OperationalQuantity:16960|RequiredOnHandQuantity:16960|
+Unit 142.MechCo c67aa71b-459b-1d99-b195-5fb58dc66542 RESOURCE Name:Food|OnHandQuantity:378|OperationalQuantity:378|RequiredOnHandQuantity:378|
+Unit 142.MechCo c67aa71b-459b-1d99-b195-5fb58dc66542 RESOURCE Name:Water|OnHandQuantity:1260|OperationalQuantity:1260|RequiredOnHandQuantity:1260|
+******************************************************************************************************
+WARNING - UNIT NAME:143.MechCoy OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:143.MechCo
+******************************************************************************************************
+Unit 143.MechCo 309aa71b-363a-f56a-2158-878eb2cd6542 RESOURCE Name:30MM|OnHandQuantity:288|OperationalQuantity:288|RequiredOnHandQuantity:288|
+Unit 143.MechCo 309aa71b-363a-f56a-2158-878eb2cd6542 RESOURCE Name:35MM|OnHandQuantity:14000|OperationalQuantity:14000|RequiredOnHandQuantity:14000|
+Unit 143.MechCo 309aa71b-363a-f56a-2158-878eb2cd6542 RESOURCE Name:40MM|OnHandQuantity:760|OperationalQuantity:760|RequiredOnHandQuantity:760|
+Unit 143.MechCo 309aa71b-363a-f56a-2158-878eb2cd6542 RESOURCE Name:5.56MM|OnHandQuantity:34100|OperationalQuantity:34100|RequiredOnHandQuantity:34100|
+Unit 143.MechCo 309aa71b-363a-f56a-2158-878eb2cd6542 RESOURCE Name:7.62MM|OnHandQuantity:24320|OperationalQuantity:24320|RequiredOnHandQuantity:24320|
+Unit 143.MechCo 309aa71b-363a-f56a-2158-878eb2cd6542 RESOURCE Name:Diesel|OnHandQuantity:16960|OperationalQuantity:16960|RequiredOnHandQuantity:16960|
+Unit 143.MechCo 309aa71b-363a-f56a-2158-878eb2cd6542 RESOURCE Name:Food|OnHandQuantity:378|OperationalQuantity:378|RequiredOnHandQuantity:378|
+Unit 143.MechCo 309aa71b-363a-f56a-2158-878eb2cd6542 RESOURCE Name:Water|OnHandQuantity:1260|OperationalQuantity:1260|RequiredOnHandQuantity:1260|
+******************************************************************************************************
+WARNING - UNIT NAME:144.MechCoy OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:144.MechCo
+******************************************************************************************************
+Unit 144.MechCo 9abaa71b-26d8-cd3b-921a-af67d7d46542 RESOURCE Name:30MM|OnHandQuantity:288|OperationalQuantity:288|RequiredOnHandQuantity:288|
+Unit 144.MechCo 9abaa71b-26d8-cd3b-921a-af67d7d46542 RESOURCE Name:35MM|OnHandQuantity:14000|OperationalQuantity:14000|RequiredOnHandQuantity:14000|
+Unit 144.MechCo 9abaa71b-26d8-cd3b-921a-af67d7d46542 RESOURCE Name:40MM|OnHandQuantity:760|OperationalQuantity:760|RequiredOnHandQuantity:760|
+Unit 144.MechCo 9abaa71b-26d8-cd3b-921a-af67d7d46542 RESOURCE Name:5.56MM|OnHandQuantity:34100|OperationalQuantity:34100|RequiredOnHandQuantity:34100|
+Unit 144.MechCo 9abaa71b-26d8-cd3b-921a-af67d7d46542 RESOURCE Name:7.62MM|OnHandQuantity:24320|OperationalQuantity:24320|RequiredOnHandQuantity:24320|
+Unit 144.MechCo 9abaa71b-26d8-cd3b-921a-af67d7d46542 RESOURCE Name:Diesel|OnHandQuantity:16960|OperationalQuantity:16960|RequiredOnHandQuantity:16960|
+Unit 144.MechCo 9abaa71b-26d8-cd3b-921a-af67d7d46542 RESOURCE Name:Food|OnHandQuantity:378|OperationalQuantity:378|RequiredOnHandQuantity:378|
+Unit 144.MechCo 9abaa71b-26d8-cd3b-921a-af67d7d46542 RESOURCE Name:Water|OnHandQuantity:1260|OperationalQuantity:1260|RequiredOnHandQuantity:1260|
+********************************************************************************************************
+WARNING - UNIT NAME:145.MortarCoy OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:145.Mortar
+********************************************************************************************************
+Unit 145.Mortar 04daa71b-1777-a50c-03dd-d640fcdb6542 RESOURCE Name:12.7MM|OnHandQuantity:2000|OperationalQuantity:2000|RequiredOnHandQuantity:2000|
+Unit 145.Mortar 04daa71b-1777-a50c-03dd-d640fcdb6542 RESOURCE Name:Diesel|OnHandQuantity:1800|OperationalQuantity:1800|RequiredOnHandQuantity:1800|
+*********************************************************************************************************
+WARNING - UNIT NAME:16.Aviation_Bn OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:16.Aviatio
+*********************************************************************************************************
+**********************************************************************************************************
+WARNING - UNIT NAME:161.AviationQRF OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:161.Aviati
+**********************************************************************************************************
+*************************************************************************************************************
+WARNING - UNIT NAME:162.AviationAttack OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:162.Aviati
+*************************************************************************************************************
+***********************************************************************************************************
+WARNING - UNIT NAME:163.AviationLift OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:163.Aviati
+***********************************************************************************************************
+**********************************************************************************************************
+WARNING - UNIT NAME:171.AirborneCoy OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:171.Airbor
+**********************************************************************************************************
+Unit 171.Airbor 670cfe60-6c43-f267-ad7f-bd6e739def24 RESOURCE Name:5.56MM|OnHandQuantity:29200|OperationalQuantity:29200|RequiredOnHandQuantity:29200|
+Unit 171.Airbor 670cfe60-6c43-f267-ad7f-bd6e739def24 RESOURCE Name:60MM|OnHandQuantity:60|OperationalQuantity:60|RequiredOnHandQuantity:60|
+Unit 171.Airbor 670cfe60-6c43-f267-ad7f-bd6e739def24 RESOURCE Name:81MM|OnHandQuantity:60|OperationalQuantity:60|RequiredOnHandQuantity:60|
+Unit 171.Airbor 670cfe60-6c43-f267-ad7f-bd6e739def24 RESOURCE Name:Diesel|OnHandQuantity:630|OperationalQuantity:630|RequiredOnHandQuantity:630|
+Unit 171.Airbor 670cfe60-6c43-f267-ad7f-bd6e739def24 RESOURCE Name:Food|OnHandQuantity:360|OperationalQuantity:360|RequiredOnHandQuantity:360|
+Unit 171.Airbor 670cfe60-6c43-f267-ad7f-bd6e739def24 RESOURCE Name:Ml/RL missile|OnHandQuantity:16|OperationalQuantity:16|RequiredOnHandQuantity:16|
+Unit 171.Airbor 670cfe60-6c43-f267-ad7f-bd6e739def24 RESOURCE Name:Water|OnHandQuantity:1200|OperationalQuantity:1200|RequiredOnHandQuantity:1200|
+************************************************************************************************************
+WARNING - UNIT NAME:181.AmphibiousCoy OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:181.Amphib
+************************************************************************************************************
+***********************************************************************************************************
+WARNING - UNIT NAME:1811.AmphibCraft OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:1811.Amphi
+***********************************************************************************************************
+Unit 1811.Amphi 670cfe62-6c43-f267-ad7f-bd6e739def24 RESOURCE Name:5.56MM|OnHandQuantity:1500|OperationalQuantity:1500|RequiredOnHandQuantity:1500|
+Unit 1811.Amphi 670cfe62-6c43-f267-ad7f-bd6e739def24 RESOURCE Name:Diesel|OnHandQuantity:100|OperationalQuantity:100|RequiredOnHandQuantity:100|
+Unit 1811.Amphi 670cfe62-6c43-f267-ad7f-bd6e739def24 RESOURCE Name:Food|OnHandQuantity:30|OperationalQuantity:30|RequiredOnHandQuantity:30|
+Unit 1811.Amphi 670cfe62-6c43-f267-ad7f-bd6e739def24 RESOURCE Name:Water|OnHandQuantity:100|OperationalQuantity:100|RequiredOnHandQuantity:100|
+***********************************************************************************************************
+WARNING - UNIT NAME:1812.AmphibCraft OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:1812.Amphi
+***********************************************************************************************************
+Unit 1812.Amphi f15aa71b-edbd-fe6d-e134-6eca2add6642 RESOURCE Name:5.56MM|OnHandQuantity:1500|OperationalQuantity:1500|RequiredOnHandQuantity:1500|
+Unit 1812.Amphi f15aa71b-edbd-fe6d-e134-6eca2add6642 RESOURCE Name:Diesel|OnHandQuantity:100|OperationalQuantity:100|RequiredOnHandQuantity:100|
+Unit 1812.Amphi f15aa71b-edbd-fe6d-e134-6eca2add6642 RESOURCE Name:Food|OnHandQuantity:30|OperationalQuantity:30|RequiredOnHandQuantity:30|
+Unit 1812.Amphi f15aa71b-edbd-fe6d-e134-6eca2add6642 RESOURCE Name:Water|OnHandQuantity:100|OperationalQuantity:100|RequiredOnHandQuantity:100|
+***********************************************************************************************************
+WARNING - UNIT NAME:1813.AmphibCraft OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:1813.Amphi
+***********************************************************************************************************
+Unit 1813.Amphi 670cfe7c-6c43-f267-ad7f-bd6e739def24 RESOURCE Name:5.56MM|OnHandQuantity:1500|OperationalQuantity:1500|RequiredOnHandQuantity:1500|
+Unit 1813.Amphi 670cfe7c-6c43-f267-ad7f-bd6e739def24 RESOURCE Name:Diesel|OnHandQuantity:100|OperationalQuantity:100|RequiredOnHandQuantity:100|
+Unit 1813.Amphi 670cfe7c-6c43-f267-ad7f-bd6e739def24 RESOURCE Name:Food|OnHandQuantity:30|OperationalQuantity:30|RequiredOnHandQuantity:30|
+Unit 1813.Amphi 670cfe7c-6c43-f267-ad7f-bd6e739def24 RESOURCE Name:Water|OnHandQuantity:100|OperationalQuantity:100|RequiredOnHandQuantity:100|
+***********************************************************************************************************
+WARNING - UNIT NAME:1814.AmphibCraft OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:1814.Amphi
+***********************************************************************************************************
+Unit 1814.Amphi 670cfe7d-6c43-f267-ad7f-bd6e739def24 RESOURCE Name:5.56MM|OnHandQuantity:1500|OperationalQuantity:1500|RequiredOnHandQuantity:1500|
+Unit 1814.Amphi 670cfe7d-6c43-f267-ad7f-bd6e739def24 RESOURCE Name:Diesel|OnHandQuantity:100|OperationalQuantity:100|RequiredOnHandQuantity:100|
+Unit 1814.Amphi 670cfe7d-6c43-f267-ad7f-bd6e739def24 RESOURCE Name:Food|OnHandQuantity:30|OperationalQuantity:30|RequiredOnHandQuantity:30|
+Unit 1814.Amphi 670cfe7d-6c43-f267-ad7f-bd6e739def24 RESOURCE Name:Water|OnHandQuantity:100|OperationalQuantity:100|RequiredOnHandQuantity:100|
+******************************************************************************************************
+WARNING - UNIT NAME:Z.Battalion OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:Z.Battalio
+******************************************************************************************************
+**********************************************************************************************************
+WARNING - UNIT NAME:Z61.AmphibCraft OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:Z61.Amphib
+**********************************************************************************************************
+**********************************************************************************************************
+WARNING - UNIT NAME:Z62.AmphibCraft OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:Z62.Amphib
+**********************************************************************************************************
+**********************************************************************************************************
+WARNING - UNIT NAME:Z63.AmphibCraft OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:Z63.Amphib
+**********************************************************************************************************
+**********************************************************************************************************
+WARNING - UNIT NAME:Z64.AmphibCraft OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:Z64.Amphib
+**********************************************************************************************************
+Unit Z53.InfPlt 4e2afb90-acdb-16b5-19d6-d5c7f58865f7 RESOURCE Name:30MM|OnHandQuantity:288|OperationalQuantity:288|RequiredOnHandQuantity:288|
+Unit Z53.InfPlt 4e2afb90-acdb-16b5-19d6-d5c7f58865f7 RESOURCE Name:7.62MM|OnHandQuantity:3600|OperationalQuantity:3600|RequiredOnHandQuantity:3600|
+Unit Z53.InfPlt 4e2afb90-acdb-16b5-19d6-d5c7f58865f7 RESOURCE Name:Diesel|OnHandQuantity:4160|OperationalQuantity:4160|RequiredOnHandQuantity:4160|
+Unit Z53.InfPlt 4e2afb90-acdb-16b5-19d6-d5c7f58865f7 RESOURCE Name:Ml/RL missile|OnHandQuantity:288|OperationalQuantity:288|RequiredOnHandQuantity:288|
+Unit Z53.InfPlt 4e2afb90-acdb-16b5-19d6-d5c7f58865f7 RESOURCE Name:Water|OnHandQuantity:300|OperationalQuantity:300|RequiredOnHandQuantity:300|
+************************************************************************************************************
+WARNING - UNIT NAME:Z7.AviationAttack OVER 10 CHARACTERS - NOT ALLOWED BY VRFORCES - TRUNCATED TO:Z7.Aviatio
+************************************************************************************************************
+
+FORCESIDES:
+BLUE: NATO Coalition FR 00000000-0000-0001-0000-000000000000
+OTHER1: WASA HO UUID:00000000-0000-0002-0000-000000000000
+OTHER2: Neutral NEUTRL UUID:00000000-0000-0003-0000-000000000000
+
+initialization message contains 80 units
+missing initial latitude/longitude for unit 1222.MechP - will try to substitute parent unit lat/lon
+using parent lat/lon 58.70295558741188/16.49922870030753 as initial for 001aa71b-4c26-a1ea-28b2-f7dfe8e76342
+OBJECT CREATED CALLBACK RECEIVED FOR:1222.MechP
+controller created object with name:1222.MechP|VRF_UUID:25753fc6-9bb2-5a4e-bf6b-011f6ad1dc3f|
+created aggregated ArmorPlatoon unit named:1222.MechP vrfUuid:VRF_UUID:25753fc6-9bb2-5a4e-bf6b-011f6ad1dc3f C2SIM UUID:001aa71b-4c26-a1ea-28b2-f7dfe8e76342 hostility:FR
+missing initial latitude/longitude for unit 145.Mortar - will try to substitute parent unit lat/lon
+using parent lat/lon 58.675521059832/16.3907358543315 as initial for 04daa71b-1777-a50c-03dd-d640fcdb6542
+Can't create data of type non_lethal_damage_effect.  No creator found.  Only time this warning will be issued.
+Can't create data of type suppressed_crouch.  No creator found.  Only time this warning will be issued.
+Can't create data of type suppressed_prone.  No creator found.  Only time this warning will be issued.
+OBJECT CREATED CALLBACK RECEIVED FOR:145.Mortar
+controller created object with name:145.Mortar|VRF_UUID:5e1d20c2-b71d-1945-92d1-8d7b7abc9029|
+created aggregated ArmorCompany unit named:145.Mortar vrfUuid:VRF_UUID:5e1d20c2-b71d-1945-92d1-8d7b7abc9029 C2SIM UUID:04daa71b-1777-a50c-03dd-d640fcdb6542 hostility:FR
+missing initial latitude/longitude for unit 1233.MechP - will try to substitute parent unit lat/lon
+could not find parent latitude/longitude for unit 1233.MechP - omitting it
+missing initial latitude/longitude for unit 16.Aviatio - will try to substitute parent unit lat/lon
+could not find parent latitude/longitude for unit 16.Aviatio - omitting it
+missing initial latitude/longitude for unit Z7.Aviatio - will try to substitute parent unit lat/lon
+using parent lat/lon 58.7001673483073/16.8379209162322 as initial for 0daafb90-0c33-0997-eece-9f6ab1090100
+Can't create data of type deploy_weapon_below_speed.  No creator found.  Only time this warning will be issued.
+Can't create data of type platform_send_observation.  No creator found.  Only time this warning will be issued.
+Can't create data of type tracking_reports.  No creator found.  Only time this warning will be issued.
+OBJECT CREATED CALLBACK RECEIVED FOR:Z7.Aviatio
+controller created object with name:Z7.Aviatio|VRF_UUID:ee7065d3-6c39-ef4c-932e-ded6c88354fd|
+created aggregated ArmorCompany unit named:Z7.Aviatio vrfUuid:VRF_UUID:ee7065d3-6c39-ef4c-932e-ded6c88354fd C2SIM UUID:0daafb90-0c33-0997-eece-9f6ab1090100 hostility:HO
+missing initial latitude/longitude for unit 1123.MechP - will try to substitute parent unit lat/lon
+using parent lat/lon 58.7282965318541/16.3709571093683 as initial for 0dfaa71b-33ed-d5dd-8153-dfbc8d176242
+OBJECT CREATED CALLBACK RECEIVED FOR:1123.MechP
+controller created object with name:1123.MechP|VRF_UUID:b17776a0-c4c2-a446-9967-86ed4b809270|
+created aggregated ArmorPlatoon unit named:1123.MechP vrfUuid:VRF_UUID:b17776a0-c4c2-a446-9967-86ed4b809270 C2SIM UUID:0dfaa71b-33ed-d5dd-8153-dfbc8d176242 hostility:FR
+missing initial latitude/longitude for unit 114.MechCo - will try to substitute parent unit lat/lon
+using parent lat/lon 58.7376289968135/16.3520773982672 as initial for 139aa71b-75df-4888-4a5a-6056bae66242
+OBJECT CREATED CALLBACK RECEIVED FOR:114.MechCo
+controller created object with name:114.MechCo|VRF_UUID:3b15a086-12e1-5146-bd17-df4ea509f547|
+created aggregated ArmorCompany unit named:114.MechCo vrfUuid:VRF_UUID:3b15a086-12e1-5146-bd17-df4ea509f547 C2SIM UUID:139aa71b-75df-4888-4a5a-6056bae66242 hostility:FR
+missing initial latitude/longitude for unit 181.Amphib - will try to substitute parent unit lat/lon
+could not find parent latitude/longitude for unit 181.Amphib - omitting it
+missing initial latitude/longitude for unit 134.MechCo - will try to substitute parent unit lat/lon
+using parent lat/lon 58.650515898702/16.5879659029684 as initial for 1dfaa71b-8322-be55-ed8b-c050faa96542
+OBJECT CREATED CALLBACK RECEIVED FOR:134.MechCo
+controller created object with name:134.MechCo|VRF_UUID:d625f7bb-eae1-0240-a524-e36e720caf3b|
+created aggregated ArmorCompany unit named:134.MechCo vrfUuid:VRF_UUID:d625f7bb-eae1-0240-a524-e36e720caf3b C2SIM UUID:1dfaa71b-8322-be55-ed8b-c050faa96542 hostility:FR
+missing initial latitude/longitude for unit 1151.MechP - will try to substitute parent unit lat/lon
+could not find parent latitude/longitude for unit 1151.MechP - omitting it
+missing initial latitude/longitude for unit 1.MechBde - will try to substitute parent unit lat/lon
+could not find parent UUID - omitting unit
+OBJECT CREATED CALLBACK RECEIVED FOR:122.MechCo
+controller created object with name:122.MechCo|VRF_UUID:f405e5a5-727e-c04d-a478-ec43ef680105|
+created aggregated ArmorCompany unit named:122.MechCo vrfUuid:VRF_UUID:f405e5a5-727e-c04d-a478-ec43ef680105 C2SIM UUID:2bdaa71b-6ae9-f248-462d-a82d9fd96342 hostility:FR
+missing initial latitude/longitude for unit 143.MechCo - will try to substitute parent unit lat/lon
+using parent lat/lon 58.675521059832/16.3907358543315 as initial for 309aa71b-363a-f56a-2158-878eb2cd6542
+OBJECT CREATED CALLBACK RECEIVED FOR:143.MechCo
+controller created object with name:143.MechCo|VRF_UUID:2eff79c2-89ba-d546-bb51-da6bd2169600|
+created aggregated ArmorCompany unit named:143.MechCo vrfUuid:VRF_UUID:2eff79c2-89ba-d546-bb51-da6bd2169600 C2SIM UUID:309aa71b-363a-f56a-2158-878eb2cd6542 hostility:FR
+missing initial latitude/longitude for unit Z52.InfPlt - will try to substitute parent unit lat/lon
+using parent lat/lon 58.6755210598318/16.5345812722451 as initial for 33cafb90-e904-e749-4343-cf1e3b2c0000
+OBJECT CREATED CALLBACK RECEIVED FOR:Z52.InfPlt
+controller created object with name:Z52.InfPlt|VRF_UUID:bf2026c1-eb94-d541-8635-6c9cf392b93e|
+created aggregated ArmorPlatoon unit named:Z52.InfPlt vrfUuid:VRF_UUID:bf2026c1-eb94-d541-8635-6c9cf392b93e C2SIM UUID:33cafb90-e904-e749-4343-cf1e3b2c0000 hostility:HO
+missing initial latitude/longitude for unit Z63.Amphib - will try to substitute parent unit lat/lon
+using parent lat/lon 58.7096240908055/16.6712344192631 as initial for 396afb90-2af6-59f5-0c4a-50b867fb0000
+OBJECT CREATED CALLBACK RECEIVED FOR:Z63.Amphib
+controller created object with name:Z63.Amphib|VRF_UUID:6517755f-08d7-3d44-8867-94904c1fc8bf|
+created BOAT name:Z63.Amphib hostility:HO UUID:396afb90-2af6-59f5-0c4a-50b867fb0000
+missing initial latitude/longitude for unit 1121.MechP - will try to substitute parent unit lat/lon
+using parent lat/lon 58.7282965318541/16.3709571093683 as initial for 39baa71b-52b0-263b-a0ce-8f0a44096242
+OBJECT CREATED CALLBACK RECEIVED FOR:1121.MechP
+controller created object with name:1121.MechP|VRF_UUID:87e8918e-a098-2f4c-a3bf-18957c0add58|
+created aggregated ArmorPlatoon unit named:1121.MechP vrfUuid:VRF_UUID:87e8918e-a098-2f4c-a3bf-18957c0add58 C2SIM UUID:39baa71b-52b0-263b-a0ce-8f0a44096242 hostility:FR
+missing initial latitude/longitude for unit 1231.MechP - will try to substitute parent unit lat/lon
+could not find parent latitude/longitude for unit 1231.MechP - omitting it
+missing initial latitude/longitude for unit 1132.MechP - will try to substitute parent unit lat/lon
+could not find parent latitude/longitude for unit 1132.MechP - omitting it
+missing initial latitude/longitude for unit 1242.MechP - will try to substitute parent unit lat/lon
+could not find parent latitude/longitude for unit 1242.MechP - omitting it
+missing initial latitude/longitude for unit Z53.InfPlt - will try to substitute parent unit lat/lon
+using parent lat/lon 58.660093665092/16.7009025367078 as initial for 4e2afb90-acdb-16b5-19d6-d5c7f58865f7
+OBJECT CREATED CALLBACK RECEIVED FOR:Z53.InfPlt
+controller created object with name:Z53.InfPlt|VRF_UUID:2671535d-18ba-5e44-a766-2ba91c329b77|
+created aggregated ArmorPlatoon unit named:Z53.InfPlt vrfUuid:VRF_UUID:2671535d-18ba-5e44-a766-2ba91c329b77 C2SIM UUID:4e2afb90-acdb-16b5-19d6-d5c7f58865f7 hostility:HO
+missing initial latitude/longitude for unit 1143.MechP - will try to substitute parent unit lat/lon
+using parent lat/lon 58.7376289968135/16.3520773982672 as initial for 51faa71b-47ba-cffb-9ca1-d7e128fc6242
+OBJECT CREATED CALLBACK RECEIVED FOR:1143.MechP
+controller created object with name:1143.MechP|VRF_UUID:128a695d-03ab-be40-bc21-6671088dfece|
+created aggregated ArmorPlatoon unit named:1143.MechP vrfUuid:VRF_UUID:128a695d-03ab-be40-bc21-6671088dfece C2SIM UUID:51faa71b-47ba-cffb-9ca1-d7e128fc6242 hostility:FR
+missing initial latitude/longitude for unit Z64.Amphib - will try to substitute parent unit lat/lon
+using parent lat/lon 58.7096240908055/16.6712344192631 as initial for 53cafb90-eecd-8960-e1dc-5661225866f7
+OBJECT CREATED CALLBACK RECEIVED FOR:Z64.Amphib
+controller created object with name:Z64.Amphib|VRF_UUID:8088e9b6-b8cf-1642-9912-d4701650c960|
+created BOAT name:Z64.Amphib hostility:HO UUID:53cafb90-eecd-8960-e1dc-5661225866f7
+missing initial latitude/longitude for unit 132.MechCo - will try to substitute parent unit lat/lon
+using parent lat/lon 58.650515898702/16.5879659029684 as initial for 56baa71b-130b-d31d-77cc-b6423cf06442
+OBJECT CREATED CALLBACK RECEIVED FOR:132.MechCo
+controller created object with name:132.MechCo|VRF_UUID:f61002b0-5a15-a848-bee7-72d9f2b8f77d|
+created aggregated ArmorCompany unit named:132.MechCo vrfUuid:VRF_UUID:f61002b0-5a15-a848-bee7-72d9f2b8f77d C2SIM UUID:56baa71b-130b-d31d-77cc-b6423cf06442 hostility:FR
+missing initial latitude/longitude for unit 141.MechBn - will try to substitute parent unit lat/lon
+using parent lat/lon 58.675521059832/16.3907358543315 as initial for 5c5aa71b-54fd-45c8-40d3-37dc68bf6542
+OBJECT CREATED CALLBACK RECEIVED FOR:141.MechBn
+controller created object with name:141.MechBn|VRF_UUID:ca53c64b-ff8a-6a42-96c3-e3fadbb7f63e|
+created aggregated ArmorCoHQ unit named:141.MechBn vrfUuid:VRF_UUID:ca53c64b-ff8a-6a42-96c3-e3fadbb7f63e C2SIM UUID:5c5aa71b-54fd-45c8-40d3-37dc68bf6542 hostility:FR
+missing initial latitude/longitude for unit Z51.InfPlt - will try to substitute parent unit lat/lon
+using parent lat/lon 58.7502238539739/16.5130044595581 as initial for 5f8afb90-07c7-37a8-62be-7f6cf11d0000
+OBJECT CREATED CALLBACK RECEIVED FOR:Z51.InfPlt
+controller created object with name:Z51.InfPlt|VRF_UUID:0a15a1dd-b2f1-e845-9433-5e242ba33fe8|
+created aggregated ArmorPlatoon unit named:Z51.InfPlt vrfUuid:VRF_UUID:0a15a1dd-b2f1-e845-9433-5e242ba33fe8 C2SIM UUID:5f8afb90-07c7-37a8-62be-7f6cf11d0000 hostility:HO
+missing initial latitude/longitude for unit 111.MechBn - will try to substitute parent unit lat/lon
+using parent lat/lon 58.7376289968135/16.3520773982672 as initial for 657aa71b-7173-7699-be49-4058fafa6142
+OBJECT CREATED CALLBACK RECEIVED FOR:111.MechBn
+controller created object with name:111.MechBn|VRF_UUID:1e65c18a-7a9b-1341-a5eb-7cbb85efbced|
+created aggregated ArmorCoHQ unit named:111.MechBn vrfUuid:VRF_UUID:1e65c18a-7a9b-1341-a5eb-7cbb85efbced C2SIM UUID:657aa71b-7173-7699-be49-4058fafa6142 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:1.BdeHQ
+controller created object with name:1.BdeHQ|VRF_UUID:bdeb8013-d199-ca48-adce-4b302ffb23fe|
+created TANK name:1.BdeHQ hostility:FR UUID:670cfdb2-6c43-f267-ad7f-bd6e739def24
+OBJECT CREATED CALLBACK RECEIVED FOR:11.MechBn
+controller created object with name:11.MechBn|VRF_UUID:f34a3b44-7cec-194f-be10-02e60d114268|
+created aggregated ArmorCoHQ unit named:11.MechBn vrfUuid:VRF_UUID:f34a3b44-7cec-194f-be10-02e60d114268 C2SIM UUID:670cfdb3-6c43-f267-ad7f-bd6e739def24 hostility:FR
+missing initial latitude/longitude for unit 12.MechBn - will try to substitute parent unit lat/lon
+could not find parent latitude/longitude for unit 12.MechBn - omitting it
+missing initial latitude/longitude for unit 125.Mortar - will try to substitute parent unit lat/lon
+could not find parent latitude/longitude for unit 125.Mortar - omitting it
+OBJECT CREATED CALLBACK RECEIVED FOR:13.MechBn
+controller created object with name:13.MechBn|VRF_UUID:a965e617-a2b2-384b-844e-c258d01d70c0|
+created aggregated ArmorCoHQ unit named:13.MechBn vrfUuid:VRF_UUID:a965e617-a2b2-384b-844e-c258d01d70c0 C2SIM UUID:670cfe1c-6c43-f267-ad7f-bd6e739def24 hostility:FR
+missing initial latitude/longitude for unit 135.Mortar - will try to substitute parent unit lat/lon
+using parent lat/lon 58.650515898702/16.5879659029684 as initial for 670cfe39-6c43-f267-ad7f-bd6e739def24
+OBJECT CREATED CALLBACK RECEIVED FOR:135.Mortar
+controller created object with name:135.Mortar|VRF_UUID:6ba2d4e0-6c7f-b541-98fe-cc55228d16b9|
+created aggregated ArmorCompany unit named:135.Mortar vrfUuid:VRF_UUID:6ba2d4e0-6c7f-b541-98fe-cc55228d16b9 C2SIM UUID:670cfe39-6c43-f267-ad7f-bd6e739def24 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:14.MechBn
+controller created object with name:14.MechBn|VRF_UUID:0adc9cac-56e5-c741-8cf5-1b722f5e5f3c|
+created aggregated ArmorCoHQ unit named:14.MechBn vrfUuid:VRF_UUID:0adc9cac-56e5-c741-8cf5-1b722f5e5f3c C2SIM UUID:670cfe3a-6c43-f267-ad7f-bd6e739def24 hostility:FR
+missing initial latitude/longitude for unit 15.Artybn - will try to substitute parent unit lat/lon
+could not find parent latitude/longitude for unit 15.Artybn - omitting it
+missing initial latitude/longitude for unit 151.ArtCoy - will try to substitute parent unit lat/lon
+could not find parent latitude/longitude for unit 151.ArtCoy - omitting it
+missing initial latitude/longitude for unit 152.ArtCoy - will try to substitute parent unit lat/lon
+could not find parent latitude/longitude for unit 152.ArtCoy - omitting it
+missing initial latitude/longitude for unit 153.ArtCoy - will try to substitute parent unit lat/lon
+could not find parent latitude/longitude for unit 153.ArtCoy - omitting it
+missing initial latitude/longitude for unit 161.Aviati - will try to substitute parent unit lat/lon
+could not find parent latitude/longitude for unit 161.Aviati - omitting it
+missing initial latitude/longitude for unit 162.Aviati - will try to substitute parent unit lat/lon
+could not find parent latitude/longitude for unit 162.Aviati - omitting it
+missing initial latitude/longitude for unit 163.Aviati - will try to substitute parent unit lat/lon
+could not find parent latitude/longitude for unit 163.Aviati - omitting it
+missing initial latitude/longitude for unit 171.Airbor - will try to substitute parent unit lat/lon
+could not find parent latitude/longitude for unit 171.Airbor - omitting it
+missing initial latitude/longitude for unit 1811.Amphi - will try to substitute parent unit lat/lon
+could not find parent latitude/longitude for unit 1811.Amphi - omitting it
+missing initial latitude/longitude for unit 1813.Amphi - will try to substitute parent unit lat/lon
+could not find parent latitude/longitude for unit 1813.Amphi - omitting it
+missing initial latitude/longitude for unit 1814.Amphi - will try to substitute parent unit lat/lon
+could not find parent latitude/longitude for unit 1814.Amphi - omitting it
+missing initial latitude/longitude for unit 1161.UAS - will try to substitute parent unit lat/lon
+using parent lat/lon 58.7376289968135/16.3520773982672 as initial for 670cfe7e-6c43-f267-ad7f-bd6e739def24
+OBJECT CREATED CALLBACK RECEIVED FOR:1161.UAS
+controller created object with name:1161.UAS|VRF_UUID:b12d3678-242c-c946-b9df-252c31fbf142|
+created rotary wing aircraft name:1161.UAS hostility:FR DIS Entity type:1.2.225.50.0.1.0 UUID:670cfe7e-6c43-f267-ad7f-bd6e739def24
+missing initial latitude/longitude for unit 1162.UAS - will try to substitute parent unit lat/lon
+using parent lat/lon 58.7376289968135/16.3520773982672 as initial for 670cfe7f-6c43-f267-ad7f-bd6e739def24
+OBJECT CREATED CALLBACK RECEIVED FOR:1162.UAS
+controller created object with name:1162.UAS|VRF_UUID:1990796e-340e-5146-ae01-aafee9f52ae4|
+created rotary wing aircraft name:1162.UAS hostility:FR DIS Entity type:1.2.225.50.0.1.0 UUID:670cfe7f-6c43-f267-ad7f-bd6e739def24
+missing initial latitude/longitude for unit 1261.UAS - will try to substitute parent unit lat/lon
+could not find parent latitude/longitude for unit 1261.UAS - omitting it
+missing initial latitude/longitude for unit 1262.UAS - will try to substitute parent unit lat/lon
+could not find parent latitude/longitude for unit 1262.UAS - omitting it
+missing initial latitude/longitude for unit 1361.UAS - will try to substitute parent unit lat/lon
+using parent lat/lon 58.650515898702/16.5879659029684 as initial for 670cfe82-6c43-f267-ad7f-bd6e739def24
+OBJECT CREATED CALLBACK RECEIVED FOR:1361.UAS
+controller created object with name:1361.UAS|VRF_UUID:9ef15115-c6ce-ec4d-9aa5-d5ddb5c23461|
+created rotary wing aircraft name:1361.UAS hostility:FR DIS Entity type:1.2.78.50.0.0.0 UUID:670cfe82-6c43-f267-ad7f-bd6e739def24
+missing initial latitude/longitude for unit 1362.UAS - will try to substitute parent unit lat/lon
+using parent lat/lon 58.650515898702/16.5879659029684 as initial for 670cfe83-6c43-f267-ad7f-bd6e739def24
+OBJECT CREATED CALLBACK RECEIVED FOR:1362.UAS
+controller created object with name:1362.UAS|VRF_UUID:7f3da843-d979-2045-9e84-3095923432bb|
+created rotary wing aircraft name:1362.UAS hostility:FR DIS Entity type:1.2.78.50.0.0.0 UUID:670cfe83-6c43-f267-ad7f-bd6e739def24
+missing initial latitude/longitude for unit 1223.MechP - will try to substitute parent unit lat/lon
+using parent lat/lon 58.70295558741188/16.49922870030753 as initial for 6a3aa71b-3cc4-79bb-9974-1fb90def6342
+OBJECT CREATED CALLBACK RECEIVED FOR:1223.MechP
+controller created object with name:1223.MechP|VRF_UUID:fca26f7e-b863-2847-8f98-9049f3adbf83|
+created aggregated ArmorPlatoon unit named:1223.MechP vrfUuid:VRF_UUID:fca26f7e-b863-2847-8f98-9049f3adbf83 C2SIM UUID:6a3aa71b-3cc4-79bb-9974-1fb90def6342 hostility:FR
+missing initial latitude/longitude for unit 124.MechCo - will try to substitute parent unit lat/lon
+could not find parent latitude/longitude for unit 124.MechCo - omitting it
+missing initial latitude/longitude for unit Z61.Amphib - will try to substitute parent unit lat/lon
+using parent lat/lon 58.7096240908055/16.6712344192631 as initial for 722afb90-badf-6ebc-968a-46aaa9410000
+OBJECT CREATED CALLBACK RECEIVED FOR:Z61.Amphib
+controller created object with name:Z61.Amphib|VRF_UUID:e4917f2b-7f60-4848-98ac-10d5d0bdb562|
+created BOAT name:Z61.Amphib hostility:HO UUID:722afb90-badf-6ebc-968a-46aaa9410000
+missing initial latitude/longitude for unit 113.MechCo - will try to substitute parent unit lat/lon
+using parent lat/lon 58.7376289968135/16.3520773982672 as initial for 781aa71b-248b-adae-f215-0796b21e6242
+OBJECT CREATED CALLBACK RECEIVED FOR:113.MechCo
+controller created object with name:113.MechCo|VRF_UUID:bb01087a-8ae5-6c45-9234-c046d78a7080|
+created aggregated ArmorCompany unit named:113.MechCo vrfUuid:VRF_UUID:bb01087a-8ae5-6c45-9234-c046d78a7080 C2SIM UUID:781aa71b-248b-adae-f215-0796b21e6242 hostility:FR
+missing initial latitude/longitude for unit 1141.MechP - will try to substitute parent unit lat/lon
+using parent lat/lon 58.7376289968135/16.3520773982672 as initial for 7dbaa71b-667d-2059-bb1c-882fdfed6242
+OBJECT CREATED CALLBACK RECEIVED FOR:1141.MechP
+controller created object with name:1141.MechP|VRF_UUID:2d2c9fe1-3365-0641-bbbe-9fa5244e75db|
+created aggregated ArmorPlatoon unit named:1141.MechP vrfUuid:VRF_UUID:2d2c9fe1-3365-0641-bbbe-9fa5244e75db C2SIM UUID:7dbaa71b-667d-2059-bb1c-882fdfed6242 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:Z1.InfCoy
+controller created object with name:Z1.InfCoy|VRF_UUID:ef19aeff-520b-e041-97c2-df5fd7377c87|
+created aggregated ArmorCompany unit named:Z1.InfCoy vrfUuid:VRF_UUID:ef19aeff-520b-e041-97c2-df5fd7377c87 C2SIM UUID:8b4afb90-268a-8806-8039-30baa70f0000 hostility:HO
+missing initial latitude/longitude for unit 1152.MechP - will try to substitute parent unit lat/lon
+could not find parent latitude/longitude for unit 1152.MechP - omitting it
+missing initial latitude/longitude for unit 1221.MechP - will try to substitute parent unit lat/lon
+using parent lat/lon 58.70295558741188/16.49922870030753 as initial for 95faa71b-5b87-ca19-b7ef-cf06c4e06342
+OBJECT CREATED CALLBACK RECEIVED FOR:1221.MechP
+controller created object with name:1221.MechP|VRF_UUID:6104a5bd-2bad-a545-84a2-ffefaffda002|
+created aggregated ArmorPlatoon unit named:1221.MechP vrfUuid:VRF_UUID:6104a5bd-2bad-a545-84a2-ffefaffda002 C2SIM UUID:95faa71b-5b87-ca19-b7ef-cf06c4e06342 hostility:FR
+missing initial latitude/longitude for unit 144.MechCo - will try to substitute parent unit lat/lon
+using parent lat/lon 58.675521059832/16.3907358543315 as initial for 9abaa71b-26d8-cd3b-921a-af67d7d46542
+OBJECT CREATED CALLBACK RECEIVED FOR:144.MechCo
+controller created object with name:144.MechCo|VRF_UUID:fe449115-858c-3b4b-abab-4efbb0d4fcc8|
+created aggregated ArmorCompany unit named:144.MechCo vrfUuid:VRF_UUID:fe449115-858c-3b4b-abab-4efbb0d4fcc8 C2SIM UUID:9abaa71b-26d8-cd3b-921a-af67d7d46542 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:Z4.InfCoy
+controller created object with name:Z4.InfCoy|VRF_UUID:1a8f033e-f425-af46-a46d-046f0c96fd36|
+created aggregated ArmorCompany unit named:Z4.InfCoy vrfUuid:VRF_UUID:1a8f033e-f425-af46-a46d-046f0c96fd36 C2SIM UUID:9deafb90-d9a2-bf1a-b405-f7f75f330000 hostility:HO
+missing initial latitude/longitude for unit 1122.MechP - will try to substitute parent unit lat/lon
+using parent lat/lon 58.7282965318541/16.3709571093683 as initial for a3daa71b-434e-fe0c-1091-b7e368106242
+OBJECT CREATED CALLBACK RECEIVED FOR:1122.MechP
+controller created object with name:1122.MechP|VRF_UUID:c1940625-8f06-e64c-9845-ba240130502f|
+created aggregated ArmorPlatoon unit named:1122.MechP vrfUuid:VRF_UUID:c1940625-8f06-e64c-9845-ba240130502f C2SIM UUID:a3daa71b-434e-fe0c-1091-b7e368106242 hostility:FR
+missing initial latitude/longitude for unit 1232.MechP - will try to substitute parent unit lat/lon
+could not find parent latitude/longitude for unit 1232.MechP - omitting it
+missing initial latitude/longitude for unit 1133.MechP - will try to substitute parent unit lat/lon
+using parent lat/lon 58.7376289968135/16.3520773982672 as initial for a97aa71b-8540-70b7-d997-387d95df6242
+OBJECT CREATED CALLBACK RECEIVED FOR:1133.MechP
+controller created object with name:1133.MechP|VRF_UUID:c88a7cee-60b2-1b48-b47a-522cd1fd303b|
+created aggregated ArmorPlatoon unit named:1133.MechP vrfUuid:VRF_UUID:c88a7cee-60b2-1b48-b47a-522cd1fd303b C2SIM UUID:a97aa71b-8540-70b7-d997-387d95df6242 hostility:FR
+missing initial latitude/longitude for unit 1243.MechP - will try to substitute parent unit lat/lon
+could not find parent latitude/longitude for unit 1243.MechP - omitting it
+missing initial latitude/longitude for unit 115.MechCo - will try to substitute parent unit lat/lon
+using parent lat/lon 58.7376289968135/16.3520773982672 as initial for bc1aa71b-3858-a7cc-0d64-ffba4d036342
+OBJECT CREATED CALLBACK RECEIVED FOR:115.MechCo
+controller created object with name:115.MechCo|VRF_UUID:b0914e69-b717-6a4a-a6d8-05ec8701a5b2|
+created aggregated ArmorCompany unit named:115.MechCo vrfUuid:VRF_UUID:b0914e69-b717-6a4a-a6d8-05ec8701a5b2 C2SIM UUID:bc1aa71b-3858-a7cc-0d64-ffba4d036342 hostility:FR
+missing initial latitude/longitude for unit 133.MechCo - will try to substitute parent unit lat/lon
+using parent lat/lon 58.650515898702/16.5879659029684 as initial for c0daa71b-03a9-aaee-e88e-de1b61f76442
+OBJECT CREATED CALLBACK RECEIVED FOR:133.MechCo
+controller created object with name:133.MechCo|VRF_UUID:df34e17a-434a-c64b-bbf4-2e5dc6dd7dca|
+created aggregated ArmorCompany unit named:133.MechCo vrfUuid:VRF_UUID:df34e17a-434a-c64b-bbf4-2e5dc6dd7dca C2SIM UUID:c0daa71b-03a9-aaee-e88e-de1b61f76442 hostility:FR
+missing initial latitude/longitude for unit 121.MechBn - will try to substitute parent unit lat/lon
+could not find parent latitude/longitude for unit 121.MechBn - omitting it
+missing initial latitude/longitude for unit 142.MechCo - will try to substitute parent unit lat/lon
+using parent lat/lon 58.675521059832/16.3907358543315 as initial for c67aa71b-459b-1d99-b195-5fb58dc66542
+OBJECT CREATED CALLBACK RECEIVED FOR:142.MechCo
+controller created object with name:142.MechCo|VRF_UUID:5ece6edc-937b-f744-9728-f13e07e0025a|
+created aggregated ArmorCompany unit named:142.MechCo vrfUuid:VRF_UUID:5ece6edc-937b-f744-9728-f13e07e0025a C2SIM UUID:c67aa71b-459b-1d99-b195-5fb58dc66542 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:Z3.InfCoy
+controller created object with name:Z3.InfCoy|VRF_UUID:76ffef43-914f-3944-a233-ff563d2427fe|
+created aggregated ArmorCompany unit named:Z3.InfCoy vrfUuid:VRF_UUID:76ffef43-914f-3944-a233-ff563d2427fe C2SIM UUID:c9aafb90-f865-0f78-d380-a74516250000 hostility:HO
+missing initial latitude/longitude for unit Z62.Amphib - will try to substitute parent unit lat/lon
+using parent lat/lon 58.7096240908055/16.6712344192631 as initial for cf4afb90-3a57-8224-9b87-28df42f40000
+OBJECT CREATED CALLBACK RECEIVED FOR:Z62.Amphib
+controller created object with name:Z62.Amphib|VRF_UUID:69eb0018-d1a2-6340-8c8e-306d3d2f07be|
+created BOAT name:Z62.Amphib hostility:HO UUID:cf4afb90-3a57-8224-9b87-28df42f40000
+OBJECT CREATED CALLBACK RECEIVED FOR:112.MechCo
+controller created object with name:112.MechCo|VRF_UUID:8c8f204c-a122-bd4b-856c-3558aec79a2f|
+created aggregated ArmorCompany unit named:112.MechCo vrfUuid:VRF_UUID:8c8f204c-a122-bd4b-856c-3558aec79a2f C2SIM UUID:cf9aa71b-6211-4e6a-2f0c-68311f026242 hostility:FR
+missing initial latitude/longitude for unit 123.MechCo - will try to substitute parent unit lat/lon
+could not find parent latitude/longitude for unit 123.MechCo - omitting it
+missing initial latitude/longitude for unit 1131.MechP - will try to substitute parent unit lat/lon
+using parent lat/lon 58.7376289968135/16.3520773982672 as initial for d53aa71b-a403-c115-f712-e9ca4bd16242
+OBJECT CREATED CALLBACK RECEIVED FOR:1131.MechP
+controller created object with name:1131.MechP|VRF_UUID:6ce57f71-9719-fc49-b14a-547881295c41|
+created aggregated ArmorPlatoon unit named:1131.MechP vrfUuid:VRF_UUID:6ce57f71-9719-fc49-b14a-547881295c41 C2SIM UUID:d53aa71b-a403-c115-f712-e9ca4bd16242 hostility:FR
+missing initial latitude/longitude for unit 1241.MechP - will try to substitute parent unit lat/lon
+could not find parent latitude/longitude for unit 1241.MechP - omitting it
+missing initial latitude/longitude for unit 1142.MechP - will try to substitute parent unit lat/lon
+using parent lat/lon 58.7376289968135/16.3520773982672 as initial for e7daa71b-571b-f82a-2bdf-af0804f56242
+OBJECT CREATED CALLBACK RECEIVED FOR:1142.MechP
+controller created object with name:1142.MechP|VRF_UUID:77b5c133-b0c8-ed4b-90da-673ce7aa5161|
+created aggregated ArmorPlatoon unit named:1142.MechP vrfUuid:VRF_UUID:77b5c133-b0c8-ed4b-90da-673ce7aa5161 C2SIM UUID:e7daa71b-571b-f82a-2bdf-af0804f56242 hostility:FR
+missing initial latitude/longitude for unit 131.MechBn - will try to substitute parent unit lat/lon
+using parent lat/lon 58.650515898702/16.5879659029684 as initial for ec9aa71b-226c-fb4c-060a-8f6917e96442
+OBJECT CREATED CALLBACK RECEIVED FOR:131.MechBn
+controller created object with name:131.MechBn|VRF_UUID:ef39b831-dc4d-3742-a285-c8b2a8badedb|
+created aggregated ArmorCoHQ unit named:131.MechBn vrfUuid:VRF_UUID:ef39b831-dc4d-3742-a285-c8b2a8badedb C2SIM UUID:ec9aa71b-226c-fb4c-060a-8f6917e96442 hostility:FR
+missing initial latitude/longitude for unit 1153.MechP - will try to substitute parent unit lat/lon
+using parent lat/lon 58.7376289968135/16.3520773982672 as initial for ed7aa71b-990d-6ad5-f4e5-30a230c46342
+OBJECT CREATED CALLBACK RECEIVED FOR:1153.MechP
+controller created object with name:1153.MechP|VRF_UUID:f78d4b49-7a27-184d-8fd5-51b5b08200b9|
+created aggregated ArmorPlatoon unit named:1153.MechP vrfUuid:VRF_UUID:f78d4b49-7a27-184d-8fd5-51b5b08200b9 C2SIM UUID:ed7aa71b-990d-6ad5-f4e5-30a230c46342 hostility:FR
+missing initial latitude/longitude for unit 1812.Amphi - will try to substitute parent unit lat/lon
+could not find parent latitude/longitude for unit 1812.Amphi - omitting it
+OBJECT CREATED CALLBACK RECEIVED FOR:Z2.InfCoy
+controller created object with name:Z2.InfCoy|VRF_UUID:cc08a58b-c50b-6541-982e-aaf8c28c5e01|
+created aggregated ArmorCompany unit named:Z2.InfCoy vrfUuid:VRF_UUID:cc08a58b-c50b-6541-982e-aaf8c28c5e01 C2SIM UUID:f56afb90-1728-5fd7-f1fb-5793cc160000 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:Z.Battalio
+controller created object with name:Z.Battalio|VRF_UUID:6a0aa761-293e-184a-9b8e-efa2ee1c5d37|
+created aggregated ArmorCoHQ unit named:Z.Battalio vrfUuid:VRF_UUID:6a0aa761-293e-184a-9b8e-efa2ee1c5d37 C2SIM UUID:fd2afb90-27e7-582e-92c2-97fece4f65f7 hostility:HO
+initialized 49 units in VRForces
+Initialization includes 4 Tactical Areas
+CREATING TACTICAL AREA:1_3
+OBJECT CREATED CALLBACK RECEIVED FOR:1_3
+CREATING TACTICAL AREA:1_1
+OBJECT CREATED CALLBACK RECEIVED FOR:1_1
+CREATING TACTICAL AREA:1_4
+OBJECT CREATED CALLBACK RECEIVED FOR:1_4
+CREATING TACTICAL AREA:1_2
+OBJECT CREATED CALLBACK RECEIVED FOR:1_2
+STARTING XML PARSE
+parsing C2SIM Order
+COMPLETED PARSE OF XML DOCUMENT WITH ROOT TAG MessageBody
+RECEIVED C2SIM ORDER FROM:GOLDENTRACE ORDER ID: 7c386f26-a06a-4972-86d7-01585a0385f0
+order contains 1 task(s)
+TIME:18.C2SIMinterface queued task:T1_1_4_A taskUuid:a0e0eeb4-59b4-4d4f-88d2-5101538fa371 for taskeeUuid:670cfe3a-6c43-f267-ad7f-bd6e739def24 name:14.MechBn symbolId:SFGPUCIZ---F--- dateTime: vrfUuid:VRF_UUID:0adc9cac-56e5-c741-8cf5-1b722f5e5f3c ROE:ROETight MapGraphic:
+
+*****C2SIMinterface starting taskName:T1_1_4_A taskUuid:a0e0eeb4-59b4-4d4f-88d2-5101538fa371
+for taskee:670cfe3a-6c43-f267-ad7f-bd6e739def24 name:14.MechBn
+dateTime: vrfUuid:VRF_UUID:0adc9cac-56e5-c741-8cf5-1b722f5e5f3c ROE:ROETight activity code:MOVE MapGraphicUUID:
+49route point count:3 actionTask:MOVE symbolString:SFGPUCIZ---F---
+.22.135 
+Point 0 coordinates:58.6755/16.3907/100
+Point 1 coordinates:58.6752856770139/16.3970394424815/100
+Point 2 coordinates:58.6752072607911/16.4828633358011/100
+OBJECT CREATED CALLBACK RECEIVED FOR:T1_1_4_A ROUTE
+Task:T1_1_4_A made Route:T1_1_4_A ROUTE for Unit:14.MechBn UUID:670cfe3a-6c43-f267-ad7f-bd6e739def24|
+ point count:3 start at:58.6755/16.3907/100
+Tasked moveAlongRoute for obj VRF_UUID:0adc9cac-56e5-c741-8cf5-1b722f5e5f3c|T1_1_4_A ROUTE (vrfUuid 54315f31-5f34-5f41-2052-4f5554450000)
+STARTING XML PARSE
+parsing C2SIM Order
+COMPLETED PARSE OF XML DOCUMENT WITH ROOT TAG MessageBody
+RECEIVED C2SIM ORDER FROM:GOLDENTRACE ORDER ID: 2b1c9f40-1111-4c22-9aa1-0e5b7c9d0002
+order contains 1 task(s)
+TIME:18.54.59.32 
+C2SIMinterface queued task:T2_BACK_A taskUuid:2b1c9f40-2222-4c22-9aa1-0e5b7c9d0002 for taskeeUuid:670cfe3a-6c43-f267-ad7f-bd6e739def24 name:14.MechBn symbolId:SFGPUCIZ---F--- dateTime: vrfUuid:VRF_UUID:0adc9cac-56e5-c741-8cf5-1b722f5e5f3c ROE:ROETight MapGraphic:
+
+*****C2SIMinterface starting taskName:T2_BACK_A taskUuid:2b1c9f40-2222-4c22-9aa1-0e5b7c9d0002
+for taskee:670cfe3a-6c43-f267-ad7f-bd6e739def24 name:14.MechBn
+dateTime: vrfUuid:VRF_UUID:0adc9cac-56e5-c741-8cf5-1b722f5e5f3c ROE:ROETight activity code:MOVE MapGraphicUUID:
+route point count:3 actionTask:MOVE symbolString:SFGPUCIZ---F---
+Point 0 coordinates:58.6752/16.4829/100
+Point 1 coordinates:58.6752856770139/16.4400000000000/100
+Point 2 coordinates:58.6752856770139/16.3970394424815/100
+OBJECT CREATED CALLBACK RECEIVED FOR:T2_BACK_A ROUTE
+Task:T2_BACK_A made Route:T2_BACK_A ROUTE for Unit:14.MechBn UUID:670cfe3a-6c43-f267-ad7f-bd6e739def24|
+ point count:3 start at:58.6752/16.4829/100
+Tasked moveAlongRoute for obj VRF_UUID:0adc9cac-56e5-c741-8cf5-1b722f5e5f3c|T2_BACK_A ROUTE (vrfUuid 54325f42-4143-4b5f-4120-524f55544500)
+STARTING XML PARSE
+parsing C2SIM Order
+COMPLETED PARSE OF XML DOCUMENT WITH ROOT TAG MessageBody
+RECEIVED C2SIM ORDER FROM:GOLDENTRACE ORDER ID: 3c1c9f40-1111-4c22-9aa1-0e5b7c9d0003
+order contains 1 task(s)
+TIME:18.56.0.231 
+C2SIMinterface queued task:T3_PROBE_A taskUuid:3c1c9f40-2222-4c22-9aa1-0e5b7c9d0003 for taskeeUuid:670cfe3a-6c43-f267-ad7f-bd6e739def24 name:14.MechBn symbolId:SFGPUCIZ---F--- dateTime: vrfUuid:VRF_UUID:0adc9cac-56e5-c741-8cf5-1b722f5e5f3c ROE:ROETight MapGraphic:
+
+*****C2SIMinterface starting taskName:T3_PROBE_A taskUuid:3c1c9f40-2222-4c22-9aa1-0e5b7c9d0003
+for taskee:670cfe3a-6c43-f267-ad7f-bd6e739def24 name:14.MechBn
+dateTime: vrfUuid:VRF_UUID:0adc9cac-56e5-c741-8cf5-1b722f5e5f3c ROE:ROETight activity code:MOVE MapGraphicUUID:
+route point count:3 actionTask:MOVE symbolString:SFGPUCIZ---F---
+Point 0 coordinates:58.6752/16.4829/100
+Point 1 coordinates:58.6752856770139/16.4400000000000/100
+Point 2 coordinates:58.6752856770139/16.3970394424815/100
+OBJECT CREATED CALLBACK RECEIVED FOR:T3_PROBE_A ROUTE
+Task:T3_PROBE_A made Route:T3_PROBE_A ROUTE for Unit:14.MechBn UUID:670cfe3a-6c43-f267-ad7f-bd6e739def24|
+ point count:3 start at:58.6752/16.4829/100
+Tasked moveAlongRoute for obj VRF_UUID:0adc9cac-56e5-c741-8cf5-1b722f5e5f3c|T3_PROBE_A ROUTE (vrfUuid 54335f50-524f-4245-5f41-20524f555445)
+Can't create data of type make_c2_reports.  No creator found.  Only time this warning will be issued.
+STARTING XML PARSE
+parsing C2SIM Order
+COMPLETED PARSE OF XML DOCUMENT WITH ROOT TAG MessageBody
+RECEIVED C2SIM ORDER FROM:GOLDENTRACE ORDER ID: aaaa0001-1111-4c22-9aa1-0e5b7c9d000a
+order contains 1 task(s)
+TIME:19.55.C2SIMinterface queued task:TA_ENT_NA taskUuid:aaaa0001-2222-4c22-9aa1-0e5b7c9d000a for taskeeUuid:670cfdb2-6c43-f267-ad7f-bd6e739def24 name:1.BdeHQ symbolId:SFGPUCIZ--EH--- dateTime: vrfUuid:VRF_UUID:bdeb8013-d199-ca48-adce-4b302ffb23fe ROE:ROETight MapGraphic:
+
+*****C2SIMinterface starting taskName:TA_ENT_NA taskUuid:aaaa0001-2222-4c22-9aa1-0e5b7c9d000a
+for taskee:670cfdb2-6c43-f267-ad7f-bd6e739def24 name:1.BdeHQ
+dateTime: vrfUuid:VRF_UUID:bdeb8013-d199-ca48-adce-4b302ffb23fe ROE:ROETight activity code:MOVE MapGraphicUUID:
+4.897 
+route point count:3 actionTask:MOVE symbolString:SFGPUCIZ--EH---
+Point 0 coordinates:58.6984/16.3215/100
+Point 1 coordinates:58.6752856770139/16.3970394424815/100
+Point 2 coordinates:58.6752072607911/16.4828633358011/100
+OBJECT CREATED CALLBACK RECEIVED FOR:TA_ENT_NA ROUTE
+Task:TA_ENT_NA made Route:TA_ENT_NA ROUTE for Unit:1.BdeHQ UUID:670cfdb2-6c43-f267-ad7f-bd6e739def24|
+ point count:3 start at:58.6984/16.3215/100
+Tasked moveAlongRoute for obj VRF_UUID:bdeb8013-d199-ca48-adce-4b302ffb23fe|TA_ENT_NA ROUTE (vrfUuid 54415f45-4e54-5f4e-4120-524f55544500)
+TaskComplete received for VRFUUID:VRF_UUID:bdeb8013-d199-ca48-adce-4b302ffb23fe unit:1.BdeHQ task UUID:aaaa0001-2222-4c22-9aa1-0e5b7c9d000a
+Task complete message from 1.BdeHQ  Task type completed:move-along  Unit UUID:670cfdb2-6c43-f267-ad7f-bd6e739def24
+TASK COMPLETE:aaaa0001-2222-4c22-9aa1-0e5b7c9d000a
+****taskName:TA_ENT_NA COMPLETED
+SENT TASK STATUS REPORT
+STARTING XML PARSE
+parsing C2SIM Order
+COMPLETED PARSE OF XML DOCUMENT WITH ROOT TAG MessageBody
+RECEIVED C2SIM ORDER FROM:GOLDENTRACE ORDER ID: aaaa0002-1111-4c22-9aa1-0e5b7c9d000a
+order contains 1 task(s)
+TIME:19.58.12.992 
+C2SIMinterface queued task:TA_ENT_P2 taskUuid:aaaa0002-2222-4c22-9aa1-0e5b7c9d000a for taskeeUuid:670cfdb2-6c43-f267-ad7f-bd6e739def24 name:1.BdeHQ symbolId:SFGPUCIZ--EH--- dateTime: vrfUuid:VRF_UUID:bdeb8013-d199-ca48-adce-4b302ffb23fe ROE:ROETight MapGraphic:
+
+*****C2SIMinterface starting taskName:TA_ENT_P2 taskUuid:aaaa0002-2222-4c22-9aa1-0e5b7c9d000a
+for taskee:670cfdb2-6c43-f267-ad7f-bd6e739def24 name:1.BdeHQ
+dateTime: vrfUuid:VRF_UUID:bdeb8013-d199-ca48-adce-4b302ffb23fe ROE:ROETight activity code:MOVE MapGraphicUUID:
+route point count:3 actionTask:MOVE symbolString:SFGPUCIZ--EH---
+Point 0 coordinates:58.6752/16.4828/100
+Point 1 coordinates:58.6752856770139/16.3970394424815/100
+Point 2 coordinates:58.6752072607911/16.4828633358011/100
+OBJECT CREATED CALLBACK RECEIVED FOR:TA_ENT_P2 ROUTE
+Task:TA_ENT_P2 made Route:TA_ENT_P2 ROUTE for Unit:1.BdeHQ UUID:670cfdb2-6c43-f267-ad7f-bd6e739def24|
+ point count:3 start at:58.6752/16.4828/100
+Tasked moveAlongRoute for obj VRF_UUID:bdeb8013-d199-ca48-adce-4b302ffb23fe|TA_ENT_P2 ROUTE (vrfUuid 54415f45-4e54-5f50-3220-524f55544500)
+STARTING XML PARSE
+parsing C2SIM Order
+COMPLETED PARSE OF XML DOCUMENT WITH ROOT TAG MessageBody
+RECEIVED C2SIM ORDER FROM:GOLDENTRACE ORDER ID: bbbb0001-1111-4c22-9aa1-0e5b7c9d000a
+order contains 1 task(s)
+TIME:19.59.0.881 
+C2SIMinterface queued task:TB_AGG_NA taskUuid:bbbb0001-2222-4c22-9aa1-0e5b7c9d000a for taskeeUuid:139aa71b-75df-4888-4a5a-6056bae66242 name:114.MechCo symbolId:SFGPUCIZ---E--- dateTime: vrfUuid:VRF_UUID:3b15a086-12e1-5146-bd17-df4ea509f547 ROE:ROETight MapGraphic:
+
+*****C2SIMinterface starting taskName:TB_AGG_NA taskUuid:bbbb0001-2222-4c22-9aa1-0e5b7c9d000a
+for taskee:139aa71b-75df-4888-4a5a-6056bae66242 name:114.MechCo
+dateTime: vrfUuid:VRF_UUID:3b15a086-12e1-5146-bd17-df4ea509f547 ROE:ROETight activity code:MOVE MapGraphicUUID:
+route point count:3 actionTask:MOVE symbolString:SFGPUCIZ---E---
+Point 0 coordinates:58.7376/16.3521/100
+Point 1 coordinates:58.6752856770139/16.3970394424815/100
+Point 2 coordinates:58.6752072607911/16.4828633358011/100
+OBJECT CREATED CALLBACK RECEIVED FOR:TB_AGG_NA ROUTE
+Task:TB_AGG_NA made Route:TB_AGG_NA ROUTE for Unit:114.MechCo UUID:139aa71b-75df-4888-4a5a-6056bae66242|
+ point count:3 start at:58.7376/16.3521/100
+Tasked moveAlongRoute for obj VRF_UUID:3b15a086-12e1-5146-bd17-df4ea509f547|TB_AGG_NA ROUTE (vrfUuid 54425f41-4747-5f4e-4120-524f55544500)
+TaskComplete received for VRFUUID:VRF_UUID:bdeb8013-d199-ca48-adce-4b302ffb23fe unit:1.BdeHQ task UUID:aaaa0002-2222-4c22-9aa1-0e5b7c9d000a
+Task complete message from 1.BdeHQ  Task type completed:move-along  Unit UUID:670cfdb2-6c43-f267-ad7f-bd6e739def24
+TASK COMPLETE:aaaa0002-2222-4c22-9aa1-0e5b7c9d000a
+****taskName:TA_ENT_P2 COMPLETED
+SENT TASK STATUS REPORT
+STARTING XML PARSE
+parsing C2SIM Order
+COMPLETED PARSE OF XML DOCUMENT WITH ROOT TAG MessageBody
+RECEIVED C2SIM ORDER FROM:GOLDENTRACE ORDER ID: bbbb0002-1111-4c22-9aa1-0e5b7c9d000a
+order contains 1 task(s)
+TIME:20.2.31.619 
+C2SIMinterface queued task:TB_AGG_P2 taskUuid:bbbb0002-2222-4c22-9aa1-0e5b7c9d000a for taskeeUuid:139aa71b-75df-4888-4a5a-6056bae66242 name:114.MechCo symbolId:SFGPUCIZ---E--- dateTime: vrfUuid:VRF_UUID:3b15a086-12e1-5146-bd17-df4ea509f547 ROE:ROETight MapGraphic:
+
+*****C2SIMinterface starting taskName:TB_AGG_P2 taskUuid:bbbb0002-2222-4c22-9aa1-0e5b7c9d000a
+for taskee:139aa71b-75df-4888-4a5a-6056bae66242 name:114.MechCo
+dateTime: vrfUuid:VRF_UUID:3b15a086-12e1-5146-bd17-df4ea509f547 ROE:ROETight activity code:MOVE MapGraphicUUID:
+route point count:3 actionTask:MOVE symbolString:SFGPUCIZ---E---
+Point 0 coordinates:58.6752/16.4757/100
+Point 1 coordinates:58.6752856770139/16.3970394424815/100
+Point 2 coordinates:58.6752072607911/16.4828633358011/100
+OBJECT CREATED CALLBACK RECEIVED FOR:TB_AGG_P2 ROUTE
+Task:TB_AGG_P2 made Route:TB_AGG_P2 ROUTE for Unit:114.MechCo UUID:139aa71b-75df-4888-4a5a-6056bae66242|
+ point count:3 start at:58.6752/16.4757/100
+Tasked moveAlongRoute for obj VRF_UUID:3b15a086-12e1-5146-bd17-df4ea509f547|TB_AGG_P2 ROUTE (vrfUuid 54425f41-4747-5f50-3220-524f55544500)
+STARTING XML PARSE
+parsing C2SIM Order
+COMPLETED PARSE OF XML DOCUMENT WITH ROOT TAG MessageBody
+RECEIVED C2SIM ORDER FROM:GOLDENTRACE ORDER ID: cccc0001-1111-4c22-9aa1-0e5b7c9d000a
+order contains 1 task(s)
+TIME:20.3.24.136 
+C2SIMinterface queued task:TC_AGG_SF taskUuid:cccc0001-2222-4c22-9aa1-0e5b7c9d000a for taskeeUuid:139aa71b-75df-4888-4a5a-6056bae66242 name:114.MechCo symbolId:SFGPUCIZ---E--- dateTime: vrfUuid:VRF_UUID:3b15a086-12e1-5146-bd17-df4ea509f547 ROE:ROETight MapGraphic:
+
+*****C2SIMinterface starting taskName:TC_AGG_SF taskUuid:cccc0001-2222-4c22-9aa1-0e5b7c9d000a
+for taskee:139aa71b-75df-4888-4a5a-6056bae66242 name:114.MechCo
+dateTime: vrfUuid:VRF_UUID:3b15a086-12e1-5146-bd17-df4ea509f547 ROE:ROETight activity code:MOVE MapGraphicUUID:
+route point count:3 actionTask:MOVE symbolString:SFGPUCIZ---E---
+Point 0 coordinates:58.6743/16.5168/100
+Point 1 coordinates:58.6752856770139/16.3970394424815/100
+Point 2 coordinates:58.6752072607911/16.4828633358011/100
+OBJECT CREATED CALLBACK RECEIVED FOR:TC_AGG_SF ROUTE
+Task:TC_AGG_SF made Route:TC_AGG_SF ROUTE for Unit:114.MechCo UUID:139aa71b-75df-4888-4a5a-6056bae66242|
+ point count:3 start at:58.6743/16.5168/100
+Tasked moveAlongRoute for obj VRF_UUID:3b15a086-12e1-5146-bd17-df4ea509f547|TC_AGG_SF ROUTE (vrfUuid 54435f41-4747-5f53-4620-524f55544500)
+STARTING XML PARSE
+parsing C2SIM Order
+COMPLETED PARSE OF XML DOCUMENT WITH ROOT TAG MessageBody
+RECEIVED C2SIM ORDER FROM:GOLDENTRACE ORDER ID: dddd0001-1111-4c22-9aa1-0e5b7c9d000a
+order contains 1 task(s)
+TIME:20.8.4.966 
+C2SIMinterface queued task:TD_AGG_PR taskUuid:dddd0001-2222-4c22-9aa1-0e5b7c9d000a for taskeeUuid:139aa71b-75df-4888-4a5a-6056bae66242 name:114.MechCo symbolId:SFGPUCIZ---E--- dateTime: vrfUuid:VRF_UUID:3b15a086-12e1-5146-bd17-df4ea509f547 ROE:ROETight MapGraphic:
+
+*****C2SIMinterface starting taskName:TD_AGG_PR taskUuid:dddd0001-2222-4c22-9aa1-0e5b7c9d000a
+for taskee:139aa71b-75df-4888-4a5a-6056bae66242 name:114.MechCo
+dateTime: vrfUuid:VRF_UUID:3b15a086-12e1-5146-bd17-df4ea509f547 ROE:ROETight activity code:MOVE MapGraphicUUID:
+route point count:3 actionTask:MOVE symbolString:SFGPUCIZ---E---
+Point 0 coordinates:58.6743/16.5136/100
+Point 1 coordinates:58.6752856770139/16.3970394424815/100
+Point 2 coordinates:58.6752072607911/16.4828633358011/100
+OBJECT CREATED CALLBACK RECEIVED FOR:TD_AGG_PR ROUTE
+Task:TD_AGG_PR made Route:TD_AGG_PR ROUTE for Unit:114.MechCo UUID:139aa71b-75df-4888-4a5a-6056bae66242|
+ point count:3 start at:58.6743/16.5136/100
+Tasked moveAlongRoute for obj VRF_UUID:3b15a086-12e1-5146-bd17-df4ea509f547|TD_AGG_PR ROUTE (vrfUuid 31d41903-75fd-d949-8a05-a53728b23c93)
+STARTING XML PARSE
+parsing C2SIM Order
+COMPLETED PARSE OF XML DOCUMENT WITH ROOT TAG MessageBody
+RECEIVED C2SIM ORDER FROM:GOLDENTRACE ORDER ID: eeee0001-1111-4c22-9aa1-0e5b7c9d000a
+order contains 1 task(s)
+TIME:20.9.1.144 
+C2SIMinterface queued task:TE_COHQ_N taskUuid:eeee0001-2222-4c22-9aa1-0e5b7c9d000a for taskeeUuid:670cfdb3-6c43-f267-ad7f-bd6e739def24 name:11.MechBn symbolId:SFGPUCIZ---F--- dateTime: vrfUuid:VRF_UUID:f34a3b44-7cec-194f-be10-02e60d114268 ROE:ROETight MapGraphic:
+
+*****C2SIMinterface starting taskName:TE_COHQ_N taskUuid:eeee0001-2222-4c22-9aa1-0e5b7c9d000a
+for taskee:670cfdb3-6c43-f267-ad7f-bd6e739def24 name:11.MechBn
+dateTime: vrfUuid:VRF_UUID:f34a3b44-7cec-194f-be10-02e60d114268 ROE:ROETight activity code:MOVE MapGraphicUUID:
+route point count:3 actionTask:MOVE symbolString:SFGPUCIZ---F---
+Point 0 coordinates:58.7376/16.3521/100
+Point 1 coordinates:58.6752856770139/16.3970394424815/100
+Point 2 coordinates:58.6752072607911/16.4828633358011/100
+OBJECT CREATED CALLBACK RECEIVED FOR:TE_COHQ_N ROUTE
+Task:TE_COHQ_N made Route:TE_COHQ_N ROUTE for Unit:11.MechBn UUID:670cfdb3-6c43-f267-ad7f-bd6e739def24|
+ point count:3 start at:58.7376/16.3521/100
+Tasked moveAlongRoute for obj VRF_UUID:f34a3b44-7cec-194f-be10-02e60d114268|TE_COHQ_N ROUTE (vrfUuid 54455f43-4f48-515f-4e20-524f55544500)
+TaskComplete received for VRFUUID:VRF_UUID:f34a3b44-7cec-194f-be10-02e60d114268 unit:11.MechBn task UUID:eeee0001-2222-4c22-9aa1-0e5b7c9d000a
+Task complete message from 11.MechBn  Task type completed:move-along  Unit UUID:670cfdb3-6c43-f267-ad7f-bd6e739def24
+TASK COMPLETE:eeee0001-2222-4c22-9aa1-0e5b7c9d000a
+****taskName:TE_COHQ_N COMPLETED
+SENT TASK STATUS REPORT
+STARTING XML PARSE
+parsing C2SIM Order
+COMPLETED PARSE OF XML DOCUMENT WITH ROOT TAG MessageBody
+RECEIVED C2SIM ORDER FROM:GOLDENTRACE ORDER ID: eeee0002-1111-4c22-9aa1-0e5b7c9d000a
+order contains 1 task(s)
+TIME:20.12.53.227 
+C2SIMinterface queued task:TE_COHQ_P taskUuid:eeee0002-2222-4c22-9aa1-0e5b7c9d000a for taskeeUuid:670cfdb3-6c43-f267-ad7f-bd6e739def24 name:11.MechBn symbolId:SFGPUCIZ---F--- dateTime: vrfUuid:VRF_UUID:f34a3b44-7cec-194f-be10-02e60d114268 ROE:ROETight MapGraphic:
+
+*****C2SIMinterface starting taskName:TE_COHQ_P taskUuid:eeee0002-2222-4c22-9aa1-0e5b7c9d000a
+for taskee:670cfdb3-6c43-f267-ad7f-bd6e739def24 name:11.MechBn
+dateTime: vrfUuid:VRF_UUID:f34a3b44-7cec-194f-be10-02e60d114268 ROE:ROETight activity code:MOVE MapGraphicUUID:
+route point count:3 actionTask:MOVE symbolString:SFGPUCIZ---F---
+Point 0 coordinates:58.6752/16.4832/100
+Point 1 coordinates:58.6752856770139/16.3970394424815/100
+Point 2 coordinates:58.6752072607911/16.4828633358011/100
+OBJECT CREATED CALLBACK RECEIVED FOR:TE_COHQ_P ROUTE
+Task:TE_COHQ_P made Route:TE_COHQ_P ROUTE for Unit:11.MechBn UUID:670cfdb3-6c43-f267-ad7f-bd6e739def24|
+ point count:3 start at:58.6752/16.4832/100
+Tasked moveAlongRoute for obj VRF_UUID:f34a3b44-7cec-194f-be10-02e60d114268|TE_COHQ_P ROUTE (vrfUuid 54455f43-4f48-515f-5020-524f55544500)
+STARTING XML PARSE
+parsing C2SIM Order
+COMPLETED PARSE OF XML DOCUMENT WITH ROOT TAG MessageBody
+RECEIVED C2SIM ORDER FROM:GOLDENTRACE ORDER ID: ffff0001-1111-4c22-9aa1-0e5b7c9d000a
+order contains 1 task(s)
+TIME:20.13C2SIMinterface queued task:TF_SELF_T taskUuid:ffff0001-2222-4c22-9aa1-0e5b7c9d000a for taskeeUuid:670cfdb3-6c43-f267-ad7f-bd6e739def24 name:11.MechBn symbolId:SFGPUCIZ---F--- dateTime: vrfUuid:VRF_UUID:f34a3b44-7cec-194f-be10-02e60d114268 ROE:ROETight MapGraphic:
+
+*****C2SIMinterface starting taskName:TF_SELF_T taskUuid:ffff0001-2222-4c22-9aa1-0e5b7c9d000a
+for taskee:670cfdb3-6c43-f267-ad7f-bd6e739def24 name:11.MechBn
+dateTime: vrfUuid:VRF_UUID:f34a3b44-7cec-194f-be10-02e60d114268 ROE:ROETight activity code:MOVE MapGraphicUUID:
+.37.33 
+route point count:3 actionTask:MOVE symbolString:SFGPUCIZ---F---
+Point 0 coordinates:58.6748/16.487/100
+Point 1 coordinates:58.6752856770139/16.3970394424815/100
+Point 2 coordinates:58.6752072607911/16.4828633358011/100
+OBJECT CREATED CALLBACK RECEIVED FOR:TF_SELF_T ROUTE
+Task:TF_SELF_T made Route:TF_SELF_T ROUTE for Unit:11.MechBn UUID:670cfdb3-6c43-f267-ad7f-bd6e739def24|
+ point count:3 start at:58.6748/16.487/100
+Tasked moveAlongRoute for obj VRF_UUID:f34a3b44-7cec-194f-be10-02e60d114268|TF_SELF_T ROUTE (vrfUuid 54465f53-454c-465f-5420-524f55544500)
+STARTING XML PARSE
+parsing C2SIM Order
+COMPLETED PARSE OF XML DOCUMENT WITH ROOT TAG MessageBody
+RECEIVED C2SIM ORDER FROM:GOLDENTRACE ORDER ID: 99990001-1111-4c22-9aa1-0e5b7c9d000a
+order contains 1 task(s)
+TIME:20.21.25.C2SIMinterface queued task:TG_PROBE1 taskUuid:99990001-2222-4c22-9aa1-0e5b7c9d000a for taskeeUuid:670cfdb3-6c43-f267-ad7f-bd6e739def24 name:11.MechBn symbolId:SFGPUCIZ---F--- dateTime: vrfUuid:VRF_UUID:f34a3b44-7cec-194f-be10-02e60d114268 ROE:ROETight MapGraphic:
+
+*****C2SIMinterface starting taskName:TG_PROBE1 taskUuid:99990001-2222-4c22-9aa1-0e5b7c9d000a
+for taskee:670cfdb3-6c43-f267-ad7f-bd6e739def24 name:11.MechBn
+dateTime: vrfUuid:VRF_UUID:f34a3b44-7cec-194f-be10-02e60d114268 ROE:ROETight activity code:MOVE MapGraphicUUID:
+53 
+route point count:3 actionTask:MOVE symbolString:SFGPUCIZ---F---
+Point 0 coordinates:58.6747/16.4735/100
+Point 1 coordinates:58.6752856770139/16.3970394424815/100
+Point 2 coordinates:58.6752072607911/16.4828633358011/100
+OBJECT CREATED CALLBACK RECEIVED FOR:TG_PROBE1 ROUTE
+Task:TG_PROBE1 made Route:TG_PROBE1 ROUTE for Unit:11.MechBn UUID:670cfdb3-6c43-f267-ad7f-bd6e739def24|
+ point count:3 start at:58.6747/16.4735/100
+Tasked moveAlongRoute for obj VRF_UUID:f34a3b44-7cec-194f-be10-02e60d114268|TG_PROBE1 ROUTE (vrfUuid 54475f50-524f-4245-3120-524f55544500)

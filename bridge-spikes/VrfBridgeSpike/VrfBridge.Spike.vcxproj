@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <ProjectGuid>{A1B2C3D4-0001-4E5F-9A0B-000000000001}</ProjectGuid>
+    <RootNamespace>VrfBridgeSpike</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <VrlDir>C:/MAK/vrlink5.8</VrlDir>
+    <!-- CLRSupport=NetCore makes Microsoft.CppCommon.targets import Microsoft.NET.Sdk,
+         which reads plain $(TargetFramework). (DotNetCoreTargetFramework is obsolete and
+         is not referenced anywhere in the VS2022 Cpp targets.) -->
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <!-- VS2022 ships v143 (MSVC 14.4x). MAK libs are /MD and MSVC is ABI-stable across
+         v14x, so v143 links matrix.lib fine. The real facade can pin v142 once built
+         under a VS2019 that has the .NET SDK resolver; the spike just proves the mechanism. -->
+    <PlatformToolset>v143</PlatformToolset>
+    <!-- The whole point of the spike: build C++/CLI targeting .NET Core, not .NET Framework -->
+    <CLRSupport>NetCore</CLRSupport>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>build\Release\</OutDir>
+    <IntDir>build\Release\obj\</IntDir>
+    <TargetName>VrfBridge.Spike</TargetName>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <!-- MAK native libs are built /MD; must match or the CRT mismatches -->
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <AdditionalIncludeDirectories>$(VrlDir)/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <!-- VR-Link headers assume these; the real project defines them too -->
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;DtDIS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <Optimization>MaxSpeed</Optimization>
+      <!-- Exceptions must be on for C++/CLI -->
+      <ExceptionHandling>Async</ExceptionHandling>
+      <!-- boost/VR-Link headers are noisy under /clr; keep warnings from failing the build -->
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <DisableSpecificWarnings>4793;4835;4564</DisableSpecificWarnings>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <AdditionalLibraryDirectories>$(VrlDir)/lib64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>matrix.lib;vlutil.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+
+  <ItemGroup>
+    <ClCompile Include="VrfMath.cpp" />
+  </ItemGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>
