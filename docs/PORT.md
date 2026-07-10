@@ -402,24 +402,28 @@ Do not re-add it.
     interface's proven `deleteDtList` (save next; delete `list.remove(item)`). Pre-existing
     facade bug (never runtime-tested until the rewire routed area/route creation through
     the facade), not a parity regression.
-- **Phase 2 - managed bridge**: STARTED 2026-07-09; slice 1 BUILDS GREEN. The real
-  bridge lives in `src/` (VrfFacade native + VrfBridge /clr:netcore DLL). `VrfFacade.cpp`
-  compiles native + `VrfBridge.cpp` compiles /clr:netcore + they LINK into VrfBridge.dll
-  under the full HLA1516e MAK set (0 warn/0 err, VS18 MSBuild) - the central Phase 2 risk
-  is retired against the REAL facade, not just the spikes. Ijwhost.dll auto-copies. Slice 1
-  is the outbound path (lifecycle + CreateEntity + MoveAlongRoute + SetAggregateFormation);
-  callbacks + full surface + runtime-load smoke are next. Full detail: docs/PHASE2_BRIDGE.md.
-- **Phase 3 - C2SIM half on the .NET SDK**: STARTED 2026-07-09. `src/VrfC2SimApp`
-  (a Host + BackgroundService) constructs + wires the C2SIM SDK and VrfBridge with
-  full lifecycle (Start -> single-threaded tick loop -> Connect -> clean stop) and
-  all event subscriptions + name->uuid correlation. Compiles green (references the
-  bridge DLL + the SDK via ProjectReference). See docs/APP.md.
+- **Phase 2 - managed bridge**: DONE + verified (2026-07-09). The real bridge lives in
+  `src/` (VrfFacade native + VrfBridge /clr:netcore DLL). VrfFacade.cpp compiles native +
+  VrfBridge.cpp compiles /clr:netcore + they LINK into VrfBridge.dll under the full
+  HLA1516e MAK set (0/0, VS18 MSBuild). FULL facade surface exposed; the 4 inbound
+  callbacks -> managed events via gcroot thunks. RUNTIME-LOAD SMOKE PASSES (the DLL + MAK
+  stack load in-process; native facade constructs/disposes clean). Ijwhost.dll auto-copies.
+  Full detail: docs/PHASE2_BRIDGE.md.
+- **Phase 3 - C2SIM half on the .NET SDK**: DONE (skeleton, 2026-07-09). `src/VrfC2SimApp`
+  (a Host + BackgroundService) constructs + wires the C2SIM SDK and VrfBridge with full
+  lifecycle (Start -> single-threaded tick loop -> Connect -> clean stop) and all event
+  subscriptions + name->uuid correlation. See docs/APP.md.
 - **Phase 4 - glue** (extractC2simInit, executeTask, reportCallback ported to .NET;
-  busy-waits -> TaskCompletionSource + timeout): NOT started - these are the stubbed
-  translation handlers in VrfC2SimService (each TODO names its C++ source). PLUS the
-  semantic-mapping layer (bare movement projector -> real vrftasks) - see sec 10.
-  This is the next major chunk; roadmap in docs/APP.md "What is DONE vs TODO".
-- **Phase 5 - parity**: diff .NET vs C++ message streams against the golden trace.
+  busy-waits -> TaskCompletionSource + timeout): IN PROGRESS.
+  - `OnInitialization` DONE + verified (2026-07-10): `InitParser` deserializes the init
+    into the SDK's XSD-generated schema types (C2SIM.Schema102 via ToC2SIMObject) -
+    schema-driven, not hand-parsed - and `UnitTranslator` faithfully ports
+    extractC2simInit's dispatch + all 11 create* factories. Offline-verified against the
+    STP init: 80 units, 49 creatable, 4 areas (matches the golden trace's 49 + 4).
+  - REMAINING: `OnOrder` <- executeTask; reports <- reportCallback (+ busy-wait ->
+    completion-with-timeout); THEN the semantic-mapping layer (bare movement projector
+    -> real vrftasks) - see sec 10. Roadmap in docs/APP.md "What is DONE vs TODO".
+- **Phase 5 - parity**: diff .NET vs C++ message streams against the golden trace (LIVE run).
 
 ---
 
