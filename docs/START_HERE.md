@@ -45,9 +45,9 @@ Three locations are in play:
 - **Phase 2** (managed bridge `VrfBridge`): DONE + verified. `src/VrfFacade/*.cpp`
   compiles NATIVE + `src/VrfBridge/VrfBridge.cpp` compiles `/clr:netcore` -> `VrfBridge.dll`
   under the full HLA1516e MAK set (0/0). FULL facade surface exposed; the 4 inbound
-  callbacks -> managed events (via gcroot thunks). RUNTIME-LOAD SMOKE PASSES
-  (`--` see below): the DLL + MAK stack load in-process and the native facade
-  constructs/disposes clean. See PHASE2_BRIDGE.md.
+  callbacks -> managed events (via gcroot thunks). RUNTIME-LOAD SMOKE PASSES: the DLL
+  + MAK stack load in-process and the native facade constructs/disposes clean (the
+  smoke lives in `src/SmokeTest`). See PHASE2_BRIDGE.md.
 - **Phase 3** (the .NET app `src/VrfC2SimApp`): host + BackgroundService wiring the
   C2SIM SDK <-> VrfBridge, full lifecycle + a single-threaded tick-command queue. See APP.md.
 - **Phase 4** (parity port of the C++ glue): IN PROGRESS.
