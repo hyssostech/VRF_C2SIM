@@ -170,9 +170,20 @@ PORT GAPS found + FIXED this session (the app now runs live end-to-end):
 - Also aligned appsettings `C2SIM` to the proven tool values: `ProtocolVersion=CWIX2024v1.0.2`,
   `RestPassword=v0lgenau` (for the REST GetStatus/QUERYINIT/report-push calls).
 
-LIVE-PROVEN end to end (run 3212): tasking the ENTITY 1.BdeHQ ran the FULL chain - point-0
-geodetic read -> CreateRoute (3 pts) -> deferred MoveAlongRoute (fired on the route's
-ObjectCreated). So the pipeline is complete for entity units.
+FULL PIPELINE LIVE-VERIFIED (2026-07-10): deploy -> HLA join -> late-join (49 units + 4 areas)
+-> order received/parsed over STOMP -> taskee resolved -> CreateRoute + MoveAlongRoute (ENTITY
+1.BdeHQ AND disaggregated AGGREGATE 14.MechBn) -> sim runs -> unit MOVES -> task COMPLETES ->
+`OnVrfTaskCompleted` -> "SENT TASK STATUS REPORT (TASKCMPLT)" pushed to C2SIM; position reports
+also flow (`OnVrfTextReport` -> 4140 pushed) -> clean stop (no stale federate). Every stage works.
+
+RUN() GAP (found + fixed): the app never called `_bridge.Run()`, so the VR-Forces sim clock never
+started and tasked units never moved/completed (no TASKCMPLT). The C++ interface calls
+`facade()->Run()` on the server RUNNING state (C2SIMinterface.cpp:1819/1917). FIX: the app now
+queues `_bridge.Run()` after late-join and on each RUNNING status, plus an optional
+`Vrf:TimeMultiplier` (default 1 = real-time; set higher e.g. 20 to run the clock fast - a 20x run
+completed 1.BdeHQ's route in ~30 s and fired the TASKCMPLT report).
+NOTE the position-report volume is high (no aggregate-component dedup / bundling yet - deferred,
+docs/APP.md); functional but chatty, especially at high TimeMultiplier.
 
 AGGREGATE geodetic (14.MechBn) - isolated + FIXED + LIVE-VERIFIED (2026-07-10, after a
 VR-Forces scenario reload): with the static_cast fallback the golden order tasks 14.MechBn

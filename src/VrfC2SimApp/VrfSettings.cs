@@ -21,6 +21,11 @@ public class VrfSettings
     // init's SystemName or 0 units are created (RUNBOOK sec 2).
     public string ClientId { get; set; } = "STP";
 
+    // Simulation time multiple applied on Run (parity: C++ SetTimeMultiplier from the
+    // server sim multiple, C2SIMinterface.cpp:1844). 1 = real-time (golden default);
+    // higher runs the VR-Forces clock faster (useful to watch/verify scenarios quickly).
+    public int TimeMultiplier { get; set; } = 1;
+
     // How long a task waits for its startAfterTaskUuid predecessor to complete before
     // giving up and dispatching anyway (the fix for the C++ infinite busy-wait, PORT.md
     // sec 6). The golden aggregate completion took ~9 min, so 600 s is a safe default.

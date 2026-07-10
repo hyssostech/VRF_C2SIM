@@ -459,7 +459,17 @@ Do not re-add it.
     per-unit correlation (the bridge callback lacks the task uuid).
   - REMAINING: report enrichment (health/dedup/bundling); THEN the semantic-mapping layer
     (bare movement projector -> real vrftasks) - see sec 10. Then a LIVE run. docs/APP.md.
-- **Phase 5 - parity**: diff .NET vs C++ message streams against the golden trace (LIVE run).
+- **Phase 5 - live run**: DONE (2026-07-10) - the .NET port runs the FULL golden-trace
+  pipeline live against VR-Forces HLA + c2sim-server 4.8.4.9: deploy -> HLA join (RTI 4.6.1)
+  -> late-join (49 units + 4 areas) -> order over STOMP -> parse -> taskee resolve ->
+  CreateRoute + MoveAlongRoute (entity 1.BdeHQ AND disaggregated aggregate 14.MechBn) -> sim
+  runs -> unit moves -> completes -> TASKCMPLT report pushed (+ position reports) -> clean
+  stop (no stale federate). Bugs found + fixed live: no late-join (JoinSession); parsers
+  assumed <MessageBody> root vs the SDK's bare-body live events; empty status body (GetStatus
+  trigger); missing Run() (sim clock never started); disaggregated-aggregate geodetic
+  (static_cast fallback). Full runtime recipe + findings in docs/RUNBOOK.md sec 7. Remaining:
+  a formal message-stream DIFF vs the C++ golden trace, and the report-volume optimization
+  (dedup/bundling, docs/APP.md).
 
 ---
 

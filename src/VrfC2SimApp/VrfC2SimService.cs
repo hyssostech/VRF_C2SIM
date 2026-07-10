@@ -144,6 +144,16 @@ public sealed class VrfC2SimService : BackgroundService
                 else
                     _log.LogInformation("Late-join: server has no current init to share ({Len} chars).",
                                         shared?.Length ?? 0);
+
+                // Start the simulation clock (parity: C++ facade()->Run() on RUNNING,
+                // C2SIMinterface.cpp:1819/1917). Enqueued after the creates so units exist
+                // when the sim advances. Without this the sim never runs and tasked units
+                // never move or complete (no TASKCMPLT). The server is RUNNING at late-join.
+                _tickActions.Enqueue(() => _bridge.Run());
+                if (_vrf.TimeMultiplier > 1)
+                    _tickActions.Enqueue(() => _bridge.SetTimeMultiplier(_vrf.TimeMultiplier));
+                _log.LogInformation("Sim Run() queued (start the VR-Forces clock; timeMult={Mult}).",
+                                    _vrf.TimeMultiplier);
             }
             catch (Exception ex)
             {
@@ -230,6 +240,12 @@ public sealed class VrfC2SimService : BackgroundService
         {
             _log.LogInformation("Server UNINITIALIZED; initiating clean stop.");
             _life.StopApplication();
+        }
+        else if (status == C2SIMSDK.C2SIMServerStatus.RUNNING)
+        {
+            // Parity: the C++ interface runs the sim on RUNNING (C2SIMinterface.cpp:1819).
+            _tickActions.Enqueue(() => _bridge.Run());
+            _log.LogInformation("Server RUNNING; sim Run() queued.");
         }
     }
 
