@@ -234,9 +234,9 @@ GUI/next-run confirmation.)
 
 ResetVrf (hard reset) - NOT built yet; TURNKEY PLAN for a fresh session below. With Solution A
 working, this is a RECOVERY lever (clears ORPHANS from crashes/force-kills that Solution A can't
-reach), so it is lower urgency. The GUI scenario is "boboland" (auto-loads); a filesystem search (C:\MAK, ~/Documents, the user
-profile) found NO boboland file, so Option 2 (loadScenario) would need the path from the user -
-prefer Option 1 below (file-free).
+reach), so it is lower urgency. The GUI scenario is "bogoland" (auto-loads); a filesystem search (C:\MAK, ~/Documents, the user
+profile) found NO bogoland file on disk, so Option 2 (loadScenario) would need the path from the
+user - prefer Option 1 below (file-free).
 
 RECOMMENDED design - Option 1, "delete-all-reflected" (file-free, clears ANY orphan):
 1. Facade: add `std::vector<std::string> VrfFacade::GetAllReflectedUuids() const` (or a
@@ -257,7 +257,7 @@ RECOMMENDED design - Option 1, "delete-all-reflected" (file-free, clears ANY orp
 4. Verify: after a run leaves objects (or force-kill an app mid-run to make orphans), run ResetVrf,
    confirm the VR-Forces GUI shows an empty scenario.
 
-Option 2 - `loadScenario(bobolandScnx)` / `newScenario(dbname,guidbname)`: simpler facade (one call)
-but needs boboland's scenario file path (ask the user) or the terrain DB names. Signatures:
+Option 2 - `loadScenario(bogolandScnx)` / `newScenario(dbname,guidbname)`: simpler facade (one call)
+but needs bogoland's scenario file path (ask the user) or the terrain DB names. Signatures:
 vrfcontrol/vrfRemoteController.h :528 (loadScenario) / :451 (newScenario). Use only if Option 1's
 reflected-list enumeration proves fiddly.

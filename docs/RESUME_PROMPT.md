@@ -51,7 +51,7 @@ Latest port HEAD `340d608` (29 ahead of origin/main); ALL local/UNPUSHED.
 NEXT (START_HERE #4 + RUNBOOK sec 8):
 1. THE IMMEDIATE TASK - ResetVrf tool (hard reset for ORPHANS from crashes/force-kills that
    Solution A cannot reach). TURNKEY PLAN in RUNBOOK sec 8 (Option 1 delete-all-reflected,
-   file-free; Option 2 loadScenario needs boboland's .scnx path).
+   file-free; Option 2 loadScenario needs bogoland's .scnx path).
 2. Unit 4: `moveIntoFormationTask` - the REAL fix for the stuck-aggregate finding (the original
    "aggregate deep-dive"; serves it). Then Unit 2: Breach (DtBreachTask). Unit 5+: HoldObjective
    (SECURE/OCCUPY/...) / Reconnoiter (SCREEN/SCOUT).
