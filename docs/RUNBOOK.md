@@ -234,9 +234,10 @@ GUI/next-run confirmation.)
 
 ResetVrf (hard reset) - NOT built yet; TURNKEY PLAN for a fresh session below. With Solution A
 working, this is a RECOVERY lever (clears ORPHANS from crashes/force-kills that Solution A can't
-reach), so it is lower urgency. The GUI scenario is "bogoland" (auto-loads); a filesystem search (C:\MAK, ~/Documents, the user
-profile) found NO bogoland file on disk, so Option 2 (loadScenario) would need the path from the
-user - prefer Option 1 below (file-free).
+reach), so it is lower urgency. The GUI scenario is "bogoland" (auto-loads; a built-in MAK terrain). A filesystem search (C:\MAK,
+~/Documents, the user profile) found NO VR-Forces scenario (.scnx) named bogoland - only map
+images (PNGs in the STP SDK, an ArcGIS .org), not a loadable scenario. So Option 2 (loadScenario)
+has no file to point at without the user producing/exporting one; prefer Option 1 below (file-free).
 
 RECOMMENDED design - Option 1, "delete-all-reflected" (file-free, clears ANY orphan):
 1. Facade: add `std::vector<std::string> VrfFacade::GetAllReflectedUuids() const` (or a
