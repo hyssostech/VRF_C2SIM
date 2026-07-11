@@ -4,8 +4,14 @@ Status: LIVE-VERIFIED end to end (2026-07-10). The app runs the full C2SIM<->VR-
 loop against live VR-Forces: init -> create -> order -> task -> move -> complete ->
 TASKCMPLT + position reports -> clean stop; and moves aggregates (opt-in formation). See
 docs/RUNBOOK.md sec 7 for the live recipe + the six bugs fixed live, and PORT.md sec 8/10
-for phase status + the aggregate finding. What remains is parity polish + the two-layer
-semantic-mapping arc (docs/START_HERE.md "immediate next task"). ASCII-only.
+for phase status + the aggregate finding. ASCII-only.
+
+Update (2026-07-11): two-layer semantic mapping UNDERWAY - Layer-1 verb classifier
+(VerbMapping) + Unit 3 fires (ATTACK -> FireAtTarget) DONE + live-verified (see the
+"Semantic mapping Layer 1" note below + docs/SEMANTIC_MAPPING.md). Solution A (delete-on-stop)
+DONE + live-verified: the app deletes every object it created on clean-stop so runs SELF-CLEAN
+(no manual VR-Forces reload between clean runs; opt-out Vrf:CleanupCreatedOnStop=false,
+RUNBOOK sec 8). NEXT: ResetVrf (RUNBOOK sec 8), then Unit 4 moveIntoFormation / Unit 2 Breach.
 
 ## What it is
 

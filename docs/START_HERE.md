@@ -34,8 +34,12 @@ Three locations are in play:
 5. This file for repo state, build/run commands, and where artifacts live.
 6. History/reference as needed: `docs/PHASE1_REWIRE.md`, `docs/TASK_EXPANSION_PLAN.md`.
 
-## Current status (2026-07-10)
+## Current status (2026-07-11)
 
+- **Latest (2026-07-11)**: two-layer semantic mapping UNDERWAY - Layer-1 verb classifier +
+  Unit 3 fires (ATTACK) DONE + live-verified; **Solution A (delete-on-stop) DONE** so runs
+  self-clean (no more manual reloads). Details + next steps in the "immediate next task" #4
+  below and docs/SEMANTIC_MAPPING.md. HEAD `340d608`.
 - **Phase 1** (C++ facade extraction + rewire): DONE + verified in the C++ repo.
 - **Migration**: port products (`bridge-spikes/`, `tools/`, `docs/`+`golden-trace/`)
   COPIED into THIS repo. C++ originals retained pending review, then deletion
@@ -97,24 +101,21 @@ remains is quality/parity polish + the two-layer semantic-mapping arc (see "next
 
 ## Repo state (git log is authoritative)
 
-- THIS repo `VRF_C2SIM` (branch `main`), HEAD `fcba5f4` (25 ahead of origin, UNPUSHED),
-  newest first (key commits, Phase 5 live run at top):
+- THIS repo `VRF_C2SIM` (branch `main`), HEAD `340d608` (29 ahead of origin, UNPUSHED),
+  newest first (key commits, the 2026-07-11 semantic-map + Solution A work at top):
   ```
+  340d608 docs: ResetVrf turnkey plan + Unit3/Solution-A status for a fresh session
+  7ee0fa8 Solution A: delete created VR-Forces objects on stop (no more manual reloads)
+  5f34d5b Phase 4+ semantic map: Layer-1 verb classifier + Unit 3 fires (ATTACK)
+  480af81 docs: session handoff - Phases 1-5 DONE
   fcba5f4 docs: COA-STP1 live run - pipeline flawless at scale; Wedge necessary-not-sufficient
-  e6d8beb docs: aggregate formation fix LIVE-VERIFIED - 14.MechBn MOVED
   80e4b15 Phase 4+ enrichment: opt-in SetAggregateFormation before move (unblock aggregates)
   8ed890e Phase 5: sim Run() + TimeMultiplier - FULL golden-trace pipeline live-verified
-  83812c6 Phase 5: facade TryGetEntityGeodetic static_cast fallback for aggregates
   ff4705c Phase 5: port runs live end-to-end - late-join, bare-body parse, GetStatus clean-stop
-  9d63084 Phase 5 live bring-up: FOM config + StopIface + runtime findings
-  e5ead75 Phase 4: --parse-init clientId arg; validate vs data/
-  44323e7 Phase 4: task sequencing - async predecessor/delay gate
-  66cb45e Phase 4: reports out - OnVrfTaskCompleted/OnVrfTextReport
-  57930ba Phase 4: facade TryGetEntityGeodetic resolves aggregates
   03e3a09 Phase 4: OnOrder <- executeTask (bare movement), schema-typed OrderParser
   ```
-- The fork `OpenC2SIM.github.io` (`dev/sdk-fixes`) tracks the submodule pointer; latest
-  `222fddf` (-> `fcba5f4`). Local only, NOT pushed.
+- The fork `OpenC2SIM.github.io` (`dev/sdk-fixes`) tracks the submodule pointer; needs a
+  bump to `340d608` (last recorded bump was `-> 480af81`). Local only, NOT pushed.
 - The C++ repo `c2simVRFinterfacev2.36`: HEAD `b87fc9b`. Working tree still holds the
   UNCOMMITTED formation spike (deliberately not committed there).
 - The SDK (`dev/sdk-fixes`): `f738edf` (static-state fixes + tests), `3b7cd33` (net10).
@@ -126,19 +127,22 @@ VRF-All-entities) is UNTRACKED - decide whether to track it.
 ## Where everything lives (all in THIS repo)
 
 - `src/VrfFacade/` - port-owned native facade (`VrfFacade.{h,cpp}` + verbatim-MAK
-  `remoteControlInit.{h,cxx}`). Carries the SetAggregateFormation fix.
+  `remoteControlInit.{h,cxx}`). Carries SetAggregateFormation, `FireAtTarget` (Unit 3),
+  and `DeleteObject` (Solution A).
 - `src/VrfBridge/` - the `/clr:netcore` managed bridge (wraps VrfFacade; the only managed TU).
 - `src/VrfC2SimApp/` - the .NET app (net10 host):
   - `VrfC2SimService.cs` - the interface: SDK events <-> bridge commands/events (init,
-    order, reports, late-join, Run, clean-stop, aggregate formation).
+    order, reports, late-join, Run, clean-stop, aggregate formation, ATTACK dispatch,
+    delete-on-stop cleanup).
   - `InitParser.cs` / `OrderParser.cs` - schema-typed init/order deserialization
     (C2SIM.Schema102; root-robust: envelope OR bare live-event body).
   - `UnitTranslator.cs` - the create* dispatch/factories (pure, verified).
+  - `VerbMapping.cs` - Layer-1 semantic-map verb->intent classifier (pure).
   - `ReportBuilder.cs` - schema-typed TASKCMPLT + PositionReport builder (serialize).
   - `TaskSequencer.cs` - async predecessor/delay gating (replaces the C++ busy-waits).
   - `InitModels.cs`, `OrderModels.cs`, `VrfSettings.cs`, `appsettings.json`.
   - offline selftests: `TranslatorSelfTest.cs`, `InitParseCheck.cs`, `OrderParseCheck.cs`,
-    `ReportSelfTest.cs`, `SequencerSelfTest.cs` (see Run below).
+    `ReportSelfTest.cs`, `SequencerSelfTest.cs`, `VerbMappingSelfTest.cs` (see Run below).
 - `bridge-spikes/` - the proven C++/CLI spikes + native probe (the bridge's templates).
 - `docs/golden-trace/` - the PARITY ORACLE. `data/` (untracked) - post-gold scenarios.
 - `tools/` - .NET SDK helpers: `PushInit`, `PushOrder`, `ListenReports`, `SdkVerify`,
@@ -170,6 +174,10 @@ it loads the bridge assembly for value types):
   report via the SDK schema types; expect 9/9 checks pass.
 - `VrfC2SimApp.exe --sequencer-selftest` - task-start gating (predecessor / delay /
   timeout); expect 5/5 checks pass.
+- `VrfC2SimApp.exe --verb-selftest` - Layer-1 semantic-map verb->intent classification
+  (VerbMapping); expect ALL CHECKS PASSED (28+). Build with
+  `DOTNET_CLI_USE_MSBUILD_SERVER=false ... --disable-build-servers` (concurrent dotnet
+  builds deadlock the shared build server).
 PATH for the exe: `C:\MAK\vrforces5.0.2\bin64;C:\MAK\vrlink5.8\bin64;C:\MAK\makRti4.6b\bin`.
 
 NOTE the offline PATH above uses `makRti4.6b` (fine - it only LOADS the bridge DLLs). A

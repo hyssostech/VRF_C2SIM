@@ -21,28 +21,43 @@ flailed by trusting a compaction summary instead of the docs and code):
   1. docs/START_HERE.md    - current status + repo state + build/run commands
   2. docs/PORT.md          - settled decisions WITH evidence; ESP. sec 8 (phase status)
                              and sec 10 (two-layer semantic-mapping target)
-  3. docs/APP.md           - the CURRENT work: the .NET app, its data flow, and the
-                             Phase 4 parity-port DONE-vs-TODO list
-  4. docs/PHASE2_BRIDGE.md - reference: the C++/CLI bridge (DONE) + proven build config
-  5. docs/RUNBOOK.md       - runtime procedure for a LIVE VR-Forces run. Read sec 7 (the
-                             FULL .NET-port live recipe: deploy, launch env, the 6 fixed
-                             bugs) + sec 4 (CLEAN STOP) before any run.
-  6. docs/PHASE1_REWIRE.md, docs/TASK_EXPANSION_PLAN.md - history / verb-mapping blueprint
+  3. docs/SEMANTIC_MAPPING.md - the CURRENT work: the port-grounded two-layer plan + status
+                             (Layer-1 classifier + Unit 3 fires DONE; grounded verb->intent
+                             table; the coa-gpt self-target finding). Supersedes TASK_EXPANSION_PLAN.
+  4. docs/APP.md           - the .NET app, its data flow, and the parity-port DONE-vs-TODO list
+  5. docs/RUNBOOK.md       - runtime procedure for a LIVE VR-Forces run. Read sec 7 (the FULL
+                             .NET-port live recipe: deploy, launch env, the fixed bugs), sec 4
+                             (CLEAN STOP), and sec 8 (self-service reset + the ResetVrf plan)
+                             before any run.
+  6. docs/PHASE2_BRIDGE.md, docs/PHASE1_REWIRE.md, docs/TASK_EXPANSION_PLAN.md - reference:
+                             the C++/CLI bridge + build config, Phase 1 history, verb blueprint
 Then run `git log --oneline` in the PORT repo (authoritative for state) and in the fork
 (the submodule pointer).
 
-State: Phases 1-5 DONE. The .NET port RUNS THE FULL C2SIM<->VR-Forces LOOP LIVE (verified
-2026-07-10 vs VR-Forces HLA + c2sim-server 4.8.4.9): join -> late-join (49 units) -> order
-over STOMP -> parse -> task (entity + disaggregated aggregate) -> sim runs -> unit moves ->
-completes -> TASKCMPLT + position reports -> clean stop, no stale federate. Aggregate movement
-works via opt-in `Vrf:AggregateFormation` (14.MechBn moved). COA-STP1 (128 units, 42 tasks)
-validated the pipeline AT SCALE but showed Wedge is necessary-not-sufficient for its aggregate
-types (PORT.md sec 10). Latest port HEAD `fcba5f4`; submodule pointer `222fddf`; ALL local/UNPUSHED.
-NEXT (START_HERE "immediate next task"): (1) aggregate deep-dive (why most COA-STP1 aggregates
-stay stuck - per-type formation / planAndMoveToTask); (2) report parity polish (health/dedup/
-bundling); (3) deferred sec-6 bug fixes + the OnObjectInitialization stub; (4) the two-layer
-TaskActionCode->vrftask semantic mapping (the big value-add); (5) formal golden-trace diff;
-(6) housekeeping (PUSH branches, delete C++ originals, decouple SDK, decide on `data/`).
+State: Phases 1-5 DONE + the two-layer semantic mapping is UNDERWAY. The .NET port runs the full
+C2SIM<->VR-Forces loop live (join -> late-join -> order over STOMP -> parse -> task -> sim runs ->
+move -> complete -> TASKCMPLT + position reports -> clean stop, no stale federate; aggregates move
+via opt-in `Vrf:AggregateFormation`). Newer work (2026-07-11), on top of that:
+- SEMANTIC MAP (PORT.md sec 10 / docs/SEMANTIC_MAPPING.md): Layer-1 verb classifier DONE
+  (`VerbMapping` + `--verb-selftest`, grounded on the real order verbs). Unit 3 fires DONE + FULL
+  LIVE: ATTACK-family -> `FireAtTarget` (DtFireAtTargetTask), resolve affected -> advance -> fire
+  deferred after MoveAlongRoute; verified via a SYNTHETIC distinct-target order. KEY DATA FINDING:
+  COA-STP1 self-targets EVERY attack verb (AffectedEntity==PerformingEntity) - a coa-gpt data issue.
+- SOLUTION A (delete-on-stop) DONE + LIVE-VERIFIED: the app deletes every object it created on
+  clean-stop, so runs SELF-CLEAN (164 objects deleted, GUI empty) - NO more manual VR-Forces reloads
+  between clean runs. Opt-out `Vrf:CleanupCreatedOnStop=false`.
+Latest port HEAD `340d608` (29 ahead of origin/main); ALL local/UNPUSHED.
+
+NEXT (START_HERE #4 + RUNBOOK sec 8):
+1. THE IMMEDIATE TASK - ResetVrf tool (hard reset for ORPHANS from crashes/force-kills that
+   Solution A cannot reach). TURNKEY PLAN in RUNBOOK sec 8 (Option 1 delete-all-reflected,
+   file-free; Option 2 loadScenario needs boboland's .scnx path).
+2. Unit 4: `moveIntoFormationTask` - the REAL fix for the stuck-aggregate finding (the original
+   "aggregate deep-dive"; serves it). Then Unit 2: Breach (DtBreachTask). Unit 5+: HoldObjective
+   (SECURE/OCCUPY/...) / Reconnoiter (SCREEN/SCOUT).
+3. Report parity polish (health/dedup/bundling); deferred sec-6 bug fixes + OnObjectInitialization
+   stub; formal golden-trace diff; housekeeping (PUSH branches, delete C++ originals, decouple SDK,
+   decide on `data/`).
 
 Non-negotiables (where earlier sessions went wrong - do not repeat):
 - READ the docs above BEFORE acting; after any compaction re-read them; trust docs + code
@@ -56,15 +71,18 @@ Non-negotiables (where earlier sessions went wrong - do not repeat):
   sample. InitParser is the pattern to follow for OnOrder. The C2SIM XSDs + OWL are in the repo.
 - Verify parity-critical logic OFFLINE first (no VR-Forces): `--translator-selftest`,
   `--parse-init <file> [clientId]`, `--parse-order <file>`, `--report-selftest`,
-  `--sequencer-selftest` (all self-check; expect the counts in START_HERE "Run / verify").
+  `--sequencer-selftest`, `--verb-selftest` (all self-check; expect the counts in START_HERE
+  "Run / verify"). Build the app with `DOTNET_CLI_USE_MSBUILD_SERVER=false --disable-build-servers`
+  (concurrent dotnet builds deadlock the shared build server - a whole cycle was lost to this).
 - For a LIVE VR-Forces run, follow RUNBOOK sec 7 EXACTLY (it is the proven recipe): RTI
   **4.6.1** on PATH (NOT 4.6b - that only works for the offline DLL-load), `MAKLMGRD_LICENSE_FILE`
   from Machine scope, cwd=VRF bin64 + `--contentRoot`, matching FED/FOM, a FRESH appNumber;
   PushInit BEFORE starting the app (it late-joins); STOP CLEANLY via `tools/StopIface`
-  (server -> UNINITIALIZED), NEVER force-kill a joined federate; RELOAD the VR-Forces scenario
-  between heavy runs (entities accumulate -> creates stop reflecting). Do NOT restart the C2SIM
-  broker as a habit (RUNBOOK sec 6). (The .NET app's console log FLUSHES - read it directly,
-  unlike the block-buffered C++ interface.)
+  (server -> UNINITIALIZED), NEVER force-kill a joined federate. Runs now SELF-CLEAN on clean-stop
+  (Solution A deletes the app's created objects), so a manual VR-Forces reload is NO LONGER needed
+  between clean runs - only reload / run ResetVrf to clear ORPHANS after a crash or force-kill
+  (RUNBOOK sec 8). Do NOT restart the C2SIM broker as a habit (RUNBOOK sec 6). (The .NET app's
+  console log FLUSHES - read it directly, unlike the block-buffered C++ interface.)
 - Keep docs/PORT.md, docs/APP.md, docs/START_HERE.md current AS you work.
 
 Start by reading START_HERE.md, then report the git state and exactly what you'll do first.

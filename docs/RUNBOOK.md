@@ -234,8 +234,9 @@ GUI/next-run confirmation.)
 
 ResetVrf (hard reset) - NOT built yet; TURNKEY PLAN for a fresh session below. With Solution A
 working, this is a RECOVERY lever (clears ORPHANS from crashes/force-kills that Solution A can't
-reach), so it is lower urgency. The GUI scenario is "boboland" (auto-loads); its .scnx is NOT under
-C:\MAK (likely in the user's Documents - ASK for the path if going the loadScenario route).
+reach), so it is lower urgency. The GUI scenario is "boboland" (auto-loads); a filesystem search (C:\MAK, ~/Documents, the user
+profile) found NO boboland file, so Option 2 (loadScenario) would need the path from the user -
+prefer Option 1 below (file-free).
 
 RECOMMENDED design - Option 1, "delete-all-reflected" (file-free, clears ANY orphan):
 1. Facade: add `std::vector<std::string> VrfFacade::GetAllReflectedUuids() const` (or a
