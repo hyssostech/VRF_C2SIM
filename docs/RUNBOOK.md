@@ -224,6 +224,15 @@ session need NOT wait on a human to reload:
   network-interface-level (may only clear the LOCAL reflected view, not command the backend);
   `deleteObject` / `loadScenario` are the backend-commanding calls - prefer those.
 
-RECOMMENDED: expose `VrfFacade::DeleteObject(uuid)` -> bridge -> app deletes all created uuids on
-shutdown (Solution A, surgical). Add a `tools/ResetVrf` (loadScenario) as the hard-reset lever.
-Neither is implemented yet (API located + validated by header read; wiring is the next step).
+Solution A IMPLEMENTED + LIVE-VERIFIED (2026-07-11): `VrfFacade::DeleteObject(uuid)` -> bridge ->
+`VrfC2SimService` deletes every created uuid (tracked in `_vrfUuidByName`) on clean-stop, before
+resign (opt-out: `Vrf:CleanupCreatedOnStop=false`). The tick loop now runs on `_stopTick` (not the
+host token) so cleanup can enqueue + flush deletes while it is still ticking. Live: a COA-STP1 run
+logged "Cleanup: deleting 164 created VR-Forces objects ... 164 deletes dispatched (1566 ms)" then
+resigned clean. (Whether VRF fully REMOVES all 164 - incl. disaggregated aggregates/routes - is a
+GUI/next-run confirmation.)
+
+ResetVrf (hard reset) - NOT built yet. The GUI scenario is "boboland" (auto-loads). `loadScenario`
+needs that scenario's file path; alternatively a "delete-all-reflected-objects" reset needs no file
+but adds facade surface (enumerate the reflected list + deleteObject each) and also clears orphans
+Solution A cannot (from crashes/force-kills).

@@ -422,6 +422,12 @@ void VrfFacade::SetAggregateFormation(const std::string& uuid, const std::string
     p_->controller->setAggregateFormation(DtUUID(uuid), DtString(formationName.c_str()), DtSimSendToAll);
 }
 
+void VrfFacade::DeleteObject(const std::string& uuid) {
+    // Counterpart to createEntity/createAggregate/createRoute/createControlArea. Tells the
+    // backend(s) to remove the object; safe no-op if the uuid is unknown to VRF.
+    p_->controller->deleteObject(DtUUID(uuid));
+}
+
 void VrfFacade::FireAtTarget(const std::string& uuid, const std::string& targetUuid,
                              bool autoSelectWeapon, int maxRounds) {
     DtFireAtTargetTask task;

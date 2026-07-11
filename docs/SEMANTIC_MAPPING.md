@@ -154,6 +154,14 @@ Notes:
    - COA-GPT DATA-QUALITY finding to feed back (like the timing hygiene, PORT.md sec 10):
      coa-gpt emits AffectedEntity == PerformingEntity for attack verbs, so there is no target to
      attack. For the semantic map to add value, coa-gpt must emit a real distinct AffectedEntity.
+   SYNTHETIC ATTACK test - FULL FIRES PATH LIVE-VERIFIED (2026-07-11, fresh federation): a
+   1-task order (taskee d6df3c3d, DISTINCT affected 3ac081eb, ATTACK, ROEFree, 4 pts;
+   scratchpad/synthetic_attack_order.xml) drove the complete Layer-2 path: taskee -> fb516baa,
+   target -> 92a47a93 (distinct), CreateRoute (5 pts) -> MoveAlongRoute -> "FireAtTarget fb516baa
+   -> 92a47a93 after MoveAlongRoute". Self-target guard correctly NOT triggered; advance-then-
+   engage confirmed; no crash. UNIT 3 IS DONE (build + offline + full live). The remaining
+   move-vs-fire nuance (does the unit visibly close+destroy the target, ROE/force-permitting) is
+   a VRF-behavior observation, not a code question.
 4. [Unit 4] MoveInFormation: facade DtMoveIntoFormationTask; opt-in replace of the Wedge
    enrichment for aggregate moves. The real fix for the stuck-aggregate finding - REQUIRES
    a live run to confirm it unsticks the COA-STP1 aggregate types (START_HERE #1).

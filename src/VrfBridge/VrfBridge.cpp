@@ -211,6 +211,10 @@ public:
         _facade->CreateWaypoint(ToNative(pos), ToStd(name));
     }
 
+    // Delete a VR-Forces object by VRF uuid (counterpart to Create*; lets the app clean up
+    // everything it created so objects don't accumulate across runs - RUNBOOK sec 7/8).
+    void DeleteObject(String^ uuid) { _facade->DeleteObject(ToStd(uuid)); }
+
     void CreateRoute(IEnumerable<Geodetic>^ points, String^ name) {
         _facade->CreateRoute(ToNativePoints(points), ToStd(name));
     }

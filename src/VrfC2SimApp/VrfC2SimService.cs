@@ -123,7 +123,9 @@ public sealed class VrfC2SimService : BackgroundService
         }
 
         // 2. Drive the sim on a dedicated thread (drain queued commands, then Tick).
-        var tickThread = new Thread(() => TickLoop(stoppingToken))
+        // The tick loop runs until _stopTick (NOT the host stoppingToken) so the shutdown
+        // path can still enqueue + flush cleanup deletes while it is ticking (see step 5).
+        var tickThread = new Thread(TickLoop)
         {
             IsBackground = true,
             Name = "vrf-tick"
@@ -174,8 +176,41 @@ public sealed class VrfC2SimService : BackgroundService
         try { await Task.Delay(Timeout.Infinite, stoppingToken); }
         catch (OperationCanceledException) { /* normal on stop */ }
 
-        // 5. Clean shutdown: stop the tick loop, disconnect, tear down the bridge.
+        // 5. Clean shutdown: delete created objects, stop the tick loop, disconnect, tear down.
         _log.LogInformation("Shutting down...");
+
+        // Solution A (RUNBOOK sec 8): delete every VR-Forces object this run created so they do
+        // NOT accumulate across runs (accumulation degrades create/route reflection - sec 7 - and
+        // is why a manual scenario reload was needed between runs). Enqueue deleteObject onto the
+        // tick thread while it is STILL running, wait for the queue to drain, then a moment for the
+        // messages to flush to the backend, BEFORE stopping the tick + resigning. This deletes only
+        // what THIS run created (tracked in _vrfUuidByName); orphans from crashes/force-kills need
+        // the hard reset (tools/ResetVrf). Opt out via Vrf:CleanupCreatedOnStop=false.
+        if (_vrf.CleanupCreatedOnStop)
+        {
+            try
+            {
+                var created = _vrfUuidByName.Values
+                    .Where(v => !string.IsNullOrEmpty(v)).Distinct().ToList();
+                if (created.Count > 0)
+                {
+                    _log.LogInformation("Cleanup: deleting {N} created VR-Forces objects before resign...",
+                                        created.Count);
+                    foreach (var u in created) _tickActions.Enqueue(() => _bridge.DeleteObject(u));
+                    // The tick loop drains the whole queue in one iteration, then ticks flush the
+                    // messages. Bounded so shutdown stays well under the host's 30s budget.
+                    var sw = System.Diagnostics.Stopwatch.StartNew();
+                    while (!_tickActions.IsEmpty && sw.Elapsed < TimeSpan.FromSeconds(8)) Thread.Sleep(50);
+                    Thread.Sleep(1500); // extra ticks to flush the delete messages over the network
+                    _log.LogInformation("Cleanup: {N} deletes dispatched ({Ms} ms).", created.Count, sw.ElapsedMilliseconds);
+                }
+            }
+            catch (Exception e)
+            {
+                _log.LogWarning("Cleanup-on-stop failed: {Msg}", C2SIMSDK.GetRootException(e).Message);
+            }
+        }
+
         _stopTick = true;
         tickThread.Join(TimeSpan.FromSeconds(5));
         try { await _sdk.Disconnect(); } catch { /* best effort */ }
@@ -183,9 +218,9 @@ public sealed class VrfC2SimService : BackgroundService
         _bridge.Dispose();
     }
 
-    private void TickLoop(CancellationToken ct)
+    private void TickLoop()
     {
-        while (!ct.IsCancellationRequested && !_stopTick)
+        while (!_stopTick)
         {
             while (_tickActions.TryDequeue(out var action))
             {

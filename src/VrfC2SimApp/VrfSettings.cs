@@ -37,4 +37,10 @@ public class VrfSettings
     // giving up and dispatching anyway (the fix for the C++ infinite busy-wait, PORT.md
     // sec 6). The golden aggregate completion took ~9 min, so 600 s is a safe default.
     public int TaskPredecessorTimeoutSeconds { get; set; } = 600;
+
+    // On clean stop, delete every VR-Forces object this run created (via the tracked uuids)
+    // so they do NOT accumulate across runs - accumulation degrades create/route reflection
+    // and is why a manual VR-Forces scenario reload was needed between runs (RUNBOOK sec 7/8).
+    // Default true (self-service hygiene); set false to leave created objects in place.
+    public bool CleanupCreatedOnStop { get; set; } = true;
 }

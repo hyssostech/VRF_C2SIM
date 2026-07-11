@@ -187,6 +187,13 @@ public:
     void SetExerciseStartTime(int year, int month, int day,
                               int hour, int minute, int second);
 
+    // -- object teardown ------------------------------------------
+    // Delete a VR-Forces object (entity / aggregate / route / control area) by its VRF
+    // UUID - the counterpart to the Create* calls (controller->deleteObject). Lets the
+    // caller remove everything it created so objects do NOT accumulate in VR-Forces across
+    // runs (accumulation degrades create/route reflection - see docs/RUNBOOK.md sec 7/8).
+    void DeleteObject(const std::string& uuid);
+
     // -- object creation (asynchronous) ---------------------------
     // These return immediately; completion arrives via OnObjectCreated
     // with a matching 'name'. The caller correlates and may then use the
