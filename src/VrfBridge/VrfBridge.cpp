@@ -249,6 +249,11 @@ public:
     void SetAggregateFormation(String^ uuid, String^ formationName) {
         _facade->SetAggregateFormation(ToStd(uuid), ToStd(formationName));
     }
+    // Fire at the target entity (DtFireAtTargetTask). Auto-selects the weapon, default round
+    // count. Layer 2 of the semantic map: the ATTACK-family verbs map here.
+    void FireAtTarget(String^ uuid, String^ targetUuid) {
+        _facade->FireAtTarget(ToStd(uuid), ToStd(targetUuid));
+    }
     void RunScriptedTask(String^ uuid, String^ scriptId, IEnumerable<ScriptVar>^ vars) {
         _facade->RunScriptedTask(ToStd(uuid), ToStd(scriptId), ToNativeVars(vars));
     }

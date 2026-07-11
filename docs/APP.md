@@ -159,6 +159,18 @@ Task sequencing - DONE + VERIFIED offline (2026-07-10):
   a unit is re-tasked before its prior task completes, the completion is attributed to the
   latest task (same as the C++ getCurrentTaskUuid). Fine for one-task-at-a-time golden orders.
 
+Semantic mapping Layer 1 (verb classifier) - DONE + VERIFIED offline (2026-07-11):
+- `VerbMapping.Classify(actionCode) -> VerbPlan` (pure): maps a C2SIM TaskActionCode to a
+  `TaskIntent` (Move / Breach / Attack / HoldObjective / Reconnoiter / Escort / Clear /
+  MoveInFormation) + the intended VR-Forces composition + Implemented/Recognized flags. The
+  table is grounded on the ACTUAL verbs in data/COA-STP1_Order + VRF-Approved (not the
+  deprecated plan's assumed EMBARK/FOLLOW). `OnOrder`/ExecuteTaskOnTick CONSULTS it and logs
+  the mapped intent, but STILL runs bare movement for every verb (Layer 2 not wired) - ZERO
+  behavior/golden-trace change. Verified: `--verb-selftest` 28/28; confirmed the parser emits
+  the exact table keys for all 17 COA-STP1 verbs. Plan + status: docs/SEMANTIC_MAPPING.md.
+- NEXT (Layer 2, LIVE-GATED): facade Dt*Task methods (Breach, fires, moveIntoFormation) +
+  dispatch keyed on TaskIntent. A build proves compile/link only; VRF behavior needs a live run.
+
 TODO - the Phase 4 PARITY PORT (the real content; each maps to a C++ source):
 1. `InitParser` refinements: parse `DirectionPhi` if a schema instance carries it;
    handle schema versions beyond 1.0.2 (select by the SDK ProtocolVersion) if servers

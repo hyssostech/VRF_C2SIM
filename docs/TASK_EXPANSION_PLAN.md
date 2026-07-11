@@ -1,5 +1,11 @@
 # Task Expansion Plan: mapping C2SIM tasks to VR-Forces behaviors
 
+> SUPERSEDED (2026-07-11) by **docs/SEMANTIC_MAPPING.md**, the port-grounded plan. This
+> document was written against the deprecated C++ interface and prioritized verbs
+> (EMBARK/DEBARK/FOLLOW/EVACTN) that the REAL orders do not use. Kept for its verified
+> vrftask header signatures + the C2SIM verb catalog (still valid reference). For current
+> priorities, the verb->intent table, and status, read SEMANTIC_MAPPING.md.
+
 Status: PLAN ONLY (not yet implemented). Captured 2026-07-09.
 Owner note: another session is actively editing the interface files
 (VrfFacade.*, C2SIMinterface.cpp). Do NOT hand-merge this against their

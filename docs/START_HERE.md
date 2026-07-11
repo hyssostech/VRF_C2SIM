@@ -200,9 +200,31 @@ Remaining work, roughly by priority (details: docs/APP.md TODO, PORT.md sec 6/10
 3. **Deferred C++-bug fixes** (PORT.md sec 6): distinct C2SimUuid/VrfUuid types (setTarget
    no-op); aggregate health/heading. And the `OnObjectInitialization` STUB (needed only for
    orders that task via a named map-graphic Route, not inline points).
-4. **Two-layer semantic mapping** (the big value-add, PORT.md sec 10 / TASK_EXPANSION_PLAN):
-   map C2SIM `TaskActionCode` -> the right VR-Forces vrftask (fireAtTargetTask, breachTask,
-   moveIntoFormationTask, ...) instead of collapsing every verb to moveAlongRoute.
+4. **Two-layer semantic mapping** (the big value-add, PORT.md sec 10). Plan +
+   re-grounding: **docs/SEMANTIC_MAPPING.md** (the port-grounded plan; supersedes
+   TASK_EXPANSION_PLAN.md, whose "first wins" - EMBARK/DEBARK/FOLLOW - are NOT in the real
+   orders). Map C2SIM `TaskActionCode` -> the right VR-Forces vrftask (breachTask,
+   fireAtTargetTask, moveIntoFormationTask, ...) instead of collapsing every verb to
+   moveAlongRoute.
+   - **Unit 1 DONE + offline-verified (2026-07-11)**: Layer-1 verb classifier
+     `VerbMapping` (VerbMapping.cs) + `--verb-selftest` (28/28). Table grounded on the ACTUAL
+     COA-STP1 / VRF-Approved verbs (ATTACK is the most common; only BREACH is native-1:1).
+     Confirmed the parser's `TaskActionCode.ToString()` emits the exact table keys (all 17
+     COA-STP1 verbs recognized). The executor now CONSULTS the classifier and logs the mapped
+     intent + intended composition, but STILL executes bare movement for every verb - ZERO
+     behavior/golden-trace change. The port already dissolves the plan's "uuid-resolution
+     blocker" (via `_unitByC2SimUuid` -> `_vrfUuidByName`).
+   - **Unit 3 (fires/ATTACK) CODE DONE + BUILD-VERIFIED + PARTIAL LIVE (2026-07-11)**: facade
+     `FireAtTarget` (DtFireAtTargetTask) + bridge + dispatch for ATTACK/DESTRY/FIX/DISRPT/PENTRT
+     (resolve affected -> advance -> fire deferred after MoveAlongRoute). LIVE (COA-STP1/C2SIM/
+     Wedge/20x): FireAtTarget executes end-to-end (2 self-target no-points tasks); found+fixed a
+     self-target case (fire-support tasks with affected==performing). NOT yet verified: deferred
+     fire-after-move + fire vs a distinct enemy - route ObjectCreated did not reflect this run
+     (CreateRoute 32 / MoveAlongRoute 0; the known reflection degradation, base-path not the
+     ATTACK code). RE-RUN after a VR-Forces scenario reload (lighter order) to observe it.
+   - Next (Layer 2, LIVE-GATED): finish the Unit 3 live confirm (re-run); then Unit 2 Breach,
+     Unit 4 moveIntoFormationTask (the real fix for the stuck-aggregate finding - serves #1).
+     Each needs a bridge rebuild (VS18) + a live run; a green build only proves compile/link.
 5. **Formal golden-trace message diff** (byte-level parity, not just behavioral).
 6. **Housekeeping**: PUSH the branches (port main / fork / SDK are all local-only);
    delete the retained C++ originals (migration step 1); decouple the SDK ProjectReference

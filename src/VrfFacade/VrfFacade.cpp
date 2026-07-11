@@ -32,6 +32,7 @@
 #include <vlutil/vlProcessControl.h>
 #include <vrftasks/scriptedTaskTask.h>
 #include <vrftasks/scriptedTaskSet.h>
+#include <vrftasks/fireAtTargetTask.h>
 #include <vrfutil/scenario.h>
 #include <matrix/geodeticCoord.h>
 #include <matrix/vlVector.h>
@@ -419,6 +420,16 @@ void VrfFacade::MoveAlongRoute(const std::string& uuid, const std::string& route
 void VrfFacade::SetAggregateFormation(const std::string& uuid, const std::string& formationName) {
     // No-op if 'uuid' is not an aggregate leader (per the controller contract).
     p_->controller->setAggregateFormation(DtUUID(uuid), DtString(formationName.c_str()), DtSimSendToAll);
+}
+
+void VrfFacade::FireAtTarget(const std::string& uuid, const std::string& targetUuid,
+                             bool autoSelectWeapon, int maxRounds) {
+    DtFireAtTargetTask task;
+    task.init();
+    task.setTarget(DtUUID(targetUuid));
+    task.setAutoSelectWeapon(autoSelectWeapon);
+    if (maxRounds > 0) task.setMaxRoundsToFire(maxRounds);
+    p_->controller->sendTaskMsg(DtUUID(uuid), &task);
 }
 
 void VrfFacade::RunScriptedTask(const std::string& uuid, const std::string& scriptId,

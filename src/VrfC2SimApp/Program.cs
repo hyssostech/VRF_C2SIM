@@ -32,6 +32,10 @@ if (args.Length > 0 && args[0] == "--report-selftest")
 if (args.Length > 0 && args[0] == "--sequencer-selftest")
     return SequencerSelfTest.Run();
 
+// Offline verb-mapping check: C2SIM TaskActionCode -> TaskIntent classification (no bridge).
+if (args.Length > 0 && args[0] == "--verb-selftest")
+    return VerbMappingSelfTest.Run();
+
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddHostedService<VrfC2SimService>();
 await builder.Build().RunAsync();

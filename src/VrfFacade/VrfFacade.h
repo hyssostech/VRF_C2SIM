@@ -225,6 +225,14 @@ public:
     // and the unit will not move (Phase 4 spike - not parity; see PORT.md sec 10).
     void SetAggregateFormation(const std::string& uuid, const std::string& formationName);
 
+    // Fire at the target entity (DtFireAtTargetTask, sent via sendTaskMsg like
+    // RunScriptedTask). autoSelectWeapon lets VRF choose the weapon; maxRounds <= 0 leaves
+    // the task default (unbounded). The target must be a VRF UUID known to the sim; an
+    // unknown target is a VRF-side no-op. Layer 2 of the semantic map: the ATTACK-family
+    // verbs (ATTACK/DESTRY/FIX/DISRPT/PENTRT) map here (docs/SEMANTIC_MAPPING.md).
+    void FireAtTarget(const std::string& uuid, const std::string& targetUuid,
+                      bool autoSelectWeapon = true, int maxRounds = 0);
+
     // Scripted (Lua) task, sent via a task message (e.g. evacuate_civilians).
     void RunScriptedTask(const std::string& uuid, const std::string& scriptId,
                          const std::vector<ScriptVar>& vars);

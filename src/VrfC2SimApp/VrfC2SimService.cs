@@ -47,6 +47,11 @@ public sealed class VrfC2SimService : BackgroundService
     // issued in the same tick as CreateRoute.
     private readonly ConcurrentDictionary<string, string> _pendingRouteMove = new();
 
+    // Route name -> (taskee VRF uuid, target VRF uuid), for an ATTACK-family fire deferred
+    // to AFTER the MoveAlongRoute is issued (advance the axis, THEN engage). Layer 2 of the
+    // semantic map (SEMANTIC_MAPPING.md); issued in OnVrfObjectCreated alongside the move.
+    private readonly ConcurrentDictionary<string, (string Taskee, string Target)> _pendingRouteFire = new();
+
     // Object name -> C2SIM unit uuid (inverse of _unitByC2SimUuid), so the VRF report
     // callbacks - which carry the object's marking/name, not its C2SIM uuid - can name the
     // subject of a report (parity: onTaskCompleted/onTextReport getUnitByName -> unit->uuid).
@@ -411,6 +416,49 @@ public sealed class VrfC2SimService : BackgroundService
         if (!string.IsNullOrEmpty(task.TaskUuid))
             _currentTaskUuidByName[unit.Name] = task.TaskUuid;
 
+        // LAYER 1 of the two-layer semantic map (docs/SEMANTIC_MAPPING.md): classify the
+        // C2SIM verb. TODAY this only surfaces the semantic gap - every verb still executes
+        // the bare movement projector below (Layer 2 dispatch lands in later units), so there
+        // is ZERO behavior/golden-trace change. When a verb's Layer-2 composition is wired,
+        // this becomes the switch that routes it (Breach, Attack, ...).
+        var verb = VerbMapping.Classify(task.ActionCode);
+        if (!verb.Recognized)
+            _log.LogWarning("Task '{Task}' has UNRECOGNIZED verb '{Code}' (not in the semantic map); " +
+                            "executing bare movement. Add it to VerbMapping (SEMANTIC_MAPPING.md sec 6).",
+                            task.TaskName, verb.ActionCode);
+        else if (!verb.Implemented)
+            _log.LogInformation("Task '{Task}' verb={Code} -> intent={Intent} ({Comp}); " +
+                                "Layer-2 not yet wired - executing bare movement.",
+                                task.TaskName, verb.ActionCode, verb.Intent, verb.Composition);
+
+        // LAYER 2 - ATTACK-family (ATTACK/DESTRY/FIX/DISRPT/PENTRT): resolve the affected
+        // entity (a C2SIM uuid) to a VRF target for a DtFireAtTargetTask. Resolution uses the
+        // init-created maps (_unitByC2SimUuid -> _vrfUuidByName) - the two-dict chain that
+        // dissolves the plan's uuid-resolution blocker (SEMANTIC_MAPPING.md sec 2b). The target
+        // must be an entity our clientId created at init; an out-of-scope OPFOR target degrades
+        // to advance-only + a warn. The fire itself is issued AFTER the move below (advance the
+        // axis, then engage); the move/fire task interaction in VRF is the live question.
+        string attackTargetVrf = null;
+        if (verb.Intent == TaskIntent.Attack)
+        {
+            if (TryResolveVrfUuid(task.AffectedEntity, out var tgt))
+            {
+                // Self-target guard: some coa-gpt fire-support tasks (e.g. "ProvidePriorityFires")
+                // set AffectedEntity == PerformingEntity, which resolves to the taskee's own uuid.
+                // FireAtTarget(self) is a degenerate no-op in VRF, so skip it (found live 2026-07-11).
+                // A richer mapping would route these to provideIndirectFireTask (SEMANTIC_MAPPING.md).
+                if (string.Equals(tgt, vrfUuid, StringComparison.Ordinal))
+                    _log.LogInformation("ATTACK task '{Task}': affected entity is the taskee itself " +
+                                        "(self-target fire-support?); no fire, advancing only.", task.TaskName);
+                else
+                    attackTargetVrf = tgt;
+            }
+            else
+                _log.LogWarning("ATTACK task '{Task}': affected entity '{Aff}' is not a VRF unit we created " +
+                                "(out-of-scope target?); advancing only, no fire.",
+                                task.TaskName, string.IsNullOrEmpty(task.AffectedEntity) ? "(none)" : task.AffectedEntity);
+        }
+
         // Ground units clamp elevation to 100 (VRF ground-clamping; :2237, :2266, :2290).
         bool isGround = unit.SymbolId.Length > 2 && unit.SymbolId[2] == 'G';
 
@@ -432,9 +480,17 @@ public sealed class VrfC2SimService : BackgroundService
             new() { LatDeg = live.LatDeg, LonDeg = live.LonDeg, AltMeters = isGround ? 100.0 : live.AltMeters }
         };
 
-        // Parity: no route points -> error, cannot execute (:2206-2210).
+        // Parity: no route points -> error, cannot execute (:2206-2210). EXCEPTION (Layer 2):
+        // an ATTACK with a resolved target needs no route - engage the target in place.
         if (task.Points.Count == 0)
         {
+            if (attackTargetVrf != null)
+            {
+                _bridge.FireAtTarget(vrfUuid, attackTargetVrf);
+                _log.LogInformation("ATTACK task '{Task}': no route points; FireAtTarget {Vrf} -> {Tgt} (engage in place).",
+                                    task.TaskName, vrfUuid, attackTargetVrf);
+                return;
+            }
             _log.LogError("NO LOCATION GIVEN - CAN'T EXECUTE TASK '{Task}'.", task.TaskName);
             return;
         }
@@ -478,6 +534,13 @@ public sealed class VrfC2SimService : BackgroundService
             _bridge.MoveToLocation(vrfUuid, routeGeo[^1]);
             _log.LogInformation("Task '{Task}': MoveToLocation for {Name} ({Vrf}).",
                                 task.TaskName, unit.Name, vrfUuid);
+            // Layer 2: ATTACK-family engages the resolved target after closing to the point.
+            if (attackTargetVrf != null)
+            {
+                _bridge.FireAtTarget(vrfUuid, attackTargetVrf);
+                _log.LogInformation("ATTACK task '{Task}': FireAtTarget {Vrf} -> {Tgt} after move.",
+                                    task.TaskName, vrfUuid, attackTargetVrf);
+            }
             return;
         }
 
@@ -485,6 +548,10 @@ public sealed class VrfC2SimService : BackgroundService
         // (parity: the C++ waits for the route to register before moveAlongRoute, :2408-2421).
         string routeName = task.TaskName + " ROUTE";
         _pendingRouteMove[routeName] = vrfUuid;
+        // Layer 2: defer the ATTACK-family fire to fire AFTER the MoveAlongRoute (advance the
+        // axis, then engage) - issued together in OnVrfObjectCreated.
+        if (attackTargetVrf != null)
+            _pendingRouteFire[routeName] = (vrfUuid, attackTargetVrf);
         _bridge.CreateRoute(routeGeo, routeName);
         _log.LogInformation("Task '{Task}': CreateRoute '{Route}' ({Count} pts) for {Name}; move deferred to route-created.",
                             task.TaskName, routeName, routeGeo.Count, unit.Name);
@@ -527,7 +594,36 @@ public sealed class VrfC2SimService : BackgroundService
             _bridge.MoveAlongRoute(taskeeVrfUuid, e.Name);
             _log.LogInformation("Route '{Route}' created; MoveAlongRoute issued for {Vrf}.",
                                 e.Name, taskeeVrfUuid);
+
+            // Layer 2: an ATTACK-family task advances the axis THEN engages - issue the
+            // deferred FireAtTarget now that the move is under way (SEMANTIC_MAPPING.md).
+            if (_pendingRouteFire.TryRemove(e.Name, out var fire))
+            {
+                _bridge.FireAtTarget(fire.Taskee, fire.Target);
+                _log.LogInformation("ATTACK: FireAtTarget {Vrf} -> {Tgt} after MoveAlongRoute (route '{Route}').",
+                                    fire.Taskee, fire.Target, e.Name);
+            }
         }
+    }
+
+    /// <summary>
+    /// Resolve a C2SIM entity uuid to its VRF uuid via the init-created maps
+    /// (_unitByC2SimUuid -> _vrfUuidByName). This is the two-dict chain that dissolves the
+    /// TASK_EXPANSION_PLAN "uuid-resolution blocker" (SEMANTIC_MAPPING.md sec 2b). Returns
+    /// false if the entity was not created by our clientId at init (e.g. an out-of-scope
+    /// OPFOR target) or has not yet been confirmed created by VR-Forces.
+    /// </summary>
+    private bool TryResolveVrfUuid(string c2SimUuid, out string vrfUuid)
+    {
+        vrfUuid = "";
+        if (string.IsNullOrEmpty(c2SimUuid)) return false;
+        if (!_unitByC2SimUuid.TryGetValue(c2SimUuid, out var u)) return false;
+        if (_vrfUuidByName.TryGetValue(u.Name, out var v) && !string.IsNullOrEmpty(v))
+        {
+            vrfUuid = v;
+            return true;
+        }
+        return false;
     }
 
     private void OnVrfTaskCompleted(object sender, TaskCompletedEventArgs e)

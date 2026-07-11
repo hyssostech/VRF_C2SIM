@@ -533,7 +533,13 @@ interface never sets one, so VRF falls back to an unresolvable default (golden 1
 resolved by luck; COA-STP1 unit types get "column-left" = invalid). Proper fix keeps
 disaggregation (subordinate fidelity) and sets a valid formation.
 
-Target architecture (Phase 4+): two-layer mapping.
+Target architecture (Phase 4+): two-layer mapping. PORT-GROUNDED PLAN + status:
+**docs/SEMANTIC_MAPPING.md** (supersedes TASK_EXPANSION_PLAN.md). Unit 1 DONE
+(2026-07-11): Layer-1 verb classifier (VerbMapping.cs, `--verb-selftest`), grounded on the
+real COA-STP1 / VRF-Approved verbs; executor consults+logs intent but still runs bare
+movement (zero behavior change). Layer 2 (Breach, fires, moveIntoFormationTask) is next and
+is LIVE-GATED. Note the port already resolves C2SIM-uuid -> VRF-uuid (the plan's feared
+blocker) via `_unitByC2SimUuid` -> `_vrfUuidByName`.
 - Layer 1 (C2SIM semantics): parse ManeuverWarfareTask + TaskActionCode + params/graphics.
 - Layer 2 (VRF task composition): select/compose the right Dt*Task per action code.
 The facade surface should evolve from `MoveAlongRoute(uuid, route)` toward intent-level

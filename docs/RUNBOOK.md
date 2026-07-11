@@ -203,3 +203,27 @@ the golden move order and confirm 14.MechBn tasks (point 0 -> route -> move -> T
 OPERATIONAL NOTE for repeated live runs: entities VR-Forces creates on the interface's behalf
 PERSIST across a clean interface resign; several back-to-back runs accumulate them and can stop
 new creates from reflecting - reload the scenario between heavy runs.
+
+## 8. Self-service VR-Forces reset (avoid the manual GUI reload) - API found 2026-07-11
+
+The manual GUI scenario reload is needed ONLY to (a) clear accumulated entities (sec 7 note)
+and (b) recover a stale federate after a force-kill (sec 5). Both are automatable via the
+remote controller (`DtVrfRemoteController`, vrfcontrol/vrfRemoteController.h) - so a fresh
+session need NOT wait on a human to reload:
+
+- **`deleteObject(const DtUUID& uuid, addr = DtSimSendToAll)`** (:1283) - the direct counterpart
+  to `createEntity`; "Delete VR-Force's object by name". SURGICAL FIX for accumulation: the app
+  already tracks every created uuid in `_vrfUuidByName` (entities, aggregates, routes, areas), so
+  on clean-stop it can `deleteObject` each one and leave the federation as it found it - no
+  reload. (Delete BEFORE resign, and tick a few times to flush the messages.)
+- **`loadScenario(const DtFilename& scnx, ...)`** (:528) / **`newScenario(dbname, guidbname, ...)`**
+  (:451) - HARD reset: reload the scenario (or start a fresh one), a full clean slate that also
+  clears orphans from crashes/force-kills that per-object delete cannot reach. Good for a
+  `tools/ResetVrf` helper. Needs the scenario file / terrain-db names the GUI uses.
+- `vrlinkNetworkInterface::removeAndDeleteAll()` / `resetSimulation()` exist too, but are
+  network-interface-level (may only clear the LOCAL reflected view, not command the backend);
+  `deleteObject` / `loadScenario` are the backend-commanding calls - prefer those.
+
+RECOMMENDED: expose `VrfFacade::DeleteObject(uuid)` -> bridge -> app deletes all created uuids on
+shutdown (Solution A, surgical). Add a `tools/ResetVrf` (loadScenario) as the hard-reset lever.
+Neither is implemented yet (API located + validated by header read; wiring is the next step).
