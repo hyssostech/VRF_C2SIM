@@ -214,17 +214,21 @@ Remaining work, roughly by priority (details: docs/APP.md TODO, PORT.md sec 6/10
      intent + intended composition, but STILL executes bare movement for every verb - ZERO
      behavior/golden-trace change. The port already dissolves the plan's "uuid-resolution
      blocker" (via `_unitByC2SimUuid` -> `_vrfUuidByName`).
-   - **Unit 3 (fires/ATTACK) CODE DONE + BUILD-VERIFIED + PARTIAL LIVE (2026-07-11)**: facade
-     `FireAtTarget` (DtFireAtTargetTask) + bridge + dispatch for ATTACK/DESTRY/FIX/DISRPT/PENTRT
-     (resolve affected -> advance -> fire deferred after MoveAlongRoute). LIVE (COA-STP1/C2SIM/
-     Wedge/20x): FireAtTarget executes end-to-end (2 self-target no-points tasks); found+fixed a
-     self-target case (fire-support tasks with affected==performing). NOT yet verified: deferred
-     fire-after-move + fire vs a distinct enemy - route ObjectCreated did not reflect this run
-     (CreateRoute 32 / MoveAlongRoute 0; the known reflection degradation, base-path not the
-     ATTACK code). RE-RUN after a VR-Forces scenario reload (lighter order) to observe it.
-   - Next (Layer 2, LIVE-GATED): finish the Unit 3 live confirm (re-run); then Unit 2 Breach,
-     Unit 4 moveIntoFormationTask (the real fix for the stuck-aggregate finding - serves #1).
-     Each needs a bridge rebuild (VS18) + a live run; a green build only proves compile/link.
+   - **Unit 3 (fires/ATTACK) DONE - build + offline + FULL LIVE (2026-07-11), commit 5f34d5b**:
+     facade `FireAtTarget` (DtFireAtTargetTask) + bridge + dispatch for ATTACK/DESTRY/FIX/DISRPT/
+     PENTRT (resolve affected via TryResolveVrfUuid -> advance -> fire deferred after
+     MoveAlongRoute; self-target guard). Live-verified end to end via a SYNTHETIC distinct-target
+     order (scratchpad/synthetic_attack_order.xml): "FireAtTarget A -> B after MoveAlongRoute".
+     KEY DATA FINDING: COA-STP1 self-targets EVERY attack verb (AffectedEntity==PerformingEntity),
+     so the real orders give the fires path no target - a coa-gpt data-quality issue to feed back.
+   - **Solution A (delete-on-stop) DONE + LIVE-VERIFIED (2026-07-11), commit 7ee0fa8**: the app
+     deletes every object it created on clean-stop (VrfFacade::DeleteObject -> controller->
+     deleteObject), so runs SELF-CLEAN - no more manual VR-Forces reloads between runs. Verified:
+     164 objects deleted, GUI empty after. Opt-out Vrf:CleanupCreatedOnStop=false.
+   - PENDING: **ResetVrf** (hard reset for orphans from crashes/force-kills) - TURNKEY PLAN in
+     RUNBOOK sec 8 (Option 1 delete-all-reflected, file-free). Then Layer-2 units: **Unit 2 Breach**,
+     **Unit 4 moveIntoFormationTask** (the real fix for the stuck-aggregate finding - serves #1),
+     Unit 5+ HoldObjective/Reconnoiter. Each needs a bridge rebuild (VS18) + a live run.
 5. **Formal golden-trace message diff** (byte-level parity, not just behavioral).
 6. **Housekeeping**: PUSH the branches (port main / fork / SDK are all local-only);
    delete the retained C++ originals (migration step 1); decouple the SDK ProjectReference

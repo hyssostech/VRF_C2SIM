@@ -232,7 +232,31 @@ logged "Cleanup: deleting 164 created VR-Forces objects ... 164 deletes dispatch
 resigned clean. (Whether VRF fully REMOVES all 164 - incl. disaggregated aggregates/routes - is a
 GUI/next-run confirmation.)
 
-ResetVrf (hard reset) - NOT built yet. The GUI scenario is "boboland" (auto-loads). `loadScenario`
-needs that scenario's file path; alternatively a "delete-all-reflected-objects" reset needs no file
-but adds facade surface (enumerate the reflected list + deleteObject each) and also clears orphans
-Solution A cannot (from crashes/force-kills).
+ResetVrf (hard reset) - NOT built yet; TURNKEY PLAN for a fresh session below. With Solution A
+working, this is a RECOVERY lever (clears ORPHANS from crashes/force-kills that Solution A can't
+reach), so it is lower urgency. The GUI scenario is "boboland" (auto-loads); its .scnx is NOT under
+C:\MAK (likely in the user's Documents - ASK for the path if going the loadScenario route).
+
+RECOMMENDED design - Option 1, "delete-all-reflected" (file-free, clears ANY orphan):
+1. Facade: add `std::vector<std::string> VrfFacade::GetAllReflectedUuids() const` (or a
+   `DeleteAllReflectedObjects()` that also calls deleteObject). Enumerate the reflected objects via
+   the remote object manager. START HERE: `vrlinkNetworkInterface/remoteObjectManager.h` +
+   `UUIDNetworkManager.h` (the facade already holds `p_->uuidMgr`, a DtUUIDNetworkManager, and uses
+   `reflectedObjectFor(uuid)`). Find the list accessors (DtReflectedExtEntityList /
+   DtReflectedExtAggregateList) + their iteration (first()/next() or begin()/end()); collect each
+   reflected object's UUID (DtReflectedObject has a uuid()/entityId()). Mirror the existing
+   TryGetEntityGeodetic pattern for the entity-vs-aggregate split.
+2. Bridge: wrap it (like DeleteObject) -> `IEnumerable<String^> GetAllReflectedUuids()` or
+   `DeleteAllReflectedObjects()`.
+3. Tool: `tools/ResetVrf` mini-host (copy the SmokeTest/tools shape): build a StartupConfig
+   (RTI 4.6.1 env, machine license, fresh appNumber, FED/FOM from appsettings), `bridge.Start()`
+   to JOIN the federation, Tick() ~1-2 s so the current entities REFLECT, then
+   DeleteAllReflectedObjects (or GetAll -> DeleteObject each), Tick() ~2 s to flush, `bridge.Stop()`.
+   No C2SIM/STOMP needed - it is pure VR-Forces. Same LAUNCH ENV as the app (RUNBOOK sec 7).
+4. Verify: after a run leaves objects (or force-kill an app mid-run to make orphans), run ResetVrf,
+   confirm the VR-Forces GUI shows an empty scenario.
+
+Option 2 - `loadScenario(bobolandScnx)` / `newScenario(dbname,guidbname)`: simpler facade (one call)
+but needs boboland's scenario file path (ask the user) or the terrain DB names. Signatures:
+vrfcontrol/vrfRemoteController.h :528 (loadScenario) / :451 (newScenario). Use only if Option 1's
+reflected-list enumeration proves fiddly.
