@@ -39,7 +39,19 @@ Three locations are in play:
 
 ## Current status (2026-07-12)
 
-- **Latest (2026-07-12, evening - RESEARCH)**: after E1's negative, a three-agent sweep of
+- **Latest (2026-07-12, night - R5 BREAKTHROUGH)**: the research-derived create-time
+  sequence SOLVES the stuck-aggregate problem on dispersed scenarios
+  (UNIT_MOVEMENT_RESEARCH.md sec 4). With `Vrf:AggregateFormation=auto` the app now, on
+  every aggregate creation: QUERIES the unit's own formation list (new
+  `RequestAvailableFormations` facade/bridge round-trip), then on the reply SETS a valid
+  lowercase name from that list + `ReorganizeAggregate` (new facade/bridge call). R5 live
+  on the golden STP init: **3/3 TASKCMPLT** - ArmorPlatoon-type 1222.MechPlt (a type that
+  NEVER moved before), ArmorCompany-type 114.MechCoy, and the entity control - with
+  `tools/WatchVrf` (new member-telemetry tool) showing clean on-axis marches ending ON the
+  final route point. Ground truth: live formation lists are ALL lowercase (static .entity
+  analysis misleads - always query); currentFormation reads back '' even when set (trust
+  the list). NEXT: R5c (same sequence on COA-STP1's stacked coordinates), then E2 re-test.
+- **2026-07-12, evening - RESEARCH**: after E1's negative, a three-agent sweep of
   the MAK 5.0.2 vendor docs/headers/content produced **docs/UNIT_MOVEMENT_RESEARCH.md** -
   READ IT before any aggregate work. Verdict: our move task was always correct; the missing
   preconditions are creation-time formation STATE (Aggregate.ope units are born

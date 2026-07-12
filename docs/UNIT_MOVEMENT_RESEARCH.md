@@ -140,7 +140,45 @@ GUI does not wrap unit moves in plans); MoveIntoFormation as the primary fix (it
 drives members into slots - useful AFTER geometry/leader are sane, i.e. E2 stays
 parked behind R5).
 
-## 4. What the research could NOT settle (open)
+## 4. R1-R5 EXECUTED (2026-07-12, same evening) - THE SEQUENCE WORKS. 3/3 COMPLETIONS.
+
+Implementation (commit history has the detail):
+- R2+R4: facade+bridge `ReorganizeAggregate` (controller->reorganizeAggregate) and
+  `RequestAvailableFormations` (DtRequestAvailableFormationsAdmin via DtAdminMessage ->
+  sendMessageToObject; reply via objectMessageExecutive typed callback ->
+  AvailableFormations event). Both PROVEN live: all 40 golden aggregates answered.
+- R1 evolved mid-experiment into QUERY-DRIVEN (better than the static map): on aggregate
+  creation the app QUERIES the unit's own formation list; the REPLY picks a valid name
+  (prefer "column") and issues SetAggregateFormation (snap) + ReorganizeAggregate. First
+  reply wins; later replies only log. GROUND-TRUTH FINDING that forced this: the live
+  read-backs show ALL 40 golden aggregates accept only LOWERCASE names - including the
+  18 company-typed units whose .entity file (Tank Company (USA)) lists Title-Case. The
+  runtime formation list does NOT match the static .entity analysis (different effective
+  model set / matching than the files suggest), so any static map is unreliable - query
+  the unit, always. (This also retro-explains E1: the companies' Title-Case "Column" was
+  invalid; their movement was runaway, not marching.)
+- R3: tools/WatchVrf - joins as observer, reuses the reflection machinery + geodetic
+  reads, samples EVERY reflected object (members included) as CSV. Worked first try.
+- CAVEAT on the read-back: currentFormation returns '' even after a set that provably
+  took (movement followed); treat the LIST as ground truth and current as unreliable.
+
+R5 RESULT (golden STP init, dispersed positions; appNo 3322; auto mode; P0 fixes on):
+create -> query -> set 'column' (from the unit's own list) + reorganize on all 40
+aggregates -> data/R5_UnitMove_Order.xml (one MOVE each: 1222.MechPlt ArmorPlatoon-type,
+114.MechCoy ArmorCompany-type, 1.BdeHQ entity control) -> **ALL 3 COMPLETED with correct
+TASKCMPLT attribution.** WatchVrf telemetry: 1222.MechPlt tracked its route east and
+stopped ON the final point (16.5191 vs target 16.5192); 114.MechCoy marched on-axis
+north; no runaway, no scatter. The ArmorPlatoon type had NEVER moved in any prior
+experiment (E1, Wedge, MoveIntoFormation). THE STUCK-AGGREGATE PROBLEM IS SOLVED for
+dispersed scenarios: the missing preconditions were exactly the researched ones -
+creation-time VALID formation state (query-driven) + reorganize-established leadership.
+
+NEXT (R5c): the same sequence on COA-STP1 (stacked/identical coordinates) to determine
+whether the remaining failure mode is purely the scenario-data pathology (R6 feedback).
+Then: make query-driven auto the recommended default for aggregate-bearing scenarios and
+re-test MoveIntoFormation (E2) now that preconditions are sane.
+
+## 5. What the research could NOT settle (open)
 
 - What exactly VR-Forces does at creation when the formation is unresolvable
   (undocumented; observed: warnings + stacked-or-scattered members).

@@ -671,6 +671,23 @@ and the REVISED experiment plan R1-R7 (set formation at CREATE time; ReorganizeA
 member-level telemetry via the reflection machinery; DtRequestAvailableFormationsAdmin;
 golden-scenario-first micro-experiments; coa-gpt position-dispersion feedback; subordinate
 tasking as last fallback). That doc supersedes the guidance sec 4 ladder from E2 down.
+
+**R5 BREAKTHROUGH (2026-07-12 evening, LIVE - UNIT_MOVEMENT_RESEARCH.md sec 4): THE
+STUCK-AGGREGATE PROBLEM IS SOLVED for dispersed scenarios.** The research-derived sequence
+- on aggregate creation, QUERY the unit's own formation list (new facade/bridge
+`RequestAvailableFormations`, DtRequestAvailableFormationsAdmin round-trip), then on the
+reply SET a valid name from that list (lowercase 'column' here; snap) + `ReorganizeAggregate`
+(establish the lead subordinate), all BEFORE any tasking - made BOTH tested aggregate types
+route-march and COMPLETE on the golden STP init: 3/3 TASKCMPLT (1222.MechPlt ArmorPlatoon-
+type - a type that had NEVER moved in any experiment - 114.MechCoy ArmorCompany-type, and
+the 1.BdeHQ entity control), with WatchVrf member telemetry showing clean on-axis marches
+ending ON the route's final point. KEY GROUND-TRUTH FINDING: the live formation lists are
+ALL lowercase - including company-typed units whose .entity file lists Title-Case - so any
+STATIC name map is unreliable; query the unit (the app's `Vrf:AggregateFormation=auto` is
+now query-driven). The read-back's currentFormation field returns '' even when the set
+provably took - trust the list, not current. REMAINING: R5c = same sequence on COA-STP1
+(stacked/identical coordinates) to isolate the scenario-data pathology; then re-test
+MoveIntoFormation (E2) with sane preconditions.
 OPERATIONAL FINDINGS from the run: (1) report pushing hit ephemeral-PORT EXHAUSTION ("Only one
 usage of each socket address...") under the un-bundled position-report volume -> the P4
 report dedup/bundling item is now OPERATIONALLY URGENT for long runs; (2) a deterministic

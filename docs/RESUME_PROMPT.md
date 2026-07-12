@@ -100,17 +100,18 @@ sec 2 before trusting ANY settled negative below):
   (no-op); busy-wait thread leak; the STOMP `selector` removal was NOT a bug. Do not "fix" these.
 
 NEXT (all LIVE-GATED - need VR-Forces + the LOCAL machine; a cloud session can only PLAN them):
-1. THE AGGREGATE DEEP-DIVE: read **docs/UNIT_MOVEMENT_RESEARCH.md** FIRST (2026-07-12 vendor-
-   doc research synthesis; it supersedes the older experiment ladders). E1 ran and falsified
-   formation-names-alone (PORT.md sec 10 "E1 RUN"); the research pinpointed the real
-   preconditions: creation-time formation state (units born UNINITIALIZED on Aggregate.ope),
-   an established LEAD subordinate (auto-promote is OFF; use reorganizeAggregate), and sane
-   member geometry (set-formation SNAPS; stacked spawns break it). Execute the plan R1-R7 in
-   that doc: R1 set per-type formation at CREATE time (app-only), R2 ReorganizeAggregate
-   (bridge rebuild), R3 member-level telemetry via reflection (bridge), R4 available-
-   formations query (bridge), R5 golden-scenario-first single-unit micro-experiment, R6
-   coa-gpt position-dispersion feedback, R7 subordinate-tasking fallback. Use ResetVrf
-   between runs; record outcomes in PORT.md sec 10.
+1. THE AGGREGATE DEEP-DIVE - **SOLVED for dispersed scenarios (2026-07-12 R5, 3/3
+   TASKCMPLT incl. the never-moved ArmorPlatoon type)**: read docs/UNIT_MOVEMENT_RESEARCH.md
+   sec 4. The working sequence, now built into `Vrf:AggregateFormation=auto`: on aggregate
+   creation QUERY the unit's own formation list (RequestAvailableFormations), on the reply
+   SET a valid lowercase name from that list (snap) + ReorganizeAggregate (leader), all
+   BEFORE tasking. Ground truth: live lists are ALL lowercase (never trust static .entity
+   analysis - query); currentFormation reads '' even when set (trust the list). New tools/
+   facade: ReorganizeAggregate + RequestAvailableFormations/AvailableFormations event +
+   tools/WatchVrf (member telemetry). REMAINING: **R5c** - the same sequence on COA-STP1
+   (stacked/identical unit coordinates) to isolate the scenario-data pathology (R6 coa-gpt
+   feedback: disperse positions); then E2 re-test MoveIntoFormation with sane preconditions.
+   Use ResetVrf between runs; record outcomes in PORT.md sec 10.
 2. Exercise Breach/Escort/Screen behavior via SYNTHETIC orders (COA-STP1 CANNOT exercise them - all
    42 tasks self-target; SCREEN additionally gated + T24 has no Location). Before the Escort test,
    fix FollowEntity's zero offset (guidance P3.5).

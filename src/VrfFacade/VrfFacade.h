@@ -121,6 +121,16 @@ struct TaskCompleted {
     std::string taskType;    // taskCompleted().string(), e.g. "move-along"
 };
 
+// Response to RequestAvailableFormations: the formation names an aggregate can
+// assume plus its current formation (empty when uninitialized) - the direct
+// oracle for "which names are valid for THIS unit" and "did my set take"
+// (docs/UNIT_MOVEMENT_RESEARCH.md plan R4).
+struct AvailableFormations {
+    std::string uuid;                    // the responding aggregate's VRF uuid
+    std::vector<std::string> formations; // valid names per the unit's matched .entity
+    std::string currentFormation;        // "" if none / uninitialized
+};
+
 // ------------------------------------------------------------------
 // The facade
 // ------------------------------------------------------------------
@@ -245,7 +255,22 @@ public:
     // Safe no-op on non-aggregate entities. A disaggregated aggregate needs a VALID
     // formation for its set-maneuver; without one VRF keeps an unresolvable default
     // and the unit will not move (Phase 4 spike - not parity; see PORT.md sec 10).
+    // NOTE (docs/UNIT_MOVEMENT_RESEARCH.md sec 1.5): on a DISAGGREGATED unit this SNAPS
+    // members instantly into their slots; on an aggregated unit it is bookkeeping.
     void SetAggregateFormation(const std::string& uuid, const std::string& formationName);
+
+    // Reorganize an aggregate: (re)establish the leader/echelon assignments and close
+    // the formation. The remote lever for units whose formation controller ships
+    // auto-promote-in-formation OFF (the VRF default) - a remotely-created unit may lack
+    // an established LEAD subordinate, and the disaggregated move-along controller
+    // forwards the route to the lead (docs/UNIT_MOVEMENT_RESEARCH.md sec 1.3, plan R2).
+    // Per the controller contract: no effect if 'uuid' is not an aggregate leader.
+    void ReorganizeAggregate(const std::string& uuid);
+
+    // Ask an aggregate which formation names it can assume, and what its current
+    // formation is. ASYNCHRONOUS: the reply arrives via OnAvailableFormations (plan R4;
+    // DtRequestAvailableFormationsAdmin -> DtAvailableFormationsAdmin).
+    void RequestAvailableFormations(const std::string& uuid);
 
     // Move an aggregate INTO FORMATION at a location (DtMoveIntoFormationTask, sent via
     // sendTaskMsg). The PROPER aggregate maneuver: it moves the set to 'pos' oriented to
@@ -295,6 +320,7 @@ public:
     std::function<void(const TextReport&)>    OnTextReport;
     std::function<void(const TaskCompleted&)> OnTaskCompleted;
     std::function<void()>                     OnScenarioClosed;
+    std::function<void(const AvailableFormations&)> OnAvailableFormations;
 
 private:
     struct Impl;

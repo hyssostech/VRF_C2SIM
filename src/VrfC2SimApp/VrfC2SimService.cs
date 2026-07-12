@@ -76,6 +76,14 @@ public sealed class VrfC2SimService : BackgroundService
     // guard for areas (units use _unitByC2SimUuid membership for the same purpose).
     private readonly ConcurrentDictionary<string, byte> _createdAreaKeys = new();
 
+    // VRF uuid -> created-object name (reverse of _vrfUuidByName), for the R4
+    // formation-reply handler (the reply carries only the uuid). Aggregates only.
+    private readonly ConcurrentDictionary<string, string> _nameByVrfUuid = new();
+
+    // VRF uuids whose R1 formation set + reorganize already ran (first reply wins;
+    // later replies - e.g. the move-time diagnostic re-query - must not re-snap).
+    private readonly ConcurrentDictionary<string, byte> _formationApplied = new();
+
     // Sequences task starts (predecessor completion + start delay), replacing the C++
     // busy-waits with async gating + a timeout. See TaskSequencer.
     private readonly TaskSequencer _sequencer = new();
@@ -122,6 +130,7 @@ public sealed class VrfC2SimService : BackgroundService
         _bridge.TaskCompleted += OnVrfTaskCompleted;
         _bridge.TextReport += OnVrfTextReport;
         _bridge.ScenarioClosed += OnVrfScenarioClosed;
+        _bridge.AvailableFormations += OnVrfAvailableFormations;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -709,11 +718,13 @@ public sealed class VrfC2SimService : BackgroundService
             string formation = _vrf.AggregateFormation;
             if (formation.Equals("auto", StringComparison.OrdinalIgnoreCase))
             {
-                formation = unit.IsAggregate ? unit.AutoFormation : null;
-                if (unit.IsAggregate && formation == null)
-                    _log.LogWarning("Task '{Task}': no per-type formation known for aggregate {Name} " +
-                                    "(E1 map covers the 5 created aggregate types); none set.",
-                                    task.TaskName, unit.Name);
+                // R1: with auto, the formation was already SET (+ the unit REORGANIZED)
+                // at creation via the query-driven reply - re-snapping here would teleport
+                // members mid-run. At move time only RE-QUERY as a diagnostic: the reply
+                // logs whether the create-time set actually TOOK (current='...').
+                formation = null;
+                if (unit.IsAggregate)
+                    _bridge.RequestAvailableFormations(vrfUuid);
             }
             if (formation != null)
             {
@@ -868,6 +879,27 @@ public sealed class VrfC2SimService : BackgroundService
         // already runs on the tick thread, so the bridge call is safe here.
         if (!string.IsNullOrEmpty(e.Name) && _pendingAltitude.TryRemove(e.Name, out var alt))
             _bridge.SetAltitude(e.Uuid, alt);
+
+        // R1 (docs/UNIT_MOVEMENT_RESEARCH.md): with Vrf:AggregateFormation=auto, repair a
+        // created AGGREGATE's formation state AT CREATION - not at move time, which the
+        // research showed is structurally too late. QUERY-DRIVEN (supersedes the static
+        // per-type map): ask the unit which formation names IT actually accepts (R4);
+        // the reply (OnVrfAvailableFormations) picks a valid name, SETS it (snapping
+        // members into clean geometry at the spawn point) and REORGANIZES (establishes
+        // the lead subordinate - auto-promote is off in VRF). Ground truth beats static
+        // analysis: the first R5 run's read-backs showed ALL units here accept only
+        // LOWERCASE names, contradicting the .entity files' Title-Case company lists.
+        if (!string.IsNullOrEmpty(e.Name)
+            && _vrf.AggregateFormation.Equals("auto", StringComparison.OrdinalIgnoreCase)
+            && _c2SimUuidByName.TryGetValue(e.Name, out var createdC2SimUuid)
+            && _unitByC2SimUuid.TryGetValue(createdC2SimUuid, out var createdUnit)
+            && createdUnit.IsAggregate)
+        {
+            _nameByVrfUuid[e.Uuid] = e.Name;
+            _bridge.RequestAvailableFormations(e.Uuid);
+            _log.LogInformation("R1: created aggregate {Name} ({Uuid}) - formation list " +
+                                "queried; set+reorganize follow on the reply.", e.Name, e.Uuid);
+        }
 
         // If this created object is a route with tasks awaiting it, issue the FIRST pending
         // one now that the route is registered (parity: executeTask's wait-then-
@@ -1059,6 +1091,40 @@ public sealed class VrfC2SimService : BackgroundService
     {
         _log.LogInformation("VR-Forces scenario closed; initiating clean stop.");
         _life.StopApplication();
+    }
+
+    // R4 read-back + R1 apply (docs/UNIT_MOVEMENT_RESEARCH.md): an aggregate answered
+    // RequestAvailableFormations with the names IT actually accepts (ground truth for
+    // the scenario's model set) and its current formation. Fires on the tick thread.
+    // FIRST reply per unit (auto mode): pick a valid name - prefer "column" (route
+    // march), else the first listed - then SET it (snap members into clean geometry)
+    // and REORGANIZE (establish the lead subordinate). Later replies (e.g. the
+    // move-time diagnostic re-query) only log, so the unit is never re-snapped mid-run.
+    private void OnVrfAvailableFormations(object sender, AvailableFormationsEventArgs e)
+    {
+        _nameByVrfUuid.TryGetValue(e.Uuid ?? "", out var unitName);
+        _log.LogInformation("VRF formations for {Name} ({Uuid}): [{List}]  current='{Cur}'.",
+                            unitName ?? "?", e.Uuid,
+                            e.Formations == null ? "" : string.Join(", ", e.Formations),
+                            e.CurrentFormation ?? "");
+
+        if (!_vrf.AggregateFormation.Equals("auto", StringComparison.OrdinalIgnoreCase)) return;
+        if (string.IsNullOrEmpty(e.Uuid) || unitName == null) return;        // not one of ours
+        if (!_formationApplied.TryAdd(e.Uuid, 0)) return;                    // already applied
+
+        if (e.Formations == null || e.Formations.Count == 0)
+        {
+            _log.LogWarning("R1: unit {Name} ({Uuid}) reports an EMPTY formation list - no " +
+                            "formation can resolve for its type; unit-level movement is " +
+                            "unlikely to work (UNIT_MOVEMENT_RESEARCH.md).", unitName, e.Uuid);
+            return;
+        }
+        string pick = e.Formations.FirstOrDefault(f => f.Equals("column", StringComparison.OrdinalIgnoreCase))
+                      ?? e.Formations[0];
+        _bridge.SetAggregateFormation(e.Uuid, pick);
+        _bridge.ReorganizeAggregate(e.Uuid);
+        _log.LogInformation("R1: {Name} ({Uuid}) - set formation '{Pick}' (from its own list) " +
+                            "+ reorganize.", unitName, e.Uuid, pick);
     }
 
     private async Task PushReportAsync(string reportXml)

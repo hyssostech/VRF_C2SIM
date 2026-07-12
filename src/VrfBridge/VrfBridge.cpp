@@ -126,6 +126,13 @@ public:
     property String^ TaskType;    // e.g. "move-along"
 };
 
+public ref class AvailableFormationsEventArgs : EventArgs {
+public:
+    property String^ Uuid;                  // the responding aggregate's VRF uuid
+    property List<String^>^ Formations;     // names the unit can assume (per its .entity)
+    property String^ CurrentFormation;      // "" if none / uninitialized
+};
+
 // -- The managed bridge ----------------------------------------------
 
 public ref class VrfBridge {
@@ -147,6 +154,7 @@ public:
     event EventHandler<TextReportEventArgs^>^    TextReport;
     event EventHandler<TaskCompletedEventArgs^>^ TaskCompleted;
     event EventHandler^                          ScenarioClosed;
+    event EventHandler<AvailableFormationsEventArgs^>^ AvailableFormations;
 
     // -- lifecycle ---------------------------------------------------
     bool Start(StartupConfig^ cfg) {
@@ -265,6 +273,16 @@ public:
     void SetAggregateFormation(String^ uuid, String^ formationName) {
         _facade->SetAggregateFormation(ToStd(uuid), ToStd(formationName));
     }
+    // (Re)establish the aggregate's leader/echelon assignments (plan R2 - required for
+    // route distribution when auto-promote-in-formation is off, the VRF default).
+    void ReorganizeAggregate(String^ uuid) {
+        _facade->ReorganizeAggregate(ToStd(uuid));
+    }
+    // Ask an aggregate for its valid formation names + current formation (plan R4).
+    // Asynchronous; the reply raises the AvailableFormations event.
+    void RequestAvailableFormations(String^ uuid) {
+        _facade->RequestAvailableFormations(ToStd(uuid));
+    }
     // Move an aggregate into formation at a location (DtMoveIntoFormationTask). Layer 2:
     // the proper aggregate maneuver (the real fix for the stuck-aggregate finding, Unit 4).
     void MoveIntoFormation(String^ uuid, Geodetic pos, double headingDeg, String^ formationName) {
@@ -326,6 +344,11 @@ internal:
     }
     void RaiseScenarioClosed() {
         ScenarioClosed(this, EventArgs::Empty);
+    }
+    void RaiseAvailableFormations(String^ uuid, List<String^>^ formations, String^ current) {
+        auto e = gcnew AvailableFormationsEventArgs();
+        e->Uuid = uuid; e->Formations = formations; e->CurrentFormation = current;
+        AvailableFormations(this, e);
     }
 
 private:
@@ -428,6 +451,17 @@ struct ScenarioClosedThunk {
     }
 };
 
+struct AvailableFormationsThunk {
+    msclr::gcroot<VrfBridge^> self;
+    void operator()(const vrf::AvailableFormations& a) const {
+        auto list = gcnew List<String^>();
+        for (const std::string& f : a.formations)
+            list->Add(marshal_as<String^>(f));
+        self->RaiseAvailableFormations(marshal_as<String^>(a.uuid), list,
+                                       marshal_as<String^>(a.currentFormation));
+    }
+};
+
 } // anonymous namespace
 
 void VrfBridge::WireCallbacks() {
@@ -435,6 +469,8 @@ void VrfBridge::WireCallbacks() {
     _facade->OnTextReport     = TextReportThunk{ msclr::gcroot<VrfBridge^>(this) };
     _facade->OnTaskCompleted  = TaskCompletedThunk{ msclr::gcroot<VrfBridge^>(this) };
     _facade->OnScenarioClosed = ScenarioClosedThunk{ msclr::gcroot<VrfBridge^>(this) };
+    _facade->OnAvailableFormations =
+        AvailableFormationsThunk{ msclr::gcroot<VrfBridge^>(this) };
 }
 
 } // namespace VrfC2Sim

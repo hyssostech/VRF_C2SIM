@@ -37,6 +37,10 @@
 #include <vrftasks/breachTask.h>
 #include <vrftasks/patrolRouteTask.h>
 #include <vrftasks/followEntityTask.h>
+#include <vrftasks/requestAvailableFormationsAdmin.h>
+#include <vrftasks/availableFormationsAdmin.h>
+#include <vrftasks/radioMessageTypes.h>
+#include <vrfmsgs/adminMessage.h>
 #include <vrfutil/scenario.h>
 #include <matrix/geodeticCoord.h>
 #include <matrix/vlVector.h>
@@ -224,6 +228,25 @@ static void scenarioCloseTrampoline(const DtVrfObjectMessage* /*msg*/, void* usr
     if (self && self->OnScenarioClosed) self->OnScenarioClosed();
 }
 
+// DtAvailableFormationsAdmin response (docs/UNIT_MOVEMENT_RESEARCH.md plan R4): an
+// aggregate answering RequestAvailableFormations. transmitter() is that aggregate.
+static void availableFormationsTrampoline(const DtVrfObjectMessage* msg, void* usr) {
+    VrfFacade* self = static_cast<VrfFacade*>(usr);
+    if (!self || !msg || !self->OnAvailableFormations) return;
+    const DtAdminMessage* adminMsg = (const DtAdminMessage*)msg;
+    DtAvailableFormationsAdmin* content =
+        dynamic_cast<DtAvailableFormationsAdmin*>(adminMsg->adminContent());
+    if (!content) return;
+    AvailableFormations ev;
+    ev.uuid = msg->transmitter().uuidString().string()
+                  ? msg->transmitter().uuidString().string() : "";
+    for (const DtString& f : content->formationList())
+        ev.formations.push_back(f.string() ? f.string() : "");
+    ev.currentFormation = content->currentFormation().string()
+                              ? content->currentFormation().string() : "";
+    self->OnAvailableFormations(ev);
+}
+
 // ------------------------------------------------------------------
 // VrfFacade
 // ------------------------------------------------------------------
@@ -281,7 +304,7 @@ bool VrfFacade::Start(const StartupConfig& cfg) {
     p_->controller->eventManager()->setProcessEventsImmediately(true);
     p_->controller->vrfMessageInterface()->setSessionId(cfg.sessionId);
 
-    // register the three inbound callbacks (usr = this facade)
+    // register the inbound callbacks (usr = this facade)
     DtVrfObjectMessageExecutive* msgExec = p_->controller->objectMessageExecutive();
     msgExec->addMessageCallbackByCategory(
         DtReportMessageType, (DtVrfObjectMessageCallbackFcn)reportTrampoline, this);
@@ -289,6 +312,9 @@ bool VrfFacade::Start(const StartupConfig& cfg) {
         (DtVrfObjectMessageCallbackFcn)reportTrampoline, this);
     msgExec->addMessageCallbackByCategory(
         DtCloseScenarioMessageType, (DtVrfObjectMessageCallbackFcn)scenarioCloseTrampoline, this);
+    // typed (per-content-type) callback for the available-formations reply (plan R4)
+    msgExec->addMessageCallback(DtAvailableFormationsResponseAdminType,
+        (DtVrfObjectMessageCallbackFcn)availableFormationsTrampoline, this);
 
     // host address + uuid manager
     p_->controller->setHostInetAddr(&(std::string(cfg.hostInetAddr))[0]);
@@ -444,6 +470,28 @@ void VrfFacade::MoveAlongRoute(const std::string& uuid, const std::string& route
 void VrfFacade::SetAggregateFormation(const std::string& uuid, const std::string& formationName) {
     // No-op if 'uuid' is not an aggregate leader (per the controller contract).
     p_->controller->setAggregateFormation(DtUUID(uuid), DtString(formationName.c_str()), DtSimSendToAll);
+}
+
+void VrfFacade::ReorganizeAggregate(const std::string& uuid) {
+    // "Only useful when automatic reorganization is not enabled" (vrfRemoteController.h:1569)
+    // - which is the shipped default (auto-promote-in-formation False in every movement
+    // sysdef). (Re)establishes leader/echelon assignments so the disaggregated move-along
+    // controller has a LEAD subordinate to forward routes to (UNIT_MOVEMENT_RESEARCH.md).
+    p_->controller->reorganizeAggregate(DtUUID(uuid), DtSimSendToAll);
+}
+
+void VrfFacade::RequestAvailableFormations(const std::string& uuid) {
+    // No controller convenience method exists for this admin content (verified against
+    // vrfRemoteController.h); wrap it in a DtAdminMessage addressed to the aggregate and
+    // send via sendMessageToObject. The reply lands in availableFormationsTrampoline.
+    // The message keeps only a POINTER to the content, but sendMessageToObject serializes
+    // synchronously (same lifetime model as the stack DtSimTask objects sent above).
+    DtRequestAvailableFormationsAdmin req;
+    req.init();
+    DtAdminMessage msg;
+    msg.setAdminContent(&req);
+    msg.setRecipient(DtUUID(uuid));
+    p_->controller->sendMessageToObject(&msg, DtSimSendToAll);
 }
 
 void VrfFacade::MoveIntoFormation(const std::string& uuid, const Geodetic& pos,
