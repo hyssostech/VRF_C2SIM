@@ -35,8 +35,30 @@ public static class InitParseCheck
                      u.SystemName == clientId && u.Latitude.Length > 0).Take(6))
             Console.WriteLine($"  {u.Name,-14} {u.HostilityCode,-6} {u.SymbolId,-15} {u.DisEntityType,-18} {u.Latitude},{u.Longitude}");
 
+        // What the app would CREATE, grouped by the PLANNED VR-Forces DIS type (via
+        // UnitTranslator, i.e. the SIDC dispatch - NOT the init's DisEntityType). This is
+        // the E1 view: per-type formation names key on the CREATED aggregate type
+        // (NEXT_SESSION_GUIDANCE sec 4 E1), so experiments need units per created type.
+        var plans = data.Units
+            .Where(u => u.Uuid.Length > 0 && u.SystemName == clientId &&
+                        u.HostilityCode.Length > 0 && u.Latitude.Length > 0 && u.Longitude.Length > 0)
+            .Select(u => (Unit: u, Plan: UnitTranslator.Plan(
+                string.IsNullOrEmpty(u.ElevationAgl) ? u with { ElevationAgl = "1000.0" } : u)))
+            .ToList();
+        Console.WriteLine("Planned creations by created type (up to 3 examples each - name uuid lat,lon):");
+        foreach (var g in plans.GroupBy(p => (p.Plan.IsAggregate, Type: TypeStr(p.Plan.Type)))
+                               .OrderByDescending(g => g.Count()))
+        {
+            Console.WriteLine($"  {(g.Key.IsAggregate ? "AGG" : "ENT")} {g.Key.Type} x{g.Count()}");
+            foreach (var p in g.Take(3))
+                Console.WriteLine($"      {p.Unit.Name,-16} {p.Unit.Uuid} {p.Unit.Latitude},{p.Unit.Longitude}");
+        }
+
         return 0;
     }
+
+    private static string TypeStr(VrfC2Sim.EntityTypeSpec t)
+        => $"{t.Kind}.{t.Domain}.{t.Country}.{t.Category}.{t.Subcategory}.{t.Specific}.{t.Extra}";
 
     private static string Group(IEnumerable<string> vals) =>
         string.Join(", ", vals.GroupBy(v => v.Length == 0 ? "(none)" : v)

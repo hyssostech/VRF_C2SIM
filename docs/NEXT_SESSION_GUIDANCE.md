@@ -298,6 +298,17 @@ experiment:
   lines tell you formation resolution failed; their absence after your
   set-formation tells you it succeeded. [VERIFIED the log carries these.]
 
+E1 STATUS 2026-07-12: RAN LIVE (same-day session; full record PORT.md sec 10 "E1 RUN").
+Implemented as `Vrf:AggregateFormation=auto` + data/E1_Formation_Order.xml. All per-type
+names ACCEPTED (the invalid-formation oracle stayed quiet) and the entity control
+completed, but NO aggregate route-marched: companies ran away 150+ km, platoons shuffled
+in place, CoHQs were subordinate-scattered at creation ("AR HQ Sec ... Column-Left is an
+invalid or malformed formation"). Decision rule outcome: formation-name resolution alone
+FALSIFIED as the sufficient fix; the prior "Wedge moved ~3/32" is reclassified as a
+suspect runaway artifact. E2 stays parked. NEXT: E1b - repeat on the golden STP init
+(dispersed unit positions; its 14.MechBn genuinely marched with Wedge) to discriminate
+the scenario-data (stacked/identical coordinates) hypothesis; then E3/E4.
+
 E1 (highest confidence, cheapest) - per-matched-type formation names:
   - Change: in the aggregate move path (the current Wedge enrichment block,
     VrfC2SimService.cs:640+), set the formation per the CREATED type instead

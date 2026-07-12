@@ -620,6 +620,53 @@ UPDATE 2026-07-12 - the 2026-07-11 verdict is RETRACTED and the deep-dive REFRAM
   (DtRequestAvailableFormationsAdmin), E4 fallbacks (subordinate tasking / aggregated-create /
   C2simEx re-key). Record every outcome here as it lands.
 
+E1 RUN (2026-07-12, LIVE; the guidance sec 4 E1 experiment, executed autonomously). Setup:
+`Vrf:AggregateFormation=auto` (per-created-type names, AutoFormationFor in VrfC2SimService),
+de-confounded synthetic order data/E1_Formation_Order.xml (ONE MOVE per unit, no temporal deps:
+2x ArmorCompany + 2x ArmorCoHQ + 2x ArmorPlatoon aggregates + 1 tank ENTITY control - the
+COA-STP1 init creates NO Scout/MobileIrregular), COA-STP1 init (128 units + 35 areas
+late-joined), fresh federation (ResetVrf), appNo 3315, 20x, P0 fixes in effect. Command path
+was flawless: per-type formations set exactly as designed ("Column" x2 CO, "Wedge" x2 HQ,
+lowercase "column" x2 PL, none on the entity), 7 routes created, 7 MoveAlongRoute issued,
+and NONE of the six set names was rejected (vrfSim.log 'invalid formation' count froze at
+210 across all sets - the only invalid lines are the creation-time "column-left" defaults).
+RESULTS (position samples t1/t2/t3 via bus captures at ~+9/+13/+17 min; GUI hung, so no
+visual channel this run):
+- CONTROL PASSED: tank A/4-27 moved and COMPLETED; TASKCMPLT attributed to the correct task
+  uuid (P0.1 verified live; second time this session). The run itself was healthy.
+- ArmorCompany (Title-Case "Column"): both units DEPARTED at speed but did NOT execute their
+  1.1 km routes - by t3 they were 150-170 km away and still going, 0 completions. RUNAWAY,
+  not route-march. CONSEQUENCE: the older "Wedge moved ~3/32" reading is now SUSPECT - the
+  company-matched "movers" may have been this runaway artifact, not route execution.
+- ArmorPlatoon (lowercase "column" - THE discriminator): set ACCEPTED, but units only
+  shuffled locally (tens of meters, oscillating around their start). NO route march, no
+  completion. Per the guidance decision rule this FALSIFIES formation-name resolution alone
+  as the sufficient fix for the Ground_Aggregate-matched types.
+- ArmorCoHQ (Title-Case "Wedge"): set accepted, but the aggregates' reported positions were
+  ALREADY 60-90 km displaced at creation and never moved. Cause visible in vrfSim.log: their
+  "AR HQ Sec" subordinate sections log "Column-Left is an invalid or malformed formation" at
+  create - subordinate SCATTER from the unresolvable creation formation.
+SURVIVING HYPOTHESES (for the next discriminating test):
+(a) COA-STP1 scenario-DATA pathology: dozens of units share IDENTICAL coordinates (e.g.
+    34.67998,-116.72480 hosts B/40 + several tank entities + more), and a disaggregated
+    aggregate's subordinates spawn stacked when the creation formation is invalid - collision
+    /formation-geometry blowup when a valid formation is later set -> scatter/runaway. This
+    would be a THIRD coa-gpt data-quality item (after self-targets + timing): DISPERSE unit
+    positions.
+(b) The formation-REPAIR transition itself (invalid column-left -> valid name post-create)
+    misbehaves for these types/scenario, where the golden STP scenario's 14.MechBn (dispersed
+    units, 4 subordinates) repaired cleanly with Wedge and genuinely route-marched.
+DISCRIMINATING NEXT TEST (E1b): re-run per-type formations on the GOLDEN STP init (dispersed
+positions; its MechBn aggregates marched with Wedge) and/or a synthetic dispersed init; plus a
+VISUAL check of the CO runaway (set-travel vs subordinate scatter) once the GUI is usable.
+E2 (MoveIntoFormation re-test) stays PARKED per its gate ("only after E1 moves units").
+OPERATIONAL FINDINGS from the run: (1) report pushing hit ephemeral-PORT EXHAUSTION ("Only one
+usage of each socket address...") under the un-bundled position-report volume -> the P4
+report dedup/bundling item is now OPERATIONALLY URGENT for long runs; (2) a deterministic
+~2500-char truncation of certain server broadcasts (the A2/A_entity probe orders truncate at
+position 2500 on EVERY push - both the app and a second SDK client see it - while a 1.7 KB and
+a 9 KB order pass intact; not size-general, unexplained, does not block work).
+
 Prior status (2026-07-09): fix IDENTIFIED + prototyped, NOT yet runtime-verified.
 - Fix: `controller->setAggregateFormation(leaderUuid, formationName)` BEFORE moveAlongRoute
   (no-op on non-aggregates). moveAlongRoute carries no formation; the aggregate holds a

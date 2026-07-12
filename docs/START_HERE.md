@@ -39,7 +39,22 @@ Three locations are in play:
 
 ## Current status (2026-07-12)
 
-- **Latest (2026-07-12)**: the deep multi-agent review landed `docs/NEXT_SESSION_GUIDANCE.md`
+- **Latest (2026-07-12, PM - LIVE session)**: the P0 fixes were LIVE-VERIFIED via a golden
+  re-run (49+4 created, 1.BdeHQ moved + TASKCMPLT with the CORRECT task uuid while a second
+  task was in flight - the P0.1 attribution working; clean stop, Solution A deleted all 55
+  objects), and guidance **experiment E1 RAN** (per-type formations via
+  `Vrf:AggregateFormation=auto` + the de-confounded data/E1_Formation_Order.xml). E1 outcome
+  (full record PORT.md sec 10 "E1 RUN"): every per-type name ACCEPTED, entity control moved +
+  completed, but NO aggregate route-marched - companies RAN AWAY 150+ km (so the old "Wedge
+  moved ~3/32" is now a suspect runaway artifact), platoons shuffled in place, CoHQs were
+  subordinate-scattered at creation. Formation names alone are FALSIFIED as the fix; next is
+  E1b (repeat on the golden STP init, whose dispersed 14.MechBn genuinely marched) - the
+  leading hypothesis is COA-STP1's STACKED/identical unit coordinates (a third coa-gpt
+  data-quality item). Also found live: position-report pushing exhausts ephemeral ports
+  (bumps the P4 report-bundling priority) and certain server broadcasts truncate at ~2500
+  chars (probe orders A2/A; a 9 KB order passes - unexplained, non-blocking). VR-Forces GUI
+  (vrfGui) is currently HUNG (backend healthy) - no visual channel until it recovers.
+- **2026-07-12 (AM)**: the deep multi-agent review landed `docs/NEXT_SESSION_GUIDANCE.md`
   (READ IT - it corrects several previously "settled" negatives) and its P0 ORCHESTRATION
   FIXES are IMPLEMENTED + offline-verified (all six selftests green): P0.1 per-unit completion
   attribution (`InFlightTracker` - TASKCMPLT names the RIGHT task; superseded tasks' gates stay

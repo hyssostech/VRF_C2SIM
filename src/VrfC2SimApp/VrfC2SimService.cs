@@ -92,8 +92,11 @@ public sealed class VrfC2SimService : BackgroundService
     // (parity: the C++ factories waitForData then SetAltitude - here it is async).
     private readonly ConcurrentDictionary<string, double> _pendingAltitude = new();
 
-    /// <summary>What OnInitialization created for one C2SIM unit, so OnOrder can task it.</summary>
-    private readonly record struct CreatedUnit(string Name, string SymbolId, bool IsAggregate);
+    /// <summary>What OnInitialization created for one C2SIM unit, so OnOrder can task it.
+    /// AutoFormation is the E1 per-created-type formation name (null for entities and
+    /// unmapped types) - see AutoFormationFor.</summary>
+    private readonly record struct CreatedUnit(string Name, string SymbolId, bool IsAggregate,
+                                               string AutoFormation);
 
     public VrfC2SimService(ILoggerFactory loggerFactory, IConfiguration config,
                            IHostApplicationLifetime life)
@@ -349,7 +352,8 @@ public sealed class VrfC2SimService : BackgroundService
 
             // Retain the taskee lookup so OnOrder can resolve PerformingEntity -> VRF uuid,
             // and the inverse (name -> uuid) so the report callbacks can name their subject.
-            _unitByC2SimUuid[unit.Uuid] = new CreatedUnit(plan.Name, unit.SymbolId, plan.IsAggregate);
+            _unitByC2SimUuid[unit.Uuid] = new CreatedUnit(plan.Name, unit.SymbolId, plan.IsAggregate,
+                plan.IsAggregate ? AutoFormationFor(plan.Type) : null);
             _c2SimUuidByName[plan.Name] = unit.Uuid;
 
             var p = plan;
@@ -698,11 +702,25 @@ public sealed class VrfC2SimService : BackgroundService
         // move unblocks it (no-op on non-aggregate entities). Set here, before CreateRoute,
         // so it applies during the route-creation round-trip ahead of the deferred move
         // (the C++ spike used SetAggregateFormation + DtSleep(.5) right before MoveAlongRoute).
+        // "auto" = E1 (guidance sec 4): resolve the name PER CREATED TYPE - formation names
+        // are per-unit-type and CASE-INCONSISTENT, so one global name can never fit all.
         if (!string.IsNullOrEmpty(_vrf.AggregateFormation))
         {
-            _bridge.SetAggregateFormation(vrfUuid, _vrf.AggregateFormation);
-            _log.LogInformation("Set aggregate formation '{Form}' on {Name} ({Vrf}) before move.",
-                                _vrf.AggregateFormation, unit.Name, vrfUuid);
+            string formation = _vrf.AggregateFormation;
+            if (formation.Equals("auto", StringComparison.OrdinalIgnoreCase))
+            {
+                formation = unit.IsAggregate ? unit.AutoFormation : null;
+                if (unit.IsAggregate && formation == null)
+                    _log.LogWarning("Task '{Task}': no per-type formation known for aggregate {Name} " +
+                                    "(E1 map covers the 5 created aggregate types); none set.",
+                                    task.TaskName, unit.Name);
+            }
+            if (formation != null)
+            {
+                _bridge.SetAggregateFormation(vrfUuid, formation);
+                _log.LogInformation("Set aggregate formation '{Form}' on {Name} ({Vrf}) before move.",
+                                    formation, unit.Name, vrfUuid);
+            }
         }
 
         // Single point -> MoveToLocation; otherwise CreateRoute then move along it (:2393).
@@ -991,6 +1009,32 @@ public sealed class VrfC2SimService : BackgroundService
                                System.Globalization.CultureInfo.InvariantCulture, out lat)
             && double.TryParse(rest[1], System.Globalization.NumberStyles.Float,
                                System.Globalization.CultureInfo.InvariantCulture, out lon);
+    }
+
+    /// <summary>
+    /// E1 (NEXT_SESSION_GUIDANCE sec 4): the formation name that RESOLVES for a created
+    /// aggregate's DIS type. Formation names are defined PER UNIT TYPE in the .entity files
+    /// with INCONSISTENT case: types with NO matching aggregate .entity (our Scout /
+    /// ArmorPlatoon) fall back to the Ground_Aggregate catch-all whose names are LOWERCASE
+    /// ("column"/"wedge"/...); Tank Company (USA) and the C2simEx Mobile Irregular are
+    /// Title-Case. "column"/"Column" chosen for route march (either works for the E1 test).
+    /// ArmorCoHQ's match is AMBIGUOUS (guidance E1(a) sub-rule): try Title-Case "Wedge"
+    /// first; if vrfSim.log still shows 'invalid formation name' for CoHQ units, they fell
+    /// back to Ground_Aggregate -> flip to lowercase. Returns null for unmapped types
+    /// (caller logs; no formation is set).
+    /// </summary>
+    private static string AutoFormationFor(EntityTypeSpec t)
+    {
+        if (t.Kind != 11) return null; // not an aggregate type
+        return (t.Country, t.Category, t.Subcategory, t.Specific, t.Extra) switch
+        {
+            (225, 2, 1, 1, 0) => "column",   // Scout           11.1.225.2.1.1.0  -> Ground_Aggregate
+            (225, 1, 1, 3, 0) => "column",   // ArmorPlatoon    11.1.225.1.1.3.0  -> Ground_Aggregate
+            (225, 5, 2, 0, 0) => "Column",   // ArmorCompany    11.1.225.5.2.0.0  -> Tank Company (USA)
+            (225, 5, 20, 0, 0) => "Wedge",   // ArmorCoHQ       11.1.225.5.20.0.0 -> ambiguous match
+            (0, 13, 34, 0, 1) => "Wedge",    // MobileIrregular 11.1.0.13.34.0.1  -> C2simEx
+            _ => null,
+        };
     }
 
     private static string IsoNow()

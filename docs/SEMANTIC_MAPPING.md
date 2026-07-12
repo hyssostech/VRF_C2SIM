@@ -202,6 +202,14 @@ Notes:
      task "stuck" was arbitrary).
    DISPOSITION: keep `Vrf:MoveIntoFormation` default-off; RE-TEST per guidance sec 4 E2, but only
    AFTER E1 (per-matched-type formation names) lands and moves units.
+   E1 RAN 2026-07-12 (live, `Vrf:AggregateFormation=auto` + data/E1_Formation_Order.xml -
+   full record in PORT.md sec 10 "E1 RUN"): the per-type names were all ACCEPTED by the
+   backend (no new invalid-formation lines) and the entity CONTROL completed, but NO
+   aggregate executed its route - companies (Title-Case) ran AWAY 150+ km, platoons
+   (lowercase) only shuffled, CoHQs were subordinate-SCATTERED at creation. So E1 alone is
+   NOT the fix; the "Wedge moved ~3/32" reading is itself now suspect (runaway artifact?).
+   E2 therefore STAYS PARKED. Next: E1b (same experiment on the golden STP init, whose
+   dispersed MechBn genuinely route-marched with Wedge) + a visual check of the runaway.
 5. [Unit 5 - Reconnoiter + Escort DONE + BUILD 2026-07-11, commit faa4398; HoldObjective + Clear
    are documented bare-move fallbacks] Reconnoiter (SCREEN/SCOUT) -> DtPatrolRouteTask (patrol the
    created route instead of moving along once, deferred to route-created). Escort (ESCRT) ->

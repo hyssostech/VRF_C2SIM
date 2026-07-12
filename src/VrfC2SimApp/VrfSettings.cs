@@ -23,8 +23,11 @@ public class VrfSettings
 
     // Aggregate formation set before a move (PORT.md sec 10 enrichment). "" = OFF (golden
     // parity: bare moveAlongRoute, disaggregated aggregates freeze on their unresolvable
-    // default formation). A VALID Title-Case name ("Wedge"/"Column"/"Line"/"Vee"/"Echelon")
-    // unblocks aggregate movement; no-op on non-aggregate entities. Opt-in - it deliberately
+    // default formation "column-left"). A literal name (e.g. "Wedge") is set globally -
+    // but formation names are PER UNIT TYPE and case-inconsistent, so a global name only
+    // resolves for some types (that is why Wedge moved ~3/32). "auto" = E1 (guidance
+    // sec 4): resolve per the CREATED aggregate type (lowercase for Ground_Aggregate-
+    // matched types, Title-Case for Tank Company / C2simEx). Opt-in - deliberately
     // diverges from the frozen golden-trace behavior.
     public string AggregateFormation { get; set; } = "";
 
