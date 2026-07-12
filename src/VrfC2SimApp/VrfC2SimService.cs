@@ -52,6 +52,15 @@ public sealed class VrfC2SimService : BackgroundService
     // semantic map (SEMANTIC_MAPPING.md); issued in OnVrfObjectCreated alongside the move.
     private readonly ConcurrentDictionary<string, (string Taskee, string Target)> _pendingRouteFire = new();
 
+    // Route name -> (taskee VRF uuid, breach-target VRF uuid), for a BREACH deferred to AFTER the
+    // approach MoveAlongRoute (advance to the obstacle, THEN breach it). Layer 2 Unit 2.
+    private readonly ConcurrentDictionary<string, (string Taskee, string Target)> _pendingRouteBreach = new();
+
+    // Route name -> taskee VRF uuid, for a RECONNOITER (SCREEN/SCOUT) that PATROLS its route
+    // instead of moving along it once: on route-created, issue PatrolRoute instead of
+    // MoveAlongRoute. Layer 2 (Reconnoiter); disjoint from _pendingRouteMove.
+    private readonly ConcurrentDictionary<string, string> _pendingRoutePatrol = new();
+
     // Object name -> C2SIM unit uuid (inverse of _unitByC2SimUuid), so the VRF report
     // callbacks - which carry the object's marking/name, not its C2SIM uuid - can name the
     // subject of a report (parity: onTaskCompleted/onTextReport getUnitByName -> unit->uuid).
@@ -494,6 +503,44 @@ public sealed class VrfC2SimService : BackgroundService
                                 task.TaskName, string.IsNullOrEmpty(task.AffectedEntity) ? "(none)" : task.AffectedEntity);
         }
 
+        // LAYER 2 - BREACH (Unit 2): resolve the affected OBSTACLE to a VRF target for a
+        // DtBreachTask (approach move, then breach it). Same two-dict resolution + self-target
+        // guard as ATTACK. Unresolved -> advance-only + warn (no silent drop).
+        string breachTargetVrf = null;
+        if (verb.Intent == TaskIntent.Breach)
+        {
+            if (TryResolveVrfUuid(task.AffectedEntity, out var tgt)
+                && !string.Equals(tgt, vrfUuid, StringComparison.Ordinal))
+                breachTargetVrf = tgt;
+            else
+                _log.LogWarning("BREACH task '{Task}': affected obstacle '{Aff}' not resolvable to a distinct " +
+                                "VRF unit; advancing only, no breach.", task.TaskName,
+                                string.IsNullOrEmpty(task.AffectedEntity) ? "(none)" : task.AffectedEntity);
+        }
+
+        // LAYER 2 - ESCRT (Escort): follow the escorted entity (DtFollowEntityTask). Following is
+        // DYNAMIC - no route or point-0 needed - so dispatch it here, before the movement logic
+        // (an ESCRT task may carry no route points, which would otherwise error below). Unresolved
+        // escorted entity -> fall through to bare movement (warn logged).
+        if (verb.Intent == TaskIntent.Escort)
+        {
+            if (TryResolveVrfUuid(task.AffectedEntity, out var follow)
+                && !string.Equals(follow, vrfUuid, StringComparison.Ordinal))
+            {
+                Roe escortRoe = task.RuleOfEngagementCode == "ROEFree" ? Roe.FireAtWill
+                              : task.RuleOfEngagementCode == "ROEHold" ? Roe.HoldFire
+                              : Roe.FireWhenFiredUpon;
+                _bridge.SetRulesOfEngagement(vrfUuid, escortRoe);
+                _bridge.FollowEntity(vrfUuid, follow);
+                _log.LogInformation("ESCRT task '{Task}': FollowEntity {Vrf} -> {Tgt} (escort; no route).",
+                                    task.TaskName, vrfUuid, follow);
+                return;
+            }
+            _log.LogWarning("ESCRT task '{Task}': escorted entity '{Aff}' not resolvable to a distinct VRF unit; " +
+                            "executing bare movement instead.", task.TaskName,
+                            string.IsNullOrEmpty(task.AffectedEntity) ? "(none)" : task.AffectedEntity);
+        }
+
         // Ground units clamp elevation to 100 (VRF ground-clamping; :2237, :2266, :2290).
         bool isGround = unit.SymbolId.Length > 2 && unit.SymbolId[2] == 'G';
 
@@ -526,6 +573,13 @@ public sealed class VrfC2SimService : BackgroundService
                                     task.TaskName, vrfUuid, attackTargetVrf);
                 return;
             }
+            if (breachTargetVrf != null)
+            {
+                _bridge.Breach(vrfUuid, breachTargetVrf);
+                _log.LogInformation("BREACH task '{Task}': no route points; Breach {Vrf} -> {Tgt} (breach in place).",
+                                    task.TaskName, vrfUuid, breachTargetVrf);
+                return;
+            }
             _log.LogError("NO LOCATION GIVEN - CAN'T EXECUTE TASK '{Task}'.", task.TaskName);
             return;
         }
@@ -549,6 +603,33 @@ public sealed class VrfC2SimService : BackgroundService
         // affected entity's C2SIM uuid, so it is a silent no-op in VRF. Reproduced here;
         // the fix (distinct C2SimUuid/VrfUuid types) is a later Phase 4 item.
         _bridge.SetTarget(task.TaskeeUuid, task.AffectedEntity);
+
+        // LAYER 2 - Unit 4 (docs/SEMANTIC_MAPPING.md): the PROPER aggregate maneuver. For an
+        // AGGREGATE, when Vrf:MoveIntoFormation is set, issue DtMoveIntoFormationTask to the
+        // route's FINAL point in the named formation INSTEAD of moveAlongRoute + SetAggregateFormation
+        // - the real fix for the stuck-aggregate finding (most COA-STP1 aggregates stayed stuck with
+        // Wedge alone; PORT.md sec 10). Aggregate-only + opt-in, so entity moves are unchanged (golden
+        // parity). This collapses intermediate waypoints to the destination (the diagnostic "does the
+        // set move in formation" path); it takes precedence over the Wedge enrichment for aggregates.
+        if (unit.IsAggregate && !string.IsNullOrEmpty(_vrf.MoveIntoFormation))
+        {
+            var dest = routeGeo[^1];
+            double headingDeg = BearingDeg(routeGeo[0], dest);
+            _bridge.MoveIntoFormation(vrfUuid, dest, headingDeg, _vrf.MoveIntoFormation);
+            _log.LogInformation("Task '{Task}': MoveIntoFormation for AGGREGATE {Name} ({Vrf}) -> " +
+                                "{Lat}/{Lon} formation '{Form}' hdg {Hdg:F0}deg (Unit 4; {N} route pts -> destination).",
+                                task.TaskName, unit.Name, vrfUuid, dest.LatDeg, dest.LonDeg,
+                                _vrf.MoveIntoFormation, headingDeg, routeGeo.Count);
+            // Preserve ATTACK-family semantics: an aggregate that also has a resolved fire target
+            // advances in formation THEN engages (don't silently drop the fire on this early return).
+            if (attackTargetVrf != null)
+            {
+                _bridge.FireAtTarget(vrfUuid, attackTargetVrf);
+                _log.LogInformation("ATTACK task '{Task}': FireAtTarget {Vrf} -> {Tgt} after MoveIntoFormation.",
+                                    task.TaskName, vrfUuid, attackTargetVrf);
+            }
+            return;
+        }
 
         // ENRICHMENT (opt-in via Vrf:AggregateFormation; "" = off = golden parity, PORT.md
         // sec 10): a disaggregated aggregate freezes on moveAlongRoute because its default
@@ -576,20 +657,35 @@ public sealed class VrfC2SimService : BackgroundService
                 _log.LogInformation("ATTACK task '{Task}': FireAtTarget {Vrf} -> {Tgt} after move.",
                                     task.TaskName, vrfUuid, attackTargetVrf);
             }
+            // Layer 2: BREACH breaches the obstacle after closing to the point.
+            if (breachTargetVrf != null)
+            {
+                _bridge.Breach(vrfUuid, breachTargetVrf);
+                _log.LogInformation("BREACH task '{Task}': Breach {Vrf} -> {Tgt} after move.",
+                                    task.TaskName, vrfUuid, breachTargetVrf);
+            }
             return;
         }
 
-        // CreateRoute is async; defer MoveAlongRoute until the route's ObjectCreated fires
+        // CreateRoute is async; defer the along-route task until the route's ObjectCreated fires
         // (parity: the C++ waits for the route to register before moveAlongRoute, :2408-2421).
         string routeName = task.TaskName + " ROUTE";
-        _pendingRouteMove[routeName] = vrfUuid;
-        // Layer 2: defer the ATTACK-family fire to fire AFTER the MoveAlongRoute (advance the
-        // axis, then engage) - issued together in OnVrfObjectCreated.
+        // Layer 2: RECONNOITER (SCREEN/SCOUT) PATROLS the route (back and forth) instead of
+        // moving along it once - defer PatrolRoute; every other verb defers MoveAlongRoute.
+        bool patrol = verb.Intent == TaskIntent.Reconnoiter;
+        if (patrol)
+            _pendingRoutePatrol[routeName] = vrfUuid;
+        else
+            _pendingRouteMove[routeName] = vrfUuid;
+        // Layer 2: defer the ATTACK-family fire / BREACH to AFTER the along-route task (advance the
+        // axis / approach the obstacle, THEN engage / breach) - issued in OnVrfObjectCreated.
         if (attackTargetVrf != null)
             _pendingRouteFire[routeName] = (vrfUuid, attackTargetVrf);
+        if (breachTargetVrf != null)
+            _pendingRouteBreach[routeName] = (vrfUuid, breachTargetVrf);
         _bridge.CreateRoute(routeGeo, routeName);
-        _log.LogInformation("Task '{Task}': CreateRoute '{Route}' ({Count} pts) for {Name}; move deferred to route-created.",
-                            task.TaskName, routeName, routeGeo.Count, unit.Name);
+        _log.LogInformation("Task '{Task}': CreateRoute '{Route}' ({Count} pts) for {Name}; {Action} deferred to route-created.",
+                            task.TaskName, routeName, routeGeo.Count, unit.Name, patrol ? "patrol" : "move");
     }
 
     private void OnReport(object sender, C2SIMSDK.C2SIMNotificationEventParams e)
@@ -638,6 +734,20 @@ public sealed class VrfC2SimService : BackgroundService
                 _log.LogInformation("ATTACK: FireAtTarget {Vrf} -> {Tgt} after MoveAlongRoute (route '{Route}').",
                                     fire.Taskee, fire.Target, e.Name);
             }
+            // Layer 2: a BREACH approaches the obstacle along the route THEN breaches it (Unit 2).
+            if (_pendingRouteBreach.TryRemove(e.Name, out var breach))
+            {
+                _bridge.Breach(breach.Taskee, breach.Target);
+                _log.LogInformation("BREACH: Breach {Vrf} -> {Tgt} after MoveAlongRoute (route '{Route}').",
+                                    breach.Taskee, breach.Target, e.Name);
+            }
+        }
+        // Layer 2: RECONNOITER (SCREEN/SCOUT) patrols its route instead of moving along it once.
+        else if (!string.IsNullOrEmpty(e.Name) && _pendingRoutePatrol.TryRemove(e.Name, out var patrolVrfUuid))
+        {
+            _bridge.PatrolRoute(patrolVrfUuid, e.Name);
+            _log.LogInformation("Route '{Route}' created; PatrolRoute issued for {Vrf} (Reconnoiter).",
+                                e.Name, patrolVrfUuid);
         }
     }
 
@@ -733,6 +843,19 @@ public sealed class VrfC2SimService : BackgroundService
         => DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ", System.Globalization.CultureInfo.InvariantCulture);
 
     private static string NewReportId() => Guid.NewGuid().ToString();
+
+    // Initial great-circle bearing from 'from' to 'to', degrees (0 = North, clockwise). Used to
+    // orient a MoveIntoFormation (Unit 4) toward its destination. Small-scale, so exact model is
+    // not critical - the key question is whether the aggregate MOVES, not perfect facing.
+    private static double BearingDeg(Geodetic from, Geodetic to)
+    {
+        double lat1 = from.LatDeg * Math.PI / 180.0, lat2 = to.LatDeg * Math.PI / 180.0;
+        double dLon = (to.LonDeg - from.LonDeg) * Math.PI / 180.0;
+        double y = Math.Sin(dLon) * Math.Cos(lat2);
+        double x = Math.Cos(lat1) * Math.Sin(lat2) - Math.Sin(lat1) * Math.Cos(lat2) * Math.Cos(dLon);
+        double brng = Math.Atan2(y, x) * 180.0 / Math.PI;
+        return (brng + 360.0) % 360.0;
+    }
 
     private void OnVrfScenarioClosed(object sender, EventArgs e)
     {

@@ -33,6 +33,10 @@
 #include <vrftasks/scriptedTaskTask.h>
 #include <vrftasks/scriptedTaskSet.h>
 #include <vrftasks/fireAtTargetTask.h>
+#include <vrftasks/moveIntoFormationTask.h>
+#include <vrftasks/breachTask.h>
+#include <vrftasks/patrolRouteTask.h>
+#include <vrftasks/followEntityTask.h>
 #include <vrfutil/scenario.h>
 #include <matrix/geodeticCoord.h>
 #include <matrix/vlVector.h>
@@ -440,6 +444,43 @@ void VrfFacade::MoveAlongRoute(const std::string& uuid, const std::string& route
 void VrfFacade::SetAggregateFormation(const std::string& uuid, const std::string& formationName) {
     // No-op if 'uuid' is not an aggregate leader (per the controller contract).
     p_->controller->setAggregateFormation(DtUUID(uuid), DtString(formationName.c_str()), DtSimSendToAll);
+}
+
+void VrfFacade::MoveIntoFormation(const std::string& uuid, const Geodetic& pos,
+                                  double headingDeg, const std::string& formationName) {
+    DtMoveIntoFormationTask task;
+    task.init();
+    task.setLocation(toGeocentric(pos));
+    task.setHeading(headingDeg / kDegRadFactor);  // task wants radians (createEntity does the same)
+    task.setFormationName(DtString(formationName.c_str()));
+    p_->controller->sendTaskMsg(DtUUID(uuid), &task);
+}
+
+void VrfFacade::Breach(const std::string& uuid, const std::string& breachTargetUuid) {
+    // DtBreachTask: go to the obstacle (breach target) and breach it. Layer 2: the BREACH verb
+    // (docs/SEMANTIC_MAPPING.md Unit 2). The target must be a VRF UUID known to the sim.
+    DtBreachTask task;
+    task.init();
+    task.setBreachTarget(DtUUID(breachTargetUuid));
+    p_->controller->sendTaskMsg(DtUUID(uuid), &task);
+}
+
+void VrfFacade::PatrolRoute(const std::string& uuid, const std::string& routeUuid) {
+    // DtPatrolRouteTask: patrol back and forth along the (already-created) route. Layer 2 for
+    // SCREEN/SCOUT (Reconnoiter). The route is resolved by name, like MoveAlongRoute.
+    DtPatrolRouteTask task;
+    task.init();
+    task.setRoute(DtUUID(routeUuid));
+    p_->controller->sendTaskMsg(DtUUID(uuid), &task);
+}
+
+void VrfFacade::FollowEntity(const std::string& uuid, const std::string& targetUuid) {
+    // DtFollowEntityTask: follow the target entity (dynamic; no route). Layer 2 for ESCRT.
+    // Offset left at default (0); a trailing offset could be set later.
+    DtFollowEntityTask task;
+    task.init();
+    task.setEntityToFollow(DtUUID(targetUuid));
+    p_->controller->sendTaskMsg(DtUUID(uuid), &task);
 }
 
 void VrfFacade::DeleteObject(const std::string& uuid) {

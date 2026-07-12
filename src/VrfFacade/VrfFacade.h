@@ -247,6 +247,27 @@ public:
     // and the unit will not move (Phase 4 spike - not parity; see PORT.md sec 10).
     void SetAggregateFormation(const std::string& uuid, const std::string& formationName);
 
+    // Move an aggregate INTO FORMATION at a location (DtMoveIntoFormationTask, sent via
+    // sendTaskMsg). The PROPER aggregate maneuver: it moves the set to 'pos' oriented to
+    // 'headingDeg', getting/holding the named formation - unlike moveAlongRoute, which only
+    // sets a formation state and often leaves a disaggregated set stuck (PORT.md sec 10 /
+    // docs/SEMANTIC_MAPPING.md Unit 4). headingDeg is degrees (converted to the radians the
+    // task wants); formationName is a valid Title-Case name ("Wedge"/"Column"/...).
+    void MoveIntoFormation(const std::string& uuid, const Geodetic& pos,
+                           double headingDeg, const std::string& formationName);
+
+    // Breach the obstacle 'breachTargetUuid' (DtBreachTask). Layer 2: the BREACH verb - go to
+    // the obstacle and breach it (docs/SEMANTIC_MAPPING.md Unit 2). Target must be a VRF UUID.
+    void Breach(const std::string& uuid, const std::string& breachTargetUuid);
+
+    // Patrol the (already-created) route back and forth (DtPatrolRouteTask). Layer 2 for
+    // SCREEN/SCOUT (Reconnoiter). routeUuid is the route name, resolved like MoveAlongRoute.
+    // NOTE: a patrol never self-completes (it reverses at the ends until retasked/triggered).
+    void PatrolRoute(const std::string& uuid, const std::string& routeUuid);
+
+    // Follow the target entity (DtFollowEntityTask; dynamic, no route). Layer 2 for ESCRT.
+    void FollowEntity(const std::string& uuid, const std::string& targetUuid);
+
     // Fire at the target entity (DtFireAtTargetTask, sent via sendTaskMsg like
     // RunScriptedTask). autoSelectWeapon lets VRF choose the weapon; maxRounds <= 0 leaves
     // the task default (unbounded). The target must be a VRF UUID known to the sim; an

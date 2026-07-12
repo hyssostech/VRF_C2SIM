@@ -31,13 +31,16 @@ public static class VerbMappingSelfTest
         CheckIntent(ref failures, "ESCRT",  TaskIntent.Escort);
         CheckIntent(ref failures, "CLRLND", TaskIntent.Clear);
 
-        // Only Move is wired in Layer 2 today; every other intent must report NOT implemented
-        // (so the executor logs the gap + falls back to bare movement).
+        // Layer-2 wiring status. Move/Attack/Breach/Reconnoiter/Escort are wired to real vrftasks;
+        // HoldObjective (DtHoldUntilTask + scan) and Clear (composite) stay bare-move fallbacks.
         Check(ref failures, VerbMapping.Classify("MOVE").Implemented, "MOVE is implemented (bare move)");
         Check(ref failures, VerbMapping.Classify("ATTACK").Implemented, "ATTACK is implemented (fires, unit 3)");
         Check(ref failures, VerbMapping.Classify("DESTRY").Implemented, "DESTRY is implemented (fires)");
-        Check(ref failures, !VerbMapping.Classify("BREACH").Implemented, "BREACH not yet implemented (unit 2)");
-        Check(ref failures, !VerbMapping.Classify("SECURE").Implemented, "SECURE not yet implemented (HoldObjective)");
+        Check(ref failures, VerbMapping.Classify("BREACH").Implemented, "BREACH is implemented (unit 2, DtBreachTask)");
+        Check(ref failures, VerbMapping.Classify("SCREEN").Implemented, "SCREEN is implemented (Reconnoiter, patrol)");
+        Check(ref failures, VerbMapping.Classify("ESCRT").Implemented, "ESCRT is implemented (Escort, follow)");
+        Check(ref failures, !VerbMapping.Classify("SECURE").Implemented, "SECURE not yet wired (HoldObjective bare-move fallback)");
+        Check(ref failures, !VerbMapping.Classify("CLRLND").Implemented, "CLRLND not yet wired (Clear bare-move fallback)");
 
         // Recognized flag: every real verb is in the table (recognized); an unlisted one is not.
         Check(ref failures, VerbMapping.Classify("ATTACK").Recognized, "ATTACK is recognized (in table)");

@@ -28,6 +28,16 @@ public class VrfSettings
     // diverges from the frozen golden-trace behavior.
     public string AggregateFormation { get; set; } = "";
 
+    // Semantic-map Unit 4 (docs/SEMANTIC_MAPPING.md): the PROPER aggregate maneuver. "" = OFF.
+    // A VALID Title-Case formation name ("Wedge"/"Column"/...) makes an AGGREGATE task use
+    // DtMoveIntoFormationTask (move the set into formation AT the destination) INSTEAD of
+    // CreateRoute + MoveAlongRoute + SetAggregateFormation - the real fix for the stuck-aggregate
+    // finding (most COA-STP1 aggregates stayed stuck with Wedge alone; PORT.md sec 10). Opt-in +
+    // aggregate-only; entity moves are unaffected (golden parity). Takes precedence over
+    // AggregateFormation for aggregates when set. Moves to the route's final point (intermediate
+    // waypoints are dropped - this is the diagnostic "does the set move in formation" path).
+    public string MoveIntoFormation { get; set; } = "";
+
     // Simulation time multiple applied on Run (parity: C++ SetTimeMultiplier from the
     // server sim multiple, C2SIMinterface.cpp:1844). 1 = real-time (golden default);
     // higher runs the VR-Forces clock faster (useful to watch/verify scenarios quickly).

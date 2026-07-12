@@ -67,7 +67,12 @@ public static class VerbMapping
     private static bool IsImplemented(TaskIntent intent) => intent switch
     {
         TaskIntent.Move => true,
-        TaskIntent.Attack => true,   // unit 3: DtFireAtTargetTask on the affected entity
+        TaskIntent.Attack => true,        // unit 3: DtFireAtTargetTask on the affected entity
+        TaskIntent.Breach => true,        // unit 2: DtBreachTask on the affected obstacle
+        TaskIntent.Reconnoiter => true,   // DtPatrolRouteTask along the route (SCREEN/SCOUT)
+        TaskIntent.Escort => true,        // DtFollowEntityTask on the escorted entity (ESCRT)
+        // HoldObjective (DtHoldUntilTask + scan) and Clear (composite) stay bare-move fallbacks;
+        // MoveInFormation is config-driven (aggregate moves), not verb-classified.
         _ => false,
     };
 

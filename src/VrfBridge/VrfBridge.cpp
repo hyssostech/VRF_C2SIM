@@ -265,6 +265,23 @@ public:
     void SetAggregateFormation(String^ uuid, String^ formationName) {
         _facade->SetAggregateFormation(ToStd(uuid), ToStd(formationName));
     }
+    // Move an aggregate into formation at a location (DtMoveIntoFormationTask). Layer 2:
+    // the proper aggregate maneuver (the real fix for the stuck-aggregate finding, Unit 4).
+    void MoveIntoFormation(String^ uuid, Geodetic pos, double headingDeg, String^ formationName) {
+        _facade->MoveIntoFormation(ToStd(uuid), ToNative(pos), headingDeg, ToStd(formationName));
+    }
+    // Breach the obstacle (DtBreachTask). Layer 2: the BREACH verb (Unit 2).
+    void Breach(String^ uuid, String^ breachTargetUuid) {
+        _facade->Breach(ToStd(uuid), ToStd(breachTargetUuid));
+    }
+    // Patrol the (already-created) route (DtPatrolRouteTask). Layer 2 for SCREEN/SCOUT.
+    void PatrolRoute(String^ uuid, String^ routeUuid) {
+        _facade->PatrolRoute(ToStd(uuid), ToStd(routeUuid));
+    }
+    // Follow the target entity (DtFollowEntityTask). Layer 2 for ESCRT.
+    void FollowEntity(String^ uuid, String^ targetUuid) {
+        _facade->FollowEntity(ToStd(uuid), ToStd(targetUuid));
+    }
     // Fire at the target entity (DtFireAtTargetTask). Auto-selects the weapon, default round
     // count. Layer 2 of the semantic map: the ATTACK-family verbs map here.
     void FireAtTarget(String^ uuid, String^ targetUuid) {
