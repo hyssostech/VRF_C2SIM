@@ -126,7 +126,8 @@ remains is quality/parity polish + the two-layer semantic-mapping arc (see "next
 
 `build/` `bin/` `obj/` are gitignored (rebuild them); `docs/golden-trace/*.log` is
 force-tracked (parity oracle). `data/` (user-provided post-gold scenarios: COA-STP1,
-VRF-All-entities) is UNTRACKED - decide whether to track it.
+VRF-All-entities) is now TRACKED (2026-07-12) so the repo is self-contained (offline
+--parse-init / --parse-order on the real scenarios; cloud checkouts have them).
 
 ## Where everything lives (all in THIS repo)
 
@@ -257,7 +258,7 @@ Remaining work, roughly by priority (details: docs/APP.md TODO, PORT.md sec 6/10
 5. **Formal golden-trace message diff** (byte-level parity, not just behavioral).
 6. **Housekeeping**: PUSH the branches (port main / fork / SDK are all local-only);
    delete the retained C++ originals (migration step 1); decouple the SDK ProjectReference
-   (published nuget); decide whether to track `data/`.
+   (published nuget). (`data/` is now tracked; port main pushed to origin 2026-07-12.)
 
 Keep `docs/PORT.md` + `docs/APP.md` current AS you work; after any context compaction
 re-read them before deciding anything.
