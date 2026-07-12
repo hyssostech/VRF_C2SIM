@@ -580,6 +580,16 @@ table), not bare moveAlongRoute + setAggregateFormation. i.e. the two-layer mapp
 fix for these; our formation enrichment is the first rung. NOT a port/pipeline defect - a VRF
 aggregate-maneuver characteristic, now precisely localized.
 
+UPDATE 2026-07-11 - `moveIntoFormationTask` TRIED + FAILED (commit faa4398; docs/SEMANTIC_MAPPING.md
+sec 5 Unit 4). Wired `DtMoveIntoFormationTask` (opt-in `Vrf:MoveIntoFormation`, aggregate move to the
+route's final point in-formation) and ran COA-STP1 live: it DISPATCHED to 35 aggregates cleanly (0
+crash / 0 abandon) but moved NONE of them (only the move-along ENTITIES moved; USER visually confirmed
+no aggregate movement on the GUI) - i.e. WORSE than Wedge+moveAlong (~3/32). So `moveIntoFormationTask`
+is NOT the fix for these DISAGGREGATED sets (strong hypothesis: it needs AGGREGATED aggregates). The
+remaining candidates from the sec-10 table are now: `planAndMoveToTask` (pathfinding move-to - the top
+next experiment), tasking the SUBORDINATES directly, or aggregate-first (createSubordinates=false) then
+move. The deep-dive stays OPEN; MoveIntoFormation is ruled out.
+
 Prior status (2026-07-09): fix IDENTIFIED + prototyped, NOT yet runtime-verified.
 - Fix: `controller->setAggregateFormation(leaderUuid, formationName)` BEFORE moveAlongRoute
   (no-op on non-aggregates). moveAlongRoute carries no formation; the aggregate holds a

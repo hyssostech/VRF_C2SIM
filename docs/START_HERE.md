@@ -37,11 +37,13 @@ Three locations are in play:
 ## Current status (2026-07-11)
 
 - **Latest (2026-07-11)**: two-layer semantic mapping UNDERWAY - Layer-1 verb classifier +
-  Unit 3 fires (ATTACK) DONE + live-verified; **Solution A (delete-on-stop) DONE** so runs
-  self-clean (no more manual reloads); **ResetVrf (hard reset) DONE + LIVE-VERIFIED** - the
-  `tools/ResetVrf` mini-host joins the federation, discovers EVERY reflected object, and deletes
-  it (reaches ORPHANS Solution A cannot). Details + next steps in the "immediate next task" #4
-  below, docs/SEMANTIC_MAPPING.md, and docs/RUNBOOK.md sec 8. HEAD `340d608`+ (local, unpushed).
+  Unit 3 fires (ATTACK) DONE + live-verified; **Solution A (delete-on-stop) DONE**; **ResetVrf
+  (hard reset) DONE + LIVE-VERIFIED** (reaches ORPHANS Solution A misses - and it DID: a live run
+  left 2 route/graphic orphans that ResetVrf cleared). **Layer-2 Units 2/4/Reconnoiter/Escort wired
+  + built + live-dispatched** (commit faa4398). KEY NEGATIVE RESULT: **Unit 4 MoveIntoFormation does
+  NOT move the disaggregated COA-STP1 aggregates** (35 dispatched, 0 moved, GUI-confirmed) - it is
+  NOT the stuck-aggregate fix (likely needs AGGREGATED sets). Details in docs/SEMANTIC_MAPPING.md
+  sec 5 + RUNBOOK sec 8. HEAD `faa4398`+ (local, unpushed).
 - **Phase 1** (C++ facade extraction + rewire): DONE + verified in the C++ repo.
 - **Migration**: port products (`bridge-spikes/`, `tools/`, `docs/`+`golden-trace/`)
   COPIED into THIS repo. C++ originals retained pending review, then deletion
@@ -203,7 +205,12 @@ Phase 1-5 are DONE (the port runs the full C2SIM<->VR-Forces loop live + moves a
 Remaining work, roughly by priority (details: docs/APP.md TODO, PORT.md sec 6/10):
 
 1. **Aggregate deep-dive** (the live-open question): most COA-STP1 aggregates stay stuck even
-   with `Wedge` (necessary-not-sufficient; PORT.md sec 10). Diagnose - compare a MOVING vs a
+   with `Wedge` (necessary-not-sufficient; PORT.md sec 10). UPDATE 2026-07-11: **Unit 4
+   DtMoveIntoFormationTask was tried and FAILED** - it dispatches cleanly (35 aggregates) but
+   moves NONE of the disaggregated sets (GUI-confirmed), WORSE than Wedge+moveAlong. So the fix is
+   NOT MoveIntoFormation. Next candidates (SEMANTIC_MAPPING sec 5 Unit 4): `planAndMoveToTask`
+   (pathfinding), task the SUBORDINATES directly, or aggregate-first (createSubordinates=false)
+   then move. Diagnose - compare a MOVING vs a
    STUCK aggregate's VR-Forces Subsystems tab (formation valid for the type? subordinates
    present "2 of 4"? damage?) - then per-unit-type formation and/or the PROPER vrftask
    (`planAndMoveToTask` / `moveIntoFormationTask`), which is the first real slice of #4.

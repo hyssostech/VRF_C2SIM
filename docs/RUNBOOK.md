@@ -233,6 +233,17 @@ logged "Cleanup: deleting 164 created VR-Forces objects ... 164 deletes dispatch
 resigned clean. (Whether VRF fully REMOVES all 164 - incl. disaggregated aggregates/routes - is a
 GUI/next-run confirmation.)
 
+SOLUTION A IS NOT COMPLETE CLEANUP - it can MISS objects (2026-07-11, live). After a COA-STP1 run
+where Solution A dispatched 168 deletes and resigned clean, a ResetVrf pass STILL found 2 leftover
+tactical graphics (one a route "T23_AOA...", user-spotted on the GUI) and deleted them; a confirming
+dry-run then found 0. Cause: a race - an object CREATED shortly before clean-stop (e.g. a route from
+a task dispatched late, or - here - from a second order push) may not be in `_vrfUuidByName` when the
+cleanup enumerates it, or its create/delete does not drain in the bounded window. So Solution A is
+best-effort; ResetVrf (this section) is the authoritative sweep that catches what it misses. Run
+ResetVrf after a heavy/re-pushed run to guarantee a clean slate. (Possible Solution-A hardening: a
+short settle before the cleanup snapshot, or delete-by-reflected like ResetVrf - but ResetVrf already
+covers it, so lower priority.)
+
 ResetVrf (hard reset) - DONE + LIVE-VERIFIED (2026-07-11), Option 1 "delete-all-reflected"
 (file-free, clears ANY orphan). With Solution A working this is a RECOVERY lever (clears ORPHANS
 from crashes/force-kills that Solution A can't reach). It is `tools/ResetVrf`, a pure-VR-Forces

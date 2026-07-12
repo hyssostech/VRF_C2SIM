@@ -120,10 +120,16 @@ Notes:
    `VerbMappingSelfTest` (`--verb-selftest`). Executor CONSULTS the classifier and logs
    the mapped intent + composition, but still executes bare movement for every verb -
    ZERO behavior/parity change. Verify: `--verb-selftest` passes offline; app still builds.
-2. [Unit 2] Facade + bridge `Breach`; dispatch BREACH -> resolve affected -> Breach after
-   the approach move. Verify: bridge rebuild 0/0 under the MAK set (the Phase-2 bar);
-   `--verb-selftest` still green; golden move order unaffected. Runtime behavior is
-   LIVE-GATED (a build cannot prove VRF breaches).
+2. [Unit 2 - DONE + BUILD + LIVE-DISPATCHED 2026-07-11, commit faa4398] Facade + bridge
+   `Breach` (DtBreachTask); dispatch BREACH -> resolve affected obstacle -> Breach deferred AFTER
+   the approach MoveAlongRoute (parallel to the ATTACK fire), plus breach-in-place (no points) and
+   breach-after-MoveToLocation (single point). Bridge + app build 0/0; `--verb-selftest` green
+   (BREACH now Implemented). LIVE (COA-STP1): the BREACH task DISPATCHED without crashing, but its
+   affected OBSTACLE (a map graphic, uuid 6977b035...) did NOT resolve to a distinct VRF unit we
+   created -> degraded to advance-only (correct fallback). So the breach ENGAGEMENT itself is not
+   yet exercised: COA-STP1 breach obstacles are map graphics, not init-created entities, so
+   TryResolveVrfUuid misses them - a synthetic order (or resolving obstacle graphics) is needed to
+   drive a real DtBreachTask, same shape as the Unit-3 synthetic-target gap.
 3. [Unit 3 - CODE DONE + BUILD-VERIFIED + PARTIAL LIVE 2026-07-11] Fires: facade
    `FireAtTarget` (DtFireAtTargetTask, autoSelectWeapon) -> bridge -> dispatch
    ATTACK/DESTRY/FIX/DISRPT/PENTRT. Resolves the affected entity via TryResolveVrfUuid; issues
@@ -162,11 +168,37 @@ Notes:
    engage confirmed; no crash. UNIT 3 IS DONE (build + offline + full live). The remaining
    move-vs-fire nuance (does the unit visibly close+destroy the target, ROE/force-permitting) is
    a VRF-behavior observation, not a code question.
-4. [Unit 4] MoveInFormation: facade DtMoveIntoFormationTask; opt-in replace of the Wedge
-   enrichment for aggregate moves. The real fix for the stuck-aggregate finding - REQUIRES
-   a live run to confirm it unsticks the COA-STP1 aggregate types (START_HERE #1).
-5. [Unit 5+] HoldObjective (SECURE/OCCUPY/...), Reconnoiter (SCREEN/SCOUT), Escort, Clear
-   as composites, driven by remaining COA-STP1 demand.
+4. [Unit 4 - CODE DONE + BUILD + LIVE-TESTED 2026-07-11, commit faa4398. RESULT: NEGATIVE -
+   MoveIntoFormation is NOT the stuck-aggregate fix.] Facade `MoveIntoFormation`
+   (DtMoveIntoFormationTask: setLocation + setHeading + setFormationName) -> bridge -> dispatch:
+   opt-in via `Vrf:MoveIntoFormation` (formation name; "" = off), AGGREGATE-only; an aggregate move
+   issues it to the route's FINAL point (heading = bearing to destination) INSTEAD of moveAlongRoute
+   + SetAggregateFormation. Entity moves unchanged (golden parity). Build 0/0; --verb-selftest green.
+   LIVE RUN (COA-STP1, clientId C2SIM, Vrf:MoveIntoFormation=Wedge, 20x): the app late-joined 128
+   units, and dispatched MoveIntoFormation to **35 aggregate tasks** with valid destinations,
+   headings, and formation 'Wedge' - **0 tick failures / 0 SEH / 0 abandon** (the command path is
+   sound). BUT: only 1 task COMPLETED the whole run (a move-along ENTITY, not a formation move), a
+   position diff (t=0 vs t+5min) showed only 2 of 128 units moved >50m (the move-along entities),
+   and the USER CONFIRMED VISUALLY: **no aggregate movement on the GUI.** So DtMoveIntoFormationTask
+   dispatches perfectly but does NOT move the DISAGGREGATED COA-STP1 aggregates - it is actually
+   WORSE than Wedge+moveAlongRoute (which moved ~3/32; sec 10). STRONG HYPOTHESIS: MoveIntoFormation
+   is for AGGREGATED aggregates; a disaggregated set (createSubordinates=true) does not respond to
+   it. CONCLUSION: Unit 4 does not solve the stuck-aggregate problem. Keep it opt-in (default off)
+   as a tested-but-ineffective lever; the deep-dive continues with a DIFFERENT approach - candidates
+   (sec 10 table): `planAndMoveToTask` (pathfinding move-to, may move a disaggregated set), tasking
+   the SUBORDINATES individually, aggregating the set first (createSubordinates=false) then moving,
+   or a per-unit-type formation. Requires the next live experiment (user-directed).
+5. [Unit 5 - Reconnoiter + Escort DONE + BUILD 2026-07-11, commit faa4398; HoldObjective + Clear
+   are documented bare-move fallbacks] Reconnoiter (SCREEN/SCOUT) -> DtPatrolRouteTask (patrol the
+   created route instead of moving along once, deferred to route-created). Escort (ESCRT) ->
+   DtFollowEntityTask on the resolved escorted entity (dynamic, no route). Build 0/0; --verb-selftest
+   green (SCREEN/ESCRT Implemented). NOT behaviorally live-exercised in the COA-STP1 run: the SCREEN
+   (3) / ESCRT (1) tasks are temporally GATED (startAfterTaskUuid) and did not dispatch within the
+   run window (PatrolRoute issued 0, FollowEntity 0) - needs a longer run or an ungated order.
+   HoldObjective (SECURE/OCCUPY/SEIZE/RETAIN/BLOCK/DEFEND/GUARD) and Clear (CLRLND) STAY bare-move
+   fallbacks: DtHoldUntilTask needs a sim-clock stop time (marginal over a route that already ends
+   at the objective), and Clear is an undesigned composite (NOT DtClearTask, which is task-cancel).
+   The move-to-objective is the dominant behavior; wiring the hold/scan is a later refinement.
 
 ## 6. Risks / open questions
 

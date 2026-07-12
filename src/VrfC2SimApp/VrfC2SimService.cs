@@ -620,13 +620,19 @@ public sealed class VrfC2SimService : BackgroundService
                                 "{Lat}/{Lon} formation '{Form}' hdg {Hdg:F0}deg (Unit 4; {N} route pts -> destination).",
                                 task.TaskName, unit.Name, vrfUuid, dest.LatDeg, dest.LonDeg,
                                 _vrf.MoveIntoFormation, headingDeg, routeGeo.Count);
-            // Preserve ATTACK-family semantics: an aggregate that also has a resolved fire target
-            // advances in formation THEN engages (don't silently drop the fire on this early return).
+            // Preserve ATTACK/BREACH semantics on this early return: an aggregate that also has a
+            // resolved engagement target advances in formation THEN engages (don't silently drop it).
             if (attackTargetVrf != null)
             {
                 _bridge.FireAtTarget(vrfUuid, attackTargetVrf);
                 _log.LogInformation("ATTACK task '{Task}': FireAtTarget {Vrf} -> {Tgt} after MoveIntoFormation.",
                                     task.TaskName, vrfUuid, attackTargetVrf);
+            }
+            if (breachTargetVrf != null)
+            {
+                _bridge.Breach(vrfUuid, breachTargetVrf);
+                _log.LogInformation("BREACH task '{Task}': Breach {Vrf} -> {Tgt} after MoveIntoFormation.",
+                                    task.TaskName, vrfUuid, breachTargetVrf);
             }
             return;
         }
