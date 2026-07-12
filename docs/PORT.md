@@ -660,6 +660,17 @@ DISCRIMINATING NEXT TEST (E1b): re-run per-type formations on the GOLDEN STP ini
 positions; its MechBn aggregates marched with Wedge) and/or a synthetic dispersed init; plus a
 VISUAL check of the CO runaway (set-travel vs subordinate scatter) once the GUI is usable.
 E2 (MoveIntoFormation re-test) stays PARKED per its gate ("only after E1 moves units").
+
+RESEARCH SYNTHESIS (2026-07-12, post-E1; the 2-strike rule fired): three parallel sweeps of
+the MAK 5.0.2 docs/headers/content produced **docs/UNIT_MOVEMENT_RESEARCH.md** - the
+documented unit-movement model with citations, the grounded diagnosis (units born with an
+UNINITIALIZED formation on Aggregate.ope platforms; the lead-follow controller needs an
+established LEAD subordinate with auto-promote OFF; set-formation SNAPS a disaggregated
+unit; stacked spawns + working-formation-from-current-positions explain scatter/runaway),
+and the REVISED experiment plan R1-R7 (set formation at CREATE time; ReorganizeAggregate;
+member-level telemetry via the reflection machinery; DtRequestAvailableFormationsAdmin;
+golden-scenario-first micro-experiments; coa-gpt position-dispersion feedback; subordinate
+tasking as last fallback). That doc supersedes the guidance sec 4 ladder from E2 down.
 OPERATIONAL FINDINGS from the run: (1) report pushing hit ephemeral-PORT EXHAUSTION ("Only one
 usage of each socket address...") under the un-bundled position-report volume -> the P4
 report dedup/bundling item is now OPERATIONALLY URGENT for long runs; (2) a deterministic

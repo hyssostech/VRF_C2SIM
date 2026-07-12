@@ -298,6 +298,14 @@ experiment:
   lines tell you formation resolution failed; their absence after your
   set-formation tells you it succeeded. [VERIFIED the log carries these.]
 
+LADDER SUPERSEDED 2026-07-12 (post-E1): a three-agent sweep of the vendor's own
+docs/headers/content produced docs/UNIT_MOVEMENT_RESEARCH.md - read THAT for the
+documented unit-movement model, the grounded E1 diagnosis (uninitialized birth
+formation + unestablished leader + snap semantics + stacked-spawn geometry), and
+the REVISED plan R1-R7 (set-formation at CREATE time, ReorganizeAggregate, member
+telemetry, available-formations query, golden-scenario-first micro-experiment).
+E2/E3/E4 below remain reference material; execute R1-R7 instead.
+
 E1 STATUS 2026-07-12: RAN LIVE (same-day session; full record PORT.md sec 10 "E1 RUN").
 Implemented as `Vrf:AggregateFormation=auto` + data/E1_Formation_Order.xml. All per-type
 names ACCEPTED (the invalid-formation oracle stayed quiet) and the entity control

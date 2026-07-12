@@ -100,16 +100,17 @@ sec 2 before trusting ANY settled negative below):
   (no-op); busy-wait thread leak; the STOMP `selector` removal was NOT a bug. Do not "fix" these.
 
 NEXT (all LIVE-GATED - need VR-Forces + the LOCAL machine; a cloud session can only PLAN them):
-1. THE AGGREGATE DEEP-DIVE: E1 (per-matched-type formation names) RAN 2026-07-12 - full record
-   in PORT.md sec 10 "E1 RUN". All per-type names were ACCEPTED yet NO aggregate route-marched
-   (companies ran away 150+ km - the old "Wedge moved ~3/32" is now a suspect runaway artifact;
-   platoons shuffled in place; CoHQs subordinate-scattered at creation). Formation names alone
-   are FALSIFIED as the fix. NEXT: **E1b** - repeat with `Vrf:AggregateFormation=auto` on the
-   GOLDEN STP init (dispersed positions; its 14.MechBn genuinely marched with Wedge) to test the
-   leading hypothesis: COA-STP1's STACKED/identical unit coordinates break disaggregated-set
-   geometry. Plus a VISUAL check of the runaway once vrfGui recovers. E2 (MoveIntoFormation
-   re-test) stays parked until aggregates demonstrably march; then E3 (formation discovery) /
-   E4 fallbacks. Use ResetVrf between runs; record every outcome in PORT.md sec 10.
+1. THE AGGREGATE DEEP-DIVE: read **docs/UNIT_MOVEMENT_RESEARCH.md** FIRST (2026-07-12 vendor-
+   doc research synthesis; it supersedes the older experiment ladders). E1 ran and falsified
+   formation-names-alone (PORT.md sec 10 "E1 RUN"); the research pinpointed the real
+   preconditions: creation-time formation state (units born UNINITIALIZED on Aggregate.ope),
+   an established LEAD subordinate (auto-promote is OFF; use reorganizeAggregate), and sane
+   member geometry (set-formation SNAPS; stacked spawns break it). Execute the plan R1-R7 in
+   that doc: R1 set per-type formation at CREATE time (app-only), R2 ReorganizeAggregate
+   (bridge rebuild), R3 member-level telemetry via reflection (bridge), R4 available-
+   formations query (bridge), R5 golden-scenario-first single-unit micro-experiment, R6
+   coa-gpt position-dispersion feedback, R7 subordinate-tasking fallback. Use ResetVrf
+   between runs; record outcomes in PORT.md sec 10.
 2. Exercise Breach/Escort/Screen behavior via SYNTHETIC orders (COA-STP1 CANNOT exercise them - all
    42 tasks self-target; SCREEN additionally gated + T24 has no Location). Before the Escort test,
    fix FollowEntity's zero offset (guidance P3.5).

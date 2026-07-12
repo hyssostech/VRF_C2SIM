@@ -39,7 +39,16 @@ Three locations are in play:
 
 ## Current status (2026-07-12)
 
-- **Latest (2026-07-12, PM - LIVE session)**: the P0 fixes were LIVE-VERIFIED via a golden
+- **Latest (2026-07-12, evening - RESEARCH)**: after E1's negative, a three-agent sweep of
+  the MAK 5.0.2 vendor docs/headers/content produced **docs/UNIT_MOVEMENT_RESEARCH.md** -
+  READ IT before any aggregate work. Verdict: our move task was always correct; the missing
+  preconditions are creation-time formation STATE (Aggregate.ope units are born
+  uninitialized; members spawn by-formation with offsets 0,0,0), an established LEAD
+  subordinate (lead-follow controller + auto-promote OFF; `reorganizeAggregate` is the
+  lever), and sane member geometry (set-formation SNAPS a disaggregated unit; stacked
+  spawns/working-formation explain the scatter/runaway). Revised plan R1-R7 in that doc
+  supersedes the guidance sec 4 ladder from E2 down.
+- **2026-07-12, PM - LIVE session**: the P0 fixes were LIVE-VERIFIED via a golden
   re-run (49+4 created, 1.BdeHQ moved + TASKCMPLT with the CORRECT task uuid while a second
   task was in flight - the P0.1 attribution working; clean stop, Solution A deleted all 55
   objects), and guidance **experiment E1 RAN** (per-type formations via
