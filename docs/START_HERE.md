@@ -38,8 +38,10 @@ Three locations are in play:
 
 - **Latest (2026-07-11)**: two-layer semantic mapping UNDERWAY - Layer-1 verb classifier +
   Unit 3 fires (ATTACK) DONE + live-verified; **Solution A (delete-on-stop) DONE** so runs
-  self-clean (no more manual reloads). Details + next steps in the "immediate next task" #4
-  below and docs/SEMANTIC_MAPPING.md. HEAD `340d608`.
+  self-clean (no more manual reloads); **ResetVrf (hard reset) DONE + LIVE-VERIFIED** - the
+  `tools/ResetVrf` mini-host joins the federation, discovers EVERY reflected object, and deletes
+  it (reaches ORPHANS Solution A cannot). Details + next steps in the "immediate next task" #4
+  below, docs/SEMANTIC_MAPPING.md, and docs/RUNBOOK.md sec 8. HEAD `340d608`+ (local, unpushed).
 - **Phase 1** (C++ facade extraction + rewire): DONE + verified in the C++ repo.
 - **Migration**: port products (`bridge-spikes/`, `tools/`, `docs/`+`golden-trace/`)
   COPIED into THIS repo. C++ originals retained pending review, then deletion
@@ -145,9 +147,11 @@ VRF-All-entities) is UNTRACKED - decide whether to track it.
     `ReportSelfTest.cs`, `SequencerSelfTest.cs`, `VerbMappingSelfTest.cs` (see Run below).
 - `bridge-spikes/` - the proven C++/CLI spikes + native probe (the bridge's templates).
 - `docs/golden-trace/` - the PARITY ORACLE. `data/` (untracked) - post-gold scenarios.
-- `tools/` - .NET SDK helpers: `PushInit`, `PushOrder`, `ListenReports`, `SdkVerify`,
+- `tools/` - helpers. .NET SDK: `PushInit`, `PushOrder`, `ListenReports`, `SdkVerify`,
   `StopIface` (clean stop = STOP+RESET -> UNINITIALIZED), `StompProbe` (subscribe + log
-  every inbound event - the STOMP-receive diagnostic).
+  every inbound event - the STOMP-receive diagnostic). VR-Forces (bridge, no C2SIM):
+  `ResetVrf` (hard reset - join, discover EVERY reflected object, DeleteObject each; clears
+  ORPHANS from crashes/force-kills that Solution A can't; `--dry-run` = discover-only; RUNBOOK sec 8).
 
 ## Build
 
@@ -233,10 +237,16 @@ Remaining work, roughly by priority (details: docs/APP.md TODO, PORT.md sec 6/10
      deletes every object it created on clean-stop (VrfFacade::DeleteObject -> controller->
      deleteObject), so runs SELF-CLEAN - no more manual VR-Forces reloads between runs. Verified:
      164 objects deleted, GUI empty after. Opt-out Vrf:CleanupCreatedOnStop=false.
-   - PENDING: **ResetVrf** (hard reset for orphans from crashes/force-kills) - TURNKEY PLAN in
-     RUNBOOK sec 8 (Option 1 delete-all-reflected, file-free). Then Layer-2 units: **Unit 2 Breach**,
-     **Unit 4 moveIntoFormationTask** (the real fix for the stuck-aggregate finding - serves #1),
-     Unit 5+ HoldObjective/Reconnoiter. Each needs a bridge rebuild (VS18) + a live run.
+   - **ResetVrf (hard reset) DONE + LIVE-VERIFIED (2026-07-11)**: `tools/ResetVrf` (Option 1
+     delete-all-reflected, file-free) joins the federation, discovers EVERY reflected object via the
+     UUID network manager's change callbacks (facade `BeginTrackingReflectedObjects`/
+     `GetAllReflectedUuids`), and DeleteObject's each (nil uuids skipped) - reaching ORPHANS Solution A
+     cannot. Verified by a controlled discover->delete->re-discover: dry-run left 2 objects intact,
+     the real reset deleted them, a fresh federate then discovered 0 (RUNBOOK sec 8). `--dry-run` =
+     discover-only.
+   - NEXT (the remaining Layer-2 units, all LIVE-GATED): **Unit 4 moveIntoFormationTask** (the real
+     fix for the stuck-aggregate finding - serves #1), **Unit 2 Breach**, Unit 5+ HoldObjective/
+     Reconnoiter. Each needs a bridge rebuild (VS18) + a live run.
 5. **Formal golden-trace message diff** (byte-level parity, not just behavioral).
 6. **Housekeeping**: PUSH the branches (port main / fork / SDK are all local-only);
    delete the retained C++ originals (migration step 1); decouple the SDK ProjectReference

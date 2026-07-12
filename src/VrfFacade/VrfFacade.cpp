@@ -42,6 +42,7 @@
 #include <cstring>
 #include <string>
 #include <vector>
+#include <set>
 
 namespace {
     // matches C2SIMinterface.cpp degreesToRadians (a radians<->degrees factor)
@@ -146,6 +147,24 @@ struct VrfFacade::Impl {
     // backing storage so the char* passed to DtRemoteControlInitializer stay alive
     std::vector<std::string> argvStore;
     std::vector<char*> argvPtrs;
+
+    // Every reflected-object UUID discovered on the network after
+    // BeginTrackingReflectedObjects() (deduplicated). Used by the ResetVrf tool to
+    // enumerate + delete everything present (docs/RUNBOOK.md sec 8). Empty otherwise.
+    std::set<std::string> reflectedUuids;
+
+    // UUID-network-manager change callback (matches makVrf::DtUUIDChangedCallback:
+    // void(DtReflectedObject*, const DtUUID&, void*)). usr = this Impl. Fires when the
+    // manager resolves a UUID for a newly discovered entity/aggregate/control object;
+    // registered before the discovery ticks, it accumulates every present object's UUID.
+    // Defined as a static Impl member (not a free function) so it may legally name the
+    // private VrfFacade::Impl - and it keeps all Dt* types out of VrfFacade.h.
+    static void reflectedUuidCallback(DtReflectedObject* /*obj*/, const DtUUID& uuid, void* usr) {
+        Impl* p = static_cast<Impl*>(usr);
+        if (!p) return;
+        const char* s = uuid.uuidString().string();
+        if (s && *s) p->reflectedUuids.insert(std::string(s));
+    }
 
     makVrf::DtVrlinkVrfRemoteController* c() const { return controller; }
 };
@@ -302,6 +321,7 @@ void VrfFacade::Stop() {
     p_->appInit = nullptr;
     p_->uuidMgr = nullptr;
     p_->owns = true;
+    p_->reflectedUuids.clear();
 }
 
 void* VrfFacade::GetController() const { return p_->controller; }
@@ -426,6 +446,21 @@ void VrfFacade::DeleteObject(const std::string& uuid) {
     // Counterpart to createEntity/createAggregate/createRoute/createControlArea. Tells the
     // backend(s) to remove the object; safe no-op if the uuid is unknown to VRF.
     p_->controller->deleteObject(DtUUID(uuid));
+}
+
+void VrfFacade::BeginTrackingReflectedObjects() {
+    // Register on the UUID network manager's per-type change callbacks so every reflected
+    // object's UUID lands in p_->reflectedUuids as it is discovered/resolved. The base
+    // reflected lists expose only first()/last() (no iterator), so callback-collection is
+    // the way to enumerate them. Call BEFORE the first Tick() so no discovery is missed.
+    if (!p_->uuidMgr) return;
+    p_->uuidMgr->addEntityUUIDChangedCallback(&Impl::reflectedUuidCallback, p_);
+    p_->uuidMgr->addAggregateUUIDChangedCallback(&Impl::reflectedUuidCallback, p_);
+    p_->uuidMgr->addEnvironmentalUUIDChangedCallback(&Impl::reflectedUuidCallback, p_);
+}
+
+std::vector<std::string> VrfFacade::GetAllReflectedUuids() const {
+    return std::vector<std::string>(p_->reflectedUuids.begin(), p_->reflectedUuids.end());
 }
 
 void VrfFacade::FireAtTarget(const std::string& uuid, const std::string& targetUuid,

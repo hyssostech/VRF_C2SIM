@@ -5,10 +5,11 @@ c2simVRFinterface (C++) to .NET on top of the HyssosTech C2SIM .NET SDK.
 Read this before re-opening any settled question. ASCII-only per repo policy.
 
 Last updated: 2026-07-11 (Phases 1-5 DONE + two-layer semantic mapping UNDERWAY: Layer-1 verb
-classifier + Unit 3 fires DONE + live-verified, and Solution A delete-on-stop DONE so runs
-self-clean. See sec 8 phase status, sec 10 semantic map + docs/SEMANTIC_MAPPING.md, and
-docs/RUNBOOK.md sec 7 live recipe + sec 8 self-service reset. NEXT: ResetVrf (RUNBOOK sec 8),
-then Unit 4 moveIntoFormation / Unit 2 Breach).
+classifier + Unit 3 fires DONE + live-verified, Solution A delete-on-stop DONE so runs self-clean,
+and ResetVrf hard-reset DONE + live-verified (tools/ResetVrf: join -> discover EVERY reflected
+object -> DeleteObject each; reaches orphans Solution A cannot). See sec 8 phase status, sec 10
+semantic map + docs/SEMANTIC_MAPPING.md, and docs/RUNBOOK.md sec 7 live recipe + sec 8 self-service
+reset. NEXT: Unit 4 moveIntoFormation / Unit 2 Breach).
 
 Two repos are in play:
 - This one: `c2simVRFinterfacev2.36` (the C++ interface being ported; now git-tracked).

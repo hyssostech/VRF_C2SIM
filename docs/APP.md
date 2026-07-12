@@ -11,7 +11,9 @@ Update (2026-07-11): two-layer semantic mapping UNDERWAY - Layer-1 verb classifi
 "Semantic mapping Layer 1" note below + docs/SEMANTIC_MAPPING.md). Solution A (delete-on-stop)
 DONE + live-verified: the app deletes every object it created on clean-stop so runs SELF-CLEAN
 (no manual VR-Forces reload between clean runs; opt-out Vrf:CleanupCreatedOnStop=false,
-RUNBOOK sec 8). NEXT: ResetVrf (RUNBOOK sec 8), then Unit 4 moveIntoFormation / Unit 2 Breach.
+RUNBOOK sec 8). ResetVrf (hard reset for orphans Solution A can't reach) DONE + live-verified -
+the tools/ResetVrf mini-host, NOT the app (join -> discover EVERY reflected object -> DeleteObject
+each; RUNBOOK sec 8). NEXT: Unit 4 moveIntoFormation / Unit 2 Breach.
 
 ## What it is
 

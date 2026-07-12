@@ -215,6 +215,18 @@ public:
     // everything it created so objects don't accumulate across runs - RUNBOOK sec 7/8).
     void DeleteObject(String^ uuid) { _facade->DeleteObject(ToStd(uuid)); }
 
+    // Reflected-object enumeration for a hard VR-Forces reset (RUNBOOK sec 8). Call
+    // BeginTrackingReflectedObjects() right after Start() and before ticking; Tick() a few
+    // seconds so discovery completes; then GetAllReflectedUuids() returns every present
+    // object's uuid to DeleteObject(). Reaches ORPHANS that Solution A cannot (tools/ResetVrf).
+    void BeginTrackingReflectedObjects() { _facade->BeginTrackingReflectedObjects(); }
+    IEnumerable<String^>^ GetAllReflectedUuids() {
+        std::vector<std::string> v = _facade->GetAllReflectedUuids();
+        auto list = gcnew List<String^>((int)v.size());
+        for (const std::string& s : v) list->Add(marshal_as<String^>(s));
+        return list;
+    }
+
     void CreateRoute(IEnumerable<Geodetic>^ points, String^ name) {
         _facade->CreateRoute(ToNativePoints(points), ToStd(name));
     }

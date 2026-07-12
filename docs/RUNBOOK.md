@@ -218,8 +218,9 @@ session need NOT wait on a human to reload:
   reload. (Delete BEFORE resign, and tick a few times to flush the messages.)
 - **`loadScenario(const DtFilename& scnx, ...)`** (:528) / **`newScenario(dbname, guidbname, ...)`**
   (:451) - HARD reset: reload the scenario (or start a fresh one), a full clean slate that also
-  clears orphans from crashes/force-kills that per-object delete cannot reach. Good for a
-  `tools/ResetVrf` helper. Needs the scenario file / terrain-db names the GUI uses.
+  clears orphans from crashes/force-kills that per-object delete cannot reach. An ALTERNATIVE hard
+  reset (Option 2 below), but needs the scenario file / terrain-db names the GUI uses (bogoland has
+  none on disk) - so `tools/ResetVrf` was built on Option 1 (delete-all-reflected) instead.
 - `vrlinkNetworkInterface::removeAndDeleteAll()` / `resetSimulation()` exist too, but are
   network-interface-level (may only clear the LOCAL reflected view, not command the backend);
   `deleteObject` / `loadScenario` are the backend-commanding calls - prefer those.
@@ -232,33 +233,55 @@ logged "Cleanup: deleting 164 created VR-Forces objects ... 164 deletes dispatch
 resigned clean. (Whether VRF fully REMOVES all 164 - incl. disaggregated aggregates/routes - is a
 GUI/next-run confirmation.)
 
-ResetVrf (hard reset) - NOT built yet; TURNKEY PLAN for a fresh session below. With Solution A
-working, this is a RECOVERY lever (clears ORPHANS from crashes/force-kills that Solution A can't
-reach), so it is lower urgency. The GUI scenario is "bogoland" (auto-loads; a built-in MAK terrain). A filesystem search (C:\MAK,
-~/Documents, the user profile) found NO VR-Forces scenario (.scnx) named bogoland - only map
-images (PNGs in the STP SDK, an ArcGIS .org), not a loadable scenario. So Option 2 (loadScenario)
-has no file to point at without the user producing/exporting one; prefer Option 1 below (file-free).
+ResetVrf (hard reset) - DONE + LIVE-VERIFIED (2026-07-11), Option 1 "delete-all-reflected"
+(file-free, clears ANY orphan). With Solution A working this is a RECOVERY lever (clears ORPHANS
+from crashes/force-kills that Solution A can't reach). It is `tools/ResetVrf`, a pure-VR-Forces
+mini-host (SmokeTest-shaped: bare VrfBridge reference + Ijwhost copy, NO C2SIM/STOMP):
 
-RECOMMENDED design - Option 1, "delete-all-reflected" (file-free, clears ANY orphan):
-1. Facade: add `std::vector<std::string> VrfFacade::GetAllReflectedUuids() const` (or a
-   `DeleteAllReflectedObjects()` that also calls deleteObject). Enumerate the reflected objects via
-   the remote object manager. START HERE: `vrlinkNetworkInterface/remoteObjectManager.h` +
-   `UUIDNetworkManager.h` (the facade already holds `p_->uuidMgr`, a DtUUIDNetworkManager, and uses
-   `reflectedObjectFor(uuid)`). Find the list accessors (DtReflectedExtEntityList /
-   DtReflectedExtAggregateList) + their iteration (first()/next() or begin()/end()); collect each
-   reflected object's UUID (DtReflectedObject has a uuid()/entityId()). Mirror the existing
-   TryGetEntityGeodetic pattern for the entity-vs-aggregate split.
-2. Bridge: wrap it (like DeleteObject) -> `IEnumerable<String^> GetAllReflectedUuids()` or
-   `DeleteAllReflectedObjects()`.
-3. Tool: `tools/ResetVrf` mini-host (copy the SmokeTest/tools shape): build a StartupConfig
-   (RTI 4.6.1 env, machine license, fresh appNumber, FED/FOM from appsettings), `bridge.Start()`
-   to JOIN the federation, Tick() ~1-2 s so the current entities REFLECT, then
-   DeleteAllReflectedObjects (or GetAll -> DeleteObject each), Tick() ~2 s to flush, `bridge.Stop()`.
-   No C2SIM/STOMP needed - it is pure VR-Forces. Same LAUNCH ENV as the app (RUNBOOK sec 7).
-4. Verify: after a run leaves objects (or force-kill an app mid-run to make orphans), run ResetVrf,
-   confirm the VR-Forces GUI shows an empty scenario.
+1. Facade (implemented): `VrfFacade::BeginTrackingReflectedObjects()` registers the UUID network
+   manager's per-type change callbacks (addEntity/Aggregate/EnvironmentalUUIDChangedCallback), each
+   accumulating the resolved uuid into a `std::set<std::string>`; `GetAllReflectedUuids()` snapshots
+   it. This is HOW you enumerate reflected objects: the base reflected lists (DtReflectedEntityList /
+   DtReflectedAggregateList / DtReflectedControlObjectList) expose only first()/last() - NO iterator -
+   so callback-collection is the way. The change callback (matches makVrf::DtUUIDChangedCallback:
+   void(DtReflectedObject*, const DtUUID&, void*)) is a STATIC member of VrfFacade::Impl so it can
+   legally name the private Impl AND keep all Dt* out of VrfFacade.h. Register BEFORE the first Tick().
+2. Bridge (implemented): `BeginTrackingReflectedObjects()` + `IEnumerable<String^>^ GetAllReflectedUuids()`.
+   Deletes reuse the existing `DeleteObject(uuid)` (the BACKEND-commanding call - NOT the local-only
+   `removeAndDeleteAll`/`resetSimulation`, which would only clear THIS federate's reflected view).
+3. Tool `tools/ResetVrf/Program.cs`: StartupConfig (HLA, CWIX-2024, FED/FOM matching appsettings,
+   fresh appNumber) -> `bridge.Start()` to JOIN -> `BeginTrackingReflectedObjects()` -> tick until
+   the discovered count stops growing (settle, cap 20 s) -> `GetAllReflectedUuids()` -> DeleteObject
+   each (skipping NIL uuids, below) -> tick ~3 s to flush -> `bridge.Stop()` to RESIGN cleanly.
 
-Option 2 - `loadScenario(bogolandScnx)` / `newScenario(dbname,guidbname)`: simpler facade (one call)
-but needs bogoland's scenario file path (ask the user) or the terrain DB names. Signatures:
-vrfcontrol/vrfRemoteController.h :528 (loadScenario) / :451 (newScenario). Use only if Option 1's
-reflected-list enumeration proves fiddly.
+RUN IT (same LAUNCH ENV as the app - RTI 4.6.1 on PATH, MAKLMGRD_LICENSE_FILE from Machine, cwd =
+VRF bin64, FRESH appNumber; sec 7). PowerShell:
+```
+$env:PATH = "C:\MAK\vrforces5.0.2\bin64;C:\MAK\vrlink5.8\bin64;C:\MAK\makRti4.6.1\bin;$env:PATH"
+$env:MAKLMGRD_LICENSE_FILE = [Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','Machine')
+Push-Location C:\MAK\vrforces5.0.2\bin64
+& <repo>\tools\ResetVrf\bin\Release\net10.0\win-x64\ResetVrf.exe <freshAppNo> [--dry-run]
+Pop-Location
+```
+Args: `[applicationNumber] [federation] [--dry-run]` (defaults 3299 / CWIX-2024). `--dry-run` (alias
+`--list`) DISCOVERS + reports only, issues NO deletes - read-only, safe to see what is present first.
+
+NIL-UUID FILTER: discovery can surface `VRF_UUID:0:0:0` (the entity-identifier nil) - a transient
+pre-resolution form / backend artifact, NOT a created object (the change callback can fire once with
+the nil id then again with the resolved GUID, so both land in the set). ResetVrf SKIPS nil uuids
+(`:0:0:0` suffix or an all-zero GUID); they vanish on their own once the real objects are deleted.
+
+LIVE-VERIFIED (2026-07-11), rigorous discover->delete->re-discover protocol (GUI-independent):
+- dry-run (appNo 3271): 2 deletable objects present -> join+resign -> objects INTACT (the CONTROL: a
+  join+resign WITHOUT a delete leaves them, so resign is not what removes them).
+- real reset (appNo 3272): discovered 3 (2 deletable + 1 nil skipped) -> 2 deleteObject issued -> resign.
+- fresh dry-run (appNo 3273): a brand-new federate discovered 0 objects. So deleteObject REMOVED them
+  from the BACKEND (not just this federate's view). The controlled comparison (dry-run left them,
+  real-run removed them) isolates deleteObject as the cause. Every run joined RTI 4.6.1 and resigned
+  clean (no stale federate).
+
+Option 2 (NOT built) - `loadScenario(scnx)` / `newScenario(dbname,guidbname)`: simpler facade (one
+call) but the GUI scenario "bogoland" (a built-in MAK terrain) has NO loadable .scnx on disk (search
+of C:\MAK, ~/Documents, the profile found only map images), so loadScenario has no file to point at
+without the user exporting one. Signatures: vrfcontrol/vrfRemoteController.h :528 (loadScenario) /
+:451 (newScenario). Option 1 above is file-free and clears ANY orphan, so it is preferred.

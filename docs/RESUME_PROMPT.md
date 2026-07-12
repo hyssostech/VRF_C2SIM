@@ -46,16 +46,21 @@ via opt-in `Vrf:AggregateFormation`). Newer work (2026-07-11), on top of that:
 - SOLUTION A (delete-on-stop) DONE + LIVE-VERIFIED: the app deletes every object it created on
   clean-stop, so runs SELF-CLEAN (164 objects deleted, GUI empty) - NO more manual VR-Forces reloads
   between clean runs. Opt-out `Vrf:CleanupCreatedOnStop=false`.
-Latest port HEAD `340d608` (29 ahead of origin/main); ALL local/UNPUSHED.
+- ResetVrf (HARD reset) DONE + LIVE-VERIFIED (RUNBOOK sec 8): `tools/ResetVrf` - a pure-VR-Forces
+  mini-host (no C2SIM) that joins the federation, discovers EVERY reflected object (facade
+  `BeginTrackingReflectedObjects`/`GetAllReflectedUuids` via the UUID network manager's change
+  callbacks - the base reflected lists have NO iterator), and `DeleteObject`s each (nil uuids
+  skipped). Reaches ORPHANS Solution A can't. `--dry-run` = discover-only. Verified by a controlled
+  discover->delete->re-discover: dry-run left 2 objects intact, the real reset deleted them, a fresh
+  federate then discovered 0 (so deleteObject commands the BACKEND, not just the local view).
+Latest port HEAD `6e32f8d`+ (docs+ResetVrf on top; run git log); ALL local/UNPUSHED.
 
 NEXT (START_HERE #4 + RUNBOOK sec 8):
-1. THE IMMEDIATE TASK - ResetVrf tool (hard reset for ORPHANS from crashes/force-kills that
-   Solution A cannot reach). TURNKEY PLAN in RUNBOOK sec 8 (Option 1 delete-all-reflected,
-   file-free; Option 2 loadScenario needs bogoland's .scnx path).
-2. Unit 4: `moveIntoFormationTask` - the REAL fix for the stuck-aggregate finding (the original
-   "aggregate deep-dive"; serves it). Then Unit 2: Breach (DtBreachTask). Unit 5+: HoldObjective
-   (SECURE/OCCUPY/...) / Reconnoiter (SCREEN/SCOUT).
-3. Report parity polish (health/dedup/bundling); deferred sec-6 bug fixes + OnObjectInitialization
+1. THE IMMEDIATE TASK - Unit 4: `moveIntoFormationTask` - the REAL fix for the stuck-aggregate
+   finding (the original "aggregate deep-dive"; serves it). Then Unit 2: Breach (DtBreachTask).
+   Unit 5+: HoldObjective (SECURE/OCCUPY/...) / Reconnoiter (SCREEN/SCOUT). Each needs a bridge
+   rebuild (VS18) + a live run; ResetVrf now clears the federation between live runs.
+2. Report parity polish (health/dedup/bundling); deferred sec-6 bug fixes + OnObjectInitialization
    stub; formal golden-trace diff; housekeeping (PUSH branches, delete C++ originals, decouple SDK,
    decide on `data/`).
 

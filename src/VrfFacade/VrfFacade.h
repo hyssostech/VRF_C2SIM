@@ -194,6 +194,21 @@ public:
     // runs (accumulation degrades create/route reflection - see docs/RUNBOOK.md sec 7/8).
     void DeleteObject(const std::string& uuid);
 
+    // -- reflected-object enumeration (hard VR-Forces reset) ------
+    // Start collecting the VRF UUID of EVERY object the facade discovers on the network
+    // (entities, aggregates, control objects), via the UUID network manager's change
+    // callbacks. Call ONCE right after Start() and BEFORE the first Tick(); then Tick() for
+    // a few seconds so discovery + UUID resolution complete; then read GetAllReflectedUuids().
+    // Intended for the ResetVrf tool: join a live federation, discover EVERYTHING present
+    // (incl. ORPHANS left by a crashed/force-killed run that Solution A's delete-on-stop
+    // cannot reach), and DeleteObject() each for a full clean slate (docs/RUNBOOK.md sec 8).
+    // Not for the app's normal path (it tracks only what IT created). Single-threaded use:
+    // the callbacks fire on the tick thread; snapshot between ticks.
+    void BeginTrackingReflectedObjects();
+
+    // Snapshot (de-duplicated) of the UUIDs collected since BeginTrackingReflectedObjects().
+    std::vector<std::string> GetAllReflectedUuids() const;
+
     // -- object creation (asynchronous) ---------------------------
     // These return immediately; completion arrives via OnObjectCreated
     // with a matching 'name'. The caller correlates and may then use the
