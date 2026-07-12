@@ -1,6 +1,8 @@
 # Two-layer semantic mapping: C2SIM TaskActionCode -> VR-Forces vrftasks
 
-Status: IN PROGRESS (port-grounded plan, started 2026-07-11). This is the port's
+Status: IN PROGRESS (port-grounded plan, started 2026-07-11; corrected 2026-07-12 per the
+deep-review deliverable docs/NEXT_SESSION_GUIDANCE.md - Unit 4 REOPENED, Unit 2/5 dead-end
+explanations fixed, orchestration defects P0.1-P0.3 landed). This is the port's
 authoritative plan for START_HERE "immediate next task" #4 / PORT.md sec 10. It
 SUPERSEDES docs/TASK_EXPANSION_PLAN.md, which was written against the deprecated C++
 interface and prioritized verbs the real orders do not use (see re-grounding below).
@@ -124,12 +126,14 @@ Notes:
    `Breach` (DtBreachTask); dispatch BREACH -> resolve affected obstacle -> Breach deferred AFTER
    the approach MoveAlongRoute (parallel to the ATTACK fire), plus breach-in-place (no points) and
    breach-after-MoveToLocation (single point). Bridge + app build 0/0; `--verb-selftest` green
-   (BREACH now Implemented). LIVE (COA-STP1): the BREACH task DISPATCHED without crashing, but its
-   affected OBSTACLE (a map graphic, uuid 6977b035...) did NOT resolve to a distinct VRF unit we
-   created -> degraded to advance-only (correct fallback). So the breach ENGAGEMENT itself is not
-   yet exercised: COA-STP1 breach obstacles are map graphics, not init-created entities, so
-   TryResolveVrfUuid misses them - a synthetic order (or resolving obstacle graphics) is needed to
-   drive a real DtBreachTask, same shape as the Unit-3 synthetic-target gap.
+   (BREACH now Implemented). LIVE (COA-STP1): the BREACH task DISPATCHED without crashing but
+   degraded to advance-only (correct fallback). CORRECTED 2026-07-12 (guidance sec 2.3): the
+   earlier "breach obstacles are map graphics that TryResolveVrfUuid misses" explanation was
+   WRONG - the order has ZERO MapGraphicID elements; resolution SUCCEEDS and the DISTINCT-target
+   guard correctly rejects it, because ALL 42 COA-STP1 tasks (not just the 19 ATTACK-family ones)
+   have AffectedEntity == PerformingEntity. So BREACH can NEVER dispatch its DtBreachTask from
+   this order at ANY run length - a synthetic order with a distinct obstacle-like affected entity
+   is REQUIRED, same shape as the Unit-3 synthetic-target test (guidance sec 5).
 3. [Unit 3 - CODE DONE + BUILD-VERIFIED + PARTIAL LIVE 2026-07-11] Fires: facade
    `FireAtTarget` (DtFireAtTargetTask, autoSelectWeapon) -> bridge -> dispatch
    ATTACK/DESTRY/FIX/DISRPT/PENTRT. Resolves the affected entity via TryResolveVrfUuid; issues
@@ -168,33 +172,48 @@ Notes:
    engage confirmed; no crash. UNIT 3 IS DONE (build + offline + full live). The remaining
    move-vs-fire nuance (does the unit visibly close+destroy the target, ROE/force-permitting) is
    a VRF-behavior observation, not a code question.
-4. [Unit 4 - CODE DONE + BUILD + LIVE-TESTED 2026-07-11, commit faa4398. RESULT: NEGATIVE -
-   MoveIntoFormation is NOT the stuck-aggregate fix.] Facade `MoveIntoFormation`
-   (DtMoveIntoFormationTask: setLocation + setHeading + setFormationName) -> bridge -> dispatch:
-   opt-in via `Vrf:MoveIntoFormation` (formation name; "" = off), AGGREGATE-only; an aggregate move
-   issues it to the route's FINAL point (heading = bearing to destination) INSTEAD of moveAlongRoute
-   + SetAggregateFormation. Entity moves unchanged (golden parity). Build 0/0; --verb-selftest green.
+4. [Unit 4 - CODE DONE + BUILD + LIVE-TESTED 2026-07-11, commit faa4398. The negative run stands,
+   but the RULED-OUT verdict is RETRACTED 2026-07-12 - the experiment was confounded; REOPENED.]
+   Facade `MoveIntoFormation` (DtMoveIntoFormationTask: setLocation + setHeading +
+   setFormationName) -> bridge -> dispatch: opt-in via `Vrf:MoveIntoFormation` (formation name;
+   "" = off), AGGREGATE-only; an aggregate move issues it to the route's FINAL point (heading =
+   bearing to destination) INSTEAD of moveAlongRoute + SetAggregateFormation. Entity moves
+   unchanged (golden parity). Build 0/0; --verb-selftest green.
    LIVE RUN (COA-STP1, clientId C2SIM, Vrf:MoveIntoFormation=Wedge, 20x): the app late-joined 128
-   units, and dispatched MoveIntoFormation to **35 aggregate tasks** with valid destinations,
-   headings, and formation 'Wedge' - **0 tick failures / 0 SEH / 0 abandon** (the command path is
-   sound). BUT: only 1 task COMPLETED the whole run (a move-along ENTITY, not a formation move), a
-   position diff (t=0 vs t+5min) showed only 2 of 128 units moved >50m (the move-along entities),
-   and the USER CONFIRMED VISUALLY: **no aggregate movement on the GUI.** So DtMoveIntoFormationTask
-   dispatches perfectly but does NOT move the DISAGGREGATED COA-STP1 aggregates - it is actually
-   WORSE than Wedge+moveAlongRoute (which moved ~3/32; sec 10). STRONG HYPOTHESIS: MoveIntoFormation
-   is for AGGREGATED aggregates; a disaggregated set (createSubordinates=true) does not respond to
-   it. CONCLUSION: Unit 4 does not solve the stuck-aggregate problem. Keep it opt-in (default off)
-   as a tested-but-ineffective lever; the deep-dive continues with a DIFFERENT approach - candidates
-   (sec 10 table): `planAndMoveToTask` (pathfinding move-to, may move a disaggregated set), tasking
-   the SUBORDINATES individually, aggregating the set first (createSubordinates=false) then moving,
-   or a per-unit-type formation. Requires the next live experiment (user-directed).
+   units and dispatched MoveIntoFormation ~35 times - NOTE: to only 11 DISTINCT performers
+   (COA-STP1 has 11 PerformingEntity uuids across its 42 tasks; each unit was retasked up to 4x) -
+   with valid destinations, headings, and formation 'Wedge'; 0 tick failures / 0 SEH / 0 abandon
+   (the command path is sound). BUT: only 1 task COMPLETED the whole run (a move-along ENTITY), a
+   position diff (t=0 vs t+5min) showed only 2 of 128 units moved >50m, and the USER CONFIRMED
+   VISUALLY: no aggregate movement on the GUI.
+   REOPENED 2026-07-12 (NEXT_SESSION_GUIDANCE.md sec 2.2 - the "needs AGGREGATED sets" hypothesis
+   and the settled-negative verdict are UNSAFE as recorded):
+   - MAK's own help says the OPPOSITE of the hypothesis: Move Into Formation IS for DISAGGREGATED
+     ground units ("You can order a disaggregated ground unit to move to a formation at a
+     specified location..."; for AGGREGATED units it is merely equivalent to a Set-Formation
+     request). [doc/help/Content/Tasks/MovementTasks/FormationMoveInto.htm]
+   - The experiment never repaired the invalid CURRENT formation: the MoveIntoFormation path
+     early-returns BEFORE the Wedge enrichment, so every target still held the invalid
+     "column-left" state formation when tasked - and Title-Case "Wedge" was the wrong case for
+     most of the 11 units anyway (scout/platoon DIS types match the Ground_Aggregate catch-all,
+     whose formation names are LOWERCASE; guidance sec 2.1 root cause).
+   - The run was confounded by the orchestration defects fixed 2026-07-12 (P0.1 completion
+     misattribution + P0.2 predecessor-timeout retask bursts: units retasked mid-move, so which
+     task "stuck" was arbitrary).
+   DISPOSITION: keep `Vrf:MoveIntoFormation` default-off; RE-TEST per guidance sec 4 E2, but only
+   AFTER E1 (per-matched-type formation names) lands and moves units.
 5. [Unit 5 - Reconnoiter + Escort DONE + BUILD 2026-07-11, commit faa4398; HoldObjective + Clear
    are documented bare-move fallbacks] Reconnoiter (SCREEN/SCOUT) -> DtPatrolRouteTask (patrol the
    created route instead of moving along once, deferred to route-created). Escort (ESCRT) ->
    DtFollowEntityTask on the resolved escorted entity (dynamic, no route). Build 0/0; --verb-selftest
-   green (SCREEN/ESCRT Implemented). NOT behaviorally live-exercised in the COA-STP1 run: the SCREEN
-   (3) / ESCRT (1) tasks are temporally GATED (startAfterTaskUuid) and did not dispatch within the
-   run window (PatrolRoute issued 0, FollowEntity 0) - needs a longer run or an ungated order.
+   green (SCREEN/ESCRT Implemented). NOT behaviorally live-exercised in the COA-STP1 run
+   (PatrolRoute issued 0, FollowEntity 0). CORRECTED 2026-07-12 (guidance sec 2.3): the "gated
+   tasks did not dispatch in the run window; needs a longer run" explanation holds ONLY for
+   SCREEN (all 3 are gated; T24 also has no Location and can never patrol). ESCRT can NEVER
+   dispatch DtFollowEntityTask from COA-STP1 at any run length: its task self-targets
+   (AffectedEntity == PerformingEntity, like ALL 42 tasks) and the distinct-entity guard rejects
+   it. Exercising Escort requires a synthetic order - and FIRST the FollowEntity zero-offset fix
+   (guidance sec 6 P3.5: today the follower stations itself ON the leader).
    HoldObjective (SECURE/OCCUPY/SEIZE/RETAIN/BLOCK/DEFEND/GUARD) and Clear (CLRLND) STAY bare-move
    fallbacks: DtHoldUntilTask needs a sim-clock stop time (marginal over a route that already ends
    at the objective), and Clear is an undesigned composite (NOT DtClearTask, which is task-cancel).
@@ -208,9 +227,11 @@ Notes:
   (classification) and that the command stream is well-formed.
 - Affected-entity scope (sec 2b): targets may be OPFOR units not created by our clientId.
   Degrade-to-move + warn is the safe fallback; confirm real coa-gpt target scoping live.
-- Task interaction: issuing move + a second task (breach/fire) in the same dispatch may
-  race in VRF (last-task-wins) - the right sequencing (task queue vs. deferred-on-arrival,
-  like the existing route-created deferral) must be validated live per verb.
+- Task interaction: RESOLVED IN CODE 2026-07-12 (P0.3). VRF replaces the current task on a
+  new dispatch (last-task-wins), so the ATTACK/BREACH engage is now issued when the unit's
+  move COMPLETES (attributed via the P0.1 in-flight record), with a Vrf:EngageFallbackSeconds
+  fallback for moves that never complete. Live confirmation of the composed behavior
+  (advance -> engage) still pends a synthetic-order run.
 - Exact verb spellings are now GROUNDED for COA-STP1 + VRF-Approved (sec 2a); a new order
   could introduce an unlisted code -> it classifies as Move (fallback) + logs. Re-grep new
   orders and extend the table.

@@ -41,35 +41,40 @@ public sealed class VrfC2SimService : BackgroundService
     // looks the taskee up in the C++ unit map by taskeeUuid (C2SIMinterface.cpp:2044).
     private readonly ConcurrentDictionary<string, CreatedUnit> _unitByC2SimUuid = new();
 
-    // Route name -> taskee VRF uuid, for a move deferred until the route's ObjectCreated
-    // fires. Mirrors executeTask waiting for the route to register before moveAlongRoute
-    // (C2SIMinterface.cpp:2408-2421): createRoute is async, so MoveAlongRoute cannot be
-    // issued in the same tick as CreateRoute.
-    private readonly ConcurrentDictionary<string, string> _pendingRouteMove = new();
+    // Route name -> FIFO of tasks waiting for that route's ObjectCreated (the along-route
+    // task cannot be issued in the same tick as the async CreateRoute; parity:
+    // C2SIMinterface.cpp:2408-2421). A QUEUE, not a single slot: the VRF callback carries
+    // only the created object's NAME, and duplicate TaskNames produce identical route
+    // names - FIFO is the best possible attribution (a second same-named entry no longer
+    // silently overwrites the first). Patrol=true issues PatrolRoute (Reconnoiter)
+    // instead of MoveAlongRoute.
+    private readonly record struct PendingRouteTask(string TaskeeVrfUuid, bool Patrol);
+    private readonly ConcurrentDictionary<string, ConcurrentQueue<PendingRouteTask>> _pendingRouteTasks = new();
 
-    // Route name -> (taskee VRF uuid, target VRF uuid), for an ATTACK-family fire deferred
-    // to AFTER the MoveAlongRoute is issued (advance the axis, THEN engage). Layer 2 of the
-    // semantic map (SEMANTIC_MAPPING.md); issued in OnVrfObjectCreated alongside the move.
-    private readonly ConcurrentDictionary<string, (string Taskee, string Target)> _pendingRouteFire = new();
-
-    // Route name -> (taskee VRF uuid, breach-target VRF uuid), for a BREACH deferred to AFTER the
-    // approach MoveAlongRoute (advance to the obstacle, THEN breach it). Layer 2 Unit 2.
-    private readonly ConcurrentDictionary<string, (string Taskee, string Target)> _pendingRouteBreach = new();
-
-    // Route name -> taskee VRF uuid, for a RECONNOITER (SCREEN/SCOUT) that PATROLS its route
-    // instead of moving along it once: on route-created, issue PatrolRoute instead of
-    // MoveAlongRoute. Layer 2 (Reconnoiter); disjoint from _pendingRouteMove.
-    private readonly ConcurrentDictionary<string, string> _pendingRoutePatrol = new();
+    // Unit name -> the ATTACK/BREACH engage deferred until that unit's move COMPLETES
+    // (P0.3, NEXT_SESSION_GUIDANCE.md sec 2.5: issuing the engage in the same tick as the
+    // move would REPLACE the move - VRF runs one task at a time). Issued from
+    // OnVrfTaskCompleted when the matching move task uuid completes, or by the
+    // EngageFallbackSeconds timer if the move never completes.
+    private readonly record struct PendingEngage(string Kind, string TaskeeVrf, string TargetVrf,
+                                                 string MoveTaskUuid, string TaskName);
+    private readonly ConcurrentDictionary<string, PendingEngage> _pendingEngage = new();
 
     // Object name -> C2SIM unit uuid (inverse of _unitByC2SimUuid), so the VRF report
     // callbacks - which carry the object's marking/name, not its C2SIM uuid - can name the
     // subject of a report (parity: onTaskCompleted/onTextReport getUnitByName -> unit->uuid).
     private readonly ConcurrentDictionary<string, string> _c2SimUuidByName = new();
 
-    // Object name -> its current task's C2SIM uuid, set when OnOrder dispatches a task
-    // (parity: setUnitCurrentTaskUuid, C2SIMinterface.cpp:2165), read by OnVrfTaskCompleted
-    // to fill the TaskStatus report's CurrentTask.
-    private readonly ConcurrentDictionary<string, string> _currentTaskUuidByName = new();
+    // Per-unit in-flight task record (P0.1, replaces the last-write current-task map whose
+    // completion misattribution corrupted TASKCMPLT reports + released the wrong successor
+    // gates - NEXT_SESSION_GUIDANCE.md sec 2.4 DEFECT A). Written at dispatch
+    // (MarkDispatched), popped at completion (OnVrfTaskCompleted); fills the TaskStatus
+    // report's CurrentTask (parity: setUnitCurrentTaskUuid, C2SIMinterface.cpp:2165).
+    private readonly InFlightTracker _inFlight = new();
+
+    // Control-area keys (uuid or name) already queued for creation - the duplicate-init
+    // guard for areas (units use _unitByC2SimUuid membership for the same purpose).
+    private readonly ConcurrentDictionary<string, byte> _createdAreaKeys = new();
 
     // Sequences task starts (predecessor completion + start delay), replacing the C++
     // busy-waits with async gating + a timeout. See TaskSequencer.
@@ -312,11 +317,15 @@ public sealed class VrfC2SimService : BackgroundService
         try { init = InitParser.Parse(body); }
         catch (Exception ex) { _log.LogError("Init parse failed: {Msg}", ex.Message); return; }
 
-        int planned = 0;
+        int planned = 0, matched = 0, duplicates = 0;
         foreach (var u in init.Units)
         {
             if (string.IsNullOrEmpty(u.Uuid)) continue;
             if (u.SystemName != _vrf.ClientId) continue;          // only our units (RUNBOOK sec 2)
+            matched++;
+            // Guard duplicate init delivery (late-join QUERYINIT + a broadcast can both
+            // arrive): a unit we already planned/created must not be created twice.
+            if (_unitByC2SimUuid.ContainsKey(u.Uuid)) { duplicates++; continue; }
             if (string.IsNullOrEmpty(u.HostilityCode))
             {
                 _log.LogWarning("Unit {Name} missing Hostility - skipping.", u.Name);
@@ -355,8 +364,12 @@ public sealed class VrfC2SimService : BackgroundService
             planned++;
         }
 
+        int areasQueued = 0;
         foreach (var a in init.Areas)
         {
+            // Same duplicate-delivery guard for areas (keyed by uuid, falling back to name).
+            string areaKey = "area:" + (string.IsNullOrEmpty(a.Uuid) ? a.Name : a.Uuid);
+            if (!_createdAreaKeys.TryAdd(areaKey, 0)) { duplicates++; continue; }
             var area = a;
             _tickActions.Enqueue(() =>
             {
@@ -365,10 +378,28 @@ public sealed class VrfC2SimService : BackgroundService
                     .ToList();
                 _bridge.CreateControlArea(pts, area.Name, "TacticalArea", area.Uuid);
             });
+            areasQueued++;
+        }
+
+        if (duplicates > 0)
+            _log.LogWarning("Init ({Source}): skipped {N} units/areas ALREADY created " +
+                            "(duplicate init delivery - late-join + broadcast?).", source, duplicates);
+
+        // Fail LOUDLY when nothing matched the clientId (a silent 0 here cost live-run time:
+        // appsettings ships ClientId=STP, but e.g. the COA-STP1 init needs C2SIM). `matched`
+        // not `planned` - units that matched but were skipped for missing fields already
+        // warned individually and must not masquerade as a ClientId mismatch.
+        if (matched == 0 && init.Units.Count > 0)
+        {
+            var systemNames = string.Join(", ", init.Units
+                .Select(u => u.SystemName).Where(s => !string.IsNullOrEmpty(s)).Distinct());
+            _log.LogError("Init ({Source}): 0 of {N} units matched Vrf:ClientId='{Id}' - NOTHING will be " +
+                          "created or taskable. Init SystemName(s): [{Names}]. Set Vrf:ClientId to match " +
+                          "(RUNBOOK sec 2).", source, init.Units.Count, _vrf.ClientId, systemNames);
         }
 
         _log.LogInformation("Init dispatched: {Units} units + {Areas} areas queued for creation.",
-                            planned, init.Areas.Count);
+                            planned, areasQueued);
     }
 
     private void OnObjectInitialization(object sender, C2SIMSDK.C2SIMNotificationEventParams e)
@@ -392,11 +423,15 @@ public sealed class VrfC2SimService : BackgroundService
         try { order = OrderParser.Parse(e.Body); }
         catch (Exception ex) { _log.LogError("Order parse failed: {Msg}", ex.Message); return; }
 
+        foreach (var w in order.Warnings)
+            _log.LogWarning("Order parse: {Warning}", w);
+
         foreach (var task in order.Tasks)
         {
             if (string.IsNullOrEmpty(task.TaskeeUuid))
             {
                 _log.LogWarning("Order task '{Name}' has no PerformingEntity - skipping.", task.TaskName);
+                _sequencer.NotifyAbandoned(task.TaskUuid); // successors fail fast, not slow-timeout
                 continue;
             }
             // Parity: executeTask errors if the taskee was never in the initialization
@@ -405,6 +440,7 @@ public sealed class VrfC2SimService : BackgroundService
             {
                 _log.LogError("TASKEEUUID {Uuid} NOT FOUND IN C2SIMINITIALIZATION - CANNOT EXECUTE TASK '{Name}'.",
                               task.TaskeeUuid, task.TaskName);
+                _sequencer.NotifyAbandoned(task.TaskUuid);
                 continue;
             }
             // Orchestrate the task off-thread: wait for its predecessor + start delay
@@ -424,16 +460,35 @@ public sealed class VrfC2SimService : BackgroundService
             var timeout = TimeSpan.FromSeconds(Math.Max(1, _vrf.TaskPredecessorTimeoutSeconds));
             var gate = await _sequencer.WaitForStartAsync(task.StartAfterTaskUuid, task.SimulationStartMs,
                                                           task.RelativeDelayMs, timeout, _stoppingToken);
-            if (gate == GateResult.PredecessorTimeout)
-                _log.LogWarning("Task '{Task}' predecessor {Pred} did not complete within {Secs}s; " +
-                                "dispatching anyway (not hanging - the C++ busy-wait bug).",
-                                task.TaskName, task.StartAfterTaskUuid, _vrf.TaskPredecessorTimeoutSeconds);
+            if (gate != GateResult.Proceed)
+            {
+                // P0.2 (DEFECT B): the predecessor never completed. The OLD behavior always
+                // dispatched anyway, so all gated tasks burst-retasked their units together
+                // (VRF runs ONE task at a time - each retask REPLACED the in-flight task
+                // mid-route). Policy now decides; default is skip.
+                string why = gate == GateResult.PredecessorAbandoned
+                    ? "was skipped/abandoned upstream"
+                    : $"did not complete within {_vrf.TaskPredecessorTimeoutSeconds}s of its dispatch";
+                string policy = (_vrf.PredecessorTimeoutPolicy ?? "skip").Trim().ToLowerInvariant();
+                bool busy = _inFlight.IsBusy(unit.Name);
+                bool dispatch = policy == "force" || (policy == "whenidle" && !busy);
+                _log.LogWarning("Task '{Task}' predecessor {Pred} {Why}; policy={Policy}, unit {Name} is {State} " +
+                                "-> {Action}.", task.TaskName, task.StartAfterTaskUuid, why,
+                                policy, unit.Name, busy ? "BUSY (task in flight)" : "idle",
+                                dispatch ? "dispatching" : "NOT dispatched");
+                if (!dispatch)
+                {
+                    _sequencer.NotifyAbandoned(task.TaskUuid); // successors fail fast
+                    return;
+                }
+            }
             _tickActions.Enqueue(() => ExecuteTaskOnTick(task, unit));
         }
         catch (OperationCanceledException) { /* service stopping */ }
         catch (Exception e)
         {
             _log.LogError("Task '{Task}' orchestration failed: {Msg}", task.TaskName, e.Message);
+            _sequencer.NotifyAbandoned(task.TaskUuid);
         }
     }
 
@@ -452,13 +507,13 @@ public sealed class VrfC2SimService : BackgroundService
         {
             _log.LogWarning("DROPPING TASK '{Task}' BECAUSE UNIT {Uuid} ({Name}) WAS NOT CREATED.",
                             task.TaskName, task.TaskeeUuid, unit.Name);
+            _sequencer.NotifyAbandoned(task.TaskUuid);
             return;
         }
 
-        // Record this task as the unit's current task (parity: setUnitCurrentTaskUuid,
-        // :2165) so OnVrfTaskCompleted can name it in the TaskStatus report.
-        if (!string.IsNullOrEmpty(task.TaskUuid))
-            _currentTaskUuidByName[unit.Name] = task.TaskUuid;
+        // The unit's in-flight record (P0.1) is written by MarkDispatched at each point a
+        // VRF task is actually issued below - NOT here, so a task that aborts before
+        // tasking VRF does not clobber the unit's real in-flight task.
 
         // LAYER 1 of the two-layer semantic map (docs/SEMANTIC_MAPPING.md): classify the
         // C2SIM verb. TODAY this only surfaces the semantic gap - every verb still executes
@@ -531,6 +586,7 @@ public sealed class VrfC2SimService : BackgroundService
                               : task.RuleOfEngagementCode == "ROEHold" ? Roe.HoldFire
                               : Roe.FireWhenFiredUpon;
                 _bridge.SetRulesOfEngagement(vrfUuid, escortRoe);
+                MarkDispatched(task, unit, "follow");
                 _bridge.FollowEntity(vrfUuid, follow);
                 _log.LogInformation("ESCRT task '{Task}': FollowEntity {Vrf} -> {Tgt} (escort; no route).",
                                     task.TaskName, vrfUuid, follow);
@@ -554,6 +610,7 @@ public sealed class VrfC2SimService : BackgroundService
         {
             _log.LogWarning("ABANDONING TASK '{Task}': could not read live location for {Name} ({Vrf}).",
                             task.TaskName, unit.Name, vrfUuid);
+            _sequencer.NotifyAbandoned(task.TaskUuid);
             return;
         }
 
@@ -566,8 +623,11 @@ public sealed class VrfC2SimService : BackgroundService
         // an ATTACK with a resolved target needs no route - engage the target in place.
         if (task.Points.Count == 0)
         {
+            // In-place engagements (no move to wait for) stay immediate - P0.3 gates only
+            // the advance-THEN-engage compositions.
             if (attackTargetVrf != null)
             {
+                MarkDispatched(task, unit, "fire");
                 _bridge.FireAtTarget(vrfUuid, attackTargetVrf);
                 _log.LogInformation("ATTACK task '{Task}': no route points; FireAtTarget {Vrf} -> {Tgt} (engage in place).",
                                     task.TaskName, vrfUuid, attackTargetVrf);
@@ -575,12 +635,14 @@ public sealed class VrfC2SimService : BackgroundService
             }
             if (breachTargetVrf != null)
             {
+                MarkDispatched(task, unit, "breach");
                 _bridge.Breach(vrfUuid, breachTargetVrf);
                 _log.LogInformation("BREACH task '{Task}': no route points; Breach {Vrf} -> {Tgt} (breach in place).",
                                     task.TaskName, vrfUuid, breachTargetVrf);
                 return;
             }
             _log.LogError("NO LOCATION GIVEN - CAN'T EXECUTE TASK '{Task}'.", task.TaskName);
+            _sequencer.NotifyAbandoned(task.TaskUuid);
             return;
         }
         foreach (var p in task.Points)
@@ -615,25 +677,18 @@ public sealed class VrfC2SimService : BackgroundService
         {
             var dest = routeGeo[^1];
             double headingDeg = BearingDeg(routeGeo[0], dest);
+            MarkDispatched(task, unit, "move-into-formation");
             _bridge.MoveIntoFormation(vrfUuid, dest, headingDeg, _vrf.MoveIntoFormation);
             _log.LogInformation("Task '{Task}': MoveIntoFormation for AGGREGATE {Name} ({Vrf}) -> " +
                                 "{Lat}/{Lon} formation '{Form}' hdg {Hdg:F0}deg (Unit 4; {N} route pts -> destination).",
                                 task.TaskName, unit.Name, vrfUuid, dest.LatDeg, dest.LonDeg,
                                 _vrf.MoveIntoFormation, headingDeg, routeGeo.Count);
-            // Preserve ATTACK/BREACH semantics on this early return: an aggregate that also has a
-            // resolved engagement target advances in formation THEN engages (don't silently drop it).
+            // Preserve ATTACK/BREACH semantics on this early return - but COMPLETION-GATED
+            // (P0.3): issuing the engage now would REPLACE the formation move just issued.
             if (attackTargetVrf != null)
-            {
-                _bridge.FireAtTarget(vrfUuid, attackTargetVrf);
-                _log.LogInformation("ATTACK task '{Task}': FireAtTarget {Vrf} -> {Tgt} after MoveIntoFormation.",
-                                    task.TaskName, vrfUuid, attackTargetVrf);
-            }
+                DeferEngageUntilMoveCompletes(unit, task, "fire", vrfUuid, attackTargetVrf);
             if (breachTargetVrf != null)
-            {
-                _bridge.Breach(vrfUuid, breachTargetVrf);
-                _log.LogInformation("BREACH task '{Task}': Breach {Vrf} -> {Tgt} after MoveIntoFormation.",
-                                    task.TaskName, vrfUuid, breachTargetVrf);
-            }
+                DeferEngageUntilMoveCompletes(unit, task, "breach", vrfUuid, breachTargetVrf);
             return;
         }
 
@@ -653,23 +708,16 @@ public sealed class VrfC2SimService : BackgroundService
         // Single point -> MoveToLocation; otherwise CreateRoute then move along it (:2393).
         if (routeGeo.Count == 1)
         {
+            MarkDispatched(task, unit, "move-to");
             _bridge.MoveToLocation(vrfUuid, routeGeo[^1]);
             _log.LogInformation("Task '{Task}': MoveToLocation for {Name} ({Vrf}).",
                                 task.TaskName, unit.Name, vrfUuid);
-            // Layer 2: ATTACK-family engages the resolved target after closing to the point.
+            // Layer 2 + P0.3: engage/breach AFTER the move COMPLETES (same-tick issue would
+            // replace the move - VRF runs one task at a time).
             if (attackTargetVrf != null)
-            {
-                _bridge.FireAtTarget(vrfUuid, attackTargetVrf);
-                _log.LogInformation("ATTACK task '{Task}': FireAtTarget {Vrf} -> {Tgt} after move.",
-                                    task.TaskName, vrfUuid, attackTargetVrf);
-            }
-            // Layer 2: BREACH breaches the obstacle after closing to the point.
+                DeferEngageUntilMoveCompletes(unit, task, "fire", vrfUuid, attackTargetVrf);
             if (breachTargetVrf != null)
-            {
-                _bridge.Breach(vrfUuid, breachTargetVrf);
-                _log.LogInformation("BREACH task '{Task}': Breach {Vrf} -> {Tgt} after move.",
-                                    task.TaskName, vrfUuid, breachTargetVrf);
-            }
+                DeferEngageUntilMoveCompletes(unit, task, "breach", vrfUuid, breachTargetVrf);
             return;
         }
 
@@ -679,19 +727,99 @@ public sealed class VrfC2SimService : BackgroundService
         // Layer 2: RECONNOITER (SCREEN/SCOUT) PATROLS the route (back and forth) instead of
         // moving along it once - defer PatrolRoute; every other verb defers MoveAlongRoute.
         bool patrol = verb.Intent == TaskIntent.Reconnoiter;
-        if (patrol)
-            _pendingRoutePatrol[routeName] = vrfUuid;
-        else
-            _pendingRouteMove[routeName] = vrfUuid;
-        // Layer 2: defer the ATTACK-family fire / BREACH to AFTER the along-route task (advance the
-        // axis / approach the obstacle, THEN engage / breach) - issued in OnVrfObjectCreated.
+        var routeQueue = _pendingRouteTasks.GetOrAdd(routeName, _ => new ConcurrentQueue<PendingRouteTask>());
+        if (!routeQueue.IsEmpty)
+            _log.LogWarning("Route name '{Route}' already has {N} pending task(s) - duplicate TaskName in " +
+                            "the order; same-named routes are matched FIFO as they are created.",
+                            routeName, routeQueue.Count);
+        routeQueue.Enqueue(new PendingRouteTask(vrfUuid, patrol));
+        // The unit is committed to this move now (the route-created callback issues the
+        // along-route task); record it so the completion attributes here (P0.1) and any
+        // engage below gates on it (P0.3).
+        MarkDispatched(task, unit, patrol ? "patrol" : "move-along");
+        // Layer 2 + P0.3: the ATTACK-family fire / BREACH is issued when the along-route
+        // move COMPLETES (advance the axis / approach the obstacle, THEN engage/breach) -
+        // no longer in the same tick as MoveAlongRoute, which would have replaced it.
         if (attackTargetVrf != null)
-            _pendingRouteFire[routeName] = (vrfUuid, attackTargetVrf);
+            DeferEngageUntilMoveCompletes(unit, task, "fire", vrfUuid, attackTargetVrf);
         if (breachTargetVrf != null)
-            _pendingRouteBreach[routeName] = (vrfUuid, breachTargetVrf);
+            DeferEngageUntilMoveCompletes(unit, task, "breach", vrfUuid, breachTargetVrf);
         _bridge.CreateRoute(routeGeo, routeName);
         _log.LogInformation("Task '{Task}': CreateRoute '{Route}' ({Count} pts) for {Name}; {Action} deferred to route-created.",
                             task.TaskName, routeName, routeGeo.Count, unit.Name, patrol ? "patrol" : "move");
+    }
+
+    /// <summary>
+    /// P0.1: record a task as the unit's in-flight task at the moment a VRF task command is
+    /// actually issued. Logs + handles supersession (VRF runs one task at a time - a retask
+    /// REPLACES the in-flight task; the superseded task's completion will never arrive, so
+    /// its pending engage is cancelled and its successors are left to their gate policy).
+    /// Also tells the sequencer the task dispatched (P0.2: successors' completion clock
+    /// starts here, not at order arrival).
+    /// </summary>
+    private void MarkDispatched(OrderTask task, CreatedUnit unit, string kind)
+    {
+        var superseded = _inFlight.RecordDispatch(unit.Name,
+            new InFlightTracker.InFlight(task.TaskUuid, task.TaskName, kind, DateTime.UtcNow));
+        if (superseded is InFlightTracker.InFlight old && old.TaskUuid != task.TaskUuid)
+        {
+            _log.LogWarning("Unit {Name}: task '{New}' SUPERSEDES in-flight task '{Old}' ({OldUuid}) - VRF " +
+                            "replaces the running task; the old task will not complete.",
+                            unit.Name, task.TaskName, old.TaskName, old.TaskUuid);
+            if (_pendingEngage.TryGetValue(unit.Name, out var eng) && eng.MoveTaskUuid == old.TaskUuid
+                && _pendingEngage.TryRemove(new KeyValuePair<string, PendingEngage>(unit.Name, eng)))
+                _log.LogWarning("Unit {Name}: cancelled the pending {Kind} tied to superseded task '{Old}'.",
+                                unit.Name, eng.Kind, old.TaskName);
+        }
+        _sequencer.NotifyDispatched(task.TaskUuid);
+    }
+
+    /// <summary>
+    /// P0.3: park an ATTACK/BREACH engage until the unit's move task COMPLETES
+    /// (OnVrfTaskCompleted issues it). A configurable fallback timer covers moves that
+    /// never complete (Vrf:EngageFallbackSeconds; 0 disables the fallback).
+    /// </summary>
+    private void DeferEngageUntilMoveCompletes(CreatedUnit unit, OrderTask task, string kind,
+                                               string taskeeVrf, string targetVrf)
+    {
+        var eng = new PendingEngage(kind, taskeeVrf, targetVrf, task.TaskUuid, task.TaskName);
+        _pendingEngage[unit.Name] = eng;
+        _log.LogInformation("Task '{Task}': {Kind} {Vrf} -> {Tgt} deferred until the move COMPLETES " +
+                            "(completion-gated; fallback {S}s).",
+                            task.TaskName, kind, taskeeVrf, targetVrf, _vrf.EngageFallbackSeconds);
+        if (_vrf.EngageFallbackSeconds > 0)
+            _ = EngageFallbackAsync(unit.Name, eng);
+    }
+
+    private async Task EngageFallbackAsync(string unitName, PendingEngage eng)
+    {
+        try { await Task.Delay(TimeSpan.FromSeconds(_vrf.EngageFallbackSeconds), _stoppingToken); }
+        catch (OperationCanceledException) { return; }
+        // Remove-if-still-this-engage: if the completion (or a supersede) already consumed
+        // it, this exact KeyValuePair no longer exists and TryRemove fails - no double fire.
+        if (_pendingEngage.TryRemove(new KeyValuePair<string, PendingEngage>(unitName, eng)))
+        {
+            _log.LogWarning("Unit {Name}: move for task '{Task}' did not complete within {S}s; " +
+                            "issuing the {Kind} via fallback (it will replace the still-running move).",
+                            unitName, eng.TaskName, _vrf.EngageFallbackSeconds, eng.Kind);
+            IssueEngage(unitName, eng);
+        }
+    }
+
+    /// <summary>Issue a parked engage on the tick thread, re-recording it as the unit's
+    /// in-flight task (same C2SIM task uuid, engage kind) so ITS completion attributes.</summary>
+    private void IssueEngage(string unitName, PendingEngage eng)
+    {
+        _inFlight.RecordDispatch(unitName,
+            new InFlightTracker.InFlight(eng.MoveTaskUuid, eng.TaskName, eng.Kind, DateTime.UtcNow));
+        _tickActions.Enqueue(() =>
+        {
+            if (eng.Kind == "breach") _bridge.Breach(eng.TaskeeVrf, eng.TargetVrf);
+            else _bridge.FireAtTarget(eng.TaskeeVrf, eng.TargetVrf);
+        });
+        _log.LogInformation("{Kind} {Vrf} -> {Tgt} issued (task '{Task}').",
+                            eng.Kind == "breach" ? "BREACH: Breach" : "ATTACK: FireAtTarget",
+                            eng.TaskeeVrf, eng.TargetVrf, eng.TaskName);
     }
 
     private void OnReport(object sender, C2SIMSDK.C2SIMNotificationEventParams e)
@@ -723,37 +851,28 @@ public sealed class VrfC2SimService : BackgroundService
         if (!string.IsNullOrEmpty(e.Name) && _pendingAltitude.TryRemove(e.Name, out var alt))
             _bridge.SetAltitude(e.Uuid, alt);
 
-        // If this created object is a route awaiting its move, issue it now that the
-        // route is registered (parity: executeTask's wait-then-moveAlongRoute, :2408-2421).
-        // MoveAlongRoute resolves the route by name, so pass e.Name (== routeName).
-        if (!string.IsNullOrEmpty(e.Name) && _pendingRouteMove.TryRemove(e.Name, out var taskeeVrfUuid))
+        // If this created object is a route with tasks awaiting it, issue the FIRST pending
+        // one now that the route is registered (parity: executeTask's wait-then-
+        // moveAlongRoute, :2408-2421). FIFO per route name - see _pendingRouteTasks. The
+        // along-route task resolves the route by name, so pass e.Name (== routeName).
+        // NOTE (P0.3): the ATTACK/BREACH engage is NO LONGER issued here - it now waits for
+        // the move to COMPLETE (OnVrfTaskCompleted), since a same-tick engage would replace
+        // the move (NEXT_SESSION_GUIDANCE.md sec 2.5).
+        if (!string.IsNullOrEmpty(e.Name) && _pendingRouteTasks.TryGetValue(e.Name, out var routeQueue)
+            && routeQueue.TryDequeue(out var pending))
         {
-            _bridge.MoveAlongRoute(taskeeVrfUuid, e.Name);
-            _log.LogInformation("Route '{Route}' created; MoveAlongRoute issued for {Vrf}.",
-                                e.Name, taskeeVrfUuid);
-
-            // Layer 2: an ATTACK-family task advances the axis THEN engages - issue the
-            // deferred FireAtTarget now that the move is under way (SEMANTIC_MAPPING.md).
-            if (_pendingRouteFire.TryRemove(e.Name, out var fire))
+            if (pending.Patrol)
             {
-                _bridge.FireAtTarget(fire.Taskee, fire.Target);
-                _log.LogInformation("ATTACK: FireAtTarget {Vrf} -> {Tgt} after MoveAlongRoute (route '{Route}').",
-                                    fire.Taskee, fire.Target, e.Name);
+                _bridge.PatrolRoute(pending.TaskeeVrfUuid, e.Name);
+                _log.LogInformation("Route '{Route}' created; PatrolRoute issued for {Vrf} (Reconnoiter).",
+                                    e.Name, pending.TaskeeVrfUuid);
             }
-            // Layer 2: a BREACH approaches the obstacle along the route THEN breaches it (Unit 2).
-            if (_pendingRouteBreach.TryRemove(e.Name, out var breach))
+            else
             {
-                _bridge.Breach(breach.Taskee, breach.Target);
-                _log.LogInformation("BREACH: Breach {Vrf} -> {Tgt} after MoveAlongRoute (route '{Route}').",
-                                    breach.Taskee, breach.Target, e.Name);
+                _bridge.MoveAlongRoute(pending.TaskeeVrfUuid, e.Name);
+                _log.LogInformation("Route '{Route}' created; MoveAlongRoute issued for {Vrf}.",
+                                    e.Name, pending.TaskeeVrfUuid);
             }
-        }
-        // Layer 2: RECONNOITER (SCREEN/SCOUT) patrols its route instead of moving along it once.
-        else if (!string.IsNullOrEmpty(e.Name) && _pendingRoutePatrol.TryRemove(e.Name, out var patrolVrfUuid))
-        {
-            _bridge.PatrolRoute(patrolVrfUuid, e.Name);
-            _log.LogInformation("Route '{Route}' created; PatrolRoute issued for {Vrf} (Reconnoiter).",
-                                e.Name, patrolVrfUuid);
         }
     }
 
@@ -783,18 +902,47 @@ public sealed class VrfC2SimService : BackgroundService
 
         // Port of executeTask's TASKCMPLT emit (C2SIMinterface.cpp:2435), triggered here by
         // the completion callback instead of a busy-wait. Resolve the marking -> taskee
-        // C2SIM uuid + current task uuid, then push a TaskStatus (TASKCMPLT) report.
+        // C2SIM uuid, attribute the completion to the unit's IN-FLIGHT task (P0.1 - the
+        // callback carries no task uuid, and the old last-write map misattributed it to
+        // whatever was dispatched last), then push a TaskStatus (TASKCMPLT) report.
         string name = e.UnitMarking ?? "";
         if (!_c2SimUuidByName.TryGetValue(name, out var taskeeUuid))
         {
             _log.LogWarning("Task-complete for '{Name}' but no C2SIM uuid known - no report sent.", name);
             return;
         }
-        _currentTaskUuidByName.TryGetValue(name, out var taskUuid);
+
+        string taskUuid = null;
+        if (_inFlight.TryComplete(name, out var fin))
+        {
+            taskUuid = fin.TaskUuid;
+            if (!InFlightTracker.KindLooksRight(fin.ExpectedKind, e.TaskType))
+                _log.LogWarning("Unit {Name}: completed VRF task type '{VrfType}' does not look like the " +
+                                "dispatched kind '{Kind}' (task '{Task}') - attribution anomaly; still " +
+                                "attributed by the in-flight record.",
+                                name, e.TaskType, fin.ExpectedKind, fin.TaskName);
+        }
+        else
+            _log.LogWarning("Task-complete for '{Name}' with NO in-flight task recorded - unattributed " +
+                            "(report sent with empty task uuid).", name);
 
         // Release any task gated on this one (parity: setTaskIsComplete unblocked the C++
-        // busy-wait on getTaskIsComplete; here it completes the successor's await).
+        // busy-wait on getTaskIsComplete; here it completes the successor's await). Only
+        // the ATTRIBUTED task's gate releases - a superseded task's gate stays closed.
         _sequencer.CompleteTask(taskUuid);
+
+        // P0.3: the move completed - issue the engage that was parked on it (advance the
+        // axis / approach the obstacle, THEN engage/breach - now for real, not same-tick).
+        // taskUuid != null (not IsNullOrEmpty): an ATTRIBUTED task with an empty uuid must
+        // still match its engage; only an UNATTRIBUTED completion (null) skips this.
+        if (taskUuid != null && _pendingEngage.TryGetValue(name, out var eng)
+            && eng.MoveTaskUuid == taskUuid
+            && _pendingEngage.TryRemove(new KeyValuePair<string, PendingEngage>(name, eng)))
+        {
+            _log.LogInformation("Unit {Name}: move for task '{Task}' completed; issuing the deferred {Kind}.",
+                                name, eng.TaskName, eng.Kind);
+            IssueEngage(name, eng);
+        }
 
         var report = ReportBuilder.BuildTaskCompleteReport(taskeeUuid, taskUuid ?? "", IsoNow(), NewReportId());
         _log.LogInformation("SENT TASK STATUS REPORT (TASKCMPLT) taskee={Uuid} task={Task}.",

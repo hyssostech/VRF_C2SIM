@@ -68,6 +68,20 @@ public static class OrderParser
                 if (loc?.Item is S.GeodeticCoordinateType g)
                     task.Points.Add((g.Latitude, g.Longitude, ElevOf(g)));
 
+            // Surface what the executor silently assumes about temporal relationships:
+            // only the FIRST one is honored, and it is treated as start-after-END (STREND).
+            // (An ABSENT code also deserializes as the enum default ENDEND - both real
+            // orders always carry an explicit STREND, so a non-STREND value here is either
+            // a genuinely different association or a missing code; both deserve a warn.)
+            var atrs = m.ActionTemporalRelationship ?? Array.Empty<S.ActionTemporalRelationshipType>();
+            if (atrs.Length > 1)
+                data.Warnings.Add($"task '{task.TaskName}' has {atrs.Length} ActionTemporalRelationships; " +
+                                  "only the first is honored");
+            if (atrs.Length > 0 && atrs[0].ActionTemporalAssociationCode != S.ActionTemporalAssociationCodeType.STREND)
+                data.Warnings.Add($"task '{task.TaskName}' ActionTemporalAssociationCode=" +
+                                  $"{atrs[0].ActionTemporalAssociationCode} (or absent); the sequencer " +
+                                  "assumes STREND (start after predecessor ends)");
+
             data.Tasks.Add(task);
         }
         return data;

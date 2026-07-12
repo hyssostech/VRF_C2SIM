@@ -31,19 +31,36 @@ Three locations are in play:
    the native/managed split, the callback mechanism.
 4. `docs/RUNBOOK.md` - operational runtime procedure (needed only to run the C++ parity
    rig or, later, the .NET app against live VR-Forces).
-5. This file for repo state, build/run commands, and where artifacts live.
-6. History/reference as needed: `docs/PHASE1_REWIRE.md`, `docs/TASK_EXPANSION_PLAN.md`.
+5. `docs/NEXT_SESSION_GUIDANCE.md` - the 2026-07-12 deep-review deliverable (verified
+   corrections + the aggregate experiment ladder). READ LAST; where it conflicts with
+   older docs IT WINS.
+6. This file for repo state, build/run commands, and where artifacts live.
+7. History/reference as needed: `docs/PHASE1_REWIRE.md`, `docs/TASK_EXPANSION_PLAN.md`.
 
-## Current status (2026-07-11)
+## Current status (2026-07-12)
 
-- **Latest (2026-07-11)**: two-layer semantic mapping UNDERWAY - Layer-1 verb classifier +
+- **Latest (2026-07-12)**: the deep multi-agent review landed `docs/NEXT_SESSION_GUIDANCE.md`
+  (READ IT - it corrects several previously "settled" negatives) and its P0 ORCHESTRATION
+  FIXES are IMPLEMENTED + offline-verified (all six selftests green): P0.1 per-unit completion
+  attribution (`InFlightTracker` - TASKCMPLT names the RIGHT task; superseded tasks' gates stay
+  closed), P0.2 predecessor-timeout policy (`Vrf:PredecessorTimeoutPolicy` skip|force|whenIdle,
+  default SKIP - no more retask bursts; the completion window runs from predecessor DISPATCH;
+  abandoned tasks fail successors fast), P0.3 completion-gated advance-then-engage (fire/breach
+  issued when the move COMPLETES; `Vrf:EngageFallbackSeconds`), plus FIFO route-name matching,
+  a duplicate-init guard, a loud 0-units-matched-ClientId error, and order-parse warnings.
+  KEY CORRECTIONS (guidance sec 2): the stuck-aggregate ROOT CAUSE is per-unit-type,
+  CASE-INCONSISTENT formation names - created aggregates start on invalid "column-left" (128
+  vrfSim.log hits); fix ladder = guidance sec 4, E1 first. The Unit-4 MoveIntoFormation
+  "RULED OUT" verdict is RETRACTED (confounded experiment; MAK help says it IS for
+  disaggregated units). ALL 42 COA-STP1 tasks self-target, so Breach/Escort need SYNTHETIC
+  orders - no COA-STP1 re-run can exercise them.
+- **2026-07-11**: two-layer semantic mapping UNDERWAY - Layer-1 verb classifier +
   Unit 3 fires (ATTACK) DONE + live-verified; **Solution A (delete-on-stop) DONE**; **ResetVrf
   (hard reset) DONE + LIVE-VERIFIED** (reaches ORPHANS Solution A misses - and it DID: a live run
   left 2 route/graphic orphans that ResetVrf cleared). **Layer-2 Units 2/4/Reconnoiter/Escort wired
-  + built + live-dispatched** (commit faa4398). KEY NEGATIVE RESULT: **Unit 4 MoveIntoFormation does
-  NOT move the disaggregated COA-STP1 aggregates** (35 dispatched, 0 moved, GUI-confirmed) - it is
-  NOT the stuck-aggregate fix (likely needs AGGREGATED sets). Details in docs/SEMANTIC_MAPPING.md
-  sec 5 + RUNBOOK sec 8. HEAD `faa4398`+ (local, unpushed).
+  + built + live-dispatched** (commit faa4398). Unit 4 MoveIntoFormation moved 0 aggregates in its
+  run - see the 2026-07-12 correction above (verdict reopened, experiment confounded). Details in
+  docs/SEMANTIC_MAPPING.md sec 5 + RUNBOOK sec 8.
 - **Phase 1** (C++ facade extraction + rewire): DONE + verified in the C++ repo.
 - **Migration**: port products (`bridge-spikes/`, `tools/`, `docs/`+`golden-trace/`)
   COPIED into THIS repo. C++ originals retained pending review, then deletion
@@ -103,25 +120,19 @@ Three locations are in play:
 Net: the port reproduces the full C2SIM<->VR-Forces loop live and moves aggregates. What
 remains is quality/parity polish + the two-layer semantic-mapping arc (see "next task" below).
 
-## Repo state (git log is authoritative)
+## Repo state (git log is authoritative - do NOT trust pinned hashes in prose)
 
-- THIS repo `VRF_C2SIM` (branch `main`), HEAD `340d608` (29 ahead of origin, UNPUSHED),
-  newest first (key commits, the 2026-07-11 semantic-map + Solution A work at top):
-  ```
-  340d608 docs: ResetVrf turnkey plan + Unit3/Solution-A status for a fresh session
-  7ee0fa8 Solution A: delete created VR-Forces objects on stop (no more manual reloads)
-  5f34d5b Phase 4+ semantic map: Layer-1 verb classifier + Unit 3 fires (ATTACK)
-  480af81 docs: session handoff - Phases 1-5 DONE
-  fcba5f4 docs: COA-STP1 live run - pipeline flawless at scale; Wedge necessary-not-sufficient
-  80e4b15 Phase 4+ enrichment: opt-in SetAggregateFormation before move (unblock aggregates)
-  8ed890e Phase 5: sim Run() + TimeMultiplier - FULL golden-trace pipeline live-verified
-  ff4705c Phase 5: port runs live end-to-end - late-join, bare-body parse, GetStatus clean-stop
-  03e3a09 Phase 4: OnOrder <- executeTask (bare movement), schema-typed OrderParser
-  ```
-- The fork `OpenC2SIM.github.io` (`dev/sdk-fixes`) tracks the submodule pointer; needs a
-  bump to `340d608` (last recorded bump was `-> 480af81`). Local only, NOT pushed.
-- The C++ repo `c2simVRFinterfacev2.36`: HEAD `b87fc9b`. Working tree still holds the
-  UNCOMMITTED formation spike (deliberately not committed there).
+- THIS repo `VRF_C2SIM` (branch `main`): PUSHED to github.com/hyssostech/VRF_C2SIM
+  (current as of 2026-07-12; run `git log --oneline -5` and `git status -sb` for the tip).
+  Key history: the 2026-07-12 P0 orchestration fixes + guidance doc sit atop the
+  2026-07-11 semantic-map/Solution-A/ResetVrf work (faa4398, e0db15b, 7ee0fa8, 5f34d5b)
+  and the Phase 4/5 arc (03e3a09, ff4705c, 8ed890e, 80e4b15).
+- The fork `OpenC2SIM.github.io` (`dev/sdk-fixes`): tracks the submodule pointer, bumped +
+  PUSHED alongside every port push (push the PORT first - the fork's pointer references it).
+- The C++ repo `c2simVRFinterfacev2.36`: HEAD `014dd00` (master clean; the old Wedge spike
+  lives on branch `spike/aggregate-formation-wedge`, superseded - do not merge). NO GIT
+  REMOTE - the only golden-trace rig exists on one disk (private-remote decision pending
+  with the user).
 - The SDK (`dev/sdk-fixes`): `f738edf` (static-state fixes + tests), `3b7cd33` (net10).
 
 `build/` `bin/` `obj/` are gitignored (rebuild them); `docs/golden-trace/*.log` is
@@ -180,7 +191,8 @@ it loads the bridge assembly for value types):
 - `VrfC2SimApp.exe --report-selftest` - builds + round-trips a TASKCMPLT + a position
   report via the SDK schema types; expect 9/9 checks pass.
 - `VrfC2SimApp.exe --sequencer-selftest` - task-start gating (predecessor / delay /
-  timeout); expect 5/5 checks pass.
+  timeout) + the P0 orchestration fixes (dispatch-relative window, abandon fast-fail,
+  in-flight completion attribution); expect 12 checks, ALL CHECKS PASSED.
 - `VrfC2SimApp.exe --verb-selftest` - Layer-1 semantic-map verb->intent classification
   (VerbMapping); expect ALL CHECKS PASSED (28+). Build with
   `DOTNET_CLI_USE_MSBUILD_SERVER=false ... --disable-build-servers` (concurrent dotnet
@@ -197,24 +209,27 @@ it exactly). In short: redeploy c2sim-server if gone (from Downloads/Docker.zip)
 app (it late-joins); clean-stop with `tools/StopIface`. Useful env knobs: `Vrf__ClientId`
 (STP / C2SIM / VRF per the init's SystemName), `Vrf__TimeMultiplier` (e.g. 20 = fast clock),
 `Vrf__AggregateFormation` (e.g. Wedge = move aggregates; "" = golden parity),
-`Vrf__TaskPredecessorTimeoutSeconds`. Reload the VR-Forces scenario between heavy runs
-(entities accumulate -> creates stop reflecting after ~2-3 runs).
+`Vrf__TaskPredecessorTimeoutSeconds` (default 600 - make experiment overrides EXPLICIT),
+`Vrf__PredecessorTimeoutPolicy` (skip|force|whenIdle; default skip - P0.2),
+`Vrf__EngageFallbackSeconds` (default 300 - P0.3). Reload the VR-Forces scenario (or run
+tools/ResetVrf) between heavy runs (entities accumulate -> creates stop reflecting).
 
 ## The immediate next task
 
 Phase 1-5 are DONE (the port runs the full C2SIM<->VR-Forces loop live + moves aggregates).
 Remaining work, roughly by priority (details: docs/APP.md TODO, PORT.md sec 6/10):
 
-1. **Aggregate deep-dive** (the live-open question): most COA-STP1 aggregates stay stuck even
-   with `Wedge` (necessary-not-sufficient; PORT.md sec 10). UPDATE 2026-07-11: **Unit 4
-   DtMoveIntoFormationTask was tried and FAILED** - it dispatches cleanly (35 aggregates) but
-   moves NONE of the disaggregated sets (GUI-confirmed), WORSE than Wedge+moveAlong. So the fix is
-   NOT MoveIntoFormation. Next candidates (SEMANTIC_MAPPING sec 5 Unit 4): `planAndMoveToTask`
-   (pathfinding), task the SUBORDINATES directly, or aggregate-first (createSubordinates=false)
-   then move. Diagnose - compare a MOVING vs a
-   STUCK aggregate's VR-Forces Subsystems tab (formation valid for the type? subordinates
-   present "2 of 4"? damage?) - then per-unit-type formation and/or the PROPER vrftask
-   (`planAndMoveToTask` / `moveIntoFormationTask`), which is the first real slice of #4.
+1. **Aggregate deep-dive** (the live-open question): ROOT CAUSE FOUND 2026-07-12 (guidance
+   sec 2.1) - formation names are per-unit-type and CASE-INCONSISTENT (Ground_Aggregate
+   catch-all = lowercase "wedge"/"column"; Tank Company (USA) = Title-Case; Infantry/
+   Artillery Bn = EMPTY list), and every created aggregate starts on invalid "column-left"
+   (128 vrfSim.log hits). Title-Case "Wedge" could only ever resolve for company-matched
+   types - exactly the ~3/32 that moved. RUN THE GUIDANCE SEC 4 LADDER IN ORDER: E1
+   per-matched-type formation names (app-only; de-confounded synthetic order - ONE task per
+   aggregate, no temporal deps; watch vrfSim.log for the invalid-formation lines as the
+   oracle); E2 re-open MoveIntoFormation (verdict RETRACTED 2026-07-12 - the 2026-07-11 run
+   was confounded; MAK help says it IS for disaggregated units); E3 runtime formation
+   discovery (DtRequestAvailableFormationsAdmin; bridge rebuild); E4 fallbacks.
 2. **Report-stream parity polish**: EntityHealthStatus (needs the bridge to surface health),
    aggregate-component de-dup, multi-content bundling. Position reports work but are chatty.
 3. **Deferred C++-bug fixes** (PORT.md sec 6): distinct C2SimUuid/VrfUuid types (setTarget
@@ -252,13 +267,16 @@ Remaining work, roughly by priority (details: docs/APP.md TODO, PORT.md sec 6/10
      cannot. Verified by a controlled discover->delete->re-discover: dry-run left 2 objects intact,
      the real reset deleted them, a fresh federate then discovered 0 (RUNBOOK sec 8). `--dry-run` =
      discover-only.
-   - NEXT (the remaining Layer-2 units, all LIVE-GATED): **Unit 4 moveIntoFormationTask** (the real
-     fix for the stuck-aggregate finding - serves #1), **Unit 2 Breach**, Unit 5+ HoldObjective/
-     Reconnoiter. Each needs a bridge rebuild (VS18) + a live run.
+   - NEXT (LIVE-GATED): the guidance sec 4 aggregate ladder (E1 first - see next-task #1);
+     then synthetic-order tests for Breach/Escort/Screen (COA-STP1 cannot exercise them -
+     ALL 42 tasks self-target, guidance sec 2.3). Units 2/4/5 code is already wired+built;
+     what remains is BEHAVIOR verification, not wiring.
 5. **Formal golden-trace message diff** (byte-level parity, not just behavioral).
-6. **Housekeeping**: PUSH the branches (port main / fork / SDK are all local-only);
-   delete the retained C++ originals (migration step 1); decouple the SDK ProjectReference
-   (published nuget). (`data/` is now tracked; port main pushed to origin 2026-07-12.)
+6. **Housekeeping**: branches are PUSHED (port main + fork dev/sdk-fixes, 2026-07-12; `data/`
+   tracked). Remaining: private remote for the C++ repo (USER decision - it is the only
+   golden-trace rig, zero off-disk copies); delete the retained C++ originals (migration
+   step 1); make the 6 tools/*.csproj SDK ProjectReference paths relative (guidance sec 2.6);
+   decouple the SDK ProjectReference (published nuget).
 
 Keep `docs/PORT.md` + `docs/APP.md` current AS you work; after any context compaction
 re-read them before deciding anything.

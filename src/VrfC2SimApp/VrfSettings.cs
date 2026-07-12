@@ -43,10 +43,27 @@ public class VrfSettings
     // higher runs the VR-Forces clock faster (useful to watch/verify scenarios quickly).
     public int TimeMultiplier { get; set; } = 1;
 
-    // How long a task waits for its startAfterTaskUuid predecessor to complete before
-    // giving up and dispatching anyway (the fix for the C++ infinite busy-wait, PORT.md
-    // sec 6). The golden aggregate completion took ~9 min, so 600 s is a safe default.
+    // How long a task waits for its startAfterTaskUuid predecessor before giving up (the
+    // fix for the C++ infinite busy-wait, PORT.md sec 6). P0.2: the completion window is
+    // measured from the predecessor's DISPATCH, not order arrival (TaskSequencer). The
+    // golden aggregate completion took ~9 min, so 600 s is a safe default. NOTE: past live
+    // experiments overrode this to 30 s via env - make experiment configs explicit.
     public int TaskPredecessorTimeoutSeconds { get; set; } = 600;
+
+    // P0.2 (NEXT_SESSION_GUIDANCE.md sec 3, DEFECT B): what to do when a task's predecessor
+    // times out or was abandoned.
+    //   "skip"     (default) log + do NOT dispatch; the task's own successors then fail fast.
+    //   "force"    dispatch anyway (the pre-P0 behavior: retasks a unit whose in-flight task
+    //              gets REPLACED mid-route - kept for compatibility/experiments).
+    //   "whenIdle" dispatch only if the unit has no in-flight task at that moment.
+    // Golden orders carry no temporal deps, so this never fires there (parity-neutral).
+    public string PredecessorTimeoutPolicy { get; set; } = "skip";
+
+    // P0.3: an ATTACK/BREACH engage is issued when its approach move COMPLETES (previously
+    // it was issued in the same tick as the move, which - VRF running one task at a time -
+    // would REPLACE the move the moment both are real). If the move never completes, issue
+    // the engage anyway after this many seconds (0 = never: engage strictly on completion).
+    public int EngageFallbackSeconds { get; set; } = 300;
 
     // On clean stop, delete every VR-Forces object this run created (via the tracked uuids)
     // so they do NOT accumulate across runs - accumulation degrades create/route reflection

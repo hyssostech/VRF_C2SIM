@@ -40,7 +40,8 @@ Everything below is tagged:
      `DOTNET_CLI_USE_MSBUILD_SERVER=false dotnet build ... --disable-build-servers`.
    - Run the offline selftests before and after any change:
      `--translator-selftest` 18/18, `--parse-init` 80/49/4, `--parse-order`,
-     `--report-selftest` 9/9, `--sequencer-selftest` 5/5, `--verb-selftest` 28/28.
+     `--report-selftest` 9/9, `--sequencer-selftest` 12 checks (was 5 pre-P0),
+     `--verb-selftest` 28/28.
    - `tools/ResetVrf <freshAppNo>` (or a GUI scenario reload) between heavy runs;
      entity accumulation across runs makes creates stop reflecting.
 
@@ -211,6 +212,17 @@ any synthetic advance+engage experiment until fixed (P0.3).
 ---
 
 ## 3. P0 - fixes that must land BEFORE the next live experiment
+
+STATUS 2026-07-12: P0.1-P0.4 LANDED (same-day follow-up session). P0.1-P0.3 +
+the P0-adjacent cleanups are implemented in the app (InFlightTracker.cs,
+TaskSequencer two-phase wait + NotifyDispatched/NotifyAbandoned,
+Vrf:PredecessorTimeoutPolicy default skip, Vrf:EngageFallbackSeconds, FIFO
+route matching, dup-init guard, loud ClientId-mismatch error, order-parse
+warnings); all six selftests green (--sequencer-selftest now 12 checks,
+covering attribution + the dispatch-relative window). P0.4 doc corrections
+folded into SEMANTIC_MAPPING / RESUME_PROMPT / START_HERE / PORT.md. The
+golden MOVE-order live re-verification (end of this section) is still
+PENDING - do it in the next live session, before/with E1.
 
 All are offline-verifiable (build + selftests); none changes golden parity
 for single-task-per-unit orders (the golden orders are 13 x MOVE, one task

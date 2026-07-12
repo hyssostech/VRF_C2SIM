@@ -4,12 +4,14 @@ Single source of truth for the decisions and findings behind porting the GMU
 c2simVRFinterface (C++) to .NET on top of the HyssosTech C2SIM .NET SDK.
 Read this before re-opening any settled question. ASCII-only per repo policy.
 
-Last updated: 2026-07-11 (Phases 1-5 DONE + two-layer semantic mapping UNDERWAY: Layer-1 verb
-classifier + Unit 3 fires DONE + live-verified, Solution A delete-on-stop DONE so runs self-clean,
-and ResetVrf hard-reset DONE + live-verified (tools/ResetVrf: join -> discover EVERY reflected
-object -> DeleteObject each; reaches orphans Solution A cannot). See sec 8 phase status, sec 10
-semantic map + docs/SEMANTIC_MAPPING.md, and docs/RUNBOOK.md sec 7 live recipe + sec 8 self-service
-reset. NEXT: Unit 4 moveIntoFormation / Unit 2 Breach).
+Last updated: 2026-07-12 (deep-review corrections + P0 orchestration fixes landed - see
+docs/NEXT_SESSION_GUIDANCE.md, which WINS over older text where they conflict: aggregate ROOT
+CAUSE = per-unit-type case-inconsistent formation names (sec 10 update); MoveIntoFormation
+"ruled out" RETRACTED (confounded experiment); ALL 42 COA-STP1 tasks self-target; P0.1
+completion attribution + P0.2 timeout policy + P0.3 completion-gated engage implemented,
+all six selftests green. NEXT: guidance sec 4 ladder, E1 per-matched-type formations, LIVE.
+Prior state 2026-07-11: Phases 1-5 DONE, Layer-1 + Unit 3 fires live-verified, Solution A +
+ResetVrf done - sec 8 phase status, sec 10 semantic map, RUNBOOK sec 7/8.)
 
 Two repos are in play:
 - This one: `c2simVRFinterfacev2.36` (the C++ interface being ported; now git-tracked).
@@ -457,10 +459,21 @@ Do not re-add it.
     predecessor (completed off `OnVrfTaskCompleted`), then its start delay, before the
     bridge work is marshalled onto the tick thread (OnOrder -> RunTaskAsync). THE FIX for
     the sec-6 infinite busy-wait: the predecessor wait is bounded by
-    Vrf:TaskPredecessorTimeoutSeconds (default 600 s), dispatching anyway on timeout. Not
-    reproduced (behavior-neutral, golden = 0 timing): the C++ doubled-wait bug + time-
-    multiple scaling. `--sequencer-selftest` 5/5. Inherited limitation: one current-task-
-    per-unit correlation (the bridge callback lacks the task uuid).
+    Vrf:TaskPredecessorTimeoutSeconds (default 600 s). Not reproduced (behavior-neutral,
+    golden = 0 timing): the C++ doubled-wait bug + time-multiple scaling.
+    P0 UPDATE (2026-07-12, NEXT_SESSION_GUIDANCE sec 3 - fixes two live-confirmed
+    orchestration defects that corrupted TASKCMPLT reports + confounded every aggregate
+    experiment): (P0.1) completions are attributed via a per-unit IN-FLIGHT record
+    (`InFlightTracker`) written at dispatch, not a last-write map - the report names the
+    RIGHT task and a superseded task's successor gate stays closed; (P0.2) the completion
+    window now runs from the predecessor's DISPATCH (two-phase wait), timeout behavior is
+    policy-driven (`Vrf:PredecessorTimeoutPolicy` skip|force|whenIdle, default SKIP - the
+    old dispatch-anyway burst is opt-in `force`), and skipped/abandoned tasks fail their
+    successors FAST; (P0.3) ATTACK/BREACH engages are issued when the move COMPLETES
+    (`Vrf:EngageFallbackSeconds` fallback), not same-tick (VRF replaces the running task).
+    Behavior-neutral for the golden orders (single task per unit, no temporal deps).
+    `--sequencer-selftest` 12 checks green. Remaining limitation: correlation is still
+    one-task-per-unit (the bridge callback lacks the task uuid).
   - REMAINING: report enrichment (health/dedup/bundling); THEN the semantic-mapping layer
     (bare movement projector -> real vrftasks) - see sec 10. Then a LIVE run. docs/APP.md.
 - **Phase 5 - live run**: DONE (2026-07-10) - the .NET port runs the FULL golden-trace
@@ -580,15 +593,32 @@ table), not bare moveAlongRoute + setAggregateFormation. i.e. the two-layer mapp
 fix for these; our formation enrichment is the first rung. NOT a port/pipeline defect - a VRF
 aggregate-maneuver characteristic, now precisely localized.
 
-UPDATE 2026-07-11 - `moveIntoFormationTask` TRIED + FAILED (commit faa4398; docs/SEMANTIC_MAPPING.md
-sec 5 Unit 4). Wired `DtMoveIntoFormationTask` (opt-in `Vrf:MoveIntoFormation`, aggregate move to the
-route's final point in-formation) and ran COA-STP1 live: it DISPATCHED to 35 aggregates cleanly (0
-crash / 0 abandon) but moved NONE of them (only the move-along ENTITIES moved; USER visually confirmed
-no aggregate movement on the GUI) - i.e. WORSE than Wedge+moveAlong (~3/32). So `moveIntoFormationTask`
-is NOT the fix for these DISAGGREGATED sets (strong hypothesis: it needs AGGREGATED aggregates). The
-remaining candidates from the sec-10 table are now: `planAndMoveToTask` (pathfinding move-to - the top
-next experiment), tasking the SUBORDINATES directly, or aggregate-first (createSubordinates=false) then
-move. The deep-dive stays OPEN; MoveIntoFormation is ruled out.
+UPDATE 2026-07-11 - `moveIntoFormationTask` tried, negative run (commit faa4398;
+docs/SEMANTIC_MAPPING.md sec 5 Unit 4). Wired `DtMoveIntoFormationTask` (opt-in
+`Vrf:MoveIntoFormation`, aggregate move to the route's final point in-formation) and ran COA-STP1
+live: it dispatched cleanly ~35 times (0 crash / 0 abandon) but moved NO aggregate (only the
+move-along ENTITIES moved; USER visually confirmed no aggregate movement on the GUI).
+
+UPDATE 2026-07-12 - the 2026-07-11 verdict is RETRACTED and the deep-dive REFRAMED
+(NEXT_SESSION_GUIDANCE.md sec 2.1/2.2, verified evidence):
+- ROOT CAUSE of the stuck aggregates: formation names are defined PER UNIT TYPE in the .entity
+  files with INCONSISTENT case - the Ground_Aggregate catch-all (which our Scout/ArmorPlatoon
+  types fall back to; no .entity matches their DIS types) lists LOWERCASE "wedge"/"column";
+  Tank Company (USA) lists Title-Case; Infantry/Artillery Battalion have EMPTY formation lists.
+  Every created aggregate arrives with invalid "column-left" (128 hits of 'Aggregate state has
+  invalid formation name' in vrfSim.log). Title-Case "Wedge" could only resolve for the
+  company-matched types - which exactly predicts the observed ~3/32 movers.
+- The MoveIntoFormation experiment was CONFOUNDED: MAK help (FormationMoveInto.htm) says the task
+  IS for DISAGGREGATED units (opposite of the "needs AGGREGATED sets" hypothesis); the targets
+  still held the unrepaired invalid "column-left" formation (the path early-returns before the
+  Wedge enrichment) in the wrong case for most types; and the pre-P0 orchestration defects
+  (retask bursts + misattribution; ~35 dispatches were to only 11 distinct performers, each
+  retasked up to 4x) corrupted the run. "35 aggregates dispatched" in older text = ~35 DISPATCHES.
+- NEXT: the guidance sec 4 experiment ladder IN ORDER - E1 per-matched-type formation names
+  (highest confidence; decision rule = do scout/platoon units move with lowercase names where
+  Title-Case failed), E2 re-test MoveIntoFormation after E1, E3 runtime formation discovery
+  (DtRequestAvailableFormationsAdmin), E4 fallbacks (subordinate tasking / aggregated-create /
+  C2simEx re-key). Record every outcome here as it lands.
 
 Prior status (2026-07-09): fix IDENTIFIED + prototyped, NOT yet runtime-verified.
 - Fix: `controller->setAggregateFormation(leaderUuid, formationName)` BEFORE moveAlongRoute

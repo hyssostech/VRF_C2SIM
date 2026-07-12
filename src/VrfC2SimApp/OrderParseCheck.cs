@@ -18,6 +18,8 @@ public static class OrderParseCheck
         Console.WriteLine($"=== OrderParser check: {Path.GetFileName(path)} ===");
         Console.WriteLine($"OrderID: {data.OrderId}");
         Console.WriteLine($"Tasks: {data.Tasks.Count}");
+        foreach (var w in data.Warnings)
+            Console.WriteLine($"WARN: {w}");
 
         int n = 0;
         foreach (var t in data.Tasks)

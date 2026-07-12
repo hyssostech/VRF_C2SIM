@@ -2,18 +2,20 @@
 
 Paste the block below into a fresh session to resume the port. It forces the
 source-of-truth docs to be read and the state checked before any action - do not
-shortcut it. Last refreshed 2026-07-12 (Layer-2 units + git push for a session jump).
+shortcut it. Last refreshed 2026-07-12 (deep-review corrections folded in + P0
+orchestration fixes landed; NEXT_SESSION_GUIDANCE.md added to the read list).
 
 ---
 
 ```
 Resume the C2SIM VR-Forces -> .NET port.
 
-WHERE THE WORK LIVES (all pushed to GitHub 2026-07-12 - a session can clone fresh):
+WHERE THE WORK LIVES (all pushed to GitHub 2026-07-12 - a session can clone fresh; run
+`git log --oneline -1` for the exact tips, do not trust pinned hashes in prose):
 - PORT (the .NET port, SOURCE OF TRUTH + where you work): github.com/hyssostech/VRF_C2SIM.git,
-  branch main = d3a8309. Local: ...\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM (nested submodule).
+  branch main. Local: ...\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM (nested submodule).
 - FORK + SDK (the C2SIM half rides on the SDK, which lives INSIDE the fork, NOT a separate submodule):
-  github.com/hyssostech/OpenC2SIM.github.io.git, branch dev/sdk-fixes = c0dc50a (submodule -> d3a8309).
+  github.com/hyssostech/OpenC2SIM.github.io.git, branch dev/sdk-fixes (submodule -> port main).
   SDK at Software/Library/CS/C2SIMSDK. To get a COMPLETE tree: clone the FORK, `git checkout
   dev/sdk-fixes`, `git submodule update --init --recursive`.
 - DEPRECATED C++ interface (ported FROM; FROZEN parity oracle only, do NOT develop there):
@@ -30,14 +32,18 @@ as source of truth over ANY summary or recollection (an earlier session flailed 
 compaction summary instead of the docs and code):
   1. docs/START_HERE.md    - current status + repo state + build/run commands + tools list
   2. docs/PORT.md          - settled decisions WITH evidence; ESP. sec 8 (phase status) and sec 10
-                             (two-layer semantic map + the aggregate finding, incl. MoveIntoFormation FAILED)
+                             (two-layer semantic map + the aggregate root cause / experiment ladder)
   3. docs/SEMANTIC_MAPPING.md - THE CURRENT WORK: the two-layer plan + per-unit status incl. the LIVE
-                             results (sec 5). Read the Unit 4 NEGATIVE result before touching aggregates.
+                             results (sec 5). Read the Unit 4 REOPENING before touching aggregates.
   4. docs/APP.md           - the .NET app, its data flow, DONE-vs-TODO
   5. docs/RUNBOOK.md       - runtime procedure for a LIVE run. Read sec 7 (the FULL .NET-port live
                              recipe), sec 4 (CLEAN STOP), sec 8 (ResetVrf self-service reset + the
                              Solution-A-misses-orphans finding) before any run.
-  6. docs/PHASE2_BRIDGE.md, docs/PHASE1_REWIRE.md, docs/TASK_EXPANSION_PLAN.md - reference only.
+  6. docs/NEXT_SESSION_GUIDANCE.md - the 2026-07-12 deep-review deliverable: verified corrections
+                             (tagged VERIFIED/AGENT/HYPOTHESIS), the P0 fixes (landed), and the
+                             aggregate experiment ladder (sec 4, E1 first). READ LAST; where it
+                             conflicts with older docs IT WINS.
+  7. docs/PHASE2_BRIDGE.md, docs/PHASE1_REWIRE.md, docs/TASK_EXPANSION_PLAN.md - reference only.
 Then run `git log --oneline` in the PORT repo (authoritative for state) and in the fork.
 
 STATE (2026-07-12): Phases 1-5 DONE (the port runs the full C2SIM<->VR-Forces loop live: join ->
@@ -53,23 +59,40 @@ reports -> clean stop, no stale federate). Two-layer semantic mapping is UNDERWA
 - ResetVrf HARD reset DONE + LIVE (`tools/ResetVrf`, pure VR-Forces, `--dry-run` = discover-only) -
   joins, discovers EVERY reflected object (facade BeginTrackingReflectedObjects/GetAllReflectedUuids
   via the UUID-manager change callbacks; base reflected lists have NO iterator), DeleteObject's each.
-Everything is COMMITTED + PUSHED (port main = d3a8309, fork dev/sdk-fixes = c0dc50a). data/ scenarios
-now tracked. Run git log for the exact tip.
+- P0 ORCHESTRATION FIXES LANDED 2026-07-12 (guidance sec 3; offline-verified, all six selftests
+  green): P0.1 per-unit in-flight completion attribution (InFlightTracker - TASKCMPLT names the
+  RIGHT task; superseded tasks' gates stay closed); P0.2 predecessor-timeout policy
+  (`Vrf:PredecessorTimeoutPolicy` skip|force|whenIdle, default SKIP - no more retask bursts; the
+  completion window now runs from predecessor DISPATCH; abandoned tasks fail successors fast);
+  P0.3 completion-gated advance-then-engage (fire/breach issued when the move COMPLETES,
+  `Vrf:EngageFallbackSeconds` fallback). Plus: FIFO route-name matching, duplicate-init guard,
+  loud 0-units-matched-ClientId error, order-parse warnings (multi-ATR / non-STREND).
+Everything is COMMITTED + PUSHED. data/ scenarios tracked. Run git log for the exact tip.
 
-DEAD ENDS / FAILED EXPERIMENTS (do NOT re-try these - they are settled negatives):
-- **MoveIntoFormation does NOT move the disaggregated COA-STP1 aggregates.** Live-tested 2026-07-11
-  (Vrf:MoveIntoFormation=Wedge): DtMoveIntoFormationTask dispatched CLEANLY to 35 aggregates (valid
-  location/heading/formation, 0 crash/abandon) but moved NONE (0 completions; position diff = only
-  move-along ENTITIES moved; user visually confirmed no aggregate movement on the GUI). It is WORSE
-  than Wedge+moveAlong. Strong hypothesis: it needs AGGREGATED sets, not disaggregated. RULED OUT as
-  the stuck-aggregate fix. Kept opt-in (default off) as a tested-but-ineffective lever. (SEMANTIC_MAPPING sec 5 Unit 4.)
-- **Wedge / SetAggregateFormation alone** is NECESSARY-but-NOT-SUFFICIENT: it moved only ~3/32 COA-STP1
-  aggregates (moved 14.MechBn in the golden run). Not the full fix. (PORT.md sec 10.)
-- **coa-gpt data blocks the engagement verbs from being exercised by COA-STP1:** EVERY ATTACK-family
-  task self-targets (AffectedEntity == PerformingEntity) -> no real fire target (fires need a SYNTHETIC
-  distinct-target order to test - already done for Unit 3). BREACH obstacles are MAP GRAPHICS, not
-  init-created entities, so TryResolveVrfUuid misses them -> breach degrades to advance-only. Feed back
-  to coa-gpt: emit distinct AffectedEntity + real obstacle entities. (SEMANTIC_MAPPING sec 5 Units 2/3.)
+DEAD ENDS / FINDINGS (corrected 2026-07-12 per docs/NEXT_SESSION_GUIDANCE.md - read that doc's
+sec 2 before trusting ANY settled negative below):
+- **MoveIntoFormation negative REOPENED (was "RULED OUT" - that verdict is RETRACTED).** The
+  2026-07-11 run stands (dispatched ~35 times to the 11 distinct COA-STP1 performers, 0 crash,
+  0 aggregate moved) but was CONFOUNDED: MAK help says Move Into Formation IS for DISAGGREGATED
+  units (FormationMoveInto.htm - the opposite of the "needs AGGREGATED sets" hypothesis); the
+  targets still held the invalid "column-left" formation (never repaired, and "Wedge" was the
+  wrong CASE for most types); and the pre-P0 orchestration defects (retask bursts,
+  misattribution) corrupted the run. Keep default-off; re-test per guidance sec 4 E2 AFTER E1.
+  (SEMANTIC_MAPPING sec 5 Unit 4.)
+- **Wedge / SetAggregateFormation alone** is NECESSARY-but-NOT-SUFFICIENT: it moved only ~3/32
+  COA-STP1 aggregate dispatches. ROOT CAUSE now known (guidance sec 2.1): formation names are
+  per-unit-type and case-inconsistent (Ground_Aggregate catch-all = lowercase; Tank Company =
+  Title-Case; Infantry/Artillery Bn = EMPTY list), and created aggregates arrive with invalid
+  "column-left" (128 hits in vrfSim.log). Title-Case "Wedge" resolved only for company-matched
+  types. Fix = guidance sec 4 E1 (per-matched-type names). (PORT.md sec 10.)
+- **coa-gpt data blocks the engagement verbs from being exercised by COA-STP1:** ALL 42 TASKS
+  self-target (AffectedEntity == PerformingEntity - not just the 19 ATTACK-family ones). So
+  ATTACK/BREACH/ESCRT can NEVER dispatch their Layer-2 tasks from this order at ANY run length -
+  the distinct-target guards correctly degrade them to movement. (The earlier "BREACH obstacles
+  are map graphics that TryResolveVrfUuid misses" claim was WRONG: the order has zero
+  MapGraphicID elements; resolution succeeds and the self-target guard rejects.) Synthetic
+  orders are REQUIRED (the Unit-3 fires test already exists). Feed back to coa-gpt: emit real,
+  distinct AffectedEntity values. (SEMANTIC_MAPPING sec 5 Units 2/3/5; guidance sec 2.3/5.)
 - **Solution A is NOT complete cleanup** - it MISSES objects created shortly before clean-stop (race).
   A live run left 2 route/graphic orphans (a T23_AOA route) that ResetVrf then cleared. Run ResetVrf
   after any heavy/re-pushed run to guarantee a clean slate. (RUNBOOK sec 8.)
@@ -77,15 +100,17 @@ DEAD ENDS / FAILED EXPERIMENTS (do NOT re-try these - they are settled negatives
   (no-op); busy-wait thread leak; the STOMP `selector` removal was NOT a bug. Do not "fix" these.
 
 NEXT (all LIVE-GATED - need VR-Forces + the LOCAL machine; a cloud session can only PLAN them):
-1. THE AGGREGATE DEEP-DIVE (the top open question; MoveIntoFormation is ruled out). Try, in order:
-   (a) `planAndMoveToTask` (DtPlanAndMoveToTask - pathfinding move-to a point; may move a disaggregated
-   set where the others don't); (b) task the SUBORDINATE entities of each set directly; (c) create the
-   aggregates AGGREGATED (createSubordinates=false) then move. Each = a facade+bridge add (VS18 rebuild)
-   + one live COA-STP1 run; use ResetVrf to clean between runs. First, diagnose in the VR-Forces GUI:
-   compare a MOVING vs a STUCK aggregate's Subsystems tab (formation valid for the type? subordinates
-   "2 of 4"? damage?).
-2. Exercise Breach/Reconnoiter/Escort behavior (gated tasks didn't dispatch in the run window; need a
-   longer run or an ungated/synthetic order; breach needs a resolvable obstacle).
+1. THE AGGREGATE DEEP-DIVE: run the guidance sec 4 EXPERIMENT LADDER IN ORDER (root cause is known -
+   per-unit-type, case-inconsistent formation names; created aggregates start on invalid
+   "column-left"): E1 per-matched-type formation names (highest confidence, app-only change; use a
+   DE-CONFOUNDED synthetic order - ONE task per aggregate, no temporal deps - and watch vrfSim.log
+   live for 'invalid formation name' lines, the direct oracle); E2 re-open MoveIntoFormation (only
+   after E1 moves units); E3 runtime formation discovery (DtRequestAvailableFormationsAdmin; bridge
+   rebuild); E4 fallbacks (subordinate tasking / aggregated-create / C2simEx type re-key). Use
+   ResetVrf between runs; record every outcome in PORT.md sec 10.
+2. Exercise Breach/Escort/Screen behavior via SYNTHETIC orders (COA-STP1 CANNOT exercise them - all
+   42 tasks self-target; SCREEN additionally gated + T24 has no Location). Before the Escort test,
+   fix FollowEntity's zero offset (guidance P3.5).
 3. Report parity polish (EntityHealthStatus, aggregate-component dedup, multi-content bundling - reports
    are chatty); deferred sec-6 bug fixes (distinct C2SimUuid/VrfUuid types) + OnObjectInitialization
    stub; formal golden-trace message diff.
@@ -127,9 +152,10 @@ Do not edit or run until you've done that.
 Notes for the human pasting this:
 - The prompt points at the docs rather than restating them, so it does not go stale as the work
   progresses. Keep the docs current; the prompt stays valid.
-- All work is pushed (2026-07-12): PORT `VRF_C2SIM.git` main=d3a8309, FORK `OpenC2SIM.github.io.git`
-  dev/sdk-fixes=c0dc50a. To resume in the CLOUD, clone the fork + `git submodule update --init` - but
-  remember the cloud can only do docs/planning (no MAK -> no build/run). Real work needs this machine.
+- All work is pushed (2026-07-12): PORT `VRF_C2SIM.git` main, FORK `OpenC2SIM.github.io.git`
+  dev/sdk-fixes (submodule tracks port main; `git log` for exact tips). To resume in the CLOUD,
+  clone the fork + `git submodule update --init` - but remember the cloud can only do docs/planning
+  (no MAK -> no build/run). Real work needs this machine.
 - If you have moved a repo, update the paths at the top.
 - If a lot of time has passed, expect the environment (license, running VR-Forces/container, the
   tileserver on 8080) to have drifted - that is why the runtime non-negotiable says "check, do not assume".

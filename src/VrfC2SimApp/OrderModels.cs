@@ -32,4 +32,10 @@ public class OrderData
 {
     public string OrderId { get; set; } = "";
     public List<OrderTask> Tasks { get; set; } = new();
+
+    // Non-fatal parse findings the executor should surface (the parser is pure, so it
+    // collects rather than logs): e.g. multiple ActionTemporalRelationships (only the
+    // first is honored) or a non-STREND association code (the sequencer assumes
+    // start-after-predecessor-END).
+    public List<string> Warnings { get; } = new();
 }
