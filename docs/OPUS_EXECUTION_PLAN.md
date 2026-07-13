@@ -492,6 +492,13 @@ errors, making P4b a parity/politeness feature rather than a firefight. If the S
 P4a in) shows ZERO 10048s, P4b priority drops - still implement it for parity, but it is no
 longer load-bearing. If P4a-with-a-single-client still shows pressure, P4b becomes the closer.
 
+DECISION (2026-07-13, user-confirmed): P4b is DELIBERATELY NOT in the FIRST scale run (Step 5).
+The first scale run carries Steps 1-2 only, so the P4a "zero 10048" verdict is not confounded by
+a possible P4b multi-content server rejection (the one genuine live unknown here - see 3.9).
+P4b gets its own SHORTER live pass AFTER the first scale run confirms P4a clean. Implement +
+offline-gate + commit P4b whenever convenient; just do not enable Vrf:BundlePositionReports in
+the Step 5 run.
+
 REPO: PORT (submodule). Files:
 - src/VrfC2SimApp/ReportBuilder.cs (a bundle builder)
 - src/VrfC2SimApp/VrfC2SimService.cs (an accumulator in the OnVrfTextReport path + a flush
@@ -661,8 +668,10 @@ GOAL: exercise the full COA-STP1 order (42 tasks) end to end at scale with de-st
 formation + fan-out + the Step-2 robustness, proving the pipeline holds at scale, the P4a fix
 clears the 10048 errors, and unit completions far exceed the R5c-era count.
 
-THIS IS A LIVE RUN. GATE-ENV before launch, GATE-VERDICT after. Steps 1-2 (and ideally 3) must
-be committed and their offline gates green first. Read RUNBOOK sec 7 in full before starting.
+THIS IS A LIVE RUN. GATE-ENV before launch, GATE-VERDICT after. Steps 1-2 must be committed and
+their offline gates green first. P4b (Step 3) is DELIBERATELY EXCLUDED from this first run
+(user-confirmed decision, Step 3 ORDERING NOTE) so the P4a "zero 10048" verdict is clean; leave
+Vrf:BundlePositionReports=false here. Read RUNBOOK sec 7 in full before starting.
 
 WHY / EVIDENCE (PLAN_DERISK_NOTES sec 4): data/COA-STP1_Order.xml has 42 tasks, 11 distinct
 performers, ALL self-target (verbs degrade to movement - expected/documented), 32 temporal deps
