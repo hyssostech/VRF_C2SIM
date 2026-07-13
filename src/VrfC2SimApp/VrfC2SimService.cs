@@ -1044,16 +1044,12 @@ public sealed class VrfC2SimService : BackgroundService
     }
 
     /// <summary>
-    /// E1 (NEXT_SESSION_GUIDANCE sec 4): the formation name that RESOLVES for a created
-    /// aggregate's DIS type. Formation names are defined PER UNIT TYPE in the .entity files
-    /// with INCONSISTENT case: types with NO matching aggregate .entity (our Scout /
-    /// ArmorPlatoon) fall back to the Ground_Aggregate catch-all whose names are LOWERCASE
-    /// ("column"/"wedge"/...); Tank Company (USA) and the C2simEx Mobile Irregular are
-    /// Title-Case. "column"/"Column" chosen for route march (either works for the E1 test).
-    /// ArmorCoHQ's match is AMBIGUOUS (guidance E1(a) sub-rule): try Title-Case "Wedge"
-    /// first; if vrfSim.log still shows 'invalid formation name' for CoHQ units, they fell
-    /// back to Ground_Aggregate -> flip to lowercase. Returns null for unmapped types
-    /// (caller logs; no formation is set).
+    /// SUPERSEDED (retained as the record of the E1 static analysis): the per-DIS-type
+    /// formation-name map derived from the .entity files. The R5 live read-backs proved
+    /// static analysis UNRELIABLE - the runtime lists are all lowercase even where the
+    /// files say Title-Case - so the auto path now QUERIES each unit's own list
+    /// (RequestAvailableFormations -> OnVrfAvailableFormations) and this map's value is
+    /// no longer consulted for setting. See docs/UNIT_MOVEMENT_RESEARCH.md sec 4.
     /// </summary>
     private static string AutoFormationFor(EntityTypeSpec t)
     {

@@ -53,9 +53,10 @@ Three locations are in play:
   the list). R5c (COA-STP1, stacked coordinates, same code): repair applied 113/113, the
   E1 runaway ELIMINATED, but 0/6 aggregates marched (control-only, ~13 min stack-escape)
   - the same-day A/B pins COA-STP1's STACKED unit coordinates as the blocking data
-  pathology (R6 coa-gpt feedback now evidence-backed; candidate R8 = opt-in create-time
-  de-stacking, user decision). CoHQ creation-scatter is a separate open failure mode.
-  NEXT: R8 decision / coa-gpt data fix, CoHQ scatter investigation, then E2 re-test.
+  pathology (R6 coa-gpt feedback now evidence-backed). CoHQ creation-scatter is a
+  separate open failure mode. **R8 create-time de-stacking is APPROVED by the user -
+  it is the NEXT TASK** (build opt-in de-stack, re-run the R5c probe to close the stack
+  hypothesis; UNIT_MOVEMENT_RESEARCH.md sec 4). Then CoHQ scatter, then E2 re-test.
 - **2026-07-12, evening - RESEARCH**: after E1's negative, a three-agent sweep of
   the MAK 5.0.2 vendor docs/headers/content produced **docs/UNIT_MOVEMENT_RESEARCH.md** -
   READ IT before any aggregate work. Verdict: our move task was always correct; the missing
@@ -206,7 +207,10 @@ VRF-All-entities) is now TRACKED (2026-07-12) so the repo is self-contained (off
   `StopIface` (clean stop = STOP+RESET -> UNINITIALIZED), `StompProbe` (subscribe + log
   every inbound event - the STOMP-receive diagnostic). VR-Forces (bridge, no C2SIM):
   `ResetVrf` (hard reset - join, discover EVERY reflected object, DeleteObject each; clears
-  ORPHANS from crashes/force-kills that Solution A can't; `--dry-run` = discover-only; RUNBOOK sec 8).
+  ORPHANS from crashes/force-kills that Solution A can't; `--dry-run` = discover-only; RUNBOOK sec 8);
+  `WatchVrf` (member-level position telemetry - join as observer, sample EVERY reflected
+  object incl. unit members as CSV; the GUI-independent movement oracle; args
+  [appNo] [durationSecs] [sampleSecs] [federation]; UNIT_MOVEMENT_RESEARCH.md plan R3).
 
 ## Build
 
@@ -249,7 +253,9 @@ it exactly). In short: redeploy c2sim-server if gone (from Downloads/Docker.zip)
 + `--contentRoot=<exe dir>` + a FRESH `Vrf__ApplicationNumber`; PushInit FIRST then start the
 app (it late-joins); clean-stop with `tools/StopIface`. Useful env knobs: `Vrf__ClientId`
 (STP / C2SIM / VRF per the init's SystemName), `Vrf__TimeMultiplier` (e.g. 20 = fast clock),
-`Vrf__AggregateFormation` (e.g. Wedge = move aggregates; "" = golden parity),
+`Vrf__AggregateFormation` (**auto = the R5-verified query-driven create-time repair,
+RECOMMENDED for aggregate scenarios**; a literal name = legacy move-time set for
+experiments; "" = golden parity),
 `Vrf__TaskPredecessorTimeoutSeconds` (default 600 - make experiment overrides EXPLICIT),
 `Vrf__PredecessorTimeoutPolicy` (skip|force|whenIdle; default skip - P0.2),
 `Vrf__EngageFallbackSeconds` (default 300 - P0.3). Reload the VR-Forces scenario (or run

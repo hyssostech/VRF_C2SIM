@@ -198,10 +198,14 @@ definitive isolation would re-run COA-STP1 with de-stacked positions.
 NEXT:
 - R6 (coa-gpt feedback, now evidence-backed): emit DISPERSED unit positions - stacked
   coordinates are pathological for disaggregated units. THE preferred fix (source data).
-- R8 (candidate interface-side mitigation, NOT built): opt-in create-time de-stacking -
-  when N units share identical init coordinates, offset each by a few tens of meters
-  (deterministic ring/grid) before CreateAggregate. Attacks the root without touching
-  coa-gpt; parity-breaking, so opt-in. Decide with the user.
+- R8 (interface-side mitigation - **APPROVED by the user 2026-07-12, build it next**):
+  opt-in create-time de-stacking - when N units share identical init coordinates, offset
+  each by a few tens of meters (deterministic ring/grid) before CreateAggregate/
+  CreateEntity. Attacks the root without touching coa-gpt; parity-breaking, so opt-in
+  (suggest `Vrf:DeStackCreates`, default off; "auto" mode pairs naturally with it).
+  VERIFY by re-running the R5c probe (COA-STP1 + data/E1_Formation_Order.xml) with
+  de-stack on - if aggregates then march, the stack hypothesis is definitively closed;
+  if not, the terrain-region caveat is back in play.
 - CoHQ subordinate scatter needs its own investigation (member telemetry on ONE CoHQ
   through create->repair) - it is a distinct failure mode from the stack.
 - Then: make query-driven auto the recommended default for aggregate-bearing scenarios

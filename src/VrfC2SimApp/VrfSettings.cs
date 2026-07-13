@@ -21,14 +21,17 @@ public class VrfSettings
     // init's SystemName or 0 units are created (RUNBOOK sec 2).
     public string ClientId { get; set; } = "STP";
 
-    // Aggregate formation set before a move (PORT.md sec 10 enrichment). "" = OFF (golden
-    // parity: bare moveAlongRoute, disaggregated aggregates freeze on their unresolvable
-    // default formation "column-left"). A literal name (e.g. "Wedge") is set globally -
-    // but formation names are PER UNIT TYPE and case-inconsistent, so a global name only
-    // resolves for some types (that is why Wedge moved ~3/32). "auto" = E1 (guidance
-    // sec 4): resolve per the CREATED aggregate type (lowercase for Ground_Aggregate-
-    // matched types, Title-Case for Tank Company / C2simEx). Opt-in - deliberately
-    // diverges from the frozen golden-trace behavior.
+    // Aggregate formation repair (docs/UNIT_MOVEMENT_RESEARCH.md). "" = OFF (golden
+    // parity: bare moveAlongRoute; disaggregated aggregates freeze on their unresolvable
+    // default formation "column-left"). "auto" = the QUERY-DRIVEN create-time repair -
+    // RECOMMENDED for any aggregate-bearing scenario, R5-verified (3/3 route completions
+    // on the golden init): on each aggregate creation the app queries the unit's OWN
+    // formation list (RequestAvailableFormations) and, on the reply, sets a valid name
+    // from that list (prefer "column"; snap) + ReorganizeAggregate (establish the lead
+    // subordinate) BEFORE any tasking. Never trust static formation names: live lists
+    // are all lowercase even where the .entity files say Title-Case. A literal name
+    // (e.g. "Wedge") is the legacy global set at MOVE time - kept for experiments only.
+    // Opt-in - deliberately diverges from the frozen golden-trace behavior.
     public string AggregateFormation { get; set; } = "";
 
     // Semantic-map Unit 4 (docs/SEMANTIC_MAPPING.md): the PROPER aggregate maneuver. "" = OFF.
