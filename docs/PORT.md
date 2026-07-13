@@ -252,7 +252,9 @@ On `OpenC2SIM.github.io` branch `dev/sdk-fixes`, committed (`f738edf`, `3b7cd33`
   mutate); `SocketsHttpHandler`/`PooledConnectionLifetime` (2 min) is
   `#if NET5_0_OR_GREATER`-guarded so the netstandard2.0 leg still compiles (a
   plain shared client there still pools connections). Live discriminator (ZERO
-  10048 / "Connection error:" lines) deferred to the Step 5 scale run.
+  10048 / "Connection error:" lines) PROVEN LIVE 2026-07-13: zero such lines in
+  BOTH the Step-5 scale run (~50 min at 20x, heavy position reporting) AND the
+  P4b live pass (~60 min, 5,524 bundle POSTs). P4a is closed.
 
 **NEAR-MISS to NOT repeat**: the missing STOMP `selector` was NOT a bug. Commit
 `04c0131` (Feb 2024) removed it deliberately - "won't work with recent ActiveMQ".

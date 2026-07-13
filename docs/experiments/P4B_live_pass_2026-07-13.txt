@@ -1,0 +1,77 @@
+# P4b short live pass - archival record (2026-07-13 evening, LIVE)
+# OPUS plan Step 3 secs 3.6/3.9; START_HERE Step-3 bullet carries the summary.
+# Verdict: PASS on all four gates. The one Tier-1 unknown (Appendix E) is RESOLVED:
+# c2sim-server 4.8.4.9 INGESTS multi-content report envelopes and re-broadcasts them intact.
+# Raw sources (untracked, preserved):
+#   C:\Users\PauloBarthelmess\AppData\Local\Temp\p4b-live-pass-2026-07-13\
+#     app-3361.out.log (89.3 MB)  reports-captured.log (8.0 MB)  listenreports.out.log
+#     pushinit.log pushorder.log stopiface.log resetvrf-3360-dryrun.log
+#     resetvrf-3362-postrun-dryrun.log  (all .err.log files 0 bytes)
+
+## Run design (supervisor-decided; isolates the bundling variable)
+Scenario: GOLDEN STP init + golden move order (Sweden; 49 units + 4 areas created;
+1 MOVE task T1_1_4_A for 14.MechBn). Overrides ONLY: Vrf__ClientId=STP,
+Vrf__TimeMultiplier=20, Vrf__BundlePositionReports=true, Vrf__ApplicationNumber=3361,
+plus Logging__LogLevel__VrfC2Sim=Debug (observability-only - the "SENT POSITION BUNDLE"
+line is LogDebug and would otherwise be invisible; caught at GATE-ENV). Everything else
+at defaults: DeStackCreates=false, SubordinateFanOut=false, FanOutStragglerSeconds=0,
+AggregateFormation="" (golden parity - deliberately unrepaired).
+App exe carried P4b (proof: --report-selftest 16/16 pre-launch, not timestamps).
+Launch env per RUNBOOK sec 7 (RTI 4.6.1 PATH, Machine license, cwd bin64, --contentRoot).
+
+## Timeline (local, 2026-07-13)
+15:51:58 ResetVrf 3360 --dry-run: 0 objects (clean slate after the Step-5 post-run sweep).
+15:52:20 PushInit golden init ("QUERYINIT: 80 Units" = raw element count; the app's
+         authoritative line: "Init dispatched: 49 units + 4 areas", 53 creates).
+15:53:22 ListenReports started (1080 s window; REST/STOMP only, no appNo).
+15:53:39 App 3361 launched; connected; late-join; creates flowed.
+15:54:59 PushOrder golden move ("CreateRoute 'T1_1_4_A ROUTE' (3 pts) for 14.MechBn"
+         -> "MoveAlongRoute issued"). Bundling active from the first fixes.
+15:54-16:53 Observation. NOTE: intended ~12 min window overshot to ~59 min (the
+         executor's poll timer failed to resume it; supervisor ground-truth checks
+         at ~16:01 and ~16:52 confirmed healthy counters; longer window = more
+         evidence, outcome unaffected). ListenReports exited on schedule ~16:11,
+         so the wire capture covers the first ~17 min (1,669 envelopes - ample).
+16:53:41 StopIface: RUNNING -> INITIALIZED -> UNINITIALIZED.
+16:53:52 App exited (11 s): cleanup dispatched 54 deletes (53 creates + 1 route),
+         flush-on-stop's final bundle fired during cleanup BEFORE resign; rtiexec
+         back to 2 threads = no stale federate. App stderr 0 bytes.
+~17:0x   Post-run ResetVrf 3362 --dry-run: 2 deletable leftovers (the documented
+         Solution-A race class). The real sweep on 3363 was PERMISSION-DENIED
+         (pre-launch, appNo NOT consumed) - leftovers pending the next session's
+         standard pre-run sweep.
+
+## Gate results
+(a) Bundles with N>1 fixes:      PASS - 5,524 bundles sent, 5,337 with N>1 (96.6%).
+(b) No push failures/rejects:    PASS - "PushReport failed" = 0; no error-XML markers.
+(c) Server ingestion + parse:    PASS - ListenReports received 1,669 reports (all
+    Position, 0 errors) = the server ACCEPTED and RE-BROADCAST the bundles. Captured
+    wire bodies verified structurally: ONE <ReportBody> with N <ReportContent> blocks
+    (distinct SubjectEntity/lat/lon each) closed by exactly ONE <ReportID>;
+    aggregate 14,121 contents / 1,669 envelopes (avg ~8.5). The implemented
+    ReportingEntity convention (first fix's subject uuid) survived the round trip.
+(d) Zero 10048 / Connection err: PASS - both 0 over ~60 min at 20x (P4a under load).
+
+## Fix-per-bundle distribution (5,524 bundles / 46,889 fixes; sums cross-check)
+ 1 fix :  187     6 fixes:  149
+ 2 fixes:  208     7 fixes:  138
+ 3 fixes:  179     8 fixes:  176
+ 4 fixes:  207     9 fixes:  162
+ 5 fixes:  197    10 fixes: 3921  (count trigger; 71%)
+1-9-fix bundles = the ~2 s timer flush; the last bundle (2 fixes) = flush-on-stop.
+Zero unbundled single position reports (all positions routed through the accumulator -
+correct with bundling ON).
+
+## The one gap (not rounded up)
+TASKCMPLT was NOT exercised live: the golden-parity unrepaired aggregate advanced
+along-route (16 distinct fixes, ending ~0.4 km short of the endpoint) but never
+completed in ~59 min - known R5-arc behavior (AggregateFormation deliberately left
+at default to isolate the bundling variable), NOT a P4b symptom. The
+TASKCMPLT-never-bundled property stays proven OFFLINE (selftest + the structurally
+separate OnVrfTaskCompleted path). Follow-up: piggyback a live TASKCMPLT sample on
+any future run with bundling ON. The wire stream contained zero TaskStatus reports -
+consistent.
+
+## AppNo ledger
+3360 pre-check dry-run | 3361 app | 3362 post-run dry-run. 3363 NOT consumed
+(sweep denied). Next free: 3363.

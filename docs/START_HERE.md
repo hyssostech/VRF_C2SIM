@@ -56,10 +56,18 @@ Three locations are in play:
   DEFAULT-OFF is byte-for-byte today's one-report-per-POSITION path. `--report-selftest` 9 -> 16
   (+7 bundle checks: 3-content round-trip, per-content uuid/lat/lon + time, one ReportID,
   envelope ReportingEntity, 1-fix == single-content shape). App builds 0 errors; all eight
-  offline selftests green. LIVE pass still PENDING: P4b is DELIBERATELY excluded from the
-  Step-5 scale run - the one live unknown is whether THIS c2sim-server ingests an N-content
-  envelope (plan 3.9 stop-and-escalate); a short dedicated live pass with
-  `Vrf:BundlePositionReports=true` confirms acceptance before parity is claimed.
+  offline selftests green. LIVE pass PASSED (2026-07-13 evening, apps 3360-3362, golden
+  Sweden scenario, ~60 min at 20x): 5,524 bundles / 46,889 fixes pushed with ZERO failures;
+  the c2sim-server 4.8.4.9 INGESTS multi-content envelopes and re-broadcast them INTACT
+  (ListenReports captured 1,669 envelopes / 14,121 ReportContent blocks, one ReportID each;
+  the first-fix ReportingEntity survived the wire); zero 10048 (P4a holding under bundle
+  load); all three flush triggers observed live (count 71%, timer 1-9-fix partials,
+  flush-on-stop's final bundle during cleanup). The TASKCMPLT-never-bundled property stays
+  offline-proven (no completion fired - golden-parity unrepaired aggregate, known R5-arc
+  behavior; piggyback a live sample on a future bundling-ON run). Evidence
+  docs/experiments/P4B_live_pass_2026-07-13.txt. NOTE: 2 Solution-A-race leftovers remain
+  on the federation (the ResetVrf sweep on 3363 was permission-denied); the next session's
+  standard pre-run sweep clears them.
 - **Step 5 (COA-STP1 FULL 42-task LIVE scale run) RAN (2026-07-13, execution) -
   pipeline PASS at scale; P4a + Step-2 PASS live; movement MIXED**: 128 units +
   35 areas, mega-pile de-stacked (54 units), formation repair 113/113, 14
