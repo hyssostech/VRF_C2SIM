@@ -577,6 +577,9 @@ coa-gpt guidance: keep emitting rich semantics (TaskActionCodes, temporal associ
 durations; add formations + explicit targets). Do NOT dumb coa-gpt down to the bare
 interface - extend the interface up. One real coa-gpt-side fix: timing hygiene (the
 12,000,000 ms / 3.3-hr delay; set SimulationRealtimeMultiple so scenarios are watchable).
+The coa-gpt data-quality findings are assembled as an outward-facing memo:
+docs/COA_GPT_FEEDBACK.md (2026-07-13; distinct AffectedEntity, timing hygiene, dispersion
+nuanced by R8, region validation).
 
 Status (2026-07-10): FIX LIVE-VERIFIED in the .NET port. The disaggregated aggregate
 14.MechBn - the canonical "frozen" unit - MOVED. With `Vrf:AggregateFormation=Wedge` the

@@ -39,6 +39,11 @@ Three locations are in play:
 
 ## Current status (2026-07-13)
 
+- **Step 4 (coa-gpt memo) LANDED (2026-07-13, execution)**: docs/COA_GPT_FEEDBACK.md - the
+  outward-facing data-quality memo for the coa-gpt team (4 evidence-backed items: distinct
+  AffectedEntity for engagement verbs; timing hygiene; dispersed positions, nuanced by R8;
+  region validation - the strongest item). Every claim verified against its cited source;
+  supervisor-reviewed. Pointer also in PORT.md sec 10.
 - **Step 2 (fan-out robustness) LANDED (2026-07-13, execution)**: completion QUORUM +
   straggler TIMEOUT + late-straggler SWALLOW added to the R10
   fan-out path. `FanOutTracker` gains a per-fan-out `Synthesized` state and captured `Fraction`:
