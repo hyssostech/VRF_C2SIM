@@ -39,6 +39,24 @@ Three locations are in play:
 
 ## Current status (2026-07-13)
 
+- **Step 5 (COA-STP1 FULL 42-task LIVE scale run) RAN (2026-07-13, execution) -
+  pipeline PASS at scale; P4a + Step-2 PASS live; movement MIXED**: 128 units +
+  35 areas, mega-pile de-stacked (54 units), formation repair 113/113, 14
+  fan-outs; the order fully drained (15 dispatched-and-completed / 5 no-location
+  / 21 skip-gated / 1 delay-gated T13 = 42); clean stop (Solution A 178 deletes)
+  + ResetVrf swept 1 leftover; appNos 3355-3359. P4a discriminator: ZERO 10048 /
+  "Connection error:" over ~50 min at 20x (every pre-P4a run had them). Step-2:
+  5 straggler syntheses + 9 quorum syntheses, ZERO "NO in-flight task recorded".
+  Telemetry (WatchVrf, 1785 objects): 856/HHC 24.1 km full-quorum march (the
+  showcase), 1-35 + 40 28.5 km arrivals, C/1-35 40.2 km (+6.2 km overshoot) -
+  but ~half the 15 TASKCMPLTs are NOT displacement-backed: F1 runaway (1-6 drove
+  53.8 km, 18.4 km past its route end), F2 vacuous completion on the one unfanned
+  aggregate move (1-1 sat at spawn, completion fired), F2b NEW member-level
+  vacuous completions (4-27 x3, B/5-20, 5-20 legs 2-3: quorums, zero arrivals),
+  F3 the 600==600 straggler-vs-predecessor race (skip won every time; straggler
+  timeout must scale with route length and sit BELOW the predecessor timeout).
+  Full record UNIT_MOVEMENT_RESEARCH.md sec 4c; evidence
+  docs/experiments/COA-STP1_scale_2026-07-13.txt.
 - **Step 4 (coa-gpt memo) LANDED (2026-07-13, execution)**: docs/COA_GPT_FEEDBACK.md - the
   outward-facing data-quality memo for the coa-gpt team (4 evidence-backed items: distinct
   AffectedEntity for engagement verbs; timing hygiene; dispersed positions, nuanced by R8;

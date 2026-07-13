@@ -431,6 +431,90 @@ multi-point route path only).
 - Then: make query-driven auto the recommended default for aggregate-bearing scenarios
   and re-test MoveIntoFormation (E2) now that preconditions are sane.
 
+**COA-STP1 FULL 42-TASK SCALE RUN (2026-07-13 afternoon, LIVE, apps 3355-3359):
+PIPELINE HOLDS AT SCALE; P4a + STEP-2 PASS THEIR LIVE GATES; MOVEMENT MIXED -
+F1 RUNAWAY UNDER FAN-OUT, F2/F2b VACUOUS-COMPLETION CLASSES, F3 TIMEOUT RACE.**
+Setup: the FULL COA-STP1 order (42 tasks, 11 performers, 32 temporal deps) on the
+128-unit init at its own Mojave region. Vrf: DeStackCreates=true,
+AggregateFormation=auto, SubordinateFanOut=true, TimeMultiplier=20,
+FanOutStragglerSeconds=600, FanOutCompletionFraction=1.0,
+TaskPredecessorTimeoutSeconds=600 (explicit); P4b NOT in the build (deliberate,
+Step 3 ordering note). App carried SDK ClientLib 4.8.3.3 (P4a) + the Step-2
+FanOutTracker. Procedure per RUNBOOK sec 7 + OPUS plan 5.2; ~53 min observation
+at 20x; WatchVrf 3600 s x 20 s sampled 1785 objects. Raw evidence:
+docs/experiments/COA-STP1_scale_2026-07-13.txt.
+
+PIPELINE AT SCALE - PASS: 128 units + 35 areas dispatched; the mega-pile de-stack
+fired verbatim ("DeStack (R8): 54 units at (34.67998497486787,-116.72479854165415)
+spread onto 50 m rings", + 9 more groups); formation repair 113/113; 14 fan-out
+registrations + 1 aggregate-move fallback (1-1 RECON publishes no members); the
+order fully DRAINED: 15 dispatched-and-completed / 5 no-location / 21 skip-gated /
+1 never-dispatched (T13, the 3h20m SimulationTime-delay task) = 42. Clean stop
+(Solution A "178 deletes dispatched (1623 ms)" + resign), post-run ResetVrf found
+only 1 leftover; no stale federate. AppNos 3355-3359 consumed.
+
+P4a - PASS LIVE (the discriminator): grep over the full ~50-min 20x log with heavy
+position reporting: ZERO "Only one usage of each socket address", ZERO "Connection
+error:". Every pre-P4a live run had them; the shared-HttpClient fix is proven.
+
+STEP-2 MECHANISM - PASS: 9 quorum syntheses + 5 straggler-timeout syntheses (the
+warnings fired: 1-35/2/1_A 0/4, 1-6/2/1_AD 0/4, C/1-35 0/18, 40/2/1_AD 0/4,
+856/HHC 7/18); ZERO "NO in-flight task recorded" (the swallow gate held); no
+double TASKCMPLT. 15 unit TASKCMPLTs total (R5c-era scored 0/6; the 7-task probe
+5/7). BUT see F3: the lever's mechanics worked while its successor-unblocking
+value was nullified by configuration.
+
+MOVEMENT (telemetry-verified ONLY - the R11 rule): 4 units genuinely marched
+their 22-40 km routes: 856/HHC 24.1 km FULL 18/18 quorum, cohort n=23 ending at
+the corridor endpoint (min 36 m) - the showcase; 1-35/2/1_A and 40/2/1_AD 28.5 km
+with cohort arrivals at the objective (synthesized EARLY at 0/4 - members arrived
+after the 600 s synthesis); C/1-35 40.2 km, 15 movers near the T39 endpoint,
+aggregate overshooting 6.2 km past; 5-20/2/1_A's first leg (T31) real. Census:
+130/1785 objects moved >50 m, 61 >500 m, 0 objects >50 m in the final 600 s (the
+order had drained, not stalled). Roughly HALF the 15 completions are NOT
+displacement-backed:
+
+- F1 RUNAWAY UNDER FAN-OUT: 1-6/2/1_AD drove 53.8 km on its correct 218-deg axis,
+  18.4 km PAST its 35.5 km route end, never stopping in-window; member monsters
+  on-axis at 166.7 km and 67.2 km. The R8-era overshoot pathology re-expressed
+  under fan-out for ONE unit; its 0/4 straggler synthesis reported completion for
+  a unit that was actually running away.
+- F2 R11 VACUOUS COMPLETION REPRODUCED on the run's ONE unfanned aggregate move:
+  1-1/2/1_AD (T23) sat at EXACTLY (34.678715,-116.726343) for the entire window -
+  zero displacement over 166 samples - yet "VRF task complete: 1-1/2/1_AD /
+  move-along" fired and its TASKCMPLT was the SECOND sent. moveAlongRoute itself
+  can complete vacuously at this region, not just DtPlanAndMoveToTask.
+- F2b NEW CLASS - MEMBER-LEVEL VACUOUS COMPLETIONS: full member quorums with ZERO
+  telemetry arrivals at the route ends: 4-27/2/1_A (all 3 tasks; aggregate moved
+  0 m; zero >500 m movers within 3 km of any of its three endpoints), B/5-20
+  (T35 largely, T36 zero arrivals), 5-20/2/1_A legs 2-3 (T32/T33 zero arrivals).
+  Entity-level MoveAlongRoute completions can ALSO lie on some routes at this
+  region - the R11 trap is not confined to unit-level or PlanAndMove tasking.
+- F4 UNEXPLAINED: one 148.0 km mover due NORTH (bearing 8 deg) matching NO task
+  axis - reported as unexplained, not folded into a category. (All six >60 km
+  movers began moving in the same t=1025-1125 s sample band, the successor-
+  dispatch wave.)
+- F3 THE 600==600 TIMEOUT RACE (config lesson, no code defect): with
+  FanOutStragglerSeconds == TaskPredecessorTimeoutSeconds == 600, every straggler
+  synthesis fired in a dead heat with its successors' predecessor windows - and
+  the SKIP won every time (verified: T2's skip names T1's uuid the same instant
+  T1's synthesis fired). Straggler-synthesized completions unblocked NOTHING;
+  only fast quorum completions opened successor chains (4-27, 5-20, 856, B/5-20
+  ran 2-3-task chains). ALSO: 600 s was sized for R10's 1.1-1.3 km routes; this
+  order's 13-40 km routes take far longer at the same speeds, so the timeout
+  fired at 0/N for units MID-MARCH (a route-length artifact, not a stuck-member
+  detector) - premature completions for units that later arrived (1-35, 40,
+  C/1-35) or never would (1-6). RULE FOR NEXT RUNS: scale the straggler timeout
+  with route length and set it meaningfully BELOW the predecessor timeout.
+
+NEXT (in order): (1) re-run tuning - straggler timeout sized to route length
+(and/or the Step-2.3 idle-timeout refinement) and < predecessor timeout, to see
+the synthesis lever actually unblock successors; (2) F2b/F1 investigation - a
+per-route 1-member probe matrix at this region (which routes vacuous-complete,
+which overshoot; vrfSim.log oracle) before trusting member completions there;
+(3) P4b gets its own SHORT live pass (per the Step-3 ordering note) now that the
+P4a verdict is clean.
+
 ## 5. What the research could NOT settle (open)
 
 - What exactly VR-Forces does at creation when the formation is unresolvable

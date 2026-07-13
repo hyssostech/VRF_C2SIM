@@ -1,0 +1,178 @@
+# COA-STP1 FULL 42-task scale run - archival record (2026-07-13 afternoon, LIVE)
+# UNIT_MOVEMENT_RESEARCH.md sec 4c "COA-STP1 FULL 42-TASK SCALE RUN"; OPUS plan Step 5.
+# Verdict: pipeline PASS at scale; P4a PASS live; Step-2 mechanism PASS; movement MIXED
+# (F1 runaway, F2/F2b vacuous-completion classes, F3 timeout race, F4 unexplained mover).
+# Raw sources (untracked, preserved):
+#   C:\Users\PauloBarthelmess\AppData\Local\Temp\coa-stp1-scale-run-2026-07-13\
+#     app_3358.log (96,483 B)  watchvrf_3357.csv (25.5 MB, ~180 samples x 1785 objects)
+#     resetvrf_3355_dryrun.log resetvrf_3356_sweep.log pushinit.log pushorder.log
+#     stopiface.log resetvrf_3359_postrun.log
+
+## Run parameters
+Build: VrfC2SimApp.exe 2026-07-13 12:50 (post Step-2 sources); bundled C2SIMClientLib
+4.8.3.3 (P4a). Launch env (RUNBOOK sec 7): PATH led by vrforces5.0.2\bin64 +
+vrlink5.8\bin64 + makRti4.6.1\bin (4.6.1, NOT 4.6b); MAKLMGRD_LICENSE_FILE from
+Machine scope; cwd = C:\MAK\vrforces5.0.2\bin64; --contentRoot=<exe dir>.
+Env knobs (all explicit): Vrf__ClientId=C2SIM  Vrf__DeStackCreates=true
+Vrf__AggregateFormation=auto  Vrf__SubordinateFanOut=true  Vrf__TimeMultiplier=20
+Vrf__FanOutStragglerSeconds=600  Vrf__FanOutCompletionFraction=1.0
+Vrf__TaskPredecessorTimeoutSeconds=600  Vrf__ApplicationNumber=3358
+Vrf__BundlePositionReports=false (inert - P4b not implemented; deliberately excluded).
+Data: data/COA-STP1_Initialization.xml (128 units + 35 areas, SystemName C2SIM);
+data/COA-STP1_Order.xml (42 tasks; verbs: 10 ATTACK, 4 SECURE, 3 SCREEN, 3 OCCUPY,
+3 FIX, 3 BREACH, 2 each DESTRY/DISRPT/PENTRT/BLOCK/DEFEND, 1 each
+ESCRT/CLRLND/GUARD/MOVE/RETAIN/SEIZE).
+AppNos consumed: 3355 ResetVrf dry-run | 3356 ResetVrf sweep | 3357 WatchVrf |
+3358 app | 3359 ResetVrf post-run. 3360+ NOT used.
+
+## Timeline (UTC, 2026-07-13)
+17:12    Preflight green: loopback TcpClient 61613 = 7.31 ms; REST 8080 = 200;
+         vrfSimHLA1516e pid 34060 + rtiexec pid 76912; license file present (exp 2026-09).
+17:13:30 ResetVrf 3355 --dry-run: 3 reflected (2 deletable + 1 nil), resigned clean.
+17:13:55 ResetVrf 3356 sweep: same 2 deleted, flushed, resigned clean.
+17:14:1x PushInit: "OK Message processed successfully"; "QUERYINIT: 128 Units,
+         SystemName=[C2SIM]"; server RUNNING.
+17:14:47 WatchVrf 3357 joined (duration 3600 s, sample 20 s) - BEFORE the app,
+         baseline 0 reflected objects.
+17:15:3x App 3358 launched (PID 37068); connected ("Connected to C2SIM ...
+         clientId=C2SIM"); late-join QUERYINIT 828,308 B; "Init dispatched: 128 units
+         + 35 areas queued for creation"; "Sim Run() queued ... timeMult=20".
+         WatchVrf reflected count 0 -> 1769 within ~2 min (peak 1797, readable 1783).
+17:17:53 PushOrder: "OK Message processed successfully"; app received the 76,257 B
+         order broadcast; dispatch + fan-out begins immediately.
+17:17-18:03  March/completion activity. Member completions flowed until ~17:57
+         (supervisor-observed); app log plateaued ~18:03 at 95,947 B; final 600 s of
+         telemetry show ZERO objects moving >50 m (drained, not stalled).
+18:10:52 StopIface: RUNNING -> INITIALIZED -> UNINITIALIZED.
+18:10:54 App log last write: "Shutting down..." -> "Cleanup: deleting 178 created
+         VR-Forces objects before resign..." -> "Cleanup: 178 deletes dispatched
+         (1623 ms)" -> "STOMP block reading cancelled". Process exit confirmed
+         (monitor detection by 18:16; no force-kill).
+18:14:47 WatchVrf window ended on its own; final sample readable=1 (it watched the
+         cleanup empty the federation); "[OK] resigned cleanly."
+18:52:14 ResetVrf 3359 post-run: joined clean (= no stale federate), found 1
+         deletable leftover (VRF_UUID:537fdf6e-59bb-9f4a-80b8-1cfb8a930bd6 - the
+         known Solution-A race class) + 1 nil skipped; deleted; resigned clean.
+
+## Creation / de-stack / formation evidence
+Init dispatched: 128 units + 35 areas queued for creation.
+DeStack (R8): 54 units at (34.67998497486787,-116.72479854165415) spread onto 50 m rings (first unit kept in place).
+  (+ 9 more 2-unit groups = 10 de-stack groups total)
+113 "created aggregate" lines; 113 R1 set-formation lines (formation repair 113/113;
+the remaining 15 of 128 units are entity-type, created without per-line info logging).
+15 CreateRoute lines; 14 fan-out registrations; 1 aggregate-move fallback (T23,
+1-1 RECON publishes no members).
+
+## P4a discriminator (Step 1.4) - PASS
+grep "Only one usage of each socket address" -> 0 lines
+grep "Connection error:"                     -> 0 lines
+(~50 min at 20x with heavy position reporting; every pre-P4a 2026-07-13 run had both.)
+
+## Step-2 gate - mechanism PASS
+grep "NO in-flight task recorded" -> 0 lines (swallow gate held; no empty-uuid TASKCMPLT).
+9 quorum syntheses ("completion quorum reached ... (0 straggler(s) will be swallowed)").
+5 straggler-timeout WARNINGS (verbatim):
+fan-out straggler timeout for 1-35/2/1_A: 0/4 members done - synthesizing unit completion.
+fan-out straggler timeout for 1-6/2/1_AD: 0/4 members done - synthesizing unit completion.
+fan-out straggler timeout for C/1-35: 0/18 members done - synthesizing unit completion.
+fan-out straggler timeout for 40/2/1_AD: 0/4 members done - synthesizing unit completion.
+fan-out straggler timeout for 856/HHC: 7/18 members done - synthesizing unit completion.
+76 pre-synthesis member-completion lines; 123 raw "VRF task complete ... move-along"
+arrivals total (late arrivals after synthesis swallowed silently, as designed).
+
+## 42-task drain matrix
+DISPATCHED + COMPLETED (15): T1, T5, T6, T7, T15, T19, T23, T27, T28, T31, T32,
+  T33, T35, T36, T39.
+NO-LOCATION (5, "NO LOCATION GIVEN - CAN'T EXECUTE"): T8, T9, T24, T34, T37.
+SKIP-GATED (21): 6 immediate cascades ("predecessor was skipped/abandoned upstream"):
+  T10, T11, T12, T25, T26, T38; 15 predecessor-window timeouts ("did not complete
+  within 600s of its dispatch; policy=skip"): T2, T3, T4, T14, T16, T17, T18, T20,
+  T21, T22, T29, T30, T40, T41, T42 (T30/T41 with the "unit is BUSY" variant).
+NEVER-DISPATCHED (1): T13 (uuid 92e69020..., the 12,000,000 ms = 3h20m
+  SimulationTime-delay task; zero log mentions; still delay-gated at shutdown;
+  successor T14 timed out waiting on it). 15+5+21+1 = 42.
+The 3 SCREEN patrols (T24 noloc, T25 + T26 cascade-skipped) never dispatched - the
+expected patrol non-completions materialized upstream of dispatch.
+
+## TASKCMPLT list (15) in log order, with completion mechanism
+ 1. T31  quorum (5-20/2/1_A, 4/4)          9. T33  quorum (5-20/2/1_A, 4/4)
+ 2. T23  unit-level VRF completion          10. T7  quorum (4-27/2/1_A, 4/4)
+     (1-1/2/1_AD - VACUOUS, see F2)         11. T1  straggler synthesis 0/4 (1-35)
+ 3. T5   quorum (4-27/2/1_A, 4/4)           12. T15 straggler synthesis 0/4 (1-6)
+ 4. T27  quorum (856/HHC, 18/18)            13. T19 straggler synthesis 0/4 (40)
+ 5. T35  quorum (B/5-20, 18/18)             14. T39 straggler synthesis 0/18 (C/1-35)
+ 6. T32  quorum (5-20/2/1_A, 4/4)           15. T28 straggler synthesis 7/18 (856/HHC)
+ 7. T6   quorum (4-27/2/1_A, 4/4)
+ 8. T36  quorum (B/5-20, 18/18)
+Split: 9 quorum + 5 straggler-timeout + 1 unit-level = 15.
+
+## Telemetry (WatchVrf 3357, 1785 objects sampled, ~180 samples each)
+Census: 130 objects >50 m first->last; 61 >500 m; 0 objects >50 m in the LAST 600 s.
+7 NaN-position artifacts excluded. All >500 m movers spawned in the mega-pile
+de-stack rings. Order route ends sit 13-40 km from the spawn pile (route design).
+
+Tasked-unit AGGREGATE displacements (app-log name-resolved uuids):
+  unit         disp_m   end_vs_final_task_endpoint    bearing  class
+  856/HHC      22,474   1,645 m from T27/T28 endpoint  261     MARCHED (showcase)
+  1-35/2/1_A   26,845   1,485 m from T1 endpoint       245     MARCHED (post-synthesis)
+  40/2/1_AD    27,134   1,398 m from T19 endpoint       245     MARCHED (post-synthesis)
+  C/1-35       43,514   6,167 m PAST T39 endpoint       147     MARCHED + overshoot
+  1-6/2/1_AD   53,795   18,449 m PAST T15 endpoint      218     F1 RUNAWAY
+  4-27/2/1_A        0   22,219 m short of T7 endpoint    -      F2b vacuous (x3 tasks)
+  5-20/2/1_A        0   23,663 m short of T33 endpoint   -      T31 real; T32/T33 F2b
+  B/5-20            0   13,378 m short of T36 endpoint   -      F2b vacuous (largely)
+  1-1/2/1_AD        0   zero displacement, 166 samples   -      F2 vacuous (definitive)
+
+Member cohorts at route endpoints (>500 m movers within 3 km):
+  T27/T28 corridor endpoint (34.6450,-116.9847): n=23 (min 36 m)  - 856/HHC 18/18
+  T39 endpoint (34.4043,-116.4412): n=15 (min 96 m, med 2.8 km)   - C/1-35
+  T1/T19/T23/T31/T35 SHARED SW objective (~34.569,-117.007): ~10 unique movers vs
+    26+ members tasked there (1-35 + 40 arrived; B/5-20's 18 largely absent)
+  T5, T6, T7, T32, T33, T36 endpoints: ZERO arrivals (the F2b evidence).
+
+Monster movers (>60 km; all began moving t=1025-1125 s = the successor-dispatch wave):
+  166,742 m  22419564-56ab  bearing 210  end (33.3844,-117.6329)  1-6 axis (F1)
+  148,016 m  4b9efabd-1420  bearing   8  end (35.9984,-116.5029)  NO task axis (F4)
+  140,348 m  ae9e7c61-2157  bearing 138  end (33.7439,-115.7002)  T39-axis overshoot?
+  112,238 m  d6745bfb-953a  bearing 138  end (33.9249,-115.9121)  T39-axis overshoot?
+   77,763 m  450966e7-5314  bearing 169  end (33.9945,-116.5644)  axis uncertain
+   67,178 m  93ef048b-9005  bearing 218  end (34.2024,-117.1762)  1-6 axis (F1)
+Member uuids are VRF-assigned and appear nowhere in the app log - attribution beyond
+1-6 (anchored by its own named aggregate on the same axis) is axis-based inference.
+
+## Findings
+F1  RUNAWAY UNDER FAN-OUT: 1-6/2/1_AD drove 53.8 km on its correct axis, 18.4 km
+    past its 35.5 km route end, never stopped in-window; members on-axis at 166.7
+    and 67.2 km. Its 0/4 straggler synthesis reported completion for a runaway.
+F2  R11 VACUOUS COMPLETION on the ONE unfanned aggregate move: 1-1/2/1_AD (T23)
+    zero displacement (identical position t=63..3368 s) yet "VRF task complete:
+    1-1/2/1_AD / move-along" fired; its TASKCMPLT was the SECOND sent. moveAlong
+    itself vacuously completes at this region - not just DtPlanAndMoveToTask.
+F2b NEW CLASS - member-level vacuous completions: full member quorums with zero
+    telemetry arrivals at the endpoints: 4-27/2/1_A (all 3 tasks), B/5-20 (T36
+    zero, T35 largely), 5-20/2/1_A (T32/T33). Competing hypothesis
+    (march-then-return) disfavored: zero last-600 s movement, net <500 m.
+F3  THE 600==600 TIMEOUT RACE: straggler synthesis fired in a dead heat with the
+    successors' predecessor windows; the SKIP won every time (T2's skip names
+    T1's uuid cd589832 the same instant T1's synthesis fired). Straggler
+    completions unblocked no successors; only fast quorums opened chains. ALSO
+    600 s is undersized for 13-40 km routes (fired at 0/N mid-march -> premature
+    completions). Config rule: straggler timeout scaled to route length and
+    meaningfully BELOW the predecessor timeout. No code defect - both mechanisms
+    behaved as specified.
+F4  UNEXPLAINED: the 148.0 km due-north mover (bearing 8 deg) matches no task
+    axis; left unexplained per the honesty rule.
+
+## Anomalies (all benign-classed unless noted)
+- "Failed to deserialize xml to type C2SIM.Schema102.MessageBodyType: There is an
+  error in XML document (1, 2)." x2 - SDK-level, on empty STATUS broadcast bodies
+  (the known RUNBOOK sec-7 empty-body pattern).
+- "Can't create data of type <deploy_weapon_below_speed | platform_send_observation
+  | tracking_reports | non_lethal_damage_effect | suppressed_crouch |
+  suppressed_prone | make_c2_reports>. No creator found. Only time this warning
+  will be issued." - VRF content-lib one-time warnings, seen in prior runs.
+- "fail: C2SIM.C2SIMSDK[0] STOMP block reading cancelled" - normal shutdown cancel.
+- 5 "fail: VrfC2Sim[0]" lines = the 5 NO-LOCATION task errors (expected, order data).
+- 7 NaN-position objects in the CSV (WatchVrf prints NaN for unresolvable
+  geodetics; excluded from analysis).
+- app_3358.err: 0 bytes.

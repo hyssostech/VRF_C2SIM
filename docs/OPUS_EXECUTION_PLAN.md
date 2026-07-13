@@ -899,7 +899,7 @@ proceed on a slow proxy - the STOMP client cannot ride it out.
 3200-3350: consumed (prior sessions). START AT 3355. Record each join here as it is consumed
 (app / ResetVrf / WatchVrf each take one). Never reuse.
 
-- 3355+: (record as used)
+- 3355-3359: consumed 2026-07-13 scale run (dry-run/sweep/watch/app/post-run); next free: 3360.
 
 ## Appendix C - build command reference
 
