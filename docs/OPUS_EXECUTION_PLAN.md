@@ -31,6 +31,13 @@ smallest change with the biggest operational win (it removes the socket-exhausti
 fires in EVERY live run), and because it must land BEFORE the live scale run so that run
 can use "zero 10048 errors" as an acceptance discriminator.
 
+CONFIDENCE + UNKNOWNS: before starting, read Appendix E - a ranked, honest inventory of
+where the author's confidence is lower (verified vs assumed) and the per-item watch-point.
+It exists so the executor inherits the calibration instead of re-deriving it. The two most
+likely live surprises are P4b server acceptance (isolated OUT of the first scale run) and the
+Step 5 completion COUNT (unpredictable by design); the most review-fragile code is the Step 2
+FanOutTracker rewrite.
+
 ---
 
 ## 0. SUPERVISION PROTOCOL (read before touching anything)
@@ -871,3 +878,58 @@ R11 (UNIT_MOVEMENT_RESEARCH.md sec 4c) proved DtPlanAndMoveToTask fires a TASKCM
 unit sits EXACTLY at its spawn point at a path-dead region. Completions LIE. Therefore: any
 "the unit moved" claim in this plan's live steps MUST be backed by WatchVrf per-object
 displacement, never a completion event alone. This is a hard gate at GATE-VERDICT, not advice.
+
+## Appendix E - Confidence and unknowns (read before starting; watch hardest at the gates)
+
+Honest calibration from the plan author. Ranked by how much each could bite. "Verified" =
+checked first-hand this session (file:line or a cited live run); "Assumed" = not checked here.
+
+TIER 1 - GENUINE UNKNOWNS (not resolvable on paper; only a live run or a run-time check settles them):
+- P4b server acceptance. VERIFIED: the .NET ReportBody schema takes ReportContent[] (a bundle
+  is a data change). ASSUMED: that THIS c2sim-server ingests N contents per envelope - the only
+  evidence is that the C++ oracle sent bundles in a different era/client; the .NET port has never
+  been seen to send one and get a 200. This is why P4b is held OUT of the first scale run
+  (Step 3 ORDERING NOTE) and is a stop-and-escalate (3.9), not a claim. Secondary: an
+  UNEXPLAINED ~2500-char truncation of some server BROADCASTS (UNIT_MOVEMENT_RESEARCH sec 4c
+  op-finding #2) was on ORDER broadcasts, not report pushes - probably unrelated to bundling,
+  but "unexplained" means not fully ruled out for a larger bundle payload.
+- Step 5 completion COUNT is unpredictable. VERIFIED: the pipeline scales (128 units / 42 tasks /
+  0 abandons previously) and fan-out marches platoons + companies at Mojave (R10, telemetry).
+  NOT DONE: tracing the 42-task temporal-dependency graph. Under the skip policy, a skipped
+  predecessor skips its successors; 11 performers are each tasked up to 4x with each retask
+  cancelling the prior fan-out. So the 7-task probe's 5/7 is NOT a comparable baseline, and no
+  hard completion number can be promised. Step 5 acceptance therefore leans on PROCESS
+  correctness (de-stack fires, fan-out dispatches, telemetry shows displacement, zero 10048,
+  clean stop). Treat the first full run as partly a CHARACTERIZATION run; a surprising count is
+  data to explain, not automatically a failure.
+
+TIER 2 - EXECUTION-FRAGILE (design is sound; the implementation is where a bug slips in):
+- Step 2 FanOutTracker rewrite - the most review-fragile code here. TryCompleteMember's new
+  `alreadySynthesized` out-param touches the caller AND all existing --fanout-selftest checks
+  (regression surface). The "quorum met, Pending non-empty -> keep a Synthesized record to
+  swallow stragglers" lifecycle must clean up _unitByMember on BOTH the late-completion path and
+  supersession (leak/mis-route risk). Idempotency rests on TWO guards agreeing (the Synthesized
+  flag AND _inFlight.TryComplete removing the record) - implement one only and you get a double
+  TASKCMPLT or swallow-everything. Watch this hardest at GATE-DIFF; the specified offline cases
+  only help if written faithfully.
+- P4a is PROBABLY the only exhaustion source - "probably". VERIFIED: the fix and both HttpClient
+  sites; a grep found only those two HTTP sites; the error text matches SendTrans's catch. NOT
+  AUDITED: the STOMP raw-socket reconnect path for a second, smaller leak. Proof is "zero 10048"
+  live; if it is not zero after P4a is in the running build, that is the signal of a second
+  source (-> stop-and-escalate, Step 5.6), not something to assume away.
+
+TIER 3 - ASSUMPTIONS TO CONFIRM AT STEP START (deferred to run-time by necessity):
+- "Eight selftests are green right now" is INHERITED from the last session's record, not checked
+  this session (planning session; the exe was not run). The 0.2 before/after gate converts this
+  into a checked precondition - expect to CONFIRM the baseline, do not trust it.
+- Environment drift: VR-Forces up, container reachable, loopback fast, license valid (expires
+  2026-09-15), vrfGui hung-but-backend-healthy - all ASSUMED. Real elapsed time since 2026-07-13
+  is unknown, so drift is likely. Appendix A preflight forces the re-check.
+
+LEAN-TO-CUT: Step 2.4 (fan out the single-point MoveToLocation path). Optional and low-payoff -
+real orders are overwhelmingly multi-point routes. Recommend SKIP in the first pass; add only if
+a specific order surfaces the need.
+
+HIGH CONFIDENCE (not hedged): the P4a core fix, Step 6 csproj paths (mechanical, anchored to the
+app's known-working relative form), and the Step 4 coa-gpt memo (pure writing from verified
+evidence). The R11 telemetry rule and the non-negotiables are copied verbatim from verified docs.
