@@ -42,6 +42,8 @@
 #include <vrftasks/planAndMoveToTask.h>
 #include <vrfExtObjects/reflectedExtEntityList.h>
 #include <vrfExtObjects/reflectedExtEntity.h>
+#include <vrfExtObjects/reflectedExtAggregateList.h>
+#include <vrfExtObjects/reflectedExtAggregate.h>
 #include <vl/globalObjectDesignatorList.h>
 #include <vl/globalObjectDesignator.h>
 #include <vrftasks/radioMessageTypes.h>
@@ -481,6 +483,48 @@ void VrfFacade::PlanAndMoveTo(const std::string& uuid, const std::string& contro
     p_->controller->sendTaskMsg(DtUUID(uuid), &task);
 }
 
+namespace {
+    // Recursive worker for GetAggregateMembers: collect the aggregate state's ENTITY
+    // members, then descend into SUB-AGGREGATES (company-type units publish their
+    // elements as sub-aggregates, not entities - live R10 finding). Depth-capped
+    // against designator cycles/garbage.
+    void collectMembers(makVrf::DtUUIDNetworkManager* mgr,
+                        const DtAggregateStateRepository* asr,
+                        int depth, std::vector<vrf::AggregateMember>& out) {
+        if (!asr || depth > 3) return;
+        DtReflectedExtEntityList* ents = mgr->entityList();
+        if (ents) {
+            const DtGlobalObjectDesignatorList& members = asr->entities();
+            for (int i = 0; i < members.numObjects(); ++i) {
+                bool valid = false;
+                const DtGlobalObjectDesignator& des = members.object(i, &valid);
+                if (!valid) continue;
+                DtReflectedExtEntity* ent = ents->lookupEE(des);
+                if (!ent) continue;               // silent/not-yet-reflected member
+                vrf::AggregateMember m;
+                DtUUID u = mgr->uuidFor(ent);
+                m.uuid = u.uuidString().string() ? u.uuidString().string() : "";
+                const char* mark = ent->entityStateRep() ? ent->entityStateRep()->markingText() : nullptr;
+                m.name = mark ? mark : "";
+                if (!m.uuid.empty()) out.push_back(m);
+            }
+        }
+        DtReflectedExtAggregateList* aggs = mgr->aggregateList();
+        if (aggs) {
+            const DtGlobalObjectDesignatorList& subs = asr->subAggregates();
+            for (int i = 0; i < subs.numObjects(); ++i) {
+                bool valid = false;
+                const DtGlobalObjectDesignator& des = subs.object(i, &valid);
+                if (!valid) continue;
+                DtReflectedExtAggregate* sub = aggs->lookupEA(des);
+                if (!sub) continue;
+                // DtExtAggregateStateRepository derives DtAggregateStateRepository.
+                collectMembers(mgr, sub->extAggregateStateRep(), depth + 1, out);
+            }
+        }
+    }
+}
+
 std::vector<AggregateMember> VrfFacade::GetAggregateMembers(const std::string& aggregateUuid) const {
     std::vector<AggregateMember> out;
     if (!p_->uuidMgr) return out;
@@ -498,26 +542,9 @@ std::vector<AggregateMember> VrfFacade::GetAggregateMembers(const std::string& a
         asr = static_cast<DtReflectedAggregate*>(obj)->aggregateStateRep();
     if (!asr) return out;
 
-    DtReflectedExtEntityList* ents = p_->uuidMgr->entityList();
-    if (!ents) return out;
-
-    // The published member list: HLA object designators, resolvable via lookupEE.
-    // (Bind via a const pointer: the non-const entities() overload returns a pointer.)
-    const DtAggregateStateRepository* casr = asr;
-    const DtGlobalObjectDesignatorList& members = casr->entities();
-    for (int i = 0; i < members.numObjects(); ++i) {
-        bool valid = false;
-        const DtGlobalObjectDesignator& des = members.object(i, &valid);
-        if (!valid) continue;
-        DtReflectedExtEntity* ent = ents->lookupEE(des);
-        if (!ent) continue;                       // silent/not-yet-reflected member
-        AggregateMember m;
-        DtUUID u = p_->uuidMgr->uuidFor(ent);
-        m.uuid = u.uuidString().string() ? u.uuidString().string() : "";
-        const char* mark = ent->entityStateRep() ? ent->entityStateRep()->markingText() : nullptr;
-        m.name = mark ? mark : "";
-        if (!m.uuid.empty()) out.push_back(m);
-    }
+    // Entity members first, then recurse into published SUB-aggregates (companies
+    // publish platoon/section sub-aggregates whose states carry the entity members).
+    collectMembers(p_->uuidMgr, asr, 0, out);
     return out;
 }
 

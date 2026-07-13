@@ -39,7 +39,19 @@ Three locations are in play:
 
 ## Current status (2026-07-13)
 
-- **Latest (2026-07-13, morning - R9 REGION SWAP: GEOGRAPHY CONFIRMED + MECHANISM)**:
+- **Latest (2026-07-13, late morning - R10 FAN-OUT LIVE-VERIFIED; COA-STP1 UNBLOCKED)**:
+  `Vrf:SubordinateFanOut` (opt-in) tasks an aggregate's member ENTITIES directly and
+  synthesizes the unit TASKCMPLT when all members complete - the working mitigation for
+  path-plan-dead regions. LIVE at Mojave: R9 probe 3/3 (platoon 4/4 members, company
+  18/18 via the sub-aggregate recursion in GetAggregateMembers, control), member marches
+  telemetry-verified (1.1-1.3 km cohorts). THE MONEY SHOT - COA-STP1's OWN units at its
+  OWN location with de-stack + fan-out: **5/7 unit completions (both platoons, BOTH
+  companies incl. mega-pile-center B/40, control) where R5c scored 0/6**; the 2 CoHQs
+  each finished 3/4 members (one GndV straggler each - fan-out quorum/timeout is the
+  follow-up). R11 NEGATIVE + TRAP: DtPlanAndMoveToTask completes VACUOUSLY (no movement)
+  at path-dead regions - false TASKCMPLTs; experiment-only. Full records
+  UNIT_MOVEMENT_RESEARCH.md sec 4c; evidence docs/experiments/R10_R11_fanout_2026-07-13.txt.
+- **2026-07-13, morning - R9 REGION SWAP: GEOGRAPHY CONFIRMED + MECHANISM**:
   the golden unit set transplanted to the COA-STP1 Mojave region (data/R9_Mojave_*.xml,
   ground geometry preserved) FAILS 1/3 (entity only; platoon frozen at 8 m, company
   410 m wrong-way then frozen) while the same-day SWEDEN CONTROL (original golden

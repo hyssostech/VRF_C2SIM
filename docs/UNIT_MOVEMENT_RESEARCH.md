@@ -365,6 +365,63 @@ R10 + R11 IMPLEMENTED + OFFLINE-VERIFIED (2026-07-13; live verify pending):
   march their R9-probe routes at Mojave and ONE unit-level TASKCMPLT per task arrives
   when the last member finishes; R11: any member/unit movement after PlanAndMoveTo
   where move-along planned empty.
+
+**R10 LIVE-VERIFIED AT MOJAVE (2026-07-13 morning) - THE FAN-OUT UNLOCKS AGGREGATE
+TASKING WHERE LEADER-PATH PLANNING FAILS. 3/3 completions on the R9 probe.**
+- Run 1 (app 3342/watch 3343): the PLATOON fan-out worked first try - 1222.MechPlt
+  published 4 member entities (R 1, AT4 1, AT4 2, R 2), all 4 got MoveAlongRoute on
+  the probe route, ALL 4 marched and completed at Mojave (~3 min at 20x), and the
+  unit-level TASKCMPLT was synthesized with the CORRECT task uuid + taskee. The
+  COMPANY published NO entities() members -> clean fallback to the aggregate move
+  (froze, as R9 predicts). LIVE FINDING: company-type units publish their elements
+  as SUB-AGGREGATES, not entities.
+- Facade fix (same session): GetAggregateMembers now RECURSES into the published
+  subAggregates() designators (lookupEA -> extAggregateStateRep, depth-capped at 3),
+  collecting entity members at every level.
+- Run 2 (app 3345, recursion in): **3/3 COMPLETIONS** - 1222.MechPlt 4/4 members,
+  114.MechCoy **18/18 members** (16x M1A2 + M3 + HMMWV/AUV - the recursion surfaced
+  the full company), 1.BdeHQ entity control; every unit-level TASKCMPLT synthesized
+  with correct attribution; clean stop (Solution A 56/56). The SAME units at the SAME
+  Mojave location scored 1/3 in R9 with unit-level tasking.
+VERDICT: Vrf:SubordinateFanOut is the working mitigation for path-plan-dead regions
+- COA-STP1 is now functionally UNBLOCKABLE at its own location (re-run pending).
+Residual semantics note: fanned members move as INDEPENDENT entities (no formation
+keeping; members revert to unit control on completion), and a patrol/never-completing
+member leaves the unit task open - acceptable for the movement-projector use case.
+
+**R11 NEGATIVE - AND A TRAP (2026-07-13, LIVE at Mojave, app 3347): DtPlanAndMoveToTask
+completes VACUOUSLY at the path-dead region.** Both aggregates' plan-and-move-to tasks
+"completed" (~60-90 s after dispatch) and TASKCMPLT reports fired - but a WatchVrf
+position check (appNo 3348) showed BOTH units sitting EXACTLY at their spawn points
+(platoon at -116.600487 vs destination -116.587860; company at 34.647629 vs
+destination 34.657629). ZERO movement. So at a region where the path planner fails,
+DtPlanAndMoveToTask reports FALSE SUCCESS - strictly worse than moveAlongRoute's
+silent freeze, because it corrupts the C2SIM report stream with phantom completions.
+DO NOT use Vrf:AggregatePlanAndMove as a fix; it stays an experiment-only knob with
+this caveat. (It also means: any future "did it move" claim needs TELEMETRY, not just
+a completion event - completions can lie. The R10 verdicts below were telemetry-
+verified for exactly this reason: the R10 watch window shows the platoon + company
+member cohorts physically marching 1.1-1.3 km, per-object displacement analysis.)
+
+**COA-STP1 UNBLOCKED (2026-07-13 morning, LIVE, app 3350): de-stack + fan-out on the
+scenario's OWN units at its OWN location - 5/7 unit completions where R5c scored
+0/6+control.** Setup: COA-STP1 init (128 units), Vrf:DeStackCreates=true (10 groups
+spread incl. the 54-pile) + Vrf:AggregateFormation=auto (repair 113/113) +
+Vrf:SubordinateFanOut=true, the E1 7-task probe order, 20x. ALL 6 aggregates fanned
+out (recursion surfaced every roster): companies B/40 + 3/7159 18 members each,
+CoHQs 7913/HQ_71 + 7159/HQ_71 4 GndV each (the historically scatter-doomed units
+enumerate cleanly), platoons AD/7152 + 1/1/8072 4 each - 52 members + the control.
+RESULTS: BOTH platoons COMPLETED (~4 min), BOTH companies COMPLETED (18/18 members
+each - B/40 spawned at the mega-pile center and had failed in every prior
+configuration), control COMPLETED; the CoHQs each finished 3 of 4 members with ONE
+GndV straggler still driving/stuck at the ~35-min window end (unit task left open -
+the documented fan-out caveat). 46/52 members marched. Clean stop 170/170.
+Port-exhaustion errors recurred throughout (P4 bundling is overdue).
+FOLLOW-UP (fan-out robustness): a straggler policy - completion QUORUM (e.g.
+Vrf:FanOutCompletionFraction) and/or a per-member timeout that synthesizes the unit
+completion with a warning - so one stuck vehicle cannot hold a unit task open. Also
+consider fanning the single-point MoveToLocation path (fan-out currently covers the
+multi-point route path only).
 - coa-gpt feedback item #4 (evidence-backed): scenario REGION determines whether
   disaggregated units can maneuver at all in VR-Forces' online-earth scenario;
   validate a region with a 1-unit probe before generating COAs there, or pick

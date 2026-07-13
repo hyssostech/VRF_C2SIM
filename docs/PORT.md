@@ -752,6 +752,21 @@ command stream both runs). Practical unlock candidates: R10 subordinate fan-out
 (entity moves are PROVEN at Mojave), R11 DtPlanAndMoveToTask probe; coa-gpt feedback
 item #4 = validate the scenario region before generating COAs there. appNos
 3335-3340 consumed (next fresh: 3341).
+
+**R10 FAN-OUT LIVE-VERIFIED + COA-STP1 UNBLOCKED (2026-07-13 late morning - full
+records UNIT_MOVEMENT_RESEARCH.md sec 4c).** `Vrf:SubordinateFanOut` (facade/bridge
+GetAggregateMembers - published entities + recursive subAggregates rosters - plus app
+fan-out with FanOutTracker completion synthesis) tasks member entities directly:
+Mojave R9 probe 3/3 with telemetry-verified 1.1-1.3 km member marches (platoon 4/4,
+company 18/18, control), and on COA-STP1's OWN units at its OWN location (de-stack +
+auto repair + fan-out, E1 probe): **5/7 unit completions - both platoons, both
+companies (incl. B/40 from the 54-pile center), control - where R5c scored 0/6**;
+the 2 CoHQs each ended 3/4 members (one straggler GndV per unit; fan-out
+quorum/timeout is the robustness follow-up). R11 NEGATIVE AND A TRAP:
+DtPlanAndMoveToTask at a path-dead region completes VACUOUSLY (TASKCMPLT fired,
+units verified still AT SPAWN) - never adopt it as a fix; telemetry, not completion
+events, is the movement oracle. Port exhaustion recurred in every run (P4 overdue).
+appNos 3341-3350 consumed (next fresh: 3355).
 OPERATIONAL FINDINGS from the run: (1) report pushing hit ephemeral-PORT EXHAUSTION ("Only one
 usage of each socket address...") under the un-bundled position-report volume -> the P4
 report dedup/bundling item is now OPERATIONALLY URGENT for long runs; (2) a deterministic

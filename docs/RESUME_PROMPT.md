@@ -2,11 +2,11 @@
 
 Paste the block below into a fresh session to resume the port. It forces the
 source-of-truth docs to be read and the state checked before any action - do not
-shortcut it. Last refreshed 2026-07-13 morning (R9 region swap DONE: GEOGRAPHY
-CONFIRMED as the aggregate-movement blocker, mechanism = the backend's unit
-leader-path plan is EMPTY at the Mojave region - `moveAlong() - empty route` in
-vrfSim.log, zero member Offset Routes; the same-day Sweden control marched 3/3
-with identical code. Next: R10 subordinate fan-out + R11 planAndMoveTo probe).
+shortcut it. Last refreshed 2026-07-13 late morning (R10 SUBORDINATE FAN-OUT
+LIVE-VERIFIED - the working mitigation for path-plan-dead regions; COA-STP1
+UNBLOCKED at its own location: 5/7 unit completions incl. both companies where
+R5c scored 0/6. R11 planAndMoveTo NEGATIVE + TRAP: vacuous completions, no
+movement. Next: fan-out straggler quorum/timeout, P4 bundling, coa-gpt memo).
 
 ---
 
@@ -93,32 +93,43 @@ STATE (2026-07-13; everything below is COMMITTED + PUSHED, selftests green):
   checks; InitParseCheck prints planned-creations-by-type + stacked groups;
   --destack-selftest.
 
-DO FIRST (UNIT_MOVEMENT_RESEARCH.md sec 4c NEXT, in order):
-1. R10 - SUBORDINATE FAN-OUT fallback (the practical COA-STP1 unlock; the original
-   plan's R7): when an aggregate's move is wanted at a region where leader-path
-   planning fails, task the unit's member ENTITIES directly (entity moves are PROVEN
-   at Mojave: A/4-27 completed twice, 1.BdeHQ once; members revert to unit control on
-   completion per UnitMembersTaskIndependently.htm). Opt-in setting first (suggest
-   Vrf:SubordinateFanOut, default off). Needs member-uuid tracking (members stream
-   through the object-created callbacks). Offline selftests, then verify live at
-   Mojave with the R9 probe: decision rule = do the platoon/company members march
-   their routes and does the unit-level TASKCMPLT still make sense.
-2. R11 - same live session, cheap: DtPlanAndMoveToTask on ONE aggregate at Mojave
-   (does the pathfinding point-move plan where moveAlongRoute's leader path is empty?).
-3. coa-gpt data memo - now FOUR evidence-backed items: distinct AffectedEntity, timing
+STATE ADDENDUM (2026-07-13 late morning - UNIT_MOVEMENT_RESEARCH.md sec 4c, evidence
+docs/experiments/R10_R11_fanout_2026-07-13.txt):
+- R10 DONE + LIVE-VERIFIED: Vrf:SubordinateFanOut fans aggregate moves to member
+  entities (facade GetAggregateMembers: published entities + RECURSIVE subAggregates
+  rosters; FanOutTracker synthesizes the unit TASKCMPLT when all members complete).
+  Mojave R9 probe 3/3, member marches telemetry-verified (1.1-1.3 km cohorts).
+  COA-STP1's OWN units at its OWN location (de-stack + auto + fan-out, E1 probe):
+  5/7 unit completions - both platoons, BOTH companies (18/18 members each; B/40
+  from the 54-pile center), control - vs R5c 0/6. The 2 CoHQs ended 3/4 members
+  each (one stuck GndV per unit holds the unit task open - the known caveat).
+- R11 NEGATIVE + TRAP: DtPlanAndMoveToTask at a path-dead region completes VACUOUSLY
+  (TASKCMPLT fired; WatchVrf shows units still AT SPAWN). Never adopt as a fix;
+  completions can LIE - telemetry is the movement oracle. Experiment-only knob
+  Vrf:AggregatePlanAndMove carries the caveat.
+
+DO FIRST (in order):
+1. Fan-out ROBUSTNESS (app-only): straggler policy so one stuck member cannot hold a
+   unit task open - a completion QUORUM (suggest Vrf:FanOutCompletionFraction, e.g.
+   0.75 -> synthesize completion + warn) and/or a per-member timeout; consider also
+   fanning the single-point MoveToLocation path. Extend --fanout-selftest, then a
+   quick live re-probe of the two CoHQs.
+2. P4 REPORT BUNDLING/DEDUP - now overdue: ephemeral-port exhaustion fired in EVERY
+   run today ("Only one usage of each socket address" on 127.0.0.1:8080); bundle
+   position reports / reuse connections in the report-push path.
+3. coa-gpt data memo - FOUR evidence-backed items: distinct AffectedEntity, timing
    hygiene, DISPERSED positions (nuanced: R8 de-stack mitigates interface-side), and
    REGION VALIDATION (R9: unit maneuver capability depends on the scenario location;
-   probe a region with 1 unit before generating COAs there).
-4. Then: E2 MoveIntoFormation re-test (at the GOLDEN region first - preconditions
-   sane there); CoHQ move-triggered scatter (plausibly the same empty-plan root -
-   deprioritized); P4 report bundling/dedup (port EXHAUSTION recurred in BOTH R8 and
-   the R9 Sweden control); housekeeping (6 tools csproj absolute SDK paths; the
+   probe a region with 1 unit first; R10 fan-out is the interface-side mitigation).
+4. Then: COA-STP1 FULL 42-task order at scale (de-stack + fan-out); CoHQ straggler
+   forensics (member telemetry on the stuck GndVs); E2 MoveIntoFormation re-test (at
+   the GOLDEN region first); housekeeping (6 tools csproj absolute SDK paths; the
    ~2500-char server-broadcast truncation - clean orders pass).
 
 Non-negotiables (full text RUNBOOK + guidance sec 1 - violating these destroys state):
 - NEVER force-kill a joined federate; clean-stop via tools/StopIface. FRESH
-  Vrf__ApplicationNumber every RTI join (this includes ResetVrf/WatchVrf runs; 3200-3340
-  are used, start at 3341). NEVER push an init to a running interface.
+  Vrf__ApplicationNumber every RTI join (this includes ResetVrf/WatchVrf runs; 3200-3350
+  are used, start at 3355). NEVER push an init to a running interface.
 - Do NOT restart the c2sim-server container habitually. Loopback test first: TCP connect
   to 127.0.0.1:61613 must be near-instant.
 - LIVE runs: RTI 4.6.1 on PATH (4.6b = build/offline only), MAKLMGRD_LICENSE_FILE from
