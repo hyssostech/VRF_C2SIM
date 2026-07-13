@@ -39,6 +39,13 @@ Three locations are in play:
 
 ## Current status (2026-07-13)
 
+- **Planning deliverable landed (2026-07-13, afternoon)**: `docs/OPUS_EXECUTION_PLAN.md` -
+  the step-by-step, supervised execution plan for the six ready backlog items (P4a SDK shared
+  HttpClient; fan-out quorum/straggler-timeout robustness; P4b position-report bundling; the
+  coa-gpt data memo; the COA-STP1 42-task live scale run; the 6-csproj relative-path
+  housekeeping). Each step carries exact files + code specs, build/test commands, acceptance +
+  telemetry-gated verification, rollback, and STOP-AND-ESCALATE. Built on the verified inputs in
+  docs/PLAN_DERISK_NOTES.md. PENDING the user's review before any execution begins.
 - **Latest (2026-07-13, late morning - R10 FAN-OUT LIVE-VERIFIED; COA-STP1 UNBLOCKED)**:
   `Vrf:SubordinateFanOut` (opt-in) tasks an aggregate's member ENTITIES directly and
   synthesizes the unit TASKCMPLT when all members complete - the working mitigation for

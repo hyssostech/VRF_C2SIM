@@ -2,11 +2,18 @@
 
 Paste the block below into a fresh session to resume the port. It forces the
 source-of-truth docs to be read and the state checked before any action - do not
-shortcut it. Last refreshed 2026-07-13 midday (SESSION JUMP for PLANNING: the next
-session's deliverable is docs/OPUS_EXECUTION_PLAN.md - a plan detailed enough for an
-Opus-class model to execute under supervision. De-risking for every plan item is DONE
-and recorded in docs/PLAN_DERISK_NOTES.md. State: R10 fan-out live-verified, COA-STP1
-unblocked 5/7 vs R5c 0/6; R11 negative/trap; P4 root cause pinned to file:line).
+shortcut it. Last refreshed 2026-07-13 afternoon.
+
+STATUS: the planning deliverable is DONE - docs/OPUS_EXECUTION_PLAN.md is written
+(the supervised, step-by-step plan for the six ready backlog items, built on
+docs/PLAN_DERISK_NOTES.md). It is PENDING the user's review. Once approved, the next
+session EXECUTES it under supervision, step by step, honoring every gate in its
+SUPERVISION PROTOCOL section (offline selftests, GATE-ENV before live, GATE-VERDICT
+after, telemetry-only movement claims). Until then, the block below (a planning prompt)
+still applies for re-reading state; after approval, swap the deliverable line to
+"execute docs/OPUS_EXECUTION_PLAN.md under supervision; do not skip its gates".
+Prior context: R10 fan-out live-verified, COA-STP1 unblocked 5/7 vs R5c 0/6; R11
+negative/trap; P4 root cause pinned to file:line.
 
 ---
 

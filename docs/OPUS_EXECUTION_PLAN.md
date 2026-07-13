@@ -1,0 +1,864 @@
+# OPUS EXECUTION PLAN - C2SIM VR-Forces -> .NET port backlog
+
+Purpose: a step-by-step plan an Opus-class executor can carry out UNDER SUPERVISION.
+It closes the six backlog items that the 2026-07-13 de-risk pass (docs/PLAN_DERISK_NOTES.md)
+made ready. Every step carries: exact files + code-level change spec, exact build/test
+commands, acceptance criteria + verification gate, a rollback note, and STOP-AND-ESCALATE
+conditions. ASCII-only per repo policy.
+
+This plan is a DERIVED artifact. When it disagrees with a source-of-truth doc, the
+source wins. On plan MECHANICS (fix specs, flush triggers, csproj paths) the winner is
+docs/PLAN_DERISK_NOTES.md. Read these first and treat them over any recollection:
+  1. docs/START_HERE.md              - status, repo state, build/run, tools
+  2. docs/PORT.md                    - settled decisions WITH evidence (esp. sec 6/8/10)
+  3. docs/UNIT_MOVEMENT_RESEARCH.md  - the R1-R11 aggregate-movement arc (sec 4/4b/4c)
+  4. docs/PLAN_DERISK_NOTES.md       - the verified planning inputs (WINS on mechanics)
+  5. docs/RUNBOOK.md                 - runtime procedure (sec 0/3/4/7/8)
+  6. docs/SEMANTIC_MAPPING.md        - verb map status (context for the memo)
+
+State at plan time (git log is authoritative - run `git log --oneline -1`, do NOT trust
+hashes pinned in prose):
+- PORT `VRF_C2SIM` branch main: tip `fe65db1`, clean, pushed to
+  github.com/hyssostech/VRF_C2SIM. Eight offline selftests green.
+- FORK `OpenC2SIM.github.io` branch dev/sdk-fixes: tip `2655c30`, pushed; the submodule
+  pointer for Software/Interfaces/VRF_C2SIM tracks port main (`fe65db1`). (The fork
+  working tree also shows unrelated IDE noise under the OLD c2simVRFinterface path and
+  an untracked Standard/C2SIM ontology catalog - NOT ours; do not commit them.)
+- SDK `C2SIMClientLib` (in the fork): version 4.8.3.2, multi-targets net10.0;netstandard2.0.
+
+Execution order is deliberate and is the order below. P4a is first because it is the
+smallest change with the biggest operational win (it removes the socket-exhaustion that
+fires in EVERY live run), and because it must land BEFORE the live scale run so that run
+can use "zero 10048 errors" as an acceptance discriminator.
+
+---
+
+## 0. SUPERVISION PROTOCOL (read before touching anything)
+
+The executor operates in a check-in loop with a human supervisor. Do NOT batch multiple
+steps past a gate. The gates:
+
+### 0.1 Gates (STOP and get supervisor sign-off at each)
+
+- GATE-DIFF (before every commit): show the supervisor the full `git diff` (and the
+  offline selftest output for that step). Do not commit until acknowledged.
+- GATE-ENV (before every LIVE run): run the preflight checklist (Appendix A) and show its
+  output. Do not launch the app until acknowledged. A live run consumes a fresh
+  ApplicationNumber and touches the shared federation - it is not reversible.
+- GATE-VERDICT (after every LIVE run): show the telemetry-backed verdict (WatchVrf
+  displacement, completion counts, error grep) BEFORE writing it into the docs. A claim
+  of movement with no telemetry is not a verdict (see the R11 trap rule).
+
+### 0.2 The offline selftest gate (run BEFORE and AFTER any code change)
+
+All EIGHT must pass, both before a change (to prove the baseline) and after (to prove no
+regression). MAK bin dirs on PATH; RTI 4.6b is fine for offline (it only LOADs the DLLs).
+```
+$env:PATH = "C:\MAK\vrforces5.0.2\bin64;C:\MAK\vrlink5.8\bin64;C:\MAK\makRti4.6b\bin;$env:PATH"
+$exe = "src\VrfC2SimApp\bin\Release\net10.0\VrfC2SimApp.exe"
+& $exe --translator-selftest      # 18/18
+& $exe --parse-init docs\golden-trace\STP-TC-small-6-12-24_Initialization.xml STP   # 80 units, 49 creatable, 4 areas
+& $exe --parse-order docs\golden-trace\orders\1_VRF_Move_Order.xml                  # 1 MOVE, taskee 670cfe3a..., 2 pts
+& $exe --report-selftest          # 9/9
+& $exe --sequencer-selftest       # 12, ALL CHECKS PASSED
+& $exe --verb-selftest            # 28+, ALL CHECKS PASSED
+& $exe --destack-selftest         # 20, ALL CHECKS PASSED
+& $exe --fanout-selftest          # 16+ (GROWS with Step 2 - the new count is part of that step's gate)
+```
+If any selftest that is unrelated to the current change regresses, STOP - do not "fix
+forward"; revert and diagnose.
+
+### 0.3 Hard rules (non-negotiable - copied verbatim from RUNBOOK + PLAN_DERISK_NOTES sec 6)
+
+- NEVER force-kill a joined federate (`Stop-Process -Force`, `taskkill /F`). It leaves a
+  STALE FEDERATE and the next join hangs. Clean-stop via `tools/StopIface` (drives the
+  server STOP -> RESET -> UNINITIALIZED; the app catches UNINITIALIZED and resigns).
+- FRESH `Vrf__ApplicationNumber` for EVERY RTI join - the app, ResetVrf, AND WatchVrf each
+  join and each need their own. AppNos 3200-3350 are consumed. START AT 3355. Increment
+  and never reuse; keep the running ledger (Appendix B).
+- NEVER push an init to a RUNNING interface (PushInit's RESET step's UNINITIALIZED
+  transient makes the running app resign). Push init only while NO app is running.
+- Do NOT restart the c2sim-server container habitually - the restarts are what degraded
+  the loopback proxy before. Loopback test FIRST: a raw TCP connect to 127.0.0.1:61613
+  must be near-instant (<1 s). If it is slow, reset the Docker/WSL proxy (restart Docker
+  Desktop or reboot), do NOT just restart the container.
+- LIVE runs: RTI 4.6.1 on PATH (4.6b is build/offline ONLY - a live join must match the
+  federation's RTI); `MAKLMGRD_LICENSE_FILE` read from Machine scope (a stale session
+  value points at a deleted .lic and HANGS license checkout); cwd = C:\MAK\vrforces5.0.2\bin64;
+  pass `--contentRoot=<exe dir>` so appsettings still loads. PushInit FIRST, then start
+  the app (it late-joins). ResetVrf between heavy runs (entities accumulate and creates
+  stop reflecting).
+- vrfGui has been HUNG for days - the sim BACKEND is healthy; do NOT kill vrfSimHLA1516e.
+  WatchVrf is the visual channel. If the BACKEND is also unresponsive -> STOP, coordinate
+  with the user.
+- Movement claims REQUIRE telemetry (WatchVrf displacement), NEVER completion events alone.
+  R11 proved DtPlanAndMoveToTask fires TASKCMPLT while units sit at spawn - completions LIE
+  at path-dead regions. WatchVrf per-object displacement is the only movement oracle.
+- Bridge builds: VS18 MSBuild via PowerShell, NOT git-bash (git-bash mangles `/p:`). App
+  builds: `DOTNET_CLI_USE_MSBUILD_SERVER=false dotnet build ... --disable-build-servers`
+  (concurrent dotnet builds deadlock the shared build server).
+- Keep docs/START_HERE.md, PORT.md, UNIT_MOVEMENT_RESEARCH.md, RESUME_PROMPT.md current AS
+  work lands; after any context compaction re-read them before deciding anything.
+
+### 0.4 Commit + push mechanics
+
+- Commit granularity: ONE commit per step (or a tight sub-series), each after its GATE-DIFF.
+- ORDER: push the PORT first, then bump + push the fork's submodule pointer (the fork's
+  pointer references a port commit that must already exist on the remote).
+  - Port (branch main), from the port working dir:
+    `git add -A && git commit && git push origin main`
+  - Fork submodule bump (branch dev/sdk-fixes), from the fork root:
+    `git add Software/Interfaces/VRF_C2SIM && git commit -m "Bump VRF_C2SIM submodule -> <step>" && git push origin dev/sdk-fixes`
+- SDK EDITS (Step 1 - P4a) are in the FORK repo, NOT the submodule. They commit ON THE
+  FORK (dev/sdk-fixes) directly under Software/Library/CS/C2SIMSDK. So Step 1 produces a
+  fork commit for the SDK change PLUS, if any port doc/config changes ride along, a port
+  commit + submodule bump. Do the port push before the fork push as above.
+- Commit message trailer (per user global policy):
+  `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`
+- Do NOT touch the unrelated fork working-tree noise (.vs/ under the old c2simVRFinterface,
+  the ontology catalog). Stage only the paths you changed.
+
+### 0.5 Global STOP-AND-ESCALATE (any step)
+
+Stop and coordinate with the user if: an offline selftest unrelated to the change
+regresses and does not revert cleanly; the sim BACKEND (vrfSimHLA1516e) is unresponsive;
+the loopback proxy is slow and a Docker Desktop restart does not fix it; a live run leaves
+a stale federate that ResetVrf cannot clear; the license has expired (checkout hangs; the
+renewed .lic expires 2026-09-15); or any change would require force-killing a federate,
+restarting the container, or reusing an appNo to proceed.
+
+---
+
+## Step 1 - P4a: SDK shared HttpClient (kill the port exhaustion)
+
+GOAL: stop the C2SIM REST client from creating and disposing a new HttpClient per call, so
+report pushes no longer strand sockets in TIME_WAIT and exhaust the ephemeral port range.
+
+WHY / EVIDENCE (PLAN_DERISK_NOTES sec 1, verified): the SDK does
+`using (HttpClient httpClient = new HttpClient())` per call at
+Software/Library/CS/C2SIMSDK/C2SIMClientLib/C2SIMClientRestLib.cs:125 (ServerStatus) and
+:369 (SendTrans - the POST path EVERY report push uses). Each disposal strands a socket in
+TIME_WAIT (~4 min on Windows); thousands of position-report pushes at 20x exhaust the
+ephemeral range -> SocketException 10048 ("Only one usage of each socket address...") on
+127.0.0.1:8080, surfaced as SendTrans's catch text "Connection error:" at :381. Fired in
+EVERY 2026-07-13 live run.
+
+REPO: this is a FORK change (SDK lives in the fork, not the submodule). Branch dev/sdk-fixes.
+Path: Software/Library/CS/C2SIMSDK/C2SIMClientLib/C2SIMClientRestLib.cs.
+
+### 1.1 Code-level change spec
+
+CRITICAL SUBTLETY (PLAN_DERISK_NOTES sec 1): a shared client must NOT mutate
+`DefaultRequestHeaders.Accept` per call - that is a cross-thread race. Move Accept to
+PER-REQUEST headers. And C2SIMClientLib multi-targets `net10.0;netstandard2.0`, so
+`SocketsHttpHandler`/`PooledConnectionLifetime` (net5+ only) MUST be `#if`-guarded or the
+netstandard2.0 leg fails to compile. The netstandard fallback is a plain shared static
+HttpClient - by itself it fixes the exhaustion (connection pooling); PooledConnectionLifetime
+only guards DNS staleness, irrelevant for a fixed loopback host.
+
+(a) Add one shared static field (near the other statics around line 31):
+```csharp
+#if NET5_0_OR_GREATER
+    // One shared client (was: new HttpClient() per call, which stranded a socket in
+    // TIME_WAIT per report push -> ephemeral-port exhaustion / SocketException 10048 at
+    // ~20x report volume). Accept headers are now PER-REQUEST (a shared client's
+    // DefaultRequestHeaders are not thread-safe to mutate). PooledConnectionLifetime keeps
+    // long-lived pooled connections from going stale.
+    private static readonly HttpClient _httpClient =
+        new HttpClient(new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(2) });
+#else
+    // netstandard2.0: SocketsHttpHandler/PooledConnectionLifetime are unavailable; a plain
+    // shared client still fixes the exhaustion (connections are pooled and reused).
+    private static readonly HttpClient _httpClient = new HttpClient();
+#endif
+```
+
+(b) ServerStatus (:117-147) - replace the `using (HttpClient ...) { ... GetStringAsync }`
+block (:125-130). GetStringAsync throws HttpRequestException on non-2xx, so preserve that
+via EnsureSuccessStatusCode() to keep the existing catch (:132) behavior:
+```csharp
+    url = new Uri(BuildC2SIMEndpoint("status"));
+    using (var request = new HttpRequestMessage(HttpMethod.Get, url))
+    {
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/plain"));
+        using (var resp = await _httpClient.SendAsync(request))
+        {
+            resp.EnsureSuccessStatusCode();
+            result = await resp.Content.ReadAsStringAsync();
+        }
+    }
+```
+
+(c) SendTrans (:361-386) - replace the `using (HttpClient ...)` block (:369-377). It
+already builds an HttpRequestMessage; just drop the per-call client and move Accept onto
+the request:
+```csharp
+    Uri url = new Uri(u);
+    using (var request = new HttpRequestMessage(HttpMethod.Post, url))
+    {
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/xml"));
+        request.Content = new StringContent(xml, Encoding.UTF8, "application/xml"); // CONTENT-TYPE
+        using (HttpResponseMessage resp = await _httpClient.SendAsync(request))
+        {
+            result = await resp.Content.ReadAsStringAsync();
+        }
+    }
+```
+
+Leave the catch blocks, the error-XML checks, and all other logic UNCHANGED. Do NOT change
+the STOMP client (sockets, not HTTP - not the exhaustion source; grep confirmed only these
+two HttpClient sites exist in the SDK).
+
+Optional hygiene (recommended, matches SDK precedent commit f738edf): bump
+C2SIMClientLib.csproj `<Version>` (4.8.3.2 -> 4.8.3.3) and add a ReleaseNotes.md line.
+
+### 1.2 Build
+
+```
+# From the SDK dir; build BOTH target frameworks to prove the #if guard compiles clean.
+$env:DOTNET_CLI_USE_MSBUILD_SERVER = "false"
+dotnet build "Software\Library\CS\C2SIMSDK\C2SIMClientLib\C2SIMClientLib.csproj" -c Release --disable-build-servers
+# Then rebuild the app + the six SDK-consuming tools that reference it:
+dotnet build "Software\Interfaces\VRF_C2SIM\src\VrfC2SimApp" -c Release --disable-build-servers
+```
+Expect 0 errors on BOTH TFMs.
+
+### 1.3 Offline gate
+
+- All eight selftests (0.2) pass - these load the SDK assembly, so a broken SDK build would
+  surface.
+- If the SDK test project builds on this machine, run RestLibTests:
+  `dotnet test "Software\Library\CS\C2SIMSDK\C2SIMSDK.Tests" -c Release` (the tests use a
+  fake REST server on real sockets; live-server tests are env-gated and may skip - that is
+  fine). A green RestLibTests run is strong evidence the request path still works.
+
+### 1.4 Live verification gate (the discriminator)
+
+This is verified as a SIDE EFFECT of Step 5's scale run (do not schedule a separate live
+run just for this). The decision rule: during a ~15-min live run at 20x with heavy position
+reporting, grep the app log for "Only one usage of each socket address" AND "Connection
+error:". PASS = ZERO such lines (every 2026-07-13 run had them; a clean run is the
+discriminator). If they still appear, the fix did not take - STOP and re-examine (are report
+pushes actually routing through the rebuilt SDK? is a stale SDK dll shadowing it?).
+
+### 1.5 Acceptance criteria
+
+- Both TFMs build 0 errors; eight offline selftests green; (if runnable) RestLibTests green.
+- The change touches ONLY the two HttpClient sites + the one new static field (+ optional
+  version/notes). No behavior change to headers, URLs, error handling.
+
+### 1.6 Rollback
+
+`git checkout Software/Library/CS/C2SIMSDK/C2SIMClientLib/C2SIMClientRestLib.cs` on the fork.
+The change is isolated to one file; reverting restores the per-call client exactly.
+
+### 1.7 STOP-AND-ESCALATE
+
+- The netstandard2.0 leg will not compile even with the `#if` guard (unexpected - escalate
+  with the exact error; do not disable the netstandard target).
+- Any selftest that exercises a REST path starts failing after the change.
+
+### 1.8 Commit
+
+FORK commit (SDK): stage only
+`Software/Library/CS/C2SIMSDK/C2SIMClientLib/C2SIMClientRestLib.cs` (+ version/notes if
+bumped). Message e.g. "SDK P4a: shared static HttpClient (fix report-push port exhaustion);
+per-request Accept". No port/submodule change unless docs were touched in this step.
+
+---
+
+## Step 2 - Fan-out robustness: completion quorum + straggler timeout
+
+GOAL: one stuck member entity must not hold a unit's task open forever. Add a completion
+QUORUM (synthesize the unit TASKCMPLT when a fraction of members finish) and a per-fan-out
+straggler TIMEOUT (synthesize with a warning after N seconds), both opt-in and idempotent,
+and swallow the late stragglers that arrive after synthesis.
+
+WHY / EVIDENCE (UNIT_MOVEMENT_RESEARCH.md sec 4c; PLAN_DERISK_NOTES sec 3): the COA-STP1
+unblock run scored 5/7 because each of the 2 CoHQs finished 3/4 members - ONE stuck GndV
+per unit held the unit task open (46/52 members marched). FanOutTracker already stores Total
+and returns `remaining` per completion, so a quorum is (Total - remaining)/Total evaluated
+at completion time.
+
+THE SUBTLETY THE PLAN MUST HANDLE (PLAN_DERISK_NOTES sec 3, found by design review): after a
+quorum/timeout synthesis, LATE straggler completions must be SWALLOWED. Today
+TryCompleteMember removes the fan-out on allDone; a member completing AFTER a quorum synthesis
+would find no fan-out record, fall through to the unit-level path in OnVrfTaskCompleted, and -
+because no in-flight task is recorded for that member name - emit a spurious TASKCMPLT with an
+empty task uuid ("NO in-flight task recorded" warning). So the fan-out record must live on in a
+SYNTHESIZED state that silently swallows remaining member completions (log at debug) until the
+last member completes or a new task supersedes it.
+
+REPO: PORT (submodule). Files:
+- src/VrfC2SimApp/FanOutTracker.cs (the tracker + its state machine)
+- src/VrfC2SimApp/VrfC2SimService.cs (wire the timer + honor the new synthesis signal)
+- src/VrfC2SimApp/VrfSettings.cs (two new opt-in settings)
+- src/VrfC2SimApp/FanOutSelfTest.cs (extend --fanout-selftest)
+
+### 2.1 Settings (VrfSettings.cs, add near SubordinateFanOut, with the same comment density)
+
+```csharp
+    // R10 fan-out robustness (UNIT_MOVEMENT_RESEARCH.md sec 4c). Completion QUORUM: synthesize
+    // the unit's TASKCMPLT once this FRACTION of fanned members complete (1.0 = today's
+    // behavior: ALL must finish). Guards against one stuck member holding the unit task open
+    // (the 3/4-CoHQ gap in the COA-STP1 unblock run). Late stragglers after synthesis are
+    // swallowed (the tracker's Synthesized state), not re-reported. Range (0,1]; <=0 or >1
+    // clamp to 1.0.
+    public double FanOutCompletionFraction { get; set; } = 1.0;
+
+    // R10 fan-out robustness: per-fan-out straggler TIMEOUT in seconds. If the quorum has not
+    // been reached this long after the fan-out is registered, synthesize the unit completion
+    // anyway WITH A WARNING (a member never completing - e.g. a stuck GndV - no longer hangs
+    // the unit task). 0 = OFF (no timeout; rely on quorum/all-complete only). Either trigger
+    // fires the synthesis at most once (idempotent).
+    public int FanOutStragglerSeconds { get; set; } = 0;
+```
+
+### 2.2 FanOutTracker.cs - add a Synthesized state + a quorum/timeout synthesis path
+
+Design (keep the class PURE and thread-safe - it is offline-tested and touched from the tick
+thread and, once the timer lands, from a timer callback):
+
+- Add a `bool Synthesized` flag to the private `FanOut` record and a `double Fraction`
+  (captured at Register; default 1.0). Register gains a `double completionFraction` param
+  (clamp to (0,1]); store `Total` and `Fraction`.
+- `TryCompleteMember`: unchanged happy path, but compute allDone as a QUORUM:
+  - remove the member from Pending and from _unitByMember as today;
+  - `int completed = f.Total - f.Pending.Count;`
+  - `bool quorumMet = completed >= (int)Math.Ceiling(f.Total * f.Fraction);`
+  - if the fan-out is ALREADY `Synthesized` (a late straggler after a prior quorum/timeout
+    synthesis): DO NOT report a unit completion. Return a distinct result so the caller
+    SWALLOWS it (e.g. return true with a new `out bool alreadySynthesized = true`, allDone
+    false). When Pending hits 0 while Synthesized, remove the record entirely.
+  - else if `quorumMet` and not yet Synthesized: set `f.Synthesized = true`, set
+    `allDone = true` (the caller synthesizes the unit TASKCMPLT now). If Pending is now empty,
+    remove the record; otherwise KEEP it (Synthesized) so remaining members are swallowed.
+  - else: allDone false, return the remaining count (the existing "member N remaining" log).
+- Add `bool TrySynthesizeByTimeout(string unitName, out string taskUuid, out int completed, out int total)`:
+  under lock, if the unit has a NON-Synthesized fan-out, mark it Synthesized, return true with
+  its taskUuid + completed/total counts (for the warning). If already Synthesized or absent,
+  return false (idempotent - the timer and a just-met quorum cannot double-fire).
+- `Cancel`/`CancelLocked` (supersession) already drop the record and its member map entries -
+  keep as is; a superseding task Registers anew (which CancelLocked-clears the old, including
+  a Synthesized one).
+
+Adversarial note to encode in the tests: fraction 1.0 MUST reproduce today's exact behavior
+(synthesize only when the last member completes; no early synthesis; ceil(Total*1.0)==Total).
+
+### 2.3 VrfC2SimService.cs - wire the fraction, the timer, and the swallow
+
+TIMER SEMANTICS (decide and document): the straggler timer is a HARD CAP measured from
+Register (fan-out start), NOT an idle timeout. Set it GENEROUSLY relative to healthy member
+completion time so it fires ONLY for genuinely-stuck members: in the R10 unblock run healthy
+members completed in ~4 min at 20x, so e.g. 600 s comfortably clears them and still fires well
+within the ~35-min window for a stuck GndV. If all members complete first, the fan-out is
+already removed and TrySynthesizeByTimeout no-ops (safe). (A future refinement - an IDLE timeout
+that resets on each member completion, more robust to route length/multiplier - is noted but NOT
+required for this step.)
+
+- At Register (currently service:835): pass `_vrf.FanOutCompletionFraction`. Immediately after
+  a successful Register with a positive `FanOutStragglerSeconds`, start a detached straggler
+  timer for this unit (mirror EngageFallbackAsync at :894-904, gated on `_stoppingToken`):
+  ```csharp
+  if (_vrf.FanOutStragglerSeconds > 0)
+      _ = FanOutStragglerAsync(unit.Name, task.TaskUuid);
+  ```
+  `FanOutStragglerAsync` awaits `Task.Delay(FanOutStragglerSeconds, _stoppingToken)`, then
+  calls `_fanOut.TrySynthesizeByTimeout(unitName, capturedTaskUuid, ...)`; if it returns true,
+  log a WARNING ("fan-out straggler timeout for {Unit}: {completed}/{total} members done -
+  synthesizing unit completion") and call the SAME unit-completion synthesis path
+  OnVrfTaskCompleted uses. Factor the tail of OnVrfTaskCompleted (currently :1061-1102) into a
+  private helper `SynthesizeUnitCompletion(string unitName, string vrfTaskTypeForLog)` and call
+  it from BOTH OnVrfTaskCompleted (the allDone branch, after `name = fanUnit`) and the timer.
+  NOTE: SynthesizeUnitCompletion derives the taskUuid from `_inFlight.TryComplete(unitName)`
+  (the unit's in-flight record was written by MarkDispatched at Register, service:833) - so the
+  timer does NOT pass a taskUuid; it only needs to flip the Synthesized flag. The idempotency
+  guard is the Synthesized flag, NOT the taskUuid: TrySynthesizeByTimeout returns false if the
+  fan-out is already Synthesized OR if its stored TaskUuid != the captured one (supersession
+  replaced it) OR if there is no fan-out for the unit. Because `_inFlight.TryComplete` REMOVES
+  the record, only ONE of {last-member quorum, timeout} can ever reach SynthesizeUnitCompletion
+  for a given task (the Synthesized flag blocks the loser) - so there is no double TASKCMPLT.
+- At OnVrfTaskCompleted (:1049): honor the new `alreadySynthesized` swallow result - if the
+  tracker says this member belongs to an ALREADY-synthesized fan-out, log at Debug ("late
+  straggler {Member} of {Unit} after synthesis - swallowed") and RETURN. Do not fall through
+  to the unit-level path (that is the spurious-empty-uuid bug this step exists to prevent).
+
+Concurrency (VERIFIED against the current code - the timer path is SAFE, no tick-thread
+marshalling redesign needed): today TryCompleteMember runs on the tick thread only; the timer
+adds a second caller. FanOutTracker's `_lock` already serializes all fan-out state - keep every
+access under it. The synthesis SIDE EFFECTS are all safe OFF the tick thread, exactly as the
+existing EngageFallbackAsync timer proves: `_inFlight`/`_sequencer`/`_c2SimUuidByName` are
+thread-safe (concurrent collections / a thread-safe sequencer); `PushReportAsync` is
+fire-and-forget network; and the ONE bridge-touching action - a deferred engage - is issued via
+`IssueEngage`, which does NOT call the bridge directly but ENQUEUES it on `_tickActions`
+(service:915) for the tick loop to drain. SynthesizeUnitCompletion (the factored :1061-1102
+tail) contains NO direct `_bridge.*` call - confirm this stays true when you factor it; if any
+future edit adds a direct bridge call there, it MUST go through `_tickActions.Enqueue`.
+
+### 2.4 Optional (cheap, same file): fan out the single-point MoveToLocation path
+
+Today fan-out covers only the multi-point route path (service:814 is inside the CreateRoute
+branch); the single-point branch (:781-793 MoveToLocation) does not fan out. If time permits,
+mirror the fan-out there: read members, if any, issue `_bridge.MoveToLocation(m.Uuid, routeGeo[^1])`
+per member and Register the fan-out. Keep it opt-in under the SAME SubordinateFanOut flag.
+This is a NICE-TO-HAVE; if it adds risk, defer it and note the deferral.
+
+### 2.5 Extend --fanout-selftest (FanOutSelfTest.cs)
+
+Add cases (the count grows from 16; the new total becomes this step's gate number - record it
+in START_HERE + the 0.2 list):
+- quorum at 3/4 (fraction 0.75): synthesize on the 3rd of 4, allDone true at that point;
+- late-straggler swallow: the 4th completion after a 3/4 quorum returns the swallow result and
+  does NOT report a unit completion;
+- supersession while Synthesized: Register a new task for the unit clears the Synthesized
+  record; a stale member of the old fan-out then no-ops;
+- fraction 1.0 == legacy: synthesize ONLY on the last member (regression guard);
+- timeout synthesis: TrySynthesizeByTimeout returns true once, then false (idempotent), and
+  false when the captured taskUuid no longer matches (supersession).
+
+### 2.6 Build / offline gate
+
+```
+$env:DOTNET_CLI_USE_MSBUILD_SERVER = "false"
+dotnet build "Software\Interfaces\VRF_C2SIM\src\VrfC2SimApp" -c Release --disable-build-servers
+```
+Then all eight selftests (0.2), with --fanout-selftest now at the NEW count, ALL PASSED.
+No bridge rebuild is needed (this is app-only; GetAggregateMembers already exists).
+
+### 2.7 Live verification (folded into Step 5)
+
+Decision rule at the scale run: with `Vrf:SubordinateFanOut=true` plus the STRAGGLER TIMEOUT as
+the primary lever (`FanOutStragglerSeconds` set generously past healthy completion - see 2.3),
+the 2 CoHQs that previously ended 3/4 (one stuck GndV each) now synthesize a unit TASKCMPLT WITH
+a straggler warning, raising the 5/7 toward 7/7 WITHOUT any spurious empty-uuid TASKCMPLT
+warnings. Prefer the timeout over a <1.0 quorum here because the quorum fraction is GLOBAL:
+0.75 on the healthy 18-member companies would declare them complete at 14/18 and swallow 4
+legitimate marchers. Keep `FanOutCompletionFraction=1.0` unless the supervisor deliberately
+wants earlier unit-level declaration. Telemetry (WatchVrf) still governs the member MOVEMENT
+claim; the timeout only governs when the UNIT-level completion is declared. Confirm the log
+shows the straggler warning for the stuck member(s) and NO "NO in-flight task recorded" line.
+
+### 2.8 Acceptance criteria
+
+- App builds 0/0; eight selftests green with the new --fanout-selftest count.
+- fraction 1.0 is byte-for-byte behavior-identical to today (the regression case proves it).
+- No spurious unit TASKCMPLT on late stragglers (the swallow case proves it offline; the scale
+  run proves it live).
+
+### 2.9 Rollback
+
+The change is confined to the four files. `git checkout` them to restore. Because the new
+behavior is gated on FanOutCompletionFraction<1.0 OR FanOutStragglerSeconds>0 (both default to
+the legacy 1.0 / 0), leaving the code in but the settings at default is ALSO a safe no-op
+fallback if only the live tuning misbehaves.
+
+### 2.10 STOP-AND-ESCALATE
+
+- Factoring SynthesizeUnitCompletion out of OnVrfTaskCompleted forces a DIRECT `_bridge.*` call
+  onto the timer thread (it should not - the :1061-1102 tail has none today; deferred engages go
+  through IssueEngage -> _tickActions). If you cannot keep it bridge-call-free -> STOP; route the
+  bridge work through `_tickActions.Enqueue` before any live run.
+- The swallow logic cannot distinguish a legitimate NEW unit-level completion from a late
+  straggler for a superseded task -> STOP; the empty-uuid TASKCMPLT is exactly the corruption
+  we are removing.
+- fraction 1.0 does NOT reproduce today's behavior byte-for-byte in the regression selftest
+  (early synthesis, or the last-member case changed) -> STOP; the opt-in default must be a no-op.
+
+### 2.11 Commit
+
+PORT commit (four files + doc updates), then fork submodule bump. Message e.g. "R10 fan-out
+robustness: completion quorum + straggler timeout + swallow late stragglers; --fanout-selftest
+extended".
+
+---
+
+## Step 3 - P4b: position-report bundling (C++-parity shape, opt-in)
+
+GOAL: bundle POSITION reports into one report envelope carrying N ReportContent blocks, with
+the C++ flush triggers, to cut the report volume. TASKCMPLT stays unbundled.
+
+WHY / EVIDENCE (PLAN_DERISK_NOTES sec 2): the C++ oracle (frozen repo, textIf.cxx:435-530
+sendC2simReport) bundles POSITION reports only ("Observation/TaskStatus have other reasons
+not to bundle"); a bundle is ONE report envelope whose body carries N ReportContent blocks;
+the ReportID applies to the WHOLE bundle and is minted at send time. Flush triggers: report
+count >= 10 (maxReportsPerBundleTextIf, "STOMP may balk at larger"), total size >= 10240
+(maxBundleSizeTextIf), or a ~2-second reminder thread that force-flushes a partial bundle.
+Bundling was opt-in (argv 17). .NET readiness (verified): ReportBuilder already fills
+`ReportContent = new[] { ... }`; the generated ReportBodyType takes an ARRAY of
+ReportContentType, so a multi-content body is a DATA change, not a schema fight.
+
+ORDERING NOTE: do this AFTER P4a and its live check. P4a alone may fully clear the 10048
+errors, making P4b a parity/politeness feature rather than a firefight. If the Step 5 run (with
+P4a in) shows ZERO 10048s, P4b priority drops - still implement it for parity, but it is no
+longer load-bearing. If P4a-with-a-single-client still shows pressure, P4b becomes the closer.
+
+REPO: PORT (submodule). Files:
+- src/VrfC2SimApp/ReportBuilder.cs (a bundle builder)
+- src/VrfC2SimApp/VrfC2SimService.cs (an accumulator in the OnVrfTextReport path + a flush
+  timer + flush-on-stop)
+- src/VrfC2SimApp/VrfSettings.cs (opt-in settings)
+- src/VrfC2SimApp/ReportSelfTest.cs (extend --report-selftest)
+
+### 3.1 ReportBuilder.cs - add a bundle builder
+
+Add alongside BuildPositionReport (keep the single-content one for the unbundled path):
+```csharp
+    /// <summary>Position report bundle: ONE ReportBody carrying N PositionReportContent
+    /// blocks (C++ parity, textIf.cxx:435-530 - position reports only; one ReportID for the
+    /// whole bundle, minted at send). ReportingEntity/From/To mirror the single-content build.</summary>
+    public static string BuildPositionReportBundle(
+        IEnumerable<(string uuid, double latDeg, double lonDeg)> fixes,
+        string isoDateTime, string reportId)
+```
+It builds `ReportContent = fixes.Select(f => new ReportContentType { Item = new
+PositionReportContentType { TimeOfObservation = Time(isoDateTime), Location = Geo(f.latDeg,
+f.lonDeg), SubjectEntity = f.uuid } }).ToArray()`, with `ReportID = reportId`. Decide
+ReportingEntity: the C++ envelope has one reporting entity for the bundle; use the ZeroUuid the
+class already hardcodes (ReportingEntity is per-content via SubjectEntity anyway). Keep
+FromSender/ToReceiver = ZeroUuid as today. Serialize via C2SIMSDK.FromC2SIMObject.
+
+### 3.2 Settings (VrfSettings.cs)
+
+```csharp
+    // P4b position-report bundling (C++ parity, textIf.cxx:435-530). OFF = one PositionReport
+    // per POSITION line (today's behavior). ON = accumulate POSITION reports into one envelope
+    // (N ReportContent) and flush on count/size/timer. TASKCMPLT is never bundled. Opt-in.
+    public bool BundlePositionReports { get; set; } = false;
+    public int BundleMaxReports { get; set; } = 10;      // C++ maxReportsPerBundleTextIf
+    public int BundleMaxBytes { get; set; } = 10240;     // C++ maxBundleSizeTextIf
+    public int BundleFlushMs { get; set; } = 2000;       // C++ ~2 s reminder-thread flush
+```
+
+### 3.3 VrfC2SimService.cs - accumulator + flush
+
+- Add a private accumulator: `List<(string uuid, double lat, double lon)> _posBundle` guarded
+  by a `_posBundleLock`, plus a running serialized-size estimate (or re-serialize on flush and
+  compare - simpler is to flush on count/timer and treat size as a secondary guard; document
+  whichever you pick).
+- OnVrfTextReport (:1105-1124): when `_vrf.BundlePositionReports` is true, instead of building +
+  pushing a single report, take the lock, add the fix, and if `count >= BundleMaxReports` (or the
+  size estimate >= BundleMaxBytes) call FlushPositionBundleLocked(). When false, keep exactly
+  today's single-report path (parity).
+- FlushPositionBundle: under the lock, if the buffer is non-empty, snapshot + clear it, then
+  BuildPositionReportBundle(snapshot, IsoNow(), NewReportId()) and PushReportAsync. Mint the
+  ReportID at flush (matches "minted at send time").
+- Timer: start a periodic flush every `BundleFlushMs` (a detached loop gated on `_stoppingToken`,
+  mirroring the existing detached-timer pattern; or a System.Threading.Timer). It force-flushes a
+  partial bundle so a trickle of reports is not held indefinitely.
+- Flush on stop: in the clean-stop path, flush any pending bundle BEFORE resign so no reports are
+  lost. Place it with the existing cleanup (near the Solution A delete sweep) but BEFORE the
+  bridge resign.
+
+Thread-safety: OnVrfTextReport and the flush timer both touch the buffer - the lock covers it.
+Keep the buffer operations short (snapshot-under-lock, build+push outside the lock) to avoid
+holding the lock across the serialize.
+
+### 3.4 Extend --report-selftest (ReportSelfTest.cs)
+
+Add checks: BuildPositionReportBundle with 3 fixes produces a body with 3 ReportContent blocks,
+each a PositionReportContent with the right uuid/lat/lon; the bundle round-trips (parse back)
+to 3 contents; a 1-fix bundle equals the single-content shape semantically; ReportID is present
+once for the whole body. Keep the existing 9 checks; the new total is this step's gate number.
+
+### 3.5 Build / offline gate
+
+App-only build (3.3 command). Eight selftests, --report-selftest at the new count, ALL PASSED.
+Because bundling is opt-in (default false), the golden/unbundled path is untouched - the
+existing report round-trip checks still pass unchanged.
+
+### 3.6 Live verification (folded into Step 5, or a short dedicated pass)
+
+With `Vrf:BundlePositionReports=true` at 20x: the app log shows position reports going out in
+bundles (one push per ~10 fixes or ~2 s), the C2SIM server accepts them (no schema rejects),
+and a listener (tools/ListenReports) can still parse them. Combined with P4a, ZERO 10048s.
+Telemetry (WatchVrf) is unaffected - it reads reflected positions, not the C2SIM report stream.
+
+### 3.7 Acceptance criteria
+
+- App builds 0/0; eight selftests green with the new --report-selftest count.
+- Default (BundlePositionReports=false) is byte-for-byte the current single-report behavior.
+- A bundle carries N contents, one ReportID, and round-trips; TASKCMPLT is never bundled.
+
+### 3.8 Rollback
+
+Confined to the four files; `git checkout` restores. Default-off means leaving the code in with
+the setting false is a safe no-op if only the bundling behavior misbehaves live.
+
+### 3.9 STOP-AND-ESCALATE
+
+- The C2SIM server REJECTS a multi-content ReportBody (schema/impl mismatch vs the C++ that
+  reportedly sent them) -> STOP; capture the server error; the .NET schema was array-ready but
+  the SERVER's acceptance is the live unknown.
+- Reports are LOST on stop (flush-on-stop not landing before resign) -> fix the ordering before
+  claiming parity.
+
+### 3.10 Commit
+
+PORT commit (four files + docs), then fork submodule bump. Message e.g. "P4b: opt-in
+position-report bundling (C++-parity: N ReportContent/envelope, count/size/timer flush)".
+
+---
+
+## Step 4 - coa-gpt data memo (4 evidence-backed items)
+
+GOAL: a single memo that feeds the four evidence-backed data-quality findings back to the
+coa-gpt COA generator. Pure writing task - NO code, NO live run.
+
+WHY / EVIDENCE (PLAN_DERISK_NOTES sec 5; PORT.md sec 10; UNIT_MOVEMENT_RESEARCH.md sec 4-4c;
+SEMANTIC_MAPPING.md sec 2b/3): each item is already proven in the docs; the memo just
+assembles them for the COA-generation audience.
+
+DELIVERABLE: docs/COA_GPT_FEEDBACK.md (new file, in the PORT repo). ASCII-only. Structure: a
+one-paragraph framing (keep coa-gpt emitting RICH semantics - do NOT dumb it down to the bare
+interface; these are DATA-quality fixes, not semantic reductions), then the four items, each
+with: the finding, the EVIDENCE (cite the doc + the live run), the IMPACT on VR-Forces
+execution, and the concrete ASK.
+
+The four items:
+1. DISTINCT AffectedEntity for engagement verbs. Evidence: ALL 42 COA-STP1 tasks self-target
+   (AffectedEntity == PerformingEntity) - SEMANTIC_MAPPING.md sec 2b/5 (Unit 3), PORT.md sec 10.
+   Impact: the fires/breach/escort paths have no target -> every engagement verb degrades to
+   bare movement. Ask: emit a real distinct AffectedEntity (a valid OPFOR uuid for ATTACK-family,
+   an obstacle for BREACH, the escorted unit for ESCRT).
+2. Timing hygiene. Evidence: task T13 carries a 12,000,000 ms (3h20m) SimulationTime start delay;
+   durations 1h20m-3h20m (PORT.md sec 5/10). Impact: unwatchable scenarios; huge idle gaps. Ask:
+   sane start delays and set SimulationRealtimeMultiple so scenarios are watchable.
+3. DISPERSED unit positions (nuanced by R8). Evidence: COA-STP1 packs 54 units at one identical
+   coordinate (34.679985,-116.724799); the golden init is also stacked (max pile 13) but marched
+   - the distinguishing pathology is pile SIZE (UNIT_MOVEMENT_RESEARCH.md sec 4/4b). NUANCE: R8
+   create-time de-stacking mitigates it interface-side, and the R8 A/B FALSIFIED stacking as the
+   SUFFICIENT blocker (geography dominates) - so present dispersion as good hygiene that removes
+   gridlock, NOT as the movement fix. Ask: disperse unit positions; do not co-locate dozens of
+   units at one coordinate.
+4. REGION VALIDATION (the strongest, newest item). Evidence: R9 region swap CONFIRMED geography
+   as the aggregate blocker - at the Mojave COA-STP1 region VR-Forces returns EMPTY unit
+   leader-path plans (`moveAlong() - empty route`, ZERO member Offset Routes) while the golden
+   Sweden site plans fine; R10 fan-out is the interface-side unlock but forfeits formation
+   keeping (UNIT_MOVEMENT_RESEARCH.md sec 4c). Impact: disaggregated units cannot maneuver as
+   units at a path-dead region regardless of the interface. Ask: validate a candidate region with
+   a 1-unit move probe BEFORE generating COAs there, or pick regions with known-good ground
+   content (the golden Sweden site works).
+
+### 4.1 Acceptance / gate
+
+- The memo exists, is ASCII-only (`rg -P "[^\x00-\x7F]" docs/COA_GPT_FEEDBACK.md` returns
+  nothing), and every claim cites a source doc + (where live) the run that proved it.
+- No code, no build, no selftest impact. GATE-DIFF only (supervisor reads the memo).
+
+### 4.2 Rollback
+
+Delete the file. No other artifact depends on it.
+
+### 4.3 Commit
+
+PORT commit (the new doc + a pointer from START_HERE/PORT sec 10), then fork submodule bump.
+
+---
+
+## Step 5 - COA-STP1 FULL 42-task order scale run (LIVE)
+
+GOAL: exercise the full COA-STP1 order (42 tasks) end to end at scale with de-stack + auto
+formation + fan-out + the Step-2 robustness, proving the pipeline holds at scale, the P4a fix
+clears the 10048 errors, and unit completions far exceed the R5c-era count.
+
+THIS IS A LIVE RUN. GATE-ENV before launch, GATE-VERDICT after. Steps 1-2 (and ideally 3) must
+be committed and their offline gates green first. Read RUNBOOK sec 7 in full before starting.
+
+WHY / EVIDENCE (PLAN_DERISK_NOTES sec 4): data/COA-STP1_Order.xml has 42 tasks, 11 distinct
+performers, ALL self-target (verbs degrade to movement - expected/documented), 32 temporal deps
+(the P0.2 skip policy governs), and 3 SCREEN tasks that are PATROL tasks - NOTE fan-out
+deliberately EXCLUDES patrol (service:801/814 short-circuits it) and patrols never self-complete,
+so those 3 will not fan out and will not report completion (expected).
+
+### 5.1 Recommended run configuration (confirm with supervisor at GATE-ENV)
+
+- Init: data/COA-STP1_Initialization.xml (128 units + 35 areas). ClientId=C2SIM (MUST equal the
+  init SystemName or 0 units are created).
+- Env knobs: `Vrf__DeStackCreates=true`, `Vrf__AggregateFormation=auto`,
+  `Vrf__SubordinateFanOut=true`, `Vrf__TimeMultiplier=20`, plus the Step-2 robustness:
+  `Vrf__FanOutStragglerSeconds=600` (the surgical lever: fires only for genuinely-stuck members;
+  see Step 2.3/2.7) and `Vrf__FanOutCompletionFraction=1.0` (default; do NOT lower it globally -
+  0.75 would truncate the healthy 18-member companies at 14/18). Make experiment overrides
+  EXPLICIT (do not rely on inherited env).
+- Order: data/COA-STP1_Order.xml (the full 42-task order - this is the scale test, NOT the 7-task
+  E1 probe).
+- AppNos: START AT 3355. The app, ResetVrf, and WatchVrf each need their own fresh number. Record
+  each in Appendix B as consumed.
+
+### 5.2 Procedure (RUNBOOK sec 3 + sec 7; do NOT re-derive)
+
+1. GATE-ENV: run Appendix A preflight; show output; get sign-off.
+2. ResetVrf (fresh appNo) to clear any accumulated entities/orphans (`--dry-run` first to see
+   what is present, then the real sweep).
+3. PushInit data/COA-STP1_Initialization.xml -> expect "QUERYINIT: 128 Units". (Init FIRST,
+   while NO app is running.)
+4. Start WatchVrf (fresh appNo, duration covering the run, e.g. 40 min, 20 s samples) to CSV -
+   this is the movement oracle.
+5. Start the app (fresh appNo, the 5.1 env, cwd=VRF bin64, --contentRoot=<exe dir>). Judge
+   connect by THREAD COUNT (~9-10), not the block-buffered log.
+6. PushOrder data/COA-STP1_Order.xml.
+7. Observe to completion window (~35-40 min at 20x). Do NOT force-kill anything.
+8. Clean stop via tools/StopIface (server STOP -> RESET -> UNINITIALIZED -> app resigns). Confirm
+   no stale federate (rtiexec process count back to baseline).
+9. ResetVrf again if the next run is heavy (accumulation).
+
+### 5.3 Live decision rules (TELEMETRY-gated; the R11 trap governs)
+
+- MOVEMENT is claimed ONLY from WatchVrf per-object displacement (fanned member entities marching
+  their routes, ~1 km cohorts). A TASKCMPLT with no corresponding WatchVrf displacement is NOT
+  movement - it is the R11 vacuous-completion trap; report it as such.
+- UNIT COMPLETIONS: count synthesized unit TASKCMPLTs. Target: >> the R5c-era 0/6; the prior
+  unblock run scored 5/7 on the 7-task probe. On the full order, the acceptance is that the
+  aggregate MOVE-class tasks whose members can path (the platoons + companies proven at Mojave in
+  R10) complete, and the Step-2 quorum/timeout closes the stuck-straggler CoHQ gap (no unit task
+  left hanging on one stuck member).
+- PORT EXHAUSTION (the P4a discriminator): grep the app log for "Only one usage of each socket
+  address" and "Connection error:". PASS = ZERO. This is the primary P4a live gate (Step 1.4).
+- FAN-OUT ROBUSTNESS (the Step-2 gate): a stuck member triggers the straggler WARNING and a
+  synthesized unit completion; there are NO "NO in-flight task recorded" / empty-uuid TASKCMPLT
+  lines.
+- Expected non-completions (NOT failures): the 3 SCREEN patrols (excluded from fan-out, never
+  self-complete); tasks with no location points (order data); tasks gated behind a skipped
+  predecessor (P0.2 skip policy).
+
+### 5.4 Acceptance criteria
+
+- 128 units + 35 areas created; de-stack fires on the mega-pile (log: "54 units at ... spread");
+  auto formation repair applies (113/113-class); fan-out dispatches on aggregate MOVE-class tasks
+  (recursion surfaces the rosters).
+- WatchVrf shows real member displacement for the fanned aggregates (telemetry-verified).
+- Unit TASKCMPLTs far exceed the R5c-era count; the Step-2 quorum/timeout removes hung-on-straggler
+  units.
+- ZERO 10048/"Connection error:" lines (P4a proven live).
+- Clean stop, no stale federate; Solution A + ResetVrf leave a clean slate.
+
+### 5.5 Rollback / recovery
+
+- A live run is not "rolled back" - but if it degrades (accumulated federation stops reflecting
+  creates), ResetVrf and re-run per RUNBOOK sec 7's accumulation note. If a federate goes stale
+  from an ACCIDENTAL force-kill (never do it deliberately), recover per RUNBOOK sec 5 (the human
+  reloads the VR-Forces scenario) - escalate.
+
+### 5.6 STOP-AND-ESCALATE
+
+- The sim BACKEND (vrfSimHLA1516e) is unresponsive (not just vrfGui hung) -> STOP, coordinate.
+- The loopback proxy is slow and a Docker Desktop restart does not fix it -> STOP.
+- 10048 errors STILL appear after P4a is confirmed in the running build -> STOP; the fix is not
+  in the live path (stale SDK dll? report pushes bypassing the shared client?).
+- The run leaves a stale federate ResetVrf cannot clear -> STOP.
+
+### 5.7 Docs + commit
+
+Record the run in UNIT_MOVEMENT_RESEARCH.md (a new dated subsection under sec 4c), update
+START_HERE "Current status", and archive the raw evidence (WatchVrf CSV extract + the de-stack/
+dispatch/completion/error log lines) under docs/experiments/COA-STP1_scale_<date>.txt. GATE-VERDICT
+before the docs land. PORT commit + fork submodule bump.
+
+---
+
+## Step 6 - Housekeeping: 6 tools csproj relative SDK paths
+
+GOAL: make the six SDK-referencing tool csprojs use RELATIVE ProjectReference paths (they carry
+ABSOLUTE machine paths today), so the repo builds on a fresh checkout / another machine.
+
+WHY / EVIDENCE (PLAN_DERISK_NOTES sec 5; verified this session): six csprojs carry absolute SDK
+paths. The app (src/VrfC2SimApp) sits at the same depth and uses the WORKING relative form
+`..\..\..\..\Library\CS\C2SIMSDK\C2SIMSDK\C2SIMSDK.csproj` - a uniform substitution. (tools/ResetVrf
+and tools/WatchVrf reference the BRIDGE, not the SDK - leave them alone.)
+
+REPO: PORT (submodule). The six files + line numbers (current absolute -> relative):
+- tools/ListenReports/ListenReports.csproj:11
+- tools/PushInit/PushInit.csproj:11
+- tools/PushOrder/PushOrder.csproj:11
+- tools/SdkVerify/SdkVerify.csproj:12  (C2SIMSDK)  AND  :13 (C2SIMClientLib - TWO refs)
+- tools/StompProbe/StompProbe.csproj:11
+- tools/StopIface/StopIface.csproj:11
+
+### 6.1 Change spec
+
+Replace the absolute include with the relative form (tools/* are at the same depth as
+src/VrfC2SimApp, so the SAME `..\..\..\..` prefix applies):
+- `...\Library\CS\C2SIMSDK\C2SIMSDK\C2SIMSDK.csproj`
+  -> `..\..\..\..\Library\CS\C2SIMSDK\C2SIMSDK\C2SIMSDK.csproj`
+- SdkVerify's second ref:
+  `...\Library\CS\C2SIMSDK\C2SIMClientLib\C2SIMClientLib.csproj`
+  -> `..\..\..\..\Library\CS\C2SIMSDK\C2SIMClientLib\C2SIMClientLib.csproj`
+Verify the exact depth by comparison with the app's working line (src/VrfC2SimApp csproj uses
+exactly `..\..\..\..\Library\CS\C2SIMSDK\C2SIMSDK\C2SIMSDK.csproj`). Use backslashes (these are
+Windows csprojs); MSBuild also accepts forward slashes if preferred - be consistent with the
+app csproj.
+
+### 6.2 Build / gate
+
+Rebuild EACH of the six tools 0 errors:
+```
+$env:DOTNET_CLI_USE_MSBUILD_SERVER = "false"
+foreach ($t in "ListenReports","PushInit","PushOrder","SdkVerify","StompProbe","StopIface") {
+    dotnet build "Software\Interfaces\VRF_C2SIM\tools\$t" -c Release --disable-build-servers
+}
+```
+Expect 0 errors each. This is purely mechanical (paths only) - no behavior change; the eight app
+selftests are unaffected but run them anyway to prove nothing shifted.
+
+### 6.3 Acceptance / rollback
+
+- All six tools build from the relative paths; the app + tools still build on this machine.
+- Rollback: `git checkout` the six csprojs.
+
+### 6.4 STOP-AND-ESCALATE
+
+- A tool fails to resolve the SDK via the relative path (depth mismatch) -> re-derive the depth
+  from the actual directory tree; do NOT re-introduce an absolute path to "make it build".
+
+### 6.5 Commit
+
+PORT commit (the six csprojs), then fork submodule bump. Message e.g. "tools: relative SDK
+ProjectReference paths (6 csprojs) for portable checkout".
+
+(+ anything the user flags during plan review - e.g. the C++ repo private-remote decision, the
+retained C++ originals deletion (migration step 1), or decoupling the SDK ProjectReference to a
+published nuget. These are noted in START_HERE housekeeping #6 but are NOT in this plan's scope
+unless the user adds them.)
+
+---
+
+## Appendix A - LIVE-RUN preflight checklist (run at every GATE-ENV)
+
+```
+# 1. Loopback proxy must be near-instant (do NOT restart the container as a habit).
+(Measure-Command { Test-NetConnection 127.0.0.1 -Port 61613 }).TotalSeconds   # expect < 1
+# 2. C2SIM server reachable.
+(Invoke-WebRequest "http://127.0.0.1:8080/C2SIMServer" -UseBasicParsing).StatusCode  # expect 200
+# 3. RTI 4.6.1 (NOT 4.6b) + VRF + vrlink on PATH, in this order.
+$env:PATH = "C:\MAK\vrforces5.0.2\bin64;C:\MAK\vrlink5.8\bin64;C:\MAK\makRti4.6.1\bin;$env:PATH"
+# 4. License from MACHINE scope (a stale session value hangs checkout).
+$env:MAKLMGRD_LICENSE_FILE = [Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','Machine')
+# 5. Sim backend healthy (do NOT kill vrfSimHLA1516e; vrfGui may be hung - that is fine).
+Get-Process vrfSimHLA1516e,rtiexec -ErrorAction SilentlyContinue | Select Name,Id
+# 6. Fresh appNo picked (>= 3355, not in Appendix B). cwd will be C:\MAK\vrforces5.0.2\bin64;
+#    the app gets --contentRoot=<exe dir>.
+```
+If loopback is slow: restart Docker Desktop (or reboot), re-measure, THEN proceed. Do not
+proceed on a slow proxy - the STOMP client cannot ride it out.
+
+## Appendix B - ApplicationNumber ledger
+
+3200-3350: consumed (prior sessions). START AT 3355. Record each join here as it is consumed
+(app / ResetVrf / WatchVrf each take one). Never reuse.
+
+- 3355+: (record as used)
+
+## Appendix C - build command reference
+
+- Bridge (only if a step needs a facade/bridge change - none in this plan do): VS18 MSBuild via
+  PowerShell, NOT git-bash:
+  `& "C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe" src\VrfBridge\VrfBridge.vcxproj /p:Configuration=Release /p:Platform=x64 /m`
+- App / tools / SDK: `DOTNET_CLI_USE_MSBUILD_SERVER=false dotnet build <proj> -c Release --disable-build-servers`
+- Offline selftest PATH (4.6b OK): `C:\MAK\vrforces5.0.2\bin64;C:\MAK\vrlink5.8\bin64;C:\MAK\makRti4.6b\bin`
+
+## Appendix D - the R11 vacuous-completion rule (why telemetry is mandatory)
+
+R11 (UNIT_MOVEMENT_RESEARCH.md sec 4c) proved DtPlanAndMoveToTask fires a TASKCMPLT while the
+unit sits EXACTLY at its spawn point at a path-dead region. Completions LIE. Therefore: any
+"the unit moved" claim in this plan's live steps MUST be backed by WatchVrf per-object
+displacement, never a completion event alone. This is a hard gate at GATE-VERDICT, not advice.
