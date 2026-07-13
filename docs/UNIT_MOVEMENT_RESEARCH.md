@@ -255,8 +255,10 @@ RESULTS (WatchVrf displacement from spawn, 59 samples/unit):
 - BUT STILL 0/6 AGGREGATES MARCH, and the failure mode FLIPPED BACK to E1's:
   - Companies RUNAWAY re-expressed: 3/7159 drove ~124 km out (still driving at window
     end, then partial return); B/40 (the mega-pile's kept-in-place first unit) idled
-    ~3 min post-dispatch then drove ~31 km and froze. Displacement rate ~55 km/h =
-    real DRIVING, not warping - they drive far past their 1.1 km routes.
+    ~3 min post-dispatch then moved ~31 km and froze. Sustained rates 28-49 km/h for
+    3/7159 (plausible ground driving); B/40's initial burst reached ~110 km/h before
+    freezing - hot, but well below the CoHQ-style >130 km/h sustained warp. Either
+    way they move far past their 1.1 km routes instead of executing them.
   - CoHQs SCATTER ON TASKING (not creation): intact until the move dispatch, then
     76-93 km displacement within ~1-2 min wall at 20x (>130 km/h = member scatter/warp
     dragging the aggregate position, not driving), then drift/hold.

@@ -71,8 +71,8 @@ STATE (2026-07-13; everything below is COMMITTED + PUSHED, selftests green):
   LIVE A/B (exact R5c probe, only de-stack toggled; UNIT_MOVEMENT_RESEARCH.md sec 4b):
   R8 WORKS (mega-pile spread; control completed 4x faster ~3.5 vs ~13 min; CoHQ
   creation now CLEAN) - recommend ON for stacked scenarios - but STILL 0/6 aggregates
-  marched: companies DRIVE 31-124 km past 1.1 km routes (E1 runaway re-expressed -
-  R5c's "runaway eliminated" was GRIDLOCK suppression, not a fix), CoHQs scatter
+  marched: companies DRIVE 31-124 km past their 1.1 km routes (E1 runaway re-expressed
+  - R5c's "runaway eliminated" was GRIDLOCK suppression, not a fix), CoHQs scatter
   76-93 km ON TASKING (member warp, not driving), platoons shuffle ~60 m. STACKED
   COORDINATES ARE FALSIFIED as the sufficient blocker. SURVIVING HYPOTHESIS:
   GEOGRAPHY/terrain content at the Mojave region (both regions run the same

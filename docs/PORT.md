@@ -724,8 +724,8 @@ probe with only de-stack toggled ON (appNo 3332/3333, auto repair 113/113, de-st
 spread 10 groups incl. the 54-unit mega-pile, E1 probe order, 20x, WatchVrf 20 min):
 the entity control completed 4x FASTER (~3.5 min vs ~13 - the pile gridlock was real
 and R8 fixes it) and CoHQ CREATION is now clean (no creation scatter), but STILL 0/6
-aggregates marched and the failure mode FLIPPED BACK to E1's: companies DRIVE away at
-~55 km/h far past their 1.1 km routes (31-124 km), CoHQs scatter 76-93 km ON TASKING
+aggregates marched and the failure mode FLIPPED BACK to E1's: companies DRIVE away far
+past their 1.1 km routes (31-124 km; 28-49 km/h sustained), CoHQs scatter 76-93 km ON TASKING
 (>130 km/h displacement = member warp, not driving), platoons shuffle ~60 m.
 REINTERPRETATION: R5c's "runaway eliminated" was mega-pile GRIDLOCK suppressing the
 runaway, not the repair fixing it. R8 stays a genuine improvement (recommended ON for
