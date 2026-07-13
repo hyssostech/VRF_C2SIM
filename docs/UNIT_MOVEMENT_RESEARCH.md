@@ -228,6 +228,69 @@ incl. the E1 probe's control A/4-27) vs golden's max 13. The surviving hypothesi
 therefore "the 54-unit pile gridlocks member form-up", and the R8 live A/B - SAME
 scenario, SAME terrain, only de-stack toggled - is now an even cleaner discriminator
 than the cross-scenario golden-vs-COA-STP1 comparison.
+
+## 4b. R8 VERIFY RUN (2026-07-12/13 night, LIVE) - STACK HYPOTHESIS FALSIFIED;
+## the runaway was GRIDLOCK-SUPPRESSED, not fixed; terrain/region caveat REOPENS
+
+Setup: EXACTLY the R5c probe with only de-stack toggled ON. ResetVrf pre-sweep (1
+orphan; appNo 3330 dry + 3331 real) -> PushInit COA-STP1 (128 units, C2SIM) -> app
+appNo 3332 (Vrf__AggregateFormation=auto + Vrf__DeStackCreates=true + 20x) -> de-stack
+fired on 10 groups INCL. the 54-unit mega-pile (log: "54 units at (34.679985,
+-116.724799) spread onto 50 m rings") -> formation repair 113/113 (all lists lowercase,
+set 'column' + reorganize) -> WatchVrf appNo 3333 (20 s samples, 20 min) -> pushed
+data/E1_Formation_Order.xml (same 7 tasks: 2 CO, 2 CoHQ, 2 PL aggregates + tank entity
+control) -> all 7 resolved, routes created, MoveAlongRoute issued -> clean stop
+(Solution A deleted 170/170; no stale federate). appNos 3330-3333 consumed.
+Raw evidence (de-stack/dispatch/completion log lines + the 7 probe units' full
+WatchVrf telemetry): docs/experiments/R8_verify_run_2026-07-13.txt.
+
+RESULTS (WatchVrf displacement from spawn, 59 samples/unit):
+- CONTROL 4x FASTER: tank A/4-27 marched 1.85 km and COMPLETED in ~3.5 min (E1/R5c:
+  ~13 min stack-escape). Correct TASKCMPLT attribution. De-stacking REMOVED the
+  pile-escape delay - the mega-pile gridlock was real and is fixed by R8.
+- CoHQ CREATION IS CLEAN NOW (progress on the separate failure mode): both CoHQs sat
+  INTACT at their spawn points after create+repair (samples t=23-43 s, order already
+  arriving) - no E1/R5c-style creation scatter. The "AR HQ Sec ... Column-Left"
+  create warning still logs (repair lands after create), but members stayed put.
+- BUT STILL 0/6 AGGREGATES MARCH, and the failure mode FLIPPED BACK to E1's:
+  - Companies RUNAWAY re-expressed: 3/7159 drove ~124 km out (still driving at window
+    end, then partial return); B/40 (the mega-pile's kept-in-place first unit) idled
+    ~3 min post-dispatch then drove ~31 km and froze. Displacement rate ~55 km/h =
+    real DRIVING, not warping - they drive far past their 1.1 km routes.
+  - CoHQs SCATTER ON TASKING (not creation): intact until the move dispatch, then
+    76-93 km displacement within ~1-2 min wall at 20x (>130 km/h = member scatter/warp
+    dragging the aggregate position, not driving), then drift/hold.
+  - Platoons: ~60 m local shuffle, no march (unchanged across E1/R5c/R8).
+
+VERDICT (per the pre-registered decision rule): stacked coordinates - including the
+pile-size refinement - are FALSIFIED as the sufficient blocker for COA-STP1 aggregate
+marching. R8 is a genuine improvement (entity ops 4x faster, clean CoHQ creation,
+recommended ON for stacked scenarios) but does NOT unlock aggregate marching.
+REINTERPRETATION of R5c: its "runaway eliminated - units hold" was the mega-pile
+GRIDLOCK physically suppressing the runaway, not the create-time repair fixing it;
+de-stacking released it. (The repair itself remains necessary + verified - golden R5.)
+
+SURVIVING HYPOTHESIS - GEOGRAPHY/TERRAIN CONTENT at the scenario region: identical
+code + repair + sane geometry marches at the golden region (Sweden 58.7,16.4) and
+runs away / scatters / stalls at the COA-STP1 region (Mojave 34.7,-116.7). Terrain
+fact established this run (vrfSim.log): the backend scenario runs whole-earth "MAK
+Earth Space (online).mtf" - the SAME terrain system for both regions - so the
+discriminator is the streamed CONTENT at each location (elevation/roads/pathfinding),
+not a different terrain file. RESIDUAL ALTERNATIVES (not yet excluded): (a) the 20x
+TimeMultiplier interacting with the lead-follow/catchup controllers (golden R5's
+multiplier is not recorded; its ~3-min completions suggest it was also fast); (b)
+init-content differences beyond DIS type (hierarchy/echelon/superior fields - the
+created DIS types are identical in both scenarios).
+
+R9 (NEXT - the region-swap discriminator, cheap): synthesize an init that places the
+EXACT golden unit set that marched in R5 (1222.MechPlt, 114.MechCoy, 1.BdeHQ + their
+subordinate context) at the COA-STP1 Mojave coordinates (dispersed, de-stack
+irrelevant), run the R5-style one-move-per-unit probe at 20x. If they fail in Mojave
+-> geography CONFIRMED as the blocker (then: coa-gpt feedback "pick regions with road
+content", or test planAndMoveToTask/off-road settings). If they march in Mojave ->
+geography falsified too; next suspects are init content (b) and multiplier (a) - hold
+20x constant and vary one at a time. Optionally also the mirror swap (COA-STP1 units
+at the golden Sweden coordinates).
 - CoHQ subordinate scatter needs its own investigation (member telemetry on ONE CoHQ
   through create->repair) - it is a distinct failure mode from the stack.
 - Then: make query-driven auto the recommended default for aggregate-bearing scenarios

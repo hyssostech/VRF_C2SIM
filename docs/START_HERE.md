@@ -39,8 +39,20 @@ Three locations are in play:
 
 ## Current status (2026-07-12)
 
-- **Latest (2026-07-12, late night - R8 IMPLEMENTED, live verify pending)**: opt-in
-  create-time de-stacking is BUILT + OFFLINE-VERIFIED (UNIT_MOVEMENT_RESEARCH.md sec 4).
+- **Latest (2026-07-12/13, night - R8 LIVE-VERIFIED; STACK HYPOTHESIS FALSIFIED)**:
+  the R8 live A/B ran (exact R5c probe, only `Vrf:DeStackCreates=true` toggled; full
+  record UNIT_MOVEMENT_RESEARCH.md sec 4b). R8 WORKS (54-unit mega-pile spread; entity
+  control completed 4x faster ~3.5 min vs ~13; CoHQ creation now CLEAN - no creation
+  scatter) - recommended ON for stacked scenarios - BUT still 0/6 aggregates marched:
+  companies DRIVE away 31-124 km past their 1.1 km routes (the E1 runaway re-expressed;
+  R5c's "runaway eliminated" was mega-pile GRIDLOCK suppression, not a fix), CoHQs
+  scatter 76-93 km ON TASKING (member warp), platoons shuffle ~60 m. Stacked
+  coordinates are FALSIFIED as the sufficient blocker; the surviving hypothesis is
+  GEOGRAPHY/terrain content at the Mojave region (both regions run the same whole-earth
+  "MAK Earth Space (online)" terrain - it is the location content that differs).
+  NEXT: R9 region swap (golden R5 unit set at the Mojave coordinates, same probe).
+- **2026-07-12, late night - R8 IMPLEMENTED**: opt-in
+  create-time de-stacking BUILT + OFFLINE-VERIFIED (UNIT_MOVEMENT_RESEARCH.md sec 4).
   `Vrf:DeStackCreates` (default off) + `Vrf:DeStackSpacingMeters` (default 50): units
   sharing identical init coordinates spread onto deterministic hex rings before creation
   (first unit keeps its spot; pure `DeStacker.cs`; new `--destack-selftest`, 20 checks;
@@ -48,8 +60,7 @@ Three locations are in play:
   R5c: the GOLDEN init is ALSO stacked (10 groups, 48/49 creatable units, max pile 13 -
   via the parser's superior-coordinate inheritance cascade) and R5 marched 3/3 OUT OF
   those piles; COA-STP1's distinguishing pathology is its single 54-unit MEGA-pile, so
-  the hypothesis is now pile SIZE, not stacking per se. NEXT: the R8 live A/B (R5c probe
-  on COA-STP1, de-stack on - same scenario, only the stack variable toggled).
+  the hypothesis refined to pile SIZE - then the live A/B above falsified that too.
 - **2026-07-12, night - R5 BREAKTHROUGH**: the research-derived create-time
   sequence SOLVES the stuck-aggregate problem on dispersed scenarios
   (UNIT_MOVEMENT_RESEARCH.md sec 4). With `Vrf:AggregateFormation=auto` the app now, on

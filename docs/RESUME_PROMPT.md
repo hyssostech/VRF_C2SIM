@@ -2,10 +2,11 @@
 
 Paste the block below into a fresh session to resume the port. It forces the
 source-of-truth docs to be read and the state checked before any action - do not
-shortcut it. Last refreshed 2026-07-12 late night (R8 de-stacking IMPLEMENTED +
-offline-verified; the offline stack stat REFINED the R5c verdict to pile-SIZE -
-the golden init is also stacked, max pile 13, and marched; COA-STP1 has a 54-unit
-mega-pile. Next: the R8 live A/B on COA-STP1).
+shortcut it. Last refreshed 2026-07-13 (R8 de-stacking LIVE-VERIFIED: it works -
+control 4x faster, clean CoHQ creation - but 0/6 aggregates marched, so the STACK
+HYPOTHESIS IS FALSIFIED; R5c's "runaway eliminated" was gridlock suppression. The
+surviving hypothesis is GEOGRAPHY/terrain content at the Mojave region. Next: R9
+region swap).
 
 ---
 
@@ -40,7 +41,7 @@ as source of truth over ANY summary or recollection:
      LANDED + LIVE-VERIFIED; its sec 4 ladder is superseded by #5's plan).
 Then run `git log --oneline -5` in the port repo and the fork.
 
-STATE (2026-07-12 night; everything below is COMMITTED + PUSHED, selftests green):
+STATE (2026-07-13; everything below is COMMITTED + PUSHED, selftests green):
 - Phases 1-5 DONE long since (full C2SIM<->VR-Forces loop live). P0 orchestration fixes
   (completion attribution via InFlightTracker, dispatch-relative predecessor timeouts w/
   Vrf:PredecessorTimeoutPolicy=skip default, completion-gated ATTACK/BREACH engage w/
@@ -55,21 +56,28 @@ STATE (2026-07-12 night; everything below is COMMITTED + PUSHED, selftests green
   showed clean on-axis marches. GROUND RULES learned: never trust static formation names
   (.entity files mislead; live lists are all lowercase - ALWAYS query); the
   currentFormation read-back returns '' even when the set took (trust the LIST).
-- R5c on COA-STP1 (same code, same probe order): repair applied 113/113, the old company
-  RUNAWAY is eliminated (units hold), but 0/6 aggregates marched (entity control 1/7,
-  needing ~13 min to escape the spawn pile). VERDICT: COA-STP1's STACKED/identical unit
-  coordinates are the blocking DATA pathology (same-day A/B: dispersed 3/3 vs stacked
-  1/7). CoHQ units additionally scatter 163-396 km AT CREATION (their AR-HQ-Sec members;
-  separate failure mode, uninvestigated).
-- R8 CREATE-TIME DE-STACKING IMPLEMENTED + OFFLINE-VERIFIED (2026-07-12 late night;
-  live A/B NOT yet run): Vrf:DeStackCreates (default off) + Vrf:DeStackSpacingMeters
+- R5c on COA-STP1 (same code, same probe order): repair applied 113/113, 0/6 aggregates
+  marched (entity control 1/7, ~13 min to escape the spawn pile); its "stacked
+  coordinates are the blocking pathology" verdict and its "runaway eliminated" reading
+  are BOTH superseded by the R8 live A/B (next bullet): the runaway was gridlock-
+  suppressed and the stack was not the blocker.
+- R8 CREATE-TIME DE-STACKING: IMPLEMENTED + OFFLINE-VERIFIED + LIVE-VERIFIED
+  (2026-07-12/13). Vrf:DeStackCreates (default off) + Vrf:DeStackSpacingMeters
   (default 50) spread identically-positioned units onto deterministic hex rings before
   creation (pure DeStacker.cs; --destack-selftest 20 checks; --parse-init prints
-  stacked groups). KEY OFFLINE FINDING - the R5c verdict is REFINED: the GOLDEN init
-  is ALSO stacked (10 groups, 48/49 creatable units, max pile 13 - superior-coordinate
-  inheritance, C++ parity) and R5 marched 3/3 out of those piles; COA-STP1's real
-  pathology is its single 54-UNIT mega-pile. Hypothesis is now pile SIZE, and the R8
-  A/B (same scenario, only de-stack toggled) is the clean discriminator.
+  stacked groups). OFFLINE: the GOLDEN init is ALSO stacked (10 groups, 48/49
+  creatable, max pile 13 - superior-coordinate inheritance, C++ parity) and R5 marched
+  3/3 out of those piles; COA-STP1's distinguishing feature is a 54-unit MEGA-pile.
+  LIVE A/B (exact R5c probe, only de-stack toggled; UNIT_MOVEMENT_RESEARCH.md sec 4b):
+  R8 WORKS (mega-pile spread; control completed 4x faster ~3.5 vs ~13 min; CoHQ
+  creation now CLEAN) - recommend ON for stacked scenarios - but STILL 0/6 aggregates
+  marched: companies DRIVE 31-124 km past 1.1 km routes (E1 runaway re-expressed -
+  R5c's "runaway eliminated" was GRIDLOCK suppression, not a fix), CoHQs scatter
+  76-93 km ON TASKING (member warp, not driving), platoons shuffle ~60 m. STACKED
+  COORDINATES ARE FALSIFIED as the sufficient blocker. SURVIVING HYPOTHESIS:
+  GEOGRAPHY/terrain content at the Mojave region (both regions run the same
+  whole-earth "MAK Earth Space (online).mtf" - vrfSim.log - so it is location
+  content, not the terrain file; residuals: 20x multiplier, init-content diffs).
 - New tools/surface since the last jump: facade/bridge ReorganizeAggregate +
   RequestAvailableFormations/AvailableFormations; tools/WatchVrf (member-level position
   telemetry, the GUI-independent movement oracle); data/E1_Formation_Order.xml +
@@ -77,25 +85,29 @@ STATE (2026-07-12 night; everything below is COMMITTED + PUSHED, selftests green
   checks; InitParseCheck prints planned-creations-by-type + stacked groups;
   --destack-selftest.
 
-DO FIRST (the user APPROVED this):
-1. VERIFY R8 LIVE - re-run the R5c probe (PushInit data/COA-STP1_Initialization.xml,
-   clientId C2SIM, Vrf__AggregateFormation=auto + Vrf__DeStackCreates=true, push
-   data/E1_Formation_Order.xml, WatchVrf for member telemetry). If aggregates now march
-   -> the (refined, pile-size) stack hypothesis is CLOSED and COA-STP1 is functionally
-   unblocked; if not, the terrain-region caveat reopens (UNIT_MOVEMENT_RESEARCH.md
-   sec 4 R5c). Record either way in PORT.md sec 10 + UNIT_MOVEMENT_RESEARCH.md.
-2. Then, in priority order: CoHQ creation-scatter investigation (WatchVrf on ONE CoHQ
-   through create->repair); E2 MoveIntoFormation re-test (preconditions now sane); P4
-   report bundling/dedup (live runs hit ephemeral-PORT EXHAUSTION pushing un-bundled
-   position reports); coa-gpt data memo (3 evidence-backed items: distinct
-   AffectedEntity, timing hygiene, DISPERSED positions); housekeeping (6 tools csproj
-   absolute SDK paths; the unexplained ~2500-char server-broadcast truncation that eats
-   the A2/A probe orders - clean orders pass).
+DO FIRST (R9 - the region-swap discriminator; UNIT_MOVEMENT_RESEARCH.md sec 4b NEXT):
+1. Synthesize an init that places the EXACT golden unit set that marched in R5
+   (1222.MechPlt, 114.MechCoy, 1.BdeHQ + subordinate context) at the COA-STP1 Mojave
+   coordinates (dispersed); run the R5-style one-move-per-unit probe at 20x with
+   Vrf__AggregateFormation=auto. Offline-check the synthetic init with --parse-init
+   first. If they FAIL in Mojave -> geography CONFIRMED as the blocker (then coa-gpt
+   region guidance / planAndMoveToTask exploration); if they MARCH -> geography
+   falsified; then vary multiplier (20x vs 1x) and init content one at a time.
+   Record either way in UNIT_MOVEMENT_RESEARCH.md sec 4b + PORT.md sec 10.
+2. Then, in priority order: CoHQ move-triggered scatter investigation (creation is
+   now CLEAN with repair+de-stack; the warp happens ON TASKING - watch ONE CoHQ's
+   members through a move); E2 MoveIntoFormation re-test (preconditions now sane); P4
+   report bundling/dedup (ephemeral-PORT EXHAUSTION recurred in the R8 run - 7 errors);
+   coa-gpt data memo (3 evidence-backed items: distinct AffectedEntity, timing hygiene,
+   DISPERSED positions - now nuanced: de-stack mitigates piles interface-side, but
+   dispersed source data is still preferred); housekeeping (6 tools csproj absolute SDK
+   paths; the unexplained ~2500-char server-broadcast truncation that eats the A2/A
+   probe orders - clean orders pass).
 
 Non-negotiables (full text RUNBOOK + guidance sec 1 - violating these destroys state):
 - NEVER force-kill a joined federate; clean-stop via tools/StopIface. FRESH
-  Vrf__ApplicationNumber every RTI join (this includes ResetVrf/WatchVrf runs; 3200-3327
-  are used, start at 3330). NEVER push an init to a running interface.
+  Vrf__ApplicationNumber every RTI join (this includes ResetVrf/WatchVrf runs; 3200-3333
+  are used, start at 3335). NEVER push an init to a running interface.
 - Do NOT restart the c2sim-server container habitually. Loopback test first: TCP connect
   to 127.0.0.1:61613 must be near-instant.
 - LIVE runs: RTI 4.6.1 on PATH (4.6b = build/offline only), MAKLMGRD_LICENSE_FILE from

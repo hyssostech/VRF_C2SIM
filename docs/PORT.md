@@ -717,6 +717,26 @@ creatable units incl. tank entities and the E1 control A/4-27) vs golden's max 1
 stacking per se. The R8 live A/B (same COA-STP1 scenario, only de-stack toggled) is the
 clean discriminator; the cross-scenario golden-vs-COA-STP1 A/B was confounded by
 scenario/terrain after all.
+
+**R8 VERIFY RUN (2026-07-12/13 night, LIVE - full record UNIT_MOVEMENT_RESEARCH.md
+sec 4b): the STACK HYPOTHESIS IS FALSIFIED as the sufficient blocker.** The exact R5c
+probe with only de-stack toggled ON (appNo 3332/3333, auto repair 113/113, de-stack
+spread 10 groups incl. the 54-unit mega-pile, E1 probe order, 20x, WatchVrf 20 min):
+the entity control completed 4x FASTER (~3.5 min vs ~13 - the pile gridlock was real
+and R8 fixes it) and CoHQ CREATION is now clean (no creation scatter), but STILL 0/6
+aggregates marched and the failure mode FLIPPED BACK to E1's: companies DRIVE away at
+~55 km/h far past their 1.1 km routes (31-124 km), CoHQs scatter 76-93 km ON TASKING
+(>130 km/h displacement = member warp, not driving), platoons shuffle ~60 m.
+REINTERPRETATION: R5c's "runaway eliminated" was mega-pile GRIDLOCK suppressing the
+runaway, not the repair fixing it. R8 stays a genuine improvement (recommended ON for
+stacked scenarios) but the blocker is elsewhere: the surviving hypothesis is
+GEOGRAPHY/terrain content at the COA-STP1 Mojave region (the backend runs whole-earth
+"MAK Earth Space (online).mtf" for BOTH regions - vrfSim.log - so it is the streamed
+content at the location, not a different terrain file; residual alternatives: the 20x
+multiplier, init-content differences). NEXT: R9 region swap - the golden R5 unit set
+placed at the Mojave coordinates, same probe (UNIT_MOVEMENT_RESEARCH.md sec 4b).
+Operational: report-push ephemeral-port exhaustion recurred (7 errors) - P4 bundling
+stays urgent; Solution A deleted 170/170; clean stop; appNos 3330-3333 consumed.
 OPERATIONAL FINDINGS from the run: (1) report pushing hit ephemeral-PORT EXHAUSTION ("Only one
 usage of each socket address...") under the un-bundled position-report volume -> the P4
 report dedup/bundling item is now OPERATIONALLY URGENT for long runs; (2) a deterministic
