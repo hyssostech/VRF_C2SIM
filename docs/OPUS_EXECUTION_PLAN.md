@@ -69,7 +69,7 @@ $exe = "src\VrfC2SimApp\bin\Release\net10.0\win-x64\VrfC2SimApp.exe"
 & $exe --translator-selftest      # 18/18
 & $exe --parse-init docs\golden-trace\STP-TC-small-6-12-24_Initialization.xml STP   # 80 units, 49 creatable, 4 areas
 & $exe --parse-order docs\golden-trace\orders\1_VRF_Move_Order.xml                  # 1 MOVE, taskee 670cfe3a..., 2 pts
-& $exe --report-selftest          # 9/9
+& $exe --report-selftest          # 16 (P4b Step 3 LANDED: +7 position-bundle checks; was 9 pre-Step-3)
 & $exe --sequencer-selftest       # 12, ALL CHECKS PASSED
 & $exe --verb-selftest            # 28+, ALL CHECKS PASSED
 & $exe --destack-selftest         # 20, ALL CHECKS PASSED

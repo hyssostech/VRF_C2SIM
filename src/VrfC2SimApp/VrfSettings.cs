@@ -122,4 +122,12 @@ public class VrfSettings
     // and is why a manual VR-Forces scenario reload was needed between runs (RUNBOOK sec 7/8).
     // Default true (self-service hygiene); set false to leave created objects in place.
     public bool CleanupCreatedOnStop { get; set; } = true;
+
+    // P4b position-report bundling (C++ parity, textIf.cxx:435-530). OFF = one PositionReport
+    // per POSITION line (today's behavior). ON = accumulate POSITION reports into one envelope
+    // (N ReportContent) and flush on count/size/timer. TASKCMPLT is never bundled. Opt-in.
+    public bool BundlePositionReports { get; set; } = false;
+    public int BundleMaxReports { get; set; } = 10;      // C++ maxReportsPerBundleTextIf
+    public int BundleMaxBytes { get; set; } = 10240;     // C++ maxBundleSizeTextIf
+    public int BundleFlushMs { get; set; } = 2000;       // C++ ~2 s reminder-thread flush
 }

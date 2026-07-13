@@ -55,6 +55,58 @@ public static class ReportSelfTest
         }
         else { failures++; Console.WriteLine("  FAIL: position did not round-trip to a PositionReportContent"); }
 
+        // ---- position BUNDLE (P4b: ONE ReportBody carrying N PositionReportContent blocks) ----
+        var fixes = new (string uuid, double latDeg, double lonDeg)[]
+        {
+            ("aaaaaaaa-0000-0000-0000-000000000001", 58.10, 16.10),
+            ("bbbbbbbb-0000-0000-0000-000000000002", 58.20, 16.20),
+            ("cccccccc-0000-0000-0000-000000000003", 58.30, 16.30),
+        };
+        string bundleXml = ReportBuilder.BuildPositionReportBundle(fixes, iso, reportId);
+        Console.WriteLine();
+        Console.WriteLine("=== Position report BUNDLE (3 fixes) ===");
+        Console.WriteLine(bundleXml);
+        var rb = ReportBodyOf(Roundtrip(bundleXml));
+        if (rb != null && rb.ReportContent is { Length: 3 })
+        {
+            Check(ref failures, true, "bundle round-trips to 3 ReportContent blocks");
+            bool allMatch = true, timeOk = true;
+            for (int i = 0; i < 3; i++)
+            {
+                if (rb.ReportContent[i].Item is S.PositionReportContentType bc)
+                {
+                    var bg = bc.Location?.Item as S.GeodeticCoordinateType;
+                    if (bc.SubjectEntity != fixes[i].uuid || bg == null
+                        || bg.Latitude != fixes[i].latDeg || bg.Longitude != fixes[i].lonDeg)
+                        allMatch = false;
+                    if (IsoOf(bc.TimeOfObservation) != iso) timeOk = false;
+                }
+                else { allMatch = false; timeOk = false; }
+            }
+            Check(ref failures, allMatch, "each bundle content has its own uuid/lat/lon (in order)");
+            Check(ref failures, timeOk, "each bundle content TimeOfObservation == iso");
+            Check(ref failures, rb.ReportID == reportId, "one ReportID for the whole bundle body");
+            Check(ref failures, rb.ReportingEntity == fixes[0].uuid,
+                  "bundle ReportingEntity == first fix uuid (C++-parity envelope choice)");
+        }
+        else { failures++; Console.WriteLine("  FAIL: 3-fix bundle did not round-trip to 3 contents"); }
+
+        // A 1-fix bundle is semantically the single-content shape (one content; ReportingEntity=subject).
+        var oneFix = new (string uuid, double latDeg, double lonDeg)[] { (subject, lat, lon) };
+        string oneBundleXml = ReportBuilder.BuildPositionReportBundle(oneFix, iso, reportId);
+        var r1 = ReportBodyOf(Roundtrip(oneBundleXml));
+        if (r1 != null && r1.ReportContent is { Length: 1 }
+            && r1.ReportContent[0].Item is S.PositionReportContentType b1)
+        {
+            var g1 = b1.Location?.Item as S.GeodeticCoordinateType;
+            Check(ref failures, b1.SubjectEntity == subject && g1 != null
+                  && g1.Latitude == lat && g1.Longitude == lon,
+                  "1-fix bundle == single-content shape (uuid/lat/lon)");
+            Check(ref failures, r1.ReportingEntity == subject,
+                  "1-fix bundle ReportingEntity == subject (single-report semantics)");
+        }
+        else { failures++; Console.WriteLine("  FAIL: 1-fix bundle did not round-trip to a single content"); }
+
         Console.WriteLine();
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
         return failures == 0 ? 0 : 1;

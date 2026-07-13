@@ -39,6 +39,27 @@ Three locations are in play:
 
 ## Current status (2026-07-13)
 
+- **Step 3 (P4b position-report bundling) LANDED offline (2026-07-13, execution) - opt-in,
+  DEFAULT OFF, live pass PENDING**: `ReportBuilder.BuildPositionReportBundle` builds ONE
+  ReportBody carrying N PositionReportContent blocks with one ReportID minted at flush
+  (C++-parity, textIf.cxx:435-544). Bundle `ReportingEntity` = the FIRST fix's subject uuid:
+  the C++ oracle's bundle envelope reporting-entity is INCONSISTENT across its three flush
+  paths (count->last fix, size-overflow->the overflowing fix, reminder-timer->first fix), so
+  per plan 3.1 the first fix's uuid was chosen (it matches the C++ timer flush and is closest
+  to single-report semantics). Service: a `_posBundle` accumulator (guarded by `_posBundleLock`;
+  snapshot-under-lock, build+push OUTSIDE the lock) drained by the count/size trigger in
+  `OnVrfTextReport`, a periodic `PositionBundleFlushLoopAsync` (`BundleFlushMs`, gated on
+  `_stoppingToken`), and a final flush-on-stop placed with the clean-stop cleanup BEFORE the
+  SDK disconnect / bridge resign. Size is a SECONDARY guard (a running per-fix byte estimate);
+  count is PRIMARY. TASKCMPLT is NEVER bundled. Four opt-in settings (`Vrf:BundlePositionReports`
+  default FALSE, `BundleMaxReports=10`, `BundleMaxBytes=10240`, `BundleFlushMs=2000`) -
+  DEFAULT-OFF is byte-for-byte today's one-report-per-POSITION path. `--report-selftest` 9 -> 16
+  (+7 bundle checks: 3-content round-trip, per-content uuid/lat/lon + time, one ReportID,
+  envelope ReportingEntity, 1-fix == single-content shape). App builds 0 errors; all eight
+  offline selftests green. LIVE pass still PENDING: P4b is DELIBERATELY excluded from the
+  Step-5 scale run - the one live unknown is whether THIS c2sim-server ingests an N-content
+  envelope (plan 3.9 stop-and-escalate); a short dedicated live pass with
+  `Vrf:BundlePositionReports=true` confirms acceptance before parity is claimed.
 - **Step 5 (COA-STP1 FULL 42-task LIVE scale run) RAN (2026-07-13, execution) -
   pipeline PASS at scale; P4a + Step-2 PASS live; movement MIXED**: 128 units +
   35 areas, mega-pile de-stacked (54 units), formation repair 113/113, 14
@@ -243,8 +264,8 @@ Three locations are in play:
   - Reports out DONE + offline-verified (2026-07-10): `ReportBuilder` builds C2SIM
     TaskStatus (TASKCMPLT) + PositionReport bodies via the SDK schema types (serialize,
     not the C++ malformed strings). `OnVrfTaskCompleted`/`OnVrfTextReport` correlate +
-    PushReportMessage. `--report-selftest` builds + round-trips both (9/9). Deferred:
-    health/dedup/bundling, TaskCompletionSource/timeout + delay sequencing.
+    PushReportMessage. `--report-selftest` builds + round-trips both, plus the P4b position
+    BUNDLE (16/16). Deferred: health/dedup, TaskCompletionSource/timeout + delay sequencing.
   - Task sequencing DONE + offline-verified (2026-07-10): `TaskSequencer` replaces the C++
     busy-waits with async gating - a task awaits its predecessor (via OnVrfTaskCompleted)
     + start delay before dispatch, with a timeout (fixes the sec-6 infinite wait).
@@ -343,7 +364,7 @@ it loads the bridge assembly for value types):
 - `VrfC2SimApp.exe --parse-order docs\golden-trace\orders\1_VRF_Move_Order.xml`
   - expect 1 MOVE task T1_1_4_A, taskee 670cfe3a..., ROE ROETight, 2 inline points.
 - `VrfC2SimApp.exe --report-selftest` - builds + round-trips a TASKCMPLT + a position
-  report via the SDK schema types; expect 9/9 checks pass.
+  report + the P4b position BUNDLE via the SDK schema types; expect 16/16 checks pass.
 - `VrfC2SimApp.exe --sequencer-selftest` - task-start gating (predecessor / delay /
   timeout) + the P0 orchestration fixes (dispatch-relative window, abandon fast-fail,
   in-flight completion attribution); expect 12 checks, ALL CHECKS PASSED.

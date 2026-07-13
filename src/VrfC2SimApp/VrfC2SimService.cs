@@ -69,6 +69,24 @@ public sealed class VrfC2SimService : BackgroundService
     // subject of a report (parity: onTaskCompleted/onTextReport getUnitByName -> unit->uuid).
     private readonly ConcurrentDictionary<string, string> _c2SimUuidByName = new();
 
+    // P4b position-report bundling (Vrf:BundlePositionReports; C++ parity textIf.cxx:435-544).
+    // When enabled, OnVrfTextReport ACCUMULATES POSITION fixes here instead of pushing one report
+    // each; the buffer is drained by the count/size trigger (in OnVrfTextReport), a periodic timer
+    // (BundleFlushMs), and once more on clean stop BEFORE resign. _posBundleLock guards ALL buffer
+    // access; the serialize + network push runs OUTSIDE the lock (snapshot-under-lock, then
+    // build+push) so the lock is never held across a serialize or a PushReportAsync. TASKCMPLT is
+    // NEVER bundled (it flows through SynthesizeUnitCompletion, a wholly separate path).
+    private readonly List<(string uuid, double lat, double lon)> _posBundle = new();
+    private readonly object _posBundleLock = new();
+    // Rough serialized-size ESTIMATE constants for the SECONDARY size guard (COUNT is PRIMARY - see
+    // OnVrfTextReport). We do NOT re-serialize per fix; a conservative per-fix estimate only needs
+    // to flush BEFORE the real payload nears BundleMaxBytes ("STOMP may balk at larger" - the C++
+    // rationale). With the defaults (10 reports / 10240 bytes) count always fires first; the size
+    // guard only bites if BundleMaxReports is raised or BundleMaxBytes lowered. Overestimating is
+    // safe (flush a little early).
+    private const int PosBundleEnvelopeBytes = 512;  // <ReportBody> preamble/postamble + ReportID/ReportingEntity
+    private const int PosBundleFixBytes = 400;       // one <PositionReportContent> block (uuid + lat/lon + timestamp + tags)
+
     // Per-unit in-flight task record (P0.1, replaces the last-write current-task map whose
     // completion misattribution corrupted TASKCMPLT reports + released the wrong successor
     // gates - NEXT_SESSION_GUIDANCE.md sec 2.4 DEFECT A). Written at dispatch
@@ -162,6 +180,13 @@ public sealed class VrfC2SimService : BackgroundService
         };
         tickThread.Start();
 
+        // P4b: start the periodic POSITION-bundle flush loop (ONLY when bundling is enabled). It
+        // force-flushes a partial bundle every BundleFlushMs so a trickle of reports is not held
+        // (C++ reminder thread). Detached, gated on _stoppingToken; the stop path does the final
+        // flush. When BundlePositionReports is false this never starts (default-off = no behavior).
+        if (_vrf.BundlePositionReports && _vrf.BundleFlushMs > 0)
+            _ = PositionBundleFlushLoopAsync();
+
         // 3. Connect to C2SIM to start receiving init/orders.
         try
         {
@@ -239,6 +264,18 @@ public sealed class VrfC2SimService : BackgroundService
             {
                 _log.LogWarning("Cleanup-on-stop failed: {Msg}", C2SIMSDK.GetRootException(e).Message);
             }
+        }
+
+        // P4b: flush any pending POSITION bundle BEFORE resign so no accumulated fixes are lost.
+        // The periodic flush loop has already stopped here (_stoppingToken is cancelled), and its
+        // snapshot-under-lock serializes with this one - no double-send / no loss. AWAIT the push
+        // so the bundle reaches C2SIM before the SDK Disconnect below. Default-off: the buffer is
+        // always empty on the non-bundling path (no-op).
+        try { await FlushPositionBundle(); }
+        catch (Exception e)
+        {
+            _log.LogWarning("Flush-on-stop position bundle failed: {Msg}",
+                            C2SIMSDK.GetRootException(e).Message);
         }
 
         _stopTick = true;
@@ -1182,6 +1219,27 @@ public sealed class VrfC2SimService : BackgroundService
             _log.LogDebug("POSITION for unknown/uncreated '{Name}' - ignored.", objectName);
             return;
         }
+
+        // P4b (opt-in): accumulate the fix into the bundle and flush on the count (or size) trigger;
+        // the periodic timer + stop path cover the partial-bundle cases. TASKCMPLT is NEVER bundled
+        // (separate path). When BundlePositionReports is false, fall through to EXACTLY today's
+        // single-report path below (byte-for-byte parity - the default-off invariant).
+        if (_vrf.BundlePositionReports)
+        {
+            List<(string uuid, double lat, double lon)> snapshot = null;
+            lock (_posBundleLock)
+            {
+                _posBundle.Add((uuid, lat, lon));
+                if (_posBundle.Count >= _vrf.BundleMaxReports ||
+                    EstimatedBundleBytesLocked() >= _vrf.BundleMaxBytes)
+                    snapshot = DrainBundleLocked();
+            }
+            _log.LogDebug("Position fix for {Name} ({Uuid}) {Lat}/{Lon} {State}.",
+                          objectName, uuid, lat, lon, snapshot == null ? "buffered" : "flushing bundle");
+            if (snapshot != null) _ = PushBundleSnapshot(snapshot);
+            return;
+        }
+
         var report = ReportBuilder.BuildPositionReport(uuid, lat, lon, IsoNow(), NewReportId());
         _log.LogDebug("Position report for {Name} ({Uuid}) {Lat}/{Lon}.", objectName, uuid, lat, lon);
         _ = PushReportAsync(report);
@@ -1293,5 +1351,55 @@ public sealed class VrfC2SimService : BackgroundService
         if (string.IsNullOrEmpty(reportXml)) return;
         try { await _sdk.PushReportMessage(reportXml); }
         catch (Exception e) { _log.LogError("PushReport failed: {Msg}", C2SIMSDK.GetRootException(e).Message); }
+    }
+
+    // ================= P4b position-report bundle helpers (see the _posBundle field block) =========
+
+    // Running serialized-size ESTIMATE (bytes) - the SECONDARY size guard. Caller holds _posBundleLock.
+    private int EstimatedBundleBytesLocked()
+        => PosBundleEnvelopeBytes + _posBundle.Count * PosBundleFixBytes;
+
+    // Snapshot + clear the buffer UNDER the lock; returns null when empty (nothing to flush). The
+    // caller serializes + pushes the returned snapshot OUTSIDE the lock.
+    private List<(string uuid, double lat, double lon)> DrainBundleLocked()
+    {
+        if (_posBundle.Count == 0) return null;
+        var snap = new List<(string uuid, double lat, double lon)>(_posBundle);
+        _posBundle.Clear();
+        return snap;
+    }
+
+    // Build one bundle envelope from the snapshot and push it. The ReportID is minted HERE (= C++
+    // "created when the bundle is sent"). Returns the push Task so the stop path can await delivery.
+    private Task PushBundleSnapshot(List<(string uuid, double lat, double lon)> snapshot)
+    {
+        var xml = ReportBuilder.BuildPositionReportBundle(snapshot, IsoNow(), NewReportId());
+        _log.LogDebug("SENT POSITION BUNDLE ({N} fixes) in one report.", snapshot.Count);
+        return PushReportAsync(xml);
+    }
+
+    // Drain + push whatever is buffered (timer + stop paths). Returns the push Task (the stop path
+    // AWAITs it before the SDK Disconnect); a completed no-op task when the buffer is empty.
+    private Task FlushPositionBundle()
+    {
+        List<(string uuid, double lat, double lon)> snapshot;
+        lock (_posBundleLock) { snapshot = DrainBundleLocked(); }
+        return snapshot == null ? Task.CompletedTask : PushBundleSnapshot(snapshot);
+    }
+
+    // Periodic force-flush of a PARTIAL bundle (C++ ~2 s reminder thread) so a trickle of POSITION
+    // reports is not held indefinitely. Gated on _stoppingToken; cancellation on shutdown ends the
+    // loop cleanly and the stop path does the final flush. Started only when bundling is enabled.
+    private async Task PositionBundleFlushLoopAsync()
+    {
+        try
+        {
+            while (!_stoppingToken.IsCancellationRequested)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(_vrf.BundleFlushMs), _stoppingToken);
+                _ = FlushPositionBundle();
+            }
+        }
+        catch (OperationCanceledException) { /* normal on stop */ }
     }
 }
