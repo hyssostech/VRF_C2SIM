@@ -737,6 +737,21 @@ multiplier, init-content differences). NEXT: R9 region swap - the golden R5 unit
 placed at the Mojave coordinates, same probe (UNIT_MOVEMENT_RESEARCH.md sec 4b).
 Operational: report-push ephemeral-port exhaustion recurred (7 errors) - P4 bundling
 stays urgent; Solution A deleted 170/170; clean stop; appNos 3330-3333 consumed.
+
+**R9 REGION SWAP (2026-07-13 morning, LIVE - full record UNIT_MOVEMENT_RESEARCH.md
+sec 4c): GEOGRAPHY CONFIRMED as the aggregate blocker, WITH the mechanism.** The
+golden unit set transplanted to Mojave (data/R9_Mojave_*.xml, ground geometry
+preserved) fails 1/3 (entity only; platoon frozen at 8 m, company 410 m wrong-way
+then frozen), while the same-day SWEDEN CONTROL (original golden files, same code,
+same 20x) completes 3/3 in ~4 min - excluding code drift and the multiplier.
+MECHANISM in vrfSim.log: at Mojave the backend logs `moveAlong() - empty route --
+not sending move along to subordinate` and creates ZERO member Offset Routes
+(Sweden: 45) - the lead-follow controller's leader path plan is EMPTY at that
+location on the whole-earth online terrain. NOT an interface defect (identical
+command stream both runs). Practical unlock candidates: R10 subordinate fan-out
+(entity moves are PROVEN at Mojave), R11 DtPlanAndMoveToTask probe; coa-gpt feedback
+item #4 = validate the scenario region before generating COAs there. appNos
+3335-3340 consumed (next fresh: 3341).
 OPERATIONAL FINDINGS from the run: (1) report pushing hit ephemeral-PORT EXHAUSTION ("Only one
 usage of each socket address...") under the un-bundled position-report volume -> the P4
 report dedup/bundling item is now OPERATIONALLY URGENT for long runs; (2) a deterministic

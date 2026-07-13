@@ -37,9 +37,22 @@ Three locations are in play:
 6. This file for repo state, build/run commands, and where artifacts live.
 7. History/reference as needed: `docs/PHASE1_REWIRE.md`, `docs/TASK_EXPANSION_PLAN.md`.
 
-## Current status (2026-07-12)
+## Current status (2026-07-13)
 
-- **Latest (2026-07-12/13, night - R8 LIVE-VERIFIED; STACK HYPOTHESIS FALSIFIED)**:
+- **Latest (2026-07-13, morning - R9 REGION SWAP: GEOGRAPHY CONFIRMED + MECHANISM)**:
+  the golden unit set transplanted to the COA-STP1 Mojave region (data/R9_Mojave_*.xml,
+  ground geometry preserved) FAILS 1/3 (entity only; platoon frozen at 8 m, company
+  410 m wrong-way then frozen) while the same-day SWEDEN CONTROL (original golden
+  files, same code, same 20x) completes 3/3 in ~4 min - so neither code drift nor the
+  multiplier is a factor. MECHANISM (vrfSim.log): at Mojave the backend logs
+  `moveAlong() - empty route -- not sending move along to subordinate` and creates
+  ZERO member Offset Routes (Sweden: 45) - unit leader-path planning returns EMPTY at
+  that location on the whole-earth online terrain. NOT an interface defect. The
+  practical unlock candidates are R10 subordinate fan-out (entity moves are PROVEN at
+  Mojave) and an R11 DtPlanAndMoveToTask probe; coa-gpt feedback item #4 = validate
+  the region before generating COAs there. Full record UNIT_MOVEMENT_RESEARCH.md
+  sec 4c; evidence docs/experiments/R9_region_swap_2026-07-13.txt.
+- **2026-07-12/13, night - R8 LIVE-VERIFIED; STACK HYPOTHESIS FALSIFIED**:
   the R8 live A/B ran (exact R5c probe, only `Vrf:DeStackCreates=true` toggled; full
   record UNIT_MOVEMENT_RESEARCH.md sec 4b). R8 WORKS (54-unit mega-pile spread; entity
   control completed 4x faster ~3.5 min vs ~13; CoHQ creation now CLEAN - no creation

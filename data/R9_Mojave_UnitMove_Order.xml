@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- R5 experiment order (docs/UNIT_MOVEMENT_RESEARCH.md plan R5): unit-move micro-test
+     against the GOLDEN STP init (docs/golden-trace/STP-TC-small-6-12-24_Initialization.xml,
+     clientId STP - DISPERSED unit positions, unlike COA-STP1). One MOVE task each, no
+     temporal relationships: one ArmorPlatoon-typed aggregate (Ground_Aggregate fallback,
+     lowercase formations), one ArmorCompany-typed aggregate (Tank Company match,
+     Title-Case), one tank ENTITY control. Run with Vrf__AggregateFormation=auto so R1
+     repairs formation state + reorganizes AT CREATION; the move then exercises the
+     create->snap->reorganize->move sequence. Routes ~550 m + ~1100 m legs. -->
+<MessageBody xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.sisostds.org/schemas/C2SIM/1.1">
+  <DomainMessageBody>
+    <OrderBody>
+      <FromSender>00000000-0000-0001-0001-000000000000</FromSender>
+      <ToReceiver>00000000-0007-0001-0000-000000000000</ToReceiver>
+      <IssuedTime>
+        <IsoDateTime>2026-07-12T00:00:00Z</IsoDateTime>
+      </IssuedTime>
+      <OrderID>a5000000-0000-0000-0000-000000000000</OrderID>
+      <Task>
+        <ManeuverWarfareTask>
+          <Location>
+            <GeodeticCoordinate>
+              <Latitude>34.612955587412</Latitude>
+              <Longitude>-116.594173672085</Longitude>
+            </GeodeticCoordinate>
+          </Location>
+          <Location>
+            <GeodeticCoordinate>
+              <Latitude>34.612955587412</Latitude>
+              <Longitude>-116.587860401830</Longitude>
+            </GeodeticCoordinate>
+          </Location>
+          <Name>T_R5_PL1</Name>
+          <UUID>a5000000-0000-0000-0000-000000000001</UUID>
+          <DesiredEffectCode>TaskSuccess</DesiredEffectCode>
+          <PerformingEntity>001aa71b-4c26-a1ea-28b2-f7dfe8e76342</PerformingEntity><!--1222.MechPlt ArmorPlatoon 11.1.225.1.1.3.0 -> Ground_Aggregate, "column"-->
+          <TaskActionCode>MOVE</TaskActionCode>
+          <RuleOfEngagement>
+            <MipWeaponUseROE>
+              <WeaponROECode>
+                <WeaponRuleOfEngagementCode>ROETight</WeaponRuleOfEngagementCode>
+              </WeaponROECode>
+            </MipWeaponUseROE>
+          </RuleOfEngagement>
+        </ManeuverWarfareTask>
+      </Task>
+      <Task>
+        <ManeuverWarfareTask>
+          <Location>
+            <GeodeticCoordinate>
+              <Latitude>34.652628996814</Latitude>
+              <Longitude>-116.693387536163</Longitude>
+            </GeodeticCoordinate>
+          </Location>
+          <Location>
+            <GeodeticCoordinate>
+              <Latitude>34.657628996814</Latitude>
+              <Longitude>-116.693387536163</Longitude>
+            </GeodeticCoordinate>
+          </Location>
+          <Name>T_R5_CO1</Name>
+          <UUID>a5000000-0000-0000-0000-000000000002</UUID>
+          <DesiredEffectCode>TaskSuccess</DesiredEffectCode>
+          <PerformingEntity>139aa71b-75df-4888-4a5a-6056bae66242</PerformingEntity><!--114.MechCoy ArmorCompany 11.1.225.5.2.0.0 -> Tank Company (USA), "Column"-->
+          <TaskActionCode>MOVE</TaskActionCode>
+          <RuleOfEngagement>
+            <MipWeaponUseROE>
+              <WeaponROECode>
+                <WeaponRuleOfEngagementCode>ROETight</WeaponRuleOfEngagementCode>
+              </WeaponROECode>
+            </MipWeaponUseROE>
+          </RuleOfEngagement>
+        </ManeuverWarfareTask>
+      </Task>
+      <Task>
+        <ManeuverWarfareTask>
+          <Location>
+            <GeodeticCoordinate>
+              <Latitude>34.608415817915</Latitude>
+              <Longitude>-116.706372134621</Longitude>
+            </GeodeticCoordinate>
+          </Location>
+          <Location>
+            <GeodeticCoordinate>
+              <Latitude>34.608415817915</Latitude>
+              <Longitude>-116.700058864366</Longitude>
+            </GeodeticCoordinate>
+          </Location>
+          <Name>T_R5_TK1</Name>
+          <UUID>a5000000-0000-0000-0000-000000000003</UUID>
+          <DesiredEffectCode>TaskSuccess</DesiredEffectCode>
+          <PerformingEntity>670cfdb2-6c43-f267-ad7f-bd6e739def24</PerformingEntity><!--1.BdeHQ Tank ENTITY (control)-->
+          <TaskActionCode>MOVE</TaskActionCode>
+          <RuleOfEngagement>
+            <MipWeaponUseROE>
+              <WeaponROECode>
+                <WeaponRuleOfEngagementCode>ROETight</WeaponRuleOfEngagementCode>
+              </WeaponROECode>
+            </MipWeaponUseROE>
+          </RuleOfEngagement>
+        </ManeuverWarfareTask>
+      </Task>
+    </OrderBody>
+  </DomainMessageBody>
+</MessageBody>

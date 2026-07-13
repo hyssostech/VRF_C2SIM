@@ -2,11 +2,11 @@
 
 Paste the block below into a fresh session to resume the port. It forces the
 source-of-truth docs to be read and the state checked before any action - do not
-shortcut it. Last refreshed 2026-07-13 (R8 de-stacking LIVE-VERIFIED: it works -
-control 4x faster, clean CoHQ creation - but 0/6 aggregates marched, so the STACK
-HYPOTHESIS IS FALSIFIED; R5c's "runaway eliminated" was gridlock suppression. The
-surviving hypothesis is GEOGRAPHY/terrain content at the Mojave region. Next: R9
-region swap).
+shortcut it. Last refreshed 2026-07-13 morning (R9 region swap DONE: GEOGRAPHY
+CONFIRMED as the aggregate-movement blocker, mechanism = the backend's unit
+leader-path plan is EMPTY at the Mojave region - `moveAlong() - empty route` in
+vrfSim.log, zero member Offset Routes; the same-day Sweden control marched 3/3
+with identical code. Next: R10 subordinate fan-out + R11 planAndMoveTo probe).
 
 ---
 
@@ -74,10 +74,18 @@ STATE (2026-07-13; everything below is COMMITTED + PUSHED, selftests green):
   marched: companies DRIVE 31-124 km past their 1.1 km routes (E1 runaway re-expressed
   - R5c's "runaway eliminated" was GRIDLOCK suppression, not a fix), CoHQs scatter
   76-93 km ON TASKING (member warp, not driving), platoons shuffle ~60 m. STACKED
-  COORDINATES ARE FALSIFIED as the sufficient blocker. SURVIVING HYPOTHESIS:
-  GEOGRAPHY/terrain content at the Mojave region (both regions run the same
-  whole-earth "MAK Earth Space (online).mtf" - vrfSim.log - so it is location
-  content, not the terrain file; residuals: 20x multiplier, init-content diffs).
+  COORDINATES ARE FALSIFIED as the sufficient blocker.
+- R9 REGION SWAP DONE (2026-07-13 morning; UNIT_MOVEMENT_RESEARCH.md sec 4c;
+  evidence docs/experiments/R9_region_swap_2026-07-13.txt): GEOGRAPHY CONFIRMED.
+  The golden unit set transplanted to Mojave (data/R9_Mojave_*.xml, geometry
+  preserved) fails 1/3 (platoon frozen 8 m, company 410 m wrong-way then frozen,
+  entity completes); the same-day SWEDEN CONTROL (original files, same code, 20x)
+  completes 3/3 in ~4 min - code drift and multiplier EXCLUDED. MECHANISM: at
+  Mojave vrfSim.log shows `moveAlong() - empty route -- not sending move along to
+  subordinate` + ZERO member Offset Routes (Sweden: 45) - unit leader-path
+  planning returns EMPTY at that location on the whole-earth online terrain
+  ("MAK Earth Space (online).mtf"). NOT an interface defect (identical command
+  stream both runs). Entity moves work at BOTH regions.
 - New tools/surface since the last jump: facade/bridge ReorganizeAggregate +
   RequestAvailableFormations/AvailableFormations; tools/WatchVrf (member-level position
   telemetry, the GUI-independent movement oracle); data/E1_Formation_Order.xml +
@@ -85,29 +93,32 @@ STATE (2026-07-13; everything below is COMMITTED + PUSHED, selftests green):
   checks; InitParseCheck prints planned-creations-by-type + stacked groups;
   --destack-selftest.
 
-DO FIRST (R9 - the region-swap discriminator; UNIT_MOVEMENT_RESEARCH.md sec 4b NEXT):
-1. Synthesize an init that places the EXACT golden unit set that marched in R5
-   (1222.MechPlt, 114.MechCoy, 1.BdeHQ + subordinate context) at the COA-STP1 Mojave
-   coordinates (dispersed); run the R5-style one-move-per-unit probe at 20x with
-   Vrf__AggregateFormation=auto. Offline-check the synthetic init with --parse-init
-   first. If they FAIL in Mojave -> geography CONFIRMED as the blocker (then coa-gpt
-   region guidance / planAndMoveToTask exploration); if they MARCH -> geography
-   falsified; then vary multiplier (20x vs 1x) and init content one at a time.
-   Record either way in UNIT_MOVEMENT_RESEARCH.md sec 4b + PORT.md sec 10.
-2. Then, in priority order: CoHQ move-triggered scatter investigation (creation is
-   now CLEAN with repair+de-stack; the warp happens ON TASKING - watch ONE CoHQ's
-   members through a move); E2 MoveIntoFormation re-test (preconditions now sane); P4
-   report bundling/dedup (ephemeral-PORT EXHAUSTION recurred in the R8 run - 7 errors);
-   coa-gpt data memo (3 evidence-backed items: distinct AffectedEntity, timing hygiene,
-   DISPERSED positions - now nuanced: de-stack mitigates piles interface-side, but
-   dispersed source data is still preferred); housekeeping (6 tools csproj absolute SDK
-   paths; the unexplained ~2500-char server-broadcast truncation that eats the A2/A
-   probe orders - clean orders pass).
+DO FIRST (UNIT_MOVEMENT_RESEARCH.md sec 4c NEXT, in order):
+1. R10 - SUBORDINATE FAN-OUT fallback (the practical COA-STP1 unlock; the original
+   plan's R7): when an aggregate's move is wanted at a region where leader-path
+   planning fails, task the unit's member ENTITIES directly (entity moves are PROVEN
+   at Mojave: A/4-27 completed twice, 1.BdeHQ once; members revert to unit control on
+   completion per UnitMembersTaskIndependently.htm). Opt-in setting first (suggest
+   Vrf:SubordinateFanOut, default off). Needs member-uuid tracking (members stream
+   through the object-created callbacks). Offline selftests, then verify live at
+   Mojave with the R9 probe: decision rule = do the platoon/company members march
+   their routes and does the unit-level TASKCMPLT still make sense.
+2. R11 - same live session, cheap: DtPlanAndMoveToTask on ONE aggregate at Mojave
+   (does the pathfinding point-move plan where moveAlongRoute's leader path is empty?).
+3. coa-gpt data memo - now FOUR evidence-backed items: distinct AffectedEntity, timing
+   hygiene, DISPERSED positions (nuanced: R8 de-stack mitigates interface-side), and
+   REGION VALIDATION (R9: unit maneuver capability depends on the scenario location;
+   probe a region with 1 unit before generating COAs there).
+4. Then: E2 MoveIntoFormation re-test (at the GOLDEN region first - preconditions
+   sane there); CoHQ move-triggered scatter (plausibly the same empty-plan root -
+   deprioritized); P4 report bundling/dedup (port EXHAUSTION recurred in BOTH R8 and
+   the R9 Sweden control); housekeeping (6 tools csproj absolute SDK paths; the
+   ~2500-char server-broadcast truncation - clean orders pass).
 
 Non-negotiables (full text RUNBOOK + guidance sec 1 - violating these destroys state):
 - NEVER force-kill a joined federate; clean-stop via tools/StopIface. FRESH
-  Vrf__ApplicationNumber every RTI join (this includes ResetVrf/WatchVrf runs; 3200-3333
-  are used, start at 3335). NEVER push an init to a running interface.
+  Vrf__ApplicationNumber every RTI join (this includes ResetVrf/WatchVrf runs; 3200-3340
+  are used, start at 3341). NEVER push an init to a running interface.
 - Do NOT restart the c2sim-server container habitually. Loopback test first: TCP connect
   to 127.0.0.1:61613 must be near-instant.
 - LIVE runs: RTI 4.6.1 on PATH (4.6b = build/offline only), MAKLMGRD_LICENSE_FILE from

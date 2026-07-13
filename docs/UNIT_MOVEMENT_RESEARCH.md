@@ -293,6 +293,63 @@ content", or test planAndMoveToTask/off-road settings). If they march in Mojave 
 geography falsified too; next suspects are init content (b) and multiplier (a) - hold
 20x constant and vary one at a time. Optionally also the mirror swap (COA-STP1 units
 at the golden Sweden coordinates).
+
+## 4c. R9 REGION SWAP (2026-07-13 morning, LIVE) - GEOGRAPHY CONFIRMED; MECHANISM
+## FOUND: the leader path plan is EMPTY at the Mojave region
+
+Files (tracked): data/R9_Mojave_Initialization.xml + data/R9_Mojave_UnitMove_Order.xml
+- the golden init + R5 order transplanted Sweden (~58.69,16.5) -> Mojave (~34.6,
+-116.6) by a pure coordinate transform that PRESERVES ground geometry (dLat 1:1; lon
+offsets scaled by cos(58.69)/cos(34.6)=0.6313; spot check: a 9344 m inter-pile
+distance maps to 9346 m). Offline: --parse-init 80/49/4 + the same 10 stacked groups
+as golden; --parse-order 3 tasks with routes adjacent to their units (~578 m PL leg,
+same as golden). Raw run evidence: docs/experiments/R9_region_swap_2026-07-13.txt.
+
+Run A - MOJAVE (app 3336 / watch 3337; ClientId=STP, auto formation 40/40, 20x,
+NO de-stack - identical to golden R5 except location): all 3 tasks dispatched;
+**1/3 completed** - the entity control 1.BdeHQ drove its full ~1.16 km route and
+completed within ~1 min; 1222.MechPlt moved 8 m TOTAL and froze for 18 min;
+114.MechCoy moved 410 m the WRONG direction in ~2 min and froze. No runaway.
+
+Run B - SWEDEN CONTROL (same day, same code, same settings, original golden init +
+R5 order; app 3339 / watch 3340): **3/3 completed within ~4 min** - both aggregates
+physically marched (telemetry 0.7-1.1 km) and reported TASKCMPLT. This one run
+excludes BOTH residual alternatives in sec 4b: today's code (incl. the R8 two-pass
+ProcessInitialization restructure) is good, and 20x is compatible with marching.
+
+MECHANISM (vrfSim.log, decisive): in the Mojave run window the backend logged, 3x
+per aggregate, `<unit>: moveAlong() - empty route -- not sending move along to
+subordinate`, and created **ZERO** member "Offset Route" objects; the Sweden control
+window created 45 (original golden R5 window: 34). So at Mojave the lead-follow
+controller's LEADER PATH PLAN comes back EMPTY - nothing is ever forwarded to the
+lead subordinate and the unit never marches. Entity moves complete at both regions
+because entity move-along does not go through unit leader-path planning. The
+`moveAlong() - empty route` line is THE grep oracle for this failure mode.
+
+VERDICT: aggregate movement is blocked by TERRAIN CONTENT AT THE SCENARIO LOCATION
+- the whole-earth "MAK Earth Space (online)" scenario supports unit ground path
+planning at the golden Sweden site but returns empty plans at the COA-STP1 Mojave
+site. This is a VR-Forces/terrain characteristic, NOT an interface defect: the
+interface's command stream is identical in both runs. It also retro-explains the
+COA-STP1 platoon freezes (and plausibly the CoHQ move-time scatter; the company
+RUNAWAY there may be a second-order expression - COA-STP1 companies got *some*
+plan where the golden-derived R9 companies got none; unproven, low priority).
+
+NEXT (in order):
+- R10 (the practical COA-STP1 unlock, live-gated): SUBORDINATE FAN-OUT fallback (the
+  original plan's R7) - when a unit's move is wanted at a region where leader-path
+  planning fails, task the unit's member ENTITIES directly (entity moves are PROVEN
+  at Mojave - A/4-27 completed twice, 1.BdeHQ once). Members revert to unit control
+  on completion (UnitMembersTaskIndependently.htm). Trigger options: opt-in setting
+  first (Vrf:SubordinateFanOut); auto-detect via the empty-route backend line is not
+  visible to the interface, so a completion-timeout heuristic would be the auto lever.
+- R11 (cheap probe, same session as R10): DtPlanAndMoveToTask on ONE aggregate at
+  Mojave - does the pathfinding point-move task plan where moveAlongRoute's leader
+  path does not?
+- coa-gpt feedback item #4 (evidence-backed): scenario REGION determines whether
+  disaggregated units can maneuver at all in VR-Forces' online-earth scenario;
+  validate a region with a 1-unit probe before generating COAs there, or pick
+  regions with known-good ground content (the golden Sweden site works).
 - CoHQ subordinate scatter needs its own investigation (member telemetry on ONE CoHQ
   through create->repair) - it is a distinct failure mode from the stack.
 - Then: make query-driven auto the recommended default for aggregate-bearing scenarios
