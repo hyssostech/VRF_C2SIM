@@ -61,8 +61,11 @@ steps past a gate. The gates:
 All EIGHT must pass, both before a change (to prove the baseline) and after (to prove no
 regression). MAK bin dirs on PATH; RTI 4.6b is fine for offline (it only LOADs the DLLs).
 ```
+# cwd = the PORT repo root (Software/Interfaces/VRF_C2SIM). NOTE the win-x64 RID subfolder -
+# verified on disk 2026-07-13; some tools (e.g. PushInit) have no RID subfolder. If the path
+# 404s, `ls` the bin tree rather than assuming.
 $env:PATH = "C:\MAK\vrforces5.0.2\bin64;C:\MAK\vrlink5.8\bin64;C:\MAK\makRti4.6b\bin;$env:PATH"
-$exe = "src\VrfC2SimApp\bin\Release\net10.0\VrfC2SimApp.exe"
+$exe = "src\VrfC2SimApp\bin\Release\net10.0\win-x64\VrfC2SimApp.exe"
 & $exe --translator-selftest      # 18/18
 & $exe --parse-init docs\golden-trace\STP-TC-small-6-12-24_Initialization.xml STP   # 80 units, 49 creatable, 4 areas
 & $exe --parse-order docs\golden-trace\orders\1_VRF_Move_Order.xml                  # 1 MOVE, taskee 670cfe3a..., 2 pts
@@ -120,8 +123,13 @@ forward"; revert and diagnose.
   FORK (dev/sdk-fixes) directly under Software/Library/CS/C2SIMSDK. So Step 1 produces a
   fork commit for the SDK change PLUS, if any port doc/config changes ride along, a port
   commit + submodule bump. Do the port push before the fork push as above.
-- Commit message trailer (per user global policy):
-  `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`
+- Commit message trailer (per user global policy): `Co-Authored-By: <the executing Claude
+  model> <noreply@anthropic.com>` - use the SESSION'S ACTUAL model name (e.g. "Claude Fable 5"
+  or "Claude Opus 4.8 (1M context)"), not a hardcoded one.
+- WORKING DIRECTORIES (paths in this plan use two conventions): paths starting `Software\...`
+  are FORK-root-relative (run from the OpenC2SIM.github.io checkout root); paths starting
+  `src\`, `tools\`, `docs\`, `data\` are PORT-root-relative (run from
+  Software/Interfaces/VRF_C2SIM). Do not cd into a project dir and reuse a root-relative path.
 - Do NOT touch the unrelated fork working-tree noise (.vs/ under the old c2simVRFinterface,
   the ontology catalog). Stage only the paths you changed.
 
@@ -222,7 +230,7 @@ C2SIMClientLib.csproj `<Version>` (4.8.3.2 -> 4.8.3.3) and add a ReleaseNotes.md
 ### 1.2 Build
 
 ```
-# From the SDK dir; build BOTH target frameworks to prove the #if guard compiles clean.
+# cwd = the FORK root. Build BOTH target frameworks to prove the #if guard compiles clean.
 $env:DOTNET_CLI_USE_MSBUILD_SERVER = "false"
 dotnet build "Software\Library\CS\C2SIMSDK\C2SIMClientLib\C2SIMClientLib.csproj" -c Release --disable-build-servers
 # Then rebuild the app + the six SDK-consuming tools that reference it:
@@ -270,7 +278,11 @@ The change is isolated to one file; reverting restores the per-call client exact
 FORK commit (SDK): stage only
 `Software/Library/CS/C2SIMSDK/C2SIMClientLib/C2SIMClientRestLib.cs` (+ version/notes if
 bumped). Message e.g. "SDK P4a: shared static HttpClient (fix report-push port exhaustion);
-per-request Accept". No port/submodule change unless docs were touched in this step.
+per-request Accept".
+PLUS a PORT docs commit + submodule bump: PORT.md sec 7 is the designated cross-reference for
+SDK-side changes ("captured here for cross-reference") - add the P4a fix there and touch the
+START_HERE SDK status line. So Step 1 ALWAYS yields both a fork SDK commit and a port docs
+commit (port pushed first, then the fork bump, per 0.4).
 
 ---
 
@@ -341,10 +353,14 @@ thread and, once the timer lands, from a timer callback):
     `allDone = true` (the caller synthesizes the unit TASKCMPLT now). If Pending is now empty,
     remove the record; otherwise KEEP it (Synthesized) so remaining members are swallowed.
   - else: allDone false, return the remaining count (the existing "member N remaining" log).
-- Add `bool TrySynthesizeByTimeout(string unitName, out string taskUuid, out int completed, out int total)`:
-  under lock, if the unit has a NON-Synthesized fan-out, mark it Synthesized, return true with
-  its taskUuid + completed/total counts (for the warning). If already Synthesized or absent,
-  return false (idempotent - the timer and a just-met quorum cannot double-fire).
+- Add `bool TrySynthesizeByTimeout(string unitName, string expectedTaskUuid, out int completed, out int total)`:
+  under lock, if the unit has a NON-Synthesized fan-out AND its stored TaskUuid equals
+  `expectedTaskUuid`, mark it Synthesized and return true with completed/total counts (for the
+  warning). Return false if the fan-out is absent, already Synthesized, or its TaskUuid differs.
+  The uuid guard is LOAD-BEARING, not belt-and-suspenders: supersession cancels the old record
+  and Registers a NEW one under the same unit name - without the guard, the OLD task's timer
+  firing later would find the NEW task's record and synthesize ITS completion prematurely.
+  The Synthesized flag makes timer-vs-quorum idempotent; the uuid makes timer-vs-supersession safe.
 - `Cancel`/`CancelLocked` (supersession) already drop the record and its member map entries -
   keep as is; a superseding task Registers anew (which CancelLocked-clears the old, including
   a Synthesized one).
@@ -370,21 +386,20 @@ required for this step.)
   if (_vrf.FanOutStragglerSeconds > 0)
       _ = FanOutStragglerAsync(unit.Name, task.TaskUuid);
   ```
-  `FanOutStragglerAsync` awaits `Task.Delay(FanOutStragglerSeconds, _stoppingToken)`, then
-  calls `_fanOut.TrySynthesizeByTimeout(unitName, capturedTaskUuid, ...)`; if it returns true,
-  log a WARNING ("fan-out straggler timeout for {Unit}: {completed}/{total} members done -
-  synthesizing unit completion") and call the SAME unit-completion synthesis path
-  OnVrfTaskCompleted uses. Factor the tail of OnVrfTaskCompleted (currently :1061-1102) into a
-  private helper `SynthesizeUnitCompletion(string unitName, string vrfTaskTypeForLog)` and call
-  it from BOTH OnVrfTaskCompleted (the allDone branch, after `name = fanUnit`) and the timer.
-  NOTE: SynthesizeUnitCompletion derives the taskUuid from `_inFlight.TryComplete(unitName)`
-  (the unit's in-flight record was written by MarkDispatched at Register, service:833) - so the
-  timer does NOT pass a taskUuid; it only needs to flip the Synthesized flag. The idempotency
-  guard is the Synthesized flag, NOT the taskUuid: TrySynthesizeByTimeout returns false if the
-  fan-out is already Synthesized OR if its stored TaskUuid != the captured one (supersession
-  replaced it) OR if there is no fan-out for the unit. Because `_inFlight.TryComplete` REMOVES
-  the record, only ONE of {last-member quorum, timeout} can ever reach SynthesizeUnitCompletion
-  for a given task (the Synthesized flag blocks the loser) - so there is no double TASKCMPLT.
+  `FanOutStragglerAsync(unitName, capturedTaskUuid)` awaits
+  `Task.Delay(FanOutStragglerSeconds, _stoppingToken)`, then calls
+  `_fanOut.TrySynthesizeByTimeout(unitName, capturedTaskUuid, out completed, out total)`; if it
+  returns true, log a WARNING ("fan-out straggler timeout for {Unit}: {completed}/{total}
+  members done - synthesizing unit completion") and call the SAME unit-completion synthesis
+  path OnVrfTaskCompleted uses. Factor the tail of OnVrfTaskCompleted (currently :1061-1102)
+  into a private helper `SynthesizeUnitCompletion(string unitName, string vrfTaskTypeForLog)`
+  and call it from BOTH OnVrfTaskCompleted (the allDone branch, after `name = fanUnit`) and the
+  timer. NOTE the capturedTaskUuid is ONLY the supersession guard inside the tracker (see 2.2);
+  the taskUuid for the report/sequencer comes from `_inFlight.TryComplete(unitName)` inside
+  SynthesizeUnitCompletion (the in-flight record was written by MarkDispatched at Register,
+  service:833). Because `_inFlight.TryComplete` REMOVES the record and the Synthesized flag
+  blocks the second trigger, only ONE of {last-member quorum, timeout} can ever reach
+  SynthesizeUnitCompletion for a given task - no double TASKCMPLT.
 - At OnVrfTaskCompleted (:1049): honor the new `alreadySynthesized` swallow result - if the
   tracker says this member belongs to an ALREADY-synthesized fan-out, log at Debug ("late
   straggler {Member} of {Unit} after synthesis - swallowed") and RETURN. Do not fall through
@@ -420,8 +435,9 @@ in START_HERE + the 0.2 list):
 - supersession while Synthesized: Register a new task for the unit clears the Synthesized
   record; a stale member of the old fan-out then no-ops;
 - fraction 1.0 == legacy: synthesize ONLY on the last member (regression guard);
-- timeout synthesis: TrySynthesizeByTimeout returns true once, then false (idempotent), and
-  false when the captured taskUuid no longer matches (supersession).
+- timeout synthesis: TrySynthesizeByTimeout returns true once, then false (idempotent);
+  false when the expectedTaskUuid no longer matches (supersession replaced the fan-out);
+  false after all members already completed (record removed - the timer no-ops).
 
 ### 2.6 Build / offline gate
 
@@ -527,9 +543,13 @@ Add alongside BuildPositionReport (keep the single-content one for the unbundled
 It builds `ReportContent = fixes.Select(f => new ReportContentType { Item = new
 PositionReportContentType { TimeOfObservation = Time(isoDateTime), Location = Geo(f.latDeg,
 f.lonDeg), SubjectEntity = f.uuid } }).ToArray()`, with `ReportID = reportId`. Decide
-ReportingEntity: the C++ envelope has one reporting entity for the bundle; use the ZeroUuid the
-class already hardcodes (ReportingEntity is per-content via SubjectEntity anyway). Keep
-FromSender/ToReceiver = ZeroUuid as today. Serialize via C2SIMSDK.FromC2SIMObject.
+ReportingEntity: a bundle has N different subjects, so the single-report convention
+(ReportingEntity = subjectUuid) cannot hold. Before guessing, CHECK the C++ oracle (frozen
+repo, textIf.cxx:435-530) for what it put in the bundle envelope's reporting entity and mirror
+that; if it is ambiguous, first choice = the FIRST fix's subject uuid (closest to single-report
+semantics), fallback = ZeroUuid. If the server rejects the first choice live, try the other
+before escalating under 3.9. Keep FromSender/ToReceiver = ZeroUuid as today. Serialize via
+C2SIMSDK.FromC2SIMObject.
 
 ### 3.2 Settings (VrfSettings.cs)
 
@@ -551,7 +571,7 @@ FromSender/ToReceiver = ZeroUuid as today. Serialize via C2SIMSDK.FromC2SIMObjec
   whichever you pick).
 - OnVrfTextReport (:1105-1124): when `_vrf.BundlePositionReports` is true, instead of building +
   pushing a single report, take the lock, add the fix, and if `count >= BundleMaxReports` (or the
-  size estimate >= BundleMaxBytes) call FlushPositionBundleLocked(). When false, keep exactly
+  size estimate >= BundleMaxBytes) call FlushPositionBundle(). When false, keep exactly
   today's single-report path (parity).
 - FlushPositionBundle: under the lock, if the buffer is non-empty, snapshot + clear it, then
   BuildPositionReportBundle(snapshot, IsoNow(), NewReportId()) and PushReportAsync. Mint the
@@ -663,7 +683,13 @@ The four items:
 
 Delete the file. No other artifact depends on it.
 
-### 4.3 Commit
+### 4.3 STOP-AND-ESCALATE
+
+- Drafting surfaces a claim the cited source docs do NOT actually support -> STOP; this memo is
+  OUTWARD-FACING (it goes to the coa-gpt team). Fix the source doc first or drop the claim; do
+  not ship an overclaimed finding externally.
+
+### 4.4 Commit
 
 PORT commit (the new doc + a pointer from START_HERE/PORT sec 10), then fork submodule bump.
 
@@ -694,7 +720,13 @@ so those 3 will not fan out and will not report completion (expected).
   `Vrf__SubordinateFanOut=true`, `Vrf__TimeMultiplier=20`, plus the Step-2 robustness:
   `Vrf__FanOutStragglerSeconds=600` (the surgical lever: fires only for genuinely-stuck members;
   see Step 2.3/2.7) and `Vrf__FanOutCompletionFraction=1.0` (default; do NOT lower it globally -
-  0.75 would truncate the healthy 18-member companies at 14/18). Make experiment overrides
+  0.75 would truncate the healthy 18-member companies at 14/18). Also set
+  `Vrf__TaskPredecessorTimeoutSeconds` EXPLICITLY (default 600; past experiments overrode it via
+  env - do not inherit silently): with 32 temporal deps under the skip policy, each
+  never-completing predecessor (the 3 patrols, no-location tasks) holds its successors up to
+  this long from dispatch before skipping, which stretches the run - size the observation
+  window and WatchVrf duration for it (45-60 min is safer than 35; a SECOND WatchVrf pass on a
+  fresh appNo is fine if the first window expires mid-run). Make ALL experiment overrides
   EXPLICIT (do not rely on inherited env).
 - Order: data/COA-STP1_Order.xml (the full 42-task order - this is the scale test, NOT the 7-task
   E1 probe).
@@ -708,12 +740,14 @@ so those 3 will not fan out and will not report completion (expected).
    what is present, then the real sweep).
 3. PushInit data/COA-STP1_Initialization.xml -> expect "QUERYINIT: 128 Units". (Init FIRST,
    while NO app is running.)
-4. Start WatchVrf (fresh appNo, duration covering the run, e.g. 40 min, 20 s samples) to CSV -
-   this is the movement oracle.
+4. Start WatchVrf (fresh appNo, duration covering the run - 45-60 min per the 5.1 window note,
+   20 s samples) to CSV - this is the movement oracle. Starting it BEFORE the app is deliberate:
+   it captures the spawn positions as the displacement baseline.
 5. Start the app (fresh appNo, the 5.1 env, cwd=VRF bin64, --contentRoot=<exe dir>). Judge
    connect by THREAD COUNT (~9-10), not the block-buffered log.
 6. PushOrder data/COA-STP1_Order.xml.
-7. Observe to completion window (~35-40 min at 20x). Do NOT force-kill anything.
+7. Observe to completion window (45-60 min at 20x - see the 5.1 predecessor-timeout note).
+   Do NOT force-kill anything.
 8. Clean stop via tools/StopIface (server STOP -> RESET -> UNINITIALIZED -> app resigns). Confirm
    no stale federate (rtiexec process count back to baseline).
 9. ResetVrf again if the next run is heavy (accumulation).
@@ -842,7 +876,10 @@ unless the user adds them.)
 
 ```
 # 1. Loopback proxy must be near-instant (do NOT restart the container as a habit).
-(Measure-Command { Test-NetConnection 127.0.0.1 -Port 61613 }).TotalSeconds   # expect < 1
+#    Raw TcpClient, NOT Test-NetConnection - the latter adds ping/DNS overhead of its own and
+#    can false-fail the <1 s threshold on a healthy proxy.
+$t = [Net.Sockets.TcpClient]::new()
+(Measure-Command { $t.Connect('127.0.0.1', 61613) }).TotalMilliseconds; $t.Dispose()  # expect ~ <100 ms; MUST be < 1000
 # 2. C2SIM server reachable.
 (Invoke-WebRequest "http://127.0.0.1:8080/C2SIMServer" -UseBasicParsing).StatusCode  # expect 200
 # 3. RTI 4.6.1 (NOT 4.6b) + VRF + vrlink on PATH, in this order.
