@@ -54,6 +54,20 @@ public static class InitParseCheck
                 Console.WriteLine($"      {p.Unit.Name,-16} {p.Unit.Uuid} {p.Unit.Latitude},{p.Unit.Longitude}");
         }
 
+        // R8 view (docs/UNIT_MOVEMENT_RESEARCH.md sec 4): stacked-coordinate groups among
+        // the creatable units - identical spawn coordinates are the COA-STP1 pathology
+        // that blocks aggregate marching. Same grouping key as the runtime DeStacker.
+        var stacks = plans
+            .GroupBy(p => DeStacker.CoordKey(p.Plan.Pos.LatDeg, p.Plan.Pos.LonDeg))
+            .Where(g => g.Count() > 1)
+            .OrderByDescending(g => g.Count())
+            .ToList();
+        Console.WriteLine($"Stacked-coordinate groups (2+ creatable units at identical lat/lon): {stacks.Count}" +
+                          (stacks.Count > 0 ? $"  ({stacks.Sum(g => g.Count())} units affected; Vrf:DeStackCreates would spread them)" : ""));
+        foreach (var g in stacks.Take(5))
+            Console.WriteLine($"  {g.Count()} units at {g.Key.Lat},{g.Key.Lon}: " +
+                              string.Join(", ", g.Take(4).Select(p => p.Unit.Name)) + (g.Count() > 4 ? ", ..." : ""));
+
         return 0;
     }
 

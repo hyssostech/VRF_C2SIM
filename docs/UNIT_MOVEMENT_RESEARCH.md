@@ -198,14 +198,36 @@ definitive isolation would re-run COA-STP1 with de-stacked positions.
 NEXT:
 - R6 (coa-gpt feedback, now evidence-backed): emit DISPERSED unit positions - stacked
   coordinates are pathological for disaggregated units. THE preferred fix (source data).
-- R8 (interface-side mitigation - **APPROVED by the user 2026-07-12, build it next**):
-  opt-in create-time de-stacking - when N units share identical init coordinates, offset
-  each by a few tens of meters (deterministic ring/grid) before CreateAggregate/
-  CreateEntity. Attacks the root without touching coa-gpt; parity-breaking, so opt-in
-  (suggest `Vrf:DeStackCreates`, default off; "auto" mode pairs naturally with it).
+- R8 (interface-side mitigation - APPROVED 2026-07-12; **IMPLEMENTED + OFFLINE-VERIFIED
+  2026-07-12, late night**): opt-in create-time de-stacking. `Vrf:DeStackCreates`
+  (default off) + `Vrf:DeStackSpacingMeters` (default 50): units sharing identical init
+  coordinates (CoordKey = lat/lon rounded to 1e-6 deg ~ 0.11 m) are spread onto
+  deterministic hex rings BEFORE CreateEntity/CreateAggregate - first unit keeps its
+  spot, displaced unit n takes ring k's next slot (6k slots at radius k*spacing; the
+  54-unit COA-STP1 pile fits within ring 4 = 200 m). Pure helper `DeStacker.cs`
+  (entities and aggregates alike; only lat/lon change), applied in ProcessInitialization
+  between planning and enqueue; `--destack-selftest` (20 checks: grouping, ring
+  geometry, determinism, lon scaling, no-op guards) + a stacked-groups stat in
+  `--parse-init`. Attacks the root without touching coa-gpt; parity-breaking, so
+  opt-in ("auto" formation mode pairs naturally with it).
   VERIFY by re-running the R5c probe (COA-STP1 + data/E1_Formation_Order.xml) with
   de-stack on - if aggregates then march, the stack hypothesis is definitively closed;
   if not, the terrain-region caveat is back in play.
+
+R8 OFFLINE FINDING (2026-07-12 late night - REFINES the R5c verdict BEFORE the live
+A/B): the new `--parse-init` stacked-groups stat shows the GOLDEN init is ALSO stacked
+at create time - 10 groups covering 48 of its 49 creatable units, max pile 13 (e.g.
+114.MechCoy inside a 13-unit pile; 1222.MechPlt inside a 4-unit pile - BOTH R5
+marchers). Cause: most golden subunits carry no own lat/lon and INHERIT the superior's
+exact coordinates (InitParser superior-cascade, a faithful port of the C++
+C2SIMinterface.cpp:1421-1441 behavior - so every C++ golden run did this too). So
+"stacked coordinates" per se is NOT a binary blocker: R5 marched 3/3 out of 4-13-unit
+piles. What distinguishes COA-STP1 is pile SIZE/density: ONE 54-unit mega-pile at
+34.679985,-116.724799 (over half its creatable units, aggregates AND tank entities,
+incl. the E1 probe's control A/4-27) vs golden's max 13. The surviving hypothesis is
+therefore "the 54-unit pile gridlocks member form-up", and the R8 live A/B - SAME
+scenario, SAME terrain, only de-stack toggled - is now an even cleaner discriminator
+than the cross-scenario golden-vs-COA-STP1 comparison.
 - CoHQ subordinate scatter needs its own investigation (member telemetry on ONE CoHQ
   through create->repair) - it is a distinct failure mode from the stack.
 - Then: make query-driven auto the recommended default for aggregate-bearing scenarios

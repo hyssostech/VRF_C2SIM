@@ -39,7 +39,18 @@ Three locations are in play:
 
 ## Current status (2026-07-12)
 
-- **Latest (2026-07-12, night - R5 BREAKTHROUGH)**: the research-derived create-time
+- **Latest (2026-07-12, late night - R8 IMPLEMENTED, live verify pending)**: opt-in
+  create-time de-stacking is BUILT + OFFLINE-VERIFIED (UNIT_MOVEMENT_RESEARCH.md sec 4).
+  `Vrf:DeStackCreates` (default off) + `Vrf:DeStackSpacingMeters` (default 50): units
+  sharing identical init coordinates spread onto deterministic hex rings before creation
+  (first unit keeps its spot; pure `DeStacker.cs`; new `--destack-selftest`, 20 checks;
+  `--parse-init` now prints stacked-coordinate groups). KEY OFFLINE FINDING that REFINES
+  R5c: the GOLDEN init is ALSO stacked (10 groups, 48/49 creatable units, max pile 13 -
+  via the parser's superior-coordinate inheritance cascade) and R5 marched 3/3 OUT OF
+  those piles; COA-STP1's distinguishing pathology is its single 54-unit MEGA-pile, so
+  the hypothesis is now pile SIZE, not stacking per se. NEXT: the R8 live A/B (R5c probe
+  on COA-STP1, de-stack on - same scenario, only the stack variable toggled).
+- **2026-07-12, night - R5 BREAKTHROUGH**: the research-derived create-time
   sequence SOLVES the stuck-aggregate problem on dispersed scenarios
   (UNIT_MOVEMENT_RESEARCH.md sec 4). With `Vrf:AggregateFormation=auto` the app now, on
   every aggregate creation: QUERIES the unit's own formation list (new
@@ -53,10 +64,11 @@ Three locations are in play:
   the list). R5c (COA-STP1, stacked coordinates, same code): repair applied 113/113, the
   E1 runaway ELIMINATED, but 0/6 aggregates marched (control-only, ~13 min stack-escape)
   - the same-day A/B pins COA-STP1's STACKED unit coordinates as the blocking data
-  pathology (R6 coa-gpt feedback now evidence-backed). CoHQ creation-scatter is a
-  separate open failure mode. **R8 create-time de-stacking is APPROVED by the user -
-  it is the NEXT TASK** (build opt-in de-stack, re-run the R5c probe to close the stack
-  hypothesis; UNIT_MOVEMENT_RESEARCH.md sec 4). Then CoHQ scatter, then E2 re-test.
+  pathology (R6 coa-gpt feedback now evidence-backed; REFINED to pile-SIZE by the R8
+  offline finding, see the bullet above). CoHQ creation-scatter is a separate open
+  failure mode. R8 create-time de-stacking was APPROVED and is now IMPLEMENTED (bullet
+  above); the R5c-probe re-run closes or reopens the stack hypothesis. Then CoHQ
+  scatter, then E2 re-test.
 - **2026-07-12, evening - RESEARCH**: after E1's negative, a three-agent sweep of
   the MAK 5.0.2 vendor docs/headers/content produced **docs/UNIT_MOVEMENT_RESEARCH.md** -
   READ IT before any aggregate work. Verdict: our move task was always correct; the missing
@@ -239,9 +251,11 @@ it loads the bridge assembly for value types):
   timeout) + the P0 orchestration fixes (dispatch-relative window, abandon fast-fail,
   in-flight completion attribution); expect 12 checks, ALL CHECKS PASSED.
 - `VrfC2SimApp.exe --verb-selftest` - Layer-1 semantic-map verb->intent classification
-  (VerbMapping); expect ALL CHECKS PASSED (28+). Build with
-  `DOTNET_CLI_USE_MSBUILD_SERVER=false ... --disable-build-servers` (concurrent dotnet
-  builds deadlock the shared build server).
+  (VerbMapping); expect ALL CHECKS PASSED (28+).
+- `VrfC2SimApp.exe --destack-selftest` - R8 create-time de-stacking (DeStacker grouping
+  + ring geometry + determinism); expect ALL CHECKS PASSED (20 checks).
+Build with `DOTNET_CLI_USE_MSBUILD_SERVER=false ... --disable-build-servers` (concurrent
+dotnet builds deadlock the shared build server).
 PATH for the exe: `C:\MAK\vrforces5.0.2\bin64;C:\MAK\vrlink5.8\bin64;C:\MAK\makRti4.6b\bin`.
 
 NOTE the offline PATH above uses `makRti4.6b` (fine - it only LOADS the bridge DLLs). A
@@ -258,7 +272,9 @@ RECOMMENDED for aggregate scenarios**; a literal name = legacy move-time set for
 experiments; "" = golden parity),
 `Vrf__TaskPredecessorTimeoutSeconds` (default 600 - make experiment overrides EXPLICIT),
 `Vrf__PredecessorTimeoutPolicy` (skip|force|whenIdle; default skip - P0.2),
-`Vrf__EngageFallbackSeconds` (default 300 - P0.3). Reload the VR-Forces scenario (or run
+`Vrf__EngageFallbackSeconds` (default 300 - P0.3), `Vrf__DeStackCreates` (**R8** - true
+spreads identically-positioned units onto hex rings at create; default false) +
+`Vrf__DeStackSpacingMeters` (default 50). Reload the VR-Forces scenario (or run
 tools/ResetVrf) between heavy runs (entities accumulate -> creates stop reflecting).
 
 ## The immediate next task

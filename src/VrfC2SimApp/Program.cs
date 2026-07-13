@@ -36,6 +36,10 @@ if (args.Length > 0 && args[0] == "--sequencer-selftest")
 if (args.Length > 0 && args[0] == "--verb-selftest")
     return VerbMappingSelfTest.Run();
 
+// Offline de-stack check: R8 create-time de-stacking grouping + ring geometry (no bridge).
+if (args.Length > 0 && args[0] == "--destack-selftest")
+    return DeStackSelfTest.Run();
+
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddHostedService<VrfC2SimService>();
 await builder.Build().RunAsync();

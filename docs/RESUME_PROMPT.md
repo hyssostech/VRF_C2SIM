@@ -2,10 +2,10 @@
 
 Paste the block below into a fresh session to resume the port. It forces the
 source-of-truth docs to be read and the state checked before any action - do not
-shortcut it. Last refreshed 2026-07-12 night (P0 fixes live-verified; aggregate
-movement SOLVED for dispersed data via the query-driven create-time repair, R5 3/3;
-R5c pinned COA-STP1's stacked coordinates as the blocking data pathology; R8
-de-stacking APPROVED and queued as the next task).
+shortcut it. Last refreshed 2026-07-12 late night (R8 de-stacking IMPLEMENTED +
+offline-verified; the offline stack stat REFINED the R5c verdict to pile-SIZE -
+the golden init is also stacked, max pile 13, and marched; COA-STP1 has a 54-unit
+mega-pile. Next: the R8 live A/B on COA-STP1).
 
 ---
 
@@ -61,24 +61,30 @@ STATE (2026-07-12 night; everything below is COMMITTED + PUSHED, selftests green
   coordinates are the blocking DATA pathology (same-day A/B: dispersed 3/3 vs stacked
   1/7). CoHQ units additionally scatter 163-396 km AT CREATION (their AR-HQ-Sec members;
   separate failure mode, uninvestigated).
+- R8 CREATE-TIME DE-STACKING IMPLEMENTED + OFFLINE-VERIFIED (2026-07-12 late night;
+  live A/B NOT yet run): Vrf:DeStackCreates (default off) + Vrf:DeStackSpacingMeters
+  (default 50) spread identically-positioned units onto deterministic hex rings before
+  creation (pure DeStacker.cs; --destack-selftest 20 checks; --parse-init prints
+  stacked groups). KEY OFFLINE FINDING - the R5c verdict is REFINED: the GOLDEN init
+  is ALSO stacked (10 groups, 48/49 creatable units, max pile 13 - superior-coordinate
+  inheritance, C++ parity) and R5 marched 3/3 out of those piles; COA-STP1's real
+  pathology is its single 54-UNIT mega-pile. Hypothesis is now pile SIZE, and the R8
+  A/B (same scenario, only de-stack toggled) is the clean discriminator.
 - New tools/surface since the last jump: facade/bridge ReorganizeAggregate +
   RequestAvailableFormations/AvailableFormations; tools/WatchVrf (member-level position
   telemetry, the GUI-independent movement oracle); data/E1_Formation_Order.xml +
   data/R5_UnitMove_Order.xml (de-confounded probe orders); --sequencer-selftest now 12
-  checks; InitParseCheck prints planned-creations-by-type.
+  checks; InitParseCheck prints planned-creations-by-type + stacked groups;
+  --destack-selftest.
 
 DO FIRST (the user APPROVED this):
-1. R8 - CREATE-TIME DE-STACKING (UNIT_MOVEMENT_RESEARCH.md sec 4 NEXT): opt-in setting
-   (suggest Vrf:DeStackCreates, default off), when N units share IDENTICAL init
-   coordinates offset each by a few tens of meters (deterministic ring/grid) before
-   CreateAggregate/CreateEntity. App-only change; run the six offline selftests.
-2. VERIFY R8 live: re-run the R5c probe (PushInit data/COA-STP1_Initialization.xml,
-   clientId C2SIM, Vrf__AggregateFormation=auto + de-stack on, push
+1. VERIFY R8 LIVE - re-run the R5c probe (PushInit data/COA-STP1_Initialization.xml,
+   clientId C2SIM, Vrf__AggregateFormation=auto + Vrf__DeStackCreates=true, push
    data/E1_Formation_Order.xml, WatchVrf for member telemetry). If aggregates now march
-   -> the stack hypothesis is CLOSED and COA-STP1 is functionally unblocked; if not, the
-   terrain-region caveat reopens (UNIT_MOVEMENT_RESEARCH.md sec 4 R5c). Record either
-   way in PORT.md sec 10 + UNIT_MOVEMENT_RESEARCH.md.
-3. Then, in priority order: CoHQ creation-scatter investigation (WatchVrf on ONE CoHQ
+   -> the (refined, pile-size) stack hypothesis is CLOSED and COA-STP1 is functionally
+   unblocked; if not, the terrain-region caveat reopens (UNIT_MOVEMENT_RESEARCH.md
+   sec 4 R5c). Record either way in PORT.md sec 10 + UNIT_MOVEMENT_RESEARCH.md.
+2. Then, in priority order: CoHQ creation-scatter investigation (WatchVrf on ONE CoHQ
    through create->repair); E2 MoveIntoFormation re-test (preconditions now sane); P4
    report bundling/dedup (live runs hit ephemeral-PORT EXHAUSTION pushing un-bundled
    position reports); coa-gpt data memo (3 evidence-backed items: distinct
@@ -105,7 +111,7 @@ Non-negotiables (full text RUNBOOK + guidance sec 1 - violating these destroys s
   app with DOTNET_CLI_USE_MSBUILD_SERVER=false dotnet build ... --disable-build-servers.
 - Offline selftests before/after ANY change (MAK bin dirs on PATH, 4.6b fine):
   --translator-selftest 18/18, --parse-init 80/49/4, --parse-order, --report-selftest
-  9/9, --sequencer-selftest 12 checks, --verb-selftest 28/28.
+  9/9, --sequencer-selftest 12 checks, --verb-selftest 28/28, --destack-selftest 20.
 - Keep docs/START_HERE.md, PORT.md, SEMANTIC_MAPPING.md, UNIT_MOVEMENT_RESEARCH.md,
   RESUME_PROMPT.md current AS you work; after any context compaction re-read them
   before deciding anything.

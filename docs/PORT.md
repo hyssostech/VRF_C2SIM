@@ -692,8 +692,31 @@ aggregates marched (control-only 1/7, same as E1) - the same-day A/B (dispersed 
 3/3 vs stacked COA-STP1 1/7, identical code) makes COA-STP1's stacked/identical unit
 coordinates the evidence-backed blocking data pathology (R6 coa-gpt feedback: DISPERSE
 positions). CoHQ creation-time subordinate scatter is a separate open failure mode.
-Candidate mitigation R8 (not built; user decision): opt-in create-time de-stacking of
-co-located units. Then: E2 MoveIntoFormation re-test with sane preconditions.
+Candidate mitigation R8 (approved by the user same day; record below). Then: E2
+MoveIntoFormation re-test with sane preconditions.
+
+**R8 IMPLEMENTED + OFFLINE-VERIFIED (2026-07-12 late night; live A/B pending)** - opt-in
+create-time de-stacking (`Vrf:DeStackCreates`, default false; `Vrf:DeStackSpacingMeters`,
+default 50): in ProcessInitialization, after planning and before the creates are enqueued,
+units sharing identical coordinates (lat/lon rounded to 1e-6 deg) are spread onto
+deterministic hex rings - the first unit keeps its exact position, displaced unit n takes
+the next slot on ring k (6k slots at radius k*spacing; adjacent ring-1 slots exactly one
+spacing apart; the 54-unit COA-STP1 pile fits inside ring 4 = 200 m). Pure helper
+`DeStacker.cs` (entities + aggregates alike; only lat/lon change; deterministic in init
+order); new `--destack-selftest` (20 checks) + a stacked-groups stat in `--parse-init`;
+all offline selftests green (translator 18/18, parse-init 80/49/4, parse-order,
+report 9/9, sequencer 12, verb 28/28, destack 20). Parity-breaking by design, hence
+opt-in; pairs with `Vrf:AggregateFormation=auto`.
+OFFLINE FINDING that REFINES the R5c verdict (full detail UNIT_MOVEMENT_RESEARCH.md
+sec 4): the GOLDEN init is ALSO stacked at create - 10 groups, 48/49 creatable units,
+max pile 13, produced mostly by InitParser's superior-coordinate inheritance (faithful
+C++ parity, so every golden C++ run stacked the same way) - and R5 marched 3/3 OUT of
+those piles (1222.MechPlt from a 4-pile, 114.MechCoy from a 13-pile). COA-STP1's
+distinguishing pathology is therefore pile SIZE - ONE 54-unit mega-pile (over half its
+creatable units incl. tank entities and the E1 control A/4-27) vs golden's max 13 - not
+stacking per se. The R8 live A/B (same COA-STP1 scenario, only de-stack toggled) is the
+clean discriminator; the cross-scenario golden-vs-COA-STP1 A/B was confounded by
+scenario/terrain after all.
 OPERATIONAL FINDINGS from the run: (1) report pushing hit ephemeral-PORT EXHAUSTION ("Only one
 usage of each socket address...") under the un-bundled position-report volume -> the P4
 report dedup/bundling item is now OPERATIONALLY URGENT for long runs; (2) a deterministic

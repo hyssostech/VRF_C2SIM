@@ -330,6 +330,7 @@ public sealed class VrfC2SimService : BackgroundService
         catch (Exception ex) { _log.LogError("Init parse failed: {Msg}", ex.Message); return; }
 
         int planned = 0, matched = 0, duplicates = 0;
+        var toCreate = new List<CreationPlan>();   // collected, then (optionally) de-stacked, then enqueued
         foreach (var u in init.Units)
         {
             if (string.IsNullOrEmpty(u.Uuid)) continue;
@@ -365,7 +366,23 @@ public sealed class VrfC2SimService : BackgroundService
                 plan.IsAggregate ? AutoFormationFor(plan.Type) : null);
             _c2SimUuidByName[plan.Name] = unit.Uuid;
 
-            var p = plan;
+            toCreate.Add(plan);
+            planned++;
+        }
+
+        // R8 (opt-in, docs/UNIT_MOVEMENT_RESEARCH.md sec 4): spread units that share
+        // identical init coordinates onto deterministic rings BEFORE creating them -
+        // stacked spawns are the COA-STP1 pathology that blocks aggregate marching.
+        if (_vrf.DeStackCreates && toCreate.Count > 1)
+        {
+            foreach (var g in DeStacker.Apply(toCreate, _vrf.DeStackSpacingMeters))
+                _log.LogInformation("DeStack (R8): {N} units at ({Lat},{Lon}) spread onto " +
+                                    "{Spacing} m rings (first unit kept in place).",
+                                    g.Count, g.LatDeg, g.LonDeg, _vrf.DeStackSpacingMeters);
+        }
+
+        foreach (var p in toCreate)
+        {
             _tickActions.Enqueue(() =>
             {
                 if (p.IsAggregate)
@@ -374,7 +391,6 @@ public sealed class VrfC2SimService : BackgroundService
                 else
                     _bridge.CreateEntity(p.Type, p.Pos, p.Force, p.HeadingDeg, p.Name);
             });
-            planned++;
         }
 
         int areasQueued = 0;

@@ -34,6 +34,21 @@ public class VrfSettings
     // Opt-in - deliberately diverges from the frozen golden-trace behavior.
     public string AggregateFormation { get; set; } = "";
 
+    // R8 create-time de-stacking (docs/UNIT_MOVEMENT_RESEARCH.md sec 4). When ON, init
+    // units that share IDENTICAL coordinates (the COA-STP1 blocking data pathology:
+    // dozens of units at literally the same lat/lon gridlock disaggregated-unit
+    // geometry - dispersed golden 3/3 marched vs stacked COA-STP1 0/6, identical code)
+    // are spread onto deterministic hex rings BEFORE CreateEntity/CreateAggregate:
+    // first unit keeps its spot, the rest take ring slots (6k slots at k*spacing).
+    // OPT-IN: it moves units off their source-data positions (parity-breaking).
+    // Pairs naturally with AggregateFormation=auto. See DeStacker.cs.
+    public bool DeStackCreates { get; set; } = false;
+
+    // Ring spacing in meters for DeStackCreates (adjacent ring-1 slots sit exactly
+    // this far apart). "A few tens of meters" per the R8 plan; tune via env
+    // (Vrf__DeStackSpacingMeters) if 50 proves too tight for member footprints.
+    public double DeStackSpacingMeters { get; set; } = 50.0;
+
     // Semantic-map Unit 4 (docs/SEMANTIC_MAPPING.md): the PROPER aggregate maneuver. "" = OFF.
     // A VALID Title-Case formation name ("Wedge"/"Column"/...) makes an AGGREGATE task use
     // DtMoveIntoFormationTask (move the set into formation AT the destination) INSTEAD of
