@@ -39,6 +39,21 @@ Three locations are in play:
 
 ## Current status (2026-07-13)
 
+- **Step 2 (fan-out robustness) LANDED (2026-07-13, execution)**: completion QUORUM +
+  straggler TIMEOUT + late-straggler SWALLOW added to the R10
+  fan-out path. `FanOutTracker` gains a per-fan-out `Synthesized` state and captured `Fraction`:
+  `TryCompleteMember` now synthesizes the unit TASKCMPLT once `completed >= ceil(Total*Fraction)`
+  and, once synthesized, SWALLOWS the remaining member completions (new `alreadySynthesized`
+  out) so a late straggler no longer emits a spurious empty-uuid TASKCMPLT; new
+  `TrySynthesizeByTimeout(unit, expectedTaskUuid, ...)` with a LOAD-BEARING uuid supersession
+  guard. Service: `SynthesizeUnitCompletion` factored out of `OnVrfTaskCompleted` (no direct
+  `_bridge.*` call - deferred engages still go through `_tickActions`) and driven from BOTH the
+  quorum branch and a detached `FanOutStragglerAsync` hard-cap timer. Two opt-in settings
+  (`Vrf:FanOutCompletionFraction` default 1.0, `Vrf:FanOutStragglerSeconds` default 0) - DEFAULTS
+  ARE A NO-OP (fraction 1.0 reproduces today's last-member-only behavior; the timer is off).
+  `--fanout-selftest` 17 -> 36 (regression guard proves 1.0 == legacy). App builds 0 errors;
+  all eight offline selftests green. Step 2.4 (fan out the single-point MoveToLocation path) was
+  CUT (Appendix E lean-to-cut, supervisor-confirmed).
 - **Step 1 (P4a) LANDED (2026-07-13, execution)**: SDK shared static HttpClient committed
   on the fork `dev/sdk-fixes` (`ae09fd5`; ClientLib 4.8.3.2 -> 4.8.3.3). Offline gates green
   (both TFMs 0 errors; eight selftests; SDK tests 36 passed/3 env-skipped). Detail: PORT.md sec 7.
@@ -313,8 +328,9 @@ it loads the bridge assembly for value types):
   (VerbMapping); expect ALL CHECKS PASSED (28+).
 - `VrfC2SimApp.exe --destack-selftest` - R8 create-time de-stacking (DeStacker grouping
   + ring geometry + determinism); expect ALL CHECKS PASSED (20 checks).
-- `VrfC2SimApp.exe --fanout-selftest` - R10 member-completion aggregation (FanOutTracker);
-  expect ALL CHECKS PASSED (16 checks).
+- `VrfC2SimApp.exe --fanout-selftest` - R10 member-completion aggregation (FanOutTracker) +
+  Step-2 completion quorum / straggler timeout / late-straggler swallow; expect ALL CHECKS
+  PASSED (36 checks).
 Build with `DOTNET_CLI_USE_MSBUILD_SERVER=false ... --disable-build-servers` (concurrent
 dotnet builds deadlock the shared build server).
 PATH for the exe: `C:\MAK\vrforces5.0.2\bin64;C:\MAK\vrlink5.8\bin64;C:\MAK\makRti4.6b\bin`.

@@ -59,6 +59,21 @@ public class VrfSettings
     // when the unit publishes no members. Applies to the multi-point route path only.
     public bool SubordinateFanOut { get; set; } = false;
 
+    // R10 fan-out robustness (UNIT_MOVEMENT_RESEARCH.md sec 4c). Completion QUORUM: synthesize
+    // the unit's TASKCMPLT once this FRACTION of fanned members complete (1.0 = today's
+    // behavior: ALL must finish). Guards against one stuck member holding the unit task open
+    // (the 3/4-CoHQ gap in the COA-STP1 unblock run). Late stragglers after synthesis are
+    // swallowed (the tracker's Synthesized state), not re-reported. Range (0,1]; <=0 or >1
+    // clamp to 1.0.
+    public double FanOutCompletionFraction { get; set; } = 1.0;
+
+    // R10 fan-out robustness: per-fan-out straggler TIMEOUT in seconds. If the quorum has not
+    // been reached this long after the fan-out is registered, synthesize the unit completion
+    // anyway WITH A WARNING (a member never completing - e.g. a stuck GndV - no longer hangs
+    // the unit task). 0 = OFF (no timeout; rely on quorum/all-complete only). Either trigger
+    // fires the synthesis at most once (idempotent).
+    public int FanOutStragglerSeconds { get; set; } = 0;
+
     // R11 probe (experiment-only): an AGGREGATE move creates a waypoint at the route's
     // FINAL point and issues DtPlanAndMoveToTask (the PLANNED pathfinding point move)
     // instead of CreateRoute + MoveAlongRoute - does the planner path where the

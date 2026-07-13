@@ -832,7 +832,17 @@ public sealed class VrfC2SimService : BackgroundService
         // engage below gates on it (P0.3).
         MarkDispatched(task, unit, patrol ? "patrol" : "move-along");
         if (fanOutMembers != null)
-            _fanOut.Register(unit.Name, task.TaskUuid, fanOutMembers.Select(m => m.Name));
+        {
+            _fanOut.Register(unit.Name, task.TaskUuid, fanOutMembers.Select(m => m.Name),
+                             _vrf.FanOutCompletionFraction);
+            // R10 robustness: a detached HARD-CAP straggler timer (measured from Register, not
+            // idle). If a member never completes, it synthesizes the unit completion with a
+            // warning after FanOutStragglerSeconds. The captured task uuid is the supersession
+            // guard inside the tracker (a later retask under the same unit name must not be
+            // synthesized by THIS fan-out's timer). 0 = OFF.
+            if (_vrf.FanOutStragglerSeconds > 0)
+                _ = FanOutStragglerAsync(unit.Name, task.TaskUuid);
+        }
         // Layer 2 + P0.3: the ATTACK-family fire / BREACH is issued when the along-route
         // move COMPLETES (advance the axis / approach the obstacle, THEN engage/breach) -
         // no longer in the same tick as MoveAlongRoute, which would have replaced it.
@@ -903,6 +913,29 @@ public sealed class VrfC2SimService : BackgroundService
                             "issuing the {Kind} via fallback (it will replace the still-running move).",
                             unitName, eng.TaskName, _vrf.EngageFallbackSeconds, eng.Kind);
             IssueEngage(unitName, eng);
+        }
+    }
+
+    /// <summary>
+    /// R10 fan-out straggler timeout (Vrf:FanOutStragglerSeconds). A detached hard-cap timer
+    /// started at Register: if the quorum has not synthesized the unit completion within the
+    /// window, synthesize it anyway WITH A WARNING so one stuck member cannot hold the unit
+    /// task open. Idempotent + supersession-safe via the tracker (Synthesized flag + the
+    /// captured task uuid); if all members completed first the fan-out is gone and this no-ops.
+    /// The Task.Delay is gated on the service token; cancellation on shutdown is swallowed.
+    /// </summary>
+    private async Task FanOutStragglerAsync(string unitName, string capturedTaskUuid)
+    {
+        try { await Task.Delay(TimeSpan.FromSeconds(_vrf.FanOutStragglerSeconds), _stoppingToken); }
+        catch (OperationCanceledException) { return; }
+        if (_fanOut.TrySynthesizeByTimeout(unitName, capturedTaskUuid, out int completed, out int total))
+        {
+            _log.LogWarning("fan-out straggler timeout for {Unit}: {Completed}/{Total} members done - " +
+                            "synthesizing unit completion.", unitName, completed, total);
+            // No VRF completion callback on the timer path -> no VRF task type to sanity-check
+            // against the dispatched kind; pass empty (KindLooksRight treats empty as "can't
+            // tell", so it does NOT emit a spurious attribution-anomaly warning here).
+            SynthesizeUnitCompletion(unitName, "");
         }
     }
 
@@ -1044,20 +1077,50 @@ public sealed class VrfC2SimService : BackgroundService
         string name = e.UnitMarking ?? "";
 
         // R10: a fanned-out aggregate move completes PER MEMBER (the marking is the member
-        // entity's name). Aggregate them; only when ALL members are done does the UNIT's
-        // completion flow (below) run, under the unit's name.
-        if (_fanOut.TryCompleteMember(name, out var fanUnit, out _, out int fanRemaining, out bool fanAllDone))
+        // entity's name). Aggregate them; only when the QUORUM is met does the UNIT's
+        // completion flow (SynthesizeUnitCompletion) run, under the unit's name. Late
+        // stragglers arriving after a quorum/timeout synthesis are SWALLOWED here (they must
+        // NOT fall through to the unit-level path, which would emit a spurious empty-uuid
+        // TASKCMPLT - the "NO in-flight task recorded" bug this step removes).
+        if (_fanOut.TryCompleteMember(name, out var fanUnit, out _, out int fanRemaining,
+                                      out bool fanAllDone, out bool fanAlreadySynthesized))
         {
+            if (fanAlreadySynthesized)
+            {
+                _log.LogDebug("R10 fan-out: late straggler {Member} of {Unit} after synthesis - swallowed.",
+                              name, fanUnit);
+                return;
+            }
             if (!fanAllDone)
             {
                 _log.LogInformation("R10 fan-out: member {Member} of {Unit} completed; {N} member(s) remaining.",
                                     name, fanUnit, fanRemaining);
                 return;
             }
-            _log.LogInformation("R10 fan-out: ALL members of {Unit} completed - synthesizing the unit's " +
-                                "task completion.", fanUnit);
-            name = fanUnit;
+            _log.LogInformation("R10 fan-out: completion quorum reached for {Unit} ({N} straggler(s) will be " +
+                                "swallowed) - synthesizing the unit's task completion.", fanUnit, fanRemaining);
+            SynthesizeUnitCompletion(fanUnit, e.TaskType);
+            return;
         }
+
+        // Normal (non-fanned) unit-level completion.
+        SynthesizeUnitCompletion(name, e.TaskType);
+    }
+
+    /// <summary>
+    /// Emit the unit-level TASKCMPLT (the factored tail of OnVrfTaskCompleted). Called from the
+    /// completion-callback quorum branch AND from the straggler timer, so it must be safe OFF
+    /// the tick thread: _inFlight / _sequencer / _c2SimUuidByName / _pendingEngage are all
+    /// thread-safe, PushReportAsync is fire-and-forget, and the ONE side effect that touches the
+    /// bridge (a deferred engage) goes through IssueEngage, which ENQUEUES on _tickActions - it
+    /// does NOT call _bridge.* directly. INVARIANT: keep this method free of any direct _bridge.*
+    /// call (plan 2.10); a future bridge action here MUST route through _tickActions.Enqueue.
+    /// Double-fire safety: _inFlight.TryComplete REMOVES the in-flight record, and the tracker's
+    /// Synthesized flag blocks the second trigger - so only ONE of {quorum, timeout} ever reaches
+    /// here for a given task.
+    /// </summary>
+    private void SynthesizeUnitCompletion(string name, string vrfTaskTypeForLog)
+    {
         if (!_c2SimUuidByName.TryGetValue(name, out var taskeeUuid))
         {
             _log.LogWarning("Task-complete for '{Name}' but no C2SIM uuid known - no report sent.", name);
@@ -1068,11 +1131,11 @@ public sealed class VrfC2SimService : BackgroundService
         if (_inFlight.TryComplete(name, out var fin))
         {
             taskUuid = fin.TaskUuid;
-            if (!InFlightTracker.KindLooksRight(fin.ExpectedKind, e.TaskType))
+            if (!InFlightTracker.KindLooksRight(fin.ExpectedKind, vrfTaskTypeForLog))
                 _log.LogWarning("Unit {Name}: completed VRF task type '{VrfType}' does not look like the " +
                                 "dispatched kind '{Kind}' (task '{Task}') - attribution anomaly; still " +
                                 "attributed by the in-flight record.",
-                                name, e.TaskType, fin.ExpectedKind, fin.TaskName);
+                                name, vrfTaskTypeForLog, fin.ExpectedKind, fin.TaskName);
         }
         else
             _log.LogWarning("Task-complete for '{Name}' with NO in-flight task recorded - unattributed " +

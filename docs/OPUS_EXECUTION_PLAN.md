@@ -73,7 +73,7 @@ $exe = "src\VrfC2SimApp\bin\Release\net10.0\win-x64\VrfC2SimApp.exe"
 & $exe --sequencer-selftest       # 12, ALL CHECKS PASSED
 & $exe --verb-selftest            # 28+, ALL CHECKS PASSED
 & $exe --destack-selftest         # 20, ALL CHECKS PASSED
-& $exe --fanout-selftest          # 16+ (GROWS with Step 2 - the new count is part of that step's gate)
+& $exe --fanout-selftest          # 36 (Step 2 LANDED: +19 quorum/timeout/swallow cases; was 17 pre-Step-2)
 ```
 If any selftest that is unrelated to the current change regresses, STOP - do not "fix
 forward"; revert and diagnose.
