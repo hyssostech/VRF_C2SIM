@@ -39,6 +39,9 @@ Three locations are in play:
 
 ## Current status (2026-07-13)
 
+- **Step 1 (P4a) LANDED (2026-07-13, execution)**: SDK shared static HttpClient committed
+  on the fork `dev/sdk-fixes` (`ae09fd5`; ClientLib 4.8.3.2 -> 4.8.3.3). Offline gates green
+  (both TFMs 0 errors; eight selftests; SDK tests 36 passed/3 env-skipped). Detail: PORT.md sec 7.
 - **Plan REVIEWED - execution is next (2026-07-13, evening)**: `docs/OPUS_EXECUTION_PLAN.md`
   passed a fresh review pass (under Fable 5); fixes applied: the sec-0.2 selftest exe path
   gains its real win-x64 RID subfolder (verified on disk - the old path would have failed the
@@ -242,7 +245,8 @@ remains is quality/parity polish + the two-layer semantic-mapping arc (see "next
   lives on branch `spike/aggregate-formation-wedge`, superseded - do not merge). NO GIT
   REMOTE - the only golden-trace rig exists on one disk (private-remote decision pending
   with the user).
-- The SDK (`dev/sdk-fixes`): `f738edf` (static-state fixes + tests), `3b7cd33` (net10).
+- The SDK (`dev/sdk-fixes`): `f738edf` (static-state fixes + tests), `3b7cd33` (net10),
+  `ae09fd5` (P4a shared HttpClient, ClientLib 4.8.3.3).
 
 `build/` `bin/` `obj/` are gitignored (rebuild them); `docs/golden-trace/*.log` is
 force-tracked (parity oracle). `data/` (user-provided post-gold scenarios: COA-STP1,

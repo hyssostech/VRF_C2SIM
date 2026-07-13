@@ -228,8 +228,8 @@ C++ build). Findings, all orthogonal to the Phase 1 rewire:
 
 ## 7. SDK-side changes (other repo; captured here for cross-reference)
 
-On `OpenC2SIM.github.io` branch `dev/sdk-fixes`, committed (`f738edf`, `3b7cd33`),
-full detail in that repo's `ReleaseNotes.md` (SDK 1.4.0, ClientLib 4.8.3.2):
+On `OpenC2SIM.github.io` branch `dev/sdk-fixes`, committed (`f738edf`, `3b7cd33`,
+`ae09fd5`), full detail in that repo's `ReleaseNotes.md` (SDK 1.4.0, ClientLib 4.8.3.3):
 
 - Fixed: `Dispose()`-before-`Connect()` NRE; `Error` event never fired; STOMP pump
   now exits cleanly on cancel; `Disconnect()` set `IsConnected=true` (now false).
@@ -243,6 +243,16 @@ full detail in that repo's `ReleaseNotes.md` (SDK 1.4.0, ClientLib 4.8.3.2):
   instance. Removed the `GetHashCode()`-keyed static XDoc cache.
 - Added a real `C2SIMSDK.Tests` project (39 tests, fake STOMP broker + fake REST
   server on real sockets; live-server tests gated on env vars). Bumped to net10.
+- P4a (2026-07-13, `ae09fd5`, ClientLib 4.8.3.2 -> 4.8.3.3): ONE shared static
+  `HttpClient` replaces the per-call create/dispose in `C2SIMClientRestLib.cs`
+  (`ServerStatus` + `SendTrans`). Each disposal stranded a TIME_WAIT socket, so
+  heavy report pushes exhausted the ephemeral ports -> SocketException 10048 in
+  EVERY 2026-07-13 live run (PLAN_DERISK_NOTES sec 1). Accept headers moved
+  PER-REQUEST (a shared client's `DefaultRequestHeaders` are not thread-safe to
+  mutate); `SocketsHttpHandler`/`PooledConnectionLifetime` (2 min) is
+  `#if NET5_0_OR_GREATER`-guarded so the netstandard2.0 leg still compiles (a
+  plain shared client there still pools connections). Live discriminator (ZERO
+  10048 / "Connection error:" lines) deferred to the Step 5 scale run.
 
 **NEAR-MISS to NOT repeat**: the missing STOMP `selector` was NOT a bug. Commit
 `04c0131` (Feb 2024) removed it deliberately - "won't work with recent ActiveMQ".
