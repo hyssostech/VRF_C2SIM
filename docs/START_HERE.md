@@ -278,6 +278,8 @@ it loads the bridge assembly for value types):
   (VerbMapping); expect ALL CHECKS PASSED (28+).
 - `VrfC2SimApp.exe --destack-selftest` - R8 create-time de-stacking (DeStacker grouping
   + ring geometry + determinism); expect ALL CHECKS PASSED (20 checks).
+- `VrfC2SimApp.exe --fanout-selftest` - R10 member-completion aggregation (FanOutTracker);
+  expect ALL CHECKS PASSED (16 checks).
 Build with `DOTNET_CLI_USE_MSBUILD_SERVER=false ... --disable-build-servers` (concurrent
 dotnet builds deadlock the shared build server).
 PATH for the exe: `C:\MAK\vrforces5.0.2\bin64;C:\MAK\vrlink5.8\bin64;C:\MAK\makRti4.6b\bin`.
@@ -298,7 +300,10 @@ experiments; "" = golden parity),
 `Vrf__PredecessorTimeoutPolicy` (skip|force|whenIdle; default skip - P0.2),
 `Vrf__EngageFallbackSeconds` (default 300 - P0.3), `Vrf__DeStackCreates` (**R8** - true
 spreads identically-positioned units onto hex rings at create; default false) +
-`Vrf__DeStackSpacingMeters` (default 50). Reload the VR-Forces scenario (or run
+`Vrf__DeStackSpacingMeters` (default 50), `Vrf__SubordinateFanOut` (**R10** - true fans
+an aggregate's along-route move out to its member entities; unit TASKCMPLT synthesized
+when all members complete; default false), `Vrf__AggregatePlanAndMove` (**R11** probe -
+aggregate moves become waypoint + DtPlanAndMoveToTask; default false). Reload the VR-Forces scenario (or run
 tools/ResetVrf) between heavy runs (entities accumulate -> creates stop reflecting).
 
 ## The immediate next task

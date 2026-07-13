@@ -59,6 +59,13 @@ public value struct EntityTypeSpec {
     int Extra;
 };
 
+// One member entity of a (disaggregated) aggregate. Mirrors vrf::AggregateMember
+// (R10 subordinate fan-out, docs/UNIT_MOVEMENT_RESEARCH.md sec 4c).
+public value struct AggregateMember {
+    String^ Uuid;   // the member's VRF uuid (taskable)
+    String^ Name;   // the member's marking text (matches TaskCompleted.UnitMarking)
+};
+
 // One variable of a VR-Forces scripted (Lua) task/set. Mirrors vrf::ScriptVar.
 public value struct ScriptVar {
     ScriptVarKind Kind;
@@ -269,6 +276,26 @@ public:
     }
     void MoveAlongRoute(String^ uuid, String^ routeUuid) {
         _facade->MoveAlongRoute(ToStd(uuid), ToStd(routeUuid));
+    }
+    // Pathfinding move to a control point (DtPlanAndMoveToTask). The destination is an
+    // existing waypoint OBJECT (CreateWaypoint first; resolve by name like routes).
+    // R11 probe: does the PLANNED move path where moveAlongRoute's leader plan is empty?
+    void PlanAndMoveTo(String^ uuid, String^ controlPointUuid) {
+        _facade->PlanAndMoveTo(ToStd(uuid), ToStd(controlPointUuid));
+    }
+    // Enumerate a (disaggregated) aggregate's member ENTITIES (uuid + marking) from its
+    // published state. R10 subordinate fan-out: empty when the uuid does not resolve or
+    // publishes no members (caller logs + falls back). Pass an AGGREGATE uuid only.
+    List<AggregateMember>^ GetAggregateMembers(String^ aggregateUuid) {
+        std::vector<vrf::AggregateMember> v = _facade->GetAggregateMembers(ToStd(aggregateUuid));
+        auto list = gcnew List<AggregateMember>((int)v.size());
+        for (const vrf::AggregateMember& m : v) {
+            AggregateMember am;
+            am.Uuid = marshal_as<String^>(m.uuid);
+            am.Name = marshal_as<String^>(m.name);
+            list->Add(am);
+        }
+        return list;
     }
     void SetAggregateFormation(String^ uuid, String^ formationName) {
         _facade->SetAggregateFormation(ToStd(uuid), ToStd(formationName));

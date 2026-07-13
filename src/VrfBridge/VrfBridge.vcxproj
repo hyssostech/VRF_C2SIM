@@ -51,7 +51,7 @@
       <SubSystem>Windows</SubSystem>
       <AdditionalLibraryDirectories>$(VrfDir)/lib64;$(VrlDir)/lib64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <!-- HLA1516e link set (facade subset of the interface's Release deps; no xerces/C2SIMClientLib) -->
-      <AdditionalDependencies>vrfcontrol.lib;vrlinkNetworkInterfaceHLA1516e.lib;vrfMsgTransport.lib;vrfExtProtocol.lib;readerWriter.lib;vrfmsgs.lib;vrfplan.lib;vrftasks.lib;vrfutil.lib;vlHLA1516e.lib;vl.lib;vlutil.lib;matrix.lib;mtl.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>vrfcontrol.lib;vrlinkNetworkInterfaceHLA1516e.lib;vrfMsgTransport.lib;vrfExtProtocol.lib;vrfExtObjectsHLA1516e.lib;readerWriter.lib;vrfmsgs.lib;vrfplan.lib;vrftasks.lib;vrfutil.lib;vlHLA1516e.lib;vl.lib;vlutil.lib;matrix.lib;mtl.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
 

@@ -346,6 +346,25 @@ NEXT (in order):
 - R11 (cheap probe, same session as R10): DtPlanAndMoveToTask on ONE aggregate at
   Mojave - does the pathfinding point-move task plan where moveAlongRoute's leader
   path does not?
+
+R10 + R11 IMPLEMENTED + OFFLINE-VERIFIED (2026-07-13; live verify pending):
+- Facade/bridge (one VS18 rebuild, links vrfExtObjectsHLA1516e.lib): `GetAggregateMembers`
+  (reads the reflected aggregate's PUBLISHED entities designator list; resolves each
+  via entityList()->lookupEE -> uuid + marking; same static_cast caveat as
+  TryGetEntityGeodetic - pass aggregate uuids only) and `PlanAndMoveTo(uuid,
+  controlPointUuid)` (DtPlanAndMoveToTask; NOTE DtMoveToTask addresses a control-point
+  OBJECT, not raw coordinates - create a waypoint first).
+- App: `Vrf:SubordinateFanOut` (default off) fans an aggregate's along-route move out
+  to its members (route path only; 0 published members -> loud log + normal aggregate
+  move); the unit-level TASKCMPLT is synthesized when ALL fanned members complete
+  (pure FanOutTracker + `--fanout-selftest`, 16 checks; supersession cancels the
+  fan-out). `Vrf:AggregatePlanAndMove` (default off, experiment-only; takes precedence)
+  makes an aggregate move create "<task> WPT" at the route's final point and issue
+  PlanAndMoveTo on waypoint-created.
+- All eight offline selftests green. LIVE decision rules - R10: platoon/company members
+  march their R9-probe routes at Mojave and ONE unit-level TASKCMPLT per task arrives
+  when the last member finishes; R11: any member/unit movement after PlanAndMoveTo
+  where move-along planned empty.
 - coa-gpt feedback item #4 (evidence-backed): scenario REGION determines whether
   disaggregated units can maneuver at all in VR-Forces' online-earth scenario;
   validate a region with a 1-unit probe before generating COAs there, or pick

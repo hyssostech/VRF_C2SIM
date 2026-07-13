@@ -49,6 +49,22 @@ public class VrfSettings
     // (Vrf__DeStackSpacingMeters) if 50 proves too tight for member footprints.
     public double DeStackSpacingMeters { get; set; } = 50.0;
 
+    // R10 subordinate fan-out (docs/UNIT_MOVEMENT_RESEARCH.md sec 4c). When ON, an
+    // AGGREGATE'S along-route move is fanned out to its member ENTITIES (each member
+    // gets MoveAlongRoute on the same route; the unit-level TASKCMPLT is synthesized
+    // when ALL fanned members complete). The practical unlock for regions where VRF's
+    // unit leader-path planning returns EMPTY (the R9 Mojave finding) while entity
+    // moves work fine. Members revert to unit control on completion (MAK
+    // UnitMembersTaskIndependently). Opt-in; falls back to the normal aggregate move
+    // when the unit publishes no members. Applies to the multi-point route path only.
+    public bool SubordinateFanOut { get; set; } = false;
+
+    // R11 probe (experiment-only): an AGGREGATE move creates a waypoint at the route's
+    // FINAL point and issues DtPlanAndMoveToTask (the PLANNED pathfinding point move)
+    // instead of CreateRoute + MoveAlongRoute - does the planner path where the
+    // move-along leader plan is empty? Takes precedence over SubordinateFanOut.
+    public bool AggregatePlanAndMove { get; set; } = false;
+
     // Semantic-map Unit 4 (docs/SEMANTIC_MAPPING.md): the PROPER aggregate maneuver. "" = OFF.
     // A VALID Title-Case formation name ("Wedge"/"Column"/...) makes an AGGREGATE task use
     // DtMoveIntoFormationTask (move the set into formation AT the destination) INSTEAD of

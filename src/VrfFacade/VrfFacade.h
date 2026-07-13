@@ -131,6 +131,13 @@ struct AvailableFormations {
     std::string currentFormation;        // "" if none / uninitialized
 };
 
+// One member ENTITY of a (disaggregated) aggregate, read from the aggregate's
+// published state (R10 subordinate fan-out, docs/UNIT_MOVEMENT_RESEARCH.md sec 4c).
+struct AggregateMember {
+    std::string uuid;  // the member's VRF uuid (taskable)
+    std::string name;  // the member's marking text (matches completion callbacks)
+};
+
 // ------------------------------------------------------------------
 // The facade
 // ------------------------------------------------------------------
@@ -250,6 +257,24 @@ public:
     // -- tasking --------------------------------------------------
     void MoveToLocation(const std::string& uuid, const Geodetic& pos);
     void MoveAlongRoute(const std::string& uuid, const std::string& routeUuid);
+
+    // Pathfinding move to a CONTROL POINT (DtPlanAndMoveToTask, sent via sendTaskMsg).
+    // The destination is an existing waypoint/control-point OBJECT (DtMoveToTask has no
+    // raw-coordinate setter) - create one via CreateWaypoint and pass its uuid/name here.
+    // R11 probe (docs/UNIT_MOVEMENT_RESEARCH.md sec 4c): does the PLANNED point-move
+    // produce a path at locations where moveAlongRoute's leader-path plan is EMPTY?
+    void PlanAndMoveTo(const std::string& uuid, const std::string& controlPointUuid);
+
+    // Enumerate the member ENTITIES of a reflected (disaggregated) aggregate from its
+    // PUBLISHED aggregate state (the entities designator list) - uuid + marking each.
+    // R10 subordinate fan-out: entity moves are proven where unit leader-path planning
+    // fails, so the caller can task members directly (they revert to unit control on
+    // completion). Read-only; returns empty if the uuid does not resolve, is not an
+    // aggregate we can read, or publishes no members (caller logs + falls back).
+    // CAVEAT: the caller must pass an AGGREGATE uuid - like TryGetEntityGeodetic, the
+    // typed dynamic_cast can miss across the MAK DLL boundary and the fallback is a
+    // static_cast that is only valid for a real aggregate.
+    std::vector<AggregateMember> GetAggregateMembers(const std::string& aggregateUuid) const;
 
     // Set an aggregate's formation by name ("Wedge","Column","Line","Vee","Echelon").
     // Safe no-op on non-aggregate entities. A disaggregated aggregate needs a VALID

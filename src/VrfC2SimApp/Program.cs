@@ -40,6 +40,10 @@ if (args.Length > 0 && args[0] == "--verb-selftest")
 if (args.Length > 0 && args[0] == "--destack-selftest")
     return DeStackSelfTest.Run();
 
+// Offline fan-out check: R10 member-completion aggregation (no bridge).
+if (args.Length > 0 && args[0] == "--fanout-selftest")
+    return FanOutSelfTest.Run();
+
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddHostedService<VrfC2SimService>();
 await builder.Build().RunAsync();

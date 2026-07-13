@@ -48,7 +48,11 @@ public sealed class VrfC2SimService : BackgroundService
     // names - FIFO is the best possible attribution (a second same-named entry no longer
     // silently overwrites the first). Patrol=true issues PatrolRoute (Reconnoiter)
     // instead of MoveAlongRoute.
-    private readonly record struct PendingRouteTask(string TaskeeVrfUuid, bool Patrol);
+    private readonly record struct PendingRouteTask(string TaskeeVrfUuid, bool Patrol,
+        bool PlanMove = false, IReadOnlyList<AggregateMember>? FanOutMembers = null);
+
+    // R10: member-completion -> unit-task aggregation for fanned-out aggregate moves.
+    private readonly FanOutTracker _fanOut = new();
     private readonly ConcurrentDictionary<string, ConcurrentQueue<PendingRouteTask>> _pendingRouteTasks = new();
 
     // Unit name -> the ATTACK/BREACH engage deferred until that unit's move COMPLETES
@@ -721,6 +725,29 @@ public sealed class VrfC2SimService : BackgroundService
             return;
         }
 
+        // R11 PROBE (opt-in via Vrf:AggregatePlanAndMove; docs/UNIT_MOVEMENT_RESEARCH.md
+        // sec 4c): for an AGGREGATE, create a waypoint at the route's FINAL point and issue
+        // the PLANNED pathfinding move (DtPlanAndMoveToTask) to it INSTEAD of CreateRoute +
+        // MoveAlongRoute - does the planner produce a path where the move-along leader plan
+        // is EMPTY (the R9 Mojave finding)? Waypoint creation is async like routes: the
+        // task is deferred to the waypoint's ObjectCreated.
+        if (unit.IsAggregate && _vrf.AggregatePlanAndMove)
+        {
+            string wptName = task.TaskName + " WPT";
+            var wptQueue = _pendingRouteTasks.GetOrAdd(wptName, _ => new ConcurrentQueue<PendingRouteTask>());
+            wptQueue.Enqueue(new PendingRouteTask(vrfUuid, Patrol: false, PlanMove: true));
+            MarkDispatched(task, unit, "plan-move");
+            if (attackTargetVrf != null)
+                DeferEngageUntilMoveCompletes(unit, task, "fire", vrfUuid, attackTargetVrf);
+            if (breachTargetVrf != null)
+                DeferEngageUntilMoveCompletes(unit, task, "breach", vrfUuid, breachTargetVrf);
+            _bridge.CreateWaypoint(routeGeo[^1], wptName);
+            _log.LogInformation("Task '{Task}': R11 CreateWaypoint '{Wpt}' for AGGREGATE {Name}; " +
+                                "PlanAndMoveTo deferred to waypoint-created ({N} route pts -> final point).",
+                                task.TaskName, wptName, unit.Name, routeGeo.Count);
+            return;
+        }
+
         // ENRICHMENT (opt-in via Vrf:AggregateFormation; "" = off = golden parity, PORT.md
         // sec 10): a disaggregated aggregate freezes on moveAlongRoute because its default
         // formation is unresolvable ("column-left"). Setting a VALID formation before the
@@ -777,11 +804,35 @@ public sealed class VrfC2SimService : BackgroundService
             _log.LogWarning("Route name '{Route}' already has {N} pending task(s) - duplicate TaskName in " +
                             "the order; same-named routes are matched FIFO as they are created.",
                             routeName, routeQueue.Count);
-        routeQueue.Enqueue(new PendingRouteTask(vrfUuid, patrol));
+        // R10 SUBORDINATE FAN-OUT (opt-in via Vrf:SubordinateFanOut; UNIT_MOVEMENT_RESEARCH.md
+        // sec 4c): task the aggregate's member ENTITIES directly instead of the unit - the
+        // unlock for regions where the unit leader-path plan comes back EMPTY (R9 Mojave)
+        // while entity moves work. Members are read from the aggregate's published state;
+        // 0 members -> loud log + normal aggregate move. Completion: the unit's TASKCMPLT
+        // is synthesized when ALL fanned members complete (FanOutTracker).
+        IReadOnlyList<AggregateMember>? fanOutMembers = null;
+        if (_vrf.SubordinateFanOut && unit.IsAggregate && !patrol)
+        {
+            var members = _bridge.GetAggregateMembers(vrfUuid);
+            if (members is { Count: > 0 })
+            {
+                fanOutMembers = members;
+                _log.LogInformation("Task '{Task}': R10 fan-out - {N} member entities of {Name} will be " +
+                                    "tasked directly: {Members}.", task.TaskName, members.Count, unit.Name,
+                                    string.Join(", ", members.Select(m => m.Name)));
+            }
+            else
+                _log.LogWarning("Task '{Task}': R10 fan-out requested but {Name} ({Vrf}) publishes NO " +
+                                "member entities - falling back to the aggregate-level move.",
+                                task.TaskName, unit.Name, vrfUuid);
+        }
+        routeQueue.Enqueue(new PendingRouteTask(vrfUuid, patrol, FanOutMembers: fanOutMembers));
         // The unit is committed to this move now (the route-created callback issues the
         // along-route task); record it so the completion attributes here (P0.1) and any
         // engage below gates on it (P0.3).
         MarkDispatched(task, unit, patrol ? "patrol" : "move-along");
+        if (fanOutMembers != null)
+            _fanOut.Register(unit.Name, task.TaskUuid, fanOutMembers.Select(m => m.Name));
         // Layer 2 + P0.3: the ATTACK-family fire / BREACH is issued when the along-route
         // move COMPLETES (advance the axis / approach the obstacle, THEN engage/breach) -
         // no longer in the same tick as MoveAlongRoute, which would have replaced it.
@@ -815,6 +866,10 @@ public sealed class VrfC2SimService : BackgroundService
                 && _pendingEngage.TryRemove(new KeyValuePair<string, PendingEngage>(unit.Name, eng)))
                 _log.LogWarning("Unit {Name}: cancelled the pending {Kind} tied to superseded task '{Old}'.",
                                 unit.Name, eng.Kind, old.TaskName);
+            // R10: a superseded task's fan-out must not complete against the new task.
+            if (_fanOut.Cancel(unit.Name))
+                _log.LogWarning("Unit {Name}: cancelled the member fan-out tied to superseded task '{Old}'.",
+                                unit.Name, old.TaskName);
         }
         _sequencer.NotifyDispatched(task.TaskUuid);
     }
@@ -933,6 +988,21 @@ public sealed class VrfC2SimService : BackgroundService
                 _log.LogInformation("Route '{Route}' created; PatrolRoute issued for {Vrf} (Reconnoiter).",
                                     e.Name, pending.TaskeeVrfUuid);
             }
+            else if (pending.PlanMove)
+            {
+                // R11: the created object is the destination WAYPOINT - issue the planned move.
+                _bridge.PlanAndMoveTo(pending.TaskeeVrfUuid, e.Name);
+                _log.LogInformation("Waypoint '{Wpt}' created; PlanAndMoveTo issued for {Vrf} (R11).",
+                                    e.Name, pending.TaskeeVrfUuid);
+            }
+            else if (pending.FanOutMembers is { Count: > 0 } members)
+            {
+                // R10: fan the along-route move out to the member entities (same route).
+                foreach (var m in members)
+                    _bridge.MoveAlongRoute(m.Uuid, e.Name);
+                _log.LogInformation("Route '{Route}' created; R10 fan-out MoveAlongRoute issued to " +
+                                    "{N} members of {Vrf}.", e.Name, members.Count, pending.TaskeeVrfUuid);
+            }
             else
             {
                 _bridge.MoveAlongRoute(pending.TaskeeVrfUuid, e.Name);
@@ -972,6 +1042,22 @@ public sealed class VrfC2SimService : BackgroundService
         // callback carries no task uuid, and the old last-write map misattributed it to
         // whatever was dispatched last), then push a TaskStatus (TASKCMPLT) report.
         string name = e.UnitMarking ?? "";
+
+        // R10: a fanned-out aggregate move completes PER MEMBER (the marking is the member
+        // entity's name). Aggregate them; only when ALL members are done does the UNIT's
+        // completion flow (below) run, under the unit's name.
+        if (_fanOut.TryCompleteMember(name, out var fanUnit, out _, out int fanRemaining, out bool fanAllDone))
+        {
+            if (!fanAllDone)
+            {
+                _log.LogInformation("R10 fan-out: member {Member} of {Unit} completed; {N} member(s) remaining.",
+                                    name, fanUnit, fanRemaining);
+                return;
+            }
+            _log.LogInformation("R10 fan-out: ALL members of {Unit} completed - synthesizing the unit's " +
+                                "task completion.", fanUnit);
+            name = fanUnit;
+        }
         if (!_c2SimUuidByName.TryGetValue(name, out var taskeeUuid))
         {
             _log.LogWarning("Task-complete for '{Name}' but no C2SIM uuid known - no report sent.", name);

@@ -39,6 +39,11 @@
 #include <vrftasks/followEntityTask.h>
 #include <vrftasks/requestAvailableFormationsAdmin.h>
 #include <vrftasks/availableFormationsAdmin.h>
+#include <vrftasks/planAndMoveToTask.h>
+#include <vrfExtObjects/reflectedExtEntityList.h>
+#include <vrfExtObjects/reflectedExtEntity.h>
+#include <vl/globalObjectDesignatorList.h>
+#include <vl/globalObjectDesignator.h>
 #include <vrftasks/radioMessageTypes.h>
 #include <vrfmsgs/adminMessage.h>
 #include <vrfutil/scenario.h>
@@ -465,6 +470,55 @@ void VrfFacade::MoveToLocation(const std::string& uuid, const Geodetic& pos) {
 
 void VrfFacade::MoveAlongRoute(const std::string& uuid, const std::string& routeUuid) {
     p_->controller->moveAlongRoute(DtUUID(uuid), DtUUID(routeUuid), DtSimSendToAll);
+}
+
+void VrfFacade::PlanAndMoveTo(const std::string& uuid, const std::string& controlPointUuid) {
+    // DtPlanAndMoveToTask : DtMoveToTask - the PLANNED (pathfinding) move to a control
+    // point (R11). The base task addresses a waypoint OBJECT, not raw coordinates.
+    DtPlanAndMoveToTask task;
+    task.init();
+    task.setControlPoint(DtUUID(controlPointUuid));
+    p_->controller->sendTaskMsg(DtUUID(uuid), &task);
+}
+
+std::vector<AggregateMember> VrfFacade::GetAggregateMembers(const std::string& aggregateUuid) const {
+    std::vector<AggregateMember> out;
+    if (!p_->uuidMgr) return out;
+    DtReflectedObject* obj = p_->uuidMgr->reflectedObjectFor(DtUUID(aggregateUuid));
+    if (!obj) return out;
+
+    // Typed path first; the dynamic_cast is known to MISS for disaggregated aggregates
+    // across the MAK DLL boundary (same RTTI issue as TryGetEntityGeodetic), so fall
+    // back to a static_cast - valid ONLY because the caller guarantees this uuid is an
+    // aggregate it created (see the header CAVEAT).
+    DtAggregateStateRepository* asr = nullptr;
+    if (DtReflectedAggregate* agg = dynamic_cast<DtReflectedAggregate*>(obj))
+        asr = agg->aggregateStateRep();
+    if (!asr)
+        asr = static_cast<DtReflectedAggregate*>(obj)->aggregateStateRep();
+    if (!asr) return out;
+
+    DtReflectedExtEntityList* ents = p_->uuidMgr->entityList();
+    if (!ents) return out;
+
+    // The published member list: HLA object designators, resolvable via lookupEE.
+    // (Bind via a const pointer: the non-const entities() overload returns a pointer.)
+    const DtAggregateStateRepository* casr = asr;
+    const DtGlobalObjectDesignatorList& members = casr->entities();
+    for (int i = 0; i < members.numObjects(); ++i) {
+        bool valid = false;
+        const DtGlobalObjectDesignator& des = members.object(i, &valid);
+        if (!valid) continue;
+        DtReflectedExtEntity* ent = ents->lookupEE(des);
+        if (!ent) continue;                       // silent/not-yet-reflected member
+        AggregateMember m;
+        DtUUID u = p_->uuidMgr->uuidFor(ent);
+        m.uuid = u.uuidString().string() ? u.uuidString().string() : "";
+        const char* mark = ent->entityStateRep() ? ent->entityStateRep()->markingText() : nullptr;
+        m.name = mark ? mark : "";
+        if (!m.uuid.empty()) out.push_back(m);
+    }
+    return out;
 }
 
 void VrfFacade::SetAggregateFormation(const std::string& uuid, const std::string& formationName) {

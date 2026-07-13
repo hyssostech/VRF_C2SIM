@@ -134,7 +134,8 @@ Non-negotiables (full text RUNBOOK + guidance sec 1 - violating these destroys s
   app with DOTNET_CLI_USE_MSBUILD_SERVER=false dotnet build ... --disable-build-servers.
 - Offline selftests before/after ANY change (MAK bin dirs on PATH, 4.6b fine):
   --translator-selftest 18/18, --parse-init 80/49/4, --parse-order, --report-selftest
-  9/9, --sequencer-selftest 12 checks, --verb-selftest 28/28, --destack-selftest 20.
+  9/9, --sequencer-selftest 12 checks, --verb-selftest 28/28, --destack-selftest 20,
+  --fanout-selftest 16.
 - Keep docs/START_HERE.md, PORT.md, SEMANTIC_MAPPING.md, UNIT_MOVEMENT_RESEARCH.md,
   RESUME_PROMPT.md current AS you work; after any context compaction re-read them
   before deciding anything.
