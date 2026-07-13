@@ -50,7 +50,12 @@ Three locations are in play:
   `tools/WatchVrf` (new member-telemetry tool) showing clean on-axis marches ending ON the
   final route point. Ground truth: live formation lists are ALL lowercase (static .entity
   analysis misleads - always query); currentFormation reads back '' even when set (trust
-  the list). NEXT: R5c (same sequence on COA-STP1's stacked coordinates), then E2 re-test.
+  the list). R5c (COA-STP1, stacked coordinates, same code): repair applied 113/113, the
+  E1 runaway ELIMINATED, but 0/6 aggregates marched (control-only, ~13 min stack-escape)
+  - the same-day A/B pins COA-STP1's STACKED unit coordinates as the blocking data
+  pathology (R6 coa-gpt feedback now evidence-backed; candidate R8 = opt-in create-time
+  de-stacking, user decision). CoHQ creation-scatter is a separate open failure mode.
+  NEXT: R8 decision / coa-gpt data fix, CoHQ scatter investigation, then E2 re-test.
 - **2026-07-12, evening - RESEARCH**: after E1's negative, a three-agent sweep of
   the MAK 5.0.2 vendor docs/headers/content produced **docs/UNIT_MOVEMENT_RESEARCH.md** -
   READ IT before any aggregate work. Verdict: our move task was always correct; the missing

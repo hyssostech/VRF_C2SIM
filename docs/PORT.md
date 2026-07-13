@@ -685,9 +685,15 @@ ending ON the route's final point. KEY GROUND-TRUTH FINDING: the live formation 
 ALL lowercase - including company-typed units whose .entity file lists Title-Case - so any
 STATIC name map is unreliable; query the unit (the app's `Vrf:AggregateFormation=auto` is
 now query-driven). The read-back's currentFormation field returns '' even when the set
-provably took - trust the list, not current. REMAINING: R5c = same sequence on COA-STP1
-(stacked/identical coordinates) to isolate the scenario-data pathology; then re-test
-MoveIntoFormation (E2) with sane preconditions.
+provably took - trust the list, not current. R5c RAN the same evening on COA-STP1
+(stacked coordinates; UNIT_MOVEMENT_RESEARCH.md sec 4): repair applied 113/113 and the
+E1 company RUNAWAY is ELIMINATED (units hold instead of flying 150 km), but 0/6
+aggregates marched (control-only 1/7, same as E1) - the same-day A/B (dispersed golden
+3/3 vs stacked COA-STP1 1/7, identical code) makes COA-STP1's stacked/identical unit
+coordinates the evidence-backed blocking data pathology (R6 coa-gpt feedback: DISPERSE
+positions). CoHQ creation-time subordinate scatter is a separate open failure mode.
+Candidate mitigation R8 (not built; user decision): opt-in create-time de-stacking of
+co-located units. Then: E2 MoveIntoFormation re-test with sane preconditions.
 OPERATIONAL FINDINGS from the run: (1) report pushing hit ephemeral-PORT EXHAUSTION ("Only one
 usage of each socket address...") under the un-bundled position-report volume -> the P4
 report dedup/bundling item is now OPERATIONALLY URGENT for long runs; (2) a deterministic

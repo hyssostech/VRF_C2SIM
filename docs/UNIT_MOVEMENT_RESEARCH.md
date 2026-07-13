@@ -173,10 +173,39 @@ experiment (E1, Wedge, MoveIntoFormation). THE STUCK-AGGREGATE PROBLEM IS SOLVED
 dispersed scenarios: the missing preconditions were exactly the researched ones -
 creation-time VALID formation state (query-driven) + reorganize-established leadership.
 
-NEXT (R5c): the same sequence on COA-STP1 (stacked/identical coordinates) to determine
-whether the remaining failure mode is purely the scenario-data pathology (R6 feedback).
-Then: make query-driven auto the recommended default for aggregate-bearing scenarios and
-re-test MoveIntoFormation (E2) now that preconditions are sane.
+R5c RESULT (same evening; COA-STP1, STACKED/identical coordinates; appNo 3325; identical
+code + the same 7-task probe order E1 used): the query-driven repair applied cleanly to
+ALL 113 aggregates (113/113 replies, all lists lowercase - 64 column-first company-typed,
+49 line-first - all set 'column' + reorganize; zero empty lists). Outcome vs the E1
+baseline on the identical order:
+- RUN HEALTHY: the tank entity control completed at ~13 min (same stack-escape timing
+  as E1), so results are interpretable.
+- THE RUNAWAY IS ELIMINATED: both company-typed units now HOLD POSITION for the whole
+  watch window (E1: 150-170 km runaway). The formation-state repair works here too.
+- BUT NO AGGREGATE MARCHES: 0/6 aggregate completions in ~14 min (golden R5: 2/2 within
+  ~3 min). Platoons shuffle meters; companies stationary; the CoHQ units STILL fly off
+  (163-396 km) - their creation-time "AR HQ Sec" subordinate scatter happens before any
+  repair can land and the snap does not gather them.
+VERDICT: the create-time repair is NECESSARY (it removes the runaway failure mode
+everywhere) but NOT SUFFICIENT on COA-STP1. The same-day A/B - identical code, dispersed
+golden 3/3 vs stacked COA-STP1 1/7(control-only) - is strong evidence for the
+scenario-DATA pathology (R6): dozens of units spawned at literally identical coordinates
+gridlock the members (the control needs ~13 min just to escape the pile; ground
+aggregates whose members must form up inside it apparently never do). CAVEAT
+(adversarial): region/terrain also differs between the two scenarios; but entities DO
+move in the COA-STP1 region, so the stack remains the strongest discriminator - a
+definitive isolation would re-run COA-STP1 with de-stacked positions.
+NEXT:
+- R6 (coa-gpt feedback, now evidence-backed): emit DISPERSED unit positions - stacked
+  coordinates are pathological for disaggregated units. THE preferred fix (source data).
+- R8 (candidate interface-side mitigation, NOT built): opt-in create-time de-stacking -
+  when N units share identical init coordinates, offset each by a few tens of meters
+  (deterministic ring/grid) before CreateAggregate. Attacks the root without touching
+  coa-gpt; parity-breaking, so opt-in. Decide with the user.
+- CoHQ subordinate scatter needs its own investigation (member telemetry on ONE CoHQ
+  through create->repair) - it is a distinct failure mode from the stack.
+- Then: make query-driven auto the recommended default for aggregate-bearing scenarios
+  and re-test MoveIntoFormation (E2) now that preconditions are sane.
 
 ## 5. What the research could NOT settle (open)
 

@@ -108,10 +108,14 @@ NEXT (all LIVE-GATED - need VR-Forces + the LOCAL machine; a cloud session can o
    BEFORE tasking. Ground truth: live lists are ALL lowercase (never trust static .entity
    analysis - query); currentFormation reads '' even when set (trust the list). New tools/
    facade: ReorganizeAggregate + RequestAvailableFormations/AvailableFormations event +
-   tools/WatchVrf (member telemetry). REMAINING: **R5c** - the same sequence on COA-STP1
-   (stacked/identical unit coordinates) to isolate the scenario-data pathology (R6 coa-gpt
-   feedback: disperse positions); then E2 re-test MoveIntoFormation with sane preconditions.
-   Use ResetVrf between runs; record outcomes in PORT.md sec 10.
+   tools/WatchVrf (member telemetry). R5c RAN (COA-STP1, stacked coordinates): repair
+   113/113, E1 runaway ELIMINATED, but 0/6 aggregates marched (control-only) - the same-day
+   A/B (dispersed golden 3/3 vs stacked COA-STP1 1/7, identical code) pins STACKED unit
+   coordinates as the blocking data pathology. REMAINING: R6 coa-gpt feedback (disperse
+   positions - evidence-backed); R8 decision (opt-in create-time de-stacking of co-located
+   units - USER decision, not built); CoHQ creation-scatter investigation (separate failure
+   mode); then E2 MoveIntoFormation re-test. Use ResetVrf between runs; record outcomes in
+   PORT.md sec 10.
 2. Exercise Breach/Escort/Screen behavior via SYNTHETIC orders (COA-STP1 CANNOT exercise them - all
    42 tasks self-target; SCREEN additionally gated + T24 has no Location). Before the Escort test,
    fix FollowEntity's zero offset (guidance P3.5).
