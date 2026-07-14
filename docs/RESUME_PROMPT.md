@@ -4,31 +4,47 @@ Paste the block below into a fresh session to resume the port. It forces the
 source-of-truth docs to be read and the state checked before any action - do not
 shortcut it. Last refreshed 2026-07-14 (after the nav-data falsification + docs cleanup).
 
-READ THIS FIRST (2026-07-14 corrections, so the next session does not chase dead threads):
-- **NAV DATA is FALSIFIED as the Mojave aggregate-movement cause.** Do NOT generate/load a nav mesh
-  expecting it to unfreeze Mojave aggregates. Proof: Bogaland2 (Sweden, moves 5+ km) and
-  TropicTortoise (Mojave, freezes) are the IDENTICAL streaming terrain + model set + page-in area,
-  and NEITHER region has nav data; Sweden leader-path-plans with no NavMesh. The real cause is
-  UNRESOLVED and region-specific (empty member offset routes at Mojave). Full record:
-  docs/experiments/navdata_FALSIFIED_bogaland_vs_tt_2026-07-14.txt. Treat any doc text proposing a
-  nav-mesh fix as superseded.
-- Task (c) semantic mapping: Units 2 + 5 are DONE/behavior-verified at Sweden (2026-07-14). Unit 4
-  (MoveIntoFormation) is the only remaining task-(c) item.
+READ THIS FIRST (2026-07-14 - corrections + a REALITY CHECK; do not chase dead threads and do not
+oversell green results):
+
+REALITY CHECK (what works vs not - read before believing any "SUCCESS/COMPLETE" in the docs):
+- The END-TO-END PRODUCT GOAL - run a coa-gpt scenario at Mojave with correct aggregate movement -
+  does NOT work. Mojave aggregates FREEZE. That is the central unsolved problem.
+- What IS verified is narrower: the plumbing (join/create/dispatch) works; at the GOLDEN SWEDEN
+  region aggregates produce telemetry-backed movement; the semantic verb->vrftask map dispatches.
+  Those are component/control tests, NOT product success at the target region.
+- The green paths still carry unresolved warts: aggregate move-completion events are UNRELIABLE
+  (moveAlong's never fires; MoveIntoFormation's fires ~40s early - movement real, TASKCMPLT timing
+  wrong); the full COA-STP1 scale run at Mojave shows F1 member RUNAWAYS (180+ km) + F2b VACUOUS
+  completions; the lean-creation filter REGRESSED live tasking (stashed). Do NOT read "task (c)
+  complete" or "backlog complete" as "the product works".
+
+- **NAV DATA is FALSIFIED as the Mojave cause.** Do NOT generate/load a nav mesh to unfreeze Mojave
+  aggregates. Bogaland2 (Sweden, moves) and TropicTortoise (Mojave, freezes) are the IDENTICAL
+  streaming terrain + model set + page-in area, and NEITHER region has nav data; Sweden
+  leader-path-plans with no NavMesh. Real cause UNRESOLVED + region-specific (empty member offset
+  routes at Mojave). Full record: docs/experiments/navdata_FALSIFIED_bogaland_vs_tt_2026-07-14.txt.
+- Task (c) semantic mapping: Units 2, 4, 5 all dispatched + moved in their CONTROLLED SWEDEN tests
+  (2026-07-14); recorded "complete" in that narrow component sense ONLY (see the completion-event
+  wart above). It is NOT evidence the product runs at Mojave.
 - appNo NEXT FREE is **3386** (not 3368). No appNos were consumed by the 2026-07-14 doc work.
 
-STATUS: the OPUS_EXECUTION_PLAN backlog is COMPLETE (all six steps + the P4b live
-pass), and the first post-backlog follow-up - the F3 straggler-timeout probe
-(RESUME_PROMPT candidate (a)) - is DONE and CONFIRMED (2026-07-13 evening). A fresh
-session PICKS THE NEXT work item; it does not re-execute finished work. Everything is
-committed + pushed (port main + fork dev/sdk-fixes).
+STATUS: the OPUS_EXECUTION_PLAN step backlog + the F3 probe are done as ENGINEERING milestones - this
+is NOT the same as the product working end-to-end (see the reality check). A fresh session PICKS THE
+NEXT work item; it does not re-execute finished work. Everything is committed + pushed (port main +
+fork dev/sdk-fixes).
 
 ---
 
 ```
-Resume the C2SIM VR-Forces -> .NET port. The OPUS_EXECUTION_PLAN backlog is COMPLETE
-(six steps + P4b live pass) AND the F3 straggler-timeout probe is DONE (2026-07-13
-evening, F3 CONFIRMED). This session PICKS THE NEXT work item - do not re-execute
-finished work.
+Resume the C2SIM VR-Forces -> .NET port. The OPUS_EXECUTION_PLAN step backlog + the F3 probe are
+done as ENGINEERING milestones - this is NOT the product working. REALITY CHECK: the end-to-end goal
+(a coa-gpt scenario at MOJAVE with correct aggregate movement) does NOT work - Mojave aggregates
+FREEZE (unsolved; nav data FALSIFIED as the cause). What is verified is narrower: plumbing +
+telemetry-backed movement at the GOLDEN SWEDEN region + semantic verb->vrftask dispatch (component/
+control tests). The "SUCCESS/COMPLETE" notes in the docs are component-scoped; do not read them as
+"it works". This session PICKS THE NEXT work item - do not re-execute finished work, and do not
+oversell.
 
 WHERE THE WORK LIVES (run `git log --oneline -1` for tips; do not trust prose hashes):
 - PORT (source of truth + where you work): github.com/hyssostech/VRF_C2SIM.git,
@@ -42,8 +58,8 @@ WHERE THE WORK LIVES (run `git log --oneline -1` for tips; do not trust prose ha
 
 Before touching ANYTHING, read in the PORT repo, in order (treat as source of truth
 over any summary or recollection):
-  1. docs/START_HERE.md - current status (the 2026-07-13 bullets: Steps 1-6 + P4b live
-     pass + the F3 PROBE result at top) + build/run + env knobs
+  1. docs/START_HERE.md - current status (top = the 2026-07-14 reality-check banner + NAV-DATA
+     FALSIFIED + task (c) component-complete; then Steps 1-6 + P4b + F3) + build/run + env knobs
   2. docs/UNIT_MOVEMENT_RESEARCH.md sec 4c - the scale-run record (F1 runaway, F2/F2b
      vacuous classes, F3 timeout race) AND the F3 PROBE result (straggler 900 <
      predecessor 1200 unblocks successors; predecessor-timeout skips 15 -> 2)
@@ -52,27 +68,34 @@ over any summary or recollection):
   4. docs/RUNBOOK.md secs 0/3/4/7/8 before ANY live run
 Then `git log --oneline -3` + `git status -sb` in the port AND the fork.
 
-ENVIRONMENT NOTES (2026-07-13 evening end-state): the F3 probe left the federation
-CLEAN (post-run ResetVrf 3367 deleted its 1 race leftover). Run the standard pre-run
-ResetVrf dry-run + sweep FIRST anyway (fresh appNos from 3368). License expires
-2026-09-15. vrfGui was hung-but-backend-healthy (116 threads, do NOT kill it);
-vrfSimHLA1516e + rtiexec healthy; container up.
+ENVIRONMENT NOTES (2026-07-14): vrf was restarted fresh; the C2SIM server was left RUNNING with an
+R9 Mojave init loaded but NO app ever joined (no stale federate from this session). Run the standard
+pre-run ResetVrf dry-run + sweep FIRST anyway (fresh appNos from 3386). License expires 2026-09-15.
+vrfGui hung-but-backend-healthy (do NOT kill it); vrfSimHLA1516e + rtiexec healthy; container up. If
+much time has passed, expect drift - check, do not assume.
 
 CANDIDATE NEXT TASKS (pick one, or ask the user):
-  (a) PARTIAL QUORUM follow-up (the lever F3 surfaced): FanOutCompletionFraction < 1.0
-      so a unit completes on MAJORITY member arrival instead of waiting for the stuck
-      minority - the natural next fix for the F2b stuck-member units (4-27, 5-20,
-      B/5-20 completed at ~0 aggregate displacement; 856/HHC stuck at 7/18 even at
-      900 s). Config-only live run on COA-STP1; telemetry-gated. NOTE: this changes
-      WHEN a unit is declared complete, so it can MASK non-movement - watch F2b hardest.
-  (b) F2b/F1 probe matrix: per-route 1-member probes at the Mojave region (which routes
-      vacuous-complete, which overshoot; vrfSim.log `moveAlong() - empty route` oracle)
-      - required before trusting member completions there. Heavy live-run effort on an
-      already-diagnosed EXTERNAL terrain problem (verified R9).
-  (c) Semantic mapping continuation (PORT.md sec 10 / SEMANTIC_MAPPING.md): Units 2/4/5
-      BEHAVIOR verification via synthetic distinct-target orders - cleaner at the golden
-      SWEDEN region (movement proven 3/3) to dodge the Mojave terrain confound. The
-      product value-add; Units 1/2/3/5 done, Unit 4 (MoveIntoFormation) remaining.
+  (a) MOJAVE AGGREGATE MOVEMENT - THE central unsolved blocker (the product does not work here).
+      Root cause is region-specific: member OFFSET-ROUTE generation returns EMPTY at Mojave (0
+      routes vs Sweden 45; vrfSim.log `moveAlong() - empty route`); the full COA-STP1 scale run
+      also shows F1 member RUNAWAYS (180+ km) + F2b VACUOUS completions. NAV DATA is FALSIFIED as
+      the cause - do NOT chase it (docs/experiments/navdata_FALSIFIED_bogaland_vs_tt_2026-07-14.txt).
+      Two paths: (i) run coa-gpt at Mojave via SubordinateFanOut=true (R10 moves member entities in
+      CONTROLLED probes - but the scale run's F1/F2b warts mean this is NOT yet a clean end-to-end
+      success; verify with telemetry, do not assume); or (ii) a fresh root-cause dig into why the
+      offset routes are empty (candidate directions - BE terrain-paging depth / VR-TheWorld coverage
+      at the AO / an offset-route setting / route geometry - are UNVERIFIED; do NOT record any as
+      the fix). USER decision.
+  (b) COMPLETION-EVENT RELIABILITY (cross-region wart surfaced by task (c)): aggregate move-
+      completion events are unreliable - moveAlong's never fires; MoveIntoFormation's fires ~40s
+      early. Movement is correct; only the C2SIM TASKCMPLT arrival-timing is wrong. Harden if
+      downstream arrival-accuracy matters. (Task (c) itself - Units 2/4/5 - is component-verified
+      at Sweden; NOT a Mojave/product result. Do not re-run it as "unfinished".)
+  (c) COA-GPT SCENARIO IMPROVEMENTS (docs/COA_GPT_FEEDBACK.md): bloat/lean-creation (BUILT
+      but STASHED - regressed live tasking; needs the deferred-creation lifecycle debugged +
+      a live smoke before it lands; do NOT run experiments on that build); echelon-dedup for
+      co-located piles (GATED - first verify coa-gpt emits redundant command trees, else it
+      loses force/threat); OPFOR right-sizing / do-not-thin-the-threat (Item 5).
   (d) Housekeeping: C++ repo private remote (USER decision); delete retained C++
       originals (migration step 1); SDK nuget decoupling; a live TASKCMPLT sample with
       P4b bundling ON (the one P4b gap, piggyback on any run).
@@ -98,7 +121,7 @@ propose - then STOP for the supervisor's go-ahead.
 Notes for the human pasting this:
 - The prompt points at the docs rather than restating them, so it does not go stale.
   docs/START_HERE.md + UNIT_MOVEMENT_RESEARCH.md sec 4c carry the current state.
-- All work is pushed (2026-07-13 evening): PORT `VRF_C2SIM.git` main, FORK
+- All work is pushed (2026-07-14): PORT `VRF_C2SIM.git` main, FORK
   `OpenC2SIM.github.io.git` dev/sdk-fixes (submodule tracks port main).
 - The C++ repo (c2simVRFinterfacev2.36) STILL has no remote - the only golden-trace
   rig exists on one disk. Decide on a private remote.

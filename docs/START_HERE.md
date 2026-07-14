@@ -39,6 +39,13 @@ Three locations are in play:
 
 ## Current status (2026-07-14)
 
+> REALITY CHECK (do not oversell): the end-to-end product goal - a coa-gpt scenario at MOJAVE with
+> correct aggregate movement - does NOT work. Mojave aggregates FREEZE; root cause UNSOLVED (nav data
+> was FALSIFIED as the cause). The "SUCCESS/COMPLETE" bullets below are component / control-region
+> results (Sweden movement, semantic dispatch, offline selftests) with known live warts (unreliable
+> completion events; F1 runaways + F2b vacuous completions in the Mojave scale run; lean-creation
+> stashed after a tasking regression). Read them as component milestones, not as "the product works".
+
 - **Mojave aggregate-movement cause - NAV-DATA HYPOTHESIS FALSIFIED (2026-07-14)**: the
   terrain-page-in -> nav-data investigation was a DETOUR; **nav data is NOT the cause and
   generating/loading a nav mesh does NOT fix it. Do not restart that thread.** Decisive comparison
