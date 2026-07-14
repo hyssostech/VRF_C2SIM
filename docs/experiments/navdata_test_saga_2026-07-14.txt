@@ -1,0 +1,53 @@
+NAV-DATA TEST SAGA - does generated nav data fix the Mojave aggregate freeze? (2026-07-14)
+============================================================================================
+Goal: after the page-in area was FALSIFIED, test the next hypothesis - the aggregate lead-follow
+LEADER-PATH uses ADVANCED navigation (a NavMesh), which needs generated nav data per region;
+entities use STANDARD nav (march without it). So: generate a nav mesh over the Mojave AO and
+re-run the R9 probe; if the aggregates path-plan, generated nav data is the fix.
+
+SETUP (worked, and is the reusable recipe - see SCENARIO_SETUP_GUIDE.md):
+- Created a Navigation Area over the AO via Settings > Terrain > Navigation Areas > New.
+  Coordinate format is DEGREES:MINUTES (34.56 deg -> "34:33.6"; 116.74 W -> "116:44.4"); entering
+  decimals failed ("116:74" = 74 min, invalid, Create disabled). 18x18 km, SW corner
+  34:33.6N/116:44.4W (= 34.56/-116.74; covers all 3 R9 tasked units + their short routes,
+  verified). Profile ground-platform (avoid lifeform = slow cover points). Sectorize auto, Prune
+  No-Go on. Generate -> Save Terrain. Generated ~80,000 .NavData files under
+  navData/MAK Earth Space (online)/NavArea-ground-platform 1 (confirmed on disk).
+
+RESULT: STILL UNCONFIRMED. Three back-to-back confounds prevented a single clean run:
+
+1. NO-OP (apps 3380/3381): ran the R9 probe after generate+save+reopen. Aggregates frozen
+   (platoon 8 m, company ~417 m), IDENTICAL to no-nav-data. DIAGNOSIS via the nav-area info
+   dialog: Loaded on BE(s) = EMPTY. The back-end (vrfSim) had loaded its terrain at startup
+   BEFORE the nav data existed, and a GUI scenario-reopen did NOT force it to re-read the mesh.
+   So the aggregate planner ran with NO mesh available - a no-op test.
+
+2. LEAN-EXE (apps 3382/3383, after a vrfSim RESTART): the restart DID load the mesh (Loaded on
+   BE(s) = "1:3001 (Disabled)"; the "(Disabled)" is only the Nav-Lab debug-PORT display, per
+   vrf_displayInfoAboutNavi.htm - the mesh is LOADED + ACTIVE). BUT nothing moved, and every unit
+   showed "no current tasks". CAUSE: the lean-creation executor had REBUILT the app exe with its
+   (held, unverified) changes; even with CreateOnlyTaskedUnits=false the build regressed live
+   tasking - the move tasks never stuck. Confounded by an unverified binary. (Lean changes
+   stashed; the exe rebuilt from committed source.)
+
+3. CLEAN-EXE (apps 3384/3385, clean rebuild): the entity's move-along task COMPLETED but the
+   entity sat at 0 m (a VACUOUS completion - it moved 1160 m in every pre-restart run); aggregates
+   frozen; one unrelated 769 m mover. So the POST-RESTART sim state (huge accumulated sim time
+   ~65 h / a stale clock) was vacuous-completing our moves without stepping the units. Another
+   confounded run - not a nav-data result.
+
+WHAT IS SOLID:
+- Nav-data GENERATION + LOADING is fully solved (recipe + the load-on-BE mechanism + the
+  "(Disabled)" gotcha, all in SCENARIO_SETUP_GUIDE.md).
+- The mesh reaches the back-end only via a vrfSim RESTART (a GUI reopen alone did not); verify
+  Loaded-on-BE is non-empty before trusting a run.
+- Entities march at Mojave via STANDARD nav (pre-restart, telemetry) - the aggregate LEADER-PATH
+  is the specific failure; SubordinateFanOut (R10) is the proven mover.
+
+WHAT IS UNRESOLVED:
+- Whether a loaded+active nav mesh actually unblocks the aggregate leader-path at Mojave. Needs
+  ONE clean run: fresh VR-Forces start (sim clock reset), committed (clean) app exe, Loaded-on-BE
+  verified, sanity-check the entity moves first, then read the platoon/company displacement.
+
+APPNOS: 3378-3379 page-in A/B; 3380-3381 nav no-op; 3382-3383 lean-exe (invalid); 3384-3385
+clean-exe (confounded). Next free: 3386.

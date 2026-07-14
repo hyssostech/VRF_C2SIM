@@ -919,7 +919,11 @@ proceed on a slow proxy - the STOMP client cannot ride it out.
   page-in scenario at the Mojave AO. Page-in area FALSIFIED as the aggregate fix (aggregates
   still froze, R9-identical). No ResetVrf (would delete the scenario's page-in area); clean stop.
   UNIT_MOVEMENT_RESEARCH.md sec 6; evidence docs/experiments/terrain_pagein_investigation_2026-07-14.txt.
-  Next free: 3380.
+- 3380-3385: consumed 2026-07-14 NAV-DATA test saga (3 runs): 3380/3381 no-op (Loaded-on-BE empty),
+  3382/3383 lean-exe (broke tasking - "no current tasks"), 3384/3385 clean-exe (post-restart
+  vacuous completions). Nav-data FIX still UNCONFIRMED - all 3 confounded. Setup solved (generated
+  + loaded + active on BE via vrfSim restart). Evidence docs/experiments/navdata_test_saga_2026-07-14.txt;
+  recipe SCENARIO_SETUP_GUIDE.md. Next free: 3386.
 
 ## Appendix C - build command reference
 
