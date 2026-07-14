@@ -1,0 +1,82 @@
+SEMANTIC MAPPING Units 2/5 - LIVE behavior verification (Run 1)
+================================================================
+Date: 2026-07-14 (UTC ~11:12-11:25). Supervisor: Opus 4.8 session; executor subagents: Opus 4.8.
+Task (c) from RESUME_PROMPT. Region: GOLDEN SWEDEN (movement proven 3/3, R9 control) to dodge
+the Mojave terrain confound. Goal: prove Units 2/5 EXECUTE their DISTINCT vrftask live (not just
+dispatch), which COA-STP1 could never exercise (all 42 tasks self-target -> the distinct-affected
+guard rejects them). Config-only + synthetic-XML; NO code change (all wired per the scoping pass).
+
+CONFIG
+  App VrfC2SimApp.exe (net10 win-x64), ClientId=STP, TimeMultiplier=20, AggregateFormation=auto,
+  SubordinateFanOut=OFF, DeStackCreates=OFF (Sweden has good leader-path planning; R9 control had
+  neither). RTI 4.6.1, license Machine scope (exp 2026-09-15), cwd=C:\MAK\vrforces5.0.2\bin64,
+  --contentRoot=<exe dir>, FedFile/FomModules per appsettings. Federation CWIX-2024.
+  Order: docs/golden-trace/orders/synthetic_semantic_sweden.xml (3 independent tasks, no deps).
+
+APPNO LEDGER (this run): 3368 ResetVrf dry-run (clean) | 3369 WatchVrf (900s/10s) | 3370 app |
+  3371 ResetVrf sweep (deleted 2 race leftovers) | 3372 ResetVrf confirm dry-run (clean). Next: 3373.
+
+PREFLIGHT (Appendix A) GREEN: loopback 127.0.0.1:61613 = 15.3 ms; server 200; backend
+  vrfSimHLA1516e (66 thr) + rtiexec healthy; vrfGui hung-but-alive (114 thr, NOT killed);
+  c2sim-server container up 3 days.
+
+PIPELINE: PushInit -> QUERYINIT 80 Units SystemName=[STP], server RUNNING. App late-joined,
+  created 49 units + 4 areas, Run() at 20x. AggregateFormation=auto worked: every aggregate
+  queried its real formation list (e.g. 14.MechBn [line,column,wedge,vee]) and set 'column' +
+  reorganize; NEVER set 'column-left'. PushOrder OK (4805 B order received by app).
+
+DISPATCH (app log) - all 3 to DISTINCT vrftasks:
+  SEM_BREACH: breach 14.MechBn(VRF ddf5dbd5) -> obstacle 114.MechCoy(VRF fa66f6cd) DEFERRED until
+    move completes (completion-gated; fallback 300s); CreateRoute (3 pts) + MoveAlongRoute issued.
+  SEM_SCREEN: CreateRoute (3 pts) for 1222.MechPlt(VRF f618ed2c); PatrolRoute issued (Reconnoiter).
+  SEM_ESCRT: FollowEntity 1.BdeHQ(VRF 7682d758) -> leader 14.MechBn(VRF ddf5dbd5); no route.
+
+TELEMETRY (WatchVrf 3369, the movement oracle - R11 rule: completions can lie):
+  14.MechBn  (ddf5dbd5): 58.675521,16.390736 -> 58.675546,16.482733  DISPLACEMENT 5318 m
+    (route end 16.4828633 - reached it) = BREACH performer marched.
+  1222.MechPlt(f618ed2c): 58.702956,16.499229 -> 58.675273,16.417563  DISPLACEMENT 5634 m
+    (toward SCREEN route 16.41-16.45) = patrol motion.
+  1.BdeHQ    (7682d758): 58.698416,16.321510 -> 58.675474,16.471145  DISPLACEMENT 9016 m
+    (converged to 14.MechBn's area 16.47) = ESCRT follow (zero-offset -> stations ON leader).
+  Census: 317 of 552 tracked objects moved >100 m.
+
+COMPLETIONS (app log):
+  SEM_ESCRT: "VRF task complete: 1.BdeHQ / follow-entity" -> TASKCMPLT taskee 670cfdb2 task 5eed0003.
+  SEM_BREACH: move-complete event did NOT fire within 300s of dispatch though 14.MechBn reached the
+    route end (~11:18); EngageFallbackSeconds=300 fallback issued the breach ("will replace the
+    still-running move"); "VRF task complete: 14.MechBn / breach-task" -> TASKCMPLT taskee 670cfe3a
+    task 5eed0001. NOTE: aggregate move-completion event fired unreliably (F2-adjacent) - fallback
+    caught it. Not a defect this run.
+  SEM_SCREEN: no completion (perpetual patrol by design - correct).
+
+CLEAN STOP: StopIface RUNNING->INITIALIZED->UNINITIALIZED; app caught UNINITIALIZED, "Cleanup:
+  deleting 55 created VR-Forces objects", "55 deletes dispatched (1568 ms)", resigned; PID exited
+  (no force-kill). ResetVrf 3371 found 3 reflected (2 deletable race leftovers 3e0d775b/9b524184 +
+  1 nil), deleted 2, flushed; confirm dry-run 3372 = 0 deletable (clean).
+
+BACKEND-NOISE QUESTIONS (user-raised, both benign - emitted by vrfSim backend, 0 hits in our logs):
+  1. "<unit>: Column-Left is an invalid or malformed formation" = the KNOWN pre-R5 signal (VRF
+     births aggregates on its invalid Column-Left default). HARMLESS here: the auto-formation repair
+     set valid 'column' and the aggregates MARCHED 5+ km (a unit stuck on an invalid formation can't
+     march). NOT a regression. Falsifier checked: our code never sets column-left (logs show
+     'column'); displacement 5318/5634 m confirms the repair took.
+  2. "DtArticulatedPartCollection: Found missing attached-to part ... part 4736 -> 4128" = VR-Link
+     articulated-parts (turret/gun sub-parts) model-data complaint: a part references an absent
+     attached-to parent. Backend/model layer, NOT the interface command stream; zero pipeline impact
+     (movement/tasking/reports all worked). MAK docs confirm the subsystem but not this exact runtime
+     message; not in our port known-issues record. Benign model noise.
+
+FORMATION "from the get-go?" (user-raised): NO cleanly - VrfFacade.cpp:416 createAggregate passes no
+  formation (VRF applies its invalid default); the VALID name is per-type/case-inconsistent and only
+  reliably known by RequestAvailableFormations(uuid) (:564), which needs the created aggregate to
+  exist. So at least one query-per-new-type is unavoidable. Options: per-type formation cache (set at
+  create for repeats, IF createAggregate has a formation overload - unchecked) - cosmetic gain only;
+  or the truly clean fix is VR-Forces-side (correct the entity-TYPE default formation), outside the
+  interface. Recommendation: leave fix-later (proven correct); low priority vs semantic-mapping work.
+
+VERDICT: SUCCESS. Unit 2 (Breach) and Unit 5 (Reconnoiter + Escort) are BEHAVIOR-VERIFIED live at
+  Sweden - distinct vrftask dispatch + telemetry-backed movement + correct completions. The
+  distinct-AffectedEntity path (blocked on COA-STP1 by self-targeting) works end to end.
+  Escort zero-offset wart reproduced as predicted (follower stations on leader) - cosmetic.
+  Unit 4 (MoveIntoFormation) is the remaining task-(c) item - a SEPARATE run (its config globally
+  replaces moveAlongRoute for aggregates); highest risk (reopens the aggregate-formation ladder).

@@ -244,3 +244,62 @@ Notes:
   could introduce an unlisted code -> it classifies as Move (fallback) + logs. Re-grep new
   orders and extend the table.
 - init() lifecycle assumed correct by parity with RunScriptedTask (DtSimTask::init); low risk.
+
+## 7. Task (c) - Units 2/4/5 BEHAVIOR verification (2026-07-13, IN PROGRESS)
+
+Selected next work item (supervisor: Opus 4.8 session; executors: Opus 4.8 subagents).
+Goal: prove Units 2/4/5 actually EXECUTE their distinct vrftask live, not just dispatch.
+Run at the GOLDEN SWEDEN region (movement proven 3/3, R9 control) to DODGE the Mojave
+terrain confound (empty leader-path plans) - a pass/fail there is interpretable.
+
+### 7.1 Scoping verdict (2026-07-13, read-only pass, file:line verified)
+ALL THREE are category (A): pure app-code + synthetic-XML. NO native VS18 bridge rebuild.
+Every facade method is present + bridged + dispatched DISTINCTLY (not log-and-collapse):
+- Unit 2 BREACH -> DtBreachTask. VrfC2SimService.cs:635-644,709,761,829,889;
+  VrfFacade.cpp:588-595; VrfBridge.cpp:319-321. Needs DISTINCT AffectedEntity (self-target
+  guard :638). REQUIRES a synthetic order (COA-STP1 self-targets all 42 tasks).
+- Unit 5 Reconnoiter (SCREEN/SCOUT) -> DtPatrolRouteTask. Service:838,1055-1059;
+  Facade.cpp:597-604; Bridge:323-325. No AffectedEntity (patrols own route); NEEDS a
+  multi-point route (CreateRoute branch). NEVER reports TASKCMPLT - judge by MOTION.
+- Unit 5 Escort (ESCRT) -> DtFollowEntityTask. Service:650-664; Facade.cpp:606-613;
+  Bridge:327-329. Needs DISTINCT AffectedEntity (guard :653). WART: zero follow-offset
+  (Facade.cpp:608) -> follower stations ON the leader (guidance P3.5) - cosmetic, not a
+  blocker; note before judging the visual.
+- Unit 4 MoveInFormation -> DtMoveIntoFormationTask. NOT verb-classified; config-gated on
+  Vrf:MoveIntoFormation (Service:746-763). GLOBALLY REPLACES moveAlongRoute for ALL
+  aggregates when set -> MUST be a SEPARATE run (would confound the Breach aggregate task).
+  HIGHEST RISK: reopens the confounded aggregate-formation ladder (may dispatch-but-not-move;
+  formation-name case footgun). Docs' recommended design = E1b on the golden STP init.
+
+### 7.2 Run plan
+- RUN 1 (Units 2+5, MoveIntoFormation OFF): ONE synthetic order
+  docs/golden-trace/orders/synthetic_semantic_sweden.xml with 3 independent tasks (no temporal
+  deps): BREACH (perf 14.MechBn 670cfe3a, obstacle 114.MechCo 139aa71b), SCREEN (perf
+  1222.MechPlt 001aa71b, multi-point route), ESCRT (follower 1.BdeHQ 670cfdb2, leader
+  14.MechBn 670cfe3a). Distinct performers avoid unit-BUSY. Live at Sweden golden init;
+  WatchVrf per-object displacement is the movement oracle (R11 rule: completions LIE).
+- RUN 2 (Unit 4): separate, decided AFTER Run 1 - E1b on golden STP init with
+  Vrf:MoveIntoFormation=<valid case-correct name>, aggregate that genuinely marches
+  (14.MechBn), telemetry-gated.
+
+### 7.3 Status
+- Scoping DONE (7.1). Synthetic order authored + parse-verified: synthetic_semantic_sweden.xml
+  (3 tasks, verbs BREACH/SCREEN/ESCRT verbatim, distinct performers/affected; all 4 UUIDs
+  confirmed creatable golden-init units).
+- **RUN 1 DONE - SUCCESS (2026-07-14, LIVE, apps 3368-3372).** Units 2 (Breach) + 5 (Reconnoiter,
+  Escort) BEHAVIOR-VERIFIED at Sweden with telemetry (the distinct-AffectedEntity path that
+  COA-STP1 self-targeting blocks now works end to end):
+  - Unit 2 BREACH: 14.MechBn resolved distinct obstacle 114.MechCoy, marched 5318 m to route end,
+    breach issued (via EngageFallbackSeconds=300 fallback - aggregate move-complete event fired
+    unreliably, F2-adjacent), breach-task TASKCMPLT.
+  - Unit 5 Reconnoiter (SCREEN): PatrolRoute issued, 1222.MechPlt 5634 m patrol motion (no
+    TASKCMPLT - perpetual patrol, correct).
+  - Unit 5 Escort (ESCRT): FollowEntity, 1.BdeHQ followed 14.MechBn 9016 m, TASKCMPLT (zero-offset
+    wart reproduced as predicted - follower stations ON leader; cosmetic).
+  - AggregateFormation=auto worked (set valid 'column'+reorganize on all 40 aggregates; the
+    "Column-Left invalid formation" backend line is the transient birth-default, HARMLESS - marches
+    prove the repair took, NOT a regression). Clean stop (55 deleted); ResetVrf swept 2 race
+    leftovers; confirm dry-run clean. Evidence docs/experiments/semantic_units245_run1_2026-07-14.txt.
+  - Sweden UUIDs: 1.BdeHQ 670cfdb2; 14.MechBn 670cfe3a; 1222.MechPlt 001aa71b; 114.MechCo 139aa71b.
+- REMAINING: Unit 4 (MoveIntoFormation) - separate run (its config globally replaces moveAlongRoute
+  for aggregates; highest risk - reopens the aggregate-formation ladder). Next appNo free: 3373.

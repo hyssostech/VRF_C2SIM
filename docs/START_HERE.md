@@ -37,8 +37,24 @@ Three locations are in play:
 6. This file for repo state, build/run commands, and where artifacts live.
 7. History/reference as needed: `docs/PHASE1_REWIRE.md`, `docs/TASK_EXPANSION_PLAN.md`.
 
-## Current status (2026-07-13)
+## Current status (2026-07-14)
 
+- **SEMANTIC Units 2/5 Run 1 (2026-07-14, LIVE, apps 3368-3372) - SUCCESS**: task (c) from the
+  RESUME_PROMPT. Behavior-verified the two-layer semantic map's Unit 2 (BREACH -> DtBreachTask) +
+  Unit 5 (SCREEN/Reconnoiter -> DtPatrolRouteTask; ESCRT/Escort -> DtFollowEntityTask) LIVE at the
+  golden SWEDEN region via a synthetic distinct-target order (synthetic_semantic_sweden.xml) -
+  because COA-STP1 self-targets every verb, these DISTINCT-AffectedEntity paths were never
+  exercisable there. All 3 dispatched to their distinct vrftask AND telemetry-backed (WatchVrf):
+  14.MechBn breach-marched 5318 m + breach fired (via the 300s fallback - aggregate move-complete
+  event fired unreliably, F2-adjacent) + TASKCMPLT; 1222.MechPlt patrol 5634 m (no completion, by
+  design); 1.BdeHQ followed 14.MechBn 9016 m + TASKCMPLT (zero-offset wart reproduced - cosmetic).
+  Config-only + synthetic XML - NO code change (all wired; the scoping pass confirmed Units 2/4/5
+  are category-A, no native rebuild). AggregateFormation=auto confirmed working (the backend
+  "Column-Left invalid formation" line is the harmless birth-default, overridden - the 5+ km marches
+  prove it; NOT a regression). Clean stop (55 deleted) + ResetVrf swept 2 race leftovers + confirm
+  dry-run clean. REMAINING task-(c) item: Unit 4 (MoveIntoFormation) - a SEPARATE run (config
+  globally replaces moveAlongRoute for aggregates; highest risk). Full record SEMANTIC_MAPPING.md
+  sec 7; evidence docs/experiments/semantic_units245_run1_2026-07-14.txt. AppNos next free: 3373.
 - **F3 PROBE (2026-07-13 evening, LIVE, apps 3363-3367) - F3 CONFIRMED**: the post-backlog
   follow-up (RESUME_PROMPT candidate (a)). Re-ran the FULL COA-STP1 42-task order at Mojave
   with ONE variable family changed vs the scale run - FanOutStragglerSeconds 600 -> 900 (above

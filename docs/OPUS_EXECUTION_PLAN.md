@@ -906,7 +906,11 @@ proceed on a slow proxy - the STOMP client cannot ride it out.
 - 3363-3367: consumed 2026-07-13 evening F3 PROBE (dry-run/sweep/WatchVrf/app/post-run).
   3363 dry-run + 3364 sweep cleared the 2 pending leftovers; 3367 post-run found+deleted 1
   race leftover (clean). F3 CONFIRMED (UNIT_MOVEMENT_RESEARCH sec 4c; evidence
-  docs/experiments/F3_probe_2026-07-13.txt). Next free: 3368.
+  docs/experiments/F3_probe_2026-07-13.txt).
+- 3368-3372: consumed 2026-07-14 SEMANTIC Units 2/5 Run 1 (dry-run/WatchVrf/app/sweep/confirm).
+  3368 dry-run clean; 3371 sweep deleted 2 race leftovers; 3372 confirm dry-run clean. Units 2
+  (Breach) + 5 (Reconnoiter, Escort) BEHAVIOR-VERIFIED at Sweden (SEMANTIC_MAPPING.md sec 7.3;
+  evidence docs/experiments/semantic_units245_run1_2026-07-14.txt). Next free: 3373.
 
 ## Appendix C - build command reference
 

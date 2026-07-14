@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<MessageBody xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.sisostds.org/schemas/C2SIM/1.1">
+  <DomainMessageBody>
+    <OrderBody>
+      <FromSender>00000000-0000-0001-0001-000000000000</FromSender>
+      <ToReceiver>00000000-0007-0001-0000-000000000000</ToReceiver>
+      <IssuedTime>
+        <IsoDateTime>2026-07-13T19:00:00Z</IsoDateTime>
+      </IssuedTime>
+      <OrderID>5eed0000-1111-4c22-9aa1-0e5b7c9d0000</OrderID>
+      <!-- Task 1: BREACH (Unit 2 -> DtBreachTask). Performer 14.MechBn advances the
+           2-point route then breaches the DISTINCT obstacle 114.MechCo. -->
+      <Task>
+        <ManeuverWarfareTask>
+          <Location>
+            <GeodeticCoordinate>
+              <Latitude>58.6752856770139</Latitude>
+              <Longitude>16.3970394424815</Longitude>
+            </GeodeticCoordinate>
+          </Location>
+          <Location>
+            <GeodeticCoordinate>
+              <Latitude>58.6752072607911</Latitude>
+              <Longitude>16.4828633358011</Longitude>
+            </GeodeticCoordinate>
+          </Location>
+          <Name>SEM_BREACH</Name>
+          <UUID>5eed0001-2222-4c22-9aa1-0e5b7c9d0001</UUID>
+          <AffectedEntity>139aa71b-75df-4888-4a5a-6056bae66242</AffectedEntity><!--114.MechCo, the obstacle (DISTINCT from performer)-->
+          <DesiredEffectCode>TaskSuccess</DesiredEffectCode>
+          <Duration>
+            <IsoTimeDuration>P00Y00M00DT00H10M00S</IsoTimeDuration>
+          </Duration>
+          <PerformingEntity>670cfe3a-6c43-f267-ad7f-bd6e739def24</PerformingEntity><!--14.MechBn, aggregate mover-->
+          <StartTime>
+            <SimulationTime>
+              <DelayTimeAmount>
+                <IsoTimeDuration>P00Y00M00DT00H00M00S</IsoTimeDuration>
+              </DelayTimeAmount>
+            </SimulationTime>
+          </StartTime>
+          <TaskActionCode>BREACH</TaskActionCode>
+          <RuleOfEngagement>
+            <MipWeaponUseROE>
+              <WeaponROECode>
+                <WeaponRuleOfEngagementCode>ROETight</WeaponRuleOfEngagementCode>
+              </WeaponROECode>
+            </MipWeaponUseROE>
+          </RuleOfEngagement>
+        </ManeuverWarfareTask>
+      </Task>
+      <!-- Task 2: SCREEN (Unit 5 Reconnoiter -> DtPatrolRouteTask). Performer 1222.MechPlt
+           patrols a multi-point route; the patrol owns its route so NO AffectedEntity. -->
+      <Task>
+        <ManeuverWarfareTask>
+          <Location>
+            <GeodeticCoordinate>
+              <Latitude>58.6752856770139</Latitude>
+              <Longitude>16.4100000000000</Longitude>
+            </GeodeticCoordinate>
+          </Location>
+          <Location>
+            <GeodeticCoordinate>
+              <Latitude>58.6752072607911</Latitude>
+              <Longitude>16.4500000000000</Longitude>
+            </GeodeticCoordinate>
+          </Location>
+          <Name>SEM_SCREEN</Name>
+          <UUID>5eed0002-2222-4c22-9aa1-0e5b7c9d0002</UUID>
+          <DesiredEffectCode>TaskSuccess</DesiredEffectCode>
+          <Duration>
+            <IsoTimeDuration>P00Y00M00DT00H10M00S</IsoTimeDuration>
+          </Duration>
+          <PerformingEntity>001aa71b-4c26-a1ea-28b2-f7dfe8e76342</PerformingEntity><!--1222.MechPlt, patrol mover-->
+          <StartTime>
+            <SimulationTime>
+              <DelayTimeAmount>
+                <IsoTimeDuration>P00Y00M00DT00H00M00S</IsoTimeDuration>
+              </DelayTimeAmount>
+            </SimulationTime>
+          </StartTime>
+          <TaskActionCode>SCREEN</TaskActionCode>
+          <RuleOfEngagement>
+            <MipWeaponUseROE>
+              <WeaponROECode>
+                <WeaponRuleOfEngagementCode>ROETight</WeaponRuleOfEngagementCode>
+              </WeaponROECode>
+            </MipWeaponUseROE>
+          </RuleOfEngagement>
+        </ManeuverWarfareTask>
+      </Task>
+      <!-- Task 3: ESCRT (Unit 5 Escort -> DtFollowEntityTask). Follower 1.BdeHQ follows the
+           DISTINCT leader 14.MechBn. Follow owns no route, so NO Location element. -->
+      <Task>
+        <ManeuverWarfareTask>
+          <Name>SEM_ESCRT</Name>
+          <UUID>5eed0003-2222-4c22-9aa1-0e5b7c9d0003</UUID>
+          <AffectedEntity>670cfe3a-6c43-f267-ad7f-bd6e739def24</AffectedEntity><!--14.MechBn, the leader to follow (DISTINCT from follower)-->
+          <DesiredEffectCode>TaskSuccess</DesiredEffectCode>
+          <Duration>
+            <IsoTimeDuration>P00Y00M00DT00H10M00S</IsoTimeDuration>
+          </Duration>
+          <PerformingEntity>670cfdb2-6c43-f267-ad7f-bd6e739def24</PerformingEntity><!--1.BdeHQ, the follower-->
+          <StartTime>
+            <SimulationTime>
+              <DelayTimeAmount>
+                <IsoTimeDuration>P00Y00M00DT00H00M00S</IsoTimeDuration>
+              </DelayTimeAmount>
+            </SimulationTime>
+          </StartTime>
+          <TaskActionCode>ESCRT</TaskActionCode>
+          <RuleOfEngagement>
+            <MipWeaponUseROE>
+              <WeaponROECode>
+                <WeaponRuleOfEngagementCode>ROETight</WeaponRuleOfEngagementCode>
+              </WeaponROECode>
+            </MipWeaponUseROE>
+          </RuleOfEngagement>
+        </ManeuverWarfareTask>
+      </Task>
+    </OrderBody>
+  </DomainMessageBody>
+</MessageBody>
