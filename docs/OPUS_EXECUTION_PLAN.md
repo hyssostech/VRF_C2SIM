@@ -902,7 +902,11 @@ proceed on a slow proxy - the STOMP client cannot ride it out.
 - 3355-3359: consumed 2026-07-13 scale run (dry-run/sweep/watch/app/post-run).
 - 3360-3362: consumed 2026-07-13 P4b live pass (dry-run/app/post-run dry-run). The 3363
   sweep was permission-denied and NOT consumed (2 Solution-A-race leftovers pending -
-  the next pre-run sweep clears them). Next free: 3363.
+  the next pre-run sweep clears them).
+- 3363-3367: consumed 2026-07-13 evening F3 PROBE (dry-run/sweep/WatchVrf/app/post-run).
+  3363 dry-run + 3364 sweep cleared the 2 pending leftovers; 3367 post-run found+deleted 1
+  race leftover (clean). F3 CONFIRMED (UNIT_MOVEMENT_RESEARCH sec 4c; evidence
+  docs/experiments/F3_probe_2026-07-13.txt). Next free: 3368.
 
 ## Appendix C - build command reference
 

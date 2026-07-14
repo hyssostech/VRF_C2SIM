@@ -39,6 +39,22 @@ Three locations are in play:
 
 ## Current status (2026-07-13)
 
+- **F3 PROBE (2026-07-13 evening, LIVE, apps 3363-3367) - F3 CONFIRMED**: the post-backlog
+  follow-up (RESUME_PROMPT candidate (a)). Re-ran the FULL COA-STP1 42-task order at Mojave
+  with ONE variable family changed vs the scale run - FanOutStragglerSeconds 600 -> 900 (above
+  real 20x march times) and TaskPredecessorTimeoutSeconds 600 -> 1200 (so the 900 s straggler
+  wins the race); all else identical. RESULT: predecessor-timeout skips 15 -> 2, dispatched
+  tasks 15 -> 23, 22 TASKCMPLT. Of the scale run's 15 predecessor-timeout skips, 8 became
+  DISPATCHES + 2 advanced to no-loc + 3 reclassified to cascade; the 2 remaining are ORTHOGONAL
+  to F3 (T14 orphaned by the T13 3h20m delay task; T4 a unit-BUSY re-task). The straggler-below-
+  predecessor lever now UNBLOCKS successors (was the F3 dead-heat). P4a held (0 x 10048 over
+  ~51 min); clean stop (186 deletes); post-run sweep clean. MOVEMENT QUALITY UNCHANGED (as
+  designed - F3 is orchestration, not terrain): F1 runaways (top members 181/165/94 km) + the
+  F2b vacuous class (4-27, 5-20, B/5-20, same 3 units) persist. Next lever for the stuck-member
+  units is partial quorum (FanOutCompletionFraction < 1.0), deliberately untested here to
+  isolate one variable. Full record UNIT_MOVEMENT_RESEARCH.md sec 4c; evidence
+  docs/experiments/F3_probe_2026-07-13.txt. NOTE: config-only run - NO code change (the fixed
+  900/1200 already delivers the win; route-length scaling is now OPTIONAL). AppNos next free: 3368.
 - **Step 3 (P4b position-report bundling) LANDED offline (2026-07-13, execution) - opt-in,
   DEFAULT OFF, live pass PENDING**: `ReportBuilder.BuildPositionReportBundle` builds ONE
   ReportBody carrying N PositionReportContent blocks with one ReportID minted at flush

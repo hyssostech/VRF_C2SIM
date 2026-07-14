@@ -1,0 +1,127 @@
+# F3 straggler-timeout probe - archival record (2026-07-13 evening, LIVE)
+# UNIT_MOVEMENT_RESEARCH.md sec 4c "F3 PROBE"; RESUME_PROMPT candidate (a).
+# Verdict: F3 CONFIRMED - straggler(900 s) < predecessor(1200 s) unblocks successors;
+# predecessor-timeout skips 15 -> 2. P4a held (0 x 10048) over ~51 min. Movement quality
+# UNCHANGED from the scale run (F1 runaways + F2b vacuous class persist - both terrain,
+# not addressed by a timeout change; never claimed).
+# Raw sources (untracked, preserved):
+#   C:\Users\PauloBarthelmess\AppData\Local\Temp\f3-probe-2026-07-13\
+#     app_3366.log (119,888 B)  watchvrf_3365.csv  resetvrf_3363_dryrun.log
+#     resetvrf_3364_sweep.log pushinit.log pushorder.log stopiface.log
+#     resetvrf_3367_postrun.log  checkpoint.sh  F3_probe_design.md (design + in-run notes)
+
+## Hypothesis / design (full rationale in the design note)
+F3 (COA-STP1 scale run, sec 4c) was TWO problems from straggler==predecessor==600 s:
+  (i)  THE RACE: straggler synthesis tied the successors' predecessor windows; skip won
+       every time -> straggler completions unblocked NO successors (15 skip-gated).
+  (ii) UNDERSIZED: 600 s < real march time for 13-40 km routes at 20x -> straggler fired
+       mid-march (premature) instead of letting the unit complete via real quorum.
+Fix tested (ONE variable family vs the scale run): raise the straggler ABOVE real march
+times AND keep it below the predecessor timeout.
+  Vrf__FanOutStragglerSeconds        600 -> 900
+  Vrf__TaskPredecessorTimeoutSeconds 600 -> 1200
+All else IDENTICAL to the scale run: ClientId=C2SIM, DeStackCreates=true,
+AggregateFormation=auto, SubordinateFanOut=true, TimeMultiplier=20,
+FanOutCompletionFraction=1.0, PredecessorTimeoutPolicy=skip, BundlePositionReports=false.
+Data: data/COA-STP1_Initialization.xml (128 units + 35 areas), data/COA-STP1_Order.xml
+(42 tasks). App: VrfC2SimApp.exe 2026-07-13 15:26 (P4b build; bundling OFF).
+AppNos: 3363 ResetVrf dry-run | 3364 sweep | 3365 WatchVrf | 3366 app | 3367 post-run.
+Next free: 3368.
+
+## Timeline (WatchVrf t = seconds from its join; order push 22:51:59 UTC)
+Preflight green: loopback TcpClient 61613 = 16.8 ms; REST 8080 = 200; vrfSimHLA1516e +
+  rtiexec up; license present (exp 2026-09-15); container up 3 days.
+ResetVrf 3363 dry-run: 3 reflected (2 deletable + 1 nil) - the known Solution-A-race
+  leftovers (299de18a, a5f6ecc0). 3364 sweep: 2 deleted, flushed, resigned clean.
+PushInit: "QUERYINIT: 128 Units, SystemName=[C2SIM]", server RUNNING.
+WatchVrf 3365 joined (duration 4500 s, sample 20 s), baseline 0.
+App 3366: connected clientId=C2SIM; DeStack 10 groups (54-pile + 9); Init dispatched
+  128 units + 35 areas; Run() queued timeMult=20; AggregateFormation=auto set
+  'column'+reorganize. Creation plateaued 1789 reflected by t~63 s.
+PushOrder: "OK Message processed successfully"; app received 76,257 B order; dispatch begins.
+t=484 s : 8 quorum syntheses, 0 straggler, 0 predecessor-timeout skips, 9 TASKCMPLT;
+  displacement census 99 >50m / 0 >500m (PRE-movement-onset, as scale run ~17 min).
+t=1345 s: 14 quorum + 5 straggler syntheses (40 0/4, C/1-35 5/18, 1-35 1/4, 1-6 0/4,
+  856/HHC 7/18 - SAME 5 units as the scale run); PREDECESSOR-TIMEOUT SKIPS = 0
+  (scale had 15); 20 TASKCMPLT; census 131 >50m / 41 >500m / 35 >10km (movement REAL).
+t=2347 s: FALSIFICATION GUARD refuted - windows expired, skips did NOT reappear at
+  scale (2, not 15). Previously-skipped tasks DISPATCHED: T30 (856/HHC), T42 (C/1-35),
+  T3 (1-35) - their predecessors completed via the 900 s straggler before the 1200 s
+  skip. 15 quorum + 6 straggler (1-35 re-fanned + re-straggled 2/4); 22 TASKCMPLT.
+t=3048 s: fully drained, movement plateaued. Final counts below.
+StopIface: RUNNING -> INITIALIZED -> UNINITIALIZED; app caught it, "Cleanup: 186 deletes
+  dispatched (1573 ms)", STOMP cancelled, process EXITED (no force-kill, no stale federate).
+ResetVrf 3367 post-run: 1 leftover (403cae15, Solution-A-race class) + 1 nil; deleted;
+  resigned clean.
+
+## P4a discriminator - PASS (held under a ~51 min / longer-timeout run)
+grep "Only one usage of each socket address" -> 0
+grep "Connection error:"                     -> 0
+grep -E "Exception|FATAL|0xC0000005"         -> 0
+(Every pre-P4a run had 10048/Connection-error; this longer run did not.)
+
+## F3 RESULT - drain matrix (all 42 tasks), THIS run vs the scale run
+                         THIS (900/1200)     SCALE (600/600)
+  dispatched (CreateRoute):  23              15
+  no-location:                7 (+T16,T21)    5
+  cascade skip (upstream):    9 (+T17,T18,T22) 6
+  predecessor-TIMEOUT skip:   2 (T4, T14)     15
+  never-dispatched:           1 (T13)          1
+THIS dispatched: T1 T2 T3 T5 T6 T7 T15 T19 T20 T23 T27 T28 T29 T30 T31 T32 T33 T35 T36
+  T39 T40 T41 T42.
+Of the scale run's 15 predecessor-timeout skips {T2 T3 T4 T14 T16 T17 T18 T20 T21 T22
+  T29 T30 T40 T41 T42}, under 900/1200:
+  - 8 became DISPATCHES: T2 T3 T20 T29 T30 T40 T41 T42
+  - 2 advanced to NO-LOCATION (reached dispatch attempt): T16 T21
+  - 3 reclassified to CASCADE (their predecessor genuinely skipped): T17 T18 T22
+  - 2 REMAINED, both ORTHOGONAL to F3:
+      T14 waits on T13 (the 12,000,000 ms / 3h20m SimulationTime-delay task - never
+        fires in-window; identical to the scale run)
+      T4: unit 1-35/2/1_A was BUSY with an in-flight task (re-task collision)
+Mechanism visible in the log: straggler synthesis -> the previously-skipped successor's
+  CreateRoute (856/HHC synth line 1348 -> T30 CreateRoute line 1552; C/1-35 synth 1298 ->
+  T42 1632; 1-35 synth 1300 -> T3 1814). 22 TASKCMPLT (scale 15).
+VERDICT: F3 CONFIRMED. Straggler(900) < predecessor(1200) makes the fan-out completion
+  synthesis WIN the race and UNBLOCK successors. The config rule from sec 4c ("straggler
+  timeout meaningfully BELOW the predecessor timeout") is validated live at scale.
+
+## Movement gate (R11 - telemetry, NOT completion events)
+Census progression (sane-capped, artifacts >2000 km excluded):
+  t=484 s : >50m 99   >500m 0    >2km 0    >10km 0    (pre-onset)
+  t=1345 s: >50m 131  >500m 41   >2km 39   >10km 35
+  t=3048 s: >50m 132  >500m 42   >2km 40   >10km 36   (plateaued -> drained)
+Aggregate-level displacement for the completed/synthesized units (CAVEAT: the aggregate
+OBJECT uuid understates FANNED-member movement - members move as independent entities
+whose VRF-assigned uuids appear nowhere in the app log; same limitation as the scale run):
+  1-35/2/1_A  57,366 m  (route ~28 km -> OVERSHOOT / F1)
+  40/2/1_AD   47,051 m  (OVERSHOOT / F1)
+  1-6/2/1_AD  35,908 m  (route ~35.5 km -> near on-target at aggregate level)
+  C/1-35      19,740 m  (route ~40 km -> short at aggregate level)
+  856/HHC     10,047 m  (7/18 members marched; 11 stuck -> straggler at 7/18)
+  4-27/2/1_A       0 m ) SAME 3 units F2b-vacuous in the scale run; quorum completed
+  5-20/2/1_A       0 m ) with ~0 aggregate displacement (members unattributable, but
+  B/5-20           0 m ) the scale-run telemetry showed zero member arrivals here too)
+Top member movers (entities): 181 km, 165 km, 94 km, 92 km, 89 km, 88 km - F1 runaways,
+  slightly worse than the scale run's 166 km top. F1 (runaway/overshoot) and F2b (vacuous
+  member quorums) BOTH PERSIST - terrain/path-planning pathologies at the Mojave region,
+  NOT addressed by a timeout change and never claimed to be. 856/HHC took a straggler at
+  7/18 at BOTH 600 s (scale) and 900 s (here) - its 11 non-arriving members are stuck, so
+  900 s did not help 856 reach quorum (the "undersizing" fix (ii) only partly helped; the
+  RACE fix (i) is the real win).
+
+## Net
+F3 is an INTERFACE-ORCHESTRATION property and it is now FIXED live: straggler timeout set
+meaningfully below the predecessor timeout converts 8-10 skip-gated successors into
+dispatches (15 -> 2 predecessor-timeout skips). Movement QUALITY (F1/F2/F2b) is a separate,
+external terrain problem (verified R9) and is unchanged - as designed. P4a held; clean stop;
+authoritative post-run sweep clean.
+
+## Follow-ups surfaced
+- 856/HHC: 900 s straggler still fired at 7/18 (11 members stuck). Route-length-SCALED
+  straggler would not help here (the members do not arrive at all - terrain). Confirms the
+  straggler timeout is a completion-hygiene lever, not a movement fix.
+- The re-task collision (T4: unit BUSY) and the T13 3h20m delay task (T14 orphan) are the
+  two residual predecessor-timeout skips - both orthogonal to F3, each a small separate item.
+- Partial quorum (FanOutCompletionFraction < 1.0) was deliberately NOT tested here (isolate
+  one variable). It is the natural next lever for the F2b/stuck-member units (4-27, 5-20,
+  B/5-20) - complete on majority arrival instead of waiting for the stuck minority.

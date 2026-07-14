@@ -515,6 +515,32 @@ which overshoot; vrfSim.log oracle) before trusting member completions there;
 (3) P4b gets its own SHORT live pass (per the Step-3 ordering note) now that the
 P4a verdict is clean.
 
+**F3 PROBE (2026-07-13 evening, LIVE, apps 3363-3367) - F3 CONFIRMED: straggler <
+predecessor UNBLOCKS successors.** Re-ran the FULL COA-STP1 42-task order at Mojave,
+changing ONE variable family vs the scale run: FanOutStragglerSeconds 600 -> 900
+(above real 20x march times so medium routes complete via real quorum) and
+TaskPredecessorTimeoutSeconds 600 -> 1200 (so the 900 s straggler wins the race).
+All else identical (DeStack, auto-formation, fan-out, 20x, Fraction 1.0, skip).
+RESULT (evidence docs/experiments/F3_probe_2026-07-13.txt): predecessor-timeout skips
+15 -> 2; dispatched tasks 15 -> 23; 22 TASKCMPLT. Of the scale run's 15
+predecessor-timeout skips, 8 became DISPATCHES (T2 T3 T20 T29 T30 T40 T41 T42), 2
+advanced to no-location (T16 T21), 3 reclassified to cascade (T17 T18 T22), and only
+2 REMAINED - both ORTHOGONAL to F3 (T14 orphaned by the T13 3h20m delay task; T4 a
+unit-BUSY re-task collision). Mechanism visible in the log: straggler synthesis ->
+the previously-skipped successor's CreateRoute (856/HHC synth -> T30; C/1-35 -> T42;
+1-35 -> T3). Falsification guard REFUTED: at full drain (t=3048 s) skips did NOT
+reappear as windows expired. P4a held (0 x 10048 over ~51 min); clean stop (186
+deletes); post-run sweep clean (1 race leftover). MOVEMENT QUALITY UNCHANGED (as
+designed - F3 is orchestration, not terrain): F1 runaways (top members 181/165/94 km)
+and the F2b vacuous class (4-27, 5-20, B/5-20 - the SAME 3 units, ~0 aggregate
+displacement) both persist. 856/HHC still straggled at 7/18 at 900 s (11 members
+stuck) - route-length scaling would NOT help it (members do not arrive at all;
+terrain), confirming the straggler timeout is a completion-HYGIENE lever, not a
+movement fix. RESIDUAL: route-length-SCALED straggler (code) is now OPTIONAL (the
+fixed 900 < 1200 already delivers the F3 win); the natural next lever for the stuck-
+member units is partial quorum (FanOutCompletionFraction < 1.0), deliberately NOT
+tested here to isolate one variable.
+
 ## 5. What the research could NOT settle (open)
 
 - What exactly VR-Forces does at creation when the formation is unresolvable
