@@ -914,7 +914,12 @@ proceed on a slow proxy - the STOMP client cannot ride it out.
 - 3373-3377: consumed 2026-07-14 SEMANTIC Unit 4 Run 2 (dry-run/sweep/WatchVrf/app/post-run).
   Unit 4 (MoveIntoFormation) BEHAVIOR-VERIFIED at Sweden - 14.MechBn moved 3990 m to dest (4 m),
   TASKCMPLT (premature ~40s). TASK (c) COMPLETE (Units 2/4/5). SEMANTIC_MAPPING.md sec 7.3;
-  evidence docs/experiments/semantic_unit4_moveinformation_run2_2026-07-14.txt. Next free: 3378.
+  evidence docs/experiments/semantic_unit4_moveinformation_run2_2026-07-14.txt.
+- 3378-3379: consumed 2026-07-14 TERRAIN page-in A/B (WatchVrf/app) on the TropicTortoise.scnx
+  page-in scenario at the Mojave AO. Page-in area FALSIFIED as the aggregate fix (aggregates
+  still froze, R9-identical). No ResetVrf (would delete the scenario's page-in area); clean stop.
+  UNIT_MOVEMENT_RESEARCH.md sec 6; evidence docs/experiments/terrain_pagein_investigation_2026-07-14.txt.
+  Next free: 3380.
 
 ## Appendix C - build command reference
 

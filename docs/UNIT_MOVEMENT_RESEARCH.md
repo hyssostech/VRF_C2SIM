@@ -550,3 +550,50 @@ tested here to isolate one variable.
 - Why exactly the companies runaway (member telemetry R3 will answer).
 - Where our creates' "column-left" default state string originates (VRF default vs
   create-message default) - cosmetic once R1 lands, but worth one look in VrfFacade.
+
+## 6. TERRAIN PAGE-IN / NAV-DATA INVESTIGATION (2026-07-14, LIVE A/B) - the Mojave
+## aggregate-movement cause REFINED: it is NAV-DATA/PLANNER, not terrain surface;
+## the Terrain Page-In Area is FALSIFIED as the fix
+
+TRIGGER: user rejected the R9 "terrain content, validate/avoid the region" verdict as not
+credible - the COA-STP1 AO is Mojave = NTC Fort Irwin country, the Army's PREMIER maneuver
+ground; a config problem, not terrain difficulty. Full record + evidence:
+docs/experiments/terrain_pagein_investigation_2026-07-14.txt.
+
+MECHANISM RESEARCH (VR-Forces docs): ground path planning uses generated NAVIGATION DATA (a nav
+mesh; Autodesk/Kynapse). The streaming "MAK Earth Space (online)" terrain PAGES IN on demand;
+a TERRAIN PAGE-IN AREA (tactical-graphic, back-end only) forces load. Bogaland2 (the golden
+Sweden scenario, loaded explicitly) CARRIES such a page-in area; COA-STP1/Mojave had none ->
+hypothesis: missing page-in starves Mojave terrain. Blind-move fallback found:
+setNavigationEnabled(false) disables path planning per-entity (the C++ "blind move";
+vrf_setNavigationEnabled.htm).
+
+TERRAIN SURVEY: NTC (online).earth IS the Fort Irwin terrain (Razish berms). Only Kilo2 +
+Range220 have pre-gen nav data - ~1m land-use patches, not maneuver-scale. The AO (34.68,-116.72)
+is ~65 km S of the NTC core, in GENERIC Mojave, on no curated/nav-data'd terrain. AO is FIXED
+(the COA is the "Tropic Tortoise" schoolhouse scenario) -> fix must work AT that spot.
+
+THE A/B (apps 3378/3379): built TropicTortoise.scnx = a Bogaland2 variant (same terrain +
+C2simEx model set) with the page-in area RELOCATED to the Mojave AO (ECEF center + tait-bryan
+orientation recomputed and round-trip-VERIFIED against Bogaland's exact values; ~60x122 km
+footprint). Loaded first try (GUI-confirmed: area present + placed; terrain rendered). Ran the
+EXACT R9 Run A config (STP, 20x, auto formation, no de-stack/fan-out) - only the page-in area
+added. RESULT: aggregates STILL FROZE - 1222.MechPlt 8 m, 114.MechCoy members 400-830 m
+wrong-way (S) then stop, 1.BdeHQ entity 1159 m done; max mover 1159 m, no runaway. IDENTICAL to
+R9's 1/3.
+
+VERDICT: the Terrain Page-In Area is FALSIFIED as the aggregate-movement fix. Terrain paging is
+NOT the blocker (terrain present + rendered; area loaded + covering units). Cross-check: R10
+proved individual ENTITIES march at Mojave -> the failure is AGGREGATE lead-follow LEADER-PATH
+specific; the planner emits junk at this generic-desert AO (empty->freeze; bad goal->wrong-way).
+This is a VR-Forces NAVIGATION-DATA / path-planner property of the LOCATION, not an interface
+defect and not terrain-surface. R9's "terrain content" was directionally right (location-
+dependent) but the actionable cause is NAV-DATA; "avoid the region" was wrong.
+
+KEEPER: programmatic scenario generation works (TropicTortoise.scnx) - mint Mojave scenarios +
+bake in page-in/nav areas without the UI.
+
+NEXT (user chose): generate a NAV MESH for the box (vrfNavGenerator offline / GUI nav-area) +
+re-run the same A/B. Risks: nav mesh may need an additional LICENSE; generic desert may lack the
+LAND-COVER the mesh builds from. INTERIM (proven): SubordinateFanOut marches member entities at
+Mojave (R10). BREAK-GLASS: setNavigationEnabled(false) blind move.

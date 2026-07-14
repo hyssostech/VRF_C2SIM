@@ -39,6 +39,25 @@ Three locations are in play:
 
 ## Current status (2026-07-14)
 
+- **TERRAIN/NAV-DATA investigation (2026-07-14, LIVE A/B, apps 3378-3379) - page-in FALSIFIED;
+  cause REFINED to NAV-DATA**: chased the Mojave aggregate-movement root cause after the user
+  rejected R9's "validate/avoid the region" (the AO is Mojave = NTC Fort Irwin country; a config
+  problem, not terrain difficulty). Research: VR-Forces ground path planning needs generated
+  NAVIGATION DATA (nav mesh; Kynapse) and the streaming "MAK Earth Space (online)" terrain must
+  PAGE IN; Bogaland2 (our Sweden scenario) carries a Terrain Page-In Area, COA-STP1/Mojave did
+  not. Built TropicTortoise.scnx = a Bogaland2 VARIANT with the page-in area relocated to the
+  Mojave AO (ECEF/orientation math round-trip-verified against Bogaland; programmatic
+  scenario-gen - a KEEPER capability). A/B (R9 Run A config, only the page-in area added):
+  the area LOADED + terrain RENDERED, but aggregates STILL FROZE (1222.MechPlt 8 m, 114.MechCoy
+  400-830 m wrong-way, 1.BdeHQ entity 1159 m done) - IDENTICAL to R9's 1/3. So terrain paging is
+  NOT the blocker; entities march at Mojave (R10) => the AGGREGATE lead-follow LEADER-PATH
+  planner lacks usable NAV DATA at this generic-desert AO. VR-Forces content/nav-data property,
+  NOT an interface defect. AO stays fixed (the COA is the "Tropic Tortoise" schoolhouse
+  scenario). NEXT: generate a nav mesh for the box (vrfNavGenerator / GUI nav-area) + re-run the
+  A/B (risk: nav-mesh license; generic desert may lack land-cover). INTERIM (proven):
+  SubordinateFanOut marches member entities at Mojave. BREAK-GLASS: setNavigationEnabled(false)
+  blind move. Full record UNIT_MOVEMENT_RESEARCH.md sec 6; evidence
+  docs/experiments/terrain_pagein_investigation_2026-07-14.txt. AppNos next free: 3380.
 - **SEMANTIC Units 2/5 Run 1 (2026-07-14, LIVE, apps 3368-3372) - SUCCESS**: task (c) from the
   RESUME_PROMPT. Behavior-verified the two-layer semantic map's Unit 2 (BREACH -> DtBreachTask) +
   Unit 5 (SCREEN/Reconnoiter -> DtPatrolRouteTask; ESCRT/Escort -> DtFollowEntityTask) LIVE at the
