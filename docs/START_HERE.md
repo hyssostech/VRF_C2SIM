@@ -52,9 +52,21 @@ Three locations are in play:
   are category-A, no native rebuild). AggregateFormation=auto confirmed working (the backend
   "Column-Left invalid formation" line is the harmless birth-default, overridden - the 5+ km marches
   prove it; NOT a regression). Clean stop (55 deleted) + ResetVrf swept 2 race leftovers + confirm
-  dry-run clean. REMAINING task-(c) item: Unit 4 (MoveIntoFormation) - a SEPARATE run (config
-  globally replaces moveAlongRoute for aggregates; highest risk). Full record SEMANTIC_MAPPING.md
-  sec 7; evidence docs/experiments/semantic_units245_run1_2026-07-14.txt. AppNos next free: 3373.
+  dry-run clean. Full record SEMANTIC_MAPPING.md sec 7; evidence
+  docs/experiments/semantic_units245_run1_2026-07-14.txt.
+- **SEMANTIC Unit 4 Run 2 (2026-07-14, LIVE, apps 3373-3377) - SUCCESS; TASK (c) COMPLETE**:
+  Unit 4 (MoveIntoFormation -> DtMoveIntoFormationTask) behavior-verified at Sweden with
+  Vrf:MoveIntoFormation=wedge (LOWERCASE - R5 ground truth; the VrfSettings.cs "Title-Case" comment
+  is stale). Order synthetic_moveinformation_sweden.xml (1 MOVE, aggregate 14.MechBn -> dest
+  58.705,16.43). The config-gated Unit-4 path fired (NOT moveAlongRoute; 'wedge' accepted); 14.MechBn
+  moved 3990 m and ARRIVED 4 m from the destination (telemetry - NOT the R11 vacuous-completion trap)
+  + TASKCMPLT. CAVEAT: the completion event fired ~40s EARLY (F2-adjacent) though the move was
+  real+precise; per-member wedge geometry not separately measured. Clean stop (53 deleted) + ResetVrf
+  swept 1 leftover. This COMPLETES task (c) - Units 2 (Breach), 4 (MoveIntoFormation), 5 (Reconnoiter,
+  Escort) all behavior-verified at Sweden. CROSS-CUTTING follow-up: aggregate move-completion events
+  are unreliable (moveAlong's never fires; MoveIntoFormation's fires early) - both MOVE correctly, only
+  the TASKCMPLT arrival-timing is off; harden if C2SIM report arrival-accuracy matters. Evidence
+  docs/experiments/semantic_unit4_moveinformation_run2_2026-07-14.txt. AppNos next free: 3378.
 - **F3 PROBE (2026-07-13 evening, LIVE, apps 3363-3367) - F3 CONFIRMED**: the post-backlog
   follow-up (RESUME_PROMPT candidate (a)). Re-ran the FULL COA-STP1 42-task order at Mojave
   with ONE variable family changed vs the scale run - FanOutStragglerSeconds 600 -> 900 (above

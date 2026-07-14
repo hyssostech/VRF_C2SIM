@@ -301,5 +301,25 @@ Every facade method is present + bridged + dispatched DISTINCTLY (not log-and-co
     prove the repair took, NOT a regression). Clean stop (55 deleted); ResetVrf swept 2 race
     leftovers; confirm dry-run clean. Evidence docs/experiments/semantic_units245_run1_2026-07-14.txt.
   - Sweden UUIDs: 1.BdeHQ 670cfdb2; 14.MechBn 670cfe3a; 1222.MechPlt 001aa71b; 114.MechCo 139aa71b.
-- REMAINING: Unit 4 (MoveIntoFormation) - separate run (its config globally replaces moveAlongRoute
-  for aggregates; highest risk - reopens the aggregate-formation ladder). Next appNo free: 3373.
+- **RUN 2 DONE - SUCCESS (2026-07-14, LIVE, apps 3373-3377).** Unit 4 (MoveIntoFormation ->
+  DtMoveIntoFormationTask) BEHAVIOR-VERIFIED at Sweden. Config Vrf:MoveIntoFormation=wedge
+  (LOWERCASE - R5 ground truth; the VrfSettings.cs:84 "Title-Case" comment is stale) +
+  AggregateFormation=auto, order synthetic_moveinformation_sweden.xml (1 MOVE, aggregate 14.MechBn,
+  dest 58.705,16.43):
+  - Dispatch: "MoveIntoFormation for AGGREGATE 14.MechBn (VRF 7dd541a2) -> 58.705/16.43 formation
+    'wedge' hdg 35deg" - the config-gated Unit-4 path fired (NOT moveAlongRoute); 'wedge' ACCEPTED
+    (no invalid-formation line).
+  - Telemetry: 14.MechBn moved 3990 m spawn->dest, arrived 4 m from the destination (NOT vacuous -
+    contrast the R11 DtPlanAndMoveToTask trap which fired complete AND sat at spawn). 5 movers >1 km
+    (aggregate + formation members); 535 untasked units stayed put. TASKCMPLT sent (task 5eed1001).
+  - CAVEAT: the completion event fired ~40s EARLY (before arrival) - F2-adjacent completion-timing;
+    movement was real+precise regardless. Per-member wedge GEOMETRY not separately measured (possible
+    refinement). Clean stop (53 deleted); ResetVrf swept 1 leftover. Evidence
+    docs/experiments/semantic_unit4_moveinformation_run2_2026-07-14.txt.
+- **TASK (c) COMPLETE**: Units 2 (Breach), 4 (MoveIntoFormation), 5 (Reconnoiter, Escort) all
+  behavior-verified LIVE at Sweden. Next appNo free: 3378.
+- CROSS-CUTTING FOLLOW-UP surfaced by both runs: aggregate move-completion events are UNRELIABLE -
+  moveAlongRoute's never fired (Run 1 breach needed the 300s engage fallback), MoveIntoFormation's
+  fired ~40s early (Run 2). Both MOVE correctly; only the TASKCMPLT arrival-timing is off. If C2SIM
+  report arrival-accuracy matters, harden aggregate completion detection (telemetry/arrival-gated)
+  - distinct from the semantic-mapping arc.

@@ -1,0 +1,57 @@
+SEMANTIC MAPPING Unit 4 (MoveIntoFormation) - LIVE behavior verification (Run 2)
+=================================================================================
+Date: 2026-07-14 (UTC ~12:37-12:43). Supervisor: Opus 4.8 session; executors: Opus 4.8.
+Task (c) final item. Region: GOLDEN SWEDEN (dodges the Mojave leader-path-empty confound).
+Goal: does DtMoveIntoFormationTask (Unit 4) actually MOVE the aggregate set to a destination
+in a named formation, or dispatch-but-not-move / complete vacuously (the R11 trap)?
+
+CONFIG: app VrfC2SimApp.exe, ClientId=STP, TimeMultiplier=20, AggregateFormation=auto,
+  Vrf:MoveIntoFormation=wedge (LOWERCASE - R5 ground truth: live formation lists are lowercase;
+  the VrfSettings.cs:84 "Title-Case" comment is stale pre-R5). RTI 4.6.1, license Machine
+  (exp 2026-09-15), cwd bin64, --contentRoot, federation CWIX-2024.
+  Order: docs/golden-trace/orders/synthetic_moveinformation_sweden.xml - ONE MOVE task,
+  performer AGGREGATE 14.MechBn (670cfe3a), 2 inline pts -> dest 58.705,16.43. No AffectedEntity.
+
+APPNO LEDGER (this run): 3373 ResetVrf dry-run (1 deletable - drained) | 3374 sweep (clean) |
+  3375 WatchVrf | 3376 app | 3377 ResetVrf post-run (deleted 1 race leftover). Next free: 3378.
+
+PIPELINE: PushInit -> QUERYINIT 80 Units STP, RUNNING. App late-joined, 49 units + 4 areas,
+  Run() 20x, AggregateFormation=auto set 'column'+reorganize on all aggregates. 14.MechBn
+  created VRF_UUID 7dd541a2-f998-1d47-b634-f7e241edc1e2. PushOrder OK (2059 B).
+
+DISPATCH (app log): "Task 'SEM_MOVEINFORM': MoveIntoFormation for AGGREGATE 14.MechBn
+  (VRF 7dd541a2) -> 58.705/16.43 formation 'wedge' hdg 35deg (Unit 4; 3 route pts ->
+  destination)." => the config-gated Unit-4 path fired (DtMoveIntoFormationTask), NOT
+  moveAlongRoute. 'wedge' ACCEPTED - NO "invalid or malformed formation" line for it.
+
+TELEMETRY (WatchVrf 3375 - the movement oracle; R11 rule): 14.MechBn (7dd541a2)
+  first (58.675521,16.390736) -> last (58.705027,16.430035): DISPLACEMENT 3990 m,
+  DIST-TO-DEST 4 m. The set MARCHED ~4 km and ARRIVED AT the destination (4 m accuracy).
+  Census: 5 objects moved >1000 m (14.MechBn + its formation members); the other 535 tracked
+  objects (untasked units) stayed put. => NOT vacuous; genuine move-in-formation to dest.
+
+COMPLETION: "VRF task complete: 14.MechBn / move-into-formation" -> TASKCMPLT taskee 670cfe3a
+  task 5eed1001. CAVEAT: the completion event fired EARLY - logged ~12:39:52 while the set did
+  not reach the dest until ~t=173s (~12:40:33). PREMATURE by ~40s (F2-adjacent completion-timing).
+  BUT the movement was real and precise (unlike R11 DtPlanAndMoveToTask, which fired complete AND
+  sat at spawn = vacuous). So MoveIntoFormation is FUNCTIONAL with a completion-timing inaccuracy,
+  strictly better than the R11 trap. (Contrast Run 1's moveAlongRoute on the same 14.MechBn: it
+  marched but its aggregate move-complete event did NOT fire, needing the 300s engage fallback.
+  Aggregate completion events are unreliable across BOTH move paths; MoveIntoFormation errs early,
+  moveAlongRoute errs never - both need report-timing hardening if C2SIM TASKCMPLT arrival-accuracy
+  matters. Distinct follow-up from Unit-4 verification.)
+
+NOT SEPARATELY MEASURED: per-member WEDGE geometry (did members end in a wedge vs a blob). The
+  vrftask dispatched + accepted 'wedge' + moved the set to dest + completed; formation-shape
+  fidelity is a possible refinement, not required for behavior verification.
+
+CLEAN STOP: StopIface RUNNING->UNINITIALIZED; app "Cleanup: deleting 53 created VR-Forces objects"
+  (49 units + 4 areas - no route object, MoveIntoFormation uses a dest point not CreateRoute),
+  "53 deletes dispatched (1572 ms)", resigned; PID exited. ResetVrf 3377 deleted 1 race leftover,
+  flushed, clean.
+
+VERDICT: SUCCESS. Unit 4 (MoveIntoFormation -> DtMoveIntoFormationTask) is BEHAVIOR-VERIFIED at
+  Sweden: the aggregate set moves to the destination (4 m accuracy) in the named (lowercase)
+  formation and reports TASKCMPLT. Caveat: premature completion event (record the arrival via
+  telemetry, not the completion, if timing matters). This COMPLETES task (c) - Units 2/4/5 all
+  behavior-verified (Units 2/5 in Run 1, 2026-07-14; Unit 4 here).

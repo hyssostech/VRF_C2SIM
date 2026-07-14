@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<MessageBody xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.sisostds.org/schemas/C2SIM/1.1">
+  <DomainMessageBody>
+    <OrderBody>
+      <FromSender>00000000-0000-0001-0001-000000000000</FromSender>
+      <ToReceiver>00000000-0007-0001-0000-000000000000</ToReceiver>
+      <IssuedTime>
+        <IsoDateTime>2026-07-14T12:00:00Z</IsoDateTime>
+      </IssuedTime>
+      <OrderID>5eed1000-1111-4c22-9aa1-0e5b7c9d1000</OrderID>
+      <!-- Unit 4 (MoveIntoFormation -> DtMoveIntoFormationTask). One plain MOVE for the AGGREGATE
+           14.MechBn; run with Vrf:MoveIntoFormation=wedge so the dispatch issues MoveIntoFormation
+           to the route's FINAL point in 'wedge' INSTEAD of moveAlongRoute. dest = point 2;
+           heading = bearing(point1 -> point2). No AffectedEntity. -->
+      <Task>
+        <ManeuverWarfareTask>
+          <Location>
+            <GeodeticCoordinate>
+              <Latitude>58.6752856770139</Latitude>
+              <Longitude>16.3970394424815</Longitude>
+            </GeodeticCoordinate>
+          </Location>
+          <Location>
+            <GeodeticCoordinate>
+              <Latitude>58.7050000000000</Latitude>
+              <Longitude>16.4300000000000</Longitude>
+            </GeodeticCoordinate>
+          </Location>
+          <Name>SEM_MOVEINFORM</Name>
+          <UUID>5eed1001-2222-4c22-9aa1-0e5b7c9d1001</UUID>
+          <DesiredEffectCode>TaskSuccess</DesiredEffectCode>
+          <Duration>
+            <IsoTimeDuration>P00Y00M00DT00H10M00S</IsoTimeDuration>
+          </Duration>
+          <PerformingEntity>670cfe3a-6c43-f267-ad7f-bd6e739def24</PerformingEntity><!--14.MechBn, aggregate mover-->
+          <StartTime>
+            <SimulationTime>
+              <DelayTimeAmount>
+                <IsoTimeDuration>P00Y00M00DT00H00M00S</IsoTimeDuration>
+              </DelayTimeAmount>
+            </SimulationTime>
+          </StartTime>
+          <TaskActionCode>MOVE</TaskActionCode>
+          <RuleOfEngagement>
+            <MipWeaponUseROE>
+              <WeaponROECode>
+                <WeaponRuleOfEngagementCode>ROETight</WeaponRuleOfEngagementCode>
+              </WeaponROECode>
+            </MipWeaponUseROE>
+          </RuleOfEngagement>
+        </ManeuverWarfareTask>
+      </Task>
+    </OrderBody>
+  </DomainMessageBody>
+</MessageBody>
