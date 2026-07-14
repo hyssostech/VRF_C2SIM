@@ -75,7 +75,8 @@ as findings land. ASCII-only.
 - RISK: the VR-Forces docs name "many objects over a wide area OR fast-moving objects" as what
   DEFEATS predictive terrain paging (-> empty routes) + heavy sim/HLA load at 20x. So bloat
   plausibly AGGRAVATES the paging/nav problem at full scale (NOT proven to be the root cause -
-  R9 at 49 units also froze; nav-data is the lead cause).
+  R9 at 49 units also froze; nav-data-as-cause was FALSIFIED 2026-07-14 (see item 2) - the real
+  cause is region-specific EMPTY member offset-route generation at Mojave, 0 routes vs Sweden 45).
 - MITIGATION 1 (BUILT, but HELD - live regression): "lean creation" - create only order-referenced
   units on the TASKING side (drop idle friendly context); KEEP the full threat (OPFOR/neutral -
   engages, part of the COP; do NOT thin the threat). Default on. Built + offline-green 2026-07-14
@@ -111,9 +112,15 @@ as findings land. ASCII-only.
   objects). Telemetry (WatchVrf displacement) is the movement oracle - completions LIE (R11).
 
 ## Key findings behind this guide
-- Aggregate leader-path = ADVANCED nav (NavMesh) -> per-region nav data required. Entities =
-  STANDARD nav -> march without it. (Explains entities-move / aggregates-freeze at Mojave.)
+- NAV DATA is FALSIFIED as the aggregate-movement cause/fix (2026-07-14; see checklist item 2):
+  Sweden aggregates leader-path and march 5+ km on the SAME streaming terrain with NO NavMesh
+  while Mojave freezes, so the "aggregate leader-path requires a NavMesh" theory is dead. Do NOT
+  generate nav data expecting it to unfreeze Mojave (docs/experiments/navdata_FALSIFIED_bogaland_vs_tt_2026-07-14.txt).
+- The REAL, still-UNSOLVED cause is region-specific: member OFFSET-ROUTE generation returns EMPTY
+  at Mojave (0 routes vs Sweden 45; `moveAlong() - empty route`). Entities march at Mojave via
+  STANDARD nav (R10 SubordinateFanOut is the proven interim mover); the aggregate leader-path is
+  the specific failure.
 - Terrain Page-In Area alone does NOT fix aggregate movement (falsified 2026-07-14).
-- Fort Irwin/NTC is a stock MAK terrain; the Tropic Tortoise AO (34.68,-116.72) is ~65 km S of
-  the NTC core, in GENERIC Mojave, on no curated/nav-data'd terrain - hence the need to generate
-  nav data there.
+- Fort Irwin/NTC is a stock MAK terrain and the Tropic Tortoise AO (34.68,-116.72) is ~65 km S of
+  the NTC core in GENERIC Mojave - but that is NOT why aggregates freeze (nav data falsified;
+  cause is the empty offset-route generation above).

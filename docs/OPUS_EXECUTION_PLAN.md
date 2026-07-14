@@ -84,8 +84,8 @@ forward"; revert and diagnose.
   STALE FEDERATE and the next join hangs. Clean-stop via `tools/StopIface` (drives the
   server STOP -> RESET -> UNINITIALIZED; the app catches UNINITIALIZED and resigns).
 - FRESH `Vrf__ApplicationNumber` for EVERY RTI join - the app, ResetVrf, AND WatchVrf each
-  join and each need their own. AppNos 3200-3350 are consumed. START AT 3355. Increment
-  and never reuse; keep the running ledger (Appendix B).
+  join and each need their own. AppNos through 3385 are consumed; take the next-free number
+  recorded at the Appendix B ledger tail (currently 3386). Increment and never reuse; record each.
 - NEVER push an init to a RUNNING interface (PushInit's RESET step's UNINITIALIZED
   transient makes the running app resign). Push init only while NO app is running.
 - Do NOT restart the c2sim-server container habitually - the restarts are what degraded
@@ -697,6 +697,14 @@ PORT commit (the new doc + a pointer from START_HERE/PORT sec 10), then fork sub
 
 ## Step 5 - COA-STP1 FULL 42-task order scale run (LIVE)
 
+> EXECUTED 2026-07-13 (apps 3355-3359; see Appendix B + docs/experiments/COA-STP1_scale_2026-07-13.txt).
+> DO NOT RE-RUN - it wastes an irreversible live run. Outcome: the pipeline HELD at scale (128 units /
+> 42 tasks; de-stack + auto-formation + fan-out + Step-2 robustness fired; P4a zero 10048) BUT it
+> surfaced F1 member RUNAWAYS (a member drove 53.8 km, ~18 km past its route end) and F2b VACUOUS
+> completions (full member quorum, zero telemetry arrival). Movement quality is UNSOLVED (tied to the
+> Mojave aggregate freeze). Everything below (incl. the 5.1 "START AT 3355" config) is the ORIGINAL
+> plan / that run's config, retained for provenance - for any NEW run use the Appendix B ledger tail.
+
 GOAL: exercise the full COA-STP1 order (42 tasks) end to end at scale with de-stack + auto
 formation + fan-out + the Step-2 robustness, proving the pipeline holds at scale, the P4a fix
 clears the 10048 errors, and unit completions far exceed the R5c-era count.
@@ -730,8 +738,9 @@ so those 3 will not fan out and will not report completion (expected).
   EXPLICIT (do not rely on inherited env).
 - Order: data/COA-STP1_Order.xml (the full 42-task order - this is the scale test, NOT the 7-task
   E1 probe).
-- AppNos: START AT 3355. The app, ResetVrf, and WatchVrf each need their own fresh number. Record
-  each in Appendix B as consumed.
+- AppNos: START AT 3355 (this EXECUTED run's numbers, apps 3355-3359; for any NEW run take the
+  next-free number from the Appendix B ledger tail, currently 3386). The app, ResetVrf, and WatchVrf
+  each need their own fresh number. Record each in Appendix B as consumed.
 
 ### 5.2 Procedure (RUNBOOK sec 3 + sec 7; do NOT re-derive)
 
@@ -888,7 +897,7 @@ $env:PATH = "C:\MAK\vrforces5.0.2\bin64;C:\MAK\vrlink5.8\bin64;C:\MAK\makRti4.6.
 $env:MAKLMGRD_LICENSE_FILE = [Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','Machine')
 # 5. Sim backend healthy (do NOT kill vrfSimHLA1516e; vrfGui may be hung - that is fine).
 Get-Process vrfSimHLA1516e,rtiexec -ErrorAction SilentlyContinue | Select Name,Id
-# 6. Fresh appNo picked (>= 3355, not in Appendix B). cwd will be C:\MAK\vrforces5.0.2\bin64;
+# 6. Fresh appNo picked (next-free from the Appendix B ledger tail, currently 3386; never reused). cwd will be C:\MAK\vrforces5.0.2\bin64;
 #    the app gets --contentRoot=<exe dir>.
 ```
 If loopback is slow: restart Docker Desktop (or reboot), re-measure, THEN proceed. Do not
@@ -896,8 +905,9 @@ proceed on a slow proxy - the STOMP client cannot ride it out.
 
 ## Appendix B - ApplicationNumber ledger
 
-3200-3350: consumed (prior sessions). START AT 3355. Record each join here as it is consumed
-(app / ResetVrf / WatchVrf each take one). Never reuse.
+3200-3385: consumed (see entries below). NEXT FREE: 3386 (always take the number after the last
+ledger entry). Record each join here as it is consumed (app / ResetVrf / WatchVrf each take one).
+Never reuse.
 
 - 3355-3359: consumed 2026-07-13 scale run (dry-run/sweep/watch/app/post-run).
 - 3360-3362: consumed 2026-07-13 P4b live pass (dry-run/app/post-run dry-run). The 3363

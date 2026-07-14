@@ -1,5 +1,13 @@
 TERRAIN PAGE-IN / NAV-DATA INVESTIGATION - the Mojave aggregate-movement root cause refined
 =============================================================================================
+*** SUPERSEDED (2026-07-14, same day): this file's conclusion pivots to NAV-DATA as the actionable
+*** cause and directs generating a NavMesh - BOTH FALSIFIED hours later. Bogaland2 (Sweden) and
+*** TropicTortoise (Mojave) are the SAME streaming terrain; Sweden aggregates march 5+ km with NO
+*** nav mesh; Mojave freezes. Nav data is NOT the cause. Do NOT generate/load a nav mesh; do NOT
+*** restart the thread. What STANDS: terrain page-in FALSIFIED as the fix; programmatic .scnx gen
+*** (a keeper). Real, still-unresolved cause: EMPTY member offset-route generation at Mojave. See
+*** navdata_FALSIFIED_bogaland_vs_tt_2026-07-14.txt. Read the conclusion/NEXT below as history.
+=============================================================================================
 Date: 2026-07-14. Supervisor: Opus 4.8 session; live GUI driven by the user.
 
 TRIGGER: the user challenged the R9 verdict ("aggregate movement blocked by terrain CONTENT at

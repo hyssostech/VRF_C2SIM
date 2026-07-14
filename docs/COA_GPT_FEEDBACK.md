@@ -212,10 +212,13 @@ fast-moving objects" as exactly what DEFEATS predictive terrain paging (empty le
 frozen aggregates) and it heavily loads the sim/HLA at high time multiples. So entity BLOAT
 compounds the maneuver problems (Items 3-4).
 
-What the interface already does (context, not an ask): it now LEAN-CREATES - it spawns only
-order-referenced friendly units, and PRESERVES the full threat (OPFOR/neutral is kept, because
-it engages autonomously and is part of the COP). Idle *friendly* context is dropped
-automatically; the threat is not touched.
+What the interface COULD do (PROTOTYPED, NOT in the shipping build): lean creation - spawn only
+order-referenced friendly units, drop idle *friendly* context, and PRESERVE the full threat
+(OPFOR/neutral is kept, because it engages autonomously and is part of the COP). It was built +
+offline-green 2026-07-14 but REGRESSED live tasking ("no current tasks") and is STASHED pending a
+deferred-creation-lifecycle fix; the committed build does NOT yet drop idle friendly units (see
+SCENARIO_SETUP_GUIDE lean-creation). So the ~1785-objects / ~93%-idle figure above is what the
+SHIPPING build still creates.
 
 The ask (OPFOR density only): keep emitting the FULL friendly ORBAT (the plan needs it), but for
 OPFOR emit what is **tactically relevant to the COA** - the threat the force will actually face

@@ -33,7 +33,7 @@ appsettings.json  C2SIM endpoints + Vrf settings (127.0.0.1 / CWIX-2024 / STP)
 References: `VrfBridge.dll` (bare Reference + Ijwhost copy, like SmokeTest) and the
 SDK via ProjectReference. NOTE the ProjectReference crosses OUT of the VRF_C2SIM
 submodule into the fork's `Software/Library/CS/C2SIMSDK` (branch dev/sdk-fixes,
-unpushed) - a known coupling; a later step decouples via a published SDK nuget.
+pushed to origin) - a known coupling; a later step decouples via a published SDK nuget.
 
 ## Data flow (the role it reproduces)
 
@@ -176,8 +176,11 @@ Semantic mapping Layer 1 (verb classifier) - DONE + VERIFIED offline (2026-07-11
   the mapped intent, but STILL runs bare movement for every verb (Layer 2 not wired) - ZERO
   behavior/golden-trace change. Verified: `--verb-selftest` 28/28; confirmed the parser emits
   the exact table keys for all 17 COA-STP1 verbs. Plan + status: docs/SEMANTIC_MAPPING.md.
-- NEXT (Layer 2, LIVE-GATED): facade Dt*Task methods (Breach, fires, moveIntoFormation) +
-  dispatch keyed on TaskIntent. A build proves compile/link only; VRF behavior needs a live run.
+- DONE + LIVE-verified (2026-07-14): Layer 2 dispatch keyed on TaskIntent - fires/ATTACK
+  (2026-07-11) + Breach->DtBreachTask, MoveIntoFormation->DtMoveIntoFormationTask,
+  Reconnoiter->DtPatrolRouteTask, Escort->DtFollowEntityTask behavior-verified at the golden
+  SWEDEN region (apps 3368-3377; telemetry via WatchVrf). This is a control-region result, NOT a
+  Mojave/product result - Mojave aggregates still FREEZE (see START_HERE / SEMANTIC_MAPPING sec 7).
 
 TODO - the Phase 4 PARITY PORT (the real content; each maps to a C++ source):
 1. `InitParser` refinements: parse `DirectionPhi` if a schema instance carries it;

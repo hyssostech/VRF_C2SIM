@@ -122,9 +122,12 @@ Mechanism + the one gotcha:
 4. The .NET app: host the C2SIM SDK (event-driven: InitializationReceived /
    ObjectInitializationReceived / OrderReceived / ReportReceived in; PushReportMessage
    / PushCommand out) and drive VrfBridge. STARTED - the skeleton compiles and wires
-   both halves; see docs/APP.md. The Phase 4 parity port (extractC2simInit /
-   executeTask / reportCallback) + the two-layer C2SIM-semantics -> vrftasks mapping
-   (PORT.md sec 10, TASK_EXPANSION_PLAN.md) are the stubbed handlers in it.
+   both halves; see docs/APP.md. [UPDATE 2026-07-14: no longer stubs - the Phase 4 parity port is
+   IMPLEMENTED (UnitTranslator.cs = extractC2simInit + create* factories; TaskSequencer.cs =
+   executeTask; ReportBuilder.cs = reportCallback; all with green self-tests) and the two-layer
+   C2SIM-semantics -> vrftasks mapping is built + LIVE-verified end to end (task (c) component-
+   complete at the Sweden control region, apps 3368-3377). NOTE the product still FAILS at Mojave -
+   aggregates freeze, root cause unsolved.]
 
 ## Notes / risks
 

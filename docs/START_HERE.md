@@ -103,9 +103,12 @@ Three locations are in play:
   predecessor lever now UNBLOCKS successors (was the F3 dead-heat). P4a held (0 x 10048 over
   ~51 min); clean stop (186 deletes); post-run sweep clean. MOVEMENT QUALITY UNCHANGED (as
   designed - F3 is orchestration, not terrain): F1 runaways (top members 181/165/94 km) + the
-  F2b vacuous class (4-27, 5-20, B/5-20, same 3 units) persist. Next lever for the stuck-member
-  units is partial quorum (FanOutCompletionFraction < 1.0), deliberately untested here to
-  isolate one variable. Full record UNIT_MOVEMENT_RESEARCH.md sec 4c; evidence
+  F2b vacuous class (4-27, 5-20, B/5-20, same 3 units) persist. (Partial quorum, FanOutCompletionFraction < 1.0, was floated as the next lever
+  here but is NOT pursued and would NOT help this F2b class - those units already report FULL
+  quorum (4/4, 18/18) with zero telemetry arrival, so lowering the fraction changes nothing; it
+  targets stuck-stragglers, a different class. The real blocker is the empty member offset-route
+  generation at Mojave; see the top 2026-07-14 bullet. The SHIPPED Step-2 quorum/straggler code
+  stays as-is.) Full record UNIT_MOVEMENT_RESEARCH.md sec 4c; evidence
   docs/experiments/F3_probe_2026-07-13.txt. NOTE: config-only run - NO code change (the fixed
   900/1200 already delivers the win; route-length scaling is now OPTIONAL). AppNos next free: 3368.
 - **Step 3 (P4b position-report bundling) LANDED offline (2026-07-13, execution) - opt-in,
@@ -296,12 +299,14 @@ Three locations are in play:
   abandoned tasks fail successors fast), P0.3 completion-gated advance-then-engage (fire/breach
   issued when the move COMPLETES; `Vrf:EngageFallbackSeconds`), plus FIFO route-name matching,
   a duplicate-init guard, a loud 0-units-matched-ClientId error, and order-parse warnings.
-  KEY CORRECTIONS (guidance sec 2): the stuck-aggregate ROOT CAUSE is per-unit-type,
-  CASE-INCONSISTENT formation names - created aggregates start on invalid "column-left" (128
-  vrfSim.log hits); fix ladder = guidance sec 4, E1 first. The Unit-4 MoveIntoFormation
-  "RULED OUT" verdict is RETRACTED (confounded experiment; MAK help says it IS for
-  disaggregated units). ALL 42 COA-STP1 tasks self-target, so Breach/Escort need SYNTHETIC
-  orders - no COA-STP1 re-run can exercise them.
+  KEY CORRECTIONS (guidance sec 2) [the ROOT-CAUSE claim here was SUPERSEDED 2026-07-14 - see the
+  top REALITY CHECK: E1 RAN and formation-names alone were FALSIFIED; R5 Vrf:AggregateFormation=auto
+  already repairs the birth "column-left"; the real, still-unsolved cause is empty member
+  offset-route generation at Mojave]: the 2026-07-12 read was that the stuck-aggregate cause is
+  per-unit-type, CASE-INCONSISTENT formation names (aggregates start on invalid "column-left", 128
+  vrfSim.log hits). The Unit-4 MoveIntoFormation "RULED OUT" verdict was RETRACTED (confounded
+  experiment) and later behavior-verified at Sweden. ALL 42 COA-STP1 tasks self-target, so
+  Breach/Escort need SYNTHETIC orders - no COA-STP1 re-run can exercise them.
 - **2026-07-11**: two-layer semantic mapping UNDERWAY - Layer-1 verb classifier +
   Unit 3 fires (ATTACK) DONE + live-verified; **Solution A (delete-on-stop) DONE**; **ResetVrf
   (hard reset) DONE + LIVE-VERIFIED** (reaches ORPHANS Solution A misses - and it DID: a live run
@@ -483,17 +488,19 @@ tools/ResetVrf) between heavy runs (entities accumulate -> creates stop reflecti
 Phase 1-5 are DONE (the port runs the full C2SIM<->VR-Forces loop live + moves aggregates).
 Remaining work, roughly by priority (details: docs/APP.md TODO, PORT.md sec 6/10):
 
-1. **Aggregate deep-dive** (the live-open question): ROOT CAUSE FOUND 2026-07-12 (guidance
-   sec 2.1) - formation names are per-unit-type and CASE-INCONSISTENT (Ground_Aggregate
-   catch-all = lowercase "wedge"/"column"; Tank Company (USA) = Title-Case; Infantry/
-   Artillery Bn = EMPTY list), and every created aggregate starts on invalid "column-left"
-   (128 vrfSim.log hits). Title-Case "Wedge" could only ever resolve for company-matched
-   types - exactly the ~3/32 that moved. RUN THE GUIDANCE SEC 4 LADDER IN ORDER: E1
-   per-matched-type formation names (app-only; de-confounded synthetic order - ONE task per
-   aggregate, no temporal deps; watch vrfSim.log for the invalid-formation lines as the
-   oracle); E2 re-open MoveIntoFormation (verdict RETRACTED 2026-07-12 - the 2026-07-11 run
-   was confounded; MAK help says it IS for disaggregated units); E3 runtime formation
-   discovery (DtRequestAvailableFormationsAdmin; bridge rebuild); E4 fallbacks.
+1. **Aggregate movement at Mojave** (THE central open problem - the product does not work there):
+   Mojave aggregates FREEZE. The 2026-07-12 "formation-names root cause" is FALSIFIED (E1 RAN;
+   formation names alone did not fix it), and so are nav-data and terrain-page-in (2026-07-14) -
+   do NOT restart any of those threads. R5 `Vrf:AggregateFormation=auto` already repairs the birth
+   "column-left" formation (3/3 at Sweden), so formation is not the blocker. The re-scoped,
+   still-UNSOLVED cause (R9 region swap): member OFFSET-ROUTE generation returns EMPTY at Mojave
+   (0 routes vs Sweden 45; vrfSim.log `moveAlong() - empty route`), a region-specific route/offset-
+   planning failure on the streaming terrain (candidate directions - BE terrain-paging depth vs
+   VR-TheWorld data at the AO, or an aggregate-movement setting - are UNVERIFIED; do NOT record any
+   as the fix). INTERIM PROVEN MOVER: `Vrf:SubordinateFanOut` (R10) marches member entities at
+   Mojave, bypassing the empty-offset-route path. NEXT: investigate the empty offset-route
+   generation (UNIT_MOVEMENT_RESEARCH sec 4c; docs/experiments/R9_region_swap_2026-07-13.txt +
+   navdata_FALSIFIED_bogaland_vs_tt_2026-07-14.txt).
 2. **Report-stream parity polish**: EntityHealthStatus (needs the bridge to surface health),
    aggregate-component de-dup, multi-content bundling. Position reports work but are chatty.
 3. **Deferred C++-bug fixes** (PORT.md sec 6): distinct C2SimUuid/VrfUuid types (setTarget
@@ -531,10 +538,11 @@ Remaining work, roughly by priority (details: docs/APP.md TODO, PORT.md sec 6/10
      cannot. Verified by a controlled discover->delete->re-discover: dry-run left 2 objects intact,
      the real reset deleted them, a fresh federate then discovered 0 (RUNBOOK sec 8). `--dry-run` =
      discover-only.
-   - NEXT (LIVE-GATED): the guidance sec 4 aggregate ladder (E1 first - see next-task #1);
-     then synthetic-order tests for Breach/Escort/Screen (COA-STP1 cannot exercise them -
-     ALL 42 tasks self-target, guidance sec 2.3). Units 2/4/5 code is already wired+built;
-     what remains is BEHAVIOR verification, not wiring.
+   - DONE (2026-07-14): task (c) - Units 2/4/5 are wired+built AND behavior-verified at the golden
+     SWEDEN control region (apps 3368-3377; see Current status above). COA-STP1 could not exercise
+     them (all 42 tasks self-target). This is a COMPONENT / control-region result, NOT a product
+     result - the remaining gap is the Mojave aggregate FREEZE (empty offset-route generation, root
+     cause unsolved; see next-task #1).
 5. **Formal golden-trace message diff** (byte-level parity, not just behavioral).
 6. **Housekeeping**: branches are PUSHED (port main + fork dev/sdk-fixes, 2026-07-12; `data/`
    tracked). Remaining: private remote for the C++ repo (USER decision - it is the only

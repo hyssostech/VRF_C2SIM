@@ -61,7 +61,9 @@ main.cxx:424 loop exit -> `delete facade` -> RTI resign). Drive the server there
 STOP then RESET (NOT INITIALIZE, which would move on to INITIALIZING):
 via the SDK, `await sdk.PushCommand(C2SIMCommands.STOP); await sdk.PushCommand(C2SIMCommands.RESET);`
 (`PushCommand` is public - C2SIMSSDK.cs:537/556; states enum C2SIMSSDK.cs:35).
-TODO: add `tools/StopIface` that does exactly this so the stop is one command.
+DONE: `tools/StopIface` does exactly this in one command (drives server STOP -> RESET ->
+UNINITIALIZED); it is the standard clean stop - see sec 7. The manual SDK two-command path above
+is the fallback / what StopIface does under the hood.
 
 Corollary: NEVER push a fresh init to a RUNNING interface. `PushInit` calls
 `ResetToInitializing` = STOP/RESET/INITIALIZE, and the RESET step's UNINITIALIZED

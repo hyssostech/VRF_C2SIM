@@ -74,8 +74,10 @@ against an aggregate uuid is a run-only question.
 - `DtFireAtTargetTask`: init(); setTarget(const DtUUID&); setAutoSelectWeapon(bool);
   setWeaponToFire(DtString); setMaxRoundsToFire(int).
 - `DtMoveIntoFormationTask`: init(); setLocation(const DtVector&); setHeading(double);
-  setFormationName(const DtString&) - the PROPER aggregate-in-formation move (the real fix
-  for the sec-5/sec-10 stuck-aggregate problem; START_HERE next-task #1).
+  setFormationName(const DtString&) - the PROPER aggregate-in-formation move. Behavior-verified
+  to move aggregates ONLY at the SWEDEN control region (sec 7 Run 2); it does NOT fix the Mojave/
+  COA-STP1 aggregate FREEZE (root cause = empty member offset-route generation at Mojave, R9, still
+  UNSOLVED; the proven interim Mojave mover is a different mechanism, Vrf:SubordinateFanOut).
 - `DtPlanAndMoveToTask` : public DtMoveToTask (pathfinding move to a point; base setLocation).
 - `DtHoldUntilTask`: init(); setSimTimeToStop(double) - for OCCUPY/SECURE hold-in-place.
 
@@ -94,17 +96,20 @@ degrade). This table is the single source of truth for the mapping.
 | BREACH                                          | Breach          | (approach move) + DtBreachTask(setBreachTarget=affected)    | unit2|
 | ATTACK, DESTRY, FIX, DISRPT, PENTRT             | Attack          | advance (move) + DtFireAtTargetTask(target=affected)        | UNIT3 code done, LIVE-pending |
 | SECURE, OCCUPY, SEIZE, RETAIN, BLOCK, DEFEND, GUARD | HoldObjective | move-to + DtHoldUntilTask (+ scan sector)                   | no   |
-| SCREEN, SCOUT                                   | Reconnoiter     | DtPatrolRouteTask + spot reporting                          | no   |
-| ESCRT                                           | Escort          | DtFollowEntityTask / convoy (needs the escorted entity)     | no   |
+| SCREEN, SCOUT                                   | Reconnoiter     | DtPatrolRouteTask + spot reporting                          | unit5|
+| ESCRT                                           | Escort          | DtFollowEntityTask / convoy (needs the escorted entity)     | unit5|
 | CLRLND                                          | Clear           | composite move + engage sweep (NOT DtClearTask; see below)  | no   |
-| (aggregate move, any verb, opt-in)              | MoveInFormation | DtMoveIntoFormationTask(setFormationName)                   | no   |
+| (aggregate move, any verb, opt-in)              | MoveInFormation | DtMoveIntoFormationTask(setFormationName)                   | unit4|
 
 Notes:
 - `DtClearTask` is a DtSetDataRequest meaning "CANCEL current task", NOT tactical clear
   (verified header read, TASK_EXPANSION_PLAN sec 3). Do NOT map CLRLND to it.
 - MoveInFormation is orthogonal to the verb: it is the proper replacement for the current
-  moveAlongRoute + `Vrf:AggregateFormation=Wedge` enrichment, and is the real fix for the
-  COA-STP1 stuck-aggregate finding (PORT.md sec 10). It stays opt-in until live-verified.
+  moveAlongRoute + `Vrf:AggregateFormation=Wedge` enrichment. Behavior-verified to move aggregates
+  ONLY at the SWEDEN control region (sec 7 Run 2 = E1b); it does NOT fix the Mojave/COA-STP1
+  aggregate FREEZE, whose root cause (empty member offset-route generation at Mojave, R9) is still
+  UNSOLVED - the only proven interim Mojave mover is a DIFFERENT mechanism, `Vrf:SubordinateFanOut`
+  (R10). Stays opt-in (default off).
 
 ## 4. Architecture as realized in the port
 
@@ -209,7 +214,10 @@ Notes:
    (lowercase) only shuffled, CoHQs were subordinate-SCATTERED at creation. So E1 alone is
    NOT the fix; the "Wedge moved ~3/32" reading is itself now suspect (runaway artifact?).
    E2 therefore STAYS PARKED. Next: E1b (same experiment on the golden STP init, whose
-   dispersed MechBn genuinely route-marched with Wedge) + a visual check of the runaway.
+   dispersed MechBn genuinely route-marched with Wedge) + a visual check of the runaway. [DONE
+   2026-07-14: E1b RAN as Unit 4 Run 2 (sec 7.2) - MoveIntoFormation moved 14.MechBn 3990 m to its
+   dest at Sweden; task (c) component-complete. Formation-names as root cause was FALSIFIED; the
+   Mojave freeze is re-scoped to empty member offset-route generation - see the sec 7 header + START_HERE.]
 5. [Unit 5 - Reconnoiter + Escort DONE + BUILD 2026-07-11, commit faa4398; HoldObjective + Clear
    are documented bare-move fallbacks] Reconnoiter (SCREEN/SCOUT) -> DtPatrolRouteTask (patrol the
    created route instead of moving along once, deferred to route-created). Escort (ESCRT) ->
@@ -245,7 +253,7 @@ Notes:
   orders and extend the table.
 - init() lifecycle assumed correct by parity with RunScriptedTask (DtSimTask::init); low risk.
 
-## 7. Task (c) - Units 2/4/5 BEHAVIOR verification (2026-07-13, IN PROGRESS)
+## 7. Task (c) - Units 2/4/5 BEHAVIOR verification (COMPLETE 2026-07-14 - component / Sweden control-region result, NOT a Mojave/product result)
 
 Selected next work item (supervisor: Opus 4.8 session; executors: Opus 4.8 subagents).
 Goal: prove Units 2/4/5 actually EXECUTE their distinct vrftask live, not just dispatch.

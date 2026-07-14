@@ -6,9 +6,13 @@ MAK 5.0.2 docs/data/logs, cross-repo state, and the master docs), followed by
 first-hand verification of every load-bearing claim. ASCII-only per repo policy.
 
 HOW THIS DOC RELATES TO THE OTHERS: it does NOT replace RESUME_PROMPT.md /
-START_HERE.md / SEMANTIC_MAPPING.md - read those first as usual. But where this
-doc CORRECTS them (sec 2 below), this doc wins: it carries newer, verified
-evidence. Fold each correction into the master docs as you act on it.
+START_HERE.md / SEMANTIC_MAPPING.md - read those first as usual. This doc is dated
+2026-07-12; where it and the newer 2026-07-14 evidence disagree, the NEWER evidence
+WINS. In particular sec 2.1's "ROOT CAUSE FOUND" is SUPERSEDED (see the banner there) -
+the formation-names theory was falsified and the real cause is still UNSOLVED. Its
+STRUCTURAL findings (sec 2.3 all-self-target, sec 2.4 orchestration defects) and sec 2.2
+(reopen MoveIntoFormation, later vindicated at Sweden) still stand. Fold each still-valid
+correction into the master docs as you act on it.
 
 Everything below is tagged:
 - [VERIFIED] = re-checked first-hand during this review (file/line/command cited).
@@ -50,6 +54,14 @@ Everything below is tagged:
 ## 2. What this review changes (corrections to the recorded state)
 
 ### 2.1 ROOT CAUSE FOUND for the stuck disaggregated aggregates
+
+> SUPERSEDED (2026-07-14): the formation-names / per-type case-sensitivity theory below was
+> FALSIFIED - this doc's own sec-4 E1 status ("formation-name resolution alone falsified as the
+> sufficient fix") and the later R9 region swap both killed it. R5 Vrf:AggregateFormation=auto
+> already repairs the birth formation; the real cause is region-specific EMPTY member offset-route
+> generation at Mojave (0 routes vs Sweden 45; moveAlong() - empty route), still UNSOLVED; nav-data
+> was ALSO falsified (2026-07-14). Authoritative current status = START_HERE REALITY CHECK. Read
+> 2.1 below as historical rationale only; sec 2.2 (reopen MoveIntoFormation) was later vindicated.
 
 The docs' open question #1 ("what actually moves disaggregated COA-STP1
 aggregates?") is now answered with direct evidence. Mechanism:

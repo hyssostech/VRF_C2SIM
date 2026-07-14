@@ -84,8 +84,9 @@ the plan can specify mechanisms instead of guessing. ASCII-only per repo policy.
   self-complete. Success criteria for the plan: creates 128+35, de-stack fires,
   fan-out dispatches on aggregate MOVE-class tasks, unit TASKCMPLTs >= the
   R5c-era count by a wide margin, no 10048 errors (post-P4a), clean stop.
-- Environment ledger: appNos 3200-3350 consumed; START AT 3355. One join per
-  ResetVrf/WatchVrf/app instance, always fresh.
+- Environment ledger: appNos through 3385 consumed; take the next-free number from the
+  OPUS_EXECUTION_PLAN Appendix B ledger tail (currently 3386). One join per ResetVrf/WatchVrf/app
+  instance, always fresh; never reuse.
 
 ## 5. Housekeeping facts (verified)
 
