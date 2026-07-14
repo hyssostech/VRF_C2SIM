@@ -551,9 +551,17 @@ tested here to isolate one variable.
 - Where our creates' "column-left" default state string originates (VRF default vs
   create-message default) - cosmetic once R1 lands, but worth one look in VrfFacade.
 
-## 6. TERRAIN PAGE-IN / NAV-DATA INVESTIGATION (2026-07-14, LIVE A/B) - the Mojave
-## aggregate-movement cause REFINED: it is NAV-DATA/PLANNER, not terrain surface;
-## the Terrain Page-In Area is FALSIFIED as the fix
+## 6. TERRAIN PAGE-IN / NAV-DATA INVESTIGATION (2026-07-14, LIVE A/B)
+## *** SUPERSEDED: the NAV-DATA conclusion in this section is FALSIFIED (2026-07-14). ***
+##
+## Bogaland2 (Sweden, aggregates march 5+ km) and TropicTortoise (Mojave, freeze) use the
+## IDENTICAL streaming terrain (MAK Earth Space (online).mtf) + model set + page-in area, and
+## NEITHER region has nav data. Sweden aggregates leader-path-plan with NO NavMesh -> nav data is
+## NOT the Mojave cause. The "actionable cause is NAV-DATA / generate a nav mesh" verdict below is
+## WRONG. What STANDS: page-in FALSIFIED as the fix; programmatic .scnx gen (KEEPER). The REAL,
+## still-UNRESOLVED cause is region-specific route/offset planning (empty member offset routes at
+## Mojave). See docs/experiments/navdata_FALSIFIED_bogaland_vs_tt_2026-07-14.txt. Section kept as a
+## record of the detour; read it as history, not as current direction.
 
 TRIGGER: user rejected the R9 "terrain content, validate/avoid the region" verdict as not
 credible - the COA-STP1 AO is Mojave = NTC Fort Irwin country, the Army's PREMIER maneuver
@@ -587,13 +595,19 @@ NOT the blocker (terrain present + rendered; area loaded + covering units). Cros
 proved individual ENTITIES march at Mojave -> the failure is AGGREGATE lead-follow LEADER-PATH
 specific; the planner emits junk at this generic-desert AO (empty->freeze; bad goal->wrong-way).
 This is a VR-Forces NAVIGATION-DATA / path-planner property of the LOCATION, not an interface
-defect and not terrain-surface. R9's "terrain content" was directionally right (location-
-dependent) but the actionable cause is NAV-DATA; "avoid the region" was wrong.
+defect and not terrain-surface. R9's "terrain content / location-dependent" was RIGHT.
+[CORRECTION 2026-07-14: the "actionable cause is NAV-DATA" claim here is FALSIFIED - see the
+section banner. The location-dependent route/offset-planning failure is real; attributing it to
+missing nav data is not (Sweden has none and works). "Avoid the region" was still wrong.]
 
 KEEPER: programmatic scenario generation works (TropicTortoise.scnx) - mint Mojave scenarios +
 bake in page-in/nav areas without the UI.
 
-NEXT (user chose): generate a NAV MESH for the box (vrfNavGenerator offline / GUI nav-area) +
-re-run the same A/B. Risks: nav mesh may need an additional LICENSE; generic desert may lack the
-LAND-COVER the mesh builds from. INTERIM (proven): SubordinateFanOut marches member entities at
-Mojave (R10). BREAK-GLASS: setNavigationEnabled(false) blind move.
+NEXT [REVISED 2026-07-14 after the nav-data falsification]: the nav-mesh plan is DROPPED (nav data
+was generated + confirmed on disk, and the comparison proved it is not the cause). The open
+question is region-specific: WHY does member offset-route generation return EMPTY at Mojave (0
+routes) but succeed at Sweden (45) on the same terrain/code? Candidate directions (none verified -
+do NOT record any as the fix): BE terrain-paging depth at the AO vs VR-TheWorld data coverage;
+an aggregate-movement / offset-route setting; the specific route geometry at the Mojave coords.
+INTERIM PROVEN MOVER: SubordinateFanOut marches member entities at Mojave (R10). BREAK-GLASS:
+setNavigationEnabled(false) blind move.

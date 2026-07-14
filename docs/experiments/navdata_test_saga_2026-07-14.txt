@@ -1,5 +1,13 @@
 NAV-DATA TEST SAGA - does generated nav data fix the Mojave aggregate freeze? (2026-07-14)
 ============================================================================================
+*** OUTCOME: NO. The whole premise was FALSIFIED later the same day - see
+*** navdata_FALSIFIED_bogaland_vs_tt_2026-07-14.txt. Bogaland (Sweden) and TropicTortoise (Mojave)
+*** are the SAME streaming terrain; Sweden aggregates march 5+ km with NO nav data; Mojave freezes
+*** with no nav data either. Nav data is not the differentiator. The 3 confounds below never
+*** mattered - even a clean run would have shown no nav-data effect. Kept as a record of the detour
+*** and of the (correct) nav-data generation/loading mechanics. Real cause: empty member offset
+*** routes at Mojave (region-specific route planning), not a NavMesh gap.
+============================================================================================
 Goal: after the page-in area was FALSIFIED, test the next hypothesis - the aggregate lead-follow
 LEADER-PATH uses ADVANCED navigation (a NavMesh), which needs generated nav data per region;
 entities use STANDARD nav (march without it). So: generate a nav mesh over the Mojave AO and

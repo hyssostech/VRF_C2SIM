@@ -2,7 +2,19 @@
 
 Paste the block below into a fresh session to resume the port. It forces the
 source-of-truth docs to be read and the state checked before any action - do not
-shortcut it. Last refreshed 2026-07-13 evening (after the F3 probe).
+shortcut it. Last refreshed 2026-07-14 (after the nav-data falsification + docs cleanup).
+
+READ THIS FIRST (2026-07-14 corrections, so the next session does not chase dead threads):
+- **NAV DATA is FALSIFIED as the Mojave aggregate-movement cause.** Do NOT generate/load a nav mesh
+  expecting it to unfreeze Mojave aggregates. Proof: Bogaland2 (Sweden, moves 5+ km) and
+  TropicTortoise (Mojave, freezes) are the IDENTICAL streaming terrain + model set + page-in area,
+  and NEITHER region has nav data; Sweden leader-path-plans with no NavMesh. The real cause is
+  UNRESOLVED and region-specific (empty member offset routes at Mojave). Full record:
+  docs/experiments/navdata_FALSIFIED_bogaland_vs_tt_2026-07-14.txt. Treat any doc text proposing a
+  nav-mesh fix as superseded.
+- Task (c) semantic mapping: Units 2 + 5 are DONE/behavior-verified at Sweden (2026-07-14). Unit 4
+  (MoveIntoFormation) is the only remaining task-(c) item.
+- appNo NEXT FREE is **3386** (not 3368). No appNos were consumed by the 2026-07-14 doc work.
 
 STATUS: the OPUS_EXECUTION_PLAN backlog is COMPLETE (all six steps + the P4b live
 pass), and the first post-backlog follow-up - the F3 straggler-timeout probe
@@ -36,7 +48,7 @@ over any summary or recollection):
      vacuous classes, F3 timeout race) AND the F3 PROBE result (straggler 900 <
      predecessor 1200 unblocks successors; predecessor-timeout skips 15 -> 2)
   3. docs/OPUS_EXECUTION_PLAN.md sec 0.3 (hard rules) + Appendix A (live-run preflight)
-     + Appendix B (appNo ledger - NEXT FREE: 3368)
+     + Appendix B (appNo ledger - NEXT FREE: 3386)
   4. docs/RUNBOOK.md secs 0/3/4/7/8 before ANY live run
 Then `git log --oneline -3` + `git status -sb` in the port AND the fork.
 
@@ -60,7 +72,7 @@ CANDIDATE NEXT TASKS (pick one, or ask the user):
   (c) Semantic mapping continuation (PORT.md sec 10 / SEMANTIC_MAPPING.md): Units 2/4/5
       BEHAVIOR verification via synthetic distinct-target orders - cleaner at the golden
       SWEDEN region (movement proven 3/3) to dodge the Mojave terrain confound. The
-      product value-add; Units 1/3 done, 2/4/5 wired-but-unverified.
+      product value-add; Units 1/2/3/5 done, Unit 4 (MoveIntoFormation) remaining.
   (d) Housekeeping: C++ repo private remote (USER decision); delete retained C++
       originals (migration step 1); SDK nuget decoupling; a live TASKCMPLT sample with
       P4b bundling ON (the one P4b gap, piggyback on any run).
@@ -68,7 +80,7 @@ CANDIDATE NEXT TASKS (pick one, or ask the user):
 Non-negotiables (unchanged): never force-kill a joined federate (StopIface clean stop);
 never push init to a running app; do not restart the c2sim-server container habitually
 (loopback test FIRST: raw TCP to 127.0.0.1:61613 <1 s); fresh appNo per join, recorded
-in Appendix B (NEXT FREE 3368); RTI 4.6.1 + Machine-scope license + cwd bin64 +
+in Appendix B (NEXT FREE 3386); RTI 4.6.1 + Machine-scope license + cwd bin64 +
 --contentRoot for live; movement claims REQUIRE WatchVrf displacement (completions LIE
 - R11/F2/F2b); bridge builds VS18-MSBuild-via-PowerShell, app builds
 DOTNET_CLI_USE_MSBUILD_SERVER=false ... --disable-build-servers; keep START_HERE/PORT/

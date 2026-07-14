@@ -39,25 +39,24 @@ Three locations are in play:
 
 ## Current status (2026-07-14)
 
-- **TERRAIN/NAV-DATA investigation (2026-07-14, LIVE A/B, apps 3378-3379) - page-in FALSIFIED;
-  cause REFINED to NAV-DATA**: chased the Mojave aggregate-movement root cause after the user
-  rejected R9's "validate/avoid the region" (the AO is Mojave = NTC Fort Irwin country; a config
-  problem, not terrain difficulty). Research: VR-Forces ground path planning needs generated
-  NAVIGATION DATA (nav mesh; Kynapse) and the streaming "MAK Earth Space (online)" terrain must
-  PAGE IN; Bogaland2 (our Sweden scenario) carries a Terrain Page-In Area, COA-STP1/Mojave did
-  not. Built TropicTortoise.scnx = a Bogaland2 VARIANT with the page-in area relocated to the
-  Mojave AO (ECEF/orientation math round-trip-verified against Bogaland; programmatic
-  scenario-gen - a KEEPER capability). A/B (R9 Run A config, only the page-in area added):
-  the area LOADED + terrain RENDERED, but aggregates STILL FROZE (1222.MechPlt 8 m, 114.MechCoy
-  400-830 m wrong-way, 1.BdeHQ entity 1159 m done) - IDENTICAL to R9's 1/3. So terrain paging is
-  NOT the blocker; entities march at Mojave (R10) => the AGGREGATE lead-follow LEADER-PATH
-  planner lacks usable NAV DATA at this generic-desert AO. VR-Forces content/nav-data property,
-  NOT an interface defect. AO stays fixed (the COA is the "Tropic Tortoise" schoolhouse
-  scenario). NEXT: generate a nav mesh for the box (vrfNavGenerator / GUI nav-area) + re-run the
-  A/B (risk: nav-mesh license; generic desert may lack land-cover). INTERIM (proven):
-  SubordinateFanOut marches member entities at Mojave. BREAK-GLASS: setNavigationEnabled(false)
-  blind move. Full record UNIT_MOVEMENT_RESEARCH.md sec 6; evidence
-  docs/experiments/terrain_pagein_investigation_2026-07-14.txt. AppNos next free: 3380.
+- **Mojave aggregate-movement cause - NAV-DATA HYPOTHESIS FALSIFIED (2026-07-14)**: the
+  terrain-page-in -> nav-data investigation was a DETOUR; **nav data is NOT the cause and
+  generating/loading a nav mesh does NOT fix it. Do not restart that thread.** Decisive comparison
+  (user-prompted): Bogaland2 (Sweden, moves) and TropicTortoise (Mojave, freezes) use the IDENTICAL
+  streaming terrain (`MAK Earth Space (online).mtf`), model set (`C2simEx.sms`), and page-in area;
+  NEITHER region has nav data. Sweden aggregates march 5+ km via the genuine leader-path
+  (SubordinateFanOut OFF, no NavMesh); Mojave freezes. Same terrain, same code, no nav data either
+  place -> nav data is not the differentiator; the "leader-path needs a NavMesh" theory dies on the
+  Sweden control. Sub-findings that STAND (verified): terrain page-in FALSIFIED as the fix (apps
+  3378-3379); programmatic .scnx generation works (a KEEPER); vrfSim.log shows the BE never loads
+  nav data on scenario open for this streaming terrain. REAL cause reverts to the R9 finding and is
+  UNRESOLVED at the root: region-specific route/offset planning failure at Mojave - member
+  OFFSET-ROUTE generation returns EMPTY (0 routes vs Sweden's 45; `moveAlong() - empty route`).
+  Root cause (BE terrain-paging depth vs VR-TheWorld data at the AO vs an aggregate-movement
+  setting) NOT yet found = a fresh investigation, and it is NOT nav data - do not present a fix as
+  known. INTERIM PROVEN MOVER: SubordinateFanOut marches member entities at Mojave (R10). Evidence:
+  docs/experiments/navdata_FALSIFIED_bogaland_vs_tt_2026-07-14.txt (supersedes the nav-data saga +
+  sec 6). AppNos next free: 3386.
 - **SEMANTIC Units 2/5 Run 1 (2026-07-14, LIVE, apps 3368-3372) - SUCCESS**: task (c) from the
   RESUME_PROMPT. Behavior-verified the two-layer semantic map's Unit 2 (BREACH -> DtBreachTask) +
   Unit 5 (SCREEN/Reconnoiter -> DtPatrolRouteTask; ESCRT/Escort -> DtFollowEntityTask) LIVE at the

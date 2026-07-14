@@ -18,14 +18,18 @@ as findings land. ASCII-only.
    Needed so the terrain surface/features exist there. NOTE: necessary for terrain load, but
    NOT sufficient for aggregate movement (page-in alone was FALSIFIED, 2026-07-14 - see
    docs/experiments/terrain_pagein_investigation_2026-07-14.txt).
-2. **Navigation data (nav mesh)** generated over the AO - REQUIRED for aggregate lead-follow
-   leader-path planning. VR-Forces: entities use STANDARD navigation (work without a mesh, so
-   they march anywhere), but the AGGREGATE leader-path uses ADVANCED navigation (NavMesh), which
-   needs generated nav data for the area. This is why entities march at un-nav-data'd regions
-   but aggregates FREEZE. [STATUS 2026-07-14: nav-data SETUP fully worked out (below); whether it
-   FIXES aggregate movement is STILL UNCONFIRMED - three back-to-back confounds (see "confounds to
-   avoid") prevented a single clean run. The mesh IS generated + loaded + active on the back-end;
-   the definitive test just needs a clean environment.]
+2. **Navigation data (nav mesh)** - **FALSIFIED as the aggregate-movement fix (2026-07-14).** DO
+   NOT generate nav data expecting it to unfreeze Mojave aggregates. Evidence: Bogaland2 (Sweden)
+   and TropicTortoise (Mojave) use the IDENTICAL terrain (`MAK Earth Space (online).mtf`), model
+   set (`C2simEx.sms`), and page-in area; NEITHER region has nav data. Sweden aggregates march
+   5+ km via the genuine leader-path (SubordinateFanOut OFF), Mojave freezes. Same terrain, same
+   code, no nav data either place -> nav data is not the differentiator. The "aggregate leader-path
+   needs a NavMesh" theory does not survive the Sweden control (Sweden path-plans with no mesh).
+   See docs/experiments/navdata_FALSIFIED_bogaland_vs_tt_2026-07-14.txt. The REAL cause is
+   region-specific: member OFFSET-ROUTE generation returns EMPTY at Mojave (0 routes) vs 45 at
+   Sweden - a terrain/route-planning failure on the streaming terrain, next-investigation. The
+   nav-data GENERATION + LOADING mechanics below are correct VR-Forces facts (kept for reference)
+   but are NOT a per-region setup requirement.
    Workflow (GUI, front-end): Settings > Terrain > Navigation Areas > New:
    - **Coordinate format is DEGREES:MINUTES** (deg:decimal-min), NOT decimal degrees. A decimal
      like 34.56 deg is entered as `34:33.6` (0.56*60 = 33.6'); 116.74 W as `116:44.4`. Entering

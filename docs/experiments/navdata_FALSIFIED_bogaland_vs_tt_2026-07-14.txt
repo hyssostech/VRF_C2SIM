@@ -1,0 +1,52 @@
+NAV-DATA HYPOTHESIS FALSIFIED - Bogaland vs TropicTortoise are the SAME terrain (2026-07-14)
+============================================================================================
+Trigger: user asked "Bogaland works - what's in there that is not yet in TT?" The comparison
+falsifies the hypothesis that generated nav data (a NavMesh) is what makes Mojave aggregates move.
+
+STRUCTURAL DIFF (unzipped both .scnx) - IDENTICAL except location + unit set:
+  Bogaland2.scn AND TropicTortoise.scn both declare:
+    (Terrain-Database     "$(SHARED_DATA_DIR)\...\MAK Earth Space (online).mtf")
+    (Gui-Terrain-Database  same)
+    (Simulation-Model-Set-Files "$(DATA_DIR)\simulationModelSets\C2simEx.sms")
+  Both .oob contain a "Blocking Terrain Page-In Area 1" object. Neither references any nav area.
+  Bogaland2's own scenario-name: "Scenario created on MAK Earth Space (online).mtf" - it is NOT a
+  curated Bogaland terrain; it is the SAME whole-earth streaming terrain at Sweden coords.
+
+NAV DATA COVERAGE (C:\MAK\SharedData\16\latest\TerrainData\navData):
+  MAK Earth Space (online): ONE nav area only = "NavArea-ground-platform 1" at 34.5,-116.7 (MOJAVE,
+  ours, generated 2026-07-14). The SWEDEN region (58.7,16.4) has NO nav data on this terrain.
+
+THE FALSIFIER (evidence that was already in the repo):
+  * semantic_units245_run1 (2026-07-14, SWEDEN, SubordinateFanOut OFF = genuine aggregate leader-
+    path, NO fanout fallback, NO nav mesh): 14.MechBn 5318 m, 1222.MechPlt 5634 m, 1.BdeHQ 9016 m;
+    317/552 objects moved >100 m. Aggregates march 5+ km with NO nav data.
+  * R9_region_swap (2026-07-13): SAME code/day/settings/unit set, ONLY location differs.
+      SWEDEN control: continuous motion; 45 member "Offset Route" creations.
+      MOJAVE:        1.BdeHQ ~1.16 km then froze; 114.MechCoy ~410 m then froze; 1222.MechPlt ~8 m;
+                     ZERO offset routes; vrfSim log: "moveAlong() - empty route -- not sending move
+                     along to subordinate".
+  Same terrain, same code, NEITHER region has nav data -> Sweden marches, Mojave freezes.
+  Therefore nav data is NOT the cause of the Mojave aggregate freeze. The "aggregate leader-path
+  requires a NavMesh" theory does not survive the Sweden control (Sweden aggregates path-plan with
+  no NavMesh). That symptom was an unresolved falsifier the whole time; the nav-data thread was a
+  detour from the R9 finding "Sweden has good leader-path planning, Mojave does not."
+
+WHAT THE NAV-DATA WORK IS STILL GOOD FOR: nothing for THIS problem. The generation/loading mechanics
+  we worked out (recipe, load-on-BE, the "(Disabled)" gotcha) are correct facts about VR-Forces but
+  do NOT address the Mojave freeze. Ground-truth bonus from chasing it: vrfSim.log shows the BE loads
+  the terrain + page-in area but never loads nav data on scenario open for this streaming terrain -
+  a real fact, just not the fix.
+
+THE REAL, RE-SCOPED CAUSE:
+  Member OFFSET-ROUTE generation returns EMPTY at Mojave (0 routes) but succeeds at Sweden (45), on
+  the SAME terrain/code. An aggregate moves by moving its members along formation-offset routes; at
+  Mojave those are empty, so members - and thus the aggregate - do not move. Units DO receive real
+  Mojave elevations (1131/1040/1116 m), so it is not void terrain. This is a region/terrain-specific
+  route/offset-planning failure on the streaming terrain, NOT a nav-mesh gap. Root cause (terrain
+  paging depth on the BE vs VR-TheWorld data at the Mojave AO vs an aggregate-movement setting) is
+  the NEXT investigation - separate from, and better scoped than, nav data.
+
+PROVEN MOJAVE MOVER (already built): SubordinateFanOut=true (R10) tasks member entities via STANDARD
+  nav and moves them at Mojave, bypassing the empty-offset-route path. This is the pragmatic path to
+  running coa-gpt scenarios at Mojave with visible movement. It is a different movement mechanism,
+  not "avoiding the region".
