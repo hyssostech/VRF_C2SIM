@@ -200,6 +200,33 @@ even get a chance to matter (UNIT_MOVEMENT_RESEARCH.md sec 4c, feedback item #4)
 
 ---
 
+## Item 5 - Right-size the entity count, especially OPFOR density (do NOT thin the threat)
+
+Measured 2026-07-14: COA-STP1 emits **128 units** across two ForceSides (NATO Coalition 61,
+WASA/OPFOR 67, + neutral), but the order tasks only **11 distinct units (~9%)**. Fully
+disaggregated that is **~1785 live VR-Forces objects, ~93% of them idle**, plus a 54-unit
+mega-pile stacked at one coordinate.
+
+Why it matters: VR-Forces' own docs name "many simulation objects over a wide area OR many
+fast-moving objects" as exactly what DEFEATS predictive terrain paging (empty leader-path ->
+frozen aggregates) and it heavily loads the sim/HLA at high time multiples. So entity BLOAT
+compounds the maneuver problems (Items 3-4).
+
+What the interface already does (context, not an ask): it now LEAN-CREATES - it spawns only
+order-referenced friendly units, and PRESERVES the full threat (OPFOR/neutral is kept, because
+it engages autonomously and is part of the COP). Idle *friendly* context is dropped
+automatically; the threat is not touched.
+
+The ask (OPFOR density only): keep emitting the FULL friendly ORBAT (the plan needs it), but for
+OPFOR emit what is **tactically relevant to the COA** - the threat the force will actually face
+along its axis and at its objectives - rather than the entire enemy database fully disaggregated.
+Prefer aggregate-level for deep/rear enemy formations that will never engage this COA. This keeps
+the threat and the COP intact (do NOT thin the threat the force fights) while shedding deep dead
+weight that only slows the sim and starves terrain paging. Evidence: this doc +
+docs/SCENARIO_SETUP_GUIDE.md (bloat/lean-creation), measured 2026-07-14.
+
+---
+
 ## Summary
 
 | # | Item | Ask | Primary evidence |
@@ -208,6 +235,7 @@ even get a chance to matter (UNIT_MOVEMENT_RESEARCH.md sec 4c, feedback item #4)
 | 2 | Timing hygiene | Sane start delays; set a watchable SimulationRealtimeMultiple | PORT.md sec 5 and sec 10 |
 | 3 | Disperse positions | Do not co-locate dozens of units at one coordinate (hygiene, not the movement cure) | UNIT_MOVEMENT_RESEARCH.md sec 4 / 4b; live 2026-07-12/13 |
 | 4 | Region validation | Probe a region with a 1-unit move before generating COAs there, or pick known-good regions | UNIT_MOVEMENT_RESEARCH.md sec 4c; live 2026-07-13 |
+| 5 | Right-size OPFOR density | Full friendly ORBAT; emit tactically-relevant OPFOR (aggregate-level for deep/rear), not the whole enemy DB disaggregated - do NOT thin the threat | SCENARIO_SETUP_GUIDE.md; measured 2026-07-14 |
 
 Items 1-3 are independent, low-cost data corrections. Item 4 is the governing constraint and
 is decided at COA-generation time. None of these ask you to reduce the richness of what
