@@ -905,7 +905,7 @@ proceed on a slow proxy - the STOMP client cannot ride it out.
 
 ## Appendix B - ApplicationNumber ledger
 
-3200-3416: consumed (see entries below). NEXT FREE: 3417 (always take the number after the last
+3200-3419: consumed (see entries below). NEXT FREE: 3420 (always take the number after the last
 ledger entry). Record each join here as it is consumed (app / ResetVrf / WatchVrf each take one).
 Never reuse.
 - 3402: app join for the Tier-1 COA-STP1-Sweden-minimal reverse-transplant (ClientId=C2SIM,
