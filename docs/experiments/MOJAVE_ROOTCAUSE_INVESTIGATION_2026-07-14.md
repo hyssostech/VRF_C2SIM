@@ -17,6 +17,33 @@ region, not just Sweden) become executable at the gold-run level. Deliver ONE of
 whichever the evidence shows is achievable. The supervisor adjudicates toward whichever
 the mechanism supports; both count as "make the class executable".
 
+## Experiment matrix (region x scenario/order) - recap 2026-07-15
+
+Two terrain wrappers, Bogaland2.scn (Sweden, ~58.7,16.4) and TropicTortoise.scn (Mojave,
+~34.6,-116.6), sit on the IDENTICAL underlying whole-earth streaming terrain (`MAK Earth
+Space (online).mtf` + `C2simEx.sms` model set - confirmed byte-identical by unzipping both
+.scnx). Two unit/order pairings exist: golden (80 units/49 creatable, STP init + the 3-task
+R5 move order) and COA-STP1 (its own 128-unit init + the 42-task coa-gpt order), natively
+tied to different coordinates. Only 3 of the 4 cells have actually been run:
+
+|                          | Bogaland2 (Sweden)                | TropicTortoise (Mojave)          |
+|--------------------------|------------------------------------|-----------------------------------|
+| Golden set + order       | WORKS. Native pairing. R5 (2026-07-12): 3/3 TASKCMPLT. Reconfirmed as the "Sweden control" in R9 (2026-07-13, same code/day/settings as the Mojave run at right): 3/3 in ~4 min, 45 member Offset-Route objects created. Reconfirmed again 2026-07-14 (semantic Units 2/4/5, SubordinateFanOut OFF - genuine leader-path, no fan-out fallback, no nav data): 14.MechBn 5318 m, 1222.MechPlt 5634 m, 1.BdeHQ 9016 m. | MOSTLY FREEZES. R9 region-swap (2026-07-13): golden unit set/routes coordinate-transplanted onto Mojave (ground geometry preserved). 1/3: only the entity control (1.BdeHQ) completed its ~1.16 km route; the platoon moved 8 m total and froze; the company moved 410 m the wrong direction and froze. ZERO member Offset-Route objects created (vs 45 at Sweden) - `moveAlong() - empty route` is the smoking gun. This is the controlled A/B isolating *location* as the variable (same code, same day). |
+| COA-STP1 set + order     | NOT RUN. No reverse-transplant experiment (COA-STP1's own units at Sweden coordinates) was ever conducted - untested, not falsified. | FREEZES / MIXED, several configurations, native pairing. Bare (R5c/R6): 0/6 aggregates marched, control-only. + de-stack (R8, 2026-07-13): still 0/6 - companies instead RAN AWAY 31-124 km past their routes, CoHQs scattered 76-93 km, platoons shuffled ~60 m (stack hypothesis falsified). + de-stack + auto-formation + SubordinateFanOut (bypass, not a fix): 5/7 unit completions on a 7-task probe (2026-07-13). Full 42-task scale run under the same bypass (2026-07-13): pipeline holds at scale, movement integrity mixed - F1 runaway under fan-out (one unit drove 53.8 km, 18.4 km past route end), F2/F2b vacuous completions (TASKCMPLT fires with zero displacement), F3 timeout-race (fixed by the F3 probe's config tune, orchestration only, does not touch movement quality). |
+
+What this rules in/out: code/day/multiplier excluded (R9's Sweden-vs-Mojave run was same
+code, same day, same 20x, only location differs); nav data excluded (Sweden marches with
+zero nav data; generating nav data at Mojave did not fix it either); terrain page-in
+excluded (forcing the AO to page in did not unfreeze aggregates); stacked coordinates
+excluded as the SOLE cause (R8 de-stacked COA-STP1 and still got 0/6 - a different failure
+mode, runaway, appeared instead). The one clean, reproducible discriminator across every
+cell: member Offset-Route count - 45 at Sweden (golden), 0 at Mojave (golden-transplant AND
+native COA-STP1) - the aggregate leader-path/offset-route builder returns empty specifically
+at the Mojave location, on identical terrain data. `GroundWaypointAltitudeMode` (below) is
+the current probe of WHY. The only proven Mojave mover is SubordinateFanOut - a bypass
+(member entities, standard nav) that works AROUND the empty-offset-route problem rather than
+fixing it, with known integrity warts (F1/F2b) under load.
+
 ## The single load-bearing fact (R9, verified 2026-07-13)
 
 At Mojave, the VR-Forces backend logs (3x per aggregate):
