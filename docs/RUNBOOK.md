@@ -52,7 +52,73 @@ a persistent process, like the interface) and verify success by process presence
 Clean shutdown: same as any other federate - drive the C2SIM server to UNINITIALIZED and let
 it resign, or if nothing has joined it yet, a plain close is fine (it never joined a
 federate). Do NOT force-kill it once anything (the interface, ResetVrf, WatchVrf) has joined
-the federation it hosts - sec 0 applies to it too.
+the federation it hosts - sec 0 applies to it too. EXCEPTION (2026-07-15): a process stuck
+behind a blocking startup error dialog (e.g. the LRC #8 case below) never completed a real
+join - closing it directly is fine; only a process that has genuinely joined needs the clean
+stop.
+
+KNOWN ISSUE - NOT YET RELIABLE, backlogged 2026-07-15: this recipe gets vrfSimHLA1516e
+running and loading a scenario, but has NOT yet proven stable for unattended/independent
+launch:
+- First attempt: a bare `--fedFileName RPR_FOM_v2.0_1516-2010.xml` (relative filename)
+  produced an RTI popup "LRC #8: Failed to open FDD file" - `rtiexec` (auto-spawned by the
+  RTI, likely a different cwd than vrfSim's) could not resolve the bare filename even though
+  it exists in vrfSim's own bin64. FIX: pass an ABSOLUTE path for `--fedFileName`.
+- After that fix, vrfSim loaded the TropicTortoise scenario cleanly ("Successfully loaded
+  scenario", objects registering) - but a `ResetVrf --dry-run` against it then crashed
+  (`0xC0000005` access violation inside `VrfFacade::Tick()` -> MAK's own
+  `controller->tick()`) DURING discovery, before any of our own init/units were involved -
+  the crash happened while reflecting the scenario's OWN native "Locally Simulated" objects
+  (GlblTerrDmg, EnvironmentProcess, VrfExtendedAttributes, the page-in area). Shortly after
+  (~2 min), vrfSim itself crashed too (dump `vrfSim5.0.2-MSVC++15.0_64-249613-<pid>.dmp` in
+  `C:\MAK\vrforces5.0.2\bin64\`), timing-adjacent to the ResetVrf crash - plausibly a
+  cascade (ResetVrf's crash destabilizing shared HLA-level state) rather than two
+  independent bugs. A retried ResetVrf dry-run in between succeeded cleanly, so it is not
+  100% reproducible on demand.
+- A prior, DIFFERENT vrfSim crash exists from 2026-07-14 evening (same bin64 dir), already
+  documented: docs/experiments/MOJAVE_ROOTCAUSE_INVESTIGATION_2026-07-14.md "Live A/B -
+  ATTEMPT 1 ABORTED" (creating a full amphib-laden unit transplant on top of an
+  already-loaded scenario). That one IS explained (backend overload); this session's is
+  NOT yet explained and may be a different mechanism (no units were even created this
+  time).
+- BACKLOG (user-flagged 2026-07-15, priority - "we will want independent live execution
+  figured out soon"): find the actual root cause (candidates: a missing setting the GUI-based
+  launches carry that a bare CLI launch does not - e.g. `--frontEndPID`/combined-mode
+  registration, a settings file the GUI writes that CLI launch skips, RTI/tick threading
+  interaction with environmental-object reflection; or a genuine MAK SDK bug specific to a
+  remote controller ticking against TropicTortoise's native content). Until root-caused,
+  treat self-launch as NOT reliable for unattended use - keep a human ready to relaunch/
+  dismiss dialogs. Old dumps from 12/2023-1/2024 in the same directory are unrelated
+  (MAK install-era testing, predate this project).
+
+## 0.6 GOTCHA - never put a comment in the XML prolog of a pushed init/order file
+(found + root-caused 2026-07-15, cost a long bisection): a large explanatory `<!-- ... -->`
+comment BEFORE the root `<MessageBody>` element (i.e. in the XML prolog, after `<?xml?>` but
+before the root tag) is standard-legal XML - `xmllint` confirms well-formed, and the port's
+own `InitParser`/`OrderParser` accept it fine - but the REAL C2SIM server's parser does NOT
+tolerate it and silently rejects the WHOLE message with a generic, unhelpful error
+(`ERROR Error processing message`, or via `PushInit --verbose`:
+`Only INITIALIZATION messages are permitted in server state INITIALIZING`, itself a red
+herring - it is not actually a performative/state problem). Proven by bisection (stripping
+the prolog comment alone fixed an otherwise-identical push; reverting other suspects -
+coordinates, ForceSide trimming - did NOT fix it in isolation). FIX for INIT files: put documentation comments INSIDE the root element (right after the
+opening `<MessageBody ...>` tag), never before it - confirmed working via PushInit.
+CORRECTION for ORDER files (found immediately after, same session): the inside-root fix is
+NOT enough for orders - a large multi-line comment there crashed the receiving app's STOMP
+client (`System.Xml.XmlException: Unexpected end of file while parsing Comment`, app
+"Restart recommended") even though the pushed file itself was well-formed XML. Orders are
+live-broadcast over STOMP (a different delivery path than init's REST/QUERYINIT poll), and
+something in that path - likely the server's or SDK's own re-slicing of the live event body
+- cuts the message at a point that lands INSIDE a large comment, truncating it mid-comment
+on the receiving end. FIX for orders: no large block comment anywhere in the file; small
+single-line inline comments (e.g. `<!--UnitName-->` on an ActorReference/PerformingEntity
+line, matching the established pattern in R9_Mojave_UnitMove_Order.xml) are fine and did not
+reproduce this. `data/COA-STP1_Sweden_Initialization.xml` (comment inside root, works) and
+`data/COA-STP1_Sweden_MinimalOrder.xml` (no block comment, works) are the worked examples.
+Diagnostic tool improvement made alongside this: `tools/PushInit` gained a `--verbose` flag
+(prints the SDK's own trace-level raw server response, normally discarded by
+`NullLoggerFactory` - this is what surfaced the real `<error>` detail above the generic
+`resp.Message`); use it whenever a push fails with only a generic error.
 
 ## 1. Environment (verify - do not assume; see PORT.md sec 4)
 

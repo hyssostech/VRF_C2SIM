@@ -905,9 +905,62 @@ proceed on a slow proxy - the STOMP client cannot ride it out.
 
 ## Appendix B - ApplicationNumber ledger
 
-3200-3385: consumed (see entries below). NEXT FREE: 3386 (always take the number after the last
+3200-3406: consumed (see entries below). NEXT FREE: 3407 (always take the number after the last
 ledger entry). Record each join here as it is consumed (app / ResetVrf / WatchVrf each take one).
 Never reuse.
+- 3402: app join for the Tier-1 COA-STP1-Sweden-minimal reverse-transplant (ClientId=C2SIM,
+  AggregateFormation=auto, TimeMultiplier=20, SubordinateFanOut off - genuine leader-path
+  test), on the user-launched Bogaland2 backend. Init push itself required a real fix
+  (RUNBOOK sec 0.6 - prolog-comment gotcha) before it would even reach the server. Both units
+  created + formation-repaired cleanly, but the ORDER push then crashed the app's STOMP
+  client (RUNBOOK sec 0.6 correction - block comments break order delivery too, a different
+  mechanism than the init fix). App resigned cleanly on StopIface despite the dead STOMP
+  thread; Solution A cleanup still ran (both units deleted, no orphans).
+- 3403: consumed 2026-07-15, ResetVrf pre-retry dry-run sweep after the app crash/clean-stop.
+  Confirmed clean (2 baseline env objects only, not our units - cleanup held).
+- 3404: app join (retry, ClientId=C2SIM), same config as 3402. Both units created +
+  formation-repaired; order pushed clean this time (comment stripped, RUNBOOK sec 0.6);
+  CreateRoute + MoveAlongRoute dispatched for both AD/7152 and 3/7159.
+- 3405: WatchVrf telemetry window (240s/15s samples) for the Tier-1 COA-STP1-Sweden-minimal
+  probe - RESULT: neither unit marched. AD/7152 (platoon) reported TASKCMPLT but sat at a
+  degenerate (0,0) position the ENTIRE window (vacuous completion, R11/F2-class); 3/7159
+  (company) held a real position but drifted <1 m over 210 s (frozen, no TASKCMPLT). Full
+  writeup: docs/experiments/MOJAVE_ROOTCAUSE_INVESTIGATION_2026-07-14.md.
+- 3406: post-run ResetVrf dry-run sweep. Clean - Solution A cleanup removed both units, no
+  orphans (2 baseline env objects only).
+
+- 3388: consumed 2026-07-15, vrfSimHLA1516e itself (the sim backend, launched headless per
+  RUNBOOK sec 0.5 - first time this project launched VR-Forces itself rather than a human via
+  GUI). TropicTortoise (Mojave) scenario, execName CWIX-2024, RTI 4.6.1. Healthy: rtiexec up,
+  terrain+scenario loaded clean. Backend join, not an interface/tool join - stays up across
+  the following app/WatchVrf runs in this session (Tier-1 GroundWaypointAltitudeMode probe,
+  docs/experiments/MOJAVE_ROOTCAUSE_INVESTIGATION_2026-07-14.md).
+- 3389: consumed 2026-07-15, ResetVrf pre-run dry-run sweep on the freshly-launched TropicTortoise
+  backend. Clean: 0 deletable, 1 nil-uuid artifact skipped. Confirms no orphans before the
+  Tier-1 GroundWaypointAltitudeMode=Live probe.
+- 3390: consumed 2026-07-15, app attempt (GroundWaypointAltitudeMode=Live, lean golden-Mojave
+  init) - "No backends found for object creation" (vrfSim's own federation join was stuck
+  behind the LRC #8 FDD-path popup, see RUNBOOK sec 0.5 KNOWN ISSUE); clean-stopped via
+  StopIface, no stale federate.
+- 3391: consumed 2026-07-15, ResetVrf dry-run re-check after the app clean-stop; BackendCount=0
+  confirmed (same underlying cause), 0 deletable, resigned cleanly.
+- 3392-3397: consumed 2026-07-15, a bounded background poll (6x ResetVrf --dry-run, 30s apart)
+  testing whether BackendCount just needed more time; all 6 came back empty/inconclusive
+  (later understood: still the same stuck-federation-join state).
+- 3398: NOT an interface join - vrfSimHLA1516e's own appNumber for the second launch attempt
+  (absolute --fedFileName path fix). Loaded TropicTortoise cleanly this time (no popup), but
+  the process itself crashed ~2 min later (RUNBOOK sec 0.5 KNOWN ISSUE; dump
+  vrfSim5.0.2-MSVC++15.0_64-249613-36716.dmp).
+- 3399: consumed 2026-07-15, ResetVrf dry-run against the freshly-loaded TropicTortoise (post-
+  3398) - CRASHED (0xC0000005 access violation in VrfFacade::Tick(), during discovery, before
+  any of our init/units were pushed). See RUNBOOK sec 0.5 KNOWN ISSUE.
+- 3400: consumed 2026-07-15, ResetVrf dry-run retry immediately after the 3399 crash - succeeded
+  cleanly (1 nil-uuid, 0 deletable, resigned clean). Not reproducible on demand.
+- 3401: consumed 2026-07-15, ResetVrf pre-run dry-run sweep on the user-launched Bogaland2
+  (Sweden) backend (vrfGui + vrfSimHLA1516e, human-launched after the TropicTortoise
+  instability). Clean: 3 discovered (2 deletable baseline env objects - same UUIDs seen at
+  Mojave, not orphans; 1 nil), 0 deletes issued (dry-run). No crash. Precedes the
+  COA-STP1-Sweden-minimal reverse-transplant push.
 
 - 3355-3359: consumed 2026-07-13 scale run (dry-run/sweep/watch/app/post-run).
 - 3360-3362: consumed 2026-07-13 P4b live pass (dry-run/app/post-run dry-run). The 3363

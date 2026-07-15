@@ -246,6 +246,71 @@ Phase 1 (Fixed100 baseline, R9_Mojave full init) crashed the SIM BACKEND during 
   also isolates the altitude variable with far less backend stress.
 - appNos consumed: 3386 (app), 3387 (WatchVrf - never got clean telemetry). Next free: 3388.
 
+## Tier-1 reverse-transplant RESULT (2026-07-15, LIVE, apps 3401-3406): COA-STP1's OWN units
+## do NOT march even at the golden Sweden region - the freeze is NOT purely a region effect
+
+Completes the matrix cell flagged as "NOT RUN" in the 2026-07-15 recap (see the matrix
+section above). data/COA-STP1_Sweden_Initialization.xml + data/COA-STP1_Sweden_MinimalOrder.xml
+(2 of COA-STP1's OWN units, AD/7152 platoon + 3/7159 company, coordinate-transplanted onto
+Sweden per the R9-inverse transform - see those files' own comments) pushed and tasked with
+a plain self-move MOVE (bare CreateRoute + MoveAlongRoute, the SAME genuine leader-path
+mechanism R9 tested - AggregateFormation=auto, SubordinateFanOut OFF, no de-stack, 20x, on
+the user-launched Bogaland2/Sweden backend).
+
+RESULT: NEITHER unit marched, telemetry-verified (WatchVrf, 240 s / 15 s samples, R11 rule):
+- AD/7152 (platoon): reported a REAL TASKCMPLT ("VRF task complete: AD/7152 / move-along")
+  but WatchVrf shows a DEGENERATE (0,0,-6378137) position for the ENTIRE 228 s window - never
+  resolved to a real geodetic location at all. A vacuous completion, the same class as R11's
+  DtPlanAndMoveToTask trap and the scale run's F2 (1-1/2/1_AD) - except here it is the PLAIN
+  moveAlongRoute path lying, at the GOLDEN region, not Mojave.
+- 3/7159 (company): held a REAL resolvable position (58.5247, 16.7328) but drifted under 1 m
+  over 210 s (noise-level, not movement) toward its ~1100 m destination - frozen, no TASKCMPLT
+  ever sent.
+- Both units WERE created + formation-repaired cleanly first (query -> set 'column' ->
+  reorganize, the R5 mechanism) - so this is not a creation or formation-state failure; it is
+  specific to the move/leader-path dispatch, same symptom class as Mojave.
+
+ADVERSARIAL CHECK (falsification): is this a fluke of these 2 specific transplanted
+coordinates rather than the units themselves (e.g. bad micro-terrain at 58.71,16.45 or
+58.53,16.73)? Not excluded with certainty, but weak - both points sit inside/near the broader
+AO where golden units are repeatedly proven to march (R9's own footprint ~58.68-58.75 N,
+16.32-16.52 E covers the AD/7152 anchor; 3/7159 is ~20 km SE, still ordinary Sweden inland
+terrain, not a documented water/obstacle feature). No prior session has EVER produced a
+genuine (non-fan-out, telemetry-verified) COA-STP1 aggregate moveAlongRoute completion at
+ANY region (R5c 0/6, R8 0/6 - runaway instead; the scale run's completions all went through
+SubordinateFanOut, a different mechanism) - so this result is consistent with, not falsified
+by, everything observed so far.
+
+LEADING REFINED HYPOTHESIS (not yet proven - the next thing to check): SISOEntityType (DIS
+type). Checked directly against both source files: golden units (R9_Mojave_Lean_Initialization.xml)
+ALWAYS carry a real DIS type (DISKind=11, DISCategory 3 or 5, all 6 units). COA-STP1's ENTIRE
+dataset (data/COA-STP1_Initialization.xml, all 537 SISOEntityType instances, checked via grep,
+not sampled) carries DISKind=0/DISCategory=0 (unspecified/wildcard) - uniformly, not just
+these 2 units. This is a clean, 100% categorical difference between the two datasets, and a
+plausible mechanism: VR-Forces' aggregate offset-route/leader-path builder (Thread A's finding
+above) needs to resolve the aggregate's MEMBER vehicle models to compute formation-offset
+geometry; an unspecified DIS type may fail to resolve a real member model in C2simEx.sms,
+leaving the aggregate creatable and formation-commandable (both succeeded) but with no real
+geometry to plan a leader path against - a degenerate/frozen result regardless of region. This
+would NOT contradict R9 (which used golden units, always real DIS types, at both regions) -
+it would mean TWO separate blockers exist: Mojave's region-specific empty-offset-route effect
+(still real, still unsolved, still the cause for GOLDEN units transplanted there) PLUS a
+COA-STP1-data-specific zero-DIS-type effect that blocks genuine aggregate movement independent
+of region. NOT YET TESTED: a COA-STP1 unit WITH a real DIS type, if any exist in the dataset
+(none found in the entities checked so far - the zero-DIS-type property looks dataset-wide,
+which would make this hard to isolate via unit selection alone and might need a synthetic
+DIS-type override for a probe instead).
+
+PRACTICAL IMPLICATION: `GroundWaypointAltitudeMode=Live` (the altitude-mode probe, still
+untested live - blocked on TropicTortoise's crash instability, RUNBOOK sec 0.5) may fix
+golden/real-DIS-type units at Mojave without helping COA-STP1's own units at all, if the
+DIS-type hypothesis holds - the two problems would need two separate fixes for coa-gpt
+scenarios (which generate COA-STP1-shaped data) to work end-to-end at arbitrary regions.
+
+Evidence: appNos 3401-3406 (dry-run/init-push-fix/app/order-fix/watch/post-sweep);
+docs/RUNBOOK.md sec 0.6 (the two XML-comment gotchas hit + fixed en route:
+prolog comments break init push; ANY block comment breaks order STOMP delivery).
+
 ## Decisions log
 
 - 2026-07-14: user moved to the supervisor seat and directed a multi-Opus dig at this

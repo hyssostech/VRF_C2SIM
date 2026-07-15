@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="utf-8"?>
+<MessageBody xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.sisostds.org/schemas/C2SIM/1.1">
+<!-- COA-STP1 Sweden region-swap (reverse of R9): does COA-STP1's OWN unit data march
+     if moved to the golden Sweden coordinates, or does it carry a problem beyond region?
+     docs/UNIT_MOVEMENT_RESEARCH.md sec 4c (R9 forward swap: golden units -> Mojave, froze
+     2/3). This file is the REVERSE direction: 2 of COA-STP1's OWN units -> Sweden coords.
+
+     NOTE: this comment intentionally avoids writing two consecutive hyphen characters
+     anywhere in its text (the CLI flag below is spelled without its leading double dash,
+     and SIDC strings are described by their meaningful character rather than pasted
+     verbatim) because two consecutive hyphens inside an XML comment make it malformed
+     XML; a prior draft of this file used the literal double dash flag name and dash
+     heavy SIDC strings in this comment and the app's XML deserializer silently failed on
+     it (empty parse, 0 units). Keep this constraint if this comment is ever edited.
+
+     Units kept (both carry their OWN explicit <Location> in the source file - confirmed
+     via the offline parse-init check: no <Superior>/<CommandRelation>/<Subordinate>, so
+     no superior coordinate cascade applies - grep data/COA-STP1_Initialization.xml):
+       AD/7152  UUID 07894543-cfe5-765e-8c03-1e528d3f7350  EchelonCode PLT (platoon)
+                SIDC echelon char (index 11) = 'D' -> UnitTranslator: ArmorPlatoon (AGG)
+       3/7159   UUID 0a28b148-46b6-6058-af94-7738bacd3af7  EchelonCode COY (company)
+                SIDC echelon char (index 11) = 'E' -> UnitTranslator: ArmorCompany (AGG)
+     Both Side=00000000-0000-0002-0000-000000000000 (WASA) -> hostile relative to the
+     first ForceSide (NATO Coalition, blue) -> HostilityCode "HO" (matches the source
+     parse-init "Host=HO" observation) -> Force.Opposing in UnitTranslator.
+     ForceSide scaffold: all 3 blocks kept (NATO Coalition FIRST - InitParser treats
+     forceSides[0] as blue and reads ITS ForceSideRelation list to resolve hostility).
+     CORRECTION (2026-07-15 live push): an earlier draft dropped the 3rd ForceSide
+     ("Neutral") since neither kept unit references it directly - the port's own lenient
+     InitParser accepted that (its hostility lookup only needs blue's own relation list),
+     and the offline parse-init check passed - but the REAL C2SIM server rejected the
+     push ("ERROR Error processing message", generic) because NATO Coalition's and WASA's
+     OWN <ForceSideRelation><OtherSide> entries still reference Neutral's UUID
+     (00000000-0000-0003-0000-000000000000), a dangling reference once its <ForceSide>
+     object was removed. Re-added verbatim from COA-STP1_Initialization.xml. Lesson:
+     the server does referential-integrity/schema validation our own parser does not -
+     don't trim scaffold objects that are still REFERENCED even if not directly used.
+     SystemName is "C2SIM" (copied from COA-STP1_Initialization.xml's own
+     SystemEntityList/SystemName), so clientId=C2SIM is required for the parse-init check
+     to report these units creatable (NOT "STP" - that is the golden init's clientId).
+
+     COORDINATE TRANSPLANT ARITHMETIC (Mojave -> Sweden; inverse direction of R9's
+     Sweden -> Mojave transform in docs/experiments/R9_region_swap_2026-07-13.txt):
+     Native Mojave coordinates (data/COA-STP1_Initialization.xml, unchanged):
+       AD/7152  lat=34.51930020274827   lon=-116.6936226485817
+       3/7159   lat=34.33736748096155   lon=-116.51533760437191
+     Native offset (3/7159 minus AD/7152): dLat=-0.18193272178672  dLon=+0.17828504420979
+     Native great-circle separation (haversine): 26012.200 m
+
+     R9's rule preserves ground distance via dLon_target = dLon_source * cos(lat_source)
+     divided by cos(lat_target) (this is the SAME direction the rule always points:
+     multiply by the source latitude's cosine, divide by the target latitude's cosine;
+     R9's own worked example, Sweden(58.69) to Mojave(34.6), used cos(58.69)/cos(34.6)
+     =0.6313 because there "source"=Sweden). Applying the identical rule with our
+     source/target swapped (source=Mojave~34.52, target=Sweden anchor 58.71) gives
+     scale = cos(34.51930020274827)/cos(58.71) = 1.586413, the RECIPROCAL of R9's 0.6313
+     (1/0.6313=1.584, matching to the small difference in anchor latitude used).
+     [Falsification check performed: applying cos(58.7)/cos(34.5)=0.630 (R9's numeric
+     ratio taken verbatim rather than re-derived for the swapped direction) reproduces
+     only 81.7% of the native separation, an 18% distance error that fails the "few
+     percent" sanity gate below, so the reciprocal (1.586413) is the one used here.]
+
+     Anchor: AD/7152 placed at (58.71, 16.45), inside the golden Sweden AO (telemetry
+     observed golden unit footprint about 58.69 to 58.75 N, 16.32 to 16.52 E, R9
+     evidence file). 3/7159 = anchor + (dLat unscaled, dLon * 1.586413):
+       new lat = 58.71 + (-0.18193272178672)          = 58.52806727821328
+       new lon = 16.45 + (0.17828504420979*1.586413)  = 16.732833735916422
+     Sanity check (haversine, same formula both ways):
+       native separation       = 26012.200 m
+       transplanted separation = 26027.783 m
+       ratio = 1.00060 (0.06% error), matching R9's own "9344 m maps to 9346 m" (0.02%)
+       precedent to within a few percent.
+     3/7159 lands about 26 km SE of the AD/7152 anchor (the real native separation is
+     large; this is inherent to the two units' true relative positions in COA-STP1, not
+     an artifact of the transform); both remain within the broader Sweden region the
+     golden scenario occupies, just not inside the tight ~6x12 km golden cluster box.
+
+     SECOND CORRECTION (2026-07-15, live push, found by bisection): with the Neutral
+     ForceSide restored, the push STILL failed identically. Root cause was this very
+     comment's POSITION: it originally sat in the XML PROLOG, before the MessageBody root
+     element (standard-legal XML - xmllint confirmed well-formed, and the port's own
+     lenient parser accepted it) - but the real C2SIM server's parser does not tolerate a
+     large comment before the root element and silently fails the whole message ("ERROR
+     Error processing message", no specific detail). Proven by bisection: stripping the
+     prolog comment entirely made an otherwise-identical push succeed; reverting
+     coordinates to the original Mojave values while KEEPING the prolog comment still
+     failed, isolating comment POSITION (not coordinates, not ForceSides) as the cause.
+     Fix: this comment now lives INSIDE the root element (right after the opening
+     MessageBody tag), not before it. Lesson for future init/order files: keep
+     documentation comments inside the root element, never in the prolog. -->
+  <C2SIMInitializationBody>
+    <ObjectDefinitions>
+      <AbstractObject>
+        <ForceSide>
+          <Name>NATO Coalition</Name>
+          <UUID>00000000-0000-0001-0000-000000000000</UUID>
+          <ForceSideRelation>
+            <HostilityStatusCode>HO</HostilityStatusCode>
+            <OtherSide>00000000-0000-0002-0000-000000000000</OtherSide>
+          </ForceSideRelation>
+          <ForceSideRelation>
+            <HostilityStatusCode>NEUTRL</HostilityStatusCode>
+            <OtherSide>00000000-0000-0003-0000-000000000000</OtherSide>
+          </ForceSideRelation>
+        </ForceSide>
+      </AbstractObject>
+      <AbstractObject>
+        <ForceSide>
+          <Name>WASA</Name>
+          <UUID>00000000-0000-0002-0000-000000000000</UUID>
+          <ForceSideRelation>
+            <HostilityStatusCode>HO</HostilityStatusCode>
+            <OtherSide>00000000-0000-0001-0000-000000000000</OtherSide>
+          </ForceSideRelation>
+          <ForceSideRelation>
+            <HostilityStatusCode>NEUTRL</HostilityStatusCode>
+            <OtherSide>00000000-0000-0003-0000-000000000000</OtherSide>
+          </ForceSideRelation>
+        </ForceSide>
+      </AbstractObject>
+      <AbstractObject>
+        <ForceSide>
+          <Name>Neutral</Name>
+          <UUID>00000000-0000-0003-0000-000000000000</UUID>
+          <ForceSideRelation>
+            <HostilityStatusCode>NEUTRL</HostilityStatusCode>
+            <OtherSide>00000000-0000-0001-0000-000000000000</OtherSide>
+          </ForceSideRelation>
+          <ForceSideRelation>
+            <HostilityStatusCode>NEUTRL</HostilityStatusCode>
+            <OtherSide>00000000-0000-0002-0000-000000000000</OtherSide>
+          </ForceSideRelation>
+        </ForceSide>
+      </AbstractObject>
+      <Entity>
+        <ActorEntity>
+          <CollectiveEntity>
+            <MilitaryOrganization>
+              <Unit>
+                <EntityDescriptor>
+                  <Side>00000000-0000-0002-0000-000000000000</Side>
+                </EntityDescriptor>
+                <CurrentState>
+                  <PhysicalState>
+                    <EntityHealthStatus>
+                      <OperationalStatus>
+                        <OperationalStatusCode>FullyOperational</OperationalStatusCode>
+                      </OperationalStatus>
+                    </EntityHealthStatus>
+                    <Location>
+                      <GeodeticCoordinate>
+                        <Latitude>58.71</Latitude>
+                        <Longitude>16.45</Longitude>
+                      </GeodeticCoordinate>
+                    </Location>
+                  </PhysicalState>
+                </CurrentState>
+                <APP6CSymbol>
+                  <APP6C-SIDC>SHGPUCD----D---</APP6C-SIDC>
+                </APP6CSymbol>
+                <Name>AD/7152</Name>
+                <SISOEntityType>
+                  <DISCategory>0</DISCategory>
+                  <DISCountry>0</DISCountry>
+                  <DISDomain>0</DISDomain>
+                  <DISExtra>0</DISExtra>
+                  <DISKind>0</DISKind>
+                  <DISSpecific>0</DISSpecific>
+                  <DISSubCategory>0</DISSubCategory>
+                </SISOEntityType>
+                <UUID>07894543-cfe5-765e-8c03-1e528d3f7350</UUID>
+                <EchelonCode>PLT</EchelonCode>
+              </Unit>
+            </MilitaryOrganization>
+          </CollectiveEntity>
+        </ActorEntity>
+      </Entity>
+      <Entity>
+        <ActorEntity>
+          <CollectiveEntity>
+            <MilitaryOrganization>
+              <Unit>
+                <EntityDescriptor>
+                  <Side>00000000-0000-0002-0000-000000000000</Side>
+                </EntityDescriptor>
+                <CurrentState>
+                  <PhysicalState>
+                    <EntityHealthStatus>
+                      <OperationalStatus>
+                        <OperationalStatusCode>FullyOperational</OperationalStatusCode>
+                      </OperationalStatus>
+                    </EntityHealthStatus>
+                    <Location>
+                      <GeodeticCoordinate>
+                        <Latitude>58.52806727821328</Latitude>
+                        <Longitude>16.732833735916422</Longitude>
+                      </GeodeticCoordinate>
+                    </Location>
+                  </PhysicalState>
+                </CurrentState>
+                <APP6CSymbol>
+                  <APP6C-SIDC>SHGPUCD----E---</APP6C-SIDC>
+                </APP6CSymbol>
+                <Name>3/7159</Name>
+                <SISOEntityType>
+                  <DISCategory>0</DISCategory>
+                  <DISCountry>0</DISCountry>
+                  <DISDomain>0</DISDomain>
+                  <DISExtra>0</DISExtra>
+                  <DISKind>0</DISKind>
+                  <DISSpecific>0</DISSpecific>
+                  <DISSubCategory>0</DISSubCategory>
+                </SISOEntityType>
+                <UUID>0a28b148-46b6-6058-af94-7738bacd3af7</UUID>
+                <EchelonCode>COY</EchelonCode>
+              </Unit>
+            </MilitaryOrganization>
+          </CollectiveEntity>
+        </ActorEntity>
+      </Entity>
+    </ObjectDefinitions>
+    <ScenarioSetting>
+      <DateTime>
+        <IsoDateTime>2026-07-15T00:00:00Z</IsoDateTime>
+      </DateTime>
+      <Version>1.0.2</Version>
+    </ScenarioSetting>
+    <SystemEntityList>
+      <ActorReference>07894543-cfe5-765e-8c03-1e528d3f7350</ActorReference><!--AD/7152-->
+      <ActorReference>0a28b148-46b6-6058-af94-7738bacd3af7</ActorReference><!--3/7159-->
+      <SystemName>C2SIM</SystemName>
+    </SystemEntityList>
+  </C2SIMInitializationBody>
+</MessageBody>

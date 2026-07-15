@@ -1,11 +1,14 @@
 using C2SIM;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 // Reset the C2SIM server and share an initialization, then leave it RUNNING.
-//   PushInit <init.xml> [restUrl] [stompUrl]
-string initPath = args.Length > 0 ? args[0] : throw new ArgumentException("need init xml path");
-string restUrl = args.Length > 1 ? args[1] : "http://127.0.0.1:8080/C2SIMServer";
-string stompUrl = args.Length > 2 ? args[2] : "http://127.0.0.1:61613/topic/C2SIM";
+//   PushInit <init.xml> [restUrl] [stompUrl] [--verbose]
+bool verbose = args.Contains("--verbose");
+string[] positional = args.Where(a => a != "--verbose").ToArray();
+string initPath = positional.Length > 0 ? positional[0] : throw new ArgumentException("need init xml path");
+string restUrl = positional.Length > 1 ? positional[1] : "http://127.0.0.1:8080/C2SIMServer";
+string stompUrl = positional.Length > 2 ? positional[2] : "http://127.0.0.1:61613/topic/C2SIM";
 
 var settings = new C2SIMSDKSettings
 {
@@ -17,7 +20,8 @@ var settings = new C2SIMSDKSettings
     ProtocolVersion = "CWIX2024v1.0.2",
 };
 
-using var sdk = new C2SIMSDK(NullLoggerFactory.Instance, settings);
+ILoggerFactory loggerFactory = verbose ? new ConsoleLoggerFactory() : NullLoggerFactory.Instance;
+using var sdk = new C2SIMSDK(loggerFactory, settings);
 
 Console.WriteLine($"before      : {await sdk.GetStatus()}");
 
@@ -45,3 +49,22 @@ var sysNames = System.Text.RegularExpressions.Regex.Matches(shared ?? "", "<Syst
     .Select(m => m.Groups[1].Value).Distinct();
 Console.WriteLine($"QUERYINIT   : {units} Units, SystemName=[{string.Join(",", sysNames)}]");
 return 0;
+
+// Minimal console logger so --verbose surfaces the SDK's own trace-level raw server
+// response (normally discarded by NullLoggerFactory) without pulling in the
+// Microsoft.Extensions.Logging.Console package.
+sealed class ConsoleLoggerFactory : ILoggerFactory
+{
+    public ILogger CreateLogger(string categoryName) => new ConsoleLogger(categoryName);
+    public void AddProvider(ILoggerProvider provider) { }
+    public void Dispose() { }
+}
+
+sealed class ConsoleLogger(string category) : ILogger
+{
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+    public bool IsEnabled(LogLevel logLevel) => true;
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+        Func<TState, Exception?, string> formatter)
+        => Console.WriteLine($"[{logLevel}] {category}: {formatter(state, exception)}");
+}
