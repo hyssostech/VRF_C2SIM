@@ -905,7 +905,7 @@ proceed on a slow proxy - the STOMP client cannot ride it out.
 
 ## Appendix B - ApplicationNumber ledger
 
-3200-3410: consumed (see entries below). NEXT FREE: 3411 (always take the number after the last
+3200-3414: consumed (see entries below). NEXT FREE: 3415 (always take the number after the last
 ledger entry). Record each join here as it is consumed (app / ResetVrf / WatchVrf each take one).
 Never reuse.
 - 3402: app join for the Tier-1 COA-STP1-Sweden-minimal reverse-transplant (ClientId=C2SIM,
@@ -939,6 +939,26 @@ Never reuse.
   types borrowed from working golden units. See investigation doc for the writeup and the
   next candidate (force-side/hostility - the one remaining categorical difference).
 - 3410: post-run ResetVrf dry-run sweep. Clean, no orphans.
+- 3411: vrfSimHLA1516e launch (TropicTortoise, absolute FED path), for the altitude-clearance
+  probe. Loaded clean, no popup, backend stable.
+- 3412: ResetVrf pre-run dry-run sweep - CRASHED again (0xC0000005 in VrfFacade::Tick(),
+  this time with a new clue: "Caught unknown exception in reflectAttributeValues" - crashing
+  while processing an incoming attribute update, not during initial discovery). 2nd
+  reproduction of this exact crash class at TropicTortoise specifically (0 reproductions at
+  Sweden across many ResetVrf runs there). Backend itself SURVIVED this time (no new dump,
+  stayed healthy) - contained to the ResetVrf client. Skipped the sweep (fresh scenario, no
+  prior creates, no possible orphans) rather than retry into a 3rd crash. RUNBOOK sec 0.5
+  updated with this new clue.
+- 3413: app join attempt (GroundWaypointAltitudeMode=Live, clearance=0) against the same
+  headless-launched TropicTortoise - CRASHED identically (0xC0000005 in Tick(), 3rd
+  reproduction that session, this time killing the actual experiment app not just ResetVrf).
+- 3414: ResetVrf dry-run against the USER's GUI-launched (combined front-end+back-end mode)
+  TropicTortoise - CLEAN, 0 crashes, identical discovery to every Sweden run. ROOT CAUSE
+  FOUND: the crash is specific to the sec-0.5 headless CLI launch recipe, NOT Mojave/
+  TropicTortoise content (independently also ruled out: byte-identical .scnx to the repo
+  snapshot and to Bogaland2's own page-in-area object, identical FOM/connection config for
+  both scenarios). RUNBOOK sec 0.5 corrected - headless recipe marked unsafe, GUI launch
+  required. Clears the way to actually run the altitude probe.
 
 - 3388: consumed 2026-07-15, vrfSimHLA1516e itself (the sim backend, launched headless per
   RUNBOOK sec 0.5 - first time this project launched VR-Forces itself rather than a human via

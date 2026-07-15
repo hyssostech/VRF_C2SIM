@@ -57,9 +57,13 @@ behind a blocking startup error dialog (e.g. the LRC #8 case below) never comple
 join - closing it directly is fine; only a process that has genuinely joined needs the clean
 stop.
 
-KNOWN ISSUE - NOT YET RELIABLE, backlogged 2026-07-15: this recipe gets vrfSimHLA1516e
-running and loading a scenario, but has NOT yet proven stable for unattended/independent
-launch:
+KNOWN ISSUE - CONFIRMED UNSAFE, 2026-07-15: this recipe gets vrfSimHLA1516e running and
+loading a scenario, but produces a backend that CRASHES remote-controller clients (ResetVrf,
+the app) on tick - root-caused (see the last bullet below) to the headless launch itself, not
+to any particular scenario. DO NOT use this recipe for live work; have a human launch
+VR-Forces via the GUI (combined front-end+back-end mode) instead. Left here for the historical
+record and because the launch args/env themselves are still correct and useful if the
+underlying gap is ever found and fixed:
 - First attempt: a bare `--fedFileName RPR_FOM_v2.0_1516-2010.xml` (relative filename)
   produced an RTI popup "LRC #8: Failed to open FDD file" - `rtiexec` (auto-spawned by the
   RTI, likely a different cwd than vrfSim's) could not resolve the bare filename even though
@@ -81,15 +85,30 @@ launch:
   already-loaded scenario). That one IS explained (backend overload); this session's is
   NOT yet explained and may be a different mechanism (no units were even created this
   time).
-- BACKLOG (user-flagged 2026-07-15, priority - "we will want independent live execution
-  figured out soon"): find the actual root cause (candidates: a missing setting the GUI-based
-  launches carry that a bare CLI launch does not - e.g. `--frontEndPID`/combined-mode
-  registration, a settings file the GUI writes that CLI launch skips, RTI/tick threading
-  interaction with environmental-object reflection; or a genuine MAK SDK bug specific to a
-  remote controller ticking against TropicTortoise's native content). Until root-caused,
-  treat self-launch as NOT reliable for unattended use - keep a human ready to relaunch/
-  dismiss dialogs. Old dumps from 12/2023-1/2024 in the same directory are unrelated
-  (MAK install-era testing, predate this project).
+- REPRODUCED again (2026-07-15, later same day): a ResetVrf dry-run against a freshly-loaded
+  TropicTortoise instance crashed identically (0xC0000005 in VrfFacade::Tick()), then the
+  SAME crash killed the live app itself mid-tick (3rd reproduction total that session) - all
+  against backends launched headless via this doc's sec 0.5 CLI recipe. ZERO reproductions at
+  Sweden/Bogaland2 that same session - but EVERY Sweden run that session used the user's
+  GUI-launched (combined front-end+back-end mode) backend, while EVERY TropicTortoise attempt
+  used the headless CLI recipe - region and launch method were fully confounded, never
+  isolated.
+- ROOT CAUSE FOUND (2026-07-15, same day, later): NOT a TropicTortoise/Mojave content issue.
+  The user launched TropicTortoise via the GUI (combined mode, matching how Sweden was always
+  launched) and a ResetVrf dry-run against THAT backend succeeded cleanly (0 crashes) -
+  discovering the identical 2 baseline objects the headless-launched instance also had, just
+  without the crash. Confirms: the crash is specific to the sec 0.5 HEADLESS CLI launch recipe
+  (`vrfSimHLA1516e.exe` alone, no front-end) missing something the GUI's combined
+  front-end+back-end mode provides - NOT anything about Mojave's terrain/scenario content
+  (which was independently ruled out anyway: byte-identical .scnx to the repo snapshot,
+  byte-identical page-in-area object to Bogaland2's own, identical FOM/connection config used
+  for both scenarios per the GUI's own saved connection profile). CONCLUSION: sec 0.5's
+  headless launch recipe is NOT SAFE TO USE - it produces a backend that crashes remote-
+  controller clients (ResetVrf, the app) on tick. Until the actual missing piece is found
+  (leading candidate: the combined-mode front-end/back-end pairing itself, e.g.
+  `--frontEndPID` or an equivalent front-end presence the backend's reflectAttributeValues
+  path may depend on) always have a human launch VR-Forces via the GUI; do not use the sec
+  0.5 headless CLI recipe for live work.
 
 ## 0.6 GOTCHA - never put a comment in the XML prolog of a pushed init/order file
 (found + root-caused 2026-07-15, cost a long bisection): a large explanatory `<!-- ... -->`
