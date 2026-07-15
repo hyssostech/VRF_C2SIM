@@ -311,6 +311,41 @@ Evidence: appNos 3401-3406 (dry-run/init-push-fix/app/order-fix/watch/post-sweep
 docs/RUNBOOK.md sec 0.6 (the two XML-comment gotchas hit + fixed en route:
 prolog comments break init push; ANY block comment breaks order STOMP delivery).
 
+## DIS-type hypothesis FALSIFIED (2026-07-15, LIVE, apps 3407-3410)
+
+Direct test of the leading hypothesis from the Tier-1 result above: data/COA-STP1_Sweden_RealDIS_Initialization.xml
+is IDENTICAL to data/COA-STP1_Sweden_Initialization.xml (same 2 units, same transplanted
+Sweden coordinates, same SIDC/EchelonCode/UUIDs/ForceSides, same order) EXCEPT each unit's
+SISOEntityType was swapped for a real, valid DIS type borrowed from the matching-echelon
+GOLDEN unit (AD/7152 <- 1222.MechPlt's type; 3/7159 <- 114.MechCoy's type). Single variable
+changed. Pushed + tasked identically (AggregateFormation=auto, SubordinateFanOut off, 20x).
+
+RESULT: IDENTICAL failure pattern to the zero-DIS run, telemetry-verified (WatchVrf, 228 s):
+AD/7152 again reported a vacuous TASKCMPLT while sitting at a degenerate (0,0,-6378137)
+position for the ENTIRE window; 3/7159 again held a real position but drifted under 1 m
+(58.5277,16.7329, essentially the same resting spot as the zero-DIS run). A real DIS type
+alone does NOT rescue genuine aggregate leader-path movement for these units.
+
+FALSIFIES: the "unspecified SISOEntityType blocks member-model resolution" mechanism as
+sufficient on its own. Does NOT rule out DIS type as PART of a combined precondition (see
+below) - only that it is not independently sufficient.
+
+NEXT CANDIDATE (not yet tested): FORCE SIDE / hostility. The one remaining categorical
+difference between the golden units (always Side=NATO Coalition, blue, SIDC prefix "SF...")
+that march, and COA-STP1's AD/7152 + 3/7159 (Side=WASA, hostile, SIDC prefix "SH...") that do
+not, even now with a real (but BLUE-side-native) DIS type borrowed onto a hostile-side unit.
+Two clean single-variable follow-up designs, either would isolate this:
+  (a) take COA-STP1's AD/7152 (real DIS type, WASA/hostile) and flip ONLY its Side to
+      NATO Coalition (blue) - if it then marches, force-side (or a DIS-type x force-side
+      interaction, e.g. the model set only has a resolvable model for that DIS type on the
+      blue side) is implicated.
+  (b) take a GOLDEN unit (e.g. 1222.MechPlt, real DIS type, blue) and flip ONLY its Side to
+      WASA/hostile - if it then FREEZES, that is the cleaner, more direct isolation (known-
+      good unit, one variable flipped) and would be the stronger result either way.
+Design (b) is preferred - it starts from a unit already proven to march, changing exactly
+one thing, rather than starting from a unit already proven not to march and changing a
+second thing on top of the DIS-type change that already failed to help.
+
 ## Decisions log
 
 - 2026-07-14: user moved to the supervisor seat and directed a multi-Opus dig at this

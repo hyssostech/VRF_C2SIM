@@ -905,7 +905,7 @@ proceed on a slow proxy - the STOMP client cannot ride it out.
 
 ## Appendix B - ApplicationNumber ledger
 
-3200-3406: consumed (see entries below). NEXT FREE: 3407 (always take the number after the last
+3200-3410: consumed (see entries below). NEXT FREE: 3411 (always take the number after the last
 ledger entry). Record each join here as it is consumed (app / ResetVrf / WatchVrf each take one).
 Never reuse.
 - 3402: app join for the Tier-1 COA-STP1-Sweden-minimal reverse-transplant (ClientId=C2SIM,
@@ -928,6 +928,17 @@ Never reuse.
   writeup: docs/experiments/MOJAVE_ROOTCAUSE_INVESTIGATION_2026-07-14.md.
 - 3406: post-run ResetVrf dry-run sweep. Clean - Solution A cleanup removed both units, no
   orphans (2 baseline env objects only).
+- 3407: pre-run ResetVrf dry-run sweep before the DIS-type variant probe (COA-STP1_Sweden_
+  RealDIS_Initialization.xml - same 2 units/coords/order, real DIS type borrowed from the
+  matching-echelon golden unit). Clean.
+- 3408: app join for the DIS-type variant. Both units created + formation-repaired; order
+  dispatched clean (CreateRoute + MoveAlongRoute for both).
+- 3409: WatchVrf telemetry window for the DIS-type variant probe - RESULT: DIS-TYPE
+  HYPOTHESIS FALSIFIED. Identical failure pattern to the zero-DIS run (AD/7152 vacuous
+  TASKCMPLT at degenerate 0,0; 3/7159 frozen, sub-meter drift) even with real, valid DIS
+  types borrowed from working golden units. See investigation doc for the writeup and the
+  next candidate (force-side/hostility - the one remaining categorical difference).
+- 3410: post-run ResetVrf dry-run sweep. Clean, no orphans.
 
 - 3388: consumed 2026-07-15, vrfSimHLA1516e itself (the sim backend, launched headless per
   RUNBOOK sec 0.5 - first time this project launched VR-Forces itself rather than a human via
