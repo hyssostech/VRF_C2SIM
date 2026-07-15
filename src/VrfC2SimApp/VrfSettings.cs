@@ -130,4 +130,16 @@ public class VrfSettings
     public int BundleMaxReports { get; set; } = 10;      // C++ maxReportsPerBundleTextIf
     public int BundleMaxBytes { get; set; } = 10240;     // C++ maxBundleSizeTextIf
     public int BundleFlushMs { get; set; } = 2000;       // C++ ~2 s reminder-thread flush
+
+    // Mojave root-cause probe/fix (docs/experiments/MOJAVE_ROOTCAUSE_INVESTIGATION_2026-07-14.md).
+    // Ground-unit route waypoints are handed to VRF at a FIXED 100 m MSL ("Fixed100" = the golden-
+    // parity default; a sea-level assumption that works where terrain < 100 m, e.g. Sweden). At a
+    // high-elevation region (Mojave terrain ~1100 m) a 100 m waypoint sits ~1000 m UNDERGROUND, so
+    // the aggregate member offset-route GROUND CLAMP (which entity move-along tolerates but the
+    // disaggregated move-along controller does not - Thread A: closestIntersection/dataAvailable)
+    // yields EMPTY offset routes and the unit freezes. "Live" instead puts each ground waypoint at
+    // the unit's OWN live ground altitude (read from the sim) + LiveClearanceMeters, so waypoints
+    // sit just ABOVE local terrain at ANY region. Opt-in; "Fixed100" is byte-for-byte today's path.
+    public string GroundWaypointAltitudeMode { get; set; } = "Fixed100"; // "Fixed100" | "Live"
+    public double GroundWaypointLiveClearanceMeters { get; set; } = 50.0;
 }

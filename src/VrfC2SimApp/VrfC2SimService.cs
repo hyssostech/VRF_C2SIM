@@ -684,9 +684,17 @@ public sealed class VrfC2SimService : BackgroundService
             return;
         }
 
+        // Ground waypoint altitude (VrfSettings.GroundWaypointAltitudeMode): "Fixed100" is the
+        // golden-parity 100 m MSL; "Live" puts ground waypoints just above the unit's OWN terrain
+        // altitude so VRF's offset-route ground clamp succeeds at high-elevation regions (the
+        // Mojave freeze). See docs/experiments/MOJAVE_ROOTCAUSE_INVESTIGATION_2026-07-14.md.
+        double groundWpAlt = _vrf.GroundWaypointAltitudeMode.Equals("Live", StringComparison.OrdinalIgnoreCase)
+            ? live.AltMeters + _vrf.GroundWaypointLiveClearanceMeters
+            : 100.0;
+
         var routeGeo = new List<Geodetic>
         {
-            new() { LatDeg = live.LatDeg, LonDeg = live.LonDeg, AltMeters = isGround ? 100.0 : live.AltMeters }
+            new() { LatDeg = live.LatDeg, LonDeg = live.LonDeg, AltMeters = isGround ? groundWpAlt : live.AltMeters }
         };
 
         // Parity: no route points -> error, cannot execute (:2206-2210). EXCEPTION (Layer 2):
@@ -720,7 +728,7 @@ public sealed class VrfC2SimService : BackgroundService
             {
                 LatDeg = p.Lat,
                 LonDeg = p.Lon,
-                AltMeters = isGround ? 100.0 : (p.Elev ?? 0.0)
+                AltMeters = isGround ? groundWpAlt : (p.Elev ?? 0.0)
             });
 
         // Rules of engagement (:2374-2379): ROEFree -> FireAtWill, ROEHold -> HoldFire,
