@@ -110,6 +110,61 @@ underlying gap is ever found and fixed:
   path may depend on) always have a human launch VR-Forces via the GUI; do not use the sec
   0.5 headless CLI recipe for live work.
 
+THE USER'S ACTUAL LAUNCH TOOL is `vrfLauncher.exe`, not a bare `vrfSimHLA1516e.exe` invocation -
+this is the likely missing piece and the concrete next thing to try for a reliable headless
+recipe. `vrfLauncher.exe --help` (captured 2026-07-15, run from `C:\MAK\vrforces5.0.2\bin64`):
+```
+USAGE:
+
+   vrfLauncher.exe  [-G <string>] [--usePredefinedConnection <string>]
+                    [--useUserSettingsDirectory] [-R] [--guiArgs] [--simArgs]
+                    [--] [-C] [-B] [-F] [-v] [-h]
+
+Where:
+   -G <string>,  --locale <string>
+            Language to use for application
+   --usePredefinedConnection <string>
+            Use a predefined connection name (e.g. "DIS localhost")
+   --useUserSettingsDirectory
+            Whether or not to use the shared application settings (default) or
+            user login settings directory.
+   -R,  --makRadio
+            Launch the application in MAK Radio launch mode
+   --guiArgs
+            Pass all arguments after this only to the front-end (F-- can also be
+            used)
+   --simArgs
+            Pass all arguments after this only to the back-end (B-- can also be
+            used)
+   --
+            Pass all arguments after this to launched applications
+   -C,  --config
+            Do not launch application - just the configuration tool
+   -B,  --backend
+            Launch the Back-End Application
+   -F,  --frontend
+            Launch the Front-End Application
+   -v,  --version
+            Displays version information and exits.
+   -h,  --help
+            Displays usage information and exits.
+
+   VR-Forces Launcher
+```
+The user's saved connection profile (confirmed on-screen, Simulation Connections Configuration
+dialog, starred/default) is named **"HLA 1516 Evolved RPR 2.0 with MAK extensions"** - FED file
+`RPR_FOM_v2.0_1516-2010.xml`, the same 3 FOM modules already used everywhere in this doc,
+Federation `CWIX-2024`, back-end Application Number `3001`, front-end Application Number `3101`.
+UNTESTED CANDIDATE headless recipe (profile name verified, this exact invocation NOT yet tried
+live): `vrfLauncher.exe -B --usePredefinedConnection "HLA 1516 Evolved RPR 2.0 with MAK
+extensions" --simArgs --appNumber <freshAppNo> --scenarioFileName
+"../userData/scenarios/<Bogaland2|TropicTortoise>.scnx"` (the `--simArgs`-prefixed args are
+guesses at what a bare `-B` backend-only launch needs beyond the connection profile - siteId/
+sessionId/execName/FED/FOM may already be implied by the profile and not need repeating; verify
+against actual behavior, do not assume this is complete). If `-B` alone (backend-only, no
+front-end) reproduces the crash, that would show the crash is about "missing front-end" rather
+than "not using vrfLauncher specifically" - a further useful data point either way.
+
 ## 0.6 GOTCHA - never put a comment in the XML prolog of a pushed init/order file
 (found + root-caused 2026-07-15, cost a long bisection): a large explanatory `<!-- ... -->`
 comment BEFORE the root `<MessageBody>` element (i.e. in the XML prolog, after `<?xml?>` but

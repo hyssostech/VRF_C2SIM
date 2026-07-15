@@ -346,6 +346,98 @@ Design (b) is preferred - it starts from a unit already proven to march, changin
 one thing, rather than starting from a unit already proven not to march and changing a
 second thing on top of the DIS-type change that already failed to help.
 
+## 2026-07-15 SESSION SYNTHESIS - where this actually stands (read this section first)
+
+This session ran DIS-type (falsified above), skipped force-side (user judgment call - "units
+of any type should be taskable", not tested, not falsified, still on the table if wanted),
+then hit and root-caused a real infrastructure problem before ever getting a clean altitude
+result. In order:
+
+**The vrfSim crash saga (found + root-caused, ~half this session).** Every attempt to launch
+VR-Forces headlessly via `vrfSimHLA1516e.exe` directly (RUNBOOK sec 0.5's CLI recipe) produced
+a backend that crashed remote-controller clients (ResetVrf, the app) with `0xC0000005` inside
+`VrfFacade::Tick()`, 3 times, always at TropicTortoise, never at Sweden. Many false leads were
+chased and each was cleanly falsified with evidence, not assumption: NOT a missing FOM module
+(the GUI's own saved connection profile uses the identical 3-module set for both scenarios);
+NOT missing/altered scenario content (TropicTortoise's `.scnx` is byte-identical to the
+repo-tracked snapshot and its page-in-area object is byte-identical to Bogaland2's own, minus
+expected position). The user pointed out region and LAUNCH METHOD had never actually been
+isolated - every Mojave attempt was this session's own headless CLI launch, every Sweden
+success was the user's GUI launch. The user then launched TropicTortoise via the GUI
+themselves and a ResetVrf dry-run against it succeeded cleanly - proving the crash was never
+about Mojave at all. The user's actual launch tool is `vrfLauncher.exe` (a combined front-end
++ back-end orchestrator using a saved "predefined connection" profile), not a bare
+`vrfSimHLA1516e.exe` invocation - RUNBOOK sec 0.5 is corrected and the headless recipe is
+marked UNSAFE. **Practical consequence: there is currently NO reliable way for an agent to
+launch VR-Forces independently. A human must launch it via the GUI/vrfLauncher until a
+`vrfLauncher.exe`-based headless recipe is worked out (untested candidate:
+`vrfLauncher.exe -B --usePredefinedConnection "HLA 1516 Evolved RPR 2.0 with MAK extensions"
+--simArgs <args>` - "HLA 1516 Evolved RPR 2.0 with MAK extensions" is the exact saved
+connection-profile name confirmed on-screen (starred/default in the user's Simulation
+Connections Configuration dialog, FED file RPR_FOM_v2.0_1516-2010.xml, the same 3 FOM modules,
+back-end appNumber 3001 / front-end 3101) - the profile NAME is verified, the vrfLauncher
+INVOCATION syntax is NOT yet tried live.**
+
+**The altitude probe (finally run, twice, both INCONCLUSIVE).** With a stable GUI-launched
+Mojave backend, `Vrf:GroundWaypointAltitudeMode=Live` was tested at
+`GroundWaypointLiveClearanceMeters=0` then `=50` (data/R9_Mojave_Lean_Initialization.xml +
+data/R9_Mojave_UnitMove_Order.xml, the same R9 taskee set: 1.BdeHQ entity, 1222.MechPlt
+platoon, 114.MechCoy company). Neither run produced ANY telemetry-confirmed movement for ANY
+of the 3 units. Clearance changed whether the aggregates' positions resolved to real
+coordinates (degenerate 0,0 at clearance=0; real coordinates at clearance=50) - a genuine,
+if partial, change - but neither clearance value produced actual displacement, and BOTH runs
+show something new and more alarming: **1.BdeHQ - the same entity that drove its full ~1.16 km
+route to completion in R9 Run A (2026-07-13, the one and only prior clean Mojave test where it
+was genuinely tasked and the backend was healthy throughout) - was completely frozen (zero
+displacement) in BOTH of today's runs**, despite confirmed task dispatch (CreateRoute +
+MoveAlongRoute logged) and a confirmed-running sim clock (user visually verified the GUI clock
+advancing). (The other prior Mojave attempt where it did not move - the 2026-07-14
+"ATTEMPT 1 ABORTED" backend crash - is NOT a counterexample to R9's success: tasking never
+reached dispatch there at all, "could not read live location", a different and already-
+understood failure. So the honest precedent is: one clean prior success, now one clean
+failure under a config that had never been tried together before - not a large body of broken
+precedent, but also not nothing.) This was never explained. **This means the altitude
+hypothesis is STILL UNTESTED by a clean signal** - something broader than altitude may be
+suppressing task execution in this specific environment (first time this session's own app has
+ever actually TASKED anything against a vrfLauncher-launched backend - object creation and
+discovery were already proven fine there, but movement execution never was tested before
+today).
+
+**TOP PRIORITY FOR THE NEXT SESSION (user directive, 2026-07-15):** before resuming any
+further hypothesis-chasing, read VR-Forces' own basic "Creating a Scenario" / getting-started
+documentation (`C:\MAK\vrforces5.0.2\doc\help\Content\Scenarios\CreateRun\vrf_createScenario.htm`
+is the entry point found this session - covers the New Scenario wizard, required settings like
+"Create Global Dynamic Terrain Processor", terrain/SMS selection, etc.). The user's standing
+concern, stated explicitly: three days were spent chasing this, and it is unlikely there is no
+public documentation for beginners describing the configuration required to get a scenario to
+actually work - meaning it is plausible the remaining mystery (entity movement frozen under
+vrfLauncher, or the original Mojave freeze itself) is a basic, documented scenario-setup
+requirement this investigation has not yet checked, not a deep API-level bug. Do this reading
+pass BEFORE the missing-control re-test below, and BEFORE any further live experimentation -
+it may make some of the remaining investigation unnecessary.
+
+**THE MISSING CONTROL, and the clean next step (after the 101 pass above):** this session
+never re-ran the ORIGINAL,
+historically-proven config (`GroundWaypointAltitudeMode` unset/`Fixed100`, i.e. golden-parity
+moveAlongRoute exactly as R9 ran it) against THIS vrfLauncher-launched Mojave backend. Without
+that same-session control, it is impossible to tell whether the entity-freeze is a NEW,
+environment-specific problem (would also break Fixed100) or something specific to the Live
+altitude-mode code path. Per this whole investigation's own methodology (R9 always paired a
+same-day control), THE FIRST THING a fresh session should do before any further altitude work
+is: push the SAME init/order with `GroundWaypointAltitudeMode` at its default (Fixed100),
+against a GUI/vrfLauncher-launched Mojave backend, and check via WatchVrf whether 1.BdeHQ
+moves. If it does NOT move either, the entity-freeze is environment-specific (not
+altitude-code-specific) and needs its own root-cause dig before the altitude A/B can produce
+a meaningful signal. If it DOES move, that isolates the freeze to the Live-mode code path
+specifically, and the clearance=0-vs-50 comparison can be trusted after all.
+
+**Also landed, useful independent of the above:** RUNBOOK sec 0.6 documents two real
+XML-authoring gotchas found while pushing today's Sweden experiments (a comment in the XML
+prolog silently breaks init pushes against the real C2SIM server; ANY block comment breaks
+order delivery over STOMP) - read before authoring any new `data/*.xml` file.
+`tools/PushInit` gained a `--verbose` flag that surfaces the SDK's own discarded trace-level
+server response - use it whenever a push fails with only a generic error.
+
 ## Decisions log
 
 - 2026-07-14: user moved to the supervisor seat and directed a multi-Opus dig at this

@@ -47,18 +47,30 @@ Three locations are in play:
 > stashed after a tasking regression). Read them as component milestones, not as "the product works".
 > UPDATE (2026-07-15): the freeze is NOT purely a region effect either - COA-STP1's OWN unit data
 > (coordinate-transplanted onto the golden Sweden region, genuine leader-path, no fan-out) ALSO
-> froze there. Leading hypothesis: COA-STP1's dataset-wide unspecified DIS entity type (vs golden
-> units' always-real one) is a SECOND, region-independent blocker. See
-> docs/experiments/MOJAVE_ROOTCAUSE_INVESTIGATION_2026-07-14.md "Tier-1 reverse-transplant RESULT".
+> froze there, TWICE (unspecified DIS type, then a real DIS type borrowed from a golden unit -
+> DIS-TYPE HYPOTHESIS FALSIFIED, identical failure both times). A live altitude-mode probe
+> (`GroundWaypointAltitudeMode=Live`) at Mojave was finally run twice (clearance 0 and 50) after a
+> real infrastructure crash was found + ROOT-CAUSED (NOT Mojave content - a headless-CLI-launch
+> gap; RUNBOOK sec 0.5) - but BOTH altitude runs are INCONCLUSIVE: even 1.BdeHQ, the entity that
+> has moved in every prior Mojave test, was completely frozen in both, an unprecedented new
+> failure with no missing-control test yet to explain it. USER DIRECTIVE for the next session:
+> read VR-Forces' own basic scenario-creation documentation FIRST, before any more hypothesis
+> work - see docs/experiments/MOJAVE_ROOTCAUSE_INVESTIGATION_2026-07-14.md "2026-07-15 SESSION
+> SYNTHESIS" for the full account and the prioritized next steps.
 
-- **Tier-1 reverse-transplant + VR-Forces launch/XML gotchas (2026-07-15, LIVE, apps 3386-3406)**:
-  see the investigation doc above for the region-independence finding. Also this session: RUNBOOK
-  sec 0.5 documents launching VR-Forces itself for the first time (`vrfSimHLA1516e.exe` headless,
-  previously always assumed already-running) - works but NOT YET reliable (a still-unexplained
-  backend crash at TropicTortoise specifically, backlogged); RUNBOOK sec 0.6 documents two real
-  XML-comment gotchas that silently break server pushes (a prolog comment breaks init; ANY block
-  comment breaks order STOMP delivery) - read before authoring any new data/*.xml file. AppNos
-  next free: 3407.
+- **Crash root-cause + altitude probe (inconclusive) + XML gotchas (2026-07-15, LIVE, apps
+  3386-3420)**: see the investigation doc's "2026-07-15 SESSION SYNTHESIS" section (top of this
+  status block links there) for the full, load-bearing account - do not rely on this bullet
+  alone. Headline facts: (1) DIS-type hypothesis FALSIFIED live, twice; (2) a real vrfSim crash
+  (`0xC0000005` in `VrfFacade::Tick()`) was reproduced 3x, ROOT-CAUSED to this session's headless
+  `vrfSimHLA1516e.exe` CLI launch (RUNBOOK sec 0.5, now marked UNSAFE) rather than to Mojave/
+  TropicTortoise content - a human must launch VR-Forces via the GUI/`vrfLauncher.exe` until a
+  headless recipe is worked out; (3) the altitude probe itself (clearance 0 vs 50) produced NO
+  telemetry-confirmed movement for ANY unit in either run, including the entity that has always
+  worked before - CONFOUNDED, not a valid test of the altitude hypothesis yet; (4) RUNBOOK sec
+  0.6 documents two real XML-comment gotchas that silently break server pushes (a prolog comment
+  breaks init; ANY block comment breaks order STOMP delivery) - read before authoring any new
+  data/*.xml file. AppNos next free: 3421.
 - **Mojave aggregate-movement cause - NAV-DATA HYPOTHESIS FALSIFIED (2026-07-14)**: the
   terrain-page-in -> nav-data investigation was a DETOUR; **nav data is NOT the cause and
   generating/loading a nav mesh does NOT fix it. Do not restart that thread.** Decisive comparison
@@ -502,18 +514,26 @@ Phase 1-5 are DONE (the port runs the full C2SIM<->VR-Forces loop live + moves a
 Remaining work, roughly by priority (details: docs/APP.md TODO, PORT.md sec 6/10):
 
 1. **Aggregate movement at Mojave** (THE central open problem - the product does not work there):
-   Mojave aggregates FREEZE. The 2026-07-12 "formation-names root cause" is FALSIFIED (E1 RAN;
-   formation names alone did not fix it), and so are nav-data and terrain-page-in (2026-07-14) -
-   do NOT restart any of those threads. R5 `Vrf:AggregateFormation=auto` already repairs the birth
-   "column-left" formation (3/3 at Sweden), so formation is not the blocker. The re-scoped,
-   still-UNSOLVED cause (R9 region swap): member OFFSET-ROUTE generation returns EMPTY at Mojave
-   (0 routes vs Sweden 45; vrfSim.log `moveAlong() - empty route`), a region-specific route/offset-
-   planning failure on the streaming terrain (candidate directions - BE terrain-paging depth vs
-   VR-TheWorld data at the AO, or an aggregate-movement setting - are UNVERIFIED; do NOT record any
-   as the fix). INTERIM PROVEN MOVER: `Vrf:SubordinateFanOut` (R10) marches member entities at
-   Mojave, bypassing the empty-offset-route path. NEXT: investigate the empty offset-route
-   generation (UNIT_MOVEMENT_RESEARCH sec 4c; docs/experiments/R9_region_swap_2026-07-13.txt +
-   navdata_FALSIFIED_bogaland_vs_tt_2026-07-14.txt).
+   Mojave aggregates FREEZE. FALSIFIED as causes (do NOT restart any of these threads):
+   2026-07-12 formation-names (E1 RAN, did not fix it - R5 `Vrf:AggregateFormation=auto` already
+   repairs birth formation, so formation is not the blocker); nav-data and terrain-page-in
+   (2026-07-14); DIS entity type (2026-07-15, tested live twice - see below); "it's purely a
+   region effect" (2026-07-15 - COA-STP1's own units freeze at Sweden too). STILL UNSOLVED:
+   member OFFSET-ROUTE generation returns EMPTY at Mojave for golden units (0 routes vs Sweden
+   45; `moveAlong() - empty route`), AND COA-STP1's own units freeze even at Sweden by a
+   different, still-unidentified mechanism - these may be two separate problems, not one.
+   INTERIM PROVEN MOVER: `Vrf:SubordinateFanOut` (R10) marches member entities at Mojave,
+   bypassing the empty-offset-route path. A `GroundWaypointAltitudeMode=Live` fix was built and
+   finally tested live 2026-07-15 but the test was CONFOUNDED (see next-session priority below) -
+   not yet a valid result either way. **NEXT SESSION, IN ORDER**: (i) USER DIRECTIVE - read
+   VR-Forces' own basic scenario-creation docs first
+   (`C:\MAK\vrforces5.0.2\doc\help\Content\Scenarios\CreateRun\vrf_createScenario.htm` is the
+   entry point found 2026-07-15) - three days were spent chasing this and it is plausible the
+   remaining mystery is a documented basic setup requirement, not a deep bug; (ii) re-run the
+   ORIGINAL Fixed100 (parity-default) config against a GUI/vrfLauncher-launched Mojave backend as
+   a same-session control - this was never done and is needed before the altitude A/B can mean
+   anything (see docs/experiments/MOJAVE_ROOTCAUSE_INVESTIGATION_2026-07-14.md "2026-07-15
+   SESSION SYNTHESIS" for the full reasoning).
 2. **Report-stream parity polish**: EntityHealthStatus (needs the bridge to surface health),
    aggregate-component de-dup, multi-content bundling. Position reports work but are chatty.
 3. **Deferred C++-bug fixes** (PORT.md sec 6): distinct C2SimUuid/VrfUuid types (setTarget
