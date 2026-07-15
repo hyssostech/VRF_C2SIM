@@ -14,6 +14,46 @@ Stop the interface CLEANLY instead (sec 4) - it resigns, leaves no stale federat
 and needs no reload. Force-kill + reload was the old clunky path (pre- and
 post-compaction); the clean stop replaces it.
 
+## 0.5 Launching VR-Forces itself (the sim backend) - found 2026-07-15
+
+Every prior session treated `vrfSimHLA1516e` + `rtiexec` as already-running preconditions
+(sec 1 below) and never documented how to start them - VR-Forces was always brought up by a
+human via the GUI beforehand. It does NOT need the GUI: `vrfSimHLA1516e.exe` is a standalone
+headless back-end; `vrfGui.exe` is a separate, optional front-end (this project mostly runs
+without it - "vrfGui hung-but-backend-healthy" is a normal state; WatchVrf is the visual
+channel, not the GUI). `rtiexec` is spawned automatically by the RTI on first federate
+join - do not launch it separately.
+
+GOTCHA: `vrfSimHLA1516e.exe --help` does NOT print usage and exit - it silently starts a
+real (unconfigured) sim instance instead. Do not probe with `--help`; the option reference
+is `C:\MAK\vrforces5.0.2\doc\help\Content\Introduction\CLI\vrf_vrfSimCommandLine.htm`
+(official MAK docs, on disk, offline).
+
+Launch (same env as sec 1: RTI 4.6.1 on PATH, `MAKLMGRD_LICENSE_FILE` from Machine scope,
+cwd = `C:\MAK\vrforces5.0.2\bin64`, fresh appNumber per the Appendix B ledger in
+OPUS_EXECUTION_PLAN.md - the backend consumes one too, same ledger, do not reuse the
+interface app's range implicitly):
+```
+vrfSimHLA1516e.exe --execName CWIX-2024 --siteId 1 --sessionId 1 --appNumber <freshAppNo> ^
+  --fedFileName RPR_FOM_v2.0_1516-2010.xml ^
+  --fomModules MAK-VRFExt-6_evolved.xml --fomModules MAK-DIGuy-7_evolved.xml --fomModules MAK-LgrControl-2_evolved.xml ^
+  --scenarioFileName "../userData/scenarios/<Bogaland2|TropicTortoise>.scnx"
+```
+FED file + FOM modules are the SAME three that PORT.md sec 4 / RUNBOOK sec 7 already
+reverse-engineered to match VR-Forces (they must match whatever VR-Forces itself loads, and
+these are it - confirmed via a MAK ground-vehicle-test `.bat` under
+`vrforces5.0.2\autotests\scenarioPerformanceTests\`, which uses the same fedFileName/
+fomModules set but a different execName - do not copy that file's execName/appNumber).
+`--scenarioFileName` (`-L`) path is relative to `bin64` per the official docs; scenario
+files live in `C:\MAK\vrforces5.0.2\userData\scenarios\`. Run this in the background (it is
+a persistent process, like the interface) and verify success by process presence
+(`vrfSimHLA1516e` + `rtiexec` both up) - not by console output (block-buffered, sec 3 below).
+
+Clean shutdown: same as any other federate - drive the C2SIM server to UNINITIALIZED and let
+it resign, or if nothing has joined it yet, a plain close is fine (it never joined a
+federate). Do NOT force-kill it once anything (the interface, ResetVrf, WatchVrf) has joined
+the federation it hosts - sec 0 applies to it too.
+
 ## 1. Environment (verify - do not assume; see PORT.md sec 4)
 
 - VR-Forces running HLA1516e, execName CWIX-2024, siteId 1, sessionId 1
