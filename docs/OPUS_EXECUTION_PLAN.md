@@ -905,7 +905,7 @@ proceed on a slow proxy - the STOMP client cannot ride it out.
 
 ## Appendix B - ApplicationNumber ledger
 
-3200-3414: consumed (see entries below). NEXT FREE: 3415 (always take the number after the last
+3200-3416: consumed (see entries below). NEXT FREE: 3417 (always take the number after the last
 ledger entry). Record each join here as it is consumed (app / ResetVrf / WatchVrf each take one).
 Never reuse.
 - 3402: app join for the Tier-1 COA-STP1-Sweden-minimal reverse-transplant (ClientId=C2SIM,
@@ -958,7 +958,15 @@ Never reuse.
   TropicTortoise content (independently also ruled out: byte-identical .scnx to the repo
   snapshot and to Bogaland2's own page-in-area object, identical FOM/connection config for
   both scenarios). RUNBOOK sec 0.5 corrected - headless recipe marked unsafe, GUI launch
-  required. Clears the way to actually run the altitude probe.
+  required. Clears the way to actually run the altitude probe. User note: their launch uses
+  `vrfLauncher.exe` (a combined front-end+back-end orchestrator via a predefined connection
+  profile) - NOT a bare vrfSimHLA1516e.exe invocation; likely explains the gap, follow-up for
+  a reliable self-launch recipe.
+- 3415: app join (GroundWaypointAltitudeMode=Live, GroundWaypointLiveClearanceMeters=0)
+  against the user's GUI-launched TropicTortoise backend. NO CRASH - all 6 units created +
+  formation-repaired cleanly. First-ever clean Mojave app run this session.
+- 3416: WatchVrf telemetry window for the Live/clearance=0 altitude probe (3 tasks dispatched:
+  1222.MechPlt, 114.MechCoy, 1.BdeHQ - the exact R9 taskee set).
 
 - 3388: consumed 2026-07-15, vrfSimHLA1516e itself (the sim backend, launched headless per
   RUNBOOK sec 0.5 - first time this project launched VR-Forces itself rather than a human via
