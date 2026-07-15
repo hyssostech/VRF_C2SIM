@@ -37,7 +37,7 @@ Three locations are in play:
 6. This file for repo state, build/run commands, and where artifacts live.
 7. History/reference as needed: `docs/PHASE1_REWIRE.md`, `docs/TASK_EXPANSION_PLAN.md`.
 
-## Current status (2026-07-14)
+## Current status (2026-07-15)
 
 > REALITY CHECK (do not oversell): the end-to-end product goal - a coa-gpt scenario at MOJAVE with
 > correct aggregate movement - does NOT work. Mojave aggregates FREEZE; root cause UNSOLVED (nav data
@@ -45,7 +45,20 @@ Three locations are in play:
 > results (Sweden movement, semantic dispatch, offline selftests) with known live warts (unreliable
 > completion events; F1 runaways + F2b vacuous completions in the Mojave scale run; lean-creation
 > stashed after a tasking regression). Read them as component milestones, not as "the product works".
+> UPDATE (2026-07-15): the freeze is NOT purely a region effect either - COA-STP1's OWN unit data
+> (coordinate-transplanted onto the golden Sweden region, genuine leader-path, no fan-out) ALSO
+> froze there. Leading hypothesis: COA-STP1's dataset-wide unspecified DIS entity type (vs golden
+> units' always-real one) is a SECOND, region-independent blocker. See
+> docs/experiments/MOJAVE_ROOTCAUSE_INVESTIGATION_2026-07-14.md "Tier-1 reverse-transplant RESULT".
 
+- **Tier-1 reverse-transplant + VR-Forces launch/XML gotchas (2026-07-15, LIVE, apps 3386-3406)**:
+  see the investigation doc above for the region-independence finding. Also this session: RUNBOOK
+  sec 0.5 documents launching VR-Forces itself for the first time (`vrfSimHLA1516e.exe` headless,
+  previously always assumed already-running) - works but NOT YET reliable (a still-unexplained
+  backend crash at TropicTortoise specifically, backlogged); RUNBOOK sec 0.6 documents two real
+  XML-comment gotchas that silently break server pushes (a prolog comment breaks init; ANY block
+  comment breaks order STOMP delivery) - read before authoring any new data/*.xml file. AppNos
+  next free: 3407.
 - **Mojave aggregate-movement cause - NAV-DATA HYPOTHESIS FALSIFIED (2026-07-14)**: the
   terrain-page-in -> nav-data investigation was a DETOUR; **nav data is NOT the cause and
   generating/loading a nav mesh does NOT fix it. Do not restart that thread.** Decisive comparison
