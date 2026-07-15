@@ -905,7 +905,7 @@ proceed on a slow proxy - the STOMP client cannot ride it out.
 
 ## Appendix B - ApplicationNumber ledger
 
-3200-3419: consumed (see entries below). NEXT FREE: 3420 (always take the number after the last
+3200-3420: consumed (see entries below). NEXT FREE: 3421 (always take the number after the last
 ledger entry). Record each join here as it is consumed (app / ResetVrf / WatchVrf each take one).
 Never reuse.
 - 3402: app join for the Tier-1 COA-STP1-Sweden-minimal reverse-transplant (ClientId=C2SIM,
@@ -966,7 +966,31 @@ Never reuse.
   against the user's GUI-launched TropicTortoise backend. NO CRASH - all 6 units created +
   formation-repaired cleanly. First-ever clean Mojave app run this session.
 - 3416: WatchVrf telemetry window for the Live/clearance=0 altitude probe (3 tasks dispatched:
-  1222.MechPlt, 114.MechCoy, 1.BdeHQ - the exact R9 taskee set).
+  1222.MechPlt, 114.MechCoy, 1.BdeHQ - the exact R9 taskee set). RESULT: 1222.MechPlt/114.MechCoy
+  degenerate (0,0) the whole window (unresolved position, same as every prior aggregate test);
+  1.BdeHQ held a REAL position but ZERO net displacement the whole 153s window despite a
+  confirmed CreateRoute+MoveAlongRoute dispatch and a confirmed-running sim clock (user verified
+  the GUI clock advancing). This is new and unprecedented - 1.BdeHQ has moved successfully in
+  EVERY prior Mojave test (R9, this doc's own history). See the investigation doc's final
+  synthesis for the "movement execution may be globally suppressed under vrfLauncher" theory
+  this motivated.
+- 3417: post-run ResetVrf dry-run sweep + pre-run sweep for the clearance=50 retest. Clean, no
+  orphans (Solution A held).
+- 3418: app join (GroundWaypointAltitudeMode=Live, GroundWaypointLiveClearanceMeters=50), same
+  backend, same units/order. No crash, clean creation + formation-repair.
+- 3419: WatchVrf telemetry window for the Live/clearance=50 probe. RESULT: 1222.MechPlt now
+  resolves to a REAL position (unlike clearance=0) and fired a genuine TASKCMPLT, but ZERO net
+  displacement the whole 228s window (a vacuous completion with real coordinates instead of
+  degenerate ones - a partial change, not a fix). 114.MechCoy also resolves to a real position,
+  zero displacement, no completion. 1.BdeHQ AGAIN completely frozen, zero displacement, no
+  completion - identical failure to the clearance=0 run. CONCLUSION: clearance value (0 vs 50)
+  changed whether aggregate positions resolve to real coordinates, but did NOT produce actual
+  movement for ANY of the 3 units in either test, and 1.BdeHQ's total failure in BOTH tests
+  (never seen before, any region, any prior session) means this A/B is CONFOUNDED and
+  INCONCLUSIVE - do not read either clearance value as validated or invalidated. The altitude
+  hypothesis itself remains untested by a clean signal; something else broke movement EXECUTION
+  in this environment. See investigation doc.
+- 3420: post-run ResetVrf dry-run sweep. Clean, no orphans.
 
 - 3388: consumed 2026-07-15, vrfSimHLA1516e itself (the sim backend, launched headless per
   RUNBOOK sec 0.5 - first time this project launched VR-Forces itself rather than a human via
