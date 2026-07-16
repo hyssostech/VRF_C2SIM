@@ -169,6 +169,40 @@ Supervisor-specified design (executor implements; adversarial review before merg
   never-publishes DID NOT REPRODUCE under the fix (downgraded, one more reproduction to
   close). R9-A lean-vs-full anomaly moot for the fix.
 
+## 3c. 2026-07-16 FIX-SESSION RESULTS + RESHUFFLED NEXT WORK (supersedes the sec-3 queue
+## ordering below for movement work; full records: investigation doc parts 14/15/16)
+
+- FIX-ACCEPT-1 (part 14): sec-3b fix LIVE-ACCEPTED, prediction P1 - all three lean-set
+  units moved with NO drag; entity parked 0.5 m from its waypoint. Entity-freeze CURED.
+- COA-DEMO-1 (part 15): full COA-STP1 under the fix - 38 movers (RUN C: 3) but E4
+  FALSIFIED: runaway class persists at scale (541 km top, underground/offshore
+  terminations). Yellow warning badges on most units - UNIDENTIFIED (docs dig queued).
+- CPP-ALT-1 (part 16, user-directed): PRISTINE C++ + one constant (birth 1000->10000 MSL,
+  branch b96688b) - 6 tasked units marched 18+ km on-terrain (Q1: root cause confirmed
+  code-independent), 5 stayed frozen at the pile (split is altitude-independent; MAK
+  question sharpened), runaway/warp class present in the pristine too (Q2: altitude
+  exonerated for runaway in BOTH codebases), and a NEW signature: all marchers stopped
+  mid-route on a common ~18.4 km radius (tile-boundary vs waypoint-stall - own probe).
+
+NEXT WORK, in order:
+1. TRUTHFUL-ARRIVAL GATE (sec 4 item 1) - unchanged top priority; completions proven
+   erratic in BOTH directions this session (instant-vacuous on the lean run; 1-in-13-min
+   at scale).
+2. RUNAWAY MECHANISM FORENSICS + CONTAINMENT (sec 4 item 2b) - now cross-codebase,
+   altitude-exonerated; fold in the tile-boundary question (marcher stop radius AND
+   runaway terminations) and the warp signatures (54-73 km instantaneous out-and-back).
+   Offline first: per-taskee census from the archived 3450/3453/3454 CSVs; identify the
+   fast-cluster objects; map the paged-tile extent vs the 18.4 km stop radius.
+3. Mid-route stop discriminator (cheap): page-in state at the stop coordinates / larger
+   paged area re-run.
+4. VRFLAUNCHER SELF-LAUNCH RECIPE (user-directed 2026-07-16): probe-gated first trial
+   (launch via vrfLauncher.exe, then ResetVrf --dry-run must NOT 0xC0000005) - removes
+   the human-launch dependency. RUNBOOK sec 0.5 has the seed recipe.
+5. MAK support question (sec 6 draft): now well-earned - the pile mover/frozen split
+   reproduces in both codebases with above-ground births and all offline discriminators
+   falsified.
+6. P-B force-side flip + P1b strict A/B: as queued below, when the above land.
+
 ## 3. Probe queue (ordered; each names its decision)
 
 - P-C1 (FIRST, decides problem C, needs user, ~10 min): on the next VRF launch, run the

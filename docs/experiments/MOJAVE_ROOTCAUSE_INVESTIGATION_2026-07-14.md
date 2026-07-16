@@ -1554,6 +1554,37 @@ PRE-REGISTERED PREDICTIONS:
 - Q3 completions: few/erratic completions per the pristine's known class; DAG mostly
   stalls on its forever-busy-waits (C++ waits, no timeout-skip).
 
+**RESULT (2026-07-16 late afternoon, apps 3451-3454, ~35 min real-time run):**
+- **Q1 CONFIRMED - the birth fix helps the ORACLE too:** 6 of the 9+ tasked units marched
+  18.1-18.4 km cumulative at ~31 km/h column pace, altitudes ON TERRAIN throughout
+  (1002-1097 m) - orderly, route-plausible movement the like of which RUN C never showed
+  (its 3 movers were lone icons). Root cause further confirmed code-independent.
+  (Member-cohesion of these marchers NOT yet verified - queued to offline forensics.)
+- **Mover/frozen split PERSISTS with births fixed:** 5 tasked units (incl. 5-20, B/5-20,
+  1-1 RECON, T5, T27 performers) never moved off the pile (cum 0 m, alt 1137.1). Birth
+  altitude is now ALSO falsified as the split discriminator - consistent with parts 11/12
+  (VRF-internal stack resolution remains the sole live candidate; the MAK question is
+  sharpened: the split reproduces in BOTH codebases with above-ground births).
+- **Q2 SUPPORTED - runaway/warp class persists in the pristine with above-ground births:**
+  window 1 showed 9-11 instantaneous 54-73 km out-and-back WARP signatures (nothing drives
+  73 km in 10 real-time minutes); by the end-state window a 7-object cluster sat 10-12 km
+  out STILL MOVING at ~100 km/h in-window (implausible ground speed) - the RUN-C runaway
+  class re-emerging. ALTITUDE IS EXONERATED for runaway/warp in BOTH codebases.
+- **NEW SIGNATURE - marchers stop mid-route on a common radius:** all 6 marchers STOPPED
+  (window movement 5-24 m) at 18.1-18.4 km from origin - 10-17 km SHORT of their ordered
+  final waypoints (T1: 10.2 km short; T19: 10.2; T15: 17.1). Two live candidates, NOT
+  adjudicated: (a) the paged-terrain tile boundary (USER hypothesis this session - also a
+  candidate for where runaways terminate underground/offshore: outside the paged playbox
+  there is no ground to clamp to); (b) a shared intermediate-waypoint stall. Queued as its
+  own probe (cheap discriminator: page-in state at the stop coordinates, or re-run with a
+  larger paged area).
+- Visual-pace confound recorded: this run was REAL-TIME (RUN C parity) vs the port's 20x
+  demos - part of why this run "looked saner" to the user; the telemetry comparison above
+  is clock-normalized.
+- Teardown: per the known pristine defect, ended with VR-Forces close + user-approved
+  process kill + rtiexec restart. C++ probe branch probe/create-altitude-above-ground
+  (b96688b) retained for reuse; master untouched at 191933a.
+
 ## 2026-07-15 (fresh session) - DOCUMENTATION RESEARCH PASS (read-only, no live run)
 
 User directive: before continuing hypothesis-chasing, do real research - read VR-Forces' own

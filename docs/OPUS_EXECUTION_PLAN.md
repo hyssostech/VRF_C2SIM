@@ -905,10 +905,15 @@ proceed on a slow proxy - the STOMP client cannot ride it out.
 
 ## Appendix B - ApplicationNumber ledger
 
-3200-3450: consumed or skipped (see entries below). NEXT FREE: 3451 (always take the number
-after the last ledger entry; 3451-3453 are earmarked for CPP-ALT-1: sweep/app/watch).
-Record each join here as it is consumed (app / ResetVrf / WatchVrf each take one). Never
-reuse.
+3200-3454: consumed or skipped (see entries below). NEXT FREE: 3455 (always take the number
+after the last ledger entry). Record each join here as it is consumed (app / ResetVrf /
+WatchVrf each take one). Never reuse.
+- 3451: ResetVrf --dry-run, CPP-ALT-1 pre-run sweep on user-reloaded TT. Clean (2 baseline).
+- 3452: PRISTINE C++ +altitude-probe app (branch b96688b), CPP-ALT-1 (COA-STP1, RUN C
+  recipe, real-time). 6 marchers 18+ km on-terrain / 5 frozen at pile / runaway-warp class
+  present - part 16 RESULT. Ended by kill (pristine cannot clean-stop) + rtiexec restart.
+- 3453: WatchVrf 600s/15s CPP-ALT-1 window 1.
+- 3454: WatchVrf 300s/15s CPP-ALT-1 end-state (delayed +20 min).
 - 3448: ResetVrf --dry-run, COA-DEMO-1 pre-run sweep. Clean (2 baseline).
 - 3449: port app, COA-DEMO-1 (COA-STP1 full, fix defaults, C2SIM, 20x, formation=auto,
   de-stack ON). 9 tasks dispatched, 1 completion, 38 movers, RUNAWAYS reproduced (541 km

@@ -1,0 +1,803 @@
+checking for RDTSCP instruction...Success.  Using RDTSCP for time
+RDTSCP Timing Probe: 2425088449 ticks per second
+Starting VR-Forces C2SIM Interface v2.36 compatible << c2simVersion << using C2SIMv1.0.1
+using server address: 127.0.0.1
+using REST port: 8080
+using STOMP port: 61613
+using client ID: C2SIM
+expecting C2SIMv1.0.1 input
+sending blue tracking reports
+not sending red tracking reports
+VRForces address set to:127.0.0.1
+using VRF lua script report generator
+blue force name defaulting to first XML ForceSide entry
+setting Session ID to: 1
+setting remote interface application number to:3452
+setting remote interface site number to:1
+sending blue observation reports
+not sending red observation reports
+RepondToTimeMultipleC2SIM:0
+not bundling reports
+HLA federation:CWIX-2024
+accepting C2SIM Orders from any sending system
+VR-Forces arguments:--rprFomVersion 2.0|--fomModules C:\MAK\vrforces5.0.2\bin64\MAK-VRFExt-6_evolved.xml|--fomModules C:\MAK\vrforces5.0.2\bin64\MAK-DIGuy-7_evolved.xml|-a 3452|-s 1|--execName CWIX-2024|--fedFileName C:\MAK\vrforces5.0.2\bin64\RPR_FOM_v2.0_1516-2010.xml|-n 1|
+Using MAK Technologies' RTI version 4.6.1 HLA 1516-2010 for Microsoft Visual C++ version 14.0 Release Mode.
+Connected to RTI Assistant.
+Loading Config File: C:\MAK\makRti4.6.1\rid.mtl
+INFO[Util] 19:39:13.059 T:75808 MAK::DtInitializer::loadConfigScript: Loading config file: vrfLegion.lua
+SessionId set to:1
+HostInetAddr set to:127.0.0.1
+BACKEND COUNT:0
+boost shows local IP address as:Legatus
+connecting STOMP stream to 127.0.0.1:61613
+CONNECTION RESPONSE:CONNECTED
+SYSTEM STATE AT CONNECTION:RUNNING|
+SERVER ALREADY RUNNING - REQUESTING LATE JOIN INITIALIZATION
+received INIT XML file, length:462886
+SETTING VRFORCES STARTED
+BACKEND COUNT:0
+WAITING FOR VRFORCES BACKENDS
+VRFORCES BACKENDS READY
+STARTING XML PARSE
+using default first blue for name from first ForceSide in C2SIMInitializationBody:NATO Coalition
+
+FORCESIDES:
+BLUE: NATO Coalition FR 00000000-0000-0001-0000-000000000000
+OTHER1: WASA HO UUID:00000000-0000-0002-0000-000000000000
+OTHER2: Neutral NEUTRL UUID:00000000-0000-0003-0000-000000000000
+
+initialization message contains 128 units
+OBJECT CREATED CALLBACK RECEIVED FOR:B/40
+controller created object with name:B/40|VRF_UUID:9322c535-a547-fc41-bede-e71e29f7046a|
+created aggregated ArmorCompany unit named:B/40 vrfUuid:VRF_UUID:9322c535-a547-fc41-bede-e71e29f7046a C2SIM UUID:0078736c-a5e6-7951-9ace-b68eb767a4f2 hostility:FR
+Can't create data of type deploy_weapon_below_speed.  No creator found.  Only time this warning will be issued.
+Can't create data of type platform_send_observation.  No creator found.  Only time this warning will be issued.
+Can't create data of type tracking_reports.  No creator found.  Only time this warning will be issued.
+OBJECT CREATED CALLBACK RECEIVED FOR:7913/HQ_71
+controller created object with name:7913/HQ_71|VRF_UUID:ae440aac-375e-2143-9135-ba55e638f740|
+created aggregated ArmorCoHQ unit named:7913/HQ_71 vrfUuid:VRF_UUID:ae440aac-375e-2143-9135-ba55e638f740 C2SIM UUID:040b2b3e-ef7c-115f-9377-6a6e9745641d hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:7159/HQ_71
+controller created object with name:7159/HQ_71|VRF_UUID:ea577219-b7c4-7343-b161-66cb08fab1cb|
+created aggregated ArmorCoHQ unit named:7159/HQ_71 vrfUuid:VRF_UUID:ea577219-b7c4-7343-b161-66cb08fab1cb C2SIM UUID:074ab914-f9a6-8b51-87c0-c7c472394417 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:AD/7152
+controller created object with name:AD/7152|VRF_UUID:97c3383a-fe40-3141-b1af-8ee735bbb9a2|
+Can't create data of type non_lethal_damage_effect.  No creator found.  Only time this warning will be issued.
+Can't create data of type suppressed_crouch.  No creator found.  Only time this warning will be issued.
+Can't create data of type suppressed_prone.  No creator found.  Only time this warning will be issued.
+created aggregated ArmorPlatoon unit named:AD/7152 vrfUuid:VRF_UUID:97c3383a-fe40-3141-b1af-8ee735bbb9a2 C2SIM UUID:07894543-cfe5-765e-8c03-1e528d3f7350 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:A/1-1/2/1_
+controller created object with name:A/1-1/2/1_|VRF_UUID:cffcdc91-d932-9b48-ac27-103632aa4529|
+created TANK name:A/1-1/2/1_ hostility:FR UUID:09f19048-6171-4b5a-8166-46de3f44675d
+OBJECT CREATED CALLBACK RECEIVED FOR:3/7159
+controller created object with name:3/7159|VRF_UUID:31046ea3-2fb5-0445-9659-8cf02db5c4f8|
+created aggregated ArmorCompany unit named:3/7159 vrfUuid:VRF_UUID:31046ea3-2fb5-0445-9659-8cf02db5c4f8 C2SIM UUID:0a28b148-46b6-6058-af94-7738bacd3af7 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:FSC/D/1-1/
+controller created object with name:FSC/D/1-1/|VRF_UUID:410fe990-8a6a-e84b-990b-7d28d2a25635|
+created aggregated ArmorCompany unit named:FSC/D/1-1/ vrfUuid:VRF_UUID:410fe990-8a6a-e84b-990b-7d28d2a25635 C2SIM UUID:0b0e8c4a-dde6-4b53-a1d3-9906f8eae3af hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:A/4-27
+controller created object with name:A/4-27|VRF_UUID:9016861d-5e51-cd43-b9ad-cf727aad7fdd|
+created TANK name:A/4-27 hostility:FR UUID:0c1f5e65-fcb1-2fee-366b-b9a7e4593a40
+OBJECT CREATED CALLBACK RECEIVED FOR:C/47
+controller created object with name:C/47|VRF_UUID:392ef02b-9f4a-514f-aac3-5c3e85892d8f|
+created aggregated ArmorCompany unit named:C/47 vrfUuid:VRF_UUID:392ef02b-9f4a-514f-aac3-5c3e85892d8f C2SIM UUID:0c32b7d5-d915-a95d-8c1a-a521035a3a38 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:B/4-27
+controller created object with name:B/4-27|VRF_UUID:07a6646d-daac-534d-b982-beac88faf7c2|
+created TANK name:B/4-27 hostility:FR UUID:0db95543-57dd-f5b5-7a93-a8fefe09b552
+OBJECT CREATED CALLBACK RECEIVED FOR:303/HHC
+controller created object with name:303/HHC|VRF_UUID:b9b48b41-3d60-8e45-a29b-5617e7de2c13|
+created aggregated ArmorCompany unit named:303/HHC vrfUuid:VRF_UUID:b9b48b41-3d60-8e45-a29b-5617e7de2c13 C2SIM UUID:0f633105-9859-9755-8563-69844049bc81 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:4/7154
+controller created object with name:4/7154|VRF_UUID:d40d7d40-2430-8b4c-87f8-d807c5773188|
+created aggregated ArmorCompany unit named:4/7154 vrfUuid:VRF_UUID:d40d7d40-2430-8b4c-87f8-d807c5773188 C2SIM UUID:1046fec7-208d-955b-88c3-3492b7304bd0 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:1/1/8072
+controller created object with name:1/1/8072|VRF_UUID:a4a29ee7-1f70-c740-898e-74cab40ddcb9|
+created aggregated ArmorPlatoon unit named:1/1/8072 vrfUuid:VRF_UUID:a4a29ee7-1f70-c740-898e-74cab40ddcb9 C2SIM UUID:10bf642d-cb88-3357-8cc6-0304225e6550 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:8122/HQ_71
+controller created object with name:8122/HQ_71|VRF_UUID:42c3a199-0dd9-b346-a8e8-c4793b76753d|
+created aggregated ArmorCoHQ unit named:8122/HQ_71 vrfUuid:VRF_UUID:42c3a199-0dd9-b346-a8e8-c4793b76753d C2SIM UUID:1197d376-a13d-4451-a9b7-4eaf8605dfb1 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:B/5-20
+controller created object with name:B/5-20|VRF_UUID:7f1a2e95-79ee-3b42-8c84-fe985c6f9d68|
+created aggregated ArmorCompany unit named:B/5-20 vrfUuid:VRF_UUID:7f1a2e95-79ee-3b42-8c84-fe985c6f9d68 C2SIM UUID:1375ca0a-d212-d86a-e275-5555aef42fd8 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:B/1-1/2/1_
+controller created object with name:B/1-1/2/1_|VRF_UUID:50fcb03a-486d-654d-8585-b6d1bea2ff78|
+created TANK name:B/1-1/2/1_ hostility:FR UUID:137cec3b-82d0-d253-8c5f-649f4fd3ccc2
+OBJECT CREATED CALLBACK RECEIVED FOR:8072/HQ_71
+controller created object with name:8072/HQ_71|VRF_UUID:4593fc50-7a83-2a46-8324-1f8f94946926|
+created aggregated ArmorCoHQ unit named:8072/HQ_71 vrfUuid:VRF_UUID:4593fc50-7a83-2a46-8324-1f8f94946926 C2SIM UUID:151b8501-7de9-4758-a2be-b760889fd86a hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:HHC_TAC/HH
+controller created object with name:HHC_TAC/HH|VRF_UUID:a8a03ac2-1d6d-dd4c-8d7b-a63479dae797|
+created aggregated ArmorCompany unit named:HHC_TAC/HH vrfUuid:VRF_UUID:a8a03ac2-1d6d-dd4c-8d7b-a63479dae797 C2SIM UUID:15de308b-2111-f551-889e-2960fc764cf2 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:2/7151
+controller created object with name:2/7151|VRF_UUID:db86d44d-d4cd-dd47-aa88-77f831efd257|
+created aggregated ArmorPlatoon unit named:2/7151 vrfUuid:VRF_UUID:db86d44d-d4cd-dd47-aa88-77f831efd257 C2SIM UUID:17245989-7f28-0b06-c77d-4571fbb62188 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:A/1-6
+controller created object with name:A/1-6|VRF_UUID:b0073615-21f7-bc43-8624-01d682ce7005|
+created aggregated ArmorCompany unit named:A/1-6 vrfUuid:VRF_UUID:b0073615-21f7-bc43-8624-01d682ce7005 C2SIM UUID:18578672-5cad-ec55-a6e6-3169a8706604 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:REC-7153/7
+controller created object with name:REC-7153/7|VRF_UUID:157ae7d4-d131-2242-9c94-0b07dc2b27f5|
+created aggregated ArmorPlatoon unit named:REC-7153/7 vrfUuid:VRF_UUID:157ae7d4-d131-2242-9c94-0b07dc2b27f5 C2SIM UUID:1b3379e5-70b9-0754-890d-8aa56eec880e hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:7158/HQ_71
+controller created object with name:7158/HQ_71|VRF_UUID:10e20f1c-8684-7b4f-9271-f8adbaf48cad|
+created aggregated ArmorCoHQ unit named:7158/HQ_71 vrfUuid:VRF_UUID:10e20f1c-8684-7b4f-9271-f8adbaf48cad C2SIM UUID:1b529a68-75ff-78e3-4c10-906bb3200d96 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:HQ/1-1/2/1
+controller created object with name:HQ/1-1/2/1|VRF_UUID:39c28ad8-4f8f-e543-a9c8-12d143fbafc2|
+created TANK name:HQ/1-1/2/1 hostility:FR UUID:1bf6d523-a9b3-d95d-93c0-6c11d2d5579a
+OBJECT CREATED CALLBACK RECEIVED FOR:7153/HQ_71
+controller created object with name:7153/HQ_71|VRF_UUID:57ec2dd3-fa02-dc46-9894-3fa1208ad8de|
+created aggregated ArmorCoHQ unit named:7153/HQ_71 vrfUuid:VRF_UUID:57ec2dd3-fa02-dc46-9894-3fa1208ad8de C2SIM UUID:1e35b1e7-263a-ebf5-0533-67319f6f821c hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:1/5/7158
+controller created object with name:1/5/7158|VRF_UUID:e905e3f4-a6c7-a047-841b-f9173175e61b|
+created aggregated ArmorPlatoon unit named:1/5/7158 vrfUuid:VRF_UUID:e905e3f4-a6c7-a047-841b-f9173175e61b C2SIM UUID:2321869f-e890-f456-8e80-eec55658ab90 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:AD/7153
+controller created object with name:AD/7153|VRF_UUID:2c9e75b7-4b97-f546-8bc1-f44642e53041|
+created aggregated ArmorPlatoon unit named:AD/7153 vrfUuid:VRF_UUID:2c9e75b7-4b97-f546-8bc1-f44642e53041 C2SIM UUID:246b4b58-f0f3-c254-86c8-21f894c63504 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:4-27_MAIN/
+controller created object with name:4-27_MAIN/|VRF_UUID:e2c21168-e062-fc48-8d01-9184fcd6e465|
+created aggregated ArmorCoHQ unit named:4-27_MAIN/ vrfUuid:VRF_UUID:e2c21168-e062-fc48-8d01-9184fcd6e465 C2SIM UUID:25ecd85d-10cc-ba40-d800-86a8473ac7a7 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:HHC/2/1_AD
+controller created object with name:HHC/2/1_AD|VRF_UUID:d46c753f-538d-594c-9c58-f146b59839ee|
+created aggregated ArmorCompany unit named:HHC/2/1_AD vrfUuid:VRF_UUID:d46c753f-538d-594c-9c58-f146b59839ee C2SIM UUID:279fc005-a33c-f050-aa45-490f71693bdb hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:HHC_MAIN/H
+controller created object with name:HHC_MAIN/H|VRF_UUID:ffbac4e2-9526-294e-9a26-e45a24c2b45f|
+created aggregated ArmorCompany unit named:HHC_MAIN/H vrfUuid:VRF_UUID:ffbac4e2-9526-294e-9a26-e45a24c2b45f C2SIM UUID:29e824eb-b09f-2653-ac56-0de95c3a226b hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:2/7152
+controller created object with name:2/7152|VRF_UUID:9f13389e-bd10-9e45-b70d-4a51892c79f9|
+created aggregated ArmorCompany unit named:2/7152 vrfUuid:VRF_UUID:9f13389e-bd10-9e45-b70d-4a51892c79f9 C2SIM UUID:2ddc6a08-cd3c-c35a-b4b3-fd05409d78f1 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:1MTR/7153
+controller created object with name:1MTR/7153|VRF_UUID:4f0791dc-49e9-0a41-a363-b18dea91bf20|
+created aggregated ArmorPlatoon unit named:1MTR/7153 vrfUuid:VRF_UUID:4f0791dc-49e9-0a41-a363-b18dea91bf20 C2SIM UUID:36b81add-b45f-9b56-97e1-91ea812252a2 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:4/7151
+controller created object with name:4/7151|VRF_UUID:2bc4d07e-d57c-ab42-b39b-d254d2271990|
+created aggregated ArmorCompany unit named:4/7151 vrfUuid:VRF_UUID:2bc4d07e-d57c-ab42-b39b-d254d2271990 C2SIM UUID:38ffdb1e-fd21-4757-a052-c47bed5f76da hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:4-27/2/1_A
+controller created object with name:4-27/2/1_A|VRF_UUID:63505bae-9767-7e4a-89e6-39616f98653a|
+created aggregated ArmorCoHQ unit named:4-27/2/1_A vrfUuid:VRF_UUID:63505bae-9767-7e4a-89e6-39616f98653a C2SIM UUID:3ac081eb-6adc-7e58-b0b5-9b506b4eae0f hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:HQ/40
+controller created object with name:HQ/40|VRF_UUID:e8bd035a-a06e-5f43-9ec8-4954b1f39d9b|
+created aggregated ArmorCompany unit named:HQ/40 vrfUuid:VRF_UUID:e8bd035a-a06e-5f43-9ec8-4954b1f39d9b C2SIM UUID:3acb01b5-8df7-385e-ab5e-59e3d8118158 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:2/7153
+controller created object with name:2/7153|VRF_UUID:b4075b23-5cc8-114b-a801-7fef0c272d8a|
+created aggregated ArmorCompany unit named:2/7153 vrfUuid:VRF_UUID:b4075b23-5cc8-114b-a801-7fef0c272d8a C2SIM UUID:3acb8e0f-7b1f-c56f-e262-4da718477b91 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:1/8072
+controller created object with name:1/8072|VRF_UUID:85053670-5990-f546-bb14-dea89c4b2bb7|
+created aggregated ArmorCompany unit named:1/8072 vrfUuid:VRF_UUID:85053670-5990-f546-bb14-dea89c4b2bb7 C2SIM UUID:3ed9afec-b21e-6e53-aa51-c41b8d998838 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:REC-7151/7
+controller created object with name:REC-7151/7|VRF_UUID:7dbf471a-651c-c04b-8068-0d29ffb148fd|
+created aggregated ArmorPlatoon unit named:REC-7151/7 vrfUuid:VRF_UUID:7dbf471a-651c-c04b-8068-0d29ffb148fd C2SIM UUID:3f85e5b6-4859-265d-882c-7f8b9ed6bf19 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:40_MAIN/40
+controller created object with name:40_MAIN/40|VRF_UUID:26f1009d-b2c9-654b-a39f-d05791f9fc4b|
+created aggregated ArmorCoHQ unit named:40_MAIN/40 vrfUuid:VRF_UUID:26f1009d-b2c9-654b-a39f-d05791f9fc4b C2SIM UUID:404c4aaf-414e-fd5f-8534-04eb976c9720 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:WPN/7151
+controller created object with name:WPN/7151|VRF_UUID:a08018f9-f75b-1c44-b81f-229d91997b99|
+created aggregated ArmorPlatoon unit named:WPN/7151 vrfUuid:VRF_UUID:a08018f9-f75b-1c44-b81f-229d91997b99 C2SIM UUID:40a71a97-17ce-a754-bea5-a6e4a65eaaa5 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:C/5-20
+controller created object with name:C/5-20|VRF_UUID:aaed0392-ceea-5645-bbc9-7fca2a2b9321|
+created aggregated ArmorCompany unit named:C/5-20 vrfUuid:VRF_UUID:aaed0392-ceea-5645-bbc9-7fca2a2b9321 C2SIM UUID:4101bbfc-199d-2159-865b-792a8a9180bc hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:2/7154
+controller created object with name:2/7154|VRF_UUID:921b2b3d-1a90-494b-a52d-b5d4c081a742|
+created aggregated ArmorCompany unit named:2/7154 vrfUuid:VRF_UUID:921b2b3d-1a90-494b-a52d-b5d4c081a742 C2SIM UUID:42d6f3df-e742-0950-a4bf-fe915f96d1e6 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:7151/HQ_71
+controller created object with name:7151/HQ_71|VRF_UUID:e9a9672f-aa8b-1146-8e8f-02fc9337cac8|
+created aggregated ArmorCoHQ unit named:7151/HQ_71 vrfUuid:VRF_UUID:e9a9672f-aa8b-1146-8e8f-02fc9337cac8 C2SIM UUID:444a675a-5a6b-61c0-a29e-54dbbd9417af hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:1MTR/7154
+controller created object with name:1MTR/7154|VRF_UUID:b423bbcd-c67d-5946-8a95-18a8ce8f6ae8|
+created aggregated ArmorPlatoon unit named:1MTR/7154 vrfUuid:VRF_UUID:b423bbcd-c67d-5946-8a95-18a8ce8f6ae8 C2SIM UUID:4538e7c0-35c3-0259-902d-284cad44f8ce hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:2/1_AD/25_
+controller created object with name:2/1_AD/25_|VRF_UUID:27f38e89-b23d-d84f-9e22-3762a5a02c23|
+created TANK name:2/1_AD/25_ hostility:FR UUID:47cb2dff-e842-ab54-b6cf-c23d5a4c3285
+OBJECT CREATED CALLBACK RECEIVED FOR:FSC/H/5-20
+controller created object with name:FSC/H/5-20|VRF_UUID:49cfe6d3-6e53-1e4d-9ea0-604a3cad5226|
+created aggregated ArmorCompany unit named:FSC/H/5-20 vrfUuid:VRF_UUID:49cfe6d3-6e53-1e4d-9ea0-604a3cad5226 C2SIM UUID:488d48bb-18b1-9255-bef1-03fed792920f hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:AD/7151
+controller created object with name:AD/7151|VRF_UUID:49327be0-fea5-fa41-ba46-b29e50b0c426|
+created aggregated ArmorPlatoon unit named:AD/7151 vrfUuid:VRF_UUID:49327be0-fea5-fa41-ba46-b29e50b0c426 C2SIM UUID:4912cba9-44ca-235d-9061-c05a399f36d7 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:REC-7152/7
+controller created object with name:REC-7152/7|VRF_UUID:7493ba2a-b5b4-2e46-ae09-e0bf29883d68|
+created aggregated ArmorPlatoon unit named:REC-7152/7 vrfUuid:VRF_UUID:7493ba2a-b5b4-2e46-ae09-e0bf29883d68 C2SIM UUID:4a06bf05-ece7-c3a0-ae42-bf7cbf062c2d hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:1/7151
+controller created object with name:1/7151|VRF_UUID:afc84323-7682-e24f-9b6d-f00f24ea413f|
+created aggregated ArmorCompany unit named:1/7151 vrfUuid:VRF_UUID:afc84323-7682-e24f-9b6d-f00f24ea413f C2SIM UUID:4b72dc6b-127d-7d55-cae6-e20fe7a3e693 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:369/HHC
+controller created object with name:369/HHC|VRF_UUID:408b93a2-f383-fe4a-abb0-f6c8cd82ef80|
+created aggregated ArmorCompany unit named:369/HHC vrfUuid:VRF_UUID:408b93a2-f383-fe4a-abb0-f6c8cd82ef80 C2SIM UUID:4d34fe57-df5a-ef59-87cb-573589470c32 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:WPN/7152
+controller created object with name:WPN/7152|VRF_UUID:3b40adb7-341a-3e49-89f1-fd1aef6acc32|
+created aggregated ArmorPlatoon unit named:WPN/7152 vrfUuid:VRF_UUID:3b40adb7-341a-3e49-89f1-fd1aef6acc32 C2SIM UUID:4fa58faa-bb56-b6f3-ed7f-e5c8a767dc1c hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:3/7152
+controller created object with name:3/7152|VRF_UUID:f78e21ca-9900-f34d-9995-ed0b198471ee|
+created aggregated ArmorCompany unit named:3/7152 vrfUuid:VRF_UUID:f78e21ca-9900-f34d-9995-ed0b198471ee C2SIM UUID:5054333d-3acb-4651-1d95-4dd73ff3cdf7 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:B/1-35
+controller created object with name:B/1-35|VRF_UUID:7918c713-76d9-bf46-a8bb-57d02463225f|
+created aggregated ArmorCompany unit named:B/1-35 vrfUuid:VRF_UUID:7918c713-76d9-bf46-a8bb-57d02463225f C2SIM UUID:507df0d9-a220-d935-377c-3a08729ba261 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:5-20/2/1_A
+controller created object with name:5-20/2/1_A|VRF_UUID:3b5465d8-520b-4745-b414-b4597509d817|
+created aggregated ArmorCoHQ unit named:5-20/2/1_A vrfUuid:VRF_UUID:3b5465d8-520b-4745-b414-b4597509d817 C2SIM UUID:50828a9b-0357-e75e-8873-5404000a90e6 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:3/7154
+controller created object with name:3/7154|VRF_UUID:0a624a31-e2ac-824c-ab7a-9ea219d43879|
+created aggregated ArmorCompany unit named:3/7154 vrfUuid:VRF_UUID:0a624a31-e2ac-824c-ab7a-9ea219d43879 C2SIM UUID:52f06051-c6b0-925b-bedb-b920220892ca hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:756/HHC
+controller created object with name:756/HHC|VRF_UUID:22851cab-0a77-8742-8177-76fcc2e7abcb|
+created aggregated ArmorCompany unit named:756/HHC vrfUuid:VRF_UUID:22851cab-0a77-8742-8177-76fcc2e7abcb C2SIM UUID:532f0829-9008-1751-91ac-3cbf6da29e72 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:715EN/HQ_7
+controller created object with name:715EN/HQ_7|VRF_UUID:23784564-b007-9d42-bd93-8799d31e57e7|
+created aggregated ArmorCompany unit named:715EN/HQ_7 vrfUuid:VRF_UUID:23784564-b007-9d42-bd93-8799d31e57e7 C2SIM UUID:5357c067-69d5-3bd9-47df-0aaa57cc2584 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:FSC/G/1-6
+controller created object with name:FSC/G/1-6|VRF_UUID:600cbcad-6c4f-5a45-921e-f9b070b3cca1|
+created aggregated ArmorCompany unit named:FSC/G/1-6 vrfUuid:VRF_UUID:600cbcad-6c4f-5a45-921e-f9b070b3cca1 C2SIM UUID:5453d678-e403-a45b-a806-164c4f57b611 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:A/6-56/HHC
+controller created object with name:A/6-56/HHC|VRF_UUID:35ca42aa-3f47-6a4a-8824-e7a5f6193e13|
+created TANK name:A/6-56/HHC hostility:FR UUID:5cd92a83-c6bd-875e-96ae-5650b790a1b6
+OBJECT CREATED CALLBACK RECEIVED FOR:47_CTCP/47
+controller created object with name:47_CTCP/47|VRF_UUID:48c3c3c0-40db-3641-b525-6c4733fd1b53|
+created aggregated ArmorCoHQ unit named:47_CTCP/47 vrfUuid:VRF_UUID:48c3c3c0-40db-3641-b525-6c4733fd1b53 C2SIM UUID:5ee33fe7-35f6-8955-b325-adfa74302055 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:1-35_MAIN/
+controller created object with name:1-35_MAIN/|VRF_UUID:13460d80-c64b-7f40-8c46-dca0cbef7fc9|
+created aggregated ArmorCoHQ unit named:1-35_MAIN/ vrfUuid:VRF_UUID:13460d80-c64b-7f40-8c46-dca0cbef7fc9 C2SIM UUID:5f27c9c9-fc16-8f50-9033-a0e39460b46e hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:C/4-27
+controller created object with name:C/4-27|VRF_UUID:f4d2d693-48c6-f342-8036-5518d7c72adc|
+created TANK name:C/4-27 hostility:FR UUID:5fe486cd-ba90-bfbc-81f0-8bba5be2b68a
+OBJECT CREATED CALLBACK RECEIVED FOR:1/7152
+controller created object with name:1/7152|VRF_UUID:c7c5cd46-647e-f740-bd93-08f8b7b2cae6|
+created aggregated ArmorCompany unit named:1/7152 vrfUuid:VRF_UUID:c7c5cd46-647e-f740-bd93-08f8b7b2cae6 C2SIM UUID:601a3395-3d77-4357-91cf-36abab0c150a hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:4/7152
+controller created object with name:4/7152|VRF_UUID:d4e76a4f-6787-a445-999e-1dba60c4bfa9|
+created aggregated ArmorCompany unit named:4/7152 vrfUuid:VRF_UUID:d4e76a4f-6787-a445-999e-1dba60c4bfa9 C2SIM UUID:63b1d5d9-1b3b-5051-9eca-564e0f556c31 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:UNK-AVN-1/
+controller created object with name:UNK-AVN-1/|VRF_UUID:1da4ed15-af7e-c441-b9c8-760830cf61ea|
+created aggregated ArmorCoHQ unit named:UNK-AVN-1/ vrfUuid:VRF_UUID:1da4ed15-af7e-c441-b9c8-760830cf61ea C2SIM UUID:65180d7d-fae3-c059-9aef-867ebc8e96be hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:TA/HQ/4-27
+controller created object with name:TA/HQ/4-27|VRF_UUID:702d3219-b6a9-5941-9947-a14962a17f62|
+created TANK name:TA/HQ/4-27 hostility:FR UUID:69738fa3-2f3f-3154-b696-bc0a6a91fdd5
+OBJECT CREATED CALLBACK RECEIVED FOR:40/2/1_AD
+controller created object with name:40/2/1_AD|VRF_UUID:91bdd348-e170-1346-969f-01c017fd2f45|
+created aggregated ArmorCoHQ unit named:40/2/1_AD vrfUuid:VRF_UUID:91bdd348-e170-1346-969f-01c017fd2f45 C2SIM UUID:6977b035-d84c-da5f-9cc0-497b9f334eb7 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:856/HHC
+controller created object with name:856/HHC|VRF_UUID:abb26359-32d2-424c-82df-8529e229d739|
+created aggregated ArmorCompany unit named:856/HHC vrfUuid:VRF_UUID:abb26359-32d2-424c-82df-8529e229d739 C2SIM UUID:6a266f06-12d7-3159-8cd6-f1e5bc9c6e72 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:3/7158
+controller created object with name:3/7158|VRF_UUID:28064be9-d891-814b-bb0d-2d75d0338859|
+created aggregated ArmorCompany unit named:3/7158 vrfUuid:VRF_UUID:28064be9-d891-814b-bb0d-2d75d0338859 C2SIM UUID:6abe50b5-efca-7c27-8b37-4bcd7d42400c hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:1MTR/7151
+controller created object with name:1MTR/7151|VRF_UUID:78c11d38-9ed7-6941-9624-d686f595b48e|
+created aggregated ArmorPlatoon unit named:1MTR/7151 vrfUuid:VRF_UUID:78c11d38-9ed7-6941-9624-d686f595b48e C2SIM UUID:6c89e4da-cff1-3250-949c-1a9848e11347 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:REC-7154/7
+controller created object with name:REC-7154/7|VRF_UUID:80dc7bd2-c889-cf4b-823c-4e3587f8c549|
+created aggregated ArmorCompany unit named:REC-7154/7 vrfUuid:VRF_UUID:80dc7bd2-c889-cf4b-823c-4e3587f8c549 C2SIM UUID:6cd02961-354a-e4c3-fdd3-3acb00f242e8 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:7154/HQ_71
+controller created object with name:7154/HQ_71|VRF_UUID:ab874628-b600-1845-b6dd-f54ef781a4f9|
+created aggregated ArmorCoHQ unit named:7154/HQ_71 vrfUuid:VRF_UUID:ab874628-b600-1845-b6dd-f54ef781a4f9 C2SIM UUID:6e9420a5-bdfa-7954-8ecd-f359ac459407 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:2MTR/7151
+controller created object with name:2MTR/7151|VRF_UUID:61a5ff7e-b141-ee4e-aa94-a2772800e21c|
+created aggregated ArmorPlatoon unit named:2MTR/7151 vrfUuid:VRF_UUID:61a5ff7e-b141-ee4e-aa94-a2772800e21c C2SIM UUID:6fe2e510-3711-d850-81d1-99ab0557d4da hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:7152/HQ_71
+controller created object with name:7152/HQ_71|VRF_UUID:cf3eb493-aa71-fc4e-b6b7-44556e0bb58c|
+created aggregated ArmorCoHQ unit named:7152/HQ_71 vrfUuid:VRF_UUID:cf3eb493-aa71-fc4e-b6b7-44556e0bb58c C2SIM UUID:7134a6e4-805a-4482-036b-0f838363afc7 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:A/1-35
+controller created object with name:A/1-35|VRF_UUID:698f4ac7-c918-a14c-8968-3424ea2f5d90|
+created aggregated ArmorCompany unit named:A/1-35 vrfUuid:VRF_UUID:698f4ac7-c918-a14c-8968-3424ea2f5d90 C2SIM UUID:721b5a9e-1004-9c5f-b897-4789238edaef hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:4/7153
+controller created object with name:4/7153|VRF_UUID:1a384e85-49e7-1f42-b565-3a037800f1a8|
+created aggregated ArmorCompany unit named:4/7153 vrfUuid:VRF_UUID:1a384e85-49e7-1f42-b565-3a037800f1a8 C2SIM UUID:726d1b61-9d3e-0fd5-6246-98cf79cb2d8e hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:3/7153
+controller created object with name:3/7153|VRF_UUID:c8dca5d1-3faa-5f4a-9919-3506c5f6e46d|
+created aggregated ArmorCompany unit named:3/7153 vrfUuid:VRF_UUID:c8dca5d1-3faa-5f4a-9919-3506c5f6e46d C2SIM UUID:74082496-8201-17fd-c940-ef5de22631f4 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:1-6/2/1_AD
+controller created object with name:1-6/2/1_AD|VRF_UUID:e3e9a4ce-ef32-3740-953e-5f0eb0d5c2af|
+created aggregated ArmorCoHQ unit named:1-6/2/1_AD vrfUuid:VRF_UUID:e3e9a4ce-ef32-3740-953e-5f0eb0d5c2af C2SIM UUID:74bdb03b-c85e-5e54-8f04-180c44ddc9c3 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:HQ/1-6
+controller created object with name:HQ/1-6|VRF_UUID:6819029d-1ac4-b240-b7ca-3857fe997cae|
+created aggregated ArmorCompany unit named:HQ/1-6 vrfUuid:VRF_UUID:6819029d-1ac4-b240-b7ca-3857fe997cae C2SIM UUID:762fe0ee-a059-0c5b-bc85-5785837c6c18 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:3/7151
+controller created object with name:3/7151|VRF_UUID:1d3f1853-4194-064e-b006-a0f7c88b42d9|
+created aggregated ArmorCompany unit named:3/7151 vrfUuid:VRF_UUID:1d3f1853-4194-064e-b006-a0f7c88b42d9 C2SIM UUID:76865407-cea5-aa59-bdf1-4fd0abc34c33 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:2MTR/7152
+controller created object with name:2MTR/7152|VRF_UUID:af78efd3-63d3-e340-bd7f-5765695a10c7|
+created aggregated ArmorPlatoon unit named:2MTR/7152 vrfUuid:VRF_UUID:af78efd3-63d3-e340-bd7f-5765695a10c7 C2SIM UUID:76b40b8a-8c98-2a58-aaf6-ae157e9292b6 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:C/1-1/2/1_
+controller created object with name:C/1-1/2/1_|VRF_UUID:dff729f7-28d6-9f48-b03e-c0457f0e7e40|
+created TANK name:C/1-1/2/1_ hostility:FR UUID:76e12ea5-9ecf-6952-abd4-f30cb30f0932
+OBJECT CREATED CALLBACK RECEIVED FOR:1/7154
+controller created object with name:1/7154|VRF_UUID:a76a0306-b6b1-7043-8e79-2bb3f937c34d|
+created aggregated ArmorCompany unit named:1/7154 vrfUuid:VRF_UUID:a76a0306-b6b1-7043-8e79-2bb3f937c34d C2SIM UUID:7986166b-7f0a-f10a-9dfd-2925c846c885 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:1MTR/7152
+controller created object with name:1MTR/7152|VRF_UUID:4c495bda-a912-7d4c-a204-db5f637140ac|
+created aggregated ArmorPlatoon unit named:1MTR/7152 vrfUuid:VRF_UUID:4c495bda-a912-7d4c-a204-db5f637140ac C2SIM UUID:7a175303-1d1c-7d5f-ac41-031671eda4c2 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:1/7159
+controller created object with name:1/7159|VRF_UUID:e3775b36-f111-5b40-8c38-f6903afacc0d|
+created aggregated ArmorCompany unit named:1/7159 vrfUuid:VRF_UUID:e3775b36-f111-5b40-8c38-f6903afacc0d C2SIM UUID:7b12e88c-dc87-475f-aac7-0ee1c0c81de8 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:FSC/H/1-35
+controller created object with name:FSC/H/1-35|VRF_UUID:1fd4a913-18a1-854b-bb01-7496f6218560|
+created aggregated ArmorCompany unit named:FSC/H/1-35 vrfUuid:VRF_UUID:1fd4a913-18a1-854b-bb01-7496f6218560 C2SIM UUID:7be04d93-01fe-7551-a538-f569f2c752bf hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:UNK-AVN-2/
+controller created object with name:UNK-AVN-2/|VRF_UUID:caf223ba-0d78-1e4a-b6f3-4def673ea154|
+created aggregated ArmorCoHQ unit named:UNK-AVN-2/ vrfUuid:VRF_UUID:caf223ba-0d78-1e4a-b6f3-4def673ea154 C2SIM UUID:7dd0334e-91c7-3a53-9869-efdd8ee6d5e4 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:2/TA/7158
+controller created object with name:2/TA/7158|VRF_UUID:2475a0c8-3066-044d-891b-a16ce1cdc359|
+created TANK name:2/TA/7158 hostility:HO UUID:806db97b-e5ed-4850-ac93-f5cbb767239b
+OBJECT CREATED CALLBACK RECEIVED FOR:RDR/8072
+controller created object with name:RDR/8072|VRF_UUID:8a9f0982-9909-1748-af72-29cbd6ed15e8|
+created aggregated ArmorCompany unit named:RDR/8072 vrfUuid:VRF_UUID:8a9f0982-9909-1748-af72-29cbd6ed15e8 C2SIM UUID:840c4684-70ee-ba3e-007e-f8293bd69455 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:B/1-6
+controller created object with name:B/1-6|VRF_UUID:1b69be23-d4ec-4f4e-bb9b-a7ab5c2b7808|
+created aggregated ArmorCompany unit named:B/1-6 vrfUuid:VRF_UUID:1b69be23-d4ec-4f4e-bb9b-a7ab5c2b7808 C2SIM UUID:85805f6e-c02d-045d-99ca-f691c4263950 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:2MTR/7154
+controller created object with name:2MTR/7154|VRF_UUID:030ce99f-94af-604d-8918-c5ce4f8114da|
+created aggregated ArmorCompany unit named:2MTR/7154 vrfUuid:VRF_UUID:030ce99f-94af-604d-8918-c5ce4f8114da C2SIM UUID:87b60ff6-f2a6-6e2e-864b-a87a6a919239 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:D/40
+controller created object with name:D/40|VRF_UUID:69411e52-5b4c-6a45-98e1-80f86b51077d|
+created aggregated ArmorCompany unit named:D/40 vrfUuid:VRF_UUID:69411e52-5b4c-6a45-98e1-80f86b51077d C2SIM UUID:89e4c39b-0a7e-375d-a6ba-7e782d74dd64 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:HQ/1-35
+controller created object with name:HQ/1-35|VRF_UUID:35574890-4234-ce4a-99a8-aea446f23a01|
+created aggregated ArmorCompany unit named:HQ/1-35 vrfUuid:VRF_UUID:35574890-4234-ce4a-99a8-aea446f23a01 C2SIM UUID:8c9aa35c-5ee5-f35f-814a-6d72a3ad0db0 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:A/47
+controller created object with name:A/47|VRF_UUID:d181ca9a-99bf-c74d-a28b-a4ae15735231|
+created aggregated ArmorCompany unit named:A/47 vrfUuid:VRF_UUID:d181ca9a-99bf-c74d-a28b-a4ae15735231 C2SIM UUID:901db2fe-bae7-e15a-95ac-3433e7f6df6d hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:A/5-20
+controller created object with name:A/5-20|VRF_UUID:4f61ef71-4a4a-e54b-9e7d-d71c31874f33|
+created aggregated ArmorCompany unit named:A/5-20 vrfUuid:VRF_UUID:4f61ef71-4a4a-e54b-9e7d-d71c31874f33 C2SIM UUID:911eecb3-1ce5-035d-ae50-19fd1364ea70 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:1/TA/7158
+controller created object with name:1/TA/7158|VRF_UUID:45c6a3e0-6b96-644e-91bf-5d4e15020172|
+created TANK name:1/TA/7158 hostility:HO UUID:91fb4bcf-f423-2c51-b1df-56f752b5ebf9
+OBJECT CREATED CALLBACK RECEIVED FOR:1-6_MAIN/1
+controller created object with name:1-6_MAIN/1|VRF_UUID:97dedf26-f866-2e42-b3e0-b8d171eb3dd1|
+created aggregated ArmorCoHQ unit named:1-6_MAIN/1 vrfUuid:VRF_UUID:97dedf26-f866-2e42-b3e0-b8d171eb3dd1 C2SIM UUID:9548ed61-ceea-dc5e-8e38-bbbb14fde01a hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:A/411/HHC
+controller created object with name:A/411/HHC|VRF_UUID:918c92c9-cec3-7f46-9968-8eb807ad177b|
+created aggregated ArmorCompany unit named:A/411/HHC vrfUuid:VRF_UUID:918c92c9-cec3-7f46-9968-8eb807ad177b C2SIM UUID:9565867e-4012-b55c-acfb-3ac9488dc7bb hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:WPN/7153
+controller created object with name:WPN/7153|VRF_UUID:bcbf697f-bad8-7f47-aa26-713883bc0813|
+created aggregated ArmorPlatoon unit named:WPN/7153 vrfUuid:VRF_UUID:bcbf697f-bad8-7f47-aa26-713883bc0813 C2SIM UUID:9579e59c-d4a0-ef53-8299-ccd47d8f41d9 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:2/7159
+controller created object with name:2/7159|VRF_UUID:0f9484ba-a982-894e-a593-1af97aaac28b|
+created aggregated ArmorCompany unit named:2/7159 vrfUuid:VRF_UUID:0f9484ba-a982-894e-a593-1af97aaac28b C2SIM UUID:95f684a5-c509-3a55-863a-bb09f1479cae hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:2/7157
+controller created object with name:2/7157|VRF_UUID:e3734fbb-112c-e74d-b8d0-92a9d4671efb|
+created aggregated ArmorCompany unit named:2/7157 vrfUuid:VRF_UUID:e3734fbb-112c-e74d-b8d0-92a9d4671efb C2SIM UUID:95f86f37-6d1d-1354-a48d-a741cf4eeca1 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:A/40
+controller created object with name:A/40|VRF_UUID:5015c985-d71c-4c46-9b6b-49dfa7a67444|
+created aggregated ArmorCompany unit named:A/40 vrfUuid:VRF_UUID:5015c985-d71c-4c46-9b6b-49dfa7a67444 C2SIM UUID:97440009-898c-6250-9da5-29180bbbb889 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:HQ/5-20
+controller created object with name:HQ/5-20|VRF_UUID:873a7bc1-86b5-7947-bd31-32754f2839a4|
+created aggregated ArmorCompany unit named:HQ/5-20 vrfUuid:VRF_UUID:873a7bc1-86b5-7947-bd31-32754f2839a4 C2SIM UUID:97ba1422-f979-c05e-85ff-e32a7061286d hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:HQ/47
+controller created object with name:HQ/47|VRF_UUID:e8b4da45-89d7-0040-b6d7-8f464ef842cb|
+created aggregated ArmorCompany unit named:HQ/47 vrfUuid:VRF_UUID:e8b4da45-89d7-0040-b6d7-8f464ef842cb C2SIM UUID:9accdb32-30c4-ea61-c446-2aa7902698ae hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:FSC/E/40
+controller created object with name:FSC/E/40|VRF_UUID:83dd4314-9482-1545-8414-db895c2694ab|
+created aggregated ArmorCompany unit named:FSC/E/40 vrfUuid:VRF_UUID:83dd4314-9482-1545-8414-db895c2694ab C2SIM UUID:9df2c56d-ff80-e77a-1766-1b0239357b16 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:3/5/7158
+controller created object with name:3/5/7158|VRF_UUID:d2c8055c-da4d-0f41-9e72-07d7af9acf3c|
+created aggregated ArmorPlatoon unit named:3/5/7158 vrfUuid:VRF_UUID:d2c8055c-da4d-0f41-9e72-07d7af9acf3c C2SIM UUID:9ec7c1bf-03e9-312b-8b7b-ed3dc072657e hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:C/40
+controller created object with name:C/40|VRF_UUID:2648de34-d223-1646-9101-2dfd10e3d321|
+created aggregated ArmorCompany unit named:C/40 vrfUuid:VRF_UUID:2648de34-d223-1646-9101-2dfd10e3d321 C2SIM UUID:9fc6445d-7b71-fd59-91d9-280459f11003 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:D/1-1/2/1_
+controller created object with name:D/1-1/2/1_|VRF_UUID:24e52ea3-8a19-3243-837c-2d3610016775|
+created TANK name:D/1-1/2/1_ hostility:FR UUID:a0f750c5-66f9-8ba3-593f-8a71451383e8
+OBJECT CREATED CALLBACK RECEIVED FOR:2MTR/7153
+controller created object with name:2MTR/7153|VRF_UUID:99f18716-3c1f-dd4d-8170-3b0fddedbb2f|
+created aggregated ArmorPlatoon unit named:2MTR/7153 vrfUuid:VRF_UUID:99f18716-3c1f-dd4d-8170-3b0fddedbb2f C2SIM UUID:a6a36e93-e52a-3431-8ddb-0945e1e33b6a hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:47/2/1_AD
+controller created object with name:47/2/1_AD|VRF_UUID:b4d3f30e-700e-dd49-ab70-e1b474642bfb|
+created aggregated ArmorCoHQ unit named:47/2/1_AD vrfUuid:VRF_UUID:b4d3f30e-700e-dd49-ab70-e1b474642bfb C2SIM UUID:a6cc80d1-0f60-1965-fd33-d0669641ede8 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:1/7153
+controller created object with name:1/7153|VRF_UUID:b6b9cfe0-e857-c047-9e13-0b21200468cd|
+created aggregated ArmorCompany unit named:1/7153 vrfUuid:VRF_UUID:b6b9cfe0-e857-c047-9e13-0b21200468cd C2SIM UUID:a852e00f-2d55-902a-4f78-ccb3d3e45a58 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:B_FLD/47
+controller created object with name:B_FLD/47|VRF_UUID:14b0b6a2-6075-3240-ae04-3b54a4716168|
+created aggregated ArmorCompany unit named:B_FLD/47 vrfUuid:VRF_UUID:14b0b6a2-6075-3240-ae04-3b54a4716168 C2SIM UUID:a95a2712-2bb6-3ee0-b12a-d70652664971 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:C/1-35
+controller created object with name:C/1-35|VRF_UUID:42a16355-6687-d84c-b942-370f4f3acf0a|
+created aggregated ArmorCompany unit named:C/1-35 vrfUuid:VRF_UUID:42a16355-6687-d84c-b942-370f4f3acf0a C2SIM UUID:b5b42765-36d6-1d90-6ce6-0139250949c4 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:HQ/4-27
+controller created object with name:HQ/4-27|VRF_UUID:6012e00c-9cb9-c240-9f6d-38cd2408d5f6|
+created TANK name:HQ/4-27 hostility:FR UUID:c0b94895-9def-ca98-e800-10a9f3a78c02
+OBJECT CREATED CALLBACK RECEIVED FOR:FSC/F/4-27
+controller created object with name:FSC/F/4-27|VRF_UUID:7865e75e-55b8-2a4b-98d7-cc3aff02be83|
+created aggregated ArmorCompany unit named:FSC/F/4-27 vrfUuid:VRF_UUID:7865e75e-55b8-2a4b-98d7-cc3aff02be83 C2SIM UUID:c21b4873-5475-1f3c-b546-f028e47d9ae1 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:4/7158
+controller created object with name:4/7158|VRF_UUID:07ff7ea0-eae8-1e44-8daa-52ee25bf4af8|
+created aggregated ArmorCompany unit named:4/7158 vrfUuid:VRF_UUID:07ff7ea0-eae8-1e44-8daa-52ee25bf4af8 C2SIM UUID:c282a049-30b3-57fc-c3c2-7c2a7ba5a945 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:C/1-6
+controller created object with name:C/1-6|VRF_UUID:bb815c54-99f0-604e-b5fa-0b4138b75a6f|
+created aggregated ArmorCompany unit named:C/1-6 vrfUuid:VRF_UUID:bb815c54-99f0-604e-b5fa-0b4138b75a6f C2SIM UUID:d1c813bc-00b0-a109-904e-53f03d3f8ea1 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:WPN/7154
+controller created object with name:WPN/7154|VRF_UUID:78d2d422-1dd9-b748-9510-c6d861828bb9|
+created aggregated ArmorPlatoon unit named:WPN/7154 vrfUuid:VRF_UUID:78d2d422-1dd9-b748-9510-c6d861828bb9 C2SIM UUID:d694d1c3-4a71-142a-6d6e-d8a663324d4e hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:1-35/2/1_A
+controller created object with name:1-35/2/1_A|VRF_UUID:c43d8f84-1277-6e43-97e7-065aa86b2298|
+created aggregated ArmorCoHQ unit named:1-35/2/1_A vrfUuid:VRF_UUID:c43d8f84-1277-6e43-97e7-065aa86b2298 C2SIM UUID:d6df3c3d-f31b-701a-bfc6-2fb9bc86092a hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:7911/HQ_71
+controller created object with name:7911/HQ_71|VRF_UUID:583ec9b1-2e19-7b45-b08d-cc96fd3a43f2|
+created aggregated ArmorCoHQ unit named:7911/HQ_71 vrfUuid:VRF_UUID:583ec9b1-2e19-7b45-b08d-cc96fd3a43f2 C2SIM UUID:d967aee8-e035-3422-39b3-7468e3d6585a hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:2/5/7158
+controller created object with name:2/5/7158|VRF_UUID:76b7e7aa-f8a9-4b47-b6dc-ec2e8eadb8f1|
+created aggregated ArmorPlatoon unit named:2/5/7158 vrfUuid:VRF_UUID:76b7e7aa-f8a9-4b47-b6dc-ec2e8eadb8f1 C2SIM UUID:ddc51455-8e38-a55a-0a50-e996a1b38610 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:1-1/2/1_AD
+controller created object with name:1-1/2/1_AD|VRF_UUID:1bacda87-20e5-db41-94b2-e168e13c7f79|
+created TANK name:1-1/2/1_AD hostility:FR UUID:de16a337-b2a6-c029-07b5-869191631621
+OBJECT CREATED CALLBACK RECEIVED FOR:510/40
+controller created object with name:510/40|VRF_UUID:4fc4581d-6068-ed41-b207-1c700708dad5|
+created aggregated ArmorCompany unit named:510/40 vrfUuid:VRF_UUID:4fc4581d-6068-ed41-b207-1c700708dad5 C2SIM UUID:e151451b-4fa5-eec8-4196-82bb73e3c355 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:7912/HQ_71
+controller created object with name:7912/HQ_71|VRF_UUID:51d54e85-473d-1c40-b6a4-04713c0e745b|
+created aggregated ArmorCoHQ unit named:7912/HQ_71 vrfUuid:VRF_UUID:51d54e85-473d-1c40-b6a4-04713c0e745b C2SIM UUID:e38e6a9b-4c36-6e6a-fee5-522096439d08 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:1/7158
+controller created object with name:1/7158|VRF_UUID:a879d3df-918e-d243-a899-f886faadf1ab|
+created aggregated ArmorCompany unit named:1/7158 vrfUuid:VRF_UUID:a879d3df-918e-d243-a899-f886faadf1ab C2SIM UUID:e642e3ab-d8fd-8b9a-6548-77aaa8472ab0 hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:7157/HQ_71
+controller created object with name:7157/HQ_71|VRF_UUID:ed567dfb-17cd-204e-a8ef-14f43660a482|
+created aggregated ArmorCoHQ unit named:7157/HQ_71 vrfUuid:VRF_UUID:ed567dfb-17cd-204e-a8ef-14f43660a482 C2SIM UUID:eb348f69-b07b-3803-dad6-596d074c9caa hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:47_REAR/47
+controller created object with name:47_REAR/47|VRF_UUID:4d665a2d-2105-9747-9b3b-c2aa8d82889c|
+created aggregated ArmorCoHQ unit named:47_REAR/47 vrfUuid:VRF_UUID:4d665a2d-2105-9747-9b3b-c2aa8d82889c C2SIM UUID:ebf6778b-be8a-12d1-e3e1-843b27f0f746 hostility:FR
+OBJECT CREATED CALLBACK RECEIVED FOR:2/7158
+controller created object with name:2/7158|VRF_UUID:023974bd-b2a9-4546-ba82-87297ce901fc|
+created aggregated ArmorCompany unit named:2/7158 vrfUuid:VRF_UUID:023974bd-b2a9-4546-ba82-87297ce901fc C2SIM UUID:ed8b0d0d-37d5-c995-a469-df1ae08959bf hostility:HO
+OBJECT CREATED CALLBACK RECEIVED FOR:AD/7154
+controller created object with name:AD/7154|VRF_UUID:8da7fb98-6f89-a346-ad0f-4192c933bb36|
+created aggregated ArmorPlatoon unit named:AD/7154 vrfUuid:VRF_UUID:8da7fb98-6f89-a346-ad0f-4192c933bb36 C2SIM UUID:faa0b9e3-0668-fb99-0d1e-3c3c1a68f0d4 hostility:HO
+initialized 128 units in VRForces
+Initialization includes 35 Tactical Areas
+CREATING TACTICAL AREA:AT_PAA_25E
+OBJECT CREATED CALLBACK RECEIVED FOR:AT_PAA_25E
+CREATING TACTICAL AREA:BP_PL_B_00
+OBJECT CREATED CALLBACK RECEIVED FOR:BP_PL_B_00
+CREATING TACTICAL AREA:MADISON
+OBJECT CREATED CALLBACK RECEIVED FOR:MADISON
+CREATING TACTICAL AREA:OBJ_SBF_OB
+OBJECT CREATED CALLBACK RECEIVED FOR:OBJ_SBF_OB
+CREATING TACTICAL AREA:MONROE
+OBJECT CREATED CALLBACK RECEIVED FOR:MONROE
+CREATING TACTICAL AREA:IRON_FIST
+OBJECT CREATED CALLBACK RECEIVED FOR:IRON_FIST
+CREATING TACTICAL AREA:TAI_PAA_25
+OBJECT CREATED CALLBACK RECEIVED FOR:TAI_PAA_25
+CREATING TACTICAL AREA:OBJ_PL_BRO
+OBJECT CREATED CALLBACK RECEIVED FOR:OBJ_PL_BRO
+CREATING TACTICAL AREA:EAGLES
+OBJECT CREATED CALLBACK RECEIVED FOR:EAGLES
+CREATING TACTICAL AREA:OBSENG_OEB
+OBJECT CREATED CALLBACK RECEIVED FOR:OBSENG_OEB
+CREATING TACTICAL AREA:BANDIT_III
+OBJECT CREATED CALLBACK RECEIVED FOR:BANDIT_III
+CREATING TACTICAL AREA:BP_PL_B_01
+OBJECT CREATED CALLBACK RECEIVED FOR:BP_PL_B_01
+CREATING TACTICAL AREA:SAXONS
+OBJECT CREATED CALLBACK RECEIVED FOR:SAXONS
+CREATING TACTICAL AREA:BANDIT
+OBJECT CREATED CALLBACK RECEIVED FOR:BANDIT
+CREATING TACTICAL AREA:JEFFERSON
+OBJECT CREATED CALLBACK RECEIVED FOR:JEFFERSON
+CREATING TACTICAL AREA:TAI_PAA_00
+OBJECT CREATED CALLBACK RECEIVED FOR:TAI_PAA_00
+CREATING TACTICAL AREA:HAMILTON
+OBJECT CREATED CALLBACK RECEIVED FOR:HAMILTON
+CREATING TACTICAL AREA:OBJ_PENETR
+OBJECT CREATED CALLBACK RECEIVED FOR:OBJ_PENETR
+CREATING TACTICAL AREA:OBJ_BND_OB
+OBJECT CREATED CALLBACK RECEIVED FOR:OBJ_BND_OB
+CREATING TACTICAL AREA:OBJ_PAA_25
+OBJECT CREATED CALLBACK RECEIVED FOR:OBJ_PAA_25
+CREATING TACTICAL AREA:AAR_PAA_25
+OBJECT CREATED CALLBACK RECEIVED FOR:AAR_PAA_25
+CREATING TACTICAL AREA:OBJ_OBJ_00
+OBJECT CREATED CALLBACK RECEIVED FOR:OBJ_OBJ_00
+CREATING TACTICAL AREA:OBJ_OBJ_01
+OBJECT CREATED CALLBACK RECEIVED FOR:OBJ_OBJ_01
+CREATING TACTICAL AREA:OBJ_OBJ_MO
+OBJECT CREATED CALLBACK RECEIVED FOR:OBJ_OBJ_MO
+CREATING TACTICAL AREA:OBJ_FIX_OB
+OBJECT CREATED CALLBACK RECEIVED FOR:OBJ_FIX_OB
+CREATING TACTICAL AREA:OILERS
+OBJECT CREATED CALLBACK RECEIVED FOR:OILERS
+CREATING TACTICAL AREA:BP_PL_BLUE
+OBJECT CREATED CALLBACK RECEIVED FOR:BP_PL_BLUE
+CREATING TACTICAL AREA:NORMANS
+OBJECT CREATED CALLBACK RECEIVED FOR:NORMANS
+CREATING TACTICAL AREA:OBJ_OBJ_MA
+OBJECT CREATED CALLBACK RECEIVED FOR:OBJ_OBJ_MA
+CREATING TACTICAL AREA:TAI_ABF_JU
+OBJECT CREATED CALLBACK RECEIVED FOR:TAI_ABF_JU
+CREATING TACTICAL AREA:BP_PL_B_02
+OBJECT CREATED CALLBACK RECEIVED FOR:BP_PL_B_02
+CREATING TACTICAL AREA:OBJ_PAA_00
+OBJECT CREATED CALLBACK RECEIVED FOR:OBJ_PAA_00
+CREATING TACTICAL AREA:OBSENG_PL_
+OBJECT CREATED CALLBACK RECEIVED FOR:OBSENG_PL_
+CREATING TACTICAL AREA:AT_PAA_25F
+OBJECT CREATED CALLBACK RECEIVED FOR:AT_PAA_25F
+CREATING TACTICAL AREA:BANDIT_II
+OBJECT CREATED CALLBACK RECEIVED FOR:BANDIT_II
+STARTING XML PARSE
+parsing C2SIM Order
+COMPLETED PARSE OF XML DOCUMENT WITH ROOT TAG MessageBody
+RECEIVED C2SIM ORDER FROM:GOLDENTRACE ORDER ID: 90e271eb-0d6e-4f05-8b35-572076f5ceff
+order contains 42 task(s)
+TIME:19.41.11.341 
+C2SIMinterface queued task:T15_AOA_SE_1-6_IN;_2/1_AD_P1 taskUuid:03bbf711-9652-4f09-a21e-8679d44b912d for taskeeUuid:74bdb03b-c85e-5e54-8f04-180c44ddc9c3 name:1-6/2/1_AD symbolId:SFGPUCI----F--- dateTime: vrfUuid:VRF_UUID:e3e9a4ce-ef32-3740-953e-5f0eb0d5c2af ROE:ROEHold MapGraphic:
+
+*****C2SIMinterface starting taskName:T15_AOA_SE_1-6_IN;_2/1_AD_P1 taskUuid:03bbf711-9652-4f09-a21e-8679d44b912d
+for taskee:74bdb03b-c85e-5e54-8f04-180c44ddc9c3 name:1-6/2/1_AD
+dateTime: vrfUuid:VRF_UUID:e3e9a4ce-ef32-3740-953e-5f0eb0d5c2af ROE:ROEHold activity code:ATTACK MapGraphicUUID:
+route point count:5 actionTask:ATTACK symbolString:SFGPUCI----F---
+Point 0 coordinates:34.68/-116.725/100
+Point 1 coordinates:34.67998497486787/-116.72479854165415/100
+Point 2 coordinates:34.60904665152399/-116.8033219547244/100
+Point 3 coordinates:34.48593335503527/-116.9268849112078/100
+Point 4 coordinates:34.43378352084772/-116.97201062879192/100
+TIME:19.41.11.450 
+C2SIMinterface queued task:T30_MaintainRearAreaSecurityAndConvoyEscortOperations. taskUuid:044c03db-32f9-409f-be20-a9603178b972 for taskeeUuid:6a266f06-12d7-3159-8cd6-f1e5bc9c6e72 name:856/HHC symbolId:SFGPUULM---E--- dateTime: vrfUuid:VRF_UUID:abb26359-32d2-424c-82df-8529e229d739 ROE:ROEHold MapGraphic:
+   starts after end of Task with UUID:ab288b31-e746-4a83-b467-45d6116808dc
+   and scaled delay of:0 ms relative to that task
+TIME:19.41.11.559 
+C2SIMinterface queued task:T26_PL_PL_BLUE taskUuid:0c58ca0d-d8a3-4bf8-b90d-c1abca665712 for taskeeUuid:de16a337-b2a6-c029-07b5-869191631621 name:1-1/2/1_AD symbolId:SFGPUCR-------- dateTime: vrfUuid:VRF_UUID:1bacda87-20e5-db41-94b2-e168e13c7f79 ROE:ROEHold MapGraphic:
+   starts after end of Task with UUID:51ef094c-f807-478f-a978-14469cf555ea
+   and scaled delay of:0 ms relative to that task
+OBJECT CREATED CALLBACK RECEIVED FOR:T15_AOA_SE_1-6_IN;_2/1_AD_P1 ROUTE
+Task:T15_AOA_SE_1-6_IN;_2/1_AD_P1 made Route:T15_AOA_SE_1-6_IN;_2/1_AD_P1 ROUTE for Unit:1-6/2/1_AD UUID:74bdb03b-c85e-5e54-8f04-180c44ddc9c3|
+ point count:5 start at:34.68/-116.725/100
+TIME:19.41.11.666 
+Tasked moveAlongRoute for obj VRF_UUID:e3e9a4ce-ef32-3740-953e-5f0eb0d5c2af|T15_AOA_SE_1-6_IN;_2/1_AD_P1 ROUTE (vrfUuid 5431355f-414f-415f-5345-5f312d365f49)
+C2SIMinterface queued task:T18_MaintainFixingFiresAndTransitionIntoDefensiveOperationsNorthOfObjMonroe. taskUuid:0cad2928-06e9-4cfc-9eb0-925cc6ba0a61 for taskeeUuid:74bdb03b-c85e-5e54-8f04-180c44ddc9c3 name:1-6/2/1_AD symbolId:SFGPUCI----F--- dateTime: vrfUuid:VRF_UUID:e3e9a4ce-ef32-3740-953e-5f0eb0d5c2af ROE:ROEHold MapGraphic:
+   starts after end of Task with UUID:9280a88f-5d03-41fa-a347-96a027bbd7df
+   and scaled delay of:0 ms relative to that task
+TIME:19.41.11.776 
+C2SIMinterface queued task:T21_SupportBreachingAndMobilityOperationsThroughObstacleBeltsSouthOfPlGold. taskUuid:1022bc9a-91bc-4477-ba54-5ff81980f864 for taskeeUuid:6977b035-d84c-da5f-9cc0-497b9f334eb7 name:40/2/1_AD symbolId:SFGPUCE----F--- dateTime: vrfUuid:VRF_UUID:91bdd348-e170-1346-969f-01c017fd2f45 ROE:ROEHold MapGraphic:
+   starts after end of Task with UUID:80807612-cedc-47a6-90f9-4feee41f901f
+   and scaled delay of:0 ms relative to that task
+TIME:19.41.11.884 
+C2SIMinterface queued task:T11_OccupyAndDefendPositionsAlongPlBlueInPreparationForConsolidation. taskUuid:1b9230e9-ab64-405a-8fcb-f97a9c3dc296 for taskeeUuid:5cd92a83-c6bd-875e-96ae-5650b790a1b6 name:A/6-56/HHC symbolId:SFGPUCD-------- dateTime: vrfUuid:VRF_UUID:35ca42aa-3f47-6a4a-8824-e7a5f6193e13 ROE:ROEHold MapGraphic:
+   starts after end of Task with UUID:3fb539e2-6ecc-4eb4-824a-9a3b02e5bda4
+   and scaled delay of:0 ms relative to that task
+TIME:19.41.11.995 
+C2SIMinterface queued task:T12_OccupyAndDefendAdaBattlePositionsAlongPlBlue. taskUuid:2230ab35-fb6a-4cfa-bf64-3ca9cbe0bc92 for taskeeUuid:5cd92a83-c6bd-875e-96ae-5650b790a1b6 name:A/6-56/HHC symbolId:SFGPUCD-------- dateTime: vrfUuid:VRF_UUID:35ca42aa-3f47-6a4a-8824-e7a5f6193e13 ROE:ROEHold MapGraphic:
+   starts after end of Task with UUID:1b9230e9-ab64-405a-8fcb-f97a9c3dc296
+   and scaled delay of:0 ms relative to that task
+TIME:19.41.12.105 
+C2SIMinterface queued task:T22_ConstructProtectiveObstaclesAndSurvivabilityPositionsAlongPlBlue. taskUuid:26938278-8318-4698-8e82-04a2b9070474 for taskeeUuid:6977b035-d84c-da5f-9cc0-497b9f334eb7 name:40/2/1_AD symbolId:SFGPUCE----F--- dateTime: vrfUuid:VRF_UUID:91bdd348-e170-1346-969f-01c017fd2f45 ROE:ROEHold MapGraphic:
+   starts after end of Task with UUID:1022bc9a-91bc-4477-ba54-5ff81980f864
+   and scaled delay of:0 ms relative to that task
+TIME:19.41.12.212 
+C2SIMinterface queued task:T19_AOA_SE_40_EN;_2/1_AD_P1 taskUuid:3cb0fd2b-9d69-4360-a9d5-a931d3e58bde for taskeeUuid:6977b035-d84c-da5f-9cc0-497b9f334eb7 name:40/2/1_AD symbolId:SFGPUCE----F--- dateTime: vrfUuid:VRF_UUID:91bdd348-e170-1346-969f-01c017fd2f45 ROE:ROEHold MapGraphic:
+
+*****C2SIMinterface starting taskName:T19_AOA_SE_40_EN;_2/1_AD_P1 taskUuid:3cb0fd2b-9d69-4360-a9d5-a931d3e58bde
+for taskee:6977b035-d84c-da5f-9cc0-497b9f334eb7 name:40/2/1_AD
+dateTime: vrfUuid:VRF_UUID:91bdd348-e170-1346-969f-01c017fd2f45 ROE:ROEHold activity code:BREACH MapGraphicUUID:
+route point count:5 actionTask:BREACH symbolString:SFGPUCE----F---
+Point 0 coordinates:34.68/-116.725/100
+Point 1 coordinates:34.67998497486787/-116.72479854165415/100
+Point 2 coordinates:34.6509867718674/-116.81152342747846/100
+Point 3 coordinates:34.59576020177361/-116.9519993552593/100
+Point 4 coordinates:34.56956418233244/-117.00579093595098/100
+TIME:19.41.12.320 
+C2SIMinterface queued task:T10_ContinueAirDefenseCoverageForManeuverAndArtilleryPositionsSouthOfPlBronze. taskUuid:3fb539e2-6ecc-4eb4-824a-9a3b02e5bda4 for taskeeUuid:5cd92a83-c6bd-875e-96ae-5650b790a1b6 name:A/6-56/HHC symbolId:SFGPUCD-------- dateTime: vrfUuid:VRF_UUID:35ca42aa-3f47-6a4a-8824-e7a5f6193e13 ROE:ROEHold MapGraphic:
+   starts after end of Task with UUID:7ba48520-e7ae-4a19-a2d8-c5b37d3cc4a8
+   and scaled delay of:0 ms relative to that task
+TIME:19.41.12.427 
+C2SIMinterface queued task:T23_AOA_SE_1-1_RECON/2/1_AD_P1 taskUuid:468c0325-99b9-4f97-afc6-39fe301e0c55 for taskeeUuid:de16a337-b2a6-c029-07b5-869191631621 name:1-1/2/1_AD symbolId:SFGPUCR-------- dateTime: vrfUuid:VRF_UUID:1bacda87-20e5-db41-94b2-e168e13c7f79 ROE:ROEHold MapGraphic:
+
+*****C2SIMinterface starting taskName:T23_AOA_SE_1-1_RECON/2/1_AD_P1 taskUuid:468c0325-99b9-4f97-afc6-39fe301e0c55
+for taskee:de16a337-b2a6-c029-07b5-869191631621 name:1-1/2/1_AD
+dateTime: vrfUuid:VRF_UUID:1bacda87-20e5-db41-94b2-e168e13c7f79 ROE:ROEHold activity code:PENTRT MapGraphicUUID:
+route point count:5 actionTask:PENTRT symbolString:SFGPUCR--------
+Point 0 coordinates:34.68/-116.725/100
+Point 1 coordinates:34.67998497486787/-116.72479854165415/100
+Point 2 coordinates:34.6508861485138/-116.81211493934713/100
+Point 3 coordinates:34.59548510469796/-116.95358781065376/100
+Point 4 coordinates:34.56921569602198/-117.00778520596653/100
+TIME:19.41.12.535 
+C2SIMinterface queued task:T33_SecureObjMadisonAndSupportTheBrigadeTransitionTowardObjMonroe. taskUuid:4aa091fd-47d0-4eeb-bb44-691ee02772f2 for taskeeUuid:50828a9b-0357-e75e-8873-5404000a90e6 name:5-20/2/1_A symbolId:SFGPUCIZ---F--- dateTime: vrfUuid:VRF_UUID:3b5465d8-520b-4745-b414-b4597509d817 ROE:ROEHold MapGraphic:
+   starts after end of Task with UUID:5c2b1be4-8f8c-4792-9eba-f9dd6fc4b311
+   and scaled delay of:0 ms relative to that task
+OBJECT CREATED CALLBACK RECEIVED FOR:T19_AOA_SE_40_EN;_2/1_AD_P1 ROUTE
+Task:T19_AOA_SE_40_EN;_2/1_AD_P1 made Route:T19_AOA_SE_40_EN;_2/1_AD_P1 ROUTE for Unit:40/2/1_AD UUID:6977b035-d84c-da5f-9cc0-497b9f334eb7|
+ point count:5 start at:34.68/-116.725/100
+TIME:19.41.12.642 
+Tasked moveAlongRoute for obj VRF_UUID:91bdd348-e170-1346-969f-01c017fd2f45|T19_AOA_SE_40_EN;_2/1_AD_P1 ROUTE (vrfUuid 5431395f-414f-415f-5345-5f34305f454e)
+C2SIMinterface queued task:T25_MaintainReconnaissanceAndScreenOperationsEastOfObjMonroe. taskUuid:51ef094c-f807-478f-a978-14469cf555ea for taskeeUuid:de16a337-b2a6-c029-07b5-869191631621 name:1-1/2/1_AD symbolId:SFGPUCR-------- dateTime: vrfUuid:VRF_UUID:1bacda87-20e5-db41-94b2-e168e13c7f79 ROE:ROEHold MapGraphic:
+   starts after end of Task with UUID:89a2e38a-61d8-49fa-b259-7891636e8c56
+   and scaled delay of:0 ms relative to that task
+TIME:19.41.12.751 
+C2SIMinterface queued task:T3_PL_OBJ_MONROE taskUuid:5a2bf0ea-6e1d-45ae-bf34-09e633ebfed1 for taskeeUuid:d6df3c3d-f31b-701a-bfc6-2fb9bc86092a name:1-35/2/1_A symbolId:SFGPUCA----F--- dateTime: vrfUuid:VRF_UUID:c43d8f84-1277-6e43-97e7-065aa86b2298 ROE:ROEHold MapGraphic:
+   starts after end of Task with UUID:e9c9969a-925f-419a-b85b-0c6c01cb3b1c
+   and scaled delay of:0 ms relative to that task
+OBJECT CREATED CALLBACK RECEIVED FOR:T23_AOA_SE_1-1_RECON/2/1_AD_P1 ROUTE
+Task:T23_AOA_SE_1-1_RECON/2/1_AD_P1 made Route:T23_AOA_SE_1-1_RECON/2/1_AD_P1 ROUTE for Unit:1-1/2/1_AD UUID:TIME:de16a337-b2a6-c029-07b5-86919163162119|
+. point count:415. start at:1234.68/-116.725/100.859
+ 
+Tasked moveAlongRoute for obj VRF_UUID:1bacda87-20e5-db41-94b2-e168e13c7f79|T23_AOA_SE_1-1_RECON/2/1_AD_P1 ROUTE (vrfUuid 5432335f-414f-415f-5345-5f312d315f52)
+C2SIMinterface queued task:T32_AOA_SE_5-20_IN_(MECH);_2/1_... taskUuid:5c2b1be4-8f8c-4792-9eba-f9dd6fc4b311 for taskeeUuid:50828a9b-0357-e75e-8873-5404000a90e6 name:5-20/2/1_A symbolId:SFGPUCIZ---F--- dateTime: vrfUuid:VRF_UUID:3b5465d8-520b-4745-b414-b4597509d817 ROE:ROEHold MapGraphic:
+   starts after end of Task with UUID:986e5659-722e-43ae-a363-c77e757b56c0
+   and scaled delay of:0 ms relative to that task
+TIME:19.41.12.966 
+C2SIMinterface queued task:T14_SupportObstacleEmplacementAndLaneDenialOperationsSouthOfObjMonroe. taskUuid:5f751d49-3aa9-4835-9a9e-2caf09430926 for taskeeUuid:e151451b-4fa5-eec8-4196-82bb73e3c355 name:510/40 symbolId:SFGPUCE----E--- dateTime: vrfUuid:VRF_UUID:4fc4581d-6068-ed41-b207-1c700708dad5 ROE:ROEHold MapGraphic:
+   starts after end of Task with UUID:92e69020-6fb9-4a61-89a0-92384c2dad9c
+   and scaled delay of:0 ms relative to that task
+TIME:19.41.13.76 
+C2SIMinterface queued task:T41_DestroyEnemyReserveFormationsAndAttackAviationStagingAreasVicinityAbfJustice. taskUuid:6334491c-c223-4bf2-ad49-004721596fe0 for taskeeUuid:b5b42765-36d6-1d90-6ce6-0139250949c4 name:C/1-35 symbolId:SFGPUCA----E--- dateTime: vrfUuid:VRF_UUID:42a16355-6687-d84c-b942-370f4f3acf0a ROE:ROEHold MapGraphic:
+   starts after end of Task with UUID:a88a6954-deea-4b24-9aec-fde654a5b9cf
+   and scaled delay of:0 ms relative to that task
+TIME:19.41.13.185 
+C2SIMinterface queued task:T4_ConsolidateAndPrepareDefensivePositionsAlongPlBlue. taskUuid:673a474d-0942-4e43-8d2d-0f8544e947b6 for taskeeUuid:d6df3c3d-f31b-701a-bfc6-2fb9bc86092a name:1-35/2/1_A symbolId:SFGPUCA----F--- dateTime: vrfUuid:VRF_UUID:c43d8f84-1277-6e43-97e7-065aa86b2298 ROE:ROEHold MapGraphic:
+   starts after end of Task with UUID:5a2bf0ea-6e1d-45ae-bf34-09e633ebfed1
+   and scaled delay of:0 ms relative to that task
+TaskComplete received for VRFUUID:VRF_UUID:1bacda87-20e5-db41-94b2-e168e13c7f79 unit:1-1/2/1_AD task UUID:468c0325-99b9-4f97-afc6-39fe301e0c55
+Task complete message from 1-1/2/1_AD  Task type completed:move-along  Unit UUID:de16a337-b2a6-c029-07b5-869191631621
+TASK COMPLETE:468c0325-99b9-4f97-afc6-39fe301e0c55
+****taskName:T23_AOA_SE_1-1_RECON/2/1_AD_P1 COMPLETED
+TIME:19.41.13.293 
+C2SIMinterface queued task:T8_ProvidePriorityFiresInSupportOfBrigadeDefensiveOperations. taskUuid:7820a94c-0985-4dd5-b4ec-15e52450fdf1 for taskeeUuid:3ac081eb-6adc-7e58-b0b5-9b506b4eae0f name:4-27/2/1_A symbolId:SFGPUCF----F--- dateTime: vrfUuid:VRF_UUID:63505bae-9767-7e4a-89e6-39616f98653a ROE:ROEHold MapGraphic:
+   starts after end of Task with UUID:c07630ad-8b2f-40bc-8ae8-9f01789e24de
+   and scaled delay of:0 ms relative to that task
+SENT TASK STATUS REPORT
+TIME:19.41.13.401 
+C2SIMinterface queued task:T9_ProvideAirDefenseCoverageForBrigadeManeuverAndSustainmentCorridorsDuringPenetrationOperations. taskUuid:7ba48520-e7ae-4a19-a2d8-c5b37d3cc4a8 for taskeeUuid:5cd92a83-c6bd-875e-96ae-5650b790a1b6 name:A/6-56/HHC symbolId:SFGPUCD-------- dateTime: vrfUuid:VRF_UUID:35ca42aa-3f47-6a4a-8824-e7a5f6193e13 ROE:ROEHold MapGraphic:
+
+*****C2SIMinterface starting taskName:T9_ProvideAirDefenseCoverageForBrigadeManeuverAndSustainmentCorridorsDuringPenetrationOperations. taskUuid:7ba48520-e7ae-4a19-a2d8-c5b37d3cc4a8
+for taskee:5cd92a83-c6bd-875e-96ae-5650b790a1b6 name:A/6-56/HHC
+dateTime: vrfUuid:VRF_UUID:35ca42aa-3f47-6a4a-8824-e7a5f6193e13 ROE:ROEHold activity code:DEFEND MapGraphicUUID:
+******************************************************
+ERROR - ERROR - NO LOCATION GIVEN - CAN'T EXECUTE TASK
+******************************************************
+TIME:19.41.13.508 
+C2SIMinterface queued task:T20_ExpandBreachLanesAndSupportMobilityOperationsSouthTowardPlGold. taskUuid:80807612-cedc-47a6-90f9-4feee41f901f for taskeeUuid:6977b035-d84c-da5f-9cc0-497b9f334eb7 name:40/2/1_AD symbolId:SFGPUCE----F--- dateTime: vrfUuid:VRF_UUID:91bdd348-e170-1346-969f-01c017fd2f45 ROE:ROEHold MapGraphic:
+   starts after end of Task with UUID:3cb0fd2b-9d69-4360-a9d5-a931d3e58bde
+   and scaled delay of:0 ms relative to that task
+TIME:19.41.13.617 
+C2SIMinterface queued task:T24_ScreenForwardMovementOfTheBrigadeMainBodyAndIdentifyEnemyReserveMovementCorridors. taskUuid:89a2e38a-61d8-49fa-b259-7891636e8c56 for taskeeUuid:de16a337-b2a6-c029-07b5-869191631621 name:1-1/2/1_AD symbolId:SFGPUCR-------- dateTime: vrfUuid:VRF_UUID:1bacda87-20e5-db41-94b2-e168e13c7f79 ROE:ROEHold MapGraphic:
+   starts after end of Task with UUID:468c0325-99b9-4f97-afc6-39fe301e0c55
+   and scaled delay of:0 ms relative to that task
+
+*****C2SIMinterface starting taskName:T24_ScreenForwardMovementOfTheBrigadeMainBodyAndIdentifyEnemyReserveMovementCorridors. taskUuid:89a2e38a-61d8-49fa-b259-7891636e8c56
+for taskee:de16a337-b2a6-c029-07b5-869191631621 name:1-1/2/1_AD
+dateTime: vrfUuid:VRF_UUID:1bacda87-20e5-db41-94b2-e168e13c7f79 ROE:ROEHold activity code:SCREEN MapGraphicUUID:
+******************************************************
+ERROR - ERROR - NO LOCATION GIVEN - CAN'T EXECUTE TASK
+******************************************************
+TIME:19.41.13.725 
+C2SIMinterface queued task:T38_SecureArtillerySupportAreasAndSustainmentCorridors. taskUuid:9164158e-1137-4487-8db4-dcdec65f3022 for taskeeUuid:1375ca0a-d212-d86a-e275-5555aef42fd8 name:B/5-20 symbolId:SFGPUCIZ---E--- dateTime: vrfUuid:VRF_UUID:7f1a2e95-79ee-3b42-8c84-fe985c6f9d68 ROE:ROEHold MapGraphic:
+   starts after end of Task with UUID:cdd641dc-6b51-414d-84be-a617260e647e
+   and scaled delay of:0 ms relative to that task
+TIME:19.41.13.832 
+C2SIMinterface queued task:T17_AOA_SE_1-6_IN;_2/1_AD_P3 taskUuid:9280a88f-5d03-41fa-a347-96a027bbd7df for taskeeUuid:74bdb03b-c85e-5e54-8f04-180c44ddc9c3 name:1-6/2/1_AD symbolId:SFGPUCI----F--- dateTime: vrfUuid:VRF_UUID:e3e9a4ce-ef32-3740-953e-5f0eb0d5c2af ROE:ROEHold MapGraphic:
+   starts after end of Task with UUID:b2717bbb-3240-4a20-a617-56eae456bef4
+   and scaled delay of:0 ms relative to that task
+TIME:19.41.13.941 
+C2SIMinterface queued task:T13_ConductDeliberateBreachOperationsAtPlGold. taskUuid:92e69020-6fb9-4a61-89a0-92384c2dad9c for taskeeUuid:e151451b-4fa5-eec8-4196-82bb73e3c355 name:510/40 symbolId:SFGPUCE----E--- dateTime: vrfUuid:VRF_UUID:4fc4581d-6068-ed41-b207-1c700708dad5 ROE:ROEHold MapGraphic:
+    starts after scaled delay of:12000000 ms from simulation start 
+STARTING SIMTIME WAIT FOR TASK UUID:92e69020-6fb9-4a61-89a0-92384c2dad9c TIME:19.41.13.941 
+TIME:19.41.14.50 
+C2SIMinterface queued task:T31_AOA_SE_5-20_IN_(MECH);_2/1_... taskUuid:986e5659-722e-43ae-a363-c77e757b56c0 for taskeeUuid:50828a9b-0357-e75e-8873-5404000a90e6 name:5-20/2/1_A symbolId:SFGPUCIZ---F--- dateTime: vrfUuid:VRF_UUID:3b5465d8-520b-4745-b414-b4597509d817 ROE:ROEHold MapGraphic:
+
+*****C2SIMinterface starting taskName:T31_AOA_SE_5-20_IN_(MECH);_2/1_... taskUuid:986e5659-722e-43ae-a363-c77e757b56c0
+for taskee:50828a9b-0357-e75e-8873-5404000a90e6 name:5-20/2/1_A
+dateTime: vrfUuid:VRF_UUID:3b5465d8-520b-4745-b414-b4597509d817 ROE:ROEHold activity code:ATTACK MapGraphicUUID:
+route point count:5 actionTask:ATTACK symbolString:SFGPUCIZ---F---
+Point 0 coordinates:34.68/-116.725/100
+Point 1 coordinates:34.67998497486787/-116.72479854165415/100
+Point 2 coordinates:34.6508861485138/-116.81211493934713/100
+Point 3 coordinates:34.59548510469796/-116.95358781065376/100
+Point 4 coordinates:34.56921569602198/-117.00778520596653/100
+TIME:19.41.14.156 
+C2SIMinterface queued task:T35_AOA_SE_B/5-20_IN_(MECH)_P1 taskUuid:9e22188e-5a97-416c-8759-980361aa04e7 for taskeeUuid:1375ca0a-d212-d86a-e275-5555aef42fd8 name:B/5-20 symbolId:SFGPUCIZ---E--- dateTime: vrfUuid:VRF_UUID:7f1a2e95-79ee-3b42-8c84-fe985c6f9d68 ROE:ROEHold MapGraphic:
+
+*****C2SIMinterface starting taskName:T35_AOA_SE_B/5-20_IN_(MECH)_P1 taskUuid:9e22188e-5a97-416c-8759-980361aa04e7
+for taskee:1375ca0a-d212-d86a-e275-5555aef42fd8 name:B/5-20
+dateTime: vrfUuid:VRF_UUID:7f1a2e95-79ee-3b42-8c84-fe985c6f9d68 ROE:ROEHold activity code:ATTACK MapGraphicUUID:
+route point count:5 actionTask:ATTACK symbolString:SFGPUCIZ---E---
+Point 0 coordinates:34.68/-116.725/100
+Point 1 coordinates:34.67998497486787/-116.72479854165415/100
+Point 2 coordinates:34.6508861485138/-116.81211493934713/100
+Point 3 coordinates:34.59548510469796/-116.95358781065376/100
+Point 4 coordinates:34.56921569602198/-117.00778520596653/100
+TIME:19.41.14.263 
+C2SIMinterface queued task:T40_OccupySupportPositionsAndPrepareToDestroyEnemyReserveForcesMovingTowardObjMonroe. taskUuid:a88a6954-deea-4b24-9aec-fde654a5b9cf for taskeeUuid:b5b42765-36d6-1d90-6ce6-0139250949c4 name:C/1-35 symbolId:SFGPUCA----E--- dateTime: vrfUuid:VRF_UUID:42a16355-6687-d84c-b942-370f4f3acf0a ROE:ROEHold MapGraphic:
+   starts after end of Task with UUID:c85adce6-b53b-4963-8d2c-1c50218b347a
+   and scaled delay of:0 ms relative to that task
+TIME:19.41.14.371 
+C2SIMinterface queued task:T29_ContinueRouteSecurityAndTrafficRegulationOperationsForSustainmentFlowSouthOfPlGold. taskUuid:ab288b31-e746-4a83-b467-45d6116808dc for taskeeUuid:6a266f06-12d7-3159-8cd6-f1e5bc9c6e72 name:856/HHC symbolId:SFGPUULM---E--- dateTime: vrfUuid:VRF_UUID:abb26359-32d2-424c-82df-8529e229d739 ROE:ROEHold MapGraphic:
+   starts after end of Task with UUID:bb94f274-7925-4c37-b342-c9a4853f6f55
+   and scaled delay of:0 ms relative to that task
+TIME:19.41.14.479 
+C2SIMinterface queued task:T16_AdvanceToSupportTheBrigadeTransitionTowardFixingOperationsNorthOfObjMonroe. taskUuid:b2717bbb-3240-4a20-a617-56eae456bef4 for taskeeUuid:74bdb03b-c85e-5e54-8f04-180c44ddc9c3 name:1-6/2/1_AD symbolId:SFGPUCI----F--- dateTime: vrfUuid:VRF_UUID:e3e9a4ce-ef32-3740-953e-5f0eb0d5c2af ROE:ROEHold MapGraphic:
+   starts after end of Task with UUID:03bbf711-9652-4f09-a21e-8679d44b912d
+   and scaled delay of:0 ms relative to that task
+TIME:19.41.14.586 
+C2SIMinterface queued task:T28_CNVY_PL_YELLOW taskUuid:bb94f274-7925-4c37-b342-c9a4853f6f55 for taskeeUuid:6a266f06-12d7-3159-8cd6-f1e5bc9c6e72 name:856/HHC symbolId:SFGPUULM---E--- dateTime: vrfUuid:VRF_UUID:abb26359-32d2-424c-82df-8529e229d739 ROE:ROEHold MapGraphic:
+   starts after end of Task with UUID:fb2aeee4-3d3a-499e-8f3c-88ca4d754de6
+   and scaled delay of:0 ms relative to that task
+TIME:19.41.14.695 
+C2SIMinterface queued task:T7_SuppressAndNeutralizeEnemyArtilleryAndDefensivePositionsSupportingObjMonroe. taskUuid:c07630ad-8b2f-40bc-8ae8-9f01789e24de for taskeeUuid:3ac081eb-6adc-7e58-b0b5-9b506b4eae0f name:4-27/2/1_A symbolId:SFGPUCF----F--- dateTime: vrfUuid:VRF_UUID:63505bae-9767-7e4a-89e6-39616f98653a ROE:ROEHold MapGraphic:
+   starts after end of Task with UUID:d5d5976c-7d56-4cc6-a808-5169f9aa7b41
+   and scaled delay of:0 ms relative to that task
+TIME:19.41.14.803 
+C2SIMinterface queued task:T5_ConductCounter-FireAndNeutralizationFiresAgainstEnemyArtillerySystemsAssociatedWith1-7158. taskUuid:c496e287-e9b8-4ac4-b6a3-7cb47c5ec9b1 for taskeeUuid:3ac081eb-6adc-7e58-b0b5-9b506b4eae0f name:4-27/2/1_A symbolId:SFGPUCF----F--- dateTime: vrfUuid:VRF_UUID:63505bae-9767-7e4a-89e6-39616f98653a ROE:ROEHold MapGraphic:
+
+*****C2SIMinterface starting taskName:T5_ConductCounter-FireAndNeutralizationFiresAgainstEnemyArtillerySystemsAssociatedWith1-7158. taskUuid:c496e287-e9b8-4ac4-b6a3-7cb47c5ec9b1
+for taskee:3ac081eb-6adc-7e58-b0b5-9b506b4eae0f name:4-27/2/1_A
+dateTime: vrfUuid:VRF_UUID:63505bae-9767-7e4a-89e6-39616f98653a ROE:ROEHold activity code:DESTRY MapGraphicUUID:
+route point count:2 actionTask:DESTRY symbolString:SFGPUCF----F---
+Point 0 coordinates:34.68/-116.725/100
+Point 1 coordinates:34.3993811486055/-116.85915007933568/100
+TIME:19.41.14.910 
+C2SIMinterface queued task:T39_AOA_SE_C/1-35_AR_P1 taskUuid:c85adce6-b53b-4963-8d2c-1c50218b347a for taskeeUuid:b5b42765-36d6-1d90-6ce6-0139250949c4 name:C/1-35 symbolId:SFGPUCA----E--- dateTime: vrfUuid:VRF_UUID:42a16355-6687-d84c-b942-370f4f3acf0a ROE:ROEHold MapGraphic:
+
+*****C2SIMinterface starting taskName:T39_AOA_SE_C/1-35_AR_P1 taskUuid:c85adce6-b53b-4963-8d2c-1c50218b347a
+for taskee:b5b42765-36d6-1d90-6ce6-0139250949c4 name:C/1-35
+dateTime: vrfUuid:VRF_UUID:42a16355-6687-d84c-b942-370f4f3acf0a ROE:ROEHold activity code:ATTACK MapGraphicUUID:
+route point count:5 actionTask:ATTACK symbolString:SFGPUCA----E---
+Point 0 coordinates:34.68/-116.725/100
+Point 1 coordinates:34.67998497486787/-116.72479854165415/100
+Point 2 coordinates:34.594444533432686/-116.6436788075636/100
+Point 3 coordinates:34.456599198492206/-116.50191177555976/100
+Point 4 coordinates:34.40432742184594/-116.44118349582692/100
+TIME:19.41.15.18 
+C2SIMinterface queued task:T1_AOA_SE_1-35_AR;_2/1_AD_P1 taskUuid:cd589832-e19f-44e9-91b0-a81ee68d5666 for taskeeUuid:d6df3c3d-f31b-701a-bfc6-2fb9bc86092a name:1-35/2/1_A symbolId:SFGPUCA----F--- dateTime: vrfUuid:VRF_UUID:c43d8f84-1277-6e43-97e7-065aa86b2298 ROE:ROEHold MapGraphic:
+
+*****C2SIMinterface starting taskName:T1_AOA_SE_1-35_AR;_2/1_AD_P1 taskUuid:cd589832-e19f-44e9-91b0-a81ee68d5666
+for taskee:d6df3c3d-f31b-701a-bfc6-2fb9bc86092a name:1-35/2/1_A
+dateTime: vrfUuid:VRF_UUID:c43d8f84-1277-6e43-97e7-065aa86b2298 ROE:ROEHold activity code:PENTRT MapGraphicUUID:
+route point count:5 actionTask:PENTRT symbolString:SFGPUCA----F---
+Point 0 coordinates:34.68/-116.725/100
+Point 1 coordinates:34.67998497486787/-116.72479854165415/100
+Point 2 coordinates:34.651212159120796/-116.81163703922806/100
+Point 3 coordinates:34.59635066271489/-116.95232918947032/100
+Point 4 coordinates:34.570294428586486/-117.00622314755442/100
+TIME:19.41.15.125 
+C2SIMinterface queued task:T37_ProvideFollow-OnSecurityAndSupportForArtilleryDisplacementAndSustainmentOperations. taskUuid:cdd641dc-6b51-414d-84be-a617260e647e for taskeeUuid:1375ca0a-d212-d86a-e275-5555aef42fd8 name:B/5-20 symbolId:SFGPUCIZ---E--- dateTime: vrfUuid:VRF_UUID:7f1a2e95-79ee-3b42-8c84-fe985c6f9d68 ROE:ROEHold MapGraphic:
+   starts after end of Task with UUID:e3bebe4b-dd18-4719-ba62-de0803f743ee
+   and scaled delay of:0 ms relative to that task
+OBJECT CREATED CALLBACK RECEIVED FOR:T31_AOA_SE_5-20_IN_(MECH);_2/1_... ROUTE
+OBJECT CREATED CALLBACK RECEIVED FOR:T35_AOA_SE_B/5-20_IN_(MECH)_P1 ROUTE
+Task:Task:T35_AOA_SE_B/5-20_IN_(MECH)_P1T31_AOA_SE_5-20_IN_(MECH);_2/1_... made Route: made Route:T35_AOA_SE_B/5-20_IN_(MECH)_P1 ROUTET31_AOA_SE_5-20_IN_(MECH);_2/1_... ROUTE for Unit: for Unit:B/5-205-20/2/1_A UUID: UUID:1375ca0a-d212-d86a-e275-5555aef42fd850828a9b-0357-e75e-8873-5404000a90e6|
+|
+ point count: point count:5TIME:5 start at: start at:1934.68./34.68-116.72541/./-116.72515/.100233100
+ 
+
+Tasked moveAlongRoute for obj Tasked moveAlongRoute for obj VRF_UUID:7f1a2e95-79ee-3b42-8c84-fe985c6f9d68VRF_UUID:3b5465d8-520b-4745-b414-b4597509d817||T35_AOA_SE_B/5-20_IN_(MECH)_P1 ROUTET31_AOA_SE_5-20_IN_(MECH);_2/1_... ROUTE (vrfUuid  (vrfUuid 5433315f-414f-415f-5345-5f352d32305f5433355f-414f-415f-5345-5f422f352d32)
+)
+C2SIMinterface queued task:T6_SuppressEnemyArtilleryAndDirectFiresSupportingObjMadison. taskUuid:d5d5976c-7d56-4cc6-a808-5169f9aa7b41 for taskeeUuid:3ac081eb-6adc-7e58-b0b5-9b506b4eae0f name:4-27/2/1_A symbolId:SFGPUCF----F--- dateTime: vrfUuid:VRF_UUID:63505bae-9767-7e4a-89e6-39616f98653a ROE:ROEHold MapGraphic:
+   starts after end of Task with UUID:c496e287-e9b8-4ac4-b6a3-7cb47c5ec9b1
+   and scaled delay of:0 ms relative to that task
+TIME:19.41.15.341 
+C2SIMinterface queued task:T36_ClearEnemyThreatsFromPaa25EAndSecureArtilleryDisplacementPositions. taskUuid:e3bebe4b-dd18-4719-ba62-de0803f743ee for taskeeUuid:1375ca0a-d212-d86a-e275-5555aef42fd8 name:B/5-20 symbolId:SFGPUCIZ---E--- dateTime: vrfUuid:VRF_UUID:7f1a2e95-79ee-3b42-8c84-fe985c6f9d68 ROE:ROEHold MapGraphic:
+   starts after end of Task with UUID:9e22188e-5a97-416c-8759-980361aa04e7
+   and scaled delay of:0 ms relative to that task
+TIME:19.41.15.449 
+C2SIMinterface queued task:T34_RetainObjMadisonAndSecureBrigadeRearApproaches. taskUuid:e9992f77-bf7a-4bb4-9063-e449b11c70c6 for taskeeUuid:50828a9b-0357-e75e-8873-5404000a90e6 name:5-20/2/1_A symbolId:SFGPUCIZ---F--- dateTime: vrfUuid:VRF_UUID:3b5465d8-520b-4745-b414-b4597509d817 ROE:ROEHold MapGraphic:
+   starts after end of Task with UUID:4aa091fd-47d0-4eeb-bb44-691ee02772f2
+   and scaled delay of:0 ms relative to that task
+TIME:19.41.15.557 
+C2SIMinterface queued task:T2_PL_OBJ_MADISON taskUuid:e9c9969a-925f-419a-b85b-0c6c01cb3b1c for taskeeUuid:d6df3c3d-f31b-701a-bfc6-2fb9bc86092a name:1-35/2/1_A symbolId:SFGPUCA----F--- dateTime: vrfUuid:VRF_UUID:c43d8f84-1277-6e43-97e7-065aa86b2298 ROE:ROEHold MapGraphic:
+   starts after end of Task with UUID:cd589832-e19f-44e9-91b0-a81ee68d5666
+   and scaled delay of:0 ms relative to that task
+TIME:19.41.15.667 
+C2SIMinterface queued task:T42_MaintainAttack-By-FireCoverageAgainstEnemyReinforcementRoutes. taskUuid:f7bf0c71-217f-4346-95b0-f41f45a71cc0 for taskeeUuid:b5b42765-36d6-1d90-6ce6-0139250949c4 name:C/1-35 symbolId:SFGPUCA----E--- dateTime: vrfUuid:VRF_UUID:42a16355-6687-d84c-b942-370f4f3acf0a ROE:ROEHold MapGraphic:
+   starts after end of Task with UUID:6334491c-c223-4bf2-ad49-004721596fe0
+   and scaled delay of:0 ms relative to that task
+TIME:19.41.15.775 
+C2SIMinterface queued task:T27_SecureMovementCorridorsAndPassesAlongPlYellow. taskUuid:fb2aeee4-3d3a-499e-8f3c-88ca4d754de6 for taskeeUuid:6a266f06-12d7-3159-8cd6-f1e5bc9c6e72 name:856/HHC symbolId:SFGPUULM---E--- dateTime: vrfUuid:VRF_UUID:abb26359-32d2-424c-82df-8529e229d739 ROE:ROEHold MapGraphic:
+
+*****C2SIMinterface starting taskName:T27_SecureMovementCorridorsAndPassesAlongPlYellow. taskUuid:fb2aeee4-3d3a-499e-8f3c-88ca4d754de6
+for taskee:6a266f06-12d7-3159-8cd6-f1e5bc9c6e72 name:856/HHC
+dateTime: vrfUuid:VRF_UUID:abb26359-32d2-424c-82df-8529e229d739 ROE:ROEHold activity code:SECURE MapGraphicUUID:
+route point count:2 actionTask:SECURE symbolString:SFGPUULM---E---
+Point 0 coordinates:34.68/-116.725/100
+Point 1 coordinates:34.644968647111035/-116.98471411872667/100
+OBJECT CREATED CALLBACK RECEIVED FOR:T5_ConductCounter-FireAndNeutralizationFiresAgainstEnemyArtillerySystemsAssociatedWith1-7158. ROUTE
+OBJECT CREATED CALLBACK RECEIVED FOR:T39_AOA_SE_C/1-35_AR_P1 ROUTE
+Task:T5_ConductCounter-FireAndNeutralizationFiresAgainstEnemyArtillerySystemsAssociatedWith1-7158. made Route:T5_ConductCounter-FireAndNeutralizationFiresAgainstEnemyArtillerySystemsAssociatedWith1-7158. ROUTE for Unit:4-27/2/1_A UUID:3ac081eb-6adc-7e58-b0b5-9b506b4eae0f|
+ point count:2 start at:34.68/-116.725/100
+Task:T39_AOA_SE_C/1-35_AR_P1 made Route:T39_AOA_SE_C/1-35_AR_P1 ROUTE for Unit:C/1-35 UUID:b5b42765-36d6-1d90-6ce6-0139250949c4|
+ point count:5 start at:34.68/-116.725/100
+Tasked moveAlongRoute for obj VRF_UUID:63505bae-9767-7e4a-89e6-39616f98653a|T5_ConductCounter-FireAndNeutralizationFiresAgainstEnemyArtillerySystemsAssociatedWith1-7158. ROUTE (vrfUuid Tasked moveAlongRoute for obj 54355f43-6f6e-6475-6374-436f756e7465)
+VRF_UUID:42a16355-6687-d84c-b942-370f4f3acf0a|T39_AOA_SE_C/1-35_AR_P1 ROUTE (vrfUuid 5433395f-414f-415f-5345-5f432f312d33)
+OBJECT CREATED CALLBACK RECEIVED FOR:T1_AOA_SE_1-35_AR;_2/1_AD_P1 ROUTE
+OBJECT CREATED CALLBACK RECEIVED FOR:T27_SecureMovementCorridorsAndPassesAlongPlYellow. ROUTE
+Task:T27_SecureMovementCorridorsAndPassesAlongPlYellow. made Route:T27_SecureMovementCorridorsAndPassesAlongPlYellow. ROUTE for Unit:856/HHC UUID:6a266f06-12d7-3159-8cd6-f1e5bc9c6e72|
+ point count:2 start at:34.68/-116.725/100
+Task:T1_AOA_SE_1-35_AR;_2/1_AD_P1 made Route:T1_AOA_SE_1-35_AR;_2/1_AD_P1 ROUTE for Unit:1-35/2/1_A UUID:d6df3c3d-f31b-701a-bfc6-2fb9bc86092a|
+ point count:5 start at:34.68/-116.725/100
+Tasked moveAlongRoute for obj VRF_UUID:abb26359-32d2-424c-82df-8529e229d739|T27_SecureMovementCorridorsAndPassesAlongPlYellow. ROUTE (vrfUuid 5432375f-5365-6375-7265-4d6f76656d65)
+Tasked moveAlongRoute for obj VRF_UUID:c43d8f84-1277-6e43-97e7-065aa86b2298|T1_AOA_SE_1-35_AR;_2/1_AD_P1 ROUTE (vrfUuid 54315f41-4f41-5f53-455f-312d33355f41)
