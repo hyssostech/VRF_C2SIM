@@ -905,9 +905,15 @@ proceed on a slow proxy - the STOMP client cannot ride it out.
 
 ## Appendix B - ApplicationNumber ledger
 
-3200-3447: consumed or skipped (see entries below). NEXT FREE: 3448 (always take the number
-after the last ledger entry). Record each join here as it is consumed (app / ResetVrf /
-WatchVrf each take one). Never reuse.
+3200-3450: consumed or skipped (see entries below). NEXT FREE: 3451 (always take the number
+after the last ledger entry; 3451-3453 are earmarked for CPP-ALT-1: sweep/app/watch).
+Record each join here as it is consumed (app / ResetVrf / WatchVrf each take one). Never
+reuse.
+- 3448: ResetVrf --dry-run, COA-DEMO-1 pre-run sweep. Clean (2 baseline).
+- 3449: port app, COA-DEMO-1 (COA-STP1 full, fix defaults, C2SIM, 20x, formation=auto,
+  de-stack ON). 9 tasks dispatched, 1 completion, 38 movers, RUNAWAYS reproduced (541 km
+  top) - part 15 RESULT. Clean-stopped.
+- 3450: WatchVrf 600s/15s COA-DEMO-1 telemetry (the E4-falsifying capture).
 - 3442: SKIPPED out of caution - part 13b's pre-registration text listed it for the P-C2
   watch, which actually ran as 3441; never confirmed unjoined, so retired unused.
 - 3443: ResetVrf --dry-run, FIX-ACCEPT-1 pre-run sweep on the user-reloaded TT session

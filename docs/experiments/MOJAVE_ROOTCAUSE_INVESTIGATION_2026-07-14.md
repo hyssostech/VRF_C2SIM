@@ -1472,6 +1472,88 @@ MOVED WITH NO DRAG AND NO INTERVENTION. THE CREATE-TIME ALTITUDE FIX IS LIVE-ACC
   surface = the fixed state. R9-A's lean-vs-full anomaly is now MOOT for the fix (the fix
   cures the lean case the anomaly lived in).
 
+## 2026-07-16 (part 15) - PRE-REGISTERED OBSERVATIONAL PROBE COA-DEMO-1: full COA-STP1
+## under the create-altitude fix, user eyes-on (NOT the sec-4 acceptance run)
+
+User-directed ("I want to see the coa-gpt1 scenario running"). Purpose: measure how far the
+altitude fix moves the needle at scale and give the user visible movement. Explicitly NOT
+plan sec 4 item 5 acceptance - the truthful-arrival gate and runaway containment are NOT
+built, and the supervisor stated on the record that COA-STP1 is NOT expected to "just work".
+Config: port at fix defaults (Live + safe-MSL creates), ClientId=C2SIM, TimeMultiplier=20,
+AggregateFormation=auto, DeStackCreates=true (spacing 50), SubordinateFanOut OFF (native
+aggregate moves = the fix's reach test), PredecessorTimeoutPolicy default (skip/600).
+Data: data/COA-STP1_Initialization.xml (128 units / 35 areas; 54-unit mega-pile at
+34.679985,-116.724799) + data/COA-STP1_Order.xml (42 tasks). Apps: 3448 sweep, 3449 app,
+3450+ watches. User watch point: the pile (34 deg 40.8' N, 116 deg 43.5' W).
+
+PRE-REGISTERED EXPECTATIONS (written before execution):
+- E1 creates: all creatable units born 10000 MSL, at rest ON terrain (no floaters).
+- E2 movement: first-wave tasked units MARCH natively from the de-stacked pile (fix +
+  de-stack reach test). Falsifier for "altitude was most of the disease": widespread
+  freezes of tasked, dispersed units despite sane routes.
+- E3 completions: TASKCMPLTs fire ~instantly and falsely advance the DAG (known-unchanged;
+  the DAG will drain fast on lies). Not a fix regression; strengthens the gate's priority.
+- E4 RUNAWAY TEST (the genuinely new information at scale): prediction - the runaway class
+  (RUN C: 49-135 km) is CURED by Live route vertices. Falsifier: any mover exceeding ~2x
+  its route length or exiting the AO.
+- E5 (B)-class residue: some COA-STP1-specific freezes may persist (force-side untested).
+  Count them; they become P-B's motivation and the post-fix MAK-question basis.
+
+**RESULT (2026-07-16 evening, apps 3448-3450): MOVEMENT YES, CORRECTNESS NO - E4
+FALSIFIED: the runaway class persists under Live altitudes at scale.**
+- Creates: 128/128 born safe-MSL, 10 pile groups de-stacked, 113 aggregate creations
+  (the known-good signature). Dispatch: 9 chain-head tasks (routes + moves), 5 abandons,
+  31 successors still predecessor-gated at stop, and ONLY 1 completion in ~13 min
+  (contrast the lean run's 3 INSTANT completions - VRF completion behavior is erratic in
+  BOTH directions; the truthful-arrival gate stays mandatory).
+- Telemetry (watch 3450, 600 s, 1784 readable objects): 38 movers (RUN C managed 3) -
+  real movement at COA-STP1/Mojave for the first time. BUT: top excursion 541 km (net
+  289 km), several 100-260 km, terminations UNDERGROUND (-1305 m, -1680 m) and at sea
+  level (offshore), 9 out-and-back signatures (worst: 149 km out, returning to ~3 km
+  net). E4 FALSIFIED - sane route vertices do NOT cure runaway; altitude is exonerated
+  as the runaway mechanism. Runaway containment + mechanism forensics join the
+  truthful-arrival gate at the top of the movement work.
+- User eyes-on observations (recorded): movers off-route (offset paths + runaways);
+  "move then disappear" = leaving the viewport (telemetry: ZERO objects left the
+  federation); out-and-back motion (real, above); movers showing "No Current Tasks"
+  (they are MEMBER entities - the task lives on the aggregate; only 9 tasks existed);
+  one dark-red executing route; YELLOW WARNING TRIANGLES on most units, no tooltip
+  readable - badge UNIDENTIFIED, offline docs dig queued.
+- E-adjudication: E1 PASS (on-terrain births, no floaters at rest). E2 PARTIAL (motion
+  yes; route-conformance mostly no). E3 NOT REPRODUCED at scale (1 completion, not
+  instant-everything). E4 FALSIFIED. E5 unresolved (per-taskee freeze census queued to
+  offline forensics on the archived CSV). Clean stop via StopIface (Solution A deletes).
+
+## 2026-07-16 (part 16) - PRE-REGISTERED PROBE CPP-ALT-1 (user-directed): the PRISTINE
+## C++ interface with ONE constant changed - birth altitude 1000 -> 10000 MSL - COA-STP1
+
+User direction: "Try to run the pristine interface, only adjusting the initial altitude to
+get units above ground, rerun. What I saw there seemed to make a lot more sense." Purpose:
+the port-vs-C++ A/B with the altitude variable controlled, on the oracle codebase.
+Calibration on the record: RUN C (pristine, buried births) MEASURED zero correct arrivals
+(3 movers 49-135 km, terminated underground/offshore) - "made more sense" was a GUI
+impression; this run is scored by WatchVrf displacement like everything else.
+Code: C++ repo branch probe/create-altitude-above-ground (b96688b off pristine 191933a,
+master untouched): C2SIMinterface.cpp default ElevationAgl "1000.0" -> "10000.0"; the two
+UAS anti-orbit comparisons track the constant (moot - COA-STP1 creates zero UAS/RW/boat,
+verified in the RUN C log). Build 0 warnings / 0 errors.
+Launch: RUN C recipe verbatim (RUNBOOK sec 2 COA-STP1 line) with a fresh appNo; cwd bin64,
+QT_QPA plugin path, MAK RTI 4.6.1 PATH, Machine-scope license. KNOWN COMPARABILITY CAVEATS:
+scenario = TropicTortoise today vs RUN C's Bogaland2 (TT pages the units' own AO - the
+fairer arm for the altitude test); vs COA-DEMO-1 the deltas are codebase + NO de-stack
+(pristine has none; the 54-pile stays stacked) + timeMult (real-time vs 20x).
+TEARDOWN (known pristine defect): cannot see UNINITIALIZED -> end with VR-Forces close +
+user-approved process kill + rtiexec restart. appNos planned: 3451 sweep, 3452 app,
+3453 watch.
+PRE-REGISTERED PREDICTIONS:
+- Q1 freeze class: more of RUN C's frozen pile moves now (the birth fix applies to the
+  oracle too) - supports code-independence of the root cause.
+- Q2 runaway class: runaways PERSIST (they persisted in the port under Live; RUN C had
+  them with buried births). If they VANISH here, the port-vs-C++ difference becomes the
+  prime runaway suspect - that would be major news.
+- Q3 completions: few/erratic completions per the pristine's known class; DAG mostly
+  stalls on its forever-busy-waits (C++ waits, no timeout-skip).
+
 ## 2026-07-15 (fresh session) - DOCUMENTATION RESEARCH PASS (read-only, no live run)
 
 User directive: before continuing hypothesis-chasing, do real research - read VR-Forces' own

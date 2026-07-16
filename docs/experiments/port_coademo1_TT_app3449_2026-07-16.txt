@@ -1,0 +1,1145 @@
+checking for RDTSCP instruction...Success.  Using RDTSCP for time
+RDTSCP Timing Probe: 2428781583 ticks per second
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
+info: Microsoft.Hosting.Lifetime[0]
+      Hosting environment: Production
+info: VrfC2Sim[0]
+      Starting VrfBridge (protocol=Hla1516e, federation=CWIX-2024)...
+info: Microsoft.Hosting.Lifetime[0]
+      Content root path: c:\Users\PauloBarthelmess\Source\Repos\C2SIM\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM\src\VrfC2SimApp\bin\Release\net10.0\win-x64
+Using MAK Technologies' RTI version 4.6.1 HLA 1516-2010 for Microsoft Visual C++ version 14.0 Release Mode.
+Connected to RTI Assistant.
+Loading Config File: C:\MAK\makRti4.6.1\rid.mtl
+INFO[Util] 19:03:31.532 T:80740 MAK::DtInitializer::loadConfigScript: Loading config file: vrfLegion.lua
+info: VrfC2Sim[0]
+      Connected to C2SIM (http://127.0.0.1:8080/C2SIMServer / http://127.0.0.1:61613/topic/C2SIM). clientId=C2SIM.
+info: VrfC2Sim[0]
+      C2SIM Initialization (late-join QUERYINIT, 828308 bytes).
+fail: C2SIM.C2SIMSDK[0]
+      Failed to deserialize xml to type C2SIM.Schema102.MessageBodyType: There is an error in XML document (1, 2).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit B/40 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 7913/HQ_71 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 7159/HQ_71 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit AD/7152 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit A/1-1/2/1_ created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 3/7159 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit FSC/D/1-1/ created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit A/4-27 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit C/47 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit B/4-27 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 303/HHC created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 4/7154 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 1/1/8072 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 8122/HQ_71 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit B/5-20 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit B/1-1/2/1_ created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 8072/HQ_71 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit HHC_TAC/HH created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 2/7151 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit A/1-6 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit REC-7153/7 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 7158/HQ_71 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit HQ/1-1/2/1 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 7153/HQ_71 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 1/5/7158 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit AD/7153 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 4-27_MAIN/ created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit HHC/2/1_AD created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit HHC_MAIN/H created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 2/7152 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 1MTR/7153 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 4/7151 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 4-27/2/1_A created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit HQ/40 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 2/7153 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 1/8072 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit REC-7151/7 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 40_MAIN/40 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit WPN/7151 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit C/5-20 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 2/7154 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 7151/HQ_71 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 1MTR/7154 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 2/1_AD/25_ created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit FSC/H/5-20 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit AD/7151 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit REC-7152/7 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 1/7151 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 369/HHC created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit WPN/7152 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 3/7152 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit B/1-35 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 5-20/2/1_A created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 3/7154 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 756/HHC created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 715EN/HQ_7 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit FSC/G/1-6 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit A/6-56/HHC created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 47_CTCP/47 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 1-35_MAIN/ created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit C/4-27 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 1/7152 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 4/7152 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit UNK-AVN-1/ created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit TA/HQ/4-27 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 40/2/1_AD created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 856/HHC created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 3/7158 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 1MTR/7151 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit REC-7154/7 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 7154/HQ_71 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 2MTR/7151 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 7152/HQ_71 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit A/1-35 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 4/7153 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 3/7153 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 1-6/2/1_AD created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit HQ/1-6 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 3/7151 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 2MTR/7152 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit C/1-1/2/1_ created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 1/7154 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 1MTR/7152 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 1/7159 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit FSC/H/1-35 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit UNK-AVN-2/ created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 2/TA/7158 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit RDR/8072 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit B/1-6 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 2MTR/7154 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit D/40 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit HQ/1-35 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit A/47 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit A/5-20 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 1/TA/7158 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 1-6_MAIN/1 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit A/411/HHC created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit WPN/7153 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 2/7159 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 2/7157 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit A/40 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit HQ/5-20 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit HQ/47 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit FSC/E/40 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 3/5/7158 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit C/40 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit D/1-1/2/1_ created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 2MTR/7153 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 47/2/1_AD created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 1/7153 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit B_FLD/47 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit C/1-35 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit HQ/4-27 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit FSC/F/4-27 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 4/7158 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit C/1-6 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit WPN/7154 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 1-35/2/1_A created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 7911/HQ_71 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 2/5/7158 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 1-1/2/1_AD created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 510/40 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 7912/HQ_71 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 1/7158 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 7157/HQ_71 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 47_REAR/47 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 2/7158 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit AD/7154 created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      DeStack (R8): 54 units at (34.67998497486787,-116.72479854165415) spread onto 50 m rings (first unit kept in place).
+info: VrfC2Sim[0]
+      DeStack (R8): 2 units at (34.38346655876228,-116.68596000668396) spread onto 50 m rings (first unit kept in place).
+info: VrfC2Sim[0]
+      DeStack (R8): 2 units at (34.46839499766644,-116.64448302509066) spread onto 50 m rings (first unit kept in place).
+info: VrfC2Sim[0]
+      DeStack (R8): 2 units at (34.39930005899372,-116.85921549390447) spread onto 50 m rings (first unit kept in place).
+info: VrfC2Sim[0]
+      DeStack (R8): 2 units at (34.38799551802905,-116.69377545381329) spread onto 50 m rings (first unit kept in place).
+info: VrfC2Sim[0]
+      DeStack (R8): 2 units at (34.56921167665008,-117.0077948432839) spread onto 50 m rings (first unit kept in place).
+info: VrfC2Sim[0]
+      DeStack (R8): 2 units at (34.49232277213291,-116.82398759859119) spread onto 50 m rings (first unit kept in place).
+info: VrfC2Sim[0]
+      DeStack (R8): 2 units at (34.4997585161949,-116.66962113753586) spread onto 50 m rings (first unit kept in place).
+info: VrfC2Sim[0]
+      DeStack (R8): 2 units at (34.36955597191296,-116.51362969257738) spread onto 50 m rings (first unit kept in place).
+info: VrfC2Sim[0]
+      DeStack (R8): 2 units at (34.40939200286346,-116.33582293928747) spread onto 50 m rings (first unit kept in place).
+info: VrfC2Sim[0]
+      Init dispatched: 128 units + 35 areas queued for creation.
+info: VrfC2Sim[0]
+      Sim Run() queued (start the VR-Forces clock; timeMult=20).
+info: VrfC2Sim[0]
+      R1: created aggregate B/40 (VRF_UUID:a97fc033-af86-b74b-bb00-b87a0fb580c0) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 7159/HQ_71 (VRF_UUID:810b3d29-695e-7847-9f66-4ad0c413973d) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate AD/7152 (VRF_UUID:1ce09ecc-6c6b-d44a-86d7-9a70d7ed9c93) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 3/7159 (VRF_UUID:8334712e-4e00-cb41-8261-6808cb6b5e6d) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate FSC/D/1-1/ (VRF_UUID:d6df63cb-5192-ed46-a789-07c5586b5e29) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate C/47 (VRF_UUID:7c8f4c0f-9bb3-9a4a-a994-359cac7e9d79) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 303/HHC (VRF_UUID:7fa2483d-fe03-5542-b84c-d4497002bac4) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 1/1/8072 (VRF_UUID:b586b30d-d7dc-9449-889c-6c6971df052c) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 8122/HQ_71 (VRF_UUID:781f5546-0609-c547-b924-4236027a9613) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate B/5-20 (VRF_UUID:5bbc1a56-a302-f145-8bce-1e9d6783f5e4) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 8072/HQ_71 (VRF_UUID:f5975a7e-92df-ae49-8345-074182a7e422) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate HHC_TAC/HH (VRF_UUID:bbe99007-e91b-8b40-8864-0c43081344a4) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 2/7151 (VRF_UUID:24af52ea-3c91-4d4a-9b9f-313e77b0580c) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate A/1-6 (VRF_UUID:56d4d6d8-fec7-a84c-bf0a-f9f112a6d02e) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate REC-7153/7 (VRF_UUID:c86a8c77-869c-e742-ab24-7e28748f924b) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 7158/HQ_71 (VRF_UUID:45243e53-8b49-364e-9115-7bb9115d7c82) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 7153/HQ_71 (VRF_UUID:f6d73970-4391-4246-8a6b-4e373abc3cfd) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 1/5/7158 (VRF_UUID:0cf06fea-e2d9-fe4c-a49d-b8925f8dbef6) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate AD/7153 (VRF_UUID:7c299669-8620-fb46-a1c6-8221689889dd) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 4-27_MAIN/ (VRF_UUID:7d5f5a0c-19e8-5e47-954b-423486521293) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate HHC/2/1_AD (VRF_UUID:131e0eb0-748a-9d46-9a99-78fd2c359034) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate HHC_MAIN/H (VRF_UUID:e14041f4-4442-1044-a76e-1d4229cb11f6) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 2/7152 (VRF_UUID:d0a63e89-e47a-f44d-bbb6-3a821b6c6566) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 1MTR/7153 (VRF_UUID:8fcd866c-b2a3-4047-9595-21e975d81781) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 4/7151 (VRF_UUID:e80be419-82ea-6542-a8cb-5b7ff73b1c92) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 4-27/2/1_A (VRF_UUID:87224bcf-5e03-3349-8cec-070879108ac2) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate HQ/40 (VRF_UUID:29fcc32a-9b21-3540-a6db-d5be6b6c524a) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 2/7153 (VRF_UUID:502d360d-6b6d-1745-9076-d31230f04e12) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 1/8072 (VRF_UUID:33c930eb-81af-0d43-8c5b-0335c7b7c1df) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate REC-7151/7 (VRF_UUID:34368dfd-1ec7-8243-b3fd-2e01a6fcd36d) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 40_MAIN/40 (VRF_UUID:ec51d42a-8e89-8e4a-ac78-88866aeae43a) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate WPN/7151 (VRF_UUID:106a6c51-373d-2149-82fa-140eda2be59b) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate C/5-20 (VRF_UUID:1a5c09a0-2630-a144-9610-76bb55308f2d) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 7151/HQ_71 (VRF_UUID:246ebef9-f60b-1b41-a0e9-60137cd8f9f5) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 1MTR/7154 (VRF_UUID:98d27731-b39d-0e47-b9d1-0caf416ef71c) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate FSC/H/5-20 (VRF_UUID:1ba7930b-6b65-9841-b9d1-9f0d944a7a3c) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate AD/7151 (VRF_UUID:0bc2fdc8-7649-1641-af3a-c13b8a2a9f52) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate REC-7152/7 (VRF_UUID:58052e66-8bbc-cd48-a87f-7a0ab9727be6) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 1/7151 (VRF_UUID:5f8fd22c-8d54-7f45-b407-1420dc217c11) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 369/HHC (VRF_UUID:9b97b38d-86e3-fa44-bba3-afaee9fd226e) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate WPN/7152 (VRF_UUID:113cc516-6f69-bd41-9874-2bcd98945f25) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 3/7152 (VRF_UUID:e629938e-79cc-b14c-a6cc-602c5f7d6b83) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate B/1-35 (VRF_UUID:0cd7e898-6377-2b44-ae2f-484eb48dffa7) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 5-20/2/1_A (VRF_UUID:fc4cbec6-5add-1e4e-90dc-db1aef5fd978) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 3/7154 (VRF_UUID:bd9a1eb8-8246-cf49-92eb-30f1dde8f9ba) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 756/HHC (VRF_UUID:d37a0779-08df-d043-8c3e-cfab99380b79) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 715EN/HQ_7 (VRF_UUID:6a5c33e5-7564-4341-ae8d-7d59bb867c27) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate FSC/G/1-6 (VRF_UUID:bf120e04-37a9-8f4c-a2f1-6cd3149383fe) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 47_CTCP/47 (VRF_UUID:faa19654-2a2b-1743-ad65-e96e12969308) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 1-35_MAIN/ (VRF_UUID:ea35989b-9d13-4c4f-8fe0-341725e06f1e) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 1/7152 (VRF_UUID:8b3da994-01ae-f041-bb97-a2014d59e578) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 4/7152 (VRF_UUID:2cefef5b-033d-5248-8441-5ad3571a47ae) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 40/2/1_AD (VRF_UUID:a90a872d-52fe-ba44-91b3-e609713a81c3) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 856/HHC (VRF_UUID:25e655df-9dd2-8b4d-8c0c-58678e0230c7) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 3/7158 (VRF_UUID:59035212-7e2f-5d4c-8a80-223826642436) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 1MTR/7151 (VRF_UUID:3d85d838-287d-ec43-9b43-0df738eef471) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate REC-7154/7 (VRF_UUID:62f7e0f0-89f8-9041-a455-1242b4100a5f) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 7154/HQ_71 (VRF_UUID:fc2b425b-3070-2c41-baa0-c3dd9338c59d) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 2MTR/7151 (VRF_UUID:a9ae7042-8ad5-ec47-bffc-804bd3fc9333) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 7152/HQ_71 (VRF_UUID:61e61c98-4e72-1241-989e-404ad90acdad) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate A/1-35 (VRF_UUID:e5ee5c79-e501-644c-962f-b0abccd8e232) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 4/7153 (VRF_UUID:fb32dfcd-8685-e24c-a783-493e963d0223) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 3/7153 (VRF_UUID:ddf9614f-67f6-f445-863a-40b622c599a5) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 1-6/2/1_AD (VRF_UUID:090658c0-d119-fd40-976c-717e843c3192) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate HQ/1-6 (VRF_UUID:2c0f3d40-a014-254f-a0f4-c0730d759ca8) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 3/7151 (VRF_UUID:fb59aa56-9762-5441-9e97-d787de66592f) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 2MTR/7152 (VRF_UUID:8692b99b-d97b-1044-b6d0-ed4c4f863fc6) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 1/7154 (VRF_UUID:5052cc13-e065-ed49-805f-ba6f811f8ef2) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 1MTR/7152 (VRF_UUID:3d656585-6f98-4b43-a84d-290382ecaffc) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 1/7159 (VRF_UUID:81f048c5-e84b-564e-bb7c-825908a6ec91) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate FSC/H/1-35 (VRF_UUID:79ecbacd-f0bd-ac48-b994-94b1f14ac7f3) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate RDR/8072 (VRF_UUID:1fa05646-5d81-4e4a-b3b2-972410cd3038) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate B/1-6 (VRF_UUID:6f8e7069-f5e8-ec47-b349-ac7ccfcd0c93) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 2MTR/7154 (VRF_UUID:95377a94-3d6e-9d4c-9849-1785c075b2d0) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate D/40 (VRF_UUID:159e26f2-2e74-4844-b207-caf564e7e7c5) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate HQ/1-35 (VRF_UUID:46517c55-b881-7a44-8964-9f3c081be65a) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate A/47 (VRF_UUID:1c12749b-c63d-ff40-933f-b091de5e5537) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate A/5-20 (VRF_UUID:e76ea44d-5074-e041-98c5-8c6daa03ebd8) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 1-6_MAIN/1 (VRF_UUID:693b77ff-9059-c644-8653-6233708f88f2) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate A/411/HHC (VRF_UUID:5e26f87b-843f-de49-8a11-e6f04b897af7) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate WPN/7153 (VRF_UUID:da0d7ff5-b2ab-fc44-8106-85ab36f52cbf) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 2/7159 (VRF_UUID:f6cffd70-fce0-2346-9bbd-53cbc8eecced) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 2/7157 (VRF_UUID:b353cf7e-1532-c64f-bc6e-243afc0d33fe) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate A/40 (VRF_UUID:1c8f0079-0033-3d46-a585-39d8cfca9d25) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate HQ/5-20 (VRF_UUID:2db1c3a9-0785-5746-bfca-68a18333a54a) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate HQ/47 (VRF_UUID:64478bda-227e-f649-9059-61036d1c5a6b) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate FSC/E/40 (VRF_UUID:f14dcc03-e91e-d242-999f-4ad42db9f3fd) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 3/5/7158 (VRF_UUID:c69e991f-93a3-0448-8d85-60a6a5c4eabc) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate C/40 (VRF_UUID:c4d70573-78ac-3143-a996-aa8b3c4fcce7) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 2MTR/7153 (VRF_UUID:2ab06615-f17a-0c46-aac6-10b6d8489088) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 47/2/1_AD (VRF_UUID:72e75098-0de5-eb4f-998f-510d9f11e6b0) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 1/7153 (VRF_UUID:6382e6f8-85c3-2943-805e-122143d222d0) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate B_FLD/47 (VRF_UUID:88cd52a3-b181-8e44-b270-886248a5ecf5) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate C/1-35 (VRF_UUID:53f290c7-3e2a-ac46-9ca4-0dd4de72f606) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate FSC/F/4-27 (VRF_UUID:e8dfb19c-217b-0b45-8a23-1580188f259e) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate C/1-6 (VRF_UUID:7a2df5a0-f73a-e94f-827b-2a4cd037c211) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate WPN/7154 (VRF_UUID:487c8939-b619-da4c-9d32-863198e0ef9e) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 1-35/2/1_A (VRF_UUID:7c15ba0b-b6f3-4c49-a3aa-a19250f020fc) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 2/5/7158 (VRF_UUID:7e2fda3c-beb6-414b-8641-fc9cc4b75e16) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 510/40 (VRF_UUID:eecc8726-569d-7c4e-ae67-e4b9a4bc508a) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 1/7158 (VRF_UUID:8d8af936-7699-464f-a321-d2d48628e7c7) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 7157/HQ_71 (VRF_UUID:8d7e7ab2-6c84-744c-ad6e-5a6f6cec965c) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 47_REAR/47 (VRF_UUID:8e5fa6f2-bc3b-ba40-bedf-15214eb54e0c) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 2/7158 (VRF_UUID:4af86fa8-82fa-a94c-bd05-cf58159088a1) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate AD/7154 (VRF_UUID:cc2c6e87-c83d-4d49-a4eb-7b008da8fce9) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 7913/HQ_71 (VRF_UUID:a9bddd15-b8aa-d94c-b609-76064c8b7a0d) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 4/7154 (VRF_UUID:7a16dc63-8a84-774b-a94f-f60f8bfadd0f) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 2/7154 (VRF_UUID:d99d73c0-5a74-e249-ac3c-84543ef3be21) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate UNK-AVN-1/ (VRF_UUID:409159b5-f5f3-de4e-9c9b-b5befeb70b53) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate UNK-AVN-2/ (VRF_UUID:ef8e8f28-ae94-b743-8866-c62e21f021fb) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 4/7158 (VRF_UUID:1145b671-8d14-f44d-ae31-164022acfbea) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 7911/HQ_71 (VRF_UUID:5f40afd6-7ff0-be4c-a04e-c3c615537835) - formation list queried; set+reorganize follow on the reply.
+info: VrfC2Sim[0]
+      R1: created aggregate 7912/HQ_71 (VRF_UUID:4fe1686a-007a-2d44-b481-e3bd7b8703de) - formation list queried; set+reorganize follow on the reply.
+Can't create data of type non_lethal_damage_effect.  No creator found.  Only time this warning will be issued.
+Can't create data of type suppressed_crouch.  No creator found.  Only time this warning will be issued.
+Can't create data of type suppressed_prone.  No creator found.  Only time this warning will be issued.
+Can't create data of type deploy_weapon_below_speed.  No creator found.  Only time this warning will be issued.
+Can't create data of type platform_send_observation.  No creator found.  Only time this warning will be issued.
+Can't create data of type tracking_reports.  No creator found.  Only time this warning will be issued.
+info: VrfC2Sim[0]
+      VRF formations for B/40 (VRF_UUID:a97fc033-af86-b74b-bb00-b87a0fb580c0): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: B/40 (VRF_UUID:a97fc033-af86-b74b-bb00-b87a0fb580c0) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 7159/HQ_71 (VRF_UUID:810b3d29-695e-7847-9f66-4ad0c413973d): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 7159/HQ_71 (VRF_UUID:810b3d29-695e-7847-9f66-4ad0c413973d) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for AD/7152 (VRF_UUID:1ce09ecc-6c6b-d44a-86d7-9a70d7ed9c93): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: AD/7152 (VRF_UUID:1ce09ecc-6c6b-d44a-86d7-9a70d7ed9c93) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 3/7159 (VRF_UUID:8334712e-4e00-cb41-8261-6808cb6b5e6d): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 3/7159 (VRF_UUID:8334712e-4e00-cb41-8261-6808cb6b5e6d) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for FSC/D/1-1/ (VRF_UUID:d6df63cb-5192-ed46-a789-07c5586b5e29): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: FSC/D/1-1/ (VRF_UUID:d6df63cb-5192-ed46-a789-07c5586b5e29) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for C/47 (VRF_UUID:7c8f4c0f-9bb3-9a4a-a994-359cac7e9d79): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: C/47 (VRF_UUID:7c8f4c0f-9bb3-9a4a-a994-359cac7e9d79) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 303/HHC (VRF_UUID:7fa2483d-fe03-5542-b84c-d4497002bac4): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 303/HHC (VRF_UUID:7fa2483d-fe03-5542-b84c-d4497002bac4) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 1/1/8072 (VRF_UUID:b586b30d-d7dc-9449-889c-6c6971df052c): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 1/1/8072 (VRF_UUID:b586b30d-d7dc-9449-889c-6c6971df052c) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 8122/HQ_71 (VRF_UUID:781f5546-0609-c547-b924-4236027a9613): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 8122/HQ_71 (VRF_UUID:781f5546-0609-c547-b924-4236027a9613) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for B/5-20 (VRF_UUID:5bbc1a56-a302-f145-8bce-1e9d6783f5e4): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: B/5-20 (VRF_UUID:5bbc1a56-a302-f145-8bce-1e9d6783f5e4) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 8072/HQ_71 (VRF_UUID:f5975a7e-92df-ae49-8345-074182a7e422): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 8072/HQ_71 (VRF_UUID:f5975a7e-92df-ae49-8345-074182a7e422) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for HHC_TAC/HH (VRF_UUID:bbe99007-e91b-8b40-8864-0c43081344a4): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: HHC_TAC/HH (VRF_UUID:bbe99007-e91b-8b40-8864-0c43081344a4) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 2/7151 (VRF_UUID:24af52ea-3c91-4d4a-9b9f-313e77b0580c): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 2/7151 (VRF_UUID:24af52ea-3c91-4d4a-9b9f-313e77b0580c) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for A/1-6 (VRF_UUID:56d4d6d8-fec7-a84c-bf0a-f9f112a6d02e): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: A/1-6 (VRF_UUID:56d4d6d8-fec7-a84c-bf0a-f9f112a6d02e) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for REC-7153/7 (VRF_UUID:c86a8c77-869c-e742-ab24-7e28748f924b): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: REC-7153/7 (VRF_UUID:c86a8c77-869c-e742-ab24-7e28748f924b) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 7158/HQ_71 (VRF_UUID:45243e53-8b49-364e-9115-7bb9115d7c82): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 7158/HQ_71 (VRF_UUID:45243e53-8b49-364e-9115-7bb9115d7c82) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 7153/HQ_71 (VRF_UUID:f6d73970-4391-4246-8a6b-4e373abc3cfd): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 7153/HQ_71 (VRF_UUID:f6d73970-4391-4246-8a6b-4e373abc3cfd) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 1/5/7158 (VRF_UUID:0cf06fea-e2d9-fe4c-a49d-b8925f8dbef6): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 1/5/7158 (VRF_UUID:0cf06fea-e2d9-fe4c-a49d-b8925f8dbef6) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for AD/7153 (VRF_UUID:7c299669-8620-fb46-a1c6-8221689889dd): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: AD/7153 (VRF_UUID:7c299669-8620-fb46-a1c6-8221689889dd) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 4-27_MAIN/ (VRF_UUID:7d5f5a0c-19e8-5e47-954b-423486521293): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 4-27_MAIN/ (VRF_UUID:7d5f5a0c-19e8-5e47-954b-423486521293) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for HHC/2/1_AD (VRF_UUID:131e0eb0-748a-9d46-9a99-78fd2c359034): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: HHC/2/1_AD (VRF_UUID:131e0eb0-748a-9d46-9a99-78fd2c359034) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for HHC_MAIN/H (VRF_UUID:e14041f4-4442-1044-a76e-1d4229cb11f6): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: HHC_MAIN/H (VRF_UUID:e14041f4-4442-1044-a76e-1d4229cb11f6) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 2/7152 (VRF_UUID:d0a63e89-e47a-f44d-bbb6-3a821b6c6566): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 2/7152 (VRF_UUID:d0a63e89-e47a-f44d-bbb6-3a821b6c6566) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 1MTR/7153 (VRF_UUID:8fcd866c-b2a3-4047-9595-21e975d81781): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 1MTR/7153 (VRF_UUID:8fcd866c-b2a3-4047-9595-21e975d81781) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 4/7151 (VRF_UUID:e80be419-82ea-6542-a8cb-5b7ff73b1c92): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 4/7151 (VRF_UUID:e80be419-82ea-6542-a8cb-5b7ff73b1c92) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 4-27/2/1_A (VRF_UUID:87224bcf-5e03-3349-8cec-070879108ac2): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 4-27/2/1_A (VRF_UUID:87224bcf-5e03-3349-8cec-070879108ac2) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for HQ/40 (VRF_UUID:29fcc32a-9b21-3540-a6db-d5be6b6c524a): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: HQ/40 (VRF_UUID:29fcc32a-9b21-3540-a6db-d5be6b6c524a) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 2/7153 (VRF_UUID:502d360d-6b6d-1745-9076-d31230f04e12): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 2/7153 (VRF_UUID:502d360d-6b6d-1745-9076-d31230f04e12) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 1/8072 (VRF_UUID:33c930eb-81af-0d43-8c5b-0335c7b7c1df): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 1/8072 (VRF_UUID:33c930eb-81af-0d43-8c5b-0335c7b7c1df) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for REC-7151/7 (VRF_UUID:34368dfd-1ec7-8243-b3fd-2e01a6fcd36d): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: REC-7151/7 (VRF_UUID:34368dfd-1ec7-8243-b3fd-2e01a6fcd36d) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 40_MAIN/40 (VRF_UUID:ec51d42a-8e89-8e4a-ac78-88866aeae43a): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 40_MAIN/40 (VRF_UUID:ec51d42a-8e89-8e4a-ac78-88866aeae43a) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for WPN/7151 (VRF_UUID:106a6c51-373d-2149-82fa-140eda2be59b): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: WPN/7151 (VRF_UUID:106a6c51-373d-2149-82fa-140eda2be59b) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for C/5-20 (VRF_UUID:1a5c09a0-2630-a144-9610-76bb55308f2d): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: C/5-20 (VRF_UUID:1a5c09a0-2630-a144-9610-76bb55308f2d) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 7151/HQ_71 (VRF_UUID:246ebef9-f60b-1b41-a0e9-60137cd8f9f5): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 7151/HQ_71 (VRF_UUID:246ebef9-f60b-1b41-a0e9-60137cd8f9f5) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 1MTR/7154 (VRF_UUID:98d27731-b39d-0e47-b9d1-0caf416ef71c): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 1MTR/7154 (VRF_UUID:98d27731-b39d-0e47-b9d1-0caf416ef71c) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for FSC/H/5-20 (VRF_UUID:1ba7930b-6b65-9841-b9d1-9f0d944a7a3c): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: FSC/H/5-20 (VRF_UUID:1ba7930b-6b65-9841-b9d1-9f0d944a7a3c) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for AD/7151 (VRF_UUID:0bc2fdc8-7649-1641-af3a-c13b8a2a9f52): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: AD/7151 (VRF_UUID:0bc2fdc8-7649-1641-af3a-c13b8a2a9f52) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for REC-7152/7 (VRF_UUID:58052e66-8bbc-cd48-a87f-7a0ab9727be6): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: REC-7152/7 (VRF_UUID:58052e66-8bbc-cd48-a87f-7a0ab9727be6) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 1/7151 (VRF_UUID:5f8fd22c-8d54-7f45-b407-1420dc217c11): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 1/7151 (VRF_UUID:5f8fd22c-8d54-7f45-b407-1420dc217c11) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 369/HHC (VRF_UUID:9b97b38d-86e3-fa44-bba3-afaee9fd226e): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 369/HHC (VRF_UUID:9b97b38d-86e3-fa44-bba3-afaee9fd226e) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for WPN/7152 (VRF_UUID:113cc516-6f69-bd41-9874-2bcd98945f25): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: WPN/7152 (VRF_UUID:113cc516-6f69-bd41-9874-2bcd98945f25) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 3/7152 (VRF_UUID:e629938e-79cc-b14c-a6cc-602c5f7d6b83): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 3/7152 (VRF_UUID:e629938e-79cc-b14c-a6cc-602c5f7d6b83) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for B/1-35 (VRF_UUID:0cd7e898-6377-2b44-ae2f-484eb48dffa7): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: B/1-35 (VRF_UUID:0cd7e898-6377-2b44-ae2f-484eb48dffa7) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 5-20/2/1_A (VRF_UUID:fc4cbec6-5add-1e4e-90dc-db1aef5fd978): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 5-20/2/1_A (VRF_UUID:fc4cbec6-5add-1e4e-90dc-db1aef5fd978) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 3/7154 (VRF_UUID:bd9a1eb8-8246-cf49-92eb-30f1dde8f9ba): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 3/7154 (VRF_UUID:bd9a1eb8-8246-cf49-92eb-30f1dde8f9ba) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 756/HHC (VRF_UUID:d37a0779-08df-d043-8c3e-cfab99380b79): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 756/HHC (VRF_UUID:d37a0779-08df-d043-8c3e-cfab99380b79) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 715EN/HQ_7 (VRF_UUID:6a5c33e5-7564-4341-ae8d-7d59bb867c27): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 715EN/HQ_7 (VRF_UUID:6a5c33e5-7564-4341-ae8d-7d59bb867c27) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for FSC/G/1-6 (VRF_UUID:bf120e04-37a9-8f4c-a2f1-6cd3149383fe): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: FSC/G/1-6 (VRF_UUID:bf120e04-37a9-8f4c-a2f1-6cd3149383fe) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 47_CTCP/47 (VRF_UUID:faa19654-2a2b-1743-ad65-e96e12969308): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 47_CTCP/47 (VRF_UUID:faa19654-2a2b-1743-ad65-e96e12969308) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 1-35_MAIN/ (VRF_UUID:ea35989b-9d13-4c4f-8fe0-341725e06f1e): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 1-35_MAIN/ (VRF_UUID:ea35989b-9d13-4c4f-8fe0-341725e06f1e) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 1/7152 (VRF_UUID:8b3da994-01ae-f041-bb97-a2014d59e578): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 1/7152 (VRF_UUID:8b3da994-01ae-f041-bb97-a2014d59e578) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 4/7152 (VRF_UUID:2cefef5b-033d-5248-8441-5ad3571a47ae): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 4/7152 (VRF_UUID:2cefef5b-033d-5248-8441-5ad3571a47ae) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 40/2/1_AD (VRF_UUID:a90a872d-52fe-ba44-91b3-e609713a81c3): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 40/2/1_AD (VRF_UUID:a90a872d-52fe-ba44-91b3-e609713a81c3) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 856/HHC (VRF_UUID:25e655df-9dd2-8b4d-8c0c-58678e0230c7): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 856/HHC (VRF_UUID:25e655df-9dd2-8b4d-8c0c-58678e0230c7) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 3/7158 (VRF_UUID:59035212-7e2f-5d4c-8a80-223826642436): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 3/7158 (VRF_UUID:59035212-7e2f-5d4c-8a80-223826642436) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 1MTR/7151 (VRF_UUID:3d85d838-287d-ec43-9b43-0df738eef471): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 1MTR/7151 (VRF_UUID:3d85d838-287d-ec43-9b43-0df738eef471) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for REC-7154/7 (VRF_UUID:62f7e0f0-89f8-9041-a455-1242b4100a5f): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: REC-7154/7 (VRF_UUID:62f7e0f0-89f8-9041-a455-1242b4100a5f) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 7154/HQ_71 (VRF_UUID:fc2b425b-3070-2c41-baa0-c3dd9338c59d): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 7154/HQ_71 (VRF_UUID:fc2b425b-3070-2c41-baa0-c3dd9338c59d) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 2MTR/7151 (VRF_UUID:a9ae7042-8ad5-ec47-bffc-804bd3fc9333): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 2MTR/7151 (VRF_UUID:a9ae7042-8ad5-ec47-bffc-804bd3fc9333) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 7152/HQ_71 (VRF_UUID:61e61c98-4e72-1241-989e-404ad90acdad): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 7152/HQ_71 (VRF_UUID:61e61c98-4e72-1241-989e-404ad90acdad) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for A/1-35 (VRF_UUID:e5ee5c79-e501-644c-962f-b0abccd8e232): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: A/1-35 (VRF_UUID:e5ee5c79-e501-644c-962f-b0abccd8e232) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 4/7153 (VRF_UUID:fb32dfcd-8685-e24c-a783-493e963d0223): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 4/7153 (VRF_UUID:fb32dfcd-8685-e24c-a783-493e963d0223) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 3/7153 (VRF_UUID:ddf9614f-67f6-f445-863a-40b622c599a5): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 3/7153 (VRF_UUID:ddf9614f-67f6-f445-863a-40b622c599a5) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 1-6/2/1_AD (VRF_UUID:090658c0-d119-fd40-976c-717e843c3192): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 1-6/2/1_AD (VRF_UUID:090658c0-d119-fd40-976c-717e843c3192) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for HQ/1-6 (VRF_UUID:2c0f3d40-a014-254f-a0f4-c0730d759ca8): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: HQ/1-6 (VRF_UUID:2c0f3d40-a014-254f-a0f4-c0730d759ca8) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 3/7151 (VRF_UUID:fb59aa56-9762-5441-9e97-d787de66592f): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 3/7151 (VRF_UUID:fb59aa56-9762-5441-9e97-d787de66592f) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 2MTR/7152 (VRF_UUID:8692b99b-d97b-1044-b6d0-ed4c4f863fc6): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 2MTR/7152 (VRF_UUID:8692b99b-d97b-1044-b6d0-ed4c4f863fc6) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 1/7154 (VRF_UUID:5052cc13-e065-ed49-805f-ba6f811f8ef2): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 1/7154 (VRF_UUID:5052cc13-e065-ed49-805f-ba6f811f8ef2) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 1MTR/7152 (VRF_UUID:3d656585-6f98-4b43-a84d-290382ecaffc): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 1MTR/7152 (VRF_UUID:3d656585-6f98-4b43-a84d-290382ecaffc) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 1/7159 (VRF_UUID:81f048c5-e84b-564e-bb7c-825908a6ec91): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 1/7159 (VRF_UUID:81f048c5-e84b-564e-bb7c-825908a6ec91) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for FSC/H/1-35 (VRF_UUID:79ecbacd-f0bd-ac48-b994-94b1f14ac7f3): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: FSC/H/1-35 (VRF_UUID:79ecbacd-f0bd-ac48-b994-94b1f14ac7f3) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for RDR/8072 (VRF_UUID:1fa05646-5d81-4e4a-b3b2-972410cd3038): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: RDR/8072 (VRF_UUID:1fa05646-5d81-4e4a-b3b2-972410cd3038) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for B/1-6 (VRF_UUID:6f8e7069-f5e8-ec47-b349-ac7ccfcd0c93): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: B/1-6 (VRF_UUID:6f8e7069-f5e8-ec47-b349-ac7ccfcd0c93) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 2MTR/7154 (VRF_UUID:95377a94-3d6e-9d4c-9849-1785c075b2d0): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 2MTR/7154 (VRF_UUID:95377a94-3d6e-9d4c-9849-1785c075b2d0) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for D/40 (VRF_UUID:159e26f2-2e74-4844-b207-caf564e7e7c5): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: D/40 (VRF_UUID:159e26f2-2e74-4844-b207-caf564e7e7c5) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for HQ/1-35 (VRF_UUID:46517c55-b881-7a44-8964-9f3c081be65a): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: HQ/1-35 (VRF_UUID:46517c55-b881-7a44-8964-9f3c081be65a) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for A/47 (VRF_UUID:1c12749b-c63d-ff40-933f-b091de5e5537): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: A/47 (VRF_UUID:1c12749b-c63d-ff40-933f-b091de5e5537) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for A/5-20 (VRF_UUID:e76ea44d-5074-e041-98c5-8c6daa03ebd8): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: A/5-20 (VRF_UUID:e76ea44d-5074-e041-98c5-8c6daa03ebd8) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 1-6_MAIN/1 (VRF_UUID:693b77ff-9059-c644-8653-6233708f88f2): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 1-6_MAIN/1 (VRF_UUID:693b77ff-9059-c644-8653-6233708f88f2) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for A/411/HHC (VRF_UUID:5e26f87b-843f-de49-8a11-e6f04b897af7): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: A/411/HHC (VRF_UUID:5e26f87b-843f-de49-8a11-e6f04b897af7) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for WPN/7153 (VRF_UUID:da0d7ff5-b2ab-fc44-8106-85ab36f52cbf): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: WPN/7153 (VRF_UUID:da0d7ff5-b2ab-fc44-8106-85ab36f52cbf) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 2/7159 (VRF_UUID:f6cffd70-fce0-2346-9bbd-53cbc8eecced): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 2/7159 (VRF_UUID:f6cffd70-fce0-2346-9bbd-53cbc8eecced) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 2/7157 (VRF_UUID:b353cf7e-1532-c64f-bc6e-243afc0d33fe): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 2/7157 (VRF_UUID:b353cf7e-1532-c64f-bc6e-243afc0d33fe) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for A/40 (VRF_UUID:1c8f0079-0033-3d46-a585-39d8cfca9d25): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: A/40 (VRF_UUID:1c8f0079-0033-3d46-a585-39d8cfca9d25) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for HQ/5-20 (VRF_UUID:2db1c3a9-0785-5746-bfca-68a18333a54a): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: HQ/5-20 (VRF_UUID:2db1c3a9-0785-5746-bfca-68a18333a54a) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for HQ/47 (VRF_UUID:64478bda-227e-f649-9059-61036d1c5a6b): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: HQ/47 (VRF_UUID:64478bda-227e-f649-9059-61036d1c5a6b) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for FSC/E/40 (VRF_UUID:f14dcc03-e91e-d242-999f-4ad42db9f3fd): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: FSC/E/40 (VRF_UUID:f14dcc03-e91e-d242-999f-4ad42db9f3fd) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 3/5/7158 (VRF_UUID:c69e991f-93a3-0448-8d85-60a6a5c4eabc): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 3/5/7158 (VRF_UUID:c69e991f-93a3-0448-8d85-60a6a5c4eabc) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for C/40 (VRF_UUID:c4d70573-78ac-3143-a996-aa8b3c4fcce7): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: C/40 (VRF_UUID:c4d70573-78ac-3143-a996-aa8b3c4fcce7) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 2MTR/7153 (VRF_UUID:2ab06615-f17a-0c46-aac6-10b6d8489088): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 2MTR/7153 (VRF_UUID:2ab06615-f17a-0c46-aac6-10b6d8489088) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 47/2/1_AD (VRF_UUID:72e75098-0de5-eb4f-998f-510d9f11e6b0): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 47/2/1_AD (VRF_UUID:72e75098-0de5-eb4f-998f-510d9f11e6b0) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 1/7153 (VRF_UUID:6382e6f8-85c3-2943-805e-122143d222d0): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 1/7153 (VRF_UUID:6382e6f8-85c3-2943-805e-122143d222d0) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for B_FLD/47 (VRF_UUID:88cd52a3-b181-8e44-b270-886248a5ecf5): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: B_FLD/47 (VRF_UUID:88cd52a3-b181-8e44-b270-886248a5ecf5) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for C/1-35 (VRF_UUID:53f290c7-3e2a-ac46-9ca4-0dd4de72f606): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: C/1-35 (VRF_UUID:53f290c7-3e2a-ac46-9ca4-0dd4de72f606) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for FSC/F/4-27 (VRF_UUID:e8dfb19c-217b-0b45-8a23-1580188f259e): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: FSC/F/4-27 (VRF_UUID:e8dfb19c-217b-0b45-8a23-1580188f259e) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for C/1-6 (VRF_UUID:7a2df5a0-f73a-e94f-827b-2a4cd037c211): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: C/1-6 (VRF_UUID:7a2df5a0-f73a-e94f-827b-2a4cd037c211) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for WPN/7154 (VRF_UUID:487c8939-b619-da4c-9d32-863198e0ef9e): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: WPN/7154 (VRF_UUID:487c8939-b619-da4c-9d32-863198e0ef9e) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 1-35/2/1_A (VRF_UUID:7c15ba0b-b6f3-4c49-a3aa-a19250f020fc): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 1-35/2/1_A (VRF_UUID:7c15ba0b-b6f3-4c49-a3aa-a19250f020fc) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 2/5/7158 (VRF_UUID:7e2fda3c-beb6-414b-8641-fc9cc4b75e16): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 2/5/7158 (VRF_UUID:7e2fda3c-beb6-414b-8641-fc9cc4b75e16) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 510/40 (VRF_UUID:eecc8726-569d-7c4e-ae67-e4b9a4bc508a): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 510/40 (VRF_UUID:eecc8726-569d-7c4e-ae67-e4b9a4bc508a) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 1/7158 (VRF_UUID:8d8af936-7699-464f-a321-d2d48628e7c7): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 1/7158 (VRF_UUID:8d8af936-7699-464f-a321-d2d48628e7c7) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 7157/HQ_71 (VRF_UUID:8d7e7ab2-6c84-744c-ad6e-5a6f6cec965c): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 7157/HQ_71 (VRF_UUID:8d7e7ab2-6c84-744c-ad6e-5a6f6cec965c) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 47_REAR/47 (VRF_UUID:8e5fa6f2-bc3b-ba40-bedf-15214eb54e0c): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 47_REAR/47 (VRF_UUID:8e5fa6f2-bc3b-ba40-bedf-15214eb54e0c) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 2/7158 (VRF_UUID:4af86fa8-82fa-a94c-bd05-cf58159088a1): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 2/7158 (VRF_UUID:4af86fa8-82fa-a94c-bd05-cf58159088a1) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for AD/7154 (VRF_UUID:cc2c6e87-c83d-4d49-a4eb-7b008da8fce9): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: AD/7154 (VRF_UUID:cc2c6e87-c83d-4d49-a4eb-7b008da8fce9) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 7913/HQ_71 (VRF_UUID:a9bddd15-b8aa-d94c-b609-76064c8b7a0d): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 7913/HQ_71 (VRF_UUID:a9bddd15-b8aa-d94c-b609-76064c8b7a0d) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 4/7154 (VRF_UUID:7a16dc63-8a84-774b-a94f-f60f8bfadd0f): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 4/7154 (VRF_UUID:7a16dc63-8a84-774b-a94f-f60f8bfadd0f) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 2/7154 (VRF_UUID:d99d73c0-5a74-e249-ac3c-84543ef3be21): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 2/7154 (VRF_UUID:d99d73c0-5a74-e249-ac3c-84543ef3be21) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for UNK-AVN-1/ (VRF_UUID:409159b5-f5f3-de4e-9c9b-b5befeb70b53): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: UNK-AVN-1/ (VRF_UUID:409159b5-f5f3-de4e-9c9b-b5befeb70b53) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for UNK-AVN-2/ (VRF_UUID:ef8e8f28-ae94-b743-8866-c62e21f021fb): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: UNK-AVN-2/ (VRF_UUID:ef8e8f28-ae94-b743-8866-c62e21f021fb) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 4/7158 (VRF_UUID:1145b671-8d14-f44d-ae31-164022acfbea): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 4/7158 (VRF_UUID:1145b671-8d14-f44d-ae31-164022acfbea) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 7911/HQ_71 (VRF_UUID:5f40afd6-7ff0-be4c-a04e-c3c615537835): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 7911/HQ_71 (VRF_UUID:5f40afd6-7ff0-be4c-a04e-c3c615537835) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      VRF formations for 7912/HQ_71 (VRF_UUID:4fe1686a-007a-2d44-b481-e3bd7b8703de): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      R1: 7912/HQ_71 (VRF_UUID:4fe1686a-007a-2d44-b481-e3bd7b8703de) - set formation 'column' (from its own list) + reorganize.
+info: VrfC2Sim[0]
+      C2SIM Order received (76257 bytes).
+fail: C2SIM.C2SIMSDK[0]
+      Failed to deserialize xml to type C2SIM.Schema102.MessageBodyType: There is an error in XML document (1, 2).
+info: VrfC2Sim[0]
+      ATTACK task 'T1_AOA_SE_1-35_AR;_2/1_AD_P1': affected entity is the taskee itself (self-target fire-support?); no fire, advancing only.
+info: VrfC2Sim[0]
+      Task 'T1_AOA_SE_1-35_AR;_2/1_AD_P1': CreateRoute 'T1_AOA_SE_1-35_AR;_2/1_AD_P1 ROUTE' (5 pts) for 1-35/2/1_A; move deferred to route-created.
+info: VrfC2Sim[0]
+      ATTACK task 'T5_ConductCounter-FireAndNeutralizationFiresAgainstEnemyArtillerySystemsAssociatedWith1-7158.': affected entity is the taskee itself (self-target fire-support?); no fire, advancing only.
+info: VrfC2Sim[0]
+      Task 'T5_ConductCounter-FireAndNeutralizationFiresAgainstEnemyArtillerySystemsAssociatedWith1-7158.': CreateRoute 'T5_ConductCounter-FireAndNeutralizationFiresAgainstEnemyArtillerySystemsAssociatedWith1-7158. ROUTE' (2 pts) for 4-27/2/1_A; move deferred to route-created.
+info: VrfC2Sim[0]
+      Task 'T9_ProvideAirDefenseCoverageForBrigadeManeuverAndSustainmentCorridorsDuringPenetrationOperations.' verb=DEFEND -> intent=HoldObjective (move-to + DtHoldUntilTask + scan); Layer-2 not yet wired - executing bare movement.
+fail: VrfC2Sim[0]
+      NO LOCATION GIVEN - CAN'T EXECUTE TASK 'T9_ProvideAirDefenseCoverageForBrigadeManeuverAndSustainmentCorridorsDuringPenetrationOperations.'.
+info: VrfC2Sim[0]
+      ATTACK task 'T15_AOA_SE_1-6_IN;_2/1_AD_P1': affected entity is the taskee itself (self-target fire-support?); no fire, advancing only.
+info: VrfC2Sim[0]
+      Task 'T15_AOA_SE_1-6_IN;_2/1_AD_P1': CreateRoute 'T15_AOA_SE_1-6_IN;_2/1_AD_P1 ROUTE' (5 pts) for 1-6/2/1_AD; move deferred to route-created.
+warn: VrfC2Sim[0]
+      BREACH task 'T19_AOA_SE_40_EN;_2/1_AD_P1': affected obstacle '6977b035-d84c-da5f-9cc0-497b9f334eb7' not resolvable to a distinct VRF unit; advancing only, no breach.
+info: VrfC2Sim[0]
+      Task 'T19_AOA_SE_40_EN;_2/1_AD_P1': CreateRoute 'T19_AOA_SE_40_EN;_2/1_AD_P1 ROUTE' (5 pts) for 40/2/1_AD; move deferred to route-created.
+info: VrfC2Sim[0]
+      ATTACK task 'T23_AOA_SE_1-1_RECON/2/1_AD_P1': affected entity is the taskee itself (self-target fire-support?); no fire, advancing only.
+info: VrfC2Sim[0]
+      Task 'T23_AOA_SE_1-1_RECON/2/1_AD_P1': CreateRoute 'T23_AOA_SE_1-1_RECON/2/1_AD_P1 ROUTE' (5 pts) for 1-1/2/1_AD; move deferred to route-created.
+info: VrfC2Sim[0]
+      Task 'T27_SecureMovementCorridorsAndPassesAlongPlYellow.' verb=SECURE -> intent=HoldObjective (move-to + DtHoldUntilTask + scan); Layer-2 not yet wired - executing bare movement.
+info: VrfC2Sim[0]
+      Task 'T27_SecureMovementCorridorsAndPassesAlongPlYellow.': CreateRoute 'T27_SecureMovementCorridorsAndPassesAlongPlYellow. ROUTE' (2 pts) for 856/HHC; move deferred to route-created.
+info: VrfC2Sim[0]
+      ATTACK task 'T31_AOA_SE_5-20_IN_(MECH);_2/1_...': affected entity is the taskee itself (self-target fire-support?); no fire, advancing only.
+info: VrfC2Sim[0]
+      Task 'T31_AOA_SE_5-20_IN_(MECH);_2/1_...': CreateRoute 'T31_AOA_SE_5-20_IN_(MECH);_2/1_... ROUTE' (5 pts) for 5-20/2/1_A; move deferred to route-created.
+info: VrfC2Sim[0]
+      ATTACK task 'T35_AOA_SE_B/5-20_IN_(MECH)_P1': affected entity is the taskee itself (self-target fire-support?); no fire, advancing only.
+info: VrfC2Sim[0]
+      Task 'T35_AOA_SE_B/5-20_IN_(MECH)_P1': CreateRoute 'T35_AOA_SE_B/5-20_IN_(MECH)_P1 ROUTE' (5 pts) for B/5-20; move deferred to route-created.
+info: VrfC2Sim[0]
+      ATTACK task 'T39_AOA_SE_C/1-35_AR_P1': affected entity is the taskee itself (self-target fire-support?); no fire, advancing only.
+warn: VrfC2Sim[0]
+      Task 'T10_ContinueAirDefenseCoverageForManeuverAndArtilleryPositionsSouthOfPlBronze.' predecessor 7ba48520-e7ae-4a19-a2d8-c5b37d3cc4a8 was skipped/abandoned upstream; policy=skip, unit A/6-56/HHC is idle -> NOT dispatched.
+info: VrfC2Sim[0]
+      Task 'T39_AOA_SE_C/1-35_AR_P1': CreateRoute 'T39_AOA_SE_C/1-35_AR_P1 ROUTE' (5 pts) for C/1-35; move deferred to route-created.
+warn: VrfC2Sim[0]
+      Task 'T11_OccupyAndDefendPositionsAlongPlBlueInPreparationForConsolidation.' predecessor 3fb539e2-6ecc-4eb4-824a-9a3b02e5bda4 was skipped/abandoned upstream; policy=skip, unit A/6-56/HHC is idle -> NOT dispatched.
+warn: VrfC2Sim[0]
+      Task 'T12_OccupyAndDefendAdaBattlePositionsAlongPlBlue.' predecessor 1b9230e9-ab64-405a-8fcb-f97a9c3dc296 was skipped/abandoned upstream; policy=skip, unit A/6-56/HHC is idle -> NOT dispatched.
+info: VrfC2Sim[0]
+      Route 'T1_AOA_SE_1-35_AR;_2/1_AD_P1 ROUTE' created; MoveAlongRoute issued for VRF_UUID:7c15ba0b-b6f3-4c49-a3aa-a19250f020fc.
+info: VrfC2Sim[0]
+      Route 'T5_ConductCounter-FireAndNeutralizationFiresAgainstEnemyArtillerySystemsAssociatedWith1-7158. ROUTE' created; MoveAlongRoute issued for VRF_UUID:87224bcf-5e03-3349-8cec-070879108ac2.
+info: VrfC2Sim[0]
+      Route 'T15_AOA_SE_1-6_IN;_2/1_AD_P1 ROUTE' created; MoveAlongRoute issued for VRF_UUID:090658c0-d119-fd40-976c-717e843c3192.
+info: VrfC2Sim[0]
+      Route 'T19_AOA_SE_40_EN;_2/1_AD_P1 ROUTE' created; MoveAlongRoute issued for VRF_UUID:a90a872d-52fe-ba44-91b3-e609713a81c3.
+info: VrfC2Sim[0]
+      Route 'T23_AOA_SE_1-1_RECON/2/1_AD_P1 ROUTE' created; MoveAlongRoute issued for VRF_UUID:d0f3a228-23af-1d48-8b31-3827577d7a97.
+info: VrfC2Sim[0]
+      Route 'T27_SecureMovementCorridorsAndPassesAlongPlYellow. ROUTE' created; MoveAlongRoute issued for VRF_UUID:25e655df-9dd2-8b4d-8c0c-58678e0230c7.
+info: VrfC2Sim[0]
+      Route 'T31_AOA_SE_5-20_IN_(MECH);_2/1_... ROUTE' created; MoveAlongRoute issued for VRF_UUID:fc4cbec6-5add-1e4e-90dc-db1aef5fd978.
+info: VrfC2Sim[0]
+      Route 'T35_AOA_SE_B/5-20_IN_(MECH)_P1 ROUTE' created; MoveAlongRoute issued for VRF_UUID:5bbc1a56-a302-f145-8bce-1e9d6783f5e4.
+info: VrfC2Sim[0]
+      Route 'T39_AOA_SE_C/1-35_AR_P1 ROUTE' created; MoveAlongRoute issued for VRF_UUID:53f290c7-3e2a-ac46-9ca4-0dd4de72f606.
+info: VrfC2Sim[0]
+      VRF formations for 1-35/2/1_A (VRF_UUID:7c15ba0b-b6f3-4c49-a3aa-a19250f020fc): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      VRF formations for 4-27/2/1_A (VRF_UUID:87224bcf-5e03-3349-8cec-070879108ac2): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      VRF formations for 1-6/2/1_AD (VRF_UUID:090658c0-d119-fd40-976c-717e843c3192): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      VRF formations for 40/2/1_AD (VRF_UUID:a90a872d-52fe-ba44-91b3-e609713a81c3): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      VRF formations for 856/HHC (VRF_UUID:25e655df-9dd2-8b4d-8c0c-58678e0230c7): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      VRF formations for 5-20/2/1_A (VRF_UUID:fc4cbec6-5add-1e4e-90dc-db1aef5fd978): [line, column, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      VRF formations for B/5-20 (VRF_UUID:5bbc1a56-a302-f145-8bce-1e9d6783f5e4): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      VRF formations for C/1-35 (VRF_UUID:53f290c7-3e2a-ac46-9ca4-0dd4de72f606): [column, line, wedge, vee]  current=''.
+info: VrfC2Sim[0]
+      VRF task complete: 1-1/2/1_AD / move-along
+info: VrfC2Sim[0]
+      SENT TASK STATUS REPORT (TASKCMPLT) taskee=de16a337-b2a6-c029-07b5-869191631621 task=468c0325-99b9-4f97-afc6-39fe301e0c55.
+fail: VrfC2Sim[0]
+      NO LOCATION GIVEN - CAN'T EXECUTE TASK 'T24_ScreenForwardMovementOfTheBrigadeMainBodyAndIdentifyEnemyReserveMovementCorridors.'.
+warn: VrfC2Sim[0]
+      Task 'T25_MaintainReconnaissanceAndScreenOperationsEastOfObjMonroe.' predecessor 89a2e38a-61d8-49fa-b259-7891636e8c56 was skipped/abandoned upstream; policy=skip, unit 1-1/2/1_AD is idle -> NOT dispatched.
+warn: VrfC2Sim[0]
+      Task 'T26_PL_PL_BLUE' predecessor 51ef094c-f807-478f-a978-14469cf555ea was skipped/abandoned upstream; policy=skip, unit 1-1/2/1_AD is idle -> NOT dispatched.
+Can't create data of type make_c2_reports.  No creator found.  Only time this warning will be issued.
+warn: VrfC2Sim[0]
+      Task 'T34_RetainObjMadisonAndSecureBrigadeRearApproaches.' predecessor 4aa091fd-47d0-4eeb-bb44-691ee02772f2 did not complete within 600s of its dispatch; policy=skip, unit 5-20/2/1_A is BUSY (task in flight) -> NOT dispatched.
+warn: VrfC2Sim[0]
+      Task 'T38_SecureArtillerySupportAreasAndSustainmentCorridors.' predecessor cdd641dc-6b51-414d-84be-a617260e647e did not complete within 600s of its dispatch; policy=skip, unit B/5-20 is BUSY (task in flight) -> NOT dispatched.
+warn: VrfC2Sim[0]
+      Task 'T41_DestroyEnemyReserveFormationsAndAttackAviationStagingAreasVicinityAbfJustice.' predecessor a88a6954-deea-4b24-9aec-fde654a5b9cf did not complete within 600s of its dispatch; policy=skip, unit C/1-35 is BUSY (task in flight) -> NOT dispatched.
+warn: VrfC2Sim[0]
+      Task 'T37_ProvideFollow-OnSecurityAndSupportForArtilleryDisplacementAndSustainmentOperations.' predecessor e3bebe4b-dd18-4719-ba62-de0803f743ee did not complete within 600s of its dispatch; policy=skip, unit B/5-20 is BUSY (task in flight) -> NOT dispatched.
+warn: VrfC2Sim[0]
+      Task 'T42_MaintainAttack-By-FireCoverageAgainstEnemyReinforcementRoutes.' predecessor 6334491c-c223-4bf2-ad49-004721596fe0 did not complete within 600s of its dispatch; policy=skip, unit C/1-35 is BUSY (task in flight) -> NOT dispatched.
+warn: VrfC2Sim[0]
+      Task 'T30_MaintainRearAreaSecurityAndConvoyEscortOperations.' predecessor ab288b31-e746-4a83-b467-45d6116808dc did not complete within 600s of its dispatch; policy=skip, unit 856/HHC is BUSY (task in flight) -> NOT dispatched.
+warn: VrfC2Sim[0]
+      Task 'T29_ContinueRouteSecurityAndTrafficRegulationOperationsForSustainmentFlowSouthOfPlGold.' predecessor bb94f274-7925-4c37-b342-c9a4853f6f55 did not complete within 600s of its dispatch; policy=skip, unit 856/HHC is BUSY (task in flight) -> NOT dispatched.
+warn: VrfC2Sim[0]
+      Task 'T22_ConstructProtectiveObstaclesAndSurvivabilityPositionsAlongPlBlue.' predecessor 1022bc9a-91bc-4477-ba54-5ff81980f864 did not complete within 600s of its dispatch; policy=skip, unit 40/2/1_AD is BUSY (task in flight) -> NOT dispatched.
+warn: VrfC2Sim[0]
+      Task 'T21_SupportBreachingAndMobilityOperationsThroughObstacleBeltsSouthOfPlGold.' predecessor 80807612-cedc-47a6-90f9-4feee41f901f did not complete within 600s of its dispatch; policy=skip, unit 40/2/1_AD is BUSY (task in flight) -> NOT dispatched.
+warn: VrfC2Sim[0]
+      Task 'T18_MaintainFixingFiresAndTransitionIntoDefensiveOperationsNorthOfObjMonroe.' predecessor 9280a88f-5d03-41fa-a347-96a027bbd7df did not complete within 600s of its dispatch; policy=skip, unit 1-6/2/1_AD is BUSY (task in flight) -> NOT dispatched.
+warn: VrfC2Sim[0]
+      Task 'T33_SecureObjMadisonAndSupportTheBrigadeTransitionTowardObjMonroe.' predecessor 5c2b1be4-8f8c-4792-9eba-f9dd6fc4b311 did not complete within 600s of its dispatch; policy=skip, unit 5-20/2/1_A is BUSY (task in flight) -> NOT dispatched.
+warn: VrfC2Sim[0]
+      Task 'T14_SupportObstacleEmplacementAndLaneDenialOperationsSouthOfObjMonroe.' predecessor 92e69020-6fb9-4a61-89a0-92384c2dad9c did not complete within 600s of its dispatch; policy=skip, unit 510/40 is idle -> NOT dispatched.
+warn: VrfC2Sim[0]
+      Task 'T8_ProvidePriorityFiresInSupportOfBrigadeDefensiveOperations.' predecessor c07630ad-8b2f-40bc-8ae8-9f01789e24de did not complete within 600s of its dispatch; policy=skip, unit 4-27/2/1_A is BUSY (task in flight) -> NOT dispatched.
+warn: VrfC2Sim[0]
+      Task 'T17_AOA_SE_1-6_IN;_2/1_AD_P3' predecessor b2717bbb-3240-4a20-a617-56eae456bef4 did not complete within 600s of its dispatch; policy=skip, unit 1-6/2/1_AD is BUSY (task in flight) -> NOT dispatched.
+warn: VrfC2Sim[0]
+      Task 'T4_ConsolidateAndPrepareDefensivePositionsAlongPlBlue.' predecessor 5a2bf0ea-6e1d-45ae-bf34-09e633ebfed1 did not complete within 600s of its dispatch; policy=skip, unit 1-35/2/1_A is BUSY (task in flight) -> NOT dispatched.
+warn: VrfC2Sim[0]
+      Task 'T3_PL_OBJ_MONROE' predecessor e9c9969a-925f-419a-b85b-0c6c01cb3b1c did not complete within 600s of its dispatch; policy=skip, unit 1-35/2/1_A is BUSY (task in flight) -> NOT dispatched.
+warn: VrfC2Sim[0]
+      Task 'T7_SuppressAndNeutralizeEnemyArtilleryAndDefensivePositionsSupportingObjMonroe.' predecessor d5d5976c-7d56-4cc6-a808-5169f9aa7b41 did not complete within 600s of its dispatch; policy=skip, unit 4-27/2/1_A is BUSY (task in flight) -> NOT dispatched.
+warn: VrfC2Sim[0]
+      Task 'T36_ClearEnemyThreatsFromPaa25EAndSecureArtilleryDisplacementPositions.' predecessor 9e22188e-5a97-416c-8759-980361aa04e7 did not complete within 600s of its dispatch; policy=skip, unit B/5-20 is BUSY (task in flight) -> NOT dispatched.
+warn: VrfC2Sim[0]
+      Task 'T32_AOA_SE_5-20_IN_(MECH);_2/1_...' predecessor 986e5659-722e-43ae-a363-c77e757b56c0 did not complete within 600s of its dispatch; policy=skip, unit 5-20/2/1_A is BUSY (task in flight) -> NOT dispatched.
+warn: VrfC2Sim[0]
+      Task 'T6_SuppressEnemyArtilleryAndDirectFiresSupportingObjMadison.' predecessor c496e287-e9b8-4ac4-b6a3-7cb47c5ec9b1 did not complete within 600s of its dispatch; policy=skip, unit 4-27/2/1_A is BUSY (task in flight) -> NOT dispatched.
+warn: VrfC2Sim[0]
+      Task 'T20_ExpandBreachLanesAndSupportMobilityOperationsSouthTowardPlGold.' predecessor 3cb0fd2b-9d69-4360-a9d5-a931d3e58bde did not complete within 600s of its dispatch; policy=skip, unit 40/2/1_AD is BUSY (task in flight) -> NOT dispatched.
+warn: VrfC2Sim[0]
+      Task 'T40_OccupySupportPositionsAndPrepareToDestroyEnemyReserveForcesMovingTowardObjMonroe.' predecessor c85adce6-b53b-4963-8d2c-1c50218b347a did not complete within 600s of its dispatch; policy=skip, unit C/1-35 is BUSY (task in flight) -> NOT dispatched.
+warn: VrfC2Sim[0]
+      Task 'T28_CNVY_PL_YELLOW' predecessor fb2aeee4-3d3a-499e-8f3c-88ca4d754de6 did not complete within 600s of its dispatch; policy=skip, unit 856/HHC is BUSY (task in flight) -> NOT dispatched.
+warn: VrfC2Sim[0]
+      Task 'T16_AdvanceToSupportTheBrigadeTransitionTowardFixingOperationsNorthOfObjMonroe.' predecessor 03bbf711-9652-4f09-a21e-8679d44b912d did not complete within 600s of its dispatch; policy=skip, unit 1-6/2/1_AD is BUSY (task in flight) -> NOT dispatched.
+warn: VrfC2Sim[0]
+      Task 'T2_PL_OBJ_MADISON' predecessor cd589832-e19f-44e9-91b0-a81ee68d5666 did not complete within 600s of its dispatch; policy=skip, unit 1-35/2/1_A is BUSY (task in flight) -> NOT dispatched.
+info: VrfC2Sim[0]
+      C2SIM server state -> INITIALIZED.
+info: VrfC2Sim[0]
+      C2SIM server state -> UNINITIALIZED.
+info: VrfC2Sim[0]
+      Server UNINITIALIZED; initiating clean stop.
+info: Microsoft.Hosting.Lifetime[0]
+      Application is shutting down...
+info: VrfC2Sim[0]
+      Shutting down...
+info: VrfC2Sim[0]
+      Cleanup: deleting 172 created VR-Forces objects before resign...
+info: VrfC2Sim[0]
+      Cleanup: 172 deletes dispatched (1623 ms).
+fail: C2SIM.C2SIMSDK[0]
+      STOMP block reading cancelled
