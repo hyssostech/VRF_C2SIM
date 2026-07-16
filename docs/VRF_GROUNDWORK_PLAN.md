@@ -88,7 +88,20 @@ Deliverable: docs/VRF_GROUND_TRUTH.md - the things we should have known on day o
   XML SPEC of what a working unit IS. Parse the TropicTortoise .scnx + any scenario the
   user saves in Phase 1: extract exactly how a native unit is represented (org tree,
   embedded entities, aggregate state, controllers). This is the target our remote
-  creations must match. (Programmatic .scnx work is already proven - a KEEPER.)
+  creations must match. (Programmatic .scnx work is already proven - a KEEPER. 0.3
+  CONFIRMED the remote lever too: saveScenario(..., saveToZip) at
+  vrfRemoteController.h:660 commands the backend to save the LIVE scenario - so
+  remote-created scenarios can be saved and diffed against GUI-authored ones.)
+- 0.6 CONSOLE CAPTURE TOOL (executor; NEW, escalated by the 0.2 finding): the yellow
+  triangle badge = the Object Console warning icon - most of our units carry UNREAD
+  VRF WARNING MESSAGES, and addObjectConsoleMessageCallback
+  (vrfRemoteController.h:1970, verified; delivers uuid + notifyLevel + message text
+  over the network) lets us capture them headlessly. Build: facade callback ->
+  bridge event -> extend WatchVrf (or a sibling ConsoleWatch tool) to log
+  CON,<t>,<uuid>,<level>,<message> lines alongside POS lines. Offline-buildable now;
+  live-gated next session. From then on EVERY run captures VRF's own per-unit
+  diagnostics - the pile split and runaways may already be explained in messages we
+  never read.
 
 Exit criteria: the five deliverables exist, cross-referenced, adversarially reviewed;
 open unknowns are listed as QUESTIONS with where the answer lives (doc, probe, or MAK).

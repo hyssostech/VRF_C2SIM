@@ -846,3 +846,20 @@ dateTime: vrfUuid:VRF_UUID:e3e9a4ce-ef32-3740-953e-5f0eb0d5c2af ROE:ROEHold acti
 ERROR - ERROR - NO LOCATION GIVEN - CAN'T EXECUTE TASK
 ******************************************************
 SENT TASK STATUS REPORT
+TaskComplete received for VRFUUID:VRF_UUID:c43d8f84-1277-6e43-97e7-065aa86b2298 unit:1-35/2/1_A task UUID:e9c9969a-925f-419a-b85b-0c6c01cb3b1c
+Task complete message from 1-35/2/1_A  Task type completed:move-along  Unit UUID:d6df3c3d-f31b-701a-bfc6-2fb9bc86092a
+TASK COMPLETE:e9c9969a-925f-419a-b85b-0c6c01cb3b1c
+****taskName:T2_PL_OBJ_MADISON COMPLETED
+
+*****C2SIMinterface starting taskName:T3_PL_OBJ_MONROE taskUuid:5a2bf0ea-6e1d-45ae-bf34-09e633ebfed1
+for taskee:d6df3c3d-f31b-701a-bfc6-2fb9bc86092a name:1-35/2/1_A
+dateTime: vrfUuid:VRF_UUID:c43d8f84-1277-6e43-97e7-065aa86b2298 ROE:ROEHold activity code:ATTACK MapGraphicUUID:
+route point count:3 actionTask:ATTACK symbolString:SFGPUCA----F---
+Point 0 coordinates:34.4886/-116.615/100
+Point 1 coordinates:34.32941147391077/-116.50651992054665/100
+Point 2 coordinates:34.32941147391077/-116.50651992054665/100
+SENT TASK STATUS REPORT
+OBJECT CREATED CALLBACK RECEIVED FOR:T3_PL_OBJ_MONROE ROUTE
+Task:T3_PL_OBJ_MONROE made Route:T3_PL_OBJ_MONROE ROUTE for Unit:1-35/2/1_A UUID:d6df3c3d-f31b-701a-bfc6-2fb9bc86092a|
+ point count:3 start at:34.4886/-116.615/100
+Tasked moveAlongRoute for obj VRF_UUID:c43d8f84-1277-6e43-97e7-065aa86b2298|T3_PL_OBJ_MONROE ROUTE (vrfUuid 54335f50-4c5f-4f42-4a5f-4d4f4e524f45)
