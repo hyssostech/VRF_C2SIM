@@ -63,7 +63,15 @@ Three locations are in play:
 > BOTH interfaces - VRF-sourced), runaway containment, force-side probe (Sweden), P1b
 > port-vs-C++ A/B.
 >
-> **THE STANDING PLAN OF RECORD is docs/SUPERVISED_RECOVERY_PLAN.md** (2026-07-16) -
+> **2026-07-16 (late) - NEW PLAN OF RECORD FOR MOVEMENT WORK: docs/VRF_GROUNDWORK_PLAN.md**
+> (user-directed reset after the fix session: the buried-birth fix is accepted in both
+> codebases, but runaway/warp and the pile split proved CODE-INDEPENDENT - the remaining
+> problems live on the VR-Forces side of the boundary. The groundwork plan: learn native
+> VRF (content catalog, docs curriculum, API audit, scnx spec-diffing), establish a
+> native-GUI baseline at Mojave, then rebuild the creation/mapping layer onto REAL
+> installed unit types with a truthful-arrival gate. Read it FIRST.)
+>
+> **The prior plan, docs/SUPERVISED_RECOVERY_PLAN.md** (2026-07-16) -
 > written after a fresh-context adversarial audit (5 Opus investigators + 16 refuters; every
 > claim independently re-verified). It supersedes this file's "immediate next task" sec 1 and
 > the OPUS_EXECUTION_PLAN backlog for everything movement-related. Read it FIRST. Headlines:

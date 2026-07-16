@@ -1,5 +1,11 @@
 # SUPERVISED RECOVERY PLAN (2026-07-16) - the standing plan of record
 
+> **2026-07-16 (late): SUPERSEDED for movement work by docs/VRF_GROUNDWORK_PLAN.md**
+> (user-directed reset: learn native VR-Forces first, then rebuild the creation/mapping
+> layer onto real installed types). This doc remains the evidence record and the source
+> of the standing rules (telemetry oracle, probe discipline, ledger); its sec 3/3c probe
+> ordering is retired. Read the groundwork plan FIRST.
+
 Written by the supervisor (Fable seat) after the fresh-context adversarial audit (5 Opus
 investigators + 16 per-claim adversarial refuters, ~3.1M tokens, every load-bearing claim
 below independently re-verified against primary sources before acceptance). Supersedes the

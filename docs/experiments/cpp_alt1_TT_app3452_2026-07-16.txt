@@ -801,3 +801,48 @@ Task:T1_AOA_SE_1-35_AR;_2/1_AD_P1 made Route:T1_AOA_SE_1-35_AR;_2/1_AD_P1 ROUTE 
  point count:5 start at:34.68/-116.725/100
 Tasked moveAlongRoute for obj VRF_UUID:abb26359-32d2-424c-82df-8529e229d739|T27_SecureMovementCorridorsAndPassesAlongPlYellow. ROUTE (vrfUuid 5432375f-5365-6375-7265-4d6f76656d65)
 Tasked moveAlongRoute for obj VRF_UUID:c43d8f84-1277-6e43-97e7-065aa86b2298|T1_AOA_SE_1-35_AR;_2/1_AD_P1 ROUTE (vrfUuid 54315f41-4f41-5f53-455f-312d33355f41)
+TaskComplete received for VRFUUID:VRF_UUID:91bdd348-e170-1346-969f-01c017fd2f45 unit:40/2/1_AD task UUID:3cb0fd2b-9d69-4360-a9d5-a931d3e58bde
+Task complete message from 40/2/1_AD  Task type completed:move-along  Unit UUID:6977b035-d84c-da5f-9cc0-497b9f334eb7
+TASK COMPLETE:3cb0fd2b-9d69-4360-a9d5-a931d3e58bde
+
+*****C2SIMinterface starting taskName:T20_ExpandBreachLanesAndSupportMobilityOperationsSouthTowardPlGold. taskUuid:80807612-cedc-47a6-90f9-4feee41f901f
+for taskee:6977b035-d84c-da5f-9cc0-497b9f334eb7 name:40/2/1_AD
+dateTime: vrfUuid:VRF_UUID:91bdd348-e170-1346-969f-01c017fd2f45 ROE:ROEHold activity code:SECURE MapGraphicUUID:
+route point count:2 actionTask:SECURE symbolString:SFGPUCE----F---
+Point 0 coordinates:34.7069/-116.72/100
+Point 1 coordinates:34.43378352084772/-116.97201062879192/100
+****taskName:T19_AOA_SE_40_EN;_2/1_AD_P1 COMPLETED
+SENT TASK STATUS REPORT
+OBJECT CREATED CALLBACK RECEIVED FOR:T20_ExpandBreachLanesAndSupportMobilityOperationsSouthTowardPlGold. ROUTE
+Task:T20_ExpandBreachLanesAndSupportMobilityOperationsSouthTowardPlGold. made Route:T20_ExpandBreachLanesAndSupportMobilityOperationsSouthTowardPlGold. ROUTE for Unit:40/2/1_AD UUID:6977b035-d84c-da5f-9cc0-497b9f334eb7|
+ point count:2 start at:34.7069/-116.72/100
+Tasked moveAlongRoute for obj VRF_UUID:91bdd348-e170-1346-969f-01c017fd2f45|T20_ExpandBreachLanesAndSupportMobilityOperationsSouthTowardPlGold. ROUTE (vrfUuid 5432305f-4578-7061-6e64-427265616368)
+TaskComplete received for VRFUUID:VRF_UUID:c43d8f84-1277-6e43-97e7-065aa86b2298 unit:1-35/2/1_A task UUID:cd589832-e19f-44e9-91b0-a81ee68d5666
+Task complete message from 1-35/2/1_A  Task type completed:move-along  Unit UUID:d6df3c3d-f31b-701a-bfc6-2fb9bc86092a
+TASK COMPLETE:cd589832-e19f-44e9-91b0-a81ee68d5666
+****taskName:T1_AOA_SE_1-35_AR;_2/1_AD_P1 COMPLETED
+
+*****C2SIMinterface starting taskName:T2_PL_OBJ_MADISON taskUuid:e9c9969a-925f-419a-b85b-0c6c01cb3b1c
+for taskee:d6df3c3d-f31b-701a-bfc6-2fb9bc86092a name:1-35/2/1_A
+dateTime: vrfUuid:VRF_UUID:c43d8f84-1277-6e43-97e7-065aa86b2298 ROE:ROEHold activity code:FIX MapGraphicUUID:
+route point count:3 actionTask:FIX symbolString:SFGPUCA----F---
+Point 0 coordinates:34.7078/-116.72/100
+Point 1 coordinates:34.48840762654256/-116.61492221031979/100
+Point 2 coordinates:34.48840762654256/-116.61492221031979/100
+SENT TASK STATUS REPORT
+OBJECT CREATED CALLBACK RECEIVED FOR:T2_PL_OBJ_MADISON ROUTE
+Task:T2_PL_OBJ_MADISON made Route:T2_PL_OBJ_MADISON ROUTE for Unit:1-35/2/1_A UUID:d6df3c3d-f31b-701a-bfc6-2fb9bc86092a|
+ point count:3 start at:34.7078/-116.72/100
+Tasked moveAlongRoute for obj VRF_UUID:c43d8f84-1277-6e43-97e7-065aa86b2298|T2_PL_OBJ_MADISON ROUTE (vrfUuid 54325f50-4c5f-4f42-4a5f-4d414449534f)
+TaskComplete received for VRFUUID:VRF_UUID:e3e9a4ce-ef32-3740-953e-5f0eb0d5c2af unit:1-6/2/1_AD task UUID:03bbf711-9652-4f09-a21e-8679d44b912d
+Task complete message from 1-6/2/1_AD  Task type completed:move-along  Unit UUID:74bdb03b-c85e-5e54-8f04-180c44ddc9c3
+TASK COMPLETE:03bbf711-9652-4f09-a21e-8679d44b912d
+****taskName:
+*****C2SIMinterface starting taskName:T15_AOA_SE_1-6_IN;_2/1_AD_P1T16_AdvanceToSupportTheBrigadeTransitionTowardFixingOperationsNorthOfObjMonroe. COMPLETED
+ taskUuid:b2717bbb-3240-4a20-a617-56eae456bef4
+for taskee:74bdb03b-c85e-5e54-8f04-180c44ddc9c3 name:1-6/2/1_AD
+dateTime: vrfUuid:VRF_UUID:e3e9a4ce-ef32-3740-953e-5f0eb0d5c2af ROE:ROEHold activity code:MOVE MapGraphicUUID:
+******************************************************
+ERROR - ERROR - NO LOCATION GIVEN - CAN'T EXECUTE TASK
+******************************************************
+SENT TASK STATUS REPORT
