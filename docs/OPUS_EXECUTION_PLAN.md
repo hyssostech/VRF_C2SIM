@@ -905,9 +905,43 @@ proceed on a slow proxy - the STOMP client cannot ride it out.
 
 ## Appendix B - ApplicationNumber ledger
 
-3200-3420: consumed (see entries below). NEXT FREE: 3421 (always take the number after the last
+3200-3441: consumed (see entries below). NEXT FREE: 3442 (always take the number after the last
 ledger entry). Record each join here as it is consumed (app / ResetVrf / WatchVrf each take one).
 Never reuse.
+- 3435: ResetVrf --dry-run, fresh TT session (2026-07-16 ~13:00 launch). Clean, 2 baseline.
+- 3436: port app, P-C1 run 1 (Live c=50, R9 lean, STP, 20x, formation=auto). 1222.MechPlt
+  marched + completed (members telemetry-verified AT final waypoint); 114.MechCoy degenerate;
+  1.BdeHQ frozen. Clean-stopped.
+- 3437: WatchVrf 120s/15s for P-C1 run 1.
+- 3438: ResetVrf REAL post run 1 - clean (Solution A held; 2 baseline deleted+respawned ok).
+- 3439: port app, P-C1 run 2 (identical config). 1222.MechPlt FULL transit captured (arrived
+  8 m from final wp); company degenerate; entity frozen. ALSO served P-C2 (supersession order)
+  and the user's live P1a GUI probes. STILL RUNNING at ledger time (user experimenting).
+- 3440: WatchVrf 180s/10s for P-C1 run 2 (the transit capture).
+- 3441: WatchVrf 120s/10s for P-C2 (entity still frozen with first-leg-zero route).
+- 3421: ResetVrf --dry-run, pre-run sweep on the user's fresh vrfLauncher TropicTortoise backend
+  (2026-07-15 evening). Clean (2 baseline objects).
+- 3422: port app, Fixed100 parity default + AggregateFormation=auto, R9 lean init, 20x - the
+  MISSING CONTROL run. Result: universal freeze (investigation doc part 6/7).
+- 3423: WatchVrf 150s/15s for the Fixed100 control - zero displacement, all 54 objects.
+- 3424: SKIPPED - never joined (superseded by the live Freeze-Movement GUI check); do not reuse.
+- 3425: WatchVrf 60s/10s after the user applied Freeze Movement=No to 1.BdeHQ live - no change.
+- 3426: ResetVrf --dry-run post StopIface of 3422 - found 5 leftovers (3 orphans + 2 baseline).
+- 3427: ResetVrf REAL - deleted the 5.
+- 3428: port app, GroundWaypointAltitudeMode=Live clearance=50, same TT backend/data, 20x.
+  Result: 1222.MechPlt FULL clean route completion (~1.16 km, stopped 8 m from final waypoint);
+  other two units frozen with vacuous TASKCMPLTs (part 7).
+- 3429: WatchVrf 120s/15s for the Live run (the completion telemetry).
+- 3430: ResetVrf REAL post StopIface of 3428 - found 0 (already clean).
+- 3431: ResetVrf --dry-run on the user's FRESH Bogaland2 backend (new vrfGui/vrfSim PIDs,
+  2026-07-16). Clean (2 baseline objects).
+- 3432: PRISTINE ORIGINAL C++ interface (master @ 191933a, rebuilt), FULL COA-STP1 128 units +
+  42-task order, Bogaland2, 15x. 163/163 created; 3-of-9 first-wave movers (F1 overshoot
+  reproduced in the ORIGINAL), 6 frozen at the mega-pile coordinate incl. a plain TANK entity
+  (part 7). STILL JOINED at ledger time - clean-stop via StopIface when observation is done.
+- 3433: WatchVrf 90s/15s for the pristine C++ run (first-wave telemetry).
+- 3434: WatchVrf 600s/30s END-STATE capture of the pristine C++ run (launched 2026-07-16 late
+  morning, background - final positions vs ordered destinations for the full task DAG).
 - 3402: app join for the Tier-1 COA-STP1-Sweden-minimal reverse-transplant (ClientId=C2SIM,
   AggregateFormation=auto, TimeMultiplier=20, SubordinateFanOut off - genuine leader-path
   test), on the user-launched Bogaland2 backend. Init push itself required a real fix

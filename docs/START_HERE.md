@@ -37,7 +37,37 @@ Three locations are in play:
 6. This file for repo state, build/run commands, and where artifacts live.
 7. History/reference as needed: `docs/PHASE1_REWIRE.md`, `docs/TASK_EXPANSION_PLAN.md`.
 
-## Current status (2026-07-15)
+## Current status (2026-07-16)
+
+> **BREAKTHROUGH (2026-07-16 evening): THE ENTITY-FREEZE ROOT CAUSE IS FOUND, LIVE-VERIFIED,
+> CODE-VERIFIED, AND AUTHOR-CORROBORATED - ground units are created UNDERGROUND at
+> high-elevation terrain** (fixed-MSL create/SetAltitude/route constants that are above-ground
+> at sea-level Bogaland and ~130-1030 m below terrain at 1131 m Mojave; VR-Forces then accepts
+> tasks but never executes movement, per the original authors' own documented rule). Proven by
+> the user's live GUI probes: native tasking failed identically on the frozen entity until a
+> GUI drag re-placed it on the surface - after which it even ran the interface's OWN route
+> cleanly. The Live-altitude route fix was separately proven REPRODUCIBLE (two back-to-back
+> textbook arrivals). **THE FIX IS SPECIFIED BUT NOT YET IMPLEMENTED** - see
+> docs/SUPERVISED_RECOVERY_PLAN.md sec 3b (the immediate work item) and the investigation
+> doc parts 13/13b for the full evidence chain. Remaining open: 114.MechCoy
+> position-never-publishes (distinct signature), truthful-arrival gate (completions lie in
+> BOTH interfaces - VRF-sourced), runaway containment, force-side probe (Sweden), P1b
+> port-vs-C++ A/B.
+>
+> **THE STANDING PLAN OF RECORD is docs/SUPERVISED_RECOVERY_PLAN.md** (2026-07-16) -
+> written after a fresh-context adversarial audit (5 Opus investigators + 16 refuters; every
+> claim independently re-verified). It supersedes this file's "immediate next task" sec 1 and
+> the OPUS_EXECUTION_PLAN backlog for everything movement-related. Read it FIRST. Headlines:
+> the "Mojave freeze" is THREE independent problems (A: hardcoded-100m altitude - the Live
+> fix is the one PROVEN lever, sole clean arrival ever recorded; B: COA-STP1-data-specific,
+> force-side untested; C: a per-SESSION movement-execution block that confounded all
+> 2026-07-15/16 TropicTortoise runs). The pristine original C++ was rebuilt and run on full
+> COA-STP1 (RUN C): ZERO correct arrivals - 3 movers ran 49-135 km away and terminated
+> underground/offshore, rest never moved; vacuous completions are VRF-SOURCED and ORIGINAL
+> (one fired 325 ms after dispatch on a frozen unit and falsely advanced the DAG). Killed
+> hypotheses (do not revive): overlap-footprint, nav data, page-in, DIS type, formation
+> names, pile-size-as-sufficient, template quality, echelon, entity-immunity, duration.
+> Evidence: investigation doc parts 7/7b/8/9 + the run matrix (23 runs).
 
 > REALITY CHECK (do not oversell): the end-to-end product goal - a coa-gpt scenario at MOJAVE with
 > correct aggregate movement - does NOT work. Mojave aggregates FREEZE; root cause UNSOLVED (nav data
@@ -53,10 +83,34 @@ Three locations are in play:
 > real infrastructure crash was found + ROOT-CAUSED (NOT Mojave content - a headless-CLI-launch
 > gap; RUNBOOK sec 0.5) - but BOTH altitude runs are INCONCLUSIVE: even 1.BdeHQ, the entity that
 > has moved in every prior Mojave test, was completely frozen in both, an unprecedented new
-> failure with no missing-control test yet to explain it. USER DIRECTIVE for the next session:
-> read VR-Forces' own basic scenario-creation documentation FIRST, before any more hypothesis
-> work - see docs/experiments/MOJAVE_ROOTCAUSE_INVESTIGATION_2026-07-14.md "2026-07-15 SESSION
-> SYNTHESIS" for the full account and the prioritized next steps.
+> failure with no missing-control test yet to explain it.
+> **UPDATE (2026-07-15, later same day, twice-corrected) - documentation-grounded, CONVERGES
+> WITH Thread A rather than replacing it**: our unit-creation DIS type codes for echelon D/E/F
+> (ArmorPlatoon/ArmorCompany/ArmorCoHQ - i.e. MOST of both the golden and COA-STP1 populations)
+> do not match any SPECIFIC VR-Forces unit template, but DO match a real (if generic/anonymous)
+> intermediate fallback, `EntityLevel\vrfSim\Ground_Aggregate.entity` (an earlier draft of this
+> finding wrongly called this a "content-free empty shell" based on a truncated grep result - it
+> is not; it has real formations and real, if generic, subordinates - CORRECTED). Read directly:
+> that template wires `aggregate-lead-follow-in-formation-controller` with `ground-clamp True` -
+> the EXACT controller Thread A identified from binary analysis as the `moveAlong() - empty
+> route` source, now independently confirmed from the actual sysdef config. Golden units hit this
+> SAME fallback and DO work at Sweden (verified: a full-population SIDC echelon count, not a spot
+> check, shows both golden and COA-STP1 are ~80-88% D/E/F, i.e. mostly the same code path) - so
+> this finding explains general fragility (why formation needs a runtime patch, why subordinates
+> are 4 anonymous vehicles not the unit's real composition) but NOT the Sweden/Mojave split by
+> itself; Thread A's fixed-100m-MSL-waypoint-vs-real-terrain-height mechanism remains the best
+> explanation for THAT, now with an extra, independent confirmation (ground-clamp really is
+> deliberately enabled on this exact path). Separately, directly verified (not inferred) that
+> 1.BdeHQ's SIDC echelon is 'H' (Brigade, unhandled by the B/D/E/F switch) so it defaults to a
+> REAL platform DIS type matching VR-Forces' own documented M1A2 example - explaining why it
+> alone has always moved reliably, everywhere. Also directly re-diffed the Bogaland2 vs
+> TropicTortoise `.scnx` scenario configs (all 11 constituent files, not trusting the 2026-07-14
+> claim on faith) - confirms them equivalent; no overlooked scenario-config gap found. See
+> docs/experiments/MOJAVE_ROOTCAUSE_INVESTIGATION_2026-07-14.md "2026-07-15 (fresh session, part
+> 3) - CORRECTION to part 2" for the full, corrected evidence chain. STILL OPEN: why COA-STP1's
+> own units fail even at Sweden (force-side/hostility still untested); the altitude-probe
+> confound (1.BdeHQ freezing under vrfLauncher is a SEPARATE mystery from all of the above, since
+> it's the real-entity path, not the aggregate/ground-clamp path).
 
 - **Crash root-cause + altitude probe (inconclusive) + XML gotchas (2026-07-15, LIVE, apps
   3386-3420)**: see the investigation doc's "2026-07-15 SESSION SYNTHESIS" section (top of this
@@ -407,10 +461,21 @@ remains is quality/parity polish + the two-layer semantic-mapping arc (see "next
   and the Phase 4/5 arc (03e3a09, ff4705c, 8ed890e, 80e4b15).
 - The fork `OpenC2SIM.github.io` (`dev/sdk-fixes`): tracks the submodule pointer, bumped +
   PUSHED alongside every port push (push the PORT first - the fork's pointer references it).
-- The C++ repo `c2simVRFinterfacev2.36`: HEAD `014dd00` (master clean; the old Wedge spike
-  lives on branch `spike/aggregate-formation-wedge`, superseded - do not merge). NO GIT
-  REMOTE - the only golden-trace rig exists on one disk (private-remote decision pending
-  with the user).
+- The C++ repo `c2simVRFinterfacev2.36`: **CORRECTED 2026-07-16** - `master` had been carrying
+  this project's own Phase 1 facade-extraction commits directly (should have been a branch per
+  standing instruction). Fixed: all Phase 1 work (`191933a`..`014dd00`, 18 commits) preserved
+  intact on branch `phase1-vrffacade-extraction`, checked out in its own isolated worktree at
+  `C:\Users\PauloBarthelmess\Source\Repos\C2SIM\c2simVRFinterfacev2.36-phase1-vrffacade-extraction`
+  (HEAD `014dd00`). `master` in the main worktree is now reset to `191933a` ("Baseline: working
+  c2simVRF interface (v2.36, golden-trace instrumented)") - the true pre-port, pre-Phase-1
+  original interface state. The old Wedge spike still lives on branch
+  `spike/aggregate-formation-wedge` (`4f0d00f`, off the old master history, superseded - do not
+  merge). An untracked `tools/` directory (orphaned local build output - `bin/`/`obj/` only, no
+  source - from a `dotnet build` run against the now-removed Phase-1-added tools) is sitting in
+  the main worktree; harmless, not cleaned up pending the user's confirmation. NO GIT REMOTE -
+  the only golden-trace rig exists on one disk (private-remote decision pending with the user).
+  **If future work needs the Phase 1 facade/VrfFacade C++ code again, it now lives on
+  `phase1-vrffacade-extraction`, not `master` - do not assume master has it.**
 - The SDK (`dev/sdk-fixes`): `f738edf` (static-state fixes + tests), `3b7cd33` (net10),
   `ae09fd5` (P4a shared HttpClient, ClientLib 4.8.3.3).
 
@@ -525,15 +590,26 @@ Remaining work, roughly by priority (details: docs/APP.md TODO, PORT.md sec 6/10
    INTERIM PROVEN MOVER: `Vrf:SubordinateFanOut` (R10) marches member entities at Mojave,
    bypassing the empty-offset-route path. A `GroundWaypointAltitudeMode=Live` fix was built and
    finally tested live 2026-07-15 but the test was CONFOUNDED (see next-session priority below) -
-   not yet a valid result either way. **NEXT SESSION, IN ORDER**: (i) USER DIRECTIVE - read
-   VR-Forces' own basic scenario-creation docs first
-   (`C:\MAK\vrforces5.0.2\doc\help\Content\Scenarios\CreateRun\vrf_createScenario.htm` is the
-   entry point found 2026-07-15) - three days were spent chasing this and it is plausible the
-   remaining mystery is a documented basic setup requirement, not a deep bug; (ii) re-run the
+   not yet a valid result either way. **UPDATE (2026-07-15, later same day, documentation
+   research pass, no live run)**: the user-flagged 101 doc (`vrf_createScenario.htm`) plus ~10
+   more targeted VR-Forces user-guide pages were read - NEGATIVE result, this is NOT a missed
+   basic-setup step (the offset-route/ground-clamp mechanism sits below the User's Guide,
+   compiled-implementation only). BUT a NEW, untested, nearly-free-to-check lead surfaced: VR-
+   Forces has a documented per-entity "Freeze Movement" property (`vrf_setFreezeMovement.htm`)
+   whose symptom ("tasks that require movement PAUSE while set") matches 1.BdeHQ's 2026-07-15
+   freeze exactly (confirmed dispatch + running clock + zero displacement) - plus a related
+   scenario-level "Send Standard Start/Resume and Stop/Freeze PDUs" setting that gates whether
+   EXTERNAL (non-VR-Forces) participants like our app honor run/pause state. See the investigation
+   doc's "2026-07-15 (fresh session) - DOCUMENTATION RESEARCH PASS" section for full detail and
+   the adversarial caveats. **NEXT SESSION, IN ORDER**: (i) check Freeze Movement / the Start-
+   Resume-Stop-Freeze PDU setting on the next live VR-Forces session (cheap - GUI inspection, no
+   new appNo needed) before re-running anything; (ii) if that doesn't resolve it, re-run the
    ORIGINAL Fixed100 (parity-default) config against a GUI/vrfLauncher-launched Mojave backend as
    a same-session control - this was never done and is needed before the altitude A/B can mean
    anything (see docs/experiments/MOJAVE_ROOTCAUSE_INVESTIGATION_2026-07-14.md "2026-07-15
-   SESSION SYNTHESIS" for the full reasoning).
+   SESSION SYNTHESIS" for the full reasoning). A MAK support message is NOT yet warranted - see
+   the research-pass section for why and what a well-formed question would look like once the
+   confound is resolved.
 2. **Report-stream parity polish**: EntityHealthStatus (needs the bridge to surface health),
    aggregate-component de-dup, multi-content bundling. Position reports work but are chatty.
 3. **Deferred C++-bug fixes** (PORT.md sec 6): distinct C2SimUuid/VrfUuid types (setTarget

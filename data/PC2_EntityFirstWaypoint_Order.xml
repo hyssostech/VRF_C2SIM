@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<MessageBody xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.sisostds.org/schemas/C2SIM/1.1">
+  <DomainMessageBody>
+    <OrderBody>
+      <FromSender>00000000-0000-0001-0001-000000000000</FromSender>
+      <ToReceiver>00000000-0007-0001-0000-000000000000</ToReceiver>
+      <IssuedTime>
+        <IsoDateTime>2026-07-16T00:00:00Z</IsoDateTime>
+      </IssuedTime>
+      <OrderID>c2000000-0000-0000-0000-000000000001</OrderID>
+      <Task>
+        <ManeuverWarfareTask>
+          <Location>
+            <GeodeticCoordinate>
+              <Latitude>34.608415817915</Latitude>
+              <Longitude>-116.712685404877</Longitude>
+            </GeodeticCoordinate>
+          </Location>
+          <Location>
+            <GeodeticCoordinate>
+              <Latitude>34.608415817915</Latitude>
+              <Longitude>-116.700058864366</Longitude>
+            </GeodeticCoordinate>
+          </Location>
+          <Name>T_PC2_TK1</Name>
+          <UUID>c2000000-0000-0000-0000-000000000002</UUID>
+          <DesiredEffectCode>TaskSuccess</DesiredEffectCode>
+          <PerformingEntity>670cfdb2-6c43-f267-ad7f-bd6e739def24</PerformingEntity>
+          <TaskActionCode>MOVE</TaskActionCode>
+          <RuleOfEngagement>
+            <MipWeaponUseROE>
+              <WeaponROECode>
+                <WeaponRuleOfEngagementCode>ROETight</WeaponRuleOfEngagementCode>
+              </WeaponROECode>
+            </MipWeaponUseROE>
+          </RuleOfEngagement>
+        </ManeuverWarfareTask>
+      </Task>
+    </OrderBody>
+  </DomainMessageBody>
+</MessageBody>
