@@ -63,6 +63,15 @@ Three locations are in play:
 > BOTH interfaces - VRF-sourced), runaway containment, force-side probe (Sweden), P1b
 > port-vs-C++ A/B.
 >
+> **2026-07-16 (later): PHASE 0 CORE OF THE GROUNDWORK PLAN IS DONE** - see
+> docs/VRF_GROUND_TRUTH.md (read sec 0.0 first). Headlines: the yellow unit badges are
+> UNREAD VRF Object Console WARNINGS (a remote capture callback exists - the 0.6 tool is
+> the first build item); platoon vs company templates wire DIFFERENT movement
+> controllers (matches the live per-class split); COA-STP1 type fidelity quantified
+> (~64/128 mis-mapped, ~49 generic fallback); remote saveScenario-to-scnx confirmed.
+> Lessons learned registered in the groundwork plan. Session-jump prompt:
+> docs/RESUME_PROMPT.md.
+>
 > **2026-07-16 (late) - NEW PLAN OF RECORD FOR MOVEMENT WORK: docs/VRF_GROUNDWORK_PLAN.md**
 > (user-directed reset after the fix session: the buried-birth fix is accepted in both
 > codebases, but runaway/warp and the pile split proved CODE-INDEPENDENT - the remaining

@@ -263,6 +263,10 @@ NEXT WORK, in order:
 
 ## 5. Current operational state (2026-07-16 evening, at session handoff)
 
+> STALE as of 2026-07-16 late evening - current operational state lives in
+> docs/RESUME_PROMPT.md (VRF closed, rtiexec stopped, server RUNNING, ledger NEXT FREE
+> 3455, app 3439 long since clean-stopped). Kept for the historical record only.
+
 - VR-Forces: user-launched TT session was UP at handoff, with **port app 3439 possibly STILL
   RUNNING and its units alive** (the user was live-experimenting with 1.BdeHQ). NEXT SESSION
   STEP 0: check for a running VrfC2SimApp process; if present, StopIface (clean stop - note

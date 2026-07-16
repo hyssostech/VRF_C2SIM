@@ -13,7 +13,8 @@ BEFORE running). Movement claims REQUIRE WatchVrf displacement - completions LIE
 directions (instant-vacuous AND absent).
 
 WHERE THE WORK LIVES: port repo VRF_C2SIM (submodule at OpenC2SIM.github.io/Software/
-Interfaces/VRF_C2SIM, branch main, tip c26ae1e). READ IN ORDER:
+Interfaces/VRF_C2SIM, branch main - run git log --oneline -3 for the tip; unpushed
+commits are expected). READ IN ORDER:
 (1) docs/VRF_GROUNDWORK_PLAN.md - THE plan of record (2026-07-16 user-directed reset:
     learn native VRF first, then rebuild the creation/mapping layer onto REAL installed
     types, as close to real types as possible).

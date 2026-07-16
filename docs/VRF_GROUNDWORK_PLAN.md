@@ -180,6 +180,45 @@ Exit criteria / what this settles:
 - Phases 2-4 are mostly offline; live checks are short and single-purpose.
 - No further scattergun live probes: every live minute from here serves a phase exit.
 
+## Status
+
+- 2026-07-16 (same evening): **Phase 0.1 / 0.2 / 0.3 DONE** - deliverable
+  docs/VRF_GROUND_TRUTH.md (supervisor-gated; load-bearing claims spot-verified against
+  headers/docs; read its sec 0.0 cross-findings first). Headlines: yellow badge = unread
+  Object Console WARNINGS + a remote callback exists to capture them (0.6 tool is the
+  first build); platoon vs company templates wire DIFFERENT movement controllers
+  (matches the live per-class split - pre-registrable); type fidelity quantified
+  (~64/128 COA-STP1 units mis-mapped, ~49 generic, ~15 lone tanks); remote
+  saveScenario-to-scnx confirmed (0.5 unblocked); paged-region movement behavior
+  UNDOCUMENTED (MAK question material). REMAINING IN PHASE 0: 0.4 (self-launch gate,
+  needs one live probe), 0.5 (scnx harness build), 0.6 (console-capture build).
+  Next live session = Phase 1 (scripted; open the Object Console panel FIRST).
+
+## Lessons learned (2026-07-16 fix session; register in behavior, not just here)
+
+- L1 READ THE TOOL'S OWN DIAGNOSTICS FIRST. VR-Forces broadcast per-unit warning
+  messages the entire time (the yellow badges); days of black-box probing happened
+  while the vendor channel sat unread. For ANY third-party system: subscribe to its
+  console/diagnostic surface before building custom instrumentation around it.
+- L2 CHECK THE API CONTRACT BEFORE ACCEPTING A MECHANISM. The plan's leading suspect
+  (SetAltitude re-burying units) died on one header read (arg = aboveGroundLevel).
+  One hour of header reading killed a wrong fix before it was built.
+- L3 SINGLE-CONSTANT PROBES ON THE ORACLE ARE CHEAP AND DECISIVE. CPP-ALT-1 (one
+  constant on the pristine C++, probe branch, ~1 hr) settled code-independence of the
+  root cause and exonerated altitude for runaway in the original too.
+- L4 RECONCILE EYES AND TELEMETRY - BOTH WAYS. The user's GUI impressions were signal
+  (circle -> on-terrain check; "outside routes" -> offset paths; "makes more sense" ->
+  partly the 1x-vs-20x clock), and telemetry stayed the oracle (the "nothing moved"
+  run had textbook arrivals missed in a 5-min window). Normalize CLOCK and VIEWPORT
+  before comparing impressions across runs.
+- L5 TIMESTAMP BASES DIFFER: app/tool logs stamp UTC, the machine runs local - check
+  Get-Date before comparing (cost a real build-freshness scare).
+- L6 FOUNDATION BEFORE PROBES. When a mapping layer was never validated against the
+  target system's content model, the probe space explodes and results look random.
+  The reset (this plan) is the fix for the process, not just the code.
+- L7 CONCURRENT EXECUTOR WRITES to one shared doc worked only by append-only
+  discipline; next time assign each executor its own file or pre-created section.
+
 ## Decisions log
 
 - 2026-07-16 (late): user directed this reset ("learn how to actually successfully use
@@ -187,3 +226,6 @@ Exit criteria / what this settles:
   Supersedes the sec 3/3c probe ordering; evidence rules unchanged. Fix-session results
   (buried-birth fix accepted; runaway + split altitude-exonerated) are the inputs that
   make the reset well-posed: what remains broken is on the VRF side of the boundary.
+- 2026-07-16 (later): Phase 0 core executed same evening (three parallel Opus
+  executors + supervisor gates); lessons learned registered above; RESUME_PROMPT.md
+  rewritten for the groundwork phase.
