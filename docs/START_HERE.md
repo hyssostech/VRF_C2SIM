@@ -47,9 +47,14 @@ Three locations are in play:
 > the user's live GUI probes: native tasking failed identically on the frozen entity until a
 > GUI drag re-placed it on the surface - after which it even ran the interface's OWN route
 > cleanly. The Live-altitude route fix was separately proven REPRODUCIBLE (two back-to-back
-> textbook arrivals). **THE FIX IS SPECIFIED BUT NOT YET IMPLEMENTED** - see
-> docs/SUPERVISED_RECOVERY_PLAN.md sec 3b (the immediate work item) and the investigation
-> doc parts 13/13b for the full evidence chain. Remaining open: 114.MechCoy
+> textbook arrivals). **THE FIX IS IMPLEMENTED - OFFLINE GATES GREEN, LIVE ACCEPTANCE
+> PENDING (2026-07-16 fix session)**: GroundWaypointAltitudeMode=Live is now the DEFAULT;
+> under Live, ground units are created at CreateAltitudeSafeMslMeters (10000 MSL, above all
+> terrain - VRF's create ground clamp places them on the surface) and the parity post-create
+> SetAltitude is skipped (it is AGL anyway per the MAK header - part 13c); Fixed100 remains
+> the byte-parity escape hatch. See docs/SUPERVISED_RECOVERY_PLAN.md sec 3b (spec + status),
+> investigation doc parts 13/13b/13c (evidence chain) and part 14 (the pre-registered live
+> acceptance probe FIX-ACCEPT-1). Remaining open: 114.MechCoy
 > position-never-publishes (distinct signature), truthful-arrival gate (completions lie in
 > BOTH interfaces - VRF-sourced), runaway containment, force-side probe (Sweden), P1b
 > port-vs-C++ A/B.

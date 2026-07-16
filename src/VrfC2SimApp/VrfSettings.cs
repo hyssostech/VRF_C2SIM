@@ -131,15 +131,32 @@ public class VrfSettings
     public int BundleMaxBytes { get; set; } = 10240;     // C++ maxBundleSizeTextIf
     public int BundleFlushMs { get; set; } = 2000;       // C++ ~2 s reminder-thread flush
 
-    // Mojave root-cause probe/fix (docs/experiments/MOJAVE_ROOTCAUSE_INVESTIGATION_2026-07-14.md).
-    // Ground-unit route waypoints are handed to VRF at a FIXED 100 m MSL ("Fixed100" = the golden-
-    // parity default; a sea-level assumption that works where terrain < 100 m, e.g. Sweden). At a
-    // high-elevation region (Mojave terrain ~1100 m) a 100 m waypoint sits ~1000 m UNDERGROUND, so
-    // the aggregate member offset-route GROUND CLAMP (which entity move-along tolerates but the
-    // disaggregated move-along controller does not - Thread A: closestIntersection/dataAvailable)
-    // yields EMPTY offset routes and the unit freezes. "Live" instead puts each ground waypoint at
-    // the unit's OWN live ground altitude (read from the sim) + LiveClearanceMeters, so waypoints
-    // sit just ABOVE local terrain at ANY region. Opt-in; "Fixed100" is byte-for-byte today's path.
-    public string GroundWaypointAltitudeMode { get; set; } = "Fixed100"; // "Fixed100" | "Live"
+    // Mojave root-cause probe/fix (docs/experiments/MOJAVE_ROOTCAUSE_INVESTIGATION_2026-07-14.md;
+    // create-time terrain-clamp fix in docs/SUPERVISED_RECOVERY_PLAN.md sec 3b). Governs the
+    // altitude of BOTH ground-unit route waypoints AND (as of the create-time fix) the CREATE
+    // position of ground units. Under "Fixed100" route waypoints are handed to VRF at a FIXED
+    // 100 m MSL (a sea-level assumption that works where terrain < 100 m, e.g. Sweden) and ground
+    // units are created at their plan altitude (ElevationAgl MSL) with the deferred SetAltitude -
+    // byte-for-byte today's path (the golden-parity escape hatch). At a high-elevation region
+    // (Mojave terrain ~1100 m) a 100 m waypoint sits ~1000 m UNDERGROUND, so the aggregate member
+    // offset-route GROUND CLAMP (which entity move-along tolerates but the disaggregated move-along
+    // controller does not - Thread A: closestIntersection/dataAvailable) yields EMPTY offset routes
+    // and the unit freezes; and a ground unit BORN below terrain never executes movement at all
+    // (parts 13/13c). "Live" instead puts each ground waypoint at the unit's OWN live ground
+    // altitude (read from the sim) + LiveClearanceMeters, and creates ground units at
+    // CreateAltitudeSafeMslMeters so VRF's create ground clamp drops them onto the surface. "Live"
+    // is THE DEFAULT (the create-time terrain-clamp fix); "Fixed100" is the byte-for-byte
+    // golden-parity escape hatch.
+    public string GroundWaypointAltitudeMode { get; set; } = "Live"; // "Fixed100" | "Live"
     public double GroundWaypointLiveClearanceMeters { get; set; } = 50.0;
+
+    // Live-mode ground-unit CREATE altitude in meters MSL (create-time terrain-clamp fix,
+    // docs/SUPERVISED_RECOVERY_PLAN.md sec 3b). Under GroundWaypointAltitudeMode="Live" a ground
+    // unit is created at THIS altitude instead of its plan altitude (ElevationAgl MSL). It must be
+    // guaranteed ABOVE all Earth terrain (highest ground ~8849 m at Everest) so that VRF's
+    // createEntity ground clamp (default on) can only DROP the birth onto the local surface - a
+    // clamp cannot RAISE a below-terrain birth, which is why fixed-MSL births bury units at high
+    // elevation. Default 10000 m clears every land surface with margin. Ignored under "Fixed100"
+    // and for non-ground (air/sea) units, which keep parity behavior.
+    public double CreateAltitudeSafeMslMeters { get; set; } = 10000.0;
 }

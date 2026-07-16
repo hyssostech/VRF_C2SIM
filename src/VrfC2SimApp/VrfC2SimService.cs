@@ -398,8 +398,37 @@ public sealed class VrfC2SimService : BackgroundService
                 unit = unit with { ElevationAgl = "1000.0" };     // ground-clamp default (:1445-1446)
 
             var plan = UnitTranslator.Plan(unit);
-            if (plan.PostCreateAltitude is double alt)
+
+            // Create-time terrain-clamp fix (docs/SUPERVISED_RECOVERY_PLAN.md sec 3b;
+            // MOJAVE_ROOTCAUSE_INVESTIGATION parts 13/13c). Ground units are otherwise born at a
+            // fixed MSL (ElevationAgl default 1000) that sits BELOW high-elevation terrain: VRF's
+            // create ground-clamp can DROP an above-terrain birth to the surface but cannot RAISE a
+            // below-terrain one, so the unit is born buried and never executes movement. Gated on
+            // the SAME Vrf:GroundWaypointAltitudeMode string the route path uses (case-insensitive
+            // "Live") and the SAME per-unit ground predicate the route path applies (SIDC battle-
+            // dimension char at index 2 == 'G'; the route path reads it off CreatedUnit.SymbolId,
+            // which is this same unit.SymbolId - constant across the unit's tasks, so per-unit).
+            //   Fixed100 (parity): create at the plan altitude + register the deferred SetAltitude.
+            //   Live + GROUND: create at CreateAltitudeSafeMslMeters (above all Earth terrain; the
+            //     clamp places the unit on the surface) and SKIP the deferred SetAltitude.
+            //   Live + NON-ground (air/sea): parity behavior, unchanged.
+            bool liveMode = _vrf.GroundWaypointAltitudeMode.Equals("Live", StringComparison.OrdinalIgnoreCase);
+            bool isGround = unit.SymbolId is { Length: > 2 } sidc && sidc[2] == 'G';
+            if (liveMode && isGround)
+            {
+                double originalCreateAlt = plan.Pos.AltMeters;
+                double safeAlt = _vrf.CreateAltitudeSafeMslMeters;
+                plan = plan with { Pos = new Geodetic { LatDeg = plan.Pos.LatDeg, LonDeg = plan.Pos.LonDeg, AltMeters = safeAlt } };
+                // Deliberately do NOT register _pendingAltitude for this unit (skip the parity SetAltitude).
+                _log.LogInformation("Create-altitude mode=Live: GROUND unit {Name} created at safe MSL " +
+                                    "{Safe} m (original create alt {Orig} m); parity post-create SetAltitude " +
+                                    "SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).",
+                                    plan.Name, safeAlt, originalCreateAlt);
+            }
+            else if (plan.PostCreateAltitude is double alt)
+            {
                 _pendingAltitude[plan.Name] = alt;
+            }
 
             // Retain the taskee lookup so OnOrder can resolve PerformingEntity -> VRF uuid,
             // and the inverse (name -> uuid) so the report callbacks can name their subject.

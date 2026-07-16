@@ -1404,6 +1404,38 @@ so aggregates are not universally broken).
   TryGetEntityGeodetic, guarded against the known ~30 s degenerate-position transient on
   aggregates - never re-place to a degenerate reading).
 
+## 2026-07-16 (part 14) - PRE-REGISTERED PROBE FIX-ACCEPT-1: live acceptance of the
+## create-time altitude fix (plan sec 3b), R9 lean init + order at TropicTortoise, NO drag
+
+Config: port WITH the sec-3b fix at its new defaults (GroundWaypointAltitudeMode=Live,
+clearance 50, CreateAltitudeSafeMslMeters=10000 - ground units born 10000 MSL, parity
+SetAltitude skipped); otherwise EXACTLY the P-C1 config: data/R9_Mojave_Lean_Initialization.xml
++ data/R9_Mojave_UnitMove_Order.xml, ClientId=STP, TimeMultiplier=20, AggregateFormation=auto.
+Fresh user-reloaded TT session; NO manual intervention of any kind. Movement oracle: WatchVrf
+displacement ONLY; watch starts BEFORE the order (P-C1 run-2 pattern). appNos: 3442 retired
+unused (ledger note); planned 3443 sweep, 3444 app, 3445 watch.
+
+PRE-REGISTERED PREDICTIONS (written before execution):
+- P1 fix works fully: ALL THREE units move - 1.BdeHQ marches its ~1.2 km route (no drag),
+  1222.MechPlt arrives (as both P-C1 runs), 114.MechCoy publishes AND moves. Root cause
+  fixed across unit classes.
+- P2 entity cured, company still mute: 1.BdeHQ moves; platoon arrives; 114.MechCoy still
+  never publishes. Fix CONFIRMED for the entity-freeze class; the company's
+  position-never-publishes stays its own tracked question (plan open item (a)).
+  (P1 or P2 = ACCEPT the fix as the new default.)
+- P3 entity still frozen (no drag): buried-birth latch FALSIFIED as the sole entity
+  mechanism for the lean-init case. Fix stays in the tree but acceptance FAILS; next
+  probes: lean-vs-full init (the standing R9-A contrary data point - same entity, buried
+  birth, FULL 80-unit init, moved on 2026-07-13) and the drag-mimic fallback (SetLocation
+  re-place at the reflected clamped geodetic).
+- P4 platoon regresses (freezes/floats vs its two P-C1 textbook arrivals): aggregate
+  safe-high birth is HARMFUL (10000 MSL extrapolates beyond the ~950 m-above Bogaland
+  evidence; createAggregate has no clamp param). Gate the create fix to ENTITIES only,
+  re-run.
+- FALSIFIER WATCH in every arm: app-log route vertex altitudes must be ~live-ground+50; a
+  ~10050 m vertex means the route's live-position read raced the create clamp (a NEW
+  defect - fix before adjudicating). WatchVrf altitude column must show no floating units.
+
 ## 2026-07-15 (fresh session) - DOCUMENTATION RESEARCH PASS (read-only, no live run)
 
 User directive: before continuing hypothesis-chasing, do real research - read VR-Forces' own

@@ -151,6 +151,18 @@ Supervisor-specified design (executor implements; adversarial review before merg
 - LIVE ACCEPTANCE (supervisor-gated, needs user VRF): re-run the R9 lean init + order with
   the fix, NO manual drag - ALL units (entity + both aggregates) must move without
   intervention; telemetry-verified arrivals. Fresh appNos from the Appendix B ledger.
+- STATUS 2026-07-16 (fix session): IMPLEMENTED offline per this spec (Opus executor +
+  supervisor refuter pass on the diff). VrfSettings: default mode now "Live" +
+  CreateAltitudeSafeMslMeters=10000. Service create path: gated on the mode + the route
+  path's own SIDC[2]=='G' ground predicate (null-hardened); Live+ground = born 10000 MSL,
+  parity SetAltitude skipped (logged); Fixed100 falls to the byte-identical parity branch;
+  UnitTranslator + native untouched; appsettings carries no mode pin so the default applies.
+  OFFLINE GATES GREEN (build 0 errors; 8/8 selftests unchanged, re-run independently by the
+  supervisor). LIVE ACCEPTANCE PENDING - pre-registered as investigation doc part 14.
+  Supervisor-noted live risks: (i) aggregate births at 10000 MSL extrapolate beyond the
+  ~950 m-above Bogaland evidence (createAggregate has no clamp param) - a platoon
+  regression gates the fix to entities only; (ii) a route-vertex read racing the create
+  clamp would show ~10050 m vertices in the app log - falsifier watch, not assumed absent.
 
 ## 3. Probe queue (ordered; each names its decision)
 
