@@ -905,11 +905,20 @@ proceed on a slow proxy - the STOMP client cannot ride it out.
 
 ## Appendix B - ApplicationNumber ledger
 
-3200-3442: consumed or skipped (see entries below). NEXT FREE: 3443 (always take the number
+3200-3447: consumed or skipped (see entries below). NEXT FREE: 3448 (always take the number
 after the last ledger entry). Record each join here as it is consumed (app / ResetVrf /
 WatchVrf each take one). Never reuse.
 - 3442: SKIPPED out of caution - part 13b's pre-registration text listed it for the P-C2
   watch, which actually ran as 3441; never confirmed unjoined, so retired unused.
+- 3443: ResetVrf --dry-run, FIX-ACCEPT-1 pre-run sweep on the user-reloaded TT session
+  (2026-07-16 evening). Clean: 2 baseline objects.
+- 3444: port app, FIX-ACCEPT-1 (sec-3b fix at new defaults: Live + safe-MSL 10000 creates,
+  parity SetAltitude skipped; STP, 20x, formation=auto, R9 lean init + R9 order). RESULT:
+  prediction P1 - ALL THREE units moved with NO drag (investigation doc part 14).
+- 3445: WatchVrf 90s/10s pre-order altitude check - entity clamped ON terrain (1131.4),
+  members on terrain, aggregates degenerate 7-8 min post-create (resolved on tasking).
+- 3446: WatchVrf 300s/10s FIX-ACCEPT-1 transit watch (the P1 evidence capture).
+- 3447: WatchVrf 180s/15s end-state watch (company arrival / runaway check).
 - 3435: ResetVrf --dry-run, fresh TT session (2026-07-16 ~13:00 launch). Clean, 2 baseline.
 - 3436: port app, P-C1 run 1 (Live c=50, R9 lean, STP, 20x, formation=auto). 1222.MechPlt
   marched + completed (members telemetry-verified AT final waypoint); 114.MechCoy degenerate;

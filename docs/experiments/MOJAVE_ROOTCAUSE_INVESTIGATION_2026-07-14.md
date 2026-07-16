@@ -1436,6 +1436,42 @@ PRE-REGISTERED PREDICTIONS (written before execution):
   ~10050 m vertex means the route's live-position read raced the create clamp (a NEW
   defect - fix before adjudicating). WatchVrf altitude column must show no floating units.
 
+**RESULT (2026-07-16 evening, apps 3443-3447): PREDICTION P1 CONFIRMED - ALL THREE UNITS
+MOVED WITH NO DRAG AND NO INTERVENTION. THE CREATE-TIME ALTITUDE FIX IS LIVE-ACCEPTED.**
+- Pre-run sweep 3443 clean (2 baseline). All 6 ground units logged born-at-10000 + parity
+  SetAltitude skipped. Pre-order watch 3445: entity CLAMPED ON TERRAIN (1131.4 m at its
+  exact init lat/lon), all member vehicles on terrain (1040.6 / ~1116.x = local terrain) -
+  NO floating units; the born-above + create-clamp mechanism works as designed.
+- **1.BdeHQ (THE frozen entity class): marched 1157 m east and stopped 0.5 m from its
+  T_R5_TK1 final waypoint** (34.608419,-116.700062 vs ordered -116.700058864). Altitude
+  tracked terrain the whole way (1131.4 -> 1121.1). End-state watch 3447: 0.0 m drift over
+  165 s - clean arrival, parked. The entity-freeze root cause (buried birth) is FIXED.
+- 1222.MechPlt: aggregate + all 4 members marched ~1.15 km and stopped 8 m from the final
+  waypoint - the EXACT P-C1 textbook-arrival signature, third consecutive reproduction.
+- 114.MechCoy (the never-publishes company): **PUBLISHED and MOVED** - 701 m due north
+  exactly on its ordered route longitude, through wp1, halting with its LEAD member ~42 m
+  from the final vertex; the aggregate CENTER stopped ~412 m short = the DOCUMENTED
+  leading-edge completion prematurity (formation column spans ~700+ m), not a freeze. Its
+  per-unit pathology (degenerate position forever, zero motion) did NOT reproduce under
+  the fix - open item (a) is at minimum DOWNGRADED (needs one more reproduction to close).
+- Falsifier watches: clear. No floating units at any sample; no runaway (all three units
+  + all members 0.0 m drift in the 165 s end-state window); no ~10 km route vertices
+  (movement executed correctly to ordered destinations).
+- NEW facts recorded: (i) aggregate points stayed degenerate 7-8 MINUTES post-create
+  (vs P-C1's ~30 s) and resolved ON TASKING - degenerate-at-rest is benign, but do not
+  gate anything on pre-task aggregate position publication; (ii) all three TASKCMPLTs
+  fired within seconds of dispatch while real transit followed for minutes - the vacuous-
+  completion class is unchanged by this fix; the truthful-arrival gate (plan sec 4 item 1)
+  remains mandatory; (iii) GUI cosmetics of the high birth (one unit briefly rendered as a
+  circle + warning badges at create time) while telemetry showed on-terrain state - watch
+  for it, cosmetic only, cleared once units settled/tasked.
+- NOTE on "altitudes remained MSL" (user GUI observation): correct and EXPECTED - the fix
+  never changed the altitude REFERENCE (creates are geodetic MSL by API); it changed the
+  VALUE from a fixed 1000 MSL (below 1131 m terrain = buried) to 10000 MSL (above all
+  terrain) + create-clamp. A unit reading 1131 MSL on 1131 m terrain is AT 0 AGL = ON the
+  surface = the fixed state. R9-A's lean-vs-full anomaly is now MOOT for the fix (the fix
+  cures the lean case the anomaly lived in).
+
 ## 2026-07-15 (fresh session) - DOCUMENTATION RESEARCH PASS (read-only, no live run)
 
 User directive: before continuing hypothesis-chasing, do real research - read VR-Forces' own

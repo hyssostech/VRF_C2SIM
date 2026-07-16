@@ -158,11 +158,16 @@ Supervisor-specified design (executor implements; adversarial review before merg
   parity SetAltitude skipped (logged); Fixed100 falls to the byte-identical parity branch;
   UnitTranslator + native untouched; appsettings carries no mode pin so the default applies.
   OFFLINE GATES GREEN (build 0 errors; 8/8 selftests unchanged, re-run independently by the
-  supervisor). LIVE ACCEPTANCE PENDING - pre-registered as investigation doc part 14.
-  Supervisor-noted live risks: (i) aggregate births at 10000 MSL extrapolate beyond the
-  ~950 m-above Bogaland evidence (createAggregate has no clamp param) - a platoon
-  regression gates the fix to entities only; (ii) a route-vertex read racing the create
-  clamp would show ~10050 m vertices in the app log - falsifier watch, not assumed absent.
+  supervisor). **LIVE-ACCEPTED (2026-07-16 evening, FIX-ACCEPT-1, apps 3443-3447,
+  prediction P1): ALL THREE units moved with NO drag** - entity 1.BdeHQ marched 1157 m and
+  parked 0.5 m from its final waypoint (the frozen class is CURED); platoon third textbook
+  8 m arrival; company PUBLISHED + marched 701 m on-axis, halting on the documented
+  leading-edge completion (center 412 m short by design, not a freeze). Both supervisor-
+  noted live risks cleared (no floating units, no runaway, no 10 km route vertices).
+  Full record: investigation doc part 14 RESULT. Vacuous completions unchanged - the
+  sec-4 truthful-arrival gate is now the top open work item. Open item (a) 114.MechCoy
+  never-publishes DID NOT REPRODUCE under the fix (downgraded, one more reproduction to
+  close). R9-A lean-vs-full anomaly moot for the fix.
 
 ## 3. Probe queue (ordered; each names its decision)
 
