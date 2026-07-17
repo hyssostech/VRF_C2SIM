@@ -182,6 +182,22 @@ Exit criteria / what this settles:
 
 ## Status
 
+- 2026-07-17 (+1): Phase 2.1 and 2.4 DONE - both supervisor-accepted.
+  E5 docs/TYPE_MAPPING_TABLE.md: 128 COA-STP1 partition EXACT 7 / NEAR 64 / PEND 54 /
+  LONE 1 / AVN 2 (arithmetic re-summed at the gate; dispatch mechanism verified in
+  UnitTranslator.cs - SIDC index 11, not EchelonCode); 71/128 get correct/near real
+  types with NO user decision; golden init (80 units) shown separately; two soft gaps
+  beyond the adjudication doc (friendly recon, anti-armor). PEND rows stay neutral.
+  E7 docs/experiments/RUNAWAY_WARP_CENSUS_2026-07-17.md: controller-split SUPPORTED
+  directionally (LF 3/5 moved, HU 0/4, entity 0/2, both codebases; echelon-confounded,
+  live probe still required); 18.1-18.4 km band REAL (6 tight, terminal - nothing
+  stops 19-50 km) at 1x, absent at 20x; arrived=0 both runs; pile not the
+  discriminator (all taskees born in it). SUPERVISOR GATE ADDENDUM (census sec 11):
+  transient warps are LOCKSTEP group events failing frame-stall arithmetic at 1x -
+  leading candidate is an OBSERVER-SIDE dead-reckoning artifact; persistent
+  underground end-states remain the real port-20x runaway class; member-entity warp
+  telemetry observation-suspect pending a raw-vs-DR WatchVrf discriminator
+  (enhancement candidate, registered as ground truth 0.0 item 6).
 - 2026-07-17: Phase 2.3 DONE - docs/TASK_VOCABULARY_V2.md (E6) supervisor-accepted:
   verb counts + STREND 31/42 + all-42-self-target re-verified from raw XML at the
   gate; IsImplemented==false for HoldObjective/Clear confirmed in code. Headlines:

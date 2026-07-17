@@ -40,6 +40,22 @@ C:\MAK\vrlink5.8. ASCII only.
 5. SETTLED FOR THE ARRIVAL GATE: unit route completion = formation LEADING EDGE at last
    vertex (0.2, verbatim doc quote) - VRF unit completions are premature BY DESIGN;
    entity at-distance tasks accept an explicit arrival radius (0.3 setAtDistance).
+6. WARP DECOMPOSITION (2026-07-17, supervisor, found gating the E7 census - see
+   docs/experiments/RUNAWAY_WARP_CENSUS_2026-07-17.md secs 6 and 11): the archived
+   "warp" events split into TWO phenomena. (a) TRANSIENT out-and-back mega-jumps -
+   lockstep across co-located member entities (one displacement vector per formation
+   per sample step), present at BOTH 1x and 20x, altitude spiking off-terrain then
+   snapping back to the marching track - leading candidate: OBSERVER-SIDE
+   dead-reckoning artifact in the reflected read (VR-Link DR-extrapolates from last
+   received state; a corrupt/thrashing member velocity extrapolates absurdly).
+   Member-entity warp telemetry is observation-suspect until the raw-vs-DR live
+   discriminator runs (WatchVrf enhancement candidate). (b) PERSISTENT displaced
+   end-states (port 20x tasked LF aggregates constant at -1306/-1681 m underground,
+   41-83 km out) - a persistent position IS the reflected state; this is the real
+   runaway/termination class, port-20x-specific in the archived data. Aggregate-icon
+   telemetry, the 18.1-18.4 km stall band, and the E7 controller-split verdict
+   (LF 3/5 moved, HU 0/4, entity 0/2 - both codebases; echelon-confounded) are
+   UNAFFECTED.
 
 ---
 
