@@ -85,8 +85,12 @@ support rather than a doc lookup.
 **Two modeling worlds.** VR-Forces has "two, quite different, ways to model
 simulation objects - entity-level modeling and aggregate-level modeling"
 [Modeling\Modeling_Units.htm]. Our C2simEx/EntityLevel chain is entity-level;
-the distinction matters for every claim below (aggregate-level units can never
-disaggregate; entity-level units can).
+the distinction matters for every claim below (aggregate-level units cannot
+disaggregate - doc-verbatim "In aggregate-level scenarios, most preconfigured units
+cannot be disaggregated" [Modeling\UnitCreation\vrf_createAggregates.htm]; and every
+EntityLevel.sms unit CAN [Modeling\EntityLevel\vrf_entityLevelAggregateConcepts.htm].
+Supervisor wording correction 2026-07-17: this line originally said "can never" -
+the doc says "most ... cannot").
 
 **Placing an object (palette + click-to-create).** After you select a template
 on the Simulation Objects Palette, a "Create object" tab is added below the

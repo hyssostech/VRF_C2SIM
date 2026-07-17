@@ -182,6 +182,20 @@ Exit criteria / what this settles:
 
 ## Status
 
+- 2026-07-17 (+2): E8 PRIOR-ART WEB SURVEY launched (user-directed: "how do other
+  people deal with these limitations?" - a pass the plan never scheduled; research
+  debt owned). Questions: type-mapping/content-authoring practice in other C2SIM/BML
+  integrations (NATO MSG-085/145/201, SISO SIW, GMU papers), public record of VRF
+  remote-aggregate tasking problems, MSDL import as the established OOB-creation
+  alternative (VRF docs show MSDL export; import support = E8 question), FTRT
+  dead-reckoning practice, terrain-paging movement reports. Deliverable
+  docs/PRIOR_ART_SURVEY.md. ALSO: authoring capabilities question answered from
+  installed docs - Simulation Object Editor has full entity-level UNIT template
+  authoring (create/edit units, subordinates+function+order, compositions,
+  formations: SimulationModels\EntityLevelScenariosUnits\*), custom model-set
+  layering (NewSMSCreate*), file import (EntityFilesImport), AddingContent.pdf;
+  PRECEDENT: our loaded C2simEx set already contains 4 custom-authored templates
+  (AR Scout, Mobile Irregular, Mobile Light Infantry, Skiff).
 - 2026-07-17 (+1): Phase 2.1 and 2.4 DONE - both supervisor-accepted.
   E5 docs/TYPE_MAPPING_TABLE.md: 128 COA-STP1 partition EXACT 7 / NEAR 64 / PEND 54 /
   LONE 1 / AVN 2 (arithmetic re-summed at the gate; dispatch mechanism verified in

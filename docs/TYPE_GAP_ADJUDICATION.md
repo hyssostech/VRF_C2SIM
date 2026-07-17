@@ -138,3 +138,46 @@ match fix (A); note the echelon label changes under B.
 4. Authoring appetite: for the genuine gaps (engineer sapper/bridging, IFV mech company,
    mortar/rocket units), is authoring new entity-level .entity templates in scope for this
    effort, or must we live entirely within installed content?
+
+---
+
+## USER RULINGS (2026-07-17; recorded by supervisor from the user's answers verbatim-in-spirit)
+
+- **Q1 (country by side): NARROWED, pick still open.** User asked "is there a chinese
+  code?" FACTUAL ANSWER (verified on disk this pass): DIS Country 45 = China; the
+  installed content has 11 Chinese-lineage PLATFORM entities (Chengdu J-7/J-10C/J-20,
+  JF-17, Harbin Z-9 / SH-5, HQ-2 launcher, HQ-9 TEL, Type 054A frigate, DJI S1000,
+  Fajr Houdong boat) - air / naval / air-defense only. ZERO Chinese ground-combat
+  platforms (no tank, IFV, APC) and ZERO Chinese aggregates of any kind. A Chinese
+  hostile force is therefore not assemblable from installed content; it would mean
+  authoring both unit templates AND ground platform entries (DIS-typed 45) with no
+  matching visual models on disk. RUS (222) remains the only hostile country with
+  composed ground aggregates installed. OPTIONS: (a) keep USA-225 for hostile (as
+  today), (b) RUS-222 mirrors where they exist, (c) author Country-45 content
+  (heaviest; platforms + units). AWAITING the user's pick.
+- **Q2 (aggregate-level modeling): RULED NO - stay entity-level.** User principle:
+  "we favor the obvious: the ability to actually perform the tasks." Factual basis
+  re-verified verbatim: "In aggregate-level scenarios, most preconfigured units cannot
+  be disaggregated" [Modeling\UnitCreation\vrf_createAggregates.htm] and every
+  EntityLevel.sms unit CAN disaggregate [Modeling\EntityLevel\
+  vrf_entityLevelAggregateConcepts.htm]. (Correction of record: this doc's scope note
+  and ground truth said "can never disaggregate" - the doc's actual wording is
+  "most ... cannot"; the ruling is unaffected since task-performability excludes that
+  content either way.) CONSEQUENCE: every OUT-OF-CHAIN (AggregateLevel) candidate row
+  in gaps 1-3 is eliminated; per the doc's own note, gaps reduce to "proxy now or
+  author entity-level."
+- **By the same principle (task-performability), the Phase-3 aggregation-STATE policy
+  (TASK_VOCABULARY_V2.md open question 1) is recorded as: run entity-level units
+  DISAGGREGATED where the tasked verb requires combat/defense behaviors.** (Supervisor
+  reading of the user's principle - flag if over-read.)
+- **Q3 (surface proxy substitutions): RULED YES** - "surface." The port will mark
+  proxy-mapped units so downstream C2SIM consumers see the approximation.
+- **Q4 (authoring): RULED IN SCOPE** - "given the limitations you are already
+  encountering on a small scenario, authoring seems inescapable." CONSEQUENCE for
+  gaps 1-3: the default resolution becomes AUTHOR proper entity-level templates
+  (engineer company/BN, IFV mech-infantry company, mortar platoon/company + rocket
+  battery) composed from installed platforms (M2A2, M1064, M252, M270, M142 all exist
+  on disk), with in-chain proxies acceptable as INTERIM mappings until authored
+  templates land. Decision item 4 (ArmorCoHQ) remains an A-vs-B code choice; option B
+  (Tank Headquarters Section) is already militarily correct, so authoring adds no
+  obvious option C there.

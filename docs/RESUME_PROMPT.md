@@ -72,13 +72,18 @@ Rifle Platoon (USA Army) (HU), same echelon, tasked identically. E7's census is 
 offline test of the same hypothesis; if E7 supports it, the live probe rises in
 priority.
 
+USER RULINGS RECORDED 2026-07-17 (TYPE_GAP_ADJUDICATION.md "USER RULINGS" section):
+Q2 = NO aggregate-level modeling (task-performability wins; all out-of-chain
+candidates eliminated); Q3 = YES surface proxy substitutions; Q4 = AUTHORING IN
+SCOPE ("inescapable") - gaps 1-3 default to authoring entity-level templates with
+in-chain proxies as interim; aggregation-STATE policy = run disaggregated where the
+verb needs combat (supervisor reading of the same principle, user may correct).
+
 PENDING USER DECISIONS (do not decide these yourself):
-1. TYPE_GAP_ADJUDICATION.md: gap 1 engineer (rec: Tank Breach Company proxy), gap 2
-   mech-inf (rec: aggregate-Co-Infantry if dismounted OK), gap 3 mortar/rocket (rec:
-   M109 FA platoon/battery proxy), item 4 ArmorCoHQ (rec: option B Tank HQ Section),
-   plus policy Q1 hostile-side country (USA vs RUS mirrors), Q2 aggregate-level ever
-   acceptable, Q3 surface proxy substitutions downstream, Q4 authoring new templates
-   in scope.
+1. Q1 hostile-side country PICK: keep USA-225 / RUS-222 mirrors / author Country-45
+   (China) content. Verified: 11 Chinese platforms on disk (air/naval/AD only),
+   ZERO Chinese ground-combat platforms or aggregates - option (c) is heaviest.
+   Also still open: ArmorCoHQ Decision 4 A-vs-B (rec B, Tank HQ Section).
 2. 0.4 live-gate approval (supervised session; 4 app numbers; abort criteria in the
    prereg).
 3. D1: 20x mechanism for Phase 1 (recommend remote setTimeMultiplier(20), the same
