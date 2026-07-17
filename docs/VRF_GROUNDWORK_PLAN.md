@@ -182,6 +182,19 @@ Exit criteria / what this settles:
 
 ## Status
 
+- 2026-07-17 (+3): E8 PRIOR-ART SURVEY LANDED and supervisor-ACCEPTED
+  (docs/PRIOR_ART_SURVEY.md; provenance-tagged - [PRIMARY-FETCHED] vs
+  [SEARCH-EXTRACT]; the MAK docs host was DNS-unreachable, so open-web nulls do not
+  rule out MAK-KB answers). Gate verifications: MSDL-import claim re-fetched from
+  MAK's own capabilities page (CONFIRMED verbatim); the VR-Link DR claim UPGRADED to
+  header-verified locally - esr()->location() extrapolates to read time by design,
+  and `lastSetLocation()` is the raw accessor, making the queued raw-vs-DR
+  discriminator a two-accessor logging change (census sec 11 updated). Headlines:
+  our five problem classes have NO public solutions (candidate MAK-ticket list);
+  authoring model-set content is normal vendor practice (5.2 shipped more
+  aggregates); MSDL IMPORT is the sanctioned OOB-load path others use - QUEUED:
+  Phase-2 MSDL spike (import a small OOB, ScnxDiff it against remote-created and
+  GUI-created units; live-gated, folds into the next live session after Phase 1).
 - 2026-07-17 (+2): E8 PRIOR-ART WEB SURVEY launched (user-directed: "how do other
   people deal with these limitations?" - a pass the plan never scheduled; research
   debt owned). Questions: type-mapping/content-authoring practice in other C2SIM/BML

@@ -376,3 +376,13 @@ entity state (position + timestamp + velocity) alongside the DR-extrapolated rea
 few member uuids. DR-artifact predicts raw positions stay sane while DR reads excurse;
 backend-real predicts both agree. Also relevant: GT 0.2 sec 8 documents DR mismatch for
 cross-federate reads around fast-than-real-time operation.
+
+HEADER-VERIFIED at the E8 gate (2026-07-17, installed VR-Link 5.8 headers): the
+mechanism and the exact discriminator API both exist. vl/baseEntityStateRepository.h:
+`location()` returns the position "at the current simulation time" THROUGH the
+approximator, whose default is DtDeadReckoner (:188-189 "By default this is
+DtDeadReckoner"); vlpi/deadReckoner.h: `deadReckonedLocation(curTime)` extrapolates to
+read time. So the facade's esr()->location() read IS extrapolation BY DESIGN. The raw
+accessor is `lastSetLocation()` (:116-118, "the value last passed to setLocation,
+regardless of whether we have an approximator") - the discriminator is literally
+logging both accessors side by side (plus lastSetVelocity() for diagnosis).
