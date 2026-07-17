@@ -1,4 +1,4 @@
-# RESUME PROMPT (2026-07-17 handoff - PHASE 0 OFFLINE DONE, PHASE 2 EXECUTING)
+# RESUME PROMPT (2026-07-17 session jump - PHASE 0+2 OFFLINE COMPLETE; LIVE QUEUE READY)
 
 Paste the block below into a fresh session. It supersedes all earlier resume prompts.
 
@@ -7,122 +7,124 @@ Paste the block below into a fresh session. It supersedes all earlier resume pro
 Resume the C2SIM VR-Forces -> .NET effort in SUPERVISOR MODE (user-directed standing
 model): YOU supervise - design and gate probes, adjudicate evidence adversarially, keep
 docs current AS work lands - while Opus (or lower) EXECUTOR agents do the work (code,
-analysis, reading, runs). Adversarial refuter pass on load-bearing claims before
-acceptance (re-run executors' acceptance checks with your own hands - that is how real
-defects have been caught). Pre-register every probe (one variable; prediction +
-falsifier written BEFORE running). Movement claims REQUIRE WatchVrf displacement -
-completions LIE in both directions (instant-vacuous AND absent).
+analysis, reading, runs). Adversarial refuter pass on every load-bearing claim before
+acceptance: RE-RUN executors' acceptance checks with your own hands (every gate this
+effort ran that dug deeper found something real - a poll-logic bug, an overstated doc
+claim, a full warp-mechanism reinterpretation). Pre-register every probe (one
+variable; prediction + falsifier written BEFORE running). Movement claims REQUIRE
+WatchVrf displacement - completions LIE in both directions (instant-vacuous AND
+absent). ASCII-only in tracked files.
 
 WHERE THE WORK LIVES: port repo VRF_C2SIM (submodule at OpenC2SIM.github.io/Software/
-Interfaces/VRF_C2SIM, branch main - run git log --oneline -3 for the tip; unpushed
-commits are expected; tip at write time a61adbe, ahead 25). READ IN ORDER:
-(1) docs/VRF_GROUNDWORK_PLAN.md - THE plan of record (read Status top entries first).
-(2) docs/VRF_GROUND_TRUTH.md - Phase 0 deliverable (0.0 supervisor cross-findings
-    FIRST - note the 0.0-#2 REFINEMENT; then 0.1 catalog / 0.2 curriculum / 0.3 API
-    audit / 0.5 scnx container as needed).
-(3) docs/TYPE_GAP_ADJUDICATION.md (pending user decisions) and
-    docs/PHASE1_SESSION_SCRIPT.md (the next live session, pre-registered P1-A..D).
-(4) docs/SUPERVISED_RECOVERY_PLAN.md - standing rules (telemetry oracle, probe
-    discipline, appNo ledger); its sec 3/3c probe ordering is RETIRED.
-(5) docs/experiments/MOJAVE_ROOTCAUSE_INVESTIGATION_2026-07-14.md parts 13-16 as
-    needed; RUNBOOK secs 0/0.5/0.6/7 before any live work.
+Interfaces/VRF_C2SIM, branch main; unpushed commits are expected - run
+git log --oneline -5; last substantive 2026-07-17 commits: 8f40c63 prior-art survey +
+DR header verification, 326a22c user rulings recorded). READ IN ORDER:
+(1) docs/VRF_GROUNDWORK_PLAN.md - THE plan of record; its Status top entries ARE the
+    current state.
+(2) docs/VRF_GROUND_TRUTH.md sec 0.0 cross-findings 1-6 FIRST (note the item-2
+    REFINEMENT and item-6 warp decomposition), then 0.1 catalog / 0.2 curriculum /
+    0.3 API audit / 0.5 scnx container as needed.
+(3) The Phase-2 deliverables: docs/TYPE_GAP_ADJUDICATION.md (incl USER RULINGS
+    section at the end), docs/TYPE_MAPPING_TABLE.md, docs/TASK_VOCABULARY_V2.md,
+    docs/PRIOR_ART_SURVEY.md, docs/experiments/RUNAWAY_WARP_CENSUS_2026-07-17.md
+    (sec 11 = the warp reinterpretation).
+(4) docs/PHASE1_SESSION_SCRIPT.md (the next live session, pre-registered P1-A..D)
+    and docs/experiments/PREREG_0_4_SELFLAUNCH.md (self-launch live-gate prereg).
+(5) docs/SUPERVISED_RECOVERY_PLAN.md standing rules (its sec 3/3c ordering is
+    RETIRED); RUNBOOK secs 0/0.5/0.6/7 before any live work.
 
-STATE (2026-07-17): Phase 0 offline work is COMPLETE and COMMITTED (50a5c0c..a61adbe):
-- 0.6 CONSOLE CAPTURE BUILT: WatchVrf emits CON,<t>,<uuid>,<level>,<msg> beside POS
-  (one UTC base; ConFormat reversible escaping; --con-selftest offline). LIVE GATE
-  PENDING: does VRF deliver console messages over the wire in our federation.
-- 0.5 SCNX HARNESS BUILT: tools/ScnxDiff (dump/diff). KEY FINDINGS (ground truth 0.5):
-  .scnx units are MAK S-EXPRESSIONS not XML; echelon IDs NOT persisted; parent-name
-  uuid = the only org linkage; leader=doc-order is an assumption to live-verify.
-- 0.4 SELF-LAUNCH DRAFTED, NOT LIVE-GATED: scripts/LaunchVrf.ps1 (combined-mode
-  vrfLauncher, refuses backend-only + existing processes, -DryRun verified) +
-  docs/experiments/PREREG_0_4_SELFLAUNCH.md (prediction: ResetVrf --dry-run clean
-  TWICE; top risk = session-startup dialog RISK A). Needs user approval to run.
-- TYPE-GAP ADJUDICATION TABLE ready for the user (see PENDING USER below).
-- PHASE 1 SESSION SCRIPT ready (docs/PHASE1_SESSION_SCRIPT.md): real types M1A2 /
-  Tank Platoon (USA) LF / Tank Company (USA) HU; BOTH platoon and company cross the
-  18.1-18.4 km band; badge-clearing capture protocol; open decision D1 (how to set
-  20x: prefer remote setTimeMultiplier(20) - GUI toolbar caps at 15).
-Earlier settled state stands: buried-birth altitude FIXED both codebases;
-runaway/warp + pile split ALTITUDE-EXONERATED, open, reproduce in both codebases;
-yellow badges = unread Object Console warnings; ~64/128 COA-STP1 -> Tank Company
-mis-map, ~49 generic fallback, ~15 lone M1A2.
+STATE (2026-07-17, ALL COMMITTED, tree clean):
+- Phase 0 offline COMPLETE: 0.6 console capture BUILT (WatchVrf CON,<t>,<uuid>,
+  <level>,<msg> beside POS, one UTC base; live gate pending); 0.5 ScnxDiff BUILT
+  (.scnx units are S-EXPRESSIONS not XML; echelon IDs not persisted; parent-name is
+  the only org linkage); 0.4 scripts/LaunchVrf.ps1 + prereg DRAFTED (combined-mode
+  vrfLauncher only; live gate needs USER APPROVAL; top risk = session-startup
+  dialog, prereg RISK A).
+- Phase 2 offline COMPLETE: 2.1 TYPE_MAPPING_TABLE (128 = EXACT 7 / NEAR 64 /
+  PEND 54 / LONE 1 / AVN 2; 71 need no user decision); 2.3 TASK_VOCABULARY_V2 (real
+  collapse-to-move = HoldObjective family + CLRLND; combat verbs REQUIRE
+  disaggregation; Patrol/Follow NEVER self-complete - chain poison; recommendation:
+  keep external sequencer, re-key CompleteTask to displacement arrival); 2.4 census
+  (controller split SUPPORTED directionally - LF 3/5 moved, HU 0/4, entity 0/2,
+  BOTH codebases, echelon-confounded; 18.1-18.4 km stall band REAL and terminal at
+  1x; arrived=0 in both archived runs).
+- WARP DECOMPOSITION (ground truth 0.0 item 6, census sec 11): transient mega-jumps
+  are LOCKSTEP formation-group events - leading candidate OBSERVER-SIDE
+  dead-reckoning artifact, mechanism HEADER-VERIFIED: VR-Link esr()->location()
+  extrapolates to read time via default DtDeadReckoner; `lastSetLocation()` is the
+  raw accessor (vl/baseEntityStateRepository.h:108-196). The raw-vs-DR WatchVrf
+  logging change is SPECIFIED but NOT APPROVED (it touches the movement oracle).
+  Persistent underground end-states (port 20x) = the real runaway class.
+- PRIOR ART (docs/PRIOR_ART_SURVEY.md): our five problem classes have NO public
+  solutions (MAK's docs host/KB was unreachable - all nulls are open-web only, which
+  STRENGTHENS the case for the MAK support ticket); authoring model-set content is
+  normal vendor practice (5.2 shipped more aggregates); MSDL IMPORT is the
+  established OOB-load alternative to per-unit remote creation (verified on MAK's
+  capabilities page) - MSDL-vs-remote-vs-GUI ScnxDiff spike QUEUED.
+- USER RULINGS RECORDED (TYPE_GAP_ADJUDICATION.md USER RULINGS section): Q2 = NO
+  aggregate-level modeling (task-performability wins; out-of-chain candidates
+  eliminated; doc-verbatim basis recorded); Q3 = YES, surface proxy substitutions
+  downstream; Q4 = AUTHORING IN SCOPE ("inescapable") - gaps 1-3 default to
+  authoring entity-level templates from installed platforms, in-chain proxies as
+  interim; aggregation-STATE policy = run disaggregated where the verb needs combat
+  (supervisor reading of the user's principle - user may correct).
 
-PHASE 2 OFFLINE WORK LANDED, GATED, COMMITTED (2026-07-17, commits 277cbab/375c5e0/
-974f443 - all supervisor-accepted with independent re-verification):
-- 2.1 docs/TYPE_MAPPING_TABLE.md: 128 = EXACT 7 / NEAR 64 / PEND 54 / LONE 1 / AVN 2;
-  71/128 need NO user decision; PEND rows reproduce (not decide) the adjudications.
-- 2.3 docs/TASK_VOCABULARY_V2.md: real collapse-to-move = HoldObjective family +
-  CLRLND; combat verbs need DISAGGREGATION (user policy question); Patrol/Follow
-  never self-complete; recommendation = external sequencer re-keyed to displacement.
-- 2.4 docs/experiments/RUNAWAY_WARP_CENSUS_2026-07-17.md: controller-split SUPPORTED
-  directionally (LF 3/5 moved, HU 0/4, entity 0/2, BOTH codebases;
-  echelon-confounded); 18.1-18.4 km band real+terminal at 1x; arrived=0 both runs.
-  SUPERVISOR ADDENDUM (sec 11) + ground truth 0.0 item 6: transient warps are
-  lockstep formation-group jumps - leading candidate OBSERVER-SIDE dead-reckoning
-  artifact; persistent underground end-states remain the real port-20x runaway
-  class; member warp telemetry observation-suspect. Phase 1 script now runs WatchVrf
-  at sampleSecs=2 as the zero-code artifact-vs-real discriminator; a raw-vs-DR
-  WatchVrf read is the QUEUED code enhancement (needs user go-ahead - oracle code).
+NEXT LIVE SESSION QUEUE (in order, scripted; fresh appNos from OPUS_EXECUTION_PLAN.md
+Appendix B - NEXT FREE 3455 at write time, RE-CHECK the ledger tail first):
+1. 0.4 self-launch gate per PREREG_0_4_SELFLAUNCH.md (ONLY if the user approved it;
+   otherwise the user launches VR-Forces per RUNBOOK).
+2. PHASE1_SESSION_SCRIPT.md verbatim: Object Console Summary Panel FIRST (opening an
+   Information dialog CLEARS badges - capture panel text before anything); WatchVrf
+   sampleSecs=2 (the zero-code DR discriminator); palette-create M1A2 + Tank Platoon
+   (USA) (LF) + Tank Company (USA) (HU); BOTH platoon and company routes cross the
+   18.1-18.4 km band; 1x baseline then the 20x repeat (D1 pending); SAVE to .scnx.
+3. 0.6 CON live gate: yellow-badge units must produce WARN-level CON lines.
+4. MSDL import spike: small OOB in via MSDL, ScnxDiff the units vs remote-created
+   and GUI-created (harness ready at tools/ScnxDiff).
+If native units ALSO misbehave -> the MAK support question fires immediately with
+that repro + PRIOR_ART_SURVEY.md's "nobody solved publicly" list attached.
 
-HYPOTHESIS ON RECORD (ground truth 0.0 item 2 + REFINEMENT): the LF/HU controller
-boundary is per-template WIRING, not echelon - Stryker Rifle Platoon (USA Army) is
-PLT-echelon yet wires HU. Cleanest probe pair: Tank Platoon (USA) (LF) vs Stryker
-Rifle Platoon (USA Army) (HU), same echelon, tasked identically. E7's census is the
-offline test of the same hypothesis; if E7 supports it, the live probe rises in
-priority.
+PENDING USER DECISIONS (do NOT decide these yourself):
+- Q1 hostile-side country pick: USA-225 as today / RUS-222 mirrors where they exist /
+  author Country-45 (China) content (verified: 11 Chinese platforms on disk, air/
+  naval/AD only - ZERO ground-combat platforms or aggregates; heaviest option).
+- ArmorCoHQ Decision 4: A (one-field match fix -> 4-dismount CompanyHQ) vs B
+  (retarget -> Tank Headquarters Section; militarily correct; recommendation B).
+- D1: 20x mechanism for Phase 1 (recommend remote setTimeMultiplier(20) - the GUI
+  toolbar caps at 15).
+- 0.4 live-gate approval; raw-vs-DR WatchVrf change approval (oracle code);
+- C++ repo untracked tools/ dir: preserve on the probe branch or leave untracked;
+- canonical "golden order" file identity for Phase-5 scoring (TASK_VOCABULARY_V2
+  sec 1a).
 
-USER RULINGS RECORDED 2026-07-17 (TYPE_GAP_ADJUDICATION.md "USER RULINGS" section):
-Q2 = NO aggregate-level modeling (task-performability wins; all out-of-chain
-candidates eliminated); Q3 = YES surface proxy substitutions; Q4 = AUTHORING IN
-SCOPE ("inescapable") - gaps 1-3 default to authoring entity-level templates with
-in-chain proxies as interim; aggregation-STATE policy = run disaggregated where the
-verb needs combat (supervisor reading of the same principle, user may correct).
-
-PENDING USER DECISIONS (do not decide these yourself):
-1. Q1 hostile-side country PICK: keep USA-225 / RUS-222 mirrors / author Country-45
-   (China) content. Verified: 11 Chinese platforms on disk (air/naval/AD only),
-   ZERO Chinese ground-combat platforms or aggregates - option (c) is heaviest.
-   Also still open: ArmorCoHQ Decision 4 A-vs-B (rec B, Tank HQ Section).
-2. 0.4 live-gate approval (supervised session; 4 app numbers; abort criteria in the
-   prereg).
-3. D1: 20x mechanism for Phase 1 (recommend remote setTimeMultiplier(20), the same
-   mechanism every port run used).
-4. C++ repo untracked tools/ dir: preserve on probe branch or leave.
-
-SEQUENCE FROM HERE: gate E5/E6/E7 -> commit accepted deliverables -> next LIVE
-session runs PHASE1_SESSION_SCRIPT.md (fold the 0.4 live gate into its bring-up if
-the user approves; open the Object Console Summary Panel FIRST; if the 0.6 CON
-stream works live, every later run gets VRF's own diagnostics) -> Phase 2.2
-GUI-vs-remote scnx diff (needs the Phase-1 saved .scnx + a remote saveScenario
-capture) -> Phase 3 creation-layer rebuild (blocked on the user's mapping
-adjudications; UnitTranslator stays untouched as the parity oracle) -> Phase 4
-truthful-arrival gate + runaway containment -> Phase 5 COA-STP1 scored by
-displacement only.
+HYPOTHESIS QUEUE (pre-registered): controller-split de-confounding probe = Tank
+Platoon (USA) (LF) vs Stryker Rifle Platoon (USA Army) (HU) - SAME echelon,
+different wiring, tasked identically (ground truth 0.0 item 2 + refinement). The E7
+census supports the split directionally offline; the live probe is still required.
 
 OPERATIONAL STATE: VR-Forces CLOSED; rtiexec STOPPED; C2SIM server docker RUNNING
-(REST 8080 / STOMP 61613). appNo ledger (OPUS_EXECUTION_PLAN.md Appendix B): NEXT
-FREE 3455 (no joins since; RE-CHECK the ledger tail before any live work). License
-expires 2026-09-15. TIMESTAMP GOTCHA: app/tool logs stamp UTC, machine runs local -
-check Get-Date before comparing. Non-negotiables unchanged: never push init to a
-running app; fresh appNo per join, ledgered; never force-kill a joined federate
-without user approval; RTI 4.6.1 + Machine-scope license + cwd bin64 +
---contentRoot for live runs; raw vrfSimHLA1516e CLI launch CONFIRMED UNSAFE
-(vrfLauncher.exe only); XML gotchas per RUNBOOK 0.6; ASCII-only in tracked files;
-keep the groundwork plan / ground truth / this prompt current AS work lands; after
-any context compaction re-read the plan doc before deciding anything.
+(REST 8080 / STOMP 61613). License expires 2026-09-15. TIMESTAMP GOTCHA: app/tool
+logs stamp UTC, the machine runs local - Get-Date before comparing. Non-negotiables:
+never push init to a running app; fresh appNo per join, ledgered; never force-kill a
+joined federate without user approval; RTI 4.6.1 + Machine-scope license + cwd bin64
++ --contentRoot for live runs; the raw vrfSimHLA1516e CLI is CONFIRMED UNSAFE
+(vrfLauncher.exe only, and scripted only via the approved 0.4 gate); XML gotchas per
+RUNBOOK 0.6; keep the plan / ground truth / this prompt current AS work lands; after
+any context compaction re-read the plan Status before deciding anything.
 
-DO-NOT-RELITIGATE (recovery plan sec 1 + investigation parts 9-16, all
-evidence-settled): altitude as the FREEZE cause (FIXED, both codebases), altitude as
-the RUNAWAY cause (EXONERATED, both codebases), nav data, terrain page-in AS THE
-FREEZE CAUSE (paged-tile boundary as STOP/TERMINATION context stays OPEN - user
-hypothesis, queued), DIS type, formation names, pile-size-as-sufficient, name-length
-collisions, template quality, echelon-as-such, member structure. "The original works
-better" is falsified in both directions - the pristine baseline measured ZERO
-correct arrivals on COA-STP1.
+DO-NOT-RELITIGATE (evidence-settled): altitude as the FREEZE cause (FIXED, both
+codebases); altitude as the RUNAWAY cause (EXONERATED, both); nav data; DIS type;
+formation names; pile-size-as-sufficient; name-length collisions; template quality;
+echelon-as-such; member structure; aggregate-level modeling (user RULED it out,
+doc-verified); "the original works better" (falsified both directions - the pristine
+baseline measured ZERO correct arrivals on COA-STP1). OPEN BY DESIGN (do not close
+without the queued evidence): paged-tile boundary as the stop context; warp
+backend-vs-observer (discriminator specified, awaiting approval + live run).
 
-START by reporting: git state of the port repo (git log --oneline -5, git status
--sb), whether E5/E6/E7 outputs exist and whether the plan Status shows them gated,
-confirmation you read the plan Status + ground truth 0.0, and your proposed next
-step - gate ungated deliverables first; get user go-ahead before any live work or
-any executor touching product code.
+C++ repo (c2simVRFinterfacev2.36): probe branch probe/create-altitude-above-ground
+at b96688b; master stays pristine at 191933a - DO NOT develop there.
+
+START by reporting: git log --oneline -5 + git status -sb of the port repo;
+confirmation you read the plan Status, ground truth 0.0, and this prompt's
+pending-decisions list; then propose the next step. Get explicit user go-ahead
+before ANY live work, ANY executor touching product code, and ANY commit.
