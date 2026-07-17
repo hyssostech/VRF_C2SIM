@@ -182,6 +182,45 @@ Exit criteria / what this settles:
 
 ## Status
 
+- 2026-07-16 (late night): ALL FOUR EXECUTORS LANDED AND SUPERVISOR-ACCEPTED.
+  Phase 0 OFFLINE WORK IS COMPLETE; what remains of Phase 0 is two LIVE gates.
+  - 0.6 console capture: BUILT (facade+bridge wrap of
+    addObjectConsoleMessageCallback; WatchVrf now emits CON,<t>,<uuid>,<level>,
+    <msg> beside POS on one UTC base; RFC-4180-style reversible escaping).
+    Supervisor re-ran builds' selftests (CON selftest + translator selftest,
+    both exit 0); POS path verified byte-identical vs HEAD. LIVE GATE PENDING:
+    does VRF deliver console messages over the wire in our federation.
+  - 0.5 scnx harness: BUILT (tools/ScnxDiff, Python stdlib). All three
+    acceptance checks independently re-run by supervisor. LOAD-BEARING FORMAT
+    FINDINGS registered as ground truth sec 0.5 (.oob is S-EXPRESSIONS not XML;
+    echelon IDs NOT persisted; parent-name is the only org linkage).
+  - 0.4 self-launch: DRAFTED (scripts/LaunchVrf.ps1 + docs/experiments/
+    PREREG_0_4_SELFLAUNCH.md; combined-mode vrfLauncher, refuses backend-only
+    and existing-process launches, -DryRun verified against real machine state).
+    Supervisor fixed two defects found gating (slow-front-end misreported as
+    PARTIAL; dry-run hard-fail exited 0) and re-verified. LIVE GATE PENDING
+    (user approval + supervised session; top risk = session-startup dialog,
+    prereg RISK A).
+  - E4 adjudication table: docs/TYPE_GAP_ADJUDICATION.md (see night+1 entry).
+- 2026-07-16 (night): Phase 0 remainder EXECUTING - four executors launched in
+  parallel (user go 2026-07-16): E1 console-capture build (0.6), E2 scnx-diff
+  harness (0.5), E3 self-launch recipe DRAFT (0.4, no execution), E4 type-gap
+  adjudication table (feeds 2.1). All offline; supervisor gates before anything
+  is committed. Phase 1 session script DRAFTED by supervisor at
+  docs/PHASE1_SESSION_SCRIPT.md (pre-registered P1-A..D; both platoon and
+  company cross the 18.1-18.4 km band to keep controller class and band
+  un-conflated; open decision D1 = how to set 20x natively, since the GUI
+  toolbar caps at 15). Awaiting user: D1, and whether the C++ repo's untracked
+  tools/ dir should be preserved on the probe branch.
+- 2026-07-16 (night, +1): E4 LANDED and supervisor-ACCEPTED -
+  docs/TYPE_GAP_ADJUDICATION.md (gaps 1-3 + ArmorCoHQ decision item + 4 open
+  policy questions; every cited template spot-checked on disk; the
+  no-AggregateLevel-include claim independently re-verified by grep).
+  Gating byproduct registered in ground truth 0.0 item 2: the LF/HU controller
+  boundary is per-template wiring, NOT echelon (Stryker Rifle Platoon is PLT
+  yet wires HU) - gives a same-echelon probe pair that de-confounds echelon
+  from controller. AWAITING USER: the 4 decision items + 4 policy questions in
+  TYPE_GAP_ADJUDICATION.md.
 - 2026-07-16 (same evening): **Phase 0.1 / 0.2 / 0.3 DONE** - deliverable
   docs/VRF_GROUND_TRUTH.md (supervisor-gated; load-bearing claims spot-verified against
   headers/docs; read its sec 0.0 cross-findings first). Headlines: yellow badge = unread

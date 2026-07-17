@@ -24,6 +24,12 @@ C:\MAK\vrlink5.8. ASCII only.
    publishes; FIX-ACCEPT-1: company halts on leading-edge semantics) tracks that
    controller boundary. Candidate probe: create the SAME force as platoon-class vs
    company-class real templates, task identically, compare.
+   REFINEMENT (2026-07-16, supervisor, found gating E4): the boundary is per-template
+   WIRING, not echelon - `Stryker Rifle Platoon (USA Army).entity` is PLT-echelon yet
+   wires ground-higherUnit-disaggregated-movement.sysdef (HU; verified in the file,
+   componentSystem line 18). So the cleaner single-variable probe pair is Tank Platoon
+   (USA) (LF) vs Stryker Rifle Platoon (USA Army) (HU): SAME echelon, different
+   controller, tasked identically - de-confounds echelon from controller entirely.
 3. TYPE-FIDELITY QUANTIFIED (0.1.7): today ~64/128 COA-STP1 units map to Tank Company
    (USA) (wrong for ~51), ~49 fall to the generic Ground_Aggregate, ~15 become lone
    M1A2 entities. ArmorCoHQ misses a real template by ONE matchType field. This is the
@@ -1845,4 +1851,41 @@ HQ/AD companies; ~49 (all BN/F + PLT/D) fall to the generic **Ground_Aggregate**
 - Port dispatch: src/VrfC2SimApp/UnitTranslator.cs (whole).
 - Population: data/COA-STP1_Initialization.xml (128 Unit blocks extracted).
 - Function IDs: symbol.army MIL-STD-2525C symbol list + init unit-name corroboration.
+
+---
+
+## 0.5 The .scnx container - what a saved scenario actually is
+
+Source: executor E2 build pass over the installed scenarios (all 68 under
+C:\MAK\vrforces5.0.2\userData\scenarios), 2026-07-16; harness at tools/ScnxDiff/
+(scnx_diff.py + README.md - the README carries the full rules). Supervisor
+re-ran all three acceptance checks independently (dump on TropicTortoise.scnx;
+self-diff = zero differences; an independently built one-field mutation detected
+as exactly that one field).
+
+1. FORMAT CORRECTION (the plan brief said "XML" - only half right): a .scnx is a
+   ZIP holding a MIX. The object model (.oob - the units), scenario master
+   (.scn), forces (.xtr), and orbat/plan/address-map (.orb/.pln/.omp) are MAK
+   Lisp-style S-EXPRESSIONS, not XML; only .osrx/.spt/.sgr/.ovl/.gui_settings
+   are (boost) XML. Anything that parses "the scenario XML" for units is parsing
+   the wrong members.
+2. ECHELON IDS ARE NOT PERSISTED. Zero `echelon` keys across all 68 installed
+   scenarios; the static per-controller (subordinates ) lists are EMPTY at rest.
+   Echelon IDs and subordinate lists are runtime-only reconstructions.
+3. THE ONLY PERSISTENT ORG LINKAGE is (parent-name "VRF_UUID:<guid>") in each
+   object's state-repository ("VRF_UUID:<n> Force" = force-level; "" =
+   unattached). Subordinate ORDER = .oob document order; first = leader is an
+   ASSUMPTION consistent with the User's Guide (0.2 sec 1) but not
+   offline-verifiable - confirm against a live reflected echelon ID in
+   Phase 1/2.2.
+4. TEMPLATE NAMES ARE NOT IN THE .oob - only the DIS 7-tuple. Structure diffs
+   resolve human-readable type names by joining that tuple to the 0.1 catalog.
+5. Phase-2.2 diff protocol (implemented in tools/ScnxDiff): match units by
+   marking-text (the identity that survives GUI-vs-remote creation);
+   canonicalize floats (4 dp, -0.0 == 0.0); ignore identity/volatile fields
+   (uuid, object-identifier, raw parent-name, clock snapshots) while diffing
+   derived name-based #superior/#subordinates so org changes still surface.
+   Known gaps: .pln plans and the boost-XML members not structurally parsed
+   yet; uuid-valued semantic cross-references (task targets) flag on
+   cross-creation diffs until judged and --ignore'd per tag.
 
