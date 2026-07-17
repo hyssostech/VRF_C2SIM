@@ -63,6 +63,12 @@ deliberate exception is the 20x clock set in Step 4 (decision point D1 below).
       in the trace). If the 0.6 console-capture build has passed its live gate,
       use the extended build (POS + CON lines); otherwise GUI capture per
       Step 0 protocol is the only console channel - follow it strictly.
+- [ ] WatchVrf sample interval SHORT: sampleSecs = 2 (not the default 15). Why
+      (census sec 11 / ground truth 0.0 item 6): transient member "warps" in the
+      archived data are suspected OBSERVER-SIDE dead-reckoning artifacts; at a
+      2 s sample the DR excursion-and-snap-back pattern is resolvable (spiky
+      track) vs real motion (smooth track), making this session itself the
+      first artifact-vs-real discriminator at zero code cost.
 
 ## Step 0 - Object Console FIRST (before creating anything)
 

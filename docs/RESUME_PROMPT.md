@@ -48,17 +48,22 @@ runaway/warp + pile split ALTITUDE-EXONERATED, open, reproduce in both codebases
 yellow badges = unread Object Console warnings; ~64/128 COA-STP1 -> Tank Company
 mis-map, ~49 generic fallback, ~15 lone M1A2.
 
-EXECUTORS IN FLIGHT AT HANDOFF (launched 2026-07-17, may have landed - CHECK FIRST:
-if their output docs exist but the plan Status has no acceptance entry, THEY ARE
-UNGATED - gate before using; re-run their acceptance checks yourself):
-- E5 -> docs/TYPE_MAPPING_TABLE.md (Phase 2.1; gap rows must be PENDING-USER, no
-  decisions snuck in; partition arithmetic must cover 128 + golden init).
-- E6 -> docs/TASK_VOCABULARY_V2.md (Phase 2.3; today-mappings cited to code file:line;
-  native tasks cited to ground truth 0.2 sec 3 / 0.3 sec 4).
-- E7 -> docs/experiments/RUNAWAY_WARP_CENSUS_2026-07-17.md (Phase 2.4 forensics over
-  archived watchvrf_3450/3453/3454; includes the OFFLINE controller-split test -
-  movement classification tabulated by LF/HU/entity template class; thresholds must
-  be sim-time calibrated: 3450 ran 20x, 3453/3454 ran 1x).
+PHASE 2 OFFLINE WORK LANDED, GATED, COMMITTED (2026-07-17, commits 277cbab/375c5e0/
+974f443 - all supervisor-accepted with independent re-verification):
+- 2.1 docs/TYPE_MAPPING_TABLE.md: 128 = EXACT 7 / NEAR 64 / PEND 54 / LONE 1 / AVN 2;
+  71/128 need NO user decision; PEND rows reproduce (not decide) the adjudications.
+- 2.3 docs/TASK_VOCABULARY_V2.md: real collapse-to-move = HoldObjective family +
+  CLRLND; combat verbs need DISAGGREGATION (user policy question); Patrol/Follow
+  never self-complete; recommendation = external sequencer re-keyed to displacement.
+- 2.4 docs/experiments/RUNAWAY_WARP_CENSUS_2026-07-17.md: controller-split SUPPORTED
+  directionally (LF 3/5 moved, HU 0/4, entity 0/2, BOTH codebases;
+  echelon-confounded); 18.1-18.4 km band real+terminal at 1x; arrived=0 both runs.
+  SUPERVISOR ADDENDUM (sec 11) + ground truth 0.0 item 6: transient warps are
+  lockstep formation-group jumps - leading candidate OBSERVER-SIDE dead-reckoning
+  artifact; persistent underground end-states remain the real port-20x runaway
+  class; member warp telemetry observation-suspect. Phase 1 script now runs WatchVrf
+  at sampleSecs=2 as the zero-code artifact-vs-real discriminator; a raw-vs-DR
+  WatchVrf read is the QUEUED code enhancement (needs user go-ahead - oracle code).
 
 HYPOTHESIS ON RECORD (ground truth 0.0 item 2 + REFINEMENT): the LF/HU controller
 boundary is per-template WIRING, not echelon - Stryker Rifle Platoon (USA Army) is
