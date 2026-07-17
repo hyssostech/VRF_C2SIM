@@ -182,6 +182,17 @@ Exit criteria / what this settles:
 
 ## Status
 
+- 2026-07-17: Phase 2.3 DONE - docs/TASK_VOCABULARY_V2.md (E6) supervisor-accepted:
+  verb counts + STREND 31/42 + all-42-self-target re-verified from raw XML at the
+  gate; IsImplemented==false for HoldObjective/Clear confirmed in code. Headlines:
+  the REAL collapse-to-move is the HoldObjective family (7 verbs, 14 tasks) +
+  CLRLND, not the four wired Layer-2 families; the dominant fidelity blocker is
+  AGGREGATED-vs-DISAGGREGATED (combat verbs need disaggregation - NEW USER POLICY
+  QUESTION for Phase 3); Reconnoiter/Escort tasks NEVER self-complete (chain
+  poison); sequencing recommendation = KEEP external sequencer, re-key CompleteTask
+  to displacement arrival (native plans ride the same lying leading-edge signal and
+  VRF has no position-based completion predicate). E5 (2.1 mapping table) and E7
+  (2.4 forensics census) still in flight.
 - 2026-07-16 (late night): ALL FOUR EXECUTORS LANDED AND SUPERVISOR-ACCEPTED.
   Phase 0 OFFLINE WORK IS COMPLETE; what remains of Phase 0 is two LIVE gates.
   - 0.6 console capture: BUILT (facade+bridge wrap of
