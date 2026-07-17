@@ -254,6 +254,25 @@ static void availableFormationsTrampoline(const DtVrfObjectMessage* msg, void* u
     self->OnAvailableFormations(ev);
 }
 
+// Object Console message: the per-unit warning / diagnostic channel behind the yellow
+// Object Console badge (docs/VRF_GROUND_TRUTH.md sec 0.0 cross-finding 1 / sec 7;
+// groundwork plan 0.6). Unlike the report trampolines above this is NOT a message-
+// executive category callback - it is a DIRECT controller callback whose signature is
+// exactly DtObjectConsoleMessageCallbackFcn (vrfRemoteController.h:112-114), so no cast
+// is needed. usr = this facade. All string extraction is null-guarded like the other
+// trampolines; the text is delivered UNESCAPED (the sink escapes it).
+static void objectConsoleMessageTrampoline(const DtUUID& id, int notifyLevel,
+                                           const DtString& message, void* usr) {
+    VrfFacade* self = static_cast<VrfFacade*>(usr);
+    if (self && self->OnObjectConsoleMessage) {
+        ObjectConsoleMessage ev;
+        ev.uuid = id.uuidString().string() ? id.uuidString().string() : "";
+        ev.notifyLevel = notifyLevel;
+        ev.message = message.string() ? message.string() : "";
+        self->OnObjectConsoleMessage(ev);
+    }
+}
+
 // ------------------------------------------------------------------
 // VrfFacade
 // ------------------------------------------------------------------
@@ -322,6 +341,9 @@ bool VrfFacade::Start(const StartupConfig& cfg) {
     // typed (per-content-type) callback for the available-formations reply (plan R4)
     msgExec->addMessageCallback(DtAvailableFormationsResponseAdminType,
         (DtVrfObjectMessageCallbackFcn)availableFormationsTrampoline, this);
+    // Object Console per-unit warnings (groundwork plan 0.6). Direct controller callback
+    // (exact DtObjectConsoleMessageCallbackFcn signature) - not a msgExec category.
+    p_->controller->addObjectConsoleMessageCallback(objectConsoleMessageTrampoline, this);
 
     // host address + uuid manager
     p_->controller->setHostInetAddr(&(std::string(cfg.hostInetAddr))[0]);
@@ -376,6 +398,9 @@ void VrfFacade::RegisterInboundCallbacks() {
         (DtVrfObjectMessageCallbackFcn)reportTrampoline, this);
     msgExec->addMessageCallbackByCategory(
         DtCloseScenarioMessageType, (DtVrfObjectMessageCallbackFcn)scenarioCloseTrampoline, this);
+    // Object Console per-unit warnings (groundwork plan 0.6) - mirrors Start(). textIf
+    // never registered this callback, so there is no double-fire risk on the adopt path.
+    p_->controller->addObjectConsoleMessageCallback(objectConsoleMessageTrampoline, this);
 }
 
 void VrfFacade::Tick() {

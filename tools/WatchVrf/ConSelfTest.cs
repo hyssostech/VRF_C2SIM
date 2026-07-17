@@ -1,0 +1,156 @@
+using System.Globalization;
+using System.Text;
+
+namespace WatchVrf;
+
+// Offline check of the CON,... Object Console line formatting (groundwork plan 0.6):
+//     WatchVrf --con-selftest
+// Pure managed, no VrfBridge / MAK / live VR-Forces - so it runs without the native bridge
+// DLL on PATH. Matches the repo selftest convention (VrfC2SimApp/*SelfTest.cs): a static
+// Run() that prints [PASS]/[FAIL] rows and returns 0 on success, 1 on failure.
+//
+// Covers the acceptance case explicitly: a message containing BOTH a comma and a quote,
+// plus newline/backslash handling and a full round-trip decode (encode then decode == in).
+public static class ConSelfTest
+{
+    public static int Run()
+    {
+        int failures = 0;
+
+        // 1. Exact field encodings (the escaping rule in ConFormat, spelled out).
+        CheckEq(ref failures, ConFormat.EscapeField("plain"), "\"plain\"", "plain text -> quoted");
+        CheckEq(ref failures, ConFormat.EscapeField("a,b"), "\"a,b\"", "comma stays inside one quoted field");
+        CheckEq(ref failures, ConFormat.EscapeField("say \"hi\""), "\"say \"\"hi\"\"\"", "quote -> doubled (RFC 4180)");
+        // The acceptance case: comma AND quote together.
+        CheckEq(ref failures, ConFormat.EscapeField("a,\"b\""), "\"a,\"\"b\"\"\"", "comma + quote together");
+        CheckEq(ref failures, ConFormat.EscapeField("l1\nl2"), "\"l1\\nl2\"", "LF -> \\n (record stays single-line)");
+        CheckEq(ref failures, ConFormat.EscapeField("l1\r\nl2"), "\"l1\\r\\nl2\"", "CRLF -> \\r\\n");
+        CheckEq(ref failures, ConFormat.EscapeField("c:\\x"), "\"c:\\\\x\"", "backslash -> doubled");
+
+        // 2. A full CON line for a comma+quote message (the exact line a run would emit).
+        string line = ConFormat.Line(12.5, "1:1:0:2001", 1, "route failed, \"no path\"");
+        CheckEq(ref failures, line,
+            "CON,12.5,1:1:0:2001,1,\"route failed, \"\"no path\"\"\"",
+            "full CON line (comma + quote in message)");
+
+        // 3. Every CON line is exactly ONE physical line even when the message has newlines.
+        string multi = ConFormat.Line(1.0, "1:1:0:9", 2, "step1\nstep2\r\nstep3");
+        Check(ref failures, !multi.Contains('\n') && !multi.Contains('\r'),
+            "CON line has no raw CR/LF even for a multi-line message");
+
+        // 4. Round-trip: decode(escape(x)) == x for a battery of nasty inputs.
+        string[] cases =
+        {
+            "",
+            "plain",
+            "a,b,c",
+            "he said \"go\"",
+            "a,\"b\",c",          // comma + quote (acceptance)
+            "trailing comma,",
+            "\"leading quote",
+            "back\\slash",
+            "back\\\\slash and \"q\"",
+            "line1\nline2",
+            "line1\r\nline2\ttab",
+            "mix: a,\"b\"\n\\c\r",
+        };
+        foreach (string original in cases)
+        {
+            string field = ConFormat.EscapeField(original);
+            string decoded = DecodeField(field);
+            Check(ref failures, decoded == original,
+                $"round-trip: [{Show(original)}]" + (decoded == original ? "" : $" != [{Show(decoded)}]"));
+        }
+
+        // 5. Line() splits cleanly into 5 CSV fields, message last, via a real CSV read.
+        {
+            var fields = ParseCsvLine("CON,3.4,1:2:3:4,0,\"a,b \"\"q\"\" c\"");
+            Check(ref failures, fields.Count == 5, $"CON parses to 5 CSV fields (got {fields.Count})");
+            if (fields.Count == 5)
+            {
+                CheckEq(ref failures, fields[0], "CON", "field0 = CON");
+                CheckEq(ref failures, fields[2], "1:2:3:4", "field2 = uuid");
+                CheckEq(ref failures, fields[4], "a,b \"q\" c", "field4 = decoded message (comma+quote)");
+            }
+        }
+
+        Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
+        return failures == 0 ? 0 : 1;
+    }
+
+    // Reverse ConFormat.EscapeField: strip outer quotes, then one left-to-right pass
+    // undoubling "" and reversing \\, \r, \n. (See ConFormat's escaping-rule comment.)
+    private static string DecodeField(string field)
+    {
+        if (field.Length < 2 || field[0] != '"' || field[^1] != '"')
+            throw new FormatException("field is not quoted");
+        string inner = field.Substring(1, field.Length - 2);
+        var sb = new StringBuilder(inner.Length);
+        for (int i = 0; i < inner.Length; i++)
+        {
+            char c = inner[i];
+            if (c == '"' && i + 1 < inner.Length && inner[i + 1] == '"') { sb.Append('"'); i++; }
+            else if (c == '\\' && i + 1 < inner.Length)
+            {
+                char n = inner[i + 1];
+                switch (n)
+                {
+                    case '\\': sb.Append('\\'); i++; break;
+                    case 'r': sb.Append('\r'); i++; break;
+                    case 'n': sb.Append('\n'); i++; break;
+                    default: sb.Append(c); break; // lone backslash (should not occur)
+                }
+            }
+            else sb.Append(c);
+        }
+        return sb.ToString();
+    }
+
+    // Minimal RFC-4180 CSV line reader (independent of ConFormat) to prove the emitted line
+    // is standard-parseable: unquoted fields split on comma; a quoted field undoubles "".
+    private static List<string> ParseCsvLine(string line)
+    {
+        var outFields = new List<string>();
+        var sb = new StringBuilder();
+        bool inQuotes = false;
+        for (int i = 0; i < line.Length; i++)
+        {
+            char c = line[i];
+            if (inQuotes)
+            {
+                if (c == '"')
+                {
+                    if (i + 1 < line.Length && line[i + 1] == '"') { sb.Append('"'); i++; }
+                    else inQuotes = false;
+                }
+                else sb.Append(c);
+            }
+            else
+            {
+                if (c == '"') inQuotes = true;
+                else if (c == ',') { outFields.Add(sb.ToString()); sb.Clear(); }
+                else sb.Append(c);
+            }
+        }
+        outFields.Add(sb.ToString());
+        // Note: this parser returns the CSV-level field. For the message field that still
+        // carries the \\, \r, \n C-escapes; the test's field4 case uses a message with no
+        // backslash/newline so the CSV-level value equals the decoded text.
+        return outFields;
+    }
+
+    private static string Show(string s) =>
+        s.Replace("\\", "\\\\").Replace("\r", "\\r").Replace("\n", "\\n");
+
+    private static void CheckEq(ref int failures, string actual, string expected, string label)
+    {
+        bool ok = actual == expected;
+        Check(ref failures, ok, label + (ok ? "" : $" (got [{Show(actual)}], want [{Show(expected)}])"));
+    }
+
+    private static void Check(ref int failures, bool ok, string label)
+    {
+        Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"  [{(ok ? "PASS" : "FAIL")}] {label}"));
+        if (!ok) failures++;
+    }
+}

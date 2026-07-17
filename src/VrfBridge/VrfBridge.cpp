@@ -140,6 +140,15 @@ public:
     property String^ CurrentFormation;      // "" if none / uninitialized
 };
 
+// Per-unit Object Console warning captured over the network (groundwork plan 0.6).
+// Message is delivered UNESCAPED; the sink (tools/WatchVrf) CSV-escapes it (CON,... line).
+public ref class ObjectConsoleMessageEventArgs : EventArgs {
+public:
+    property String^ Uuid;        // the object's VRF uuid
+    property int     NotifyLevel; // 0=fatal,1=warn,2=diag,3=verbose,4=debug
+    property String^ Message;     // console message text (unescaped)
+};
+
 // -- The managed bridge ----------------------------------------------
 
 public ref class VrfBridge {
@@ -162,6 +171,7 @@ public:
     event EventHandler<TaskCompletedEventArgs^>^ TaskCompleted;
     event EventHandler^                          ScenarioClosed;
     event EventHandler<AvailableFormationsEventArgs^>^ AvailableFormations;
+    event EventHandler<ObjectConsoleMessageEventArgs^>^ ObjectConsoleMessage;
 
     // -- lifecycle ---------------------------------------------------
     bool Start(StartupConfig^ cfg) {
@@ -377,6 +387,11 @@ internal:
         e->Uuid = uuid; e->Formations = formations; e->CurrentFormation = current;
         AvailableFormations(this, e);
     }
+    void RaiseObjectConsoleMessage(String^ uuid, int notifyLevel, String^ message) {
+        auto e = gcnew ObjectConsoleMessageEventArgs();
+        e->Uuid = uuid; e->NotifyLevel = notifyLevel; e->Message = message;
+        ObjectConsoleMessage(this, e);
+    }
 
 private:
     vrf::VrfFacade* _facade;
@@ -489,6 +504,14 @@ struct AvailableFormationsThunk {
     }
 };
 
+struct ObjectConsoleMessageThunk {
+    msclr::gcroot<VrfBridge^> self;
+    void operator()(const vrf::ObjectConsoleMessage& m) const {
+        self->RaiseObjectConsoleMessage(marshal_as<String^>(m.uuid), m.notifyLevel,
+                                        marshal_as<String^>(m.message));
+    }
+};
+
 } // anonymous namespace
 
 void VrfBridge::WireCallbacks() {
@@ -498,6 +521,8 @@ void VrfBridge::WireCallbacks() {
     _facade->OnScenarioClosed = ScenarioClosedThunk{ msclr::gcroot<VrfBridge^>(this) };
     _facade->OnAvailableFormations =
         AvailableFormationsThunk{ msclr::gcroot<VrfBridge^>(this) };
+    _facade->OnObjectConsoleMessage =
+        ObjectConsoleMessageThunk{ msclr::gcroot<VrfBridge^>(this) };
 }
 
 } // namespace VrfC2Sim

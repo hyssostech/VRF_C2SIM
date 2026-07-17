@@ -138,6 +138,22 @@ struct AggregateMember {
     std::string name;  // the member's marking text (matches completion callbacks)
 };
 
+// A VR-Forces Object Console message captured remotely via
+// DtVrfRemoteController::addObjectConsoleMessageCallback (vrfRemoteController.h:1970;
+// the delivered signature is the typedef DtObjectConsoleMessageCallbackFcn at
+// vrfRemoteController.h:112-114 = void(const DtUUID& id, int notifyLevel,
+// const DtString& message, void*)). This is the per-unit warning channel BEHIND the
+// yellow Object Console badge (docs/VRF_GROUND_TRUTH.md sec 0.0 cross-finding 1 and
+// sec 7). notifyLevel: 0 fatal, 1 warning, 2 diagnostic, 3 verbose, 4 debug (sec 7,
+// default 2). message is free text and MAY contain commas / quotes / newlines - it is
+// delivered UNESCAPED; the consumer is responsible for any CSV escaping (groundwork
+// plan 0.6; tools/WatchVrf emits it as the CON,... stream).
+struct ObjectConsoleMessage {
+    std::string uuid;     // the object's VRF uuid (marking-text based)
+    int notifyLevel = 0;  // 0=fatal,1=warn,2=diag,3=verbose,4=debug
+    std::string message;  // the console message text (unescaped)
+};
+
 // ------------------------------------------------------------------
 // The facade
 // ------------------------------------------------------------------
@@ -346,6 +362,9 @@ public:
     std::function<void(const TaskCompleted&)> OnTaskCompleted;
     std::function<void()>                     OnScenarioClosed;
     std::function<void(const AvailableFormations&)> OnAvailableFormations;
+    // Per-unit Object Console warnings (groundwork plan 0.6). Registered on the
+    // controller in Start() (and RegisterInboundCallbacks()); fires on the tick thread.
+    std::function<void(const ObjectConsoleMessage&)> OnObjectConsoleMessage;
 
 private:
     struct Impl;
