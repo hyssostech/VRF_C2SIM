@@ -51,11 +51,13 @@
            auto-connects it).
     * Scenario path form "../userData/scenarios/<name>.scnx" (relative to bin64),
       env (RTI 4.6.1 Machine-scope, MAKLMGRD_LICENSE_FILE from Machine scope),
-      cwd = bin64, fresh appNumber per Appendix B, (NOTE: rtiexec does NOT run on
-      this machine - rid.mtl sets RTI_useRtiExec 0; corrected 2026-07-18),
+      cwd = bin64, fresh appNumber per Appendix B, (NOTE: whether rtiexec runs is
+      CONNECTION-DEPENDENT - it DOES run under the rtiexec loopback connection.
+      Never gate readiness on it. RUNBOOK 0.5.6),
       "judge by process presence not console (block-buffered)":
         docs/RUNBOOK.md sec 0.5, sec 7, sec 8; docs/OPUS_EXECUTION_PLAN.md
-        Appendix B (NEXT FREE app number = 3455 at time of writing).
+        Appendix B - take the value from the single line marked "*** NEXT FREE:"
+        (do NOT hard-code it here; an earlier version of this comment went stale).
 
 .PARAMETER Mode
     Combined  (default) - front-end + back-end together. The ONLY approved path;
@@ -104,10 +106,13 @@ param(
     # healthy one was measured at ~36 (2026-07-18). 8 is a deliberate margin: well
     # above the stall signature, well below the healthy steady state.
     [int]    $BackendMinThreads  = 8,
-    # Refuse to launch when another rtiAssistant already holds its port (it makes
-    # THIS launch's assistant die with "server creation failed", and a wedged
-    # assistant is an unexcluded suspect for stalled back-ends). Override
-    # deliberately with -AllowExistingRtiAssistant.
+    # NOTE 2026-07-18: a PRE-EXISTING, ANSWERED rtiAssistant is REQUIRED for
+    # unattended launch - it is never a reason to refuse (RUNBOOK 0.5.2). The only
+    # blocking assistant state is one sitting on an UNANSWERED "Choose RTI
+    # Connection" dialog, which -IgnoreUnansweredRtiAssistant overrides for
+    # deliberate probing. -AllowExistingRtiAssistant is retained ONLY so existing
+    # command lines and docs keep working; it is accepted and ignored.
+    [switch] $IgnoreUnansweredRtiAssistant,
     [switch] $AllowExistingRtiAssistant,
     [switch] $AllowExistingVrf,
     [switch] $AcceptCrashRisk,
@@ -262,7 +267,7 @@ foreach ($n in @($procRti,'rtiForwarder')) {
 if ($infra.Count -gt 0) {
     Say-Ok ("RTI infrastructure present (expected; do NOT kill): {0}" -f ($infra -join ', '))
 } else {
-    Say-Warn 'no rtiexec / rtiForwarder running. Under an rtiexec-style connection these are needed; the RTI normally starts them. If the back-end then blocks, check the RTI Assistant.'
+    Say-Ok 'no rtiexec / rtiForwarder running yet. NOT an error: whether they appear is connection-dependent, and the RTI starts them itself when the chosen connection needs them. Never gate readiness on their presence (RUNBOOK 0.5.6).'
 }
 
 # 6b. STALE rtiAssistant HOLDING ITS PORT (added 2026-07-18, found live).
@@ -273,15 +278,25 @@ if ($infra.Count -gt 0) {
 # assistant is an unexcluded suspect for stalled back-ends
 # (docs/experiments/SESSION_2026-07-18_SELFLAUNCH.md sec 3/4). Detect it BEFORE
 # launching instead of debugging it afterwards.
+# NOTE: this checks for the rtiAssistant PROCESS and its window state. It does NOT
+# probe the port - $assistPort is used for messages only.
 $assistPort = $env:RTI_ASSISTANT_PORT
 if ([string]::IsNullOrWhiteSpace($assistPort)) { $assistPort = '6003' }
+$assistUnanswered = $false
 $assist = Get-Process -Name 'rtiAssistant' -ErrorAction SilentlyContinue
 if ($assist) {
     foreach ($a in $assist) {
         $t = if ([string]::IsNullOrWhiteSpace($a.MainWindowTitle)) { '(no window title)' } else { $a.MainWindowTitle }
         Say-Warn ("pre-existing rtiAssistant pid {0} - window: {1}" -f $a.Id, $t)
         if ($a.MainWindowTitle -match 'Choose RTI Connection') {
-            Say-Fail ("  -> pid {0} is sitting on the modal 'Choose RTI Connection' dialog. This is the WEDGED state implicated in stalled back-ends. Clear or close it before launching." -f $a.Id)
+            # An assistant SHOWING the dialog is UNANSWERED - it cannot serve a
+            # connection, and every back-end will block behind it (RUNBOOK 0.5.3).
+            # This is the one assistant state that must stop the launch. Do NOT
+            # kill it - it must be ANSWERED (or automated per RUNBOOK 0.5.4).
+            Say-Fail ("  -> pid {0} is sitting on the UNANSWERED 'Choose RTI Connection' dialog. Back-ends WILL block behind it." -f $a.Id)
+            Say-Fail '     ANSWER IT (select the connection, tick "Always try to use this connection", click Connect) - do NOT kill it. Then re-run. Override with -IgnoreUnansweredRtiAssistant only to probe deliberately.'
+            if (-not $IgnoreUnansweredRtiAssistant) { $hardFail = $true }
+            $assistUnanswered = $true
         }
     }
     Say-Ok ("  This launch's own RTI Assistant will fail to bind port {0} and exit - which is EXPECTED AND BENIGN. The pre-existing assistant serves the federation." -f $assistPort)
@@ -341,16 +356,20 @@ if ($hardFail) {
 # ---- LAUNCH + READINESS POLL -----------------------------------------------
 Say-Head 'Launch'
 if ($DryRun) {
-    Say-Plan ("set MAKLMGRD_LICENSE_FILE (process) = {0}  (refresh from Machine scope; RUNBOOK sec 7 item 2)" -f $licMachine)
+    if (-not [string]::IsNullOrWhiteSpace($licMachine)) {
+        Say-Plan ("set MAKLMGRD_LICENSE_FILE (process) = {0}  (refresh from Machine scope; RUNBOOK sec 7 item 2)" -f $licMachine)
+    } else {
+        Say-Plan 'PRESERVE the existing process-scope MAKLMGRD_LICENSE_FILE - the Machine value is EMPTY, and this script deliberately does NOT blank it (DEFECT-3).'
+    }
     Say-Plan ("Start-Process -FilePath '{0}' -WorkingDirectory '{1}' -ArgumentList '{2}'" -f $launcher, $bin64, $argString)
     Say-Plan ("poll every {0}s up to {1}s for readiness signals:" -f $PollIntervalSec, $ReadyTimeoutSec)
-    Say ("            - process '{0}' present  (back-end; RUNBOOK sec 0.5 authoritative signal)" -f $procBackend)
+    Say ("            - process '{0}' present (NECESSARY, NOT SUFFICIENT - process presence is NOT health)" -f $procBackend)
     Say ("            - back-end thread count > {0} (THE health signal: a blocked back-end sits at 2-4 threads while present; healthy reaches 23-67)" -f $BackendMinThreads)
     Say ("            - back-end UDP endpoints logged INFORMATIONALLY only - UDP 4000 is connection-dependent and is NOT required (the rtiexec loopback connection uses TCP 4001 + forwarder 5000)")
     Say ("            - process '{0}' present     (front-end; combined mode - the crash-avoiding piece)" -f $procFrontend)
     Say  '            - vrfGui MainWindowTitle non-empty (front-end window is up, not stuck in a modal dialog)'
     Say  '            - back-end UDP endpoints logged for the record (passive)'
-    Say-Plan 'declare READY only when the back-end is HEALTHY AND JOINED (UDP 4000 bound AND thread count above the floor - NOT mere process presence, and NOT rtiexec, which never runs on this machine) AND (in Combined mode) the front-end is up WITH A NON-EMPTY MainWindowTitle. A slow vrfGui start keeps polling rather than misreporting PARTIAL. Distinct outcomes: exit 0 READY; exit 4 BLOCKED (front-end process up but NO window title = modal dialog waiting on a human); exit 1 PARTIAL (back-end healthy but no front-end - the crash-risk condition); exit 3 NOT READY within timeout (on HLA the usual cause is an UNANSWERED RTI Assistant "Choose RTI Connection" prompt - see the precondition warning above).'
+    Say-Plan 'declare READY only when the back-end is HEALTHY (thread count above the floor - NOT mere process presence, and NOT rtiexec, whose presence is CONNECTION-DEPENDENT; UDP 4000 is informational only and is legitimately absent under the rtiexec loopback connection) AND (in Combined mode) the front-end is up WITH A NON-EMPTY MainWindowTitle. A slow vrfGui start keeps polling rather than misreporting PARTIAL. Distinct outcomes: exit 0 READY; exit 4 BLOCKED (front-end process up but NO window title = modal dialog waiting on a human); exit 1 PARTIAL (back-end healthy but no front-end - the crash-risk condition); exit 3 NOT READY within timeout (on HLA the usual cause is an UNANSWERED RTI Assistant "Choose RTI Connection" prompt - see the precondition warning above).'
     Say-Head 'Result'
     Say-Ok 'DRY-RUN complete: preconditions passed, command line resolved, no process launched.'
     exit 0
@@ -462,7 +481,7 @@ if ($backendUp) {
 
 Say-Head 'Result'
 if ($backendHealthy -and $frontUp -and $guiTitleOk) {
-    Say-Ok 'READY: combined-mode VR-Forces is up (back-end HEALTHY + JOINED, front-end with a real main window). Proceed to the ResetVrf --dry-run gate (prereg).'
+    Say-Ok 'READY: combined-mode VR-Forces is up (back-end HEALTHY by thread count, front-end with a real main window). NOTE: federation JOIN is not tested here - confirm it with a WatchVrf discovery check (RUNBOOK 0.5.7) before trusting any telemetry.'
     exit 0
 } elseif ($backendHealthy -and $frontUp) {
     Say-Fail 'BLOCKED: back-end healthy and front-end PROCESS up, but the front-end has NO main window title - a modal dialog is almost certainly waiting for a human (prereg RISK A). NOT ready. Do NOT force-kill; look at the screen and clear the dialog.'

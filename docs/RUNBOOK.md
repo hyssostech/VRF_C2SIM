@@ -29,12 +29,18 @@ the do-not-set rule) each cost a full live session when violated.
 
     $env:MAKLMGRD_LICENSE_FILE = [Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','Machine')
     pwsh -File scripts\LaunchVrf.ps1 -Scenario TropicTortoise `
-         -BackendAppNumber <fresh> -FrontendAppNumber <fresh> -AllowExistingRtiAssistant
+         -BackendAppNumber <fresh> -FrontendAppNumber <fresh>
 
 Expect `EXIT=0` and `[OK] READY`. Takes ~35 s to scenario-loaded. Both app numbers
 are MANDATORY, must be FRESH, must differ, and must be LEDGERED IN
-OPUS_EXECUTION_PLAN.md Appendix B BEFORE the launch (the script hard-exits 2 if
-any of that is violated). Verified 3x on 2026-07-18 with no human interaction.
+OPUS_EXECUTION_PLAN.md Appendix B BEFORE the launch.
+WHAT THE SCRIPT ACTUALLY ENFORCES: presence, positivity, and that the two differ
+(hard exit 2). WHAT IT CANNOT ENFORCE: FRESHNESS and LEDGERING - it never reads
+the ledger. Reuse is YOUR error to avoid; its symptom is the stale-federate join
+hang (sec 0). Take the value from the single "*** NEXT FREE:" marker in Appendix B
+and advance it. Verified on 2026-07-18: TWO clean end-to-end script runs (3484/3485 and
+3486/3487), both EXIT=0 with no human interaction. A THIRD script run (3482/3483)
+FAILED and is what exposed two of the script's defects - do not count it as a pass.
 
 What the script actually runs (if you ever need it by hand, cwd = bin64):
 
@@ -55,10 +61,13 @@ unattended launch work.
 Killing a long-lived rtiAssistant as "cleanup" is what broke the 2026-07-18
 session and cost the entire live window. Every VR-Forces launch starts its OWN
 assistant; when one is already running, the new one fails to bind port 6003 and
-exits immediately. THAT FAILURE IS EXPECTED AND BENIGN - it is the mechanism that
-prevents an unanswered dialog from ever appearing. The error dialog
-"RTI Assistant server creation failed. The port [ 6003 ] may be in use" is
-therefore NORMAL, not a fault to fix.
+exits immediately. THAT FAILURE IS EXPECTED AND BENIGN: the already-answered
+assistant keeps serving the connection, so no UNANSWERED dialog ever blocks
+startup. The error dialog "RTI Assistant server creation failed. The port [ 6003 ]
+may be in use" IS NORMAL and is not a fault to fix - BUT IT DOES APPEAR ON SCREEN,
+one per launch, and needs dismissing or ignoring. On 2026-07-18 a stack of these
+is what prompted the user to stop VR-Forces mid-session. They are cosmetic; do NOT
+"fix" them by killing the assistant.
 
 Corollary: do not "tidy" processes you did not start. Check what a process IS
 before deciding it is stale.

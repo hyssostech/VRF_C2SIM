@@ -57,8 +57,9 @@ OPERATIONAL STATE:
 - VR-FORCES LAUNCHES UNATTENDED (new 2026-07-18; retires the "user must launch it"
   dependency):
     pwsh -File scripts\LaunchVrf.ps1 -Scenario TropicTortoise `
-         -BackendAppNumber <fresh> -FrontendAppNumber <fresh> -AllowExistingRtiAssistant
-  Expect EXIT=0 and "[OK] READY". Verified 3x, zero human interaction.
+         -BackendAppNumber <fresh> -FrontendAppNumber <fresh>
+  Expect EXIT=0 and "[OK] READY". Verified by TWO clean end-to-end runs (a third,
+  earlier run FAILED and exposed two script defects); zero human interaction.
 - *** NEVER KILL rtiAssistant / rtiexec / rtiForwarder. *** RTI infrastructure, persists
   across launches. An ALREADY-ANSWERED rtiAssistant is what makes unattended launch work.
   New assistants failing to bind port 6003 is EXPECTED AND BENIGN.
@@ -83,9 +84,11 @@ STATE: EVERY OFFLINE TRACK IS DONE AND 0.4 IS NOW DONE TOO.
 - 0.4 SELF-LAUNCH COMPLETE, GATE PASSED (PREREG_0_4_SELFLAUNCH.md sec 12): ResetVrf
   --dry-run x2 (3489/3490) joined cleanly, discovered the 2 TropicTortoise baseline
   objects, no deletes, resigned cleanly, EXIT=0 both, ZERO 0xC0000005.
-- MOVEMENT ORACLE VERIFIED END TO END: tools/CreateOne (NEW, additive) created one M1A2;
-  WatchVrf reported exact requested lat/lon with altitude ground-clamped from 10000 MSL to
-  1060.7, stable across every sample.
+- ORACLE DISCOVERY + POSITION FIDELITY VERIFIED (NOT displacement): tools/CreateOne (NEW,
+  additive) created one M1A2; WatchVrf reported exact requested lat/lon with altitude
+  ground-clamped from 10000 MSL to 1060.7, stable across every sample. THE ENTITY WAS
+  STATIONARY - DISPLACEMENT was NOT exercised, and every P1-A..D claim depends on it.
+  Archived runs show displacement capture working; do not cite CreateOne as proof of it.
 - ROOT CAUSE of every past "VR-Forces hangs on launch": on HLA the RTI Assistant PROMPTS
   for a connection and the federate does not start until answered. Vendor-documented, not
   a bug. The vrfLauncher argument overrides were wrongly accused twice and are EXONERATED.

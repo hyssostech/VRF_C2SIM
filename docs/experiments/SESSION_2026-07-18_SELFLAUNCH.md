@@ -47,7 +47,13 @@ Pitch-RTI-vs-MAK-RTI PATH collision (MAK RTI is first on PATH); --simArgs
 replacing profile args (the spawned command line is complete, including
 --frontEndPID).
 
-## *** THE FIX - FOUND IN RTIUsersGuide.pdf AND VERIFIED LIVE ***
+## *** SUPERSEDED - DO NOT DO THIS. RTI_ASSISTANT_DISABLE IS NOT THE FIX. ***
+
+(Heading was: "THE FIX - FOUND IN RTIUsersGuide.pdf AND VERIFIED LIVE".)
+It starts processes AND BLINDS THE MOVEMENT ORACLE - federates join but never
+discover each other; WatchVrf reports reflected=0. See the correction later in
+this file and RUNBOOK sec 0.5.5. The working procedure is RUNBOOK sec 0.5. The
+text below is kept only to record what was tried.
 
     set RTI_ASSISTANT_DISABLE=1   (environment variable, any value or none)
 
@@ -143,9 +149,16 @@ created one real M1A2 and WatchVrf reported it correctly:
   discovered under this connection, where it was 0 under the abandoned
   assistant-disabled config).
 
-THE MOVEMENT ORACLE IS FULLY VERIFIED END TO END: it discovers entities and
-reports real, stable, ground-clamped coordinates. Phase 1 has no unverified
-dependency left.
+WHAT THIS DOES AND DOES NOT ESTABLISH - the distinction is load-bearing for
+Phase 1 adjudication:
+  ESTABLISHED: WatchVrf DISCOVERS a real entity and reports its POSITION
+  faithfully (exact requested lat/lon, correct ground clamp).
+  NOT ESTABLISHED: DISPLACEMENT. The test entity NEVER MOVED - "stable across
+  every sample" is a STATIONARITY observation, not a movement one. Every P1-A..D
+  claim rests on WatchVrf DISPLACEMENT and that path was NOT exercised here.
+  Archived runs (3450/3453/3454) do show displacement capture working, so this is
+  a gap in THIS session's evidence rather than a known defect - but do NOT cite
+  the CreateOne result as proof that displacement tracking works.
 
 ## NEW TOOL: tools/CreateOne (2026-07-18, additive)
 
@@ -431,7 +444,15 @@ clicks. That is the first confirmed scripted VR-Forces bring-up in this effort a
 it directly answers the user's standing ask. What is NOT yet established is the
 same launch WITH fresh app numbers and an auto-loaded scenario.
 
-## 6. NEXT STEPS (ordered; all cheap, all single-variable)
+## 6. SUPERSEDED - stale NEXT STEPS (DO NOT FOLLOW; kept for the record)
+
+EVERY ITEM BELOW IS OBSOLETE OR ACTIVELY HARMFUL. Item 4 would hard-break
+unattended launch (a pre-existing rtiAssistant is the ASSET, not a fault to
+detect); items 1-2 re-probe argument overrides that are FULLY EXONERATED; item 5
+re-runs a gate that has since PASSED (3489/3490). Current next action: the Phase 1
+session per docs/PHASE1_SESSION_SCRIPT.md.
+
+### (historical) NEXT STEPS as written mid-session
 
 1. De-confound H2 FIRST, because it is now free: the stale assistant is gone and a
    clean one holds 6003. Re-run RUN 1's EXACT overridden command line against the

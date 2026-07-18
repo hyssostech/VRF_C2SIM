@@ -905,8 +905,13 @@ proceed on a slow proxy - the STOMP client cannot ride it out.
 
 ## Appendix B - ApplicationNumber ledger
 
-3200-3461: consumed, skipped, or RESERVED (see entries below). NEXT FREE: 3462 (always take
-the number after the last ledger entry). Record each join here as it is consumed (app /
+3200-3490: consumed, skipped, or RESERVED (see entries below).
+
+*** THE SINGLE AUTHORITATIVE NEXT FREE VALUE IS THE LINE MARKED "*** NEXT FREE:" BELOW.
+    Search for it. There is exactly ONE such line; if you ever find two, STOP and reconcile. ***
+Do NOT infer it from the highest number you happen to see, and do NOT use the old rule
+"take the number after the last ledger entry" - entries are NOT in numeric order and that
+rule pointed at ALREADY-CONSUMED numbers on 2026-07-18. Record each join here as it is consumed (app /
 ResetVrf / WatchVrf / SetSimRate / LaunchVrf back-end + front-end each take one). Never reuse.
 
 CLAIMED 2026-07-18 for the SCRIPTED VR-Forces bring-up (scripts/LaunchVrf.ps1, combined
@@ -927,15 +932,15 @@ values are NOT used.
 - 3465: USED - vrfLauncher front-end, same run.
 - 3466/3467: USED - appNumber-override-only run (no scenario). STALLED, same cause.
 - 3468/3469: DRY-RUN ONLY, never joined. Burned; do NOT recycle.
-- 3470: CLAIMED - ResetVrf --dry-run #1, the 0.4 join gate against a launch made with
+- 3470: USED - ResetVrf --dry-run #1, the 0.4 join gate against a launch made with
   RTI_ASSISTANT_DISABLE=1 (the documented fix, RTI RefMan 5.2.10).
-- 3471: CLAIMED - ResetVrf --dry-run #2 (prereg requires TWO clean joins in a row).
+- 3471: USED - ResetVrf --dry-run #2 (prereg requires TWO clean joins in a row).
   RESULT 3470+3471: BOTH JOINED CLEANLY, exit 0, resigned cleanly, NO 0xC0000005.
   Caveat: launch had NO scenario, so BackendCount=0 and 0 objects discovered - the
   prereg's "discovers 2 baseline objects" half was NOT exercised by these two.
-- 3472: CLAIMED - vrfLauncher back-end, WITH TropicTortoise + appNumber overrides,
+- 3472: USED - vrfLauncher back-end, WITH TropicTortoise + appNumber overrides,
   RTI_ASSISTANT_DISABLE=1. Also the first fair test of the override args.
-- 3473: CLAIMED - vrfLauncher front-end, same run.
+- 3473: USED - vrfLauncher front-end, same run.
 - 3474: USED - ResetVrf --dry-run against that scenario-loaded launch. Joined cleanly,
   exit 0, no crash - but BackendCount=0 and 0 objects discovered.
 - 3475: USED - WatchVrf discovery check under RTI_ASSISTANT_DISABLE=1. RESULT:
@@ -957,7 +962,21 @@ values are NOT used.
   CreateOne throwaway). EXIT=0 READY.
 - 3488: USED - WatchVrf confirming the throwaway is gone; reflected=3 readable=2, no
   adfaadb3. NOTE: discovery reported 0 until t=13.3s - allow ~15 s before judging.
-NEXT FREE: 3489.
+- 3489: USED - ResetVrf --dry-run #1 of the 0.4 GATE, against the WORKING configuration
+  (assistant answered; NOT RTI_ASSISTANT_DISABLE). Joined cleanly, discovered 3 reflected
+  (2 deletable = the TropicTortoise baseline objects), no deletes, resigned cleanly,
+  EXIT=0, no 0xC0000005.
+- 3490: USED - ResetVrf --dry-run #2, identical result. Two clean joins in a row =
+  PREREG_0_4_SELFLAUNCH.md sec 4 prediction met; gate PASSED (that doc's sec 12).
+- 3476: SKIPPED - never issued (numbering gap during the 2026-07-18 session). Do NOT
+  recycle it; the never-reuse rule covers skipped numbers too.
+
+- 3491/3492: USED - LaunchVrf.ps1 live regression after the 2026-07-18 adversarial
+  sweep fixes. EXIT=0 READY, back-end 68 threads, RTI infrastructure correctly
+  reported and preserved.
+
+*** NEXT FREE: 3493 *** (authoritative - the ONLY such marker in this file. Update this
+line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
 3001 / 3101, not ledgered numbers - that is what a bare launch does and what every human
@@ -977,7 +996,9 @@ not run, these stay burned - do NOT recycle them.
 NOTE: SetSimRate takes a SEPARATE appNo per invocation because each call is a full
 join/resign cycle - four invocations, four numbers. If a ResetVrf pre-run sweep is added to
 the session (prior sessions ran one; the Phase 1 preconditions do not currently call for
-it), take 3460 for it and advance NEXT FREE.
+it), take the value from the "*** NEXT FREE:" marker line and advance it. (This line
+previously said "take 3460" - 3460 IS ALREADY USED, see its entry above. Corrected
+2026-07-18.)
 - 3451: ResetVrf --dry-run, CPP-ALT-1 pre-run sweep on user-reloaded TT. Clean (2 baseline).
 - 3452: PRISTINE C++ +altitude-probe app (branch b96688b), CPP-ALT-1 (COA-STP1, RUN C
   recipe, real-time). 6 marchers 18+ km on-terrain / 5 frozen at pile / runaway-warp class

@@ -44,6 +44,14 @@ static int Fail(string msg)
     return 2;
 }
 
+// Reject unknown flags rather than silently dropping them. tools/ResetVrf accepts
+// --dry-run, so an operator carrying that habit here would otherwise perform a REAL
+// create believing it was a no-op. CreateOne has no dry-run mode.
+var flags = args.Where(a => a.StartsWith("--", StringComparison.Ordinal)).ToArray();
+if (flags.Length > 0)
+    return Fail($"unknown option(s): {string.Join(" ", flags)}. CreateOne takes positional "
+              + "arguments only and has NO --dry-run mode - it always performs a real create.");
+
 var positional = args.Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToArray();
 if (positional.Length < 1) return Fail("missing appNumber.");
 if (!int.TryParse(positional[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var appNumber)
@@ -65,6 +73,19 @@ if (positional.Length >= 4 && !double.TryParse(positional[3], NumberStyles.Float
 if (positional.Length >= 5 && !string.IsNullOrWhiteSpace(positional[4])) name = positional[4];
 if (positional.Length >= 6 && !string.IsNullOrWhiteSpace(positional[5])) federation = positional[5];
 
+// NaN / Infinity note: NumberStyles.Float ACCEPTS "NaN" and "Infinity", and every
+// relational test against NaN is false - so a bare range check lets NaN through.
+// That would be especially perverse here: this tool exists to decide whether NaN in
+// WatchVrf output is real or an artifact. Reject non-finite values explicitly.
+// Report the RAW ARGUMENT, not the parsed double: .NET renders infinity as the
+// non-ASCII "infinity" glyph, which violates this project's ASCII-only rule and
+// mangles on a Windows console.
+if (!double.IsFinite(lat))
+    return Fail($"latDeg '{(positional.Length >= 2 ? positional[1] : "?")}' is not a finite number.");
+if (!double.IsFinite(lon))
+    return Fail($"lonDeg '{(positional.Length >= 3 ? positional[2] : "?")}' is not a finite number.");
+if (!double.IsFinite(alt))
+    return Fail($"altMeters '{(positional.Length >= 4 ? positional[3] : "?")}' is not a finite number.");
 if (lat < -90 || lat > 90)   return Fail($"latDeg {lat} out of range (-90..90).");
 if (lon < -180 || lon > 180) return Fail($"lonDeg {lon} out of range (-180..180).");
 
@@ -108,8 +129,12 @@ try
     Console.WriteLine("[..] bridge.Start() - joining the federation...");
     if (!bridge.Start(cfg))
     {
+        // Start() can fail AFTER the exercise connection was constructed (i.e. after
+        // joining), so resign explicitly. ResetVrf gets this via a finally/Dispose;
+        // CreateOne must not leave a joined federate behind (RUNBOOK sec 0).
         Console.WriteLine("[FAIL] bridge.Start() returned false. Check: RTI 4.6.1 on PATH, " +
                           "MAKLMGRD_LICENSE_FILE (Machine), FED/FOM, cwd = VRF bin64, fresh appNumber.");
+        try { bridge.Stop(); } catch { /* best effort */ }
         return 1;
     }
     Console.WriteLine($"[OK] joined (BackendCount={bridge.BackendCount()}).");

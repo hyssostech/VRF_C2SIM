@@ -187,15 +187,18 @@ Exit criteria / what this settles:
   "a human must launch VR-Forces" dependency that has constrained every session.
   Full write-up: docs/experiments/SESSION_2026-07-18_SELFLAUNCH.md; gate result in
   docs/experiments/PREREG_0_4_SELFLAUNCH.md sec 12.
-  - LAUNCH (zero human interaction, EXIT=0 READY, verified 3x):
+  - LAUNCH (zero human interaction, EXIT=0 READY, verified by TWO clean runs; a third
+    earlier run failed and exposed two script defects):
       pwsh -File scripts\LaunchVrf.ps1 -Scenario TropicTortoise `
-           -BackendAppNumber <fresh> -FrontendAppNumber <fresh> -AllowExistingRtiAssistant
+           -BackendAppNumber <fresh> -FrontendAppNumber <fresh>
   - GATE: ResetVrf --dry-run x2 (3489/3490) - joined cleanly, discovered the 2
     TropicTortoise baseline objects, no deletes, resigned cleanly, EXIT=0 both
     times, ZERO 0xC0000005. Prereg sec 4 prediction met exactly.
-  - ORACLE: tools/CreateOne (NEW, additive) created one M1A2; WatchVrf reported
-    POS ... 34.517156,-116.973525,1060.7 - exact requested lat/lon, altitude
-    ground-clamped from 10000 MSL, stable across every sample.
+  - ORACLE (DISCOVERY + POSITION FIDELITY, *not* displacement): tools/CreateOne
+    created one M1A2; WatchVrf reported POS ... 34.517156,-116.973525,1060.7 -
+    exact requested lat/lon, altitude ground-clamped from 10000 MSL, stable across
+    every sample. THE ENTITY NEVER MOVED, so DISPLACEMENT was NOT exercised;
+    P1-A..D all rest on displacement.
   - ROOT CAUSE of every "VR-Forces hangs on launch" episode: on HLA the RTI
     Assistant PROMPTS for a connection and the federate does not start until it is
     answered. Vendor-documented, not a bug. ONE-TIME per machine: answer it with
@@ -292,7 +295,10 @@ Exit criteria / what this settles:
     with nothing else observing) - dry-run it alongside WatchVrf first, and
     budget two fresh ledgered appNos (each invocation is a full
     join/resign).
-  - LIVE ORDER CHANGED BY USER (2026-07-18): the 0.4 self-launch gate is
+  - [SUPERSEDED 2026-07-18 evening - 0.4 PASSED and launch is now UNATTENDED via
+    scripts/LaunchVrf.ps1; the manual-launch instruction in this bullet is RETIRED.
+    See the Status TOP entry.] LIVE ORDER CHANGED BY USER (2026-07-18): the 0.4
+    self-launch gate is
     DEMOTED behind Phase 1. The next live session is the Phase 1 baseline
     with the 0.6 CON live gate FOLDED IN (it costs nothing extra and Step
     0's console capture is exactly where its evidence lands); the user
@@ -301,7 +307,9 @@ Exit criteria / what this settles:
     highest-value live hour in the effort, and 0.4 carries a HIGH-risk
     untried dialog mitigation (prereg RISK A) plus three confirmed script
     defects.
-  - 0.4 SCRIPT DEFECTS confirmed by supervisor read of scripts/LaunchVrf.ps1
+  - [SUPERSEDED - all three of these defects, plus three more found later, are
+    FIXED. See the Status TOP entry.] 0.4 SCRIPT DEFECTS confirmed by supervisor
+    read of scripts/LaunchVrf.ps1
     (detail recorded in docs/experiments/PREREG_0_4_SELFLAUNCH.md): readiness
     poll is process-presence only (line 291) while -DryRun advertises a
     MainWindowTitle modal-dialog check it never performs; app-number

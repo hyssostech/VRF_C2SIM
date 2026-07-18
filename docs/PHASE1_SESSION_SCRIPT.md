@@ -1,11 +1,16 @@
 # PHASE 1 SESSION SCRIPT - native reference baseline (TropicTortoise)
 
-Status: READY (supervisor-authored 2026-07-16; D1 resolved by the user
-2026-07-18). Groundwork plan Phase 1. This IS the next live session: the user
-launches VR-Forces MANUALLY per RUNBOOK (the 0.4 self-launch gate was DEMOTED
-behind Phase 1 by the user on 2026-07-18). The 0.6 console-capture live gate is
-now FOLDED INTO this session rather than run separately. Roles: user drives the
-GUI; supervisor records, timestamps, and gates. Evidence rules per
+Status: READY. Groundwork plan Phase 1; this IS the next live session.
+
+*** BRING-UP (corrected 2026-07-18 evening - an earlier version of THIS HEADER said
+"the user launches VR-Forces MANUALLY" and "the 0.4 gate was DEMOTED". BOTH ARE
+RETIRED.) *** 0.4 PASSED and VR-Forces launches UNATTENDED via
+scripts/LaunchVrf.ps1 - see the Preconditions block below for the command, the
+never-kill-RTI-infrastructure rule, and the MANDATORY oracle pre-check.
+
+The 0.6 console-capture live gate is FOLDED INTO this session rather than run
+separately. Roles: the supervisor brings the system up, records, timestamps and
+gates; the user drives the VR-Forces GUI for creation/tasking steps. Evidence rules per
 SUPERVISED_RECOVERY_PLAN.md (WatchVrf displacement is the only movement oracle).
 
 BUDGET (revised 2026-07-18, was "~1 hour"): plan for ~1.5 hours. The original
@@ -66,7 +71,7 @@ deliberate exception is the clock: it is set remotely via tools/SetSimRate
 - [ ] VR-Forces up. CHANGED 2026-07-18 - scripts/LaunchVrf.ps1 NOW WORKS UNATTENDED
       and is the preferred bring-up; the "launch manually" instruction is retired:
         pwsh -File scripts\LaunchVrf.ps1 -Scenario TropicTortoise `
-             -BackendAppNumber <fresh> -FrontendAppNumber <fresh> -AllowExistingRtiAssistant
+             -BackendAppNumber <fresh> -FrontendAppNumber <fresh>
       Expect EXIT=0 and "[OK] READY". Do NOT wait for rtiexec as a readiness signal
       and do NOT treat UDP 4000 as health - health is THREAD COUNT (blocked 2-4,
       healthy 23-67). Raw vrfSim CLI remains forbidden.
@@ -89,9 +94,13 @@ deliberate exception is the clock: it is set remotely via tools/SetSimRate
 - [ ] TropicTortoise (Mojave) scenario loaded; confirm scenario parameters are
       the defaults: frame-mode variable-frame, frame-time 0.1,
       time-multiplier 1.0 (ground truth 0.2 sec 8).
-- [ ] Fresh appNo for WatchVrf from OPUS_EXECUTION_PLAN.md Appendix B (next
-      free at write time: 3455 - RE-CHECK the ledger at session time), entered
-      in the ledger BEFORE the join.
+- [ ] Fresh appNos, ALL ledgered BEFORE their joins. Take them from the single
+      line marked "*** NEXT FREE:" in OPUS_EXECUTION_PLAN.md Appendix B (search for
+      that exact string - it is the ONLY authoritative value; do NOT infer one from
+      the highest number you see). Reserved for this session: 3455 WatchVrf, plus
+      3456-3459 for SetSimRate. YOU ALSO NEED TWO MORE for LaunchVrf itself (its
+      back-end and front-end each consume one) - take those from the NEXT FREE
+      marker and advance it.
 - [ ] FOUR MORE fresh appNos reserved and ledgered for SetSimRate (Step 1b up +
       down, Step 4 up + down - one join each), all distinct from WatchVrf's.
       SetSimRate has NO default appNumber; a missing appNo is a hard exit 2, so
@@ -300,7 +309,11 @@ CLOCKTEST throwaway, so no clock excursion ever falls inside the scored window.
 - [ ] File > Save As -> phase1_native_baseline.scnx (record the FULL saved
       path; this is the 0.5 scnx-diff reference input).
 - [ ] Final Object Console Summary Panel capture; only then Acknowledge All.
-- [ ] Teardown per RUNBOOK sec 7. Ledger every appNo used as USED.
+- [ ] Teardown per RUNBOOK sec 0.5.9 (close the FRONT-END; in combined mode the
+      back-end follows) and sec 4 (CLEAN STOP for any joined interface). NOT sec 7 -
+      that section is about running the .NET port and contains no teardown procedure.
+      LEAVE rtiAssistant / rtiexec / rtiForwarder RUNNING (RUNBOOK 0.5.2).
+      Ledger every appNo used as USED, and update the single "*** NEXT FREE:" marker.
 
 ## Scoring (decided by WatchVrf displacement, post-session)
 

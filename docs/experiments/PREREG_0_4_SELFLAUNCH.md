@@ -5,9 +5,18 @@ lines 83-86). Written BEFORE the live run so the result cannot be rationalized a
 the fact. Single variable, single prediction, explicit falsifier. ASCII only.
 
 > *** GATE RUN AND PASSED 2026-07-18. SEE SECTION 12 (the result) FIRST. ***
-> Section 11's "0.4 is demoted / three defects block it" status is HISTORICAL and
-> must not be acted on. Sections 1-10 are the intact pre-registration as written
-> before the run.
+> *** DO NOT EXECUTE THE PROCEDURES IN SECTIONS 1-10. *** They are preserved as
+> the pre-registration text as written BEFORE the run, and parts are now KNOWN
+> DANGEROUS:
+>   - Sec 7's precondition "no VR-Forces/RTI processes running", its post-check
+>     "no vrfSim/vrfGui/rtiexec left running", and RISK F's "clean up leftovers by
+>     hand" ORDER THE EXACT ACTION THAT DESTROYED THE WORKING CONFIGURATION on
+>     2026-07-18 and cost the entire live window. rtiAssistant, rtiexec and
+>     rtiForwarder are RTI INFRASTRUCTURE and MUST BE LEFT RUNNING (RUNBOOK 0.5.2).
+>   - Secs 4/7/8 treat rtiexec presence as a readiness signal. It is
+>     CONNECTION-DEPENDENT and must never gate readiness (RUNBOOK 0.5.6).
+> Section 11's "0.4 is demoted / three defects block it" status is likewise
+> HISTORICAL. THE LIVE PROCEDURE IS RUNBOOK SEC 0.5.
 
 Status: RUN 2026-07-18 - PREDICTION CONFIRMED. Result in section 12. The scripted
 launch works unattended and the ResetVrf join gate passed twice in a row.
