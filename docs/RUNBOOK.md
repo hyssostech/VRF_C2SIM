@@ -8,8 +8,13 @@ session was burned rediscovering the pieces below). Companion to START_HERE.md
 
 NEVER force-kill a JOINED interface (`Stop-Process -Force`, `taskkill /F`). It does
 not resign from the RTI, so it leaves a STALE FEDERATE; the next interface start then
-HANGS at RTI join (1 thread, ~0 CPU, log frozen at the config banner). The only
-recovery for a stale federate is a manual VR-Forces scenario reload in the GUI.
+HANGS at RTI join (1 thread, ~0 CPU, log frozen at the config banner). Recovery is
+AUTOMATED - use `tools/ResetVrf` (sec 8), or bring VR-Forces down and up again with
+scripts/StopVrf.ps1 + scripts/LaunchVrf.ps1 (sec 0.5), both unattended.
+*** CORRECTED 2026-07-18: this line used to read "The only recovery for a stale
+federate is a manual VR-Forces scenario reload in the GUI." THAT IS FALSE and it is
+the FIRST substantive claim in this runbook, so it mislead every reader who started
+here. NOTHING in the recovery path requires a human or a GUI. ***
 Stop the interface CLEANLY instead (sec 4) - it resigns, leaves no stale federate,
 and needs no reload. Force-kill + reload was the old clunky path (pre- and
 post-compaction); the clean stop replaces it.
@@ -308,8 +313,12 @@ USE THE SCRIPT:
 
     pwsh -File scripts\StopVrf.ps1            # add -DryRun to see what it would do
 
-Exit codes: 0 = down (or already down), 2 = bad args, 3 = timed out (NOT force-killed),
-4 = confirm dialog present but not drivable via UIA. VERIFIED LIVE 2026-07-18: teardown
+Exit codes: 0 = down, already down, or dry run; 2 = bad args; 3 = timed out (NOT
+force-killed - it prints the titles of every visible window still owned, so a blocking
+second modal names itself); 4 = confirm dialog present but not drivable via UIA;
+5 = unexpected terminating error (VR-Forces MAY STILL BE RUNNING, possibly with an
+unanswered modal; nothing was force-killed - re-run or inspect). An unattended runner
+must branch on 5 as well as 3. VERIFIED LIVE 2026-07-18: teardown
 in 8 s, EXIT=0, zero human interaction, all three RTI processes preserved.
 
 WHAT THIS SECTION USED TO SAY, AND WHY IT WAS NOT ENOUGH: it said only that in COMBINED
@@ -615,7 +624,16 @@ Diagnostic tool improvement made alongside this: `tools/PushInit` gained a `--ve
    hang-at-RTI = 1 thread / ~0 CPU. Unit creation flushes the buffer (log jumps past ~6 KB).
 3. Push the order:
    `tools\PushOrder\bin\Release\net10.0\PushOrder.exe <order.xml> <listen-secs>`
-4. Observe: task start/complete lines in the interface log; entity movement in the VR-Forces GUI.
+4. Observe HEADLESSLY - the GUI is NOT the instrument:
+   - movement: the WatchVrf POS trace (displacement between samples). THIS is the
+     movement oracle and the only admissible evidence of motion.
+   - what the interface told C2SIM: tools/ListenReports.
+   - task start/complete lines in the interface log are CORROBORATING ONLY -
+     completions lie in BOTH directions and may never stand alone.
+   *** CORRECTED 2026-07-18: this step used to say "entity movement in the VR-Forces
+   GUI", i.e. verification by human eyeball. That contradicts the headless mandate
+   (VRF_GROUNDWORK_PLAN.md sec 1a rule 2) and is not how any run is scored. Watching
+   the GUI is fine as a diagnostic; it is not evidence. ***
 
 ## 4. CLEAN STOP (do this instead of force-kill)
 
@@ -638,9 +656,15 @@ interface is running - sec 3.)
 ## 5. If a federate got stale anyway (after an accidental force-kill)
 
 Symptom: next interface start hangs at RTI join (1 thread, ~0 CPU, log frozen at config).
-Recovery: reload the VR-Forces scenario in the GUI (re-creates the federation). This is
-the ONLY step that needs the human, and it is only needed because of a prior force-kill.
-Avoid it entirely by clean-stopping (sec 4).
+RECOVERY IS AUTOMATED AND NEEDS NO HUMAN:
+  1. `tools/ResetVrf` (sec 8) - re-creates the federation state remotely, OR
+  2. `pwsh -File scripts\StopVrf.ps1` then `scripts\LaunchVrf.ps1` (sec 0.5) - both
+     unattended; a relaunch reloads the scenario from file.
+Avoid the situation entirely by clean-stopping (sec 4).
+*** CORRECTED 2026-07-18: this section used to say "reload the VR-Forces scenario in
+the GUI ... This is the ONLY step that needs the human." FALSE. It is also exactly the
+kind of statement that led a supervisor to conclude the whole effort needed a human at
+the GUI (VRF_GROUNDWORK_PLAN.md sec 1a). No step in this recovery needs a person. ***
 
 ## 6. Known runtime blocker (2026-07-09): the C++ STOMP client hangs at connect
 

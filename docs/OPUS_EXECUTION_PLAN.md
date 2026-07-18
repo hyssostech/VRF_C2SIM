@@ -84,8 +84,14 @@ forward"; revert and diagnose.
   STALE FEDERATE and the next join hangs. Clean-stop via `tools/StopIface` (drives the
   server STOP -> RESET -> UNINITIALIZED; the app catches UNINITIALIZED and resigns).
 - FRESH `Vrf__ApplicationNumber` for EVERY RTI join - the app, ResetVrf, AND WatchVrf each
-  join and each need their own. AppNos through 3385 are consumed; take the next-free number
-  recorded at the Appendix B ledger tail (currently 3386). Increment and never reuse; record each.
+  join and each need their own. Take the number from the single line marked
+  "*** NEXT FREE: <number> ***" in Appendix B. Increment and never reuse; record each.
+  *** CORRECTED 2026-07-18: this line used to say "AppNos through 3385 are consumed; take
+  the next-free number recorded at the Appendix B LEDGER TAIL (currently 3386)". BOTH
+  halves are wrong and dangerous: the cached 3386 is stale by 117, and "take the number
+  after the last ledger entry" is the FORBIDDEN rule - entries are NOT in numeric order
+  and that rule pointed at ALREADY-CONSUMED numbers (see the warning at the head of
+  Appendix B). Read the MARKER, never the tail, never a number quoted in prose. ***
 - NEVER push an init to a RUNNING interface (PushInit's RESET step's UNINITIALIZED
   transient makes the running app resign). Push init only while NO app is running.
 - Do NOT restart the c2sim-server container habitually - the restarts are what degraded
@@ -739,8 +745,10 @@ so those 3 will not fan out and will not report completion (expected).
 - Order: data/COA-STP1_Order.xml (the full 42-task order - this is the scale test, NOT the 7-task
   E1 probe).
 - AppNos: START AT 3355 (this EXECUTED run's numbers, apps 3355-3359; for any NEW run take the
-  next-free number from the Appendix B ledger tail, currently 3386). The app, ResetVrf, and WatchVrf
-  each need their own fresh number. Record each in Appendix B as consumed.
+  number from the single "*** NEXT FREE: <number> ***" marker in Appendix B - NOT from the
+  ledger tail, and NOT the "currently 3386" this line used to cache; both are wrong, see the
+  correction near the top of this file). The app, ResetVrf, and WatchVrf each need their own
+  fresh number. Record each in Appendix B as consumed.
 
 ### 5.2 Procedure (RUNBOOK sec 3 + sec 7; do NOT re-derive)
 
@@ -897,7 +905,7 @@ $env:PATH = "C:\MAK\vrforces5.0.2\bin64;C:\MAK\vrlink5.8\bin64;C:\MAK\makRti4.6.
 $env:MAKLMGRD_LICENSE_FILE = [Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','Machine')
 # 5. Sim backend healthy (do NOT kill vrfSimHLA1516e; vrfGui may be hung - that is fine).
 Get-Process vrfSimHLA1516e,rtiexec -ErrorAction SilentlyContinue | Select Name,Id
-# 6. Fresh appNo picked (next-free from the Appendix B ledger tail, currently 3386; never reused). cwd will be C:\MAK\vrforces5.0.2\bin64;
+# 6. Fresh appNo picked (from the "*** NEXT FREE: <number> ***" marker in Appendix B - NOT the ledger tail, NOT the stale "3386" once cached here; never reused). cwd will be C:\MAK\vrforces5.0.2\bin64;
 #    the app gets --contentRoot=<exe dir>.
 ```
 If loopback is slow: restart Docker Desktop (or reboot), re-measure, THEN proceed. Do not
@@ -905,9 +913,13 @@ proceed on a slow proxy - the STOMP client cannot ride it out.
 
 ## Appendix B - ApplicationNumber ledger
 
-3200-3490: consumed, skipped, or RESERVED (see entries below).
+3200-3502: consumed, skipped, or RESERVED (see entries below). DO NOT infer the next free
+number from this range header - it has gone stale before. Read the marker.
 
-*** THE SINGLE AUTHORITATIVE NEXT FREE VALUE IS THE LINE MARKED "*** NEXT FREE:" BELOW.
+*** THE SINGLE AUTHORITATIVE NEXT FREE VALUE IS THE ONE VALUE-BEARING LINE OF THE FORM
+    "*** NEXT FREE: <number> ***" BELOW. Search for that FORM, not the bare string
+    "*** NEXT FREE:" - the bare string also matches this instruction and other pointers,
+    so a literal search returns several lines and only ONE carries a number.
     Search for it. There is exactly ONE such line; if you ever find two, STOP and reconcile. ***
 Do NOT infer it from the highest number you happen to see, and do NOT use the old rule
 "take the number after the last ledger entry" - entries are NOT in numeric order and that

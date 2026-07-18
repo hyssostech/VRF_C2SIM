@@ -44,9 +44,15 @@ GOAL: a C2SIM init + order (coa-gpt-shaped) executes in VR-Forces with units tha
 (c) execute route tasks with displacement-verified arrivals, zero runaways, zero
     false task-chain advancement.
 
-DONE-GATE (final): the Phase-1 native reference scenario, driven end-to-end through
-C2SIM by the port, matches its own native-GUI baseline telemetry within documented
-tolerances - then COA-STP1 scored the same way.
+DONE-GATE (final): a C2SIM init + order, run end-to-end through the port with ZERO human
+interaction, produces telemetry meeting the documented arrival/runaway tolerances - then
+COA-STP1 scored the same way. Any "native" control arm needed for comparison comes from a
+GUI-authored .scnx loaded programmatically (groundwork 0.5 + loadScenario), NOT from a
+human session.
+*** CORRECTED 2026-07-18: this gate used to read "the Phase-1 native reference scenario
+... matches its own NATIVE-GUI BASELINE telemetry". That made a human-at-the-GUI session
+a prerequisite for shipping, and it sat FOUR LINES ABOVE sec 1a which forbids exactly
+that. Read sec 1a next - it is the governing statement. ***
 
 ## 1a. THE HEADLESS MANDATE - READ THIS BEFORE ANY SESSION PLANNING
 
@@ -89,10 +95,16 @@ detour was specifically UIA-driving of the Create/Task MENUS, which is abandoned
 
 - The VR-Forces GUI is now an INSTRUMENT, not just a viewer. Phase 1 is a joint
   user+supervisor session at the GUI; short, scripted, captured.
+  *** BOTH BULLETS IN THIS SECTION ARE SUPERSEDED - see sec 1a and the Status TOP entry.
+  Phase 1's GUI method is RETIRED, and 0.4 PASSED so the human-launch dependency is
+  gone. Kept for the record; do not act on them. ***
 - Executors do the reading/cataloging/diffing offline; the supervisor gates each
   phase's exit criteria; the user adjudicates type-mapping choices (they know the
-  military semantics) and performs GUI steps until the vrfLauncher self-launch recipe
-  (Phase 0.4) removes that dependency.
+  military semantics). SUPERSEDED CLAUSE: this bullet used to end "and performs GUI
+  steps until the vrfLauncher self-launch recipe (Phase 0.4) removes that dependency."
+  0.4 passed on 2026-07-18; VR-Forces launches AND tears down unattended; NO standing
+  arrangement assigns GUI work to the user. The user adjudicates MILITARY-SEMANTICS
+  questions - that is the only standing user role.
 - Every phase produces a durable doc; no findings live only in chat.
 
 ## Phase 0 - VRF competence base (offline + docs; no live time needed; start NOW)
@@ -143,7 +155,11 @@ Deliverable: docs/VRF_GROUND_TRUTH.md - the things we should have known on day o
 Exit criteria: the five deliverables exist, cross-referenced, adversarially reviewed;
 open unknowns are listed as QUESTIONS with where the answer lives (doc, probe, or MAK).
 
-## Phase 1 - Native reference baseline (user + supervisor at the GUI; ~1 hour, scripted)
+## Phase 1 - Native reference baseline - *** METHOD SUPERSEDED 2026-07-18, DO NOT RUN AS WRITTEN ***
+
+(Heading used to read "user + supervisor at the GUI; ~1 hour, scripted". The
+human-at-the-GUI method is RETIRED - see sec 1a. The QUESTIONS below survive and are to
+be answered HEADLESSLY; docs/PHASE1_SESSION_SCRIPT.md carries the full banner.)
 
 The ground truth run. At TropicTortoise (Mojave), USING ONLY THE VRF GUI:
 - 1.1 Palette-create a small real force: one M1A2 (entity), one REAL armor platoon
@@ -190,10 +206,17 @@ Exit criteria / what this settles:
   subordinate/org structure per 2.2, formation state set the R5 query-driven way.
 - Acceptance (offline): builds 0 errors, selftests green unchanged (parity modes), new
   mapping selftest pins the 2.1 table.
-- Acceptance (live, reference scenario first): create the Phase-1 force VIA C2SIM init;
-  structure-diff vs the GUI baseline ~clean; native-task OUR units from the GUI (they
-  must behave like GUI-created ones); THEN task via C2SIM order - telemetry must match
-  the Phase-1 baseline.
+- Acceptance (live, reference scenario first): create the force VIA C2SIM init;
+  structure-diff the saved .scnx against a natively-authored reference ~clean; THEN
+  task via C2SIM order - telemetry (WatchVrf displacement) must match the reference
+  baseline.
+  *** CORRECTED 2026-07-18: this gate used to include "native-task OUR units from the
+  GUI (they must behave like GUI-created ones)" as a middle step. THAT IS A GUI STEP ON
+  THE ACCEPTANCE PATH and sec 1a rule 1 forbids it - a GUI step may never be a
+  prerequisite for a scored run. The comparison it was reaching for (do our units
+  behave like natively-authored ones?) is obtained HEADLESSLY by structure-diffing the
+  saved .scnx against a GUI-authored reference .scnx, which is what groundwork 0.5 and
+  tools/ScnxDiff exist for. ***
 
 ## Phase 4 - Truthful execution layer (parallel with Phase 3; already specified)
 
@@ -213,7 +236,9 @@ Exit criteria / what this settles:
 ## Sequencing and effort
 
 - Phase 0 starts immediately, fully offline (executors); 0.4 needs one short live gate.
-- Phase 1 is the next LIVE session (user + supervisor, ~1 hour, scripted in advance).
+- [RETIRED 2026-07-18] "Phase 1 is the next LIVE session (user + supervisor, ~1 hour,
+  scripted in advance)." Its METHOD is superseded (sec 1a). The next live action is the
+  HEADLESS run - docs/HEADLESS_RUN_PLAN.md - with no user at the GUI.
 - Phases 2-4 are mostly offline; live checks are short and single-purpose.
 - No further scattergun live probes: every live minute from here serves a phase exit.
 

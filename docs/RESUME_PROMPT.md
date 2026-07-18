@@ -79,10 +79,16 @@ READ IN ORDER:
     entry (which IS the current state), then Phases 3-5.
 (2) docs/HEADLESS_RUN_PLAN.md - THE NEXT ACTION. The complete headless chain, the runner
     to build, the first run target, and the tooling defects that block it.
-(3) docs/RUNBOOK.md secs 0 / 0.5 / 0.6 / 7 before any live work. 0.5.0 pre-flight process
-    inventory; 0.5.1 launch; 0.5.2 never-kill; 0.5.7 the CORRECTED oracle pre-check;
-    0.5.9 unattended teardown; sec 7 the port's live run environment (four things that
-    must be right or it crashes or hangs).
+(3) docs/RUNBOOK.md secs 0 / 0.5 / 0.6 / 7 / 8 before any live work. 0.5.0 pre-flight
+    process inventory; 0.5.1 launch; 0.5.2 never-kill; 0.5.7 the CORRECTED oracle
+    pre-check; 0.5.9 unattended teardown; sec 7 the port's live run environment (FOUR
+    things that must ALL be right or it crashes 0xC0000005 or hangs: RTI 4.6.1 on PATH,
+    license refreshed from Machine scope, cwd=bin64 with --contentRoot, and FED file +
+    FOM modules matching VR-Forces). *** SEC 8 IS ON THIS LIST DELIBERATELY: it holds
+    tools/ResetVrf, the AUTOMATED stale-federate recovery. Secs 0 and 5 used to claim
+    the only recovery was a manual GUI scenario reload - that was FALSE and is now
+    corrected in place, but if you ever read a claim that recovery needs a human, sec 8
+    is the refutation. ***
 (4) docs/VRF_GROUND_TRUTH.md sec 0.0 cross-findings 1-7 (note item-2 REFINEMENT, item-6
     warp decomposition, item-7 oracle bug), then 0.1 catalog / 0.2 curriculum / 0.3 API
     audit / 0.5 scnx.
@@ -135,10 +141,11 @@ OPERATIONAL STATE:
 - *** NEVER KILL rtiAssistant / rtiexec / rtiForwarder. *** RTI infrastructure, persists
   across launches. An ALREADY-ANSWERED rtiAssistant is what makes unattended launch work.
   A new assistant failing to bind port 6003 each launch is EXPECTED AND BENIGN.
-- IF the "Choose RTI Connection" dialog appears (e.g. after a reboot - UNTESTED): answer
-  ONCE with "Always try to use this connection" CHECKED, then Connect. Qt window, NO UIA
-  tree; automate by screenshot + coordinate click - Connect centre is window-relative
-  (383,553) on a 573x583 dialog; allow >3 s to dismiss.
+- IF the "Choose RTI Connection" dialog appears (e.g. after a reboot - UNTESTED):
+  (SIMULATOR LIFECYCLE ONLY - this is the sec 1a exception, NEVER a template for tasking
+  automation.) Answer ONCE with "Always try to use this connection" CHECKED, then
+  Connect. Qt window, NO UIA tree; automate by screenshot + coordinate click - Connect
+  centre is window-relative (383,553) on a 573x583 dialog; allow >3 s to dismiss.
 - DO NOT set RTI_ASSISTANT_DISABLE. Processes start in 8 s but federates never discover
   each other and WatchVrf goes SILENTLY BLIND (reflected=0).
 - BACKEND HEALTH = THREAD COUNT (blocked 2-4 indefinitely; healthy 23-70 observed - that
@@ -182,8 +189,10 @@ STATE:
 - Phase 0 and Phase 2 offline tracks are DONE (content catalog, docs curriculum, API
   audit, scnx, console capture, type mapping 128 = EXACT 7 / NEAR 64 / PEND 54 / LONE 1
   / AVN 2, task vocabulary v2, runaway/warp census).
-- PHASE1_SESSION_SCRIPT.md is SUPERSEDED IN METHOD. 3455 is BURNED (consumed by a
-  pre-check); only 3456-3459 remain reserved from that block.
+- PHASE1_SESSION_SCRIPT.md is SUPERSEDED IN METHOD. Of the old Phase 1 reserved block,
+  3455 is BURNED (consumed by a pre-check). DO NOT TAKE ANY APPNO FROM THIS PARAGRAPH -
+  it is history, not an allocation. EVERY number comes from the "*** NEXT FREE:" marker,
+  which is well past that block.
 
 PENDING USER DECISIONS (do NOT decide these yourself; none block the next action):
 - ArmorCoHQ Decision 4: A (one-field match fix -> 4 generic dismounts) vs B (retarget ->
@@ -212,6 +221,13 @@ KNOWN RESIDUAL DEFECTS (recorded, deliberately not all fixed):
 - tools/ListenReports targets net6.0 while the rest target net10.0, and writes its
   capture beside its own binary rather than to a caller-specified run directory.
 - tools/CreateOne hard-codes the M1A2 DIS type with no override.
+- LaunchVrf.ps1:293 assigns $assistUnanswered and NEVER USES IT (PSScriptAnalyzer). That
+  variable is part of the unanswered-RTI-assistant detection, so the check it feeds may be
+  DEAD. Not investigated - do not assume that detection works.
+- tools/SetSimRate, tools/ResetVrf and tools/CreateOne PRINT "verify in the GUI" on
+  success or failure paths. Those strings execute inside an unattended runner where no
+  human reads the console, and they are the human-required misconception in
+  machine-readable form. Fix listed in HEADLESS_RUN_PLAN.md sec 4.
 - UNTRACED: whether vrfLauncher needs "--" to terminate --simArgs/--guiArgs; PowerShell
   re-quoting of the embedded-quote -ArgumentList when a name contains spaces.
 
@@ -232,9 +248,46 @@ C++ repo (c2simVRFinterfacev2.36): probe branch probe/create-altitude-above-grou
 b96688b; master pristine at 191933a - DO NOT develop there. Its untracked tools/ dir is
 BUILD OUTPUT ONLY - do not commit it.
 
-START by reporting: git log --oneline -5 + git status -sb of the port repo; confirmation
-you read the HEADLESS MANDATE (plan sec 1a), the plan Status TOP entry, and
+WHICH REPO YOU ARE IN - CHECK THIS FIRST, TWO REPOS HAVE SIMILAR NAMES AND OPPOSITE
+RULES. Work happens in the PORT repo VRF_C2SIM (path .../Software/Interfaces/VRF_C2SIM,
+branch main). The C++ repo c2simVRFinterfacev2.36 is a FROZEN ORACLE - do not develop
+there. Your shell may open with the C++ repo's branch showing in the ambient git status;
+that is not where you work. Confirm with `git remote -v` (origin must be
+hyssostech/VRF_C2SIM).
+
+BUILDING (nothing here needs VR-Forces running):
+    dotnet build src\VrfC2SimApp\VrfC2SimApp.csproj -c Release
+    dotnet build tools\<Name>\<Name>.csproj -c Release
+Built exes land under tools\<Name>\bin\Release\<tfm>\... - the TFM VARIES (most are
+net10.0/win-x64; ListenReports is net6.0), so locate with Get-ChildItem -Recurse rather
+than hard-coding a path.
+
+TOOL INVOCATIONS (all from cwd C:\MAK\vrforces5.0.2\bin64 with the RTI env of RUNBOOK
+sec 7; every one that JOINS needs its own FRESH LEDGERED appNo):
+    WatchVrf.exe <appNo> <durationSecs> <sampleSecs>     # oracle; use sampleSecs=2
+    CreateOne.exe <appNo>                                # one throwaway M1A2
+    SetSimRate.exe <multiplier> <appNo>                  # no readback; see RUNBOOK 0.5.7
+    ResetVrf.exe [--dry-run] <appNo>                     # stale-federate recovery
+    PushInit.exe <init.xml>                              # C2SIM server, no appNo
+    PushOrder.exe <order.xml> <listenSecs>               # C2SIM server, no appNo
+    StopIface.exe                                        # *** ACTS IMMEDIATELY, NO ARGS,
+                                                         # drives the server to
+                                                         # UNINITIALIZED. Not a probe. ***
+Verify each against its own --help/source before trusting this list; it is a convenience
+copy and convenience copies go stale.
+
+AUTHORITY TO PROCEED - READ THIS BEFORE CONCLUDING YOU ARE BLOCKED. The NEXT ACTION
+(argument guards, then scripts/RunC2SimScenario.ps1) IS product code, and the standing
+rule requires a go-ahead for product code. So ASK FOR IT IN YOUR FIRST MESSAGE, in one
+line, alongside the START report - do not stall, and do not treat the rule as a reason
+the next action cannot happen. Everything before that point (reading, git, process
+inventory, builds, reading the marker) needs no permission at all.
+
+START by reporting: git log --oneline -5 + git status -sb of the port repo (expect a
+clean tree; an untracked *.code-workspace file is known and ignorable); confirmation you
+read the HEADLESS MANDATE (plan sec 1a), the plan Status TOP entry, and
 HEADLESS_RUN_PLAN.md; the current "*** NEXT FREE:" value READ FROM THE MARKER; and a
-process inventory (RUNBOOK 0.5.0). Then propose the next step. Get explicit user
-go-ahead before ANY live work and before writing product code. Committing and pushing
-GATED, GREEN work does not need a separate go-ahead.
+process inventory (RUNBOOK 0.5.0). Then propose the next step AND ask for the go-ahead
+in the same message. Get explicit user go-ahead before ANY live work and before writing
+product code. Committing and pushing GATED, GREEN work does not need a separate
+go-ahead.

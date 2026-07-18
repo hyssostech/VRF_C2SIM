@@ -484,7 +484,7 @@ which never runs on this machine (sec 1). The script therefore CANNOT report REA
 here regardless of actual health. Replace the rtiexec condition with the sec 2
 oracle (UDP 4000 bound + thread growth + log progression).
 
-## 8. Application numbers consumed
+## 8. Application numbers consumed (SUPERSEDED - this section is a SNAPSHOT of the afternoon of 2026-07-18; the LEDGER is authoritative)
 
 - 3460 - vrfLauncher back-end, RUN 1. Backend stalled; never joined.
 - 3461 - vrfLauncher front-end, RUN 1. Front-end healthy; never joined a federation.
@@ -495,3 +495,8 @@ oracle (UDP 4000 bound + thread growth + log progression).
   done; recorded here so the trace is not mistaken for an unledgered join.
 
 Phase 1's reservations 3455-3459 were NOT touched and remain valid.
+*** SUPERSEDED THE SAME EVENING: 3455 WAS subsequently CONSUMED by the oracle pre-check
+and is BURNED. Only 3456-3459 survive from that block, and Phase 1's METHOD is retired
+anyway (VRF_GROUNDWORK_PLAN.md sec 1a). NEVER take an appNo from this section - it is a
+point-in-time snapshot. Read the "*** NEXT FREE: <number> ***" marker in
+OPUS_EXECUTION_PLAN.md Appendix B. ***

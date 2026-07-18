@@ -97,6 +97,45 @@ These are hazards specifically because the runner is unattended.
   capture beside its own binary rather than to a run directory. The runner needs it to
   write where it is told.
 
+CONSOLE OUTPUT THAT TELLS A HUMAN TO LOOK AT THE GUI - fix before the runner ships,
+because these strings execute inside an unattended run where nobody reads the console,
+and because they are the misconception in machine-readable form:
+- `tools/SetSimRate/Program.cs` (~:199-201 and ~:209-210): "VERIFY IN THE GUI: there is
+  no getter on the remote controller ... Confirm the rate visually before trusting it."
+  and "[FAIL] multiplier may or may not have been applied - VERIFY IN THE GUI."
+  The API limitation is REAL (no timeMultiplier() accessor). The prescribed remedy is
+  not. Replace with the headless check: compare WatchVrf displacement per WALL second
+  across the change - an Nx multiplier shows as Nx displacement per real second.
+- `tools/ResetVrf/Program.cs` (~:139): "[OK] resigned cleanly. Verify the VR-Forces GUI
+  now shows an empty scenario." Replace with: re-run with --dry-run, or run WatchVrf -
+  a cleared scenario reflects nothing beyond the baseline objects.
+- `tools/CreateOne/Program.cs` (~:185): "[FAIL] no ObjectCreated reply within 20 s ...
+  check the VR-Forces GUI and WatchVrf". Reorder so WatchVrf is the instrument and the
+  GUI is at most a parenthetical.
+
+## 4a. THE PASS CRITERION - WRITE IT BEFORE THE FIRST RUN
+
+A clean-context cold reader flagged this as the single biggest hole in the handoff, and
+it is: this project's documented failure mode is inventing an acceptance criterion after
+seeing the data. DECIDE AND RECORD THE ARITHMETIC BEFORE RUNNING, in this file.
+
+What must be pinned down, none of which is currently written anywhere:
+- ARRIVAL: how close to the final waypoint counts as arrived? Note the vendor semantics
+  already established - a UNIT route completion is the formation LEADING EDGE at the
+  last vertex and is premature BY DESIGN (ground truth 0.0 item 5), while an ENTITY
+  at-distance task accepts an explicit arrival radius (0.3 setAtDistance). So the
+  tolerance is not one number; it differs for entity vs unit.
+- MOVED AT ALL: minimum cumulative displacement that distinguishes real motion from
+  jitter, and over what interval.
+- RUNAWAY: the containment rule Phase 4 already specifies - exceeding route length by a
+  factor, or leaving the AO radius. Pick the factor and the radius.
+- DR ARTIFACT vs REAL MOTION: transient out-and-back mega-jumps are suspected
+  observer-side dead-reckoning artifacts (ground truth 0.0 item 6). A short sample
+  interval (sampleSecs=2) makes the spiky-vs-smooth distinction resolvable. Decide how
+  the scorer rejects them rather than counting them as displacement.
+- COMPLETION TRUST: a TASKCMPLT is scored ONLY against displacement. Completions lie in
+  both directions and may never stand alone.
+
 ## 5. What is explicitly NOT next
 
 - NOT GUI automation of any kind. The Create/Task UIA probe is ABANDONED (mandate

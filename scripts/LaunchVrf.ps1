@@ -78,11 +78,19 @@
 
 .EXAMPLE
     # Self-test (safe): print the plan, launch nothing.
-    pwsh -File scripts\LaunchVrf.ps1 -DryRun -BackendAppNumber 3455 -FrontendAppNumber 3456
+    pwsh -File scripts\LaunchVrf.ps1 -DryRun -BackendAppNumber <fresh1> -FrontendAppNumber <fresh2>
 
 .EXAMPLE
-    # Live (supervised session only, per the prereg): combined mode, TropicTortoise.
-    pwsh -File scripts\LaunchVrf.ps1 -Scenario TropicTortoise -BackendAppNumber 3455 -FrontendAppNumber 3456
+    # Live: combined mode, TropicTortoise.
+    pwsh -File scripts\LaunchVrf.ps1 -Scenario TropicTortoise -BackendAppNumber <fresh1> -FrontendAppNumber <fresh2>
+
+    *** NEVER PASTE A LITERAL APP NUMBER FROM THIS HELP TEXT. *** These examples used to
+    show 3455/3456 - by 2026-07-18 those were BURNED and RESERVED respectively, and this
+    help block was the ONLY place an operator saw a concrete pair, so it modelled exactly
+    the reuse that causes the stale-federate join hang. Take BOTH numbers from the single
+    line marked "*** NEXT FREE: <number> ***" in docs/OPUS_EXECUTION_PLAN.md Appendix B,
+    LEDGER THEM BEFORE LAUNCHING, then advance the marker. This script CANNOT enforce
+    freshness - it never reads the ledger (RUNBOOK 0.5.1).
 #>
 
 [CmdletBinding()]

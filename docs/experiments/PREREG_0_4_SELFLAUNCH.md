@@ -115,7 +115,7 @@ Argument-by-argument provenance:
   scenarios live in userData/scenarios). Both TropicTortoise.scnx and
   Bogaland2.scnx confirmed present.
 - Fresh application numbers - RUNBOOK sec 2/7 (stale-federate avoidance) +
-  OPUS_EXECUTION_PLAN.md Appendix B ledger (NEXT FREE = 3455 at time of writing).
+  OPUS_EXECUTION_PLAN.md Appendix B ledger (NEXT FREE = 3455 [STALE - 3455 IS NOW BURNED; read the marker in Appendix B] at time of writing).
 
 ## 4. PREDICTION (registered before the run)
 
@@ -207,7 +207,7 @@ entirely is out of scope (and would reintroduce the backend-only crash).
 Preconditions (operator, before starting): no VR-Forces/RTI processes running;
 C2SIM server not required for this gate (ResetVrf is a pure VR-Forces mini-host, no
 C2SIM/STOMP - RUNBOOK sec 8); pick FOUR fresh consecutive app numbers from
-OPUS_EXECUTION_PLAN.md Appendix B (NEXT FREE = 3455): back-end B, front-end F,
+OPUS_EXECUTION_PLAN.md Appendix B (NEXT FREE = 3455 [STALE - 3455 IS NOW BURNED; read the marker in Appendix B]): back-end B, front-end F,
 ResetVrf-1 R1, ResetVrf-2 R2 - and record each in Appendix B as consumed.
 
 1. **Offline confirm** (no launch): from the repo,
@@ -283,7 +283,7 @@ ResetVrf-1 R1, ResetVrf-2 R2 - and record each in Appendix B as consumed.
 
 ## 10. Application-number budget for this gate
 
-From OPUS_EXECUTION_PLAN.md Appendix B, NEXT FREE = 3455. This gate consumes four
+From OPUS_EXECUTION_PLAN.md Appendix B, NEXT FREE = 3455 [STALE - 3455 IS NOW BURNED; read the marker in Appendix B]. This gate consumes four
 consecutive numbers; suggested assignment (operator confirms against the live
 ledger tail at run time and records each):
 - 3455 - back-end (vrfSimHLA1516e) via LaunchVrf.ps1 --simArgs --appNumber

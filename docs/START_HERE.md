@@ -1,7 +1,28 @@
 # START HERE - the C2SIM VR-Forces -> .NET port
 
+*** STOP. THIS FILE IS BUILD / REPO REFERENCE ONLY, AND ITS STATUS BLOCK IS FROZEN AT
+2026-07-16. IT IS NOT THE CURRENT STATE AND NOT THE ENTRY POINT. ***
+
+  - CURRENT STATE, MISSION AND NEXT ACTION: docs/RESUME_PROMPT.md
+  - GOVERNING STATEMENT: docs/VRF_GROUNDWORK_PLAN.md sec 1a (THE HEADLESS MANDATE)
+  - THE NEXT ACTION: docs/HEADLESS_RUN_PLAN.md
+
+*** WHAT WE ARE BUILDING: a HEADLESS interface. A C2SIM document goes in; units are
+initialized, tasked and run in VR-Forces; the outcome is verified FROM TELEMETRY. One
+button. ZERO humans in the UI - no tasking by hand, no clicking on terrain, and no agent
+driving the GUI either. Verification is arithmetic on the WatchVrf POS trace; it is not
+a human review step and never was. ***
+
+ANY TEXT BELOW THAT DESCRIBES A HUMAN AT THE GUI, A HUMAN LAUNCHING VR-FORCES, OR A
+"native-GUI baseline" AS CURRENT PRACTICE IS HISTORICAL AND RETIRED. VR-Forces launches
+AND tears down unattended (scripts/LaunchVrf.ps1 / scripts/StopVrf.ps1, 0.4 PASSED
+2026-07-18). On 2026-07-18 a supervisor read exactly this kind of stale line, concluded
+live testing needed a human, and burned a work block building GUI automation to route
+around it. Do not repeat that.
+
 If you are picking this up in a fresh session with no prior context, read
-this first. It gives you everything to continue with zero loss. ASCII-only.
+docs/RESUME_PROMPT.md first - NOT this file. This file remains useful for build
+commands, repo layout and historical evidence. ASCII-only.
 
 ## What this is
 
@@ -77,7 +98,9 @@ Three locations are in play:
 > codebases, but runaway/warp and the pile split proved CODE-INDEPENDENT - the remaining
 > problems live on the VR-Forces side of the boundary. The groundwork plan: learn native
 > VRF (content catalog, docs curriculum, API audit, scnx spec-diffing), establish a
-> native-GUI baseline at Mojave, then rebuild the creation/mapping layer onto REAL
+> native-GUI baseline at Mojave [METHOD RETIRED 2026-07-18 - see sec 1a; a native
+> control arm, if ever needed, comes from a GUI-authored .scnx loaded programmatically,
+> NOT from a human session], then rebuild the creation/mapping layer onto REAL
 > installed unit types with a truthful-arrival gate. Read it FIRST.)
 >
 > **The prior plan, docs/SUPERVISED_RECOVERY_PLAN.md** (2026-07-16) -
@@ -145,7 +168,10 @@ Three locations are in play:
   (`0xC0000005` in `VrfFacade::Tick()`) was reproduced 3x, ROOT-CAUSED to this session's headless
   `vrfSimHLA1516e.exe` CLI launch (RUNBOOK sec 0.5, now marked UNSAFE) rather than to Mojave/
   TropicTortoise content - a human must launch VR-Forces via the GUI/`vrfLauncher.exe` until a
-  headless recipe is worked out; (3) the altitude probe itself (clearance 0 vs 50) produced NO
+  headless recipe is worked out [RETIRED 2026-07-18: 0.4 PASSED. VR-Forces launches UNATTENDED
+  via scripts/LaunchVrf.ps1 and tears down via scripts/StopVrf.ps1, both EXIT=0 with zero human
+  interaction. The human-launch dependency NO LONGER EXISTS - RUNBOOK sec 0.5]; (3) the altitude
+  probe itself (clearance 0 vs 50) produced NO
   telemetry-confirmed movement for ANY unit in either run, including the entity that has always
   worked before - CONFOUNDED, not a valid test of the altitude hypothesis yet; (4) RUNBOOK sec
   0.6 documents two real XML-comment gotchas that silently break server pushes (a prolog comment

@@ -4,6 +4,12 @@ Living config guide (started 2026-07-14). Captures WHAT MUST BE SET UP to run a 
 Tropic-Tortoise-style C2SIM scenario at a new geographic region in VR-Forces, and WHY. Update
 as findings land. ASCII-only.
 
+*** THIS GUIDE PREDATES THE HEADLESS RE-GROUNDING (2026-07-18). The product is HEADLESS:
+C2SIM in -> run -> verified from telemetry, ZERO humans in the UI (VRF_GROUNDWORK_PLAN.md
+sec 1a). ANY GUI WORKFLOW BELOW IS DIAGNOSTIC ONLY and may NEVER be a prerequisite for a
+scored run. Where a GUI step is described, look for the headless equivalent first -
+e.g. sim rate is set by tools/SetSimRate, NOT by the GUI toolbar. ***
+
 ## The stack (fixed)
 - **Terrain**: `MAK Earth Space (online).mtf` - a whole-earth STREAMING terrain (VR-TheWorld /
   tile access required). Both Sweden (Bogaland) and Mojave (Tropic Tortoise) use it; the region
@@ -58,8 +64,13 @@ as findings land. ASCII-only.
          ENTITY vacuous-complete its move at 0 m. Restart VR-Forces clean (sim clock reset).
      (d) SANITY CHECK FIRST: the entity 1.BdeHQ must actually MOVE (~1.16 km) before any aggregate
          number means anything. Telemetry (WatchVrf displacement), never completions (R11).
-     (e) Sim rate: our Vrf:TimeMultiplier may not survive a restart (GUI reset to 1x); set the rate
-         in the GUI toolbar (15x) and confirm the sim clock is actually ticking.
+     (e) Sim rate: our Vrf:TimeMultiplier may not survive a restart. Set it REMOTELY with
+         `tools/SetSimRate <multiplier> <freshLedgeredAppNo>` (D1 ruling 2026-07-18). The GUI
+         toolbar is NOT the mechanism (it also caps at 15). There is NO readback for the
+         multiplier: confirm it from the WatchVrf displacement rate - an Nx multiplier shows
+         as Nx displacement per real second - NOT by looking at the GUI clock.
+         [CORRECTED 2026-07-18: used to say "set the rate in the GUI toolbar (15x) and confirm
+         the sim clock is actually ticking" - a human GUI step on the run path.]
 3. **ClientId** = the init's SystemName (COA-STP1 = `C2SIM`; golden STP = `STP`).
 4. **Vrf:AggregateFormation=auto** (query-driven create-time formation repair; R5-verified).
 5. **Vrf:TimeMultiplier=20** (fast clock).
