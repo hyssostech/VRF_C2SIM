@@ -25,12 +25,44 @@ channel, not the GUI).
 
 CORRECTION 2026-07-18 (live-verified). This paragraph previously read "`rtiexec` is spawned
 automatically by the RTI on first federate join - do not launch it separately." THE FIRST
-CLAUSE IS FALSE ON THIS MACHINE: `C:\MAK\makRti4.6.1\rid.mtl` sets `(setqb RTI_useRtiExec 0)`,
-so rtiexec NEVER runs here and NO readiness gate may wait for it (a gate that did reported
-NOT READY against a healthy front-end). Do not launch it separately either. The real
-federation transport is UDP 4000 (`RTI_udpPort 4000`); `rtiForwarder` listens on 5000/4001
-but `RTI_distributedUdpForwarderMode 0` means it is NOT the federation path - a fully
-healthy backend has NO :5000 connection.
+CLAUSE IS FALSE ON THIS MACHINE, AS AN OBSERVATION: no rtiexec process ever appears, and NO
+readiness gate may wait for one (a gate that did reported NOT READY against a healthy
+front-end). Do not launch it separately either. Observed transport on a verified-healthy
+back-end: UDP 4000 bound; NO connection to `rtiForwarder`'s :5000 despite it listening.
+
+SECOND CORRECTION, SAME DAY - do not repeat the first version's mistake: this entry
+originally explained the above by citing `(setqb RTI_useRtiExec 0)` in rid.mtl. THAT
+EXPLANATION IS WRONG. MAK RTI Users Guide p. 7-8 and Reference Manual Appendix A state
+verbatim, under `RTI_useRtiExec`, `RTI_udpPort`, `RTI_tcpPort`, `RTI_destAddrString` and
+`RTI_tcpForwarderAddr`: "This parameter is ignored unless RTI_configureConnectionWithRid is
+set to 1." Our rid.mtl sets `RTI_configureConnectionWithRid 0`, so ALL of those values are
+DISCARDED and the RTI Assistant's stored connection configuration supplies them instead. The
+observations above stand; the rid.mtl-based explanation does not. Treat rid.mtl connection
+values on this machine as INERT until `RTI_configureConnectionWithRid` is set to 1.
+
+*** RTI ASSISTANT PROMPT - THE CAUSE OF "THE BACKEND HANGS ON LAUNCH" (2026-07-18) ***
+On HLA, the vendor's documented startup sequence REQUIRES a human. VR-Forces help,
+SharedTopics\XMLrti\InstallMAK-RTI.htm, verbatim: "Start the application. The RTI Assistant
+will prompt you to choose an RTI configuration. Choose a configuration. If necessary, start
+the rtiexec. Click Connect. The application should run." MAK RTI Users Guide p. 4-2 names the
+symptom exactly: "The federate startup process may appear to hang while the Choose RTI
+Connection dialog box is waiting for input."
+THE FIX (RTI Reference Manual sec 5.2.10, p. 5-11, verbatim: "To disable the RTI Assistant,
+create an environment variable called RTI_ASSISTANT_DISABLE. It does not require a value.
+Its existence causes the RTI to not create the RTI Assistant."):
+
+    $env:RTI_ASSISTANT_DISABLE = "1"    # set BEFORE launching, process scope is enough
+
+VERIFIED 2026-07-18: with it set, `vrfLauncher --usePredefinedConnection "<profile>"` brings
+up a healthy joined back-end in 8 SECONDS, with or without `--simArgs --appNumber N
+--scenarioFileName ...`; scenario loads; both TropicTortoise baseline objects are locally
+simulated. Without it, a fresh unanswered assistant blocks the back-end indefinitely.
+GOTCHA THAT MADE THIS INVISIBLE FOR DAYS: an ALREADY-ANSWERED assistant left running from a
+previous session makes launches work, because each new assistant dies on the port-6003
+collision instead of prompting. Killing that "stale" process as cleanup BREAKS launching.
+KNOWN RESIDUAL (not resolved): with the Assistant disabled, ResetVrf --dry-run joins cleanly
+and crash-free but discovers 0 objects / BackendCount=0 even against a scenario-loaded
+back-end. See docs/experiments/SESSION_2026-07-18_SELFLAUNCH.md "OPEN ITEM".
 
 BACKEND-HEALTH ORACLE (measured 2026-07-18 against a verified-healthy backend): UDP 4000
 bound + thread count growing well past 2 (~36 observed) + vrfSim.log progressing beyond the

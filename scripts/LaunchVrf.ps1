@@ -51,7 +51,8 @@
            auto-connects it).
     * Scenario path form "../userData/scenarios/<name>.scnx" (relative to bin64),
       env (RTI 4.6.1 Machine-scope, MAKLMGRD_LICENSE_FILE from Machine scope),
-      cwd = bin64, fresh appNumber per Appendix B, rtiexec auto-spawned on join,
+      cwd = bin64, fresh appNumber per Appendix B, (NOTE: rtiexec does NOT run on
+      this machine - rid.mtl sets RTI_useRtiExec 0; corrected 2026-07-18),
       "judge by process presence not console (block-buffered)":
         docs/RUNBOOK.md sec 0.5, sec 7, sec 8; docs/OPUS_EXECUTION_PLAN.md
         Appendix B (NEXT FREE app number = 3455 at time of writing).
@@ -264,15 +265,27 @@ if ($assist) {
             Say-Fail ("  -> pid {0} is sitting on the modal 'Choose RTI Connection' dialog. This is the WEDGED state implicated in stalled back-ends. Clear or close it before launching." -f $a.Id)
         }
     }
-    Say-Warn ("  This launch's own RTI Assistant will FAIL to bind port {0}." -f $assistPort)
-    if (-not $AllowExistingRtiAssistant) {
-        Say-Fail '  Refusing to launch with a pre-existing rtiAssistant. Close it, or re-run with -AllowExistingRtiAssistant to proceed deliberately (and record that the assistant state is then UNCONTROLLED).'
-        $hardFail = $true
-    } else {
-        Say-Warn '  -AllowExistingRtiAssistant set: proceeding. NOTE: assistant state is now an UNCONTROLLED VARIABLE in this run.'
-    }
+    Say-Ok ("  This launch's own RTI Assistant will fail to bind port {0} and exit - which is EXPECTED AND BENIGN. The pre-existing assistant serves the federation." -f $assistPort)
+    Say-Ok '  PROCEEDING. Do NOT kill the pre-existing assistant to "clean up".'
 } else {
-    Say-Ok ("no pre-existing rtiAssistant (port {0} should be free for this launch's own)" -f $assistPort)
+    # CORRECTED 2026-07-18 after the root cause was found. The earlier version of
+    # this check REFUSED to launch when an rtiAssistant already existed. That was
+    # BACKWARDS and would have blocked the only configuration that ever worked.
+    #
+    # Vendor-documented startup sequence (VR-Forces help, SharedTopics\XMLrti\
+    # InstallMAK-RTI.htm): "Start the application. The RTI Assistant will prompt
+    # you to choose an RTI configuration. Choose a configuration. If necessary,
+    # start the rtiexec. Click Connect. The application should run."
+    #
+    # So on HLA a federate DOES NOT START until an RTI Assistant has been ANSWERED.
+    # An already-answered assistant is the ASSET. When none exists, this launch
+    # spawns a fresh one that sits unanswered on "Choose RTI Connection" and the
+    # back-end blocks forever (observed repeatedly 2026-07-18: back-end frozen
+    # after the VR-Link banner, before the parameter database, threads decaying
+    # 7 -> 4 -> 2, UDP 4000 never bound).
+    Say-Warn ("NO pre-existing rtiAssistant found. Per the vendor's documented startup sequence, this launch will spawn one that PROMPTS ('Choose RTI Connection') and the BACK-END WILL BLOCK until it is answered.")
+    Say-Warn '  Unless the Assistant has been configured to auto-connect, a human (or UI automation) must choose the connection and click Connect.'
+    Say-Warn '  Detail: docs/experiments/SESSION_2026-07-18_SELFLAUNCH.md'
 }
 
 # 7. Mode guard for the known crash-risk backend-only variant
@@ -317,8 +330,8 @@ if ($DryRun) {
     Say ("            - back-end thread count > {0} (a STALLED back-end sits at ~2 threads while present)" -f $BackendMinThreads)
     Say ("            - process '{0}' present     (front-end; combined mode - the crash-avoiding piece)" -f $procFrontend)
     Say  '            - vrfGui MainWindowTitle non-empty (front-end window is up, not stuck in a modal dialog)'
-    Say  '            - rtiexec TCP listening ports (Get-NetTCPConnection on rtiexec PID; passive)'
-    Say-Plan 'declare READY only when back-end AND rtiexec are up AND (in Combined mode) the front-end is up WITH A NON-EMPTY MainWindowTitle. A slow vrfGui start keeps polling rather than misreporting PARTIAL. Distinct outcomes: exit 0 READY; exit 4 BLOCKED (front-end process up but NO window title = modal dialog waiting on a human, prereg RISK A); exit 1 PARTIAL (no front-end at all - the crash-risk condition); exit 3 NOT READY within timeout.'
+    Say  '            - back-end UDP endpoints logged for the record (passive)'
+    Say-Plan 'declare READY only when the back-end is HEALTHY AND JOINED (UDP 4000 bound AND thread count above the floor - NOT mere process presence, and NOT rtiexec, which never runs on this machine) AND (in Combined mode) the front-end is up WITH A NON-EMPTY MainWindowTitle. A slow vrfGui start keeps polling rather than misreporting PARTIAL. Distinct outcomes: exit 0 READY; exit 4 BLOCKED (front-end process up but NO window title = modal dialog waiting on a human); exit 1 PARTIAL (back-end healthy but no front-end - the crash-risk condition); exit 3 NOT READY within timeout (on HLA the usual cause is an UNANSWERED RTI Assistant "Choose RTI Connection" prompt - see the precondition warning above).'
     Say-Head 'Result'
     Say-Ok 'DRY-RUN complete: preconditions passed, command line resolved, no process launched.'
     exit 0

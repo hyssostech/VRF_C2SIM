@@ -922,9 +922,22 @@ values are NOT used.
   exit 255. No stale federate (never completed a join).
 - 3463: BURNED UNUSED - ledgered for a second ResetVrf dry-run that never ran (the first
   never succeeded). Do NOT recycle.
-- 3464: CLAIMED - vrfLauncher back-end, DE-CONFOUNDING RUN: RUN 1's exact overridden
-  command line re-run against a CLEAN rtiAssistant. Stall here => the overrides (H1).
-- 3465: CLAIMED - vrfLauncher front-end, same de-confounding run.
+- 3464: USED - vrfLauncher back-end, de-confounding run (overrides, clean assistant).
+  STALLED. Cause later found to be the unanswered RTI Assistant prompt, not the overrides.
+- 3465: USED - vrfLauncher front-end, same run.
+- 3466/3467: USED - appNumber-override-only run (no scenario). STALLED, same cause.
+- 3468/3469: DRY-RUN ONLY, never joined. Burned; do NOT recycle.
+- 3470: CLAIMED - ResetVrf --dry-run #1, the 0.4 join gate against a launch made with
+  RTI_ASSISTANT_DISABLE=1 (the documented fix, RTI RefMan 5.2.10).
+- 3471: CLAIMED - ResetVrf --dry-run #2 (prereg requires TWO clean joins in a row).
+  RESULT 3470+3471: BOTH JOINED CLEANLY, exit 0, resigned cleanly, NO 0xC0000005.
+  Caveat: launch had NO scenario, so BackendCount=0 and 0 objects discovered - the
+  prereg's "discovers 2 baseline objects" half was NOT exercised by these two.
+- 3472: CLAIMED - vrfLauncher back-end, WITH TropicTortoise + appNumber overrides,
+  RTI_ASSISTANT_DISABLE=1. Also the first fair test of the override args.
+- 3473: CLAIMED - vrfLauncher front-end, same run.
+- 3474: CLAIMED - ResetVrf --dry-run against that scenario-loaded launch (expect 2
+  baseline objects, completing the prereg prediction).
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
 3001 / 3101, not ledgered numbers - that is what a bare launch does and what every human

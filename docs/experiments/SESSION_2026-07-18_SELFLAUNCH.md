@@ -47,11 +47,70 @@ Pitch-RTI-vs-MAK-RTI PATH collision (MAK RTI is first on PATH); --simArgs
 replacing profile args (the spawned command line is complete, including
 --frontEndPID).
 
-STATUS OF THE FIX: not yet implemented. Whether the Assistant can be made to
-auto-connect (connections.xml carries chosen="1" for the localhost entry) is
-UNRESOLVED and is the open question for RTIUsersGuide.pdf. Until answered, the
-practical recipe is: keep ONE answered/connected rtiAssistant alive, and do not
-kill it.
+## *** THE FIX - FOUND IN RTIUsersGuide.pdf AND VERIFIED LIVE ***
+
+    set RTI_ASSISTANT_DISABLE=1   (environment variable, any value or none)
+
+MAK RTI Reference Manual sec 5.2.10, printed p. 5-11 (PDF p. 82), verbatim:
+
+    "To disable the RTI Assistant, create an environment variable called
+     RTI_ASSISTANT_DISABLE. It does not require a value. Its existence causes
+     the RTI to not create the RTI Assistant."
+
+VERIFIED LIVE 2026-07-18 15:16-15:19, process-scope env var only (shared rid.mtl
+NOT edited):
+- Bare launch: back-end HEALTHY AND JOINED in 8 SECONDS (UDP 4000 bound, 23
+  threads, no assistant process, no prompt). Prior attempts never reached health
+  at all in 200+ s.
+- Launch WITH --simArgs --appNumber 3472 --scenarioFileName TropicTortoise.scnx
+  --guiArgs --appNumber 3473: HEALTHY IN 8 SECONDS (59 threads), "Successfully
+  loaded scenario." in vrfSim.log, both TropicTortoise baseline objects locally
+  simulated (GlblTerrDmg, Blocking Terrain Page-In Area).
+  => THE ARGUMENT OVERRIDES ARE FULLY EXONERATED. They were accused twice in this
+  session and were never implicated.
+
+RELATED DOC FINDING - AND A CORRECTION TO THIS SESSION'S OWN EARLIER CORRECTION.
+RTI Users Guide p. 7-8 / RefMan Appendix A Table A-1 state VERBATIM, under each of
+RTI_useRtiExec, RTI_udpPort, RTI_tcpPort, RTI_destAddrString, RTI_tcpForwarderAddr
+and RTI_forceFullCompliance: "This parameter is ignored unless
+RTI_configureConnectionWithRid is set to 1." Our rid.mtl has
+(setqb RTI_configureConnectionWithRid 0). THEREFORE the sec 1 claim below -
+"rtiexec never runs BECAUSE RTI_useRtiExec 0" - reasons from a parameter the RTI
+discards. The OBSERVATION (no rtiexec process; UDP 4000 bound on a healthy
+back-end) stands and is unaffected; the EXPLANATION was wrong. Corrected in
+RUNBOOK sec 0.5 as well. By default the Assistant's stored connection
+configuration overrides rid.mtl entirely (UG p. 7-8).
+
+## OPEN ITEM - THE 0.4 GATE IS NOT PASSED
+
+Prereg sec 4 predicts a ResetVrf --dry-run that "will JOIN AND READ CLEANLY - it
+discovers the scenario's baseline objects (2 for TropicTortoise ...)" TWICE.
+
+WHAT WAS OBSERVED (appNos 3470, 3471 no-scenario; 3474 scenario-loaded):
+- PASSED: all three joined cleanly, exit 0, resigned cleanly, ZERO 0xC0000005.
+  That crash has blocked this path since 2026-07-15 and did not recur.
+- NOT PASSED: every run reported BackendCount=0 and discovered 0 reflected
+  objects - including 3474, run against a back-end whose own log proves the
+  scenario was loaded and both baseline objects were locally simulated.
+  Appendix B 3414/3451 historically recorded "Clean (2 baseline)", so ResetVrf
+  CAN see them.
+
+LEADING HYPOTHESIS (NOT TESTED - do not record as fact): disabling the Assistant
+changed WHICH connection the RTI uses. With RTI_configureConnectionWithRid 0 the
+rid.mtl connection values are ignored and the Assistant's stored configuration
+normally supplies them; with the Assistant disabled, what supplies them is
+UNDOCUMENTED (the RTI Users Guide never states the fallback). The Assistant's
+persisted connection (%APPDATA%\MAK\RTI\4.6\Legatus\connections.xml) is an
+rtiexec-style entry - tcp 4001, forwarder 5000 - whereas the rid.mtl lightweight
+default is port 4000. Federates may now be joining a DIFFERENT connection than
+before, one on which they do not discover each other.
+
+NEXT PROBE (single variable): set RTI_configureConnectionWithRid 1 so rid.mtl
+becomes authoritative and the connection is explicit rather than undocumented,
+then re-run the 3474 gate. CAUTION from RefMan: this makes every rid.mtl
+connection value live for ALL federates, and all federates in a federation must
+use the same RTI_useRtiExec value - so it must be applied uniformly, and rid.mtl
+is SHARED CONFIG (get user approval before editing it).
 
 ---
 
