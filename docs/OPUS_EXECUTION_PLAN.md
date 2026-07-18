@@ -922,6 +922,9 @@ values are NOT used.
   exit 255. No stale federate (never completed a join).
 - 3463: BURNED UNUSED - ledgered for a second ResetVrf dry-run that never ran (the first
   never succeeded). Do NOT recycle.
+- 3464: CLAIMED - vrfLauncher back-end, DE-CONFOUNDING RUN: RUN 1's exact overridden
+  command line re-run against a CLEAN rtiAssistant. Stall here => the overrides (H1).
+- 3465: CLAIMED - vrfLauncher front-end, same de-confounding run.
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
 3001 / 3101, not ledgered numbers - that is what a bare launch does and what every human

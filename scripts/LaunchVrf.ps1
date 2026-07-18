@@ -99,6 +99,15 @@ param(
     [string] $Mode               = 'Combined',
     [int]    $ReadyTimeoutSec    = 120,
     [int]    $PollIntervalSec    = 3,
+    # Back-end health floor. A STALLED back-end sits at 2 threads indefinitely; a
+    # healthy one was measured at ~36 (2026-07-18). 8 is a deliberate margin: well
+    # above the stall signature, well below the healthy steady state.
+    [int]    $BackendMinThreads  = 8,
+    # Refuse to launch when another rtiAssistant already holds its port (it makes
+    # THIS launch's assistant die with "server creation failed", and a wedged
+    # assistant is an unexcluded suspect for stalled back-ends). Override
+    # deliberately with -AllowExistingRtiAssistant.
+    [switch] $AllowExistingRtiAssistant,
     [switch] $AllowExistingVrf,
     [switch] $AcceptCrashRisk,
     [switch] $DryRun
@@ -236,6 +245,36 @@ if ($existing.Count -gt 0) {
     Say-Ok 'no pre-existing vrfLauncher / vrfSimHLA1516e / vrfGui / rtiexec processes'
 }
 
+# 6b. STALE rtiAssistant HOLDING ITS PORT (added 2026-07-18, found live).
+# Every VR-Forces launch starts its own RTI Assistant. A surviving one holds the
+# port and the new one dies with "RTI Assistant server creation failed. The port
+# [ 6003 ] may be in use". One instance survived 3 days stuck on a modal "Choose
+# RTI Connection" dialog. Every federate connects to this port, so a WEDGED
+# assistant is an unexcluded suspect for stalled back-ends
+# (docs/experiments/SESSION_2026-07-18_SELFLAUNCH.md sec 3/4). Detect it BEFORE
+# launching instead of debugging it afterwards.
+$assistPort = $env:RTI_ASSISTANT_PORT
+if ([string]::IsNullOrWhiteSpace($assistPort)) { $assistPort = '6003' }
+$assist = Get-Process -Name 'rtiAssistant' -ErrorAction SilentlyContinue
+if ($assist) {
+    foreach ($a in $assist) {
+        $t = if ([string]::IsNullOrWhiteSpace($a.MainWindowTitle)) { '(no window title)' } else { $a.MainWindowTitle }
+        Say-Warn ("pre-existing rtiAssistant pid {0} - window: {1}" -f $a.Id, $t)
+        if ($a.MainWindowTitle -match 'Choose RTI Connection') {
+            Say-Fail ("  -> pid {0} is sitting on the modal 'Choose RTI Connection' dialog. This is the WEDGED state implicated in stalled back-ends. Clear or close it before launching." -f $a.Id)
+        }
+    }
+    Say-Warn ("  This launch's own RTI Assistant will FAIL to bind port {0}." -f $assistPort)
+    if (-not $AllowExistingRtiAssistant) {
+        Say-Fail '  Refusing to launch with a pre-existing rtiAssistant. Close it, or re-run with -AllowExistingRtiAssistant to proceed deliberately (and record that the assistant state is then UNCONTROLLED).'
+        $hardFail = $true
+    } else {
+        Say-Warn '  -AllowExistingRtiAssistant set: proceeding. NOTE: assistant state is now an UNCONTROLLED VARIABLE in this run.'
+    }
+} else {
+    Say-Ok ("no pre-existing rtiAssistant (port {0} should be free for this launch's own)" -f $assistPort)
+}
+
 # 7. Mode guard for the known crash-risk backend-only variant
 if ($Mode -eq 'BackendOnly' -and -not $AcceptCrashRisk) {
     Say-Fail 'Mode=BackendOnly (vrfLauncher -B) is the KNOWN 0xC0000005 crash-risk path (missing front-end; RUNBOOK sec 0.5). Refusing. Pass -AcceptCrashRisk to run it deliberately as a documented probe.'
@@ -274,7 +313,8 @@ if ($DryRun) {
     Say-Plan ("Start-Process -FilePath '{0}' -WorkingDirectory '{1}' -ArgumentList '{2}'" -f $launcher, $bin64, $argString)
     Say-Plan ("poll every {0}s up to {1}s for readiness signals:" -f $PollIntervalSec, $ReadyTimeoutSec)
     Say ("            - process '{0}' present  (back-end; RUNBOOK sec 0.5 authoritative signal)" -f $procBackend)
-    Say ("            - process '{0}' present   (federate joined the RTI; RUNBOOK sec 0.5)" -f $procRti)
+    Say ("            - back-end has UDP 4000 bound (RTI_udpPort - the real federation transport; rtiexec NEVER runs here, RTI_useRtiExec 0)")
+    Say ("            - back-end thread count > {0} (a STALLED back-end sits at ~2 threads while present)" -f $BackendMinThreads)
     Say ("            - process '{0}' present     (front-end; combined mode - the crash-avoiding piece)" -f $procFrontend)
     Say  '            - vrfGui MainWindowTitle non-empty (front-end window is up, not stuck in a modal dialog)'
     Say  '            - rtiexec TCP listening ports (Get-NetTCPConnection on rtiexec PID; passive)'
@@ -303,18 +343,35 @@ Say-Ok ("launching: {0} {1}" -f $launcher, $argString)
 $launch = Start-Process -FilePath $launcher -WorkingDirectory $bin64 -ArgumentList $argString -PassThru
 Say-Ok ("vrfLauncher started (pid {0}); polling for backend readiness..." -f $launch.Id)
 
-$deadline   = (Get-Date).AddSeconds($ReadyTimeoutSec)
-$backendUp  = $false
-$rtiUp      = $false
-$frontUp    = $false
-$guiTitle   = ''
+# DEFECT-4 FIX (2026-07-18, found live): the poll used to require the rtiexec
+# PROCESS. rtiexec NEVER RUNS on this machine - rid.mtl sets RTI_useRtiExec 0 -
+# so that condition could never be satisfied and the script reported NOT READY
+# against a fully healthy launch. It also treated bare process presence as
+# back-end health, which is FALSE: a stalled back-end sits at 2 threads, present
+# the whole time. Replaced with the oracle measured against a verified-healthy
+# back-end (RUNBOOK sec 0.5 correction):
+#   joined  = the back-end has UDP 4000 bound (RTI_udpPort 4000 - the real
+#             federation transport; forwarder :5000 is dark even when healthy)
+#   healthy = thread count grown well past 2 (~36 observed on a good backend)
+$deadline    = (Get-Date).AddSeconds($ReadyTimeoutSec)
+$backendUp   = $false
+$backendJoin = $false
+$backendThr  = 0
+$frontUp     = $false
+$guiTitle    = ''
 while ((Get-Date) -lt $deadline) {
     $b = Get-Process -Name $procBackend  -ErrorAction SilentlyContinue
-    $r = Get-Process -Name $procRti      -ErrorAction SilentlyContinue
     $f = Get-Process -Name $procFrontend -ErrorAction SilentlyContinue
     $backendUp = [bool]$b
-    $rtiUp     = [bool]$r
     $frontUp   = [bool]$f
+    if ($b) {
+        $bp = ($b | Select-Object -First 1)
+        $backendThr = $bp.Threads.Count
+        $backendJoin = [bool](Get-NetUDPEndpoint -OwningProcess $bp.Id -LocalPort 4000 -ErrorAction SilentlyContinue)
+    } else {
+        $backendThr = 0; $backendJoin = $false
+    }
+    $backendHealthy = $backendJoin -and ($backendThr -gt $BackendMinThreads)
     if ($f) { $guiTitle = ($f | Select-Object -First 1 -ExpandProperty MainWindowTitle) }
     # DEFECT-1 FIX (2026-07-18): the -DryRun text always advertised a
     # MainWindowTitle readiness check that the poll never performed, so the
@@ -327,13 +384,19 @@ while ((Get-Date) -lt $deadline) {
     # start must not be misreported as PARTIAL - PARTIAL is the crash-risk signal
     # and should only fire when the front-end genuinely never appeared in time).
     $needFront = ($Mode -eq 'Combined')
-    if ($backendUp -and $rtiUp -and (($frontUp -and $guiTitleOk) -or -not $needFront)) { break }
+    if ($backendHealthy -and (($frontUp -and $guiTitleOk) -or -not $needFront)) { break }
     Start-Sleep -Seconds $PollIntervalSec
 }
+$backendHealthy = $backendJoin -and ($backendThr -gt $BackendMinThreads)
 
 Say-Head 'Readiness'
-if ($backendUp) { Say-Ok  ("back-end '{0}' is up" -f $procBackend) } else { Say-Fail ("back-end '{0}' NOT up" -f $procBackend) }
-if ($rtiUp)     { Say-Ok  ("'{0}' is up (federate joined the RTI)" -f $procRti) } else { Say-Fail ("'{0}' NOT up (no federate join observed)" -f $procRti) }
+if (-not $backendUp) {
+    Say-Fail ("back-end '{0}' process NOT present" -f $procBackend)
+} elseif ($backendHealthy) {
+    Say-Ok ("back-end '{0}' is HEALTHY and JOINED (UDP 4000 bound, {1} threads)" -f $procBackend, $backendThr)
+} else {
+    Say-Fail ("back-end '{0}' process is PRESENT BUT NOT HEALTHY - UDP4000bound={1} threads={2} (a stalled back-end sits at ~2 threads and never binds 4000). PROCESS PRESENCE IS NOT HEALTH." -f $procBackend, $backendJoin, $backendThr)
+}
 $guiTitleOk = -not [string]::IsNullOrWhiteSpace($guiTitle)
 if ($frontUp -and $guiTitleOk) {
     Say-Ok ("front-end '{0}' is up with a real main window (title: '{1}')" -f $procFrontend, $guiTitle)
@@ -343,24 +406,24 @@ if ($frontUp -and $guiTitleOk) {
     Say-Warn ("front-end '{0}' NOT up - combined mode incomplete; this is the crash-risk 'missing front-end' condition" -f $procFrontend)
 }
 
-# passive port signal for the record
-if ($rtiUp) {
+# passive endpoint signal for the record (back-end federation transport)
+if ($backendUp) {
     try {
-        $rtiPid = (Get-Process -Name $procRti -ErrorAction SilentlyContinue | Select-Object -First 1).Id
-        $ports  = Get-NetTCPConnection -OwningProcess $rtiPid -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty LocalPort -Unique
-        if ($ports) { Say-Ok ("rtiexec listening ports: {0}" -f ($ports -join ', ')) }
-    } catch { Say-Warn ("could not read rtiexec listening ports: {0}" -f $_.Exception.Message) }
+        $bPid  = (Get-Process -Name $procBackend -ErrorAction SilentlyContinue | Select-Object -First 1).Id
+        $udp   = Get-NetUDPEndpoint -OwningProcess $bPid -ErrorAction SilentlyContinue | Select-Object -ExpandProperty LocalPort -Unique
+        if ($udp) { Say-Ok ("back-end UDP endpoints: {0}" -f ($udp -join ', ')) }
+    } catch { Say-Warn ("could not read back-end UDP endpoints: {0}" -f $_.Exception.Message) }
 }
 
 Say-Head 'Result'
-if ($backendUp -and $rtiUp -and $frontUp -and $guiTitleOk) {
-    Say-Ok 'READY: combined-mode VR-Forces is up (back-end + rtiexec + front-end with a real main window). Proceed to the ResetVrf --dry-run gate (prereg).'
+if ($backendHealthy -and $frontUp -and $guiTitleOk) {
+    Say-Ok 'READY: combined-mode VR-Forces is up (back-end HEALTHY + JOINED, front-end with a real main window). Proceed to the ResetVrf --dry-run gate (prereg).'
     exit 0
-} elseif ($backendUp -and $rtiUp -and $frontUp) {
-    Say-Fail 'BLOCKED: back-end + rtiexec + front-end PROCESS are up, but the front-end has NO main window title - a modal dialog is almost certainly waiting for a human (prereg RISK A). NOT ready. Do NOT force-kill; look at the screen and clear the dialog.'
+} elseif ($backendHealthy -and $frontUp) {
+    Say-Fail 'BLOCKED: back-end healthy and front-end PROCESS up, but the front-end has NO main window title - a modal dialog is almost certainly waiting for a human (prereg RISK A). NOT ready. Do NOT force-kill; look at the screen and clear the dialog.'
     exit 4
-} elseif ($backendUp -and $rtiUp) {
-    Say-Warn 'PARTIAL: back-end + rtiexec up but front-end not detected. Combined mode may be incomplete (crash risk). Inspect before proceeding.'
+} elseif ($backendHealthy) {
+    Say-Warn 'PARTIAL: back-end healthy but front-end not detected. Combined mode may be incomplete (crash risk). Inspect before proceeding.'
     exit 1
 } else {
     Say-Fail 'NOT READY within timeout. Likely a blocking dialog (LRC #8 FDD path / license / session-startup) or a failed join. Do NOT force-kill; inspect the launcher/GUI window and clean-stop.'

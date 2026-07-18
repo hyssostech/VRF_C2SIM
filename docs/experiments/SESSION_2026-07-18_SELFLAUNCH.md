@@ -1,7 +1,63 @@
 # SESSION 2026-07-18 - scripted VR-Forces bring-up (0.4), live attempt
 
-Status: INCONCLUSIVE ON THE ROOT CAUSE, but three durable findings landed and one
-earlier supervisor conclusion is RETRACTED below. Live work ended when the user
+## *** ROOT CAUSE FOUND (documented behavior, not a bug) - READ THIS FIRST ***
+
+THE RTI ASSISTANT PROMPT IS A MANDATORY INTERACTIVE STEP IN THE VENDOR'S OWN
+DOCUMENTED STARTUP SEQUENCE. C:\MAK\vrforces5.0.2\doc\help\Content\SharedTopics\
+XMLrti\InstallMAK-RTI.htm, verbatim:
+
+    "To run a MAK application with the MAK RTI:
+     Be sure the license server is running.
+     Start the application. The RTI Assistant will prompt you to choose an RTI
+     configuration.
+     Choose a configuration. If necessary, start the rtiexec.
+     Click Connect. The application should run."
+
+A MAK federate on HLA DOES NOT RUN until someone picks a connection and clicks
+Connect. VR-Forces' own help documents NO suppression for this and defers to the
+MAK RTI Users Guide (on disk: C:\MAK\makRti4.6.1\doc\RTIUsersGuide.pdf - the
+VR-Forces help says "follow the instructions in Chapter 2 of MAK RTI Users
+Guide"). That PDF was never read by this effort until 2026-07-18.
+
+WHY EVERY OBSERVATION NOW FITS:
+- An rtiAssistant (pid 9284) had been running since 2026-07-15 ALREADY ANSWERED
+  AND CONNECTED. It held TCP 6003.
+- Every launch spawns its OWN rtiAssistant. Each new one FAILED to bind 6003
+  (56-byte logs) and died instantly - leaving the already-connected 9284 to serve
+  the federation. THE PORT COLLISION WAS LOAD-BEARING AND BENIGN: it prevented an
+  unanswered dialog from ever appearing. That is why the bare launch ("Test A",
+  13:22) came up healthy.
+- The supervisor then KILLED 9284 as "cleanup". From that moment every launch got
+  a FRESH, UNANSWERED assistant sitting at "Choose RTI Connection", and every
+  backend correctly blocked - hanging right after VR-Link init and BEFORE the
+  parameter database, exactly where a pre-RTI-connect block belongs.
+
+SUPERVISOR ERROR, RECORDED DELIBERATELY: the "stale" process was the only thing
+making unattended launch work. Tidying it destroyed the working configuration,
+and seven single-variable experiments were then spent hunting a bug that was
+documented behavior. The correct first move - reading the vendor's startup
+procedure and the RTI Users Guide it points to - was skipped in favour of
+experimentation. Cost: the entire live window; Phase 1 did not run.
+
+EVERY CAUSE HYPOTHESIS TESTED AND KILLED THIS SESSION (all falsified by evidence,
+none of them the answer): argument overrides; --scenarioFileName; appNumber
+override; stale federate from force-kills; license seat exhaustion (license is
+node-locked UNCOUNTED with no SERVER lines - no daemon needed, lmstat confirms);
+Pitch-RTI-vs-MAK-RTI PATH collision (MAK RTI is first on PATH); --simArgs
+replacing profile args (the spawned command line is complete, including
+--frontEndPID).
+
+STATUS OF THE FIX: not yet implemented. Whether the Assistant can be made to
+auto-connect (connections.xml carries chosen="1" for the localhost entry) is
+UNRESOLVED and is the open question for RTIUsersGuide.pdf. Until answered, the
+practical recipe is: keep ONE answered/connected rtiAssistant alive, and do not
+kill it.
+
+---
+
+Status: ROOT CAUSE FOUND (above). Three durable findings landed and TWO earlier
+supervisor conclusions are RETRACTED below (the retractions are kept in place
+deliberately - they are the record of how the wrong answers were reached). Live work ended when the user
 stopped VR-Forces after RTI Assistant error dialogs. ASCII only.
 
 Session clock: start 2026-07-18 12:56:31 local (-04:00) = 16:56:31Z. Tool logs
