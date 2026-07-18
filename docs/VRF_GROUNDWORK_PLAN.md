@@ -182,6 +182,26 @@ Exit criteria / what this settles:
 
 ## Status
 
+- 2026-07-18 (pre-session): PHASE 1 SCRIPT SELF-CONTRADICTION FIXED + binaries
+  re-verified by hand. The script's WatchVrf precondition said to use the
+  extended 0.6 build only "if [it] has passed its live gate", while the same
+  script's closing note and this Status both say the 0.6 gate IS this session.
+  That is CIRCULAR: followed literally it would have silently downgraded the
+  session to GUI-only console capture and discarded the folded-in gate. The
+  precondition now directs the extended build unconditionally, with an explicit
+  CON-fault fallback that does NOT touch the movement oracle (the S0 gate
+  established the POS emission block is absent from the 0.6 diff, so a CON
+  failure cannot invalidate P1-A..D). Supervisor re-ran the acceptance checks
+  rather than trusting the recorded ones: WatchVrf.exe present and NEWER than
+  its last source commit 50a5c0c, --con-selftest 25/25 PASS exit 0;
+  SetSimRate.exe present, arg validation hard-exits 2 on all five invalid forms
+  (no args, non-numeric, zero, NEGATIVE multiplier, missing appNo). No
+  federation join occurred and NO ledgered appNo was consumed (out-of-band 3999
+  used deliberately for the arg probes). CAVEAT on the SetSimRate check: only
+  the reject paths were exercised - the ACCEPT path cannot be tested without a
+  live join, so the backend-settle wait, the 15 s cap, the 3 s flush, and
+  whether the multiplier survives resign all remain UNRETIRED and are still
+  Step 1b's job.
 - 2026-07-18: S0 SUPERVISOR GATE of the two previously-claimed-green Phase 0
   builds: BOTH HOLD, independently re-verified this pass. Builds: VrfBridge
   Release 0 warnings / 0 errors; VrfC2SimApp 0 errors (2 pre-existing CS8632

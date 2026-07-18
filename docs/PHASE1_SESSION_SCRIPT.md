@@ -81,9 +81,18 @@ deliberate exception is the clock: it is set remotely via tools/SetSimRate
 - [ ] Settings > Display > Entity Display Settings > "Show Object Console
       Warning Icon" = ON (it is the default; verify anyway).
 - [ ] WatchVrf running and logging BEFORE any object is created (births must be
-      in the trace). If the 0.6 console-capture build has passed its live gate,
-      use the extended build (POS + CON lines); otherwise GUI capture per
-      Step 0 protocol is the only console channel - follow it strictly.
+      in the trace). USE THE EXTENDED 0.6 BUILD (POS + CON lines) - it is
+      AVAILABLE, and THIS SESSION IS ITS LIVE GATE (see the folded-in note at
+      the end of this script and the plan Status). Do not wait for a gate that
+      only this session can run. VERIFIED BY SUPERVISOR 2026-07-18 immediately
+      before the session: tools/WatchVrf/bin/Release/net10.0/win-x64/
+      WatchVrf.exe exists and is NEWER than its last source commit (50a5c0c),
+      and --con-selftest re-run by hand passes 25/25 exit 0. If the CON stream
+      proves faulty live, fall back to the Step 0 GUI capture protocol and
+      record the 0.6 gate as FAILED - the POS records are unchanged by the 0.6
+      refactor (S0 gate: the POS emission block does not appear in the diff at
+      all), so a CON fault does NOT invalidate the movement oracle or any
+      P1-A..D claim.
 - [ ] WatchVrf sample interval SHORT: sampleSecs = 2 (not the default 15). Why
       (census sec 11 / ground truth 0.0 item 6): transient member "warps" in the
       archived data are suspected OBSERVER-SIDE dead-reckoning artifacts; at a
