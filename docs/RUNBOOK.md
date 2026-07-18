@@ -25,6 +25,46 @@ docs/experiments/PREREG_0_4_SELFLAUNCH.md sec 12.
 READ THIS WHOLE SECTION BEFORE LAUNCHING. Two rules below (the never-kill rule and
 the do-not-set rule) each cost a full live session when violated.
 
+### 0.5.0 PRE-FLIGHT: INVENTORY WHAT IS ALREADY RUNNING (added 2026-07-18 evening)
+
+A VR-Forces instance launched by an EARLIER SESSION KEEPS RUNNING across a context
+clear or session boundary. Observed 2026-07-18: a healthy back-end (vrfSimHLA1516e,
+63 threads) plus vrfGui were already up at session start, left by the post-sweep
+LaunchVrf regression run (3491/3492). Inventory BEFORE launching:
+
+    Get-Process | Where-Object { $_.ProcessName -match 'vrf|rti' } |
+      Select-Object ProcessName,Id,@{n='Threads';e={$_.Threads.Count}},StartTime
+    Get-CimInstance Win32_Process -Filter "Name='vrfSimHLA1516e.exe' OR Name='vrfGui.exe'" |
+      ForEach-Object { $_.ProcessId; $_.CommandLine }
+
+The command line carries `--appNumber` and `--scenarioFileName`, which identify the
+run that left it behind by cross-reference to the Appendix B ledger.
+
+WHY THIS MATTERS: a stale-but-healthy back-end interacts with a known LaunchVrf.ps1
+defect - the script picks the back-end with `Select-Object -First 1` and never
+correlates to the process it launched, so with `-AllowExistingVrf` it can measure the
+OLD instance and report a FALSE READY. The leftover's scenario contents are also
+unknown (a throwaway entity from a tools/CreateOne oracle check may still be in it),
+which would contaminate a scored baseline trace.
+
+THE SCRIPT ALREADY GUARDS THIS, so teardown is REQUIRED and not merely preferred:
+LaunchVrf.ps1 lines 242-258 REFUSE to launch when vrfLauncher / vrfSimHLA1516e /
+vrfGui are already running ("Refusing to launch on top of existing VR-Forces
+processes", hardFail). The only override is `-AllowExistingVrf` - which is precisely
+the false-READY trap above. DO NOT reach for that switch to get past a leftover;
+shut the leftover down instead. (The guard deliberately does NOT look at rtiAssistant
+/ rtiexec / rtiForwarder, so leaving RTI infrastructure up does not trip it.)
+
+DEFAULT: prefer a FRESH launch on fresh ledgered appNos over reusing an instance of
+unknown scenario state. Tear the leftover down per sec 0.5.9 (close the FRONT-END;
+the back-end follows) and leave rtiAssistant / rtiexec / rtiForwarder RUNNING
+(sec 0.5.2).
+
+KNOWN COSMETIC DEFECT (not fixed - the launch script is not being edited immediately
+before a live session): the warning at line 248 says "VR-Forces/RTI processes ALREADY
+running" but the check covers only the three VR-Forces process names, never any rti*
+process. The text overstates what the code inspects.
+
 ### 0.5.1 THE COMMAND
 
     $env:MAKLMGRD_LICENSE_FILE = [Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','Machine')
