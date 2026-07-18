@@ -1,0 +1,182 @@
+# SESSION 2026-07-18 - scripted VR-Forces bring-up (0.4), live attempt
+
+Status: INCONCLUSIVE ON THE ROOT CAUSE, but three durable findings landed and one
+earlier supervisor conclusion is RETRACTED below. Live work ended when the user
+stopped VR-Forces after RTI Assistant error dialogs. ASCII only.
+
+Session clock: start 2026-07-18 12:56:31 local (-04:00) = 16:56:31Z. Tool logs
+stamp UTC; this machine runs local. All times below are LOCAL.
+
+## 0. What was attempted and why
+
+The user directed (three times, escalating) that the assistant must learn to drive
+the live machinery from the CLI rather than hand every launch to a human. 0.4 had
+been demoted behind Phase 1 on 2026-07-18, but the demotion was a SCHEDULING call,
+not a prohibition. The three recorded LaunchVrf.ps1 defects were fixed and the
+script was driven live. The user then chose option (b) - keep debugging the launch
+- over (a) salvage Phase 1.
+
+IMPORTANT SCOPE NOTE for whoever reads this next: this session spent the live
+window on the BRING-UP MECHANISM, not on the Phase 1 native baseline. That is
+exactly the trade PREREG_0_4_SELFLAUNCH.md sec 11.1 judged to be the worse one.
+Phase 1 did NOT run. PHASE1_SESSION_SCRIPT.md remains READY and unstarted.
+
+## 1. FINDING - rtiexec NEVER RUNS ON THIS MACHINE (RUNBOOK sec 0.5 is WRONG)
+
+`C:\MAK\makRti4.6.1\rid.mtl` contains, verbatim:
+
+    (setqb RTI_useRtiExec 0)
+
+RUNBOOK sec 0.5 states "rtiexec is spawned automatically by the RTI on first
+federate join - do not launch it separately". The second clause is right; the
+first is FALSE under this RID. rtiexec never appears, so any readiness gate that
+waits for it can never pass. LaunchVrf.ps1's readiness poll did exactly that and
+reported NOT READY (exit 3) against a launch whose front-end was fully healthy.
+
+Related RID settings that decide the real transport:
+
+    (setqb RTI_udpPort 4000)
+    (setqb RTI_tcpPort 4000)
+    (setqb RTI_mcastDiscoveryEnabled 0)
+    (setqb RTI_distributedUdpForwarderMode 0)
+    (setqb RTI_tcpForwarderAddr "127.0.0.1")
+    (setqb RTI_distributedForwarderPort 5000)
+
+`rtiForwarder` (a long-lived daemon, pid 17372, up since 7/15) listens on 5000 and
+4001, but `distributedUdpForwarderMode 0` means it is NOT the federation path. A
+VERIFIED-HEALTHY backend has NO connection to :5000.
+
+## 2. FINDING - the correct backend-readiness oracle
+
+Measured against a backend confirmed healthy in this session (Test A, sec 4):
+
+| Signal                        | Healthy       | Stalled      |
+|-------------------------------|---------------|--------------|
+| UDP 4000 bound (RTI_udpPort)  | YES           | not observed |
+| thread count                  | 36 (5->7->22->37 over ~60 s) | STUCK AT 2 |
+| CPU                           | climbs steadily | flat ~1.2  |
+| vrfSim.log progression        | reaches parameter database / physicalWorldParams / sensor propagators | FROZEN at the VR-Link/MSVC banner |
+
+USE THESE. Do NOT use, all three shown wrong this session:
+- process presence ("vrfSimHLA1516e exists") - the stalled backend was present
+  the whole time. This is the same present-but-dead defect the effort keeps
+  finding elsewhere; the launch script committed it.
+- rtiexec presence - structurally impossible here (sec 1).
+- a connection to forwarder :5000 - dark even when fully healthy.
+
+vrfSim.log is BLOCK-BUFFERED (RUNBOOK sec 3), so a short log is not by itself
+proof of a stall; it is corroborating evidence only, read alongside threads/CPU.
+
+## 3. FINDING - stale rtiAssistant squatting port 6003 (NEW, environmental)
+
+An rtiAssistant instance (pid 9284) had been running since 2026-07-15 10:24 with
+its window stuck on the modal title "Choose RTI Connection", holding TCP 6003.
+Every VR-Forces launch starts its own RTI Assistant, which then FAILS to bind
+6003. User-captured dialog, verbatim:
+
+    Error starting RTI Assistant
+    RTI Assistant server creation failed. The port [ 6003 ] may be in use,
+    either by an RTI Assistant that is already running or another application.
+    This port can be changed with the RTI_ASSISTANT_PORT environment variable.
+
+pid 9284 then crashed and wrote rtiAssistant9284.dmp. AFTER the crash a FRESH
+rtiAssistant (pid 99372) took 6003 with NO modal dialog - i.e. the environment is
+now in a BETTER state than at any point since 7/15.
+
+RTI_ASSISTANT_PORT is currently unset in both Machine and User scope.
+
+Every federate observed this session (vrfSim, vrfGui, ResetVrf, rtiForwarder)
+opens a connection to 6003. ResetVrf prints "Connected to RTI Assistant."
+immediately before the point where it froze.
+
+## 4. THE ISOLATION ATTEMPT - AND THE RETRACTION
+
+Two live launches were run:
+
+- RUN 1 (LaunchVrf.ps1, overrides ON): `--usePredefinedConnection "<profile>"
+  --simArgs --appNumber 3460 --scenarioFileName "../userData/scenarios/
+  TropicTortoise.scnx" --guiArgs --appNumber 3461`. Backend STALLED at 2 threads.
+  vrfGui came up fully healthy (47 threads, real window title). A subsequent
+  `ResetVrf --dry-run` (3462) hung at the RTI join, frozen at the rid.mtl banner,
+  and was killed (exit 255) under the failed-own-join exception.
+- RUN 2 / "Test A" (CONTROL, overrides OFF): bare `vrfLauncher
+  --usePredefinedConnection "<profile>"`, profile's own 3001/3101, no scenario.
+  Backend HEALTHY per the sec 2 oracle.
+
+SUPERVISOR CONCLUSION AT THE TIME: "the argument overrides break the backend."
+
+*** THAT CONCLUSION IS RETRACTED. THE COMPARISON WAS NOT SINGLE-VARIABLE. ***
+
+The rtiAssistant state (sec 3) ALSO differed between the two runs and was not
+controlled:
+- RUN 1: vrfSim and vrfGui both held ESTABLISHED connections to 6003, to the OLD
+  assistant that was sitting on a modal "Choose RTI Connection" dialog.
+- RUN 2: those 6003 connections were in FinWait2 (closing/dead).
+
+A backend blocking on an RTI Assistant that is itself stuck on a modal dialog
+would present EXACTLY as "2 threads, log frozen at the VR-Link banner". So the
+argument overrides and the assistant state are FULLY CONFOUNDED - the identical
+error the Appendix B 3414 entry records ("region and launch method were fully
+confounded"). Two candidates remain live and NEITHER is eliminated:
+  (H1) the --simArgs/--guiArgs appNumber overrides and/or --scenarioFileName;
+  (H2) the stale-rtiAssistant / port-6003 collision.
+
+SECONDARY RETRACTION: earlier in the same session the supervisor DISMISSED the
+rtiAssistant hypothesis, reasoning that ledger entries 3451-3454 joined cleanly on
+7/17 while that dialog was already open. That inference was invalid: those were
+HUMAN GUI launches, and no evidence established the assistant was in the same
+blocked state then. "The dialog existed" was treated as "the dialog was blocking",
+which does not follow. The user's screenshots falsified the falsification.
+
+## 5. WHAT IS NEVERTHELESS ESTABLISHED
+
+Bare `vrfLauncher.exe --usePredefinedConnection "HLA 1516 Evolved RPR 2.0 with MAK
+extensions"`, cwd bin64, MAKLMGRD_LICENSE_FILE refreshed from Machine scope,
+brought up a HEALTHY combined-mode backend + front-end UNATTENDED, with zero human
+clicks. That is the first confirmed scripted VR-Forces bring-up in this effort and
+it directly answers the user's standing ask. What is NOT yet established is the
+same launch WITH fresh app numbers and an auto-loaded scenario.
+
+## 6. NEXT STEPS (ordered; all cheap, all single-variable)
+
+1. De-confound H2 FIRST, because it is now free: the stale assistant is gone and a
+   clean one holds 6003. Re-run RUN 1's EXACT overridden command line against the
+   clean environment. If the backend is healthy -> H2 was the cause and the
+   overrides are exonerated. If it stalls again -> H1, and continue to step 2.
+2. If step 1 still stalls, split H1: add ONLY the appNumber overrides (no
+   --scenarioFileName), then ONLY --scenarioFileName. One variable each.
+3. Fix LaunchVrf.ps1 DEFECT 4 (below) before either run, so the script stops
+   asserting an impossible readiness condition.
+4. Consider setting RTI_ASSISTANT_PORT, or a precondition that FAILS when a
+   pre-existing rtiAssistant holds 6003, so this class cannot recur silently.
+5. Only then re-schedule the 0.4 gate proper (two clean ResetVrf dry-runs).
+
+## 7. LaunchVrf.ps1 defect status
+
+FIXED this session (committed):
+1. Readiness was process-presence only; the -DryRun text advertised a
+   MainWindowTitle check the poll never performed. Now actually enforced, with a
+   distinct exit 4 BLOCKED verdict for "front-end process up but no window title"
+   (the modal-dialog signature). This fix WORKED: RUN 1 correctly reported the
+   front-end as having a real window.
+2. App numbers were baked-in defaults behind a warning. Now MANDATORY, hard exit 2,
+   including an identical-numbers check. Verified by direct test.
+3. MAKLMGRD_LICENSE_FILE was overwritten unconditionally, blanking a working
+   process-scope value when the Machine value was empty. Now conditional.
+
+DEFECT 4 - FOUND THIS SESSION, NOT YET FIXED: the readiness poll requires rtiexec,
+which never runs on this machine (sec 1). The script therefore CANNOT report READY
+here regardless of actual health. Replace the rtiexec condition with the sec 2
+oracle (UDP 4000 bound + thread growth + log progression).
+
+## 8. Application numbers consumed
+
+- 3460 - vrfLauncher back-end, RUN 1. Backend stalled; never joined.
+- 3461 - vrfLauncher front-end, RUN 1. Front-end healthy; never joined a federation.
+- 3462 - ResetVrf --dry-run, hung at join, killed. CONSUMED.
+- 3463 - ledgered for a second ResetVrf dry-run; NEVER USED (burned, do not recycle).
+- RUN 2 / Test A used the connection profile's own 3001 / 3101, NOT ledgered
+  numbers. This is what a bare launch does and what every human launch has always
+  done; recorded here so the trace is not mistaken for an unledgered join.
+
+Phase 1's reservations 3455-3459 were NOT touched and remain valid.

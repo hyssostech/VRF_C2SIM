@@ -89,8 +89,12 @@ param(
     [string] $ConnectionProfile  = 'HLA 1516 Evolved RPR 2.0 with MAK extensions',
     [string] $Scenario           = 'TropicTortoise',
     [switch] $NoScenario,
-    [int]    $BackendAppNumber   = 3455,
-    [int]    $FrontendAppNumber  = 3456,
+    # DEFECT-2 FIX (2026-07-18): no baked-in defaults. Both app numbers are
+    # MANDATORY; a missing one is a hard exit 2, matching tools/SetSimRate's
+    # posture. Baked defaults were a stale-federate trigger against the
+    # never-reuse non-negotiable (RUNBOOK sec 0 / Appendix B).
+    [int]    $BackendAppNumber   = 0,
+    [int]    $FrontendAppNumber  = 0,
     [ValidateSet('Combined','BackendOnly','FrontendOnly')]
     [string] $Mode               = 'Combined',
     [int]    $ReadyTimeoutSec    = 120,
@@ -119,8 +123,25 @@ Say ("  ConnectionProfile : {0}" -f $ConnectionProfile)
 Say ("  Scenario          : {0}" -f $scenarioDisplay)
 Say ("  Back-end appNumber: {0}" -f $BackendAppNumber)
 Say ("  Front-end appNo   : {0}" -f $FrontendAppNumber)
-if (-not $PSBoundParameters.ContainsKey('BackendAppNumber') -or -not $PSBoundParameters.ContainsKey('FrontendAppNumber')) {
-    Say-Warn 'Using DEFAULT app number(s). Both MUST be fresh per OPUS_EXECUTION_PLAN.md Appendix B (never reuse) and recorded there. Pass -BackendAppNumber/-FrontendAppNumber with the current NEXT-FREE values.'
+# DEFECT-2 FIX: app numbers are a HARD GATE, not a warning. Checked before any
+# other precondition so the failure is unmissable and nothing is launched.
+$appNoFail = $false
+if ($BackendAppNumber -le 0) {
+    Say-Fail 'MISSING -BackendAppNumber. It is MANDATORY (no default). Take the NEXT FREE value from OPUS_EXECUTION_PLAN.md Appendix B and ledger it BEFORE launching.'
+    $appNoFail = $true
+}
+if ($FrontendAppNumber -le 0) {
+    Say-Fail 'MISSING -FrontendAppNumber. It is MANDATORY (no default). Take the NEXT FREE value from OPUS_EXECUTION_PLAN.md Appendix B and ledger it BEFORE launching.'
+    $appNoFail = $true
+}
+if (($BackendAppNumber -gt 0) -and ($BackendAppNumber -eq $FrontendAppNumber)) {
+    Say-Fail ('-BackendAppNumber and -FrontendAppNumber are IDENTICAL ({0}). Each join consumes its own number; reuse is the stale-federate trigger.' -f $BackendAppNumber)
+    $appNoFail = $true
+}
+if ($appNoFail) {
+    Say-Head 'Result'
+    Say-Fail 'Aborting: app-number gate failed (never-reuse non-negotiable, RUNBOOK sec 0).'
+    exit 2
 }
 
 # ---- derived paths ---------------------------------------------------------
@@ -257,15 +278,26 @@ if ($DryRun) {
     Say ("            - process '{0}' present     (front-end; combined mode - the crash-avoiding piece)" -f $procFrontend)
     Say  '            - vrfGui MainWindowTitle non-empty (front-end window is up, not stuck in a modal dialog)'
     Say  '            - rtiexec TCP listening ports (Get-NetTCPConnection on rtiexec PID; passive)'
-    Say-Plan 'declare READY only when back-end AND rtiexec are up (AND the front-end too in Combined mode - a slow vrfGui start keeps polling rather than misreporting PARTIAL); WARN (not ready) if back-end is up but rtiexec never appears (possible blocking dialog: LRC #8 / license / session-startup).'
+    Say-Plan 'declare READY only when back-end AND rtiexec are up AND (in Combined mode) the front-end is up WITH A NON-EMPTY MainWindowTitle. A slow vrfGui start keeps polling rather than misreporting PARTIAL. Distinct outcomes: exit 0 READY; exit 4 BLOCKED (front-end process up but NO window title = modal dialog waiting on a human, prereg RISK A); exit 1 PARTIAL (no front-end at all - the crash-risk condition); exit 3 NOT READY within timeout.'
     Say-Head 'Result'
     Say-Ok 'DRY-RUN complete: preconditions passed, command line resolved, no process launched.'
     exit 0
 }
 
 # --- live path (NOT executed in this drafting task) ---
-$env:MAKLMGRD_LICENSE_FILE = $licMachine
-Say-Ok ("MAKLMGRD_LICENSE_FILE (process) refreshed from Machine scope = {0}" -f $licMachine)
+# DEFECT-3 FIX (2026-07-18): only overwrite from Machine scope when the Machine
+# value is actually non-empty. The old unconditional assignment BLANKED a
+# working process-scope license value whenever the Machine value was empty or
+# null (which was itself only a warning), turning a launchable session into a
+# license-hang for no reason.
+if (-not [string]::IsNullOrWhiteSpace($licMachine)) {
+    $env:MAKLMGRD_LICENSE_FILE = $licMachine
+    Say-Ok ("MAKLMGRD_LICENSE_FILE (process) refreshed from Machine scope = {0}" -f $licMachine)
+} elseif (-not [string]::IsNullOrWhiteSpace($env:MAKLMGRD_LICENSE_FILE)) {
+    Say-Warn ("Machine-scope MAKLMGRD_LICENSE_FILE is EMPTY - PRESERVING the existing process-scope value ({0}) rather than blanking it." -f $env:MAKLMGRD_LICENSE_FILE)
+} else {
+    Say-Warn 'MAKLMGRD_LICENSE_FILE is empty in BOTH Machine and process scope - license checkout may hang (RUNBOOK sec 7 item 2). Launching anyway; watch for a license dialog.'
+}
 
 Say-Ok ("launching: {0} {1}" -f $launcher, $argString)
 $launch = Start-Process -FilePath $launcher -WorkingDirectory $bin64 -ArgumentList $argString -PassThru
@@ -284,18 +316,32 @@ while ((Get-Date) -lt $deadline) {
     $rtiUp     = [bool]$r
     $frontUp   = [bool]$f
     if ($f) { $guiTitle = ($f | Select-Object -First 1 -ExpandProperty MainWindowTitle) }
+    # DEFECT-1 FIX (2026-07-18): the -DryRun text always advertised a
+    # MainWindowTitle readiness check that the poll never performed, so the
+    # script could not detect RISK A (session-startup modal) or RISK B and its
+    # own output overstated what it did. Now ACTUALLY tested: a front-end whose
+    # MainWindowTitle is empty is up as a PROCESS but has no usable main window
+    # - the modal-dialog signature. Keep polling rather than declaring READY.
+    $guiTitleOk = -not [string]::IsNullOrWhiteSpace($guiTitle)
     # In Combined mode keep polling until the front-end is ALSO up (a slow vrfGui
     # start must not be misreported as PARTIAL - PARTIAL is the crash-risk signal
     # and should only fire when the front-end genuinely never appeared in time).
     $needFront = ($Mode -eq 'Combined')
-    if ($backendUp -and $rtiUp -and ($frontUp -or -not $needFront)) { break }
+    if ($backendUp -and $rtiUp -and (($frontUp -and $guiTitleOk) -or -not $needFront)) { break }
     Start-Sleep -Seconds $PollIntervalSec
 }
 
 Say-Head 'Readiness'
 if ($backendUp) { Say-Ok  ("back-end '{0}' is up" -f $procBackend) } else { Say-Fail ("back-end '{0}' NOT up" -f $procBackend) }
 if ($rtiUp)     { Say-Ok  ("'{0}' is up (federate joined the RTI)" -f $procRti) } else { Say-Fail ("'{0}' NOT up (no federate join observed)" -f $procRti) }
-if ($frontUp)   { Say-Ok  ("front-end '{0}' is up (window title: '{1}')" -f $procFrontend, $guiTitle) } else { Say-Warn ("front-end '{0}' NOT up - combined mode incomplete; this is the crash-risk 'missing front-end' condition" -f $procFrontend) }
+$guiTitleOk = -not [string]::IsNullOrWhiteSpace($guiTitle)
+if ($frontUp -and $guiTitleOk) {
+    Say-Ok ("front-end '{0}' is up with a real main window (title: '{1}')" -f $procFrontend, $guiTitle)
+} elseif ($frontUp) {
+    Say-Fail ("front-end '{0}' process exists but its MainWindowTitle is EMPTY - the signature of a BLOCKING MODAL DIALOG (prereg RISK A session-startup dialog, or a license/LRC error box). The process being up does NOT mean the front-end is usable." -f $procFrontend)
+} else {
+    Say-Warn ("front-end '{0}' NOT up - combined mode incomplete; this is the crash-risk 'missing front-end' condition" -f $procFrontend)
+}
 
 # passive port signal for the record
 if ($rtiUp) {
@@ -307,9 +353,12 @@ if ($rtiUp) {
 }
 
 Say-Head 'Result'
-if ($backendUp -and $rtiUp -and $frontUp) {
-    Say-Ok 'READY: combined-mode VR-Forces is up (back-end + rtiexec + front-end). Proceed to the ResetVrf --dry-run gate (prereg).'
+if ($backendUp -and $rtiUp -and $frontUp -and $guiTitleOk) {
+    Say-Ok 'READY: combined-mode VR-Forces is up (back-end + rtiexec + front-end with a real main window). Proceed to the ResetVrf --dry-run gate (prereg).'
     exit 0
+} elseif ($backendUp -and $rtiUp -and $frontUp) {
+    Say-Fail 'BLOCKED: back-end + rtiexec + front-end PROCESS are up, but the front-end has NO main window title - a modal dialog is almost certainly waiting for a human (prereg RISK A). NOT ready. Do NOT force-kill; look at the screen and clear the dialog.'
+    exit 4
 } elseif ($backendUp -and $rtiUp) {
     Say-Warn 'PARTIAL: back-end + rtiexec up but front-end not detected. Combined mode may be incomplete (crash risk). Inspect before proceeding.'
     exit 1

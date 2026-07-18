@@ -905,9 +905,28 @@ proceed on a slow proxy - the STOMP client cannot ride it out.
 
 ## Appendix B - ApplicationNumber ledger
 
-3200-3459: consumed, skipped, or RESERVED (see entries below). NEXT FREE: 3460 (always take
+3200-3461: consumed, skipped, or RESERVED (see entries below). NEXT FREE: 3462 (always take
 the number after the last ledger entry). Record each join here as it is consumed (app /
-ResetVrf / WatchVrf / SetSimRate each take one). Never reuse.
+ResetVrf / WatchVrf / SetSimRate / LaunchVrf back-end + front-end each take one). Never reuse.
+
+CLAIMED 2026-07-18 for the SCRIPTED VR-Forces bring-up (scripts/LaunchVrf.ps1, combined
+mode). Ledgered BEFORE the launch per the never-reuse non-negotiable. NOTE: these two
+override the connection profile's baked-in 3001 (back-end) / 3101 (front-end); the profile
+values are NOT used.
+- 3460: USED - vrfLauncher back-end, scripted launch RUN 1, TropicTortoise. RESULT:
+  backend STALLED at 2 threads, NEVER JOINED (no UDP 4000). Closed.
+- 3461: USED - vrfLauncher front-end, RUN 1. Front-end fully healthy (47 threads, real
+  window title) but never joined a federation. Closed.
+- 3462: USED - ResetVrf --dry-run against RUN 1's stalled backend. HUNG at the RTI join
+  (frozen at the rid.mtl banner, 0.5 CPU); killed under the failed-own-join exception,
+  exit 255. No stale federate (never completed a join).
+- 3463: BURNED UNUSED - ledgered for a second ResetVrf dry-run that never ran (the first
+  never succeeded). Do NOT recycle.
+NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
+--usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
+3001 / 3101, not ledgered numbers - that is what a bare launch does and what every human
+GUI launch has always done. Recorded so the trace is not mistaken for an unledgered join.
+Session write-up: docs/experiments/SESSION_2026-07-18_SELFLAUNCH.md.
 
 RESERVED 2026-07-18 for the Phase 1 native-baseline session (PHASE1_SESSION_SCRIPT.md).
 Reserved ahead of the session per the script's precondition that the number is ledgered

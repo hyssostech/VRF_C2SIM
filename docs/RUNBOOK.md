@@ -21,8 +21,31 @@ Every prior session treated `vrfSimHLA1516e` + `rtiexec` as already-running prec
 human via the GUI beforehand. It does NOT need the GUI: `vrfSimHLA1516e.exe` is a standalone
 headless back-end; `vrfGui.exe` is a separate, optional front-end (this project mostly runs
 without it - "vrfGui hung-but-backend-healthy" is a normal state; WatchVrf is the visual
-channel, not the GUI). `rtiexec` is spawned automatically by the RTI on first federate
-join - do not launch it separately.
+channel, not the GUI).
+
+CORRECTION 2026-07-18 (live-verified). This paragraph previously read "`rtiexec` is spawned
+automatically by the RTI on first federate join - do not launch it separately." THE FIRST
+CLAUSE IS FALSE ON THIS MACHINE: `C:\MAK\makRti4.6.1\rid.mtl` sets `(setqb RTI_useRtiExec 0)`,
+so rtiexec NEVER runs here and NO readiness gate may wait for it (a gate that did reported
+NOT READY against a healthy front-end). Do not launch it separately either. The real
+federation transport is UDP 4000 (`RTI_udpPort 4000`); `rtiForwarder` listens on 5000/4001
+but `RTI_distributedUdpForwarderMode 0` means it is NOT the federation path - a fully
+healthy backend has NO :5000 connection.
+
+BACKEND-HEALTH ORACLE (measured 2026-07-18 against a verified-healthy backend): UDP 4000
+bound + thread count growing well past 2 (~36 observed) + vrfSim.log progressing beyond the
+VR-Link/MSVC banner to the parameter database and sensor propagators. PROCESS PRESENCE IS
+NOT HEALTH - a stalled backend sat at 2 threads, present the whole time. vrfSim.log is
+block-buffered (sec 3), so a short log corroborates but never proves. Full detail:
+docs/experiments/SESSION_2026-07-18_SELFLAUNCH.md.
+
+GOTCHA 2026-07-18 - STALE rtiAssistant SQUATTING PORT 6003: every VR-Forces launch starts
+its own RTI Assistant. If a previous one is still alive it holds 6003 and the new one dies
+with "RTI Assistant server creation failed. The port [ 6003 ] may be in use". One such
+instance survived from 7/15 to 7/18 stuck on a modal "Choose RTI Connection" dialog; it is a
+LIVE (not eliminated) candidate for stalled backends in that window, since every federate
+connects to 6003. CHECK FOR A PRE-EXISTING rtiAssistant BEFORE LAUNCHING; `RTI_ASSISTANT_PORT`
+relocates the port if a second instance is ever genuinely wanted.
 
 GOTCHA: `vrfSimHLA1516e.exe --help` does NOT print usage and exit - it silently starts a
 real (unconfigured) sim instance instead. Do not probe with `--help`; the option reference

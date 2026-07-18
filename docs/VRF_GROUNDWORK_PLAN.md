@@ -182,6 +182,34 @@ Exit criteria / what this settles:
 
 ## Status
 
+- 2026-07-18 (LIVE, 0.4): SCRIPTED BRING-UP PARTLY PROVEN; ROOT CAUSE UNRESOLVED;
+  ONE SUPERVISOR CONCLUSION RETRACTED. Full write-up:
+  docs/experiments/SESSION_2026-07-18_SELFLAUNCH.md. PHASE 1 DID NOT RUN - the live
+  window went to the bring-up mechanism, the exact trade prereg 11.1 called the
+  worse one. PHASE1_SESSION_SCRIPT.md is still READY and unstarted; 3455-3459
+  remain reserved and untouched.
+  - PROVEN: bare `vrfLauncher --usePredefinedConnection "<profile>"` (cwd bin64,
+    license refreshed from Machine scope) brings up a HEALTHY combined-mode
+    backend + front-end UNATTENDED, zero human clicks. First confirmed scripted
+    VR-Forces bring-up in this effort.
+  - NOT PROVEN: the same launch WITH fresh appNumber overrides and an auto-loaded
+    scenario. That RUN STALLED (backend 2 threads, never joined).
+  - RETRACTED: the in-session conclusion "the argument overrides break the
+    backend". The comparison was NOT single-variable - a stale rtiAssistant
+    holding port 6003 (alive and sitting on a modal dialog during the failed run,
+    dead during the control) is an equally good explanation and was not
+    controlled. Two candidates remain live; NEITHER is eliminated. A secondary
+    retraction is recorded too: the supervisor had earlier dismissed the
+    rtiAssistant hypothesis on invalid grounds (treating "the dialog existed" as
+    "the dialog was blocking"). The user's error screenshots falsified that.
+  - RUNBOOK sec 0.5 CORRECTED AT SOURCE: rtiexec NEVER runs on this machine
+    (`RTI_useRtiExec 0`), so no readiness gate may wait for it. Real transport is
+    UDP 4000. New backend-health oracle recorded (UDP 4000 bound + thread growth
+    past 2 + vrfSim.log progression); PROCESS PRESENCE IS NOT HEALTH.
+  - LaunchVrf.ps1: the three recorded defects are FIXED and tested (app-number
+    hard gate verified by direct test; the MainWindowTitle check earned its keep
+    live). A FOURTH defect was found and is NOT fixed - the poll still waits for
+    rtiexec, so the script cannot report READY on this machine at all.
 - 2026-07-18 (pre-session): PHASE 1 SCRIPT SELF-CONTRADICTION FIXED + binaries
   re-verified by hand. The script's WatchVrf precondition said to use the
   extended 0.6 build only "if [it] has passed its live gate", while the same
