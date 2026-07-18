@@ -905,9 +905,24 @@ proceed on a slow proxy - the STOMP client cannot ride it out.
 
 ## Appendix B - ApplicationNumber ledger
 
-3200-3454: consumed or skipped (see entries below). NEXT FREE: 3455 (always take the number
-after the last ledger entry). Record each join here as it is consumed (app / ResetVrf /
-WatchVrf each take one). Never reuse.
+3200-3459: consumed, skipped, or RESERVED (see entries below). NEXT FREE: 3460 (always take
+the number after the last ledger entry). Record each join here as it is consumed (app /
+ResetVrf / WatchVrf / SetSimRate each take one). Never reuse.
+
+RESERVED 2026-07-18 for the Phase 1 native-baseline session (PHASE1_SESSION_SCRIPT.md).
+Reserved ahead of the session per the script's precondition that the number is ledgered
+BEFORE the join; annotate each with its actual result at session time. If the session does
+not run, these stay burned - do NOT recycle them.
+- 3455: RESERVED - WatchVrf (POS+CON extended build, sampleSecs=2), Phase 1 whole-session
+  telemetry. The movement oracle for every P1-A..D claim.
+- 3456: RESERVED - SetSimRate 20x, Step 1b clock-persistence pre-check (throwaway mover).
+- 3457: RESERVED - SetSimRate back to 1, Step 1b.
+- 3458: RESERVED - SetSimRate 20x, Step 4 (the scored clock repeat).
+- 3459: RESERVED - SetSimRate back to 1, Step 4 teardown.
+NOTE: SetSimRate takes a SEPARATE appNo per invocation because each call is a full
+join/resign cycle - four invocations, four numbers. If a ResetVrf pre-run sweep is added to
+the session (prior sessions ran one; the Phase 1 preconditions do not currently call for
+it), take 3460 for it and advance NEXT FREE.
 - 3451: ResetVrf --dry-run, CPP-ALT-1 pre-run sweep on user-reloaded TT. Clean (2 baseline).
 - 3452: PRISTINE C++ +altitude-probe app (branch b96688b), CPP-ALT-1 (COA-STP1, RUN C
   recipe, real-time). 6 marchers 18+ km on-terrain / 5 frozen at pile / runaway-warp class

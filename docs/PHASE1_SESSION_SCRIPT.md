@@ -1,12 +1,29 @@
 # PHASE 1 SESSION SCRIPT - native reference baseline (TropicTortoise)
 
-Status: DRAFT (supervisor-authored 2026-07-16) - for user review before the next
-live session. Groundwork plan Phase 1. Roles: user drives the GUI; supervisor
-records, timestamps, and gates. Budget ~1 hour of live time. Evidence rules per
+Status: READY (supervisor-authored 2026-07-16; D1 resolved by the user
+2026-07-18). Groundwork plan Phase 1. This IS the next live session: the user
+launches VR-Forces MANUALLY per RUNBOOK (the 0.4 self-launch gate was DEMOTED
+behind Phase 1 by the user on 2026-07-18). The 0.6 console-capture live gate is
+now FOLDED INTO this session rather than run separately. Roles: user drives the
+GUI; supervisor records, timestamps, and gates. Evidence rules per
 SUPERVISED_RECOVERY_PLAN.md (WatchVrf displacement is the only movement oracle).
 
+BUDGET (revised 2026-07-18, was "~1 hour"): plan for ~1.5 hours. The original
+hour assumed the clock-persistence test rode along inside Step 2's concurrency
+wait; moving it to Step 1b to keep it out of the scored window makes it SERIAL
+and costs 5-10 min off the top. Rough shape: setup/Step 0 console capture and
+Step 1 creation ~15 min; Step 1b ~10 min; Step 2 dominated by a ~40-45 min
+concurrent 1x movement wait (20+ km routes at ~30 km/h column pace); Step 4 and
+teardown ~15 min. The Step 2 wait is shared across all three movers ONLY if they
+are tasked within a few minutes of each other - if that slips, the session
+overruns. If time runs short, Step 4 (the 20x repeat) is the designated cut:
+P1-C is the least load-bearing prediction and can move to a later session, while
+P1-A/P1-B (native arrival and the 18.1-18.4 km band) are the reason this session
+exists and must not be truncated.
+
 Everything below uses ONLY the VR-Forces GUI for creation and tasking. The one
-deliberate exception is the 20x clock set in Step 4 (decision point D1 below).
+deliberate exception is the clock: it is set remotely via tools/SetSimRate
+(D1, resolved 2026-07-18 - see Step 4).
 
 ## What this session settles
 
@@ -47,14 +64,18 @@ deliberate exception is the 20x clock set in Step 4 (decision point D1 below).
 ## Preconditions (run through in order; abort the session if any fails)
 
 - [ ] rtiexec running per RUNBOOK sec 0; VR-Forces launched via vrfLauncher.exe
-      by the user (or via scripts/LaunchVrf.ps1 ONLY if the 0.4 live gate has
-      passed twice and the user approves). Raw vrfSim CLI remains forbidden.
+      MANUALLY by the user. scripts/LaunchVrf.ps1 is NOT used this session (0.4
+      demoted behind Phase 1 on 2026-07-18). Raw vrfSim CLI remains forbidden.
 - [ ] TropicTortoise (Mojave) scenario loaded; confirm scenario parameters are
       the defaults: frame-mode variable-frame, frame-time 0.1,
       time-multiplier 1.0 (ground truth 0.2 sec 8).
 - [ ] Fresh appNo for WatchVrf from OPUS_EXECUTION_PLAN.md Appendix B (next
       free at write time: 3455 - RE-CHECK the ledger at session time), entered
       in the ledger BEFORE the join.
+- [ ] FOUR MORE fresh appNos reserved and ledgered for SetSimRate (Step 1b up +
+      down, Step 4 up + down - one join each), all distinct from WatchVrf's.
+      SetSimRate has NO default appNumber; a missing appNo is a hard exit 2, so
+      this reservation is not optional.
 - [ ] Get-Date logged at session start (tool logs stamp UTC; machine runs
       local - record both once, reconcile all later timestamps against this).
 - [ ] Settings > Display > Entity Display Settings > "Show Object Console
@@ -89,14 +110,65 @@ Types are from the 0.1 catalog - REAL installed templates, no generics:
       class; 4 x M1A2; expected birth formation Column-Left).
 - [ ] 1 x Tank Company (USA) (objectType 3:11:1:225:5:2:0:0; HU move-along
       class; 1 x Tank HQ Section + 3 x Tank Platoon).
+- [ ] 1 x ADDITIONAL M1A2_Abrams_MBT entity created SOLELY as the Step 1b
+      clock-test mover. Give it a distinguishing GUI name so it is unmistakable
+      in the telemetry - suggested: CLOCKTEST. It is a THROWAWAY: it is
+      EXCLUDED from all P1-A / P1-B / P1-C / P1-D scoring, and no claim in this
+      session may rest on it. Record its uuid explicitly so the post-session
+      adjudication can filter it out of the WatchVrf trace.
 - [ ] Placement: dispersed (>= 500 m apart) in the COA-STP1 AO start area (the
-      same area the CPP-ALT-1 force used).
+      same area the CPP-ALT-1 force used). Place CLOCKTEST clear of the three
+      scored objects' routes so it cannot be confused with them visually.
 - [ ] Record per object: GUI name, VRF uuid (from WatchVrf), creation wall time,
       and any badge AT BIRTH (capture its console text per Step 0 protocol).
 
+## Step 1b - clock persistence pre-check (before anything scored)
+
+WHY THIS STEP EXISTS - UNRETIRED RISK: THE MULTIPLIER MAY NOT SURVIVE OUR
+RESIGN. SetSimRate sets the rate and immediately leaves the federation.
+Supervisor reasoning that it SHOULD persist: it is a sim-interface control
+message (DtIfSetTimeMultiplier, DtSetTimeMultiplierMessageType = 28), not owned
+object state, so the backend adopts the clock rate as its own state with no
+ownership or lease semantics. NOT VERIFIED - the competing possibility (VRF ties
+sim control to a controlling federate and reverts on resign) is not excluded
+offline. FAILURE MODE IF WRONG: the tool reports success and the clock silently
+returns to 1x, so Step 4 would measure a 1x run labelled 20x.
+
+This step runs entirely BEFORE the scored 1x baseline begins and entirely on the
+CLOCKTEST throwaway, so no clock excursion ever falls inside the scored window.
+
+- [ ] Task CLOCKTEST on a SHORT route (2-5 km) at 1x. Nothing else is tasked yet.
+- [ ] Confirm CLOCKTEST is ACTUALLY MOVING from WatchVrf displacement - not from
+      a GUI impression. If it is not moving, STOP: Step 1b cannot run, and a
+      native entity failing to move at 1x is itself a major finding (record it,
+      capture its console text per Step 0, and treat it as a P1-A falsifier
+      signal before deciding whether the session continues).
+- [ ] Note the BASELINE displacement-per-wall-second at 1x over a clean interval.
+- [ ] Run SetSimRate to 20x (first invocation; fresh ledgered appNo). Note the
+      wall time SetSimRate exits.
+- [ ] Watch the WatchVrf displacement rate for ~1 MINUTE AFTER SetSimRate has
+      EXITED - the whole point is the behavior after the tool has resigned, not
+      while it is joined.
+- [ ] Run SetSimRate back to 1 (second invocation; a DIFFERENT fresh ledgered
+      appNo) and confirm the displacement rate drops back to the 1x baseline.
+- [ ] DECISION RULE (apply before Step 2):
+      - If displacement-per-wall-second jumps about 20x and STAYS there after
+        SetSimRate exits -> the multiplier PERSISTS. Step 4 proceeds as written
+        with the remote setTimeMultiplier.
+      - If it reverts when SetSimRate exits -> the tool's design is FALSIFIED
+        for this purpose. Fall back to the GUI Time Scale toolbar at 15x for
+        Step 4 and record the deviation (this weakens but does not void P1-C,
+        per the Step 4 fallback text).
+      Either way, record the observed rates and times verbatim - this is the
+      first direct evidence on the question and it belongs in ground truth.
+- [ ] Confirm the multiplier is back at 1.0 and CLOCKTEST is stopped (or simply
+      ignored for the rest of the session). ONLY THEN begin Step 2.
+
 ## Step 2 - native route tasks at 1x
 
-- [ ] Confirm time-multiplier is 1.0 before the first task.
+- [ ] Confirm the time-multiplier reads 1.0 (Step 1b restored it) and that
+      CLOCKTEST is stopped or being ignored, before the first scored task. No
+      clock change occurs anywhere inside Step 2 or Step 3.
 - [ ] Task each of the three objects with the GUI's native route-move task
       (record the exact task name and every parameter the dialog offers and
       what was left at default - this feeds the Phase 2.3 task vocabulary map).
@@ -109,7 +181,9 @@ Types are from the 0.1 catalog - REAL installed templates, no generics:
 - [ ] Task all three within a few minutes of each other so they run
       CONCURRENTLY - at 1x and ~30 km/h column pace a 20+ km route takes
       ~40-45 min of wall time, and the 1-hour budget only holds if that wait
-      is shared. Use the wait to transcribe console captures and settle D1.
+      is shared. Use the wait to transcribe console captures (the clock
+      persistence question is already settled by Step 1b - do NOT touch the
+      multiplier here).
 - [ ] Record per unit: task start time, every GUI status change, every badge
       (capture text immediately, panel-first), the completion indication and
       its time, and - for the company - where the TRAILING subordinates are
@@ -137,15 +211,60 @@ Types are from the 0.1 catalog - REAL installed templates, no generics:
       its 1x route (P1-A/P1-B falsified on it), re-running the same geometry
       would just replay the 1x failure - use the M1A2 entity and ITS completed
       Step 2 route for the 20x repeat instead, and record the substitution.
-- [ ] D1 DECISION POINT (user adjudicates before the session): how to set 20x.
-      Preferred: remote setTimeMultiplier(20) - the SAME mechanism every port
-      run used (single-variable discipline); needs the small remote call
-      available at session time (supervisor confirms which tool exposes it
-      before the session). Fallback: the GUI Time Scale toolbar, which caps at
-      15 by default (ground truth 0.2 sec 8) - if used, 15x replaces 20x and
-      the deviation is recorded (weakens but does not void P1-C).
-- [ ] Record as in Step 2; afterwards set the multiplier back to 1.0 and note
-      the time.
+- [ ] D1 RESOLVED (user ruled 2026-07-18): use the REMOTE setTimeMultiplier,
+      NOT the GUI toolbar. This is the SAME mechanism every port run used, so
+      Step 4 keeps single-variable discipline. Mechanism: a new tool
+      tools/SetSimRate - additive, cloned from ResetVrf; VrfFacade/VrfBridge
+      already exposed SetTimeMultiplier, so NO existing source was edited and
+      the WatchVrf POS path is untouched. VERIFIED BY SUPERVISOR 2026-07-18:
+      builds clean (0 warnings, 0 errors); argument validation smoke-tested -
+      no args, non-numeric multiplier, zero multiplier, and missing appNo all
+      fail loudly with exit 2. It has NO default appNumber by design.
+      Fallback (unchanged): the GUI Time Scale toolbar, which caps at 15 by
+      default (ground truth 0.2 sec 8) - if used, 15x replaces 20x and the
+      deviation is recorded (weakens but does not void P1-C).
+- [ ] The exact session command lines (verified exe path). The <FRESH_APPNO_n>
+      tokens are PLACEHOLDERS - substitute real ledgered numbers, do not paste
+      as-is:
+
+      ```powershell
+      $env:PATH = "C:\MAK\vrforces5.0.2\bin64;C:\MAK\vrlink5.8\bin64;C:\MAK\makRti4.6.1\bin;$env:PATH"
+      $env:MAKLMGRD_LICENSE_FILE = [Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','Machine')
+      Push-Location C:\MAK\vrforces5.0.2\bin64
+      # go to 20x - replace <FRESH_APPNO_1> from the Appendix B ledger
+      & <repo>\tools\SetSimRate\bin\Release\net10.0\win-x64\SetSimRate.exe 20 <FRESH_APPNO_1>
+      # back to real time - a DIFFERENT fresh appNo
+      & <repo>\tools\SetSimRate\bin\Release\net10.0\win-x64\SetSimRate.exe 1 <FRESH_APPNO_2>
+      Pop-Location
+      ```
+
+      TWO fresh ledgered appNos are required FOR STEP 4: each invocation is a
+      full join/resign, so the 20x call and the return-to-1x call each consume
+      one. SESSION TOTAL: at least FOUR SetSimRate invocations - Step 1b up +
+      down, Step 4 up + down - each a separate join requiring its OWN fresh
+      ledgered appNo, all four DISTINCT from each other and from WatchVrf's, and
+      all entered in the OPUS_EXECUTION_PLAN.md Appendix B ledger BEFORE use.
+- [ ] THERE IS NO READBACK. setTimeMultiplier has no getter on the remote
+      controller (VRF_GROUND_TRUTH 0.3 sec 6a); the value is only readable from
+      DtIfStatus, which the port does not subscribe to. The tool is therefore
+      write-only and self-reports success purely from "the call did not throw".
+      Confirm the rate change VISUALLY in the GUI, and quantitatively from the
+      WatchVrf displacement rate - the movement oracle is the authoritative
+      witness for the clock rate, not any API readback.
+- [ ] SetSimRate joins as an ADDITIONAL federate while WatchVrf is joined.
+      ResetVrf uses the same join/resign pattern but normally with nothing else
+      observing. Whether a third federate joining/leaving mid-run perturbs the
+      WatchVrf POS stream is UNTESTED, and Step 4's whole verdict rests on that
+      stream. Watch for any POS discontinuity coincident with SetSimRate's join
+      and resign, and note it.
+- [ ] SetSimRate waits for BackendCount() > 0 (15 s cap) before issuing the
+      message and REFUSES to send if no backend was discovered (exits 1).
+      Rationale: backends are not known at the instant Start() returns, and
+      issuing against zero discovered backends would be a silent no-op reported
+      as success. The 15 s settle cap and the 3 s post-call flush are calibrated
+      by analogy to ResetVrf, NOT measured for this message.
+- [ ] Record as in Step 2; afterwards set the multiplier back to 1.0 (the
+      second SetSimRate invocation above) and note the time.
 
 ## Step 5 - save and teardown
 
@@ -164,6 +283,19 @@ Types are from the 0.1 catalog - REAL installed templates, no generics:
 | Native company mute/short while platoon clean | Controller-split hypothesis strengthened; the platoon-vs-company probe (pre-registered, ground truth 0.0 item 2) is next |
 | Native units misbehave broadly | STOP rebuilding; MAK question with repro becomes the critical path |
 
-Open items before this runs: D1 (20x mechanism), and whether the 0.6 console
-tool and 0.4 self-launch gate are available in time (both optional for this
-session; the script works without them).
+Open items before this runs (as of 2026-07-18):
+
+- D1 (20x mechanism) is CLOSED - remote setTimeMultiplier via tools/SetSimRate
+  (Step 4); GUI Time Scale at 15x remains the recorded-deviation fallback.
+- 0.4 self-launch is CLOSED as a dependency - the user DEMOTED it behind
+  Phase 1 on 2026-07-18. VR-Forces is launched MANUALLY by the user per RUNBOOK
+  for this session; scripts/LaunchVrf.ps1 is NOT used (see
+  docs/experiments/PREREG_0_4_SELFLAUNCH.md sec 11).
+- 0.6 console capture is FOLDED IN, not a separate session: if the extended
+  WatchVrf build (POS + CON lines) is available at session time, use it and this
+  session doubles as its live gate; otherwise the Step 0 GUI capture protocol
+  is the only console channel and the script still runs unchanged.
+- Remaining genuinely open: whether the multiplier survives SetSimRate's resign
+  (untested - the Step 1b pre-check settles it live, on a throwaway unit and
+  entirely outside the scored window), and whether a third
+  federate joining mid-run perturbs the WatchVrf POS stream (untested).

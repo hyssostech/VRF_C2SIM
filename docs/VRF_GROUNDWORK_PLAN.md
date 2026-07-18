@@ -182,6 +182,53 @@ Exit criteria / what this settles:
 
 ## Status
 
+- 2026-07-18: S0 SUPERVISOR GATE of the two previously-claimed-green Phase 0
+  builds: BOTH HOLD, independently re-verified this pass. Builds: VrfBridge
+  Release 0 warnings / 0 errors; VrfC2SimApp 0 errors (2 pre-existing CS8632
+  nullable warnings, unrelated to 0.5/0.6); WatchVrf 0/0. Selftests: CON
+  25/25 PASS exit 0; translator 18/18 PASS exit 0; ScnxDiff all three
+  acceptance checks exit 0 (dump, self-diff IDENTICAL, one-field mutation
+  detected). CON escaping independently fuzzed 200000 cases - 0 round-trip
+  failures, 0 raw-newline leaks.
+  - WORDING CORRECTION (load-bearing) to the 2026-07-16 (late night) entry,
+    which overstated the 0.6 result as "verified byte-identical vs HEAD".
+    Corrected in place. What is true: the POS RECORDS are byte-identical,
+    verified by normalized diff across the 0.6 refactor commit 50a5c0c - the
+    POS emission block does not appear in the diff at all; format string,
+    InvariantCulture wrapper, time base, sample cadence and skip filter are
+    all unchanged; the native side is purely additive (VrfBridge.cpp 25/0,
+    VrfFacade.cpp 25/0, VrfFacade.h 19/0 - zero deletions). What is NOT
+    true: total stdout is not byte-identical. The "#" summary line became
+    CultureInfo.InvariantCulture (a FIX - under a comma-decimal locale the
+    old code emitted "# t=12,5s") and two banner/status lines were reworded.
+  - D1 RESOLVED (user ruling 2026-07-18): Phase 1 Step 4 sets 20x via REMOTE
+    setTimeMultiplier, not the GUI toolbar (which caps at 15). Mechanism: a
+    new additive tool tools/SetSimRate cloned from ResetVrf (built
+    separately); VrfFacade/VrfBridge already expose SetTimeMultiplier, so no
+    existing source is edited and the WatchVrf POS path is not touched. API
+    contract registered in ground truth 0.3 sec 6a. RESIDUAL RISK to retire
+    before Step 4 depends on it: SetSimRate joins as an ADDITIONAL federate
+    while WatchVrf is joined (ResetVrf uses the same pattern but normally
+    with nothing else observing) - dry-run it alongside WatchVrf first, and
+    budget two fresh ledgered appNos (each invocation is a full
+    join/resign).
+  - LIVE ORDER CHANGED BY USER (2026-07-18): the 0.4 self-launch gate is
+    DEMOTED behind Phase 1. The next live session is the Phase 1 baseline
+    with the 0.6 CON live gate FOLDED IN (it costs nothing extra and Step
+    0's console capture is exactly where its evidence lands); the user
+    launches VR-Forces manually per RUNBOOK. 0.4 gets its own short session
+    afterward, on a repaired script. Rationale: Phase 1 is the
+    highest-value live hour in the effort, and 0.4 carries a HIGH-risk
+    untried dialog mitigation (prereg RISK A) plus three confirmed script
+    defects.
+  - 0.4 SCRIPT DEFECTS confirmed by supervisor read of scripts/LaunchVrf.ps1
+    (detail recorded in docs/experiments/PREREG_0_4_SELFLAUNCH.md): readiness
+    poll is process-presence only (line 291) while -DryRun advertises a
+    MainWindowTitle modal-dialog check it never performs; app-number
+    freshness is a WARNING only (lines 92-93, 122-123) against the
+    never-reuse non-negotiable; MAKLMGRD_LICENSE_FILE is overwritten
+    unconditionally (line 267) even when the Machine value is empty.
+    CONFIRMED CLEAN: the script contains NO termination calls of any kind.
 - 2026-07-17 (+3): E8 PRIOR-ART SURVEY LANDED and supervisor-ACCEPTED
   (docs/PRIOR_ART_SURVEY.md; provenance-tagged - [PRIMARY-FETCHED] vs
   [SEARCH-EXTRACT]; the MAK docs host was DNS-unreachable, so open-web nulls do not
@@ -242,7 +289,8 @@ Exit criteria / what this settles:
     addObjectConsoleMessageCallback; WatchVrf now emits CON,<t>,<uuid>,<level>,
     <msg> beside POS on one UTC base; RFC-4180-style reversible escaping).
     Supervisor re-ran builds' selftests (CON selftest + translator selftest,
-    both exit 0); POS path verified byte-identical vs HEAD. LIVE GATE PENDING:
+    both exit 0); POS RECORDS verified byte-identical vs HEAD (total stdout is
+    NOT - see the 2026-07-18 wording correction). LIVE GATE PENDING:
     does VRF deliver console messages over the wire in our federation.
   - 0.5 scnx harness: BUILT (tools/ScnxDiff, Python stdlib). All three
     acceptance checks independently re-run by supervisor. LOAD-BEARING FORMAT

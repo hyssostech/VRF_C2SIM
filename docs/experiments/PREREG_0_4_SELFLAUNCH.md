@@ -4,6 +4,11 @@ Pre-registration for groundwork-plan Phase 0 item 0.4 (docs/VRF_GROUNDWORK_PLAN.
 lines 83-86). Written BEFORE the live run so the result cannot be rationalized after
 the fact. Single variable, single prediction, explicit falsifier. ASCII only.
 
+> SEE SECTION 11 (added 2026-07-18) BEFORE ACTING ON THIS DOCUMENT: 0.4 was
+> DEMOTED behind Phase 1 by the user on 2026-07-18 and is NOT the next thing to
+> run; three defects in scripts/LaunchVrf.ps1 must be fixed before this gate
+> runs at all. Sections 1-10 below are the intact pre-registration.
+
 Status: DRAFT - NOT YET RUN. The live gate runs only in a supervised session with
 explicit user approval. This document + scripts/LaunchVrf.ps1 are the offline
 deliverables; nothing in the VRF/RTI install has been executed to produce them.
@@ -277,3 +282,53 @@ ledger tail at run time and records each):
 - 3457 - ResetVrf --dry-run pass 1
 - 3458 - ResetVrf --dry-run pass 2
 Never reuse; record each join in Appendix B as consumed.
+
+---
+
+## 11. ADDENDUM 2026-07-18 - status change and script defects (NOT part of the pre-registration)
+
+Everything in sections 1-10 above is the pre-registration as written BEFORE the
+run and is left INTACT and unmodified. This section is an appended record only;
+it does not alter the prediction, the falsifier, or the procedure.
+
+### 11.1 STATUS CHANGE - 0.4 demoted behind Phase 1
+
+The user DEMOTED the 0.4 live gate behind Phase 1 on 2026-07-18. The next live
+session is PHASE 1 (docs/PHASE1_SESSION_SCRIPT.md) with MANUAL RUNBOOK launch of
+VR-Forces; 0.4 gets its own short session AFTERWARD, on a repaired script.
+
+Rationale: Phase 1 is the highest-value live hour in the effort, and 0.4 carries
+a HIGH-risk untried mitigation (RISK A, the session-startup dialog, sec 6) plus
+the three script defects recorded below. Spending the scarce live hour on the
+bring-up mechanism rather than on the native baseline was judged the worse trade.
+
+### 11.2 THREE DEFECTS in scripts/LaunchVrf.ps1 - MUST be fixed before the gate runs
+
+Confirmed by supervisor direct read of the script on 2026-07-18.
+
+1. **Readiness is process-presence only.** The poll breaks on
+   `if ($backendUp -and $rtiUp -and ($frontUp -or -not $needFront)) { break }`
+   (line 291). `$guiTitle` IS captured (line 286) but is only PRINTED (line 298),
+   never tested. Yet -DryRun advertises it as a readiness signal: "vrfGui
+   MainWindowTitle non-empty (front-end window is up, not stuck in a modal
+   dialog)". The script does not perform that check, so it CANNOT detect RISK A
+   or RISK B, and its own dry-run output overstates what it does.
+2. **App-number freshness is a WARNING, not a gate.** Defaults are baked in
+   (`$BackendAppNumber = 3455`, `$FrontendAppNumber = 3456`, lines 92-93) and
+   omitting the flags produces only a Say-Warn (lines 122-123). This is against
+   the never-reuse non-negotiable and is exactly RISK D's stale-federate trigger.
+   Contrast: the new tools/SetSimRate was deliberately built with NO default
+   appNo - a missing appNo is a hard exit 2. Adopt the same posture here.
+3. **MAKLMGRD_LICENSE_FILE is overwritten unconditionally on the live path**
+   (line 267) even when the Machine-scope value is empty or null - that case is
+   only a Say-Warn (lines 165-166), so a session that HAD a working process-scope
+   license value gets it blanked.
+
+### 11.3 CONFIRMED CLEAN (supervisor-verified positive)
+
+The script contains NO termination calls of any kind - no `Stop-Process`, no
+`taskkill`, no `.Kill()`, no `CloseMainWindow`. It CANNOT force-kill a joined
+federate. Its only process-creating call is a single `Start-Process` of
+`vrfLauncher.exe`; everything else touching processes is read-only. This is worth
+recording as a positive: the RUNBOOK sec 0 never-force-kill constraint is
+structurally satisfied by the script as written.

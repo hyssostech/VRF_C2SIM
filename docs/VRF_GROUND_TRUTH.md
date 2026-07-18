@@ -56,6 +56,24 @@ C:\MAK\vrlink5.8. ASCII only.
    telemetry, the 18.1-18.4 km stall band, and the E7 controller-split verdict
    (LF 3/5 moved, HU 0/4, entity 0/2 - both codebases; echelon-confounded) are
    UNAFFECTED.
+7. THE ORACLE CAN SILENTLY LEAVE 1x (2026-07-18, supervisor, verified verbatim
+   at C2SIMinterface.cpp:1769-1775 - full detail in 0.3 sec 6a): on a C2SIM
+   SystemCommand `SetSimulationRealtimeMultiple`, the
+   `vrfRepondToTimeMultipleC2SIM` "disable" flag gates ONLY the log line; the
+   `setTimeMultiplier(simTimeMultiple)` call sits outside the if/else and runs
+   unconditionally. The oracle prints "IGNORING C2SIM
+   SETSIMULATIONREALTIMEMULTIPLE" and applies the multiplier anyway.
+   CONSEQUENCE, stated with its qualifier because it is a POTENTIAL FALSIFIER
+   for an accepted finding: the E7 census verdict "18.1-18.4 km band REAL at 1x"
+   (item 6, RUNAWAY_WARP_CENSUS_2026-07-17.md) assumes the archived C++ runs
+   were actually at 1x. If the server ever sent that system command, such a run
+   silently was NOT. Supervisor checked: no occurrence of
+   "SetSimulationRealtimeMultiple" or "IGNORING C2SIM" anywhere under docs/.
+   That is WEAK evidence - docs/ holds curated summaries, not raw C++ console
+   output. STATUS: the band finding is NOT being treated as contaminated, but
+   NOT as fully clean either. QUEUED: check raw C++ console logs for those two
+   strings if any survive. The port is unaffected - it has no handler for that
+   typeCode at all.
 
 ---
 
@@ -1329,6 +1347,59 @@ apparatus Phase 0.5 wants: create-via-remote, save-to-scnx, diff against a GUI-a
 via `addScenarioSavedCallback` (new-style with `DtSaveResult`, :729).
 Related: `saveScenarioCheckpoint` :676, `saveSimulationObjectGroup` :787 (save selected
 objects as a reusable .sogx, section 1d), `saveParameterDb` :778.
+
+#### 6a. TIME MULTIPLIER - the full contract (2026-07-18, supervisor-verified)
+
+Registered because Phase 1 Step 4 now sets 20x through this call rather than the
+GUI toolbar (groundwork plan D1, resolved 2026-07-18; the toolbar caps at 15 -
+0.2 section 8).
+
+- SIGNATURE: `void DtVrfRemoteController::setTimeMultiplier(double multiplier) const`
+  (`vrfRemoteController.h:827`). The argument is the DIMENSIONLESS
+  sim-time / wall-time ratio; 1.0 = real time. Cross-refs the `time-multiplier`
+  scenario parameter (0.2 section 8).
+- NO `addr` PARAMETER. Unlike `run()` / `pause()` at :819-820, which take the
+  usual trailing `const DtSimulationAddress& addr = DtSimSendToAll`,
+  `setTimeMultiplier` takes none - so it CANNOT be targeted at one backend.
+  INFERRED, NOT OBSERVED LIVE: that it therefore broadcasts to all backends.
+  The inference rests only on the absent parameter; treat it as unverified
+  until a multi-backend run shows it.
+- NO GETTER on the remote controller. The current multiplier is readable only by
+  intercepting `DtIfStatus::timeMultiplier()` (`vrfMsgs/ifStatus.h:92`), which
+  the port does NOT do. Consequence: the port can set the rate but cannot
+  confirm the backend accepted it - a Phase 1 run at 20x has no in-band
+  readback of the rate it actually ran at.
+- IT IS A SIM-INTERFACE CONTROL MESSAGE, not a task and not a set-data request:
+  `DtIfSetTimeMultiplier : DtSimInterfaceContent`
+  (`vrfMsgs/ifSetTimeMultiplier.h:45`), wire type
+  `DtSetTimeMultiplierMessageType = 28` (`messageTypes.h:109`). So none of the
+  task-interruption / mutual-exclusion semantics of section 4 apply to it.
+- DO NOT CALL THE OTHER OVERLOAD: `setTimeMultiplier(DtScenario*)` at :920 is
+  unrelated - it writes the backend's CURRENT multiplier into a scenario object
+  for saving. Same name, opposite direction.
+- THE PORT NARROWS THE MAK `double` TO `int`: `VrfFacade.h:219` and
+  `VrfBridge.cpp:208` both take `int`, so no fractional multiplier (0.5x, 2.5x)
+  is expressible through the port. Fidelity gap, not a blocker for 20x.
+
+**The 20x has NO oracle provenance (verified).** The C++ oracle DEFAULTS to
+`simTimeMultiple = 1` (`C2SIMinterface.cpp:100`), ships the feature DISABLED
+(`vrfRepondToTimeMultipleC2SIM = false` at :102; `main.cxx:135`, argv slot 16,
+documents "default 0"), and hardcodes no 20 anywhere. The port likewise defaults
+to 1, and its own comment calls that "the golden default"
+(`src/VrfC2SimApp/VrfSettings.cs:93-96`). Every archived 20x run set it per-run
+via the environment variable `Vrf__TimeMultiplier=20`. The 20 is a porting-time
+THROUGHPUT CONVENIENCE with no oracle authority behind it - do not treat "the
+port ran at 20x" as inherited behavior.
+
+**ORACLE BUG - the disable flag does not disable anything** (verified verbatim,
+`C2SIMinterface.cpp:1769-1775`). On a C2SIM SystemCommand with typeCode
+`SetSimulationRealtimeMultiple`, `vrfRepondToTimeMultipleC2SIM` gates ONLY the
+log message: the call `textIf->controller()->setTimeMultiplier(simTimeMultiple)`
+sits OUTSIDE the if/else and executes unconditionally. The C++ interface prints
+"IGNORING C2SIM SETSIMULATIONREALTIMEMULTIPLE" and then applies the multiplier
+anyway. See 0.0 item 7 for the consequence for the census band finding.
+The PORT has NO handler for `SetSimulationRealtimeMultiple` at all (a grep of
+`src/**/*.cs` finds nothing), so this asymmetry exists ONLY in the oracle.
 
 ### 7. HONEST GAPS - what the GMU interface used vs what exists
 
