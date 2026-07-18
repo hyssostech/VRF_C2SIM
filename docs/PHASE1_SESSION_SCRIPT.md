@@ -1,6 +1,43 @@
 # PHASE 1 SESSION SCRIPT - native reference baseline (TropicTortoise)
 
-Status: READY. Groundwork plan Phase 1; this IS the next live session.
+*** THIS SCRIPT IS NOT THE NEXT ACTION. IT IS NOT THE PRODUCT. DO NOT RUN IT AS WRITTEN.
+    STATUS CHANGED 2026-07-18 EVENING - READ THIS BANNER IN FULL. ***
+
+WHAT THIS DOCUMENT IS: a HUMAN-AT-THE-GUI DIAGNOSTIC, written when the effort still
+assumed an operator would drive VR-Forces. Its every creation and tasking step
+("palette-create", "Click to Create", "the user drives the VR-Forces GUI") is
+SCAFFOLDING for one comparison. It is NOT how the product works and NOT how the product
+is accepted.
+
+THE PRODUCT IS HEADLESS: C2SIM document in -> initialize, task, run -> verify from
+telemetry. ZERO humans in the UI, zero terrain clicking. See VRF_GROUNDWORK_PLAN.md
+sec 1a (THE HEADLESS MANDATE) - read that BEFORE this file.
+
+*** THE SPECIFIC TRAP THIS BANNER EXISTS TO STOP. *** On 2026-07-18 a supervisor read
+this script's "the user drives the GUI" line, concluded that live testing therefore
+required a human, told the user so, and then spent a work block building UI-Automation
+menu-driving to work around the human it had invented. BOTH conclusions were wrong:
+- Verification NEVER required a human. It is arithmetic on the WatchVrf POS trace.
+- Creation and tasking NEVER required a human either. tools/CreateOne creates entities
+  headlessly through the remote API, and the FULL C2SIM pipeline (init + order ->
+  create -> task -> move -> TASKCMPLT) was already verified end to end on 2026-07-10
+  (RUNBOOK sec 7).
+If you find yourself planning GUI automation, stop: you have made this mistake again.
+
+WHAT SURVIVES: the QUESTIONS this script pre-registered (P1-A native arrival, P1-B the
+18.1-18.4 km stall band, P1-C the 20x clock, P1-D the controller split) are still open
+and still worth answering. Its METHOD is retired. Answer them from headless runs. If a
+non-port "native" control arm is ever genuinely needed, get it from a GUI-authored
+.scnx loaded programmatically (groundwork 0.5 + loadScenario), NOT from a human.
+
+THE ACTUAL NEXT ACTION is the headless run - see docs/HEADLESS_RUN_PLAN.md.
+
+Everything below this banner is preserved UNCHANGED as the historical record of the
+diagnostic as designed. Do not act on it without deciding, deliberately, that you need
+that specific comparison.
+
+Status: SUPERSEDED IN METHOD (2026-07-18 evening). Was: "READY. Groundwork plan Phase 1;
+this IS the next live session."
 
 *** BRING-UP (corrected 2026-07-18 evening - an earlier version of THIS HEADER said
 "the user launches VR-Forces MANUALLY" and "the 0.4 gate was DEMOTED". BOTH ARE

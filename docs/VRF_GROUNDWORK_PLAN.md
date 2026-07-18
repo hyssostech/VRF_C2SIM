@@ -48,6 +48,43 @@ DONE-GATE (final): the Phase-1 native reference scenario, driven end-to-end thro
 C2SIM by the port, matches its own native-GUI baseline telemetry within documented
 tolerances - then COA-STP1 scored the same way.
 
+## 1a. THE HEADLESS MANDATE - READ THIS BEFORE ANY SESSION PLANNING
+
+*** USER-STATED, 2026-07-18 EVENING, VERBATIM INTENT: "we are building an interface to
+vrf, that takes C2SIM doc inputs and initializes, tasks and runs the implied
+simulations. Zero humans using the UI to task anything, or to click on terrain, etc.
+that is the whole point. I click a button, my C2SIM plan plays on its own." ***
+
+THE PRODUCT IS HEADLESS. C2SIM document in -> units initialized, tasked and executed in
+VR-Forces -> outcome verified from telemetry. ONE button. NO GUI in the loop - not a
+human's hand on it, and NOT an agent driving it either.
+
+WHY THIS SECTION EXISTS: on 2026-07-18 a supervisor read PHASE1_SESSION_SCRIPT.md's
+"the user drives the VR-Forces GUI for creation/tasking steps", treated it as a
+CONSTRAINT ON THE EFFORT rather than as scaffolding for one diagnostic, and spent a work
+block building UI-Automation menu-driving for VR-Forces. That is off-mission work. The
+product never touches the GUI, so automating the GUI is not a route to the goal - it is
+a detour away from it. The user had to say so explicitly to stop it.
+
+THE THREE RULES THAT FOLLOW FROM THIS:
+
+1. NO STEP ON THE ACCEPTANCE PATH MAY REQUIRE A HUMAN OR A GUI. If a procedure says
+   "the user does X in the GUI", that procedure is scaffolding, not product, and it must
+   be labelled as such. A GUI step may NEVER be a prerequisite for a scored run.
+2. VERIFICATION WAS NEVER HUMAN WORK AND NEVER WILL BE. Outcomes are decided by
+   arithmetic on the WatchVrf trace (POS lines) plus the reports captured by
+   ListenReports - expected waypoints vs observed displacement. A human is not required
+   to judge whether a run matched its C2SIM input, and never was. Do not re-invent this
+   as a manual review step.
+3. GUI USE IS DIAGNOSTIC ONLY. It is legitimate to LOOK at the GUI to understand VRF
+   behaviour. It is not legitimate for the GUI to be load-bearing in any run that scores
+   the product.
+
+WHAT IS *NOT* OFF-MISSION: unattended LAUNCH and TEARDOWN of VR-Forces
+(scripts/LaunchVrf.ps1, scripts/StopVrf.ps1). The headless loop needs the simulator to
+come up and go down without a human, so that work serves the mandate directly. The
+detour was specifically UIA-driving of the Create/Task MENUS, which is abandoned.
+
 ## 2. Operating model for this plan
 
 - The VR-Forces GUI is now an INSTRUMENT, not just a viewer. Phase 1 is a joint
@@ -182,6 +219,31 @@ Exit criteria / what this settles:
 
 ## Status
 
+- 2026-07-18 EVENING (RE-GROUNDING, user-directed): **THE EFFORT HAD DRIFTED OFF-MISSION.
+  THE PRODUCT IS HEADLESS - C2SIM IN, SIMULATION RUNS, TELEMETRY VERIFIES, ZERO GUI.**
+  New sec 1a (THE HEADLESS MANDATE) is now the governing statement; new
+  docs/HEADLESS_RUN_PLAN.md is THE NEXT ACTION.
+  - WHAT WENT WRONG: the supervisor read PHASE1_SESSION_SCRIPT.md's "the user drives the
+    VR-Forces GUI" as a constraint on the whole effort, told the user live testing needed
+    a human, and then built UI-Automation menu-driving to route around that invented
+    human. Both halves were wrong. VERIFICATION never needed a human (it is arithmetic on
+    the WatchVrf POS trace) and CREATION/TASKING never did either (tools/CreateOne creates
+    headlessly; the full C2SIM pipeline ran end to end on 2026-07-10, RUNBOOK sec 7).
+  - PHASE1_SESSION_SCRIPT.md is SUPERSEDED IN METHOD, banner-marked at the top. Its
+    pre-registered QUESTIONS (P1-A..D) survive; its human-at-the-GUI method does not.
+  - THE CHAIN IS COMPLETE AND BUILT: LaunchVrf -> VrfC2SimApp -> PushInit -> PushOrder ->
+    WatchVrf -> ListenReports -> StopIface -> StopVrf. All headless. The four C2SIM tools
+    were rebuilt this evening (Release, 0 errors); C2SIM server verified live (REST 8080
+    HTTP 200, STOMP 61613 open); VrfC2SimApp builds 0 errors.
+  - NEXT DELIVERABLE: scripts/RunC2SimScenario.ps1 - the button. First target
+    R9_Mojave_Initialization.xml + R9_Mojave_UnitMove_Order.xml (Mojave matches the
+    loaded terrain; single unit move = binary result, no aggregation confound).
+  - BLOCKING FIRST: argument guards on PushInit / PushOrder / StopIface. StopIface ACTS
+    with no arguments - it drove the live server RUNNING -> UNINITIALIZED during a
+    usage probe. Unacceptable in an unattended runner. Copy the CreateOne/SetSimRate
+    pattern (no defaults, hard exit 2, no action on bad args).
+  - NOT NEXT, EXPLICITLY: GUI automation of any kind; the Phase 1 human session; the
+    Phase 3 creation-layer rebuild (measure the current interface first).
 - 2026-07-18 EVENING (LIVE): **UNATTENDED TEARDOWN BUILT; THE ORACLE PRE-CHECK CRITERION
   WAS WRONG IN BOTH DIRECTIONS AND IS CORRECTED. PHASE 1 STILL HAS NOT RUN.** This entry
   SUPERSEDES the 0.4 entry below wherever they disagree - in particular that entry's
