@@ -14,82 +14,245 @@ Stop the interface CLEANLY instead (sec 4) - it resigns, leaves no stale federat
 and needs no reload. Force-kill + reload was the old clunky path (pre- and
 post-compaction); the clean stop replaces it.
 
-## 0.5 Launching VR-Forces itself (the sim backend) - found 2026-07-15
+## 0.5 BRINGING VR-FORCES UP FOR LIVE WORK - THE WORKING PROCEDURE
 
-Every prior session treated `vrfSimHLA1516e` + `rtiexec` as already-running preconditions
-(sec 1 below) and never documented how to start them - VR-Forces was always brought up by a
-human via the GUI beforehand. It does NOT need the GUI: `vrfSimHLA1516e.exe` is a standalone
-headless back-end; `vrfGui.exe` is a separate, optional front-end (this project mostly runs
-without it - "vrfGui hung-but-backend-healthy" is a normal state; WatchVrf is the visual
-channel, not the GUI).
+Status: SOLVED 2026-07-18. VR-Forces launches UNATTENDED, zero human interaction,
+and the WatchVrf movement oracle is verified end to end. This section is the
+operational procedure. Narrative and the five wrong diagnoses that preceded it:
+docs/experiments/SESSION_2026-07-18_SELFLAUNCH.md. Gate result:
+docs/experiments/PREREG_0_4_SELFLAUNCH.md sec 12.
 
-CORRECTED THREE TIMES ON 2026-07-18. The final, evidence-backed statement is below; the
-history is kept because each wrong version was written confidently and acted on.
+READ THIS WHOLE SECTION BEFORE LAUNCHING. Two rules below (the never-kill rule and
+the do-not-set rule) each cost a full live session when violated.
 
-WHAT IS TRUE: EVERYTHING HERE DEPENDS ON WHICH RTI CONNECTION THE ASSISTANT SUPPLIES. There
-is no unconditional fact about rtiexec on this machine.
-- Under the CORRECT connection ("Legatus's predefined rtiexec loopback connection", the one
-  selected in the Choose RTI Connection dialog), an `rtiexec` IS running (observed: pid
-  81692) alongside `rtiForwarder`, and the back-end's UDP endpoint is 4001. rtiexec and
-  rtiForwarder are RTI INFRASTRUCTURE: they PERSIST across launches, they are expected, and
-  they MUST NOT be killed or treated as stale federates.
-- Under the fallback that occurs when the Assistant is disabled or unanswered, no rtiexec
-  appears and a back-end that does reach health binds UDP 4000 instead.
-- CONSEQUENCE FOR TOOLING: `UDP 4000 bound` is NOT a health signal - it is
-  connection-dependent and is FALSE on a fully healthy back-end under the correct
-  connection. The connection-independent signal is THREAD COUNT: blocked back-ends sit at
-  2-4 threads indefinitely; healthy ones reach 23-67. LaunchVrf.ps1 gates on threads.
+### 0.5.1 THE COMMAND
 
-THE THREE WRONG VERSIONS, so they are not re-derived:
-1. "rtiexec is spawned automatically by the RTI on first federate join" - contradicted by
-   observation under the fallback connection.
-2. "rtiexec NEVER runs here BECAUSE `(setqb RTI_useRtiExec 0)`" - wrong twice over. The
-   observation was connection-specific, AND the cited parameter is inert: MAK RTI Users
-   Guide p. 7-8 / Reference Manual Appendix A state verbatim, under `RTI_useRtiExec`,
-   `RTI_udpPort`, `RTI_tcpPort`, `RTI_destAddrString` and `RTI_tcpForwarderAddr`: "This
-   parameter is ignored unless RTI_configureConnectionWithRid is set to 1." Our rid.mtl sets
-   it to 0, so those values are DISCARDED and the Assistant's stored connection supplies
-   them. Treat rid.mtl connection values here as INERT.
-3. "UDP 4000 bound means the back-end joined" - connection-dependent; see above.
+    $env:MAKLMGRD_LICENSE_FILE = [Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','Machine')
+    pwsh -File scripts\LaunchVrf.ps1 -Scenario TropicTortoise `
+         -BackendAppNumber <fresh> -FrontendAppNumber <fresh> -AllowExistingRtiAssistant
 
-*** RTI ASSISTANT PROMPT - THE CAUSE OF "THE BACKEND HANGS ON LAUNCH" (2026-07-18) ***
-On HLA, the vendor's documented startup sequence REQUIRES a human. VR-Forces help,
-SharedTopics\XMLrti\InstallMAK-RTI.htm, verbatim: "Start the application. The RTI Assistant
-will prompt you to choose an RTI configuration. Choose a configuration. If necessary, start
-the rtiexec. Click Connect. The application should run." MAK RTI Users Guide p. 4-2 names the
-symptom exactly: "The federate startup process may appear to hang while the Choose RTI
-Connection dialog box is waiting for input."
-THE FIX (RTI Reference Manual sec 5.2.10, p. 5-11, verbatim: "To disable the RTI Assistant,
-create an environment variable called RTI_ASSISTANT_DISABLE. It does not require a value.
-Its existence causes the RTI to not create the RTI Assistant."):
+Expect `EXIT=0` and `[OK] READY`. Takes ~35 s to scenario-loaded. Both app numbers
+are MANDATORY, must be FRESH, must differ, and must be LEDGERED IN
+OPUS_EXECUTION_PLAN.md Appendix B BEFORE the launch (the script hard-exits 2 if
+any of that is violated). Verified 3x on 2026-07-18 with no human interaction.
 
-    $env:RTI_ASSISTANT_DISABLE = "1"    # set BEFORE launching, process scope is enough
+What the script actually runs (if you ever need it by hand, cwd = bin64):
 
-VERIFIED 2026-07-18: with it set, `vrfLauncher --usePredefinedConnection "<profile>"` brings
-up a healthy joined back-end in 8 SECONDS, with or without `--simArgs --appNumber N
---scenarioFileName ...`; scenario loads; both TropicTortoise baseline objects are locally
-simulated. Without it, a fresh unanswered assistant blocks the back-end indefinitely.
-GOTCHA THAT MADE THIS INVISIBLE FOR DAYS: an ALREADY-ANSWERED assistant left running from a
-previous session makes launches work, because each new assistant dies on the port-6003
-collision instead of prompting. Killing that "stale" process as cleanup BREAKS launching.
-KNOWN RESIDUAL (not resolved): with the Assistant disabled, ResetVrf --dry-run joins cleanly
-and crash-free but discovers 0 objects / BackendCount=0 even against a scenario-loaded
-back-end. See docs/experiments/SESSION_2026-07-18_SELFLAUNCH.md "OPEN ITEM".
+    vrfLauncher.exe --usePredefinedConnection "HLA 1516 Evolved RPR 2.0 with MAK extensions" ^
+      --simArgs --appNumber <backendAppNo> --scenarioFileName "../userData/scenarios/TropicTortoise.scnx" ^
+      --guiArgs --appNumber <frontendAppNo>
 
-BACKEND-HEALTH ORACLE (measured 2026-07-18 against a verified-healthy backend): UDP 4000
-bound + thread count growing well past 2 (~36 observed) + vrfSim.log progressing beyond the
-VR-Link/MSVC banner to the parameter database and sensor propagators. PROCESS PRESENCE IS
-NOT HEALTH - a stalled backend sat at 2 threads, present the whole time. vrfSim.log is
-block-buffered (sec 3), so a short log corroborates but never proves. Full detail:
-docs/experiments/SESSION_2026-07-18_SELFLAUNCH.md.
+The `--simArgs` / `--guiArgs` overrides are SAFE and documented (vrfLauncher Table 9
+worked example). They were wrongly blamed twice on 2026-07-18 and are EXONERATED -
+do not re-accuse them.
 
-GOTCHA 2026-07-18 - STALE rtiAssistant SQUATTING PORT 6003: every VR-Forces launch starts
-its own RTI Assistant. If a previous one is still alive it holds 6003 and the new one dies
-with "RTI Assistant server creation failed. The port [ 6003 ] may be in use". One such
-instance survived from 7/15 to 7/18 stuck on a modal "Choose RTI Connection" dialog; it is a
-LIVE (not eliminated) candidate for stalled backends in that window, since every federate
-connects to 6003. CHECK FOR A PRE-EXISTING rtiAssistant BEFORE LAUNCHING; `RTI_ASSISTANT_PORT`
-relocates the port if a second instance is ever genuinely wanted.
+### 0.5.2 *** NEVER KILL rtiAssistant / rtiexec / rtiForwarder ***
+
+These are RTI INFRASTRUCTURE. They persist across launches BY DESIGN and are not
+stale federates. An ALREADY-ANSWERED rtiAssistant is precisely what makes
+unattended launch work.
+
+Killing a long-lived rtiAssistant as "cleanup" is what broke the 2026-07-18
+session and cost the entire live window. Every VR-Forces launch starts its OWN
+assistant; when one is already running, the new one fails to bind port 6003 and
+exits immediately. THAT FAILURE IS EXPECTED AND BENIGN - it is the mechanism that
+prevents an unanswered dialog from ever appearing. The error dialog
+"RTI Assistant server creation failed. The port [ 6003 ] may be in use" is
+therefore NORMAL, not a fault to fix.
+
+Corollary: do not "tidy" processes you did not start. Check what a process IS
+before deciding it is stale.
+
+### 0.5.3 ONE-TIME SETUP PER MACHINE (already done on this machine)
+
+On HLA the vendor's documented startup sequence REQUIRES a human once. VR-Forces
+help, SharedTopics\XMLrti\InstallMAK-RTI.htm, verbatim:
+
+    "Start the application. The RTI Assistant will prompt you to choose an RTI
+     configuration. Choose a configuration. If necessary, start the rtiexec.
+     Click Connect. The application should run."
+
+MAK RTI Users Guide p. 4-2 names the symptom when it is not answered, verbatim:
+"The federate startup process may appear to hang while the Choose RTI Connection
+dialog box is waiting for input." THIS IS DOCUMENTED BEHAVIOUR, NOT A BUG.
+
+Procedure, once per machine (and possibly once per reboot - UNTESTED):
+1. Launch (0.5.1). The "Choose RTI Connection" dialog appears.
+2. Select the connection. On this machine: "Legatus's predefined rtiexec loopback
+   connection". Local TCP Interface 127.0.0.1, Local UDP Interface 127.0.0.1.
+3. ENSURE "Always try to use this connection" IS CHECKED.
+4. Click Connect.
+5. LEAVE THAT ASSISTANT RUNNING (see 0.5.2).
+
+Thereafter launches are silent - verified: no dialog appeared at any point across
+a 35 s poll on the next launch.
+
+NOTE: the checkbox alone is not sufficient if no answered assistant exists. It was
+already checked on 2026-07-18 and the dialog still prompted, because the answered
+assistant had been killed. The checkbox persists the CHOICE; the running answered
+assistant is what serves it.
+
+### 0.5.4 AUTOMATING THE DIALOG (if it ever returns, e.g. after a reboot)
+
+The dialog is a Qt window (class `Qt5QWindowIcon`) and exposes NO UI Automation
+child tree - `AutomationElement.FindFirst` returns the window and nothing inside
+it, so element-based automation FAILS. What works, used successfully 2026-07-18:
+
+1. Find the window: process `rtiAssistant` with MainWindowTitle
+   "Choose RTI Connection".
+2. `GetWindowRect` it. SCREENSHOT it (`Graphics.CopyFromScreen`) and LOOK at the
+   image before clicking - do not click coordinates blind.
+3. Click Connect: on the observed 573x583 dialog the Connect button centre is at
+   window-relative (383, 553); convert to screen coords and use `SetCursorPos` +
+   `mouse_event` (down 0x0002, up 0x0004).
+4. ALLOW MORE THAN 3 SECONDS for it to dismiss. A 3 s check reported "still open"
+   on a click that had in fact succeeded - do not conclude failure and re-click.
+
+### 0.5.5 *** DO NOT SET RTI_ASSISTANT_DISABLE ***
+
+RTI Reference Manual sec 5.2.10 documents it and it does exactly what it says -
+processes start in 8 seconds with no prompt. DO NOT USE IT ANYWAY.
+
+With the Assistant disabled, nothing supplies the connection configuration:
+federates join the federation but NEVER DISCOVER EACH OTHER. WatchVrf reported
+`reflected=0 readable=0` for a full 40 s against a back-end whose own log proved
+the scenario was loaded. THE MOVEMENT ORACLE GOES SILENTLY BLIND - a full Phase-1
+session would produce empty telemetry with no error anywhere.
+
+Mechanism (RefMan Appendix A, verbatim): `RTI_mcastDiscoveryEnabled` "is set to 0
+unless RTI_configureConnectionWithRid is set to 1", and our rid.mtl sets
+`RTI_configureConnectionWithRid 0`, so the Assistant's stored connection is the
+only source of connection values. The Assistant does TWO jobs - prompting
+(unwanted) and supplying the connection (REQUIRED). Disabling it drops both.
+
+DO NOT edit the shared C:\MAK\makRti4.6.1\rid.mtl to work around this. If
+rid.mtl values are ever genuinely needed, do it PROCESS-SCOPED: copy rid.mtl to a
+private directory, set `RTI_configureConnectionWithRid 1` in THE COPY, and point
+only our processes at it via `RTI_CONFIG` (documented in InstallMAK-RTI.htm:
+"set the environment variable RTI_CONFIG to the directory that contains them").
+Note RefMan requires all federates in a federation to agree on `RTI_useRtiExec`.
+
+### 0.5.6 IS THE BACK-END ACTUALLY UP? - HEALTH ORACLE
+
+PROCESS PRESENCE IS NOT HEALTH. A blocked back-end sits at 2-4 threads,
+fully present, indefinitely.
+
+USE: back-end THREAD COUNT. Blocked 2-4; healthy 23-67 (observed). This is the
+connection-independent signal and is what LaunchVrf.ps1 gates on.
+CORROBORATE WITH: vrfSim.log progressing past the VR-Link/MSVC banner to
+"Loading parameter database file ...", sensor propagators, and finally
+"Successfully loaded scenario." (log is BLOCK-BUFFERED per sec 3 - it corroborates,
+it never proves).
+
+DO NOT USE, all three shown wrong on 2026-07-18:
+- process presence (see above);
+- `rtiexec` presence - CONNECTION-DEPENDENT. Under the correct rtiexec loopback
+  connection an rtiexec IS running; under the disabled/unanswered fallback none
+  appears. Never gate readiness on it.
+- `UDP 4000 bound` - CONNECTION-DEPENDENT and FALSE on a healthy back-end under
+  the correct connection (which uses TCP 4001 + forwarder 5000). UDP 4000 appears
+  only on the lightweight fallback.
+
+### 0.5.7 IS THE ORACLE ACTUALLY SEEING ANYTHING? - MANDATORY PRE-CHECK
+
+RUN THIS BEFORE ANY SCORED LIVE WORK. A launch can be perfectly healthy while the
+oracle is blind (0.5.5), and nothing warns you.
+
+    WatchVrf.exe <freshAppNo> 30 2      # cwd bin64, RTI env per sec 7
+
+REQUIRE `reflected>0`. DISCOVERY TAKES ~13 SECONDS TO POPULATE - it reported
+`reflected=0` until t=13.3s on a healthy federation, so DO NOT JUDGE BEFORE ~15 s.
+If it is still 0 after 20 s, STOP; do not run the session.
+
+STRONGER CHECK (settles position fidelity, not just discovery):
+
+    CreateOne.exe <freshAppNo>          # creates one M1A2 at a COA-STP1 AO coord
+
+then confirm WatchVrf emits a POS line for that uuid with REAL coordinates, not
+NaN. Expected shape (verified 2026-07-18):
+
+    POS,23.5,VRF_UUID:adfaadb3-...,34.517156,-116.973525,1060.7
+
+Requested altitude was 10000 m MSL; 1060.7 is the GROUND CLAMP working. Relaunch
+afterwards so the throwaway never enters a scored trace (a relaunch reloads the
+scenario from file and removes it).
+
+CAUTION: a freshly loaded TropicTortoise contains only NON-ENTITY CONTROL OBJECTS
+(GlblTerrDmg, Blocking Terrain Page-In Area). Their POS lines legitimately carry
+NaN lat/alt. Do NOT conclude the oracle is broken from those - create a real
+entity and check that.
+
+### 0.5.8 VENDOR DIAGNOSTICS - READ THESE BEFORE PROBING
+
+The 2026-07-18 session ran seven probes against documented behaviour before
+reading the vendor's own procedure. Order of resort:
+
+- VR-Forces help (HTML, offline): C:\MAK\vrforces5.0.2\doc\help\Content
+  Startup/connections/sessions: Introduction\Starting\ and Introduction\Concepts\
+  CLI options: Introduction\CLI\vrf_vrfSimCommandLine.htm and
+  vrf_vrfLauncherCommandLine.htm. Troubleshooting: Appendixes\Troubleshooting\
+  (thin - 3 pages; includes the Nahimic BlackApps.dat second-display start
+  failure, which IS present on this machine as a warning in vrfGui.log).
+  Back-end config-file equivalents of the CLI options:
+  Appendixes\vrfSim\vrf_vrfSimMTLParams.htm (./appData/settings/vrfSim/vrfSim.mtl).
+- MAK RTI books (PDF, offline): C:\MAK\makRti4.6.1\doc\RTIUsersGuide.pdf and
+  RTIReferenceManual.pdf. THE VR-FORCES HELP DEFERS TO THESE for anything RTI -
+  including the Assistant. They were never opened by this effort until 2026-07-18.
+- Application logs: vrfSim.log and vrfGui.log, written to THE DIRECTORY VR-FORCES
+  WAS RUN FROM (bin64 here). Block-buffered.
+- Raise back-end verbosity: `--simArgs --notifyLevel 4 --fileNotifyLevel 4`
+  (0=fatal .. 4=debug, default 2). At 4 it dumps the full environment it saw,
+  which is how the PATH/RTI question was settled.
+- RTI Assistant per-PID logs: %LOCALAPPDATA%\Temp\makRtiAssistant<pid>.txt. A
+  HEALTHY assistant's log is ~615 bytes and ends "RTI connections cache file: ...
+  connections.xml loaded."; one that DIED on the port collision is ~56 bytes (the
+  command line only). Byte size alone tells you which happened.
+- License: `lmutil.exe lmstat -a -c <licfile>`. NOTE this license is NODE-LOCKED
+  and UNCOUNTED with NO SERVER lines, so no lmgrd/maklmgrd daemon is needed and
+  its absence is NORMAL - lmstat correctly reports "No SERVER lines in license
+  file. (-13,66)". Do not chase a missing license daemon.
+- The Assistant's persisted connection choice lives in
+  %APPDATA%\MAK\RTI\4.6\Legatus\connections.xml (`chosen="1"`). UNDOCUMENTED by
+  MAK - do not hand-edit it; use the dialog.
+
+### 0.5.9 CLEAN SHUTDOWN
+
+Per the vendor (Introduction\Starting\vrf_startVRF.htm): in COMBINED mode
+"when you shut down the front-end, the back-end automatically shuts down also".
+So close vrfGui, not the back-end. Never force-kill a JOINED federate (sec 0);
+that leaves a stale federate and the next start hangs at RTI join.
+Leave rtiAssistant / rtiexec / rtiForwarder RUNNING (0.5.2).
+
+### 0.5.10 HISTORICAL - the three wrong "corrections" written into this section
+
+All three were written confidently on 2026-07-18 and acted on. Kept so they are
+not re-derived:
+1. "rtiexec is spawned automatically by the RTI on first federate join" - false
+   under the fallback connection; connection-dependent either way (0.5.6).
+2. "rtiexec NEVER runs here BECAUSE (setqb RTI_useRtiExec 0)" - wrong twice: the
+   observation was connection-specific, AND that parameter is INERT. RTI Users
+   Guide p. 7-8 / RefMan Appendix A, verbatim under RTI_useRtiExec, RTI_udpPort,
+   RTI_tcpPort, RTI_destAddrString and RTI_tcpForwarderAddr: "This parameter is
+   ignored unless RTI_configureConnectionWithRid is set to 1." Ours is 0, so all
+   rid.mtl connection values here are DISCARDED in favour of the Assistant's
+   stored connection.
+3. "UDP 4000 bound means the back-end joined" - connection-dependent (0.5.6).
+
+Also superseded: an earlier version of this section presented
+`RTI_ASSISTANT_DISABLE=1` as "THE FIX ... VERIFIED". It is NOT the fix - see
+0.5.5. And the "ResetVrf discovers 0 objects / BackendCount=0" residual recorded
+against it is RESOLVED: under the correct connection the 0.4 gate passed twice
+(3489/3490), discovering the 2 TropicTortoise baseline objects.
+
+---
+
+## 0.5-ARCHIVE - the raw vrfSimHLA1516e headless recipe (CONFIRMED UNSAFE, 2026-07-15)
+
+RETAINED FOR THE HISTORICAL RECORD ONLY. DO NOT USE THIS RECIPE. The supported
+bring-up is 0.5.1 above. Everything below predates the 2026-07-18 root cause and
+its "root cause found" claims should be read in that light - the crash it
+describes is real, but the launch-hang symptoms discussed alongside it were the
+RTI Assistant prompt (0.5.3), which nothing in this archive knew about.
 
 GOTCHA: `vrfSimHLA1516e.exe --help` does NOT print usage and exit - it silently starts a
 real (unconfigured) sim instance instead. Do not probe with `--help`; the option reference
