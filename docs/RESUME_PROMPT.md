@@ -19,7 +19,7 @@ absent). ASCII-only in tracked files.
 
 WHERE THE WORK LIVES: port repo VRF_C2SIM (submodule at OpenC2SIM.github.io/Software/
 Interfaces/VRF_C2SIM, branch main, remote origin = hyssostech/VRF_C2SIM). As of
-2026-07-18 EVERYTHING IS PUSHED - tip cef7a52 on both main and origin/main, nothing
+2026-07-18 EVERYTHING IS PUSHED - tip 3064991 on both main and origin/main, nothing
 unpushed (this is new; earlier prompts said unpushed commits were expected). Run
 git log --oneline -5 and git status -sb to confirm. PUSH POLICY (user, 2026-07-18):
 push whenever it makes sense AFTER PROPER TESTING - the user's concern is losing work.
@@ -146,5 +146,7 @@ dir is BUILD OUTPUT ONLY (PushInit/PushOrder bin+obj, no source) - do not commit
 
 START by reporting: git log --oneline -5 + git status -sb of the port repo; confirmation
 you read the plan Status, ground truth 0.0 (items 1-7), and the Phase 1 script; then
-propose the next step. Get explicit user go-ahead before ANY live work, ANY executor
-touching product code, and ANY commit.
+propose the next step. Get explicit user go-ahead before ANY live work and before ANY
+executor touches product code. Committing and pushing GATED, GREEN work no longer needs
+a separate go-ahead (push policy above, user 2026-07-18) - but the gate itself is not
+optional, and the go-ahead to WRITE the code is still required before it exists.
