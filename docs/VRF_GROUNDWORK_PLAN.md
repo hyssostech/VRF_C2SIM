@@ -182,6 +182,33 @@ Exit criteria / what this settles:
 
 ## Status
 
+- 2026-07-18 EVENING (LIVE): **UNATTENDED TEARDOWN BUILT; THE ORACLE PRE-CHECK CRITERION
+  WAS WRONG IN BOTH DIRECTIONS AND IS CORRECTED. PHASE 1 STILL HAS NOT RUN.** This entry
+  SUPERSEDES the 0.4 entry below wherever they disagree - in particular that entry's
+  "NEW MANDATORY oracle pre-check (require reflected>0 ... ~13 s / ~15 s)" line is
+  RETRACTED. Evidence: RUNBOOK sec 0.5.7 and 0.5.9.
+  - TEARDOWN WAS NEVER UNATTENDED and the docs read as if it were. Closing vrfGui raises
+    a modal confirm ("Are You Sure?", class makVrf::DtNeverAskAgainMessageBox) that
+    blocks until answered. NEW scripts/StopVrf.ps1 answers it via UI AUTOMATION BY
+    CONTROL NAME (that dialog exposes a full UIA tree; the RTI connection dialog does
+    NOT - do not generalise between them). VERIFIED LIVE: teardown in 8 s, EXIT=0, zero
+    human interaction, no force-kill, all three RTI processes preserved.
+  - ORACLE PRE-CHECK CRITERION CORRECTED. reflected>0 PASSED on garbage (both readable
+    objects degenerate: 90/-90 pole and NaN, 14/14 samples - the TropicTortoise baseline
+    objects are POSITIONLESS). And "reflected=0 after 20 s -> STOP" would have ABORTED a
+    healthy federation: same launch, visible ~40 s, blind ~20-50 s, visible ~104 s.
+    LaunchVrf READY does not imply scenario loaded or federation joined. New rule:
+    require a REAL-COORDINATE POS, retry up to ~3 min, CreateOne check now MANDATORY.
+  - LAUNCH/TEARDOWN ROUND-TRIP PROVEN unattended (3493/3494 then 3497/3498), and a
+    relaunch is CONFIRMED to clear a CreateOne throwaway from the live scenario.
+  - VR-FORCES MAIN WINDOW EXPOSES A FULL UIA TREE (makVrf::DtVrfQtDeMainWindow, 114
+    elements, menu bar incl. Create and Task). Whether native GUI creation/tasking can
+    therefore run unattended is UNPROVEN - the Task menu returned 0 children (probably
+    selection-dependent, NOT tested) and map/viewport interaction is very likely NOT
+    UIA-addressable. Open question, not a result.
+  - LEDGER: 3455 IS BURNED (consumed by the pre-check, not by Phase 1 telemetry). Only
+    3456-3459 remain reserved for Phase 1. The line below claiming "3455-3459 remain
+    reserved and untouched" is SUPERSEDED.
 - 2026-07-18 (LIVE, 0.4): **0.4 COMPLETE - GATE PASSED. VR-FORCES NOW LAUNCHES
   UNATTENDED AND THE MOVEMENT ORACLE IS VERIFIED END TO END.** This retires the
   "a human must launch VR-Forces" dependency that has constrained every session.
@@ -208,14 +235,19 @@ Exit criteria / what this settles:
   - DO NOT USE RTI_ASSISTANT_DISABLE: processes start but federates never discover
     each other and WatchVrf goes silently blind (reflected=0).
   - PHASE 1 PRECONDITIONS UPDATED: manual launch retired; NEW MANDATORY oracle
-    pre-check (WatchVrf >=20 s, require reflected>0; discovery needs ~13 s to
-    populate, do not judge before ~15 s).
+    pre-check. *** THE CRITERION QUOTED HERE IS RETRACTED - SEE THE 2026-07-18 EVENING
+    ENTRY ABOVE AND RUNBOOK 0.5.7. *** As written it said: "WatchVrf >=20 s, require
+    reflected>0; discovery needs ~13 s to populate, do not judge before ~15 s". Both
+    the reflected>0 pass rule and the 20 s abort rule failed live, in opposite
+    directions. Kept verbatim so the error is not re-derived.
   - Six LaunchVrf.ps1 defects found and fixed (three previously recorded, plus the
     rtiexec readiness wait, the connection-dependent UDP-4000 health test, and a
     duplicated health expression where only one copy had been corrected).
   - THREE WRONG CORRECTIONS were written into RUNBOOK sec 0.5 during this session
     and then fixed; all three are recorded there so they are not re-derived.
-  - PHASE 1 STILL HAS NOT RUN. 3455-3459 remain reserved and untouched.
+  - PHASE 1 STILL HAS NOT RUN. (SUPERSEDED DETAIL: this entry said "3455-3459 remain
+    reserved and untouched". 3455 was CONSUMED on 2026-07-18 evening by the oracle
+    pre-check and is BURNED; only 3456-3459 remain reserved.)
 - 2026-07-18 (superseded by the entry above; kept for the record): SCRIPTED
   BRING-UP PARTLY PROVEN; ROOT CAUSE UNRESOLVED; ONE SUPERVISOR CONCLUSION
   RETRACTED. Full write-up:

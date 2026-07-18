@@ -82,6 +82,9 @@ deliberate exception is the clock: it is set remotely via tools/SetSimRate
       once with "Always try to use this connection" CHECKED, then Connect. It is a Qt
       window with no UI Automation tree - automate by screenshot + coordinate click if
       needed (Connect centre is window-relative (383,553) on a 573x583 dialog).
+      NOTE: the no-UIA-tree fact is SPECIFIC TO rtiAssistant's dialog. The vrfGui quit
+      confirm DOES expose a full UIA tree and must be driven by control name, not
+      coordinates (RUNBOOK sec 0.5.9). Do not generalise either result to the other.
 - [ ] ORACLE PRE-CHECK (MANDATORY - CRITERION CORRECTED 2026-07-18 evening; the
       full evidence and the superseded rule are in RUNBOOK sec 0.5.7). The OLD rule
       said "require reflected>0; if 0 after 20 s, STOP". BOTH HALVES ARE WRONG:
@@ -113,8 +116,12 @@ deliberate exception is the clock: it is set remotely via tools/SetSimRate
 - [ ] Fresh appNos, ALL ledgered BEFORE their joins. Take them from the single
       line marked "*** NEXT FREE:" in OPUS_EXECUTION_PLAN.md Appendix B (search for
       that exact string - it is the ONLY authoritative value; do NOT infer one from
-      the highest number you see). Reserved for this session: 3455 WatchVrf, plus
-      3456-3459 for SetSimRate. YOU ALSO NEED TWO MORE for LaunchVrf itself (its
+      the highest number you see). Reserved for this session: 3456-3459 for
+      SetSimRate. *** 3455 IS BURNED - DO NOT USE IT. *** It was reserved for this
+      session's whole-session WatchVrf telemetry but was CONSUMED on 2026-07-18
+      evening by the oracle pre-check (a separate join needs its own number). TAKE A
+      NEW NUMBER FROM THE MARKER for the WatchVrf telemetry join.
+      YOU ALSO NEED TWO MORE for LaunchVrf itself (its
       back-end and front-end each consume one) - take those from the NEXT FREE
       marker and advance it.
 - [ ] FOUR MORE fresh appNos reserved and ledgered for SetSimRate (Step 1b up +
@@ -325,8 +332,12 @@ CLOCKTEST throwaway, so no clock excursion ever falls inside the scored window.
 - [ ] File > Save As -> phase1_native_baseline.scnx (record the FULL saved
       path; this is the 0.5 scnx-diff reference input).
 - [ ] Final Object Console Summary Panel capture; only then Acknowledge All.
-- [ ] Teardown per RUNBOOK sec 0.5.9 (close the FRONT-END; in combined mode the
-      back-end follows) and sec 4 (CLEAN STOP for any joined interface). NOT sec 7 -
+- [ ] Teardown: RUN scripts/StopVrf.ps1 (expect EXIT=0). Do NOT just "close the
+      front-end" - that raises a MODAL "Are You Sure?" confirm and BLOCKS until a
+      human answers it, which is why this step used to hang an unattended run. The
+      script answers it via UI Automation. See RUNBOOK sec 0.5.9 for the full
+      procedure and for the vendor's own alternative. ALSO sec 4 (CLEAN STOP for any
+      joined interface). NOT sec 7 -
       that section is about running the .NET port and contains no teardown procedure.
       LEAVE rtiAssistant / rtiexec / rtiForwarder RUNNING (RUNBOOK 0.5.2).
       Ledger every appNo used as USED, and update the single "*** NEXT FREE:" marker.

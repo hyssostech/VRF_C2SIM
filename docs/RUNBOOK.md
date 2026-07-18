@@ -56,9 +56,9 @@ shut the leftover down instead. (The guard deliberately does NOT look at rtiAssi
 / rtiexec / rtiForwarder, so leaving RTI infrastructure up does not trip it.)
 
 DEFAULT: prefer a FRESH launch on fresh ledgered appNos over reusing an instance of
-unknown scenario state. Tear the leftover down per sec 0.5.9 (close the FRONT-END;
-the back-end follows) and leave rtiAssistant / rtiexec / rtiForwarder RUNNING
-(sec 0.5.2).
+unknown scenario state. Tear the leftover down with scripts/StopVrf.ps1 (sec 0.5.9 -
+do NOT merely "close the front-end"; that raises a modal confirm and blocks) and leave
+rtiAssistant / rtiexec / rtiForwarder RUNNING (sec 0.5.2).
 
 KNOWN COSMETIC DEFECT (not fixed - the launch script is not being edited immediately
 before a live session): the warning at line 248 says "VR-Forces/RTI processes ALREADY
@@ -326,11 +326,21 @@ An unattended session that cannot shut itself down cannot loop.
 
 HOW StopVrf.ps1 ANSWERS IT - UI AUTOMATION, BY CONTROL NAME, NOT COORDINATES. This
 dialog DOES expose a full UIA tree. NOTE THE CONTRAST AND DO NOT GENERALISE: the RTI
-"Choose RTI Connection" dialog does NOT (sec 0.5.3), which is why that one needs
-screenshot + coordinate clicking and this one must not. Coordinate approaches were
+"Choose RTI Connection" dialog does NOT (sec 0.5.4, line "The dialog is a Qt window
+(class Qt5QWindowIcon) and exposes NO UI Automation..."), which is why that one needs
+screenshot + coordinate clicking and this one must not. The two dialogs belong to
+DIFFERENT PROCESSES (rtiAssistant vs vrfGui) and behave differently; neither result
+predicts the other. Coordinate approaches were
 tried here first and ALL THREE FAILED: CopyFromScreen captured the occluding window,
 SetForegroundWindow was refused by the Windows foreground lock, and PrintWindow with
 PW_RENDERFULLCONTENT returned an all-black bitmap (Qt/OpenGL surface).
+
+THE DIALOG'S COMPOSITION VARIES BETWEEN LAUNCHES - VERIFIED, CAUSE UNKNOWN. On one
+teardown it exposed the "Quit All Back-Ends" checkbox (StopVrf ticked it, ToggleState
+On); on the very next launch/teardown cycle the same title+class exposed NO checkbox and
+StopVrf logged "checkbox not found". BOTH succeeded, EXIT=0, both processes down -
+because plain "Yes" in COMBINED mode already closes the GUI and the engine it started.
+Do NOT assume the checkbox is present, and do not treat its absence as a fault.
 
 VENDOR-DOCUMENTED ALTERNATIVE (not currently used; recorded because it is the vendor's
 own answer): Settings > Application > General Application Settings > clear "Show Quit
@@ -338,20 +348,30 @@ Dialog On Close" (doc\help\Content\Introduction\Starting\vrf_disableQuitDialog.h
 "Disabling the Quit Prompt"), persisted as `myShowQuitDialogOnClose` under
 appData\settings\vrfGui. The docs state that with the prompt disabled, closing "acts as
 if you clicked Yes" - which in combined mode closes the GUI and the engine it started,
-but is NOT the same as "Quit All Back-Ends" (ExitingVR-Forces.htm). NOT ADOPTED because
-which settings file the GUI actually READS is unverified (`default_Application.apsx`
-serializer version 9 vs `backups\Application.backup` version 14 - write path does not
-prove read path), and mutating vendor settings is a wider blast radius than answering
-one dialog. There is also a remote `DtVrfRemoteController::exit()`
-(include\vrfcontrol\vrfRemoteController.h:825, DtExitMessageType = 45), but every
-vendor statement scopes the Remote Control API to the BACK-END; treating it as a GUI
-shutdown is undocumented. Good fallback if a GUI ever dies without taking its engine.
+but is NOT the same as the vendor's "Yes, and Quit All Back-Ends" option
+(ExitingVR-Forces.htm), which the shipped 5.0.2 dialog implements as a CHECKBOX beside
+"Yes" rather than as a second button. NOT ADOPTED because which settings file the GUI
+actually READS is unverified: `default_Application.apsx` (serializer version 9) and
+`backups\Application.backup` (version 14) both carry the key, and write path does not
+prove read path. A third copy exists at appData\settings\exampleCustom\, and
+vrfGui\applicationSettings.xml is version 14 but holds a DIFFERENT class
+(DtVrfGuiApplicationSettings) that does NOT contain the quit key - a plausible
+explanation for the 9-vs-14 split that has not been run down. Mutating vendor settings
+is also a wider blast radius than answering one dialog. There is also a remote
+`DtVrfRemoteController::exit()` (include\vrfcontrol\vrfRemoteController.h:825;
+DtExitMessageType = 45 at include\vrfmsgs\messageTypes.h:125), but every vendor
+statement scopes the Remote Control API to the BACK-END ("control a VR-Forces
+simulation engine from a remote application"); treating it as a GUI shutdown is
+undocumented. Good fallback if a GUI ever dies without taking its engine.
 
-KNOWN GAP (vendor docs do not address it): disabling/answering the QUIT prompt is not
-documented to suppress OTHER modal prompts on close - a dirty terrain or scenario can
-raise its own "do you wish to save?" dialog. StopVrf.ps1 does not answer those; it
-times out at exit 3 and names that as the likeliest cause rather than hanging or
-force-killing. If exit 3 appears, look for a second dialog.
+KNOWN GAP: the vendor documents the exit flow as EXACTLY ONE prompt
+(ExitingVR-Forces.htm) and never states whether disabling or answering it suppresses
+other modals. A "standard 'scenario modified' prompt" and a save-terrain prompt ARE
+documented in OTHER contexts (VRFUsersGuide; Terrain\NavData\vrf_cancellingNavDataGen.htm),
+so the mechanism exists in the product - what is undocumented is whether either can fire
+on close. StopVrf.ps1 answers only "Are You Sure?". On timeout it exits 3 and PRINTS THE
+ACTUAL TITLES of every visible window still owned by those processes, rather than
+guessing at a cause - if a second modal is blocking, its title will be in that list.
 
 UNCHANGED NON-NEGOTIABLES: never force-kill a JOINED federate (sec 0) - that leaves a
 stale federate and the next start hangs at RTI join; StopVrf.ps1 never kills anything.

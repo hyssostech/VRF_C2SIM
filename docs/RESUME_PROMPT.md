@@ -96,11 +96,16 @@ OPERATIONAL STATE:
 - BACKEND HEALTH = THREAD COUNT (blocked 2-4 indefinitely; healthy 23-67). PROCESS
   PRESENCE IS NOT HEALTH. "UDP 4000 bound" is NOT health - connection-dependent, and
   FALSE on a healthy back-end under the rtiexec loopback connection (TCP 4001 + fwd 5000).
-- WATCHVRF DISCOVERY TAKES ~13 s to populate. Do not judge the oracle blind before ~15 s.
+- WATCHVRF DISCOVERY IS SLOW AND VARIABLE. The old "~13 s to populate, do not judge before
+  ~15 s" figure is RETIRED (2026-07-18 evening) - measured live on one healthy launch:
+  visible at ~40 s, BLIND at ~20-50 s, visible again at ~104 s. LaunchVrf's READY means
+  thread-count + main window, NOT scenario loaded and NOT federation joined. Allow up to
+  ~3 MINUTES before calling an oracle blind (RUNBOOK sec 0.5.7).
 - C2SIM server docker RUNNING (REST 8080 / STOMP 61613). License expires 2026-09-15.
 - TIMESTAMP GOTCHA: app/tool logs stamp UTC, machine runs local - Get-Date before comparing.
 - Non-negotiables: never force-kill a JOINED federate; fresh appNo per join, LEDGERED
-  BEFORE the join (OPUS_EXECUTION_PLAN.md Appendix B, the single "*** NEXT FREE:" marker - 3493 now); RTI 4.6.1 +
+  BEFORE the join (OPUS_EXECUTION_PLAN.md Appendix B, the single "*** NEXT FREE:" marker - READ THE MARKER, no
+  value is cached here on purpose; caching one is how it goes stale); RTI 4.6.1 +
   Machine-scope license + cwd bin64 for live runs; raw vrfSimHLA1516e CLI is CONFIRMED
   UNSAFE (vrfLauncher only); XML gotchas per RUNBOOK 0.6.
 
@@ -131,9 +136,17 @@ STATE: EVERY OFFLINE TRACK IS DONE AND 0.4 IS NOW DONE TOO.
 
 THE NEXT ACTION - PHASE 1 (run PHASE1_SESSION_SCRIPT.md verbatim):
 - YOU bring VR-Forces up with LaunchVrf.ps1. No human launch needed.
-- RUN THE ORACLE PRE-CHECK FIRST (mandatory, new): WatchVrf >=20 s, require reflected>0.
-  If 0 after 20 s, STOP - do not run the session. A reflected=0 configuration occurred on
-  this machine and would silently yield an ENTIRE SESSION OF EMPTY TELEMETRY.
+- RUN THE ORACLE PRE-CHECK FIRST (mandatory). *** THE CRITERION WAS CORRECTED 2026-07-18
+  EVENING - the old "require reflected>0; if 0 after 20 s STOP" rule is RETRACTED, it was
+  WRONG IN BOTH DIRECTIONS (RUNBOOK sec 0.5.7 has the evidence). *** reflected>0 PASSED
+  live on nothing but a 90/-90 pole placeholder and a NaN (the TropicTortoise baseline
+  objects are POSITIONLESS), and reflected=0 at 20 s is usually MEASURED TOO EARLY - the
+  same healthy launch read blind at ~20-50 s and fine at ~104 s. USE INSTEAD: PASS = at
+  least one POS line with REAL lat/lon (not NaN, not 90/-90); RETRY with a FRESH ledgered
+  appNo for up to ~3 MINUTES from launch; STOP only if nothing real appears by then AND a
+  tools/CreateOne entity also fails to read back real coordinates. The CreateOne check is
+  MANDATORY, not optional - on a stock TropicTortoise load it is the only check that CAN
+  pass. A genuinely blind oracle would silently yield AN ENTIRE SESSION OF EMPTY TELEMETRY.
 - Budget ~1.5 hours. If time runs short, Step 4 (the 20x repeat) is the DESIGNATED CUT;
   P1-A/P1-B (native arrival + the 18.1-18.4 km band) are why the session exists.
 - Step 0: Object Console Summary Panel FIRST - opening a unit Information dialog CLEARS
@@ -141,11 +154,14 @@ THE NEXT ACTION - PHASE 1 (run PHASE1_SESSION_SCRIPT.md verbatim):
 - WatchVrf sampleSecs=2 (the zero-code raw-vs-DR discriminator).
 - Step 1b runs the clock-persistence pre-check on a CLOCKTEST throwaway BEFORE anything
   scored. Excluded from every prediction; do NOT let it reinforce P1-A at adjudication.
-- appNos 3455-3459 RESERVED for Phase 1 (WatchVrf + four SetSimRate joins; each
-  SetSimRate invocation is a full join/resign). Take app numbers from the SINGLE line
-  marked "*** NEXT FREE:" in OPUS_EXECUTION_PLAN.md Appendix B (currently 3493) - it is
-  the ONLY authoritative value; do NOT infer one from the highest number you see. NOTE
-  LaunchVrf itself consumes TWO (back-end + front-end).
+- appNos 3456-3459 RESERVED for Phase 1 (the four SetSimRate joins; each SetSimRate
+  invocation is a full join/resign). *** 3455 IS BURNED - DO NOT USE IT. *** It was
+  reserved for Phase 1 whole-session WatchVrf telemetry but was CONSUMED on 2026-07-18
+  evening by the oracle pre-check (a separate join needs its own number). The scored
+  session telemetry needs a NEW number from the marker. Take app numbers from the SINGLE
+  line marked "*** NEXT FREE:" in OPUS_EXECUTION_PLAN.md Appendix B - READ IT, do not
+  trust any value quoted here or anywhere else in prose, and do NOT infer one from the
+  highest number you see. NOTE LaunchVrf itself consumes TWO (back-end + front-end).
 - IF NATIVE UNITS ALSO MISBEHAVE -> the MAK support question fires IMMEDIATELY with that
   repro + PRIOR_ART_SURVEY.md's "nobody solved this publicly" list. Stop rebuilding.
 

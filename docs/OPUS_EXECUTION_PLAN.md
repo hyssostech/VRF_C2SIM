@@ -995,13 +995,47 @@ values are NOT used.
   ORACLETEST throwaway entity from the live scenario.
 - 3499: CLAIMED - WatchVrf, confirm uuid 95fcfa8a (ORACLETEST) is ABSENT after relaunch.
 
-- 3499: USED - WatchVrf after the 3497/3498 relaunch. reflected=0 FOR THE FULL 20 s -
-  the documented STOP condition. Ran immediately after LaunchVrf reported READY.
+- 3499: USED - WatchVrf after the 3497/3498 relaunch. reflected=0 FOR THE FULL 20 s.
+  At the time this was believed to be "the documented STOP condition"; IT IS NOT, and
+  that phrasing is RETRACTED. Ran immediately after LaunchVrf reported READY, i.e. TOO
+  EARLY - appNo 3500 saw the same federation fine at ~104 s. This run is the evidence
+  that RETIRED the 20 s abort rule (RUNBOOK 0.5.7), not an instance of it.
 - 3500: CLAIMED - WatchVrf re-check ~2 min after the same launch, to discriminate a
   SETTLING DELAY (READY precedes scenario load / federation join) from a genuinely
   blind federation. Single variable = elapsed time since launch; nothing else changed.
 
-*** NEXT FREE: 3501 *** (authoritative - the ONLY such marker in this file. Update this
+RESULTS BACK-FILLED 2026-07-18 evening for the CLAIMED entries above (the block's own
+rule is "annotate with the actual result once the launch returns"; a sweep caught that
+several were left CLAIMED with no outcome):
+- 3493/3494: USED - LaunchVrf.ps1, EXIT=0 READY, back-end 64 threads. Clean.
+- 3495: USED - CreateOne. Created uuid VRF_UUID:95fcfa8a-... name ORACLETEST,
+  entityId 1:3493:5, EXIT=0.
+- 3496: USED - WatchVrf. Read ORACLETEST back at 34.517156,-116.973525,1060.7 (requested
+  lat/lon EXACT, 10000 m MSL ground-clamped). reflected=4 readable=3. This is the datum
+  that killed the "blind oracle" hypothesis.
+- 3497/3498: USED - LaunchVrf.ps1 after the first StopVrf teardown, EXIT=0 READY,
+  back-end 70 threads.
+- 3500: USED - WatchVrf ~104 s after that launch. reflected=3 readable=2, ORACLETEST
+  ABSENT => the relaunch cleared the throwaway AND the oracle was not blind. Together
+  with 3499 (reflected=0 at ~20-50 s) this is the settle-time evidence behind the
+  corrected pre-check criterion in RUNBOOK 0.5.7.
+- 3501/3502: USED - LaunchVrf.ps1 EXIT=0 READY, then StopVrf.ps1 EXIT=0.
+  *** LEDGER VIOLATION, RECORDED DELIBERATELY: these two were NOT ledgered BEFORE the
+  join. *** The supervisor folded the launch into a script-test command and advanced
+  the marker only afterwards. No harm resulted (the numbers were genuinely free), but
+  the rule exists because a stale/duplicate number causes a stale-federate join hang,
+  and "it worked this time" is not a defence. Recorded so the lapse is visible rather
+  than back-filled silently.
+
+OBSERVED 2026-07-18: THE QUIT DIALOG'S COMPOSITION VARIES BETWEEN LAUNCHES. On the
+3497/3498 teardown the dialog exposed a "Quit All Back-Ends" checkbox (ticked by
+StopVrf, ToggleState=On). On the 3501/3502 teardown the SAME dialog title/class exposed
+NO such checkbox, and StopVrf logged "checkbox not found". BOTH teardowns succeeded with
+EXIT=0 and both processes down, because plain "Yes" in COMBINED mode closes the GUI and
+the engine it started (vendor: Introduction\Starting\ExitingVR-Forces.htm). Cause of the
+variation is NOT established - do not assume the checkbox will be present.
+
+*** NEXT FREE: 3503 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
@@ -1013,8 +1047,11 @@ RESERVED 2026-07-18 for the Phase 1 native-baseline session (PHASE1_SESSION_SCRI
 Reserved ahead of the session per the script's precondition that the number is ledgered
 BEFORE the join; annotate each with its actual result at session time. If the session does
 not run, these stay burned - do NOT recycle them.
-- 3455: RESERVED - WatchVrf (POS+CON extended build, sampleSecs=2), Phase 1 whole-session
-  telemetry. The movement oracle for every P1-A..D claim.
+- 3455: *** BURNED - DO NOT USE. *** This entry formerly read "RESERVED - WatchVrf
+  (POS+CON extended build, sampleSecs=2), Phase 1 whole-session telemetry". 3455 was
+  CONSUMED 2026-07-18 evening by the oracle pre-check instead (see its USED entry
+  earlier in this appendix). Phase 1 whole-session telemetry NEEDS A NEW NUMBER from
+  the "*** NEXT FREE:" marker.
 - 3456: RESERVED - SetSimRate 20x, Step 1b clock-persistence pre-check (throwaway mover).
 - 3457: RESERVED - SetSimRate back to 1, Step 1b.
 - 3458: RESERVED - SetSimRate 20x, Step 4 (the scored clock repeat).
