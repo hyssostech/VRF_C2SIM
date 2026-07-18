@@ -938,9 +938,15 @@ values are NOT used.
 - 3473: CLAIMED - vrfLauncher front-end, same run.
 - 3474: USED - ResetVrf --dry-run against that scenario-loaded launch. Joined cleanly,
   exit 0, no crash - but BackendCount=0 and 0 objects discovered.
-- 3475: CLAIMED - WatchVrf discovery check under RTI_ASSISTANT_DISABLE=1. THE REAL
-  PHASE-1 GATE: if WatchVrf cannot see objects, Phase 1 yields no telemetry and must
-  not run. ResetVrf's 0-object result makes this mandatory to check first.
+- 3475: USED - WatchVrf discovery check under RTI_ASSISTANT_DISABLE=1. RESULT:
+  reflected=0 readable=0 for 40 s - ORACLE BLIND. That configuration is abandoned.
+- 3477/3478: USED - vrfLauncher back-end/front-end, TropicTortoise, assistant ENABLED
+  and previously answered. NO DIALOG APPEARED. Backend healthy 67 threads, scenario
+  loaded. First fully unattended zero-click launch in this effort.
+- 3479: USED - WatchVrf discovery gate against that launch. RESULT: reflected=3
+  readable=2, POS lines streaming, one uuid cross-confirmed against the backend log
+  (Blocking Terrain Page-In Area). ORACLE SEES THE FEDERATION. Phase 1 unblocked.
+NEXT FREE: 3480.
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
 3001 / 3101, not ledgered numbers - that is what a bare launch does and what every human

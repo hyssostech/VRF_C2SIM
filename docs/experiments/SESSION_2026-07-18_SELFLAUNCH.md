@@ -81,7 +81,63 @@ back-end) stands and is unaffected; the EXPLANATION was wrong. Corrected in
 RUNBOOK sec 0.5 as well. By default the Assistant's stored connection
 configuration overrides rid.mtl entirely (UG p. 7-8).
 
-## *** RTI_ASSISTANT_DISABLE ALONE IS NOT SUFFICIENT - PHASE 1 IS BLOCKED ***
+## *** SOLVED 2026-07-18 15:34 - UNATTENDED LAUNCH, ZERO CLICKS, ORACLE SEES OBJECTS ***
+
+THE WORKING PROCEDURE (verified end to end; supersedes RTI_ASSISTANT_DISABLE,
+which is NOT used and must NOT be set - see the section below for why it breaks
+discovery):
+
+1. DO NOT set RTI_ASSISTANT_DISABLE. The RTI Assistant must run: it supplies the
+   connection configuration to every federate.
+2. ONE-TIME per machine (already done 2026-07-18): launch, and in the "Choose RTI
+   Connection" dialog ensure "Always try to use this connection" is CHECKED, the
+   desired connection is selected, then click Connect.
+   - On this machine the selected connection is "Legatus's predefined rtiexec
+     loopback connection", Local TCP Interface 127.0.0.1, Local UDP Interface
+     127.0.0.1.
+   - The checkbox was ALREADY checked and the dialog STILL prompted - because the
+     assistant holding the answered state had been killed. The checkbox persists
+     the choice; it does not survive having no answered assistant at all.
+3. FROM THEN ON: `vrfLauncher --usePredefinedConnection "<profile>"` (plus any
+   --simArgs/--guiArgs) launches with NO DIALOG AND NO HUMAN INTERACTION.
+
+VERIFIED 2026-07-18:
+- Launch WITH --simArgs --appNumber 3477 --scenarioFileName TropicTortoise.scnx
+  --guiArgs --appNumber 3478: NO DIALOG APPEARED AT ANY POINT (polled every 5 s
+  for 35 s). Back-end healthy (67 threads), "Successfully loaded scenario."
+- WatchVrf appNo 3479, 30 s, 2 s sampling: reflected=3 readable=2, POS lines
+  streaming, including VRF_UUID:cde66adc-7a34-a14d-bd51-a3df4032e6a1 which the
+  back-end log independently identifies as the Blocking Terrain Page-In Area.
+  THE MOVEMENT ORACLE IS NO LONGER BLIND. Phase 1 is UNBLOCKED.
+
+IF THE DIALOG EVER RETURNS (e.g. after a reboot, or if the assistant is killed):
+it is a Qt window (class Qt5QWindowIcon) and exposes NO UI Automation child tree,
+so element-based automation does not work. What DOES work, and was used
+successfully this session: screenshot the window, then click by coordinate.
+Measured on a 573x583 dialog, the Connect button centre is at window-relative
+(383, 553); convert with GetWindowRect and click via SetCursorPos + mouse_event.
+Allow >3 s for the dialog to disappear - a 3 s check reported "still open" on a
+click that had in fact succeeded.
+
+CORRECTION TO THIS SESSION'S OWN "MEASURED ORACLE": UDP 4000 bound is NOT a
+universal health signal - it is CONNECTION-DEPENDENT. Under the rtiexec loopback
+connection (the correct one, chosen above) a fully healthy back-end has
+udp4000=FALSE, because that connection uses TCP 4001 + forwarder 5000. The
+UDP-4000 signal came from runs that had fallen back to a lightweight connection.
+RELIABLE health signals that are NOT connection-dependent: thread count well
+above 2 (23-67 observed healthy; 2-4 when blocked) and vrfSim.log progressing to
+"Successfully loaded scenario." / parameter-database lines. LaunchVrf.ps1 still
+gates on UDP 4000 and MUST BE UPDATED before it is used with this connection.
+
+KNOWN CAVEAT, NOT YET CLOSED: the POS lines above carry NaN latitude/altitude and
+lon=-90 for these two objects. They are non-entity CONTROL objects (terrain
+page-in area / global terrain damage) which have no meaningful position, so this
+is expected-looking - but WatchVrf position FIDELITY FOR A REAL ENTITY has NOT
+been verified in this configuration, because the scenario contains no units. That
+verification is the first thing Phase 1 Step 1 does anyway (record uuid + birth
+position per created object); treat the first created unit as the check.
+
+## *** RTI_ASSISTANT_DISABLE ALONE IS NOT SUFFICIENT - PHASE 1 IS BLOCKED (superseded, kept for the record) ***
 
 VERIFIED 2026-07-18 (appNo 3475): with RTI_ASSISTANT_DISABLE=1, WatchVrf joins
 the federation cleanly and resigns cleanly, but reports `reflected=0 readable=0`
