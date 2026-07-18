@@ -18,8 +18,14 @@ REQUIRE WatchVrf displacement - completions LIE in both directions (instant-vacu
 absent). ASCII-only in tracked files.
 
 WHERE THE WORK LIVES: port repo VRF_C2SIM (submodule at OpenC2SIM.github.io/Software/
-Interfaces/VRF_C2SIM, branch main; unpushed commits are expected - run
-git log --oneline -5; tip at write time 3b82387). READ IN ORDER:
+Interfaces/VRF_C2SIM, branch main, remote origin = hyssostech/VRF_C2SIM). As of
+2026-07-18 EVERYTHING IS PUSHED - tip cef7a52 on both main and origin/main, nothing
+unpushed (this is new; earlier prompts said unpushed commits were expected). Run
+git log --oneline -5 and git status -sb to confirm. PUSH POLICY (user, 2026-07-18):
+push whenever it makes sense AFTER PROPER TESTING - the user's concern is losing work.
+Standing interpretation: commit and push once the offline gates are green (build clean,
+selftests pass, ASCII check clean, docs gated) and nothing live-unverified is being
+recorded AS verified. Do not sit on completed work. READ IN ORDER:
 (1) docs/VRF_GROUNDWORK_PLAN.md - THE plan of record; its Status top entries ARE the
     current state.
 (2) docs/VRF_GROUND_TRUTH.md sec 0.0 cross-findings 1-7 FIRST (note the item-2
