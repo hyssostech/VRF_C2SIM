@@ -936,8 +936,11 @@ values are NOT used.
 - 3472: CLAIMED - vrfLauncher back-end, WITH TropicTortoise + appNumber overrides,
   RTI_ASSISTANT_DISABLE=1. Also the first fair test of the override args.
 - 3473: CLAIMED - vrfLauncher front-end, same run.
-- 3474: CLAIMED - ResetVrf --dry-run against that scenario-loaded launch (expect 2
-  baseline objects, completing the prereg prediction).
+- 3474: USED - ResetVrf --dry-run against that scenario-loaded launch. Joined cleanly,
+  exit 0, no crash - but BackendCount=0 and 0 objects discovered.
+- 3475: CLAIMED - WatchVrf discovery check under RTI_ASSISTANT_DISABLE=1. THE REAL
+  PHASE-1 GATE: if WatchVrf cannot see objects, Phase 1 yields no telemetry and must
+  not run. ResetVrf's 0-object result makes this mandatory to check first.
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
 3001 / 3101, not ledgered numbers - that is what a bare launch does and what every human

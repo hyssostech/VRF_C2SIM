@@ -81,6 +81,57 @@ back-end) stands and is unaffected; the EXPLANATION was wrong. Corrected in
 RUNBOOK sec 0.5 as well. By default the Assistant's stored connection
 configuration overrides rid.mtl entirely (UG p. 7-8).
 
+## *** RTI_ASSISTANT_DISABLE ALONE IS NOT SUFFICIENT - PHASE 1 IS BLOCKED ***
+
+VERIFIED 2026-07-18 (appNo 3475): with RTI_ASSISTANT_DISABLE=1, WatchVrf joins
+the federation cleanly and resigns cleanly, but reports `reflected=0 readable=0`
+for a FULL 40 s against a back-end whose own log proves TropicTortoise loaded and
+both baseline objects are locally simulated. ResetVrf (3470/3471/3474) reports the
+same: BackendCount=0, 0 objects.
+
+CONSEQUENCE, STATED PLAINLY: THE MOVEMENT ORACLE IS BLIND IN THIS CONFIGURATION.
+PHASE 1 MUST NOT RUN LIKE THIS - it would generate a full session of empty
+telemetry and the WatchVrf displacement evidence every P1-A..D claim depends on
+would not exist. This check (WatchVrf discovery BEFORE the session) is now a
+mandatory Phase 1 precondition regardless of how VR-Forces is launched.
+
+MECHANISM (doc-grounded): RefMan Appendix A on RTI_mcastDiscoveryEnabled, verbatim
+- "This parameter is set to 0 unless RTI_configureConnectionWithRid is set to 1."
+Multicast discovery is FORCED OFF while RTI_configureConnectionWithRid is 0, and
+by default the RTI Assistant's stored connection configuration is what supplies
+connection values (UG p. 7-8). Disable the Assistant WITHOUT making rid.mtl
+authoritative and nothing supplies a working discovery path: federates join
+CWIX-2024 but never see each other. So the Assistant is doing TWO jobs - prompting
+(unwanted) and supplying the connection (required). Killing it drops both.
+
+TWO WAYS FORWARD (neither requires editing shared global config):
+
+(A) KEEP THE ASSISTANT, ANSWER IT ONCE. Do NOT set RTI_ASSISTANT_DISABLE. Launch
+    normally, answer the "Choose RTI Connection" dialog once (a human click, or UI
+    automation), and LEAVE THAT ASSISTANT RUNNING. This is exactly the state the
+    machine was in from 2026-07-15 to 2026-07-18, during which discovery worked
+    and Appendix B recorded "Clean (2 baseline)". Lowest risk; costs one click per
+    machine boot. The Assistant also offers a persisted "Always Try to Use this
+    Connection" check box (UG p. 4-5) which may remove even that click - UNTESTED.
+
+(B) PROCESS-SCOPED RID OVERRIDE - fully unattended, ZERO global effect. Copy
+    rid.mtl to a private directory inside this repo's working area, set
+    RTI_configureConnectionWithRid 1 in THE COPY, and point only our own processes
+    at it via the RTI_CONFIG environment variable. Documented in
+    SharedTopics\XMLrti\InstallMAK-RTI.htm, verbatim: "Put the configuration files
+    in the directory from which you are running, or set the environment variable
+    RTI_CONFIG to the directory that contains them." This makes rid.mtl values
+    authoritative (activating RTI_useRtiExec / ports / mcast discovery) WITHOUT
+    modifying C:\MAK\makRti4.6.1\rid.mtl and without affecting any other
+    application. Caveat from RefMan: all federates in a federation must agree on
+    RTI_useRtiExec, so RTI_CONFIG must be set for EVERY process we launch
+    (back-end, front-end, WatchVrf, ResetVrf, the port app) - which we control.
+
+SUPERVISOR NOTE: the supervisor initially proposed editing the SHARED
+C:\MAK\makRti4.6.1\rid.mtl. The user objected. The objection was correct - option
+(B) achieves the same result process-scoped, and option (A) needs no config change
+at all. Do not edit the machine-wide rid.mtl.
+
 ## OPEN ITEM - THE 0.4 GATE IS NOT PASSED
 
 Prereg sec 4 predicts a ResetVrf --dry-run that "will JOIN AND READ CLEANLY - it
