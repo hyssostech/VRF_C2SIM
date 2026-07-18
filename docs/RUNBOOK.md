@@ -209,9 +209,47 @@ oracle is blind (0.5.5), and nothing warns you.
 
     WatchVrf.exe <freshAppNo> 30 2      # cwd bin64, RTI env per sec 7
 
-REQUIRE `reflected>0`. DISCOVERY TAKES ~13 SECONDS TO POPULATE - it reported
-`reflected=0` until t=13.3s on a healthy federation, so DO NOT JUDGE BEFORE ~15 s.
-If it is still 0 after 20 s, STOP; do not run the session.
+*** THE OLD PASS/FAIL CRITERION WAS WRONG IN BOTH DIRECTIONS. CORRECTED 2026-07-18
+(evening), from live evidence on appNos 3455 / 3496 / 3499 / 3500. *** It used to
+read: "REQUIRE reflected>0 ... if it is still 0 after 20 s, STOP; do not run the
+session." Both halves failed live, in OPPOSITE directions:
+
+FALSE GREEN - `reflected>0` PASSES ON PURE GARBAGE. On appNo 3455 the pre-check
+reported `reflected=3 readable=2` and PASSED, while BOTH readable objects were
+degenerate for all 14 samples:
+
+    POS,...,cde66adc-...,90.000000,-90.000000,0.0     <- pole, i.e. no position
+    POS,...,f864e51f-...,NaN,-90.000000,NaN           <- NaN lat and alt
+
+The TropicTortoise baseline objects are POSITIONLESS; that is simply how they
+reflect. A count of discovered objects is NOT evidence the oracle can read a
+position. Trusting `reflected>0` here would have green-lit a whole session.
+
+FALSE ABORT - `reflected=0 at 20 s` DOES NOT MEAN THE FEDERATION IS BLIND. It also
+means "measured too early". LaunchVrf's `READY` is thread-count + main-window only;
+it does NOT imply scenario loaded or federation joined (the script says so itself).
+Observed settle times after launch, same script, same scenario, nothing else varied:
+
+    appNo 3455  ~40 s after launch   -> reflected=3   (visible)
+    appNo 3499  ~20-50 s after launch -> reflected=0  (blind - would have STOPPED)
+    appNo 3500  ~104 s after launch  -> reflected=3   (visible; SAME federation)
+
+The 20 s abort rule would have killed a perfectly healthy session. Settle time is
+VARIABLE and exceeded 50 s on a normal launch.
+
+THE CORRECTED CRITERION - require a REAL COORDINATE, and be patient about it:
+
+  PASS  = at least one POS line whose lat/lon are real numbers, not NaN, and not the
+          90.000000,-90.000000 pole placeholder.
+  RETRY = `reflected=0`, or every readable object degenerate. Wait and re-run with a
+          FRESH ledgered appNo. Allow up to ~3 MINUTES from launch before concluding
+          anything. Do not judge a launch blind at 20 s.
+  STOP  = still no real-coordinate POS after ~3 min AND a CreateOne entity also fails
+          to appear with real coordinates (below). That is a genuinely blind oracle.
+
+BECAUSE THE BASELINE OBJECTS ARE POSITIONLESS, THE "STRONGER CHECK" BELOW IS IN
+PRACTICE THE ONLY CHECK THAT CAN PASS ON A STOCK TropicTortoise LOAD. Treat it as
+mandatory, not optional.
 
 STRONGER CHECK (settles position fidelity, not just discovery):
 
@@ -264,12 +302,59 @@ reading the vendor's own procedure. Order of resort:
   %APPDATA%\MAK\RTI\4.6\Legatus\connections.xml (`chosen="1"`). UNDOCUMENTED by
   MAK - do not hand-edit it; use the dialog.
 
-### 0.5.9 CLEAN SHUTDOWN
+### 0.5.9 CLEAN SHUTDOWN - UNATTENDED (scripts/StopVrf.ps1)
 
-Per the vendor (Introduction\Starting\vrf_startVRF.htm): in COMBINED mode
-"when you shut down the front-end, the back-end automatically shuts down also".
-So close vrfGui, not the back-end. Never force-kill a JOINED federate (sec 0);
-that leaves a stale federate and the next start hangs at RTI join.
+USE THE SCRIPT:
+
+    pwsh -File scripts\StopVrf.ps1            # add -DryRun to see what it would do
+
+Exit codes: 0 = down (or already down), 2 = bad args, 3 = timed out (NOT force-killed),
+4 = confirm dialog present but not drivable via UIA. VERIFIED LIVE 2026-07-18: teardown
+in 8 s, EXIT=0, zero human interaction, all three RTI processes preserved.
+
+WHAT THIS SECTION USED TO SAY, AND WHY IT WAS NOT ENOUGH: it said only that in COMBINED
+mode "when you shut down the front-end, the back-end automatically shuts down also"
+(vendor, Introduction\Starting\vrf_startVRF.htm) - so close vrfGui, not the back-end.
+That is TRUE BUT NOT UNATTENDED. Closing vrfGui raises a MODAL CONFIRM that blocks
+shutdown until a human answers it:
+
+    title = "Are You Sure?"   class = makVrf::DtNeverAskAgainMessageBox
+    Text "Quit VR-Forces" | Button "Yes" | Button "No" | CheckBox "Quit All Back-Ends"
+
+Teardown was never gated unattended, and this section read as if it were a one-liner.
+An unattended session that cannot shut itself down cannot loop.
+
+HOW StopVrf.ps1 ANSWERS IT - UI AUTOMATION, BY CONTROL NAME, NOT COORDINATES. This
+dialog DOES expose a full UIA tree. NOTE THE CONTRAST AND DO NOT GENERALISE: the RTI
+"Choose RTI Connection" dialog does NOT (sec 0.5.3), which is why that one needs
+screenshot + coordinate clicking and this one must not. Coordinate approaches were
+tried here first and ALL THREE FAILED: CopyFromScreen captured the occluding window,
+SetForegroundWindow was refused by the Windows foreground lock, and PrintWindow with
+PW_RENDERFULLCONTENT returned an all-black bitmap (Qt/OpenGL surface).
+
+VENDOR-DOCUMENTED ALTERNATIVE (not currently used; recorded because it is the vendor's
+own answer): Settings > Application > General Application Settings > clear "Show Quit
+Dialog On Close" (doc\help\Content\Introduction\Starting\vrf_disableQuitDialog.htm,
+"Disabling the Quit Prompt"), persisted as `myShowQuitDialogOnClose` under
+appData\settings\vrfGui. The docs state that with the prompt disabled, closing "acts as
+if you clicked Yes" - which in combined mode closes the GUI and the engine it started,
+but is NOT the same as "Quit All Back-Ends" (ExitingVR-Forces.htm). NOT ADOPTED because
+which settings file the GUI actually READS is unverified (`default_Application.apsx`
+serializer version 9 vs `backups\Application.backup` version 14 - write path does not
+prove read path), and mutating vendor settings is a wider blast radius than answering
+one dialog. There is also a remote `DtVrfRemoteController::exit()`
+(include\vrfcontrol\vrfRemoteController.h:825, DtExitMessageType = 45), but every
+vendor statement scopes the Remote Control API to the BACK-END; treating it as a GUI
+shutdown is undocumented. Good fallback if a GUI ever dies without taking its engine.
+
+KNOWN GAP (vendor docs do not address it): disabling/answering the QUIT prompt is not
+documented to suppress OTHER modal prompts on close - a dirty terrain or scenario can
+raise its own "do you wish to save?" dialog. StopVrf.ps1 does not answer those; it
+times out at exit 3 and names that as the likeliest cause rather than hanging or
+force-killing. If exit 3 appears, look for a second dialog.
+
+UNCHANGED NON-NEGOTIABLES: never force-kill a JOINED federate (sec 0) - that leaves a
+stale federate and the next start hangs at RTI join; StopVrf.ps1 never kills anything.
 Leave rtiAssistant / rtiexec / rtiForwarder RUNNING (0.5.2).
 
 ### 0.5.10 HISTORICAL - the three wrong "corrections" written into this section

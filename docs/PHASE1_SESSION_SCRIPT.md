@@ -82,15 +82,31 @@ deliberate exception is the clock: it is set remotely via tools/SetSimRate
       once with "Always try to use this connection" CHECKED, then Connect. It is a Qt
       window with no UI Automation tree - automate by screenshot + coordinate click if
       needed (Connect centre is window-relative (383,553) on a 573x583 dialog).
-- [ ] ORACLE PRE-CHECK (NEW, MANDATORY - added 2026-07-18): before any scored step,
-      run WatchVrf for >=20 s and confirm it reports reflected>0. Discovery takes
-      ~13 s to populate on a healthy federation, so do NOT judge it before ~15 s. A
-      configuration in which WatchVrf reports reflected=0 has occurred on this machine
-      (RTI_ASSISTANT_DISABLE) and would silently produce an ENTIRE SESSION OF EMPTY
-      TELEMETRY. If it is 0 after 20 s, STOP - do not run the session.
-      Optional stronger check: tools/CreateOne creates one throwaway M1A2 and WatchVrf
-      must report REAL coordinates for its uuid (not NaN). Delete/relaunch afterwards
-      so the throwaway never enters the scored trace.
+- [ ] ORACLE PRE-CHECK (MANDATORY - CRITERION CORRECTED 2026-07-18 evening; the
+      full evidence and the superseded rule are in RUNBOOK sec 0.5.7). The OLD rule
+      said "require reflected>0; if 0 after 20 s, STOP". BOTH HALVES ARE WRONG:
+      * reflected>0 PASSES ON GARBAGE. The TropicTortoise baseline objects are
+        POSITIONLESS - they reflect as 90.000000,-90.000000,0.0 and as NaN. A live
+        pre-check scored reflected=3 readable=2 and "passed" with nothing but those.
+      * reflected=0 at 20 s IS NOT A BLIND ORACLE - it is usually MEASURED TOO EARLY.
+        LaunchVrf's READY is thread-count + main-window only and does NOT imply the
+        scenario is loaded or the federation joined. Same launch, same scenario:
+        visible at ~40 s, BLIND at ~20-50 s, visible again at ~104 s.
+      USE INSTEAD:
+      * PASS = at least one POS line with REAL lat/lon (not NaN, not the 90/-90 pole).
+      * RETRY = reflected=0 or all-degenerate. Re-run with a FRESH ledgered appNo;
+        allow up to ~3 MINUTES from launch before concluding anything.
+      * STOP = no real-coordinate POS after ~3 min AND a CreateOne entity also fails
+        to appear with real coordinates.
+      THE "STRONGER CHECK" IS THEREFORE MANDATORY, NOT OPTIONAL - on a stock
+      TropicTortoise load it is the only check that CAN pass: tools/CreateOne creates
+      one throwaway M1A2 and WatchVrf must report REAL coordinates for its uuid.
+      VERIFIED 2026-07-18: created uuid read back 34.517156,-116.973525,1060.7 -
+      requested lat/lon exact, 10000 m MSL ground-clamped.
+      RELAUNCH AFTERWARDS so the throwaway never enters the scored trace - VERIFIED
+      to work: after StopVrf + LaunchVrf the created uuid was gone and the counts
+      returned to the reflected=3 readable=2 baseline (evidence that the oracle was
+      NOT merely blind at the time of the check).
 - [ ] TropicTortoise (Mojave) scenario loaded; confirm scenario parameters are
       the defaults: frame-mode variable-frame, frame-time 0.1,
       time-multiplier 1.0 (ground truth 0.2 sec 8).

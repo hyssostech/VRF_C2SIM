@@ -975,7 +975,33 @@ values are NOT used.
   sweep fixes. EXIT=0 READY, back-end 68 threads, RTI infrastructure correctly
   reported and preserved.
 
-*** NEXT FREE: 3493 *** (authoritative - the ONLY such marker in this file. Update this
+- 3493/3494: CLAIMED 2026-07-18 ~20:45 UTC (16:45 local) - LaunchVrf.ps1 bring-up for the
+  PHASE 1 native-baseline session. Back-end 3493, front-end 3494. Ledgered BEFORE the
+  launch per the precondition. Annotate with the actual result once the launch returns.
+
+- 3455: USED 2026-07-18 22:21 UTC - oracle pre-check (WatchVrf 30 s, sample 2) after the
+  3493/3494 launch. Joined and resigned cleanly, EXIT=0. reflected=3 readable=2, but BOTH
+  readable objects were degenerate: one at 90.000000,-90.000000,0.0 (pole) and one with
+  NaN lat/alt, stable across all 14 samples. SUPERVISOR NOTE / LEDGER DEVIATION: 3455 was
+  RESERVED for Phase 1 whole-session telemetry and was consumed here on the pre-check
+  instead - the pre-check is a SEPARATE join and needed its own number. The scored session
+  telemetry now needs a NEW number; 3455 is burned and must NOT be recycled.
+- 3495: CLAIMED - CreateOne, oracle position-fidelity discriminator (RUNBOOK 0.5.7
+  "stronger check") to tell a blind oracle from positionless baseline objects.
+- 3496: CLAIMED - WatchVrf re-check to read the CreateOne entity's POS line.
+
+- 3497/3498: CLAIMED - LaunchVrf.ps1 relaunch after the first unattended StopVrf.ps1
+  teardown. Purpose: prove the launch/teardown round-trip AND that a relaunch clears the
+  ORACLETEST throwaway entity from the live scenario.
+- 3499: CLAIMED - WatchVrf, confirm uuid 95fcfa8a (ORACLETEST) is ABSENT after relaunch.
+
+- 3499: USED - WatchVrf after the 3497/3498 relaunch. reflected=0 FOR THE FULL 20 s -
+  the documented STOP condition. Ran immediately after LaunchVrf reported READY.
+- 3500: CLAIMED - WatchVrf re-check ~2 min after the same launch, to discriminate a
+  SETTLING DELAY (READY precedes scenario load / federation join) from a genuinely
+  blind federation. Single variable = elapsed time since launch; nothing else changed.
+
+*** NEXT FREE: 3501 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
