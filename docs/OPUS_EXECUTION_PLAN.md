@@ -953,7 +953,11 @@ values are NOT used.
   LINK before Phase 1.
 - 3482/3483: USED - LaunchVrf.ps1 end-to-end run that exposed the rtiexec-refusal and duplicated-health-expression defects.
 - 3484/3485: USED - LaunchVrf.ps1 end-to-end, ZERO human interaction, EXIT=0 READY (66 threads, UDP 4001).
-NEXT FREE: 3486.
+- 3486/3487: USED - LaunchVrf.ps1 clean relaunch to reset scenario state (removes the
+  CreateOne throwaway). EXIT=0 READY.
+- 3488: USED - WatchVrf confirming the throwaway is gone; reflected=3 readable=2, no
+  adfaadb3. NOTE: discovery reported 0 until t=13.3s - allow ~15 s before judging.
+NEXT FREE: 3489.
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
 3001 / 3101, not ledgered numbers - that is what a bare launch does and what every human

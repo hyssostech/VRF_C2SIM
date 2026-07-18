@@ -63,9 +63,29 @@ deliberate exception is the clock: it is set remotely via tools/SetSimRate
 
 ## Preconditions (run through in order; abort the session if any fails)
 
-- [ ] rtiexec running per RUNBOOK sec 0; VR-Forces launched via vrfLauncher.exe
-      MANUALLY by the user. scripts/LaunchVrf.ps1 is NOT used this session (0.4
-      demoted behind Phase 1 on 2026-07-18). Raw vrfSim CLI remains forbidden.
+- [ ] VR-Forces up. CHANGED 2026-07-18 - scripts/LaunchVrf.ps1 NOW WORKS UNATTENDED
+      and is the preferred bring-up; the "launch manually" instruction is retired:
+        pwsh -File scripts\LaunchVrf.ps1 -Scenario TropicTortoise `
+             -BackendAppNumber <fresh> -FrontendAppNumber <fresh> -AllowExistingRtiAssistant
+      Expect EXIT=0 and "[OK] READY". Do NOT wait for rtiexec as a readiness signal
+      and do NOT treat UDP 4000 as health - health is THREAD COUNT (blocked 2-4,
+      healthy 23-67). Raw vrfSim CLI remains forbidden.
+      *** NEVER KILL rtiAssistant / rtiexec / rtiForwarder *** - they are RTI
+      infrastructure and an already-answered rtiAssistant is what makes unattended
+      launch work (RUNBOOK sec 0.5).
+      IF the "Choose RTI Connection" dialog appears (e.g. after a reboot): answer it
+      once with "Always try to use this connection" CHECKED, then Connect. It is a Qt
+      window with no UI Automation tree - automate by screenshot + coordinate click if
+      needed (Connect centre is window-relative (383,553) on a 573x583 dialog).
+- [ ] ORACLE PRE-CHECK (NEW, MANDATORY - added 2026-07-18): before any scored step,
+      run WatchVrf for >=20 s and confirm it reports reflected>0. Discovery takes
+      ~13 s to populate on a healthy federation, so do NOT judge it before ~15 s. A
+      configuration in which WatchVrf reports reflected=0 has occurred on this machine
+      (RTI_ASSISTANT_DISABLE) and would silently produce an ENTIRE SESSION OF EMPTY
+      TELEMETRY. If it is 0 after 20 s, STOP - do not run the session.
+      Optional stronger check: tools/CreateOne creates one throwaway M1A2 and WatchVrf
+      must report REAL coordinates for its uuid (not NaN). Delete/relaunch afterwards
+      so the throwaway never enters the scored trace.
 - [ ] TropicTortoise (Mojave) scenario loaded; confirm scenario parameters are
       the defaults: frame-mode variable-frame, frame-time 0.1,
       time-multiplier 1.0 (ground truth 0.2 sec 8).
