@@ -182,8 +182,40 @@ Exit criteria / what this settles:
 
 ## Status
 
-- 2026-07-18 (LIVE, 0.4): SCRIPTED BRING-UP PARTLY PROVEN; ROOT CAUSE UNRESOLVED;
-  ONE SUPERVISOR CONCLUSION RETRACTED. Full write-up:
+- 2026-07-18 (LIVE, 0.4): **0.4 COMPLETE - GATE PASSED. VR-FORCES NOW LAUNCHES
+  UNATTENDED AND THE MOVEMENT ORACLE IS VERIFIED END TO END.** This retires the
+  "a human must launch VR-Forces" dependency that has constrained every session.
+  Full write-up: docs/experiments/SESSION_2026-07-18_SELFLAUNCH.md; gate result in
+  docs/experiments/PREREG_0_4_SELFLAUNCH.md sec 12.
+  - LAUNCH (zero human interaction, EXIT=0 READY, verified 3x):
+      pwsh -File scripts\LaunchVrf.ps1 -Scenario TropicTortoise `
+           -BackendAppNumber <fresh> -FrontendAppNumber <fresh> -AllowExistingRtiAssistant
+  - GATE: ResetVrf --dry-run x2 (3489/3490) - joined cleanly, discovered the 2
+    TropicTortoise baseline objects, no deletes, resigned cleanly, EXIT=0 both
+    times, ZERO 0xC0000005. Prereg sec 4 prediction met exactly.
+  - ORACLE: tools/CreateOne (NEW, additive) created one M1A2; WatchVrf reported
+    POS ... 34.517156,-116.973525,1060.7 - exact requested lat/lon, altitude
+    ground-clamped from 10000 MSL, stable across every sample.
+  - ROOT CAUSE of every "VR-Forces hangs on launch" episode: on HLA the RTI
+    Assistant PROMPTS for a connection and the federate does not start until it is
+    answered. Vendor-documented, not a bug. ONE-TIME per machine: answer it with
+    "Always try to use this connection" CHECKED. *** NEVER KILL rtiAssistant /
+    rtiexec / rtiForwarder *** - an already-answered assistant is what makes
+    unattended launch work; killing one as "cleanup" cost this entire session.
+  - DO NOT USE RTI_ASSISTANT_DISABLE: processes start but federates never discover
+    each other and WatchVrf goes silently blind (reflected=0).
+  - PHASE 1 PRECONDITIONS UPDATED: manual launch retired; NEW MANDATORY oracle
+    pre-check (WatchVrf >=20 s, require reflected>0; discovery needs ~13 s to
+    populate, do not judge before ~15 s).
+  - Six LaunchVrf.ps1 defects found and fixed (three previously recorded, plus the
+    rtiexec readiness wait, the connection-dependent UDP-4000 health test, and a
+    duplicated health expression where only one copy had been corrected).
+  - THREE WRONG CORRECTIONS were written into RUNBOOK sec 0.5 during this session
+    and then fixed; all three are recorded there so they are not re-derived.
+  - PHASE 1 STILL HAS NOT RUN. 3455-3459 remain reserved and untouched.
+- 2026-07-18 (superseded by the entry above; kept for the record): SCRIPTED
+  BRING-UP PARTLY PROVEN; ROOT CAUSE UNRESOLVED; ONE SUPERVISOR CONCLUSION
+  RETRACTED. Full write-up:
   docs/experiments/SESSION_2026-07-18_SELFLAUNCH.md. PHASE 1 DID NOT RUN - the live
   window went to the bring-up mechanism, the exact trade prereg 11.1 called the
   worse one. PHASE1_SESSION_SCRIPT.md is still READY and unstarted; 3455-3459

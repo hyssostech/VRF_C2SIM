@@ -4,14 +4,14 @@ Pre-registration for groundwork-plan Phase 0 item 0.4 (docs/VRF_GROUNDWORK_PLAN.
 lines 83-86). Written BEFORE the live run so the result cannot be rationalized after
 the fact. Single variable, single prediction, explicit falsifier. ASCII only.
 
-> SEE SECTION 11 (added 2026-07-18) BEFORE ACTING ON THIS DOCUMENT: 0.4 was
-> DEMOTED behind Phase 1 by the user on 2026-07-18 and is NOT the next thing to
-> run; three defects in scripts/LaunchVrf.ps1 must be fixed before this gate
-> runs at all. Sections 1-10 below are the intact pre-registration.
+> *** GATE RUN AND PASSED 2026-07-18. SEE SECTION 12 (the result) FIRST. ***
+> Section 11's "0.4 is demoted / three defects block it" status is HISTORICAL and
+> must not be acted on. Sections 1-10 are the intact pre-registration as written
+> before the run.
 
-Status: DRAFT - NOT YET RUN. The live gate runs only in a supervised session with
-explicit user approval. This document + scripts/LaunchVrf.ps1 are the offline
-deliverables; nothing in the VRF/RTI install has been executed to produce them.
+Status: RUN 2026-07-18 - PREDICTION CONFIRMED. Result in section 12. The scripted
+launch works unattended and the ResetVrf join gate passed twice in a row.
+Sections 1-10 below are unmodified from before the run.
 
 Artifact under test: scripts/LaunchVrf.ps1 (companion; parses clean, -DryRun verified).
 
@@ -332,3 +332,57 @@ federate. Its only process-creating call is a single `Start-Process` of
 `vrfLauncher.exe`; everything else touching processes is read-only. This is worth
 recording as a positive: the RUNBOOK sec 0 never-force-kill constraint is
 structurally satisfied by the script as written.
+
+## 12. RESULT 2026-07-18 - PREDICTION CONFIRMED, GATE PASSED
+
+Full narrative: docs/experiments/SESSION_2026-07-18_SELFLAUNCH.md.
+
+THE PREDICTION (sec 4) was: after the scripted launch brings the combined
+federation up, a ResetVrf --dry-run will JOIN AND READ CLEANLY - discovering the
+scenario's baseline objects (2 for TropicTortoise), issuing no deletes, resigning
+with NO crash - TWICE IN A ROW with fresh app numbers.
+
+OBSERVED (appNos 3489, 3490, both identical):
+
+    [OK] joined
+    [OK] discovery complete: 3 reflected object(s) (2 deletable, 1 nil/backend skipped)
+    [DRY-RUN] would delete 2 object(s); NO deletes issued
+    [OK] resigned cleanly          EXIT=0
+
+CONFIRMED. Two clean joins, the 2 expected baseline objects, zero 0xC0000005.
+The crash that made the headless recipe unsafe since 2026-07-15 did not recur.
+
+THE LAUNCH ITSELF (appNos 3484/3485, and again 3486/3487):
+
+    pwsh -File scripts\LaunchVrf.ps1 -Scenario TropicTortoise `
+         -BackendAppNumber <fresh> -FrontendAppNumber <fresh> -AllowExistingRtiAssistant
+    => [OK] READY: combined-mode VR-Forces is up ...   EXIT=0
+
+Zero human interaction. Back-end 66 threads, front-end with a real main window,
+scenario loaded, no dialog at any point.
+
+THE MISSING PIECE THE PRE-REGISTRATION DID NOT ANTICIPATE. Sections 1-10 assumed
+the only variable was the launch command. It was not. On HLA the RTI Assistant
+prompts for a connection and the federate DOES NOT START until it is answered -
+vendor-documented, not a bug (VR-Forces help SharedTopics\XMLrti\InstallMAK-RTI.htm;
+MAK RTI Users Guide p. 4-2 even names the symptom, "The federate startup process
+may appear to hang while the Choose RTI Connection dialog box is waiting for
+input"). ONE-TIME per machine: answer that dialog with "Always try to use this
+connection" CHECKED. Thereafter launches are silent. NEVER kill rtiAssistant,
+rtiexec or rtiForwarder - an already-answered assistant is what makes unattended
+launch work.
+
+RISK A (sec 6, the session-startup dialog) DID NOT FIRE in any run.
+
+DEFECTS: sec 11.2 recorded THREE. SIX were ultimately found and all are fixed -
+the three recorded plus (4) the readiness poll waited for rtiexec, (5) UDP 4000
+was required for health although it is connection-dependent, (6) the health
+expression was duplicated and only one copy was corrected. Detail in the session
+doc sec "LaunchVrf.ps1 - VERIFIED END TO END".
+
+STILL NOT EXERCISED BY THIS GATE (be honest about scope): -Mode BackendOnly
+(the -B crash-risk probe) was never run; cold-boot behaviour (whether the
+Assistant re-prompts after a reboot) is UNTESTED - if it does, answer it once or
+automate the click (the dialog is Qt, no UI Automation tree; screenshot +
+coordinate click works, Connect centre is window-relative (383,553) on a 573x583
+dialog).

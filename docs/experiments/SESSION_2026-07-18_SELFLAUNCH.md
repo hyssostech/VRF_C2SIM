@@ -241,7 +241,26 @@ C:\MAK\makRti4.6.1\rid.mtl. The user objected. The objection was correct - optio
 (B) achieves the same result process-scoped, and option (A) needs no config change
 at all. Do not edit the machine-wide rid.mtl.
 
-## OPEN ITEM - THE 0.4 GATE IS NOT PASSED
+## 0.4 GATE: PASSED (2026-07-18, appNos 3489/3490)
+
+Re-run under the WORKING configuration (assistant answered; NOT
+RTI_ASSISTANT_DISABLE). Both runs, verbatim:
+
+    [OK] joined
+    [OK] discovery complete: 3 reflected object(s) (2 deletable, 1 nil/backend skipped)
+    [DRY-RUN] would delete 2 object(s); NO deletes issued
+    [OK] resigned cleanly          EXIT=0
+
+That is the prereg sec 4 prediction met exactly: a ResetVrf --dry-run joins and
+reads cleanly, discovers the scenario's 2 baseline objects, issues no deletes,
+resigns with no crash - TWICE IN A ROW with fresh app numbers. Zero 0xC0000005.
+
+The 0-object results recorded in the superseded section below were an ARTIFACT OF
+THE BROKEN CONFIGURATION, not a real defect. Note ResetVrf still prints
+BackendCount=0 (it samples immediately after Start(), before discovery); that
+number is not meaningful there - CreateOne, which waits, reported BackendCount=1.
+
+## SUPERSEDED - "the 0.4 gate is not passed" (kept for the record; DO NOT ACT ON THIS)
 
 Prereg sec 4 predicts a ResetVrf --dry-run that "will JOIN AND READ CLEANLY - it
 discovers the scenario's baseline objects (2 for TropicTortoise ...)" TWICE.

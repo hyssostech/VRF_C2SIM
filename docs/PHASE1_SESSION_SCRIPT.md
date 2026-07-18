@@ -316,10 +316,12 @@ Open items before this runs (as of 2026-07-18):
 
 - D1 (20x mechanism) is CLOSED - remote setTimeMultiplier via tools/SetSimRate
   (Step 4); GUI Time Scale at 15x remains the recorded-deviation fallback.
-- 0.4 self-launch is CLOSED as a dependency - the user DEMOTED it behind
-  Phase 1 on 2026-07-18. VR-Forces is launched MANUALLY by the user per RUNBOOK
-  for this session; scripts/LaunchVrf.ps1 is NOT used (see
-  docs/experiments/PREREG_0_4_SELFLAUNCH.md sec 11).
+- 0.4 self-launch is CLOSED - GATE PASSED 2026-07-18 (PREREG_0_4_SELFLAUNCH.md
+  sec 12). REVERSED LATER THE SAME DAY: the earlier "demoted; launch MANUALLY;
+  LaunchVrf.ps1 is NOT used" instruction is RETIRED. scripts/LaunchVrf.ps1 IS the
+  bring-up for this session and needs no human interaction - see the Preconditions
+  block at the top of this script for the exact command and the never-kill-the-RTI-
+  infrastructure rule.
 - 0.6 console capture is FOLDED IN, not a separate session: if the extended
   WatchVrf build (POS + CON lines) is available at session time, use it and this
   session doubles as its live gate; otherwise the Step 0 GUI capture protocol
