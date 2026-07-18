@@ -411,8 +411,10 @@ Exit criteria / what this settles:
   (matches the live per-class split - pre-registrable); type fidelity quantified
   (~64/128 COA-STP1 units mis-mapped, ~49 generic, ~15 lone tanks); remote
   saveScenario-to-scnx confirmed (0.5 unblocked); paged-region movement behavior
-  UNDOCUMENTED (MAK question material). REMAINING IN PHASE 0: 0.4 (self-launch gate,
-  needs one live probe), 0.5 (scnx harness build), 0.6 (console-capture build).
+  UNDOCUMENTED (MAK question material). REMAINING IN PHASE 0 AS OF THAT DATE: 0.4
+  (self-launch gate, needs one live probe), 0.5 (scnx harness build), 0.6
+  (console-capture build). [ALL THREE ARE NOW DONE - 0.5 and 0.6 built and gated,
+  0.4 gate PASSED 2026-07-18. This line is historical; see the Status TOP entry.]
   Next live session = Phase 1 (scripted; open the Object Console panel FIRST).
 
 ## Lessons learned (2026-07-16 fix session; register in behavior, not just here)
