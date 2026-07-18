@@ -946,7 +946,14 @@ values are NOT used.
 - 3479: USED - WatchVrf discovery gate against that launch. RESULT: reflected=3
   readable=2, POS lines streaming, one uuid cross-confirmed against the backend log
   (Blocking Terrain Page-In Area). ORACLE SEES THE FEDERATION. Phase 1 unblocked.
-NEXT FREE: 3480.
+- 3480: USED - tools/CreateOne, created M1A2 ORACLETEST at (34.517156,-116.973525) alt 10000 MSL. uuid=VRF_UUID:adfaadb3-da02-b04a-8f38-abd41c8049d1 entityId=1:3477:5. BackendCount=1.
+  settle whether WatchVrf reports REAL coordinates for a REAL entity (all POS lines seen
+  so far were NaN, on non-entity control objects only).
+- 3481: USED - WatchVrf POS-fidelity gate. PASSED: POS,...,34.517156,-116.973525,1060.7 - exact requested lat/lon, ground-clamped alt (10000 -> 1060.7), stable across all samples. ORACLE FULLY VERIFIED.
+  LINK before Phase 1.
+- 3482/3483: USED - LaunchVrf.ps1 end-to-end run that exposed the rtiexec-refusal and duplicated-health-expression defects.
+- 3484/3485: USED - LaunchVrf.ps1 end-to-end, ZERO human interaction, EXIT=0 READY (66 threads, UDP 4001).
+NEXT FREE: 3486.
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
 3001 / 3101, not ledgered numbers - that is what a bare launch does and what every human

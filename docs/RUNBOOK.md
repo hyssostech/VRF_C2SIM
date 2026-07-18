@@ -23,22 +23,34 @@ headless back-end; `vrfGui.exe` is a separate, optional front-end (this project 
 without it - "vrfGui hung-but-backend-healthy" is a normal state; WatchVrf is the visual
 channel, not the GUI).
 
-CORRECTION 2026-07-18 (live-verified). This paragraph previously read "`rtiexec` is spawned
-automatically by the RTI on first federate join - do not launch it separately." THE FIRST
-CLAUSE IS FALSE ON THIS MACHINE, AS AN OBSERVATION: no rtiexec process ever appears, and NO
-readiness gate may wait for one (a gate that did reported NOT READY against a healthy
-front-end). Do not launch it separately either. Observed transport on a verified-healthy
-back-end: UDP 4000 bound; NO connection to `rtiForwarder`'s :5000 despite it listening.
+CORRECTED THREE TIMES ON 2026-07-18. The final, evidence-backed statement is below; the
+history is kept because each wrong version was written confidently and acted on.
 
-SECOND CORRECTION, SAME DAY - do not repeat the first version's mistake: this entry
-originally explained the above by citing `(setqb RTI_useRtiExec 0)` in rid.mtl. THAT
-EXPLANATION IS WRONG. MAK RTI Users Guide p. 7-8 and Reference Manual Appendix A state
-verbatim, under `RTI_useRtiExec`, `RTI_udpPort`, `RTI_tcpPort`, `RTI_destAddrString` and
-`RTI_tcpForwarderAddr`: "This parameter is ignored unless RTI_configureConnectionWithRid is
-set to 1." Our rid.mtl sets `RTI_configureConnectionWithRid 0`, so ALL of those values are
-DISCARDED and the RTI Assistant's stored connection configuration supplies them instead. The
-observations above stand; the rid.mtl-based explanation does not. Treat rid.mtl connection
-values on this machine as INERT until `RTI_configureConnectionWithRid` is set to 1.
+WHAT IS TRUE: EVERYTHING HERE DEPENDS ON WHICH RTI CONNECTION THE ASSISTANT SUPPLIES. There
+is no unconditional fact about rtiexec on this machine.
+- Under the CORRECT connection ("Legatus's predefined rtiexec loopback connection", the one
+  selected in the Choose RTI Connection dialog), an `rtiexec` IS running (observed: pid
+  81692) alongside `rtiForwarder`, and the back-end's UDP endpoint is 4001. rtiexec and
+  rtiForwarder are RTI INFRASTRUCTURE: they PERSIST across launches, they are expected, and
+  they MUST NOT be killed or treated as stale federates.
+- Under the fallback that occurs when the Assistant is disabled or unanswered, no rtiexec
+  appears and a back-end that does reach health binds UDP 4000 instead.
+- CONSEQUENCE FOR TOOLING: `UDP 4000 bound` is NOT a health signal - it is
+  connection-dependent and is FALSE on a fully healthy back-end under the correct
+  connection. The connection-independent signal is THREAD COUNT: blocked back-ends sit at
+  2-4 threads indefinitely; healthy ones reach 23-67. LaunchVrf.ps1 gates on threads.
+
+THE THREE WRONG VERSIONS, so they are not re-derived:
+1. "rtiexec is spawned automatically by the RTI on first federate join" - contradicted by
+   observation under the fallback connection.
+2. "rtiexec NEVER runs here BECAUSE `(setqb RTI_useRtiExec 0)`" - wrong twice over. The
+   observation was connection-specific, AND the cited parameter is inert: MAK RTI Users
+   Guide p. 7-8 / Reference Manual Appendix A state verbatim, under `RTI_useRtiExec`,
+   `RTI_udpPort`, `RTI_tcpPort`, `RTI_destAddrString` and `RTI_tcpForwarderAddr`: "This
+   parameter is ignored unless RTI_configureConnectionWithRid is set to 1." Our rid.mtl sets
+   it to 0, so those values are DISCARDED and the Assistant's stored connection supplies
+   them. Treat rid.mtl connection values here as INERT.
+3. "UDP 4000 bound means the back-end joined" - connection-dependent; see above.
 
 *** RTI ASSISTANT PROMPT - THE CAUSE OF "THE BACKEND HANGS ON LAUNCH" (2026-07-18) ***
 On HLA, the vendor's documented startup sequence REQUIRES a human. VR-Forces help,

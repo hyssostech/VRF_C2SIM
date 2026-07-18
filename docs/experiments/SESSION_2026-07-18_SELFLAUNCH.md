@@ -129,13 +129,66 @@ above 2 (23-67 observed healthy; 2-4 when blocked) and vrfSim.log progressing to
 "Successfully loaded scenario." / parameter-database lines. LaunchVrf.ps1 still
 gates on UDP 4000 and MUST BE UPDATED before it is used with this connection.
 
-KNOWN CAVEAT, NOT YET CLOSED: the POS lines above carry NaN latitude/altitude and
-lon=-90 for these two objects. They are non-entity CONTROL objects (terrain
-page-in area / global terrain damage) which have no meaningful position, so this
-is expected-looking - but WatchVrf position FIDELITY FOR A REAL ENTITY has NOT
-been verified in this configuration, because the scenario contains no units. That
-verification is the first thing Phase 1 Step 1 does anyway (record uuid + birth
-position per created object); treat the first created unit as the check.
+CAVEAT NOW CLOSED (2026-07-18, appNos 3480/3481). The NaN POS lines were indeed
+the two non-entity CONTROL objects. tools/CreateOne (NEW, additive - see below)
+created one real M1A2 and WatchVrf reported it correctly:
+
+    POS,23.5,VRF_UUID:adfaadb3-da02-b04a-8f38-abd41c8049d1,34.517156,-116.973525,1060.7
+
+- lat/lon match the requested create coordinate EXACTLY (34.517156, -116.973525).
+- altitude is 1060.7 m, NOT the requested 10000 m: THE GROUND CLAMP WORKS, and the
+  safe-high-MSL create posture behaves as designed (buried-birth bug not present).
+- the value is STABLE across every 2 s sample - no warp, no drift.
+- reflected=4 readable=3; CreateOne itself reported BackendCount=1 (the backend IS
+  discovered under this connection, where it was 0 under the abandoned
+  assistant-disabled config).
+
+THE MOVEMENT ORACLE IS FULLY VERIFIED END TO END: it discovers entities and
+reports real, stable, ground-clamped coordinates. Phase 1 has no unverified
+dependency left.
+
+## NEW TOOL: tools/CreateOne (2026-07-18, additive)
+
+Creates ONE entity in a live federation and reports the uuid the backend assigns.
+Built to settle the POS-fidelity question above in a minute rather than discover
+it mid-session. Cloned from ResetVrf (join / act / tick / resign); NO existing
+file touched. Build clean, 0 warnings 0 errors. Like SetSimRate it has NO default
+appNumber - missing/non-numeric/zero/negative appNo and out-of-range lat/lon all
+hard exit 2 (all six cases tested). Waits for BackendCount() > 0 (15 s cap) and
+REFUSES to create if no backend was discovered, so a create can never be a silent
+no-op reported as success. Defaults: M1A2 (DIS 1.1.225.1.1.3.0) at a COA-STP1 AO
+coordinate taken from the shipped order data, 10000 m MSL (safe-high create).
+
+## RTIEXEC: THE THIRD CORRECTION (2026-07-18)
+
+`rtiexec` IS running under the correct connection (observed pid 81692), alongside
+rtiForwarder, with the back-end on UDP 4001. Earlier entries in this session
+claimed it never runs here - that observation came from the FALLBACK connection
+reached when the Assistant is disabled/unanswered. Both rtiexec and rtiForwarder
+are RTI INFRASTRUCTURE: they persist across launches and MUST NOT be killed or
+counted as stale federates. LaunchVrf.ps1 originally listed rtiexec among
+"pre-existing VR-Forces processes" and REFUSED to launch onto a healthy
+environment because of it; that is fixed - infrastructure is now reported, never
+refused on.
+
+## LaunchVrf.ps1 - VERIFIED END TO END (2026-07-18)
+
+    pwsh -File scripts\LaunchVrf.ps1 -Scenario TropicTortoise `
+         -BackendAppNumber 3484 -FrontendAppNumber 3485 -AllowExistingRtiAssistant
+    => [OK] READY: combined-mode VR-Forces is up ... EXIT=0
+
+Zero human interaction. Back-end 66 threads, front-end with a real main window,
+back-end UDP endpoint 4001, no dialog at any point.
+
+DEFECT 5 and 6, found and fixed during that verification:
+5. UDP 4000 was REQUIRED for health - wrong, connection-dependent (see RUNBOOK).
+   Health is now thread count; UDP endpoints are logged informationally.
+6. THE HEALTH EXPRESSION WAS DUPLICATED - once inside the poll loop and once after
+   it for the verdict. Only the in-loop copy was fixed, so a 66-thread healthy
+   back-end was still reported "PRESENT BUT NOT HEALTHY - only 64 threads (healthy
+   is 23-67)", a self-contradicting message. Both copies now carry an explicit
+   keep-in-sync comment. Lesson: a fix applied to one of two duplicated
+   expressions is not a fix.
 
 ## *** RTI_ASSISTANT_DISABLE ALONE IS NOT SUFFICIENT - PHASE 1 IS BLOCKED (superseded, kept for the record) ***
 

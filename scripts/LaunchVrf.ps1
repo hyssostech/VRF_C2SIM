@@ -228,8 +228,14 @@ if (-not $NoScenario) {
 }
 
 # 6. Stale VR-Forces processes from a prior session (RUNBOOK sec 0 hazard)
+# NOTE (2026-07-18): rtiexec is deliberately NOT in this list. It is RTI INFRASTRUCTURE,
+# not a VR-Forces federate: under the "Legatus's predefined rtiexec loopback connection"
+# (the correct connection on this machine) an rtiexec is started and PERSISTS across
+# launches, exactly like rtiForwarder and rtiAssistant. Treating it as a stale federate
+# made this script refuse to launch onto a perfectly healthy environment. Killing it would
+# repeat this session's central mistake - see docs/experiments/SESSION_2026-07-18_SELFLAUNCH.md.
 $existing = @()
-foreach ($n in @($procLauncher,$procBackend,$procFrontend,$procRti)) {
+foreach ($n in @($procLauncher,$procBackend,$procFrontend)) {
     $p = Get-Process -Name $n -ErrorAction SilentlyContinue
     if ($p) { $existing += ($p | ForEach-Object { '{0}(pid {1})' -f $_.Name, $_.Id }) }
 }
@@ -243,7 +249,20 @@ if ($existing.Count -gt 0) {
         Say-Warn '  -AllowExistingVrf set: proceeding despite existing processes.'
     }
 } else {
-    Say-Ok 'no pre-existing vrfLauncher / vrfSimHLA1516e / vrfGui / rtiexec processes'
+    Say-Ok 'no pre-existing vrfLauncher / vrfSimHLA1516e / vrfGui processes'
+}
+
+# RTI infrastructure - REPORTED, NEVER REFUSED ON, NEVER KILLED. rtiexec/rtiForwarder
+# persist across launches under the rtiexec loopback connection and are required by it.
+$infra = @()
+foreach ($n in @($procRti,'rtiForwarder')) {
+    $ip = Get-Process -Name $n -ErrorAction SilentlyContinue
+    if ($ip) { $infra += ($ip | ForEach-Object { '{0}(pid {1})' -f $_.Name, $_.Id }) }
+}
+if ($infra.Count -gt 0) {
+    Say-Ok ("RTI infrastructure present (expected; do NOT kill): {0}" -f ($infra -join ', '))
+} else {
+    Say-Warn 'no rtiexec / rtiForwarder running. Under an rtiexec-style connection these are needed; the RTI normally starts them. If the back-end then blocks, check the RTI Assistant.'
 }
 
 # 6b. STALE rtiAssistant HOLDING ITS PORT (added 2026-07-18, found live).
@@ -326,8 +345,8 @@ if ($DryRun) {
     Say-Plan ("Start-Process -FilePath '{0}' -WorkingDirectory '{1}' -ArgumentList '{2}'" -f $launcher, $bin64, $argString)
     Say-Plan ("poll every {0}s up to {1}s for readiness signals:" -f $PollIntervalSec, $ReadyTimeoutSec)
     Say ("            - process '{0}' present  (back-end; RUNBOOK sec 0.5 authoritative signal)" -f $procBackend)
-    Say ("            - back-end has UDP 4000 bound (RTI_udpPort - the real federation transport; rtiexec NEVER runs here, RTI_useRtiExec 0)")
-    Say ("            - back-end thread count > {0} (a STALLED back-end sits at ~2 threads while present)" -f $BackendMinThreads)
+    Say ("            - back-end thread count > {0} (THE health signal: a blocked back-end sits at 2-4 threads while present; healthy reaches 23-67)" -f $BackendMinThreads)
+    Say ("            - back-end UDP endpoints logged INFORMATIONALLY only - UDP 4000 is connection-dependent and is NOT required (the rtiexec loopback connection uses TCP 4001 + forwarder 5000)")
     Say ("            - process '{0}' present     (front-end; combined mode - the crash-avoiding piece)" -f $procFrontend)
     Say  '            - vrfGui MainWindowTitle non-empty (front-end window is up, not stuck in a modal dialog)'
     Say  '            - back-end UDP endpoints logged for the record (passive)'
@@ -380,11 +399,20 @@ while ((Get-Date) -lt $deadline) {
     if ($b) {
         $bp = ($b | Select-Object -First 1)
         $backendThr = $bp.Threads.Count
+        # INFORMATIONAL ONLY - see the DEFECT-5 note below.
         $backendJoin = [bool](Get-NetUDPEndpoint -OwningProcess $bp.Id -LocalPort 4000 -ErrorAction SilentlyContinue)
     } else {
         $backendThr = 0; $backendJoin = $false
     }
-    $backendHealthy = $backendJoin -and ($backendThr -gt $BackendMinThreads)
+    # DEFECT-5 FIX (2026-07-18, found after the root cause): UDP 4000 was REQUIRED for
+    # health. That is WRONG - it is CONNECTION-DEPENDENT, not a universal signal. Under
+    # the correct "Legatus's predefined rtiexec loopback connection" a fully healthy
+    # back-end has NO UDP 4000 binding (that connection uses TCP 4001 + forwarder 5000);
+    # UDP 4000 appeared only on runs that had fallen back to a lightweight connection.
+    # Requiring it made the script report NOT READY against a verified-healthy federation.
+    # Thread count is the connection-independent signal actually measured: a blocked
+    # back-end sits at 2-4 threads indefinitely, a healthy one reaches 23-67.
+    $backendHealthy = ($backendThr -gt $BackendMinThreads)
     if ($f) { $guiTitle = ($f | Select-Object -First 1 -ExpandProperty MainWindowTitle) }
     # DEFECT-1 FIX (2026-07-18): the -DryRun text always advertised a
     # MainWindowTitle readiness check that the poll never performed, so the
@@ -400,15 +428,19 @@ while ((Get-Date) -lt $deadline) {
     if ($backendHealthy -and (($frontUp -and $guiTitleOk) -or -not $needFront)) { break }
     Start-Sleep -Seconds $PollIntervalSec
 }
-$backendHealthy = $backendJoin -and ($backendThr -gt $BackendMinThreads)
+# Recomputed after the loop for the verdict below. MUST match the in-loop definition
+# exactly - an earlier version of this line still required $backendJoin (UDP 4000) after
+# the loop condition had been corrected, so a 64-thread healthy back-end was reported as
+# "PRESENT BUT NOT HEALTHY". Keep these two in sync.
+$backendHealthy = ($backendThr -gt $BackendMinThreads)
 
 Say-Head 'Readiness'
 if (-not $backendUp) {
     Say-Fail ("back-end '{0}' process NOT present" -f $procBackend)
 } elseif ($backendHealthy) {
-    Say-Ok ("back-end '{0}' is HEALTHY and JOINED (UDP 4000 bound, {1} threads)" -f $procBackend, $backendThr)
+    Say-Ok ("back-end '{0}' is HEALTHY ({1} threads; udp4000={2} - informational, connection-dependent)" -f $procBackend, $backendThr, $backendJoin)
 } else {
-    Say-Fail ("back-end '{0}' process is PRESENT BUT NOT HEALTHY - UDP4000bound={1} threads={2} (a stalled back-end sits at ~2 threads and never binds 4000). PROCESS PRESENCE IS NOT HEALTH." -f $procBackend, $backendJoin, $backendThr)
+    Say-Fail ("back-end '{0}' process is PRESENT BUT NOT HEALTHY - only {1} threads (a blocked back-end sits at 2-4 indefinitely; healthy is 23-67). PROCESS PRESENCE IS NOT HEALTH. On HLA the usual cause is an UNANSWERED RTI Assistant 'Choose RTI Connection' prompt." -f $procBackend, $backendThr)
 }
 $guiTitleOk = -not [string]::IsNullOrWhiteSpace($guiTitle)
 if ($frontUp -and $guiTitleOk) {
