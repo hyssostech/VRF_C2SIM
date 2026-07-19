@@ -151,6 +151,39 @@ Deliverable: docs/VRF_GROUND_TRUTH.md - the things we should have known on day o
   live-gated next session. From then on EVERY run captures VRF's own per-unit
   diagnostics - the pile split and runaways may already be explained in messages we
   never read.
+  *** 0.6 IS NOT DONE. THE LIVE GATE RAN 2026-07-19 ON run 20260719T144109Z AND RETURNED
+  ZERO CON LINES, over 180 s with 6 freshly created units, two of which were tasked and
+  did not move. Do NOT re-record 0.6 as complete on the strength of the offline test.
+  `git grep "^CON,"` across the tracked repo and all runs returns NOTHING - no live CON
+  line has ever existed.
+  WHAT WAS RULED OUT by a file:line audit (so it is not re-investigated): the path IS
+  wired end to end and the callback IS registered. WatchVrf does instantiate a real
+  DtVrlinkVrfRemoteController, and addObjectConsoleMessageCallback is registered inside
+  VrfFacade::Start() (VrfFacade.cpp:346) - i.e. BEFORE BeginTrackingReflectedObjects and
+  long before the first Tick(), so there is no ordering violation of the kind RUNBOOK
+  sec 8 documents for reflected-object tracking. No config flag or opt-in gates it. The
+  deployed binaries post-date commit 50a5c0c and provably contain the symbols. The trace
+  is raw unfiltered stdout, so nothing filtered CON lines out.
+  THE TRANSPORT IS THE SUSPECT. Object Console text travels by COMMENT PDU / INTERACTION
+  (objectConsoleNetworkPrinter.h:19), not on the message-executive channel. Two things
+  could not be settled statically, and either fully explains the silence: (a) whether the
+  sim engine attaches the NETWORK printer by default at all (objectConsoleManager.h:38
+  says init() "calls addDefaultPrinters()" without enumerating them) or only the VR-Link
+  printer; (b) whether an HLA observer federate receives Comment interactions it never
+  explicitly subscribed to.
+  IMPORTANT TRAP, do not repeat it: THE GUI BADGE IS NOT EVIDENCE OF WIRE DELIVERY. The
+  GUI receives console text via processObjectConsoleMessageCallback on a DIFFERENT channel
+  (vrfGuiCore/objectConsoleMessageHandler.h:104). Seeing the yellow triangle in the GUI
+  says nothing about whether a comment interaction reached a remote federate.
+  THE DECISIVE EXPERIMENT, and the ONLY one that answers positively rather than by
+  silence: logObjectConsoleToFile (vrfRemoteController.h:1983) makes the BACKEND ITSELF
+  write an object's console to a file, bypassing the network question entirely. File has
+  warnings + CON empty => DELIVERY GAP. File empty => no messages were raised, proven
+  rather than inferred. Worth exposing setObjectNotifyLevel (:1977) and
+  addBackendConsoleMessageCallback (:1992) in the same pass. This REQUIRES A NATIVE
+  REBUILD of VrfFacade/VrfBridge - there is no C#-only route, because nothing on the
+  managed surface can affect delivery. The toolchain was proven healthy 2026-07-19
+  (full /t:Rebuild, 0 errors, 9 s). ***
 
 Exit criteria: the five deliverables exist, cross-referenced, adversarially reviewed;
 open unknowns are listed as QUESTIONS with where the answer lives (doc, probe, or MAK).
