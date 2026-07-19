@@ -286,7 +286,13 @@ Exit criteria / what this settles:
     interaction. That is the mandate, demonstrated.
   - THE RESULT, reproduced across runs 144109Z / 161438Z / 202349Z: all three tasks are
     issued correctly (CreateRoute + MoveAlongRoute). 114.MechCoy and 1.BdeHQ do NOT move
-    (0.0 m, bit-exact, confirmed by two independent channels). 1222.MechPlt moves ~174 m
+    (0.0 m, bit-exact, confirmed by two independent channels). *** RETRACTED 2026-07-19 LATE: the "moves ~174 m and stops" reading below is FALSE. The
+unit was STILL MOVING AND SLIGHTLY ACCELERATING when observation ended; ~174 m is the
+length of the OBSERVATION WINDOW (usable span t~35 to t~180, bounded by teardown), not a
+stopping point. The route needs ~825 s at ~1.4 m/s and no run has ever observed more than
+~145 s. RUN -RunSecs 900+. The two FROZEN units are unaffected - that result stands.
+Superseded text follows: ***
+1222.MechPlt moves ~174 m
     of a ~1155 m route and stops - 174.1 m and 174.4 m on two runs, so this is a
     REPRODUCIBLE defect, not noise. No TASKCMPLT is ever emitted: an HONEST failure.
   - RULED OUT with evidence, do NOT re-investigate: wrong/buried spawn (creation is EXACT

@@ -474,7 +474,7 @@ makVrf::DtVrfQtDeMainWindow; a TreeScope::Descendants search for ControlType Win
 "Session Status" plus three QDockWidgets. StopVrf's original search - the one that
 correctly finds "Are You Sure?" - is top-level and structurally cannot see this.
 WHEN IT FIRES: after StopIface drives the C2SIM server to UNINITIALIZED, VR-Forces treats
-the session as ended and raises it. It therefore fires on EVERY cleanly-torn-down
+the session as ended and raises it. It was ORIGINALLY believed to fire on EVERY cleanly-torn-down
 unattended run. This is not an edge case.
 ANSWERED "No" - the application is being closed anyway, so leaving the terrain loaded is
 the smaller state change, and answering No unblocked the teardown by hand.

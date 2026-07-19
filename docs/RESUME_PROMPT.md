@@ -24,12 +24,16 @@ its own."
 *** THE BUTTON EXISTS AND WORKS. *** scripts/RunC2SimScenario.ps1 has taken a C2SIM init +
 order through launch, join, creation, tasking, telemetry and clean resign with ZERO human
 interaction. Do NOT plan to build it; it is built.
-COUNT, CORRECTED after an independent audit caught the first version inflating it: runs
-161438Z and 202349Z are FULLY unattended end-to-end successes. 222134Z is a third, and its
-teardown needed the back-end graceful fallback (which worked, unattended). 144109Z reached
-a full trace but its teardown FAILED and the back-end was brought down BY HAND, so it is
-NOT a zero-human run. Say "two to three", not "four", and never count a run that is still
-in flight - the original claim was written while 222134Z had not yet reached teardown. Do NOT plan GUI
+COUNT, CORRECTED TWICE - the first correction was ALSO wrong, which is itself the lesson:
+161438Z, 202349Z and 222134Z are fully unattended end-to-end successes (THREE). 144109Z
+reached a full trace but its teardown FAILED and the back-end was brought down BY HAND, so
+it is NOT a zero-human run. Never count a run still in flight - the original "four" was
+written while 222134Z had not reached teardown.
+AND: my first correction said 222134Z was distinguished by "needing the back-end graceful
+fallback". FALSE - the fallback fired in FIVE of six runs (all except 144109Z, which
+predates it). IT IS THE NORMAL PATH, not a per-run distinction: the GUI quit routinely
+fails to carry the back-end. A correction written in a hurry is just another unverified
+claim. Do NOT plan GUI
 automation - GUI use is DIAGNOSTIC ONLY. The one exception is simulator lifecycle
 (StopVrf.ps1 answers VR-Forces' modals via UIA so the sim tears down unattended); that is
 not tasking. If you find yourself telling the user something needs them to click, STOP - a
@@ -38,9 +42,26 @@ around the human it had invented.
 
 *** THE RESULT - THIS IS THE PROBLEM NOW. *** All three tasks are issued correctly
 (CreateRoute + MoveAlongRoute in the app log, every run). Then:
-  114.MechCoy   0.0 m, bit-exact, confirmed by TWO independent channels
-  1.BdeHQ       0.0 m, bit-exact, confirmed by TWO independent channels
-  1222.MechPlt  ~174 m of a ~1155 m route, then stops (174.1 / 174.4 / 168.6 m on three runs)
+  114.MechCoy   0.0 m, bit-exact - FROZEN, and this STANDS
+  1.BdeHQ       0.0 m, bit-exact - FROZEN, and this STANDS
+  1222.MechPlt  ~174 m - *** IT DID NOT STOP. WE STOPPED WATCHING. ***
+
+*** THE "AND THEN STOPS" READING WAS FALSE AND IS RETRACTED (found by a cold-reader audit,
+2026-07-19 late, verified by hand). *** The observation window is only ~145 s: the trace's
+usable span runs from t~35 to t~180, where the interface RESIGNS at teardown and its
+created objects are removed (StopIface fires at trace t=182.1s; readable collapses 53->2
+at t=180.1s - within one 2 s sample. That collapse is the RUN ENDING, not an oracle fault).
+1222.MechPlt's speed in its FINAL observed leg, all three runs:
+    161438Z  1.35 -> 1.45 m/s      202349Z  1.38 -> 1.49 m/s      222134Z  1.28 -> 1.48 m/s
+IT WAS ACCELERATING SLIGHTLY WHEN OBSERVATION ENDED. There is no deceleration signature and
+no stop in evidence. The ~1155 m route needs ~825 s at ~1.4 m/s; we watched for ~145 s and
+saw ~174 m, which is exactly what that speed predicts. THE "REPRODUCIBLE 174 m" IS THE
+REPRODUCIBLE LENGTH OF THE OBSERVATION WINDOW, NOT A DEFECT.
+CORRECTION TO A CLAIM THIS FILE PREVIOUSLY MADE: "duration is not the binding constraint"
+was WRONG for this unit - PREREG_TSK_DELIVERY_2026-07-19.md:130 had already said so and the
+newer docs contradicted it. FOR 1222.MechPlt, RUN LONGER: -RunSecs 900 or more. It remains
+RIGHT for the two frozen units, which moved 0.0 m bit-exactly across 76 samples INSIDE the
+observed window - that is a real result and needs no more time.
 *** PROVENANCE, and an audit caught this being glossed: THE ~174 m FIGURE IS RPT-DERIVED,
 i.e. it comes from the very channel these docs elsewhere mark as "INFERRED, NOT PROVEN" to
 be truthful. Under the RATIFIED scoring instrument - the POS trace - the SAME unit scores
@@ -48,10 +69,19 @@ be truthful. Under the RATIFIED scoring instrument - the POS trace - the SAME un
 disagree; quoting only the friendlier number is exactly the trap. Quote BOTH or neither.
 Also note the RPT "control" is 3 fixes per unit per run, not 76 - real evidence, but far
 coarser than POS and unable to resolve the oscillation POS reports. ***
-No TASKCMPLT is ever emitted - an HONEST failure; the interface does not lie in either
-direction, which is worth keeping given completions have lied both ways historically.
-VR-Forces receives a well-formed MoveAlongRoute for a correctly created, correctly
-positioned unit and does not execute it. THAT is the open engineering problem.
+No TASKCMPLT is ever emitted WITHIN THE OBSERVED WINDOW - and note that absence is now
+weak evidence, not strong: a completion at t=400 would be as invisible as an RPT at t=400,
+because nothing is observed past ~180 s. Do not cite "no TASKCMPLT" as proof of anything
+until a run observes long enough for a completion to be possible.
+
+THE OPEN ENGINEERING PROBLEM, RESTATED CORRECTLY AFTER THE AUDIT:
+  1. TWO of three taskees are genuinely FROZEN - 0.0 m bit-exact across 76 samples inside
+     a window where the third unit demonstrably moved. That is a real defect and the
+     primary one.
+  2. The third unit MOVES, at ~1.4 m/s, and was never observed to stop. Whether it would
+     ARRIVE is simply UNTESTED - nobody has ever run long enough.
+The previous framing ("VR-Forces does not execute a well-formed MoveAlongRoute") was
+overstated: it is true for two units and unsupported for the third.
 
 *** THE BIGGEST OPEN ITEM OUTRANKS THE MOVEMENT RESULT: THE TWO ORACLES CONTRADICT. ***
 WatchVrf now also emits RPT lines - VR-Forces' OWN position reports, carrying MARKING TEXT
@@ -104,14 +134,25 @@ READ IN ORDER:
 (7) Phase-2 deliverables: TYPE_GAP_ADJUDICATION.md (incl. USER RULINGS), TYPE_MAPPING_
     TABLE.md, TASK_VOCABULARY_V2.md, experiments/RUNAWAY_WARP_CENSUS_2026-07-17.md.
 
-THE NEXT DECISION (supervisor's lean recorded; user has not ruled):
-  (a) RPT-FIRST, NO NATIVE WORK - THE LEAN. VR-Forces' own named position reports already
-      exist and already produced the oracle contradiction. Push on the movement defect with
-      them. Keeps a working pipeline.
+THE NEXT DECISION - REORDERED BY THE 2026-07-19 AUDIT. The cold reader argued that both
+options below assume the question is POS-vs-RPT accuracy, when a cheaper question comes
+first. It was right, though not for the reason it gave (it read the t=180 collapse as an
+oracle fault; it is teardown). The cheap question is simply: DOES THE MOVING UNIT ARRIVE?
+  (0) RUN LONG ENOUGH - DO THIS FIRST, IT IS FREE AND IT IS UNTESTED.
+      pwsh -File scripts\RunC2SimScenario.ps1 -RunSecs 900
+      ~825 s of motion is needed; every run so far observed ~145 s. This settles whether
+      1222.MechPlt ARRIVES, whether a TASKCMPLT ever fires, and whether the two frozen
+      units stay frozen over a long window - three open questions for one run. NOTE the
+      observation window is bounded by teardown, so RunSecs must exceed the travel time.
+  (a) RPT-FIRST, NO NATIVE WORK. VR-Forces' own named position reports produced the oracle
+      contradiction. Cheap, keeps a working pipeline. CAVEAT the audit raised: RPT is only
+      ~3 fixes per unit per run, far coarser than POS, and cannot resolve the oscillation
+      POS reports - so it is a cross-check, not a replacement oracle.
   (b) RE-ATTEMPT THE NATIVE raw-vs-DR DIAGNOSTIC - log lastSetLocation() (raw,
       baseEntityStateRepository.h:118) beside location() (approximator-extrapolated, :113).
-      Higher value if it lands - it would settle whether every past negative movement result
-      is trustworthy - but it broke the pipeline twice on 2026-07-19.
+      Highest value if it lands - it would settle whether every past negative movement
+      result is trustworthy - but it broke the pipeline twice on 2026-07-19. Read the
+      native rules above before touching it, and note the UB is STILL IN THE BRIDGE.
 
 *** RULES IF YOU DO NATIVE WORK - THESE ARE NOT OPTIONAL. ***
 A DIAGNOSTIC MUST NOT CHANGE THE BEHAVIOUR OF THE THING IT OBSERVES. The 2026-07-19
