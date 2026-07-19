@@ -72,19 +72,60 @@ Total path length summed over all steps: 199.8 m. Net displacement: 63.4 m. Medi
 1.46 m per 2 s sample. It moved once, then jittered back and forth around a fixed point
 for over two minutes. It is not en route.
 
-### A finding that inverts the naive reading
+### *** CORRECTED 2026-07-19: the four "untasked movers" are IDENTIFIED, and the finding
+### is much stronger than the artifact reading it replaces ***
 
-Five objects in the trace showed displacement. ONLY ONE of them (ec196214) is a taskee.
-The other four - 82fe0939, 0279a70c, fbab58c5, ceffff34 - were NOT tasked. Meanwhile two
-of the three objects that WERE tasked sat at exactly 0.0 m.
+THIS SECTION ORIGINALLY CALLED THEM unexplained candidate artifacts showing "the census's
+lockstep signature". THAT WAS WRONG, and the correction matters because the truth is worse.
 
-Those four non-taskees show the census's lockstep signature: motion beginning at the
-identical instant (t=32 s for four of them) and identical max step speeds (111.7 km/h for
-three of them). 82fe0939's entire "displacement" is two discrete jumps - 49.6 m at t=31.6
-and 113.2 m at t=39.7 (**204 km/h, above the census 200 km/h warp threshold**) - followed
-by exactly 0.0 m for 140 consecutive seconds. Under 4a.4 these are candidate artifacts;
-they do not return to the pre-jump track, so by the letter of 4a.4 they classify as
-PERSISTENT, but at 60-70 m they are nowhere near the runaway class.
+The four - 82fe0939, 0279a70c, fbab58c5, ceffff34 - are the MEMBER ENTITIES of tasked unit
+1222.MechPlt. They first appear 2.5 to 7.5 m from the taskee aggregate ec196214: a platoon
+and its vehicles. Clustering ALL real uuids by first fix accounts for every object with no
+orphans: 5 in the 1222.MechPlt cluster (aggregate + 4 members), 38 in the 114.MechCoy
+cluster (company aggregate + its three subordinate platoon aggregates, which the app log
+confirms were created, plus their members, spread 0-414 m), and 1 for 1.BdeHQ, which is a
+lone tank ENTITY with no members at all. The interface created 6 objects; the other ~38 are
+VR-Forces-side subordinate fan-out. (Cluster membership is INFERRED from co-location, not
+from any logged id - the interface logs subordinate creation by NAME and never logs child
+uuids. A cluster of exactly 5 at 2.5-7.5 m separation is not ambiguous, but the linkage is
+geometric, not authoritative. See sec 6 item 6.)
+
+THE DECISIVE ARITHMETIC - THEY MOVED THE WRONG WAY. 1222.MechPlt's destination lies 578 m
+DUE EAST, bearing 090. Every one of the five travelled WEST:
+
+| object | separation from taskee at first fix | bearing travelled | distance to destination |
+|--------|-------------------------------------|-------------------|-------------------------|
+| ec196214 (the taskee) | 0.0 m | **270 deg** | 1155.5 -> 1218.9 m (**+63.4**) |
+| 82fe0939 | 7.5 m | **264 deg** | 1148.0 -> 1217.6 m (**+69.6**) |
+| 0279a70c | 2.5 m | **268 deg** | 1153.0 -> 1217.6 m (**+64.5**) |
+| fbab58c5 | 2.5 m | **272 deg** | 1158.0 -> 1217.9 m (**+59.9**) |
+| ceffff34 | 7.5 m | **278 deg** | 1163.0 -> 1217.9 m (**+54.9**) |
+
+Bearing to objective 090; bearings travelled 264-278. Essentially 180 degrees opposed.
+Distance to the objective INCREASED for all five. Independently re-verified by the
+supervisor from the trace.
+
+TIMING TIES IT TO THE TASK. The order was published at 14:43:43.053 (c2sim-bus.log) =
+trace t=33.6 s. At t=41.7 s - about 8 s later - the cluster snapped 63 m west in a SINGLE
+2.0 s sample (~31 m/s). From t=43.8 s to t=180.1 s, 136 seconds, all four members are
+BIT-IDENTICAL in every fix. The cluster's geometry rotated from an east-west line to a
+north-south line while preserving its ~15 m spread.
+
+BEST OFFLINE READING (INFERRED, not established): this is a FORMATION REORGANIZE - the
+platoon shuffling into a march formation - and then nothing. The 90-degree rotation of a
+preserved spread supports it. What it is NOT is a road march: 63 m of a 1155 m route,
+executed as one snap, followed by 136 s of bit-frozen silence.
+
+THE AGGREGATE-REFLECTION EXCUSE IS DEAD. The obvious defence of the interface would be
+that tasked aggregates read stale while their members really drive (RUNBOOK sec 7 documents
+a real dynamic_cast<DtReflectedAggregate*> failure). Three independent facts kill it:
+  1. 114.MechCoy and ALL 37 of its co-located members hold ONE distinct lat/lon string
+     across all 76 fixes. There are no moving members to hide behind.
+  2. 1.BdeHQ is an ENTITY, not an aggregate. The cast problem cannot apply to it and it has
+     no members. It received MoveAlongRoute and moved zero bits.
+  3. WatchVrf's read path is demonstrably fine - it resolved sub-metre changes on 5 objects
+     in the same trace.
+Of the real-coordinate uuids, all but the 1222.MechPlt cluster are bit-exactly static.
 
 ## 3. *** CRITERION GAP FOUND BY THIS RUN - SINCE RULED AND APPLIED (see sec 7) ***
 
@@ -191,3 +232,57 @@ in exactly the right place, given the right route, and then do not drive it.
 This tightens the diagnosis considerably. Ruled OUT by this run: wrong spawn position,
 buried spawn, missing route, missing task issue, lying completion. What remains is
 specifically the EXECUTION of an issued MoveAlongRoute by a created unit.
+
+## 8. USER HYPOTHESIS TESTED: does the scenario inject behaviour? - REFUTED (2026-07-19)
+
+The project owner asked whether the Bogaland scenario TropicTortoise was generated from
+embeds a script that injects behaviour outside the C2SIM order, or picks entities with AI
+capabilities that act independently. Tested by reading the archive bytes. REFUTED.
+
+TropicTortoise.scnx, 11 members, all read:
+- **.pln = 36 bytes: "( (Plan-File (version \"2.0\")) )" - ZERO PLANS.** This also CLOSES the
+  ".pln plans unparsed" gap that groundwork 0.5 has carried since 2026-07-16. It was never
+  a gap with content behind it; the member is an empty header.
+- **.spt: <ScenarioScripts><count>0</count> - ZERO SCRIPTS.**
+- **.gui_settings: SystemScriptsAvailable count=0.**
+- .orb "(orbat )" empty; .ovl NumberOfStates 0; .sgr zero selection groups.
+- .scn master carries "(auto-reorganize False)".
+- **.oob defines exactly THREE objects** - GlblTerrDmg 1, GlobalEnv 1, Blocking Terrain
+  Page-In Area 1 - and every one has an EMPTY task-status-list, an EMPTY
+  suspended-task-list, empty engagement-zones, and "independently-tasked False". None is a
+  movable platform.
+- .xtr holds two stock spawn templates whose entity-plan fields are all USE-DEFAULT with
+  EMPTY sink-nodes and spawn-points, so nothing can spawn. Its CRC is byte-identical to
+  stock Rope_Demo.scnx - unmodified vendor default, not authored content.
+
+BOGALAND EXISTS AND IS EQUALLY INERT. Bogaland2.scnx is on disk. Its .oob differs from
+TropicTortoise in 47 trivial lines: three object-identifier renumberings and the page-in
+area relocated from 58.5558N,16.1678E (Sweden) to 34.615N,-116.55W (Fort Irwin / NTC).
+Identical uuids; identical CRCs on .ovl/.sgr/.osrx/.spt/.orb/.pln/.xtr. TropicTortoise IS
+Bogaland2 relocated, and Bogaland2's own .pln and .spt are empty too.
+
+NO DEFAULT BEHAVIOUR IN THE MODEL SET EITHER. C2simEx.sms -> EntityLevel.sms -> base.sms
+has zero matches for doctrine/behavior/plan/reactive/task-set. C2simEx/vrfSim/taskRules/
+and C2simEx/scriptedObjectMovement/ are BOTH EMPTY DIRECTORIES. The five Lua scripts under
+C2simEx/scripts/ are DtScriptedTaskMetaData with myMenuLocations - operator menu-invoked,
+no autostart.
+
+CONCLUSION: nothing in the loaded scenario, its Bogaland ancestor, or the simulation model
+set can task or move an entity. The four "independent movers" were not independent - two
+executors independently identified them as the member entities of tasked unit
+1222.MechPlt (sec 2). The hypothesis is refuted, but asking it is what produced the
+identification and closed the .pln gap.
+
+### Corrections to VRF_GROUND_TRUTH owed by this pass
+
+1. The 0.4 gate recorded TWO baseline objects. There are **THREE** (GlblTerrDmg, GlobalEnv,
+   Blocking Terrain Page-In Area).
+2. RUNBOOK 0.5.7 says "the TropicTortoise baseline objects are POSITIONLESS; that is simply
+   how they reflect". IMPRECISE. In the .oob, GlblTerrDmg and GlobalEnv sit at ECEF
+   (6378137,1,1) - a null-island placeholder, so effectively positionless as claimed. But
+   the Page-In Area carries a REAL authored position (34.615N, -116.55W) and still reflects
+   as lat=90/lon=-90, while GlobalEnv reflects NaN. Whether that is a WatchVrf decode fault
+   or the correct HLA behaviour for non-entity control objects is NOT settled here - an
+   area is not an entity and may legitimately not publish an entity state. Flagged, not
+   diagnosed. It does not affect the 0.5.7 pre-check design, which already treats a
+   degenerate pre-init result as expected.

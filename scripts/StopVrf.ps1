@@ -30,6 +30,27 @@
     with PW_RENDERFULLCONTENT returned an all-black bitmap (Qt/OpenGL surface).
     UIA is the reliable channel here.
 
+    BACK-END GRACEFUL CLOSE FALLBACK (added after the 2026-07-19 defect, run
+    20260719T144109Z): answering the dialog with "Quit All Back-Ends" = On does NOT
+    always carry the back-end. On that run vrfGui exited correctly and vrfSimHLA1516e
+    did not even BEGIN to shut down - it burned ~one full core across an 8 s sample,
+    still held ESTABLISHED TCP to 127.0.0.1:6003 (rtiAssistant) and 127.0.0.1:4001 plus
+    a bound UDP endpoint on 4001 (i.e. still JOINED to the federation), and owned no
+    modal window at all, only its own console. StopVrf waited out the full budget and
+    exited 3.
+
+    ROOT CAUSE UNKNOWN - do not pretend otherwise. The SAME script tore down an IDLE
+    instance in 6 s earlier the SAME day and failed on an instance that had just run a
+    full scenario, so it correlates with scenario activity, but nothing here has been
+    established as causal. Treat that correlation as a lead, not a diagnosis.
+
+    The fallback is the mechanism proven by hand on that instance: CloseMainWindow()
+    (WM_CLOSE) sent to the back-end's OWN window brought it down in five seconds,
+    cleanly, with all three RTI processes preserved. That is exactly the graceful
+    channel this script already uses on vrfGui, just aimed at the back-end. It is a
+    GRACEFUL REQUEST, not a kill: the back-end runs its own shutdown, leaves the
+    federation, and may still refuse - in which case the run still fails (exit 3).
+
     WHAT THIS SCRIPT WILL NEVER DO:
       - force-kill a JOINED federate (a hard non-negotiable; it is how stale-federate
         join hangs are created). Everything here is a graceful quit.
@@ -48,6 +69,11 @@
     and its state can persist from a previous session, so "do nothing" would NOT
     reliably mean "unticked".
 
+.PARAMETER BackEndCloseTimeoutSec
+    Budget for the BACK-END GRACEFUL CLOSE FALLBACK only (see below), spent after
+    TimeoutSec is already exhausted. It is deliberately separate so the fallback can
+    never eat into the main budget, and so a caller can size the two independently.
+
 .PARAMETER DryRun
     Report what is running and what WOULD be done for that exact state; change nothing.
 
@@ -58,7 +84,8 @@
           them apart; a dry run never changes state, so a caller that did not pass
           -DryRun cannot receive the dry-run flavour of 0.
       2 = bad arguments
-      3 = timed out waiting for processes to exit
+      3 = timed out waiting for processes to exit - INCLUDING after the back-end
+          graceful close fallback was tried and also timed out. Nothing was killed.
       4 = the confirm dialog appeared but could not be driven via UIA
       5 = an unexpected terminating error (assembly load failure, or a process that
           exited underneath us). Explicitly trapped so it can never surface as the
@@ -67,8 +94,9 @@
 #>
 [CmdletBinding()]
 param(
-    [int]    $TimeoutSec   = 60,
-    [bool]   $QuitBackEnds = $true,
+    [int]    $TimeoutSec              = 60,
+    [int]    $BackEndCloseTimeoutSec  = 30,
+    [bool]   $QuitBackEnds            = $true,
     [switch] $DryRun
 )
 
@@ -84,6 +112,10 @@ if ($TimeoutSec -lt 5 -or $TimeoutSec -gt 600) {
     Say-Fail "TimeoutSec must be between 5 and 600 (got $TimeoutSec)."
     exit 2
 }
+if ($BackEndCloseTimeoutSec -lt 5 -or $BackEndCloseTimeoutSec -gt 600) {
+    Say-Fail "BackEndCloseTimeoutSec must be between 5 and 600 (got $BackEndCloseTimeoutSec)."
+    exit 2
+}
 
 $procFrontend = 'vrfGui'
 $procBackend  = 'vrfSimHLA1516e'
@@ -92,9 +124,10 @@ $rtiNames     = @('rtiAssistant','rtiexec','rtiForwarder')
 $confirmTitle = 'Are You Sure?'
 
 Write-Host "=== StopVrf.ps1 - unattended VR-Forces shutdown ==="
-Write-Host ("  TimeoutSec   : {0} (covers dialog detection + answer + process exit)" -f $TimeoutSec)
-Write-Host ("  QuitBackEnds : {0}" -f $QuitBackEnds)
-Write-Host ("  DryRun       : {0}" -f [bool]$DryRun)
+Write-Host ("  TimeoutSec             : {0} (covers dialog detection + answer + process exit)" -f $TimeoutSec)
+Write-Host ("  BackEndCloseTimeoutSec : {0} (back-end graceful close fallback only)" -f $BackEndCloseTimeoutSec)
+Write-Host ("  QuitBackEnds           : {0}" -f $QuitBackEnds)
+Write-Host ("  DryRun                 : {0}" -f [bool]$DryRun)
 Write-Host ""
 
 # Everything from here can touch live processes / assemblies. Any terminating error
@@ -155,6 +188,11 @@ if ($DryRun) {
         Say-Ok ('would answer the "{0}" dialog via UIA: set "Quit All Back-Ends" = {1}, then Yes' -f $confirmTitle, $QuitBackEnds)
     } else {
         Say-Ok ('no front-end present, so the "{0}" confirm is not expected' -f $confirmTitle)
+    }
+    if ($be.Count -gt 0) {
+        Say-Ok ('if any {0} were still running after {1}s, would then send it a GRACEFUL CloseMainWindow and wait up to {2}s' -f $procBackend, $TimeoutSec, $BackEndCloseTimeoutSec)
+    } else {
+        Say-Ok ('no {0} present, so the back-end graceful close fallback is not expected' -f $procBackend)
     }
     Say-Ok 'RTI processes would NOT be touched. Nothing would be force-killed.'
     exit 0
@@ -303,6 +341,56 @@ while ((Get-Date) -lt $deadline) {
     Start-Sleep -Milliseconds 500
 }
 
+# --- back-end graceful close fallback ---
+# Reached only when the main budget is spent and a back-end is STILL up, i.e. the GUI
+# quit did not carry it (see the FALLBACK section of the header comment; root cause
+# unknown). This is a GRACEFUL WM_CLOSE to the back-end's own window - the same channel
+# already used on vrfGui - and it is the LAST escalation this script has.
+#
+# THERE IS DELIBERATELY NO FORCE-KILL PATH HERE, AND NONE MAY EVER BE ADDED - not
+# Stop-Process -Force, not taskkill /F, not "just as a last resort", not behind a flag.
+# The back-end is a JOINED federate; force-killing it strands the federation and creates
+# exactly the stale-federate join hangs this whole toolchain exists to avoid (RUNBOOK
+# sec 0). If the graceful close does not work, the CORRECT outcome is a non-zero exit
+# and a clear operator message, not a dead federate.
+$fallbackUsed = $false
+$beLeft = @(Get-Procs $procBackend)
+if ($beLeft.Count -gt 0) {
+    $fallbackUsed = $true
+    Write-Host ""
+    Write-Host "=== Back-end graceful close fallback ==="
+    $feLeft = @(Get-Procs $procFrontend)
+    if ($feLeft.Count -eq 0) {
+        Say-Warn ('the GUI quit did NOT carry the back-end: {0} is gone but {1} is still running.' -f $procFrontend, $procBackend)
+    } else {
+        Say-Warn ('{0} is still running AND {1} is still up - the GUI quit has not completed either.' -f $procBackend, $procFrontend)
+    }
+    Say-Warn 'escalating to a GRACEFUL CloseMainWindow on the back-end itself. Nothing is being killed.'
+
+    foreach ($p in $beLeft) {
+        try {
+            $sent = $p.CloseMainWindow()
+            if ($sent) { Say-Ok    ("fallback close request accepted by {0} pid={1}" -f $p.ProcessName, $p.Id) }
+            else       { Say-Warn ("fallback close request NOT accepted by {0} pid={1} - it reports no main window" -f $p.ProcessName, $p.Id) }
+        } catch {
+            Say-Warn ("{0} pid={1} exited before the fallback close request landed" -f $p.ProcessName, $p.Id)
+        }
+    }
+
+    # Its own bounded budget, spent only here, so it can never extend TimeoutSec silently.
+    $beDeadline = (Get-Date).AddSeconds($BackEndCloseTimeoutSec)
+    while ((Get-Date) -lt $beDeadline) {
+        if (@(Get-Procs $procBackend).Count -eq 0) { break }
+        Start-Sleep -Milliseconds 500
+    }
+
+    if (@(Get-Procs $procBackend).Count -eq 0) {
+        Say-Ok ('back-end exited after the graceful fallback (within {0}s). No force-kill was used.' -f $BackEndCloseTimeoutSec)
+    } else {
+        Say-Fail ('back-end STILL running {0}s after the graceful fallback close.' -f $BackEndCloseTimeoutSec)
+    }
+}
+
 # --- verify ---
 Write-Host ""
 Write-Host "=== Result ==="
@@ -314,11 +402,18 @@ foreach ($n in $rtiNames) {
 
 $left = @(@(Get-Procs $procFrontend) + @(Get-Procs $procBackend) + @(Get-Procs $procLauncher))
 if ($left.Count -eq 0) {
+    if ($fallbackUsed) {
+        Say-Ok 'VR-Forces is DOWN, but ONLY after the back-end graceful close fallback was needed.'
+        Say-Ok 'The GUI quit alone did not carry the back-end on this run - see the fallback section above.'
+    }
     Say-Ok 'VR-Forces is DOWN (graceful quit; no process was force-killed).'
     exit 0
 }
 
 foreach ($p in $left) { Say-Fail ("still running after {0}s: {1} pid={2}" -f $TimeoutSec, $p.ProcessName, $p.Id) }
+if ($fallbackUsed) {
+    Say-Fail ('the back-end graceful close fallback WAS used (extra {0}s) and did not clear it.' -f $BackEndCloseTimeoutSec)
+}
 
 # Report what is ACTUALLY on screen instead of guessing at a cause.
 $windows = Get-VrfWindows
