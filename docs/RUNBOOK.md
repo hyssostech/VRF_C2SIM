@@ -439,6 +439,32 @@ screenshot + coordinate clicking and this one must not. The two dialogs belong t
 DIFFERENT PROCESSES (rtiAssistant vs vrfGui) and behave differently; neither result
 predicts the other.
 
+*** FOURTH DATA POINT, 2026-07-19 - A MODAL THAT IS NOT A TOP-LEVEL WINDOW AT ALL, AND IT
+HUNG A LIVE TEARDOWN. Run 20260719T193252Z: StopVrf returned EXIT=3 leaving vrfGui alive,
+blocked by a dialog it could not see:
+    class    makVrf::DtNeverAskAgainMessageBox   (the SAME class as "Are You Sure?")
+    name     "Session Status"
+    text     "The current session has ended. Close current terrain?"
+    buttons  Close / Yes / No           checkbox "Execute session changes without prompting."
+WHY IT WAS INVISIBLE: it is a NESTED DESCENDANT of the vrfGui main window, not a top-level
+window. Enumerating top-level windows for the vrfGui process returns ONLY
+makVrf::DtVrfQtDeMainWindow; a TreeScope::Descendants search for ControlType Window finds
+"Session Status" plus three QDockWidgets. StopVrf's original search - the one that
+correctly finds "Are You Sure?" - is top-level and structurally cannot see this.
+WHEN IT FIRES: after StopIface drives the C2SIM server to UNINITIALIZED, VR-Forces treats
+the session as ended and raises it. It therefore fires on EVERY cleanly-torn-down
+unattended run. This is not an edge case.
+ANSWERED "No" - the application is being closed anyway, so leaving the terrain loaded is
+the smaller state change, and answering No unblocked the teardown by hand.
+DO NOT TICK "Execute session changes without prompting." It persistently mutates the
+user's VR-Forces configuration and would silently change future INTERACTIVE sessions too.
+The fix belongs in our script, not in their config.
+StopVrf now scans DESCENDANTS as well as top-level windows, logs EVERY nested window it
+finds with class/name/buttons even when it knows the answer, and REFUSES TO PRESS ANYTHING
+on a dialog it does not recognise - guessing a button on an unknown modal could do
+something destructive. Its timeout report no longer claims "the cause is NOT a modal
+dialog", which was exactly the false conclusion this defect produced. ***
+
 *** THIRD DATA POINT, 2026-07-19 - AND IT REFINES THE CONTRAST ABOVE. The rtiAssistant
 "MAK RTI Error Notification" dialog IS FULLY UIA-DRIVABLE, even though the rtiAssistant
 "Choose RTI Connection" dialog is NOT. So the split is NOT per-process as the paragraph

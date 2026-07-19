@@ -51,6 +51,40 @@
     GRACEFUL REQUEST, not a kill: the back-end runs its own shutdown, leaves the
     federation, and may still refuse - in which case the run still fails (exit 3).
 
+    NESTED "Session Status" MODAL (added after the 2026-07-19 defect, run
+    20260719T193252Z): StopVrf hung and exited 3 with vrfGui still alive because a
+    SECOND modal was blocking shutdown and this script could not see it:
+
+        class    = makVrf::DtNeverAskAgainMessageBox
+        name     = "Session Status"
+        text     = "The current session has ended.\nClose current terrain?"
+        buttons  = "Close", "Yes", "No"   (all enabled)
+        checkbox = "Execute session changes without prompting."
+
+    WHY IT WAS MISSED: that window is NOT top-level. It is a DESCENDANT of the vrfGui
+    main window (makVrf::DtVrfQtDeMainWindow). The "Are You Sure?" search walks TOP-LEVEL
+    windows via EnumWindows and structurally cannot see it. Verified by hand: enumerating
+    top-level windows for the vrfGui process returned ONLY the main window, while a
+    TreeScope::Descendants search for ControlType Window returned "Session Status" plus
+    three QDockWidgets.
+
+    WHEN IT FIRES: after StopIface drives the C2SIM server to UNINITIALIZED, VR-Forces
+    considers the session ended and raises this. It therefore fires on EVERY unattended
+    run that tears down cleanly - it is not an edge case.
+
+    HOW IT IS ANSWERED: "No" - do NOT close the terrain. The application is being closed
+    anyway, so that is the smaller state change, and it is the answer verified by hand to
+    unblock the teardown. The "Execute session changes without prompting." checkbox is
+    DELIBERATELY LEFT ALONE - see Answer-SessionStatusDialog.
+
+    ENUMERATE, NEVER PREDICT: RUNBOOK sec 0.5.9 records that UIA-drivability is NOT
+    predictable per process (rtiAssistant owns one dialog with a full UIA tree and one
+    without). So the descendant scan LOGS every window it finds - class, name and the
+    buttons available - even for dialogs it already knows how to answer. That log is how
+    the NEXT unknown modal gets diagnosed instead of causing another hang. A dialog the
+    script does not recognise is logged in full and left alone: it does NOT guess which
+    button to press, because guessing on an unknown modal could do something destructive.
+
     WHAT THIS SCRIPT WILL NEVER DO:
       - force-kill a JOINED federate (a hard non-negotiable; it is how stale-federate
         join hangs are created). Everything here is a graceful quit.
@@ -86,7 +120,8 @@
       2 = bad arguments
       3 = timed out waiting for processes to exit - INCLUDING after the back-end
           graceful close fallback was tried and also timed out. Nothing was killed.
-      4 = the confirm dialog appeared but could not be driven via UIA
+      4 = a confirm dialog appeared but could not be driven via UIA (its expected
+          button was absent from the UIA tree)
       5 = an unexpected terminating error (assembly load failure, or a process that
           exited underneath us). Explicitly trapped so it can never surface as the
           bare PowerShell exit 1, which would be indistinguishable from a generic
@@ -122,6 +157,8 @@ $procBackend  = 'vrfSimHLA1516e'
 $procLauncher = 'vrfLauncher'
 $rtiNames     = @('rtiAssistant','rtiexec','rtiForwarder')
 $confirmTitle = 'Are You Sure?'
+# Nested (NON-top-level) modal raised once the session ends - see the header comment.
+$sessionTitle = 'Session Status'
 
 Write-Host "=== StopVrf.ps1 - unattended VR-Forces shutdown ==="
 Write-Host ("  TimeoutSec             : {0} (covers dialog detection + answer + process exit)" -f $TimeoutSec)
@@ -185,9 +222,11 @@ if ($DryRun) {
         }
     }
     if ($fe.Count -gt 0) {
-        Say-Ok ('would answer the "{0}" dialog via UIA: set "Quit All Back-Ends" = {1}, then Yes' -f $confirmTitle, $QuitBackEnds)
+        Say-Ok ('would answer the top-level "{0}" dialog via UIA: set "Quit All Back-Ends" = {1}, then Yes' -f $confirmTitle, $QuitBackEnds)
+        Say-Ok ('would scan the main window''s DESCENDANTS for nested dialogs, log each one (class, name, buttons), and answer "{0}" with No - leaving the terrain open and the "Execute session changes without prompting." checkbox untouched' -f $sessionTitle)
+        Say-Ok 'any nested dialog NOT recognised would be logged in full and left alone - no button would be guessed.'
     } else {
-        Say-Ok ('no front-end present, so the "{0}" confirm is not expected' -f $confirmTitle)
+        Say-Ok ('no front-end present, so the "{0}" confirm and the nested "{1}" modal are not expected' -f $confirmTitle, $sessionTitle)
     }
     if ($be.Count -gt 0) {
         Say-Ok ('if any {0} were still running after {1}s, would then send it a GRACEFUL CloseMainWindow and wait up to {2}s' -f $procBackend, $TimeoutSec, $BackEndCloseTimeoutSec)
@@ -268,6 +307,94 @@ function Get-VrfWindows {
     return $script:vrfWindows
 }
 
+# Enumerate windows NESTED INSIDE the VR-Forces top-level windows. This is the companion
+# to Get-VrfWindows, NOT a replacement for it: EnumWindows sees only top-level windows and
+# is how the "Are You Sure?" confirm is found, which works. The "Session Status" modal is a
+# DESCENDANT of the vrfGui main window and is structurally invisible to that search - see
+# the NESTED "Session Status" MODAL section of the header comment.
+#
+# Deliberately NOT filtered to a known class or name. RUNBOOK sec 0.5.9: ENUMERATE, NEVER
+# PREDICT. Everything of ControlType Window under a VR-Forces top-level window is returned,
+# and the caller logs all of it - including the QDockWidgets, which are harmless but prove
+# the scan actually ran.
+#
+# Same single-element unrolling caveat as Get-Procs: call sites wrap in @(...).
+function Get-VrfNestedWindows {
+    $found = @()
+    $winCond = New-Object System.Windows.Automation.PropertyCondition(
+                   [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+                   [System.Windows.Automation.ControlType]::Window)
+    foreach ($w in @(Get-VrfWindows)) {
+        # Any of these can throw if the window dies mid-scan (this runs DURING a shutdown,
+        # so that is the normal case, not an exception). Skip and move on.
+        try { $root = [System.Windows.Automation.AutomationElement]::FromHandle($w.Handle) } catch { continue }
+        if ($null -eq $root) { continue }
+        try { $kids = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $winCond) } catch { continue }
+        foreach ($k in $kids) {
+            try {
+                $found += [pscustomobject]@{
+                    Element  = $k
+                    Name     = $k.Current.Name
+                    Class    = $k.Current.ClassName
+                    Handle   = $k.Current.NativeWindowHandle
+                    OwnerPid = $w.Pid
+                }
+            } catch { continue }
+        }
+    }
+    return @($found)
+}
+
+# The buttons a dialog ACTUALLY exposes, as text, for the log. Two jobs: it is the evidence
+# the next unknown modal gets diagnosed from, and its emptiness is what separates a real
+# prompt from a QDockWidget - observed, not predicted.
+function Get-DialogButtonNames {
+    param($element)
+    $names = @()
+    $btnCond = New-Object System.Windows.Automation.PropertyCondition(
+                   [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+                   [System.Windows.Automation.ControlType]::Button)
+    try { $btns = $element.FindAll([System.Windows.Automation.TreeScope]::Descendants, $btnCond) } catch { return @() }
+    foreach ($b in $btns) {
+        try {
+            if ($b.Current.IsEnabled) { $names += $b.Current.Name }
+            else                      { $names += ('{0} (disabled)' -f $b.Current.Name) }
+        } catch { continue }
+    }
+    return @($names)
+}
+
+function Answer-SessionStatusDialog {
+    param($element)
+
+    # ANSWER "No" - do NOT close the terrain. The application is being closed anyway, so
+    # this is the smaller state change, and it is the answer verified by hand on
+    # 2026-07-19 to unblock the teardown.
+    #
+    # THE "Execute session changes without prompting." CHECKBOX IS DELIBERATELY NOT TICKED,
+    # AND MUST NOT BE. Ticking it would suppress this prompt by MUTATING THE USER'S
+    # VR-FORCES CONFIGURATION PERSISTENTLY - outside this repo, for every future session,
+    # including interactive ones this script knows nothing about. The fix belongs in OUR
+    # script, which is what this function is. Do not "optimise" this by ticking the box.
+    #
+    # Matched on ControlType Button AND name, unlike the "Are You Sure?" path which matches
+    # on name alone: "No" is a short, generic string and this dialog also carries a "Close"
+    # button and a checkbox, so a name-only match has more room to hit the wrong element.
+    $noCond = New-Object System.Windows.Automation.AndCondition(
+                  (New-Object System.Windows.Automation.PropertyCondition(
+                      [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+                      [System.Windows.Automation.ControlType]::Button)),
+                  (New-Object System.Windows.Automation.PropertyCondition(
+                      [System.Windows.Automation.AutomationElement]::NameProperty, 'No')))
+    $no = $element.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $noCond)
+    if ($null -eq $no) {
+        Say-Fail ('the "No" button was not found in the "{0}" dialog UIA tree.' -f $sessionTitle)
+        exit 4
+    }
+    $no.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    Say-Ok ('answered No to "{0}" - terrain left open, no VR-Forces setting changed' -f $sessionTitle)
+}
+
 function Answer-ConfirmDialog {
     param($handle)
     $el = [System.Windows.Automation.AutomationElement]::FromHandle($handle)
@@ -311,8 +438,20 @@ function Answer-ConfirmDialog {
 # Dialogs are tracked BY WINDOW HANDLE, not by a single boolean latch. A permanent latch
 # meant that a second vrfGui's dialog, or an Invoke() that did not actually dismiss the
 # window, was ignored forever and guaranteed a timeout.
-$deadline = (Get-Date).AddSeconds($TimeoutSec)
-$answered = @{}
+#
+# Nested dialogs are tracked in the SAME $answered map, keyed by class|name|hwnd rather
+# than by hwnd alone: NativeWindowHandle is 0 for some UIA elements, so hwnd alone is not
+# a unique key for them. $logged / $unknownLogged keep the enumeration log to one line per
+# distinct window instead of one every scan.
+$deadline      = (Get-Date).AddSeconds($TimeoutSec)
+$answered      = @{}
+$logged        = @{}
+$unknownLogged = @{}
+
+# A Descendants FindAll over a Qt main window is far more expensive than EnumWindows, and
+# this loop ticks every 500 ms. Throttled to once every 2 s - well inside the seconds-scale
+# window in which a modal blocks shutdown, and it costs nothing when nothing is wrong.
+$nestedScanDue = Get-Date
 
 while ((Get-Date) -lt $deadline) {
     $stillUp = @(@(Get-Procs $procFrontend) + @(Get-Procs $procBackend) + @(Get-Procs $procLauncher))
@@ -338,6 +477,53 @@ while ((Get-Date) -lt $deadline) {
         # fault. They ARE reported - with full titles and handles - on the timeout
         # path below, which is the only place the information is actionable.
     }
+
+    # --- nested dialog scan (runs AFTER the top-level pass, which is untouched) ---
+    if ((Get-Date) -ge $nestedScanDue) {
+        $nestedScanDue = (Get-Date).AddSeconds(2)
+        foreach ($d in @(Get-VrfNestedWindows)) {
+            $key     = '{0}|{1}|{2}' -f $d.Class, $d.Name, $d.Handle
+            $buttons = @(Get-DialogButtonNames -element $d.Element)
+            $btnText = if ($buttons.Count -gt 0) { $buttons -join ', ' } else { '(none)' }
+
+            # Log EVERY nested window found, once, even the ones we know how to answer.
+            # This log is the diagnostic trail for the next unknown modal.
+            if (-not $logged.ContainsKey($key)) {
+                $logged[$key] = $true
+                Say-Ok ('nested window in pid {0}: class="{1}" name="{2}" hwnd={3} buttons=[{4}]' -f $d.OwnerPid, $d.Class, $d.Name, $d.Handle, $btnText)
+            }
+
+            if ($d.Name -eq $sessionTitle) {
+                if (-not $answered.ContainsKey($key)) {
+                    Say-Ok ('nested modal "{0}" detected (pid {1}) - answering No via UI Automation' -f $d.Name, $d.OwnerPid)
+                    try {
+                        Answer-SessionStatusDialog -element $d.Element
+                        $answered[$key] = $true
+                    } catch {
+                        # NOT exit 4 here, unlike the "No button missing" case inside
+                        # Answer-SessionStatusDialog. A throw at this point is usually a
+                        # stale element - the dialog closing under us, i.e. success - so
+                        # the key is left unset and the next scan retries. If it truly
+                        # never clears, the main timeout still reports it and exits 3.
+                        Say-Warn ('could not drive "{0}" this pass ({1}) - will retry' -f $d.Name, $_.Exception.Message)
+                    }
+                }
+            } elseif ($d.Name -eq $confirmTitle) {
+                # Answered by the top-level pass above; nothing to do here.
+            } elseif ($buttons.Count -gt 0 -and -not $unknownLogged.ContainsKey($key)) {
+                # An unrecognised window exposing invokable buttons is a CANDIDATE for a
+                # modal that blocks shutdown - not a diagnosis. Ordinary chrome qualifies
+                # too: a QDockWidget carries Close/Minimize buttons and is harmless. So
+                # report it in full and do nothing else. Pressing a button here would mean
+                # guessing on an unknown modal, which could do something destructive; the
+                # timeout is the correct outcome. A human reads this line and, if it turns
+                # out to matter, teaches the script to answer it by name.
+                $unknownLogged[$key] = $true
+                Say-Warn ('UNRECOGNISED nested window with buttons - NOT guessing a button. class="{0}" name="{1}" hwnd={2} buttons=[{3}]' -f $d.Class, $d.Name, $d.Handle, $btnText)
+            }
+        }
+    }
+
     Start-Sleep -Milliseconds 500
 }
 
@@ -422,9 +608,12 @@ if ($visible.Count -gt 0) {
     Say-Fail 'visible windows still owned by these processes:'
     foreach ($w in $visible) { Say-Fail ('    "{0}" (pid {1}, hwnd {2})' -f $w.Title, $w.Pid, $w.Handle) }
     Say-Fail 'If one of the above is a modal prompt this script does not answer (only'
-    Say-Fail ('"{0}" is handled), that is what is blocking the shutdown.' -f $confirmTitle)
+    Say-Fail ('"{0}" and the nested "{1}" are handled), that is what is blocking' -f $confirmTitle, $sessionTitle)
+    Say-Fail 'the shutdown.'
 } else {
-    Say-Fail 'no visible windows are owned by these processes - the cause is NOT a modal dialog.'
+    Say-Fail 'no visible TOP-LEVEL windows are owned by these processes. A nested modal is'
+    Say-Fail 'still possible - check the "nested window in pid" and "UNRECOGNISED nested'
+    Say-Fail 'window" lines above, which list every nested window found with its buttons.'
 }
 Say-Fail 'NOT force-killing - a joined federate must never be force-killed (RUNBOOK sec 0).'
 exit 3
