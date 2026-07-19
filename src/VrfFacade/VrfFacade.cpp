@@ -51,6 +51,9 @@
 #include <vrfutil/scenario.h>
 #include <matrix/geodeticCoord.h>
 #include <matrix/vlVector.h>
+#include <vl/baseEntityStateRepository.h> // location/lastSetLocation/lastSetVelocity
+#include <vlutil/vlFilename.h>            // DtFilename (logObjectConsoleToFile)
+#include <vlutil/vlPrint.h>               // DtNotifyLevelType (setObjectNotifyLevel)
 
 #include "remoteControlInit.h"
 
@@ -92,6 +95,49 @@ namespace {
                              g.lonDeg / kDegRadFactor,
                              g.altMeters);
         return geod.geocentric();
+    }
+
+    // Resolve the base state repository of a reflected object, from EITHER an entity or
+    // an aggregate. Extracted VERBATIM from TryGetEntityGeodetic (same three branches, same
+    // order, same fallback) so the motion reader below resolves exactly the same set of
+    // uuids; TryGetEntityGeodetic now calls this and is otherwise unchanged.
+    //
+    // The C++ oracle getUnitGeodeticFromSim static_cast'd every reflected object to
+    // DtReflectedEntity* (wrong-type UB for an aggregate, but it happened to yield a usable
+    // location, so the disaggregated aggregate 11.MechBn moved - PORT.md sec 5/8). This port
+    // handles the aggregate case PROPERLY: DtReflectedAggregate exposes aggregateStateRep(),
+    // whose DtAggregateStateRepository shares DtBaseEntityStateRepository::location() with an
+    // entity's DtEntityStateRepository - so both paths return the same geocentric vector.
+    // Without this, dynamic_cast<DtReflectedEntity*> returns null for an aggregate and the
+    // caller ABANDONS the task, breaking the golden aggregate-move.
+    //
+    // Parity fallback (third branch): live-verified here, the typed path resolves entities,
+    // but the aggregate dynamic_cast MISSES (concrete reflected type / RTTI across the MAK
+    // DLL boundary), so 14.MechBn abandoned. static_cast reads the same base-offset
+    // myStateRep, so location() still yields the object's location. See RUNBOOK sec 7.
+    DtBaseEntityStateRepository* resolveStateRep(DtReflectedObject* obj) {
+        if (!obj) return nullptr;
+        DtBaseEntityStateRepository* sr = nullptr;
+        if (DtReflectedEntity* ent = dynamic_cast<DtReflectedEntity*>(obj))
+            sr = ent->entityStateRep();
+        else if (DtReflectedAggregate* agg = dynamic_cast<DtReflectedAggregate*>(obj))
+            sr = agg->aggregateStateRep();
+        if (!sr)
+            sr = static_cast<DtReflectedEntity*>(obj)->entityStateRep();
+        return sr;
+    }
+
+    // Geocentric DtVector -> geodetic degrees/metres. Exactly the conversion
+    // TryGetEntityGeodetic has always performed, shared so raw and extrapolated
+    // readings cannot drift apart through a divergent copy.
+    vrf::Geodetic toGeodetic(const DtVector& geocentric) {
+        DtGeodeticCoord geod;
+        geod.setGeocentric(geocentric);
+        vrf::Geodetic g;
+        g.latDeg = geod.lat() * kDegRadFactor;
+        g.lonDeg = geod.lon() * kDegRadFactor;
+        g.altMeters = geod.alt();
+        return g;
     }
 
     // Free a DtList of DtVector* we allocated for createRoute/createControlArea.
@@ -273,6 +319,24 @@ static void objectConsoleMessageTrampoline(const DtUUID& id, int notifyLevel,
     }
 }
 
+// Backend Console message: the per-BACKEND (sim engine) console stream, registered
+// beside the per-object one so an empty object-console trace can be distinguished from
+// a dead delivery path. Direct controller callback with the exact
+// DtBackendConsoleMessageCallbackFcn signature (vrfRemoteController.h:116-118), so no
+// cast is needed. usr = this facade. DtSimulationAddress::string() is rendered to text
+// here (simulationAddress.h:62) - the facade boundary exposes no Dt* types.
+static void backendConsoleMessageTrampoline(const DtSimulationAddress& id, int notifyLevel,
+                                            const DtString& message, void* usr) {
+    VrfFacade* self = static_cast<VrfFacade*>(usr);
+    if (self && self->OnBackendConsoleMessage) {
+        BackendConsoleMessage ev;
+        ev.simAddress = id.string() ? id.string() : "";
+        ev.notifyLevel = notifyLevel;
+        ev.message = message.string() ? message.string() : "";
+        self->OnBackendConsoleMessage(ev);
+    }
+}
+
 // ------------------------------------------------------------------
 // VrfFacade
 // ------------------------------------------------------------------
@@ -344,6 +408,9 @@ bool VrfFacade::Start(const StartupConfig& cfg) {
     // Object Console per-unit warnings (groundwork plan 0.6). Direct controller callback
     // (exact DtObjectConsoleMessageCallbackFcn signature) - not a msgExec category.
     p_->controller->addObjectConsoleMessageCallback(objectConsoleMessageTrampoline, this);
+    // Backend (sim engine) console - the independent second stream. Additive: it raises
+    // OnBackendConsoleMessage only, which existing consumers leave unset.
+    p_->controller->addBackendConsoleMessageCallback(backendConsoleMessageTrampoline, this);
 
     // host address + uuid manager
     p_->controller->setHostInetAddr(&(std::string(cfg.hostInetAddr))[0]);
@@ -401,6 +468,8 @@ void VrfFacade::RegisterInboundCallbacks() {
     // Object Console per-unit warnings (groundwork plan 0.6) - mirrors Start(). textIf
     // never registered this callback, so there is no double-fire risk on the adopt path.
     p_->controller->addObjectConsoleMessageCallback(objectConsoleMessageTrampoline, this);
+    // Backend (sim engine) console - mirrors Start(); same no-double-fire reasoning.
+    p_->controller->addBackendConsoleMessageCallback(backendConsoleMessageTrampoline, this);
 }
 
 void VrfFacade::Tick() {
@@ -711,36 +780,59 @@ bool VrfFacade::TryGetEntityGeodetic(const std::string& uuid, Geodetic& out) con
     DtReflectedObject* obj = p_->uuidMgr->reflectedObjectFor(DtUUID(uuid));
     if (!obj) return false;
 
-    // Resolve the location from EITHER an entity or an aggregate. The C++ oracle
-    // getUnitGeodeticFromSim static_cast'd every reflected object to DtReflectedEntity*
-    // (wrong-type UB for an aggregate, but it happened to yield a usable location, so the
-    // disaggregated aggregate 11.MechBn moved - PORT.md sec 5/8). This port handles the
-    // aggregate case PROPERLY: DtReflectedAggregate exposes aggregateStateRep(), whose
-    // DtAggregateStateRepository shares DtBaseEntityStateRepository::location() with an
-    // entity's DtEntityStateRepository - so both paths return the same geocentric vector.
-    // Without this, dynamic_cast<DtReflectedEntity*> returns null for an aggregate and the
-    // caller ABANDONS the task, breaking the golden aggregate-move.
-    DtBaseEntityStateRepository* sr = nullptr;
-    if (DtReflectedEntity* ent = dynamic_cast<DtReflectedEntity*>(obj))
-        sr = ent->entityStateRep();
-    else if (DtReflectedAggregate* agg = dynamic_cast<DtReflectedAggregate*>(obj))
-        sr = agg->aggregateStateRep();
-    // Parity fallback: the C++ oracle getUnitGeodeticFromSim read the base state repository
-    // via a BLIND static_cast to DtReflectedEntity* and it worked for a disaggregated
-    // aggregate (11/14.MechBn moved, PORT.md sec 5). Live-verified here: the typed path
-    // resolves entities, but the aggregate dynamic_cast misses (concrete reflected type /
-    // RTTI across the MAK DLL boundary), so 14.MechBn abandoned. static_cast reads the same
-    // base-offset myStateRep, so location() still yields the object's location.
-    if (!sr)
-        sr = static_cast<DtReflectedEntity*>(obj)->entityStateRep();
+    // Resolve the location from EITHER an entity or an aggregate (see resolveStateRep;
+    // this is the same chain that used to be inlined here, moved out so the raw/
+    // extrapolated reader below shares it verbatim).
+    DtBaseEntityStateRepository* sr = resolveStateRep(obj);
     if (!sr) return false;
-    DtVector geoLocation = sr->location();
-    DtGeodeticCoord geod;
-    geod.setGeocentric(geoLocation);
-    out.latDeg = geod.lat() * kDegRadFactor;
-    out.lonDeg = geod.lon() * kDegRadFactor;
-    out.altMeters = geod.alt();
+    out = toGeodetic(sr->location());
     return true;
+}
+
+bool VrfFacade::TryGetEntityMotion(const std::string& uuid, Motion& out) const {
+    if (!p_->uuidMgr) return false;
+    DtReflectedObject* obj = p_->uuidMgr->reflectedObjectFor(DtUUID(uuid));
+    if (!obj) return false;
+
+    DtBaseEntityStateRepository* sr = resolveStateRep(obj);
+    if (!sr) return false;
+
+    // location() vs lastSetLocation(): the whole point of this function. The first is
+    // computed THROUGH the dead-reckoning approximator, the second is the value the
+    // network last actually delivered (baseEntityStateRepository.h:113 and :118). Both are
+    // declared on DtBaseEntityStateRepository, which is exactly the type resolveStateRep
+    // yields, so NO additional cast is required for either an entity or an aggregate.
+    Motion m;
+    m.extrapolated = toGeodetic(sr->location());
+    m.raw = toGeodetic(sr->lastSetLocation());
+
+    // lastSetVelocity() is a DtVector32 (float components), not a DtVector - the widening
+    // to double here is exact, but the values carry only float precision.
+    const DtVector32& v = sr->lastSetVelocity();
+    m.velXMetersPerSec = v.x();
+    m.velYMetersPerSec = v.y();
+    m.velZMetersPerSec = v.z();
+
+    // Committed only on full success, so a failed read never leaves the caller's struct
+    // half-updated (the caller keys off the bool, but partial writes invite misreads).
+    out = m;
+    return true;
+}
+
+void VrfFacade::LogObjectConsoleToFile(const std::string& uuid,
+                                       const std::string& filename) {
+    if (!p_->controller) return;
+    p_->controller->logObjectConsoleToFile(DtUUID(uuid), DtFilename(filename.c_str()));
+}
+
+void VrfFacade::SetObjectNotifyLevel(const std::string& uuid, int notifyLevel) {
+    if (!p_->controller) return;
+    // CLAMP rather than cast blindly: DtNotifyLevelType (vlutil/vlPrint.h:39) is a plain
+    // C enum with values 0..4 only, and the request is forwarded to every backend
+    // (DtSimSendToAll). An out-of-range value is not a representable enumerator.
+    int lvl = notifyLevel < 0 ? 0 : (notifyLevel > 4 ? 4 : notifyLevel);
+    p_->controller->setObjectNotifyLevel(DtUUID(uuid),
+                                         static_cast<DtNotifyLevelType>(lvl));
 }
 
 } // namespace vrf

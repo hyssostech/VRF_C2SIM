@@ -16,11 +16,27 @@ namespace WatchVrf;
 // Subordinate entities of disaggregated units ARE reflected objects, so this captures
 // the member-level picture the hung GUI cannot show (runaway vs scatter vs march).
 //
+// Beside every POS line it emits the SAME object's UN-EXTRAPOLATED state:
+//     RAW,<elapsed-seconds>,<uuid>,<rawLat>,<rawLon>,<rawAlt>,<velX>,<velY>,<velZ>
+// POS reports location() - the position computed THROUGH VR-Link's dead-reckoning
+// approximator. RAW reports lastSetLocation() and lastSetVelocity(): the values VR-Forces
+// last actually SENT (baseEntityStateRepository.h:118/:133). Same t, same uuid, so the two
+// are directly comparable - sustained POS-vs-RAW divergence indicts the approximator,
+// agreement exonerates it. lat/lon F6 and alt F1 exactly as POS formats them; velocity is
+// GEOCENTRIC m/s at F3 (an ECEF frame - velY is NOT "north"), float-precision at source.
+//
 // In parallel it subscribes to VR-Forces' Object Console channel (the yellow warning
 // badge - docs/VRF_GROUND_TRUTH.md sec 0.0/sec 7) and prints, on the SAME UTC clock base
 // as the POS lines, one line per captured message:
 //     CON,<elapsed-seconds>,<uuid>,<notifyLevel>,<escaped-message>
 // (message escaping: see ConFormat). One process, one timeline, both streams.
+//
+// It also subscribes to the BACKEND console - a second, INDEPENDENT console path, per sim
+// engine rather than per object:
+//     BCON,<elapsed-seconds>,<simAddress>,<notifyLevel>,<escaped-message>
+// This exists to disambiguate an empty CON stream: without it, "no warnings were raised"
+// and "warnings were raised but never delivered" are indistinguishable. Traffic on BCON
+// while CON stays silent localises the fault to the object-console delivery path.
 //
 // It ALSO consumes the two task/report events the facade already raises, so the trace can
 // answer whether VR-Forces ever ACCEPTED a tasking - a position-only trace cannot tell a
@@ -123,7 +139,8 @@ internal static class WatchRunner
             }
             bridge.BeginTrackingReflectedObjects();
             Console.WriteLine("[OK] joined; discovering + sampling (POS,t,uuid,lat,lon,alt ; "
-                            + "CON,t,uuid,level,msg ; TSK,t,marking,taskType ; RPT,t,text)...");
+                            + "RAW,t,uuid,lat,lon,alt,vx,vy,vz ; CON,t,uuid,level,msg ; "
+                            + "BCON,t,simAddr,level,msg ; TSK,t,marking,taskType ; RPT,t,text)...");
 
             var start = DateTime.UtcNow;
 
@@ -143,6 +160,27 @@ internal static class WatchRunner
                     // Never let a sink error cross back into VR-Forces' tick.
                     Emit(string.Create(CultureInfo.InvariantCulture,
                         $"# CON handler error: {ex.GetType().Name}: {ex.Message}"));
+                }
+            };
+
+            // BACKEND console stream, on the same clock base and through the same Emit lock.
+            // WHY: an empty CON stream is ambiguous - it cannot distinguish "VR-Forces raised
+            // no object-console warnings" from "warnings were raised but never delivered to
+            // us". BCON is an INDEPENDENT delivery path (per sim engine, not per object), so
+            // traffic here alongside an empty CON localises the fault to the object-console
+            // path. Subscribed before the tick loop for the same reason as CON, and wrapped in
+            // the same try/catch so a sink fault never crosses back into the native tick.
+            bridge.BackendConsoleMessage += (s, e) =>
+            {
+                try
+                {
+                    double tb = Math.Round((DateTime.UtcNow - start).TotalSeconds, 1);
+                    Emit(ConFormat.BackendLine(tb, e.SimAddress, e.NotifyLevel, e.Message));
+                }
+                catch (Exception ex)
+                {
+                    Emit(string.Create(CultureInfo.InvariantCulture,
+                        $"# BCON handler error: {ex.GetType().Name}: {ex.Message}"));
                 }
             };
 
@@ -204,6 +242,20 @@ internal static class WatchRunner
                     readable++;
                     Emit(string.Create(CultureInfo.InvariantCulture,
                         $"POS,{t},{u},{g.LatDeg:F6},{g.LonDeg:F6},{g.AltMeters:F1}"));
+
+                    // RAW,... paired with the POS line just emitted (same t, same uuid).
+                    // POS is location() - THROUGH the dead-reckoning approximator; RAW is
+                    // lastSetLocation()/lastSetVelocity() - what VR-Forces actually sent.
+                    // Emitted only on success and only AFTER the POS line, so POS's content,
+                    // ordering and field layout are byte-identical to before this addition.
+                    // TryGetEntityMotion resolves the same objects as TryGetEntityGeodetic, so
+                    // a failure here is not expected; it is tolerated silently rather than
+                    // suppressing the POS sample, because POS remains the primary oracle and
+                    // must not become dependent on the diagnostic stream succeeding.
+                    if (bridge.TryGetEntityMotion(u, out var m))
+                        Emit(ConFormat.RawLine(t, u,
+                                               m.Raw.LatDeg, m.Raw.LonDeg, m.Raw.AltMeters,
+                                               m.VelX, m.VelY, m.VelZ));
                 }
                 Emit(string.Create(CultureInfo.InvariantCulture,
                     $"# t={t}s reflected={uuids.Count()} readable={readable}"));

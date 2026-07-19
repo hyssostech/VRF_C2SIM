@@ -49,6 +49,19 @@ public value struct Geodetic {
     double AltMeters;
 };
 
+// Raw-vs-extrapolated motion sample for one object. Mirrors vrf::Motion.
+// Extrapolated is what TryGetEntityGeodetic returns (through the dead-reckoning
+// approximator); Raw is the value VR-Forces last actually sent (lastSetLocation).
+// Vel* are geocentric metres/second from lastSetVelocity() - float precision widened
+// to double, and NOT a local ENU frame (VelY is not "north").
+public value struct Motion {
+    Geodetic Extrapolated;
+    Geodetic Raw;
+    double VelX;
+    double VelY;
+    double VelZ;
+};
+
 public value struct EntityTypeSpec {
     int Kind;
     int Domain;
@@ -149,6 +162,16 @@ public:
     property String^ Message;     // console message text (unescaped)
 };
 
+// Per-BACKEND (sim engine) console message - the independent second console stream,
+// used to tell "no warnings raised" from "raised but not delivered". Mirrors
+// vrf::BackendConsoleMessage. Message is delivered UNESCAPED, like the object stream.
+public ref class BackendConsoleMessageEventArgs : EventArgs {
+public:
+    property String^ SimAddress;  // DtSimulationAddress string, e.g. "1:3201"
+    property int     NotifyLevel; // 0=fatal,1=warn,2=diag,3=verbose,4=debug
+    property String^ Message;     // console message text (unescaped)
+};
+
 // -- The managed bridge ----------------------------------------------
 
 public ref class VrfBridge {
@@ -172,6 +195,7 @@ public:
     event EventHandler^                          ScenarioClosed;
     event EventHandler<AvailableFormationsEventArgs^>^ AvailableFormations;
     event EventHandler<ObjectConsoleMessageEventArgs^>^ ObjectConsoleMessage;
+    event EventHandler<BackendConsoleMessageEventArgs^>^ BackendConsoleMessage;
 
     // -- lifecycle ---------------------------------------------------
     bool Start(StartupConfig^ cfg) {
@@ -362,6 +386,41 @@ public:
         return ok;
     }
 
+    // Extrapolated AND raw position/velocity for one object, side by side - the
+    // diagnostic that separates an approximator artefact from real (or absent) motion.
+    // Resolves exactly the same uuids as TryGetEntityGeodetic; Extrapolated equals what
+    // that method returns. Returns false with a zeroed result when the uuid does not resolve.
+    bool TryGetEntityMotion(String^ uuid,
+                            [System::Runtime::InteropServices::Out] Motion% result) {
+        vrf::Motion n;
+        bool ok = _facade->TryGetEntityMotion(ToStd(uuid), n);
+        Motion m;
+        m.Extrapolated.LatDeg = n.extrapolated.latDeg;
+        m.Extrapolated.LonDeg = n.extrapolated.lonDeg;
+        m.Extrapolated.AltMeters = n.extrapolated.altMeters;
+        m.Raw.LatDeg = n.raw.latDeg;
+        m.Raw.LonDeg = n.raw.lonDeg;
+        m.Raw.AltMeters = n.raw.altMeters;
+        m.VelX = n.velXMetersPerSec;
+        m.VelY = n.velYMetersPerSec;
+        m.VelZ = n.velZMetersPerSec;
+        result = m;
+        return ok;
+    }
+
+    // -- console diagnostics -----------------------------------------
+    // Ask the BACKEND simulating this object to write its object console to a file on
+    // the backend's own filesystem, bypassing the console network path entirely.
+    // Fire-and-forget: the API offers no acknowledgement, so an unwritable path is silent.
+    void LogObjectConsoleToFile(String^ uuid, String^ filename) {
+        _facade->LogObjectConsoleToFile(ToStd(uuid), ToStd(filename));
+    }
+    // Raise this object's console notify level so a low default threshold cannot be
+    // mistaken for silence. 0=fatal,1=warn,2=info(default),3=verbose,4=debug; clamped.
+    void SetObjectNotifyLevel(String^ uuid, int notifyLevel) {
+        _facade->SetObjectNotifyLevel(ToStd(uuid), notifyLevel);
+    }
+
 internal:
     // Called from the native callback thunks (below); construct args + raise the event.
     void RaiseObjectCreated(String^ name, String^ entityId, String^ uuid) {
@@ -391,6 +450,11 @@ internal:
         auto e = gcnew ObjectConsoleMessageEventArgs();
         e->Uuid = uuid; e->NotifyLevel = notifyLevel; e->Message = message;
         ObjectConsoleMessage(this, e);
+    }
+    void RaiseBackendConsoleMessage(String^ simAddress, int notifyLevel, String^ message) {
+        auto e = gcnew BackendConsoleMessageEventArgs();
+        e->SimAddress = simAddress; e->NotifyLevel = notifyLevel; e->Message = message;
+        BackendConsoleMessage(this, e);
     }
 
 private:
@@ -512,6 +576,14 @@ struct ObjectConsoleMessageThunk {
     }
 };
 
+struct BackendConsoleMessageThunk {
+    msclr::gcroot<VrfBridge^> self;
+    void operator()(const vrf::BackendConsoleMessage& m) const {
+        self->RaiseBackendConsoleMessage(marshal_as<String^>(m.simAddress), m.notifyLevel,
+                                         marshal_as<String^>(m.message));
+    }
+};
+
 } // anonymous namespace
 
 void VrfBridge::WireCallbacks() {
@@ -523,6 +595,8 @@ void VrfBridge::WireCallbacks() {
         AvailableFormationsThunk{ msclr::gcroot<VrfBridge^>(this) };
     _facade->OnObjectConsoleMessage =
         ObjectConsoleMessageThunk{ msclr::gcroot<VrfBridge^>(this) };
+    _facade->OnBackendConsoleMessage =
+        BackendConsoleMessageThunk{ msclr::gcroot<VrfBridge^>(this) };
 }
 
 } // namespace VrfC2Sim

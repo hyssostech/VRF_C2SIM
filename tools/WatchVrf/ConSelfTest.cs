@@ -5,8 +5,9 @@ namespace WatchVrf;
 
 // Offline check of the emitted trace line formatting (groundwork plan 0.6):
 //     WatchVrf --con-selftest
-// Covers CON,... (Object Console) plus the TSK,... / RPT,... task-completion and
-// text-report lines. The flag name is kept as --con-selftest deliberately: it is part of
+// Covers CON,... (Object Console) plus the BCON,... backend-console, TSK,... / RPT,...
+// task-completion and text-report, and RAW,... un-extrapolated motion lines.
+// The flag name is kept as --con-selftest deliberately: it is part of
 // WatchVrf's argument surface and renaming it would break existing callers.
 // Pure managed, no VrfBridge / MAK / live VR-Forces - so it runs without the native bridge
 // DLL on PATH. Matches the repo selftest convention (VrfC2SimApp/*SelfTest.cs): a static
@@ -126,6 +127,53 @@ public static class ConSelfTest
         //    that "unifies" the tags fails loudly instead of silently breaking consumers).
         CheckEq(ref failures, ConFormat.Line(1.0, "1:1:0:5", 1, "x"), "CON,1,1:1:0:5,1,\"x\"",
             "CON line format unchanged (append-only)");
+
+        // 10. RAW,... un-extrapolated position + velocity (paired with each POS sample).
+        //     9 fields, all unquoted. lat/lon F6 + alt F1 EXACTLY as POS formats them, so the
+        //     two lines are digit-for-digit comparable; velocity F3.
+        CheckEq(ref failures,
+            ConFormat.RawLine(12.5, "1:1:0:2001", 39.123456, -76.654321, 123.5, 1.5, -0.25, 0.0),
+            "RAW,12.5,1:1:0:2001,39.123456,-76.654321,123.5,1.500,-0.250,0.000",
+            "full RAW line (F6 lat/lon, F1 alt, F3 vel)");
+        {
+            var fields = ParseCsvLine(ConFormat.RawLine(3.0, "1:2:3:4", 1.0, 2.0, 3.0, 4.0, 5.0, 6.0));
+            Check(ref failures, fields.Count == 9, $"RAW parses to 9 CSV fields (got {fields.Count})");
+            if (fields.Count == 9)
+            {
+                CheckEq(ref failures, fields[0], "RAW", "RAW field0 = RAW");
+                CheckEq(ref failures, fields[2], "1:2:3:4", "RAW field2 = uuid");
+                CheckEq(ref failures, fields[3], "1.000000", "RAW field3 = rawLat (F6)");
+                CheckEq(ref failures, fields[5], "3.0", "RAW field5 = rawAlt (F1)");
+                CheckEq(ref failures, fields[8], "6.000", "RAW field8 = velZ (F3)");
+            }
+        }
+        // A RAW line must never be mistaken for a POS line and vice versa: different tag,
+        // different field count. This is the guard that keeps POS byte-compatible.
+        Check(ref failures,
+            !ConFormat.RawLine(1, "u", 0, 0, 0, 0, 0, 0).StartsWith("POS", StringComparison.Ordinal),
+            "RAW does not masquerade as POS");
+
+        // 11. BCON,... backend console lines. Same 5-field shape and escaping rule as CON,
+        //     but a DISTINCT tag - a consumer filtering field0 == "CON" must not pick these up.
+        CheckEq(ref failures, ConFormat.BackendLine(8.0, "1:3201", 1, "backend warn, \"x\""),
+            "BCON,8,1:3201,1,\"backend warn, \"\"x\"\"\"",
+            "full BCON line (comma + quote in message)");
+        {
+            var fields = ParseCsvLine(ConFormat.BackendLine(8.0, "1:3201", 1, "plain"));
+            Check(ref failures, fields.Count == 5, $"BCON parses to 5 CSV fields (got {fields.Count})");
+            if (fields.Count == 5)
+            {
+                CheckEq(ref failures, fields[0], "BCON", "BCON field0 = BCON");
+                CheckEq(ref failures, fields[2], "1:3201", "BCON field2 = simAddress");
+            }
+        }
+        {
+            string bMulti = ConFormat.BackendLine(1, "1:1", 0, "y\nz\r\nw");
+            Check(ref failures, !bMulti.Contains('\n') && !bMulti.Contains('\r'),
+                "BCON line has no raw CR/LF even for a multi-line message");
+        }
+        CheckEq(ref failures, ConFormat.BackendLine(1, "1:1", 0, null), "BCON,1,1:1,0,\"\"",
+            "BCON tolerates null message (-> empty field)");
 
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
         return failures == 0 ? 0 : 1;

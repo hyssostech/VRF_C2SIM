@@ -3,9 +3,16 @@ using System.Text;
 
 namespace WatchVrf;
 
-// CON,<t>,<uuid>,<level>,<message> line formatting for the Object Console capture stream
-// (groundwork plan 0.6). tools/WatchVrf emits these ALONGSIDE its POS,... lines, from the
-// same process and the same UTC clock base, so both streams share one timeline.
+// Trace-line formatting for every non-POS stream tools/WatchVrf emits. All of them share
+// one process and one UTC clock base with the POS,... lines, so the whole trace is a single
+// timeline:
+//   CON,...  Object Console messages, per unit          (groundwork plan 0.6)
+//   BCON,... Backend console messages, per sim engine   (independent second console path)
+//   TSK,...  task-completion events
+//   RPT,...  radio text-reports
+//   RAW,...  un-extrapolated position + velocity, paired with each POS sample
+// Each tag is DISTINCT and every format here is APPEND-ONLY: existing tags and their field
+// counts never change, so a consumer that filters on one tag ignores the rest untouched.
 //
 // This type is deliberately dependency-free (no VrfBridge / MAK references) so the
 // --con-selftest path can run fully offline without loading the native bridge DLL.
@@ -94,5 +101,51 @@ public static class ConFormat
     {
         return string.Create(CultureInfo.InvariantCulture,
             $"RPT,{t},{EscapeField(text)}");
+    }
+
+    // RAW,<t>,<uuid>,<rawLat>,<rawLon>,<rawAlt>,<velX>,<velY>,<velZ>
+    //   - one record per sampled object per sample tick, emitted ALONGSIDE that object's
+    //     POS line (same t, same uuid), never instead of it.
+    //
+    // WHY A SEPARATE LINE TYPE, NOT WIDER POS FIELDS: POS is the project's movement oracle
+    // and every existing consumer splits it into exactly 6 fields. Appending columns to POS
+    // would break all of them; a new tag is invisible to a parser that filters on "POS".
+    //
+    // WHAT THE FIELDS MEAN. POS carries location() - the position computed THROUGH VR-Link's
+    // dead-reckoning approximator. RAW carries lastSetLocation() and lastSetVelocity(): the
+    // values VR-Forces last actually SENT, with no extrapolation
+    // (baseEntityStateRepository.h:118 / :133). Comparing POS against RAW for the same
+    // (t, uuid) is the point of this stream: sustained disagreement indicts the approximator,
+    // agreement exonerates it and indicts something upstream.
+    //
+    // UNITS/PRECISION: lat/lon degrees at F6 and alt metres at F1, matching POS exactly so
+    // the two lines are directly comparable digit-for-digit. Velocity is GEOCENTRIC
+    // metres/second at F3 - an ECEF frame, NOT local ENU: velY is not "north". It also
+    // originates as float (DtVector32), so trailing digits carry float precision only.
+    //
+    // NO ESCAPING: every field is a number except uuid, which is VRF marking text (colons,
+    // structurally comma-free) - the same assumption POS has always made for the same field.
+    public static string RawLine(double t, string uuid,
+                                 double rawLat, double rawLon, double rawAlt,
+                                 double velX, double velY, double velZ)
+    {
+        return string.Create(CultureInfo.InvariantCulture,
+            $"RAW,{t},{uuid},{rawLat:F6},{rawLon:F6},{rawAlt:F1},{velX:F3},{velY:F3},{velZ:F3}");
+    }
+
+    // BCON,<t>,<simAddress>,<level>,<escaped-message> - one record per BACKEND console
+    // message (VrfBridge.BackendConsoleMessage), the per-sim-engine counterpart to CON.
+    //
+    // WHY: with only the CON stream, an empty console trace is ambiguous - "VR-Forces raised
+    // no warnings" and "warnings were raised but never reached us" are indistinguishable.
+    // BCON is an independent delivery path: traffic here while CON stays empty localises the
+    // fault to the object-console path rather than to VR-Forces' silence.
+    //
+    // Field 2 is the DtSimulationAddress string (e.g. "1:3201"), structurally comma-free like
+    // CON's uuid, so it is written raw; the message is escaped by the identical rule as CON.
+    public static string BackendLine(double t, string simAddress, int notifyLevel, string message)
+    {
+        return string.Create(CultureInfo.InvariantCulture,
+            $"BCON,{t},{simAddress},{notifyLevel},{EscapeField(message)}");
     }
 }
