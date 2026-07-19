@@ -244,6 +244,58 @@ Exit criteria / what this settles:
 
 ## Status
 
+- 2026-07-19 (OFFLINE): **ARGUMENT GUARDS LANDED AND VERIFIED; PASS CRITERION WRITTEN BUT
+  UNRATIFIED; VrfBridge TOOLCHAIN PROVEN HEALTHY. THE FIRST SCORED RUN HAS NOT RUN AND IS
+  HELD ON A USER RULING.** Commits 0ca46f0, 54a27f0. No live time consumed; appNo marker
+  still reads 3503 (nothing joined, nothing burned).
+  - GUARDS DONE (the blocker named in the entry below). StopIface no longer acts on a bare
+    invocation: the localhost defaults are GONE and an explicit --yes is required before any
+    PushCommand. IMPORTANT FRAMING CORRECTION - HEADLESS_RUN_PLAN sec 4 called this an
+    "argument guard" problem, and for StopIface it was not: args.Length==0 was the DEFAULT
+    HAPPY PATH, so a usage message alone would NOT have prevented the 2026-07-18 incident.
+    Also fixed: StopIface returned 0 unconditionally, so a silently failed teardown reported
+    success. It now verifies GetStatus()==UNINITIALIZED and returns 1 otherwise.
+    Contract across all tools: 0 success / 1 operational failure / 2 usage error, nothing done.
+    Supervisor re-ran every acceptance check by hand: 8 guard paths confirmed exit=2 with no
+    network contact (deliberately tested against a bogus port so a faulty guard would fail
+    harmlessly), builds Release 0 errors, ASCII clean.
+  - PASS CRITERION WRITTEN: HEADLESS_RUN_PLAN sec 4a now carries proposed arithmetic for
+    arrival (split entity 50 m vs unit 250 m per the leading-edge rule), moved-at-all
+    (>=25 m sustained over >=3 samples), runaway (>5x leg or >5 km from birth), DR-artifact
+    rejection, and completion trust. *** IT IS MARKED AWAITING USER RULING AND THE RUN IS
+    HELD ON IT. *** Do NOT run scored and then settle the numbers - that is this project's
+    documented failure mode. Weakest number, flagged in place: the 250 m unit tolerance,
+    because company formation depth may be comparable to the 556 m leg itself.
+  - FIRST-TARGET PREMISE CORRECTED. HEADLESS_RUN_PLAN sec 3 claims the Mojave pair gives
+    "a binary first result with no aggregation, no formation, and no controller-class
+    confound". FALSE, verified in the file: R9_Mojave_UnitMove_Order.xml has THREE tasks
+    against an ENTITY (1.BdeHQ), a COMPANY (114.MechCoy) and a PLATOON (1222.MechPlt), legs
+    577.8 / 556.0 / 577.8 m. All three are MOVE, so there is no VERB confound - but the
+    echelon/controller-class confound is exactly the axis the census could not de-confound
+    offline. Run 1 yields THREE scored results, not one binary. Use
+    R9_Mojave_Lean_Initialization.xml (6 units) not R9_Mojave_Initialization.xml (158).
+  - SCALE FACT worth carrying: the legs are ~556-578 m while every known failure phenomenon
+    is 18-100 km. Run 1 therefore CANNOT test the 18.1-18.4 km stall band at all.
+  - VrfBridge TOOLCHAIN IS HEALTHY - this retires the main risk on the raw-vs-DR oracle fix.
+    MSBuild 18.6.3.22110 at the documented VS18 path; full /t:Rebuild = EXIT 0, 0 errors, 9
+    seconds. CAUTION FOR WHOEVER REPEATS THIS: a plain build returns EXIT=0 in 2 seconds
+    having compiled NOTHING (everything up to date). That is a false green of the same shape
+    as the old reflected>0 criterion. Use /t:Rebuild or you have proven nothing.
+  - RAW-vs-DR ORACLE FIX SCOPED, NOT BUILT. It REQUIRES a native change - VrfFacade.cpp:737
+    `sr->location()` is the extrapolating read, and the raw DtVector never crosses the
+    managed boundary, so it cannot be done in C#. The good news: `lastSetLocation()` (:118)
+    and `lastSetVelocity()` (:133) are declared on DtBaseEntityStateRepository, which is
+    exactly the type VrfFacade.cpp:723 already holds, so it needs ZERO new casts and the
+    aggregate RTTI problem is already absorbed by the existing static_cast fallback.
+  - *** NEW HAZARD FOUND, UNRESOLVED, DECISION NEEDED: THE SEVEN VrfBridge.dll COPIES ARE
+    THREE DIFFERENT BUILDS. *** tools/ResetVrf runs a 2026-07-11 bridge (777,216 b) and
+    src/SmokeTest a 2026-07-09 one (769,536 b), while VrfC2SimApp / CreateOne / SetSimRate /
+    WatchVrf run 2026-07-18 (839,680 b). ResetVrf is the AUTOMATED STALE-FEDERATE RECOVERY
+    TOOL (sec 8) and it is executing native code a week older than the oracle it exists to
+    rescue. Nothing is committed (all DLLs are gitignored), so this drifted silently and
+    there is no known-good binary to revert to - rollback means rebuilding from a commit.
+    NOT "fixed" here on purpose: refreshing them changes the behavior of the recovery tool
+    and the smoke test without either being tested.
 - 2026-07-18 EVENING (RE-GROUNDING, user-directed): **THE EFFORT HAD DRIFTED OFF-MISSION.
   THE PRODUCT IS HEADLESS - C2SIM IN, SIMULATION RUNS, TELEMETRY VERIFIES, ZERO GUI.**
   New sec 1a (THE HEADLESS MANDATE) is now the governing statement; new
