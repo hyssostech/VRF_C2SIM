@@ -25,7 +25,7 @@ and confirmed present 2026-07-18; the four C2SIM tools were rebuilt that evening
 | 3 | Push C2SIM init | `tools/PushInit <init.xml>` | builds; NO ARG GUARD (sec 4) |
 | 4 | Push C2SIM order | `tools/PushOrder <order.xml>` | builds; NO ARG GUARD (sec 4) |
 | 5 | Measure execution | `tools/WatchVrf <appNo> <secs> <sample>` | VERIFIED oracle |
-| 6 | Capture outbound reports | `tools/ListenReports` | runs; targets net6.0 |
+| 6 | Capture outbound reports | `tools/ListenReports [secs] [outPath]` | net10.0; outPath added |
 | 7 | Clean stop | `tools/StopIface` | works; ACTS WITH NO ARGS (sec 4) |
 | 8 | Bring VR-Forces down | `scripts/StopVrf.ps1` | VERIFIED, EXIT=0 |
 
@@ -93,9 +93,15 @@ These are hazards specifically because the runner is unattended.
 - CONTRAST, and the pattern to copy: `tools/CreateOne` and `tools/SetSimRate` were built
   with NO default appNo and hard-exit 2 on bad arguments. That is the standard. Bring
   the C2SIM tools up to it: usage message, documented exit code, NO ACTION on bad args.
-- `tools/ListenReports` targets net6.0 while the rest target net10.0, and writes its
-  capture beside its own binary rather than to a run directory. The runner needs it to
-  write where it is told.
+- RESOLVED 2026-07-19: `tools/ListenReports` now targets net10.0 like the rest, and takes
+  an optional second argument `[outPath]` (file OR directory; missing parents created) so
+  the runner controls where the capture lands. With NO outPath the historical behavior is
+  unchanged: `reports-captured.log` beside the binary. Bad `[seconds]` now exits 2 with a
+  usage message instead of throwing `FormatException`. Same TryParse+exit-2 hardening was
+  applied to `tools/StompProbe`, and to `tools/WatchVrf`, whose TryParse calls previously
+  DISCARDED the bool result and so silently fell back to defaults on a typo - dangerous in
+  the movement oracle, because the trace would describe the wrong appNumber or cadence.
+  Each tool carries a LOCAL `Usage()` static; consolidate into a shared helper later.
 
 CONSOLE OUTPUT THAT TELLS A HUMAN TO LOOK AT THE GUI - fix before the runner ships,
 because these strings execute inside an unattended run where nobody reads the console,
@@ -119,22 +125,133 @@ A clean-context cold reader flagged this as the single biggest hole in the hando
 it is: this project's documented failure mode is inventing an acceptance criterion after
 seeing the data. DECIDE AND RECORD THE ARITHMETIC BEFORE RUNNING, in this file.
 
-What must be pinned down, none of which is currently written anywhere:
-- ARRIVAL: how close to the final waypoint counts as arrived? Note the vendor semantics
-  already established - a UNIT route completion is the formation LEADING EDGE at the
-  last vertex and is premature BY DESIGN (ground truth 0.0 item 5), while an ENTITY
-  at-distance task accepts an explicit arrival radius (0.3 setAtDistance). So the
-  tolerance is not one number; it differs for entity vs unit.
-- MOVED AT ALL: minimum cumulative displacement that distinguishes real motion from
-  jitter, and over what interval.
-- RUNAWAY: the containment rule Phase 4 already specifies - exceeding route length by a
-  factor, or leaving the AO radius. Pick the factor and the radius.
-- DR ARTIFACT vs REAL MOTION: transient out-and-back mega-jumps are suspected
-  observer-side dead-reckoning artifacts (ground truth 0.0 item 6). A short sample
-  interval (sampleSecs=2) makes the spiky-vs-smooth distinction resolvable. Decide how
-  the scorer rejects them rather than counting them as displacement.
-- COMPLETION TRUST: a TASKCMPLT is scored ONLY against displacement. Completions lie in
-  both directions and may never stand alone.
+*** STATUS 2026-07-19: numbers PROPOSED by the supervisor below, AWAITING USER RULING.
+    The first scored run is HELD until these are ruled on. Several are military-semantics
+    calls (what counts as "arrived" for a formation), which is the user's standing role.
+    Rule on them, amend them, or reject them - but they are fixed BEFORE the run, and any
+    change made AFTER data exists must be recorded here as a dated amendment with the
+    reason. That audit trail is the whole point of this section. ***
+
+### 4a.0 The first target, measured (not estimated)
+
+Read from data/R9_Mojave_UnitMove_Order.xml on 2026-07-19. IMPORTANT CORRECTION to sec 3,
+which calls this "a single unit move ... no aggregation, no formation, and no
+controller-class confound": the order contains THREE tasks against THREE taskees, all
+TaskActionCode MOVE, each a two-waypoint leg. Verb confound: none (all MOVE). Echelon /
+controller-class confound: PRESENT.
+
+| Taskee | UUID prefix | Expected actor | Geodesic leg |
+|--------|-------------|----------------|--------------|
+| 1.BdeHQ      | 670cfdb2 | ENTITY (lone platform) | 577.8 m |
+| 114.MechCoy  | 139aa71b | UNIT (company aggregate) | 556.0 m |
+| 1222.MechPlt | 001aa71b | UNIT (platoon aggregate) | 577.8 m |
+
+The ENTITY/UNIT column is EXPECTED, not verified - it follows the type-mapping analysis
+(BDE-echelon falls to a lone M1A2 entity; COY/PLT resolve to aggregates) and RUNBOOK
+sec 7, where 1.BdeHQ was tasked as an entity on 2026-07-10. Run 1 must CONFIRM the actor
+class per taskee from the trace before applying the entity-vs-unit tolerance below. If a
+taskee turns out to be the other class, score it under the other rule and note it.
+
+INIT FILE: use data/R9_Mojave_Lean_Initialization.xml (6 units, contains exactly these
+three taskees) rather than R9_Mojave_Initialization.xml (158 unit/actor references, full
+brigade org tree). Both contain all three taskee UUIDs - verified - so both work; the
+lean file removes 152 irrelevant units from the trace. Sec 3 names the full file; this
+supersedes it for run 1.
+
+SCALE NOTE, load-bearing for every threshold below: these legs are ~556-578 m. Every
+known failure phenomenon is 18-100 km (stall band 18.1-18.4 km; warp threshold 200 km/h;
+persistent runaways 41-83 km out). The expected signal is therefore two orders of
+magnitude SMALLER than the known noise. That is favorable - a warp is unmistakable
+against a 578 m leg - but it means the "did it move" floor must be set low, and it means
+run 1 CANNOT test the stall band at all.
+
+### 4a.1 ARRIVAL
+
+Two different rules, because the vendor semantics differ (ground truth 0.0 item 5).
+
+- ENTITY taskee: ARRIVED if the entity's final settled position is within **50 m** of the
+  task's final waypoint. Rationale: ~9% of a 578 m leg - comfortably above terrain-clamp
+  and sampling noise, comfortably below the leg length.
+- UNIT taskee: ARRIVED if the unit CENTER's final settled position is within **250 m** of
+  the final waypoint. Rationale: VR-Forces reports a unit route task finished when the
+  formation LEADING EDGE crosses the last vertex, verbatim from
+  [Tasks\MovementTasks\RouteMoveAlong.htm], so the center legitimately lags the waypoint
+  by up to the formation depth at completion. 250 m is a guess at company formation depth
+  and is THE WEAKEST NUMBER IN THIS SECTION - see 4a.6.
+- "Settled" = position changed by less than 10 m across the last 3 consecutive samples.
+- The leading-member distance to the final waypoint is RECORDED for every unit regardless,
+  so run 1 yields the data to calibrate the 250 m properly instead of guessing twice.
+
+### 4a.2 MOVED AT ALL
+
+- MOVED if net straight-line displacement from first to last settled position is
+  **>= 25 m** (~4.3% of the shortest leg), AND the displacement is sustained across at
+  least **3 consecutive samples** rather than appearing in a single sample.
+- The two-part test is what separates real motion from a one-sample spike. A single
+  sample that moves 25 m and returns is not motion.
+- Sample interval **2 s** (sampleSecs=2), per sec 2.
+- NOT MOVED with a task dispatched is the "mute unit" defect (census: 11 tasked,
+  7 dispatched, 3 moved). It is a recorded RESULT, not a run failure.
+
+### 4a.3 RUNAWAY
+
+- RUNAWAY if net displacement exceeds **5x the ordered leg length** (i.e. > ~2.9 km for
+  these legs) OR the object leaves a **5 km radius** around its own birth position.
+- Both are enormous relative to a 578 m leg and tiny relative to the observed 41-83 km
+  persistent runaways, so the classification is unambiguous at this scale. The factor
+  will need revisiting for long-leg scenarios; it is not a universal constant.
+- A runaway is a FAILED task regardless of what any TASKCMPLT says.
+
+### 4a.4 DR ARTIFACT vs REAL MOTION
+
+The oracle reads dead-reckoned positions, so some apparent motion is observation-layer
+extrapolation, not backend motion (ground truth 0.0 item 6; census sec at :351-388).
+
+- A sample is a CANDIDATE ARTIFACT if the implied step speed is **>= 200 km/h**
+  (census threshold, sim-time corrected so it is multiplier-independent).
+- It is classified TRANSIENT (reject from displacement totals, but LOG it) if the object
+  returns to within **100 m of its pre-jump track within 2 samples**.
+- It is classified PERSISTENT (count it - this is the real runaway class) if it does not
+  return. Persistent displaced end-states are NOT explainable as DR overshoot.
+- Corroborating signal, recorded not decisive: altitude leaving the terrain surface
+  (observed 3417-6356 m spikes on transients; -1306/-1681 m underground on persistents).
+- IF the WatchVrf raw-vs-DR logging lands (sec 4b), this whole heuristic is REPLACED by
+  the direct comparison of lastSetLocation() against the extrapolated read, which settles
+  the question by measurement instead of by threshold. Prefer that if available.
+
+### 4a.5 COMPLETION TRUST
+
+A TASKCMPLT is scored ONLY against displacement, never on its own. Four outcomes, all
+recorded per task:
+
+- ARRIVED + TASKCMPLT      -> TRUE COMPLETION (the only good outcome)
+- ARRIVED + no TASKCMPLT   -> MISSING COMPLETION (known defect: ESCRT/patrol never fire)
+- not ARRIVED + TASKCMPLT  -> FALSE COMPLETION (known defect, and the dangerous one -
+                              it is what makes a task chain advance on a lie)
+- not ARRIVED + no TASKCMPLT -> HONEST FAILURE
+
+### 4a.6 What run 1 is FOR, and what "pass" means
+
+Run 1 is a MEASUREMENT, not a product acceptance test. Conflating the two is how an
+acceptance criterion gets retro-fitted to the data. Two separate gates:
+
+- RUN VALIDITY (does the run count at all?): VR-Forces launched, the interface joined,
+  the init was accepted by the server, the order was received and parsed, the oracle
+  pre-check passed (a POS line with real non-NaN non-pole lat/lon, retried up to ~3 min),
+  the trace covers the whole run, and teardown left no stale federate. If any of these
+  fail, there is NO SCORE - fix and re-run. A failed run is not a failed product.
+- PER-TASK SCORE (what did the product actually do?): each of the three tasks gets one of
+  the 4a.5 outcomes plus its 4a.1/4a.2/4a.3 measurements. THERE IS NO AGGREGATE
+  PASS/FAIL THRESHOLD FOR RUN 1 and none should be invented. The deliverable is the
+  three-row table and the baseline it establishes.
+
+The number most likely to be wrong here is the 250 m unit-arrival tolerance, because
+formation depth for a company may be comparable to the 556 m leg itself - in which case
+a unit could legitimately complete its route with its center barely past the start. If
+run 1 shows leading-member-arrived but center-displacement under ~100 m, that is the
+signal that the tolerance, not the interface, is what needs fixing. Recording the
+leading-member distance (4a.1) is what makes that diagnosable on the first run instead
+of the second.
 
 ## 5. What is explicitly NOT next
 

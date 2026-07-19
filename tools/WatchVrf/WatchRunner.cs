@@ -36,14 +36,57 @@ namespace WatchVrf;
 // Defaults: 3399, 120, 15, CWIX-2024.
 internal static class WatchRunner
 {
+    // NOTE: the local Usage() helper duplicates a pattern now present in several tools
+    // (SetSimRate, ListenReports, StompProbe). Consolidate into tools/Shared/ToolArgs.cs later.
+    private static int Usage(string problem)
+    {
+        Console.Error.WriteLine($"[FAIL] {problem}");
+        Console.Error.WriteLine();
+        Console.Error.WriteLine("usage: WatchVrf.exe [applicationNumber] [durationSecs] [sampleSecs] [federation]");
+        Console.Error.WriteLine("       WatchVrf.exe --con-selftest");
+        Console.Error.WriteLine();
+        Console.Error.WriteLine("  applicationNumber  Optional. Integer 1..65535. Default 3399.");
+        Console.Error.WriteLine("                     Use a FRESH, ledgered appNo every run (RUNBOOK sec 7).");
+        Console.Error.WriteLine("  durationSecs       Optional. Whole number > 0. Default 120.");
+        Console.Error.WriteLine("  sampleSecs         Optional. Whole number > 0. Default 15.");
+        Console.Error.WriteLine("  federation         Optional. Default 'CWIX-2024'.");
+        Console.Error.WriteLine();
+        Console.Error.WriteLine("WatchVrf is the MOVEMENT ORACLE: an unparseable argument is a HARD FAILURE,");
+        Console.Error.WriteLine("never a silent fallback to a default, because the resulting trace would");
+        Console.Error.WriteLine("describe something other than what the caller asked to observe.");
+        Console.Error.WriteLine();
+        Console.Error.WriteLine("examples:  WatchVrf.exe 3399 120 15");
+        Console.Error.WriteLine("           WatchVrf.exe 3401 600 5 CWIX-2024");
+        return 2;
+    }
+
     public static int Run(string[] args)
     {
         var positional = args.Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToArray();
         int appNumber = 3399, durationSecs = 120, sampleSecs = 15;
         string federation = "CWIX-2024";
-        if (positional.Length >= 1) int.TryParse(positional[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out appNumber);
-        if (positional.Length >= 2) int.TryParse(positional[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out durationSecs);
-        if (positional.Length >= 3) int.TryParse(positional[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out sampleSecs);
+
+        // HARD-FAIL on unparseable input. Previously these were TryParse calls whose bool
+        // result was DISCARDED, so a typo silently produced a trace of the wrong appNumber
+        // or the wrong sample cadence while still reporting success.
+        if (positional.Length >= 1 &&
+            !int.TryParse(positional[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out appNumber))
+            return Usage($"applicationNumber '{positional[0]}' is not an integer.");
+        if (positional.Length >= 1 && (appNumber <= 0 || appNumber > 65535))
+            return Usage($"applicationNumber {appNumber} is out of range (expected 1..65535).");
+
+        if (positional.Length >= 2 &&
+            !int.TryParse(positional[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out durationSecs))
+            return Usage($"durationSecs '{positional[1]}' is not an integer.");
+        if (positional.Length >= 2 && durationSecs <= 0)
+            return Usage($"durationSecs must be greater than 0; got {durationSecs}.");
+
+        if (positional.Length >= 3 &&
+            !int.TryParse(positional[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out sampleSecs))
+            return Usage($"sampleSecs '{positional[2]}' is not an integer.");
+        if (positional.Length >= 3 && sampleSecs <= 0)
+            return Usage($"sampleSecs must be greater than 0; got {sampleSecs}.");
+
         if (positional.Length >= 4 && !string.IsNullOrWhiteSpace(positional[3])) federation = positional[3];
 
         var cfg = new StartupConfig

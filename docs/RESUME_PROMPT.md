@@ -218,8 +218,9 @@ KNOWN RESIDUAL DEFECTS (recorded, deliberately not all fixed):
   timeout for a back-end it never launched then reports a wrong diagnosis; its
   "VR-Forces/RTI processes ALREADY running" warning inspects only the three VR-Forces
   names, never any rti* process.
-- tools/ListenReports targets net6.0 while the rest target net10.0, and writes its
-  capture beside its own binary rather than to a caller-specified run directory.
+- RESOLVED 2026-07-19: tools/ListenReports now targets net10.0 and takes an optional
+  [outPath] second argument (file OR directory; parents created). With no outPath it
+  still writes reports-captured.log beside its binary, exactly as before.
 - tools/CreateOne hard-codes the M1A2 DIS type with no override.
 - LaunchVrf.ps1:293 assigns $assistUnanswered and NEVER USES IT (PSScriptAnalyzer). That
   variable is part of the unanswered-RTI-assistant detection, so the check it feeds may be
@@ -259,8 +260,8 @@ BUILDING (nothing here needs VR-Forces running):
     dotnet build src\VrfC2SimApp\VrfC2SimApp.csproj -c Release
     dotnet build tools\<Name>\<Name>.csproj -c Release
 Built exes land under tools\<Name>\bin\Release\<tfm>\... - the TFM VARIES (most are
-net10.0/win-x64; ListenReports is net6.0), so locate with Get-ChildItem -Recurse rather
-than hard-coding a path.
+net10.0/win-x64; some are plain net10.0 with no RID), so locate with Get-ChildItem
+-Recurse rather than hard-coding a path.
 
 TOOL INVOCATIONS (all from cwd C:\MAK\vrforces5.0.2\bin64 with the RTI env of RUNBOOK
 sec 7; every one that JOINS needs its own FRESH LEDGERED appNo):

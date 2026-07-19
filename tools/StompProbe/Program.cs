@@ -1,3 +1,4 @@
+using System.Globalization;
 using C2SIM;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -5,7 +6,33 @@ using Microsoft.Extensions.Logging.Abstractions;
 // .NET SDK STOMP path receives server broadcasts (init/order/report/status).
 //   StompProbe [seconds] [protocolVersion] [restPassword]
 // Defaults to the TOOL settings that ListenReports/PushInit use (known to work).
-int secs = args.Length > 0 ? int.Parse(args[0]) : 60;
+//
+// NOTE: the local Usage() helper below duplicates a pattern now present in several tools
+// (SetSimRate, ListenReports, WatchVrf). Consolidate into tools/Shared/ToolArgs.cs later.
+
+static int Usage(string problem)
+{
+    Console.Error.WriteLine($"[FAIL] {problem}");
+    Console.Error.WriteLine();
+    Console.Error.WriteLine("usage: StompProbe.exe [seconds] [protocolVersion] [restPassword]");
+    Console.Error.WriteLine();
+    Console.Error.WriteLine("  seconds          Optional. Whole number > 0. Default 60.");
+    Console.Error.WriteLine("  protocolVersion  Optional. Default 'CWIX2024v1.0.2'.");
+    Console.Error.WriteLine("  restPassword     Optional. Default is the known-good tool password.");
+    Console.Error.WriteLine();
+    Console.Error.WriteLine("examples:  StompProbe.exe");
+    Console.Error.WriteLine("           StompProbe.exe 120");
+    return 2;
+}
+
+int secs = 60;
+if (args.Length > 0)
+{
+    if (!int.TryParse(args[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out secs))
+        return Usage($"seconds '{args[0]}' is not an integer.");
+    if (secs <= 0)
+        return Usage($"seconds must be greater than 0; got {secs}.");
+}
 string version = args.Length > 1 ? args[1] : "CWIX2024v1.0.2";
 string password = args.Length > 2 ? args[2] : "v0lgenau";
 
