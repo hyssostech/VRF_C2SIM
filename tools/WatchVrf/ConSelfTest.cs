@@ -5,9 +5,8 @@ namespace WatchVrf;
 
 // Offline check of the emitted trace line formatting (groundwork plan 0.6):
 //     WatchVrf --con-selftest
-// Covers CON,... (Object Console) plus the BCON,... backend-console, TSK,... / RPT,...
-// task-completion and text-report, and RAW,... un-extrapolated motion lines.
-// The flag name is kept as --con-selftest deliberately: it is part of
+// Covers CON,... (Object Console) plus the TSK,... / RPT,... task-completion and
+// text-report lines. The flag name is kept as --con-selftest deliberately: it is part of
 // WatchVrf's argument surface and renaming it would break existing callers.
 // Pure managed, no VrfBridge / MAK / live VR-Forces - so it runs without the native bridge
 // DLL on PATH. Matches the repo selftest convention (VrfC2SimApp/*SelfTest.cs): a static
@@ -127,95 +126,6 @@ public static class ConSelfTest
         //    that "unifies" the tags fails loudly instead of silently breaking consumers).
         CheckEq(ref failures, ConFormat.Line(1.0, "1:1:0:5", 1, "x"), "CON,1,1:1:0:5,1,\"x\"",
             "CON line format unchanged (append-only)");
-
-        // 10. RAW,... un-extrapolated position + velocity (paired with each POS sample).
-        //     9 fields, all unquoted. lat/lon F6 + alt F1 EXACTLY as POS formats them, so the
-        //     two lines are digit-for-digit comparable; velocity F3.
-        CheckEq(ref failures,
-            ConFormat.RawLine(12.5, "1:1:0:2001", 39.123456, -76.654321, 123.5, 1.5, -0.25, 0.0),
-            "RAW,12.5,1:1:0:2001,39.123456,-76.654321,123.5,1.500,-0.250,0.000",
-            "full RAW line (F6 lat/lon, F1 alt, F3 vel)");
-        {
-            var fields = ParseCsvLine(ConFormat.RawLine(3.0, "1:2:3:4", 1.0, 2.0, 3.0, 4.0, 5.0, 6.0));
-            Check(ref failures, fields.Count == 9, $"RAW parses to 9 CSV fields (got {fields.Count})");
-            if (fields.Count == 9)
-            {
-                CheckEq(ref failures, fields[0], "RAW", "RAW field0 = RAW");
-                CheckEq(ref failures, fields[2], "1:2:3:4", "RAW field2 = uuid");
-                CheckEq(ref failures, fields[3], "1.000000", "RAW field3 = rawLat (F6)");
-                CheckEq(ref failures, fields[5], "3.0", "RAW field5 = rawAlt (F1)");
-                CheckEq(ref failures, fields[8], "6.000", "RAW field8 = velZ (F3)");
-            }
-        }
-        // A RAW line must never be mistaken for a POS line and vice versa: different tag,
-        // different field count. This is the guard that keeps POS byte-compatible.
-        Check(ref failures,
-            !ConFormat.RawLine(1, "u", 0, 0, 0, 0, 0, 0).StartsWith("POS", StringComparison.Ordinal),
-            "RAW does not masquerade as POS");
-
-        // 11. BCON,... backend console lines. Same 5-field shape and escaping rule as CON,
-        //     but a DISTINCT tag - a consumer filtering field0 == "CON" must not pick these up.
-        CheckEq(ref failures, ConFormat.BackendLine(8.0, "1:3201", 1, "backend warn, \"x\""),
-            "BCON,8,1:3201,1,\"backend warn, \"\"x\"\"\"",
-            "full BCON line (comma + quote in message)");
-        {
-            var fields = ParseCsvLine(ConFormat.BackendLine(8.0, "1:3201", 1, "plain"));
-            Check(ref failures, fields.Count == 5, $"BCON parses to 5 CSV fields (got {fields.Count})");
-            if (fields.Count == 5)
-            {
-                CheckEq(ref failures, fields[0], "BCON", "BCON field0 = BCON");
-                CheckEq(ref failures, fields[2], "1:3201", "BCON field2 = simAddress");
-            }
-        }
-        {
-            string bMulti = ConFormat.BackendLine(1, "1:1", 0, "y\nz\r\nw");
-            Check(ref failures, !bMulti.Contains('\n') && !bMulti.Contains('\r'),
-                "BCON line has no raw CR/LF even for a multi-line message");
-        }
-        CheckEq(ref failures, ConFormat.BackendLine(1, "1:1", 0, null), "BCON,1,1:1,0,\"\"",
-            "BCON tolerates null message (-> empty field)");
-
-        // 12. CONARM,... backend-side console arming records (--console-log-dir).
-        //     4 fields; the path is quoted because a directory name may contain a comma.
-        CheckEq(ref failures, ConFormat.ArmLine(6.0, "1:1:0:2001", @"C:\runs\console\console-1_1_0_2001.log"),
-            "CONARM,6,1:1:0:2001,\"C:\\\\runs\\\\console\\\\console-1_1_0_2001.log\"",
-            "full CONARM line (backslashes doubled by the standard escape rule)");
-        {
-            var fields = ParseCsvLine(ConFormat.ArmLine(6.0, "1:1:0:2001", "/tmp/a,b/console.log"));
-            Check(ref failures, fields.Count == 4, $"CONARM parses to 4 CSV fields (got {fields.Count})");
-            if (fields.Count == 4)
-            {
-                CheckEq(ref failures, fields[0], "CONARM", "CONARM field0 = CONARM");
-                CheckEq(ref failures, fields[2], "1:1:0:2001", "CONARM field2 = uuid (raw)");
-                CheckEq(ref failures, fields[3], "/tmp/a,b/console.log",
-                    "CONARM field3 = path, comma and all, in ONE field");
-            }
-        }
-        // CONARM must not be mistaken for CON by a consumer that compares the tag: a naive
-        // StartsWith("CON") filter WOULD match it, so the guard here is on the parsed field.
-        {
-            var fields = ParseCsvLine(ConFormat.ArmLine(1, "u", "p"));
-            Check(ref failures, fields[0] != "CON", "CONARM field0 is not 'CON' (distinct tag)");
-        }
-
-        // 13. Uuid -> filename sanitisation. Colons are ILLEGAL in Windows filenames and would
-        //     make the backend's write a silent no-op, which is the one failure this feature
-        //     must never produce (an unwritten file would read as "nothing was raised").
-        CheckEq(ref failures, ConFormat.SafeUuidForFilename("1:1:0:2001"), "1_1_0_2001",
-            "uuid colons -> underscores");
-        CheckEq(ref failures, ConFormat.SafeUuidForFilename("a.b-c_1"), "a.b-c_1",
-            "safe characters (. - _ alnum) pass through unchanged");
-        CheckEq(ref failures, ConFormat.SafeUuidForFilename("a/b\\c*d?e\"f<g>h|i j"),
-            "a_b_c_d_e_f_g_h_i_j", "every other reserved/space character -> underscore");
-        CheckEq(ref failures, ConFormat.SafeUuidForFilename(""), "empty",
-            "empty uuid -> a non-empty placeholder (never a bare 'console-.log')");
-        CheckEq(ref failures, ConFormat.SafeUuidForFilename(null), "empty",
-            "null uuid -> the same placeholder");
-        {
-            string safe = ConFormat.SafeUuidForFilename("1:1:0:2001");
-            Check(ref failures, safe.IndexOfAny(Path.GetInvalidFileNameChars()) < 0,
-                "sanitised uuid contains no Path.GetInvalidFileNameChars()");
-        }
 
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
         return failures == 0 ? 0 : 1;

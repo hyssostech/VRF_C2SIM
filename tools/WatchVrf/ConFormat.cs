@@ -3,17 +3,9 @@ using System.Text;
 
 namespace WatchVrf;
 
-// Trace-line formatting for every non-POS stream tools/WatchVrf emits. All of them share
-// one process and one UTC clock base with the POS,... lines, so the whole trace is a single
-// timeline:
-//   CON,...  Object Console messages, per unit          (groundwork plan 0.6)
-//   BCON,... Backend console messages, per sim engine   (independent second console path)
-//   TSK,...  task-completion events
-//   RPT,...  radio text-reports
-//   RAW,...  un-extrapolated position + velocity, paired with each POS sample
-//   CONARM,... one record per uuid armed for BACKEND-SIDE console capture (--console-log-dir)
-// Each tag is DISTINCT and every format here is APPEND-ONLY: existing tags and their field
-// counts never change, so a consumer that filters on one tag ignores the rest untouched.
+// CON,<t>,<uuid>,<level>,<message> line formatting for the Object Console capture stream
+// (groundwork plan 0.6). tools/WatchVrf emits these ALONGSIDE its POS,... lines, from the
+// same process and the same UTC clock base, so both streams share one timeline.
 //
 // This type is deliberately dependency-free (no VrfBridge / MAK references) so the
 // --con-selftest path can run fully offline without loading the native bridge DLL.
@@ -102,96 +94,5 @@ public static class ConFormat
     {
         return string.Create(CultureInfo.InvariantCulture,
             $"RPT,{t},{EscapeField(text)}");
-    }
-
-    // RAW,<t>,<uuid>,<rawLat>,<rawLon>,<rawAlt>,<velX>,<velY>,<velZ>
-    //   - one record per sampled object per sample tick, emitted ALONGSIDE that object's
-    //     POS line (same t, same uuid), never instead of it.
-    //
-    // WHY A SEPARATE LINE TYPE, NOT WIDER POS FIELDS: POS is the project's movement oracle
-    // and every existing consumer splits it into exactly 6 fields. Appending columns to POS
-    // would break all of them; a new tag is invisible to a parser that filters on "POS".
-    //
-    // WHAT THE FIELDS MEAN. POS carries location() - the position computed THROUGH VR-Link's
-    // dead-reckoning approximator. RAW carries lastSetLocation() and lastSetVelocity(): the
-    // values VR-Forces last actually SENT, with no extrapolation
-    // (baseEntityStateRepository.h:118 / :133). Comparing POS against RAW for the same
-    // (t, uuid) is the point of this stream: sustained disagreement indicts the approximator,
-    // agreement exonerates it and indicts something upstream.
-    //
-    // UNITS/PRECISION: lat/lon degrees at F6 and alt metres at F1, matching POS exactly so
-    // the two lines are directly comparable digit-for-digit. Velocity is GEOCENTRIC
-    // metres/second at F3 - an ECEF frame, NOT local ENU: velY is not "north". It also
-    // originates as float (DtVector32), so trailing digits carry float precision only.
-    //
-    // NO ESCAPING: every field is a number except uuid, which is VRF marking text (colons,
-    // structurally comma-free) - the same assumption POS has always made for the same field.
-    public static string RawLine(double t, string uuid,
-                                 double rawLat, double rawLon, double rawAlt,
-                                 double velX, double velY, double velZ)
-    {
-        return string.Create(CultureInfo.InvariantCulture,
-            $"RAW,{t},{uuid},{rawLat:F6},{rawLon:F6},{rawAlt:F1},{velX:F3},{velY:F3},{velZ:F3}");
-    }
-
-    // BCON,<t>,<simAddress>,<level>,<escaped-message> - one record per BACKEND console
-    // message (VrfBridge.BackendConsoleMessage), the per-sim-engine counterpart to CON.
-    //
-    // WHY: with only the CON stream, an empty console trace is ambiguous - "VR-Forces raised
-    // no warnings" and "warnings were raised but never reached us" are indistinguishable.
-    // BCON is an independent delivery path: traffic here while CON stays empty localises the
-    // fault to the object-console path rather than to VR-Forces' silence.
-    //
-    // Field 2 is the DtSimulationAddress string (e.g. "1:3201"), structurally comma-free like
-    // CON's uuid, so it is written raw; the message is escaped by the identical rule as CON.
-    public static string BackendLine(double t, string simAddress, int notifyLevel, string message)
-    {
-        return string.Create(CultureInfo.InvariantCulture,
-            $"BCON,{t},{simAddress},{notifyLevel},{EscapeField(message)}");
-    }
-
-    // CONARM,<t>,<uuid>,<escaped-path> - one record per uuid the run ARMED for backend-side
-    // console capture (WatchVrf --console-log-dir), emitted once per uuid at the moment the
-    // two requests were sent: SetObjectNotifyLevel(uuid, 4) then
-    // LogObjectConsoleToFile(uuid, path).
-    //
-    // WHY IT IS A REQUEST RECORD, NOT A RESULT RECORD. Neither controller call has any
-    // acknowledgement in the VR-Forces API (VrfFacade.h:409-427) and the file is written by
-    // the BACKEND on the backend's own filesystem, which may not even be this machine. So
-    // this line records what was ASKED FOR and where the file was asked to go. It asserts
-    // nothing about whether the file exists. Reading the trace later, CONARM is what makes
-    // an absent file interpretable: without it, "no file" and "never requested" look the same.
-    //
-    // The path is ESCAPED (a directory name may legally contain a comma or a quote); the uuid
-    // is written raw, the same structural assumption POS and CON make for the same field.
-    public static string ArmLine(double t, string uuid, string path)
-    {
-        return string.Create(CultureInfo.InvariantCulture,
-            $"CONARM,{t},{uuid},{EscapeField(path)}");
-    }
-
-    // Map a VR-Forces uuid to a filesystem-SAFE basename component.
-    //
-    // LOAD-BEARING, NOT COSMETIC. A uuid is colon-delimited ("1:1:0:2001") and ':' is not a
-    // legal Windows filename character - "console-1:1:0:2001.log" is parsed as an NTFS
-    // alternate-data-stream reference, so the backend's write would fail SILENTLY (the API
-    // reports nothing) and the empty-file result would be misread as "no messages were
-    // raised". That is exactly the inference this whole feature exists to make safe, so the
-    // sanitisation has to happen before the name reaches the backend.
-    //
-    // Every character outside [A-Za-z0-9._-] becomes '_'. The mapping is deliberately NOT
-    // reversible; correlation back to the real uuid is via the CONARM line, which carries
-    // the uuid and the path together.
-    public static string SafeUuidForFilename(string uuid)
-    {
-        uuid ??= "";
-        var sb = new StringBuilder(uuid.Length);
-        foreach (char c in uuid)
-        {
-            bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
-                   || (c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-';
-            sb.Append(ok ? c : '_');
-        }
-        return sb.Length == 0 ? "empty" : sb.ToString();
     }
 }

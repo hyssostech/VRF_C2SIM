@@ -35,32 +35,6 @@ struct Geodetic {
     double altMeters = 0.0;
 };
 
-// Raw-vs-extrapolated motion sample for ONE reflected object - the diagnostic
-// that separates "the unit is not moving" from "our reader is showing us the
-// dead-reckoned approximation instead of what VR-Forces actually sent".
-//
-// DtBaseEntityStateRepository exposes BOTH readings (baseEntityStateRepository.h):
-//   location()         :113  - computed THROUGH the approximator (what
-//                              TryGetEntityGeodetic has always returned)
-//   lastSetLocation()  :118  - "the value last passed to setLocation, regardless
-//                              of whether we have an approximator" -> the RAW
-//                              received value, no extrapolation
-//   lastSetVelocity()  :133  - likewise raw; DtVector32, so float components
-// Both are declared on the BASE repository, so the existing three-way cast chain
-// resolves them for entities AND aggregates with no additional casts.
-//
-// A large, persistent divergence between 'extrapolated' and 'raw' means the
-// approximator is fabricating motion (or masking it); agreement exonerates it.
-// Velocity is geocentric metres/second (the same frame as the geocentric
-// DtVector positions), NOT a local ENU frame - do not read velY as "north".
-struct Motion {
-    Geodetic extrapolated;         // location()        - through the approximator
-    Geodetic raw;                  // lastSetLocation() - as received
-    double velXMetersPerSec = 0.0; // lastSetVelocity() components, geocentric
-    double velYMetersPerSec = 0.0;
-    double velZMetersPerSec = 0.0;
-};
-
 // DIS entity-type 7-tuple (kind, domain, country, category,
 // subcategory, specific, extra) - exactly the DtEntityType arguments.
 struct EntityTypeSpec {
@@ -178,23 +152,6 @@ struct ObjectConsoleMessage {
     std::string uuid;     // the object's VRF uuid (marking-text based)
     int notifyLevel = 0;  // 0=fatal,1=warn,2=diag,3=verbose,4=debug
     std::string message;  // the console message text (unescaped)
-};
-
-// A VR-Forces BACKEND console message (DtVrfRemoteController::addBackendConsole-
-// MessageCallback, vrfRemoteController.h:1992; delivered signature is the typedef
-// DtBackendConsoleMessageCallbackFcn at vrfRemoteController.h:116-118 =
-// void(const DtSimulationAddress& id, int notifyLevel, const DtString& message, void*)).
-//
-// This is a SECOND, INDEPENDENT console stream: per-BACKEND (sim engine) rather than
-// per-OBJECT. It exists here to disambiguate an empty ObjectConsoleMessage stream -
-// with only one channel, "VR-Forces raised no warnings" and "warnings were raised but
-// never delivered to us" look identical. Traffic on this channel while the object
-// channel stays silent localises the fault to the object-console path.
-// Like ObjectConsoleMessage, 'message' is delivered UNESCAPED.
-struct BackendConsoleMessage {
-    std::string simAddress; // DtSimulationAddress::string(), e.g. "1:3201"
-    int notifyLevel = 0;    // 0=fatal,1=warn,2=diag,3=verbose,4=debug
-    std::string message;    // the console message text (unescaped)
 };
 
 // ------------------------------------------------------------------
@@ -399,33 +356,6 @@ public:
     // uuid (e.g. an aggregate, which has no DtReflectedEntity).
     bool TryGetEntityGeodetic(const std::string& uuid, Geodetic& out) const;
 
-    // Reads the SAME reflected object as TryGetEntityGeodetic but returns the
-    // extrapolated AND raw readings side by side (see struct Motion above), so a
-    // caller can tell an approximator artefact from real motion. Uses the identical
-    // resolution chain, so it succeeds on exactly the same set of uuids; 'out.extrapolated'
-    // is bit-for-bit what TryGetEntityGeodetic would have produced for that uuid.
-    // Returns false, leaving 'out' untouched, when the uuid does not resolve.
-    bool TryGetEntityMotion(const std::string& uuid, Motion& out) const;
-
-    // -- console diagnostics --------------------------------------
-    // Ask the sim engine SIMULATING this object to write that object's console to
-    // 'filename', on the BACKEND's own filesystem (controller->logObjectConsoleToFile,
-    // vrfRemoteController.h:1983). Decisive for the "silent or undelivered?" question:
-    // it bypasses the console NETWORK path entirely, so a populated file next to an
-    // empty callback stream proves the messages exist and the delivery path is at fault.
-    // The path is interpreted by the backend, which may run elsewhere; a path it cannot
-    // write is a silent no-op (there is no acknowledgement in the API). No-op if the
-    // controller is not started.
-    void LogObjectConsoleToFile(const std::string& uuid, const std::string& filename);
-
-    // Request the backend raise this object's console notify level
-    // (controller->setObjectNotifyLevel, vrfRemoteController.h:1977), so a low default
-    // threshold cannot be mistaken for silence. Level is DtNotifyLevelType
-    // (vlutil/vlPrint.h:39): 0 fatal, 1 warn, 2 info/diag (default), 3 verbose, 4 debug;
-    // values outside 0..4 are CLAMPED into range rather than cast blindly to the enum.
-    // No-op if the controller is not started.
-    void SetObjectNotifyLevel(const std::string& uuid, int notifyLevel);
-
     // -- events (set before Start; called on the VRF message thread) ---
     std::function<void(const ObjectCreated&)> OnObjectCreated;
     std::function<void(const TextReport&)>    OnTextReport;
@@ -435,11 +365,6 @@ public:
     // Per-unit Object Console warnings (groundwork plan 0.6). Registered on the
     // controller in Start() (and RegisterInboundCallbacks()); fires on the tick thread.
     std::function<void(const ObjectConsoleMessage&)> OnObjectConsoleMessage;
-    // Per-BACKEND console messages - the independent second console stream used to
-    // tell "no warnings raised" from "raised but not delivered". Registered on the
-    // controller alongside OnObjectConsoleMessage; fires on the tick thread. Purely
-    // additive: consumers that leave it unset observe no behaviour change.
-    std::function<void(const BackendConsoleMessage&)> OnBackendConsoleMessage;
 
 private:
     struct Impl;
