@@ -11,6 +11,7 @@ namespace WatchVrf;
 //   TSK,...  task-completion events
 //   RPT,...  radio text-reports
 //   RAW,...  un-extrapolated position + velocity, paired with each POS sample
+//   CONARM,... one record per uuid armed for BACKEND-SIDE console capture (--console-log-dir)
 // Each tag is DISTINCT and every format here is APPEND-ONLY: existing tags and their field
 // counts never change, so a consumer that filters on one tag ignores the rest untouched.
 //
@@ -147,5 +148,50 @@ public static class ConFormat
     {
         return string.Create(CultureInfo.InvariantCulture,
             $"BCON,{t},{simAddress},{notifyLevel},{EscapeField(message)}");
+    }
+
+    // CONARM,<t>,<uuid>,<escaped-path> - one record per uuid the run ARMED for backend-side
+    // console capture (WatchVrf --console-log-dir), emitted once per uuid at the moment the
+    // two requests were sent: SetObjectNotifyLevel(uuid, 4) then
+    // LogObjectConsoleToFile(uuid, path).
+    //
+    // WHY IT IS A REQUEST RECORD, NOT A RESULT RECORD. Neither controller call has any
+    // acknowledgement in the VR-Forces API (VrfFacade.h:409-427) and the file is written by
+    // the BACKEND on the backend's own filesystem, which may not even be this machine. So
+    // this line records what was ASKED FOR and where the file was asked to go. It asserts
+    // nothing about whether the file exists. Reading the trace later, CONARM is what makes
+    // an absent file interpretable: without it, "no file" and "never requested" look the same.
+    //
+    // The path is ESCAPED (a directory name may legally contain a comma or a quote); the uuid
+    // is written raw, the same structural assumption POS and CON make for the same field.
+    public static string ArmLine(double t, string uuid, string path)
+    {
+        return string.Create(CultureInfo.InvariantCulture,
+            $"CONARM,{t},{uuid},{EscapeField(path)}");
+    }
+
+    // Map a VR-Forces uuid to a filesystem-SAFE basename component.
+    //
+    // LOAD-BEARING, NOT COSMETIC. A uuid is colon-delimited ("1:1:0:2001") and ':' is not a
+    // legal Windows filename character - "console-1:1:0:2001.log" is parsed as an NTFS
+    // alternate-data-stream reference, so the backend's write would fail SILENTLY (the API
+    // reports nothing) and the empty-file result would be misread as "no messages were
+    // raised". That is exactly the inference this whole feature exists to make safe, so the
+    // sanitisation has to happen before the name reaches the backend.
+    //
+    // Every character outside [A-Za-z0-9._-] becomes '_'. The mapping is deliberately NOT
+    // reversible; correlation back to the real uuid is via the CONARM line, which carries
+    // the uuid and the path together.
+    public static string SafeUuidForFilename(string uuid)
+    {
+        uuid ??= "";
+        var sb = new StringBuilder(uuid.Length);
+        foreach (char c in uuid)
+        {
+            bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+                   || (c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-';
+            sb.Append(ok ? c : '_');
+        }
+        return sb.Length == 0 ? "empty" : sb.ToString();
     }
 }

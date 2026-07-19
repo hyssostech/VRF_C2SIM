@@ -59,30 +59,60 @@ namespace WatchVrf;
 // MAKLMGRD_LICENSE_FILE from Machine scope, cwd = C:\MAK\vrforces5.0.2\bin64, and a
 // FRESH ApplicationNumber each run.
 //
-// Args: [applicationNumber] [durationSecs] [sampleSecs] [federation]
-// Defaults: 3399, 120, 15, CWIX-2024.
+// OPTIONALLY (--console-log-dir <path>) it also arms BACKEND-SIDE console capture: for every
+// uuid it discovers, once, it raises that object's notify level to the maximum and asks the
+// simulating backend to write that object's console to <path>/console-<uuid>.log on the
+// BACKEND'S OWN filesystem. This exists because an empty CON stream cannot, by itself,
+// distinguish "no warnings were raised" from "warnings were raised and not delivered here" -
+// the backend-written file bypasses the delivery path entirely, so a populated file beside an
+// empty CON stream proves a delivery gap and an empty file proves silence. Each arming is
+// recorded in the trace:
+//     CONARM,<elapsed-seconds>,<uuid>,<path>
+// WITHOUT the flag, nothing about the run changes - no calls are made and no CONARM lines are
+// emitted. The flag is the whole opt-in.
+//
+// Args: [applicationNumber] [durationSecs] [sampleSecs] [federation] [--console-log-dir <path>]
+// Defaults: 3399, 120, 15, CWIX-2024, no backend-side capture.
 internal static class WatchRunner
 {
     // Argument handling uses the shared tools/Shared/ToolArgs.cs standard (0 success /
     // 1 operational failure / 2 usage error with nothing done; usage text to STDERR).
     // The usage block itself lives in WatchVrfUsage so the offline --con-selftest path can
     // print it without touching this bridge-referencing type.
+
+    // The only option the LIVE path accepts. Value-taking, so it is extracted (flag AND
+    // value) before Positionals()/UnknownFlags() run - see ToolArgs.TryTakeOptionValue.
+    private const string ConsoleLogDirFlag = "--console-log-dir";
+
+    // DtNotifyLevelType (vlutil/vlPrint.h:39) is 0 fatal .. 4 debug, and the facade CLAMPS
+    // into that range (VrfFacade.cpp:828-836), so the maximum is passed as a literal. The
+    // point of arming at the maximum is to remove thresholding as an explanation for an
+    // empty console stream: at level 4 nothing the object emits is filtered out.
+    private const int MaxNotifyLevel = 4;
+
     public static int Run(string[] args)
     {
-        // No options are valid on the LIVE path. --con-selftest is dispatched in Program.cs
-        // and only when it is args[0]; reaching here with it (e.g. "WatchVrf 3399
+        // --console-log-dir takes a VALUE, so both tokens come out of the array first.
+        // If the pair stayed in, ToolArgs.Positionals would hand the directory path to the
+        // applicationNumber parser and the run would fail describing the wrong thing.
+        string problem;
+        if (!ToolArgs.TryTakeOptionValue(args, ConsoleLogDirFlag,
+                                         out string[] rest, out string consoleLogDir, out problem))
+            return ToolArgs.Usage(problem, WatchVrfUsage.Lines());
+
+        // No OTHER option is valid on the LIVE path. --con-selftest is dispatched in
+        // Program.cs and only when it is args[0]; reaching here with it (e.g. "WatchVrf 3399
         // --con-selftest") means the caller asked for two different things at once. For the
         // movement oracle that MUST be a hard failure, not a silently-ignored token.
-        string[] unknown = ToolArgs.UnknownFlags(args);
+        string[] unknown = ToolArgs.UnknownFlags(rest);
         if (unknown.Length > 0)
             return ToolArgs.Usage($"unknown or misplaced option(s): {string.Join(" ", unknown)}. "
                                 + "--con-selftest is offline-only and must be the sole argument.",
                                   WatchVrfUsage.Lines());
 
-        string[] positional = ToolArgs.Positionals(args);
+        string[] positional = ToolArgs.Positionals(rest);
         int appNumber = 3399, durationSecs = 120, sampleSecs = 15;
-        string federation = "CWIX-2024";
-        string problem;
+        string federation = "CWIX-2024"; // 'problem' is already declared above.
 
         // HARD-FAIL on unparseable input. Previously these were TryParse calls whose bool
         // result was DISCARDED, so a typo silently produced a trace of the wrong appNumber
@@ -102,6 +132,38 @@ internal static class WatchRunner
 
         if (positional.Length >= 4 && !string.IsNullOrWhiteSpace(positional[3])) federation = positional[3];
 
+        // Resolve and CREATE the console-log directory. POSITION IS LOAD-BEARING, in BOTH
+        // directions, and this is the only spot that satisfies both constraints:
+        //   * AFTER every argument check above. This block has a SIDE EFFECT (it creates a
+        //     directory), and exit 2 under the shared ToolArgs standard means "usage error,
+        //     NO ACTION WAS TAKEN". Doing it earlier left a directory behind on runs that
+        //     then exited 2 for an unrelated bad argument - measured, not theorised.
+        //   * BEFORE bridge.Start(). A bad path discovered after the join could no longer be
+        //     reported as exit 2 at all, because a federate would already be in the
+        //     federation. Failing here still creates nothing on failure, so exit 2 stays true.
+        //
+        // NOTE the directory is created LOCALLY but the path is consumed by the BACKEND, which
+        // may be a different machine. Local creation proves the path is well-formed and
+        // writable HERE; it does not prove the backend can write it. The banner says so
+        // rather than leaving it assumed, because an unwritable backend path is a SILENT no-op
+        // in the VR-Forces API and would otherwise masquerade as "no messages were raised" -
+        // the exact wrong conclusion this feature exists to prevent.
+        if (consoleLogDir != null)
+        {
+            try
+            {
+                consoleLogDir = Path.GetFullPath(consoleLogDir);
+                Directory.CreateDirectory(consoleLogDir);
+            }
+            catch (Exception ex)
+            {
+                return ToolArgs.Usage(
+                    $"{ConsoleLogDirFlag} '{consoleLogDir}' is not usable: "
+                  + $"{ex.GetType().Name}: {ex.Message}",
+                    WatchVrfUsage.Lines());
+            }
+        }
+
         var cfg = new StartupConfig
         {
             Protocol = VrfProtocol.Hla1516e,
@@ -117,7 +179,15 @@ internal static class WatchRunner
         cfg.FomModules.Add("MAK-LgrControl-2_evolved.xml");
 
         Console.WriteLine("=== WatchVrf - position + Object Console telemetry (R3 / groundwork 0.6) ===");
-        Console.WriteLine($"    federation={federation} appNumber={appNumber} duration={durationSecs}s sample={sampleSecs}s\n");
+        Console.WriteLine($"    federation={federation} appNumber={appNumber} duration={durationSecs}s sample={sampleSecs}s");
+        if (consoleLogDir != null)
+        {
+            Console.WriteLine($"    console-log-dir={consoleLogDir} (backend-side capture ARMED at notifyLevel={MaxNotifyLevel})");
+            Console.WriteLine("    NOTE: the file is written by the BACKEND on the BACKEND's filesystem. If the");
+            Console.WriteLine("          backend is not this machine, that path is resolved THERE and this local");
+            Console.WriteLine("          directory will stay empty. The API acknowledges nothing either way.");
+        }
+        Console.WriteLine();
 
         // All DATA lines (POS, CON, and the # summary) go through this one lock so a CON
         // callback that arrives on a different thread than the sampling loop can never tear
@@ -143,6 +213,10 @@ internal static class WatchRunner
                             + "BCON,t,simAddr,level,msg ; TSK,t,marking,taskType ; RPT,t,text)...");
 
             var start = DateTime.UtcNow;
+
+            // uuids already armed for backend-side console capture (--console-log-dir only).
+            // Ordinal, because a uuid is an opaque identifier, not display text.
+            var armed = new HashSet<string>(StringComparer.Ordinal);
 
             // Subscribe BEFORE the tick loop so no console message is missed (messages are
             // only pumped inside bridge.Tick(), which runs in the loop). 'start' is already
@@ -234,6 +308,56 @@ internal static class WatchRunner
 
                 double t = Math.Round((DateTime.UtcNow - start).TotalSeconds, 1);
                 var uuids = bridge.GetAllReflectedUuids();
+
+                // ---- BACKEND-SIDE console capture, armed ONCE per uuid -------------------
+                // Deliberately a SEPARATE pass, run before the POS pass and NOT filtered by
+                // TryGetEntityGeodetic. A unit that never moves may also never present a
+                // readable location, and an immobile unit is precisely the one whose console
+                // we need; gating arming on readability would arm only the objects we already
+                // have telemetry for. The ":0:0:0" null-uuid guard is kept - that is not an
+                // object.
+                //
+                // WHY BACKEND-SIDE AT ALL: two live runs captured ZERO CON lines from six
+                // created units. That is ambiguous - "VR-Forces raised no warnings" and
+                // "warnings were raised but not delivered to this observer federate" produce
+                // an identical empty stream. logObjectConsoleToFile makes the backend write
+                // the object's console to its OWN filesystem, bypassing the delivery path
+                // under suspicion, so the two cases stop looking alike:
+                //     file has warnings + CON empty  -> the DELIVERY path is at fault
+                //     file empty                     -> nothing was raised, PROVEN not inferred
+                // The notify level is raised first so a low default threshold cannot be the
+                // third explanation.
+                //
+                // ONCE per uuid, tracked in 'armed': discovery is incremental, so this loop
+                // re-sees every previously-known uuid on every tick. Re-issuing
+                // logObjectConsoleToFile each tick would re-open the same file on the backend
+                // for the lifetime of the run, for every object, to no benefit.
+                if (consoleLogDir != null)
+                {
+                    foreach (string u in uuids)
+                    {
+                        if (string.IsNullOrEmpty(u) || u.EndsWith(":0:0:0", StringComparison.Ordinal)) continue;
+                        if (!armed.Add(u)) continue;
+                        string path = Path.Combine(consoleLogDir,
+                                                   $"console-{ConFormat.SafeUuidForFilename(u)}.log");
+                        try
+                        {
+                            bridge.SetObjectNotifyLevel(u, MaxNotifyLevel);
+                            bridge.LogObjectConsoleToFile(u, path);
+                            Emit(ConFormat.ArmLine(t, u, path));
+                        }
+                        catch (Exception ex)
+                        {
+                            // Diagnostic instrumentation must never take down the oracle:
+                            // POS remains the primary product of this run. Recorded as a
+                            // comment (not a CONARM line - nothing was successfully armed)
+                            // and NOT retried, since 'armed' already contains the uuid.
+                            Emit(string.Create(CultureInfo.InvariantCulture,
+                                $"# CONARM failed for {u}: {ex.GetType().Name}: {ex.Message}"));
+                        }
+                    }
+                }
+
                 int readable = 0;
                 foreach (string u in uuids)
                 {

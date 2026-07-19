@@ -131,6 +131,21 @@
     timed-out and fails the run through the normal teardown; it NEVER force-kills
     anything, least of all a federate-joining tool (RUNBOOK sec 0).
 
+.PARAMETER ConsoleLogDir
+    OPT-IN. A NAME (not a path) for a subdirectory of this run's directory. When
+    supplied, the stage-5 WatchVrf trace federate is started with
+    --console-log-dir <runDir>\<name>, which makes it ask each discovered object's
+    BACKEND to write that object's console to a file THERE, bypassing the console
+    network path. That is what turns an empty CON stream from an ambiguity into an
+    answer: a populated file beside an empty CON stream proves a DELIVERY gap, an
+    empty file proves nothing was raised. Armings appear in the trace as
+    CONARM,<t>,<uuid>,<path>. WatchVrf creates the directory itself.
+    Not supplied = the flag is not passed and the run is unchanged. Opt-in because
+    it raises the notify level of every object, perturbing the system observed.
+    CAVEAT: the path is resolved by the BACKEND. If the backend is another machine
+    the files land there and this directory stays empty for reasons unrelated to
+    whether any message was raised.
+
 .PARAMETER DryRun
     Print the ENTIRE planned sequence - every command line, every appNumber that
     WOULD be allocated, every output path - and do nothing else. -DryRun:
@@ -223,6 +238,26 @@ param(
 
     # Explicit override for the WatchVrf / ListenReports duration. 0 = derive it.
     [int] $WatchSecs = 0,
+
+    # OPT-IN backend-side console capture for the stage-5 scoring trace.
+    #
+    # Supply a NAME (not a path): it becomes a subdirectory of THIS run's directory,
+    # and WatchVrf is started with --console-log-dir pointing at it. WatchVrf then asks
+    # each discovered object's BACKEND to write that object's console to a file there,
+    # bypassing the console network path this runner's two zero-CON runs left under
+    # suspicion. A populated file beside an empty CON stream proves a DELIVERY gap; an
+    # empty file proves nothing was raised. Each arming appears in the trace as
+    # CONARM,<t>,<uuid>,<path>.
+    #
+    # NOT SUPPLIED (the default) = the flag is not passed and the run is byte-identical
+    # to before this parameter existed. Deliberately opt-in: it changes the notify level
+    # of every object in the federation, which is a real perturbation of the system under
+    # observation and must never happen implicitly on a scoring run.
+    #
+    # CAVEAT the runner cannot check for you: the path is resolved by the BACKEND. If the
+    # backend runs on another machine the files land THERE, and this directory stays empty
+    # for a reason that has nothing to do with whether messages were raised.
+    [string] $ConsoleLogDir,
 
     [switch] $StrictPreInitOracle,
     [switch] $SkipServerCheck,
@@ -1231,6 +1266,29 @@ $PathStopVrfOut   = Join-Path $RunDir 'stopvrf.stdout.log'
 $PathStopVrfErr   = Join-Path $RunDir 'stopvrf.stderr.log'
 $ManifestPath     = Join-Path $RunDir 'run-manifest.json'
 
+# -ConsoleLogDir is OPT-IN and is a NAME, not a path: it is joined to $RunDir, so it is
+# validated as a single filename component here. Rejecting separators and '..' is not
+# defensive noise - '..\..\somewhere' would silently place backend-written console files
+# OUTSIDE the run directory, and the run artifact would then be incomplete in a way no
+# later reader could detect. Checked BEFORE anything launches, so this is an exit-2
+# (nothing was done) failure, consistent with the rest of the pre-flight.
+$PathConsoleDir = $null
+$WatchConsoleArgs = @()
+if ($PSBoundParameters.ContainsKey('ConsoleLogDir')) {
+    $bad = [System.IO.Path]::GetInvalidFileNameChars()
+    if ([string]::IsNullOrWhiteSpace($ConsoleLogDir) -or
+        $ConsoleLogDir -eq '.' -or $ConsoleLogDir -eq '..' -or
+        $ConsoleLogDir.IndexOfAny($bad) -ge 0) {
+        Say-Fail ('-ConsoleLogDir must be a single directory NAME inside the run directory, not a path; got: {0}' -f $ConsoleLogDir)
+        exit 2
+    }
+    $PathConsoleDir = Join-Path $RunDir $ConsoleLogDir
+    # WatchVrf creates this directory itself, so the runner creates NOTHING here and
+    # -DryRun stays honest by construction rather than by a conditional.
+    $WatchConsoleArgs = @('--console-log-dir', $PathConsoleDir)
+    $Manifest.artifacts.consoleLogDir = $PathConsoleDir
+}
+
 $Manifest.artifacts.runDir        = $RunDir
 $Manifest.artifacts.trace         = $PathTrace
 $Manifest.artifacts.preCheckTrace = $PathPreTrace
@@ -1289,6 +1347,9 @@ try {
     if ($DryRun) {
         Say-Head 'DRY RUN - the full planned sequence, in order. NOTHING below is executed.'
         Say-Plan ('would create the run directory {0}' -f $RunDir)
+        if ($PathConsoleDir) {
+            Say-Plan ('would pass --console-log-dir {0} to the stage-5 WatchVrf trace; WATCHVRF (not this script) would create that directory. NOTHING is created now.' -f $PathConsoleDir)
+        }
         Say-Plan ('would REWRITE the Appendix B marker in {0}: {1} -> {2}, and append a CLAIMED block for {3} numbers.' -f $LedgerDoc, $FirstFree, $NextFree, $Alloc.Count)
         Say-Plan ('would set, for HLA child processes only: PATH="{0};<inherited>", MAKLMGRD_LICENSE_FILE from Machine scope, Vrf__ApplicationNumber={1}' -f $PathPrefix, $AppNo['app'])
         Say ''
@@ -1406,8 +1467,17 @@ try {
     # STAGE 5 - OBSERVERS START FIRST, BEFORE THE INIT (unit births in trace)
     # ---------------------------------------------------------------------
     Say-Head 'Stage 5 - start the observers BEFORE the init, so unit births are in the trace'
+    # $WatchConsoleArgs is EMPTY unless -ConsoleLogDir was supplied, so the argument list
+    # here is byte-identical to before that parameter existed on a default run. Only the
+    # stage-5 SCORING trace is armed, never the stage-4 pre-check: the pre-check runs
+    # pre-init against a stock scenario that contains no units, so there is nothing there
+    # whose console is worth capturing, and arming it would raise notify levels before the
+    # observation window the run is actually scored on.
+    if ($PathConsoleDir) {
+        Say ('  backend-side console capture ARMED -> {0} (CONARM lines in the trace; the BACKEND writes the files, and it may not be this machine)' -f $PathConsoleDir)
+    }
     $WatchProc = Start-External -Name 'WatchVrf-trace' -File $ExeWatchVrf `
-            -Arguments @([string]$AppNo['oracleTrace'], [string]$EffWatchSecs, [string]$SampleSecs, $Federation) `
+            -Arguments (@([string]$AppNo['oracleTrace'], [string]$EffWatchSecs, [string]$SampleSecs, $Federation) + $WatchConsoleArgs) `
             -Cwd $Bin64 -StdOutFile $PathTrace -StdErrFile $PathTraceErr `
             -Note 'THE MOVEMENT ORACLE and the scoring input. Started before PushInit (HEADLESS_RUN_PLAN sec 2). Resigns on its own timer; never killed.'
     $ListenProc = Start-External -Name 'ListenReports' -File $ExeListenReports `

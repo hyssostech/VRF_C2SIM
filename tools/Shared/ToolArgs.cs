@@ -66,6 +66,65 @@ internal static class ToolArgs
         => (args ?? Array.Empty<string>()).Any(a => string.Equals(a, flag, StringComparison.Ordinal));
 
     /// <summary>
+    /// Extract a VALUE-TAKING option ("--flag value") and return the remaining tokens with
+    /// BOTH the flag and its value removed.
+    ///
+    /// WHY THIS LIVES HERE. Positionals() treats every non-"--" token as positional, so a
+    /// tool that read "--flag value" itself would see 'value' show up as an extra positional
+    /// and silently mis-assign it (for WatchVrf that would mean parsing a directory path as
+    /// applicationNumber, or worse, quietly shifting the federation name). Taking the pair
+    /// out of the array BEFORE Positionals()/UnknownFlags() run is the only way the two
+    /// existing helpers stay correct, so the extraction belongs beside them rather than in
+    /// a competing per-tool parser.
+    ///
+    /// Returns true when the option is ABSENT (value null, rest == args unchanged) and when
+    /// it is present exactly once with a usable value. Returns false, with 'problem' set, when
+    /// the option is repeated, has no following token, or is followed by another option -
+    /// all three are operator errors that must not be guessed at.
+    /// </summary>
+    public static bool TryTakeOptionValue(string[] args, string flag,
+                                          out string[] rest, out string value, out string problem)
+    {
+        args ??= Array.Empty<string>();
+        rest = args;
+        value = null;
+        problem = null;
+
+        var kept = new List<string>(args.Length);
+        bool seen = false;
+        for (int i = 0; i < args.Length; i++)
+        {
+            if (!string.Equals(args[i], flag, StringComparison.Ordinal)) { kept.Add(args[i]); continue; }
+            if (seen)
+            {
+                problem = $"{flag} was given more than once.";
+                return false;
+            }
+            seen = true;
+            if (i + 1 >= args.Length)
+            {
+                problem = $"{flag} requires a value.";
+                return false;
+            }
+            string v = args[i + 1];
+            if (IsFlag(v))
+            {
+                problem = $"{flag} requires a value; got the option '{v}'.";
+                return false;
+            }
+            if (string.IsNullOrWhiteSpace(v))
+            {
+                problem = $"{flag} was given an empty value.";
+                return false;
+            }
+            value = v;
+            i++; // consume the value too
+        }
+        rest = kept.ToArray();
+        return true;
+    }
+
+    /// <summary>
     /// Parse an int, invariant culture, producing a message that NAMES the offending
     /// argument. int.Parse throws a FormatException whose text does not say which
     /// argument was bad; in an unattended log that is close to useless.

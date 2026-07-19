@@ -1133,7 +1133,24 @@ per the never-reuse non-negotiable. Annotate with results from the run manifest.
 NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
 join) are BURNED, not recycled. The run manifest records which were actually used.
 
-*** NEXT FREE: 3522 *** (authoritative - the ONLY such marker in this file. Update this
+CLAIMED 2026-07-19 by the supervisor, BEFORE the join, for ONE ResetVrf --dry-run
+confirming the RTI Assistant still services joins after a "MAK RTI Error Notification"
+modal (LRC #45, "Failed to open FDD file: RPR_FOM_v2.0_1516-2010.xml") was dismissed off
+it. The assistant is long-lived (up since 2026-07-18 15:31) and killing one previously
+cost an entire live window, so it was NOT killed - the dialog was dismissed via UIA and
+this checks the assistant is still healthy BEFORE a 15-minute run depends on it.
+- 3522: CONSUMED - ResetVrf --dry-run, post-dialog RTI Assistant health check. RESULT: PASS.
+  EXIT=0 in 21 s (baseline 3503 was 20 s). "Connected to RTI Assistant", joined
+  (BackendCount=0), discovery ticked, resigned cleanly. No 0xC0000005.
+  TWO THINGS THIS SETTLES:
+  (1) The assistant STILL SERVICES JOINS after the error dialog was dismissed off it. It
+      did NOT need to be killed, and it was not. The FDD error did not damage it.
+  (2) BONUS, and it retires a real risk: ResetVrf loads the NEWLY REBUILT VrfBridge.dll
+      (sha 61FE865C, commit 7ec3b95). So the native rebuild joins the RTI and resigns
+      cleanly. The "a rebuild might break the bridge" risk is retired for the join path;
+      the raw-vs-DR READ path is still unexercised until a run with objects to read.
+
+*** NEXT FREE: 3523 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN

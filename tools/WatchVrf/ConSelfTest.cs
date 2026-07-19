@@ -175,6 +175,48 @@ public static class ConSelfTest
         CheckEq(ref failures, ConFormat.BackendLine(1, "1:1", 0, null), "BCON,1,1:1,0,\"\"",
             "BCON tolerates null message (-> empty field)");
 
+        // 12. CONARM,... backend-side console arming records (--console-log-dir).
+        //     4 fields; the path is quoted because a directory name may contain a comma.
+        CheckEq(ref failures, ConFormat.ArmLine(6.0, "1:1:0:2001", @"C:\runs\console\console-1_1_0_2001.log"),
+            "CONARM,6,1:1:0:2001,\"C:\\\\runs\\\\console\\\\console-1_1_0_2001.log\"",
+            "full CONARM line (backslashes doubled by the standard escape rule)");
+        {
+            var fields = ParseCsvLine(ConFormat.ArmLine(6.0, "1:1:0:2001", "/tmp/a,b/console.log"));
+            Check(ref failures, fields.Count == 4, $"CONARM parses to 4 CSV fields (got {fields.Count})");
+            if (fields.Count == 4)
+            {
+                CheckEq(ref failures, fields[0], "CONARM", "CONARM field0 = CONARM");
+                CheckEq(ref failures, fields[2], "1:1:0:2001", "CONARM field2 = uuid (raw)");
+                CheckEq(ref failures, fields[3], "/tmp/a,b/console.log",
+                    "CONARM field3 = path, comma and all, in ONE field");
+            }
+        }
+        // CONARM must not be mistaken for CON by a consumer that compares the tag: a naive
+        // StartsWith("CON") filter WOULD match it, so the guard here is on the parsed field.
+        {
+            var fields = ParseCsvLine(ConFormat.ArmLine(1, "u", "p"));
+            Check(ref failures, fields[0] != "CON", "CONARM field0 is not 'CON' (distinct tag)");
+        }
+
+        // 13. Uuid -> filename sanitisation. Colons are ILLEGAL in Windows filenames and would
+        //     make the backend's write a silent no-op, which is the one failure this feature
+        //     must never produce (an unwritten file would read as "nothing was raised").
+        CheckEq(ref failures, ConFormat.SafeUuidForFilename("1:1:0:2001"), "1_1_0_2001",
+            "uuid colons -> underscores");
+        CheckEq(ref failures, ConFormat.SafeUuidForFilename("a.b-c_1"), "a.b-c_1",
+            "safe characters (. - _ alnum) pass through unchanged");
+        CheckEq(ref failures, ConFormat.SafeUuidForFilename("a/b\\c*d?e\"f<g>h|i j"),
+            "a_b_c_d_e_f_g_h_i_j", "every other reserved/space character -> underscore");
+        CheckEq(ref failures, ConFormat.SafeUuidForFilename(""), "empty",
+            "empty uuid -> a non-empty placeholder (never a bare 'console-.log')");
+        CheckEq(ref failures, ConFormat.SafeUuidForFilename(null), "empty",
+            "null uuid -> the same placeholder");
+        {
+            string safe = ConFormat.SafeUuidForFilename("1:1:0:2001");
+            Check(ref failures, safe.IndexOfAny(Path.GetInvalidFileNameChars()) < 0,
+                "sanitised uuid contains no Path.GetInvalidFileNameChars()");
+        }
+
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
         return failures == 0 ? 0 : 1;
     }

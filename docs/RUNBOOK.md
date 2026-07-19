@@ -415,7 +415,35 @@ dialog DOES expose a full UIA tree. NOTE THE CONTRAST AND DO NOT GENERALISE: the
 (class Qt5QWindowIcon) and exposes NO UI Automation..."), which is why that one needs
 screenshot + coordinate clicking and this one must not. The two dialogs belong to
 DIFFERENT PROCESSES (rtiAssistant vs vrfGui) and behave differently; neither result
-predicts the other. Coordinate approaches were
+predicts the other.
+
+*** THIRD DATA POINT, 2026-07-19 - AND IT REFINES THE CONTRAST ABOVE. The rtiAssistant
+"MAK RTI Error Notification" dialog IS FULLY UIA-DRIVABLE, even though the rtiAssistant
+"Choose RTI Connection" dialog is NOT. So the split is NOT per-process as the paragraph
+above implies - the SAME process owns one dialog that exposes a UIA tree and another that
+does not. Do not predict either way; ENUMERATE.
+Observed: window class Qt5QWindowIcon, name "MAK RTI Error Notification", three buttons -
+"Close" (enabled), "More   >>> Enter" (disabled), "Dismiss" (enabled). Dismissed by
+FindAll on ProcessIdProperty -> ControlType Button -> InvokePattern.Invoke(). Content was
+LRC #45, "Failed to open FDD file: RPR_FOM_v2.0_1516-2010.xml".
+WHY THIS MATTERED: a modal was sitting on the LONG-LIVED assistant that services every
+join, and killing an assistant previously cost an entire live window (sec 0.5.2). The
+dialog was DISMISSED, NOT killed, and the assistant was then confirmed healthy by a
+ResetVrf --dry-run on ledgered appNo 3522 - "Connected to RTI Assistant", joined,
+resigned cleanly, EXIT=0 in 21 s against a 20 s baseline. THE NON-NEGOTIABLE HELD: no RTI
+process was killed.
+ON THE FDD ERROR ITSELF: the file exists and is readable
+(C:\MAK\vrforces5.0.2\bin64\RPR_FOM_v2.0_1516-2010.xml, 1058783 bytes, unchanged since
+2022). FedFileName is configured as a BARE RELATIVE FILENAME, so any federate joining with
+a cwd that does not contain it fails exactly this way - which is why every joiner must use
+cwd = VR-Forces bin64 (sec 7 item 3). NOT ESTABLISHED: which process raised it or when.
+"LRC #45" is a lifetime counter on an assistant up since the previous day, the dialog is
+not timestamped, and no assistant-side log was found. Do not guess a culprit.
+IT DID NOT CONTAMINATE THE 2026-07-19 RUNS: both scored runs produced 4512 POS lines each
+and no run artifact contains "FDD" or "Failed to open". A federate that could not open the
+FDD would not have joined at all. ***
+
+Coordinate approaches were
 tried here first and ALL THREE FAILED: CopyFromScreen captured the occluding window,
 SetForegroundWindow was refused by the Windows foreground lock, and PrintWindow with
 PW_RENDERFULLCONTENT returned an all-black bitmap (Qt/OpenGL surface).
