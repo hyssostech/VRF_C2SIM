@@ -222,7 +222,7 @@ OPERATIONAL STATE:
   NOT health.
 - ORACLE PRE-CHECK (RUNBOOK 0.5.7): PASS = a POS line with REAL lat/lon, retry up to
   ~3 min. NOTE THE 2026-07-19 CORRECTION: the claim that "the TropicTortoise baseline
-  objects are POSITIONLESS" is an ARTEFACT of a bad cast, NOT a fact about VR-Forces -
+  objects are POSITIONLESS" is IMPRECISE, not simply an artefact (re-verified from the .oob 2026-07-19): 2 of the 3 baseline objects (GlblTerrDmg, GlobalEnv) genuinely sit at ECEF (6378137,1,1) = null island and ARE positionless as claimed. Only the Page-In Area has a real authored position (34.615N/-116.55W) and reflects as 90/-90 because of the bad cast. Do not flatten this in either direction. The earlier wording here called it simply an ARTEFACT and that overstated it -
   their real positions have never been read. The gate now also checks ALTITUDE SANITY and
   rejects an equator/null-island placeholder.
 - C2SIM server docker: REST http://127.0.0.1:8080/C2SIMServer -> HTTP 200, STOMP 61613.
@@ -235,11 +235,17 @@ OPERATIONAL STATE:
 
 WHAT IS RULED OUT - DO NOT RE-INVESTIGATE (each closed with evidence 2026-07-19):
 wrong or buried spawn (creation is EXACT to 6 dp; ground clamp works); missing route;
-missing task issue; lying completions (none are emitted); stale aggregate reads hiding
+missing task issue; lying completions (none are emitted - BUT this is WEAK evidence, not a closed question: nothing could have been observed past ~180 s anyway); stale aggregate reads hiding
 real movement (1.BdeHQ is an ENTITY with no members and moved zero bits); scenario-injected
 behaviour or AI-capable templates (TropicTortoise .pln is a 36-byte EMPTY header - this
 also CLOSES the groundwork 0.5 ".pln unparsed" gap; .spt scripts count=0; taskRules/ and
-scriptedObjectMovement/ are EMPTY DIRS; Bogaland2 is the identical inert ancestor).
+scriptedObjectMovement/ are empty ONLY IN THE C2simEx LAYER; Bogaland2 is the inert
+ancestor).
+*** MODEL-SET DEFAULT BEHAVIOUR IS **NOT** RULED OUT - RETRACTED 2026-07-19. C2simEx.sms
+includes EntityLevel.sms, whose taskRules/ holds default-task-rules.tsk, doctrines.dct and
+actionCategories.tsk, and whose scriptedObjectMovement/ holds 19 files. NOBODY HAS OPENED
+ANY OF THEM. The SCENARIO half above is solid; the MODEL-SET half was checked in the wrong
+directory layer. ***
 
 FINDINGS THAT OVERTURNED DOCUMENTED "FACTS" - keep them, they are implementation-independent:
 - RUNBOOK sec 7's "RTTI across the MAK DLL boundary" story is FALSE. MAK's own header
@@ -248,7 +254,7 @@ FINDINGS THAT OVERTURNED DOCUMENTED "FACTS" - keep them, they are implementation
 - The blind static_cast worked on aggregates only through ACCIDENTAL VTABLE SLOT ALIGNMENT;
   on a CONTROL object the same slot is a disjoint branch, which is why location() returned
   garbage there while lastSetLocation() faulted.
-- "Baseline objects are positionless" is an artefact of that cast (see above).
+- "Baseline objects are positionless": IMPRECISE, not simply an artefact (re-verified from the .oob 2026-07-19): 2 of the 3 baseline objects (GlblTerrDmg, GlobalEnv) genuinely sit at ECEF (6378137,1,1) = null island and ARE positionless as claimed. Only the Page-In Area has a real authored position (34.615N/-116.55W) and reflects as 90/-90 because of the bad cast. Do not flatten this in either direction.
 
 TOOL INVOCATIONS - VERIFY AGAINST --help/SOURCE; THIS LIST GOES STALE (it did, in a day).
 All joiners run from cwd C:\MAK\vrforces5.0.2\bin64 with the RTI env of RUNBOOK sec 7, and

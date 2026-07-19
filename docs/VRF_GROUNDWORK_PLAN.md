@@ -299,7 +299,7 @@ Superseded text follows: ***
     to 6 dp, ground clamp works), missing route, missing task issue, lying completion,
     stale aggregate reads, scenario-injected behaviour (TropicTortoise .pln is a 36-byte
     EMPTY header - this also CLOSES the groundwork 0.5 ".pln unparsed" gap; Bogaland2 is
-    the identical inert ancestor; taskRules/ and scriptedObjectMovement/ are EMPTY DIRS),
+    the identical inert ancestor; taskRules/ and scriptedObjectMovement/ are empty ONLY IN THE C2simEx LAYER - *** NOT RULED OUT, RETRACTED 2026-07-19: C2simEx.sms includes EntityLevel.sms, whose taskRules/ holds default-task-rules.tsk + doctrines.dct + actionCategories.tsk and whose scriptedObjectMovement/ holds 19 files. NOBODY HAS OPENED THEM. ***),
     and AI-capable entity templates.
   - *** THE BIGGEST OPEN ITEM: THE ORACLE CONTRADICTS ITSELF. *** WatchVrf now also emits
     RPT lines (VR-Forces' OWN position reports, carrying MARKING TEXT - which incidentally
@@ -324,7 +324,7 @@ Superseded text follows: ***
     * The blind static_cast worked on aggregates only through ACCIDENTAL VTABLE SLOT
       ALIGNMENT, and is undefined behaviour on control objects - which is why location()
       returned garbage there while lastSetLocation() faulted.
-    * "The TropicTortoise baseline objects are POSITIONLESS" (RUNBOOK 0.5.7) is an
+    * "The TropicTortoise baseline objects are POSITIONLESS" (RUNBOOK 0.5.7) is IMPRECISE, not simply an artefact (re-verified from the .oob 2026-07-19): 2 of the 3 baseline objects (GlblTerrDmg, GlobalEnv) genuinely sit at ECEF (6378137,1,1) = null island and ARE positionless as claimed. Only the Page-In Area has a real authored position (34.615N/-116.55W) and reflects as 90/-90 because of the bad cast. Do not flatten this in either direction. SUPERSEDED WORDING FOLLOWS: it is an
       ARTEFACT of that bad cast, not a fact about VR-Forces. Their real positions have
       never been read.
   - TOOLING HARDENED THIS SESSION: argument guards on every tool (StopIface could act

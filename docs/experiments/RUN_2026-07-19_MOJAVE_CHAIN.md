@@ -273,7 +273,12 @@ Bogaland2 relocated, and Bogaland2's own .pln and .spt are empty too.
 
 NO DEFAULT BEHAVIOUR IN THE MODEL SET EITHER. C2simEx.sms -> EntityLevel.sms -> base.sms
 has zero matches for doctrine/behavior/plan/reactive/task-set. C2simEx/vrfSim/taskRules/
-and C2simEx/scriptedObjectMovement/ are BOTH EMPTY DIRECTORIES. The five Lua scripts under
+and C2simEx/scriptedObjectMovement/ are BOTH EMPTY DIRECTORIES.
+*** THIS IS TRUE BUT DOES NOT SUPPORT THE CONCLUSION DRAWN FROM IT - RETRACTED 2026-07-19.
+C2simEx.sms includes EntityLevel.sms (line 86), and EntityLevel/vrfSim/taskRules/ holds
+actionCategories.tsk, default-task-rules.tsk and doctrines.dct while
+EntityLevel/scriptedObjectMovement/ holds 19 files. The wrong layer was checked. NOBODY HAS
+OPENED THEM. *** The five Lua scripts under
 C2simEx/scripts/ are DtScriptedTaskMetaData with myMenuLocations - operator menu-invoked,
 no autostart.
 

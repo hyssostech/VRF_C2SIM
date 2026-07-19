@@ -255,7 +255,7 @@ survived a later RUNBOOK edit untouched. VERIFY BEFORE BELIEVING ANY OF IT:
 WHAT SURVIVES, because it is implementation-independent: the DIAGNOSIS above (control
 objects sit on a disjoint repository hierarchy; the blind cast is UB on them; that is why
 location() returned garbage while lastSetLocation() faulted) and the fact that "the
-baseline objects are positionless" is an ARTEFACT of that cast rather than VR-Forces
+baseline objects are positionless" is IMPRECISE, not simply an artefact (re-verified from the .oob 2026-07-19): 2 of the 3 baseline objects (GlblTerrDmg, GlobalEnv) genuinely sit at ECEF (6378137,1,1) = null island and ARE positionless as claimed. Only the Page-In Area has a real authored position (34.615N/-116.55W) and reflects as 90/-90 because of the bad cast. Do not flatten this in either direction. The wording below called it simply an artefact rather than VR-Forces
 behaviour. What is FALSE is only the claim that it was fixed.
 IF YOU ARE PLANNING THE NATIVE RE-ATTEMPT: the crash source is NOT already removed. Scope
 accordingly. Read HANDOFF_2026-07-19.md sec 5 for the rules first.
