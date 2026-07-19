@@ -1,40 +1,42 @@
-using System.Globalization;
 using C2SIM;
 using Microsoft.Extensions.Logging.Abstractions;
+using VrfC2Sim.Tools;
 
 // Diagnostic: subscribe via the SDK and log EVERY inbound event, to root-cause whether the
 // .NET SDK STOMP path receives server broadcasts (init/order/report/status).
 //   StompProbe [seconds] [protocolVersion] [restPassword]
 // Defaults to the TOOL settings that ListenReports/PushInit use (known to work).
 //
-// NOTE: the local Usage() helper below duplicates a pattern now present in several tools
-// (SetSimRate, ListenReports, WatchVrf). Consolidate into tools/Shared/ToolArgs.cs later.
+// Argument handling uses the shared tools/Shared/ToolArgs.cs standard (exit 0 success /
+// 1 operational failure / 2 usage error with nothing done; usage text to STDERR).
 
-static int Usage(string problem)
+string[] UsageText() => new[]
 {
-    Console.Error.WriteLine($"[FAIL] {problem}");
-    Console.Error.WriteLine();
-    Console.Error.WriteLine("usage: StompProbe.exe [seconds] [protocolVersion] [restPassword]");
-    Console.Error.WriteLine();
-    Console.Error.WriteLine("  seconds          Optional. Whole number > 0. Default 60.");
-    Console.Error.WriteLine("  protocolVersion  Optional. Default 'CWIX2024v1.0.2'.");
-    Console.Error.WriteLine("  restPassword     Optional. Default is the known-good tool password.");
-    Console.Error.WriteLine();
-    Console.Error.WriteLine("examples:  StompProbe.exe");
-    Console.Error.WriteLine("           StompProbe.exe 120");
-    return 2;
-}
+    "usage: StompProbe.exe [seconds] [protocolVersion] [restPassword]",
+    "",
+    "  seconds          Optional. Whole number > 0. Default 60.",
+    "  protocolVersion  Optional. Default 'CWIX2024v1.0.2'.",
+    "  restPassword     Optional. Default is the known-good tool password.",
+    "",
+    "examples:  StompProbe.exe",
+    "           StompProbe.exe 120",
+};
+
+// This tool accepts NO options, so any "--token" is a mistake - reject it rather than
+// treat it as a positional (ToolArgs.UnknownFlags documents why that matters).
+string[] unknown = ToolArgs.UnknownFlags(args);
+if (unknown.Length > 0)
+    return ToolArgs.Usage($"unknown option(s): {string.Join(" ", unknown)}.", UsageText());
+
+string[] positional = ToolArgs.Positionals(args);
 
 int secs = 60;
-if (args.Length > 0)
-{
-    if (!int.TryParse(args[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out secs))
-        return Usage($"seconds '{args[0]}' is not an integer.");
-    if (secs <= 0)
-        return Usage($"seconds must be greater than 0; got {secs}.");
-}
-string version = args.Length > 1 ? args[1] : "CWIX2024v1.0.2";
-string password = args.Length > 2 ? args[2] : "v0lgenau";
+if (positional.Length > 0 &&
+    !ToolArgs.TryPositiveInt(positional[0], "seconds", out secs, out string problem))
+    return ToolArgs.Usage(problem, UsageText());
+
+string version = positional.Length > 1 ? positional[1] : "CWIX2024v1.0.2";
+string password = positional.Length > 2 ? positional[2] : "v0lgenau";
 
 var settings = new C2SIMSDKSettings
 {
@@ -65,4 +67,4 @@ Console.WriteLine("connected + subscribed; waiting for broadcasts ...");
 await Task.Delay(TimeSpan.FromSeconds(secs));
 await sdk.Disconnect();
 Console.WriteLine($"=== received {total} inbound messages ===");
-return 0;
+return ToolArgs.ExitOk;

@@ -10,6 +10,11 @@
     <SelfContained>false</SelfContained>
   </PropertyGroup>
   <ItemGroup>
+    <!-- Shared argument-handling helpers (usage/exit-code standard). Pure managed: linking
+         it in adds NOTHING to the con-selftest path's dependency surface. -->
+    <Compile Include="..\Shared\ToolArgs.cs" Link="ToolArgs.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <!-- The C++/CLI bridge (native VR-Forces control). CopyLocal drops VrfBridge.dll
          beside the exe. WatchVrf needs NO C2SIM SDK - it is pure VR-Forces. -->
     <Reference Include="VrfBridge">

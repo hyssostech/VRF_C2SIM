@@ -96,6 +96,26 @@ internal static class ToolArgs
     }
 
     /// <summary>
+    /// As TryInt, additionally requiring a value strictly greater than 0. Added 2026-07-19
+    /// for the duration/interval arguments (ListenReports seconds, StompProbe seconds,
+    /// WatchVrf durationSecs/sampleSecs): TryIntInRange(raw, n, 1, int.MaxValue) would work
+    /// but reports "out of range (expected 1..2147483647)", which reads as an arbitrary
+    /// implementation limit rather than the actual rule. These arguments are durations, and
+    /// the rule is simply that a duration must be positive.
+    /// </summary>
+    public static bool TryPositiveInt(string raw, string argName, out int value, out string problem)
+    {
+        if (!TryInt(raw, argName, out value, out problem)) return false;
+        if (value <= 0)
+        {
+            problem = $"{argName} must be greater than 0; got {value}.";
+            return false;
+        }
+        problem = null;
+        return true;
+    }
+
+    /// <summary>
     /// Parse a double, invariant culture, rejecting NaN/Infinity. NumberStyles.Float
     /// ACCEPTS "NaN" and "Infinity" and every relational test against NaN is false, so a
     /// bare range check downstream would let them through (see CreateOne's note).

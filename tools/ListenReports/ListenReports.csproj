@@ -8,6 +8,12 @@
     <NoWarn>NETSDK1138</NoWarn>
   </PropertyGroup>
   <ItemGroup>
+    <!-- Shared argument-handling helpers (usage/exit-code standard). Linked in as source
+         rather than referenced as a project: these tools are single-file top-level
+         programs and ToolArgs.cs is their only shared code. -->
+    <Compile Include="..\Shared\ToolArgs.cs" Link="ToolArgs.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\..\..\Library\CS\C2SIMSDK\C2SIMSDK\C2SIMSDK.csproj" />
   </ItemGroup>
   <ItemGroup>

@@ -1,6 +1,6 @@
 using System.Globalization;
-using System.Linq;
 using VrfC2Sim;
+using VrfC2Sim.Tools;
 
 namespace WatchVrf;
 
@@ -36,56 +36,42 @@ namespace WatchVrf;
 // Defaults: 3399, 120, 15, CWIX-2024.
 internal static class WatchRunner
 {
-    // NOTE: the local Usage() helper duplicates a pattern now present in several tools
-    // (SetSimRate, ListenReports, StompProbe). Consolidate into tools/Shared/ToolArgs.cs later.
-    private static int Usage(string problem)
-    {
-        Console.Error.WriteLine($"[FAIL] {problem}");
-        Console.Error.WriteLine();
-        Console.Error.WriteLine("usage: WatchVrf.exe [applicationNumber] [durationSecs] [sampleSecs] [federation]");
-        Console.Error.WriteLine("       WatchVrf.exe --con-selftest");
-        Console.Error.WriteLine();
-        Console.Error.WriteLine("  applicationNumber  Optional. Integer 1..65535. Default 3399.");
-        Console.Error.WriteLine("                     Use a FRESH, ledgered appNo every run (RUNBOOK sec 7).");
-        Console.Error.WriteLine("  durationSecs       Optional. Whole number > 0. Default 120.");
-        Console.Error.WriteLine("  sampleSecs         Optional. Whole number > 0. Default 15.");
-        Console.Error.WriteLine("  federation         Optional. Default 'CWIX-2024'.");
-        Console.Error.WriteLine();
-        Console.Error.WriteLine("WatchVrf is the MOVEMENT ORACLE: an unparseable argument is a HARD FAILURE,");
-        Console.Error.WriteLine("never a silent fallback to a default, because the resulting trace would");
-        Console.Error.WriteLine("describe something other than what the caller asked to observe.");
-        Console.Error.WriteLine();
-        Console.Error.WriteLine("examples:  WatchVrf.exe 3399 120 15");
-        Console.Error.WriteLine("           WatchVrf.exe 3401 600 5 CWIX-2024");
-        return 2;
-    }
-
+    // Argument handling uses the shared tools/Shared/ToolArgs.cs standard (0 success /
+    // 1 operational failure / 2 usage error with nothing done; usage text to STDERR).
+    // The usage block itself lives in WatchVrfUsage so the offline --con-selftest path can
+    // print it without touching this bridge-referencing type.
     public static int Run(string[] args)
     {
-        var positional = args.Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToArray();
+        // No options are valid on the LIVE path. --con-selftest is dispatched in Program.cs
+        // and only when it is args[0]; reaching here with it (e.g. "WatchVrf 3399
+        // --con-selftest") means the caller asked for two different things at once. For the
+        // movement oracle that MUST be a hard failure, not a silently-ignored token.
+        string[] unknown = ToolArgs.UnknownFlags(args);
+        if (unknown.Length > 0)
+            return ToolArgs.Usage($"unknown or misplaced option(s): {string.Join(" ", unknown)}. "
+                                + "--con-selftest is offline-only and must be the sole argument.",
+                                  WatchVrfUsage.Lines());
+
+        string[] positional = ToolArgs.Positionals(args);
         int appNumber = 3399, durationSecs = 120, sampleSecs = 15;
         string federation = "CWIX-2024";
+        string problem;
 
         // HARD-FAIL on unparseable input. Previously these were TryParse calls whose bool
         // result was DISCARDED, so a typo silently produced a trace of the wrong appNumber
-        // or the wrong sample cadence while still reporting success.
+        // or the wrong sample cadence while still reporting success. The Try* results below
+        // are all checked; nothing falls back to a default after a parse failure.
         if (positional.Length >= 1 &&
-            !int.TryParse(positional[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out appNumber))
-            return Usage($"applicationNumber '{positional[0]}' is not an integer.");
-        if (positional.Length >= 1 && (appNumber <= 0 || appNumber > 65535))
-            return Usage($"applicationNumber {appNumber} is out of range (expected 1..65535).");
+            !ToolArgs.TryIntInRange(positional[0], "applicationNumber", 1, 65535, out appNumber, out problem))
+            return ToolArgs.Usage(problem, WatchVrfUsage.Lines());
 
         if (positional.Length >= 2 &&
-            !int.TryParse(positional[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out durationSecs))
-            return Usage($"durationSecs '{positional[1]}' is not an integer.");
-        if (positional.Length >= 2 && durationSecs <= 0)
-            return Usage($"durationSecs must be greater than 0; got {durationSecs}.");
+            !ToolArgs.TryPositiveInt(positional[1], "durationSecs", out durationSecs, out problem))
+            return ToolArgs.Usage(problem, WatchVrfUsage.Lines());
 
         if (positional.Length >= 3 &&
-            !int.TryParse(positional[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out sampleSecs))
-            return Usage($"sampleSecs '{positional[2]}' is not an integer.");
-        if (positional.Length >= 3 && sampleSecs <= 0)
-            return Usage($"sampleSecs must be greater than 0; got {sampleSecs}.");
+            !ToolArgs.TryPositiveInt(positional[2], "sampleSecs", out sampleSecs, out problem))
+            return ToolArgs.Usage(problem, WatchVrfUsage.Lines());
 
         if (positional.Length >= 4 && !string.IsNullOrWhiteSpace(positional[3])) federation = positional[3];
 
@@ -122,7 +108,7 @@ internal static class WatchRunner
             if (!bridge.Start(cfg))
             {
                 Console.WriteLine("[FAIL] bridge.Start() returned false.");
-                return 1;
+                return ToolArgs.ExitFailure;
             }
             bridge.BeginTrackingReflectedObjects();
             Console.WriteLine("[OK] joined; discovering + sampling (POS,t,uuid,lat,lon,alt ; CON,t,uuid,level,msg)...");
@@ -174,13 +160,17 @@ internal static class WatchRunner
             Console.WriteLine("[..] bridge.Stop() - resigning...");
             bridge.Stop();
             Console.WriteLine("[OK] resigned cleanly.");
-            return 0;
+            return ToolArgs.ExitOk;
         }
         catch (Exception ex)
         {
+            // OPERATIONAL failure, so exit 1 - NOT 2. This returned 2 before, which under the
+            // shared standard means "usage error, NO ACTION WAS TAKEN". By the time control
+            // reaches here the bridge may have joined the federation, so claiming nothing
+            // happened would tell an unattended runner it is safe to reuse the appNumber.
             Console.WriteLine($"[FAIL] {ex.GetType().Name}: {ex.Message}");
             try { bridge?.Stop(); } catch { /* best effort */ }
-            return 2;
+            return ToolArgs.ExitFailure;
         }
         finally
         {

@@ -1,6 +1,6 @@
-using System.Globalization;
 using C2SIM;
 using Microsoft.Extensions.Logging.Abstractions;
+using VrfC2Sim.Tools;
 
 // Passively record every REPORT the interface posts, so the wire-format report XML is captured.
 //   ListenReports [seconds] [outPath]
@@ -13,41 +13,42 @@ using Microsoft.Extensions.Logging.Abstractions;
 //           directory), in which case reports-captured.log is written inside it.
 //           Missing parent directories are created.
 //
-// NOTE: the local Usage() helper below duplicates a pattern now present in several tools
-// (SetSimRate, StompProbe, WatchVrf). Consolidate into tools/Shared/ToolArgs.cs later.
+// Argument handling uses the shared tools/Shared/ToolArgs.cs standard (exit 0 success /
+// 1 operational failure / 2 usage error with nothing done; usage text to STDERR).
 
-static int Usage(string problem)
+string[] UsageText() => new[]
 {
-    Console.Error.WriteLine($"[FAIL] {problem}");
-    Console.Error.WriteLine();
-    Console.Error.WriteLine("usage: ListenReports.exe [seconds] [outPath]");
-    Console.Error.WriteLine();
-    Console.Error.WriteLine("  seconds   Optional. Whole number > 0. Default 120.");
-    Console.Error.WriteLine("  outPath   Optional. File OR directory for the capture.");
-    Console.Error.WriteLine("            Default: reports-captured.log beside this binary.");
-    Console.Error.WriteLine("            Parent directories are created if missing.");
-    Console.Error.WriteLine();
-    Console.Error.WriteLine("examples:  ListenReports.exe");
-    Console.Error.WriteLine("           ListenReports.exe 300");
-    Console.Error.WriteLine("           ListenReports.exe 300 C:\\runs\\2026-07-19T1200Z\\reports.log");
-    return 2;
-}
+    "usage: ListenReports.exe [seconds] [outPath]",
+    "",
+    "  seconds   Optional. Whole number > 0. Default 120.",
+    "  outPath   Optional. File OR directory for the capture.",
+    "            Default: reports-captured.log beside this binary.",
+    "            Parent directories are created if missing.",
+    "",
+    "examples:  ListenReports.exe",
+    "           ListenReports.exe 300",
+    "           ListenReports.exe 300 C:\\runs\\2026-07-19T1200Z\\reports.log",
+};
+
+// This tool accepts NO options, so any "--token" is a mistake - reject it rather than
+// treat it as a positional (ToolArgs.UnknownFlags documents why that matters).
+string[] unknown = ToolArgs.UnknownFlags(args);
+if (unknown.Length > 0)
+    return ToolArgs.Usage($"unknown option(s): {string.Join(" ", unknown)}.", UsageText());
+
+string[] positional = ToolArgs.Positionals(args);
 
 int secs = 120;
-if (args.Length > 0)
-{
-    if (!int.TryParse(args[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out secs))
-        return Usage($"seconds '{args[0]}' is not an integer.");
-    if (secs <= 0)
-        return Usage($"seconds must be greater than 0; got {secs}.");
-}
+if (positional.Length > 0 &&
+    !ToolArgs.TryPositiveInt(positional[0], "seconds", out secs, out string problem))
+    return ToolArgs.Usage(problem, UsageText());
 
 // Resolve the output path BEFORE connecting, so a bad path fails fast instead of after a
 // full capture window has been spent.
 string outPath;
-if (args.Length > 1 && !string.IsNullOrWhiteSpace(args[1]))
+if (positional.Length > 1 && !string.IsNullOrWhiteSpace(positional[1]))
 {
-    string requested = args[1];
+    string requested = positional[1];
     bool looksLikeDirectory =
         requested.EndsWith(Path.DirectorySeparatorChar) ||
         requested.EndsWith(Path.AltDirectorySeparatorChar) ||
@@ -60,7 +61,8 @@ if (args.Length > 1 && !string.IsNullOrWhiteSpace(args[1]))
     }
     catch (Exception ex)
     {
-        return Usage($"outPath '{requested}' is not a usable path: {ex.GetType().Name}: {ex.Message}");
+        return ToolArgs.Usage($"outPath '{requested}' is not a usable path: "
+                            + $"{ex.GetType().Name}: {ex.Message}", UsageText());
     }
 
     string parent = Path.GetDirectoryName(outPath);
@@ -69,7 +71,8 @@ if (args.Length > 1 && !string.IsNullOrWhiteSpace(args[1]))
         try { Directory.CreateDirectory(parent); }
         catch (Exception ex)
         {
-            return Usage($"could not create output directory '{parent}': {ex.GetType().Name}: {ex.Message}");
+            return ToolArgs.Usage($"could not create output directory '{parent}': "
+                                + $"{ex.GetType().Name}: {ex.Message}", UsageText());
         }
     }
 }
@@ -120,4 +123,4 @@ if (firstReport != null)
     Console.WriteLine("=== first report body ===");
     Console.WriteLine(firstReport.Length > 1600 ? firstReport[..1600] : firstReport);
 }
-return 0;
+return ToolArgs.ExitOk;
