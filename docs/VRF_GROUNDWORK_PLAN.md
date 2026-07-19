@@ -277,6 +277,59 @@ Exit criteria / what this settles:
 
 ## Status
 
+- 2026-07-19 LATE (LIVE): **THE ONE-BUTTON HEADLESS LOOP RAN END TO END, THREE TIMES,
+  REPRODUCIBLY. THE UNITS DO NOT EXECUTE THEIR TASKS. AND THE MOVEMENT ORACLE ITSELF IS
+  NOW IN QUESTION.** Full write-ups: docs/experiments/RUN_2026-07-19_MOJAVE_CHAIN.md and
+  docs/experiments/PREREG_TSK_DELIVERY_2026-07-19.md.
+  - THE LOOP WORKS: scripts/RunC2SimScenario.ps1 takes a C2SIM init + order through
+    launch, join, creation, tasking, telemetry and clean resign with ZERO human
+    interaction. That is the mandate, demonstrated.
+  - THE RESULT, reproduced across runs 144109Z / 161438Z / 202349Z: all three tasks are
+    issued correctly (CreateRoute + MoveAlongRoute). 114.MechCoy and 1.BdeHQ do NOT move
+    (0.0 m, bit-exact, confirmed by two independent channels). 1222.MechPlt moves ~174 m
+    of a ~1155 m route and stops - 174.1 m and 174.4 m on two runs, so this is a
+    REPRODUCIBLE defect, not noise. No TASKCMPLT is ever emitted: an HONEST failure.
+  - RULED OUT with evidence, do NOT re-investigate: wrong/buried spawn (creation is EXACT
+    to 6 dp, ground clamp works), missing route, missing task issue, lying completion,
+    stale aggregate reads, scenario-injected behaviour (TropicTortoise .pln is a 36-byte
+    EMPTY header - this also CLOSES the groundwork 0.5 ".pln unparsed" gap; Bogaland2 is
+    the identical inert ancestor; taskRules/ and scriptedObjectMovement/ are EMPTY DIRS),
+    and AI-capable entity templates.
+  - *** THE BIGGEST OPEN ITEM: THE ORACLE CONTRADICTS ITSELF. *** WatchVrf now also emits
+    RPT lines (VR-Forces' OWN position reports, carrying MARKING TEXT - which incidentally
+    solves the member-to-parent mapping the runaway census called unsolvable offline). On
+    1222.MechPlt the two channels DISAGREE ABOUT DIRECTION: RPT shows steady EASTWARD
+    progress toward the objective while the POS stream shows it 65 m WEST and frozen. THE
+    CONTROL IS WHAT MAKES THIS SERIOUS: on the two units that do NOT move, the channels
+    agree EXACTLY. They agree on stationary objects and disagree only on the moving one.
+    POS displacement is the standing "only movement oracle" and every negative movement
+    result in this project rests on it.
+  - THE DECISIVE TEST IS BUILT BUT NOT SHIPPABLE YET: log lastSetLocation() (raw) beside
+    location() (approximator-extrapolated). It NEEDS A NATIVE CHANGE. My first attempt
+    BROKE THE PIPELINE TWICE and was REVERTED - see the four-run table in commit 5d14eda.
+    Root cause of the regression: the change made Start() register extra controller
+    callbacks UNCONDITIONALLY for every consumer including the production app. A
+    DIAGNOSTIC MUST NOT CHANGE THE BEHAVIOUR OF THE THING IT OBSERVES. When redone:
+    additive, OPT-IN, and it MUST NOT TOUCH THE DEFAULT Start() PATH.
+  - FINDINGS THAT SURVIVE THE REVERT (implementation-independent, keep them):
+    * RUNBOOK sec 7's "RTTI across the MAK DLL boundary" story is FALSE. MAK's own header
+      (reflectedExtAggregate.h:15-19) shows that under DtHLA the class deliberately derives
+      from DtReflectedObject, so a null dynamic_cast<DtReflectedAggregate*> is CORRECT.
+    * The blind static_cast worked on aggregates only through ACCIDENTAL VTABLE SLOT
+      ALIGNMENT, and is undefined behaviour on control objects - which is why location()
+      returned garbage there while lastSetLocation() faulted.
+    * "The TropicTortoise baseline objects are POSITIONLESS" (RUNBOOK 0.5.7) is an
+      ARTEFACT of that bad cast, not a fact about VR-Forces. Their real positions have
+      never been read.
+  - TOOLING HARDENED THIS SESSION: argument guards on every tool (StopIface could act
+    destructively with NO arguments); the runner's Start-Process -Wait DEADLOCK (it waits
+    for DESCENDANTS, so it could never return from launching VR-Forces); the oracle gate,
+    which PASSED ON GARBAGE (lat 1e-6, lon -90, altitude 1.02e15 m) because it never
+    checked the altitude column it was already given; and a crashed oracle now FAILS the
+    run instead of reporting "RUN COMPLETE".
+  - KNOWN BLOCKER, being fixed: a "Session Status - Close current terrain?" modal fires on
+    EVERY clean teardown and hangs StopVrf, because it is a NESTED child of the main
+    window and StopVrf only searches TOP-LEVEL windows.
 - 2026-07-19 (OFFLINE): **ARGUMENT GUARDS LANDED AND VERIFIED; PASS CRITERION WRITTEN BUT
   UNRATIFIED; VrfBridge TOOLCHAIN PROVEN HEALTHY. THE FIRST SCORED RUN HAS NOT RUN AND IS
   HELD ON A USER RULING.** Commits 0ca46f0, 54a27f0. No live time consumed; appNo marker
