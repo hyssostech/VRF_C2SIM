@@ -125,12 +125,21 @@ A clean-context cold reader flagged this as the single biggest hole in the hando
 it is: this project's documented failure mode is inventing an acceptance criterion after
 seeing the data. DECIDE AND RECORD THE ARITHMETIC BEFORE RUNNING, in this file.
 
-*** STATUS 2026-07-19: numbers PROPOSED by the supervisor below, AWAITING USER RULING.
-    The first scored run is HELD until these are ruled on. Several are military-semantics
-    calls (what counts as "arrived" for a formation), which is the user's standing role.
-    Rule on them, amend them, or reject them - but they are fixed BEFORE the run, and any
-    change made AFTER data exists must be recorded here as a dated amendment with the
-    reason. That audit trail is the whole point of this section. ***
+*** STATUS 2026-07-19: RATIFIED BY THE USER, BEFORE ANY DATA EXISTED. The user reviewed
+    the proposed arithmetic below and authorised it as written ("go as suggested"),
+    together with the live sequence (chain exercise at -RunSecs 120, then the 600 s
+    measurement run). The numbers were fixed at that moment and the run had not yet been
+    executed - which is the property this section exists to guarantee.
+
+    ANY CHANGE FROM HERE IS AN AMENDMENT, NOT AN EDIT. Append it below with the date, the
+    new value, the old value, and the REASON, and state plainly whether data already
+    existed when the change was made. Silently retuning a threshold after seeing a trace
+    is the exact failure mode this section was written to prevent; a visible amendment
+    with a stated reason is legitimate, an invisible one is not.
+
+    STILL OPEN, and deliberately NOT bundled into this ratification: the type-adjudication
+    Q1 (country-by-side) remains AWAITING USER PICK in TYPE_GAP_ADJUDICATION.md. It does
+    not gate the Mojave run. ***
 
 ### 4a.0 The first target, measured (not estimated)
 

@@ -1047,7 +1047,28 @@ EXIT=0 and both processes down, because plain "Yes" in COMBINED mode closes the 
 the engine it started (vendor: Introduction\Starting\ExitingVR-Forces.htm). Cause of the
 variation is NOT established - do not assume the checkbox will be present.
 
-*** NEXT FREE: 3503 *** (authoritative - the ONLY such marker in this file. Update this
+CLAIMED 2026-07-19 by the supervisor, BEFORE the join, for a single ResetVrf --dry-run
+verifying the REFRESHED VrfBridge.dll (see VRF_GROUNDWORK_PLAN Status 2026-07-19: the
+seven DLL copies were three different builds and tools/ResetVrf was running one that
+PREDATED both the 2026-07-13 R10 fan-out and the 2026-07-17 0.6 console-capture work).
+All seven copies are now byte-identical (sha256 A48ABE6C...). This dry-run is the gate
+on that refresh: ResetVrf must join, discover, delete nothing, and resign cleanly.
+- 3503: CONSUMED - ResetVrf --dry-run, refreshed-bridge verification. RESULT: PASS.
+  EXIT=0 in 20 s. RTI 4.6.1 HLA 1516-2010 loaded, rid.mtl + vrfLegion.lua read,
+  "Connected to RTI Assistant", joined (BackendCount=0), discovery ticked, resigned
+  cleanly. NO 0xC0000005. Discovery returned 0 objects, which is CORRECT and not a
+  fault: VR-Forces was deliberately NOT running for this check, so nothing reflects.
+  WHAT THIS DOES AND DOES NOT PROVE - the refreshed native DLL LOADS, joins the RTI and
+  resigns cleanly, which retires the crash risk that motivated verifying it. It does NOT
+  re-verify DISCOVER-AND-DELETE against live objects; the 2026-07-11 live protocol
+  (3271/3272/3273) did that on the older bridge. If ResetVrf is ever used in anger as
+  the recovery lever, that discover-and-delete path is running on a bridge whose delete
+  behaviour has not been re-exercised since the refresh.
+  NOTE (unrelated to this gate, still outstanding): ResetVrf still prints "Verify the
+  VR-Forces GUI now shows an empty scenario" - one of the GUI-referencing console
+  strings HEADLESS_RUN_PLAN sec 4 lists for replacement. Not fixed here.
+
+*** NEXT FREE: 3504 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
