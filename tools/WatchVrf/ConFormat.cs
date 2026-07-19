@@ -60,4 +60,39 @@ public static class ConFormat
         return string.Create(CultureInfo.InvariantCulture,
             $"CON,{t},{uuid},{notifyLevel},{EscapeField(message)}");
     }
+
+    // TSK,<t>,<unitMarking>,<taskType> - one record per VrfBridge.TaskCompleted event.
+    //
+    // NO UUID FIELD, DELIBERATELY. TaskCompletedEventArgs (VrfBridge.cpp:130-134) carries
+    // exactly two strings - UnitMarking (the transmitter's markingText) and TaskType (e.g.
+    // "move-along"). There is no uuid on the payload, so this line reports what the event
+    // actually delivers rather than a field invented to match POS/CON's shape. Correlate to
+    // POS by resolving markingText -> uuid out of band; do not assume field 2 is a uuid.
+    //
+    // BOTH string fields are ESCAPED with EscapeField (unlike CON's raw uuid/level, which
+    // are structurally comma-free). markingText is operator-supplied VR-Forces text and
+    // taskType is vendor-supplied; neither is guaranteed comma/quote/newline-free, so both
+    // go through the same RFC-4180 + C-escape rule documented above. That keeps a TSK record
+    // on exactly one physical line and splitting into exactly 4 CSV fields.
+    public static string TaskLine(double t, string unitMarking, string taskType)
+    {
+        return string.Create(CultureInfo.InvariantCulture,
+            $"TSK,{t},{EscapeField(unitMarking)},{EscapeField(taskType)}");
+    }
+
+    // RPT,<t>,<text> - one record per VrfBridge.TextReport event.
+    //
+    // NO UUID FIELD, DELIBERATELY. TextReportEventArgs (VrfBridge.cpp:125-128) carries a
+    // SINGLE string: the raw VR-Forces radio text-report. The subject of the report, when
+    // there is one, is embedded in that text (e.g. the Lua tracker's
+    // `POSITION "entity name" <lat> <lon>`), not delivered as a separate field. Parsing it
+    // out is a consumer's job; this stream records the raw text verbatim.
+    //
+    // The text field is ESCAPED (same rule as CON's message): report text is arbitrary and
+    // routinely contains quotes, so it is always one quoted, single-line CSV field.
+    public static string ReportLine(double t, string text)
+    {
+        return string.Create(CultureInfo.InvariantCulture,
+            $"RPT,{t},{EscapeField(text)}");
+    }
 }

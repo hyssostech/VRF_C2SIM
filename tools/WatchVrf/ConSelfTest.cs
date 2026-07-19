@@ -3,8 +3,11 @@ using System.Text;
 
 namespace WatchVrf;
 
-// Offline check of the CON,... Object Console line formatting (groundwork plan 0.6):
+// Offline check of the emitted trace line formatting (groundwork plan 0.6):
 //     WatchVrf --con-selftest
+// Covers CON,... (Object Console) plus the TSK,... / RPT,... task-completion and
+// text-report lines. The flag name is kept as --con-selftest deliberately: it is part of
+// WatchVrf's argument surface and renaming it would break existing callers.
 // Pure managed, no VrfBridge / MAK / live VR-Forces - so it runs without the native bridge
 // DLL on PATH. Matches the repo selftest convention (VrfC2SimApp/*SelfTest.cs): a static
 // Run() that prints [PASS]/[FAIL] rows and returns 0 on success, 1 on failure.
@@ -73,6 +76,56 @@ public static class ConSelfTest
                 CheckEq(ref failures, fields[4], "a,b \"q\" c", "field4 = decoded message (comma+quote)");
             }
         }
+
+        // 6. TSK,... task-completion lines (VrfBridge TaskCompleted -> UnitMarking, TaskType).
+        //    4 fields, BOTH strings quoted - neither is guaranteed comma-free.
+        CheckEq(ref failures, ConFormat.TaskLine(31.0, "TF-Alpha", "move-along"),
+            "TSK,31,\"TF-Alpha\",\"move-along\"", "full TSK line (plain marking + taskType)");
+        CheckEq(ref failures, ConFormat.TaskLine(4.5, "A Co, 1st", "move-along"),
+            "TSK,4.5,\"A Co, 1st\",\"move-along\"", "TSK marking containing a comma stays one field");
+        {
+            var fields = ParseCsvLine(ConFormat.TaskLine(4.5, "A Co, 1st", "move-along"));
+            Check(ref failures, fields.Count == 4, $"TSK parses to 4 CSV fields (got {fields.Count})");
+            if (fields.Count == 4)
+            {
+                CheckEq(ref failures, fields[0], "TSK", "TSK field0 = TSK");
+                CheckEq(ref failures, fields[2], "A Co, 1st", "TSK field2 = decoded marking");
+                CheckEq(ref failures, fields[3], "move-along", "TSK field3 = taskType");
+            }
+        }
+
+        // 7. RPT,... text-report lines (VrfBridge TextReport -> Text only; no uuid exists).
+        CheckEq(ref failures, ConFormat.ReportLine(7.25, "POSITION \"tank1\" 39.0 -76.0"),
+            "RPT,7.25,\"POSITION \"\"tank1\"\" 39.0 -76.0\"",
+            "full RPT line (quotes in report text doubled)");
+        {
+            var fields = ParseCsvLine(ConFormat.ReportLine(7.25, "POSITION \"tank1\" 39.0 -76.0"));
+            Check(ref failures, fields.Count == 3, $"RPT parses to 3 CSV fields (got {fields.Count})");
+            if (fields.Count == 3)
+            {
+                CheckEq(ref failures, fields[0], "RPT", "RPT field0 = RPT");
+                CheckEq(ref failures, fields[2], "POSITION \"tank1\" 39.0 -76.0", "RPT field2 = decoded text");
+            }
+        }
+
+        // 8. Both new line types stay on ONE physical line, and survive null payloads
+        //    (a managed String^ property can arrive null; EscapeField maps null -> "").
+        string tskMulti = ConFormat.TaskLine(2.0, "u\nit", "move\r\nalong");
+        Check(ref failures, !tskMulti.Contains('\n') && !tskMulti.Contains('\r'),
+            "TSK line has no raw CR/LF even for multi-line fields");
+        string rptMulti = ConFormat.ReportLine(2.0, "line1\nline2");
+        Check(ref failures, !rptMulti.Contains('\n') && !rptMulti.Contains('\r'),
+            "RPT line has no raw CR/LF even for a multi-line report");
+        CheckEq(ref failures, ConFormat.TaskLine(1, null, null), "TSK,1,\"\",\"\"",
+            "TSK tolerates null marking/taskType (-> empty fields)");
+        CheckEq(ref failures, ConFormat.ReportLine(1, null), "RPT,1,\"\"",
+            "RPT tolerates null text (-> empty field)");
+
+        // 9. APPEND-ONLY guard: the new types must not collide with the existing tags, and
+        //    POS/CON formatting is unchanged (re-asserted here so a future edit to ConFormat
+        //    that "unifies" the tags fails loudly instead of silently breaking consumers).
+        CheckEq(ref failures, ConFormat.Line(1.0, "1:1:0:5", 1, "x"), "CON,1,1:1:0:5,1,\"x\"",
+            "CON line format unchanged (append-only)");
 
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
         return failures == 0 ? 0 : 1;

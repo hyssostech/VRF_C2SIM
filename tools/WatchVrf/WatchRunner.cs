@@ -22,6 +22,17 @@ namespace WatchVrf;
 //     CON,<elapsed-seconds>,<uuid>,<notifyLevel>,<escaped-message>
 // (message escaping: see ConFormat). One process, one timeline, both streams.
 //
+// It ALSO consumes the two task/report events the facade already raises, so the trace can
+// answer whether VR-Forces ever ACCEPTED a tasking - a position-only trace cannot tell a
+// rejected task from an accepted-but-immobile unit, since both look identical (a static
+// POS series). Same clock base, same stream, one record per event:
+//     TSK,<elapsed-seconds>,<escaped-unitMarking>,<escaped-taskType>
+//     RPT,<elapsed-seconds>,<escaped-text>
+// NOTE both are UUID-LESS by design: TaskCompletedEventArgs carries only UnitMarking +
+// TaskType and TextReportEventArgs carries only Text (VrfBridge.cpp:125-134). The fields
+// above are exactly what the events deliver - nothing is synthesized to match POS's shape.
+// Correlate TSK to POS via markingText -> uuid out of band.
+//
 // Resigns CLEANLY at the end (no stale federate). Pure VR-Forces: no C2SIM / STOMP.
 //
 // This live logic is kept OUT of Program.cs's top-level Main so the --con-selftest path
@@ -111,7 +122,8 @@ internal static class WatchRunner
                 return ToolArgs.ExitFailure;
             }
             bridge.BeginTrackingReflectedObjects();
-            Console.WriteLine("[OK] joined; discovering + sampling (POS,t,uuid,lat,lon,alt ; CON,t,uuid,level,msg)...");
+            Console.WriteLine("[OK] joined; discovering + sampling (POS,t,uuid,lat,lon,alt ; "
+                            + "CON,t,uuid,level,msg ; TSK,t,marking,taskType ; RPT,t,text)...");
 
             var start = DateTime.UtcNow;
 
@@ -131,6 +143,46 @@ internal static class WatchRunner
                     // Never let a sink error cross back into VR-Forces' tick.
                     Emit(string.Create(CultureInfo.InvariantCulture,
                         $"# CON handler error: {ex.GetType().Name}: {ex.Message}"));
+                }
+            };
+
+            // TASK OUTCOME + REPORT streams, on the SAME clock base as POS/CON.
+            //
+            // WHY: a position-only trace cannot distinguish "VR-Forces rejected the task",
+            // "accepted it and the unit could not move", and "silently dropped it" - all
+            // three look like a static POS series. TaskCompleted is the acceptance/completion
+            // signal and TextReport is the radio narrative; together they say whether the
+            // simulator ever acknowledged the tasking at all. Both were already wired in the
+            // facade and cost nothing to consume.
+            //
+            // Subscribed BEFORE the tick loop for the same reason as CON: these are pumped
+            // only inside bridge.Tick(). Same try/catch wrapper - a formatting fault in a
+            // sink must never propagate back into the native tick.
+            bridge.TaskCompleted += (s, e) =>
+            {
+                try
+                {
+                    double tt = Math.Round((DateTime.UtcNow - start).TotalSeconds, 1);
+                    Emit(ConFormat.TaskLine(tt, e.UnitMarking, e.TaskType));
+                }
+                catch (Exception ex)
+                {
+                    Emit(string.Create(CultureInfo.InvariantCulture,
+                        $"# TSK handler error: {ex.GetType().Name}: {ex.Message}"));
+                }
+            };
+
+            bridge.TextReport += (s, e) =>
+            {
+                try
+                {
+                    double tr = Math.Round((DateTime.UtcNow - start).TotalSeconds, 1);
+                    Emit(ConFormat.ReportLine(tr, e.Text));
+                }
+                catch (Exception ex)
+                {
+                    Emit(string.Create(CultureInfo.InvariantCulture,
+                        $"# RPT handler error: {ex.GetType().Name}: {ex.Message}"));
                 }
             };
 

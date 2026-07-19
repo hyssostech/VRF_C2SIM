@@ -274,6 +274,50 @@ CAUTION: a freshly loaded TropicTortoise contains only NON-ENTITY CONTROL OBJECT
 NaN lat/alt. Do NOT conclude the oracle is broken from those - create a real
 entity and check that.
 
+### 0.5.7a WATCHVRF TRACE LINE TYPES
+
+One process, one stream, ONE CLOCK BASE (elapsed seconds from the same UTC start),
+so every line type is directly comparable on a single timeline. Records are
+interleaved and read LINE BY LINE; each record is exactly one physical line.
+Field 0 is the type tag. This list is APPEND-ONLY - POS and CON have never changed
+shape and consumers may rely on that.
+
+    POS,<t>,<uuid>,<latDeg>,<lonDeg>,<altM>          per object, per sample tick
+    CON,<t>,<uuid>,<notifyLevel>,<message>           Object Console warning
+    TSK,<t>,<unitMarking>,<taskType>                 task completion  (added 2026-07-19)
+    RPT,<t>,<text>                                   radio text-report (added 2026-07-19)
+    # ...                                            human-readable comment/summary
+
+Worked examples:
+
+    POS,23.5,VRF_UUID:adfaadb3-...,34.517156,-116.973525,1060.7
+    CON,12.5,1:1:0:2001,1,"route failed, ""no path"""
+    TSK,31,"A Co, 1st","move-along"
+    RPT,7.25,"POSITION ""tank1"" 39.0 -76.0"
+
+ESCAPING. Trailing free-text fields are RFC-4180 quoted, with backslash/CR/LF
+C-escaped first (\\, \r, \n) so a multi-line message can never split a record.
+Decode = strip outer quotes, undouble "", then reverse the C-escapes. Quoted
+fields: CON's message, and BOTH TSK fields and RPT's text. POS is never quoted
+(its fields are structurally safe). See tools/WatchVrf/ConFormat.cs, which is the
+single source of truth; `WatchVrf.exe --con-selftest` asserts all of the above
+OFFLINE (no VrfBridge.dll / MAK PATH needed) and round-trips the decoder.
+
+WHY TSK/RPT EXIST. A position-only trace CANNOT distinguish "VR-Forces rejected
+the task", "accepted it but the unit could not move", and "silently dropped it":
+all three produce an identical static POS series. That is exactly what run
+20260719T144109Z hit - two units bit-exactly static across 76 samples, one
+snapping 63 m the wrong way - with no way to tell which. TSK is the acceptance /
+completion signal; RPT is the radio narrative.
+
+TSK AND RPT CARRY NO UUID, and this is not an oversight. The underlying managed
+payloads (VrfBridge.cpp:125-134) carry only what is listed above -
+TaskCompleted = UnitMarking + TaskType, TextReport = Text. Correlate TSK to POS by
+resolving markingText -> uuid OUT OF BAND; do NOT assume TSK field 2 is a uuid.
+Absence of a TSK line for a tasked unit is itself evidence (no completion was
+ever reported) - but it is NOT proof of rejection, since a task that is accepted
+and never finishes also produces no TSK.
+
 ### 0.5.8 VENDOR DIAGNOSTICS - READ THESE BEFORE PROBING
 
 The 2026-07-18 session ran seven probes against documented behaviour before
@@ -627,6 +671,9 @@ Diagnostic tool improvement made alongside this: `tools/PushInit` gained a `--ve
 4. Observe HEADLESSLY - the GUI is NOT the instrument:
    - movement: the WatchVrf POS trace (displacement between samples). THIS is the
      movement oracle and the only admissible evidence of motion.
+   - whether VR-Forces ever ACKNOWLEDGED the tasking: the TSK / RPT lines in that
+     same trace (sec 0.5.7a). A static POS series alone cannot tell a rejected task
+     from an accepted-but-immobile unit; TSK/RPT are what separate the two.
    - what the interface told C2SIM: tools/ListenReports.
    - task start/complete lines in the interface log are CORROBORATING ONLY -
      completions lie in BOTH directions and may never stand alone.

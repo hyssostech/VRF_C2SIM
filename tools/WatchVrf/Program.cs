@@ -3,15 +3,16 @@ using WatchVrf;
 
 // tools/WatchVrf entry point. Two modes:
 //
-//   WatchVrf --con-selftest       Offline check of the CON,... Object Console line
+//   WatchVrf --con-selftest       Offline check of the CON,/TSK,/RPT, trace line
 //                                 formatting (groundwork plan 0.6). Pure managed; does
 //                                 NOT touch VrfBridge, so it runs without the native
 //                                 bridge DLL / MAK bin dirs on PATH.
 //
 //   WatchVrf [appNo] [dur] [samp] [federation]
 //                                 LIVE observation: join the federation and stream POS,...
-//                                 position lines + CON,... Object Console lines (see
-//                                 WatchRunner). Requires a running VR-Forces federation.
+//                                 position lines, CON,... Object Console lines, and
+//                                 TSK,... / RPT,... task-completion + text-report lines
+//                                 (see WatchRunner). Requires a running VR-Forces federation.
 //
 // The dispatch below references only ConSelfTest, WatchVrfUsage and ToolArgs - all pure
 // managed, none of them touching VrfBridge - plus WatchRunner, whose bridge-using code

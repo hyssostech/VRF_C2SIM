@@ -21,7 +21,7 @@ internal static class WatchVrfUsage
         "  sampleSecs         Optional. Whole number > 0. Default 15.",
         "  federation         Optional. Default 'CWIX-2024'.",
         "",
-        "  --con-selftest     Offline check of the CON,... line formatting. Takes NO other",
+        "  --con-selftest     Offline check of the CON,/TSK,/RPT, line formatting. Takes NO other",
         "                     arguments: it joins no federation and observes nothing, so",
         "                     pairing it with observation arguments is a contradiction.",
         "",
