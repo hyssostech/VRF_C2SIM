@@ -12,6 +12,16 @@ THE CHAIN WORKS. One command took a C2SIM init and order all the way through VR-
 launch, interface join, unit creation, task issue, telemetry capture and teardown, with
 ZERO human interaction. That is the mandate's one-button loop, demonstrated.
 
+*** PARTIALLY OVERTURNED 2026-07-19 by run 20260719T161438Z - READ
+docs/experiments/PREREG_TSK_DELIVERY_2026-07-19.md BEFORE RELYING ON ANYTHING BELOW.
+That run added VR-Forces' OWN position reports (RPT lines) as a SECOND, INDEPENDENT
+oracle. The two oracles AGREE EXACTLY on the two frozen units and CONTRADICT on the third:
+1222.MechPlt is reported by VR-Forces as moving steadily EAST toward its objective at
+~1.4 m/s, while the WatchVrf POS stream below shows it 65 m WEST and stationary. The
+"63.4 m of oscillation" analysis below is therefore an artifact of the POS oracle, not a
+description of the unit. 114.MechCoy and 1.BdeHQ being frozen STANDS - confirmed by both
+channels. ***
+
 THE UNITS DID NOT MOVE. All three tasks were issued correctly by the interface and none
 of the three taskees made meaningful progress toward its objective. This is the known
 frozen-pile class, now reproduced HEADLESSLY with a clean trace and a pre-registered
