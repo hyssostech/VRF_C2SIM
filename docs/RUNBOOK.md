@@ -226,9 +226,30 @@ degenerate for all 14 samples:
     POS,...,cde66adc-...,90.000000,-90.000000,0.0     <- pole, i.e. no position
     POS,...,f864e51f-...,NaN,-90.000000,NaN           <- NaN lat and alt
 
-The TropicTortoise baseline objects are POSITIONLESS; that is simply how they
-reflect. A count of discovered objects is NOT evidence the oracle can read a
-position. Trusting `reflected>0` here would have green-lit a whole session.
+*** CORRECTION 2026-07-19: "the baseline objects are POSITIONLESS" WAS AN ARTEFACT
+OF A BAD CAST IN OUR OWN CODE, NOT A FACT ABOUT VR-FORCES. *** Those degenerate
+readings were undefined behaviour: `resolveStateRep` ended in a blind
+`static_cast<DtReflectedEntity*>(obj)->entityStateRep()`, and the TropicTortoise
+baseline objects are CONTROL OBJECTS (`DtReflectedControlObject`), whose state
+repository is a `DtEnvironmentProcessRepository`, not a
+`DtBaseEntityStateRepository`. The cast dispatched to the same vtable slot on a
+disjoint hierarchy, so `location()` returned garbage (90/-90, NaN, and in one run
+an altitude of 1.02e15 m) and `lastSetLocation()` faulted outright (0xC0000005 -
+this is what crashed `TryGetEntityMotion`). Header evidence and the fix are in the
+long comment above `resolveStateRep` in `src/VrfFacade/VrfFacade.cpp`. The scenario
+.oob does give the Page-In Area a real authored position (34.615N, -116.55W).
+
+FIXED: those objects are now identified positively and return FALSE (no reading) -
+they no longer emit POS lines at all. The pass/fail criterion below is UNAFFECTED
+in substance (a degenerate row and a missing row are both "not a real coordinate"),
+but the FALSE-GREEN shape has changed: you will now see a LOWER `readable` count on
+a stock load rather than degenerate POS rows. Judge on real coordinates, as below.
+NOTE these objects are not truly positionless - `DtEnvironmentProcessRepository`
+does expose `location()`; reading it would need a control-object-aware accessor that
+the bridge does not yet have. Nobody has ever seen their real position.
+
+A count of discovered objects is NOT evidence the oracle can read a position.
+Trusting `reflected>0` here would have green-lit a whole session.
 
 FALSE ABORT - `reflected=0 at 20 s` DOES NOT MEAN THE FEDERATION IS BLIND. It also
 means "measured too early". LaunchVrf's `READY` is thread-count + main-window only;
@@ -270,9 +291,10 @@ afterwards so the throwaway never enters a scored trace (a relaunch reloads the
 scenario from file and removes it).
 
 CAUTION: a freshly loaded TropicTortoise contains only NON-ENTITY CONTROL OBJECTS
-(GlblTerrDmg, Blocking Terrain Page-In Area). Their POS lines legitimately carry
-NaN lat/alt. Do NOT conclude the oracle is broken from those - create a real
-entity and check that.
+(GlblTerrDmg, GlobalEnv, Blocking Terrain Page-In Area). Since 2026-07-19 they emit
+NO POS line at all (see the correction above; before that they emitted garbage rows
+that looked like data). Do NOT conclude the oracle is broken from their absence -
+create a real entity and check that.
 
 ### 0.5.7a WATCHVRF TRACE LINE TYPES
 
@@ -889,10 +911,24 @@ end to end - "CreateRoute 'T1_1_4_A ROUTE' (3 pts) for 14.MechBn" -> route creat
 History (pre-fix): with entities
 well-settled the entity tasks fine but 14.MechBn still ABANDONED at point 0, so it is
 aggregate-specific, NOT timing. Cause: the port's dynamic_cast<DtReflectedAggregate*> misses
-the disaggregated aggregate (concrete reflected type / RTTI across the MAK DLL boundary), where
-the C++ oracle's blind static_cast read the base myStateRep and worked. FIX applied in
-VrfFacade::TryGetEntityGeodetic: after the typed entity/aggregate casts, fall back to the C++
-static_cast base-state read. Builds 0/0. NOT yet live-verified: the very next run's creates
+the disaggregated aggregate, where the C++ oracle's blind static_cast read the base myStateRep
+and worked. FIX applied in VrfFacade::TryGetEntityGeodetic: after the typed entity/aggregate
+casts, fall back to the C++ static_cast base-state read. Builds 0/0.
+
+*** CORRECTION 2026-07-19: THE "RTTI ACROSS THE MAK DLL BOUNDARY" DIAGNOSIS ABOVE IS WRONG,
+and the static_cast fallback it justified has been REMOVED (it was undefined behaviour that
+crashed on control objects - see sec 0.5.7). The dynamic_cast does not "miss": in an HLA build
+DtReflectedExtAggregate does not derive DtReflectedAggregate AT ALL. MAK says so in the header
+(`reflectedExtAggregate.h:15-19`: "In HLA we need to derive from DtReflectedObject instead of
+DtReflectedAggregate so that we can make use of the constructor that takes a state repository").
+There is no such base subobject, so returning null is the dynamic_cast behaving CORRECTLY. RTTI
+is not involved and was never the problem. Aggregates are now resolved positively through the
+UUID manager's own typed aggregate list (`DtReflectedExtAggregateList::lookupEA`, plus a
+pointer-identity scan as a second path), which yields a correctly-typed DtReflectedExtAggregate*
+and needs no cast. Aggregate position VALUES are unchanged - the blind cast had been landing, by
+exact vtable-slot alignment, on the very extAggregateStateRep() the new code calls directly.
+Full derivation with header citations: the comment above `resolveStateRep` in
+src/VrfFacade/VrfFacade.cpp. *** NOT yet live-verified: the very next run's creates
 fired ZERO ObjectCreated callbacks - the federation had DEGRADED after ~5 runs (accumulated
 VR-Forces entities + the early force-killed 3210 federate). Recover per sec 5 (reload the
 VR-Forces scenario in the GUI to clear accumulated entities / stale federates), then re-run
