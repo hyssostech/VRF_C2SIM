@@ -13,11 +13,15 @@
     (the movement oracle), the ListenReports capture (what the interface told
     C2SIM), the PushOrder bus log, the VrfC2SimApp log, and a run manifest
     recording every appNumber consumed, both clocks, tool identities, exact input
-    paths and the exit code of every stage. HEADLESS_RUN_PLAN.md sec 4a is marked
-    "AWAITING USER RULING" and sec 4a.6 says run 1 is a MEASUREMENT, not an
-    acceptance test - so NO threshold from sec 4a (50 m / 250 m / 25 m / 5x /
-    200 km/h) appears anywhere in this file, by design. A separate scorer consumes
-    the manifest + trace once the criterion is ratified.
+    paths and the exit code of every stage. HEADLESS_RUN_PLAN.md sec 4a was RATIFIED
+    2026-07-19 (before any data existed), and sec 4a.6 says run 1 is a MEASUREMENT,
+    not an acceptance test - so NO threshold from sec 4a (50 m / 250 m / 25 m / 5x /
+    200 km/h) appears anywhere in this file, BY DESIGN AND STILL. Ratification did
+    NOT make this script a scorer. Keeping collection and scoring in separate
+    programs is what allows a trace to be re-scored under an amended criterion
+    without re-running the simulation - and it removes any temptation to tune a
+    threshold in the same edit that produces the data. A separate scorer consumes
+    the manifest + trace.
 
     STAGE ORDER (each constraint below cost a live session; do not "improve" them):
       0  validate every input, up front, BEFORE VR-Forces is launched
@@ -34,6 +38,9 @@
       7  post-init ORACLE GATE - the RUNBOOK 0.5.7 CORRECTED criterion, applied to
          the live trace: a POS line with REAL lat/lon (not NaN, not the 90/-90
          pole), retried up to ~3 minutes
+      7b ON THE STAGE-7 FAILURE PATH ONLY: the RUNBOOK 0.5.7 STRONGER CHECK, run
+         as a DISAMBIGUATION DIAGNOSTIC (tools/CreateOne). It does NOT rescue the
+         run - see the block below.
       8  PushOrder, then observe for -RunSecs
       9  teardown in a finally: StopIface (clean resign) THEN StopVrf.ps1
 
@@ -52,11 +59,39 @@
         the scoring trace itself, once C2SIM units exist. It is FATAL.
     HEADLESS_RUN_PLAN sec 2 says the pre-check runs "before anything is SCORED",
     not "before the init is pushed", and sec 4a.6 lists it as a run-VALIDITY gate -
-    both of which stage 7 satisfies. The alternative (RUNBOOK 0.5.7 "STRONGER
-    CHECK": tools/CreateOne a throwaway entity, verify its POS, then RELAUNCH
-    VR-Forces so the throwaway never enters a scored trace) is NOT implemented
-    here; it needs a ruling because it changes appNumber accounting and adds a
-    launch cycle. See the report accompanying this draft.
+    both of which stage 7 satisfies.
+
+    *** STAGE 7b - THE STRONGER CHECK, AS A FAILURE-PATH DIAGNOSTIC ***
+    RUNBOOK 0.5.7 "STRONGER CHECK" (tools/CreateOne a throwaway M1A2 at a known
+    coordinate, then confirm WatchVrf emits a POS line for that uuid with REAL
+    coordinates) is now implemented, but ONLY on the stage-7 failure path.
+
+    WHY IT EXISTS: if the interface DISPATCHES units (stage 6d says N units
+    queued) and yet NO real-coordinate POS line ever appears, stages 4 and 7
+    alone CANNOT distinguish
+        (a) THE ORACLE IS BLIND        - a federation / discovery problem, from
+        (b) OUR INIT CREATED NOTHING   - a type-mapping / creation problem.
+    Those have different causes and different fixes. A KNOWN-GOOD entity injected
+    by CreateOne separates them: if IT reads real coordinates and our C2SIM units
+    do not, the oracle is fine and the creation layer is the suspect; if not even
+    CreateOne appears, the oracle is blind.
+
+    WHY FAILURE-PATH ONLY: RUNBOOK 0.5.7 requires that the throwaway never enter
+    a SCORED trace, and prescribes a RELAUNCH to clear it. On the happy path we
+    therefore want no throwaway in the trace at all. On the failure path the run
+    is already unscored (stage 7 has failed and the runner is about to exit 3), so
+    the throwaway costs nothing and buys the disambiguation.
+
+    IT DOES NOT RESCUE THE RUN. Stage 7b changes the EXIT REASON and the RECORDED
+    EVIDENCE. The run still fails with exit 3, on every verdict.
+
+    NO RELAUNCH CYCLE IS ADDED. The RUNBOOK's relaunch exists to purge the
+    throwaway; teardown already makes that moot. Stage 7b runs inside the try
+    block, so the finally ALWAYS follows and brings VR-Forces down via
+    StopVrf.ps1. The entity lives only in the back-end's in-memory scenario - it
+    is never saved to the scenario file - so it dies with vrfSimHLA1516e, and the
+    next run's LaunchVrf reloads TropicTortoise from file. Adding a relaunch here
+    would only relaunch something the runner is about to shut down anyway.
 
     NON-NEGOTIABLES HONOURED HERE:
       - NOTHING is ever force-killed. Not the app, not a federate, not VR-Forces.
@@ -156,6 +191,12 @@ param(
     [int] $AppExitTimeoutSec   = 120,  # app: StopIface -> process gone (NEVER killed)
     [int] $StopVrfTimeoutSec   = 120,
 
+    # Stage 7b only: how long to watch the EXISTING trace for the CreateOne entity
+    # after CreateOne reports its uuid. Generous relative to the ~2 s sample cadence;
+    # the entity already exists by the time this starts, so this is reflect+sample
+    # latency, not settle time.
+    [int] $CreateOneWatchSec   = 90,
+
     # Explicit override for the WatchVrf / ListenReports duration. 0 = derive it.
     [int] $WatchSecs = 0,
 
@@ -223,6 +264,7 @@ $ExePushInit      = Join-Path $ToolsDir 'PushInit\bin\Release\net10.0\PushInit.e
 $ExePushOrder     = Join-Path $ToolsDir 'PushOrder\bin\Release\net10.0\PushOrder.exe'
 $ExeListenReports = Join-Path $ToolsDir 'ListenReports\bin\Release\net10.0\ListenReports.exe'
 $ExeStopIface     = Join-Path $ToolsDir 'StopIface\bin\Release\net10.0\StopIface.exe'
+$ExeCreateOne     = Join-Path $ToolsDir 'CreateOne\bin\Release\net10.0\win-x64\CreateOne.exe'
 $ExeApp           = Join-Path $RepoRoot 'src\VrfC2SimApp\bin\Release\net10.0\win-x64\VrfC2SimApp.exe'
 
 $Bin64 = Join-Path $VrfRoot 'bin64'
@@ -242,7 +284,7 @@ $RtiNames     = @('rtiAssistant','rtiexec','rtiForwarder')
 $Manifest = [ordered]@{
     schema          = 'vrf-c2sim-run-manifest/1'
     scriptVersion   = $ScriptVersion
-    scoring         = 'NONE. This runner collects evidence only. HEADLESS_RUN_PLAN.md sec 4a is AWAITING USER RULING and sec 4a.6 declares run 1 a measurement, not an acceptance test. No threshold from 4a is embedded in this script.'
+    scoring         = 'NONE. This runner collects evidence only. HEADLESS_RUN_PLAN.md sec 4a was RATIFIED 2026-07-19 before any data existed; sec 4a.6 declares run 1 a measurement, not an acceptance test. No threshold from 4a is embedded in this script, by design - collection and scoring are separate programs so a trace can be re-scored under an amended criterion without re-running the simulation.'
     dryRun          = [bool]$DryRun
     clocks          = [ordered]@{}
     host            = [ordered]@{}
@@ -493,6 +535,175 @@ function Get-TraceSummaryLine {
     return $last
 }
 
+# ---- stage 7b: uuid matching between CreateOne and the trace -----------------
+# CreateOne prints the raw uuid the backend assigned; WatchVrf prints it in the
+# POS line's field 2, which on the shape recorded in RUNBOOK 0.5.7 is PREFIXED
+# ("VRF_UUID:adfaadb3-..."). Neither format is contractual, so match tolerantly
+# and in BOTH directions rather than assume one decorates the other. A false
+# NON-match here would silently mis-report ORACLE_BLIND, which is the exact wrong
+# diagnosis to hand an operator.
+function Test-UuidMatch {
+    param([string]$Reported, [string]$FromTrace)
+    if ([string]::IsNullOrWhiteSpace($Reported) -or [string]::IsNullOrWhiteSpace($FromTrace)) { return $false }
+    $a = $Reported.Trim();  if ($a -match '(?i)^VRF_UUID:(.+)$') { $a = $Matches[1] }
+    $b = $FromTrace.Trim(); if ($b -match '(?i)^VRF_UUID:(.+)$') { $b = $Matches[1] }
+    if ($a.Length -eq 0 -or $b.Length -eq 0) { return $false }
+    if ($a -eq $b) { return $true }
+    return ($a.IndexOf($b, [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+            $b.IndexOf($a, [System.StringComparison]::OrdinalIgnoreCase) -ge 0)
+}
+
+# =============================================================================
+# STAGE 7b - THE CreateOne DISAMBIGUATION DIAGNOSTIC (failure path only)
+# =============================================================================
+# Runs ONLY when the stage-7 oracle gate has FAILED. It answers ONE question:
+# when units dispatched but no real coordinate ever appeared, was the ORACLE
+# blind, or did OUR INIT create nothing usable? It NEVER rescues the run.
+#
+# WHY IT WATCHES THE EXISTING TRACE INSTEAD OF STARTING A DEDICATED WatchVrf:
+# the thing under suspicion IS the stage-5 WatchVrf federate that produced the
+# failing trace. Injecting the entity and then observing it through a DIFFERENT,
+# freshly joined WatchVrf would change two variables at once (new entity AND new
+# oracle federate) and could produce the one genuinely uninterpretable outcome -
+# real coordinates in the new watcher, none in the scoring trace - which names
+# neither cause. Reusing the live trace holds the oracle CONSTANT so the entity
+# is the only new variable, which is precisely what makes the verdict readable.
+# It also consumes no second appNumber and adds no second join.
+function Invoke-CreateOneDiagnostic {
+    param([int]$AppNumber, [string]$TracePath, $WatchProcess, [int]$WatchSec)
+
+    Say-Head 'Stage 7b - CreateOne DISAMBIGUATION DIAGNOSTIC (stage 7 FAILED; RUNBOOK 0.5.7 STRONGER CHECK)'
+    Say '  The gate found no real-coordinate POS line. That alone cannot tell ORACLE_BLIND'
+    Say '  (a federation/discovery fault) from CREATION_LAYER_SUSPECT (a type-mapping/creation'
+    Say '  fault). CreateOne injects a KNOWN-GOOD M1A2 at a known coordinate; whether the SAME'
+    Say '  oracle then reads it decides which of the two it is.'
+    Say '  THIS DOES NOT RESCUE THE RUN. The run still fails; only the reason and the evidence change.'
+
+    $verdict = 'INCONCLUSIVE'
+    $reason  = $null
+    $uuid    = $null
+    $matchLine = $null
+    $exitCode  = $null
+    $otherReal = @()
+
+    if ($DryRun) {
+        Say-Plan 'STAGE 7b IS NOT REACHED ON A HEALTHY RUN. Shown here because a dry run prints the whole plan.'
+    }
+
+    if (-not $CreateOneAvailable) {
+        $reason = ('CreateOne.exe not present at {0}, so the disambiguation could not be attempted.' -f $ExeCreateOne)
+        Say-Warn $reason
+    } elseif ((-not $DryRun) -and $null -ne $WatchProcess -and $WatchProcess.HasExited) {
+        # No live oracle left to observe through. Creating a throwaway now would
+        # burn the appNumber and prove nothing.
+        $reason = 'the stage-5 WatchVrf trace federate had already exited, so there was no live oracle to observe the injected entity through. NOT creating a throwaway entity that nothing could see.'
+        Say-Warn $reason
+    } else {
+        # Defaults are deliberate: CreateOne's built-in M1A2 at the COA-STP1 AO
+        # coordinate, altitude 10000 m MSL (the buried-birth-altitude fix; ground
+        # clamp brings it down). Only the appNumber is passed, so this stays the
+        # RUNBOOK's check and not a variant of it.
+        $r = Invoke-External -Name 'CreateOne-diagnostic' -File $ExeCreateOne `
+                -Arguments @([string]$AppNumber) -Cwd $Bin64 `
+                -StdOutFile $PathCreateOneOut -StdErrFile $PathCreateOneErr `
+                -Note 'STAGE 7b FAILURE-PATH DIAGNOSTIC. exit 0 created and uuid reported; 1 join/backend/create failed; 2 usage. Defaults only (M1A2 at the COA-STP1 AO coord, 10000 m MSL) so this stays the RUNBOOK 0.5.7 STRONGER CHECK verbatim.'
+        $exitCode = $r.ExitCode
+
+        if ($DryRun) {
+            Say-Plan ('would parse the uuid out of {0}, then poll the EXISTING trace {1} for up to {2}s for a POS line carrying that uuid with REAL lat/lon' -f $PathCreateOneOut, $TracePath, $WatchSec)
+            Say-Plan 'would then record ORACLE_BLIND / CREATION_LAYER_SUSPECT / INCONCLUSIVE in the manifest and FAIL the run regardless'
+            return $null
+        }
+
+        $coText = Read-LiveText -Path $PathCreateOneOut
+        # Prefer the RESULT block; fall back to the ObjectCreated line.
+        $um = [regex]::Match($coText, '(?m)^\s*uuid\s*:\s*(\S+)\s*$')
+        if (-not $um.Success) { $um = [regex]::Match($coText, 'uuid=(\S+)') }
+        if ($um.Success) { $uuid = $um.Groups[1].Value }
+
+        if ($exitCode -ne 0 -or -not $uuid) {
+            $reason = ('CreateOne exited {0} and reported uuid [{1}] - no known-good entity was proven to exist, so nothing can be concluded about the oracle from its absence. See {2}.' -f $exitCode, $(if ($uuid) { $uuid } else { '(none)' }), $PathCreateOneOut)
+            Say-Warn $reason
+        } else {
+            Say-Ok ('CreateOne created a known-good M1A2, uuid={0}. Watching the EXISTING trace for up to {1}s.' -f $uuid, $WatchSec)
+            $deadline = (Get-Date).AddSeconds($WatchSec)
+            while ($true) {
+                $tt  = Read-LiveText -Path $TracePath
+                $rp  = Get-RealPositions -TraceText $tt
+                foreach ($p in @($rp.Uuids)) {
+                    if (Test-UuidMatch -Reported $uuid -FromTrace $p) { $matchLine = $p }
+                }
+                if ($matchLine) {
+                    # Re-scan for the full line, not just the uuid.
+                    foreach ($line in ($tt -split "`r?`n")) {
+                        if ($line.StartsWith('POS,')) {
+                            $f = $line.Split(',')
+                            if ($f.Length -ge 6 -and (Test-UuidMatch -Reported $uuid -FromTrace $f[2])) { $matchLine = $line; break }
+                        }
+                    }
+                    break
+                }
+                if ((Get-Date) -ge $deadline) { break }
+                Say-Info ('  no real-coordinate POS for the CreateOne uuid yet - {0}' -f $(if (Get-TraceSummaryLine -TraceText $tt) { Get-TraceSummaryLine -TraceText $tt } else { 'no samples yet' }))
+                Start-Sleep -Seconds 5
+            }
+
+            # Anything else that turned real during this window matters: if our own
+            # C2SIM units appeared while we were watching, the gate simply timed out
+            # early and NEITHER failure mode is established.
+            $rpEnd = Get-RealPositions -TraceText (Read-LiveText -Path $TracePath)
+            $otherReal = @(@($rpEnd.Uuids) | Where-Object { -not (Test-UuidMatch -Reported $uuid -FromTrace $_) })
+
+            if ($otherReal.Count -gt 0) {
+                $verdict = 'INCONCLUSIVE'
+                $reason  = ('real-coordinate POS lines appeared during the diagnostic window for {0} uuid(s) that are NOT the CreateOne entity [{1}]. The premise of this diagnostic - that NOTHING reads real - no longer holds, so neither failure mode is established. The likeliest reading is that the stage-7 gate timed out too early; -OracleGateTimeoutSec was {2}s.' -f $otherReal.Count, ($otherReal -join ','), $OracleGateTimeoutSec)
+            } elseif ($matchLine) {
+                $verdict = 'CREATION_LAYER_SUSPECT'
+                $reason  = ('the oracle read REAL coordinates for the injected known-good entity ({0}) while reading none for any C2SIM unit. The oracle, the federation and discovery are therefore WORKING; the suspect is our creation path - type mapping, the init, or the interface never actually creating entities.' -f $matchLine)
+            } else {
+                $verdict = 'ORACLE_BLIND'
+                $reason  = ('a known-good entity provably EXISTS (CreateOne exited 0 with uuid {0}) and the oracle read no real coordinate for it either, within {1}s. The fault is NOT in our creation path - it is in the oracle / federation / discovery layer. This is the RUNBOOK 0.5.7 STOP condition, genuinely met.' -f $uuid, $WatchSec)
+            }
+        }
+    }
+
+    if ($DryRun) { return $null }
+
+    $Manifest.oracle.createOneVerdict = $verdict
+    $Manifest.oracle.createOneDiagnostic = [ordered]@{
+        whatThisIs      = 'RUNBOOK 0.5.7 STRONGER CHECK, run ONLY because the stage-7 oracle gate FAILED. tools/CreateOne injects a KNOWN-GOOD M1A2 at a known coordinate and the SAME live trace is watched for it. Its purpose is to tell a blind oracle apart from a broken creation path. It is a DIAGNOSTIC: it does NOT rescue the run and it is NOT a score.'
+        verdict         = $verdict
+        verdictMeanings = [ordered]@{
+            ORACLE_BLIND           = 'CreateOne provably created an entity, and the oracle read no real coordinate for it either. The fault is in the oracle / federation / discovery layer, NOT in our creation path.'
+            CREATION_LAYER_SUSPECT = 'The oracle read REAL coordinates for the injected entity but none for any C2SIM unit. The oracle is WORKING; the suspect is our creation path (type mapping, init handling, or the interface creating nothing usable).'
+            INCONCLUSIVE           = 'The diagnostic could not be run, could not prove the injected entity exists, had no live oracle to watch, or its premise was violated because unrelated real coordinates appeared meanwhile. NEITHER failure mode is established.'
+        }
+        reason          = $reason
+        appNumber       = $AppNumber
+        appNumberConsumed = ($null -ne $exitCode)
+        createOneExit   = $exitCode
+        createdUuid     = $uuid
+        matchedTraceLine= $matchLine
+        watchSec        = $WatchSec
+        watchedTrace    = $TracePath
+        otherRealUuidsDuringWindow = @($otherReal)
+        stdoutFile      = $PathCreateOneOut
+        throwawayEntity = 'A throwaway entity was injected into the LIVE scenario. It is confined to the back-end in-memory scenario and is NEVER written to the scenario file. This run is already FAILED and therefore UNSCORED, and teardown brings VR-Forces down via StopVrf.ps1, which destroys it - so the RUNBOOK 0.5.7 relaunch is already satisfied and no extra launch cycle is performed.'
+        rescuesRun      = $false
+    }
+    Save-Manifest
+
+    Say-Head 'Stage 7b - CONCLUSION'
+    switch ($verdict) {
+        'ORACLE_BLIND'           { Say-Fail 'VERDICT: ORACLE_BLIND - the oracle could not read a known-good entity either.' }
+        'CREATION_LAYER_SUSPECT' { Say-Fail 'VERDICT: CREATION_LAYER_SUSPECT - the oracle IS working; our creation path is the suspect.' }
+        default                  { Say-Warn 'VERDICT: INCONCLUSIVE - the disambiguation did not resolve.' }
+    }
+    Say ('  {0}' -f $reason)
+    Say  '  The run FAILS either way. This stage changed the exit REASON and the recorded EVIDENCE, not the outcome.'
+    return $verdict
+}
+
 # =============================================================================
 # STAGE 0 - VALIDATE EVERYTHING, BEFORE ANYTHING IS LAUNCHED
 # =============================================================================
@@ -509,7 +720,7 @@ Say ('  order       : {0}' -f $Order)
 Say ('  RunSecs     : {0}' -f $RunSecs)
 Say ''
 Say '  THIS SCRIPT DOES NOT SCORE. It collects evidence. HEADLESS_RUN_PLAN sec 4a'
-Say '  is AWAITING USER RULING; sec 4a.6 makes run 1 a measurement, not a test.'
+Say '  was RATIFIED 2026-07-19; sec 4a.6 makes run 1 a measurement, not a test.'
 
 $Manifest.clocks.startLocal    = $nowLocal.ToString('yyyy-MM-ddTHH:mm:ss.fffzzz')
 $Manifest.clocks.startUtc      = $nowUtc.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
@@ -530,7 +741,7 @@ foreach ($pair in @(
     @{n='-OracleGateTimeoutSec';v=$OracleGateTimeoutSec}, @{n='-InitDispatchWaitSec';v=$InitDispatchWaitSec},
     @{n='-PushOrderListenSec';v=$PushOrderListenSec}, @{n='-TrailSecs';v=$TrailSecs},
     @{n='-LaunchSettleSec';v=$LaunchSettleSec}, @{n='-AppExitTimeoutSec';v=$AppExitTimeoutSec},
-    @{n='-StopVrfTimeoutSec';v=$StopVrfTimeoutSec})) {
+    @{n='-StopVrfTimeoutSec';v=$StopVrfTimeoutSec}, @{n='-CreateOneWatchSec';v=$CreateOneWatchSec})) {
     if ($pair.v -lt 0 -or $pair.v -gt 86400) { $bad += ('{0} must be 0..86400 (got {1})' -f $pair.n, $pair.v) }
 }
 # StopVrf.ps1 validates TimeoutSec 5..600 itself and exits 2 - catch it here so the
@@ -557,6 +768,12 @@ foreach ($f in @(
     @{n='Appendix B ledger'; p=$LedgerDoc})) {
     if (-not (Test-Path -LiteralPath $f.p -PathType Leaf)) { $bad += ('{0} not found: {1} (build Release, or fix the path)' -f $f.n, $f.p) }
 }
+# CreateOne is checked SOFTLY, on purpose. It is used ONLY by the stage-7b
+# failure-path diagnostic, so a missing build must not block an otherwise healthy
+# run - it only costs the disambiguation, which stage 7b then reports as
+# INCONCLUSIVE. Every tool above is on the happy path and stays a hard failure.
+$CreateOneAvailable = (Test-Path -LiteralPath $ExeCreateOne -PathType Leaf)
+
 if (-not (Test-Path -LiteralPath $Bin64 -PathType Container)) {
     $bad += ('VR-Forces bin64 not found: {0} - it is the mandatory cwd for every HLA process (RUNBOOK sec 7 item 3)' -f $Bin64)
 }
@@ -600,6 +817,13 @@ if ($bad.Count -gt 0) {
 }
 Say-Ok 'inputs, tools, timing budgets and the clientId/SystemName match all validate'
 Say-Ok ('init SystemName [{0}] matches app clientId [{1}]' -f ($initSystemNames -join ','), $appClientId)
+if ($CreateOneAvailable) {
+    Say-Ok ('CreateOne.exe present - the stage-7b failure-path disambiguation diagnostic is ARMED: {0}' -f $ExeCreateOne)
+} else {
+    Say-Warn ('CreateOne.exe NOT found at {0}. This is NOT fatal - it is only used by the stage-7b' -f $ExeCreateOne)
+    Say-Warn '  failure-path diagnostic. If the oracle gate fails, the run will not be able to tell'
+    Say-Warn '  ORACLE_BLIND from CREATION_LAYER_SUSPECT and will record INCONCLUSIVE. Build Release to arm it.'
+}
 
 $Manifest.inputs.init          = (Resolve-Path -LiteralPath $Init).Path
 $Manifest.inputs.order         = (Resolve-Path -LiteralPath $Order).Path
@@ -635,6 +859,7 @@ foreach ($t in @(
     @{k='WatchVrf';      p=$ExeWatchVrf},   @{k='PushInit';  p=$ExePushInit},
     @{k='PushOrder';     p=$ExePushOrder},  @{k='StopIface'; p=$ExeStopIface},
     @{k='ListenReports'; p=$ExeListenReports}, @{k='VrfC2SimApp'; p=$ExeApp},
+    @{k='CreateOne';     p=$ExeCreateOne},
     @{k='RunC2SimScenario'; p=$PSCommandPath})) {
     $Manifest.tools[$t.k] = Get-ToolIdentity -Path $t.p
 }
@@ -750,6 +975,7 @@ $Alloc = @(
     [ordered]@{ key='oraclePre';   purpose='WatchVrf ADVISORY pre-init oracle pre-check (RUNBOOK 0.5.7)' }
     [ordered]@{ key='oracleTrace'; purpose='WatchVrf MAIN run trace - the movement oracle / scoring input' }
     [ordered]@{ key='app';         purpose='VrfC2SimApp Vrf__ApplicationNumber (the interface federate)' }
+    [ordered]@{ key='createOneDiag'; purpose='tools/CreateOne - STAGE 7b FAILURE-PATH DIAGNOSTIC ONLY (RUNBOOK 0.5.7 STRONGER CHECK). CONSUMED ONLY IF THE ORACLE GATE FAILS; on a healthy run it is NEVER JOINED and this number goes UNCONSUMED. Unconsumed numbers are BURNED, never recycled - see the NOTE below. Allocated here rather than mid-run because every number must be ledgered BEFORE any join.' }
 )
 for ($i = 0; $i -lt $Alloc.Count; $i++) { $Alloc[$i].appNumber = $FirstFree + $i }
 $AppNo = @{}
@@ -815,6 +1041,8 @@ $PathPushOrderErr = Join-Path $RunDir 'pushorder.stderr.log'
 $PathBusLog       = Join-Path $RunDir 'c2sim-bus.log'
 $PathStopIfaceOut = Join-Path $RunDir 'stopiface.stdout.log'
 $PathStopIfaceErr = Join-Path $RunDir 'stopiface.stderr.log'
+$PathCreateOneOut = Join-Path $RunDir 'createone-diagnostic.stdout.log'
+$PathCreateOneErr = Join-Path $RunDir 'createone-diagnostic.stderr.log'
 $PathStopVrfOut   = Join-Path $RunDir 'stopvrf.stdout.log'
 $PathStopVrfErr   = Join-Path $RunDir 'stopvrf.stderr.log'
 $ManifestPath     = Join-Path $RunDir 'run-manifest.json'
@@ -825,6 +1053,7 @@ $Manifest.artifacts.preCheckTrace = $PathPreTrace
 $Manifest.artifacts.reports       = $PathReports
 $Manifest.artifacts.appLog        = $PathAppLog
 $Manifest.artifacts.busLog        = $PathBusLog
+$Manifest.artifacts.createOneDiagnosticLog = $PathCreateOneOut
 $Manifest.artifacts.manifest      = $ManifestPath
 
 # WatchVrf / ListenReports must cover the WHOLE run (a 4a.6 run-validity item), so
@@ -1093,6 +1322,9 @@ try {
     Say '  PASS = lat/lon real, not NaN, not the 90/-90 pole. Applied to the live trace.'
     if ($DryRun) {
         Say-Plan ('would poll {0} every 5s for up to {1}s for a real-coordinate POS line; STOP the run if none appears' -f $PathTrace, $OracleGateTimeoutSec)
+        Say-Plan ('ON FAILURE ONLY, would then run stage 7b below with appNumber {0} before failing the run.' -f $AppNo['createOneDiag'])
+        $null = Invoke-CreateOneDiagnostic -AppNumber $AppNo['createOneDiag'] -TracePath $PathTrace `
+                    -WatchProcess $WatchProc -WatchSec $CreateOneWatchSec
     } else {
         $deadline = (Get-Date).AddSeconds($OracleGateTimeoutSec)
         $gate = $null
@@ -1119,7 +1351,26 @@ try {
             Say-Ok ('ORACLE GATE PASSED: {0} real-coordinate POS lines across {1} distinct uuids' -f $gate.RealCount, $gate.Uuids.Count)
             Say-Ok ('  first: {0}' -f $gate.First.line)
         } else {
-            Stop-Runner 3 ("ORACLE GATE FAILED: no POS line with a real coordinate within {0}s (POS lines seen: {1}, all degenerate). RUNBOOK 0.5.7 STOP condition. Run the STRONGER CHECK by hand (tools/CreateOne with a fresh ledgered appNo, then WatchVrf on that uuid) before blaming the interface." -f $OracleGateTimeoutSec, $gate.PosLineCount)
+            # The gate has failed and the run is now unscored. Spend the ledgered
+            # diagnostic appNumber on the RUNBOOK 0.5.7 STRONGER CHECK before
+            # exiting, so the failure names a LAYER instead of a symptom. The
+            # verdict changes only the exit reason - the run fails either way.
+            Say-Fail ('ORACLE GATE FAILED: no real-coordinate POS line within {0}s ({1} POS lines seen, all degenerate).' -f $OracleGateTimeoutSec, $gate.PosLineCount)
+            # The diagnostic is BEST EFFORT and must never displace the gate's own
+            # verdict. If it blows up, that is a failed diagnostic on an already
+            # failed run - it must not escape into the generic catch and turn a
+            # clean exit 3 into an exit 5 ("unexpected error, inspect the machine").
+            $verdict = $null
+            try {
+                $verdict = Invoke-CreateOneDiagnostic -AppNumber $AppNo['createOneDiag'] -TracePath $PathTrace `
+                                -WatchProcess $WatchProc -WatchSec $CreateOneWatchSec
+            } catch {
+                Say-Warn ('stage 7b diagnostic itself failed: {0}' -f $_.Exception.Message)
+                $Manifest.oracle.createOneVerdict = 'INCONCLUSIVE'
+                $Manifest.oracle.createOneDiagnosticError = $_.Exception.Message
+            }
+            if (-not $verdict) { $verdict = 'INCONCLUSIVE' }
+            Stop-Runner 3 ("ORACLE GATE FAILED: no POS line with a real coordinate within {0}s (POS lines seen: {1}, all degenerate). RUNBOOK 0.5.7 STOP condition. Stage 7b disambiguation verdict: {2} - see oracle.createOneDiagnostic in the manifest, which spells out what that verdict means." -f $OracleGateTimeoutSec, $gate.PosLineCount, $verdict)
         }
     }
 
@@ -1312,7 +1563,7 @@ finally {
         Say-Ok 'DRY-RUN complete.'
         Say-Ok ('  NOTHING was launched, NO server was contacted, the Appendix B marker was NOT advanced (it still reads {0}).' -f $FirstFree)
         Say-Ok ('  No run directory was created ({0} does not exist because of this invocation).' -f $RunDir)
-        Say-Ok  '  This script COLLECTS EVIDENCE and does NOT score. HEADLESS_RUN_PLAN sec 4a is unratified.'
+        Say-Ok  '  This script COLLECTS EVIDENCE and does NOT score. sec 4a is ratified; scoring is a separate program.'
         exit 0
     }
 
