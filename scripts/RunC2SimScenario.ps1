@@ -105,7 +105,12 @@
         interface JOINED. Recovery is scripts/StopVrf.ps1 (and tools/StopIface if
         the interface is still up) - never a force-kill.
       - Every external invocation's exit code is CAPTURED and RECORDED. None is
-        assumed.
+        assumed. A MISSING exit code (stage timed out, or would not start) is
+        never treated as success - see Test-StageProduced.
+      - NO stage waits on a PROCESS TREE. Every foreground stage waits for its
+        DIRECT CHILD ONLY, under a per-stage timeout (-StageTimeoutSec). See the
+        big header block above Invoke-External for the 47-minute deadlock this
+        rule was written from.
 
 .PARAMETER Init
     C2SIM initialization XML. Default data/R9_Mojave_Lean_Initialization.xml.
@@ -119,6 +124,12 @@
 
 .PARAMETER RunSecs
     Observation window AFTER the order is pushed. Default 600.
+
+.PARAMETER StageTimeoutSec
+    Slack added on top of each foreground stage's OWN blocking budget before that
+    stage is declared timed out. Default 600. A timeout RECORDS the stage as
+    timed-out and fails the run through the normal teardown; it NEVER force-kills
+    anything, least of all a federate-joining tool (RUNBOOK sec 0).
 
 .PARAMETER DryRun
     Print the ENTIRE planned sequence - every command line, every appNumber that
@@ -190,6 +201,19 @@ param(
                                        # federation joined (RUNBOOK 0.5.7).
     [int] $AppExitTimeoutSec   = 120,  # app: StopIface -> process gone (NEVER killed)
     [int] $StopVrfTimeoutSec   = 120,
+
+    # SLACK added on top of a FOREGROUND stage's OWN known blocking budget before
+    # the runner declares that stage timed out. An unattended runner must never
+    # block forever (it did, for 47 minutes, on 2026-07-19 - see the Invoke-External
+    # header). Every foreground stage's ceiling is computed as
+    #     <that stage's own documented blocking budget> + $StageTimeoutSec
+    # so raising -PushOrderListenSec or -StopVrfTimeoutSec can never make the
+    # ceiling cut off a healthy stage. Measured healthy durations for reference:
+    # LaunchVrf ~35-60 s, StopVrf ~6-10 s, PushInit/StopIface seconds, PushOrder
+    # blocks for -PushOrderListenSec (default 30) plus overhead. 600 s of slack is
+    # therefore roughly a 10x margin on the slowest of them.
+    # A TIMEOUT NEVER FORCE-KILLS ANYTHING - see $FederateJoiningTools.
+    [int] $StageTimeoutSec     = 600,
 
     # Stage 7b only: how long to watch the EXISTING trace for the CreateOne entity
     # after CreateOne reports its uuid. Generous relative to the ~2 s sample cadence;
@@ -278,6 +302,25 @@ $ProcFrontend = 'vrfGui'
 $ProcLauncher = 'vrfLauncher'
 $RtiNames     = @('rtiAssistant','rtiexec','rtiForwarder')
 
+# ---- WHICH TOOLS JOIN THE FEDERATION (and are therefore NEVER force-killed) --
+# These tools JOIN the HLA federation. If one of them overruns its stage timeout
+# it is RECORDED and LEFT ALONE. Force-killing a joined federate leaves a STALE
+# FEDERATE and the next start hangs at RTI join - RUNBOOK sec 0, the project's
+# single most important rule.
+# NOTE ON SCOPE, stated so nobody later "optimises" it: this runner kills NOTHING
+# on a timeout, federate or not. The list below is not a filter that decides who
+# gets killed; it is the reason the kill path does not exist at all, written down
+# where the timeout is handled so the rule stays legible. StopIface is not in the
+# list because it does not join - but it is the tool that makes the interface
+# RESIGN, so killing it is equally forbidden.
+$FederateJoiningTools = @(
+    'VrfC2SimApp',                              # the interface federate
+    'WatchVrf', 'WatchVrf-trace', 'WatchVrf-precheck',  # the oracle federate
+    'CreateOne', 'CreateOne-diagnostic',        # stage 7b throwaway injector
+    'ResetVrf', 'SetSimRate'                    # not used here; listed so a future
+                                                # caller inherits the rule
+)
+
 # ---- manifest ---------------------------------------------------------------
 # Written to disk after EVERY stage, so an aborted or crashed run still leaves a
 # manifest describing exactly how far it got.
@@ -327,7 +370,8 @@ function Add-Flag {
 function Add-Stage {
     param(
         [string]$Name, [string]$File, [string[]]$Arguments, [string]$Cwd,
-        $ExitCode, [string]$StdOut, [string]$StdErr, [string]$Note, [string]$Outcome
+        $ExitCode, [string]$StdOut, [string]$StdErr, [string]$Note, [string]$Outcome,
+        [bool]$TimedOut = $false, $TimeoutSec = $null, $ProcessId = $null
     )
     $Manifest.stages += [ordered]@{
         name        = $Name
@@ -339,6 +383,10 @@ function Add-Stage {
         stdoutFile  = $StdOut
         stderrFile  = $StdErr
         outcome     = $Outcome
+        timedOut    = $TimedOut
+        timeoutSec  = $TimeoutSec
+        processId   = $ProcessId
+        federateJoining = ($FederateJoiningTools -contains $Name)
         note        = $Note
     }
     Save-Manifest
@@ -360,6 +408,50 @@ $script:LastStageStartUtc = $null
 # ---- external invocation ----------------------------------------------------
 # EVERY external process in this script goes through Invoke-External or
 # Start-External. Neither ever assumes an exit code; both record what they got.
+#
+# =============================================================================
+# WHY Invoke-External DOES NOT USE Start-Process -Wait (a 47-MINUTE DEADLOCK)
+# =============================================================================
+# Start-Process -Wait waits for the PROCESS TREE, not for the process. Microsoft's
+# own Start-Process documentation, verbatim:
+#     -Wait: "Indicates that this cmdlet waits for the specified process AND ITS
+#      DESCENDANTS to complete before accepting more input."
+#     NOTES: "When using the Wait parameter, Start-Process waits for the PROCESS
+#      TREE (the process and all its descendants) to exit before returning
+#      control. This is different than the behavior of the Wait-Process cmdlet,
+#      which only waits for the specified processes to exit."
+#
+# Stage 3 invokes scripts/LaunchVrf.ps1, whose entire PURPOSE is to leave
+# VR-Forces RUNNING. On 2026-07-19 LaunchVrf reached "[OK] READY" in 51 s and its
+# own pwsh exited - but vrfGui and vrfSimHLA1516e are DESCENDANTS of that call
+# (spawned via vrfLauncher). Start-Process -Wait therefore sat waiting for the
+# simulator it had just started to exit: the runner blocked for 47 minutes at
+# 1.3 s of CPU, would have blocked forever, and never reached stage 4.
+#
+# A COMPETING EXPLANATION THAT WAS TESTED AND FALSIFIED - do not "fix" it again:
+# inherited stdout/stderr file handles are NOT the cause. The redirected log file
+# was verified openable with EXCLUSIVE access while the runner was still blocked.
+# The cause is purely the documented descendant-wait semantic.
+#
+# THE PATTERN USED INSTEAD: Start-Process -PassThru WITHOUT -Wait, then wait on
+# the returned Process object. Process.WaitForExit waits for THAT PROCESS ONLY -
+# the same guarantee the docs give Wait-Process ("only waits for the specified
+# processes to exit"). A detached grandchild no longer holds the runner.
+#
+# THE EXIT-CODE GOTCHA, MEASURED RATHER THAN ASSUMED: a Process object whose
+# native handle was never materialised reports ExitCode as EMPTY once the
+# process is gone. That failure was reproduced on this machine - but only for an
+# object obtained from Get-Process. An object returned by Start-Process
+# -PassThru already owns its handle, and $p.ExitCode was verified to read back
+# correctly (7) after WaitForExit BOTH with and without the explicit cache, on
+# pwsh 7 / .NET here. So the '$null = $p.Handle' line below is DEFENSIVE, not
+# load-bearing: it costs one property read, it guarantees the handle exists
+# before the process can exit, and it makes the requirement explicit for anyone
+# who later refactors this to obtain the process some other way. It is safe to
+# keep and NOT safe to replace with a Get-Process lookup.
+#
+# THE TIMEOUT NEVER FORCE-KILLS. See $FederateJoiningTools.
+# =============================================================================
 function Invoke-External {
     param(
         [Parameter(Mandatory)][string]$Name,
@@ -368,41 +460,105 @@ function Invoke-External {
         [string]$Cwd,
         [string]$StdOutFile,
         [string]$StdErrFile,
-        [string]$Note
+        [string]$Note,
+        # Wall-clock ceiling for THIS stage. Callers pass the stage's own known
+        # blocking budget PLUS $StageTimeoutSec of slack; 0 means "slack only".
+        [int]$TimeoutSec = 0
     )
     $cmd = Format-CommandLine -File $File -Arguments $Arguments
+    $eff = if ($TimeoutSec -gt 0) { $TimeoutSec } else { $StageTimeoutSec }
     if ($DryRun) {
         Say-Plan ('STAGE {0}' -f $Name)
         Say      ('            cwd    : {0}' -f $Cwd)
         Say      ('            run    : {0}' -f $cmd)
+        Say      ('            timeout: {0}s (waits for THE CHILD ONLY, never its descendants; on expiry the stage is recorded timed-out and NOTHING is killed)' -f $eff)
         if ($StdOutFile) { Say ('            stdout : {0}' -f $StdOutFile) }
         if ($StdErrFile) { Say ('            stderr : {0}' -f $StdErrFile) }
         if ($Note)       { Say ('            note   : {0}' -f $Note) }
-        return [pscustomobject]@{ ExitCode = 0; DryRun = $true }
+        return [pscustomobject]@{ ExitCode = 0; DryRun = $true; TimedOut = $false; Outcome = 'dry-run' }
     }
 
     $script:LastStageStartUtc = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
     Say-Info ('{0}: {1}' -f $Name, $cmd)
+    Say-Info ('{0}: waiting for the DIRECT CHILD only, up to {1}s' -f $Name, $eff)
 
-    $sp = @{ FilePath = $File; WorkingDirectory = $Cwd; PassThru = $true; Wait = $true; NoNewWindow = $true }
+    # NO Wait = $true here. See the block above.
+    $sp = @{ FilePath = $File; WorkingDirectory = $Cwd; PassThru = $true; NoNewWindow = $true }
     if ($Arguments.Count -gt 0) { $sp.ArgumentList = $Arguments }
     if ($StdOutFile) { $sp.RedirectStandardOutput = $StdOutFile }
     if ($StdErrFile) { $sp.RedirectStandardError  = $StdErrFile }
 
-    $code = $null
-    $outcome = 'ran'
+    $code     = $null
+    $outcome  = 'ran'
+    $timedOut = $false
+    $procId   = $null
     try {
         $p = Start-Process @sp
-        $code = $p.ExitCode
+        if ($null -eq $p) { throw 'Start-Process returned no process object.' }
+        $procId = $p.Id
+        # Cache the native handle while the process is alive - see the header.
+        # If this fails the process almost certainly exited instantly; say so,
+        # because ExitCode below may then read back as $null and the caller will
+        # fail the stage rather than guess.
+        try { $null = $p.Handle } catch { Say-Warn ('{0}: could not cache the process handle ({1}). The exit code may not be readable.' -f $Name, $_.Exception.Message) }
+        if ($p.WaitForExit($eff * 1000)) {
+            $code = $p.ExitCode
+            if ($null -eq $code) { $outcome = 'exit-code-unavailable' }
+        } else {
+            $timedOut = $true
+            $outcome  = 'timed-out'
+        }
     } catch {
         $outcome = 'could-not-start'
         $code = $null
         Say-Fail ('{0}: could not start: {1}' -f $Name, $_.Exception.Message)
     }
     Add-Stage -Name $Name -File $File -Arguments $Arguments -Cwd $Cwd -ExitCode $code `
-              -StdOut $StdOutFile -StdErr $StdErrFile -Note $Note -Outcome $outcome
+              -StdOut $StdOutFile -StdErr $StdErrFile -Note $Note -Outcome $outcome `
+              -TimedOut $timedOut -TimeoutSec $eff -ProcessId $procId
+    if ($timedOut) {
+        # NOT KILLED. RUNBOOK sec 0. The caller fails the run and the existing
+        # finally-block teardown then does the clean thing (StopIface, then
+        # StopVrf), which is the ONLY correct way to bring a federate down.
+        $kind = if ($FederateJoiningTools -contains $Name) {
+            'It JOINS THE FEDERATION, so force-killing it would leave a STALE FEDERATE and the next start would hang at RTI join (RUNBOOK sec 0).'
+        } else {
+            'It is not a federate-joining tool, but this runner force-kills NOTHING (RUNBOOK sec 0).'
+        }
+        Add-Flag 'FAIL' ('{0} (pid {1}) did not exit within {2}s. IT WAS NOT KILLED. {3} Teardown will run.' -f $Name, $procId, $eff, $kind)
+    }
     if ($null -ne $code) { Say-Info ('{0}: EXIT={1}' -f $Name, $code) }
-    return [pscustomobject]@{ ExitCode = $code; DryRun = $false }
+    return [pscustomobject]@{ ExitCode = $code; DryRun = $false; TimedOut = $timedOut; Outcome = $outcome }
+}
+
+# ---- the ONE place a stage result is turned into a go/no-go -----------------
+# A missing exit code is NOT a pass. $code stays $null on both 'timed-out' and
+# 'could-not-start'.
+#
+# WHAT THIS IS NOT: it is NOT rescuing the callers from a switch that ignores
+# $null. That was checked rather than assumed, and the assumption was WRONG -
+# `switch ($null) { default { ... } }` DOES run its default branch on pwsh 7.
+# So a null exit code already reached each caller's `default` and already failed
+# the run. This guard exists for a smaller and honest reason: `default` reports
+# it as 'LaunchVrf exited  - undocumented code', which names the wrong problem
+# to whoever reads the manifest at 3 a.m. Running before the switch lets the
+# failure say "timed out, left running, never killed" instead.
+# Consequence to preserve: on the paths where this guard calls Stop-Runner the
+# switch never runs, so there is exactly one report. Do NOT add this guard in
+# front of a switch whose default ALSO flags - that double-reports (which is
+# why the two teardown stages below are handled inside their default branch).
+function Test-StageProduced {
+    param($Result)
+    if ($DryRun) { return $true }
+    return ($null -ne $Result.ExitCode)
+}
+
+function Get-StageFailureText {
+    param([string]$Name, $Result)
+    if ($Result.TimedOut) {
+        return ('{0} did not exit within its stage timeout and was left running (never killed). No exit code exists, so the run cannot be judged on it. Failing cleanly through teardown.' -f $Name)
+    }
+    return ('{0} produced no exit code (outcome: {1}). Failing cleanly through teardown.' -f $Name, $Result.Outcome)
 }
 
 function Start-External {
@@ -426,11 +582,18 @@ function Start-External {
         return $null
     }
     Say-Info ('{0} (background): {1}' -f $Name, $cmd)
+    # Start-External was ALREADY correct with respect to the -Wait defect: it has
+    # never passed -Wait, so it never waited on a process tree. It did share the
+    # exit-code gotcha, though - the Process object it returns is read much later
+    # (Complete-Background, and $AppProc.ExitCode in stages 6c/6d/8b and teardown),
+    # by which time the process is usually gone. Cache the handle here too, while
+    # the process is alive, so those reads are reliable.
     $sp = @{ FilePath = $File; WorkingDirectory = $Cwd; PassThru = $true; NoNewWindow = $true }
     if ($Arguments.Count -gt 0) { $sp.ArgumentList = $Arguments }
     if ($StdOutFile) { $sp.RedirectStandardOutput = $StdOutFile }
     if ($StdErrFile) { $sp.RedirectStandardError  = $StdErrFile }
     $p = Start-Process @sp
+    try { $null = $p.Handle } catch { Say-Warn ('{0}: could not cache the process handle ({1}). Its exit code may read back as null later.' -f $Name, $_.Exception.Message) }
     $Manifest.stages += [ordered]@{
         name        = $Name
         commandLine = $cmd
@@ -448,6 +611,11 @@ function Start-External {
     return $p
 }
 
+# NOT AFFECTED by the -Wait defect, and audited as such: this waits on a Process
+# object with Process.WaitForExit, which waits for THAT PROCESS ONLY. WatchVrf and
+# ListenReports spawn nothing, and even if they did, their descendants would not
+# hold this wait. It also already does the right thing on expiry - records
+# 'still-running' and leaves the federate alone.
 function Complete-Background {
     param([string]$Name, $Process, [int]$TimeoutSec, [string]$Note)
     if ($DryRun -or $null -eq $Process) { return }
@@ -585,6 +753,7 @@ function Invoke-CreateOneDiagnostic {
     $matchLine = $null
     $exitCode  = $null
     $otherReal = @()
+    $appNumberWasConsumed = $false
 
     if ($DryRun) {
         Say-Plan 'STAGE 7b IS NOT REACHED ON A HEALTHY RUN. Shown here because a dry run prints the whole plan.'
@@ -606,8 +775,15 @@ function Invoke-CreateOneDiagnostic {
         $r = Invoke-External -Name 'CreateOne-diagnostic' -File $ExeCreateOne `
                 -Arguments @([string]$AppNumber) -Cwd $Bin64 `
                 -StdOutFile $PathCreateOneOut -StdErrFile $PathCreateOneErr `
+                -TimeoutSec $StageTimeoutSec `
                 -Note 'STAGE 7b FAILURE-PATH DIAGNOSTIC. exit 0 created and uuid reported; 1 join/backend/create failed; 2 usage. Defaults only (M1A2 at the COA-STP1 AO coord, 10000 m MSL) so this stays the RUNBOOK 0.5.7 STRONGER CHECK verbatim.'
         $exitCode = $r.ExitCode
+        # The number is BURNED the moment CreateOne is launched, whatever happens
+        # after. Deriving "consumed" from the exit code alone would call a
+        # timed-out CreateOne unconsumed and invite recycling a number that has
+        # already joined - the exact stale-federate trap Appendix B exists to
+        # prevent.
+        $appNumberWasConsumed = ($r.Outcome -ne 'could-not-start')
 
         if ($DryRun) {
             Say-Plan ('would parse the uuid out of {0}, then poll the EXISTING trace {1} for up to {2}s for a POS line carrying that uuid with REAL lat/lon' -f $PathCreateOneOut, $TracePath, $WatchSec)
@@ -622,7 +798,7 @@ function Invoke-CreateOneDiagnostic {
         if ($um.Success) { $uuid = $um.Groups[1].Value }
 
         if ($exitCode -ne 0 -or -not $uuid) {
-            $reason = ('CreateOne exited {0} and reported uuid [{1}] - no known-good entity was proven to exist, so nothing can be concluded about the oracle from its absence. See {2}.' -f $exitCode, $(if ($uuid) { $uuid } else { '(none)' }), $PathCreateOneOut)
+            $reason = ('CreateOne exited {0} and reported uuid [{1}] - no known-good entity was proven to exist, so nothing can be concluded about the oracle from its absence. See {2}.' -f $(if ($null -ne $exitCode) { [string]$exitCode } else { ('NO EXIT CODE - outcome ' + $r.Outcome) }), $(if ($uuid) { $uuid } else { '(none)' }), $PathCreateOneOut)
             Say-Warn $reason
         } else {
             Say-Ok ('CreateOne created a known-good M1A2, uuid={0}. Watching the EXISTING trace for up to {1}s.' -f $uuid, $WatchSec)
@@ -680,7 +856,7 @@ function Invoke-CreateOneDiagnostic {
         }
         reason          = $reason
         appNumber       = $AppNumber
-        appNumberConsumed = ($null -ne $exitCode)
+        appNumberConsumed = $appNumberWasConsumed
         createOneExit   = $exitCode
         createdUuid     = $uuid
         matchedTraceLine= $matchLine
@@ -741,8 +917,16 @@ foreach ($pair in @(
     @{n='-OracleGateTimeoutSec';v=$OracleGateTimeoutSec}, @{n='-InitDispatchWaitSec';v=$InitDispatchWaitSec},
     @{n='-PushOrderListenSec';v=$PushOrderListenSec}, @{n='-TrailSecs';v=$TrailSecs},
     @{n='-LaunchSettleSec';v=$LaunchSettleSec}, @{n='-AppExitTimeoutSec';v=$AppExitTimeoutSec},
-    @{n='-StopVrfTimeoutSec';v=$StopVrfTimeoutSec}, @{n='-CreateOneWatchSec';v=$CreateOneWatchSec})) {
+    @{n='-StopVrfTimeoutSec';v=$StopVrfTimeoutSec}, @{n='-CreateOneWatchSec';v=$CreateOneWatchSec},
+    @{n='-StageTimeoutSec';v=$StageTimeoutSec})) {
     if ($pair.v -lt 0 -or $pair.v -gt 86400) { $bad += ('{0} must be 0..86400 (got {1})' -f $pair.n, $pair.v) }
+}
+# A floor, not a style preference: LaunchVrf legitimately takes 35-60 s and StopVrf
+# 6-10 s, so slack below a minute could time out a HEALTHY stage and abort a good
+# run. Setting it to 0 would restore the "waits forever" failure this parameter
+# exists to prevent.
+if ($StageTimeoutSec -lt 60) {
+    $bad += ('-StageTimeoutSec must be at least 60 (got {0}). It is SLACK added on top of each stage own blocking budget; a healthy LaunchVrf takes 35-60 s.' -f $StageTimeoutSec)
 }
 # StopVrf.ps1 validates TimeoutSec 5..600 itself and exits 2 - catch it here so the
 # failure lands BEFORE VR-Forces is launched instead of during teardown.
@@ -1142,11 +1326,19 @@ try {
         '-BackendAppNumber',  [string]$AppNo['vrfBackend'],
         '-FrontendAppNumber', [string]$AppNo['vrfFrontend']
     )
+    # THIS IS THE STAGE THAT DEADLOCKED THE RUNNER FOR 47 MINUTES ON 2026-07-19.
+    # LaunchVrf's pwsh exits in ~35-60 s, but vrfGui and vrfSimHLA1516e are its
+    # DESCENDANTS and are MEANT to keep running. Invoke-External now waits for the
+    # direct child only; see its header block.
     $r = Invoke-External -Name 'LaunchVrf' -File 'pwsh' -Arguments $launchArgs -Cwd $RepoRoot `
             -StdOutFile $PathLaunchOut -StdErrFile $PathLaunchErr `
-            -Note 'exit 0 READY; 1 PARTIAL (no front-end - crash risk); 2 precondition/args; 3 NOT READY within timeout; 4 BLOCKED (modal dialog). -AllowExistingVrf is deliberately NOT passed.'
+            -TimeoutSec $StageTimeoutSec `
+            -Note 'exit 0 READY; 1 PARTIAL (no front-end - crash risk); 2 precondition/args; 3 NOT READY within timeout; 4 BLOCKED (modal dialog). -AllowExistingVrf is deliberately NOT passed. LEAVES VR-FORCES RUNNING BY DESIGN - never waited on as a process tree.'
     if (-not $DryRun) {
+        # VR-Forces may be up even if LaunchVrf itself never reported, so teardown
+        # must be armed BEFORE the result is judged.
         $VrfLaunched = $true
+        if (-not (Test-StageProduced -Result $r)) { Stop-Runner 3 (Get-StageFailureText -Name 'LaunchVrf' -Result $r) }
         switch ($r.ExitCode) {
             0 { Say-Ok 'VR-Forces READY' }
             2 { Stop-Runner 2 'LaunchVrf exited 2 (precondition/argument failure). Nothing joined.' }
@@ -1175,8 +1367,14 @@ try {
     $r = Invoke-External -Name 'WatchVrf-precheck' -File $ExeWatchVrf `
             -Arguments @([string]$AppNo['oraclePre'], [string]$preSecs, [string]$SampleSecs, $Federation) `
             -Cwd $Bin64 -StdOutFile $PathPreTrace -StdErrFile $PathPreTraceErr `
-            -Note 'ADVISORY. WatchVrf OVERLOADS exit 2 (usage AND operational exception) - a 2 here is operational, since these arguments are generated.'
+            -TimeoutSec ($preSecs + $StageTimeoutSec) `
+            -Note 'ADVISORY. WatchVrf OVERLOADS exit 2 (usage AND operational exception) - a 2 here is operational, since these arguments are generated. Exits on its OWN timer after seconds-to-watch.'
     if (-not $DryRun) {
+        # The STAGE is advisory; a WatchVrf that will not exit is NOT. It is a
+        # joined federate wedged in the federation, and everything downstream -
+        # the scoring trace, the app join - runs through that same federation.
+        # Recorded, never killed, and the run is failed cleanly.
+        if (-not (Test-StageProduced -Result $r)) { Stop-Runner 3 (Get-StageFailureText -Name 'WatchVrf-precheck' -Result $r) }
         $preText = Read-LiveText -Path $PathPreTrace
         $pre     = Get-RealPositions -TraceText $preText
         $Manifest.oracle.preInit = [ordered]@{
@@ -1227,8 +1425,10 @@ try {
     $r = Invoke-External -Name 'PushInit' -File $ExePushInit `
             -Arguments @($Init, $RestUrl, $StompUrl) -Cwd $RepoRoot `
             -StdOutFile $PathPushInitOut -StdErrFile $PathPushInitErr `
+            -TimeoutSec $StageTimeoutSec `
             -Note 'exit 0 ok; 1 push rejected; 2 usage. Drives the server RESET -> INITIALIZING -> share -> RUNNING. Never run against a RUNNING interface (RUNBOOK sec 4 corollary) - none is running yet.'
     if (-not $DryRun) {
+        if (-not (Test-StageProduced -Result $r)) { Stop-Runner 3 (Get-StageFailureText -Name 'PushInit' -Result $r) }
         switch ($r.ExitCode) {
             0 { Say-Ok 'init accepted and server switched to RUNNING' }
             2 { Stop-Runner 2 'PushInit exited 2 (usage error). The server was NOT touched.' }
@@ -1381,11 +1581,13 @@ try {
     $r = Invoke-External -Name 'PushOrder' -File $ExePushOrder `
             -Arguments @($Order, [string]$PushOrderListenSec, $RestUrl, $StompUrl) -Cwd $RepoRoot `
             -StdOutFile $PathPushOrderOut -StdErrFile $PathPushOrderErr `
+            -TimeoutSec ($PushOrderListenSec + $StageTimeoutSec) `
             -Note 'BLOCKS for seconds-to-listen. exit 0 ok; 1 order rejected; 2 usage. Writes c2sim-bus.log beside its own binary; copied into the run dir afterwards.'
     $orderPushedUtc = (Get-Date).ToUniversalTime()
     if (-not $DryRun) {
         $Manifest.clocks.orderPushedUtc   = $orderPushedUtc.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
         $Manifest.clocks.orderPushedLocal = (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss.fffzzz')
+        if (-not (Test-StageProduced -Result $r)) { Stop-Runner 3 (Get-StageFailureText -Name 'PushOrder' -Result $r) }
         switch ($r.ExitCode) {
             0 { Say-Ok 'order accepted by the server' }
             2 { Stop-Runner 2 'PushOrder exited 2 (usage error). Nothing was pushed.' }
@@ -1463,13 +1665,22 @@ finally {
         $r = Invoke-External -Name 'StopIface' -File $ExeStopIface `
                 -Arguments @($RestUrl, $StompUrl, '--yes') -Cwd $RepoRoot `
                 -StdOutFile $PathStopIfaceOut -StdErrFile $PathStopIfaceErr `
+                -TimeoutSec $StageTimeoutSec `
                 -Note 'REQUIRES <restUrl> <stompUrl> --yes; NO defaults. exit 0 ok; 1 the server did NOT reach UNINITIALIZED (the interface MAY STILL BE JOINED); 2 usage.'
         if (-not $DryRun) {
+            # A teardown stage that never returned is a teardown FAILURE, not a
+            # reason to stop tearing down - StopVrf still has to run below.
+            # Handled INSIDE default (which pwsh 7 does reach on a $null exit
+            # code) so this is reported exactly once.
             switch ($r.ExitCode) {
                 0 { Say-Ok 'server driven to UNINITIALIZED; the interface should resign' }
                 default {
                     $teardownOk = $false
-                    Add-Flag 'FAIL' ('StopIface exited {0}. The server may NOT be UNINITIALIZED and the interface may STILL BE JOINED. Nothing was force-killed. INSPECT BEFORE THE NEXT RUN.' -f $r.ExitCode)
+                    if (-not (Test-StageProduced -Result $r)) {
+                        Add-Flag 'FAIL' ((Get-StageFailureText -Name 'StopIface' -Result $r) + ' The server may NOT be UNINITIALIZED and the interface may STILL BE JOINED. INSPECT BEFORE THE NEXT RUN.')
+                    } else {
+                        Add-Flag 'FAIL' ('StopIface exited {0}. The server may NOT be UNINITIALIZED and the interface may STILL BE JOINED. Nothing was force-killed. INSPECT BEFORE THE NEXT RUN.' -f $r.ExitCode)
+                    }
                 }
             }
         }
@@ -1514,13 +1725,18 @@ finally {
         $r = Invoke-External -Name 'StopVrf' -File 'pwsh' `
                 -Arguments @('-NoProfile','-File', $StopVrf, '-TimeoutSec', [string]$StopVrfTimeoutSec) `
                 -Cwd $RepoRoot -StdOutFile $PathStopVrfOut -StdErrFile $PathStopVrfErr `
-                -Note 'exit 0 down/already down; 2 bad args; 3 timed out (NOT killed); 4 confirm dialog not drivable via UIA; 5 unexpected error - VR-FORCES MAY STILL BE RUNNING. An unattended runner must branch on 5 as well as 3 (RUNBOOK 0.5.9).'
+                -TimeoutSec ($StopVrfTimeoutSec + $StageTimeoutSec) `
+                -Note 'exit 0 down/already down; 2 bad args; 3 timed out (NOT killed); 4 confirm dialog not drivable via UIA; 5 unexpected error - VR-FORCES MAY STILL BE RUNNING. An unattended runner must branch on 5 as well as 3 (RUNBOOK 0.5.9). NOTE: this stage MASKED the -Wait defect, because StopVrf makes its own descendants exit; see the Invoke-External header.'
         if (-not $DryRun) {
             switch ($r.ExitCode) {
                 0 { Say-Ok 'VR-Forces is down (graceful; RTI infrastructure preserved)' }
                 default {
                     $teardownOk = $false
-                    Add-Flag 'FAIL' ('StopVrf exited {0}. VR-Forces MAY STILL BE RUNNING, possibly behind an unanswered modal. NOTHING was force-killed. Inspect before the next run - a leftover instance HARD-BLOCKS the next launch.' -f $r.ExitCode)
+                    if (-not (Test-StageProduced -Result $r)) {
+                        Add-Flag 'FAIL' ((Get-StageFailureText -Name 'StopVrf' -Result $r) + ' VR-Forces MAY STILL BE RUNNING - a leftover instance HARD-BLOCKS the next launch.')
+                    } else {
+                        Add-Flag 'FAIL' ('StopVrf exited {0}. VR-Forces MAY STILL BE RUNNING, possibly behind an unanswered modal. NOTHING was force-killed. Inspect before the next run - a leftover instance HARD-BLOCKS the next launch.' -f $r.ExitCode)
+                    }
                 }
             }
         }
