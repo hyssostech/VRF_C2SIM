@@ -149,11 +149,28 @@ controller-class confound": the order contains THREE tasks against THREE taskees
 TaskActionCode MOVE, each a two-waypoint leg. Verb confound: none (all MOVE). Echelon /
 controller-class confound: PRESENT.
 
-| Taskee | UUID prefix | Expected actor | Geodesic leg |
-|--------|-------------|----------------|--------------|
-| 1.BdeHQ      | 670cfdb2 | ENTITY (lone platform) | 577.8 m |
-| 114.MechCoy  | 139aa71b | UNIT (company aggregate) | 556.0 m |
-| 1222.MechPlt | 001aa71b | UNIT (platoon aggregate) | 577.8 m |
+| Taskee | UUID prefix | Expected actor | Ordered leg (w1->w2) | FULL ROUTE |
+|--------|-------------|----------------|----------------------|------------|
+| 1.BdeHQ      | 670cfdb2 | ENTITY (lone platform) | 577.8 m | ~1155.5 m |
+| 114.MechCoy  | 139aa71b | UNIT (company aggregate) | 556.0 m | ~1112.0 m |
+| 1222.MechPlt | 001aa71b | UNIT (platoon aggregate) | 577.8 m | ~1155.5 m |
+
+*** CORRECTED 2026-07-19 FROM LIVE TELEMETRY. The "leg" column is the distance between the
+    order's TWO waypoints, and it is NOT the distance a unit must travel. The interface
+    builds a THREE-POINT route - vrfc2simapp.log: "CreateRoute 'T_R5_PL1 ROUTE' (3 pts)" -
+    prepending the unit's CURRENT position as the first vertex. Each unit begins almost
+    exactly one leg away from waypoint 1 (measured: 577.8 / 556.0 / 577.7 m), so the FULL
+    ordered route is about TWICE the waypoint separation. Any percentage-of-route figure
+    must use the FULL ROUTE column. The original table understated the required travel by
+    half. Thresholds in 4a.1-4a.3 are unaffected - they are absolute metres, not
+    percentages - but the "% of leg" framing in any scoring output must use FULL ROUTE. ***
+
+CREATION FIDELITY IS EXACT, and this is a POSITIVE result worth stating plainly: in run
+20260719T144109Z the three taskees spawned at the init's coordinates to six decimal places
+(1.BdeHQ 34.608416,-116.712685; 114.MechCoy 34.647629,-116.693388; 1222.MechPlt
+34.612956,-116.600487). Whatever is wrong with movement, it is NOT that units are created
+in the wrong place. Ground clamp also works - spawn altitude resolved to ~1040 m terrain
+height, not the requested MSL figure.
 
 The ENTITY/UNIT column is EXPECTED, not verified - it follows the type-mapping analysis
 (BDE-echelon falls to a lone M1A2 entity; COY/PLT resolve to aggregates) and RUNBOOK
@@ -193,9 +210,29 @@ Two different rules, because the vendor semantics differ (ground truth 0.0 item 
 
 ### 4a.2 MOVED AT ALL
 
+*** AMENDMENT 1, 2026-07-19, RULED BY THE USER. DATA ALREADY EXISTED WHEN THIS WAS FOUND -
+    it was found BY run 20260719T144109Z and is recorded here rather than applied silently,
+    per the protocol at the top of sec 4a.
+    OLD RULE: ">= 25 m net displacement, sustained across >= 3 consecutive samples."
+    NEW RULE: the third bullet below is ADDED - progress toward the destination is now
+    required.
+    REASON: the old rule could not distinguish PROGRESS from OSCILLATION, because it only
+    ever measured displacement FROM THE START and never asked whether the distance TO THE
+    WAYPOINT was decreasing. In run 1, 1222.MechPlt satisfied BOTH original clauses -
+    63.4 m net, dozens of consecutive non-zero steps - while going nowhere: it displaced
+    about 65 m once and then oscillated between 62.5 m and 66.6 m for 130 seconds,
+    accumulating 199.8 m of path for 63.4 m of net displacement. Under the old rule that
+    scores as MOVED and reads as partial success. It is not movement.
+    This is the case FOR pre-registration, not against it: the hole was invisible until
+    data existed, and had the criterion been written after the run, a 63.4 m "MOVED" would
+    have been reported as progress and believed. ***
+
 - MOVED if net straight-line displacement from first to last settled position is
   **>= 25 m** (~4.3% of the shortest leg), AND the displacement is sustained across at
-  least **3 consecutive samples** rather than appearing in a single sample.
+  least **3 consecutive samples** rather than appearing in a single sample,
+  AND (AMENDMENT 1) the straight-line distance to the task's FINAL WAYPOINT has DECREASED
+  by at least **25 m** between the first and last fix. Sideways displacement, oscillation
+  around a point, and motion away from the objective are NOT movement.
 - The two-part test is what separates real motion from a one-sample spike. A single
   sample that moves 25 m and returns is not motion.
 - Sample interval **2 s** (sampleSecs=2), per sec 2.

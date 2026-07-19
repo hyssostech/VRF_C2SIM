@@ -86,10 +86,14 @@ by exactly 0.0 m for 140 consecutive seconds. Under 4a.4 these are candidate art
 they do not return to the pre-jump track, so by the letter of 4a.4 they classify as
 PERSISTENT, but at 60-70 m they are nowhere near the runaway class.
 
-## 3. *** CRITERION GAP FOUND BY THIS RUN - AMENDMENT PROPOSED, NOT APPLIED ***
+## 3. *** CRITERION GAP FOUND BY THIS RUN - SINCE RULED AND APPLIED (see sec 7) ***
 
-Per the sec 4a ratification protocol, this is raised as a DATED AMENDMENT with its reason,
-and DATA ALREADY EXISTED when it was found. It has NOT been silently applied.
+Per the sec 4a ratification protocol, this was raised as a DATED AMENDMENT with its
+reason, and DATA ALREADY EXISTED when it was found. It was NOT silently applied: it was
+put to the user, RULED, and is now AMENDMENT 1 in HEADLESS_RUN_PLAN.md sec 4a.2. Sec 7
+below carries the re-scoring under the amended rule. This section is kept as written so
+the sequence - gap found, amendment proposed, ruling obtained, then re-scored - stays
+visible rather than being flattened into a tidy result.
 
 4a.2 defines MOVED as ">= 25 m net displacement, sustained across at least 3 consecutive
 samples". 1222.MechPlt satisfies BOTH clauses - 63.4 m net, dozens of consecutive
@@ -148,3 +152,42 @@ result would have looked like partial success and been reported as such.
 4. Investigate the empty ListenReports capture.
 5. Only then consider the 600 s run. On this evidence it will reproduce the same result,
    so it should be run to CONFIRM the freeze reproducibly, not in the hope of an arrival.
+
+## 7. POST-RUN RE-SCORING under AMENDED 4a.2, and two corrections (2026-07-19)
+
+AMENDMENT 1 to 4a.2 was ruled by the user and applied: MOVED now additionally requires the
+distance to the FINAL WAYPOINT to have DECREASED by >= 25 m. Re-scoring this run:
+
+| Taskee | dist to dest, first fix | dist to dest, last fix | closed | MOVED? |
+|--------|------------------------|------------------------|--------|--------|
+| 1222.MechPlt | 1155.5 m | 1218.9 m | **-63.4 m** | NO |
+| 114.MechCoy  | 1112.0 m | 1112.0 m | 0.0 m | NO |
+| 1.BdeHQ      | 1155.5 m | 1155.5 m | 0.0 m | NO |
+
+All three fail, and 1222.MechPlt's only displacement took it 63.4 m FURTHER FROM its
+objective. The amended rule reclassifies it from a misleading MOVED to a correct NO. Under
+the ORIGINAL rule this run would have reported one unit as having moved.
+
+### CORRECTION 1 - the ordered route is TWICE what sec 4a.0 said
+
+The interface builds a THREE-point route, prepending the unit's current position:
+"CreateRoute 'T_R5_PL1 ROUTE' (3 pts)" (vrfc2simapp.log). Measured from telemetry, each
+unit starts almost exactly one leg away from waypoint 1 - 577.8 / 556.0 / 577.7 m - so the
+FULL ordered route is ~1155 / ~1112 / ~1155 m, not the 556-578 m recorded in 4a.0. That
+table has been corrected in place. This does not change any verdict here (all three are
+0.0 m or negative progress) but it halves every percentage-of-route figure, and it means a
+completion would require roughly twice the travel previously assumed.
+
+### CORRECTION 2 - CREATION FIDELITY IS EXACT, and that is a real positive
+
+The three taskees spawned at the init's coordinates to SIX DECIMAL PLACES:
+    1.BdeHQ       init 34.608415817915,-116.712685404877  ->  actual 34.608416,-116.712685
+    114.MechCoy   init 34.647628996814,-116.693387536163  ->  actual 34.647629,-116.693388
+    1222.MechPlt  init 34.612955587412,-116.600486942341  ->  actual 34.612956,-116.600487
+Ground clamp also works: altitude resolved to ~1040 m terrain height rather than the
+requested spawn MSL. So the failure is NOT misplacement and NOT burial. The units are put
+in exactly the right place, given the right route, and then do not drive it.
+
+This tightens the diagnosis considerably. Ruled OUT by this run: wrong spawn position,
+buried spawn, missing route, missing task issue, lying completion. What remains is
+specifically the EXECUTION of an issued MoveAlongRoute by a created unit.
