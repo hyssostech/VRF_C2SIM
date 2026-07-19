@@ -239,6 +239,28 @@ this is what crashed `TryGetEntityMotion`). Header evidence and the fix are in t
 long comment above `resolveStateRep` in `src/VrfFacade/VrfFacade.cpp`. The scenario
 .oob does give the Page-In Area a real authored position (34.615N, -116.55W).
 
+*** RETRACTED 2026-07-19 LATE - THIS "FIXED" CLAIM IS FALSE. THE FIX WENT OUT WITH A
+REVERT AND WAS NEVER RE-APPLIED. *** The paragraph below was written at 15:32 describing
+code that was REVERTED at 16:40 (commit 5d14eda) because it broke object creation. It then
+survived a later RUNBOOK edit untouched. VERIFY BEFORE BELIEVING ANY OF IT:
+  - src/VrfFacade/VrfFacade.cpp:735 STILL CONTAINS the blind
+    `static_cast<DtReflectedEntity*>(obj)->entityStateRep()`. The undefined behaviour is
+    STILL IN THE SHIPPING BRIDGE.
+  - `resolveStateRep` DOES NOT EXIST in any tracked source (0 hits). Every reference to it
+    in this RUNBOOK points at a function that went out with the revert. It survives only in
+    stale untracked build artifacts.
+  - Control objects STILL EMIT DEGENERATE POS LINES. The most recent pre-check
+    (runs/20260719T222134Z_run/watchvrf-precheck.csv) has 28 of them,
+    `POS,3,VRF_UUID:cde66adc-...,NaN,-90.000000,NaN`.
+WHAT SURVIVES, because it is implementation-independent: the DIAGNOSIS above (control
+objects sit on a disjoint repository hierarchy; the blind cast is UB on them; that is why
+location() returned garbage while lastSetLocation() faulted) and the fact that "the
+baseline objects are positionless" is an ARTEFACT of that cast rather than VR-Forces
+behaviour. What is FALSE is only the claim that it was fixed.
+IF YOU ARE PLANNING THE NATIVE RE-ATTEMPT: the crash source is NOT already removed. Scope
+accordingly. Read HANDOFF_2026-07-19.md sec 5 for the rules first.
+
+SUPERSEDED TEXT FOLLOWS - the claim in this paragraph is the false one just retracted:
 FIXED: those objects are now identified positively and return FALSE (no reading) -
 they no longer emit POS lines at all. The pass/fail criterion below is UNAFFECTED
 in substance (a degenerate row and a missing row are both "not a real coordinate"),
@@ -941,9 +963,15 @@ the disaggregated aggregate, where the C++ oracle's blind static_cast read the b
 and worked. FIX applied in VrfFacade::TryGetEntityGeodetic: after the typed entity/aggregate
 casts, fall back to the C++ static_cast base-state read. Builds 0/0.
 
-*** CORRECTION 2026-07-19: THE "RTTI ACROSS THE MAK DLL BOUNDARY" DIAGNOSIS ABOVE IS WRONG,
-and the static_cast fallback it justified has been REMOVED (it was undefined behaviour that
-crashed on control objects - see sec 0.5.7). The dynamic_cast does not "miss": in an HLA build
+*** CORRECTION 2026-07-19: THE "RTTI ACROSS THE MAK DLL BOUNDARY" DIAGNOSIS ABOVE IS WRONG.
+*** BUT NOTE, RETRACTED 2026-07-19 LATE: this correction ALSO claimed the static_cast
+fallback "has been REMOVED" and that aggregates "are now resolved" through the typed list.
+BOTH OF THOSE ARE FALSE. That code was REVERTED (commit 5d14eda) because it broke object
+creation, and VrfFacade.cpp:735 STILL CONTAINS the blind static_cast today.
+`resolveStateRep` does not exist in tracked source. THE HEADER ANALYSIS BELOW IS SOUND AND
+STANDS; only the "and it was fixed" half is false. Do not scope the native re-attempt as
+though the UB were already gone. ***
+The dynamic_cast does not "miss": in an HLA build
 DtReflectedExtAggregate does not derive DtReflectedAggregate AT ALL. MAK says so in the header
 (`reflectedExtAggregate.h:15-19`: "In HLA we need to derive from DtReflectedObject instead of
 DtReflectedAggregate so that we can make use of the constructor that takes a state repository").

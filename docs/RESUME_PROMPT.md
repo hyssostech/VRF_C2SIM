@@ -23,7 +23,13 @@ its own."
 
 *** THE BUTTON EXISTS AND WORKS. *** scripts/RunC2SimScenario.ps1 has taken a C2SIM init +
 order through launch, join, creation, tasking, telemetry and clean resign with ZERO human
-interaction, on four separate runs. Do NOT plan to build it; it is built. Do NOT plan GUI
+interaction. Do NOT plan to build it; it is built.
+COUNT, CORRECTED after an independent audit caught the first version inflating it: runs
+161438Z and 202349Z are FULLY unattended end-to-end successes. 222134Z is a third, and its
+teardown needed the back-end graceful fallback (which worked, unattended). 144109Z reached
+a full trace but its teardown FAILED and the back-end was brought down BY HAND, so it is
+NOT a zero-human run. Say "two to three", not "four", and never count a run that is still
+in flight - the original claim was written while 222134Z had not yet reached teardown. Do NOT plan GUI
 automation - GUI use is DIAGNOSTIC ONLY. The one exception is simulator lifecycle
 (StopVrf.ps1 answers VR-Forces' modals via UIA so the sim tears down unattended); that is
 not tasking. If you find yourself telling the user something needs them to click, STOP - a
@@ -34,7 +40,14 @@ around the human it had invented.
 (CreateRoute + MoveAlongRoute in the app log, every run). Then:
   114.MechCoy   0.0 m, bit-exact, confirmed by TWO independent channels
   1.BdeHQ       0.0 m, bit-exact, confirmed by TWO independent channels
-  1222.MechPlt  ~174 m of a ~1155 m route, then stops (174.1 m and 174.4 m on two runs)
+  1222.MechPlt  ~174 m of a ~1155 m route, then stops (174.1 / 174.4 / 168.6 m on three runs)
+*** PROVENANCE, and an audit caught this being glossed: THE ~174 m FIGURE IS RPT-DERIVED,
+i.e. it comes from the very channel these docs elsewhere mark as "INFERRED, NOT PROVEN" to
+be truthful. Under the RATIFIED scoring instrument - the POS trace - the SAME unit scores
+-63.4 m (AWAY from its objective) and is NOT MOVED under AMENDMENT 1. The two channels
+disagree; quoting only the friendlier number is exactly the trap. Quote BOTH or neither.
+Also note the RPT "control" is 3 fixes per unit per run, not 76 - real evidence, but far
+coarser than POS and unable to resolve the oscillation POS reports. ***
 No TASKCMPLT is ever emitted - an HONEST failure; the interface does not lie in either
 direction, which is worth keeping given completions have lied both ways historically.
 VR-Forces receives a well-formed MoveAlongRoute for a correctly created, correctly
@@ -143,11 +156,20 @@ OPERATIONAL STATE:
   whole plan, creates nothing, contacts nothing and does NOT advance the ledger marker.
   Exit codes: 0 ok / 2 validation / 3 failed after VR-Forces was up / 4 teardown incomplete
   / 5 unexpected. A CRASHED ORACLE NOW FORCES 3 - it used to report success.
-- VR-FORCES LAUNCH/TEARDOWN are unattended and verified. StopVrf answers modals via UIA and
-  now scans NESTED windows too: a "Session Status - Close current terrain?" modal fires on
-  EVERY clean teardown and is a DESCENDANT of the main window, not a top-level one, which
-  is why it hung a teardown once. StopVrf also has a back-end graceful-close fallback
-  (-BackEndCloseTimeoutSec) because "Quit All Back-Ends" does not always carry the engine.
+- VR-FORCES LAUNCH is unattended and verified. TEARDOWN IS PARTLY VERIFIED - read this
+  precisely, an audit caught the first version overstating it:
+    VERIFIED: the back-end graceful-close fallback (-BackEndCloseTimeoutSec). On run
+      222134Z the GUI quit did NOT carry the back-end, the fallback fired, the back-end
+      exited inside 30 s, nothing was force-killed, RTI preserved, StopVrf EXIT=0.
+    NOT VERIFIED: the NESTED-DIALOG handling. A "Session Status - Close current terrain?"
+      modal is a DESCENDANT of the main window, not a top-level one, so StopVrf's original
+      top-level search could not see it and it hung a teardown once (run 193252Z). The fix
+      scans descendants - but on the only run since, the modal DID NOT APPEAR, and there
+      were NO nested-window log lines at all, so there is not even evidence the scan RAN.
+      IT IS INTERMITTENT. Expect it to hang again until you see `answered No to "Session
+      Status"` in a real teardown log.
+    ALSO CORRECTED: it does NOT fire on "every" clean teardown - runs 161438Z, 185814Z and
+      202349Z all tore down cleanly without it. It appeared on a run that FAILED.
 - *** NEVER KILL rtiAssistant / rtiexec / rtiForwarder. *** A modal ON the assistant was
   DISMISSED via UIA, not killed, and the assistant was then confirmed healthy by a
   ResetVrf --dry-run. UIA-drivability is NOT predictable per process - the same process

@@ -38,6 +38,18 @@ known-bad type fidelity (generic fallbacks), runaways, and untrustworthy complet
 
 ## 2. The deliverable: scripts/RunC2SimScenario.ps1
 
+*** BUILT AND RUN. THIS SECTION'S "NOT YET WRITTEN" WAS TRUE ONLY ON 2026-07-18. ***
+scripts/RunC2SimScenario.ps1 EXISTS and has taken a C2SIM init + order end to end on
+multiple runs (see docs/experiments/RUN_2026-07-19_MOJAVE_CHAIN.md and the run directories
+under runs/). DO NOT BUILD IT AGAIN. The contract below is retained because it is still an
+accurate description of what the script does, and the "requirements learned the hard way"
+are still binding - but read them as DOCUMENTATION OF A BUILT THING, not a work order.
+An independent audit found this stale line on 2026-07-19 and noted, correctly, that
+RESUME_PROMPT.md warns in its own header about a doc that "still told its reader to build
+something that already existed" and then routes the reader straight into this file. The
+same failure, one document downstream of its own warning.
+
+SUPERSEDED LINE FOLLOWS:
 NOT YET WRITTEN. This is the next thing to build.
 
 Contract:
