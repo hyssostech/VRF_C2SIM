@@ -1068,7 +1068,36 @@ on that refresh: ResetVrf must join, discover, delete nothing, and resign cleanl
   VR-Forces GUI now shows an empty scenario" - one of the GUI-referencing console
   strings HEADLESS_RUN_PLAN sec 4 lists for replacement. Not fixed here.
 
-*** NEXT FREE: 3504 *** (authoritative - the ONLY such marker in this file. Update this
+
+CLAIMED 2026-07-19 13:35 by scripts/RunC2SimScenario.ps1 (run 20260719T133529Z_run). Ledgered BEFORE any join,
+per the never-reuse non-negotiable. Annotate with results from the run manifest.
+*** OUTCOME: RUN FAILED AT STAGE 3. 3504/3505 CONSUMED, 3506-3509 BURNED UNUSED. ***
+The runner DEADLOCKED and never reached stage 4. CAUSE (confirmed against Microsoft's
+own Start-Process documentation, not inferred from the symptom): Invoke-External used
+`Start-Process -Wait`, and -Wait is documented to wait for "the specified process AND
+ITS DESCENDANTS" / "the PROCESS TREE ... and all its descendants". Stage 3 runs
+LaunchVrf.ps1, whose PURPOSE is to leave VR-Forces RUNNING - so vrfGui and
+vrfSimHLA1516e are descendants of that call and the wait could never return. LaunchVrf
+itself SUCCEEDED (READY in 51 s, back-end 66 threads, front-end with a real window);
+the runner then sat blocked for 47 minutes at 1.3 s CPU. Cf. Wait-Process, which is
+documented to wait ONLY for the specified process - that asymmetry is the fix.
+FALSIFIED HYPOTHESIS, recorded so it is not re-investigated: inherited stdout/stderr
+handles were NOT the cause. The redirected log was verified openable with EXCLUSIVE
+access while the runner was still blocked.
+RECOVERY WAS CLEAN: the hung process was a SCRIPT that had joined no federation (no
+trace file, no app log - both verified before acting), so stopping it did not violate
+RUNBOOK sec 0. VR-Forces was then brought down by StopVrf.ps1 - EXIT=0 in 6 s,
+graceful quit, nothing force-killed, all three RTI processes preserved.
+- 3504: CONSUMED - LaunchVrf.ps1 back-end (vrfSimHLA1516e). Launched HEALTHY (66 thr).
+- 3505: CONSUMED - LaunchVrf.ps1 front-end (vrfGui). Up with a real main window.
+- 3506: BURNED UNUSED - never reached. WatchVrf advisory pre-check (RUNBOOK 0.5.7)
+- 3507: BURNED UNUSED - never reached. WatchVrf MAIN trace / scoring input
+- 3508: BURNED UNUSED - never reached. VrfC2SimApp Vrf__ApplicationNumber
+- 3509: BURNED UNUSED - never reached. tools/CreateOne stage-7b failure-path diagnostic.
+NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
+join) are BURNED, not recycled. The run manifest records which were actually used.
+
+*** NEXT FREE: 3510 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
