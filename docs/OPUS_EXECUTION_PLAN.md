@@ -1150,7 +1150,48 @@ this checks the assistant is still healthy BEFORE a 15-minute run depends on it.
       cleanly. The "a rebuild might break the bridge" risk is retired for the join path;
       the raw-vs-DR READ path is still unexercised until a run with objects to read.
 
-*** NEXT FREE: 3523 *** (authoritative - the ONLY such marker in this file. Update this
+
+CLAIMED 2026-07-19 18:58 by scripts/RunC2SimScenario.ps1 (run 20260719T185814Z_run). Ledgered BEFORE any join,
+*** OUTCOME: RUN FAILED. THE MOVEMENT ORACLE CRASHED. NO USABLE EVIDENCE. ***
+WatchVrf died with 0xC0000005 (exit -1073741819) after emitting ONE POS line - BOTH the
+pre-check and the main trace. Stack: vrf.VrfFacade.TryGetEntityMotion, the function added
+in commit 7ec3b95. THIS WAS A SUPERVISOR-INTRODUCED REGRESSION, caught by the instrument
+reproducibility check that was run BEFORE interpreting any result.
+ROOT CAUSE (diagnosed, fix in progress): VrfFacade.cpp ~:734-735 ends its state-repository
+resolution with a BLIND static_cast<DtReflectedEntity*>(obj). For a TropicTortoise BASELINE
+CONTROL OBJECT - neither entity nor aggregate - that is undefined behaviour. Through the
+bogus pointer, location() returns GARBAGE without faulting while lastSetLocation() faults.
+The blind cast CANNOT simply be deleted: RUNBOOK sec 7 documents that
+dynamic_cast<DtReflectedAggregate*> fails across the MAK DLL boundary, so disaggregated
+aggregates resolve ONLY through it.
+SECOND, INDEPENDENT DEFECT EXPOSED BY THE SAME RUN - and it is the more serious one:
+THE ORACLE GATE DECLARED SUCCESS ON THE GARBAGE. It passed
+"POS,3,VRF_UUID:cde66adc-...,0.000001,-90.000000,1020484223153767.2" - latitude 1e-6,
+longitude -90, ALTITUDE 1.02e15 METRES - because it only ever checked lat/lon for NaN and
+the pole and NEVER LOOKED AT THE ALTITUDE COLUMN IT WAS ALREADY BEING GIVEN. Same class of
+failure as the retracted "reflected>0" criterion. The runner then reported "RUN COMPLETE -
+evidence collected" and EXIT=0 on a run whose oracle had crashed 3 seconds in.
+BOTH ARE FIXED: altitude sanity (>100 km = memory, not a position) plus an
+equator/null-island placeholder check, and a crashed oracle now forces exit 3 and a FAIL
+flag regardless of what every other stage returned.
+- 3523/3524: CONSUMED - LaunchVrf back-end/front-end. Launch itself was fine (READY).
+- 3525: CONSUMED - WatchVrf pre-check. CRASHED 0xC0000005.
+- 3526: CONSUMED - WatchVrf main trace. CRASHED 0xC0000005. 1 POS line, 0 RAW lines.
+- 3527: CONSUMED - VrfC2SimApp. Joined, created 6 units, resigned cleanly (exit 0).
+- 3528: BURNED UNUSED - CreateOne stage-7b diagnostic; the gate falsely PASSED so it
+  never fired. Had the gate been correct, this diagnostic would have run.
+TEARDOWN WAS CLEAN: StopIface 0, app resigned 0, StopVrf 0, RTI preserved.
+per the never-reuse non-negotiable. Annotate with results from the run manifest.
+- 3523: CLAIMED - LaunchVrf.ps1 back-end (vrfSimHLA1516e), combined mode
+- 3524: CLAIMED - LaunchVrf.ps1 front-end (vrfGui), combined mode
+- 3525: CLAIMED - WatchVrf ADVISORY pre-init oracle pre-check (RUNBOOK 0.5.7)
+- 3526: CLAIMED - WatchVrf MAIN run trace - the movement oracle / scoring input
+- 3527: CLAIMED - VrfC2SimApp Vrf__ApplicationNumber (the interface federate)
+- 3528: CLAIMED - tools/CreateOne - STAGE 7b FAILURE-PATH DIAGNOSTIC ONLY (RUNBOOK 0.5.7 STRONGER CHECK). CONSUMED ONLY IF THE ORACLE GATE FAILS; on a healthy run it is NEVER JOINED and this number goes UNCONSUMED. Unconsumed numbers are BURNED, never recycled - see the NOTE below. Allocated here rather than mid-run because every number must be ledgered BEFORE any join.
+NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
+join) are BURNED, not recycled. The run manifest records which were actually used.
+
+*** NEXT FREE: 3529 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN

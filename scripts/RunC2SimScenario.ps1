@@ -439,6 +439,11 @@ function Format-CommandLine {
 }
 
 $script:LastStageStartUtc = $null
+# Set when the movement oracle (WatchVrf-trace) exits non-zero. Initialised HERE
+# because the script runs under Set-StrictMode -Version Latest, where reading an
+# unassigned variable is a terminating error - which would turn a crashed-oracle run
+# into an exit-5 "unexpected error" and bury the real cause.
+$script:OracleDied = $false
 
 # ---- external invocation ----------------------------------------------------
 # EVERY external process in this script goes through Invoke-External or
@@ -696,6 +701,24 @@ function Read-LiveText {
 # This function answers ONLY "is this coordinate real". It says nothing about
 # distance, arrival or movement - those are the scorer's job (4a), not this
 # script's.
+#
+# *** HARDENED 2026-07-19 AFTER A FALSE GREEN ON LIVE GARBAGE. ***
+# Run 20260719T185814Z: WatchVrf CRASHED (0xC0000005) after emitting ONE POS line,
+# and this gate declared "ORACLE GATE PASSED: 1 real-coordinate POS lines" on it:
+#
+#     POS,3,VRF_UUID:cde66adc-...,0.000001,-90.000000,1020484223153767.2
+#
+# lat 1e-6, lon -90, ALTITUDE 1.02e15 METRES. It satisfied every clause of the old
+# rule - not NaN, |lat| well under the 89.999999 pole threshold, |lon| <= 180 - while
+# being obvious nonsense read through a bad pointer. THE ALTITUDE WAS THE TELL AND THE
+# GATE NEVER LOOKED AT IT.
+#
+# This is the SAME CLASS OF FAILURE as the retracted "reflected>0" criterion that
+# 0.5.7 documents: a validity gate passing on degenerate data. Two lessons applied:
+#   1. CHECK EVERY FIELD YOU ARE GIVEN. The altitude column was sitting right there.
+#   2. A gate that can pass on a run that CRASHED is not a gate. See also the separate
+#      hardening of the crash/exit-code handling - a run whose oracle died must never
+#      report success no matter what the trace contains.
 function Get-RealPositions {
     param([string]$TraceText)
     $real = @()
@@ -717,7 +740,25 @@ function Get-RealPositions {
         # because the trace prints F6 and an exact string match is brittle.
         if ([Math]::Abs($lat) -ge 89.999999) { $degenerate++; continue }
         if ([Math]::Abs($lon) -gt 180.0)     { $degenerate++; continue }
-        $real += [ordered]@{ line = $line; uuid = $f[2]; lat = $lat; lon = $lon }
+
+        # ADDED 2026-07-19 - ALTITUDE SANITY. This is the check that would have caught
+        # the false green. A bogus pointer read produced alt = 1.02e15 m. Nothing in
+        # this project legitimately exceeds 100 km MSL: CreateOne deliberately spawns at
+        # 10000 m so the ground clamp can drop it, and clamped ground units land near
+        # 1040 m at Mojave. Anything past 100 km is not a position, it is memory.
+        $alt = 0.0
+        if (-not [double]::TryParse($f[5], $styles, $inv, [ref]$alt)) { $degenerate++; continue }
+        if ([double]::IsNaN($alt) -or [double]::IsInfinity($alt))     { $degenerate++; continue }
+        if ([Math]::Abs($alt) -gt 100000.0)                           { $degenerate++; continue }
+
+        # ADDED 2026-07-19 - EQUATOR/NULL-ISLAND PLACEHOLDER. VR-Forces parks
+        # positionless objects at an ECEF placeholder that converts to lat ~9e-6 (the
+        # scenario .oob shows GlblTerrDmg and GlobalEnv at ECEF (6378137,1,1)). No
+        # scenario this project runs is within 100 m of the equator - Mojave is ~34.6N,
+        # Sweden ~58.6N - so a near-zero latitude here is a placeholder, never a fix.
+        if ([Math]::Abs($lat) -lt 0.001) { $degenerate++; continue }
+
+        $real += [ordered]@{ line = $line; uuid = $f[2]; lat = $lat; lon = $lon; alt = $alt }
     }
     return [pscustomobject]@{
         PosLineCount   = $posLines
@@ -1786,6 +1827,21 @@ finally {
     Complete-Background -Name 'WatchVrf-trace' -Process $WatchProc -TimeoutSec ($EffWatchSecs + 120) `
         -Note 'THE MOVEMENT ORACLE trace. Allowed to run its full duration and resign itself.'
     Complete-Background -Name 'ListenReports' -Process $ListenProc -TimeoutSec ($EffWatchSecs + 120)
+
+    # *** ADDED 2026-07-19: THE ORACLE MUST NOT DIE SILENTLY. ***
+    # Run 20260719T185814Z: WatchVrf CRASHED with 0xC0000005 after a single POS line,
+    # and this runner reported "RUN COMPLETE - evidence collected" and EXIT=0. A run
+    # whose movement oracle died produced NO evidence, and saying otherwise is worse
+    # than failing - it invites scoring a trace that stops three seconds in.
+    # 0xC0000005 arrives here as the signed int -1073741819 (unsigned 0xC0000005).
+    $watchStage = $Manifest.stages | Where-Object { $_.name -eq 'WatchVrf-trace' } | Select-Object -Last 1
+    if ($null -ne $watchStage -and $null -ne $watchStage.exitCode -and $watchStage.exitCode -ne 0) {
+        $isAv = ($watchStage.exitCode -eq -1073741819)
+        $why  = if ($isAv) { 'ACCESS VIOLATION (0xC0000005) - the native bridge faulted' }
+                else       { ('exit {0}' -f $watchStage.exitCode) }
+        Add-Flag 'FAIL' ('THE MOVEMENT ORACLE DIED: WatchVrf-trace {0}. The trace is TRUNCATED and MUST NOT be scored. This run collected no usable movement evidence.' -f $why)
+        $script:OracleDied = $true
+    }
     if ($DryRun) {
         Say-Plan 'would wait for WatchVrf and ListenReports to finish their own timers (never killed)'
     }
@@ -1859,6 +1915,14 @@ finally {
             (($Alloc | ForEach-Object { $_.appNumber }) -join ','), $FirstFree, $NextFree, $LedgerAdvanced)
     Say ('  local / UTC   : {0} / {1}' -f (Get-Date).ToString('yyyy-MM-dd HH:mm:ss zzz'), (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss'))
     foreach ($f in $Manifest.validityFlags) { Say ('  [{0}] {1}' -f $f.severity, $f.text) }
+
+    # *** ADDED 2026-07-19. A run whose ORACLE DIED is not a successful run, whatever
+    # every other stage returned. Previously this could reach exit 0 and print
+    # "RUN COMPLETE - evidence collected" after WatchVrf had crashed three seconds in.
+    # Promote to 3 (failed after VR-Forces was up): teardown still ran, evidence is
+    # partial, and the manifest names the stage. ***
+    if ($script:OracleDied -and $RunnerExit -eq 0) { $RunnerExit = 3 }
+
     switch ($RunnerExit) {
         0 { Say-Ok 'RUN COMPLETE - evidence collected. THIS IS NOT A VERDICT: sec 4a.6 makes run 1 a measurement. Score the trace separately.' }
         2 { Say-Fail 'ABORTED at validation / usage. Nothing was launched where it could be checked first.' }
