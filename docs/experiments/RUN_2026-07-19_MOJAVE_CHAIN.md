@@ -189,6 +189,14 @@ result would have looked like partial success and been reported as such.
 - NOT a 4a-scored acceptance result. sec 4a.6 makes run 1 a MEASUREMENT.
 - NOT evidence about the 18.1-18.4 km stall band. Legs are ~556-578 m; the band cannot
   be reached at this scale.
+*** SECTIONS 5 AND 6 BELOW ARE SUPERSEDED - RETRACTED 2026-07-19 LATE. The overturn banner
+at the top of this file covers the movement reading only and did NOT reach here. "Duration
+is not the binding constraint" and "a 600 s run will reproduce this, not fix it" are BOTH
+FALSE for 1222.MechPlt: it was still moving and slightly ACCELERATING when observation
+ended, and the route needs ~825 s against the ~145 s ever observed. THE RATIFIED NEXT
+ACTION IS THE LONG RUN (-RunSecs 900+). The claim remains TRUE for the two frozen units.
+Sec 6 item 1 ("rule on the 4a.2 amendment") is also stale - it was ruled, see sec 7. ***
+
 - NOT evidence that a longer window would help. The two frozen taskees never moved at
   all, and the third stopped progressing after ~20 s and oscillated for 130 s. Duration
   is not the binding constraint. A 600 s run is expected to reproduce this, not fix it.

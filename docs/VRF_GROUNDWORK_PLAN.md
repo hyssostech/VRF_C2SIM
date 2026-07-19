@@ -284,7 +284,10 @@ Exit criteria / what this settles:
   - THE LOOP WORKS: scripts/RunC2SimScenario.ps1 takes a C2SIM init + order through
     launch, join, creation, tasking, telemetry and clean resign with ZERO human
     interaction. That is the mandate, demonstrated.
-  - THE RESULT, reproduced across runs 144109Z / 161438Z / 202349Z: all three tasks are
+  - THE RESULT, reproduced across runs 161438Z / 202349Z / 222134Z. *** NOT 144109Z - its teardown
+  FAILED (StopVrf EXIT=3, back-end brought down BY HAND), so it is not a zero-human run.
+  An earlier version of this line listed it and omitted 222134Z, the only run that
+  exercised the current teardown code. ***: all three tasks are
     issued correctly (CreateRoute + MoveAlongRoute). 114.MechCoy and 1.BdeHQ do NOT move
     (0.0 m, bit-exact, confirmed by two independent channels). *** RETRACTED 2026-07-19 LATE: the "moves ~174 m and stops" reading below is FALSE. The
 unit was STILL MOVING AND SLIGHTLY ACCELERATING when observation ended; ~174 m is the
@@ -296,7 +299,11 @@ Superseded text follows: ***
     of a ~1155 m route and stops - 174.1 m and 174.4 m on two runs, so this is a
     REPRODUCIBLE defect, not noise. No TASKCMPLT is ever emitted: an HONEST failure.
   - RULED OUT with evidence, do NOT re-investigate: wrong/buried spawn (creation is EXACT
-    to 6 dp, ground clamp works), missing route, missing task issue, lying completion,
+    to 6 dp, ground clamp works), missing route, missing task issue,
+    *** "LYING COMPLETION" REMOVED FROM THIS LIST 2026-07-19 LATE - IT IS NOT RULED OUT.
+    No TASKCMPLT was seen, but NOTHING is observable past the ~180 s collapse, so a
+    completion at t=400 would be equally invisible. Absence here proves nothing. It is an
+    UNTESTED question, and the long run (-RunSecs 900+) is what answers it. ***
     stale aggregate reads, scenario-injected behaviour (TropicTortoise .pln is a 36-byte
     EMPTY header - this also CLOSES the groundwork 0.5 ".pln unparsed" gap; Bogaland2 is
     the identical inert ancestor; taskRules/ and scriptedObjectMovement/ are empty ONLY IN THE C2simEx LAYER - *** NOT RULED OUT, RETRACTED 2026-07-19: C2simEx.sms includes EntityLevel.sms, whose taskRules/ holds default-task-rules.tsk + doctrines.dct + actionCategories.tsk and whose scriptedObjectMovement/ holds 19 files. NOBODY HAS OPENED THEM. ***),
@@ -333,8 +340,11 @@ Superseded text follows: ***
     which PASSED ON GARBAGE (lat 1e-6, lon -90, altitude 1.02e15 m) because it never
     checked the altitude column it was already given; and a crashed oracle now FAILS the
     run instead of reporting "RUN COMPLETE".
-  - KNOWN BLOCKER, being fixed: a "Session Status - Close current terrain?" modal fires on
-    EVERY clean teardown and hangs StopVrf, because it is a NESTED child of the main
+  - KNOWN BLOCKER: a "Session Status - Close current terrain?" modal can hang StopVrf.
+    *** CORRECTED: it does NOT fire on EVERY clean teardown - it is named in exactly ONE of
+    six stopvrf logs (193252Z, a run that FAILED) and four teardowns completed cleanly
+    without it. IT IS INTERMITTENT. The descendant-scan fix has SHIPPED but is UNVERIFIED -
+    it has never been exercised by a real occurrence. ***, because it is a NESTED child of the main
     window and StopVrf only searches TOP-LEVEL windows.
 - 2026-07-19 (OFFLINE): **ARGUMENT GUARDS LANDED AND VERIFIED; PASS CRITERION WRITTEN BUT
   UNRATIFIED; VrfBridge TOOLCHAIN PROVEN HEALTHY. THE FIRST SCORED RUN HAS NOT RUN AND IS

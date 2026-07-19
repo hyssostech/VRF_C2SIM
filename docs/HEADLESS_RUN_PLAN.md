@@ -22,12 +22,12 @@ and confirmed present 2026-07-18; the four C2SIM tools were rebuilt that evening
 |---|-------|------|-------|
 | 1 | Bring VR-Forces up | `scripts/LaunchVrf.ps1` | VERIFIED, EXIT=0 READY |
 | 2 | Run the interface | `src/VrfC2SimApp` | builds 0 errors |
-| 3 | Push C2SIM init | `tools/PushInit <init.xml>` | builds; NO ARG GUARD (sec 4) |
-| 4 | Push C2SIM order | `tools/PushOrder <order.xml>` | builds; NO ARG GUARD (sec 4) |
+| 3 | Push C2SIM init | `tools/PushInit <init.xml> [restUrl] [stompUrl]` | GUARDED 2026-07-19 |
+| 4 | Push C2SIM order | `tools/PushOrder <order.xml> [secs] [restUrl] [stompUrl]` | GUARDED 2026-07-19 |
 | 5 | Measure execution | `tools/WatchVrf <appNo> <secs> <sample>` | VERIFIED oracle |
 | 6 | Capture outbound reports | `tools/ListenReports [secs] [outPath]` | net10.0; outPath added |
-| 7 | Clean stop | `tools/StopIface` | works; ACTS WITH NO ARGS (sec 4) |
-| 8 | Bring VR-Forces down | `scripts/StopVrf.ps1` | VERIFIED, EXIT=0 |
+| 7 | Clean stop | `tools/StopIface <restUrl> <stompUrl> --yes` | FIXED 2026-07-19: no defaults, --yes REQUIRED |
+| 8 | Bring VR-Forces down | `scripts/StopVrf.ps1` | 4 of 6 clean; TWO teardowns exited 3 |
 
 THE PIPELINE HAS ALREADY RUN END TO END. RUNBOOK sec 7 records 2026-07-10: HLA join
 -> late-join QUERYINIT (49 units + 4 areas) -> order received and parsed over STOMP ->
@@ -82,6 +82,10 @@ Requirements learned the hard way - do not omit:
 ## 3. First run target and what it settles
 
 `data/R9_Mojave_Initialization.xml` + `data/R9_Mojave_UnitMove_Order.xml`.
+*** CORRECTED - see sec 4a.0. The order contains THREE tasks against an ENTITY, a COMPANY
+and a PLATOON, so the aggregation and controller-class confound IS present; only the verb
+confound is absent (all three are MOVE). Use R9_Mojave_Lean_Initialization.xml (6 units),
+not the 158-unit file named above. Superseded text follows: ***
 Mojave matches the loaded TropicTortoise terrain, and a single unit move either
 produces displacement or it does not - a binary first result with no aggregation,
 no formation, and no controller-class confound.
@@ -91,6 +95,10 @@ human: does a C2SIM-driven unit actually ARRIVE, and does the completion the int
 reports correspond to real displacement. Scale up only after that is green.
 
 ## 4. Tooling defects that must be fixed BEFORE an unattended runner
+*** RESOLVED 2026-07-19 - the three argument-guard defects below are FIXED (commits
+0ca46f0 / 54a27f0). StopIface now REQUIRES <restUrl> <stompUrl> --yes with no defaults and
+verifies the server reached UNINITIALIZED. Kept as the incident record; do NOT read this
+section as outstanding work. The GUI-string items further down are still open. ***
 
 These are hazards specifically because the runner is unattended.
 
@@ -230,7 +238,14 @@ Two different rules, because the vendor semantics differ (ground truth 0.0 item 
     required.
     REASON: the old rule could not distinguish PROGRESS from OSCILLATION, because it only
     ever measured displacement FROM THE START and never asked whether the distance TO THE
-    WAYPOINT was decreasing. In run 1, 1222.MechPlt satisfied BOTH original clauses -
+    WAYPOINT was decreasing. In run 1, *** READ THIS BEFORE THE JUSTIFICATION BELOW. THE AMENDMENT ITSELF STANDS - requiring
+progress toward the objective is right whichever oracle turns out truthful - BUT ITS
+RECORDED JUSTIFICATION QUOTES ONLY THE POS CHANNEL AND ASSERTS IT AS A FACT ABOUT THE UNIT.
+It is a fact about the CHANNEL. VR-Forces' own reports (RPT) say the same unit moved EAST
+toward its objective and was still accelerating when observation ended. The two channels
+contradict and the question is open; quoting only the friendlier number is the trap this
+project keeps falling into. Quote BOTH or neither. ***
+1222.MechPlt satisfied BOTH original clauses -
     63.4 m net, dozens of consecutive non-zero steps - while going nowhere: it displaced
     about 65 m once and then oscillated between 62.5 m and 66.6 m for 130 seconds,
     accumulating 199.8 m of path for 63.4 m of net displacement. Under the old rule that

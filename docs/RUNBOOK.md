@@ -475,12 +475,15 @@ makVrf::DtVrfQtDeMainWindow; a TreeScope::Descendants search for ControlType Win
 correctly finds "Are You Sure?" - is top-level and structurally cannot see this.
 WHEN IT FIRES: after StopIface drives the C2SIM server to UNINITIALIZED, VR-Forces treats
 the session as ended and raises it. It was ORIGINALLY believed to fire on EVERY cleanly-torn-down
-unattended run. This is not an edge case.
+unattended run. (The "not an edge case" claim that stood here is RETRACTED - see the correction above: the modal is INTERMITTENT, named in one of six teardown logs.)
 ANSWERED "No" - the application is being closed anyway, so leaving the terrain loaded is
 the smaller state change, and answering No unblocked the teardown by hand.
 DO NOT TICK "Execute session changes without prompting." It persistently mutates the
 user's VR-Forces configuration and would silently change future INTERACTIVE sessions too.
 The fix belongs in our script, not in their config.
+*** UNVERIFIED - THE DESCENDANT SCAN HAS NEVER BEEN EXERCISED BY A REAL OCCURRENCE. On the
+only run since it shipped, the modal did not appear AND no nested-window lines were logged
+at all. Do not treat the rest of this paragraph as tested behaviour. ***
 StopVrf now scans DESCENDANTS as well as top-level windows, logs EVERY nested window it
 finds with class/name/buttons even when it knows the answer, and REFUSES TO PRESS ANYTHING
 on a dialog it does not recognise - guessing a button on an unknown modal could do

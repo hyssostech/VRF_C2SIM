@@ -49,8 +49,10 @@ around the human it had invented.
 *** THE "AND THEN STOPS" READING WAS FALSE AND IS RETRACTED (found by a cold-reader audit,
 2026-07-19 late, verified by hand). *** The observation window is only ~145 s: the trace's
 usable span runs from t~35 to t~180, where the interface RESIGNS at teardown and its
-created objects are removed (StopIface fires at trace t=182.1s; readable collapses 53->2
-at t=180.1s - within one 2 s sample. That collapse is the RUN ENDING, not an oracle fault).
+created objects are removed (the two uuids still readable AFTER the collapse are EXACTLY the two present at t=3,
+BEFORE the interface created anything - cde66adc and f864e51f. That is the proof, and it
+needs no clock alignment at all. DO NOT cite "StopIface fires at trace t=182.1s": that is
+on a different clock from trace t and at face value puts the cause AFTER the effect.)
 1222.MechPlt's speed in its FINAL observed leg, all three runs:
     161438Z  1.35 -> 1.45 m/s      202349Z  1.38 -> 1.49 m/s      222134Z  1.28 -> 1.48 m/s
 IT WAS ACCELERATING SLIGHTLY WHEN OBSERVATION ENDED. There is no deceleration signature and
@@ -62,6 +64,15 @@ was WRONG for this unit - PREREG_TSK_DELIVERY_2026-07-19.md:130 had already said
 newer docs contradicted it. FOR 1222.MechPlt, RUN LONGER: -RunSecs 900 or more. It remains
 RIGHT for the two frozen units, which moved 0.0 m bit-exactly across 76 samples INSIDE the
 observed window - that is a real result and needs no more time.
+*** THE STRONGEST OFFLINE EVIDENCE, and RESUME previously omitted it entirely: in run
+161438Z the taskee''s POS stream is parked at ~-116.6012 for 68 consecutive samples, and at
+t=159.9 EXACTLY ONE SAMPLE reads -116.598533 before snapping back - landing 4.58 m from
+where RPT says the unit was at t=157.1 (~1.64 m/s). That is the POS channel briefly
+emitting the true position and corroborating RPT AGAINST ITSELF. QUALIFIER, do not drop it:
+n=1, in one run of three. 144109Z and 202349Z show no eastward outlier; 222134Z has two
+small ones but BEFORE the westward snap. Still strong - a spurious sample landing that
+close to the RPT-predicted position is an unlikely coincidence - but it is not settled. ***
+
 *** PROVENANCE, and an audit caught this being glossed: THE ~174 m FIGURE IS RPT-DERIVED,
 i.e. it comes from the very channel these docs elsewhere mark as "INFERRED, NOT PROVEN" to
 be truthful. Under the RATIFIED scoring instrument - the POS trace - the SAME unit scores

@@ -1104,6 +1104,10 @@ per the never-reuse non-negotiable.
 docs/experiments/RUN_2026-07-19_MOJAVE_CHAIN.md. Init accepted, 6 units created, all three
 tasks issued (CreateRoute + MoveAlongRoute), oracle gate PASSED on 44 real-coordinate POS
 lines, interface resigned cleanly (exit 0, no stale federate).
+*** RETRACTED 2026-07-19 LATE - see docs/HANDOFF_2026-07-19.md sec 1. "No unit moved" is
+FALSE for the third unit (VR-Forces' own reports show it moving east, still accelerating
+when observation ended) and 577.8 m is the pre-correction leg figure - the FULL route is
+~1155 m. Superseded text follows: ***
 BUT NO UNIT MOVED: 114.MechCoy 0.0 m, 1.BdeHQ 0.0 m, 1222.MechPlt 63.4 m of a 577.8 m leg,
 and that was oscillation in place (199.8 m of path for 63.4 m net), not progress. No
 TASKCMPLT was emitted - an HONEST failure; the interface did not lie in either direction.
