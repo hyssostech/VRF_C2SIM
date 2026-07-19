@@ -32,3 +32,5 @@ build/
 
 # ...but the golden-trace logs are the port's parity oracle - keep them
 !docs/golden-trace/*.log
+
+runs/

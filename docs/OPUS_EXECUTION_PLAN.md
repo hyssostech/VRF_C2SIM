@@ -1097,7 +1097,31 @@ graceful quit, nothing force-killed, all three RTI processes preserved.
 NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
 join) are BURNED, not recycled. The run manifest records which were actually used.
 
-*** NEXT FREE: 3510 *** (authoritative - the ONLY such marker in this file. Update this
+
+CLAIMED 2026-07-19 14:41 by scripts/RunC2SimScenario.ps1 (run 20260719T144109Z_run). Ledgered BEFORE any join,
+per the never-reuse non-negotiable.
+*** OUTCOME: THE CHAIN RAN END TO END, HEADLESS, ZERO HUMAN INTERACTION. Full write-up:
+docs/experiments/RUN_2026-07-19_MOJAVE_CHAIN.md. Init accepted, 6 units created, all three
+tasks issued (CreateRoute + MoveAlongRoute), oracle gate PASSED on 44 real-coordinate POS
+lines, interface resigned cleanly (exit 0, no stale federate).
+BUT NO UNIT MOVED: 114.MechCoy 0.0 m, 1.BdeHQ 0.0 m, 1222.MechPlt 63.4 m of a 577.8 m leg,
+and that was oscillation in place (199.8 m of path for 63.4 m net), not progress. No
+TASKCMPLT was emitted - an HONEST failure; the interface did not lie in either direction.
+3515 (CreateOne stage-7b diagnostic) UNCONSUMED and BURNED - the oracle gate passed, so
+the failure-path diagnostic correctly never fired.
+TEARDOWN DEFECT: StopVrf exited 3 leaving vrfSimHLA1516e alive, still JOINED (established
+connections to 6003/4001) and burning a full core. Resolved by hand with a graceful
+CloseMainWindow - down in 5 s, no force-kill, all RTI preserved. ***
+- 3510: CLAIMED - LaunchVrf.ps1 back-end (vrfSimHLA1516e), combined mode
+- 3511: CLAIMED - LaunchVrf.ps1 front-end (vrfGui), combined mode
+- 3512: CLAIMED - WatchVrf ADVISORY pre-init oracle pre-check (RUNBOOK 0.5.7)
+- 3513: CLAIMED - WatchVrf MAIN run trace - the movement oracle / scoring input
+- 3514: CLAIMED - VrfC2SimApp Vrf__ApplicationNumber (the interface federate)
+- 3515: CLAIMED - tools/CreateOne - STAGE 7b FAILURE-PATH DIAGNOSTIC ONLY (RUNBOOK 0.5.7 STRONGER CHECK). CONSUMED ONLY IF THE ORACLE GATE FAILS; on a healthy run it is NEVER JOINED and this number goes UNCONSUMED. Unconsumed numbers are BURNED, never recycled - see the NOTE below. Allocated here rather than mid-run because every number must be ledgered BEFORE any join.
+NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
+join) are BURNED, not recycled. The run manifest records which were actually used.
+
+*** NEXT FREE: 3516 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
