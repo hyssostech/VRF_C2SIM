@@ -30,8 +30,11 @@ reached a full trace but its teardown FAILED and the back-end was brought down B
 it is NOT a zero-human run. Never count a run still in flight - the original "four" was
 written while 222134Z had not reached teardown.
 AND: my first correction said 222134Z was distinguished by "needing the back-end graceful
-fallback". FALSE - the fallback fired in FIVE of six runs (all except 144109Z, which
-predates it). IT IS THE NORMAL PATH, not a per-run distinction: the GUI quit routinely
+fallback". FALSE - SHARPER, re-derived from the logs: 144109Z did not
+have the fallback feature AT ALL (no BackEndCloseTimeoutSec in its log). Of the FOUR runs
+where it could fire on a normal GUI quit, it fired FOUR TIMES. THE GUI QUIT HAS NEVER ONCE
+CARRIED THE BACK-END where it could be observed - the fallback is not a fallback, it is the
+path, not a per-run distinction: the GUI quit routinely
 fails to carry the back-end. A correction written in a hurry is just another unverified
 claim. Do NOT plan GUI
 automation - GUI use is DIAGNOSTIC ONLY. The one exception is simulator lifecycle
