@@ -1008,7 +1008,11 @@ DtReflectedExtAggregate does not derive DtReflectedAggregate AT ALL. MAK says so
 (`reflectedExtAggregate.h:15-19`: "In HLA we need to derive from DtReflectedObject instead of
 DtReflectedAggregate so that we can make use of the constructor that takes a state repository").
 There is no such base subobject, so returning null is the dynamic_cast behaving CORRECTLY. RTTI
-is not involved and was never the problem. Aggregates are now resolved positively through the
+is not involved and was never the problem. *** FALSE - RETRACTED 2026-07-20. resolveStateRep has ZERO hits in src/ and
+VrfFacade.cpp:735 still carries the blind static_cast. This never shipped. (lookupEA DOES
+exist at VrfFacade.cpp:544 but on the SUB-AGGREGATE path, which is not this.) The
+"HEADER ANALYSIS BELOW IS SOUND" vouching above covers the HEADER ANALYSIS ONLY and ENDS
+HERE - it does not vouch for the two sentences that follow. *** Superseded: aggregates are now resolved positively through the
 UUID manager's own typed aggregate list (`DtReflectedExtAggregateList::lookupEA`, plus a
 pointer-identity scan as a second path), which yields a correctly-typed DtReflectedExtAggregate*
 and needs no cast. Aggregate position VALUES are unchanged - the blind cast had been landing, by

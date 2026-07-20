@@ -290,9 +290,14 @@ Exit criteria / what this settles:
   exercised the current teardown code. ***: all three tasks are
     issued correctly (CreateRoute + MoveAlongRoute). 114.MechCoy and 1.BdeHQ do NOT move
     (0.0 m, bit-exact, confirmed by two independent channels). *** RETRACTED 2026-07-19 LATE: the "moves ~174 m and stops" reading below is FALSE. The
-unit was STILL MOVING AND NOT SLOWING when observation ended (do not claim acceleration - two RPT legs cannot show it, and leg 1 contains spin-up from rest); ~174 m is the
-length of the OBSERVATION WINDOW (usable span t~35 to t~180, bounded by teardown), not a
-stopping point. The route needs ~825 s at ~1.4 m/s and no run has ever observed more than
+unit was STILL MOVING AND NOT SLOWING when observation ended (do not claim acceleration - two RPT legs cannot show it, and leg 1 contains spin-up from rest); ~174 m is a MEASURED displacement over RPT's coverage, not a stopping point.
+*** PRECISION FIX 2026-07-20 - THE EARLIER PHRASING WAS WRONG. ~174 m is a REAL MEASURED
+DISPLACEMENT: 84.0 m + 90.1 m across RPT's coverage span t=32.9 to t=157.1 = 124.2 s.
+It is NOT "the length of the observation window" - that window is ~145 s and at 1.4 m/s
+would predict ~203 m, which is not what was measured. The correct statement is: the unit
+covered a MEASURED 174 m and WAS STILL MOVING when RPT coverage ended. NEW, and not
+previously recorded anywhere: RPT STOPS REPORTING ~23 s BEFORE THE POS TRACE DOES
+(t=157.1 vs t=180.3). That gap is its own open question. *** The route needs ~825 s at ~1.4 m/s and no run has ever observed more than
 ~145 s. RUN -RunSecs 900+. The two FROZEN units are unaffected - that result stands.
 Superseded text follows: ***
 1222.MechPlt moves ~174 m

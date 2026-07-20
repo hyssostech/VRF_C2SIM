@@ -57,7 +57,7 @@ Contract:
     pwsh -File scripts\RunC2SimScenario.ps1 `
          -Init data\R9_Mojave_Initialization.xml `
          -Order data\R9_Mojave_UnitMove_Order.xml `
-         -RunSecs 600
+         -RunSecs 900   # 600 is PRE-AMENDMENT-2 and is INSUFFICIENT - see 4a
 
 Sequences stages 1-8 unattended and leaves a timestamped run directory containing:
   - the WatchVrf trace (POS + CON lines) - the movement oracle, the scoring input
@@ -193,7 +193,7 @@ CREATION FIDELITY IS EXACT, and this is a POSITIVE result worth stating plainly:
 20260719T144109Z the three taskees spawned at the init's coordinates to six decimal places
 (1.BdeHQ 34.608416,-116.712685; 114.MechCoy 34.647629,-116.693388; 1222.MechPlt
 34.612956,-116.600487). Whatever is wrong with movement, it is NOT that units are created
-in the wrong place. Ground clamp also works - spawn altitude resolved to ~1040 m terrain
+in the wrong place. ground clamp works, but NOT at one altitude - the three taskees are ~10 km apart and clamp to DIFFERENT terrain heights: 1.BdeHQ 1131.4 m, 114.MechCoy 1116.7 m, 1222.MechPlt 1040.6 m. Do not quote ~1040 m for the group; it is one member's value (superseded wording follows) (Ground clamp also works - spawn altitude resolved to) ~1040 m terrain
 height, not the requested MSL figure.
 
 The ENTITY/UNIT column is EXPECTED, not verified - it follows the type-mapping analysis

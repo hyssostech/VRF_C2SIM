@@ -115,8 +115,12 @@ Bearing to objective 090; bearings travelled 264-278. Essentially 180 degrees op
 Distance to the objective INCREASED for all five. Independently re-verified by the
 supervisor from the trace.
 
-TIMING TIES IT TO THE TASK. The order was published at 14:43:43.053 (c2sim-bus.log) =
-trace t=33.6 s. At t=41.7 s - about 8 s later - the cluster snapped 63 m west in a SINGLE
+TIMING TIES IT TO THE TASK. *** CLOCK CONVENTION, ADDED 2026-07-20 - REQUIRED BEFORE ANY EVENT ALIGNMENT:
+trace t = wall-clock MINUS stage start MINUS a 5.89 s trace-t0 offset. Omitting the offset
+bakes a systematic +5.9 s error into every alignment built on this document.
+Applying it: the order published at trace t=27.7 s (NOT 33.6), and the westward snap at
+t=41.7 is 14.0 s after the order (NOT "about 8 s"). ***
+The order was published at 14:43:43.053 (c2sim-bus.log) = trace t=27.7 s. At t=41.7 s - 14.0 s later - the cluster snapped 63 m west in a SINGLE
 2.0 s sample (~31 m/s). From t=43.8 s to t=180.1 s, 136 seconds, all four members are
 BIT-IDENTICAL in every fix. The cluster's geometry rotated from an east-west line to a
 north-south line while preserving its ~15 m spread.
@@ -243,8 +247,10 @@ The three taskees spawned at the init's coordinates to SIX DECIMAL PLACES:
     1.BdeHQ       init 34.608415817915,-116.712685404877  ->  actual 34.608416,-116.712685
     114.MechCoy   init 34.647628996814,-116.693387536163  ->  actual 34.647629,-116.693388
     1222.MechPlt  init 34.612955587412,-116.600486942341  ->  actual 34.612956,-116.600487
-Ground clamp also works: altitude resolved to ~1040 m terrain height rather than the
-requested spawn MSL. So the failure is NOT misplacement and NOT burial. The units are put
+Ground clamp also works, but NOT at one altitude - the taskees sit ~10 km apart so their
+terrain heights differ: 1.BdeHQ 1131.4 m, 114.MechCoy 1116.7 m, 1222.MechPlt 1040.6 m.
+(The 1040.6 in the gate's firstRealLine is uuid 0279a70c, a 1222.MechPlt MEMBER, not a
+taskee - do not generalise one member's clamp height to the group.) So the failure is NOT misplacement and NOT burial. The units are put
 in exactly the right place, given the right route, and then do not drive it.
 
 This tightens the diagnosis considerably. Ruled OUT by this run: wrong spawn position,
@@ -302,7 +308,7 @@ identification and closed the .pln gap.
    Blocking Terrain Page-In Area).
 2. RUNBOOK 0.5.7 says "the TropicTortoise baseline objects are POSITIONLESS; that is simply
    how they reflect". IMPRECISE. In the .oob, GlblTerrDmg and GlobalEnv sit at ECEF
-   (6378137,1,1) - a null-island placeholder in the AUTHORED data. *** BUT NEITHER READABLE OBJECT REFLECTS ITS AUTHORED POSITION: GlblTerrDmg never reflects at all, and GlobalEnv reflects NaN or 0.0/-90/6.4e72, never 9e-6. Both readable objects are cast-corrupted. Corrected 2026-07-20. *** so authored-effectively-positionless as claimed. But
+   (6378137,1,1) - a null-island placeholder in the AUTHORED data. *** BUT NEITHER READABLE OBJECT REFLECTS ITS AUTHORED POSITION: FULL CENSUS (this correction previously named the wrong pair): d39a55ad GlblTerrDmg = 0 samples, NEVER reflects. f864e51f GlobalEnv = 1388 samples, 2 forms (NaN,-90,NaN and 0.0,-90,6.4e72), never 9e-6. cde66adc Page-In Area = 1390 samples, FOUR forms (90/-90/0.0, NaN/-90/NaN, 0.000001/-90/1.02e15, 0.000001/-90/6.4e72). THE TWO READABLE OBJECTS ARE GlobalEnv AND Page-In Area - both cast-corrupted. Corrected 2026-07-20. *** so authored-effectively-positionless as claimed. But
    the Page-In Area carries a REAL authored position (34.615N, -116.55W) and still reflects
    as lat=90/lon=-90, while GlobalEnv reflects NaN. Whether that is a WatchVrf decode fault
    or the correct HLA behaviour for non-entity control objects is NOT settled here - an

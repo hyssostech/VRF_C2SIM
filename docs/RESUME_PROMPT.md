@@ -1,4 +1,4 @@
-# RESUME PROMPT (2026-07-19 - THE LOOP RUNS; THE UNITS DO NOT EXECUTE)
+# RESUME PROMPT (2026-07-19 LATE - THE LOOP RUNS; TWO OF THREE UNITS ARE FROZEN, THE THIRD MOVES)
 
 Paste the block below into a fresh session. It supersedes all earlier resume prompts.
 Keep this file current AS work lands - the 2026-07-18 version went stale within a day and
@@ -47,8 +47,8 @@ around the human it had invented.
 
 *** THE RESULT - THIS IS THE PROBLEM NOW. *** All three tasks are issued correctly
 (CreateRoute + MoveAlongRoute in the app log, every run). Then:
-  114.MechCoy   0.0 m, bit-exact - FROZEN, and this STANDS
-  1.BdeHQ       0.0 m, bit-exact - FROZEN, and this STANDS
+  114.MechCoy   0.0 m, lat/lon BIT-EXACT every run - FROZEN, and this STANDS. (Precision: 114.MechCoy's altitude column flickers 0.1 m in 2 of 4 runs; sample counts are 76/76/75/77, not a flat 76. Neither weakens the result.)
+  1.BdeHQ       0.0 m, lat/lon BIT-EXACT every run - FROZEN, and this STANDS. (Precision: 114.MechCoy's altitude column flickers 0.1 m in 2 of 4 runs; sample counts are 76/76/75/77, not a flat 76. Neither weakens the result.)
   1222.MechPlt  ~174 m - *** IT DID NOT STOP. WE STOPPED WATCHING. ***
 
 *** THE "AND THEN STOPS" READING WAS FALSE AND IS RETRACTED (found by a cold-reader audit,
@@ -59,13 +59,19 @@ BEFORE the interface created anything - cde66adc and f864e51f. That is the proof
 needs no clock alignment at all. DO NOT cite "StopIface fires at trace t=182.1s": that is
 on a different clock from trace t and at face value puts the cause AFTER the effect.)
 1222.MechPlt's speed in its FINAL observed leg, all three runs:
-    161438Z  1.35 -> 1.45 m/s      202349Z  1.38 -> 1.49 m/s      222134Z  1.28 -> 1.48 m/s
+    161438Z  1.35 -> 1.46 m/s      202349Z  1.39 -> 1.49 m/s      222134Z  1.28 -> 1.48 m/s
 IT WAS NOT SLOWING (do NOT claim acceleration: there are only THREE RPT fixes per unit per run = TWO legs, leg 1 starts at task issue and so contains spin-up from rest, and two legs cannot distinguish "still accelerating" from "reached cruise ~1.48 m/s". The conclusion is unaffected and arguably stronger at 1.48 m/s.) There is no deceleration signature and
 no stop in evidence. The ~1155 m route needs ~825 s at ~1.4 m/s; the ~174 m spans the RPT
 coverage window t=32.9->157.1 = 124.2 s (x1.403 m/s = 174.3 m), NOT the ~145 s observation
 window - RPT stops reporting ~25 s before the collapse. 145 s x 1.4 would be 203 m. Get
-this arithmetic right: the whole retraction rests on it. THE "REPRODUCIBLE 174 m" IS THE
-REPRODUCIBLE LENGTH OF THE OBSERVATION WINDOW, NOT A DEFECT.
+this arithmetic right: the whole retraction rests on it. THE "REPRODUCIBLE 174 m" IS NOT A DEFECT.
+*** PRECISION FIX 2026-07-20 - THE EARLIER PHRASING WAS WRONG. ~174 m is a REAL MEASURED
+DISPLACEMENT: 84.0 m + 90.1 m across RPT's coverage span t=32.9 to t=157.1 = 124.2 s.
+It is NOT "the length of the observation window" - that window is ~145 s and at 1.4 m/s
+would predict ~203 m, which is not what was measured. The correct statement is: the unit
+covered a MEASURED 174 m and WAS STILL MOVING when RPT coverage ended. NEW, and not
+previously recorded anywhere: RPT STOPS REPORTING ~23 s BEFORE THE POS TRACE DOES
+(t=157.1 vs t=180.3). That gap is its own open question. ***
 CORRECTION TO A CLAIM THIS FILE PREVIOUSLY MADE: "duration is not the binding constraint"
 was WRONG for this unit - PREREG_TSK_DELIVERY_2026-07-19.md:130 had already said so and the
 newer docs contradicted it. FOR 1222.MechPlt, RUN LONGER: -RunSecs 900 or more. It remains
@@ -208,7 +214,7 @@ TRAPS THAT PRODUCE FALSE GREENS ON THIS MACHINE - do not rediscover them:
   process; build the needle at runtime.
 
 OPERATIONAL STATE:
-- ONE BUTTON:  pwsh -File scripts\RunC2SimScenario.ps1 -RunSecs 120
+- ONE BUTTON:  pwsh -File scripts\RunC2SimScenario.ps1 -RunSecs 900   <- 900, NOT 120. 120 is what produced the ~145 s window and the retracted reading.
                    [-Init <xml>] [-Order <xml>] [-ConsoleLogDir console] [-DryRun]
   Defaults to data/R9_Mojave_Lean_Initialization.xml + data/R9_Mojave_UnitMove_Order.xml.
   USE THE LEAN INIT (6 units) not R9_Mojave_Initialization.xml (158). -DryRun prints the
