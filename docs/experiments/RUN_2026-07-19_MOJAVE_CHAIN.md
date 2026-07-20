@@ -192,7 +192,7 @@ result would have looked like partial success and been reported as such.
 *** SECTIONS 5 AND 6 BELOW ARE SUPERSEDED - RETRACTED 2026-07-19 LATE. The overturn banner
 at the top of this file covers the movement reading only and did NOT reach here. "Duration
 is not the binding constraint" and "a 600 s run will reproduce this, not fix it" are BOTH
-FALSE for 1222.MechPlt: it was still moving and slightly ACCELERATING when observation
+FALSE for 1222.MechPlt: it was still moving and NOT SLOWING when observation
 ended, and the route needs ~825 s against the ~145 s ever observed. THE RATIFIED NEXT
 ACTION IS THE LONG RUN (-RunSecs 900+). The claim remains TRUE for the two frozen units.
 Sec 6 item 1 ("rule on the 4a.2 amendment") is also stale - it was ruled, see sec 7. ***
@@ -302,7 +302,7 @@ identification and closed the .pln gap.
    Blocking Terrain Page-In Area).
 2. RUNBOOK 0.5.7 says "the TropicTortoise baseline objects are POSITIONLESS; that is simply
    how they reflect". IMPRECISE. In the .oob, GlblTerrDmg and GlobalEnv sit at ECEF
-   (6378137,1,1) - a null-island placeholder, so effectively positionless as claimed. But
+   (6378137,1,1) - a null-island placeholder in the AUTHORED data. *** BUT NEITHER READABLE OBJECT REFLECTS ITS AUTHORED POSITION: GlblTerrDmg never reflects at all, and GlobalEnv reflects NaN or 0.0/-90/6.4e72, never 9e-6. Both readable objects are cast-corrupted. Corrected 2026-07-20. *** so authored-effectively-positionless as claimed. But
    the Page-In Area carries a REAL authored position (34.615N, -116.55W) and still reflects
    as lat=90/lon=-90, while GlobalEnv reflects NaN. Whether that is a WatchVrf decode fault
    or the correct HLA behaviour for non-entity control objects is NOT settled here - an

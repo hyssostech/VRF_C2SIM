@@ -246,7 +246,7 @@ Two different rules, because the vendor semantics differ (ground truth 0.0 item 
 progress toward the objective is right whichever oracle turns out truthful - BUT ITS
 RECORDED JUSTIFICATION QUOTES ONLY THE POS CHANNEL AND ASSERTS IT AS A FACT ABOUT THE UNIT.
 It is a fact about the CHANNEL. VR-Forces' own reports (RPT) say the same unit moved EAST
-toward its objective and was still accelerating when observation ended. The two channels
+toward its objective and was still moving - NOT slowing - when observation ended (do not claim acceleration; two legs cannot show it). The two channels
 contradict and the question is open; quoting only the friendlier number is the trap this
 project keeps falling into. Quote BOTH or neither. ***
 1222.MechPlt satisfied BOTH original clauses -

@@ -290,7 +290,7 @@ Exit criteria / what this settles:
   exercised the current teardown code. ***: all three tasks are
     issued correctly (CreateRoute + MoveAlongRoute). 114.MechCoy and 1.BdeHQ do NOT move
     (0.0 m, bit-exact, confirmed by two independent channels). *** RETRACTED 2026-07-19 LATE: the "moves ~174 m and stops" reading below is FALSE. The
-unit was STILL MOVING AND SLIGHTLY ACCELERATING when observation ended; ~174 m is the
+unit was STILL MOVING AND NOT SLOWING when observation ended (do not claim acceleration - two RPT legs cannot show it, and leg 1 contains spin-up from rest); ~174 m is the
 length of the OBSERVATION WINDOW (usable span t~35 to t~180, bounded by teardown), not a
 stopping point. The route needs ~825 s at ~1.4 m/s and no run has ever observed more than
 ~145 s. RUN -RunSecs 900+. The two FROZEN units are unaffected - that result stands.
@@ -331,7 +331,23 @@ Superseded text follows: ***
     * The blind static_cast worked on aggregates only through ACCIDENTAL VTABLE SLOT
       ALIGNMENT, and is undefined behaviour on control objects - which is why location()
       returned garbage there while lastSetLocation() faulted.
-    * "The TropicTortoise baseline objects are POSITIONLESS" (RUNBOOK 0.5.7) is IMPRECISE, not simply an artefact (re-verified from the .oob 2026-07-19): 2 of the 3 baseline objects (GlblTerrDmg, GlobalEnv) genuinely sit at ECEF (6378137,1,1) = null island and ARE positionless as claimed. Only the Page-In Area has a real authored position (34.615N/-116.55W) and reflects as 90/-90 because of the bad cast. Do not flatten this in either direction. SUPERSEDED WORDING FOLLOWS: it is an
+    * "The TropicTortoise baseline objects are POSITIONLESS" (RUNBOOK 0.5.7) is *** THIRD ATTEMPT AT THIS CORRECTION; THE FIRST TWO WERE BOTH WRONG. Re-derived from the
+.oob AND from every trace, 2026-07-20. AUTHORED positions: GlblTerrDmg (d39a55ad) and
+GlobalEnv (f864e51f) at ECEF (6378137,1,1) = null island; Page-In Area (cde66adc) at
+34.615N/-116.55W, a REAL position. REFLECTED values, which is what matters:
+  d39a55ad  NEVER APPEARS IN ANY TRACE AT ALL - 0 samples. That is why readable=2 of
+            reflected=3. Its position has never been read because it never reflects.
+  f864e51f  1388 samples, TWO distinct values: "NaN,-90.000000,NaN" and
+            "0.000000,-90.000000,6.4e72". NEVER 9e-6. Its authored null-island position
+            has NEVER been read either - the readings are garbage, not a faithful null.
+  cde66adc  1390 samples, FOUR distinct values for a STATIC object: 90/-90/0.0,
+            NaN/-90/NaN, 0.000001/-90/1.02e15, 0.000001/-90/6.4e72.
+SO: the bad cast corrupts BOTH readable objects, not one. An earlier version of this
+correction said "2 of 3 are genuinely positionless as claimed, only the Page-In Area is
+cast-corrupted" - THAT IS FALSE. Neither readable object's true position has ever been
+seen, and "reflects as 90/-90" holds in only 2 of the 5 observed value-forms.
+CONSEQUENCE FOR THE NATIVE RE-ATTEMPT: a control-object-aware accessor is needed for BOTH
+readable objects, and a NaN row from GlobalEnv must NOT be read as correct-and-expected. *** SUPERSEDED WORDING FOLLOWS: it is an
       ARTEFACT of that bad cast, not a fact about VR-Forces. Their real positions have
       never been read.
   - TOOLING HARDENED THIS SESSION: argument guards on every tool (StopIface could act

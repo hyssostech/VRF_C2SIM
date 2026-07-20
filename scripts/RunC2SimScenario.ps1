@@ -1930,7 +1930,14 @@ finally {
     # "RUN COMPLETE - evidence collected" after WatchVrf had crashed three seconds in.
     # Promote to 3 (failed after VR-Forces was up): teardown still ran, evidence is
     # partial, and the manifest names the stage. ***
-    if ($script:OracleDied -and $RunnerExit -eq 0) { $RunnerExit = 3 }
+    if ($script:OracleDied -and $RunnerExit -eq 0) {
+        $RunnerExit = 3
+        # The manifest was already written with runnerExitCode 0 above, so a later scorer
+        # would read 0 for a run whose oracle died - the exact false-green shape this
+        # project keeps hitting. Rewrite the field and re-save.
+        $Manifest.runnerExitCode = 3
+        try { Save-Manifest } catch { Say-Warn 'could not re-save the manifest after promoting the exit code to 3; the FAIL flag is still present in it.' }
+    }
 
     switch ($RunnerExit) {
         0 { Say-Ok 'RUN COMPLETE - evidence collected. THIS IS NOT A VERDICT: sec 4a.6 makes run 1 a measurement. Score the trace separately.' }

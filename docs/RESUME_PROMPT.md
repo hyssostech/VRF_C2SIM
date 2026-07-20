@@ -60,7 +60,7 @@ needs no clock alignment at all. DO NOT cite "StopIface fires at trace t=182.1s"
 on a different clock from trace t and at face value puts the cause AFTER the effect.)
 1222.MechPlt's speed in its FINAL observed leg, all three runs:
     161438Z  1.35 -> 1.45 m/s      202349Z  1.38 -> 1.49 m/s      222134Z  1.28 -> 1.48 m/s
-IT WAS ACCELERATING SLIGHTLY WHEN OBSERVATION ENDED. There is no deceleration signature and
+IT WAS NOT SLOWING (do NOT claim acceleration: there are only THREE RPT fixes per unit per run = TWO legs, leg 1 starts at task issue and so contains spin-up from rest, and two legs cannot distinguish "still accelerating" from "reached cruise ~1.48 m/s". The conclusion is unaffected and arguably stronger at 1.48 m/s.) There is no deceleration signature and
 no stop in evidence. The ~1155 m route needs ~825 s at ~1.4 m/s; the ~174 m spans the RPT
 coverage window t=32.9->157.1 = 124.2 s (x1.403 m/s = 174.3 m), NOT the ~145 s observation
 window - RPT stops reporting ~25 s before the collapse. 145 s x 1.4 would be 203 m. Get
@@ -72,7 +72,7 @@ newer docs contradicted it. FOR 1222.MechPlt, RUN LONGER: -RunSecs 900 or more. 
 RIGHT for the two frozen units, which moved 0.0 m bit-exactly across 76 samples INSIDE the
 observed window - that is a real result and needs no more time.
 *** THE STRONGEST OFFLINE EVIDENCE, and RESUME previously omitted it entirely: in run
-161438Z the taskee''s POS stream is parked at ~-116.6012 for 68 consecutive samples, and at
+161438Z the taskee''s POS stream is parked at ~-116.6012 for 68 OF 76 samples, and at
 t=159.9 EXACTLY ONE SAMPLE reads -116.598533 before snapping back - landing 4.58 m from
 where RPT says the unit was at t=157.1 (~1.64 m/s). That is the POS channel briefly
 emitting the true position and corroborating RPT AGAINST ITSELF. QUALIFIER, do not drop it:
@@ -241,7 +241,23 @@ OPERATIONAL STATE:
   NOT health.
 - ORACLE PRE-CHECK (RUNBOOK 0.5.7): PASS = a POS line with REAL lat/lon, retry up to
   ~3 min. NOTE THE 2026-07-19 CORRECTION: the claim that "the TropicTortoise baseline
-  objects are POSITIONLESS" is IMPRECISE, not simply an artefact (re-verified from the .oob 2026-07-19): 2 of the 3 baseline objects (GlblTerrDmg, GlobalEnv) genuinely sit at ECEF (6378137,1,1) = null island and ARE positionless as claimed. Only the Page-In Area has a real authored position (34.615N/-116.55W) and reflects as 90/-90 because of the bad cast. Do not flatten this in either direction. The earlier wording here called it simply an ARTEFACT and that overstated it -
+  objects are POSITIONLESS" is *** THIRD ATTEMPT AT THIS CORRECTION; THE FIRST TWO WERE BOTH WRONG. Re-derived from the
+.oob AND from every trace, 2026-07-20. AUTHORED positions: GlblTerrDmg (d39a55ad) and
+GlobalEnv (f864e51f) at ECEF (6378137,1,1) = null island; Page-In Area (cde66adc) at
+34.615N/-116.55W, a REAL position. REFLECTED values, which is what matters:
+  d39a55ad  NEVER APPEARS IN ANY TRACE AT ALL - 0 samples. That is why readable=2 of
+            reflected=3. Its position has never been read because it never reflects.
+  f864e51f  1388 samples, TWO distinct values: "NaN,-90.000000,NaN" and
+            "0.000000,-90.000000,6.4e72". NEVER 9e-6. Its authored null-island position
+            has NEVER been read either - the readings are garbage, not a faithful null.
+  cde66adc  1390 samples, FOUR distinct values for a STATIC object: 90/-90/0.0,
+            NaN/-90/NaN, 0.000001/-90/1.02e15, 0.000001/-90/6.4e72.
+SO: the bad cast corrupts BOTH readable objects, not one. An earlier version of this
+correction said "2 of 3 are genuinely positionless as claimed, only the Page-In Area is
+cast-corrupted" - THAT IS FALSE. Neither readable object's true position has ever been
+seen, and "reflects as 90/-90" holds in only 2 of the 5 observed value-forms.
+CONSEQUENCE FOR THE NATIVE RE-ATTEMPT: a control-object-aware accessor is needed for BOTH
+readable objects, and a NaN row from GlobalEnv must NOT be read as correct-and-expected. *** The earlier wording here called it simply an ARTEFACT and that overstated it -
   their real positions have never been read. The gate now also checks ALTITUDE SANITY and
   rejects an equator/null-island placeholder.
 - C2SIM server docker: REST http://127.0.0.1:8080/C2SIMServer -> HTTP 200, STOMP 61613.
@@ -273,12 +289,31 @@ FINDINGS THAT OVERTURNED DOCUMENTED "FACTS" - keep them, they are implementation
 - The blind static_cast worked on aggregates only through ACCIDENTAL VTABLE SLOT ALIGNMENT;
   on a CONTROL object the same slot is a disjoint branch, which is why location() returned
   garbage there while lastSetLocation() faulted.
-- "Baseline objects are positionless": IMPRECISE, not simply an artefact (re-verified from the .oob 2026-07-19): 2 of the 3 baseline objects (GlblTerrDmg, GlobalEnv) genuinely sit at ECEF (6378137,1,1) = null island and ARE positionless as claimed. Only the Page-In Area has a real authored position (34.615N/-116.55W) and reflects as 90/-90 because of the bad cast. Do not flatten this in either direction.
+- "Baseline objects are positionless": *** THIRD ATTEMPT AT THIS CORRECTION; THE FIRST TWO WERE BOTH WRONG. Re-derived from the
+.oob AND from every trace, 2026-07-20. AUTHORED positions: GlblTerrDmg (d39a55ad) and
+GlobalEnv (f864e51f) at ECEF (6378137,1,1) = null island; Page-In Area (cde66adc) at
+34.615N/-116.55W, a REAL position. REFLECTED values, which is what matters:
+  d39a55ad  NEVER APPEARS IN ANY TRACE AT ALL - 0 samples. That is why readable=2 of
+            reflected=3. Its position has never been read because it never reflects.
+  f864e51f  1388 samples, TWO distinct values: "NaN,-90.000000,NaN" and
+            "0.000000,-90.000000,6.4e72". NEVER 9e-6. Its authored null-island position
+            has NEVER been read either - the readings are garbage, not a faithful null.
+  cde66adc  1390 samples, FOUR distinct values for a STATIC object: 90/-90/0.0,
+            NaN/-90/NaN, 0.000001/-90/1.02e15, 0.000001/-90/6.4e72.
+SO: the bad cast corrupts BOTH readable objects, not one. An earlier version of this
+correction said "2 of 3 are genuinely positionless as claimed, only the Page-In Area is
+cast-corrupted" - THAT IS FALSE. Neither readable object's true position has ever been
+seen, and "reflects as 90/-90" holds in only 2 of the 5 observed value-forms.
+CONSEQUENCE FOR THE NATIVE RE-ATTEMPT: a control-object-aware accessor is needed for BOTH
+readable objects, and a NaN row from GlobalEnv must NOT be read as correct-and-expected. ***
 
 TOOL INVOCATIONS - VERIFY AGAINST --help/SOURCE; THIS LIST GOES STALE (it did, in a day).
 All joiners run from cwd C:\MAK\vrforces5.0.2\bin64 with the RTI env of RUNBOOK sec 7, and
 every one that JOINS needs its own FRESH LEDGERED appNo:
-    WatchVrf.exe <appNo> <durationSecs> <sampleSecs> [federation] [--console-log-dir <dir>]
+    WatchVrf.exe <appNo> <durationSecs> <sampleSecs> [federation]
+    *** THERE IS NO --console-log-dir FLAG. It went out with the native revert (5d14eda).
+    WatchVrf rejects ANY unknown flag on the live path with EXIT 2, so passing it burns a
+    ledgered appNo and kills the stage. Verified: EXIT=2 against the deployed binary. ***
     WatchVrf.exe --con-selftest                          # offline; loads no native DLL
     CreateOne.exe <appNo>
     SetSimRate.exe <multiplier> <appNo>
@@ -296,8 +331,11 @@ TRACE FORMAT (WatchVrf, one line type per record; POS is byte-stable, the rest a
     RPT,<t>,"<text>"                              VR-Forces' own reports; carry MARKING TEXT
     TSK,<t>,"<marking>","<taskType>"              task completions; NEVER YET SEEN LIVE
     CON,<t>,<uuid>,<level>,<msg>                  object console; NEVER YET SEEN LIVE
-    BCON,<t>,<simAddr>,<level>,<msg>              backend console; never yet seen live
-    CONARM,<t>,<uuid>,"<path>"                    a REQUEST record, not a result
+    *** BCON and CONARM DO NOT EXIST - removed from this list 2026-07-19 late. They went
+    out with the native revert (5d14eda). tools/WatchVrf emits POS, CON, TSK and RPT and
+    nothing else. CONARM lines DO appear in runs 185814Z and 193252Z - artifacts of the
+    reverted build - which makes the phantom look corroborated. Do not budget a diagnostic
+    that waits for a BCON line; its absence would prove nothing. ***
 0.6 CONSOLE CAPTURE IS NOT DONE: its live gate ran and returned ZERO CON lines. The path is
 wired and registered; the suspect is the TRANSPORT (Comment PDU/Interaction). TRAP: the
 GUI's yellow badge is NOT evidence of wire delivery - the GUI reads a different channel.

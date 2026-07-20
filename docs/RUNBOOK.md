@@ -255,7 +255,23 @@ survived a later RUNBOOK edit untouched. VERIFY BEFORE BELIEVING ANY OF IT:
 WHAT SURVIVES, because it is implementation-independent: the DIAGNOSIS above (control
 objects sit on a disjoint repository hierarchy; the blind cast is UB on them; that is why
 location() returned garbage while lastSetLocation() faulted) and the fact that "the
-baseline objects are positionless" is IMPRECISE, not simply an artefact (re-verified from the .oob 2026-07-19): 2 of the 3 baseline objects (GlblTerrDmg, GlobalEnv) genuinely sit at ECEF (6378137,1,1) = null island and ARE positionless as claimed. Only the Page-In Area has a real authored position (34.615N/-116.55W) and reflects as 90/-90 because of the bad cast. Do not flatten this in either direction. The wording below called it simply an artefact rather than VR-Forces
+baseline objects are positionless" is *** THIRD ATTEMPT AT THIS CORRECTION; THE FIRST TWO WERE BOTH WRONG. Re-derived from the
+.oob AND from every trace, 2026-07-20. AUTHORED positions: GlblTerrDmg (d39a55ad) and
+GlobalEnv (f864e51f) at ECEF (6378137,1,1) = null island; Page-In Area (cde66adc) at
+34.615N/-116.55W, a REAL position. REFLECTED values, which is what matters:
+  d39a55ad  NEVER APPEARS IN ANY TRACE AT ALL - 0 samples. That is why readable=2 of
+            reflected=3. Its position has never been read because it never reflects.
+  f864e51f  1388 samples, TWO distinct values: "NaN,-90.000000,NaN" and
+            "0.000000,-90.000000,6.4e72". NEVER 9e-6. Its authored null-island position
+            has NEVER been read either - the readings are garbage, not a faithful null.
+  cde66adc  1390 samples, FOUR distinct values for a STATIC object: 90/-90/0.0,
+            NaN/-90/NaN, 0.000001/-90/1.02e15, 0.000001/-90/6.4e72.
+SO: the bad cast corrupts BOTH readable objects, not one. An earlier version of this
+correction said "2 of 3 are genuinely positionless as claimed, only the Page-In Area is
+cast-corrupted" - THAT IS FALSE. Neither readable object's true position has ever been
+seen, and "reflects as 90/-90" holds in only 2 of the 5 observed value-forms.
+CONSEQUENCE FOR THE NATIVE RE-ATTEMPT: a control-object-aware accessor is needed for BOTH
+readable objects, and a NaN row from GlobalEnv must NOT be read as correct-and-expected. *** The wording below called it simply an artefact rather than VR-Forces
 behaviour. What is FALSE is only the claim that it was fixed.
 IF YOU ARE PLANNING THE NATIVE RE-ATTEMPT: the crash source is NOT already removed. Scope
 accordingly. Read HANDOFF_2026-07-19.md sec 5 for the rules first.
