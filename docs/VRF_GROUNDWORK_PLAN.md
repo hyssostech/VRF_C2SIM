@@ -295,9 +295,11 @@ unit was STILL MOVING AND NOT SLOWING when observation ended (do not claim accel
 DISPLACEMENT: 84.0 m + 90.1 m across RPT's coverage span t=32.9 to t=157.1 = 124.2 s.
 It is NOT "the length of the observation window" - that window is ~145 s and at 1.4 m/s
 would predict ~203 m, which is not what was measured. The correct statement is: the unit
-covered a MEASURED 174 m and WAS STILL MOVING when RPT coverage ended. NEW, and not
-previously recorded anywhere: RPT STOPS REPORTING ~23 s BEFORE THE POS TRACE DOES
-(t=157.1 vs t=180.3). That gap is its own open question. *** The route needs ~825 s at ~1.4 m/s and no run has ever observed more than
+covered a MEASURED 174 m and WAS STILL MOVING when RPT coverage ended. NOTE - A CLAIM ABOUT AN "RPT GAP" WAS ADDED HERE ON 2026-07-20 AND WAS
+FABRICATED. IT IS DELETED. There is no missing RPT fix: the reporting period is ~62 s
+(fixes at t=32.9 / 95.2 / 157.1), the next was due at t~219 s, and the interface resigned
+at ~182 s. The retracted claim compared ONE unit's last fix (157.1) against the GLOBAL POS
+collapse (180.3) - different quantities. Do not chase this; it is not a defect. *** The route needs ~825 s at ~1.4 m/s and no run has ever observed more than
 ~145 s. RUN -RunSecs 900+. The two FROZEN units are unaffected - that result stands.
 Superseded text follows: ***
 1222.MechPlt moves ~174 m
