@@ -1324,10 +1324,19 @@ if ($PSBoundParameters.ContainsKey('ConsoleLogDir')) {
         exit 2
     }
     $PathConsoleDir = Join-Path $RunDir $ConsoleLogDir
-    # WatchVrf creates this directory itself, so the runner creates NOTHING here and
-    # -DryRun stays honest by construction rather than by a conditional.
-    $WatchConsoleArgs = @('--console-log-dir', $PathConsoleDir)
-    $Manifest.artifacts.consoleLogDir = $PathConsoleDir
+    # *** DISARMED 2026-07-19 LATE - THIS WAS A LIVE LANDMINE. ***
+    # The --console-log-dir flag went out with the native revert (commit 5d14eda) and no
+    # longer exists in tools/WatchVrf. WatchRunner.cs rejects ANY unknown flag on the LIVE
+    # path with exit 2, so passing it KILLED THE MOVEMENT ORACLE STAGE - and therefore the
+    # whole run - after a full launch cycle and six burned appNumbers. Verified against the
+    # deployed binary: `WatchVrf.exe 3599 30 2 CWIX-2024 --console-log-dir foo` -> EXIT=2.
+    # Kept accepted-but-ignored rather than fatal so existing call sites do not break.
+    # RE-ENABLE ONLY when the flag actually exists in WatchVrf again.
+    $WatchConsoleArgs = @()
+    Say-Warn ('-ConsoleLogDir is IGNORED. tools/WatchVrf has no --console-log-dir flag - it ' +
+              'went out with the native revert, and passing it would fail the oracle stage ' +
+              'with exit 2 and kill the run.')
+    $Manifest.artifacts.consoleLogDir = 'IGNORED - flag does not exist in WatchVrf (native revert 5d14eda)'
 }
 
 $Manifest.artifacts.runDir        = $RunDir
@@ -1389,7 +1398,7 @@ try {
         Say-Head 'DRY RUN - the full planned sequence, in order. NOTHING below is executed.'
         Say-Plan ('would create the run directory {0}' -f $RunDir)
         if ($PathConsoleDir) {
-            Say-Plan ('would pass --console-log-dir {0} to the stage-5 WatchVrf trace; WATCHVRF (not this script) would create that directory. NOTHING is created now.' -f $PathConsoleDir)
+            Say-Plan ('would IGNORE -ConsoleLogDir ({0}). The --console-log-dir flag does NOT exist in tools/WatchVrf (native revert 5d14eda) and passing it would fail the oracle stage with exit 2. Nothing is created and nothing is passed.' -f $PathConsoleDir)
         }
         Say-Plan ('would REWRITE the Appendix B marker in {0}: {1} -> {2}, and append a CLAIMED block for {3} numbers.' -f $LedgerDoc, $FirstFree, $NextFree, $Alloc.Count)
         Say-Plan ('would set, for HLA child processes only: PATH="{0};<inherited>", MAKLMGRD_LICENSE_FILE from Machine scope, Vrf__ApplicationNumber={1}' -f $PathPrefix, $AppNo['app'])

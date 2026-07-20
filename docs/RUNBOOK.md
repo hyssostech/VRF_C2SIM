@@ -314,6 +314,10 @@ scenario from file and removes it).
 
 CAUTION: a freshly loaded TropicTortoise contains only NON-ENTITY CONTROL OBJECTS
 (GlblTerrDmg, GlobalEnv, Blocking Terrain Page-In Area). Since 2026-07-19 they emit
+*** FALSE - RETRACTED 2026-07-19 LATE. They STILL emit degenerate POS lines: 28 of them
+in the most recent pre-check (runs/20260719T222134Z_run/watchvrf-precheck.csv). The fix
+that would have suppressed them WENT OUT WITH THE NATIVE REVERT (5d14eda). Do NOT calibrate
+against an absence that does not occur. Superseded text follows: ***
 NO POS line at all (see the correction above; before that they emitted garbage rows
 that looked like data). Do NOT conclude the oracle is broken from their absence -
 create a real entity and check that.
@@ -328,6 +332,15 @@ shape and consumers may rely on that.
 
     POS,<t>,<uuid>,<latDeg>,<lonDeg>,<altM>          per object, per sample tick
     RAW,<t>,<uuid>,<rawLat>,<rawLon>,<rawAlt>,<velX>,<velY>,<velZ>
+*** THE RAW LINE TYPE DOES NOT EXIST. RETRACTED 2026-07-19 LATE. *** It, and the
+LogObjectConsoleToFile / SetObjectNotifyLevel / BCON / CONARM capabilities described in
+this subsection, ALL WENT OUT WITH THE NATIVE REVERT (commit 5d14eda). `git grep` finds
+them in docs only - tools/WatchVrf emits POS, CON, TSK and RPT and nothing else, and
+`lastSetLocation` appears only in stale build artifacts, never in tracked source. The
+deployed WatchVrf.exe contains no such string. THE RAW-vs-DR ORACLE TEST IS NOT SHIPPING -
+it is the un-built native work that broke the pipeline twice. Read HANDOFF sec 3 and sec 5
+before scoping it. Everything below in this subsection is retained as the DESIGN, not as
+behaviour you can invoke.
                                                      un-extrapolated state, paired
                                                      with each POS  (added 2026-07-19)
     CON,<t>,<uuid>,<notifyLevel>,<message>           Object Console warning
@@ -475,7 +488,7 @@ makVrf::DtVrfQtDeMainWindow; a TreeScope::Descendants search for ControlType Win
 correctly finds "Are You Sure?" - is top-level and structurally cannot see this.
 WHEN IT FIRES: after StopIface drives the C2SIM server to UNINITIALIZED, VR-Forces treats
 the session as ended and raises it. It was ORIGINALLY believed to fire on EVERY cleanly-torn-down
-unattended run. (The "not an edge case" claim that stood here is RETRACTED - see the correction above: the modal is INTERMITTENT, named in one of six teardown logs.)
+unattended run. (The "not an edge case" claim that stood here is RETRACTED - see the correction above: the modal is INTERMITTENT. NOTE the evidence: it is named in ZERO of six logs, including the run where it DID appear - so log absence proves nothing here. The valid evidence is that FOUR teardowns completed cleanly..)
 ANSWERED "No" - the application is being closed anyway, so leaving the terrain loaded is
 the smaller state change, and answering No unblocked the teardown by hand.
 DO NOT TICK "Execute session changes without prompting." It persistently mutates the

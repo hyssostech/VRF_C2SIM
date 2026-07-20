@@ -341,9 +341,10 @@ Superseded text follows: ***
     checked the altitude column it was already given; and a crashed oracle now FAILS the
     run instead of reporting "RUN COMPLETE".
   - KNOWN BLOCKER: a "Session Status - Close current terrain?" modal can hang StopVrf.
-    *** CORRECTED: it does NOT fire on EVERY clean teardown - it is named in exactly ONE of
-    six stopvrf logs (193252Z, a run that FAILED) and four teardowns completed cleanly
-    without it. IT IS INTERMITTENT. The descendant-scan fix has SHIPPED but is UNVERIFIED -
+    *** CORRECTED: it does NOT fire on EVERY clean teardown - it is named in ZERO of the six stopvrf logs -
+    INCLUDING 193252Z, the run where it demonstrably DID appear, because the top-level
+    search could not see it. LOG ABSENCE IS THEREFORE INVALID EVIDENCE HERE. The VALID
+    evidence that it is intermittent is that FOUR teardowns COMPLETED CLEANLY. IT IS INTERMITTENT. The descendant-scan fix has SHIPPED but is UNVERIFIED -
     it has never been exercised by a real occurrence. ***, because it is a NESTED child of the main
     window and StopVrf only searches TOP-LEVEL windows.
 - 2026-07-19 (OFFLINE): **ARGUMENT GUARDS LANDED AND VERIFIED; PASS CRITERION WRITTEN BUT

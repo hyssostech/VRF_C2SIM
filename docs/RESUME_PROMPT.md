@@ -30,9 +30,11 @@ reached a full trace but its teardown FAILED and the back-end was brought down B
 it is NOT a zero-human run. Never count a run still in flight - the original "four" was
 written while 222134Z had not reached teardown.
 AND: my first correction said 222134Z was distinguished by "needing the back-end graceful
-fallback". FALSE - SHARPER, re-derived from the logs: 144109Z did not
-have the fallback feature AT ALL (no BackEndCloseTimeoutSec in its log). Of the FOUR runs
-where it could fire on a normal GUI quit, it fired FOUR TIMES. THE GUI QUIT HAS NEVER ONCE
+fallback". FALSE - RE-DERIVED, AND MY OWN
+FIRST CORRECTION OF THIS WAS WRONG TOO (third correction; recorded because the pattern is
+the point): 144109Z did not have the fallback feature AT ALL. Of the FIVE runs that DID
+have it, it fired FIVE TIMES - including 193252Z, which I initially miscounted by grepping
+one phrasing when that log uses another. THE GUI QUIT HAS NEVER ONCE
 CARRIED THE BACK-END where it could be observed - the fallback is not a fallback, it is the
 path, not a per-run distinction: the GUI quit routinely
 fails to carry the back-end. A correction written in a hurry is just another unverified
@@ -59,8 +61,10 @@ on a different clock from trace t and at face value puts the cause AFTER the eff
 1222.MechPlt's speed in its FINAL observed leg, all three runs:
     161438Z  1.35 -> 1.45 m/s      202349Z  1.38 -> 1.49 m/s      222134Z  1.28 -> 1.48 m/s
 IT WAS ACCELERATING SLIGHTLY WHEN OBSERVATION ENDED. There is no deceleration signature and
-no stop in evidence. The ~1155 m route needs ~825 s at ~1.4 m/s; we watched for ~145 s and
-saw ~174 m, which is exactly what that speed predicts. THE "REPRODUCIBLE 174 m" IS THE
+no stop in evidence. The ~1155 m route needs ~825 s at ~1.4 m/s; the ~174 m spans the RPT
+coverage window t=32.9->157.1 = 124.2 s (x1.403 m/s = 174.3 m), NOT the ~145 s observation
+window - RPT stops reporting ~25 s before the collapse. 145 s x 1.4 would be 203 m. Get
+this arithmetic right: the whole retraction rests on it. THE "REPRODUCIBLE 174 m" IS THE
 REPRODUCIBLE LENGTH OF THE OBSERVATION WINDOW, NOT A DEFECT.
 CORRECTION TO A CLAIM THIS FILE PREVIOUSLY MADE: "duration is not the binding constraint"
 was WRONG for this unit - PREREG_TSK_DELIVERY_2026-07-19.md:130 had already said so and the
@@ -223,8 +227,9 @@ OPERATIONAL STATE:
       were NO nested-window log lines at all, so there is not even evidence the scan RAN.
       IT IS INTERMITTENT. Expect it to hang again until you see `answered No to "Session
       Status"` in a real teardown log.
-    ALSO CORRECTED: it does NOT fire on "every" clean teardown - runs 161438Z, 185814Z and
-      202349Z all tore down cleanly without it. It appeared on a run that FAILED.
+    ALSO CORRECTED: it does NOT fire on "every" clean teardown - FOUR runs tore down cleanly without it -
+      161438Z, 185814Z, 202349Z and 222134Z. (An earlier version listed three and omitted
+      222134Z, the only run that exercised the current teardown code.) It appeared on a run that FAILED.
 - *** NEVER KILL rtiAssistant / rtiexec / rtiForwarder. *** A modal ON the assistant was
   DISMISSED via UIA, not killed, and the assistant was then confirmed healthy by a
   ResetVrf --dry-run. UIA-drivability is NOT predictable per process - the same process

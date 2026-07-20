@@ -148,7 +148,11 @@ seeing the data. DECIDE AND RECORD THE ARITHMETIC BEFORE RUNNING, in this file.
 *** STATUS 2026-07-19: RATIFIED BY THE USER, BEFORE ANY DATA EXISTED. The user reviewed
     the proposed arithmetic below and authorised it as written ("go as suggested"),
     together with the live sequence (chain exercise at -RunSecs 120, then the 600 s
-    measurement run). The numbers were fixed at that moment and the run had not yet been
+    measurement run). *** AMENDMENT 2, 2026-07-19 LATE, DATA EXISTED: 600 s IS NOT ENOUGH.
+    The observation window is bounded by teardown at roughly RunSecs + 62 s, and the moving
+    unit needs ~825 s at its observed ~1.4-1.48 m/s. The ratified sequence is superseded by
+    -RunSecs 900+. Reason: every run so far observed ~145 s and no run has ever been long
+    enough for an arrival to be possible. *** The numbers were fixed at that moment and the run had not yet been
     executed - which is the property this section exists to guarantee.
 
     ANY CHANGE FROM HERE IS AN AMENDMENT, NOT AN EDIT. Append it below with the date, the
