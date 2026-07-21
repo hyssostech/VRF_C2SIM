@@ -1,9 +1,11 @@
 # CORRECTIONS LOG
 
-Provenance of claims that were once stated and later found wrong. The live docs
-(RESUME_PROMPT.md, HANDOFF, RUNBOOK, VRF_GROUNDWORK_PLAN) state only the CURRENT truth with
-no retraction history; this file is where the history lives. Consult it only to answer "was
-X ever believed, and why is it not believed now". ASCII only.
+Provenance of claims that were once stated and later found wrong. Only the two ENTRY docs -
+RESUME_PROMPT.md and HANDOFF - were rewritten clean (2026-07-21) and state current truth
+with no retraction history. RUNBOOK and VRF_GROUNDWORK_PLAN are large accreted files that
+STILL carry in-line retraction / READ-FIRST blocks; treat any sentence in them as current
+only if it is not inside a superseded fence. This file is where the history lives; consult
+it only to answer "was X ever believed, and why is it not believed now". ASCII only.
 
 Each entry: the claim, why it was wrong, and the evidence that settled it.
 

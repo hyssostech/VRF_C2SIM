@@ -403,11 +403,14 @@ $launch = Start-Process -FilePath $launcher -WorkingDirectory $bin64 -ArgumentLi
 Say-Ok ("vrfLauncher started (pid {0}); polling for backend readiness..." -f $launch.Id)
 
 # DEFECT-4 FIX (2026-07-18, found live): the poll used to require the rtiexec
-# PROCESS. rtiexec NEVER RUNS on this machine - rid.mtl sets RTI_useRtiExec 0 -
-# so that condition could never be satisfied and the script reported NOT READY
-# against a fully healthy launch. It also treated bare process presence as
-# back-end health, which is FALSE: a stalled back-end sits at 2 threads, present
-# the whole time. Replaced with the oracle measured against a verified-healthy
+# PROCESS as a readiness gate, which was wrong because rtiexec's PRESENCE does not
+# imply the back-end joined. (NOTE, corrected 2026-07-21: an earlier version of this
+# comment said "rtiexec NEVER RUNS on this machine". FALSE - rtiexec IS running now,
+# and generally: rid.mtl RTI_useRtiExec 0 only stops the RTI-NG library from spawning
+# its OWN rtiexec; the loopback connection starts one anyway. NEVER force-kill rtiexec /
+# rtiAssistant / rtiForwarder - see the StopVrf.ps1 prohibitions and RUNBOOK sec 0.)
+# The gate also wrongly treated bare process presence as back-end health: a stalled
+# back-end sits at 2 threads, present the whole time. Replaced with the oracle measured against a verified-healthy
 # back-end (RUNBOOK sec 0.5 correction):
 #   joined  = the back-end has UDP 4000 bound (RTI_udpPort 4000 - the real
 #             federation transport; forwarder :5000 is dark even when healthy)

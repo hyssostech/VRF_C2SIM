@@ -226,7 +226,7 @@ degenerate for all 14 samples:
     POS,...,cde66adc-...,90.000000,-90.000000,0.0     <- pole, i.e. no position
     POS,...,f864e51f-...,NaN,-90.000000,NaN           <- NaN lat and alt
 
-*** CORRECTION 2026-07-19: "the baseline objects are POSITIONLESS" WAS AN ARTEFACT
+*** SUPERSEDED CLAIM (the "it was fixed" half is FALSE - see the retraction below): "the baseline objects are POSITIONLESS" WAS AN ARTEFACT
 OF A BAD CAST IN OUR OWN CODE, NOT A FACT ABOUT VR-FORCES. *** Those degenerate
 readings were undefined behaviour: `resolveStateRep` ended in a blind
 `static_cast<DtReflectedEntity*>(obj)->entityStateRep()`, and the TropicTortoise
@@ -347,59 +347,26 @@ interleaved and read LINE BY LINE; each record is exactly one physical line.
 Field 0 is the type tag. This list is APPEND-ONLY - POS and CON have never changed
 shape and consumers may rely on that.
 
-    POS,<t>,<uuid>,<latDeg>,<lonDeg>,<altM>          per object, per sample tick
-    RAW,<t>,<uuid>,<rawLat>,<rawLon>,<rawAlt>,<velX>,<velY>,<velZ>
-*** THE RAW LINE TYPE DOES NOT EXIST. RETRACTED 2026-07-19 LATE. *** It, and the
-LogObjectConsoleToFile / SetObjectNotifyLevel / BCON / CONARM capabilities described in
-this subsection, ALL WENT OUT WITH THE NATIVE REVERT (commit 5d14eda). `git grep` finds
-them in docs only - tools/WatchVrf emits POS, CON, TSK and RPT and nothing else, and
-`lastSetLocation` appears only in stale build artifacts, never in tracked source. The
-deployed WatchVrf.exe contains no such string. THE RAW-vs-DR ORACLE TEST IS NOT SHIPPING -
-it is the un-built native work that broke the pipeline twice. Read HANDOFF sec 3 and sec 5
-before scoping it. Everything below in this subsection is retained as the DESIGN, not as
-behaviour you can invoke.
-                                                     un-extrapolated state, paired
-                                                     with each POS  (added 2026-07-19)
-    CON,<t>,<uuid>,<notifyLevel>,<message>           Object Console warning
-    BCON,<t>,<simAddress>,<notifyLevel>,<message>    backend console  (added 2026-07-19)
-    TSK,<t>,<unitMarking>,<taskType>                 task completion  (added 2026-07-19)
-    RPT,<t>,<text>                                   radio text-report (added 2026-07-19)
-    # ...                                            human-readable comment/summary
+    POS,<t>,<uuid>,<latDeg>,<lonDeg>,<altM>   per object, per sample tick - the movement oracle
+    CON,<t>,<uuid>,<notifyLevel>,<message>    Object Console warning for that object
+    TSK,<t>,<unitMarking>,<taskType>          task-completion report
+    RPT,<t>,<text>                            radio text-report (carries VR-Forces marking text)
+    # ...                                     human-readable comment/summary line
 
-Worked examples:
+These FOUR record types (POS/CON/TSK/RPT) plus # comment lines are everything WatchVrf
+emits. Worked examples:
 
     POS,23.5,VRF_UUID:adfaadb3-...,34.517156,-116.973525,1060.7
-    RAW,23.5,VRF_UUID:adfaadb3-...,34.517091,-116.973498,1060.7,1.412,-0.233,0.008
     CON,12.5,1:1:0:2001,1,"route failed, ""no path"""
-    BCON,8,1:3201,1,"backend warn, ""x"""
     TSK,31,"A Co, 1st","move-along"
     RPT,7.25,"POSITION ""tank1"" 39.0 -76.0"
 
-POS vs RAW - WHY BOTH. POS reports `location()`, the position computed THROUGH
-VR-Link's dead-reckoning approximator. RAW reports `lastSetLocation()` and
-`lastSetVelocity()`, the values VR-Forces last actually SENT, with no extrapolation
-(baseEntityStateRepository.h:118 and :133 - both declared on the BASE state
-repository, so they resolve for entities and aggregates alike). The two lines carry
-the same `t` and the same `uuid` and use identical lat/lon/alt formatting (F6/F6/F1),
-so they are comparable digit-for-digit. Sustained divergence indicts the
-approximator; agreement exonerates it and points upstream. RAW is emitted only
-after a successful POS line for that object, never instead of one - POS remains the
-primary movement oracle and its shape is unchanged.
-
-RAW VELOCITY IS GEOCENTRIC (ECEF) metres/second, NOT local ENU: velY is not
-"north". It originates as DtVector32 (float), so only float precision is meaningful
-regardless of the F3 formatting.
-
-CON vs BCON - WHY BOTH. With only CON, an empty console trace is ambiguous: "VR-Forces
-raised no warnings" and "warnings were raised but never delivered to us" look
-identical. BCON is an independent delivery path (per sim engine, not per object), so
-traffic on BCON while CON stays silent localises the fault to the object-console
-delivery path rather than to genuine silence. For a POSITIVE answer that bypasses the
-network entirely, the bridge also exposes `LogObjectConsoleToFile(uuid, path)`, which
-makes the BACKEND write that object's console to a file on its own filesystem, and
-`SetObjectNotifyLevel(uuid, level)` to rule out threshold suppression. Neither has a
-WatchVrf caller yet - they would need new arguments, and WatchVrf's argument surface
-is deliberately frozen.
+*** A RAW record type (raw lastSetLocation vs dead-reckoned location) and a BCON backend-
+console type, plus LogObjectConsoleToFile / SetObjectNotifyLevel bridge functions, were
+DESIGNED but WENT OUT WITH THE NATIVE REVERT (commit 5d14eda) and DO NOT EXIST. WatchVrf
+emits only the four types above. The raw-vs-DR oracle test that RAW was for is UN-BUILT -
+see HANDOFF sec 2 and sec 5 before scoping it; do not build a trace consumer that expects
+RAW or BCON lines. ***
 
 ESCAPING. Trailing free-text fields are RFC-4180 quoted, with backslash/CR/LF
 C-escaped first (\\, \r, \n) so a multi-line message can never split a record.
