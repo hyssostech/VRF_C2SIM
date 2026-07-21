@@ -89,6 +89,43 @@ Each entry: the claim, why it was wrong, and the evidence that settled it.
   holds default-task-rules.tsk + doctrines.dct and whose scriptedObjectMovement/ holds 19
   files. None opened. NOT ruled out.
 
+## Birth altitude / the "underground birth" freeze hypothesis
+
+- CONTEXT: the probe branch probe/create-altitude-above-ground (oracle commit b96688b) and the
+  port's "Create-altitude mode=Live" raise unit birth from 1000 to 10000 MSL so VRF's
+  create-time ground clamp drops each unit onto the terrain surface, curing the historical
+  buried-birth.
+- ESTABLISHED (2026-07-21, re-derived from run artifacts by the supervisor): this fix was
+  ALREADY ACTIVE in the three Jul-19 scored runs, and the frozen units froze anyway. So
+  "underground birth" is FALSIFIED as the CURRENT freeze cause.
+  Evidence:
+  * runs/20260719T161438Z_run/vrfc2simapp.log lines 22-32: all six units incl. 114.MechCoy and
+    1.BdeHQ "created at safe MSL 10000 m (original create alt 1000 m); parity post-create
+    SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface)".
+  * watchvrf-trace.csv (161438Z): units clamp to three distinct terrain-following surface
+    altitudes - 1222.MechPlt 1040.6 m, 114.MechCoy 1116.7 m, 1.BdeHQ 1131.4 m; zero samples at
+    10000, zero negative; altitude tracks sub-meter lon offsets = a real ground clamp. Units are
+    on the SIM surface, not buried and not airborne.
+  * DISCRIMINATOR TEST: all three taskees got identical treatment (vrfc2simapp.log 48-58:
+    CreateRoute 3 pts -> Route created -> MoveAlongRoute issued) at the same birth altitude, yet
+    1222.MechPlt moved while 114.MechCoy and 1.BdeHQ froze bit-exact. Same altitude, divergent
+    outcome => birth altitude is not the discriminator.
+  * Independent corroboration: the 2026-07-16 alt1 experiment (COA-STP1, C++ oracle, apps
+    3452/3453/3454) at 10000 MSL birth clamped all units to terrain (~1137 m) and 124/128 still
+    froze; only units with executing routes moved; tank 1-1/2/1_AD got MoveAlongRoute + a
+    TaskComplete yet stayed bit-exact frozen (its route logged a garbled ~100 MSL start).
+- STILL OPEN (the real primary defect): what makes a tasked, surface-clamped ground unit
+  execute vs ignore its MoveAlongRoute. Leading un-examined surfaces: ROUTE/WAYPOINT altitude
+  (not birth altitude) and the never-opened model-set defaults (see "Model-set default
+  behaviour"). The movement model is documented to re-clamp MOVING ground vehicles to the
+  surface, which competes with the route-altitude reading and is not yet reconciled.
+- RESIDUALS: (a) sim terrain sits ~75 m below real USGS 3DEP terrain at these coords
+  (terrain-DB fidelity; does not affect in-sim freeze); (b) the port's primary XML deserializer
+  fails on both init and order (Schema102 "error in XML document (1,2)"), a fallback rescues it
+  - a separate latent defect; (c) the exact config knob file was not confirmed (a reader cited
+  VrfSettings.cs CreateAltitudeSafeMslMeters=10000.0; grep did not find it at that path) - the
+  runtime log confirms the behaviour regardless.
+
 ## Process
 
 - The single-auditor repair loop (rounds 1-7) did not converge: like-for-like orchestrated

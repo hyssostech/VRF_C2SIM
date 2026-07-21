@@ -1231,7 +1231,23 @@ per the never-reuse non-negotiable. Annotate with results from the run manifest.
 NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
 join) are BURNED, not recycled. The run manifest records which were actually used.
 
-*** NEXT FREE: 3547 *** (authoritative - the ONLY such marker in this file. Update this
+CLAIMED 2026-07-21 (manual baseline run - stock MAK scenario HawaiiGround, supervisor).
+Ledgered BEFORE any join, per the never-reuse non-negotiable. Purpose: run a MAK-authored
+scenario headless (zero of our creation/tasking code) to establish a known-good movement
+baseline and audit the accumulated hypotheses against reality.
+- 3547: CLAIMED - LaunchVrf.ps1 back-end (vrfSimHLA1516e), combined mode, HawaiiGround
+- 3548: CLAIMED - LaunchVrf.ps1 front-end (vrfGui), combined mode
+- 3549: CLAIMED - WatchVrf trace (movement observer for the baseline)
+- 3550: CLAIMED - tools/RunSim (start the sim clock on the loaded stock scenario)
+NOTE: numbers allocated but not consumed are BURNED, not recycled.
+- 3550: BURNED - RunSim first attempt failed to join (invoked with wrong cwd -> vrfLegion.lua
+  / FDD not found -> CouldNotOpenFDD); it never drove the sim. Per never-reuse: burned.
+
+CLAIMED 2026-07-21 (baseline run retry - RunSim with correct cwd=bin64, plus re-observe).
+- 3551: CLAIMED - tools/RunSim retry (start the clock on the loaded HawaiiGround scenario)
+- 3552: CLAIMED - WatchVrf trace (observe movement once the clock is running)
+
+*** NEXT FREE: 3553 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
