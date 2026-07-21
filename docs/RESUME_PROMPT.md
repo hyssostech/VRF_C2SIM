@@ -45,7 +45,7 @@ THE UNITS DO NOT COMPLETE THEIR ROUTES, and the shape of that is now precise:
 THE MOVEMENT ORACLE IS IN QUESTION - this outranks the movement result. Two telemetry
 channels disagree about 1222.MechPlt's DIRECTION:
 - RPT (VR-Forces' own position reports, 3 fixes/unit/run): moves EAST toward the objective.
-- POS (WatchVrf's dead-reckoned read): 63 m WEST of start, then a stationary sawtooth.
+- POS (WatchVrf's dead-reckoned read): 65 m WEST of start, then a stationary sawtooth.
 The control that makes this serious: on the two FROZEN units the channels agree EXACTLY.
 They agree on stationary objects and disagree only on the moving one - a tracking failure,
 not two noisy sources. ESTABLISHED: they contradict, with a control. NOT PROVEN: which is

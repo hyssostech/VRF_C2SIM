@@ -55,7 +55,7 @@ NOT YET WRITTEN. This is the next thing to build.
 Contract:
 
     pwsh -File scripts\RunC2SimScenario.ps1 `
-         -Init data\R9_Mojave_Initialization.xml `
+         -Init data\R9_Mojave_Lean_Initialization.xml `  # 6-unit Lean file; the 80-unit R9_Mojave_Initialization.xml gives an incomparable run (sec 3 / 4a.0)
          -Order data\R9_Mojave_UnitMove_Order.xml `
          -RunSecs 900   # 600 is PRE-AMENDMENT-2 and is INSUFFICIENT - see 4a
 

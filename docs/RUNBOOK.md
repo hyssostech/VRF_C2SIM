@@ -509,8 +509,10 @@ a cwd that does not contain it fails exactly this way - which is why every joine
 cwd = VR-Forces bin64 (sec 7 item 3). NOT ESTABLISHED: which process raised it or when.
 "LRC #45" is a lifetime counter on an assistant up since the previous day, the dialog is
 not timestamped, and no assistant-side log was found. Do not guess a culprit.
-IT DID NOT CONTAMINATE THE 2026-07-19 RUNS: both scored runs produced 4512 POS lines each
-and no run artifact contains "FDD" or "Failed to open". A federate that could not open the
+IT DID NOT CONTAMINATE THE 2026-07-19 RUNS: the three scored runs produced 4512 / 4464 /
+4556 POS lines (161438Z / 202349Z / 222134Z) - do NOT validate a bridge rebuild against
+"4512 each", that was true only when the set was 144109Z + 161438Z - and no run artifact
+contains "FDD" or "Failed to open". A federate that could not open the
 FDD would not have joined at all. ***
 
 Coordinate approaches were

@@ -399,7 +399,8 @@ readable objects, and a NaN row from GlobalEnv must NOT be read as correct-and-e
     577.8 / 556.0 / 577.8 m. All three are MOVE, so there is no VERB confound - but the
     echelon/controller-class confound is exactly the axis the census could not de-confound
     offline. Run 1 yields THREE scored results, not one binary. Use
-    R9_Mojave_Lean_Initialization.xml (6 units) not R9_Mojave_Initialization.xml (158).
+    R9_Mojave_Lean_Initialization.xml (6 units) not R9_Mojave_Initialization.xml (80 units;
+    "158" is the ActorReference count, not units).
   - SCALE FACT worth carrying: the legs are ~556-578 m while every known failure phenomenon
     is 18-100 km. Run 1 therefore CANNOT test the 18.1-18.4 km stall band at all.
   - VrfBridge TOOLCHAIN IS HEALTHY - this retires the main risk on the raw-vs-DR oracle fix.
