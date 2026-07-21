@@ -70,7 +70,7 @@ cannot produce a 4a-scored POS arrival. Capture RPT and reason from both channel
 
 - ONE BUTTON: pwsh -File scripts\RunC2SimScenario.ps1 -RunSecs 900 [-Init <xml>] [-Order <xml>] [-DryRun]
   Defaults to data/R9_Mojave_Lean_Initialization.xml (6 units, 3 taskees) + data/R9_Mojave_UnitMove_Order.xml
-  (3 MOVE tasks). Do NOT use data/R9_Mojave_Initialization.xml (158 units) - not comparable
+  (3 MOVE tasks). Do NOT use data/R9_Mojave_Initialization.xml (80 units) - not comparable
   to the scored runs. -DryRun prints the full plan, creates nothing, contacts nothing, does
   NOT advance the ledger. Runner exit codes: 0 ok / 2 validation / 3 failed after launch /
   4 teardown incomplete / 5 unexpected.

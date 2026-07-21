@@ -85,7 +85,7 @@ Requirements learned the hard way - do not omit:
 *** CORRECTED - see sec 4a.0. The order contains THREE tasks against an ENTITY, a COMPANY
 and a PLATOON, so the aggregation and controller-class confound IS present; only the verb
 confound is absent (all three are MOVE). Use R9_Mojave_Lean_Initialization.xml (6 units),
-not the 158-unit file named above. Superseded text follows: ***
+not the 80-unit file named above. Superseded text follows: ***
 Mojave matches the loaded TropicTortoise terrain, and a single unit move either
 produces displacement or it does not - a binary first result with no aggregation,
 no formation, and no controller-class confound.
@@ -203,9 +203,9 @@ class per taskee from the trace before applying the entity-vs-unit tolerance bel
 taskee turns out to be the other class, score it under the other rule and note it.
 
 INIT FILE: use data/R9_Mojave_Lean_Initialization.xml (6 units, contains exactly these
-three taskees) rather than R9_Mojave_Initialization.xml (158 unit/actor references, full
+three taskees) rather than R9_Mojave_Initialization.xml (80 units, full
 brigade org tree). Both contain all three taskee UUIDs - verified - so both work; the
-lean file removes 152 irrelevant units from the trace. Sec 3 names the full file; this
+lean file removes 74 irrelevant units from the trace. Sec 3 names the full file; this
 supersedes it for run 1.
 
 SCALE NOTE, load-bearing for every threshold below: these legs are ~556-578 m. Every

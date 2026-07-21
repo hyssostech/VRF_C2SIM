@@ -1699,15 +1699,21 @@ try {
     # STAGE 8 - push the order and observe
     # ---------------------------------------------------------------------
     Say-Head 'Stage 8 - PushOrder, then observe'
+    # t0 MUST be stamped BEFORE the blocking call. PushOrder issues the order at child
+    # start (Program.cs:102) and THEN sleeps PushOrderListenSec (default 30 s) before
+    # exiting, and Invoke-External blocks until it exits. Capturing after the call would
+    # stamp "order pushed" ~30 s late - and a downstream scorer using this as movement t0
+    # would be off by ~30 s, enough to flip a pass/fail near the arrival thresholds.
+    $orderPushedUtc   = (Get-Date).ToUniversalTime()
+    $orderPushedLocal = (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss.fffzzz')
     $r = Invoke-External -Name 'PushOrder' -File $ExePushOrder `
             -Arguments @($Order, [string]$PushOrderListenSec, $RestUrl, $StompUrl) -Cwd $RepoRoot `
             -StdOutFile $PathPushOrderOut -StdErrFile $PathPushOrderErr `
             -TimeoutSec ($PushOrderListenSec + $StageTimeoutSec) `
             -Note 'BLOCKS for seconds-to-listen. exit 0 ok; 1 order rejected; 2 usage. Writes c2sim-bus.log beside its own binary; copied into the run dir afterwards.'
-    $orderPushedUtc = (Get-Date).ToUniversalTime()
     if (-not $DryRun) {
         $Manifest.clocks.orderPushedUtc   = $orderPushedUtc.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
-        $Manifest.clocks.orderPushedLocal = (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss.fffzzz')
+        $Manifest.clocks.orderPushedLocal = $orderPushedLocal
         if (-not (Test-StageProduced -Result $r)) { Stop-Runner 3 (Get-StageFailureText -Name 'PushOrder' -Result $r) }
         switch ($r.ExitCode) {
             0 { Say-Ok 'order accepted by the server' }

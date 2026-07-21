@@ -985,6 +985,13 @@ completed 1.BdeHQ's route in ~30 s and fired the TASKCMPLT report).
 NOTE the position-report volume is high (no aggregate-component dedup / bundling yet - deferred,
 docs/APP.md); functional but chatty, especially at high TimeMultiplier.
 
+*** READ FIRST - the narrative immediately below is SUPERSEDED. The RTTI / dynamic_cast
+cause is WRONG, and the "FIXED + LIVE-VERIFIED" / "Builds 0/0" claim is FALSE: that code
+was REVERTED (commit 5d14eda - it broke object creation) and VrfFacade.cpp:735 STILL
+contains the blind static_cast today. Do NOT scope the native re-attempt as though the UB
+were gone. The CORRECTION block further down carries the current picture; this banner just
+ensures you hit the truth first. Superseded narrative follows. ***
+
 AGGREGATE geodetic (14.MechBn) - isolated + FIXED + LIVE-VERIFIED (2026-07-10, after a
 VR-Forces scenario reload): with the static_cast fallback the golden order tasks 14.MechBn
 end to end - "CreateRoute 'T1_1_4_A ROUTE' (3 pts) for 14.MechBn" -> route created ->

@@ -9,8 +9,9 @@ Scored against: HEADLESS_RUN_PLAN.md sec 4a, RATIFIED 2026-07-19 BEFORE this run
 ## 0. Headline
 
 THE CHAIN WORKS. One command took a C2SIM init and order all the way through VR-Forces
-launch, interface join, unit creation, task issue, telemetry capture and teardown, with
-ZERO human interaction. That is the mandate's one-button loop, demonstrated.
+launch, interface join, unit creation, task issue and telemetry capture with ZERO human
+interaction. (TEARDOWN was NOT clean on this run: StopVrf exited 3 and the back-end was
+closed by a manual CloseMainWindow - see sec 1 stage table and sec 4 defect 1.) That is the mandate's one-button loop, demonstrated.
 
 *** PARTIALLY OVERTURNED 2026-07-19 by run 20260719T161438Z - READ
 docs/experiments/PREREG_TSK_DELIVERY_2026-07-19.md BEFORE RELYING ON ANYTHING BELOW.
@@ -296,8 +297,9 @@ OPENED THEM. *** The five Lua scripts under
 C2simEx/scripts/ are DtScriptedTaskMetaData with myMenuLocations - operator menu-invoked,
 no autostart.
 
-CONCLUSION: nothing in the loaded scenario, its Bogaland ancestor, or the simulation model
-set can task or move an entity. The four "independent movers" were not independent - two
+CONCLUSION: nothing in the loaded scenario or its Bogaland ancestor can task or move an
+entity. THE SIMULATION MODEL SET IS NOT RULED OUT (the retraction above shows the wrong
+layer was checked - EntityLevel/taskRules + 19 scriptedObjectMovement files are unopened). The four "independent movers" were not independent - two
 executors independently identified them as the member entities of tasked unit
 1222.MechPlt (sec 2). The hypothesis is refuted, but asking it is what produced the
 identification and closed the .pln gap.
