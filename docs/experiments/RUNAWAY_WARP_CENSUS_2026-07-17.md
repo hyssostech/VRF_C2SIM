@@ -367,9 +367,12 @@ DECOMPOSITION that follows (replaces the single "warp" reading of sec 6):
   underground, 41-83 km out, constant across endstate samples): NOT explainable as
   transient DR overshoot - a persistent position IS the reflected state. This is the real
   runaway/termination class, and it remains port-20x-specific in this data.
-- UNAFFECTED by this addendum: the controller-split verdict (keyed on aggregate icons +
-  taskee displacement), the 18.1-18.4 km stall band (persistent final positions), the
-  tasked-vs-moved cross-tab, and arrived=0.
+  - *** PROVISIONAL, pending POS/RPT reconciliation (added 2026-07-21): the controller-split
+    verdict, the 18.1-18.4 km stall band, the tasked-vs-moved cross-tab and arrived=0 all rest
+    on TASKEE POS DISPLACEMENT - the channel the 2026-07-19 oracle finding shows can misreport
+    a MOVING taskee (see PREREG_TSK_DELIVERY_2026-07-19). POS agrees with RPT for STATIONARY
+    objects, so arrived=0 / frozen is the more robust; the split and stall band depend on WHERE
+    movers went and must be re-analysed on RPT before being treated as settled. ***
 
 LIVE DISCRIMINATOR (queued as a WatchVrf enhancement candidate): log the RAW last-received
 entity state (position + timestamp + velocity) alongside the DR-extrapolated read for a

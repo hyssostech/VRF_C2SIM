@@ -311,7 +311,8 @@ THE CORRECTED CRITERION - require a REAL COORDINATE, and be patient about it:
   STOP  = still no real-coordinate POS after ~3 min AND a CreateOne entity also fails
           to appear with real coordinates (below). That is a genuinely blind oracle.
 
-BECAUSE THE BASELINE OBJECTS ARE POSITIONLESS, THE "STRONGER CHECK" BELOW IS IN
+BECAUSE THE READABLE BASELINE OBJECTS REFLECT CAST-CORRUPTED GARBAGE (NOT
+positionless - see the census in CORRECTIONS_LOG.md), THE "STRONGER CHECK" BELOW IS IN
 PRACTICE THE ONLY CHECK THAT CAN PASS ON A STOCK TropicTortoise LOAD. Treat it as
 mandatory, not optional.
 
@@ -1025,7 +1026,7 @@ VR-Forces scenario in the GUI to clear accumulated entities / stale federates), 
 the golden move order and confirm 14.MechBn tasks (point 0 -> route -> move -> TASKCMPLT).
 OPERATIONAL NOTE for repeated live runs: entities VR-Forces creates on the interface's behalf
 PERSIST across a clean interface resign; several back-to-back runs accumulate them and can stop
-new creates from reflecting - reload the scenario between heavy runs.
+new creates from reflecting - recover headlessly per sec 8 (tools/ResetVrf) between heavy runs - NO GUI reload; sec 5 and sec 0 both record the GUI-reload claim as false.
 
 ## 8. Self-service VR-Forces reset (avoid the manual GUI reload) - API found 2026-07-11
 

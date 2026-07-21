@@ -139,7 +139,7 @@
     network path. That is what turns an empty CON stream from an ambiguity into an
     answer: a populated file beside an empty CON stream proves a DELIVERY gap, an
     empty file proves nothing was raised. Armings appear in the trace as
-    CONARM,<t>,<uuid>,<path>. WatchVrf creates the directory itself.
+    *** NOT SUPPORTED: the deployed WatchVrf has no --console-log-dir flag (went out with revert 5d14eda) and emits no CONARM record. -ConsoleLogDir is accepted-and-IGNORED with a warning; it does not arm anything.
     Not supplied = the flag is not passed and the run is unchanged. Opt-in because
     it raises the notify level of every object, perturbing the system observed.
     CAVEAT: the path is resolved by the BACKEND. If the backend is another machine
@@ -247,7 +247,7 @@ param(
     # bypassing the console network path this runner's two zero-CON runs left under
     # suspicion. A populated file beside an empty CON stream proves a DELIVERY gap; an
     # empty file proves nothing was raised. Each arming appears in the trace as
-    # CONARM,<t>,<uuid>,<path>.
+    # NOT SUPPORTED - see above; -ConsoleLogDir is ignored, no CONARM record exists.
     #
     # NOT SUPPLIED (the default) = the flag is not passed and the run is byte-identical
     # to before this parameter existed. Deliberately opt-in: it changes the notify level
@@ -277,10 +277,11 @@ $ScriptVersion = '1.0.0-draft'
 #    it. Against a non-localhost server it would capture NOTHING, silently. This
 #    script REFUSES to start if -RestUrl or -StompUrl is non-localhost, rather
 #    than produce a capture file that looks valid and is empty.
-# 2. tools/WatchVrf OVERLOADS EXIT CODE 2: usage error (WatchRunner.cs:60) AND
-#    operational exception (WatchRunner.cs:183). Its arguments here are generated,
-#    never typed, so a 2 from WatchVrf is an operational failure - but the code
-#    alone cannot prove that. Recorded as ambiguous wherever it is captured.
+# 2. tools/WatchVrf exit codes are UNAMBIGUOUS: 2 = usage/argument error only
+#    (ToolArgs.ExitUsage), 1 = operational failure (ToolArgs.ExitFailure, e.g. the
+#    join throwing - WatchRunner.cs:122/225). Because this runner GENERATES WatchVrf's
+#    arguments, an exit 2 means the RUNNER BUILT BAD ARGUMENTS, not a federation/RTI
+#    fault; an exit 1 is the operational failure. Do not conflate them.
 # 3. tools/PushOrder writes its bus log to c2sim-bus.log BESIDE ITS OWN BINARY
 #    (PushOrder/Program.cs:112) with no override. This script COPIES it into the
 #    run directory afterwards; the copy can be stale if PushOrder failed before
@@ -1479,7 +1480,7 @@ try {
             -Arguments @([string]$AppNo['oraclePre'], [string]$preSecs, [string]$SampleSecs, $Federation) `
             -Cwd $Bin64 -StdOutFile $PathPreTrace -StdErrFile $PathPreTraceErr `
             -TimeoutSec ($preSecs + $StageTimeoutSec) `
-            -Note 'ADVISORY. WatchVrf OVERLOADS exit 2 (usage AND operational exception) - a 2 here is operational, since these arguments are generated. Exits on its OWN timer after seconds-to-watch.'
+            -Note 'ADVISORY. WatchVrf exit 2 = usage/arg error (the runner built bad args); exit 1 = operational. These args are generated, so treat a 2 as a runner bug. Exits on its OWN timer after seconds-to-watch.'
     if (-not $DryRun) {
         # The STAGE is advisory; a WatchVrf that will not exit is NOT. It is a
         # joined federate wedged in the federation, and everything downstream -
@@ -1524,7 +1525,7 @@ try {
     # whose console is worth capturing, and arming it would raise notify levels before the
     # observation window the run is actually scored on.
     if ($PathConsoleDir) {
-        Say ('  backend-side console capture ARMED -> {0} (CONARM lines in the trace; the BACKEND writes the files, and it may not be this machine)' -f $PathConsoleDir)
+        Say ('  -ConsoleLogDir is IGNORED - WatchVrf has no --console-log-dir flag and emits no CONARM lines. (was {0}; the BACKEND writes the files, and it may not be this machine)' -f $PathConsoleDir)
     }
     $WatchProc = Start-External -Name 'WatchVrf-trace' -File $ExeWatchVrf `
             -Arguments (@([string]$AppNo['oracleTrace'], [string]$EffWatchSecs, [string]$SampleSecs, $Federation) + $WatchConsoleArgs) `

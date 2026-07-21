@@ -32,7 +32,7 @@ criterion - which is the first time it can be measured rather than argued about.
 | Stage | Result |
 |-------|--------|
 | LaunchVrf | EXIT=0 READY, ~50 s, back-end healthy |
-| Oracle pre-check (advisory) | 28 POS lines, ALL degenerate. EXPECTED - stock TropicTortoise baseline objects are positionless (RUNBOOK 0.5.7) |
+| Oracle pre-check (advisory) | 28 POS lines, ALL degenerate. EXPECTED. (NOTE: the readings are CAST-CORRUPTED, not "positionless" - see CORRECTIONS_LOG.md. Degenerate rows are the observed pre-init state, not a health certificate.) |
 | PushInit | EXIT=0, server to RUNNING, QUERYINIT reports 6 units for a late joiner |
 | VrfC2SimApp | connected to C2SIM, dispatched 6 units + 0 areas |
 | ORACLE GATE | PASSED - 44 real-coordinate POS lines across 44 uuids. First: 34.612956,-116.600460,1040.6 (ground clamp working: 1040.6 m, not the requested spawn altitude) |

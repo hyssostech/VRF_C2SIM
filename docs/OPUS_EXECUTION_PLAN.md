@@ -999,7 +999,7 @@ values are NOT used.
   instead - the pre-check is a SEPARATE join and needed its own number. The scored session
   telemetry now needs a NEW number; 3455 is burned and must NOT be recycled.
 - 3495: CLAIMED - CreateOne, oracle position-fidelity discriminator (RUNBOOK 0.5.7
-  "stronger check") to tell a blind oracle from positionless baseline objects.
+  "stronger check") to tell a blind oracle from the baseline objects' cast-corrupted readings (they are NOT positionless - see CORRECTIONS_LOG.md).
 - 3496: CLAIMED - WatchVrf re-check to read the CreateOne entity's POS line.
 
 - 3497/3498: CLAIMED - LaunchVrf.ps1 relaunch after the first unattended StopVrf.ps1
