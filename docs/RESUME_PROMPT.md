@@ -1,5 +1,12 @@
 # RESUME PROMPT (rewritten clean 2026-07-21)
 
+*** 2026-07-21 (evening) UPDATE: the STATE and NEXT ACTION below are SUPERSEDED. That session
+established a working HEADLESS baseline (stock MAK scenario moves via LaunchVrf -> RunSim ->
+WatchVrf, zero C2SIM code) and reframed the freeze. For the CURRENT truth and the next step,
+read docs/HANDOFF_2026-07-21_SESSION_JUMP.md FIRST (adversarially audited) - it is the paste
+block for a fresh session. The material below remains valid for WHAT THIS IS, NON-NEGOTIABLES,
+HOW TO RUN, and superseded-claim provenance. ***
+
 Paste the block below into a fresh session. Every statement here is present-tense and
 current; it was rewritten from a re-verified fact base to remove seven rounds of
 correction-on-correction. The provenance of every superseded claim lives in

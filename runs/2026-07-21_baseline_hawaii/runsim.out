@@ -1,0 +1,27 @@
+checking for RDTSCP instruction...Success.  Using RDTSCP for time
+RDTSCP Timing Probe: 2423871691 ticks per second
+=== RunSim - START the VR-Forces simulation clock (remote control) ===
+    federation=CWIX-2024  appNumber=3551  multiplier=10x
+    started 2026-07-21 17:30:56 local / 21:30:56 UTC
+    ACTION: controller->run() (play) on ALL backends, then set 10x. This tool creates/deletes/tasks NOTHING.
+
+[..] bridge.Start() - joining the federation...
+Using MAK Technologies' RTI version 4.6.1 HLA 1516-2010 for Microsoft Visual C++ version 14.0 Release Mode.
+Connected to RTI Assistant.
+Loading Config File: C:\MAK\makRti4.6.1\rid.mtl
+INFO[Util] 21:30:57.678 T:135580 MAK::DtInitializer::loadConfigScript: Loading config file: vrfLegion.lua
+[OK] joined (BackendCount=0 immediately after Start).
+[..] settling - ticking until a backend is discovered (up to 15 s)...
+[OK] 1 backend(s) discovered after 0.2 s.
+[..] bridge.Run() - issuing controller->run() (start the clock)...
+[..] bridge.SetTimeMultiplier(10) - issuing...
+[OK] command(s) issued (queued on the controller).
+[..] flushing (ticking ~3 s)...
+Can't create data of type unit_artillery_provide_indirect_fire.  No creator found.  Only time this warning will be issued.
+Error decoding VRF Object Message type 1
+ DtSignalMessageTransporter::processVrfObjectMessageReceived(): Error decoding signal interaction.
+[OK] flushed.
+[..] bridge.Stop() - resigning from the federation...
+[OK] resigned cleanly. RESULT: simulation clock STARTED (Run) at 10x (appNumber=3551, federation=CWIX-2024) at 17:31:03 local / 21:31:03 UTC.
+     There is no getter on the remote controller for run-state, so this tool CANNOT read it back - confirm movement via WatchVrf telemetry.
+     Mark appNumber 3551 as USED in the ledger.
