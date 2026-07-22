@@ -1,0 +1,19 @@
+checking for RDTSCP instruction...Success.  Using RDTSCP for time
+RDTSCP Timing Probe: 2421153081 ticks per second
+=== WatchVrf - position + Object Console telemetry (R3 / groundwork 0.6) ===
+    federation=CWIX-2024 appNumber=3564 duration=30s sample=5s
+
+[..] bridge.Start() - joining the federation...
+Using MAK Technologies' RTI version 4.6.1 HLA 1516-2010 for Microsoft Visual C++ version 14.0 Release Mode.
+Connected to RTI Assistant.
+Loading Config File: C:\MAK\makRti4.6.1\rid.mtl
+INFO[Util] 12:52:40.701 T:7032 MAK::DtInitializer::loadConfigScript: Loading config file: vrfLegion.lua
+[OK] joined; discovering + sampling (POS,t,uuid,lat,lon,alt ; CON,t,uuid,level,msg ; TSK,t,marking,taskType ; RPT,t,text)...
+# t=3s reflected=0 readable=0
+# t=8s reflected=0 readable=0
+# t=13.1s reflected=0 readable=0
+# t=18.1s reflected=0 readable=0
+# t=23.1s reflected=0 readable=0
+# t=28.1s reflected=0 readable=0
+[..] bridge.Stop() - resigning...
+[OK] resigned cleanly.

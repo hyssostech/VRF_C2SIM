@@ -1,0 +1,81 @@
+checking for RDTSCP instruction...Success.  Using RDTSCP for time
+RDTSCP Timing Probe: 2441165694 ticks per second
+=== WatchVrf - position + Object Console telemetry (R3 / groundwork 0.6) ===
+    federation=CWIX-2024 appNumber=3562 duration=340s sample=5s
+
+[..] bridge.Start() - joining the federation...
+Using MAK Technologies' RTI version 4.6.1 HLA 1516-2010 for Microsoft Visual C++ version 14.0 Release Mode.
+Connected to RTI Assistant.
+Loading Config File: C:\MAK\makRti4.6.1\rid.mtl
+INFO[Util] 12:48:51.355 T:48520 MAK::DtInitializer::loadConfigScript: Loading config file: vrfLegion.lua
+[OK] joined; discovering + sampling (POS,t,uuid,lat,lon,alt ; CON,t,uuid,level,msg ; TSK,t,marking,taskType ; RPT,t,text)...
+# t=3s reflected=0 readable=0
+# t=8.1s reflected=0 readable=0
+# t=13.1s reflected=0 readable=0
+# t=18.2s reflected=0 readable=0
+# t=23.2s reflected=0 readable=0
+# t=28.2s reflected=0 readable=0
+# t=33.2s reflected=0 readable=0
+# t=38.2s reflected=0 readable=0
+# t=43.2s reflected=0 readable=0
+# t=48.3s reflected=0 readable=0
+# t=53.3s reflected=0 readable=0
+# t=58.3s reflected=0 readable=0
+# t=63.3s reflected=0 readable=0
+# t=68.3s reflected=0 readable=0
+# t=73.4s reflected=0 readable=0
+# t=78.4s reflected=0 readable=0
+# t=83.4s reflected=0 readable=0
+# t=88.5s reflected=0 readable=0
+# t=93.5s reflected=0 readable=0
+# t=98.5s reflected=0 readable=0
+# t=103.5s reflected=0 readable=0
+# t=108.5s reflected=0 readable=0
+# t=113.5s reflected=0 readable=0
+# t=118.5s reflected=0 readable=0
+# t=123.5s reflected=0 readable=0
+# t=128.6s reflected=0 readable=0
+# t=133.6s reflected=0 readable=0
+# t=138.7s reflected=0 readable=0
+# t=143.7s reflected=0 readable=0
+# t=148.7s reflected=0 readable=0
+# t=153.7s reflected=0 readable=0
+# t=158.7s reflected=0 readable=0
+# t=163.7s reflected=0 readable=0
+# t=168.7s reflected=0 readable=0
+# t=173.7s reflected=0 readable=0
+# t=178.7s reflected=0 readable=0
+# t=183.7s reflected=0 readable=0
+# t=188.8s reflected=0 readable=0
+# t=193.8s reflected=0 readable=0
+# t=198.8s reflected=0 readable=0
+# t=203.8s reflected=0 readable=0
+# t=208.8s reflected=0 readable=0
+# t=213.8s reflected=0 readable=0
+# t=218.8s reflected=0 readable=0
+# t=223.8s reflected=0 readable=0
+# t=228.9s reflected=0 readable=0
+# t=234s reflected=0 readable=0
+# t=239s reflected=0 readable=0
+# t=244s reflected=0 readable=0
+# t=249s reflected=0 readable=0
+# t=254s reflected=0 readable=0
+# t=259s reflected=0 readable=0
+# t=264s reflected=0 readable=0
+# t=269s reflected=0 readable=0
+# t=274s reflected=0 readable=0
+# t=279.1s reflected=0 readable=0
+# t=284.1s reflected=0 readable=0
+# t=289.1s reflected=0 readable=0
+# t=294.1s reflected=0 readable=0
+# t=299.1s reflected=0 readable=0
+# t=304.2s reflected=0 readable=0
+# t=309.2s reflected=0 readable=0
+# t=314.2s reflected=0 readable=0
+# t=319.2s reflected=0 readable=0
+# t=324.2s reflected=0 readable=0
+# t=329.2s reflected=0 readable=0
+# t=334.3s reflected=0 readable=0
+# t=339.3s reflected=0 readable=0
+[..] bridge.Stop() - resigning...
+[OK] resigned cleanly.

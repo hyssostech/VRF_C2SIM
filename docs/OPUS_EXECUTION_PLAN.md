@@ -1266,7 +1266,25 @@ Ledgered BEFORE any join, per the never-reuse non-negotiable.
 NOTE: numbers allocated but not consumed are BURNED, not recycled. The Mojave leg
 ledgers its own 4 only after the Sweden gate is analyzed.
 
-*** NEXT FREE: 3560 *** (authoritative - the ONLY such marker in this file. Update this
+CLAIMED 2026-07-22 (supervisor - fixture probe, MOJAVE leg; Sweden gate PASSED so Mojave
+is interpretable; prereg = PREREG_FIXTURE_REGION_VS_STRUCTURE_2026-07-22.md). Ledgered
+BEFORE any join. Same fixture as Sweden bar location (34.612956,-116.600487).
+- 3560: CLAIMED - LaunchVrf.ps1 back-end (vrfSimHLA1516e), TankPltFixture_Mojave
+- 3561: CLAIMED - LaunchVrf.ps1 front-end (vrfGui), combined mode
+- 3562: CONSUMED - WatchVrf observer, Mojave attempt 1. BLIND (reflected=0 for 154 s+).
+- 3563: CONSUMED - RunSim, Mojave attempt 1. Joined but discovered NO backend in 15 s
+  (BackendCount=0); run() NOT sent. Federation-routing failure, not a fixture result.
+- 3564: CONSUMED - WatchVrf 30 s discovery PROBE (fresh observer). ALSO BLIND
+  (reflected=0). Confirms broken routing (not a stuck first observer). Backend WAS
+  joined+publishing (vrfSim.log "Joined federation CWIX-2024"; established TCP to
+  rtiexec:6003 + rtiForwarder:4001) but the PRESERVED rtiForwarder (1 thread, was 4
+  during Sweden) did not relay objects to observer federates after the Sweden teardown.
+- 3565: CLAIMED - LaunchVrf back-end, Mojave attempt 2 (clean relaunch recovery)
+- 3566: CLAIMED - LaunchVrf front-end, Mojave attempt 2
+- 3567: CLAIMED - WatchVrf oracle PRE-CHECK (must discover BEFORE any RunSim)
+NOTE: numbers allocated but not consumed are BURNED, not recycled.
+
+*** NEXT FREE: 3568 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN

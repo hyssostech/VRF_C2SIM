@@ -1,0 +1,17 @@
+checking for RDTSCP instruction...Success.  Using RDTSCP for time
+RDTSCP Timing Probe: 2423157130 ticks per second
+=== RunSim - START the VR-Forces simulation clock (remote control) ===
+    federation=CWIX-2024  appNumber=3563  multiplier=1x
+    started 2026-07-22 08:49:18 local / 12:49:18 UTC
+    ACTION: controller->run() (play) on ALL backends. This tool creates/deletes/tasks NOTHING.
+
+[..] bridge.Start() - joining the federation...
+Using MAK Technologies' RTI version 4.6.1 HLA 1516-2010 for Microsoft Visual C++ version 14.0 Release Mode.
+Connected to RTI Assistant.
+Loading Config File: C:\MAK\makRti4.6.1\rid.mtl
+INFO[Util] 12:49:20.023 T:50452 MAK::DtInitializer::loadConfigScript: Loading config file: vrfLegion.lua
+[OK] joined (BackendCount=0 immediately after Start).
+[..] settling - ticking until a backend is discovered (up to 15 s)...
+[FAIL] no backend discovered after 15 s (BackendCount=0). Run() was NOT sent - sending it now would be a silent no-op reported as success. Confirm VR-Forces is running with a scenario loaded and a simulation backend connected, then retry with a FRESH appNumber.
+[..] bridge.Stop() - resigning cleanly...
+[OK] resigned. Mark appNumber 3563 as USED.

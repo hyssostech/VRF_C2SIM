@@ -146,8 +146,51 @@ bin64 -> CouldNotOpenFDD, the 3550 lesson repeated). LESSON RE-CONFIRMED: RunSim
 run with cwd=bin64; invoking via `& $exe` inherits the caller cwd - use Set-Location
 $Bin64 or Start-Process -WorkingDirectory.
 
-### Mojave result:
-### Branch selected:
+### Mojave result: BLOCKED - RTI infrastructure wedged, NOT a region/structure result.
+The Mojave leg could not be scored because the movement ORACLE went blind. This is an
+infrastructure failure introduced by the teardown-relaunch cycle, and it is
+DECONFOUNDED from the fixture question (see falsification below).
+
+Sequence (appNos 3560 backend / 3561 frontend / 3562 WatchVrf / 3563 RunSim, all
+attempt 1; 3564 probe; 3565/3566/3567 attempt 2):
+- LaunchVrf -Scenario TankPltFixture_Mojave READY, backend healthy, fixture LOADED
+  (vrfSim.log: "Joined federation CWIX-2024"; AR Plt 1 f0be86a8 + M1A2 members
+  registered; established TCP to rtiexec:6003 + rtiForwarder:4001). Backend IS joined
+  and publishing.
+- BUT every observer federate is BLIND: WatchVrf 3562 reflected=0 for 154 s; a FRESH
+  30 s probe 3564 reflected=0; RunSim 3563 discovered BackendCount=0 in 15 s (run()
+  NOT sent). A clean StopVrf+relaunch (attempt 2, 3565/3566) + oracle pre-check 3567
+  reflected=0 for 40 s. reflected=0 means the observer sees NOTHING - not even the 3
+  location-independent global env objects that were reflected=9 at Sweden.
+- The preserved rtiForwarder (pid 50572, spawned 07:29 at boot) sits at 1 thread (it
+  was 4 during the working Sweden run). rtiexec/rtiForwarder are the ORIGINAL
+  boot-spawned processes; StopVrf preserves them (non-negotiable), so the relaunch
+  reuses the same wedged forwarder.
+
+FALSIFICATION (adversarial): the ONLY thing that differs from the working Sweden run
+and could blind the observer is FRESH RTI infra (Sweden: rtiexec/rtiForwarder spawned
+seconds earlier when the boot dialog was answered) vs PRESERVED-after-teardown RTI
+(Mojave). Competing hypotheses tested and FALSIFIED: (a) fixture/location - a
+coordinate value cannot blind an observer to the BACKEND and the GLOBAL objects, and
+the identical fixture-family moved at Sweden; (b) dead/unjoined backend - the log +
+TCP prove it joined and registered objects; (c) discovery latency - 154 s and a fresh
+2.5-min-late probe both at exactly 0, vs Sweden's 0.2 s. The single observation that
+would falsify the wedged-RTI hypothesis is a fresh RTI restart making Mojave observers
+discover - untested because it collides with the "NEVER kill rtiexec/rtiForwarder"
+non-negotiable (a USER DECISION, escalated 2026-07-22).
+
+NEW OPERATIONAL FINDING (the real deliverable of this leg): the per-fixture
+LaunchVrf-per-scenario pipeline the handoff assumed does NOT survive a StopVrf teardown
+between fixtures on the rtiexec loopback connection - the forwarder wedges and every
+later observer goes blind, and a relaunch does NOT clear it. FRESH-BOOT RTI worked
+(Sweden). Implication for method: to run a SECOND fixture in one session either
+(i) restart the RTI stack (needs the non-negotiable relaxed), (ii) reboot and run the
+target fixture FIRST, or (iii) find a no-teardown scenario-swap (remote loadScenario -
+but that changes the load method, a confound vs the launcher-loaded Sweden run).
+
+### Branch selected: NONE - Mojave uninterpretable (oracle blind). Sweden gate PASS
+stands on its own as the positive-control result. Region-vs-structure at Mojave remains
+OPEN pending a fresh-RTI Mojave run.
 ### Deviations from procedure: 3556/3557 burned (above); WatchVrf run 1 was
 paused-only (RunSim not yet corrected); LaunchVrf reported EXIT=3 because its readiness
 poll expired while the fresh-boot RTI "Choose RTI Connection" dialog blocked - answered
