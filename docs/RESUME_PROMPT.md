@@ -1,11 +1,15 @@
 # RESUME PROMPT (rewritten clean 2026-07-21)
 
-*** 2026-07-21 (evening) UPDATE: the STATE and NEXT ACTION below are SUPERSEDED. That session
-established a working HEADLESS baseline (stock MAK scenario moves via LaunchVrf -> RunSim ->
-WatchVrf, zero C2SIM code) and reframed the freeze. For the CURRENT truth and the next step,
-read docs/HANDOFF_2026-07-21_SESSION_JUMP.md FIRST (adversarially audited) - it is the paste
-block for a fresh session. The material below remains valid for WHAT THIS IS, NON-NEGOTIABLES,
-HOW TO RUN, and superseded-claim provenance. ***
+*** 2026-07-22 UPDATE: the STATE and NEXT ACTION below are SUPERSEDED. CURRENT entry point is
+docs/HANDOFF_2026-07-22_PLAN_ASSIGNMENT.md (read it FIRST) + its next action
+docs/experiments/PREREG_PLAN_ASSIGNMENT_SPIKE.md. That session FALSIFIED both environmental
+hypotheses for the freeze (region, waypoint altitude) via authored fixtures that MOVE, and
+PIVOTED: stop reverse-engineering the remote-create/bare-task freeze (an unbounded guess
+space); build on what works. The grounded next step is a cheapest-first factorial - Cell C
+(remote-create the CORRECT type + plain move-along) could show the whole fix is the existing
+type-mapping table. The convention holds: the NEWEST docs/HANDOFF_*.md is always the entry
+point. The 2026-07-21 handoff is now historical. The material below remains valid for WHAT
+THIS IS, NON-NEGOTIABLES, HOW TO RUN, and superseded-claim provenance. ***
 
 Paste the block below into a fresh session. Every statement here is present-tense and
 current; it was rewritten from a re-verified fact base to remove seven rounds of
