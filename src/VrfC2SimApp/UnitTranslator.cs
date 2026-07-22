@@ -17,6 +17,14 @@ public readonly record struct CreationPlan(
     double? PostCreateAltitude); // meters; null = do not set altitude after create
 
 /// <summary>
+/// How C2SIM/echelon unit classes map onto VR-Forces DIS objectTypes. See VrfSettings.TypeMappingMode.
+/// GoldenParity = byte-for-byte the C++ golden-trace objectTypes (ArmorPlatoon -> Ground_Aggregate
+/// fallback); RealTemplates = the R9 type-mapping fix (ArmorPlatoon -> real Tank Platoon (USA),
+/// Cell C proven mover). RealTemplates is the product default; GoldenParity is the escape hatch.
+/// </summary>
+public enum TypeMapping { RealTemplates, GoldenParity }
+
+/// <summary>
 /// Faithful port of the C++ extractC2simInit dispatch + the create* factories
 /// (C2SIMinterface.cpp). Parity-first: reproduces the exact DIS entity types, force
 /// mapping, per-factory heading formulas and post-create altitude rules, so the
@@ -36,7 +44,7 @@ public static class UnitTranslator
     /// (the caller guards those); ElevationAgl should already be defaulted to
     /// "1000.0" when the source was empty (parity with :1445-1446).
     /// </summary>
-    public static CreationPlan Plan(InitUnit u)
+    public static CreationPlan Plan(InitUnit u, TypeMapping typeMapping = TypeMapping.RealTemplates)
     {
         var pos = new Geodetic { LatDeg = D(u.Latitude), LonDeg = D(u.Longitude), AltMeters = D(u.ElevationAgl) };
         bool ho = u.HostilityCode == "HO";
@@ -57,7 +65,7 @@ public static class UnitTranslator
             if (u.DisDomain == 3) return Boat(u, pos, ho);        // :1470
             if (At(sidc, 1) == 'N') return Civilian(u, pos);      // :1472 neutral
             if (echelon == 'B') return ho ? MobileIrregular(u, pos) : ScoutUnit(u, pos); // :1474-1478
-            if (echelon == 'D') return ArmorPlatoon(u, pos, ho);  // :1480
+            if (echelon == 'D') return ArmorPlatoon(u, pos, ho, typeMapping); // :1480 (R9 type-mapping fix)
             if (echelon == 'E') return ArmorCompany(u, pos, ho);  // :1482
             if (echelon == 'F') return ArmorCoHQ(u, pos, ho);     // :1484 battalion -> Co HQ
             return Tank(u, pos, ho);                              // :1486 default
@@ -109,8 +117,16 @@ public static class UnitTranslator
     private static CreationPlan ScoutUnit(InitUnit u, Geodetic pos) // createScoutUnit (Friendly always)
         => new(true, Spec(11, 1, 225, 2, 1, 1, 0), Force.Friendly, 0.0, u.Name, pos, null);
 
-    private static CreationPlan ArmorPlatoon(InitUnit u, Geodetic pos, bool ho)
-        => new(true, Spec(11, 1, 225, 1, 1, 3, 0), ForceOf(ho), 0.0, u.Name, pos, null);
+    // R9 type-mapping fix (docs/experiments/PREREG_TYPEFIX_CONFIRMING_RUN.md). GoldenParity
+    // emits 11.1.225.1.1.3.0 (no Kind-11 leaf -> Ground_Aggregate fallback -> empty subordinate
+    // offset routes -> freeze). RealTemplates (default) emits the real Tank Platoon (USA)
+    // 11.1.225.3.2.0.0 (Cell C proven mover: 4 M1A2 members + offset-route machinery).
+    private static CreationPlan ArmorPlatoon(InitUnit u, Geodetic pos, bool ho, TypeMapping tm)
+        => new(true,
+               tm == TypeMapping.GoldenParity
+                   ? Spec(11, 1, 225, 1, 1, 3, 0)   // golden-trace parity -> Ground_Aggregate
+                   : Spec(11, 1, 225, 3, 2, 0, 0),  // Tank Platoon (USA)
+               ForceOf(ho), 0.0, u.Name, pos, null);
 
     private static CreationPlan ArmorCompany(InitUnit u, Geodetic pos, bool ho)
         => new(true, Spec(11, 1, 225, 5, 2, 0, 0), ForceOf(ho), 0.0, u.Name, pos, null);

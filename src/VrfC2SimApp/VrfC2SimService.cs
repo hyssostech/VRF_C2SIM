@@ -371,6 +371,13 @@ public sealed class VrfC2SimService : BackgroundService
         catch (Exception ex) { _log.LogError("Init parse failed: {Msg}", ex.Message); return; }
 
         int planned = 0, matched = 0, duplicates = 0;
+        // R9 type-mapping fix (docs/experiments/PREREG_TYPEFIX_CONFIRMING_RUN.md). "GoldenParity"
+        // reproduces the byte-for-byte golden-trace objectTypes; anything else (default
+        // "RealTemplates") maps ArmorPlatoon to the real Tank Platoon (USA) Cell-C mover.
+        var typeMapping = string.Equals(_vrf.TypeMappingMode, "GoldenParity", StringComparison.OrdinalIgnoreCase)
+            ? TypeMapping.GoldenParity : TypeMapping.RealTemplates;
+        _log.LogInformation("Type-mapping mode = {Mode} (ArmorPlatoon -> {Target}).",
+            typeMapping, typeMapping == TypeMapping.GoldenParity ? "Ground_Aggregate (11.1.225.1.1.3.0)" : "Tank Platoon (USA) (11.1.225.3.2.0.0)");
         var toCreate = new List<CreationPlan>();   // collected, then (optionally) de-stacked, then enqueued
         foreach (var u in init.Units)
         {
@@ -397,7 +404,7 @@ public sealed class VrfC2SimService : BackgroundService
             if (string.IsNullOrEmpty(unit.ElevationAgl))
                 unit = unit with { ElevationAgl = "1000.0" };     // ground-clamp default (:1445-1446)
 
-            var plan = UnitTranslator.Plan(unit);
+            var plan = UnitTranslator.Plan(unit, typeMapping);
 
             // Create-time terrain-clamp fix (docs/SUPERVISED_RECOVERY_PLAN.md sec 3b;
             // MOJAVE_ROOTCAUSE_INVESTIGATION parts 13/13c). Ground units are otherwise born at a
@@ -1317,7 +1324,8 @@ public sealed class VrfC2SimService : BackgroundService
         return (t.Country, t.Category, t.Subcategory, t.Specific, t.Extra) switch
         {
             (225, 2, 1, 1, 0) => "column",   // Scout           11.1.225.2.1.1.0  -> Ground_Aggregate
-            (225, 1, 1, 3, 0) => "column",   // ArmorPlatoon    11.1.225.1.1.3.0  -> Ground_Aggregate
+            (225, 1, 1, 3, 0) => "column",   // ArmorPlatoon    11.1.225.1.1.3.0  -> Ground_Aggregate (GoldenParity)
+            (225, 3, 2, 0, 0) => "column",   // ArmorPlatoon    11.1.225.3.2.0.0  -> Tank Platoon (USA) (RealTemplates, R9 fix)
             (225, 5, 2, 0, 0) => "Column",   // ArmorCompany    11.1.225.5.2.0.0  -> Tank Company (USA)
             (225, 5, 20, 0, 0) => "Wedge",   // ArmorCoHQ       11.1.225.5.20.0.0 -> ambiguous match
             (0, 13, 34, 0, 1) => "Wedge",    // MobileIrregular 11.1.0.13.34.0.1  -> C2simEx

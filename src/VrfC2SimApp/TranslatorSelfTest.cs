@@ -36,10 +36,21 @@ public static class TranslatorSelfTest
         // echelon aggregates (sidc[11])
         Check("Scout(B)", U(sidc: "SFG--------B---"), agg: true, Force.Friendly, T(11, 1, 225, 2, 1, 1, 0), alt: null);
         Check("MobIrreg(B,HO)", U(sidc: "SFG--------B---", ho: true), agg: true, Force.Opposing, T(11, 1, 0, 13, 34, 0, 1), alt: null);
-        Check("ArmorPlatoon(D)", U(sidc: "SFG--------D---"), agg: true, Force.Friendly, T(11, 1, 225, 1, 1, 3, 0), alt: null);
+        // ArmorPlatoon: DEFAULT (RealTemplates) now emits the real Tank Platoon (USA)
+        // 11.1.225.3.2.0.0 (R9 type-mapping fix, Cell C proven mover); GoldenParity keeps the
+        // 11.1.225.1.1.3.0 that fell back to Ground_Aggregate and FROZE. This assertion pair is
+        // the false-green guard for the fix: a regression to the old default fails the first line.
+        Check("ArmorPlatoon(D) RealTemplates", U(sidc: "SFG--------D---"), agg: true, Force.Friendly, T(11, 1, 225, 3, 2, 0, 0), alt: null);
+        Check("ArmorPlatoon(D) GoldenParity", U(sidc: "SFG--------D---"), agg: true, Force.Friendly, T(11, 1, 225, 1, 1, 3, 0), alt: null, mode: TypeMapping.GoldenParity);
         Check("ArmorCompany(E)", U(sidc: "SFG--------E---"), agg: true, Force.Friendly, T(11, 1, 225, 5, 2, 0, 0), alt: null);
         Check("ArmorCoHQ(F)", U(sidc: "SFG--------F---"), agg: true, Force.Friendly, T(11, 1, 225, 5, 20, 0, 0), alt: null);
         Check("Tank(sidc default)", U(sidc: "SFG--------X---"), agg: false, Force.Friendly, T(1, 1, 225, 1, 1, 3, 0), alt: 1000.0 + 1);
+
+        // R9 Mojave confirming-run taskees, by their ACTUAL init SIDCs. The fix must move
+        // 1222.MechPlt off Ground_Aggregate WITHOUT changing the other two taskees' typing.
+        Check("R9 1222.MechPlt(D)->TankPlatoonUSA", U(sidc: "SFGPUCIZ---D---"), agg: true, Force.Friendly, T(11, 1, 225, 3, 2, 0, 0), alt: null);
+        Check("R9 114.MechCoy(E)->TankCompanyUSA",  U(sidc: "SFGPUCIZ---E---"), agg: true, Force.Friendly, T(11, 1, 225, 5, 2, 0, 0), alt: null);
+        Check("R9 1.BdeHQ(H)->entity M1A2",         U(sidc: "SFGPUCIZ--EH---"), agg: false, Force.Friendly, T(1, 1, 225, 1, 1, 3, 0), alt: 1000.0 + 1);
 
         // heading formulas: RW divides phi by the factor (headingDeg == phi); Tank does
         // not (headingDeg == phi * factor). phi = 45.
@@ -71,9 +82,10 @@ public static class TranslatorSelfTest
         => (k, d, c, cat, sub, sp, ex);
 
     private static void Check(string label, InitUnit u, bool agg, Force force,
-                              (int, int, int, int, int, int, int) type, double? alt)
+                              (int, int, int, int, int, int, int) type, double? alt,
+                              TypeMapping mode = TypeMapping.RealTemplates)
     {
-        var p = UnitTranslator.Plan(u);
+        var p = UnitTranslator.Plan(u, mode);
         var t = (p.Type.Kind, p.Type.Domain, p.Type.Country, p.Type.Category,
                  p.Type.Subcategory, p.Type.Specific, p.Type.Extra);
         bool ok = p.IsAggregate == agg && p.Force == force && t == type

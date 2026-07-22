@@ -21,6 +21,26 @@ public class VrfSettings
     // init's SystemName or 0 units are created (RUNBOOK sec 2).
     public string ClientId { get; set; } = "STP";
 
+    // R9 TYPE-MAPPING fix (docs/experiments/PREREG_TYPEFIX_CONFIRMING_RUN.md; Cell C proof
+    // in docs/experiments/PREREG_PLAN_ASSIGNMENT_SPIKE.md Outcome record + docs/VRF_GROUND_TRUTH.md
+    // 0.1.7). The echelon-only dispatch (UnitTranslator) emitted, for an ArmorPlatoon-class unit
+    // (SIDC echelon char 'D'), the DIS objectType 11.1.225.1.1.3.0 - which has NO Kind-11 aggregate
+    // leaf and falls back to the generic Ground_Aggregate template. Ground_Aggregate's 4 anonymous
+    // Cat-4 members have EMPTY function handles and no vehicle-platoon script, so a disaggregated
+    // move-along hands them EMPTY offset routes ("moveAlong() - empty route -- not sending move
+    // along to subordinate") and the unit freezes (R9 1222.MechPlt, run 20260719T144109Z). Cell C
+    // proved the REAL Tank Platoon (USA) template (objectType 3:11:1:225:3:2:0:0, matchType
+    // 3:11:1:225:3:2:-1:-1) - createSubordinates=true -> 4 M1A2 members with named handles
+    // (PL/PSG/PLWM/PSGWM) + vehiclePlatoonScriptEnable - MOVES end to end on the same remote-create
+    // + bare MoveAlongRoute path (reflected 8->13 member offset-route transients, settled ~1165 m E,
+    // POS==RPT). "RealTemplates" (THE DEFAULT) makes ArmorPlatoon emit Tank Platoon (USA);
+    // "GoldenParity" keeps the byte-for-byte golden-trace objectType (the escape hatch, exactly like
+    // GroundWaypointAltitudeMode="Fixed100"). Scope today: ArmorPlatoon ONLY - the one remapping
+    // whose target template is verified installed AND proven to move. ArmorCompany already resolves
+    // to the real Tank Company (USA); ArmorCoHQ's correct target is a pending USER decision
+    // (docs/TYPE_GAP_ADJUDICATION.md Decision-4) and is deliberately NOT changed here.
+    public string TypeMappingMode { get; set; } = "RealTemplates"; // "GoldenParity" | "RealTemplates"
+
     // Aggregate formation repair (docs/UNIT_MOVEMENT_RESEARCH.md). "" = OFF (golden
     // parity: bare moveAlongRoute; disaggregated aggregates freeze on their unresolvable
     // default formation "column-left"). "auto" = the QUERY-DRIVEN create-time repair -

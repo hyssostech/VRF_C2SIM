@@ -127,3 +127,31 @@ is again in the teardown-survivor class (wedge-prone) - oracle-pre-check before 
 it, prefer fresh boot for the next run (fresh-boot ruling was CONSUMED; a new stop of
 healthy rti* needs a new ruling). appNo marker NEXT FREE = 3585 (3578-3584 consumed,
 0 burned). No RTI boot dialog appeared this fresh boot (persisted auto-connect held).
+
+SCOPE CORRECTION (2026-07-22, mapping-fix review - executor-caught, supervisor-adopted):
+the TYPE-MAPPING verdict above is precise for the PLATOON class (R9's/07-19's
+1222.MechPlt: ArmorPlatoon 'D' -> Ground_Aggregate). It does NOT account for the
+2026-07-19 one-button run's two other frozen taskees: 114.MechCoy already resolved
+(statically) to the REAL Tank Company (USA) yet froze 0.0 m both channels (company-HU
+move path - untested by Cell C), and 1.BdeHQ is a single M1A2 ENTITY that froze 0.0 m
+both channels (entity move path - untested by Cell C). This section's earlier phrase
+"closes the R9 diagnosis end to end" therefore OVERREACHED for the full 3-taskee order;
+read PREREG_TYPEFIX_CONFIRMING_RUN.md sec 1 for the per-taskee predictions. Also
+corrected: a supervisor brief stated "1.BdeHQ worked" - only its CREATION worked; its
+movement froze (RUN_2026-07-19_MOJAVE_CHAIN.md sec 2).
+
+TYPE-MAPPING FIX LANDED (2026-07-22, offline): UnitTranslator ArmorPlatoon now emits
+11/1/225/3/2/0/0 (Tank Platoon (USA)) under default TypeMapping=RealTemplates;
+GoldenParity escape hatch retains the old enum; VrfSettings.TypeMappingMode gates it;
+selftest 21/21 green at build time. Comment-free R9 XML copies added (RUNBOOK 0.6):
+data/R9_Mojave_{Lean_Initialization,UnitMove_Order}_NoComments.xml. NEXT: the confirming
+run per PREREG_TYPEFIX_CONFIRMING_RUN.md (-RunSecs 900, mult 1, preserved-RTI + oracle
+gate, budget from marker 3585).
+
+TOOLCHAIN EVENT (2026-07-22 ~18:40, transient): a Visual Studio 18.8 updater removed the
+.NET 10 SDK payload + net10 runtime mid-session (sdk\10.0.300 gutted 18:40, shared
+runtime pulled 18:43; VS setup processes active since 18:36). All net10 builds/runs fail
+with NETSDK1045 / missing-framework until it completes and net10 is restored. The
+confirming run is BLOCKED on that restoration; already-built artifacts are intact on
+disk. If the update finishes WITHOUT restoring a net10 SDK+runtime, reinstalling is a
+USER decision.
