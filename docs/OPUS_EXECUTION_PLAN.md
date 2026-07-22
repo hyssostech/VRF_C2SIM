@@ -1305,9 +1305,31 @@ narrow RTI restart after the teardown.
 - 3576: CONSUMED - WatchVrf MAIN, below-terrain. MOVES: static->moving, reflected 9->13,
   settled ~300 m E (POS+RPT agree). Waypoint altitude FALSIFIED.
 - 3577: CONSUMED - RunSim, below-terrain. EXIT=0, clock started.
+CLAIMED 2026-07-22 - PLAN-ASSIGNMENT SPIKE, CELL C LIVE RUN (fresh-boot RTI ruling; the
+3 idle RTI processes were stopped at run start per one-time user authorization). Pipeline
+per docs/experiments/PREREG_PLAN_ASSIGNMENT_SPIKE.md. remote-create Tank Platoon (USA)
+via CreateTaskAgg + bare CreateRoute/MoveAlongRoute = "R9's exact path with the CORRECT type".
+- 3578: CONSUMED - LaunchVrf back-end, TropicTortoise base (Cell C). READY: healthy 66 threads.
+- 3579: CONSUMED - LaunchVrf front-end, TropicTortoise base (Cell C). READY: vrfGui window up.
+  (No RTI dialog appeared - persisted auto-connect survived the fresh assistant; no click needed.)
+- 3580: CONSUMED - WatchVrf ORACLE PRE-CHECK (Cell C), TropicTortoise base. reflected=3
+  (base globals), static, before create. Observers NOT blind - fresh RTI stack relays.
+- 3581: CONSUMED - CreateTaskAgg CREATE (Cell C). EXIT=0. Aggregate CELLC_TANKPLT
+  uuid=bc4187ab-6e80-ad41-bf1c-f965435c6994 entityId=1:3578:5 birth 34.612956,-116.600487 @10000 MSL.
+- 3582: CONSUMED - WatchVrf MAIN observation (Cell C), one 300 s window. Create-verify reflected
+  N=8 (3 base globals + aggregate bc4187ab + 4 M1A2 members) STATIC while paused (t=3..103);
+  after task, static->moving at t~107, reflected 8->13 (4 offset-route transients + route),
+  settled ~1165 m E at aggregate 34.612956,-116.587771 held stable t=118..299 (POS+RPT agree).
+- 3583: CONSUMED - RunSim START CLOCK (Cell C), mult 1. EXIT=0, clock started 17:51:57.
+  Platoon STATIC-but-clock-running confirmed (WatchVrf t=58-103 identical coords, RPT reports began).
+- 3584: CONSUMED - CreateTaskAgg TASK (Cell C). EXIT=0. route CELLC_ROUTE
+  uuid=f70908fa-6bdf-b14c-a061-b029b806ee88; MoveAlongRoute ISSUED (VOID) on bc4187ab.
+NOTE: an operator applied ~15x sim-rate DURING the run (NOT via these tools; the interface ran
+RunSim at mult 1). If that used a SetSimRate federate join, its appNo is UNLEDGERED here and the
+supervisor must reconcile it; if it was a vrfGui/front-end rate change it consumed no appNo.
 NOTE: numbers allocated but not consumed are BURNED, not recycled.
 
-*** NEXT FREE: 3578 *** (authoritative - the ONLY such marker in this file. Update this
+*** NEXT FREE: 3585 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN

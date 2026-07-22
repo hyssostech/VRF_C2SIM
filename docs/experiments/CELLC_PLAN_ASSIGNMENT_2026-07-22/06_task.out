@@ -1,0 +1,34 @@
+checking for RDTSCP instruction...Success.  Using RDTSCP for time
+RDTSCP Timing Probe: 2444016424 ticks per second
+=== CreateTaskAgg TASK - CreateRoute + MoveAlongRoute (R9's exact path) ===
+    federation=CWIX-2024  appNumber=3584  aggUuid=VRF_UUID:bc4187ab-6e80-ad41-bf1c-f965435c6994
+    route 'CELLC_ROUTE' 3 pts @ 100.0 m MSL: (34.612956,-116.600487) -> (34.612956,-116.594174) -> (34.612956,-116.587860)
+
+[..] bridge.Start() - joining the federation...
+Using MAK Technologies' RTI version 4.6.1 HLA 1516-2010 for Microsoft Visual C++ version 14.0 Release Mode.
+Connected to RTI Assistant.
+Loading Config File: C:\MAK\makRti4.6.1\rid.mtl
+INFO[Util] 21:52:42.000 T:39628 MAK::DtInitializer::loadConfigScript: Loading config file: vrfLegion.lua
+[OK] joined (BackendCount=0).
+[..] waiting for a backend to be discovered (15 s cap)...
+[OK] backend discovered (BackendCount=1) after 0.1s.
+[..] issuing CreateRoute...
+[..] ticking for the route ObjectCreated reply (20 s cap)...
+[OK] ObjectCreated (route): name='CELLC_ROUTE' uuid=VRF_UUID:f70908fa-6bdf-b14c-a061-b029b806ee88
+[..] issuing MoveAlongRoute(agg=VRF_UUID:bc4187ab-6e80-ad41-bf1c-f965435c6994, route='CELLC_ROUTE')...
+[OK] MoveAlongRoute ISSUED. NOTE: the facade call is VOID (fire-and-forget) - the tool cannot confirm the task took effect. The LIVE ORACLE is the confirmation (see RESULT).
+[..] flushing (ticking ~3 s)...
+[..] bridge.Stop() - resigning...
+[OK] resigned cleanly.
+
+=== RESULT (TASK) ===
+    aggregate uuid : VRF_UUID:bc4187ab-6e80-ad41-bf1c-f965435c6994
+    route name     : CELLC_ROUTE
+    route uuid     : VRF_UUID:f70908fa-6bdf-b14c-a061-b029b806ee88
+    move           : MoveAlongRoute issued (VOID call - unconfirmable by this tool).
+
+    CONFIRMATION SIGNAL (live oracle, NOT this tool): WatchVrf must show the platoon
+    static-while-paused then MOVING after RunSim, a +4 reflected transient delta over the
+    scenario baseline (member offset routes - the R9 buildOffsetRoute path; the fixture
+    runs' literal 9->13 was fixture-specific), settling ~east along the route.
+    MOVES => the R9 freeze was TYPE-MAPPING. FREEZES => creation/tasking path (Cells B/D).

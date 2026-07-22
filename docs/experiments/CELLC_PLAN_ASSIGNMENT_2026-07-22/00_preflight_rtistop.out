@@ -1,0 +1,10 @@
+PREFLIGHT + ONE-TIME RTI STOP - 2026-07-22 17:45:00 local / 21:45:00 UTC
+VR-Forces DOWN (no federates). Authorized fresh-boot stop of 3 idle RTI processes:
+  rtiAssistant PID 12852 (start 7:20:19 AM), rtiexec PID 46356 (9:06:06 AM), rtiForwarder PID 48664 (9:06:09 AM)
+
+STOP: rtiAssistant PID 12852 (start 7/22/2026 7:20:19 AM)
+STOP: rtiexec PID 46356 (start 7/22/2026 9:06:06 AM)
+STOP: rtiForwarder PID 48664 (start 7/22/2026 9:06:09 AM)
+
+=== POST-STOP RTI inventory (expect NONE) ===
+  (none - all three RTI processes stopped; stack is now fully down)

@@ -1,0 +1,32 @@
+=== StopVrf.ps1 - unattended VR-Forces shutdown ===
+  TimeoutSec             : 60 (covers dialog detection + answer + process exit)
+  BackEndCloseTimeoutSec : 30 (back-end graceful close fallback only)
+  QuitBackEnds           : True
+  DryRun                 : False
+
+=== Inventory ===
+  [OK]   vrfGui pid=63812 threads=91
+  [OK]   vrfSimHLA1516e pid=68456 threads=66
+  [OK]   rtiAssistant pid=8888 - RTI infrastructure, WILL BE PRESERVED
+  [OK]   rtiexec pid=68020 - RTI infrastructure, WILL BE PRESERVED
+  [OK]   rtiForwarder pid=68464 - RTI infrastructure, WILL BE PRESERVED
+
+=== Shutdown ===
+  [OK]   close request accepted by vrfGui pid=63812
+  [OK]   confirm dialog "Are You Sure?" detected (hwnd 2953786, pid 63812) - answering via UI Automation
+  [OK]   'Quit All Back-Ends' = On (requested)
+  [OK]   answered Yes
+
+=== Back-end graceful close fallback ===
+  [WARN] the GUI quit did NOT carry the back-end: vrfGui is gone but vrfSimHLA1516e is still running.
+  [WARN] escalating to a GRACEFUL CloseMainWindow on the back-end itself. Nothing is being killed.
+  [OK]   fallback close request accepted by vrfSimHLA1516e pid=68456
+  [OK]   back-end exited after the graceful fallback (within 30s). No force-kill was used.
+
+=== Result ===
+  [OK]   rtiAssistant pid=8888 still running - CORRECT, never kill RTI infrastructure
+  [OK]   rtiexec pid=68020 still running - CORRECT, never kill RTI infrastructure
+  [OK]   rtiForwarder pid=68464 still running - CORRECT, never kill RTI infrastructure
+  [OK]   VR-Forces is DOWN, but ONLY after the back-end graceful close fallback was needed.
+  [OK]   The GUI quit alone did not carry the back-end on this run - see the fallback section above.
+  [OK]   VR-Forces is DOWN (graceful quit; no process was force-killed).

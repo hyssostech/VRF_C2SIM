@@ -118,12 +118,49 @@ join. RunSim MUST run cwd=bin64 (Set-Location or -WorkingDirectory; the & $exe t
 3557). NOTE: remote-create (C/D) needs the sim RUNNING to execute tasks - create into the
 loaded base, then RunSim; verify the created unit reflects (POS) before tasking.
 
-## Outcome record (empty at registration)
-- Cell C (remote-create correct type + bare task) result:
-- Cell B (authored-load plan-less + bare task) result:
-- Cell D (correct type + assigned plan) result [only if built]:
-- Joint verdict (TYPE-MAPPING / CREATION-PATH / TASKING-PATH):
-- Native change committed at [only if Cell D built]:
+## Outcome record (filled 2026-07-22 evening; supervisor-adjudicated)
+- Cell C (remote-create correct type + bare task) result: **MOVES**. Full evidence:
+  docs/experiments/CELLC_PLAN_ASSIGNMENT_2026-07-22/ (04_watch_main.trace is the oracle).
+  Remote-created CELLC_TANKPLT (EntityTypeSpec 11/1/225/3/2/0/0, createSubordinates=true,
+  uuid bc4187ab) instantiated with exactly 4 M1A2 members in formation; ALL gates met:
+  (1) bit-static at birth coords t=3..103.6 across 21 samples, INCLUDING ~40 s of RUNNING
+  clock before the task (falsifies auto-run/baked motion); (2) movement onset t=108.6,
+  1.6 s after CreateTaskAgg task issued MoveAlongRoute; (3) reflected 8 -> 13 at onset =
+  the +4 member offset-route/control transients (the exact machinery R9's Ground_Aggregate
+  lacked) + the route object; (4) TSK,114,"CELLC_TANKPLT","move-along"; (5) settled
+  endpoint 34.612956,-116.587771 bit-identical t=118.6..299.4 (~180 s, 36 samples),
+  POS == RPT, all 4 members settled in formation offsets, ~1165 m east, 7.6 m short of the
+  final waypoint -116.587860. DR warps appeared intra-move and resolved (why raw distances
+  are never the signal). appNos 3578-3584, 0 burned; marker now 3585.
+- Cell B (authored-load plan-less + bare task) result: NOT RUN - registered stop-early
+  rule (Cell C was decisive).
+- Cell D (correct type + assigned plan) result [only if built]: NOT BUILT / NOT RUN -
+  same stop-early rule. No native change was made anywhere in the spike.
+- Joint verdict (TYPE-MAPPING / CREATION-PATH / TASKING-PATH): **TYPE-MAPPING**. The R9
+  path (remote CreateAggregate + CreateRoute + bare MoveAlongRoute) moves a correct-type
+  platoon end to end. R9's freeze is attributed to its mis-mapped type
+  (11.1.225.1.1.3.0 -> Ground_Aggregate, no member offset-route machinery). Fix = the
+  existing TYPE_MAPPING_TABLE. Plan-assignment remains a good design for C2SIM two-step
+  ORDER handling but is NOT required to fix the freeze.
+- Native change committed at [only if Cell D built]: n/a.
+
+RUN DEVIATIONS (recorded per discipline; read rules were pre-declared in the addendum
+BEFORE the result was known): (a) operator applied ~15x sim rate mid-run, after task
+issue - MOVES at 15x was pre-declared valid (event gates are rate-independent); the
+traversal wall-time (~11 s for ~1165 m) independently confirms 15x was active
+(~25 km/h sim speed - plausible; 1x would imply an impossible ~105 m/s). The rate change
+is believed GUI-side (no appNo); if it used a SetSimRate join its appNo needs ledgering.
+(b) Executor background-wait stall after the observation window (known wake-up failure
+mode); supervisor sweep + nudge recovered it; trace was already complete - nothing lost.
+(c) No RTI boot dialog appeared on fresh boot (persisted auto-connect held).
+(d) StopVrf's graceful back-end fallback fired (documented intermittent case); no
+force-kill; RTI untouched.
+
+RESIDUAL CAVEAT (does not change the verdict, bounds the claim): enum->template
+resolution was confirmed structurally (4 M1A2 subordinates + offset-route transients =
+the Tank Platoon (USA) shape), not by reading the backend's resolved template name. And
+per the addendum read rule, the FINAL confirmation of the R9 diagnosis is the interface
+itself re-run with the fixed TYPE_MAPPING_TABLE - that is the follow-up, not this spike.
 
 ## ADDENDUM (2026-07-22, post-registration, PRE-RUN): Cell C tooling built + read rules
 

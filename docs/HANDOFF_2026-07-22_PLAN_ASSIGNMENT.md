@@ -96,3 +96,34 @@ git log --oneline -5 + status -sb of the PORT repo (HEAD 4b4163c or later, clean
 untracked .code-workspace); the NEXT FREE marker (expect 3578); a vrf/rti process
 inventory; confirmation you read this handoff + the spike prereg. Then scope the ARM-1
 plan-less fixture + the ARM-2 native change and get a go before touching native code.
+
+## OUTCOME (2026-07-22 late evening) - CELL C RAN AND **MOVED**; SPIKE CLOSED EARLY
+
+The spike's Cell C ran live (tools/CreateTaskAgg, no native change) and the remote-created
+correct-type Tank Platoon (USA) MOVED through the FULL pre-registered gate: bit-static
+through ~40 s of running clock, onset 1.6 s after the task, +4 member offset-route
+transients (reflected 8->13), TSK "move-along", settled ~1165 m east ~180 s bit-identical,
+POS==RPT. Evidence: docs/experiments/CELLC_PLAN_ASSIGNMENT_2026-07-22/. Adjudication +
+deviations (15x mid-run rate change etc.): the prereg's filled Outcome record - READ IT
+before extending any conclusion.
+
+VERDICT: the R9 remote-create freeze was **TYPE-MAPPING** (mis-map to Ground_Aggregate).
+The remote-create + bare-task path WORKS with the correct type. Cells B/D not run
+(registered stop-early rule); NO native change exists or is needed for this defect.
+Plan-assignment stays attractive for C2SIM two-step ORDER handling but is design work,
+not the freeze fix.
+
+NEXT ACTION (product path, needs a user go for the live run): fix TYPE_MAPPING_TABLE so
+C2SIM GroundVehicle/armor unit types map to real aggregate templates (R9's
+11.1.225.1.1.3.0 -> 11.1.225.3.2.0.0 Tank Platoon (USA) class), then the CONFIRMING RUN =
+the C2SIM-driven interface itself (init + order via the C2SIM server, docker REST 8080 /
+STOMP 61613 - verify first), gated by the same movement oracle. That closes the R9
+diagnosis end to end on the headless one-button path.
+
+OPERATIONAL STATE AFTER THE RUN: VR-Forces DOWN (clean StopVrf; graceful back-end
+fallback fired, no force-kill). RTI trio PRESERVED from the run's fresh boot:
+rtiAssistant 8888 / rtiexec 68020 / rtiForwarder 68464. NOTE: after a StopVrf this stack
+is again in the teardown-survivor class (wedge-prone) - oracle-pre-check before trusting
+it, prefer fresh boot for the next run (fresh-boot ruling was CONSUMED; a new stop of
+healthy rti* needs a new ruling). appNo marker NEXT FREE = 3585 (3578-3584 consumed,
+0 burned). No RTI boot dialog appeared this fresh boot (persisted auto-connect held).

@@ -1,0 +1,87 @@
+CELL C LIVE RUN - plan-assignment spike (2026-07-22) - RAW EVIDENCE INDEX
+=========================================================================
+Executor evidence capture ONLY. NO verdict - the supervisor adjudicates MOVES/FREEZES.
+Pipeline: docs/experiments/PREREG_PLAN_ASSIGNMENT_SPIKE.md (Cell C + ADDENDUM gates).
+All times local (machine -0400) unless marked UTC. ASCII only.
+
+FILES (this directory; identical copies also under runs/2026-07-22_plan_assignment_cellc/):
+  00_preflight_rtistop.out  - preflight state + one-time authorized RTI stop
+  01_launchvrf.out/.err/.pid- LaunchVrf combined-mode bring-up (READY)
+  02_precheck.out           - WatchVrf oracle pre-check on base (3580)
+  03_create.out             - CreateTaskAgg create (3581)
+  04_watch_main.trace       - WatchVrf 300 s main observation (3582) - the movement oracle
+  05_runsim.out             - RunSim start clock mult 1 (3583)
+  06_task.out               - CreateTaskAgg task = CreateRoute + MoveAlongRoute (3584)
+
+TIMELINE (appNo in brackets):
+  17:45:00  ONE-TIME fresh-boot RTI stop: stopped rtiAssistant 12852 / rtiexec 46356 /
+            rtiForwarder 48664 (all idle, morning starts, 0 federates). Confirmed gone.
+  17:46:38  LaunchVrf -Scenario TropicTortoise [3578 back-end / 3579 front-end]. No RTI
+            dialog appeared (persisted auto-connect survived fresh assistant). 17:47:03
+            backend healthy; READY: backend 66 threads, vrfGui window "VR-Forces", UDP 4001.
+  17:48:31  WatchVrf oracle pre-check [3580], base. reflected=3 (base globals), static. PASS.
+  17:49:47  CreateTaskAgg create [3581]. EXIT 0. Aggregate CELLC_TANKPLT
+            uuid=VRF_UUID:bc4187ab-6e80-ad41-bf1c-f965435c6994 entityId=1:3578:5
+            birth 34.612956,-116.600487 @10000 MSL.
+  17:50:52  WatchVrf MAIN [3582] start, 300 s / 5 s sample.
+  17:51:48  RunSim [3583], mult 1 (bare). EXIT 0, clock started 17:51:57.
+  17:52:39  CreateTaskAgg task [3584]. EXIT 0. route CELLC_ROUTE
+            uuid=VRF_UUID:f70908fa-6bdf-b14c-a061-b029b806ee88; MoveAlongRoute ISSUED (VOID).
+  ~17:53    (external) an operator applied ~15x sim-rate DURING the run - NOT via these tools
+            (RunSim was mult 1). See DEVIATIONS.
+  17:55:52  WatchVrf MAIN window ended (resigned cleanly; full trace intact, t=3..299.4).
+
+RAW GATE OBSERVATIONS (from 04_watch_main.trace; POS,t,uuid,lat,lon,alt / RPT,t,marking):
+  Object identities (RPT markings):
+    aggregate CELLC_TANKPLT = bc4187ab
+    M1A2 1 = c4f3ded7   M1A2 2 = 0327cb0e   M1A2 3 = cd128270   M1A2 4 = 677d4f9e
+
+  CREATE-VERIFY BASELINE N: reflected=8, readable=7 (t=3..8, PAUSED). = 3 base globals
+    + aggregate + 4 M1A2 members. BIT-STATIC: identical coords t=3 and t=8.
+    aggregate bc4187ab 34.612956,-116.600487 alt 1040.6 (ground-clamped from 10000 MSL birth).
+    members in formation ~25 m offsets, alt ~1040 (terrain).
+
+  CLOCK-RUNNING-STATIC (post-RunSim, pre-task): reflected=8, coords IDENTICAL t=13..103.6.
+    RPT POSITION reports began emitting at t=58.3 (clock running) - still at birth coords.
+    i.e. clock ran ~45 s with NO movement until the task was issued.
+
+  TRANSITION (static -> moving) AFTER task:
+    t=103.6 still at birth coords, reflected=8.
+    t=107.6 RPT shows members moved east (~-116.5975 from -116.600).
+    t=108.6 reflected 8 -> 13: +4 NEW transient objects (0281063f,170ee183,b4d28c78,
+            eda95c18) + route f70908fa appear AT movement onset = the member offset-route/
+            control objects (the buildOffsetRoute path R9 reported EMPTY=0 at this AO).
+    t=114   TSK,114,"CELLC_TANKPLT","move-along" (task-status line).
+    DR warps present intra-move (t=108-113 POS swung to -116.27 / -117.10 alt 1791 then
+    resolved back) - observer-side DR extrapolation, not settled state (prereg: distances
+    are DR-poisoned; endpoints + transition are the signal).
+
+  SETTLED ENDPOINTS (stable t=118.6 .. 299.4, ~180 s unchanging, POS and RPT AGREE):
+    aggregate bc4187ab: 34.612956, -116.587771  (POS) == 34.612956 -116.587771 (RPT)
+    M1A2 1 c4f3ded7:    34.613181, -116.587022
+    M1A2 2 0327cb0e:    34.612731, -116.587479
+    M1A2 3 cd128270:    34.613181, -116.588022
+    M1A2 4 677d4f9e:    34.612731, -116.588562
+    Latitude held 34.612956 (aggregate) throughout the move (constant-lat eastward route).
+    Aggregate lon delta -116.600487 -> -116.587771 = +0.012716 deg ~= 1165 m EAST.
+    Route final waypoint was -116.587860; settled aggregate -116.587771 (~7.6 m short).
+    Altitude ground-clamped during motion (1040.6 -> ~1026 as they moved east).
+    reflected held 13 from t=108 to the end of the window (transients persisted).
+
+  TWO-CHANNEL RULE: POS and RPT agree on the settled endpoint (no channel disagreement).
+
+HELD-AT-KNOWN-GOOD deviations from R9 parity (per prereg ADDENDUM, set to proven-safe values,
+NOT falsifications): birth 10000 MSL (clamped to terrain); create->RunSim->task ordering;
+route vertices 100 MSL (= R9 Fixed100); P1/P2 lat 34.612956.
+
+DEVIATIONS THIS RUN (see report for detail):
+  1. Evidence placed under docs/experiments/CELLC_PLAN_ASSIGNMENT_2026-07-22/ per supervisor
+     nudge; identical raw copies remain under runs/2026-07-22_plan_assignment_cellc/.
+  2. External operator set ~15x sim-rate mid-run (interface ran mult 1). Rate-independent
+     signals (transition, +4 transients, settled endpoints) unaffected. If a SetSimRate
+     federate join was used, its appNo is UNLEDGERED (supervisor to reconcile).
+  3. Executor background-wait missed its wake-up; supervisor swept and nudged. WatchVrf
+     window had already ended cleanly with the full trace intact - nothing was lost.
+
+APP-NO LEDGER (OPUS_EXECUTION_PLAN.md Appendix B): 3578-3584 CONSUMED (7 total), 0 burned.
+NEXT FREE marker = 3585.

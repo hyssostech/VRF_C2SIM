@@ -1,0 +1,31 @@
+checking for RDTSCP instruction...Success.  Using RDTSCP for time
+RDTSCP Timing Probe: 2425882527 ticks per second
+=== CreateTaskAgg CREATE - remote-create a Tank Platoon (USA) with the CORRECT type ===
+    federation=CWIX-2024  appNumber=3581  (use a FRESH appNumber each join)
+    type=Tank Platoon (USA)  DIS 11.1.225.3.2.0.0  (class 3 aggregate; disaggregated + subordinates)
+    name='CELLC_TANKPLT'  pos=(34.612956, -116.600487) alt=10000.0 m MSL  heading=90.0 deg
+
+[..] bridge.Start() - joining the federation...
+Using MAK Technologies' RTI version 4.6.1 HLA 1516-2010 for Microsoft Visual C++ version 14.0 Release Mode.
+Connected to RTI Assistant.
+Loading Config File: C:\MAK\makRti4.6.1\rid.mtl
+INFO[Util] 21:49:50.790 T:60788 MAK::DtInitializer::loadConfigScript: Loading config file: vrfLegion.lua
+[OK] joined (BackendCount=0).
+[..] waiting for a backend to be discovered (15 s cap)...
+[OK] backend discovered (BackendCount=1) after 0.1s.
+[..] issuing CreateAggregate (Disaggregated, createSubordinates=true)...
+[..] ticking for the ObjectCreated reply (20 s cap)...
+[OK] ObjectCreated (aggregate): name='CELLC_TANKPLT' uuid=VRF_UUID:bc4187ab-6e80-ad41-bf1c-f965435c6994 entityId=1:3578:5
+[..] flushing (ticking ~3 s)...
+[..] bridge.Stop() - resigning (the aggregate is backend-owned; it persists)...
+[OK] resigned cleanly.
+
+=== RESULT (CREATE) ===
+    aggregate uuid : VRF_UUID:bc4187ab-6e80-ad41-bf1c-f965435c6994
+    entityId       : 1:3578:5
+    name           : CELLC_TANKPLT
+    birth pos      : lat=34.612956 lon=-116.600487 alt=10000.0 MSL
+
+    NEXT: verify this aggregate REFLECTS (WatchVrf shows it + members, static while paused),
+    then RunSim (cwd=bin64, mult 1), then run the TASK phase:
+        CreateTaskAgg.exe task <freshAppNo> VRF_UUID:bc4187ab-6e80-ad41-bf1c-f965435c6994
