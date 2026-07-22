@@ -107,9 +107,50 @@ session. The Branch-B variant (if it fires) ledgers its own 4 at that point.
 Standing rule unchanged: once ledgered, a number is consumed - unconsumed ledgered
 numbers are BURNED, never recycled (that is WHY ledgering is per-run and late).
 
-## 7. Outcome record (filled AFTER the run - empty at registration)
+## 7. Outcome record (filled AFTER the run)
 
-- Sweden gate result:
-- Mojave result:
-- Branch selected:
-- Deviations from procedure:
+### Sweden gate (P-GATE): PASS (2026-07-22, appNos backend 3553 / frontend 3554 /
+WatchVrf-run2 3558 / RunSim 3559; run 1 WatchVrf 3555 captured a 360 s PAUSED-only
+baseline because RunSim had not yet started the clock - see the burns note below).
+Artifacts: runs/2026-07-22_fixture_region/sweden/ (watch.trace = paused baseline;
+watch2.trace = the movement run; runsim2.out).
+
+RESULT: the authored Tank Platoon MOVED, and its settled endpoints MATCH the 300 m
+eastward FixtureRoute - a stronger pass than a bare static->moving transition.
+- BIT-STATIC while paused: aggregate 5a3ca430 and all 4 M1A2 members held identical
+  coordinates from t=3 to t=28 (and across the entire separate 360 s paused run).
+- MOVED once RunSim issued run() (clock start ~t=30): motion begins at t=33.
+- The disaggregated-move MECHANISM engaged: 4 NEW transient objects appeared at
+  movement onset (reflected 9 -> 13) = the per-member offset-route/control objects,
+  i.e. the exact buildOffsetRoute path R9 found EMPTY at Mojave (0 offset routes).
+- SETTLED endpoints (stable t=73.5..88.5, 15+ s unchanging):
+    aggregate 5a3ca430: 16.499229 -> 16.504496 lon (+0.005267 = ~305 m EAST)
+    M1A2 1 70b8d836:     16.499229 -> 16.504118 lon (~283 m EAST)
+  FixtureRoute = 300 m eastward. Endpoints are route-consistent to within DR noise.
+- DR WARP artifacts present intra-move exactly as documented (M1A2 1 swung to lon
+  16.216 alt 88 m then back) - observer-side DR extrapolation, NOT the settled state;
+  per the prereg, distances are not measurements, endpoints/transition are the signal.
+- Channels: POS showed the move; RPT emitted 5 early POSITION reports (t=31/33.9) near
+  the start points. No channel disagreement of the 2026-07-19 kind arose (that was a
+  frozen-vs-moving direction dispute; here both are consistent with an eastward move).
+- Loader accepted the authored .scnx cleanly (vrfSim.log: AR Plt 1 registered as
+  AggregateEntity(6); M1A2 1-4 + FixtureRoute all "Locally Simulated" from
+  C2simEx/EntityLevel). Retires the Branch-C "malformed file" risk for this fixture.
+
+CONSEQUENCE: the fixture is VALID and the positive control holds. Mojave is now
+interpretable. Proceeding to the Mojave leg.
+
+BURNS this session (ledger OPUS_EXECUTION_PLAN.md Appendix B): 3556 (RunSim usage
+error, federation in multiplier slot, exit 2 pre-join); 3557 (RunSim wrong cwd, not
+bin64 -> CouldNotOpenFDD, the 3550 lesson repeated). LESSON RE-CONFIRMED: RunSim MUST
+run with cwd=bin64; invoking via `& $exe` inherits the caller cwd - use Set-Location
+$Bin64 or Start-Process -WorkingDirectory.
+
+### Mojave result:
+### Branch selected:
+### Deviations from procedure: 3556/3557 burned (above); WatchVrf run 1 was
+paused-only (RunSim not yet corrected); LaunchVrf reported EXIT=3 because its readiness
+poll expired while the fresh-boot RTI "Choose RTI Connection" dialog blocked - answered
+once via DPI-aware coordinate click (physical rect 573x583, Connect at doc ratio
+0.668/0.949), after which backend went healthy (66 threads) and the fixture loaded.
+The dialog is a known once-per-boot bring-up step (scaffolding, not product).

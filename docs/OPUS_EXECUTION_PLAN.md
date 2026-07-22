@@ -1247,7 +1247,26 @@ CLAIMED 2026-07-21 (baseline run retry - RunSim with correct cwd=bin64, plus re-
 - 3551: CLAIMED - tools/RunSim retry (start the clock on the loaded HawaiiGround scenario)
 - 3552: CLAIMED - WatchVrf trace (observe movement once the clock is running)
 
-*** NEXT FREE: 3553 *** (authoritative - the ONLY such marker in this file. Update this
+CLAIMED 2026-07-22 (supervisor - pre-registered fixture probe, SWEDEN GATE leg; prereg =
+docs/experiments/PREREG_FIXTURE_REGION_VS_STRUCTURE_2026-07-22.md; user GO on record).
+Ledgered BEFORE any join, per the never-reuse non-negotiable.
+- 3553: CLAIMED - LaunchVrf.ps1 back-end (vrfSimHLA1516e), TankPltFixture_Sweden
+- 3554: CLAIMED - LaunchVrf.ps1 front-end (vrfGui), combined mode
+- 3555: CONSUMED - WatchVrf trace run 1 (360 s / 5 s). Captured a full 360 s PAUSED
+  baseline only - RunSim had not yet started the clock (both attempts failed pre-join).
+  All 5 real objects bit-static; RPT=0. Not a movement test.
+- 3556: BURNED - RunSim usage error (federation string landed in the multiplier slot);
+  exit 2 BEFORE any join. Burned per never-recycle discipline (not reused though no
+  federate touched it).
+- 3557: BURNED - RunSim invoked with wrong cwd (not bin64) -> CouldNotOpenFDD /
+  vrfLegion.lua not found -> SEHException in bridge.Start(). Same failure as the 3550
+  lesson. Never drove the sim; burned.
+- 3558: CLAIMED - WatchVrf trace run 2 (the real static->run observation)
+- 3559: CLAIMED - RunSim run 2 (cwd=bin64, multiplier 1 = real time)
+NOTE: numbers allocated but not consumed are BURNED, not recycled. The Mojave leg
+ledgers its own 4 only after the Sweden gate is analyzed.
+
+*** NEXT FREE: 3560 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
