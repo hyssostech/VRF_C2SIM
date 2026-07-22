@@ -146,10 +146,49 @@ bin64 -> CouldNotOpenFDD, the 3550 lesson repeated). LESSON RE-CONFIRMED: RunSim
 run with cwd=bin64; invoking via `& $exe` inherits the caller cwd - use Set-Location
 $Bin64 or Start-Process -WorkingDirectory.
 
-### Mojave result: BLOCKED - RTI infrastructure wedged, NOT a region/structure result.
-The Mojave leg could not be scored because the movement ORACLE went blind. This is an
-infrastructure failure introduced by the teardown-relaunch cycle, and it is
-DECONFOUNDED from the fixture question (see falsification below).
+### Mojave result: MOVES (Branch B, moves-both) - on attempt 3, after a user-approved
+RTI restart. Attempts 1-2 were BLOCKED by a wedged RTI forwarder (documented below);
+that is deconfounded from the fixture question and is a separate infrastructure finding.
+
+ATTEMPT 3 (appNos backend 3568 / frontend 3569 / pre-check 3570 / RunSim 3571 /
+main-observer 3572), after killing the wedged rtiexec+rtiForwarder (rtiAssistant kept)
+and relaunching - fresh RTI respawned (forwarder back to 4 threads), no dialog, oracle
+pre-check DISCOVERED reflected=9. Artifacts: runs/2026-07-22_fixture_region/mojave/
+watch_main.trace, runsim_main.out, precheck3.out.
+
+RESULT: the authored Tank Platoon MOVED at Mojave, endpoints matching the route -
+essentially IDENTICAL to Sweden:
+- BIT-STATIC while paused: aggregate f0be86a8 + all 4 M1A2 held identical coords t=3..28.
+- MOVED once RunSim started the clock (~t=30): motion begins t=33.
+- Disaggregated-move MECHANISM engaged: reflected 9 -> 13 at onset = 4 new offset-route/
+  control transients - the SAME buildOffsetRoute path R9 reported EMPTY (0 offset routes)
+  for our REMOTE-CREATED units at this same AO.
+- SETTLED endpoints (stable t=73.7..123.9, 50 s unchanging), all ~300 m EAST matching
+  the authored FixtureRoute:
+    aggregate f0be86a8: -116.600487 -> -116.597153 lon (+0.003334 = ~305 m E)
+    M1A2 1 0e260e7f:    -116.600487 -> -116.597395 lon (~283 m E)
+    (8758a365 / c284154a / d8e79056 cluster -116.5964..-116.5979, tight formation)
+  Altitude ground-clamped 1041 -> ~1037 m as they moved east (clamp works during motion).
+- Same intra-move DR warp transients as Sweden (M1A2 1 swung to -116.557 then back).
+
+INTERPRETATION - the region hypothesis (Branch A) is FALSIFIED. Mojave terrain does NOT
+fundamentally break disaggregated movement for an authored, structurally-complete Tank
+Platoon. R9's "0 offset routes at Mojave" is therefore NOT a property of the terrain; it
+is a property of what our interface CREATES/TASKS there. Two candidates remain, and the
+prereg's Branch-B confound control discriminates them:
+  (i) STRUCTURE: our remote-created units are structurally different from authored ones
+      (missing the disaggregated-movement subsystem / working-formation / move-along PSR
+      the authored aggregate carries), OR
+  (ii) WAYPOINT ALTITUDE: this fixture uses ABOVE-terrain waypoints (anchor +150 m,
+      clamp-DOWN = success), while the R9 units had order-derived, possibly BELOW-terrain
+      waypoints (clamp-UP = the documented failure). The below-terrain-waypoint variant
+      at Mojave is the MANDATORY next control (prereg sec 4 Branch B; PREREG amendment
+      needed before running it).
+"moves-both" alone does NOT yet prove remote-structure-deficiency - do not over-claim it.
+
+--- INFRASTRUCTURE FINDING (attempts 1-2), deconfounded from the above ---
+Attempts 1-2 could not be scored because the movement ORACLE went blind - an
+infrastructure failure introduced by the teardown-relaunch cycle.
 
 Sequence (appNos 3560 backend / 3561 frontend / 3562 WatchVrf / 3563 RunSim, all
 attempt 1; 3564 probe; 3565/3566/3567 attempt 2):
@@ -188,9 +227,18 @@ later observer goes blind, and a relaunch does NOT clear it. FRESH-BOOT RTI work
 target fixture FIRST, or (iii) find a no-teardown scenario-swap (remote loadScenario -
 but that changes the load method, a confound vs the launcher-loaded Sweden run).
 
-### Branch selected: NONE - Mojave uninterpretable (oracle blind). Sweden gate PASS
-stands on its own as the positive-control result. Region-vs-structure at Mojave remains
-OPEN pending a fresh-RTI Mojave run.
+### Branch selected: B (moves-both). Sweden gate PASS + Mojave MOVES (attempt 3).
+The authored Tank Platoon moves at BOTH locations with route-matching endpoints, so the
+empty-offset-route freeze is NOT region/terrain. REGION hypothesis FALSIFIED. Remaining
+open, to be settled by the below-terrain-waypoint confound variant: STRUCTURE vs
+WAYPOINT-ALTITUDE as the cause of the R9 remote-created-unit freeze at this AO.
+
+### Deviations from procedure: 3556/3557 burned (RunSim arg/cwd); attempt-1 WatchVrf
+paused-only; attempts 1-2 blind (wedged RTI forwarder) - recovered by a user-approved
+narrow RTI restart (kill wedged rtiexec+rtiForwarder, keep answered rtiAssistant),
+after which fresh RTI respawned and the run succeeded on attempt 3. Fresh-boot RTI dialog
+answered once via DPI-aware coordinate click at session start. Full appNo trail
+(3553-3572) is in OPUS_EXECUTION_PLAN.md Appendix B.
 ### Deviations from procedure: 3556/3557 burned (above); WatchVrf run 1 was
 paused-only (RunSim not yet corrected); LaunchVrf reported EXIT=3 because its readiness
 poll expired while the fresh-boot RTI "Choose RTI Connection" dialog blocked - answered

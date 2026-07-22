@@ -1281,10 +1281,21 @@ BEFORE any join. Same fixture as Sweden bar location (34.612956,-116.600487).
   during Sweden) did not relay objects to observer federates after the Sweden teardown.
 - 3565: CLAIMED - LaunchVrf back-end, Mojave attempt 2 (clean relaunch recovery)
 - 3566: CLAIMED - LaunchVrf front-end, Mojave attempt 2
-- 3567: CLAIMED - WatchVrf oracle PRE-CHECK (must discover BEFORE any RunSim)
+- 3567: CONSUMED - WatchVrf oracle pre-check, Mojave attempt 2. BLIND (reflected=0,
+  40 s). Clean relaunch did NOT clear the wedged forwarder.
+CLAIMED 2026-07-22 - Mojave attempt 3, after a USER-APPROVED narrow RTI restart (kill
+wedged rtiexec+rtiForwarder only, keep the answered rtiAssistant; non-negotiable
+relaxed for THESE wedged processes by explicit user ruling this session).
+- 3568: CLAIMED - LaunchVrf back-end, Mojave attempt 3 (post RTI restart)
+- 3569: CLAIMED - LaunchVrf front-end, Mojave attempt 3
+- 3570: CONSUMED - WatchVrf oracle pre-check, Mojave attempt 3. DISCOVERED reflected=9
+  readable=8 - RTI restart FIXED the wedged forwarder. AR Plt 1 f0be86a8 + 4 M1A2 at
+  Mojave 34.6128,-116.6005 alt 1041 m visible.
+- 3571: CLAIMED - tools/RunSim (start clock, cwd=bin64, mult 1)
+- 3572: CLAIMED - WatchVrf MAIN observation run (paused window + run window)
 NOTE: numbers allocated but not consumed are BURNED, not recycled.
 
-*** NEXT FREE: 3568 *** (authoritative - the ONLY such marker in this file. Update this
+*** NEXT FREE: 3573 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN

@@ -153,7 +153,14 @@ Residual (unverifiable offline; the live run + Sweden gate resolve them):
 - [x] Author + offline-validate Sweden & Mojave fixtures (generator in repo).
 - [x] Pre-registration written (2026-07-22): predictions, branch table, falsifiers,
       appNo budget in docs/experiments/PREREG_FIXTURE_REGION_VS_STRUCTURE_2026-07-22.md.
-- [ ] GET GO-AHEAD, then live run via the validated pipeline (Sweden gate first).
+- [x] LIVE RUN DONE 2026-07-22 (user GO). RESULT: BRANCH B (moves-both). Sweden gate
+      PASS + Mojave MOVES, both with route-matching ~300 m eastward endpoints and the
+      offset-route mechanism engaged. REGION hypothesis FALSIFIED - Mojave terrain does
+      not break authored disaggregated movement. Full result + falsification in the
+      prereg doc's Outcome section. Two hypotheses remain (STRUCTURE vs below-terrain
+      WAYPOINT-ALTITUDE); the below-terrain-waypoint Mojave variant is the next control.
+- [ ] NEXT: build + run the below-terrain-waypoint Mojave confound variant (Branch B
+      control) to discriminate remote-structure-deficiency from waypoint-altitude.
 
 ## PLANNED LIVE RUN (pending go-ahead; NOT yet executed)
 Marker 3553. Per fixture: ledger fresh appNos -> LaunchVrf -Scenario
