@@ -254,15 +254,55 @@ discover - untested because it collides with the "NEVER kill rtiexec/rtiForwarde
 non-negotiable (a USER DECISION, escalated 2026-07-22).
 
 NEW OPERATIONAL FINDING (the real deliverable of this leg): the per-fixture
-LaunchVrf-per-scenario pipeline the handoff assumed does NOT survive a StopVrf teardown
+LaunchVrf-per-scenario pipeline the handoff assumed can NOT survive a StopVrf teardown
 between fixtures on the rtiexec loopback connection - the forwarder wedges and every
-later observer goes blind, and a relaunch does NOT clear it. FRESH-BOOT RTI worked
-(Sweden). Implication for method: to run a SECOND fixture in one session either
+later observer goes blind, and a relaunch does NOT clear it. It is INTERMITTENT: it hit
+on the 1st teardown (boot-spawned RTI) but a LATER teardown (after the RTI restart, see
+the resolution below) did NOT wedge. Always oracle-pre-check after any relaunch.
+FRESH-BOOT RTI worked (Sweden). Implication for method: to run a SECOND fixture in one session either
 (i) restart the RTI stack (needs the non-negotiable relaxed), (ii) reboot and run the
 target fixture FIRST, or (iii) find a no-teardown scenario-swap (remote loadScenario -
 but that changes the load method, a confound vs the launcher-loaded Sweden run).
 
-### Branch selected: B (moves-both). Sweden gate PASS + Mojave MOVES (attempt 3).
+### Below-terrain confound variant (sec 6a): MOVES - waypoint altitude FALSIFIED.
+Run 2026-07-22 (appNos backend 3573 / frontend 3574 / pre-check 3575 / main 3576 /
+RunSim 3577). Artifacts: runs/2026-07-22_fixture_region/mojave_belowterrain/.
+NOTE: this teardown+relaunch did NOT wedge the RTI (pre-check discovered reflected=9
+immediately, no restart needed) - so the wedge is INTERMITTENT / boot-RTI-specific, not
+every-teardown (correction to the infra finding below).
+
+RESULT: the authored Tank Platoon with waypoints 941 m BELOW terrain MOVED - IDENTICALLY
+to the above-terrain Mojave run:
+- BIT-STATIC while paused (t=3..28); MOVED once RunSim started (motion at t=33).
+- Offset-route mechanism ENGAGED: reflected 9 -> 13 at onset (same 4 transients).
+- SETTLED ~300 m EAST, endpoints matching the route, stable by t=88..93:
+    aggregate 9b1d408d: -116.600487 -> -116.597179 (POS and RPT AGREE at -116.597179).
+    members cluster -116.5964..-116.5980, tight formation.
+- The below-terrain route was CLAMPED UP to the surface: the aggregate held ~1041->1037 m
+  (surface) throughout; the clamp did NOT drop vertices, did NOT return an empty offset
+  route. This is the OPPOSITE of the R9 "empty route -- not sending move along" signature.
+
+CONSEQUENCE: WAYPOINT ALTITUDE (below-terrain clamp-up) is FALSIFIED as a cause of the
+R9 freeze. Both environmental hypotheses for the empty-offset-route freeze are now DEAD:
+REGION (Mojave terrain) and WAYPOINT ALTITUDE. An authored, structurally-complete Tank
+Platoon moves correctly at Mojave regardless of waypoint altitude.
+
+WHAT REMAINS (honest scoping - do NOT collapse to "structure proven"): the difference
+between this MOVING authored fixture and the FROZEN R9 remote-created units is now
+localized to the interface's own creation/tasking, but THREE candidates remain ENTANGLED
+(this experiment isolated waypoint altitude, not these from each other):
+  (A) STRUCTURE   - authored-complete aggregate (disaggregated-movement subsystem +
+      working-formation + vrf-aggregate-move-along PSR) vs remote-created units that
+      mis-map to Tank Company / Ground_Aggregate fallback / lone M1A2 (leading suspect:
+      it directly governs whether buildOffsetRoute has a member set to build routes for).
+  (B) CREATION PATH - .scnx launcher-load vs remote createAggregate/createEntity.
+  (C) TASKING PATH  - authored auto-run move-along PLAN (in the .scnx) vs remote
+      MoveAlongRoute TASK message from the interface.
+The next probes must separate A/B/C. This is squarely the "our half of the boundary"
+that the groundwork plan predicted and the Phase-3 creation-layer rebuild targets.
+
+### Branch selected: B (moves-both) + waypoint-altitude control FALSIFIED.
+Sweden PASS + Mojave MOVES + Mojave-below-terrain MOVES.
 The authored Tank Platoon moves at BOTH locations with route-matching endpoints, so the
 empty-offset-route freeze is NOT region/terrain. REGION hypothesis FALSIFIED. Remaining
 open, to be settled by the below-terrain-waypoint confound variant: STRUCTURE vs

@@ -159,8 +159,20 @@ Residual (unverifiable offline; the live run + Sweden gate resolve them):
       not break authored disaggregated movement. Full result + falsification in the
       prereg doc's Outcome section. Two hypotheses remain (STRUCTURE vs below-terrain
       WAYPOINT-ALTITUDE); the below-terrain-waypoint Mojave variant is the next control.
-- [ ] NEXT: build + run the below-terrain-waypoint Mojave confound variant (Branch B
-      control) to discriminate remote-structure-deficiency from waypoint-altitude.
+- [x] Below-terrain-waypoint Mojave confound variant BUILT + RUN 2026-07-22: MOVES
+      identically to the above-terrain Mojave run (route 941 m below terrain clamped UP
+      to the surface; offset routes engaged; settled ~300 m E). WAYPOINT ALTITUDE
+      FALSIFIED as the R9 freeze cause. Both environmental hypotheses (region + waypoint
+      altitude) are now dead. Remaining, entangled: STRUCTURE vs CREATION-PATH vs
+      TASKING-PATH - all on the interface's side of the boundary (Phase-3 target).
+- [ ] NEXT: separate STRUCTURE / CREATION-PATH / TASKING-PATH. Candidate probes:
+      (1) remote-CREATE the same Tank Platoon (USA) real template via the interface and
+          task it with a remote MoveAlongRoute at Mojave - if it FREEZES with authored
+          types, the CREATION/TASKING path is implicated over type-structure;
+      (2) load the authored fixture but task via remote MoveAlongRoute instead of the
+          auto-run plan - isolates TASKING-PATH;
+      (3) ScnxDiff a remote-created aggregate's saved .scnx vs this authored fixture -
+          the structural delta that buildOffsetRoute chokes on.
 
 ## PLANNED LIVE RUN (pending go-ahead; NOT yet executed)
 Marker 3553. Per fixture: ledger fresh appNos -> LaunchVrf -Scenario

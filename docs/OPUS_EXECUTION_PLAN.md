@@ -1300,9 +1300,11 @@ variable vs Mojave = waypoint altitude). Prereg addendum sec 6a. May need the pr
 narrow RTI restart after the teardown.
 - 3573: CLAIMED - LaunchVrf back-end, below-terrain variant
 - 3574: CLAIMED - LaunchVrf front-end, below-terrain variant
-- 3575: CLAIMED - WatchVrf oracle PRE-CHECK (must discover BEFORE RunSim)
-- 3576: CLAIMED - WatchVrf MAIN observation (paused + run window)
-- 3577: CLAIMED - tools/RunSim (start clock, cwd=bin64, mult 1)
+- 3575: CONSUMED - WatchVrf oracle pre-check, below-terrain. DISCOVERED reflected=9
+  immediately (NO RTI restart needed - the wedge did NOT recur this teardown).
+- 3576: CONSUMED - WatchVrf MAIN, below-terrain. MOVES: static->moving, reflected 9->13,
+  settled ~300 m E (POS+RPT agree). Waypoint altitude FALSIFIED.
+- 3577: CONSUMED - RunSim, below-terrain. EXIT=0, clock started.
 NOTE: numbers allocated but not consumed are BURNED, not recycled.
 
 *** NEXT FREE: 3578 *** (authoritative - the ONLY such marker in this file. Update this
