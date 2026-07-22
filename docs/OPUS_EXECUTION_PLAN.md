@@ -1292,10 +1292,20 @@ relaxed for THESE wedged processes by explicit user ruling this session).
   readable=8 - RTI restart FIXED the wedged forwarder. AR Plt 1 f0be86a8 + 4 M1A2 at
   Mojave 34.6128,-116.6005 alt 1041 m visible.
 - 3571: CLAIMED - tools/RunSim (start clock, cwd=bin64, mult 1)
-- 3572: CLAIMED - WatchVrf MAIN observation run (paused window + run window)
+- 3572: CONSUMED - WatchVrf MAIN observation, Mojave attempt 3. MOVES (Branch B):
+  static->moving, reflected 9->13, settled ~300 m E matching route. Region FALSIFIED.
+CLAIMED 2026-07-22 - Branch-B confound control: below-terrain-waypoint Mojave variant
+(TankPltFixture_Mojave_BelowTerrain, route at 100 m MSL ~941 m below terrain; single
+variable vs Mojave = waypoint altitude). Prereg addendum sec 6a. May need the proven
+narrow RTI restart after the teardown.
+- 3573: CLAIMED - LaunchVrf back-end, below-terrain variant
+- 3574: CLAIMED - LaunchVrf front-end, below-terrain variant
+- 3575: CLAIMED - WatchVrf oracle PRE-CHECK (must discover BEFORE RunSim)
+- 3576: CLAIMED - WatchVrf MAIN observation (paused + run window)
+- 3577: CLAIMED - tools/RunSim (start clock, cwd=bin64, mult 1)
 NOTE: numbers allocated but not consumed are BURNED, not recycled.
 
-*** NEXT FREE: 3573 *** (authoritative - the ONLY such marker in this file. Update this
+*** NEXT FREE: 3578 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN

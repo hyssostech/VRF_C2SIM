@@ -59,6 +59,15 @@ MEMBER_ENU = [(0.0, 0.0), (35.0, -10.0), (-35.0, -10.0), (0.0, -40.0)]
 SITES = {
     "Sweden": dict(lat=58.702956, lon=16.499229, h=51.0, base="TankPltFixture_Sweden"),
     "Mojave": dict(lat=34.612956, lon=-116.600487, h=1041.0, base="TankPltFixture_Mojave"),
+    # Branch-B confound control (2026-07-22): IDENTICAL to Mojave except the route
+    # anchor is BELOW terrain instead of terrain+150 m. route_alt_msl=100.0 puts the
+    # 300 m eastward route at 100 m MSL, ~941 m BELOW the 1041 m Mojave surface -
+    # mirroring the C++ original's "route vertices 100 MSL" convention so the per-vertex
+    # ground clamp is a clamp-UP (the documented R9 empty-offset-route failure case).
+    # Single variable vs Mojave: route waypoint altitude. Structure held IDENTICAL.
+    "Mojave_BelowTerrain": dict(lat=34.612956, lon=-116.600487, h=1041.0,
+                                route_alt_msl=100.0,
+                                base="TankPltFixture_Mojave_BelowTerrain"),
 }
 
 # ---------------------------------------------------------------------------
@@ -245,7 +254,12 @@ def build_site(site, cfg):
     leader_ecef = geodetic_to_ecef(lat, lon, h)
     tb_east = dis_euler(lat, lon, 90.0)          # units face East, level
     tb_north = dis_euler(lat, lon, 0.0)          # route local frame = NED
-    anchor_ecef = geodetic_to_ecef(lat, lon, h + 150.0)
+    # route anchor altitude: default terrain+150 m (above -> clamp-DOWN = success);
+    # a cfg route_alt_msl override sets an ABSOLUTE MSL altitude for the below-terrain
+    # confound variant (below -> clamp-UP = the R9 failure case).
+    route_alt = cfg.get("route_alt_msl")
+    route_alt = (h + 150.0) if route_alt is None else route_alt
+    anchor_ecef = geodetic_to_ecef(lat, lon, route_alt)
 
     agg_uuid = det_uuid(site, "agg")
     route_uuid = det_uuid(site, "route")
@@ -425,9 +439,14 @@ def build_site(site, cfg):
 
 
 if __name__ == "__main__":
+    import sys
     ensure_sources()
     if not os.path.exists(OUTDIR):
         os.makedirs(OUTDIR)
-    for site, cfg in SITES.items():
+    # optional argv: build only the named site(s); default = all.
+    wanted = sys.argv[1:] if len(sys.argv) > 1 else list(SITES.keys())
+    for site in wanted:
+        if site not in SITES:
+            raise SystemExit("unknown site %r; known: %s" % (site, ", ".join(SITES)))
         print("=" * 70)
-        build_site(site, cfg)
+        build_site(site, SITES[site])

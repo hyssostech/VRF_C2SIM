@@ -107,6 +107,41 @@ session. The Branch-B variant (if it fires) ledgers its own 4 at that point.
 Standing rule unchanged: once ledgered, a number is consumed - unconsumed ledgered
 numbers are BURNED, never recycled (that is WHY ledgering is per-run and late).
 
+## 6a. PREREG ADDENDUM - below-terrain-waypoint confound variant (registered 2026-07-22,
+## BEFORE its run; user pre-authorized this variant "in the same session" if Branch B)
+
+Branch B fired (both fixtures moved), so per sec 4 the confound control is MANDATORY.
+
+FIXTURE: TankPltFixture_Mojave_BelowTerrain.scnx (FixtureGen site Mojave_BelowTerrain).
+IDENTICAL to TankPltFixture_Mojave except the route anchor altitude: 100 m MSL
+(~941 m BELOW the 1041 m Mojave surface) vs Mojave's 1191 m MSL (150 m ABOVE). Verified
+by ECEF back-conversion of the FixtureRoute position. Units still birth AT terrain; the
+aggregate/members/plan/structure are byte-identical bar location-independent uuids.
+SINGLE VARIABLE = route waypoint altitude (above-terrain clamp-DOWN vs below-terrain
+clamp-UP). Offline gates: validate_fixture.py RESULT OK; route alt confirmed below terrain.
+
+HYPOTHESES DISCRIMINATED (the two survivors of Branch B):
+  (i) STRUCTURE deficiency  - would predict the authored below-terrain fixture STILL
+      MOVES (structure is complete, so it moves regardless of waypoint altitude); then
+      R9's freeze is remote-created-structure, pointing to the Phase-3 creation rebuild.
+  (ii) WAYPOINT ALTITUDE    - would predict the authored below-terrain fixture FREEZES
+      (clamp-up drops vertices -> empty offset route, the documented R9 mechanism); then
+      the fix is waypoint-altitude handling, and structure is exonerated.
+
+PRE-REGISTERED PREDICTION + FALSIFIER:
+- If it FREEZES (members static after RunSim, no offset-route transients, reflected stays
+  ~9 not ~13) => WAYPOINT ALTITUDE is a SUFFICIENT cause of the R9 freeze. Falsifies (i)
+  as the sole cause.
+- If it MOVES (static->moving, reflected 9->13, settles ~300 m) => below-terrain
+  waypoints are NOT sufficient to freeze an authored unit; STRUCTURE is implicated for
+  R9. Falsifies (ii).
+- CAVEAT held in advance: a FREEZE could also be a benign non-start; discriminate the
+  same way as Branch C (plan-name==agg uuid [validated OK], task in top-level Block, log
+  for "empty route -- not sending move along to subordinate" = the POSITIVE R9 signature
+  that distinguishes clamp-drop from a non-start).
+appNos: ledger 4 (backend/frontend/pre-check/RunSim). Same run pipeline; oracle
+pre-check MANDATORY (RTI may need the proven narrow restart after the teardown).
+
 ## 7. Outcome record (filled AFTER the run)
 
 ### Sweden gate (P-GATE): PASS (2026-07-22, appNos backend 3553 / frontend 3554 /
