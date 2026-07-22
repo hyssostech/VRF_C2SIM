@@ -151,6 +151,8 @@ Residual (unverifiable offline; the live run + Sweden gate resolve them):
 ## Build status
 - [x] State + format recon; grammar recon; conventions resolved (all verified).
 - [x] Author + offline-validate Sweden & Mojave fixtures (generator in repo).
+- [x] Pre-registration written (2026-07-22): predictions, branch table, falsifiers,
+      appNo budget in docs/experiments/PREREG_FIXTURE_REGION_VS_STRUCTURE_2026-07-22.md.
 - [ ] GET GO-AHEAD, then live run via the validated pipeline (Sweden gate first).
 
 ## PLANNED LIVE RUN (pending go-ahead; NOT yet executed)
