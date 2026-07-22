@@ -17,25 +17,28 @@ run, and scored from telemetry. ONE command, zero humans in the GUI. GUI use is 
 ## THE BREAKTHROUGH THIS SESSION: a working, zero-C2SIM-code baseline
 After many days of tail-chasing, we established "something that actually works":
 - Built tools/RunSim (committed e8a56be): a ~180-line file (~130 code lines) modeled on
-  tools/SetSimRate that calls the ALREADY-EXPOSED managed VrfBridge.Run() (VrfBridge.cpp:206 -
-  controller->run()). NO native rebuild, pure `dotnet build`. It starts the sim clock.
+  tools/SetSimRate that calls the ALREADY-EXPOSED managed VrfBridge.Run() (VrfBridge.cpp:206),
+  which reaches controller->run() (VrfFacade.cpp:421). NO native rebuild, pure `dotnet build`.
 - Ran stock MAK HawaiiGround.scnx fully HEADLESS with ZERO C2SIM code:
   LaunchVrf -Scenario HawaiiGround -> WatchVrf observes -> RunSim starts the clock -> StopVrf.
-- RESULT: 22 of 148 objects showed net window displacement 50-1863 m (top clean mover 1862.8 m;
-  WatchVrf simTime 3->58 s). POS is dead-reckoned and shows multi-km single-step teleport
-  artifacts, so per-unit distances and "route-following" are INDICATIVE, not measured. The
-  load-bearing fact: objects STATIC while paused (pre-RunSim trace.csv, every uuid one coord)
-  MOVED once RunSim started the clock (post-RunSim trace2.csv, 22 movers). Clean teardown (GUI
-  quit carried the back-end; RTI preserved). Artifacts persisted at
-  runs/2026-07-21_baseline_hawaii/; writeup docs/experiments/BASELINE_HAWAII_MOVES_2026-07-21.md.
+- RESULT (WatchVrf simTime 3->58 s): while PAUSED every observed object was static (pre-RunSim
+  trace.csv: 136 uuids, one coordinate each); once RunSim started the clock 20 of those 136 moved
+  and 12 new transients appeared (post-RunSim trace2.csv: 148 uuids, 22 with net displacement
+  >=50 m). Per-unit net magnitudes span ~90-2169 m, but POS is DEAD-RECKONED with multi-km
+  single-step teleport jumps (~4-5 km per 5 s sample), so NO per-unit distance is a reliable
+  measurement and "route-following" is NOT established from POS. The load-bearing signal is the
+  static-while-paused -> moving-once-run transition, not any distance. Clean teardown (GUI quit
+  carried the back-end; RTI preserved). Artifacts: runs/2026-07-21_baseline_hawaii/; writeup
+  docs/experiments/BASELINE_HAWAII_MOVES_2026-07-21.md.
 - WHAT IT PROVES: VR-Forces moves authored units; the freeze is NOT a broken sim/observer.
   RunSim and WatchVrf are validated instruments; the load->run->observe pipeline is reusable.
 
 ## STATE OF THE FREEZE (what is true, precisely)
 - The frozen-unit defect is real BUT its framing changed. Birth altitude is FALSIFIED as the
   current cause: units birth at 10000 MSL with ground-clamp (222134Z_run/vrfc2simapp.log:22-32)
-  and clamp to the surface, yet 114.MechCoy + 1.BdeHQ froze bit-exact while 1222.MechPlt moved
-  (161438Z_run/watchvrf-trace.csv; CORRECTIONS_LOG "Birth altitude").
+  and clamp to the surface, yet 114.MechCoy + 1.BdeHQ froze bit-exact while 1222.MechPlt did NOT
+  freeze (it showed displacement; whether it EXECUTED its route, and its direction, are DISPUTED
+  - POS vs RPT, see STILL OPEN) (161438Z_run/watchvrf-trace.csv; CORRECTIONS_LOG "Birth altitude").
 - The load-bearing symptom is the WEEK-OLD R9 finding (not new this session): VR-Forces'
   disaggregated-unit LEADER/OFFSET-ROUTE builder returns EMPTY at the Mojave AO
   ("moveAlong() - empty route -- not sending move along to subordinate"; 0 member offset routes
@@ -44,10 +47,12 @@ After many days of tail-chasing, we established "something that actually works":
   the A* metric is dead code in 5.0.2) + per-vertex ground clamp; a failed clamp drops the
   vertex -> empty offset route; ENTITIES tolerate a failed clamp (entity-works/unit-fails
   asymmetry). Leading region-specific cause candidate: below-terrain waypoint/clamp interaction.
+  CAVEAT: 1.BdeHQ is an ENTITY that nonetheless froze bit-exact at Mojave, which CONTRADICTS
+  "entities tolerate the clamp" - a SEPARATE, still-unexplained entity-level defect (STILL OPEN).
 - The "type mapping (leaf Ground_Aggregate vs HigherAggregate) is THE cause" story is
   OVER-CONFIDENT and was retracted same-day: it is a real structural INPUT that selects the
   movement controller, but NOT proven sufficient (R9 logs an empty route for the LEAF platoon
-  too, and "1222 moved" rests on the misreporting POS oracle). See FREEZE_ROOTCAUSE_AGGREGATE
+  too, and "1222 EXECUTED its route" rests on the misreporting POS oracle). See FREEZE_ROOTCAUSE_AGGREGATE
   correction section.
 
 ## NEXT ACTION: the Mojave region-vs-structure audit (design PENDING - read the CAVEATS)
@@ -64,8 +69,9 @@ PLAN (file-surgery, user-chosen 2026-07-21; GUI-author was the alternative, decl
    (the .entity that ships the 4-M1A2 composition), NOT by cloning a HawaiiGround aggregate -
    none of HawaiiGround's aggregates is a Tank Platoon (3:11:1:225:3:2), so a "clone" would still
    have to rewrite object-type + member set + formation table. PIN THE MODEL SET in the .scnx
-   (.sms/.omp): Tank-Platoon-decomposes-to-4-members is model-set dependent; use the SAME model
-   set the C2SIM pipeline uses so the test is faithful (baseline HawaiiGround ran EntityLevel.sms).
+   (.sms/.omp): Tank-Platoon-decomposes-to-4-members is model-set dependent. The C2SIM pipeline
+   (TropicTortoise.scnx) uses C2simEx.sms - pin THAT for a faithful test. (HawaiiGround's baseline
+   ran EntityLevel.sms, which C2simEx.sms includes as a subset; do NOT conflate the two.)
 2. Terrain = "$(SHARED_DATA_DIR)\TerrainData\TerrainConfiguration\MAK Earth Space (online).mtf"
    (the whole-Earth streaming globe the C2SIM pipeline actually uses; NO local Mojave .mtf -
    "Mojave" is a lat/lon ~34.61,-116.60 = ECEF -2353028.662,-4698889.659,3602341.757, re-derived
@@ -141,6 +147,9 @@ marker, ledgered BEFORE any join; unconsumed = burned, never recycled.
   disagree on the ONE moving unit's DIRECTION; unresolved; it shadows every POS-based movement
   claim. (Frozen units agree on both channels, so freezes are solid.)
 - Why 15/16 Hawaii aggregates did not move in 58 s (short window; not resolved).
+- 1.BdeHQ: an ENTITY that froze bit-exact at Mojave despite entities being documented to march
+  (R10) and the entity-works/unit-fails asymmetry - a SEPARATE, still-unexplained entity-level
+  defect (FREEZE_ROOTCAUSE_AGGREGATE_2026-07-21.md "STILL OPEN - 1.BdeHQ").
 - The AUTHORING fix-half is entirely untried-live (.sogx re-stamp, loadScenario, MSDL import);
   only the ScnxDiff diagnostic is built.
 

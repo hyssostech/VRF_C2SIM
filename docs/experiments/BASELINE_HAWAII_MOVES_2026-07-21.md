@@ -16,12 +16,14 @@ from it, THEN audit the accumulated hypotheses against reality (not guesswork).
 
 ## Result - UNITS MOVE
 - Clock advanced (WatchVrf simTime 3.0 -> 58.3 s).
-- 22 of 148 observed objects showed net window displacement >= 50 m; top 1862.8 / 820.2 / 750.0 /
-  747.2 / 319.4 m. NOTE POS is dead-reckoned and shows multi-km single-step teleport artifacts,
-  so per-unit distances are indicative, not measured. LOAD-BEARING fact: objects STATIC while
-  paused (pre-RunSim trace.csv) MOVED once RunSim started the clock (post-RunSim trace2.csv).
-  Of the 22 movers, 21 are individual entities and 1 is an aggregate (Convoy 1); see the
-  session-jump handoff for why (untriggered top-level plan) and the audit implications.
+- 22 of 148 objects showed net window displacement >= 50 m (of the 136 present while paused, 20
+  moved; 12 further objects appeared only after clock start - transients). Per-unit net magnitudes
+  span ~90-2169 m, but POS is dead-reckoned with multi-km single-step teleport jumps, so NO
+  per-unit distance is a reliable measurement or ranking (the largest net, ~2169 m, is a 2-sample
+  projectile transient). LOAD-BEARING fact: objects STATIC while paused (pre-RunSim trace.csv)
+  MOVED once RunSim started the clock (post-RunSim trace2.csv). Of the 22 movers, 21 are individual
+  entities and 1 is an aggregate (Convoy 1); see the session-jump handoff for why (untriggered
+  top-level plan) and the audit implications.
 - Teardown CLEAN: StopVrf exit 0, GUI quit modal answered via UIA, "Quit All Back-Ends"
   carried the back-end, RTI infra (rtiAssistant/rtiexec/rtiForwarder) preserved. No force-kill.
 
