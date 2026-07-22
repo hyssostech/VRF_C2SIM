@@ -1,0 +1,40 @@
+
+=== LaunchVrf.ps1 (LIVE) - VR-Forces self-launch via vrfLauncher.exe ===
+  Mode              : Combined
+  VrfRoot           : C:\MAK\vrforces5.0.2
+  ConnectionProfile : HLA 1516 Evolved RPR 2.0 with MAK extensions
+  Scenario          : TankPltFixture_Sweden
+  Back-end appNumber: 3553
+  Front-end appNo   : 3554
+
+=== Preconditions ===
+  [OK]   vrfLauncher.exe present: C:\MAK\vrforces5.0.2\bin64\vrfLauncher.exe
+  [OK]   working directory (cwd) present: C:\MAK\vrforces5.0.2\bin64
+  [OK]   RTI 4.6.1 present: C:\MAK\makRti4.6.1\bin
+  [OK]   MAK_RTIDIR (Machine) = C:\MAK\makRti4.6.1
+  [OK]   RTI_RID_FILE (Machine) = C:\MAK\makRti4.6.1\rid.mtl
+  [OK]   license file present (existence only; expiry/validity NOT checked - no checkout): C:\MAK\MAKLicenseManager\SALES-TEMP-9-15-26-MAK-node-locked-DEMO_1-dec-2025.lic
+  [OK]   connection profile saved: C:\MAK\vrforces5.0.2\appData\settings\vrfLauncher\HLA 1516 Evolved RPR 2.0 with MAK extensions.xml
+  [OK]   autoConnect.xml auto-starts this profile (bare vrfLauncher.exe would also connect it)
+  [OK]   scenario file present: C:\MAK\vrforces5.0.2\userData\scenarios\TankPltFixture_Sweden.scnx
+  [OK]   no pre-existing vrfLauncher / vrfSimHLA1516e / vrfGui processes
+  [OK]   no rtiexec / rtiForwarder running yet. NOT an error: whether they appear is connection-dependent, and the RTI starts them itself when the chosen connection needs them. Never gate readiness on their presence (RUNBOOK 0.5.6).
+  [WARN] NO pre-existing rtiAssistant found. Per the vendor's documented startup sequence, this launch will spawn one that PROMPTS ('Choose RTI Connection') and the BACK-END WILL BLOCK until it is answered.
+  [WARN]   Unless the Assistant has been configured to auto-connect, a human (or UI automation) must choose the connection and click Connect.
+  [WARN]   Detail: docs/experiments/SESSION_2026-07-18_SELFLAUNCH.md
+
+=== Resolved vrfLauncher command line ===
+  cwd : C:\MAK\vrforces5.0.2\bin64
+  cmd : C:\MAK\vrforces5.0.2\bin64\vrfLauncher.exe --usePredefinedConnection "HLA 1516 Evolved RPR 2.0 with MAK extensions" --simArgs --appNumber 3553 --scenarioFileName "../userData/scenarios/TankPltFixture_Sweden.scnx" --guiArgs --appNumber 3554
+
+=== Launch ===
+  [OK]   MAKLMGRD_LICENSE_FILE (process) refreshed from Machine scope = C:\MAK\MAKLicenseManager\SALES-TEMP-9-15-26-MAK-node-locked-DEMO_1-dec-2025.lic
+  [OK]   launching: C:\MAK\vrforces5.0.2\bin64\vrfLauncher.exe --usePredefinedConnection "HLA 1516 Evolved RPR 2.0 with MAK extensions" --simArgs --appNumber 3553 --scenarioFileName "../userData/scenarios/TankPltFixture_Sweden.scnx" --guiArgs --appNumber 3554
+  [OK]   vrfLauncher started (pid 49056); polling for backend readiness...
+
+=== Readiness ===
+  [FAIL] back-end 'vrfSimHLA1516e' process is PRESENT BUT NOT HEALTHY - only 4 threads (a blocked back-end sits at 2-4 indefinitely; healthy is 23-67). PROCESS PRESENCE IS NOT HEALTH. On HLA the usual cause is an UNANSWERED RTI Assistant 'Choose RTI Connection' prompt.
+  [OK]   front-end 'vrfGui' is up with a real main window (title: 'VR-Forces')
+
+=== Result ===
+  [FAIL] NOT READY within timeout. Likely a blocking dialog (LRC #8 FDD path / license / session-startup) or a failed join. Do NOT force-kill; inspect the launcher/GUI window and clean-stop.
