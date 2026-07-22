@@ -148,10 +148,26 @@ data/R9_Mojave_{Lean_Initialization,UnitMove_Order}_NoComments.xml. NEXT: the co
 run per PREREG_TYPEFIX_CONFIRMING_RUN.md (-RunSecs 900, mult 1, preserved-RTI + oracle
 gate, budget from marker 3585).
 
-TOOLCHAIN EVENT (2026-07-22 ~18:40, transient): a Visual Studio 18.8 updater removed the
-.NET 10 SDK payload + net10 runtime mid-session (sdk\10.0.300 gutted 18:40, shared
-runtime pulled 18:43; VS setup processes active since 18:36). All net10 builds/runs fail
-with NETSDK1045 / missing-framework until it completes and net10 is restored. The
-confirming run is BLOCKED on that restoration; already-built artifacts are intact on
-disk. If the update finishes WITHOUT restoring a net10 SDK+runtime, reinstalling is a
-USER decision.
+TOOLCHAIN EVENT (2026-07-22 ~18:40, transient, RESOLVED ~19:45): a Visual Studio 18.8
+updater removed the .NET 10 SDK payload + net10 runtime mid-session, then restored SDK
+10.0.302 + runtime 10.0.10. Supervisor re-verified: VrfC2SimApp rebuild clean, selftest
+21/21, exit 0. Residual relevance: the updater serviced MSVC components minutes before
+the RUN-1 crash below (hypothesis H-ENV).
+
+CONFIRMING RUN 1 (2026-07-22 19:16): **VOID - vrfSim FATAL CRASH** (dump 19:18:32),
+after 6-unit creation (CLEAN, RealTemplates active, exact coords) + order delivery +
+3x CreateRoute, BEFORE any MoveAlongRoute. Predictions UNTESTED - not a falsification.
+Full outcome + 3 open crash hypotheses (H-RTI preserved-stack / H-CONTENT / H-ENV) +
+registered discriminator (identical re-run on FRESH-BOOT RTI): the Outcome section of
+PREREG_TYPEFIX_CONFIRMING_RUN.md. Evidence: docs/experiments/TYPEFIX_CONFIRMING_
+2026-07-22/. appNos 3585-3589 consumed, 3590 burned, marker NEXT FREE = 3591.
+
+OPERATIONAL STATE AFTER RUN 1: vrfSim DEAD (crashed); **vrfGui 22512 REMNANT still up -
+StopVrf exit 3 could not close it; it HARD-BLOCKS the next LaunchVrf; disposition needs
+a user ruling** (it is a joined front-end federate; the crashed-backend-orphan carveout
+is arguable but not ruled). RTI trio rtiAssistant 8888 / rtiexec 68020 / rtiForwarder
+68464 UP, untouched, teardown-survivor class, now also hosted a crashed federate +
+possibly-stale federate 3589 (app was TaskStop'd without clean resign during the abort -
+supervisor sequencing error, owned). C2SIM docker RUNNING. Crash dump preserved:
+bin64\vrfSim5.0.2-MSVC++15.0_64-249613-36676.dmp.dmp (+ prior dumps 7/14, 7/15 on disk -
+MAK support material). RunC2SimScenario.ps1 parse regression (8c36abe) fixed in-tree.

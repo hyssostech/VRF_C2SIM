@@ -1,7 +1,8 @@
 # PREREG: R9 type-mapping fix - confirming run (registered 2026-07-22)
 
-STATUS: **REGISTERED, NOT RUN.** Written BEFORE the live run, per probe discipline. ASCII
-only. Supervisor gates the live run; this executor produced the fix + this prereg offline.
+STATUS: **RUN 1 (2026-07-22 19:16) VOID - back-end crash; predictions UNTESTED; re-run
+pending.** See "Outcome - RUN 1" at the bottom. Registration below is unchanged and still
+governs the re-run. ASCII only.
 
 ## 0. What this run tests (ONE variable)
 
@@ -220,3 +221,50 @@ a mark against this fix.
     Tank Platoon (USA): empty handles + no platoon script -> empty subordinate offset routes).
   All three are in the loaded chain (C2simEx.sms includes EntityLevel.sms).
 - Offline gate: `VrfC2SimApp.exe --translator-selftest` -> SELF-TEST PASSED (21/21).
+
+## Outcome - RUN 1 (2026-07-22 19:16 local): VOID (infrastructure), predictions UNTESTED
+
+vrfSim (back-end) suffered a FATAL CRASH (dump bin64\vrfSim5.0.2-MSVC++15.0_64-249613-
+36676.dmp.dmp, written 19:18:32) BEFORE any MoveAlongRoute was issued. Per sec 1, the
+decisive falsifier requires 1222.MechPlt static through a running clock AFTER its
+MoveAlongRoute - that condition never opened. NOT a falsification; NOT a confirmation.
+
+What PASSED before the crash (all sec 2 validity gates that could run):
+- Type-mapping mode = RealTemplates logged; 6 units created at exact init coords with
+  ground clamp (1222.MechPlt 34.612956,-116.600487 alt 1040.6 - byte-identical to the
+  Cell C creation); company cluster ~38 objects; ~46 reflected total. CREATION WITH THE
+  FIXED TYPES IS CLEAN - the crash did NOT occur at create time (back-end lived ~14 s
+  past creation, ~2 min past launch).
+- PushInit/PushOrder EXIT=0; QUERYINIT 6 units; order (3 tasks) on the bus.
+- Last app action 19:18:20: three "CreateRoute (3 pts) ... move deferred to
+  route-created" lines. Crash 12 s later; route-created callbacks never arrived; no
+  MoveAlongRoute line for any taskee; RPT channel empty (nothing ever moved).
+Evidence: docs/experiments/TYPEFIX_CONFIRMING_2026-07-22/ (RUN_INDEX.md is the raw
+write-up); runs/20260722T231614Z_run intact. appNos 3585-3589 consumed, 3590 burned,
+marker 3591.
+
+CRASH HYPOTHESES (open; deliberately NOT adjudicated - three confounds changed together
+vs the last clean runs):
+- H-RTI: the PRESERVED teardown-survivor RTI stack (Cell C ran on a FRESH boot; the
+  documented teardown-survivor pathology so far was forwarder-wedge/blindness - a
+  back-end crash would be a NEW symptom of the same class).
+- H-CONTENT: 3 simultaneous route creates + deferred moves into a ~46-object real-
+  template scene, sim running (Cell C had 1 platoon, 1 route, and moved; per-element
+  operations identical to 07-19's clean run).
+- H-ENV: VS 18.8 updater serviced MSVC components minutes before vrfSim launched (dump
+  name embeds MSVC++15.0); prior vrfSim dumps exist on disk from 7/14 + 7/15 (nonzero
+  base rate under remote-create load, pre-typefix).
+DISCRIMINATOR (cheapest, registered for RUN 2): identical re-run on a FRESH-BOOT RTI
+(needs a new user ruling). Clean pass -> answers the movement question AND implicates
+the preserved stack; second crash on fresh RTI -> content/environment, escalate with
+both dumps (MAK support material).
+
+RUN-1 DEVIATIONS (recorded): (1) mechanical parse fix to scripts/RunC2SimScenario.ps1
+:1447 (backtick-continuation regression introduced by 8c36abe post-07-19; validated by
+DryRun + live passage through the formerly-broken stage; no gate/threshold touched).
+(2) On supervisor abort, the runner tree was TaskStop'd, which terminated the joined app
+federate 3589 without a clean StopIface resign (back-end already dead; supervisor's
+clean-resign order arrived after the fact - sequencing error owned by the supervisor;
+possible stale federate 3589 until RTI timeout, no appNo reuse so no collision).
+(3) vrfGui 22512 remnant could not be closed gracefully (StopVrf exit 3), NOT force-
+killed (needs a user ruling; it HARD-BLOCKS the next LaunchVrf).

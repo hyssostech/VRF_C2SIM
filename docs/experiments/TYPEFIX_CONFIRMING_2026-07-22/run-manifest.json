@@ -1,0 +1,376 @@
+{
+  "schema": "vrf-c2sim-run-manifest/1",
+  "scriptVersion": "1.0.0-draft",
+  "scoring": "NONE. This runner collects evidence only. HEADLESS_RUN_PLAN.md sec 4a was RATIFIED 2026-07-19 before any data existed; sec 4a.6 declares run 1 a measurement, not an acceptance test. No threshold from 4a is embedded in this script, by design - collection and scoring are separate programs so a trace can be re-scored under an amended criterion without re-running the simulation.",
+  "dryRun": false,
+  "clocks": {
+    "startLocal": "2026-07-22T19:16:14.974-04:00",
+    "startUtc": "2026-07-22T23:16:14.974Z",
+    "timeZoneId": "Eastern Standard Time",
+    "utcOffsetHours": -4.0,
+    "savedLocal": "2026-07-22T19:18:49.936-04:00",
+    "savedUtc": "2026-07-22T23:18:49.936Z"
+  },
+  "host": {
+    "machine": "LEGATUS",
+    "user": "PauloBarthelmess",
+    "psVersion": "7.6.0",
+    "os": "Microsoft Windows NT 10.0.26200.0",
+    "gitCommit": "0b4529fbdc7ea6932d23f3754f884292f04c4159",
+    "gitBranch": "main"
+  },
+  "inputs": {
+    "init": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\data\\R9_Mojave_Lean_Initialization_NoComments.xml",
+    "order": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\data\\R9_Mojave_UnitMove_Order_NoComments.xml",
+    "runSecs": 900,
+    "sampleSecs": 2,
+    "scenario": "TropicTortoise",
+    "federation": "CWIX-2024",
+    "restUrl": "http://127.0.0.1:8080/C2SIMServer",
+    "stompUrl": "http://127.0.0.1:61613/topic/C2SIM",
+    "clientId": "STP",
+    "initSystemName": "STP",
+    "watchSecs": 1460,
+    "watchSecsDerived": 1460
+  },
+  "tools": {
+    "LaunchVrf": {
+      "path": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\scripts\\LaunchVrf.ps1",
+      "exists": true,
+      "sizeBytes": 31990,
+      "lastWriteUtc": "2026-07-21T15:24:08Z",
+      "sha256": "76E3763D4CE353C37884B2C0C1559491BFF8B580DDE075B6292EA8358E3DFC57"
+    },
+    "StopVrf": {
+      "path": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\scripts\\StopVrf.ps1",
+      "exists": true,
+      "sizeBytes": 32537,
+      "lastWriteUtc": "2026-07-19T21:35:41Z",
+      "sha256": "51DD37261DD1F37B0E93776A8AF3795B11ED709BD33130FE5FA65D07AD35C5F5"
+    },
+    "WatchVrf": {
+      "path": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\tools\\WatchVrf\\bin\\Release\\net10.0\\win-x64\\WatchVrf.exe",
+      "exists": true,
+      "sizeBytes": 162304,
+      "lastWriteUtc": "2026-07-21T15:38:44Z",
+      "fileVersion": "1.0.0.0",
+      "productVersion": "1.0.0+236aa51abab36e9d4cd92414367220e96cd71d60",
+      "sha256": "C885BB014F5C3FFC2F486AC176081E1B82DF3FEF6D55A015C7EA6093AD55CD72"
+    },
+    "PushInit": {
+      "path": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\tools\\PushInit\\bin\\Release\\net10.0\\PushInit.exe",
+      "exists": true,
+      "sizeBytes": 162304,
+      "lastWriteUtc": "2026-07-21T15:38:01Z",
+      "fileVersion": "1.0.0.0",
+      "productVersion": "1.0.0+236aa51abab36e9d4cd92414367220e96cd71d60",
+      "sha256": "3C0DAB16D554042640F4514A46146153771043CE6573EAA5C61398C6DD840709"
+    },
+    "PushOrder": {
+      "path": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\tools\\PushOrder\\bin\\Release\\net10.0\\PushOrder.exe",
+      "exists": true,
+      "sizeBytes": 162304,
+      "lastWriteUtc": "2026-07-21T15:38:07Z",
+      "fileVersion": "1.0.0.0",
+      "productVersion": "1.0.0+236aa51abab36e9d4cd92414367220e96cd71d60",
+      "sha256": "67999A9967DBBB661398ADF28F171EE45D7BA96601F049386A654192CE806BFB"
+    },
+    "StopIface": {
+      "path": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\tools\\StopIface\\bin\\Release\\net10.0\\StopIface.exe",
+      "exists": true,
+      "sizeBytes": 162304,
+      "lastWriteUtc": "2026-07-21T15:38:42Z",
+      "fileVersion": "1.0.0.0",
+      "productVersion": "1.0.0+236aa51abab36e9d4cd92414367220e96cd71d60",
+      "sha256": "01C4ABFA452F8BC6DE5AED798FE94BD62161427C0D1C54BB0750622E6684F65A"
+    },
+    "ListenReports": {
+      "path": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\tools\\ListenReports\\bin\\Release\\net10.0\\ListenReports.exe",
+      "exists": true,
+      "sizeBytes": 162304,
+      "lastWriteUtc": "2026-07-21T15:37:55Z",
+      "fileVersion": "1.0.0.0",
+      "productVersion": "1.0.0+236aa51abab36e9d4cd92414367220e96cd71d60",
+      "sha256": "B608D728274317E03A7D52F8BB29F51355D2BB359480872C15444EDFA5BEAED8"
+    },
+    "VrfC2SimApp": {
+      "path": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\src\\VrfC2SimApp\\bin\\Release\\net10.0\\win-x64\\VrfC2SimApp.exe",
+      "exists": true,
+      "sizeBytes": 162304,
+      "lastWriteUtc": "2026-07-22T23:07:09Z",
+      "fileVersion": "1.0.0.0",
+      "productVersion": "1.0.0+0b4529fbdc7ea6932d23f3754f884292f04c4159",
+      "sha256": "498688D9384A11AA3D9578DC18C7D04BCE1446A83E62BEFE8DAD76944FC6FABB"
+    },
+    "CreateOne": {
+      "path": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\tools\\CreateOne\\bin\\Release\\net10.0\\win-x64\\CreateOne.exe",
+      "exists": true,
+      "sizeBytes": 162304,
+      "lastWriteUtc": "2026-07-21T15:37:49Z",
+      "fileVersion": "1.0.0.0",
+      "productVersion": "1.0.0+236aa51abab36e9d4cd92414367220e96cd71d60",
+      "sha256": "98E04F9975798F42A5236E89BAC870B773D13AFDA6EF1BB647C6E578C778C5CF"
+    },
+    "RunC2SimScenario": {
+      "path": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\scripts\\RunC2SimScenario.ps1",
+      "exists": true,
+      "sizeBytes": 116664,
+      "lastWriteUtc": "2026-07-22T23:14:36Z",
+      "sha256": "22AC09013DF9DB986EFBC1A7D6BDDF0FE7E8069C5880714B0817B86B3909A882"
+    }
+  },
+  "appNumbers": [
+    {
+      "key": "vrfBackend",
+      "purpose": "LaunchVrf.ps1 back-end (vrfSimHLA1516e), combined mode",
+      "appNumber": 3585
+    },
+    {
+      "key": "vrfFrontend",
+      "purpose": "LaunchVrf.ps1 front-end (vrfGui), combined mode",
+      "appNumber": 3586
+    },
+    {
+      "key": "oraclePre",
+      "purpose": "WatchVrf ADVISORY pre-init oracle pre-check (RUNBOOK 0.5.7)",
+      "appNumber": 3587
+    },
+    {
+      "key": "oracleTrace",
+      "purpose": "WatchVrf MAIN run trace - the movement oracle / scoring input",
+      "appNumber": 3588
+    },
+    {
+      "key": "app",
+      "purpose": "VrfC2SimApp Vrf__ApplicationNumber (the interface federate)",
+      "appNumber": 3589
+    },
+    {
+      "key": "createOneDiag",
+      "purpose": "tools/CreateOne - STAGE 7b FAILURE-PATH DIAGNOSTIC ONLY (RUNBOOK 0.5.7 STRONGER CHECK). CONSUMED ONLY IF THE ORACLE GATE FAILS; on a healthy run it is NEVER JOINED and this number goes UNCONSUMED. Unconsumed numbers are BURNED, never recycled - see the NOTE below. Allocated here rather than mid-run because every number must be ledgered BEFORE any join.",
+      "appNumber": 3590
+    }
+  ],
+  "ledger": {
+    "file": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\docs\\OPUS_EXECUTION_PLAN.md",
+    "wasValue": 3585,
+    "newValue": 3591,
+    "advanced": true
+  },
+  "preflight": {
+    "existingVrf": [],
+    "rtiInfra": [
+      {
+        "name": "rtiAssistant",
+        "processId": 8888,
+        "windowTitle": ""
+      },
+      {
+        "name": "rtiexec",
+        "processId": 68020,
+        "windowTitle": ""
+      },
+      {
+        "name": "rtiForwarder",
+        "processId": 68464,
+        "windowTitle": ""
+      }
+    ],
+    "c2simRestStatus": 200
+  },
+  "stages": [
+    {
+      "name": "LaunchVrf",
+      "commandLine": "pwsh -NoProfile -File C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\scripts\\LaunchVrf.ps1 -Scenario TropicTortoise -VrfRoot C:\\MAK\\vrforces5.0.2 -RtiDir C:\\MAK\\makRti4.6.1 -BackendAppNumber 3585 -FrontendAppNumber 3586",
+      "cwd": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM",
+      "startedUtc": "2026-07-22T23:16:15.457Z",
+      "endedUtc": "2026-07-22T23:16:24.209Z",
+      "exitCode": 0,
+      "stdoutFile": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\runs\\20260722T231614Z_run\\launchvrf.stdout.log",
+      "stderrFile": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\runs\\20260722T231614Z_run\\launchvrf.stderr.log",
+      "outcome": "ran",
+      "timedOut": false,
+      "timeoutSec": 720,
+      "processId": 73432,
+      "federateJoining": false,
+      "note": "exit 0 READY; 1 PARTIAL (no front-end - crash risk); 2 precondition/args; 3 NOT READY within timeout; 4 BLOCKED (modal dialog). -AllowExistingVrf is deliberately NOT passed. LEAVES VR-FORCES RUNNING BY DESIGN - never waited on as a process tree."
+    },
+    {
+      "name": "WatchVrf-precheck",
+      "commandLine": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\tools\\WatchVrf\\bin\\Release\\net10.0\\win-x64\\WatchVrf.exe 3587 30 2 CWIX-2024",
+      "cwd": "C:\\MAK\\vrforces5.0.2\\bin64",
+      "startedUtc": "2026-07-22T23:17:09.234Z",
+      "endedUtc": "2026-07-22T23:17:45.282Z",
+      "exitCode": 0,
+      "stdoutFile": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\runs\\20260722T231614Z_run\\watchvrf-precheck.csv",
+      "stderrFile": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\runs\\20260722T231614Z_run\\watchvrf-precheck.stderr.log",
+      "outcome": "ran",
+      "timedOut": false,
+      "timeoutSec": 630,
+      "processId": 34084,
+      "federateJoining": true,
+      "note": "ADVISORY. WatchVrf exit 2 = usage/arg error (the runner built bad args); exit 1 = operational. These args are generated, so treat a 2 as a runner bug. Exits on its OWN timer after seconds-to-watch."
+    },
+    {
+      "name": "WatchVrf-trace",
+      "commandLine": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\tools\\WatchVrf\\bin\\Release\\net10.0\\win-x64\\WatchVrf.exe 3588 1460 2 CWIX-2024",
+      "cwd": "C:\\MAK\\vrforces5.0.2\\bin64",
+      "startedUtc": "2026-07-22T23:17:45.376Z",
+      "endedUtc": null,
+      "exitCode": null,
+      "stdoutFile": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\runs\\20260722T231614Z_run\\watchvrf-trace.csv",
+      "stderrFile": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\runs\\20260722T231614Z_run\\watchvrf-trace.stderr.log",
+      "outcome": "started-background",
+      "note": "THE MOVEMENT ORACLE and the scoring input. Started before PushInit (HEADLESS_RUN_PLAN sec 2). Resigns on its own timer; never killed.",
+      "processId": 67396
+    },
+    {
+      "name": "ListenReports",
+      "commandLine": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\tools\\ListenReports\\bin\\Release\\net10.0\\ListenReports.exe 1460 C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\runs\\20260722T231614Z_run\\reports-captured.log",
+      "cwd": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM",
+      "startedUtc": "2026-07-22T23:17:45.439Z",
+      "endedUtc": null,
+      "exitCode": null,
+      "stdoutFile": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\runs\\20260722T231614Z_run\\listenreports.stdout.log",
+      "stderrFile": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\runs\\20260722T231614Z_run\\listenreports.stderr.log",
+      "outcome": "started-background",
+      "note": "Endpoints are HARDCODED to localhost inside the tool; -RestUrl/-StompUrl do not reach it.",
+      "processId": 59976
+    },
+    {
+      "name": "PushInit",
+      "commandLine": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\tools\\PushInit\\bin\\Release\\net10.0\\PushInit.exe c:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\data\\R9_Mojave_Lean_Initialization_NoComments.xml http://127.0.0.1:8080/C2SIMServer http://127.0.0.1:61613/topic/C2SIM",
+      "cwd": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM",
+      "startedUtc": "2026-07-22T23:18:05.449Z",
+      "endedUtc": "2026-07-22T23:18:07.847Z",
+      "exitCode": 0,
+      "stdoutFile": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\runs\\20260722T231614Z_run\\pushinit.stdout.log",
+      "stderrFile": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\runs\\20260722T231614Z_run\\pushinit.stderr.log",
+      "outcome": "ran",
+      "timedOut": false,
+      "timeoutSec": 600,
+      "processId": 66692,
+      "federateJoining": false,
+      "note": "exit 0 ok; 1 push rejected; 2 usage. Drives the server RESET -> INITIALIZING -> share -> RUNNING. Never run against a RUNNING interface (RUNBOOK sec 4 corollary) - none is running yet."
+    },
+    {
+      "name": "VrfC2SimApp",
+      "commandLine": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\src\\VrfC2SimApp\\bin\\Release\\net10.0\\win-x64\\VrfC2SimApp.exe --contentRoot=C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\src\\VrfC2SimApp\\bin\\Release\\net10.0\\win-x64",
+      "cwd": "C:\\MAK\\vrforces5.0.2\\bin64",
+      "startedUtc": "2026-07-22T23:18:07.879Z",
+      "endedUtc": null,
+      "exitCode": null,
+      "stdoutFile": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\runs\\20260722T231614Z_run\\vrfc2simapp.log",
+      "stderrFile": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\runs\\20260722T231614Z_run\\vrfc2simapp.stderr.log",
+      "outcome": "started-background",
+      "note": "cwd MUST be VR-Forces bin64 so Legion finds vrfLegion.lua (RUNBOOK sec 7 item 3); --contentRoot keeps appsettings.json loading. ApplicationNumber overridden via env.",
+      "processId": 63864
+    },
+    {
+      "name": "PushOrder",
+      "commandLine": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\tools\\PushOrder\\bin\\Release\\net10.0\\PushOrder.exe c:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\data\\R9_Mojave_UnitMove_Order_NoComments.xml 30 http://127.0.0.1:8080/C2SIMServer http://127.0.0.1:61613/topic/C2SIM",
+      "cwd": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM",
+      "startedUtc": "2026-07-22T23:18:19.115Z",
+      "endedUtc": "2026-07-22T23:18:49.935Z",
+      "exitCode": 0,
+      "stdoutFile": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\runs\\20260722T231614Z_run\\pushorder.stdout.log",
+      "stderrFile": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\runs\\20260722T231614Z_run\\pushorder.stderr.log",
+      "outcome": "ran",
+      "timedOut": false,
+      "timeoutSec": 630,
+      "processId": 45896,
+      "federateJoining": false,
+      "note": "BLOCKS for seconds-to-listen. exit 0 ok; 1 order rejected; 2 usage. Writes c2sim-bus.log beside its own binary; copied into the run dir afterwards."
+    }
+  ],
+  "oracle": {
+    "preInit": {
+      "advisory": true,
+      "appNumber": 3587,
+      "exitCode": 0,
+      "posLines": 16,
+      "realCoordLines": 0,
+      "degenerateLines": 16,
+      "lastSummaryLine": "# t=29.6s reflected=3 readable=2",
+      "firstRealLine": null
+    },
+    "queryInitUnits": 6,
+    "appConnected": true,
+    "appThreads": 19,
+    "initDispatchedUnits": 6,
+    "initDispatchedAreas": 0,
+    "gate": {
+      "criterion": "RUNBOOK 0.5.7 CORRECTED: at least one POS line with real (non-NaN, non-pole) lat/lon. This is a RUN-VALIDITY gate, NOT a score.",
+      "timeoutSec": 180,
+      "posLines": 114,
+      "realCoordLines": 88,
+      "degenerateLines": 26,
+      "distinctRealUuids": [
+        "VRF_UUID:0164e3e4-956f-6741-a4fa-5474ea815106",
+        "VRF_UUID:09582a32-3b24-2343-9ca2-7aa098c342b3",
+        "VRF_UUID:09e37543-2332-e44e-84bd-5269e67ed2b6",
+        "VRF_UUID:0d86b17f-78a1-d943-b991-d16265857edd",
+        "VRF_UUID:1c52e584-5297-1c4e-9aa3-fa6d531b6955",
+        "VRF_UUID:20ed02ea-9a4b-7d45-ac53-a13e4572a2b8",
+        "VRF_UUID:28fb7b72-f435-2748-af27-a88654f95e2e",
+        "VRF_UUID:2c8aa465-4596-b747-a9dd-34e3d8331957",
+        "VRF_UUID:2f99f809-0fe5-ec41-81e7-3c26cdab2bae",
+        "VRF_UUID:30cd6a40-18e5-3647-ac06-1d02cfb89846",
+        "VRF_UUID:35d78352-7846-b14d-814f-e2af61d67b94",
+        "VRF_UUID:382b7977-ccd5-0e4a-b1a3-f3f3295a7aa7",
+        "VRF_UUID:38a1d857-b7cb-aa42-95db-e4a32e9728f0",
+        "VRF_UUID:46f422da-0c0f-0944-ab03-db35911211b5",
+        "VRF_UUID:4ef38fb0-7efb-f047-adee-1b588cf3f587",
+        "VRF_UUID:506b653e-4ae1-c049-a077-b90d69b48837",
+        "VRF_UUID:565978aa-bef8-0d4a-8196-9ef796c0c7a9",
+        "VRF_UUID:5c2f7863-82c6-0347-aeeb-3c7f384687c8",
+        "VRF_UUID:661fcd73-309b-124c-ad83-fbe83140100f",
+        "VRF_UUID:67ebf225-9895-aa48-9226-391e90a43e23",
+        "VRF_UUID:73205060-51db-b249-aedb-3aa7d4691682",
+        "VRF_UUID:78ae6607-cd0d-cd41-bfea-acfc01d3d23e",
+        "VRF_UUID:831ed4e3-50f3-d149-871b-6c57f85bc533",
+        "VRF_UUID:9266929b-0fab-0348-b312-3db7beaba336",
+        "VRF_UUID:94116430-3270-a642-b664-f9ac6dfa8eb1",
+        "VRF_UUID:9b90ac04-de77-0c48-99fe-16bde727ac56",
+        "VRF_UUID:9cfe1db6-097c-9648-9b91-c54b68a6528e",
+        "VRF_UUID:b31af5b6-fc64-4e47-ad50-5882d94db69c",
+        "VRF_UUID:b3609b2e-74ce-b446-a2b2-b78f3fed1d87",
+        "VRF_UUID:b529c1f4-a3ee-4f4c-9ddb-9e457c140130",
+        "VRF_UUID:b5827613-69e9-134d-91eb-eb2251238941",
+        "VRF_UUID:b97e594b-5bee-7e47-b2c5-2e984f3f5b51",
+        "VRF_UUID:bb84e0f1-4d4c-6249-9a82-50b7d7804f3f",
+        "VRF_UUID:c67d723a-c012-ce47-8fff-62c08d080de8",
+        "VRF_UUID:c725884b-c286-4948-8f59-8b59279dc754",
+        "VRF_UUID:cebfce58-2448-9f4a-9a38-dd396fb7bc78",
+        "VRF_UUID:cf78707b-6774-0d42-aca4-361e2562867a",
+        "VRF_UUID:d73faa9a-5f03-7343-b257-fc4fe6323992",
+        "VRF_UUID:db9efb1e-2b2d-944b-acdd-55f165c73921",
+        "VRF_UUID:df319bbe-5d98-614b-b0dd-742cef68d655",
+        "VRF_UUID:e9a3901c-7367-7849-b56f-90c1fa31621e",
+        "VRF_UUID:ee31212f-9c4b-b648-a46b-4dde07016a90",
+        "VRF_UUID:fa9aed2d-0677-7f43-a6aa-f70b0d17aeec",
+        "VRF_UUID:fd46bcc6-0feb-854d-86dc-b3d4185516f7"
+      ],
+      "firstRealLine": "POS,25.5,VRF_UUID:0164e3e4-956f-6741-a4fa-5474ea815106,34.645266,-116.693115,1116.4",
+      "passed": true
+    }
+  },
+  "artifacts": {
+    "runDir": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\runs\\20260722T231614Z_run",
+    "trace": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\runs\\20260722T231614Z_run\\watchvrf-trace.csv",
+    "preCheckTrace": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\runs\\20260722T231614Z_run\\watchvrf-precheck.csv",
+    "reports": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\runs\\20260722T231614Z_run\\reports-captured.log",
+    "appLog": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\runs\\20260722T231614Z_run\\vrfc2simapp.log",
+    "busLog": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\runs\\20260722T231614Z_run\\c2sim-bus.log",
+    "createOneDiagnosticLog": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\runs\\20260722T231614Z_run\\createone-diagnostic.stdout.log",
+    "manifest": "C:\\Users\\PauloBarthelmess\\Source\\Repos\\C2SIM\\OpenC2SIM.github.io\\Software\\Interfaces\\VRF_C2SIM\\runs\\20260722T231614Z_run\\run-manifest.json"
+  },
+  "validityFlags": [
+    {
+      "severity": "INFO",
+      "text": "Pre-init oracle pre-check saw NO real-coordinate POS line. EXPECTED on a stock TropicTortoise (RUNBOOK 0.5.7); advisory only.",
+      "atUtc": "2026-07-22T23:17:45.353Z"
+    }
+  ],
+  "runnerExitCode": null
+}

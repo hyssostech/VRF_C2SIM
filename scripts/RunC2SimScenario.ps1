@@ -1442,10 +1442,12 @@ try {
     # LaunchVrf's pwsh exits in ~35-60 s, but vrfGui and vrfSimHLA1516e are its
     # DESCENDANTS and are MEANT to keep running. Invoke-External now waits for the
     # direct child only; see its header block.
+    # +120 = LaunchVrf's fixed ReadyTimeoutSec readiness poll (runner never lowers it);
+    # header invariant is stage-budget + slack, and this stage's budget is that 120 s poll.
+    $launchTimeoutSec = 120 + $StageTimeoutSec
     $r = Invoke-External -Name 'LaunchVrf' -File 'pwsh' -Arguments $launchArgs -Cwd $RepoRoot `
             -StdOutFile $PathLaunchOut -StdErrFile $PathLaunchErr `
-            -TimeoutSec (120 + $StageTimeoutSec) `  # +120 = LaunchVrf's fixed ReadyTimeoutSec readiness poll (runner never lowers it); header invariant is stage-budget + slack, and this stage's budget is that 120 s poll
-
+            -TimeoutSec $launchTimeoutSec `
             -Note 'exit 0 READY; 1 PARTIAL (no front-end - crash risk); 2 precondition/args; 3 NOT READY within timeout; 4 BLOCKED (modal dialog). -AllowExistingVrf is deliberately NOT passed. LEAVES VR-FORCES RUNNING BY DESIGN - never waited on as a process tree.'
     if (-not $DryRun) {
         # VR-Forces may be up even if LaunchVrf itself never reported, so teardown

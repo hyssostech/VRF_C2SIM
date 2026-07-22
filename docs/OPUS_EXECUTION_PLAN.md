@@ -1329,7 +1329,25 @@ RunSim at mult 1). If that used a SetSimRate federate join, its appNo is UNLEDGE
 supervisor must reconcile it; if it was a vrfGui/front-end rate change it consumed no appNo.
 NOTE: numbers allocated but not consumed are BURNED, not recycled.
 
-*** NEXT FREE: 3585 *** (authoritative - the ONLY such marker in this file. Update this
+
+CLAIMED 2026-07-22 23:16 by scripts/RunC2SimScenario.ps1 (run 20260722T231614Z_run). Ledgered BEFORE any join,
+per the never-reuse non-negotiable. Annotate with results from the run manifest.
+- 3585: CONSUMED - LaunchVrf back-end (vrfSimHLA1516e), combined mode. Launched HEALTHY 19:16:24,
+  then CRASHED mid-run (fatal-error dump 19:18:32; see TYPEFIX_CONFIRMING_2026-07-22).
+- 3586: CONSUMED - LaunchVrf front-end (vrfGui pid 22512). Launched; SURVIVED the crash; StopVrf exit 3
+  could not gracefully close it (real main window, not force-killed) - remnant at report time.
+- 3587: CONSUMED - WatchVrf ADVISORY pre-init oracle pre-check. Ran (degenerate baseline, expected).
+- 3588: CONSUMED - WatchVrf MAIN run trace. Ran from t=0; captured creation + crash; terminated
+  when the runner process tree was stopped during the supervisor abort.
+- 3589: CONSUMED - VrfC2SimApp (the interface federate). Joined, connected to C2SIM, dispatched 6 units,
+  received order, created 3 routes. Terminated with the runner tree during abort WITHOUT a clean
+  StopIface resign (back-end already dead) - possible stale federate in rtiexec until RTI timeout.
+- 3590: BURNED - tools/CreateOne stage-7b FAILURE-PATH diagnostic. Oracle gate PASSED, so stage 7b
+  never ran and this number was never joined. Allocated-not-consumed = BURNED, not recycled.
+NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
+join) are BURNED, not recycled. The run manifest records which were actually used.
+
+*** NEXT FREE: 3591 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN

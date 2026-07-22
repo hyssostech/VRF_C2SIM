@@ -1,0 +1,43 @@
+checking for RDTSCP instruction...Success.  Using RDTSCP for time
+RDTSCP Timing Probe: 2424443209 ticks per second
+=== WatchVrf - position + Object Console telemetry (R3 / groundwork 0.6) ===
+    federation=CWIX-2024 appNumber=3587 duration=30s sample=2s
+
+[..] bridge.Start() - joining the federation...
+Using MAK Technologies' RTI version 4.6.1 HLA 1516-2010 for Microsoft Visual C++ version 14.0 Release Mode.
+Connected to RTI Assistant.
+Loading Config File: C:\MAK\makRti4.6.1\rid.mtl
+INFO[Util] 23:17:12.309 T:45508 MAK::DtInitializer::loadConfigScript: Loading config file: vrfLegion.lua
+[OK] joined; discovering + sampling (POS,t,uuid,lat,lon,alt ; CON,t,uuid,level,msg ; TSK,t,marking,taskType ; RPT,t,text)...
+# t=3s reflected=0 readable=0
+# t=5.1s reflected=0 readable=0
+# t=7.1s reflected=0 readable=0
+# t=9.1s reflected=0 readable=0
+# t=11.2s reflected=0 readable=0
+# t=13.2s reflected=0 readable=0
+POS,15.2,VRF_UUID:cde66adc-7a34-a14d-bd51-a3df4032e6a1,NaN,90.000000,NaN
+POS,15.2,VRF_UUID:f864e51f-e571-704f-92e4-108201ec1049,NaN,90.000000,NaN
+# t=15.2s reflected=3 readable=2
+POS,17.3,VRF_UUID:cde66adc-7a34-a14d-bd51-a3df4032e6a1,NaN,90.000000,NaN
+POS,17.3,VRF_UUID:f864e51f-e571-704f-92e4-108201ec1049,NaN,90.000000,NaN
+# t=17.3s reflected=3 readable=2
+POS,19.3,VRF_UUID:cde66adc-7a34-a14d-bd51-a3df4032e6a1,NaN,90.000000,NaN
+POS,19.3,VRF_UUID:f864e51f-e571-704f-92e4-108201ec1049,NaN,90.000000,NaN
+# t=19.3s reflected=3 readable=2
+POS,21.4,VRF_UUID:cde66adc-7a34-a14d-bd51-a3df4032e6a1,NaN,90.000000,NaN
+POS,21.4,VRF_UUID:f864e51f-e571-704f-92e4-108201ec1049,NaN,90.000000,NaN
+# t=21.4s reflected=3 readable=2
+POS,23.4,VRF_UUID:cde66adc-7a34-a14d-bd51-a3df4032e6a1,NaN,90.000000,NaN
+POS,23.4,VRF_UUID:f864e51f-e571-704f-92e4-108201ec1049,NaN,90.000000,NaN
+# t=23.4s reflected=3 readable=2
+POS,25.5,VRF_UUID:cde66adc-7a34-a14d-bd51-a3df4032e6a1,NaN,90.000000,NaN
+POS,25.5,VRF_UUID:f864e51f-e571-704f-92e4-108201ec1049,NaN,90.000000,NaN
+# t=25.5s reflected=3 readable=2
+POS,27.5,VRF_UUID:cde66adc-7a34-a14d-bd51-a3df4032e6a1,NaN,90.000000,NaN
+POS,27.5,VRF_UUID:f864e51f-e571-704f-92e4-108201ec1049,NaN,90.000000,NaN
+# t=27.5s reflected=3 readable=2
+POS,29.6,VRF_UUID:cde66adc-7a34-a14d-bd51-a3df4032e6a1,NaN,90.000000,NaN
+POS,29.6,VRF_UUID:f864e51f-e571-704f-92e4-108201ec1049,NaN,90.000000,NaN
+# t=29.6s reflected=3 readable=2
+[..] bridge.Stop() - resigning...
+[OK] resigned cleanly.
