@@ -44,6 +44,11 @@ Per fixture (Sweden FIRST - it is the GATE):
   for the 4 M1A2 members (net displacement >= 50 m sustained over >= 3 samples).
   The TRANSITION is the signal; per-unit distances are DR-contaminated (2026-07-21
   baseline: multi-km single-step teleports) and are NOT measurements.
+  TWO-CHANNEL RULE (the standard that made the 2026-07-19 frozen verdicts solid):
+  WatchVrf emits both POS and RPT. Verdict MOVED = EITHER channel shows the
+  transition; verdict FROZEN = BOTH channels agree static. A POS-only or RPT-only
+  transition is recorded as MOVED-with-channel-disagreement, feeding the open
+  oracle-contradiction item, not silently averaged.
 - O2 (mechanism): backend/launch log evidence - offset-route construction vs the R9
   signature "moveAlong() - empty route -- not sending move along to subordinate".
 - O3 (diagnostic only): loader acceptance errors, plan/task status lines in logs.
