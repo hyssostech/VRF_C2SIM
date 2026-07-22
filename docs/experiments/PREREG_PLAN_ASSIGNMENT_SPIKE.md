@@ -124,3 +124,62 @@ loaded base, then RunSim; verify the created unit reflects (POS) before tasking.
 - Cell D (correct type + assigned plan) result [only if built]:
 - Joint verdict (TYPE-MAPPING / CREATION-PATH / TASKING-PATH):
 - Native change committed at [only if Cell D built]:
+
+## ADDENDUM (2026-07-22, post-registration, PRE-RUN): Cell C tooling built + read rules
+
+Written AFTER registration but BEFORE any run. Touches no predictions; records the built
+instrument, offline verification, and gate refinements so the run is read against rules
+fixed in advance.
+
+TOOL: tools/CreateTaskAgg (create/task phases, separate joins; clone of tools/CreateOne).
+Compile-gated only (dotnet build Release: 0 warnings 0 errors; ASCII-clean). NOT yet run.
+Supervisor spot-checked every load-bearing cite first-hand on top of the executor pass.
+
+OFFLINE-VERIFIED (all against current source):
+- Managed surface exact as prereg'd: VrfBridge.cpp CreateAggregate :222/:227,
+  CreateRoute :255, MoveAlongRoute :287; VrfFacade.cpp :441/:457/:498-499.
+- Correct type: Tank Platoon (USA) registered as objectType 3:11:1:225:3:2:0:0,
+  matchType 3:11:1:225:3:2:-1:-1 (Tank Platoon (USA).entity line 3); carries the
+  ground-disaggregated-movement sysdef + 4 M1A2 subordinates. Managed EntityTypeSpec =
+  11/1/225/3/2/0/0.
+- R9 mis-map confirmed verbatim: 1222.MechPlt passed 11.1.225.1.1.3.0 (ArmorPlatoon) ->
+  Ground_Aggregate fallback (data/R9_Mojave_UnitMove_Order.xml:36); its freeze trace shows
+  "moveAlong() - empty route -- not sending move along to subordinate".
+- Route-by-name is the shipped parity convention (VrfC2SimService.cs:1115).
+- MoveAlongRoute is VOID (fire-and-forget) - the ONLY task confirmation is the live oracle.
+- Terrain reconciled: TropicTortoise base (userData\scenarios) = MAK Earth whole-earth mtf
+  + C2simEx.sms; R9's Mojave AO and the moved Mojave fixture are on the same ground.
+
+CARRIED BLOCKER QUESTION (decided at run time, not paperable offline): managed
+CreateAggregate takes a DIS ENUM, not a template name; enum->template resolution happens
+in the backend. 11.1.225.3.2.0.0 is the template's own registered objectType and its
+matchType wildcards only specific/extra, so an exact hit is expected - but 0.1.7 shows
+resolution can be fuzzy. READ RULE: if Cell C FREEZES, FIRST determine which template the
+backend actually instantiated (GUI diagnostic or saveScenario diff) BEFORE concluding
+"correct type is not sufficient". "Enum resolved to the wrong template" is NOT a Cell C
+falsification of type-mapping - it is a resolution problem inside the same type story.
+
+GATE REFINEMENT: the registered pipeline's "reflected 9->13" was fixture-specific (its
+baseline was 9 objects). The Cell C movement gate is: baseline reflected count N
+(TropicTortoise base + platoon + 4 members, static while paused) -> +4 transient delta
+during the move (member offset routes) + static->moving transition + settled ~east
+endpoints + POS/RPT two-channel agreement. Raw distances remain DR-poisoned; never gate
+on them.
+
+HELD-AT-KNOWN-GOOD deviations from exact R9 parity (TYPE is the isolated variable; these
+are set to values proven safe, not to R9's): birth alt 10000 MSL (CreateOne safe-high
+convention, arg-overridable; R9 settled ~1041 terrain), create -> RunSim -> task ordering
+(the registered pipeline), route vertices 100 MSL (= R9's own Fixed100,
+VrfC2SimService.cs:722 - not a deviation), P1/P2 latitude rounded 34.612956 vs order
+34.612955587412 (<1 m). READ RULE: a MOVES result is decisive that the bare-task
+remote-create path CAN move a correct-type platoon and strongly implicates TYPE for R9;
+the FINAL confirmation of the R9 diagnosis is the interface itself re-run with the fixed
+TYPE_MAPPING_TABLE (that run is the Cell C follow-up, not part of this spike).
+
+RUN BUDGET: 6-7 appNos from marker 3578 (backend, frontend, WatchVrf x1-2, create join,
+RunSim, task join). Ledger each from the marker immediately before its join.
+
+PENDING USER RULING (blocks the live run): fresh-boot RTI (requires stopping the
+healthy-idle preserved stack - outside the standing wedged-only exception) vs launching
+on the preserved stack gated by the oracle pre-check with the approved narrow restart as
+the wedge fallback.
