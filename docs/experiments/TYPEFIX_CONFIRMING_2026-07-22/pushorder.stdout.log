@@ -1,0 +1,6 @@
+subscribed; server status = RUNNING
+pushing order: c:\Users\PauloBarthelmess\Source\Repos\C2SIM\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM\data\R9_Mojave_UnitMove_Order_NoComments.xml (3889 chars)
+[23:18:19.886] ORDER (3302 chars)
+push result  : OK Message processed successfully
+listening 30s for reports ...
+captured 1 bus messages -> C:\Users\PauloBarthelmess\Source\Repos\C2SIM\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM\tools\PushOrder\bin\Release\net10.0\c2sim-bus.log

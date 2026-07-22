@@ -1,0 +1,126 @@
+
+=== RunC2SimScenario.ps1 v1.0.0-draft (LIVE) ===
+  local clock : 2026-07-22 19:16:14 -04:00
+  UTC clock   : 2026-07-22 23:16:14   <- this machine stamps logs UTC
+  repo root   : C:\Users\PauloBarthelmess\Source\Repos\C2SIM\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM
+  init        : c:\Users\PauloBarthelmess\Source\Repos\C2SIM\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM\data\R9_Mojave_Lean_Initialization_NoComments.xml
+  order       : c:\Users\PauloBarthelmess\Source\Repos\C2SIM\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM\data\R9_Mojave_UnitMove_Order_NoComments.xml
+  RunSecs     : 900
+
+  THIS SCRIPT DOES NOT SCORE. It collects evidence. HEADLESS_RUN_PLAN sec 4a
+  was RATIFIED 2026-07-19; sec 4a.6 makes run 1 a measurement, not a test.
+
+=== Stage 0 - validation (nothing is launched or contacted until this passes) ===
+  [OK]   inputs, tools, timing budgets and the clientId/SystemName match all validate
+  [OK]   init SystemName [STP] matches app clientId [STP]
+  [OK]   CreateOne.exe present - the stage-7b failure-path disambiguation diagnostic is ARMED: C:\Users\PauloBarthelmess\Source\Repos\C2SIM\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM\tools\CreateOne\bin\Release\net10.0\win-x64\CreateOne.exe
+
+=== Stage 1 - pre-flight process inventory (RUNBOOK 0.5.0) ===
+  [OK]   rtiAssistant pid=8888 - RTI INFRASTRUCTURE. Never touched, never refused on (RUNBOOK 0.5.2). Window: ""
+  [OK]   rtiexec pid=68020 - RTI INFRASTRUCTURE. Never touched, never refused on (RUNBOOK 0.5.2). Window: ""
+  [OK]   rtiForwarder pid=68464 - RTI INFRASTRUCTURE. Never touched, never refused on (RUNBOOK 0.5.2). Window: ""
+  [OK]   no pre-existing vrfLauncher / vrfSimHLA1516e / vrfGui - clear to launch
+  [OK]   C2SIM REST reachable: HTTP 200
+
+=== Stage 2 - appNumber allocation (Appendix B marker), BEFORE any join ===
+  marker currently reads : 3585
+    3585    vrfBackend   LaunchVrf.ps1 back-end (vrfSimHLA1516e), combined mode
+    3586    vrfFrontend  LaunchVrf.ps1 front-end (vrfGui), combined mode
+    3587    oraclePre    WatchVrf ADVISORY pre-init oracle pre-check (RUNBOOK 0.5.7)
+    3588    oracleTrace  WatchVrf MAIN run trace - the movement oracle / scoring input
+    3589    app          VrfC2SimApp Vrf__ApplicationNumber (the interface federate)
+    3590    createOneDiag tools/CreateOne - STAGE 7b FAILURE-PATH DIAGNOSTIC ONLY (RUNBOOK 0.5.7 STRONGER CHECK). CONSUMED ONLY IF THE ORACLE GATE FAILS; on a healthy run it is NEVER JOINED and this number goes UNCONSUMED. Unconsumed numbers are BURNED, never recycled - see the NOTE below. Allocated here rather than mid-run because every number must be ledgered BEFORE any join.
+  marker would advance to: 3591
+
+=== Planned run ===
+  run id      : 20260722T231614Z_run
+  run dir     : C:\Users\PauloBarthelmess\Source\Repos\C2SIM\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM\runs\20260722T231614Z_run
+  observers   : 1460s (derived: preRoll 20 + appJoin 180 + initDispatch 120 + oracleGate 180 + pushOrderListen 30 + run 900 + trail 30)
+  HLA PATH    : C:\MAK\vrforces5.0.2\bin64;C:\MAK\vrlink5.8\bin64;C:\MAK\makRti4.6.1\bin;<inherited>
+  license     : MAKLMGRD_LICENSE_FILE (Machine) = C:\MAK\MAKLicenseManager\SALES-TEMP-9-15-26-MAK-node-locked-DEMO_1-dec-2025.lic
+  HLA cwd     : C:\MAK\vrforces5.0.2\bin64
+  [OK]   run directory created: C:\Users\PauloBarthelmess\Source\Repos\C2SIM\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM\runs\20260722T231614Z_run
+  [OK]   Appendix B marker advanced 3585 -> 3591 and 6 numbers CLAIMED, BEFORE any join
+  [OK]   MAKLMGRD_LICENSE_FILE refreshed from Machine scope
+
+=== Stage 3 - LaunchVrf.ps1 (combined mode) ===
+  [..]   LaunchVrf: pwsh -NoProfile -File C:\Users\PauloBarthelmess\Source\Repos\C2SIM\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM\scripts\LaunchVrf.ps1 -Scenario TropicTortoise -VrfRoot C:\MAK\vrforces5.0.2 -RtiDir C:\MAK\makRti4.6.1 -BackendAppNumber 3585 -FrontendAppNumber 3586
+  [..]   LaunchVrf: waiting for the DIRECT CHILD only, up to 720s
+  [..]   LaunchVrf: EXIT=0
+  [OK]   VR-Forces READY
+
+=== Stage 3b - settle 45s before touching the oracle (RUNBOOK 0.5.7: READY does NOT mean joined) ===
+
+=== Stage 4 - oracle pre-check, pre-init (ADVISORY - see the header block) ===
+  RUNBOOK 0.5.7: a stock TropicTortoise contains only POSITIONLESS control objects,
+  so a DEGENERATE result here is EXPECTED and is NOT a fault. What this stage proves
+  is that the oracle can JOIN and DISCOVER. The real coordinate criterion is applied
+  post-init at stage 7, against the scoring trace.
+  [..]   WatchVrf-precheck: C:\Users\PauloBarthelmess\Source\Repos\C2SIM\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM\tools\WatchVrf\bin\Release\net10.0\win-x64\WatchVrf.exe 3587 30 2 CWIX-2024
+  [..]   WatchVrf-precheck: waiting for the DIRECT CHILD only, up to 630s
+  [..]   WatchVrf-precheck: EXIT=0
+  POS lines=16 real=0 degenerate=16  last: # t=29.6s reflected=3 readable=2
+  [..]   Pre-init oracle pre-check saw NO real-coordinate POS line. EXPECTED on a stock TropicTortoise (RUNBOOK 0.5.7); advisory only.
+
+=== Stage 5 - start the observers BEFORE the init, so unit births are in the trace ===
+  [..]   WatchVrf-trace (background): C:\Users\PauloBarthelmess\Source\Repos\C2SIM\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM\tools\WatchVrf\bin\Release\net10.0\win-x64\WatchVrf.exe 3588 1460 2 CWIX-2024
+  [..]   ListenReports (background): C:\Users\PauloBarthelmess\Source\Repos\C2SIM\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM\tools\ListenReports\bin\Release\net10.0\ListenReports.exe 1460 C:\Users\PauloBarthelmess\Source\Repos\C2SIM\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM\runs\20260722T231614Z_run\reports-captured.log
+
+=== Stage 5b - pre-roll 20s of trace before the init is pushed ===
+
+=== Stage 6 - PushInit, then start the interface (RUNBOOK sec 3: init FIRST, the app late-joins) ===
+  [..]   PushInit: C:\Users\PauloBarthelmess\Source\Repos\C2SIM\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM\tools\PushInit\bin\Release\net10.0\PushInit.exe c:\Users\PauloBarthelmess\Source\Repos\C2SIM\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM\data\R9_Mojave_Lean_Initialization_NoComments.xml http://127.0.0.1:8080/C2SIMServer http://127.0.0.1:61613/topic/C2SIM
+  [..]   PushInit: waiting for the DIRECT CHILD only, up to 600s
+  [..]   PushInit: EXIT=0
+  [OK]   init accepted and server switched to RUNNING
+  [OK]   QUERYINIT reports 6 units will be handed to a late joiner
+
+=== Stage 6b - start VrfC2SimApp with a LEDGERED ApplicationNumber ===
+  Vrf__ApplicationNumber=3589 comes from the Appendix B marker, NOT from appsettings.json
+  (appsettings.json carries a baked-in ApplicationNumber; hand-editing it is exactly how stale-federate hangs were created - the env override wins and is ledgered)
+  [..]   VrfC2SimApp (background): C:\Users\PauloBarthelmess\Source\Repos\C2SIM\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM\src\VrfC2SimApp\bin\Release\net10.0\win-x64\VrfC2SimApp.exe --contentRoot=C:\Users\PauloBarthelmess\Source\Repos\C2SIM\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM\src\VrfC2SimApp\bin\Release\net10.0\win-x64
+
+=== Stage 6c - wait up to 180s for the interface to connect to C2SIM ===
+  [OK]   interface logged "Connected to C2SIM"
+
+=== Stage 6d - wait up to 120s for the interface to dispatch the init ===
+  [OK]   interface dispatched 6 units + 0 areas for creation
+
+=== Stage 7 - ORACLE GATE: a POS line with REAL lat/lon, retried up to 180s ===
+  RUNBOOK 0.5.7 CORRECTED: reflected>0 is NOT sufficient (it passes on pole/NaN
+  garbage) and reflected=0 at 20 s is NOT a stop (settle time exceeded 50 s live).
+  PASS = lat/lon real, not NaN, not the 90/-90 pole. Applied to the live trace.
+  [..]     no real coordinate yet - # t=23.5s reflected=3 readable=2
+  [OK]   ORACLE GATE PASSED: 88 real-coordinate POS lines across 44 distinct uuids
+  [OK]     first: POS,25.5,VRF_UUID:0164e3e4-956f-6741-a4fa-5474ea815106,34.645266,-116.693115,1116.4
+
+=== Stage 8 - PushOrder, then observe ===
+  [..]   PushOrder: C:\Users\PauloBarthelmess\Source\Repos\C2SIM\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM\tools\PushOrder\bin\Release\net10.0\PushOrder.exe c:\Users\PauloBarthelmess\Source\Repos\C2SIM\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM\data\R9_Mojave_UnitMove_Order_NoComments.xml 30 http://127.0.0.1:8080/C2SIMServer http://127.0.0.1:61613/topic/C2SIM
+  [..]   PushOrder: waiting for the DIRECT CHILD only, up to 630s
+  [..]   PushOrder: EXIT=0
+  [OK]   order accepted by the server
+  [OK]   bus log copied: C:\Users\PauloBarthelmess\Source\Repos\C2SIM\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM\runs\20260722T231614Z_run\c2sim-bus.log
+
+=== Stage 8b - observation window: 900s ===
+  Nothing is judged here. The trace and the report capture are the evidence;
+  scoring happens later, against a ratified 4a.
+  [..]     870s remaining   trace: # t=88.9s reflected=47 readable=0
+  [..]     840s remaining   trace: # t=119.6s reflected=47 readable=0
+  [..]     810s remaining   trace: # t=150.2s reflected=47 readable=0
+  [..]     780s remaining   trace: # t=178.9s reflected=47 readable=0
+  [..]     750s remaining   trace: # t=209.6s reflected=47 readable=0
+  [..]     720s remaining   trace: # t=240.3s reflected=47 readable=0
+  [..]     690s remaining   trace: # t=268.8s reflected=47 readable=0
+  [..]     660s remaining   trace: # t=299.5s reflected=47 readable=0
+  [..]     630s remaining   trace: # t=330.2s reflected=47 readable=0
+  [..]     600s remaining   trace: # t=358.9s reflected=47 readable=0
+  [..]     570s remaining   trace: # t=389.5s reflected=47 readable=0
+  [..]     540s remaining   trace: # t=420.2s reflected=47 readable=0
+  [..]     510s remaining   trace: # t=451s reflected=47 readable=0
+  [..]     480s remaining   trace: # t=479.6s reflected=47 readable=0
+  [..]     450s remaining   trace: # t=510.3s reflected=47 readable=0
+  [..]     419s remaining   trace: # t=541s reflected=47 readable=0
+  [..]     389s remaining   trace: # t=569.7s reflected=47 readable=0
+  [..]     359s remaining   trace: # t=600.4s reflected=47 readable=0
+  [..]     329s remaining   trace: # t=631.1s reflected=47 readable=0
+  [..]     299s remaining   trace: # t=659.7s reflected=47 readable=0

@@ -1,0 +1,8 @@
+before      : RUNNING
+ResetToInitializing() ...
+after reset : INITIALIZING
+pushing     : c:\Users\PauloBarthelmess\Source\Repos\C2SIM\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM\data\R9_Mojave_Lean_Initialization_NoComments.xml (13360 chars)
+push result : OK Message processed successfully
+SwitchToRunning() ...
+after start : RUNNING
+QUERYINIT   : 6 Units, SystemName=[STP]
