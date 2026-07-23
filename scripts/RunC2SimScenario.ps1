@@ -325,6 +325,7 @@ $ExePushOrder     = Join-Path $ToolsDir 'PushOrder\bin\Release\net10.0\PushOrder
 $ExeListenReports = Join-Path $ToolsDir 'ListenReports\bin\Release\net10.0\ListenReports.exe'
 $ExeStopIface     = Join-Path $ToolsDir 'StopIface\bin\Release\net10.0\StopIface.exe'
 $ExeCreateOne     = Join-Path $ToolsDir 'CreateOne\bin\Release\net10.0\win-x64\CreateOne.exe'
+$ExeRtiProbe      = Join-Path $ToolsDir 'RtiProbe\bin\Release\net10.0\win-x64\RtiProbe.exe'
 $ExeApp           = Join-Path $RepoRoot 'src\VrfC2SimApp\bin\Release\net10.0\win-x64\VrfC2SimApp.exe'
 
 $Bin64 = Join-Path $VrfRoot 'bin64'
@@ -352,6 +353,7 @@ $RtiNames     = @('rtiAssistant','rtiexec','rtiForwarder')
 $FederateJoiningTools = @(
     'VrfC2SimApp',                              # the interface federate
     'WatchVrf', 'WatchVrf-trace', 'WatchVrf-precheck',  # the oracle federate
+    'RtiProbe',                                 # stage 2c pre-launch RTI readiness gate (throwaway join/resign)
     'CreateOne', 'CreateOne-diagnostic',        # stage 7b throwaway injector
     'ResetVrf', 'SetSimRate'                    # not used here; listed so a future
                                                 # caller inherits the rule
@@ -1021,6 +1023,7 @@ foreach ($f in @(
     @{n='LaunchVrf.ps1';   p=$LaunchVrf},
     @{n='StopVrf.ps1';     p=$StopVrf},
     @{n='WatchVrf.exe';    p=$ExeWatchVrf},
+    @{n='RtiProbe.exe';    p=$ExeRtiProbe},
     @{n='PushInit.exe';    p=$ExePushInit},
     @{n='PushOrder.exe';   p=$ExePushOrder},
     @{n='ListenReports.exe';p=$ExeListenReports},
@@ -1120,7 +1123,7 @@ foreach ($t in @(
     @{k='WatchVrf';      p=$ExeWatchVrf},   @{k='PushInit';  p=$ExePushInit},
     @{k='PushOrder';     p=$ExePushOrder},  @{k='StopIface'; p=$ExeStopIface},
     @{k='ListenReports'; p=$ExeListenReports}, @{k='VrfC2SimApp'; p=$ExeApp},
-    @{k='CreateOne';     p=$ExeCreateOne},
+    @{k='CreateOne';     p=$ExeCreateOne},     @{k='RtiProbe';   p=$ExeRtiProbe},
     @{k='RunC2SimScenario'; p=$PSCommandPath})) {
     $Manifest.tools[$t.k] = Get-ToolIdentity -Path $t.p
 }
@@ -1236,6 +1239,7 @@ $Alloc = @(
     [ordered]@{ key='oraclePre';   purpose='WatchVrf ADVISORY pre-init oracle pre-check (RUNBOOK 0.5.7)' }
     [ordered]@{ key='oracleTrace'; purpose='WatchVrf MAIN run trace - the movement oracle / scoring input' }
     [ordered]@{ key='app';         purpose='VrfC2SimApp Vrf__ApplicationNumber (the interface federate)' }
+    [ordered]@{ key='rtiProbe';    purpose='tools/RtiProbe - STAGE 2c PRE-LAUNCH RTI READINESS GATE (C1). Throwaway create-or-join against the federation with internal retry+backoff, then clean resign, BEFORE the back-end launches (RTI_LAUNCH_HARDENING_DESIGN.md A2-A7 - the RUN-2 fix). CONSUMED on EVERY run (the gate always runs pre-launch). One number covers all internal retries - RtiProbe reuses this single appNumber across attempts by design.' }
     [ordered]@{ key='createOneDiag'; purpose='tools/CreateOne - STAGE 7b FAILURE-PATH DIAGNOSTIC ONLY (RUNBOOK 0.5.7 STRONGER CHECK). CONSUMED ONLY IF THE ORACLE GATE FAILS; on a healthy run it is NEVER JOINED and this number goes UNCONSUMED. Unconsumed numbers are BURNED, never recycled - see the NOTE below. Allocated here rather than mid-run because every number must be ledgered BEFORE any join.' }
 )
 for ($i = 0; $i -lt $Alloc.Count; $i++) { $Alloc[$i].appNumber = $FirstFree + $i }
@@ -1304,6 +1308,8 @@ $PathStopIfaceOut = Join-Path $RunDir 'stopiface.stdout.log'
 $PathStopIfaceErr = Join-Path $RunDir 'stopiface.stderr.log'
 $PathCreateOneOut = Join-Path $RunDir 'createone-diagnostic.stdout.log'
 $PathCreateOneErr = Join-Path $RunDir 'createone-diagnostic.stderr.log'
+$PathRtiProbeOut  = Join-Path $RunDir 'rtiprobe.stdout.log'
+$PathRtiProbeErr  = Join-Path $RunDir 'rtiprobe.stderr.log'
 $PathStopVrfOut   = Join-Path $RunDir 'stopvrf.stdout.log'
 $PathStopVrfErr   = Join-Path $RunDir 'stopvrf.stderr.log'
 $ManifestPath     = Join-Path $RunDir 'run-manifest.json'
@@ -1423,6 +1429,60 @@ try {
             Say-Warn 'Machine-scope MAKLMGRD_LICENSE_FILE is EMPTY - PRESERVING the process value rather than blanking it.'
         } else {
             Add-Flag 'WARN' 'MAKLMGRD_LICENSE_FILE empty in both Machine and process scope - license checkout may hang (RUNBOOK sec 7 item 2).'
+        }
+    }
+
+    # ---------------------------------------------------------------------
+    # STAGE 2c - RTI READINESS GATE (C1) - FATAL, BEFORE ANY BACK-END LAUNCH
+    # ---------------------------------------------------------------------
+    # THE RUN-2 FIX (docs/RTI_LAUNCH_HARDENING_DESIGN.md, ADJUDICATION ADDENDUM
+    # A2-A7). RUN 2 went VOID because the VR-Forces back-end lost a TCP race at
+    # createFederationExecution against a fresh-booting RTI, and the runner then
+    # pushed init/order at a back-end that never joined. This gate PROVES the RTI
+    # can service a create-or-join RIGHT NOW - the exact operation the back-end will
+    # do (VrfFacade::Start -> new DtExerciseConn(--execName <federation>),
+    # VrfFacade.cpp:319-325) - BEFORE Stage 3 launches VR-Forces, and REFUSES the
+    # launch loudly if it cannot, so a not-ready RTI costs a launch cycle instead of
+    # a confusing VOID. RtiProbe joins as a throwaway federate with INTERNAL
+    # retry+backoff on ONE ledgered appNumber (absorbs a cold-create window) and
+    # resigns cleanly. This is FATAL and PRE-launch; Stage 4 (post-launch WatchVrf
+    # pre-check) is KEPT as-is and stays ADVISORY - they test different moments.
+    Say-Head 'Stage 2c - RTI readiness gate (C1) - FATAL, before any back-end launch'
+    Say '  Proves the RTI can service a create-or-join NOW (the RUN-2 fix). RtiProbe joins the'
+    Say '  federation as a throwaway federate with internal retry+backoff, then resigns cleanly.'
+    Say '  exit 0 = serviceable -> proceed; 1 = NOT serviceable -> launch REFUSED here, before any'
+    Say '  back-end is started or any init is pushed; 2 = arg/usage (runner defect).'
+    $probeAttempts = 5
+    $probeSettle   = 2
+    $probeBackoff  = 3
+    # Ceiling >= worst-case internal duration + slack: the definite internal sleeps are
+    # attempts*(settle+backoff); Start()'s own per-attempt cost is absorbed by the large
+    # $StageTimeoutSec slack, so a slow-but-eventually-ready RTI is never cut off early.
+    $probeTimeoutSec = $probeAttempts * ($probeSettle + $probeBackoff) + $StageTimeoutSec
+    $r = Invoke-External -Name 'RtiProbe' -File $ExeRtiProbe `
+            -Arguments @([string]$AppNo['rtiProbe'], $Federation, [string]$probeAttempts, [string]$probeSettle, [string]$probeBackoff) `
+            -Cwd $Bin64 -StdOutFile $PathRtiProbeOut -StdErrFile $PathRtiProbeErr `
+            -TimeoutSec $probeTimeoutSec `
+            -Note 'C1 pre-launch FATAL gate (the RUN-2 fix). RtiProbe exit 0 = RTI serviceable (create/join OK, clean resign) -> proceed; 1 = RTI NOT serviceable after all internal retries -> REFUSE the launch BEFORE any back-end/PushInit; 2 = arg/usage (args are generated, so a 2 is a RUNNER DEFECT). Self-resigns on every path. Uses ONE ledgered appNumber for all retries.'
+    if (-not $DryRun) {
+        # A gate that produced no exit code (timed out / could-not-start) is NOT a pass.
+        # If it timed out it is a joined federate left running (never killed, RUNBOOK sec 0);
+        # fail cleanly through teardown, exactly like Stage 3/4.
+        if (-not (Test-StageProduced -Result $r)) { Stop-Runner 3 (Get-StageFailureText -Name 'RtiProbe' -Result $r) }
+        $Manifest.oracle.rtiGate = [ordered]@{
+            fatal      = $true
+            appNumber  = $AppNo['rtiProbe']
+            exitCode   = $r.ExitCode
+            maxAttempts= $probeAttempts
+            settleSecs = $probeSettle
+            backoffSecs= $probeBackoff
+        }
+        Save-Manifest
+        switch ($r.ExitCode) {
+            0 { Say-Ok 'RTI serviceable - create/join succeeded and resigned cleanly. Clear to launch.' }
+            1 { Stop-Runner 3 ('RtiProbe exited 1: the RTI could not be proven serviceable (create/join failed on every retry, or it joined but could not resign cleanly - see {0}). REFUSING THE LAUNCH before any back-end is started or any init is pushed - this is the RUN-2 fix (do NOT proceed to a confusing VOID). Bring the RTI to a confirmed-ready state (warm, resident, answered rtiAssistant - RUNBOOK 0.5.x / RTI_LAUNCH_HARDENING_DESIGN.md) and re-run. Nothing was launched.' -f $PathRtiProbeOut) }
+            2 { Stop-Runner 2 'RtiProbe exited 2 (usage/argument error). Its arguments are GENERATED by this runner, so this is a RUNNER DEFECT, not an RTI problem. Nothing joined, nothing launched.' }
+            default { Stop-Runner 3 ('RtiProbe exited {0} - undocumented code. Refusing to launch on an uninterpretable gate result.' -f $r.ExitCode) }
         }
     }
 
