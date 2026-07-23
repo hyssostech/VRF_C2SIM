@@ -1,9 +1,10 @@
 # PREREG: R9 type-mapping fix - confirming run (registered 2026-07-22)
 
-STATUS: **RUN 1 + RUN 2 (2026-07-22) BOTH VOID (two different infra failures); predictions
-UNTESTED; re-run DEFERRED pending launch hardening (user decision).** See "Outcome - RUN 1"
-and "Outcome - RUN 2" at the bottom. The per-taskee registration below is unchanged and
-still governs the eventual RUN >= 3 (on the hardened launcher). ASCII only.
+STATUS: **RUN 3 (2026-07-23) PASSED - the type fix is CONFIRMED end to end for the platoon.**
+RUN 1 + RUN 2 (2026-07-22) were both VOID on infrastructure; RUN 3, on the hardened launcher
+after a reboot, reached tasking WITHOUT crashing and 1222.MechPlt MOVED ~1163 m east
+(static->moving->settled, POS==RPT). 114.MechCoy (company) and 1.BdeHQ (entity) FROZE exactly
+as predicted (separate defects). See "Outcome - RUN 1/2/3" at the bottom. ASCII only.
 
 ## 0. What this run tests (ONE variable)
 
@@ -317,3 +318,52 @@ procedure first; HOLD the MAK case until the RUN-1 reboot+VC++-repair discrimina
   preserved). Does not => mid-session MSVC servicing, procedural fix only.
 - ONLY AFTER the launcher is hardened + validated does RUN >= 3 (this prereg's per-taskee
   predictions, unchanged) execute to finally test the type fix through to tasking.
+
+## Outcome - RUN 3 (2026-07-23 ~13:45-14:11 local): PASS - type fix CONFIRMED for the platoon
+
+Run: scripts/RunC2SimScenario.ps1 -Init R9_Mojave_Lean_Initialization_NoComments.xml -Order
+R9_Mojave_UnitMove_Order_NoComments.xml -RunSecs 900 (TimeMultiplier 1x). Post-reboot, on the
+hardened runner (Stage 2c RTI gate passed warm), RTI freshly auto-started + gate-verified
+(rtiexec 8196). appNos 3599-3605 consumed, marker -> 3606. Evidence dir
+runs/20260723T174540Z_run/. Runner exited 0 (clean StopIface + StopVrf); RTI preserved.
+
+VALIDITY GATES (sec 2) all MET: Type-mapping mode RealTemplates active; 6 units created; order
+delivered (PushOrder OK, "Message processed successfully"); oracle live (watchvrf-trace 459
+POS samples/uuid; ListenReports captured 39+ reports incl. a TaskStatus - RPT channel NOT
+empty this time). Run is VALID.
+
+STEP 2 (crash discriminator, folded into this run): NO REPRODUCTION. All 3 CreateRoute -> all
+3 MoveAlongRoute issued (the exact point RUN 1 crashed 12 s into), full 900 s observation,
+clean teardown, NO dump written 2026-07-23. The RUN-1 crash was ENVIRONMENTAL (reboot + fresh
+vrfSim load + fresh gate-verified RTI cleared it), NOT a deterministic app fault. No MAK case;
+procedural fix stands. Held even WITHOUT the VC++ repair (user did reboot-only).
+
+PER-TASKEE VERDICT (adversarially adjudicated; two-channel rule enforced):
+
+- **1222.MechPlt (ArmorPlatoon -> Tank Platoon (USA) 11.1.225.3.2.0.0): MOVED. PRIMARY
+  PREDICTION CONFIRMED; decisive falsifier did NOT fire.** VRF aggregate e62d0a8b:
+  - static-while-paused: bit-static at spawn 34.612956,-116.600487 for t=27.6/29.7/31.7;
+  - onset: ~t=34-36 (first sample east of spawn at t=35.8, with a small DR wobble at t=33.8);
+  - SETTLED endpoint: bit-identical 34.612956,-116.587783 held from t~169 through t~963
+    (~390 consecutive samples, ~13 min plateau) - the gold-standard settle;
+  - displacement ~1163 m DUE EAST (lat unchanged; lon -116.600487 -> -116.587783) - matches
+    Cell C (~1165 m) and the R9 route (~1155 m); meets the MOVED criterion (>=25 m sustained
+    >=3 samples + distance-to-final-waypoint decreased) by a wide margin;
+  - POS==RPT (agreement, clean pass): RPT (c2sim-bus.log GeodeticCoordinate) reports the
+    platoon at 34.612956,-116.594174 mid-traverse then 34.612956,-116.587860 settled (~7 m
+    from POS), plus SENT TASK STATUS REPORT (TASKCMPLT) taskee=001aa71b-...6342 / move-along.
+    Both channels agree: moved east and completed. No disagreement to quote.
+
+- **114.MechCoy (company, VRF 42d76acf): FROZE** - bit-identical 34.647629,-116.693388 first
+  and last (459 samples), no task-complete. The company-HU move defect (predicted UNCERTAIN;
+  the type fix leaves it UNCHANGED). NOT a refutation of the platoon fix.
+
+- **1.BdeHQ (entity, VRF 8a7916fc): FROZE** - bit-identical 34.608416,-116.712685 first and
+  last, no task-complete. The entity-move defect (predicted; type fix does not touch it).
+
+CONCLUSION: the R9 remote-create freeze for the platoon class WAS the type mapping, and mapping
+ArmorPlatoon to the real Tank Platoon (USA) fixes it end to end on the headless product path.
+The WHOLE R9 order is not yet fully working - company-HU and entity move-along remain open,
+SEPARATE defects (the next targets). One clean, rigorous, two-channel-agreeing data point; a
+replicate would add confidence but the settled bit-identical plateau + POS==RPT make this
+decisive.

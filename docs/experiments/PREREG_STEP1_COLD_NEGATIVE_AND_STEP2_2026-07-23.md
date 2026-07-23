@@ -119,3 +119,19 @@ STATUS after Test N: WARM path (3597) and DOWN-but-startable path (3598) both PA
 the RTI serviceable). NEGATIVE path (genuine-unserviceable) still needs a valid test. COLD-with-
 forced-retry not yet seen (auto-start settled on attempt 1). RTI is now freshly UP and warm
 (51140 / 8196 / 47544) - a clean substrate for the STEP 2 crash discriminator.
+
+### STEP 2 (2026-07-23, folded into the confirming run RUN 3, appNos 3599-3605): NO REPRODUCTION
+
+Ran the full confirming run (scripts/RunC2SimScenario.ps1, R9 NoComments, -RunSecs 900) on the
+warm gate-verified RTI, reboot-only (user chose no VC++ repair). It reached and passed the
+exact CreateRoute->MoveAlongRoute sequence RUN 1 crashed on (all 3 routes + all 3 MoveAlongRoute
+issued), observed 900 s, and tore down cleanly (runner exit 0). NO vrfSim dump written
+2026-07-23. VERDICT: the RUN-1 crash did NOT reproduce -> it was ENVIRONMENTAL (mid-session MSVC
+servicing timing and/or the aged preserved stack), cleared by the reboot + fresh vrfSim load +
+fresh gate-verified RTI. No MAK support case; the procedural fix stands (never launch vrfSim
+during/right after toolchain servicing). Notably it held even WITHOUT the VC++ repair, which
+tightens the attribution to the reboot/fresh-load. STEP 2 CLEARS. Full movement verdict (the
+platoon MOVED; company + entity froze) is in PREREG_TYPEFIX_CONFIRMING_RUN.md "Outcome - RUN 3".
+
+NEGATIVE gate path (Test N redesign) remains the only open STEP 1 validation item; it did NOT
+block STEP 2/3 and can be done later with a genuinely-unserviceable RTI (license/config/port).

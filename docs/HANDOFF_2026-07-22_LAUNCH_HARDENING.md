@@ -24,6 +24,21 @@ mode. Full record + the offline verification: docs/RTI_LAUNCH_HARDENING_DESIGN.m
 STILL PENDING for STEP 1: LIVE validation (cold/warm/negative paths) - needs a user go. STEP 2
 (reboot + VC++ repair + replay) and STEP 3 (RUN >= 3) unchanged. NEXT FREE still 3597.
 
+## UPDATE 2026-07-23 (live session): TYPE FIX CONFIRMED end to end for the platoon
+The plan executed live. STEP 1 validation: warm (3597) and down-but-startable (3598) paths PASS
+- and a MAJOR finding, MAK AUTO-STARTS + warms a down RTI so the gate brings the RTI up and
+verifies it (the RUN-2 fix, better than designed). Only the genuine-unserviceable NEGATIVE gate
+path is still unvalidated (auto-start prevents faking "down"; needs license/config/port) - it
+did NOT block progress. STEP 2 (crash discriminator, folded into the confirming run): NO
+REPRODUCTION - the RUN-1 crash was environmental, cleared by reboot + fresh load; no MAK case
+(held even reboot-only, no VC++ repair). STEP 3 / confirming RUN 3: **1222.MechPlt MOVED ~1163 m
+east, static->moving->settled (bit-identical plateau t~169-963), POS==RPT, move-along TASKCMPLT
+- the type-mapping fix is CONFIRMED on the headless product path.** 114.MechCoy (company) and
+1.BdeHQ (entity) FROZE exactly as predicted. Details: PREREG_TYPEFIX_CONFIRMING_RUN.md "Outcome
+- RUN 3" + PREREG_STEP1_COLD_NEGATIVE_AND_STEP2_2026-07-23.md. NEXT FREE now 3606 (RUN 3 used
+3599-3605). NEXT TARGETS: the company-HU move defect and the entity move-along defect (the R9
+order is not yet fully working); optional: a replicate of RUN 3, and the negative-gate test.
+
 ## WHAT THIS IS (unchanged)
 A HEADLESS C2SIM -> VR-Forces interface. C2SIM init+order in; units created, tasked, run,
 scored from telemetry. ONE command, zero humans in the GUI. GUI use is DIAGNOSTIC ONLY.
