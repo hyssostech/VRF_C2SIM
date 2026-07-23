@@ -1359,7 +1359,16 @@ per the never-reuse non-negotiable. Annotate with results from the run manifest.
 NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
 join) are BURNED, not recycled. The run manifest records which were actually used.
 
-*** NEXT FREE: 3597 *** (authoritative - the ONLY such marker in this file. Update this
+CONSUMED 2026-07-23 (supervisor, manual single-tool ledger), BEFORE the join, per the
+never-reuse non-negotiable. See docs/experiments/PREREG_RTIPROBE_WARM_2026-07-23.md.
+- 3597: CONSUMED - tools/RtiProbe STANDALONE warm probe vs the resident RTI trio (rtiexec
+  60672 / rtiForwarder 61696 / rtiAssistant 40956). First live exercise of the STEP 1 gate
+  instrument + resident-stack serviceability check. ONE appNo covers all internal retries by
+  design. RESULT: exit 0 (serviceable) on attempt 1, 13 s; created/joined CWIX-2024 and
+  resigned cleanly; no stale federate. Outcome recorded in PREREG_RTIPROBE_WARM_2026-07-23.md
+  sec 5.
+
+*** NEXT FREE: 3598 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
