@@ -324,7 +324,8 @@ procedure first; HOLD the MAK case until the RUN-1 reboot+VC++-repair discrimina
 Run: scripts/RunC2SimScenario.ps1 -Init R9_Mojave_Lean_Initialization_NoComments.xml -Order
 R9_Mojave_UnitMove_Order_NoComments.xml -RunSecs 900 (TimeMultiplier 1x). Post-reboot, on the
 hardened runner (Stage 2c RTI gate passed warm), RTI freshly auto-started + gate-verified
-(rtiexec 8196). appNos 3599-3605 consumed, marker -> 3606. Evidence dir
+(rtiexec 8196). appNos 3599-3604 consumed (6 joins); 3605 (CreateOne stage-7b failure-path)
+burned unused (oracle gate passed); marker -> 3606. Evidence dir
 runs/20260723T174540Z_run/. Runner exited 0 (clean StopIface + StopVrf); RTI preserved.
 
 VALIDITY GATES (sec 2) all MET: Type-mapping mode RealTemplates active; 6 units created; order
@@ -344,8 +345,8 @@ PER-TASKEE VERDICT (adversarially adjudicated; two-channel rule enforced):
   PREDICTION CONFIRMED; decisive falsifier did NOT fire.** VRF aggregate e62d0a8b:
   - static-while-paused: bit-static at spawn 34.612956,-116.600487 for t=27.6/29.7/31.7;
   - onset: ~t=34-36 (first sample east of spawn at t=35.8, with a small DR wobble at t=33.8);
-  - SETTLED endpoint: bit-identical 34.612956,-116.587783 held from t~169 through t~963
-    (~390 consecutive samples, ~13 min plateau) - the gold-standard settle;
+  - SETTLED endpoint: bit-identical 34.612956,-116.587783 held from t=162.7 through t=962.9
+    (393 consecutive samples, ~13 min plateau) - the gold-standard settle;
   - displacement ~1163 m DUE EAST (lat unchanged; lon -116.600487 -> -116.587783) - matches
     Cell C (~1165 m) and the R9 route (~1155 m); meets the MOVED criterion (>=25 m sustained
     >=3 samples + distance-to-final-waypoint decreased) by a wide margin;

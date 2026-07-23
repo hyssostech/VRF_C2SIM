@@ -32,11 +32,11 @@ path is still unvalidated (auto-start prevents faking "down"; needs license/conf
 did NOT block progress. STEP 2 (crash discriminator, folded into the confirming run): NO
 REPRODUCTION - the RUN-1 crash was environmental, cleared by reboot + fresh load; no MAK case
 (held even reboot-only, no VC++ repair). STEP 3 / confirming RUN 3: **1222.MechPlt MOVED ~1163 m
-east, static->moving->settled (bit-identical plateau t~169-963), POS==RPT, move-along TASKCMPLT
+east, static->moving->settled (bit-identical plateau t=162.7-962.9), POS==RPT, move-along TASKCMPLT
 - the type-mapping fix is CONFIRMED on the headless product path.** 114.MechCoy (company) and
 1.BdeHQ (entity) FROZE exactly as predicted. Details: PREREG_TYPEFIX_CONFIRMING_RUN.md "Outcome
-- RUN 3" + PREREG_STEP1_COLD_NEGATIVE_AND_STEP2_2026-07-23.md. NEXT FREE now 3606 (RUN 3 used
-3599-3605). NEXT TARGETS: the company-HU move defect and the entity move-along defect (the R9
+- RUN 3" + PREREG_STEP1_COLD_NEGATIVE_AND_STEP2_2026-07-23.md. NEXT FREE now 3606 (RUN 3 consumed
+3599-3604; 3605 burned). NEXT TARGETS: the company-HU move defect and the entity move-along defect (the R9
 order is not yet fully working); optional: a replicate of RUN 3, and the negative-gate test.
 
 ## WHAT THIS IS (unchanged)

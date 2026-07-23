@@ -120,7 +120,7 @@ the RTI serviceable). NEGATIVE path (genuine-unserviceable) still needs a valid 
 forced-retry not yet seen (auto-start settled on attempt 1). RTI is now freshly UP and warm
 (51140 / 8196 / 47544) - a clean substrate for the STEP 2 crash discriminator.
 
-### STEP 2 (2026-07-23, folded into the confirming run RUN 3, appNos 3599-3605): NO REPRODUCTION
+### STEP 2 (2026-07-23, folded into the confirming run RUN 3, appNos 3599-3604 +3605 burned): NO REPRODUCTION
 
 Ran the full confirming run (scripts/RunC2SimScenario.ps1, R9 NoComments, -RunSecs 900) on the
 warm gate-verified RTI, reboot-only (user chose no VC++ repair). It reached and passed the
