@@ -1,3 +1,9 @@
+> **SUPERSEDED (2026-07-22 evening) BY docs/HANDOFF_2026-07-22_LAUNCH_HARDENING.md.**
+> That pivot SUCCEEDED - Cell C moved, the type-mapping fix landed, and two confirming runs
+> then went VOID on infrastructure. Read the LAUNCH_HARDENING handoff for current truth and
+> the next-session order. This file is retained for its still-accurate Cell C / spike
+> background and its recorded RUN 1/RUN 2 outcome notes.
+
 # SESSION-JUMP HANDOFF (2026-07-22) - the plan-assignment pivot
 
 Paste into a fresh session. CURRENT truth as of 2026-07-22 evening. SUPERSEDES

@@ -27,7 +27,7 @@ THE FIX (already implemented + offline-validated, this session):
   "Fixed100").
 - Gated by VrfSettings.TypeMappingMode (default "RealTemplates"); VrfC2SimService.cs maps the
   setting and logs the active mode + target at init.
-- Offline gate: `VrfC2SimApp.exe --translator-selftest` PASSES 21/21, including
+- Offline gate: `VrfC2SimApp.exe --translator-selftest` PASSES 22/22, including
   `ArmorPlatoon(D) RealTemplates` (asserts the fixed 3:2:0:0 - a regression fails it),
   `ArmorPlatoon(D) GoldenParity` (asserts the old 1:1:3:0), and the three R9-taskee-by-SIDC
   assertions. NO native C++ change was made or needed (VrfFacade.cpp:84 toDtType is a pure
@@ -151,6 +151,13 @@ SetSimRate appNo if a join is used to apply it.
 
 ## 5. Pre-run checks, budget, posture
 
+> SUPERSEDED VALUES BELOW (this section was written for RUN 1 on 2026-07-22 afternoon):
+> the appNo marker is now **NEXT FREE 3597** (not 3585 - RUN 1/RUN 2 consumed 3585-3596),
+> and the RTI posture is superseded by docs/RTI_LAUNCH_HARDENING_DESIGN.md (harden + gate
+> readiness first; the "use the PRESERVED stack and just re-run" posture and the PIDs
+> 8888/68020/68464 below are stale). Read the current handoff for both. The rest of this
+> section (server/XML/teardown mechanics) still holds.
+
 **C2SIM server (RUNBOOK 0.6/1):** `docker ps` shows c2sim-server up; REST 8080 reachable;
 STOMP 61613 reachable. `docker restart c2sim-server` (~30 s to ActiveMQ-ready) if degraded.
 RunC2SimScenario checks the server by default (do NOT pass -SkipServerCheck); it also refuses
@@ -221,7 +228,7 @@ a mark against this fix.
     4x anonymous 1:1:1:225:4:14:0:0 with EMPTY function handles (the mechanistic difference vs
     Tank Platoon (USA): empty handles + no platoon script -> empty subordinate offset routes).
   All three are in the loaded chain (C2simEx.sms includes EntityLevel.sms).
-- Offline gate: `VrfC2SimApp.exe --translator-selftest` -> SELF-TEST PASSED (21/21).
+- Offline gate: `VrfC2SimApp.exe --translator-selftest` -> SELF-TEST PASSED (22/22).
 
 ## Outcome - RUN 1 (2026-07-22 19:16 local): VOID (infrastructure), predictions UNTESTED
 
