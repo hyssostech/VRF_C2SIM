@@ -149,7 +149,7 @@ movement froze (RUN_2026-07-19_MOJAVE_CHAIN.md sec 2).
 TYPE-MAPPING FIX LANDED (2026-07-22, offline): UnitTranslator ArmorPlatoon now emits
 11/1/225/3/2/0/0 (Tank Platoon (USA)) under default TypeMapping=RealTemplates;
 GoldenParity escape hatch retains the old enum; VrfSettings.TypeMappingMode gates it;
-selftest 21/21 green at build time. Comment-free R9 XML copies added (RUNBOOK 0.6):
+selftest 22/22 green at build time. Comment-free R9 XML copies added (RUNBOOK 0.6):
 data/R9_Mojave_{Lean_Initialization,UnitMove_Order}_NoComments.xml. NEXT: the confirming
 run per PREREG_TYPEFIX_CONFIRMING_RUN.md (-RunSecs 900, mult 1, preserved-RTI + oracle
 gate, budget from marker 3585).
@@ -157,7 +157,7 @@ gate, budget from marker 3585).
 TOOLCHAIN EVENT (2026-07-22 ~18:40, transient, RESOLVED ~19:45): a Visual Studio 18.8
 updater removed the .NET 10 SDK payload + net10 runtime mid-session, then restored SDK
 10.0.302 + runtime 10.0.10. Supervisor re-verified: VrfC2SimApp rebuild clean, selftest
-21/21, exit 0. Residual relevance: the updater serviced MSVC components minutes before
+22/22, exit 0. Residual relevance: the updater serviced MSVC components minutes before
 the RUN-1 crash below (hypothesis H-ENV).
 
 CONFIRMING RUN 1 (2026-07-22 19:16): **VOID - vrfSim FATAL CRASH** (dump 19:18:32),

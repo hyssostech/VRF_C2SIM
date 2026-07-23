@@ -17,7 +17,8 @@ the registered discriminator for the RUN 1 crash).
 - App exe       : src/VrfC2SimApp/bin/Release/net10.0/win-x64/VrfC2SimApp.exe
                   built 2026-07-22 19:07:09 local (SAME exe as RUN 1);
                   --translator-selftest re-run by the executor BEFORE the run = PASS
-                  (21/21; all R9 assertions green incl. 1222.MechPlt(D)->TankPlatoonUSA).
+                  (22/22 [corrected: originally logged 21, a miscount; the tool emits 22
+                  PASS lines]; all R9 assertions green incl. 1222.MechPlt(D)->TankPlatoonUSA).
 - appNos (Appendix B marker 3591): 3591 backend, 3592 frontend, 3593 oracle-pre,
   3594 trace, 3595 app, 3596 createOne-diag. Marker advanced 3591 -> 3597 by the runner.
   6 CONSUMED, 0 BURNED.
@@ -80,7 +81,8 @@ stayed 0 the whole trace.
 
 - Type-mapping active (RealTemplates, not GoldenParity): **PASSED (fix confirmed on)** -
   vrfc2simapp.log: "Type-mapping mode = RealTemplates (ArmorPlatoon -> Tank Platoon (USA)
-  (11.1.225.3.2.0.0))". NOT a GoldenParity void. (Offline: selftest 21/21 re-run pre-launch.)
+  (11.1.225.3.2.0.0))". NOT a GoldenParity void. (Offline: selftest 22/22 re-run pre-launch;
+  originally logged 21, a miscount.)
 - 6 units created: **NOT MET** - the app DISPATCHED 6 units ("Init dispatched: 6 units + 0
   areas") but the back-end was already gone, so each create returned "No backends found for
   object creation". ZERO units instantiated. Trace reflected=0 throughout (never 3->47).
