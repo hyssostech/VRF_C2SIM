@@ -1,0 +1,40 @@
+
+=== LaunchVrf.ps1 (LIVE) - VR-Forces self-launch via vrfLauncher.exe ===
+  Mode              : Combined
+  VrfRoot           : C:\MAK\vrforces5.0.2
+  ConnectionProfile : HLA 1516 Evolved RPR 2.0 with MAK extensions
+  Scenario          : TropicTortoise
+  Back-end appNumber: 3591
+  Front-end appNo   : 3592
+
+=== Preconditions ===
+  [OK]   vrfLauncher.exe present: C:\MAK\vrforces5.0.2\bin64\vrfLauncher.exe
+  [OK]   working directory (cwd) present: C:\MAK\vrforces5.0.2\bin64
+  [OK]   RTI 4.6.1 present: C:\MAK\makRti4.6.1\bin
+  [OK]   MAK_RTIDIR (Machine) = C:\MAK\makRti4.6.1
+  [OK]   RTI_RID_FILE (Machine) = C:\MAK\makRti4.6.1\rid.mtl
+  [OK]   license file present (existence only; expiry/validity NOT checked - no checkout): C:\MAK\MAKLicenseManager\SALES-TEMP-9-15-26-MAK-node-locked-DEMO_1-dec-2025.lic
+  [OK]   connection profile saved: C:\MAK\vrforces5.0.2\appData\settings\vrfLauncher\HLA 1516 Evolved RPR 2.0 with MAK extensions.xml
+  [OK]   autoConnect.xml auto-starts this profile (bare vrfLauncher.exe would also connect it)
+  [OK]   scenario file present: C:\MAK\vrforces5.0.2\userData\scenarios\TropicTortoise.scnx
+  [OK]   no pre-existing vrfLauncher / vrfSimHLA1516e / vrfGui processes
+  [OK]   no rtiexec / rtiForwarder running yet. NOT an error: whether they appear is connection-dependent, and the RTI starts them itself when the chosen connection needs them. Never gate readiness on their presence (RUNBOOK 0.5.6).
+  [WARN] NO pre-existing rtiAssistant found. Per the vendor's documented startup sequence, this launch will spawn one that PROMPTS ('Choose RTI Connection') and the BACK-END WILL BLOCK until it is answered.
+  [WARN]   Unless the Assistant has been configured to auto-connect, a human (or UI automation) must choose the connection and click Connect.
+  [WARN]   Detail: docs/experiments/SESSION_2026-07-18_SELFLAUNCH.md
+
+=== Resolved vrfLauncher command line ===
+  cwd : C:\MAK\vrforces5.0.2\bin64
+  cmd : C:\MAK\vrforces5.0.2\bin64\vrfLauncher.exe --usePredefinedConnection "HLA 1516 Evolved RPR 2.0 with MAK extensions" --simArgs --appNumber 3591 --scenarioFileName "../userData/scenarios/TropicTortoise.scnx" --guiArgs --appNumber 3592
+
+=== Launch ===
+  [OK]   MAKLMGRD_LICENSE_FILE (process) refreshed from Machine scope = C:\MAK\MAKLicenseManager\SALES-TEMP-9-15-26-MAK-node-locked-DEMO_1-dec-2025.lic
+  [OK]   launching: C:\MAK\vrforces5.0.2\bin64\vrfLauncher.exe --usePredefinedConnection "HLA 1516 Evolved RPR 2.0 with MAK extensions" --simArgs --appNumber 3591 --scenarioFileName "../userData/scenarios/TropicTortoise.scnx" --guiArgs --appNumber 3592
+  [OK]   vrfLauncher started (pid 32232); polling for backend readiness...
+
+=== Readiness ===
+  [OK]   back-end 'vrfSimHLA1516e' is HEALTHY (16 threads; udp4000=False - informational, connection-dependent)
+  [OK]   front-end 'vrfGui' is up with a real main window (title: 'VR-Forces')
+
+=== Result ===
+  [OK]   READY: combined-mode VR-Forces is up (back-end HEALTHY by thread count, front-end with a real main window). NOTE: federation JOIN is not tested here - confirm it with a WatchVrf discovery check (RUNBOOK 0.5.7) before trusting any telemetry.

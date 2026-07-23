@@ -1347,7 +1347,19 @@ per the never-reuse non-negotiable. Annotate with results from the run manifest.
 NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
 join) are BURNED, not recycled. The run manifest records which were actually used.
 
-*** NEXT FREE: 3591 *** (authoritative - the ONLY such marker in this file. Update this
+
+CLAIMED 2026-07-23 00:28 by scripts/RunC2SimScenario.ps1 (run 20260723T002834Z_run). Ledgered BEFORE any join,
+per the never-reuse non-negotiable. Annotate with results from the run manifest.
+- 3591: CLAIMED - LaunchVrf.ps1 back-end (vrfSimHLA1516e), combined mode
+- 3592: CLAIMED - LaunchVrf.ps1 front-end (vrfGui), combined mode
+- 3593: CLAIMED - WatchVrf ADVISORY pre-init oracle pre-check (RUNBOOK 0.5.7)
+- 3594: CLAIMED - WatchVrf MAIN run trace - the movement oracle / scoring input
+- 3595: CLAIMED - VrfC2SimApp Vrf__ApplicationNumber (the interface federate)
+- 3596: CLAIMED - tools/CreateOne - STAGE 7b FAILURE-PATH DIAGNOSTIC ONLY (RUNBOOK 0.5.7 STRONGER CHECK). CONSUMED ONLY IF THE ORACLE GATE FAILS; on a healthy run it is NEVER JOINED and this number goes UNCONSUMED. Unconsumed numbers are BURNED, never recycled - see the NOTE below. Allocated here rather than mid-run because every number must be ledgered BEFORE any join.
+NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
+join) are BURNED, not recycled. The run manifest records which were actually used.
+
+*** NEXT FREE: 3597 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN

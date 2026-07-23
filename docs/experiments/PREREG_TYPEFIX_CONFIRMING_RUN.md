@@ -1,8 +1,9 @@
 # PREREG: R9 type-mapping fix - confirming run (registered 2026-07-22)
 
-STATUS: **RUN 1 (2026-07-22 19:16) VOID - back-end crash; predictions UNTESTED; re-run
-pending.** See "Outcome - RUN 1" at the bottom. Registration below is unchanged and still
-governs the re-run. ASCII only.
+STATUS: **RUN 1 + RUN 2 (2026-07-22) BOTH VOID (two different infra failures); predictions
+UNTESTED; re-run DEFERRED pending launch hardening (user decision).** See "Outcome - RUN 1"
+and "Outcome - RUN 2" at the bottom. The per-taskee registration below is unchanged and
+still governs the eventual RUN >= 3 (on the hardened launcher). ASCII only.
 
 ## 0. What this run tests (ONE variable)
 
@@ -267,4 +268,45 @@ federate 3589 without a clean StopIface resign (back-end already dead; superviso
 clean-resign order arrived after the fact - sequencing error owned by the supervisor;
 possible stale federate 3589 until RTI timeout, no appNo reuse so no collision).
 (3) vrfGui 22512 remnant could not be closed gracefully (StopVrf exit 3), NOT force-
-killed (needs a user ruling; it HARD-BLOCKS the next LaunchVrf).
+killed (needs a user ruling; it HARD-BLOCKS the next LaunchVrf). [RESOLVED: user ruled
+force-kill; cleared 20:0x. The RUN 2 vrfGui orphan was later cleared under the standing
+failed-own-join carveout.]
+
+## Outcome - RUN 2 (2026-07-22 20:28 local): VOID (infrastructure, DIFFERENT mechanism)
+
+Fresh-boot RTI (user-ruled). The back-end (vrfSimHLA1516e, appNo 3591) FAILED TO
+CREATE/JOIN the federation and self-terminated cleanly (NO dump). vrfSim.log (last write
+20:29:05): "Could not create Federation Execution CWIX-2024: RTIinternalError TCP
+connection has been broken ... No FOM specified. Stopping run of back-end." Zero units;
+reflected=0 for the entire 1442 s trace; app logged "No backends found for object
+creation" x6; CreateOne diagnostic joined CWIX-2024 with BackendCount=0 (triangulates a
+genuinely absent back-end, NOT a blind oracle). This is NOT RUN 1's crash and does NOT
+discriminate the RUN 1 hypotheses - it failed far upstream, at RTI join.
+
+ORDERING-RACE EVIDENCE: the 20:29:05 federation-create failure PRECEDES the settled RTI
+stack (rtiexec 60672 @20:29:15, rtiForwarder 61696 @20:29:18) by ~10-13 s. The back-end
+raced against TRANSIENT fresh-boot rtiexec instances (72748/76380) that were then torn
+down. A "Choose RTI Connection" dialog appeared (fresh boot; no persisted auto-connect)
+and was answered by DPI-click - the one procedural difference from RUN 1/Cell C, and a
+flagged residual-uncertainty contributor (the answerer clicked Connect only; did not
+verify the pre-selected connection nor tick "Always try to use this connection").
+
+Validity gates: RealTemplates active (PASSED - fix on, not GoldenParity); 6 units created
+NOT MET (0 instantiated, no back-end); oracle gate FAILED (reflected=0); order never
+pushed. appNos 3591-3596 consumed, 0 burned, marker 3597. Clean teardown (StopIface EXIT
+0, app resigned exit 0, StopVrf EXIT 0). Evidence:
+docs/experiments/TYPEFIX_CONFIRMING_RUN2_2026-07-22/ (vrfSim.backend.log.txt is the
+discriminating artifact).
+
+## DECISION (user, 2026-07-22 evening) + what governs RUN >= 3
+Two VOID runs from two different infra failures => STOP live runs; HARDEN the launch
+procedure first; HOLD the MAK case until the RUN-1 reboot+VC++-repair discriminator runs.
+- Launch hardening spec: docs/RTI_LAUNCH_HARDENING_DESIGN.md (readiness gate before
+  back-end launch; warm resident confirmed-ready rtiexec; drop loopback forwarder /
+  suppress the Assistant dialog - all VERIFY-then-implement, needs live RTI to validate).
+- Research basis (URL-cited): docs/experiments/RTI_LAUNCH_HARDENING_RESEARCH_2026-07-22.md.
+- RUN 1 crash track (separate): reboot + repair x64/x86 VC++ redistributables + replay the
+  3x-CreateRoute-then-MoveAlongRoute sequence on a warm RTI. Reproduces => MAK case (dump
+  preserved). Does not => mid-session MSVC servicing, procedural fix only.
+- ONLY AFTER the launcher is hardened + validated does RUN >= 3 (this prereg's per-taskee
+  predictions, unchanged) execute to finally test the type fix through to tasking.

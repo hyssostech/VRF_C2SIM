@@ -162,12 +162,35 @@ registered discriminator (identical re-run on FRESH-BOOT RTI): the Outcome secti
 PREREG_TYPEFIX_CONFIRMING_RUN.md. Evidence: docs/experiments/TYPEFIX_CONFIRMING_
 2026-07-22/. appNos 3585-3589 consumed, 3590 burned, marker NEXT FREE = 3591.
 
-OPERATIONAL STATE AFTER RUN 1: vrfSim DEAD (crashed); **vrfGui 22512 REMNANT still up -
-StopVrf exit 3 could not close it; it HARD-BLOCKS the next LaunchVrf; disposition needs
-a user ruling** (it is a joined front-end federate; the crashed-backend-orphan carveout
-is arguable but not ruled). RTI trio rtiAssistant 8888 / rtiexec 68020 / rtiForwarder
-68464 UP, untouched, teardown-survivor class, now also hosted a crashed federate +
-possibly-stale federate 3589 (app was TaskStop'd without clean resign during the abort -
-supervisor sequencing error, owned). C2SIM docker RUNNING. Crash dump preserved:
-bin64\vrfSim5.0.2-MSVC++15.0_64-249613-36676.dmp.dmp (+ prior dumps 7/14, 7/15 on disk -
-MAK support material). RunC2SimScenario.ps1 parse regression (8c36abe) fixed in-tree.
+CONFIRMING RUN 2 (2026-07-22 20:28, fresh-boot RTI - user-ruled): **VOID by a DIFFERENT
+mechanism** - back-end FAILED TO CREATE/JOIN the federation ("RTIinternalError TCP
+connection has been broken", no dump), 0 units, reflected=0 whole trace. A fresh-boot RTI
+startup race: federation-create at 20:29:05 raced transient rtiexec instances ~10-13 s
+before the persistent stack settled; the "Choose RTI Connection" dialog (fresh boot)
+answered by DPI-click is a flagged contributor. Does NOT reproduce RUN 1's crash and does
+NOT discriminate its hypotheses. appNos 3591-3596 consumed, 0 burned. Full: prereg
+"Outcome - RUN 2"; evidence docs/experiments/TYPEFIX_CONFIRMING_RUN2_2026-07-22/.
+
+DECISION (user, 2026-07-22 evening): two VOID runs from two different INFRA failures (not
+the fix) => STOP live runs; HARDEN the launcher first; HOLD the MAK case until the RUN-1
+reboot+VC++-repair discriminator. Governing docs written this session:
+- docs/RTI_LAUNCH_HARDENING_DESIGN.md - the next-session implementation spec (RTI readiness
+  gate before back-end launch; warm resident confirmed-ready rtiexec; drop loopback
+  forwarder / suppress Assistant dialog; VALIDATE against live RTI).
+- docs/experiments/RTI_LAUNCH_HARDENING_RESEARCH_2026-07-22.md - URL-cited external evidence
+  (the "broken != refused" readiness insight; MAK ports 4000/5000; forwarder is WAN-only).
+NEXT-SESSION ORDER: (1) implement + live-validate the launch hardening; (2) reboot + VC++
+repair + replay the RUN-1 route sequence (crash discriminator; MAK case only if it
+reproduces); (3) THEN RUN >= 3 of PREREG_TYPEFIX_CONFIRMING_RUN.md to finally test the type
+fix through to tasking. The type fix (commit 0b4529f) is offline-green but UNTESTED end to
+end - nothing tonight changed that.
+
+OPERATIONAL STATE (end of 2026-07-22 session, CLEAN): VR-Forces fully DOWN (StopVrf EXIT 0;
+the app resigned exit 0; the RUN-1 and RUN-2 vrfGui orphans were BOTH cleared - RUN 1 by
+user force-kill ruling, RUN 2 under the standing failed-own-join carveout). ONLY the
+fresh-boot RTI trio remains, UP and untouched: rtiAssistant 40956 (20:28:41) / rtiexec
+60672 (20:29:15) / rtiForwarder 61696 (20:29:18) - teardown-survivor class; oracle/readiness
+pre-check before trusting it next session. C2SIM docker RUNNING (REST 8080 / STOMP 61613
+verified this session). appNo marker NEXT FREE = **3597**. Crash dump preserved for MAK:
+bin64\vrfSim5.0.2-MSVC++15.0_64-249613-36676.dmp.dmp (+ prior 7/14, 7/15 dumps).
+RunC2SimScenario.ps1 parse regression (8c36abe) fixed in-tree this session.

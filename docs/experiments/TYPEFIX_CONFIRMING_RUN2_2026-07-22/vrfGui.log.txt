@@ -1,0 +1,25 @@
+debugDrawRenderer starting on 0.0.0.0:4580
+Installed 0 from c:\MAK\SharedData\16\latest\ModelData\Configuration\Definitions for manager SpotReports new total 766
+WARN[Radio]  makRadio::DtRadioManager::changeCaptureDevice: Initialized capture device default
+
+--------------------------Video Card Info--------------------------------
+Graphics Card Vendor: NVIDIA Corporation
+Graphics Renderer: NVIDIA GeForce RTX 4070 Laptop GPU/PCIe/SSE2
+Graphics Driver Version: 4.6.0 NVIDIA 546.92
+
+--------------------------Video Card Info--------------------------------
+DtReflectedObjectList::addObjectClassName: no such class DynamicTerrain
+DtReflectedObjectList::addObjectClassName: no such class DynamicTerrain
+is can result in: [0m
+Warning: makVrv::DtOsgRenderer::DtOsgRenderer: [31m	-poor entity performance[0m
+Warning: makVrv::DtOsgRenderer::DtOsgRenderer: [31m	-instability when resizing windows.[0m
+Warning: makVrv::DtOsgRenderer::DtOsgRenderer: [31m	-crashes using 2 or more monitors.[0m
+Warning: makVrv::DtOsgRenderer::DtOsgRenderer: [31m!! Please stop Nahimic service. See the user's guide to disable.[0m
+Warning: makVrv::DtIndirectEntityManager::setupReductionExcludeTextures: c:/MAK/SharedData/16/latest/ModelData/Vehicles/FixedWing/Airbus320a/A320Atlas.emat2_dds.meif does not exist
+Warning: makVrv::DtIndirectEntityManager::setupReductionExcludeTextures: c:/MAK/SharedData/16/latest/ModelData/Vehicles/FixedWing/Airbus320a/A320Atlas.emat3_dds.meif does not exist
+Warning: makVrv::DtIndirectEntityManager::setupReductionExcludeTextures: c:/MAK/SharedData/16/latest/ModelData/Vehicles/FixedWing/Airbus320a/A320Atlas_EMM_png.meif does not exist
+Warning: makVrv::DtIndirectEntityManager::setupReductionExcludeTextures: c:/MAK/SharedData/16/latest/ModelData/Vehicles/FixedWing/Airbus320a/A320Atlas_MTL_GLS_AO_png.meif does not exist
+Warning: makVrv::DtIndirectEntityManager::setupReductionExcludeTextures: c:/MAK/SharedData/16/latest/ModelData/Vehicles/FixedWing/Airbus320a/A320Atlas_NML_png.meif does not exist
+Warning: makVrv::DtIndirectEntityManager::setupReductionExcludeTextures: c:/MAK/SharedData/16/latest/ModelData/Vehicles/FixedWing/Airbus320a/A320Atlas_png.meif does not exist
+Warning: makVrv::DtIndirectEntityManager::setupReductionExcludeTextures: c:/MAK/SharedData/16/latest/ModelData/Vehicles/FixedWing/Airbus320a/A320Atlas_RFL_png.meif does not exist
+Warning: makVrv::DtIndirectEntityManager::setupReductionExcludeTextures: c:/MAK/SharedData/16/latest/ModelData/Vehicles/FixedWing/Airbus320a/A320Atlas_SNR_png.meif does not exist

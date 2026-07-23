@@ -1,0 +1,56 @@
+checking for RDTSCP instruction...Success.  Using RDTSCP for time
+RDTSCP Timing Probe: 2443789630 ticks per second
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
+info: Microsoft.Hosting.Lifetime[0]
+      Hosting environment: Production
+info: VrfC2Sim[0]
+      Starting VrfBridge (protocol=Hla1516e, federation=CWIX-2024)...
+info: Microsoft.Hosting.Lifetime[0]
+      Content root path: C:\Users\PauloBarthelmess\Source\Repos\C2SIM\OpenC2SIM.github.io\Software\Interfaces\VRF_C2SIM\src\VrfC2SimApp\bin\Release\net10.0\win-x64
+Using MAK Technologies' RTI version 4.6.1 HLA 1516-2010 for Microsoft Visual C++ version 14.0 Release Mode.
+Connected to RTI Assistant.
+Loading Config File: C:\MAK\makRti4.6.1\rid.mtl
+INFO[Util] 00:30:56.004 T:37752 MAK::DtInitializer::loadConfigScript: Loading config file: vrfLegion.lua
+info: VrfC2Sim[0]
+      Connected to C2SIM (http://127.0.0.1:8080/C2SIMServer / http://127.0.0.1:61613/topic/C2SIM). clientId=STP.
+info: VrfC2Sim[0]
+      C2SIM Initialization (late-join QUERYINIT, 12574 bytes).
+fail: C2SIM.C2SIMSDK[0]
+      Failed to deserialize xml to type C2SIM.Schema102.MessageBodyType: There is an error in XML document (1, 2).
+info: VrfC2Sim[0]
+      Type-mapping mode = RealTemplates (ArmorPlatoon -> Tank Platoon (USA) (11.1.225.3.2.0.0)).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 1222.MechPlt created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 114.MechCoy created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 1143.MechPlt created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 1.BdeHQ created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 1141.MechPlt created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Create-altitude mode=Live: GROUND unit 1142.MechPlt created at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).
+info: VrfC2Sim[0]
+      Init dispatched: 6 units + 0 areas queued for creation.
+info: VrfC2Sim[0]
+      Sim Run() queued (start the VR-Forces clock; timeMult=1).
+No backends found for object creation
+No backends found for object creation
+No backends found for object creation
+No backends found for object creation
+No backends found for object creation
+No backends found for object creation
+info: VrfC2Sim[0]
+      C2SIM server state -> INITIALIZED.
+info: VrfC2Sim[0]
+      C2SIM server state -> UNINITIALIZED.
+info: VrfC2Sim[0]
+      Server UNINITIALIZED; initiating clean stop.
+info: Microsoft.Hosting.Lifetime[0]
+      Application is shutting down...
+info: VrfC2Sim[0]
+      Shutting down...
+fail: C2SIM.C2SIMSDK[0]
+      STOMP block reading cancelled

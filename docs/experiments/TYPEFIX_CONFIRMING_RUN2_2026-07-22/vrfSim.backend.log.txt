@@ -1,0 +1,6 @@
+Loaded configuration file: ..\appData\settings\vrfSim\channelSettings.mtl
+Setting appDataDir to ../appData
+Using VR-Link version 5.8 for the HLA 1516 Evolved API
+Built on Microsoft Windows with Microsoft Visual C++ version 14.0 - 64bit
+Could not create Federation Execution CWIX-2024: RTI exception: RTIinternalError TCP connection has been broken.
+Could not create a valid network connection.  No FOM specified. Stopping run of back-end.
