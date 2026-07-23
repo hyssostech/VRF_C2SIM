@@ -153,3 +153,15 @@ STATUS after adjudication: design is sound; C1=WatchVrf pre-launch fatal readine
 the runner + keep warm resident answered rtiAssistant/rtiexec (persisted connection); C3
 RTI_ASSISTANT_DISABLE and forwarder-drop are OUT. Implementation is OFFLINE; VALIDATION needs
 a live RTI (gated, requires a user go).
+
+## DECISION (2026-07-23, user go) + implementation shape
+User authorized: (1) implement STEP 1 OFFLINE now; (2) A7 = INTERNAL retry in the probe tool
+(one ledgered appNo, not an external burn-several loop). Supervisor call: the probe is a
+DEDICATED minimal tool tools/RtiProbe (templated on tools/CreateOne), NOT a new mode on
+WatchVrf - WatchVrf is the scoring oracle (Stage 5) and its exit-code contract must not be
+risked. RtiProbe exit contract: 0 = RTI serviceable (create-or-join OK, clean resign) ->
+proceed; 1 = RTI not ready (all retries failed) -> Stop-Runner LOUD before back-end launch /
+PushInit (the RUN-2 fix); 2 = arg/usage (runner defect). Gate inserted in
+RunC2SimScenario.ps1 between env setup (~:1427) and Stage 3 (~:1432); Stage 4 kept as-is;
++1 ledgered appNo/run (6 -> 7). LIVE validation (cold/warm/negative paths) remains gated on a
+separate user go, together with STEP 2's reboot+VC++-repair discriminator before STEP 3.
