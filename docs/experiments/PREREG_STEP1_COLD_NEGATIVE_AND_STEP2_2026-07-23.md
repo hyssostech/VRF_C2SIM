@@ -84,3 +84,38 @@ before any C2SIM-driven step.
   force-kill of a healthy stack mid-run.
 - After two consecutive RTI/VR-Forces framework failures, research before the next attempt.
 - This whole plan is LIVE and awaits a deliberate user go + an attended reboot. NOT started.
+
+## 5. Outcomes (filled as run)
+
+### Test N (2026-07-23 13:31 local, appNo 3598): exit 0 - INVALID as a negative test; MAJOR finding
+
+The user rebooted; post-reboot inventory showed NO rti* processes (RTI down) and no VR-Forces.
+Ran RtiProbe.exe 3598 CWIX-2024 5 2 3 expecting exit 1. RESULT: **exit 0 on attempt 1, 27 s.**
+RtiProbe stdout: "Attempt to create and connect to Assistant" -> "Connected to RTI Assistant."
+-> loaded rid.mtl + vrfLegion.lua -> created/joined CWIX-2024 -> resigned cleanly.
+
+INTERPRETATION (adversarially checked): NOT a gate defect / NOT the decisive falsifier firing.
+The falsifier premise ("a PROVABLY-DOWN, unserviceable RTI") was NOT met: the RTI was merely
+NOT RUNNING, and **MAK AUTO-STARTED it** (Assistant 51140 born 13:31:29, rtiexec 8196 13:31:36,
+rtiForwarder 47544 13:31:38 - all created BY the probe during the run). Confirmed by a
+post-run inventory: the auto-started trio PERSISTED after the probe exited (it did NOT tear it
+down, unlike RUN 2's transient rtiexec instances). exit 0 is CORRECT: a serviceable RTI now
+exists.
+
+WHY THIS MATTERS (positive for the gate's RUN-2 utility): a DOWN RTI -> the gate auto-starts
+it, absorbs the startup/create churn (the exact window RUN 2's back-end lost its race in), warms
+it, confirms serviceable, and LEAVES it running. The back-end then joins a settled rtiexec with
+no churn. This is the RUN-2 fix, and it also means the runner needs no separate RTI-launch step
+- the gate brings the RTI up and verifies it. (It succeeded on attempt 1, so the retry did not
+have to fire here - this machine's auto-start settled fast.)
+
+CONSEQUENCE for the NEGATIVE test: "just don't run rtiexec" cannot produce exit 1 because MAK
+auto-starts it. A genuine negative test needs a truly-unserviceable condition the auto-start
+cannot rescue - e.g. a broken/absent license, a broken rid.mtl / connection config, or an
+occupied rtiexec port 4000. Redesign required before the negative path can be validated; the
+gate's exit-1 path (Program.cs / Stage 2c) remains code-verified but live-unexercised.
+
+STATUS after Test N: WARM path (3597) and DOWN-but-startable path (3598) both PASS (gate makes
+the RTI serviceable). NEGATIVE path (genuine-unserviceable) still needs a valid test. COLD-with-
+forced-retry not yet seen (auto-start settled on attempt 1). RTI is now freshly UP and warm
+(51140 / 8196 / 47544) - a clean substrate for the STEP 2 crash discriminator.

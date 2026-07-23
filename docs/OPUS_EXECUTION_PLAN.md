@@ -1368,7 +1368,18 @@ never-reuse non-negotiable. See docs/experiments/PREREG_RTIPROBE_WARM_2026-07-23
   resigned cleanly; no stale federate. Outcome recorded in PREREG_RTIPROBE_WARM_2026-07-23.md
   sec 5.
 
-*** NEXT FREE: 3598 *** (authoritative - the ONLY such marker in this file. Update this
+CONSUMED 2026-07-23 (supervisor, STEP 1 gate validation post-reboot), BEFORE the join attempt,
+per the never-reuse non-negotiable. See PREREG_STEP1_COLD_NEGATIVE_AND_STEP2_2026-07-23.md.
+- 3598: CONSUMED - tools/RtiProbe Test N (attempted NEGATIVE path): RtiProbe vs a down RTI
+  (post-reboot; no rti* present). RESULT: exit 0, 27 s - MAK AUTO-STARTED the RTI ("Attempt to
+  create and connect to Assistant"; Assistant 51140 / rtiexec 8196 / rtiForwarder 47544 all
+  born 13:31), the probe joined+resigned cleanly, and the auto-started RTI PERSISTED. Test N
+  INVALID as a negative test (auto-start prevented a genuine unserviceable condition) - NOT a
+  gate defect. KEY POSITIVE FINDING: a down RTI -> gate auto-starts + absorbs bring-up churn +
+  warms it + confirms serviceable, leaving a settled RTI for the back-end (the RUN-2 fix). A
+  real negative test needs a genuinely-unserviceable RTI (license/config/port). Prereg sec 5.
+
+*** NEXT FREE: 3599 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
