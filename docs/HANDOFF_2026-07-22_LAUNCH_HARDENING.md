@@ -13,6 +13,17 @@ The R9 remote-create freeze is diagnosed (TYPE-MAPPING, platoon-scoped) and the 
 committed + offline-green, but it is UNTESTED end to end: two live confirming runs went VOID
 on two different INFRASTRUCTURE failures. Next session HARDENS the launcher, then re-tests.
 
+## UPDATE 2026-07-23 (STEP 1 implementation landed offline)
+STEP 1's C1 readiness gate is IMPLEMENTED offline-green + supervisor-adjudicated (commit
+1e649dd): new tools/RtiProbe (pre-launch throwaway create-or-join with internal retry+backoff,
+exit 0/1/2) + a fatal "Stage 2c" gate in RunC2SimScenario.ps1 before any back-end launch /
+PushInit. Design amended vs the original spec: RTI_ASSISTANT_DISABLE is FORBIDDEN (RUNBOOK
+0.5.5 - dropped from C3); forwarder-drop deferred; probe is a DEDICATED tool, not a WatchVrf
+mode. Full record + the offline verification: docs/RTI_LAUNCH_HARDENING_DESIGN.md
+("ADJUDICATION ADDENDUM" A1-A7, the DECISION block, and "IMPLEMENTATION STATUS (2026-07-23)").
+STILL PENDING for STEP 1: LIVE validation (cold/warm/negative paths) - needs a user go. STEP 2
+(reboot + VC++ repair + replay) and STEP 3 (RUN >= 3) unchanged. NEXT FREE still 3597.
+
 ## WHAT THIS IS (unchanged)
 A HEADLESS C2SIM -> VR-Forces interface. C2SIM init+order in; units created, tasked, run,
 scored from telemetry. ONE command, zero humans in the GUI. GUI use is DIAGNOSTIC ONLY.

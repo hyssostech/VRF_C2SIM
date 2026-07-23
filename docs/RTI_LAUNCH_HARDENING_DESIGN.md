@@ -1,10 +1,12 @@
 # RTI launch-hardening design (next-session implementation spec)
 
-Status: DESIGN, not implemented. Follows the user decision (2026-07-22): after two VOID
-live runs, STOP live runs and HARDEN the launch procedure before re-testing the type fix.
-Evidence base: docs/experiments/RTI_LAUNCH_HARDENING_RESEARCH_2026-07-22.md (URL-cited).
-Implementation + validation REQUIRES a live RTI (the readiness gate is live behavior), so
-it is next-session work, not tonight's. ASCII only.
+Status: C1 GATE IMPLEMENTED OFFLINE-GREEN + SUPERVISOR-ADJUDICATED (2026-07-23, commit
+1e649dd); LIVE VALIDATION STILL PENDING (gated on a user go). Follows the user decision
+(2026-07-22): after two VOID live runs, STOP live runs and HARDEN the launch procedure before
+re-testing the type fix. Evidence base:
+docs/experiments/RTI_LAUNCH_HARDENING_RESEARCH_2026-07-22.md (URL-cited). Validation REQUIRES
+a live RTI (the readiness gate is live behavior). See "IMPLEMENTATION STATUS (2026-07-23)" at
+the very bottom for what landed and what remains. ASCII only.
 
 ## Problem (both VOID runs, same root class: environment/procedure, not the fix)
 - RUN 2 (fresh boot): back-end federation-create lost a TCP race - "connection has been
@@ -165,3 +167,29 @@ PushInit (the RUN-2 fix); 2 = arg/usage (runner defect). Gate inserted in
 RunC2SimScenario.ps1 between env setup (~:1427) and Stage 3 (~:1432); Stage 4 kept as-is;
 +1 ledgered appNo/run (6 -> 7). LIVE validation (cold/warm/negative paths) remains gated on a
 separate user go, together with STEP 2's reboot+VC++-repair discriminator before STEP 3.
+
+## IMPLEMENTATION STATUS (2026-07-23) - commit 1e649dd, offline-green + adjudicated
+LANDED (offline): tools/RtiProbe (Program.cs + RtiProbe.csproj, templated on CreateOne;
+internal retry+backoff on ONE ledgered appNumber; exit 0 serviceable / 1 not-ready / 2 args;
+self-resigns on every path incl. a terminal exit-1 for joined-but-resign-failed to avoid the
+stale-federate trap) + a fatal pre-launch "Stage 2c" gate in scripts/RunC2SimScenario.ps1
+(before Stage 3 / before any PushInit; +1 appNo key 'rtiProbe' CONSUMED every run; Stage 4
+kept advisory). No WatchVrf change; no native change; NEXT FREE marker untouched (still 3597 -
+advances 3597 -> 3604 only on a LIVE run).
+
+Supervisor independently VERIFIED (not taken from the executor's report): commit touches
+exactly the 3 files; git diff of the marker across 9e5b277..HEAD is empty; ripgrep [^ASCII]
+clean on all 3 files (the executor's own grep -P had FALSELY passed on this box's locale -
+re-verified); runner AST-parses with 0 syntax errors (guards against an 8c36abe-class
+backtick regression); RtiProbe.exe built (162304 bytes, native deps beside it) and returns
+exit 2 on four invalid-arg cases with NO join.
+
+NOT yet done (all require a live RTI -> a user go): the non-DryRun exit-0/1 switch branches
+are offline-unexercised (first run under live validation); the three validation paths - COLD
+(kill RTI, gate must retry-through / fail-loud, back-end then joins), WARM (resident RTI, fast
+pass), NEGATIVE (RTI down, gate must FAIL the launch, never reach PushInit). RESIDUAL per A3:
+a lone probe likely does NOT leave a warm FedExec, so the back-end still does its own create;
+sufficient on a warm resident rtiexec, with keep-alive-FedExec / retry-on-create as fallbacks
+if live validation shows the back-end still races on a warm stack. Also confirm at validation
+that RtiProbe's FED/FOM constants land it in the SAME federation the back-end uses (they
+mirror CreateOne/WatchVrf, which do join CWIX-2024).
