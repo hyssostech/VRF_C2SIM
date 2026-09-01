@@ -271,3 +271,53 @@ PREDICTIONS + FALSIFIERS:
   starting the route ahead of the formation instead of at the unit centre.
 - Platoon + entity: MOVE (controls; unchanged).
 Validity gates unchanged.
+
+### Outcome - RUN 4 / P2 (20260901T200935Z): VALID; the formation blocker is REMOVED and the
+### NEXT blocker in the stack is EXPOSED - empty working routes
+
+VALIDITY: all gates MET (mode gate 0; clean run/teardown; appNos 3627-3633, marker 3634).
+- THE EDIT TOOK: ZERO "invalid formation name" lines (P2's direct check). ZERO nav-data
+  waits (P1c state persists).
+- 114.MechCoy (97ca5ff0): the HU controller advanced FURTHER THAN EVER OBSERVED - it
+  created FOUR working routes (114.MechCoy_R0..R3, one per sub-unit incl. the HQ
+  section), maneuvered NORTH ~370 m toward the route (new), then logged
+  `moveAlong() - empty route -- not sending move along to subordinate` x3 (the exact
+  2026-07-13 signature, now from the HU controller), flooded
+  `buildEntityRouteFollowingMap() : Can't find entity route` x2,577, swung to the same
+  ~420-m-south point (34.643833) and froze bit-identical for the window. No completion.
+- 1222.MechPlt + 1.BdeHQ: MOVED + completed again (controls; 2 TASKCMPLT).
+
+ADJUDICATION vs the P2 prereg: the registered falsifier ("warning absent AND zero
+company-tree working routes AND same south-freeze") does NOT fire in its letter -
+working routes WERE created - and H-CO-1 is adjudicated PARTIALLY CONFIRMED: the
+formation defect was a real blocker in a STACK; removing it moved the failure point
+from formation resolution to working-route CONTENT generation. The company's residual
+defect is now: the HU controller's route builder emits EMPTY parallel routes where the
+platoon's LF builder (same terrain, same 100-m-MSL original vertices, smaller offsets)
+emits full ones. This is the Thread-A clamp family (MOJAVE_ROOTCAUSE 2026-07-14
+findings log), never tested at company offsets.
+
+### PREREG P2b (registered before running): Live vertex altitudes for the company's
+### route builder
+
+ONE variable vs P2: REMOVE the Vrf__GroundWaypointAltitudeMode env override -> the app
+default "Live" (route vertices at live reflected altitude + 50 m instead of 100 m MSL;
+the compound create-altitude side reverts to safe-10000+clamp, the RUN-3-July config
+under which the platoon marched). Template edit stays; NavArea stays disabled; notify 3
+stays. appNos: runner takes 3634-3640.
+PREDICTIONS + FALSIFIERS:
+- H-CO-4 (empty working routes are altitude/clamp-sensitive at company offsets):
+  114.MechCoy_R* routes get content, no "empty route" lines, the company marches NORTH
+  and progresses/completes. FALSIFIER: still empty + same freeze under Live -> altitude
+  is exonerated for the company builder too; next candidates are the 3-point route
+  geometry vs adjustOffsetRouteStart at ~430 m offsets, and the route-start-at-centre
+  (leading-edge) issue - probed by starting the route AHEAD of the formation.
+- MODE GATE inverts: the app log MUST show 6 "Create-altitude mode=Live" lines.
+- Platoon: expect MOVES (proven under Live in RUN 3-July, post-type-fix). Entity: NOW
+  UNDER LIVE for the first time since the artifact's removal - expect MOVES (H-ENT-3
+  says the artifact, not the mode, was its blocker; this doubles as the entity's
+  Live-mode regression cross-check).
+
+### Outcome - RUN 5 / P2b
+
+(to be filled AFTER the run)
