@@ -8,16 +8,36 @@ using WatchVrf;
 //                                 NOT touch VrfBridge, so it runs without the native
 //                                 bridge DLL / MAK bin dirs on PATH.
 //
-//   WatchVrf [appNo] [dur] [samp] [federation]
+//   WatchVrf --capabilities       Offline. Prints one capability token per stdout line
+//                                 (see WatchVrfUsage.Capabilities) and exits 0. The runner
+//                                 probes this BEFORE passing any optional flag, so a
+//                                 deployed binary that predates a flag is detected instead
+//                                 of killed with exit 2 (the -ConsoleLogDir landmine).
+//
+//   WatchVrf [appNo] [dur] [samp] [federation] [--stop-file <path>]
 //                                 LIVE observation: join the federation and stream POS,...
 //                                 position lines, CON,... Object Console lines, and
 //                                 TSK,... / RPT,... task-completion + text-report lines
 //                                 (see WatchRunner). Requires a running VR-Forces federation.
+//                                 --stop-file: end the observation EARLY (clean resign) as
+//                                 soon as that file exists; [dur] stays the upper bound.
 //
 // The dispatch below references only ConSelfTest, WatchVrfUsage and ToolArgs - all pure
 // managed, none of them touching VrfBridge - plus WatchRunner, whose bridge-using code
-// lives inside WatchRunner.Run and is JITted only when called. So the --con-selftest path
-// never loads VrfBridge.dll.
+// lives inside WatchRunner.Run and is JITted only when called. So the --con-selftest and
+// --capabilities paths never load VrfBridge.dll.
+
+if (args.Length > 0 && args[0] == "--capabilities")
+{
+    // Same sole-argument rule as --con-selftest, for the same reason: this path observes
+    // nothing, so a companion argument is a request the tool would silently drop.
+    if (args.Length > 1)
+        return ToolArgs.Usage(
+            $"--capabilities takes no other arguments; got: {string.Join(" ", args[1..])}.",
+            WatchVrfUsage.Lines());
+    foreach (string cap in WatchVrfUsage.Capabilities) Console.Out.WriteLine(cap);
+    return ToolArgs.ExitOk;
+}
 
 if (args.Length > 0 && args[0] == "--con-selftest")
 {

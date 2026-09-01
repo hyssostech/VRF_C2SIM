@@ -85,6 +85,18 @@ vrfSim.mtl: notifyLevel 3 / objectConsoleNotifyLevel 3 / enableLogFileTimestamps
    (REVIEW_P3 h1 odds lowered, h2 favoured, n=2). PROBE RUNS STAY AT 1x until the
    user rules otherwise; 5x remains NECESSARY for COA-STP1 scale (13-40 km routes).
    Keep ONE canonical-length 1x run per milestone for comparability with the record.
+   (d) RUNNER TURNAROUND - IMPLEMENTED OFFLINE, PENDING CONFIRMING RUN (branch
+   runner-turnaround MERGED to main 2026-09-01 with review fixes F1-F5;
+   docs/RUNNER_TURNAROUND_2026-09-01.md, RUNBOOK 0.5.11): the WatchVrf/ListenReports
+   trace now ends with the window via a
+   stop-file the runner touches at StopIface + Trail (removes the measured 8 min 21 s
+   dead time per run; tools take their normal resign/disconnect path, nothing killed;
+   capability-probed so an old deployed binary falls back to the record's
+   behaviour), and an OFF-by-default `-StopWhenComplete` closes the window once every
+   taskee has TASKCMPLT + `-SettleHoldSecs` 60 (RunSecs stays the cap). To confirm:
+   merge, rebuild + redeploy WatchVrf and ListenReports, run R9 at 1x with the
+   defaults, check the design note sec 4 list; a missing `# STOP requested via
+   stop-file` line or a stale federate on the next launch is a STOP.
 6. Backlog unchanged: remaining type adjudications (54 units - but see item 4a first),
    task vocabulary, completion re-keying, scoring (Phase 5).
 

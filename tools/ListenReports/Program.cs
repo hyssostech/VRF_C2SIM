@@ -3,35 +3,92 @@ using Microsoft.Extensions.Logging.Abstractions;
 using VrfC2Sim.Tools;
 
 // Passively record every REPORT the interface posts, so the wire-format report XML is captured.
-//   ListenReports [seconds] [outPath]
+//   ListenReports [seconds] [outPath] [--stop-file <path>]
+//   ListenReports --capabilities
 //
-// seconds   Optional, default 120. Whole number > 0.
+// seconds   Optional, default 120. Whole number > 0. With --stop-file this is the UPPER
+//           BOUND; the listen normally ends earlier.
 // outPath   Optional. Where to write the capture. If omitted the tool writes
 //           reports-captured.log beside its own binary (AppContext.BaseDirectory),
 //           which is the historical behavior and is PRESERVED exactly. If given, it
 //           may be a file path or a directory (trailing separator, or an existing
 //           directory), in which case reports-captured.log is written inside it.
 //           Missing parent directories are created.
+// --stop-file <path>
+//           Optional (2026-09-01, runner turnaround). End the listen EARLY - disconnect
+//           and write the capture - as soon as <path> exists (polled once a second).
+//           The file must NOT exist at start (exit 2, nothing connected). The capture is
+//           written ONLY at exit, so without this the runner had to wait out the whole
+//           worst-case duration before reports-captured.log appeared.
+// --capabilities
+//           Offline. Prints one capability token per line and exits 0. The runner probes
+//           this before passing --stop-file, so a deployed binary that predates the flag
+//           is detected (falls back to duration-only) instead of killed with exit 2.
 //
 // Argument handling uses the shared tools/Shared/ToolArgs.cs standard (exit 0 success /
 // 1 operational failure / 2 usage error with nothing done; usage text to STDERR).
 
+const string StopFileFlag = "--stop-file";
+string[] capabilities = { "capabilities", "stop-file" };
+
 string[] UsageText() => new[]
 {
-    "usage: ListenReports.exe [seconds] [outPath]",
+    "usage: ListenReports.exe [seconds] [outPath] [--stop-file <path>]",
+    "       ListenReports.exe --capabilities",
     "",
-    "  seconds   Optional. Whole number > 0. Default 120.",
+    "  seconds   Optional. Whole number > 0. Default 120. With --stop-file this is",
+    "            the UPPER BOUND; the listen normally ends earlier.",
     "  outPath   Optional. File OR directory for the capture.",
     "            Default: reports-captured.log beside this binary.",
     "            Parent directories are created if missing.",
+    "  --stop-file <path>",
+    "            Optional. Disconnect and write the capture as soon as <path> EXISTS",
+    "            (polled about once a second). Must NOT exist at start (exit 2).",
+    "  --capabilities",
+    "            Offline. Prints one capability token per line (currently:",
+    "            capabilities, stop-file) and exits 0. Sole argument.",
     "",
     "examples:  ListenReports.exe",
     "           ListenReports.exe 300",
     "           ListenReports.exe 300 C:\\runs\\2026-07-19T1200Z\\reports.log",
+    "           ListenReports.exe 1460 C:\\runs\\x\\ --stop-file C:\\runs\\x\\observers.stop",
+    "           ListenReports.exe --capabilities",
 };
 
-// This tool accepts NO options, so any "--token" is a mistake - reject it rather than
-// treat it as a positional (ToolArgs.UnknownFlags documents why that matters).
+if (args.Length > 0 && args[0] == "--capabilities")
+{
+    // Sole-argument rule: this path listens to nothing, so a companion argument is a
+    // request the tool would silently drop.
+    if (args.Length > 1)
+        return ToolArgs.Usage(
+            $"--capabilities takes no other arguments; got: {string.Join(" ", args[1..])}.", UsageText());
+    foreach (string cap in capabilities) Console.Out.WriteLine(cap);
+    return ToolArgs.ExitOk;
+}
+
+// --stop-file is the ONE value-taking option; extract it FIRST so Positionals() does not
+// see its path as a stray positional (ToolArgs.TryTakeOptionValue documents why).
+string stopFile = null;
+string problem;
+if (!ToolArgs.TryTakeOptionValue(args, StopFileFlag, out args, out stopFile, out problem))
+    return ToolArgs.Usage(problem, UsageText());
+if (stopFile != null)
+{
+    try { stopFile = Path.GetFullPath(stopFile); }
+    catch (Exception ex)
+    {
+        return ToolArgs.Usage($"{StopFileFlag} '{stopFile}' is not a usable path: "
+                            + $"{ex.GetType().Name}: {ex.Message}", UsageText());
+    }
+    // A pre-existing stop file would end the listen on the first poll and write an empty
+    // capture that still exits 0. Refuse BEFORE connecting.
+    if (File.Exists(stopFile))
+        return ToolArgs.Usage($"{StopFileFlag} '{stopFile}' ALREADY EXISTS; the listen would end "
+                            + "immediately. Remove it or pass a fresh path. Nothing connected.", UsageText());
+}
+
+// Any OTHER "--token" is a mistake - reject it rather than treat it as a positional
+// (ToolArgs.UnknownFlags documents why that matters).
 string[] unknown = ToolArgs.UnknownFlags(args);
 if (unknown.Length > 0)
     return ToolArgs.Usage($"unknown option(s): {string.Join(" ", unknown)}.", UsageText());
@@ -40,7 +97,7 @@ string[] positional = ToolArgs.Positionals(args);
 
 int secs = 120;
 if (positional.Length > 0 &&
-    !ToolArgs.TryPositiveInt(positional[0], "seconds", out secs, out string problem))
+    !ToolArgs.TryPositiveInt(positional[0], "seconds", out secs, out problem))
     return ToolArgs.Usage(problem, UsageText());
 
 // Resolve the output path BEFORE connecting, so a bad path fails fast instead of after a
@@ -112,8 +169,30 @@ sdk.ReportReceived += (_, e) =>
 sdk.Error += (_, e) => Console.WriteLine($"  !! {e.Message}");
 
 await sdk.Connect();
-Console.WriteLine($"listening for reports, {secs}s ...");
-await Task.Delay(TimeSpan.FromSeconds(secs));
+Console.WriteLine($"listening for reports, {secs}s ..."
+                + (stopFile != null ? $" (upper bound; stop-file={stopFile})" : ""));
+var listenStart = DateTime.UtcNow;
+var listenEnd = listenStart.AddSeconds(secs);
+bool stoppedOnRequest = false;
+while (DateTime.UtcNow < listenEnd)
+{
+    // 1 s poll granularity: the last wait is clamped so the duration cap is still honored
+    // to within the poll, and the stop-file (when given) is seen within ~1 s of its touch.
+    var remaining = listenEnd - DateTime.UtcNow;
+    // Clamp (review F4): the clock was read twice (the while test and here); if the
+    // deadline passed in between, remaining is negative and Task.Delay would throw
+    // ArgumentOutOfRangeException - and the capture file would never be written.
+    if (remaining <= TimeSpan.Zero) break;
+    await Task.Delay(remaining < TimeSpan.FromSeconds(1) ? remaining : TimeSpan.FromSeconds(1));
+    if (stopFile != null && File.Exists(stopFile))
+    {
+        stoppedOnRequest = true;
+        break;
+    }
+}
+if (stoppedOnRequest)
+    Console.WriteLine($"stop requested via stop-file at t={Math.Round((DateTime.UtcNow - listenStart).TotalSeconds, 1)}s "
+                    + $"(duration cap was {secs}s) - disconnecting");
 await sdk.Disconnect();
 
 await File.WriteAllTextAsync(outPath, string.Join("\n\n", captured));
