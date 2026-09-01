@@ -148,3 +148,73 @@ run) - correct capture behavior, do not misread it as today's sim log.
 
 RUN 2 = the same registered protocol, unchanged; this remains infra failure #1 of the
 two allowed before stop-and-research.
+
+### Outcome - RUN 2 (20260901T191004Z): VALID; H-ENT-1 FALSIFIED; the real mechanism OBSERVED
+
+VALIDITY: ALL sec-5 gates MET. RealTemplates line present; 6 units created; oracle live
+(460 POS samples/unit, 2.0 MB trace); PushOrder ok + 3 CreateRoute/MoveAlongRoute; RPT
+channel LIVE (190 PositionReports + 4 TaskStatus); MODE GATE: ZERO "Create-altitude
+mode=Live" lines -> Fixed100 bound. Clean run + clean teardown (runner exit 0; RTI
+preserved). appNos 3613-3619. Clock advanced normally - the notify-level-3
+instrumentation was behavior-neutral as predicted (sim log ~40 KB/s, trace unaffected).
+
+PER-TAAKEE (two channels; both quoted; they AGREE on all three):
+- 1.BdeHQ (84928680): **BIT-STATIC 460/460 samples** at 34.608416,-116.712685 t=25.6
+  through 962.1; RPT identical through t=951.2. Task issued ~t=28; >900 s static past
+  task with all gates met. **THE DECISIVE FALSIFIER FIRED: H-ENT-1 IS DEAD** - the
+  waypoint/create mode is NOT the entity-freeze variable (frozen under Fixed100 too).
+- 1222.MechPlt (cc9ccf59): **MOVED under Fixed100** - onset t=31.7 (~4 s after task),
+  settled BIT-IDENTICAL 34.612956,-116.587783 from t=162.2 to 962.1 (~800 s plateau,
+  the same endpoint as RUN 3), POS==RPT, TSK move-along complete t=158.4, TASKCMPLT
+  sent. So ~940-m-below-terrain vertices do NOT break the real-template platoon - the
+  Thread-A underground-vertex mechanism is refuted for this path as well.
+- 114.MechCoy (9956438c): FROZEN bit-static 460/460, POS==RPT, no completion.
+
+THE MECHANISM, OBSERVED DIRECTLY (the instrumentation payoff): with
+objectConsoleNotifyLevel 3, the frozen units' controllers said what they are doing -
+`1.BdeHQ: Waiting for nav data to load.` x12,100 and the company-tree vehicles x~10,000
+each (M1A2 5..18, M3, HMMWV), in a loop, once per tick, with NO load-completion line
+ever. The moving platoon's members: 0-2 such lines. These messages are Info-level and
+were INVISIBLE in every prior run (console gated to warnings).
+
+**H-ENT-3 (new leading hypothesis, mechanism-named):** the nav data being waited on is
+`SharedData\16\latest\TerrainData\navData\MAK Earth Space (online)\NavArea-ground-platform 1`
+- generated 2026-07-14 11:59-12:44 BY THIS PROJECT's nav-data investigation (generator
+log + file dates; 120,002 tiles, 442 MB; extent 18.09x18.09 km centered 34.6411,
+-116.6419, which CONTAINS all three taskees) and left on disk when "missing nav data"
+was falsified as a cause. Timeline: entity moved 2026-07-13 (pre-artifact); frozen in
+EVERY run from 2026-07-15 on (post-artifact). Live mode becoming the default the same
+day was a coincidental confound - RUN 2 just unconfounded it. CAVEAT, stated: the
+moving platoon sits INSIDE the extent too, so the stall is finer-grained than the
+bounding box (per-tile or per-request); the waiting-line counts are the discriminator,
+not the geometry. Also new: the company-tree VEHICLES received movement demands (their
+waits began at task time) - the HU controller acted further than any prior run showed;
+the company freeze is nav-data-implicated too, with the formation defect still standing
+as a second candidate.
+
+### PREREG P1c (registered before running): remove the 2026-07-14 NavArea artifact
+
+ONE variable vs RUN 2: the presence of the generated NavArea. Action: MOVE (not delete)
+the four top-level items - "NavArea-ground-platform 1" (dir), ".navGenConfig",
+".navGenConfig.generated", ".navRuntimeConfig" - from navData\MAK Earth Space (online)\
+into navData\_disabled_20260901\ (same volume; restorable by moving back). Everything
+else identical to RUN 2 (Fixed100 env var kept; notify level 3 kept - required to see
+the waiting loop vanish). appNos: runner takes 3620-3626 from the marker.
+
+PREDICTIONS + FALSIFIERS:
+- 1.BdeHQ: MOVES (onset within ~a minute of task; settled near lon -116.700058;
+  POS==RPT; TASKCMPLT) and emits ZERO "Waiting for nav data" lines. FALSIFIER of
+  H-ENT-3: entity again bit-static >=300 s past task with gates met AND no waiting
+  loop -> the artifact was not the blocker; H-ENT-2 residue leads.
+  (Entity static WITH the waiting loop still present would instead mean the artifact
+  is still being found - a procedure failure, VOID, check the move.)
+- 1222.MechPlt: MOVES (control; unchanged).
+- 114.MechCoy: DISCRIMINATOR, either way informative. Moves -> nav-data was the
+  company's blocker too (P2's formation fix likely unnecessary; the stock content
+  defect stays a MAK report). Stays frozen WITHOUT waiting lines -> the HU/formation
+  defect leads and P2 proceeds as designed.
+Validity gates: sec 5 unchanged (incl. the Fixed100 mode gate).
+
+### Outcome - RUN 3 / P1c
+
+(to be filled AFTER the run)
