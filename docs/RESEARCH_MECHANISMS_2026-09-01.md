@@ -302,6 +302,15 @@ Verified vs assumed: the content defect and the log lines are VERIFIED (files + 
 
 ### 4b. 1.BdeHQ - single-entity move-along
 
+> **SUPERSEDED SAME DAY (2026-09-01, P1 RUN 2 - see PREREG_P1_FIXED100_ENTITY_2026-09-01.md
+> outcomes): H-ENT-1 IS FALSIFIED** - the entity froze under Fixed100 with all gates met.
+> The observed mechanism (12,100 Info-level "Waiting for nav data to load" lines, visible
+> once objectConsoleNotifyLevel was raised) is **H-ENT-3: the NavArea this project's own
+> 2026-07-14 session generated and left in SharedData** (120k tiles; extent contains all
+> taskees; the company's tree waits on it too). The Live-mode default landing the same
+> day as the artifact was a coincidental confound. P1c (artifact moved aside) is the
+> confirming probe. The history below stands as the state of knowledge when written.
+
 RECORD CORRECTION: the 07-23 handoff's "no entity move has ever been proven through the
 interface" is FALSE. R9_region_swap_2026-07-13.txt: 1.BdeHQ (3b905c4e) at spawn
 34.608416,-116.712685 (t=3) and at 34.608416,-116.700075 (the route's final vertex, 1.5 m
