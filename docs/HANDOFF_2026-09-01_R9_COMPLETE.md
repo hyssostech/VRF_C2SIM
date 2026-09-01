@@ -52,8 +52,19 @@ vrfSim.mtl: notifyLevel 3 / objectConsoleNotifyLevel 3 / enableLogFileTimestamps
    5.x source or confirmation 4.10 is authoritative. License renewal in process per the
    user (2026-09-01); installed .lic ends 2026-09-15 - verify the new file landed
    before running after that date.
-4. Backlog unchanged: remaining type adjudications (54 units), task vocabulary,
-   completion re-keying, scoring (Phase 5).
+4. VR-FORCES 5.2b IS EXPECTED SOON (user, 2026-09-01). Upgrade checklist when it lands:
+   (a) diff its EXPANDED AGGREGATE MODEL SET against the 54 pending type adjudications
+   BEFORE authoring anything (PRIOR_ART Q1: 5.2 shipped new NATO/Russian formations);
+   (b) 5.2's "ground path planning enhanced with vector-based terrain data" touches
+   exactly today's route/clamp machinery - re-run R9 on 5.2b and RE-ADJUDICATE before
+   trusting any 5.0.2-era behavioral conclusion; (c) migrate local state DELIBERATELY:
+   vrfSim.mtl notify levels (re-apply), HQ-section aliases (per P2c verdict), the
+   DISABLED NavArea artifact (do NOT carry it into 5.2's SharedData), runner/env paths
+   pinned to vrforces5.0.2, and a full VrfBridge /t:Rebuild + 7-copy redeploy against
+   the new libs; (d) read the API migration guides first
+   (docs.mak.com/api/vrforces5.2/classref/vrf_migration50.html + vrf_migration51.html).
+5. Backlog unchanged: remaining type adjudications (54 units - but see item 4a first),
+   task vocabulary, completion re-keying, scoring (Phase 5).
 
 ## OPERATIONAL STATE (end of 2026-09-01 session)
 VR-Forces DOWN (second StopVrf pass exit 0; the first left vrfGui - the known
