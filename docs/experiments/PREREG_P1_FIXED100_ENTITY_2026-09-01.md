@@ -218,3 +218,56 @@ Validity gates: sec 5 unchanged (incl. the Fixed100 mode gate).
 ### Outcome - RUN 3 / P1c
 
 (to be filled AFTER the run)
+
+### Outcome - RUN 3 / P1c (20260901T194029Z): PASS - H-ENT-3 CONFIRMED; the ENTITY-FREEZE CLASS IS CLOSED
+
+VALIDITY: all gates MET (mode gate 0 Live-lines; 6 units; oracle live 460 samples/unit;
+delivery ok; RPT live). Clean run + teardown (exit 0); appNos 3620-3626, marker -> 3627.
+The captured bin64-vrfSim.log contains ZERO "Loading NavData" and ZERO "Waiting for nav
+data" lines - the artifact's absence took effect at the engine level before tasking.
+
+PER-TASKEE (both channels agree on all three):
+- **1.BdeHQ (e3fe4e9b): MOVED AND COMPLETED.** Onset shortly after task; settled
+  BIT-IDENTICAL at 34.608416,-116.699993 (route end -116.700059, ~6 m) from t<=186.8
+  through 960.8; TSK move-along complete t=145.3; TASKCMPLT sent; RPT last fix
+  identical. Observed transient, recorded not interpreted: a westward excursion
+  (~-116.7162 at t=105) mid-move before eastward arrival. PREDICTION CONFIRMED,
+  waiting loop ABSENT. **H-ENT-3 CONFIRMED**: the 2026-07-14 generated NavArea was the
+  entity-freeze cause. Chain: RUN 2 showed the unit naming the wait; removal -> it
+  drives. The seven-week entity-freeze class (07-15 -> 08-31) closes as a self-inflicted
+  artifact, silent one notify level below the console default.
+- 1222.MechPlt (9352848e): MOVED + completed (control; endpoint identical to RUN 2/RUN 3-July).
+- **114.MechCoy (74e61b30): NO LONGER WAITS - now EXECUTES A WRONG MANEUVER.** Moved
+  ~422 m DUE SOUTH (34.647629 -> 34.643835) between task and t=90.8, then settled
+  bit-identical ~870 s; route goes NORTH; no completion; ZERO working routes for the
+  company tree (the run's offset routes are all platoon M1A2 1-4); the HQ-section
+  "invalid formation name column-left" warning fired again. This is the 2026-07-13
+  pre-artifact signature reproduced cleanly - and ~422 m matches the company Column
+  .frm slot offsets (entries at -430/-230 m). The company defect is now isolated,
+  live, and non-silent: the formation/leading-edge family (H-CO-1/H-CO-3). P2 decides.
+
+SCOREBOARD after P1c: the R9 order executes 2 of 3 taskees end-to-end headless
+(platoon + entity, both TASKCMPLT + telemetry-verified). Remaining: the company.
+
+### PREREG P2 (registered before running): give the HQ section the formation names the
+### company formations demand
+
+ONE variable vs P1c: content edit (backed up) to
+data\simulationModelSets\EntityLevel\vrfSim\Tank Headquarters Section (USA).entity -
+ADD alias formation entries so every name the four Formation-*-Armor-Co(US).frm files
+assign to the HQ slot or that recursion can hand it resolves: column-left ->
+Ar_Co_HQ_Column.frm, column-right -> Ar_Co_HQ_Column.frm, line-left -> Ar_Co_HQ_Line.frm,
+wedge-left -> Ar_Co_HQ_Wedge.frm, wedge-right -> Ar_Co_HQ_Wedge.frm. Existing entries
+untouched. Backup: <file>.bak-20260901. Everything else identical to P1c (NavArea still
+disabled; Fixed100 env; notify 3). appNos: runner takes 3627-3633.
+
+PREDICTIONS + FALSIFIERS:
+- The "invalid formation name" line does NOT appear (the direct check that the edit took).
+- H-CO-1 (formation defect blocks the HU controller): 114.MechCoy generates working
+  routes for its sub-units and marches NORTH toward 34.657629, completing or clearly
+  progressing. FALSIFIER: warning absent AND still zero company-tree working routes AND
+  the same ~420 m-south-then-freeze -> the HQ-section formation was NOT the blocker;
+  H-CO-3 (route start vs formation leading edge) becomes the lead, probed next by
+  starting the route ahead of the formation instead of at the unit centre.
+- Platoon + entity: MOVE (controls; unchanged).
+Validity gates unchanged.
