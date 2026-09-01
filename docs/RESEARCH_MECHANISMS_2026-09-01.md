@@ -35,11 +35,14 @@ falsification gate is in sec 4 and the adversarial review in sec 8.
    UNIT_MOVEMENT_RESEARCH.md sec 4c) and a doc-grounded ROOT-CAUSE CANDIDATE (item 2a)
    with a config/content-level fix to test. RUN 3 ran with the mitigation OFF by design
    (golden parity) and the 07-23 handoff does not mention that it exists.
-5. Two documentation gaps are real and are legitimate asks to MAK (sec 7): the VR-Forces
-   Developer's Guide / class reference is NOT installed here and ftp.mak.com (where the
-   search engines still index it) no longer resolves (NXDOMAIN; www.mak.com/out/classdocs
-   returns 404). The Users Guide (installed, read) does not cover remote-control
-   semantics below the GUI level - verified, not assumed (sec 1).
+5. The Developer's Guide / class reference IS public (user-supplied URLs, same day):
+   https://docs.mak.com/api/vrforces5.2/classref/ (also 5.1.1, 4.10). Read this pass
+   (sec 1b). Its floor: the 5.x guide DROPPED the aggregate / organization / behavior-
+   model chapters (105 narrative pages, none on aggregates; the index still lists the
+   titles with empty hrefs); the 4.10 guide has them but they enumerate controllers and
+   defer to the class docs, which are the shipped headers already read. The higher-unit
+   controller's decision path is documented NOWHERE public - which makes it a legitimate,
+   well-formed support question, not a 101 one (sec 7).
 
 ## 1. Sources read this pass (and what is NOT available)
 
@@ -80,17 +83,62 @@ HANDOFF_2026-07-22_PLAN_ASSIGNMENT.md, RUN_2026-07-19_MOJAVE_CHAIN.md, R9_region
 2026-07-13.txt (raw), runs/20260723T174540Z_run/* (RUN 3), VRF_GROUND_TRUTH.md 0.0/0.2/
 0.3/0.5, PRIOR_ART_SURVEY.md Q2/Q3, TYPE_MAPPING_TABLE.md sec 1, CORRECTIONS_LOG.md.
 
-NOT available (verified 2026-09-01):
-- No Developer's Guide / class reference on disk (doc/ holds Users Guide, First Experience,
-  Entity Catalog, Adding Content, Migration, Interoperability, release notes only).
-- ftp.mak.com -> NXDOMAIN (nslookup + curl); mak.com/out/classdocs/... -> 301 ->
-  www.mak.com/... -> 404; web.archive.org is blocked for this tool. Search engines still
-  index the 4.4.1 class docs (chapter titles: "14 The VR-Forces Remote Control API",
-  "14.7 Managing VR-Forces Objects", "8.8 The Aggregate Entity Behavior Model", "4.5 The
-  Organization Manager", "12.5 Starting and Processing C++ and Scripted Tasks"); only
-  snippets were retrievable. One snippet: "createAggregate() creates a new unit of the type
-  and force specified, then calls setSuperior() for each of the subordinates" [SEARCH
-  EXTRACT, unverified].
+### 1b. The Developer's Guide (public at docs.mak.com; user-supplied URLs, read same day)
+
+Not installed locally (doc/ holds Users Guide, First Experience, Entity Catalog, Adding
+Content, Migration, Interoperability, release notes). The old ftp.mak.com host is gone
+(NXDOMAIN) and www.mak.com/docs/... 301s to docs.mak.com, which is what resolves.
+- Version index: https://docs.mak.com/api/vrforces5.2/classref/index.html (also
+  vrforces5.1.1, vrforces4.10). Remote Control API chapter (5.2):
+  vrf_the_v_r_forces_remote_control_api.html -> vrf_managing_v_r_forces_objects.html,
+  vrf_tasksand_plans.html, vrf_usingthe_remote_control_a_p_i.html; class page
+  class_dt_vrf_remote_controller.html (signatures identical to the shipped 5.0.2 header).
+- 5.x GAP: the narrative chapters "The Aggregate Entity Behavior Model", "Ground
+  Disaggregated Movement System", "The Organization Manager", "Echelon IDs", "The
+  Subordinate Manager", "Object Console Messages" exist as index TITLES with EMPTY hrefs
+  in the 5.2 keyword index; none of the 105 narrative pages covers aggregates or
+  organization. They are present in 4.10 (entitymodels_aggregates.html,
+  entity_behaviors_ground_disaggregated_movement.html, vrf_the_organization_manager.html,
+  vrf_object_console_messages.html, vrf_the_aggregate_multiresolution_model.html).
+- What those pages ADD beyond the shipped headers (everything else in them is the header
+  text or a controller list):
+  * Organization Manager (4.10): new objects are placed under the force-level unit by
+    default; "The echelon ID for a simulation object is not available immediately upon
+    creation. The assignment takes place after the simulation object is attached to its
+    superior"; setSuperior() requires both objects to exist (queueSetSuperior is the
+    load-time variant); DtAggregateOrganizationController "ensures subordinates use
+    different designators" and reorganize() reassigns designators "starting with 1, and
+    with no gaps" moving destroyed or independently-tasked members to the bottom.
+  * Managing VR-Forces Objects (5.2): "createAggregate() creates a new unit ... then calls
+    setSuperior() for each of the subordinates"; a create must target ONE back-end
+    (DtSimSendToAll warns and routes to the first); a duplicate requested name is silently
+    replaced by a default name.
+  * Handling Unachievable Tasks (5.2): failure handling is per controller via
+    decideToGiveUpTask()/giveUpTask(); the DEFAULT returns false with an empty giveUpTask()
+    - "no automatic failure handling occurs without custom code". The Task Manager page
+    documents dispatch, conflict clearing ("newer tasks always take precedence") and
+    completion reports, and is silent on tasks no controller can execute. => a controller
+    that cannot proceed sits tasked forever with no report. That is the documented shape
+    of what we observe on 114.MechCoy and 1.BdeHQ.
+  * Object Console Messages (4.10): five streams objectConsoleError/Warn/Info/Verbose/
+    Debug; messages go to the object's console, the vrfSim console AND the vrfSim log
+    file, gated per object by notify level; Info is "important events of an object that
+    are part of normal operation". At vrfSim.mtl objectConsoleNotifyLevel 1 only
+    Error/Warn survive - Info/Verbose from the movement controllers are dropped before
+    they reach WatchVrf or vrfSim.log.
+  * Ground Disaggregated Movement System (4.10): lists the ten controllers (formation,
+    move-into-formation, turn-to-heading, move-to, move-to-location, patrol-between,
+    patrol-along, move-along, wait, convoy) and states the design: the unit "push[es]
+    down responsibility ... by forwarding movement tasks to its subordinates". Nothing on
+    higher-echelon units or preconditions.
+  * DtDisaggregatedMoveIntoFormationController (5.2 class page): the higher-unit mover's
+    start subtask; "issues move-to-location tasks to subordinates, followed by
+    turn-to-heading tasks upon arrival"; complete when ALL subordinates arrive and turn;
+    sends a DtFormationTypeRequest to itself first unless DtKeepExistingFormation. So a
+    higher unit's move-along BEGINS with a formation snap/move that depends on the
+    formation resolving - consistent with H-CO-1.
+  * DtVrfAggregateStateRepository (5.2): formationName()/setFormationName(),
+    allowableFormationNames() - the live list the port's formation repair already queries.
 
 ## 2. The vendor's model of unit creation and tasking (mechanisms, with citations)
 
@@ -329,9 +377,10 @@ License: MAK license expires 2026-09-15; P1 + P2 are two ~20-minute runs.
 
 ## 7. What to ask MAK (well-formed, evidence-backed - not 101 questions)
 
-1. Documentation access: the VR-Forces 5.0.2 Developer's Guide and class reference (the
-   "classdocs" formerly at ftp.mak.com) are not in our install and the host no longer
-   resolves. Please provide them (or the current URL / portal).
+1. Documentation: the public 5.x Developer's Guide (docs.mak.com) no longer carries the
+   aggregate / organization / behavior-model chapters that 4.10 has (their index entries
+   remain with empty links). Is there a 5.x source for the higher-unit movement model, or
+   is the 4.10 text still authoritative for 5.0.2?
 2. Content defect report: in EntityLevel, Formation-{Column,Line,Wedge,Vee}-Armor-Co(US).frm
    assign the HQ slot sub-formations "Column-Left"/"Line-Left" and the platoon slots
    "Wedge-Right"/"Wedge-Left"/"Column-Right"; "Tank Headquarters Section (USA).entity"
