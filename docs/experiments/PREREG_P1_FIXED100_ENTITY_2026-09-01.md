@@ -321,3 +321,50 @@ PREDICTIONS + FALSIFIERS:
 ### Outcome - RUN 5 / P2b
 
 (to be filled AFTER the run)
+
+### Outcome - RUN 5 / P2b (20260901T203702Z): PASS - H-CO-4 CONFIRMED; **THE WHOLE R9
+### ORDER EXECUTES 3/3**
+
+VALIDITY: gates MET; the inverted mode gate PASSED (6 "Create-altitude mode=Live" lines).
+appNos 3634-3640, marker 3641. Teardown: StopVrf exit 3 left vrfGui up (the known
+intermittent GUI-quit failure; backend was already down); a second StopVrf pass exited 0,
+everything down gracefully, RTI preserved, nothing killed. Stage 2b watcher: clean
+no-dialog no-op (log in the run dir).
+
+PER-TASKEE (both channels agree on all three; all three TASKCMPLT):
+- **114.MechCoy (53d5f248): MOVED NORTH AND COMPLETED.** 87 distinct positions; settled
+  BIT-IDENTICAL at 34.653928,-116.693388 from t=213.2 to 960.9 (~750 s plateau); TSK
+  move-along complete t=206.1; RPT last fix identical. The settle point is ~415 m short
+  of the final vertex (34.657629) - the DOCUMENTED unit completion geometry ("finished
+  when the leading edge reaches the last point"; the company Column formation is ~430 m
+  deep). ZERO "empty route" lines, ZERO "Can't find entity route" lines in the captured
+  sim log (P2's run had 3 and 2,577).
+- 1.BdeHQ: moved + completed (as P1c/P2, now under Live - the entity works under BOTH
+  altitude modes with the NavArea artifact gone; the mode was never its variable).
+- 1222.MechPlt: moved + completed (control, endpoint unchanged).
+
+**H-CO-4 CONFIRMED**: the company's empty working routes were vertex-altitude-sensitive -
+above-terrain-frame vertices (Live) fill them; the 100-m-MSL underground vertices
+(Fixed100, the Users-Guide-warned authoring ERROR) starve them. The LF platoon builder
+tolerated the error; the HU builder did not. No paging probe needed.
+
+## FINAL STATE OF THE DAY (5 runs, appNos 3606-3640)
+
+THE R9 MOJAVE ORDER NOW EXECUTES END-TO-END, HEADLESS, ALL THREE TASKEES, WITH
+TELEMETRY-VERIFIED ARRIVALS AND COMPLETIONS. The blocker stack, fully peeled and each
+layer evidence-attached:
+  1. TYPE-MAPPING (fixed 2026-07-22, Cell C / RUN 3-July) - platoon class.
+  2. THE 2026-07-14 NavArea ARTIFACT (found RUN 2, confirmed P1c) - entity + company
+     wait-forever; now in navData/_disabled_20260901/ (restorable; keep disabled).
+  3. HQ-SECTION FORMATION NAMES (stock MAK content defect; fixed P2 via template
+     aliases, backup .bak-20260901) - unblocked the HU controller.
+  4. ROUTE-VERTEX ALTITUDE FRAME (fixed P2b by using Live mode = approx above-terrain;
+     the DOCUMENTED frame) - filled the HU working routes.
+Configuration that works: TypeMappingMode=RealTemplates + GroundWaypointAltitudeMode=
+Live (default) + NavArea artifact disabled + HQ-section formation aliases. The
+Fixed100 escape hatch is now documented as the authoring ERROR it always was.
+NEXT (documented-frame hardening): author route vertices via
+DtIfRequestTerrainProfileInformation (vrfmsgs/ifRequestTerrainProfileInformation.h -
+request terrain heights for the route points from the back-end) instead of the live+50
+approximation; then the COA-STP1 scale re-run on this clean state; then the MAK
+reports (formation content defect WITH verified fix; 5.x docs chapter regressions).
