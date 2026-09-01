@@ -1949,6 +1949,30 @@ finally {
         Say-Info 'VR-Forces was never launched by this run - StopVrf skipped'
     }
 
+    # 4b. Capture the simulator's OWN logs into the run directory (P0.a,
+    #     docs/RESEARCH_MECHANISMS_2026-09-01.md sec 6). bin64\vrfSim.log and
+    #     vrfGui.log are OVERWRITTEN by the next launch; RUN 3's vrfSim.log held
+    #     the decisive company-freeze lines and was never captured. Copied AFTER
+    #     StopVrf so the files are complete. A copy failure must never affect
+    #     teardown - report it as a WARN flag and move on.
+    if (-not $DryRun) {
+        foreach ($lg in @('vrfSim.log', 'vrfGui.log')) {
+            $src = Join-Path $Bin64 $lg
+            try {
+                if (Test-Path -LiteralPath $src) {
+                    Copy-Item -LiteralPath $src -Destination (Join-Path $RunDir ('bin64-' + $lg)) -Force
+                    Say-Ok ('captured {0} into the run directory (bin64-{0})' -f $lg)
+                } else {
+                    Add-Flag 'WARN' ('simulator log {0} not found at {1} - nothing captured.' -f $lg, $src)
+                }
+            } catch {
+                Add-Flag 'WARN' ('could not capture {0} into the run directory: {1}' -f $lg, $_.Exception.Message)
+            }
+        }
+    } else {
+        Say-Plan 'would copy bin64\vrfSim.log and bin64\vrfGui.log into the run directory (bin64-*.log)'
+    }
+
     # 5. Post-teardown inventory: what is left, and confirm RTI survived.
     if (-not $DryRun) {
         $left = @()
