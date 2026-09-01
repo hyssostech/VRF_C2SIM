@@ -211,6 +211,92 @@ One run, ~15-20 min wall (420 s observation + launch/teardown). Standard runner 
 kill rtiAssistant/rtiexec/rtiForwarder. If StopVrf leaves vrfGui (known intermittent),
 a second StopVrf pass as on P2b - nothing killed.
 
-## Outcome
+## Outcome - P3 (run 20260901T221227Z_run) - VALID; prediction C MISSED -> STOP
 
-(to be filled AFTER the run, against the predictions above)
+Run dir runs/20260901T221227Z_run/. appNos 3648-3654 (marker 3648 -> 3655, runner-
+ledgered). Runner EXIT=0, every stage exit 0, RTI preserved, nothing killed. Order
+pushed 22:14:51.272Z; observation end 22:22:23.147Z (-RunSecs 420). Numbers below were
+produced by the same script (scratch adjudicate_p3.py) that reproduces the P2c baseline
+figures in sec 5 exactly.
+
+VALIDITY GATES - all MET: 6 units dispatched; RealTemplates line; 6x "Create-altitude
+mode=Live"; PushOrder EXIT=0 with 3 CreateRoute + 3 MoveAlongRoute; oracle gate 88 real
+POS lines / 44 uuids / 0 degenerate; RPT live (38 fixes per taskee). BINDING GATE MET:
+vrfc2simapp.log has `Sim Run() queued (start the VR-Forces clock; timeMult=5).`
+Back-end application of the multiplier is proven by the clock itself (A below), not
+only by the enqueue-time line.
+
+A. CLOCK RATE - MET. Trace-clock moving phases (onset -> settle), ratio = P2c/P3:
+     1222.MechPlt  31.7 -> 60.2 :  28.5 s  (P2c 128.7)  ratio 4.52
+     114.MechCoy   31.7 -> 74.5 :  42.8 s  (P2c 181.8)  ratio 4.25 ; settled t=74.5 <= 110
+     1.BdeHQ       31.7 -> 54.1 :  22.4 s  (P2c 118.4)  ratio 5.29
+   Cross-check from the vendor clock (bin64-vrfSim.log): sim 26.537 at 18:14:52 local ->
+   sim 2283.150 at 18:22:23 = 2256.6 sim s / 451 wall s = 5.00x.
+B. ENDPOINTS - MET. Settle points vs P2c endpoints:
+     1222.MechPlt  34.612956,-116.587782  (P2c ...,-116.587784)  ~0.2 m
+     114.MechCoy   34.653931,-116.693385  (P2c 34.653915,-116.693388)  ~1.8 m
+     1.BdeHQ       34.608416,-116.699994  (P2c ...,-116.699993)  ~0.1 m
+   All three plateaus bit-identical (1 distinct position; 420.4 / 406.1 / 426.5 s long).
+   POS==RPT at settle for all three (0.0 m). Subordinate aggregates (AR HQ Sec 1, AR Plt
+   1/2/3) and all 26 M1A2s also settled within 0-17 m of their P2c final positions.
+C. COMPLETIONS - MISSED (HIGH confidence prediction -> STOP). Only 2 TSK lines (t=53.2
+   1.BdeHQ, t=55.6 1222.MechPlt; P2c had 3: 145.2/157.1/212.5) and 2 TASKCMPLT in the app
+   log. 114.MechCoy NEVER completed although it settled at the P2c endpoint (B) with
+   POS==RPT. POS/RPT agreement half of C is met; the 3/3 half is not.
+   Characterization from bin64-vrfSim.log (verified, line-level):
+   - P2c: "114.MechCoy ... move-along-controller's task has Completed (ID=0)" at sim
+     190.312, after all four subordinate move-alongs completed (AR HQ Sec 1 190.278,
+     AR Plt 1 189.443, AR Plt 2 189.810, AR Plt 3 189.477).
+   - P3: three subordinates completed (AR HQ Sec 1 219.582, AR Plt 1 218.139, AR Plt 2
+     223.134); AR Plt 3's move-along (begun sim 106.183) NEVER completed - its only later
+     controller line is "clearing its task (ID=1)" at sim 2283.150 = the shutdown delete.
+     The company's move-along likewise only "clearing its task (ID=0)" at 2283.150.
+   - Inside AR Plt 3: leader M1A2 15 lead-formation Completed 218.205; followers M1A2 16
+     Completed 216.606, M1A2 17 Completed 219.925; M1A2 18 follow-in-formation NEVER
+     completed (cleared only at 2283.150). In P2c M1A2 18 completed FIRST of the four
+     (185.807). M1A2 18's own position reports show it stationary at 34.650240,
+     -116.693660 from 18:15:38 local (~sim 250) to the end - 1.4 m from its P2c final
+     position (34.650227,-116.693660). Its task parameters were identical in kind to P2c
+     (follow-in-formation: leader=M1A2 15; rightOffset=-25; forwardOffset=-75;
+     leaderOffset=-100).
+   - Zero "unachievable"/"cannot reach"/"no path" lines in either run. No error or
+     warning is attached to M1A2 18 - the completion event simply never fired.
+   - Side observation (not the miss): the working-route index -> subordinate mapping
+     differs between runs (P2c: HQ R0, Plt 2 R1, Plt 1 R2, Plt 3 R3; P3: HQ R0, Plt 3
+     R1, Plt 2 R2, Plt 1 R3) while every unit's endpoint is unchanged; the index is
+     arbitrary, not slot-bound.
+   NOT ESTABLISHED (hypotheses only, n=1 at 5x vs 2 completed runs at 1x today):
+   (h1) a per-frame closure/arrival test in follow-in-formation is missed at the larger
+   per-frame displacement of a 5x variable-frame clock; (h2) a run-to-run
+   nondeterminism in follower completion unrelated to the multiplier. Falsifier for h1
+   would be M1A2 18 (or any follower) completing normally in a repeat at 5x; falsifier
+   for h2 would be the same follower class failing again at 5x and never at 1x. Neither
+   is run under this prereg (STOP rule).
+D. VENDOR-LOG CLEANLINESS - MET. 0 "Waiting for nav data", 0 "empty route", 0 "Can't
+   find entity route", 1 "invalid formation name" (P2c: 1).
+E. REPORT PATH - MET. 0 SocketException / "Only one usage" / "Connection error".
+   Reports captured: 456 PositionReportContent (P2c 192 over a 900 s window) + 8
+   TaskStatus (P2c 9) - consistent with a sim-time-driven report cadence (~2.4x more
+   per wall second during a shorter window).
+F. OBSERVER DR ARTIFACT - recorded. Distance-to-endpoint increases (>5 m) between
+   consecutive moving-phase POS samples: platoon 5/15, company 8/22, entity 0/12 (P2c
+   baseline itself: 29/64, 37/90, 1/59 - the metric is confounded by the 3-point
+   routes/formation maneuvers). No extra artifact attributable to 5x; all POS plateaus
+   bit-identical and equal to RPT.
+
+ADJUDICATION. The falsifier "A met but B or C missed -> 5x changes OUTCOMES, not just
+wall time" FIRED via C. Per the prereg: probe runs STAY AT 1x; COA-STP1 scale needs a
+different plan (or this miss understood first). No re-run with a different setting.
+
+VERIFIED (artifact-backed): everything numbered above; both logs in the run dirs.
+ASSUMED: that 5x is the only difference between the runs (same inputs by manifest;
+same product state; the RunSecs difference is observation-only and the miss occurred
+at sim ~220-250, well inside both windows).
+UNEXPLAINED: why M1A2 18's follow-in-formation did not declare completion at 5x while
+the entity sat 1.4 m from its 1x endpoint.
+
+Next step if the user wants this pursued (a NEW prereg, not this one): docs first -
+4.10 Developer's Guide entity_behaviors_ground_disaggregated_movement.html and the
+follow-in-formation / lead-formation controller pages (per memory mak-developer-docs-
+urls), the 5.x vrf_runFasterThanRealTime caveats already cited in sec 2; then ONE
+repeat at 5x (same inputs) to split h1 from h2 before any code or setting changes.

@@ -74,11 +74,15 @@ vrfSim.mtl: notifyLevel 3 / objectConsoleNotifyLevel 3 / enableLogFileTimestamps
    SHORT-ROUTE probe order variant of R9 - platoon/entity legs can be ~200 m, but
    COMPANY probe routes stay >= ~1 km (formation depth ~430 m + leading-edge
    completion - a route shorter than the formation confounds the read); (c) higher
-   TimeMultiplier (Vrf__TimeMultiplier; default 1) is a candidate for probe runs but
-   must enter as its OWN registered variable with one A/B against a settled baseline
-   first (the 20x warp/DR history); it becomes NECESSARY for COA-STP1 scale (13-40 km
-   routes do not fit any 1x window). Keep ONE canonical-length 1x run per milestone
-   for comparability with the record.
+   TimeMultiplier: P3 A/B DONE (docs/experiments/PREREG_P3_TIMEMULT5_2026-09-01.md,
+   run 20260901T221227Z): the clock ran 5.0x and all endpoints matched P2c, BUT the
+   company never completed (one follower, M1A2 18, never fired follow-in-formation
+   completion while sitting 1.4 m from its 1x endpoint) -> falsifier fired, STOP.
+   PROBE RUNS STAY AT 1x. 5x remains NECESSARY for COA-STP1 scale (13-40 km routes)
+   so the miss must be understood first: docs-first (4.10 disaggregated-movement /
+   follow-in-formation pages), then ONE registered repeat at 5x to split
+   "5x-induced" from "run-to-run nondeterminism" (n=1). Keep ONE canonical-length
+   1x run per milestone for comparability with the record.
 6. Backlog unchanged: remaining type adjudications (54 units - but see item 4a first),
    task vocabulary, completion re-keying, scoring (Phase 5).
 
@@ -86,8 +90,8 @@ vrfSim.mtl: notifyLevel 3 / objectConsoleNotifyLevel 3 / enableLogFileTimestamps
 VR-Forces DOWN (second StopVrf pass exit 0; the first left vrfGui - the known
 intermittent GUI-quit failure; nothing was killed). RTI RESIDENT + ANSWERED
 (rtiAssistant 41336 / rtiexec 224608 / rtiForwarder 76620 at last inventory - inventory
-fresh at start, do not trust PIDs). C2SIM docker UP. appNo marker NEXT FREE = 3648
-(runs today consumed 3606-3647). All work committed + pushed (see git log).
+fresh at start, do not trust PIDs). C2SIM docker UP. appNo marker NEXT FREE = 3655
+(runs today consumed 3606-3654; P3 = 3648-3654). All work committed + pushed (see git log).
 
 ## NON-NEGOTIABLES (unchanged plus the docs-first rule above)
 One variable per probe; prediction + falsifier + DOC CITATIONS before running; movement
