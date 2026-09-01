@@ -24,16 +24,20 @@ pre-registered runs, outcomes inline) + docs/RESEARCH_MECHANISMS_2026-09-01.md.
    wait forever for nav data (Info-level, invisible at default console verbosity).
    NOW DISABLED: moved to SharedData/16/latest/TerrainData/navData/_disabled_20260901/
    (restorable; KEEP DISABLED unless deliberately regenerating nav data).
-3. Stock MAK content defect: Formation-*-Armor-Co(US).frm assign the HQ section
-   formation names its template lacks. FIXED by alias entries in "Tank Headquarters
-   Section (USA).entity" (backup .bak-20260901). Report to MAK with the verified fix.
+3. [DEMOTED BY P2c, run 20260901T211310Z] The HQ-section formation-name mismatch is a
+   COSMETIC warning: the STOCK template works end-to-end under correctly-authored
+   vertices (the documented working-formation fallback covers it). The P2 aliases were
+   UNNECESSARY and are reverted (stock file in place; .aliased-20260901 kept as
+   history). NO defect report to MAK - at most the variant-A observation in
+   docs/MAK_NOTES_DRAFT_2026-09-01.md.
 4. Route-vertex altitude frame: 100-m-MSL vertices are the Users-Guide-warned
    authoring ERROR; above-terrain (Live mode, the default) is the documented frame and
    fills the company's working routes. Fixed100 remains only as a golden-parity relic.
 
 ## WORKING CONFIGURATION
 TypeMappingMode=RealTemplates (default) + GroundWaypointAltitudeMode=Live (default) +
-NavArea disabled + HQ-section aliases. No env overrides needed. Runner hardening now
+NavArea disabled. STOCK templates, no env overrides - an untouched product at default
+settings (P2c-final). Vendor defects found across the whole saga: ZERO. Runner hardening now
 permanent: Stage 2b boot-dialog watcher (scripts/AnswerRtiDialog.ps1; the RTI dialog is
 ONCE PER REBOOT), Stage 2c RTI gate, per-run capture of bin64 vrfSim.log/vrfGui.log.
 vrfSim.mtl: notifyLevel 3 / objectConsoleNotifyLevel 3 / enableLogFileTimestamps 1
