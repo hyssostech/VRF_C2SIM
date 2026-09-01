@@ -1447,6 +1447,27 @@ try {
     # retry+backoff on ONE ledgered appNumber (absorbs a cold-create window) and
     # resigns cleanly. This is FATAL and PRE-launch; Stage 4 (post-launch WatchVrf
     # pre-check) is KEPT as-is and stays ADVISORY - they test different moments.
+    # Stage 2b - ARM THE BOOT-DIALOG WATCHER (2026-09-01; RUNBOOK 0.5.3/0.5.4).
+    # The "Choose RTI Connection" dialog is ONCE PER REBOOT: with no answered
+    # rtiAssistant, the FIRST federate contact (RtiProbe, below) raises it and blocks
+    # behind it - exactly what voided run 20260901T183422Z for 625 s while the
+    # pre-flight had only WARNED. This watcher runs AnswerRtiDialog.ps1 every 5 s for
+    # up to 150 s in the background: it clicks ONLY inside that exact dialog, exits
+    # the loop the moment the dialog is answered, and is a no-op when no dialog ever
+    # appears (the normal answered-assistant case). Best-effort by design - it never
+    # fails the run; Stage 2c's gate remains the serviceability authority.
+    $AnswerDialogScript = Join-Path $PSScriptRoot 'AnswerRtiDialog.ps1'
+    if ($DryRun) {
+        Say-Plan 'Stage 2b: would arm the boot-dialog watcher (AnswerRtiDialog.ps1 every 5s for up to 150s, background, best-effort)'
+    } elseif (Test-Path -LiteralPath $AnswerDialogScript) {
+        $watchCmd = ('for ($i=0; $i -lt 30; $i++) {{ & ''{0}'' *> ''{1}''; if ($LASTEXITCODE -eq 0) {{ break }}; Start-Sleep -Seconds 5 }}' -f `
+                        $AnswerDialogScript, (Join-Path $RunDir 'answer-rti-dialog.log'))
+        $null = Start-Process -FilePath 'pwsh' -ArgumentList @('-NoProfile','-Command', $watchCmd) -WindowStyle Hidden -PassThru
+        Say-Ok 'Stage 2b: boot-dialog watcher armed (background, best-effort; log: answer-rti-dialog.log)'
+    } else {
+        Say-Warn ('Stage 2b: AnswerRtiDialog.ps1 not found at {0} - the once-per-reboot dialog would block Stage 2c unanswered.' -f $AnswerDialogScript)
+    }
+
     Say-Head 'Stage 2c - RTI readiness gate (C1) - FATAL, before any back-end launch'
     Say '  Proves the RTI can service a create-or-join NOW (the RUN-2 fix). RtiProbe joins the'
     Say '  federation as a throwaway federate with internal retry+backoff, then resigns cleanly.'

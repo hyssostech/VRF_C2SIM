@@ -130,6 +130,12 @@ MAK RTI Users Guide p. 4-2 names the symptom when it is not answered, verbatim:
 "The federate startup process may appear to hang while the Choose RTI Connection
 dialog box is waiting for input." THIS IS DOCUMENTED BEHAVIOUR, NOT A BUG.
 
+*** ANSWERED 2026-09-01: it is ONCE PER REBOOT, not once per machine. After a reboot
+(no rtiAssistant running), the FIRST federate to contact the RTI (P1 RUN 1: RtiProbe,
+appNo 3611) raised the dialog again despite the persisted checkbox, and blocked behind
+it for 625 s. The scripted answer is scripts/AnswerRtiDialog.ps1 (see 0.5.4); the
+runner now arms a watcher for it around Stage 2c. ***
+
 Procedure, once per machine (and possibly once per reboot - UNTESTED):
 1. Launch (0.5.1). The "Choose RTI Connection" dialog appears.
 2. Select the connection. On this machine: "Legatus's predefined rtiexec loopback
@@ -146,7 +152,15 @@ already checked on 2026-07-18 and the dialog still prompted, because the answere
 assistant had been killed. The checkbox persists the CHOICE; the running answered
 assistant is what serves it.
 
-### 0.5.4 AUTOMATING THE DIALOG (if it ever returns, e.g. after a reboot)
+### 0.5.4 AUTOMATING THE DIALOG (it RETURNS after every reboot - see the 0.5.3 note)
+
+*** SCRIPTED 2026-09-01: scripts/AnswerRtiDialog.ps1 implements this recipe (handle
+from the assistant process's MainWindowHandle; DPI-aware Connect click at
+window-relative ratio 0.668,0.949 = the (383,553)-on-573x583 below; exit 0 only when
+the window is confirmed gone; touches nothing if no dialog exists). Verified live
+2026-09-01: dialog answered, rtiexec+rtiForwarder spawned, the blocked RtiProbe
+unblocked. P/Invoke trap recorded there: FindWindowW without CharSet=Unicode marshals
+ANSI and never matches - the process-handle path avoids it. ***
 
 The dialog is a Qt window (class `Qt5QWindowIcon`) and exposes NO UI Automation
 child tree - `AutomationElement.FindFirst` returns the window and nothing inside
