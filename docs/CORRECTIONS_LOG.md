@@ -134,3 +134,24 @@ Each entry: the claim, why it was wrong, and the evidence that settled it.
   headlines outliving bodies, one fabricated finding). The entry points were rewritten clean
   2026-07-21 to break that loop. LESSON: state the current truth in the live doc; keep
   provenance HERE; do not stack retractions in a document a fresh reader must act on.
+
+## The entity freeze / "nav data ruled out" (resolved 2026-09-01)
+
+- CLAIMED (2026-07-14, nav-data falsification; repeated in UNIT_MOVEMENT_RESEARCH sec 6
+  and MOJAVE_ROOTCAUSE): "nav data is NOT the Mojave cause - Sweden marches with none."
+  TRUE for MISSING nav data, but the same 2026-07-14 session GENERATED a 120,002-tile
+  NavArea over the Mojave AO and left it in SharedData/16/latest/TerrainData/navData/.
+  From 2026-07-15 every run loaded it, and ground units whose movement consulted it
+  waited forever ("Waiting for nav data to load", Info-level, invisible at
+  objectConsoleNotifyLevel 1). The freeze the falsification left "unexplained" was
+  CREATED BY the falsification session's own instrument. Evidence: P1 RUN 2
+  (20260901T191004Z: 12,100 waiting lines from 1.BdeHQ, bit-static) and P1c
+  (20260901T194029Z: artifact moved aside -> the entity DROVE ITS ROUTE AND COMPLETED).
+  The artifact now sits in navData/_disabled_20260901/ (restorable).
+- CLAIMED (HANDOFF_2026-07-23): "no entity move has ever been proven through the
+  interface." FALSE - 1.BdeHQ reached its Mojave route end on 2026-07-13 (pre-artifact)
+  and at Sweden repeatedly; corrected in the handoff's read-first note 2026-09-01.
+- CLAIMED (2026-09-01 morning, RESEARCH_MECHANISMS sec 4b): "the entity freeze
+  correlates with GroundWaypointAltitudeMode=Live" (H-ENT-1). FALSIFIED the same day by
+  P1 RUN 2 (frozen under Fixed100, all gates met). The Live default and the NavArea
+  artifact landed on the same day (2026-07-14/15) - a textbook confound.
