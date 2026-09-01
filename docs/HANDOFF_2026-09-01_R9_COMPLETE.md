@@ -51,7 +51,8 @@ vrfSim.mtl: notifyLevel 3 / objectConsoleNotifyLevel 3 / enableLogFileTimestamps
 2. COA-STP1 SCALE RE-RUN on the clean state (the July scale results predate ALL FOUR
    fixes; every FALSIFIED stamp from July is layer-relative - see L9 - and the region/
    fan-out story needs re-adjudication).
-3. MAK: (a) formation content defect report WITH the verified fix; (b) 5.x Developer's
+3. MAK: (a) NO defect report (P2c: warning is cosmetic, stock template works) - at most
+   the optional observation in docs/MAK_NOTES_DRAFT_2026-09-01.md; (b) 5.x Developer's
    Guide dropped the aggregate/organization chapters (empty index hrefs) - ask for the
    5.x source or confirmation 4.10 is authoritative. License renewal in process per the
    user (2026-09-01); installed .lic ends 2026-09-15 - verify the new file landed
@@ -85,8 +86,8 @@ vrfSim.mtl: notifyLevel 3 / objectConsoleNotifyLevel 3 / enableLogFileTimestamps
 VR-Forces DOWN (second StopVrf pass exit 0; the first left vrfGui - the known
 intermittent GUI-quit failure; nothing was killed). RTI RESIDENT + ANSWERED
 (rtiAssistant 41336 / rtiexec 224608 / rtiForwarder 76620 at last inventory - inventory
-fresh at start, do not trust PIDs). C2SIM docker UP. appNo marker NEXT FREE = 3641
-(runs today consumed 3606-3640). All work committed + pushed through c211513.
+fresh at start, do not trust PIDs). C2SIM docker UP. appNo marker NEXT FREE = 3648
+(runs today consumed 3606-3647). All work committed + pushed (see git log).
 
 ## NON-NEGOTIABLES (unchanged plus the docs-first rule above)
 One variable per probe; prediction + falsifier + DOC CITATIONS before running; movement
