@@ -256,9 +256,14 @@ C. COMPLETIONS - MISSED (HIGH confidence prediction -> STOP). Only 2 TSK lines (
      completed (cleared only at 2283.150). In P2c M1A2 18 completed FIRST of the four
      (185.807). M1A2 18's own position reports show it stationary at 34.650240,
      -116.693660 from 18:15:38 local (~sim 250) to the end - 1.4 m from its P2c final
-     position (34.650227,-116.693660). Its task parameters were identical in kind to P2c
-     (follow-in-formation: leader=M1A2 15; rightOffset=-25; forwardOffset=-75;
-     leaderOffset=-100).
+     position (34.650227,-116.693660). Its P3 task parameters: follow-in-formation:
+     leader=M1A2 15; rightOffset=-25; forwardOffset=-75; leaderOffset=-100 (log line
+     10003). UNVERIFIED (corrected after REVIEW_P3): whether M1A2 18 held the same slot
+     in P2c - its P2c slot line is unrecoverable from the garbled vrfSim.log (only the
+     M1A2 16 "25,-25,-50" and an unattributable "25,75,50" line survive). The
+     lead-formation subordinate ORDER is reversed between runs: P2c "M1A2 16, M1A2 17,
+     M1A2 18", P3 "M1A2 18, M1A2 17, M1A2 16". Reviewer geometry: M1A2 18's P3 final
+     is +1.45 m north (direction of travel) of its P2c completion point.
    - Zero "unachievable"/"cannot reach"/"no path" lines in either run. No error or
      warning is attached to M1A2 18 - the completion event simply never fired.
    - Side observation (not the miss): the working-route index -> subordinate mapping
@@ -275,9 +280,12 @@ C. COMPLETIONS - MISSED (HIGH confidence prediction -> STOP). Only 2 TSK lines (
 D. VENDOR-LOG CLEANLINESS - MET. 0 "Waiting for nav data", 0 "empty route", 0 "Can't
    find entity route", 1 "invalid formation name" (P2c: 1).
 E. REPORT PATH - MET. 0 SocketException / "Only one usage" / "Connection error".
-   Reports captured: 456 PositionReportContent (P2c 192 over a 900 s window) + 8
-   TaskStatus (P2c 9) - consistent with a sim-time-driven report cadence (~2.4x more
-   per wall second during a shorter window).
+   Reports captured (CORRECTED 2026-09-01 after REVIEW_P3: the original "456 / 192 /
+   8 / 9" were tag or line counts, not reports; a report = one <ReportContent>):
+   P3 230 reports = 228 PositionReportContent + 2 TaskStatus; P2c 99 reports = 96
+   PositionReportContent + 3 TaskStatus (900 s window). Ratio 2.4x is unchanged -
+   consistent with a sim-time-driven report cadence over a shorter window. The 2 vs 3
+   TaskStatus matches the 2 vs 3 completions.
 F. OBSERVER DR ARTIFACT - recorded. Distance-to-endpoint increases (>5 m) between
    consecutive moving-phase POS samples: platoon 5/15, company 8/22, entity 0/12 (P2c
    baseline itself: 29/64, 37/90, 1/59 - the metric is confounded by the 3-point
