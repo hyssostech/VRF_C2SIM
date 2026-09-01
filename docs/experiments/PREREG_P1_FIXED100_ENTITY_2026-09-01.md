@@ -121,3 +121,30 @@ RESIDENT afterward, per procedure. Never kill rtiAssistant/rtiexec/rtiForwarder.
 ## Outcome
 
 (to be filled AFTER the run, against the predictions above)
+
+### Outcome - RUN 1 (20260901T183422Z): INFRA VOID (sec 3 pre-accepted risk), predictions UNTESTED
+
+Stage 2c RtiProbe (appNo 3611) hung >625 s and was left running (never killed); the runner
+failed cleanly through teardown (exit 3). CAUSE, verified live: fresh-boot state had NO
+rtiAssistant; the first federate contact raised the once-per-boot "Choose RTI Connection"
+dialog (rtiAssistant pid 41336 showed exactly that MainWindowTitle) and RtiProbe blocked
+mid-Start() behind it ("Connected to RTI Assistant. Loading Config File..." then nothing).
+This is the KNOWN boot-dialog precondition (RUNBOOK 0.5.3; the runner's own pre-flight
+WARNed it), distinct from the fresh-boot join race. NOT a Fixed100 result - the app was
+never launched; the variable was never exercised.
+
+RECOVERY (2026-09-01, this session): scripts/AnswerRtiDialog.ps1 - first scripted
+implementation of the 2026-07-22 DPI-click recipe (dialog found via the assistant
+process's MainWindowHandle; Connect clicked at window-relative 0.668,0.949 of the
+573x583 physical rect; exit 0 only when the window is confirmed GONE). One gotcha cost
+one attempt: a FindWindowW P/Invoke without CharSet=Unicode marshals ANSI and never
+matches - fixed. After the click: dialog gone, rtiexec + rtiForwarder spawned, RtiProbe
+unblocked and exited. RTI stack now RESIDENT but NOT yet gate-verified - the re-run's
+own Stage 2c gate is the serviceability instrument.
+
+Ledger: appNos 3606-3612 consumed/burned by RUN 1 (marker correctly at 3613). The
+captured bin64-vrfSim.log in the RUN-1 dir is the JULY 23 file (no launch happened this
+run) - correct capture behavior, do not misread it as today's sim log.
+
+RUN 2 = the same registered protocol, unchanged; this remains infra failure #1 of the
+two allowed before stop-and-research.
