@@ -758,3 +758,22 @@ readable objects, and a NaN row from GlobalEnv must NOT be read as correct-and-e
 - 2026-07-16 (later): Phase 0 core executed same evening (three parallel Opus
   executors + supervisor gates); lessons learned registered above; RESUME_PROMPT.md
   rewritten for the groundwork phase.
+
+## Lessons learned addendum (2026-09-01; the "why do sessions fall back to probing" audit)
+
+- L8 ORPHANED DISCRIMINATORS ARE THE RELAPSE MECHANISM. Thread A (2026-07-14) had the
+  clamp mechanism AND its one named unknown; its A/B was voided twice by infra and every
+  subsequent session pivoted to a new branch. Handoffs carried the newest branch; the
+  queued discriminator survived nowhere. TRIPWIRE: the entry handoff carries an OPEN
+  DISCRIMINATORS table; registering a NEW live probe for a symptom with an untested
+  registered discriminator requires a one-line justification of the jump.
+- L9 FALSIFICATION STAMPS ARE LAYER-RELATIVE. "Page-in falsified" and "nav data
+  falsified" (2026-07-14) were run under three then-unknown co-blockers (type, the
+  freshly-generated NavArea, formation). A single-variable probe under a stack shows "no
+  change" and the whole mechanism family gets a do-not-re-chase fence that later repels
+  the RIGHT answer. TRIPWIRE: every FALSIFIED verdict must name the layer tested and the
+  blockers KNOWN PRESENT at run time; re-adjudicate stamps when a new layer is peeled.
+- L10 A SILENT VENDOR MAKES EVERY FREEZE LOOK IDENTICAL, and identical-looking failures
+  breed hypothesis roulette. One config line (objectConsoleNotifyLevel) ended two months
+  of it. TRIPWIRE (enforced): notify level 3 + per-run vrfSim.log capture are permanent
+  runner behavior; a probe on a symptom with an unread vendor channel is not registrable.

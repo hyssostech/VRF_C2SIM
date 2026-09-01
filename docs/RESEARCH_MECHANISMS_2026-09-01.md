@@ -428,3 +428,38 @@ Ask 1 first; 2-4 only after P1/P2, so each carries our own falsification result.
 - Unexplained and left open: the 2026-07-15 observation that aggregates' positions read as
   degenerate 0,0 at Live clearance 0 but real at clearance 50 (MOJAVE_ROOTCAUSE, altitude
   probe). Not folded into any hypothesis above.
+
+## 9. The clamping / terrain-query contract (2026-09-01 evening; from the user-provided
+## Developer's Guide at docs.mak.com + local sysdefs; IT IS DOCUMENTED)
+
+The user's challenge stood: clamping is 101 and must be documented. It is. The contract,
+assembled from vrf_object_operationsand_blocking_terrain_calls.html,
+vrf_queryingthe_terrain_interface.html, the Users Guide altitude pages, and the sysdefs:
+
+C1. Terrain queries have BLOCKING and NON-BLOCKING (dataAvailable) forms; "all simulation
+    models must use the dataAvailable flag". Non-blocking + unpaged terrain => the query
+    "will return immediately and DataAvailable will be set to false" and "no terrain
+    intersections will be returned". Queries are chord-based and BIDIRECTIONAL (p0->p1,
+    e.g. Z +10000 to -10000) - Thread A's 2026-07-14 "load-bearing unknown" is answered
+    from the book: direction is not the issue; DATA AVAILABILITY is.
+C2. clampToGround()/place() on unpaged terrain "will be placed as specified without
+    regard to the terrain" (no error); requireAllData exists to abort-and-restore instead.
+C3. Creation and Set-Location are QUEUED until terrain is available; nothing analogous is
+    documented for the unit route builders - Thread A's binary finding stands: the offset
+    -route builder DROPS a vertex whose clamp fails => "moveAlong() - empty route".
+C4. ENTITIES are protected: ground-tracked.sysdef:30-45 carries movement-based-terrain-
+    preload-controller (radius 5-500 m by speed) and entity move tolerates failed clamps.
+    NEITHER unit movement system (ground-disaggregated, ground-higherUnit-disaggregated)
+    carries ANY preload controller (grep: 0/0). Unit route-building therefore depends on
+    whatever terrain happens to be paged when the task arrives.
+C5. Route-vertex altitude is the AUTHOR'S responsibility, three documented reference
+    frames, with the Guide's own warning that above-sea-level vertices can be underground
+    [vrf_setRouteVertexAltitude.htm]. There is no documented auto-clamp of route vertices
+    at creation.
+C6. TropicTortoise's page-in area (read from the .scnx this pass): center ~34.60,-116.55,
+    half-extents ~30x61 km - it COVERS all R9 units. Area presence does not by itself
+    prove tiles are paged at clamp time (C1/C2 are about actual paged state).
+PREDICTION under this contract for P2b (running): if the company's empty working routes
+are altitude-sensitive, Live vertices fix them; if they are PAGING-sensitive (C1/C4),
+Live changes nothing and the next lever is warming the corridor (page-in wait / preload)
+before tasking - a config/sequencing fix, not code.
