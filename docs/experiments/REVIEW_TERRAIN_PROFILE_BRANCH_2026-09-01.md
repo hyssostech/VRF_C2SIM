@@ -7,6 +7,9 @@ docs/DESIGN_TERRAIN_PROFILE_VERTICES_2026-09-01.md (in the worktree).
 
 ## Verdict: MERGE WITH FIXES
 
+**Pass 2 (commit 066f3d2): MERGE. All three fixes verified; see section 8.** The text
+below this line is the pass-1 record of commit 6539036 and is kept as-is.
+
 Fixes required before the confirming run (F1 is the blocker; F2/F3 are cheap and
 protect the run's interpretation):
 
@@ -237,3 +240,128 @@ the runtime horizontal check turns a wrong guess into a loud Live fallback rathe
 bad route. Competing hypothesis to "Terrain mode worked" in the coming run: the echoed
 request point (F2) - currently NOT distinguishable by the app or by the prereg as written.
 Unexplained symptom: none observed (no live run in this review).
+
+## 8. Pass 2 - fixes verified (commit 066f3d2, parent 6539036)
+
+Same rules as pass 1: read-only on the branch, no sim, no C:\MAK writes. Diffs read:
+6539036..066f3d2 (5 files, +246/-87: design doc, TerrainSelfTest.cs, TerrainVertexAuthoring.cs,
+VrfC2SimService.cs, VrfFacade.cpp) and the full c24248f..066f3d2.
+
+### Verdict: MERGE
+
+### F1 (lazy callback registration) - VERIFIED
+- Registration now lives only in VrfFacade::RequestTerrainProfile, behind
+  Impl::terrainCallbackRegistered, which Stop() resets right after `p_->controller =
+  nullptr`. Start() and RegisterInboundCallbacks() no longer touch the terrain callback.
+- My own body comparison against c24248f (awk function-body extraction, byte compare):
+  Start() IDENTICAL (71 lines), StartAdopting() IDENTICAL (13), RegisterInboundCallbacks()
+  IDENTICAL (16), Tick() IDENTICAL (6); Stop() differs by exactly the one flag-reset line.
+  Native diff c24248f..066f3d2 is pure insertion: 172 insertions, 0 deletions
+  (VrfBridge.cpp +50, VrfFacade.cpp +89, VrfFacade.h +33).
+- A consumer that never calls RequestTerrainProfile makes ZERO new MAK/controller calls.
+  The only new operation on its path is bridge-internal: VrfBridge.cpp WireCallbacks
+  assigns `_facade->OnTerrainProfile = TerrainProfileThunk{gcroot(this)}` (a std::function
+  store, no vendor call). Negligible, but it is why the control row (design sec 7 row 1)
+  is still needed: the binary is new even if the default path's vendor calls are not.
+- Registering from inside a request: safe on two independent grounds. (a) The request is
+  queued through _tickActions and drained by TickLoop BEFORE `_bridge.Tick()` /
+  drainInput() on the same thread, so no callback-list iteration is in flight. (b) Even if
+  it were, readerWriter/noArgumentCallbackList.h documents DtCallbackList as "safe to add
+  and remove callbacks from this table during callback invokation" and "safe to add and
+  remove callbacks simultaneously from multiple threads" (tbb::spin_mutex). The
+  messageExecutive.h:99 std::map<int, DtCallbackList> insertion of a new type key happens
+  on the tick thread outside dispatch. No issue.
+
+### F2 (1 cm echo guard) - VERIFIED; healthy case does NOT false-fallback
+The question: if the entity IS terrain-clamped and the request point is at terrain
+height, is the legitimate reply rejected as an echo? Answer: NO, because the request
+point is never at terrain height under the default settings.
+- The echo test compares the sample against v.AltMeters, the REQUEST vertex altitude
+  (TerrainVertexAuthoring.cs:64). The request is built from routeGeo, whose ground
+  vertices - vertex 0 included - carry `live.AltMeters + GroundWaypointLiveClearanceMeters`
+  (VrfC2SimService.cs:737-743, :777; default 50 m, VrfSettings.cs:176).
+- A clamped taskee's terrain reply is ~live.AltMeters, i.e. ~50 m below the request
+  altitude - 5000x outside the 1 cm window. The echo guard cannot fire on it. A distant
+  vertex whose terrain happens to equal live + 50 within 1 cm is a ~1e-4 coincidence per
+  vertex and its only effect is that ONE vertex keeps Live (Partial WARN naming the vertex),
+  never a route fallback.
+- Ordering is right: the horizontal test runs first (:63), so an echo (same lat/lon)
+  reaches the echo test; a displaced sample never does.
+- Configuration edge (LOW, documented here, no code change requested): with
+  GroundWaypointLiveClearanceMeters=0 the request altitude equals live, a clamped taskee's
+  vertex-0 terrain sample lands within centimetres of it and IS rejected as an echo ->
+  Partial with vertex 0 kept Live at the entity's own altitude. Harmless for movement
+  (the entity is already there) but it would read as a spurious WARN. Default is 50, the
+  design does not propose changing it; note it beside the setting if that knob is ever
+  lowered.
+- Self-tests 11/12 encode the guard: 11 (three samples at reqAlt, +0.005, -0.009) ->
+  Fallback, Reason "3 echoed ... at vertex 0,1,2", Live altitudes; 12 (only vertex 1 at
+  reqAlt, vertex 2 at reqAlt + 0.02) -> Partial KeptLive [1], vertex 2 authored
+  reqAlt + 0.02 + 10 - so the 1 cm bound is pinned from both sides.
+
+### F3 (vertex-0 gap is a Note, not a falsifier) - VERIFIED
+- TerrainVertexAuthoring.cs:75-79: |terrain0 - entityAlt| > 100 m sets Result.Note
+  ("taskee altitude not terrain-clamped ... authoring from terrain anyway"); Mode is
+  unaffected. VrfC2SimService.cs:809-810 logs the Note at INFO.
+- Design sec 7 check 2 now reads the two signals separately: 2a HORIZONTAL ("no usable
+  sample for any vertex") is the ONLY frame falsifier; 2b VERTICAL is explicitly "NOT a
+  frame signal". Design decision rules (lines 223-241) say the same. I grepped the design
+  doc for every "falsif"/"frame"/"vertex 0" occurrence: no residual text treats the vertical
+  gap as a frame falsifier. Sec 0 row "Frame of the REQUEST points" was updated to match.
+- 50 m horizontal threshold: sole frame signal, and sound in kind - a frame error (geodetic
+  degrees read as geocentric metres, or vice versa) displaces samples by thousands of km,
+  while the legitimate offset between a request point and its vertical intersection is
+  sub-metre (geocentric-radial vs ellipsoidal-normal drop over 50-60 m of altitude is
+  < 0.2 m). LOW: the design doc states the number but not this derivation; one sentence
+  next to DefaultMaxHorizontalMismatchMeters (TerrainVertexAuthoring.cs:24) would close it.
+  The value also has to stay below the closest R9 inter-vertex spacing for the
+  positional-index fallback argument (design line 248) to hold - the doc asserts "no such
+  pair" without a number.
+- Self-test 5 flip is non-vacuous: entityAlt 1100, terrain 100/120/140 -> Mode.Terrain
+  with concrete authored altitudes 110.0 and 150.0 (= terrain + 10, depends on the
+  authoring path running) plus Note text asserted to contain "not terrain-clamped" and not
+  "frame". Case 6 (60 m gap) asserts Note == null. The pass-1 code (Fallback on gap) fails
+  case 5.
+
+### LOW items and new cases 13/14 - VERIFIED
+- Complete=false: OnVrfTerrainProfile (VrfC2SimService.cs:1446-1453) logs INFO and returns
+  WITHOUT removing the pending entry when a partial arrives for a live request; the entry
+  is consumed by the complete reply or by ExpireTerrainRequests (:307, :1468) -> Live
+  fallback "no reply". complete() defaults true per ifIntersectionInformationResponse.h:147
+  ("Default is true"), and the app requests sendPartialInformation=false, so this path is
+  defensive only. Safe direction on every branch.
+- Case 13 (vertex 0 Invalid, 1 and 2 valid): Partial, KeptLive [0], vertex 0 = 1150 (live +
+  50), vertex 1 = 1130.5 (1120.5 + 10), Note null - tests exactly the "vertex 0 unusable does
+  not block the others" behaviour claimed. Case 14 (all samples ~1 deg away): Fallback with
+  Reason starting "no usable sample" - tests the horizontal frame signal.
+- Echo count text and Partial reason text asserted by content (case 11), not just by Mode.
+
+### Build state, tests, hygiene
+- Binaries: src/VrfBridge/build/Release/VrfBridge.dll 4286B64D...AAC37 built 19:02:31,
+  AFTER the last VrfFacade.cpp edit (19:02:11) - fresh, matches the hash the design doc
+  names. The app bin's copy was STALE at review start (3F68CFF1..., built 19:00:22, i.e.
+  before that last facade edit - the executor rebuilt the bridge after the app). Pure
+  managed self-tests were unaffected, but it is the exact stale-bin trap design sec 6 step 5
+  warns about, inside the worktree itself. I rebuilt the app in the worktree (dotnet build
+  -c Release with the untracked worktree-sdk.targets): Build succeeded, 0 errors, 6
+  pre-existing warnings; the bin copy is now 4286B64D. Nothing else on the branch touched.
+- Self-tests from the refreshed worktree bin (MAK bin64 dirs on PATH), all exit 0:
+  terrain ("terrain-selftest: PASS", incl. the 7 new [ok] lines for cases 5/11/12/13),
+  translator, report, sequencer, verb, destack, fanout.
+- git diff --check 6539036..066f3d2 clean; rg -n -P "[^\x00-\x7F]" matched the dirty
+  control and nothing in the 5 touched files; all 5 CRLF in the working tree.
+
+### Residual for the confirming run (no code change)
+- Control row (design sec 7 row 1, new bridge + mode=Live) remains mandatory: the native
+  binary is new even though its default-path vendor calls are byte-identical in source.
+- Deploy per design sec 6 step 5 (one hash across build output and every consumer bin) -
+  the worktree just demonstrated how a stale copy arises.
+
+### Adversarial review note (pass 2)
+Competing hypothesis for F2: "the echo guard rejects the healthy clamped case". Falsified
+by reading the request construction (live + 50 for every ground vertex) - the only way it
+holds is GroundWaypointLiveClearanceMeters=0, recorded above as a configuration edge.
+Competing hypothesis for F1: "Start() still differs from c24248f in some way the diff
+stat hides". Falsified by my own extracted-body byte comparison, not the executor's claim.
+Unexplained symptom: the stale app-bin bridge copy - explained by timestamps (facade edit
+19:02:11 after the app build 19:00:42), resolved by the rebuild, hash now uniform.
