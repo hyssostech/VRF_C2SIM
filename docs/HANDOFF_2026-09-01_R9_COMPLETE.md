@@ -63,7 +63,18 @@ vrfSim.mtl: notifyLevel 3 / objectConsoleNotifyLevel 3 / enableLogFileTimestamps
    pinned to vrforces5.0.2, and a full VrfBridge /t:Rebuild + 7-copy redeploy against
    the new libs; (d) read the API migration guides first
    (docs.mak.com/api/vrforces5.2/classref/vrf_migration50.html + vrf_migration51.html).
-5. Backlog unchanged: remaining type adjudications (54 units - but see item 4a first),
+5. PROBE TURNAROUND (user-approved 2026-09-01, adopt at the next natural break; do
+   NOT change mid-protocol): (a) probe windows -RunSecs 420 (today's settles were all
+   t<220; the 900 s figure came from a misread since retracted); (b) author a
+   SHORT-ROUTE probe order variant of R9 - platoon/entity legs can be ~200 m, but
+   COMPANY probe routes stay >= ~1 km (formation depth ~430 m + leading-edge
+   completion - a route shorter than the formation confounds the read); (c) higher
+   TimeMultiplier (Vrf__TimeMultiplier; default 1) is a candidate for probe runs but
+   must enter as its OWN registered variable with one A/B against a settled baseline
+   first (the 20x warp/DR history); it becomes NECESSARY for COA-STP1 scale (13-40 km
+   routes do not fit any 1x window). Keep ONE canonical-length 1x run per milestone
+   for comparability with the record.
+6. Backlog unchanged: remaining type adjudications (54 units - but see item 4a first),
    task vocabulary, completion re-keying, scoring (Phase 5).
 
 ## OPERATIONAL STATE (end of 2026-09-01 session)
