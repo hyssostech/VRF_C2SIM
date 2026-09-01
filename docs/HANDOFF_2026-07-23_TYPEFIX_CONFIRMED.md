@@ -1,3 +1,15 @@
+> **READ-FIRST NOTE (2026-09-01): docs/RESEARCH_MECHANISMS_2026-09-01.md supersedes the
+> NEXT-SESSION ORDER and two claims below.** (1) "No entity move has ever been proven" is
+> FALSE - 1.BdeHQ reached its Mojave route end on 2026-07-13 under GroundWaypointAltitudeMode
+> =Fixed100 and has frozen in every Live-mode run since; the Fixed100 control at Mojave was
+> never run. (2) The company freeze has a live-verified mitigation already in the code
+> (Vrf:SubordinateFanOut, 18/18 members, 2026-07-13) and a doc-grounded root-cause candidate:
+> a stock MAK content defect (company formation files assign the HQ section a formation name
+> it does not define; bin64/vrfSim.log for RUN 3 logs the invalid-formation warning). Also:
+> vrfSim.log is never captured per run, and the Object Console was gated to warnings-only
+> (vrfSim.mtl objectConsoleNotifyLevel 1), so "zero CON lines" was the configured outcome.
+> Next actions P0-P3 and the MAK asks are in that document. Everything else below stands.
+
 # SESSION-JUMP HANDOFF (2026-07-23) - type fix CONFIRMED; company + entity freezes are next
 
 THE CURRENT entry point. SUPERSEDES HANDOFF_2026-07-22_LAUNCH_HARDENING.md (its STEP 1/2/3 plan
