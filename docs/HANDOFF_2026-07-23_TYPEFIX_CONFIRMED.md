@@ -130,6 +130,10 @@ distances are dead-reckoning-poisoned - never gate on a raw distance).
   no dump written this session.
 
 ## NON-NEGOTIABLES
+- DOCUMENTATION FIRST (user directive 2026-09-01): for ANY issue, the first resource
+  is the documentation - local help, docs.mak.com Developer's Guide, then internet
+  research. Cheap, solves most issues. A live probe is registrable only after the
+  relevant docs are read and cited in the prereg. See VRF_GROUNDWORK_PLAN L8-L10.
 - One variable per probe; prediction + falsifier written BEFORE running. Movement claims REQUIRE
   static->moving transition + settled endpoints + POS/RPT agreement (quote BOTH on disagreement).
   Raw POS distances are dead-reckoning-poisoned - never gate on a raw distance.

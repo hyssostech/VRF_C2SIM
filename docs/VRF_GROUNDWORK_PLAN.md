@@ -761,6 +761,12 @@ readable objects, and a NaN row from GlobalEnv must NOT be read as correct-and-e
 
 ## Lessons learned addendum (2026-09-01; the "why do sessions fall back to probing" audit)
 
+THE STANDING RULE THESE LESSONS SERVE (user directive 2026-09-01): THE FIRST
+RESOURCE FOR ISSUE RESOLUTION IS THE DOCUMENTATION - local help, the public
+Developer's Guide (docs.mak.com/api/..., see memory/mak-developer-docs-urls), then
+internet research. Cheap to do, solves most issues. No live probe is registered
+before the relevant documentation has been read and cited in its prereg.
+
 - L8 ORPHANED DISCRIMINATORS ARE THE RELAPSE MECHANISM. Thread A (2026-07-14) had the
   clamp mechanism AND its one named unknown; its A/B was voided twice by infra and every
   subsequent session pivoted to a new branch. Handoffs carried the newest branch; the
