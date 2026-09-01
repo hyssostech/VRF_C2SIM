@@ -806,6 +806,8 @@ public sealed class VrfC2SimService : BackgroundService
                     else
                         _log.LogWarning("Terrain profile {Id} for task '{Task}': {Mode} - {Reason}; {Kept} vertex(es) " +
                                         "keep the Live altitude.", requestId, task.TaskName, r.Mode, r.Reason, r.KeptLive.Count);
+                    if (r.Note != null)
+                        _log.LogInformation("Terrain profile {Id} for task '{Task}': {Note}.", requestId, task.TaskName, r.Note);
                     ExecuteTaskOnTick(task, unit, r.Vertices);
                 });
                 _log.LogInformation("Task '{Task}': terrain profile request {Id} sent for {N} vertices; dispatch " +
@@ -1443,6 +1445,15 @@ public sealed class VrfC2SimService : BackgroundService
     /// the timeout, or another sender's intersection query) are dropped.</summary>
     private void OnVrfTerrainProfile(object sender, TerrainProfileEventArgs e)
     {
+        // We ask for complete replies (sendPartialInformation=false). Should a back end send
+        // partials anyway, consuming the first would drop the completing message as stale; log
+        // it and wait - the complete message or the timeout sweep finishes the request.
+        if (!e.Complete && _pendingTerrain.ContainsKey(e.RequestId))
+        {
+            _log.LogInformation("Terrain profile reply {Id}: partial (Complete=false, {N} samples) - waiting for the " +
+                                "complete reply.", e.RequestId, e.Samples?.Count ?? 0);
+            return;
+        }
         if (!_pendingTerrain.TryRemove(e.RequestId, out var pending))
         {
             _log.LogDebug("Terrain profile reply {Id} matches no pending request ({N} samples) - dropped.",

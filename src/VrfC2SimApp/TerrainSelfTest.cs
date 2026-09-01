@@ -6,9 +6,9 @@ namespace VrfC2SimApp;
 /// Offline check of TerrainVertexAuthoring (GroundWaypointAltitudeMode="TerrainProfile"
 /// vertex decision; no bridge start, no MAK runtime, no VR-Forces):
 /// `VrfC2SimApp --terrain-selftest`. Asserts terrain replacement, per-vertex fallback,
-/// the no-reply / empty-reply fallbacks, the vertex-0 frame sanity check, the horizontal
-/// mismatch rejection and index handling (docs/DESIGN_TERRAIN_PROFILE_VERTICES_2026-09-01.md
-/// sec 3.3).
+/// the no-reply / empty-reply fallbacks, the vertex-0 "not terrain-clamped" note, the
+/// horizontal mismatch rejection, the echoed-request-point rejection and index handling
+/// (docs/DESIGN_TERRAIN_PROFILE_VERTICES_2026-09-01.md sec 3.3; review 2026-09-01 F2/F3).
 /// </summary>
 public static class TerrainSelfTest
 {
@@ -63,20 +63,23 @@ public static class TerrainSelfTest
                   $"one invalid -> others authored (got {Alts(r)})");
         }
 
-        // 5. Vertex-0 terrain far from the entity's live altitude -> WHOLE route falls back.
+        // 5. Vertex-0 terrain far below the entity's live altitude (unclamped taskee, e.g. born
+        //    at CreateAltitudeSafeMslMeters): still authored from terrain; the gap is a Note,
+        //    not a fallback and not a frame claim (review F3).
         {
             var samples = new List<TerrainHeightSample> { S(0, 34.60, -116.55, 100.0), S(1, 34.61, -116.54, 120.0), S(2, 34.62, -116.53, 140.0) };
             var r = TerrainVertexAuthoring.Apply(live, samples, Clearance, EntityAlt);
-            Check(ref failures, r.Mode == TerrainVertexAuthoring.Mode.Fallback, "vertex-0 1000 m off -> Fallback (frame suspect)");
-            Check(ref failures, r.Reason.Contains("frame"), "vertex-0 fallback reason names the frame");
-            Check(ref failures, r.Vertices.Select(v => v.AltMeters).SequenceEqual(live.Select(v => v.AltMeters)), "vertex-0 fallback -> Live altitudes");
+            Check(ref failures, r.Mode == TerrainVertexAuthoring.Mode.Terrain, "vertex-0 1000 m off -> still Mode.Terrain");
+            Check(ref failures, Near(r.Vertices[0].AltMeters, 110.0) && Near(r.Vertices[2].AltMeters, 150.0), $"vertex-0 1000 m off -> terrain + clearance (got {Alts(r)})");
+            Check(ref failures, r.Note != null && r.Note.Contains("not terrain-clamped") && !r.Note.Contains("frame"),
+                  "vertex-0 gap -> Note says 'not terrain-clamped', never 'frame'");
         }
 
-        // 6. Vertex-0 within tolerance (entity 1100, terrain 1040 -> 60 m) -> accepted.
+        // 6. Vertex-0 within the note threshold (entity 1100, terrain 1040 -> 60 m) -> no Note.
         {
             var samples = new List<TerrainHeightSample> { S(0, 34.60, -116.55, 1040.0), S(1, 34.61, -116.54, 1120.0), S(2, 34.62, -116.53, 1140.0) };
             var r = TerrainVertexAuthoring.Apply(live, samples, Clearance, EntityAlt);
-            Check(ref failures, r.Mode == TerrainVertexAuthoring.Mode.Terrain, "vertex-0 60 m off -> accepted");
+            Check(ref failures, r.Mode == TerrainVertexAuthoring.Mode.Terrain && r.Note == null, "vertex-0 60 m off -> accepted, no Note");
         }
 
         // 7. A sample horizontally displaced from its vertex (> 50 m) is not an answer for it.
@@ -106,6 +109,43 @@ public static class TerrainSelfTest
         {
             var r = TerrainVertexAuthoring.Apply(live, new List<TerrainHeightSample> { Invalid(0), Invalid(1), Invalid(2) }, Clearance, EntityAlt);
             Check(ref failures, r.Mode == TerrainVertexAuthoring.Mode.Fallback, "all invalid -> Fallback");
+        }
+
+        // 11. Echo (review F2): every sample equals its request vertex altitude (live + 50) ->
+        //     not terrain; whole route falls back and the reason names the echo.
+        {
+            double reqAlt = EntityAlt + LiveClearance;
+            var samples = new List<TerrainHeightSample> { S(0, 34.60, -116.55, reqAlt), S(1, 34.61, -116.54, reqAlt + 0.005), S(2, 34.62, -116.53, reqAlt - 0.009) };
+            var r = TerrainVertexAuthoring.Apply(live, samples, Clearance, EntityAlt);
+            Check(ref failures, r.Mode == TerrainVertexAuthoring.Mode.Fallback, "all echoed -> Fallback");
+            Check(ref failures, r.Reason.Contains("3 echoed"), $"all echoed -> reason counts 3 echoes (got '{r.Reason}')");
+            Check(ref failures, r.Vertices.Select(v => v.AltMeters).SequenceEqual(live.Select(v => v.AltMeters)), "all echoed -> Live altitudes (never live + 60)");
+        }
+
+        // 12. Echo on one vertex only -> that vertex kept Live (Partial); a 2 cm difference is NOT an echo.
+        {
+            double reqAlt = EntityAlt + LiveClearance;
+            var samples = new List<TerrainHeightSample> { S(0, 34.60, -116.55, 1098.0), S(1, 34.61, -116.54, reqAlt), S(2, 34.62, -116.53, reqAlt + 0.02) };
+            var r = TerrainVertexAuthoring.Apply(live, samples, Clearance, EntityAlt);
+            Check(ref failures, r.Mode == TerrainVertexAuthoring.Mode.Partial && r.KeptLive.SequenceEqual(new[] { 1 }), "one echoed -> Partial, index 1 kept Live");
+            Check(ref failures, Near(r.Vertices[2].AltMeters, reqAlt + 0.02 + Clearance), "2 cm off the request altitude -> accepted as terrain");
+        }
+
+        // 13. Vertex 0 invalid, others valid -> Partial with index 0 kept Live, no Note (nothing to compare).
+        {
+            var samples = new List<TerrainHeightSample> { Invalid(0), S(1, 34.61, -116.54, 1120.5), S(2, 34.62, -116.53, 1140.0) };
+            var r = TerrainVertexAuthoring.Apply(live, samples, Clearance, EntityAlt);
+            Check(ref failures, r.Mode == TerrainVertexAuthoring.Mode.Partial && r.KeptLive.SequenceEqual(new[] { 0 }), "vertex 0 invalid -> Partial, index 0 kept Live");
+            Check(ref failures, Near(r.Vertices[0].AltMeters, EntityAlt + LiveClearance) && Near(r.Vertices[1].AltMeters, 1130.5) && r.Note == null,
+                  $"vertex 0 invalid -> vertex 0 Live, others terrain, no Note (got {Alts(r)})");
+        }
+
+        // 14. Wrong-frame reply (every point far from its vertex) -> Fallback "no usable sample":
+        //     this, not a vertical gap, is the frame falsifier (review F3).
+        {
+            var samples = new List<TerrainHeightSample> { S(0, 35.60, -117.55, 1098.0), S(1, 35.61, -117.54, 1120.0), S(2, 35.62, -117.53, 1140.0) };
+            var r = TerrainVertexAuthoring.Apply(live, samples, Clearance, EntityAlt);
+            Check(ref failures, r.Mode == TerrainVertexAuthoring.Mode.Fallback && r.Reason.StartsWith("no usable sample"), "all displaced -> Fallback 'no usable sample'");
         }
 
         Console.WriteLine(failures == 0 ? "terrain-selftest: PASS" : $"terrain-selftest: {failures} FAILURE(S)");

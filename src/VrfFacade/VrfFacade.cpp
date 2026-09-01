@@ -173,6 +173,13 @@ struct VrfFacade::Impl {
     // enumerate + delete everything present (docs/RUNBOOK.md sec 8). Empty otherwise.
     std::set<std::string> reflectedUuids;
 
+    // Set by the first RequestTerrainProfile() after the terrain-profile reply callback is
+    // registered on this controller. The registration is deliberately NOT in Start() /
+    // RegisterInboundCallbacks(): the 2026-07-19 record (commit 5d14eda, HANDOFF_2026-07-19
+    // sec 5) rules that native changes are additive, opt-in, and never touch the default
+    // Start() path. A consumer that never asks for terrain runs the unchanged path.
+    bool terrainCallbackRegistered = false;
+
     // UUID-network-manager change callback (matches makVrf::DtUUIDChangedCallback:
     // void(DtReflectedObject*, const DtUUID&, void*)). usr = this Impl. Fires when the
     // manager resolves a UUID for a newly discovered entity/aggregate/control object;
@@ -394,10 +401,6 @@ bool VrfFacade::Start(const StartupConfig& cfg) {
     // Object Console per-unit warnings (groundwork plan 0.6). Direct controller callback
     // (exact DtObjectConsoleMessageCallbackFcn signature) - not a msgExec category.
     p_->controller->addObjectConsoleMessageCallback(objectConsoleMessageTrampoline, this);
-    // terrain-profile replies: a sim-interface message callback by content type
-    // (vrfMessageInterface.h:164), not an object-message category (design doc sec 1.4).
-    p_->controller->vrfMessageInterface()->addMessageCallback(
-        DtIntersectionInformationResponseType, terrainProfileTrampoline, this);
 
     // host address + uuid manager
     p_->controller->setHostInetAddr(&(std::string(cfg.hostInetAddr))[0]);
@@ -430,6 +433,7 @@ void VrfFacade::Stop() {
         delete p_->appInit;
     }
     p_->controller = nullptr;
+    p_->terrainCallbackRegistered = false;
     p_->exConn = nullptr;
     p_->appInit = nullptr;
     p_->uuidMgr = nullptr;
@@ -455,9 +459,6 @@ void VrfFacade::RegisterInboundCallbacks() {
     // Object Console per-unit warnings (groundwork plan 0.6) - mirrors Start(). textIf
     // never registered this callback, so there is no double-fire risk on the adopt path.
     p_->controller->addObjectConsoleMessageCallback(objectConsoleMessageTrampoline, this);
-    // terrain-profile replies - mirrors Start() (textIf never registered this type).
-    p_->controller->vrfMessageInterface()->addMessageCallback(
-        DtIntersectionInformationResponseType, terrainProfileTrampoline, this);
 }
 
 void VrfFacade::Tick() {
@@ -770,8 +771,18 @@ unsigned int VrfFacade::RequestTerrainProfile(const std::vector<Geodetic>& point
     // reply only (sendPartialInformation=false) so the caller correlates ONE message per
     // request id; the id comes from the controller's own counter (vrfRemoteController.h:249).
     // DtSimSendToAll as for every other message here: each back end answers, the caller
-    // keeps the first. The reply lands in terrainProfileTrampoline.
+    // keeps the first. The reply lands in terrainProfileTrampoline, whose callback is
+    // registered here on first use (once per controller) so that Start() and
+    // RegisterInboundCallbacks() stay byte-for-byte the pre-feature path for every consumer
+    // (2026-07-19 rule; Impl::terrainCallbackRegistered).
     if (!p_->controller || points.empty()) return 0;
+    if (!p_->terrainCallbackRegistered) {
+        // sim-interface message callback by content type (vrfMessageInterface.h:164), not
+        // an object-message category (design doc sec 1.4).
+        p_->controller->vrfMessageInterface()->addMessageCallback(
+            DtIntersectionInformationResponseType, terrainProfileTrampoline, this);
+        p_->terrainCallbackRegistered = true;
+    }
     unsigned int id = p_->controller->generateRequestId();
     DtIfRequestTerrainProfileInformation req;
     req.setRequestId((int)id);

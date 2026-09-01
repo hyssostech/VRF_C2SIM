@@ -8,12 +8,17 @@ and authors the vertex at terrain + TerrainClearanceMeters. "Live" (live entity 
 Written docs-first, before any code (STANDING RULE). ASCII only. Offline gates only in
 this pass - the confirming live run is sec 7.
 
+Review 2026-09-01 (docs/experiments/REVIEW_TERRAIN_PROFILE_BRANCH_2026-09-01.md on main):
+MERGE WITH FIXES. F1 (lazy callback registration + control row), F2 (echo guard), F3
+(vertex-0 wording) and the LOW items are applied in this document's second revision; the
+"(review Fn)" tags below mark what changed.
+
 ## 0. Answers the brief asked for (verified vs. assumed)
 
 | Question | Answer | Status |
 |---|---|---|
 | Frame/datum of the REPLY points | GEOCENTRIC DtVector (earth-centred metres); converted to geodetic with DtGeodeticCoord::setGeocentric, so the height is metres above the WGS-84 ELLIPSOID - the same datum every other altitude in this app uses (TryGetEntityGeodetic, toGeocentric) | VERIFIED - header comment, sec 1.2 |
-| Frame of the REQUEST points | Not stated in the request header. Geocentric by protocol convention: the sibling DtIfRequestIntersectionInformation says "all point requests must be supplied in geocentric", the back-end manager stores them as plain DtVector, and the app's own controller calls (createRoute, setLocation) take geocentric | INFERRED - verify live (sec 7 check 2) |
+| Frame of the REQUEST points | Not stated in the request header. Geocentric by protocol convention: the sibling DtIfRequestIntersectionInformation says "all point requests must be supplied in geocentric", the back-end manager stores them as plain DtVector, and the app's own controller calls (createRoute, setLocation) take geocentric. The reviewer adds the vendor's own client, DtTerrainProfileWidget (vrfGuiCommonQt/terrainProfileWidget.h:221, :325, :344-345, :408), which keeps every request/reply point geocentric. A WRONG request frame shows up live as HORIZONTAL mismatch (samples nowhere near the vertices -> "no usable sample" fallback), NOT as a vertical gap (review F3) | INFERRED, strongly corroborated - verify live (sec 7 check 2) |
 | Async model + correlation | Fire-and-forget sim-interface message carrying an int requestId (controller->generateRequestId()); the reply is a DtIfIntersectionInformationResponse delivered to a callback registered by message TYPE on the controller's DtVrfMessageInterface; correlate on responseId() == requestId, per point on userData() == request point index; complete() marks the last (or only) reply | VERIFIED - sec 1.1-1.4 |
 | Unpaged-terrain behaviour | Non-blocking terrain queries on unpaged terrain return immediately with dataAvailable=false and "no terrain intersections" (Dev Guide, contract C1). The terrain-profile manager runs its requests in its own thread (header), so it MAY block/page instead - undocumented. Either way the app must not depend on it: a point with no intersection arrives as an EMPTY response set; a request that never answers is covered by the app timeout. Both fall back to the Live altitude for that vertex | VERIFIED (Dev Guide) + handled defensively |
 | Oracle parity | NONE. The frozen C++ oracle never queries terrain height: grep of c2simVRFinterfacev2.36 for TerrainProfile / IntersectionInformation returns 0 hits; ground vertices are `loc->elevation = "100"` (C2SIMinterface.cpp:2191); the only AGL use is setPointAltitudeAgl(waypoint, 0) for evacuate waypoints (:1148-1149). This mode is a deliberate departure, opt-in, off by default | VERIFIED |
@@ -53,8 +58,8 @@ All paths are read-only vendor headers under C:\MAK (never modified).
 - complete() (:149): "Set to false to indicate this is a partial message and there is
   more information to come. Default is true" (:148). setResponseSetSize (:155).
 - intersectionPairInformation() (:157/:162).
-- Type id: messageTypes.h:174 DtIntersectionInformationResponseType = 174 (request
-  sibling DtRequestIntersectionInformationType = 173 at :173; its header
+- Type id: messageTypes.h:261 DtIntersectionInformationResponseType = 174 (request
+  sibling DtRequestIntersectionInformationType = 173 at :260; its header
   ifRequestIntersectionInformation.h states the geocentric input convention and has a
   TerrainHeight flag - it is the general-purpose form; the terrain-profile request is
   the purpose-built per-point form and is what the handoff names).
@@ -115,8 +120,15 @@ All paths are read-only vendor headers under C:\MAK (never modified).
 ## 2. Existing pattern this follows (project code, read this pass)
 - Facade trampolines: static free functions with usr = VrfFacade*, null-guarded string
   extraction, std::function event (VrfFacade.cpp:236-273 availableFormations /
-  objectConsoleMessage). Registration in Start() (:333-346) AND RegisterInboundCallbacks()
-  (:389-404).
+  objectConsoleMessage). The EXISTING callbacks are registered in Start() (:333-346) AND
+  RegisterInboundCallbacks() (:389-404) - the new one deliberately is not, see next item.
+- The 2026-07-19 native-change rule (commit 5d14eda "REVERT the native bridge change - it
+  broke object creation"; docs/HANDOFF_2026-07-19.md sec 5): "WHEN THIS IS REDONE: additive
+  only, opt-in only, and it MUST NOT touch the default Start() path. Verify against this
+  exact four-run table before trusting any new build". Callback registration in Start()
+  was the PRIME SUSPECT of that failure (not proven). This design therefore registers its
+  callback lazily (sec 3.1) and the confirming run carries a control row (sec 7). No
+  dissent: the rule costs one bool and one control run.
 - Bridge: managed EventArgs + `event EventHandler<...>` + Raise* internal + namespace-
   scope thunk holding msclr::gcroot + WireCallbacks (VrfBridge.cpp:136-176, 385-389,
   496-526).
@@ -147,9 +159,14 @@ DtSimInterfaceMessage (the callback is registered by content type, so the messag
 sim-interface message), check `content->type() == DtIntersectionInformationResponseType`,
 then for each inner vector i: empty -> sample{i,false}; else userData -> index (falls
 back to i when unparsable), intersectionPoint -> geodetic via DtGeodeticCoord (same
-conversion as TryGetEntityGeodetic). Registered in Start() and RegisterInboundCallbacks()
-with `vrfMessageInterface()->addMessageCallback(DtIntersectionInformationResponseType,
-terrainProfileTrampoline, this)`. NOTE: this callback also fires for replies to the
+conversion as TryGetEntityGeodetic). Registered LAZILY (review F1): the first
+RequestTerrainProfile() on a controller calls
+`vrfMessageInterface()->addMessageCallback(DtIntersectionInformationResponseType,
+terrainProfileTrampoline, this)` once (Impl::terrainCallbackRegistered, reset in Stop()).
+Start(), StartAdopting(), RegisterInboundCallbacks() and Tick() are byte-identical to
+main (c24248f) - a consumer that never requests terrain (8 of the 9, and this app in
+Live mode) runs the pre-feature native path; only Stop() gains the flag reset.
+NOTE: this callback also fires for replies to the
 general DtIfRequestIntersectionInformation (same response type) - nothing else in this
 process sends those, and the app drops unmatched responseIds anyway.
 
@@ -183,7 +200,10 @@ Flow (VrfC2SimService.cs), all on the tick thread:
    fan-out, DeferEngage) exactly once, at dispatch time.
 3. OnVrfTerrainProfile (bridge event, VRF tick thread): look up
    `_pendingTerrain[e.RequestId]`; if absent (late/unknown) -> debug log, drop. Else
-   remove it and `_tickActions.Enqueue(() => continuation(e.Samples))`.
+   remove it and `_tickActions.Enqueue(() => continuation(e.Samples))`. A reply with
+   Complete=false for a pending id is logged and LEFT pending (review LOW): we asked for
+   complete replies, and consuming a partial would make the completing message stale;
+   the complete message or the timeout finishes the request.
 4. TickLoop: once per iteration, expire pending entries past their deadline ->
    WARN + `continuation(null)`.
 5. continuation(samples): `TerrainVertexAuthoring.Apply(liveVertices, samples,
@@ -192,22 +212,42 @@ Flow (VrfC2SimService.cs), all on the tick thread:
    `ExecuteTaskOnTick(task, unit, authored)` - the re-entry takes the authored route in
    place of the freshly computed one (point 0's lat/lon is re-read live but the unit
    has not been tasked, so it is stationary) and proceeds to the normal dispatch. The
-   re-entry re-runs the verb classification logs (idempotent reads); accepted for the
-   smallest diff on the default path.
+   re-entry re-runs the verb classification and the ATTACK/BREACH/ESCRT resolution logs
+   (idempotent reads), so in TerrainProfile mode each ground task prints those lines
+   twice; accepted for the smallest diff on the default path (review LOW) - the log
+   reader keys on the "terrain profile request N sent" / "Terrain profile N" pair.
 
 Decision rules (pure, in TerrainVertexAuthoring.Apply; unit-tested offline):
 - samples == null (timeout) or empty -> every vertex keeps its Live altitude
   ("fallback: no reply").
-- Vertex-0 sanity (frame check for the inference in sec 0): if sample 0 is valid and
-  |terrainAlt0 - entityAltMeters| > MaxVertex0DeltaMeters (100 m) the WHOLE route falls
-  back to Live ("fallback: vertex-0 terrain height disagrees with the entity's live
-  altitude by N m - request/reply frame suspect").
-- Per-sample validity: Valid flag AND horizontal distance between the sample's lat/lon
-  and the vertex's lat/lon <= MaxHorizontalMismatchMeters (50 m) AND the index is in
-  range. Invalid -> that vertex keeps Live ("partial: vertices i,j kept Live").
+- Per-sample validity: Valid flag AND the index is in range AND horizontal distance
+  between the sample's lat/lon and the vertex's lat/lon <= MaxHorizontalMismatchMeters
+  (50 m) AND not an echo. Invalid -> that vertex keeps Live ("partial: vertices i,j
+  kept Live"). The horizontal test is the FRAME check: a request or reply in the wrong
+  frame puts every sample far from its vertex -> Fallback "no usable sample for any
+  vertex" (self-test 14).
+- Echo guard (review F2): |sample.TerrainAltMeters - liveVertex.AltMeters| < 1 cm means
+  the back end handed the REQUEST point back (live + 50), not a terrain intersection;
+  the sample is rejected and the Reason counts the echoes ("N echoed request point(s) at
+  vertex i,j rejected"). Without it an echo would author live + 60 and read as success.
+- Vertex-0 diagnostic (review F3 - was a fallback trigger, now a NOTE): if sample 0 is
+  usable and |terrainAlt0 - entityAltMeters| > 100 m the Result carries
+  Note = "taskee altitude not terrain-clamped: live X m vs terrain Y m under vertex 0
+  (gap N m) - authoring from terrain anyway", logged INFO. Rationale: horizontal
+  agreement with a vertical gap is what an UNCLAMPED taskee (born at
+  CreateAltitudeSafeMslMeters, or an aggregate whose published altitude is not the
+  surface) looks like, and in exactly that case terrain authoring is the point of the
+  mode; a frame error cannot produce this signature (it fails the horizontal test).
+  So the gap never stops the run and never names the frame.
 - Valid -> AltMeters = terrainAlt + clearance. Lat/lon are never changed.
-- Result Mode: Terrain (all replaced) / Partial / Fallback, with MissingIndices +
-  Reason for the log line.
+- Result Mode: Terrain (all replaced) / Partial / Fallback, with KeptLive + Reason (+
+  Note) for the log lines.
+- Positional-index fallback (review LOW, documented not guarded): when userData is
+  missing the trampoline uses the pair's position i. If a back end OMITTED no-data
+  entries instead of sending empty inner vectors, later samples would shift onto earlier
+  vertices; the 50 m horizontal test rejects the shifted ones unless two route vertices
+  lie within 50 m of each other, in which case the error is bounded by the terrain
+  difference between adjacent vertices. The R9 routes have no such pair.
 
 Non-ground units, routes with zero points, ESCRT (dispatched before the route section),
 ATTACK/BREACH with no points: unchanged - they never reach the request.
@@ -239,6 +279,8 @@ binary, no C:\MAK file, no launch.
    a known non-ASCII file.
 5. `git diff` of VrfC2SimService.cs shows the Live/Fixed100 lines unchanged except the
    predicate widening + optional parameter.
+6. (review F1) Start(), StartAdopting(), RegisterInboundCallbacks() and Tick() in
+   VrfFacade.cpp are byte-identical to c24248f (function-body comparison script).
 
 ## 6. Deploy steps for the confirming run (NOT done in this pass)
 The nine csproj consumers reference src\VrfBridge\build\Release\VrfBridge.dll by
@@ -257,44 +299,82 @@ false-green trap, docs/HANDOFF_2026-07-19.md sec 4/5):
    the copy in src/VrfC2SimApp/bin/Release/net*/ (and spot-check tools/WatchVrf).
 6. No file under C:\MAK changes for this feature.
 
-## 7. The confirming live run (one variable: GroundWaypointAltitudeMode=TerrainProfile)
-Prereg per the standing rule; baseline = the R9 order under Live (run 20260901T203702Z,
-3/3 arrivals). Set Vrf__GroundWaypointAltitudeMode=TerrainProfile (env) - everything
-else as the working configuration. Checks, in order:
-1. The reply arrives: log line "Terrain profile <id>: N/N vertices authored from terrain"
-   within TerrainProfileTimeoutSeconds of each ground task; NO "fallback" WARN. A
-   fallback WARN with "no reply" means the back end did not answer (check
-   bin64/vrfSim.log at notify level 3 for the request) - the order still executes
-   under Live numbers, by design.
-2. Frame check (the sec 0 inference): the per-vertex log shows terrain heights within
-   ~+/-20 m of the entity's live altitude at vertex 0 and horizontal mismatch < 1 m.
-   A "vertex-0 terrain height disagrees" fallback falsifies the geocentric-request
-   inference -> stop, read the request's setToNet/back-end handling, do not tune.
+## 7. The confirming live run: TWO rows, one variable each (review F1)
+Prereg per the standing rule; baseline = the R9 order under Live on the A48ABE6C bridge
+(run 20260901T203702Z, 3/3 arrivals). A single run that flips the mode on the NEW bridge
+would move two variables (native binary AND mode), which the 2026-07-19 rule forbids.
+
+Row 1 - CONTROL (new bridge, mode=Live). Deploy per sec 6; leave
+Vrf__GroundWaypointAltitudeMode=Live (the default). Expected: the R9 result reproduced -
+3/3 units static -> moving -> settled, 3/3 TASKCMPLT, POS/RPT agreement, NO terrain log
+line of any kind (the request path is never entered; the callback is never registered).
+Miss = any deviation from the R9 table -> STOP; the new native binary is at fault
+regardless of the mode code (07-19 record), do not proceed to row 2.
+
+Row 2 - MODE (same bridge, Vrf__GroundWaypointAltitudeMode=TerrainProfile, env). Checks:
+1. The reply arrives: log line "Terrain profile <id> for task '<name>': all N vertices
+   authored from terrain + 10 m clearance; alts [...]" within TerrainProfileTimeoutSeconds
+   of each ground task; NO "fallback" / "Partial" WARN. A WARN with "no reply" means the
+   back end did not answer (check bin64/vrfSim.log at notify level 3 for the request) -
+   the order still executes under Live numbers, by design. A "partial (Complete=false)"
+   INFO line means the back end ignored sendPartialInformation=false - note it; the run
+   is still valid if the complete reply follows.
+2. Frame check (the sec 0 inference) - read the TWO signals separately (review F3):
+   a. HORIZONTAL: a WARN "no usable sample for any vertex" (samples displaced > 50 m from
+      every vertex) FALSIFIES the geocentric-request inference -> stop, read the request's
+      setToNet/back-end handling, do not tune.
+   b. VERTICAL: an INFO "taskee altitude not terrain-clamped: live X vs terrain Y" is NOT
+      a frame signal - it says the taskee's published altitude is above the surface
+      (unclamped birth altitude or aggregate). The route is still authored from terrain;
+      record X, Y and the taskee type for the handoff.
+   Echo tripwire (review F2): a WARN whose Reason contains "echoed request point" means
+   the back end returned the request points, not terrain heights -> the mode cannot work
+   as designed; stop and read how the manager packs Result.terrainHeight into
+   DtIntersectionInformation. A "success" line with every authored altitude equal to the
+   Live altitude + 10 m (i.e. live + 60) would be the same defect leaking past the 1 cm
+   guard - compare the alts list with row 1's Live vertex altitudes.
 3. Movement gate unchanged: static -> moving -> settled + POS/RPT agreement, 3/3
    TASKCMPLT, and the company's working offset routes non-empty (vrfSim.log).
-Prediction: identical arrivals to the Live baseline; terrain heights at the Mojave
-vertices ~1000-1200 m ellipsoid; authored vertices = terrain + 10 m. Miss = any
-fallback WARN, or a unit that moved under Live but not under TerrainProfile.
+Prediction: row 1 identical to R9; row 2 identical arrivals, terrain heights at the
+Mojave vertices ~1000-1200 m ellipsoid within ~20 m of each clamped taskee's live altitude,
+authored vertices = terrain + 10 m. Miss = any row-1 deviation, any fallback/Partial
+WARN in row 2, an echo Reason, or a unit that moved under Live but not under
+TerrainProfile.
 
 ## 8. Gate results (2026-09-01, offline, worktree only)
-- VrfBridge.vcxproj /t:Rebuild Release x64 (MSBuild via PowerShell - Git Bash mangles
-  the /m and /t: switches into paths, MSB1008): exit 0, 0 warnings ->
-  src/VrfBridge/build/Release/VrfBridge.dll (VrfFacade is built as part of it).
-- dotnet build src/VrfC2SimApp -c Release: "Build succeeded. 0 Error(s)" (warnings are
-  pre-existing: CA2024 in the SDK, CS8632 at VrfC2SimService.cs lines 52/942).
-  Build aid: the csproj's relative SDK ProjectReference does not resolve from the
-  deeper worktree path, so the worktree build passes an untracked
-  worktree-sdk.targets via -p:CustomBeforeMicrosoftCommonTargets that re-points the
-  reference to the absolute SDK path. Not needed from the main checkout.
+First revision (commit 6539036): VrfBridge /t:Rebuild exit 0 / 0 warnings; dotnet build 0
+errors; 7 self-tests exit 0 (terrain: 21 checks); ASCII clean vs a dirty control.
+
+Second revision (review fixes F1/F2/F3 + LOW):
+- VrfBridge.vcxproj /t:Rebuild Release x64 (MSBuild via PowerShell - Git Bash mangles the
+  /m and /t: switches into paths, MSB1008): exit 0, 0 warnings ->
+  src/VrfBridge/build/Release/VrfBridge.dll (SHA-256 4286B64D...AAC37; VrfFacade is
+  built as part of it).
+- dotnet build src/VrfC2SimApp -c Release: "Build succeeded. 0 Error(s)" (6 warnings,
+  all pre-existing: CA2024 in the SDK, CS8632 at VrfC2SimService.cs lines 52/944).
+  Build aid: the csproj's relative SDK ProjectReference does not resolve from the deeper
+  worktree path, so the worktree build passes an untracked worktree-sdk.targets via
+  -p:CustomBeforeMicrosoftCommonTargets that re-points the reference to the absolute SDK
+  path. Not needed from the main checkout.
 - Self-tests (MAK bin64 dirs on PATH): --translator-selftest exit 0 (SELF-TEST PASSED),
   --report-selftest exit 0 (ALL CHECKS PASSED), --sequencer-selftest exit 0 (ALL CHECKS
   PASSED), --verb-selftest exit 0, --destack-selftest exit 0, --fanout-selftest exit 0,
-  --terrain-selftest exit 0 ("terrain-selftest: PASS", 21 checks, 10 scenarios).
+  --terrain-selftest exit 0 ("terrain-selftest: PASS", 29 checks, 14 scenarios; new:
+  5 vertex-0 gap -> Terrain + Note, 11 all echoed -> Fallback, 12 one echoed -> Partial
+  and 2 cm is not an echo, 13 vertex 0 invalid + others valid -> Partial, 14 all
+  displaced -> "no usable sample"). Case 5's expectation flipped from Fallback to Terrain
+  with the F3 change - the previous code fails the new case, so it is not vacuous.
+- Native default path: Start(), StartAdopting(), RegisterInboundCallbacks(), Tick() in
+  VrfFacade.cpp byte-identical to c24248f; Stop() differs by the one-line flag reset.
 - ASCII: rg -n -P "[^\x00-\x7F]" matched the known-dirty control (exit 0) and matched
-  nothing in the 9 touched files (exit 1).
-- Default-path diff: git diff of VrfC2SimService.cs removes only 4 lines - the two
-  "Live" predicates (replaced by IsLiveLikeAltitudeMode(), which is true for "Live"),
+  nothing in the 9 touched files (exit 1). Every touched file CRLF in the working tree.
+- Default-path diff: git diff of VrfC2SimService.cs vs c24248f removes only 4 lines - the
+  two "Live" predicates (replaced by IsLiveLikeAltitudeMode(), which is true for "Live"),
   the ExecuteTaskOnTick signature (new optional parameter, default null) and one
-  doc-comment line. Line endings of the touched files were restored to CRLF to match
-  the checkout (core.autocrlf=true) so the diff shows no whole-file churn.
+  doc-comment line.
+- Untested offline (review sec 5, unchanged): the service-level lifecycle - pending
+  insert, expiry sweep, stale drop, partial-reply wait, continuation re-entry with
+  terrainRoute, exactly-once MarkDispatched - and the native trampoline (userData parse,
+  empty inner vector, type guard). The self-test template has no bridge seam; row 2 of
+  sec 7 is the check.
 - Oracle parity: none to check (sec 0) - the oracle never queries terrain.
