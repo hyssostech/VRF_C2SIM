@@ -368,3 +368,40 @@ DtIfRequestTerrainProfileInformation (vrfmsgs/ifRequestTerrainProfileInformation
 request terrain heights for the route points from the back-end) instead of the live+50
 approximation; then the COA-STP1 scale re-run on this clean state; then the MAK
 reports (formation content defect WITH verified fix; 5.x docs chapter regressions).
+
+### PREREG P2c (registered before running): are the formation aliases actually necessary?
+
+USER CHALLENGE (2026-09-01, verbatim intent): a mature, worldwide product with a bug in
+a universally-used feature is beyond belief; the "defect" more likely marks US as off
+the beaten path. The record supports taking this seriously: (a) the vendor docs say an
+invalid formation name falls back to a WORKING FORMATION "ensur[ing] continuous
+operation despite configuration issues" (disaggregatedFormationController.h /
+getCurrentFormation) - i.e. non-fatal BY DESIGN; (b) the P2->P2b sequence CONFOUNDS the
+aliases with the altitude frame - the company only worked after BOTH changed. The
+missing cell: stock template + artifact disabled + Live altitudes.
+
+ONE variable vs P2b: RESTORE the stock "Tank Headquarters Section (USA).entity" (copy
+.bak-20260901 back; the aliased version preserved as .aliased-20260901). Everything
+else identical to P2b (Live default - no env override; NavArea disabled; notify 3).
+appNos: runner takes 3641-3647.
+
+PREDICTIONS + FALSIFIERS (honestly uncertain; the user's beaten-path prior says WORKS):
+- BEATEN-PATH prior: the invalid-formation warning REAPPEARS but is COSMETIC - the
+  working-formation fallback supplies offsets, the HU controller fills its routes under
+  Live altitudes, 114.MechCoy marches north and completes as in P2b. THEN: H-CO-1
+  demotes to a cosmetic warning; there is NO MAK defect report (at most a docs note);
+  the aliases are reverted permanently; the real fixes of record reduce to type mapping
+  + our own artifact + the documented altitude frame.
+- ALIAS-NECESSARY alternative: the company reverts to a P1c/P2-style failure (no/empty
+  working routes or wrong-way freeze). THEN the aliases are load-bearing; the finding
+  goes to MAK framed as a QUESTION about intended template/formation interplay on the
+  entity-level company path, not as "your bug".
+- AGAINST-CONFOUND evidence noted: P1c (stock template + Fixed100) created ZERO company
+  working routes while P2 (aliases + Fixed100) created R0-R3 - the aliases did change
+  behavior UNDER FIXED100. P2c decides whether they matter under the documented frame.
+- Controls: platoon + entity expected to MOVE + complete (unchanged).
+Validity gates as P2b (6 "mode=Live" lines expected).
+
+### Outcome - RUN 6 / P2c
+
+(to be filled AFTER the run)
