@@ -619,13 +619,26 @@ and the before/after wall-time budget are in docs/RUNNER_TURNAROUND_2026-09-01.m
    PerformingEntity in the pushed order has a `SENT TASK STATUS REPORT (TASKCMPLT)`
    line in vrfc2simapp.log, the TASKCMPLT line count is >= the order's task count,
    and `-SettleHoldSecs` (default 60) have elapsed since the poll that first saw
-   that. RunSecs stays the cap. Manifest `oracle.earlyExit` records whether it fired
-   and when. A 2/3 outcome (like run 20260901T221227Z) never fires - the window runs
-   to the cap, as it must.
+   that. Only lines for taskees IN THE ORDER count (a stray line for a foreign unit
+   is ignored). RunSecs stays the cap. Manifest `oracle.earlyExit` records whether it
+   fired and when. A 2/3 outcome (like run 20260901T221227Z) never fires - the window
+   runs to the cap, as it must.
+   MULTI-TASK ORDERS: two tasks dispatched SIMULTANEOUSLY to one taskee are SUPERSEDED
+   by VR-Forces ("the old task will not complete", VrfC2SimService.cs:954) and yield
+   ONE TASKCMPLT line, so the count never reaches the task count and the switch is
+   INERT (the window runs to -RunSecs; safe, no truncation). SEQUENCED (gated) tasks
+   complete one after another and DO fire it. A fan-out task counts ONCE (one
+   synthesized unit-level line). Design note sec 3.
 3. `-TraceStopGraceSec` (default 120): how long teardown waits for the observers
-   after the stop-file touch before recording them as still running (never kills).
+   after the stop-file touch before deciding one did not see it. If one is still
+   running then, teardown WARNs and KEEPS WAITING up to that observer's own duration
+   cap + 30 s (stage start + cap argument + margin) - never kills - so StopVrf never
+   runs under a possibly still-joined observer. Stage 1 (pre-flight) REFUSES to launch
+   while any WatchVrf / ListenReports process exists (report, never kill; it ends on
+   its own cap - wait it out). A pre-existing `<runDir>\observers.stop` is refused
+   with exit 2 before anything is created (run-directory collision; never deleted).
 
-Offline gate: `pwsh -NoProfile -File tests\RunnerTurnaround.Tests.ps1` (48 checks,
+Offline gate: `pwsh -NoProfile -File tests\RunnerTurnaround.Tests.ps1` (65 checks,
 no sim). What the confirming live run must show is listed in the design note sec 4;
 `# STOP requested via stop-file` in the WatchVrf trace followed by a clean resign is
 the load-bearing line.

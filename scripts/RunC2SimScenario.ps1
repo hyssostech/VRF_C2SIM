@@ -391,6 +391,16 @@ $ProcBackend  = 'vrfSimHLA1516e'
 $ProcFrontend = 'vrfGui'
 $ProcLauncher = 'vrfLauncher'
 $RtiNames     = @('rtiAssistant','rtiexec','rtiForwarder')
+# The runner's OWN observers (review F1). A WatchVrf left over from an earlier run is
+# a foreign federate still joined to the federation, and a ListenReports is still
+# subscribed to the STOMP topic; either would contaminate a new run. Stage 1 treats
+# them like a leftover sim: report and REFUSE. They are never killed - they end on
+# their own duration cap.
+$ProcObservers = @('WatchVrf','ListenReports')
+# Slack added to an observer's duration cap when teardown falls back to waiting for
+# it (review F1): process start-up before the tool's own clock starts plus resign /
+# disconnect latency. P2c's WatchVrf-trace exited 5.5 s after start + cap.
+$ObserverCapMarginSecs = 30
 
 # ---- WHICH TOOLS JOIN THE FEDERATION (and are therefore NEVER force-killed) --
 # These tools JOIN the HLA federation. If one of them overruns its stage timeout
@@ -712,11 +722,33 @@ function Start-External {
 # ListenReports spawn nothing, and even if they did, their descendants would not
 # hold this wait. It also already does the right thing on expiry - records
 # 'still-running' and leaves the federate alone.
+#
+# -CapSecs (review F1, docs/experiments/REVIEW_RUNNER_TURNAROUND_2026-09-01.md): in
+# stop-file mode TimeoutSec is only the GRACE after the stop file was touched. If it
+# expires the observer may not have seen the file (path mismatch, hung tick) and is
+# possibly STILL JOINED; proceeding to StopVrf under a joined observer would lose the
+# record's guarantee that the observers have exited before the sim comes down. So
+# when CapSecs > 0 the wait is EXTENDED - never a kill - up to the observer's own
+# duration cap (stage start + CapSecs + CapMarginSecs), which is when the tool ends
+# itself regardless of the stop file. Only after THAT is 'still-running' recorded.
 function Complete-Background {
-    param([string]$Name, $Process, [int]$TimeoutSec, [string]$Note)
+    param([string]$Name, $Process, [int]$TimeoutSec, [string]$Note, [int]$CapSecs = 0, [int]$CapMarginSecs = 0)
     if ($DryRun -or $null -eq $Process) { return }
     Say-Info ('waiting for {0} (pid {1}) to finish on its own - it is NEVER killed' -f $Name, $Process.Id)
     $null = $Process.WaitForExit($TimeoutSec * 1000)
+    $waitedSec = $TimeoutSec
+    if (-not $Process.HasExited -and $CapSecs -gt 0) {
+        # Grace expired in stop-file mode. Find when this observer's cap ends it.
+        $startedUtc = $null
+        foreach ($s in $Manifest.stages) {
+            if ($s.name -eq $Name -and $s.outcome -eq 'started-background') { $startedUtc = ConvertFrom-ManifestUtc -Text $s.startedUtc; break }
+        }
+        if ($null -eq $startedUtc) { try { $startedUtc = $Process.StartTime.ToUniversalTime() } catch { $startedUtc = (Get-Date).ToUniversalTime() } }
+        $capWait = Get-ObserverCapRemainingSecs -StartedUtc $startedUtc -DurationSecs $CapSecs -MarginSecs $CapMarginSecs -NowUtc (Get-Date).ToUniversalTime()
+        Add-Flag 'WARN' ("{0} (pid {1}) did NOT exit within the {2}s grace after the stop file was touched - it may not have seen it. NOT killed. Waiting up to {3}s more for its own {4}s duration cap (+{5}s margin) so StopVrf does not run under a possibly still-joined observer." -f $Name, $Process.Id, $TimeoutSec, $capWait, $CapSecs, $CapMarginSecs)
+        if ($capWait -gt 0) { $null = $Process.WaitForExit($capWait * 1000) }
+        $waitedSec = $TimeoutSec + $capWait
+    }
     $code = $null
     $outcome = 'still-running'
     if ($Process.HasExited) { $code = $Process.ExitCode; $outcome = 'exited' }
@@ -731,7 +763,7 @@ function Complete-Background {
     }
     Save-Manifest
     if ($outcome -eq 'exited') { Say-Info ('{0}: EXIT={1}' -f $Name, $code) }
-    else { Add-Flag 'WARN' ("{0} (pid {1}) had not exited after {2}s. NOT killed - it is a joined federate. It will resign on its own timer." -f $Name, $Process.Id, $TimeoutSec) }
+    else { Add-Flag 'WARN' ("{0} (pid {1}) had not exited after {2}s. NOT killed - it is a joined federate. It will resign on its own timer. The NEXT run's Stage 1 inventory REFUSES to launch while it is up." -f $Name, $Process.Id, $waitedSec) }
 }
 
 # ---- live-file reading (the trace is being written while we read it) --------
@@ -1286,6 +1318,19 @@ foreach ($n in @($ProcLauncher, $ProcBackend, $ProcFrontend)) {
         Say-Warn ('{0} pid={1} threads={2} ALREADY RUNNING' -f $p.Name, $p.Id, $threads)
     }
 }
+# A leftover observer of OUR OWN is a hard block too (review F1): a WatchVrf from an
+# earlier run is a foreign federate still joined to CWIX-2024 and would contaminate
+# the trace; a ListenReports is still subscribed to the topic. Report and refuse -
+# NEVER kill; both end on their own duration cap, so the fix is to wait it out.
+$existingObservers = @()
+foreach ($n in $ProcObservers) {
+    foreach ($p in @(Get-Process -Name $n -ErrorAction SilentlyContinue)) {
+        $started = ''
+        try { $started = $p.StartTime.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ') } catch { }
+        $existingObservers += [ordered]@{ name = $p.Name; processId = $p.Id; startedUtc = $started }
+        Say-Warn ('{0} pid={1} started={2} ALREADY RUNNING - a leftover observer' -f $p.Name, $p.Id, $started)
+    }
+}
 $infra = @()
 foreach ($n in $RtiNames) {
     foreach ($p in @(Get-Process -Name $n -ErrorAction SilentlyContinue)) {
@@ -1295,9 +1340,20 @@ foreach ($n in $RtiNames) {
         Say-Ok ('{0} pid={1} - RTI INFRASTRUCTURE. Never touched, never refused on (RUNBOOK 0.5.2). Window: "{2}"' -f $p.Name, $p.Id, $title)
     }
 }
-$Manifest.preflight.existingVrf = $existing
-$Manifest.preflight.rtiInfra    = $infra
+$Manifest.preflight.existingVrf       = $existing
+$Manifest.preflight.existingObservers = $existingObservers
+$Manifest.preflight.rtiInfra          = $infra
 
+if ($existingObservers.Count -gt 0) {
+    Say-Head 'Result'
+    Say-Fail 'A WatchVrf / ListenReports observer from an earlier run is STILL RUNNING. Refusing to start.'
+    Say-Fail '  WatchVrf is a JOINED FEDERATE: a new run would share the federation with it and its'
+    Say-Fail '  trace would be foreign evidence. It is NOT killed (RUNBOOK sec 0) - it ends on its own'
+    Say-Fail '  duration cap (its 2nd argument, seconds, from its start time). Wait for it, then re-run.'
+    Say-Fail '  A leftover observer means the previous run''s teardown saw it still running after its'
+    Say-Fail '  grace + cap wait: read that run''s manifest flags before running again.'
+    exit 2
+}
 if ($existing.Count -gt 0) {
     Say-Head 'Result'
     Say-Fail 'A VR-Forces instance is ALREADY RUNNING. Refusing to start.'
@@ -1310,7 +1366,7 @@ if ($existing.Count -gt 0) {
     Say-Fail '  FIX: pwsh -File scripts\StopVrf.ps1   (leaves rtiAssistant/rtiexec/rtiForwarder up), then re-run.'
     exit 2
 }
-Say-Ok 'no pre-existing vrfLauncher / vrfSimHLA1516e / vrfGui - clear to launch'
+Say-Ok 'no pre-existing vrfLauncher / vrfSimHLA1516e / vrfGui and no leftover WatchVrf / ListenReports - clear to launch'
 if ($infra.Count -eq 0) {
     Say-Warn 'no rtiAssistant is running. RUNBOOK 0.5.3: on HLA a federate does not start until an'
     Say-Warn '  RTI Assistant has been ANSWERED. LaunchVrf.ps1 warns about this too and will proceed;'
@@ -1458,6 +1514,18 @@ $ManifestPath     = Join-Path $RunDir 'run-manifest.json'
 # pre-existing stop file with exit 2 - and (b) it stays with the evidence.
 $PathStopFile     = Join-Path $RunDir 'observers.stop'
 $Manifest.inputs.traceStop.stopFile = $PathStopFile
+# Fail fast (review F5): the run directory is named to the UTC second, so a stop file
+# already at this path means the WHOLE run directory collides with an earlier run
+# (its ledger block, manifest and logs would be overwritten). That is not something to
+# delete silently; refuse before anything is created, launched or ledgered. Without
+# this check the first symptom would be both observers refusing with exit 2 after a
+# full launch cycle.
+if (Test-Path -LiteralPath $PathStopFile) {
+    Say-Fail ('the observer stop file ALREADY EXISTS: {0}' -f $PathStopFile)
+    Say-Fail ('  The run directory {0} collides with an earlier run (same UTC second). Nothing was created,' -f $RunDir)
+    Say-Fail '  launched or ledgered. Do NOT delete the file - re-run; the new run id is a fresh directory.'
+    exit 2
+}
 
 # -ConsoleLogDir is OPT-IN and is a NAME, not a path: it is joined to $RunDir, so it is
 # validated as a single filename component here. Rejecting separators and '..' is not
@@ -1767,6 +1835,13 @@ try {
     # -ConsoleLogDir landmine above). Without it the tool runs to its duration cap.
     $WatchStopArgs  = @(); if ($ProbeWatch.supportsStopFile)  { $WatchStopArgs  = @('--stop-file', $PathStopFile) }
     $ListenStopArgs = @(); if ($ProbeListen.supportsStopFile) { $ListenStopArgs = @('--stop-file', $PathStopFile) }
+    # Second F5 guard, at the point of use: the pre-flight check above ran before the
+    # run directory existed; if the file appeared since (a concurrent runner in the
+    # same directory), both observers would refuse with exit 2 and the oracle stage
+    # would be dead. Fail through teardown instead - nothing has joined yet.
+    if (-not $DryRun -and (Test-Path -LiteralPath $PathStopFile)) {
+        Stop-Runner 3 ('the observer stop file {0} appeared before the observers were started - the run directory is shared with another writer. Refusing to start the observers (they would refuse it themselves with exit 2).' -f $PathStopFile)
+    }
     $WatchProc = Start-External -Name 'WatchVrf-trace' -File $ExeWatchVrf `
             -Arguments (@([string]$AppNo['oracleTrace'], [string]$EffWatchSecs, [string]$SampleSecs, $Federation) + $WatchConsoleArgs + $WatchStopArgs) `
             -Cwd $Bin64 -StdOutFile $PathTrace -StdErrFile $PathTraceErr `
@@ -2036,7 +2111,7 @@ try {
                 $before = $completion.firstSeenUtc.Count
                 $completion = Update-CompletionState -State $completion -Taskees $OrderTaskees -TaskCount $OrderTasks.Count -Completions $done -NowUtc $nowUtc
                 if ($completion.firstSeenUtc.Count -gt $before) {
-                    Say-Info ('  TASKCMPLT seen for {0}/{1} taskee(s), {2} line(s) (t+{3}s)' -f $completion.firstSeenUtc.Count, $OrderTaskees.Count, $done.Count, [int]((Get-Date) - $obsStart).TotalSeconds)
+                    Say-Info ('  TASKCMPLT seen for {0}/{1} taskee(s), {2} line(s) for order taskees ({4} total) (t+{3}s)' -f $completion.firstSeenUtc.Count, $OrderTaskees.Count, $completion.lineCount, [int]((Get-Date) - $obsStart).TotalSeconds, $done.Count)
                 }
                 $verdict = Test-EarlyExit -State $completion -Taskees $OrderTaskees -SettleHoldSecs $SettleHoldSecs -NowUtc $nowUtc
                 if ($verdict.AllComplete -and $null -eq $EarlyExit.allCompleteUtc) {
@@ -2158,7 +2233,7 @@ finally {
     $stopFileTouched = $false
     if ($DryRun) {
         if ($anyStopFile) {
-            Say-Plan ('would wait until StopIface + {0}s (trail), then create {1}; WatchVrf-trace/ListenReports would see it within ~1 s and resign/disconnect cleanly; would then wait up to {2}s for each (never killed)' -f $TrailSecs, $PathStopFile, $TraceStopGraceSec)
+            Say-Plan ('would wait until StopIface + {0}s (trail), then create {1}; WatchVrf-trace/ListenReports would see it within ~1 s and resign/disconnect cleanly; would then wait up to {2}s grace for each, and if one had not exited, keep waiting up to its {3}s cap + {4}s margin (never killed)' -f $TrailSecs, $PathStopFile, $TraceStopGraceSec, $EffWatchSecs, $ObserverCapMarginSecs)
         } else {
             Say-Plan ('would wait for WatchVrf and ListenReports to finish their own {0}s timers (never killed) - neither deployed binary supports --stop-file' -f $EffWatchSecs)
         }
@@ -2180,12 +2255,20 @@ finally {
         }
         Save-Manifest
     }
-    $watchWait  = if ($stopFileTouched -and $ProbeWatch.supportsStopFile)  { $TraceStopGraceSec } else { $EffWatchSecs + 120 }
-    $listenWait = if ($stopFileTouched -and $ProbeListen.supportsStopFile) { $TraceStopGraceSec } else { $EffWatchSecs + 120 }
+    # In stop-file mode the wait is the GRACE; if it expires, Complete-Background keeps
+    # waiting (never kills) up to the observer's own cap + margin (review F1) so that
+    # StopVrf below never runs under a possibly still-joined observer. Without the
+    # stop file the wait is cap + 120 as in the record, and the cap fallback is moot.
+    $watchStop  = ($stopFileTouched -and $ProbeWatch.supportsStopFile)
+    $listenStop = ($stopFileTouched -and $ProbeListen.supportsStopFile)
+    $watchWait  = if ($watchStop)  { $TraceStopGraceSec } else { $EffWatchSecs + 120 }
+    $listenWait = if ($listenStop) { $TraceStopGraceSec } else { $EffWatchSecs + 120 }
     Complete-Background -Name 'WatchVrf-trace' -Process $WatchProc -TimeoutSec $watchWait `
-        -Note $(if ($stopFileTouched -and $ProbeWatch.supportsStopFile) { 'THE MOVEMENT ORACLE trace. Told to stop via the stop file at StopIface + trail; resigned itself.' }
+        -CapSecs $(if ($watchStop) { $EffWatchSecs } else { 0 }) -CapMarginSecs $ObserverCapMarginSecs `
+        -Note $(if ($watchStop) { 'THE MOVEMENT ORACLE trace. Told to stop via the stop file at StopIface + trail; resigned itself.' }
                 else { 'THE MOVEMENT ORACLE trace. Allowed to run its full duration and resign itself.' })
-    Complete-Background -Name 'ListenReports' -Process $ListenProc -TimeoutSec $listenWait
+    Complete-Background -Name 'ListenReports' -Process $ListenProc -TimeoutSec $listenWait `
+        -CapSecs $(if ($listenStop) { $EffWatchSecs } else { 0 }) -CapMarginSecs $ObserverCapMarginSecs
 
     # *** ADDED 2026-07-19: THE ORACLE MUST NOT DIE SILENTLY. ***
     # Run 20260719T185814Z: WatchVrf CRASHED with 0xC0000005 after a single POS line,
@@ -2262,12 +2345,20 @@ finally {
         foreach ($n in $RtiNames) {
             foreach ($p in @(Get-Process -Name $n -ErrorAction SilentlyContinue)) { $rtiLeft += ('{0}(pid {1})' -f $p.Name, $p.Id) }
         }
-        $Manifest.preflight.postRunVrf = $left
-        $Manifest.preflight.postRunRti = $rtiLeft
+        $obsLeft = @()
+        foreach ($n in $ProcObservers) {
+            foreach ($p in @(Get-Process -Name $n -ErrorAction SilentlyContinue)) { $obsLeft += ('{0}(pid {1})' -f $p.Name, $p.Id) }
+        }
+        $Manifest.preflight.postRunVrf       = $left
+        $Manifest.preflight.postRunObservers = $obsLeft
+        $Manifest.preflight.postRunRti       = $rtiLeft
         if ($left.Count -gt 0) {
             $teardownOk = $false
             Add-Flag 'FAIL' ('VR-Forces processes still present after teardown: {0}. Not killed.' -f ($left -join ', '))
         } else { Say-Ok 'no VR-Forces processes remain' }
+        if ($obsLeft.Count -gt 0) {
+            Add-Flag 'WARN' ('Observer processes still present after teardown: {0}. Not killed - they end on their own duration cap. The next run REFUSES to launch (Stage 1) until they are gone.' -f ($obsLeft -join ', '))
+        } else { Say-Ok 'no WatchVrf / ListenReports observer remains' }
         if ($rtiLeft.Count -gt 0) { Say-Ok ('RTI infrastructure preserved (correct): {0}' -f ($rtiLeft -join ', ')) }
 
         # Restore this process's environment.

@@ -179,6 +179,10 @@ while (DateTime.UtcNow < listenEnd)
     // 1 s poll granularity: the last wait is clamped so the duration cap is still honored
     // to within the poll, and the stop-file (when given) is seen within ~1 s of its touch.
     var remaining = listenEnd - DateTime.UtcNow;
+    // Clamp (review F4): the clock was read twice (the while test and here); if the
+    // deadline passed in between, remaining is negative and Task.Delay would throw
+    // ArgumentOutOfRangeException - and the capture file would never be written.
+    if (remaining <= TimeSpan.Zero) break;
     await Task.Delay(remaining < TimeSpan.FromSeconds(1) ? remaining : TimeSpan.FromSeconds(1));
     if (stopFile != null && File.Exists(stopFile))
     {

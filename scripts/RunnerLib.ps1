@@ -118,10 +118,18 @@ function New-CompletionState {
 }
 
 # ALL-COMPLETE = every distinct taskee in the order has at least one TASKCMPLT line
-#                AND the number of TASKCMPLT lines is >= the number of tasks in the
-#                order (so an order with two tasks for one taskee needs two
-#                completions, without the runner having to attribute task uuids -
+#                AND the number of TASKCMPLT lines FOR ORDER TASKEES is >= the number
+#                of tasks in the order (so an order with two tasks for one taskee needs
+#                two completions, without the runner having to attribute task uuids -
 #                the app logs "(none)" for an unattributed completion).
+# Lines whose taskee is NOT in the order (a unit tasked by someone else on the same
+# server, or a stale report) are ignored entirely: they are neither stamped nor
+# counted, so a stray line can never satisfy the count on behalf of an order task
+# (review F2, docs/experiments/REVIEW_RUNNER_TURNAROUND_2026-09-01.md).
+# NOTE (review F3): two tasks dispatched SIMULTANEOUSLY to one taskee are SUPERSEDED
+# by VR-Forces (the old task never completes - VrfC2SimService.cs:954), so the
+# count can never reach TaskCount and the early exit never fires; the window then
+# runs to its cap, which is the safe direction. Sequenced (gated) tasks do complete.
 function Update-CompletionState {
     param(
         [Parameter(Mandatory)][hashtable]$State,
@@ -130,11 +138,12 @@ function Update-CompletionState {
         [Parameter(Mandatory)][AllowEmptyCollection()][object[]]$Completions,
         [Parameter(Mandatory)][datetime]$NowUtc
     )
-    $completed = @($Completions | ForEach-Object { $_.Taskee } | Select-Object -Unique)
+    $inOrder   = @($Completions | Where-Object { $Taskees -contains $_.Taskee })
+    $completed = @($inOrder | ForEach-Object { $_.Taskee } | Select-Object -Unique)
     foreach ($u in $completed) {
         if (-not $State.firstSeenUtc.Contains($u)) { $State.firstSeenUtc[$u] = $NowUtc }
     }
-    $State.lineCount = @($Completions).Count
+    $State.lineCount = $inOrder.Count
     $all = ($Taskees.Count -gt 0)
     foreach ($u in $Taskees) { if ($completed -notcontains $u) { $all = $false } }
     if ($all -and $State.lineCount -lt $TaskCount) { $all = $false }
@@ -180,6 +189,41 @@ function Get-TraceStopWaitSecs {
     $remaining = ($ReferenceUtc.AddSeconds($TrailSecs) - $NowUtc).TotalSeconds
     if ($remaining -le 0) { return 0 }
     return [int][Math]::Ceiling($remaining)
+}
+
+# ---- observer duration-cap fallback (review F1) -------------------------------
+# When an observer started with --stop-file has NOT exited within the grace after
+# the stop file was touched, teardown must not proceed to StopVrf under a possibly
+# still-joined federate. It keeps waiting - never kills - up to the moment the
+# observer's OWN duration cap ends it: StartedUtc (the stage's launch stamp) +
+# DurationSecs (the cap argument it was given) + MarginSecs (process start-up and
+# resign latency; P2c's WatchVrf-trace exited 5.5 s after start + cap). Returns the
+# whole seconds still to wait, never negative, rounded UP.
+function Get-ObserverCapRemainingSecs {
+    param(
+        [Parameter(Mandatory)][datetime]$StartedUtc,
+        [Parameter(Mandatory)][int]$DurationSecs,
+        [Parameter(Mandatory)][int]$MarginSecs,
+        [Parameter(Mandatory)][datetime]$NowUtc
+    )
+    $remaining = ($StartedUtc.AddSeconds($DurationSecs + $MarginSecs) - $NowUtc).TotalSeconds
+    if ($remaining -le 0) { return 0 }
+    return [int][Math]::Ceiling($remaining)
+}
+
+# The manifest stamps every stage start as 'yyyy-MM-ddTHH:mm:ss.fffZ' (UTC). Parse
+# that back to a UTC datetime; $null when the text is missing or malformed so the
+# caller can fall back (to the Process object's own StartTime) instead of throwing
+# inside teardown.
+function ConvertFrom-ManifestUtc {
+    param([AllowNull()][AllowEmptyString()][string]$Text)
+    if ([string]::IsNullOrWhiteSpace($Text)) { return $null }
+    $out = [datetime]::MinValue
+    $styles = [System.Globalization.DateTimeStyles]::AssumeUniversal -bor [System.Globalization.DateTimeStyles]::AdjustToUniversal
+    if ([datetime]::TryParseExact($Text, 'yyyy-MM-ddTHH:mm:ss.fffZ', [System.Globalization.CultureInfo]::InvariantCulture, $styles, [ref]$out)) {
+        return $out
+    }
+    return $null
 }
 
 # ---- tool capability probe parse ---------------------------------------------

@@ -66,6 +66,21 @@ other side: with 2/3 complete the window MUST run to the cap, and did.
   the full cap + 120 -> StopVrf. The trace therefore still covers
   preroll -> init -> order -> window -> trail, and `clocks.traceStopRequestedUtc` in
   the manifest records the touch.
+- Grace expiry (review F1, docs/experiments/REVIEW_RUNNER_TURNAROUND_2026-09-01.md):
+  if an observer has NOT exited when the grace runs out it may not have seen the
+  file and may still be joined. Teardown then WARNs and KEEPS WAITING - never kills -
+  up to the observer's own cap: stage `startedUtc` + the duration argument + a 30 s
+  margin (`Get-ObserverCapRemainingSecs`; P2c's WatchVrf-trace exited 5.5 s after
+  start + cap, so 30 s covers the observed overshoot). StopVrf runs only after that.
+  If it is STILL running past cap + margin it is recorded `still-running` (WARN) and
+  StopVrf proceeds; the next run's Stage 1 inventory then REFUSES to launch while a
+  WatchVrf or ListenReports process exists (report, never kill - wait it out). The
+  same two names are inventoried after teardown (`preflight.postRunObservers`).
+- Pre-existing stop file (review F5): `<runDir>\observers.stop` already existing
+  means the whole run directory collides with an earlier run (same UTC second). The
+  runner refuses with exit 2 BEFORE creating, ledgering or launching anything, and
+  again (Stop-Runner 3, through teardown) immediately before Stage 5 if the file
+  appeared meanwhile. It is never deleted.
 - Capability probe (Stage 0b, offline, before any launch): the runner runs each tool
   with the sole argument `--capabilities` (30 s timeout, never killed on timeout ->
   treated as unsupported) and passes `--stop-file` ONLY if the tool exits 0 and
@@ -98,11 +113,27 @@ The window closes early when ALL of:
 1. every distinct PerformingEntity UUID in the pushed order has at least one
    `SENT TASK STATUS REPORT (TASKCMPLT) taskee=<uuid> task=<uuid>.` line in the
    interface log (`<runDir>\vrfc2simapp.log`), AND
-2. the number of TASKCMPLT lines is >= the number of (Task, PerformingEntity) pairs
-   in the order (so an order with two tasks for one performer needs two
-   completions), AND
+2. the number of TASKCMPLT lines WHOSE TASKEE IS IN THE ORDER is >= the number of
+   (Task, PerformingEntity) pairs in the order (so an order with two tasks for one
+   performer needs two completions). Lines for taskees outside the order are ignored
+   entirely - neither counted nor stamped (review F2), AND
 3. `-SettleHoldSecs` (default 60) have elapsed since the runner's poll that FIRST
    saw 1 and 2 satisfied.
+
+What rule 2 means for multi-task orders (review F3):
+- Two tasks dispatched SIMULTANEOUSLY to the same taskee are SUPERSEDED by VR-Forces
+  - the interface logs "the old task will not complete"
+  (src/VrfC2SimApp/VrfC2SimService.cs:951-955) and only ONE TASKCMPLT line ever
+  appears. The count can never reach the pair count, so `-StopWhenComplete` is
+  INERT for such an order: it never fires and the window runs to `-RunSecs`. That is
+  the safe direction (no truncation), but do not expect a turnaround gain from the
+  switch on an order shaped like that.
+- SEQUENCED (gated) tasks for one taskee DO complete one after another through the
+  app's sequencer (`_sequencer.CompleteTask`, VrfC2SimService.cs:1228) and produce
+  one line each; rule 2 is right for them and the switch fires after the last.
+- A FAN-OUT task (a unit whose members each get a VR-Forces task) is counted ONCE:
+  member completions are swallowed and a single unit-level line is synthesized
+  (SynthesizeUnitCompletion, VrfC2SimService.cs:1183-1203).
 
 RunSecs remains the cap. The runner polls every 5 s when the switch is on (30 s
 otherwise). The app log carries no timestamps, so "time of last completion" is
@@ -145,6 +176,12 @@ A miss on (a) or (d) is a STOP, not a tuning item.
 - Stage 8b's poll sleep is clamped to the time remaining, so the window now ends at
   RunSecs instead of RunSecs + up to 30 s. For RunSecs that are multiples of 30 there
   is no practical difference.
+- Stage 1's pre-flight inventory now also refuses (exit 2, never kills) on a leftover
+  WatchVrf or ListenReports process (review F1), and the post-teardown inventory
+  reports them (`preflight.existingObservers` / `postRunObservers`).
+- A pre-existing `<runDir>\observers.stop` is refused with exit 2 before anything is
+  created (review F5) - it means a run-directory collision, not something to delete.
+- ListenReports' 1 s poll clamps a negative remaining delay to break (review F4).
 - New Stage 0b (capability probe) runs the two tool binaries offline before Stage 1.
   It adds ~1-2 s. WatchVrf's `--capabilities` path is pure managed code (no bridge
   load, nothing joined).
@@ -156,8 +193,11 @@ A miss on (a) or (d) is a STOP, not a tuning item.
 
 ## 6. Verification record (offline, 2026-09-01)
 
-- tests/RunnerTurnaround.Tests.ps1: 48 checks, all pass; fault injection (hold
-  comparison flipped in a scratch copy) fails 3 checks and exits 1.
+- tests/RunnerTurnaround.Tests.ps1: 65 checks, all pass (48 at review + 17 for the
+  review fixes: F2 stray-taskee lines x4, F1 cap-fallback arithmetic + manifest
+  stamp parse x10, F1 wiring via the runner's AST x3); fault injection in a scratch
+  copy: hold comparison flipped -> 3 fail; F2 filter removed -> 4 fail; cap margin
+  dropped -> 3 fail; one -CapSecs call site removed -> 1 fail; each exits 1.
 - New WatchVrf: `--capabilities` exit 0 (capabilities, con-selftest, stop-file);
   `--con-selftest` ALL CHECKS PASSED; pre-existing stop file refused exit 2 ("Nothing
   joined."); `--bogus`, missing value, extra argument each exit 2.
