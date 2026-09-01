@@ -405,3 +405,38 @@ Validity gates as P2b (6 "mode=Live" lines expected).
 ### Outcome - RUN 6 / P2c
 
 (to be filled AFTER the run)
+
+### Outcome - RUN 6 / P2c (20260901T211310Z): THE BEATEN-PATH PRIOR WINS - the aliases
+### were UNNECESSARY; the stock template works; H-CO-1 demotes to a COSMETIC warning
+
+VALIDITY: gates MET (6 mode=Live lines; clean run AND clean teardown, runner exit 0);
+appNos 3641-3647, marker 3648.
+- 114.MechCoy (2e8b6079), STOCK template: the invalid-formation warning fired EXACTLY
+  ONCE (proof the stock template was in play) and was HARMLESS - the working-formation
+  fallback covered it exactly as the vendor documentation describes. ZERO empty-route
+  lines, ZERO map errors, ZERO nav waits. Marched north, settled BIT-IDENTICAL at
+  34.653915 from t=217.3 to the end, TSK complete t=212.5, RPT identical (P2b settle
+  was 34.653928 - 1.4 m apart, the same leading-edge geometry). COMPLETED.
+- 1.BdeHQ + 1222.MechPlt: moved + completed (controls, unchanged).
+ADJUDICATION: the P2->P2b confound resolves AGAINST the aliases. Under Fixed100 the
+aliases changed behavior (P1c 0 working routes vs P2 R0-R3) but that whole branch was
+inside the altitude authoring error; under the documented frame the stock content is
+sufficient. The STOCK template is the keeper (already restored;
+.aliased-20260901 retained as history; .bak-20260901 = the original). There is NO MAK
+defect report - docs/MAK_NOTES_DRAFT_2026-09-01.md collapses to Note 1 + the variant-A
+observation.
+
+## FINAL ADJUDICATION OF THE DAY (6 pre-registered runs, appNos 3606-3647)
+
+THE R9 ORDER EXECUTES 3/3 ON AN UNTOUCHED PRODUCT AT DEFAULT SETTINGS. The complete
+cause list of the seven-week freeze saga, every item OURS:
+  1. Type mapping (integration work; fixed 07-22).
+  2. The project's own 2026-07-14 generated NavArea artifact (removed; keep disabled).
+  3. Route-vertex altitude authoring error (100 m MSL - the Users-Guide-warned
+     mistake; the default Live mode approximates the documented above-terrain frame;
+     proper fix = DtIfRequestTerrainProfileInformation authoring, queued).
+Vendor defects found: ZERO. The one candidate (HQ-section formation names) is a
+cosmetic warning covered by a documented fallback - promoted to "blocker" only while
+we stood on two of our own mistakes. The user's mature-product prior called it at
+every fork. Local state that PERSISTS: NavArea disabled; vrfSim.mtl notify levels
+(diagnostic, keep); NOTHING else - no template edits, no env overrides.
