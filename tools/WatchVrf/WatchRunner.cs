@@ -43,8 +43,12 @@ namespace WatchVrf;
 // MAKLMGRD_LICENSE_FILE from Machine scope, cwd = C:\MAK\vrforces5.0.2\bin64, and a
 // FRESH ApplicationNumber each run.
 //
-// Args: [applicationNumber] [durationSecs] [sampleSecs] [federation]
-// Defaults: 3399, 120, 15, CWIX-2024.
+// Args: [applicationNumber] [durationSecs] [sampleSecs] [federation] [--stop-file <path>]
+// Defaults: 3399, 120, 15, CWIX-2024, no stop file (duration only).
+// --stop-file: the runner touches <path> when its observation window (plus trail) is over;
+// the tick loop polls for it about once a second, emits one '# STOP requested' line and
+// falls through to the SAME bridge.Stop() resign as the duration expiry. durationSecs is
+// then the upper bound (safety net for a runner that dies mid-run).
 internal static class WatchRunner
 {
     // Argument handling uses the shared tools/Shared/ToolArgs.cs standard (0 success /
@@ -53,20 +57,45 @@ internal static class WatchRunner
     // print it without touching this bridge-referencing type.
     public static int Run(string[] args)
     {
-        // No options are valid on the LIVE path. --con-selftest is dispatched in Program.cs
-        // and only when it is args[0]; reaching here with it (e.g. "WatchVrf 3399
-        // --con-selftest") means the caller asked for two different things at once. For the
-        // movement oracle that MUST be a hard failure, not a silently-ignored token.
+        // --stop-file <path> is the ONE option valid on the LIVE path (2026-09-01, runner
+        // turnaround). It is a VALUE-taking option, so it is extracted FIRST with
+        // TryTakeOptionValue - otherwise Positionals() would see its path as a stray
+        // positional and mis-assign it (see the ToolArgs note on that helper).
+        string stopFile = null;
+        string problem;
+        if (!ToolArgs.TryTakeOptionValue(args, WatchVrfUsage.StopFileFlag, out args, out stopFile, out problem))
+            return ToolArgs.Usage(problem, WatchVrfUsage.Lines());
+        if (stopFile != null)
+        {
+            try { stopFile = Path.GetFullPath(stopFile); }
+            catch (Exception ex)
+            {
+                return ToolArgs.Usage($"{WatchVrfUsage.StopFileFlag} '{stopFile}' is not a usable path: "
+                                    + $"{ex.GetType().Name}: {ex.Message}", WatchVrfUsage.Lines());
+            }
+            // A pre-existing stop file would end the observation on the first poll and leave
+            // a trace with no samples that still reports exit 0 - the false-green shape this
+            // project keeps hitting. Refuse BEFORE joining, so nothing is consumed.
+            if (File.Exists(stopFile))
+                return ToolArgs.Usage($"{WatchVrfUsage.StopFileFlag} '{stopFile}' ALREADY EXISTS; the observation "
+                                    + "would end immediately. Remove it or pass a fresh path. Nothing joined.",
+                                      WatchVrfUsage.Lines());
+        }
+
+        // No OTHER options are valid on the LIVE path. --con-selftest and --capabilities are
+        // dispatched in Program.cs and only when they are args[0]; reaching here with one
+        // (e.g. "WatchVrf 3399 --con-selftest") means the caller asked for two different
+        // things at once. For the movement oracle that MUST be a hard failure, not a
+        // silently-ignored token.
         string[] unknown = ToolArgs.UnknownFlags(args);
         if (unknown.Length > 0)
             return ToolArgs.Usage($"unknown or misplaced option(s): {string.Join(" ", unknown)}. "
-                                + "--con-selftest is offline-only and must be the sole argument.",
+                                + "--con-selftest and --capabilities are offline-only and must be the sole argument.",
                                   WatchVrfUsage.Lines());
 
         string[] positional = ToolArgs.Positionals(args);
         int appNumber = 3399, durationSecs = 120, sampleSecs = 15;
         string federation = "CWIX-2024";
-        string problem;
 
         // HARD-FAIL on unparseable input. Previously these were TryParse calls whose bool
         // result was DISCARDED, so a typo silently produced a trace of the wrong appNumber
@@ -101,7 +130,8 @@ internal static class WatchRunner
         cfg.FomModules.Add("MAK-LgrControl-2_evolved.xml");
 
         Console.WriteLine("=== WatchVrf - position + Object Console telemetry (R3 / groundwork 0.6) ===");
-        Console.WriteLine($"    federation={federation} appNumber={appNumber} duration={durationSecs}s sample={sampleSecs}s\n");
+        Console.WriteLine($"    federation={federation} appNumber={appNumber} duration={durationSecs}s sample={sampleSecs}s"
+                        + (stopFile != null ? $" stop-file={stopFile} (duration is the upper bound)" : "") + "\n");
 
         // All DATA lines (POS, CON, and the # summary) go through this one lock so a CON
         // callback that arrives on a different thread than the sampling loop can never tear
@@ -187,10 +217,29 @@ internal static class WatchRunner
             };
 
             var nextSample = start.AddSeconds(3); // small settle so discovery gets going
+            // --stop-file poll cadence. One File.Exists per second is nothing; per 50 ms tick
+            // would be 20 stats/s for no gain in stop latency that matters at a 2 s sample
+            // cadence. The stop is checked BEFORE the sample-due test so a stop that lands
+            // between samples ends the run without waiting for the next sample.
+            var nextStopCheck = start.AddSeconds(1);
             while ((DateTime.UtcNow - start).TotalSeconds < durationSecs)
             {
                 bridge.Tick();
                 Thread.Sleep(50);
+                if (stopFile != null && DateTime.UtcNow >= nextStopCheck)
+                {
+                    nextStopCheck = DateTime.UtcNow.AddSeconds(1);
+                    if (File.Exists(stopFile))
+                    {
+                        double ts = Math.Round((DateTime.UtcNow - start).TotalSeconds, 1);
+                        // A '#' line like the per-sample summary, so every trace reader that
+                        // already skips comments skips this one too. Recorded so a scorer can
+                        // tell "stopped on request at t" from "ran out its duration".
+                        Emit(string.Create(CultureInfo.InvariantCulture,
+                            $"# STOP requested via stop-file at t={ts}s (duration cap was {durationSecs}s)"));
+                        break;
+                    }
+                }
                 if (DateTime.UtcNow < nextSample) continue;
                 nextSample = DateTime.UtcNow.AddSeconds(sampleSecs);
 

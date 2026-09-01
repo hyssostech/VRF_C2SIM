@@ -597,6 +597,39 @@ Also superseded: an earlier version of this section presented
 against it is RESOLVED: under the correct connection the 0.4 gate passed twice
 (3489/3490), discovering the 2 TropicTortoise baseline objects.
 
+### 0.5.11 THE RUNNER - turnaround switches (added 2026-09-01, PENDING CONFIRMING RUN)
+
+scripts/RunC2SimScenario.ps1 is the one-button run (HEADLESS_RUN_PLAN sec 2). Two
+turnaround changes landed on branch runner-turnaround; full design, alternatives
+and the before/after wall-time budget are in docs/RUNNER_TURNAROUND_2026-09-01.md.
+
+1. THE TRACE ENDS WITH THE WINDOW (default, no switch). The observers (WatchVrf-trace,
+   ListenReports) are still given the worst-case duration SUM as an argument, but it is
+   now only the CAP. At teardown the runner touches `<runDir>\observers.stop` at
+   StopIface + TrailSecs; both tools poll for it once a second and then take their
+   NORMAL exit path - WatchVrf resigns via bridge.Stop(), ListenReports disconnects
+   and writes reports-captured.log. Nothing is killed (sec 0 still applies). Before
+   launch (Stage 0b) the runner probes each tool with `--capabilities` and passes
+   `--stop-file` ONLY if the deployed binary advertises `stop-file`; an old binary
+   makes the runner WARN and fall back to the duration-only behaviour of the record
+   (manifest `inputs.traceStop.mode` = stop-file | partial | duration-only). Measured
+   dead time removed: 8 min 21 s per run (both 2026-09-01 runs).
+2. `-StopWhenComplete` (OFF by default - keep it off for the one canonical
+   fixed-window run per milestone). Closes the observation window early once EVERY
+   PerformingEntity in the pushed order has a `SENT TASK STATUS REPORT (TASKCMPLT)`
+   line in vrfc2simapp.log, the TASKCMPLT line count is >= the order's task count,
+   and `-SettleHoldSecs` (default 60) have elapsed since the poll that first saw
+   that. RunSecs stays the cap. Manifest `oracle.earlyExit` records whether it fired
+   and when. A 2/3 outcome (like run 20260901T221227Z) never fires - the window runs
+   to the cap, as it must.
+3. `-TraceStopGraceSec` (default 120): how long teardown waits for the observers
+   after the stop-file touch before recording them as still running (never kills).
+
+Offline gate: `pwsh -NoProfile -File tests\RunnerTurnaround.Tests.ps1` (48 checks,
+no sim). What the confirming live run must show is listed in the design note sec 4;
+`# STOP requested via stop-file` in the WatchVrf trace followed by a clean resign is
+the load-bearing line.
+
 ---
 
 ## 0.5-ARCHIVE - the raw vrfSimHLA1516e headless recipe (CONFIRMED UNSAFE, 2026-07-15)
