@@ -122,6 +122,13 @@ public sealed class VrfC2SimService : BackgroundService
     // (parity: the C++ factories waitForData then SetAltitude - here it is async).
     private readonly ConcurrentDictionary<string, double> _pendingAltitude = new();
 
+    // GroundWaypointAltitudeMode="TerrainProfile" (docs/DESIGN_TERRAIN_PROFILE_VERTICES_
+    // 2026-09-01.md sec 3.3): terrain-height requests in flight, keyed by the bridge's request
+    // id. The reply (OnVrfTerrainProfile) or the tick-loop expiry runs Continue(samples) on the
+    // tick thread; samples == null = timed out. Whichever fires first removes the entry.
+    private sealed record PendingTerrain(DateTime Deadline, string TaskName, Action<List<TerrainHeightSample>> Continue);
+    private readonly ConcurrentDictionary<uint, PendingTerrain> _pendingTerrain = new();
+
     /// <summary>What OnInitialization created for one C2SIM unit, so OnOrder can task it.
     /// AutoFormation is the E1 per-created-type formation name (null for entities and
     /// unmapped types) - see AutoFormationFor.</summary>
@@ -153,6 +160,7 @@ public sealed class VrfC2SimService : BackgroundService
         _bridge.TextReport += OnVrfTextReport;
         _bridge.ScenarioClosed += OnVrfScenarioClosed;
         _bridge.AvailableFormations += OnVrfAvailableFormations;
+        _bridge.TerrainProfile += OnVrfTerrainProfile;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -296,6 +304,7 @@ public sealed class VrfC2SimService : BackgroundService
             }
             try { _bridge.Tick(); }
             catch (Exception e) { _log.LogError("Tick failed: {Msg}", e.Message); }
+            if (!_pendingTerrain.IsEmpty) ExpireTerrainRequests();
             Thread.Sleep(50);
         }
     }
@@ -419,7 +428,7 @@ public sealed class VrfC2SimService : BackgroundService
             //   Live + GROUND: create at CreateAltitudeSafeMslMeters (above all Earth terrain; the
             //     clamp places the unit on the surface) and SKIP the deferred SetAltitude.
             //   Live + NON-ground (air/sea): parity behavior, unchanged.
-            bool liveMode = _vrf.GroundWaypointAltitudeMode.Equals("Live", StringComparison.OrdinalIgnoreCase);
+            bool liveMode = IsLiveLikeAltitudeMode();   // Live or TerrainProfile (identical creation)
             bool isGround = unit.SymbolId is { Length: > 2 } sidc && sidc[2] == 'G';
             if (liveMode && isGround)
             {
@@ -603,9 +612,10 @@ public sealed class VrfC2SimService : BackgroundService
     /// (C2SIMinterface.cpp:2213-2424). Reads the taskee's live location as point 0,
     /// ground-clamps, appends the task's inline route points, applies ROE + the
     /// (parity no-op) SetTarget, then MoveToLocation (single point) or CreateRoute +
-    /// deferred MoveAlongRoute.
+    /// deferred MoveAlongRoute. terrainRoute: the TerrainProfile-mode re-entry passes the
+    /// terrain-authored vertices here (null on the first pass and in every other mode).
     /// </summary>
-    private void ExecuteTaskOnTick(OrderTask task, CreatedUnit unit)
+    private void ExecuteTaskOnTick(OrderTask task, CreatedUnit unit, List<Geodetic> terrainRoute = null)
     {
         // Resolve the VRF uuid via the created object's name. Parity: executeTask drops
         // the task if the unit was not created (C2SIMinterface.cpp:2046-2050).
@@ -724,7 +734,7 @@ public sealed class VrfC2SimService : BackgroundService
         // golden-parity 100 m MSL; "Live" puts ground waypoints just above the unit's OWN terrain
         // altitude so VRF's offset-route ground clamp succeeds at high-elevation regions (the
         // Mojave freeze). See docs/experiments/MOJAVE_ROOTCAUSE_INVESTIGATION_2026-07-14.md.
-        double groundWpAlt = _vrf.GroundWaypointAltitudeMode.Equals("Live", StringComparison.OrdinalIgnoreCase)
+        double groundWpAlt = IsLiveLikeAltitudeMode()
             ? live.AltMeters + _vrf.GroundWaypointLiveClearanceMeters
             : 100.0;
 
@@ -766,6 +776,44 @@ public sealed class VrfC2SimService : BackgroundService
                 LonDeg = p.Lon,
                 AltMeters = isGround ? groundWpAlt : (p.Elev ?? 0.0)
             });
+
+        // GroundWaypointAltitudeMode="TerrainProfile" (docs/DESIGN_TERRAIN_PROFILE_VERTICES_
+        // 2026-09-01.md sec 3.3): ask the back end for the terrain height under each ground
+        // vertex and RETURN; the reply (or the timeout) re-enters this method with the authored
+        // route in terrainRoute. Nothing has been marked dispatched yet, so the re-entry does the
+        // bookkeeping exactly once. Live/Fixed100 and non-ground units never take this branch.
+        if (terrainRoute != null)
+            routeGeo = terrainRoute;
+        else if (isGround && IsTerrainProfileMode())
+        {
+            var liveVertices = routeGeo;
+            double entityAlt = live.AltMeters;
+            uint requestId = _bridge.RequestTerrainProfile(liveVertices);
+            if (requestId == 0)
+                _log.LogWarning("Task '{Task}': terrain profile request not sent - falling back to Live vertices.",
+                                task.TaskName);
+            else
+            {
+                var deadline = DateTime.UtcNow.AddSeconds(Math.Max(1, _vrf.TerrainProfileTimeoutSeconds));
+                _pendingTerrain[requestId] = new PendingTerrain(deadline, task.TaskName, samples =>
+                {
+                    var r = TerrainVertexAuthoring.Apply(liveVertices, samples, _vrf.TerrainClearanceMeters, entityAlt);
+                    if (r.Mode == TerrainVertexAuthoring.Mode.Terrain)
+                        _log.LogInformation("Terrain profile {Id} for task '{Task}': all {N} vertices authored from " +
+                                            "terrain + {Clr} m clearance; alts [{Alts}].", requestId, task.TaskName,
+                                            r.Vertices.Count, _vrf.TerrainClearanceMeters,
+                                            string.Join(", ", r.Vertices.Select(v => v.AltMeters.ToString("F1"))));
+                    else
+                        _log.LogWarning("Terrain profile {Id} for task '{Task}': {Mode} - {Reason}; {Kept} vertex(es) " +
+                                        "keep the Live altitude.", requestId, task.TaskName, r.Mode, r.Reason, r.KeptLive.Count);
+                    ExecuteTaskOnTick(task, unit, r.Vertices);
+                });
+                _log.LogInformation("Task '{Task}': terrain profile request {Id} sent for {N} vertices; dispatch " +
+                                    "deferred to the reply (timeout {T} s -> Live fallback).",
+                                    task.TaskName, requestId, liveVertices.Count, _vrf.TerrainProfileTimeoutSeconds);
+                return;
+            }
+        }
 
         // Rules of engagement (:2374-2379): ROEFree -> FireAtWill, ROEHold -> HoldFire,
         // everything else (incl. ROETight) -> FireWhenFiredUpon.
@@ -1390,6 +1438,40 @@ public sealed class VrfC2SimService : BackgroundService
         _log.LogInformation("R1: {Name} ({Uuid}) - set formation '{Pick}' (from its own list) " +
                             "+ reorganize.", unitName, e.Uuid, pick);
     }
+
+    /// <summary>Reply to a terrain-profile request (VRF tick thread). Unknown ids (late after
+    /// the timeout, or another sender's intersection query) are dropped.</summary>
+    private void OnVrfTerrainProfile(object sender, TerrainProfileEventArgs e)
+    {
+        if (!_pendingTerrain.TryRemove(e.RequestId, out var pending))
+        {
+            _log.LogDebug("Terrain profile reply {Id} matches no pending request ({N} samples) - dropped.",
+                          e.RequestId, e.Samples?.Count ?? 0);
+            return;
+        }
+        var samples = e.Samples ?? new List<TerrainHeightSample>();
+        _tickActions.Enqueue(() => pending.Continue(samples));
+    }
+
+    /// <summary>Tick-loop sweep: a request past its deadline continues with null = Live fallback.</summary>
+    private void ExpireTerrainRequests()
+    {
+        var now = DateTime.UtcNow;
+        foreach (var kv in _pendingTerrain)
+        {
+            if (kv.Value.Deadline > now || !_pendingTerrain.TryRemove(kv.Key, out var pending)) continue;
+            _log.LogWarning("Terrain profile request {Id} for task '{Task}' got no reply within {T} s - " +
+                            "dispatching with Live vertices.", kv.Key, pending.TaskName, _vrf.TerrainProfileTimeoutSeconds);
+            _tickActions.Enqueue(() => pending.Continue(null));
+        }
+    }
+
+    private bool IsTerrainProfileMode() =>
+        _vrf.GroundWaypointAltitudeMode.Equals("TerrainProfile", StringComparison.OrdinalIgnoreCase);
+
+    // "Live" and "TerrainProfile" share the create path and the Live vertex arithmetic.
+    private bool IsLiveLikeAltitudeMode() =>
+        _vrf.GroundWaypointAltitudeMode.Equals("Live", StringComparison.OrdinalIgnoreCase) || IsTerrainProfileMode();
 
     private async Task PushReportAsync(string reportXml)
     {

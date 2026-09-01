@@ -154,6 +154,26 @@ struct ObjectConsoleMessage {
     std::string message;  // the console message text (unescaped)
 };
 
+// One point of a terrain-profile reply (docs/DESIGN_TERRAIN_PROFILE_VERTICES_2026-09-01.md).
+// The back end answers DtIfRequestTerrainProfileInformation with a
+// DtIfIntersectionInformationResponse whose points are GEOCENTRIC
+// (vrfmsgs/ifIntersectionInformationResponse.h:20); the facade converts each to geodetic,
+// so point.altMeters is the terrain height in the same ellipsoid datum as every other
+// altitude here. 'index' is the request point the sample answers (the reply's userData,
+// ifRequestTerrainProfileInformation.h:46-48). valid=false: the back end returned an EMPTY
+// set for that point (no terrain data, ifIntersectionInformationResponse.h:136-138).
+struct TerrainSample {
+    int index = -1;
+    bool valid = false;
+    Geodetic point;
+};
+
+struct TerrainProfile {
+    unsigned int requestId = 0;  // == the id RequestTerrainProfile returned (responseId())
+    bool complete = true;        // false only for partial replies (we request complete ones)
+    std::vector<TerrainSample> samples;
+};
+
 // ------------------------------------------------------------------
 // The facade
 // ------------------------------------------------------------------
@@ -356,6 +376,16 @@ public:
     // uuid (e.g. an aggregate, which has no DtReflectedEntity).
     bool TryGetEntityGeodetic(const std::string& uuid, Geodetic& out) const;
 
+    // -- terrain query (asynchronous) -----------------------------
+    // Ask the simulating back end(s) for the terrain height under each point
+    // (DtIfRequestTerrainProfileInformation, sent DtSimSendToAll with
+    // sendPartialInformation=false -> ONE complete reply per back end). Points are sent
+    // geocentric (the protocol convention; the request header states no frame - see the
+    // design doc sec 0). Returns the request id to correlate OnTerrainProfile
+    // (TerrainProfile::requestId), 0 if not started. No reply is guaranteed (unpaged
+    // terrain, scenario close): the CALLER owns the timeout.
+    unsigned int RequestTerrainProfile(const std::vector<Geodetic>& points);
+
     // -- events (set before Start; called on the VRF message thread) ---
     std::function<void(const ObjectCreated&)> OnObjectCreated;
     std::function<void(const TextReport&)>    OnTextReport;
@@ -365,6 +395,9 @@ public:
     // Per-unit Object Console warnings (groundwork plan 0.6). Registered on the
     // controller in Start() (and RegisterInboundCallbacks()); fires on the tick thread.
     std::function<void(const ObjectConsoleMessage&)> OnObjectConsoleMessage;
+    // Reply to RequestTerrainProfile (also fires for any other
+    // DtIfIntersectionInformationResponse on the session - correlate on requestId).
+    std::function<void(const TerrainProfile&)> OnTerrainProfile;
 
 private:
     struct Impl;

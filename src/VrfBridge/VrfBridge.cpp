@@ -149,6 +149,25 @@ public:
     property String^ Message;     // console message text (unescaped)
 };
 
+// One point of a terrain-profile reply (mirror of vrf::TerrainSample; design doc
+// docs/DESIGN_TERRAIN_PROFILE_VERTICES_2026-09-01.md). Index = the request point answered;
+// Valid=false when the back end returned no terrain data for it (Lat/Lon/Alt then 0).
+// TerrainAltMeters is the terrain height in the app's usual ellipsoid datum.
+public value struct TerrainHeightSample {
+    int    Index;
+    bool   Valid;
+    double LatDeg;
+    double LonDeg;
+    double TerrainAltMeters;
+};
+
+public ref class TerrainProfileEventArgs : EventArgs {
+public:
+    property unsigned int RequestId;                // == the id RequestTerrainProfile returned
+    property bool Complete;                         // false only for a partial reply
+    property List<TerrainHeightSample>^ Samples;
+};
+
 // -- The managed bridge ----------------------------------------------
 
 public ref class VrfBridge {
@@ -172,6 +191,7 @@ public:
     event EventHandler^                          ScenarioClosed;
     event EventHandler<AvailableFormationsEventArgs^>^ AvailableFormations;
     event EventHandler<ObjectConsoleMessageEventArgs^>^ ObjectConsoleMessage;
+    event EventHandler<TerrainProfileEventArgs^>^ TerrainProfile;
 
     // -- lifecycle ---------------------------------------------------
     bool Start(StartupConfig^ cfg) {
@@ -349,6 +369,14 @@ public:
         _facade->SendScriptedSet(ToStd(uuid), ToStd(scriptId), ToNativeVars(vars));
     }
 
+    // -- terrain query (asynchronous) ---------------------------------
+    // Ask the back end for the terrain height under each point; the reply raises the
+    // TerrainProfile event with the returned request id (0 = not sent). No reply is
+    // guaranteed - the caller owns the timeout (design doc sec 3.3).
+    unsigned int RequestTerrainProfile(IEnumerable<Geodetic>^ points) {
+        return _facade->RequestTerrainProfile(ToNativePoints(points));
+    }
+
     // -- state read (pure; does NOT task the unit) -------------------
     // Returns false (and a zeroed result) if no reflected entity exists for the
     // uuid (e.g. an aggregate, which has no DtReflectedEntity).
@@ -391,6 +419,11 @@ internal:
         auto e = gcnew ObjectConsoleMessageEventArgs();
         e->Uuid = uuid; e->NotifyLevel = notifyLevel; e->Message = message;
         ObjectConsoleMessage(this, e);
+    }
+    void RaiseTerrainProfile(unsigned int requestId, bool complete, List<TerrainHeightSample>^ samples) {
+        auto e = gcnew TerrainProfileEventArgs();
+        e->RequestId = requestId; e->Complete = complete; e->Samples = samples;
+        TerrainProfile(this, e);
     }
 
 private:
@@ -512,6 +545,21 @@ struct ObjectConsoleMessageThunk {
     }
 };
 
+struct TerrainProfileThunk {
+    msclr::gcroot<VrfBridge^> self;
+    void operator()(const vrf::TerrainProfile& t) const {
+        auto list = gcnew List<TerrainHeightSample>();
+        for (const vrf::TerrainSample& s : t.samples) {
+            TerrainHeightSample m;
+            m.Index = s.index; m.Valid = s.valid;
+            m.LatDeg = s.point.latDeg; m.LonDeg = s.point.lonDeg;
+            m.TerrainAltMeters = s.point.altMeters;
+            list->Add(m);
+        }
+        self->RaiseTerrainProfile(t.requestId, t.complete, list);
+    }
+};
+
 } // anonymous namespace
 
 void VrfBridge::WireCallbacks() {
@@ -523,6 +571,8 @@ void VrfBridge::WireCallbacks() {
         AvailableFormationsThunk{ msclr::gcroot<VrfBridge^>(this) };
     _facade->OnObjectConsoleMessage =
         ObjectConsoleMessageThunk{ msclr::gcroot<VrfBridge^>(this) };
+    _facade->OnTerrainProfile =
+        TerrainProfileThunk{ msclr::gcroot<VrfBridge^>(this) };
 }
 
 } // namespace VrfC2Sim
