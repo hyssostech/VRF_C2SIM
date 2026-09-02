@@ -50,47 +50,43 @@ vrfSim.mtl: notifyLevel 3 / objectConsoleNotifyLevel 3 / enableLogFileTimestamps
 (backup .bak-20260901) - KEEP: this is what made the freezes speak.
 
 ## NEXT (in order)
-1. DOCUMENTED-FRAME HARDENING: author route vertices from the back-end's own terrain
-   via DtIfRequestTerrainProfileInformation (vrfmsgs/ifRequestTerrainProfileInformation.h)
-   instead of the live-altitude+50 approximation. Facade+bridge+app change; offline
-   gates then one confirming run. STATUS 2026-09-02: MERGED to main (e1fdbbd, review
-   verdict MERGE at 066f3d2), bridge DEPLOYED (A48ABE6C -> 28E993FE, 10/10 copies one
-   hash; design sec 6 DEPLOY RECORD). Row 1 CONTROL (new bridge, mode=Live default)
-   ALL MET, run 20260902T010704Z (docs/experiments/PREREG_TERRAIN_ROW1_CONTROL_
-   2026-09-02.md). Row 2 MODE run 20260902T011908Z: back end FATAL ERROR 6 s before
-   the order push (dump 70668 saved, RUNBOOK 0.5.12) - unadjudicated. ROW2R (unchanged
-   repeat, run 20260902T101431Z): back end SURVIVED (crash not tied to the mode), replies
-   ARRIVED, movement 3/3, but all 3 replies PARTIAL (vertex 0 only). Cause found docs-
-   first: the facade read entry [0] of each response set; the back end returns one
-   result per request POINT (terrainProfileRequestManager.h:107-121; set packing
-   undocumented). Fix 8e14cd1 (walk every entry; Info log "Terrain profile reply {Id}:
-   {N} sample(s) [shape]"), deployed as bridge A7504441 (8410588, 10/10 one hash,
-   backup bak-20260902-28e993fe/). ROW 2c (run 20260902T104832Z, prereg e2e78d9,
-   outcome c864dc1): H-A CONFIRMED - 3 samples per request with userData indices 0/1/2,
-   ":802 all 3 vertices authored" x3, zero warn lines, samples = clamped resting
-   altitudes to 0.1 m. THE DOCUMENTED FRAME WORKS END TO END. ONE MISS: 114.MechCoy
-   (the only aggregate) completed +198.1 s vs Row 1 +183.8 (ROW2R +185.2), trace
-   plateau 233.3 vs 219.2 s; individuals unchanged to 0.5 s; endpoint identical. Cause
-   UNDECIDED (H-V variance vs H-ALT the ~40 m lower waypoint altitudes, terrain+10 vs
-   live+50). IN FLIGHT: docs read on aggregate move-along altitude semantics + ROW 2cR
-   unchanged repeat (PREREG_TERRAIN_ROW2CR_REPEAT_2026-09-02.md, appNos 3704-3710).
-   Decision pending the repeat: make TerrainProfile the DEFAULT mode (it is the
-   documented frame) or keep Live default. ROW 2cR (run 20260902T111116Z, prereg
-   4f870b8, outcome dadb40e): the +14 s DID NOT REPRODUCE - 114.MechCoy back at +185.0
-   s, plateau 219.2 (= Row 1's), terrain authoring byte-identical to Row 2c. H-ALT
-   REFUTED as a systematic effect, H-V STANDS; the aggregate's real 1x spread is
-   178.2-198.1 s. DECISION TAKEN: TerrainProfile IS THE DEFAULT (commit 5b82e5f, one
-   literal in VrfSettings.cs; design sec 7 DEFAULT FLIP). ROW 3 (run 20260902T113613Z,
-   appNos 3711-3717, prereg 4682063/b2ceeb1, outcome a0e0f2e) CONFIRMED THE FLIP LIVE
-   with NO env override: env:Vrf__* empty, no appsettings pin, terrain query
-   character-identical for the third run, zero warn:, 3/3 TASKCMPLT at +117.47 /
-   +129.63 / +182.34 s, every stage exit 0. THIS ITEM IS DONE. Remaining known gap: the
-   per-vertex Live FALLBACK path (a vertex the back end will not answer for) has never
-   run on a healthy back end. Back-end fatal-error precedent: dumps in
-   bin64 from 2026-07-14/15/22 and 70668 (2026-09-02).
+1. DOCUMENTED-FRAME HARDENING - DONE (2026-09-02). Route vertices are authored from the
+   back end's own terrain via DtIfRequestTerrainProfileInformation; TerrainProfile is the
+   compiled DEFAULT (5b82e5f) and Row 3 (run 20260902T113613Z, appNos 3711-3717) confirmed
+   the flip live with no env override, 3/3 TASKCMPLT, every stage exit 0. Bridge A7504441
+   deployed 10/10. Full record: docs/DESIGN_TERRAIN_PROFILE_VERTICES_2026-09-01.md sec 6/7
+   and the Row 1/2/2R/2c/2cR/3 preregs in docs/experiments/. Residual gap: the per-vertex
+   Live FALLBACK path has never run on a healthy back end. Back-end fatal-error precedent:
+   dumps in bin64 from 2026-07-14/15/22 and 70668 (2026-09-02).
 2. COA-STP1 SCALE RE-RUN on the clean state (the July scale results predate ALL FOUR
    fixes; every FALSIFIED stamp from July is layer-relative - see L9 - and the region/
    fan-out story needs re-adjudication).
+   RUNG 0 DONE (fc93a1e): the July region hypothesis is RETRACTED in CORRECTIONS_LOG and
+   tagged in the six live docs that still stated it; 31 (not 32) temporal deps; DEFECT A
+   and B verified ALREADY FIXED in source (P0.1 InFlightTracker, P0.2 TaskSequencer).
+   RUNG 1 RESULT (run 20260902T125423Z, appNos 3718-3724, prereg d1f2e10, outcome sec 6 of
+   docs/experiments/PREREG_COASTP1_RUNG1_BOUNDED_2026-09-02.md): THE JULY MECHANISM IS GONE;
+   THE FREEZE IS NOT, AND IT IS NOW SILENT. Zero "moveAlong() - empty route" lines in 140 MB
+   of back-end log - that grep oracle is DEAD - yet 4 of the 8 dispatching aggregates built
+   ZERO member offset routes and never moved, with no diagnostic of any kind. The other 4
+   built them and MARCHED 13.2-26.7 km at 8.0-8.2 m/s, still moving at window close: the
+   first COA-STP1 aggregates ever observed driving their own order at 1x. Offset routes and
+   movement correlate 1:1 across all 8. TEMPLATE IS NOT THE DISCRIMINATOR (Ground_Aggregate
+   3 moved/2 froze; Tank Company 1 moved/2 froze). No runaway, nothing underground or
+   offshore, and the CPP-ALT-1 18.4 km stop radius did NOT reproduce. Terrain authoring held
+   at 5 vertices x 9 concurrent requests, zero warnings - including for the frozen units, so
+   waypoint altitude is not the discriminator either. Cleanup 172 = 128+35+9 exactly.
+   NEW FINDINGS (recorded, unfixed): (A) the lone ENTITY taskee reported TASKCMPLT from the
+   BACK END's own callback while never leaving its spawn ring - a true vacuous completion
+   that falsely released T24 and cascade-skipped T25/T26; (B) all 26 echelon-'F' units land
+   the GENERIC Ground_Aggregate fallback (UnitTranslator.cs:70/:134, TYPE_GAP_ADJUDICATION
+   Decision item 4, still a USER call) - but that fallback MARCHES, so it is not the freeze
+   cause; (C) TerrainProfile re-entry double-logs the verb classification; (D) ResetVrf after
+   StopVrf is blind (BackendCount=0) - it must run between StopIface and StopVrf.
+   UNEXPLAINED: what separates the 4 movers from the 4 freezers. Only correlate found: the
+   two 2-point routes (T5, T27) both froze; but T31/T35 froze on 5-point routes identical to
+   movers. NEXT: docs first (aggregate move-along chapter, generateFormationRoutes' "still
+   waiting for data" return), then a single-variable 2-point-route probe.
 3. MAK: send-ready message in docs/MAK_MESSAGE_2026-09-02.md (docs question, unit-level
    tasking confirmation + cosmetic formation observation, follow-in-formation at a time
    multiplier as a QUESTION). User rulings 2026-09-02: multipliers stay 1x for probes;

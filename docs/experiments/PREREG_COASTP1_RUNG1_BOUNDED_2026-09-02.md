@@ -431,7 +431,307 @@ NOT falsifiers, stated in advance so they are not retro-fitted: zero TASKCMPLT; 
 lines; T13 never dispatching; T9 abandoning for no Locations; the absence of R1/fan-out/
 straggler lines; the yellow badge being unobserved.
 
-## 6. OUTCOME
+## 6. OUTCOME - run 20260902T125423Z, appNos 3718-3724, adjudicated from run-directory artifacts
 
-(to be appended after the run: verdict first, then P1-P5 MET/MISSED with verbatim lines and
-counts, the per-performer table, verified vs inferred, and anything unexplained)
+### VERDICT
+
+THE JULY MECHANISM IS GONE; THE FREEZE IS NOT - AND IT IS NOW SILENT.
+
+Not one `moveAlong() - empty route -- not sending move along to subordinate` line appears
+anywhere in 140,902,719 bytes of back-end log. The grep oracle that the whole July region
+story rested on ("THE grep oracle for this failure mode", UNIT_MOVEMENT_RESEARCH.md:327) is
+DEAD as a diagnostic: it fires on nothing here, yet FOUR of the EIGHT dispatching aggregates
+built ZERO member offset routes, never moved a metre, and the back end said NOTHING about it.
+
+The other four built offset routes and MARCHED: 13.2 to 26.7 km of real, monotone,
+route-conforming progress at 8.0-8.2 m/s, still moving when the window closed. That is the
+first time COA-STP1 aggregates have been observed marching their own order's routes at 1x.
+
+Member offset routes and movement correlate 1:1 across all eight - every aggregate that built
+them moved, every aggregate that did not build them froze. So offset-route construction is
+still the proximate mechanism; what changed is that its failure is no longer announced.
+
+TEMPLATE IS NOT THE DISCRIMINATOR. Both template classes contain movers and freezers:
+Ground_Aggregate 3 moved / 2 froze; Tank Company (USA) 1 moved / 2 froze. Whatever selects
+the freezers, it is not the type-mapping gap.
+
+FALSIFIERS: F1 did NOT fire (P3.1 clean). F2 did NOT fire (no clean-history object left the
+AO; nothing underground or offshore). F3, F4, F5 did not fire. ONE NEW FALSIFIER-CLASS
+FINDING, outside the registered set: the lone ENTITY taskee reported TASKCMPLT from the
+back end's own callback while never leaving its spawn ring - a true vacuous completion that
+falsely released its successor (finding A below).
+
+### Run facts
+
+Run dir `runs/20260902T125423Z_run`. Ledger 3718 -> 3725, seven numbers claimed before any
+join; 3724 (createOneDiag) allocated but UNCONSUMED - the stage-7 oracle gate passed, so the
+stage-7b diagnostic never ran. Every stage exit 0 (RtiProbe, LaunchVrf, WatchVrf-precheck,
+WatchVrf-trace, ListenReports, PushInit, VrfC2SimApp, PushOrder, StopIface, StopVrf); runner
+exit 0. Observation window 2704.5 s of 2700 s. `Get-ChildItem env:Vrf__*` before launch =
+`Vrf__DeStackCreates=true` and nothing else; empty afterwards. Artifacts: vrfc2simapp.log
+54,254 B; bin64-vrfSim.log 140,902,719 B; watchvrf-trace.csv 46,844,395 B (473,057 usable POS
+samples over 1,732 objects); reports-captured.log 5,704,098 B (128 distinct reporting uuids =
+exactly the 128 created units).
+
+### PER-PERFORMER TABLE
+
+Along-route distance = the performer's own POS series (reports-captured.log, keyed by C2SIM
+uuid) projected onto its authored polyline. Offset routes attributed from bin64-vrfSim.log by
+`follow-in-formation: leader=<M>; leaderRoute=<task route>`, which names the task directly.
+
+  head perf.        template            disp?  offRt  empty  1stMov  along@2700s  maxLat  finalAlt  moving at close
+  ---- ------------ ------------------- -----  -----  -----  ------  -----------  ------  --------  ---------------
+  T1   1-35/2/1_A   Ground_Aggregate    YES        4      0    134s     13.39 km   123 m   ~1128 m  YES 2458 m/300s
+  T5   4-27/2/1_A   Ground_Aggregate    YES        0      0       -      0.09 km    37 m   ~1147 m  NO  0 m/300s
+  T15  1-6/2/1_AD   Ground_Aggregate    YES        4      0     70s     26.70 km    57 m   ~1296 m  YES 2390 m/300s
+  T19  40/2/1_AD    Ground_Aggregate    YES        4      0     71s     13.17 km   150 m   ~1128 m  YES 2454 m/300s
+  T23  1-1/2/1_AD   Tank ENTITY         YES      n/a      0       -      0.18 km    78 m   ~1147 m  NO  0 m/300s
+  T27  856/HHC      Tank Company (USA)  YES        0      0       -      0.00 km   150 m   ~1147 m  NO  0 m/300s
+  T31  5-20/2/1_A   Ground_Aggregate    YES        0      0       -      0.00 km   150 m   ~1147 m  NO  0 m/300s
+  T35  B/5-20       Tank Company (USA)  YES        0      0       -      0.00 km   100 m   ~1147 m  NO  0 m/300s
+  T39  C/1-35       Tank Company (USA)  YES       18      0     61s     24.20 km    86 m    ~941 m  YES 2432 m/300s
+  T9   A/6-56/HHC   Tank ENTITY         NO       n/a      0       -            -       -         -  no Locations
+  T13  510/40       Tank Company (USA)  NO       n/a      0       -            -       -         -  3h20m delay
+
+  maxLat for a frozen unit is its de-stack ring offset from the route's first vertex, not a
+  deviation. Offset-route owners: T19 = GndV 49 (leading 50/51/52); T15 = GndV 61 (62/63/64);
+  T1 = GndV 73 (74/75/76); T39 = M1A2 851/853/857/861 leading 18 members over four internal
+  sub-routes C/1-35_R0..R3 - the Tank Company distributes to its 3 platoons + HQ section, a
+  two-level structure the Ground_Aggregate path does not have.
+
+  SPLIT BY TEMPLATE (the number this run existed to produce):
+    Ground_Aggregate (5 dispatching)   3 moved (T1,T15,T19)   2 froze (T5,T31)
+    Tank Company (USA) (3 dispatching) 1 moved (T39)          2 froze (T27,T35)
+    Tank entity (1 dispatching)        0 moved                1 froze (T23) + false TASKCMPLT
+
+### P1 CREATION - MET (P1.6 numbers wrong, see finding B)
+
+P1.1 MET. `QUERYINIT   : 128 Units, SystemName=[C2SIM]`.
+P1.2 MET. Exactly one `Init dispatched: 128 units + 35 areas queued for creation.`; zero
+     ClientId-mismatch lines; zero duplicate-init skips; zero missing-lat/lon skips.
+P1.3 MET. Exactly 128 `Create-altitude mode=Live: GROUND unit ... created at safe MSL 10000 m`.
+P1.4 MET. Exactly 10 DeStack lines, led by
+     `DeStack (R8): 54 units at (34.67998497486787,-116.72479854165415) spread onto 50 m rings
+     (first unit kept in place).` plus nine 2-unit groups.
+P1.5 MET. Zero `R1: created aggregate` lines (AggregateFormation OFF, as configured).
+P1.6 MISSED - and the miss is a real finding, not noise. See finding B.
+P1.7 MET. Oracle gate passed; 3724 unconsumed.
+P1.8 MET. Reflected count peaked at 1812; 1790 at t=153.5 s (predicted band 1700-1850 within
+     ~150 s).
+
+### P2 DISPATCH - P2.1/P2.4/P2.5 MET; P2.2/P2.3/P2.6 MISSED
+
+P2.1 MET EXACTLY. Nine CreateRoute lines with the predicted point counts - T1(5) T5(2) T15(5)
+     T19(5) T23(5) T27(2) T31(5) T35(5) T39(5). Zero `MoveToLocation`, zero patrol deferrals.
+     The committed 9-dispatch prediction (sec 0b) is confirmed; nothing was re-counted.
+P2.2 MISSED. TWO `NO LOCATION GIVEN` lines, not one: T9 (predicted) and T24 (not predicted).
+     T24 is a downstream consequence of finding A - T23's false completion released it, it
+     dispatched, and it has no Locations. T13: zero mentions, as predicted.
+P2.3 MISSED, mechanism understood. 30 gate-skip lines, not 31 (T24 dispatched instead of
+     skipping), split 25 timeout / 5 abandoned-upstream against a predicted 10 / 21.
+     WHY: `TaskSequencer.WaitForStartAsync` phase 1 starts its window at WAIT-START, i.e. at
+     order arrival, for every gated task simultaneously. So a link-3 task's own 600 s timer
+     expires microseconds BEFORE its link-2 predecessor's abandon signal arrives, and the
+     `PredecessorTimeout` branch wins the race. This is the LIMITATION the class doc already
+     states ("phase 1's window runs from wait-start, so a healthy chain deeper than one
+     timeout-length per link can still phase-1-time-out"). NOT a new defect; my prediction
+     mis-modelled a documented behaviour. The 5 abandoned-upstream lines are exactly the two
+     chains whose head resolved early: T10/T11/T12 (T9 abandoned at t~0) and T25/T26 (T24
+     abandoned after T23's false completion).
+     The important part MET: ZERO `SUPERSEDES in-flight task`, ZERO `-> dispatching.` - no
+     head task was ever disturbed, exactly as DEFECT B's fix promises under policy=skip.
+     The timeout lines record the frozen units as `BUSY (task in flight)`, confirming their
+     move-along was dispatched and simply never completed.
+P2.4 MET. Zero `NO in-flight task recorded`; no empty-uuid TASKCMPLT.
+P2.5 MET in substance: zero FireAtTarget, zero Breach issued - the 42/42 self-target fact
+     holds. Counts are doubled (14 self-target, 2 breach-unresolvable) because
+     `ExecuteTaskOnTick` is RE-ENTERED on the terrain-profile reply and re-logs the Layer-1
+     and Layer-2 classification. Cosmetic logging defect, recorded as finding C.
+P2.6 MISSED. One TASKCMPLT, predicted zero - and it is vacuous. Finding A.
+
+### P3 MECHANISM - P3.1/P3.3 MET; P3.2 MISSED (the headline); P3.4 near-miss
+
+P3.1 MET. In bin64-vrfSim.log: `empty route -- not sending move along to subordinate` = 0;
+     `moveAlong() - empty route` = 0; the bare substring `empty route` = 0. Also
+     `Waiting for nav data` = 0 (the disabled NavArea confirmed live) and `FATAL` = 0.
+     F1 DID NOT FIRE.
+P3.2 MISSED. 31 distinct member offset routes were created, but they belong to only FOUR of
+     the EIGHT dispatching aggregates (predicted: >0 for each of the eight, >50 total).
+     T1, T15, T19 got 4 each (their full Ground_Aggregate member set); T39 got 18 (its full
+     Tank Company member set). T5, T27, T31 and T35 got ZERO - with no diagnostic line of any
+     kind. This is the run's central result and the reason the verdict says the failure has
+     gone SILENT.
+P3.3 MET, and it is the first test of this path at 5 vertices and 9 concurrent requests.
+     9 requests sent, 9 replies, 9 `all N vertices authored from terrain + 10 m clearance`,
+     ZERO partial replies, ZERO `keep the Live altitude` warnings, ZERO `request not sent`.
+     Verbatim, e.g.:
+       `Terrain profile 164 for task 'T1_AOA_SE_1-35_AR;_2/1_AD_P1': all 5 vertices authored
+       from terrain + 10 m clearance; alts [1147.9, 1147.1, 1129.4, 1123.0, 1128.2].`
+       `Terrain profile 169 for task 'T27_SecureMovementCorridorsAndPassesAlongPlYellow.':
+       all 2 vertices authored from terrain + 10 m clearance; alts [1146.8, 1076.4].`
+     Note this holds for the FROZEN units too - T5, T27, T31 and T35 all received fully
+     terrain-authored routes. Waypoint altitude is therefore NOT the freeze discriminator,
+     independently of the 2026-07-22 falsification.
+P3.4 NEAR-MISS, recorded as stated rather than re-banded. Authored altitudes span
+     928.8-1452.8 m; the registered band was 950-1500 m, so T39's vertex at 928.8 m sits
+     21.2 m below it. The band was my estimate of AO terrain, not a measurement; the
+     substantive predictions hold - no vertex at 100 m (the Fixed100 relic) and none at
+     10000 m (the create altitude).
+
+### P4 MOVEMENT - P4.2/P4.3/P4.4/P4.5 MET; P4.1 MISSED
+
+P4.1 MISSED. FOUR of nine dispatching performers left the pile and progressed monotonically;
+     the prediction was at least six. See the table.
+P4.2 MET for every mover. Along-route at window close: T15 26.70 km, T39 24.20 km, T1
+     13.39 km, T19 13.17 km - all far above the 5 km floor. Speed over the last 300 s:
+     8.19, 8.11, 8.19, 8.18 m/s - above the 3 m/s floor and consistent with the documented
+     8.6 m/s column pace and the back end's own `speed=10`. Max lateral deviation from the
+     authored corridor over the whole run: 57-123 m, i.e. formation width, not wandering.
+P4.3 MET, after a required correction to the instrument. Of 1,732 objects, 27 emit physically
+     impossible position fixes - altitudes up to 22,786,533 m, latitudes to -21.2, longitudes
+     to +132.8 - interleaved with correct ones. Example, uuid 8bf8cd18: born at the pile
+     (34.679532,-116.723804,1136.5) at t=53.2, reads (23.47,-107.53,180636) at t=855.4, is
+     back at (34.6267,-116.6767,1101.2) at t=2360.5, then (47.89,+132.80,22786533) at
+     t=2761.9. This is the cast-corrupted-reflection class already in CORRECTIONS_LOG ("BOTH
+     readable objects are cast-corrupted", altitudes 1.02e15 and 6.4e72), not motion.
+     COMPETING HYPOTHESIS TESTED AND REFUTED: that these were MUNITIONS (born at a shooter,
+     flying ballistically, and not text-reporting). bin64-vrfSim.log contains no munition
+     creation and no detonation - every "Munition"/"Detonation" hit is a FOM/FED schema
+     declaration emitted at federation join (08:54:47/08:54:53), and zero FireAtTarget were
+     issued. Also consistent with corruption and not flight: no named object EVER text-
+     reported a position outside the AO (0 of 1,732).
+     VERDICT ON THE CLEAN POPULATION: of the 1,705 objects with no impossible fix, ZERO end
+     outside lat[34.15,34.95] x lon[-117.10,-116.25]. No runaway. The July 541 km / 166 km
+     excursion class did NOT reproduce.
+P4.4 MET. Zero clean objects below 500 m MSL; minimum plausible altitude across the whole
+     federation 721.1 m. No underground termination, no offshore termination.
+P4.5 MET - the CPP-ALT-1 signature did NOT reproduce. All four movers were STILL MOVING at
+     window close (2390-2458 m in the final 300 s) at radii of 13.2, 13.4, 24.2 and 26.7 km
+     from spawn. Two crossed 18.4 km and kept going. No performer came to rest at any common
+     radius. The 2026-07-16 "all 6 marchers stopped at 18.1-18.4 km" observation is not
+     reproduced under the clean state at 1x.
+P4.6 NOT SCORED (headless run, as registered).
+
+### P5 HYGIENE - MET
+
+P5.1 MET. No new .dmp, no process with a `^vrfSim.*\.dmp$` title, StopVrf exit 0 and
+     `VR-Forces is DOWN (graceful quit; no process was force-killed)`. RTI trio 41336 /
+     224608 / 76620 untouched throughout and still resident.
+P5.2 MET. Zero `Only one usage of each socket address`; zero `Connection error:`.
+P5.3 MET. Runner exit 0; marker 3718 -> 3725, ledgered before any join.
+P5.4 MET EXACTLY as predicted. `Cleanup: deleting 172 created VR-Forces objects before
+     resign...` / `Cleanup: 172 deletes dispatched (1565 ms).` = 128 units + 35 areas + 9
+     routes.
+P5.5 MET but WEAK, and the weakness is recorded rather than counted as a pass. `tools/ResetVrf
+     3725` joined clean and found 0 reflected objects, 0 deletable, exit 0, resigned cleanly -
+     but it reported `[OK] joined (BackendCount=0)`, because the runner's StopVrf had already
+     terminated the back end. A post-StopVrf sweep can prove there is NO STALE FEDERATE (it
+     does) but CANNOT enumerate scenario leftovers, because the scenario died with the back
+     end. To exercise RUNBOOK :1171-1185 as written, ResetVrf must run between StopIface and
+     StopVrf. Recorded as finding D.
+
+### FINDINGS (each recorded, none fixed in this rung)
+
+A. VACUOUS COMPLETION ON THE ENTITY PATH - falsifier-class, and the first time this class has
+   been caught with the completion's origin identified. The lone entity taskee 1-1/2/1_AD
+   (C2SIM uuid de16a337-b2a6-c029-07b5-869191631621) NEVER MOVED: 0.18 km net over 45 position
+   reports spanning the whole window, 0.0 m of movement in the final 300 s, ending 0.20 km
+   from spawn against a 28.72 km route - i.e. it sat in its de-stack ring. Yet at
+   vrfc2simapp.log:447-449:
+     `VRF task complete: 1-1/2/1_AD / move-along`
+     `SENT TASK STATUS REPORT (TASKCMPLT) taskee=de16a337-... task=468c0325-99b9-4f97-afc6-39fe301e0c55.`
+   (468c0325 is T23_AOA_SE_1-1_RECON/2/1_AD_P1.)
+   WHICH LAYER PRODUCED IT: the BACK END. `_bridge.TaskCompleted += OnVrfTaskCompleted`
+   (VrfC2SimService.cs:159); OnVrfTaskCompleted logs the `VRF task complete` line at :1201
+   straight off that callback. Fan-out is OFF, so `_fanOut.TryCompleteMember` returns false
+   and control falls to `SynthesizeUnitCompletion` at :1238; there is no straggler timer
+   (FanOutStragglerSeconds=0) and no quorum path. Our layer only ATTRIBUTED the completion
+   (correctly, via the P0.1 in-flight record) and reported it. VR-Forces asserted that a
+   move-along completed for an entity that never moved.
+   CONSEQUENCE, not a completion: the false completion released T23's successor T24, which
+   dispatched and failed with `NO LOCATION GIVEN` at :451, which in turn cascade-skipped T25
+   and T26. Three of this run's task outcomes are downstream of one false report.
+   This reproduces the July F2 class ("F2 R11 VACUOUS COMPLETION ... 1-1/2/1_AD (T23) zero
+   displacement ... yet 'VRF task complete: 1-1/2/1_AD / move-along' fired") on the CLEAN
+   state, for the SAME unit, with all four blocker layers peeled.
+
+B. ECHELON 'F' UNITS LAND THE GENERIC Ground_Aggregate FALLBACK - 26 of 128, including FIVE of
+   the nine dispatching performers. This contradicts the read-only survey's "26 F ->
+   ArmorCoHQ (Tank Company HQ)" and my own P1.6 prediction, both of which assumed the factory
+   name meant a real Co-HQ template landed.
+   MAPPING LINE: `UnitTranslator.cs:70` sends SIDC echelon 'F' to `ArmorCoHQ`, which emits
+   `Spec(11,1,225,5,20,0,0)` at `:134-135`. Per docs/TYPE_GAP_ADJUDICATION.md Decision item 4
+   (:104-110), the intended `aggregate-Company-HQ-Friendly` template has matchType
+   `3:11:1:225:5:20:1:0` with Specific=1 NOT wildcarded, so our Specific=0 is a non-match and
+   VR-Forces falls back to generic `Ground_Aggregate`. That decision is still awaiting a USER
+   call (option A: one-field match fix, 4 generic dismounts; option B: retarget to Tank
+   Headquarters Section (USA), the militarily correct composition).
+   MEASURED CREATION CENSUS (bin64-vrfSim.log, `Locally Simulated: X (VRF_UUID:..) using
+   parameters: ..\T.entity`), which is what P1.6 should have predicted:
+     Tank Company (USA)              64   = the 64 echelon-'E' units
+     Ground_Aggregate                26   = the 26 echelon-'F' units  <-- the fallback
+     Tank Platoon (USA)             215   = 23 echelon-'D' units + 3 platoons inside each of
+                                            the 64 companies (23 + 192)
+     Tank Headquarters Section (USA) 64   = one HQ section INSIDE each company (NOT the
+                                            'F' units)
+     ground-vehicle-parameters      104   = 26 Ground_Aggregate x 4 anonymous GndV members
+     M1A2_Abrams_MBT               1003, M998 HMMWV 128, M3A2_Bradley_CFV 64,
+     M577A2_Command_Post 64, Area 35, Route 12
+   The top-level 113 aggregates + 15 entities split predicted in the prereg DOES hold
+   (64 + 26 + 23 = 113).
+   CRITICALLY, THE FALLBACK IS NOT THE FREEZE CAUSE. Ground_Aggregate DOES publish members
+   (4 GndV each) and DOES build offset routes and march - T1, T15 and T19 are all
+   Ground_Aggregate and all three marched 13-27 km. Meanwhile two Tank Company (USA) units on
+   the correct template froze. The July inference that the generic fallback means "no member
+   set for buildOffsetRoute" is therefore NOT true of Ground_Aggregate in 5.0.2 as configured
+   here. Decision item 4 remains worth taking on military-correctness grounds; it is not a
+   movement fix.
+
+C. DOUBLE-LOGGED TASK CLASSIFICATION (cosmetic). Under GroundWaypointAltitudeMode=TerrainProfile
+   `ExecuteTaskOnTick` returns after issuing the terrain query and is RE-ENTERED on the reply
+   (VrfC2SimService.cs:783-812), so every log line ABOVE the query point is emitted twice per
+   task: the Layer-1 `verb=... Layer-2 not yet wired`, the ATTACK self-target notice (14 lines
+   for 7 tasks) and the BREACH unresolvable warning (2 lines for 1 task). Lines below the
+   query point (CreateRoute, MarkDispatched) fire once, and the zero-Locations abort fires
+   once because it precedes the query. No behavioural effect; it inflates any count taken
+   from those lines.
+
+D. THE POST-RUN SWEEP IS BLIND AS SEQUENCED. See P5.5. ResetVrf after StopVrf cannot see
+   scenario leftovers. RUNBOOK :1171-1185 assumes a live back end.
+
+### VERIFIED vs INFERRED
+
+VERIFIED (direct artifact reads): every count and verbatim line in P1, P2, P3, P5; the
+per-performer displacement, along-route distance, lateral deviation and final-300 s movement
+(reports-captured.log, 45 fixes per performer); the offset-route -> task attribution
+(`follow-in-formation: leader=<M>; leaderRoute=<task route>`); the creation census; the
+absence of munitions; the 27 corrupted objects and the clean-population box test; finding A's
+log lines and the source path that produced them.
+
+INFERRED: that the 27 corrupted objects are the same defect class as the CORRECTIONS_LOG
+baseline-object corruption - the signature matches (impossible values interleaved with correct
+ones) but the root cause has not been traced in this run. That GndV 49/61/73 lead full 4-member
+sets is read from `lead-formation` groupings, not from a published roster. That the frozen
+units' `BUSY (task in flight)` status means the move-along was accepted and never completed -
+consistent with all evidence but not directly observed in the back end's task state.
+
+### UNEXPLAINED - carried forward, not resolved
+
+1. WHY these four and not those four? No property yet separates T5/T27/T31/T35 from
+   T1/T15/T19/T39: not template (both classes split), not waypoint altitude (all nine got
+   fully terrain-authored routes), not route length (T5 33.5 km froze, T39 40.2 km marched;
+   T27 24.1 km froze, T19 28.5 km marched), not point count (both 2-point routes froze while
+   both 2-point... no: T5 and T27 are the only 2-point routes and BOTH froze, while all four
+   movers have 5-point routes - the only clean correlate found, but three 5-point routes also
+   froze, so it is not sufficient). Nothing in the back-end log marks the difference.
+2. Why the back end asserts move-along completion for a stationary entity (finding A).
+3. What corrupts the position reflection for 27 of 1,732 objects.
+
+### NEXT (not decided here)
+
+The one clean correlate worth testing first is the 2-point route: T5 and T27 are the only
+2-point routes in the run and both froze. That is a cheap, single-variable probe. The
+remaining freezers (T31, T35) have 5-point routes identical in shape to movers T1/T19/T23,
+which makes a per-unit rather than per-route cause more likely for them. Docs first either
+way: the aggregate move-along chapter and generateFormationRoutes' "still waiting for data"
+return are unread.

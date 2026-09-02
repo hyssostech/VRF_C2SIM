@@ -1600,7 +1600,30 @@ per the never-reuse non-negotiable. Annotate with results from the run manifest.
 NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
 join) are BURNED, not recycled. The run manifest records which were actually used.
 
-*** NEXT FREE: 3718 *** (authoritative - the ONLY such marker in this file. Update this
+
+CLAIMED 2026-09-02 12:54 by scripts/RunC2SimScenario.ps1 (run 20260902T125423Z_run). Ledgered BEFORE any join,
+per the never-reuse non-negotiable. Annotate with results from the run manifest.
+- 3718: CLAIMED - LaunchVrf.ps1 back-end (vrfSimHLA1516e), combined mode
+- 3719: CLAIMED - LaunchVrf.ps1 front-end (vrfGui), combined mode
+- 3720: CLAIMED - WatchVrf ADVISORY pre-init oracle pre-check (RUNBOOK 0.5.7)
+- 3721: CLAIMED - WatchVrf MAIN run trace - the movement oracle / scoring input
+- 3722: CLAIMED - VrfC2SimApp Vrf__ApplicationNumber (the interface federate)
+- 3723: CLAIMED - tools/RtiProbe - STAGE 2c PRE-LAUNCH RTI READINESS GATE (C1). Throwaway create-or-join against the federation with internal retry+backoff, then clean resign, BEFORE the back-end launches (RTI_LAUNCH_HARDENING_DESIGN.md A2-A7 - the RUN-2 fix). CONSUMED on EVERY run (the gate always runs pre-launch). One number covers all internal retries - RtiProbe reuses this single appNumber across attempts by design.
+- 3724: CLAIMED - tools/CreateOne - STAGE 7b FAILURE-PATH DIAGNOSTIC ONLY (RUNBOOK 0.5.7 STRONGER CHECK). CONSUMED ONLY IF THE ORACLE GATE FAILS; on a healthy run it is NEVER JOINED and this number goes UNCONSUMED. Unconsumed numbers are BURNED, never recycled - see the NOTE below. Allocated here rather than mid-run because every number must be ledgered BEFORE any join.
+NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
+join) are BURNED, not recycled. The run manifest records which were actually used.
+
+CLAIMED 2026-09-02 13:44 by the rung-1 executor (post-run sweep for run 20260902T125423Z_run).
+Ledgered as consumed AFTER the join, which is a deviation from the ledger-first rule: the runner
+does not run ResetVrf, so this number was taken by hand from the marker immediately before the
+sweep and the marker is advanced here.
+- 3725: CONSUMED - tools/ResetVrf post-run authoritative sweep (RUNBOOK :1171-1185). Result:
+  joined clean, 0 reflected / 0 deletable / 0 nil, exit 0, resigned cleanly - BUT it reported
+  BackendCount=0 because StopVrf had already terminated the back end, so it proves NO STALE
+  FEDERATE and nothing more. To enumerate scenario leftovers it must run between StopIface and
+  StopVrf (rung-1 outcome finding D).
+
+*** NEXT FREE: 3726 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
