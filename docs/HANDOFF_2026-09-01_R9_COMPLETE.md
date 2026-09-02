@@ -85,21 +85,33 @@ vrfSim.mtl: notifyLevel 3 / objectConsoleNotifyLevel 3 / enableLogFileTimestamps
    (REVIEW_P3 h1 odds lowered, h2 favoured, n=2). PROBE RUNS STAY AT 1x until the
    user rules otherwise; 5x remains NECESSARY for COA-STP1 scale (13-40 km routes).
    Keep ONE canonical-length 1x run per milestone for comparability with the record.
+   Step analysis (docs/experiments/ANALYSIS_P3_STEP_PROFILE_2026-09-01.md, 826ab8c):
+   P3 and P3R are indistinguishable on every tick/clock statistic (tick quantum
+   ~0.033 sim-s at 1x and 5x); REVIEW_P3's per-frame-overshoot mechanism is NOT
+   supported; the M1A2 18 miss is real in bin64-vrfSim.log (task 5 cleared only at
+   teardown) and its cause is UNKNOWN; watchvrf POS mid-move is dead-reckoned - only
+   plateaus are truth.
    (d) RUNNER TURNAROUND - MERGED (3e19c88, review fixes F1-F5) and CONFIRMED by run
    20260901T235823Z (docs/experiments/PREREG_RUNNER_CONFIRM_2026-09-01.md sec 6): 7 min
    9 s start -> manifest vs P2c 26 min 23 s; 3/3 TASKCMPLT at P2c offsets; stop-file
-   path taken by both observers, RTI untouched. ONE MISS to rule on: SettleHoldSecs 60
-   equals the ~60 s text-report cadence, so StopIface cut the last report round
-   mid-emission and the company's last RPT predates its completion (POS endpoint itself
-   0.00 m from P2c). Options (need a prereg): SettleHoldSecs >= 90, or hold until every
-   taskee has a post-completion RPT. Until ruled, -StopWhenComplete runs are NOT valid
-   for POS==RPT adjudication. Design (docs/RUNNER_TURNAROUND_2026-09-01.md, RUNBOOK
-   0.5.11): the WatchVrf/ListenReports trace now ends with the window via a
-   stop-file the runner touches at StopIface + Trail (removes the measured 8 min 21 s
-   dead time per run; tools take their normal resign/disconnect path, nothing killed;
-   capability-probed so an old deployed binary falls back to the record's
-   behaviour), and an OFF-by-default `-StopWhenComplete` closes the window once every
-   taskee has TASKCMPLT + `-SettleHoldSecs` 60 (RunSecs stays the cap).
+   path taken by both observers, RTI untouched. ONE MISS: SettleHoldSecs 60 equals
+   the ~60 s text-report cadence, so the company's last usable RPT (1.5 s after its
+   TSK) described a still-converging centre, 11.8 m from the POS final (POS endpoint
+   itself 0.00 m from P2c). RULED 2026-09-02 (supervisor): the hold is EVIDENCE-BASED
+   - rule 4 in RUNNER_TURNAROUND sec 3: every taskee needs an RPT in the live trace
+   LATER than its TSK record AND within 2 m of its latest POS; SettleHoldSecs 60 stays
+   as a FLOOR. Implemented + tested (96 checks, 7 faults injected and caught);
+   re-confirmation = docs/experiments/PREREG_RUNNER_CONFIRM2_2026-09-01.md (B HIGH:
+   all three POS==RPT <= 2 m; close in [last TASKCMPLT + 60, + 90 s]). Until CONFIRM2
+   is adjudicated, -StopWhenComplete runs are NOT valid for POS==RPT adjudication.
+   Design (docs/RUNNER_TURNAROUND_2026-09-01.md, RUNBOOK 0.5.11): the
+   WatchVrf/ListenReports trace now ends with the window via a stop-file the runner
+   touches at StopIface + Trail (removes the measured 8 min 21 s dead time per run;
+   tools take their normal resign/disconnect path, nothing killed; capability-probed
+   so an old deployed binary falls back to the record's behaviour), and an
+   OFF-by-default `-StopWhenComplete` closes the window once every taskee has
+   TASKCMPLT + `-SettleHoldSecs` 60 floor + post-completion agreeing RPT (RunSecs
+   stays the cap). The runner's ledger rewrite now writes explicit CRLF.
 6. Backlog unchanged: remaining type adjudications (54 units - but see item 4a first),
    task vocabulary, completion re-keying, scoring (Phase 5).
 

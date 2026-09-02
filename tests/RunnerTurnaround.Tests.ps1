@@ -12,6 +12,12 @@
 #      20260901T221227Z)
 #   4. the early-exit decision: 2/3 taskees never closes; 3/3 closes only after the
 #      settle hold; zero taskees never closes; line count below task count blocks
+#   4b. condition (4), report evidence (run 20260901T235823Z fixture): completion
+#      with no later RPT -> not satisfied; later RPT that DISAGREES with POS (the
+#      company at t=213.3, 11.8 m) -> not satisfied; later + agreeing -> satisfied;
+#      hold < 60 blocks even with evidence; evidence missing blocks even past the
+#      hold; name/uuid mapping parsers; degenerate POS ignored
+#   4c. ConvertTo-CrlfText (ledger rewrite ending)
 #   5. the trace stop-file timing (StopIface + trail, never negative)
 #   6. the --capabilities probe parse (exit 0 AND token present)
 #   7. both PowerShell files parse with zero errors
@@ -106,7 +112,7 @@ $hold = 60
 # P3 shape: 2 of 3 taskees complete - must NEVER close, however long it holds.
 $s = New-CompletionState
 $s = Update-CompletionState -State $s -Taskees $taskees -TaskCount 3 -Completions $cP3 -NowUtc $t0
-$v = Test-EarlyExit -State $s -Taskees $taskees -SettleHoldSecs $hold -NowUtc $t0.AddSeconds(3600)
+$v = Test-EarlyExit -State $s -Taskees $taskees -SettleHoldSecs $hold -NowUtc $t0.AddSeconds(3600) -ReportEvidence $true
 Check 'P3 (2/3 taskees): AllComplete is false' (-not $v.AllComplete)
 Check 'P3 (2/3 taskees): ShouldClose is false even after an hour' (-not $v.ShouldClose)
 Check 'P3 (2/3 taskees): Missing names the company' (@($v.Missing).Count -eq 1 -and $v.Missing[0] -eq '139aa71b-75df-4888-4a5a-6056bae66242') ("got " + ($v.Missing -join ','))
@@ -118,15 +124,15 @@ Check 'no completions yet: nothing seen, allCompleteUtc null' ($s.firstSeenUtc.C
 $s = Update-CompletionState -State $s -Taskees $taskees -TaskCount 3 -Completions @($cP2c[0]) -NowUtc $t0.AddSeconds(145)
 Check 'first completion stamps firstSeenUtc for that taskee only' ($s.firstSeenUtc.Count -eq 1 -and $s.firstSeenUtc['670cfdb2-6c43-f267-ad7f-bd6e739def24'] -eq $t0.AddSeconds(145))
 $s = Update-CompletionState -State $s -Taskees $taskees -TaskCount 3 -Completions @($cP2c[0], $cP2c[1]) -NowUtc $t0.AddSeconds(160)
-$v = Test-EarlyExit -State $s -Taskees $taskees -SettleHoldSecs $hold -NowUtc $t0.AddSeconds(160)
+$v = Test-EarlyExit -State $s -Taskees $taskees -SettleHoldSecs $hold -NowUtc $t0.AddSeconds(160) -ReportEvidence $true
 Check '2 of 3 seen: not all complete, no close' (-not $v.AllComplete -and -not $v.ShouldClose)
 $s = Update-CompletionState -State $s -Taskees $taskees -TaskCount 3 -Completions $cP2c -NowUtc $t0.AddSeconds(215)
 Check 'all 3 seen: allCompleteUtc stamped at the poll that first saw it (t+215)' ($s.allCompleteUtc -eq $t0.AddSeconds(215))
-$v = Test-EarlyExit -State $s -Taskees $taskees -SettleHoldSecs $hold -NowUtc $t0.AddSeconds(215)
+$v = Test-EarlyExit -State $s -Taskees $taskees -SettleHoldSecs $hold -NowUtc $t0.AddSeconds(215) -ReportEvidence $true
 Check 'all complete at t+215: AllComplete true, ShouldClose false (hold 0 of 60)' ($v.AllComplete -and -not $v.ShouldClose -and $v.HoldElapsedSecs -eq 0)
-$v = Test-EarlyExit -State $s -Taskees $taskees -SettleHoldSecs $hold -NowUtc $t0.AddSeconds(215 + 59)
+$v = Test-EarlyExit -State $s -Taskees $taskees -SettleHoldSecs $hold -NowUtc $t0.AddSeconds(215 + 59) -ReportEvidence $true
 Check 'hold 59 s of 60: still open' (-not $v.ShouldClose)
-$v = Test-EarlyExit -State $s -Taskees $taskees -SettleHoldSecs $hold -NowUtc $t0.AddSeconds(215 + 60)
+$v = Test-EarlyExit -State $s -Taskees $taskees -SettleHoldSecs $hold -NowUtc $t0.AddSeconds(215 + 60) -ReportEvidence $true
 Check 'hold 60 s of 60: closes' ($v.ShouldClose)
 $s = Update-CompletionState -State $s -Taskees $taskees -TaskCount 3 -Completions $cP2c -NowUtc $t0.AddSeconds(300)
 Check 'a later poll does NOT move allCompleteUtc (hold is measured from the first sighting)' ($s.allCompleteUtc -eq $t0.AddSeconds(215))
@@ -135,23 +141,23 @@ Check 'first-seen stamps are never overwritten' ($s.firstSeenUtc['670cfdb2-6c43-
 # Zero taskees (unparseable / empty order): never closes, even with completions present.
 $s = New-CompletionState
 $s = Update-CompletionState -State $s -Taskees @() -TaskCount 0 -Completions $cP2c -NowUtc $t0
-$v = Test-EarlyExit -State $s -Taskees @() -SettleHoldSecs 0 -NowUtc $t0.AddSeconds(3600)
+$v = Test-EarlyExit -State $s -Taskees @() -SettleHoldSecs 0 -NowUtc $t0.AddSeconds(3600) -ReportEvidence $true
 Check 'zero taskees: never all-complete, never closes' (-not $v.AllComplete -and -not $v.ShouldClose)
 
 # Line count below task count: two tasks for one performer, one completion line so far.
 $one = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
 $s = New-CompletionState
 $s = Update-CompletionState -State $s -Taskees @($one) -TaskCount 2 -Completions @([pscustomobject]@{ Taskee = $one; Task = 'x' }) -NowUtc $t0
-$v = Test-EarlyExit -State $s -Taskees @($one) -SettleHoldSecs 0 -NowUtc $t0
+$v = Test-EarlyExit -State $s -Taskees @($one) -SettleHoldSecs 0 -NowUtc $t0 -ReportEvidence $true
 Check 'one performer, two tasks, one TASKCMPLT: NOT all complete' (-not $v.AllComplete)
 $s = Update-CompletionState -State $s -Taskees @($one) -TaskCount 2 -Completions @([pscustomobject]@{ Taskee = $one; Task = 'x' }, [pscustomobject]@{ Taskee = $one; Task = 'y' }) -NowUtc $t0.AddSeconds(10)
-$v = Test-EarlyExit -State $s -Taskees @($one) -SettleHoldSecs 0 -NowUtc $t0.AddSeconds(10)
+$v = Test-EarlyExit -State $s -Taskees @($one) -SettleHoldSecs 0 -NowUtc $t0.AddSeconds(10) -ReportEvidence $true
 Check 'one performer, two tasks, two TASKCMPLT lines: all complete, closes with hold 0' ($v.AllComplete -and $v.ShouldClose)
 
 # Hold of 0 closes on the same poll that completes.
 $s = New-CompletionState
 $s = Update-CompletionState -State $s -Taskees $taskees -TaskCount 3 -Completions $cP2c -NowUtc $t0
-$v = Test-EarlyExit -State $s -Taskees $taskees -SettleHoldSecs 0 -NowUtc $t0
+$v = Test-EarlyExit -State $s -Taskees $taskees -SettleHoldSecs 0 -NowUtc $t0 -ReportEvidence $true
 Check 'settle hold 0: closes on the completing poll' ($v.ShouldClose)
 
 # Review F2: a TASKCMPLT line for a taskee NOT in the order must not count. One order
@@ -160,19 +166,109 @@ Check 'settle hold 0: closes on the completing poll' ($v.ShouldClose)
 $stray = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
 $s = New-CompletionState
 $s = Update-CompletionState -State $s -Taskees @($one) -TaskCount 2 -Completions @([pscustomobject]@{ Taskee = $one; Task = 'x' }, [pscustomobject]@{ Taskee = $stray; Task = 'z' }) -NowUtc $t0
-$v = Test-EarlyExit -State $s -Taskees @($one) -SettleHoldSecs 0 -NowUtc $t0
+$v = Test-EarlyExit -State $s -Taskees @($one) -SettleHoldSecs 0 -NowUtc $t0 -ReportEvidence $true
 Check 'stray-taskee line: NOT counted toward the task count (1 of 2), no close' (-not $v.AllComplete -and -not $v.ShouldClose -and $s.lineCount -eq 1) "lineCount=$($s.lineCount)"
 Check 'stray-taskee line: the stray is not stamped in firstSeenUtc' (-not $s.firstSeenUtc.Contains($stray) -and $s.firstSeenUtc.Contains($one))
 # Only stray lines, none for the order taskee: nothing seen at all.
 $s = New-CompletionState
 $s = Update-CompletionState -State $s -Taskees $taskees -TaskCount 3 -Completions @([pscustomobject]@{ Taskee = $stray; Task = 'z' }, [pscustomobject]@{ Taskee = $stray; Task = 'z' }, [pscustomobject]@{ Taskee = $stray; Task = 'z' }) -NowUtc $t0
-$v = Test-EarlyExit -State $s -Taskees $taskees -SettleHoldSecs 0 -NowUtc $t0
+$v = Test-EarlyExit -State $s -Taskees $taskees -SettleHoldSecs 0 -NowUtc $t0 -ReportEvidence $true
 Check 'three stray lines, zero order lines: nothing seen, Missing names all 3, no close' ($s.firstSeenUtc.Count -eq 0 -and $s.lineCount -eq 0 -and @($v.Missing).Count -eq 3 -and -not $v.ShouldClose)
 # P2c's real 3 lines plus a stray still close - the stray is ignored, not fatal.
 $s = New-CompletionState
 $s = Update-CompletionState -State $s -Taskees $taskees -TaskCount 3 -Completions ($cP2c + @([pscustomobject]@{ Taskee = $stray; Task = 'z' })) -NowUtc $t0
-$v = Test-EarlyExit -State $s -Taskees $taskees -SettleHoldSecs 0 -NowUtc $t0
+$v = Test-EarlyExit -State $s -Taskees $taskees -SettleHoldSecs 0 -NowUtc $t0 -ReportEvidence $true
 Check 'P2c lines + a stray: still all complete (lineCount 3, stray ignored)' ($v.AllComplete -and $s.lineCount -eq 3)
+
+Write-Host '=== 4b. report evidence, condition (4) (Test-ReportEvidence / Test-EarlyExit) ==='
+# Fixture from run 20260901T235823Z (runs/20260901T235823Z_run, untracked): TSK for
+# the three taskees, the company's last three RPT lines, the company POS samples
+# around completion, one entity's RPT/POS pair, and the degenerate POS at t=228.9.
+$initFx = @'
+<?xml version="1.0"?>
+<MessageBody xmlns="http://www.sisostds.org/schemas/C2SIM/1.1"><C2SIMInitializationBody><ObjectInitialization><ObjectDefinitions>
+<Entity><ActorEntity><CollectiveEntity><Unit><Name>1.BdeHQ</Name><UUID>670cfdb2-6c43-f267-ad7f-bd6e739def24</UUID></Unit></CollectiveEntity></ActorEntity></Entity>
+<Entity><ActorEntity><CollectiveEntity><Unit><Name>1222.MechPlt</Name><UUID>001aa71b-4c26-a1ea-28b2-f7dfe8e76342</UUID></Unit></CollectiveEntity></ActorEntity></Entity>
+<Entity><ActorEntity><CollectiveEntity><Unit><EntityDescriptor><Superior>670cfdb3-6c43-f267-ad7f-bd6e739def24</Superior><Nested><UUID>ffffffff-0000-0000-0000-000000000000</UUID><Name>NOT-A-UNIT</Name></Nested></EntityDescriptor><Subordinate>7dbaa71b-667d-2059-bb1c-882fdfed6242</Subordinate><Name>114.MechCoy</Name><UUID>139aa71b-75df-4888-4a5a-6056bae66242</UUID></Unit></CollectiveEntity></ActorEntity></Entity>
+</ObjectDefinitions></ObjectInitialization></C2SIMInitializationBody></MessageBody>
+'@
+$appLogFx = @'
+      Task 'T_R5_PL1': CreateRoute 'T_R5_PL1 ROUTE' (3 pts) for 1222.MechPlt; move deferred to route-created.
+      Task 'T_R5_CO1': CreateRoute 'T_R5_CO1 ROUTE' (3 pts) for 114.MechCoy; move deferred to route-created.
+      Task 'T_R5_TK1': CreateRoute 'T_R5_TK1 ROUTE' (3 pts) for 1.BdeHQ; move deferred to route-created.
+      Route 'T_R5_PL1 ROUTE' created; MoveAlongRoute issued for VRF_UUID:17cae39c-a7f4-234b-b532-7cb5e31f224e.
+      Route 'T_R5_CO1 ROUTE' created; MoveAlongRoute issued for VRF_UUID:cbea8b1b-05fa-fa4f-88fe-bc1ec8d05d52.
+      Route 'T_R5_TK1 ROUTE' created; MoveAlongRoute issued for VRF_UUID:2a83e509-54d5-6c49-8f6f-e4935d1772ff.
+'@
+$fxTaskees = @('670cfdb2-6c43-f267-ad7f-bd6e739def24', '001aa71b-4c26-a1ea-28b2-f7dfe8e76342', '139aa71b-75df-4888-4a5a-6056bae66242')
+$names = Get-InitUnitNames -InitText $initFx
+Check 'init parse: 3 taskee uuids -> markings' ($names.Count -eq 3 -and $names['139aa71b-75df-4888-4a5a-6056bae66242'] -eq '114.MechCoy' -and $names['670cfdb2-6c43-f267-ad7f-bd6e739def24'] -eq '1.BdeHQ') ("got " + ($names.Values -join ','))
+Check 'init parse: a nested (grandchild) UUID/Name pair is not mistaken for the unit' (-not $names.Contains('ffffffff-0000-0000-0000-000000000000') -and $names.Values -notcontains 'NOT-A-UNIT')
+$realNames = Get-InitUnitNames -InitText (Get-Content -LiteralPath (Join-Path $RepoRoot 'data\R9_Mojave_Lean_Initialization_NoComments.xml') -Raw -Encoding UTF8)
+Check 'REAL R9 init: 6 units; the 3 order taskees map to 1.BdeHQ / 1222.MechPlt / 114.MechCoy' ($realNames.Count -eq 6 -and $realNames['670cfdb2-6c43-f267-ad7f-bd6e739def24'] -eq '1.BdeHQ' -and $realNames['001aa71b-4c26-a1ea-28b2-f7dfe8e76342'] -eq '1222.MechPlt' -and $realNames['139aa71b-75df-4888-4a5a-6056bae66242'] -eq '114.MechCoy') ("count=$($realNames.Count)")
+Check 'init parse: garbage -> empty map, no throw' ((Get-InitUnitNames -InitText '<nope').Count -eq 0)
+$vrfMap = Get-VrfUuidByName -AppLogText $appLogFx
+Check 'app-log parse: 3 markings -> VRF_UUIDs via the route join' ($vrfMap.Count -eq 3 -and $vrfMap['114.MechCoy'] -eq 'VRF_UUID:cbea8b1b-05fa-fa4f-88fe-bc1ec8d05d52' -and $vrfMap['1.BdeHQ'] -eq 'VRF_UUID:2a83e509-54d5-6c49-8f6f-e4935d1772ff') ("got " + ($vrfMap.Keys -join ','))
+Check 'app-log parse: a created-route line with no CreateRoute partner maps nothing' ((Get-VrfUuidByName -AppLogText "Route 'X ROUTE' created; MoveAlongRoute issued for VRF_UUID:2a83e509-54d5-6c49-8f6f-e4935d1772ff.").Count -eq 0)
+
+# Trace text as the runner would see it at successive polls (trace clock seconds).
+$traceHead = @(
+    'POS,145.0,VRF_UUID:2a83e509-54d5-6c49-8f6f-e4935d1772ff,34.651068,-116.693660,1116.5'
+    'TSK,145.3,"1.BdeHQ","move-along"'
+    'RPT,153,"POSITION ""1.BdeHQ"" 34.651068 -116.693660"'
+    'RPT,153,"POSITION ""114.MechCoy"" 34.648331 -116.693388"'
+    'POS,157.0,VRF_UUID:17cae39c-a7f4-234b-b532-7cb5e31f224e,34.647854,-116.693115,1116.5'
+    'TSK,157.3,"1222.MechPlt","move-along"'
+    'RPT,160,"POSITION ""1222.MechPlt"" 34.647854 -116.693115"'
+    'POS,210.6,VRF_UUID:cbea8b1b-05fa-fa4f-88fe-bc1ec8d05d52,34.630541,-116.693377,1116.7'
+    'TSK,211.8,"114.MechCoy","move-along"'
+)
+$at212 = ($traceHead -join "`n") + "`n"
+$at214 = $at212 + "POS,212.7,VRF_UUID:cbea8b1b-05fa-fa4f-88fe-bc1ec8d05d52,34.640109,-116.693391,1116.6`nRPT,213.3,`"POSITION `"`"114.MechCoy`"`" 34.653809 -116.693388`"`n"
+$at219 = $at214 + "POS,216.8,VRF_UUID:cbea8b1b-05fa-fa4f-88fe-bc1ec8d05d52,34.653440,-116.693388,1116.8`nPOS,218.8,VRF_UUID:cbea8b1b-05fa-fa4f-88fe-bc1ec8d05d52,34.653915,-116.693388,1116.8`n"
+$at230 = $at219 + "POS,228.9,VRF_UUID:f864e51f-e571-704f-92e4-108201ec1049,0.000000,90.000000,101112964038886526957791966946910942263970025203852196198915728474112.0`nPOS,228.9,VRF_UUID:cbea8b1b-05fa-fa4f-88fe-bc1ec8d05d52,0.000000,90.000000,101112964038886526957791966946910942263970025203852196198915728474112.0`n"
+$at275 = $at230 + "POS,273.8,VRF_UUID:cbea8b1b-05fa-fa4f-88fe-bc1ec8d05d52,34.653915,-116.693388,1116.8`nRPT,273.9,`"POSITION `"`"114.MechCoy`"`" 34.653915 -116.693388`"`nRPT,274.3,`"POSITION `"`"1.BdeHQ`"`" 34.651068 -116.693660`"`nRPT,274.4,`"POSITION `"`"1222.MechPlt`"`" 34.647854 -116.693115`"`n"
+
+$e = Test-ReportEvidence -Taskees $fxTaskees -TaskeeNames $names -NameToVrfUuid $vrfMap -TraceText $at212 -ToleranceMeters 2.0
+Check 't=212: company completed (TSK 211.8), no later RPT -> NOT satisfied' (-not $e.AllSatisfied -and -not $e.PerTaskee['139aa71b-75df-4888-4a5a-6056bae66242'].satisfied -and $e.PerTaskee['139aa71b-75df-4888-4a5a-6056bae66242'].reason -match 'not later than completion') ($e.PerTaskee['139aa71b-75df-4888-4a5a-6056bae66242'].reason)
+Check 't=212: the two entities (RPT after their TSK, 0.0 m) ARE satisfied' ($e.PerTaskee['670cfdb2-6c43-f267-ad7f-bd6e739def24'].satisfied -and $e.PerTaskee['001aa71b-4c26-a1ea-28b2-f7dfe8e76342'].satisfied)
+$e = Test-ReportEvidence -Taskees $fxTaskees -TaskeeNames $names -NameToVrfUuid $vrfMap -TraceText $at214 -ToleranceMeters 2.0
+Check 't=214: RPT 213.3 IS later than TSK 211.8 but is 1.5 km from POS 212.7 -> NOT satisfied (the literal "later" rule alone would pass here)' (-not $e.AllSatisfied -and $e.PerTaskee['139aa71b-75df-4888-4a5a-6056bae66242'].reason -match 'm from the latest POS') ($e.PerTaskee['139aa71b-75df-4888-4a5a-6056bae66242'].reason)
+$e = Test-ReportEvidence -Taskees $fxTaskees -TaskeeNames $names -NameToVrfUuid $vrfMap -TraceText $at219 -ToleranceMeters 2.0
+$dCo = $e.PerTaskee['139aa71b-75df-4888-4a5a-6056bae66242'].distanceM
+Check 't=219: centre settled at 34.653915; the 213.3 RPT is 11.8 m off -> NOT satisfied (the confirm-run miss)' (-not $e.AllSatisfied -and $dCo -gt 11 -and $dCo -lt 13) "distance=$dCo"
+$e = Test-ReportEvidence -Taskees $fxTaskees -TaskeeNames $names -NameToVrfUuid $vrfMap -TraceText $at230 -ToleranceMeters 2.0
+Check 't=230: the degenerate POS (lat 0 / lon 90 / alt 1e68) does NOT replace the latest real POS' ($e.PerTaskee['139aa71b-75df-4888-4a5a-6056bae66242'].posT -eq 218.8) "posT=$($e.PerTaskee['139aa71b-75df-4888-4a5a-6056bae66242'].posT)"
+$e = Test-ReportEvidence -Taskees $fxTaskees -TaskeeNames $names -NameToVrfUuid $vrfMap -TraceText $at275 -ToleranceMeters 2.0
+Check 't=275: next report round (RPT 273.9 == POS 273.8) -> ALL satisfied' ($e.AllSatisfied -and $e.PerTaskee['139aa71b-75df-4888-4a5a-6056bae66242'].distanceM -eq 0 -and $e.PerTaskee['139aa71b-75df-4888-4a5a-6056bae66242'].lastRptT -eq 273.9) ($e.PerTaskee['139aa71b-75df-4888-4a5a-6056bae66242'].reason)
+Check 'tolerance is a real knob: 20 m would have accepted the 11.8 m miss at t=219' ((Test-ReportEvidence -Taskees $fxTaskees -TaskeeNames $names -NameToVrfUuid $vrfMap -TraceText $at219 -ToleranceMeters 20.0).AllSatisfied)
+$e = Test-ReportEvidence -Taskees $fxTaskees -TaskeeNames $names -NameToVrfUuid @{} -TraceText $at275 -ToleranceMeters 2.0
+Check 'no marking -> VRF_UUID mapping (no route lines yet) -> NOT satisfied, reason says so' (-not $e.AllSatisfied -and $e.PerTaskee['670cfdb2-6c43-f267-ad7f-bd6e739def24'].reason -match 'VRF_UUID unknown')
+$e = Test-ReportEvidence -Taskees $fxTaskees -TaskeeNames @{} -NameToVrfUuid $vrfMap -TraceText $at275 -ToleranceMeters 2.0
+Check 'taskee without a Name in the init -> NOT satisfied' (-not $e.AllSatisfied -and $e.PerTaskee['670cfdb2-6c43-f267-ad7f-bd6e739def24'].reason -match 'no <Name>')
+Check 'empty trace -> NOT satisfied (no TSK yet)' (-not (Test-ReportEvidence -Taskees $fxTaskees -TaskeeNames $names -NameToVrfUuid $vrfMap -TraceText '' -ToleranceMeters 2.0).AllSatisfied)
+Check 'zero taskees -> NOT satisfied (never closes on evidence alone)' (-not (Test-ReportEvidence -Taskees @() -TaskeeNames $names -NameToVrfUuid $vrfMap -TraceText $at275 -ToleranceMeters 2.0).AllSatisfied)
+Check 'CRLF trace parses the same' ((Test-ReportEvidence -Taskees $fxTaskees -TaskeeNames $names -NameToVrfUuid $vrfMap -TraceText ($at275 -replace "`n", "`r`n") -ToleranceMeters 2.0).AllSatisfied)
+Check 'haversine: 1 deg lat at the equator ~ 111.2 km' ([Math]::Abs((Get-DistanceMeters -Lat1 0 -Lon1 0 -Lat2 1 -Lon2 0) - 111195) -lt 50)
+
+# The decision: both halves must hold (SettleHoldSecs is a FLOOR, evidence is the gate).
+$s = New-CompletionState
+$s = Update-CompletionState -State $s -Taskees $taskees -TaskCount 3 -Completions $cP2c -NowUtc $t0.AddSeconds(215)
+$v = Test-EarlyExit -State $s -Taskees $taskees -SettleHoldSecs 60 -NowUtc $t0.AddSeconds(215 + 30) -ReportEvidence $true
+Check 'evidence in, hold 30 of 60 -> NOT closed (floor holds)' (-not $v.ShouldClose -and $v.EvidenceIn -and -not $v.HoldElapsed)
+$v = Test-EarlyExit -State $s -Taskees $taskees -SettleHoldSecs 60 -NowUtc $t0.AddSeconds(215 + 60) -ReportEvidence $false
+Check 'hold 60 of 60, evidence pending -> NOT closed (evidence gates)' (-not $v.ShouldClose -and $v.HoldElapsed -and -not $v.EvidenceIn)
+$v = Test-EarlyExit -State $s -Taskees $taskees -SettleHoldSecs 60 -NowUtc $t0.AddSeconds(215 + 60) -ReportEvidence $true
+Check 'hold 60 of 60 AND evidence in -> closes' ($v.ShouldClose)
+$threw = $false
+try { $null = Test-EarlyExit -State $s -Taskees $taskees -SettleHoldSecs 60 -NowUtc $t0 } catch { $threw = $true }
+Check '-ReportEvidence is mandatory (a caller can not forget condition 4)' $threw
+
+Write-Host '=== 4c. ledger line endings (ConvertTo-CrlfText) ==='
+Check 'LF -> CRLF' ((ConvertTo-CrlfText -Text "a`nb`n") -eq "a`r`nb`r`n")
+Check 'CRLF stays CRLF (idempotent, no doubled CR)' ((ConvertTo-CrlfText -Text "a`r`nb`r`n") -eq "a`r`nb`r`n")
+Check 'mixed -> all CRLF' ((ConvertTo-CrlfText -Text "a`r`nb`nc") -eq "a`r`nb`r`nc")
+Check 'null -> empty string' ((ConvertTo-CrlfText -Text $null) -eq '')
 
 Write-Host '=== 5. trace stop timing (Get-TraceStopWaitSecs) ==='
 $stopIface = [datetime]::new(2026, 9, 1, 21, 31, 6, 169, [System.DateTimeKind]::Utc)  # manifest 20260901T211310Z StopIface start
@@ -235,6 +331,15 @@ $cb = $runnerAst.FindAll({ param($a) $a -is [System.Management.Automation.Langua
 Check 'Complete-Background declares -CapSecs and -CapMarginSecs' (@($cb).Count -eq 1 -and $cb[0].Body.ParamBlock.Parameters.Name.VariablePath.UserPath -contains 'CapSecs' -and $cb[0].Body.ParamBlock.Parameters.Name.VariablePath.UserPath -contains 'CapMarginSecs')
 $cbCalls = $runnerAst.FindAll({ param($a) $a -is [System.Management.Automation.Language.CommandAst] -and $a.GetCommandName() -eq 'Complete-Background' }, $true)
 Check 'both observer Complete-Background calls pass -CapSecs' (@($cbCalls).Count -eq 2 -and @($cbCalls | Where-Object { $_.Extent.Text -match '-CapSecs' }).Count -eq 2) "calls=$(@($cbCalls).Count)"
+# Condition (4) wiring: every Test-EarlyExit call in the runner passes -ReportEvidence,
+# and the in-loop one passes the Test-ReportEvidence verdict (not a literal).
+$eeCalls = $runnerAst.FindAll({ param($a) $a -is [System.Management.Automation.Language.CommandAst] -and $a.GetCommandName() -eq 'Test-EarlyExit' }, $true)
+Check 'runner: every Test-EarlyExit call passes -ReportEvidence' (@($eeCalls).Count -ge 2 -and @($eeCalls | Where-Object { $_.Extent.Text -match '-ReportEvidence' }).Count -eq @($eeCalls).Count) "calls=$(@($eeCalls).Count)"
+Check 'runner: the poll-loop Test-EarlyExit takes the Test-ReportEvidence verdict' (@($eeCalls | Where-Object { $_.Extent.Text -match '-ReportEvidence \$evidenceOk' }).Count -eq 1)
+$reCalls = $runnerAst.FindAll({ param($a) $a -is [System.Management.Automation.Language.CommandAst] -and $a.GetCommandName() -eq 'Test-ReportEvidence' }, $true)
+Check 'runner: Test-ReportEvidence is called on the live trace with the tolerance knob' (@($reCalls).Count -eq 1 -and $reCalls[0].Extent.Text -match '\$PathTrace' -and $reCalls[0].Extent.Text -match '-ToleranceMeters \$ReportToleranceMeters')
+$ul = $runnerAst.FindAll({ param($a) $a -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $a.Name -eq 'Update-Ledger' }, $true)
+Check 'runner: Update-Ledger writes through ConvertTo-CrlfText' (@($ul).Count -eq 1 -and $ul[0].Extent.Text -match 'WriteAllText\(\$LedgerDoc, \(ConvertTo-CrlfText \$updated\)')
 
 Write-Host ''
 Write-Host ('{0} passed, {1} failed' -f $script:Pass, $script:Fail)

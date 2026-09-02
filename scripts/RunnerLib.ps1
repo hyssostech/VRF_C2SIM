@@ -3,8 +3,9 @@
 # Dot-sourced by the runner AND by tests/RunnerTurnaround.Tests.ps1. Everything in
 # here is side-effect free (no process start, no file write, no sleep) so the
 # runner's turnaround logic - the observer duration cap, the -StopWhenComplete
-# early-exit criterion, the trace stop-file timing and the tool capability probe
-# parse - can be exercised WITHOUT a simulator (docs/RUNNER_TURNAROUND_2026-09-01.md).
+# early-exit criterion (including the report-evidence condition), the trace
+# stop-file timing, the tool capability probe parse and the CRLF ledger rewrite -
+# can be exercised WITHOUT a simulator (docs/RUNNER_TURNAROUND_2026-09-01.md).
 #
 # ASCII only. Set-StrictMode -Version Latest compatible: every variable read here
 # is assigned first.
@@ -151,17 +152,22 @@ function Update-CompletionState {
     return $State
 }
 
-# The DECISION. ShouldClose is true only when ALL-COMPLETE has held for at least
-# SettleHoldSecs. The hold exists so the movement gate (static -> moving -> settled,
-# POS/RPT agreement, HEADLESS_RUN_PLAN 4a.1 "settled" = <10 m over 3 samples) still
-# gets a post-completion plateau in the trace; TrailSecs is added on top by the
-# teardown. Zero taskees => never closes (the window then runs to its RunSecs cap).
+# The DECISION. ShouldClose is true only when (1-3) ALL-COMPLETE has held for at
+# least SettleHoldSecs AND (4) the report EVIDENCE is in (Test-ReportEvidence
+# below - a post-completion text report for every taskee that agrees with its
+# POS). The hold is the FLOOR so the movement gate (static -> moving -> settled,
+# HEADLESS_RUN_PLAN 4a.1 "settled" = <10 m over 3 samples) still gets a
+# post-completion plateau; the evidence is what guarantees the POS/RPT half.
+# TrailSecs is added on top by the teardown. Zero taskees => never closes (the
+# window then runs to its RunSecs cap). ReportEvidence is MANDATORY so a caller
+# can not forget condition (4).
 function Test-EarlyExit {
     param(
         [Parameter(Mandatory)][hashtable]$State,
         [Parameter(Mandatory)][AllowEmptyCollection()][string[]]$Taskees,
         [Parameter(Mandatory)][int]$SettleHoldSecs,
-        [Parameter(Mandatory)][datetime]$NowUtc
+        [Parameter(Mandatory)][datetime]$NowUtc,
+        [Parameter(Mandatory)][bool]$ReportEvidence
     )
     $missing = @($Taskees | Where-Object { -not $State.firstSeenUtc.Contains($_) })
     $all  = ($Taskees.Count -gt 0 -and $null -ne $State.allCompleteUtc)
@@ -171,8 +177,210 @@ function Test-EarlyExit {
         AllComplete     = $all
         Missing         = $missing
         HoldElapsedSecs = [Math]::Round($held, 1)
-        ShouldClose     = ($all -and $held -ge $SettleHoldSecs)
+        HoldElapsed     = ($all -and $held -ge $SettleHoldSecs)
+        EvidenceIn      = $ReportEvidence
+        ShouldClose     = ($all -and $held -ge $SettleHoldSecs -and $ReportEvidence)
     }
+}
+
+# ---- report EVIDENCE for the settle hold (ruling 2026-09-02) -------------------
+# Why: run 20260901T235823Z closed the window SettleHoldSecs (60 s) after the last
+# TASKCMPLT and StopIface landed in the MIDDLE of a VR-Forces text-report round
+# (the rounds are ~60 s apart and take ~10 s to emit ~44 POSITION lines; the round
+# in that run began at trace t=267.4 and had 20 lines out when StopIface fired at
+# t=278.0). The company's LAST report therefore predated its own completion and the
+# movement gate's POS==RPT check failed by 11.8 m while POS itself sat on the P2c
+# endpoint (docs/experiments/PREREG_RUNNER_CONFIRM_2026-09-01.md sec 6).
+#
+# The hold is now EVIDENCE-BASED. Condition (4) of the early exit: for EVERY order
+# taskee there is a captured text report that (a) is LATER than the taskee's task
+# completion and (b) AGREES with the taskee's latest sampled position within
+# ReportToleranceMeters. (b) is what makes the evidence real: in that run a report
+# WAS emitted 1.5 s after the company's completion (t=213.3 vs TSK 211.8), but the
+# aggregate centre was still converging and that report is the one that missed by
+# 11.8 m - "later than completion" alone would have closed the window on it. (b) is
+# exactly the predicate the movement gate adjudicates (HEADLESS_RUN_PLAN 4a, POS/RPT
+# agreement), so the window can only close once the evidence the gate needs exists.
+# SettleHoldSecs stays as a FLOOR: both must hold. Worst case close is therefore
+# ~completion + one report round (60 s) + the round's emission spread (~10 s).
+#
+# SOURCE: watchvrf-trace.csv, which the runner already reads live (Read-LiveText) and
+# which the adjudication reads for RPT. It carries all three records on ONE clock:
+#   TSK,<t>,"<marking>","<taskType>"          VrfBridge task-complete event - the SAME
+#                                             event that makes the app log TASKCMPLT
+#                                             (VrfC2SimService.cs:1151 then :1244)
+#   RPT,<t>,"POSITION ""<marking>"" <lat> <lon>"   the Lua tracker's text report
+#   POS,<t>,<VRF_UUID>,<lat>,<lon>,<alt>        the sampled HLA position
+# reports-captured.log is written once at ListenReports exit, so it is NOT readable
+# during the window (see Get-CompletedTasks), and the app log has no timestamps, so
+# the TASKCMPLT poll stamp (UTC) can not be compared with a trace-clock RPT. The TSK
+# record is the completion on the trace clock; it is used instead of the UTC stamp.
+#
+# KEYS: TSK and RPT are keyed by VR-Forces MARKING (the init's <Name>), POS by
+# VRF_UUID. The taskee (C2SIM UUID) maps to its marking through the init
+# (Get-InitUnitNames) and the marking to its VRF_UUID through the app log's route
+# lines (Get-VrfUuidByName: "Task '<t>': CreateRoute '<r>' ... for <name>" joined
+# with "Route '<r>' created; MoveAlongRoute|PatrolRoute issued for VRF_UUID:<u>",
+# VrfC2SimService.cs:1102/1123). A taskee that can not be mapped (a task type that
+# logs no route line, a missing TSK, a unit without a Name) is NOT satisfied, so
+# the window runs to its RunSecs cap - the safe direction, and the reason is
+# recorded per taskee.
+
+function Get-InitUnitNames {
+    param([string]$InitText)
+    $map = [ordered]@{}
+    if ([string]::IsNullOrWhiteSpace($InitText)) { return $map }
+    $doc = New-Object System.Xml.XmlDocument
+    try { $doc.LoadXml($InitText) } catch { return $map }
+    foreach ($u in @($doc.SelectNodes("//*[local-name()='Unit']"))) {
+        $uuid = $null; $name = $null
+        foreach ($c in @($u.ChildNodes)) {
+            if ($c.NodeType -ne [System.Xml.XmlNodeType]::Element) { continue }
+            if ($c.LocalName -eq 'UUID' -and -not $uuid) { $uuid = $c.InnerText.Trim() }
+            if ($c.LocalName -eq 'Name' -and -not $name) { $name = $c.InnerText.Trim() }
+        }
+        if ($uuid -and $name -and -not $map.Contains($uuid)) { $map[$uuid] = $name }
+    }
+    return $map
+}
+
+function Get-VrfUuidByName {
+    param([string]$AppLogText)
+    $map = [ordered]@{}
+    if ([string]::IsNullOrWhiteSpace($AppLogText)) { return $map }
+    $routeToName = @{}
+    $rxA = [regex]"Task '(?<task>[^']*)': CreateRoute '(?<route>[^']*)' \(\d+ pts\) for (?<name>.+?); "
+    $rxB = [regex]"Route '(?<route>[^']*)' created; (?:MoveAlongRoute|PatrolRoute) issued for (?<vrf>VRF_UUID:[0-9a-fA-F-]{36})"
+    foreach ($line in ($AppLogText -split "`r?`n")) {
+        $a = $rxA.Match($line)
+        if ($a.Success) { $routeToName[$a.Groups['route'].Value] = $a.Groups['name'].Value; continue }
+        $b = $rxB.Match($line)
+        if ($b.Success) {
+            $r = $b.Groups['route'].Value
+            if ($routeToName.ContainsKey($r)) {
+                $n = $routeToName[$r]
+                if (-not $map.Contains($n)) { $map[$n] = $b.Groups['vrf'].Value }
+            }
+        }
+    }
+    return $map
+}
+
+# One pass over the trace: first TSK per marking, LAST RPT POSITION per marking,
+# LAST real POS per VRF_UUID. Lines that do not parse are skipped, never fatal.
+function Get-TraceEvidence {
+    param([AllowNull()][AllowEmptyString()][string]$TraceText)
+    $ev = @{ tsk = @{}; rpt = @{}; pos = @{} }
+    if ([string]::IsNullOrWhiteSpace($TraceText)) { return $ev }
+    $rxTsk = [regex]'^TSK,(?<t>[0-9.]+),"(?<name>(?:[^"]|"")*)",'
+    $rxRpt = [regex]'^RPT,(?<t>[0-9.]+),"POSITION ""(?<name>(?:[^"]|"")*?)"" (?<lat>-?[0-9.]+) (?<lon>-?[0-9.]+)"'
+    $rxPos = [regex]'^POS,(?<t>[0-9.]+),(?<uuid>VRF_UUID:[0-9a-fA-F-]{36}),(?<lat>-?[0-9.]+),(?<lon>-?[0-9.]+),(?<alt>-?[0-9.eE+]+)'
+    $inv = [System.Globalization.CultureInfo]::InvariantCulture
+    foreach ($line in ($TraceText -split "`r?`n")) {
+        if ($line.Length -lt 5) { continue }
+        switch ($line.Substring(0, 4)) {
+            'TSK,' {
+                $m = $rxTsk.Match($line)
+                if ($m.Success) {
+                    $n = $m.Groups['name'].Value -replace '""', '"'
+                    if (-not $ev.tsk.ContainsKey($n)) { $ev.tsk[$n] = [double]::Parse($m.Groups['t'].Value, $inv) }
+                }
+            }
+            'RPT,' {
+                $m = $rxRpt.Match($line)
+                if ($m.Success) {
+                    $n = $m.Groups['name'].Value -replace '""', '"'
+                    $ev.rpt[$n] = [pscustomobject]@{
+                        T = [double]::Parse($m.Groups['t'].Value, $inv)
+                        Lat = [double]::Parse($m.Groups['lat'].Value, $inv)
+                        Lon = [double]::Parse($m.Groups['lon'].Value, $inv) }
+                }
+            }
+            'POS,' {
+                $m = $rxPos.Match($line)
+                if ($m.Success) {
+                    # Same degeneracy filter as the runner's Get-RealPositions: the pole
+                    # placeholder, out-of-range longitude and the "altitude is memory"
+                    # sample (alt 1e68 seen at t=228.9 in run 20260901T235823Z) are NOT
+                    # positions and must not become the "latest POS".
+                    $lat = 0.0; $lon = 0.0; $alt = 0.0
+                    $fl = [System.Globalization.NumberStyles]::Float
+                    if (-not [double]::TryParse($m.Groups['lat'].Value, $fl, $inv, [ref]$lat)) { continue }
+                    if (-not [double]::TryParse($m.Groups['lon'].Value, $fl, $inv, [ref]$lon)) { continue }
+                    if (-not [double]::TryParse($m.Groups['alt'].Value, $fl, $inv, [ref]$alt)) { continue }
+                    if ([double]::IsNaN($lat) -or [double]::IsNaN($lon) -or [double]::IsNaN($alt)) { continue }
+                    if ([Math]::Abs($lat) -ge 89.999999 -or [Math]::Abs($lon) -gt 180.0 -or [Math]::Abs($alt) -gt 100000.0) { continue }
+                    $ev.pos[$m.Groups['uuid'].Value] = [pscustomobject]@{
+                        T = [double]::Parse($m.Groups['t'].Value, $inv); Lat = $lat; Lon = $lon }
+                }
+            }
+        }
+    }
+    return $ev
+}
+
+# Great-circle distance, metres (haversine, R = 6371 km). Good to <0.1 m at the
+# scales that matter here (0-250 m).
+function Get-DistanceMeters {
+    param([double]$Lat1, [double]$Lon1, [double]$Lat2, [double]$Lon2)
+    $r = 6371000.0
+    $p1 = $Lat1 * [Math]::PI / 180.0; $p2 = $Lat2 * [Math]::PI / 180.0
+    $dp = $p2 - $p1; $dl = ($Lon2 - $Lon1) * [Math]::PI / 180.0
+    $a = [Math]::Sin($dp / 2) * [Math]::Sin($dp / 2) + [Math]::Cos($p1) * [Math]::Cos($p2) * [Math]::Sin($dl / 2) * [Math]::Sin($dl / 2)
+    return 2.0 * $r * [Math]::Asin([Math]::Sqrt([Math]::Min(1.0, $a)))
+}
+
+# Condition (4). Returns AllSatisfied plus one record per taskee explaining why.
+function Test-ReportEvidence {
+    param(
+        [Parameter(Mandatory)][AllowEmptyCollection()][string[]]$Taskees,
+        [Parameter(Mandatory)]$TaskeeNames,      # taskee uuid -> marking (Get-InitUnitNames)
+        [Parameter(Mandatory)]$NameToVrfUuid,    # marking -> VRF_UUID (Get-VrfUuidByName)
+        [Parameter(Mandatory)][AllowNull()][AllowEmptyString()][string]$TraceText,
+        [Parameter(Mandatory)][double]$ToleranceMeters
+    )
+    $ev = Get-TraceEvidence -TraceText $TraceText
+    $per = [ordered]@{}
+    $all = ($Taskees.Count -gt 0)
+    foreach ($u in $Taskees) {
+        $rec = [ordered]@{ name = $null; vrfUuid = $null; completionT = $null; lastRptT = $null
+                           posT = $null; distanceM = $null; satisfied = $false; reason = $null }
+        $name = if ($TaskeeNames.Contains($u)) { [string]$TaskeeNames[$u] } else { $null }
+        $rec.name = $name
+        if (-not $name) { $rec.reason = 'taskee has no <Name> in the init - can not key TSK/RPT' }
+        else {
+            $vrf = if ($NameToVrfUuid.Contains($name)) { [string]$NameToVrfUuid[$name] } else { $null }
+            $rec.vrfUuid = $vrf
+            if ($ev.tsk.ContainsKey($name)) { $rec.completionT = $ev.tsk[$name] }
+            if ($ev.rpt.ContainsKey($name)) { $rec.lastRptT = $ev.rpt[$name].T }
+            if ($vrf -and $ev.pos.ContainsKey($vrf)) { $rec.posT = $ev.pos[$vrf].T }
+            if ($null -eq $rec.completionT)  { $rec.reason = 'no TSK (task-complete) record in the trace yet' }
+            elseif ($null -eq $rec.lastRptT) { $rec.reason = 'no RPT POSITION line for this marking yet' }
+            elseif ($rec.lastRptT -le $rec.completionT) { $rec.reason = ('last RPT t={0} is not later than completion t={1}' -f $rec.lastRptT, $rec.completionT) }
+            elseif (-not $vrf) { $rec.reason = 'marking -> VRF_UUID unknown (no route line in the app log)' }
+            elseif ($null -eq $rec.posT) { $rec.reason = 'no real POS sample for the VRF_UUID yet' }
+            else {
+                $r = $ev.rpt[$name]; $p = $ev.pos[$vrf]
+                $rec.distanceM = [Math]::Round((Get-DistanceMeters -Lat1 $r.Lat -Lon1 $r.Lon -Lat2 $p.Lat -Lon2 $p.Lon), 2)
+                if ($rec.distanceM -le $ToleranceMeters) { $rec.satisfied = $true; $rec.reason = 'post-completion RPT agrees with POS' }
+                else { $rec.reason = ('post-completion RPT is {0} m from the latest POS (tolerance {1} m)' -f $rec.distanceM, $ToleranceMeters) }
+            }
+        }
+        if (-not $rec.satisfied) { $all = $false }
+        $per[$u] = [pscustomobject]$rec
+    }
+    return [pscustomobject]@{ AllSatisfied = $all; PerTaskee = $per }
+}
+
+# ---- line endings for files the runner rewrites -------------------------------
+# The repo checks out CRLF (core.autocrlf=true); a file the runner rewrites must
+# come back CRLF regardless of what it found (an LF working copy left by another
+# tool would otherwise be perpetuated - docs/OPUS_EXECUTION_PLAN.md was found LF
+# after run 20260901T235823Z). Idempotent: CRLF in -> CRLF out, no doubled CR.
+function ConvertTo-CrlfText {
+    param([AllowNull()][AllowEmptyString()][string]$Text)
+    if ($null -eq $Text) { return '' }
+    return ($Text -replace "`r`n", "`n") -replace "`n", "`r`n"
 }
 
 # ---- trace stop timing -------------------------------------------------------

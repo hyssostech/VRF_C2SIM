@@ -606,9 +606,10 @@ setup 2.4 / window 4.1 / tail 0.6 min; 3/3 TASKCMPLT at the P2c offsets (+117.2 
 touch, before StopVrf; RTI trio untouched. ONE CAVEAT: with SettleHoldSecs 60 (== the
 ~60 s VR-Forces text-report cadence) the last report round can be cut mid-emission by
 StopIface, so the company's LAST RPT line predates its completion (11.8 m from the POS
-final; POS itself matched P2c to 0.00 m). Do NOT use a -StopWhenComplete run for
-POS==RPT adjudication until the hold rule is revised (supervisor decision pending);
-fixed-window runs are unaffected.
+final; POS itself matched P2c to 0.00 m). RULED 2026-09-02: the hold is now
+EVIDENCE-BASED (item 2 rule 4 below); re-confirmation run pending
+(docs/experiments/PREREG_RUNNER_CONFIRM2_2026-09-01.md). Until that run is
+adjudicated, use fixed-window runs for POS==RPT adjudication.
 
 scripts/RunC2SimScenario.ps1 is the one-button run (HEADLESS_RUN_PLAN sec 2). Two
 turnaround changes landed on branch runner-turnaround; full design, alternatives
@@ -629,11 +630,17 @@ and the before/after wall-time budget are in docs/RUNNER_TURNAROUND_2026-09-01.m
    fixed-window run per milestone). Closes the observation window early once EVERY
    PerformingEntity in the pushed order has a `SENT TASK STATUS REPORT (TASKCMPLT)`
    line in vrfc2simapp.log, the TASKCMPLT line count is >= the order's task count,
-   and `-SettleHoldSecs` (default 60) have elapsed since the poll that first saw
-   that. Only lines for taskees IN THE ORDER count (a stray line for a foreign unit
-   is ignored). RunSecs stays the cap. Manifest `oracle.earlyExit` records whether it
-   fired and when. A 2/3 outcome (like run 20260901T221227Z) never fires - the window
-   runs to the cap, as it must.
+   `-SettleHoldSecs` (default 60) have elapsed since the poll that first saw that
+   (a FLOOR), AND (rule 4, 2026-09-02) every taskee has an `RPT POSITION` line in
+   the live watchvrf-trace.csv that is LATER than its `TSK` record and within 2 m of
+   its latest real `POS`. VR-Forces text reports come in ~60 s rounds (~44 lines over
+   ~10 s), so expect the close at last completion + 60..70 s, one round later if the
+   first round caught a still-converging aggregate centre. Only lines for taskees IN
+   THE ORDER count (a stray line for a foreign unit is ignored). RunSecs stays the
+   cap. Manifest `oracle.earlyExit` records whether it fired, when, and the per-taskee
+   report evidence (with the reason while pending). A 2/3 outcome (like run
+   20260901T221227Z) never fires - the window runs to the cap, as it must; so does a
+   taskee whose marking can not be mapped to a VRF_UUID (no route line).
    MULTI-TASK ORDERS: two tasks dispatched SIMULTANEOUSLY to one taskee are SUPERSEDED
    by VR-Forces ("the old task will not complete", VrfC2SimService.cs:954) and yield
    ONE TASKCMPLT line, so the count never reaches the task count and the switch is
@@ -649,7 +656,7 @@ and the before/after wall-time budget are in docs/RUNNER_TURNAROUND_2026-09-01.m
    its own cap - wait it out). A pre-existing `<runDir>\observers.stop` is refused
    with exit 2 before anything is created (run-directory collision; never deleted).
 
-Offline gate: `pwsh -NoProfile -File tests\RunnerTurnaround.Tests.ps1` (65 checks,
+Offline gate: `pwsh -NoProfile -File tests\RunnerTurnaround.Tests.ps1` (96 checks,
 no sim). What the confirming live run must show is listed in the design note sec 4;
 `# STOP requested via stop-file` in the WatchVrf trace followed by a clean resign is
 the load-bearing line.

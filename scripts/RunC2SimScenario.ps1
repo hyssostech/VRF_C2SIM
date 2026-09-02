@@ -1299,6 +1299,13 @@ if ($TraceStopMode -ne 'stop-file') {
 # reader of the manifest can see what "all taskees" meant for this run.
 $OrderTasks   = @(Get-OrderTasks   -OrderText (Get-Content -LiteralPath $Order -Raw))
 $OrderTaskees = @(Get-OrderTaskees -OrderText (Get-Content -LiteralPath $Order -Raw))
+# taskee UUID -> marking, for the report-evidence half of the early-exit criterion
+# (RunnerLib Test-ReportEvidence). Read once; the init does not change mid-run.
+$TaskeeNames  = Get-InitUnitNames -InitText (Get-Content -LiteralPath $Init -Raw -Encoding UTF8)
+# RPT/POS agreement tolerance for that criterion. 2 m: the two entity taskees read
+# 0.0 m in run 20260901T235823Z; the company aggregate read 11.8 m while its centre
+# was still converging - the miss this condition exists to catch.
+$ReportToleranceMeters = 2.0
 $Manifest.inputs.orderTaskCount = $OrderTasks.Count
 $Manifest.inputs.orderTaskees   = $OrderTaskees
 if ($StopWhenComplete -and $OrderTaskees.Count -eq 0) {
@@ -1474,7 +1481,9 @@ function Update-Ledger {
     if ($check.Count -ne 1 -or [int]$check[0].Groups[1].Value -ne $To) {
         throw ('ledger rewrite self-check FAILED (markers={0}). Not written.' -f $check.Count)
     }
-    [System.IO.File]::WriteAllText($LedgerDoc, $updated, (New-Object System.Text.UTF8Encoding($false)))
+    # Explicit CRLF (ConvertTo-CrlfText): the repo checks out CRLF and an LF working
+    # copy must not be perpetuated (found after run 20260901T235823Z).
+    [System.IO.File]::WriteAllText($LedgerDoc, (ConvertTo-CrlfText $updated), (New-Object System.Text.UTF8Encoding($false)))
 }
 
 # =============================================================================
@@ -1593,7 +1602,7 @@ Say ('  run dir     : {0}' -f $RunDir)
 Say ('  observers   : {0}s CAP (derived: preRoll {1} + appJoin {2} + initDispatch {3} + oracleGate {4} + pushOrderListen {5} + run {6} + trail {7})' -f `
         $EffWatchSecs, $PreRollSecs, $AppJoinTimeoutSec, $InitDispatchWaitSec, $OracleGateTimeoutSec, $PushOrderListenSec, $RunSecs, $TrailSecs)
 Say ('  trace stop  : {0} - {1}' -f $TraceStopMode, $(if ($TraceStopMode -eq 'stop-file') { ('teardown touches {0} at StopIface + {1}s; observers resign within ~1 s; grace {2}s' -f $PathStopFile, $TrailSecs, $TraceStopGraceSec) } else { 'observers run to the CAP and teardown waits for them (pre-turnaround dead time)' }))
-Say ('  window      : {0}s{1}' -f $RunSecs, $(if ($StopWhenComplete) { (' CAP; -StopWhenComplete closes it once all {0} taskee(s) / {1} task(s) report TASKCMPLT and {2}s have passed' -f $OrderTaskees.Count, $OrderTasks.Count, $SettleHoldSecs) } else { ' fixed (-StopWhenComplete not set)' }))
+Say ('  window      : {0}s{1}' -f $RunSecs, $(if ($StopWhenComplete) { (' CAP; -StopWhenComplete closes it once all {0} taskee(s) / {1} task(s) report TASKCMPLT, {2}s have passed AND every taskee has a post-completion RPT agreeing with its POS' -f $OrderTaskees.Count, $OrderTasks.Count, $SettleHoldSecs) } else { ' fixed (-StopWhenComplete not set)' }))
 Say ('  HLA PATH    : {0};<inherited>' -f $PathPrefix)
 Say ('  license     : MAKLMGRD_LICENSE_FILE (Machine) = {0}' -f $(if ($LicMachine) { $LicMachine } else { '(EMPTY - checkout may hang, RUNBOOK sec 7 item 2)' }))
 Say ('  HLA cwd     : {0}' -f $Bin64)
@@ -2058,11 +2067,14 @@ try {
     # so a reader can tell "did not fire" from "was not enabled".
     $EarlyExit = [ordered]@{
         enabled        = [bool]$StopWhenComplete
-        source         = 'vrfc2simapp.log: SENT TASK STATUS REPORT (TASKCMPLT) taskee=<uuid> task=<uuid>.'
-        criterion      = 'every distinct order taskee has >= 1 TASKCMPLT line AND TASKCMPLT lines >= order task count, held for settleHoldSecs; runSecs is the cap'
+        source         = 'vrfc2simapp.log: SENT TASK STATUS REPORT (TASKCMPLT) taskee=<uuid> task=<uuid>; watchvrf-trace.csv TSK/RPT/POS records (report evidence)'
+        criterion      = '(1-3) every distinct order taskee has >= 1 TASKCMPLT line AND TASKCMPLT lines >= order task count, held for settleHoldSecs (FLOOR); AND (4) for every taskee the trace holds an RPT POSITION later than its TSK record that is within reportToleranceMeters of its latest POS; runSecs is the cap'
         taskees        = $OrderTaskees
         taskCount      = $OrderTasks.Count
         settleHoldSecs = $SettleHoldSecs
+        reportToleranceMeters = $ReportToleranceMeters
+        reportEvidence = [ordered]@{}
+        evidenceSatisfiedUtc = $null
         windowSecsCap  = $RunSecs
         fired          = $false
         firstSeenUtc   = [ordered]@{}
@@ -2074,7 +2086,7 @@ try {
     $Manifest.oracle.earlyExit = $EarlyExit
     if ($DryRun) {
         if ($StopWhenComplete) {
-            Say-Plan ('would poll {0} every 5s for TASKCMPLT lines; would close the window once all {1} taskee(s) / {2} task(s) have reported and {3}s have passed; would otherwise sleep out the {4}s cap' -f $PathAppLog, $OrderTaskees.Count, $OrderTasks.Count, $SettleHoldSecs, $RunSecs)
+            Say-Plan ('would poll {0} every 5s for TASKCMPLT lines; would close the window once all {1} taskee(s) / {2} task(s) have reported, {3}s have passed and every taskee has a post-completion RPT within {5} m of its POS; would otherwise sleep out the {4}s cap' -f $PathAppLog, $OrderTaskees.Count, $OrderTasks.Count, $SettleHoldSecs, $RunSecs, $ReportToleranceMeters)
         } else {
             Say-Plan ('would sleep {0}s while WatchVrf and ListenReports keep sampling' -f $RunSecs)
         }
@@ -2087,6 +2099,7 @@ try {
         # 30 s cadence either way.
         $pollSecs = if ($StopWhenComplete) { 5 } else { 30 }
         $nextStatus = (Get-Date).AddSeconds(30)
+        $nextEvidenceNote = Get-Date
         $completion = New-CompletionState
         while ((Get-Date) -lt $obsEnd) {
             Start-Sleep -Seconds ([int][Math]::Min($pollSecs, [Math]::Max(1, [Math]::Ceiling(($obsEnd - (Get-Date)).TotalSeconds))))
@@ -2113,14 +2126,36 @@ try {
                 if ($completion.firstSeenUtc.Count -gt $before) {
                     Say-Info ('  TASKCMPLT seen for {0}/{1} taskee(s), {2} line(s) for order taskees ({4} total) (t+{3}s)' -f $completion.firstSeenUtc.Count, $OrderTaskees.Count, $completion.lineCount, [int]((Get-Date) - $obsStart).TotalSeconds, $done.Count)
                 }
-                $verdict = Test-EarlyExit -State $completion -Taskees $OrderTaskees -SettleHoldSecs $SettleHoldSecs -NowUtc $nowUtc
+                # Condition (4): report evidence, from the live trace (TSK/RPT/POS on one
+                # clock). Only evaluated once all taskees have completed - before that the
+                # answer is "not yet" by construction and the parse is wasted work.
+                $evidence = $null
+                $evidenceOk = $false
+                if ($null -ne $completion.allCompleteUtc) {
+                    $nameToVrf = Get-VrfUuidByName -AppLogText (Read-LiveText -Path $PathAppLog)
+                    $evidence  = Test-ReportEvidence -Taskees $OrderTaskees -TaskeeNames $TaskeeNames -NameToVrfUuid $nameToVrf `
+                                     -TraceText (Read-LiveText -Path $PathTrace) -ToleranceMeters $ReportToleranceMeters
+                    $evidenceOk = [bool]$evidence.AllSatisfied
+                    foreach ($k in @($evidence.PerTaskee.Keys)) { $EarlyExit.reportEvidence[$k] = $evidence.PerTaskee[$k] }
+                    if ($evidenceOk -and $null -eq $EarlyExit.evidenceSatisfiedUtc) {
+                        $EarlyExit.evidenceSatisfiedUtc = $nowUtc.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+                        Say-Ok ('  report evidence IN for all {0} taskee(s) at t+{1}s: {2}' -f $OrderTaskees.Count, [int]((Get-Date) - $obsStart).TotalSeconds, (@($evidence.PerTaskee.Values | ForEach-Object { '{0} RPT t={1} vs POS {2} m' -f $_.name, $_.lastRptT, $_.distanceM }) -join '; '))
+                    }
+                }
+                $verdict = Test-EarlyExit -State $completion -Taskees $OrderTaskees -SettleHoldSecs $SettleHoldSecs -NowUtc $nowUtc -ReportEvidence $evidenceOk
                 if ($verdict.AllComplete -and $null -eq $EarlyExit.allCompleteUtc) {
                     $EarlyExit.allCompleteUtc = ([datetime]$completion.allCompleteUtc).ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
-                    Say-Ok ('  ALL taskees reported TASKCMPLT at t+{0}s; holding {1}s before closing the window' -f [int]((Get-Date) - $obsStart).TotalSeconds, $SettleHoldSecs)
+                    Say-Ok ('  ALL taskees reported TASKCMPLT at t+{0}s; holding >= {1}s AND waiting for post-completion reports before closing the window' -f [int]((Get-Date) - $obsStart).TotalSeconds, $SettleHoldSecs)
+                }
+                if ($verdict.HoldElapsed -and -not $verdict.EvidenceIn -and (Get-Date) -ge $nextEvidenceNote) {
+                    # Report once per 30 s why the window is still open past the floor.
+                    $nextEvidenceNote = (Get-Date).AddSeconds(30)
+                    $pending = @($evidence.PerTaskee.GetEnumerator() | Where-Object { -not $_.Value.satisfied } | ForEach-Object { '{0}: {1}' -f $(if ($_.Value.name) { $_.Value.name } else { $_.Key }), $_.Value.reason })
+                    Say-Info ('  hold floor of {0}s elapsed ({1}s); report evidence still pending - {2}' -f $SettleHoldSecs, $verdict.HoldElapsedSecs, ($pending -join ' | '))
                 }
                 if ($verdict.ShouldClose) {
                     $EarlyExit.fired = $true
-                    Say-Ok ('  settle hold of {0}s elapsed ({1}s) - closing the observation window EARLY at t+{2}s of the {3}s cap' -f $SettleHoldSecs, $verdict.HoldElapsedSecs, [int]((Get-Date) - $obsStart).TotalSeconds, $RunSecs)
+                    Say-Ok ('  settle hold of {0}s elapsed ({1}s) and report evidence in - closing the observation window EARLY at t+{2}s of the {3}s cap' -f $SettleHoldSecs, $verdict.HoldElapsedSecs, [int]((Get-Date) - $obsStart).TotalSeconds, $RunSecs)
                     break
                 }
             }
@@ -2131,8 +2166,9 @@ try {
         $EarlyExit.completionLinesSeen = $completion.lineCount
         foreach ($k in @($completion.firstSeenUtc.Keys)) { $EarlyExit.firstSeenUtc[$k] = ([datetime]$completion.firstSeenUtc[$k]).ToString('yyyy-MM-ddTHH:mm:ss.fffZ') }
         if ($StopWhenComplete -and -not $EarlyExit.fired) {
-            $missing = @(Test-EarlyExit -State $completion -Taskees $OrderTaskees -SettleHoldSecs $SettleHoldSecs -NowUtc (Get-Date).ToUniversalTime()).Missing
-            Say-Info ('  -StopWhenComplete did NOT fire; window ran to its {0}s cap. Taskees without TASKCMPLT: {1}' -f $RunSecs, $(if ($missing.Count -gt 0) { $missing -join ', ' } else { '(none - the hold had not elapsed, or the line count was below the task count)' }))
+            $missing = @(Test-EarlyExit -State $completion -Taskees $OrderTaskees -SettleHoldSecs $SettleHoldSecs -NowUtc (Get-Date).ToUniversalTime() -ReportEvidence $false).Missing
+            $pendingEv = @($EarlyExit.reportEvidence.GetEnumerator() | Where-Object { -not $_.Value.satisfied } | ForEach-Object { '{0}: {1}' -f $(if ($_.Value.name) { $_.Value.name } else { $_.Key }), $_.Value.reason })
+            Say-Info ('  -StopWhenComplete did NOT fire; window ran to its {0}s cap. Taskees without TASKCMPLT: {1}. Report evidence pending: {2}' -f $RunSecs, $(if ($missing.Count -gt 0) { $missing -join ', ' } else { '(none)' }), $(if ($pendingEv.Count -gt 0) { $pendingEv -join ' | ' } else { '(none - the hold had not elapsed, or the line count was below the task count)' }))
         }
         Save-Manifest
         Say-Ok ('observation window complete ({0}s used of {1}s)' -f $EarlyExit.windowSecsUsed, $RunSecs)

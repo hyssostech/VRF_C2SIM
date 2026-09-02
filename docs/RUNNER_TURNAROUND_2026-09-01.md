@@ -118,7 +118,45 @@ The window closes early when ALL of:
    performer needs two completions). Lines for taskees outside the order are ignored
    entirely - neither counted nor stamped (review F2), AND
 3. `-SettleHoldSecs` (default 60) have elapsed since the runner's poll that FIRST
-   saw 1 and 2 satisfied.
+   saw 1 and 2 satisfied (a FLOOR - it is never shortened by 4), AND
+4. REPORT EVIDENCE (added 2026-09-02, supervisor ruling on the CONFIRM run's
+   POS==RPT miss): for EVERY taskee the live trace `<runDir>\watchvrf-trace.csv`
+   holds an `RPT ... POSITION "<marking>"` line whose trace time is LATER than that
+   taskee's `TSK` (task-complete) record AND whose lat/lon is within 2 m
+   (`$ReportToleranceMeters`) of the taskee's LATEST real `POS` sample. Both halves
+   are needed: in run 20260901T235823Z the company's RPT at t=213.3 WAS later than
+   its TSK at 211.8 (a "later than completion" rule alone would have passed) but read
+   34.653809 while the aggregate centre was still converging (POS 212.7 -> 34.640109,
+   216.8 -> 34.653440, 218.8 -> 34.653915 final) - 11.8 m off. The agreement half is
+   what turns "a report was sent" into "the report describes the settled state".
+
+Why the RPT source is the trace and not reports-captured.log or the app log:
+tools/ListenReports writes reports-captured.log ONCE at exit, so it does not exist
+during the window; the app log carries no timestamps (TASKCMPLT is stamped at the
+runner's poll time, UTC), so an app-log completion can not be compared with a trace-
+clock RPT. WatchVrf-trace already records all three on ONE clock: `TSK,<t>,"<marking>",
+"<type>"` (VrfBridge task-complete, the same event that produces the app's TASKCMPLT),
+`RPT,<t>,"POSITION ""<marking>"" <lat> <lon>"` (VrfBridge.TextReport) and
+`POS,<t>,<VRF_UUID>,<lat>,<lon>,<alt>`. Keys: the taskee's C2SIM UUID maps to its
+marking through the init's `<Unit>` `<UUID>`/`<Name>` (RunnerLib Get-InitUnitNames,
+read once) and the marking to its VRF_UUID through the app log's route lines
+(`Task '<t>': CreateRoute '<r>' ... for <name>` joined with `Route '<r>' created;
+MoveAlongRoute|PatrolRoute issued for VRF_UUID:<u>`, VrfC2SimService.cs:1102/1123;
+Get-VrfUuidByName, re-read each poll). Degenerate POS samples (pole placeholder, |alt|
+> 100 km - e.g. t=228.9 in the CONFIRM run) are ignored, as in Get-RealPositions. A
+taskee that can not be mapped or has no TSK/RPT/POS yet is NOT satisfied, so the
+window runs to its RunSecs cap - the safe direction; the reason is recorded per taskee
+in the manifest and printed once per 30 s once the hold floor has elapsed.
+
+CADENCE, so the cost of condition 4 is known: VR-Forces text reports arrive in ~60 s
+rounds, each ~44 POSITION lines spread over ~10 s (run 20260901T235823Z: rounds at
+t=92.6, 153, 213.3, 267.4; 20 of ~44 lines out when StopIface fired at t=278.0).
+The first post-completion round can therefore land anywhere from +0 to +60 s after the
+last TSK, and a round that lands BEFORE the centre settles (the 213.3 case) pushes the
+close to the NEXT round. Expected close: last TASKCMPLT + 60 s (the floor) in the good
+case, up to ~+70 s when the agreeing round is the one that starts at +60 s - i.e. at
+most ~10 s later than the hold-only rule, and one full round (~60 s) later in the
+213.3-shaped case. RunSecs remains the cap.
 
 What rule 2 means for multi-task orders (review F3):
 - Two tasks dispatched SIMULTANEOUSLY to the same taskee are SUPERSEDED by VR-Forces
@@ -150,8 +188,10 @@ Caveat (RUNBOOK sec 3): redirected stdout may be block-buffered; that delays the
 sighting and again only lengthens the hold.
 
 Manifest (`oracle.earlyExit`): enabled, source, criterion, taskees, taskCount,
-settleHoldSecs, windowSecsCap, fired, firstSeenUtc (per taskee), allCompleteUtc,
-closedUtc, windowSecsUsed, completionLinesSeen.
+settleHoldSecs, reportToleranceMeters, windowSecsCap, fired, firstSeenUtc (per
+taskee), allCompleteUtc, reportEvidence (per taskee: name, vrfUuid, completionT,
+lastRptT, posT, distanceM, satisfied, reason - as of the last poll),
+evidenceSatisfiedUtc, closedUtc, windowSecsUsed, completionLinesSeen.
 
 ## 4. Expected budget after the change
 
@@ -170,10 +210,10 @@ docs/experiments/PREREG_RUNNER_CONFIRM_2026-09-01.md sec 6): start -> window ope
 33 s; observers end -> manifest 6 s; TOTAL 7 min 9 s (predicted ~7 min 34 s). (a)-(d)
 below all held. One interaction found: SettleHoldSecs 60 equals the ~60 s VR-Forces
 text-report cadence, so the post-completion report round (~44 lines over ~10 s) was cut
-mid-emission by StopIface and the company's last RPT predates its completion - POS==RPT
-cannot be adjudicated from a -StopWhenComplete run until the hold rule is revised
-(supervisor decision; options: hold >= 90 s, or hold until every taskee has a
-post-completion RPT). POS endpoints matched P2c to 0.00-0.27 m.
+mid-emission by StopIface and the company's last usable RPT (t=213.3, 1.5 s after its
+TSK) described a still-converging centre, 11.8 m from the POS final. POS endpoints
+matched P2c to 0.00-0.27 m. RULED 2026-09-02: criterion rule 4 (report evidence,
+above) - re-confirmation is docs/experiments/PREREG_RUNNER_CONFIRM2_2026-09-01.md.
 
 The "after" column was a prediction, since measured above: the confirming run must show
 (a) `# STOP requested via stop-file` in the WatchVrf trace followed by a clean
@@ -209,6 +249,16 @@ A miss on (a) or (d) is a STOP, not a tuning item.
   stamp parse x10, F1 wiring via the runner's AST x3); fault injection in a scratch
   copy: hold comparison flipped -> 3 fail; F2 filter removed -> 4 fail; cap margin
   dropped -> 3 fail; one -CapSecs call site removed -> 1 fail; each exits 1.
+- 2026-09-02, rule 4: 96 checks (65 + 31: init/app-log mapping parsers x6 incl. the
+  REAL R9 init, Test-ReportEvidence on the CONFIRM-run fixture at t=212/214/219/230/
+  275 x12, the decision matrix hold-vs-evidence x4, ConvertTo-CrlfText x4, runner AST
+  wiring x4, haversine x1). Fault injection, each reverted, each exits 1:
+  Test-EarlyExit ignores -ReportEvidence -> 1 fail; agreement predicate dropped
+  (later RPT suffices) -> 2 fail (t=214 and the 11.8 m t=219 case); later-than-
+  completion check dropped -> 1 fail; degenerate-POS filter dropped -> 1 fail;
+  ConvertTo-CrlfText identity -> 2 fail; runner passes a literal instead of the
+  verdict -> 1 fail; Update-Ledger without ConvertTo-CrlfText -> 1 fail. Dry run
+  exit 0 with the new plan text; ledger untouched by the dry run.
 - New WatchVrf: `--capabilities` exit 0 (capabilities, con-selftest, stop-file);
   `--con-selftest` ALL CHECKS PASSED; pre-existing stop file refused exit 2 ("Nothing
   joined."); `--bogus`, missing value, extra argument each exit 2.
