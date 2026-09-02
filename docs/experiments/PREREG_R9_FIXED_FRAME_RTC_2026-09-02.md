@@ -577,6 +577,208 @@ NOTHING ELSE MOVES. Same init, same order, same binary, same bridge, TimeMultipl
 no env override, -RunSecs 1800, -SampleSecs 2, -StopWhenComplete. P2, P3, P4, P5 and the
 sec 6 risk note stand exactly as registered, except that every "0.045455" in P1/P3 now
 reads "0.033333".
-## 8. Outcome (written from the run directory artifacts, AFTER the run - empty at registration)
+## 8. Outcome (written from the run directory artifacts, AFTER the run)
 
-(unwritten)
+VERDICT: **FIXED-FRAME RUN-TO-COMPLETE WORKS WITH THIS FEDERATION.** The mode was in effect
+(P1 pass, decisively, on both independent tests). The answer did not change (P2 pass on every
+sub-clause). The sim clock ran roughly 9-10x the wall clock while the units were moving and
+faster still when they were not (P3 pass, ratio > 1). No wall-clock timeout in our app fired
+(P4 pass). Hygiene was clean (P5 pass). NO FALSIFIER FIRED.
+
+RUN: `runs/20260902T140808Z_run`, launched 2026-09-02T14:08:08.871Z, finished 14:12:48.169Z
+(4 min 40 s wall end to end, vs Row 3's 7 min 15 s). Order pushed 14:10:33.360Z. Observation
+window closed EARLY at t+66 s of the 1800 s cap (65.7 s used). Runner EXIT=0.
+appNumbers 3726-3732 (marker 3726 -> 3733; 3733 then consumed by the post-run ResetVrf sweep,
+marker -> 3734). `env:Vrf__*` count 0 before AND after.
+
+AMENDED PREREG COMMIT (this file, sections 0-7A, registered BEFORE launch): 2030ebd.
+FIXTURE: tools/FixtureGen/frame_variants/TropicTortoise_FFRTC.scnx, 7112 bytes; .scn SHA-256
+3d8960732bf78cbde02e581c9f04b93e5b926ae3db9cd5c9d679859fb99107ad. DEPLOYED COPY
+C:\MAK\vrforces5.0.2\userData\scenarios\TropicTortoise_FFRTC.scnx: .scnx SHA-256
+D27E540F8BCCAA2EBDD33C63CF062CB4842DBE1937B7AA3DAC1C20F9C990B0B9, inner .scn SHA-256
+3d896073... (matches), frame lines read
+`(frame-mode "fixed-frame-run-to-complete")` / `(frame-time 0.033333)`.
+Stock TropicTortoise.scnx untouched (6932 bytes, mtime 2026-07-14 12:45).
+
+### P1 - THE MODE IS IN EFFECT. PASS, on both tests, by a wide margin.
+
+`python tools/analysis/frame_gaps.py . <run>` (thresholds fixed in sec 7A A2 BEFORE the run):
+
+| statistic | THIS RUN (FFRTC 0.033333) | ROW 3 (variable-frame) | threshold |
+|---|---|---|---|
+| vendor-log lines / stamped / distinct sim stamps | 21832 / 401 / 85 | 10663 / 395 / 85 | - |
+| TEST A gap census | 0.033 x18, 0.034 x14 | 0.032 x2, 0.033 x17, 0.034 x10, 0.035 x3, 0.037 x1 | - |
+| TEST A min / median / max / sd | 0.033 / 0.033 / 0.034 / 0.0005 | 0.032 / 0.033 / 0.037 / 0.0010 | - |
+| TEST A in {0.033, 0.034} | **32/32 = 100.0%** | 27/33 = 81.8% | >= 95% |
+| TEST B resultant length R | **0.9986** | 0.3760 | >= 0.99 |
+| TEST B \|residual\| <= 0.0005 s | **85/85 = 100.0%** | 3/85 = 3.5% | >= 95% |
+| TEST B residual sd | 0.00029 s | 0.00702 s | (uniform would be 0.00962) |
+| TEST B fitted phase | 0.000001 s | 0.014813 s | - |
+
+Every one of the 85 distinct sim stamps lies on an exact integer multiple of 0.033333 s to
+within the vendor's 0.001 s print rounding, and the FITTED PHASE CAME BACK AT ONE
+MICROSECOND - i.e. the grid is not merely regular, it is zero-phased: the exercise clock
+starts at 0 and advances in exact multiples of the frame time we put in the .scn. Row 3's
+same 85 stamps scatter (R = 0.376, 3.5% on grid). The fixture parameter reached the back end.
+P1 (c), corroborating only: LS slope 10.1784 sim-s/wall-s vs Row 3's 1.0003.
+
+### P2 - THE ANSWER DOES NOT CHANGE. PASS on (a) through (e).
+
+(a) 3/3 TASKCMPLT in vrfc2simapp.log AND 3/3 in reports-captured.log, one per taskee
+    (001aa71b / 139aa71b / 670cfdb2). `-StopWhenComplete` fired; the runner closed the window
+    early.
+(b) COMPLETION ORDER IDENTICAL to Row 3, taskee for taskee: 1.BdeHQ (670cfdb2, task ...0003)
+    then 1222.MechPlt (001aa71b, ...0001) then 114.MechCoy (139aa71b, ...0002).
+(c) ENDPOINTS (trace finals, from stopped plateaus, vs Row 3; tolerance 1 m):
+
+    | taskee | this run | vs Row 3 | alt | POS vs RPT | settled |
+    |---|---|---|---|---|---|
+    | 1.BdeHQ | 34.608416,-116.699993 | 0.09 m | 1121.1 (+0.0) | 0.00 m | yes |
+    | 114.MechCoy | 34.653915,-116.693388 | 0.00 m | 1116.8 (+0.0) | 0.00 m | yes |
+    | 1222.MechPlt | 34.612956,-116.587783 | 0.00 m | 1026.6 (+0.0) | 0.00 m | yes |
+
+(d) THE TERRAIN PATH IS CHARACTER-FOR-CHARACTER UNCHANGED: three requests (ids 7/8/9, "sent
+    for 3 vertices"), three replies each with 3 samples and distinct indices {0,1,2} and no
+    `#k:none`, three "all 3 vertices authored from terrain + 10 m clearance" lines with alts
+    [1050.6, 1043.9, 1036.7] / [1126.7, 1126.8, 1126.9] / [1141.4, 1136.3, 1131.1] - the
+    values this prereg predicted and that Rows 2c, 2cR and 3 produced.
+(e) 3 x "CreateRoute ... (3 pts)" + 3 x "MoveAlongRoute issued".
+
+STRONGEST SINGLE PIECE OF P2 EVIDENCE: a whole-file diff of vrfc2simapp.log against Row 3's,
+with wall timestamps normalised. BOTH FILES ARE 103 LINES AND DIFFER IN SIX PLACES, NONE
+SEMANTIC: the RDTSCP tick-rate probe, one .NET host-startup line that logged in a different
+order, a thread id, the three run-scoped VRF_UUIDs the routes were issued against, and the
+cleanup duration in ms. Nothing else moved.
+
+### P3 - THE SIM CLOCK RUNS FASTER THAN THE WALL CLOCK. PASS, ratio > 1.
+
+Measured as pre-registered, plus two cross-checks:
+
+| instrument | this run | Row 3 |
+|---|---|---|
+| LS slope of sim on wall, distinct stamp pairs (the pre-registered measure) | **10.18** | 1.0003 |
+| coarse (last sim - first sim)/(last wall - first wall) | 9.7 (193.698 sim-s / 20 wall s) | 1.0 (181.500 / 181) |
+| WALL FROM ORDER PUSH TO LAST TASKCMPLT | **20.18 s** | **182.34 s** -> **9.04x** |
+| wall to 1st / 2nd / 3rd TASKCMPLT | 12.75 / 14.05 / 20.18 s | 117.47 / 129.63 / 182.34 s |
+| per-taskee ratio | 9.21 / 9.23 / 9.04 | - |
+
+To two significant figures the movement-phase compression is **9 to 10x**. Fitting a constant
+ratio plus a fixed non-scaling overhead to the first and third completion offsets gives ratio
+8.7 with overhead -0.8 s, i.e. the completion offsets are consistent with a constant ratio and
+NO measurable fixed overhead.
+
+THE RATIO IS LOAD-DEPENDENT, AND THAT IS MEASURED, NOT ASSUMED. Report receipt intervals
+(a sim-periodic report, ~61.2 sim-s, received on wall time) split cleanly by phase:
+
+    before the order (idle)          n=  88  mean 3.457 wall s
+    fully inside the movement window n= 122  mean 5.380 wall s
+    after the last TASKCMPLT (idle)  n= 797  mean 3.799 wall s
+
+Frames are cheaper when nothing is moving, and FFRTC advances a fixed 0.033333 s per frame
+regardless of what a frame costs, so the clock runs FASTER when idle. Binned over the trace
+the implied ratio rises from ~12.7 during movement to ~16.6 after completion. p.211's "built
+in sleep" therefore does NOT apply to Fixed-Frame Run-To-Complete: the tension recorded in
+sec 1 resolves in favour of sec 3.4.3's plain reading, and the ratio landed inside the
+[1.4, ~10] band sec 5 named as a reference expectation.
+
+### P4 - NO WALL-CLOCK TIMEOUT FIRED. PASS.
+
+Census of vrfc2simapp.log, THIS RUN then ROW 3, identical in every cell:
+`timed out` 0/0; `Fallback` 0/0; `Partial` 0/0; `skip` 0/0; `request not sent` 0/0;
+`warn:` 0/0; `Exception` 0/0; `fail:` 3/3 (the C2SIMSDK deserialize noise);
+"Can't create data of type" 3/3; "Create-altitude mode=Live" 6/6 (hard-coded template line,
+not a mode readout, expected). The 3 `fallback` hits in each file are the words "-> Live
+fallback" INSIDE the request lines themselves - descriptive text, not a fired fallback.
+
+Every armed wall-clock budget, fired or not:
+- TerrainProfileTimeoutSeconds 10 s - ARMED 3 times, FIRED 0 times. **3/3 replies returned.**
+  LATENCY: not directly measurable - vrfc2simapp.log carries no timestamps and the vendor log
+  does not record the terrain-profile interaction at all (0 matching lines). The bound that IS
+  established: each reply arrived inside its own 10 s wall budget (otherwise the :1476-1481
+  expiry path would have logged and the alts would have come from Live fallback, and neither
+  happened), and all three requests, all three replies, all three route creations, all three
+  move dispatches AND the first unit's entire move completed inside 12.75 s wall of the order
+  push. THE NAMED RISK DID NOT MATERIALISE.
+- TaskPredecessorTimeoutSeconds 600 s - not armed (no predecessor in the R9 order).
+- EngageFallbackSeconds 300 s - not armed (no ENGAGE task).
+- FanOutStragglerSeconds - OFF. BundleFlushMs - not armed (bundling off).
+- runner -SettleHoldSecs 60 s - elapsed (60.1 s), a hold, not a failure.
+- runner -RunSecs 1800 s cap - not reached (66 s used).
+- shutdown drains (8 s / 1500 ms / 5 s) and runner stage budgets - all after movement, all met.
+CONCLUSION ON THE INTEGRATION QUESTION: VrfFacade::Tick()'s hard-wiring of the federate clock
+to elapsed REAL time (VrfFacade.cpp:480) and the app's 20 Hz wall TickLoop did NOT break under
+a sim clock running ~9-10x wall. Compression only ever gives a wall budget MORE margin, and
+the one budget it does not shorten - the terrain-profile round trip - was met three times.
+
+### P5 - HYGIENE. PASS.
+
+Runner EXIT=0. Every stage exit code 0: RtiProbe, LaunchVrf, WatchVrf-precheck,
+WatchVrf-trace, ListenReports, PushInit, VrfC2SimApp (clean resign, code 0), PushOrder,
+StopIface, StopVrf. StopVrf reported "VR-Forces is DOWN (graceful quit; no process was
+force-killed)". Both observers exited on the stop-file path and were never killed. RTI trio
+PIDs UNCHANGED and explicitly preserved: rtiAssistant 41336, rtiexec 224608,
+rtiForwarder 76620. No new .dmp in C:\MAK\vrforces5.0.2\bin64 (newest is still
+vrfSim5.0.2-MSVC++15.0_64-249613-70668.dmp, 2026-09-02 06:00). bin64-vrfSim.log censuses,
+THIS RUN / ROW 3: SocketException 0/0, "Waiting for nav data" 0/0 (the disabled NavArea
+confirmed live), "empty route" 0/0, "Can't find entity route" 0/0, "invalid formation name"
+1/1 (the standing baseline), FATAL 0/0.
+POST-RUN SWEEP: `tools/ResetVrf 3733` - joined clean, BackendCount=0, discovered 0 reflected
+(0 deletable, 0 nil), exit 0, resigned cleanly. ZERO LEFTOVERS. Same caveat the rung-1
+executor recorded as finding D: run AFTER StopVrf, this proves NO STALE FEDERATE and nothing
+about scenario contents.
+
+### FALSIFIERS - ALL PRE-NAMED, NONE FIRED
+
+F1 (mode not in effect) NOT FIRED - Test A 100% vs the 95% threshold, Test B R = 0.9986 vs
+   the 0.99 threshold. F2 (answer changes) NOT FIRED - 3/3, same order, endpoints within
+   0.09 m, terrain lines identical. F3 (a wall-clock timeout fires) NOT FIRED - zero of every
+   pattern. F4 (no completion inside the cap) NOT FIRED - 66 s of an 1800 s cap. F5 (crash or
+   infrastructure failure) NOT FIRED - no dump prompt, no new .dmp, all exits 0, RTI intact.
+
+### OBSERVER BEHAVIOUR (recorded as data, sec 6 pre-committed that none of it is a miss)
+
+- RPT cadence: 1095 intervals (vs Row 3's 159) over a shorter wall trace - 26 reports per
+  entity vs 4. Whole-trace mean interval 4.045 wall s (sd 0.813, min 3.00, max 7.00) vs Row
+  3's 61.307 (sd 0.713). Spiky exactly as predicted, and the spikiness is informative: it is
+  the load-dependence of the ratio, not noise.
+- POS: 50 samples per entity vs Row 3's 126; trace sample cadence itself unchanged at ~2 s
+  wall. THE PRE-COMMITTED EXPECTATION OF WORSE POS DID NOT MATERIALISE - per-sample steps for
+  the three taskees during motion were mean 190 m / p50 102 m / MAX 700 m in this run, against
+  Row 3's mean 651 m / p50 9 m / MAX 82.6 km (1.BdeHQ alone). Dead reckoning behaved BETTER
+  under FFRTC than at 1x here. CAVEAT ON THAT COMPARISON: 30 in-motion samples vs 267, so this
+  run had far less opportunity to catch an outlier; treat it as "no evidence of degradation",
+  not as a demonstration of improvement.
+- Endpoint adjudication used stopped-plateau POS and post-completion RPT, as pre-committed;
+  the trace-plateau corroboration was suspended and not used.
+
+### UNEXPLAINED, AND LEFT UNEXPLAINED
+
+U1 - THE THREE RATIO INSTRUMENTS DO NOT FULLY AGREE ON THE MOVEMENT-PHASE NUMBER. Wall to
+     last TASKCMPLT says 9.04x; the vendor-log stamps say 9.7 (coarse) to 10.18 (LS); the RPT
+     intervals fully inside the movement window say 11.4x. The direction of the disagreement
+     is consistent (the RPT figure is the one contaminated by idle time, since a 5-6 s
+     interval cannot be contained cleanly in a 20 s window and both of its ends straddle the
+     ramp), and three candidate causes are not separated by this run's artifacts: (i) the
+     assumed 61.2 sim-s report period is approximate; (ii) window-edge straddling; (iii) burst
+     delivery distorting WatchVrf's wall receipt stamps, which sec 6 pre-committed as
+     expected. NOT ADJUDICATED. The pre-registered measure is the LS slope and it is quoted as
+     such; the operationally meaningful number is the completion wall time, 20.18 s vs 182.34.
+U2 - CARRIED FORWARD, UNTOUCHED BY THIS RUN: sec 0 C3/C4's contradiction between Table 71's
+     documented targetFrameRate default of 22 Hz and the ~30.3 Hz quantum Row 3 actually ran
+     under variable frame. This probe replaced the variable frame entirely and says nothing
+     about it.
+C1 - A CORRECTION, not an anomaly: the vendor log's wall stamps are LOCAL TIME, not UTC. Row
+     3's first stamp reads 07:38:38 against an orderPushedUtc of 11:38:37Z, and this run's
+     reads 10:08:24 against a startUtc of 14:08:08Z (offset -4). Every ratio above is built
+     from stamp DIFFERENCES and is unaffected, but any future cross-reference of a vendor-log
+     stamp to a UTC artifact must convert.
+
+### WHAT THIS BUYS THE HEADLESS GOAL
+
+The vendor's named mode for "run a simulation overnight and view the results the following
+day" works with this federation as it stands, un-time-managed, with no code change and a
+two-line scenario edit - and it is repeatable by construction (the clock is now a deterministic
+grid, R = 0.9986, phase 0). It cost 20 s of wall where Row 3 spent 182 s for an identical
+result. The next question this raises, and does NOT answer, is whether a COARSER frame time
+buys more compression without moving the answer - that is a new single-variable probe
+(frame-time only), not a re-run of this one.
