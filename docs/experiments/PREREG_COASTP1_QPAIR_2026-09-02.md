@@ -591,3 +591,41 @@ observer remains; the RTI trio is untouched at its 2026-09-02 PIDs.
 
 Sections 0-6C, `tools/analysis/run_census.py` and its two passing gates were written and
 committed BEFORE either launch. Sec 7 is added after the runs.
+
+## 9. SUPERVISOR ADJUDICATION (2026-09-02, after sec 7; the RULE gate sec 7 asked for)
+
+The stop was correct. The two misses were then FALSIFIED as misses, each by a measurement, not
+by argument, and neither check is retired:
+
+I4 - RE-SPECIFIED, NOT RETIRED. The "unexplained" zero-NaN profile is a second ENCODING of the
+same not-yet-positioned placeholder: the first POS uuid of the trace (cde66adc...) reads
+`NaN,-90.000000,NaN` in the `-q` run and `0.000000,-90.000000,1.9e34` in A-1 - an ECEF garbage
+point, 1.9e34 m up, not a fix. The `-q` comparator already carried 156 lines of that form;
+A-1/A-2 carry ~28k/32k and no NaN form. `run_census.py` now filters |alt| > 1e8 m as
+placeholder (commit below); with that ONE filter, everReal = **1,732 EXACT in all four scale
+runs** (rung 2, `-q`, A-1, A-2) and both pre-launch gates still reproduce their published
+tables. The population IS the same population; the check as WORDED holds, the check as CODED
+had a blind spot. WHY the encoding flipped between 18:31Z and 20:47Z stays a known-unexplained
+item (WatchVrf binary unchanged; only a5cdc95 between them, which touched no observer) - it is
+bounded by 1,732 = 1,732 and does not touch the result.
+
+I6 - DENOMINATOR DEFECT, AS SEC 7 SAID; the DISTANCES PASS. Raw net_km of the six non-Tank-
+Company movers: A-1 6.69 / 7.36 / 7.30 / 7.12 / 6.54 / 7.23; A-2 6.69 / 7.34 / 7.14 / 7.19 /
+6.80 / 7.22 - identical within 4%, and A-1 passed I6. At the fit-free denominator the prereg
+itself named (1,664 sim-paced reports in BOTH runs -> the same sim window) all six sit inside
+[0.0080, 0.0095]. The only thing that failed in A-2 is the LS slope's own dispersion (resid sd
+5.54), which the THRESHOLD RULE now bounds.
+
+BOTH RUNS ARE READ. Sec 6's registered clauses then decide without any judgement call:
+  - H-q FALSIFIED by clause (a): run A-1, with no `-q`, shows B/5-20 at **0** sub-routes /
+    0.37 km. Run B is NOT needed and is NOT owed.
+  - H-nondet SUPPORTED: A-1 and A-2 are identical invocations and disagree on B/5-20
+    (0 / 0.37 km vs 4 / 3.69 km) in a direction `-q` cannot explain (absent from both).
+  - `-q` stays UNADOPTED (default OFF): it was never the cause, and it costs the vendor log
+    nothing either way (sec 7 of the `-q` prereg: 961.9 vs 966.2 lines per sim-s).
+
+WHAT THE FOUR RUNS NOW SAY, jointly: the companies build ONE AT A TIME (a queue), B/5-20 is
+last or absent in all four, and in three of four C/1-35 and 856/HHC build exactly nine
+seconds apart at +6-7 min after the order. That serial build is the next object of study -
+DOCS FIRST (5.0.2 Users Guide: aggregate disaggregation / task processing; 4.10 Developer's
+Guide entitymodels_aggregates.html) before any probe is registered.

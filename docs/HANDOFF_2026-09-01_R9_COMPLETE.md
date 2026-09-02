@@ -132,18 +132,16 @@ DONE 2026-09-02 pm, three probes; READ THE PREREG SEC 7s, NOT THIS SUMMARY:
     NOT suppress vrfSim.log (961.9/SIM s vs 966.2); console costs ~18% (0.2652 -> 0.3140).
   * TYPE-MAPPING LIVE GATE, PASSES / run formally INVALID (20260902T193508Z, 3775-3781; 1976ec1)
     - 6/6 R9 units landed EXACTLY the data/unit-type-map.json names; 3/3 TASKCMPLT; list EMPTY.
-1. **TANK-COMPANY NON-DISTRIBUTION - PAIR PREREGED, RUN A EXECUTED TWICE, SESSION STOPPED ON ITS
-   OWN MISS RULE, AWAITING A RULING** (e7ffb1a + 32aa04c + this commit;
-   docs/experiments/PREREG_COASTP1_QPAIR_2026-09-02.md sec 7 - READ IT, NOT THIS). Both no-`-q`
-   runs are DISCARDED on instrument checks and NOT adjudicated; **RUN B (WITH -q) IS OWED.**
-   THE RULING, one question: RETIRE OR RE-BASELINE two checks that describe the pre-a5cdc95
-   configuration, not this one - (a) "1,732 ever-real objects", now unreachable (zero pole/NaN
-   lines; ever-real 1,847 / 1,864 while `Created radio` is 1,733 in all four runs); (b) a distance
-   band divided by an unbounded LS slope (A-2 fit sd 5.54 vs A-1 1.79; the fit-free report count
-   says both delivered the SAME sim time, 1,664 each). AN EXECUTOR MUST NOT RETIRE A CHECK THE
-   TASKING NAMED, ON RUNS THAT FAILED IT. NOT ADJUDICATED, artifact content only: A-1 and A-2 are
-   identical invocations and DISAGREE - B/5-20 0 sub-routes / 0.37 km vs 4 / 3.69 km, `-q` ABSENT
-   from both; if the checks are ruled inapplicable that falsifies "-q caused it" WITHOUT run B.
+1. **TANK-COMPANY NON-DISTRIBUTION - PAIR ADJUDICATED (supervisor, PREREG_COASTP1_QPAIR sec 9):**
+   `-q` FALSIFIED as the cause (clause (a): A-1, no `-q`, B/5-20 at 0 sub-routes / 0.37 km);
+   NON-DETERMINISM SUPPORTED (A-1 vs A-2, identical invocations, B/5-20 0 vs 4 sub-routes);
+   run B NOT owed; `-q` stays default-OFF. The two instrument misses were falsified as misses:
+   I4 = a second placeholder encoding (0,-90,1.9e34) run_census.py now filters -> everReal
+   1,732 EXACT on all four scale runs; I6 = LS-slope dispersion, raw distances match A-1 within
+   4%. NEXT OBJECT: the SERIAL COMPANY BUILD (one at a time, B/5-20 last or absent in 4/4, two
+   companies exactly 9 s apart in 3/4). DOCS FIRST: 5.0.2 Users Guide aggregate disaggregation /
+   task processing + 4.10 entitymodels_aggregates.html, cited in the prereg, before any probe.
+   Known-unexplained (bounded): why the placeholder encoding flipped between 18:31Z and 20:47Z.
 2. DONE 2026-09-02 (supervisor, a5cdc95): RULE 4 `~PXY` MATCH - RunnerLib Resolve-MarkingKey maps
    the init <Name> to the unique `<name>~<tag>` marking; replayed 3/3 at 0.00 m, tagged and not.
 3. DONE 2026-09-02 (supervisor, a5cdc95): THE PRIVATE C2SIM SERVER `c2sim-server-vrf`

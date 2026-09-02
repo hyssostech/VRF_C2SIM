@@ -24,7 +24,9 @@ Definitions, taken from the two sec 7s:
   pole-only     distinct POS uuids that are never ever-real. The pole placeholder is
                 (+/-90, -90): the SIGN of the latitude varies, and a filter that tests
                 only +90 miscounts by one object - this is what pinned the reconstruction
-                to the published 1,732 / 132 / 110.
+                to the published 1,732 / 132 / 110. A SECOND encoding of the same
+                placeholder, (0, -90, ~1.9e34 m), appears from run A-1 on; it is filtered
+                by |alt| > 1e8 m (see object_census).
 """
 
 import argparse
@@ -111,6 +113,20 @@ def object_census(path):
             except ValueError:
                 continue
             if abs(abs(flat) - 90.0) < 1e-6 and abs(flon + 90.0) < 1e-6:
+                pole.add(uuid)
+                continue
+            # SECOND placeholder encoding (supervisor, 2026-09-02, pair A-1/A-2): the same
+            # not-yet-positioned object that reads NaN,-90,NaN in the -q run reads
+            # 0.000000,-90.000000,1.9e34 in A-1 - an ECEF garbage point, not a fix. The -q
+            # comparator already carried 156 such lines; A-1/A-2 carry ~30k and NO NaN form.
+            # Filtering it restores everReal = 1,732 EXACT on all four scale runs. An
+            # altitude of 1e5 km is unreachable by anything we task; the lat/lon test is
+            # NOT used because (0,-90) is a real point in the Pacific.
+            try:
+                falt = float(alt)
+            except ValueError:
+                continue
+            if abs(falt) > 1.0e8:
                 pole.add(uuid)
             else:
                 real.add(uuid)
