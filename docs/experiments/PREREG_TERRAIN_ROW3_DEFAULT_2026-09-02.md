@@ -73,9 +73,9 @@ run (docs/OPUS_EXECUTION_PLAN.md:1590, verified as the single value-bearing mark
 runner consumes 7 numbers and advances the marker itself, so expected wasValue 3711 /
 newValue 3718, appNos 3711-3717.
 
-PREREG COMMIT: the predictions below were registered in a commit made BEFORE launch; that
-hash is recorded in the line immediately following this one, added in the next commit, and
-nothing in sections 1-5 changed after it.
+PREREG COMMIT: the predictions below were registered in commit 4682063 BEFORE launch. This
+line is the only content added afterwards (in the immediately following commit); nothing in
+sections 1-5 changed after 4682063, which is what the hash attests.
 
 ## 3. Pre-launch inventory (must hold, else STOP - never kill)
 
