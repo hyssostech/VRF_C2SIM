@@ -1461,6 +1461,12 @@ public sealed class VrfC2SimService : BackgroundService
             return;
         }
         var samples = e.Samples ?? new List<TerrainHeightSample>();
+        // Reply SHAPE at Information level: ROW2R (run 20260902T101431Z) could not tell "the back
+        // end sent one sample" from "the facade read one sample" because this was Debug-only.
+        _log.LogInformation("Terrain profile reply {Id}: {N} sample(s) [{Shape}].", e.RequestId, samples.Count,
+                            string.Join(" ", samples.Select(x => x.Valid
+                                ? FormattableString.Invariant($"#{x.Index}:{x.LatDeg:F5},{x.LonDeg:F5},{x.TerrainAltMeters:F1}")
+                                : $"#{x.Index}:none")));
         _tickActions.Enqueue(() => pending.Continue(samples));
     }
 

@@ -291,9 +291,16 @@ static void objectConsoleMessageTrampoline(const DtUUID& id, int notifyLevel,
 // delivered message is a DtSimInterfaceMessage carrying a
 // DtIfIntersectionInformationResponse; the type() check guards the static_cast. Points are
 // GEOCENTRIC (ifIntersectionInformationResponse.h:20) -> geodetic like TryGetEntityGeodetic.
-// Each inner vector answers one request point: EMPTY = no terrain data for it (:136-138);
-// otherwise userData is the request point index (ifRequestTerrainProfileInformation.h:46-48;
-// falls back to the position when unparsable). usr = this facade.
+// The reply is a vector of SETS, each set a vector of DtIntersectionInformation. The header
+// speaks of "one set of response for each pair" for the general intersection request
+// (:137-139); for the PROFILE request the back end keeps ONE result per request POINT
+// (terrainProfileRequestManager.h:107-121, Results = map<int, Result>) and the header
+// says userData carries the request point index (ifRequestTerrainProfileInformation.h:46-48).
+// How those results are packed into sets is NOT documented, and run 20260902T101431Z
+// (ROW2R) showed that reading only entry [0] of each set yields vertex 0 alone. So: walk
+// EVERY entry of EVERY set; index = userData when it parses, else a running count over the
+// flattened entries. An EMPTY set = no terrain data for that set index (:136-138), kept as
+// an invalid sample so the caller sees the gap. usr = this facade.
 static void terrainProfileTrampoline(DtSimMessage* msg, void* usr) {
     VrfFacade* self = static_cast<VrfFacade*>(usr);
     if (!self || !msg || !self->OnTerrainProfile) return;
@@ -307,11 +314,18 @@ static void terrainProfileTrampoline(DtSimMessage* msg, void* usr) {
     ev.complete = resp->complete();
     const DtIfIntersectionInformationResponse::IntersectionPairInformation& pairs =
         resp->intersectionPairInformation();
+    int running = 0;
     for (size_t i = 0; i < pairs.size(); ++i) {
-        TerrainSample s;
-        s.index = (int)i;
-        if (!pairs[i].empty()) {
-            const DtIntersectionInformation& info = pairs[i][0];
+        if (pairs[i].empty()) {
+            TerrainSample gap;
+            gap.index = (int)i;
+            ev.samples.push_back(gap);
+            continue;
+        }
+        for (size_t j = 0; j < pairs[i].size(); ++j, ++running) {
+            const DtIntersectionInformation& info = pairs[i][j];
+            TerrainSample s;
+            s.index = running;
             const char* ud = info.userData().string();
             if (ud && *ud) {
                 char* end = nullptr;
@@ -324,8 +338,8 @@ static void terrainProfileTrampoline(DtSimMessage* msg, void* usr) {
             s.point.lonDeg = geod.lon() * kDegRadFactor;
             s.point.altMeters = geod.alt();
             s.valid = true;
+            ev.samples.push_back(s);
         }
-        ev.samples.push_back(s);
     }
     self->OnTerrainProfile(ev);
 }
