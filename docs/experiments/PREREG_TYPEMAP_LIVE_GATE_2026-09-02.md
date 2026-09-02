@@ -279,10 +279,236 @@ by line. It would NOT close the PRC refusal (gate run 3, not run here), the sec 
 queue, or the second-hand function-ID decodes (survey 11.5 R3). And it would NOT close the
 2026-07-15 formation observation on formation evidence, for the reason P6 states.
 
-## 7. OUTCOME
+## 7. OUTCOME - run 20260902T193508Z_run, appNos 3775-3781, adjudicated from run-directory artifacts
 
-(written after the run, from the run-directory artifacts only)
+### VERDICT
+
+**THE GATE PASSES. ALL SIX UNITS LANDED EXACTLY THE TEMPLATE `data/unit-type-map.json` NAMES.**
+The static best-match method PREDICTS LIVE CREATION on this install. The gate's deliverable list -
+"for every row whose live landing differs from the table, the row id, the objectType we sent, and
+the model the back end actually built" - is **EMPTY**. P1 through P7 all pass; no registered
+falsifier fired, and none of the gate doc's seven falsifiers fired either.
+
+TWO THINGS THE RUN FOUND THAT WERE NOT REGISTERED, both recorded rather than absorbed:
+  **(A) THE `~PXY` MARKING TAG BREAKS THE RUNNER'S RULE-4 EVIDENCE GATE.** Not the app's tasking -
+  that is clean (0 `DROPPING TASK`, 3/3 TASKCMPLT, all three taskees moved), exactly as sec 4's
+  source reading predicted. It is `scripts/RunC2SimScenario.ps1`'s `-StopWhenComplete` rule 4,
+  which matches the C2SIM taskee NAME against the trace's TSK **marking**. The trace records
+  `TSK,50.1,"1.BdeHQ~PXY"` and `TSK,115.6,"114.MechCoy~PXY"` while the runner looks for
+  `1.BdeHQ` and `114.MechCoy`; `1222.MechPlt` (EXACT, untagged) matched fine. So the window never
+  closed early and ran its full 1800 s WALL cap. MY sec-4 ANALYSIS TRACED THE APP'S KEY CHAIN AND
+  NOT THE RUNNER'S - that is the gap, and it is mine.
+  **(B) A FOREIGN C2SIM INITIALIZATION LANDED ON THE SHARED SERVER MID-WINDOW**, 23 minutes after
+  every piece of gate evidence was already collected, and the runner correctly flagged the run
+  NOT VALID under 4a.6. See "THE VALIDITY FLAG" below for exactly what it does and does not touch.
+  **(A) CAUSED THE EXPOSURE TO (B):** had rule 4 matched, the window would have closed at ~t+126 s
+  and this run would have been over long before the foreign init arrived.
+
+### RUN FACTS
+
+Run dir `runs/20260902T193508Z_run`. appNumbers 3775-3781; ledger `wasValue` 3775 -> `newValue`
+3782, `advanced` true; 3781 (createOneDiag) UNCONSUMED. `runnerExitCode` **0**; every stage exit 0.
+`Get-ChildItem env:Vrf__*` = `Vrf__TypeMappingMode=FidelityTable` before, **0** after. App log 142
+lines (control: 103 - the extra are the 6 TYPE MAP lines, the proxy-substitution line, the mode
+line, and the foreign-init block). Vendor log 109,378 lines.
+
+**THE PRE-FLIGHT HELD LIVE:** the app's own first log line reads `Type-mapping mode =
+FidelityTable (123 rows from C:\...\VRF_C2SIM\data\unit-type-map.json); FriendlyNation=USA,
+OpposingNation=RUS; SurfaceProxySubstitutions=True.` - the table resolved from cwd `bin64` by the
+parent walk, exactly as sec 5 registered, and the JC-2 pre-flight passed (`REFUSING TO START` 0).
+
+### P1 - THE SIX CREATION LINES. **PASS, all six, EXACT.**
+
+`bin64-vrfSim.log`, the back end naming the `.entity` file it resolved:
+
+| unit (as created) | template the BACK END built | table says | row | key |
+|---|---|---|---|---|
+| `1141.MechPlt` | EntityLevel/**Mechanized Platoon (USA) IFV (Deprecated)** | same | F-UCIZ-D | **(a)** |
+| `1142.MechPlt` | EntityLevel/**Mechanized Platoon (USA) IFV (Deprecated)** | same | F-UCIZ-D | **(a)** |
+| `1143.MechPlt` | EntityLevel/**Mechanized Platoon (USA) IFV (Deprecated)** | same | F-UCIZ-D | **(a)** |
+| `1222.MechPlt` | EntityLevel/**Mechanized Platoon (USA) IFV (Deprecated)** | same | F-UCIZ-D | **(b)** |
+| `114.MechCoy~PXY` | EntityLevel/**Mechanized Platoon (USA) IFV (Deprecated)** | same | F-UCIZ-E | **(b)** |
+| `1.BdeHQ~PXY` | EntityLevel/**M577A2_Command_Post** | same | F-UCIZ-H | **(b)** |
+
+Six of six. Against the control's Tank Platoon (USA) x4 / Tank Company (USA) / M1A2_Abrams_MBT -
+a wholesale change, so P3(c) is satisfied and the config demonstrably took effect.
+
+**THE SEC-3 DISCREPANCY IS RESOLVED, IN THE GATE DOC'S FAVOUR.** The gate doc said three units
+match on key (a) and three on the backstop; the survey's 11.3 dry-run table said key (b) for all
+six. The live `TYPE MAP` lines say the GATE DOC is right for `_NoComments`, verbatim:
+  `TYPE MAP Exact: 1141.MechPlt -> ... [init declared 3:11:1:225:3:4:0:0; honoured (JC-1).
+   row=F-UCIZ-D key=a:initSISOEntityType]`  (same for 1142, 1143)
+  `TYPE MAP Exact: 1222.MechPlt -> ... [init declared SISOEntityType 3:11:1:71:3:4:0:0, which NO
+   table row covers - coverage backstop engaged, using the SIDC-derived row instead (JC-1). ...]`
+  `TYPE MAP Proxy: 114.MechCoy~PXY -> ... [init declared 3:11:1:225:5:4:1:0, which NO table row
+   covers - coverage backstop engaged ...]`
+  `TYPE MAP Proxy: 1.BdeHQ~PXY -> M577A2_Command_Post (1.1.225.3.11.0.0) [init declared
+   3:11:1:153:5:4:0:0, which NO table row covers - coverage backstop engaged ...]`
+Note `1.BdeHQ`'s declared Country-153 type is Category **5**, confirming survey 11.4 finding 6's
+correction of sec 4.3 against the fixture. JC-1 fired on three units and its coverage BACKSTOP
+fired on three - both halves of the judgement call are exercised live for the first time.
+
+### P2 - NO GENERIC, NO EMPTY UNIT. PASS on all three.
+
+(a) Objects built from `Ground_Aggregate`: **0** (control: 0). Gate falsifier #2 did not fire.
+(b) The composition is real, and it is arithmetically exact. Full census, 125 distinct
+    locally-simulated objects (registered floor 30; control 62):
+      **5** Mechanized Platoon (USA) IFV (Deprecated)   **20** M2A2_Bradley_IFV
+      **15** Infantry Squad (USA) (Deprecated)          **30** US_Army_M16   **30** US_Army_AT4
+      1 M577A2_Command_Post, 13 base/Area, 7 base/Route, plus the four standing scenario objects.
+    Five mech platoons x (4 Bradleys + 3 squads) = **20 and 15, exactly**; fifteen squads x
+    (M16 + AT4) dismount pair = **30 and 30, exactly**. Not one zero-subordinate abstract. Gate
+    falsifier #3 did not fire. (The 13 `base/Area` objects are NOT ours - they are the foreign
+    init's objectives, see THE VALIDITY FLAG.)
+(c) `TYPE MAP AuthoredPending` / `Failed`: **0**. `Init dispatched: 6 units + 0 areas` - all six
+    created, none silently skipped. Gate falsifier #7 did not fire.
+
+### P3 - THE MODE TOOK EFFECT. PASS on all three.
+
+(a) The dispatch mode line reads `Type-mapping mode = FidelityTable (ground dispatch from
+    ...\data\unit-type-map.json; friendly=USA, opposing=RUS).` - not the control's sentence.
+(b) `TYPE MAP` lines: **exactly 6**, one per unit, each naming its row and key (quoted in P1).
+(c) The creation lines DIFFER wholesale from the control's. Gate falsifier #6 did not fire; the
+    VOID condition did not arise.
+
+### P4 - THE SUBSTITUTION SURFACES AND THE TAG FITS. PASS on all three.
+
+(a) `NameObservation` reports in `reports-captured.log`: **exactly 2** (control: 0), verbatim:
+      `<ActorReference>139aa71b-...</ActorReference> <Marking>114.MechCoy~PXY [Proxy: Mechanized
+       Platoon (USA) IFV (Deprecated) - mech-inf company: no composed Country-225 mech-inf COMPANY
+       exists; the IFV platoon is substituted (echelon Co -> Plt). ...]</Marking>
+       <Name>114.MechCoy</Name>`
+      `<ActorReference>670cfdb2-...</ActorReference> <Marking>1.BdeHQ~PXY [Proxy:
+       M577A2_Command_Post - brigade HQ: no Category-8 unit template exists; a single command-post
+       track is substituted (R9 1.BdeHQ).]</Marking> <Name>1.BdeHQ</Name>`
+    The DOCTRINAL name survives in `<Name>`, the simulation's label and the reason ride in
+    `<Marking>`. The app log's `2 PROXY substitution(s) surfaced to C2SIM (R-SURFACE-PROXY)` line
+    is present. R-SURFACE-PROXY works end to end.
+(b) `Proxy marking tag NOT appended`: **0**, as the sec-4 arithmetic said (15 and 11 characters
+    against the 34-character bound).
+(c) Both PROXY units were created under their TAGGED names and NEITHER is truncated anywhere in
+    the vendor log. Gate falsifier #4's first half did not fire.
+
+### P5 - TASKING RESOLVES AND THE UNITS MOVE. PASS on all three.
+
+(a) **3/3 TASKCMPLT** (control: 3), sent at app-log lines 98 / 102 / 106. `DROPPING TASK ... WAS
+    NOT CREATED`: **0**. Gate falsifier #4's second half did not fire - the tag does not break
+    tasking, which is what sec 4 predicted from the `plan.Name` / `e.Name` / `unit.Name` chain.
+    The three CreateRoute lines name the TAGGED units (`for 114.MechCoy~PXY`, `for 1.BdeHQ~PXY`)
+    and all three routes were created and moved-along.
+(b) `Can't find entity route`: **0** EXACT; ZERO 35-character cuts; 3 new-form route lines, 0 old.
+(c) All three taskees moved, net displacement from the trace (registered floor 100 m):
+      `1.BdeHQ~PXY` **1162.02 m** (control 1161.56) | `114.MechCoy~PXY` **635.59 m** (control
+      698.97) | `1222.MechPlt` **687.14 m** (control 1162.60), 690 POS samples each.
+    THE ENDPOINTS LEGITIMATELY DIFFER, as sec 6 P5(c) registered in advance: a Mechanized Platoon
+    IFV is not a Tank Platoon and a command-post track is not an MBT, so speeds and formations
+    differ. The command post, being a single entity in both configurations, matches the control
+    to within 0.5 m - which is the right control-within-a-control.
+
+### P6 - THE 2026-07-15 FALSIFIER. PASS as registered, with the limit I registered.
+
+`114.MechCoy~PXY` was built from `Mechanized Platoon (USA) IFV (Deprecated).entity`, a REAL
+COMPOSED template with 4 Bradleys and 3 squads. It is not `Ground_Aggregate` and it is not an
+empty abstract. Gate falsifier #5 did not fire in the form this run can test.
+AN EXTRA DATUM I DID NOT PREDICT: `invalid formation name` is **0** this run, against **1** in the
+control (`AR HQ Sec 1: Aggregate state has invalid formation name "column-left"`). The control's
+warning attaches to a Tank Headquarters Section, a SUBORDINATE that the Tank Company composition
+has and the Mechanized Platoon composition does not - so under FidelityTable the object that
+produced the warning is not created at all. That is consistent with the handoff's "the HQ-section
+formation-name warning is COSMETIC" and it further weakens the 2026-07-15 reading.
+**BUT I AM NOT CLOSING THE 2026-07-15 ITEM, exactly as sec 6 P6 said in advance.** The app makes
+no `RequestAvailableFormations` call on any run path, so the literal artefact - a formation LIST
+coming back all-lowercase - was not collected and cannot be claimed. What IS now established is
+the stronger and more useful thing: THE BACK END'S OWN CREATION LINE agrees with the static rule,
+in BOTH modes, for all six units. `docs/VRF_GROUND_TRUTH.md` 0.1.8 item 1 should be re-read
+against that, by someone who can issue the formation query.
+
+### P7 - HYGIENE AND MODE. PASS.
+
+(a) FFRTC mode check passes on the handoff's criterion: TEST A **2/2 = 100.0%** in {0.033, 0.034}
+    (>= 95%) AND TEST B **R = 0.9984** (>= 0.99), |resid| <= 0.0005 s 10/10 = 100%. THE SAMPLE IS
+    THIN AND I SAY SO: 36 stamped / 10 distinct sim stamps, against the control's 404 / 86,
+    because the app died at t+1447 s and most of the window has no moving units to stamp. The
+    criterion is met but on weak evidence; the slope, 5.6933, is not a registered threshold here.
+(b) Runner exit 0; all stages exit 0; no new .dmp (still ...-70668.dmp, 2026-09-02 06:00); the
+    fixture still hashes D27E540F8BCC...B0B9 and vrfSim.mtl still stamps 2026-09-01 14:32:14 -
+    **NOTHING WRITTEN UNDER C:\MAK**; RTI trio PIDs UNCHANGED (41336 / 224608 / 76620); no
+    VR-Forces process or observer remains; docker all Up.
+    POST-RUN SWEEP: `tools/ResetVrf 3782` with the RUNBOOK :1208-1215 environment - joined clean,
+    0 reflected, resigned cleanly, **exit 0**. LEDGER 3775 -> 3782 (7, runner) -> 3783 (1,
+    hand-taken, ledgered BEFORE the join).
+
+### THE VALIDITY FLAG - what the foreign init touched, and what it did not
+
+`[FAIL] VrfC2SimApp exited DURING the observation window with code 0` - the runner's 4a.6 validity
+rule, correctly applied. THE CAUSE IS EXTERNAL AND IT IS IN THE APP LOG. At ~t+1447 s the shared
+C2SIM server went `INITIALIZED -> UNINITIALIZED -> INITIALIZING`, and a 286,829-byte
+initialization arrived carrying **48 units with SystemName `[Not Set]`** and 13 areas named
+`LANCASTER__FRIENDLY_OBJECTIVE_LANCASTER`, `READING__...`, `BUFFALO__FRIENDLY_AREA_OF_OPERATIONS_
+BUFFALO`, `ATLANTA__...`. None of it is ours - our init is 12,574 bytes and 6 units, and the app
+logged `0 of 48 units matched Vrf:ClientId='STP'`, created nothing from it, ran its own cleanup
+(9 deletes, the same 9 as the control) and exited 0. The C2SIM docker stack is SHARED
+INFRASTRUCTURE (stp-server, c2sim_server4.8.4.9, stp-lt511 all Up); the objective-graphic names
+are STP-flavoured, so the most likely source is a co-tenant STP push. **It is a new class of
+contamination for this record: our appNo ledger and the VR-Forces federation are protected, the
+C2SIM SERVER IS NOT.**
+
+WHAT IT TOUCHED: the last ~6 minutes of a 30-minute window, the 13 stray `base/Area` objects in
+the census, and the run's formal validity.
+WHAT IT DID NOT TOUCH - and this is why the gate is adjudicable: every creation line, all six
+TYPE MAP lines, both NameObservation reports, all three CreateRoute/MoveAlongRoute lines and all
+3 TASKCMPLT were written in the first ~120 seconds, roughly **23 minutes before** the foreign init
+arrived. The evidence P1-P6 rest on predates the contamination and is timestamped.
+**I am reporting the gate as PASSED ON THAT EVIDENCE while stating the run is formally INVALID.**
+If the reviewer wants a formally-valid gate, the re-run is cheap (~5 minutes once rule 4 matches)
+and needs finding (A) fixed first.
+
+### ADVERSARIAL REVIEW
+
+THE STRONGEST COMPETING HYPOTHESIS: **the six creation lines agree with the table because the
+table was BUILT from the same catalog the back end reads, so this is a tautology, not a test.**
+That is a real worry and it is the reason the gate exists at all. It fails on the specifics: the
+static method is a best-match RULE (`ObjectTypeResolver`) applied OFFLINE to `.entity` files, and
+the vendor's live matcher is a different implementation reading the same data. Agreement is
+exactly what was in doubt - `VRF_GROUND_TRUTH` 0.1.8 item 1 is a recorded live observation that
+DISAGREED. Two further specifics make it a genuine test: the resolver's answer is not the only
+possible one at each objectType (sec 3.5's zero-subordinate abstracts and sec 3.6's defective
+templates are live alternatives the back end could have picked), and one row - F-UCIZ-H - sends a
+`1:1:...` INDIVIDUAL type where the other five send `3:11:...` aggregates, and the back end built
+a single entity for it. A tautology would not have those degrees of freedom.
+
+SECOND HYPOTHESIS: **the config did not take effect and I am reading the control.** Refuted three
+ways: the mode line names FidelityTable and the table's path, six TYPE MAP lines exist that the
+control does not have, and the creation lines are wholesale different (Mechanized Platoon IFV
+where the control has Tank Platoon; 20 Bradleys and 30 M16s where the control has 31 Abrams).
+
+THIRD: **the foreign init corrupted the evidence.** Addressed above on timestamps - 23 minutes of
+separation, and the app created nothing from it (`0 of 48 units matched`).
+
+UNEXPLAINED AND CARRIED FORWARD: (1) the SOURCE of the foreign init is inferred, not proven - it
+is STP-flavoured and the stack is shared, but I did not identify the pusher. (2) `114.MechCoy`
+moved 635.59 m against the control's 698.97 m on the same route; plausible for a different vehicle
+mix, not measured. Neither bears on the gate.
+
+### CONSEQUENCE - what is now true, and what is not
+
+TRUE: **the static best-match method predicts live creation** for the three rows this fixture
+exercises (F-UCIZ-D EXACT, F-UCIZ-E PROXY, F-UCIZ-H PROXY), across BOTH lookup keys, in both
+aggregate and individual form; R-SURFACE-PROXY surfaces substitutions in the marking AND the
+report stream without breaking tasking; and `FidelityTable` runs end to end.
+
+NOT TRUE YET, and none of it should be inferred from this run: 3 rows are not 123 - the gate's
+**run 4** (COA-STP1, 128 units, 28 EXACT / 100 PROXY) is what would test the rest, and gate
+**run 3** (OpposingNation=PRC must refuse to start) was not run. `FidelityTable` is NOT the
+default and making it one is a user decision on an artifact the user reviews line by line. The
+sec 7.4 authoring queue and the second-hand function-ID decodes (survey 11.5 R3) are untouched.
+
+BEFORE ANY FURTHER FidelityTable RUN, FIX FINDING (A): `-StopWhenComplete` rule 4 must resolve a
+taskee whose created-object marking carries the `~PXY` tag - match on the tag-stripped marking, or
+key rule 4 off the app log's TASKCMPLT taskee uuid rather than the trace's marking text. Until
+then every FidelityTable run burns its full `-RunSecs` cap and sits exposed on a shared bus.
 
 ## 8. REGISTRATION
 
-Sections 0-6B written and committed BEFORE launch. Commit hash stamped in sec 7.
+Sections 0-6B written and committed BEFORE launch as **1976ec1**. Sec 7 added after the run, from
+the run-directory artifacts only.
