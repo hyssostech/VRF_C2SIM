@@ -29,14 +29,14 @@ load-bearing claims against artifacts before trusting prose.
 - FFRTC IS NOT A SPEED LEVER AT SCALE - a 3.2-3.8x SLOWDOWN on COA-STP1 (0.2652, or 0.3140 with
   `-q`, vs 0.9995 variable-frame and 7.4-13.1 on the 3-unit R9 order). Do NOT budget a scale run
   as if FFRTC compresses.
-- Birth altitude, "nav data ruled out", the 10-char marking collision: docs/CORRECTIONS_LOG.md.
-  Every July FALSIFIED stamp is LAYER-RELATIVE (L9) - re-adjudicate before trusting it.
+- Birth altitude, "nav data ruled out", the 10-char marking collision: docs/CORRECTIONS_LOG.md;
+  every July FALSIFIED stamp is LAYER-RELATIVE (L9) - re-adjudicate before trusting it.
 
 ## THE STANDING RULE (user directive 2026-09-01, enforced)
-DOCUMENTATION FIRST for any issue: local help -> the PUBLIC Developer's Guide at
-docs.mak.com/api/vrforces{5.2,5.1.1,4.10}/classref/ -> internet research. A live probe is
-registrable ONLY after its prereg cites the documentation consulted. Two months of probing
-dissolved in one afternoon of reading (2026-09-01). VRF_GROUNDWORK_PLAN lessons L8-L10.
+DOCUMENTATION FIRST for any issue: local help + C:\MAK\vrforces5.0.2\doc\VRFUsersGuide.pdf -> the
+PUBLIC Developer's Guide at docs.mak.com/api/vrforces{5.2,5.1.1,4.10}/classref/ -> internet
+research. A live probe is registrable ONLY after its prereg cites the documentation consulted.
+Two months of probing dissolved in one afternoon of reading. VRF_GROUNDWORK_PLAN lessons L8-L10.
 
 ## ONE-LINE STATUS
 THE AGGREGATE FREEZE IS FIXED AND THE FIX HOLDS AT SCALE. Routes are addressed by their real
@@ -60,8 +60,7 @@ notifyLevel 3 / objectConsoleNotifyLevel 3 / enableLogFileTimestamps 1 (backup .
 KEEP: it is what made the freezes speak.
 
 ## FIXED-FRAME RUN-TO-COMPLETE - VALIDATED, BUT **NOT** A SPEED LEVER AT SCALE
-Records: PREREG_R9_FIXED_FRAME_RTC_2026-09-02.md sec 8 (2030ebd / c0e90b7, run 20260902T140808Z);
-PREREG_COASTP1_RUNG2_2026-09-02.md sec 7 (the scale measurement).
+Records: PREREG_R9_FIXED_FRAME_RTC_2026-09-02.md sec 8; PREREG_COASTP1_RUNG2 sec 7 (scale).
 THE RULE (revised 2026-09-02 by rung 2): FFRTC stays the default for REPEATABILITY and for
 time-managed HLA; TIMEMULTIPLIER STAYS 1x (multiplier and at-distance ladders remain WITHDRAWN;
 the scenario clock mode is the lever - Users Guide 3.4.3 / 7.6.1 / 12.2.1 + Table 17). But
