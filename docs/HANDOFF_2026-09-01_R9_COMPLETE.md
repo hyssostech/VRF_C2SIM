@@ -22,7 +22,8 @@ load-bearing claims against artifacts, not prose.
   ...\vrfSim\<Template>.entity` lines (PREREG_TYPEMAP_LIVE_GATE sec 7). Reopening evidence = a
   creation line naming a template the table does not.
 - The 2026-07-14 project-generated NavArea (120k tiles) WAS the 2026-07-15..2026-09-01 freeze; it
-  is in SharedData/16/latest/TerrainData/navData/_disabled_20260901/. KEEP DISABLED.
+  is in SharedData/16/latest/TerrainData/navData/_disabled_20260901/ (RESTORABLE). KEEP DISABLED
+  unless deliberately regenerating nav data.
 - The HQ-section formation-name warning is COSMETIC; the P2 aliases were reverted (P2c).
 - ROUTE-VERTEX ALTITUDE FRAME: TerrainProfile (terrain + 10 m) is the compiled DEFAULT, Live
   (+50 m) the fallback, Fixed100 a relic (DESIGN_TERRAIN_PROFILE_VERTICES_2026-09-01 sec 7).
@@ -92,12 +93,11 @@ EXERCISED by any order: PatrolRoute and PlanAndMoveTo.
 UNEXPLAINED, item 3 being the LIVE one: (1) pole-only objects were 132 (rung 2) / 110 (-q run),
 ever-real 1,732 in BOTH - **BUT BOTH QPAIR RUNS HAVE ZERO POLE AND ZERO NaN POS LINES, ever-real
 1,847 / 1,864, while `Created radio` stays 1,733 in ALL FOUR.** The observer now resolves
-everything; 1,732 was old-configuration residue - DO NOT REUSE IT AS A CHECK without a ruling
-(NEXT row 1); (2) cast-corrupted reflections 28 -> 58; (3) **THE THREE TANK COMPANIES ARE THE
-UNSTABLE CLASS** - rung 2 T27 1.80 / T35 2.85 km against six performers at 6.07-6.64 km; the -q
-run CLEARED T27 to 6.55 and STALLED T35 at 0.41 km with ZERO sub-routes; QPAIR A-1 stalled T35
-again (0 sub-routes, 0.37 km) and A-2, an IDENTICAL invocation, did not (4, 3.69 km). NEXT row 1.
-
+everything; 1,732 was old-configuration residue - DO NOT REUSE IT AS A CHECK (NEXT row 1);
+(2) cast-corrupted reflections 28 -> 58; (3) **THE THREE TANK COMPANIES ARE THE UNSTABLE CLASS** -
+rung 2 T27 1.80 / T35 2.85 km against six performers at 6.07-6.64 km; the -q run CLEARED T27 to
+6.55 and STALLED T35 at 0.41 km with ZERO sub-routes; QPAIR A-1 stalled T35 again (0, 0.37 km) and
+A-2, an IDENTICAL invocation, did not (4, 3.69 km). NEXT row 1.
 ## OPERATIONAL STATE (2026-09-02, after the TWO no-`-q` COA-STP1 runs of the QPAIR probe)
 VR-FORCES DOWN (StopVrf exit 0, graceful, RTI preserved); BOTH post-run ResetVrf sweeps (3790,
 3798) joined clean, 0 reflected, exit 0, with the :1206-1215 environment. appNo marker
@@ -138,13 +138,12 @@ DONE 2026-09-02 pm, three probes; READ THE PREREG SEC 7s, NOT THIS SUMMARY:
    runs are DISCARDED on instrument checks and NOT adjudicated; **RUN B (WITH -q) IS OWED.**
    THE RULING, one question: RETIRE OR RE-BASELINE two checks that describe the pre-a5cdc95
    configuration, not this one - (a) "1,732 ever-real objects", now unreachable (zero pole/NaN
-   lines; ever-real 1,847 / 1,864 while `Created radio` is 1,733 in all four runs); (b) a
-   distance band divided by an unbounded LS slope (A-2 fit sd 5.54 vs A-1 1.79; the fit-free
-   report count says both delivered the SAME sim time, 1,664 reports each). AN EXECUTOR MUST NOT
-   RETIRE A CHECK THE TASKING NAMED, ON RUNS THAT FAILED IT.
-   NOT ADJUDICATED, artifact content only: A-1 and A-2 are identical invocations and DISAGREE -
-   B/5-20 0 sub-routes / 0.37 km vs 4 / 3.69 km, `-q` ABSENT from both. If the checks are ruled
-   inapplicable that falsifies "-q caused it" WITHOUT run B. -q stays unadopted.
+   lines; ever-real 1,847 / 1,864 while `Created radio` is 1,733 in all four runs); (b) a distance
+   band divided by an unbounded LS slope (A-2 fit sd 5.54 vs A-1 1.79; the fit-free report count
+   says both delivered the SAME sim time, 1,664 each). AN EXECUTOR MUST NOT RETIRE A CHECK THE
+   TASKING NAMED, ON RUNS THAT FAILED IT. NOT ADJUDICATED, artifact content only: A-1 and A-2 are
+   identical invocations and DISAGREE - B/5-20 0 sub-routes / 0.37 km vs 4 / 3.69 km, `-q` ABSENT
+   from both; if the checks are ruled inapplicable that falsifies "-q caused it" WITHOUT run B.
 2. DONE 2026-09-02 (supervisor, a5cdc95): RULE 4 `~PXY` MATCH - RunnerLib Resolve-MarkingKey maps
    the init <Name> to the unique `<name>~<tag>` marking; replayed 3/3 at 0.00 m, tagged and not.
 3. DONE 2026-09-02 (supervisor, a5cdc95): THE PRIVATE C2SIM SERVER `c2sim-server-vrf`
@@ -159,7 +158,7 @@ DONE 2026-09-02 pm, three probes; READ THE PREREG SEC 7s, NOT THIS SUMMARY:
 5. A COMPLETION-CAPABLE SCALE RUN. No COA-STP1 run has reached a route end: shortest head route
    24.11 km, best ever 26.84 km. Pick the mode from the FFRTC block, budget wall = sim / ratio.
 6. TYPE_GAP ITEM 4 - the echelon-'F' -> Ground_Aggregate fallback needs a USER RULING
-   (docs/TYPE_GAP_ADJUDICATION.md item 4). Not a movement cause.
+   (docs/TYPE_GAP_ADJUDICATION.md item 4); not a movement cause.
 7. MAK MESSAGE - docs/MAK_MESSAGE_2026-09-02.md is send-ready and THE USER SENDS IT. *** ITS
    APPENDED DtUUID ROUTE-NAME-LENGTH DRAFT IS STALE AND MUST NOT BE SENT AS A DEFECT REPORT: the
    cause was OUR contract violation (rwUUID.h:246-253; fix 726f762). REWRITE OR DROP IT. ***
@@ -174,11 +173,12 @@ authoring anything (PRIOR_ART Q1), and RE-RUN --typemap-selftest against the 5.2
 (b) 5.2's "ground path planning enhanced with vector-based terrain data" touches today's
 route/clamp machinery AND the NEXT-row-1 distribution question - re-run R9 on 5.2b and
 RE-ADJUDICATE before trusting any 5.0.2-era behavioural conclusion; (c) migrate local state
-DELIBERATELY: vrfSim.mtl notify levels, the DISABLED NavArea artifact, the FFRTC fixture, env
-paths pinned to vrforces5.0.2, a VrfBridge /t:Rebuild + 10-copy redeploy; (d) read
-docs.mak.com/api/vrforces5.2/classref/vrf_migration5{0,1}.html FIRST; (e) 5.2 docs are REAL in
-C:\MAK\vrforces5.2d\doc; (f) makData 19 DROPPED `MAK Earth Space (online)`, every fixture's
-terrain - re-point (ASSESSMENT open q6).
+DELIBERATELY: vrfSim.mtl notify levels, the DISABLED NavArea artifact (do NOT carry it into 5.2's
+SharedData), the FFRTC fixture, env paths pinned to vrforces5.0.2, a VrfBridge /t:Rebuild +
+10-copy redeploy; (d) read docs.mak.com/api/vrforces5.2/classref/vrf_migration5{0,1}.html FIRST;
+(e) 5.2 docs are REAL in C:\MAK\vrforces5.2d\doc (incl. Model Catalog; PDBs in bin64); (f) makData
+19 DROPPED `MAK Earth Space (online)` - every fixture's terrain - re-point needed (ASSESSMENT
+sec 1 evening update, open q6).
 
 ## PROBE PROTOCOL (adopted 2026-09-01/02; do NOT change mid-protocol)
 FFRTC mode per the block above; TimeMultiplier 1x; -RunSecs is a CAP under -StopWhenComplete.
