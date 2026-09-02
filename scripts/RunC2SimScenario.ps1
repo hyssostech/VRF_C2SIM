@@ -226,6 +226,12 @@ param(
     [string] $RtiDir     = 'C:\MAK\makRti4.6.1',
     [string] $Federation = 'CWIX-2024',
 
+    # Pass -q | --doNotUseConsole to the back end (LaunchVrf.ps1 -QuietBackend). DEFAULT OFF,
+    # so every existing command line and every run in the record keeps its console. Per the
+    # Users Guide (Table 8 p.177) this sends back-end output to the LOG FILE instead of the
+    # console; it does NOT suppress vrfSim.log (sec 4.9 p.161). Recorded in the manifest.
+    [switch] $QuietBackend,
+
     # C2SIM endpoints. NOTE: these reach PushInit / PushOrder / StopIface ONLY.
     # tools/ListenReports HARDCODES localhost (ListenReports/Program.cs:85-87) and
     # takes no endpoint argument - see the KNOWN TOOL LIMITATIONS block below.
@@ -1184,6 +1190,7 @@ $Manifest.inputs.order         = (Resolve-Path -LiteralPath $Order).Path
 $Manifest.inputs.runSecs       = $RunSecs
 $Manifest.inputs.sampleSecs    = $SampleSecs
 $Manifest.inputs.scenario      = $Scenario
+$Manifest.inputs.quietBackend  = [bool]$QuietBackend
 $Manifest.inputs.federation    = $Federation
 $Manifest.inputs.restUrl       = $RestUrl
 $Manifest.inputs.stompUrl      = $StompUrl
@@ -1747,6 +1754,9 @@ try {
         '-BackendAppNumber',  [string]$AppNo['vrfBackend'],
         '-FrontendAppNumber', [string]$AppNo['vrfFrontend']
     )
+    # -q | --doNotUseConsole for the back end. Off by default; see the -QuietBackend
+    # note in the param block. Recorded in the manifest as inputs.quietBackend either way.
+    if ($QuietBackend) { $launchArgs += '-QuietBackend' }
     # THIS IS THE STAGE THAT DEADLOCKED THE RUNNER FOR 47 MINUTES ON 2026-07-19.
     # LaunchVrf's pwsh exits in ~35-60 s, but vrfGui and vrfSimHLA1516e are its
     # DESCENDANTS and are MEANT to keep running. Invoke-External now waits for the

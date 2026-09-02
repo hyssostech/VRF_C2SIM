@@ -124,6 +124,19 @@ param(
     [switch] $AllowExistingRtiAssistant,
     [switch] $AllowExistingVrf,
     [switch] $AcceptCrashRisk,
+    # QUIET BACK END (2026-09-02, default OFF). Adds `-q` to the back-end's --simArgs.
+    # Users Guide Table 8 p.177: "(-q | --doNotUseConsole) Specifies that all vrfSim output
+    # go to the log file rather than the console (quiet mode). If you are using a high level
+    # of notification, sending output to the console can degrade performance. Running in
+    # quiet mode prevents this degradation. This command only applies to back-ends running
+    # on Windows." IT DOES NOT SUPPRESS THE LOG FILE: sec 4.9 p.161 says Windows creates
+    # vrfSim.log unconditionally, and the equivalent vrfSim.mtl parameter is documented
+    # (App. C.1 Table 71 p.1663) as "Disables (1) or enables (0) writing of output to the
+    # CONSOLE". We run notifyLevel 3 (verbose, 5.4.3 p.185) and vrfSimHLA1516e.exe is a
+    # console-subsystem binary given its own window by Start-Process below, so this is the
+    # exact configuration the doc's performance note is about. DEFAULT OFF: every run in the
+    # record so far was made with the console on, and the switch keeps them comparable.
+    [switch] $QuietBackend,
     [switch] $DryRun
 )
 
@@ -341,6 +354,9 @@ Say-Head 'Resolved vrfLauncher command line'
 $q = [char]34   # double quote
 
 $simBlock = @('--appNumber', "$BackendAppNumber")
+# -q | --doNotUseConsole (Users Guide Table 8 p.177). Off unless asked for; see the
+# -QuietBackend note in the param block for why, and for why it does NOT touch vrfSim.log.
+if ($QuietBackend) { $simBlock += '-q' }
 if (-not $NoScenario) { $simBlock += @('--scenarioFileName', ($q + $scenarioRel + $q)) }
 $guiBlock = @('--appNumber', "$FrontendAppNumber")
 $profArg  = @('--usePredefinedConnection', ($q + $ConnectionProfile + $q))
