@@ -597,7 +597,18 @@ Also superseded: an earlier version of this section presented
 against it is RESOLVED: under the correct connection the 0.4 gate passed twice
 (3489/3490), discovering the 2 TropicTortoise baseline objects.
 
-### 0.5.11 THE RUNNER - turnaround switches (added 2026-09-01, PENDING CONFIRMING RUN)
+### 0.5.11 THE RUNNER - turnaround switches (added 2026-09-01; CONFIRMED 2026-09-02 by run 20260901T235823Z)
+
+MEASURED (docs/experiments/PREREG_RUNNER_CONFIRM_2026-09-01.md sec 6): R9 at 1x with
+`-RunSecs 420 -StopWhenComplete` ran start -> manifest in 7 min 9 s (P2c 26 min 23 s);
+setup 2.4 / window 4.1 / tail 0.6 min; 3/3 TASKCMPLT at the P2c offsets (+117.2 /
++129.2 / +183.7 s); both observers took the stop-file path and exited ~2 s after the
+touch, before StopVrf; RTI trio untouched. ONE CAVEAT: with SettleHoldSecs 60 (== the
+~60 s VR-Forces text-report cadence) the last report round can be cut mid-emission by
+StopIface, so the company's LAST RPT line predates its completion (11.8 m from the POS
+final; POS itself matched P2c to 0.00 m). Do NOT use a -StopWhenComplete run for
+POS==RPT adjudication until the hold rule is revised (supervisor decision pending);
+fixed-window runs are unaffected.
 
 scripts/RunC2SimScenario.ps1 is the one-button run (HEADLESS_RUN_PLAN sec 2). Two
 turnaround changes landed on branch runner-turnaround; full design, alternatives

@@ -85,28 +85,31 @@ vrfSim.mtl: notifyLevel 3 / objectConsoleNotifyLevel 3 / enableLogFileTimestamps
    (REVIEW_P3 h1 odds lowered, h2 favoured, n=2). PROBE RUNS STAY AT 1x until the
    user rules otherwise; 5x remains NECESSARY for COA-STP1 scale (13-40 km routes).
    Keep ONE canonical-length 1x run per milestone for comparability with the record.
-   (d) RUNNER TURNAROUND - IMPLEMENTED OFFLINE, PENDING CONFIRMING RUN (branch
-   runner-turnaround MERGED to main 2026-09-01 with review fixes F1-F5;
-   docs/RUNNER_TURNAROUND_2026-09-01.md, RUNBOOK 0.5.11): the WatchVrf/ListenReports
-   trace now ends with the window via a
+   (d) RUNNER TURNAROUND - MERGED (3e19c88, review fixes F1-F5) and CONFIRMED by run
+   20260901T235823Z (docs/experiments/PREREG_RUNNER_CONFIRM_2026-09-01.md sec 6): 7 min
+   9 s start -> manifest vs P2c 26 min 23 s; 3/3 TASKCMPLT at P2c offsets; stop-file
+   path taken by both observers, RTI untouched. ONE MISS to rule on: SettleHoldSecs 60
+   equals the ~60 s text-report cadence, so StopIface cut the last report round
+   mid-emission and the company's last RPT predates its completion (POS endpoint itself
+   0.00 m from P2c). Options (need a prereg): SettleHoldSecs >= 90, or hold until every
+   taskee has a post-completion RPT. Until ruled, -StopWhenComplete runs are NOT valid
+   for POS==RPT adjudication. Design (docs/RUNNER_TURNAROUND_2026-09-01.md, RUNBOOK
+   0.5.11): the WatchVrf/ListenReports trace now ends with the window via a
    stop-file the runner touches at StopIface + Trail (removes the measured 8 min 21 s
    dead time per run; tools take their normal resign/disconnect path, nothing killed;
    capability-probed so an old deployed binary falls back to the record's
    behaviour), and an OFF-by-default `-StopWhenComplete` closes the window once every
-   taskee has TASKCMPLT + `-SettleHoldSecs` 60 (RunSecs stays the cap). To confirm:
-   merge, rebuild + redeploy WatchVrf and ListenReports, run R9 at 1x with the
-   defaults, check the design note sec 4 list; a missing `# STOP requested via
-   stop-file` line or a stale federate on the next launch is a STOP.
+   taskee has TASKCMPLT + `-SettleHoldSecs` 60 (RunSecs stays the cap).
 6. Backlog unchanged: remaining type adjudications (54 units - but see item 4a first),
    task vocabulary, completion re-keying, scoring (Phase 5).
 
-## OPERATIONAL STATE (end of 2026-09-01 session)
-VR-Forces DOWN (second StopVrf pass exit 0; the first left vrfGui - the known
-intermittent GUI-quit failure; nothing was killed). RTI RESIDENT + ANSWERED
-(rtiAssistant 41336 / rtiexec 224608 / rtiForwarder 76620 at last inventory - inventory
-fresh at start, do not trust PIDs). C2SIM docker UP. appNo marker NEXT FREE = 3662
-(runs today consumed 3606-3661; P3 = 3648-3654, P3R = 3655-3661). All work committed +
-pushed (see git log).
+## OPERATIONAL STATE (2026-09-02 00:15Z, after the runner-confirm run)
+VR-Forces DOWN (run 20260901T235823Z StopVrf exit 0 first pass; post-run inventory
+clean; nothing was killed). RTI RESIDENT + ANSWERED (rtiAssistant 41336 / rtiexec
+224608 / rtiForwarder 76620 - unchanged across the run; inventory fresh at start, do
+not trust PIDs). No WatchVrf / ListenReports / VrfC2SimApp left. C2SIM docker UP. appNo
+marker NEXT FREE = 3669 (runner-managed; 2026-09-01 consumed 3606-3668; P3 = 3648-3654,
+P3R = 3655-3661, runner-confirm = 3662-3668). All work committed + pushed (see git log).
 
 ## NON-NEGOTIABLES (unchanged plus the docs-first rule above)
 One variable per probe; prediction + falsifier + DOC CITATIONS before running; movement

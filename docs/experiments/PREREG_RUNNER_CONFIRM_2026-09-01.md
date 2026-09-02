@@ -81,6 +81,56 @@ name -> VRF_UUID from bin64-vrfSim.log "Locally Simulated: <name> (VRF_UUID:...)
 Wall-time and stage ordering from run-manifest.json clocks/stages. Process state from
 Get-Process after the runner exits.
 
-## 6. Outcome
+## 6. Outcome (written 2026-09-02 00:15Z from the artifacts, after the run)
 
-(to be written after the run - each prediction MET / MISSED with the artifact line)
+Run 20260901T235823Z (runs/20260901T235823Z_run), runner exit 0, appNos 3662-3668
+(ledger wasValue 3662 / newValue 3669 - as predicted). Pre-launch inventory held.
+
+A. COMPLETION - MET. reports-captured.log TASKCMPLT stamps 00:02:44.4 / 00:02:56.4 /
+   00:03:50.9 vs orderPushedUtc 00:00:47.172 = +117.2 / +129.2 / +183.7 s (P2c +117.2 /
+   +129.2 / +184.6; deltas 0.0 / 0.0 / -0.9 s). vrfc2simapp.log 3 TASKCMPLT lines;
+   manifest oracle.earlyExit.firstSeenUtc 00:02:47.8 / 00:02:57.9 / 00:03:53.1.
+B. ENDPOINTS - PARTIAL MISS (one gated item). POS finals: 1.BdeHQ 34.608416,-116.699996
+   (0.27 m from P2c); 114.MechCoy 34.653915,-116.693388 (0.00 m); 1222.MechPlt
+   34.612956,-116.587782 (0.18 m). Settled (<10 m over last 3 samples) true for all
+   three. Plateau onsets 147.6 / 218.8 / 161.7 s (P2c 147.8 / 217.3 / 160.1). POS==RPT:
+   1.BdeHQ 0.0 m, 1222.MechPlt 0.0 m, 114.MechCoy 11.79 m -> MISSED for the company.
+   The last company RPT is `RPT,213.3,"POSITION ""114.MechCoy"" 34.653809 -116.693388"`,
+   emitted 5 s BEFORE the company's own TASKCMPLT (t=217.8) while the center was still
+   closing (P2c's same-round report at 214.3 s read 34.653877, 4.2 m short, and the
+   NEXT round at 275.3 s read the final). VR-Forces text reports come in ~60 s rounds
+   (~44 POSITION lines spread over ~10 s); in this run the last round started at
+   t=267.4 and had emitted 20 of ~44 lines when StopIface fired at t=278.0 (00:04:53.3)
+   - the company's line of that round had not come yet. Ground truth (POS) puts the
+   company at the P2c endpoint; the RPT side is a report that was never emitted before
+   teardown, not a wrong report. Per sec 4 this is a STOP: no re-run, no retune here.
+   Cause claim and remedy are for the supervisor - see the note below.
+C. EARLY EXIT - MET. oracle.earlyExit.fired true (allCompleteUtc 00:03:53.062, closedUtc
+   00:04:53.292, windowSecsUsed 215.8 of 420); clocks.traceStopRequestedUtc
+   00:05:23.961Z; watchvrf-trace.csv ends `# STOP requested via stop-file at t=305.2s
+   (duration cap was 980s)` / `[..] bridge.Stop() - resigning...` / `[OK] resigned
+   cleanly.`; listenreports.stdout.log `stop requested via stop-file at t=308.6s
+   (duration cap was 980s) - disconnecting` then `captured 29 reports -> ...
+   reports-captured.log`; stages WatchVrf-trace exit 0 ended 00:05:25.915, ListenReports
+   exit 0 ended 00:05:25.917, StopVrf started 00:05:25.955 (both observers ended ~2 s
+   after the touch and BEFORE StopVrf); no `[WARN]` line anywhere in the console log
+   (the F1 cap-wait path did not fire).
+D. WALL TIME - MET. startUtc 23:58:23.020 -> savedUtc 00:05:31.987 = 7 min 9 s
+   (design ~7.5 min, budget 12). Breakdown: setup 144.2 s (2.4 min) / window 246.1 s
+   (4.1 min) / tail 38.7 s (0.6 min) vs P2c 2.4 / 15.5 / 8.4 min. Tail = StopIface ->
+   app exit 3.7 s + hold to StopIface+30 s + stop-file -> observers exit ~2 s + StopVrf
+   5.9 s + manifest.
+E. HYGIENE - MET. StopVrf exit 0; post-run inventory `no WatchVrf / ListenReports
+   observer remains`; Get-Process after the runner: only rtiAssistant 41336 / rtiexec
+   224608 / rtiForwarder 76620 (unchanged; manifest preflight.rtiInfra identical);
+   bin64-vrfSim.log 0 / 0 / 0 nav-route errors, 1 "invalid formation name" (baseline);
+   0 SocketException / "Only one usage" / "Connection error".
+
+VERDICT: the turnaround mechanism is confirmed (A, C, D, E all MET, F1-F5 paths behaved).
+The one miss is in the RPT half of B and is a WINDOW-LENGTH interaction, not a movement
+or interface defect: with SettleHoldSecs 60 equal to the ~60 s text-report cadence, the
+post-completion report round is only PARTLY inside the window (it takes ~10 s to emit
+and StopIface can land mid-round). NOT verified here (single run, n=1): that a longer
+hold (>= 90 s) or a "hold until every taskee has a post-completion RPT" rule closes the
+gap - that is a design change and needs its own prereg. Until ruled on, -StopWhenComplete
+runs cannot be used for POS==RPT adjudication; the POS side is unaffected.

@@ -164,7 +164,18 @@ closedUtc, windowSecsUsed, completionLinesSeen.
 | **P2c-shaped run, RunSecs 900** | **26 min 23 s** | **~18 min 33 s** | **~7 min 34 s** |
 | **P3-shaped run, RunSecs 420** | **18 min 24 s** | **~10 min 33 s** | ran to cap (2/3): ~10 min 33 s |
 
-The "after" column is a prediction, not a measurement: the confirming run must show
+MEASURED 2026-09-02 (run 20260901T235823Z, R9 1x, -RunSecs 420 -StopWhenComplete,
+docs/experiments/PREREG_RUNNER_CONFIRM_2026-09-01.md sec 6): start -> window open
+144 s; window 246 s (all-complete at +186 s + 60 s hold); window end -> observers end
+33 s; observers end -> manifest 6 s; TOTAL 7 min 9 s (predicted ~7 min 34 s). (a)-(d)
+below all held. One interaction found: SettleHoldSecs 60 equals the ~60 s VR-Forces
+text-report cadence, so the post-completion report round (~44 lines over ~10 s) was cut
+mid-emission by StopIface and the company's last RPT predates its completion - POS==RPT
+cannot be adjudicated from a -StopWhenComplete run until the hold rule is revised
+(supervisor decision; options: hold >= 90 s, or hold until every taskee has a
+post-completion RPT). POS endpoints matched P2c to 0.00-0.27 m.
+
+The "after" column was a prediction, since measured above: the confirming run must show
 (a) `# STOP requested via stop-file` in the WatchVrf trace followed by a clean
 resign line, (b) `stop requested via stop-file` in the ListenReports log and a
 written reports-captured.log, (c) WatchVrf-trace end within ~TrailSecs + a few
