@@ -242,6 +242,7 @@ authoritative sweep, RUNBOOK :1171-1185 - the runner does NOT run it), output re
 
 PREREG COMMIT: the predictions below are registered in the commit named on the last line of
 this file, BEFORE launch. That line is the only content added afterwards.
+REGISTERED IN COMMIT d1f2e10 (2026-09-02), before any process was launched.
 
 ## 3. Pre-launch inventory (VERIFIED 2026-09-02 before registration; must still hold, else STOP)
 
