@@ -506,8 +506,9 @@ push), runner and StopVrf exit 0, RTI PIDs 41336/224608/76620 unchanged, wall 7 
 Full record: docs/experiments/PREREG_TERRAIN_ROW2CR_REPEAT_2026-09-02.md sec 6. THE ROW 2
 QUESTION IS NOW CLOSED: checks 1, 2 and 3 all MET, mode functional, no movement cost.
 
-DEFAULT FLIP (2026-09-02, supervisor decision, commit recorded on the line below this
-paragraph after it was made). WHAT CHANGED: exactly one literal -
+DEFAULT FLIP (2026-09-02, supervisor decision, COMMIT 5b82e5f "TerrainProfile is the
+default GroundWaypointAltitudeMode (Rows 2c/2cR)"; this hash line is the only content
+added to this paragraph after that commit). WHAT CHANGED: exactly one literal -
 `VrfSettings.GroundWaypointAltitudeMode` default `"Live"` -> `"TerrainProfile"`, plus the
 comment blocks and the docs that asserted the old default. NO code path changed: Live's
 create-altitude arithmetic, groundWpAlt arithmetic, dispatch order and log lines are
