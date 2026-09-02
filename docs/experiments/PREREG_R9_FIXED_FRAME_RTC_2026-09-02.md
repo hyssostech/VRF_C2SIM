@@ -266,6 +266,11 @@ at that moment and consumes 7, so the expected block is 3725-3731 ONLY IF the ma
 says 3725 when you look; otherwise it is whatever the marker then says, +6. Record the actual
 wasValue/newValue from the manifest in sec 7.
 
+PREREG COMMIT: sections 0-7 below were registered in commit f1f0f38 BEFORE launch, together
+with the FixtureGen change and the fixture itself. This paragraph is the only content added
+afterwards (in the immediately following commit); nothing in sections 0-7 changed after
+f1f0f38, which is what the hash attests.
+
 PRE-LAUNCH INVENTORY (must hold, else STOP - never kill): the same gate Row 3 sec 3 states -
 no vrfSim* / vrfGui / vrfLauncher / WatchVrf / ListenReports / VrfC2SimApp process of any
 kind; the RTI trio present and its PIDs recorded; docker stp-server + c2sim_server healthy;
