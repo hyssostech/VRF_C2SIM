@@ -182,7 +182,7 @@ route/clamp machinery AND the NEXT-row-1 distribution question - re-run R9 on 5.
 RE-ADJUDICATE before trusting any 5.0.2-era behavioural conclusion; (c) migrate local state
 DELIBERATELY: vrfSim.mtl notify levels, the DISABLED NavArea artifact (do NOT carry it into 5.2's
 SharedData), the FFRTC fixture, env paths pinned to vrforces5.0.2, a VrfBridge /t:Rebuild +
-10-copy redeploy; (d) read docs.mak.com/api/vrforces5.2/classref/vrf_migration5{0,1}.html FIRST.
+10-copy redeploy; (d) read docs.mak.com/api/vrforces5.2/classref/vrf_migration5{0,1}.html FIRST; (e) the 5.2 Users Guide + Migration Guide PDFs are LOCAL in docs/vendor/mak-5.2/ (from docs.mak.com/support/, the public PDF library).
 
 ## PROBE PROTOCOL (adopted 2026-09-01/02; do NOT change mid-protocol)
 FFRTC mode per the block above; TimeMultiplier 1x; -RunSecs is a CAP under -StopWhenComplete.

@@ -8,7 +8,7 @@ Evidence convention: **VERIFIED** = read this pass from the named file/page. **I
 
 ## 0. What could NOT be read, and why
 
-VERIFIED: the 5.2d **documentation was not installed**. Every PDF in `C:\MAK\vrforces5.2d\doc` except `VRF5.2ReleaseNotes.pdf` is a 120,690-byte placeholder whose only page reads "Documentation Has Not Been Installed ... You must run the separate documentation installer" (`VRFMigrationGuide.pdf` p1; byte-identical for `MAK_ONE_Installation_Guide.pdf`, `MAK-One-Model-Catalog.pdf`, `VRFUsersGuide.pdf`, `AddingContent.pdf`, `MAKInteroperabilityGuide.pdf`, `VR-ForcesQuickReference.pdf`, `VR-ForcesFirstExperience.pdf`). `doc/classdoc/` and `doc/help/` hold one stub each. **Install `vrForces5.2.docu.exe` before migration work starts.**
+VERIFIED: the 5.2d **documentation was not installed**. Every PDF in `C:\MAK\vrforces5.2d\doc` except `VRF5.2ReleaseNotes.pdf` is a 120,690-byte placeholder whose only page reads "Documentation Has Not Been Installed ... You must run the separate documentation installer" (`VRFMigrationGuide.pdf` p1; byte-identical for `MAK_ONE_Installation_Guide.pdf`, `MAK-One-Model-Catalog.pdf`, `VRFUsersGuide.pdf`, `AddingContent.pdf`, `MAKInteroperabilityGuide.pdf`, `VR-ForcesQuickReference.pdf`, `VR-ForcesFirstExperience.pdf`). `doc/classdoc/` and `doc/help/` hold one stub each. CORRECTION 2026-09-02: the missing PDFs are PUBLIC at `https://docs.mak.com/support/` (VR-Forces_5.2_Users_Guide.pdf 1,806 pp, First_Experience_Guide, Migration_Guide, Quick_Reference_Card, Release_Notes; latest Entity Catalog online is 5.1.1) - fetched into `docs/vendor/mak-5.2/` (git-ignored, README lists the URLs). `vrForces5.2.docu.exe` was an INVENTED filename, never a vendor artifact.
 
 Substitutes used: the real 84-page release notes; the online class reference at docs.mak.com (`vrf_migration50/51/52.html`); the 5.0.2 PDFs for baseline text; and the installed 5.2 headers and data files (primary sources, stronger than prose for API and catalog questions). `https://mak.com/mak-one-installation-guide` and `https://www.mak.com/support/product-versions` returned no usable body (the latter is now a "Support Pages Have Moved" notice), so section 1 rests on release-note text plus on-disk package metadata.
 
@@ -192,7 +192,7 @@ Each row names what must be *re-verified on 5.2*, not merely ported.
 
 | # | step | gate | why |
 |---|---|---|---|
-| 1 | Install `vrForces5.2.docu.exe` (user + developer docs) | - | sec 0: Migration Guide, Users Guide and Model Catalog are stubs; every prose claim here is second-hand until they exist |
+| 1 | DONE 2026-09-02: 5.2 Users Guide / Migration Guide / First Experience / Quick Ref / Release Notes fetched from docs.mak.com/support into `docs/vendor/mak-5.2/` | - | sec 0: re-verify this document's prose claims against the real Migration Guide + Users Guide before step 4 |
 | 2 | Commit `C2simEx` (SMS + directory) into this repo from the 5.0.2 install | - | sec 4.1: a single unversioned copy; losing it loses the fixture |
 | 3 | Renew / confirm the licence | **SPEND** | expires 15-sep-2026; confirm `vrf_remote_controller` covers a 2026-01 build |
 | 4 | Port `C2simEx` to 5.2: drop superType from the 4 templates, re-point the include, re-check the eight `.mtl` payloads against 5.2 defaults | **PLAN** | sec 3.1, 4.1 |

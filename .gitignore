@@ -34,3 +34,6 @@ build/
 !docs/golden-trace/*.log
 
 runs/
+
+# vendor PDFs (see docs/vendor/README.txt for source URLs)
+docs/vendor/**/*.pdf
