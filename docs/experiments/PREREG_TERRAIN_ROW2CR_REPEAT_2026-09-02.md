@@ -240,4 +240,173 @@ G1/G2/G4 are stops-without-an-answer.
 
 ## 6. Outcome (written from the run directory artifacts, after the run)
 
-TO BE WRITTEN AFTER THE RUN.
+VERDICT: BRANCH (b) FIRED - H-V STANDS AND H-ALT IS REFUTED AS A REPRODUCIBLE EFFECT. The
+unchanged repeat put 114.MechCoy back at +185.0 s, 1.2 s from Row 1's +183.8 and 0.2 s from
+ROW2R's +185.2, with the trace plateau onset at 219.2 s - the SAME NUMBER as Row 1's 219.2 to
+the trace's own 0.1 s resolution. The terrain authoring was byte-identical to Row 2c (same
+three reply-shape lines, same three alts lists), so the aggregate ran on exactly the waypoint
+altitudes that Row 2c produced and still finished on Row 1's schedule. Row 2c's +198.1 s was
+an OUTLIER DRAW, not an effect of the mode. P1 MET, P2 MET, P3 branch (b), P4 MET. Nothing
+was retuned, re-run, killed, or code-changed.
+
+Run 20260902T111116Z_run, launched 2026-09-02 11:11:16.006Z from main at 7ee8930 (this
+prereg registered at 4f870b8). `Get-ChildItem env:Vrf__*` was exactly
+`Vrf__GroundWaypointAltitudeMode=TerrainProfile` at launch (echoed before the runner started)
+and count 0 after. appNos 3704-3710 (vrfBackend 3704, vrfFrontend 3705, oraclePre 3706,
+oracleTrace 3707, app 3708, rtiProbe 3709, createOneDiag 3710 - UNCONSUMED and BURNED, the
+oracle gate passed); ledger wasValue 3704 / newValue 3711 / advanced true; marker line after
+the run reads `*** NEXT FREE: 3711 ***`; ledger file CRLF 1884 / bare LF 0 / non-ASCII 0.
+Pre-launch inventory held in full (sec 3). Runner exit 0; StopVrf exit 0; wall
+11:11:16.006Z -> 11:18:29.274Z = 433.3 s = 7 min 13 s (Row 2c 7 min 30 s, Row 1 7 min 15 s;
+band was 7 min 30 s +/- 45 s). validityFlags: the single advisory pre-init INFO only; console
+[WARN]/[FAIL] 0.
+
+P1 - TERRAIN AUTHORING REPEATS EXACTLY - MET. Three :1466 reply-shape lines and three :802
+   authoring lines, verbatim from vrfc2simapp.log (lines 53/55/57 and 59/63/67):
+
+     Terrain profile reply 7: 3 sample(s) [#0:34.61296,-116.60049,1040.6 #1:34.61296,-116.59417,1033.9 #2:34.61296,-116.58786,1026.7].
+     Terrain profile reply 8: 3 sample(s) [#0:34.64763,-116.69339,1116.7 #1:34.65263,-116.69339,1116.8 #2:34.65763,-116.69339,1116.9].
+     Terrain profile reply 9: 3 sample(s) [#0:34.60842,-116.71269,1131.4 #1:34.60842,-116.70637,1126.3 #2:34.60842,-116.70006,1121.1].
+
+     Terrain profile 7 for task 'T_R5_PL1': all 3 vertices authored from terrain + 10 m clearance; alts [1050.6, 1043.9, 1036.7].
+     Terrain profile 8 for task 'T_R5_CO1': all 3 vertices authored from terrain + 10 m clearance; alts [1126.7, 1126.8, 1126.9].
+     Terrain profile 9 for task 'T_R5_TK1': all 3 vertices authored from terrain + 10 m clearance; alts [1141.4, 1136.3, 1131.1].
+
+   These are CHARACTER-FOR-CHARACTER the lines Row 2c sec 6 quotes - not "within 0.1 m",
+   identical. N = 3 on all three, indices {0,1,2} distinct, no `#k:none`. ZERO :807
+   Partial/Fallback, ZERO :1480 timeout, ZERO :793 "request not sent", ZERO :1453 partial,
+   ZERO :810 Note, and ZERO `warn:` lines in the whole app log. Three :813 "request sent"
+   lines (47/49/51). The terrain query is now deterministic across runs, which is what makes
+   this a clean replicate: the aggregate received the SAME lowered waypoint altitudes twice.
+
+P2 - THE TWO INDIVIDUAL ENTITIES REPRODUCE - MET. Offsets of the TASKCMPLT report receipts
+   (reports-captured.log `[hh:mm:ss.fff]` stamps) from clocks.orderPushedUtc
+   2026-09-02T11:13:40.178Z:
+     1.BdeHQ      (task ...0003, entity 670cfdb2) receipt 11:15:37.628 -> +117.45 s
+                  Row 1 +117.3, Row 2c +117.5, ROW2R +118.0. Delta vs Row 1 +0.15. OK
+     1222.MechPlt (task ...0001, entity 001aa71b) receipt 11:15:49.850 -> +129.67 s
+                  Row 1 +129.2, Row 2c +129.6, ROW2R +130.1. Delta vs Row 1 +0.47. OK
+   Band was +/-5 s. Plateau onsets 147.9 (Row 1 148.0, Row 2c 148.0) and 160.1 (Row 1 160.1,
+   Row 2c 162.3). The run is a clean replicate, so P3 is readable.
+
+P3 - THE DISCRIMINATOR - BRANCH (b) FIRED. 114.MechCoy (task ...0002, entity 139aa71b)
+   receipt 11:16:45.217 -> +185.04 s. Branch (b)'s band was 183.8 +/- 5 s, i.e. [178.8,
+   188.8]: IN. Branch (a)'s band was 198.1 +/- 5 s, i.e. [193.1, 203.1]: OUT by 8.1 s.
+   Corroborated by the trace exactly as the prereg required - the two measures move together,
+   so this is arrival, not report lag:
+     - trace plateau onset (first POS within 1 m of the final POS) 219.2 s.
+       Row 1 219.2, ROW2R 221.6, CONFIRM2 214.7, Row 2c 233.3. The onset is IDENTICAL to
+       Row 1's to the trace's 0.1 s resolution and is 14.1 s earlier than Row 2c's.
+     - trace TSK completionT (run-manifest oracle.earlyExit.reportEvidence) 213.2 s.
+       Row 1 212.0, ROW2R 214.1, CONFIRM2 210.3, Row 2c 226.4.
+   CONSEQUENCE, as pre-written: H-V STANDS. Row 2c's +198.1 s was an outlier draw. H-ALT is
+   REFUTED as a REPRODUCIBLE effect - two runs with byte-identical terrain-authored waypoints
+   produced +198.1 and +185.0, so the lowered waypoint altitudes cannot be a systematic cause
+   of a ~14 s delay. Per branch (b)'s own terms, the honest statement of this unit's spread
+   now INCLUDES the excursion and every future band for 114.MechCoy must be widened
+   accordingly - see the table below.
+
+   114.MechCoy COMPLETION OFFSET ACROSS EVERY RUN IN runs/ THAT PUSHED THIS ORDER AND GOT A
+   TASKCMPLT FOR TASKEE 139aa71b-75df-4888-4a5a-6056bae66242. Offset = the report-receipt
+   stamp in reports-captured.log minus clocks.orderPushedUtc from that run's own manifest;
+   traceTSK = the same run's oracle.earlyExit.reportEvidence completionT. Mode/bridge from
+   the run's own app log (count of "Terrain profile " lines; timeMult=) and the design doc's
+   deploy records:
+
+     run                    offset_s  traceTSK  timeMult  mode            bridge     note
+     20260901T203702Z_run    178.2     n/r        1       Live            A48ABE6C   R9 baseline
+     20260901T211310Z_run    184.6     n/r        1       Live            A48ABE6C   P2c endpoint record
+     20260901T230326Z_run     37.0     n/r        5       Live            A48ABE6C   5x multiplier - NOT comparable
+     20260901T235823Z_run    183.7     n/r        1       Live            A48ABE6C   CONFIRM1
+     20260902T003710Z_run    182.1    210.3       1       Live            A48ABE6C   CONFIRM2
+     20260902T010704Z_run    183.8    212.0       1       Live            28E993FE   ROW 1 control
+     20260902T101431Z_run    185.2    214.1       1       TerrainProfile  28E993FE   ROW 2R (Partial - Live alts used)
+     20260902T104832Z_run    198.1    226.4       1       TerrainProfile  A7504441   ROW 2c
+     20260902T111116Z_run    185.0    213.2       1       TerrainProfile  A7504441   ROW 2cR (this run)
+
+     Excluded and why: 20260902T011908Z_run (ROW 2) has an orderPushedUtc but NO TASKCMPLT for
+     this taskee - the back end had already crashed, 0/3 moved. Runs 20260719T*, 20260723T*,
+     20260901T191004Z / 194029Z / 200935Z / 221227Z contain the taskee UUID in captured
+     reports but zero TASKCMPLT lines for it (the freeze-era and pre-fix runs). The 5x run
+     20260901T230326Z is listed for completeness but is NOT comparable: at timeMult=5 its
+     37.0 s of wall clock is ~185 s of simulated time, which is itself consistent with the
+     rest of the column, but the comparison is not like-for-like and it is excluded from the
+     statistics below.
+     STATISTICS over the eight comparable 1x runs: min 178.2, max 198.1, range 19.9 s.
+     Over the seven excluding Row 2c: 178.2 to 185.2, range 7.0 s. The claim in Row 2c sec 6
+     that "the four-run spread for 114.MechCoy before this run was ... about 3 s" was
+     understated - it counted only CONFIRM2 / Row 1 / ROW2R (182.1 / 183.8 / 185.2) and
+     omitted the R9 baseline at 178.2 and P2c at 184.6, which were on disk. THE REAL PRE-ROW-2c
+     SPREAD WAS 7.0 s, not 3 s. That correction matters: it more than doubles the natural
+     spread this unit shows and makes Row 2c's +14.3 s excursion a smaller multiple of the
+     known noise than Row 2c's own write-up implied. Recorded as a defect in Row 2c sec 6.
+     THE BAND TO USE GOING FORWARD for 114.MechCoy at 1x: 178-199 s observed, so a +/-10 s
+     band around ~185 covers everything except Row 2c itself; treat a single excursion to
+     ~198 s as within this unit's demonstrated behaviour and require n>=2 before calling any
+     future shift on this taskee an effect.
+   Neither individual entity shifted (P2), and no OTHER unit shifted, so branch (c) did not
+   fire.
+
+P4 - HYGIENE AND SURVIVAL - MET. TASKCMPLT counts 3 (vrfc2simapp.log) and 3
+   (reports-captured.log). Endpoints from the trace final POS (t=278.2): 1.BdeHQ
+   34.608416,-116.699996 alt 1121.1; 114.MechCoy 34.653915,-116.693388 alt 1116.8;
+   1222.MechPlt 34.612956,-116.587783 alt 1026.6 - within 0.2 m of Row 2c and Row 1 (the
+   1.BdeHQ longitude differs in the sixth decimal, -116.699996 vs -116.699994 = 0.18 m; the
+   other two are identical to all six decimals). Resting altitudes unchanged. POS==RPT
+   0.0 / 0.0 / 0.0 m, satisfied x3, reason "post-completion RPT agrees with POS"; settled
+   true x3. Three "CreateRoute '<T> ROUTE' (3 pts)" + three "Route '<T> ROUTE' created;
+   MoveAlongRoute issued" (VRF_UUIDs b347010c / 730897a1 / 43b8ef04). Six "Create-altitude
+   mode=Live" create lines (expected - VrfC2SimService.cs:439 hard-codes "mode=Live" for the
+   whole live-like family). earlyExit.fired true; allCompleteUtc 11:16:46.176Z, closedUtc
+   11:17:51.036Z -> 64.9 s (band [60, 90]); windowSecsUsed 220.5 of the 420 cap (Row 2c
+   236.2); completionLinesSeen 3.
+   Back end: bin64-vrfSim.log 11,700 lines, 6,465 of them stamped 07:13 local or later, i.e.
+   at or after the order push at 07:13:40 local (11:13:40.178Z); last line "Exception in
+   destroyFederationExecution: Federation Execution Already Exists.[Wed Sep  2 07:18:25
+   2026]" - the normal teardown tail. NO new .dmp in C:\MAK\vrforces5.0.2\bin64: the newest
+   is still the ROW2R-era vrfSim5.0.2-MSVC++15.0_64-249613-70668.dmp, 598,441 B,
+   2026-09-02 06:00:18 local. AnswerCrashDumpDialog.ps1 was never needed and never run; the
+   post-run process sweep found no vrfSim* at all, so no window title to poll.
+   Teardown: runner exit 0; StopVrf exit 0 with "VR-Forces is DOWN (graceful quit; no process
+   was force-killed)."; post-run Get-Process shows exactly rtiAssistant 41336 / rtiexec
+   224608 / rtiForwarder 76620 and nothing else of ours - RTI PIDs unchanged and explicitly
+   reported preserved by StopVrf. Both observers took the stop-file path: trace "# STOP
+   requested via stop-file at t=309.8s" -> "[OK] resigned cleanly."; ListenReports "stop
+   requested via stop-file at t=313.5s ... - disconnecting", "captured 32 reports".
+   Censuses: bin64-vrfSim.log "Waiting for nav data" 0 / "empty route" 0 / "Can't find entity
+   route" 0 / "invalid formation name" 1 (baseline) = 0/0/0/1, SocketException 0, and ZERO
+   lines matching IfRequest / TerrainProfile / terrain profile / IntersectionInformation (the
+   back end still logs nothing about the request at notify level 3 - unchanged from ROW2R and
+   Row 2c). App log: 3 `fail:` (the C2SIMSDK deserialize noise), 3 "Can't create data of
+   type", 0 Exception, 0 `warn:` - identical to Row 1's and Row 2c's census.
+
+FALSIFIER BRANCH TAKEN: none of G1 / G2 / G4. G3 did not fire either - P3 landed cleanly
+inside branch (b), not between the branches.
+
+ADJUDICATION AGAINST THE HYPOTHESES (verified vs. inferred):
+- VERIFIED: with NOTHING changed, 114.MechCoy completed at +185.0 s and physically arrived at
+  trace t=219.2, against Row 2c's +198.1 / 233.3 on byte-identical waypoint altitudes. Two
+  runs, same input, 13 s apart.
+- VERIFIED: H-ALT is REFUTED as a reproducible effect. A systematic consequence of the ~40 m
+  lower waypoints would have to appear in both runs that used them; it appeared in one.
+- VERIFIED: H-V STANDS. The aggregate's completion offset varies run-to-run over at least
+  178.2-198.1 s at 1x on identical inputs; the two individual taskees vary over 117.1-118.0
+  and 129.1-130.1 across the same nine runs. The aggregate is roughly twenty times noisier
+  than either individual, which is consistent with (but not proof of) the documented
+  mechanism in the sources section: the aggregate's completion is the MAX over its three
+  subordinates' arrivals on derived offset routes, governed by a 1 Hz formation monitor whose
+  slowdown factor is 0.1x ordered speed. One extra brake cycle on one subordinate is worth
+  seconds.
+- VERIFIED, AS A CORRECTION: the "about 3 s" prior spread quoted in Row 2c sec 6 was computed
+  over three runs when five 1x Live runs were on disk. The true pre-Row-2c spread is 7.0 s
+  (178.2-185.2). Row 2c's own "not a comfortable reading" was therefore built on an
+  understated baseline.
+- NOT CLAIMED: WHY Row 2c drew 198.1. Nothing in either run's artifacts identifies the
+  subordinate or the event that cost the extra 13 s - the app log carries only the aggregate's
+  own TASKCMPLT, and the back end logs nothing about subordinate speed control at notify
+  level 3. If that ever needs answering it is a back-end verbosity question, not an interface
+  question, and it is NOT on the critical path: the mode works and movement is unaffected.
+- CONSEQUENCE FOR THE BRANCH: TerrainProfile mode is FUNCTIONAL and has NO demonstrated
+  movement-timing cost. Design sec 7 Row 2 checks 1, 2 and 3 are all MET on this run. The
+  open item Row 2c handed the supervisor ("the aggregate's +14 s, docs-first") is CLOSED as
+  run-to-run variance of the aggregate.

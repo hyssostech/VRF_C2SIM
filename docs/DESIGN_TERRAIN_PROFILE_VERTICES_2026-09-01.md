@@ -455,6 +455,49 @@ end alive (14,158 log lines, 5,464 after the order push), no dump, runner and St
 RTI PIDs unchanged. Full record: docs/experiments/PREREG_TERRAIN_ROW2C_FLATTEN_2026-09-02.md
 sec 6. NEXT QUESTION for the supervisor: the aggregate's +14 s, docs-first.
 
+ROW 2cR RESULT - THE UNCHANGED REPEAT, AND THE +14 s QUESTION CLOSED (2026-09-02, run
+20260902T111116Z, appNos 3704-3710, bridge A7504441, nothing changed from Row 2c): Row 2c's
+aggregate delay DID NOT REPRODUCE. 114.MechCoy completed at +185.0 s against Row 2c's +198.1
+and Row 1's +183.8, and the trace agrees it physically arrived on Row 1's schedule - plateau
+onset 219.2 s, the SAME value as Row 1's 219.2, against Row 2c's 233.3 (trace TSK completionT
+213.2 vs Row 2c 226.4 vs Row 1 212.0). The terrain authoring was character-for-character
+identical to Row 2c - the same three ":1466 3 sample(s)" reply lines and the same three ":802
+all 3 vertices authored ... alts [1050.6, 1043.9, 1036.7] / [1126.7, 1126.8, 1126.9] /
+[1141.4, 1136.3, 1131.1]" lines, zero warn: lines - so the aggregate ran on exactly the
+lowered waypoint altitudes twice and finished 13 s apart. H-ALT (the ~40 m lower waypoints
+systematically change the aggregate's move-along) is REFUTED as a reproducible effect; H-V
+(run-to-run variance of the aggregate) STANDS. The two individual taskees were inside 0.5 s
+of Row 1 as always (+117.5 / +129.7).
+A CORRECTION Row 2cR forces on Row 2c's write-up: the "about 3 s" prior spread quoted there
+counted only three runs. Every run in runs/ that pushed this order and got a TASKCMPLT for
+taskee 139aa71b at 1x gives 178.2 (R9 baseline) / 184.6 (P2c) / 183.7 (CONFIRM1) / 182.1
+(CONFIRM2) / 183.8 (Row 1) / 185.2 (ROW2R) / 198.1 (Row 2c) / 185.0 (Row 2cR) - a
+pre-Row-2c spread of 7.0 s, not 3 s, and a full observed range of 19.9 s. The aggregate is
+about twenty times noisier than either individual taskee (117.1-118.0 and 129.1-130.1 over
+the same set), which is consistent with the vendor's documented mechanism: an aggregate does
+not follow the ordered route at all - DtDisaggregatedMoveAlongController builds a temporary
+offset route per subordinate and the task completes only when ALL subordinates report
+complete (disaggregatedMoveAlongController.h:34-63), under a 1 Hz formation monitor whose
+slowdown factor is 0.1x ordered speed (aggregateMoveAlongDescriptor.h:111-139). GOING FORWARD:
+require n>=2 before calling any timing shift on 114.MechCoy an effect.
+DOCS ANSWER recorded with the prereg (docs/experiments/PREREG_TERRAIN_ROW2CR_REPEAT_
+2026-09-02.md, sources section): NO vendor source read - C:\MAK\vrforces5.0.2\include, the
+5.0.2 doc/ set (which has no Developer's Guide PDF), or docs.mak.com - states that route-vertex
+altitude affects an aggregate's move-along timing, and none states that it does not. What IS
+documented and cuts against H-ALT: DtAggregateMoveAlongDescriptor's `ground-clamp` parameter
+defaults to True with the note "Ground-vehicles and human aggregates should set this value to
+true" (aggregateMoveAlongDescriptor.h:159-164), i.e. the GENERATED subordinate route vertices
+are ground clamped and the authored altitude is discarded before any subordinate chases it -
+which the 2026-07-22 below-terrain confound already showed empirically (a disaggregated Tank
+Platoon with waypoints 941 m BELOW terrain moved identically, clamped up to the surface;
+docs/experiments/PREREG_FIXTURE_REGION_VS_STRUCTURE_2026-07-22.md sec 6a). Row 2cR is the
+seconds-resolution confirmation that comparison lacked.
+Hygiene all Row 1's: 3/3 TASKCMPLT, endpoints within 0.2 m, POS==RPT 0.0 x3, settled x3,
+0 warn:, vrfSim counts 0/0/0/1, no dump, back end alive (11,700 lines, 6,465 after the order
+push), runner and StopVrf exit 0, RTI PIDs 41336/224608/76620 unchanged, wall 7 min 13 s.
+Full record: docs/experiments/PREREG_TERRAIN_ROW2CR_REPEAT_2026-09-02.md sec 6. THE ROW 2
+QUESTION IS NOW CLOSED: checks 1, 2 and 3 all MET, mode functional, no movement cost.
+
 ## 8. Gate results (2026-09-01, offline, worktree only)
 First revision (commit 6539036): VrfBridge /t:Rebuild exit 0 / 0 warnings; dotnet build 0
 errors; 7 self-tests exit 0 (terrain: 21 checks); ASCII clean vs a dirty control.
