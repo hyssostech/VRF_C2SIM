@@ -1774,7 +1774,25 @@ join) are BURNED, not recycled. The run manifest records which were actually use
   docs/experiments/PREREG_TYPEMAP_LIVE_GATE_2026-09-02.md). Ledgered BEFORE the join, with the
   documented launch environment. Result annotated in that prereg's sec 7.
 
-*** NEXT FREE: 3783 *** (authoritative - the ONLY such marker in this file. Update this
+
+CLAIMED 2026-09-02 20:47 by scripts/RunC2SimScenario.ps1 (run 20260902T204711Z_run). Ledgered BEFORE any join,
+per the never-reuse non-negotiable. Annotate with results from the run manifest.
+- 3783: CLAIMED - LaunchVrf.ps1 back-end (vrfSimHLA1516e), combined mode
+- 3784: CLAIMED - LaunchVrf.ps1 front-end (vrfGui), combined mode
+- 3785: CLAIMED - WatchVrf ADVISORY pre-init oracle pre-check (RUNBOOK 0.5.7)
+- 3786: CLAIMED - WatchVrf MAIN run trace - the movement oracle / scoring input
+- 3787: CLAIMED - VrfC2SimApp Vrf__ApplicationNumber (the interface federate)
+- 3788: CLAIMED - tools/RtiProbe - STAGE 2c PRE-LAUNCH RTI READINESS GATE (C1). Throwaway create-or-join against the federation with internal retry+backoff, then clean resign, BEFORE the back-end launches (RTI_LAUNCH_HARDENING_DESIGN.md A2-A7 - the RUN-2 fix). CONSUMED on EVERY run (the gate always runs pre-launch). One number covers all internal retries - RtiProbe reuses this single appNumber across attempts by design.
+- 3789: CLAIMED - tools/CreateOne - STAGE 7b FAILURE-PATH DIAGNOSTIC ONLY (RUNBOOK 0.5.7 STRONGER CHECK). CONSUMED ONLY IF THE ORACLE GATE FAILS; on a healthy run it is NEVER JOINED and this number goes UNCONSUMED. Unconsumed numbers are BURNED, never recycled - see the NOTE below. Allocated here rather than mid-run because every number must be ledgered BEFORE any join.
+NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
+join) are BURNED, not recycled. The run manifest records which were actually used.
+
+- 3790: CLAIMED - tools/ResetVrf post-run authoritative sweep (RUNBOOK :1171-1185, invocation
+  :1208-1215) after RUN A of the `-q` PAIR (run 20260902T204711Z_run, prereg
+  docs/experiments/PREREG_COASTP1_QPAIR_2026-09-02.md). Ledgered BEFORE the join, with the
+  documented launch environment. Result annotated in that prereg's sec 7.
+
+*** NEXT FREE: 3791 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN

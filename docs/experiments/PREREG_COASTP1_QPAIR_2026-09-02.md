@@ -393,8 +393,96 @@ prereg, labelled as such.
 
 ## 7. OUTCOME
 
-(To be written after each run, from run-directory artifacts only. Run A first, in full, before
-run B is launched.)
+### RUN A-1 - 20260902T204711Z_run, appNos 3783-3789 - **DISCARDED ON INSTRUMENT CHECK I4**
+
+**IT IS DISCARDED, NOT INTERPRETED, AND THAT IS THE TASKING'S RULE AS WELL AS SEC 6A's.** The
+tasking names "1,732 ever-real objects" as one of the four instrument checks a run must
+reproduce before its Tank-Company result may be read. This run returned **1,847**, with **ZERO**
+pole objects and **ZERO** NaN POS lines where both comparators had 132 / 110 pole-only objects.
+The run is recorded here in full and is NOT adjudicated against H-q or H-nondet. A re-run of A
+follows, which is the one re-run sec 6A allows.
+
+DISCLOSURE, because it affects how the rest of this record should be read: I ran
+`run_census.py` as a single command, so I SAW the Tank-Company result in the same output that
+told me I4 had missed. I could not unsee it. The discard is therefore a decision taken with
+knowledge of the result, and the honest safeguard is that the rule is being followed AGAINST my
+interest - A-1's result is the one that would have made the strongest headline.
+
+RUN FACTS. Launched 2026-09-02T20:47:11.516Z; order pushed 20:50:02.812Z; observation window
+closed 21:35:33.763Z (**2,730.95 s** WALL against its 2,700 s cap plus trail; rung 2's was
+2,735.65 and the `-q` run's 2,733.48, so all three wall windows are within 5 s); manifest saved
+21:36:15.834Z; **49 min 04 s** total wall. `runnerExitCode` **0**, all ten stages exit 0.
+`inputs.quietBackend` **False**. Ledger `wasValue` 3783 -> `newValue` 3790, `advanced` true,
+taken BEFORE any join; 3789 (createOneDiag) UNCONSUMED. One `validityFlags` entry, severity
+INFO, the standing stock-TropicTortoise advisory. `earlyExit.fired` false, as registered.
+DERIVED SIM WINDOW: 2,730.95 wall s x 0.2863 = **781.9 SIM s** (rung 2: 725.5; `-q` run: 858.3).
+
+INSTRUMENT CHECKS
+  I1 `Can't find entity route` **0** EXACT - **PASS**. The freeze stays fixed; nine new-form
+     route lines, zero old-form.
+  I2 FFRTC mode - **PASS**. TEST A **84/84 = 100.0%** in {0.033, 0.034}; TEST B **R = 0.9985**.
+  I3 LS clock slope **0.2863 sim-s per WALL-s**, inside [0.20, 0.40] - **PASS**. (resid sd 1.79,
+     max 8.72 - a well-behaved fit, unlike the `-q` run's 58.66 / 999.17.)
+  I4 `reportUuids` **128** EXACT - PASS. `everReal` **1,847** against the required 1,732 -
+     **MISS. THIS IS THE DISCARD.**
+  I5 **PASS, every clause EXACT**: `safe MSL` 128, `DeStack (R8):` 10, `CreateRoute` 9,
+     `MoveToLocation` 0, `TYPE MAP` 0, `DROPPING TASK` 0, app log 519 lines (rung 2 and the
+     `-q` run: 517). Endpoint line present and correct - `C2SIM endpoints:
+     rest=http://127.0.0.1:18080/C2SIMServer stomp=http://127.0.0.1:61614/topic/C2SIM`. THE RUN
+     WAS ON THE PRIVATE SERVER.
+  I6 **PASS**. The six non-Tank-Company movers, km per SIM second: T1 0.008556, T5 0.009413,
+     T15 0.009337, T19 0.009106, T23 0.008365, T31 0.009247 - all inside [0.0080, 0.0095], and
+     T9 and T13 both 0.00 km as expected. The clock-normalised band held across a third run at
+     a third slope, which is the strongest thing in this run's favour.
+
+WHAT I4's MISS ACTUALLY IS - measured, not argued
+  The vendor log says the BACK END CREATED THE SAME POPULATION: `Created radio` **1,733** in
+  this run, **1,733** in rung 2 and **1,733** in the `-q` run - identical to the unit.
+  `Registered object` 3,693 (rung 2: 3,727; `-q`: 3,683). The difference is entirely in what
+  the OBSERVER could read:
+
+    run        POS lines   distinct t   POS uuids   NaN lines   pole lines   real lines
+    -------    ---------   ----------   ---------   ---------   ----------   ----------
+    rung 2       503,265        282        1,864      18,365       10,332       474,568
+    `-q` run     503,041        280        1,842      17,092       11,381       474,568
+    **A-1**      501,029        281        1,847           0            0       501,029
+
+  Both comparators have EXACTLY 474,568 real POS lines = 1,732 x 274. A-1 has none of that
+  structure: every POS line it wrote carried a real coordinate. And the first-seen profile is
+  different in kind: in rung 2 all 1,732 ever-real objects appear in ONE burst at t = 63.1 s
+  while the 132 never-real ones trickle in from t = 3 to t = 1,778; in A-1 objects first appear
+  spread across t = 3 to t = 1,297 and every one of them resolves.
+  WatchVrf's binary is NOT the difference: its `lastWriteUtc` is 2026-09-02T10:43:28Z, older
+  than the `-q` run.
+  **THIS IS UNEXPLAINED AND IT IS RECORDED AS A FALSIFIER, NOT A FOOTNOTE.** I can say what it
+  is not (not a different created population, not a different observer binary) and I cannot say
+  what it is.
+  I ALSO RECORD, AGAINST MY OWN INTEREST, THAT I4 IS PROBABLY A MIS-SPECIFIED CONTROL: I titled
+  it "THE POPULATION IS THE SAME POPULATION" and then thresholded an OBSERVER-SIDE quantity,
+  while declaring both of its arithmetic components (`poleOnly`, `posUuids`) free to move in the
+  same paragraph. `everReal = posUuids - poleOnly` cannot be an exact control if neither term
+  is. That is the same error class as the `-q` run's P1(b) and rung 2's P4(c), and it is now
+  three consecutive preregs. **BUT I AM NOT USING THAT ARGUMENT TO RESCUE THE RUN.** A control
+  diagnosed as broken only after it fails, on the run whose result one wanted, is exactly how a
+  false green is manufactured. The rule is followed; the re-run decides.
+
+RECORDED, NOT ADJUDICATED - what A-1 measured
+  sub-routes:  856/HHC **4** | C/1-35 **4** | B/5-20 **0**
+  build offset from order push (WALL / SIM):  C/1-35 +6 m 28 s / +111 sim-s;
+               856/HHC +6 m 37 s / +114 sim-s (NINE SECONDS after C/1-35, exactly the `-q`
+               run's gap); B/5-20 NEVER
+  head net_km (and km per SIM s):  856/HHC 5.79 (0.007405) | C/1-35 4.17 (0.005333) |
+               B/5-20 **0.37** (0.000473)
+  corroboration: `Move-Along Route:` 18, `leaderRoute` 52, `'s Offset Route` 176
+               (rung 2: 22 / 55 / 210; `-q` run: 18 / 43 / 166)
+  This run had NO `-q`. What that would mean is not written here, because the run is discarded.
+
+POST-RUN SWEEP A-1: `tools/ResetVrf 3790` with the RUNBOOK :1206-1215 environment (cwd
+C:\MAK\vrforces5.0.2\bin64, VR-Forces / VR-Link / makRti bin PATH prefix, Machine-scope
+MAKLMGRD_LICENSE_FILE). Joined clean (BackendCount=0), discovered 0 reflected objects, resigned
+cleanly, **exit 0**. 3790 was ledgered in Appendix B BEFORE the join. Marker 3783 -> 3790
+(runner) -> 3791 (hand). VR-Forces down, RTI trio untouched (41336 / 224608 / 76620).
+
 
 ## 8. REGISTRATION
 
