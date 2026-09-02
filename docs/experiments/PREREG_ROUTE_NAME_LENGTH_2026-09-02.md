@@ -303,6 +303,6 @@ TO BE COMPLETED AFTER THE RUN.
 
 ## 7. REGISTRATION
 
-Sections 0-5B above were registered in commit <TO BE STAMPED IN THE FOLLOWING COMMIT>,
+Sections 0-5B above were registered in commit d5aee8b,
 together with data/R9_Mojave_UnitMove_Order_LongCoRouteName.xml, BEFORE the launch command
 was issued. Sec 6 is the only content added afterwards.
