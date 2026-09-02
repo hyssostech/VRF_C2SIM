@@ -931,3 +931,124 @@ https://www.mixr.dev/assets/pages/interop/siso-ref-010-v28.pdf (SISO-REF-010-202
 https://cdn.ymaws.com/www.sisostandards.org/resource/resmgr/reference_documents_/siso-ref-010.1-2019_operatio.pdf ;
 https://nasaworldwind.github.io/WorldWindJava/gov/nasa/worldwind/symbology/milstd2525/SymbolCode.html ;
 https://github.com/open-dis/dis-enumerations .
+
+---
+
+## 11. IMPLEMENTATION (2026-09-02, offline executor) - what landed
+
+Sec 7.1, 7.2 and 7.5 items 1-2 are implemented. Sec 7.5 item 3 (the LIVE gate) is
+**OUTSTANDING** and queued for the VR-Forces holder - see `docs/NEXT_TYPE_MAPPING_LIVE_GATE.md`.
+Nothing under `C:\MAK` was written; no C++ change was needed.
+
+### 11.1 Files
+
+| file | what |
+|---|---|
+| `data/unit-type-map.json` | 123 rows, one per `(functionId, echelon, nationRole, nation)`, each carrying `isAggregate`, the 8-field `objectType`, `templateName`, `fidelity` and `proxyNote`. Populated from sec 5.1 (USA, 49 rows), 5.2 RUS (37) and 5.2 PRC (37 - 36 `AUTHORED_PENDING` plus one catch-all, so the coverage gap is IN the table, not hidden). Overall: 20 EXACT, 67 PROXY, 36 AUTHORED_PENDING. |
+| `src/VrfC2SimApp/UnitTypeMap.cs` | the table model, its loader, the sec-7.1 key order, and the JC-2 refuse-to-start check. Pure - no bridge, no MAK. |
+| `src/VrfC2SimApp/ObjectTypeResolver.cs` | offline index of the installed SMS chain (follows the `(include ...)` chain) + the vendor's best-match rule + transitive subordinate expansion. Test-only; nothing in the live path calls it. |
+| `src/VrfC2SimApp/TypeMapSelfTest.cs` | `--typemap-selftest`, four parts (table / resolver / composition / lookup). |
+| `src/VrfC2SimApp/UnitTranslator.cs` | `TypeMapping.FidelityTable` + the `FromTable`/`FromRow` path. The air, sea and neutral branches keep their parity behaviour; the table replaces the GROUND echelon-letter if-chain only. |
+| `src/VrfC2SimApp/VrfSettings.cs`, `appsettings.json` | `TypeMappingMode` gains `FidelityTable`; new `FriendlyNation`, `OpposingNation`, `TypeMapFile`, `SurfaceProxySubstitutions`, `ProxyMarkingTag`. |
+| `src/VrfC2SimApp/InitModels.cs`, `InitParser.cs` | `InitUnit.EchelonCode` (lookup key c). |
+| `src/VrfC2SimApp/ReportBuilder.cs` | `BuildTypeSubstitutionReport` - ObservationReport / NameObservation. |
+| `src/VrfC2SimApp/VrfC2SimService.cs` | table load + pre-flight refusal, the per-unit dispatch, the loud skip, marking annotation and report emission. |
+
+**`TypeMappingMode` default is still `RealTemplates`.** `GoldenParity` and `RealTemplates`
+are byte-for-byte unchanged (asserted by two self-test rows), so `FidelityTable` is A/B-able
+against the R9 evidence by config alone, with no rebuild - as sec 7.1 item 6 asked.
+
+### 11.2 Judgement calls, applied as PROVISIONAL (supervisor, 2026-09-02 - the user may overturn)
+
+- **JC-1 YES.** A non-zero init `SISOEntityType` WINS over the SIDC-derived row, with this
+  table as the coverage backstop: the declared 8-field type is honoured only if some row
+  already proves it lands a real template. On the R9 lean init that means
+  `11:1:225:3:4:0:0` now creates the branch-correct `Mechanized Platoon (USA) IFV` instead of
+  the armor default (the exact defect sec 4.2 identified), while the declared Country-153 and
+  Country-71 types - which resolve to EMPTY abstracts - fall back to the SIDC row with a WARN.
+- **JC-2 default `OpposingNation=RUS`; `PRC` REFUSES TO START.** `CheckOpposingNationSupported`
+  runs before `VrfBridge.Start` and logs a `LogCritical` naming the missing content (zero
+  Country-45 unit templates in the chain), then stops the host. It does not silently create
+  empty units.
+- **JC-3 DEFERRED.** No PRC content was authored this pass. The PRC dismount blocker is
+  recorded in the `proxyNote` of every affected row.
+
+### 11.3 Verification actually performed (sec 7.5 items 1-2)
+
+`--typemap-selftest`: **780 checks, 0 failures**, against the real
+`C:\MAK\vrforces5.0.2` install (1495 simObjects indexed from `C2simEx -> EntityLevel -> base`, of
+which **115 are ground unit templates with the `3:11:1` prefix - exactly the count sec 3.1
+reports**, an independent reproduction of that index by a second implementation).
+
+1. The resolver is re-validated **6/6 against `docs/VRF_GROUND_TRUTH.md` sec 0.1.5 BEFORE it is
+   trusted for anything else** - a broken resolver cannot silently pass the rows.
+2. **Every row's `objectType` lands the template the row names.** A vendor duplicate is
+   accepted anywhere in the tied set (see 11.4).
+3. **Every aggregate row's transitive expansion** contains no `Ground_Aggregate`, no unmatched
+   subordinate and no zero-subordinate abstract.
+4. Lookup key order (a)-(e), the JC-1 backstop, the sec 7.3 `DISCountry` override, the JC-2
+   refusal, and the two legacy modes' invariance.
+5. **The tests were proven able to fail.** Two rows were deliberately broken and the run was
+   recorded before restoring them:
+   `[FAIL] F-UCA-E: 3:11:1:225:5:2:0:0 -> Tank Platoon (USA)  <- landed Tank Company (USA)` and
+   `[FAIL] F-UCI-D: aggregate-Co-Infantry-Friendly composition is real  <- d1 3:11:1:225:3:3:0:0 -> Infantry Platoon (zero-subordinate abstract)`,
+   `SELF-TEST FAILED (3 of 780 checks)`, exit 1.
+   If `C:\MAK` is absent the resolver and composition parts SKIP with a loud banner that says
+   the rows are UNVERIFIED - they never silently pass.
+
+Offline dry-run of the table over the fixtures (lookup only; the live gate is still owed):
+
+| init | opposing | units | EXACT | PROXY | AUTHORED_PENDING | key used |
+|---|---|---|---|---|---|---|
+| `COA-STP1_Initialization.xml` | RUS | 128 | 28 | 100 | 0 | (b) for all 128 |
+| `COA-STP1_Initialization.xml` | PRC | 128 | 13 | 48 | **67** | (b) for all 128 |
+| `R9_Mojave_Lean_Initialization.xml` | RUS | 6 | 4 | 2 | 0 | (b) for all 6 |
+
+Every function ID and echelon in both fixtures has an EXPLICIT row: the echelon-only and
+catch-all fallbacks are never reached, and nothing lands `Ground_Aggregate`. The 67 PRC rows
+are exactly why `OpposingNation=PRC` refuses to start.
+
+### 11.4 Findings that differ from, or add to, this document's own claims
+
+1. **sec 3.6 - the landing is different, the defect is the same.** The survey says
+   `aggregate-Co-Infantry-Friendly`'s three `3:11:1:225:3:3:0:0` subordinates "fall to
+   `Ground_Aggregate`". They do not: they best-match the Country-0 **zero-subordinate abstract
+   `Infantry Platoon`** (`3:11:1:0:3:3:0:0`, `gui-can-create False`, nsub=0) - the sec-3.5 trap,
+   not the sec-3.2 generic. The conclusion (unusable; do not use it as the US infantry company)
+   is unchanged and the composition test catches both.
+2. **A vendor DUPLICATE at `3:11:1:225:12:27:0:1`.** Two files -
+   `EntityLevel\vrfSim\Fire Support Team (USA).entity` and
+   `EntityLevel\vrfSim\Fire_Support_Team.entity` - carry the SAME `objectType`, the SAME exact
+   `matchType` and the SAME four `1:3:1:225:1:41:1:0` subordinates. Which one VR-Forces picks is
+   undetermined but they are functionally identical, so the resolver test accepts the named
+   template anywhere in the tied set. No other row in the table ties.
+3. **`Ground_Aggregate`'s gui-label is "Ground Unit".** The survey names templates by FILE base
+   name; the code does the same, deliberately, because the label is not unique and not stable.
+4. **Four `matchType` fields on 5.0.2 use RANGES, not just wildcards** (`12-22`, `86-87`,
+   `32-33`, and one 7-field `1:2:-1:90:11-12:-1:-1`). All four are civil AIRCRAFT; no ground unit
+   uses a range. The resolver handles ranges and ignores malformed (non-8-field) matchTypes.
+5. **A hard cap on the proxy marking.** The back end resolves marking-text references through a
+   35-byte blob (`include\vrfutil\rwUUID.h:412`), the same mechanism behind the 2026-09-02
+   route-uuid failure. A proxy tag is therefore appended to the created object's name only when
+   the result stays within 34 characters; when it does not, the name is left alone and the
+   substitution is still reported and logged. **This is the residual risk the live gate must
+   close** - see the falsifiers in `docs/NEXT_TYPE_MAPPING_LIVE_GATE.md`.
+6. **sec 4.3 has one transcription slip.** `1.BdeHQ`'s declared type in
+   `data/R9_Mojave_Lean_Initialization_NoComments.xml` is `11:1:153:**5**:4:0:0` (Category 5 =
+   Company), not `11:1:153:3:4:0:0`. It changes nothing - Country 153 is uncovered either way, so
+   the JC-1 backstop fires - but the self-test now uses the verbatim fixture value.
+7. **`EchelonCode` has no `Specified` flag** in the generated schema types, so an absent element
+   deserializes as the enum's first member (`AG`). Harmless for key (c) - no row uses `AG` - but
+   it must not be promoted to a primary key without a raw-XML presence guard.
+
+### 11.5 What is still OUTSTANDING
+
+- **sec 7.5 item 3 - the live gate.** Everything above is static best-match arithmetic plus an
+  offline dry-run. `docs/VRF_GROUND_TRUTH.md` 0.1.8 item 1 (2026-07-15, `114.MechCoy`'s
+  lowercase formation list) is still the one unreconciled falsifier for the whole static method.
+  Read a real `bin64\vrfSim.log` creation line before trusting any row - the brief is
+  `docs/NEXT_TYPE_MAPPING_LIVE_GATE.md`.
+- **sec 7.4 authoring** (orders 1-6). Nothing authored this pass; the queue is unchanged.
+- **R3 - the function-ID decodes are still second-hand** (symbol.army via `VRF_GROUND_TRUTH`
+  0.1.7, not the primary MIL-STD-2525C). A wrong decode now maps a whole table row's branch
+  wrong, which is a bigger blast radius than before. Cheap fix, still not done.
