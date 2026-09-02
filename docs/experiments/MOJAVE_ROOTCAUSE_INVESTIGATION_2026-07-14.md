@@ -1192,6 +1192,11 @@ remaining discriminator we can run ourselves.
 ## 2026-07-16 (part 12) - P-OFF3 RESULT: name-truncation collisions FALSIFIED; the offline
 ## probe program is now EXHAUSTED for the mover/frozen split
 
+[SUPERSEDED 2026-09-02 for the TASK path - this part tested route names on the CREATION
+path (unbounded DtString) and the 10-char marking collisions. The route name inside the
+move-along TASK travels as a DtUUID 36-byte blob and IS cut at 35 characters. The 10-char
+collision finding below stands. See docs/CORRECTIONS_LOG.md.]
+
 Executor census of unit names across all three datasets + both interfaces' correlation code:
 
 - **COLLISION HYPOTHESIS: FALSIFIED (VERIFIED).** Zero 10-char truncation collisions exist in

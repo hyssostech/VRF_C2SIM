@@ -1,173 +1,199 @@
-# SESSION-JUMP HANDOFF (2026-09-01) - THE R9 ORDER EXECUTES 3/3; docs-first is law
+# SESSION-JUMP HANDOFF (opened 2026-09-01, current 2026-09-02) - R9 EXECUTES 3/3; FFRTC VALIDATED
 
 THE CURRENT entry point (newest HANDOFF_*.md by git log). SUPERSEDES
-HANDOFF_2026-07-23_TYPEFIX_CONFIRMED.md. ASCII only. RE-VERIFY load-bearing claims
-against artifacts before trusting prose.
+HANDOFF_2026-07-23_TYPEFIX_CONFIRMED.md. ASCII only. HARD CAP 200 LINES - when a phase closes,
+collapse it to a few lines plus a pointer; never drop live guidance to make room. RE-VERIFY
+load-bearing claims against artifacts before trusting prose.
+
+## CLOSED - DO NOT REOPEN (tripwires; each line names its record)
+- ROUTE FREEZE = ROUTE-NAME LENGTH, not region / template / type / waypoint altitude / vertex
+  count / creation order / pile density. 9 of 9, no exceptions; reopening evidence = the
+  falsifier in sec 8 of docs/experiments/ANALYSIS_COASTP1_RUNG1_FREEZE_2026-09-02.md (04bcc0f).
+- SPEED-UP = FRAME MODE, NOT TIME MULTIPLIER; the multiplier and at-distance ladders are
+  WITHDRAWN. docs/experiments/PREREG_R9_FIXED_FRAME_RTC_2026-09-02.md sec 8 (2030ebd, c0e90b7).
+- The REGION / Mojave-terrain cause is FALSIFIED (docs/CORRECTIONS_LOG.md "The region
+  hypothesis"; tagged 2026-09-02 in the six live docs that still stated it).
+- TYPE MAPPING is fixed: ArmorPlatoon -> real Tank Platoon (USA); RealTemplates is the compiled
+  DEFAULT (2026-07-22).
+- The 2026-07-14 project-generated NavArea (120k tiles) WAS the 2026-07-15..2026-09-01 freeze;
+  it is now in SharedData/16/latest/TerrainData/navData/_disabled_20260901/ (restorable). KEEP
+  DISABLED unless deliberately regenerating nav data.
+- The HQ-section formation-name warning is COSMETIC; the P2 aliases were reverted (P2c). No
+  defect report to MAK.
+- ROUTE-VERTEX ALTITUDE FRAME: TerrainProfile (terrain height + 10 m) is the compiled DEFAULT,
+  Live (+50 m) the fallback, Fixed100 a relic (DESIGN_TERRAIN_PROFILE_VERTICES_2026-09-01 sec 7).
+- Birth altitude, "nav data ruled out", the 10-char marking collision: docs/CORRECTIONS_LOG.md.
+  Every July FALSIFIED stamp is LAYER-RELATIVE (L9) - re-adjudicate before trusting its fence.
 
 ## THE STANDING RULE (user directive 2026-09-01, enforced)
 DOCUMENTATION FIRST for any issue: local help -> the PUBLIC Developer's Guide at
-docs.mak.com/api/vrforces{5.2,5.1.1,4.10}/classref/ -> internet research. A live probe
-is registrable ONLY after its prereg cites the documentation consulted. Two months of
-probing dissolved in one afternoon of reading (2026-09-01). See VRF_GROUNDWORK_PLAN
-lessons L8-L10 for the relapse mechanisms this rule exists to break.
+docs.mak.com/api/vrforces{5.2,5.1.1,4.10}/classref/ -> internet research. A live probe is
+registrable ONLY after its prereg cites the documentation consulted. Two months of probing
+dissolved in one afternoon of reading (2026-09-01). VRF_GROUNDWORK_PLAN lessons L8-L10.
 
 ## ONE-LINE STATUS
-The R9 Mojave order executes END-TO-END, HEADLESS, ALL THREE TASKEES (platoon, company,
-single entity), telemetry-verified arrivals + TASKCMPLT, run 20260901T203702Z. Full
-chain of evidence: docs/experiments/PREREG_P1_FIXED100_ENTITY_2026-09-01.md (5
-pre-registered runs, outcomes inline) + docs/RESEARCH_MECHANISMS_2026-09-01.md.
-
-## THE FOUR-LAYER BLOCKER STACK (all peeled 2026-07-22 .. 2026-09-01)
-1. Type mapping (ArmorPlatoon -> real Tank Platoon (USA)); fixed 07-22, default
-   RealTemplates.
-2. The project's OWN 2026-07-14 generated NavArea (120k tiles) made units inside it
-   wait forever for nav data (Info-level, invisible at default console verbosity).
-   NOW DISABLED: moved to SharedData/16/latest/TerrainData/navData/_disabled_20260901/
-   (restorable; KEEP DISABLED unless deliberately regenerating nav data).
-3. [DEMOTED BY P2c, run 20260901T211310Z] The HQ-section formation-name mismatch is a
-   COSMETIC warning: the STOCK template works end-to-end under correctly-authored
-   vertices (the documented working-formation fallback covers it). The P2 aliases were
-   UNNECESSARY and are reverted (stock file in place; .aliased-20260901 kept as
-   history). NO defect report to MAK - at most the variant-A observation in
-   docs/MAK_NOTES_DRAFT_2026-09-01.md.
-4. Route-vertex altitude frame: 100-m-MSL vertices are the Users-Guide-warned
-   authoring ERROR; above-terrain is the documented frame and fills the company's
-   working routes. UPDATED 2026-09-02: the default is now TerrainProfile (each ground
-   vertex authored from the back end's OWN terrain height + 10 m); Live (live altitude
-   + 50 m), which was the default when this line was written, remains as the
-   configurable fallback and Fixed100 remains only as a golden-parity relic. See
-   docs/DESIGN_TERRAIN_PROFILE_VERTICES_2026-09-01.md sec 7 DEFAULT FLIP.
+The R9 Mojave order executes END-TO-END, HEADLESS, ALL THREE TASKEES (platoon, company, single
+entity), telemetry-verified arrivals + TASKCMPLT - run 20260901T203702Z at 1x and again under
+fixed-frame run-to-complete (20260902T140808Z) in 20 s of wall where the 1x comparator spent
+182 s. COA-STP1 AT SCALE still freezes 4 of 8 dispatching aggregates: the CAUSE IS NOW KNOWN
+(route-name length), THE FIX IS NOT YET APPLIED. Evidence chain:
+PREREG_P1_FIXED100_ENTITY_2026-09-01.md + RESEARCH_MECHANISMS_2026-09-01.md.
 
 ## WORKING CONFIGURATION
-TypeMappingMode=RealTemplates (default) + GroundWaypointAltitudeMode=TerrainProfile
-(THE DEFAULT since 2026-09-02, design sec 7 DEFAULT FLIP; it was Live when this section
-was first written, and Live is still selectable with Vrf__GroundWaypointAltitudeMode=Live)
-+ NavArea disabled. STOCK templates, no env overrides - an untouched product at default
-settings (P2c-final). Vendor defects found across the whole saga: ZERO. Runner hardening now
-permanent: Stage 2b boot-dialog watcher (scripts/AnswerRtiDialog.ps1; the RTI dialog is
-ONCE PER REBOOT), Stage 2c RTI gate, per-run capture of bin64 vrfSim.log/vrfGui.log.
-vrfSim.mtl: notifyLevel 3 / objectConsoleNotifyLevel 3 / enableLogFileTimestamps 1
-(backup .bak-20260901) - KEEP: this is what made the freezes speak.
+TypeMappingMode=RealTemplates + GroundWaypointAltitudeMode=TerrainProfile (both compiled
+DEFAULTS since 2026-09-02, bridge A7504441) + NavArea disabled + STOCK templates, no env
+overrides - an untouched product at default settings. Vendor defects found across the whole
+saga: ZERO. Runner hardening permanent - Stage 2b boot-dialog watcher (AnswerRtiDialog.ps1; the
+RTI dialog is ONCE PER REBOOT), Stage 2c RTI gate, per-run bin64 log capture, stop-file trace
+close, off-by-default -StopWhenComplete with -SettleHoldSecs 60 as a FLOOR and rule 4 (every
+taskee needs an RPT LATER than its TSK and within 2 m of its latest POS): see
+docs/RUNNER_TURNAROUND_2026-09-01.md, RUNBOOK 0.5.11. vrfSim.mtl: notifyLevel 3 /
+objectConsoleNotifyLevel 3 / enableLogFileTimestamps 1 (backup .bak-20260901) - KEEP: this is
+what made the freezes speak.
+
+## FIXED-FRAME RUN-TO-COMPLETE - THE SPEED-UP LEVER (validated 2026-09-02)
+FINDING. The SCENARIO'S EXERCISE CLOCK MODE, not TimeMultiplier, is how this federation runs
+faster than the wall clock (Users Guide sec 3.4.3 p.122-123, sec 7.6.1 p.254-255, sec 12.2.1
+p.351-355 + Table 17). Fixed-Frame Run-To-Complete is the vendor's named mode for "run a
+simulation overnight and view the results the following day"; variable-frame is the mode the
+vendor says "does not provide repeatable results". FIXTURE:
+tools/FixtureGen/frame_variants/TropicTortoise_FFRTC.scnx - stock TropicTortoise with TWO lines
+moved, (frame-mode "fixed-frame-run-to-complete") and (frame-time 0.033333, the frame length the
+box was already running) - DEPLOYED as C:\MAK\vrforces5.0.2\userData\scenarios\ with the same
+name; load with -Scenario TropicTortoise_FFRTC. Stock TropicTortoise.scnx untouched.
+RESULT (run 20260902T140808Z, appNos 3726-3732; prereg 2030ebd, outcome c0e90b7, sec 8):
+VERDICT PASS, NO FALSIFIER FIRED. Mode in effect - 100% of small gaps on grid (32/32), 85/85
+distinct sim stamps within the 0.0005 s print rounding, R = 0.9986, fitted phase 1 microsecond
+(a deterministic zero-phased grid). Answer unchanged - 3/3 TASKCMPLT, COMPLETION ORDER IDENTICAL
+taskee for taskee across 3 runs of this order, endpoints within 0.09 m, terrain lines
+character-for-character identical, app log 103 lines in both with six non-semantic differences.
+9.04x WALL from order push to last TASKCMPLT (20.18 s vs 182.34 s); LS slope 10.18; the ratio is
+LOAD-DEPENDENT (frames are cheaper when nothing moves). NO TIMEOUT FIRED. Hygiene clean: every
+stage exit 0, RTI trio untouched, no new dump, ResetVrf found zero leftovers.
+THE RULE: ALL PROBES FROM NOW ON RUN UNDER FFRTC MODE unless the prereg states why not;
+TIMEMULTIPLIER STAYS 1x; the multiplier and at-distance LADDERS ARE WITHDRAWN.
+OPEN DESIGN ITEM (not a blocker, not a repair): OUR APP HAS NO NOTION OF SIM TIME.
+VrfFacade.cpp:478-482 pins the federate clock to elapsedRealTime
+(`clock()->setSimTime(clock()->elapsedRealTime())`), VrfC2SimService's TickLoop is 20 Hz WALL and
+every timeout in the app is wall (inventory with budgets: prereg sec 5 P4). Compression
+only ever gives a wall budget MORE margin - the one budget it does not shorten,
+TerrainProfileTimeoutSeconds 10, was armed three times and did NOT fire (3/3 replies). A sim-time
+read-back is a DESIGN item to decide, not a defect to fix. Separately and LOW PRIORITY: an
+observed-run fastForwardSettings.mtl entry (sec 7.6.1) NEEDS USER OK first.
+
+## COA-STP1 SCALE RE-RUN - RUNG 1 RESULT AND ROOT CAUSE
+RUNG 0 DONE (fc93a1e): July region hypothesis RETRACTED and tagged in six live docs; 31 (not 32)
+temporal deps; DEFECTS A and B verified ALREADY FIXED in source (InFlightTracker, TaskSequencer).
+RUNG 1 RESULT (run 20260902T125423Z, appNos 3718-3724; prereg d1f2e10, outcome sec 6 of
+docs/experiments/PREREG_COASTP1_RUNG1_BOUNDED_2026-09-02.md, 7963aed): THE JULY MECHANISM IS
+GONE; THE FREEZE IS NOT, AND IT IS NOW SILENT. Zero "moveAlong() - empty route" lines in 140 MB
+of back-end log - that grep oracle is DEAD - yet 4 of the 8 dispatching aggregates built ZERO
+member offset routes and never moved, with no diagnostic of any kind. The other 4 built them
+and MARCHED 13.2-26.7 km at 8.0-8.2 m/s, still moving at window close: the first COA-STP1
+aggregates ever observed driving their own order at 1x. Offset routes and movement correlate
+1:1 across all 8. No runaway, nothing underground or offshore, no CPP-ALT-1 stop radius,
+terrain authoring clean for movers and freezers alike, cleanup 172 = 128+35+9 exactly.
+OTHER FINDINGS (recorded, unfixed): (A) the lone ENTITY taskee reported TASKCMPLT from the BACK
+END's own callback while never leaving its spawn ring - a VACUOUS COMPLETION that falsely
+released T24 and cascade-skipped T25/T26; (B) all 26 echelon-'F' units land the GENERIC
+Ground_Aggregate fallback (UnitTranslator.cs:70/:134, TYPE_GAP_ADJUDICATION item 4, still a
+USER call) - but that fallback MARCHES, so it is not the freeze cause; (C) TerrainProfile
+re-entry double-logs the verb classification; (D) ResetVrf after StopVrf is blind
+(BackendCount=0) - it must run between StopIface and StopVrf.
+
+RUNG 1 ROOT CAUSE (offline forensics, no live run; ANALYSIS_COASTP1_RUNG1_FREEZE_2026-09-02.md)
+DISCRIMINATOR, exception-free in 9 of 9: ROUTE-NAME LENGTH. Every performer whose route name is
+<= 34 characters marched; every one whose route name is >= 36 characters froze. H1-H5 (dispatch
+race, leader selection, boxing-in, aggregation state, vertex count) are ALL REFUTED in sec 4.
+MECHANISM. DtUUID stores a fixed 36-byte blob - 1 type byte + 35 payload
+(C:\MAK\vrforces5.0.2\include\vrfutil\rwUUID.h, `char myData[36]`). The move-along task
+addresses the route BY NAME through that blob: VrfFacade::MoveAlongRoute passes
+DtUUID(routeUuid) at src/VrfFacade/VrfFacade.cpp:571 (call site :569-571), so a name longer than
+34 characters arrives at the aggregate CUT TO 35 WITH NO TERMINATOR - T27's in-task name is
+visibly unterminated with trailing junk at bin64-vrfSim.log:52979. DtSimObjectReference myRoute
+then never resolves, generateFormationRoutes / beginFollowInFormation are never reached, ZERO
+offset routes are built and NOTHING IS LOGGED (the old oracle line lives in a later stage). The
+CREATION path is unaffected - CreateRoute passes an unbounded DtString at VrfFacade.cpp:529-534,
+so the full-length route objects exist intact, which is exactly why the July "names pass at 99
+chars" test came out clean.
+FIX CANDIDATES (neither applied; NOT before the probe scores):
+ 1. ROUTE NAMING (C#, cheap, reversible): stop naming routes with the C2SIM task name
+    (src/VrfC2SimApp/VrfC2SimService.cs:929 builds it; :1142 and :1172 address by it). Use a
+    SHORT SYNTHETIC ID <= 34 chars - e.g. derived from the task UUID. VR-Forces names its own
+    sub-routes C/1-35_R0..R3 (9 chars) and they resolve. The C2SIM task name belongs in the log
+    line, not in the object name.
+ 2. FACADE COMPLETION STATUS (native C++): forward DtTaskCompleteReport success() / taskId() /
+    taskTrackingNumber() through VrfFacade::TaskCompleted. All three are DROPPED today at
+    src/VrfFacade/VrfFacade.cpp:217-242 (struct TaskCompleted, VrfFacade.h:119-123, has no such
+    field), so a success=false FAILURE report is indistinguishable from a real success - which
+    is what let finding A through as a TASKCMPLT. Native change under STANDING AUTHORIZATION:
+    back up the DLLs, /t:Rebuild always, REDEPLOY ALL 10 COPIES, verify ONE hash across them.
+STATUS: PROBE IN FLIGHT - docs/experiments/PREREG_ROUTE_NAME_LENGTH_2026-09-02.md (A/B on route
+name length ONLY, data-only, under FFRTC mode). A live executor owns that file, runs/ and
+tools/FixtureGen. DISSENT ON RECORD against MOJAVE_ROOTCAUSE part 12's "name length falsified":
+it tested the CREATION path (unbounded DtString) and the 10-char marking collisions, never the
+route name inside the move-along TASK. Logged in docs/CORRECTIONS_LOG.md.
+UNEXPLAINED, a falsifier candidate rather than a footnote:
+"buildEntityRouteFollowingMap() : Can't find entity route" appears 14,880 times, from the
+dispatch second on, at a flat ~335/min for 45 minutes. No object prefix at notify level 3, so
+unattributable. It does not contradict the name-length finding; the finding does not explain
+it either.
+
+## OPERATIONAL STATE (2026-09-02, after the FFRTC run, before the name-length probe)
+VR-FORCES DOWN between runs (StopVrf exit 0, "graceful quit; no process was force-killed").
+appNo marker NEXT FREE = 3734, authoritative marker in docs/OPUS_EXECUTION_PLAN.md Appendix B
+(runner-managed, ledger CRLF). 2026-09-02 blocks consumed: terrain Rows 1/2/2R/2c/2cR/3
+3676-3717, COA-STP1 rung 1 3718-3724, FFRTC 3726-3732, post-run ResetVrf sweep 3733.
+RTI RESIDENT + ANSWERED: rtiAssistant 41336 / rtiexec 224608 / rtiForwarder 76620 - UNCHANGED
+across every 2026-09-02 run; still inventory fresh at session start, do not trust PIDs. C2SIM
+docker UP. Deployed bridge = A7504441 (10/10 copies, Ijwhost 38255036; backups
+bak-20260902-a48abe6c/ and bak-20260902-28e993fe/). Dump 70668 sits in bin64 with no newer one
+since (RUNBOOK 0.5.12: scripts/AnswerCrashDumpDialog.ps1 answers the prompt; never halt on it).
+Firewall: do NOT set NotifyOnListen False (user ruling); Cancel the testhost prompt. MAK license
+expires 2026-09-15, renewal in process - verify the new .lic landed before running after that.
+CORRECTION 2026-09-02: THE VENDOR LOG'S WALL STAMPS ARE LOCAL TIME (-04:00), NOT UTC - convert
+before cross-referencing any bin64-vrfSim.log stamp against a UTC artifact. Our own app and
+tool logs do stamp UTC. See docs/CORRECTIONS_LOG.md.
 
 ## NEXT (in order)
-1. DOCUMENTED-FRAME HARDENING - DONE (2026-09-02). Route vertices are authored from the
-   back end's own terrain via DtIfRequestTerrainProfileInformation; TerrainProfile is the
-   compiled DEFAULT (5b82e5f) and Row 3 (run 20260902T113613Z, appNos 3711-3717) confirmed
-   the flip live with no env override, 3/3 TASKCMPLT, every stage exit 0. Bridge A7504441
-   deployed 10/10. Full record: docs/DESIGN_TERRAIN_PROFILE_VERTICES_2026-09-01.md sec 6/7
-   and the Row 1/2/2R/2c/2cR/3 preregs in docs/experiments/. Residual gap: the per-vertex
-   Live FALLBACK path has never run on a healthy back end. Back-end fatal-error precedent:
-   dumps in bin64 from 2026-07-14/15/22 and 70668 (2026-09-02).
-2. COA-STP1 SCALE RE-RUN on the clean state (the July scale results predate ALL FOUR
-   fixes; every FALSIFIED stamp from July is layer-relative - see L9 - and the region/
-   fan-out story needs re-adjudication).
-   RUNG 0 DONE (fc93a1e): the July region hypothesis is RETRACTED in CORRECTIONS_LOG and
-   tagged in the six live docs that still stated it; 31 (not 32) temporal deps; DEFECT A
-   and B verified ALREADY FIXED in source (P0.1 InFlightTracker, P0.2 TaskSequencer).
-   RUNG 1 RESULT (run 20260902T125423Z, appNos 3718-3724, prereg d1f2e10, outcome sec 6 of
-   docs/experiments/PREREG_COASTP1_RUNG1_BOUNDED_2026-09-02.md): THE JULY MECHANISM IS GONE;
-   THE FREEZE IS NOT, AND IT IS NOW SILENT. Zero "moveAlong() - empty route" lines in 140 MB
-   of back-end log - that grep oracle is DEAD - yet 4 of the 8 dispatching aggregates built
-   ZERO member offset routes and never moved, with no diagnostic of any kind. The other 4
-   built them and MARCHED 13.2-26.7 km at 8.0-8.2 m/s, still moving at window close: the
-   first COA-STP1 aggregates ever observed driving their own order at 1x. Offset routes and
-   movement correlate 1:1 across all 8. TEMPLATE IS NOT THE DISCRIMINATOR (Ground_Aggregate
-   3 moved/2 froze; Tank Company 1 moved/2 froze). No runaway, nothing underground or
-   offshore, and the CPP-ALT-1 18.4 km stop radius did NOT reproduce. Terrain authoring held
-   at 5 vertices x 9 concurrent requests, zero warnings - including for the frozen units, so
-   waypoint altitude is not the discriminator either. Cleanup 172 = 128+35+9 exactly.
-   NEW FINDINGS (recorded, unfixed): (A) the lone ENTITY taskee reported TASKCMPLT from the
-   BACK END's own callback while never leaving its spawn ring - a true vacuous completion
-   that falsely released T24 and cascade-skipped T25/T26; (B) all 26 echelon-'F' units land
-   the GENERIC Ground_Aggregate fallback (UnitTranslator.cs:70/:134, TYPE_GAP_ADJUDICATION
-   Decision item 4, still a USER call) - but that fallback MARCHES, so it is not the freeze
-   cause; (C) TerrainProfile re-entry double-logs the verb classification; (D) ResetVrf after
-   StopVrf is blind (BackendCount=0) - it must run between StopIface and StopVrf.
-   UNEXPLAINED: what separates the 4 movers from the 4 freezers. Only correlate found: the
-   two 2-point routes (T5, T27) both froze; but T31/T35 froze on 5-point routes identical to
-   movers. NEXT: docs first (aggregate move-along chapter, generateFormationRoutes' "still
-   waiting for data" return), then a single-variable 2-point-route probe.
-3. MAK: send-ready message in docs/MAK_MESSAGE_2026-09-02.md (docs question, unit-level
-   tasking confirmation + cosmetic formation observation, follow-in-formation at a time
-   multiplier as a QUESTION). User rulings 2026-09-02: multipliers stay 1x for probes;
-   the crash-dump report (70668) is handled by the user; no terrain question (Row 2c
-   settled it). License renewal in process per the user (2026-09-01); installed .lic
-   ends 2026-09-15 - verify the new file landed before running after that date.
-4. VR-FORCES 5.2b IS EXPECTED SOON (user, 2026-09-01). Upgrade checklist when it lands:
-   (a) diff its EXPANDED AGGREGATE MODEL SET against the 54 pending type adjudications
-   BEFORE authoring anything (PRIOR_ART Q1: 5.2 shipped new NATO/Russian formations);
-   (b) 5.2's "ground path planning enhanced with vector-based terrain data" touches
-   exactly today's route/clamp machinery - re-run R9 on 5.2b and RE-ADJUDICATE before
-   trusting any 5.0.2-era behavioral conclusion; (c) migrate local state DELIBERATELY:
-   vrfSim.mtl notify levels (re-apply), HQ-section aliases (per P2c verdict), the
-   DISABLED NavArea artifact (do NOT carry it into 5.2's SharedData), runner/env paths
-   pinned to vrforces5.0.2, and a full VrfBridge /t:Rebuild + 7-copy redeploy against
-   the new libs; (d) read the API migration guides first
-   (docs.mak.com/api/vrforces5.2/classref/vrf_migration50.html + vrf_migration51.html).
-5. PROBE TURNAROUND (user-approved 2026-09-01, adopt at the next natural break; do
-   NOT change mid-protocol): (a) probe windows -RunSecs 420 (today's settles were all
-   t<220; the 900 s figure came from a misread since retracted); (b) author a
-   SHORT-ROUTE probe order variant of R9 - platoon/entity legs can be ~200 m, but
-   COMPANY probe routes stay >= ~1 km (formation depth ~430 m + leading-edge
-   completion - a route shorter than the formation confounds the read); (c) higher
-   TimeMultiplier: P3 A/B DONE (docs/experiments/PREREG_P3_TIMEMULT5_2026-09-01.md,
-   run 20260901T221227Z): the clock ran 5.0x and all endpoints matched P2c, BUT the
-   company never completed (one follower, M1A2 18, never fired follow-in-formation
-   completion while sitting 1.4 m from its 1x endpoint) -> falsifier fired, STOP.
-   P3R (docs/experiments/PREREG_P3R_TIMEMULT5_REPEAT_2026-09-01.md, run
-   20260901T230326Z): the IDENTICAL 5x repeat completed 28/28 (17 followers, 5
-   leaders, 6 units, 3/3 TASKCMPLT), clock 4.94x, every final within 0.22 m of P2c.
-   5x record: 1 of 2 runs clean; the P3 miss is neither reproduced nor explained
-   (REVIEW_P3 h1 odds lowered, h2 favoured, n=2). PROBE RUNS STAY AT 1x until the
-   user rules otherwise; 5x remains NECESSARY for COA-STP1 scale (up to 42.4 km single, 77.9 km chained: 1-6/2/1_AD T15+T17).
-   Keep ONE canonical-length 1x run per milestone for comparability with the record.
-   Step analysis (docs/experiments/ANALYSIS_P3_STEP_PROFILE_2026-09-01.md, 826ab8c):
-   P3 and P3R are indistinguishable on every tick/clock statistic (tick quantum
-   ~0.033 sim-s at 1x and 5x); REVIEW_P3's per-frame-overshoot mechanism is NOT
-   supported; the M1A2 18 miss is real in bin64-vrfSim.log (task 5 cleared only at
-   teardown) and its cause is UNKNOWN; watchvrf POS mid-move is dead-reckoned - only
-   plateaus are truth.
-   (d) RUNNER TURNAROUND - MERGED (3e19c88, review fixes F1-F5) and CONFIRMED by run
-   20260901T235823Z (docs/experiments/PREREG_RUNNER_CONFIRM_2026-09-01.md sec 6): 7 min
-   9 s start -> manifest vs P2c 26 min 23 s; 3/3 TASKCMPLT at P2c offsets; stop-file
-   path taken by both observers, RTI untouched. ONE MISS: SettleHoldSecs 60 equals
-   the ~60 s text-report cadence, so the company's last usable RPT (1.5 s after its
-   TSK) described a still-converging centre, 11.8 m from the POS final (POS endpoint
-   itself 0.00 m from P2c). RULED 2026-09-02 (supervisor): the hold is EVIDENCE-BASED
-   - rule 4 in RUNNER_TURNAROUND sec 3: every taskee needs an RPT in the live trace
-   LATER than its TSK record AND within 2 m of its latest POS; SettleHoldSecs 60 stays
-   as a FLOOR. Implemented + tested (96 checks, 7 faults injected and caught) and
-   RE-CONFIRMED by run 20260902T003710Z (docs/experiments/PREREG_RUNNER_CONFIRM2_
-   2026-09-01.md sec 6): A-F all MET - 3/3 TASKCMPLT at P2c offsets, POS==RPT 0.0 m for
-   ALL THREE taskees, window closed 64.6 s after the last completion, 7 min 17 s start
-   -> manifest, RTI untouched. -StopWhenComplete runs are now VALID for POS==RPT
-   adjudication (n=1 under rule 4).
-   Design (docs/RUNNER_TURNAROUND_2026-09-01.md, RUNBOOK 0.5.11): the
-   WatchVrf/ListenReports trace now ends with the window via a stop-file the runner
-   touches at StopIface + Trail (removes the measured 8 min 21 s dead time per run;
-   tools take their normal resign/disconnect path, nothing killed; capability-probed
-   so an old deployed binary falls back to the record's behaviour), and an
-   OFF-by-default `-StopWhenComplete` closes the window once every taskee has
-   TASKCMPLT + `-SettleHoldSecs` 60 floor + post-completion agreeing RPT (RunSecs
-   stays the cap). The runner's ledger rewrite now writes explicit CRLF.
-6. Backlog unchanged: remaining type adjudications (54 units - but see item 4a first),
-   task vocabulary, completion re-keying, scoring (Phase 5).
+1. ROUTE-NAME LENGTH: let the A/B probe score, then APPLY fix candidate 1 (short synthetic
+   route ids) and RE-VERIFY on R9 under FFRTC before anything at scale.
+2. COA-STP1 RUNG 2 - the FULL order under FFRTC, after the fix lands and R9 re-verifies. Rung 1's
+   bounded 45-minute window is no longer the constraint: ~9x compression makes the whole order
+   affordable at TimeMultiplier 1. Expect T13 NOT to dispatch (12,000 s start delay, not a miss).
+3. TYPE_GAP ITEM 4 - the echelon-'F' -> generic Ground_Aggregate fallback needs a USER RULING
+   (docs/TYPE_GAP_ADJUDICATION.md, Decision item 4). Still pending.
+4. SIM-TIME / MULTIPLIER READ-BACK - the design item in the FFRTC block: the app cannot read the
+   back end's exercise clock and every budget it holds is wall. Nothing is blocked on it today.
+5. MAK MESSAGE - docs/MAK_MESSAGE_2026-09-02.md is send-ready and THE USER SENDS IT. A DRAFT
+   ADDITION covering the DtUUID route-name-length question is appended to that file, clearly
+   marked; the user decides whether it goes into this message or a later one.
+6. BACKLOG unchanged: type adjudications (54 units - see the 5.2b checklist first), task
+   vocabulary, completion re-keying, scoring (Phase 5).
 
-## OPERATIONAL STATE (2026-09-02 ~11:15Z, after ROW 2c - CLEAN, Row 2cR in flight)
-VR-Forces DOWN between runs (StopVrf exit 0 on ROW2R and ROW 2c). Dump 70668 saved in
-C:\MAK\vrforces5.0.2\bin64 (RUNBOOK 0.5.12: scripts/AnswerCrashDumpDialog.ps1 answers the
-prompt; never halt on it again). RTI RESIDENT + ANSWERED (rtiAssistant 41336 / rtiexec
-224608 / rtiForwarder 76620 - unchanged across all six 2026-09-02 runs; inventory fresh at
-start, do not trust PIDs). C2SIM docker UP. Deployed bridge = A7504441 (10/10 copies, Ijwhost
-38255036; backups bak-20260902-a48abe6c/ and bak-20260902-28e993fe/). appNo marker NEXT
-FREE = 3704 before Row 2cR, 3711 after (runner-managed, ledger CRLF; terrain Row 1 =
-3676-3682, Row 2 = 3683-3689, ROW2R = 3690-3696, ROW 2c = 3697-3703). Firewall: do NOT
-set NotifyOnListen False (user ruling, RUNBOOK 0.5.12); Cancel the testhost prompt.
+## VR-FORCES 5.2b UPGRADE CHECKLIST (expected soon - user, 2026-09-01)
+(a) diff its EXPANDED AGGREGATE MODEL SET against the 54 pending type adjudications BEFORE
+authoring anything (PRIOR_ART Q1); (b) 5.2's "ground path planning enhanced with vector-based
+terrain data" touches exactly today's route/clamp machinery - re-run R9 on 5.2b and
+RE-ADJUDICATE before trusting any 5.0.2-era behavioural conclusion; (c) migrate local state
+DELIBERATELY: vrfSim.mtl notify levels, the DISABLED NavArea artifact (do NOT carry it into
+5.2's SharedData), the FFRTC fixture, runner/env paths pinned to vrforces5.0.2, and a full
+VrfBridge /t:Rebuild + 10-copy redeploy; (d) read the API migration guides FIRST
+(docs.mak.com/api/vrforces5.2/classref/vrf_migration50.html + vrf_migration51.html).
 
-## NON-NEGOTIABLES (unchanged plus the docs-first rule above)
-One variable per probe; prediction + falsifier + DOC CITATIONS before running; movement
-gate = static->moving->settled + POS/RPT agreement; never kill a joined federate; never
-kill rtiAssistant/rtiexec/rtiForwarder without a fresh ruling; fresh ledgered appNo per
-join; ASCII in tracked files (ripgrep, not grep -P); after two consecutive infra
-failures, research before retry. FALSIFIED stamps are LAYER-RELATIVE (L9): when a new
-blocker layer is found, re-adjudicate old falsifications before trusting their fences.
+## PROBE PROTOCOL (adopted 2026-09-01/02; do NOT change mid-protocol)
+FFRTC mode per the block above; TimeMultiplier 1x; -RunSecs is a CAP under -StopWhenComplete
+(420 s was the 1x figure; under FFRTC the same work costs far less wall). SHORT-ROUTE probe
+variants are allowed - platoon/entity legs may be ~200 m - but COMPANY probe routes stay >=
+~1 km (formation depth ~430 m plus leading-edge completion). Keep ONE canonical-length run per
+milestone for comparability with the record. THE 5x MULTIPLIER RECORD is superseded by FFRTC
+and NOT to be re-run (P3 lost a follower's completion, P3R repeated clean 28/28, the miss is
+unexplained: docs/experiments/ANALYSIS_P3_STEP_PROFILE_2026-09-01.md). watchvrf POS mid-move is
+DEAD-RECKONED - only plateaus are truth.
+
+## NON-NEGOTIABLES (unchanged, plus the docs-first rule above)
+One variable per probe; prediction + falsifier + DOC CITATIONS before running; movement gate =
+static -> moving -> settled with POS/RPT agreement; never kill a joined federate; never kill
+rtiAssistant / rtiexec / rtiForwarder without a fresh ruling; fresh ledgered appNo per join;
+ASCII in tracked files (ripgrep, not grep -P); after two consecutive infra failures, research
+before retry. FALSIFIED stamps are LAYER-RELATIVE (L9) - re-adjudicate on the clean state.

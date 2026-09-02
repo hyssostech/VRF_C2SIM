@@ -204,6 +204,55 @@ Each entry: the claim, why it was wrong, and the evidence that settled it.
   docs/experiments/PREREG_COASTP1_RUNG1_BOUNDED_2026-09-02.md. Nothing here licenses a claim that
   aggregates march at Mojave until that run is scored.
 
+## "Route-name length is falsified" (superseded 2026-09-02, pending the manipulation probe)
+
+- CLAIMED (docs/experiments/MOJAVE_ROOTCAUSE_INVESTIGATION_2026-07-14.md part 12, :1192-1215,
+  2026-07-16): name length is among the exhausted/falsified candidates for the mover/frozen
+  split - "Route names pass through VR-Forces at up to 99 chars UNTRUNCATED", and the
+  10-char truncation is the C++ interface's OWN, applied at XML parse time. SUPERSEDED, not
+  simply wrong: what part 12 tested was the CREATION path and the 10-char marking
+  collisions. It never inspected the route name inside the move-along TASK, which is a
+  DIFFERENT transport.
+- WHY THE DISTINCTION MATTERS (mechanism, docs/experiments/ANALYSIS_COASTP1_RUNG1_FREEZE_2026-09-02.md,
+  commit 04bcc0f): VrfFacade::CreateRoute passes DtString(name.c_str()), unbounded
+  (src/VrfFacade/VrfFacade.cpp:529-534) - so the 99-character route OBJECT really does exist
+  intact in the back end, exactly as part 12 says. VrfFacade::MoveAlongRoute passes
+  DtUUID(routeUuid) (:569-571), and DtUUID is a FIXED 36-byte blob, 1 type byte + 35 payload
+  (C:\MAK\vrforces5.0.2\include\vrfutil\rwUUID.h, `char myData[36]`). A route name over
+  34 characters therefore reaches the aggregate cut to 35 with no terminator, resolves to no
+  object, and no member offset route is ever built - silently. Observed on run
+  20260902T125423Z in 9 of 9 performers with no exception: <= 34 chars marched, >= 36 chars
+  froze; T27's in-task name is visibly unterminated with trailing junk
+  (bin64-vrfSim.log:52979).
+- The 10-char marking-collision finding of part 12 is NOT reopened; it stands.
+- Part 12's own heading now carries an inline [SUPERSEDED 2026-09-02 for the TASK path ...]
+  pointer, so the retraction does not sit only here (the six-week non-propagation lesson).
+- STATUS: SUPERSEDED PENDING THE MANIPULATION PROBE. The truncation is INFERRED from the
+  header plus the observed 35-character cut; no instrumentation proves the buffer. The
+  single-variable A/B probe (same geometry, 30-char vs 40-char route name) is registered as
+  docs/experiments/PREREG_ROUTE_NAME_LENGTH_2026-09-02.md. Until it scores, this entry
+  supersedes part 12 for the TASK path only and leaves the CREATION path claim standing.
+  Falsifier that would reinstate part 12 wholesale: a performer with a >= 36-character route
+  name that builds offset routes and marches, or a <= 34-character one that builds zero while
+  its route object is present.
+
+## "Logs stamp UTC" applied to the VENDOR log (retracted 2026-09-02)
+
+- CLAIMED (docs/RESUME_PROMPT.md:98, and the same blanket phrasing echoed wherever a time
+  base is discussed): "Logs stamp UTC; the machine runs local (-04:00)." TRUE of OUR OWN app
+  and tool logs - WatchVrf and ListenReports stamp DateTime.UtcNow, and the runner's manifest
+  clocks are UTC - but FALSE of the VENDOR log. bin64-vrfSim.log's wall stamps
+  (enableLogFileTimestamps 1) are LOCAL TIME, i.e. UTC-4 on this box.
+- EVIDENCE (docs/experiments/PREREG_R9_FIXED_FRAME_RTC_2026-09-02.md sec 8, item C1): Row 3's
+  first vendor stamp reads 07:38:38 against an orderPushedUtc of 11:38:37Z, and the FFRTC
+  run's reads 10:08:24 against a startUtc of 14:08:08Z. Offset -4 in both, from two
+  independent runs.
+- CONSEQUENCE: any cross-reference of a vendor-log stamp to a UTC artifact must convert.
+  Measurements built from stamp DIFFERENCES (every ratio in that prereg) are unaffected.
+  docs/RESUME_PROMPT.md and docs/VRF_GROUNDWORK_PLAN.md L5 now carry an inline
+  [RETRACTED 2026-09-02 ...] pointer at the claim. docs/RUNBOOK.md does NOT state it - checked
+  and clear. Memory files were not edited (user owns them).
+
 ## COA-STP1 order/init arithmetic (corrected 2026-09-02, all re-verified from the XML)
 
 - CLAIMED (OPUS_EXECUTION_PLAN.md:724 and :739, PLAN_DERISK_NOTES.md:81,

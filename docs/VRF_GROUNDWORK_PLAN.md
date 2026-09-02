@@ -742,6 +742,7 @@ readable objects, and a NaN row from GlobalEnv must NOT be read as correct-and-e
   before comparing impressions across runs.
 - L5 TIMESTAMP BASES DIFFER: app/tool logs stamp UTC, the machine runs local - check
   Get-Date before comparing (cost a real build-freshness scare).
+  [RETRACTED 2026-09-02 - the VENDOR log (bin64-vrfSim.log) stamps LOCAL time, not UTC; our own app/tool logs do stamp UTC. See docs/CORRECTIONS_LOG.md.]
 - L6 FOUNDATION BEFORE PROBES. When a mapping layer was never validated against the
   target system's content model, the probe space explodes and results look random.
   The reset (this plan) is the fix for the process, not just the code.

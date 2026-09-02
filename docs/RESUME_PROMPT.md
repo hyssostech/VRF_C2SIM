@@ -96,6 +96,7 @@ cannot produce a 4a-scored POS arrival. Capture RPT and reason from both channel
 - C2SIM server (docker): REST http://127.0.0.1:8080/C2SIMServer HTTP 200, STOMP 61613.
   MAK license expires 2026-09-15.
 - Logs stamp UTC; the machine runs local (-04:00). Record both before comparing times.
+  [RETRACTED 2026-09-02 - the VENDOR log (bin64-vrfSim.log) stamps LOCAL time, not UTC; our own app/tool logs do stamp UTC. See docs/CORRECTIONS_LOG.md.]
 
 ## NON-NEGOTIABLES
 

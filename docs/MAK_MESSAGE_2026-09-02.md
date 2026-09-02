@@ -70,3 +70,34 @@ Evidence pointers (internal, not part of the message): item 3 = runs 20260901T22
 the miss) and 20260901T230326Z (P3R, 28/28), 1x baselines 20260901T211310Z and
 20260901T235823Z, docs/experiments/ANALYSIS_P3_STEP_PROFILE_2026-09-01.md; item 2
 observation = run 20260901T211310Z (P2c).
+
+---
+
+## DRAFT ADDITION (2026-09-02) - NOT PART OF THE MESSAGE ABOVE UNTIL THE USER SAYS SO
+
+Candidate fourth question, held back pending (a) the user's decision and (b) the outcome of
+docs/experiments/PREREG_ROUTE_NAME_LENGTH_2026-09-02.md, which tests the mechanism
+single-variable. If that probe comes back negative, DELETE this block rather than send it.
+
+    4. Route names carried in a move-along task. We create routes with
+       DtVrfRemoteController::createRoute using descriptive names taken from the C2SIM task,
+       then task the unit with a move-along that names the route. Routes whose name is 35
+       characters or longer are created intact (we can see the full-length route object in the
+       back end), but the aggregate never resolves them: no member offset routes are built, the
+       unit never moves, and nothing is logged at notify level 3. Routes named with 34
+       characters or fewer work normally. We see in vrfutil/rwUUID.h that DtUUID is a fixed
+       36-byte blob (one type byte plus 35 payload bytes), and DtMoveAlongTask::setRoute takes a
+       DtUUID, which would explain a 35-character cut on a string-type UUID.
+       a. Is there a documented maximum length for a route name that is to be used as a
+          move-along task parameter? The Users Guide gives limits for entity (11) and unit (31)
+          names and 255 for graphical objects, but we found none for this path.
+       b. Is the intended usage to keep route names short/synthetic (as VR-Forces does for its
+          own generated sub-routes, e.g. C/1-35_R0), with the descriptive text kept outside the
+          object name?
+       c. Should an unresolvable route reference in a move-along task produce a diagnostic? At
+          present the task is accepted and the controller stays busy indefinitely with no
+          console output, which made this expensive to find.
+
+Evidence pointer (internal): run 20260902T125423Z,
+docs/experiments/ANALYSIS_COASTP1_RUNG1_FREEZE_2026-09-02.md (9 performers, exception-free
+split at 34/36 characters; T27's in-task name arrives unterminated with trailing junk).
