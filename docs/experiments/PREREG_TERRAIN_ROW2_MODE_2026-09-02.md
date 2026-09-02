@@ -154,4 +154,106 @@ reply is NOT a stop but is reported as unexplained.
 
 ## 6. Outcome (to be written from the artifacts, after the run)
 
-(pending)
+VERDICT: STOP - FALSIFIED (prediction A met; B, C, D, F MISSED; E MISSED on teardown) -
+AND the miss is NOT attributable to the mode variable: the VR-Forces BACK END CRASHED
+BEFORE the order was pushed. Nothing was retuned, re-run, or killed.
+
+Run 20260902T011908Z_run, launched 2026-09-02 01:19:08Z from main at 5c995e0 (this prereg
+committed), `Get-ChildItem env:Vrf__*` = exactly `Vrf__GroundWaypointAltitudeMode=
+TerrainProfile`. appNos 3683-3689 (vrfBackend 3683, vrfFrontend 3684, oraclePre 3685,
+oracleTrace 3686, app 3687, rtiProbe 3688, createOneDiag 3689); ledger wasValue 3683 /
+newValue 3690 / advanced true. Pre-launch inventory: exactly rtiAssistant 41336 / rtiexec
+224608 / rtiForwarder 76620; 10/10 VrfBridge.dll copies 28E993FE (re-hashed). Runner exit 4;
+wall 780.7 s (01:19:08.4Z -> 01:32:09.1Z; the 420 s window ran to its cap, then StopVrf
+spent 2 min 33 s failing).
+
+THE SEQUENCE (stamps UTC; vrfSim.log stamps are local = UTC-4):
+- 01:21:20.99Z PushInit done; 01:21:21.02Z VrfC2SimApp started; the app created the 6
+  units (vrfc2simapp.log: 6 x "Create-altitude mode=TerrainProfile: GROUND unit ... created
+  at safe MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude
+  SKIPPED" - same altitudes as Row 1's mode=Live lines; prediction E create-line part MET).
+- 21:21:26 local (01:21:26Z): LAST LINE EVER WRITTEN by the back end -
+  AR HQ Sec 1: [Tue Sep  1 21:21:26 2026] Aggregate state has invalid formation name
+  "column-left" (bin64-vrfSim.log line 5317 of 5318; the live
+  C:\MAK\vrforces5.0.2\bin64\vrfSim.log is 445,895 bytes, last-write 21:21:26, still
+  5318 lines at 01:34Z). Row 1's back end at the same phase kept logging without a gap:
+  creation at 21:09:22, "Received Text Report: POSITION ..." lines from 21:09:27 on,
+  hundreds of lines per second through the run (11,099 lines total).
+- 01:21:32.24Z PushOrder. vrfc2simapp.log lines 47/49/51 (prediction A MET, 3 of 3):
+  Task 'T_R5_PL1': terrain profile request 7 sent for 3 vertices; dispatch deferred to
+  the reply (timeout 10 s -> Live fallback).
+  Task 'T_R5_CO1': terrain profile request 8 sent for 3 vertices; dispatch deferred to
+  the reply (timeout 10 s -> Live fallback).
+  Task 'T_R5_TK1': terrain profile request 9 sent for 3 vertices; dispatch deferred to
+  the reply (timeout 10 s -> Live fallback).
+  No ":793 request not sent" WARN (the bridge returned non-zero request ids 7, 8, 9).
+- ~10 s later, lines 52-57 (prediction B MISSED - the named falsifier, x3):
+  warn: VrfC2Sim[0] / Terrain profile request 7 for task 'T_R5_PL1' got no reply within
+  10 s - dispatching with Live vertices. (and the same for request 8 / T_R5_CO1 and
+  request 9 / T_R5_TK1); lines 58-69: Terrain profile 7 for task 'T_R5_PL1': Fallback -
+  no reply (timeout); 3 vertex(es) keep the Live altitude. (x3 for 7/8/9) each followed
+  by Task 'T_R5_PL1': CreateRoute 'T_R5_PL1 ROUTE' (3 pts) for 1222.MechPlt; move deferred
+  to route-created. (x3). ZERO ":802 all 3 vertices authored" lines (prediction C:
+  nothing to adjudicate - MISSED by absence; no echo, no frame Reason, no Note either).
+- Then NOTHING from the back end: no "Route '...' created; MoveAlongRoute issued" line for
+  any of the three routes (Row 1 had 3), 0 TASKCMPLT in the app log and 0 in
+  reports-captured.log, ListenReports "captured 0 reports" (Row 1: 31), earlyExit.fired
+  false (windowSecsUsed 420.6), reportEvidence empty, no TSK lines in the trace
+  (prediction D MISSED, F MISSED). The trace still lists the reflected units at their
+  birth positions to the end (POS,508.9,VRF_UUID:f4f32e67-...,34.645986,-116.693115,
+  1116.4; "# t=508.9s reflected=47 readable=46") - a crashed federate's HLA objects
+  persist without updates. The app's 01:29:03Z StopIface path ran normally ("Cleanup: 6
+  deletes dispatched (1628 ms)"; the deletes had no live back end to act on).
+- 01:29:35.8Z StopVrf: exit 3 after 2 min 33 s. stopvrf.stdout.log tail: "[FAIL] If one
+  of the above is a modal prompt this script does not answer (only "Are You Sure?" and
+  the nested "Session Status" are handled), that is what is blocking the shutdown." /
+  "[FAIL] NOT force-killing - a joined federate must never be force-killed (RUNBOOK
+  sec 0)." run-manifest validityFlags: FAIL "StopVrf exited 3 ...", FAIL "VR-Forces
+  processes still present after teardown: vrfSimHLA1516e(pid 70668), vrfGui(pid 77720).
+  Not killed." (prediction E MISSED on teardown; RTI PIDs 41336 / 224608 / 76620
+  UNCHANGED; both observers took the stop-file path: trace "# STOP requested via
+  stop-file at t=509.8s" -> "[OK] resigned cleanly.", ListenReports "stop requested via
+  stop-file at t=514.3s"; vrfSim counts 0/0/0/1 but on a log that ends at creation).
+
+WHAT THE BACK END IS DOING NOW (read-only inspection at 01:34Z, nothing clicked):
+Get-Process vrfSimHLA1516e pid 70668: CPU 39.9 s and NOT advancing across a 5 s
+resample, 65 threads, MainWindowTitle "vrfSim5.0.2-MSVC++15.0_64-249613-70668.dmp".
+UI Automation text of that window: "A fatal error has occurred. Would you like to save a
+diagnostic file?" with buttons Yes / No. This is the MAK crash handler: the back end took a
+FATAL ERROR and is parked on the dump prompt. The .dmp for 70668 is NOT yet written
+(needs "Yes"); bin64 already holds three vrfSim back-end dumps from July (vrfSim5.0.2-
+MSVC++15.0_64-249613-42692.dmp.dmp 2026-07-14, -36716.dmp 2026-07-15, -36676.dmp.dmp
+2026-07-22) - back-end fatal errors have precedent on this host from before any terrain
+code existed. vrfGui pid 77720 is alive (CPU advancing 822.6 -> 830.0 s, 108 threads,
+title "VR-Forces"). StopVrf's graceful quit could not be honoured by a crashed back end.
+
+ADJUDICATION AGAINST THE VARIABLE (verified vs. inferred):
+- VERIFIED: the falsifier fired (3 x :1474, 3 x :807 Fallback) and the movement gate
+  failed (0/3). By the prereg's own rule this is a STOP and no retune.
+- VERIFIED: the back end's last log line is stamped 21:21:26 local, 6 s BEFORE the order
+  push (01:21:32.24Z) and therefore before RequestTerrainProfile was ever called; the
+  lazy callback registration (review F1) and the DtSimSendToAll of the request happen
+  only inside that call. Under TerrainProfile the creation path is the Live path
+  (VrfC2SimService.cs:431, "identical creation"), and the create lines match Row 1.
+- INFERRED (not proven without the dump): the fatal error is NOT caused by the mode
+  variable - it precedes the first mode-dependent action. The strongest competing
+  hypothesis is that something the app sent at creation differs under TerrainProfile;
+  the code says no (IsLiveLikeAltitudeMode() is true for both), and the 6 create lines
+  equal Row 1's apart from the mode word. A second competitor - the back end froze
+  rather than crashed and the dialog is coincidental - is refuted by the dialog text.
+  What would settle it: the 70668 dump (click "Yes" - the user's call; it ends the
+  crashed federate) read against the vrfSim symbols, or a repeat of Row 2 on a fresh
+  boot.
+- CONSEQUENCE FOR THE MODE: Row 2 is UNADJUDICATED, not refuted - the terrain request
+  never reached a live back end. What Row 2 DID show about the new code: the request
+  path is entered, the bridge returns non-zero ids, the 10 s sweep fires on schedule,
+  the Fallback continuation runs (CreateRoute issued with Live vertices), and the app
+  shut down cleanly against a dead back end. No app-side exception.
+
+STATE LEFT BEHIND (for the next session - READ BEFORE LAUNCHING): VR-Forces is UP in a
+crashed state: vrfSimHLA1516e 70668 on the fatal-error dump prompt, vrfGui 77720 alive.
+NOT closed by this session (a joined federate; the standing authorization covers only a
+process that failed its own join). A leftover back end HARD-BLOCKS LaunchVrf.ps1 (memory:
+vrf-instances-outlive-sessions). Recommended, user's decision: click "Yes" on the 70668
+prompt to write the .dmp into bin64 (evidence), then close vrfGui from its own File > Exit,
+then re-inventory; RTI trio untouched. Ledger marker is now 3690.

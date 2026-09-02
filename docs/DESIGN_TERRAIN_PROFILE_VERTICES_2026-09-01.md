@@ -363,6 +363,15 @@ Mojave vertices ~1000-1200 m ellipsoid within ~20 m of each clamped taskee's liv
 authored vertices = terrain + 10 m. Miss = any row-1 deviation, any fallback/Partial
 WARN in row 2, an echo Reason, or a unit that moved under Live but not under
 TerrainProfile.
+ROW 2 RESULT (2026-09-02, run 20260902T011908Z, appNos 3683-3689): STOP - FALSIFIED BUT
+UNADJUDICATED. The 3 requests (ids 7/8/9) were sent; all 3 hit the 10 s timeout and fell
+back to Live (:1474 + :807 x3); no route-created callback followed, 0/3 moved. Cause: the
+VR-Forces back end (pid 70668) took a FATAL ERROR at 21:21:26 local - 6 s BEFORE the order
+push and before RequestTerrainProfile was first called - and sat on the MAK crash-dump
+prompt ("A fatal error has occurred. Would you like to save a diagnostic file?"). The mode
+variable was never exercised against a live back end. Full record + state left behind:
+docs/experiments/PREREG_TERRAIN_ROW2_MODE_2026-09-02.md sec 6. Next: user decides on the
+70668 dump; then repeat Row 2 on a clean boot (same prereg, new run id) - NO retune.
 
 ## 8. Gate results (2026-09-01, offline, worktree only)
 First revision (commit 6539036): VrfBridge /t:Rebuild exit 0 / 0 warnings; dotnet build 0
