@@ -48,6 +48,10 @@
 #include <vl/globalObjectDesignator.h>
 #include <vrftasks/radioMessageTypes.h>
 #include <vrfmsgs/adminMessage.h>
+#include <vrfmsgs/simInterfaceMessage.h>
+#include <vrfmsgs/ifRequestTerrainProfileInformation.h>
+#include <vrfmsgs/ifIntersectionInformationResponse.h>
+#include <vrfmsgs/messageTypes.h>
 #include <vrfutil/scenario.h>
 #include <matrix/geodeticCoord.h>
 #include <matrix/vlVector.h>
@@ -55,6 +59,7 @@
 #include "remoteControlInit.h"
 
 #include <cstring>
+#include <cstdlib>
 #include <string>
 #include <vector>
 #include <set>
@@ -168,6 +173,13 @@ struct VrfFacade::Impl {
     // enumerate + delete everything present (docs/RUNBOOK.md sec 8). Empty otherwise.
     std::set<std::string> reflectedUuids;
 
+    // Set by the first RequestTerrainProfile() after the terrain-profile reply callback is
+    // registered on this controller. The registration is deliberately NOT in Start() /
+    // RegisterInboundCallbacks(): the 2026-07-19 record (commit 5d14eda, HANDOFF_2026-07-19
+    // sec 5) rules that native changes are additive, opt-in, and never touch the default
+    // Start() path. A consumer that never asks for terrain runs the unchanged path.
+    bool terrainCallbackRegistered = false;
+
     // UUID-network-manager change callback (matches makVrf::DtUUIDChangedCallback:
     // void(DtReflectedObject*, const DtUUID&, void*)). usr = this Impl. Fires when the
     // manager resolves a UUID for a newly discovered entity/aggregate/control object;
@@ -273,6 +285,51 @@ static void objectConsoleMessageTrampoline(const DtUUID& id, int notifyLevel,
     }
 }
 
+// Terrain-profile reply (docs/DESIGN_TERRAIN_PROFILE_VERTICES_2026-09-01.md sec 1.2-1.4).
+// Registered BY CONTENT TYPE on the controller's DtVrfMessageInterface
+// (vrfMessageInterface.h:164, DtMessageCallbackFcn = void(DtSimMessage*, void*)), so the
+// delivered message is a DtSimInterfaceMessage carrying a
+// DtIfIntersectionInformationResponse; the type() check guards the static_cast. Points are
+// GEOCENTRIC (ifIntersectionInformationResponse.h:20) -> geodetic like TryGetEntityGeodetic.
+// Each inner vector answers one request point: EMPTY = no terrain data for it (:136-138);
+// otherwise userData is the request point index (ifRequestTerrainProfileInformation.h:46-48;
+// falls back to the position when unparsable). usr = this facade.
+static void terrainProfileTrampoline(DtSimMessage* msg, void* usr) {
+    VrfFacade* self = static_cast<VrfFacade*>(usr);
+    if (!self || !msg || !self->OnTerrainProfile) return;
+    DtSimInterfaceMessage* im = static_cast<DtSimInterfaceMessage*>(msg);
+    DtSimInterfaceContent* content = im->interfaceContent();
+    if (!content || content->type() != DtIntersectionInformationResponseType) return;
+    const DtIfIntersectionInformationResponse* resp =
+        static_cast<const DtIfIntersectionInformationResponse*>(content);
+    TerrainProfile ev;
+    ev.requestId = (unsigned int)resp->responseId();
+    ev.complete = resp->complete();
+    const DtIfIntersectionInformationResponse::IntersectionPairInformation& pairs =
+        resp->intersectionPairInformation();
+    for (size_t i = 0; i < pairs.size(); ++i) {
+        TerrainSample s;
+        s.index = (int)i;
+        if (!pairs[i].empty()) {
+            const DtIntersectionInformation& info = pairs[i][0];
+            const char* ud = info.userData().string();
+            if (ud && *ud) {
+                char* end = nullptr;
+                long parsed = std::strtol(ud, &end, 10);
+                if (end && *end == '\0') s.index = (int)parsed;
+            }
+            DtGeodeticCoord geod;
+            geod.setGeocentric(info.intersectionPoint());
+            s.point.latDeg = geod.lat() * kDegRadFactor;
+            s.point.lonDeg = geod.lon() * kDegRadFactor;
+            s.point.altMeters = geod.alt();
+            s.valid = true;
+        }
+        ev.samples.push_back(s);
+    }
+    self->OnTerrainProfile(ev);
+}
+
 // ------------------------------------------------------------------
 // VrfFacade
 // ------------------------------------------------------------------
@@ -376,6 +433,7 @@ void VrfFacade::Stop() {
         delete p_->appInit;
     }
     p_->controller = nullptr;
+    p_->terrainCallbackRegistered = false;
     p_->exConn = nullptr;
     p_->appInit = nullptr;
     p_->uuidMgr = nullptr;
@@ -704,6 +762,37 @@ void VrfFacade::SendScriptedSet(const std::string& uuid, const std::string& scri
         }
     }
     p_->controller->sendSetDataMsg(DtUUID(uuid), &set, DtSimSendToAll);
+}
+
+unsigned int VrfFacade::RequestTerrainProfile(const std::vector<Geodetic>& points) {
+    // docs/DESIGN_TERRAIN_PROFILE_VERTICES_2026-09-01.md sec 1.1/1.4. Stack content; the
+    // message interface serializes it inside createAndDeliverMessage (vrfMessageInterface.h
+    // :62-65), the same lifetime model as the stack DtSimTask objects sent above. Complete
+    // reply only (sendPartialInformation=false) so the caller correlates ONE message per
+    // request id; the id comes from the controller's own counter (vrfRemoteController.h:249).
+    // DtSimSendToAll as for every other message here: each back end answers, the caller
+    // keeps the first. The reply lands in terrainProfileTrampoline, whose callback is
+    // registered here on first use (once per controller) so that Start() and
+    // RegisterInboundCallbacks() stay byte-for-byte the pre-feature path for every consumer
+    // (2026-07-19 rule; Impl::terrainCallbackRegistered).
+    if (!p_->controller || points.empty()) return 0;
+    if (!p_->terrainCallbackRegistered) {
+        // sim-interface message callback by content type (vrfMessageInterface.h:164), not
+        // an object-message category (design doc sec 1.4).
+        p_->controller->vrfMessageInterface()->addMessageCallback(
+            DtIntersectionInformationResponseType, terrainProfileTrampoline, this);
+        p_->terrainCallbackRegistered = true;
+    }
+    unsigned int id = p_->controller->generateRequestId();
+    DtIfRequestTerrainProfileInformation req;
+    req.setRequestId((int)id);
+    req.setSendPartialInformation(false);
+    std::vector<DtVector> pts;
+    pts.reserve(points.size());
+    for (const Geodetic& g : points) pts.push_back(toGeocentric(g));
+    req.setPoints(pts);
+    p_->controller->vrfMessageInterface()->createAndDeliverMessage(DtSimSendToAll, req);
+    return id;
 }
 
 bool VrfFacade::TryGetEntityGeodetic(const std::string& uuid, Geodetic& out) const {

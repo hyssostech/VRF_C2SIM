@@ -166,9 +166,16 @@ public class VrfSettings
     // altitude (read from the sim) + LiveClearanceMeters, and creates ground units at
     // CreateAltitudeSafeMslMeters so VRF's create ground clamp drops them onto the surface. "Live"
     // is THE DEFAULT (the create-time terrain-clamp fix); "Fixed100" is the byte-for-byte
-    // golden-parity escape hatch.
-    public string GroundWaypointAltitudeMode { get; set; } = "Live"; // "Fixed100" | "Live"
+    // golden-parity escape hatch. "TerrainProfile" (opt-in, docs/DESIGN_TERRAIN_PROFILE_
+    // VERTICES_2026-09-01.md) creates like Live, then authors each GROUND route vertex from the
+    // back end's OWN terrain height (DtIfRequestTerrainProfileInformation) + TerrainClearance-
+    // Meters; a vertex the back end does not answer for (or a reply that never arrives within
+    // TerrainProfileTimeoutSeconds) keeps its Live altitude with a WARN - the order is never
+    // blocked on the query.
+    public string GroundWaypointAltitudeMode { get; set; } = "Live"; // "Fixed100" | "Live" | "TerrainProfile"
     public double GroundWaypointLiveClearanceMeters { get; set; } = 50.0;
+    public double TerrainClearanceMeters { get; set; } = 10.0;
+    public int TerrainProfileTimeoutSeconds { get; set; } = 10;
 
     // Live-mode ground-unit CREATE altitude in meters MSL (create-time terrain-clamp fix,
     // docs/SUPERVISED_RECOVERY_PLAN.md sec 3b). Under GroundWaypointAltitudeMode="Live" a ground

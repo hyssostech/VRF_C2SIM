@@ -44,6 +44,10 @@ if (args.Length > 0 && args[0] == "--destack-selftest")
 if (args.Length > 0 && args[0] == "--fanout-selftest")
     return FanOutSelfTest.Run();
 
+// Offline terrain-vertex check: TerrainProfile-mode vertex authoring / fallback decision (no bridge start).
+if (args.Length > 0 && args[0] == "--terrain-selftest")
+    return TerrainSelfTest.Run();
+
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddHostedService<VrfC2SimService>();
 await builder.Build().RunAsync();
