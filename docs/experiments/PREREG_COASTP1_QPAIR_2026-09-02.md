@@ -483,6 +483,105 @@ MAKLMGRD_LICENSE_FILE). Joined clean (BackendCount=0), discovered 0 reflected ob
 cleanly, **exit 0**. 3790 was ledgered in Appendix B BEFORE the join. Marker 3783 -> 3790
 (runner) -> 3791 (hand). VR-Forces down, RTI trio untouched (41336 / 224608 / 76620).
 
+### RUN A-2 - 20260902T214326Z_run, appNos 3791-3797 - **DISCARDED ON I4 AND I6**
+
+The one re-run sec 6A allows. Identical invocation, identical binary, identical fixture,
+identical order, identical server, no `-q`. It **MISSED TWO instrument checks**, and under sec
+6A a second discard on the same run **STOPS THE SESSION**. It is stopped. Run B WAS NOT
+LAUNCHED.
+
+RUN FACTS. Launched 2026-09-02T21:43:26.930Z; order pushed 21:47:05.818Z; observation window
+closed 22:32:40.817Z (**2,735.00 s** WALL - within 5 s of all three predecessors); manifest
+saved 22:33:25.941Z; **49 min 59 s** total wall. `runnerExitCode` **0**, all ten stages exit 0.
+`inputs.quietBackend` **False**. Ledger `wasValue` 3791 -> `newValue` 3798, taken BEFORE any
+join; 3797 (createOneDiag) UNCONSUMED. `earlyExit.fired` false. One INFO validity flag, the
+standing advisory.
+
+INSTRUMENT CHECKS
+  I1 `Can't find entity route` **0** EXACT - **PASS**; 9 new-form route lines, 0 old-form.
+  I2 FFRTC mode - **PASS**. TEST A **88/88 = 100.0%**; TEST B **R = 0.9986**, 281/282 = 99.6%
+     within 0.0005 s.
+  I3 LS clock slope **0.2751 sim-s per WALL-s**, inside [0.20, 0.40] - **PASS**.
+  I4 `reportUuids` **128** EXACT - PASS. `everReal` **1,864** against 1,732 - **MISS**, and the
+     SAME KIND OF MISS as A-1: **zero pole objects, zero NaN POS lines**, 506,215 POS lines of
+     which every one carried a real coordinate.
+  I5 **PASS, every clause EXACT**: `safe MSL` 128, `DeStack (R8):` 10, `CreateRoute` 9,
+     `MoveToLocation` 0, `TYPE MAP` 0, `DROPPING TASK` 0, app log 519 lines, endpoint line
+     naming 18080 / 61614.
+  I6 **MISS, three of six.** Sim window as I registered it = 2,735.00 wall s x the run's own LS
+     slope 0.2751 = **752.4 SIM s**, giving T5 **0.009755**, T31 **0.009596** and T19
+     **0.009556** km per SIM second against a registered ceiling of 0.0095 (T1 0.008892,
+     T23 0.009038, T15 0.009490 pass; T9 and T13 both 0.00 km as expected).
+     **RECORDED AS A MISS. THE EXPLANATION BELOW IS AN EXPLANATION, NOT AN ADJUSTMENT.**
+     The miss is in the DENOMINATOR, not the distances. A-1 and A-2 carried **1,664 position
+     reports each** and **13 fixes per performer each**, and the report stream is SIM-PACED
+     (rung 2's finding, re-confirmed by the `-q` run) - so the two runs delivered the SAME sim
+     time. A-2's LS fit is the noisier of the two (resid sd **5.54**, max 23.35, against A-1's
+     1.79 / 8.72), and the fit-free cross-check the `-q` prereg itself called "the more robust
+     of the two" puts A-2 at 1,664 / 2.117 = **786.0 SIM s**, an implied slope of 0.2874 rather
+     than 0.2751; at that denominator all six movers sit inside the band. I6 threshold my
+     distances against a least-squares slope estimate whose own dispersion I never bounded.
+     That is a FOURTH threshold-definition defect in four consecutive preregs.
+
+RECORDED, NOT ADJUDICATED - what A-2 measured
+  sub-routes:  856/HHC **4** | C/1-35 **4** | B/5-20 **4**  - ALL THREE BUILT
+  build offset from order push (WALL):  C/1-35 +7 m 06 s; 856/HHC +7 m 15 s (**again exactly
+               nine seconds after C/1-35**); B/5-20 +19 m 37 s
+  head net_km: 856/HHC 5.75 | C/1-35 5.42 | B/5-20 **3.69**
+  corroboration: `Move-Along Route:` **22**, `leaderRoute` **57**, `'s Offset Route` **213**
+               (rung 2: 22 / 55 / 210 - A-2 reproduces rung 2's corroboration triple)
+  `Created radio` **1,733** and `Registered object` **3,727** (rung 2: 1,733 / 3,727).
+
+### THE SESSION IS STOPPED UNDER SEC 6A. RUN B WAS NOT LAUNCHED.
+
+Two runs, two discards, so the registered rule fires and the pair is not completed. What the
+two discards jointly establish is about THE CHECKS, not about the Tank Companies:
+
+  * **I4 IS DESCRIBING A CONFIGURATION THAT NO LONGER EXISTS.** Both comparators ran on the
+    pre-a5cdc95 binary against the OPERATOR'S SHARED C2SIM server and both produced exactly
+    474,568 real POS lines (1,732 x 274) plus a residue of NaN and pole lines. Both runs on the
+    current configuration produced **ZERO** NaN lines and **ZERO** pole lines - every object the
+    observer saw resolved. The BACK END created the same population in all four runs
+    (`Created radio` = 1,733 in every one). The tasking named "1,732 ever-real objects" as an
+    instrument check; on this configuration that number appears to be unreachable, and 1,732 is
+    a property of the old runs' unresolved-object residue rather than of the created force.
+  * **I6 THRESHOLDS AGAINST AN UNBOUNDED SLOPE ESTIMATE**, as recorded above.
+
+**THIS IS A RULE GATE, AND IT IS THE SUPERVISOR'S CALL, NOT MINE.** Retiring or re-baselining an
+instrument check that the TASKING named, on the strength of runs that failed it, is exactly the
+move an executor must not make alone. I am not making it. What I will say is that I can find no
+reading on which A-1 and A-2 are unhealthy runs: I1, I2, I3, I5 and the `reportUuids` clause of
+I4 pass EXACTLY in both, the created population is identical to the unit, and the app-side
+census is identical to the comparators line for line.
+
+### THE OBSERVATION THAT IS NOT ADJUDICATED, AND MUST NOT BE READ AS A RESULT
+
+A-1 and A-2 differ from each other on the very quantity the experiment was built to measure,
+with **NOTHING** changed between them - same binary, same fixture, same order, same server, same
+command line, `-q` absent from both:
+
+  run    -q    856/HHC        C/1-35         B/5-20                        clock
+  ----   ---   ------------   ------------   ---------------------------   ------
+  A-1    no    4 / 5.79 km    4 / 4.17 km    **0 sub-routes / 0.37 km**    0.2863
+  A-2    no    4 / 5.75 km    4 / 5.42 km    **4 sub-routes / 3.69 km**    0.2751
+
+If the checks are ruled inapplicable, that contrast falsifies H-q through sec 6's clause (a)
+without run B being needed, and supports H-nondet directly, because it is an instability
+observed INSIDE the no-`-q` arm. **I am not claiming that here.** Both runs are discarded; the
+sentence above states what the artifacts contain and what it WOULD mean, and stops there.
+
+CARRIED FORWARD FOR A FUTURE PREREG, NOT REGISTERED HERE AND NOT A HYPOTHESIS: across all four
+COA-STP1 runs the companies build one at a time, B/5-20 is LAST or ABSENT in all four, and in
+three of the four (A-1, A-2, the `-q` run) C/1-35 and 856/HHC build **exactly nine seconds
+apart** at +6 to +7 minutes. Rung 2 alone serialised all three at +7 / +21 / +28.5 min. That
+looks like a queue, and a queue is a mechanism claim no set of four runs can support.
+
+POST-RUN SWEEP A-2: `tools/ResetVrf 3798` with the RUNBOOK :1206-1215 environment. Joined clean
+(BackendCount=0), 0 reflected, resigned cleanly, **exit 0**. 3798 ledgered BEFORE the join.
+Marker 3791 -> 3798 (runner) -> 3799 (hand). VR-Forces DOWN, RTI trio untouched.
+DEPLOYED `Vrf:ClientId` IS STILL **C2SIM** - it is left that way deliberately because run B is
+owed; it must be restored to STP if the pair is abandoned.
+
 
 ## 8. REGISTRATION
 
