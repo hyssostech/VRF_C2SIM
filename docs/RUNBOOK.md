@@ -710,12 +710,18 @@ HOW IT WORKS AND WHAT DOES NOT - so nobody relearns this (cost: most of a sessio
 THE testhost FIREWALL PROMPT: `dotnet test` copies testhost.exe into every test
 project's bin\<cfg>\<tfm>\, and the first listen from each NEW PATH raises the prompt
 (18 per-path rules already exist; program rules take no wildcards, so per-path rules
-never end). Durable fix, admin PowerShell, user-run (the classifier blocks elevation
-from an agent):
-
-    Set-NetFirewallProfile -Profile Domain,Private,Public -NotifyOnListen False
-
-Loopback-only tests are unaffected either way; Cancel on a stray prompt is safe.
+never end). It is a NUISANCE, not a blocker: vstest talks over loopback, which Windows
+Firewall does not filter, so the tests pass whether the prompt is answered or not.
+RULING (user, 2026-09-02): do NOT run `Set-NetFirewallProfile ... -NotifyOnListen False`
+- it silences the prompt machine-wide for every app (too broad for this problem). Do
+this instead: Cancel the prompt when it appears (safe). If the popups keep costing
+attention, the least-privilege silence is a per-path BLOCK rule for each of the repo's
+testhost.exe copies (a Block rule stops the prompt without granting anything; loopback
+is still unaffected) - admin, user-run: `New-NetFirewallRule -DisplayName "testhost
+<proj>" -Direction Inbound -Action Block -Program <bin path>\testhost.exe`. Unverified
+alternative: `<UseAppHost>false</UseAppHost>` in the test csprojs should make vstest run
+`dotnet exec testhost.dll` so the prompting process is one stable dotnet.exe - check the
+vstest docs before relying on it.
 
 ---
 

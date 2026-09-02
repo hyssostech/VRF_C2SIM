@@ -51,23 +51,35 @@ vrfSim.mtl: notifyLevel 3 / objectConsoleNotifyLevel 3 / enableLogFileTimestamps
    verdict MERGE at 066f3d2), bridge DEPLOYED (A48ABE6C -> 28E993FE, 10/10 copies one
    hash; design sec 6 DEPLOY RECORD). Row 1 CONTROL (new bridge, mode=Live default)
    ALL MET, run 20260902T010704Z (docs/experiments/PREREG_TERRAIN_ROW1_CONTROL_
-   2026-09-02.md). Row 2 MODE (env Vrf__GroundWaypointAltitudeMode=TerrainProfile), run
-   20260902T011908Z: STOP - all 3 terrain requests timed out (Live fallback), 0/3 moved,
-   BUT the back end had taken a FATAL ERROR 6 s before the order push (crash-dump
-   prompt, pid 70668) - the mode was never exercised; UNADJUDICATED, not refuted
-   (docs/experiments/PREREG_TERRAIN_ROW2_MODE_2026-09-02.md sec 6). NEXT: clear the
-   crashed instance (user's call on the dump), then REPEAT Row 2 unchanged on a clean
-   boot under a new prereg run id. Back-end fatal-error precedent: three vrfSim dumps in
-   bin64 from 2026-07-14/15/22.
+   2026-09-02.md). Row 2 MODE run 20260902T011908Z: back end FATAL ERROR 6 s before
+   the order push (dump 70668 saved, RUNBOOK 0.5.12) - unadjudicated. ROW2R (unchanged
+   repeat, run 20260902T101431Z): back end SURVIVED (crash not tied to the mode), replies
+   ARRIVED, movement 3/3, but all 3 replies PARTIAL (vertex 0 only). Cause found docs-
+   first: the facade read entry [0] of each response set; the back end returns one
+   result per request POINT (terrainProfileRequestManager.h:107-121; set packing
+   undocumented). Fix 8e14cd1 (walk every entry; Info log "Terrain profile reply {Id}:
+   {N} sample(s) [shape]"), deployed as bridge A7504441 (8410588, 10/10 one hash,
+   backup bak-20260902-28e993fe/). ROW 2c (run 20260902T104832Z, prereg e2e78d9,
+   outcome c864dc1): H-A CONFIRMED - 3 samples per request with userData indices 0/1/2,
+   ":802 all 3 vertices authored" x3, zero warn lines, samples = clamped resting
+   altitudes to 0.1 m. THE DOCUMENTED FRAME WORKS END TO END. ONE MISS: 114.MechCoy
+   (the only aggregate) completed +198.1 s vs Row 1 +183.8 (ROW2R +185.2), trace
+   plateau 233.3 vs 219.2 s; individuals unchanged to 0.5 s; endpoint identical. Cause
+   UNDECIDED (H-V variance vs H-ALT the ~40 m lower waypoint altitudes, terrain+10 vs
+   live+50). IN FLIGHT: docs read on aggregate move-along altitude semantics + ROW 2cR
+   unchanged repeat (PREREG_TERRAIN_ROW2CR_REPEAT_2026-09-02.md, appNos 3704-3710).
+   Decision pending the repeat: make TerrainProfile the DEFAULT mode (it is the
+   documented frame) or keep Live default. Back-end fatal-error precedent: dumps in
+   bin64 from 2026-07-14/15/22 and 70668 (2026-09-02).
 2. COA-STP1 SCALE RE-RUN on the clean state (the July scale results predate ALL FOUR
    fixes; every FALSIFIED stamp from July is layer-relative - see L9 - and the region/
    fan-out story needs re-adjudication).
-3. MAK: (a) NO defect report (P2c: warning is cosmetic, stock template works) - at most
-   the optional observation in docs/MAK_NOTES_DRAFT_2026-09-01.md; (b) 5.x Developer's
-   Guide dropped the aggregate/organization chapters (empty index hrefs) - ask for the
-   5.x source or confirmation 4.10 is authoritative. License renewal in process per the
-   user (2026-09-01); installed .lic ends 2026-09-15 - verify the new file landed
-   before running after that date.
+3. MAK: send-ready message in docs/MAK_MESSAGE_2026-09-02.md (docs question, unit-level
+   tasking confirmation + cosmetic formation observation, follow-in-formation at a time
+   multiplier as a QUESTION). User rulings 2026-09-02: multipliers stay 1x for probes;
+   the crash-dump report (70668) is handled by the user; no terrain question (Row 2c
+   settled it). License renewal in process per the user (2026-09-01); installed .lic
+   ends 2026-09-15 - verify the new file landed before running after that date.
 4. VR-FORCES 5.2b IS EXPECTED SOON (user, 2026-09-01). Upgrade checklist when it lands:
    (a) diff its EXPANDED AGGREGATE MODEL SET against the 54 pending type adjudications
    BEFORE authoring anything (PRIOR_ART Q1: 5.2 shipped new NATO/Russian formations);
@@ -128,21 +140,16 @@ vrfSim.mtl: notifyLevel 3 / objectConsoleNotifyLevel 3 / enableLogFileTimestamps
 6. Backlog unchanged: remaining type adjudications (54 units - but see item 4a first),
    task vocabulary, completion re-keying, scoring (Phase 5).
 
-## OPERATIONAL STATE (2026-09-02 01:40Z, after the terrain Row 2 MODE run - DIRTY)
-*** VR-Forces is UP IN A CRASHED STATE: vrfSimHLA1516e pid 70668 parked on the MAK
-fatal-error dump prompt ("Would you like to save a diagnostic file?" Yes/No, dump NOT yet
-written), vrfGui pid 77720 alive. Run 20260902T011908Z StopVrf exit 3 (graceful quit not
-honoured by a crashed back end); NOTHING was killed (joined federate). A leftover back
-end HARD-BLOCKS LaunchVrf.ps1 - clear it first: recommended "Yes" on the 70668 prompt (writes
-the .dmp into C:\MAK\vrforces5.0.2\bin64 as evidence), then vrfGui File > Exit, then
-re-inventory. *** RTI RESIDENT + ANSWERED (rtiAssistant 41336 / rtiexec 224608 /
-rtiForwarder 76620 - unchanged across all four 2026-09-02 runs; inventory fresh at start,
-do not trust PIDs). No WatchVrf / ListenReports / VrfC2SimApp left. C2SIM docker UP.
-Deployed bridge = 28E993FE (10/10 copies; backup of A48ABE6C in
-src/VrfBridge/build/Release/bak-20260902-a48abe6c/). appNo marker NEXT FREE = 3690
-(runner-managed, ledger file CRLF; 2026-09-01/02 consumed 3606-3689; P3 = 3648-3654, P3R =
-3655-3661, runner-confirm = 3662-3668, runner-confirm2 = 3669-3675, terrain Row 1 =
-3676-3682, terrain Row 2 = 3683-3689). All work committed + pushed (see git log).
+## OPERATIONAL STATE (2026-09-02 ~11:15Z, after ROW 2c - CLEAN, Row 2cR in flight)
+VR-Forces DOWN between runs (StopVrf exit 0 on ROW2R and ROW 2c). Dump 70668 saved in
+C:\MAK\vrforces5.0.2\bin64 (RUNBOOK 0.5.12: scripts/AnswerCrashDumpDialog.ps1 answers the
+prompt; never halt on it again). RTI RESIDENT + ANSWERED (rtiAssistant 41336 / rtiexec
+224608 / rtiForwarder 76620 - unchanged across all six 2026-09-02 runs; inventory fresh at
+start, do not trust PIDs). C2SIM docker UP. Deployed bridge = A7504441 (10/10 copies, Ijwhost
+38255036; backups bak-20260902-a48abe6c/ and bak-20260902-28e993fe/). appNo marker NEXT
+FREE = 3704 before Row 2cR, 3711 after (runner-managed, ledger CRLF; terrain Row 1 =
+3676-3682, Row 2 = 3683-3689, ROW2R = 3690-3696, ROW 2c = 3697-3703). Firewall: do NOT
+set NotifyOnListen False (user ruling, RUNBOOK 0.5.12); Cancel the testhost prompt.
 
 ## NON-NEGOTIABLES (unchanged plus the docs-first rule above)
 One variable per probe; prediction + falsifier + DOC CITATIONS before running; movement
