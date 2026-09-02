@@ -299,6 +299,24 @@ false-green trap, docs/HANDOFF_2026-07-19.md sec 4/5):
    the copy in src/VrfC2SimApp/bin/Release/net*/ (and spot-check tools/WatchVrf).
 6. No file under C:\MAK changes for this feature.
 
+DEPLOY RECORD (2026-09-02 01:00Z, main @ e1fdbbd = merge of 066f3d2; executor, not the
+author): steps 1-6 done exactly as written. Backup: src/VrfBridge/build/Release/
+bak-20260902-a48abe6c/ (VrfBridge.dll A48ABE6CBC6EA8E9B6B391B4FCBEBA2E0A5D7DE356A50475D6F77AB431FE766A,
+839680 B, 2026-07-19 08:01:27; Ijwhost.dll 2DCC3B73...0B7E = .NET 10.0.8 host; VrfBridge.pdb
+E8FEDA10...). Before the rebuild all 10 copies (9 consumer bins + build/Release) hashed
+A48ABE6C. MSBuild 18 Community amd64 /t:Rebuild Release x64 from PowerShell: exit 0, 0
+warnings -> VrfBridge.dll 28E993FE33032505A999E508877832459450E0568E7E25FFD72BC80D59257FD5
+(867840 B). SIDE EFFECT recorded, not chosen: MSBuild also refreshed Ijwhost.dll from the
+installed SDK (10.0.302): 2DCC3B73 (10.0.8 host, 137040 B) -> 38255036...5FD2 (10.0.10 host,
+137000 B); every consumer's `None Include Ijwhost.dll` PreserveNewest picked it up. It is part
+of "the new native binary" that Row 1 controls for. dotnet build -c Release of all 9
+consumers from MAIN (no worktree-sdk.targets): 9 x "Build succeeded", 0 errors (the app's 6
+pre-existing warnings). ONE-HASH PROOF: 10/10 VrfBridge.dll copies = 28E993FE..., 10/10
+Ijwhost.dll = 38255036... All 7 app self-tests exit 0 from the main bin (terrain 29 checks);
+WatchVrf --capabilities exit 0 (stop-file advertised), --con-selftest exit 0; ListenReports
+--capabilities stop-file. Function bodies Start/StartAdopting/RegisterInboundCallbacks/Tick
+byte-identical pre- vs post-merge (71/13/16/6 lines); Stop() +1 line. No C:\MAK write.
+
 ## 7. The confirming live run: TWO rows, one variable each (review F1)
 Prereg per the standing rule; baseline = the R9 order under Live on the A48ABE6C bridge
 (run 20260901T203702Z, 3/3 arrivals). A single run that flips the mode on the NEW bridge
