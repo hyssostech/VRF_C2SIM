@@ -1,5 +1,38 @@
 # TYPE GAP ADJUDICATION (Phase 2.1 input; resume item (c))
 
+> **SUPERSEDED 2026-09-02 - GAPS 1-3 AND DECISION ITEM 4.** The user's R-FIDELITY ruling
+> ("map units to their actual correct representation in VRF... go find the DIS if you have
+> to") reframed all four as one question, answered by
+> `docs/UNIT_TYPE_MAPPING_FIDELITY_2026-09-02.md` and implemented as
+> `data/unit-type-map.json` + `TypeMappingMode=FidelityTable`. **The RECOMMENDATIONS below
+> are withdrawn; the VERIFIED template facts are kept and were re-checked this pass.**
+> What changed, specifically:
+>
+> - **GAP 2's recommendation is WRONG and is retracted.** `aggregate-Co-Infantry-Friendly`
+>   is not a usable infantry company: its three `3:11:1:225:3:3:0:0` infantry-platoon
+>   subordinates match no real template. (The survey said they fall to `Ground_Aggregate`;
+>   the resolver test run this pass shows they land the Country-0 zero-subordinate abstract
+>   `Infantry Platoon` - equally empty, different landing. Recorded in the survey's
+>   implementation section.) Its hostile mirror `aggregate-Co-Infantry-Hostile` is
+>   defective the same way in its HQ slot. Neither is used by the fidelity table.
+> - **DECISION ITEM 4 is answered by the vendor, not by an A-vs-B code choice.** DIS field 7
+>   (Specific) for a Kind-11 unit means **ContainsHeadquarters** (`vrf_aggregateSpecific.htm`),
+>   so `Specific=1` is the semantically correct value for a command post - Option A was never
+>   a hack. The deeper finding is that **no Country-225 or Country-222 template exists at
+>   Category 6/8/9 (battalion/brigade/division) anywhere in the loaded chain**, so the
+>   battalion echelon has to be AUTHORED. Until it is, the table maps every battalion CP to
+>   `Tank Headquarters Section (USA/RUS)` (`3:11:1:225:14:2:1:0` / `3:11:1:222:14:2:1:0`) and
+>   surfaces the substitution, instead of the `Ground_Aggregate` that `ArmorCoHQ` produced.
+> - **GAP 1 (engineer) and GAP 3 (mortar/rocket) stand as gaps** and are now recorded as
+>   per-row `PROXY` substitutions with an authoring queue (survey sec 7.4), not as pending
+>   user questions.
+> - **"ZERO Chinese ground-combat platforms" (Q1 below) is FALSIFIED.** Ten Country-45 ground
+>   platforms are installed (Type 99 MBT, T-69 MBT, Type 85 APC, WZ551 APC, PLZ-45, PHZ 89,
+>   PHL 03, Type 66, HQ-9, HQ-2). The "zero Chinese aggregates" half stands - which is why
+>   `OpposingNation=PRC` refuses to start until the PRC unit templates are authored.
+>
+> The record below is kept unedited as the 2026-07-17 state of knowledge.
+
 Purpose: the three CONTENT gaps from VRF_GROUND_TRUTH.md 0.0-#4 and 0.1.7 that need a
 USER decision (military-semantics calls, not code calls), plus the one near-miss that is
 a code decision. For each: the exact COA-STP1 population affected, what it mis-maps to

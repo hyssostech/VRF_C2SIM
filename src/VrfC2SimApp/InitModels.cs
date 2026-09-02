@@ -19,6 +19,10 @@ public record InitUnit
     public int DisDomain { get; init; }
     public string DirectionPhi { get; init; } = "";     // heading source (may be empty)
     public string SuperiorUuid { get; init; } = "";     // for the missing-coords fallback
+    // C2SIM UnitType/EchelonCode (COY, BN, PLT, SECT, NOS, BDE, ...). Read by the
+    // FidelityTable lookup key (c) as a cross-check when the SIDC echelon character has
+    // no row (docs/UNIT_TYPE_MAPPING_FIDELITY_2026-09-02.md sec 7.1).
+    public string EchelonCode { get; init; } = "";
 }
 
 /// <summary>A tactical area / control graphic (perimeter of geodetic points).</summary>
