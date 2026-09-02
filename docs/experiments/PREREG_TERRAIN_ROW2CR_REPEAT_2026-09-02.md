@@ -401,7 +401,16 @@ ADJUDICATION AGAINST THE HYPOTHESES (verified vs. inferred):
   over three runs when five 1x Live runs were on disk. The true pre-Row-2c spread is 7.0 s
   (178.2-185.2). Row 2c's own "not a comfortable reading" was therefore built on an
   understated baseline.
-- NOT CLAIMED: WHY Row 2c drew 198.1. Nothing in either run's artifacts identifies the
+- RESIDUAL, STATED SO IT IS NOT OVER-READ (adversarial pass): only TWO runs have ever moved
+  this aggregate on terrain-authored waypoints - Row 2c (198.1) and Row 2cR (185.0) - against
+  six on Live-style altitudes (178.2 / 184.6 / 183.7 / 182.1 / 183.8 / 185.2, all <= 185.2).
+  A RARE or INTERMITTENT altitude-triggered effect that fires on some runs and not others is
+  therefore NOT excluded by n=2; what is excluded is a systematic one. The falsifier that
+  would reopen H-ALT: further TerrainProfile runs drawing ~198 s while Live runs stay at or
+  below ~185 s. Nothing in this run's artifacts, and nothing in the vendor documentation read
+  for this prereg, supplies a mechanism for such an effect, and the vendor's ground-clamp
+  default argues against one - so the ruling stands and reopening it needs new evidence, not
+  re-argument.- NOT CLAIMED: WHY Row 2c drew 198.1. Nothing in either run's artifacts identifies the
   subordinate or the event that cost the extra 13 s - the app log carries only the aggregate's
   own TASKCMPLT, and the back end logs nothing about subordinate speed control at notify
   level 3. If that ever needs answering it is a back-end verbosity question, not an interface
