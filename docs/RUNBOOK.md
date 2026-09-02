@@ -665,6 +665,60 @@ the load-bearing line.
 
 ---
 
+### 0.5.12 A CRASHED BACK-END PARKED ON THE MAK DUMP PROMPT (scripts/AnswerCrashDumpDialog.ps1)
+
+SYMPTOM: `Get-Process vrfSim*` shows a vrfSimHLA1516e whose MainWindowTitle is
+`vrfSim5.0.2-MSVC++15.0_64-249613-<pid>.dmp`. That is MAK's crash handler: the federate
+is ALREADY DEAD (no HLA traffic, StopVrf exits 3 and correctly refuses to kill it) and is
+waiting on a Qt message box "A fatal error has occurred. Would you like to save a
+diagnostic file?" [Yes] [No]; after Yes a second box "Saved dump file to '...'" [OK].
+The .dmp lands in `C:\MAK\vrforces5.0.2\bin64\` (older ones from 2023-12, 2026-07-14/15/22
+are there too - do not confuse them with yours; match the pid).
+
+RULING (2026-09-02, user-confirmed): ALWAYS ANSWER YES. The dump is the evidence a MAK
+case needs and the vendor's own intended action; declining buys nothing - the process is
+dead either way. Then quit vrfGui with StopVrf.ps1 (its normal path; the back-end is
+already gone so only the GUI confirm runs). Never force-kill the parked federate.
+
+USE THE SCRIPT:
+
+    pwsh -File scripts\AnswerCrashDumpDialog.ps1            # add -DryRun to inspect first
+    pwsh -File scripts\StopVrf.ps1
+
+Exit codes: 0 answered + process exited (dump named in the output); 1 no such prompt
+(nothing touched); 2 posted but still present after -ConfirmSec (inspect by hand);
+3 error. It only ever posts to a top-level window owned by a vrfSim* process whose
+title matches `^vrfSim.*\.dmp$`.
+
+HOW IT WORKS AND WHAT DOES NOT - so nobody relearns this (cost: most of a session on
+2026-09-02 after run 20260902T011908Z):
+- The box is Qt. No Win32 child controls, so FindWindowEx/BM_CLICK find nothing (same
+  family as the RTI dialog in 0.5.4; unlike the vrfGui quit confirm in 0.5.9, which has
+  a UIA tree).
+- SetForegroundWindow + SendKeys from a background shell FAILS (Windows foreground lock).
+- Coordinate clicks (the 0.5.4 recipe) are swallowed while ANY Windows Security prompt
+  is on screen: its full-screen `Shell_SystemDim` window (owner PickerHost) takes every
+  click. On 2026-09-02 a Windows Firewall prompt for dotnet's `testhost.exe` sat on top
+  of the box for hours. WindowFromPoint on the target before clicking is the tell.
+- Posted WM_LBUTTONDOWN/UP do nothing on Qt.
+- Posted WM_SETFOCUS + WM_KEYDOWN/WM_CHAR/WM_KEYUP VK_RETURN WORKS without focus or
+  foreground and passes the dim layer. Enter = the default button = Yes on the first box
+  and OK on the second (screenshot-verified). That is the script's mechanism.
+- To SEE a hidden dialog: move it with SetWindowPos(SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE)
+  and screenshot its rect with System.Drawing CopyFromScreen (scratchpad only).
+
+THE testhost FIREWALL PROMPT: `dotnet test` copies testhost.exe into every test
+project's bin\<cfg>\<tfm>\, and the first listen from each NEW PATH raises the prompt
+(18 per-path rules already exist; program rules take no wildcards, so per-path rules
+never end). Durable fix, admin PowerShell, user-run (the classifier blocks elevation
+from an agent):
+
+    Set-NetFirewallProfile -Profile Domain,Private,Public -NotifyOnListen False
+
+Loopback-only tests are unaffected either way; Cancel on a stray prompt is safe.
+
+---
+
 ## 0.5-ARCHIVE - the raw vrfSimHLA1516e headless recipe (CONFIRMED UNSAFE, 2026-07-15)
 
 RETAINED FOR THE HISTORICAL RECORD ONLY. DO NOT USE THIS RECIPE. The supported
