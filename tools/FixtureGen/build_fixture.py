@@ -71,6 +71,117 @@ SITES = {
 }
 
 # ---------------------------------------------------------------------------
+# EXERCISE-CLOCK FRAME SETTINGS (added 2026-09-02 for the fixed-frame probe).
+#
+# Primary sources (C:\MAK\vrforces5.0.2\doc\VRFUsersGuide.pdf, 5.0.2):
+#   sec 12.2.1 p.351-352 - the .scn carries (frame-mode "variable-frame") and
+#                          (frame-time 0.100000) as plain top-level parameters.
+#   Table 17 p.354       - frame-mode is one of variable-frame / fixed-frame /
+#                          fixed-frame-run-to-complete; frame-time is "the length
+#                          of a frame, in seconds", and with either fixed-frame
+#                          mode "you must set the frame time to a non-zero value.
+#                          A value of zero for frame time prevents simulation time
+#                          from advancing in either of these modes."
+#   sec 3.4.3 p.122-123  - what the three modes mean.
+#   include\vrfcgf\cgf.h:1192-1203 - the same three mode strings in the API.
+#
+# THE DEFAULT IS None FOR BOTH, meaning "leave the base scenario's two lines
+# exactly as they are". That identity default is what keeps every fixture
+# generated before 2026-09-02 byte-for-byte reproducible.
+FRAME_MODES = ("variable-frame", "fixed-frame", "fixed-frame-run-to-complete")
+
+FRAME_MODE_RE = re.compile(r'(\(frame-mode\s+")[^"]*(")')
+FRAME_TIME_RE = re.compile(r'(\(frame-time\s+)[-+0-9.eE]+(\s*\))')
+
+
+def set_frame_settings(scn, frame_mode=None, frame_time=None):
+    """Rewrite (frame-mode ...) / (frame-time ...) in a .scn body.
+
+    Both None -> the text is returned unchanged (identity). Raises rather than
+    emitting a scenario whose sim clock cannot advance (Table 17 p.354).
+    """
+    if frame_mode is not None:
+        if frame_mode not in FRAME_MODES:
+            raise ValueError("unknown frame-mode %r; legal: %s"
+                             % (frame_mode, ", ".join(FRAME_MODES)))
+        scn, n = FRAME_MODE_RE.subn(r"\g<1>" + frame_mode + r"\g<2>", scn, count=1)
+        assert n == 1, 'no (frame-mode "...") line in the .scn'
+    if frame_time is not None:
+        ft = float(frame_time)
+        if ft <= 0.0 and str(frame_mode or "").startswith("fixed-frame"):
+            raise ValueError("frame-time must be non-zero in a fixed-frame mode "
+                             "(VRFUsersGuide Table 17 p.354)")
+        scn, n = FRAME_TIME_RE.subn(r"\g<1>%.6f\g<2>" % ft, scn, count=1)
+        assert n == 1, "no (frame-time ...) line in the .scn"
+    return scn
+
+
+def extract_scnx(name, scnx_path=None):
+    """Extract <name>.scnx into _work/<name> once; return that directory."""
+    dst = os.path.join(WORK, name)
+    if not os.path.isdir(dst):
+        src = scnx_path or SRC_SCNX.get(name) or os.path.join(SCEN_DIR, name + ".scnx")
+        os.makedirs(dst, exist_ok=True)
+        with zipfile.ZipFile(src) as z:
+            z.extractall(dst)
+    return dst
+
+
+def build_frame_variant(src_name, out_name, frame_mode=None, frame_time=None,
+                        out_dir=None, scenario_name=None):
+    """Emit <out_name>.scnx = <src_name>.scnx with ONLY the frame settings moved.
+
+    Every part except the .scn is copied BYTE-FOR-BYTE. The .scn is the base .scn
+    with (a) its part-name references retargeted from <src_name> to <out_name> -
+    the same rename convention build_site() uses, which is the only .scnx naming
+    convention this repo has ever loaded live - and (b) the two frame lines
+    rewritten. Nothing else is touched: no uuid, no position, no oob/omp/pln.
+
+    Returns (scnx_path, stage_dir).
+    """
+    src_dir = extract_scnx(src_name)
+    stage = os.path.join(OUTDIR, out_name + "_parts")
+    if os.path.exists(stage):
+        shutil.rmtree(stage)
+    os.makedirs(stage)
+
+    scn = read(os.path.join(src_dir, src_name + ".scn"))
+    scn = scn.replace(src_name, out_name)
+    if scenario_name is not None:
+        scn = re.sub(r'(\(scenario-name\s+")[^"]*(")',
+                     r"\g<1>" + scenario_name + r"\g<2>", scn, count=1)
+    scn = set_frame_settings(scn, frame_mode, frame_time)
+
+    member_order = []
+    for name in sorted(os.listdir(src_dir)):
+        outname = name.replace(src_name, out_name)
+        member_order.append(outname)
+        if outname == out_name + ".scn":
+            with open(os.path.join(stage, outname), "w",
+                      encoding="utf-8", newline="") as f:
+                f.write(scn)
+        else:
+            shutil.copyfile(os.path.join(src_dir, name),
+                            os.path.join(stage, outname))
+
+    target_dir = out_dir or SCEN_DIR
+    if not os.path.isdir(target_dir):
+        os.makedirs(target_dir)
+    scnx_path = os.path.join(target_dir, out_name + ".scnx")
+    with zipfile.ZipFile(scnx_path, "w", zipfile.ZIP_DEFLATED) as z:
+        for outname in member_order:
+            z.write(os.path.join(stage, outname), outname)
+    print("BUILT %s" % scnx_path)
+    print("  base        = %s" % os.path.join(SCEN_DIR, src_name + ".scnx"))
+    print("  frame-mode  = %s" % (frame_mode if frame_mode is not None else "(unchanged)"))
+    print("  frame-time  = %s" % (("%.6f" % float(frame_time))
+                                  if frame_time is not None else "(unchanged)"))
+    print("  parts       = %d (%d copied byte-for-byte)"
+          % (len(member_order), len(member_order) - 1))
+    return scnx_path, stage
+
+
+# ---------------------------------------------------------------------------
 # WGS84 + orientation (validated in ecef.py / orient.py)
 A = 6378137.0
 F = 1.0 / 298.257223563
@@ -247,7 +358,7 @@ def det_uuid(site, role):
 
 
 # ---------------------------------------------------------------------------
-def build_site(site, cfg):
+def build_site(site, cfg, frame_mode=None, frame_time=None, out_dir=None):
     lat, lon, h = cfg["lat"], cfg["lon"], cfg["h"]
     base = cfg["base"]
     E, N, U = enu_basis(lat, lon)
@@ -402,6 +513,9 @@ def build_site(site, cfg):
     scn = scn.replace("TropicTortoise", base)
     scn = re.sub(r'(\(scenario-name\s+")[^"]*(")',
                  r'\1Tank Platoon fixture %s\2' % site, scn, count=1)
+    # Exercise-clock frame settings: identity unless the caller asked otherwise,
+    # so every pre-2026-09-02 fixture regenerates byte-identical.
+    scn = set_frame_settings(scn, frame_mode, frame_time)
 
     # ---- write parts + zip ----
     stage = os.path.join(OUTDIR, base + "_parts")
@@ -423,7 +537,10 @@ def build_site(site, cfg):
         else:
             shutil.copyfile(srcpath, os.path.join(stage, outname))
 
-    scnx_path = os.path.join(SCEN_DIR, base + ".scnx")
+    target_dir = out_dir or SCEN_DIR
+    if not os.path.isdir(target_dir):
+        os.makedirs(target_dir)
+    scnx_path = os.path.join(target_dir, base + ".scnx")
     with zipfile.ZipFile(scnx_path, "w", zipfile.ZIP_DEFLATED) as z:
         for outname in member_order:
             z.write(os.path.join(stage, outname), outname)
@@ -439,14 +556,56 @@ def build_site(site, cfg):
 
 
 if __name__ == "__main__":
+    import argparse
     import sys
-    ensure_sources()
+
+    ap = argparse.ArgumentParser(
+        description="Build the authored Tank Platoon fixtures, or a frame-mode "
+                    "variant of an existing .scnx.")
+    ap.add_argument("sites", nargs="*",
+                    help="site(s) to build; default = all of %s" % ", ".join(SITES))
+    ap.add_argument("--frame-mode", default=None, choices=list(FRAME_MODES),
+                    help="(frame-mode \"...\") to write into the .scn. Omit to leave "
+                         "the base scenario's line untouched (the default; keeps "
+                         "existing fixtures byte-identical).")
+    ap.add_argument("--frame-time", default=None, type=float,
+                    help="(frame-time <s>) to write into the .scn. Omit to leave the "
+                         "base scenario's line untouched. Must be non-zero with either "
+                         "fixed-frame mode (VRFUsersGuide Table 17 p.354).")
+    ap.add_argument("--out-dir", default=None,
+                    help="directory to write the .scnx into. Default: %s . Point this "
+                         "at a scratch directory to build WITHOUT writing under C:\\MAK."
+                         % SCEN_DIR)
+    ap.add_argument("--frame-variant", default=None, metavar="SRC:OUT",
+                    help="instead of building a site, emit OUT.scnx = SRC.scnx with "
+                         "ONLY --frame-mode / --frame-time changed (every other part "
+                         "copied byte-for-byte). Example: TropicTortoise:TropicTortoise_FFRTC")
+    ap.add_argument("--scenario-name", default=None,
+                    help="optional (scenario-name \"...\") for --frame-variant.")
+    args = ap.parse_args()
+
     if not os.path.exists(OUTDIR):
         os.makedirs(OUTDIR)
+
+    if args.frame_variant:
+        if ":" not in args.frame_variant:
+            raise SystemExit("--frame-variant wants SRC:OUT, got %r" % args.frame_variant)
+        src_name, out_name = args.frame_variant.split(":", 1)
+        if args.sites:
+            raise SystemExit("--frame-variant does not take site arguments")
+        print("=" * 70)
+        build_frame_variant(src_name, out_name,
+                            frame_mode=args.frame_mode, frame_time=args.frame_time,
+                            out_dir=args.out_dir, scenario_name=args.scenario_name)
+        sys.exit(0)
+
+    ensure_sources()
     # optional argv: build only the named site(s); default = all.
-    wanted = sys.argv[1:] if len(sys.argv) > 1 else list(SITES.keys())
+    wanted = args.sites if args.sites else list(SITES.keys())
     for site in wanted:
         if site not in SITES:
             raise SystemExit("unknown site %r; known: %s" % (site, ", ".join(SITES)))
         print("=" * 70)
-        build_site(site, SITES[site])
+        build_site(site, SITES[site],
+                   frame_mode=args.frame_mode, frame_time=args.frame_time,
+                   out_dir=args.out_dir)

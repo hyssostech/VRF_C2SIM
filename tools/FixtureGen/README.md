@@ -39,6 +39,33 @@ python build_fixture.py       # extracts sources into ./_work, writes the two .s
 python validate_fixture.py    # offline gate: paren balance, ASCII, plan/omp linkage
 python coordcheck.py          # back-convert positions to lat/lon; confirm the site
 ```
+
+## Exercise-clock frame settings (added 2026-09-02)
+
+`--frame-mode` / `--frame-time` write the `(frame-mode "...")` / `(frame-time <s>)` lines of
+the `.scn` (VRFUsersGuide 5.0.2 sec 12.2.1 p.351-352, Table 17 p.354; modes also in
+`include\vrfcgf\cgf.h:1192-1203`). Legal modes: `variable-frame`, `fixed-frame`,
+`fixed-frame-run-to-complete`; a fixed-frame mode needs a non-zero frame time or sim time
+never advances (Table 17 p.354).
+
+**Both default to "leave the base scenario's lines alone."** That identity default is what
+keeps the fixtures above byte-for-byte reproducible - proven by regenerating all three and
+diffing the 33 staged parts by SHA-256 (33/33 identical) after the option was added.
+
+`--out-dir` redirects the `.scnx` away from `C:\MAK\...\userData\scenarios` (the default), so
+a fixture can be built without writing under `C:\MAK`.
+
+`--frame-variant SRC:OUT` emits `OUT.scnx` = `SRC.scnx` with ONLY the frame settings moved:
+every non-`.scn` part is copied byte-for-byte and the `.scn` gets its part-name references
+retargeted plus the two frame lines rewritten. Used to build `TropicTortoise_FFRTC` for
+`docs/experiments/PREREG_R9_FIXED_FRAME_RTC_2026-09-02.md`:
+```
+python build_fixture.py --frame-variant TropicTortoise:TropicTortoise_FFRTC \
+       --frame-mode fixed-frame-run-to-complete --frame-time 0.045455
+```
+The built archive is committed at `frame_variants/TropicTortoise_FFRTC.scnx` so the live
+executor only has to copy it into the MAK scenarios directory. Note the `.scnx` SHA-256 is
+NOT reproducible (zip entries carry file mtimes); verify the `.scn` inside it instead.
 `ecef.py` / `orient.py` are the standalone derivations of the coordinate and
 orientation math (validated: ECEF reproduces the handoff Mojave number to 0.000 m;
 orientation round-trips stored attitudes to clean integer headings).
