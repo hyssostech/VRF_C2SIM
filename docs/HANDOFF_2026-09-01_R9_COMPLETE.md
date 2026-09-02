@@ -123,7 +123,7 @@ vrfSim.mtl: notifyLevel 3 / objectConsoleNotifyLevel 3 / enableLogFileTimestamps
    leaders, 6 units, 3/3 TASKCMPLT), clock 4.94x, every final within 0.22 m of P2c.
    5x record: 1 of 2 runs clean; the P3 miss is neither reproduced nor explained
    (REVIEW_P3 h1 odds lowered, h2 favoured, n=2). PROBE RUNS STAY AT 1x until the
-   user rules otherwise; 5x remains NECESSARY for COA-STP1 scale (13-40 km routes).
+   user rules otherwise; 5x remains NECESSARY for COA-STP1 scale (up to 42.4 km single, 77.9 km chained: 1-6/2/1_AD T15+T17).
    Keep ONE canonical-length 1x run per milestone for comparability with the record.
    Step analysis (docs/experiments/ANALYSIS_P3_STEP_PROFILE_2026-09-01.md, 826ab8c):
    P3 and P3R are indistinguishable on every tick/clock statistic (tick quantum

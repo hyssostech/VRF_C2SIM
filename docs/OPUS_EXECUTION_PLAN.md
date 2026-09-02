@@ -721,7 +721,7 @@ their offline gates green first. P4b (Step 3) is DELIBERATELY EXCLUDED from this
 Vrf:BundlePositionReports=false here. Read RUNBOOK sec 7 in full before starting.
 
 WHY / EVIDENCE (PLAN_DERISK_NOTES sec 4): data/COA-STP1_Order.xml has 42 tasks, 11 distinct
-performers, ALL self-target (verbs degrade to movement - expected/documented), 32 temporal deps
+performers, ALL self-target (verbs degrade to movement - expected/documented), 31 temporal deps
 (the P0.2 skip policy governs), and 3 SCREEN tasks that are PATROL tasks - NOTE fan-out
 deliberately EXCLUDES patrol (service:801/814 short-circuits it) and patrols never self-complete,
 so those 3 will not fan out and will not report completion (expected).
@@ -736,7 +736,7 @@ so those 3 will not fan out and will not report completion (expected).
   see Step 2.3/2.7) and `Vrf__FanOutCompletionFraction=1.0` (default; do NOT lower it globally -
   0.75 would truncate the healthy 18-member companies at 14/18). Also set
   `Vrf__TaskPredecessorTimeoutSeconds` EXPLICITLY (default 600; past experiments overrode it via
-  env - do not inherit silently): with 32 temporal deps under the skip policy, each
+  env - do not inherit silently): with 31 temporal deps under the skip policy, each
   never-completing predecessor (the 3 patrols, no-location tasks) holds its successors up to
   this long from dispatch before skipping, which stretches the run - size the observation
   window and WatchVrf duration for it (45-60 min is safer than 35; a SECOND WatchVrf pass on a

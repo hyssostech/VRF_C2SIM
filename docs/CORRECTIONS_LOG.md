@@ -155,3 +155,83 @@ Each entry: the claim, why it was wrong, and the evidence that settled it.
   correlates with GroundWaypointAltitudeMode=Live" (H-ENT-1). FALSIFIED the same day by
   P1 RUN 2 (frozen under Fixed100, all gates met). The Live default and the NavArea
   artifact landed on the same day (2026-07-14/15) - a textbook confound.
+
+## The region hypothesis / "the leader path plan is EMPTY at Mojave" (retracted 2026-09-02)
+
+- CLAIMED (2026-07-13, R9 region swap; evidence docs/experiments/R9_region_swap_2026-07-13.txt:32-35;
+  written up in UNIT_MOVEMENT_RESEARCH sec 4c): "at the COA-STP1 Mojave region VR-Forces cannot plan
+  unit movement paths - the back end logs `moveAlong() - empty route -- not sending move along to
+  subordinate` three times per aggregate and creates ZERO member Offset Route objects, against 45 in
+  the same-day Sweden control; so the REGION / streamed terrain content is the aggregate blocker, and
+  it is NOT an interface defect." RETRACTED. The region is not the cause.
+- FALSIFIED 2026-07-22 by docs/experiments/PREREG_FIXTURE_REGION_VS_STRUCTURE_2026-07-22.md. An
+  AUTHORED, structurally complete Tank Platoon loaded from a .scnx at the SAME Mojave AO drove its
+  route: ":203-205 Disaggregated-move MECHANISM engaged: reflected 9 -> 13 at onset = 4 new
+  offset-route/control transients - the SAME buildOffsetRoute path R9 reported EMPTY (0 offset routes)
+  for our REMOTE-CREATED units at this same AO"; ":209-211 INTERPRETATION - the region hypothesis
+  (Branch A) is FALSIFIED. Mojave terrain does NOT fundamentally break disaggregated movement for an
+  authored, structurally-complete Tank Platoon. R9's '0 offset routes at Mojave' is therefore NOT a
+  property of the terrain; it is a property of what our interface CREATES/TASKS there." The
+  below-terrain-waypoint control ran in the same experiment and killed the other environmental
+  candidate: ":287-289 CONSEQUENCE: WAYPOINT ALTITUDE (below-terrain clamp-up) is FALSIFIED as a cause
+  of the R9 freeze. Both environmental hypotheses for the empty-offset-route freeze are now DEAD:
+  REGION (Mojave terrain) and WAYPOINT ALTITUDE."
+- WHY IT WAS WRONG (mechanism, not just the counter-example): R9 was observed with the TYPE-MAPPING
+  layer still in place. Remote-created aggregates emitted 11.1.225.1.1.3.0, which has no Kind-11 leaf,
+  fell back to Ground_Aggregate, and therefore had NO MEMBER SET for buildOffsetRoute to build routes
+  for. The empty offset route was a property of the object this interface created, not of the ground
+  under it. Type mapping was fixed 2026-07-22 (UnitTranslator RealTemplates, now the default); three
+  further layers were peeled 2026-09-01/02 (this project's own generated NavArea artifact, the
+  cosmetic HQ formation-name warning, the route-vertex altitude frame). See
+  HANDOFF_2026-09-01_R9_COMPLETE.md "THE FOUR-LAYER BLOCKER STACK". Every July-era falsification is
+  LAYER-RELATIVE (lesson L9) and must be re-adjudicated on the clean state before its fence is trusted.
+- THE RETRACTION DID NOT PROPAGATE for six weeks. As of 2026-09-02 the region story was still stated
+  as CURRENT in six live docs; each now carries an inline
+  "[RETRACTED 2026-07-22 - the REGION cause is FALSIFIED; see docs/CORRECTIONS_LOG.md.]" pointer at
+  the cited passage:
+    docs/COA_GPT_FEEDBACK.md Item 4 (a full RETRACTION NOTICE at the head of the item; INTERNAL - the
+      user decides whether coa-gpt is ever told)
+    docs/SCENARIO_SETUP_GUIDE.md :35, :90, :130
+    docs/PORT.md :10, :625, :757-765
+    docs/UNIT_MOVEMENT_RESEARCH.md :297, :562, :608
+    docs/START_HERE.md :191, :346-370, :638
+    docs/NEXT_SESSION_GUIDANCE.md :60-61
+  (line numbers as they stood before the tags were inserted). The bodies are NOT rewritten - they are
+  history and must read as history.
+- WHAT IS **NOT** SETTLED. Retracting the region CAUSE does not assert the SYMPTOM is gone. Whether
+  COA-STP1's own remote-created aggregates now build member offset routes at Mojave under the clean
+  state is an OPEN question, pre-registered as prediction P3 of
+  docs/experiments/PREREG_COASTP1_RUNG1_BOUNDED_2026-09-02.md. Nothing here licenses a claim that
+  aggregates march at Mojave until that run is scored.
+
+## COA-STP1 order/init arithmetic (corrected 2026-09-02, all re-verified from the XML)
+
+- CLAIMED (OPUS_EXECUTION_PLAN.md:724 and :739, PLAN_DERISK_NOTES.md:81,
+  UNIT_MOVEMENT_RESEARCH.md:437): the order has "32 temporal deps". WRONG: 31. data/COA-STP1_Order.xml
+  contains exactly 42 ManeuverWarfareTask and 31 ActionTemporalRelationship elements, all with
+  ActionTemporalAssociationCode STREND. 42 tasks - 11 chain heads = 31 dependent tasks, each with
+  exactly one predecessor: 10 performers carry chains of 4, one (510/40) carries a chain of 2.
+  Heads: T1, T5, T9, T13, T15, T19, T23, T27, T31, T35, T39. Those four sites are corrected; the two
+  remaining "32" mentions (PORT.md:602, START_HERE.md:500) describe what a PAST RUN did and are left
+  as written history - the order they describe still had 31.
+- CLAIMED (HANDOFF_2026-09-01_R9_COMPLETE.md:126): COA-STP1 scale means "13-40 km routes". Understated
+  at both ends. Measured by haversine over each task's inline Location list: longest SINGLE route
+  T17 = 42.37 km; longest CHAINED total for one performer 1-6/2/1_AD = 77.92 km (T15 35.55 + T17
+  42.37). Full census of tasks with a route: T17 42.37, T39 40.20, T15 35.55, T23 28.71, T31 28.71,
+  T35 28.71, T1 28.53, T19 28.53, T32 23.60, T13 0.63, T36 0.63. The remaining 31 tasks carry 0 or 1
+  Location and have no route length; the 9 with ZERO Locations are T8, T9, T10, T16, T21, T24, T34,
+  T37, T38. Corrected in the handoff.
+- INCOMPLETE (NEXT_SESSION_GUIDANCE.md:158): "T13/T19 are not even temporally gated". True - both are
+  chain heads - but T13 carries the order's ONLY start delay,
+  StartTime/SimulationTime/DelayTimeAmount/IsoTimeDuration = P00Y00M00DT03H20M00S (12,000 s), at
+  data/COA-STP1_Order.xml:504. All ten other heads carry P00Y00M00DT00H00M00S and no task carries a
+  nonzero RelativeTime. So T13 cannot dispatch inside any run window shorter than 3 h 20 m at
+  TimeMultiplier 1; a T13 that does not dispatch in a 45-minute window is EXPECTED, not a miss. The
+  guidance line now says so.
+- RE-VERIFIED and CORRECT as written (no change needed): data/COA-STP1_Initialization.xml has 128
+  Unit elements and 35 TacticalArea elements; 67 units are hostile (SIDC char 1 = 'H') and 61 friendly
+  ('F'); all 128 are ground (SIDC char 2 = 'G') and all SISOEntityType leaves are zero. SIDC echelon
+  char (index 11) census: 'E' 64 -> ArmorCompany (aggregate), 'F' 26 -> ArmorCoHQ (aggregate), 'D' 23
+  -> ArmorPlatoon (aggregate, the only branch the 2026-07-22 type fix touched), 15 others ('-' 12,
+  'C' 2, 'H' 1) -> the lone-Tank default. So 113 aggregates + 15 entities. 54 units - including all 11
+  order performers - share the single spawn coordinate 34.67998497, -116.72479854.

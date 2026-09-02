@@ -14,6 +14,7 @@ behavior-verified at Sweden; ALL 42 COA-STP1 tasks self-target; P0.1 completion 
 timeout policy + P0.3 completion-gated engage implemented, all six selftests green. NEXT:
 investigate the empty offset-route generation at Mojave (R9) - nav-data / formation-names / page-in
 are FALSIFIED, do not restart them.
+[RETRACTED 2026-07-22 - the REGION cause is FALSIFIED; see docs/CORRECTIONS_LOG.md.]
 Prior state 2026-07-11: Phases 1-5 DONE, Layer-1 + Unit 3 fires live-verified, Solution A +
 ResetVrf done - sec 8 phase status, sec 10 semantic map, RUNBOOK sec 7/8.)
 
@@ -625,6 +626,7 @@ SUPERSEDED - the E1 RUN / R8 / R9 entries below, plus the nav-data falsification
 blocker to region-specific EMPTY member offset-route generation at Mojave (still unsolved); R5
 Vrf:AggregateFormation=auto already repairs the birth "column-left". Read this entry as history -
 see the file header + START_HERE REALITY CHECK.]
+[RETRACTED 2026-07-22 - the REGION cause is FALSIFIED; see docs/CORRECTIONS_LOG.md.]
 - ROOT CAUSE of the stuck aggregates: formation names are defined PER UNIT TYPE in the .entity
   files with INCONSISTENT case - the Ground_Aggregate catch-all (which our Scout/ArmorPlatoon
   types fall back to; no .entity matches their DIS types) lists LOWERCASE "wedge"/"column";
@@ -773,6 +775,7 @@ not sending move along to subordinate` and creates ZERO member Offset Routes
 (Sweden: 45) - the lead-follow controller's leader path plan is EMPTY at that
 location on the whole-earth online terrain. NOT an interface defect (identical
 command stream both runs). Practical unlock candidates: R10 subordinate fan-out
+[RETRACTED 2026-07-22 - the REGION cause is FALSIFIED; see docs/CORRECTIONS_LOG.md.]
 (entity moves are PROVEN at Mojave), R11 DtPlanAndMoveToTask probe; coa-gpt feedback
 item #4 = validate the scenario region before generating COAs there. appNos
 3335-3340 consumed (next fresh: 3341).

@@ -296,6 +296,7 @@ at the golden Sweden coordinates).
 
 ## 4c. R9 REGION SWAP (2026-07-13 morning, LIVE) - GEOGRAPHY CONFIRMED; MECHANISM
 ## FOUND: the leader path plan is EMPTY at the Mojave region
+## [RETRACTED 2026-07-22 - the REGION cause is FALSIFIED; see docs/CORRECTIONS_LOG.md.]
 
 Files (tracked): data/R9_Mojave_Initialization.xml + data/R9_Mojave_UnitMove_Order.xml
 - the golden init + R5 order transplanted Sweden (~58.69,16.5) -> Mojave (~34.6,
@@ -325,6 +326,7 @@ controller's LEADER PATH PLAN comes back EMPTY - nothing is ever forwarded to th
 lead subordinate and the unit never marches. Entity moves complete at both regions
 because entity move-along does not go through unit leader-path planning. The
 `moveAlong() - empty route` line is THE grep oracle for this failure mode.
+[RETRACTED 2026-07-22 - the REGION cause is FALSIFIED; see docs/CORRECTIONS_LOG.md.]
 
 VERDICT: aggregate movement is blocked by TERRAIN CONTENT AT THE SCENARIO LOCATION
 - the whole-earth "MAK Earth Space (online)" scenario supports unit ground path
@@ -434,7 +436,7 @@ multi-point route path only).
 **COA-STP1 FULL 42-TASK SCALE RUN (2026-07-13 afternoon, LIVE, apps 3355-3359):
 PIPELINE HOLDS AT SCALE; P4a + STEP-2 PASS THEIR LIVE GATES; MOVEMENT MIXED -
 F1 RUNAWAY UNDER FAN-OUT, F2/F2b VACUOUS-COMPLETION CLASSES, F3 TIMEOUT RACE.**
-Setup: the FULL COA-STP1 order (42 tasks, 11 performers, 32 temporal deps) on the
+Setup: the FULL COA-STP1 order (42 tasks, 11 performers, 31 temporal deps) on the
 128-unit init at its own Mojave region. Vrf: DeStackCreates=true,
 AggregateFormation=auto, SubordinateFanOut=true, TimeMultiplier=20,
 FanOutStragglerSeconds=600, FanOutCompletionFraction=1.0,
@@ -611,3 +613,4 @@ do NOT record any as the fix): BE terrain-paging depth at the AO vs VR-TheWorld 
 an aggregate-movement / offset-route setting; the specific route geometry at the Mojave coords.
 INTERIM PROVEN MOVER: SubordinateFanOut marches member entities at Mojave (R10). BREAK-GLASS:
 setNavigationEnabled(false) blind move.
+[RETRACTED 2026-07-22 - the REGION cause is FALSIFIED; see docs/CORRECTIONS_LOG.md.]

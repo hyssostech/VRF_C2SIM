@@ -62,6 +62,7 @@ Everything below is tagged:
 > generation at Mojave (0 routes vs Sweden 45; moveAlong() - empty route), still UNSOLVED; nav-data
 > was ALSO falsified (2026-07-14). Authoritative current status = START_HERE REALITY CHECK. Read
 > 2.1 below as historical rationale only; sec 2.2 (reopen MoveIntoFormation) was later vindicated.
+> [RETRACTED 2026-07-22 - the REGION cause is FALSIFIED; see docs/CORRECTIONS_LOG.md.]
 
 The docs' open question #1 ("what actually moves disaggregated COA-STP1
 aggregates?") is now answered with direct evidence. Mechanism:
@@ -156,7 +157,9 @@ docs record. Consequences:
   (VrfC2SimService.cs:512-518, :527-528) [VERIFIED] correctly reject the
   self-reference and degrade to movement. The docs' explanation "gated tasks
   did not dispatch in the run window; needs a longer run" is WRONG for
-  Breach/Escort (T13/T19 are not even temporally gated [AGENT]); it is right
+  Breach/Escort (T13/T19 are not even temporally gated [AGENT] - though T13 carries
+  the order's ONLY start delay, SimulationTime P00Y00M00DT03H20M00S = 12,000 s, so it
+  cannot dispatch inside any window shorter than 3h20m [VERIFIED Order.xml:504]); it is right
   only for SCREEN/PatrolRoute (all 3 SCREEN tasks are gated; T24 also has no
   Location and can never patrol [AGENT]).
 - RESUME_PROMPT's "BREACH obstacles are MAP GRAPHICS ... TryResolveVrfUuid

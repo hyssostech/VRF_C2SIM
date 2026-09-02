@@ -36,6 +36,7 @@ e.g. sim rate is set by tools/SetSimRate, NOT by the GUI toolbar. ***
    Sweden - a terrain/route-planning failure on the streaming terrain, next-investigation. The
    nav-data GENERATION + LOADING mechanics below are correct VR-Forces facts (kept for reference)
    but are NOT a per-region setup requirement.
+   [RETRACTED 2026-07-22 - the REGION cause is FALSIFIED; see docs/CORRECTIONS_LOG.md.]
    Workflow (GUI, front-end): Settings > Terrain > Navigation Areas > New:
    - **Coordinate format is DEGREES:MINUTES** (deg:decimal-min), NOT decimal degrees. A decimal
      like 34.56 deg is entered as `34:33.6` (0.56*60 = 33.6'); 116.74 W as `116:44.4`. Entering
@@ -88,6 +89,7 @@ e.g. sim rate is set by tools/SetSimRate, NOT by the GUI toolbar. ***
   plausibly AGGRAVATES the paging/nav problem at full scale (NOT proven to be the root cause -
   R9 at 49 units also froze; nav-data-as-cause was FALSIFIED 2026-07-14 (see item 2) - the real
   cause is region-specific EMPTY member offset-route generation at Mojave, 0 routes vs Sweden 45).
+  [RETRACTED 2026-07-22 - the REGION cause is FALSIFIED; see docs/CORRECTIONS_LOG.md.]
 - MITIGATION 1 (BUILT, but HELD - live regression): "lean creation" - create only order-referenced
   units on the TASKING side (drop idle friendly context); KEEP the full threat (OPFOR/neutral -
   engages, part of the COP; do NOT thin the threat). Default on. Built + offline-green 2026-07-14
@@ -131,6 +133,7 @@ e.g. sim rate is set by tools/SetSimRate, NOT by the GUI toolbar. ***
   at Mojave (0 routes vs Sweden 45; `moveAlong() - empty route`). Entities march at Mojave via
   STANDARD nav (R10 SubordinateFanOut is the proven interim mover); the aggregate leader-path is
   the specific failure.
+  [RETRACTED 2026-07-22 - the REGION cause is FALSIFIED; see docs/CORRECTIONS_LOG.md.]
 - Terrain Page-In Area alone does NOT fix aggregate movement (falsified 2026-07-14).
 - Fort Irwin/NTC is a stock MAK terrain and the Tropic Tortoise AO (34.68,-116.72) is ~65 km S of
   the NTC core in GENERIC Mojave - but that is NOT why aggregates freeze (nav data falsified;

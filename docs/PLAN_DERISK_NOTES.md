@@ -78,7 +78,7 @@ the plan can specify mechanisms instead of guessing. ASCII-only per repo policy.
 ## 4. COA-STP1 full-order scale run (live; procedure known)
 
 - data/COA-STP1_Order.xml: 42 tasks, 11 distinct performers, ALL self-target
-  (verbs degrade to movement - expected, documented), 32 temporal deps (P0.2
+  (verbs degrade to movement - expected, documented), 31 temporal deps (P0.2
   skip policy governs), 3 SCREEN are PATROL tasks - NOTE fan-out deliberately
   EXCLUDES patrol (PendingRouteTask.Patrol short-circuits it) and patrols never
   self-complete. Success criteria for the plan: creates 128+35, de-stack fires,

@@ -149,6 +149,27 @@ governing constraint.
 
 ## Item 4 - Validate the scenario region before generating COAs there (strongest item)
 
+> RETRACTION NOTICE (2026-09-02, INTERNAL - this item has NOT been sent to coa-gpt in this
+> form and the user decides whether it ever is). THE FINDING BELOW IS RETRACTED. Its core
+> claim - that the Mojave REGION is what stops disaggregated units planning unit movement
+> paths - was FALSIFIED on 2026-07-22 by
+> docs/experiments/PREREG_FIXTURE_REGION_VS_STRUCTURE_2026-07-22.md. An AUTHORED,
+> structurally complete Tank Platoon loaded at the SAME Mojave AO engaged the very
+> buildOffsetRoute path R9 reported EMPTY ("reflected 9 -> 13 at onset = 4 new offset-route/
+> control transients", :203-205) and marched to route-matching endpoints - with
+> above-terrain AND below-terrain waypoints (:287-290, which also killed waypoint altitude).
+> R9's "0 offset routes at Mojave" was a property of the objects THIS INTERFACE created
+> there, not of the ground under them: our remote-created aggregates emitted a DIS type with
+> no Kind-11 leaf, fell back to Ground_Aggregate, and so had no member set for offset routes
+> to be built for. That type-mapping defect was fixed 2026-07-22 (RealTemplates is now the
+> default) and three further blocker layers were peeled 2026-09-01/02 (this project's own
+> generated NavArea artifact, a cosmetic formation-name warning, and the route-vertex
+> altitude frame). The ASK below - "validate the region before generating COAs for it" -
+> therefore rests on a dead mechanism. Whether COA-STP1's own remote-created aggregates
+> build member offset routes at Mojave is an OPEN question being re-adjudicated on the clean
+> state; send nothing from this item onward until that run is scored. Read it below as
+> history. Full provenance: docs/CORRECTIONS_LOG.md.
+
 FINDING. Whether disaggregated units can maneuver as units at all depends on the map REGION
 you place them in. At the COA-STP1 Mojave location, VR-Forces cannot plan unit movement paths;
 at our golden Sweden location the identical units and code plan and march fine. This is the

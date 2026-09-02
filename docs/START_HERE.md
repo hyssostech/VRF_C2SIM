@@ -195,6 +195,7 @@ Three locations are in play:
   known. INTERIM PROVEN MOVER: SubordinateFanOut marches member entities at Mojave (R10). Evidence:
   docs/experiments/navdata_FALSIFIED_bogaland_vs_tt_2026-07-14.txt (supersedes the nav-data saga +
   sec 6). AppNos next free: 3386.
+  [RETRACTED 2026-07-22 - the REGION cause is FALSIFIED; see docs/CORRECTIONS_LOG.md.]
 - **SEMANTIC Units 2/5 Run 1 (2026-07-14, LIVE, apps 3368-3372) - SUCCESS**: task (c) from the
   RESUME_PROMPT. Behavior-verified the two-layer semantic map's Unit 2 (BREACH -> DtBreachTask) +
   Unit 5 (SCREEN/Reconnoiter -> DtPatrolRouteTask; ESCRT/Escort -> DtFollowEntityTask) LIVE at the
@@ -356,6 +357,7 @@ Three locations are in play:
   Mojave) and an R11 DtPlanAndMoveToTask probe; coa-gpt feedback item #4 = validate
   the region before generating COAs there. Full record UNIT_MOVEMENT_RESEARCH.md
   sec 4c; evidence docs/experiments/R9_region_swap_2026-07-13.txt.
+  [RETRACTED 2026-07-22 - the REGION cause is FALSIFIED; see docs/CORRECTIONS_LOG.md.]
 - **2026-07-12/13, night - R8 LIVE-VERIFIED; STACK HYPOTHESIS FALSIFIED**:
   the R8 live A/B ran (exact R5c probe, only `Vrf:DeStackCreates=true` toggled; full
   record UNIT_MOVEMENT_RESEARCH.md sec 4b). R8 WORKS (54-unit mega-pile spread; entity
@@ -639,6 +641,7 @@ Remaining work, roughly by priority (details: docs/APP.md TODO, PORT.md sec 6/10
    member OFFSET-ROUTE generation returns EMPTY at Mojave for golden units (0 routes vs Sweden
    45; `moveAlong() - empty route`), AND COA-STP1's own units freeze even at Sweden by a
    different, still-unidentified mechanism - these may be two separate problems, not one.
+   [RETRACTED 2026-07-22 - the REGION cause is FALSIFIED; see docs/CORRECTIONS_LOG.md.]
    INTERIM PROVEN MOVER: `Vrf:SubordinateFanOut` (R10) marches member entities at Mojave,
    bypassing the empty-offset-route path. A `GroundWaypointAltitudeMode=Live` fix was built and
    finally tested live 2026-07-15 but the test was CONFOUNDED (see next-session priority below) -
