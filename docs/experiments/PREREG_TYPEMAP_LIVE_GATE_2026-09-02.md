@@ -453,6 +453,14 @@ are STP-flavoured, so the most likely source is a co-tenant STP push. **It is a 
 contamination for this record: our appNo ledger and the VR-Forces federation are protected, the
 C2SIM SERVER IS NOT.**
 
+CORROBORATION FOUND AFTER THE RUN, and it is not mine: the working tree carries an UNCOMMITTED,
+CONCURRENT change to `tools/ListenReports/Program.cs` adding `--rest-url` / `--stomp-url` flags,
+whose own comment says the endpoints "were HARDCODED to 127.0.0.1:8080 / 61613" and that "the
+private test server now runs on OTHER PORTS of localhost (RUNBOOK sec 1: c2sim-server-vrf,
+18080 / 61614)". So another workstream is ALREADY moving off the shared server. I did not touch
+that file. Whether the foreign init came from that work, from stp-lt511, or from elsewhere is not
+established here - only that the bus we ran on is shared and that someone else was on it.
+
 WHAT IT TOUCHED: the last ~6 minutes of a 30-minute window, the 13 stray `base/Area` objects in
 the census, and the run's formal validity.
 WHAT IT DID NOT TOUCH - and this is why the gate is adjudicable: every creation line, all six
