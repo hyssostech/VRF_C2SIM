@@ -10,3 +10,6 @@ VR-Forces 5.2 vendor PDFs (git-ignored, ~200 MB). Re-fetch from the PUBLIC MAK l
 
 Developer Guide + class reference (HTML): https://docs.mak.com/api/vrforces5.2/classref/index.html
 The 5.2d installer ships stub PDFs in C:\MAKrforces5.2d\doc; these are the real ones.
+UPDATE 2026-09-02 evening: MAK's documentation installer was found and run; C:\MAKrforces5.2d\doc now
+holds the real PDFs INCLUDING MAK-One-Model-Catalog.pdf (the 5.2 catalog, not in the public library).
+Prefer that tree; this folder is the public fallback. The old stubs are in vrforces5.2d\doc0.
