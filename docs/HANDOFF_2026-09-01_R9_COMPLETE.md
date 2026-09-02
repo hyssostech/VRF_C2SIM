@@ -153,12 +153,10 @@ DONE 2026-09-02 pm, three probes; read the prereg sec 7s, not this summary:
 3. DONE 2026-09-02 (supervisor, a5cdc95): THE SHARED C2SIM SERVER. The foreign init WAS THE USER,
    working the C2SIM GUI against their own server (`c2sim_server4.8.4.9`, 8080/61613). FIX: a
    PRIVATE docker instance `c2sim-server-vrf` (18080/61614, own mount c2simFiles-vrf) is now the
-   runner DEFAULT and reaches every stage (ListenReports gained --rest-url/--stomp-url +
-   capability 'endpoints'; the app takes C2SIM__RestUrl/StompUrl and logs its endpoints).
-   Isolation proven: R9 init pushed to 18080 landed in c2simFiles-vrf only. RUNBOOK sec 1.
-   NEVER push to, reset, or restart the operator's 8080/61613 server. STILL OWED by the gate:
-   run 3 (PRC must REFUSE TO START) and run 4 (COA-STP1, 128 units). FidelityTable is NOT the
-   default; that stays a USER decision.
+   runner DEFAULT and reaches every stage (ListenReports --rest-url/--stomp-url; app env
+   C2SIM__RestUrl/StompUrl, logged). Isolation proven. RUNBOOK sec 1. NEVER push to, reset, or
+   restart the operator's 8080/61613 server. STILL OWED by the gate: run 3 (PRC must REFUSE TO
+   START) and run 4 (COA-STP1, 128 units). FidelityTable is NOT the default - a USER decision.
 4. NATIVE COMPLETION STATUS - forward DtTaskCompleteReport success()/taskId()/
    taskTrackingNumber() through VrfFacade::TaskCompleted. The only known remaining cause of a
    FALSE TASKCMPLT. Standing authorization: back up the DLLs, /t:Rebuild always, REDEPLOY ALL 10
@@ -172,8 +170,10 @@ DONE 2026-09-02 pm, three probes; read the prereg sec 7s, not this summary:
    REPORT: the cause was OUR contract violation, not a vendor bug (rwUUID.h:246-253 documents it;
    fix 726f762). REWRITE OR DROP THAT SECTION. *** Vendor defects across the saga remains ZERO.
 8. BACKLOG: type adjudications (54 units - 5.2b checklist first), task vocabulary, completion
-   re-keying, scoring (Phase 5).
-
+   re-keying, scoring (Phase 5). LOW (user, 2026-09-02): a DIRECT FILE-LOAD PATH for the app -
+   init + order read from files, the C2SIM server BYPASSED (not dismantled: the SDK/state-machine
+   path stays the default) so the component runs in settings with NO server. Reports still need
+   a sink (file). Not a test shortcut - a deployment mode; the runner keeps the server path.
 ## VR-FORCES 5.2b UPGRADE CHECKLIST (expected soon - user, 2026-09-01)
 (a) diff its EXPANDED AGGREGATE MODEL SET against the 54 pending type adjudications BEFORE
 authoring anything (PRIOR_ART Q1), and RE-RUN --typemap-selftest against the 5.2 catalog;
