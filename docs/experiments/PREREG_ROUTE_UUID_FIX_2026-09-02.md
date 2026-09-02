@@ -291,5 +291,5 @@ PENDING - to be written after the run.
 ## 7. REGISTRATION
 
 Sections 0-5B above, together with the source, script and test changes they describe, were
-registered in commit <stamped after commit> BEFORE the launch command was issued. Sec 6 is the
+registered in commit 726f762 BEFORE the launch command was issued. Sec 6 is the
 only content added afterwards.
