@@ -328,6 +328,11 @@ Vrf__GroundWaypointAltitudeMode=Live (the default). Expected: the R9 result repr
 line of any kind (the request path is never entered; the callback is never registered).
 Miss = any deviation from the R9 table -> STOP; the new native binary is at fault
 regardless of the mode code (07-19 record), do not proceed to row 2.
+ROW 1 RESULT (2026-09-02, run 20260902T010704Z, appNos 3676-3682): ALL SIX predictions
+MET - 3/3 TASKCMPLT at +117.3 / +129.2 / +183.8 s (CONFIRM2 +117.1 / +129.1 / +182.1),
+endpoints 0.09 / 0.00 / 0.09 m from P2c, POS==RPT 0.0 x3, 0 terrain log lines, WARN census
+identical, vrfSim counts 0/0/0/1, RTI PIDs unchanged, 7 min 15 s. Record:
+docs/experiments/PREREG_TERRAIN_ROW1_CONTROL_2026-09-02.md sec 6. Row 2 cleared.
 
 Row 2 - MODE (same bridge, Vrf__GroundWaypointAltitudeMode=TerrainProfile, env). Checks:
 1. The reply arrives: log line "Terrain profile <id> for task '<name>': all N vertices

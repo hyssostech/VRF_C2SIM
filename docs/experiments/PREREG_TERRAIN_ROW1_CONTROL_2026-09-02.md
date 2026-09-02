@@ -108,4 +108,55 @@ load-bearing lines into sec 6. Ledger line-ending check after the run (bare LF m
 
 ## 6. Outcome (to be written from the artifacts, after the run)
 
-(pending)
+Run 20260902T010704Z_run, launched 2026-09-02 01:06:49Z from main at 7b7115f (this prereg
+committed), env:Vrf__* EMPTY at launch. appNos 3676-3682 (vrfBackend 3676, vrfFrontend
+3677, oraclePre 3678, oracleTrace 3679, app 3680, rtiProbe 3681, createOneDiag 3682);
+ledger wasValue 3676 / newValue 3683 / advanced true; ledger file after the run CRLF 1832 /
+bare LF 0. Runner exit 0; validityFlags = the single advisory pre-init INFO only; console
+[WARN]/[FAIL] count 0. VERDICT: ALL SIX PREDICTIONS MET - the new bridge 28E993FE is inert
+at default settings. Row 2 is cleared.
+
+A. COMPLETION - MET. reports-captured.log TASKCMPLT count 3; vrfc2simapp.log "SENT TASK
+   STATUS REPORT (TASKCMPLT)" count 3. Offsets from clocks.orderPushedUtc
+   2026-09-02T01:09:28.677Z: 1.BdeHQ +117.3 s (CONFIRM2 +117.1, delta +0.2), 1222.MechPlt
+   +129.2 s (+129.1, +0.1), 114.MechCoy +183.8 s (+182.1, +1.7). All within +/-10 s.
+B. ENDPOINTS - MET. Final POS (trace t=278.2): 1.BdeHQ 34.608416,-116.699994 alt 1121.1
+   (0.09 m from P2c); 114.MechCoy 34.653915,-116.693388 alt 1116.8 (0.00 m); 1222.MechPlt
+   34.612956,-116.587783 alt 1026.6 (0.09 m). POS==RPT 0.0 / 0.0 / 0.0 m (last RPT
+   POSITION at t=278.7 / 218.8 / 220.3). settled true x3. Plateau onsets 148.0 / 219.2 /
+   160.1 s (CONFIRM2 147.6 / 214.7 / 159.8). Start alts 1131.4 / 1116.7 / 1040.6 m (POS
+   t=23.5) - identical to CONFIRM2 to 0.1 m; these are the live altitudes Row 2's echo
+   test uses (Live vertex alt = live + 50 -> 1181.4 / 1166.7 / 1090.6; echo = live + 60 ->
+   1191.4 / 1176.7 / 1100.6; expected terrain + 10 at vertex 0 ~ 1141 / 1127 / 1051).
+C. INERT BRIDGE - MET. Lines matching `Terrain profile ` or `terrain profile request` in
+   vrfc2simapp.log: 0. WARN/ERROR census: exactly 3 `fail: C2SIM.C2SIMSDK[0]` (deserialize
+   noise), 3 "Can't create data of type", 0 `warn:` lines - identical to CONFIRM2 (3/3/0).
+   Route lines: "Task 'T_R5_PL1': CreateRoute 'T_R5_PL1 ROUTE' (3 pts) for 1222.MechPlt",
+   "... 'T_R5_CO1 ROUTE' (3 pts) for 114.MechCoy", "... 'T_R5_TK1 ROUTE' (3 pts) for
+   1.BdeHQ"; 3 x "Route '...' created; MoveAlongRoute issued for VRF_UUID:..." (3ea5a109
+   / da43adba / f9d719d4). 6 x "Create-altitude mode=Live: GROUND unit ... created at
+   safe MSL 10000 m". timeMult=1. "No backends": 0 hits in any run log; WatchVrf trace
+   ends "[OK] resigned cleanly." (no 0xC0000005).
+D. WALL TIME - MET. startUtc 01:07:04.089Z -> savedUtc 01:14:18.796Z = 434.7 s = 7 min
+   15 s (CONFIRM2 7 min 17 s).
+E. HYGIENE - MET. stopvrf.stdout.log: "rtiAssistant pid=41336 still running - CORRECT",
+   "rtiexec pid=224608 still running - CORRECT", "rtiForwarder pid=76620 still running -
+   CORRECT", "VR-Forces is DOWN (graceful quit; no process was force-killed)."; StopVrf
+   stage exit 0. Post-run Get-Process: exactly rtiAssistant 41336 / rtiexec 224608 /
+   rtiForwarder 76620 (start times 14:34 / 15:08 / 15:09 local, unchanged); no WatchVrf /
+   ListenReports / VrfC2SimApp / vrf*. Trace tail: "# STOP requested via stop-file at
+   t=310.2s (duration cap was 980s)" -> "[OK] resigned cleanly."; ListenReports "stop
+   requested via stop-file at t=313.4s ... - disconnecting", "captured 31 reports".
+   bin64-vrfSim.log: "Waiting for nav data" 0, "empty route" 0, "Can't find entity route"
+   0, "invalid formation name" 1, SocketException / "Only one usage" / "Connection error"
+   0/0/0; TerrainProfile / IntersectionInformation 0 lines. (The 4 "erminate" hits are
+   "Found variable reference: $terminate-on-destroy" - same 4 lines at the same log
+   positions 3912/4446/4786/4888 in CONFIRM2; not an error.)
+F. EARLY EXIT - MET. run-manifest oracle.earlyExit: fired true, allCompleteUtc
+   01:12:34.528Z, evidenceSatisfiedUtc 01:12:46.201Z, closedUtc 01:13:39.751Z ->
+   closed - allComplete = 65.2 s (CONFIRM2 64.6 s; band [60, 90]); windowSecsUsed 220.7;
+   reportEvidence 1222.MechPlt / 114.MechCoy / 1.BdeHQ distanceM 0.0 x3, satisfied x3.
+
+Unexplained: nothing. Adjudication JSON kept in the session scratchpad
+(row1_adjudication.json); every number above is reproducible from the run directory with
+the adjudicate.py described in sec 2.

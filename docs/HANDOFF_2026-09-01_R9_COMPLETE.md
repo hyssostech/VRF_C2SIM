@@ -47,7 +47,12 @@ vrfSim.mtl: notifyLevel 3 / objectConsoleNotifyLevel 3 / enableLogFileTimestamps
 1. DOCUMENTED-FRAME HARDENING: author route vertices from the back-end's own terrain
    via DtIfRequestTerrainProfileInformation (vrfmsgs/ifRequestTerrainProfileInformation.h)
    instead of the live-altitude+50 approximation. Facade+bridge+app change; offline
-   gates then one confirming run.
+   gates then one confirming run. STATUS 2026-09-02: MERGED to main (e1fdbbd, review
+   verdict MERGE at 066f3d2), bridge DEPLOYED (A48ABE6C -> 28E993FE, 10/10 copies one
+   hash; design sec 6 DEPLOY RECORD). Row 1 CONTROL (new bridge, mode=Live default)
+   ALL MET, run 20260902T010704Z (docs/experiments/PREREG_TERRAIN_ROW1_CONTROL_
+   2026-09-02.md). Row 2 MODE (env Vrf__GroundWaypointAltitudeMode=TerrainProfile) is
+   the next probe: docs/experiments/PREREG_TERRAIN_ROW2_MODE_2026-09-02.md.
 2. COA-STP1 SCALE RE-RUN on the clean state (the July scale results predate ALL FOUR
    fixes; every FALSIFIED stamp from July is layer-relative - see L9 - and the region/
    fan-out story needs re-adjudication).
@@ -117,14 +122,16 @@ vrfSim.mtl: notifyLevel 3 / objectConsoleNotifyLevel 3 / enableLogFileTimestamps
 6. Backlog unchanged: remaining type adjudications (54 units - but see item 4a first),
    task vocabulary, completion re-keying, scoring (Phase 5).
 
-## OPERATIONAL STATE (2026-09-02 00:50Z, after the runner-confirm2 run)
-VR-Forces DOWN (run 20260902T003710Z StopVrf exit 0 first pass; post-run inventory
+## OPERATIONAL STATE (2026-09-02 01:20Z, after the terrain Row 1 CONTROL run)
+VR-Forces DOWN (run 20260902T010704Z StopVrf exit 0 first pass; post-run inventory
 clean; nothing was killed). RTI RESIDENT + ANSWERED (rtiAssistant 41336 / rtiexec
-224608 / rtiForwarder 76620 - unchanged across both runner-confirm runs; inventory
-fresh at start, do not trust PIDs). No WatchVrf / ListenReports / VrfC2SimApp left.
-C2SIM docker UP. appNo marker NEXT FREE = 3676 (runner-managed, ledger file CRLF;
-2026-09-01/02 consumed 3606-3675; P3 = 3648-3654, P3R = 3655-3661, runner-confirm =
-3662-3668, runner-confirm2 = 3669-3675). All work committed + pushed (see git log).
+224608 / rtiForwarder 76620 - unchanged across runner-confirm, runner-confirm2 and
+terrain Row 1; inventory fresh at start, do not trust PIDs). No WatchVrf / ListenReports
+/ VrfC2SimApp left. C2SIM docker UP. Deployed bridge = 28E993FE (10/10 copies; backup of
+A48ABE6C in src/VrfBridge/build/Release/bak-20260902-a48abe6c/). appNo marker NEXT FREE =
+3683 (runner-managed, ledger file CRLF; 2026-09-01/02 consumed 3606-3682; P3 = 3648-3654,
+P3R = 3655-3661, runner-confirm = 3662-3668, runner-confirm2 = 3669-3675, terrain Row 1 =
+3676-3682). All work committed + pushed (see git log).
 
 ## NON-NEGOTIABLES (unchanged plus the docs-first rule above)
 One variable per probe; prediction + falsifier + DOC CITATIONS before running; movement
