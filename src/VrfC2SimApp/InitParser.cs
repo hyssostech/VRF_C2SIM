@@ -102,7 +102,13 @@ public static class InitParser
                 DisEntityType = DisTypeString(siso),
                 DisDomain = siso?.DISDomain ?? 0,
                 DirectionPhi = "",
-                SuperiorUuid = (u.EntityDescriptor?.Superior ?? "").Trim()
+                SuperiorUuid = (u.EntityDescriptor?.Superior ?? "").Trim(),
+                // CAVEAT: EchelonCode is a mandatory, NON-nullable generated enum with no
+                // *Specified flag, so an ABSENT element deserializes as the enum's first member
+                // ("AG"). That is safe for the only consumer (FidelityTable lookup key c, a
+                // cross-check that runs only when the SIDC echelon character has no row): no
+                // table row uses "AG", so a spurious AG simply falls through to key (d).
+                EchelonCode = u.EchelonCode.ToString()
             });
         }
 

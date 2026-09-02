@@ -6,6 +6,11 @@ namespace VrfC2SimApp;
 /// <summary>
 /// What to create in VR-Forces for one C2SIM unit. Pure data - the service turns it
 /// into bridge.CreateEntity / CreateAggregate + a deferred SetAltitude.
+///
+/// The five trailing fields are populated ONLY by TypeMapping.FidelityTable (the
+/// data/unit-type-map.json path); the two legacy modes leave them at their defaults, so
+/// their behavior is byte-for-byte unchanged. Fidelity AuthoredPending/Failed means the
+/// unit MUST NOT be created (see UnitTypeMap).
 /// </summary>
 public readonly record struct CreationPlan(
     bool IsAggregate,
@@ -14,15 +19,23 @@ public readonly record struct CreationPlan(
     double HeadingDeg,
     string Name,
     Geodetic Pos,
-    double? PostCreateAltitude); // meters; null = do not set altitude after create
+    double? PostCreateAltitude,     // meters; null = do not set altitude after create
+    TypeFidelity Fidelity = TypeFidelity.Unspecified,
+    string TemplateName = "",       // the VR-Forces template this objectType lands
+    string MapRowId = "",           // data/unit-type-map.json row id
+    string Substitution = "",       // R-SURFACE-PROXY text; "" when EXACT
+    string MapNote = "");           // which key matched / why (logged, not published)
 
 /// <summary>
 /// How C2SIM/echelon unit classes map onto VR-Forces DIS objectTypes. See VrfSettings.TypeMappingMode.
 /// GoldenParity = byte-for-byte the C++ golden-trace objectTypes (ArmorPlatoon -> Ground_Aggregate
 /// fallback); RealTemplates = the R9 type-mapping fix (ArmorPlatoon -> real Tank Platoon (USA),
-/// Cell C proven mover). RealTemplates is the product default; GoldenParity is the escape hatch.
+/// Cell C proven mover); FidelityTable = the 2026-09-02 fidelity pass - the whole ground dispatch
+/// comes from data/unit-type-map.json instead of the echelon-letter if-chain
+/// (docs/UNIT_TYPE_MAPPING_FIDELITY_2026-09-02.md sec 7.1). RealTemplates remains the default so
+/// the new mapping is A/B-able against the R9 evidence without a rebuild.
 /// </summary>
-public enum TypeMapping { RealTemplates, GoldenParity }
+public enum TypeMapping { RealTemplates, GoldenParity, FidelityTable }
 
 /// <summary>
 /// Faithful port of the C++ extractC2simInit dispatch + the create* factories
@@ -44,11 +57,13 @@ public static class UnitTranslator
     /// (the caller guards those); ElevationAgl should already be defaulted to
     /// "1000.0" when the source was empty (parity with :1445-1446).
     /// </summary>
-    public static CreationPlan Plan(InitUnit u, TypeMapping typeMapping = TypeMapping.RealTemplates)
+    public static CreationPlan Plan(InitUnit u, TypeMapping typeMapping = TypeMapping.RealTemplates,
+                                    UnitTypeMap map = null, NationRoles nations = null)
     {
         var pos = new Geodetic { LatDeg = D(u.Latitude), LonDeg = D(u.Longitude), AltMeters = D(u.ElevationAgl) };
         bool ho = u.HostilityCode == "HO";
         string sidc = u.SymbolId ?? "";
+        bool table = typeMapping == TypeMapping.FidelityTable && map != null;
 
         if (sidc.Length > 0)
         {
@@ -64,15 +79,89 @@ public static class UnitTranslator
             if (At(sidc, 2) == 'S') return Boat(u, pos, ho);      // :1468 sea surface
             if (u.DisDomain == 3) return Boat(u, pos, ho);        // :1470
             if (At(sidc, 1) == 'N') return Civilian(u, pos);      // :1472 neutral
+            // FidelityTable takes over the whole GROUND dispatch here (sec 7.1): air, sea and
+            // neutral keep their parity branches - the table covers ground units only.
+            if (table) return FromTable(u, pos, ho, map, nations);
             if (echelon == 'B') return ho ? MobileIrregular(u, pos) : ScoutUnit(u, pos); // :1474-1478
             if (echelon == 'D') return ArmorPlatoon(u, pos, ho, typeMapping); // :1480 (R9 type-mapping fix)
             if (echelon == 'E') return ArmorCompany(u, pos, ho);  // :1482
             if (echelon == 'F') return ArmorCoHQ(u, pos, ho);     // :1484 battalion -> Co HQ
             return Tank(u, pos, ho);                              // :1486 default
         }
-        // no SIDC (:1491-1500)
+        // no SIDC (:1491-1500). The table still applies: functionId "(none)" + no echelon
+        // character falls to the nation's catch-all row (a single MBT), which is what the
+        // parity branch below does for FR and strictly better than a US truck for HO.
+        if (table) return FromTable(u, pos, ho, map, nations);
         return ho ? Truck(u, pos) : Tank(u, pos, ho);
     }
+
+    // ---- FidelityTable path (docs/UNIT_TYPE_MAPPING_FIDELITY_2026-09-02.md sec 7.1) ------
+
+    private static CreationPlan FromTable(InitUnit u, Geodetic pos, bool ho, UnitTypeMap map, NationRoles nations)
+    {
+        nations ??= new NationRoles("USA", "RUS");
+        string sidc = u.SymbolId ?? "";
+        string nationRole = ho ? "hostile" : "friendly";
+        string nation = UnitTypeMap.NationFor(nations, ho);
+        string note = "";
+
+        // sec 7.3 channel 1: a per-unit DISCountry in the init OVERRIDES the config, with a log line.
+        string declared = UnitTypeMap.VrfObjectTypeFromInitDis(u.DisEntityType);
+        var declaredFields = UnitTypeMap.ParseObjectType(declared);
+        if (declaredFields != null && declaredFields[3] != 0)
+        {
+            string named = map.Nations.FirstOrDefault(kv => kv.Value == declaredFields[3]).Key;
+            if (named != null && !string.Equals(named, nation, StringComparison.OrdinalIgnoreCase))
+            {
+                note = $"init DISCountry {declaredFields[3]} ({named}) OVERRIDES the configured " +
+                       $"{nationRole} nation {nation} (sec 7.3).";
+                nation = named;
+            }
+        }
+
+        // Key (a): the init's own SISOEntityType wins when non-zero (JC-1, PROVISIONAL), but only
+        // for a type the coverage table proves lands a real template - otherwise a declared
+        // Country-71/153 aggregate would silently create a zero-subordinate abstract (sec 3.5).
+        if (declared != null)
+        {
+            var covered = map.FindByObjectType(declared);
+            if (covered != null)
+                return FromRow(u, pos, ho, covered, "a:initSISOEntityType",
+                               Join(note, $"init declared {declared}; honoured (JC-1)."));
+            note = Join(note, $"init declared SISOEntityType {declared}, which NO table row covers - " +
+                              "coverage backstop engaged, using the SIDC-derived row instead (JC-1).");
+        }
+
+        var m = map.Lookup(UnitTypeMap.FunctionIdOf(sidc), UnitTypeMap.EchelonCharOf(sidc),
+                           u.EchelonCode ?? "", nationRole, nation);
+        return FromRow(u, pos, ho, m.Row, m.KeyUsed, Join(note, m.Note));
+    }
+
+    private static CreationPlan FromRow(InitUnit u, Geodetic pos, bool ho, UnitTypeRow row,
+                                        string key, string note)
+    {
+        note = Join(note, $"row={row.Id} key={key}");
+        var f = row.Fields;
+        if (f == null || row.Fidelity is TypeFidelity.AuthoredPending or TypeFidelity.Failed)
+        {
+            // A declared coverage gap. Emitting ANYTHING here lands a Country-0 zero-subordinate
+            // abstract or Ground_Aggregate (sec 3.5) - worse than nothing - so the plan carries a
+            // failing fidelity and the service skips the create with a loud error.
+            var why = f == null && row.Fidelity is TypeFidelity.Exact or TypeFidelity.Proxy
+                ? TypeFidelity.Failed : row.Fidelity;
+            return new(false, default, ForceOf(ho), 0.0, u.Name, pos, null,
+                       why, row.TemplateName, row.Id, row.SubstitutionText, note);
+        }
+
+        bool agg = f[0] == 3;   // superType 3 = disaggregated unit, 1 = individual (sec 2.1)
+        return new(agg, Spec(f[1], f[2], f[3], f[4], f[5], f[6], f[7]), ForceOf(ho),
+                   agg ? 0.0 : HeadingDeg(u.DirectionPhi, divide: false),
+                   u.Name, pos, agg ? null : D(u.ElevationAgl) + 1.0,
+                   row.Fidelity, row.TemplateName, row.Id, row.SubstitutionText, note);
+    }
+
+    private static string Join(string a, string b)
+        => a.Length == 0 ? b : (string.IsNullOrEmpty(b) ? a : a + " " + b);
 
     // ---- entity factories -------------------------------------------------
 
