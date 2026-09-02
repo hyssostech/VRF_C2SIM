@@ -579,8 +579,12 @@ looks like a queue, and a queue is a mechanism claim no set of four runs can sup
 POST-RUN SWEEP A-2: `tools/ResetVrf 3798` with the RUNBOOK :1206-1215 environment. Joined clean
 (BackendCount=0), 0 reflected, resigned cleanly, **exit 0**. 3798 ledgered BEFORE the join.
 Marker 3791 -> 3798 (runner) -> 3799 (hand). VR-Forces DOWN, RTI trio untouched.
-DEPLOYED `Vrf:ClientId` IS STILL **C2SIM** - it is left that way deliberately because run B is
-owed; it must be restored to STP if the pair is abandoned.
+DEPLOYED `Vrf:ClientId` **RESTORED TO STP**, which is what every previous COA-STP1 run did; the
+owed run B must set it back to C2SIM before launching or the runner aborts at validation, exit 2.
+`Get-ChildItem env:Vrf__*` = 0 after both runs. Fixture hash and vrfSim.mtl stamp re-verified
+UNCHANGED after both runs (D27E540F8BCC...B0B9; 2026-09-01 14:32:14) - NOTHING WAS WRITTEN UNDER
+C:\MAK. No new .dmp (newest is still ...-70668.dmp, 2026-09-02 06:00). No VR-Forces process and no
+observer remains; the RTI trio is untouched at its 2026-09-02 PIDs.
 
 
 ## 8. REGISTRATION

@@ -115,8 +115,8 @@ added log line (`C2SIM endpoints:`). The runner starts the app from that path
 deploy step. Deployed bridge = A7504441 (10/10, Ijwhost 38255036).
 CLIENTID TRAP: the DEPLOYED (gitignored) bin\...\appsettings.json Vrf:ClientId must MATCH the
 init's SystemName or the runner ABORTS at validation, exit 2 (RunC2SimScenario.ps1:1154-1165).
-R9 inits declare STP; COA-STP1 declares C2SIM. **IT IS AT "C2SIM"** (left there for the owed run
-B; set it back to STP before any R9 run). Edit the DEPLOYED copy only.
+R9 inits declare STP; COA-STP1 declares C2SIM. It is at "STP" (restored after A-2, per the
+convention every COA-STP1 run followed) - SET IT TO C2SIM for the owed run B. DEPLOYED copy only.
 RTI RESIDENT + ANSWERED: rtiAssistant 41336 / rtiexec 224608 / rtiForwarder 76620 - UNCHANGED
 across every 2026-09-02 run; still inventory fresh at session start, do not trust PIDs. Docker UP:
 `c2sim-server-vrf` (OURS, 18080/61614) plus the operator's c2sim_server4.8.4.9, stp-server,
