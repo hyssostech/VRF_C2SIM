@@ -40,5 +40,42 @@ Fold ONE optional observation into Note 1:
    normally. Mentioned only because at raised console verbosity it appears on every
    company creation.
 
-Send order: Note 1 now if desired; Note 2 variant per P2c; license renewal is handled
+---
+
+## NOTE 3 - QUESTION (not a defect report): follow-in-formation completion at a
+## time multiplier, 5.0.2. Drafted 2026-09-01 late; user decides whether to send.
+
+Evidence base (all in repo): runs 20260901T221227Z (P3) and 20260901T230326Z (P3R),
+identical company move-along orders at DtVrfRemoteController::setTimeMultiplier(5);
+1x baselines 20260901T211310Z and 20260901T235823Z. In P3 ONE follower (M1A2 18) of a
+Tank Company (USA) stopped 1.45 m past its offset-route end and its follow-in-formation
+task never completed (vrfSim.log at notify level 3: task 5 is cleared only at entity
+removal), so the platoon and company move-along never completed. The identical repeat
+P3R completed 28/28. Step analysis found nothing distinguishing the two runs (clock
+5.003x vs 4.978x, same tick quantum, same report cadence) -
+docs/experiments/ANALYSIS_P3_STEP_PROFILE_2026-09-01.md. Cause unknown; n=2.
+
+Subject: Follow-in-formation completion tolerance under setTimeMultiplier (VR-Forces 5.0.2)
+
+We drive Tank Company (USA) units (EntityLevel, createAggregate + move-along) through
+the Remote Control API with setTimeMultiplier(5) in the default variable-frame mode. In
+one of two otherwise identical runs a single follower stopped about 1.4 m beyond its
+offset-route endpoint and its follow-in-formation task did not report complete, so the
+unit's move-along never completed; the repeat run completed normally. We see in the
+5.0.2 headers that DtGroundFollowInFormationControllerComponent completes on an
+at-distance test (ground-tracked.sysdef: at 1.0 m, near 25 m, approach 4 m/s), and in
+the 5.1.1 class reference that the class gained isPastDestination(). Questions:
+
+1. Is running units at a time multiplier in variable-frame mode an intended
+   configuration for unit-level tasking, or should we use the fixed-frame setting
+   (fastForwardSettings) whenever a multiplier is applied?
+2. Does the 5.1.1+ isPastDestination() change the follower's completion test (i.e.
+   would a follower that stops slightly past its endpoint now complete)?
+3. Is there a recommended way to make unit-level move-along completion robust to a
+   single subordinate stopping just outside the at-distance tolerance?
+
+We can supply both vrfSim.log files (notify level 3) and the scenario/order if useful.
+
+Send order: Note 1 now if desired; Note 2 variant per P2c; Note 3 only if the user
+wants the question asked (it is a question, not a report); license renewal is handled
 separately (in process).
