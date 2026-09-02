@@ -127,6 +127,56 @@ public static class ReportBuilder
         return C2SIMSDK.FromC2SIMObject(body);
     }
 
+    /// <summary>
+    /// R-SURFACE-PROXY (user ruling 2026-07-17; docs/UNIT_TYPE_MAPPING_FIDELITY_2026-09-02.md
+    /// sec 7.1 item 5): tell downstream C2SIM consumers, at creation time, that this unit is
+    /// represented in the simulation by a template that is NOT its doctrinal identity.
+    ///
+    /// Vehicle: ObservationReport / NameObservation, the schema's own channel for "what this
+    /// actor is called and marked in the simulation" (ActorReference + Name + Marking). No
+    /// private extension, no new message type; a consumer that ignores NameObservation is
+    /// unaffected, one that reads it sees the substitution in full.
+    /// </summary>
+    public static string BuildTypeSubstitutionReport(string unitUuid, string c2simName,
+                                                     string marking, string substitution,
+                                                     string isoDateTime, string reportId)
+    {
+        var body = new S.ReportBodyType
+        {
+            FromSender = ZeroUuid,
+            ToReceiver = ZeroUuid,
+            ReportContent = new[]
+            {
+                new S.ReportContentType
+                {
+                    Item = new S.ObservationReportContentType
+                    {
+                        TimeOfObservation = Time(isoDateTime),
+                        Observation = new[]
+                        {
+                            new S.ObservationType
+                            {
+                                Item = new S.NameObservationType
+                                {
+                                    ActorReference = unitUuid ?? "",
+                                    Name = c2simName ?? "",
+                                    // The substitution rides in Marking: it is the free-text
+                                    // field the standard reserves for the simulation's own label.
+                                    Marking = string.IsNullOrEmpty(substitution)
+                                        ? (marking ?? "")
+                                        : $"{marking} [{substitution}]",
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            ReportID = reportId,
+            ReportingEntity = unitUuid ?? ZeroUuid,
+        };
+        return C2SIMSDK.FromC2SIMObject(body);
+    }
+
     private static S.TimeInstantType Time(string iso)
         => new() { Item = new S.DateTimeType { IsoDateTime = iso } };
 

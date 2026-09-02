@@ -31,6 +31,13 @@ public sealed class VrfC2SimService : BackgroundService
     private readonly VrfBridge _bridge;
     private readonly VrfSettings _vrf;
 
+    // FIDELITY PASS 2026-09-02: the (functionId, echelon, nationRole) table that replaces the
+    // echelon-letter dispatch for GROUND units under TypeMappingMode=FidelityTable. Null (and
+    // never consulted) in the two legacy modes, so their behavior is untouched.
+    private readonly UnitTypeMap _typeMap;
+    private readonly NationRoles _nations;
+    private readonly string _typeMapLoadError;
+
     // C2SIM name -> VRF uuid correlation, populated on ObjectCreated
     // (parity: onVrfObjectCreated in C2SIMinterface.cpp).
     private readonly ConcurrentDictionary<string, string> _vrfUuidByName = new();
@@ -144,6 +151,23 @@ public sealed class VrfC2SimService : BackgroundService
         var c2 = config.GetSection("C2SIM").Get<C2SIMSDKSettings>() ?? new C2SIMSDKSettings();
         _vrf = config.GetSection("Vrf").Get<VrfSettings>() ?? new VrfSettings();
 
+        // FidelityTable only: load data/unit-type-map.json now so a bad path/parse is reported
+        // BEFORE VR-Forces is started (ExecuteAsync turns _typeMapLoadError into a refuse-to-start).
+        _nations = new NationRoles(
+            string.IsNullOrWhiteSpace(_vrf.FriendlyNation) ? "USA" : _vrf.FriendlyNation.Trim(),
+            string.IsNullOrWhiteSpace(_vrf.OpposingNation) ? "RUS" : _vrf.OpposingNation.Trim());
+        if (UsingFidelityTable)
+        {
+            string path = UnitTypeMap.ResolvePath(_vrf.TypeMapFile);
+            if (path == null)
+                _typeMapLoadError = $"Vrf:TypeMapFile '{_vrf.TypeMapFile}' was not found (searched the " +
+                                    $"working directory '{Directory.GetCurrentDirectory()}', the app " +
+                                    $"directory '{AppContext.BaseDirectory}' and its parents).";
+            else
+                try { _typeMap = UnitTypeMap.Load(path); }
+                catch (Exception ex) { _typeMapLoadError = $"Vrf:TypeMapFile '{path}' failed to parse: {ex.Message}"; }
+        }
+
         // C2SIM half
         _sdk = new C2SIMSDK(loggerFactory, c2);
         _sdk.StatusChangedReceived += OnStatusChanged;
@@ -166,6 +190,25 @@ public sealed class VrfC2SimService : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _stoppingToken = stoppingToken;
+
+        // 0. FidelityTable pre-flight (JC-2, PROVISIONAL 2026-09-02). A missing/invalid table, or an
+        // OpposingNation with no usable unit template, REFUSES TO START - it must not degrade into
+        // the silent empty-unit trap (docs/UNIT_TYPE_MAPPING_FIDELITY_2026-09-02.md sec 3.5).
+        if (UsingFidelityTable)
+        {
+            string fatal = _typeMapLoadError ?? _typeMap.CheckOpposingNationSupported(_nations.Opposing);
+            if (fatal != null)
+            {
+                _log.LogCritical("Vrf:TypeMappingMode=FidelityTable - REFUSING TO START. {Error}", fatal);
+                _life.StopApplication();
+                return;
+            }
+            _log.LogInformation("Type-mapping mode = FidelityTable ({Rows} rows from {File}); " +
+                                "FriendlyNation={Friendly}, OpposingNation={Opposing}; " +
+                                "SurfaceProxySubstitutions={Surface}.",
+                                _typeMap.Rows.Count, _typeMap.SourcePath, _nations.Friendly,
+                                _nations.Opposing, _vrf.SurfaceProxySubstitutions);
+        }
 
         // 1. Start VR-Forces (the bridge owns the controller/exConn).
         var cfg = BuildStartupConfig();
@@ -383,10 +426,18 @@ public sealed class VrfC2SimService : BackgroundService
         // R9 type-mapping fix (docs/experiments/PREREG_TYPEFIX_CONFIRMING_RUN.md). "GoldenParity"
         // reproduces the byte-for-byte golden-trace objectTypes; anything else (default
         // "RealTemplates") maps ArmorPlatoon to the real Tank Platoon (USA) Cell-C mover.
-        var typeMapping = string.Equals(_vrf.TypeMappingMode, "GoldenParity", StringComparison.OrdinalIgnoreCase)
+        var typeMapping = UsingFidelityTable ? TypeMapping.FidelityTable
+            : string.Equals(_vrf.TypeMappingMode, "GoldenParity", StringComparison.OrdinalIgnoreCase)
             ? TypeMapping.GoldenParity : TypeMapping.RealTemplates;
-        _log.LogInformation("Type-mapping mode = {Mode} (ArmorPlatoon -> {Target}).",
-            typeMapping, typeMapping == TypeMapping.GoldenParity ? "Ground_Aggregate (11.1.225.1.1.3.0)" : "Tank Platoon (USA) (11.1.225.3.2.0.0)");
+        if (typeMapping == TypeMapping.FidelityTable)
+            _log.LogInformation("Type-mapping mode = FidelityTable (ground dispatch from {File}; " +
+                                "friendly={Friendly}, opposing={Opposing}).",
+                                _typeMap.SourcePath, _nations.Friendly, _nations.Opposing);
+        else
+            _log.LogInformation("Type-mapping mode = {Mode} (ArmorPlatoon -> {Target}).",
+                typeMapping, typeMapping == TypeMapping.GoldenParity ? "Ground_Aggregate (11.1.225.1.1.3.0)" : "Tank Platoon (USA) (11.1.225.3.2.0.0)");
+        int unmapped = 0;
+        var proxiesToReport = new List<(string Uuid, string Name, string Marking, string Substitution)>();
         var toCreate = new List<CreationPlan>();   // collected, then (optionally) de-stacked, then enqueued
         foreach (var u in init.Units)
         {
@@ -413,7 +464,41 @@ public sealed class VrfC2SimService : BackgroundService
             if (string.IsNullOrEmpty(unit.ElevationAgl))
                 unit = unit with { ElevationAgl = "1000.0" };     // ground-clamp default (:1445-1446)
 
-            var plan = UnitTranslator.Plan(unit, typeMapping);
+            var plan = UnitTranslator.Plan(unit, typeMapping, _typeMap, _nations);
+
+            // FidelityTable: a row that is AUTHORED_PENDING (a declared coverage gap) or a key that
+            // matched nothing FAILS LOUDLY and the unit is NOT created. Emitting anything here would
+            // land a zero-subordinate Country-0 abstract or Ground_Aggregate - an EMPTY unit that
+            // looks created and can never fight (survey sec 3.5). Never an intentional fallthrough.
+            if (plan.Fidelity is TypeFidelity.AuthoredPending or TypeFidelity.Failed)
+            {
+                unmapped++;
+                _log.LogError("TYPE MAP {Fidelity}: unit {Name} (SIDC '{Sidc}', echelonCode '{Ech}') has NO " +
+                              "usable VR-Forces template and is NOT created. {Note} {Why}",
+                              plan.Fidelity, unit.Name, unit.SymbolId, unit.EchelonCode,
+                              plan.MapNote, plan.Substitution);
+                continue;
+            }
+            if (typeMapping == TypeMapping.FidelityTable)
+            {
+                // R-SURFACE-PROXY: annotate the MARKING (bounded - see VrfSettings.ProxyMarkingTag)
+                // and queue the substitution for the report stream. The log line always carries the
+                // full text, whether or not the marking had room for the tag.
+                if (plan.Fidelity == TypeFidelity.Proxy && _vrf.SurfaceProxySubstitutions)
+                {
+                    string tagged = plan.Name + _vrf.ProxyMarkingTag;
+                    if (tagged.Length <= MaxVrfMarkingChars) plan = plan with { Name = tagged };
+                    else
+                        _log.LogWarning("Proxy marking tag NOT appended to '{Name}': '{Tagged}' exceeds the " +
+                                        "{Max}-character marking-text limit; the substitution is still " +
+                                        "reported and logged.", plan.Name, tagged, MaxVrfMarkingChars);
+                    proxiesToReport.Add((unit.Uuid, unit.Name, plan.Name, plan.Substitution));
+                }
+                _log.LogInformation("TYPE MAP {Fidelity}: {Name} -> {Template} ({Type}) [{Note}]{Sub}",
+                                    plan.Fidelity, plan.Name, plan.TemplateName,
+                                    FormatSpec(plan.Type), plan.MapNote,
+                                    plan.Substitution.Length == 0 ? "" : " " + plan.Substitution);
+            }
 
             // Create-time terrain-clamp fix (docs/SUPERVISED_RECOVERY_PLAN.md sec 3b;
             // MOJAVE_ROOTCAUSE_INVESTIGATION parts 13/13c). Ground units are otherwise born at a
@@ -479,6 +564,13 @@ public sealed class VrfC2SimService : BackgroundService
             });
         }
 
+        // R-SURFACE-PROXY: one ObservationReport/NameObservation per substituted unit, so a
+        // downstream C2SIM consumer sees WHICH template stands in and why (ReportBuilder
+        // .BuildTypeSubstitutionReport). Fire-and-forget, exactly like the position reports.
+        foreach (var (uuid, name, marking, substitution) in proxiesToReport)
+            _ = PushReportAsync(ReportBuilder.BuildTypeSubstitutionReport(
+                    uuid, name, marking, substitution, IsoNow(), NewReportId()));
+
         int areasQueued = 0;
         foreach (var a in init.Areas)
         {
@@ -512,6 +604,15 @@ public sealed class VrfC2SimService : BackgroundService
                           "created or taskable. Init SystemName(s): [{Names}]. Set Vrf:ClientId to match " +
                           "(RUNBOOK sec 2).", source, init.Units.Count, _vrf.ClientId, systemNames);
         }
+
+        if (unmapped > 0)
+            _log.LogError("Init ({Source}): {N} unit(s) had NO usable VR-Forces template and were NOT " +
+                          "created (see the TYPE MAP errors above). Fix data/unit-type-map.json or " +
+                          "author the missing templates - do NOT let them fall through to a generic.",
+                          source, unmapped);
+        if (proxiesToReport.Count > 0)
+            _log.LogInformation("Init ({Source}): {N} PROXY substitution(s) surfaced to C2SIM " +
+                                "(R-SURFACE-PROXY).", source, proxiesToReport.Count);
 
         _log.LogInformation("Init dispatched: {Units} units + {Areas} areas queued for creation.",
                             planned, areasQueued);
@@ -1497,6 +1598,18 @@ public sealed class VrfC2SimService : BackgroundService
             _tickActions.Enqueue(() => pending.Continue(null));
         }
     }
+
+    private bool UsingFidelityTable =>
+        string.Equals(_vrf.TypeMappingMode, "FidelityTable", StringComparison.OrdinalIgnoreCase);
+
+    // The back end resolves marking-text references through a 35-byte blob (1 type byte + 35
+    // payload, C:\MAK\vrforces5.0.2\include\vrfutil\rwUUID.h:412), so a name longer than 34
+    // characters arrives CUT and stops resolving - the 2026-09-02 route-uuid finding, which cost
+    // a whole probe run. The proxy marking tag is appended only when the result still fits.
+    private const int MaxVrfMarkingChars = 34;
+
+    private static string FormatSpec(EntityTypeSpec t)
+        => $"{t.Kind}.{t.Domain}.{t.Country}.{t.Category}.{t.Subcategory}.{t.Specific}.{t.Extra}";
 
     private bool IsTerrainProfileMode() =>
         _vrf.GroundWaypointAltitudeMode.Equals("TerrainProfile", StringComparison.OrdinalIgnoreCase);

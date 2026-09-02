@@ -39,7 +39,43 @@ public class VrfSettings
     // whose target template is verified installed AND proven to move. ArmorCompany already resolves
     // to the real Tank Company (USA); ArmorCoHQ's correct target is a pending USER decision
     // (docs/TYPE_GAP_ADJUDICATION.md Decision-4) and is deliberately NOT changed here.
-    public string TypeMappingMode { get; set; } = "RealTemplates"; // "GoldenParity" | "RealTemplates"
+    // FIDELITY PASS 2026-09-02 (docs/UNIT_TYPE_MAPPING_FIDELITY_2026-09-02.md sec 7.1/7.2). A THIRD
+    // value, "FidelityTable", replaces the echelon-letter if-chain for GROUND units with a lookup in
+    // TypeMapFile keyed on (functionId, echelon, nationRole) - the artifact the user reviews line by
+    // line. "GoldenParity" and "RealTemplates" are UNCHANGED, so the new mapping is A/B-able against
+    // the R9 evidence without a rebuild; RealTemplates stays the default until the live gate
+    // (docs/NEXT_TYPE_MAPPING_LIVE_GATE.md) passes.
+    public string TypeMappingMode { get; set; } = "RealTemplates"; // "GoldenParity" | "RealTemplates" | "FidelityTable"
+
+    // R-HOSTILE-NATION (user ruling 2026-09-02): the hostile force nation is a CONFIGURATION option,
+    // not a fixed choice - European customers pick RUS, INDOPACOM picks PRC. Friendly stays USA
+    // unless the init says otherwise. Both are names in TypeMapFile's "nations" block (USA=DIS 225,
+    // RUS=222, PRC=45). A per-unit SISOEntityType/DISCountry in the init OVERRIDES these with a log
+    // line (sec 7.3 channel 1) - the C2SIM standard's own per-unit nationality channel.
+    // JC-2 (supervisor PROVISIONAL, 2026-09-02): the default is RUS because it is the only value
+    // with installed content on 5.0.2; PRC REFUSES TO START until the authored PRC SMS exists,
+    // because every PRC aggregate request today lands a zero-subordinate Country-0 abstract
+    // (an EMPTY unit) - a loud failure beats that silent one. Ignored unless TypeMappingMode
+    // is FidelityTable.
+    public string FriendlyNation { get; set; } = "USA";   // DIS country 225
+    public string OpposingNation { get; set; } = "RUS";   // "RUS" (222) | "PRC" (45)
+
+    // The fidelity mapping table. Resolved against the working directory, then the app directory,
+    // then by walking UP from the app directory (the app runs both from the repo root and from
+    // its bin folder). Only read when TypeMappingMode=FidelityTable.
+    public string TypeMapFile { get; set; } = "data/unit-type-map.json";
+
+    // R-SURFACE-PROXY (user ruling 2026-07-17): proxy substitutions must be visible to downstream
+    // C2SIM consumers, never silently swallowed. When ON, every non-EXACT row (a) appends a compact
+    // tag to the created object's MARKING/name and (b) emits one ObservationReport/NameObservation
+    // naming the substituted template and why, at creation time.
+    // MARKING CAP: the back end resolves marking-text references through a 35-byte blob
+    // (C:\MAK\vrforces5.0.2\include\vrfutil\rwUUID.h:412), so a name over 34 characters is CUT and
+    // stops resolving - the 2026-09-02 route-uuid finding. The tag is therefore appended only when
+    // the result still fits; when it does not, the name is left alone and the substitution is still
+    // reported and logged (never dropped).
+    public bool SurfaceProxySubstitutions { get; set; } = true;
+    public string ProxyMarkingTag { get; set; } = "~PXY";   // <= 34 chars total with the unit name
 
     // Aggregate formation repair (docs/UNIT_MOVEMENT_RESEARCH.md). "" = OFF (golden
     // parity: bare moveAlongRoute; disaggregated aggregates freeze on their unresolvable
