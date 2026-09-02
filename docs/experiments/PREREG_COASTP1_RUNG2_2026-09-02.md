@@ -426,4 +426,5 @@ blob boundary (no route name in this order is exactly 35), and it does not read
 
 Sections 0-6B above were registered in the commit named on this line BEFORE the launch
 command was issued. Section 7 is the only content added afterwards.
-REGISTERED IN COMMIT (hash recorded here after the registration commit):
+REGISTERED IN COMMIT b3792d1 (2026-09-02), before any process was launched. This line,
+and section 7, are the only content added afterwards.
