@@ -145,6 +145,10 @@ run (docs/OPUS_EXECUTION_PLAN.md:1577, verified as the single value-bearing mark
 runner consumes 7 numbers and advances the marker itself, so expected wasValue 3704 /
 newValue 3711, appNos 3704-3710.
 
+PREREG COMMIT: the predictions above were registered in commit 4f870b8 BEFORE launch. This
+line is the only content added afterwards (in the immediately following commit); nothing in
+sections 1-5 changed after 4f870b8, which is what the hash attests.
+
 ## 3. Pre-launch inventory (must hold, else STOP - never kill)
 
 VERIFIED 2026-09-02 before launch: no vrfSim* / vrfGui / vrfLauncher / WatchVrf /
