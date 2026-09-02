@@ -1688,7 +1688,37 @@ the runner does not run ResetVrf, so this number is taken by hand from the marke
   ZERO LEFTOVERS. Same caveat as 3741/3733/3725 (rung-1 finding D): run AFTER StopVrf, it
   proves NO STALE FEDERATE and nothing about scenario contents.
 
-*** NEXT FREE: 3750 *** (authoritative - the ONLY such marker in this file. Update this
+
+CLAIMED 2026-09-02 16:51 by scripts/RunC2SimScenario.ps1 (run 20260902T165144Z_run). Ledgered BEFORE any join,
+per the never-reuse non-negotiable. Annotate with results from the run manifest.
+- 3750: CLAIMED - LaunchVrf.ps1 back-end (vrfSimHLA1516e), combined mode
+- 3751: CLAIMED - LaunchVrf.ps1 front-end (vrfGui), combined mode
+- 3752: CLAIMED - WatchVrf ADVISORY pre-init oracle pre-check (RUNBOOK 0.5.7)
+- 3753: CLAIMED - WatchVrf MAIN run trace - the movement oracle / scoring input
+- 3754: CLAIMED - VrfC2SimApp Vrf__ApplicationNumber (the interface federate)
+- 3755: CLAIMED - tools/RtiProbe - STAGE 2c PRE-LAUNCH RTI READINESS GATE (C1). Throwaway create-or-join against the federation with internal retry+backoff, then clean resign, BEFORE the back-end launches (RTI_LAUNCH_HARDENING_DESIGN.md A2-A7 - the RUN-2 fix). CONSUMED on EVERY run (the gate always runs pre-launch). One number covers all internal retries - RtiProbe reuses this single appNumber across attempts by design.
+- 3756: CLAIMED - tools/CreateOne - STAGE 7b FAILURE-PATH DIAGNOSTIC ONLY (RUNBOOK 0.5.7 STRONGER CHECK). CONSUMED ONLY IF THE ORACLE GATE FAILS; on a healthy run it is NEVER JOINED and this number goes UNCONSUMED. Unconsumed numbers are BURNED, never recycled - see the NOTE below. Allocated here rather than mid-run because every number must be ledgered BEFORE any join.
+NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
+join) are BURNED, not recycled. The run manifest records which were actually used.
+RESULT (COA-STP1 RUNG 2, run 20260902T165144Z_run, prereg
+docs/experiments/PREREG_COASTP1_RUNG2_2026-09-02.md, registered b3792d1): runner EXIT=0,
+every stage exit 0, 3756 UNCONSUMED (the stage-7 oracle gate passed).
+
+- 3757: *** BURNED - DO NOT USE. *** Claimed for the tools/ResetVrf post-run sweep after the
+  COA-STP1 rung-2 run, but the tool was invoked WITHOUT the documented launch environment
+  (RUNBOOK :1206-1213 requires cwd = C:\MAK\vrforces5.0.2\bin64 plus the VR-Forces / VR-Link /
+  makRti bin PATH prefix). It failed BEFORE joining: Failed to open FDD file
+  RPR_FOM_v2.0_1516-2010.xml, Could not create Federation Execution CWIX-2024 (CouldNotOpenFDD),
+  then legion_config_create: Failed to open config file: vrfLegion.lua. Exit 1; NO federate ever
+  joined. OPERATOR ERROR, not infrastructure - the recipe was in the RUNBOOK and was not read
+  first. Burned per the never-reuse non-negotiable.
+- 3758: CONSUMED - tools/ResetVrf post-run authoritative sweep (RUNBOOK :1171-1185, invocation
+  :1206-1213) after the COA-STP1 rung-2 run (run 20260902T165144Z_run). Ledgered BEFORE the join.
+  Result: joined clean (BackendCount=0), discovered 0 reflected (0 deletable, 0 nil), resigned
+  cleanly, exit 0 - ZERO LEFTOVERS. Same caveat as 3749/3741/3733/3725 (rung-1 finding D): run
+  AFTER StopVrf, it proves NO STALE FEDERATE and nothing about scenario contents.
+
+*** NEXT FREE: 3759 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN

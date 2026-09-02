@@ -418,9 +418,395 @@ which rung 1 already showed is NOT a movement cause. It would not locate the 35/
 blob boundary (no route name in this order is exactly 35), and it does not read
 `DtUUID::myData[36]` - the blob remains the INFERRED cutter.
 
-## 7. OUTCOME (written from the run-directory artifacts, AFTER the run)
+## 7. OUTCOME - run 20260902T165144Z_run, appNos 3750-3756, adjudicated from run-directory artifacts
 
-(to be completed)
+### VERDICT
+
+**THE FREEZE IS GONE AT SCALE. ALL NINE DISPATCHING PERFORMERS MARCHED.** Rung 1's four
+frozen aggregates - T5, T27, T31, T35 - and its frozen entity T23 all built offset routes and
+moved; rung 1 had them at 0.00 km net over 45 position reports each. Every one of the nine
+route names reached the back end at FULL LENGTH (T5's at 99 characters), the five 35-character
+cuts are gone, and `buildEntityRouteFollowingMap() : Can't find entity route` went from
+**14,904 to ZERO**. The sec-2 pre-launch analysis predicted exactly this, 9 of 9, and the run
+delivered 9 of 9. Rung 1's "unexplained item 1" is ANSWERED, and its 2-point-route correlate
+is REFUTED: T5 and T27, the only two 2-point routes, both marched.
+
+**TWO REGISTERED PREDICTIONS MISSED, BOTH ON THRESHOLDS I WROTE, AND BOTH ARE A STOP UNDER
+SEC 6A.** P2(b)'s "at least DOUBLE" corroboration floor came in at 1.95x and 1.40x. P4(c)'s
+">= 3 m/s" came in at 1.87-2.60 m/s BECAUSE THE THRESHOLD NAMED NO CLOCK: under FFRTC at this
+scale the simulation ran at **0.2652 sim-s per wall-s**, so wall-referenced speed is 3.77x
+below sim-referenced speed. Sim-referenced, the same movers run at 7.05-9.80 m/s, which is
+rung 1's 9.81-10.05 m/s. NOTHING IS RETUNED AND NOTHING IS RE-RUN: the misses are recorded,
+the work stops here, and the follow-on probe (the -q one-variable probe) IS NOT RUN.
+
+**THE OTHER HEADLINE, UNREGISTERED AND MORE CONSEQUENTIAL THAN EITHER MISS: FFRTC IS NOT A
+SPEED LEVER AT THIS SCALE - IT IS A 3.77x SLOWDOWN.** Measured, both runs, same instrument:
+rung 1 (stock variable-frame) 0.9995 sim-s per wall-s; rung 2 (FFRTC) 0.2652. The R9 family,
+with three units, measured 7.43-13.11 sim-s per wall-s on the same fixture. See "THE FFRTC
+FINDING" below - it changes the standing rule.
+
+### RUN FACTS (all from the run directory)
+
+Run dir `runs/20260902T165144Z_run`. Launched 2026-09-02T16:51:44.111Z, order pushed
+16:55:16.567Z, observation window closed 17:40:52.218Z (2735.7 s against its 2700 s cap plus
+trail), runner finished 17:41:41.243Z - 49 min 57 s wall. appNumbers 3750-3756, marker
+3750 -> 3757 ledgered BEFORE any join; 3756 (createOneDiag) UNCONSUMED, the stage-7 oracle
+gate having passed (1169 real-coordinate POS lines across 1169 uuids). `runnerExitCode` 0 and
+every stage exit 0 (RtiProbe, LaunchVrf, WatchVrf-precheck, WatchVrf-trace, ListenReports,
+PushInit, VrfC2SimApp, PushOrder, StopIface, StopVrf). One `validityFlags` entry, severity
+INFO, the standing advisory "Pre-init oracle pre-check saw NO real-coordinate POS line.
+EXPECTED on a stock TropicTortoise". `inputs.scenario` = `TropicTortoise_FFRTC`.
+`Get-ChildItem env:Vrf__*` = `Vrf__DeStackCreates=true` before launch (echoed into
+console-rung2.log), EMPTY after. Artifacts: vrfc2simapp.log 517 lines (rung 1: 521);
+bin64-vrfSim.log 700,975 lines / 49,371,131 bytes (rung 1: 2,208,211 / 138,694,508 - the
+freeze diagnostic and its spam were most of rung 1's volume); watchvrf-trace.csv 484,900
+usable POS samples over 1,788 objects; reports-captured.log 1,536 position reports over 128
+distinct uuids = exactly the 128 created units.
+
+### PER-PERFORMER TABLE
+
+Along-route and lateral deviation: each performer's own C2SIM position reports
+(reports-captured.log, keyed by the order's PerformingEntity uuid) projected onto its authored
+polyline, the polyline being the task's Locations with the performer's first reported position
+prepended (which is what the app builds). `mps_wall` is measured against the reports' own wall
+timestamps over the last six fixes; `mps_sim` is that divided by the measured clock slope
+0.2652. INSTRUMENT CONTROL: the same script was run over rung 1 FIRST and reproduces its
+published table (T1 13.58 vs 13.39 km, T15 26.84 vs 26.70, T19 13.31 vs 13.17, T39 24.39 vs
+24.20; all five freezers 0.00; box test 0 outside, min altitude 724.4 m) - small differences
+are the polyline's vertex-0 definition, and they are the same in both columns.
+
+  head perf.       template            RUNG 1 along  RUNG 2 along  net_km  lat_m  mps_wall  mps_sim
+  ---- ------------ ------------------ ------------  ------------  ------  -----  --------  -------
+  T1   1-35/2/1_A   Ground_Aggregate      13.58 km       6.34 km     6.07      6      2.58     9.73
+  T5   4-27/2/1_A   Ground_Aggregate    * 0.00 km        6.64 km     6.64      5      2.60     9.80
+  T15  1-6/2/1_AD   Ground_Aggregate      26.84 km       6.93 km     6.64      2      2.58     9.73
+  T19  40/2/1_AD    Ground_Aggregate      13.31 km       6.67 km     6.57      1      2.58     9.73
+  T23  1-1/2/1_AD   Tank ENTITY         * 0.00 km        6.33 km     5.94     20      2.58     9.73
+  T27  856/HHC      Tank Company (USA)  * 0.00 km        1.80 km     1.80    418      1.87     7.05
+  T31  5-20/2/1_A   Ground_Aggregate    * 0.00 km        6.63 km     6.58      6      2.58     9.73
+  T35  B/5-20       Tank Company (USA)  * 0.00 km        2.91 km     2.85    403      2.43     9.16
+  T39  C/1-35       Tank Company (USA)    24.39 km       4.67 km     4.27     72      2.59     9.77
+  (* = rung 1's five freezers. Rung-1 along-route was measured over ~2700 SIM seconds;
+   rung 2 over ~726 SIM seconds - 2735.7 wall s x 0.2652. The two along-route columns are
+   NOT comparable as distances and are shown only to place the zeros beside the non-zeros.)
+
+### P0 - RUN IDENTITY. PASS on all three clauses.
+
+(a) NEW route log form: **9**. OLD form: **0**. The sec-5A VOID condition did not arise; this
+    is the fixed binary. Verbatim, vrfc2simapp.log:
+      `Route 'T23_AOA_SE_1-1_RECON/2/1_AD_P1 ROUTE'
+      (VRF_UUID:6a4ccfb2-38d0-c845-96c3-339981284607) created; MoveAlongRoute issued for
+      VRF_UUID:1f4137ee-7c9e-d946-870b-4018089c8845.`
+(b) `QUERYINIT` 1; `Init dispatched: 128 units + 35 areas queued for creation.` exactly 1;
+    ClientId-mismatch lines 0; `Create-altitude mode=Live: GROUND unit ... safe MSL 10000 m`
+    exactly 128; `DeStack (R8):` exactly 10; `R1: created aggregate` 0. Identical to rung 1.
+(c) EXACTLY 9 CreateRoute lines at the registered point counts - T1(5) T5(2) T15(5) T19(5)
+    T23(5) T27(2) T31(5) T35(5) T39(5); `MoveToLocation` 0; patrol deferrals 0. Identical to
+    rung 1, line for line.
+    Also unchanged from rung 1 and recorded: 9 terrain-profile requests, 9 replies, 9
+    `all N vertices authored from terrain + 10 m clearance`, zero partial, zero fallbacks,
+    with the SAME authored altitudes (e.g. T39 `[1146.5, 1147.1, 1074.9, 928.8, 940.7]`).
+
+### P1 - THE NAME REACHES THE BACK END INTACT. PASS, absolutely.
+
+(a) ZERO cut forms. All five of rung 1's 35-character truncations occur 0 times.
+(b) ALL NINE names appear in `Move-Along Route:` at FULL length, closing quote and all -
+    measured lengths 29, 33, 34, 34, 36, 36, 40, 56 and **99** characters:
+
+      RUNG 1 (name-addressed)                     RUNG 2 (uuid-addressed)                 len
+      "T1_AOA_SE_1-35_AR;_2/1_AD_P1 ROUTE"        same, intact                             34
+      "T5_ConductCounter-FireAndNeutraliza"       "T5_Conduct...With1-7158. ROUTE"         99
+      "T15_AOA_SE_1-6_IN;_2/1_AD_P1 ROUTE"        same, intact                             34
+      "T19_AOA_SE_40_EN;_2/1_AD_P1 ROUTE"         same, intact                             33
+      "T23_AOA_SE_1-1_RECON/2/1_AD_P1 ROUT"       "T23_AOA_SE_1-1_RECON/2/1_AD_P1 ROUTE"   36
+      "T27_SecureMovementCorridorsAndPasse"+junk  "T27_Secure...AlongPlYellow. ROUTE"      56
+      "T31_AOA_SE_5-20_IN_(MECH);_2/1_... "       "T31_AOA_SE_5-20_IN_(MECH);_2/1_... ROUTE" 40
+      "T35_AOA_SE_B/5-20_IN_(MECH)_P1 ROUT"       "T35_AOA_SE_B/5-20_IN_(MECH)_P1 ROUTE"   36
+      "T39_AOA_SE_C/1-35_AR_P1 ROUTE"             same, intact                             29
+
+    The 99-character name is the single strongest line in the run: it is 2.8x the 35-byte
+    blob and it arrives whole, because it is no longer the lookup key. `Move-Along Route: "`
+    fields total 22 (rung 1: 14) - the extra 8 are the two additional companies' internal
+    sub-routes, below.
+
+### P2 - OFFSET ROUTES FOR ALL EIGHT DISPATCHING AGGREGATES. (a) PASS 8/8. (b) MISSED.
+
+(a) PASS. `leaderRoute=` attribution in bin64-vrfSim.log names, by task route or by company
+    sub-route, ALL EIGHT dispatching aggregates:
+
+      aggregate         rung 1                     rung 2
+      T1  1-35/2/1_A    leaderRoute T1_...  (3)    leaderRoute T1_...  (2)
+      T5  4-27/2/1_A    **NONE**                   leaderRoute T5_Conduct...ROUTE (3)
+      T15 1-6/2/1_AD    leaderRoute T15_... (3)    leaderRoute T15_... (3)
+      T19 40/2/1_AD     leaderRoute T19_... (3)    leaderRoute T19_... (3)
+      T27 856/HHC       **NONE**                   856/HHC_R0..R3 (14)
+      T31 5-20/2/1_A    **NONE**                   leaderRoute T31_... (3)
+      T35 B/5-20        **NONE**                   B/5-20_R0..R3 (14)
+      T39 C/1-35        C/1-35_R0..R3 (14)         C/1-35_R0..R3 (13)
+
+    The three Tank Companies now all distribute through four internal sub-routes each
+    (R0..R3), the two-level structure rung 1 saw only for T39; the five Ground_Aggregates
+    build member offset routes directly. `Move-Along Route:` fields for sub-routes: rung 1 had
+    C/1-35_R0..R3 only (4); rung 2 has C/1-35, B/5-20 and 856/HHC R0..R3 (12).
+    THE REGISTERED FALSIFIER ("ANY of the eight builds ZERO") DID NOT FIRE, and the
+    surviving 2-point-route hypothesis is REFUTED - T5 and T27 are the two 2-point routes and
+    both built and marched.
+(b) MISSED, as registered, and recorded as a miss rather than re-banded. Predicted BOTH counts
+    at least DOUBLE. MEASURED: `'s Offset Route` 122 -> **238 (1.95x)**; `Offset Route
+    (VRF_UUID` 20 -> **28 (1.40x)**; distinct offset-route uuids 20 -> 28.
+    WHY THE FLOOR WAS WRONG (explanation, not an adjustment): these are OCCURRENCE counts of
+    log lines emitted while an aggregate maintains its formation, so they accumulate with SIM
+    TIME, and rung 2 covered ~726 sim seconds against rung 1's ~2700. Per sim-second the rate
+    is 122/2700 = 0.045 vs 238/726 = 0.328, a 7.3x increase. The prediction should have been
+    normalised by sim time or, better, stated only as the per-aggregate presence test in (a).
+    IT WAS NOT, SO IT MISSES.
+
+### P3 - THE FREEZE DIAGNOSTIC IS GONE. PASS, exactly.
+
+`buildEntityRouteFollowingMap() : Can't find entity route`: **0 occurrences** in 700,975 lines.
+
+    RUNG 2   20260902T165144Z (nine long names, uuid-addressed):        0
+    RUNG 1   20260902T125423Z (five long names, name-addressed):   14,904
+    R9 frozen  20260902T143638Z (one 44-char name, name-addressed): 67,590
+    R9 fixed   20260902T153837Z (same name, uuid-addressed):             0
+
+Also 0 `moveAlong() - empty route`, 0 of the bare substring `empty route`, 0
+`Waiting for nav data` (the disabled NavArea confirmed live again), 0 FATAL, 0
+SocketException, 0 `could not be setup` (rung 1 had 1), 0 `Only one usage of each socket
+address`, 0 `Connection error:`. `invalid formation name` 64 in both runs - the standing
+cosmetic baseline, unchanged.
+
+### P4 - MOVEMENT. (a) PASS 9/9. (b) PASS. (c) MISSED. (d) PASS.
+
+(a) PASS. All nine performers exceed 1 km net displacement: 1.80 to 6.64 km. Rung 1: four of
+    nine, with the other five at 0.00 km over 45 fixes each. Monotone along-route progress
+    100.0% for eight of nine; T39 81.8% (2 of 11 steps non-monotone by more than 25 m), which
+    on 12 fixes across a folded 5-point route is the projection stepping between segments, not
+    a reversal - its net displacement is 4.27 km outbound.
+(b) PASS. Maximum lateral deviation from the authored corridor: 1-72 m for six performers,
+    and 418 m (T27) / 403 m (T35) for two. Registered ceiling 500 m; rung-1 movers were
+    2-86 m by the same instrument. RECORDED, NOT EXPLAINED: the two large deviations are both
+    Tank Companies still in the first 3 km of their march, i.e. still forming up out of the
+    de-stack pile, and T39 - the third Tank Company, 4.67 km along - sits at 72 m. That is
+    consistent with a formation-forming transient that washes out with distance, but this run
+    is too short in sim time to demonstrate it, so it stays an observation.
+(c) **MISSED.** Registered: "every mover averages >= 3 m/s once clear of the pile". MEASURED
+    against the reports' own WALL timestamps: **1.87 to 2.60 m/s** - every one of the nine
+    below the floor. The prediction NAMED NO CLOCK, and under FFRTC at this scale the sim
+    clock runs at 0.2652 of the wall clock, so the same measurement in SIM seconds is
+    **7.05 to 9.80 m/s**, against rung 1's 9.81-10.05 m/s by the same instrument. The physical
+    claim the threshold was meant to test - that the units march at column pace rather than
+    shuffle - IS CONFIRMED. The threshold as registered is MISSED. It is not re-scored under
+    an amended criterion; sec 6A forbids exactly that.
+    THE LESSON, and it generalises past this run: EVERY SPEED OR TIMEOUT THRESHOLD IN THIS
+    PROJECT MUST NAME ITS CLOCK. Under variable-frame the two clocks coincide and the
+    ambiguity is invisible; under FFRTC they differ by whatever the load makes them differ by.
+(d) PASS, and it OVERTURNS THE TASKING BRIEF exactly as sec 0 C1 registered. T23, the lone
+    entity, moved **5.94 km net / 6.33 km along route** (rung 1: 0.00 km, in its de-stack
+    ring). TASKCMPLT count for the whole run: **0** (rung 1: 1, the vacuous one), and
+    `VRF task complete:` 0. `TSK` records in watchvrf-trace.csv: **0** (rung 1: 1).
+    **RUNG-1 FINDING A DID NOT REPRODUCE.** Its downstream consequence is gone with it:
+    `NO LOCATION GIVEN` is 1 in rung 2 (T9 alone, as originally predicted for rung 1) against
+    rung 1's 2 (T9 + T24, T24 having been released by the false completion).
+    WHAT THIS DOES AND DOES NOT SETTLE: the OCCASION for the vacuous completion is gone,
+    because the entity's route now resolves and it has something to do. The NATIVE gap is
+    UNTOUCHED and UNTESTED - `DtTaskCompleteReport::success()` / `taskId()` /
+    `taskTrackingNumber()` are still dropped at VrfFacade.cpp:217-242, so a success=false
+    failure would still be indistinguishable from a success. The queued native item stands, at
+    the same priority, on the same argument. It simply no longer has this run's evidence
+    behind it.
+    NOT PREDICTED, RECORDED: gate-skip lines 31 (27 `did not complete within 600s` + 4
+    `skipped/abandoned upstream`) against rung 1's 30 (25 + 5); 0 `SUPERSEDES in-flight task`
+    and 0 `NO in-flight task recorded` in both. No head task was ever disturbed.
+
+### P5 - NO RUNAWAY, NO UNDERGROUND/OFFSHORE TERMINATION. PASS.
+
+Of 1,788 objects with a final fix, 113 emit at least one physically impossible position and
+are excluded by the rule registered in advance. Of the 1,675 clean objects, **ZERO** end
+outside lat[34.15,34.95] x lon[-117.10,-116.25]; clean final altitudes span **724.4 to
+2028.7 m** - identical bounds to rung 1 - with **0** below 500 m and **0** within 50 m of 0 m.
+The July runaway and underground/offshore classes did not reproduce.
+
+### P6 - MODE CHECK. PASS on both criteria.
+
+`python tools/analysis/frame_gaps.py . 20260902T165144Z_run`:
+
+| statistic | RUNG 2 (FFRTC) | RUNG 1 (stock, variable-frame) | threshold |
+|---|---|---|---|
+| lines / stamped / distinct sim stamps | 700975 / 1201 / 286 | 2208211 / 427 / 95 | - |
+| TEST A one-frame gaps in {0.033, 0.034} | 89/89 = 100.0% | n=0, not applicable | >= 95% |
+| TEST B resultant length R | **0.9985** | 0.0276 | >= 0.99 |
+| TEST B \|residual\| <= 0.0005 s | 279/286 = 97.6% | 2/95 = 2.1% | >= 95% |
+| LS clock slope, sim-s per wall-s | **0.2652** | **0.9995** | not predicted |
+
+F1 did not fire. The rung-1 column is included as the NEGATIVE control it turns out to be: a
+variable-frame run scores R = 0.0276 on the same test, so TEST B discriminates the two modes
+rather than passing everything.
+
+### THE FFRTC FINDING - unregistered, and the most consequential number in the run
+
+**AT COA-STP1 SCALE, FIXED-FRAME RUN-TO-COMPLETE IS A 3.77x SLOWDOWN, NOT A ~9x SPEED-UP.**
+
+    R9 order, 3 units, FFRTC        7.43 - 13.11 sim-s per wall-s   (4 runs, FFRTC prereg sec 8)
+    COA-STP1, ~1788 objects, FFRTC        0.2652 sim-s per wall-s   (this run)
+    COA-STP1, ~1732 objects, variable     0.9995 sim-s per wall-s   (rung 1)
+
+This is the vendor's documented semantics working correctly, not a defect. Users Guide sec
+3.4.3: FFRTC "advances simulation time by a fixed amount each frame, EVEN IF A FRAME TAKES
+LONGER THAN THE FIXED AMOUNT TO COMPUTE". Wall cost is therefore
+`sim_seconds / frame_time x frame_cost`: the mode decouples sim time from wall time, and which
+direction it goes is entirely decided by whether a frame costs more or less than 0.0333 s to
+compute. With three units a frame is cheap and you get 7-13x; with 1,788 objects and nine
+marching aggregates a frame costs ~0.126 s and you get 0.27x. Variable-frame, by contrast, is
+pinned at 1.0x by construction whatever the load - it advances by elapsed wall time.
+CONSEQUENCE FOR THE STANDING RULE ("ALL PROBES RUN UNDER FFRTC unless the prereg states why
+not"): FFRTC remains the right choice for REPEATABILITY and for the time-managed-HLA
+requirement, and it is what makes a long sim affordable ON A LIGHT SCENARIO. It is NOT a
+speed lever at scale, and a scale probe that needs sim seconds should either budget
+`wall = sim / 0.2652` or state why variable-frame is the right mode for it. The FFRTC block's
+"~9x wall, LOAD-DEPENDENT (7.4-13.1 sim-s per wall-s)" is now known to be a light-load figure
+whose true range spans BOTH SIDES OF 1.0.
+COROLLARY, and it revises a handoff claim: the handoff's FFRTC block says "compression only
+ever gives a wall budget MORE margin". THAT IS FALSE AT SCALE. Our app's task timers are wall
+(600 s predecessor timeout, 12,000 s T13 delay), so at 0.2652 a 600 s wall timeout is a 159
+sim-second budget - four times TIGHTER in sim terms than at 1x. This run's 27 phase-1 timeouts
+(rung 1: 25) are consistent with that, though the count is too close to attribute.
+
+### THE REPORT CADENCE IS SIM-PACED, NOT WALL-PACED - a new, quantitative fact about our layer
+
+Position reports captured: **1,536 in rung 2 vs 5,717 in rung 1** (12 vs ~45 fixes per
+performer), over the same 2700 s wall window and the same 128 units. The ratio is
+5717/1536 = **3.72**; the clock ratio is 0.9995/0.2652 = **3.77**. Those agree to 1.3%, so
+the C2SIM position-report stream is paced by the SIMULATION clock, not the wall clock -
+almost certainly because it is driven by reflected state updates from the back end, which
+arrive per sim-frame. This matters for the headless goal: a scale run under FFRTC buys
+proportionally FEWER telemetry samples, and any future acceptance rule expressed as "N
+reports" or "a report within X wall seconds" inherits the sim clock without saying so. It also
+qualifies (does not contradict) the handoff's "the TickLoop is 20 Hz WALL and every app
+timeout is wall": the TIMERS are wall; the DATA is sim-paced.
+
+### UNEXPLAINED - carried forward, named, not resolved
+
+1. **55 objects report the (90.0, -90.0, 0.0) pole for their entire life - a class ABSENT
+   from rung 1.** Never-readable objects: rung 1 had 85, all of them NaN-latitude; rung 2 has
+   76 NaN plus 55 pole = 131. The readable population is the same size in both runs (1,732 vs
+   1,733 uuids with at least one real fix), so these are ADDITIONAL objects, and rung 2's
+   object count is ~50 higher (peak reflected 1,865 vs 1,812) - which is roughly the number of
+   extra route objects the fix causes to exist (8 more distinct offset routes plus 8 more
+   company sub-routes, plus their working routes). A route has no position, so reading as an
+   unset pole is the expected way it would appear. PLAUSIBLE AND UNPROVEN: nothing in this run
+   ties a specific pole uuid to a specific route object.
+2. **Cast-corrupted reflections roughly doubled, 28 -> 58 objects** (excluding the pole class
+   from both). Same signature as rung 1 and as CORRECTIONS_LOG: impossible values interleaved
+   with correct ones. More objects moving means more reflections in flight, which is a
+   direction but not a mechanism. UNCHANGED from rung 1's unexplained item 3.
+3. **T27 and T35's 400 m lateral deviations** (P4(b)). Within the registered ceiling,
+   4-6x anything rung 1 measured, and not explained by this run's sim-time budget.
+
+RESOLVED from rung 1's unexplained list: item 1 (why those four froze) - ANSWERED by the
+route-name cut, 9 of 9, and CLOSED. Item 2 (why the back end asserted completion for a
+stationary entity) - the OCCASION is gone (P4(d)); the underlying native gap is untouched.
+
+### VERIFIED vs INFERRED
+
+VERIFIED (direct artifact reads, every number in this section): the app-log and vendor-log
+censuses; the nine full-length route names and the zero cut forms; the zero freeze
+diagnostics; the eight-of-eight leaderRoute attribution; the per-performer displacement,
+along-route, lateral deviation and speed; the box and altitude tests; the frame-gap statistics
+and both clock slopes; the report counts; every hygiene item below. The scoring scripts were
+run over RUNG 1 FIRST and reproduce its published table before being applied here.
+
+INFERRED: that the 55 pole-reading objects are the extra route objects (unexplained item 1);
+that the doubled cast-corruption is a consequence of more objects moving (item 2); that
+T27/T35's lateral deviation is a formation-forming transient (item 3); that `DtUUID::myData[36]`
+is the specific buffer that did the cutting - unchanged, still not read, exactly as the
+route-uuid prereg left it.
+
+NOT EXERCISED, so still not verified live: `PatrolRoute` and `PlanAndMoveTo`. This order has
+no SCREEN/SCOUT head and AggregatePlanAndMove is off, so neither ran here either. They remain
+changed-by-argument.
+
+### P7 - HYGIENE. PASS, with one operator error of my own on the post-run sweep.
+
+Runner EXIT=0; every stage exit 0; `flags` null and `validityFlags` carrying only the standing
+INFO advisory. `Cleanup: deleting 172 created VR-Forces objects before resign...` /
+`Cleanup: 172 deletes dispatched (1623 ms).` - 128 units + 35 areas + 9 routes, EXACTLY the
+registered 172 and exactly rung 1's. StopVrf EXIT=0: "VR-Forces is DOWN (graceful quit; no
+process was force-killed)". Both observers exited on the stop-file path; neither was killed.
+RTI trio UNCHANGED and never touched - rtiAssistant 41336 / rtiexec 224608 / rtiForwarder
+76620, all three confirmed still running by StopVrf and by a post-run tasklist. NO NEW DUMP:
+newest in bin64 is still vrfSim5.0.2-MSVC++15.0_64-249613-70668.dmp (2026-09-02 06:00). The
+FFRTC fixture still hashes to D27E540F8BCC...B0B9 and the app DLL still hashes to
+3b7b8d2e...c60cea0, so NOTHING was written under C:\MAK and nothing was rebuilt.
+`env:Vrf__*` empty after. `-StopWhenComplete` did NOT fire and the window ran its 2700 s cap,
+EXACTLY as sec 4 registered - the console names all 11 taskees as without TASKCMPLT.
+appsettings `Vrf:ClientId` was "C2SIM" for the run in the DEPLOYED, gitignored copy only and
+was REVERTED to "STP" immediately afterwards; the tracked file was never touched.
+
+THE OPERATOR ERROR: the post-run `tools/ResetVrf` sweep was first invoked on appNo 3757
+WITHOUT the documented launch environment (RUNBOOK :1206-1213: cwd = C:\MAK\vrforces5.0.2\bin64
+plus the VR-Forces / VR-Link / makRti bin PATH prefix). It failed BEFORE joining - "Failed to
+open FDD file: RPR_FOM_v2.0_1516-2010.xml", "Could not create Federation Execution CWIX-2024:
+CouldNotOpenFDD", "legion_config_create: Failed to open config file: vrfLegion.lua" - exit 1,
+no federate ever joined, nothing touched. THIS IS AN OPERATOR ERROR, NOT AN INFRASTRUCTURE
+FAILURE: the recipe was in the RUNBOOK and I did not read it first, which is the standing
+docs-first rule applied to my own tooling. 3757 is BURNED in the ledger with that reason.
+Re-run per the RUNBOOK on appNo 3758: joined clean (BackendCount=0), discovered 0 reflected
+(0 deletable, 0 nil), resigned cleanly, exit 0 - ZERO LEFTOVERS. Marker 3750 -> 3757 (7, by
+the runner) -> 3758 (burned) -> 3759 (the sweep). STANDING CAVEAT (rung-1 finding D, unchanged):
+the sweep runs AFTER StopVrf, so it proves NO STALE FEDERATE and nothing about scenario
+contents.
+
+### ADVERSARIAL REVIEW
+
+- "THE NINE MOVED BECAUSE OF FFRTC, NOT BECAUSE OF THE FIX." REFUTED, and the direction of
+  the effect refutes it: FFRTC made the simulation 3.77x SLOWER here, so if anything it gave
+  the performers LESS sim time than rung 1, not more. Rung 1's five freezers were at 0.00 km
+  after 2,700 SIM seconds; rung 2's same five covered 1.80-6.64 km in 726 SIM seconds. The
+  mechanism evidence is independent of the clock anyway: the cut names and the 14,904 freeze
+  diagnostics are counts, not rates, and both went to zero.
+- "THE SPLIT WAS ALWAYS RANDOM AND RUNG 1 WAS AN UNLUCKY DRAW." REFUTED by the sec-2
+  pre-registration: the mover/freezer split was PREDICTED from route-name length before the
+  run, 9 of 9, and the prediction was committed (b3792d1) before launch. A 9-of-9 prediction
+  is not a post-hoc pattern.
+- "THE 2-POINT ROUTE WAS THE REAL CAUSE AND THE NAME WAS A CONFOUND." REFUTED by outcome, not
+  by argument: T5 and T27 are the run's only 2-point routes and both marched. This was
+  registered in sec 2 as the alternative that a MISS of P2/P3 would have supported; it missed
+  nothing, so the alternative is dead.
+- "SOMETHING OTHER THAN THE FIX CHANGED." Two things changed and both are declared (sec 0 C3):
+  the app binary and the fixture. The fixture's effect is measured (the clock) and points the
+  wrong way for the alternative explanation. The order, init, bridge (A7504441, 10/10),
+  de-stack setting, window, sampling and NavArea state are byte- or value-identical to rung 1,
+  and the app DLL hash was verified before and after.
+- "THE TWO MISSES ARE COSMETIC, SO THIS IS REALLY A CLEAN PASS." NO. P4(c)'s miss exposed a
+  real defect in how this project states thresholds, and chasing it found the FFRTC slowdown -
+  which overturns a handoff claim ("compression only ever gives a wall budget MORE margin").
+  A threshold that silently changes meaning with the clock is exactly the kind of error the
+  miss rule exists to surface. The run STOPS here and the -q probe is NOT run.
+- COMPETING HYPOTHESIS FOR THE ZERO TASKCMPLT, weighed: "the completions are missing because
+  something broke in the completion path, not because the run is short." Against it: rung 1's
+  ONE completion was the vacuous entity one, and NO performer in either run reached the end of
+  its route - the shortest head route is 24.11 km and the furthest any performer got is
+  6.93 km. Zero completions is what a 726-sim-second window on 24-40 km routes predicts.
+  Nothing in the app log shows a completion attempted and dropped: 0 `NO in-flight task
+  recorded`, 0 empty-uuid TASKCMPLT. NOT PROVEN, because a genuine completion was never
+  offered to the path in this run; the native completion-status item remains the way to close
+  it.
+
+### CONSEQUENCE
+
+THE ROUTE-UUID FIX HOLDS AT SCALE. The saga's freeze is repaired for every performer in the
+full COA-STP1 order - eight aggregates on two template classes and one entity - and route
+names up to 99 characters are demonstrated working against the vendor's documented 255 limit.
+Rung 1's central mystery is closed by a pre-registered mechanism, not by a pattern found
+afterwards.
+WHAT REMAINS OPEN, unchanged by this run: the NATIVE completion-status item (still the only
+known route to a trustworthy TASKCMPLT); the echelon-'F' generic Ground_Aggregate fallback
+(a USER ruling, and rung 1 already showed it is not a movement cause); PatrolRoute and
+PlanAndMoveTo, still unexercised.
+WHAT THIS RUN ADDS TO THE OPEN LIST: FFRTC's true cost curve and the sim-paced report cadence,
+both of which bear directly on how the next scale run is budgeted, and the clock-naming rule
+for every threshold this project writes from here on.
 
 ## 8. REGISTRATION
 

@@ -6,14 +6,18 @@ collapse it to a few lines plus a pointer; never drop live guidance to make room
 load-bearing claims against artifacts before trusting prose.
 
 ## CLOSED - DO NOT REOPEN (tripwires; each line names its record)
-- ROUTE FREEZE = OUR ROUTE-BY-NAME ADDRESSING (a >34-char name cut to 35 in DtUUID's blob),
-  not region / template / type / waypoint altitude / vertex count / creation order / pile
-  density. **FIXED 2026-09-02 (726f762) and LIVE-VERIFIED** - pass the route's real uuid:
-  docs/experiments/PREREG_ROUTE_UUID_FIX_2026-09-02.md sec 6, run 20260902T153837Z_run.
-  DO NOT shorten or cap route names - that fix is WITHDRAWN and unnecessary (names may be 255).
-  Reopening evidence = the falsifier in sec 8 of ANALYSIS_COASTP1_RUNG1_FREEZE_2026-09-02.md.
-- SPEED-UP = FRAME MODE, NOT TIME MULTIPLIER; the multiplier and at-distance ladders are
-  WITHDRAWN. docs/experiments/PREREG_R9_FIXED_FRAME_RTC_2026-09-02.md sec 8 (2030ebd, c0e90b7).
+- ROUTE FREEZE = OUR ROUTE-BY-NAME ADDRESSING (a name over 35 chars cut in DtUUID's 36-byte
+  blob), not region / template / type / waypoint altitude / vertex count / creation order /
+  pile density / point count. **FIXED 2026-09-02 (726f762), LIVE-VERIFIED ON R9 AND AT SCALE** -
+  pass the route's real uuid: PREREG_ROUTE_UUID_FIX sec 6 (run 20260902T153837Z) and
+  PREREG_COASTP1_RUNG2 sec 7 (run 20260902T165144Z, ALL NINE COA-STP1 performers march, names to
+  99 chars). DO NOT shorten or cap route names - WITHDRAWN and unnecessary (255 allowed).
+  Route-name length predicted rung 1's 9-of-9 mover/freezer split PRE-REGISTERED, which CLOSES
+  rung 1's "why these four?". Reopening evidence = a cut name, or a nonzero
+  `Can't find entity route`, in a run on this binary.
+- THE TIME MULTIPLIER IS NOT THE LEVER - the multiplier and at-distance ladders are WITHDRAWN;
+  the SCENARIO CLOCK MODE is the only clock lever, and its direction depends on load (next
+  line). PREREG_R9_FIXED_FRAME_RTC_2026-09-02.md sec 8 (2030ebd, c0e90b7).
 - The REGION / Mojave-terrain cause is FALSIFIED (docs/CORRECTIONS_LOG.md "The region
   hypothesis"; tagged 2026-09-02 in the six live docs that still stated it).
 - TYPE MAPPING is fixed: ArmorPlatoon -> real Tank Platoon (USA); RealTemplates is the compiled
@@ -24,6 +28,9 @@ load-bearing claims against artifacts before trusting prose.
 - The HQ-section formation-name warning is COSMETIC; the P2 aliases were reverted (P2c).
 - ROUTE-VERTEX ALTITUDE FRAME: TerrainProfile (terrain height + 10 m) is the compiled DEFAULT,
   Live (+50 m) the fallback, Fixed100 a relic (DESIGN_TERRAIN_PROFILE_VERTICES_2026-09-01 sec 7).
+- FFRTC IS NOT A SPEED LEVER AT SCALE - a 3.77x SLOWDOWN on COA-STP1 (0.2652 sim-s per wall-s vs
+  0.9995 variable-frame and 7.4-13.1 on the 3-unit R9 order). See the FFRTC block; do NOT budget
+  a scale run as if FFRTC compresses.
 - Birth altitude, "nav data ruled out", the 10-char marking collision: docs/CORRECTIONS_LOG.md.
   Every July FALSIFIED stamp is LAYER-RELATIVE (L9) - re-adjudicate before trusting it.
 
@@ -34,12 +41,12 @@ registrable ONLY after its prereg cites the documentation consulted. Two months 
 dissolved in one afternoon of reading (2026-09-01). VRF_GROUNDWORK_PLAN lessons L8-L10.
 
 ## ONE-LINE STATUS
-The R9 Mojave order executes END-TO-END, HEADLESS, ALL THREE TASKEES (platoon, company, entity),
-telemetry-verified arrivals + TASKCMPLT, at 1x and under FFRTC. **THE AGGREGATE FREEZE THAT COST
-THE WHOLE SAGA IS FIXED** (726f762, C# only): routes are addressed by their real VRF_UUID, not
-by name. The 44-char route name that froze 114.MechCoy 0.0 m for 30 min now marches it 698.97 m
-to the control endpoint, 0.00 m off, 3/3 TASKCMPLT (run 20260902T153837Z). COA-STP1 AT SCALE is
-UNTESTED SINCE THE FIX - rung 2 is the next run.
+THE AGGREGATE FREEZE IS FIXED AND THE FIX HOLDS AT SCALE. Routes are addressed by their real
+VRF_UUID, not by name (726f762, C# only). R9 runs end-to-end headless 3/3 TASKCMPLT
+(20260902T153837Z). THE FULL COA-STP1 ORDER now marches ALL NINE dispatching performers where
+rung 1 froze five silently: `Can't find entity route` 14,904 -> 0, route names intact to 99
+chars (run 20260902T165144Z). Rung 2 also STOPPED on two of its own thresholds - both mine,
+both threshold-definition errors - and chasing one found FFRTC is a 3.77x SLOWDOWN at scale.
 
 ## WORKING CONFIGURATION
 TypeMappingMode=RealTemplates + GroundWaypointAltitudeMode=TerrainProfile (both compiled
@@ -47,128 +54,120 @@ DEFAULTS since 2026-09-02, bridge A7504441) + NavArea disabled + STOCK templates
 overrides - an untouched product at default settings. Vendor defects found across the whole
 saga: ZERO (the one candidate, the DtUUID route-name cut, was our own contract violation).
 Runner hardening permanent - Stage 2b boot-dialog watcher (AnswerRtiDialog.ps1; the RTI dialog
-is ONCE PER REBOOT), Stage 2c RTI gate, per-run bin64 log capture, stop-file trace close,
-off-by-default -StopWhenComplete with -SettleHoldSecs 60 as a FLOOR and rule 4 (every taskee
-needs an RPT LATER than its TSK and within 2 m of its latest POS): docs/
-RUNNER_TURNAROUND_2026-09-01.md, RUNBOOK 0.5.11. vrfSim.mtl: notifyLevel 3 /
-objectConsoleNotifyLevel 3 / enableLogFileTimestamps 1 (backup .bak-20260901) - KEEP: it is
-what made the freezes speak.
+is ONCE PER REBOOT), Stage 2c RTI gate, per-run bin64 log capture, stop-file trace close, and
+off-by-default -StopWhenComplete with -SettleHoldSecs 60 as a FLOOR plus rule 4 (every taskee
+needs an RPT LATER than its TSK, within 2 m of its latest POS): RUNNER_TURNAROUND_2026-09-01.md,
+RUNBOOK 0.5.11. vrfSim.mtl: notifyLevel 3 / objectConsoleNotifyLevel 3 /
+enableLogFileTimestamps 1 (backup .bak-20260901) - KEEP: it is what made the freezes speak.
 
-## FIXED-FRAME RUN-TO-COMPLETE - THE SPEED-UP LEVER (CLOSED, validated 2026-09-02)
-Full record: docs/experiments/PREREG_R9_FIXED_FRAME_RTC_2026-09-02.md sec 8 (prereg 2030ebd,
-outcome c0e90b7, run 20260902T140808Z, appNos 3726-3732). VERDICT PASS, no falsifier.
-THE RULE: ALL PROBES RUN UNDER FFRTC MODE unless the prereg states why not; TIMEMULTIPLIER STAYS
-1x; the multiplier and at-distance LADDERS ARE WITHDRAWN. The SCENARIO'S EXERCISE CLOCK MODE,
-not TimeMultiplier, is the speed lever (Users Guide 3.4.3 / 7.6.1 / 12.2.1 + Table 17).
-FIXTURE: tools/FixtureGen/frame_variants/TropicTortoise_FFRTC.scnx - stock TropicTortoise with
-TWO lines moved, (frame-mode "fixed-frame-run-to-complete") + (frame-time 0.033333); DEPLOYED at
+## FIXED-FRAME RUN-TO-COMPLETE - VALIDATED, BUT **NOT** A SPEED LEVER AT SCALE
+Records: PREREG_R9_FIXED_FRAME_RTC_2026-09-02.md sec 8 (2030ebd / c0e90b7, run 20260902T140808Z);
+PREREG_COASTP1_RUNG2_2026-09-02.md sec 7 (the scale measurement).
+THE RULE (revised 2026-09-02 by rung 2): FFRTC stays the default for REPEATABILITY and for
+time-managed HLA; TIMEMULTIPLIER STAYS 1x (multiplier and at-distance ladders remain WITHDRAWN;
+the scenario clock mode is the lever - Users Guide 3.4.3 / 7.6.1 / 12.2.1 + Table 17). But
+**FFRTC DOES NOT COMPRESS AT SCALE** - measured, frame_gaps.py LS slope, sim-s per wall-s:
+  R9 3 units FFRTC 7.43-13.11 | COA-STP1 FFRTC 0.2652 (...165144Z) | COA-STP1 VARIABLE 0.9995
+FFRTC advances a FIXED 0.0333 sim-s per frame "even if a frame takes longer than the fixed amount
+to compute" (3.4.3), so wall = sim_s / frame_time x frame_cost and the ratio lands on WHICHEVER
+SIDE OF 1.0 the load puts it; variable-frame is pinned at 1.0x. BUDGET A SCALE RUN AS
+wall = sim / 0.27, or say why variable-frame is right for it. CORRECTION: "compression only ever
+gives a wall budget MORE margin" IS FALSE at scale - our task timers are WALL (600 s predecessor
+timeout, T13's 12,000 s delay), so at 0.2652 a 600 s wall timeout is 159 SIM seconds, 4x tighter.
+NEW, MEASURED (rung 2): THE C2SIM POSITION-REPORT STREAM IS SIM-PACED, NOT WALL-PACED - 1,536
+reports vs rung 1's 5,717 over the same wall window and same 128 units, ratio 3.72 against the
+clock ratio 3.77. TIMERS are wall; DATA is sim-paced, so "N reports" or "a report within X
+seconds" inherits the sim clock silently. THRESHOLD RULE (adopted 2026-09-02): EVERY speed or
+timeout threshold MUST NAME ITS CLOCK - rung 2's P4(c) miss was exactly this error.
+FIXTURE: tools/FixtureGen/frame_variants/TropicTortoise_FFRTC.scnx - stock TropicTortoise with TWO
+lines moved, (frame-mode "fixed-frame-run-to-complete") + (frame-time 0.033333); DEPLOYED at
 C:\MAK\vrforces5.0.2\userData\scenarios\ (SHA-256 D27E540F8BCC...B0B9, 7112 bytes); load with
--Scenario TropicTortoise_FFRTC. Stock TropicTortoise.scnx untouched. Answer unchanged across 4
-runs of the R9 order; ~9x wall, LOAD-DEPENDENT (7.4-13.1 sim-s per wall-s). Mode check:
-`python tools/analysis/frame_gaps.py . <run>`, PASS = Test A >= 95% in {0.033,0.034} AND R >= 0.99.
-OPEN DESIGN ITEM (not a blocker): OUR APP HAS NO NOTION OF SIM TIME - VrfFacade.cpp:478-482 pins
-the federate clock to elapsedRealTime, the TickLoop is 20 Hz WALL and every app timeout is wall;
-compression only ever gives a wall budget MORE margin. LOW PRIORITY: an observed-run
+-Scenario TropicTortoise_FFRTC. Stock TropicTortoise.scnx untouched. Mode check
+`python tools/analysis/frame_gaps.py . <run>`: PASS = Test A >= 95% in {0.033,0.034} AND R >= 0.99.
+It DISCRIMINATES - rung 1 (variable-frame) scores R = 0.0276.
+OPEN DESIGN ITEM, raised to MEDIUM by rung 2: OUR APP HAS NO NOTION OF SIM TIME
+(VrfFacade.cpp:478-482 pins the federate clock to elapsedRealTime; TickLoop is 20 Hz WALL). At
+0.27x the mismatch changes which task chains dispatch. LOW: an observed-run
 fastForwardSettings.mtl entry (7.6.1) NEEDS USER OK first.
 
-## COA-STP1 SCALE RE-RUN - RUNG 1 RESULT AND ROOT CAUSE
-RUNG 0 DONE (fc93a1e): July region hypothesis RETRACTED in six live docs; 31 (not 32) temporal
-deps; DEFECTS A/B verified ALREADY FIXED in source (InFlightTracker, TaskSequencer).
-RUNG 1 RESULT (run 20260902T125423Z, appNos 3718-3724; prereg d1f2e10, outcome sec 6 of
-PREREG_COASTP1_RUNG1_BOUNDED_2026-09-02.md, 7963aed): the July mechanism is GONE (zero
-"moveAlong() - empty route" in 140 MB - that grep oracle is DEAD) but 4 of 8 dispatching
-aggregates built ZERO offset routes and never moved, SILENTLY; the other 4 marched 13.2-26.7 km
-at 8.0-8.2 m/s, offset routes and movement correlating 1:1 across all 8. THAT is the freeze the
-route-uuid fix below repairs; rung 2 re-tests it.
-OTHER FINDINGS (still unfixed): (A) the lone ENTITY taskee reported TASKCMPLT from the BACK
-END's own callback while never leaving its spawn ring - a VACUOUS COMPLETION that falsely
-released T24 and cascade-skipped T25/T26 (needs the NATIVE success()/taskId() item below);
-(B) all 26 echelon-'F' units land the GENERIC Ground_Aggregate fallback (UnitTranslator.cs:70/
-:134, TYPE_GAP_ADJUDICATION item 4, a USER call) - but that fallback MARCHES, so not a freeze
-cause; (C) TerrainProfile re-entry double-logs the verb classification; (D) ResetVrf after
-StopVrf is blind (BackendCount=0) - run it between StopIface and StopVrf.
+## COA-STP1 SCALE - CLOSED (rungs 0/1/2). Full records in the preregs; this is the residue.
+Rung 0 fc93a1e. Rung 1 run 20260902T125423Z (prereg d1f2e10, outcome 7963aed): 4 of 8 dispatching
+aggregates plus the lone entity built ZERO offset routes and never moved, SILENTLY, with the July
+"empty route" grep oracle DEAD. Rung 2 run 20260902T165144Z (prereg b3792d1, outcome
+PREREG_COASTP1_RUNG2_2026-09-02.md sec 7): ALL NINE performers march; nine route names arrive at
+FULL length 29-99 chars with ZERO 35-char cuts; 8 of 8 aggregates build offset routes; `Can't
+find entity route` 14,904 -> 0; lateral 1-418 m; 0 clean objects outside the AO box; cleanup 172.
+ROOT CAUSE (SETTLED, FIXED 726f762, VERIFIED TWICE): OURS, not the vendor's - a contract
+violation at the DtUUID string ctor (`rwUUID.h:246-253`; the 36-byte blob at `rwUUID.h:412`, one
+byte the type tag, so a marking-text name survives to 35 chars). All FOUR route/waypoint call
+sites now pass `e.Uuid`, not `e.Name`; the pending queue stays keyed by route NAME. C# ONLY -
+bridge stays A7504441. Route-name length predicted rung 1's 9-of-9 mover/freezer split
+PRE-REGISTERED, which CLOSES rung 1's "why these four?" and REFUTES the 2-point-route rival.
+RUNG 2 STOPPED under its own miss rule on two thresholds, both mine, nothing retuned or re-run:
+(i) P4(c) ">= 3 m/s" named no clock (wall 1.87-2.60, SIM 7.05-9.80 vs rung 1's 9.81-10.05);
+(ii) P2(b) "at least double" on offset-route LINE counts came in 1.95x/1.40x un-normalised for
+sim time (7.3x per sim-second). Hence the THRESHOLD RULE in the FFRTC block.
+STILL OPEN: the NATIVE completion-status item (NEXT row 2). Rung 1 finding A (a VACUOUS entity
+TASKCMPLT that falsely released T24) DID NOT REPRODUCE - T23 marched 5.94 km, rung 2 had ZERO
+TASKCMPLT - so the OCCASION is gone but THE NATIVE GAP IS UNTESTED AND STANDS.
+OTHER RUNG-1 FINDINGS, unfixed: (B) 26 echelon-'F' units land the GENERIC Ground_Aggregate
+fallback (UnitTranslator.cs:70/:134, TYPE_GAP item 4, USER call) - it MARCHES, not a freeze cause;
+(C) TerrainProfile re-entry double-logs the verb classification; (D) ResetVrf after StopVrf is
+blind (BackendCount=0) - run it between StopIface and StopVrf.
+NOT EXERCISED by either order, so NOT verified live: PatrolRoute and PlanAndMoveTo.
+UNEXPLAINED from rung 2: (1) 55 objects report the (90,-90,0) pole for their whole life, a class
+ABSENT from rung 1 - plausibly the extra route objects, unproven; (2) cast-corrupted reflections
+28 -> 58 objects; (3) T27/T35 lateral ~400 m against 1-72 m for every other performer.
 
-RUNG 1 ROOT CAUSE - **FOUND, SETTLED BY MANIPULATION, FIXED (726f762), AND LIVE-VERIFIED.**
-Full record: docs/experiments/PREREG_ROUTE_UUID_FIX_2026-09-02.md sec 6. Chain: discriminator
-9/9 (ANALYSIS_COASTP1_RUNG1_FREEZE_2026-09-02, H1-H5 refuted sec 4) -> manipulated cause
-(PREREG_ROUTE_NAME_LENGTH_2026-09-02 sec 6, 854841a) -> fix -> re-verified.
-THE DEFECT WAS OURS, not the vendor's: a contract violation at the DtUUID string ctor
-(`rwUUID.h:246-253` - a VALID uuid ONLY from a "VRF_UUID:..." string; anything else becomes an
-object-marking-text lookup in the 36-byte blob at `rwUUID.h:412`). We handed the route's NAME to
-`moveAlongRoute(DtUUID, DtUUID)`, so a name over 34 chars arrived CUT TO 35, `myRoute` never
-resolved, no offset routes were built, the aggregate froze SILENTLY. CreateRoute's DtString is
-unbounded, so the route OBJECT existed at full length all along - which is exactly why July's
-"names pass at 99 chars" test (it tested CREATION, never the task) came out clean.
-MOJAVE_ROOTCAUSE part 12's "name length falsified" is OVERTURNED.
-THE FIX (C# ONLY - no native source, no bridge rebuild; bridge stays A7504441):
-`OnVrfObjectCreated` already had the route's REAL uuid (`e.Uuid` at :1110, the `uuidString()`
-the callback carries - vrfRemoteController.h:102-103, VrfFacade.cpp:211). All FOUR
-route/waypoint call sites now pass it instead of `e.Name` (MoveAlongRoute, R10 fan-out,
-PatrolRoute, PlanAndMoveTo); the pending queue stays keyed by route NAME, which works.
-VERIFIED LIVE (run 20260902T153837Z_run, appNos 3742-3748, FFRTC, 1x): SAME padded order
-byte-identical, SAME 44-char name, ONE variable moved - the app binary. 114.MechCoy marched
-698.97 m to 34.653915,-116.693388, **0.00 m from the short-name control's endpoint**, parked
-905 samples / 1863 s; the other two taskees also 0.00 m; 3/3 TASKCMPLT (frozen run: 2). The
-back end printed the FULL 44 chars at bin64-vrfSim.log:5821 where the frozen run cut it at 35.
-Sub-routes 114.MechCoy_R0..R3 built and tasked, 30 mentions / 4 distinct (frozen: 0). Freeze
-diagnostic `buildEntityRouteFollowingMap() : Can't find entity route` **67,590 -> 0**.
-**ROUTE NAMES STAY FULL LENGTH** - "cap at 34 chars / short synthetic route ids" are WITHDRAWN,
-not deferred: workarounds for a bug that no longer exists. Users Guide 41.1 p.989 allows 255.
-NOT EXERCISED by this order, so NOT verified live: PatrolRoute and PlanAndMoveTo (no
-SCREEN/SCOUT verb, AggregatePlanAndMove off) - changed-by-argument, not proven.
-STILL QUEUED, NATIVE, UNCHANGED BY THIS WORK: forward `DtTaskCompleteReport::success()` /
-`taskId()` / `taskTrackingNumber()` through VrfFacade::TaskCompleted. All three are DROPPED at
-VrfFacade.cpp:217-242 (struct TaskCompleted, VrfFacade.h:119-123 has no such field), so a
-success=false FAILURE is indistinguishable from a real success - that is what let rung-1
-finding A through as a TASKCMPLT. Under STANDING AUTHORIZATION: back up the DLLs, /t:Rebuild
-always, REDEPLOY ALL 10 COPIES, verify ONE hash across them.
-RUNNER DEFECTS - both found live, both FIXED, both test-covered (gate 96 -> 105 checks):
-(1) RunC2SimScenario.ps1:2169 wrapped `@()` around the CALL, so `.Missing` member-enumerated and
-a one-element result unwrapped to a bare string; `$missing.Count` threw under Set-StrictMode
-(run 20260902T143638Z, EXIT=5). Now `@( (Test-EarlyExit ...).Missing )` - EXERCISED LIVE, runner
-EXIT=0. (2) RunnerLib.ps1 `Get-VrfUuidByName` `$rxB` did not tolerate the route uuid the app now
-logs, so the report-evidence gate mapped no taskee and `-StopWhenComplete` never fired on run
-20260902T153837Z - the window ran its 1800 s cap against a healthy 3/3 app log; the
-parenthetical is now OPTIONAL so BOTH forms parse (verified against a reproduced failure).
-LESSON: A LOG-FORMAT CHANGE IS AN API CHANGE WHEN ANOTHER TOOL PARSES THAT LOG - grep the repo
-for the old format before changing it.
-
-## OPERATIONAL STATE (2026-09-02, after the ROUTE-UUID FIX verification run)
-VR-FORCES DOWN between runs (StopVrf exit 0, "graceful quit; no process was force-killed").
-appNo marker NEXT FREE = 3750, authoritative marker in docs/OPUS_EXECUTION_PLAN.md Appendix B
-(runner-managed, ledger CRLF). 2026-09-02 consumed 3676-3749 - see the ledger.
+## OPERATIONAL STATE (2026-09-02, after COA-STP1 RUNG 2)
+VR-FORCES DOWN (StopVrf exit 0, "graceful quit; no process was force-killed"); post-run ResetVrf
+sweep on 3758 joined clean, 0 reflected, exit 0.
+appNo marker NEXT FREE = 3759 (docs/OPUS_EXECUTION_PLAN.md Appendix B, runner-managed, CRLF).
+Rung 2 consumed 3750-3756 (3756 unconsumed) + 3758; **3757 IS BURNED** - ResetVrf invoked without
+the documented launch environment (RUNBOOK :1206-1213 requires cwd = C:\MAK\vrforces5.0.2\bin64
+plus the VR-Forces/VR-Link/makRti bin PATH prefix) and failed before joining. READ :1206-1213
+BEFORE RUNNING ResetVrf.
 DEPLOYED APP (the fix): src\VrfC2SimApp\bin\Release\net10.0\win-x64\VrfC2SimApp.dll SHA-256
-3b7b8d2e...c60cea0, built 2026-09-02 11:30. The runner starts the app straight from that path
-(RunC2SimScenario.ps1:382) - building IS deploying for the APP; only the BRIDGE has a 10-copy
-deploy step. RTI RESIDENT + ANSWERED: rtiAssistant 41336 / rtiexec 224608 / rtiForwarder 76620 -
-UNCHANGED across every 2026-09-02 run; still inventory fresh at session start, do not trust
-PIDs. C2SIM docker UP. Deployed bridge = A7504441 (10/10 copies, Ijwhost 38255036; backups
-bak-20260902-a48abe6c/ and bak-20260902-28e993fe/). Dump 70668 sits in bin64, no newer one
-(RUNBOOK 0.5.12: scripts/AnswerCrashDumpDialog.ps1 answers the prompt; never halt on it).
-Firewall: do NOT set NotifyOnListen False (user ruling); Cancel the testhost prompt. MAK license
-expires 2026-09-15, renewal in process - verify the new .lic landed before running after that.
-CORRECTION 2026-09-02: THE VENDOR LOG'S WALL STAMPS ARE LOCAL TIME (-04:00), NOT UTC - convert
-before cross-referencing a bin64-vrfSim.log stamp against a UTC artifact (ours stamp UTC).
+3b7b8d2e...c60cea0 (2026-09-02 11:30), re-verified after rung 2. The runner starts the app from
+that path (RunC2SimScenario.ps1:382) - building IS deploying for the APP; only the BRIDGE has a
+10-copy deploy step. Deployed bridge = A7504441 (10/10, Ijwhost 38255036; backups
+bak-20260902-a48abe6c/ and bak-20260902-28e993fe/).
+CLIENTID TRAP: the DEPLOYED (gitignored) bin\...\appsettings.json Vrf:ClientId must MATCH the
+init's SystemName or the runner ABORTS at validation, exit 2 (RunC2SimScenario.ps1:1154-1165).
+R9 inits declare STP; COA-STP1 declares C2SIM. It is back at "STP". Edit the DEPLOYED copy only -
+never the tracked src/ file.
+RTI RESIDENT + ANSWERED: rtiAssistant 41336 / rtiexec 224608 / rtiForwarder 76620 - UNCHANGED
+across every 2026-09-02 run; still inventory fresh at session start, do not trust PIDs. C2SIM
+docker UP. Dump 70668 sits in bin64, no newer one (RUNBOOK 0.5.12:
+scripts/AnswerCrashDumpDialog.ps1 answers the prompt; never halt on it). Firewall: do NOT set
+NotifyOnListen False (user ruling); Cancel the testhost prompt. MAK license expires 2026-09-15,
+renewal in process - verify the new .lic landed before running after that.
+CORRECTION 2026-09-02: THE VENDOR LOG'S WALL STAMPS ARE LOCAL TIME (-04:00), NOT UTC (ours UTC).
 
 ## NEXT (in order)
-1. COA-STP1 RUNG 2 - THE NEXT RUN. FULL order under FFRTC with the route-uuid fix; R9 has
-   re-verified (20260902T153837Z). ~9x compression makes the whole order affordable at 1x, so
-   rung 1's bounded window is no longer the constraint. Expect T13 NOT to dispatch (12,000 s
-   start delay, not a miss). PREREGISTER: rung 1's four frozen aggregates must now build offset
-   routes and march, and `buildEntityRouteFollowingMap() : Can't find entity route` must be 0
-   (rung 1: 14,913). Rung-1 finding A (the vacuous ENTITY completion) WILL STILL BE THERE - it
-   needs item 2, which is NOT in this fix.
+1. COA-STP1 RUNG 2 - **DONE 2026-09-02** (run 20260902T165144Z, appNos 3750-3756; prereg b3792d1,
+   outcome PREREG_COASTP1_RUNG2_2026-09-02.md sec 7). All nine performers march; the freeze is
+   fixed at scale. Two registered thresholds MISSED (both mine, threshold-definition errors), so
+   the rung STOPPED under its own miss rule and the follow-on `-q` (doNotUseConsole) probe WAS
+   NOT RUN. That probe remains available, unregistered: Users Guide `-q | --doNotUseConsole`,
+   vrfSim.mtl:196-197/:205/:208, one variable added to $simBlock in scripts/LaunchVrf.ps1:343
+   behind a default-OFF runner switch, control = run 20260902T140808Z. ITS REAL RISK, to answer
+   FROM THE DOCS BEFORE LAUNCHING: does -q suppress the LOG FILE or only the console window? We
+   depend on that file for every creation and task line.
 2. NATIVE COMPLETION STATUS - forward DtTaskCompleteReport success()/taskId()/
-   taskTrackingNumber() through VrfFacade::TaskCompleted (details in the rung-1 block above).
-   The only known remaining cause of a FALSE TASKCMPLT. Standing authorization applies.
-3. TYPE_GAP ITEM 4 - the echelon-'F' -> generic Ground_Aggregate fallback needs a USER RULING
-   (docs/TYPE_GAP_ADJUDICATION.md, Decision item 4). Still pending.
-4. SIM-TIME READ-BACK - the design item in the FFRTC block. Nothing is blocked on it today.
+   taskTrackingNumber() through VrfFacade::TaskCompleted (rung block above). The only known
+   remaining cause of a FALSE TASKCMPLT. Standing authorization: back up the DLLs, /t:Rebuild
+   always, REDEPLOY ALL 10 COPIES, verify ONE hash. Rung 2 had ZERO TASKCMPLT, so this now stands
+   on the source reading (VrfFacade.cpp:217-242) alone, which is enough.
+3. A COMPLETION-CAPABLE SCALE RUN. No COA-STP1 run has reached a route end: the shortest head
+   route is 24.11 km, the best progress ever 26.84 km in 2700 sim s. FFRTC makes this WORSE
+   (0.2652). Pick the mode from the FFRTC block and budget wall = sim / ratio.
+4. TYPE_GAP ITEM 4 - the echelon-'F' -> generic Ground_Aggregate fallback needs a USER RULING
+   (docs/TYPE_GAP_ADJUDICATION.md, Decision item 4). Pending; not a movement cause.
 5. MAK MESSAGE - docs/MAK_MESSAGE_2026-09-02.md is send-ready and THE USER SENDS IT.
-   *** ITS APPENDED DtUUID ROUTE-NAME-LENGTH DRAFT IS NOW STALE AND MUST NOT BE SENT AS A
-   DEFECT REPORT: the cause was OUR contract violation, not a vendor bug (rwUUID.h:246-253
-   documents exactly this behaviour, and the fix is 726f762). REWRITE OR DROP THAT SECTION
-   BEFORE SENDING. *** Vendor defects found across the whole saga remains ZERO.
+   *** ITS APPENDED DtUUID ROUTE-NAME-LENGTH DRAFT IS STALE AND MUST NOT BE SENT AS A DEFECT
+   REPORT: the cause was OUR contract violation, not a vendor bug (rwUUID.h:246-253 documents it;
+   fix 726f762). REWRITE OR DROP THAT SECTION. *** Vendor defects across the saga remains ZERO.
 6. BACKLOG unchanged: type adjudications (54 units - see the 5.2b checklist first), task
    vocabulary, completion re-keying, scoring (Phase 5).
 
@@ -184,17 +183,16 @@ classref/vrf_migration50.html + vrf_migration51.html).
 
 ## PROBE PROTOCOL (adopted 2026-09-01/02; do NOT change mid-protocol)
 FFRTC mode per the block above; TimeMultiplier 1x; -RunSecs is a CAP under -StopWhenComplete.
-SHORT-ROUTE probe variants are allowed - platoon/entity legs may be ~200 m - but COMPANY probe
-routes stay >= ~1 km (formation depth ~430 m plus leading-edge completion). Keep ONE
-canonical-length run per milestone for comparability. THE 5x MULTIPLIER RECORD is superseded and
-NOT to be re-run (its one unexplained miss: ANALYSIS_P3_STEP_PROFILE_2026-09-01.md). watchvrf
-POS mid-move is DEAD-RECKONED - only plateaus are truth.
+SHORT-ROUTE probe variants are allowed (platoon/entity legs ~200 m) but COMPANY probe routes stay
+>= ~1 km (formation depth ~430 m). Keep ONE canonical-length run per milestone. THE 5x MULTIPLIER
+RECORD is superseded and NOT to be re-run (ANALYSIS_P3_STEP_PROFILE_2026-09-01.md). watchvrf POS
+mid-move is DEAD-RECKONED - only plateaus are truth.
 
 ## NON-NEGOTIABLES (unchanged, plus the docs-first rule above)
 One variable per probe; prediction + falsifier + DOC CITATIONS before running; movement gate =
 static -> moving -> settled with POS/RPT agreement; never kill a joined federate; never kill
 rtiAssistant / rtiexec / rtiForwarder without a fresh ruling; fresh ledgered appNo per join;
-ASCII in tracked files (ripgrep, not grep -P); after two consecutive infra failures, research
-before retry. FALSIFIED stamps are LAYER-RELATIVE (L9) - re-adjudicate on the clean state.
+ASCII in tracked files; after two consecutive infra failures, research before retry. FALSIFIED
+stamps are LAYER-RELATIVE (L9). EVERY threshold NAMES ITS CLOCK (FFRTC block).
 Prove any instrument reproduces the KNOWN result before trusting a new one (lessons: false
 greens 2026-07-19; this session's regex fix was checked against a reproduced failure).
