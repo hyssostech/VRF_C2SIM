@@ -42,11 +42,10 @@ dissolved in one afternoon of reading (2026-09-01). VRF_GROUNDWORK_PLAN lessons 
 
 ## ONE-LINE STATUS
 THE AGGREGATE FREEZE IS FIXED AND THE FIX HOLDS AT SCALE. Routes are addressed by their real
-VRF_UUID, not by name (726f762, C# only). R9 runs end-to-end headless 3/3 TASKCMPLT
-(20260902T153837Z). THE FULL COA-STP1 ORDER now marches ALL NINE dispatching performers where
-rung 1 froze five silently: `Can't find entity route` 14,904 -> 0, route names intact to 99
-chars (run 20260902T165144Z). Rung 2 also STOPPED on two of its own thresholds - both mine,
-both threshold-definition errors - and chasing one found FFRTC is a 3.77x SLOWDOWN at scale.
+VRF_UUID, not by name (726f762, C# only). R9 runs end-to-end headless 3/3 TASKCMPLT; the FULL
+COA-STP1 ORDER marches ALL NINE dispatching performers, `Can't find entity route` 14,904 -> 0,
+names intact to 99 chars (20260902T165144Z). The MERGED build (type-mapping table) is GATED and
+reproduces all of it (20260902T181203Z). FFRTC is a 3.77x SLOWDOWN at scale.
 
 ## WORKING CONFIGURATION
 TypeMappingMode=RealTemplates + GroundWaypointAltitudeMode=TerrainProfile (both compiled
@@ -101,13 +100,9 @@ ROOT CAUSE (SETTLED, FIXED 726f762, VERIFIED TWICE): OURS, not the vendor's - a 
 violation at the DtUUID string ctor (`rwUUID.h:246-253`; the 36-byte blob at `rwUUID.h:412`, one
 byte the type tag, so a marking-text name survives to 35 chars). All FOUR route/waypoint call
 sites now pass `e.Uuid`, not `e.Name`; the pending queue stays keyed by route NAME. C# ONLY -
-bridge stays A7504441. Route-name length predicted rung 1's 9-of-9 mover/freezer split
-PRE-REGISTERED, which CLOSES rung 1's "why these four?" and REFUTES the 2-point-route rival.
-RUNG 2 STOPPED under its own miss rule on two thresholds, both mine, nothing retuned or re-run:
-(i) P4(c) ">= 3 m/s" named no clock (wall 1.87-2.60, SIM 7.05-9.80 vs rung 1's 9.81-10.05);
-(ii) P2(b) "at least double" on offset-route LINE counts came in 1.95x/1.40x un-normalised for
-sim time (7.3x per sim-second). Hence the THRESHOLD RULE in the FFRTC block.
-STILL OPEN: the NATIVE completion-status item (NEXT row 2). Rung 1 finding A (a VACUOUS entity
+bridge stays A7504441. RUNG 2 STOPPED under its own miss rule on two thresholds, both mine,
+nothing retuned or re-run - see its sec 7; hence the THRESHOLD RULE in the FFRTC block.
+STILL OPEN: the NATIVE completion-status item (NEXT row 3). Rung 1 finding A (a VACUOUS entity
 TASKCMPLT that falsely released T24) DID NOT REPRODUCE - T23 marched 5.94 km, rung 2 had ZERO
 TASKCMPLT - so the OCCASION is gone but THE NATIVE GAP IS UNTESTED AND STANDS.
 OTHER RUNG-1 FINDINGS, unfixed: (B) 26 echelon-'F' units land the GENERIC Ground_Aggregate
@@ -119,23 +114,24 @@ UNEXPLAINED from rung 2: (1) 55 objects report the (90,-90,0) pole for their who
 ABSENT from rung 1 - plausibly the extra route objects, unproven; (2) cast-corrupted reflections
 28 -> 58 objects; (3) T27/T35 lateral ~400 m against 1-72 m for every other performer.
 
-## OPERATIONAL STATE (2026-09-02, after COA-STP1 RUNG 2)
-VR-FORCES DOWN (StopVrf exit 0, "graceful quit; no process was force-killed"); post-run ResetVrf
-sweep on 3758 joined clean, 0 reflected, exit 0.
-appNo marker NEXT FREE = 3759 (docs/OPUS_EXECUTION_PLAN.md Appendix B, runner-managed, CRLF).
-Rung 2 consumed 3750-3756 (3756 unconsumed) + 3758; **3757 IS BURNED** - ResetVrf invoked without
-the documented launch environment (RUNBOOK :1206-1213 requires cwd = C:\MAK\vrforces5.0.2\bin64
-plus the VR-Forces/VR-Link/makRti bin PATH prefix) and failed before joining. READ :1206-1213
-BEFORE RUNNING ResetVrf.
-DEPLOYED APP (the fix): src\VrfC2SimApp\bin\Release\net10.0\win-x64\VrfC2SimApp.dll SHA-256
-3b7b8d2e...c60cea0 (2026-09-02 11:30), re-verified after rung 2. The runner starts the app from
-that path (RunC2SimScenario.ps1:382) - building IS deploying for the APP; only the BRIDGE has a
-10-copy deploy step. Deployed bridge = A7504441 (10/10, Ijwhost 38255036; backups
+## OPERATIONAL STATE (2026-09-02, after the MERGED-BUILD CONTROL run)
+VR-FORCES DOWN (StopVrf exit 0, graceful, RTI preserved); post-run ResetVrf sweep on 3766 joined
+clean, 0 reflected, exit 0.
+appNo marker NEXT FREE = 3767 (docs/OPUS_EXECUTION_PLAN.md Appendix B, runner-managed, CRLF).
+Merged-build control consumed 3759-3765 (3765 unconsumed) + 3766. Rung 2 consumed 3750-3756 +
+3758; **3757 IS BURNED** - ResetVrf invoked without the documented launch environment (RUNBOOK
+:1208-1215 requires cwd = C:\MAK\vrforces5.0.2\bin64 plus the VR-Forces/VR-Link/makRti bin PATH
+prefix AND Machine-scope MAKLMGRD_LICENSE_FILE) and failed before joining. READ :1208-1215
+BEFORE RUNNING ResetVrf - the 2026-09-02 18:18 sweep used it and exited 0.
+DEPLOYED APP: src\VrfC2SimApp\bin\Release\net10.0\win-x64\VrfC2SimApp.dll SHA-256
+**570619630015...ACEB52A6** (2026-09-02 14:02:48) - the MERGED build (3c5af9a), GATED by run
+20260902T181203Z (PREREG_MERGED_BUILD_CONTROL sec 7). The runner starts the app from that path
+(RunC2SimScenario.ps1:382) - building IS deploying for the APP; only the BRIDGE has a 10-copy
+deploy step. Deployed bridge = A7504441 (10/10, Ijwhost 38255036; backups
 bak-20260902-a48abe6c/ and bak-20260902-28e993fe/).
 CLIENTID TRAP: the DEPLOYED (gitignored) bin\...\appsettings.json Vrf:ClientId must MATCH the
 init's SystemName or the runner ABORTS at validation, exit 2 (RunC2SimScenario.ps1:1154-1165).
-R9 inits declare STP; COA-STP1 declares C2SIM. It is back at "STP". Edit the DEPLOYED copy only -
-never the tracked src/ file.
+R9 inits declare STP; COA-STP1 declares C2SIM. It is at "STP". Edit the DEPLOYED copy only.
 RTI RESIDENT + ANSWERED: rtiAssistant 41336 / rtiexec 224608 / rtiForwarder 76620 - UNCHANGED
 across every 2026-09-02 run; still inventory fresh at session start, do not trust PIDs. C2SIM
 docker UP. Dump 70668 sits in bin64, no newer one (RUNBOOK 0.5.12:
@@ -145,30 +141,36 @@ renewal in process - verify the new .lic landed before running after that.
 CORRECTION 2026-09-02: THE VENDOR LOG'S WALL STAMPS ARE LOCAL TIME (-04:00), NOT UTC (ours UTC).
 
 ## NEXT (in order)
-1. COA-STP1 RUNG 2 - **DONE 2026-09-02** (run 20260902T165144Z, appNos 3750-3756; prereg b3792d1,
-   outcome PREREG_COASTP1_RUNG2_2026-09-02.md sec 7). All nine performers march; the freeze is
-   fixed at scale. Two registered thresholds MISSED (both mine, threshold-definition errors), so
-   the rung STOPPED under its own miss rule and the follow-on `-q` (doNotUseConsole) probe WAS
-   NOT RUN. That probe remains available, unregistered: Users Guide `-q | --doNotUseConsole`,
-   vrfSim.mtl:196-197/:205/:208, one variable added to $simBlock in scripts/LaunchVrf.ps1:343
-   behind a default-OFF runner switch, control = run 20260902T140808Z. ITS REAL RISK, to answer
-   FROM THE DOCS BEFORE LAUNCHING: does -q suppress the LOG FILE or only the console window? We
-   depend on that file for every creation and task line.
-2. NATIVE COMPLETION STATUS - forward DtTaskCompleteReport success()/taskId()/
+1. MERGED-BUILD CONTROL on R9 - **DONE 2026-09-02, GATE PASSED** (run 20260902T181203Z, appNos
+   3759-3765; prereg 0f75f29, outcome PREREG_MERGED_BUILD_CONTROL_2026-09-02.md sec 7). The
+   merged binary is behaviourally identical to 3b7b8d2e at default config: app logs diff to ZERO
+   HUNKS after normalisation, endpoints match to six decimals (0.00 m), 3/3 TASKCMPLT, `Can't
+   find entity route` 0, ZERO FidelityTable log forms, slope 9.77 in the R9 band. Every
+   2026-09-02 conclusion measured on the old binary stands on this one. -StopWhenComplete FIRED
+   live for the first time ($rxB fix confirmed), 4 min 36 s wall vs the control's 33 min 38 s.
+   ALSO the type-mapping live gate's RUN 1 (RealTemplates control); its RUN 0 passed 783 checks.
+2. `-q` (doNotUseConsole) PROBE AT SCALE - registered next. DOCS ANSWER, so the probe's stated
+   risk is CLOSED BEFORE LAUNCH: **-q does NOT suppress the log file**, only the console. Users
+   Guide Table 8 p.177 ("all vrfSim output go to the log file rather than the console"; a high
+   notify level + console "can degrade performance", quiet mode "prevents this degradation"),
+   sec 4.9 p.161 (on Windows vrfSim.log is created unconditionally), App. C.1 Table 71 p.1663.
+   We run notifyLevel 3 = verbose (5.4.3 p.185) and vrfSimHLA1516e.exe is CONSOLE-subsystem with
+   its own Start-Process window, so THE DOCS PREDICT A SPEED-UP.
+3. NATIVE COMPLETION STATUS - forward DtTaskCompleteReport success()/taskId()/
    taskTrackingNumber() through VrfFacade::TaskCompleted (rung block above). The only known
    remaining cause of a FALSE TASKCMPLT. Standing authorization: back up the DLLs, /t:Rebuild
    always, REDEPLOY ALL 10 COPIES, verify ONE hash. Rung 2 had ZERO TASKCMPLT, so this now stands
    on the source reading (VrfFacade.cpp:217-242) alone, which is enough.
-3. A COMPLETION-CAPABLE SCALE RUN. No COA-STP1 run has reached a route end: the shortest head
+4. A COMPLETION-CAPABLE SCALE RUN. No COA-STP1 run has reached a route end: the shortest head
    route is 24.11 km, the best progress ever 26.84 km in 2700 sim s. FFRTC makes this WORSE
    (0.2652). Pick the mode from the FFRTC block and budget wall = sim / ratio.
-4. TYPE_GAP ITEM 4 - the echelon-'F' -> generic Ground_Aggregate fallback needs a USER RULING
+5. TYPE_GAP ITEM 4 - the echelon-'F' -> generic Ground_Aggregate fallback needs a USER RULING
    (docs/TYPE_GAP_ADJUDICATION.md, Decision item 4). Pending; not a movement cause.
-5. MAK MESSAGE - docs/MAK_MESSAGE_2026-09-02.md is send-ready and THE USER SENDS IT.
+6. MAK MESSAGE - docs/MAK_MESSAGE_2026-09-02.md is send-ready and THE USER SENDS IT.
    *** ITS APPENDED DtUUID ROUTE-NAME-LENGTH DRAFT IS STALE AND MUST NOT BE SENT AS A DEFECT
    REPORT: the cause was OUR contract violation, not a vendor bug (rwUUID.h:246-253 documents it;
    fix 726f762). REWRITE OR DROP THAT SECTION. *** Vendor defects across the saga remains ZERO.
-6. BACKLOG unchanged: type adjudications (54 units - see the 5.2b checklist first), task
+7. BACKLOG unchanged: type adjudications (54 units - see the 5.2b checklist first), task
    vocabulary, completion re-keying, scoring (Phase 5).
 
 ## VR-FORCES 5.2b UPGRADE CHECKLIST (expected soon - user, 2026-09-01)
