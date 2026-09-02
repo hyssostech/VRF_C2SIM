@@ -195,4 +195,180 @@ has its own verdict.
 
 ## 6. Outcome (written from the run directory artifacts, after the run)
 
-TO BE COMPLETED AFTER THE RUN.
+VERDICT: THE FLIP TOOK. With NO env override of any kind, the app took the TerrainProfile
+path and reproduced Row 2cR: three requests sent, three three-sample replies
+character-for-character identical to Row 2cR, three routes with all 3 vertices authored from
+terrain + 10 m, ZERO warn: lines, 3/3 TASKCMPLT, endpoints and resting altitudes unchanged,
+back end alive, clean teardown. P1 MET, P2 MET (114.MechCoy in the TYPICAL sub-branch - no
+second excursion, so the Row 2cR residual is NOT reopened), P3 MET. No falsifier fired.
+Nothing was retuned, re-run, killed, or code-changed after launch.
+
+Run 20260902T113613Z_run, launched 2026-09-02 11:36:13.302Z from main at b2ceeb1 (this
+prereg registered at 4682063; the flip itself at 5b82e5f). `Get-ChildItem env:Vrf__*` was
+EMPTY (count 0) both before the runner started and after it finished, echoed into
+runs/20260902T113613Z_run/console-row3.log (its first three lines). appNos 3711-3717
+(vrfBackend 3711, vrfFrontend 3712, oraclePre 3713, oracleTrace 3714, app 3715, rtiProbe
+3716, createOneDiag 3717 - UNCONSUMED and BURNED, the oracle gate passed); ledger advanced
+3711 -> 3718 by the runner; marker line after the run reads `*** NEXT FREE: 3718 ***`
+(docs/OPUS_EXECUTION_PLAN.md:1603, still the only value-bearing marker); ledger file CRLF
+1897 / bare LF 0 / non-ASCII 0. Every stage exit code 0 (RtiProbe, LaunchVrf,
+WatchVrf-precheck, WatchVrf-trace, ListenReports, PushInit, VrfC2SimApp, PushOrder,
+StopIface, StopVrf). Wall 11:36:13.302Z -> 11:43:27.429Z = 434.1 s = 7 min 14 s (band was
+7 min 15 s +/- 45 s; Row 2cR 7 min 13 s, Row 1 7 min 15 s). validityFlags: the single
+advisory pre-init INFO only; console [WARN]/[FAIL] 0.
+
+P1 - THE DEFAULT PATH IS THE TERRAINPROFILE PATH - MET. Verbatim from vrfc2simapp.log
+   (lines 47/49/51, 53/55/57, 59/63/67):
+
+     Task 'T_R5_PL1': terrain profile request 7 sent for 3 vertices; dispatch deferred to the reply (timeout 10 s -> Live fallback).
+     Task 'T_R5_CO1': terrain profile request 8 sent for 3 vertices; dispatch deferred to the reply (timeout 10 s -> Live fallback).
+     Task 'T_R5_TK1': terrain profile request 9 sent for 3 vertices; dispatch deferred to the reply (timeout 10 s -> Live fallback).
+
+     Terrain profile reply 7: 3 sample(s) [#0:34.61296,-116.60049,1040.6 #1:34.61296,-116.59417,1033.9 #2:34.61296,-116.58786,1026.7].
+     Terrain profile reply 8: 3 sample(s) [#0:34.64763,-116.69339,1116.7 #1:34.65263,-116.69339,1116.8 #2:34.65763,-116.69339,1116.9].
+     Terrain profile reply 9: 3 sample(s) [#0:34.60842,-116.71269,1131.4 #1:34.60842,-116.70637,1126.3 #2:34.60842,-116.70006,1121.1].
+
+     Terrain profile 7 for task 'T_R5_PL1': all 3 vertices authored from terrain + 10 m clearance; alts [1050.6, 1043.9, 1036.7].
+     Terrain profile 8 for task 'T_R5_CO1': all 3 vertices authored from terrain + 10 m clearance; alts [1126.7, 1126.8, 1126.9].
+     Terrain profile 9 for task 'T_R5_TK1': all 3 vertices authored from terrain + 10 m clearance; alts [1141.4, 1136.3, 1131.1].
+
+   The six reply and authoring lines are CHARACTER-FOR-CHARACTER the lines Row 2cR sec 6
+   quotes - a third consecutive identical terrain query. N = 3 on all three replies, indices
+   {0,1,2} distinct, no `#k:none`. ZERO :807 Partial/Fallback, ZERO :1480 timeout, ZERO :793
+   "request not sent", ZERO :1453 partial-series, ZERO :810 Note, and ZERO `warn:` lines in
+   the whole app log.
+   PREREG DEFECT, recorded rather than quietly absorbed: sec 4 P1 (a) quoted the :813 template
+   as "...dispatch deferred until the reply or the timeout." The actual template
+   (VrfC2SimService.cs:813) reads "...dispatch deferred to the reply (timeout 10 s -> Live
+   fallback)." The prediction's SUBSTANCE - exactly three :813 lines, ids 7/8/9, "sent for 3
+   vertices" each - is met exactly; the transcription of the template text into the prereg was
+   wrong. Nothing was adjusted after the fact: the quoted line above is the log's, not the
+   prereg's.
+   WHY THIS IS ATTRIBUTABLE TO THE COMPILED DEFAULT AND NOTHING ELSE (the adversarial pass,
+   because a false positive here is as bad as a false negative):
+     - `Get-ChildItem env:Vrf__*` count 0 before AND after, in the console log. No override.
+     - The deployed appsettings.json NEXT TO THE RUNNING EXE
+       (src/VrfC2SimApp/bin/Release/net10.0/win-x64/appsettings.json, which is exactly what
+       the runner's `--contentRoot` points at - see the VrfC2SimApp commandLine in
+       run-manifest.json) has a `Vrf` section with NO GroundWaypointAltitudeMode key. Read
+       before launch.
+     - The runner injects exactly ONE Vrf__ variable into the child, Vrf__ApplicationNumber
+       (manifest note on the VrfC2SimApp stage), which is not the mode.
+     - A STALE binary is excluded in the same breath: a pre-flip VrfC2SimApp carries "Live"
+       and would have produced ZERO terrain lines. Terrain lines exist, so the settings object
+       the app loaded said "TerrainProfile", and the only remaining source for that string is
+       VrfSettings.cs:175 as compiled in 5b82e5f. VrfC2SimApp.dll 2026-09-02 07:31:11 local,
+       newer than the VrfSettings.cs edit at 07:28:43.
+
+P2 - MOVEMENT IS UNCHANGED - MET. Offsets of the TASKCMPLT report receipts
+   (reports-captured.log `[hh:mm:ss.fff]` stamps, attributed by the block's own
+   <ReportingEntity>) from clocks.orderPushedUtc 2026-09-02T11:38:37.739Z:
+     1.BdeHQ      (task ...0003, entity 670cfdb2) receipt 11:40:35.214 -> +117.47 s
+                  Row 1 +117.3, Row 2cR +117.45, Row 2c +117.5. Delta vs Row 1 +0.17. OK
+     1222.MechPlt (task ...0001, entity 001aa71b) receipt 11:40:47.368 -> +129.63 s
+                  Row 1 +129.2, Row 2cR +129.67, Row 2c +129.6. Delta vs Row 1 +0.43. OK
+     114.MechCoy  (task ...0002, entity 139aa71b) receipt 11:41:40.074 -> +182.34 s
+                  INSIDE the TYPICAL sub-band [178.8, 188.8]; 10.8 s below the excursion
+                  sub-band [193, 203]. The Row 2cR residual is NOT reopened: this is a third
+                  run on terrain-authored waypoints and it drew a Live-era value, which moves
+                  the evidence further AWAY from a rare altitude-triggered effect rather than
+                  toward it. It is also the lowest terrain-mode draw so far and the second
+                  lowest of all nine 1x runs.
+   Corroborated by the trace, and the two measures move together, so this is arrival and not
+   report lag - trace plateau onset (first POS within 1 m of that entity's final POS):
+     1.BdeHQ      147.9 s  (Row 2cR 147.9, Row 1 148.0, Row 2c 148.0) - identical
+     1222.MechPlt 160.1 s  (Row 2cR 160.1, Row 1 160.1, Row 2c 162.3) - identical
+     114.MechCoy  215.3 s  (Row 2cR 219.2, Row 1 219.2, Row 2c 233.3) - 3.9 s EARLIER than
+                  Row 2cR, in the same direction and of the same order as its report offset
+                  (2.7 s earlier). Trace TSK completionT 210.4 (Row 2cR 213.2, Row 1 212.0,
+                  Row 2c 226.4).
+   Endpoints from the trace final POS (t=278.5): 1.BdeHQ 34.608416,-116.699994 alt 1121.1;
+   114.MechCoy 34.653915,-116.693388 alt 1116.8; 1222.MechPlt 34.612956,-116.587783 alt
+   1026.6 - identical to Row 2c to all six decimals and within 0.18 m of Row 2cR (whose
+   1.BdeHQ longitude read -116.699996). Resting altitudes unchanged. POS==RPT 0.0 / 0.0 /
+   0.0 m, satisfied x3, reason "post-completion RPT agrees with POS". 3 TASKCMPLT in
+   vrfc2simapp.log and 3 in reports-captured.log.
+
+   114.MechCoy COMPLETION OFFSET ACROSS EVERY RUN IN runs/ THAT PUSHED THIS ORDER AND GOT A
+   TASKCMPLT FOR TASKEE 139aa71b-75df-4888-4a5a-6056bae66242 - Row 2cR sec 6's table with
+   this run appended. Offset = the report-receipt stamp in reports-captured.log minus
+   clocks.orderPushedUtc from that run's own manifest; traceTSK = the same run's
+   oracle.earlyExit.reportEvidence completionT:
+
+     run                    offset_s  traceTSK  timeMult  mode            bridge     note
+     20260901T203702Z_run    178.2     n/r        1       Live            A48ABE6C   R9 baseline
+     20260901T211310Z_run    184.6     n/r        1       Live            A48ABE6C   P2c endpoint record
+     20260901T230326Z_run     37.0     n/r        5       Live            A48ABE6C   5x multiplier - NOT comparable
+     20260901T235823Z_run    183.7     n/r        1       Live            A48ABE6C   CONFIRM1
+     20260902T003710Z_run    182.1    210.3       1       Live            A48ABE6C   CONFIRM2
+     20260902T010704Z_run    183.8    212.0       1       Live            28E993FE   ROW 1 control
+     20260902T101431Z_run    185.2    214.1       1       TerrainProfile  28E993FE   ROW 2R (Partial - Live alts used)
+     20260902T104832Z_run    198.1    226.4       1       TerrainProfile  A7504441   ROW 2c
+     20260902T111116Z_run    185.0    213.2       1       TerrainProfile  A7504441   ROW 2cR
+     20260902T113613Z_run    182.3    210.4       1       TerrainProfile  A7504441   ROW 3 (this run - mode from the
+                                                                                     COMPILED DEFAULT, no env override)
+
+     Exclusions unchanged from Row 2cR sec 6 (20260902T011908Z_run has no TASKCMPLT for this
+     taskee; the freeze-era and pre-fix runs have none either; the 5x run is not like-for-like).
+     STATISTICS over the nine comparable 1x runs: min 178.2, max 198.1, range 19.9 s - the
+     range is UNCHANGED by this run, which landed inside it. Over the eight excluding Row 2c:
+     178.2 to 185.2, range 7.0 s - also unchanged; 182.3 sits mid-band. Terrain-authored
+     waypoints have now produced 198.1 / 185.0 / 182.3 against Live-style 178.2 / 184.6 /
+     183.7 / 182.1 / 183.8 / 185.2: the two sets now overlap on both sides, which is a
+     stronger position for H-V than n=2 gave. THE BAND TO USE GOING FORWARD is unchanged
+     (~185 +/- 10 s at 1x, with a demonstrated excursion to ~198), and so is the rule requiring
+     n>=2 before calling any shift on this taskee an effect.
+
+P3 - THE BACK END SURVIVES AND TEARDOWN IS CLEAN - MET. Back end alive the whole run:
+   bin64-vrfSim.log 10,600 lines, 5,880 of them stamped 07:38 local or later, i.e. at or after
+   the order push at 07:38:37 local (11:38:37.739Z); last line "Exception in
+   destroyFederationExecution: Federation Execution Already Exists.[Wed Sep  2 07:43:23 2026]"
+   - the normal teardown tail; 0 lines matching FATAL. NO new .dmp in
+   C:\MAK\vrforces5.0.2\bin64: the newest is still the ROW2R-era
+   vrfSim5.0.2-MSVC++15.0_64-249613-70668.dmp, 598,441 B, 2026-09-02 06:00:18 local.
+   AnswerCrashDumpDialog.ps1 was never needed and never run; the post-run process sweep found
+   no vrfSim* at all. Runner exit 0; StopVrf exit 0 with "VR-Forces is DOWN (graceful quit; no
+   process was force-killed)."; post-run Get-Process shows exactly rtiAssistant 41336 /
+   rtiexec 224608 / rtiForwarder 76620 and nothing else of ours - RTI PIDs unchanged and
+   explicitly reported preserved by StopVrf. Both observers took the stop-file path: trace
+   "# STOP requested via stop-file at t=310.3s" -> "[OK] resigned cleanly."; ListenReports
+   "stop requested via stop-file at t=313.4s ... - disconnecting", "captured 30 reports".
+   Three "CreateRoute ... (3 pts)" + three "MoveAlongRoute issued". earlyExit.fired true;
+   allCompleteUtc 11:41:43.798Z, closedUtc 11:42:48.411Z -> 64.6 s (band [60, 90]);
+   windowSecsUsed 220.3 of the 420 cap (Row 2cR 220.5); completionLinesSeen 3.
+   Censuses: bin64-vrfSim.log "Waiting for nav data" 0 / "empty route" 0 / "Can't find entity
+   route" 0 / "invalid formation name" 1 (baseline) = 0/0/0/1, SocketException 0, and ZERO
+   lines matching IfRequest / TerrainProfile / terrain profile / IntersectionInformation (the
+   back end still logs nothing about the request at notify level 3 - unchanged from ROW2R,
+   Row 2c and Row 2cR). App log: 3 `fail:` (the C2SIMSDK deserialize noise), 3 "Can't create
+   data of type", 0 Exception, 0 `warn:` - identical to every prior row's census. Six
+   "Create-altitude mode=Live" create lines, as pre-stated: the template at
+   VrfC2SimService.cs:439 is hard-coded for the whole live-like family and is NOT a mode
+   readout.
+
+FALSIFIER BRANCH TAKEN: none. F1, F2, F3, F4, F5 all silent.
+
+ADJUDICATION (verified vs. inferred):
+- VERIFIED: the compiled default now carries the mode. Terrain requests were issued, answered
+  and applied on a run whose environment contained no Vrf__ override and whose deployed
+  appsettings.json contains no mode pin. The competing hypothesis - that some OTHER
+  configuration source supplied "TerrainProfile" - was checked against all three candidate
+  sources (env, deployed appsettings, runner-injected env) and each was read directly rather
+  than assumed. The reverse competing hypothesis - a stale bin still running "Live" - is
+  falsified by the terrain lines themselves, which that binary cannot emit.
+- VERIFIED: the flip costs nothing. Three requests, three complete three-sample replies,
+  three fully authored routes, zero warnings; movement, endpoints, resting altitudes,
+  POS==RPT, settle, early exit, back-end liveness and every hygiene census are Row 2cR's.
+- VERIFIED: the terrain query is deterministic across three consecutive runs on this data
+  (Row 2c, Row 2cR, Row 3 - the reply and authoring lines are character-identical).
+- VERIFIED, strengthening a prior ruling without reopening it: 114.MechCoy's third
+  terrain-authored draw is 182.3 s, below every Live-era draw except the R9 baseline. The
+  Row 2cR residual named the reopening falsifier as "further TerrainProfile runs drawing
+  ~198 s while Live runs stay at or below ~185 s"; this run is the opposite observation, so
+  the H-V ruling stands and the residual narrows.
+- NOT CLAIMED: that the default is right for every deployment. This run shows the default is
+  reachable and safe on THIS data at THIS site. A back end that cannot answer the terrain
+  query still falls back to Live per vertex with a WARN (design sec 3.3), and that path has
+  been exercised live exactly once, in ROW 2 (the crashed run) - it is untested on a healthy
+  back end and stays a known gap.
+- NOT CLAIMED: anything about Fixed100. It was not exercised in this run and is unchanged.

@@ -537,6 +537,31 @@ zero terrain request lines, which would mean the deployed bin did not pick the n
 up (a stale binary, or an appsettings/env override) - appsettings.json carries no `Vrf:`
 mode pin, which is what makes the code default the effective one.
 
+ROW 3 RESULT - THE DEFAULT FLIP IS LIVE-CONFIRMED (2026-09-02, run 20260902T113613Z, appNos
+3711-3717, bridge A7504441 unchanged and NOT rebuilt, main at b2ceeb1): the app took the
+TerrainProfile path with NO environment override at all. `Get-ChildItem env:Vrf__*` was count
+0 both before and after the runner (echoed into runs/20260902T113613Z_run/console-row3.log),
+the deployed appsettings.json beside the running exe carries no mode pin, and the runner
+injects only Vrf__ApplicationNumber - so the mode came from VrfSettings.cs:175 as compiled in
+5b82e5f and from nowhere else. A stale binary is excluded by the same evidence: a pre-flip
+build carries "Live" and cannot emit a terrain line at all, which is precisely why F1 (zero
+terrain lines) was the falsifier that mattered. All three predictions MET, no falsifier fired.
+The terrain query was character-for-character Row 2cR's for the third consecutive run - three
+":813 request sent for 3 vertices" (ids 7/8/9), three ":1466 3 sample(s)" replies, three
+":802 all 3 vertices authored ... alts [1050.6, 1043.9, 1036.7] / [1126.7, 1126.8, 1126.9] /
+[1141.4, 1136.3, 1131.1]", zero `warn:` lines. Movement is Row 1's: 3/3 TASKCMPLT at +117.47
+(1.BdeHQ) / +129.63 (1222.MechPlt) / +182.34 s (114.MechCoy), plateau onsets 147.9 / 160.1 /
+215.3, endpoints identical to Row 2c to six decimals, POS==RPT 0.0 x3, satisfied x3, early
+exit 64.6 s, wall 7 min 14 s, every stage exit 0, back end alive (10,600 log lines, 5,880
+after the order push), no dump, RTI PIDs 41336/224608/76620 unchanged. 114.MechCoy's 182.3 s
+is a THIRD terrain-authored draw and it landed BELOW every Live-era draw but the R9 baseline,
+which is the opposite of the observation Row 2cR named as the falsifier that would reopen
+H-ALT; the H-V ruling therefore stands and that residual narrows. Full record:
+docs/experiments/PREREG_TERRAIN_ROW3_DEFAULT_2026-09-02.md sec 6, which also records one
+prereg defect (the :813 template text was mis-transcribed into the prediction; the
+prediction's substance was met and the log's own wording is quoted in the outcome) and the
+remaining known gap (the per-vertex Live fallback path has never run on a healthy back end).
+
 ## 8. Gate results (2026-09-01, offline, worktree only)
 First revision (commit 6539036): VrfBridge /t:Rebuild exit 0 / 0 warnings; dotnet build 0
 errors; 7 self-tests exit 0 (terrain: 21 checks); ASCII clean vs a dirty control.
