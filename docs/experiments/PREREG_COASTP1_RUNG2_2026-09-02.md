@@ -492,7 +492,7 @@ are the polyline's vertex-0 definition, and they are the same in both columns.
 
 ### P0 - RUN IDENTITY. PASS on all three clauses.
 
-(a) NEW route log form: **9**. OLD form: **0**. The sec-5A VOID condition did not arise; this
+(a) NEW route log form: **9**. OLD form: **0**. The sec-6A/P0 VOID condition did not arise; this
     is the fixed binary. Verbatim, vrfc2simapp.log:
       `Route 'T23_AOA_SE_1-1_RECON/2/1_AD_P1 ROUTE'
       (VRF_UUID:6a4ccfb2-38d0-c845-96c3-339981284607) created; MoveAlongRoute issued for
