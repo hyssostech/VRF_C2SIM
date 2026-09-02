@@ -366,6 +366,40 @@ Check 'runner: $missing wraps the PROPERTY, not the call - @( (Test-EarlyExit ..
     @($missAssign).Count -eq 1 -and $missAssign[0].Right.Extent.Text -match '^@\(\s*\(Test-EarlyExit.*\)\.Missing\s*\)$') (
     ($missAssign | ForEach-Object { $_.Right.Extent.Text }) -join ' | ')
 
+# 9. Get-VrfUuidByName must parse BOTH app-log route-line forms. The app started
+# logging the route's own uuid on 2026-09-02 with the route-uuid fix ("Route '<r>'
+# (VRF_UUID:<route>) created; ..."); every run in the record before that logs the
+# line without it. Run 20260902T153837Z proved the cost of missing one: the report-
+# evidence gate reported "marking -> VRF_UUID unknown (no route line in the app log)"
+# for all three taskees against a healthy 3/3 app log and the window ran to its cap.
+Write-Host '=== 9. marking -> VRF_UUID mapping parses both app-log route-line forms ==='
+$logOld = @"
+      Task 'T_R5_CO1': CreateRoute 'T_R5_CO1 ROUTE' (3 pts) for 114.MechCoy; move deferred to route-created.
+      Route 'T_R5_CO1 ROUTE' created; MoveAlongRoute issued for VRF_UUID:740c72ac-8f58-7e4c-9720-8791e818910f.
+"@
+$logNew = @"
+      Task 'T_R5_CO1_NAMELEN_PROBE_PADDING_TO_38CH': CreateRoute 'T_R5_CO1_NAMELEN_PROBE_PADDING_TO_38CH ROUTE' (3 pts) for 114.MechCoy; move deferred to route-created.
+      Route 'T_R5_CO1_NAMELEN_PROBE_PADDING_TO_38CH ROUTE' (VRF_UUID:6ff952a3-1075-e846-8baf-5b722d23daf6) created; MoveAlongRoute issued for VRF_UUID:d4ee70b3-38c2-3a4e-9b79-387f87ad22a0.
+"@
+$logPatrol = @"
+      Task 'T_SCR1': CreateRoute 'T_SCR1 ROUTE' (3 pts) for 1222.MechPlt; patrol deferred to route-created.
+      Route 'T_SCR1 ROUTE' (VRF_UUID:598ee64f-b8c5-bc4b-a322-6a528ad5403e) created; PatrolRoute issued for VRF_UUID:7be55c4f-0cf5-e343-8c5a-0bc9cc550d0a (Reconnoiter).
+"@
+$mapOld    = Get-VrfUuidByName -AppLogText $logOld
+$mapNew    = Get-VrfUuidByName -AppLogText $logNew
+$mapPatrol = Get-VrfUuidByName -AppLogText $logPatrol
+Check 'OLD form (pre-2026-09-02 record) still maps 114.MechCoy' (
+    $mapOld.Contains('114.MechCoy') -and $mapOld['114.MechCoy'] -eq 'VRF_UUID:740c72ac-8f58-7e4c-9720-8791e818910f') ("got " + ($mapOld.Keys -join ','))
+Check 'NEW form with the route uuid maps 114.MechCoy to the TASKEE uuid, not the route uuid' (
+    $mapNew.Contains('114.MechCoy') -and $mapNew['114.MechCoy'] -eq 'VRF_UUID:d4ee70b3-38c2-3a4e-9b79-387f87ad22a0') ("got " + ($mapNew.Values -join ','))
+Check 'NEW form, PatrolRoute variant maps too' (
+    $mapPatrol.Contains('1222.MechPlt') -and $mapPatrol['1222.MechPlt'] -eq 'VRF_UUID:7be55c4f-0cf5-e343-8c5a-0bc9cc550d0a') ("got " + ($mapPatrol.Values -join ','))
+Check 'the app log of run 20260902T153837Z maps all three taskees (the live regression)' (
+    $(if (Test-Path (Join-Path $RepoRoot 'runs\20260902T153837Z_run\vrfc2simapp.log')) {
+        $m = Get-VrfUuidByName -AppLogText (Get-Content -LiteralPath (Join-Path $RepoRoot 'runs\20260902T153837Z_run\vrfc2simapp.log') -Raw)
+        @('114.MechCoy','1222.MechPlt','1.BdeHQ' | Where-Object { $m.Contains($_) }).Count -eq 3
+    } else { $true }))
+
 Write-Host ''
 Write-Host ('{0} passed, {1} failed' -f $script:Pass, $script:Fail)
 if ($script:Fail -gt 0) { exit 1 }

@@ -220,8 +220,14 @@ function Test-EarlyExit {
 # VRF_UUID. The taskee (C2SIM UUID) maps to its marking through the init
 # (Get-InitUnitNames) and the marking to its VRF_UUID through the app log's route
 # lines (Get-VrfUuidByName: "Task '<t>': CreateRoute '<r>' ... for <name>" joined
-# with "Route '<r>' created; MoveAlongRoute|PatrolRoute issued for VRF_UUID:<u>",
-# VrfC2SimService.cs:1102/1123). A taskee that can not be mapped (a task type that
+# with "Route '<r>' [(VRF_UUID:<route>)] created; MoveAlongRoute|PatrolRoute issued
+# for VRF_UUID:<u>", VrfC2SimService.cs:1102/1123). The route-uuid parenthetical is
+# OPTIONAL in the regex: the app started logging it on 2026-09-02 with the route-uuid
+# fix, and every run in the record before that logs the line without it, so both
+# forms must parse (run 20260902T153837Z hit this - the gate reported "marking ->
+# VRF_UUID unknown (no route line in the app log)" for all three taskees against a
+# perfectly healthy 3/3 app log, and the window ran to its cap). A taskee that can
+# not be mapped (a task type that
 # logs no route line, a missing TSK, a unit without a Name) is NOT satisfied, so
 # the window runs to its RunSecs cap - the safe direction, and the reason is
 # recorded per taskee.
@@ -250,7 +256,9 @@ function Get-VrfUuidByName {
     if ([string]::IsNullOrWhiteSpace($AppLogText)) { return $map }
     $routeToName = @{}
     $rxA = [regex]"Task '(?<task>[^']*)': CreateRoute '(?<route>[^']*)' \(\d+ pts\) for (?<name>.+?); "
-    $rxB = [regex]"Route '(?<route>[^']*)' created; (?:MoveAlongRoute|PatrolRoute) issued for (?<vrf>VRF_UUID:[0-9a-fA-F-]{36})"
+    # The " (VRF_UUID:<route>)" parenthetical is OPTIONAL - new app builds log it, every
+    # run in the record before 2026-09-02 does not. Both must parse.
+    $rxB = [regex]"Route '(?<route>[^']*)'(?: \(VRF_UUID:[0-9a-fA-F-]{36}\))? created; (?:MoveAlongRoute|PatrolRoute) issued for (?<vrf>VRF_UUID:[0-9a-fA-F-]{36})"
     foreach ($line in ($AppLogText -split "`r?`n")) {
         $a = $rxA.Match($line)
         if ($a.Success) { $routeToName[$a.Groups['route'].Value] = $a.Groups['name'].Value; continue }

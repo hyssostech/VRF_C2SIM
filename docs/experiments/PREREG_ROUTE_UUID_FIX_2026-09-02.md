@@ -286,7 +286,207 @@ here so a pass is not over-read into them.
 
 ## 6. OUTCOME (written from the run directory artifacts, AFTER the run)
 
-PENDING - to be written after the run.
+VERDICT: **THE ROUTE-UUID FIX REPAIRS THE AGGREGATE FREEZE.** The SAME 44-character route
+name that froze 114.MechCoy stone dead for thirty minutes four hours earlier now marches it
+698.97 m to the SAME COORDINATE the short-name control reached, to six decimals. P1 PASS on
+all three sub-clauses. P2 PASS on all three. P3 PASS - the freeze diagnostic went from 67,590
+occurrences to ZERO. P4 PASS on both criteria, with a rich sample this time. P5 MIXED - runner
+EXIT=0 and every hygiene item clean, but `-StopWhenComplete` did NOT fire, because my own log
+change broke the runner's marking->uuid parser. NO PREDICTION FALSIFIER FIRED.
+
+RUN: `runs/20260902T153837Z_run`, launched 2026-09-02T15:38:37.705Z, order pushed
+15:41:00.762Z, window closed 16:11:36.147Z at its 1800 s cap (1805.0 s used), runner finished
+16:12:15.478Z - 33 min 38 s wall, all of it the cap the P5 defect forced. appNumbers 3742-3748
+(marker 3742 -> 3749 by the runner, -> 3750 by the post-run ResetVrf sweep on 3749).
+`env:Vrf__*` count 0 BEFORE and AFTER. bin64-vrfSim.log 167,011 lines; vrfc2simapp.log 103
+lines - EXACTLY the short-name control's 103, against the frozen run's 99.
+
+REGISTRATION COMMIT (sections 0-5B, before launch): 726f762, hash stamped in fb6b54e.
+
+### P1 - THE MECHANISM. PASS on all three sub-clauses.
+
+(a) PREDICTED zero occurrences of the 35-character cut form. OBSERVED **0** in 167,011 lines
+    (CONTROL-A: exactly 1, at its :6335). The company's move-along task line is now:
+
+        bin64-vrfSim.log:5821  114.MechCoy: [Wed Sep  2 11:41:01 2026] ...Task 0 name and
+          parameters: Move-Along Route: "T_R5_CO1_NAMELEN_PROBE_PADDING_TO_38CH ROUTE"
+
+    The FULL 44 characters, intact, closing quote and all. P1(a) registered either the
+    VRF_UUID form or the resolved full name as a pass; the back end took the second branch -
+    given a VALID uuid it resolves the object and prints its real name. That is the cleanest
+    possible result: the name survives END TO END, and it survives BECAUSE we stopped asking
+    the name to be the lookup key.
+(b) PREDICTED >= 4 distinct `114.MechCoy_R<k>` sub-routes. OBSERVED **30 occurrences, 4
+    distinct - R0, R1, R2, R3** (CONTROL-B 29 / 4 distinct; CONTROL-A **0**), created and
+    tasked at :10737 (R2), :10739 (R1), :10741 (R3), :10744 (R0). `Offset Route (VRF_UUID`
+    creations 11, against CONTROL-B's 8 and CONTROL-A's 4 (the platoon's alone) - the
+    company's sub-units are back, and then some. `'s Offset Route` 70 / 67 / 13.
+    `Move-Along Route:` lines 8 / 8 / 4 - identical to the short-name control.
+(c) OUR SIDE, and the binary-identity check. vrfc2simapp.log:73 reads
+
+        Route 'T_R5_CO1_NAMELEN_PROBE_PADDING_TO_38CH ROUTE'
+        (VRF_UUID:6ff952a3-1075-e846-8baf-5b722d23daf6) created; MoveAlongRoute issued for
+        VRF_UUID:d4ee70b3-38c2-3a4e-9b79-387f87ad22a0.
+
+    - the NEW format, carrying the route's own uuid, which no prior binary could emit. The
+    run is therefore adjudicable (the sec-5A VOID condition did not arise). All three route
+    lines (:71, :73, :75) show it.
+
+### P2 - THE BEHAVIOUR. PASS on all three.
+
+(a) **3/3 TASKCMPLT** in vrfc2simapp.log and 3 TSK records in the trace - 1.BdeHQ t=46.6,
+    1222.MechPlt t=48.4, **114.MechCoy t=55.1** - the same completion ORDER taskee for taskee
+    as CONTROL-B (40.8 / 42.2 / 48.2), shifted ~6 s later. CONTROL-A had 2 and no company.
+    The four-line company completion block (`VRF task complete: 114.MechCoy / move-along` +
+    its TASKCMPLT, taskee 139aa71b, task a5000000-...-0002) - the exact block whose ABSENCE
+    was the name-length probe's strongest single piece of evidence - is back, which is why
+    this app log is 103 lines and that one was 99.
+(b)+(c) ALL THREE ENDPOINTS ARE THE CONTROL'S, TO THE CENTIMETRE:
+
+    | taskee | trace final | vs CONTROL-B endpoint | net displacement | CONTROL-A |
+    |---|---|---|---|---|
+    | 114.MechCoy | 34.653915,-116.693388 alt 1116.8 | **0.00 m** (dAlt 0.0) | **698.97 m** | 0.00 m, never left spawn |
+    | 1222.MechPlt | 34.612956,-116.587783 alt 1026.6 | **0.00 m** (dAlt 0.0) | 1162.60 m | 1162.60 m |
+    | 1.BdeHQ | 34.608416,-116.699993 alt 1121.1 | **0.00 m** (dAlt 0.0) | 1161.56 m | 1161.56 m |
+
+    Registered threshold was 1 m; the measurement is zero on all three. 905 POS samples each
+    over 1863 s, so the company is not merely observed arriving - it is observed PARKED there
+    for the remaining half hour. Cleanup deleted 9 objects, same as CONTROL-B.
+
+### P3 - THE FREEZE DIAGNOSTIC IS GONE. PASS, absolutely.
+
+`buildEntityRouteFollowingMap() : Can't find entity route`: **0 occurrences.**
+
+    THIS RUN  20260902T153837Z (44-char name, uuid-addressed):        0
+    CONTROL-A 20260902T143638Z (44-char name, name-addressed):   67,590
+    CONTROL-B 20260902T140808Z (14-char name, name-addressed):        0
+    RUNG 1    20260902T125423Z (four long names, name-addressed): 14,913
+
+The name-length probe attributed that line to a unit whose task route reference does not
+resolve. The reference resolves now, and the line is not emitted once. Same input, same
+44-character name; only the addressing changed. This is the single cleanest number in the
+run and it is exact, not approximate.
+
+### P4 - MODE CHECK. PASS on both criteria, on a much richer sample than the frozen run.
+
+`python tools/analysis/frame_gaps.py . 20260902T153837Z_run`:
+
+| statistic | THIS RUN | CONTROL-A frozen | CONTROL-B | threshold |
+|---|---|---|---|---|
+| lines / stamped / distinct sim stamps | 167011 / 404 / 86 | 250405 / 24 / 7 | 21832 / 401 / 85 | - |
+| TEST A in {0.033, 0.034} | 32/32 = 100.0% | 1/1 = 100.0% | 32/32 = 100.0% | >= 95% |
+| TEST B resultant length R | **0.9983** | 0.9977 | 0.9986 | >= 0.99 |
+| TEST B \|residual\| <= 0.0005 s | 83/86 = 96.5% | 6/7 = 85.7% | 85/85 = 100.0% | >= 95% |
+| TEST B residual sd | 0.00031 s | 0.00036 s | 0.00029 s | - |
+| LS slope sim-s per wall-s | 7.43 | 13.11 | 10.18 | - |
+
+F1 does not fire. The sample is 404 stamped / 86 distinct - back in CONTROL-B's class and far
+above CONTROL-A's thin 24 / 7, exactly as sec 5 P4 predicted it would be once three units move
+again. The slope fell from 13.11 to 7.43 sim-s per wall-s, which is the FFRTC prereg's
+documented load-dependence pointing the right way: a company that actually marches, with four
+sub-routes and their member entities, costs more per frame than one that sits still.
+
+### P5 - HYGIENE. Runner EXIT=0 and everything clean, EXCEPT a regression I introduced.
+
+PASS, and worth stating plainly: **runner EXIT=0**. The `@( (Test-EarlyExit ...).Missing )`
+fix was exercised LIVE on the branch that killed the last run, and this time with ZERO missing
+taskees - the case where the OLD code would have thrown on `$null.Count` just as surely as it
+threw on the scalar. The defect that ended run 20260902T143638Z with EXIT=5 is closed, live.
+
+THE MISS: **`-StopWhenComplete` never fired**, so the window ran its full 1800 s cap instead of
+closing ~60 s after the last completion. The console repeated, every 30 s for half an hour:
+
+    hold floor of 60s elapsed (...); report evidence still pending - 1222.MechPlt: marking ->
+    VRF_UUID unknown (no route line in the app log) | 114.MechCoy: ... | 1.BdeHQ: ...
+
+CAUSE, AND IT IS MINE. Condition (4) maps a taskee's marking to its VRF_UUID by parsing the
+app log's route lines (`Get-VrfUuidByName`, RunnerLib.ps1:249-268). Its `$rxB` matched
+`Route '<r>' created; ...` with nothing between the closing quote and `created`. My change
+inserted ` (VRF_UUID:<route>)` exactly there, so the regex missed all three taskees and the
+gate could never be satisfied - against a completely healthy 3/3 app log. Nothing else was
+affected: the completion count, the trace, the reports and the teardown are all independent of
+that parse, which is why every measurement above stands.
+
+FIXED, AND THE FIX IS PROVED AGAINST A REPRODUCED FAILURE: the parenthetical is now OPTIONAL
+in `$rxB`, so BOTH log forms parse - the new one and every run in the record before today.
+Verified directly that the OLD regex returns False on the new line and the NEW one returns
+True (a green that could not have come from a no-op). `tests/RunnerTurnaround.Tests.ps1` gains
+section 9, four checks: the old form still maps, the new form maps to the TASKEE uuid (not the
+route uuid), the PatrolRoute variant maps, and THIS RUN'S OWN app log maps all three taskees.
+Gate now **105 passed, 0 failed**. THE CODE CHANGE UNDER TEST IS UNAFFECTED - the repair is in
+the runner's reader, not in what the app does or logs.
+
+COST: half an hour of wall clock and nothing else. No evidence was lost or degraded; if
+anything the forced full window gave 905 POS samples per taskee instead of ~50, which is how
+we can say the company stayed parked rather than merely arrived.
+
+EVERYTHING ELSE CLEAN: every stage exit code 0 (RtiProbe, LaunchVrf, WatchVrf-precheck,
+WatchVrf-trace, ListenReports, PushInit, VrfC2SimApp, PushOrder, StopIface, StopVrf);
+`manifest.flags` EMPTY; VrfC2SimApp exited 0 on a clean resign; StopVrf EXIT=0, "VR-Forces is
+down (graceful; RTI infrastructure preserved)"; both observers exited 0 on the stop-file path
+and were never killed; RTI trio PIDs UNCHANGED and never touched (rtiAssistant 41336, rtiexec
+224608, rtiForwarder 76620); no new .dmp (newest is still
+vrfSim5.0.2-MSVC++15.0_64-249613-70668.dmp, 2026-09-02 06:00); the FFRTC fixture still hashes
+to D27E540F8BCC...B0B9, i.e. NOTHING was written under C:\MAK. Vendor-log censuses THIS /
+CONTROL-A / CONTROL-B: SocketException 0/0/0, "Waiting for nav data" 0/0/0, "moveAlong() -
+empty route" 0/0/0, "invalid formation name" 1/1/1 (the standing cosmetic baseline), FATAL
+0/0/0, "could not be setup" 0/0/0.
+POST-RUN SWEEP: `tools/ResetVrf 3749` - joined clean (BackendCount=0), discovered 0 reflected
+(0 deletable, 0 nil), resigned cleanly, exit 0. ZERO LEFTOVERS. Standing caveat (rung-1
+finding D): run AFTER StopVrf, it proves NO STALE FEDERATE and nothing about scenario contents.
+LEDGER: marker 3742 -> 3749 (7, by the runner) -> 3750 (1, hand-taken and ledgered BEFORE the
+join, for the sweep) - exactly 7 + 1 as predicted.
+
+### ADVERSARIAL REVIEW - what else could explain a marching company, and what killed it
+
+- "THE RUN JUST GOT LUCKY / THE COMPANY IS FLAKY." REFUTED by the frozen control's own
+  numbers. CONTROL-A is not a near miss: 900 samples, maximum excursion from the first sample
+  0.0 m, over thirty minutes, with 67,590 diagnostic lines saying the route could not be
+  found. This run: 698.97 m to the control coordinate, 0 diagnostic lines. That is not
+  variance; those are different mechanisms.
+- "SOMETHING ELSE CHANGED BETWEEN THE TWO RUNS." The order file is byte-identical (same path,
+  3919 bytes, mtime 10:29:56, task name still 38 chars); the init, scenario fixture (SHA-256
+  re-verified after the run), bridge DLL, settings and runner switches are the same; env
+  `Vrf__*` was 0 both times. The diff is one commit, and inside it four `e.Name` -> `e.Uuid`
+  substitutions. The runner/test/comment edits in that commit cannot reach the back end.
+- "THE BACK END PRINTS THE FULL NAME, SO MAYBE IT ALWAYS RECEIVED IT AND SOMETHING ELSE WAS
+  BROKEN." REFUTED by CONTROL-A's :6335, which printed 35 characters of the same name from the
+  same code path with the same object present at full length. The print follows the payload;
+  the payload changed because the argument changed.
+- "THE FIX MIGHT HAVE PERTURBED THE OTHER TWO TASKEES." REFUTED to 0.00 m on both, on all
+  three axes including altitude, against a control four hours old.
+- COMPETING HYPOTHESIS FOR THE P5 MISS, weighed and killed: "the report-evidence gate failed
+  because the taskees genuinely had no post-completion reports" - i.e. a real telemetry
+  problem, not a parse problem. REFUTED: the trace holds 484+ RPT records, the reason string
+  is specifically `marking -> VRF_UUID unknown (no route line in the app log)` (the mapping
+  step, before any report is even looked at), and running the FIXED parser over this run's own
+  app log maps all three taskees - which is now a test.
+
+STILL INFERRED, NOT PROVEN, and deliberately left that way: that `DtUUID::myData[36]`
+(rwUUID.h:412) is the specific buffer that did the cutting. This run removes the symptom by
+satisfying the documented contract at rwUUID.h:246-253; it still does not read the blob. That
+inference is unchanged from the name-length prereg and is not strengthened or weakened here.
+NOT EXERCISED, as sec 5B registered in advance: PatrolRoute and PlanAndMoveTo. Both call sites
+changed identically and by the same header argument, but this order contains no SCREEN/SCOUT
+verb and AggregatePlanAndMove is off, so neither ran. They are changed-by-argument, not
+verified-by-run, and must not be reported as verified.
+
+NOTHING ELSE IS UNEXPLAINED IN THIS RUN.
+
+### CONSEQUENCE
+
+The freeze is REPAIRED, and the repair is ours to own in both directions: the defect was a
+contract violation on our side of a documented vendor API, not a vendor defect. Vendor defects
+found across this whole saga remains ZERO.
+ROUTE NAMES STAY FULL LENGTH. The "cap the name at 34 characters" and "short synthetic route
+ids" candidates are WITHDRAWN, not deferred - they were workarounds for a bug that no longer
+exists, and they would have cost the human-readable task name in the object for nothing. The
+vendor's documented limit (255 characters, Users Guide sec 41.1 p.989) is now the only limit
+that applies, and this run demonstrates 44 working.
+STILL OPEN, untouched by this change: COA-STP1 at scale (rung 2 is now unblocked); the vacuous
+ENTITY completion that falsely released T24 in rung 1, whose fix is the queued NATIVE item
+(forward `DtTaskCompleteReport::success()` / `taskId()` / `taskTrackingNumber()` through
+VrfFacade::TaskCompleted); and the echelon-'F' generic-fallback type ruling.
 
 ## 7. REGISTRATION
 
