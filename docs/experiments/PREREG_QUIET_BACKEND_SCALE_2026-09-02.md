@@ -263,10 +263,208 @@ run's wall budget is still `sim / measured ratio`. It would NOT say anything abo
 (vrfGui keeps its console; `-q` is documented as back-end only, and Windows-only). It would NOT
 be a licence to change `vrfSim.mtl` - that still needs the user.
 
-## 7. OUTCOME
+## 7. OUTCOME - run 20260902T183135Z_run, appNos 3767-3773, adjudicated from run-directory artifacts
 
-(written after the run, from the run-directory artifacts only)
+### VERDICT - THE RUN ANSWERS BOTH QUESTIONS, AND IT **STOPS** UNDER SEC 6A
+
+**(1) THE DOCUMENTATION IS RIGHT: `-q` DOES NOT SUPPRESS `vrfSim.log`.** The vendor log came back
+**825,576 lines** (rung 2: 700,975) and, per SIM second, at **961.9 lines against rung 2's 966.2 -
+a 0.5% difference.** The file is written at the same rate; only its destination changed. The
+registered risk is closed on evidence.
+
+**(2) CONSOLE OUTPUT IS A REAL PER-FRAME COST: THE CLOCK ROSE FROM 0.2652 TO 0.3140 sim-s per
+WALL-s, +18.4%.** Both P2 clauses pass, and an INDEPENDENT instrument agrees: the sim-paced C2SIM
+report stream ran 1,793 reports against rung 2's 1,536, a ratio of **1.167** against the clock
+ratio **1.184** - two instruments, 1.5% apart.
+
+**AND THE RUN STOPS.** Two registered predictions MISSED, both traceable to ONE fact: **B/5-20
+(T35), one of the order's three Tank Companies, built ZERO internal sub-routes and STALLED after
+0.41 km**, where in rung 2 it built four and marched 2.85 km. P4 required >= 9 of 11 marchers and
+got **8**; P1(b) required `Move-Along Route:` >= 22 and got **18** - and the four missing entries
+are EXACTLY `B/5-20_R0..R3`. Under sec 6A a miss on P1 or P4 is a STOP: this is written up, nothing
+is retuned, nothing is re-run, and **`-q` is NOT adopted** on the strength of its own passing
+speed number. I CANNOT SAY FROM ONE RUN WHETHER `-q` CAUSED THE STALL - see the adversarial review.
+
+### RUN FACTS (all from the run directory)
+
+Run dir `runs/20260902T183135Z_run`. Order pushed 2026-09-02T18:34:18.812Z, observation window
+closed 19:19:52.295Z (**2,733.48 s** WALL against its 2,700 s cap plus trail - rung 2's was
+2,735.65 s, so the two wall windows are 2.2 s apart), manifest saved 19:20:32.037Z; **48 min 57 s**
+total wall (rung 2: 49 min 57 s). appNumbers 3767-3773; ledger `wasValue` 3767 -> `newValue` 3774,
+`advanced` true, taken BEFORE any join; 3773 (createOneDiag) UNCONSUMED, the stage-7 oracle gate
+having passed. `runnerExitCode` **0**, all ten stages exit 0. One `validityFlags` entry, severity
+INFO, the standing stock-TropicTortoise advisory. **`inputs.quietBackend` = `True`** in the
+manifest - the switch is recorded in the evidence, not just in the command line.
+`Get-ChildItem env:Vrf__*` = `Vrf__DeStackCreates=true` before, **0** after.
+
+DERIVED SIM WINDOWS, used for every rate below (THRESHOLD RULE - each names its clock):
+rung 2 = 2,735.65 wall s x 0.2652 = **725.5 SIM s**; this run = 2,733.48 x 0.3140 = **858.3 SIM s**.
+The same wall window bought **132.8 more sim seconds**.
+
+### P1 - THE LOG FILE SURVIVES `-q`. (a) PASS. (c) PASS. **(b) MISSED on one floor of four.**
+
+(a) PASS. `bin64-vrfSim.log` captured, **825,576 lines** (predicted > 100,000).
+(c) PASS, and it is the sharpest number in the run: **961.9 vendor-log lines per SIM second**
+    against rung 2's **966.2**, a 0.5% difference, well inside the registered [500, 1500]. The
+    band was wide because log composition varies; it did not need to be. The log is not thinned,
+    not truncated, and not rate-limited - `-q` moved it, exactly as Table 8 p.177 says.
+(b) **MISSED, and recorded as a miss rather than re-banded.** Three of four floors passed:
+    `Registered object` **3,683** (floor 3,000; rung 2: 3,727), `Created radio` **1,733** (floor
+    1,400; rung 2: **1,733** - identical), `leaderRoute` **43** (floor 40; rung 2: 55).
+    `Move-Along Route:` came in at **18** against a floor of **22**.
+    WHY THE FLOOR WAS WRONG, as an explanation and NOT an adjustment: I filed that count under
+    "the log survives", but `Move-Along Route:` counts TASK DISPATCHES, not log lines of a fixed
+    set - it is a BEHAVIOUR measure wearing a log-fidelity label. The diff is exact and it is not
+    lost lines: all ten task-route entries are present at FULL length (including T5's 99-character
+    name), all four `C/1-35_R0..R3` and all four `856/HHC_R0..R3` are present, and the ONLY
+    entries missing against rung 2 are `B/5-20_R0`, `_R1`, `_R2`, `_R3`. Same for `leaderRoute`
+    43 vs 55 and `'s Offset Route` 166 vs 210: one company of three did not distribute.
+    THIS IS THE SAME THRESHOLD-DEFINITION ERROR CLASS RUNG 2 STOPPED ON TWICE. It is mine.
+
+### P2 - THE CLOCK GETS FASTER. **PASS on both clauses, plus the cross-check.**
+
+| statistic | THIS RUN (`-q`) | RUNG 2 (console) | registered |
+|---|---|---|---|
+| LS clock slope, sim-s per WALL-s | **0.3140** | 0.2652 | (a) > 0.2652; (b) >= 0.30 |
+| ratio | **1.184x** | 1.0 | - |
+| lines / stamped / distinct sim stamps | 825576 / 1074 / 284 | 700975 / 1201 / 286 | - |
+| position reports | **1,793** | 1,536 | - |
+| reports per SIM second | **2.089** | 2.117 | [1.6, 2.7] |
+| report-count ratio | **1.167x** | 1.0 | - |
+
+(a) PASS: 0.3140 > 0.2652.
+(b) PASS: 0.3140 >= 0.30.
+CROSS-CHECK PASS, and it is what makes the number believable: the report stream is SIM-paced
+(rung 2's finding), so if the clock really ran 1.184x faster the same wall window should carry
+~1.18x the reports. It carried **1.167x**. Two independent instruments - vendor-log sim stamps and
+the C2SIM report count - agree to 1.5%, and reports-per-sim-second is FLAT at 2.089 vs 2.117.
+The "speed-up" is therefore a real clock change, not an artifact of the log-stamp sample.
+
+RECORDED, NOT REGISTERED, AND IT MATTERS FOR HOW MUCH TO TRUST 0.3140: the LS fit's residual is
+much worse this run - **resid sd 58.66, max 999.17**, against rung 2's 1.66 / 4.81. The slope is
+a least-squares fit over 284 stamped sim/wall pairs, and a large residual means the rate was NOT
+uniform across the window. That is consistent with the T35 stall (the load changes when one of
+128 units stops distributing), and it means 0.3140 should be read as "the window average, +18%",
+not as a precise constant. The report-count cross-check, which is a pure ratio over the whole
+window and needs no fit, is the more robust of the two and gives +16.7%. **Both are well clear of
+zero and the direction is not in doubt.**
+
+### P3 - IT IS STILL THE SAME RUN. PASS on all three clauses, all EXACT.
+
+(a) vrfc2simapp.log: `safe MSL` **128**, `DeStack (R8):` **10**, `CreateRoute` **9**,
+    `MoveToLocation` **0** - rung 2's values exactly. App log 517 lines vs rung 2's 517.
+(b) `TYPE MAP` **0**; the mode line reads
+    `Type-mapping mode = RealTemplates (ArmorPlatoon -> Tank Platoon (USA) (11.1.225.3.2.0.0)).`
+(c) `Can't find entity route` **0** EXACT; ZERO 35-character route-name cuts; **9** new-form route
+    lines, **0** old-form. THE FREEZE STAYS FIXED. The handoff's reopening evidence did not appear.
+ALSO: the app log's warning/error census is IDENTICAL to rung 2's, line form for line form (33
+`warn:`, 3 `fail: C2SIM.C2SIMSDK`, 2 deserialise failures, 1 `fail: VrfC2Sim`, the two standing
+"No creator found" notices) and `DROPPING TASK` is **0** in both. OUR SIDE DID NOTHING DIFFERENT.
+
+### P4 - ALL NINE PERFORMERS STILL MARCH. **MISSED: 8 of 11.**
+
+Per-performer net displacement from the C2SIM report stream, keyed by the manifest's
+`orderTaskees` - the same instrument that reproduced rung 2's published table to 0.01 km:
+
+  performer            RUNG 2 net_km   THIS RUN net_km   note
+  ------------------   -------------   ---------------   ----------------------------------
+  3ac081eb (T5)             6.64             7.87        further, as a faster clock predicts
+  50828a9b (T31)            6.59             7.72        further
+  6977b035 (T19)            6.57             7.84        further
+  74bdb03b (T15)            6.64             7.86        further
+  d6df3c3d (T1)             6.07             7.32        further
+  de16a337 (T23)            5.95             7.20        further
+  6a266f06 (T27 856/HHC)    1.80             6.55        MUCH further - rung 2's anomaly cleared
+  b5b42765 (T39 C/1-35)     4.27             5.50        further
+  **1375ca0a (T35 B/5-20)   2.85             0.41        STALLED - the miss**
+  5cd92a83 (T9)             0.00             0.00        expected: zero Locations, never taskable
+  e151451b (T13)            0.00             0.00        expected: 12,000 s WALL start delay
+
+Eight of eleven cleared the 0.5 km floor. The two expected zeros are the same two. THE MISS IS
+T35, and it is not a threshold artifact - it is a stall with a timestamp. Its own track:
+
+  T35 in RUNG 2   18:xx equivalent: creeps N to 34.684654,-116.724819 by fix 6, then at
+                  17:18:55 TURNS SW and runs to 34.670546,-116.753148 - 2.85 km net, 12 fixes.
+  T35 THIS RUN    creeps N to **34.684690,-116.724806** by fix 6 (18:51:07), then sits at that
+                  coordinate for the remaining **8 fixes over 26 minutes**, moving under 2 m.
+
+It reached the same waypoint and then did not distribute. `Locally Simulated: B/5-20_R*` objects:
+rung 2 **4**, this run **0**. `B/5-20` lines carrying `leaderRoute`: rung 2 **14**, this run **0**.
+The other two companies built their four each in BOTH runs. B/5-20 is otherwise alive and
+chattering throughout - its message-form census is rung 2's, with MORE of every form (896 vs 768
+continuation lines, 56 vs 48 position texts), and no error form appears in one run and not the
+other.
+
+### P5 - HYGIENE AND MODE. PASS.
+
+(a) FFRTC mode check PASSES on the handoff's criterion: TEST A **83/83 = 100.0%** in
+    {0.033, 0.034} (>= 95%) AND TEST B **R = 0.9940** (>= 0.99). `-q` did not change the frame
+    mode, so P2 measured one variable. (|resid| <= 0.0005 s was 98.2%, better than rung 2's 97.6%.)
+(b) Runner exit 0; all ten stages exit 0; no new .dmp (newest is still
+    vrfSim5.0.2-MSVC++15.0_64-249613-70668.dmp, 2026-09-02 06:00); the FFRTC fixture still hashes
+    D27E540F8BCC...B0B9 and vrfSim.mtl still stamps 2026-09-01 14:32:14 - **NOTHING WAS WRITTEN
+    UNDER C:\MAK**; RTI trio PIDs UNCHANGED (41336 / 224608 / 76620) and never touched; no
+    VR-Forces process and no observer remains.
+    POST-RUN SWEEP: `tools/ResetVrf 3774` with the RUNBOOK :1208-1215 environment - joined clean
+    (BackendCount=0), 0 reflected, resigned cleanly, **exit 0**. LEDGER 3767 -> 3774 (7, runner)
+    -> 3775 (1, hand-taken and ledgered BEFORE the join). The deployed `Vrf:ClientId` was set to
+    C2SIM for this init and has been **restored to STP**.
+
+### ADVERSARIAL REVIEW - what stalled T35, and can `-q` be blamed?
+
+MY HYPOTHESIS, stated so it can be attacked: **H3 - the two-level Tank-Company distribution is
+NON-DETERMINISTIC, and this run is a second sample of an instability rung 2 already recorded.**
+
+THE STRONGEST COMPETING HYPOTHESIS: **H1 - `-q` caused it.** It has a real mechanism - `-q` moved
+the clock by 18%, and a timing-sensitive step in the aggregate distribution could resolve
+differently at a different frame cost. This run cannot exclude it, and I am not going to pretend
+it can.
+
+THE EVIDENCE THAT SEPARATES THEM, such as it is, favours H3:
+  - **THE ANOMALY MOVED BETWEEN COMPANIES, IN BOTH DIRECTIONS.** Rung 2's own unexplained item 3
+    was "T27/T35 lateral ~400 m against 1-72 m for every other performer" - the two Tank
+    Companies were ALREADY the odd ones, at 1.80 and 2.85 km against seven performers at
+    6.07-6.64 km. This run: T27 **cleared** (1.80 -> 6.55 km, right in the pack), T35 **degraded**
+    (2.85 -> 0.41 km), C/1-35 improved (4.27 -> 5.50 km). A cause acting through `-q` or through
+    the binary would be expected to push all three the same way; instead the class is unstable and
+    which member misbehaves is not stable.
+  - **NOTHING ON OUR SIDE DIFFERS.** Identical app-log line count, identical warning census, zero
+    dropped tasks, nine CreateRoutes, nine new-form route lines, zero `Can't find entity route`.
+    The app issued T35's move-along exactly as it issued the other eight.
+  - **H2 (the merged binary) is the weakest of the three.** Task 1 gated it to a ZERO-HUNK app-log
+    diff, and its only unconditional new work is 128 `EchelonCode.ToString()` calls, once, at init.
+    It cannot reach into the back end's path distribution 17 minutes later.
+WHAT WOULD FALSIFY H3 AND CONFIRM H1: a COA-STP1 run on this binary WITHOUT `-q` in which all
+three companies distribute, paired with a second WITH `-q` in which one stalls again. That is a
+two-run experiment, it is the obvious next step, and **it is NOT run under the stop.**
+
+**THE UNEXPLAINED SYMPTOM IS RECORDED AS A FALSIFIER, NOT A FOOTNOTE:** until that pair is run,
+`-q` is NOT established as safe, and its +18% must not be spent. A speed lever that might cost a
+silently non-distributing company is worse than no lever - that is precisely the failure mode
+(silent, per-unit, invisible in the aggregate numbers) this whole saga was about.
+
+A SECOND CHECK I RAN BEFORE BELIEVING THE SPEED NUMBER: could the +18% be an artifact of the T35
+stall itself - one fewer company distributing means less work per frame, hence a faster clock?
+Partly, and it cannot be fully separated in one run. But it cannot be the whole story: the eight
+marching performers ALL went FURTHER than rung 2 (7.20-7.87 km against 5.95-6.64 km), which is
+more sim time delivered to the units that were working, and the report stream - which counts all
+128 units, not just the companies - rose by the same 1.17x. A single stalled aggregate out of 128
+does not buy 133 sim seconds.
+
+ALSO RECORDED, against rung 2's other open items: the real-object population is IDENTICAL - 1,732
+objects ever reporting real coordinates in BOTH runs. Rung 2's unexplained item 1 (objects stuck
+at the (90,-90,0) pole) persists and is slightly smaller: **110 pole-only objects this run against
+132 in rung 2**, out of 1,842 and 1,864 total. Still unexplained; still not growing.
+
+### CONSEQUENCE
+
+The `-q` question is ANSWERED on both halves - the log survives, and the console costs ~18% of the
+back end's throughput at 128 units - and the runner switch stays, DEFAULT OFF, which is where it
+was registered. Nothing else is built on it. The FFRTC block's CLOSED tripwire is untouched: even
+at 0.3140, FFRTC at scale is still a **3.2x slowdown** against variable-frame's 0.9995, so a scale
+run's wall budget is still `sim / measured ratio` and FFRTC is still not a speed lever.
 
 ## 8. REGISTRATION
 
-Sections 0-6B written and committed BEFORE launch. Commit hash stamped in sec 7.
+Sections 0-6B written and committed BEFORE launch as **4d2f4c3**, together with the one-variable
+code change. Sec 7 added after the run, from the run-directory artifacts only.
