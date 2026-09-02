@@ -37,7 +37,12 @@ import statistics
 import sys
 from collections import defaultdict
 
-STAMP_RE = re.compile(r'\[Tue Sep  1 (\d\d):(\d\d):(\d\d) 2026\] (\d+\.\d{3})(?=[: ])')
+# Vendor stamp: "[Www Mmm D HH:MM:SS YYYY] <sim>.mmm". The weekday/month/day/year
+# are NOT pinned (a hard-coded "Tue Sep  1" silently parsed ZERO stamps from any
+# other day's log - a false green). Only HH:MM:SS and the sim float are captured,
+# so the wall axis remains seconds-of-day: a run that crosses midnight would wrap.
+STAMP_RE = re.compile(
+    r'\[[A-Za-z]{3} [A-Za-z]{3} [ 0-9]\d (\d\d):(\d\d):(\d\d) \d{4}\] (\d+\.\d{3})(?=[: ])')
 RPT_RE = re.compile(r'^RPT,([\d.]+),"POSITION ""([^"]+)"" ([-\d.]+) ([-\d.]+)"')
 POS_RE = re.compile(r'^POS,([\d.]+),(VRF_UUID:[0-9a-f-]+),([-\d.]+),([-\d.]+),([-\d.]+)')
 NAME_RE = re.compile(r'Locally Simulated: (.+?) \((VRF_UUID:[0-9a-f-]+)\) using parameters')

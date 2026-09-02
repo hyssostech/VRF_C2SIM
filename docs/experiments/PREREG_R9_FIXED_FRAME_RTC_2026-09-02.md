@@ -464,6 +464,119 @@ NOTE: a P3 ratio of exactly 1.0 is NOT a falsifier and does not fire F1 on its o
 decided by the frame quantum in P1 (b), which is a direct reading of the mode, not by the
 rate, which is a reading of how expensive a frame turned out to be.
 
+## 7A. AMENDMENTS BEFORE LAUNCH (live executor, 2026-09-02, registered BEFORE any launch)
+
+Sections 0-7 above are UNCHANGED from registration commit f1f0f38 - the attestation in
+sec 4 still holds. Everything in this section was added by the live executor before the
+run and committed before the launch command was issued.
+
+A1 - FRAME TIME 0.045455 -> 0.033333 (one-line regeneration, sec 2). REASON: sec 0 C3
+     already records that 0.045455's stated justification ("matches today's variable-frame
+     step at the 22 Hz target") is FALSIFIED BY MEASUREMENT - Row 3's own quantum is
+     ~0.033 sim-s (~30.3 Hz), so 0.045455 is a 38% COARSER frame and would have moved a
+     SECOND variable (frame length, hence integration fidelity) alongside the clock mode.
+     0.033333 is the measured Row 3 quantum, which keeps the probe to ONE variable: the
+     MODE, at the frame length the box is already running.
+
+     REGENERATION IS PROVED DETERMINISTIC BEFORE THE SWAP. The 0.045455 fixture was
+     rebuilt from stock TropicTortoise.scnx into a scratch directory with the committed
+     code and compared part-by-part against the committed
+     tools/FixtureGen/frame_variants/TropicTortoise_FFRTC.scnx:
+       11 parts, IDENTICAL 11, CHANGED 0, only-committed 0, only-regenerated 0
+       .scn SHA-256 2b50495d8b9e280ae04f2e6e280b38a65783a52fe511c53c3c0ac3515e294a52
+       = the sec 2 value, reproduced exactly.
+
+     THE NEW FIXTURE (same path, same name, so sec 2's deployment line and sec 4's
+     -Scenario are unchanged):
+       tools/FixtureGen/frame_variants/TropicTortoise_FFRTC.scnx, 7112 bytes
+       .scn SHA-256 3d8960732bf78cbde02e581c9f04b93e5b926ae3db9cd5c9d679859fb99107ad
+       .scn 1562 bytes, 0 non-ASCII, 0 CR (LF exactly as the vendor writes it)
+       10 non-.scn parts byte-for-byte identical to stock TropicTortoise: 10/10
+       diff vs the 0.045455 fixture: EXACTLY ONE LINE,
+         -   (frame-time 0.045455)   +   (frame-time 0.033333)
+       diff vs stock TropicTortoise.scn: the same TWELVE lines sec 2 lists, with
+         0.033333 in place of 0.045455.
+     The sec 2 verification snippet still applies with the new expected values:
+       expected: 3d8960732bf78cbde02e581c9f04b93e5b926ae3db9cd5c9d679859fb99107ad
+                 ['   (frame-mode "fixed-frame-run-to-complete")', '   (frame-time 0.033333)']
+
+A2 - P1 (b) IS RESTATED, because the naive form of the test CANNOT PASS even if the mode
+     is in effect. The vendor prints sim time to THREE DECIMALS. A true fixed grid of
+     q = 0.033333 does not print as a constant 0.033: three frames are exactly 0.100 s, so
+     consecutive grid points print as 0.033, 0.033, 0.034, repeating. A "median gap" test
+     therefore cannot separate the modes at all (both give 0.033), and the brief's proposed
+     ">= 95% of gaps within +/-0.0005 of 0.033333" is UNREACHABLE BY CONSTRUCTION - a
+     perfect grid tops out near 67% on that statistic. WHAT SEPARATES THE MODES IS THE
+     SPREAD, and it is tested two independent ways by tools/analysis/frame_gaps.py
+     (new, this session; it reuses step_profile.vendor_log so both instruments share one
+     parser):
+
+     TEST A - GAP CENSUS, n = the sub-0.06 s gaps between consecutive DISTINCT sim stamps.
+       On a fixed grid of 0.033333 a one-frame gap can print ONLY as 0.033 or 0.034 -
+       no other value is arithmetically reachable, and two frames (0.067) is already above
+       the 0.06 filter. THRESHOLD: >= 95% of small gaps in {0.033, 0.034}.
+       ROW 3 MEASURED (recomputed this session with the fixed parser, see A3):
+         n = 33; census 0.032 x2, 0.033 x17, 0.034 x10, 0.035 x3, 0.037 x1;
+         min 0.032 median 0.033 max 0.037 sd 0.0010;
+         IN {0.033, 0.034}: 27/33 = 81.8%.
+
+     TEST B - GRID RESIDUAL, n = the distinct sim stamps themselves (85 for Row 3, ~2.5x
+       Test A's sample count and independent of WHICH frames happened to be logged). On a
+       fixed grid every stamp satisfies t = k*q + phase, so its residual about the grid is
+       bounded by the 0.0005 s print rounding. The phase is FITTED (circular mean of
+       t mod q), not assumed zero, so a clock that did not start at 0 still passes.
+       THRESHOLD: >= 95% of distinct stamps with |residual| <= 0.0005 s, AND resultant
+       length R >= 0.99.
+       ROW 3 MEASURED: R = 0.3760; |residual| <= 0.0005 for 3/85 = 3.5%;
+       residual sd 0.00702 s (uniform scatter on this grid would be 0.00962).
+
+     F1 (sec 7) IS THEREFORE DECIDED BY: Test A < 95% in {0.033, 0.034} AND Test B
+     R < 0.99 -> the fixture parameter did not reach the back end, STOP and diagnose per
+     sec 7 F1 (i)-(iv). Both tests passing = the mode is in effect. A SPLIT RESULT (one
+     passes, one fails) is not pre-named; it would be recorded as unexplained, not
+     adjudicated.
+     P1 (c) is unchanged: the LS slope is corroborating only, and a slope of 1.0 is not a
+     falsifier.
+
+A3 - INSTRUMENT DEFECT FIXED AND THE FIX PROVED (the false-green rule; sec 1 flagged this
+     defect and left it for the live executor). tools/analysis/step_profile.py:41 hard-coded
+     STAMP_RE = ...\[Tue Sep  1 ...\], which parses ZERO stamps from any log not written on
+     2026-09-01 and reports that silently as a clean result. The weekday / month / day /
+     year are now unpinned; only HH:MM:SS and the sim float are captured, so the capture
+     group signature is unchanged and the wall axis is still seconds-of-day (a run crossing
+     midnight would wrap - noted, not applicable here).
+     PROVED BEFORE USE, by re-running the fixed script on ROW 3's OWN LOG
+     (runs/20260902T113613Z_run/bin64-vrfSim.log) and reproducing sec 0 C3's numbers
+     character-for-character:
+       lines 10663, stamped 395, discarded 0, DISTINCT STAMPS 85
+       tick proxy n=33, min 0.032, MEDIAN 0.033, max 0.037
+       LS clock slope 1.0003 sim-s/wall-s, resid sd 0.31, max 0.56
+     That is the 0.033 median / 85 pairs the prereg was written against. The instrument
+     reproduces; only now is it trusted on the new run.
+
+A4 - APP NUMBERS. The marker in docs/OPUS_EXECUTION_PLAN.md Appendix B:1626 reads
+     *** NEXT FREE: 3726 *** at the time of this amendment, so the expected block is
+     3726-3732. The runner consumes and advances it; the actual wasValue/newValue from
+     run-manifest.json is recorded in sec 8.
+
+A5 - DEPLOYMENT. Exactly the sec 2 command, one new file under C:\MAK, nothing existing
+     modified:
+       Copy-Item tools\FixtureGen\frame_variants\TropicTortoise_FFRTC.scnx `
+                 C:\MAK\vrforces5.0.2\userData\scenarios\TropicTortoise_FFRTC.scnx
+     The SHA-256 of the DEPLOYED .scnx and of the .scn inside it are recorded in sec 8.
+     Stock TropicTortoise.scnx is not touched.
+
+A6 - RUNNER PASSTHROUGH RE-VERIFIED (the brief required a STOP if absent):
+     scripts/RunC2SimScenario.ps1:223 declares [string] $Scenario = 'TropicTortoise' and
+     :1744 passes '-Scenario', $Scenario to LaunchVrf.ps1, which at :175-176 resolves it to
+     C:\MAK\vrforces5.0.2\userData\scenarios\<name>.scnx, HARD-CHECKS its existence at
+     :235-239 (Say-Fail + $hardFail), and passes it as --scenarioFileName at :344.
+     :1186 records inputs.scenario in the manifest. No STOP required.
+
+NOTHING ELSE MOVES. Same init, same order, same binary, same bridge, TimeMultiplier 1,
+no env override, -RunSecs 1800, -SampleSecs 2, -StopWhenComplete. P2, P3, P4, P5 and the
+sec 6 risk note stand exactly as registered, except that every "0.045455" in P1/P3 now
+reads "0.033333".
 ## 8. Outcome (written from the run directory artifacts, AFTER the run - empty at registration)
 
 (unwritten)
