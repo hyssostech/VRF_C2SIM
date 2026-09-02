@@ -147,10 +147,10 @@ DONE 2026-09-02 pm, three probes; read the prereg sec 7s, not this summary:
    distribution; evidence favours the latter, because the anomaly MOVED - the same run CLEARED
    T27 (1.80 -> 6.55 km) while degrading T35. SETTLE IT with a COA-STP1 PAIR on this binary, one
    WITHOUT -q and one WITH, prereged together. -q stays unadopted until then.
-2. DONE 2026-09-02 (supervisor, <commit>): RULE 4 `~PXY` MATCH - RunnerLib Resolve-MarkingKey maps the
+2. DONE 2026-09-02 (supervisor, a5cdc95): RULE 4 `~PXY` MATCH - RunnerLib Resolve-MarkingKey maps the
    init <Name> to the unique `<name>~<tag>` marking; replayed on the live-gate run (tagged) 3/3 at
    0.00 m and on the control run (untagged) 3/3 unchanged. The app's tasking was never affected.
-3. DONE 2026-09-02 (supervisor, <commit>): THE SHARED C2SIM SERVER. The foreign init WAS THE USER,
+3. DONE 2026-09-02 (supervisor, a5cdc95): THE SHARED C2SIM SERVER. The foreign init WAS THE USER,
    working the C2SIM GUI against their own server (`c2sim_server4.8.4.9`, 8080/61613). FIX: a
    PRIVATE docker instance `c2sim-server-vrf` (18080/61614, own mount c2simFiles-vrf) is now the
    runner DEFAULT and reaches every stage (ListenReports gained --rest-url/--stomp-url +
