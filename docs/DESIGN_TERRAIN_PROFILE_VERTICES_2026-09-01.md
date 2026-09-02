@@ -430,6 +430,31 @@ NOTE a defect in Row 2's sec 6: it quotes the create lines as "mode=TerrainProfi
 template at VrfC2SimService.cs:439 hard-codes "mode=Live" for the whole live-like family and
 Row 2's own log reads mode=Live, same as Row 1 and Row 2R.
 
+ROW 2c RESULT - THE FLATTEN, AND ROW 2 CHECK 1 FINALLY MET (2026-09-02, run
+20260902T104832Z, appNos 3697-3703, bridge A7504441 from 8e14cd1): ROW2R's Partial replies
+were a FACADE defect, not a back-end limitation. With the trampoline walking every entry of
+every response set, all three requests came back with THREE samples, one per requested point,
+in request order, each carrying a distinct userData index 0/1/2:
+"Terrain profile reply 9: 3 sample(s) [#0:34.60842,-116.71269,1131.4
+#1:34.60842,-116.70637,1126.3 #2:34.60842,-116.70006,1121.1]." (ids 7 and 8 likewise). All
+three routes then authored all three vertices - "Terrain profile 9 for task 'T_R5_TK1': all 3
+vertices authored from terrain + 10 m clearance; alts [1141.4, 1136.3, 1131.1]." - with ZERO
+`warn:` lines of any kind in the app log (ROW2R had three :807 Partials). Check 1 of Row 2 is
+MET for the first time; check 2 is clean and its geocentric-request inference is now backed by
+six order-point samples landing on their own request vertices to five decimals rather than one;
+the echo tripwire stayed silent and the samples sit 50 m BELOW the request points (which
+carried live + 50), agreeing to 0.1 m with each entity's clamped resting altitude at that
+place. Check 3 is MET except for one number: 114.MechCoy, THE ONLY AGGREGATE taskee,
+completed at +198.1 s against Row 1's +183.8 (band was +/-10 s), and the trace agrees it
+physically arrived later (plateau onset 233.3 s vs 219.2). The two individual entities are
+unchanged to within 0.5 s despite comparable 45-50 m drops in their waypoint altitudes, so
+the artifacts associate the delay with the aggregate rather than with the size of the
+altitude change; cause is UNDECIDED and NO retune or re-run was made. Endpoints, resting
+altitudes, POS==RPT, settle, early exit and every hygiene measure are Row 1's exactly; back
+end alive (14,158 log lines, 5,464 after the order push), no dump, runner and StopVrf exit 0,
+RTI PIDs unchanged. Full record: docs/experiments/PREREG_TERRAIN_ROW2C_FLATTEN_2026-09-02.md
+sec 6. NEXT QUESTION for the supervisor: the aggregate's +14 s, docs-first.
+
 ## 8. Gate results (2026-09-01, offline, worktree only)
 First revision (commit 6539036): VrfBridge /t:Rebuild exit 0 / 0 warnings; dotnet build 0
 errors; 7 self-tests exit 0 (terrain: 21 checks); ASCII clean vs a dirty control.

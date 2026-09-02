@@ -239,4 +239,194 @@ missed HIGH-confidence prediction is a STOP and is recorded as such, never retun
 
 ## 6. Outcome (written from the run directory artifacts, after the run)
 
-(to be filled in after the run)
+VERDICT: H-A IS CONFIRMED AND THE MODE NOW DELIVERS ITS PURPOSE - but the run STOPS on a
+missed HIGH prediction that is NOT infrastructure. The back end sends THREE samples for a
+three-point profile request; ROW2R's "vertex 0 only" was a FACADE defect (entry [0] of each
+set), not a back-end limitation. All three routes authored all three vertices from terrain,
+zero WARN of any kind in the app log, and the sample coordinates match the request vertices
+to the fifth decimal. P1 MET, P2 MET, P4 MET. P3 MISSED on ONE of its clauses: the aggregate
+company 114.MechCoy completed at +198.1 s against Row 1's +183.8 s, a delta of +14.3 s and
+outside P3's +/-10 s band; the other two taskees are inside 0.5 s. The delta is corroborated
+by physical arrival, not just report lag (plateau onset 233.3 s vs Row 1's 219.2 s), so it is
+a real movement change and the ONE variable is the only thing that moved. Per this prereg's
+rules that is a STOP: nothing was retuned, re-run, killed, or code-changed.
+
+Run 20260902T104832Z_run, launched 2026-09-02 10:48:32.197Z from main at e2e78d9 (this
+prereg committed; the bridge deploy is 8410588). `Get-ChildItem env:Vrf__*` was exactly
+`Vrf__GroundWaypointAltitudeMode=TerrainProfile` at launch (echoed before the runner started)
+and empty again after. appNos 3697-3703 (vrfBackend 3697, vrfFrontend 3698, oraclePre 3699,
+oracleTrace 3700, app 3701, rtiProbe 3702, createOneDiag 3703 - UNCONSUMED and BURNED, the
+oracle gate passed); ledger wasValue 3697 / newValue 3704 / advanced true; ledger file after
+the run CRLF 1871 / bare LF 0 / non-ASCII 0. Pre-launch inventory held in full (sec 3):
+no vrfSim* / vrfGui / vrfLauncher / WatchVrf / ListenReports / VrfC2SimApp; RTI trio exactly
+rtiAssistant 41336 / rtiexec 224608 / rtiForwarder 76620; docker stp-server + c2sim_server Up;
+env:Vrf__* empty; 10/10 main-checkout VrfBridge.dll copies A7504441. Runner exit 0; StopVrf
+exit 0; wall 10:48:32.197Z -> 10:56:01.842Z = 449.6 s = 7 min 30 s (Row 1 / ROW2R: 7 min 15 s;
+band was 7 min 15 s +/- 45 s). validityFlags: the single advisory pre-init INFO only; console
+[WARN]/[FAIL] 0.
+
+P1 - THE DISCRIMINATING PREDICTION - MET, and it is the finding. Exactly three :1466
+   Information lines, ids 7/8/9, each with N = 3, three tokens, indices {0,1,2} DISTINCT, and
+   no `#k:none`. Verbatim from vrfc2simapp.log lines 53/55/57:
+
+     Terrain profile reply 7: 3 sample(s) [#0:34.61296,-116.60049,1040.6 #1:34.61296,-116.59417,1033.9 #2:34.61296,-116.58786,1026.7].
+     Terrain profile reply 8: 3 sample(s) [#0:34.64763,-116.69339,1116.7 #1:34.65263,-116.69339,1116.8 #2:34.65763,-116.69339,1116.9].
+     Terrain profile reply 9: 3 sample(s) [#0:34.60842,-116.71269,1131.4 #1:34.60842,-116.70637,1126.3 #2:34.60842,-116.70006,1121.1].
+
+   Against sec 4's request-vertex table the horizontal agreement is exact to the logged 5
+   decimals: id 7 #1 34.61296,-116.59417 = v1 34.612956,-116.594174 and #2 -116.58786 =
+   -116.587860; id 8 #1 34.65263 = 34.652629 and #2 34.65763 = 34.657629; id 9 #1 -116.70637
+   = -116.706372 and #2 -116.70006 = -116.700059. Each #0 sits at the taskee's own live
+   position. So the samples arrive IN REQUEST ORDER, one per point, and userData parsed to a
+   distinct index for every one of them - F2 (repeated indices) did not fire.
+   WHAT THIS SETTLES about ROW2R's three open hypotheses: (i) "the back end returned fewer
+   samples than requested" is REFUTED for the back end and TRUE OF THE OLD FACADE - the wire
+   carries three, the old `pairs[i][0]` read exposed one. (ii) and (iii) are refuted: all
+   three samples are near their own vertices and none was rejected.
+
+P2 - ALL THREE VERTICES AUTHORED - MET. Exactly three :802 Information lines, verbatim
+   (vrfc2simapp.log 59/63/67):
+
+     Terrain profile 7 for task 'T_R5_PL1': all 3 vertices authored from terrain + 10 m clearance; alts [1050.6, 1043.9, 1036.7].
+     Terrain profile 8 for task 'T_R5_CO1': all 3 vertices authored from terrain + 10 m clearance; alts [1126.7, 1126.8, 1126.9].
+     Terrain profile 9 for task 'T_R5_TK1': all 3 vertices authored from terrain + 10 m clearance; alts [1141.4, 1136.3, 1131.1].
+
+   ZERO :807 Partial/Fallback (ROW2R had three), ZERO :1480 timeout, ZERO :793 "not sent",
+   ZERO :1453 "partial (Complete=false)", ZERO :810 Note, ZERO "echoed request point", ZERO
+   "no usable sample". The app log contains ZERO `warn:` lines in total.
+   Numbers. a0 hits its band EXACTLY, not merely within +/-20 m: id 7 1050.6 vs predicted
+   1050.6 (delta 0.0); id 8 1126.7 vs 1126.7 (0.0); id 9 1141.4 vs 1141.4 (0.0). The reason
+   it is exact is itself corroborating: each #0 terrain sample (1040.6 / 1116.7 / 1131.4)
+   equals the taskee's Row 1 live altitude to 0.1 m, which is what a GROUND-CLAMPED entity
+   standing on the surface should read - the back end is reporting the surface, not the
+   request. Echo signature ABSENT: no route's alts are all equal, and none equals live + 60
+   (1100.6 / 1176.7 / 1191.4); the request points carried live + 50, and the returned
+   samples sit 50 m below them.
+   a1 / a2, REPORTED not adjudicated (no comparator exists): 1043.9 / 1036.7 (id 7),
+   1126.8 / 1126.9 (id 8), 1136.3 / 1131.1 (id 9). All inside the [510, 1510] plausibility
+   band. The relief they describe is coherent - id 7's route runs downhill 1040.6 -> 1033.9
+   -> 1026.7 over 1.1 km, and 1026.7 + 0 is within 0.1 m of where 1222.MechPlt actually
+   comes to rest (final POS alt 1026.6); id 9 runs downhill 1131.4 -> 1126.3 -> 1121.1 and
+   1.BdeHQ rests at 1121.1; id 8 is essentially flat at 1116.7 -> 1116.9 and 114.MechCoy
+   rests at 1116.8. Three independent agreements between a terrain sample at a route
+   endpoint and the entity's own clamped resting altitude at that endpoint.
+
+P3 - MOVEMENT UNAFFECTED - MISSED (one clause of five). Everything except the completion
+   offsets is identical to Row 1:
+   - TASKCMPLT counts 3 (vrfc2simapp.log) and 3 (reports-captured.log).
+   - Endpoints from the trace final POS (t=294.4): 1.BdeHQ 34.608416,-116.699994 alt 1121.1;
+     114.MechCoy 34.653915,-116.693388 alt 1116.8; 1222.MechPlt 34.612956,-116.587783 alt
+     1026.6 - identical to Row 1's final POS to all six logged decimals, i.e. 0.00 m apart,
+     and the resting ALTITUDES are unchanged too (terrain-authored waypoints did not move
+     where the entities end up: VRF ground-clamps the entity regardless).
+   - POS==RPT 0.0 / 0.0 / 0.0 m (run-manifest oracle.earlyExit.reportEvidence distanceM),
+     satisfied x3, reason "post-completion RPT agrees with POS". settled true x3.
+   - 3 x "CreateRoute '<T> ROUTE' (3 pts)" + 3 x "Route '<T> ROUTE' created; MoveAlongRoute
+     issued" (VRF_UUIDs 41f1fdf1 / a6436ffc / 10f03d88). bin64-vrfSim.log "empty route" 0.
+   - earlyExit.fired true; allCompleteUtc 10:54:17.371Z, closedUtc 10:55:22.934Z -> 65.6 s
+     (band [60, 90]); windowSecsUsed 236.2 of the 420 cap; completionLinesSeen 3.
+   - Wall 7 min 30 s, inside the +/- 45 s band.
+   THE MISS. Offsets of the TASKCMPLT report receipts (reports-captured.log `[hh:mm:ss.fff]`
+   stamps) from clocks.orderPushedUtc 2026-09-02T10:50:56.392Z - the same measure Row 1 sec 6
+   A used:
+     1.BdeHQ      (task ...0003)  +117.5 s   Row 1 +117.3   ROW2R +118.0   delta +0.2  OK
+     1222.MechPlt (task ...0001)  +129.6 s   Row 1 +129.2   ROW2R +130.1   delta +0.4  OK
+     114.MechCoy  (task ...0002)  +198.1 s   Row 1 +183.8   ROW2R +185.2   delta +14.3 MISS
+   The band was +/-10 s. The company is 14.3 s late against Row 1 and 12.9 s late against
+   ROW2R. This is NOT report lag: the trace's own plateau onset (first POS within 1 m of the
+   final POS) moves the same way - 114.MechCoy 233.3 s vs Row 1 219.2 and ROW2R 221.6
+   (+14.1 / +11.7), while 1.BdeHQ is 148.0 vs 148.0 / 150.1 and 1222.MechPlt 162.3 vs
+   160.1 / 162.4. The entity physically arrived later. Trace TSK completionT, REPORTED:
+   145.7 / 157.9 / 226.4 (Row 1: 145.5 / 157.4 / 212.0; ROW2R: 146.9 / 159.0 / 214.1) - the
+   same +14 s on the company alone.
+   The four-run spread for 114.MechCoy before this run was 182.1 (CONFIRM2) / 183.8 (Row 1) /
+   185.2 (ROW2R), i.e. about 3 s; +198.1 sits far outside it. n=1, so "run-to-run variance"
+   is not excluded by arithmetic alone, but it is not a comfortable reading.
+   WHAT CHANGED FOR THIS TAKEE SPECIFICALLY (verified from the artifacts, cause NOT claimed):
+   114.MechCoy is the only AGGREGATE among the three taskees (it has subordinates
+   1141/1142/1143.MechPlt). Between ROW2R and this run its vertices 1 and 2 dropped from the
+   Live altitude 1166.7 m to the terrain-authored 1126.8 / 1126.9 m - a 40 m drop - and its
+   route is the near-flat one. The two non-aggregate taskees had comparable 45-50 m drops on
+   their vertices 1-2 (1181.4 -> 1136.3/1131.1 and 1090.6 -> 1043.9/1036.7) and did NOT
+   change their timing at all. So the artifacts associate the delay with the AGGREGATE, not
+   with the size of the altitude change. Deciding whether that is aggregate path-planning
+   responding to lower waypoints, an aggregate-formation effect, or variance is the
+   supervisor's docs-first call - no probe, no retune, no re-run was made here.
+
+P4 - BACK END SURVIVES, TEARDOWN CLEAN - MET. bin64-vrfSim.log 14,158 lines / 1,274,790
+   bytes, of which 5,464 are stamped 06:51 local or later, i.e. after the order push at
+   06:50:56 local (10:50:56.392Z); last line "Exception in destroyFederationExecution:
+   Federation Execution Already Exists.[Wed Sep  2 06:55:58 2026]" - the normal teardown
+   tail, same as ROW2R's. NO new .dmp in C:\MAK\vrforces5.0.2\bin64: the newest is still
+   ROW2R-era vrfSim5.0.2-MSVC++15.0_64-249613-70668.dmp, 598,441 B, 2026-09-02 06:00:18
+   local. AnswerCrashDumpDialog.ps1 was never needed and never run. Runner exit 0; StopVrf
+   exit 0 with "VR-Forces is DOWN (graceful quit; no process was force-killed)."; post-run
+   sweep found 0 vrfSim* / vrfGui / WatchVrf / ListenReports / VrfC2SimApp processes; RTI
+   trio 41336 / 224608 / 76620 unchanged before and after and explicitly reported preserved
+   by StopVrf. Both observers exited 0 on the stop-file path. bin64-vrfSim.log counts
+   "Waiting for nav data" 0 / "empty route" 0 / "Can't find entity route" 0 / "invalid
+   formation name" 1 (baseline) = 0/0/0/1, SocketException 0. App-log census: 3 `fail:`
+   (C2SIMSDK, the Row 1 three), 3 "Can't create data of type", 0 Exception, and ZERO `warn:`
+   - strictly better than ROW2R's three :807 WARNs and identical to Row 1's census.
+   The 6 create lines read "Create-altitude mode=Live: GROUND unit <name> created at safe
+   MSL 10000 m (original create alt 1000 m); parity post-create SetAltitude SKIPPED" -
+   expected, per the ROW2R correction (VrfC2SimService.cs:439 hard-codes "mode=Live" for the
+   whole live-like family).
+   METHOD DEVIATION, recorded: P4 asked for window-title polling for `^vrfSim.*\.dmp$` while
+   the run was in flight. The runner was executed in the FOREGROUND with a 15-minute
+   timeout, so no in-flight polling happened. The substitute evidence is stronger on the
+   question that matters (did the back end die?): the back-end log runs continuously from
+   scenario load through teardown with 5,464 post-order lines, the units moved and completed,
+   no dump file was created, and StopVrf quit a live front end gracefully. A crashed federate
+   produces none of those.
+
+WHAT THE BACK-END LOG SAYS ABOUT THE REQUEST (recorded, not investigated): unchanged from
+ROW2R - at notify level 3, bin64-vrfSim.log contains ZERO lines matching `IfRequest`,
+`TerrainProfile`, `terrain profile` or `IntersectionInformation`. The back end answers the
+request correctly and logs nothing about it at this verbosity.
+
+FALSIFIER BRANCH TAKEN: none of F1 / F2 / F3. F1 is refuted (3 samples, not 1); F2 is refuted
+(indices 0,1,2 distinct on all three replies); F3 is refuted (three distinct samples AND no
+:807). The P3 miss is listed under F4 by the letter of sec 5, and that is a PREREG DEFECT
+worth naming: F4 bundles "a P3 movement miss" with crashes and timeouts under the heading
+"treat as infrastructure, not as an answer about H-A". Here the infrastructure was clean on
+every measure and the movement delta is a substantive result about the mode's effect on an
+aggregate. The correct disposition is the one taken: STOP, record, report, do not retune -
+but the delta is EVIDENCE, not noise, and it should be adjudicated as such rather than filed
+as an infrastructure failure. A future prereg should give the movement-regression clause its
+own branch.
+
+ADJUDICATION AGAINST THE VARIABLE (verified vs. inferred):
+- VERIFIED: the back end returns one sample per requested point, in request order, with
+  userData parsing to the point index. ROW2R's Partial replies were caused by the facade
+  reading only entry [0] of each response set. H-A ("all points land in one set") is
+  CONFIRMED insofar as the flattened walk recovers all three; the artifacts do not
+  distinguish "one set of three" from "three sets of one", because the trampoline flattens
+  both identically. That distinction is unresolved and does not matter to the app.
+- VERIFIED: the terrain samples are real surface heights, not echoes of the request points -
+  they sit 50 m below the request altitudes and agree to 0.1 m with the clamped resting
+  altitude of an entity standing at the same place (three independent agreements).
+- VERIFIED: the request-point frame inference (geocentric) now has much stronger support
+  than ROW2R's single vertex-0 hit: six order-point samples, all landing on their own
+  request vertex to five decimals.
+- VERIFIED: the mode delivers its purpose - the order-point waypoints now carry terrain +
+  10 m instead of live + 50 m. Design sec 7's Row 2 check 1 is MET for the first time.
+- VERIFIED: 114.MechCoy, the aggregate, arrives and completes about 14 s later than in every
+  prior run, by two independent measures (report receipt and trace plateau).
+- INFERRED, NOT CLAIMED: why. Candidate readings, none tested here - (a) aggregate path
+  planning or formation keeping responds to the lowered waypoint altitudes; (b) an
+  aggregate-specific interaction with waypoint altitude that the two individual entities do
+  not have; (c) run-to-run variance larger for the aggregate than the 3 s seen in three
+  prior runs. Nothing in this run's artifacts separates them.
+- CONSEQUENCE: the mode is now FUNCTIONAL and its remaining question is a movement-timing
+  regression on the aggregate, not a reply-plumbing question.
+
+STATE LEFT BEHIND (for the next session):
+- Processes: VR-Forces DOWN, nothing force-killed; no observers; RTI trio rtiAssistant 41336
+  / rtiexec 224608 / rtiForwarder 76620 resident and untouched; docker stp-server +
+  c2sim_server Up.
+- Binaries: VrfBridge.dll A7504441F421B668D10F5AFD8B4FD71110002D13FE6ABAE0DB576C7C209236F5
+  deployed to 10/10 main-checkout copies; the 28E993FE set is backed up in
+  src/VrfBridge/build/Release/bak-20260902-28e993fe/.
+- Ledger: marker is now 3704 (this run consumed 3697-3703; 3703 unconsumed and BURNED).
+- Dumps: none created by this run. No file under C:\MAK was written by this session.
