@@ -214,6 +214,150 @@ clocks.orderPushedUtc, the .dmp window title and pid), answer the dump prompt pe
 same phase with the mode set - where Row 1 under Live did not - is itself the evidence the
 supervisor takes docs-first; one more run would not add to it and is not authorized.
 
-## 6. Outcome (to be written from the artifacts, after the run)
+## 6. Outcome (written from the run directory artifacts, after the run)
 
-(to be filled in)
+VERDICT: STOP - FALSIFIED, AND THIS TIME IT IS ABOUT THE MODE. The back end lived through
+the whole run (prediction G MET), the three terrain requests were sent AND ANSWERED - no
+timeout, no Fallback - but every reply was PARTIAL: vertex 0 got a usable terrain sample,
+vertices 1 and 2 did not. Prediction B MISSED (3 x :807 Partial WARN, the named falsifier);
+prediction C is UNADJUDICABLE on numbers (no :802 success line, so no `alts [...]` list
+exists in any artifact); predictions A, D, F MET; E MET except its WARN-census clause, which
+the 3 Partial WARNs break by construction. Movement was UNAFFECTED - 3/3 TASKCMPLT at Row 1's
+offsets, endpoints within 0.27 m of P2c - because the Partial path keeps the Live altitude for
+the vertices it could not author. Nothing was retuned, re-run, killed, or code-inspected
+beyond attributing log strings; per the prereg's rules this run stops here.
+
+Run 20260902T101431Z_run, launched 2026-09-02 10:14:31.952Z from main at 4fc7e4d (this
+prereg committed), `Get-ChildItem env:Vrf__*` = exactly `Vrf__GroundWaypointAltitudeMode=
+TerrainProfile` (echoed into the run console log before the runner started). appNos 3690-3696
+(vrfBackend 3690, vrfFrontend 3691, oraclePre 3692, oracleTrace 3693, app 3694, rtiProbe 3695,
+createOneDiag 3696); ledger wasValue 3690 / newValue 3697 / advanced true; ledger file after
+the run CRLF 1858 / bare LF 0. Pre-launch inventory held: no vrfSim* / vrfGui / WatchVrf /
+ListenReports / VrfC2SimApp, RTI trio exactly rtiAssistant 41336 / rtiexec 224608 /
+rtiForwarder 76620, docker stp-server + c2sim_server Up, env:Vrf__* empty, 10/10 main-checkout
+VrfBridge.dll copies re-hashed 28E993FE (the only other copies on disk are inside
+.claude/worktrees/, which this run does not load). Runner exit 0; StopVrf exit 0; wall
+10:14:31.952Z -> 10:21:46.589Z = 434.6 s = 7 min 15 s (Row 1: 7 min 15 s). validityFlags: the
+single advisory pre-init INFO only.
+
+A. REQUEST PATH ENTERED - MET. Exactly 3, ids 7/8/9, one per task, no :793 WARN:
+   "Task 'T_R5_PL1': terrain profile request 7 sent for 3 vertices; dispatch deferred to the
+   reply (timeout 10 s -> Live fallback)." (and 8 / T_R5_CO1, 9 / T_R5_TK1).
+B. REPLY, COMPLETE, IN TIME - MISSED (the falsifier). ZERO :802 "all 3 vertices authored"
+   lines. ZERO :1474 "got no reply within 10 s" WARN - so the replies DID arrive inside the
+   10 s window, unlike Row 2. ZERO :1453 "partial (Complete=false)" INFO - the reply was a
+   single complete response, not a partial-information series. What fired instead was :807,
+   three times, verbatim:
+     warn: VrfC2Sim[0]
+           Terrain profile 7 for task 'T_R5_PL1': Partial - vertices 1,2 had no usable
+           sample - kept Live altitude; 2 vertex(es) keep the Live altitude.
+     warn: VrfC2Sim[0]
+           Terrain profile 8 for task 'T_R5_CO1': Partial - vertices 1,2 had no usable
+           sample - kept Live altitude; 2 vertex(es) keep the Live altitude.
+     warn: VrfC2Sim[0]
+           Terrain profile 9 for task 'T_R5_TK1': Partial - vertices 1,2 had no usable
+           sample - kept Live altitude; 2 vertex(es) keep the Live altitude.
+   Same shape for all three routes: vertex 0 authored from terrain, vertices 1 and 2 not.
+C. ALTITUDES ARE TERRAIN, NOT ECHO - UNADJUDICABLE, recorded as a MISS by absence. The
+   `alts [a0, a1, a2]` list only exists on the :802 success line, which never fired, so the
+   authored vertex-0 altitude is in no artifact and the +/-20 m band cannot be tested. What
+   the artifacts DO settle, negatively: NO Reason anywhere contains "echoed request point"
+   (the F2 echo tripwire did not fire) and NO Reason contains "no usable sample for any
+   vertex" (the F3 HORIZONTAL frame falsifier did not fire) - vertex 0's sample was accepted,
+   i.e. it landed within 50 m of the requested vertex, which is evidence FOR the
+   geocentric-request inference rather than against it. No :810 "taskee altitude not
+   terrain-clamped" Note fired either.
+D. MOVEMENT IDENTICAL TO ROW 1 - MET. 3 TASKCMPLT in vrfc2simapp.log and 3 in
+   reports-captured.log. Offsets from clocks.orderPushedUtc 2026-09-02T10:16:55.043Z:
+   1.BdeHQ +118.0 s (Row 1 +117.3, delta +0.7), 1222.MechPlt +130.1 s (+129.2, +0.9),
+   114.MechCoy +185.2 s (+183.8, +1.4) - all inside +/-10 s. Endpoints from the trace final
+   POS (t=280.9): 1.BdeHQ 34.608416,-116.699996 (0.27 m from P2c), 114.MechCoy
+   34.653915,-116.693388 (0.00 m), 1222.MechPlt 34.612956,-116.587783 (0.09 m). POS==RPT
+   0.0 / 0.0 / 0.0 m (run-manifest reportEvidence distanceM). settled true x3 (last-3-POS
+   spread 0.00 m each). Plateau onsets 150.1 / 221.6 / 162.4 s (Row 1: 148.0 / 219.2 /
+   160.1, same order 1.BdeHQ / 114.MechCoy / 1222.MechPlt). 3 x "CreateRoute ... (3 pts)"
+   and 3 x "Route '...' created; MoveAlongRoute issued" (9bd6676f / e5f6ff0f / 7d6ce5ba).
+   bin64-vrfSim.log "empty route" 0. Trace TSK lines (REPORTED, not adjudicated): 146.9 /
+   159 / 214.1 s.
+E. HYGIENE - MET EXCEPT THE WARN CENSUS, which B's Partials break. StopVrf exit 0 and
+   "VR-Forces is DOWN (graceful quit; no process was force-killed)."; RTI trio 41336 /
+   224608 / 76620 unchanged before and after (start times 14:34 / 15:08 / 15:09 local, same
+   as Row 1's); both observers on the stop-file path ("# STOP requested via stop-file at
+   t=313s (duration cap was 980s)" -> "[OK] resigned cleanly."; ListenReports "stop requested
+   via stop-file at t=316.1s ... - disconnecting", "captured 31 reports" - Row 1 also 31).
+   bin64-vrfSim.log counts: "Waiting for nav data" 0, "empty route" 0, "Can't find entity
+   route" 0, "invalid formation name" 1 (baseline) = 0/0/0/1; SocketException / "Only one
+   usage" / "Connection error" 0/0/0. App-log census: 3 `fail:` lines - 2 deserialize + 1
+   "STOMP block reading cancelled" - byte-for-byte the same three Row 1 has; 3 "Can't create
+   data of type"; 0 Exception; and THREE `warn:` lines, all :807, where Row 1 had ZERO. That
+   is the only census delta and it is the finding, not noise. Runner exit 0, console
+   [WARN]/[FAIL] 0. Wall 7 min 15 s (<= 9 min).
+   PREREG DEFECT recorded, not a run miss: E asked for "6 x mode=TerrainProfile" create
+   lines. That string cannot occur - VrfC2SimService.cs:439 hard-codes the literal
+   "Create-altitude mode=Live" for the whole live-like family, and Row 2's own log (which
+   its sec 6 quoted as "mode=TerrainProfile") in fact reads mode=Live too. This run logged
+   6 x "Create-altitude mode=Live: GROUND unit <name> created at safe MSL 10000 m (original
+   create alt 1000 m); parity post-create SetAltitude SKIPPED" - identical to Row 1's six,
+   which is what the clause was actually testing. Row 2 sec 6's quotation of that line is
+   wrong and should be corrected there.
+F. EARLY EXIT - MET. earlyExit.fired true; allCompleteUtc 10:20:01.500Z, closedUtc
+   10:21:07.915Z -> 66.4 s (band [60, 90]); windowSecsUsed 222.1; reportEvidence satisfied
+   x3 with distanceM 0.0 / 0.0 / 0.0.
+G. THE BACK END SURVIVES THE RUN - MET, both halves. bin64-vrfSim.log (captured copy) is
+   11,283 lines / 996,829 bytes and runs from scenario load to teardown: 3,635 lines are
+   stamped 06:17:00 local or later, i.e. AFTER the order push at 06:16:55 local
+   (10:16:55.043Z), first one "M3 1: [Wed Sep  2 06:17:00 2026] avoidCollision() - Entity
+   location: {-2359998.939429, -4693684.575701, 3606516.701742}", last one "Exception in
+   destroyFederationExecution: Federation Execution Already Exists.[Wed Sep  2 06:21:43
+   2026]" (the normal teardown tail). Row 2's log stopped dead at 5,318 lines / 21:21:26,
+   6 s before its order push; Row 1's was 11,099 lines. Window-title polling every 60 s
+   through the run (7 samples 10:15:43Z - 10:21:43Z) saw only "vrfSimHLA1516e pid=133672
+   title='C:\MAK\vrforces5.0.2\bin64\vrfSimHLA1516e.exe'" and "vrfGui pid=238252
+   title='VR-Forces - ..\userData\scenarios\TropicTortoise.scnx'", never a `.dmp` title;
+   the post-run sweep found no vrfSim*/vrfGui process at all, and C:\MAK\vrforces5.0.2\
+   bin64 holds NO new dump (newest is still Row 2's vrfSim5.0.2-MSVC++15.0_64-249613-
+   70668.dmp, 598,441 B, 2026-09-02 06:00:18 local). AnswerCrashDumpDialog.ps1 was never
+   needed and never run.
+
+WHAT THE BACK-END LOG SAYS ABOUT THE REQUEST (recorded per the prereg's STOP rule, not
+investigated): at notify level 3 bin64-vrfSim.log contains ZERO lines matching
+`IfRequest`, `TerrainProfile`, `terrain profile`, or `IntersectionInformation`. Every hit
+for `terrain` is scenario-load/plugin noise from 06:14:52-06:15:31 (terrain config, vantage
+plugin, dynamic-terrain entity), all of it before the order. A first read mistook the 1,100
+"Segment/Bounding-Volume Intersection:  Segment endpoints are identical." lines (06:16:56 -
+06:17:53) for request traffic; they are NOT - Row 1, which never sent a request, has 1,050
+of the same lines interleaved with `avoidCollision()` / `avoidNonMovingObstruction()`
+entries, and Row 2, where nothing moved, has 0. They are collision-avoidance noise
+proportional to movement. So the back end answered the request without logging anything
+about it at level 3.
+
+ADJUDICATION AGAINST THE VARIABLE (verified vs. inferred):
+- VERIFIED: with a live back end, the mode's request/reply round trip WORKS end to end
+  inside the 10 s budget - Row 2's timeout was the crash, not the design. The request is
+  sent (non-zero ids), a complete reply comes back, and the authoring code consumes it.
+- VERIFIED: the reply is usable for exactly one vertex per route - vertex 0, the taskee's
+  own position - and unusable for vertices 1 and 2, the two order points 555 m - 1 km away.
+  All three routes behave identically. No echo, no all-vertex frame failure.
+- VERIFIED: the failure is inert for movement. The Partial path keeps Live altitudes for the
+  unauthored vertices and the run reproduces Row 1 to within 1.4 s and 0.27 m.
+- INFERRED (not proven by this run's artifacts): the natural competing hypotheses for
+  "vertex 0 usable, vertices 1-2 not" are (i) the back end returned FEWER samples than
+  requested - e.g. one - so vertices 1 and 2 had no candidate within the 50 m gate; (ii) it
+  returned three samples but only the first is near its vertex, which would point at how the
+  request's later points are packed or interpreted; (iii) the samples for 1 and 2 were
+  present but rejected by the usability gate for another reason. NOTHING in the app log at
+  Info level distinguishes these - the sample count and the per-vertex distances are only
+  visible at Debug (:1459) - and the back end logs nothing about the request at level 3.
+  Deciding between them is the supervisor's docs-first call, not this run's.
+- CONSEQUENCE FOR THE MODE: the mode is NOT dead and NOT frame-broken, but it does not yet
+  deliver its purpose - the route waypoints that matter (the order points) still carry Live
+  altitudes. Row 2 is now ADJUDICATED: the design's Row 2 check 1 ("NO fallback / Partial
+  WARN") is not met.
+
+STATE LEFT BEHIND (for the next session):
+- Processes: VR-Forces DOWN, nothing force-killed; no WatchVrf / ListenReports /
+  VrfC2SimApp; RTI trio rtiAssistant 41336 / rtiexec 224608 / rtiForwarder 76620 resident
+  and untouched; docker stp-server + c2sim_server Up.
+- Ledger: marker is now 3697 (this run consumed 3690-3696; 3696 unconsumed and BURNED).
+- Dumps: none created by this run; bin64 still holds Row 2's 70668 dump (598,441 B) and the
+  older 2023-12 / 2026-07 ones. No file under C:\MAK was written by this session.
