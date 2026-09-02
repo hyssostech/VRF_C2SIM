@@ -1138,8 +1138,23 @@ public sealed class VrfC2SimService : BackgroundService
 
         // If this created object is a route with tasks awaiting it, issue the FIRST pending
         // one now that the route is registered (parity: executeTask's wait-then-
-        // moveAlongRoute, :2408-2421). FIFO per route name - see _pendingRouteTasks. The
-        // along-route task resolves the route by name, so pass e.Name (== routeName).
+        // moveAlongRoute, :2408-2421). FIFO per route name - see _pendingRouteTasks; the
+        // QUEUE is still keyed by the route NAME (that is all CreateRoute gave us), but the
+        // TASK is addressed by the route's REAL uuid, e.Uuid.
+        // WHY (2026-09-02, docs/experiments/PREREG_ROUTE_UUID_FIX_2026-09-02.md): these
+        // tasks carry the route as a DtUUID (moveAlongTasks.h setRoute(const DtUUID&),
+        // patrolRouteTask.h, planAndMoveToTask.h setControlPoint). DtUUID's string ctor
+        // (C:\MAK\vrforces5.0.2\include\vrfutil\rwUUID.h:246-253) sets a VALID uuid only from
+        // a "VRF_UUID:..." string; anything else falls back to a marking-text lookup held in
+        // a 36-byte blob (rwUUID.h:412 char myData[36] = 1 type byte + 35 payload), so a name
+        // longer than 34 characters arrived at the back end CUT TO 35 and the route reference
+        // never resolved - the aggregate was tasked and then silently froze (probe run
+        // 20260902T143638Z: route name 44 chars, 0 offset routes, 0.0 m in 900 samples).
+        // e.Uuid IS the "VRF_UUID:..." form (the ObjectCreated callback carries the DtUUID -
+        // vrfRemoteController.h:102-103 - and VrfFacade.cpp:211 forwards uuid.uuidString()),
+        // i.e. the exact same path the taskee uuid already uses successfully. The C2SIM task
+        // name stays in the log line and on the route OBJECT (CreateRoute's DtString is
+        // unbounded); it is no longer what the task has to resolve.
         // NOTE (P0.3): the ATTACK/BREACH engage is NO LONGER issued here - it now waits for
         // the move to COMPLETE (OnVrfTaskCompleted), since a same-tick engage would replace
         // the move (NEXT_SESSION_GUIDANCE.md sec 2.5).
@@ -1148,30 +1163,30 @@ public sealed class VrfC2SimService : BackgroundService
         {
             if (pending.Patrol)
             {
-                _bridge.PatrolRoute(pending.TaskeeVrfUuid, e.Name);
-                _log.LogInformation("Route '{Route}' created; PatrolRoute issued for {Vrf} (Reconnoiter).",
-                                    e.Name, pending.TaskeeVrfUuid);
+                _bridge.PatrolRoute(pending.TaskeeVrfUuid, e.Uuid);
+                _log.LogInformation("Route '{Route}' ({RouteUuid}) created; PatrolRoute issued for {Vrf} (Reconnoiter).",
+                                    e.Name, e.Uuid, pending.TaskeeVrfUuid);
             }
             else if (pending.PlanMove)
             {
                 // R11: the created object is the destination WAYPOINT - issue the planned move.
-                _bridge.PlanAndMoveTo(pending.TaskeeVrfUuid, e.Name);
-                _log.LogInformation("Waypoint '{Wpt}' created; PlanAndMoveTo issued for {Vrf} (R11).",
-                                    e.Name, pending.TaskeeVrfUuid);
+                _bridge.PlanAndMoveTo(pending.TaskeeVrfUuid, e.Uuid);
+                _log.LogInformation("Waypoint '{Wpt}' ({WptUuid}) created; PlanAndMoveTo issued for {Vrf} (R11).",
+                                    e.Name, e.Uuid, pending.TaskeeVrfUuid);
             }
             else if (pending.FanOutMembers is { Count: > 0 } members)
             {
                 // R10: fan the along-route move out to the member entities (same route).
                 foreach (var m in members)
-                    _bridge.MoveAlongRoute(m.Uuid, e.Name);
-                _log.LogInformation("Route '{Route}' created; R10 fan-out MoveAlongRoute issued to " +
-                                    "{N} members of {Vrf}.", e.Name, members.Count, pending.TaskeeVrfUuid);
+                    _bridge.MoveAlongRoute(m.Uuid, e.Uuid);
+                _log.LogInformation("Route '{Route}' ({RouteUuid}) created; R10 fan-out MoveAlongRoute issued to " +
+                                    "{N} members of {Vrf}.", e.Name, e.Uuid, members.Count, pending.TaskeeVrfUuid);
             }
             else
             {
-                _bridge.MoveAlongRoute(pending.TaskeeVrfUuid, e.Name);
-                _log.LogInformation("Route '{Route}' created; MoveAlongRoute issued for {Vrf}.",
-                                    e.Name, pending.TaskeeVrfUuid);
+                _bridge.MoveAlongRoute(pending.TaskeeVrfUuid, e.Uuid);
+                _log.LogInformation("Route '{Route}' ({RouteUuid}) created; MoveAlongRoute issued for {Vrf}.",
+                                    e.Name, e.Uuid, pending.TaskeeVrfUuid);
             }
         }
     }

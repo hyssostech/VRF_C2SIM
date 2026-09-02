@@ -341,6 +341,31 @@ Check 'runner: Test-ReportEvidence is called on the live trace with the toleranc
 $ul = $runnerAst.FindAll({ param($a) $a -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $a.Name -eq 'Update-Ledger' }, $true)
 Check 'runner: Update-Ledger writes through ConvertTo-CrlfText' (@($ul).Count -eq 1 -and $ul[0].Extent.Text -match 'WriteAllText\(\$LedgerDoc, \(ConvertTo-CrlfText \$updated\)')
 
+# 8. The .Missing member-enumeration defect that made run 20260902T143638Z exit 5
+# ("The property 'Count' cannot be found on this object" at RunC2SimScenario.ps1:2171).
+# @() around the CALL member-enumerates .Missing and PowerShell unwraps a ONE-element
+# result to a bare [string]; under Set-StrictMode -Version Latest the later $missing.Count
+# then throws. The branch is reached only when -StopWhenComplete fails to fire with
+# EXACTLY ONE taskee missing, so no prior run had executed it. @() must wrap the PROPERTY.
+Write-Host '=== 8. $missing must be an array for 0, 1 and 2 missing taskees (run 20260902T143638Z, EXIT=5) ==='
+$nowUtc8 = (Get-Date).ToUniversalTime()
+$state8  = New-CompletionState
+$state8.firstSeenUtc['A'] = $nowUtc8
+$state8.firstSeenUtc['B'] = $nowUtc8
+$state8.lineCount = 2
+$one8  = @( (Test-EarlyExit -State $state8 -Taskees @('A','B','C')     -SettleHoldSecs 60 -NowUtc $nowUtc8 -ReportEvidence $false).Missing )
+$zero8 = @( (Test-EarlyExit -State $state8 -Taskees @('A','B')         -SettleHoldSecs 60 -NowUtc $nowUtc8 -ReportEvidence $false).Missing )
+$two8  = @( (Test-EarlyExit -State $state8 -Taskees @('A','B','C','D') -SettleHoldSecs 60 -NowUtc $nowUtc8 -ReportEvidence $false).Missing )
+$bad8  = @(Test-EarlyExit -State $state8 -Taskees @('A','B','C') -SettleHoldSecs 60 -NowUtc $nowUtc8 -ReportEvidence $false).Missing
+Check 'ONE missing: @( (call).Missing ) is a 1-element array and .Count is usable' ($one8.Count -eq 1 -and $one8[0] -eq 'C') ("got " + ($one8 -join ','))
+Check 'ZERO missing: @( (call).Missing ) is an EMPTY array, not @($null)'          ($zero8.Count -eq 0) "got $($zero8.Count)"
+Check 'TWO missing: @( (call).Missing ) keeps both'                                ($two8.Count -eq 2) ("got " + ($two8 -join ','))
+Check 'the DEFECTIVE form @(call).Missing really does unwrap to a bare string'     ($bad8 -is [string] -and $bad8 -eq 'C') "got $($bad8.GetType().Name)"
+$missAssign = $runnerAst.FindAll({ param($a) $a -is [System.Management.Automation.Language.AssignmentStatementAst] -and $a.Left.Extent.Text -eq '$missing' }, $true)
+Check 'runner: $missing wraps the PROPERTY, not the call - @( (Test-EarlyExit ...).Missing )' (
+    @($missAssign).Count -eq 1 -and $missAssign[0].Right.Extent.Text -match '^@\(\s*\(Test-EarlyExit.*\)\.Missing\s*\)$') (
+    ($missAssign | ForEach-Object { $_.Right.Extent.Text }) -join ' | ')
+
 Write-Host ''
 Write-Host ('{0} passed, {1} failed' -f $script:Pass, $script:Fail)
 if ($script:Fail -gt 0) { exit 1 }

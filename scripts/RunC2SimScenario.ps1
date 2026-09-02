@@ -2166,7 +2166,11 @@ try {
         $EarlyExit.completionLinesSeen = $completion.lineCount
         foreach ($k in @($completion.firstSeenUtc.Keys)) { $EarlyExit.firstSeenUtc[$k] = ([datetime]$completion.firstSeenUtc[$k]).ToString('yyyy-MM-ddTHH:mm:ss.fffZ') }
         if ($StopWhenComplete -and -not $EarlyExit.fired) {
-            $missing = @(Test-EarlyExit -State $completion -Taskees $OrderTaskees -SettleHoldSecs $SettleHoldSecs -NowUtc (Get-Date).ToUniversalTime() -ReportEvidence $false).Missing
+            # The @() MUST wrap the .Missing PROPERTY, not the call: member enumeration over a
+            # one-element array unwraps to a bare [string], and under Set-StrictMode -Version
+            # Latest (:314) the $missing.Count at :2171 then throws (runner EXIT=5, first hit by
+            # run 20260902T143638Z - exactly one taskee missing is the only branch that reaches it).
+            $missing = @( (Test-EarlyExit -State $completion -Taskees $OrderTaskees -SettleHoldSecs $SettleHoldSecs -NowUtc (Get-Date).ToUniversalTime() -ReportEvidence $false).Missing )
             $pendingEv = @($EarlyExit.reportEvidence.GetEnumerator() | Where-Object { -not $_.Value.satisfied } | ForEach-Object { '{0}: {1}' -f $(if ($_.Value.name) { $_.Value.name } else { $_.Key }), $_.Value.reason })
             Say-Info ('  -StopWhenComplete did NOT fire; window ran to its {0}s cap. Taskees without TASKCMPLT: {1}. Report evidence pending: {2}' -f $RunSecs, $(if ($missing.Count -gt 0) { $missing -join ', ' } else { '(none)' }), $(if ($pendingEv.Count -gt 0) { $pendingEv -join ' | ' } else { '(none - the hold had not elapsed, or the line count was below the task count)' }))
         }

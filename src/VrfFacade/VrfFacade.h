@@ -347,7 +347,15 @@ public:
     void Breach(const std::string& uuid, const std::string& breachTargetUuid);
 
     // Patrol the (already-created) route back and forth (DtPatrolRouteTask). Layer 2 for
-    // SCREEN/SCOUT (Reconnoiter). routeUuid is the route name, resolved like MoveAlongRoute.
+    // SCREEN/SCOUT (Reconnoiter). routeUuid MUST BE A REAL "VRF_UUID:..." STRING, like
+    // MoveAlongRoute's - CORRECTED 2026-09-02; the old claim "routeUuid is the route name,
+    // resolved like MoveAlongRoute" was true of neither call. DtUUID's string ctor
+    // (rwUUID.h:246-253) yields a VALID uuid only from the "VRF_UUID:" form; any other
+    // string becomes a marking-text lookup carried in a 36-byte blob (rwUUID.h:412
+    // char myData[36]), so a name over 34 characters reaches the back end CUT TO 35 and the
+    // route reference never resolves - the unit is tasked and silently freezes (proven by
+    // manipulation, docs/experiments/PREREG_ROUTE_NAME_LENGTH_2026-09-02.md sec 6). Callers
+    // pass the uuid the ObjectCreated callback carried (VrfC2SimService.OnVrfObjectCreated).
     // NOTE: a patrol never self-completes (it reverses at the ends until retasked/triggered).
     void PatrolRoute(const std::string& uuid, const std::string& routeUuid);
 
