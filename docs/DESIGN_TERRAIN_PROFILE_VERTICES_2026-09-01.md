@@ -373,6 +373,30 @@ variable was never exercised against a live back end. Full record + state left b
 docs/experiments/PREREG_TERRAIN_ROW2_MODE_2026-09-02.md sec 6. Next: user decides on the
 70668 dump; then repeat Row 2 on a clean boot (same prereg, new run id) - NO retune.
 
+ROW 2R RESULT - THE REPEAT, AND THE ROW 2 ADJUDICATION (2026-09-02, run
+20260902T101431Z, appNos 3690-3696): the 70668 dump was saved and VR-Forces torn down; the
+repeat ran the identical experiment. The back end lived the whole run (11,283 log lines,
+3,635 of them after the order push; no crash prompt, no new dump). The three requests
+(ids 7/8/9) were sent AND ANSWERED inside the 10 s budget - no :1474 timeout, no Fallback,
+no :1453 partial-series line - but all three replies were PARTIAL in the same shape:
+"Terrain profile 7 for task 'T_R5_PL1': Partial - vertices 1,2 had no usable sample - kept
+Live altitude; 2 vertex(es) keep the Live altitude." Vertex 0 (the taskee's own position)
+authored from terrain; vertices 1 and 2 (the order points, 555 m - 1 km away) did not.
+Neither tripwire fired: no "echoed request point" (F2), no "no usable sample for any
+vertex" (F3 horizontal frame falsifier) - vertex 0's sample was inside the 50 m gate, which
+is evidence FOR the geocentric-request inference. Check 1 is therefore NOT met (a Partial
+WARN fired); check 2 is clean; check 3 is met - movement was untouched (3/3 TASKCMPLT at
++118.0 / +130.1 / +185.2 s vs Row 1's +117.3 / +129.2 / +183.8, endpoints within 0.27 m of
+P2c, POS==RPT 0.0 x3, 7 min 15 s, StopVrf exit 0), because the Partial path keeps Live
+altitudes. The mode is alive but does not yet deliver its purpose: the order-point waypoints
+still carry Live altitudes. The sample count and per-vertex distances are only logged at
+Debug (:1459) and the back end logs nothing about the request at notify level 3, so WHY
+vertices 1-2 have no usable sample is undecided - docs-first, supervisor's call, NO retune
+was attempted. Full record: docs/experiments/PREREG_TERRAIN_ROW2R_MODE_2026-09-02.md sec 6.
+NOTE a defect in Row 2's sec 6: it quotes the create lines as "mode=TerrainProfile"; the log
+template at VrfC2SimService.cs:439 hard-codes "mode=Live" for the whole live-like family and
+Row 2's own log reads mode=Live, same as Row 1 and Row 2R.
+
 ## 8. Gate results (2026-09-01, offline, worktree only)
 First revision (commit 6539036): VrfBridge /t:Rebuild exit 0 / 0 warnings; dotnet build 0
 errors; 7 self-tests exit 0 (terrain: 21 checks); ASCII clean vs a dirty control.
