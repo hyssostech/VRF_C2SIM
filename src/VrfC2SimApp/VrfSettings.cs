@@ -164,21 +164,28 @@ public class VrfSettings
     // and the unit freezes; and a ground unit BORN below terrain never executes movement at all
     // (parts 13/13c). "Live" instead puts each ground waypoint at the unit's OWN live ground
     // altitude (read from the sim) + LiveClearanceMeters, and creates ground units at
-    // CreateAltitudeSafeMslMeters so VRF's create ground clamp drops them onto the surface. "Live"
-    // is THE DEFAULT (the create-time terrain-clamp fix); "Fixed100" is the byte-for-byte
-    // golden-parity escape hatch. "TerrainProfile" (opt-in, docs/DESIGN_TERRAIN_PROFILE_
-    // VERTICES_2026-09-01.md) creates like Live, then authors each GROUND route vertex from the
-    // back end's OWN terrain height (DtIfRequestTerrainProfileInformation) + TerrainClearance-
-    // Meters; a vertex the back end does not answer for (or a reply that never arrives within
-    // TerrainProfileTimeoutSeconds) keeps its Live altitude with a WARN - the order is never
-    // blocked on the query.
-    public string GroundWaypointAltitudeMode { get; set; } = "Live"; // "Fixed100" | "Live" | "TerrainProfile"
+    // CreateAltitudeSafeMslMeters so VRF's create ground clamp drops them onto the surface.
+    // "TerrainProfile" (docs/DESIGN_TERRAIN_PROFILE_VERTICES_2026-09-01.md) creates like Live,
+    // then authors each GROUND route vertex from the back end's OWN terrain height
+    // (DtIfRequestTerrainProfileInformation) + TerrainClearanceMeters; a vertex the back end does
+    // not answer for (or a reply that never arrives within TerrainProfileTimeoutSeconds) keeps its
+    // Live altitude with a WARN - the order is never blocked on the query.
+    // "TerrainProfile" IS THE DEFAULT since 2026-09-02 (design sec 7, Rows 2c and 2cR: two
+    // consecutive live runs authored all 3 vertices of all 3 routes from the back end's own
+    // terrain, zero warnings, movement at Row 1 timings). It is the DOCUMENTED frame - the
+    // Users Guide makes vertex altitude the author's responsibility (contract C5) and the
+    // simulator's own terrain height is the authoritative answer. "Live" (live entity altitude +
+    // GroundWaypointLiveClearanceMeters) was the previous default and remains available by config
+    // as the fallback when the terrain query is not wanted; "Fixed100" is the byte-for-byte
+    // golden-parity escape hatch. Override either way with Vrf__GroundWaypointAltitudeMode.
+    public string GroundWaypointAltitudeMode { get; set; } = "TerrainProfile"; // "Fixed100" | "Live" | "TerrainProfile"
     public double GroundWaypointLiveClearanceMeters { get; set; } = 50.0;
     public double TerrainClearanceMeters { get; set; } = 10.0;
     public int TerrainProfileTimeoutSeconds { get; set; } = 10;
 
-    // Live-mode ground-unit CREATE altitude in meters MSL (create-time terrain-clamp fix,
-    // docs/SUPERVISED_RECOVERY_PLAN.md sec 3b). Under GroundWaypointAltitudeMode="Live" a ground
+    // Live-like ground-unit CREATE altitude in meters MSL (create-time terrain-clamp fix,
+    // docs/SUPERVISED_RECOVERY_PLAN.md sec 3b). Under GroundWaypointAltitudeMode="TerrainProfile"
+    // (the default) or "Live" - the two modes share the create path - a ground
     // unit is created at THIS altitude instead of its plan altitude (ElevationAgl MSL). It must be
     // guaranteed ABOVE all Earth terrain (highest ground ~8849 m at Everest) so that VRF's
     // createEntity ground clamp (default on) can only DROP the birth onto the local surface - a

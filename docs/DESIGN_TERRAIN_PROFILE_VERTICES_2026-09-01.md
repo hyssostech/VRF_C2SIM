@@ -3,8 +3,12 @@
 Handoff NEXT item 1 (docs/HANDOFF_2026-09-01_R9_COMPLETE.md): add a THIRD
 GroundWaypointAltitudeMode, "TerrainProfile", that asks the simulating back end for
 the terrain height under each ground route vertex (DtIfRequestTerrainProfileInformation)
-and authors the vertex at terrain + TerrainClearanceMeters. "Live" (live entity altitude
-+ 50 m) stays THE DEFAULT and its code path is byte-identical; "Fixed100" is untouched.
+and authors the vertex at terrain + TerrainClearanceMeters. AS FIRST WRITTEN (2026-09-01):
+"Live" (live entity altitude + 50 m) stays THE DEFAULT and its code path is byte-identical;
+"Fixed100" is untouched. SUPERSEDED 2026-09-02: after Rows 2c and 2cR both passed,
+"TerrainProfile" BECAME THE DEFAULT - see sec 7 DEFAULT FLIP. "Live" remains available by
+config (Vrf__GroundWaypointAltitudeMode=Live) and its code path is still byte-identical;
+"Fixed100" is still untouched.
 Written docs-first, before any code (STANDING RULE). ASCII only. Offline gates only in
 this pass - the confirming live run is sec 7.
 
@@ -21,7 +25,7 @@ MERGE WITH FIXES. F1 (lazy callback registration + control row), F2 (echo guard)
 | Frame of the REQUEST points | Not stated in the request header. Geocentric by protocol convention: the sibling DtIfRequestIntersectionInformation says "all point requests must be supplied in geocentric", the back-end manager stores them as plain DtVector, and the app's own controller calls (createRoute, setLocation) take geocentric. The reviewer adds the vendor's own client, DtTerrainProfileWidget (vrfGuiCommonQt/terrainProfileWidget.h:221, :325, :344-345, :408), which keeps every request/reply point geocentric. A WRONG request frame shows up live as HORIZONTAL mismatch (samples nowhere near the vertices -> "no usable sample" fallback), NOT as a vertical gap (review F3) | INFERRED, strongly corroborated - verify live (sec 7 check 2) |
 | Async model + correlation | Fire-and-forget sim-interface message carrying an int requestId (controller->generateRequestId()); the reply is a DtIfIntersectionInformationResponse delivered to a callback registered by message TYPE on the controller's DtVrfMessageInterface; correlate on responseId() == requestId, per point on userData() == request point index; complete() marks the last (or only) reply | VERIFIED - sec 1.1-1.4 |
 | Unpaged-terrain behaviour | Non-blocking terrain queries on unpaged terrain return immediately with dataAvailable=false and "no terrain intersections" (Dev Guide, contract C1). The terrain-profile manager runs its requests in its own thread (header), so it MAY block/page instead - undocumented. Either way the app must not depend on it: a point with no intersection arrives as an EMPTY response set; a request that never answers is covered by the app timeout. Both fall back to the Live altitude for that vertex | VERIFIED (Dev Guide) + handled defensively |
-| Oracle parity | NONE. The frozen C++ oracle never queries terrain height: grep of c2simVRFinterfacev2.36 for TerrainProfile / IntersectionInformation returns 0 hits; ground vertices are `loc->elevation = "100"` (C2SIMinterface.cpp:2191); the only AGL use is setPointAltitudeAgl(waypoint, 0) for evacuate waypoints (:1148-1149). This mode is a deliberate departure, opt-in, off by default | VERIFIED |
+| Oracle parity | NONE. The frozen C++ oracle never queries terrain height: grep of c2simVRFinterfacev2.36 for TerrainProfile / IntersectionInformation returns 0 hits; ground vertices are `loc->elevation = "100"` (C2SIMinterface.cpp:2191); the only AGL use is setPointAltitudeAgl(waypoint, 0) for evacuate waypoints (:1148-1149). This mode is a deliberate departure from the oracle - opt-in and off by default when written 2026-09-01; THE DEFAULT since 2026-09-02 (sec 7 DEFAULT FLIP), with "Live" and "Fixed100" still reachable by config | VERIFIED |
 
 ## 1. Documentation read (citations)
 
@@ -258,6 +262,10 @@ log lines) - the only touch on the shared lines is the mode predicate widening
 ("Live" -> "Live" or "TerrainProfile") and the new `terrainRoute` optional parameter,
 which is null on the default path. The frozen C++ oracle is untouched. No deployed
 binary, no C:\MAK file, no launch.
+NOTE 2026-09-02: "the default path" in this section means the pre-flip default, "Live".
+Those code paths are unchanged by the DEFAULT FLIP (sec 7) - the flip changes ONE literal
+in VrfSettings.cs, not any code path; Live is still byte-identical and still selectable
+with Vrf__GroundWaypointAltitudeMode=Live.
 
 ## 4. Files changed (this pass)
 - src/VrfFacade/VrfFacade.h, src/VrfFacade/VrfFacade.cpp - POD types, request, trampoline, event.
@@ -497,6 +505,36 @@ Hygiene all Row 1's: 3/3 TASKCMPLT, endpoints within 0.2 m, POS==RPT 0.0 x3, set
 push), runner and StopVrf exit 0, RTI PIDs 41336/224608/76620 unchanged, wall 7 min 13 s.
 Full record: docs/experiments/PREREG_TERRAIN_ROW2CR_REPEAT_2026-09-02.md sec 6. THE ROW 2
 QUESTION IS NOW CLOSED: checks 1, 2 and 3 all MET, mode functional, no movement cost.
+
+DEFAULT FLIP (2026-09-02, supervisor decision, commit recorded on the line below this
+paragraph after it was made). WHAT CHANGED: exactly one literal -
+`VrfSettings.GroundWaypointAltitudeMode` default `"Live"` -> `"TerrainProfile"`, plus the
+comment blocks and the docs that asserted the old default. NO code path changed: Live's
+create-altitude arithmetic, groundWpAlt arithmetic, dispatch order and log lines are
+untouched, "Fixed100" is untouched, the native bridge is NOT rebuilt (A7504441 stays on
+10/10 copies), and `Vrf__GroundWaypointAltitudeMode` still selects any of the three modes.
+RATIONALE: TerrainProfile is the DOCUMENTED frame. The Users Guide makes route-vertex
+altitude the author's responsibility and warns that above-sea-level vertices can be
+underground (sec 1.5, contract C5); "Live" (live entity altitude + 50 m) was an
+APPROXIMATION of terrain height with no terrain knowledge behind it, while TerrainProfile
+asks the simulating back end for the height under each vertex and authors terrain + 10 m.
+Two consecutive live runs (Row 2c 20260902T104832Z and Row 2cR 20260902T111116Z, both on
+bridge A7504441) authored all 3 vertices of all 3 routes from terrain with ZERO warn: lines
+and character-for-character identical reply and authoring lines, and cost NOTHING in
+movement: 3/3 TASKCMPLT at Row 1 timings, endpoints within 0.2 m, POS==RPT 0.0 x3. The
+Row 2c aggregate excursion (+14 s on 114.MechCoy) did NOT reproduce and is adjudicated as
+run-to-run variance of the aggregate (Row 2cR sec 6; H-ALT refuted as a systematic effect).
+Live stays in the product as the fallback for a back end that cannot or should not be asked
+for terrain, and Fixed100 stays as the golden-parity relic.
+WHAT ROW 3 TESTS: that the FLIP ITSELF took - i.e. that the app with NO env override at all
+(`Get-ChildItem env:Vrf__*` empty) takes the TerrainProfile path and reproduces Row 2cR.
+Every prior TerrainProfile run in this branch reached the mode through the env override, so
+until Row 3 the DEFAULT has never been exercised. One variable vs Row 2cR: the removal of
+`Vrf__GroundWaypointAltitudeMode=TerrainProfile`. Prereg:
+docs/experiments/PREREG_TERRAIN_ROW3_DEFAULT_2026-09-02.md. The falsifier that matters is
+zero terrain request lines, which would mean the deployed bin did not pick the new default
+up (a stale binary, or an appsettings/env override) - appsettings.json carries no `Vrf:`
+mode pin, which is what makes the code default the effective one.
 
 ## 8. Gate results (2026-09-01, offline, worktree only)
 First revision (commit 6539036): VrfBridge /t:Rebuild exit 0 / 0 warnings; dotnet build 0

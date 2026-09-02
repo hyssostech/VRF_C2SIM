@@ -323,8 +323,10 @@ Run history of 1.BdeHQ at Mojave, ALL with CreateRoute+MoveAlongRoute confirmed 
   2026-07-15 Live clearance 0 and 50, 20x, GUI-launched, lean init ...... FROZEN (both runs)
   2026-07-19 Live, 1x, launcher, lean init, born 10000 MSL .............. FROZEN x3 (bit-exact)
   2026-07-23 Live, 1x, launcher, lean init, RUN 3 ...................... FROZEN (bit-exact)
-GroundWaypointAltitudeMode defaults to "Live" since 2026-07-15 (VrfSettings.cs:170), so
-every run after 07-13 used Live. The Fixed100 control at Mojave that MOJAVE_ROOTCAUSE
+GroundWaypointAltitudeMode DEFAULTED to "Live" from 2026-07-15 to 2026-09-02, so
+every run after 07-13 used Live. (The default became "TerrainProfile" on 2026-09-02 -
+docs/DESIGN_TERRAIN_PROFILE_VERTICES_2026-09-01.md sec 7 DEFAULT FLIP - which is AFTER
+every run in the table above; nothing in this section's reasoning changes.) The Fixed100 control at Mojave that MOJAVE_ROOTCAUSE
 (2026-07-15, "THE MISSING CONTROL") called for as THE first thing to do was never run.
 H-ENT-1 (leading): Live-mode vertex altitude (live reflected altitude + 50 m; VrfC2Sim-
   Service.cs:727-733, 763-767) stalls the entity's ground-auto-move-along-controller (the

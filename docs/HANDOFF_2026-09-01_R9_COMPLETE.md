@@ -31,12 +31,18 @@ pre-registered runs, outcomes inline) + docs/RESEARCH_MECHANISMS_2026-09-01.md.
    history). NO defect report to MAK - at most the variant-A observation in
    docs/MAK_NOTES_DRAFT_2026-09-01.md.
 4. Route-vertex altitude frame: 100-m-MSL vertices are the Users-Guide-warned
-   authoring ERROR; above-terrain (Live mode, the default) is the documented frame and
-   fills the company's working routes. Fixed100 remains only as a golden-parity relic.
+   authoring ERROR; above-terrain is the documented frame and fills the company's
+   working routes. UPDATED 2026-09-02: the default is now TerrainProfile (each ground
+   vertex authored from the back end's OWN terrain height + 10 m); Live (live altitude
+   + 50 m), which was the default when this line was written, remains as the
+   configurable fallback and Fixed100 remains only as a golden-parity relic. See
+   docs/DESIGN_TERRAIN_PROFILE_VERTICES_2026-09-01.md sec 7 DEFAULT FLIP.
 
 ## WORKING CONFIGURATION
-TypeMappingMode=RealTemplates (default) + GroundWaypointAltitudeMode=Live (default) +
-NavArea disabled. STOCK templates, no env overrides - an untouched product at default
+TypeMappingMode=RealTemplates (default) + GroundWaypointAltitudeMode=TerrainProfile
+(THE DEFAULT since 2026-09-02, design sec 7 DEFAULT FLIP; it was Live when this section
+was first written, and Live is still selectable with Vrf__GroundWaypointAltitudeMode=Live)
++ NavArea disabled. STOCK templates, no env overrides - an untouched product at default
 settings (P2c-final). Vendor defects found across the whole saga: ZERO. Runner hardening now
 permanent: Stage 2b boot-dialog watcher (scripts/AnswerRtiDialog.ps1; the RTI dialog is
 ONCE PER REBOOT), Stage 2c RTI gate, per-run capture of bin64 vrfSim.log/vrfGui.log.

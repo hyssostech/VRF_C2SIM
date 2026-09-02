@@ -136,7 +136,10 @@ Supervisor-specified design (executor implements; adversarial review before merg
 - Implement in the SERVICE layer, gated on the existing `Vrf:GroundWaypointAltitudeMode`:
   - `Fixed100`: behavior EXACTLY as today (byte-parity: create at ElevationAgl MSL, deferred
     SetAltitude ElevationAgl+1, routes at 100) - the golden-parity escape hatch.
-  - `Live` (make this THE DEFAULT now): for ground units, do NOT push fixed-MSL altitudes.
+  - `Live` (make this THE DEFAULT now - SUPERSEDED 2026-09-02: the default is now
+    `TerrainProfile`, which shares this create path; docs/DESIGN_TERRAIN_PROFILE_
+    VERTICES_2026-09-01.md sec 7 DEFAULT FLIP): for ground units, do NOT push fixed-MSL
+    altitudes.
     DESIGN SETTLED BY HEADER EVIDENCE (2026-07-16 fix session; investigation doc part 13c):
     setAltitude's third arg is `bool aboveGroundLevel` (vrfRemoteController.h:1390-1392) and
     the facade passes TRUE - the deferred SetAltitude(1001, TRUE) is 1001 m AGL, which
