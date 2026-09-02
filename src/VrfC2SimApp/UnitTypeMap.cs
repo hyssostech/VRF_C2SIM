@@ -266,32 +266,34 @@ public sealed class UnitTypeMap
     // ---- start-up validation (JC-2) ---------------------------------------
 
     /// <summary>
-    /// JC-2 (supervisor's PROVISIONAL ruling 2026-09-02): the default OpposingNation is RUS,
-    /// and a nation whose hostile rows are all AuthoredPending must REFUSE TO START rather
-    /// than silently create empty units (survey sec 3.5). Returns null when the nation is
-    /// usable, otherwise the operator-facing error naming the missing content.
+    /// JC-2 (supervisor's PROVISIONAL ruling 2026-09-02): a nation whose rows for its role are
+    /// all AuthoredPending must REFUSE TO START rather than silently create empty units (survey
+    /// sec 3.5). Returns null when the nation is usable, otherwise the operator-facing error
+    /// naming the missing content. Applied to BOTH roles - the hole is the same whichever side
+    /// an unstocked nation is configured on.
     /// </summary>
-    public string CheckOpposingNationSupported(string nation)
+    public string CheckNationSupported(string nationRole, string nation)
     {
+        string setting = nationRole == "hostile" ? "Vrf:OpposingNation" : "Vrf:FriendlyNation";
         if (string.IsNullOrWhiteSpace(nation))
-            return "Vrf:OpposingNation is empty. Set it to one of: " + string.Join(", ", Nations.Keys) + ".";
+            return $"{setting} is empty. Set it to one of: " + string.Join(", ", Nations.Keys) + ".";
         if (!Nations.ContainsKey(nation))
-            return $"Vrf:OpposingNation='{nation}' is not a nation in {SourcePath}. " +
+            return $"{setting}='{nation}' is not a nation in {SourcePath}. " +
                    "Known nations: " + string.Join(", ", Nations.Keys) + ".";
 
-        var hostile = Rows.Where(r => string.Equals(r.NationRole, "hostile", StringComparison.OrdinalIgnoreCase)
-                                      && string.Equals(r.Nation, nation, StringComparison.OrdinalIgnoreCase))
-                          .ToList();
-        if (hostile.Count == 0)
-            return $"Vrf:OpposingNation='{nation}' has no rows at all in {SourcePath}.";
+        var rows = Rows.Where(r => string.Equals(r.NationRole, nationRole, StringComparison.OrdinalIgnoreCase)
+                                   && string.Equals(r.Nation, nation, StringComparison.OrdinalIgnoreCase))
+                       .ToList();
+        if (rows.Count == 0)
+            return $"{setting}='{nation}' has no {nationRole} rows at all in {SourcePath}.";
 
-        int usable = hostile.Count(r => r.Fidelity is TypeFidelity.Exact or TypeFidelity.Proxy && r.IsAggregate);
+        int usable = rows.Count(r => r.Fidelity is TypeFidelity.Exact or TypeFidelity.Proxy && r.IsAggregate);
         if (usable > 0) return null;
 
-        var pending = hostile.Where(r => r.Fidelity == TypeFidelity.AuthoredPending)
-                             .Select(r => r.Id).Take(6).ToList();
-        return $"Vrf:OpposingNation='{nation}' has NO usable UNIT template: " +
-               $"{hostile.Count(r => r.Fidelity == TypeFidelity.AuthoredPending)} of {hostile.Count} rows are " +
+        var pending = rows.Where(r => r.Fidelity == TypeFidelity.AuthoredPending)
+                          .Select(r => r.Id).Take(6).ToList();
+        return $"{setting}='{nation}' has NO usable UNIT template: " +
+               $"{rows.Count(r => r.Fidelity == TypeFidelity.AuthoredPending)} of {rows.Count} rows are " +
                $"AUTHORED_PENDING (e.g. {string.Join(", ", pending)}). The installed VR-Forces 5.0.2 model-set " +
                "chain (C2simEx -> EntityLevel -> base) contains ZERO Country-" +
                (Nations.TryGetValue(nation, out var c) ? c.ToString(CultureInfo.InvariantCulture) : "?") +
@@ -299,6 +301,9 @@ public sealed class UnitTypeMap
                "zero-subordinate Country-0 abstract or Ground_Aggregate (empty units). REFUSING TO START. " +
                "Fix: author the " + nation + " unit templates into a project-owned SMS that includes " +
                "C2simEx.sms (docs/UNIT_TYPE_MAPPING_FIDELITY_2026-09-02.md sec 7.4), add their rows to " +
-               SourcePath + ", or set Vrf:OpposingNation=RUS.";
+               SourcePath + ", or set " + setting + " to a stocked nation (USA / RUS).";
     }
+
+    /// <summary>JC-2 for the hostile role - the case the ruling names explicitly.</summary>
+    public string CheckOpposingNationSupported(string nation) => CheckNationSupported("hostile", nation);
 }

@@ -305,6 +305,15 @@ public static class TypeMapSelfTest
                map.CheckOpposingNationSupported("RUS"));
         Report("an unknown OpposingNation refuses to start",
                map.CheckOpposingNationSupported("ZZZ") is { Length: > 0 }, "no error returned");
+        // The same hole exists on the friendly side; the check is role-parameterized.
+        Report("FriendlyNation=USA starts",
+               map.CheckNationSupported("friendly", "USA") == null,
+               map.CheckNationSupported("friendly", "USA"));
+        Report("FriendlyNation=PRC refuses to start (no friendly PRC rows)",
+               map.CheckNationSupported("friendly", "PRC") is { Length: > 0 }, "no error returned");
+        Report("the friendly refusal names the FriendlyNation setting",
+               (map.CheckNationSupported("friendly", "PRC") ?? "").Contains("Vrf:FriendlyNation"),
+               map.CheckNationSupported("friendly", "PRC"));
 
         // The two legacy modes must be untouched by all of the above.
         var legacy = Unit("SFGPUCIZ---D---", "11.1.225.3.4.0.0", "PLT", hostile: false);

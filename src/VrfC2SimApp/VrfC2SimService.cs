@@ -196,7 +196,9 @@ public sealed class VrfC2SimService : BackgroundService
         // the silent empty-unit trap (docs/UNIT_TYPE_MAPPING_FIDELITY_2026-09-02.md sec 3.5).
         if (UsingFidelityTable)
         {
-            string fatal = _typeMapLoadError ?? _typeMap.CheckOpposingNationSupported(_nations.Opposing);
+            string fatal = _typeMapLoadError
+                           ?? _typeMap.CheckNationSupported("friendly", _nations.Friendly)
+                           ?? _typeMap.CheckNationSupported("hostile", _nations.Opposing);
             if (fatal != null)
             {
                 _log.LogCritical("Vrf:TypeMappingMode=FidelityTable - REFUSING TO START. {Error}", fatal);

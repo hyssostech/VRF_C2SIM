@@ -2,7 +2,7 @@
 
 Written 2026-09-02 by the offline executor. This is
 `docs/UNIT_TYPE_MAPPING_FIDELITY_2026-09-02.md` sec 7.5 **item 3**, the ONE step that pass could
-not take. Items 1 and 2 are done and green (`--typemap-selftest`, 780 checks); sec 11.3 records
+not take. Items 1 and 2 are done and green (`--typemap-selftest`, 783 checks); sec 11.3 records
 them. **Do not trust any row in `data/unit-type-map.json` until this gate passes.**
 
 ## 0. Why this gate exists (read this before the commands)
@@ -42,7 +42,7 @@ one failed.
 
 | # | run | fixture | why this one |
 |---|-----|---------|--------------|
-| 0 | `--typemap-selftest` on the VR-Forces machine | none | proves the machine's OWN `C:\MAK` install matches the table (a different install = different catalog). Expect `SELF-TEST PASSED (780 checks)`, exit 0. **If it SKIPS parts B and C, `C:\MAK` was not found - fix that before anything else.** |
+| 0 | `--typemap-selftest` on the VR-Forces machine | none | proves the machine's OWN `C:\MAK` install matches the table (a different install = different catalog). Expect `SELF-TEST PASSED (783 checks)`, exit 0. **If it SKIPS parts B and C, `C:\MAK` was not found - fix that before anything else.** |
 | 1 | normal scenario run, `TypeMappingMode=RealTemplates` | `data/R9_Mojave_Lean_Initialization_NoComments.xml` on `TropicTortoise_FFRTC` | the CONTROL. 6 units, the cheapest probe. Capture `bin64\vrfSim.log` and the run's own log. |
 | 2 | same, `TypeMappingMode=FidelityTable` | same | the A/B. Config only - the binary is identical. |
 | 3 | `TypeMappingMode=FidelityTable`, `OpposingNation=PRC` | any | must REFUSE TO START. ~10 seconds. |

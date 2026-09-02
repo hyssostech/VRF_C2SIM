@@ -975,7 +975,7 @@ against the R9 evidence by config alone, with no rebuild - as sec 7.1 item 6 ask
 
 ### 11.3 Verification actually performed (sec 7.5 items 1-2)
 
-`--typemap-selftest`: **780 checks, 0 failures**, against the real
+`--typemap-selftest`: **783 checks, 0 failures**, against the real
 `C:\MAK\vrforces5.0.2` install (1495 simObjects indexed from `C2simEx -> EntityLevel -> base`, of
 which **115 are ground unit templates with the `3:11:1` prefix - exactly the count sec 3.1
 reports**, an independent reproduction of that index by a second implementation).
@@ -992,7 +992,8 @@ reports**, an independent reproduction of that index by a second implementation)
    recorded before restoring them:
    `[FAIL] F-UCA-E: 3:11:1:225:5:2:0:0 -> Tank Platoon (USA)  <- landed Tank Company (USA)` and
    `[FAIL] F-UCI-D: aggregate-Co-Infantry-Friendly composition is real  <- d1 3:11:1:225:3:3:0:0 -> Infantry Platoon (zero-subordinate abstract)`,
-   `SELF-TEST FAILED (3 of 780 checks)`, exit 1.
+   `SELF-TEST FAILED (3 of 780 checks)`, exit 1. (780 was the count at the time of that run;
+   the two-role JC-2 check added later brings it to 783.)
    If `C:\MAK` is absent the resolver and composition parts SKIP with a loud banner that says
    the rows are UNVERIFIED - they never silently pass.
 
@@ -1037,7 +1038,21 @@ are exactly why `OpposingNation=PRC` refuses to start.
    `data/R9_Mojave_Lean_Initialization_NoComments.xml` is `11:1:153:**5**:4:0:0` (Category 5 =
    Company), not `11:1:153:3:4:0:0`. It changes nothing - Country 153 is uncovered either way, so
    the JC-1 backstop fires - but the self-test now uses the verbatim fixture value.
-7. **`EchelonCode` has no `Specified` flag** in the generated schema types, so an absent element
+7. **Echelon `B` (squad) changes behaviour, and the survey does not cover it.** Under
+   `FidelityTable` the table's echelon-only rows take over: friendly `B` becomes
+   `Rifle Squad (USA Army)` instead of `ScoutUnit` (whose emitted `3:11:1:225:2:1:1:0` is one of
+   the three types sec 2.3 proves falls through to `Ground_Aggregate` - a strict improvement),
+   and hostile `B` becomes `Infantry Squad (RUS)` instead of `Mobile Irregular` (a REAL,
+   nation-agnostic Country-0 irregular template - so this one is a JUDGEMENT CALL, not an
+   improvement). Neither fixture has an echelon-`B` unit, so nothing is exercised either way.
+   **Open question for the user:** should a hostile squad be the opposing nation's regular
+   infantry squad, or `Mobile Irregular`? If the answer is "irregular when the scenario is an
+   insurgency", that is a per-scenario setting, not a table row.
+8. **The JC-2 refusal now covers BOTH roles.** The ruling names `OpposingNation`, but the hole is
+   identical on the friendly side, so `CheckNationSupported(role, nation)` is role-parameterized
+   and the pre-flight runs it for `FriendlyNation` too. `FriendlyNation=PRC` refuses to start with
+   the same class of error.
+9. **`EchelonCode` has no `Specified` flag** in the generated schema types, so an absent element
    deserializes as the enum's first member (`AG`). Harmless for key (c) - no row uses `AG` - but
    it must not be promoted to a primary key without a raw-XML presence guard.
 
