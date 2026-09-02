@@ -317,6 +317,39 @@ WatchVrf --capabilities exit 0 (stop-file advertised), --con-selftest exit 0; Li
 --capabilities stop-file. Function bodies Start/StartAdopting/RegisterInboundCallbacks/Tick
 byte-identical pre- vs post-merge (71/13/16/6 lines); Stop() +1 line. No C:\MAK write.
 
+DEPLOY RECORD 2 (2026-09-02 10:43Z, main @ 8e14cd1 "Terrain reply: read every entry of
+every response set; log reply shape at Info"; executor, not the author). SECOND deploy of
+this design, for Row 2c. Steps 2-6 repeated exactly as written; step 1 (merge) not needed -
+8e14cd1 was already on main, only the binary was stale. Pre-flight: main, working tree clean
+apart from untracked .claude/ and the .code-workspace; no vrfSim*/vrfGui/WatchVrf/
+ListenReports/VrfC2SimApp process; RTI trio resident (rtiAssistant 41336 / rtiexec 224608 /
+rtiForwarder 76620); docker stp-server Up 18 h (healthy) + c2sim_server4.8.4.9 Up 18 h; no
+Vrf__* env var. Backup: src/VrfBridge/build/Release/bak-20260902-28e993fe/ (VrfBridge.dll
+28E993FE33032505A999E508877832459450E0568E7E25FFD72BC80D59257FD5, 867840 B, 2026-09-02
+00:56:24Z; Ijwhost.dll 382550362C68297E253EDF796173B8DB8C43709D902E88C94E48BE7D1D435FD2,
+137000 B; VrfBridge.pdb 281DC6CC...4E97, 12529664 B). Before the rebuild all 10 copies (9
+consumer bins + build/Release) hashed 28E993FE - verified by enumeration, worktrees and the
+bak dirs excluded. MSBuild 18.8.2.30814 Community amd64 (vswhere -find MSBuild\**\Bin\amd64\
+MSBuild.exe under C:\Program Files\Microsoft Visual Studio\18\Community) /t:Rebuild
+/p:Configuration=Release /p:Platform=x64 from PowerShell: exit 0, 0 warnings (the usual
+harmless "Unknown compiler version" from a vendor header and the MSIL incremental-link
+notice) -> VrfBridge.dll A7504441F421B668D10F5AFD8B4FD71110002D13FE6ABAE0DB576C7C209236F5
+(868352 B, +512 B over 28E993FE). NO Ijwhost side effect this time: it stayed
+38255036...5FD2 / 137000 B / 2026-06-27 (the SDK that refreshed it on 2026-09-02 01:00Z is
+still the installed one). dotnet build -c Release of all 9 consumers: 9 x "Build succeeded",
+9 x exit 0, 0 errors; 0 warnings except the app's 6 pre-existing. ONE-HASH PROOF: 10/10
+VrfBridge.dll copies = A7504441... (single distinct hash over the 10 enumerated paths),
+10/10 Ijwhost.dll = 38255036... All 7 app self-tests from the main bin with the MAK bin64
+dirs on PATH: --translator-selftest exit 0 (SELF-TEST PASSED), --report-selftest exit 0,
+--sequencer-selftest exit 0, --verb-selftest exit 0, --destack-selftest exit 0,
+--fanout-selftest exit 0, --terrain-selftest exit 0 ("terrain-selftest: PASS", 29 [ok]
+checks - unchanged from DEPLOY RECORD 1, as expected: 8e14cd1 touches the facade and the
+service log line, not TerrainVertexAuthoring). WatchVrf --capabilities exit 0 (advertises
+con-selftest + stop-file), --con-selftest exit 0 (ALL CHECKS PASSED). Runner offline gate
+tests/RunnerTurnaround.Tests.ps1: 96 passed, 0 failed (the script prints its own tally; it
+is not Pester-discovered, so Invoke-Pester's own counters read 0). No file under C:\MAK
+changed; no launch in this step.
+
 ## 7. The confirming live run: TWO rows, one variable each (review F1)
 Prereg per the standing rule; baseline = the R9 order under Live on the A48ABE6C bridge
 (run 20260901T203702Z, 3/3 arrivals). A single run that flips the mode on the NEW bridge
