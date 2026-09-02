@@ -75,7 +75,18 @@ vrfSim.mtl: notifyLevel 3 / objectConsoleNotifyLevel 3 / enableLogFileTimestamps
    live+50). IN FLIGHT: docs read on aggregate move-along altitude semantics + ROW 2cR
    unchanged repeat (PREREG_TERRAIN_ROW2CR_REPEAT_2026-09-02.md, appNos 3704-3710).
    Decision pending the repeat: make TerrainProfile the DEFAULT mode (it is the
-   documented frame) or keep Live default. Back-end fatal-error precedent: dumps in
+   documented frame) or keep Live default. ROW 2cR (run 20260902T111116Z, prereg
+   4f870b8, outcome dadb40e): the +14 s DID NOT REPRODUCE - 114.MechCoy back at +185.0
+   s, plateau 219.2 (= Row 1's), terrain authoring byte-identical to Row 2c. H-ALT
+   REFUTED as a systematic effect, H-V STANDS; the aggregate's real 1x spread is
+   178.2-198.1 s. DECISION TAKEN: TerrainProfile IS THE DEFAULT (commit 5b82e5f, one
+   literal in VrfSettings.cs; design sec 7 DEFAULT FLIP). ROW 3 (run 20260902T113613Z,
+   appNos 3711-3717, prereg 4682063/b2ceeb1, outcome a0e0f2e) CONFIRMED THE FLIP LIVE
+   with NO env override: env:Vrf__* empty, no appsettings pin, terrain query
+   character-identical for the third run, zero warn:, 3/3 TASKCMPLT at +117.47 /
+   +129.63 / +182.34 s, every stage exit 0. THIS ITEM IS DONE. Remaining known gap: the
+   per-vertex Live FALLBACK path (a vertex the back end will not answer for) has never
+   run on a healthy back end. Back-end fatal-error precedent: dumps in
    bin64 from 2026-07-14/15/22 and 70668 (2026-09-02).
 2. COA-STP1 SCALE RE-RUN on the clean state (the July scale results predate ALL FOUR
    fixes; every FALSIFIED stamp from July is layer-relative - see L9 - and the region/
