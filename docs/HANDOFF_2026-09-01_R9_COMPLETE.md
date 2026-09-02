@@ -128,22 +128,39 @@ FIX CANDIDATES (neither applied; NOT before the probe scores):
     field), so a success=false FAILURE report is indistinguishable from a real success - which
     is what let finding A through as a TASKCMPLT. Native change under STANDING AUTHORIZATION:
     back up the DLLs, /t:Rebuild always, REDEPLOY ALL 10 COPIES, verify ONE hash across them.
-STATUS: PROBE IN FLIGHT - docs/experiments/PREREG_ROUTE_NAME_LENGTH_2026-09-02.md (A/B on route
-name length ONLY, data-only, under FFRTC mode). A live executor owns that file, runs/ and
-tools/FixtureGen. DISSENT ON RECORD against MOJAVE_ROOTCAUSE part 12's "name length falsified":
-it tested the CREATION path (unbounded DtString) and the 10-char marking collisions, never the
-route name inside the move-along TASK. Logged in docs/CORRECTIONS_LOG.md.
-UNEXPLAINED, a falsifier candidate rather than a footnote:
-"buildEntityRouteFollowingMap() : Can't find entity route" appears 14,880 times, from the
-dispatch second on, at a flat ~335/min for 45 minutes. No object prefix at notify level 3, so
-unattributable. It does not contradict the name-length finding; the finding does not explain
-it either.
+STATUS: SETTLED BY MANIPULATION - docs/experiments/PREREG_ROUTE_NAME_LENGTH_2026-09-02.md sec 6
+(prereg d5aee8b/adb89d1, run 20260902T143638Z_run, appNos 3734-3740, FFRTC, 1x, data-only).
+ROUTE-NAME LENGTH IS A MANIPULATED CAUSE OF THE AGGREGATE FREEZE. ONE task's C2SIM <Name>
+padded 8 -> 38 chars (route name 14 -> 44), +30 bytes, nothing else touched. 114.MechCoy,
+which marched 698 m and reported TASKCMPLT in the control, moved 0.0 m across 900 POS samples
+over 30 minutes, built ZERO offset routes (control: 4 sub-routes 114.MechCoy_R0..R3, 29
+mentions) and NEVER REPORTED - while the two untouched taskees landed on their control
+endpoints to 0.00 m. THE ASYMMETRY IS VISIBLE ON ONE OBJECT: bin64-vrfSim.log:6295/6296
+create the route at the FULL 44 chars (CreateRoute's unbounded DtString) and :6335 shows the
+move-along TASK asking for "T_R5_CO1_NAMELEN_PROBE_PADDING_TO_3" - cut at 35 (MoveAlongRoute's
+DtUUID, rwUUID.h:412 char myData[36]). Our own dispatch is exonerated (app log issued the full
+name). MOJAVE_ROOTCAUSE part 12's "name length falsified" is now OVERTURNED, not merely
+dissented from: it tested the CREATION path, never the task. FIX (not applied - separate,
+testable change): cap the name passed to MoveAlongRoute at 34 chars, or name routes with a
+short synthetic id as VR-Forces does; the C2SIM task name belongs in the log line.
+RESOLVED, no longer unexplained: "buildEntityRouteFollowingMap() : Can't find entity route"
+IS the freeze's per-frame diagnostic. Control (all names short) 0 occurrences; this probe
+(one long name) 67,590, first at :6342 in the SAME SECOND as the truncated task at :6335;
+rung 1 (four long names) 14,913. Still not attributable to a NAMED unit from the log alone.
+NEW REPO DEFECT FOUND BY THIS RUN (runner, not the experiment): RunC2SimScenario.ps1:2169
+writes $missing = @(Test-EarlyExit ...).Missing - the @() wraps the CALL, so a single-element
+Missing unwraps to a scalar string and :2171's $missing.Count throws under Set-StrictMode
+-Version Latest (:314). Runner EXIT=5. Reached ONLY when -StopWhenComplete fails to fire with
+EXACTLY ONE taskee missing, which no prior run had produced. It throws AFTER the window closes
+and after every artifact is written - all stage exits 0, manifest complete, nothing lost.
+FIX: $missing = @( (Test-EarlyExit ...).Missing ). DO THIS BEFORE THE NEXT PARTIAL-COMPLETION RUN.
 
-## OPERATIONAL STATE (2026-09-02, after the FFRTC run, before the name-length probe)
+## OPERATIONAL STATE (2026-09-02, after the route-name-length probe)
 VR-FORCES DOWN between runs (StopVrf exit 0, "graceful quit; no process was force-killed").
-appNo marker NEXT FREE = 3734, authoritative marker in docs/OPUS_EXECUTION_PLAN.md Appendix B
+appNo marker NEXT FREE = 3742, authoritative marker in docs/OPUS_EXECUTION_PLAN.md Appendix B
 (runner-managed, ledger CRLF). 2026-09-02 blocks consumed: terrain Rows 1/2/2R/2c/2cR/3
-3676-3717, COA-STP1 rung 1 3718-3724, FFRTC 3726-3732, post-run ResetVrf sweep 3733.
+3676-3717, COA-STP1 rung 1 3718-3724, FFRTC 3726-3732, its ResetVrf sweep 3733,
+route-name-length probe 3734-3740, its ResetVrf sweep 3741.
 RTI RESIDENT + ANSWERED: rtiAssistant 41336 / rtiexec 224608 / rtiForwarder 76620 - UNCHANGED
 across every 2026-09-02 run; still inventory fresh at session start, do not trust PIDs. C2SIM
 docker UP. Deployed bridge = A7504441 (10/10 copies, Ijwhost 38255036; backups

@@ -299,7 +299,235 @@ entity route` lines; whether any appear here is recorded as data either way.
 
 ## 6. OUTCOME (written from the run directory artifacts, AFTER the run)
 
-TO BE COMPLETED AFTER THE RUN.
+VERDICT: **ROUTE-NAME LENGTH IS A MANIPULATED CAUSE OF THE AGGREGATE FREEZE.** Thirty bytes
+of task name, and nothing else, turned an aggregate that marched 698 m and reported TASKCMPLT
+into one that did not move a single centimetre in thirty minutes and never reported anything.
+P1 PASS on all three sub-clauses. P2 PASS on both. P3 resolved to branch (i), the pre-named
+aggregate pattern. P4 PASS on both decision criteria, with a thin-sample caveat recorded
+below. P5 MISS - the runner exited 5 on a reporting-path defect that this probe was the first
+run ever to trigger; every other hygiene item is clean and no evidence was lost. NO PREDICTION
+FALSIFIER FIRED.
+
+RUN: `runs/20260902T143638Z_run`, launched 2026-09-02T14:36:38.238Z, order pushed
+14:39:01.906Z, observation window closed 15:09:33.155Z at its 1800 s cap (1800.9 s used),
+runner finished 15:10:12.7Z - 33 min 34 s wall against the control's 4 min 40 s, exactly the
+consequence sec 3 registered in advance. appNumbers 3734-3740 (marker 3734 -> 3741 by the
+runner, -> 3742 by the post-run ResetVrf sweep on 3741). `env:Vrf__*` count 0 BEFORE and
+AFTER. bin64-vrfSim.log 250,405 lines (control 21,832); vrfc2simapp.log 99 lines (control 103).
+
+REGISTRATION COMMIT (sections 0-5B, before launch): d5aee8b, hash stamped in adb89d1.
+
+### P1 - THE MECHANISM. PASS, and demonstrated on ONE object inside ONE run.
+
+The asymmetry between our two call paths is visible on the SAME route object, three lines
+apart in the vendor's own log:
+
+    bin64-vrfSim.log:6295  Locally Simulated: T_R5_CO1_NAMELEN_PROBE_PADDING_TO_38CH ROUTE
+                           (VRF_UUID:b5965db3-1716-3746-8e0b-cd4959e74cc2) using parameters:
+                           ..\data\simulationModelSets\base\vrfSim\Route.entity
+    bin64-vrfSim.log:6296  DtLocalObjectManager::processCreateVrfObject() : created object
+                           named T_R5_CO1_NAMELEN_PROBE_PADDING_TO_38CH ROUTE
+    bin64-vrfSim.log:6335  114.MechCoy: ...Task 0 name and parameters:
+                           Move-Along Route: "T_R5_CO1_NAMELEN_PROBE_PADDING_TO_3"
+    bin64-vrfSim.log:250337 DtLocalObjectManager::remove() : removing sim object
+                           VRF_UUID:b5965db3-... T_R5_CO1_NAMELEN_PROBE_PADDING_TO_38CH ROUTE
+
+(a) PREDICTED a 35-character cut reading exactly `T_R5_CO1_NAMELEN_PROBE_PADDING_TO_3`.
+    OBSERVED, character for character, at :6335 - the ONLY occurrence of the cut form in
+    250,405 lines. The full 44-character name occurs 3 times and ALL THREE are the route
+    OBJECT (creation :6295/:6296, cleanup removal :250337) - never the task. The object lived
+    at its full name from creation to deletion; only the task's copy was cut. CreateRoute's
+    `DtString` path (VrfFacade.cpp:529-534) is unbounded; MoveAlongRoute's `DtUUID` path
+    (:569-571) is not.
+    The cut here is CLEAN - 35 characters and a closing quote, no junk trailer. Rung 1's T27
+    trailed unterminated garbage but its T5 (99 chars) also cut cleanly, so the junk is
+    incidental to what follows the buffer in memory, not part of the signature.
+(b) PREDICTED zero `114.MechCoy_R<k>` sub-routes. OBSERVED **0 occurrences** of the string
+    `114.MechCoy_R` in the whole log, against the control's 29 occurrences / 4 distinct names
+    (R0 x7, R1 x8, R2 x7, R3 x7). Offset-route creations: 4, and their owners are M1A2 1, 2,
+    3, 4 - all four are 1222.MechPlt's members (the platoon's own offset route is built at
+    :6332, eight lines after its intact task line at :6324, and 1222.MechPlt is created at
+    :4336 from `Tank Platoon (USA).entity` with those members). THE COMPANY CONTRIBUTED ZERO.
+    The control's owner set was M1A2 1, 5, 7, 8, 12, 15, 17 and HMMWV 1 - the extra seven are
+    the company's sub-units, and every one of them is missing here.
+    After :6335 the company emits NOTHING: no route lookup, no offset route, no leader
+    selection, no warning, no completion. It is tasked and silent for 30 minutes.
+(c) DISCRIMINATING SUB-CLAUSE - OUR OWN DISPATCH IS EXONERATED. vrfc2simapp.log:65 issues
+    `CreateRoute 'T_R5_CO1_NAMELEN_PROBE_PADDING_TO_38CH ROUTE' (3 pts) for 114.MechCoy` and
+    :73 logs `Route 'T_R5_CO1_NAMELEN_PROBE_PADDING_TO_38CH ROUTE' created; MoveAlongRoute
+    issued for VRF_UUID:27304e58-f8c7-674c-8219-a6b842ecece1` - the FULL 44 characters on both
+    sides. The ObjectCreated callback returned the full name, `_pendingRouteTasks` matched on
+    it, and the move WAS dispatched. The failure is entirely on the far side of
+    `moveAlongRoute(DtUUID, DtUUID)`. The alternative failure mode this clause was written to
+    catch did not occur.
+
+### P2 - THE BEHAVIOUR. PASS on (a) and (b).
+
+(a) 114.MechCoy DID NOT MOVE. 900 POS samples spanning trace t=23.4 s to t=1859.6 s - a
+    30-minute window - and the first and last are the SAME SIX-DECIMAL COORDINATE:
+    34.647629,-116.693388 (alt 1116.7 -> 1116.6). Net displacement 0.0 m; MAXIMUM EXCURSION
+    FROM THE FIRST SAMPLE ACROSS ALL 900 SAMPLES: 0.0 m. It ends 699.76 m from the control
+    endpoint it reached with a 14-character route name. Registered threshold was 25 m; the
+    measurement is zero.
+(b) THE TWO UNCHANGED TASKEES ARE UNAFFECTED, to the centimetre:
+
+    | taskee | trace final | vs control endpoint | net displacement |
+    |---|---|---|---|
+    | 1222.MechPlt | 34.612956,-116.587783 alt 1026.6 | **0.00 m** | 1163.9 m |
+    | 1.BdeHQ | 34.608416,-116.699993 alt 1121.1 | **0.00 m** | 1162.9 m |
+    | 114.MechCoy | 34.647629,-116.693388 alt 1116.6 | 699.76 m (never left spawn) | 0.0 m |
+
+    Both completed with TSK records (1.BdeHQ t=37.4, 1222.MechPlt t=38.4; control 40.8 / 42.2)
+    in the same relative order as the control.
+
+STRONGEST SINGLE PIECE OF P2 EVIDENCE: vrfc2simapp.log is 99 lines against the control's 103,
+and the four missing lines are EXACTLY the company's completion block - `VRF task complete:
+114.MechCoy / move-along` and its `SENT TASK STATUS REPORT (TASKCMPLT) taskee=139aa71b-...
+task=a5000000-...-0002` with their two `info: VrfC2Sim[0]` prefixes. Everything else in the
+app log matches: 3 terrain requests (`sent for 3 vertices` x3), 3 replies, 3
+`all 3 vertices authored from terrain + 10 m clearance` lines with alts [1050.6, 1043.9,
+1036.7] / [1126.7, 1126.8, 1126.9] / [1141.4, 1136.3, 1131.1] - the SAME values Rows 2c, 2cR,
+3 and the control produced, INCLUDING the company's, whose terrain authoring succeeded
+normally before its route reference died. Cleanup deleted 9 objects in both runs.
+
+### P3 - WHAT THE BACK END REPORTED. BRANCH (i), the pre-named aggregate pattern.
+
+NO TASKCMPLT OF ANY KIND FOR 114.MechCoy: 2 TASKCMPLT lines in vrfc2simapp.log, 2 in
+reports-captured.log, 2 TSK records in the trace, and zero of any of them naming the company
+or taskee 139aa71b. Branch (ii) did NOT occur - `could not be setup` appears 0 times in
+250,405 lines, so this aggregate did not even reach the ground-move controller that produced
+rung-1's T23 warning. The operational corollary held exactly: `earlyExit.fired` false,
+`completionLinesSeen` 2, `allCompleteUtc` null, window ran 1800.9 s of its 1800 s cap. This
+is the four-frozen-aggregate signature of rung 1 reproduced on demand with one unit.
+
+A TASKCMPLT WITH MOVEMENT - the thing that would have killed P2/P3 - did not happen.
+
+### P4 - MODE CHECK. PASS on both decision criteria; SAMPLE IS THIN, recorded not glossed.
+
+`python tools/analysis/frame_gaps.py . 20260902T143638Z_run`:
+
+| statistic | THIS RUN | CONTROL 20260902T140808Z | threshold |
+|---|---|---|---|
+| lines / stamped / distinct sim stamps | 250405 / 24 / 7 | 21832 / 401 / 85 | - |
+| TEST A in {0.033, 0.034} | 1/1 = 100.0% | 32/32 = 100.0% | >= 95% |
+| TEST B resultant length R | **0.9977** | 0.9986 | >= 0.99 |
+| TEST B \|residual\| <= 0.0005 s | 6/7 = 85.7% | 85/85 = 100.0% | >= 95% |
+| TEST B residual sd | 0.00036 s | 0.00029 s | - |
+| LS slope sim-s per wall-s | 13.11 | 10.18 | - |
+
+F1 is decided (sec 7A A2 of the FFRTC prereg) by Test A < 95% **AND** Test B R < 0.99. Test A
+is 100% and R is 0.9977, so F1 does not fire and the fixed-frame mode was in effect - which is
+independently certain anyway, since the deployed fixture was verified by SHA-256 to be the
+identical file the control loaded. HONEST CAVEAT: only 24 stamped lines and 7 distinct stamps
+exist here against the control's 401 / 85, because a frozen unit generates almost no stamped
+console activity and 67,590 of this log's lines are a single unstamped diagnostic. At n=7 the
+85.7% residual figure is one stamp away from 100%, and n=1 makes Test A nearly vacuous. P4 is
+a PASS on its registered decision rule, not a strong independent measurement.
+The slope rose from 10.18 to 13.11 sim-s per wall-s, consistent with the FFRTC prereg's
+measured load-dependence: a unit that never moves is cheaper to simulate.
+
+### P5 - HYGIENE. MISS on the runner exit code; everything else clean.
+
+THE MISS: **runner EXIT=5**, "unexpected terminating error: The property 'Count' cannot be
+found on this object", at `scripts/RunC2SimScenario.ps1:2171 char:167`. DIAGNOSED, NOT LEFT AS
+A SHRUG:
+
+    2169:  $missing = @(Test-EarlyExit -State $completion -Taskees $OrderTaskees ... ).Missing
+    2171:  Say-Info ('... {1} ...' -f $RunSecs, $(if ($missing.Count -gt 0) { ... }), ...)
+
+`Test-EarlyExit` (RunnerLib.ps1:172-183) returns `Missing = @($Taskees | Where-Object ...)`.
+The `@()` at :2169 wraps the FUNCTION CALL, not the property, so `.Missing` member-enumerates
+over a one-element array and PowerShell UNWRAPS a single-element result to a bare `[string]`.
+Under `Set-StrictMode -Version Latest` (:314) `.Count` on a scalar is an error, so :2171
+throws. The branch needs EXACTLY ONE taskee missing: zero missing yields `$null` (also throws)
+and two or more yields a real array (works). It is reached only when `-StopWhenComplete` FAILS
+to fire - and every prior `-StopWhenComplete` run completed 3/3, so this code had never
+executed live. THIS PROBE WAS DESIGNED TO PRODUCE EXACTLY ONE MISSING TASKEE, and it found the
+bug. The fix is one character pair: `$missing = @( (Test-EarlyExit ...).Missing )`.
+NOT APPLIED HERE - this probe changes data only; it is logged as the next repo task.
+
+NOTHING WAS LOST. The throw is in a human-readable Say-Info AFTER the window closed and after
+every artifact was written; the failure path still ran the full teardown. Verified: every
+stage exit code 0 (RtiProbe, LaunchVrf, WatchVrf-precheck, WatchVrf-trace, ListenReports,
+PushInit, VrfC2SimApp, PushOrder, StopIface, StopVrf); run-manifest.json complete, with
+`clocks.observationEndUtc`, the full `oracle.earlyExit` block and `runnerExitCode: 5`;
+watchvrf-trace.csv 44,161 POS + 16,818 RPT; reports-captured.log 55,069 lines; both vendor logs
+captured.
+
+EVERYTHING ELSE: StopVrf EXIT=0, "VR-Forces is down (graceful; RTI infrastructure preserved)";
+both observers exited on the stop-file path and were never killed; RTI trio PIDs UNCHANGED and
+explicitly preserved (rtiAssistant 41336, rtiexec 224608, rtiForwarder 76620); no new .dmp in
+C:\MAK\vrforces5.0.2\bin64 (newest is still vrfSim5.0.2-MSVC++15.0_64-249613-70668.dmp,
+2026-09-02 06:00); `env:Vrf__*` 0 before and after; NOTHING written under C:\MAK. Vendor-log
+censuses THIS RUN / CONTROL: SocketException 0/0, "Waiting for nav data" 0/0, "moveAlong() -
+empty route" 0/0, "invalid formation name" 1/1 (the standing baseline), FATAL 0/0.
+POST-RUN SWEEP: `tools/ResetVrf 3741` - joined clean (BackendCount=0), discovered 0 reflected
+(0 deletable, 0 nil), resigned cleanly, exit 0. ZERO LEFTOVERS. Same standing caveat (rung-1
+finding D): run AFTER StopVrf, it proves NO STALE FEDERATE and nothing about scenario contents.
+LEDGER: marker 3734 -> 3741 (7, by the runner) -> 3742 (1, hand-taken for the sweep and
+ledgered BEFORE the join) - advanced by exactly 7 + 1 as predicted.
+
+### NEW FINDING - THE FORENSIC'S UNEXPLAINED SYMPTOM IS NOW ATTRIBUTED
+
+ANALYSIS_COASTP1_RUNG1_FREEZE sec 7 left `buildEntityRouteFollowingMap() : Can't find entity
+route` unexplained: 14,880 occurrences (recounted here as 14,913) in rung 1, unattributable
+because the line carries no object prefix at notify level 3. This probe attributes it by
+manipulation:
+
+    CONTROL  20260902T140808Z (three short names, all three marched):       0 occurrences
+    PROBE    20260902T143638Z (one 44-char name, one frozen aggregate): 67,590 occurrences
+    RUNG 1   20260902T125423Z (four long names, four frozen aggregates): 14,913 occurrences
+
+The first occurrence is bin64-vrfSim.log:6342 - SEVEN LINES AND THE SAME SECOND (10:39:02)
+after the company's truncated task line at :6335 - and the last is :250315 at 11:09:33, the
+second the window closed. IT IS THE FREEZE'S DIAGNOSTIC: emitted per frame, by a unit whose
+task route reference does not resolve, and completely absent when every route name fits.
+The per-unit-per-frame rate is consistent between the runs once the clock is accounted for
+(rung 1 ran at 1x with four freezers; this run ran at ~13x with one).
+The line is still not attributable to a NAMED unit from the log alone - that has not changed -
+but its CAUSE is no longer open. It is the only diagnostic this failure produces, and it says
+"can't find entity route", which is precisely what an unresolved `DtSimObjectReference myRoute`
+would say.
+
+### ADVERSARIAL REVIEW - competing explanations for the observed cut, and what killed them
+
+- "THE CONSOLE PRINT TRUNCATES, NOT THE PAYLOAD." REFUTED by behaviour. A print-side cut
+  changes no execution: the route would still resolve, offset routes would still be built and
+  the unit would still march. Instead the company built zero offset routes and did not move
+  0.0 m in 900 samples. A logging artefact cannot do that.
+- "THE PADDED NAME CONTAINS A CHARACTER VR-FORCES DISLIKES." REFUTED by construction. The pad
+  uses only `[A-Z0-9_]`, a strict subset of the alphabet already present in the control name
+  `T_R5_CO1` (letters, digits, underscore). No new character class was introduced; only length
+  changed.
+- "THE ROUTE OBJECT WAS NEVER CREATED AT 44 CHARACTERS." REFUTED directly: :6295/:6296 create
+  it at full length and :250337 removes it at full length, same VRF_UUID.
+- "THE FAILURE IS IN OUR OWN `_pendingRouteTasks` LOOKUP." REFUTED by P1(c): the app logged
+  the full 44-character name on both the create and the dispatch.
+- "114.MechCoy IS JUST A UNIT THAT FREEZES." REFUTED by the control: THE SAME UNIT, in THE SAME
+  scenario, from THE SAME spawn coordinate, with THE SAME route geometry and THE SAME terrain
+  vertices, under a 14-character name, marched 698 m and reported TASKCMPLT 4 hours earlier.
+  The in-run controls say the same thing from the other side: two taskees whose names did not
+  change landed on their control endpoints to 0.00 m.
+
+STILL INFERRED, NOT PROVEN, and deliberately left that way: that `DtUUID::myData[36]`
+(rwUUID.h:412) is the specific buffer doing the cutting. The header's own comment plus a cut at
+exactly 35 characters - one type byte short of 36 - make it the only fitting candidate, and
+`moveAlongTasks.h:83 setRoute(const DtUUID&)` is the only transport between our call and the
+controller; but nothing in this run reads the blob. The 34/35/36-character boundary itself was
+NOT bisected here: this probe tested 14 vs 44, so it establishes that LENGTH is the cause and
+that 44 fails, not that 35 is the exact threshold. Rung 1's observational table remains the
+only evidence for where the boundary sits.
+
+NOTHING ELSE IS UNEXPLAINED IN THIS RUN.
+
+### CONSEQUENCE FOR THE FIX
+
+The fix named in the forensic's sec 8 is now justified rather than plausible: cap the name
+passed to `MoveAlongRoute` at 34 characters, or better, name routes with a short synthetic id
+the way VR-Forces names its own (`114.MechCoy_R0`, 14 characters, resolved fine in the
+control). The C2SIM task name belongs in the log line, not the object name. Independently, the
+dropped `DtTaskCompleteReport::success()` (forensic sec 6) stays on the list. Neither is
+applied here - this was a data-only probe, and the fix is a separate, testable change.
 
 ## 7. REGISTRATION
 
