@@ -100,10 +100,12 @@ vrfSim.mtl: notifyLevel 3 / objectConsoleNotifyLevel 3 / enableLogFileTimestamps
    itself 0.00 m from P2c). RULED 2026-09-02 (supervisor): the hold is EVIDENCE-BASED
    - rule 4 in RUNNER_TURNAROUND sec 3: every taskee needs an RPT in the live trace
    LATER than its TSK record AND within 2 m of its latest POS; SettleHoldSecs 60 stays
-   as a FLOOR. Implemented + tested (96 checks, 7 faults injected and caught);
-   re-confirmation = docs/experiments/PREREG_RUNNER_CONFIRM2_2026-09-01.md (B HIGH:
-   all three POS==RPT <= 2 m; close in [last TASKCMPLT + 60, + 90 s]). Until CONFIRM2
-   is adjudicated, -StopWhenComplete runs are NOT valid for POS==RPT adjudication.
+   as a FLOOR. Implemented + tested (96 checks, 7 faults injected and caught) and
+   RE-CONFIRMED by run 20260902T003710Z (docs/experiments/PREREG_RUNNER_CONFIRM2_
+   2026-09-01.md sec 6): A-F all MET - 3/3 TASKCMPLT at P2c offsets, POS==RPT 0.0 m for
+   ALL THREE taskees, window closed 64.6 s after the last completion, 7 min 17 s start
+   -> manifest, RTI untouched. -StopWhenComplete runs are now VALID for POS==RPT
+   adjudication (n=1 under rule 4).
    Design (docs/RUNNER_TURNAROUND_2026-09-01.md, RUNBOOK 0.5.11): the
    WatchVrf/ListenReports trace now ends with the window via a stop-file the runner
    touches at StopIface + Trail (removes the measured 8 min 21 s dead time per run;
@@ -115,13 +117,14 @@ vrfSim.mtl: notifyLevel 3 / objectConsoleNotifyLevel 3 / enableLogFileTimestamps
 6. Backlog unchanged: remaining type adjudications (54 units - but see item 4a first),
    task vocabulary, completion re-keying, scoring (Phase 5).
 
-## OPERATIONAL STATE (2026-09-02 00:15Z, after the runner-confirm run)
-VR-Forces DOWN (run 20260901T235823Z StopVrf exit 0 first pass; post-run inventory
+## OPERATIONAL STATE (2026-09-02 00:50Z, after the runner-confirm2 run)
+VR-Forces DOWN (run 20260902T003710Z StopVrf exit 0 first pass; post-run inventory
 clean; nothing was killed). RTI RESIDENT + ANSWERED (rtiAssistant 41336 / rtiexec
-224608 / rtiForwarder 76620 - unchanged across the run; inventory fresh at start, do
-not trust PIDs). No WatchVrf / ListenReports / VrfC2SimApp left. C2SIM docker UP. appNo
-marker NEXT FREE = 3669 (runner-managed; 2026-09-01 consumed 3606-3668; P3 = 3648-3654,
-P3R = 3655-3661, runner-confirm = 3662-3668). All work committed + pushed (see git log).
+224608 / rtiForwarder 76620 - unchanged across both runner-confirm runs; inventory
+fresh at start, do not trust PIDs). No WatchVrf / ListenReports / VrfC2SimApp left.
+C2SIM docker UP. appNo marker NEXT FREE = 3676 (runner-managed, ledger file CRLF;
+2026-09-01/02 consumed 3606-3675; P3 = 3648-3654, P3R = 3655-3661, runner-confirm =
+3662-3668, runner-confirm2 = 3669-3675). All work committed + pushed (see git log).
 
 ## NON-NEGOTIABLES (unchanged plus the docs-first rule above)
 One variable per probe; prediction + falsifier + DOC CITATIONS before running; movement

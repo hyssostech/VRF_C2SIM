@@ -213,7 +213,11 @@ text-report cadence, so the post-completion report round (~44 lines over ~10 s) 
 mid-emission by StopIface and the company's last usable RPT (t=213.3, 1.5 s after its
 TSK) described a still-converging centre, 11.8 m from the POS final. POS endpoints
 matched P2c to 0.00-0.27 m. RULED 2026-09-02: criterion rule 4 (report evidence,
-above) - re-confirmation is docs/experiments/PREREG_RUNNER_CONFIRM2_2026-09-01.md.
+above). RE-CONFIRMED (run 20260902T003710Z, docs/experiments/PREREG_RUNNER_CONFIRM2_
+2026-09-01.md sec 6): start -> window open 144 s; window 250 s (all-complete at +186 s,
+evidence in at +58 s after that, floor at +60, closed at +64.6 s); window end ->
+observers end 33 s; TOTAL 7 min 17 s. POS==RPT 0.0 m for all three; the company's
+pre-completion report (t=206.7, 72 m short) was not counted; predictions A-F all MET.
 
 The "after" column was a prediction, since measured above: the confirming run must show
 (a) `# STOP requested via stop-file` in the WatchVrf trace followed by a clean

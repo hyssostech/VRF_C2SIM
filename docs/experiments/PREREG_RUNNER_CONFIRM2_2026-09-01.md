@@ -97,6 +97,62 @@ console log's "report evidence IN" / "closing the observation window EARLY" line
 line-ending check: byte count of CRLF vs bare LF in docs/OPUS_EXECUTION_PLAN.md after the
 run (expected bare LF = 0).
 
-## 6. Outcome
+## 6. Outcome (written 2026-09-02 00:50Z from the artifacts, after the run)
 
-(to be written from the artifacts after the run)
+Run 20260902T003710Z (runs/20260902T003710Z_run), runner exit 0, appNos 3669-3675
+(ledger wasValue 3669 / newValue 3676 - as predicted; docs/OPUS_EXECUTION_PLAN.md after
+the rewrite: CRLF 1819 / bare LF 0 - ruling item 2 holds). Pre-launch inventory held
+(VR-Forces down, no observers, RTI 41336 / 224608 / 76620, docker Up, checkout at e602f76).
+
+A. COMPLETION - MET. TASKCMPLT offsets from orderPushedUtc 00:39:34.627: +117.1 / +129.1 /
+   +182.1 s (P2c +117.2 / +129.2 / +184.6; CONFIRM +117.2 / +129.2 / +183.7). 3 TASKCMPLT
+   lines in vrfc2simapp.log and 3 in reports-captured.log; TSK trace records at 145.4 /
+   157.3 / 210.3 (CONFIRM 145.3 / 157.3 / 211.8).
+B. ENDPOINTS - MET (all gated items, including the one CONFIRM missed). POS finals:
+   1.BdeHQ 34.608416,-116.699996 (0.27 m from P2c, 0.00 m from CONFIRM); 114.MechCoy
+   34.653915,-116.693388 (0.00 m / 0.00 m); 1222.MechPlt 34.612956,-116.587783 (0.09 m /
+   0.09 m). Settled true for all three. POS==RPT: 1.BdeHQ 0.0 m (last RPT t=278.8),
+   114.MechCoy 0.0 m (t=267.1), 1222.MechPlt 0.0 m (t=217.8). Plateau onsets 147.6 /
+   214.7 / 159.8 (CONFIRM 147.6 / 218.8 / 161.7).
+C. EARLY EXIT - MET. oracle.earlyExit.fired true; allCompleteUtc 00:42:40.473,
+   evidenceSatisfiedUtc 00:43:38.428, closedUtc 00:43:45.078, windowSecsUsed 220.2 of
+   420; reportEvidence all three satisfied, distanceM 0.0, lastRptT > completionT
+   (1222.MechPlt 217.8 > 157.3; 114.MechCoy 267.1 > 210.3; 1.BdeHQ 217.3 > 145.4);
+   clocks.traceStopRequestedUtc 00:44:15.724; watchvrf-trace.csv ends `# STOP requested
+   via stop-file at t=309.8s (duration cap was 980s)` / `[..] bridge.Stop() -
+   resigning...` / `[OK] resigned cleanly.`; listenreports.stdout.log `stop requested
+   via stop-file at t=313.6s ... disconnecting` then `captured 30 reports ->
+   reports-captured.log`; WatchVrf-trace exit 0 ended 00:44:17.986, ListenReports exit 0
+   ended 00:44:17.989, StopVrf started 00:44:18.029; 0 `[WARN]`, 0 `[FAIL]` lines in
+   the console log. Console: "ALL taskees reported TASKCMPLT at t+156s; holding >= 60s
+   AND waiting for post-completion reports" -> "report evidence IN for all 3 taskee(s)
+   at t+214s: 1222.MechPlt RPT t=217.8 vs POS 0 m; 114.MechCoy RPT t=267.1 vs POS 0 m;
+   1.BdeHQ RPT t=217.3 vs POS 0 m" -> "settle hold of 60s elapsed (63.9s) and report
+   evidence in - closing the observation window EARLY at t+220s of the 420s cap".
+D. WALL TIME - MET. startUtc 00:37:10.418 -> savedUtc 00:44:27.637 = 7 min 17 s
+   (budget 9; CONFIRM 7 min 9 s; P2c 26 min 23 s). Setup 144.2 s (2.4 min) / window
+   250.5 s (4.2 min) / tail 42.6 s (0.7 min). Rule 4 cost +4.4 s of window vs CONFIRM
+   (the floor gated, see F); the tail grew 3.9 s (StopVrf 9.5 s vs 5.9 s - unrelated
+   to the change; report only).
+E. HYGIENE - MET. StopVrf exit 0; `no WatchVrf / ListenReports observer remains`;
+   Get-Process after the runner: only rtiAssistant 41336 / rtiexec 224608 / rtiForwarder
+   76620 (unchanged); bin64-vrfSim.log 0 / 0 / 0 nav-route errors, 1 "invalid formation
+   name" (baseline); 0 SocketException / "Only one usage" / "Connection error".
+F. CLOSE TIME - MET. closedUtc - allCompleteUtc = 64.6 s (band 60-90). Detail: the
+   report rounds landed at 24-39, 84-100, 145-162, 206-223, 267-279 (44 lines each, the
+   last cut at 32 by StopIface) - anchored ~6 s EARLIER on the trace clock than CONFIRM.
+   The company's round-4 line (t=206.7, 34.653270, 72 m short) came BEFORE its TSK
+   (210.3) and was correctly NOT counted; its round-5 line (t=267.1) read the final and
+   satisfied rule 4 at the 00:43:38 poll, 58.0 s after allComplete - so in THIS run the
+   60 s FLOOR was the binding condition and the evidence was already in; the close came
+   at the next poll after the floor (+64.6 s). The 213.3-shaped case (a post-TSK report
+   of a still-converging centre) did not recur here; rule 4's protection against it is
+   established by the offline fixture (tests 4b), not by this run.
+
+VERDICT: all six predictions MET; prediction B - the one CONFIRM missed - is MET with
+POS==RPT 0.0 m for all three taskees. -StopWhenComplete runs are now valid for POS==RPT
+adjudication (n=1 under rule 4; keep the canonical fixed-window run per milestone). No
+unexplained symptom: the two `POS,308.6,...,NaN,90.000000,NaN` samples at the very end
+of the trace are post-StopIface (entities being torn down at t~305-310, after the
+interface resigned) and are filtered as degenerate by both Get-RealPositions and
+Get-TraceEvidence; same shape as the end of CONFIRM's trace.
