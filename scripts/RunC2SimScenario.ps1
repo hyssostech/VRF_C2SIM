@@ -232,11 +232,16 @@ param(
     # console; it does NOT suppress vrfSim.log (sec 4.9 p.161). Recorded in the manifest.
     [switch] $QuietBackend,
 
-    # C2SIM endpoints. NOTE: these reach PushInit / PushOrder / StopIface ONLY.
-    # tools/ListenReports HARDCODES localhost (ListenReports/Program.cs:85-87) and
-    # takes no endpoint argument - see the KNOWN TOOL LIMITATIONS block below.
-    [string] $RestUrl  = 'http://127.0.0.1:8080/C2SIMServer',
-    [string] $StompUrl = 'http://127.0.0.1:61613/topic/C2SIM',
+    # C2SIM endpoints. DEFAULT = THE PRIVATE TEST SERVER (2026-09-02): docker container
+    # c2sim-server-vrf on 18080 / 61614, a second instance of the same image with its
+    # own bind mount (RUNBOOK sec 1). The operator's own server stays on 8080 / 61613;
+    # an initialization pushed there from the C2SIM GUI mid-run reset the interface
+    # (run 20260902T193508Z) - the two must never share a server again. They reach
+    # PushInit / PushOrder / StopIface as arguments, ListenReports as --rest-url /
+    # --stomp-url (capability 'endpoints'), and the app as C2SIM__RestUrl /
+    # C2SIM__StompUrl in its environment (the Host builder maps '__' to ':').
+    [string] $RestUrl  = 'http://127.0.0.1:18080/C2SIMServer',
+    [string] $StompUrl = 'http://127.0.0.1:61614/topic/C2SIM',
 
     # Oracle cadence. 2 s per HEADLESS_RUN_PLAN 4a.2 ("Sample interval 2 s").
     # This is a MEASUREMENT PARAMETER, not a threshold - it says how often we look,
@@ -325,11 +330,13 @@ $ScriptVersion = '1.0.0-draft'
 # =============================================================================
 # KNOWN TOOL LIMITATIONS THIS SCRIPT WORKS AROUND (read before editing)
 # =============================================================================
-# 1. tools/ListenReports HARDCODES RestUrl/StompUrl to 127.0.0.1
-#    (ListenReports/Program.cs:85-87). -RestUrl / -StompUrl therefore do NOT reach
-#    it. Against a non-localhost server it would capture NOTHING, silently. This
-#    script REFUSES to start if -RestUrl or -StompUrl is non-localhost, rather
-#    than produce a capture file that looks valid and is empty.
+# 1. tools/ListenReports used to HARDCODE RestUrl/StompUrl to 127.0.0.1:8080/61613.
+#    Since 2026-09-02 it takes --rest-url / --stomp-url (capability token
+#    'endpoints'). A DEPLOYED binary that predates the flag still hears only the
+#    historical endpoints, so when the capability is absent and the endpoints are
+#    not those historical values this script REFUSES to start, rather than produce
+#    a capture file that looks valid and is empty. The non-localhost refusal stays:
+#    every stage assumes the server is on this host (the VR-Forces host).
 # 2. tools/WatchVrf exit codes are UNAMBIGUOUS: 2 = usage/argument error only
 #    (ToolArgs.ExitUsage), 1 = operational failure (ToolArgs.ExitFailure, e.g. the
 #    join throwing - WatchRunner.cs:122/225). Because this runner GENERATES WatchVrf's
@@ -1138,11 +1145,13 @@ if (-not (Test-Path -LiteralPath $Bin64 -PathType Container)) {
     $bad += ('VR-Forces bin64 not found: {0} - it is the mandatory cwd for every HLA process (RUNBOOK sec 7 item 3)' -f $Bin64)
 }
 
-# LIMITATION 1: ListenReports cannot be pointed anywhere. Refuse rather than
-# capture nothing against a remote server.
+# LIMITATION 1: the server must be on this host, and a deployed ListenReports that
+# predates --rest-url/--stomp-url hears ONLY 127.0.0.1:8080/61613. Refuse rather
+# than capture nothing against a server the observer is not listening to. (The
+# capability itself is probed in Stage 0b; that check is applied right after it.)
 foreach ($u in @(@{n='-RestUrl';v=$RestUrl}, @{n='-StompUrl';v=$StompUrl})) {
     if ($u.v -notmatch '(?i)://(127\.0\.0\.1|localhost|\[::1\])[:/]') {
-        $bad += ("{0}='{1}' is not localhost. tools/ListenReports HARDCODES 127.0.0.1 (ListenReports/Program.cs:85-87) and takes no endpoint argument, so the report capture would be SILENTLY EMPTY. Refusing." -f $u.n, $u.v)
+        $bad += ("{0}='{1}' is not localhost. Every stage assumes the C2SIM server runs on this host (RUNBOOK sec 1). Refusing." -f $u.n, $u.v)
     }
 }
 
@@ -1274,7 +1283,8 @@ function Invoke-CapabilityProbe {
         $o.outcome = 'could-not-start'
         $o.error   = $_.Exception.Message
     }
-    $o.supportsStopFile = Test-ToolCapability -ProbeLines $o.lines -ExitCode $o.exitCode -Capability 'stop-file'
+    $o.supportsStopFile  = Test-ToolCapability -ProbeLines $o.lines -ExitCode $o.exitCode -Capability 'stop-file'
+    $o.supportsEndpoints = Test-ToolCapability -ProbeLines $o.lines -ExitCode $o.exitCode -Capability 'endpoints'
     return $o
 }
 Say-Head 'Stage 0b - observer capability probe (offline, read-only): can the deployed observers be told to stop?'
@@ -1287,6 +1297,19 @@ foreach ($pr in @($ProbeWatch, $ProbeListen)) {
     } else {
         Say-Warn ('{0}: --capabilities outcome={1} exit={2} -> stop-file NOT supported; it will run to its full duration cap (pre-turnaround behaviour)' -f $pr.tool, $pr.outcome, $pr.exitCode)
     }
+}
+# LIMITATION 1 (second half): without the 'endpoints' capability the deployed
+# ListenReports hears ONLY the historical 8080/61613 server. Refuse a silently-empty
+# capture; nothing has been launched or contacted at this point.
+$ListenHistoricalRest  = 'http://127.0.0.1:8080/C2SIMServer'
+$ListenHistoricalStomp = 'http://127.0.0.1:61613/topic/C2SIM'
+if ($ProbeListen.supportsEndpoints) {
+    Say-Ok ('ListenReports: endpoints SUPPORTED -> will listen on rest={0} stomp={1}' -f $RestUrl, $StompUrl)
+} elseif ($RestUrl -ne $ListenHistoricalRest -or $StompUrl -ne $ListenHistoricalStomp) {
+    Say-Fail ('ListenReports: --capabilities lacks ''endpoints'' (outcome={0} exit={1}); the deployed binary hears ONLY {2} / {3}, but this run targets {4} / {5}. The report capture would be SILENTLY EMPTY. Rebuild/redeploy tools/ListenReports, or pass the historical endpoints. Aborting - NOTHING was launched and NO server was contacted.' -f $ProbeListen.outcome, $ProbeListen.exitCode, $ListenHistoricalRest, $ListenHistoricalStomp, $RestUrl, $StompUrl)
+    exit 2
+} else {
+    Say-Warn 'ListenReports: endpoints NOT supported by the deployed binary; the historical 8080/61613 endpoints match this run, so it still hears the right server.'
 }
 $TraceStopMode = if ($ProbeWatch.supportsStopFile -and $ProbeListen.supportsStopFile) { 'stop-file' }
                  elseif ($ProbeWatch.supportsStopFile -or $ProbeListen.supportsStopFile) { 'partial' }
@@ -1402,7 +1425,7 @@ if (-not $SkipServerCheck) {
             $Manifest.preflight.c2simRestStatus = ('unreachable: ' + $_.Exception.Message)
             Say-Head 'Result'
             Say-Fail ('C2SIM REST at {0} is not reachable: {1}' -f $RestUrl, $_.Exception.Message)
-            Say-Fail '  RUNBOOK sec 1: the c2sim-server container must be up (REST 8080, STOMP 61613).'
+            Say-Fail '  RUNBOOK sec 1: the C2SIM server container for these endpoints must be up (private test server c2sim-server-vrf = REST 18080, STOMP 61614; operator server = 8080 / 61613).'
             Say-Fail '  Aborting BEFORE VR-Forces is launched. Pass -SkipServerCheck to bypass.'
             exit 2
         }
@@ -1626,6 +1649,8 @@ $AppStarted          = $false
 $SavedPath           = $env:PATH
 $SavedLicense        = $env:MAKLMGRD_LICENSE_FILE
 $SavedVrfAppNumber   = $env:Vrf__ApplicationNumber
+$SavedC2SimRestUrl   = $env:C2SIM__RestUrl
+$SavedC2SimStompUrl  = $env:C2SIM__StompUrl
 $LedgerAdvanced      = $false
 
 function Stop-Runner {
@@ -1866,10 +1891,11 @@ try {
             -Cwd $Bin64 -StdOutFile $PathTrace -StdErrFile $PathTraceErr `
             -Note $(if ($ProbeWatch.supportsStopFile) { 'THE MOVEMENT ORACLE and the scoring input. Started before PushInit (HEADLESS_RUN_PLAN sec 2). Duration is the CAP; teardown ends it via the stop file and it resigns cleanly; never killed.' }
                     else { 'THE MOVEMENT ORACLE and the scoring input. Started before PushInit (HEADLESS_RUN_PLAN sec 2). Resigns on its own timer (deployed binary has no --stop-file); never killed.' })
+    $ListenEndpointArgs = @(); if ($ProbeListen.supportsEndpoints) { $ListenEndpointArgs = @('--rest-url', $RestUrl, '--stomp-url', $StompUrl) }
     $ListenProc = Start-External -Name 'ListenReports' -File $ExeListenReports `
-            -Arguments (@([string]$EffWatchSecs, $PathReports) + $ListenStopArgs) `
+            -Arguments (@([string]$EffWatchSecs, $PathReports) + $ListenStopArgs + $ListenEndpointArgs) `
             -Cwd $RepoRoot -StdOutFile $PathReportsOut -StdErrFile $PathReportsErr `
-            -Note 'Endpoints are HARDCODED to localhost inside the tool; -RestUrl/-StompUrl do not reach it. Writes reports-captured.log ONLY at exit.'
+            -Note 'Listens on -RestUrl/-StompUrl when the deployed binary supports --rest-url/--stomp-url (Stage 0b), else the historical 8080/61613 (already checked to match). Writes reports-captured.log ONLY at exit; its stdout names the server it heard.'
 
     Say-Head ('Stage 5b - pre-roll {0}s of trace before the init is pushed' -f $PreRollSecs)
     if ($DryRun) { Say-Plan ('would sleep {0}s' -f $PreRollSecs) } else { Start-Sleep -Seconds $PreRollSecs }
@@ -1906,15 +1932,22 @@ try {
     Say-Head 'Stage 6b - start VrfC2SimApp with a LEDGERED ApplicationNumber'
     Say ('  Vrf__ApplicationNumber={0} comes from the Appendix B marker, NOT from appsettings.json' -f $AppNo['app'])
     Say  '  (appsettings.json carries a baked-in ApplicationNumber; hand-editing it is exactly how stale-federate hangs were created - the env override wins and is ledgered)'
-    if (-not $DryRun) { $env:Vrf__ApplicationNumber = [string]$AppNo['app'] }
-    else { Say-Plan ('would set env Vrf__ApplicationNumber={0} for the child, then clear it' -f $AppNo['app']) }
+    Say ('  C2SIM__RestUrl={0} C2SIM__StompUrl={1} come from -RestUrl/-StompUrl, NOT from appsettings.json (same env-override mechanism; the app must hear the SAME server every other stage talks to)' -f $RestUrl, $StompUrl)
+    if (-not $DryRun) {
+        $env:Vrf__ApplicationNumber = [string]$AppNo['app']
+        $env:C2SIM__RestUrl  = $RestUrl
+        $env:C2SIM__StompUrl = $StompUrl
+    }
+    else { Say-Plan ('would set env Vrf__ApplicationNumber={0}, C2SIM__RestUrl, C2SIM__StompUrl for the child, then restore them' -f $AppNo['app']) }
     $AppProc = Start-External -Name 'VrfC2SimApp' -File $ExeApp `
             -Arguments @(('--contentRoot=' + (Split-Path -Parent $ExeApp))) -Cwd $Bin64 `
             -StdOutFile $PathAppLog -StdErrFile $PathAppErr `
-            -Note 'cwd MUST be VR-Forces bin64 so Legion finds vrfLegion.lua (RUNBOOK sec 7 item 3); --contentRoot keeps appsettings.json loading. ApplicationNumber overridden via env.'
+            -Note 'cwd MUST be VR-Forces bin64 so Legion finds vrfLegion.lua (RUNBOOK sec 7 item 3); --contentRoot keeps appsettings.json loading. ApplicationNumber and C2SIM endpoints overridden via env.'
     if (-not $DryRun) {
         $AppStarted = $true
         $env:Vrf__ApplicationNumber = $SavedVrfAppNumber
+        $env:C2SIM__RestUrl  = $SavedC2SimRestUrl
+        $env:C2SIM__StompUrl = $SavedC2SimStompUrl
     }
 
     Say-Head ('Stage 6c - wait up to {0}s for the interface to connect to C2SIM' -f $AppJoinTimeoutSec)
@@ -2415,6 +2448,8 @@ finally {
         $env:PATH                  = $SavedPath
         $env:MAKLMGRD_LICENSE_FILE = $SavedLicense
         $env:Vrf__ApplicationNumber= $SavedVrfAppNumber
+        $env:C2SIM__RestUrl        = $SavedC2SimRestUrl
+        $env:C2SIM__StompUrl       = $SavedC2SimStompUrl
 
         if (-not $teardownOk -and $RunnerExit -lt 4) { $RunnerExit = 4 }
         $Manifest.runnerExitCode = $RunnerExit

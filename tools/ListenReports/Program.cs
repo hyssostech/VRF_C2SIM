@@ -20,20 +20,30 @@ using VrfC2Sim.Tools;
 //           The file must NOT exist at start (exit 2, nothing connected). The capture is
 //           written ONLY at exit, so without this the runner had to wait out the whole
 //           worst-case duration before reports-captured.log appeared.
+// --rest-url <url> / --stomp-url <url>
+//           Optional (2026-09-02). The C2SIM server endpoints. Until now they were
+//           HARDCODED to 127.0.0.1:8080 / 61613, so a runner pointed at any other server
+//           captured NOTHING, silently - the runner refused non-localhost endpoints for
+//           exactly that reason. The private test server now runs on OTHER PORTS of
+//           localhost (RUNBOOK sec 1: c2sim-server-vrf, 18080 / 61614), which that
+//           refusal could not see. Defaults stay the historical values.
 // --capabilities
 //           Offline. Prints one capability token per line and exits 0. The runner probes
-//           this before passing --stop-file, so a deployed binary that predates the flag
-//           is detected (falls back to duration-only) instead of killed with exit 2.
+//           this before passing --stop-file / endpoint flags, so a deployed binary that
+//           predates a flag is detected instead of killed with exit 2.
 //
 // Argument handling uses the shared tools/Shared/ToolArgs.cs standard (exit 0 success /
 // 1 operational failure / 2 usage error with nothing done; usage text to STDERR).
 
 const string StopFileFlag = "--stop-file";
-string[] capabilities = { "capabilities", "stop-file" };
+const string RestUrlFlag = "--rest-url";
+const string StompUrlFlag = "--stomp-url";
+string[] capabilities = { "capabilities", "stop-file", "endpoints" };
 
 string[] UsageText() => new[]
 {
     "usage: ListenReports.exe [seconds] [outPath] [--stop-file <path>]",
+    "                         [--rest-url <url>] [--stomp-url <url>]",
     "       ListenReports.exe --capabilities",
     "",
     "  seconds   Optional. Whole number > 0. Default 120. With --stop-file this is",
@@ -44,9 +54,12 @@ string[] UsageText() => new[]
     "  --stop-file <path>",
     "            Optional. Disconnect and write the capture as soon as <path> EXISTS",
     "            (polled about once a second). Must NOT exist at start (exit 2).",
+    "  --rest-url <url>   Optional. Default http://127.0.0.1:8080/C2SIMServer.",
+    "  --stomp-url <url>  Optional. Default http://127.0.0.1:61613/topic/C2SIM.",
+    "            Both must be absolute http(s) URLs. Pass BOTH for a private server.",
     "  --capabilities",
     "            Offline. Prints one capability token per line (currently:",
-    "            capabilities, stop-file) and exits 0. Sole argument.",
+    "            capabilities, stop-file, endpoints) and exits 0. Sole argument.",
     "",
     "examples:  ListenReports.exe",
     "           ListenReports.exe 300",
@@ -66,12 +79,28 @@ if (args.Length > 0 && args[0] == "--capabilities")
     return ToolArgs.ExitOk;
 }
 
-// --stop-file is the ONE value-taking option; extract it FIRST so Positionals() does not
-// see its path as a stray positional (ToolArgs.TryTakeOptionValue documents why).
+// The value-taking options are extracted FIRST so Positionals() does not see their
+// values as stray positionals (ToolArgs.TryTakeOptionValue documents why).
 string stopFile = null;
 string problem;
 if (!ToolArgs.TryTakeOptionValue(args, StopFileFlag, out args, out stopFile, out problem))
     return ToolArgs.Usage(problem, UsageText());
+
+string restUrl = "http://127.0.0.1:8080/C2SIMServer";
+string stompUrl = "http://127.0.0.1:61613/topic/C2SIM";
+foreach (var (flag, apply) in new (string, Action<string>)[]
+         { (RestUrlFlag, v => restUrl = v), (StompUrlFlag, v => stompUrl = v) })
+{
+    if (!ToolArgs.TryTakeOptionValue(args, flag, out args, out string given, out problem))
+        return ToolArgs.Usage(problem, UsageText());
+    if (given == null) continue;
+    // Validate BEFORE connecting: a malformed endpoint would otherwise surface as an SDK
+    // exception after the caller has already started the run.
+    if (!Uri.TryCreate(given, UriKind.Absolute, out Uri u) ||
+        (u.Scheme != Uri.UriSchemeHttp && u.Scheme != Uri.UriSchemeHttps))
+        return ToolArgs.Usage($"{flag} '{given}' is not an absolute http(s) URL.", UsageText());
+    apply(given);
+}
 if (stopFile != null)
 {
     try { stopFile = Path.GetFullPath(stopFile); }
@@ -142,9 +171,9 @@ else
 var settings = new C2SIMSDKSettings
 {
     SubmitterId = "REPORTLISTENER",
-    RestUrl = "http://127.0.0.1:8080/C2SIMServer",
+    RestUrl = restUrl,
     RestPassword = "v0lgenau",
-    StompUrl = "http://127.0.0.1:61613/topic/C2SIM",
+    StompUrl = stompUrl,
     Protocol = "SISO-STD-C2SIM",
     ProtocolVersion = "CWIX2024v1.0.2",
 };
@@ -169,6 +198,9 @@ sdk.ReportReceived += (_, e) =>
 sdk.Error += (_, e) => Console.WriteLine($"  !! {e.Message}");
 
 await sdk.Connect();
+// The endpoint is part of the record: a capture of 0 reports against the WRONG server is
+// indistinguishable from a silent interface unless the log says which server was heard.
+Console.WriteLine($"connected: rest={restUrl} stomp={stompUrl}");
 Console.WriteLine($"listening for reports, {secs}s ..."
                 + (stopFile != null ? $" (upper bound; stop-file={stopFile})" : ""));
 var listenStart = DateTime.UtcNow;

@@ -907,10 +907,23 @@ Diagnostic tool improvement made alongside this: `tools/PushInit` gained a `--ve
 
 - VR-Forces running HLA1516e, execName CWIX-2024, siteId 1, sessionId 1
   (`vrfSimHLA1516e` + `rtiexec` processes up).
-- C2SIM server container `c2sim-server` up: REST 8080, STOMP 61613 (`docker ps`).
-  `docker restart c2sim-server` (~30 s to ActiveMQ-ready) if STOMP has degraded
-  across many runs. After a Docker restart the container may rebind 0.0.0.0:8080 itself.
-- IPv4 8080 free (stop the COA-GPT `tileserver.py` if it reclaimed it).
+- C2SIM server: *** ALL AUTOMATED RUNS USE THE PRIVATE TEST SERVER (2026-09-02) ***
+  container `c2sim-server-vrf`, REST **18080**, STOMP **61614**, bind mount
+  `C:\C2SIM\docker\c2simFiles-vrf` (a copy of the operator's `c2simFiles`; the server
+  persists its last init there as `c2simServerInit.xml`). It is the runner's default
+  (`-RestUrl`/`-StompUrl`), reaches every stage (PushInit/PushOrder/StopIface args,
+  ListenReports `--rest-url`/`--stomp-url`, the app via `C2SIM__RestUrl`/`C2SIM__StompUrl`),
+  and the app log's first lines say `C2SIM endpoints: rest=... stomp=...`. WHY: the operator
+  works the C2SIM GUI against THEIR server (`c2sim_server4.8.4.9`, 8080/61613) and an
+  initialization pushed there mid-run reset the interface (run 20260902T193508Z, formally
+  INVALID for that reason). The two servers must never be shared again. Recreate it if
+  missing (same image, second instance):
+  `docker run -d --name c2sim-server-vrf -p 18080:8080 -p 61614:61613 -v C:\C2SIM\docker\c2simFiles-vrf:/opt/c2simFiles -e TZ=America/Los_Angeles -e LANG=en_US.UTF-8 -e LC_ALL=en_US.UTF-8 -e LANGUAGE=en_US.UTF-8 c2sim-server:4.8.4.9-rev1`
+  (~30 s to Apollo+Tomcat ready; verify REST `http://127.0.0.1:18080/C2SIMServer` -> HTTP 200).
+  `docker restart c2sim-server-vrf` if STOMP has degraded across many runs.
+- The operator's server `c2sim_server4.8.4.9` (REST 8080, STOMP 61613) is NOT ours to
+  reset, push to, or restart. The historical notes below that say 8080/61613 describe it.
+- IPv4 8080/18080 free of squatters (stop the COA-GPT `tileserver.py` if it reclaimed 8080).
 - exe env: `QT_QPA_PLATFORM_PLUGIN_PATH=C:\MAK\vrforces5.0.2\bin64\platforms`; PATH must
   include `C:\MAK\makRti4.6.1\bin` (MAK RTI - NOT Pitch/prti1516e) and
   `C:\MAK\vrforces5.0.2\bin64`; launch with cwd = `C:\MAK\vrforces5.0.2\bin64`.

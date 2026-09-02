@@ -147,18 +147,18 @@ DONE 2026-09-02 pm, three probes; read the prereg sec 7s, not this summary:
    distribution; evidence favours the latter, because the anomaly MOVED - the same run CLEARED
    T27 (1.80 -> 6.55 km) while degrading T35. SETTLE IT with a COA-STP1 PAIR on this binary, one
    WITHOUT -q and one WITH, prereged together. -q stays unadopted until then.
-2. **`-StopWhenComplete` RULE 4 CANNOT MATCH A `~PXY`-TAGGED TASKEE** - fix before any further
-   FidelityTable run. The trace records `TSK,...,"114.MechCoy~PXY"` while the runner looks for
-   `114.MechCoy`, so the window burns its full -RunSecs cap and sits exposed on a shared bus.
-   Match on the tag-stripped marking, or key rule 4 off the app log's TASKCMPLT taskee uuid.
-   THE APP'S OWN TASKING IS UNAFFECTED (0 dropped tasks, 3/3 TASKCMPLT).
-3. **THE C2SIM DOCKER SERVER IS SHARED AND UNPROTECTED.** During the live gate a foreign 48-unit
-   init (SystemName `[Not Set]`, STP-flavoured objectives LANCASTER/READING/BUFFALO/ATLANTA)
-   landed mid-window, reset the server state and ended our app - 23 min AFTER all gate evidence,
-   but it invalidated the run under 4a.6. Our appNo ledger and the HLA federation are protected;
-   the C2SIM bus is NOT. Source inferred (a co-tenant STP push), not proven. ALSO STILL OWED by
-   the gate: run 3 (PRC must REFUSE TO START) and run 4 (COA-STP1, 128 units). FidelityTable is
-   NOT the default; that stays a USER decision.
+2. DONE 2026-09-02 (supervisor, <commit>): RULE 4 `~PXY` MATCH - RunnerLib Resolve-MarkingKey maps the
+   init <Name> to the unique `<name>~<tag>` marking; replayed on the live-gate run (tagged) 3/3 at
+   0.00 m and on the control run (untagged) 3/3 unchanged. The app's tasking was never affected.
+3. DONE 2026-09-02 (supervisor, <commit>): THE SHARED C2SIM SERVER. The foreign init WAS THE USER,
+   working the C2SIM GUI against their own server (`c2sim_server4.8.4.9`, 8080/61613). FIX: a
+   PRIVATE docker instance `c2sim-server-vrf` (18080/61614, own mount c2simFiles-vrf) is now the
+   runner DEFAULT and reaches every stage (ListenReports gained --rest-url/--stomp-url +
+   capability 'endpoints'; the app takes C2SIM__RestUrl/StompUrl and logs its endpoints).
+   Isolation proven: R9 init pushed to 18080 landed in c2simFiles-vrf only. RUNBOOK sec 1.
+   NEVER push to, reset, or restart the operator's 8080/61613 server. STILL OWED by the gate:
+   run 3 (PRC must REFUSE TO START) and run 4 (COA-STP1, 128 units). FidelityTable is NOT the
+   default; that stays a USER decision.
 4. NATIVE COMPLETION STATUS - forward DtTaskCompleteReport success()/taskId()/
    taskTrackingNumber() through VrfFacade::TaskCompleted. The only known remaining cause of a
    FALSE TASKCMPLT. Standing authorization: back up the DLLs, /t:Rebuild always, REDEPLOY ALL 10

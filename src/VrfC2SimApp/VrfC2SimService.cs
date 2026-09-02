@@ -168,7 +168,10 @@ public sealed class VrfC2SimService : BackgroundService
                 catch (Exception ex) { _typeMapLoadError = $"Vrf:TypeMapFile '{path}' failed to parse: {ex.Message}"; }
         }
 
-        // C2SIM half
+        // C2SIM half. The endpoints are part of the record: since 2026-09-02 the runner points
+        // every stage at a PRIVATE test server (C2SIM__RestUrl / C2SIM__StompUrl override
+        // appsettings.json), and a run that heard the wrong server must say so in its own log.
+        _log.LogInformation("C2SIM endpoints: rest={Rest} stomp={Stomp}", c2.RestUrl, c2.StompUrl);
         _sdk = new C2SIMSDK(loggerFactory, c2);
         _sdk.StatusChangedReceived += OnStatusChanged;
         _sdk.InitializationReceived += OnInitialization;

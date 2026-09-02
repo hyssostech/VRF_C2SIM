@@ -338,6 +338,18 @@ function Get-DistanceMeters {
     return 2.0 * $r * [Math]::Asin([Math]::Sqrt([Math]::Min(1.0, $a)))
 }
 
+# Init <Name> -> the marking the trace/app log actually carry. Exact match wins; else the
+# UNIQUE key of the form '<name>~<tag>' (the app's proxy tag); else the name unchanged, so
+# the caller's 'not found' reasons still fire. Ambiguity (two tagged variants) is left
+# unresolved on purpose - the safe direction is the window running to its cap.
+function Resolve-MarkingKey {
+    param([Parameter(Mandatory)][string]$Name, [AllowEmptyCollection()][string[]]$Keys)
+    if ($Keys -contains $Name) { return $Name }
+    $tagged = @($Keys | Where-Object { $_ -like ($Name + '~*') } | Select-Object -Unique)
+    if ($tagged.Count -eq 1) { return $tagged[0] }
+    return $Name
+}
+
 # Condition (4). Returns AllSatisfied plus one record per taskee explaining why.
 function Test-ReportEvidence {
     param(
@@ -354,6 +366,12 @@ function Test-ReportEvidence {
         $rec = [ordered]@{ name = $null; vrfUuid = $null; completionT = $null; lastRptT = $null
                            posT = $null; distanceM = $null; satisfied = $false; reason = $null }
         $name = if ($TaskeeNames.Contains($u)) { [string]$TaskeeNames[$u] } else { $null }
+        # The trace and the app log are keyed by VR-Forces MARKING: the init <Name> PLUS an
+        # optional '~<tag>' the app appends to a proxy-substituted unit (VrfSettings
+        # ProxyMarkingTag, default '~PXY', FidelityTable mode). Resolve the init name to that
+        # marking, else '114.MechCoy' never matches '114.MechCoy~PXY' and the window runs
+        # to its cap against a healthy run (run 20260902T193508Z).
+        if ($name) { $name = Resolve-MarkingKey -Name $name -Keys (@($ev.tsk.Keys) + @($ev.rpt.Keys) + @($NameToVrfUuid.Keys)) }
         $rec.name = $name
         if (-not $name) { $rec.reason = 'taskee has no <Name> in the init - can not key TSK/RPT' }
         else {
