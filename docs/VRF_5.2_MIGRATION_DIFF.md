@@ -10,24 +10,21 @@ keeps verdicts. Where sources disagree the INSTALLED file beats the manual (IOG 
 VRFExt-9/VRFAggregate-6; the shipped config carries VRFExt-12/VRFAggregate-7).
 
 ## CLOSED - settled from disk or code, no decision owed
-- HLA 4 needs MAK RTI 5.0 (vrfSimHLA4.exe imports librti1516_2025vc141.dll; IOG "HLA 4
-  requires MAK RTI 5.0 or later"); not installed 2026-09-03, user obtaining it (Y-16).
-  Until then protocol = HLA 1516e on makRti4.6.1 (vrfSimHLA1516e.exe -> librti1516e64.dll).
+- HLA 4 needs MAK RTI 5.0 (IOG; vrfSimHLA4.exe -> librti1516_2025vc141.dll); 5.0.1 INSTALLED
+  2026-09-03 (Y-16). Migration gates stay HLA 1516e on makRti4.6.1 (librti1516e64.dll).
 - Our tank company is an ENTITY-LEVEL unit (DtDisaggregated + createSubordinates,
   UnitTranslator.cs :156). UG52 ch 28 aggregate-level distribution does NOT govern us;
   the entity-level unit rules (rows D1-D4) do.
 - VrfFacade.cpp has no predicted source break (B1-B9, HDR); the ONE predicted break is
   remoteControlInit.cxx :19-20 (myHlaConnection deleted in VR-Link 5.10, A8). Facade uses
   none of the removed controllers/setVisibility/DtObjectType/rewind/etc (grep 2026-09-02).
-- appNo ledger SURVIVES: -a/-s are now VR-Link base options for HLA too (VRL-758; UG52
-  5.4.1 "unique site ID:application number pair"); --sessionId is orthogonal (control
-  group id, must equal the sim engine's, default 1). NEXT FREE marker stays in force.
-- vrLinkSharp (C#) has no VR-Forces remote-control classes; the C++ facade stays.
+- appNo ledger SURVIVES: -a/-s are VR-Link base options for HLA too (VRL-758; UG52 5.4.1);
+  --sessionId is orthogonal (control group, default 1, UG52 4.1.3 = UG502 4.1.3). NEXT FREE
+  marker stays in force. vrLinkSharp has no remote-control classes; the C++ facade stays.
 - Compiler: v145 (VS 18), NOT v143 (VS 2022 left 2026-09-02; RN p2 binary-compat covers it;
   v143 5.0.2 baseline kept in src/VrfBridge/build/baseline-502-v143-20260902/). Sec H.
 - FFRTC survives: scenario keys frame-mode/frame-time unchanged (UG52 12.2.1 Table 20
   p353-354 = UG502 Table 17); exerciseClock.h keeps FmRunToComplete (HDR).
-- Session id semantics unchanged (UG52 4.1.3 p133 = UG502 4.1.3 p134): -i, default 1.
 
 ## A. Connection, federation, launch (decision-heavy)
 | # | 5.0.2 | 5.2d | Cite | Effect on us | Decision |
@@ -138,13 +135,16 @@ VRFExt-9/VRFAggregate-6; the shipped config carries VRFExt-12/VRFAggregate-7).
   threads (new baseline). Path: scripts/LaunchVrf52.ps1, UG52 4.1.2 INDEPENDENT mode (every
   5.0.2 vrfLauncher invocation is INVALID on 5.2; combined mode needs a GUI-saved connection).
   BLOCKER found+fixed: the RTI 5.0.1 installer left an ELEVATED 5.0.1 rtiAssistant on port
-  6003 that version-rejects EVERY 4.6.1 LRC (both stacks; its windows are invisible to
-  non-elevated queries - "no title" is NOT "no dialog"). Fix (RTI Ref Manual 5.2.10):
-  per-process RTI_ASSISTANT_DISABLE + repo rid config/rid-461-ridconfigured.mtl
-  (RTI_configureConnectionWithRid 1) - no assistant, no boot dialog, fully headless.
-  Prototype zero NOT automatable (DtGetInputLine is keyboard-only; piped stdin ignored).
-- NOT proven: OUR bridge/tools joining the 5.2 sim, HLA 4 licensing, any behaviour. Next:
-  tools Release-5.2 builds (the join gate), then the runner 5.2 profile.
+  6003 that version-rejects EVERY 4.6.1 LRC (both stacks; A12). Fix (RTI Ref Manual 5.2.10):
+  per-process RTI_ASSISTANT_DISABLE + repo rid config/rid-461-ridconfigured.mtl - no
+  assistant, no boot dialog, headless. Prototype zero NOT automatable (keyboard-only stdin).
+- TOOL JOIN GATE PASSED 2026-09-03 pm (PREREG_52_TOOLJOIN): tools carry BridgeConfig +
+  tools/Shared/StackIdentity.cs (5.2 = config-file identity); RtiProbe-5.2 joins, CreateOne-5.2
+  discovers the backend (0.1 s) and CREATES entities on the sim (entityId 1:<simApp>:N),
+  RunSim-5.2 starts the clock. Facade 5.2 path now calls the BASE init(DtExerciseConn*, ...,
+  disableRemoteDiscovery=false) as the sample does (A10 addendum). OPEN: observation channel -
+  WatchVrf-5.2 AND vendor listenHLA1516e_64 see reflected=0 while rtiSimple peers reflect on
+  the same connection; Phase 2 re-baseline item, own prereg. NOT proven: HLA 4, behaviour.
 
 ## G. Decisions ledger (canonical IDs; a reply that uses other numbers is wrong)
 Evidence: docs/VRF_5.2_DECISION_EVIDENCE.md. Rulings dated 2026-09-03 unless noted.

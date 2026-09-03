@@ -1819,7 +1819,39 @@ join) are BURNED, not recycled. The run manifest records which were actually use
   elevated 5.0.1 rtiAssistant; see PREREG_52_LAUNCH_2026-09-03.md sec 6). Assistant-free env.
 - 3802: CLAIMED 2026-09-03 - LaunchVrf52.ps1 front-end vrfGui for the same retry.
 
-*** NEXT FREE: 3803 *** (authoritative - the ONLY such marker in this file. Update this
+- 3803: CLAIMED 2026-09-03 - tools/RtiProbe Release-5.2 FIRST OUR-STACK 5.2 JOIN GATE
+  (prereg docs/experiments/PREREG_52_TOOLJOIN_2026-09-03.md; one number covers internal retries).
+
+- 3804: CLAIMED 2026-09-03 - tools/CreateOne Release-5.2 BACKEND-DISCOVERY discrimination
+  (PREREG_52_TOOLJOIN sec 6 follow-up; discovery proves shared federation; creation outcome
+  record-only, no scenario loaded).
+
+- 3805: CLAIMED 2026-09-03 - LaunchVrf52 back-end, scenario relaunch (Sample FirstExperience,
+  offline Ala Moana terrain) for the backend-discovery discrimination (PREREG_52_TOOLJOIN).
+- 3806: CLAIMED 2026-09-03 - LaunchVrf52 front-end vrfGui, same relaunch.
+- 3807: CLAIMED 2026-09-03 - tools/CreateOne Release-5.2, discovery gate vs the scenario-loaded sim.
+
+- 3808: CLAIMED 2026-09-03 - tools/WatchVrf Release-5.2, 30 s POS-line telemetry check on the
+  CreateOne 3807 entity (PREREG_52_TOOLJOIN sec 6).
+
+- 3809: CLAIMED 2026-09-03 - tools/RunSim Release-5.2, start the FirstExperience scenario clock
+  (W3 discrimination: paused sim = no updates = late-joiner blind; PREREG_52_TOOLJOIN sec 6).
+- 3810: CLAIMED 2026-09-03 - tools/WatchVrf Release-5.2, re-observation with the clock RUNNING.
+
+- 3811: CLAIMED 2026-09-03 - tools/WatchVrf Release-5.2 re-observation AFTER the facade
+  disableRemoteDiscovery=false fix (5.2 branch only); expects reflected>0 + ORACLETEST POS.
+
+- 3812: CLAIMED 2026-09-03 - tools/WatchVrf Release-5.2 re-observation after the facade 5.2 path
+  switched to the BASE init(DtExerciseConn*) (DtRemoteObjectManager wiring; X3 hypothesis).
+
+- 3813: CLAIMED 2026-09-03 - vrlink5.10 listenHLA1516e_64 RAW observer vs MAK-ONE-2025
+  (does the 5.2 sim publish RPR entities at all? PREREG_52_TOOLJOIN sec 6 discrimination).
+
+- 3814: CLAIMED 2026-09-03 - vrlink5.10 netdumpHLA1516e_64 RAW class dump vs MAK-ONE-2025
+  (which object CLASS does a create publish - RPR vs NETN vs nothing).
+- 3815: CLAIMED 2026-09-03 - tools/CreateOne Release-5.2 second create, observed by netdump 3814.
+
+*** NEXT FREE: 3816 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN

@@ -99,12 +99,10 @@ rung 2 T27 1.80 / T35 2.85 km against six performers at 6.07-6.64 km; the -q run
 6.55 and STALLED T35 at 0.41 km with ZERO sub-routes; QPAIR A-1 stalled T35 again (0, 0.37 km) and
 A-2, an IDENTICAL invocation, did not (4, 3.69 km). NEXT row 1.
 ## OPERATIONAL STATE (2026-09-02, after the TWO no-`-q` COA-STP1 runs of the QPAIR probe)
-VR-FORCES DOWN (StopVrf exit 0, graceful, RTI preserved); BOTH post-run ResetVrf sweeps (3790,
-3798) joined clean, 0 reflected, exit 0, with the :1206-1215 environment. appNo marker
-appNo marker: docs/OPUS_EXECUTION_PLAN.md Appendix B (runner-managed; NEXT FREE = 3803 as of
-2026-09-03 pm - 3799-3802 went to the two LaunchVrf52 attempts). Per-run number history lives
-in that ledger, not here. 3757 IS BURNED (ResetVrf without the RUNBOOK :1208-1215 launch
-environment - cwd bin64 + PATH prefix + Machine MAKLMGRD_LICENSE_FILE; read it before ResetVrf).
+VR-FORCES DOWN (graceful; ResetVrf sweeps 3790/3798 clean, 0 reflected, exit 0). appNo marker
+appNo marker: docs/OPUS_EXECUTION_PLAN.md Appendix B (runner-managed; NEXT FREE = 3816 as of
+2026-09-03 pm; per-run history lives there). 3757 IS BURNED (ResetVrf without the RUNBOOK
+:1208-1215 launch environment - cwd bin64 + PATH prefix + Machine MAKLMGRD_LICENSE_FILE).
 DEPLOYED APP: src\VrfC2SimApp\bin\Release\net10.0\win-x64\VrfC2SimApp.dll SHA-256
 **53130C93BD76...A7EF27A9** (2026-09-02 16:28:08) - a5cdc95, i.e. the GATED merged build plus ONE
 added log line (`C2SIM endpoints:`). The runner starts the app from that path
@@ -167,20 +165,21 @@ Release-5.2-HLA4, 0 errors, toolset v145 (v143 GONE from the machine); app
 `dotnet build src\VrfC2SimApp -c Release -p:BridgeConfig=Release-5.2` -> bin\Release-5.2\;
 8/8 offline self-tests on both stacks; 7-field type fix CONFIRMED as predicted; 5.2 type table =
 data/unit-type-map-52.json (AR Scout -> Mechanized Platoon/Company (USA Army M2), PROXY, Y-8).
-TRAP: a 5.2 process needs PATH prefixed with vrforces5.2d\bin64;vrlink5.10\bin64;makRti4.6.1\bin
-or the bridge dies loading (name-bound MAK DLLs); VrfBridge.NativeStackInfo() logs which stack
-bound. FIRST 5.2 LAUNCH+JOIN PROVEN 2026-09-03 pm (PREREG_52_LAUNCH_2026-09-03.md):
-scripts/LaunchVrf52.ps1 (independent mode, UG52 4.1.2; LaunchVrf.ps1 is INVALID on 5.2) ->
-"Joined federation MAK-ONE-2025", back-end healthy at 36 threads. Blocker found+fixed: the
-RTI 5.0.1 installer's ELEVATED 5.0.1 rtiAssistant on 6003 version-rejects EVERY 4.6.1 LRC
-(both stacks - 5.0.2 runs are ALSO blocked until reboot or assistant exit); fix = per-process
-RTI_ASSISTANT_DISABLE + config/rid-461-ridconfigured.mtl (assistant-free, dialog-free; DIFF
-A12/H). Prototype zero NOT automatable (DtGetInputLine reads keyboard only - piped stdin
-ignored); 5.b is DEMOTED to symptom discrimination. NOT PROVEN: OUR bridge/tools joining 5.2.
-NEXT = tools BridgeConfig (RtiProbe/CreateOne/WatchVrf Release-5.2 + stack-aware identity via
-NativeStackInfo: 5.2 = config-file join, Federation/FedFileName/FomModules EMPTY) as the join
-gate, then the runner 5.2 profile (TypeMapFile -52, manifest records NativeStackInfo + rid),
-then PREREG_R9_52 (Phase 2).
+TRAP: a 5.2 process needs the 5.2 PATH prefix (name-bound MAK DLLs; NativeStackInfo() logs
+which stack bound). FIRST 5.2 LAUNCH+JOIN PROVEN 2026-09-03 pm (PREREG_52_LAUNCH_2026-09-03.md):
+scripts/LaunchVrf52.ps1 (independent mode; LaunchVrf.ps1 is INVALID on 5.2) -> "Joined
+federation MAK-ONE-2025", healthy back-end 36 threads. Blocker fixed: the installer's ELEVATED
+5.0.1 rtiAssistant on 6003 version-rejects EVERY 4.6.1 LRC (5.0.2 runs ALSO blocked); fix =
+per-process RTI_ASSISTANT_DISABLE + config/rid-461-ridconfigured.mtl (assistant-free,
+dialog-free; DIFF A12/H). Prototype zero NOT automatable. TOOL JOIN GATE PASSED 2026-09-03 pm
+(PREREG_52_TOOLJOIN_2026-09-03.md): tools carry BridgeConfig + tools/Shared/StackIdentity.cs
+(5.2 = config-file join, MAK-ONE-2025); RtiProbe-5.2 exit 0; CreateOne-5.2 discovers the
+backend in 0.1 s and CREATES entities (entityId 1:<simApp>:N); RunSim-5.2 starts the clock.
+OPEN - OBSERVATION CHANNEL: WatchVrf-5.2 reflected=0 (4 runs) AND vendor listenHLA1516e_64
+see no entities while rtiSimple peers reflect on the same connection; ruled out paused clock,
+discovery flag, derived-vs-base init (5.2 path now = BASE init, sample-identical). Phase 2
+"re-baseline WatchVrf" task, own prereg; first falsifier = does vrfGui show the entities.
+NEXT = that prereg, then the runner 5.2 profile, then PREREG_R9_52.
 ## PROBE PROTOCOL (adopted 2026-09-01/02; do NOT change mid-protocol)
 FFRTC mode per the block above; TimeMultiplier 1x; -RunSecs is a CAP under -StopWhenComplete.
 SHORT-ROUTE probe variants are allowed (platoon/entity legs ~200 m) but COMPANY probe routes stay

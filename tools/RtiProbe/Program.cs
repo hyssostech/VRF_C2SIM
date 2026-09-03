@@ -40,10 +40,12 @@ using VrfC2Sim.Tools;
 // killed parent cannot strand a joined federate - the same posture as WatchVrf.
 //
 // LAUNCH ENV (identical to CreateOne/WatchVrf - RUNBOOK sec 7): RTI 4.6.1 on PATH,
-// MAKLMGRD_LICENSE_FILE from Machine scope, cwd = C:\MAK\vrforces5.0.2\bin64, and a
-// FRESH ApplicationNumber (Appendix B ledger; never reuse across runs).
+// MAKLMGRD_LICENSE_FILE from Machine scope, cwd = the target stack's bin64 (5.0.2 or
+// 5.2d - the connection config resolves relative to it), and a FRESH ApplicationNumber
+// (Appendix B ledger; never reuse across runs). A 5.2 run additionally needs the 5.2
+// PATH prefix + RTI_ASSISTANT_DISABLE + the shared rid (tools/Shared/StackIdentity.cs).
 //
-// Args: <appNumber> [federation=CWIX-2024] [maxAttempts=5] [settleSecs=2] [backoffSecs=3]
+// Args: <appNumber> [federation=stack default] [maxAttempts=5] [settleSecs=2] [backoffSecs=3]
 //   appNumber is MANDATORY. Do NOT run this with a valid appNumber offline: it attempts
 //   a REAL create/join against a live RTI federation.
 
@@ -51,7 +53,8 @@ static string[] UsageLines() => new[]
 {
     "usage:  RtiProbe.exe <appNumber> [federation] [maxAttempts] [settleSecs] [backoffSecs]",
     "        appNumber   MANDATORY, 1..65535, must be FRESH (Appendix B ledger; never reuse).",
-    "        federation  default CWIX-2024.",
+    "        federation  default is stack-aware (5.0.2 -> CWIX-2024; 5.2 -> the connection",
+    "                    config identity, execName MAK-ONE-2025; tools/Shared/StackIdentity.cs).",
     "        maxAttempts default 5   (internal retries on the SAME appNumber).",
     "        settleSecs  default 2   (tick this long after a join before resigning).",
     "        backoffSecs default 3   (sleep this long between failed attempts).",
@@ -77,7 +80,7 @@ if (positional.Length < 1)
 if (!ToolArgs.TryIntInRange(positional[0], "appNumber", 1, 65535, out int appNumber, out string problem))
     return ToolArgs.Usage(problem, UsageLines());
 
-string federation = "CWIX-2024";
+string federation = null;   // null = stack default (5.0.2 CWIX-2024; 5.2 config-file identity)
 int maxAttempts = 5, settleSecs = 2, backoffSecs = 3;
 
 if (positional.Length >= 2 && !string.IsNullOrWhiteSpace(positional[1])) federation = positional[1];
@@ -91,8 +94,8 @@ if (positional.Length >= 5 &&
     !ToolArgs.TryPositiveInt(positional[4], "backoffSecs", out backoffSecs, out problem))
     return ToolArgs.Usage(problem, UsageLines());
 
-// FED / FOM must match the running federation (RUNBOOK sec 7) - identical constants to
-// CreateOne and WatchVrf, because this probe must exercise the SAME create/join path.
+// Identity must match the running federation (RUNBOOK sec 7) - stack-aware, identical
+// to CreateOne and WatchVrf, because this probe must exercise the SAME create/join path.
 var cfg = new StartupConfig
 {
     Protocol = VrfProtocol.Hla1516e,
@@ -100,15 +103,13 @@ var cfg = new StartupConfig
     SiteId = 1,
     SessionId = 1,
     HostInetAddr = "127.0.0.1",
-    Federation = federation,
-    FedFileName = "RPR_FOM_v2.0_1516-2010.xml",
 };
-cfg.FomModules.Add("MAK-VRFExt-6_evolved.xml");
-cfg.FomModules.Add("MAK-DIGuy-7_evolved.xml");
-cfg.FomModules.Add("MAK-LgrControl-2_evolved.xml");
+string fedDesc = StackIdentity.Apply(cfg, federation);
+string fedShown = string.IsNullOrEmpty(cfg.Federation) ? "(config-file identity)" : cfg.Federation;
 
 Console.WriteLine("=== RtiProbe - RTI readiness gate (create-or-join, internal retry+backoff) ===");
-Console.WriteLine($"    federation={federation}  appNumber={appNumber}  maxAttempts={maxAttempts}  "
+Console.WriteLine($"    {fedDesc}");
+Console.WriteLine($"    appNumber={appNumber}  maxAttempts={maxAttempts}  "
                 + $"settle={settleSecs}s  backoff={backoffSecs}s");
 Console.WriteLine("    exit 0 = serviceable (join OK, clean resign); 1 = NOT ready; 2 = usage.");
 Console.WriteLine();
@@ -120,7 +121,7 @@ for (int attempt = 1; attempt <= maxAttempts; attempt++)
     try
     {
         bridge = new VrfBridge();
-        Console.WriteLine($"[..] attempt {attempt}/{maxAttempts}: bridge.Start() - create-or-join {federation}...");
+        Console.WriteLine($"[..] attempt {attempt}/{maxAttempts}: bridge.Start() - create-or-join {fedShown}...");
         started = bridge.Start(cfg);
         if (started)
         {
@@ -135,7 +136,7 @@ for (int attempt = 1; attempt <= maxAttempts; attempt++)
             bridge.Dispose();
             bridge = null;   // resign+dispose done; keep the finally from double-disposing
             Console.WriteLine($"[OK] RTI serviceable on attempt {attempt}/{maxAttempts}: "
-                            + $"created/joined {federation} and resigned cleanly.");
+                            + $"created/joined {fedShown} and resigned cleanly.");
             return ToolArgs.ExitOk;
         }
 
@@ -176,7 +177,7 @@ for (int attempt = 1; attempt <= maxAttempts; attempt++)
     }
 }
 
-Console.WriteLine($"[FAIL] RTI NOT serviceable after {maxAttempts} attempt(s) against {federation} "
+Console.WriteLine($"[FAIL] RTI NOT serviceable after {maxAttempts} attempt(s) against {fedShown} "
                 + $"(appNumber {appNumber}). The RTI could not service a create/join. Refusing to "
                 + "declare readiness - the launch must NOT proceed.");
 return ToolArgs.ExitFailure;

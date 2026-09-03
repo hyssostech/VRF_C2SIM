@@ -23,9 +23,9 @@ using VrfC2Sim;
 //   applicationNumber  REQUIRED. NO DEFAULT. A fresh, ledgered appNo every run (RUNBOOK
 //                      sec 7); reusing one steals a federate slot from WatchVrf etc.
 //   multiplier         Optional whole number > 0. If > 1, ALSO SetTimeMultiplier. Default 1.
-//   federation         Optional, default CWIX-2024 (must match the running federation).
+//   federation         Optional, default stack-aware (tools/Shared/StackIdentity.cs).
 
-const string DefaultFederation = "CWIX-2024";
+using VrfC2Sim.Tools;
 
 static int Usage(string problem)
 {
@@ -37,7 +37,8 @@ static int Usage(string problem)
     Console.Error.WriteLine("                     run (RUNBOOK sec 7). Reusing one steals a federate slot.");
     Console.Error.WriteLine("  multiplier         Optional. Whole number > 0 (default 1 = real time). If > 1,");
     Console.Error.WriteLine("                     also issues SetTimeMultiplier so movement is visible faster.");
-    Console.Error.WriteLine("  federation         Optional. Default 'CWIX-2024'.");
+    Console.Error.WriteLine("  federation         Optional. Default is stack-aware (5.0.2 -> CWIX-2024;");
+    Console.Error.WriteLine("                     5.2 -> connection-config identity; tools/Shared/StackIdentity.cs).");
     Console.Error.WriteLine();
     Console.Error.WriteLine("examples:  RunSim.exe 3550          # play at real time");
     Console.Error.WriteLine("           RunSim.exe 3550 10       # play at 10x");
@@ -71,10 +72,10 @@ if (positional.Length >= 2)
 
 string federation = positional.Length >= 3 && !string.IsNullOrWhiteSpace(positional[2])
     ? positional[2]
-    : DefaultFederation;
+    : null;   // null = stack default (5.0.2 CWIX-2024; 5.2 config-file identity)
 
-// FED / FOM must match VR-Forces' running federation (appsettings.json Vrf, RUNBOOK sec 7).
-// Kept identical to tools/SetSimRate / tools/ResetVrf.
+// Identity must match VR-Forces' running federation (RUNBOOK sec 7) - stack-aware,
+// same helper RtiProbe/CreateOne/WatchVrf use (tools/Shared/StackIdentity.cs).
 var cfg = new StartupConfig
 {
     Protocol = VrfProtocol.Hla1516e,
@@ -82,15 +83,11 @@ var cfg = new StartupConfig
     SiteId = 1,
     SessionId = 1,
     HostInetAddr = "127.0.0.1",
-    Federation = federation,
-    FedFileName = "RPR_FOM_v2.0_1516-2010.xml",
 };
-cfg.FomModules.Add("MAK-VRFExt-6_evolved.xml");
-cfg.FomModules.Add("MAK-DIGuy-7_evolved.xml");
-cfg.FomModules.Add("MAK-LgrControl-2_evolved.xml");
+string fedDesc = StackIdentity.Apply(cfg, federation);
 
 Console.WriteLine("=== RunSim - START the VR-Forces simulation clock (remote control) ===");
-Console.WriteLine($"    federation={federation}  appNumber={appNumber}  multiplier={multiplier}x");
+Console.WriteLine($"    {fedDesc}  appNumber={appNumber}  multiplier={multiplier}x");
 Console.WriteLine($"    started {DateTime.Now:yyyy-MM-dd HH:mm:ss} local / {DateTime.UtcNow:HH:mm:ss} UTC");
 Console.WriteLine("    ACTION: controller->run() (play) on ALL backends" +
                   (multiplier > 1 ? $", then set {multiplier}x." : ".") +

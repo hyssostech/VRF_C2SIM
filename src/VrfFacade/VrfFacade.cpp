@@ -424,7 +424,21 @@ bool VrfFacade::Start(const StartupConfig& cfg) {
     // this derived overload forwards to the DtCommunicationManager* overload, unchanged.)
     MyDtVrlinkVrfRemoteController* newController = new MyDtVrlinkVrfRemoteController();
     p_->exConn = new DtExerciseConn(*p_->appInit);
+#if VRF_API_52
+    // 5.2: call the BASE init(DtExerciseConn*, rel, reel, ral, ael, marking,
+    // disableRemoteDiscovery=false) - the overload the 5.2d sample uses. Its doc
+    // (vrlinkVrfRemoteController.h :90-93): it creates the communication manager
+    // AND, when disableRemoteDiscovery is false, the DtRemoteObjectManager that
+    // discovers state data. Our 5.0.2-era derived overload replicates only the
+    // 5.0.2 wiring (comm manager + vrlink interface) and never creates that
+    // manager - on 5.2 that left every observer BLIND (reflected=0 while the
+    // command/backend-state channel worked; PREREG_52_TOOLJOIN_2026-09-03.md,
+    // appNos 3808/3810/3811). Qualified call = the base overload explicitly.
+    newController->makVrf::DtVrlinkVrfRemoteController::init(
+        p_->exConn, nullptr, nullptr, nullptr, nullptr, "entity-identifier", false);
+#else
     newController->init(p_->exConn, nullptr, nullptr, nullptr, "entity-identifier", true);
+#endif
     p_->controller = newController;
     p_->owns = true;
 

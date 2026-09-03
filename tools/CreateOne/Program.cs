@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using VrfC2Sim;
+using VrfC2Sim.Tools;
 
 // tools/CreateOne - create ONE entity in a live VR-Forces federation, then report the
 // uuid the backend assigns it.
@@ -62,7 +63,7 @@ double lat = 34.517156470326704;    // COA-STP1 AO (Mojave / TropicTortoise), fr
 double lon = -116.97352492302609;
 double alt = 10000.0;               // safe-high MSL create; ground clamp brings it down
 string name = "ORACLETEST";
-string federation = "CWIX-2024";
+string federation = null;   // null = stack default (5.0.2 CWIX-2024; 5.2 config-file identity)
 
 if (positional.Length >= 2 && !double.TryParse(positional[1], NumberStyles.Float, CultureInfo.InvariantCulture, out lat))
     return Fail($"latDeg '{positional[1]}' is not a number.");
@@ -89,8 +90,8 @@ if (!double.IsFinite(alt))
 if (lat < -90 || lat > 90)   return Fail($"latDeg {lat} out of range (-90..90).");
 if (lon < -180 || lon > 180) return Fail($"lonDeg {lon} out of range (-180..180).");
 
-// FED / FOM must match VR-Forces' running federation (RUNBOOK sec 7) - same constants
-// ResetVrf and WatchVrf use.
+// Identity must match VR-Forces' running federation (RUNBOOK sec 7) - stack-aware,
+// same helper RtiProbe and WatchVrf use (tools/Shared/StackIdentity.cs).
 var cfg = new StartupConfig
 {
     Protocol = VrfProtocol.Hla1516e,
@@ -98,12 +99,8 @@ var cfg = new StartupConfig
     SiteId = 1,
     SessionId = 1,
     HostInetAddr = "127.0.0.1",
-    Federation = federation,
-    FedFileName = "RPR_FOM_v2.0_1516-2010.xml",
 };
-cfg.FomModules.Add("MAK-VRFExt-6_evolved.xml");
-cfg.FomModules.Add("MAK-DIGuy-7_evolved.xml");
-cfg.FomModules.Add("MAK-LgrControl-2_evolved.xml");
+string fedDesc = StackIdentity.Apply(cfg, federation);
 
 // M1A2_Abrams_MBT - DIS 1.1.225.1.1.3.0 (0.1 content catalog; PHASE1_SESSION_SCRIPT.md).
 var type = new EntityTypeSpec
@@ -114,7 +111,7 @@ var type = new EntityTypeSpec
 var pos = new Geodetic { LatDeg = lat, LonDeg = lon, AltMeters = alt };
 
 Console.WriteLine("=== CreateOne - create ONE entity in a live VR-Forces federation ===");
-Console.WriteLine($"    federation={federation}  appNumber={appNumber}  (use a FRESH appNumber each run)");
+Console.WriteLine($"    {fedDesc}  appNumber={appNumber}  (use a FRESH appNumber each run)");
 Console.WriteLine($"    type=M1A2_Abrams_MBT (DIS 1.1.225.1.1.3.0)  name='{name}'");
 Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
     "    pos=({0:F6}, {1:F6}) alt={2:F1} m MSL", lat, lon, alt));

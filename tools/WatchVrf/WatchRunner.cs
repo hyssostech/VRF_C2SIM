@@ -95,7 +95,7 @@ internal static class WatchRunner
 
         string[] positional = ToolArgs.Positionals(args);
         int appNumber = 3399, durationSecs = 120, sampleSecs = 15;
-        string federation = "CWIX-2024";
+        string federation = null;   // null = stack default (5.0.2 CWIX-2024; 5.2 config-file identity)
 
         // HARD-FAIL on unparseable input. Previously these were TryParse calls whose bool
         // result was DISCARDED, so a typo silently produced a trace of the wrong appNumber
@@ -122,15 +122,13 @@ internal static class WatchRunner
             SiteId = 1,
             SessionId = 1,
             HostInetAddr = "127.0.0.1",
-            Federation = federation,
-            FedFileName = "RPR_FOM_v2.0_1516-2010.xml",
         };
-        cfg.FomModules.Add("MAK-VRFExt-6_evolved.xml");
-        cfg.FomModules.Add("MAK-DIGuy-7_evolved.xml");
-        cfg.FomModules.Add("MAK-LgrControl-2_evolved.xml");
+        // Stack-aware identity (tools/Shared/StackIdentity.cs): 5.0.2 keeps the
+        // CWIX-2024 constants; 5.2 joins via the connection config (MAK-ONE-2025).
+        string fedDesc = StackIdentity.Apply(cfg, federation);
 
         Console.WriteLine("=== WatchVrf - position + Object Console telemetry (R3 / groundwork 0.6) ===");
-        Console.WriteLine($"    federation={federation} appNumber={appNumber} duration={durationSecs}s sample={sampleSecs}s"
+        Console.WriteLine($"    {fedDesc} appNumber={appNumber} duration={durationSecs}s sample={sampleSecs}s"
                         + (stopFile != null ? $" stop-file={stopFile} (duration is the upper bound)" : "") + "\n");
 
         // All DATA lines (POS, CON, and the # summary) go through this one lock so a CON
