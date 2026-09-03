@@ -156,4 +156,15 @@ evidence moved the recommendation: [same] [firmer] [CHANGED].
   near-distance 25 -> 15 m, per-soil max-speed caps removed. Prereg records all three. [same]
 - Y-14 SQLite logging: evaluate in Phase 2. Batch mode REJECTED for interface runs - "Batch
   mode is read-only ... cannot ... create simulation objects" (UG52 7.10). [CHANGED]
-- Carried: NETN-ETR later; MAK KB check; hostile nation option; licence 2026-09-15.
+- Y-15 (NEW 2026-09-03, user goal: support as much tasking as STP can represent, not MOVE)
+  UNIT REPRESENTATION LEVEL on 5.2d: (a) stay EntityLevel (DtDisaggregated company; unit
+  tasks on disk: move-to, fire-at-target, follow, mortar/artillery fire, posture, formation
+  sets; ATTACK/DEFEND/SECURE/... = custom Lua unit tasks we author, vendor path
+  examples\addTask + luadoc, dispatched via RunScriptedTask) or (b) AggregateTacticalLevel
+  (5.2's new set: unit-attack-to-objective, unit-defend, unit-trailing-march-to-objective,
+  reconnoiter-location/route, perform-ground-reconnaissance, manage-fire-support,
+  mount/dismount-company, 54 tasks; the 7 CHN units live here) - aggregate fidelity rules
+  per UG52 ch 28 to be read FIRST. Input owed by user: STP's own task catalogue (the target
+  vocabulary; the two real orders only show 19 verbs). NETN-ETR: RECORD ONLY (translator
+  supports 10 interactions, drops StartWhen/Why/Path/MoveType, no formation/spacing knobs).
+- Carried: MAK KB check; hostile nation option; licence 2026-09-15.
