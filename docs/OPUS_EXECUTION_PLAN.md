@@ -1810,7 +1810,16 @@ join) are BURNED, not recycled. The run manifest records which were actually use
   docs/experiments/PREREG_COASTP1_QPAIR_2026-09-02.md). Ledgered BEFORE the join, with the
   documented launch environment. Result annotated in that prereg's sec 7.
 
-*** NEXT FREE: 3799 *** (authoritative - the ONLY such marker in this file. Update this
+- 3799: CLAIMED 2026-09-03 - scripts/LaunchVrf52.ps1 back-end vrfSimHLA1516e (5.2d, independent
+  mode, first 5.2 launch; prereg docs/experiments/PREREG_52_LAUNCH_2026-09-03.md).
+- 3800: CLAIMED 2026-09-03 - scripts/LaunchVrf52.ps1 front-end vrfGui (5.2d), same prereg.
+
+- 3801: CLAIMED 2026-09-03 - LaunchVrf52.ps1 back-end RETRY after the assistant version-gate
+  diagnosis (3799/3800 BURNED - back-end never joined, RTI Connection failed against the
+  elevated 5.0.1 rtiAssistant; see PREREG_52_LAUNCH_2026-09-03.md sec 6). Assistant-free env.
+- 3802: CLAIMED 2026-09-03 - LaunchVrf52.ps1 front-end vrfGui for the same retry.
+
+*** NEXT FREE: 3803 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN

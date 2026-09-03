@@ -101,13 +101,10 @@ A-2, an IDENTICAL invocation, did not (4, 3.69 km). NEXT row 1.
 ## OPERATIONAL STATE (2026-09-02, after the TWO no-`-q` COA-STP1 runs of the QPAIR probe)
 VR-FORCES DOWN (StopVrf exit 0, graceful, RTI preserved); BOTH post-run ResetVrf sweeps (3790,
 3798) joined clean, 0 reflected, exit 0, with the :1206-1215 environment. appNo marker
-**NEXT FREE = 3799** (docs/OPUS_EXECUTION_PLAN.md Appendix B, runner-managed, CRLF).
-QPAIR A-2 3791-3797 + 3798; QPAIR A-1 3783-3789 + 3790; live gate 3775-3781 + 3782; -q run
-3767-3773 + 3774; merged-build control 3759-3765 + 3766; rung 2 3750-3756 + 3758.
-**3757 IS BURNED** - ResetVrf invoked without the documented launch environment (RUNBOOK
-:1208-1215 requires cwd = C:\MAK\vrforces5.0.2\bin64 plus the VR-Forces/VR-Link/makRti bin PATH
-prefix AND Machine-scope MAKLMGRD_LICENSE_FILE) and failed before joining. READ :1208-1215
-BEFORE RUNNING ResetVrf - all five 2026-09-02 sweeps used it and exited 0.
+appNo marker: docs/OPUS_EXECUTION_PLAN.md Appendix B (runner-managed; NEXT FREE = 3803 as of
+2026-09-03 pm - 3799-3802 went to the two LaunchVrf52 attempts). Per-run number history lives
+in that ledger, not here. 3757 IS BURNED (ResetVrf without the RUNBOOK :1208-1215 launch
+environment - cwd bin64 + PATH prefix + Machine MAKLMGRD_LICENSE_FILE; read it before ResetVrf).
 DEPLOYED APP: src\VrfC2SimApp\bin\Release\net10.0\win-x64\VrfC2SimApp.dll SHA-256
 **53130C93BD76...A7EF27A9** (2026-09-02 16:28:08) - a5cdc95, i.e. the GATED merged build plus ONE
 added log line (`C2SIM endpoints:`). The runner starts the app from that path
@@ -125,20 +122,16 @@ it). Firewall: do NOT set NotifyOnListen False (user ruling); Cancel the testhos
 license expires 2026-09-15. THE VENDOR LOG'S WALL STAMPS ARE LOCAL (-04:00), NOT UTC (ours UTC).
 
 ## NEXT (in order)
-DONE 2026-09-02 pm, three probes; READ THE PREREG SEC 7s, NOT THIS SUMMARY:
-  * MERGED-BUILD CONTROL, R9, GATE PASSED (20260902T181203Z, 3759-3765; 0f75f29) - merged binary
-    behaviourally identical to 3b7b8d2e: app logs diff to ZERO HUNKS, endpoints to six decimals.
-  * `-q` AT SCALE, STOPPED on its own miss rule (20260902T183135Z, 3767-3773; 4d2f4c3) - -q does
-    NOT suppress vrfSim.log (961.9/SIM s vs 966.2); console costs ~18% (0.2652 -> 0.3140).
-  * TYPE-MAPPING LIVE GATE, PASSES / run formally INVALID (20260902T193508Z, 3775-3781; 1976ec1)
-    - 6/6 R9 units landed EXACTLY the data/unit-type-map.json names; 3/3 TASKCMPLT; list EMPTY.
+DONE 2026-09-02 pm, three probes (READ THE PREREG SEC 7s, NOT THIS SUMMARY): merged-build
+control GATE PASSED (3759-3765, zero-hunk log diff); `-q` at scale STOPPED on its own miss
+rule (3767-3773; -q does NOT suppress vrfSim.log, console ~18%); type-mapping live gate
+PASSES / run formally invalid (3775-3781; 6/6 map names, 3/3 TASKCMPLT).
 1. **TANK-COMPANY NON-DISTRIBUTION - PAIR ADJUDICATED (supervisor, PREREG_COASTP1_QPAIR sec 9):**
    `-q` FALSIFIED as the cause (clause (a): A-1, no `-q`, B/5-20 at 0 sub-routes / 0.37 km);
    NON-DETERMINISM SUPPORTED (A-1 vs A-2, identical invocations, B/5-20 0 vs 4 sub-routes);
-   run B NOT owed; `-q` stays default-OFF. The two instrument misses were falsified as misses:
-   I4 = a second placeholder encoding (0,-90,1.9e34) run_census.py now filters -> everReal
-   1,732 EXACT on all four scale runs; I6 = LS-slope dispersion, raw distances match A-1 within
-   4%. NEXT OBJECT: the SERIAL COMPANY BUILD (one at a time, B/5-20 last or absent in 4/4, two
+   run B NOT owed; `-q` stays default-OFF; both instrument misses falsified as misses (I4
+   second placeholder encoding now filtered, I6 raw distances match within 4% - prereg sec 9).
+   NEXT OBJECT: the SERIAL COMPANY BUILD (one at a time, B/5-20 last or absent in 4/4, two
    companies exactly 9 s apart in 3/4). DOCS FIRST: 5.0.2 Users Guide aggregate disaggregation /
    task processing + 4.10 entitymodels_aggregates.html, cited in the prereg, before any probe.
    Known-unexplained (bounded): why the placeholder encoding flipped between 18:31Z and 20:47Z.
@@ -176,10 +169,18 @@ Release-5.2-HLA4, 0 errors, toolset v145 (v143 GONE from the machine); app
 data/unit-type-map-52.json (AR Scout -> Mechanized Platoon/Company (USA Army M2), PROXY, Y-8).
 TRAP: a 5.2 process needs PATH prefixed with vrforces5.2d\bin64;vrlink5.10\bin64;makRti4.6.1\bin
 or the bridge dies loading (name-bound MAK DLLs); VrfBridge.NativeStackInfo() logs which stack
-bound. NOT PROVEN: any 5.2 join or behaviour. NOTHING edited under C:\MAK. NEXT = runner 5.2
-profile (VrfRoot/PATH/env, bin\Release-5.2 exe, vrfSimHLA1516e from 5.2d bin64, TypeMapFile
--52, ConnectionConfigFile, FomModules EMPTY, manifest records NativeStackInfo), then 5.b
-prototype zero (remoteControlHLA1516e.exe vs a shipped scenario), then PREREG_R9_52 (Phase 2).
+bound. FIRST 5.2 LAUNCH+JOIN PROVEN 2026-09-03 pm (PREREG_52_LAUNCH_2026-09-03.md):
+scripts/LaunchVrf52.ps1 (independent mode, UG52 4.1.2; LaunchVrf.ps1 is INVALID on 5.2) ->
+"Joined federation MAK-ONE-2025", back-end healthy at 36 threads. Blocker found+fixed: the
+RTI 5.0.1 installer's ELEVATED 5.0.1 rtiAssistant on 6003 version-rejects EVERY 4.6.1 LRC
+(both stacks - 5.0.2 runs are ALSO blocked until reboot or assistant exit); fix = per-process
+RTI_ASSISTANT_DISABLE + config/rid-461-ridconfigured.mtl (assistant-free, dialog-free; DIFF
+A12/H). Prototype zero NOT automatable (DtGetInputLine reads keyboard only - piped stdin
+ignored); 5.b is DEMOTED to symptom discrimination. NOT PROVEN: OUR bridge/tools joining 5.2.
+NEXT = tools BridgeConfig (RtiProbe/CreateOne/WatchVrf Release-5.2 + stack-aware identity via
+NativeStackInfo: 5.2 = config-file join, Federation/FedFileName/FomModules EMPTY) as the join
+gate, then the runner 5.2 profile (TypeMapFile -52, manifest records NativeStackInfo + rid),
+then PREREG_R9_52 (Phase 2).
 ## PROBE PROTOCOL (adopted 2026-09-01/02; do NOT change mid-protocol)
 FFRTC mode per the block above; TimeMultiplier 1x; -RunSecs is a CAP under -StopWhenComplete.
 SHORT-ROUTE probe variants are allowed (platoon/entity legs ~200 m) but COMPANY probe routes stay

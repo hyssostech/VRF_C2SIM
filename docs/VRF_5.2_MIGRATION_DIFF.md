@@ -2,34 +2,29 @@
 
 Purpose: every difference that touches this federate, cited, with its effect and
 whether a user decision is needed - BEFORE any build, run, or C:\MAK edit.
-Sources (5.2d install = C:\MAK\vrforces5.2d; text extracts in the session scratchpad):
-MG = doc\VRFMigrationGuide.pdf; RN = doc\VRF5.2ReleaseNotes.pdf; UG52/UG502 = Users
-Guide 5.2 / 5.0.2; IOG = doc\MAKInteroperabilityGuide.pdf; API52 = classref
-vrf_migration52.html; VRL = VR-Link 5.10 release notes; DISK = installed 5.2d files;
-HDR = 5.2d headers diffed against 5.0.2. Executor row files rows_S/A/B/C (scratchpad)
-hold the verbatim quotes; this file keeps only the verdicts. Rule where sources
-disagree: the INSTALLED 5.2d file beats the manual (IOG names VRFExt-9/VRFAggregate-6;
-the shipped config carries VRFExt-12/VRFAggregate-7).
+Sources (5.2d install = C:\MAK\vrforces5.2d): MG = VRFMigrationGuide.pdf; RN = release
+notes; UG52/UG502 = Users Guides; IOG = MAKInteroperabilityGuide.pdf; API52 = classref
+vrf_migration52.html; VRL = VR-Link 5.10 release notes; DISK = installed files; HDR =
+headers diffed vs 5.0.2. Verbatim quotes live in the scratchpad row files; this file
+keeps verdicts. Where sources disagree the INSTALLED file beats the manual (IOG names
+VRFExt-9/VRFAggregate-6; the shipped config carries VRFExt-12/VRFAggregate-7).
 
 ## CLOSED - settled from disk or code, no decision owed
 - HLA 4 needs MAK RTI 5.0 (vrfSimHLA4.exe imports librti1516_2025vc141.dll; IOG "HLA 4
   requires MAK RTI 5.0 or later"); not installed 2026-09-03, user obtaining it (Y-16).
   Until then protocol = HLA 1516e on makRti4.6.1 (vrfSimHLA1516e.exe -> librti1516e64.dll).
-- Our tank company is an ENTITY-LEVEL unit: VrfFacade::CreateAggregate sends
-  DtDisaggregated + createSubordinates on an EntityLevel-derived SMS (UnitTranslator.cs
-  :156 superType 3). UG52 ch 28 aggregate-level distribution ("relative position at the
-  time of tasking") does NOT govern us; the entity-level unit rules (rows D1-D4) do.
-- VrfFacade.cpp itself has no predicted source break (rows B1-B9, HDR); the ONE predicted
-  break is remoteControlInit.cxx :19-20 (myHlaConnection deleted in VR-Link 5.10, row A8).
-  Facade uses none of the removed controllers, setVisibility, DtObjectType, rewind,
-  AIEnabled, set-road-driving-options, collision-avoidance-types (grep, 2026-09-02).
+- Our tank company is an ENTITY-LEVEL unit (DtDisaggregated + createSubordinates,
+  UnitTranslator.cs :156). UG52 ch 28 aggregate-level distribution does NOT govern us;
+  the entity-level unit rules (rows D1-D4) do.
+- VrfFacade.cpp has no predicted source break (B1-B9, HDR); the ONE predicted break is
+  remoteControlInit.cxx :19-20 (myHlaConnection deleted in VR-Link 5.10, A8). Facade uses
+  none of the removed controllers/setVisibility/DtObjectType/rewind/etc (grep 2026-09-02).
 - appNo ledger SURVIVES: -a/-s are now VR-Link base options for HLA too (VRL-758; UG52
   5.4.1 "unique site ID:application number pair"); --sessionId is orthogonal (control
   group id, must equal the sim engine's, default 1). NEXT FREE marker stays in force.
 - vrLinkSharp (C#) has no VR-Forces remote-control classes; the C++ facade stays.
-- Compiler: v145 (VS 18 / MSVC 14.51), NOT v143 - VS 2022 left the machine 2026-09-02 14:32; RN p2
-  "VC++ 14 and later are binary compatible" covers it; the 5.0.2 Release DLL was rebuilt v145 too
-  (v143 baseline kept in src/VrfBridge/build/baseline-502-v143-20260902/). Sec H.
+- Compiler: v145 (VS 18), NOT v143 (VS 2022 left 2026-09-02; RN p2 binary-compat covers it;
+  v143 5.0.2 baseline kept in src/VrfBridge/build/baseline-502-v143-20260902/). Sec H.
 - FFRTC survives: scenario keys frame-mode/frame-time unchanged (UG52 12.2.1 Table 20
   p353-354 = UG502 Table 17); exerciseClock.h keeps FmRunToComplete (HDR).
 - Session id semantics unchanged (UG52 4.1.3 p133 = UG502 4.1.3 p134): -i, default 1.
@@ -48,7 +43,7 @@ the shipped config carries VRFExt-12/VRFAggregate-7).
 | A9 | Argv joins with what we pass | MAK-ONE-2025-Config.xml is ALWAYS loaded (DtDefaultConfigFile, vlpi\exerciseConnConfig.h :24; sample resolves it via DtAppPathResolver::connectionsSettingsDirectory()); a 2-arg ctor looks relative to the process CWD; config-file FOM modules are ADDITIVE (VRL-739), argv applied after the file; without the file the join uses VR-Link defaults (execName "VR-Link", RPR 1.0, NETN 1.0) | VRL release notes; sample main.cxx :27-31; IOG 5.3 | Keeping our 3-module list would submit VRFExt-6 AND VRFExt-12; a hand argv must also pass --netnFomVersion 3.0 --netnFomRevision 1 --rprFomRevision 2; exact list only via --setFomModuleList / clearFomModules() / own --exConnConfigFile | Y-2 |
 | A10 | Loop: setSimTime(elapsedRealTime()); drainInput(); tick() (our Tick :478-482) | Sample: init(..., disableRemoteDiscovery=false); setMonitorBackendState(true) (new :2054 - clock follows scenario play/pause); communicationManager()->run(); tick() advances the clock itself | DISK sample main.cxx :47-66; vrfRemoteController.h :2054 | Our pump must stop driving the clock by hand; monitorBackendState is a golden-trace variable (paused scenario = paused controller clock) | Y-6 |
 | A11 | FED/module files found from CWD | Unchanged: CWD or RTI_CONFIG; config lists modules by bare filename; MAK_RTIDIR appears in no doc | VLCONN 4.2.2; IOG 5.1.2 | C# host CWD/RTI_CONFIG must resolve RPR_FOM_v2.0_1516-2010.xml + all 17 modules | N (runner sets RTI_CONFIG) |
-| A12 | RTI dialog once per reboot, scripted watcher | Unchanged and undocumented as suppressible (MAK RTI Users Guide not yet read); cancelling now exits the engine cleanly (VRF-9175) instead of crashing; rtiexec mandatory | IOG; RN p2; VRL | Watcher stays; watchdog must treat a clean exit as a failed start, not a hang | N |
+| A12 | RTI dialog once per reboot, scripted watcher | REFUTED 2026-09-03: fully suppressible - per-process RTI_ASSISTANT_DISABLE (existence disables all assistant use) + rid with RTI_configureConnectionWithRid 1 = no assistant, no dialog, headless (proven, sec H). Also: an ELEVATED assistant's windows/dialogs are INVISIBLE to non-elevated queries and unclickable by AnswerRtiDialog.ps1; cancelling now exits the engine cleanly (VRF-9175) | MAK RTI 4.6.1 Ref Manual 5.2.10; PREREG_52_LAUNCH_2026-09-03 | Dialog watcher retired for assistant-free launches; repo rid = config/rid-461-ridconfigured.mtl (lightweight, no rtiexec) | N (done) |
 | A13 | DtExerciseConn failure aborts | Unchanged, but ctor status arg + DtHaveVrLinkLicense()/DtHaveRtiLicense() exist | VLCONN 4.2.5.5; checkLicense.h | Start() can return an error instead of killing the C# host; licence pre-flight for the runner (expiry 2026-09-15) | N (later) |
 
 ## B. Native API (facade symbols, HDR-verified)
@@ -126,24 +121,30 @@ the shipped config carries VRFExt-12/VRFAggregate-7).
   longer calls setSimTime (A10). KEPT vs sample, deliberately: disableRemoteDiscovery=true and
   drainInput() (sample: false, none) - a golden-trace variable if the join misbehaves.
 - UNPREDICTED, new facts: (1) v143 gone -> v145 (CLOSED list). (2) PATH name-binding trap:
-  MAK DLLs resolve by NAME on PATH, and the system PATH carries vrforces5.0.2\bin64 +
-  vrlink5.8\bin64 - the 5.2 bridge then dies with FileLoadException "A procedure imported by
-  VrfBridge.dll could not be loaded". Per-process fix: prefix PATH with vrforces5.2d\bin64;
-  vrlink5.10\bin64;makRti4.6.1\bin. Tripwire: VrfBridge.NativeStackInfo() = "<5.2|5.0.2>|<path
-  of the vrfcontrol.dll actually loaded>", logged after Start(); the runner manifest must
-  carry it. (3) 5.2d init() aerodrome param (B1): no break, as predicted.
-- Offline gates: 8/8 C# self-tests pass on the 5.0.2 app (default PATH) and on the 5.2 app
-  (5.2 PATH). Type map: sec F prediction CONFIRMED (2182/2190 5.2d simObjects 7-field; on
-  5.0.2 superType 3 <=> kind 11 in all 1713 files, so ObjectTypeResolver re-derives it). Y-8
-  substitutes: data/unit-type-map-52.json (5.2 table; 5.0.2 table untouched) re-points the
-  five AR Scout rows to Mechanized Platoon (USA Army M2) / Mechanized Company (US Army M2)
-  (PROXY, wrong branch; 5.2d has NO USA scout unit - the Armored Cavalry .entity files are
-  Country-0, zero-subordinate abstracts). --typemap-selftest picks the table by catalog root
-  (C2simEx -> .json, EntityLevel -> -52.json): 783 checks on 5.0.2, 784 on 5.2d, and the 5.2
-  table FAILS 5 rows on the 5.0.2 catalog (negative control - the instrument discriminates).
-- NOT proven: runtime join on 5.2d (DtAppPathResolver inside a dotnet host; sessionId from
-  the file), HLA 4 licensing, any behaviour; 5.2 ground truth for the resolver is 5.0.2 truth
-  replayed until the creation-line gate. Next: runner 5.2 profile, then prototype zero (5.b).
+  MAK DLLs resolve by NAME and the system PATH lists the 5.0.2 stack first - a 5.2 process
+  dies with FileLoadException unless PATH is prefixed per process with vrforces5.2d\bin64;
+  vrlink5.10\bin64;makRti4.6.1\bin. Tripwire: VrfBridge.NativeStackInfo() ("<ver>|<loaded
+  vrfcontrol.dll path>"), logged after Start(), goes in the runner manifest. (3) 5.2d init()
+  aerodrome param (B1): no break, as predicted.
+- Offline gates: 8/8 C# self-tests pass on both apps (each under its own PATH). Type map:
+  sec F CONFIRMED (2182/2190 5.2d simObjects 7-field; 5.0.2 superType 3 <=> kind 11, resolver
+  re-derives it). Y-8: data/unit-type-map-52.json re-points the five AR Scout rows to
+  Mechanized Platoon/Company (USA Army M2) (PROXY - 5.2d has NO USA scout unit; the Armored
+  Cavalry .entity files are Country-0 abstracts). --typemap-selftest picks the table by
+  catalog root; 783/784 checks; the 5.2 table FAILS 5 rows on the 5.0.2 catalog (negative
+  control - the instrument discriminates).
+- 2026-09-03 pm (PREREG_52_LAUNCH_2026-09-03.md): first 5.2 LAUNCH + JOIN proven - log
+  "Joined federation MAK-ONE-2025 ... VR-Forces Sim Engine 5.2d"; healthy back-end = 36
+  threads (new baseline). Path: scripts/LaunchVrf52.ps1, UG52 4.1.2 INDEPENDENT mode (every
+  5.0.2 vrfLauncher invocation is INVALID on 5.2; combined mode needs a GUI-saved connection).
+  BLOCKER found+fixed: the RTI 5.0.1 installer left an ELEVATED 5.0.1 rtiAssistant on port
+  6003 that version-rejects EVERY 4.6.1 LRC (both stacks; its windows are invisible to
+  non-elevated queries - "no title" is NOT "no dialog"). Fix (RTI Ref Manual 5.2.10):
+  per-process RTI_ASSISTANT_DISABLE + repo rid config/rid-461-ridconfigured.mtl
+  (RTI_configureConnectionWithRid 1) - no assistant, no boot dialog, fully headless.
+  Prototype zero NOT automatable (DtGetInputLine is keyboard-only; piped stdin ignored).
+- NOT proven: OUR bridge/tools joining the 5.2 sim, HLA 4 licensing, any behaviour. Next:
+  tools Release-5.2 builds (the join gate), then the runner 5.2 profile.
 
 ## G. Decisions ledger (canonical IDs; a reply that uses other numbers is wrong)
 Evidence: docs/VRF_5.2_DECISION_EVIDENCE.md. Rulings dated 2026-09-03 unless noted.
