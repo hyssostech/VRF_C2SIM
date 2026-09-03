@@ -576,9 +576,23 @@ Bridge (HLA1516e) with the VS18 (net10-capable) MSBuild - NOT VS2019 BuildTools
 & "C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe" `
     src\VrfBridge\VrfBridge.vcxproj /p:Configuration=Release /p:Platform=x64 /m
 ```
--> `src/VrfBridge/build/Release/VrfBridge.dll` (+ Ijwhost.dll).
+-> `src/VrfBridge/build/Release/VrfBridge.dll` (+ Ijwhost.dll). Toolset is v145 (VS 18);
+v143 left the machine 2026-09-02.
 
 App (net10): `dotnet build src/VrfC2SimApp -c Release`.
+
+VR-Forces 5.2d stack (2026-09-03, docs/VRF_5.2_MIGRATION_DIFF.md sec H): same MSBuild line with
+`/p:Configuration=Release-5.2` (HLA 1516e on makRti4.6.1) or `Release-5.2-HLA4` (HLA 4 on
+makRti5.0.1) -> `src/VrfBridge/build/<Configuration>/`; app
+`dotnet build src/VrfC2SimApp -c Release -p:BridgeConfig=Release-5.2` ->
+`src/VrfC2SimApp/bin/Release-5.2/net10.0/win-x64/`. The 5.0.2 outputs are never overwritten.
+RUNTIME TRAP: MAK DLLs bind by NAME on PATH and the system PATH lists vrforces5.0.2\bin64 -
+any process hosting a 5.2 bridge must first prefix PATH with
+`C:\MAK\vrforces5.2d\bin64;C:\MAK\vrlink5.10\bin64;C:\MAK\makRti4.6.1\bin` (self-tests
+included) or it dies with FileLoadException "A procedure imported by VrfBridge.dll could not be
+loaded". The app logs `VrfBridge native stack = 5.2|<vrfcontrol.dll path>` after Start() -
+check it. `--typemap-selftest` with `VRF_HOME=C:\MAK\vrforces5.2d` checks
+data/unit-type-map-52.json against the 5.2d catalog (the default checks the 5.0.2 table).
 
 ## Run / verify
 

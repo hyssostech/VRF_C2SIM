@@ -56,13 +56,22 @@
 #include <matrix/geodeticCoord.h>
 #include <matrix/vlVector.h>
 
+// VRF_API_52 = the VR-Forces 5.2d / VR-Link 5.10 build axis (VrfBridge.vcxproj Release-5.2*).
+// docs/VRF_5.2_MIGRATION_DIFF.md sec G Y-6: Start/Tick follow the 5.2d remoteControl sample.
+#if VRF_API_52
+#include <vrfutil/appPathResolver.h>
+#include <vlutil/vlFilename.h>
+#include "remoteControlInit52.h"
+#else
 #include "remoteControlInit.h"
+#endif
 
 #include <cstring>
 #include <cstdlib>
 #include <string>
 #include <vector>
 #include <set>
+#include <windows.h>   // GetModuleHandleA/GetModuleFileNameA for NativeStackInfo()
 
 namespace {
     // matches C2SIMinterface.cpp degreesToRadians (a radians<->degrees factor)
@@ -367,8 +376,15 @@ bool VrfFacade::Start(const StartupConfig& cfg) {
     }
     s.push_back("-a"); s.push_back(appNum);
     s.push_back("-s"); s.push_back(site);
+#if VRF_API_52
+    // 5.2d: the federation identity comes from the connection config file (Y-2,
+    // MAK-ONE-2025-Config.xml); an explicit value on the command line overrides it.
+    if (!cfg.federation.empty())  { s.push_back("--execName");    s.push_back(cfg.federation); }
+    if (!cfg.fedFileName.empty()) { s.push_back("--fedFileName"); s.push_back(cfg.fedFileName); }
+#else
     s.push_back("--execName"); s.push_back(cfg.federation);
     s.push_back("--fedFileName"); s.push_back(cfg.fedFileName);
+#endif
     s.push_back("-n"); s.push_back("1");
 #else
     char disVer[16]; std::snprintf(disVer, sizeof(disVer), "%d", cfg.disVersion);
@@ -387,11 +403,25 @@ bool VrfFacade::Start(const StartupConfig& cfg) {
     for (std::string& str : s) p_->argvPtrs.push_back(&str[0]);
     int argCount = (int)p_->argvPtrs.size();
 
+#if VRF_API_52
+    // 5.2d sample: the initializer takes the connection config file (MAK-ONE-2025-Config.xml
+    // resolved from the VR-Forces settings tree unless the caller names one).
+    std::string configFile = cfg.connectionConfigFile;
+    if (configFile.empty()) {
+        configFile = DtFilename::combine(
+            makVrf::DtAppPathResolver::Instance().connectionsSettingsDirectory(),
+            DtFilename(DtDefaultConfigFile)).c_str();
+    }
+    p_->appInit = new DtRemoteControlInitializer(argCount, p_->argvPtrs.data(), DtString(configFile.c_str()));
+#else
     p_->appInit = new DtRemoteControlInitializer(argCount, p_->argvPtrs.data());
+#endif
     p_->appInit->parseCmdLine();
 
     // Build via the local derived type so the custom init(exConn,...) overload
     // is reachable, then keep only the base pointer (all later calls are base).
+    // (5.2d added a DtReflectedAerodromeList* to the BASE DtExerciseConn* overload;
+    // this derived overload forwards to the DtCommunicationManager* overload, unchanged.)
     MyDtVrlinkVrfRemoteController* newController = new MyDtVrlinkVrfRemoteController();
     p_->exConn = new DtExerciseConn(*p_->appInit);
     newController->init(p_->exConn, nullptr, nullptr, nullptr, "entity-identifier", true);
@@ -399,6 +429,9 @@ bool VrfFacade::Start(const StartupConfig& cfg) {
     p_->owns = true;
 
     p_->controller->eventManager()->setProcessEventsImmediately(true);
+#if VRF_API_52
+    p_->controller->setMonitorBackendState(true);   // 5.2d sample; API new in 5.2
+#endif
     p_->controller->vrfMessageInterface()->setSessionId(cfg.sessionId);
 
     // register the inbound callbacks (usr = this facade)
@@ -477,13 +510,29 @@ void VrfFacade::RegisterInboundCallbacks() {
 
 void VrfFacade::Tick() {
     if (!p_->controller) return;
+#if !VRF_API_52
+    // 5.0.2 oracle loop. Dropped on 5.2 per Y-6 (the 5.2d sample does not drive the clock).
     p_->exConn->clock()->setSimTime(p_->exConn->clock()->elapsedRealTime());
+#endif
     p_->exConn->drainInput();
     p_->controller->tick();
 }
 
 int VrfFacade::BackendCount() const {
     return p_->controller ? p_->controller->backends().count() : 0;
+}
+
+std::string VrfFacade::NativeStackInfo() {
+#if VRF_API_52
+    std::string info = "5.2|";
+#else
+    std::string info = "5.0.2|";
+#endif
+    HMODULE h = GetModuleHandleA("vrfcontrol.dll");
+    if (!h) return info + "(vrfcontrol.dll not loaded)";
+    char path[MAX_PATH * 2] = {0};
+    DWORD n = GetModuleFileNameA(h, path, sizeof(path) - 1);
+    return info + (n ? std::string(path, n) : std::string("(GetModuleFileName failed)"));
 }
 
 bool VrfFacade::AllBackendsReady() const {

@@ -1,8 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!--
+    Three configurations, one per MAK stack (docs/VRF_5.2_MIGRATION_DIFF.md sec G, Y-1/Y-16):
+      Release            vrforces5.0.2 / vrlink5.8  / makRti4.6b   HLA 1516e   build\Release\          (frozen baseline)
+      Release-5.2        vrforces5.2d  / vrlink5.10 / makRti4.6.1  HLA 1516e   build\Release-5.2\      (migration gates)
+      Release-5.2-HLA4   vrforces5.2d  / vrlink5.10 / makRti5.0.1  HLA 4       build\Release-5.2-HLA4\ (own phase)
+    The 5.2 configurations define VRF_API_52=1 (VrfFacade.cpp) and compile remoteControlInit52.*
+    (the 5.2d sample) instead of remoteControlInit.* (the 5.0.2 sample). Never build one
+    configuration into another's OutDir.
+  -->
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Release|x64">
       <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release-5.2|x64">
+      <Configuration>Release-5.2</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release-5.2-HLA4|x64">
+      <Configuration>Release-5.2-HLA4</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
@@ -12,32 +29,65 @@
     <ProjectGuid>{C2510001-0001-4E5F-9A0B-000000000001}</ProjectGuid>
     <RootNamespace>VrfC2Sim</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <!-- MAK install roots (match the C++ interface's HLA vcxproj) -->
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <!-- MAK install roots + protocol pieces, per configuration -->
+  <PropertyGroup Condition="'$(Configuration)'=='Release'">
+    <!-- match the C++ interface's HLA vcxproj -->
     <VrfDir>C:/MAK/vrforces5.0.2</VrfDir>
     <VrlDir>C:/MAK/vrlink5.8</VrlDir>
     <RtiDir>C:/MAK/makRti4.6b</RtiDir>
-    <TargetFramework>net10.0</TargetFramework>
+    <RtiIncludeSub>HLA1516E</RtiIncludeSub>
+    <HlaLibSuffix>HLA1516e</HlaLibSuffix>
+    <RtiLibs></RtiLibs>
+    <MakDefines>BOOST_NO_RVALUE_REFERENCES</MakDefines>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Release-5.2'">
+    <!-- match examples/remoteControl/remoteControlHLA1516e.vcxproj (5.2d) -->
+    <VrfDir>C:/MAK/vrforces5.2d</VrfDir>
+    <VrlDir>C:/MAK/vrlink5.10</VrlDir>
+    <RtiDir>C:/MAK/makRti4.6.1</RtiDir>
+    <RtiIncludeSub>HLA1516E</RtiIncludeSub>
+    <HlaLibSuffix>HLA1516e</HlaLibSuffix>
+    <RtiLibs>libfedtime1516e64.lib;librti1516e64.lib</RtiLibs>
+    <MakDefines>VRF_API_52=1;BOOST_SIGNALS_DYN_LINK=1;BOOST_FILESYSTEM_DYN_LINK=1;BOOST_LIB_TOOLSET="vc141";BOOST_FILESYSTEM_VERSION=3;BOOST_OPTIONAL_USE_OLD_DEFINITION_OF_NONE=1</MakDefines>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Release-5.2-HLA4'">
+    <!-- match examples/remoteControl/remoteControlHLA4.vcxproj (5.2d) -->
+    <VrfDir>C:/MAK/vrforces5.2d</VrfDir>
+    <VrlDir>C:/MAK/vrlink5.10</VrlDir>
+    <RtiDir>C:/MAK/makRti5.0.1</RtiDir>
+    <RtiIncludeSub>HLA1516_2025</RtiIncludeSub>
+    <HlaLibSuffix>HLA4</HlaLibSuffix>
+    <RtiLibs>libfedtime1516_2025vc141.lib;librti1516_2025vc141.lib</RtiLibs>
+    <MakDefines>VRF_API_52=1;DtHLA_4=1;BOOST_SIGNALS_DYN_LINK=1;BOOST_FILESYSTEM_DYN_LINK=1;BOOST_LIB_TOOLSET="vc141";BOOST_FILESYSTEM_VERSION=3;BOOST_OPTIONAL_USE_OLD_DEFINITION_OF_NONE=1</MakDefines>
+  </PropertyGroup>
+  <PropertyGroup>
+    <Vrf52>false</Vrf52>
+    <Vrf52 Condition="'$(Configuration)'=='Release-5.2' Or '$(Configuration)'=='Release-5.2-HLA4'">true</Vrf52>
   </PropertyGroup>
 
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+  <PropertyGroup Condition="'$(Platform)'=='x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <!-- v145 (VS 18, MSVC 14.51): the v143 toolset left this machine 2026-09-02 (VS 2022 dir empty); MSVC 14.x ABI is shared -->
+    <PlatformToolset>v145</PlatformToolset>
     <CLRSupport>NetCore</CLRSupport>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
 
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
 
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+  <ItemDefinitionGroup Condition="'$(Platform)'=='x64'">
     <ClCompile>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
-      <!-- HLA1516e include set from c2simVRFHLA1516e.vcxproj -->
-      <AdditionalIncludeDirectories>$(VrfDir)/include;$(VrlDir)/include;$(RtiDir)/include/HLA1516E;$(RtiDir)/include;..\VrfFacade;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <!-- HLA1516e consumer defines, matching the interface's Release ClCompile -->
-      <PreprocessorDefinitions>WIN32;_WINDOWS;NO_DFD_SUPPORT;NDEBUG;NOMINMAX;BOOST_NO_RVALUE_REFERENCES;_SCL_SECURE_NO_WARNINGS;_CRT_SECURE_NO_WARNINGS;DT_DLL_BUILD;DT_USE_DLL;DtHLA=1;DtHLA_1516=1;RTI_USES_STD_FSTREAM=1;DtHLA_1516_EVOLVED=1;IS_64BIT;RELEASE_PLUGIN_SUPPORT;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <!-- HLA include set (RtiIncludeSub = HLA1516E | HLA1516_2025) -->
+      <AdditionalIncludeDirectories>$(VrfDir)/include;$(VrlDir)/include;$(RtiDir)/include/$(RtiIncludeSub);$(RtiDir)/include;..\VrfFacade;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <!-- HLA1516e consumer defines, matching the vendor Release ClCompile; MakDefines adds the per-stack extras -->
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NO_DFD_SUPPORT;NDEBUG;NOMINMAX;_SCL_SECURE_NO_WARNINGS;_CRT_SECURE_NO_WARNINGS;DT_DLL_BUILD;DT_USE_DLL;DtHLA=1;DtHLA_1516=1;RTI_USES_STD_FSTREAM=1;DtHLA_1516_EVOLVED=1;IS_64BIT;RELEASE_PLUGIN_SUPPORT;$(MakDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <Optimization>MaxSpeed</Optimization>
       <!-- /clr requires async EH for the managed TU; native TUs override to Sync below -->
       <ExceptionHandling>Async</ExceptionHandling>
@@ -49,15 +99,15 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalLibraryDirectories>$(VrfDir)/lib64;$(VrlDir)/lib64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <!-- HLA1516e link set (facade subset of the interface's Release deps; no xerces/C2SIMClientLib) -->
-      <AdditionalDependencies>vrfcontrol.lib;vrlinkNetworkInterfaceHLA1516e.lib;vrfMsgTransport.lib;vrfExtProtocol.lib;vrfExtObjectsHLA1516e.lib;readerWriter.lib;vrfmsgs.lib;vrfplan.lib;vrftasks.lib;vrfutil.lib;vlHLA1516e.lib;vl.lib;vlutil.lib;matrix.lib;mtl.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(VrfDir)/lib64;$(VrlDir)/lib64;$(RtiDir)/lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <!-- HLA link set (facade subset of the vendor deps; no xerces/C2SIMClientLib) -->
+      <AdditionalDependencies>vrfcontrol.lib;vrlinkNetworkInterface$(HlaLibSuffix).lib;vrfMsgTransport.lib;vrfExtProtocol.lib;vrfExtObjects$(HlaLibSuffix).lib;readerWriter.lib;vrfmsgs.lib;vrfplan.lib;vrftasks.lib;vrfutil.lib;vl$(HlaLibSuffix).lib;vl.lib;vlutil.lib;matrix.lib;mtl.lib;$(RtiLibs);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <OutDir>build\Release\</OutDir>
-    <IntDir>build\Release\obj\</IntDir>
+  <PropertyGroup Condition="'$(Platform)'=='x64'">
+    <OutDir>build\$(Configuration)\</OutDir>
+    <IntDir>build\$(Configuration)\obj\</IntDir>
     <TargetName>VrfBridge</TargetName>
   </PropertyGroup>
 
@@ -67,14 +117,23 @@
       <CompileAsManaged>false</CompileAsManaged>
       <ExceptionHandling>Sync</ExceptionHandling>
     </ClCompile>
+    <!-- 5.0.2 sample initializer (site/app config vars on myHlaConnection) -->
     <ClCompile Include="..\VrfFacade\remoteControlInit.cxx">
       <CompileAsManaged>false</CompileAsManaged>
       <ExceptionHandling>Sync</ExceptionHandling>
+      <ExcludedFromBuild Condition="'$(Vrf52)'=='true'">true</ExcludedFromBuild>
+    </ClCompile>
+    <!-- 5.2d sample initializer (defaultConfigFilePath ctor, sessionId config var) -->
+    <ClCompile Include="..\VrfFacade\remoteControlInit52.cxx">
+      <CompileAsManaged>false</CompileAsManaged>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <ExcludedFromBuild Condition="'$(Vrf52)'!='true'">true</ExcludedFromBuild>
     </ClCompile>
     <!-- Managed wrapper TU: compiled with /clr:netcore (project default) -->
     <ClCompile Include="VrfBridge.cpp" />
     <ClInclude Include="..\VrfFacade\VrfFacade.h" />
     <ClInclude Include="..\VrfFacade\remoteControlInit.h" />
+    <ClInclude Include="..\VrfFacade\remoteControlInit52.h" />
   </ItemGroup>
 
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

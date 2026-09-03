@@ -93,6 +93,12 @@ struct StartupConfig {
     std::string fedFileName;                 // --fedFileName (full path)
     std::vector<std::string> fomModules;     // --fomModules (full paths, in order)
     std::string rprFomVersion = "2.0";
+
+    // 5.2 build axis only (VRF_API_52): the VR-Link connection config file the
+    // initializer loads first (MAK-ONE-2025-Config.xml). Empty = resolve the shipped
+    // file from the VR-Forces settings tree as the 5.2d remoteControl sample does.
+    // Ignored by the 5.0.2 build.
+    std::string connectionConfigFile;
 };
 
 // ------------------------------------------------------------------
@@ -232,6 +238,12 @@ public:
 
     int  BackendCount() const;
     bool AllBackendsReady() const;
+
+    // Which MAK stack this process actually loaded: "<build tag>|<full path of vrfcontrol.dll>"
+    // (build tag = "5.2" for VRF_API_52 builds, else "5.0.2"). The native DLLs are found by
+    // NAME on PATH, so a 5.2 bridge silently binds 5.0.2 DLLs when PATH is not set per
+    // process (import failure at best). Log this at startup; the runner records it.
+    static std::string NativeStackInfo();
 
     // -- scenario / simulation control ----------------------------
     void Run();

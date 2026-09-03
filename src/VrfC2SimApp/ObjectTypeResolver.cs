@@ -44,6 +44,12 @@ public sealed class ObjectTypeResolver
 {
     public IReadOnlyList<SimObjectTemplate> Templates { get; }
     public IReadOnlyList<string> ModelSetDirs { get; }
+    /// <summary>The .sms the chain was actually rooted at (EntityLevel when C2simEx is absent).</summary>
+    public string RootSms { get; private init; } = "";
+    /// <summary>How many objectType/matchType strings on disk carried the 7-field (5.2d) form; 0 on a 5.0.2 tree.</summary>
+    public int SevenFieldTypes { get; private init; }
+
+    [ThreadStatic] private static int _sevenField;
 
     private ObjectTypeResolver(List<SimObjectTemplate> templates, List<string> dirs)
     {
@@ -67,12 +73,19 @@ public sealed class ObjectTypeResolver
     public static ObjectTypeResolver LoadChain(string vrfHome, string topSms = "C2simEx")
     {
         string setsDir = ModelSetsDir(vrfHome);
+        // 5.2d ships no C2simEx.sms (docs/VRF_5.2_MIGRATION_DIFF.md row C2, ruling Y-8: the SMS
+        // root is the stock EntityLevel.sms). Fall back to it when the requested root is absent,
+        // and say so through RootSms - the caller must not mistake one chain for the other.
+        if (!File.Exists(Path.Combine(setsDir, topSms + ".sms")) &&
+            File.Exists(Path.Combine(setsDir, "EntityLevel.sms")))
+            topSms = "EntityLevel";
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var order = new List<string>();
         Follow(topSms);
 
         var templates = new List<SimObjectTemplate>();
         var dirs = new List<string>();
+        _sevenField = 0;
         foreach (string set in order)
         {
             string vrfSim = Path.Combine(setsDir, set, "vrfSim");
@@ -81,7 +94,7 @@ public sealed class ObjectTypeResolver
             foreach (string f in Directory.EnumerateFiles(vrfSim, "*.entity").OrderBy(x => x, StringComparer.Ordinal))
                 templates.AddRange(ReadEntityFile(f));
         }
-        return new ObjectTypeResolver(templates, dirs);
+        return new ObjectTypeResolver(templates, dirs) { RootSms = topSms, SevenFieldTypes = _sevenField };
 
         void Follow(string smsName)
         {
@@ -106,9 +119,12 @@ public sealed class ObjectTypeResolver
         string name = Path.GetFileNameWithoutExtension(path);
         foreach (var so in doc.Descendants("simObject"))
         {
-            int[] obj = ParseType((string)so.Attribute("objectType"));
+            int[] obj = ParseType((string)so.Attribute("objectType"), out int objFields);
             if (obj == null) continue;
-            var match = ParseMatch((string)so.Attribute("matchType")) ?? obj.Select(v => new TypeField(v, v)).ToArray();
+            // A matchType with a different field count than its own objectType is a vendor typo
+            // (5.0.2 EC-135 Eurocopter.entity: 7 parts against an 8-field objectType), not the 5.2
+            // form - fall back to exact-match on the objectType as before.
+            var match = ParseMatch((string)so.Attribute("matchType"), objFields) ?? obj.Select(v => new TypeField(v, v)).ToArray();
             yield return new SimObjectTemplate
             {
                 File = path,
@@ -120,7 +136,7 @@ public sealed class ObjectTypeResolver
                 ObjectType = obj,
                 MatchType = match,
                 Subordinates = so.Descendants("subordinate")
-                                 .Select(s => ParseType((string)s.Attribute("objectType")))
+                                 .Select(s => ParseType((string)s.Attribute("objectType"), out _))
                                  .Where(t => t != null).ToList(),
             };
         }
@@ -129,40 +145,64 @@ public sealed class ObjectTypeResolver
     private static string StringParam(XElement so, string paramName)
         => so.Elements("string").FirstOrDefault(s => (string)s.Attribute("paramName") == paramName)?.Value?.Trim() ?? "";
 
-    private static int[] ParseType(string s)
+    // Field layout. 5.0.2 .entity files publish EIGHT fields (superType:kind:domain:country:
+    // category:subcategory:specific:extra). 5.2d dropped superType and publishes the SEVEN DIS
+    // fields (2182 of 2190 EntityLevel simObjects on the installed 5.2d, 2026-09-03; the 8 stragglers
+    // are vendor leftovers). On 5.0.2 superType was 3 exactly when kind == 11 (unit) and 1 otherwise,
+    // in all 1713 files - so a 7-field type is normalised to the 8-field form the rest of this
+    // program (UnitTypeMap, UnitTranslator :156, the bridge) speaks by re-deriving superType from
+    // kind. docs/VRF_5.2_MIGRATION_DIFF.md sec F (predicted break) and Y-8.
+    private const int UnitKind = 11;
+
+    private static int[] ParseType(string s, out int fields)
     {
+        fields = 0;
         if (string.IsNullOrWhiteSpace(s)) return null;
         var parts = s.Split(':');
-        if (parts.Length != 8) return null;
+        if (parts.Length != 8 && parts.Length != 7) return null;
+        fields = parts.Length;
         var f = new int[8];
-        for (int i = 0; i < 8; i++)
-            if (!int.TryParse(parts[i].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out f[i]))
+        int off = 8 - parts.Length;
+        for (int i = 0; i < parts.Length; i++)
+            if (!int.TryParse(parts[i].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out f[i + off]))
                 return null;
+        if (off == 1) { f[0] = f[1] == UnitKind ? 3 : 1; _sevenField++; }
         return f;
     }
 
     // matchType fields may be -1 (wildcard) or an inclusive range "12-22" (four civil-aircraft
-    // templates on 5.0.2 use ranges; no ground unit does).
-    private static TypeField[] ParseMatch(string s)
+    // templates on 5.0.2 use ranges; no ground unit does). A 7-field matchType gets the superType
+    // its kind field implies (wild kind -> wild superType).
+    private static TypeField[] ParseMatch(string s, int expectedFields)
     {
         if (string.IsNullOrWhiteSpace(s)) return null;
         var parts = s.Split(':');
-        if (parts.Length != 8) return null;
+        if (parts.Length != expectedFields) return null;
         var f = new TypeField[8];
-        for (int i = 0; i < 8; i++)
+        int off = 8 - parts.Length;
+        for (int i = 0; i < parts.Length; i++)
         {
             string p = parts[i].Trim();
             int dash = p.IndexOf('-', 1);
             if (dash > 0)
             {
                 if (!int.TryParse(p[..dash], out int lo) || !int.TryParse(p[(dash + 1)..], out int hi)) return null;
-                f[i] = new TypeField(lo, hi);
+                f[i + off] = new TypeField(lo, hi);
             }
             else
             {
                 if (!int.TryParse(p, out int v)) return null;
-                f[i] = v == -1 ? TypeField.Wild : new TypeField(v, v);
+                f[i + off] = v == -1 ? TypeField.Wild : new TypeField(v, v);
             }
+        }
+        if (off == 1)
+        {
+            var kind = f[1];
+            f[0] = kind.IsWild ? TypeField.Wild
+                 : kind.Lo == UnitKind && kind.Hi == UnitKind ? new TypeField(3, 3)
+                 : kind.Accepts(UnitKind) ? TypeField.Wild        // range straddling 11: cannot say
+                 : new TypeField(1, 1);
+            _sevenField++;
         }
         return f;
     }

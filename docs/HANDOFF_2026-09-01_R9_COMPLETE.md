@@ -166,20 +166,20 @@ DONE 2026-09-02 pm, three probes; READ THE PREREG SEC 7s, NOT THIS SUMMARY:
    the default) so it runs where there is NO server; reports need a file sink. A deployment mode,
    not a test shortcut; the runner keeps the server path.
 ## VR-FORCES 5.2 MIGRATION - IN PROGRESS (user ruling 2026-09-02: move to 5.2d, docs first)
-Phase 0 DONE 2026-09-02: docs/VRF_5.2_MIGRATION_DIFF.md (rows A-E cited, C# re-verify list F,
-decisions in sec G). Evidence pass DONE 2026-09-03: docs/VRF_5.2_DECISION_EVIDENCE.md (Y-10/Y-14
-CHANGED; Y-8 gained the 7-field objectType C# break). Cold-start check 2026-09-03:
-docs/VRF_5.2_COLD_START_MAP.md (blind agent's roadmap archived as VRF_5.2_COLD_START_ROADMAP.md;
-candidates 5.a-5.h; PRC UNITS NOT full - 0 EntityLevel templates). RULINGS 2026-09-03 in sec G (the
-CANONICAL ID ledger - facts vs ruled vs open): ALL RULED - Y-15 two profiles by echelon
-(EntityLevel + authored Lua <= company; AggregateTacticalLevel battalion+/scale), Y-7 online +
-offline-authored + cached, Y-16 MAK RTI 5.0.1 INSTALLED (C:\MAK\makRti5.0.1, env untouched;
-gates stay on 1516e/4.6.1, HLA 4 = own phase). STP task
-vocabulary read from the STP source: docs/STP_TASK_VOCABULARY_2026-09-03.md. NOTHING built/run/
-edited under C:\MAK yet. Next = Phase 1 compile (plan ~/.claude/plans/velvet-tickling-hamster.md)
-with a protocol build axis; pre-Phase-0 checklist (2026-09-01) folded into the DIFF doc:
-(a)->C2/Y-8, (b)->D1-D2, (c)->A4/C3/C4, (d)->B rows, (f)->C1/Y-7; NavArea NOT carried to 5.2.
-
+Phase 0 DONE 2026-09-02 + evidence pass 2026-09-03: docs/VRF_5.2_MIGRATION_DIFF.md (rows A-E
+cited, C# re-verify list F, PHASE 1 RECORD sec H, sec G = the CANONICAL decision ledger, ALL
+RULED Y-1..Y-16; full ruling texts in docs/VRF_5.2_DECISION_EVIDENCE.md). Cold-start check:
+docs/VRF_5.2_COLD_START_MAP.md; STP vocabulary docs/STP_TASK_VOCABULARY_2026-09-03.md. PHASE 1 COMPILE DONE 2026-09-03 (sec H): VrfBridge configs Release (5.0.2) | Release-5.2 |
+Release-5.2-HLA4, 0 errors, toolset v145 (v143 GONE from the machine); app
+`dotnet build src\VrfC2SimApp -c Release -p:BridgeConfig=Release-5.2` -> bin\Release-5.2\;
+8/8 offline self-tests on both stacks; 7-field type fix CONFIRMED as predicted; 5.2 type table =
+data/unit-type-map-52.json (AR Scout -> Mechanized Platoon/Company (USA Army M2), PROXY, Y-8).
+TRAP: a 5.2 process needs PATH prefixed with vrforces5.2d\bin64;vrlink5.10\bin64;makRti4.6.1\bin
+or the bridge dies loading (name-bound MAK DLLs); VrfBridge.NativeStackInfo() logs which stack
+bound. NOT PROVEN: any 5.2 join or behaviour. NOTHING edited under C:\MAK. NEXT = runner 5.2
+profile (VrfRoot/PATH/env, bin\Release-5.2 exe, vrfSimHLA1516e from 5.2d bin64, TypeMapFile
+-52, ConnectionConfigFile, FomModules EMPTY, manifest records NativeStackInfo), then 5.b
+prototype zero (remoteControlHLA1516e.exe vs a shipped scenario), then PREREG_R9_52 (Phase 2).
 ## PROBE PROTOCOL (adopted 2026-09-01/02; do NOT change mid-protocol)
 FFRTC mode per the block above; TimeMultiplier 1x; -RunSecs is a CAP under -StopWhenComplete.
 SHORT-ROUTE probe variants are allowed (platoon/entity legs ~200 m) but COMPANY probe routes stay

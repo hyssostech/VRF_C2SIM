@@ -27,7 +27,9 @@ the shipped config carries VRFExt-12/VRFAggregate-7).
   5.4.1 "unique site ID:application number pair"); --sessionId is orthogonal (control
   group id, must equal the sim engine's, default 1). NEXT FREE marker stays in force.
 - vrLinkSharp (C#) has no VR-Forces remote-control classes; the C++ facade stays.
-- Compiler stays v143: RN p2 "built with VC++ 14 and later are binary compatible".
+- Compiler: v145 (VS 18 / MSVC 14.51), NOT v143 - VS 2022 left the machine 2026-09-02 14:32; RN p2
+  "VC++ 14 and later are binary compatible" covers it; the 5.0.2 Release DLL was rebuilt v145 too
+  (v143 baseline kept in src/VrfBridge/build/baseline-502-v143-20260902/). Sec H.
 - FFRTC survives: scenario keys frame-mode/frame-time unchanged (UG52 12.2.1 Table 20
   p353-354 = UG502 Table 17); exerciseClock.h keeps FmRunToComplete (HDR).
 - Session id semantics unchanged (UG52 4.1.3 p133 = UG502 4.1.3 p134): -i, default 1.
@@ -61,7 +63,7 @@ the shipped config carries VRFExt-12/VRFAggregate-7).
 | B7 | DtTaskCompleteReport taskId()/success()/taskTrackingNumber() | Survive | taskCompleteReport.h | Phase 4 truthful completion can ride on success() | N |
 | B8 | DtObjectType; messageTypes numbering | Removed -> DtEntityType; renumbered (RequestSpawnData 305->205) | API52; messageTypes.h | Facade already uses DtEntityType; no numeric literals in our code (verify at compile) | N |
 | B9 | Controllers DtGroundMoveToLocationController etc.; DtRemoteEnvironmentController::setVisibility | Six controllers removed; setVisibilityAndObscurant | API52 | Not used by the facade | N |
-| B10 | Toolchain C++17-ish, Boost smart pointers | RN: C++20 and Boost 1.84 / std smart pointers | RN p2 | Check /std at the first 5.2 compile; a break here is a new row, not a quick fix | N |
+| B10 | Toolchain C++17-ish, Boost smart pointers | RN: C++20 and Boost 1.84 / std smart pointers | RN p2 | COMPILED 2026-09-03 with 0 errors on the existing /std (sec H); no break | N |
 
 ## C. Data: terrain, SMS, fixtures, settings
 | # | 5.0.2 | 5.2d | Cite | Effect | Decision |
@@ -71,8 +73,7 @@ the shipped config carries VRFExt-12/VRFAggregate-7).
 | C3 | Scenario compat: n/a | Pre-5.2 scenario loads if SMS + terrain migrated; tasks auto-convert on load; save is forward-only; 5.2 never re-saves our goldens | MG 1.1 p12, 2.3 p17, 1.4 p13 | FixtureGen re-authors 5.2 fixtures fresh (terrain + SMS lines); 5.0.2 fixtures immutable | N (policy) |
 | C4 | No navigation profiles | navigationProfiles.mtl (lifeform / ground-platform); nav data per profile; nav areas load only for local entities | DISK; RN p34, p73 | Ground planning keys off nav data; online terrain nav coverage is unverified -> Phase 2 gate | N |
 | C5 | No block-on-async knob; terrain single-threaded (undocumented) | blockOnAsynchronousOperations (fixed-frame modes only, default 0); maxAsynchronousTerrainThreads 7 | UG52 App C p1669, p1671; RN p72 | Documented determinism knobs for FFRTC runs: terrain paging, path planning, altitude reads | Y-9 |
-| C6 | aggregateSpatialModelTick* documented (UG502 Table 71) | Gone from UG52 Table 76; NEITHER installed vrfSim.mtl ever carried them (DISK) | UG502 p1660 vs UG52 p1668 | Never a knob we used; no action | N |
-| C7 | Resources ad hoc | SISO enums, real fuel units; pre-5.2 scenarios get full fuel | MG 2.2.3 p16-17 | Fixtures carry no resource lines; no action | N |
+| C6+C7 | aggregateSpatialModelTick* keys; ad hoc resources | Keys gone from UG52 Table 76 (never in either installed vrfSim.mtl); resources = SISO enums, real fuel units, pre-5.2 scenarios get full fuel | UG502 p1660 vs UG52 p1668; MG 2.2.3 | No action | N |
 | C8 | Move to Altitude MSL only; route vectors uncapped | Move to Altitude accepts AGL; routes capped at 2000 points | RN p64, p14 | ElevationAgl clamp logic (VrfC2SimService :470-531) may simplify later; our routes are far below 2000 | N (later) |
 
 ## D. Behaviour: movement, units, completion
@@ -86,16 +87,14 @@ the shipped config carries VRFExt-12/VRFAggregate-7).
 | D6 | AI Enabled: firing/collision only | Autonomous Actions Enabled also gates path planning; off = straight line through obstacles | MG 2.6 p21; UG52 40.3 p866, 23.6 p508 | A determinism lever for golden traces, at the cost of realism | Y-12 |
 | D7 | Navigation preferences: none | Per-entity Navigation Preferences set request (default per SMS movement system: tracked/wheels-off-road ignore roads, wheels-road prefer) | MG 2.4 p18-19 | Road behaviour on 5.2 depends on SMS defaults unless we send the set request | Y-13 |
 | D8 | Task completion via proprietary report demux (TASKCMPLT rule 4) | DtTaskCompleteReport unchanged (B7); NETN-ETR task status exists but limited support | RN p70; IOG 2.3 p28; classref vrf_netn_etr_tasks | Keep the report path; NETN-ETR recorded only | N (deferred) |
-| D9 | Renames | set-road-driving-options -> set-road-passing-options; Navigation Enabled lifeforms only; Collision Avoidance Types deprecated | RN p75 | Not used by us | N |
-| D10 | Doc conflict | UG52 79.2 still documents obstruction sensors for ground sysdefs; MG 2.4.2 p20 says they are no longer used | MG vs UG52 | Rule MG authoritative; spend no probe time on obstruction tuning | N (ruled) |
+| D9+D10 | Renames; doc conflict | set-road-driving-options -> set-road-passing-options, Navigation Enabled lifeforms only, Collision Avoidance Types deprecated (RN p75; unused by us); UG52 79.2 still documents ground obstruction sensors, MG 2.4.2 p20 says unused - MG rules, no probe time on obstruction tuning | RN; MG vs UG52 | None | N (ruled) |
 
 ## E. Observability and repeatability instruments
 | # | 5.0.2 | 5.2d | Cite | Effect | Decision |
 |---|---|---|---|---|---|
 | E1 | Log scraping only | SQLite logging built in (databaseConfig.mtl), one file per sim engine, aggregate-aware | UG52 1.2.2 p87-88; RN p9-10 | Candidate machine-readable verification channel (headless goal) | Y-14 |
 | E2 | Batch mode .bsn | Same; single sim engine; seed pinned from batch file | UG52 7.10 p269-271 | Seed-pinned repeats for Phase 3 without hand-driven runs | Y-14 |
-| E3 | Sim engine load distribution by GUI | Same; new scenario keys gui-runtime-scheme / remote-attachment-scheme | UG52 12.2.1 Table 20 p354; RN p73 | Single engine; ignore | N |
-| E4 | MAK Remote Debugger, Tracy | New | RN p3 | Read before the next behavioural probe (docs-first) | N |
+| E3+E4 | Load distribution by GUI; no profiler | gui-runtime-scheme / remote-attachment-scheme scenario keys (single engine - ignore); MAK Remote Debugger + Tracy new | UG52 Table 20 p354; RN p3, p73 | Read the debugger doc before the next behavioural probe | N |
 
 ## F. C# behaviours that encode 5.0.2 semantics (re-verify on 5.2; proving test)
 - Type-map template names via the SMS chain: ObjectTypeResolver/UnitTypeMap/TypeMapSelfTest
@@ -103,7 +102,8 @@ the shipped config carries VRFExt-12/VRFAggregate-7).
   DtObjectType removal); ObjectTypeResolver.cs :136/:150 `parts.Length != 8` indexes zero
   templates. Fix: accept 7 or 8 fields (kind==11 replaces superType). Expected result
   30/31 same-named + Fire Support Team tie; AR Scout falls to Ground_Aggregate
-  (DECISION_EVIDENCE Y-8). Then the creation-line gate.
+  (DECISION_EVIDENCE Y-8). CONFIRMED 2026-09-03 exactly as predicted (sec H). Then the
+  creation-line gate.
 - Route-by-uuid with 99-char names (PlanAndMoveTo setControlPoint(DtUUID)) -> R9 gate on 5.2.
 - TerrainProfile clamping and ElevationAgl defaults (VrfC2SimService :470-531,
   TerrainVertexAuthoring) -> `--terrain-selftest` + Phase 2 altitude tolerance from the
@@ -114,6 +114,36 @@ the shipped config carries VRFExt-12/VRFAggregate-7).
 - FFRTC frame_gaps gate -> tools/analysis/frame_gaps.py re-baselined on 5.2 (C5 knobs).
 - vrfSim.log watcher path (RunnerLib/RunC2SimScenario) -> row A5 before any run.
 - appsettings Protocol/Federation/FomModules/FedFileName -> row A2; LaunchVrf.ps1 -> A6.
+
+## H. Phase 1 compile record (2026-09-03) - what is proven, what is not
+- Build axis VRF_API_52 (VrfBridge.vcxproj configs Release | Release-5.2 | Release-5.2-HLA4,
+  toolset v145, OutDir build\<Configuration>\); app: `dotnet build src\VrfC2SimApp -c Release
+  -p:BridgeConfig=Release-5.2` -> bin\Release-5.2\. 0 compile errors on all three; the ONE
+  predicted break (A8) never fired because the 5.2d sample compiles as its own TU
+  (remoteControlInit52.{h,cxx}, verbatim copy). Start(): 3-arg initializer with the config
+  file resolved as the sample does (A9; override = Vrf:ConnectionConfigFile), --execName/
+  --fedFileName only when non-empty, -a/-s kept; setMonitorBackendState(true); Tick() no
+  longer calls setSimTime (A10). KEPT vs sample, deliberately: disableRemoteDiscovery=true and
+  drainInput() (sample: false, none) - a golden-trace variable if the join misbehaves.
+- UNPREDICTED, new facts: (1) v143 gone -> v145 (CLOSED list). (2) PATH name-binding trap:
+  MAK DLLs resolve by NAME on PATH, and the system PATH carries vrforces5.0.2\bin64 +
+  vrlink5.8\bin64 - the 5.2 bridge then dies with FileLoadException "A procedure imported by
+  VrfBridge.dll could not be loaded". Per-process fix: prefix PATH with vrforces5.2d\bin64;
+  vrlink5.10\bin64;makRti4.6.1\bin. Tripwire: VrfBridge.NativeStackInfo() = "<5.2|5.0.2>|<path
+  of the vrfcontrol.dll actually loaded>", logged after Start(); the runner manifest must
+  carry it. (3) 5.2d init() aerodrome param (B1): no break, as predicted.
+- Offline gates: 8/8 C# self-tests pass on the 5.0.2 app (default PATH) and on the 5.2 app
+  (5.2 PATH). Type map: sec F prediction CONFIRMED (2182/2190 5.2d simObjects 7-field; on
+  5.0.2 superType 3 <=> kind 11 in all 1713 files, so ObjectTypeResolver re-derives it). Y-8
+  substitutes: data/unit-type-map-52.json (5.2 table; 5.0.2 table untouched) re-points the
+  five AR Scout rows to Mechanized Platoon (USA Army M2) / Mechanized Company (US Army M2)
+  (PROXY, wrong branch; 5.2d has NO USA scout unit - the Armored Cavalry .entity files are
+  Country-0, zero-subordinate abstracts). --typemap-selftest picks the table by catalog root
+  (C2simEx -> .json, EntityLevel -> -52.json): 783 checks on 5.0.2, 784 on 5.2d, and the 5.2
+  table FAILS 5 rows on the 5.0.2 catalog (negative control - the instrument discriminates).
+- NOT proven: runtime join on 5.2d (DtAppPathResolver inside a dotnet host; sessionId from
+  the file), HLA 4 licensing, any behaviour; 5.2 ground truth for the resolver is 5.0.2 truth
+  replayed until the creation-line gate. Next: runner 5.2 profile, then prototype zero (5.b).
 
 ## G. Decisions ledger (canonical IDs; a reply that uses other numbers is wrong)
 Evidence: docs/VRF_5.2_DECISION_EVIDENCE.md. Rulings dated 2026-09-03 unless noted.
@@ -134,19 +164,10 @@ RULED:
   5.2 vrfSim takes --notifyLevel 0-4 and --settingsFile <file> (UG52 Table 11, 5.4.3), so
   verbosity and Y-9 knobs ride the runner command line / a repo-held settings file.
   Edit C:\MAK only for a knob with no CLI path; back up first.
-- Y-7 RULED as recommended (2026-09-03 pm): online default; offline-authored (3) for the
-  AOIs that matter; cached (2) as the cheap fallback. MAK Earth (online) (vendor: primary
-  ground/air terrain; streams
-  worldwide elevation max_data_level 15 + OSM features/roads from vr-theworld.com). User:
-  OFFLINE IS A REQUIREMENT in some settings -> a per-fixture PROFILE, both kept:
-  (1) online; (2) offline-cached: same .mtf with an osgEarth cache generated once per AOI
-  (AddingContent 8.1.2, GUI Generate Cache; sim reads VRFSIM_OSGEARTH_CACHE_PATH) -
-  imagery+elevation only, FEATURES ARE NOT CACHED so roads/land-use vanish offline and
-  ground traces differ from (1); (3) offline-authored: local .earth for the AOI with the
-  elevation tile + OSM shapefile extract (AddingContent, features as shapefiles) = full
-  parity, content work per AOI; (4) shipped USGS N34W117 (R9 box only, 5.a). Each profile
-  is its own baseline; never compare traces across profiles. The aggregate profile (Y-15)
-  uses "MAK Earth Aggregate (online)" (UG52 Table 52).
+- Y-7 RULED as recommended (2026-09-03 pm): terrain = MAK Earth (online) by default; offline
+  is a REQUIREMENT in some settings -> per-fixture PROFILE (1 online / 2 offline-cached, no
+  features / 3 offline-authored .earth, full parity / 4 shipped USGS N34W117); each profile is
+  its own baseline, never compare traces across profiles. Full text: DECISION_EVIDENCE Y-7.
 - Y-8 SMS root EntityLevel.sms accepted; 7-field fix; the three types with no 5.2d
   equivalent (AR Scout, Mobile Irregular, Mobile Light Infantry): user says PICK
   SUBSTITUTES from the catalog, record them in data/unit-type-map.json with the source
@@ -164,37 +185,15 @@ RULED:
   runs ("Batch mode is read-only", UG52 7.10).
 - NETN-ETR: RECORD ONLY (translator supports 10 interactions, drops StartWhen/Why/Path/
   MoveType, no formation/spacing knobs). 5.c/5.e/5.h recorded. 5.g PRC authoring DEFERRED.
-- Y-15 UNIT REPRESENTATION LEVEL (user goal: best sim ability within what STP hands us;
-  STP vocabulary in docs/STP_TASK_VOCABULARY_2026-09-03.md - 51 codes, AffectedEntity
-  is always the performer, targets = objective TG). Options, UG52 13.7/27/28/35 read:
-  (a) EntityLevel: individual vehicles, weapons, sensors, LOS, road/obstacle following,
-  formations with spacing (ground-disaggregated-movement controllers); unit tasks on disk
-  = move/maneuver, follow, fire-at-target, mortar/artillery, posture, formation;
-  attack-to-objective/defend/screen/recon must be AUTHORED as Lua unit tasks composed
-  from those primitives (vendor path examples\addTask + luadoc; ~10-15 tasks).
-  (b) AggregateTacticalLevel: 54 doctrinal tasks native (unit-attack-to-objective,
-  unit-defend, reconnoiter-*, manage-fire-support, attack-by-fire with sub-unit
-  placement) but the SIM is abstract: attrition per second from strength/vulnerability
-  tables, footprints, direct-line movement, no collision/building/feature avoidance,
-  roads only by task option (UG52 27.1, 27.1.4, 28.2.2); telemetry = centroid + health.
-  Runtime hybrid does NOT exist: modeling type is fixed by the scenario's SMS (UG52
-  13.7); an aggregate SMS may hold entities but they run aggregate models; UG52 has no
-  aggregate/disaggregate-at-runtime feature (NETN-MRM module ships in bin64 unused).
-  RULED as recommended (2026-09-03 pm): hybrid = TWO PROFILES selected by the order's
-  echelon/scale - EntityLevel + authored doctrinal Lua for company-and-below COAs (the
-  fidelity is in the physics), AggregateTacticalLevel for battalion+ or entity counts that
-  make FFRTC crawl (COA-STP1 0.27x). Authoring order: attack-to-objective family first
-  (covers ~12 codes). Profile = a fixture/runner setting (SMS + terrain + type map).
-- Y-16 PROTOCOL (NEW): HLA 4 (IEEE 1516-2025) on MAK RTI 5.0 vs HLA 1516e on 4.6.1.
-  MAK RTI 5.0.1 INSTALLED by the user 2026-09-03 (DISK: C:\MAK\makRti5.0.1, branch
-  makRti5-0 rev 281993 built 2025-12-03; bin has librti1516_2025vc141.dll AND
-  librti1516e64.dll, rtiexec.exe, rtiForwarder.exe; doc has RTI5.0.1ReleaseNotes.pdf,
-  RTIUsersGuide.pdf). Env vars UNTOUCHED (MAK_RTIDIR/RTI_RID_FILE still 4.6.1) - the
-  runner's HLA 4 profile sets them per process. Unlicensed mode = 2 federates (vrfSim +
-  controller); DEMO .lic PACKAGEs carry rti1-rti7 + makrti_counted (version 2026.258) -
-  licensing to be VERIFIED in the first HLA 4 join. On disk already: vrfSimHLA4.exe,
-  remoteControlHLA4.exe, vlHLA4.lib, vrfExtObjectsHLA4.lib, vrfHla4.lib. Sequencing
-  unchanged: bridge gets a protocol build axis (HLA1516e | HLA4), migration gates run
-  on 1516e/makRti4.6.1 (one variable), HLA 4 = its own phase with prototype zero on
-  remoteControlHLA4.exe first; 5.0.1 also serving 1516e is a SECOND variable, not a shortcut.
+- Y-15 UNIT REPRESENTATION LEVEL RULED as recommended (2026-09-03 pm): hybrid = TWO PROFILES
+  selected by the order's echelon/scale - EntityLevel + authored doctrinal Lua unit tasks for
+  company-and-below COAs; AggregateTacticalLevel for battalion+ or entity counts that make
+  FFRTC crawl. No runtime aggregate/disaggregate exists (UG52 13.7). Authoring order:
+  attack-to-objective family first. Profile = fixture/runner setting (SMS + terrain + type
+  map). STP vocabulary: docs/STP_TASK_VOCABULARY_2026-09-03.md. Full text: DECISION_EVIDENCE Y-15.
+- Y-16 PROTOCOL: HLA 4 (IEEE 1516-2025) needs MAK RTI 5.0; RTI 5.0.1 INSTALLED 2026-09-03
+  (C:\MAK\makRti5.0.1; env vars untouched, runner sets them per process; licensing VERIFIED
+  only at the first HLA 4 join). Bridge has the protocol build axis (Release-5.2 = 1516e on
+  4.6.1, Release-5.2-HLA4 = HLA4 on 5.0.1); migration gates run on 1516e (one variable); HLA 4
+  is its own phase with prototype zero on remoteControlHLA4.exe first. Full text: DECISION_EVIDENCE Y-16.
 - Carried: MAK KB check; hostile nation option; licence 2026-09-15; 5.g PRC authoring.

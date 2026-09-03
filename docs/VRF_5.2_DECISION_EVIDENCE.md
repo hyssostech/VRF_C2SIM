@@ -187,6 +187,21 @@ determinism only where the vendor put the knob.
   Mobile Irregular, Mobile Light Infantry re-adjudicated from the 5.2 catalog; oracle
   formation geometries dropped (stock .frm).
 
+- OUTCOME 2026-09-03 (Phase 1): prediction confirmed exactly - 2182/2190 5.2d EntityLevel
+  simObjects 7-field (8 vendor stragglers 8-field); resolver normalises 7 -> 8 by kind==11
+  (superType 3 <=> kind 11 held in all 1713 5.0.2 files); a matchType whose field count
+  differs from its own objectType (5.0.2 EC-135 Eurocopter.entity, 7 vs 8) is a vendor typo
+  and falls back to exact match as before. Substitutes (user: "pick substitutes"): 5.2d
+  EntityLevel has NO USA scout/recon unit (Armored Cavalry Platoon/Troop/Squadron .entity =
+  Country-0, gui-can-create False, zero subordinates; Recon Vehicle Platoons are RUS only).
+  AR Scout rows -> `Mechanized Platoon (USA Army M2)` 11:1:225:3:4:0:126 (2x M2A2 + 2x M2A3
+  Bradley IFV + 3 mech rifle squads + HQ section; same chassis family as the M3A2 CFV, wrong
+  branch) for N/D, `Mechanized Company (US Army M2)` 11:1:225:5:4:0:126 for E - both PROXY,
+  both NEW in 5.2d (absent from 5.0.2), recorded in data/unit-type-map-52.json (the 5.2 table;
+  data/unit-type-map.json stays the 5.0.2 table). Mobile Irregular / Mobile Light Infantry
+  were never map rows (ground-truth check only) - no substitute owed. Self-test: 783 checks on
+  5.0.2, 784 on 5.2d, 5.2 table on 5.0.2 catalog FAILS 5 (negative control).
+
 ## Y-10 Ground MOVE mapping (MoveAlongRoute vs Move To)
 
 - Evidence: `moveAlongRoute` on the controller is byte-identical 5.0.2/5.2d
@@ -284,6 +299,61 @@ determinism only where the vendor put the knob.
 - Recommendation CHANGED: batch mode REJECTED for interface runs (usable only to replay a
   saved .scnx as a control); SQLite logging still worth a Phase 2 evaluation as a
   cross-check of the census.
+
+## Y-7 ruling text (moved from the DIFF ledger 2026-09-03 to keep it under its cap)
+
+Y-7 RULED as recommended (2026-09-03 pm): online default; offline-authored (3) for the
+  AOIs that matter; cached (2) as the cheap fallback. MAK Earth (online) (vendor: primary
+  ground/air terrain; streams
+  worldwide elevation max_data_level 15 + OSM features/roads from vr-theworld.com). User:
+  OFFLINE IS A REQUIREMENT in some settings -> a per-fixture PROFILE, both kept:
+  (1) online; (2) offline-cached: same .mtf with an osgEarth cache generated once per AOI
+  (AddingContent 8.1.2, GUI Generate Cache; sim reads VRFSIM_OSGEARTH_CACHE_PATH) -
+  imagery+elevation only, FEATURES ARE NOT CACHED so roads/land-use vanish offline and
+  ground traces differ from (1); (3) offline-authored: local .earth for the AOI with the
+  elevation tile + OSM shapefile extract (AddingContent, features as shapefiles) = full
+  parity, content work per AOI; (4) shipped USGS N34W117 (R9 box only, 5.a). Each profile
+  is its own baseline; never compare traces across profiles. The aggregate profile (Y-15)
+  uses "MAK Earth Aggregate (online)" (UG52 Table 52).
+
+## Y-15 Unit representation level (ruling text, moved from the DIFF ledger)
+
+Y-15 UNIT REPRESENTATION LEVEL (user goal: best sim ability within what STP hands us;
+  STP vocabulary in docs/STP_TASK_VOCABULARY_2026-09-03.md - 51 codes, AffectedEntity
+  is always the performer, targets = objective TG). Options, UG52 13.7/27/28/35 read:
+  (a) EntityLevel: individual vehicles, weapons, sensors, LOS, road/obstacle following,
+  formations with spacing (ground-disaggregated-movement controllers); unit tasks on disk
+  = move/maneuver, follow, fire-at-target, mortar/artillery, posture, formation;
+  attack-to-objective/defend/screen/recon must be AUTHORED as Lua unit tasks composed
+  from those primitives (vendor path examples\addTask + luadoc; ~10-15 tasks).
+  (b) AggregateTacticalLevel: 54 doctrinal tasks native (unit-attack-to-objective,
+  unit-defend, reconnoiter-*, manage-fire-support, attack-by-fire with sub-unit
+  placement) but the SIM is abstract: attrition per second from strength/vulnerability
+  tables, footprints, direct-line movement, no collision/building/feature avoidance,
+  roads only by task option (UG52 27.1, 27.1.4, 28.2.2); telemetry = centroid + health.
+  Runtime hybrid does NOT exist: modeling type is fixed by the scenario's SMS (UG52
+  13.7); an aggregate SMS may hold entities but they run aggregate models; UG52 has no
+  aggregate/disaggregate-at-runtime feature (NETN-MRM module ships in bin64 unused).
+  RULED as recommended (2026-09-03 pm): hybrid = TWO PROFILES selected by the order's
+  echelon/scale - EntityLevel + authored doctrinal Lua for company-and-below COAs (the
+  fidelity is in the physics), AggregateTacticalLevel for battalion+ or entity counts that
+  make FFRTC crawl (COA-STP1 0.27x). Authoring order: attack-to-objective family first
+  (covers ~12 codes). Profile = a fixture/runner setting (SMS + terrain + type map).
+
+## Y-16 Protocol: HLA 4 on MAK RTI 5.0.1 (ruling text, moved from the DIFF ledger)
+
+Y-16 PROTOCOL (NEW): HLA 4 (IEEE 1516-2025) on MAK RTI 5.0 vs HLA 1516e on 4.6.1.
+  MAK RTI 5.0.1 INSTALLED by the user 2026-09-03 (DISK: C:\MAK\makRti5.0.1, branch
+  makRti5-0 rev 281993 built 2025-12-03; bin has librti1516_2025vc141.dll AND
+  librti1516e64.dll, rtiexec.exe, rtiForwarder.exe; doc has RTI5.0.1ReleaseNotes.pdf,
+  RTIUsersGuide.pdf). Env vars UNTOUCHED (MAK_RTIDIR/RTI_RID_FILE still 4.6.1) - the
+  runner's HLA 4 profile sets them per process. Unlicensed mode = 2 federates (vrfSim +
+  controller); DEMO .lic PACKAGEs carry rti1-rti7 + makrti_counted (version 2026.258) -
+  licensing to be VERIFIED in the first HLA 4 join. On disk already: vrfSimHLA4.exe,
+  remoteControlHLA4.exe, vlHLA4.lib, vrfExtObjectsHLA4.lib, vrfHla4.lib. Sequencing
+  unchanged: bridge gets a protocol build axis (HLA1516e | HLA4), migration gates run
+  on 1516e/makRti4.6.1 (one variable), HLA 4 = its own phase with prototype zero on
+  remoteControlHLA4.exe first; 5.0.1 also serving 1516e is a SECOND variable, not a shortcut.
 
 ## Notes that feed later phases (not decisions)
 

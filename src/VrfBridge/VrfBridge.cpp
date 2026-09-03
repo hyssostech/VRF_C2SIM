@@ -97,6 +97,9 @@ public:
     String^ FedFileName;
     List<String^>^ FomModules;
     String^ RprFomVersion;
+    // 5.2 build only: VR-Link connection config file (MAK-ONE-2025-Config.xml); null/empty =
+    // the shipped file from the VR-Forces settings tree. Ignored by the 5.0.2 bridge.
+    String^ ConnectionConfigFile;
 
     StartupConfig() {
         // Defaults mirror vrf::StartupConfig
@@ -213,6 +216,8 @@ public:
         }
         if (cfg->RprFomVersion != nullptr)
             n.rprFomVersion = ToStd(cfg->RprFomVersion);
+        if (cfg->ConnectionConfigFile != nullptr)
+            n.connectionConfigFile = ToStd(cfg->ConnectionConfigFile);
         return _facade->Start(n);
     }
 
@@ -221,6 +226,8 @@ public:
 
     int  BackendCount()     { return _facade->BackendCount(); }
     bool AllBackendsReady() { return _facade->AllBackendsReady(); }
+    // "<bridge build>|<path of the vrfcontrol.dll this process bound>" - see VrfFacade.h
+    static String^ NativeStackInfo() { return marshal_as<String^>(vrf::VrfFacade::NativeStackInfo()); }
 
     // -- scenario / simulation control -------------------------------
     void Run()   { _facade->Run(); }

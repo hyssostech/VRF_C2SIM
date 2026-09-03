@@ -16,6 +16,11 @@ public class VrfSettings
     public string Federation { get; set; } = "";       // --execName (e.g. CWIX-2024)
     public string FedFileName { get; set; } = "";       // full path, optional
     public List<string> FomModules { get; set; } = new();
+    // 5.2 bridge only (Release-5.2* builds): the VR-Link connection config file loaded before the
+    // command line (docs/VRF_5.2_MIGRATION_DIFF.md Y-2: shipped MAK-ONE-2025-Config.xml; overrides
+    // go in a SECOND file, FomModules above stays EMPTY because modules are additive). "" = let the
+    // bridge resolve the shipped file from the VR-Forces settings tree. Ignored by the 5.0.2 bridge.
+    public string ConnectionConfigFile { get; set; } = "";
 
     // The C2SIM SystemName this interface answers to. MUST equal the pushed
     // init's SystemName or 0 units are created (RUNBOOK sec 2).

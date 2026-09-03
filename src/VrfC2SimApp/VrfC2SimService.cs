@@ -225,6 +225,10 @@ public sealed class VrfC2SimService : BackgroundService
             _life.StopApplication();
             return;
         }
+        // Which MAK stack the process really bound (DLLs resolve by NAME on PATH - a 5.2 bridge
+        // over 5.0.2 DLLs is the trap). Format "<bridge build>|<vrfcontrol.dll path>".
+        _log.LogInformation("VrfBridge native stack = {Stack}; ConnectionConfigFile='{Cfg}'.",
+                            VrfBridge.NativeStackInfo(), _vrf.ConnectionConfigFile);
 
         // 2. Drive the sim on a dedicated thread (drain queued commands, then Tick).
         // The tick loop runs until _stopTick (NOT the host stoppingToken) so the shutdown
@@ -368,7 +372,8 @@ public sealed class VrfC2SimService : BackgroundService
             SessionId = _vrf.SessionId,
             HostInetAddr = _vrf.HostInetAddr,
             Federation = _vrf.Federation,
-            FedFileName = _vrf.FedFileName
+            FedFileName = _vrf.FedFileName,
+            ConnectionConfigFile = _vrf.ConnectionConfigFile
         };
         if (_vrf.FomModules != null)
             foreach (var m in _vrf.FomModules) c.FomModules.Add(m);

@@ -4,7 +4,10 @@ namespace VrfC2SimApp;
 /// Offline check of the fidelity mapping (`--typemap-selftest`). Four parts, per
 /// docs/UNIT_TYPE_MAPPING_FIDELITY_2026-09-02.md sec 7.5 items 1-2:
 ///
-///   A. TABLE - data/unit-type-map.json loads and is internally consistent.
+///   A. TABLE - the type map loads and is internally consistent. WHICH map follows the installed
+///      catalog: data/unit-type-map.json for the 5.0.2 C2simEx chain, data/unit-type-map-52.json
+///      for the 5.2d EntityLevel chain (docs/VRF_5.2_MIGRATION_DIFF.md sec F / Y-8); the run
+///      header names both so a pass can never be misread as covering the other catalog.
 ///   B. RESOLVER - every row's objectType lands the template the row NAMES, under the vendor's
 ///      best-match rule, against the SMS chain installed at VRF_HOME (default C:\MAK\vrforces5.0.2).
 ///      The resolver itself is re-validated 6/6 against docs/VRF_GROUND_TRUTH.md sec 0.1.5 FIRST,
@@ -29,11 +32,18 @@ public static class TypeMapSelfTest
     {
         Console.WriteLine("=== unit-type-map fidelity self-test ===");
 
+        // Which catalog is installed decides which table is under test (see the class comment).
+        string home = ObjectTypeResolver.DefaultVrfHome;
+        bool haveCatalog = Directory.Exists(ObjectTypeResolver.ModelSetsDir(home));
+        ObjectTypeResolver res = haveCatalog ? ObjectTypeResolver.LoadChain(home) : null;
+        string mapFile = res != null && res.RootSms == "EntityLevel" ? "data/unit-type-map-52.json" : "data/unit-type-map.json";
+        Console.WriteLine($"table under test: {mapFile} (catalog root {(res?.RootSms ?? "none - no MAK install at " + home)})");
+
         // ---- A. the table -------------------------------------------------
-        string path = UnitTypeMap.ResolvePath("data/unit-type-map.json");
+        string path = UnitTypeMap.ResolvePath(mapFile);
         if (path == null)
         {
-            Console.WriteLine("[FAIL] data/unit-type-map.json not found (cwd=" +
+            Console.WriteLine("[FAIL] " + mapFile + " not found (cwd=" +
                               Directory.GetCurrentDirectory() + ", app=" + AppContext.BaseDirectory + ")");
             return 1;
         }
@@ -48,8 +58,7 @@ public static class TypeMapSelfTest
         CheckLookup(map);
 
         // ---- B + C. the installed catalog ---------------------------------
-        string home = ObjectTypeResolver.DefaultVrfHome;
-        if (!Directory.Exists(ObjectTypeResolver.ModelSetsDir(home)))
+        if (res == null)
         {
             Console.WriteLine();
             Console.WriteLine("*** SKIPPED the RESOLVER and COMPOSITION checks (parts B and C): no VR-Forces");
@@ -59,10 +68,13 @@ public static class TypeMapSelfTest
         }
         else
         {
-            var res = ObjectTypeResolver.LoadChain(home);
             Console.WriteLine($"catalog: {res.Templates.Count} simObjects from " +
                               string.Join(" -> ", res.ModelSetDirs.Select(d => Path.GetFileName(Path.GetDirectoryName(d)))) +
                               $" under {home}");
+            // Which catalog this run actually proved against (5.0.2 = C2simEx root, 8-field types;
+            // 5.2d = EntityLevel root, 7-field types normalised - docs/VRF_5.2_MIGRATION_DIFF.md sec F).
+            Console.WriteLine($"catalog: root {res.RootSms}.sms; {res.SevenFieldTypes} seven-field type strings normalised" +
+                              (res.SevenFieldTypes == 0 ? " (8-field 5.0.2 form)" : " (7-field 5.2 form)"));
             CheckResolverAgainstGroundTruth(res);
             CheckRows(map, res);
         }
@@ -125,12 +137,20 @@ public static class TypeMapSelfTest
 
     // ---- B ----------------------------------------------------------------
 
-    // docs/VRF_GROUND_TRUTH.md sec 0.1.5 records these six resolutions as VERIFIED. If the resolver
-    // cannot reproduce them, nothing it says about the rows is worth anything - so this runs first.
+    // docs/VRF_GROUND_TRUTH.md sec 0.1.5 records these six resolutions as VERIFIED (on 5.0.2, against
+    // the C2simEx chain). If the resolver cannot reproduce them, nothing it says about the rows is
+    // worth anything - so this runs first. On the 5.2d EntityLevel chain the Mobile Irregular row is
+    // meaningless (the template lived only in C2simEx) and the other five are the 5.0.2 truth
+    // carried over: 5.2 ground truth is NOT established until the creation-line gate on a live 5.2
+    // back end (docs/VRF_5.2_MIGRATION_DIFF.md sec F) - the banner says so.
     private static void CheckResolverAgainstGroundTruth(ObjectTypeResolver res)
     {
+        bool c2simEx = res.RootSms == "C2simEx";
         Console.WriteLine();
         Console.WriteLine("-- B0. resolver vs VRF_GROUND_TRUTH sec 0.1.5 (6 VERIFIED resolutions) --");
+        if (!c2simEx)
+            Console.WriteLine("       root " + res.RootSms + ": 5.0.2 truth replayed on the 5.2 catalog (C2simEx-only row skipped); " +
+                              "5.2 truth itself is UNVERIFIED until the live creation-line gate.");
         var truth = new (string Query, string Template)[]
         {
             ("3:11:1:225:5:2:0:0",  "Tank Company (USA)"),
@@ -142,6 +162,7 @@ public static class TypeMapSelfTest
         };
         foreach (var (q, expected) in truth)
         {
+            if (!c2simEx && expected == "Mobile Irregular") continue;
             var landed = res.Resolve(q);
             Report($"{q} -> {expected}", landed != null && landed.Name == expected,
                    "got " + (landed?.Name ?? "(no match)"));

@@ -37,6 +37,16 @@ Output: `src/VrfBridge/build/Release/VrfBridge.dll` (+ `.lib`, `.exp`, `.pdb`),
 and MSBuild auto-copies `Ijwhost.dll` beside it (the IJW bootstrap a .NET
 consumer needs - PORT.md sec 3).
 
+2026-09-03: the vcxproj carries three configurations on one shared item group -
+`Release` (vrforces5.0.2 / vrlink5.8 / makRti4.6b), `Release-5.2` (vrforces5.2d /
+vrlink5.10 / makRti4.6.1, HLA 1516e, defines `VRF_API_52=1`) and `Release-5.2-HLA4`
+(makRti5.0.1, `DtHLA_4=1`). Each writes `build/<Configuration>/`. `VRF_API_52` gates
+the 5.2 paths in VrfFacade.cpp (3-arg DtRemoteControlInitializer with the
+MAK-ONE-2025 connection config, setMonitorBackendState, no manual setSimTime) and
+swaps `remoteControlInit.cxx` for `remoteControlInit52.cxx` (the 5.2d vendor
+sample, verbatim). Toolset v145 for all three (v143 gone 2026-09-02). Record:
+docs/VRF_5.2_MIGRATION_DIFF.md sec H; START_HERE.md "Build" for the PATH trap.
+
 ### The proven compile/link configuration
 
 Extracted from the C++ interface's `c2simVRFHLA1516e.vcxproj` (Release), which is

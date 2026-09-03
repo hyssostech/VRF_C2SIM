@@ -11,12 +11,19 @@
     <SelfContained>false</SelfContained>
     <RootNamespace>VrfC2SimApp</RootNamespace>
     <AssemblyName>VrfC2SimApp</AssemblyName>
+    <!-- Which VrfBridge build to reference: Release (5.0.2 stack, default) | Release-5.2 | Release-5.2-HLA4
+         (src/VrfBridge/VrfBridge.vcxproj). Select with: dotnet build -p:BridgeConfig=Release-5.2 -->
+    <BridgeConfig Condition="'$(BridgeConfig)'==''">Release</BridgeConfig>
+    <!-- Non-default bridges build to their own tree (bin\Release-5.2\net10.0\win-x64\) so the
+         5.0.2 deployment under bin\Release\ is never overwritten. -->
+    <OutputPath Condition="'$(BridgeConfig)'!='Release'">bin\$(BridgeConfig)\</OutputPath>
+    <IntermediateOutputPath Condition="'$(BridgeConfig)'!='Release'">obj\$(BridgeConfig)\</IntermediateOutputPath>
   </PropertyGroup>
 
   <ItemGroup>
     <!-- The C++/CLI bridge (CopyLocal drops VrfBridge.dll beside the exe). -->
     <Reference Include="VrfBridge">
-      <HintPath>..\VrfBridge\build\Release\VrfBridge.dll</HintPath>
+      <HintPath>..\VrfBridge\build\$(BridgeConfig)\VrfBridge.dll</HintPath>
     </Reference>
     <!-- The C2SIM .NET SDK. NOTE: relative path crosses OUT of the VRF_C2SIM
          submodule into the fork's SDK tree (dev/sdk-fixes, unpushed). A future
@@ -26,7 +33,7 @@
 
   <ItemGroup>
     <!-- IJW bootstrap next to the exe (a bare <Reference> does not copy it). -->
-    <None Include="..\VrfBridge\build\Release\Ijwhost.dll">
+    <None Include="..\VrfBridge\build\$(BridgeConfig)\Ijwhost.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="appsettings.json">
