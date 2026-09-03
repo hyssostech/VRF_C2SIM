@@ -164,7 +164,10 @@ evidence moved the recommendation: [same] [firmer] [CHANGED].
   (5.2's new set: unit-attack-to-objective, unit-defend, unit-trailing-march-to-objective,
   reconnoiter-location/route, perform-ground-reconnaissance, manage-fire-support,
   mount/dismount-company, 54 tasks; the 7 CHN units live here) - aggregate fidelity rules
-  per UG52 ch 28 to be read FIRST. Input owed by user: STP's own task catalogue (the target
-  vocabulary; the two real orders only show 19 verbs). NETN-ETR: RECORD ONLY (translator
+  per UG52 ch 28 to be read FIRST. Target vocabulary READ from the STP source (release/5.11
+  task factory + C2SimBridge): 51 emittable codes, ~40 ground; AffectedEntity is ALWAYS the
+  performer, targets come from the objective TG -> docs/STP_TASK_VOCABULARY_2026-09-03.md.
+  Leaning (b) or a hybrid: attack/defend/recon doctrine exists only in
+  AggregateTacticalLevel; EntityLevel would need ~10 authored Lua tasks. NETN-ETR: RECORD ONLY (translator
   supports 10 interactions, drops StartWhen/Why/Path/MoveType, no formation/spacing knobs).
 - Carried: MAK KB check; hostile nation option; licence 2026-09-15.
