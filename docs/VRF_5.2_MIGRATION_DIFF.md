@@ -12,9 +12,9 @@ disagree: the INSTALLED 5.2d file beats the manual (IOG names VRFExt-9/VRFAggreg
 the shipped config carries VRFExt-12/VRFAggregate-7).
 
 ## CLOSED - settled from disk or code, no decision owed
-- HLA 4 is impossible here: vrfSimHLA4.exe imports librti1516_2025vc141.dll (MAK RTI
-  5.0+, not installed); vrfSimHLA1516e.exe imports librti1516e64.dll = makRti4.6.1 (DISK
-  PE scan; IOG "HLA 4 requires MAK RTI 5.0 or later"). Protocol = HLA 1516e.
+- HLA 4 needs MAK RTI 5.0 (vrfSimHLA4.exe imports librti1516_2025vc141.dll; IOG "HLA 4
+  requires MAK RTI 5.0 or later"); not installed 2026-09-03, user obtaining it (Y-16).
+  Until then protocol = HLA 1516e on makRti4.6.1 (vrfSimHLA1516e.exe -> librti1516e64.dll).
 - Our tank company is an ENTITY-LEVEL unit: VrfFacade::CreateAggregate sends
   DtDisaggregated + createSubordinates on an EntityLevel-derived SMS (UnitTranslator.cs
   :156 superType 3). UG52 ch 28 aggregate-level distribution ("relative position at the
@@ -115,59 +115,84 @@ the shipped config carries VRFExt-12/VRFAggregate-7).
 - vrfSim.log watcher path (RunnerLib/RunC2SimScenario) -> row A5 before any run.
 - appsettings Protocol/Federation/FomModules/FedFileName -> row A2; LaunchVrf.ps1 -> A6.
 
-## G. Decisions owed (user)
-Evidence per decision: docs/VRF_5.2_DECISION_EVIDENCE.md (2026-09-03). Tag = how the
-evidence moved the recommendation: [same] [firmer] [CHANGED].
-- Y-1 Launcher profile: derive the 5.2 command line from Launcher "View Arguments" or launch
-  vrfSimHLA1516e.exe directly from bin64 (UG52 4.1.2). Recommend: direct launch. [same]
-- Y-2 Federation identity: resolve the shipped MAK-ONE-2025 config file exactly as the 5.2d
-  sample does, C# FomModules EMPTIED, CWIX-2024 retired; any repo override is a SECOND file
-  layered via myMultipleConfigFiles (superset of requiredFomClasses), never a replacement
-  list. [firmer]
-- Y-3 OK to edit C:\MAK\vrforces5.2d\appData\settings\vrfSim\vrfSim.mtl (notifyLevel 3,
-  objectConsoleNotifyLevel 3, enableLogFileTimestamps 1, + Y-9 knobs). [same]
-- Y-4 Log path: pass --logFileName to keep bin64\vrfSim.log (recommend). [same]
-- Y-5 Rewrite LaunchVrf.ps1 for the 5.2 options (folds into Y-1). [same]
-- Y-6 Re-author remoteControlInit.{h,cxx} + VrfFacade::Start/Tick on the 5.2d sample: adopt
-  the sample loop verbatim - DROP setSimTime(elapsedRealTime()) (fights the FFRTC clock),
-  setMonitorBackendState(true), session id from config; ledger and -a/-s kept.
-  disableRemoteDiscovery true only if Phase 1 confirms nothing reads reflected state. [firmer]
-- Y-7 Terrain: MAK Earth (online) CONFIRMED with the full list - vendor names it "the primary
-  terrain for use in ground or air applications"; only candidate with OSM roads to the sim,
-  surfChar, nav data (none over our AOI; not required). 5.0.2 baseline was a LOCAL LOD-3 DEM
-  with no features, so 5.2 traces WILL differ (roads/slope/soil now exist). [firmer]
-- Y-8 SMS root: EntityLevel.sms (only SMS with both platforms and disaggregatable units);
-  drop C2simEx (an include-and-extend of EntityLevel, not a copy). New work: 7-field
-  resolver fix (sec F); AR Scout / Mobile Irregular / Mobile Light Infantry have NO 5.2d
-  type equivalent -> re-adjudicate from the catalog; oracle formation geometry overrides
-  dropped (stock .frm, names now lower-case). [firmer + new work]
-- Y-9 Repeatability config: blockOnAsynchronousOperations=1 and maxAsynchronousTerrainThreads
-  pinned for FFRTC fixture runs (the vendor's ONE fixed-frame determinism knob). [same]
-- Y-10 Ground move mapping: keep MoveAlongRoute (unchanged API; the vendor's own 5.2 ground
-  scenarios use move-along; for a unit the adapter controller repackages it as
-  maneuver-along). RETIRE the MoveToLocation/PlanAndMoveTo probe: DtMoveToLocationTask is
-  deleted (#error shim), no consumer. Phase 3 prereg carries RN VRF-8977 (unit move-along
-  raced formation validity before 5.2) as a competing hypothesis for the 5.0.2 company
-  non-determinism. [CHANGED]
-- Y-11 Unit Move To -> Maneuver To default: accept (scripted task, off-road, cohesive). [same]
-- Y-12 Golden traces with Autonomous Actions enabled (disabled = straight-line driving). [same]
-- Y-13 Navigation Preferences: rely on SMS defaults, knowing tracked vehicles FLIPPED from
-  Prefer Roads (5.0.2 hard-coded) to Ignore Roads (5.2d default + M1A2 pin), arrival
-  near-distance 25 -> 15 m, per-soil max-speed caps removed. Prereg records all three. [same]
-- Y-14 SQLite logging: evaluate in Phase 2. Batch mode REJECTED for interface runs - "Batch
-  mode is read-only ... cannot ... create simulation objects" (UG52 7.10). [CHANGED]
-- Y-15 (NEW 2026-09-03, user goal: support as much tasking as STP can represent, not MOVE)
-  UNIT REPRESENTATION LEVEL on 5.2d: (a) stay EntityLevel (DtDisaggregated company; unit
-  tasks on disk: move-to, fire-at-target, follow, mortar/artillery fire, posture, formation
-  sets; ATTACK/DEFEND/SECURE/... = custom Lua unit tasks we author, vendor path
-  examples\addTask + luadoc, dispatched via RunScriptedTask) or (b) AggregateTacticalLevel
-  (5.2's new set: unit-attack-to-objective, unit-defend, unit-trailing-march-to-objective,
-  reconnoiter-location/route, perform-ground-reconnaissance, manage-fire-support,
-  mount/dismount-company, 54 tasks; the 7 CHN units live here) - aggregate fidelity rules
-  per UG52 ch 28 to be read FIRST. Target vocabulary READ from the STP source (release/5.11
-  task factory + C2SimBridge): 51 emittable codes, ~40 ground; AffectedEntity is ALWAYS the
-  performer, targets come from the objective TG -> docs/STP_TASK_VOCABULARY_2026-09-03.md.
-  Leaning (b) or a hybrid: attack/defend/recon doctrine exists only in
-  AggregateTacticalLevel; EntityLevel would need ~10 authored Lua tasks. NETN-ETR: RECORD ONLY (translator
-  supports 10 interactions, drops StartWhen/Why/Path/MoveType, no formation/spacing knobs).
-- Carried: MAK KB check; hostile nation option; licence 2026-09-15.
+## G. Decisions ledger (canonical IDs; a reply that uses other numbers is wrong)
+Evidence: docs/VRF_5.2_DECISION_EVIDENCE.md. Rulings dated 2026-09-03 unless noted.
+FACTS of the version drift - changes required, no ruling (user agreed, Y-2 named):
+- Y-1 launch: vrfSimHLA1516e.exe direct from bin64 (UG52 4.1.2); LaunchVrf.ps1 5.2 profile
+  (folds Y-5). Y-2 federation identity: resolve the shipped MAK-ONE-2025 config exactly as
+  the 5.2d sample; C# FomModules EMPTIED (modules additive); overrides = a SECOND file via
+  myMultipleConfigFiles. Y-4 --logFileName keeps bin64\vrfSim.log. Y-6 remoteControlInit
+  + Start/Tick re-authored on the 5.2d sample loop (drop setSimTime(elapsedRealTime()),
+  setMonitorBackendState(true), session id from config, -a/-s ledger kept). Y-10 keep
+  MoveAlongRoute (adapter repackages unit move-along as maneuver-along; MoveToLocation
+  probe RETIRED, class deleted); Phase 3 prereg carries RN VRF-8977 as competing
+  hypothesis. Y-11 unit Move To -> Maneuver To default accepted. Y-12 golden traces with
+  Autonomous Actions enabled. 7-field ObjectTypeResolver fix (sec F). 5.b prototype zero
+  and 5.d requestTasksAndSetsFor assertion adopted as instruments.
+RULED:
+- Y-3 settings under C:\MAK\vrforces5.2d: edit AUTHORIZED by the user, but not needed -
+  5.2 vrfSim takes --notifyLevel 0-4 and --settingsFile <file> (UG52 Table 11, 5.4.3), so
+  verbosity and Y-9 knobs ride the runner command line / a repo-held settings file.
+  Edit C:\MAK only for a knob with no CLI path; back up first.
+- Y-7 terrain: MAK Earth (online) default (vendor: primary ground/air terrain; streams
+  worldwide elevation max_data_level 15 + OSM features/roads from vr-theworld.com). User:
+  OFFLINE IS A REQUIREMENT in some settings -> a per-fixture PROFILE, both kept:
+  (1) online; (2) offline-cached: same .mtf with an osgEarth cache generated once per AOI
+  (AddingContent 8.1.2, GUI Generate Cache; sim reads VRFSIM_OSGEARTH_CACHE_PATH) -
+  imagery+elevation only, FEATURES ARE NOT CACHED so roads/land-use vanish offline and
+  ground traces differ from (1); (3) offline-authored: local .earth for the AOI with the
+  elevation tile + OSM shapefile extract (AddingContent, features as shapefiles) = full
+  parity, content work per AOI; (4) shipped USGS N34W117 (R9 box only, 5.a). Each profile
+  is its own baseline; never compare traces across profiles. Aggregate scenarios would use
+  "MAK Earth Aggregate (online)" (UG52 Table 52).
+- Y-8 SMS root EntityLevel.sms accepted; 7-field fix; the three types with no 5.2d
+  equivalent (AR Scout, Mobile Irregular, Mobile Light Infantry): user says PICK
+  SUBSTITUTES from the catalog, record them in data/unit-type-map.json with the source
+  file cited; oracle formation overrides dropped (stock .frm, lower-case names).
+- Y-9 repeatability knobs: blockOnAsynchronousOperations applies ONLY to fixed-frame
+  scenarios and makes the frame wait for terrain/feature/path-planning/navigation
+  operations (UG52 App. C) - with online terrain that is tile fetch latency at start and
+  at each new tile, so golden runs are slower to START, not slower to simulate; the 0.27x
+  ratio on COA-STP1 was entity-count load, not this knob. Seed pinning costs nothing.
+  Default: knob ON + seed for golden/prereg runs, OFF (vendor default) for exploratory
+  probes, always stated in the run header. User asked "probing really slowly?" - no.
+- Y-13 accepted: vendor Ignore-Roads default for tracked vehicles, near-distance 15 m,
+  no per-soil caps; traces differ from 5.0.2 by design; prereg records all three.
+- Y-14 accepted: SQLite logging evaluated in Phase 2; batch mode REJECTED for interface
+  runs ("Batch mode is read-only", UG52 7.10).
+- NETN-ETR: RECORD ONLY (translator supports 10 interactions, drops StartWhen/Why/Path/
+  MoveType, no formation/spacing knobs). 5.c/5.e/5.h recorded. 5.g PRC authoring DEFERRED.
+- Y-15 UNIT REPRESENTATION LEVEL (user goal: best sim ability within what STP hands us;
+  STP vocabulary in docs/STP_TASK_VOCABULARY_2026-09-03.md - 51 codes, AffectedEntity
+  is always the performer, targets = objective TG). Options, UG52 13.7/27/28/35 read:
+  (a) EntityLevel: individual vehicles, weapons, sensors, LOS, road/obstacle following,
+  formations with spacing (ground-disaggregated-movement controllers); unit tasks on disk
+  = move/maneuver, follow, fire-at-target, mortar/artillery, posture, formation;
+  attack-to-objective/defend/screen/recon must be AUTHORED as Lua unit tasks composed
+  from those primitives (vendor path examples\addTask + luadoc; ~10-15 tasks).
+  (b) AggregateTacticalLevel: 54 doctrinal tasks native (unit-attack-to-objective,
+  unit-defend, reconnoiter-*, manage-fire-support, attack-by-fire with sub-unit
+  placement) but the SIM is abstract: attrition per second from strength/vulnerability
+  tables, footprints, direct-line movement, no collision/building/feature avoidance,
+  roads only by task option (UG52 27.1, 27.1.4, 28.2.2); telemetry = centroid + health.
+  Runtime hybrid does NOT exist: modeling type is fixed by the scenario's SMS (UG52
+  13.7); an aggregate SMS may hold entities but they run aggregate models; UG52 has no
+  aggregate/disaggregate-at-runtime feature (NETN-MRM module ships in bin64 unused).
+  RECOMMENDATION (user asked "is hybrid what gives me that?"): hybrid = TWO PROFILES
+  selected by the order's echelon/scale - EntityLevel + authored doctrinal Lua for
+  company-and-below COAs (the fidelity is in the physics), AggregateTacticalLevel for
+  battalion+ or entity counts that make FFRTC crawl (COA-STP1 0.27x). Authoring order:
+  attack-to-objective family first (covers ~12 codes). AWAITING RULING.
+- Y-16 PROTOCOL (NEW): HLA 4 (IEEE 1516-2025) on MAK RTI 5.0 vs HLA 1516e on 4.6.1.
+  User: "I'll get us RTI 5.0 so we can transition; do as much as possible without it."
+  RTI 5.0 is a free download (mak.com Support > Bonus Material,
+  makRti5.0-win64-vc15-20250722.exe; unlicensed mode = 2 federates per federation =
+  vrfSim + our controller; DEMO .lic PACKAGEs carry rti1-rti7 + makrti_counted, licence
+  version 2026.258, so the existing key should also license it - VERIFY at install;
+  install writes under C:\MAK -> covered by the Y-3 authorization). On disk already:
+  vrfSimHLA4.exe, remoteControlHLA4.exe, vlHLA4.lib, vrfExtObjectsHLA4.lib, vrfHla4.lib.
+  Without RTI: bridge gets a protocol build axis (HLA1516e | HLA4) and the HLA4 config
+  compiles now; MAK_RTI_5.0_Release_Notes.pdf (public) read for the rtiexec/rtiAssistant
+  story; runner RTI profile parameterised. Migration gates run on 1516e (one variable);
+  HLA 4 = its own phase, prototype zero on remoteControlHLA4.exe first.
+- Carried: MAK KB check; hostile nation option; licence 2026-09-15; 5.g PRC authoring.

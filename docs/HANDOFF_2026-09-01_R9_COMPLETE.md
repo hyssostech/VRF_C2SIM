@@ -167,17 +167,17 @@ DONE 2026-09-02 pm, three probes; READ THE PREREG SEC 7s, NOT THIS SUMMARY:
    not a test shortcut; the runner keeps the server path.
 ## VR-FORCES 5.2 MIGRATION - IN PROGRESS (user ruling 2026-09-02: move to 5.2d, docs first)
 Phase 0 DONE 2026-09-02: docs/VRF_5.2_MIGRATION_DIFF.md (rows A-E cited, C# re-verify list F,
-14 user decisions Y-1..Y-14 in sec G). Evidence pass DONE 2026-09-03:
-docs/VRF_5.2_DECISION_EVIDENCE.md (per decision: evidence / vendor direction / against-the-grain
-/ recommendation; Y-10 and Y-14 CHANGED, Y-8 gained a predicted C# break: 7-field objectType).
-Cold-start check 2026-09-03: docs/VRF_5.2_COLD_START_MAP.md (blind agent's roadmap, archived as
-VRF_5.2_COLD_START_ROADMAP.md, mapped to our work; sec 5 = 8 new candidates 5.a-5.h for sec G:
-prototype zero, requestTasksAndSetsFor assertion, offline N34W117 terrain, per-run rtiexec, PRC
-UNITS are NOT full - 0 EntityLevel templates). NOTHING built/run/edited under C:\MAK yet. Next =
-user answers sec G (+5.a-5.h), then Phase 1 compile (plan ~/.claude/plans/velvet-tickling-hamster.md).
-The checklist below is the pre-Phase-0 note; the DIFF doc supersedes it where they differ.
-Pre-Phase-0 checklist (2026-09-01) folded into the DIFF doc: (a)->C2/Y-8, (b)->D1-D2, (c)->A4/C3/C4,
-(d)->B rows, (f) terrain->C1/Y-7. NavArea artifact is NOT carried into 5.2 SharedData.
+decisions in sec G). Evidence pass DONE 2026-09-03: docs/VRF_5.2_DECISION_EVIDENCE.md (Y-10/Y-14
+CHANGED; Y-8 gained the 7-field objectType C# break). Cold-start check 2026-09-03:
+docs/VRF_5.2_COLD_START_MAP.md (blind agent's roadmap archived as VRF_5.2_COLD_START_ROADMAP.md;
+candidates 5.a-5.h; PRC UNITS NOT full - 0 EntityLevel templates). RULINGS 2026-09-03 in sec G (the
+CANONICAL ID ledger - facts vs ruled vs open): Y-3/7/8/9/13/14 ruled, ETR record-only, 5.g
+deferred; OPEN = Y-15 unit level (recommendation: two profiles by echelon) and Y-16 HLA 4 (user
+obtaining MAK RTI 5.0 - free download, see sec G; migration gates stay on 1516e). STP task
+vocabulary read from the STP source: docs/STP_TASK_VOCABULARY_2026-09-03.md. NOTHING built/run/
+edited under C:\MAK yet. Next = Phase 1 compile (plan ~/.claude/plans/velvet-tickling-hamster.md)
+with a protocol build axis; pre-Phase-0 checklist (2026-09-01) folded into the DIFF doc:
+(a)->C2/Y-8, (b)->D1-D2, (c)->A4/C3/C4, (d)->B rows, (f)->C1/Y-7; NavArea NOT carried to 5.2.
 
 ## PROBE PROTOCOL (adopted 2026-09-01/02; do NOT change mid-protocol)
 FFRTC mode per the block above; TimeMultiplier 1x; -RunSecs is a CAP under -StopWhenComplete.
