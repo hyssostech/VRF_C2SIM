@@ -167,7 +167,10 @@ DONE 2026-09-02 pm, three probes; READ THE PREREG SEC 7s, NOT THIS SUMMARY:
    not a test shortcut; the runner keeps the server path.
 ## VR-FORCES 5.2 MIGRATION - IN PROGRESS (user ruling 2026-09-02: move to 5.2d, docs first)
 Phase 0 DONE 2026-09-02: docs/VRF_5.2_MIGRATION_DIFF.md (rows A-E cited, C# re-verify list F,
-14 user decisions Y-1..Y-14 in sec G). NOTHING built/run/edited under C:\MAK yet. Next = user
+14 user decisions Y-1..Y-14 in sec G). Evidence pass DONE 2026-09-03:
+docs/VRF_5.2_DECISION_EVIDENCE.md (per decision: evidence / vendor direction / against-the-grain
+/ recommendation; Y-10 and Y-14 CHANGED, Y-8 gained a predicted C# break: 7-field objectType).
+NOTHING built/run/edited under C:\MAK yet. Next = user
 answers sec G, then Phase 1 compile (plan ~/.claude/plans/velvet-tickling-hamster.md). The
 checklist below is the pre-Phase-0 note; the DIFF doc supersedes it where they differ.
 Pre-Phase-0 checklist (2026-09-01) folded into the DIFF doc: (a)->C2/Y-8, (b)->D1-D2, (c)->A4/C3/C4,

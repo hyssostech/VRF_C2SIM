@@ -99,7 +99,11 @@ the shipped config carries VRFExt-12/VRFAggregate-7).
 
 ## F. C# behaviours that encode 5.0.2 semantics (re-verify on 5.2; proving test)
 - Type-map template names via the SMS chain: ObjectTypeResolver/UnitTypeMap/TypeMapSelfTest
-  -> `--typemap-selftest` against the chosen 5.2 SMS (row C2), then the creation-line gate.
+  -> PREDICTED BREAK: 5.2d EntityLevel objectType is 7-field (superType dropped, APIMG
+  DtObjectType removal); ObjectTypeResolver.cs :136/:150 `parts.Length != 8` indexes zero
+  templates. Fix: accept 7 or 8 fields (kind==11 replaces superType). Expected result
+  30/31 same-named + Fire Support Team tie; AR Scout falls to Ground_Aggregate
+  (DECISION_EVIDENCE Y-8). Then the creation-line gate.
 - Route-by-uuid with 99-char names (PlanAndMoveTo setControlPoint(DtUUID)) -> R9 gate on 5.2.
 - TerrainProfile clamping and ElevationAgl defaults (VrfC2SimService :470-531,
   TerrainVertexAuthoring) -> `--terrain-selftest` + Phase 2 altitude tolerance from the
@@ -112,31 +116,44 @@ the shipped config carries VRFExt-12/VRFAggregate-7).
 - appsettings Protocol/Federation/FomModules/FedFileName -> row A2; LaunchVrf.ps1 -> A6.
 
 ## G. Decisions owed (user)
+Evidence per decision: docs/VRF_5.2_DECISION_EVIDENCE.md (2026-09-03). Tag = how the
+evidence moved the recommendation: [same] [firmer] [CHANGED].
 - Y-1 Launcher profile: derive the 5.2 command line from Launcher "View Arguments" or launch
-  vrfSimHLA1516e.exe directly from bin64 (UG52 4.1.2). Recommend: direct launch.
-- Y-2 Federation identity: join MAK-ONE-2025 via the shipped config file resolved as the
-  sample does, C# FomModules list EMPTIED (recommend - one source of truth, shipped
-  order preserved), or a repo-controlled --exConnConfigFile for both sim and federate.
-  Either way CWIX-2024 is retired (keeping it means overriding the sim engine too).
+  vrfSimHLA1516e.exe directly from bin64 (UG52 4.1.2). Recommend: direct launch. [same]
+- Y-2 Federation identity: resolve the shipped MAK-ONE-2025 config file exactly as the 5.2d
+  sample does, C# FomModules EMPTIED, CWIX-2024 retired; any repo override is a SECOND file
+  layered via myMultipleConfigFiles (superset of requiredFomClasses), never a replacement
+  list. [firmer]
 - Y-3 OK to edit C:\MAK\vrforces5.2d\appData\settings\vrfSim\vrfSim.mtl (notifyLevel 3,
-  objectConsoleNotifyLevel 3, enableLogFileTimestamps 1, + Y-9 knobs).
-- Y-4 Log path: pass --logFileName to keep bin64\vrfSim.log (recommend) or repoint watcher.
-- Y-5 Rewrite LaunchVrf.ps1 for the 5.2 options (folds into Y-1).
-- Y-6 Re-author remoteControlInit.{h,cxx} + VrfFacade::Start/Tick on the 5.2d sample
-  (ledger kept, -a/-s passed to the base parser). Sub-decisions: setMonitorBackendState
-  true (recommend - controller clock follows scenario play/pause, matches the vendor) and
-  disableRemoteDiscovery true kept (we never read remote state data) vs sample's false.
-- Y-7 Terrain successor re-confirm with the full list: MAK Earth (online) [current ruling]
-  vs MAK Earth Aggregate (online) vs MAK Earth Air and Space (online).
-- Y-8 SMS root for 5.2: drop C2simEx; EntityLevel.sms is the like-for-like successor for
-  entity-level units (recommend); oracle custom types are re-adjudicated from the 5.2 catalog.
+  objectConsoleNotifyLevel 3, enableLogFileTimestamps 1, + Y-9 knobs). [same]
+- Y-4 Log path: pass --logFileName to keep bin64\vrfSim.log (recommend). [same]
+- Y-5 Rewrite LaunchVrf.ps1 for the 5.2 options (folds into Y-1). [same]
+- Y-6 Re-author remoteControlInit.{h,cxx} + VrfFacade::Start/Tick on the 5.2d sample: adopt
+  the sample loop verbatim - DROP setSimTime(elapsedRealTime()) (fights the FFRTC clock),
+  setMonitorBackendState(true), session id from config; ledger and -a/-s kept.
+  disableRemoteDiscovery true only if Phase 1 confirms nothing reads reflected state. [firmer]
+- Y-7 Terrain: MAK Earth (online) CONFIRMED with the full list - vendor names it "the primary
+  terrain for use in ground or air applications"; only candidate with OSM roads to the sim,
+  surfChar, nav data (none over our AOI; not required). 5.0.2 baseline was a LOCAL LOD-3 DEM
+  with no features, so 5.2 traces WILL differ (roads/slope/soil now exist). [firmer]
+- Y-8 SMS root: EntityLevel.sms (only SMS with both platforms and disaggregatable units);
+  drop C2simEx (an include-and-extend of EntityLevel, not a copy). New work: 7-field
+  resolver fix (sec F); AR Scout / Mobile Irregular / Mobile Light Infantry have NO 5.2d
+  type equivalent -> re-adjudicate from the catalog; oracle formation geometry overrides
+  dropped (stock .frm, names now lower-case). [firmer + new work]
 - Y-9 Repeatability config: blockOnAsynchronousOperations=1 and maxAsynchronousTerrainThreads
-  pinned for FFRTC fixture runs (recommend yes; cost measured in Phase 2).
-- Y-10 Ground move mapping: keep MoveAlongRoute for MOVE; probe MoveToLocation/PlanAndMoveTo
-  accept/reject headless before any change (HEAVY prereg; row D1).
-- Y-11 Unit Move To -> Maneuver To default: accept (recommend, off-road cohesive) or force
-  move-to.
-- Y-12 Golden traces with Autonomous Actions enabled (recommend, realism) or disabled.
-- Y-13 Navigation Preferences: rely on SMS defaults (recommend) or send per entity.
-- Y-14 Adopt SQLite logging and .bsn batch mode as instruments (recommend evaluate in Phase 2).
+  pinned for FFRTC fixture runs (the vendor's ONE fixed-frame determinism knob). [same]
+- Y-10 Ground move mapping: keep MoveAlongRoute (unchanged API; the vendor's own 5.2 ground
+  scenarios use move-along; for a unit the adapter controller repackages it as
+  maneuver-along). RETIRE the MoveToLocation/PlanAndMoveTo probe: DtMoveToLocationTask is
+  deleted (#error shim), no consumer. Phase 3 prereg carries RN VRF-8977 (unit move-along
+  raced formation validity before 5.2) as a competing hypothesis for the 5.0.2 company
+  non-determinism. [CHANGED]
+- Y-11 Unit Move To -> Maneuver To default: accept (scripted task, off-road, cohesive). [same]
+- Y-12 Golden traces with Autonomous Actions enabled (disabled = straight-line driving). [same]
+- Y-13 Navigation Preferences: rely on SMS defaults, knowing tracked vehicles FLIPPED from
+  Prefer Roads (5.0.2 hard-coded) to Ignore Roads (5.2d default + M1A2 pin), arrival
+  near-distance 25 -> 15 m, per-soil max-speed caps removed. Prereg records all three. [same]
+- Y-14 SQLite logging: evaluate in Phase 2. Batch mode REJECTED for interface runs - "Batch
+  mode is read-only ... cannot ... create simulation objects" (UG52 7.10). [CHANGED]
 - Carried: NETN-ETR later; MAK KB check; hostile nation option; licence 2026-09-15.
