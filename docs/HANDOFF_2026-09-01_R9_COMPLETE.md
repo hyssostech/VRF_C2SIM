@@ -171,9 +171,10 @@ decisions in sec G). Evidence pass DONE 2026-09-03: docs/VRF_5.2_DECISION_EVIDEN
 CHANGED; Y-8 gained the 7-field objectType C# break). Cold-start check 2026-09-03:
 docs/VRF_5.2_COLD_START_MAP.md (blind agent's roadmap archived as VRF_5.2_COLD_START_ROADMAP.md;
 candidates 5.a-5.h; PRC UNITS NOT full - 0 EntityLevel templates). RULINGS 2026-09-03 in sec G (the
-CANONICAL ID ledger - facts vs ruled vs open): Y-3/7/8/9/13/14 ruled, ETR record-only, 5.g
-deferred; OPEN = Y-15 unit level (recommendation: two profiles by echelon) and Y-16 HLA 4 (user
-obtaining MAK RTI 5.0 - free download, see sec G; migration gates stay on 1516e). STP task
+CANONICAL ID ledger - facts vs ruled vs open): ALL RULED - Y-15 two profiles by echelon
+(EntityLevel + authored Lua <= company; AggregateTacticalLevel battalion+/scale), Y-7 online +
+offline-authored + cached, Y-16 MAK RTI 5.0.1 INSTALLED (C:\MAK\makRti5.0.1, env untouched;
+gates stay on 1516e/4.6.1, HLA 4 = own phase). STP task
 vocabulary read from the STP source: docs/STP_TASK_VOCABULARY_2026-09-03.md. NOTHING built/run/
 edited under C:\MAK yet. Next = Phase 1 compile (plan ~/.claude/plans/velvet-tickling-hamster.md)
 with a protocol build axis; pre-Phase-0 checklist (2026-09-01) folded into the DIFF doc:

@@ -134,7 +134,9 @@ RULED:
   5.2 vrfSim takes --notifyLevel 0-4 and --settingsFile <file> (UG52 Table 11, 5.4.3), so
   verbosity and Y-9 knobs ride the runner command line / a repo-held settings file.
   Edit C:\MAK only for a knob with no CLI path; back up first.
-- Y-7 terrain: MAK Earth (online) default (vendor: primary ground/air terrain; streams
+- Y-7 RULED as recommended (2026-09-03 pm): online default; offline-authored (3) for the
+  AOIs that matter; cached (2) as the cheap fallback. MAK Earth (online) (vendor: primary
+  ground/air terrain; streams
   worldwide elevation max_data_level 15 + OSM features/roads from vr-theworld.com). User:
   OFFLINE IS A REQUIREMENT in some settings -> a per-fixture PROFILE, both kept:
   (1) online; (2) offline-cached: same .mtf with an osgEarth cache generated once per AOI
@@ -143,8 +145,8 @@ RULED:
   ground traces differ from (1); (3) offline-authored: local .earth for the AOI with the
   elevation tile + OSM shapefile extract (AddingContent, features as shapefiles) = full
   parity, content work per AOI; (4) shipped USGS N34W117 (R9 box only, 5.a). Each profile
-  is its own baseline; never compare traces across profiles. Aggregate scenarios would use
-  "MAK Earth Aggregate (online)" (UG52 Table 52).
+  is its own baseline; never compare traces across profiles. The aggregate profile (Y-15)
+  uses "MAK Earth Aggregate (online)" (UG52 Table 52).
 - Y-8 SMS root EntityLevel.sms accepted; 7-field fix; the three types with no 5.2d
   equivalent (AR Scout, Mobile Irregular, Mobile Light Infantry): user says PICK
   SUBSTITUTES from the catalog, record them in data/unit-type-map.json with the source
@@ -178,21 +180,21 @@ RULED:
   Runtime hybrid does NOT exist: modeling type is fixed by the scenario's SMS (UG52
   13.7); an aggregate SMS may hold entities but they run aggregate models; UG52 has no
   aggregate/disaggregate-at-runtime feature (NETN-MRM module ships in bin64 unused).
-  RECOMMENDATION (user asked "is hybrid what gives me that?"): hybrid = TWO PROFILES
-  selected by the order's echelon/scale - EntityLevel + authored doctrinal Lua for
-  company-and-below COAs (the fidelity is in the physics), AggregateTacticalLevel for
-  battalion+ or entity counts that make FFRTC crawl (COA-STP1 0.27x). Authoring order:
-  attack-to-objective family first (covers ~12 codes). AWAITING RULING.
+  RULED as recommended (2026-09-03 pm): hybrid = TWO PROFILES selected by the order's
+  echelon/scale - EntityLevel + authored doctrinal Lua for company-and-below COAs (the
+  fidelity is in the physics), AggregateTacticalLevel for battalion+ or entity counts that
+  make FFRTC crawl (COA-STP1 0.27x). Authoring order: attack-to-objective family first
+  (covers ~12 codes). Profile = a fixture/runner setting (SMS + terrain + type map).
 - Y-16 PROTOCOL (NEW): HLA 4 (IEEE 1516-2025) on MAK RTI 5.0 vs HLA 1516e on 4.6.1.
-  User: "I'll get us RTI 5.0 so we can transition; do as much as possible without it."
-  RTI 5.0 is a free download (mak.com Support > Bonus Material,
-  makRti5.0-win64-vc15-20250722.exe; unlicensed mode = 2 federates per federation =
-  vrfSim + our controller; DEMO .lic PACKAGEs carry rti1-rti7 + makrti_counted, licence
-  version 2026.258, so the existing key should also license it - VERIFY at install;
-  install writes under C:\MAK -> covered by the Y-3 authorization). On disk already:
-  vrfSimHLA4.exe, remoteControlHLA4.exe, vlHLA4.lib, vrfExtObjectsHLA4.lib, vrfHla4.lib.
-  Without RTI: bridge gets a protocol build axis (HLA1516e | HLA4) and the HLA4 config
-  compiles now; MAK_RTI_5.0_Release_Notes.pdf (public) read for the rtiexec/rtiAssistant
-  story; runner RTI profile parameterised. Migration gates run on 1516e (one variable);
-  HLA 4 = its own phase, prototype zero on remoteControlHLA4.exe first.
+  MAK RTI 5.0.1 INSTALLED by the user 2026-09-03 (DISK: C:\MAK\makRti5.0.1, branch
+  makRti5-0 rev 281993 built 2025-12-03; bin has librti1516_2025vc141.dll AND
+  librti1516e64.dll, rtiexec.exe, rtiForwarder.exe; doc has RTI5.0.1ReleaseNotes.pdf,
+  RTIUsersGuide.pdf). Env vars UNTOUCHED (MAK_RTIDIR/RTI_RID_FILE still 4.6.1) - the
+  runner's HLA 4 profile sets them per process. Unlicensed mode = 2 federates (vrfSim +
+  controller); DEMO .lic PACKAGEs carry rti1-rti7 + makrti_counted (version 2026.258) -
+  licensing to be VERIFIED in the first HLA 4 join. On disk already: vrfSimHLA4.exe,
+  remoteControlHLA4.exe, vlHLA4.lib, vrfExtObjectsHLA4.lib, vrfHla4.lib. Sequencing
+  unchanged: bridge gets a protocol build axis (HLA1516e | HLA4), migration gates run
+  on 1516e/makRti4.6.1 (one variable), HLA 4 = its own phase with prototype zero on
+  remoteControlHLA4.exe first; 5.0.1 also serving 1516e is a SECOND variable, not a shortcut.
 - Carried: MAK KB check; hostile nation option; licence 2026-09-15; 5.g PRC authoring.
