@@ -165,18 +165,13 @@ DONE 2026-09-02 pm, three probes; READ THE PREREG SEC 7s, NOT THIS SUMMARY:
    init + order read from files, the C2SIM server BYPASSED (not dismantled: the SDK path stays
    the default) so it runs where there is NO server; reports need a file sink. A deployment mode,
    not a test shortcut; the runner keeps the server path.
-## VR-FORCES 5.2b UPGRADE CHECKLIST (expected soon - user, 2026-09-01)
-(a) diff its EXPANDED AGGREGATE MODEL SET against the 54 pending type adjudications BEFORE
-authoring anything (PRIOR_ART Q1), and RE-RUN --typemap-selftest against the 5.2 catalog;
-(b) 5.2's "ground path planning enhanced with vector-based terrain data" touches today's
-route/clamp machinery AND the NEXT-row-1 distribution question - re-run R9 on 5.2b and
-RE-ADJUDICATE before trusting any 5.0.2-era behavioural conclusion; (c) migrate local state
-DELIBERATELY: vrfSim.mtl notify levels, the DISABLED NavArea artifact (do NOT carry it into 5.2's
-SharedData), the FFRTC fixture, env paths pinned to vrforces5.0.2, a VrfBridge /t:Rebuild +
-10-copy redeploy; (d) read docs.mak.com/api/vrforces5.2/classref/vrf_migration5{0,1}.html FIRST;
-(e) 5.2 docs are REAL in C:\MAK\vrforces5.2d\doc (incl. Model Catalog; PDBs in bin64); (f) makData
-19 DROPPED `MAK Earth Space (online)` - every fixture's terrain - re-point needed (ASSESSMENT
-sec 1 evening update, open q6).
+## VR-FORCES 5.2 MIGRATION - IN PROGRESS (user ruling 2026-09-02: move to 5.2d, docs first)
+Phase 0 DONE 2026-09-02: docs/VRF_5.2_MIGRATION_DIFF.md (rows A-E cited, C# re-verify list F,
+14 user decisions Y-1..Y-14 in sec G). NOTHING built/run/edited under C:\MAK yet. Next = user
+answers sec G, then Phase 1 compile (plan ~/.claude/plans/velvet-tickling-hamster.md). The
+checklist below is the pre-Phase-0 note; the DIFF doc supersedes it where they differ.
+Pre-Phase-0 checklist (2026-09-01) folded into the DIFF doc: (a)->C2/Y-8, (b)->D1-D2, (c)->A4/C3/C4,
+(d)->B rows, (f) terrain->C1/Y-7. NavArea artifact is NOT carried into 5.2 SharedData.
 
 ## PROBE PROTOCOL (adopted 2026-09-01/02; do NOT change mid-protocol)
 FFRTC mode per the block above; TimeMultiplier 1x; -RunSecs is a CAP under -StopWhenComplete.
