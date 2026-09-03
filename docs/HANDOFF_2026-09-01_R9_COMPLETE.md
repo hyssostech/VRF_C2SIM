@@ -170,9 +170,12 @@ Phase 0 DONE 2026-09-02: docs/VRF_5.2_MIGRATION_DIFF.md (rows A-E cited, C# re-v
 14 user decisions Y-1..Y-14 in sec G). Evidence pass DONE 2026-09-03:
 docs/VRF_5.2_DECISION_EVIDENCE.md (per decision: evidence / vendor direction / against-the-grain
 / recommendation; Y-10 and Y-14 CHANGED, Y-8 gained a predicted C# break: 7-field objectType).
-NOTHING built/run/edited under C:\MAK yet. Next = user
-answers sec G, then Phase 1 compile (plan ~/.claude/plans/velvet-tickling-hamster.md). The
-checklist below is the pre-Phase-0 note; the DIFF doc supersedes it where they differ.
+Cold-start check 2026-09-03: docs/VRF_5.2_COLD_START_MAP.md (blind agent's roadmap, archived as
+VRF_5.2_COLD_START_ROADMAP.md, mapped to our work; sec 5 = 8 new candidates 5.a-5.h for sec G:
+prototype zero, requestTasksAndSetsFor assertion, offline N34W117 terrain, per-run rtiexec, PRC
+UNITS are NOT full - 0 EntityLevel templates). NOTHING built/run/edited under C:\MAK yet. Next =
+user answers sec G (+5.a-5.h), then Phase 1 compile (plan ~/.claude/plans/velvet-tickling-hamster.md).
+The checklist below is the pre-Phase-0 note; the DIFF doc supersedes it where they differ.
 Pre-Phase-0 checklist (2026-09-01) folded into the DIFF doc: (a)->C2/Y-8, (b)->D1-D2, (c)->A4/C3/C4,
 (d)->B rows, (f) terrain->C1/Y-7. NavArea artifact is NOT carried into 5.2 SharedData.
 
