@@ -177,8 +177,8 @@ RTI 5.0.1 in rtiexec mode (config/rid-501-rtiexec-min.mtl, headless rtiexec): Wa
 entities, real POS (cause by ELIMINATION; --deviceAddress NOT required either side (3857/3859); the sim's
 parseCmdLine startup crash hit 2/7 launches on any rid, trigger UNKNOWN, now DETECTED by LaunchVrf52).
 RUNNER 5.2 PROFILE ON THAT POSTURE DONE (5cea2ed; StartRtiExec52 Stage 2r; smoke PREREG_52_PROFILE_SMOKE
-green: paused Traffic reflects 44). NEXT = 5.2 FIXTURES (Y-7 terrain re-authoring; no C2SIM stage can
-run without them), then PREREG_R9_52 with WatchVrf re-baselined (env==ctl anomaly open).
+green: paused Traffic reflects 44; app 3865 joins the config-file way, PREREG_52_APP_SMOKE). NEXT = 5.2
+FIXTURES (Y-7; no C2SIM stage runs without them), PREREG_R9_52; startup-crash forensics (3/8 launches).
 ## PROBE PROTOCOL (adopted 2026-09-01/02; do NOT change mid-protocol)
 FFRTC mode per the block above; TimeMultiplier 1x; -RunSecs is a CAP under -StopWhenComplete.
 SHORT-ROUTE probe variants are allowed (platoon/entity legs ~200 m) but COMPANY probe routes stay
