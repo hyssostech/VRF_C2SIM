@@ -36,6 +36,12 @@ load-bearing claims against artifacts, not prose.
   re-run or spend effort on it. Oracle = the 39 RECORDED run dirs; nothing on the 5.2 path
   launches it (the runner 5.0.2 control is DryRun-only). REOPENING EVIDENCE = a 5.2 result
   adjudicable ONLY by a fresh run; recipe = RESEARCH_502_SIDE_BY_SIDE_2026-09-04.
+  MACHINE PATH APPLIED 2026-09-04 14:20Z (FixMachinePath.ps1 -RemoveLegacyMak, elevated):
+  44 -> 34 entries, vrforces5.0.2\bin64 + vrlink5.8\bin64 OFF the PATH (installs untouched).
+  %MAK_RTIDIR%\bin stays, REG_EXPAND_SZ - drift lives in MAK_RTIDIR (=makRti5.0.1), not PATH.
+  Backup runs/env-backup/MachinePATH_before_20260904T142048Z.txt (restore line in the script).
+  RUNNER UNAFFECTED (it builds $PathPrefix, RunC2SimScenario.ps1:1933). CHANGED: a bare
+  VrfC2SimApp.exe now FAILS to bind (vl/vlutil not beside it), not silently load 2022 DLLs.
 
 ## THE STANDING RULE (user directive 2026-09-01, enforced)
 DOCUMENTATION FIRST for any issue: C:\MAK\vrforces5.2d\doc (Users Guide, IOG, RTI manuals) -> docs.mak.com
@@ -83,29 +89,23 @@ STILL OPEN (5.0.2-era, carried to 5.2): the NATIVE completion-status item; (B) 2
 land the GENERIC Ground_Aggregate fallback (UnitTranslator.cs:70/:134, TYPE_GAP 4, USER call) - it
 MARCHES; (C) TerrainProfile re-entry double-logs; (D) ResetVrf after StopVrf is blind. NOT EXERCISED
 by any order: PatrolRoute, PlanAndMoveTo.
-UNEXPLAINED (5.0.2, PARKED; full numbers in the QPAIR/rung preregs): (1) the ever-real 1,732 count
-was old-configuration residue - **DO NOT REUSE IT AS A CHECK**; (2) cast-corrupted reflections
-28 -> 58; (3) **THE THREE TANK COMPANIES ARE THE UNSTABLE CLASS** - identical invocations stall or
-march run to run (QPAIR A-1 vs A-2). That non-determinism is the parked 5.0.2 object.
+UNEXPLAINED (5.0.2, PARKED - numbers in the QPAIR/rung preregs): 1,732 ever-real was old-config
+residue (**DO NOT REUSE AS A CHECK**); reflections 28 -> 58 cast-corrupted; **THE THREE TANK
+COMPANIES ARE THE UNSTABLE CLASS** - identical invocations stall or march (QPAIR A-1 vs A-2).
 ## OPERATIONAL STATE (2026-09-02, after the TWO no-`-q` COA-STP1 runs of the QPAIR probe)
-VR-FORCES DOWN (graceful; ResetVrf sweeps 3790/3798 clean, 0 reflected, exit 0). appNo marker
-appNo marker: docs/OPUS_EXECUTION_PLAN.md Appendix B (runner-managed; read the marker, per-run
+appNo marker: docs/OPUS_EXECUTION_PLAN.md Appendix B (runner-managed; READ THE MARKER, per-run
 history lives there). 3757 IS BURNED (ResetVrf without the RUNBOOK :1208-1215 launch env).
-DEPLOYED APP: src\VrfC2SimApp\bin\Release\net10.0\win-x64\VrfC2SimApp.dll SHA-256
-**53130C93BD76...A7EF27A9** (2026-09-02 16:28:08) - a5cdc95, i.e. the GATED merged build plus ONE
-added log line (`C2SIM endpoints:`). The runner starts the app from that path
-(RunC2SimScenario.ps1:382) - building IS deploying for the APP; only the BRIDGE has a 10-copy
-deploy step. Deployed bridge = A7504441 (10/10, Ijwhost 38255036).
-CLIENTID TRAP: the DEPLOYED (gitignored) bin\...\appsettings.json Vrf:ClientId must MATCH the
-init's SystemName or the runner ABORTS at validation, exit 2 (RunC2SimScenario.ps1:1154-1165).
-R9 inits declare STP; COA-STP1 declares C2SIM. It is at "STP" (restored after A-2, per the
-convention every COA-STP1 run followed) - SET IT TO C2SIM for the owed run B. DEPLOYED copy only.
-RTI RESIDENT + ANSWERED: rtiAssistant 41336 / rtiexec 224608 / rtiForwarder 76620 - UNCHANGED
-across every 2026-09-02 run; still inventory fresh at session start, do not trust PIDs. Docker UP:
-`c2sim-server-vrf` (OURS, 18080/61614) plus the operator's c2sim_server4.8.4.9, stp-server,
-stp-lt511. Dump 70668 sits in bin64, no newer (RUNBOOK 0.5.12 answers the prompt; never halt on
-it). Firewall: do NOT set NotifyOnListen False (user ruling); Cancel the testhost prompt. MAK
-license expires 2026-09-15. THE VENDOR LOG'S WALL STAMPS ARE LOCAL (-04:00), NOT UTC (ours UTC).
+DEPLOYED APP (5.0.2-era, ARCHIVE): VrfC2SimApp.dll SHA-256 **53130C93BD76...A7EF27A9** = a5cdc95 +
+one log line. Building IS deploying for the APP (runner starts it from bin, :382); only the BRIDGE
+has a 10-copy deploy step (deployed A7504441, Ijwhost 38255036).
+CLIENTID TRAP (LIVE): the DEPLOYED (gitignored) bin\...\appsettings.json Vrf:ClientId must MATCH
+the init's SystemName or the runner ABORTS at validation, exit 2 (RunC2SimScenario.ps1:1154-1165).
+R9 inits declare STP, COA-STP1 declares C2SIM; it currently reads "STP". DEPLOYED copy only.
+RTI: inventory fresh at session start - never trust recorded PIDs. Docker: `c2sim-server-vrf` is
+OURS (18080/61614); the operator's c2sim_server4.8.4.9 / stp-server / stp-lt511 are not. Dump 70668
+in bin64 is old (RUNBOOK 0.5.12; never halt on it). Firewall: do NOT set NotifyOnListen False (user
+ruling); Cancel the testhost prompt. MAK licence expires 2026-09-15. VENDOR LOG STAMPS ARE LOCAL
+(-04:00); ours are UTC.
 
 ## NEXT (in order)
 DONE 2026-09-02 pm, three probes (READ THE PREREG SEC 7s): merged-build control GATE PASSED
