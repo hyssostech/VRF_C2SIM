@@ -100,9 +100,8 @@ rung 2 T27 1.80 / T35 2.85 km against six performers at 6.07-6.64 km; the -q run
 A-2, an IDENTICAL invocation, did not (4, 3.69 km). NEXT row 1.
 ## OPERATIONAL STATE (2026-09-02, after the TWO no-`-q` COA-STP1 runs of the QPAIR probe)
 VR-FORCES DOWN (graceful; ResetVrf sweeps 3790/3798 clean, 0 reflected, exit 0). appNo marker
-appNo marker: docs/OPUS_EXECUTION_PLAN.md Appendix B (runner-managed; NEXT FREE = 3816 as of
-2026-09-03 pm; per-run history lives there). 3757 IS BURNED (ResetVrf without the RUNBOOK
-:1208-1215 launch environment - cwd bin64 + PATH prefix + Machine MAKLMGRD_LICENSE_FILE).
+appNo marker: docs/OPUS_EXECUTION_PLAN.md Appendix B (runner-managed; read the marker, per-run
+history lives there). 3757 IS BURNED (ResetVrf without the RUNBOOK :1208-1215 launch env).
 DEPLOYED APP: src\VrfC2SimApp\bin\Release\net10.0\win-x64\VrfC2SimApp.dll SHA-256
 **53130C93BD76...A7EF27A9** (2026-09-02 16:28:08) - a5cdc95, i.e. the GATED merged build plus ONE
 added log line (`C2SIM endpoints:`). The runner starts the app from that path
@@ -128,9 +127,8 @@ suppress vrfSim.log); type-mapping live gate PASSES / run invalid (3775-3781; 6/
    NON-DETERMINISM SUPPORTED (A-1 vs A-2, identical invocations, B/5-20 0 vs 4 sub-routes);
    run B NOT owed; `-q` stays default-OFF; both instrument misses falsified as misses (I4
    second placeholder encoding now filtered, I6 raw distances match within 4% - prereg sec 9).
-   NEXT OBJECT: the SERIAL COMPANY BUILD (one at a time, B/5-20 last or absent in 4/4, two
-   companies exactly 9 s apart in 3/4). DOCS FIRST: 5.0.2 Users Guide aggregate disaggregation /
-   task processing + 4.10 entitymodels_aggregates.html, cited in the prereg, before any probe.
+   NEXT OBJECT (5.0.2, now parked behind the 5.2 migration): the SERIAL COMPANY BUILD, docs
+   first (5.0.2 UG aggregate disaggregation / task processing), cited in a prereg before any probe.
    Known-unexplained (bounded): why the placeholder encoding flipped between 18:31Z and 20:47Z.
 2. DONE 2026-09-02 (supervisor, a5cdc95): RULE 4 `~PXY` MATCH - RunnerLib Resolve-MarkingKey maps
    the init <Name> to the unique `<name>~<tag>` marking; replayed 3/3 at 0.00 m, tagged and not.
@@ -176,10 +174,12 @@ CHANNEL PASSED (RtiProbe/CreateOne/RunSim-5.2 join, BackendCount=1, ObjectCreate
 x4; the vendor-listen control was INVALID; sim log has no creation lines - entity existence
 UNVERIFIED). Lead hypothesis: UUID-change-callback counter vs waitForVrfExtendedData (RESEARCH_
 52_OBSERVER_DISCOVERY); second: silent UNLICENSED mode - A13 DtHaveRtiLicense is now a GATE.
-ENV DRIFT: Machine PATH now leads with makRti5.0.1\bin (who changed it = user question);
-5.0.2 launches need the same per-process overrides - regression control BLOCKED until then.
-NEXT = reflection prereg (WatchVrf --diag counts + licence; --no-wait-ext single variable;
-tee every run), then the runner 5.2 profile, then PREREG_R9_52.
+USER RULING 2026-09-03 21:20: NO OLD BITS - the 5.2 stack runs on MAK RTI 5.0.1 (bridge loads +
+joins on 5.0.1 unchanged, PREREG_52_REFLECTION sec 5). Observer still blind on 5.0.1 lightweight;
+rid-configured rtiexec CRASHES the sim at start; sim-side RTI trace not yet capturable; rtiexec
+15720 + forwarder 43728 + four -K assistants LEFT RUNNING (never kill). NEXT = vendor-managed
+rtiexec connection on 5.0.1 (assistant connections.xml / Launcher), RTI log file for the sim
+trace, then MAK support if H1/H2 survive; runner default flips to 5.0.1 when that lands.
 ## PROBE PROTOCOL (adopted 2026-09-01/02; do NOT change mid-protocol)
 FFRTC mode per the block above; TimeMultiplier 1x; -RunSecs is a CAP under -StopWhenComplete.
 SHORT-ROUTE probe variants are allowed (platoon/entity legs ~200 m) but COMPANY probe routes stay

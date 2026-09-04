@@ -1904,9 +1904,19 @@ join) are BURNED, not recycled. The run manifest records which were actually use
 
 - 3845: CLAIMED 2026-09-03 - WatchVrf-5.2 --diag --report-backends 40 s on the 5.0.1 lightweight sim 3844 (bridge on 5.0.1 DLLs; paused).
 - 3846: CLAIMED 2026-09-03 - tools/RunSim Release-5.2 on RTI 5.0.1 (assistant mode), Traffic.
-- 3847: CLAIMED 2026-09-03 - WatchVrf-5.2 --diag --report-backends 40 s, same sim RUNNING.
+- 3847: CONSUMED 2026-09-03 (joined; capture CUT at t=3 s by the tool timeout - not a valid observation) - WatchVrf-5.2 --diag --report-backends, same sim RUNNING.
 
-*** NEXT FREE: 3848 *** (authoritative - the ONLY such marker in this file. Update this
+- 3848: CONSUMED 2026-09-03 (sim CRASHED at start in DtVrfSimOptions::parseCmdLine, never joined) - LaunchVrf52 -NoGui, RTI 5.0.1, rid-configured RTIEXEC loopback connection (config/rid-501-rtiexec.mtl; headless rtiexec started by us), Traffic.
+- 3849: BURNED 2026-09-03 - CreateOne never ran (sim crashed first).
+- 3850: BURNED 2026-09-03 - WatchVrf never ran (sim crashed first).
+
+- 3851: CONSUMED 2026-09-03 (joined; RTI trace NOT in the VRF log - instrument miss) - LaunchVrf52 -NoGui, RTI 5.0.1 rid-configured lightweight at RTI notify 4 (config/rid-501-ridconfigured-notify4.mtl), Traffic: does the SIM registerObjectInstance any entity (H1)?
+
+- 3852: CONSUMED 2026-09-03 (joined; -q log has no RTI trace either) - as 3851 but -QuietBackend (-q routes the sim's console incl. the RTI trace into the log file; 3851's RTI=> lines went to the unattached console).
+
+- 3853: BURNED 2026-09-03 (sim stalled at 4 threads with redirected stdio, never joined) - vrfSimHLA1516e launched DIRECTLY with stdout/stderr redirected (the RTI trace never reaches the VRF log), RTI 5.0.1 rid-configured lightweight at notify 4, Traffic, 90 s: does the sim registerObjectInstance/publish entities (H1)?
+
+*** NEXT FREE: 3854 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN

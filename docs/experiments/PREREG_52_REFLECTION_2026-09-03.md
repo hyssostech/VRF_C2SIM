@@ -98,9 +98,38 @@ run). NEW LEAD H7 (transport): the assistant-free rid is a pure LIGHTWEIGHT conn
 few updates, HLAreliable traffic has no forwarder to ride. Research lane opened:
 RESEARCH_RTI_CONNECTION_TRANSPORT_2026-09-03.md. Falsifier for H7 = the same observer
 against the same sim on a rid-configured rtiexec connection reflecting > 0.
-Adversarial review: strongest competitor to H7 is H4 (entities never existed) - it
-explains every empty observer but NOT the loss of back-end discovery on the bigger
-scenario, which H7 does; both stay open until the rtiexec run and the user's GUI report
-(does vrfGui show units, and paused/running state - Q3). Unexplained and NOT swept:
-why "Time and Date" crosses but nothing else; why back-end discovery worked on the empty
-scenario and died on the loaded one.
+CORRECTION (same night): sim 3826 had CRASHED on its first tick (0xC0000005 in
+DtDiGuyController::determineInitialHandItem, first_experience_advanced's DIGuy
+characters) - its "back-end discovery lost" observations are VOID, not transport.
+USER RULING (2026-09-03 21:20): no old bits - the 5.2 stack runs on MAK RTI 5.0.1.
+Applied (Traffic scenario, vehicle-only; runs/launch52/*3840-3853*):
+- Release-5.2 bridge LOADS and JOINS on RTI 5.0.1 DLLs unchanged (watchvrf_3845: "Using
+  MAK RTI 5.0.1", licence rti=1 vrlink=1, backends=1); RunSim-5.2 starts the clock (3846).
+- Assistant mode: the first sim launch (3840) blocked on a "Choose RTI Connection" dialog
+  (present in the window list, missed by the screenshot) and died "RTI Connection failed"
+  when AnswerRtiDialog clicked; the stored choice (%APPDATA%\MAK\RTI\5.0\Legatus\
+  connections.xml: lightweight 229.7.7.7:4000 on 10.5.0.2, chosen=1) then let 3844 join
+  with no dialog. Every assistant-mode PROBE that found no responsive assistant SPAWNED
+  one (-K): four 5.0.1 assistants now run (19612/42396/49336/54616) - never killed.
+- Observer on the 5.0.1 lightweight sim: reflected 0 / lists 0 / discovered 0 while
+  PAUSED (3845, 40 s complete); RUNNING (3847) cut at t=3 s by a tool timeout - NOT a
+  valid observation.
+- rid-configured RTIEXEC connection on 5.0.1 (config/rid-501-rtiexec.mtl, headless
+  rtiexec 15720 + its forwarder 43728 up on 127.0.0.1:4001/5000 - LEFT RUNNING, never
+  kill): the 5.2 sim CRASHES at start in makVrf::DtVrfSimOptions::parseCmdLine ->
+  vlHLA1516e -> vl.dll (C:\MAK\logs\...38180.callstack.log). Dead end as configured.
+- Sim-side RTI trace (does the sim registerObjectInstance ANY entity?): NOT captured -
+  RTI=> lines never reach --logFileName, -q's log (3851/3852), and a direct launch with
+  stdout redirected (3853) stalls the sim at 4 threads before joining. OPEN.
+STANDING: H1 (publisher silence) and H2 (no FOM-module merging in lightweight mode,
+RM 6.3.1/14.3) remain the top two; H4 (created entities never existed) still not
+excluded; H7 transport untested (the rtiexec rid crashes the sim). Screenshot
+gui_traffic_rti461_running.png: the GUI showed Traffic loaded, clock RUNNING, but a
+blank white view - it did not settle H4 either.
+NEXT (frame per the user's ruling - vendor-managed 5.2 stack, no 4.6.1 anywhere):
+(1) the vendor way to an rtiexec connection: the 5.0.1 assistant's predefined rtiexec
+connection chosen in connections.xml (user-scope file; format known from the 4.6 file)
+or via the Launcher, then observer + create; (2) capture the sim's RTI trace via the
+RTI's own log file (rid RTI_logFileName / RTI_reuseLogFile) instead of stdout; (3) if
+H1/H2 survive, a MAK support question with the captures. Runner default stays
+-VrfProfile 5.2 on 4.6.1 until (1) lands - flip RtiDir/rid then.
