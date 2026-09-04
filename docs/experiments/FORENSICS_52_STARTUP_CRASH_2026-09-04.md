@@ -1,5 +1,13 @@
 # FORENSICS - the 5.2d sim startup crash (0xC0000005 in DtVrfSimOptions::parseCmdLine)
 
+> **RE-SCOPED 2026-09-04 by PREREG_52_CRASH_BISECT_2026-09-04 - read that first.** This document's
+> INSTRUCTION-LEVEL findings stand (same faulting instruction, delete through an indeterminate
+> member). Its SCOPE does not: it read the crash as firing on any launch, and the bisect (42
+> launches, 3 rounds) binds it to `--logFileName` - 11 crashes/30 passing it, 0/12 omitting it,
+> Fisher one-sided p = 0.013. So it is a vendor defect IN THAT OPTION'S PATH which WE trigger and
+> can simply stop triggering; the user's "a mature product does not just crash" instinct was right.
+> Do NOT cite this file for "the crash happens on any rid/method" - that reading is retired.
+
 Read-only, 2026-09-04: nothing launched, no process touched, nothing written under C:\MAK. Sources:
 C:\MAK\logs *.callstack.log + *.dmp (parsed byte-wise), every launch's vendor log, runs/launch52
 captures, PREREG_52_RTIEXEC / _APP_SMOKE / COLDSTART_REVIEW_RTIEXEC, UG52 + the VRF5.2 and VRL5.10

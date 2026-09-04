@@ -155,28 +155,27 @@ scripts/LaunchVrf52.ps1 (independent mode; LaunchVrf.ps1 is INVALID on 5.2) -> "
 federation MAK-ONE-2025", healthy back-end 36 threads. Blocker fixed: the installer's ELEVATED
 5.0.1 rtiAssistant on 6003 version-rejects EVERY 4.6.1 LRC (5.0.2 runs ALSO blocked); fix =
 per-process RTI_ASSISTANT_DISABLE + config/rid-461-ridconfigured.mtl (assistant-free,
-dialog-free; DIFF A12/H). Prototype zero NOT automatable by pipe (ConPTY untested). TOOL GATE
-2026-09-03 pm (PREREG_52_TOOLJOIN sec 6, RELABELLED by COLDSTART_REVIEW_2026-09-03): CONTROL
-CHANNEL PASSED (RtiProbe/CreateOne/RunSim-5.2 join, BackendCount=1, ObjectCreated entityId
-1:<simApp>:N - prose-only, no captures); OBSERVATION CHANNEL FAILED (WatchVrf-5.2 reflected=0
-x4; the vendor-listen control was INVALID; sim log has no creation lines - entity existence
-UNVERIFIED). Lead hypothesis: UUID-change-callback counter vs waitForVrfExtendedData (RESEARCH_
-52_OBSERVER_DISCOVERY); second: silent UNLICENSED mode - A13 DtHaveRtiLicense is now a GATE.
-USER RULING 2026-09-03 21:20: NO OLD BITS - the 5.2 stack runs on MAK RTI 5.0.1 (bridge loads +
-joins on 5.0.1 unchanged, PREREG_52_REFLECTION sec 5). Observer still blind on 5.0.1 lightweight;
-rid-configured rtiexec CRASHES the sim at start; sim-side RTI trace not yet capturable; rtiexec
+dialog-free; DIFF A12/H). Prototype zero NOT automatable by pipe (ConPTY untested). The 2026-09-03
+TOOL GATE - control channel PASSED, OBSERVATION CHANNEL FAILED (reflected=0 x4) - and both of its
+hypotheses (UUID-change-callback counter; silent unlicensed mode) are SUPERSEDED by the lightweight
+finding below; record in PREREG_52_TOOLJOIN sec 6 + COLDSTART_REVIEW_2026-09-03. A13 DtHaveRtiLicense
+stays a GATE (licence VERIFIED live, rti=1 vrlink=1). USER RULING 2026-09-03 21:20: NO OLD BITS - the
+5.2 stack runs on MAK RTI 5.0.1 (bridge loads + joins unchanged, PREREG_52_REFLECTION sec 5). rtiexec
 15720 + forwarder 43728 + four -K assistants LEFT RUNNING (never kill). NO questions to MAK (user
 2026-09-04). RESOLVED 2026-09-04 (PREREG_52_RTIEXEC_2026-09-04): UG52 5.5.1 p190 prohibits the MAK
 RTI in LIGHTWEIGHT mode with VR-Forces - every 2026-09-03 run was lightweight. Documented posture =
 RTI 5.0.1 in rtiexec mode (config/rid-501-rtiexec-min.mtl, headless rtiexec): WatchVrf reflects 62
-entities, real POS (cause by ELIMINATION; --deviceAddress NOT required either side (3857/3859); the sim's
-parseCmdLine startup crash hit 2/7 launches on any rid, trigger UNKNOWN, now DETECTED by LaunchVrf52).
+entities, real POS (cause by ELIMINATION; --deviceAddress NOT required either side, 3857/3859). The
+parseCmdLine startup crash is DETECTED by LaunchVrf52 and its trigger is now BISECTED - see below.
 RUNNER 5.2 PROFILE ON THAT POSTURE DONE (5cea2ed; StartRtiExec52 Stage 2r; smoke PREREG_52_PROFILE_SMOKE
 green for the INFRASTRUCTURE STAGES ONLY - no C2SIM stage has ever run on 5.2 (COLDSTART_AUDIT R3):
 paused Traffic reflects 44; app 3865 joins the config-file way (PREREG_52_APP_SMOKE). STARTUP CRASH
-root-caused as a VENDOR heap defect, ~1 in 3, any rid/method (FORENSICS_52_STARTUP_CRASH): close the
-corpse, retry ONCE. SECURITY: vendor logs dump the whole environment in cleartext - never attach one
-(send .callstack/.dmp). NEXT = a first 5.2 C2SIM run; per COLDSTART_AUDIT R7 a FIXTURE IS NOT REQUIRED
+BISECTED 2026-09-04 over 42 launches (PREREG_52_CRASH_BISECT): it is OURS and bound to `--logFileName`
+- 11 crashes/30 passing it, 0/12 omitting it, Fisher p=0.013; path length and the perf plugin both
+FALSIFIED. **NEVER PASS `--logFileName`** (runner/launcher no longer do); harvest C:\MAK\logs instead,
+and keep close-the-corpse + retry ONCE as a guard. This SUPERSEDES the earlier "vendor heap defect on
+any rid/method" reading, which was scoped to the whole product and is now scoped to that one option.
+SECURITY: vendor logs dump the whole environment in cleartext - never attach one (send .callstack/.dmp). NEXT = a first 5.2 C2SIM run; per COLDSTART_AUDIT R7 a FIXTURE IS NOT REQUIRED
 (the app creates units from the init; RESEARCH_52_FIXTURE_FORMAT R2 = -T terrain, no -L, but that loses
 the frame lever) - the empty fixture R9_Mojave_Empty_52.scnx is built and validated as the R1 route.
 Then PREREG_R9_52, which may NOT cite frame mode until a stamped 5.2 log exists (REBASELINE_52).
