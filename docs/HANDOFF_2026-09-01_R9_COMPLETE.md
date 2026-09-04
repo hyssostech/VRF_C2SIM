@@ -153,16 +153,13 @@ type fix CONFIRMED; 5.2 type table data/unit-type-map-52.json (AR Scout PROXY, Y
 TRAP: a 5.2 process needs the 5.2 PATH prefix (name-bound MAK DLLs; NativeStackInfo() logs
 which stack bound). FIRST 5.2 LAUNCH+JOIN PROVEN 2026-09-03 pm (PREREG_52_LAUNCH_2026-09-03.md):
 scripts/LaunchVrf52.ps1 (independent mode; LaunchVrf.ps1 is INVALID on 5.2) -> "Joined
-federation MAK-ONE-2025", healthy back-end 36 threads. Blocker fixed: the installer's ELEVATED
-5.0.1 rtiAssistant on 6003 version-rejects EVERY 4.6.1 LRC (5.0.2 runs ALSO blocked); fix =
-per-process RTI_ASSISTANT_DISABLE + config/rid-461-ridconfigured.mtl (assistant-free,
-dialog-free; DIFF A12/H). Prototype zero NOT automatable by pipe (ConPTY untested). The 2026-09-03
-TOOL GATE - control channel PASSED, OBSERVATION CHANNEL FAILED (reflected=0 x4) - and both of its
-hypotheses (UUID-change-callback counter; silent unlicensed mode) are SUPERSEDED by the lightweight
-finding below; record in PREREG_52_TOOLJOIN sec 6 + COLDSTART_REVIEW_2026-09-03. A13 DtHaveRtiLicense
-stays a GATE (licence VERIFIED live, rti=1 vrlink=1). USER RULING 2026-09-03 21:20: NO OLD BITS - the
-5.2 stack runs on MAK RTI 5.0.1 (bridge loads + joins unchanged, PREREG_52_REFLECTION sec 5). rtiexec
-15720 + forwarder 43728 + four -K assistants LEFT RUNNING (never kill). NO questions to MAK (user
+federation MAK-ONE-2025", healthy back-end 36 threads. Assistants are VERSION-LOCKED (a 5.0.1 one
+rejects every 4.6.1 LRC); we run assistant-free via per-process RTI_ASSISTANT_DISABLE (DIFF A12/H).
+The 2026-09-03 TOOL GATE (observation channel FAILED, reflected=0 x4) and both its hypotheses are
+SUPERSEDED by the lightweight finding below - PREREG_52_TOOLJOIN sec 6. A13 DtHaveRtiLicense stays
+a GATE (licence VERIFIED live). USER RULING 2026-09-03: NO OLD BITS - 5.2 runs on MAK RTI 5.0.1
+(PREREG_52_REFLECTION sec 5). rtiexec 15720 + forwarder 43728 + four -K assistants LEFT RUNNING
+(never kill). NO questions to MAK (user
 2026-09-04). RESOLVED 2026-09-04 (PREREG_52_RTIEXEC_2026-09-04): UG52 5.5.1 p190 prohibits the MAK
 RTI in LIGHTWEIGHT mode with VR-Forces - every 2026-09-03 run was lightweight. Documented posture =
 RTI 5.0.1 in rtiexec mode (config/rid-501-rtiexec-min.mtl, headless rtiexec): WatchVrf reflects 62
@@ -179,7 +176,10 @@ any rid/method" reading, which was scoped to the whole product and is now scoped
 SECURITY: vendor logs dump the whole environment in cleartext - never attach one (send .callstack/.dmp). NEXT = a first 5.2 C2SIM run; per COLDSTART_AUDIT R7 a FIXTURE IS NOT REQUIRED
 (the app creates units from the init; RESEARCH_52_FIXTURE_FORMAT R2 = -T terrain, no -L, but that loses
 the frame lever) - the empty fixture R9_Mojave_Empty_52.scnx is built and validated as the R1 route.
-Then PREREG_R9_52, which may NOT cite frame mode until a stamped 5.2 log exists (REBASELINE_52).
+Then PREREG_R9_52: no frame-mode claim until a stamped 5.2 log exists (REBASELINE_52), and NO
+prediction from 5.0.2 PATH/TIMING goldens - Y-13 flipped armour Prefer Roads -> IGNORE ROADS,
+near-distance 25 -> 15 m (arrival/TASKCMPLT shift, per-soil speed caps gone); Y-12 has planning +
+avoidance ON and a blocked vehicle replans ONCE. Assert STRUCTURE only; CLAUDE.md sec 2.
 ## PROBE PROTOCOL (adopted 2026-09-01/02; do NOT change mid-protocol)
 FFRTC mode per the block above; TimeMultiplier 1x; -RunSecs is a CAP under -StopWhenComplete.
 SHORT-ROUTE probe variants are allowed (platoon/entity legs ~200 m) but COMPANY probe routes stay

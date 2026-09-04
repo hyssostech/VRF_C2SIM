@@ -63,7 +63,29 @@ Read the row AND its ruling in `docs/VRF_5.2_DECISION_EVIDENCE.md` (the ruling w
 - **D2 / Y-11**: unit move-along is repackaged as maneuver-along; per-subordinate offset routes
   are computed at task time; units wait for a valid formation before moving (RN VRF-8977 is a
   competing hypothesis for the 5.0.2 company non-determinism).
-- **D7 / Y-13**: Navigation Preferences now decide road behaviour, defaulting per SMS.
+- **D7 / Y-13 - THE DEFAULT MOVEMENT FLIPPED. Armour now IGNORES ROADS.** 5.0.2
+  `ground-tracked.sysdef:71` hard-coded `(default-preference "Prefer Roads")`; 5.2d :132 is
+  `(default-preference $road-preference (default "Ignore Roads"))` and
+  `M1A2_Abrams_MBT.entity:218` pins "Ignore Roads" (MG 2.4 p18). Same file: **near-distance
+  25 -> 15 m** on every movement controller (wait-at-waypoint 35 -> 15), ALL per-soil
+  max-speed-factors removed, pathfinder weights populated, obstruction-sensor and
+  collision-avoidance controllers REMOVED, maneuver-in-formation + react-to-collision-event
+  actuator ADDED. Ruling: rely on SMS defaults, send no per-entity preference unless a C2SIM
+  order carries road-use intent.
+- **D6 / Y-12 - AUTONOMY IS NOW THE DEFAULT.** `AIEnabled` -> `AutonomousActionsEnabled`, and
+  it now gates PATH PLANNING as well as firing/collision (UG52 23.6 p508: disabled = no
+  planning, straight line through obstacles). Planning and dynamic obstacle avoidance are ON.
+  Ruling: leave them on - disabling to get repeatable traces produces traces of a mode the
+  vendor calls dumb driving. Repeatability comes from Y-9, not from crippling the sim.
+
+**CONSEQUENCE FOR EVERY 5.2 BEHAVIOURAL RUN - do not learn this the hard way:** the 5.0.2
+golden traces were produced by road-preferring armour with a 25 m arrival threshold and no
+dynamic avoidance. On 5.2 the same order drives OFF-ROAD, arrives within 15 m, may back up and
+replan ONCE when blocked, and waits for a valid formation before moving. **5.0.2 positions and
+timings are NOT a valid comparison basis on 5.2.** Assert STRUCTURE (creation lines naming the
+mapped templates, routes addressed by uuid, movement occurring, TASKCMPLT pairing) and derive
+any tolerance from 5.2 behaviour. A 5.2 path that differs from the 5.0.2 golden is very likely
+CORRECT.
 - **A2/A9 (Y-2)**: federation identity lives in MAK-ONE-2025-Config.xml; FOM modules are ADDITIVE.
 - **C5 (Y-9)**: blockOnAsynchronousOperations - determinism knob for fixed-frame runs.
 - **C8 (Y-17)**: altitude - see sec 3.
