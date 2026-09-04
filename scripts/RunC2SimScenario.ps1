@@ -30,7 +30,8 @@
          is NOT offered: it is the false-READY trap.
       2  allocate EVERY appNumber from the single marker in
          OPUS_EXECUTION_PLAN.md Appendix B and ADVANCE the marker, BEFORE any join
-      3  LaunchVrf.ps1 (combined mode)
+      3  LaunchVrf.ps1 (combined mode) - or, with -VrfProfile 5.2, LaunchVrf52.ps1
+         (independent mode); same exit contract either way
       4  oracle pre-check, passive (RUNBOOK 0.5.7) - ADVISORY by default, see below
       5  WatchVrf + ListenReports START HERE, BEFORE the init, so unit births are
          in the trace
@@ -128,6 +129,23 @@
     C2SIM order XML. Default data/R9_Mojave_UnitMove_Order.xml. Three MOVE tasks
     against three taskees (4a.0), legs ~556-578 m.
 
+.PARAMETER VrfProfile
+    WHICH VR-FORCES STACK the whole pipeline runs on: '5.0.2' (default, the historical
+    path - unchanged in every observable way) or '5.2'. It is the ONLY selector, and it
+    derives: the roots (vrforces5.2d + vrlink5.10 + makRti4.6.1), the per-process
+    environment (5.2 PATH prefix, MAK_VRFDIR/MAK_VRLDIR/MAK_RTIDIR, the SHARED
+    assistant-free rid config\rid-461-ridconfigured.mtl, RTI_ASSISTANT_DISABLE), the
+    launch and stop scripts (LaunchVrf52.ps1 / StopVrf52.ps1), the Release-5.2 build tree
+    of every bridge-linked binary, the config-file federation identity (NO federation
+    argument - execName comes from MAK-ONE-2025-Config.xml) and the 5.2 type-map table.
+    Passing -VrfRoot / -VrLinkRoot / -RtiDir / -Federation beside it is REFUSED: a mixed
+    environment loads the wrong DLLs silently. See docs/RUNBOOK.md "5.2 profile".
+
+.PARAMETER NoGui
+    5.2 only: launch the back end without vrfGui. Default OFF - the GUI is the one channel
+    that shows whether the entities the control path creates are really there while the
+    5.2 observation channel is still under investigation.
+
 .PARAMETER RunSecs
     Observation window AFTER the order is pushed. Default 600. With
     -StopWhenComplete this is the CAP on the window, not its length.
@@ -219,7 +237,25 @@ param(
     # Where the evidence lands. A timestamped subdirectory is created under this.
     [string] $RunRoot,
 
-    # VR-Forces bring-up (passed straight through to LaunchVrf.ps1).
+    # WHICH VR-FORCES STACK. This is the ONE switch: it derives the roots, the per-process
+    # environment, the launch/stop scripts, the tool + app binaries, the federation identity,
+    # the type-map table and the connection config. Nothing else selects a stack, and an
+    # explicit -VrfRoot / -VrLinkRoot / -RtiDir / -Federation together with -VrfProfile 5.2
+    # is REFUSED at validation (a half-5.2 environment is the DLL-name-binding trap: MAK
+    # libraries bind BY NAME on PATH, so a 5.2 exe under a 5.0.2 PATH silently loads the
+    # wrong stack - docs/VRF_5.2_MIGRATION_DIFF.md sec H).
+    [ValidateSet('5.0.2','5.2')]
+    [string] $VrfProfile = '5.0.2',
+
+    # 5.2 ONLY: launch the back end WITHOUT vrfGui (LaunchVrf52.ps1 -NoGui). Default OFF -
+    # the GUI stays ON during the migration because it is the only channel that shows
+    # whether the entities the control path creates are actually there (the reflected=0
+    # observation-channel defect, PREREG_52_TOOLJOIN_2026-09-03.md). Refused on 5.0.2,
+    # whose combined-mode launcher has no such option.
+    [switch] $NoGui,
+
+    # VR-Forces bring-up (passed straight through to the profile's launch script).
+    # The four below are 5.0.2 values and are DERIVED from -VrfProfile on 5.2.
     [string] $Scenario   = 'TropicTortoise',
     [string] $VrfRoot    = 'C:\MAK\vrforces5.0.2',
     [string] $VrLinkRoot = 'C:\MAK\vrlink5.8',
@@ -382,19 +418,77 @@ $DataDir   = Join-Path $RepoRoot 'data'
 $ToolsDir  = Join-Path $RepoRoot 'tools'
 $LedgerDoc = Join-Path $DocsDir 'OPUS_EXECUTION_PLAN.md'
 
-$LaunchVrf = Join-Path $PSScriptRoot 'LaunchVrf.ps1'
-$StopVrf   = Join-Path $PSScriptRoot 'StopVrf.ps1'
+# ---- THE PROFILE: everything the stack choice decides, decided in ONE place ---
+# 5.0.2 is the historical path and MUST stay byte-for-byte what it was (its -DryRun
+# output is the regression control for this parameter). 5.2 derives:
+#   roots            vrforces5.2d + vrlink5.10 + makRti4.6.1 (HLA 1516e; HLA 4 is a
+#                    separate phase on makRti5.0.1 - DIFF Y-16, NOT reachable here)
+#   launch / stop    LaunchVrf52.ps1 (independent mode, UG52 4.1.2) / StopVrf52.ps1
+#   binaries         the Release-5.2 build tree of the BRIDGE-LINKED tools and the app
+#                    (BridgeConfig axis). PushInit/PushOrder/ListenReports/StopIface are
+#                    pure C2SIM managed tools with no bridge reference, so they have no
+#                    5.2 variant and the SAME binaries are used on both profiles.
+#   identity         NO federation argument: on 5.2 the tools and the app take execName
+#                    from appData\settings\connections\MAK-ONE-2025-Config.xml
+#                    (tools/Shared/StackIdentity.cs; DIFF rows A2/A9 - config FOM modules
+#                    are ADDITIVE, so the 5.0.2 module list must not be submitted).
+#   environment      the 5.2 PATH prefix + MAK_VRFDIR/MAK_VRLDIR/MAK_RTIDIR + the SHARED
+#                    assistant-free rid + RTI_ASSISTANT_DISABLE, for EVERY spawned
+#                    process. Federates that do not share the rid do not share a
+#                    connection (PREREG_52_LAUNCH_2026-09-03.md).
+$Is52 = ($VrfProfile -eq '5.2')
+# The BridgeConfig output tree the bridge-linked binaries were built into.
+$BridgeOut = if ($Is52) { 'Release-5.2' } else { 'Release' }
+if ($Is52) {
+    if (-not $PSBoundParameters.ContainsKey('VrfRoot'))    { $VrfRoot    = 'C:\MAK\vrforces5.2d' }
+    if (-not $PSBoundParameters.ContainsKey('VrLinkRoot')) { $VrLinkRoot = 'C:\MAK\vrlink5.10' }
+    if (-not $PSBoundParameters.ContainsKey('RtiDir'))     { $RtiDir     = 'C:\MAK\makRti4.6.1' }
+    if (-not $PSBoundParameters.ContainsKey('Federation')) { $Federation = '' }
+    # 5.2d ships its samples one level down (userData\scenarios\Sample\...). The 5.0.2
+    # default TropicTortoise does not exist there, and its terrain 'MAK Earth Space
+    # (online)' was DROPPED from makData 19 (DIFF row C1) - the re-authored fixtures are
+    # a Phase-2 deliverable, deployed with
+    #   python tools\FixtureGen\build_fixture.py <site> --out-dir C:\MAK\vrforces5.2d\userData\scenarios
+    # (the SANCTIONED fixture write; --out-dir already exists - do not invent another).
+    if (-not $PSBoundParameters.ContainsKey('Scenario'))   { $Scenario   = 'Sample\FirstExperience\firstexperience' }
+}
 
-$ExeWatchVrf      = Join-Path $ToolsDir 'WatchVrf\bin\Release\net10.0\win-x64\WatchVrf.exe'
+$LaunchVrf = Join-Path $PSScriptRoot $(if ($Is52) { 'LaunchVrf52.ps1' } else { 'LaunchVrf.ps1' })
+$StopVrf   = Join-Path $PSScriptRoot $(if ($Is52) { 'StopVrf52.ps1' }   else { 'StopVrf.ps1' })
+
+$ExeWatchVrf      = Join-Path $ToolsDir ('WatchVrf\bin\{0}\net10.0\win-x64\WatchVrf.exe' -f $BridgeOut)
 $ExePushInit      = Join-Path $ToolsDir 'PushInit\bin\Release\net10.0\PushInit.exe'
 $ExePushOrder     = Join-Path $ToolsDir 'PushOrder\bin\Release\net10.0\PushOrder.exe'
 $ExeListenReports = Join-Path $ToolsDir 'ListenReports\bin\Release\net10.0\ListenReports.exe'
 $ExeStopIface     = Join-Path $ToolsDir 'StopIface\bin\Release\net10.0\StopIface.exe'
-$ExeCreateOne     = Join-Path $ToolsDir 'CreateOne\bin\Release\net10.0\win-x64\CreateOne.exe'
-$ExeRtiProbe      = Join-Path $ToolsDir 'RtiProbe\bin\Release\net10.0\win-x64\RtiProbe.exe'
-$ExeApp           = Join-Path $RepoRoot 'src\VrfC2SimApp\bin\Release\net10.0\win-x64\VrfC2SimApp.exe'
+$ExeCreateOne     = Join-Path $ToolsDir ('CreateOne\bin\{0}\net10.0\win-x64\CreateOne.exe' -f $BridgeOut)
+$ExeRtiProbe      = Join-Path $ToolsDir ('RtiProbe\bin\{0}\net10.0\win-x64\RtiProbe.exe' -f $BridgeOut)
+$ExeApp           = Join-Path $RepoRoot ('src\VrfC2SimApp\bin\{0}\net10.0\win-x64\VrfC2SimApp.exe' -f $BridgeOut)
 
 $Bin64 = Join-Path $VrfRoot 'bin64'
+
+# The federation ARGUMENT the tools are given. On 5.2 it is deliberately EMPTY: RtiProbe
+# and WatchVrf treat a blank positional as "stack default" and StackIdentity then joins
+# the config-file way, while a non-empty value is an explicit OVERRIDE of the connection
+# config's execName (tools/Shared/StackIdentity.cs). Empty arguments survive
+# ProcessStartInfo.ArgumentList as "" and stay in position, which is what RtiProbe (where
+# the federation sits between the appNumber and the retry counts) needs.
+$FederationArg = if ($Is52) { '' } else { $Federation }
+
+# Per-process environment the PROFILE adds on top of PATH/licence. EMPTY on 5.0.2, so
+# that profile's environment is untouched. Applied to EVERY child: the capability probe
+# (Stage 0b), the launch script, both observers, the tools and the app.
+$RidFile        = Join-Path $RepoRoot 'config\rid-461-ridconfigured.mtl'
+$ConnConfigFile = Join-Path $VrfRoot 'appData\settings\connections\MAK-ONE-2025-Config.xml'
+$TypeMapFile52  = 'data/unit-type-map-52.json'
+$ProfileEnv = [ordered]@{}
+if ($Is52) {
+    $ProfileEnv['MAK_VRFDIR']           = $VrfRoot
+    $ProfileEnv['MAK_VRLDIR']           = $VrLinkRoot
+    $ProfileEnv['MAK_RTIDIR']           = $RtiDir
+    $ProfileEnv['RTI_RID_FILE']         = $RidFile
+    $ProfileEnv['RTI_ASSISTANT_DISABLE']= '1'
+}
 
 if ([string]::IsNullOrWhiteSpace($Init))    { $Init    = Join-Path $DataDir 'R9_Mojave_Lean_Initialization.xml' }
 if ([string]::IsNullOrWhiteSpace($Order))   { $Order   = Join-Path $DataDir 'R9_Mojave_UnitMove_Order.xml' }
@@ -511,7 +605,12 @@ function Format-CommandLine {
     $parts = @()
     foreach ($a in @($Arguments)) {
         if ($null -eq $a) { continue }
-        if ($a -match '[\s"]') { $parts += ('"' + ($a -replace '"','\"') + '"') } else { $parts += $a }
+        # An EMPTY argument is quoted too. ProcessStartInfo.ArgumentList passes it to the
+        # child as "" and it HOLDS ITS POSITION (the 5.2 profile's blank federation sits
+        # between RtiProbe's appNumber and its retry counts); a manifest command line that
+        # dropped it would not be the line that ran. No 5.0.2 stage passes an empty
+        # argument, so this cannot change that profile's recorded command lines.
+        if ($a -eq '' -or $a -match '[\s"]') { $parts += ('"' + ($a -replace '"','\"') + '"') } else { $parts += $a }
     }
     if ($parts.Count -eq 0) { return $File }
     return ($File + ' ' + ($parts -join ' '))
@@ -1145,6 +1244,26 @@ if (-not (Test-Path -LiteralPath $Bin64 -PathType Container)) {
     $bad += ('VR-Forces bin64 not found: {0} - it is the mandatory cwd for every HLA process (RUNBOOK sec 7 item 3)' -f $Bin64)
 }
 
+# ---- PROFILE integrity (nothing here can fire on the 5.0.2 default) ----------
+# -VrfProfile is the ONLY stack selector. A hand-passed root/federation beside it would
+# produce a MIXED environment, and the failure mode is silent: MAK DLLs bind by NAME on
+# PATH, so a 5.2 binary under a 5.0.2 prefix loads 5.0.2 and reports it only in the app's
+# NativeStackInfo line. Refuse instead, before anything is launched.
+if ($Is52) {
+    foreach ($p in @('VrfRoot','VrLinkRoot','RtiDir','Federation')) {
+        if ($PSBoundParameters.ContainsKey($p)) {
+            $bad += ('-{0} was passed together with -VrfProfile 5.2. The profile DERIVES it; passing both is how a half-5.2 environment is built. Drop -{0}.' -f $p)
+        }
+    }
+    foreach ($f in @(
+        @{n='assistant-free rid (RTI_RID_FILE, shared by EVERY federate)'; p=$RidFile},
+        @{n='connection config (federation identity, DIFF row A2)';        p=$ConnConfigFile})) {
+        if (-not (Test-Path -LiteralPath $f.p -PathType Leaf)) { $bad += ('{0} not found: {1}' -f $f.n, $f.p) }
+    }
+} elseif ($NoGui) {
+    $bad += '-NoGui is a 5.2 profile switch (LaunchVrf52.ps1 -NoGui). The 5.0.2 combined-mode launcher has no headless option; use -VrfProfile 5.2 or drop -NoGui.'
+}
+
 # LIMITATION 1: the server must be on this host, and a deployed ListenReports that
 # predates --rest-url/--stomp-url hears ONLY 127.0.0.1:8080/61613. Refuse rather
 # than capture nothing against a server the observer is not listening to. (The
@@ -1185,6 +1304,16 @@ if ($bad.Count -gt 0) {
     exit 2
 }
 Say-Ok 'inputs, tools, timing budgets and the clientId/SystemName match all validate'
+# 5.2 ONLY. Guarded so the 5.0.2 profile's output stays byte-for-byte what it was.
+if ($Is52) {
+    Say-Ok ('VrfProfile 5.2 - VR-Forces {0}, VR-Link {1}, RTI {2}' -f $VrfRoot, $VrLinkRoot, $RtiDir)
+    Say     ('         binaries    : bin\{0}\ (bridge-linked tools + app); PushInit/PushOrder/ListenReports/StopIface are managed-only and shared with 5.0.2' -f $BridgeOut)
+    Say     ('         launch/stop : {0} / {1}{2}' -f (Split-Path -Leaf $LaunchVrf), (Split-Path -Leaf $StopVrf), $(if ($NoGui) { '  (-NoGui: no vrfGui)' } else { '  (GUI ON - migration observability)' }))
+    Say     ('         federation  : NO argument passed - identity from {0} (execName MAK-ONE-2025)' -f $ConnConfigFile)
+    Say     ('         rid (SHARED by every federate): {0}' -f $RidFile)
+    Say     ('         scenario    : {0} (relative to {1}\userData\scenarios)' -f $Scenario, $VrfRoot)
+    foreach ($k in $ProfileEnv.Keys) { Say ('         env         : {0}={1}' -f $k, $ProfileEnv[$k]) }
+}
 Say-Ok ('init SystemName [{0}] matches app clientId [{1}]' -f ($initSystemNames -join ','), $appClientId)
 if ($CreateOneAvailable) {
     Say-Ok ('CreateOne.exe present - the stage-7b failure-path disambiguation diagnostic is ARMED: {0}' -f $ExeCreateOne)
@@ -1201,6 +1330,30 @@ $Manifest.inputs.sampleSecs    = $SampleSecs
 $Manifest.inputs.scenario      = $Scenario
 $Manifest.inputs.quietBackend  = [bool]$QuietBackend
 $Manifest.inputs.federation    = $Federation
+# THE PROFILE, in the evidence. A trace can only be compared with another trace from the
+# SAME stack, so which stack ran is a first-class manifest field - roots, binaries, the
+# rid every federate had to share (hashed: a DIFFERENT rid is a different connection and
+# the federates would not see each other), the assistant state and the connection config
+# that supplied the federation identity. nativeStack is filled in at stage 6c from the
+# app's own "VrfBridge native stack = ..." line - the RUNTIME fact, not this switch.
+$Manifest.inputs.vrfProfile = [ordered]@{
+    profile             = $VrfProfile
+    vrfRoot             = $VrfRoot
+    vrLinkRoot          = $VrLinkRoot
+    rtiDir              = $RtiDir
+    bridgeConfig        = $BridgeOut
+    launchScript        = $LaunchVrf
+    stopScript          = $StopVrf
+    noGui               = [bool]$NoGui
+    federationArgument  = $(if ($Is52) { '(none - config-file identity)' } else { $Federation })
+    connectionConfigFile= $(if ($Is52) { $ConnConfigFile } else { $null })
+    ridFile             = $(if ($Is52) { $RidFile } else { $null })
+    ridSha256           = $(if ($Is52 -and (Test-Path -LiteralPath $RidFile -PathType Leaf)) { (Get-FileHash -LiteralPath $RidFile -Algorithm SHA256).Hash } else { $null })
+    rtiAssistantDisable = $(if ($Is52) { '1' } else { $null })
+    typeMapFile         = $(if ($Is52) { $TypeMapFile52 } else { $null })
+    env                 = $ProfileEnv
+    nativeStack         = $null
+}
 $Manifest.inputs.restUrl       = $RestUrl
 $Manifest.inputs.stompUrl      = $StompUrl
 $Manifest.inputs.clientId      = $appClientId
@@ -1267,6 +1420,12 @@ function Invoke-CapabilityProbe {
     $psi.CreateNoWindow = $true
     # Same PATH the live tools get, so the probe answers for the binary AS IT WILL RUN.
     $psi.Environment['PATH'] = ('{0};{1}' -f $PathPrefixForProbe, $env:PATH)
+    # ...and the same profile environment. On 5.2 this is not cosmetic: a 5.2 tool run
+    # under the default environment dies with FileLoadException BEFORE it can print its
+    # usage or capabilities (PREREG_52_TOOLJOIN_2026-09-03.md sec 2 - the exit-2 usage
+    # contract holds ONLY under the 5.2 PATH), so an unprofiled probe would report
+    # "not supported" for a binary that supports the flag. Empty on 5.0.2.
+    foreach ($k in $ProfileEnv.Keys) { $psi.Environment[$k] = [string]$ProfileEnv[$k] }
     try {
         $p = [System.Diagnostics.Process]::Start($psi)
         $stdoutTask = $p.StandardOutput.ReadToEndAsync()
@@ -1404,7 +1563,11 @@ if ($existing.Count -gt 0) {
     exit 2
 }
 Say-Ok 'no pre-existing vrfLauncher / vrfSimHLA1516e / vrfGui and no leftover WatchVrf / ListenReports - clear to launch'
-if ($infra.Count -eq 0) {
+if ($infra.Count -eq 0 -and $Is52) {
+    # NOT a warning on this profile: assistant-free is the DESIGN here (RTI_ASSISTANT_DISABLE
+    # + the rid-configured connection). An assistant would be ignored, not consulted.
+    Say-Ok 'no RTI infrastructure process running - EXPECTED on the 5.2 profile (assistant-free; the connection comes from the rid).'
+} elseif ($infra.Count -eq 0) {
     Say-Warn 'no rtiAssistant is running. RUNBOOK 0.5.3: on HLA a federate does not start until an'
     Say-Warn '  RTI Assistant has been ANSWERED. LaunchVrf.ps1 warns about this too and will proceed;'
     Say-Warn '  if the launch stalls at 2-4 back-end threads, that is the cause. Do NOT kill anything.'
@@ -1466,8 +1629,10 @@ if ($FirstFree -le 0 -or $FirstFree -gt 65000) {
 # The allocation. Purposes are the ledger text; keep them specific enough that a
 # reader six months later can tell which join each number was.
 $Alloc = @(
-    [ordered]@{ key='vrfBackend';  purpose='LaunchVrf.ps1 back-end (vrfSimHLA1516e), combined mode' }
-    [ordered]@{ key='vrfFrontend'; purpose='LaunchVrf.ps1 front-end (vrfGui), combined mode' }
+    # The purpose text is what lands in the LEDGER, so it names the launch mode that
+    # actually consumed the number. 5.0.2 wording is unchanged.
+    [ordered]@{ key='vrfBackend';  purpose=$(if ($Is52) { 'LaunchVrf52.ps1 back-end (vrfSimHLA1516e), 5.2d independent mode' } else { 'LaunchVrf.ps1 back-end (vrfSimHLA1516e), combined mode' }) }
+    [ordered]@{ key='vrfFrontend'; purpose=$(if ($Is52) { 'LaunchVrf52.ps1 front-end (vrfGui), 5.2d independent mode (allocated even with -NoGui, then BURNED)' } else { 'LaunchVrf.ps1 front-end (vrfGui), combined mode' }) }
     [ordered]@{ key='oraclePre';   purpose='WatchVrf ADVISORY pre-init oracle pre-check (RUNBOOK 0.5.7)' }
     [ordered]@{ key='oracleTrace'; purpose='WatchVrf MAIN run trace - the movement oracle / scoring input' }
     [ordered]@{ key='app';         purpose='VrfC2SimApp Vrf__ApplicationNumber (the interface federate)' }
@@ -1636,6 +1801,12 @@ Say ('  window      : {0}s{1}' -f $RunSecs, $(if ($StopWhenComplete) { (' CAP; -
 Say ('  HLA PATH    : {0};<inherited>' -f $PathPrefix)
 Say ('  license     : MAKLMGRD_LICENSE_FILE (Machine) = {0}' -f $(if ($LicMachine) { $LicMachine } else { '(EMPTY - checkout may hang, RUNBOOK sec 7 item 2)' }))
 Say ('  HLA cwd     : {0}' -f $Bin64)
+if ($Is52) {
+    Say ('  profile env : {0} (EVERY child: launch, tools, observers, app)' -f (($ProfileEnv.Keys | ForEach-Object { '{0}={1}' -f $_, $ProfileEnv[$_] }) -join '  '))
+    Say ('  app config  : Vrf__Federation="" Vrf__FedFileName="" Vrf__ConfigFileIdentity=true (FomModules CLEARED - config modules are ADDITIVE, DIFF row A9)')
+    Say ('                Vrf__ConnectionConfigFile={0}' -f $ConnConfigFile)
+    Say ('                Vrf__TypeMapFile={0}' -f $TypeMapFile52)
+}
 
 # =============================================================================
 # LIVE RUN
@@ -1652,6 +1823,26 @@ $SavedVrfAppNumber   = $env:Vrf__ApplicationNumber
 $SavedC2SimRestUrl   = $env:C2SIM__RestUrl
 $SavedC2SimStompUrl  = $env:C2SIM__StompUrl
 $LedgerAdvanced      = $false
+# The profile's own environment, and what it displaced. Both maps are EMPTY on 5.0.2,
+# so every loop over them below is a no-op there. Restored in the finally beside PATH.
+$SavedProfileEnv     = [ordered]@{}
+foreach ($k in $ProfileEnv.Keys) { $SavedProfileEnv[$k] = [Environment]::GetEnvironmentVariable($k) }
+# App-only config overrides (the Host maps '__' to ':'). On 5.2 the app must join the
+# CONFIG-FILE way exactly as the tools do: empty Federation/FedFileName and NO FOM module
+# list. An empty JSON array in a second settings file could NOT clear the three modules
+# appsettings.json already declares (a later configuration provider cannot REMOVE keys),
+# so the app gained one minimal switch, Vrf:ConfigFileIdentity, which clears all three in
+# BuildStartupConfig (src/VrfC2SimApp/VrfSettings.cs). Default false = 5.0.2 unchanged.
+$AppEnv52 = [ordered]@{}
+if ($Is52) {
+    $AppEnv52['Vrf__ConfigFileIdentity']  = 'true'
+    $AppEnv52['Vrf__Federation']          = ''
+    $AppEnv52['Vrf__FedFileName']         = ''
+    $AppEnv52['Vrf__ConnectionConfigFile']= $ConnConfigFile
+    $AppEnv52['Vrf__TypeMapFile']         = $TypeMapFile52
+}
+$SavedAppEnv52 = [ordered]@{}
+foreach ($k in $AppEnv52.Keys) { $SavedAppEnv52[$k] = [Environment]::GetEnvironmentVariable($k) }
 
 function Stop-Runner {
     param([int]$Code, [string]$Reason)
@@ -1669,6 +1860,8 @@ try {
         }
         Say-Plan ('would REWRITE the Appendix B marker in {0}: {1} -> {2}, and append a CLAIMED block for {3} numbers.' -f $LedgerDoc, $FirstFree, $NextFree, $Alloc.Count)
         Say-Plan ('would set, for HLA child processes only: PATH="{0};<inherited>", MAKLMGRD_LICENSE_FILE from Machine scope, Vrf__ApplicationNumber={1}' -f $PathPrefix, $AppNo['app'])
+        foreach ($k in $ProfileEnv.Keys) { Say-Plan ('would set, for ALL children (profile {0}): {1}={2}' -f $VrfProfile, $k, $ProfileEnv[$k]) }
+        foreach ($k in $AppEnv52.Keys)   { Say-Plan ('would set, for the app only (profile {0}): {1}={2}' -f $VrfProfile, $k, $(if ($AppEnv52[$k] -eq '') { '(empty)' } else { $AppEnv52[$k] })) }
         Say ''
     } else {
         New-Item -ItemType Directory -Path $RunDir -Force | Out-Null
@@ -1682,6 +1875,12 @@ try {
         Save-Manifest
 
         $env:PATH = ('{0};{1}' -f $PathPrefix, $SavedPath)
+        # The profile environment goes on THIS process, so every child inherits the same
+        # stack roots and the same rid. No-op on 5.0.2 (the map is empty).
+        foreach ($k in $ProfileEnv.Keys) {
+            Set-Item -Path ('Env:' + $k) -Value ([string]$ProfileEnv[$k])
+            Say-Ok ('profile env set for all children: {0}={1}' -f $k, $ProfileEnv[$k])
+        }
         if (-not [string]::IsNullOrWhiteSpace($LicMachine)) {
             $env:MAKLMGRD_LICENSE_FILE = $LicMachine
             Say-Ok 'MAKLMGRD_LICENSE_FILE refreshed from Machine scope'
@@ -1717,7 +1916,14 @@ try {
     # appears (the normal answered-assistant case). Best-effort by design - it never
     # fails the run; Stage 2c's gate remains the serviceability authority.
     $AnswerDialogScript = Join-Path $PSScriptRoot 'AnswerRtiDialog.ps1'
-    if ($DryRun) {
+    if ($Is52) {
+        # RETIRED on this profile (DIFF row A12, PREREG_52_LAUNCH_2026-09-03.md): every
+        # federate here runs with RTI_ASSISTANT_DISABLE and takes its connection from the
+        # rid, so no assistant is consulted and the dialog cannot be raised. Arming the
+        # watcher would also be futile against an ELEVATED assistant, whose windows a
+        # non-elevated session can neither see nor click.
+        Say-Ok 'Stage 2b: boot-dialog watcher NOT armed - the 5.2 profile is assistant-free (RTI_ASSISTANT_DISABLE + rid-configured connection), so no "Choose RTI Connection" dialog can occur.'
+    } elseif ($DryRun) {
         Say-Plan 'Stage 2b: would arm the boot-dialog watcher (AnswerRtiDialog.ps1 every 5s for up to 150s, background, best-effort)'
     } elseif (Test-Path -LiteralPath $AnswerDialogScript) {
         $watchCmd = ('for ($i=0; $i -lt 30; $i++) {{ & ''{0}'' *> ''{1}''; if ($LASTEXITCODE -eq 0) {{ break }}; Start-Sleep -Seconds 5 }}' -f `
@@ -1741,7 +1947,7 @@ try {
     # $StageTimeoutSec slack, so a slow-but-eventually-ready RTI is never cut off early.
     $probeTimeoutSec = $probeAttempts * ($probeSettle + $probeBackoff) + $StageTimeoutSec
     $r = Invoke-External -Name 'RtiProbe' -File $ExeRtiProbe `
-            -Arguments @([string]$AppNo['rtiProbe'], $Federation, [string]$probeAttempts, [string]$probeSettle, [string]$probeBackoff) `
+            -Arguments @([string]$AppNo['rtiProbe'], $FederationArg, [string]$probeAttempts, [string]$probeSettle, [string]$probeBackoff) `
             -Cwd $Bin64 -StdOutFile $PathRtiProbeOut -StdErrFile $PathRtiProbeErr `
             -TimeoutSec $probeTimeoutSec `
             -Note 'C1 pre-launch FATAL gate (the RUN-2 fix). RtiProbe exit 0 = RTI serviceable (create/join OK, clean resign) -> proceed; 1 = RTI NOT serviceable after all internal retries -> REFUSE the launch BEFORE any back-end/PushInit; 2 = arg/usage (args are generated, so a 2 is a RUNNER DEFECT). Self-resigns on every path. Uses ONE ledgered appNumber for all retries.'
@@ -1770,7 +1976,7 @@ try {
     # ---------------------------------------------------------------------
     # STAGE 3 - bring VR-Forces up
     # ---------------------------------------------------------------------
-    Say-Head 'Stage 3 - LaunchVrf.ps1 (combined mode)'
+    Say-Head $(if ($Is52) { 'Stage 3 - LaunchVrf52.ps1 (5.2d INDEPENDENT mode, UG52 4.1.2)' } else { 'Stage 3 - LaunchVrf.ps1 (combined mode)' })
     $launchArgs = @(
         '-NoProfile','-File', $LaunchVrf,
         '-Scenario', $Scenario,
@@ -1779,6 +1985,13 @@ try {
         '-BackendAppNumber',  [string]$AppNo['vrfBackend'],
         '-FrontendAppNumber', [string]$AppNo['vrfFrontend']
     )
+    # 5.2 extras. -VrLinkRoot/-RidFile are passed EXPLICITLY even though LaunchVrf52
+    # defaults to the same values: the launch command line is what the manifest records,
+    # and the rid is the object every federate in this run has to share.
+    if ($Is52) {
+        $launchArgs += @('-VrLinkRoot', $VrLinkRoot, '-RidFile', $RidFile)
+        if ($NoGui) { $launchArgs += '-NoGui' }
+    }
     # -q | --doNotUseConsole for the back end. Off by default; see the -QuietBackend
     # note in the param block. Recorded in the manifest as inputs.quietBackend either way.
     if ($QuietBackend) { $launchArgs += '-QuietBackend' }
@@ -1824,7 +2037,7 @@ try {
     Say '  post-init at stage 7, against the scoring trace.'
     $preSecs = 30
     $r = Invoke-External -Name 'WatchVrf-precheck' -File $ExeWatchVrf `
-            -Arguments @([string]$AppNo['oraclePre'], [string]$preSecs, [string]$SampleSecs, $Federation) `
+            -Arguments @([string]$AppNo['oraclePre'], [string]$preSecs, [string]$SampleSecs, $FederationArg) `
             -Cwd $Bin64 -StdOutFile $PathPreTrace -StdErrFile $PathPreTraceErr `
             -TimeoutSec ($preSecs + $StageTimeoutSec) `
             -Note 'ADVISORY. WatchVrf exit 2 = usage/arg error (the runner built bad args); exit 1 = operational. These args are generated, so treat a 2 as a runner bug. Exits on its OWN timer after seconds-to-watch.'
@@ -1887,7 +2100,7 @@ try {
         Stop-Runner 3 ('the observer stop file {0} appeared before the observers were started - the run directory is shared with another writer. Refusing to start the observers (they would refuse it themselves with exit 2).' -f $PathStopFile)
     }
     $WatchProc = Start-External -Name 'WatchVrf-trace' -File $ExeWatchVrf `
-            -Arguments (@([string]$AppNo['oracleTrace'], [string]$EffWatchSecs, [string]$SampleSecs, $Federation) + $WatchConsoleArgs + $WatchStopArgs) `
+            -Arguments (@([string]$AppNo['oracleTrace'], [string]$EffWatchSecs, [string]$SampleSecs, $FederationArg) + $WatchConsoleArgs + $WatchStopArgs) `
             -Cwd $Bin64 -StdOutFile $PathTrace -StdErrFile $PathTraceErr `
             -Note $(if ($ProbeWatch.supportsStopFile) { 'THE MOVEMENT ORACLE and the scoring input. Started before PushInit (HEADLESS_RUN_PLAN sec 2). Duration is the CAP; teardown ends it via the stop file and it resigns cleanly; never killed.' }
                     else { 'THE MOVEMENT ORACLE and the scoring input. Started before PushInit (HEADLESS_RUN_PLAN sec 2). Resigns on its own timer (deployed binary has no --stop-file); never killed.' })
@@ -1933,10 +2146,16 @@ try {
     Say ('  Vrf__ApplicationNumber={0} comes from the Appendix B marker, NOT from appsettings.json' -f $AppNo['app'])
     Say  '  (appsettings.json carries a baked-in ApplicationNumber; hand-editing it is exactly how stale-federate hangs were created - the env override wins and is ledgered)'
     Say ('  C2SIM__RestUrl={0} C2SIM__StompUrl={1} come from -RestUrl/-StompUrl, NOT from appsettings.json (same env-override mechanism; the app must hear the SAME server every other stage talks to)' -f $RestUrl, $StompUrl)
+    if ($Is52) {
+        Say ('  5.2: the app joins the CONFIG-FILE way, exactly as the tools do - Vrf__Federation and')
+        Say ('  Vrf__FedFileName EMPTY, Vrf__ConfigFileIdentity=true (clears the appsettings FOM module')
+        Say ('  list; config modules are ADDITIVE, DIFF row A9), Vrf__ConnectionConfigFile={0}' -f $ConnConfigFile)
+    }
     if (-not $DryRun) {
         $env:Vrf__ApplicationNumber = [string]$AppNo['app']
         $env:C2SIM__RestUrl  = $RestUrl
         $env:C2SIM__StompUrl = $StompUrl
+        foreach ($k in $AppEnv52.Keys) { Set-Item -Path ('Env:' + $k) -Value ([string]$AppEnv52[$k]) }
     }
     else { Say-Plan ('would set env Vrf__ApplicationNumber={0}, C2SIM__RestUrl, C2SIM__StompUrl for the child, then restore them' -f $AppNo['app']) }
     $AppProc = Start-External -Name 'VrfC2SimApp' -File $ExeApp `
@@ -1948,6 +2167,7 @@ try {
         $env:Vrf__ApplicationNumber = $SavedVrfAppNumber
         $env:C2SIM__RestUrl  = $SavedC2SimRestUrl
         $env:C2SIM__StompUrl = $SavedC2SimStompUrl
+        foreach ($k in $AppEnv52.Keys) { Set-Item -Path ('Env:' + $k) -Value ([string]$SavedAppEnv52[$k]) }
     }
 
     Say-Head ('Stage 6c - wait up to {0}s for the interface to connect to C2SIM' -f $AppJoinTimeoutSec)
@@ -1968,6 +2188,22 @@ try {
         }
         $Manifest.oracle.appConnected = $connected
         $Manifest.oracle.appThreads   = $threads
+        # WHICH STACK THE APP ACTUALLY BOUND. The app logs
+        #   VrfBridge native stack = <5.2|5.0.2>|<vrfcontrol.dll path>
+        # right after Start(). That is the RUNTIME fact; -VrfProfile is only an intention,
+        # and MAK DLLs bind by NAME on PATH, so the two CAN disagree (a 5.2 binary under a
+        # 5.0.2 prefix loads 5.0.2 and says so only here). Recorded either way, flagged on
+        # a mismatch - a trace from the wrong stack is not evidence about the other one.
+        $stackMatch = [regex]::Match((Read-LiveText -Path $PathAppLog), 'VrfBridge native stack = (?<s>[^;]+)')
+        if ($stackMatch.Success) {
+            $nativeStack = $stackMatch.Groups['s'].Value.Trim()
+            $Manifest.inputs.vrfProfile.nativeStack = $nativeStack
+            $expectTag = $(if ($Is52) { '5.2|' } else { '5.0.2|' })
+            if ($nativeStack.StartsWith($expectTag)) { Say-Ok ('app native stack = {0} (matches -VrfProfile {1})' -f $nativeStack, $VrfProfile) }
+            else { Add-Flag 'FAIL' ('-VrfProfile {0} but the app BOUND {1}. The binaries and the PATH disagree; nothing this run observes belongs to the profile it claims.' -f $VrfProfile, $nativeStack) }
+        } else {
+            Add-Flag 'WARN' 'no "VrfBridge native stack" line in the app log yet - which MAK stack the interface bound is UNRECORDED for this run.'
+        }
         if ($connected) { Say-Ok 'interface logged "Connected to C2SIM"' }
         else {
             # RUNBOOK sec 3: a redirected stdout can be block-buffered, so absence of
@@ -2374,7 +2610,8 @@ finally {
                 -Arguments @('-NoProfile','-File', $StopVrf, '-TimeoutSec', [string]$StopVrfTimeoutSec) `
                 -Cwd $RepoRoot -StdOutFile $PathStopVrfOut -StdErrFile $PathStopVrfErr `
                 -TimeoutSec ($StopVrfTimeoutSec + $StageTimeoutSec) `
-                -Note 'exit 0 down/already down; 2 bad args; 3 timed out (NOT killed); 4 confirm dialog not drivable via UIA; 5 unexpected error - VR-FORCES MAY STILL BE RUNNING. An unattended runner must branch on 5 as well as 3 (RUNBOOK 0.5.9). NOTE: this stage MASKED the -Wait defect, because StopVrf makes its own descendants exit; see the Invoke-External header.'
+                -Note $(if ($Is52) { 'StopVrf52.ps1 (5.2 profile): CloseMainWindow on vrfGui, then a NO-/F taskkill (a graceful close request) on vrfSimHLA1516e after the grace. exit 0 down/already down; 2 bad args; 3 timed out (NOTHING killed); 5 unexpected error - VR-FORCES MAY STILL BE RUNNING. rtiAssistant/rtiexec/rtiForwarder are never touched.' }
+                        else { 'exit 0 down/already down; 2 bad args; 3 timed out (NOT killed); 4 confirm dialog not drivable via UIA; 5 unexpected error - VR-FORCES MAY STILL BE RUNNING. An unattended runner must branch on 5 as well as 3 (RUNBOOK 0.5.9). NOTE: this stage MASKED the -Wait defect, because StopVrf makes its own descendants exit; see the Invoke-External header.' })
         if (-not $DryRun) {
             switch ($r.ExitCode) {
                 0 { Say-Ok 'VR-Forces is down (graceful; RTI infrastructure preserved)' }
@@ -2400,7 +2637,11 @@ finally {
     #     teardown - report it as a WARN flag and move on.
     if (-not $DryRun) {
         foreach ($lg in @('vrfSim.log', 'vrfGui.log')) {
+            # 5.2 writes these to C:\MAK\logs by default (DIFF row A5), so bin64 is
+            # searched FIRST (5.0.2, unchanged) and C:\MAK\logs only as a fallback -
+            # a READ, never a write into the vendor tree.
             $src = Join-Path $Bin64 $lg
+            if ($Is52 -and -not (Test-Path -LiteralPath $src)) { $src = Join-Path 'C:\MAK\logs' $lg }
             try {
                 if (Test-Path -LiteralPath $src) {
                     Copy-Item -LiteralPath $src -Destination (Join-Path $RunDir ('bin64-' + $lg)) -Force
@@ -2412,6 +2653,8 @@ finally {
                 Add-Flag 'WARN' ('could not capture {0} into the run directory: {1}' -f $lg, $_.Exception.Message)
             }
         }
+    } elseif ($Is52) {
+        Say-Plan 'would copy vrfSim.log and vrfGui.log (bin64, else C:\MAK\logs - the 5.2 default location, DIFF row A5) into the run directory (bin64-*.log)'
     } else {
         Say-Plan 'would copy bin64\vrfSim.log and bin64\vrfGui.log into the run directory (bin64-*.log)'
     }
@@ -2450,6 +2693,9 @@ finally {
         $env:Vrf__ApplicationNumber= $SavedVrfAppNumber
         $env:C2SIM__RestUrl        = $SavedC2SimRestUrl
         $env:C2SIM__StompUrl       = $SavedC2SimStompUrl
+        # ...and the profile's own variables, back to whatever they were (no-op on 5.0.2).
+        foreach ($k in $ProfileEnv.Keys) { Set-Item -Path ('Env:' + $k) -Value ([string]$SavedProfileEnv[$k]) }
+        foreach ($k in $AppEnv52.Keys)   { Set-Item -Path ('Env:' + $k) -Value ([string]$SavedAppEnv52[$k]) }
 
         if (-not $teardownOk -and $RunnerExit -lt 4) { $RunnerExit = 4 }
         $Manifest.runnerExitCode = $RunnerExit

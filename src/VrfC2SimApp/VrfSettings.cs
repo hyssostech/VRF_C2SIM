@@ -22,6 +22,18 @@ public class VrfSettings
     // bridge resolve the shipped file from the VR-Forces settings tree. Ignored by the 5.0.2 bridge.
     public string ConnectionConfigFile { get; set; } = "";
 
+    // 5.2 CONFIG-FILE JOIN (2026-09-03; DIFF rows A2/A9, the same rule tools/Shared/StackIdentity.cs
+    // applies to the bridge tools). When true, BuildStartupConfig submits NO federation identity:
+    // Federation and FedFileName empty and the FomModules list CLEARED, so MAK-ONE-2025-Config.xml
+    // is the only source of execName/FOM (config modules are ADDITIVE - submitting the 5.0.2 list
+    // would join with VRFExt-6 AND VRFExt-12, or fail on files that do not exist on 5.2d).
+    // WHY A SWITCH AND NOT A SECOND SETTINGS FILE: a later configuration provider can override a
+    // key but cannot REMOVE one, so no appsettings overlay and no Vrf__FomModules__N environment
+    // variable can empty the three-element list appsettings.json declares. The runner sets
+    // Vrf__ConfigFileIdentity=true from -VrfProfile 5.2; the default false leaves the 5.0.2 path
+    // byte-for-byte unchanged. Ignored by the 5.0.2 bridge build in the sense that nothing sets it.
+    public bool ConfigFileIdentity { get; set; } = false;
+
     // The C2SIM SystemName this interface answers to. MUST equal the pushed
     // init's SystemName or 0 units are created (RUNBOOK sec 2).
     public string ClientId { get; set; } = "STP";

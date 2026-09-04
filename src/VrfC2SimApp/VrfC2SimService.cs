@@ -375,6 +375,26 @@ public sealed class VrfC2SimService : BackgroundService
             FedFileName = _vrf.FedFileName,
             ConnectionConfigFile = _vrf.ConnectionConfigFile
         };
+        // 5.2 CONFIG-FILE JOIN (Vrf:ConfigFileIdentity, set by the runner's -VrfProfile 5.2).
+        // Submit NO identity: VrfFacade::Start then pushes neither --execName nor --fedFileName
+        // and MAK-ONE-2025-Config.xml supplies both, and the FOM module list stays EMPTY because
+        // config modules are ADDITIVE (DIFF row A9). Same rule as tools/Shared/StackIdentity.cs.
+        // The stack the process really binds is a RUNTIME fact, so it is logged (and cross-checked
+        // by the runner) from NativeStackInfo after Start() - a build flag could contradict it.
+        if (_vrf.ConfigFileIdentity)
+        {
+            c.Federation = "";
+            c.FedFileName = "";
+            c.FomModules.Clear();
+            string stack = VrfBridge.NativeStackInfo() ?? "";
+            _log.LogInformation("Vrf:ConfigFileIdentity - joining the CONFIG-FILE way: no --execName, "
+                              + "no --fedFileName, FOM modules cleared. Native stack (pre-Start) = {Stack}.", stack);
+            if (!stack.StartsWith("5.2", StringComparison.Ordinal))
+                _log.LogWarning("Vrf:ConfigFileIdentity is set but this build reports stack '{Stack}'. "
+                              + "Config-file identity is a 5.2 join; on 5.0.2 it would submit an EMPTY "
+                              + "federation name. Check which VrfC2SimApp build was deployed.", stack);
+            return c;
+        }
         if (_vrf.FomModules != null)
             foreach (var m in _vrf.FomModules) c.FomModules.Add(m);
         return c;

@@ -176,29 +176,26 @@ it, so element-based automation FAILS. What works, used successfully 2026-07-18:
 4. ALLOW MORE THAN 3 SECONDS for it to dismiss. A 3 s check reported "still open"
    on a click that had in fact succeeded - do not conclude failure and re-click.
 
-### 0.5.5 *** DO NOT SET RTI_ASSISTANT_DISABLE ***
+### 0.5.5 RTI_ASSISTANT_DISABLE - ONLY WITH A rid THAT CONFIGURES THE CONNECTION
 
-RTI Reference Manual sec 5.2.10 documents it and it does exactly what it says -
-processes start in 8 seconds with no prompt. DO NOT USE IT ANYWAY.
+Never set it ALONE. The Assistant does TWO jobs - prompting (unwanted) and
+supplying the connection (REQUIRED). Disable it with the stock
+`C:\MAK\makRti4.6.1\rid.mtl` (which sets `RTI_configureConnectionWithRid 0`) and
+nothing supplies connection values: federates join but NEVER DISCOVER EACH OTHER
+and the movement oracle goes SILENTLY BLIND (`reflected=0 readable=0` for 40 s
+against a back-end whose log proved the scenario was loaded). RefMan Appendix A,
+verbatim: `RTI_mcastDiscoveryEnabled` "is set to 0 unless
+RTI_configureConnectionWithRid is set to 1".
 
-With the Assistant disabled, nothing supplies the connection configuration:
-federates join the federation but NEVER DISCOVER EACH OTHER. WatchVrf reported
-`reflected=0 readable=0` for a full 40 s against a back-end whose own log proved
-the scenario was loaded. THE MOVEMENT ORACLE GOES SILENTLY BLIND - a full Phase-1
-session would produce empty telemetry with no error anywhere.
-
-Mechanism (RefMan Appendix A, verbatim): `RTI_mcastDiscoveryEnabled` "is set to 0
-unless RTI_configureConnectionWithRid is set to 1", and our rid.mtl sets
-`RTI_configureConnectionWithRid 0`, so the Assistant's stored connection is the
-only source of connection values. The Assistant does TWO jobs - prompting
-(unwanted) and supplying the connection (REQUIRED). Disabling it drops both.
-
-DO NOT edit the shared C:\MAK\makRti4.6.1\rid.mtl to work around this. If
-rid.mtl values are ever genuinely needed, do it PROCESS-SCOPED: copy rid.mtl to a
-private directory, set `RTI_configureConnectionWithRid 1` in THE COPY, and point
-only our processes at it via `RTI_CONFIG` (documented in InstallMAK-RTI.htm:
-"set the environment variable RTI_CONFIG to the directory that contains them").
-Note RefMan requires all federates in a federation to agree on `RTI_useRtiExec`.
+CORRECTED 2026-09-03 (PREREG_52_LAUNCH_2026-09-03.md; RefMan 5.2.10): with a rid
+that DOES configure the connection the pair is safe, and is the assistant-free
+launch this project now uses - repo-owned `config\rid-461-ridconfigured.mtl`
+(`RTI_configureConnectionWithRid 1`, lightweight, no rtiexec, UDP/TCP 4000, mcast
+229.7.7.7) + per-process `RTI_ASSISTANT_DISABLE`, gated on 4.6.1 rtiSimple joining
+and exchanging interactions with zero assistant contact. It is the 5.2 profile's
+default (0.5.13). NEVER edit the shared rid.mtl to get there, and every federate in
+a run must point at the SAME rid file or they do not share a connection (RefMan
+also requires them to agree on `RTI_useRtiExec`).
 
 ### 0.5.6 IS THE BACK-END ACTUALLY UP? - HEALTH ORACLE
 
@@ -576,42 +573,30 @@ UNCHANGED NON-NEGOTIABLES: never force-kill a JOINED federate (sec 0) - that lea
 stale federate and the next start hangs at RTI join; StopVrf.ps1 never kills anything.
 Leave rtiAssistant / rtiexec / rtiForwarder RUNNING (0.5.2).
 
-### 0.5.10 HISTORICAL - the three wrong "corrections" written into this section
+### 0.5.10 HISTORICAL - claims written into this section that were WRONG
 
-All three were written confidently on 2026-07-18 and acted on. Kept so they are
-not re-derived:
-1. "rtiexec is spawned automatically by the RTI on first federate join" - false
-   under the fallback connection; connection-dependent either way (0.5.6).
-2. "rtiexec NEVER runs here BECAUSE (setqb RTI_useRtiExec 0)" - wrong twice: the
-   observation was connection-specific, AND that parameter is INERT. RTI Users
-   Guide p. 7-8 / RefMan Appendix A, verbatim under RTI_useRtiExec, RTI_udpPort,
-   RTI_tcpPort, RTI_destAddrString and RTI_tcpForwarderAddr: "This parameter is
-   ignored unless RTI_configureConnectionWithRid is set to 1." Ours is 0, so all
-   rid.mtl connection values here are DISCARDED in favour of the Assistant's
-   stored connection.
-3. "UDP 4000 bound means the back-end joined" - connection-dependent (0.5.6).
-
-Also superseded: an earlier version of this section presented
-`RTI_ASSISTANT_DISABLE=1` as "THE FIX ... VERIFIED". It is NOT the fix - see
-0.5.5. And the "ResetVrf discovers 0 objects / BackendCount=0" residual recorded
-against it is RESOLVED: under the correct connection the 0.4 gate passed twice
-(3489/3490), discovering the 2 TropicTortoise baseline objects.
+Kept as tripwires only, so they are not re-derived (all 2026-07-18):
+1. "rtiexec is spawned automatically on first federate join" and 3. "UDP 4000
+   bound means the back-end joined" - both connection-dependent, never oracles
+   (0.5.6). 2. "rtiexec NEVER runs BECAUSE (setqb RTI_useRtiExec 0)" - that
+   parameter, and every rid connection value, is INERT unless
+   `RTI_configureConnectionWithRid` is 1 (RefMan App. A). It is 1 in the repo rid
+   (0.5.5), 0 in the stock one. 4. `RTI_ASSISTANT_DISABLE=1` presented as "THE
+   FIX ... VERIFIED" - it is only safe WITH such a rid; see the corrected 0.5.5.
+The "ResetVrf discovers 0 objects" residual is RESOLVED (0.4 gate passed twice).
 
 ### 0.5.11 THE RUNNER - turnaround switches (added 2026-09-01; CONFIRMED 2026-09-02 by runs 20260901T235823Z and 20260902T003710Z)
 
-MEASURED (docs/experiments/PREREG_RUNNER_CONFIRM_2026-09-01.md sec 6): R9 at 1x with
-`-RunSecs 420 -StopWhenComplete` ran start -> manifest in 7 min 9 s (P2c 26 min 23 s);
-setup 2.4 / window 4.1 / tail 0.6 min; 3/3 TASKCMPLT at the P2c offsets (+117.2 /
-+129.2 / +183.7 s); both observers took the stop-file path and exited ~2 s after the
-touch, before StopVrf; RTI trio untouched. ONE CAVEAT: with SettleHoldSecs 60 (== the
-~60 s VR-Forces text-report cadence) the last report round can be cut mid-emission by
-StopIface, so the company's LAST RPT line predates its completion (11.8 m from the POS
-final; POS itself matched P2c to 0.00 m). RULED 2026-09-02: the hold is now
-EVIDENCE-BASED (item 2 rule 4 below) and RE-CONFIRMED by run 20260902T003710Z
-(docs/experiments/PREREG_RUNNER_CONFIRM2_2026-09-01.md sec 6): 7 min 17 s; POS==RPT
-0.0 m for ALL THREE taskees; window closed 64.6 s after the last completion; the
-company's pre-completion report was correctly ignored. -StopWhenComplete runs are now
-valid for POS==RPT adjudication (n=1 under rule 4).
+MEASURED (PREREG_RUNNER_CONFIRM_2026-09-01.md sec 6): R9 at 1x with `-RunSecs 420
+-StopWhenComplete` ran start -> manifest in 7 min 9 s (P2c 26 min 23 s); 3/3 TASKCMPLT at
+the P2c offsets; both observers took the stop-file path and exited ~2 s after the touch;
+RTI trio untouched. CAVEAT: with SettleHoldSecs 60 (== the report cadence) StopIface can
+cut a report round mid-emission, so a taskee's LAST RPT can predate its own completion
+(11.8 m off while POS matched P2c to 0.00 m). RULED 2026-09-02: the hold is now
+EVIDENCE-BASED (item 2 rule 4 below), RE-CONFIRMED by run 20260902T003710Z
+(PREREG_RUNNER_CONFIRM2 sec 6): POS==RPT 0.0 m for all three taskees, window closed
+64.6 s after the last completion. -StopWhenComplete runs are valid for POS==RPT
+adjudication (n=1 under rule 4).
 
 scripts/RunC2SimScenario.ps1 is the one-button run (HEADLESS_RUN_PLAN sec 2). Two
 turnaround changes landed on branch runner-turnaround; full design, alternatives
@@ -692,36 +677,51 @@ title matches `^vrfSim.*\.dmp$`.
 
 HOW IT WORKS AND WHAT DOES NOT - so nobody relearns this (cost: most of a session on
 2026-09-02 after run 20260902T011908Z):
-- The box is Qt. No Win32 child controls, so FindWindowEx/BM_CLICK find nothing (same
-  family as the RTI dialog in 0.5.4; unlike the vrfGui quit confirm in 0.5.9, which has
-  a UIA tree).
-- SetForegroundWindow + SendKeys from a background shell FAILS (Windows foreground lock).
-- Coordinate clicks (the 0.5.4 recipe) are swallowed while ANY Windows Security prompt
-  is on screen: its full-screen `Shell_SystemDim` window (owner PickerHost) takes every
-  click. On 2026-09-02 a Windows Firewall prompt for dotnet's `testhost.exe` sat on top
-  of the box for hours. WindowFromPoint on the target before clicking is the tell.
-- Posted WM_LBUTTONDOWN/UP do nothing on Qt.
+- The box is Qt: no Win32 child controls, so FindWindowEx/BM_CLICK find nothing (same
+  family as the RTI dialog in 0.5.4; unlike the vrfGui quit confirm in 0.5.9, which has a
+  UIA tree), and posted WM_LBUTTONDOWN/UP do nothing.
+- SetForegroundWindow + SendKeys from a background shell FAILS (foreground lock).
+- Coordinate clicks (the 0.5.4 recipe) are swallowed while ANY Windows Security prompt is
+  on screen - its full-screen `Shell_SystemDim` (owner PickerHost) takes every click (a
+  testhost firewall prompt sat on the box for hours on 2026-09-02). WindowFromPoint on
+  the target before clicking is the tell.
 - Posted WM_SETFOCUS + WM_KEYDOWN/WM_CHAR/WM_KEYUP VK_RETURN WORKS without focus or
   foreground and passes the dim layer. Enter = the default button = Yes on the first box
   and OK on the second (screenshot-verified). That is the script's mechanism.
 - To SEE a hidden dialog: move it with SetWindowPos(SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE)
   and screenshot its rect with System.Drawing CopyFromScreen (scratchpad only).
 
-THE testhost FIREWALL PROMPT: `dotnet test` copies testhost.exe into every test
-project's bin\<cfg>\<tfm>\, and the first listen from each NEW PATH raises the prompt
-(18 per-path rules already exist; program rules take no wildcards, so per-path rules
-never end). It is a NUISANCE, not a blocker: vstest talks over loopback, which Windows
-Firewall does not filter, so the tests pass whether the prompt is answered or not.
-RULING (user, 2026-09-02): do NOT run `Set-NetFirewallProfile ... -NotifyOnListen False`
-- it silences the prompt machine-wide for every app (too broad for this problem). Do
-this instead: Cancel the prompt when it appears (safe). If the popups keep costing
-attention, the least-privilege silence is a per-path BLOCK rule for each of the repo's
-testhost.exe copies (a Block rule stops the prompt without granting anything; loopback
-is still unaffected) - admin, user-run: `New-NetFirewallRule -DisplayName "testhost
-<proj>" -Direction Inbound -Action Block -Program <bin path>\testhost.exe`. Unverified
-alternative: `<UseAppHost>false</UseAppHost>` in the test csprojs should make vstest run
-`dotnet exec testhost.dll` so the prompting process is one stable dotnet.exe - check the
-vstest docs before relying on it.
+THE testhost FIREWALL PROMPT (`dotnet test` copies testhost.exe into every test bin, and
+each NEW PATH prompts once): a NUISANCE, not a blocker - vstest talks over loopback,
+which the firewall does not filter, so tests pass answered or not. RULING (user,
+2026-09-02): CANCEL the prompt; do NOT `Set-NetFirewallProfile -NotifyOnListen False`
+(machine-wide, too broad). Least-privilege silence if it keeps costing attention: a
+per-path inbound BLOCK rule per testhost.exe copy (grants nothing, loopback unaffected).
+
+---
+
+### 0.5.13 THE 5.2 PROFILE (VR-Forces 5.2d; added 2026-09-03)
+
+ONE SWITCH runs the whole pipeline on the 5.2d stack (5.0.2 unchanged, still the default):
+`pwsh -File scripts\RunC2SimScenario.ps1 -VrfProfile 5.2 [-NoGui] [-Scenario <name>]`.
+
+It DERIVES: roots `C:\MAK\vrforces5.2d` + `vrlink5.10` + `makRti4.6.1`; `LaunchVrf52.ps1`
+(independent mode, UG52 4.1.2) and `StopVrf52.ps1`; the `Release-5.2` tree of every
+bridge-linked binary (app, WatchVrf, CreateOne, RtiProbe - PushInit/PushOrder/
+ListenReports/StopIface are managed-only and shared); NO federation argument (identity =
+`appData\settings\connections\MAK-ONE-2025-Config.xml`, execName MAK-ONE-2025, FOM module
+list CLEARED because config modules are ADDITIVE); `data/unit-type-map-52.json`. Passing
+-VrfRoot/-VrLinkRoot/-RtiDir/-Federation beside it is REFUSED - a mixed environment loads
+the wrong DLLs silently. GUI ON by default (observability); -NoGui is headless.
+EVERY spawned process gets: PATH prefixed with the three 5.2 bin dirs, MAK_VRFDIR /
+MAK_VRLDIR / MAK_RTIDIR, `RTI_RID_FILE=<repo>\config\rid-461-ridconfigured.mtl` (the
+assistant-free rid - federates that do not share it do not share a connection),
+`RTI_ASSISTANT_DISABLE=1`, cwd = the 5.2d `bin64`. No dialog watcher is armed - none can
+fire (0.5.5). FIXTURES: the sanctioned write is FixtureGen's existing `--out-dir` aimed at
+the 5.2 tree - `build_fixture.py <site> --out-dir C:\MAK\vrforces5.2d\userData\scenarios`;
+nothing else writes under `C:\MAK`. The manifest records the profile, rid path + sha256,
+connection config and the app's own `VrfBridge native stack = ...` line (the RUNTIME
+stack - that, not the switch typed, is what a trace is comparable against).
 
 ---
 

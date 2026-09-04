@@ -39,7 +39,9 @@
 #
 # READINESS is the LaunchVrf.ps1 oracle, unchanged: back-end thread count above
 # -BackendMinThreads (a blocked back-end sits at 2-4 threads while present; healthy
-# 5.0.2 reached 23-67 - RE-BASELINE on 5.2 before trusting the floor) and, unless
+# 5.0.2 reached 23-67, and the 5.2d BASELINE is now observed at 34-62 - 36 at the
+# first healthy launch, PREREG_52_LAUNCH_2026-09-03 attempt 2 - so the floor of 8
+# separates the two states with room to spare on both stacks) and, unless
 # -NoGui, a vrfGui with a NON-EMPTY MainWindowTitle (empty = modal dialog; on 5.2
 # the documented candidate is the Scenario Startup dialog, UG52 4.1.1 Figure 17).
 # Federation JOIN is NOT tested here - confirm with the 5.2 RtiProbe/WatchVrf build.
