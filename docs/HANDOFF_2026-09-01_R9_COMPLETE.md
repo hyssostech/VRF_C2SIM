@@ -177,7 +177,7 @@ rid-configured rtiexec CRASHES the sim at start; sim-side RTI trace not yet capt
 2026-09-04). RESOLVED 2026-09-04 (PREREG_52_RTIEXEC_2026-09-04): UG52 5.5.1 p190 prohibits the MAK
 RTI in LIGHTWEIGHT mode with VR-Forces - every 2026-09-03 run was lightweight. Documented posture =
 RTI 5.0.1 in rtiexec mode (config/rid-501-rtiexec-min.mtl, headless rtiexec): WatchVrf reflects 62
-entities, real POS (cause by ELIMINATION; --deviceAddress 127.0.0.1 = 5.0.2 value, UNTESTED; the sim's
+entities, real POS (cause by ELIMINATION; --deviceAddress NOT required observer-side (3857); the sim's
 parseCmdLine startup crash hits ~2/5 launches on any rid, trigger UNKNOWN - COLDSTART_REVIEW_RTIEXEC).
 NEXT = runner 5.2 profile on that posture (StartRtiExec52 stage, rid, crash detection), PREREG_R9_52.
 ## PROBE PROTOCOL (adopted 2026-09-01/02; do NOT change mid-protocol)
