@@ -31,6 +31,11 @@ load-bearing claims against artifacts, not prose.
   variable-frame and 7.4-13.1 on the 3-unit R9 order). Do NOT budget as if FFRTC compresses.
 - Birth altitude, "nav data ruled out", the 10-char marking collision: docs/CORRECTIONS_LOG.md;
   every July FALSIFIED stamp is LAYER-RELATIVE (L9) - re-adjudicate before trusting it.
+- **5.0.2 IS ARCHIVE** (user direction 2026-09-04: "Are you still pursuing 5.0.2?" / "why keep
+  5.0.2 stuff in there" - supersedes the plan's "must stay runnable side by side"): do NOT repair,
+  re-run or spend effort on it. Oracle = the 39 RECORDED run dirs; nothing on the 5.2 path
+  launches it (the runner 5.0.2 control is DryRun-only). REOPENING EVIDENCE = a 5.2 result
+  adjudicable ONLY by a fresh run; recipe = RESEARCH_502_SIDE_BY_SIDE_2026-09-04.
 
 ## THE STANDING RULE (user directive 2026-09-01, enforced)
 DOCUMENTATION FIRST for any issue: C:\MAK\vrforces5.2d\doc (Users Guide, IOG, RTI manuals) -> docs.mak.com
@@ -57,15 +62,13 @@ what made the freezes speak.
 (records: PREREG_R9_FIXED_FRAME_RTC sec 8; PREREG_COASTP1_RUNG2 sec 7 for the scale numbers)
 THE RULE: FFRTC stays the default for REPEATABILITY and time-managed HLA; TIMEMULTIPLIER STAYS 1x
 (ladders WITHDRAWN; the scenario clock mode is the lever - Users Guide 3.4.3 / 7.6.1 / 12.2.1). But
-**FFRTC DOES NOT COMPRESS AT SCALE** - measured, frame_gaps.py LS slope, sim-s per wall-s:
-  R9 3 units FFRTC 7.43-13.11 | COA-STP1 FFRTC 0.2652 / 0.2863 / 0.2751 | +`-q` 0.3140 | VARIABLE
-  0.9995. FFRTC advances a FIXED 0.0333 sim-s per frame "even if a frame takes longer than the
-fixed amount to compute" (3.4.3), so the ratio lands on WHICHEVER SIDE OF 1.0 the load puts it.
-BUDGET A SCALE RUN AS wall = sim / measured ratio. CORRECTION: "compression only ever gives MORE
-margin" IS FALSE at scale - task timers are WALL, so at 0.2652 a 600 s wall timeout is 159 SIM s.
-THE C2SIM POSITION-REPORT STREAM IS SIM-PACED (rung 2, -q run, QPAIR A-1/A-2: 1,664 reports each).
-**THE LS SLOPE IS THE NOISIER CLOCK (residual sd 1.66-58.66) - CROSS-CHECK WITH THE FIT-FREE REPORT
-COUNT.** THRESHOLD RULE: every speed/timeout threshold MUST NAME ITS CLOCK AND BOUND ITS DENOMINATOR.
+**FFRTC DOES NOT COMPRESS AT SCALE** (5.0.2-measured, LS slope sim-s/wall-s: R9 3 units 7.4-13.1;
+COA-STP1 0.265-0.314; variable 0.9995). It advances a FIXED 0.0333 sim-s per frame regardless of
+compute cost (UG 3.4.3), so the ratio lands on whichever side of 1.0 the load puts it. BUDGET
+wall = sim / measured ratio; task timers are WALL (at 0.2652 a 600 s timeout is 159 SIM s). The
+report stream is SIM-PACED. The LS slope is the NOISIER clock (residual sd 1.66-58.66) - cross-
+check with the fit-free report count. THRESHOLD RULE: every speed/timeout threshold MUST NAME ITS
+CLOCK AND BOUND ITS DENOMINATOR. NOTE: no 5.2 frame baseline exists yet (REBASELINE_52).
 FIXTURE: tools/FixtureGen/frame_variants/TropicTortoise_FFRTC.scnx (stock + frame-mode fixed-frame-
 run-to-complete, frame-time 0.033333); DEPLOYED at C:\MAK\vrforces5.0.2\userData\scenarios\. Mode check `python
 tools/analysis/frame_gaps.py . <run>`: PASS = Test A >= 95% in {0.033,0.034} AND R >= 0.99; rung 1
@@ -76,12 +79,10 @@ NOTION OF SIM TIME (VrfFacade.cpp:478-482 pins the federate clock to elapsedReal
 Rungs 0-2 (fc93a1e / d1f2e10 / b3792d1): ROOT CAUSE SETTLED, FIXED 726f762, verified 5x - OURS, a
 contract violation at the DtUUID string ctor (rwUUID.h:246-253/:412; names survive to 35 chars). All
 four route/waypoint sites pass e.Uuid, not e.Name.
-STILL OPEN: the NATIVE completion-status item (NEXT row 4) - rung 1 finding A did NOT reproduce,
-so the OCCASION is gone but THE NATIVE GAP IS UNTESTED AND STANDS. OTHER RUNG-1 FINDINGS, unfixed:
-(B) 26 echelon-'F' units land the GENERIC Ground_Aggregate fallback under RealTemplates
-(UnitTranslator.cs:70/:134, TYPE_GAP item 4, USER call) - it MARCHES; (C) TerrainProfile re-entry
-double-logs the verb classification; (D) ResetVrf after StopVrf is blind (BackendCount=0). NOT
-EXERCISED by any order: PatrolRoute and PlanAndMoveTo.
+STILL OPEN (5.0.2-era, carried to 5.2): the NATIVE completion-status item; (B) 26 echelon-F units
+land the GENERIC Ground_Aggregate fallback (UnitTranslator.cs:70/:134, TYPE_GAP 4, USER call) - it
+MARCHES; (C) TerrainProfile re-entry double-logs; (D) ResetVrf after StopVrf is blind. NOT EXERCISED
+by any order: PatrolRoute, PlanAndMoveTo.
 UNEXPLAINED (5.0.2, PARKED; full numbers in the QPAIR/rung preregs): (1) the ever-real 1,732 count
 was old-configuration residue - **DO NOT REUSE IT AS A CHECK**; (2) cast-corrupted reflections
 28 -> 58; (3) **THE THREE TANK COMPANIES ARE THE UNSTABLE CLASS** - identical invocations stall or

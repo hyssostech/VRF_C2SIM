@@ -140,11 +140,11 @@ VRFExt-9/VRFAggregate-6; the shipped config carries VRFExt-12/VRFAggregate-7).
   (sec H "kept true" above is superseded). Lead hypothesis (RESEARCH_52_OBSERVER_DISCOVERY):
   our counter hooks UUID-change callbacks while DtReflectedExtEntityList withholds entities
   under waitForVrfExtendedData; second: silent UNLICENSED mode (A13 DtHaveRtiLicense is now a
-  GATE). Env DRIFT 2026-09-03: Machine PATH now leads with makRti5.0.1\bin - 5.0.2 launches
-  without a per-process prefix bind the wrong RTI; the 5.0.2 regression control is BLOCKED.
-  Restored facts: the 5.0.2 Release bridge was rebuilt v145 (which copy is deployed is open);
-  --sessionId must equal the sim engine's; 5.b prototype zero is DEMOTED (piped stdin ignored;
-  ConPTY untested) - sec G/COLD_START_MAP "ADOPT" is superseded. NOT proven: HLA 4, behaviour.
+  GATE). Env DRIFT: machine MAK_RTIDIR -> 5.0.1 (PATH holds version-agnostic %MAK_RTIDIR%in).
+  5.0.2 is ARCHIVE (user direction 2026-09-04) - oracle = the 39 RECORDED run dirs.
+  Restored: 5.0.2 Release bridge rebuilt v145 (deployed copy open); --sessionId must equal the
+  sim engine's; 5.b prototype zero DEMOTED (sec G/COLD_START_MAP "ADOPT" superseded). NOT proven:
+  HLA 4, behaviour.
 
 ## G. Decisions ledger (canonical IDs; a reply that uses other numbers is wrong)
 Evidence: docs/VRF_5.2_DECISION_EVIDENCE.md. Rulings dated 2026-09-03 unless noted.

@@ -15,12 +15,20 @@
 # through the registry, NOT through SetEnvironmentVariable, which would silently downgrade
 # REG_EXPAND_SZ and break any %VAR% entry.
 #
-# THE MAK ENTRIES ARE NOT TOUCHED BY DEFAULT, deliberately. scripts\LaunchVrf.ps1 (the
-# 5.0.2 golden path) sets NO per-process PATH - it INHERITS these entries, so removing them
-# would break 5.0.2, which is a standing non-negotiable. See -MoveRti501Last below and
-# docs\experiments\RESEARCH_502_SIDE_BY_SIDE_2026-09-04.md for the staged fix.
+# THE MAK ENTRIES ARE NOT TOUCHED BY DEFAULT. They were kept because scripts\LaunchVrf.ps1
+# (the 5.0.2 path) sets NO per-process PATH and INHERITS them. Now that 5.0.2 is archive,
+# -RemoveLegacyMak drops the two 2022-era ones; %MAK_RTIDIR%\bin always stays.
 param(
     [switch] $Apply,
+    # Remove C:\MAK\vrforces5.0.2\bin64 and C:\MAK\vrlink5.8\bin64. OPT-IN, but RECOMMENDED
+    # once 5.0.2 is archive (user, 2026-09-04): they are the only reason an un-prefixed
+    # process can silently bind 2022-era MAK DLLs, and our own C# exe (VrfC2SimApp) does NOT
+    # live in a MAK bin dir, so it is exactly the process at risk. Any future 5.0.2 run
+    # supplies its own per-process PATH anyway (RESEARCH_502_SIDE_BY_SIDE_2026-09-04), which
+    # is the correct pattern regardless. %MAK_RTIDIR%\bin is NEVER removed - it is
+    # version-agnostic and MAK's own tools (rtiAssistant lives in <rti>\bin\gui and resolves
+    # its siblings through PATH) can depend on it.
+    [switch] $RemoveLegacyMak,
     [string] $BackupDir = (Join-Path (Split-Path -Parent $PSScriptRoot) 'runs\env-backup')
 )
 $ErrorActionPreference = 'Stop'
@@ -32,10 +40,16 @@ function Say-Fail { param([string]$m) Write-Host ('  [FAIL] ' + $m) }
 # Entries removed because the path is MALFORMED (a stray % makes it unusable and it is not
 # a valid REG_EXPAND_SZ reference either).
 $RemoveCorrupt = @('C:\Python312%')
-# Entries removed because the DIRECTORY DOES NOT EXIST. Each is re-checked at run time and
-# skipped if it has since appeared. The Pitch RTI ones are additionally redundant: the C2SIM
-# interface .bat files prepend their own Pitch prefix (runc2simVRFHLApRTI.bat), and three of
-# them name .jar FILES, which can never be valid PATH directories.
+# Entries removed because the DIRECTORY DOES NOT EXIST. Each is RE-CHECKED at run time and
+# KEPT if it has since appeared, so this list can never delete a live directory.
+# ARE THE PITCH RTI ENTRIES NEEDED? No - verified 2026-09-04: (1) C:\Program Files\prti1516e
+# does not exist AT ALL on this machine, so all seven point into a missing tree; (2) three of
+# them name .jar FILES, which can never be valid PATH entries under any circumstance (a jar
+# belongs on CLASSPATH); (3) NOTHING in the 5.2 stack references Pitch - it was the 5.0.2 C++
+# interface's HLA route, and 5.2 uses the MAK RTI; (4) the one thing that does use Pitch,
+# runc2simVRFHLApRTI.bat, PREPENDS its own Pitch prefix at run time (line 11), so even after a
+# Pitch install these machine entries are redundant. Removing them changes nothing today, and
+# a Pitch installer would re-add its own.
 $RemoveMissing = @(
     'C:\Program Files\prti1516e\lib\prti1516e.jar',
     'C:\Program Files\prti1516e\lib\prti1516.jar',
@@ -54,6 +68,8 @@ $RemoveMissing = @(
 # 5.0.1 installer set it machine-wide), and the fix for it is a per-process MAK_RTIDIR, which
 # scripts\LaunchVrf52.ps1 already does and scripts\LaunchVrf.ps1 still does not. Reordering
 # PATH would fix nothing, so this script has no option to do it.
+# Removed ONLY with -RemoveLegacyMak (see the parameter comment above).
+$RemoveLegacy = @('C:\MAK\vrforces5.0.2\bin64', 'C:\MAK\vrlink5.8\bin64')
 
 Say ''
 Say ('=== FixMachinePath.ps1 (' + $(if ($Apply) { 'APPLY' } else { 'DRY-RUN' }) + ') ===')
@@ -82,6 +98,7 @@ foreach ($e in $entries) {
     $norm = $e.TrimEnd('\').ToLower()
     if (-not $seen.Add($norm)) { $dropped += ('(duplicate) ' + $e); continue }
     if ($RemoveCorrupt -contains $e) { $dropped += ('(corrupt)   ' + $e); continue }
+    if ($RemoveLegacyMak -and ($RemoveLegacy -contains $e)) { $dropped += ('(legacy MAK) ' + $e); continue }
     if ($RemoveMissing -contains $e) {
         if (Test-Path -LiteralPath $e -ErrorAction SilentlyContinue) {
             Say-Warn ("kept - the directory EXISTS now: " + $e)
@@ -97,7 +114,9 @@ if ($dropped.Count -eq 0) { Say '    (nothing - the PATH is already clean)' } el
 Say ("  result: {0} chars, {1} entries (was {2})" -f $new.Length, $keep.Count, ($entries | Where-Object { $_ }).Count)
 
 # ---- refuse if anything NOT on a list would vanish ----
-$allowed = @($RemoveCorrupt + $RemoveMissing) | ForEach-Object { $_.TrimEnd('\').ToLower() }
+$allowList = @($RemoveCorrupt + $RemoveMissing)
+if ($RemoveLegacyMak) { $allowList += $RemoveLegacy }
+$allowed = $allowList | ForEach-Object { $_.TrimEnd('\').ToLower() }
 $lost = @()
 foreach ($e in $entries) {
     if ([string]::IsNullOrWhiteSpace($e)) { continue }
@@ -110,10 +129,15 @@ $lost = @($lost | Where-Object { ($entries | Where-Object { $_.TrimEnd('\').ToLo
 if ($lost.Count -gt 0) { Say-Fail 'REFUSING: these entries are on no removal list and would disappear:'; $lost | ForEach-Object { Say ('    ! ' + $_) }; exit 1 }
 Say-Ok 'no entry outside the removal lists is affected'
 
-# ---- MAK entries: report, never touch (unless -MoveRti501Last) ----
+# ---- MAK entries: report what survives ----
 Say ''
-Say '  MAK entries (left in place - scripts\LaunchVrf.ps1 INHERITS them for the 5.0.2 path):'
+Say '  MAK entries KEPT:'
 $keep | Where-Object { $_ -match 'MAK' } | ForEach-Object { Say ('    . ' + $_) }
+if (-not $RemoveLegacyMak) {
+    Say '    (the 2022-era vrforces5.0.2 / vrlink5.8 entries are still here. 5.0.2 is ARCHIVE,'
+    Say '     so -RemoveLegacyMak drops them - RECOMMENDED: they are how an un-prefixed process,'
+    Say '     e.g. our own VrfC2SimApp.exe, can silently bind 2022 MAK DLLs.)'
+}
 
 if (-not $Apply) {
     Say ''
