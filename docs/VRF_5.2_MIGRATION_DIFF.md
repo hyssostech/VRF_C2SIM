@@ -140,7 +140,7 @@ VRFExt-9/VRFAggregate-6; the shipped config carries VRFExt-12/VRFAggregate-7).
   (sec H "kept true" above is superseded). Lead hypothesis (RESEARCH_52_OBSERVER_DISCOVERY):
   our counter hooks UUID-change callbacks while DtReflectedExtEntityList withholds entities
   under waitForVrfExtendedData; second: silent UNLICENSED mode (A13 DtHaveRtiLicense is now a
-  GATE). Env DRIFT: machine MAK_RTIDIR -> 5.0.1 (PATH holds version-agnostic %MAK_RTIDIR%in).
+  GATE). Env DRIFT: machine MAK_RTIDIR -> 5.0.1 (PATH holds version-agnostic %MAK_RTIDIR%\bin).
   5.0.2 is ARCHIVE (user direction 2026-09-04) - oracle = the 39 RECORDED run dirs.
   Restored: 5.0.2 Release bridge rebuilt v145 (deployed copy open); --sessionId must equal the
   sim engine's; 5.b prototype zero DEMOTED (sec G/COLD_START_MAP "ADOPT" superseded). NOT proven:
