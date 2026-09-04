@@ -130,7 +130,18 @@ NEXT (frame per the user's rulings 2026-09-03/04: vendor-managed 5.2 stack, no 4
 anywhere, and NO questions to MAK - docs and our own runs only): (0) DOCS FIRST, the
 part skipped all night: the 5.2d equivalent of the 5.0.2 HLA connection configuration
 (UG52 4.7 Launcher connections, 5.3.1 "launch a predefined connection at least once",
-IOG connection chapters) - RESEARCH_52_HLA_CONNECTION_CONFIG_2026-09-04.md; (1) perform
+IOG connection chapters) - RESEARCH_52_HLA_CONNECTION_CONFIG_2026-09-04.md. Read
+2026-09-04 (user: "read the C2SIM setup instructions"): c2simVRFinterfacev2.36 README.txt,
+VRFadditionalFiles/README.txt, C2SIM-VRForcesv2.26.pdf, the .bat launchers and
+vrfLauncher.pdf - the 5.0.2 HLA setup WAS the Launcher's Simulation Connections
+Configuration dialog: NETWORK INTERFACE ADDRESS 127.0.0.1, federation, FED file, session
+ID, back-end/front-end site+app numbers, RPR 2.0, the 3 FOM modules; the interface .bat
+matches session/site/app 3201/federation, VRF address 127.0.0.1. Our 5.2 launches never
+set the interface address (the 5.0.1 assistant stored udpInterface 10.5.0.2 - a
+non-loopback adapter; our rid copies 0.0.0.0; the 4.6 golden used 127.0.0.1 + loopback
+broadcast) - the single parameter that could explain "reliable crosses, best-effort
+(entity updates) never"; it is a documented setting, so the docs decide before any
+probe; (1) perform
 that documented one-time configuration (headlessly if the files allow, else once via
 the Launcher) and re-run observer + create on it; (2) the sim's RTI trace via the RTI's
 own log file (rid RTI_logFileName) instead of stdout. Runner default stays -VrfProfile
