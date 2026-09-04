@@ -599,6 +599,17 @@ public sealed class VrfC2SimService : BackgroundService
             //   Live + GROUND: create at CreateAltitudeSafeMslMeters (above all Earth terrain; the
             //     clamp places the unit on the surface) and SKIP the deferred SetAltitude.
             //   Live + NON-ground (air/sea): parity behavior, unchanged.
+            //
+            // *** THE "Live + GROUND" BRANCH IS DEPRECATED - WRONG FRAME. The deferred
+            // SetAltitude it skips is an AGL set (VrfFacade.cpp:739 passes aboveGroundLevel
+            // TRUE), and an AGL set places a unit on the ground in ONE call with no birth
+            // altitude and no terrain query. VERIFIED 2026-09-04: a buried entity at -0.0 m
+            // was lifted to the surface by exactly that call (PREREG_CLAMP_DIRECTION sec 8a,
+            // tools/SetAlt). So this branch skips the correct mechanism in favour of a
+            // workaround for a frame we chose ourselves. Retirement = stop overriding the
+            // create altitude and stop skipping the deferred SetAltitude; it needs a prereg +
+            // confirming run because it changes creation for every unit. Do not "fix" it by
+            // re-justifying the 10000 m birth. Canonical: docs/VRF_ALTITUDE_FRAMES.md. ***
             bool liveMode = IsLiveLikeAltitudeMode();   // Live or TerrainProfile (identical creation)
             bool isGround = unit.SymbolId is { Length: > 2 } sidc && sidc[2] == 'G';
             if (liveMode && isGround)

@@ -1954,7 +1954,7 @@ join) are BURNED, not recycled. The run manifest records which were actually use
   clamp RAISES a below-terrain birth (docs say "nearest polygon"; our code asserts "cannot RAISE").
   3911 = CreateOne at 50 m MSL under ~1150 m terrain; 3912 = WatchVrf. Shares live sim 3908.
 
-*** NEXT FREE: 3913 *** (authoritative - the ONLY such marker in this file. Update this
+*** NEXT FREE: 3915 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN

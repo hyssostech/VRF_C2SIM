@@ -69,9 +69,22 @@ Both stable across all 6 samples (P2 held). Lat/lon identical, so the only diffe
 requested altitude - the arms are clean.
 
 **P1 IS FALSIFIED. The create-time clamp does NOT raise a below-terrain birth.** Our
-"cannot RAISE" claim in VrfSettings.cs:256-257 SURVIVES this test and is now VERIFIED rather
-than asserted. CreateAltitudeSafeMslMeters is load-bearing for the create path and must NOT be
-removed on the strength of the header's "nearest polygon" wording.
+"cannot RAISE" claim in VrfSettings.cs SURVIVES this test and is now VERIFIED rather than
+asserted.
+
+*** DESIGN VERDICT WITHDRAWN 2026-09-04. This paragraph continued: "CreateAltitudeSafeMslMeters
+is load-bearing for the create path and must NOT be removed." THAT DOES NOT FOLLOW FROM THIS
+MEASUREMENT and it is withdrawn. The measurement establishes which way the clamp travels. It
+says nothing about whether an MSL birth is the right way to place a unit - and it is not
+(sec 8a: an AGL set lifts a unit onto the ground directly). The error was pre-committed: sec 4's
+falsifier was written as a BINARY - clamp raises => workaround unnecessary, clamp does not raise
+=> "the safe-high create is load-bearing" - which silently excluded the actual answer, that one
+should not birth at an arbitrary MSL at all. A false dichotomy in a falsifier clause hands a
+design conclusion the authority of a measurement.
+LESSON, and it is the same shape as the 2026-07-16 rot this prereg was investigating: a true
+narrow finding written down FUSED to a design conclusion, after which the fusion is what gets
+read back. KEEP MEASUREMENT AND DESIGN IMPLICATION IN SEPARATE SENTENCES, and never put a
+design verdict in a falsifier. ***
 
 **UNEXPLAINED, recorded as a falsifier and NOT swept:** the test entity did not stay at its
 requested 50 m either - it sits at -0.0 m, ~1150 m below the surface AND ~50 m below what was
@@ -118,6 +131,53 @@ above-terrain. vrfutil/createObjectParser.h:37 `usingAGL` and the MSDL importer'
 `locationAGL` say the same for those paths. An authored-fixture route (our .scnx) is therefore
 in a different frame from a remotely-created one; nobody has checked which frame FixtureGen
 writes. NOT INVESTIGATED - flagged, not claimed.
+
+## 8. AGL CONFIRMATION ARM (registered 2026-09-04 BEFORE running, at user direction:
+"Confirm the AGL approach. If there are issues (which I very much doubt), this has indeed been
+cured by the query, so that is a verified plan b")
+The one line sec 7 marked ASSUMED, NOT VERIFIED is now tested. New tool tools/SetAlt (additive,
+clone of CreateOne's join/act/resign) calls VrfBridge.SetAltitude -> VrfFacade.cpp:739 ->
+setAltitude(uuid, metres, aboveGroundLevel=TRUE). SUBJECT: the STILL-BURIED test entity from
+sec 6, uuid a2035220-e0f2-034d-a95a-c75ea8d82d31 (entityId 1:3908:7), currently reflecting
+-0.0 m under ~1150 m of terrain. It is the ideal subject precisely because it is buried: an
+AGL set that works must LIFT it, which is the direction the create clamp cannot do.
+REQUEST: 2.0 m above terrain. appNos 3913 (SetAlt), 3914 (WatchVrf).
+P3 (HIGH): the entity's reflected MSL altitude moves from -0.0 to ~1151.8 m (the control's
+   1149.8 m surface + 2 m), stable across samples. That CONFIRMS AGL placement end to end and
+   proves an entity needs no terrain query.
+   FALSIFIER: it stays at -0.0, or moves to 2.0 (i.e. the flag was ignored and 2 m was taken as
+   MSL), or goes anywhere else. ANY of those means the AGL path does not work as documented -
+   in which case PLAN B IS ALREADY VERIFIED AND SHIPPING: GroundWaypointAltitudeMode=
+   TerrainProfile queries the back end for terrain height and authors from it (design doc sec 7,
+   Rows 2c/2cR, two consecutive live runs, zero warnings). Nothing depends on P3 succeeding;
+   this arm decides only whether a SIMPLER path is available, not whether we have one.
+NOTE: SetAltitude has NO reply message, so SetAlt cannot self-confirm. The scoring is done by
+an INDEPENDENT observer (WatchVrf), not by the tool that issued the change - deliberately,
+because a tool reporting its own success is the recurring false-green shape here.
+
+### 8a. Result (2026-09-04; tools/SetAlt built against Release-5.2, appNos 3913/3914;
+runs/launch52/watch_3914_agl_*.trace)
+**AGL PLACEMENT WORKS.** Same live sim, one observer, one capture:
+  CONTROL 7113902b (never touched)      1149.8 m  ->  1149.8 m
+  SUBJECT a2035220 (AGL set to 2 m)      -0.0 m   ->  **1149.8 m**
+The subject was BURIED ~1150 m below the surface and one `setAltitude(uuid, 2.0,
+aboveGroundLevel=TRUE)` put it ON the surface - the exact direction the create clamp CANNOT go
+(sec 6). Stable across all 5 samples. No terrain height was known, computed or queried by the
+caller. The AGL capability is now EXERCISED, not inferred from a header: before today no tool
+in this repo had ever called SetAltitude (0 hits across tools/).
+P3 MISSED IN DETAIL, CONFIRMED IN SUBSTANCE - stated plainly rather than rounded off: P3
+predicted ~1151.8 m (surface + 2 m) and the result is 1149.8 m, the surface exactly, matching
+the untouched control. Sec 4 listed "goes anywhere else" as a falsifier, so as literally
+written the prediction failed. READING (consistent, NOT separately tested): the subject is an
+M1A2 and VR-Forces holds ground vehicles on the surface continuously, so a 2 m offset on a tank
+collapses to zero. UNTESTED: whether AGL preserves a NON-ZERO offset for something that can
+leave the ground - one air-entity run would settle it. For the purpose at hand (put a ground
+unit on the ground) the observed behaviour is exactly what is wanted.
+CONSEQUENCE: the MSL birth is retiring (see the withdrawal in sec 6). The FALLBACK the user
+named is untouched and remains proven: route vertices have no AGL frame at all (sec 7b), so
+GroundWaypointAltitudeMode=TerrainProfile stays the answer there.
+STILL UNEXPLAINED from sec 6, and not swept: why the below-terrain CREATE landed at -0.0 rather
+than at its requested 50.
 
 Adversarial review: strongest competing account of the CONTROL/TEST split was "the clamp did
 raise, and 1149.8 vs -0.0 reflects something else entirely (observer, dead reckoning, wrong

@@ -90,7 +90,12 @@ const double StartLon = -116.600487;
 // R9 T_R5_PL1 order waypoints (data/R9_Mojave_UnitMove_Order.xml), same latitude, eastward.
 const double Wp1Lon = -116.594173672085;
 const double Wp2Lon = -116.587860401830;
-const double DefaultBirthAlt = 10000.0;   // safe-high MSL create; ground clamp brings a ground unit down (CreateOne convention).
+// MSL birth, kept ONLY to reproduce the configuration existing runs were measured in. The MSL
+// frame is DEPRECATED for placement: setAltitude takes an aboveGroundLevel flag directly
+// (vrfRemoteController.h:1372) and tools/SetAlt exercises it - one AGL call lifted a buried
+// entity onto the surface 2026-09-04. Do not justify this constant; see
+// docs/VRF_ALTITUDE_FRAMES.md. The create clamp drops a ground unit from here to the surface.
+const double DefaultBirthAlt = 10000.0;
 const double DefaultRouteAlt = 100.0;     // Fixed100 golden-parity route-vertex MSL (VrfC2SimService.cs:722).
 
 // Tank Platoon (USA) DIS enum - objectType 3:11:1:225:3:2:0:0 (the '3' is the VRF class = aggregate).

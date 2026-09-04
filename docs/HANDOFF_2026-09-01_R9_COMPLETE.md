@@ -6,47 +6,44 @@ collapse it to a few lines plus a pointer; never drop live guidance to make room
 load-bearing claims against artifacts, not prose.
 
 ## CLOSED - DO NOT REOPEN (tripwires; each line names its record)
-- ROUTE FREEZE = OUR ROUTE-BY-NAME ADDRESSING (a name over 35 chars cut in DtUUID's 36-byte
-  blob), not region / template / type / waypoint altitude / vertex count / creation order /
-  pile density / point count. **FIXED 2026-09-02 (726f762), LIVE-VERIFIED ON R9 AND AT SCALE** -
-  pass the route's real uuid: PREREG_ROUTE_UUID_FIX sec 6, PREREG_COASTP1_RUNG2 sec 7 (ALL NINE
-  march, names to 99 chars). DO NOT shorten or cap route names. Reopening evidence = a cut name,
-  or a nonzero `Can't find entity route`, on this binary.
-- THE TIME MULTIPLIER IS NOT THE LEVER - the multiplier and at-distance ladders are WITHDRAWN; the
-  SCENARIO CLOCK MODE is the only clock lever, and its direction depends on load (next line).
-  PREREG_R9_FIXED_FRAME_RTC sec 8 (2030ebd, c0e90b7).
+- ROUTE FREEZE = OUR ROUTE-BY-NAME ADDRESSING (a name over 35 chars cut in DtUUID's 36-byte blob),
+  not region / template / type / waypoint altitude / vertex count / creation order / pile density.
+  **FIXED 2026-09-02 (726f762), LIVE-VERIFIED ON R9 AND AT SCALE** - pass the route's real uuid:
+  PREREG_ROUTE_UUID_FIX sec 6, PREREG_COASTP1_RUNG2 sec 7 (ALL NINE march, names to 99 chars). DO
+  NOT shorten route names. Reopening = a cut name or a nonzero `Can't find entity route`.
+- THE TIME MULTIPLIER IS NOT THE LEVER - multiplier and at-distance ladders WITHDRAWN; the SCENARIO
+  CLOCK MODE is the only clock lever, direction depends on load. PREREG_R9_FIXED_FRAME_RTC sec 8.
 - The REGION / Mojave-terrain cause is FALSIFIED (docs/CORRECTIONS_LOG.md "The region hypothesis").
 - TYPE MAPPING is fixed: ArmorPlatoon -> real Tank Platoon (USA); RealTemplates is the compiled
   DEFAULT (2026-07-22). **THE STATIC BEST-MATCH METHOD IS LIVE-CONFIRMED** on R9 in BOTH modes,
   6/6 units, from the back end's own `Locally Simulated: <name> ... using parameters:
   ...\vrfSim\<Template>.entity` lines (PREREG_TYPEMAP_LIVE_GATE sec 7). Reopening evidence = a
   creation line naming a template the table does not.
-- The 2026-07-14 project-generated NavArea (120k tiles) WAS the 2026-07-15..2026-09-01 freeze; it
-  is in SharedData/16/latest/TerrainData/navData/_disabled_20260901/ (RESTORABLE). KEEP DISABLED
-  unless deliberately regenerating nav data.
+- The 2026-07-14 project-generated NavArea (120k tiles) WAS the 2026-07-15..2026-09-01 freeze; it is
+  in SharedData/16/latest/TerrainData/navData/_disabled_20260901/ (RESTORABLE). KEEP DISABLED.
 - The HQ-section formation-name warning is COSMETIC; the P2 aliases were reverted (P2c).
 - ROUTE-VERTEX ALTITUDE FRAME: TerrainProfile (terrain + 10 m) is the compiled DEFAULT, Live
   (+50 m) the fallback, Fixed100 a relic (DESIGN_TERRAIN_PROFILE_VERTICES_2026-09-01 sec 7).
 - FFRTC IS NOT A SPEED LEVER AT SCALE - a 3.2-3.8x SLOWDOWN on COA-STP1 (0.265-0.314 vs 0.9995
   variable-frame and 7.4-13.1 on the 3-unit R9 order). Do NOT budget as if FFRTC compresses.
-- **ALTITUDE: READ docs/VRF_ALTITUDE_FRAMES.md, DO NOT RE-DERIVE.** Canonical + header-cited.
-  ENTITY altitude takes an AGL flag directly (vrfRemoteController.h:1372; VrfFacade.cpp:739
-  already passes TRUE) so entities need NO terrain query; a ROUTE VERTEX has NO AGL frame in
-  the API, so vertices DO need it. Answering either with the other's answer is the recurring
-  error. BIRTH ALTITUDE IS NOT THE FREEZE DISCRIMINATOR, nor is WAYPOINT altitude (falsified
-  07-21/07-22; the clamp cures BURIAL, not freezing). Clamp direction VERIFIED 2026-09-04
-  (PREREG_CLAMP_DIRECTION). Also "nav data ruled out", 10-char marking: CORRECTIONS_LOG (L9).
+- **ALTITUDE: READ docs/VRF_ALTITUDE_FRAMES.md, DO NOT RE-DERIVE.** ENTITY altitude takes an AGL
+  flag (vrfRemoteController.h:1372; VrfFacade.cpp:739 passes TRUE) - VERIFIED 2026-09-04, one call
+  lifted a BURIED entity onto the surface - so entities need NO terrain query and NO birth
+  altitude. The 10000 m MSL birth is the WRONG FRAME, retiring (NEXT 6b); do not re-justify it,
+  that has happened three times. A ROUTE VERTEX has NO AGL frame, so vertices DO need the query -
+  TerrainProfile stays. BIRTH ALTITUDE IS NOT THE FREEZE DISCRIMINATOR, nor is WAYPOINT altitude.
+  Also "nav data ruled out", 10-char marking: CORRECTIONS_LOG (L9).
 - **5.0.2 IS ARCHIVE** (user direction 2026-09-04: "Are you still pursuing 5.0.2?" / "why keep
   5.0.2 stuff in there" - supersedes the plan's "must stay runnable side by side"): do NOT repair,
   re-run or spend effort on it. Oracle = the 39 RECORDED run dirs; nothing on the 5.2 path
   launches it (the runner 5.0.2 control is DryRun-only). REOPENING EVIDENCE = a 5.2 result
   adjudicable ONLY by a fresh run; recipe = RESEARCH_502_SIDE_BY_SIDE_2026-09-04.
-  MACHINE PATH APPLIED 2026-09-04 14:20Z (FixMachinePath.ps1 -RemoveLegacyMak, elevated):
-  44 -> 34 entries, vrforces5.0.2\bin64 + vrlink5.8\bin64 OFF the PATH (installs untouched).
+  MACHINE PATH APPLIED 2026-09-04 (FixMachinePath.ps1 -RemoveLegacyMak): 44 -> 34 entries,
+  vrforces5.0.2\bin64 + vrlink5.8\bin64 OFF the PATH (installs untouched on disk).
   %MAK_RTIDIR%\bin stays, REG_EXPAND_SZ - drift lives in MAK_RTIDIR (=makRti5.0.1), not PATH.
   Backup runs/env-backup/MachinePATH_before_20260904T142048Z.txt (restore line in the script).
-  RUNNER UNAFFECTED (it builds $PathPrefix, RunC2SimScenario.ps1:1933). CHANGED: a bare
-  VrfC2SimApp.exe now FAILS to bind (vl/vlutil not beside it), not silently load 2022 DLLs.
+  RUNNER UNAFFECTED (builds $PathPrefix, RunC2SimScenario.ps1:1933); a bare VrfC2SimApp.exe now
+  FAILS to bind (vl/vlutil not beside it) instead of silently loading 2022 DLLs.
 
 ## THE STANDING RULE (user directive 2026-09-01, enforced)
 DOCUMENTATION FIRST for any issue: C:\MAK\vrforces5.2d\doc (Users Guide, IOG, RTI manuals) -> docs.mak.com
@@ -100,16 +97,14 @@ COMPANIES ARE THE UNSTABLE CLASS** - identical invocations stall or march (QPAIR
 ## OPERATIONAL STATE (2026-09-02, after the TWO no-`-q` COA-STP1 runs of the QPAIR probe)
 appNo marker: OPUS_EXECUTION_PLAN.md Appendix B (READ THE MARKER; per-run history there). 3757 IS
 BURNED (ResetVrf without the RUNBOOK :1208-1215 launch env). 3908-3910 = the 5.2 fixture run.
-DEPLOYED APP (5.0.2-era, ARCHIVE): VrfC2SimApp.dll SHA **53130C93BD76...A7EF27A9** = a5cdc95 + one
-log line. Building IS deploying for the APP (bin, :382); only the BRIDGE has a 10-copy deploy step.
+Building IS deploying for the APP (bin, :382); only the BRIDGE has a 10-copy deploy step.
 CLIENTID TRAP (LIVE): the DEPLOYED (gitignored) bin\...\appsettings.json Vrf:ClientId must MATCH
 the init's SystemName or the runner ABORTS at validation, exit 2 (RunC2SimScenario.ps1:1154-1165).
 R9 inits declare STP, COA-STP1 declares C2SIM; it currently reads "STP". DEPLOYED copy only.
 RTI: inventory fresh at session start - never trust recorded PIDs. Docker: `c2sim-server-vrf` is
-OURS (18080/61614); the operator's c2sim_server4.8.4.9 / stp-server / stp-lt511 are not. Dump 70668
-in bin64 is old (RUNBOOK 0.5.12; never halt on it). Firewall: do NOT set NotifyOnListen False (user
-ruling); Cancel the testhost prompt. MAK licence expires 2026-09-15. VENDOR LOG STAMPS ARE LOCAL
-(-04:00); ours are UTC.
+OURS (18080/61614); the operator's servers are NOT. Firewall: do NOT set NotifyOnListen False
+(user ruling); Cancel the testhost prompt. MAK licence expires 2026-09-15. VENDOR LOG STAMPS ARE
+LOCAL (-04:00); ours are UTC.
 
 ## NEXT (in order)
 DONE 2026-09-02 pm, three probes (READ THE PREREG SEC 7s): merged-build control GATE PASSED
@@ -135,6 +130,11 @@ suppress vrfSim.log); type-map live gate PASSES / run invalid (3775-3781; 6/6, 3
    24.11 km, best ever 26.84 km. Pick the mode from the FFRTC block, budget wall = sim / ratio.
 6. TYPE_GAP ITEM 4 - echelon-'F' -> Ground_Aggregate fallback needs a USER RULING
    (docs/TYPE_GAP_ADJUDICATION.md item 4); not a movement cause.
+6b. **RETIRE THE 10000 m MSL BIRTH** (user directive 2026-09-04). AGL placement VERIFIED
+   (PREREG_CLAMP_DIRECTION sec 8a: buried entity lifted to the surface by one AGL setAltitude).
+   Change = stop overriding the create altitude and stop SKIPPING the deferred SetAltitude,
+   which is already AGL. Needs a prereg + one confirming run (it changes creation for EVERY
+   unit). Route vertices NOT in scope - no AGL frame exists, TerrainProfile stays.
 7. MAK MESSAGE - docs/MAK_MESSAGE_2026-09-02.md is send-ready and THE USER SENDS IT. *** ITS
    APPENDED DtUUID ROUTE-NAME-LENGTH DRAFT IS STALE - the cause was OUR contract violation
    (rwUUID.h:246-253; fix 726f762). REWRITE OR DROP IT; do not send it as a defect report. ***

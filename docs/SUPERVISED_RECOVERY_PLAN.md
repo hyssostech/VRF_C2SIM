@@ -150,7 +150,15 @@ Supervisor-specified design (executor implements; adversarial review before merg
     PRIMARY TARGET: the CREATE call's own pos.AltMeters - under Live, ground units are
     created at a guaranteed-above-terrain altitude (safe-high MSL constant, configurable,
     default 10000 - above all Earth terrain) and the clamp places them; the deferred
-    SetAltitude is SKIPPED for ground units under Live (logged). Air units keep parity
+    SetAltitude is SKIPPED for ground units under Live (logged).
+    *** DEPRECATED 2026-09-04 - THE WRONG FRAME, and this doc is cited FROM THE SOURCE so the
+    correction has to live here. The deferred SetAltitude this design SKIPS is an AGL set
+    (vrfRemoteController.h:1372 aboveGroundLevel; VrfFacade.cpp:739 passes TRUE), and an AGL
+    set places a unit on the ground in ONE call with no birth altitude and no terrain query -
+    VERIFIED 2026-09-04, a buried entity at -0.0 m lifted to the surface (tools/SetAlt,
+    PREREG_CLAMP_DIRECTION sec 8a). So the design below skips the correct mechanism to build a
+    workaround for a frame it chose itself. It WORKS, which is why it survived; it is still
+    wrong. Do not re-justify it. Canonical: docs/VRF_ALTITUDE_FRAMES.md. *** Air units keep parity
     behavior in both modes. FALLBACK if live acceptance still freezes: programmatic
     drag-mimic (SetLocation re-place at the reflected clamped geodetic via
     TryGetEntityGeodetic, guarded against the known ~30 s degenerate-position transient on
@@ -162,7 +170,9 @@ Supervisor-specified design (executor implements; adversarial review before merg
   intervention; telemetry-verified arrivals. Fresh appNos from the Appendix B ledger.
 - STATUS 2026-07-16 (fix session): IMPLEMENTED offline per this spec (Opus executor +
   supervisor refuter pass on the diff). VrfSettings: default mode now "Live" +
-  CreateAltitudeSafeMslMeters=10000. Service create path: gated on the mode + the route
+  CreateAltitudeSafeMslMeters=10000 [DEPRECATED 2026-09-04 - wrong frame; AGL setAltitude
+  places a unit on the ground in one call, VERIFIED; docs/VRF_ALTITUDE_FRAMES.md].
+  Service create path: gated on the mode + the route
   path's own SIDC[2]=='G' ground predicate (null-hardened); Live+ground = born 10000 MSL,
   parity SetAltitude skipped (logged); Fixed100 falls to the byte-identical parity branch;
   UnitTranslator + native untouched; appsettings carries no mode pin so the default applies.

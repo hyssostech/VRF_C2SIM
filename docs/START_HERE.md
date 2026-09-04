@@ -83,6 +83,11 @@ Three locations are in play:
 > textbook arrivals). **THE FIX IS IMPLEMENTED AND LIVE-ACCEPTED (2026-07-16 fix session,
 > FIX-ACCEPT-1, prediction P1: ALL THREE units moved with NO drag)**: GroundWaypointAltitudeMode
 > =Live is now the DEFAULT; under Live, ground units are created at CreateAltitudeSafeMslMeters
+> [*** THE MSL BIRTH IS DEPRECATED - WRONG FRAME. setAltitude takes an aboveGroundLevel flag
+> (vrfRemoteController.h:1372) and VrfFacade already passes TRUE; one AGL call lifted a BURIED
+> entity onto the surface on 2026-09-04 (tools/SetAlt, PREREG_CLAMP_DIRECTION sec 8a). Placing
+> a unit on the ground needs no birth altitude and no terrain query. Route VERTICES are a
+> different question with a different answer - see docs/VRF_ALTITUDE_FRAMES.md. ***]
 > (10000 MSL, above all terrain - VRF's create ground clamp places them on the surface) and the
 > parity post-create SetAltitude is skipped (it is AGL anyway per the MAK header - part 13c)
 > [*** THIS IS THE ORIGIN OF A SEVEN-WEEK DETOUR. Part 13c correctly read the header and found

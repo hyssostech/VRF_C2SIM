@@ -235,7 +235,9 @@ public class VrfSettings
     //   "Birth altitude". Do not restore a "buried therefore frozen" claim here. ***
     // "Live" instead puts each ground waypoint at the unit's OWN live ground
     // altitude (read from the sim) + LiveClearanceMeters, and creates ground units at
-    // CreateAltitudeSafeMslMeters so VRF's create ground clamp drops them onto the surface.
+    // CreateAltitudeSafeMslMeters so VRF's create ground clamp drops them onto the surface
+    // (that CREATE half is DEPRECATED - the frame is wrong; see the setting's own comment
+    // below and docs/VRF_ALTITUDE_FRAMES.md. The WAYPOINT half is unaffected).
     // "TerrainProfile" (docs/DESIGN_TERRAIN_PROFILE_VERTICES_2026-09-01.md) creates like Live,
     // then authors each GROUND route vertex from the back end's OWN terrain height
     // (DtIfRequestTerrainProfileInformation) + TerrainClearanceMeters; a vertex the back end does
@@ -260,22 +262,38 @@ public class VrfSettings
     // unit is created at THIS altitude instead of its plan altitude (ElevationAgl MSL). It must be
     // guaranteed ABOVE all Earth terrain (highest ground ~8849 m at Everest) so that VRF's
     // createEntity ground clamp (default on) can only DROP the birth onto the local surface.
-    // THE CLAMP'S DIRECTION IS NOW VERIFIED, NOT ASSUMED (PREREG_CLAMP_DIRECTION_2026-09-04,
-    // one sim, one observer, one capture: create at 10000 -> reflected 1149.8 m on the surface;
-    // create at 50 under ~1150 m terrain -> reflected -0.0 m, NOT raised). So this setting IS
-    // load-bearing for the CREATE path. (Unexplained and not to be built on: the below-terrain
-    // create landed at -0.0 rather than at its requested 50.)
     //
-    // *** BUT IT IS NOT THE ONLY WAY TO PUT A UNIT ON THE GROUND, and treating it as such cost
-    // this project weeks. The remote API takes an AGL flag directly:
-    //     vrfRemoteController.h:1372  setAltitude(uuid, altitude, bool aboveGroundLevel = false)
-    // and VrfFacade.cpp:739 ALREADY passes TRUE. "Put this unit N m above the ground" is one
-    // call needing no terrain knowledge. What defeats it today is that VrfC2SimService SKIPS the
-    // deferred SetAltitude whenever it used this safe-high create. Read
-    // docs/VRF_ALTITUDE_FRAMES.md sec 1-2 BEFORE changing anything here. Note the AGL flag does
-    // NOT exist for ROUTE VERTICES (sec 3) - that asymmetry is the whole story. ***
+    // ============================ DEPRECATED - DO NOT DEFEND ============================
+    // *** THIS SETTING IS THE WRONG FRAME AND IS BEING RETIRED. It exists only to compensate
+    // for expressing a ground unit's position in MSL when VR-Forces offers an ABOVE-TERRAIN
+    // frame directly. Do not add to it, do not cite it as "how units are placed", and do not
+    // re-derive a justification for it - that has now happened three times and cost weeks.
     //
-    // Default 10000 m clears every land surface with margin. Ignored under "Fixed100"
-    // and for non-ground (air/sea) units, which keep parity behavior.
+    // THE APPROACH IS AGL:  vrfRemoteController.h:1372
+    //     setAltitude(uuid, altitude, bool aboveGroundLevel = false)
+    // VrfFacade.cpp:739 already passes TRUE, so VrfBridge.SetAltitude IS an AGL set. "Place
+    // this unit on the ground" is ONE call that needs no terrain knowledge and no birth
+    // altitude at all.
+    // VERIFIED END TO END 2026-09-04 (PREREG_CLAMP_DIRECTION sec 8a, tools/SetAlt, appNos
+    // 3913/3914, scored by an INDEPENDENT observer): an entity sitting BURIED at -0.0 m under
+    // ~1150 m of terrain was lifted onto the surface (1149.8 m) by one AGL call - the exact
+    // direction the create clamp CANNOT go.
+    //
+    // Do NOT quote the clamp-direction measurement as a reason to keep this. That measurement
+    // (10000 -> clamps to surface; 50 -> stays at -0.0) says only which way the clamp travels.
+    // It says nothing about whether MSL is the right frame to birth in - and an earlier version
+    // of THIS COMMENT drew exactly that non-sequitur and called the setting "load-bearing".
+    // Withdrawn. See docs/VRF_ALTITUDE_FRAMES.md (canonical, header-cited).
+    //
+    // RETIREMENT IS NOT YET DONE, and the value stays 10000 until it is: removing it changes
+    // unit creation for every run, so it needs its own prereg + confirming run (queued in the
+    // handoff). Shipping that change untested would repeat the original mistake. What is
+    // settled is the DIRECTION - AGL wins - not the date.
+    // Route vertices are NOT affected either way: they have no AGL frame in the API at all
+    // (VRF_ALTITUDE_FRAMES sec 3), so TerrainProfile stays the answer there. That fallback is
+    // proven and shipping.
+    // ===================================================================================
+    //
+    // Ignored under "Fixed100" and for non-ground (air/sea) units, which keep parity behavior.
     public double CreateAltitudeSafeMslMeters { get; set; } = 10000.0;
 }

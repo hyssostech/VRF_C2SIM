@@ -29,6 +29,15 @@ virtual void setAltitude(const DtUUID& uuid, double altitude,
   `setAltitude(DtUUID(uuid), altitudeMeters, TRUE)`. The capability has been wired the whole
   time. On the normal path it never fires, because the app SKIPS the deferred SetAltitude
   whenever it used the safe-high create (`VrfC2SimService.cs`, "SKIP the deferred SetAltitude").
+- **VERIFIED END TO END 2026-09-04** (PREREG_CLAMP_DIRECTION sec 8a; `tools/SetAlt`, appNos
+  3913/3914, scored by an INDEPENDENT observer, not by the tool that issued the change): an
+  entity sitting BURIED at -0.0 m under ~1150 m of terrain was lifted ONTO THE SURFACE
+  (1149.8 m) by one AGL call, while an untouched control held 1149.8 m in the same capture.
+  That is the direction the create clamp cannot go. Before that run no tool in this repo had
+  ever called SetAltitude - the capability was documented, wired, and never exercised.
+  Recorded honestly: 2 m AGL on a TANK settles at the surface, not 2 m above it, because
+  VR-Forces holds ground vehicles on the surface continuously. Whether AGL preserves a
+  non-zero offset for an entity that can leave the ground is UNTESTED.
 
 ## 2. CREATE-time clamp - REAL, but ONE-DIRECTIONAL
 `vrfmsgs/ifCreateVrfObject.h:210-214` - "If True (the default) the object will be created and
@@ -39,8 +48,14 @@ placed on the nearest polygon." `vrfcontrol/vrfRemoteController.h:1275,:1291` - 
   ONE capture, identical lat/lon, only the requested altitude differing):
     create at 10000 m MSL -> reflected 1149.8 m (the surface).  Clamp DROPS. Works.
     create at    50 m MSL -> reflected   -0.0 m.                Clamp does NOT RAISE.
-- So `CreateAltitudeSafeMslMeters = 10000` IS load-bearing for the create path. Do NOT delete
-  it on the strength of the header's word "nearest" - the product does not do "nearest".
+- WHAT THIS DOES AND DOES NOT SHOW. It shows the clamp's DIRECTION. It does NOT show that
+  birthing at 10000 m MSL is the right way to place a unit - that question is settled by sec 1
+  (set AGL and the ground is found for you), not by this measurement.
+  *** A first version of this line read "CreateAltitudeSafeMslMeters IS load-bearing ... do NOT
+  delete it". THAT IS A DESIGN VERDICT SMUGGLED INTO A MEASUREMENT and it is withdrawn. The
+  measurement is only about which way the clamp travels. The safe-high birth exists to
+  compensate for having chosen an MSL frame in the first place; choose AGL and the clamp's
+  direction stops mattering. See sec 6 Q3 for how this got written. ***
 - **OPEN / UNEXPLAINED**: the below-terrain create landed at -0.0, not at its requested 50 and
   not on the surface. No doc predicts that. Do not build on -0.0 until someone explains it.
 
@@ -74,20 +89,60 @@ WAYPOINT ALTITUDE (the below-terrain fixture variant moved -
 A statement of the form "born buried, therefore never moves" is ROT. It has re-entered this
 project at least twice after being falsified.
 
-## 6. WHY IT KEPT COMING BACK (the actual source, so it can be closed)
-1. **The architecture was built from probe inference, never from the header.** Nobody read
-   `setAltitude`'s `aboveGroundLevel` parameter before designing a safe-high-birth workaround
-   for a problem the parameter already solves. The docs-first rule exists because of this.
-2. **The falsification was recorded in ONE place and the claim lived in SIX.** CORRECTIONS_LOG
-   held the refutation; `VrfSettings.cs`, `VrfC2SimService.cs`, `CreateOne/Program.cs`,
-   `VRF_GROUNDWORK_PLAN.md` and `VRF_GROUND_TRUTH.md` each repeated the refuted link with no
-   back-pointer. A reader of any of those five never learns it is dead. On 2026-09-04 a session
-   read the CreateOne comment and put the refuted claim into a fresh prereg.
-3. **One setting name spans two frames.** `GroundWaypointAltitudeMode` governs BOTH route-vertex
-   altitude AND the entity CREATE position (`VrfSettings.cs:221`). Two questions with different
-   documented answers behind one knob, so correcting one never forces correcting the other.
-4. **`VRF_GROUNDWORK_PLAN.md` called it "the one fully-closed class"** - the strongest possible
-   instruction not to look again, attached to a claim that was already dead.
+## 6. TWO SEPARATE QUESTIONS - keep them apart (they were conflated on 2026-09-04)
+
+**FIRST, WHAT IS NOT BROKEN.** The buried-birth PROBLEM was found and cured: ground units are
+no longer born underground. That outcome stands and is not retracted anywhere in this file.
+What was falsified is only the claim that burial explained the FREEZES (sec 5).
+
+**BUT THE MECHANISM IS THE WRONG FRAME, AND SAYING OTHERWISE IS THE ROT.** The approach is
+sec 1: set the altitude ABOVE GROUND LEVEL and the simulator finds the ground. Birthing a unit
+at 10000 m MSL so gravity-by-clamp drops it onto the surface is compensation for having picked
+an MSL frame when an above-terrain frame was available and already wired. It is to be RETIRED,
+not defended. (Sequencing: the AGL path must be exercised once first - no tool had ever called
+SetAltitude - and route vertices are unaffected either way, sec 3.)
+*** A first version of this section said `CreateAltitudeSafeMslMeters` "WORKS and STAYS" and
+called AGL merely "tidier". WITHDRAWN - see Q3. ***
+
+**Q1 - why is the implementation clumsier than it needed to be?**
+MOJAVE_ROOTCAUSE part 13c (2026-07-16) correctly read the header and found
+`setAltitude`'s `aboveGroundLevel`, already passed TRUE by VrfFacade. The finding was used ONLY
+to exonerate a suspect, and the AGL call was then skipped in favour of the safe-high birth. So
+a docs finding that KILLS a hypothesis should also be checked for what it ENABLES. That is a
+real lesson about design quality. IT IS NOT THE CAUSE OF ANY REGRESSION, and reading it as one
+(as the first version of this section did) mistakes an elegance question for a defect.
+
+**Q2 - why did a September session re-assert a July-falsified claim? (the actual regression)**
+Because the refutation was written in ONE place and the refuted claim was left standing in SIX.
+CORRECTIONS_LOG held the falsification; `VrfSettings.cs`, `VrfC2SimService.cs`,
+`CreateOne/Program.cs`, `VRF_GROUNDWORK_PLAN.md`, `VRF_GROUND_TRUTH.md` and `START_HERE.md`
+each repeated "born buried therefore never moves" with NO back-pointer, so a reader of any of
+them never learned it was dead. On 2026-09-04 a session opened CreateOne's header comment to
+choose a create altitude, read the dead claim there, and put it into a fresh prereg. No
+reasoning about part 13c was involved - just a stale comment at the point of use.
+Two aggravating factors, both of the same kind:
+  - `VRF_GROUNDWORK_PLAN.md` called it "the one fully-closed class" - the strongest possible
+    instruction not to look again, attached to a claim that was already dead.
+  - `START_HERE.md`, the ENTRY doc, still led with "BREAKTHROUGH ... ENTITY-FREEZE ROOT CAUSE
+    IS FOUND ... the frozen entity class is CURED" for seven weeks after it was falsified.
+THE FIX FOR Q2: a refutation must be written at every site that repeats the claim, not only in
+the corrections log. Done.
+
+**Q3 - why did it come back AGAIN, hours later, in this very file? (2026-09-04, same day)**
+Because I re-created it myself, and this is the generator worth remembering. Writing
+PREREG_CLAMP_DIRECTION, I framed sec 4's falsifier as a BINARY: either the clamp raises, so the
+workaround is unnecessary, or it does not, and then "the safe-high create is load-bearing".
+That excluded the real answer - do not birth at an arbitrary MSL at all - before any data
+existed. The run then falsified P1, so the pre-written design verdict was promoted to a RESULT
+("must NOT be removed"), and from there into VrfSettings.cs and into this file as
+"WORKS and STAYS". `git grep` confirms the phrase existed nowhere in the repo before that
+commit: it was manufactured that afternoon, and it carried the authority of a live measurement.
+SAME SHAPE AS Q1 AND Q2: a true narrow finding recorded FUSED to a design conclusion, after
+which the fusion is what the next reader inherits - even when the next reader is the same
+session an hour later.
+RULE, now the standing one for this project: **keep the measurement and its design implication
+in separate sentences, and never put a design verdict inside a falsifier clause.** A falsifier
+says what the world will look like; it does not say what should then be built.
 
 ## 7. TRIPWIRES (fire before writing, not after)
 - Writing "buried" or "underground" near "freeze"/"never moves"? STOP - falsified, sec 5.

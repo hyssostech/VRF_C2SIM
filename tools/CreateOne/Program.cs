@@ -29,9 +29,18 @@ using VrfC2Sim.Tools;
 //
 // Defaults are a single M1A2 Abrams (DIS 1.1.225.1.1.3.0 - the real installed template
 // used by PHASE1_SESSION_SCRIPT.md) at a COA-STP1 AO coordinate taken from the shipped
-// order data. Altitude defaults to 10000 m MSL because a safe-high create is the SHIPPED
-// posture in both codebases: VRF's create-time ground clamp drops the entity onto the
-// surface, so this is the configuration every other run is measured in.
+// order data.
+//
+// THE ALTITUDE ARGUMENT IS AN MSL BIRTH AND THAT IS THE WRONG FRAME - it is kept only so this
+// tool keeps reproducing the configuration existing runs were measured in. VR-Forces takes an
+// ABOVE-TERRAIN altitude directly (vrfRemoteController.h:1372 setAltitude(..., aboveGroundLevel);
+// VrfFacade.cpp:739 already passes TRUE), and tools/SetAlt exercises it: on 2026-09-04 one AGL
+// call lifted an entity BURIED at -0.0 m onto the surface, which the create clamp cannot do.
+// To place a unit on the ground the right way: create, then SetAlt <uuid> 0.
+// DO NOT write a justification for the 10000 m default here. A version of this comment claimed
+// low-MSL creates "froze entities", a 2026-09-04 session read it and put that falsified claim
+// straight into a prereg. Canonical: docs/VRF_ALTITUDE_FRAMES.md.
+// Default 10000 m: the create-time ground clamp drops the entity onto the surface.
 //
 // *** DO NOT WRITE THAT A LOW-MSL CREATE FREEZES ENTITIES. *** That causal claim is
 // FALSIFIED (docs/CORRECTIONS_LOG.md "Birth altitude"): the 10000 m fix was ALREADY ACTIVE

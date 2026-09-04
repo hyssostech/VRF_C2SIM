@@ -193,6 +193,10 @@ Flow (VrfC2SimService.cs), all on the tick thread:
 1. Create-altitude: `liveMode` becomes true for "Live" OR "TerrainProfile" (a ground
    unit is still born at CreateAltitudeSafeMslMeters and clamped by VRF; the terrain
    query is only for ROUTE vertices).
+   *** The MSL birth is DEPRECATED (wrong frame - an AGL setAltitude places a unit on the
+   ground in one call, verified 2026-09-04; docs/VRF_ALTITUDE_FRAMES.md). THIS DOC'S OWN
+   SUBJECT IS UNAFFECTED: route vertices have NO AGL frame in the API, so the terrain query
+   below is correct and stays. Only the CREATE half is retiring. ***
 2. ExecuteTaskOnTick(task, unit, terrainRoute = null): groundWpAlt is computed as
    today for "Live" or "TerrainProfile" (live + GroundWaypointLiveClearanceMeters),
    100 m otherwise - so Live and Fixed100 produce the same numbers as before. After
