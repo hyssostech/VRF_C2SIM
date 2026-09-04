@@ -80,6 +80,50 @@ ACTION: stop passing --logFileName. The vendor always writes its own log to C:\M
 the runner/launcher must HARVEST that file into the run directory instead (and it is the
 file that carries the cleartext environment - see the secrets memory - so it is copied,
 never attached anywhere). Retry-on-crash stays as a belt-and-braces guard.
+## 6. ROUND 3 (registered 2026-09-04 BEFORE running, after FORENSICS_52_MODULE_PROVENANCE)
+NEW EVIDENCE: scenarioPerformanceTestPlugin.dll is loaded AND stack-referenced in all
+three crashed dumps; its own banner says it "adds a string command line argument to the
+back-end command line processor" - the very processor that faults
+(DtVrfSimOptions::parseCmdLine). It is enabled by one config record,
+appData\plugins\scenarioPerformanceTest.xml. That is a CONFIG/INSTALL artifact: a
+performance-TEST plugin has no business in a headless production run.
+CONSISTENCY CHECK (done first, so this is not a fresh guess): the plugin loads on healthy
+launches too (the vendor log prints "Unloading plugin ...scenarioPerformanceTestPlugin"),
+so the plugin ALONE cannot be sufficient - rounds 1-2 showed 0/12 crashes without
+--logFileName while the plugin was loaded every time. The live hypothesis is therefore an
+INTERACTION: the plugin registers into the option processor, and the --logFileName path
+then replaces/deletes a stream in that processor.
+ARMS (12 launches, --logFileName ALWAYS passed, interleaved, one appData copy in the
+scratchpad so nothing under C:\MAK is written; --appDataDir is the documented redirect,
+UG52 5.4.4 p190):
+  A2 = --appDataDir <copy WITH scenarioPerformanceTest.xml>   x6  (controls for the
+       redirect itself: it must still crash, or the redirect is a confound)
+  E  = --appDataDir <copy WITHOUT that one record>            x6
+P4: if E crashes 0/6 while A2 crashes >= 2/6, the plugin is the necessary co-factor:
+    the fix is to stop loading a test plugin (config hygiene, OURS), and --logFileName
+    becomes usable again. Falsifier: E crashes at A2's rate -> the plugin is exonerated
+    and the round-2 conclusion (do not pass --logFileName) stands unchanged.
+P5: A2 must crash at roughly the round-1/2 rate. If A2 is 0/6, --appDataDir itself
+    changed the outcome and the round is VOID - report that, do not read E.
+RESULT (round 3, 2026-09-04; runs/launch52/bisect3_results.csv, appNos 3896-3907):
+A2 (plugin record PRESENT) 2 CRASH / 6; E (record REMOVED) 3 CRASH / 6.
+P5 HELD: A2 crashed at the round-1/2 rate, so --appDataDir is not a confound and the
+round is valid. P4 FALSIFIED: the plugin is NOT the co-factor - removing it did not
+reduce the crash rate (it was, if anything, higher). THE PLUGIN IS EXONERATED; the
+"performance-test plugin has no business in a headless run" observation stands only as
+config hygiene, not as a cause.
+The round nevertheless CONFIRMS round 2 on a third independent batch, because both arms
+passed --logFileName and both crashed at ~40%.
+POOLED OVER ALL THREE ROUNDS (42 launches):
+  --logFileName PASSED  : 11 crashes / 30  (37%)  [A 5/12, D 1/6, A2 2/6, E 3/6]
+  --logFileName OMITTED :  0 crashes / 12
+  Fisher's exact one-sided p = C(30,11)/C(42,11) = 54,627,300 / 4,280,561,376 = 0.0128.
+INDEPENDENT CORROBORATION of the mechanism, found by the harvest executor while reading
+C:\MAK\logs: of the 10 pids that have a .callstack.log, NINE have a .dmp + .callstack.log
+but NO vendor .log at all - exactly what a fault INSIDE the log-stream installer
+predicts, and evidence nobody produced to support the claim (it was found while building
+the harvest).
+
 Adversarial review: strongest competitor = "the crash is random and the split is luck".
 Against it: 0/12 in the no-option arm against a 33% base rate, p = 0.031, arms
 interleaved so machine drift hits both equally, identical env/cwd/scenario/detection

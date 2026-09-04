@@ -2,9 +2,11 @@
 # turnaround logic (docs/RUNNER_TURNAROUND_2026-09-01.md). No simulator, no server.
 # Plain pwsh (no Pester dependency): exits 0 when every check passes, 1 otherwise,
 # and prints one line per check.
-# ONE exception to "no process start": check 8d runs the runner itself, in -DryRun,
-# against a throwaway patched copy - the false green it guards is an EXIT CODE, and
-# no static assertion can distinguish exit 0 from exit 5.
+# TWO exceptions to "no process start", both -DryRun and both launching nothing:
+# check 8d runs the runner itself against a throwaway patched copy (the false green it
+# guards is an EXIT CODE, which no static assertion can tell from 0), and check 8g runs
+# LaunchVrf52 to read the sim COMMAND LINE it would use - an argument that is absent by
+# design (--logFileName) cannot be proven absent from the AST alone.
 #
 #   pwsh -NoProfile -File tests\RunnerTurnaround.Tests.ps1
 #
@@ -644,6 +646,183 @@ Check 'the precondition calls a pre-existing corpse a CRASHED LEFTOVER and names
     $lv52Text -match 'rerun with -CloseCrashedLeftover')
 Check 'the precondition re-inventories after a close, so a closed leftover no longer refuses the launch' (
     $lv52Text -match '# Re-inventory: only what is STILL running can refuse this launch\.')
+
+# 8f. --logFileName IS THE STARTUP-CRASH TRIGGER, SO IT IS NOT PASSED; THE VENDOR'S OWN LOG IS
+# HARVESTED INSTEAD (2026-09-04, docs/experiments/PREREG_52_CRASH_BISECT_2026-09-04.md sec 5).
+# Passing --logFileName crashed the sim at startup in 6 of 18 launches; omitting it in 0 of 12
+# (Fisher's exact, one-sided, p = 0.031). A 22-character path inside the vendor's own log
+# directory crashed too, so it is the OPTION, not the path. What is pinned here: the option is
+# ABSENT by default, still reachable on purpose (-LogFileName), and the harvest picks the right
+# vendor file for the right pid, copies rather than moves, and never changes the verdict.
+Write-Host '=== 8f. --logFileName not passed by default; the vendor log is harvested instead ==='
+Check 'LaunchVrf52 declares -LogFileName and it DEFAULTS TO EMPTY (option not passed)' (
+    $lv52Params.ContainsKey('LogFileName') -and "$($lv52Params['LogFileName'].DefaultValue)" -match "^''$")
+$simArgsInit = @($lv52Ast.FindAll({ param($a)
+    $a -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+    $a.Left.Extent.Text -eq '$simArgs' -and $a.Operator -eq 'Equals' }, $true))
+Check 'the sim argument list is BUILT without --logFileName' (
+    $simArgsInit.Count -eq 1 -and $simArgsInit[0].Right.Extent.Text -notmatch 'logFileName') (
+    ($simArgsInit | ForEach-Object { $_.Right.Extent.Text }) -join ' | ')
+$logOptAppend = @($lv52Ast.FindAll({ param($a)
+    $a -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+    $a.Left.Extent.Text -eq '$simArgs' -and $a.Operator -ne 'Equals' -and
+    $a.Right.Extent.Text -match 'logFileName' }, $true))
+$logOptIf = @($lv52Ast.FindAll({ param($a)
+    $a -is [System.Management.Automation.Language.IfStatementAst] -and
+    $a.Clauses[0].Item1.Extent.Text -match 'IsNullOrWhiteSpace\(\$LogFileName\)' -and
+    $a.Clauses[0].Item2.Extent.Text -match "'--logFileName'" }, $true))
+Check 'the ONE --logFileName append is guarded by a non-empty -LogFileName' (
+    $logOptAppend.Count -eq 1 -and $logOptIf.Count -eq 1 -and
+    $logOptIf[0].Clauses[0].Item2.Extent.Text.Contains($logOptAppend[0].Extent.Text)) (
+    ($logOptAppend | ForEach-Object { $_.Extent.Text }) -join ' | ')
+Check 'the bisect record and the crash rate are named in the script, where someone would re-enable it' (
+    $lv52Text -match 'PREREG_52_CRASH_BISECT_2026-09-04' -and $lv52Text -match '6 (crashes|times) . 18 launches')
+Check 'the secrets warning rides with the harvest (never attach it; send the callstack/dmp)' (
+    $lv52Text -match 'DtPrintEnvironmentVariables' -and $lv52Text -match 'NEVER attach it to a ticket' -and
+    $lv52Text -match '\.callstack\.log / \.dmp')
+Check 'the harvest COPIES and never moves (the vendor is still writing)' (
+    $lv52Text -match 'Copy-Item -LiteralPath \$src' -and $lv52Text -notmatch 'Move-Item')
+
+# The finder and the copier, RUN (lifted from the shipped script by its own AST, like 8c/8e).
+# Real vendor filename shape, from C:\MAK\logs on 2026-09-04:
+# vrfSimHLA1516e5.2d-20260904-072806-Legatus-282607-59936.log (+ the .callstack.log beside it).
+$vlogFn = $lv52Ast.FindAll({ param($a) $a -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $a.Name -eq 'Get-VendorSimLogForPid' }, $true)
+$copyFn = $lv52Ast.FindAll({ param($a) $a -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $a.Name -eq 'Copy-VendorSimLog' }, $true)
+Check 'LaunchVrf52 defines Get-VendorSimLogForPid(-ProcessId, -LogDir, -Since)' (
+    @($vlogFn).Count -eq 1 -and
+    (@('ProcessId','LogDir','Since') | Where-Object { $vlogFn[0].Body.ParamBlock.Parameters.Name.VariablePath.UserPath -contains $_ }).Count -eq 3)
+Check 'LaunchVrf52 defines Copy-VendorSimLog(-ProcessId, -LogDir, -Since, -Destination)' (
+    @($copyFn).Count -eq 1 -and
+    (@('ProcessId','LogDir','Since','Destination') | Where-Object { $copyFn[0].Body.ParamBlock.Parameters.Name.VariablePath.UserPath -contains $_ }).Count -eq 4)
+# The copier writes through the script's Say-* helpers, which live in the script and not here,
+# so it runs inside a scope with stubs of its own; nothing outside this block sees them.
+$script:HarvestMarkerLine = ''
+& {
+    $script:SayLines = @()
+    function Say      { param([string]$m) $script:SayLines += $m }
+    function Say-Ok   { param([string]$m) $script:SayLines += ('  [OK]   ' + $m) }
+    function Say-Warn { param([string]$m) $script:SayLines += ('  [WARN] ' + $m) }
+    Invoke-Expression $vlogFn[0].Extent.Text
+    Invoke-Expression $copyFn[0].Extent.Text
+    $tmpV = Join-Path ([System.IO.Path]::GetTempPath()) ('lv52vlog-' + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $tmpV -Force | Out-Null
+    try {
+        $old   = (Get-Date).AddHours(-1)
+        $mine  = Join-Path $tmpV 'vrfSimHLA1516e5.2d-20260904-072806-Legatus-282607-59936.log'
+        $newer = Join-Path $tmpV 'vrfSimHLA1516e5.2d-20260904-081500-Legatus-282607-59936.log'
+        Set-Content -LiteralPath $mine  -Encoding ascii -Value @('older copy', 'DtPrintEnvironmentVariables', 'AZURE_CLIENT_SECRET=redacted-in-this-fixture')
+        Set-Content -LiteralPath $newer -Encoding ascii -Value @('NEWER copy for the same pid', 'DtPrintEnvironmentVariables')
+        (Get-Item -LiteralPath $mine).LastWriteTime  = (Get-Date).AddMinutes(-10)
+        (Get-Item -LiteralPath $newer).LastWriteTime = (Get-Date).AddMinutes(-1)
+        Set-Content -LiteralPath (Join-Path $tmpV 'vrfSimHLA1516e5.2d-20260904-072806-Legatus-282607-59937.log') -Encoding ascii -Value 'another pid'
+        Set-Content -LiteralPath (Join-Path $tmpV 'rtiAssistant5.0.1-20260903-194550-Legatus-281993-59936.log')   -Encoding ascii -Value 'another exe, same pid'
+        Set-Content -LiteralPath (Join-Path $tmpV 'vrfSimHLA1516e5.2d-20260904-072806-Legatus-282607-59936.callstack.log') -Encoding ascii -Value 'Error Code - 0xC0000005'
+        Check 'harvest picks the NEWEST vendor log for that pid' (
+            (Get-VendorSimLogForPid -ProcessId 59936 -LogDir $tmpV -Since $old) -eq $newer) (
+            "got " + (Get-VendorSimLogForPid -ProcessId 59936 -LogDir $tmpV -Since $old))
+        Check "harvest ignores ANOTHER pid's log (59937)" (
+            (Get-VendorSimLogForPid -ProcessId 59936 -LogDir $tmpV -Since $old) -notmatch '59937')
+        Check "harvest ignores ANOTHER exe's log for the same pid (rtiAssistant in the shared C:\MAK\logs)" (
+            (Get-VendorSimLogForPid -ProcessId 59936 -LogDir $tmpV -Since $old) -notmatch 'rtiAssistant')
+        Check 'harvest never returns the .callstack.log (separate evidence, and the only file that may be shared)' (
+            (Get-VendorSimLogForPid -ProcessId 59936 -LogDir $tmpV -Since $old) -notmatch 'callstack')
+        Check 'a log OLDER than this launch is not harvested (pid recycling, same rule as the callstack)' (
+            (Get-VendorSimLogForPid -ProcessId 59936 -LogDir $tmpV -Since (Get-Date).AddHours(1)) -eq '')
+        Check 'a pid with no vendor log yields empty, and does not throw' (
+            (Get-VendorSimLogForPid -ProcessId 12345 -LogDir $tmpV -Since $old) -eq '')
+        Check 'a MISSING log directory yields empty, and does not throw' (
+            (Get-VendorSimLogForPid -ProcessId 59936 -LogDir (Join-Path $tmpV 'nope') -Since $old) -eq '')
+        # The copy itself: destination written, SOURCE STILL THERE, marker line emitted.
+        $dst = Join-Path $tmpV 'harvested\vrfSim_9999_20260904T120000Z.log'
+        $script:SayLines = @()
+        $ret = Copy-VendorSimLog -ProcessId 59936 -LogDir $tmpV -Since $old -Destination $dst -Occasion 'READY'
+        $script:HarvestSay = $script:SayLines
+        Check 'the copy lands at the destination and returns it' (
+            $ret -eq $dst -and (Test-Path -LiteralPath $dst) -and
+            (Get-Content -LiteralPath $dst -Raw) -match 'NEWER copy for the same pid')
+        Check 'it is a COPY: the vendor original is still in place (the sim is still writing to it)' (
+            (Test-Path -LiteralPath $newer))
+        Check 'the copy is announced with a src= / dst= marker line' (
+            @($script:HarvestSay | Where-Object { $_ -match 'VENDOR LOG HARVESTED' }).Count -eq 1)
+        Check 'the copy carries the SECRETS warning, and says DtPrintEnvironmentVariables was found in it' (
+            @($script:HarvestSay | Where-Object { $_ -match 'SECRETS' -and $_ -match 'NEVER attach' }).Count -eq 1 -and
+            @($script:HarvestSay | Where-Object { $_ -match 'DtPrintEnvironmentVariables IS PRESENT' }).Count -eq 1) (
+            ($script:HarvestSay -join ' // '))
+        # A missing vendor log must WARN and return '', never throw and never look like success:
+        # the readiness verdict is the thread-count oracle's, not this function's.
+        $script:SayLines = @()
+        $none = Copy-VendorSimLog -ProcessId 12345 -LogDir $tmpV -Since $old -Destination (Join-Path $tmpV 'none.log') -Occasion 'READY'
+        Check 'a MISSING vendor log warns loudly, copies nothing and returns empty (verdict unchanged)' (
+            $none -eq '' -and -not (Test-Path -LiteralPath (Join-Path $tmpV 'none.log')) -and
+            @($script:SayLines | Where-Object { $_ -match 'VENDOR LOG NOT FOUND' }).Count -eq 1 -and
+            @($script:SayLines | Where-Object { $_ -match 'VENDOR LOG HARVESTED' }).Count -eq 0) (
+            ($script:SayLines -join ' // '))
+        $script:SayLines = @()
+        $badDir = Copy-VendorSimLog -ProcessId 59936 -LogDir (Join-Path $tmpV 'nope') -Since $old -Destination (Join-Path $tmpV 'none2.log') -Occasion 'STARTUP-CRASH'
+        Check 'a missing MAK log directory is a warning too, not a throw' ($badDir -eq '')
+        $script:HarvestMarkerLine = @($script:HarvestSay | Where-Object { $_ -match 'VENDOR LOG HARVESTED' })[0]
+    } finally { Remove-Item -LiteralPath $tmpV -Recurse -Force -ErrorAction SilentlyContinue }
+}
+# Both crash-path and ready-path harvests exist, and the crash one runs BEFORE the corpse is
+# closed (a closed process can take its log's last lines with it, and MAK holds the file).
+Check 'exactly TWO Copy-VendorSimLog call sites: the startup-crash path and the readiness path' (
+    @([regex]::Matches($lv52Text, 'Copy-VendorSimLog -ProcessId \$simProc\.Id')).Count -eq 2)
+Check 'the crash-path harvest runs BEFORE the corpse is closed' (
+    $lv52Text.IndexOf("-Occasion 'STARTUP-CRASH'") -gt 0 -and
+    $lv52Text.IndexOf("-Occasion 'STARTUP-CRASH'") -lt $lv52Text.IndexOf('Close-CrashedBackend -ProcessId $simProc.Id'))
+Check 'the ready-path harvest is skipped when the launch crashed (the crash path already took it)' (
+    $lv52Text -match 'if \(-not \$simCrash\.Crashed\) \{\s*\r?\n\s*\$null = Copy-VendorSimLog')
+
+# The runner's 5.2 profile must carry all of it: no -LogFileName on the launch line, the
+# manifest field, and a marker parse that really matches the line the launcher prints.
+Check 'runner: the 5.2 launch line does NOT pass -LogFileName' ($runnerText -notmatch "'-LogFileName'")
+Check 'runner: the manifest records logFileNamePassed = $false with the bisect citation' (
+    $runnerText -match 'vendorLog\s*=' -and $runnerText -match 'logFileNamePassed = \$false' -and
+    $runnerText -match 'PREREG_52_CRASH_BISECT_2026-09-04')
+Check 'runner: the manifest records where the harvested log came from and went to' (
+    $runnerText -match 'harvestedFrom' -and $runnerText -match 'harvestedTo' -and
+    $runnerText -match 'vendorLog\.harvestedTo\s*=')
+Check 'runner: the manifest carries the secrets warning about that copy' (
+    $runnerText -match 'FULL PROCESS ENVIRONMENT IN CLEARTEXT' -and $runnerText -match 'never attach it to a ticket|NEVER attach it to a ticket')
+# The parse is only worth anything if it matches what LaunchVrf52 actually printed above.
+$harvestRx = 'VENDOR LOG HARVESTED occasion=(\S+) src=(.*?) dst=(.*?)\s*$'
+Check 'runner: the harvest marker regex is the one used here' ($runnerText -match [regex]::Escape($harvestRx))
+$hm8f = [regex]::Match($script:HarvestMarkerLine, $harvestRx)
+Check 'that regex parses the REAL marker line the shipped Copy-VendorSimLog emitted' (
+    $hm8f.Success -and $hm8f.Groups[1].Value -eq 'READY' -and
+    $hm8f.Groups[2].Value -match '59936\.log$' -and $hm8f.Groups[3].Value -match 'vrfSim_9999_20260904T120000Z\.log$') (
+    "line='$script:HarvestMarkerLine'")
+# A path WITH SPACES must survive the same parse - src stops at ' dst=', dst runs to EOL.
+$spacey = '  [OK]   VENDOR LOG HARVESTED occasion=STARTUP-CRASH src=C:\MAK my logs\vrfSimHLA1516e5.2d-20260904-072806-Legatus-282607-59936.log dst=C:\repo dir\runs\launch52\vrfSim_3900_20260904T120000Z.log'
+$hmSp = [regex]::Match($spacey, $harvestRx)
+Check 'the marker parse survives spaces in both paths' (
+    $hmSp.Success -and $hmSp.Groups[1].Value -eq 'STARTUP-CRASH' -and
+    $hmSp.Groups[2].Value -eq 'C:\MAK my logs\vrfSimHLA1516e5.2d-20260904-072806-Legatus-282607-59936.log' -and
+    $hmSp.Groups[3].Value -eq 'C:\repo dir\runs\launch52\vrfSim_3900_20260904T120000Z.log') (
+    "src='$($hmSp.Groups[2].Value)' dst='$($hmSp.Groups[3].Value)'")
+
+# 8g. ...and the option really is off / on the sim's command line. The checks above are all
+# static; only running the shipped launcher in -DryRun proves what would reach vrfSimHLA1516e.
+# NOTHING is launched: -DryRun starts no process and the argument line is printed by the Plan
+# section before any precondition can abort, so this holds on a machine without 5.2 installed.
+Write-Host '=== 8g. the sim command line: no --logFileName by default, present when asked for ==='
+$lv52Script = Join-Path $RepoRoot 'scripts\LaunchVrf52.ps1'
+$dryDefault = (& pwsh -NoProfile -File $lv52Script -DryRun -NoGui -BackendAppNumber 9101 2>&1 | Out-String)
+$dryOptIn   = (& pwsh -NoProfile -File $lv52Script -DryRun -NoGui -BackendAppNumber 9101 -LogFileName 'C:\MAK\logs\bisect-repeat.log' 2>&1 | Out-String)
+$lineDefault = @($dryDefault -split "`r?`n" | Where-Object { $_ -match 'back-end\s+: .*vrfSimHLA1516e\.exe' })[0]
+$lineOptIn   = @($dryOptIn   -split "`r?`n" | Where-Object { $_ -match 'back-end\s+: .*vrfSimHLA1516e\.exe' })[0]
+Check 'the DEFAULT sim command line carries NO --logFileName (the 1-in-3 startup crash)' (
+    $lineDefault -and $lineDefault -notmatch '--logFileName' -and $lineDefault -match '--notifyLevel 3') (
+    "line='$lineDefault'")
+Check '-LogFileName puts the option back, with the path given (a deliberate bisect repeat)' (
+    $lineOptIn -and $lineOptIn -match '--logFileName "C:\\MAK\\logs\\bisect-repeat\.log"') (
+    "line='$lineOptIn'")
+Check 'the default dry run still says the option is NOT passed, and cites the bisect' (
+    $dryDefault -match 'NOT PASSED' -and $dryDefault -match 'PREREG_52_CRASH_BISECT_2026-09-04')
+Check 'the opt-in dry run WARNS that it is a ~1-in-3 startup crash' (
+    $dryOptIn -match 'PASSED DELIBERATELY' -and $dryOptIn -match '1-IN-3 STARTUP CRASH')
+Check 'the dry run plans the harvest and repeats the secrets warning' (
+    $dryDefault -match 'would HARVEST' -and $dryDefault -match 'SECRETS' -and $dryDefault -match 'never be attached to a ticket or mail')
 
 # 8d. THE DRY-RUN FALSE GREEN (found 2026-09-04 while wiring Stage 2r). The -DryRun Result
 # branch used to `exit 0` unconditionally, so a dry run that hit the runner's generic catch

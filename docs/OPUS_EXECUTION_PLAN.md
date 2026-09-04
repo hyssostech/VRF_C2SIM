@@ -1942,7 +1942,10 @@ join) are BURNED, not recycled. The run manifest records which were actually use
 - 3878-3895: CLAIMED 2026-09-04 - PREREG_52_CRASH_BISECT follow-up block of 18 (arms A baseline / C no --logFileName /
   D --logFileName into the vendor's own short C:\MAK\logs path), interleaved A,C,D. Crashed launches BURN their number.
 
-*** NEXT FREE: 3896 *** (authoritative - the ONLY such marker in this file. Update this
+- 3896-3907: CLAIMED 2026-09-04 - PREREG_52_CRASH_BISECT round 3 (12 launches, --logFileName ALWAYS passed,
+  --appDataDir to a scratchpad copy; arm A2 = plugin record present, arm E = scenarioPerformanceTest.xml removed).
+
+*** NEXT FREE: 3908 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN

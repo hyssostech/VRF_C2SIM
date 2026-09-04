@@ -715,9 +715,9 @@ PERSISTS ACROSS RUNS. `-DeviceAddress` is NOT part of the repair - run 3857 refl
 entities with the observer's device address blank - so it defaults to EMPTY and nothing is
 passed (the sim-side arm is still open); the rid's `RTI_networkInterfaceAddr` is another
 layer. The lightweight `rid-461-ridconfigured.mtl` is unreachable from here.
-STARTUP CRASH: the sim died in `DtVrfSimOptions::parseCmdLine` (0xC0000005) on 2 of 5 launches on
-2026-09-04 under BOTH rids - trigger UNKNOWN. LaunchVrf52's poll FAILS the launch (exit 3, no
-retry) on a vanished back-end, a MAK crash-box title, or a new `C:\MAK\logs\*-<pid>.callstack.log`, whose first frames it prints.
+STARTUP CRASH - CAUSE FOUND, AND IT WAS OURS (PREREG_52_CRASH_BISECT_2026-09-04 sec 5): passing `--logFileName` crashed the sim in `DtVrfSimOptions::parseCmdLine` (0xC0000005) in 6 of 18 launches, omitting it 0 of 12 (Fisher one-sided p=0.031); a 22-character vendor-default path crashed too, so it is the OPTION, not the path.
+LaunchVrf52 therefore does NOT pass it (`-LogFileName <path>` re-enables it deliberately, at ~1 crash in 3 - bisect repeats and MAK bug reports only) and HARVESTS the vendor's own `C:\MAK\logs\vrfSim*-<pid>.log` for that pid into `runs\launch52` at READY and on the crash path, before the corpse is closed (a COPY, a snapshot; one marker line -> manifest `inputs.vrfProfile.vendorLog`; missing = loud WARN, verdict unchanged). Its poll still FAILS a launch (exit 3, no retry) on a vanished back-end, a MAK crash-box title, or a new `C:\MAK\logs\*-<pid>.callstack.log`, whose first frames it prints.
+SECRETS: that harvested copy carries the FULL PROCESS ENVIRONMENT IN CLEARTEXT (`DtPrintEnvironmentVariables` at notifyLevel 3; FORENSICS_52_STARTUP_CRASH_2026-09-04 sec 10) - NEVER attach it to a ticket, mail or issue; send the `.callstack.log` / `.dmp` instead. It is not scrubbed, by decision.
 LICENCE CAP UNTESTED: the rtiexec log shows at most TWO federates joined, so the unlicensed-
 for-two cap (RTI UG 8.2) is unexercised on 5.2; the first FOUR-federate run must confirm
 `HaveRtiLicense()=1` on EVERY federate (`WatchVrf --diag` prints it). MANIFEST: profile, rid +

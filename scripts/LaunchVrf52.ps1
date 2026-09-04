@@ -12,8 +12,26 @@
 # Both default to ./appData/settings/connections/MAK-ONE-YYYY-Config.xml
 # (--exConnConfigFile, Table 11/12, p.167/181) and to session 1 (4.1.3).
 # vrfSim options used (UG52 Table 11, p.181): -L|--scenarioFileName (relative to
-# ./bin), -n|--notifyLevel 0-4 (default 2), --logFileName (5.2 default lands in
-# C:\MAK\logs - we always redirect it), -q|--doNotUseConsole.
+# ./bin), -n|--notifyLevel 0-4 (default 2), -q|--doNotUseConsole. --logFileName is
+# NOT among them any more - see the VENDOR LOG block below.
+#
+# VENDOR LOG: --logFileName IS NOT PASSED; THE VENDOR'S OWN LOG IS HARVESTED
+# (2026-09-04, docs/experiments/PREREG_52_CRASH_BISECT_2026-09-04.md sec 5). Passing
+# --logFileName crashed the sim at startup in 6 of 18 launches (33%); omitting it crashed
+# 0 of 12 (Fisher's exact, one-sided, p = 0.031). A 22-character path inside the vendor's
+# own C:\MAK\logs crashed too, so it is the OPTION, not the path length or location. The
+# sim ALWAYS writes its own log to C:\MAK\logs\vrfSimHLA1516e5.2d-<date>-<time>-<host>-
+# <build>-<pid>.log regardless, so nothing is lost: at READY (and on the crash path) this
+# script COPIES that file for THIS pid to -LogFile. The copy is a SNAPSHOT taken at that
+# moment - the vendor keeps writing - and a later snapshot is just another run of the
+# harvest. -LogFileName <path> still exists to exercise the option deliberately (a
+# repeat of the bisect, a vendor bug report); DO NOT re-enable it casually - it is a
+# 1-in-3 startup crash.
+# *** SECRETS: the harvested vendor log contains the FULL PROCESS ENVIRONMENT IN
+# CLEARTEXT (DtPrintEnvironmentVariables at --notifyLevel 3; FORENSICS_52_STARTUP_CRASH_
+# 2026-09-04 sec 10) - never attach it to a ticket, mail or issue; send the
+# .callstack.log / .dmp instead. It is NOT scrubbed here on purpose: a scrubber that
+# silently misses one variable is worse than a warning that is always true. ***
 #
 # ENVIRONMENT (the two 5.2 runtime traps, DIFF sec H): MAK DLLs bind BY NAME on
 # PATH and the Machine PATH lists vrforces5.0.2 / vrlink5.8 first, so this script
@@ -63,7 +81,9 @@
 # STARTUP CRASH DETECTION (2026-09-04, cold-start review of PREREG_52_RTIEXEC). The 5.2
 # sim sometimes dies at startup with 0xC0000005 inside
 # makVrf::DtVrfSimOptions::parseCmdLine - 2 of 5 launches on 2026-09-04, under BOTH the
-# lightweight and the rtiexec rid, so THE TRIGGER IS UNKNOWN and it is NOT a rid property.
+# lightweight and the rtiexec rid, so it is NOT a rid property. THE TRIGGER IS NOW KNOWN and
+# is removed by default: --logFileName (PREREG_52_CRASH_BISECT_2026-09-04 sec 5; VENDOR LOG
+# block above). Detection STAYS - it is the guard for the residual and for -LogFileName runs.
 # It must never be mistaken for "not ready yet": the readiness poll therefore watches for
 # three signatures and fails the launch the moment any appears -
 #   (a) the back-end process is GONE;
@@ -102,9 +122,10 @@
 # / rtiAssistant. If a front-end this script started is still up after a crash it is reported,
 # not killed - it will block the next launch until a human deals with it.
 # On the CAUSE of the crash itself see docs/experiments/FORENSICS_52_STARTUP_CRASH_2026-09-04.md
-# (a vendor-side fault in vl.dll, with rid / argv / launcher / cwd / timing all falsified as
-# triggers). It does not change this script's job: detect it, print the evidence, exit 3, and
-# do not leave the corpse blocking the next launch.
+# (a vendor-side fault in vl.dll, with rid / launcher / cwd / timing falsified as triggers),
+# RE-SCOPED by PREREG_52_CRASH_BISECT_2026-09-04 sec 5: the fault lives in the --logFileName
+# path, which we simply stop taking. It does not change this script's job: detect it, print the
+# evidence, exit 3, and do not leave the corpse blocking the next launch.
 #
 # Exit codes (same contract as LaunchVrf.ps1): 0 READY; 1 PARTIAL (back-end healthy,
 # no front-end); 2 precondition/usage failure (nothing launched); 3 NOT READY within
@@ -128,9 +149,20 @@ param(
     [int]    $SessionId          = 1,
     [switch] $NoGui,
     [int]    $NotifyLevel        = 3,
-    # Back-end log. EMPTY = <repo>\runs\launch52\vrfSim_<appNo>_<UTCstamp>.log
-    # (never C:\MAK\logs, the 5.2 default, and never under C:\MAK at all).
+    # Back-end log - now the HARVEST DESTINATION, not a --logFileName argument (header,
+    # VENDOR LOG). EMPTY = <repo>\runs\launch52\vrfSim_<appNo>_<UTCstamp>.log (never
+    # C:\MAK\logs, the 5.2 default, and never under C:\MAK at all). The vendor's own log
+    # for this pid is COPIED here at READY / on a startup crash. SECRETS: that copy holds
+    # the whole process environment in cleartext - never attach it anywhere.
     [string] $LogFile            = '',
+    # DELIBERATE re-enable of --logFileName, and NOTHING ELSE uses it. EMPTY (the default)
+    # = the option is NOT passed, because passing it crashes the sim at startup ~1 launch
+    # in 3: 6 crashes / 18 launches with it, 0 / 12 without, p = 0.031
+    # (docs/experiments/PREREG_52_CRASH_BISECT_2026-09-04.md sec 5; a short vendor-default
+    # path crashed too, so it is the option, not the path). Pass a path here only to
+    # reproduce that bisect or to give MAK a repro - never for routine logging: the
+    # vendor's own log is harvested to -LogFile instead.
+    [string] $LogFileName        = '',
     [string] $ExConnConfigFile   = '',
     # rid with RTI_configureConnectionWithRid 1; EMPTY = the repo-owned
     # config\rid-501-rtiexec-min.mtl (the RTIEXEC posture - see the header; an rtiexec must
@@ -258,6 +290,59 @@ function Close-CrashedBackend {
     }
 }
 
+# ---- vendor-log HARVEST (replaces --logFileName; header, VENDOR LOG) -----------------------
+# Newest VENDOR log written for $ProcessId at or after $Since, or '' when there is none. Same
+# three filters as Get-CallstackFileForPid, and for the same reasons: the pid is the LAST name
+# field (vrfSimHLA1516e5.2d-<date>-<time>-<host>-<build>-<pid>.log), C:\MAK\logs is shared by
+# the whole MAK toolchain and keeps files across boots, and Windows recycles pids. The
+# .callstack.log for the same pid does NOT match this filter (its last field is 'callstack',
+# not the pid) and is excluded explicitly anyway - it is separate evidence with a separate
+# life: it is the file that may be shared, and this one is not. Read-only, never throws.
+function Get-VendorSimLogForPid {
+    param([int]$ProcessId, [string]$LogDir, [datetime]$Since = [datetime]::MinValue,
+          [string]$NamePrefix = 'vrfSim')
+    try {
+        $ls = @(Get-ChildItem -LiteralPath $LogDir -Filter ($NamePrefix + ('*-{0}.log' -f $ProcessId)) -File -ErrorAction SilentlyContinue |
+                Where-Object { ($_.Name -notmatch '\.callstack\.log$') -and ($_.LastWriteTime -ge $Since) } |
+                Sort-Object LastWriteTime -Descending)
+        if ($ls.Count -gt 0) { return $ls[0].FullName }
+    } catch { }
+    return ''
+}
+
+# COPY (never move - the vendor may still be writing to it) that log to $Destination and say
+# where it came from. Returns the destination on success, '' otherwise. A missing vendor log
+# is a LOUD WARNING and nothing more: this function must never change the readiness verdict,
+# which is decided by the thread-count oracle and the crash detector alone.
+function Copy-VendorSimLog {
+    param([int]$ProcessId, [string]$LogDir, [datetime]$Since, [string]$Destination,
+          [string]$Occasion = 'READY')
+    $src = Get-VendorSimLogForPid -ProcessId $ProcessId -LogDir $LogDir -Since $Since
+    if (-not $src) {
+        Say-Warn ('VENDOR LOG NOT FOUND for pid {0} in {1} (no vrfSim*-{0}.log written at or after {2:yyyy-MM-dd HH:mm:ss}). Nothing was copied to {3}. This does NOT change the verdict - but the run has no back-end log, so look in {1} by hand (the vendor stamps LOCAL time). --logFileName is deliberately NOT passed (PREREG_52_CRASH_BISECT_2026-09-04 sec 5: 6 crashes / 18 launches with it, 0 / 12 without).' -f `
+            $ProcessId, $LogDir, $Since, $Destination)
+        return ''
+    }
+    try {
+        $dstDir = Split-Path -Parent $Destination
+        if ($dstDir) { New-Item -ItemType Directory -Force -Path $dstDir | Out-Null }
+        Copy-Item -LiteralPath $src -Destination $Destination -Force -ErrorAction Stop
+    } catch {
+        Say-Warn ('VENDOR LOG COPY FAILED ({0} -> {1}): {2}. The original is untouched; the verdict is unchanged.' -f $src, $Destination, $_.Exception.Message)
+        return ''
+    }
+    $hasEnv = $false
+    try { $hasEnv = [bool](Select-String -LiteralPath $Destination -SimpleMatch 'DtPrintEnvironmentVariables' -List -ErrorAction SilentlyContinue) } catch { }
+    # ONE marker line, parsed by the runner (RunC2SimScenario Stage 3) into the manifest:
+    # occasion is a single token, src runs to ' dst=', dst runs to end of line (paths may
+    # contain spaces).
+    Say-Ok ('VENDOR LOG HARVESTED occasion={0} src={1} dst={2}' -f $Occasion, $src, $Destination)
+    Say ('         SNAPSHOT ONLY: taken at {0}; the sim keeps writing to {1}. Re-run the harvest (or copy that file again) for a later view.' -f $Occasion, $src)
+    Say-Warn ('         SECRETS: this copy carries the FULL PROCESS ENVIRONMENT IN CLEARTEXT{0} (DtPrintEnvironmentVariables at --notifyLevel 3; FORENSICS_52_STARTUP_CRASH_2026-09-04 sec 10). NEVER attach it to a ticket, mail or issue - send the .callstack.log / .dmp instead. It is not scrubbed, by decision.' -f `
+        $(if ($hasEnv) { ' - DtPrintEnvironmentVariables IS PRESENT in this copy' } else { ' (DtPrintEnvironmentVariables not found in this copy - assume it is there anyway)' }))
+    return $Destination
+}
+
 $modeTag = if ($DryRun) { 'DRY-RUN' } else { 'LIVE' }
 $scenarioDisplay = if ([string]::IsNullOrWhiteSpace($Scenario)) { '(none - -L omitted)' } else { $Scenario }
 Say-Head "LaunchVrf52.ps1 ($modeTag) - VR-Forces 5.2d INDEPENDENT launch (UG52 4.1.2)"
@@ -269,7 +354,12 @@ Say ("  Site / Session    : {0} / {1}" -f $SiteId, $SessionId)
 Say ("  Back-end appNumber: {0}" -f $BackendAppNumber)
 Say ("  Front-end appNo   : {0}{1}" -f $FrontendAppNumber, $(if ($NoGui) { ' (-NoGui: not launched)' } else { '' }))
 Say ("  DeviceAddress     : {0}" -f $(if ([string]::IsNullOrWhiteSpace($DeviceAddress)) { '(empty - --deviceAddress/--hostAddressString NOT passed; VR-Forces picks the first device listed)' } else { $DeviceAddress }))
-Say ("  MakLogDir         : {0} (startup-crash callstacks)" -f $MakLogDir)
+Say ("  MakLogDir         : {0} (startup-crash callstacks AND the vendor's own sim log)" -f $MakLogDir)
+Say ("  --logFileName     : {0}" -f $(if ([string]::IsNullOrWhiteSpace($LogFileName)) {
+        'NOT PASSED (the default). PREREG_52_CRASH_BISECT_2026-09-04 sec 5: passing it crashed the sim at startup 6 times in 18 launches (~1 in 3), omitting it 0 in 12, p = 0.031 - and a short vendor-default path crashed too, so it is the OPTION, not the path. Do not re-enable it casually.'
+    } else { ('PASSED DELIBERATELY -> {0}. THAT IS A ~1-IN-3 STARTUP CRASH (PREREG_52_CRASH_BISECT_2026-09-04 sec 5); only a bisect repeat or a vendor bug report should be doing this.' -f $LogFileName) }))
+Say ("  vendor log harvest: {0}\vrfSim*-<pid>.log for THIS pid is COPIED (snapshot at READY / at a startup crash) to the -LogFile path reported below" -f $MakLogDir)
+Say-Warn ("  SECRETS: that harvested copy holds the FULL PROCESS ENVIRONMENT IN CLEARTEXT (DtPrintEnvironmentVariables at --notifyLevel 3; FORENSICS_52_STARTUP_CRASH_2026-09-04 sec 10). NEVER attach it to a ticket, mail or issue - send the .callstack.log / .dmp instead.")
 Say ("  Crashed processes : own pid on a startup crash -> {0}; pre-existing crashed leftover -> {1}" -f `
     $(if ($LeaveCrashedProcess) { 'LEFT RUNNING (-LeaveCrashedProcess; it will block the next launch)' } else { 'CLOSED before exit 3' }), `
     $(if ($CloseCrashedLeftover) { 'CLOSED if it has a callstack AND <= 4 threads (-CloseCrashedLeftover)' } else { 'left alone (refuses the launch; -CloseCrashedLeftover closes it)' }))
@@ -355,7 +445,7 @@ if ($scenarioAbs) {
 }
 $logDir = Split-Path -Parent $LogFile
 if ($logDir -like 'C:\MAK*') { Say-Fail ("log file would land under C:\MAK ({0}) - refused; pass -LogFile outside the vendor tree." -f $LogFile); $hardFail = $true }
-else { Say-Ok ("back-end log: {0}" -f $LogFile) }
+else { Say-Ok ("back-end log (HARVEST DESTINATION - the vendor's own log for this pid is copied here; --logFileName is not passed): {0}" -f $LogFile) }
 
 # Mixed-RTI environment report (Machine scope, informational - overridden per process)
 $mRti = [Environment]::GetEnvironmentVariable('MAK_RTIDIR','Machine')
@@ -453,7 +543,13 @@ if ([string]::IsNullOrWhiteSpace($licMachine) -and [string]::IsNullOrWhiteSpace(
 
 # ---- argument strings (UG52 4.1.2 / 4.1.3 / Table 11 / Table 12) ------------
 $simArgs = @('--siteId', $SiteId, '--appNumber', $BackendAppNumber, '--sessionId', $SessionId,
-             '--notifyLevel', $NotifyLevel, '--logFileName', ('"{0}"' -f $LogFile))
+             '--notifyLevel', $NotifyLevel)
+# --logFileName ONLY when -LogFileName was passed on purpose. Default EMPTY = absent from the
+# command line: with it the sim crashed at startup 6 times in 18 launches, without it 0 in 12
+# (PREREG_52_CRASH_BISECT_2026-09-04 sec 5, p = 0.031; a short vendor-default path crashed too,
+# so the path is not the trigger). The vendor writes its own log to $MakLogDir either way and
+# this script harvests it - see Copy-VendorSimLog.
+if (-not [string]::IsNullOrWhiteSpace($LogFileName)) { $simArgs += @('--logFileName', ('"{0}"' -f $LogFileName)) }
 if ($scenarioRel) { $simArgs += @('--scenarioFileName', ('"{0}"' -f $scenarioRel)) }
 if (-not [string]::IsNullOrWhiteSpace($ExConnConfigFile)) { $simArgs += @('--exConnConfigFile', ('"{0}"' -f $ExConnConfigFile)) }
 if ($QuietBackend) { $simArgs += '--doNotUseConsole' }
@@ -485,7 +581,11 @@ if ($DryRun) {
     Say-Plan ("Start-Process '{0}' -WorkingDirectory '{1}' -ArgumentList '{2}'" -f $simExe, $bin64, $simArgString)
     if (-not $NoGui) { Say-Plan ("Start-Process '{0}' -WorkingDirectory '{1}' -ArgumentList '{2}'" -f $guiExe, $bin64, $guiArgString) }
     Say-Plan ("poll up to {0}s every {1}s: back-end threads > {2}{3}" -f $ReadyTimeoutSec, $PollIntervalSec, $BackendMinThreads, $(if ($NoGui) { '' } else { ' AND vrfGui MainWindowTitle non-empty' }))
-    Say-Plan ("watch the SAME poll for a STARTUP CRASH (0xC0000005 in DtVrfSimOptions::parseCmdLine, 2 of 5 launches on 2026-09-04, trigger UNKNOWN): back-end gone, a MAK crash-box window title, or a new {0}\vrfSimHLA1516e*-<pid>.callstack.log. On any of them: print the first frames and exit 3, WITHOUT retrying." -f $MakLogDir)
+    Say-Plan ("HARVEST the vendor's own back-end log at READY: newest {0}\vrfSim*-<pid>.log for THIS pid, written at or after the launch floor, COPIED (never moved - the sim keeps writing) to {1}. A snapshot; missing = loud WARN, verdict unchanged. --logFileName is NOT passed (PREREG_52_CRASH_BISECT_2026-09-04 sec 5: 6 crashes / 18 launches with it, 0 / 12 without, p = 0.031){2}." -f `
+        $MakLogDir, $LogFile, $(if ([string]::IsNullOrWhiteSpace($LogFileName)) { '' } else { (' - EXCEPT that -LogFileName was given, so this run DOES pass it, at a ~1-in-3 crash risk: ' + $LogFileName) }))
+    Say-Plan 'WARN, on that harvested copy, that it holds the full process environment in cleartext and must never be attached to a ticket or mail (send the .callstack.log / .dmp instead).'
+    Say-Plan ("watch the SAME poll for a STARTUP CRASH (0xC0000005 in DtVrfSimOptions::parseCmdLine; its trigger, --logFileName, is NOT passed - PREREG_52_CRASH_BISECT_2026-09-04 sec 5 - but the detector stays): back-end gone, a MAK crash-box window title, or a new {0}\vrfSimHLA1516e*-<pid>.callstack.log. On any of them: print the first frames and exit 3, WITHOUT retrying." -f $MakLogDir)
+    Say-Plan 'HARVEST that crashed pid''s vendor log too, on the crash path and BEFORE the corpse is closed - a crashed run''s short log is the forensic value, and the copy lands beside the callstack path printed with the frames (same secrets warning: never attach it anywhere).'
     if ($LeaveCrashedProcess) {
         Say-Plan 'LEAVE the crashed back-end running on that crash (-LeaveCrashedProcess) - and it would then refuse the NEXT launch until closed by hand or with -CloseCrashedLeftover.'
     } else {
@@ -597,7 +697,16 @@ if ($simCrash.Crashed) {
     Say-Fail ('back-end pid {0} CRASHED AT STARTUP - {1}' -f $simProc.Id, $simCrash.Reason)
     if ($simCrash.File) { Say-Fail ('  callstack: {0}' -f $simCrash.File) }
     foreach ($ln in @($simCrash.Frames)) { Say ('         | ' + $ln) }
-    Say-Fail '  KNOWN AND UNEXPLAINED: 0xC0000005 in makVrf::DtVrfSimOptions::parseCmdLine hit 2 of 5 launches on 2026-09-04, under BOTH the lightweight and the rtiexec rid - the trigger is NOT the rid and is NOT known. NOT retried here.'
+    Say-Fail '  0xC0000005 in makVrf::DtVrfSimOptions::parseCmdLine. Its KNOWN trigger is --logFileName (6 crashes / 18 launches with it, 0 / 12 without, p = 0.031 - PREREG_52_CRASH_BISECT_2026-09-04 sec 5) and this script does not pass it by default. A crash WITHOUT -LogFileName is therefore NEW: the option is exonerated for this one, so record it and do not reuse the old explanation. NOT retried here.'
+    if (-not [string]::IsNullOrWhiteSpace($LogFileName)) {
+        Say-Fail ('  -LogFileName WAS PASSED on this launch ({0}). That is the KNOWN trigger: PREREG_52_CRASH_BISECT_2026-09-04 sec 5 measured 6 crashes / 18 launches with the option and 0 / 12 without (p = 0.031). Drop it before reading anything else into this crash.' -f $LogFileName)
+    }
+    # HARVEST BEFORE CLOSING: the corpse's own vendor log is short and is exactly the forensic
+    # value of a crashed run, and the crash handler may still be holding the file. The copy
+    # lands beside the callstack path printed above; it is a copy, so the original stays for
+    # MAK. A missing one is a warning, never a change to this crash verdict.
+    $null = Copy-VendorSimLog -ProcessId $simProc.Id -LogDir $MakLogDir -Since $simStartFloor -Destination $LogFile -Occasion 'STARTUP-CRASH'
+    Say '  (A crashed pid USUALLY HAS NO vendor log at all: of the 10 pids with a .callstack.log in C:\MAK\logs on 2026-09-04, 9 had a .dmp and a .callstack.log but no .log - consistent with the fault being IN the log-stream installer itself. A "VENDOR LOG NOT FOUND" warning here is EXPECTED, not a second defect; the callstack and the dump above are the evidence.)'
     # The process is dead as a simulator but NOT gone: MAK's crash handler parks it (0 threads,
     # title 'Error vrfSimHLA1516e.exe'), and on 2026-09-04 that corpse made the next launch
     # exit 2 on the pre-existing-process precondition - an unattended runner could not retry.
@@ -625,10 +734,18 @@ if ($needFront) {
     elseif ($frontUp) { Say-Fail ("front-end pid {0} exists but MainWindowTitle is EMPTY - blocking modal dialog signature (Scenario Startup dialog, license/LRC box). Look at the screen; do not kill." -f $guiProc.Id) }
     else { Say-Warn ("front-end pid {0} NOT up (exit code {1})" -f $guiProc.Id, $frontExit) }
 }
+# THE HARVEST (header, VENDOR LOG): --logFileName is not passed, so the only back-end log is
+# the vendor's own in $MakLogDir. Copy it for THIS pid, on every non-crash outcome - a NOT
+# READY back-end is exactly when its log matters most. The crash path harvested already,
+# before closing the corpse, so it is not repeated here.
+if (-not $simCrash.Crashed) {
+    $null = Copy-VendorSimLog -ProcessId $simProc.Id -LogDir $MakLogDir -Since $simStartFloor -Destination $LogFile `
+                -Occasion $(if ($backendHealthy) { 'READY' } else { 'NOT-READY' })
+}
 if (Test-Path -LiteralPath $LogFile) {
-    Say-Ok ("back-end log tail ({0}):" -f $LogFile)
+    Say-Ok ("back-end log tail - HARVESTED COPY, secrets warning above, do not attach it anywhere ({0}):" -f $LogFile)
     Get-Content -LiteralPath $LogFile -Tail 12 -ErrorAction SilentlyContinue | ForEach-Object { Say ('         | ' + $_) }
-} else { Say-Warn ("back-end log NOT created at {0} (--logFileName ignored, or the process died before logging)" -f $LogFile) }
+} else { Say-Warn ("no back-end log at {0}: the vendor log for this pid was not found or could not be copied (see the harvest warning above). --logFileName is deliberately NOT passed - PREREG_52_CRASH_BISECT_2026-09-04 sec 5." -f $LogFile) }
 
 Say-Head 'Result'
 if ($simCrash.Crashed) {

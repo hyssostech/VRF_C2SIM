@@ -1406,6 +1406,11 @@ if ($Is52) {
     Say     ('         interface   : -DeviceAddress {0}' -f $(if ($DeviceAddressPassed) { ('{0} - pinned on sim + gui and on the app' -f $DeviceAddress52) } else { 'EMPTY (the default): NOT passed to the sim or the gui; VR-Forces picks the first device listed (IOG 5.2.1 p81)' }))
     Say     ('                       bridge federates (tools + app) use {0}' -f $BridgeDeviceAddress)
     Say     ('                       NOT part of the repair: run 3857 reflected 54-56 entities with the observer device address blank (PREREG_52_RTIEXEC sec 4 P4). Sim-side necessity still OPEN.')
+    Say     ('         back-end log: --logFileName is NOT passed (PREREG_52_CRASH_BISECT_2026-09-04 sec 5: 6 startup crashes / 18 launches with it,')
+    Say     ('                       0 / 12 without, p = 0.031; a short vendor-default path crashed too, so it is the OPTION). LaunchVrf52')
+    Say     ('                       HARVESTS the vendor''s own C:\MAK\logs\vrfSim*-<pid>.log for that pid into runs\launch52 instead.')
+    Say     ('                       SECRETS: the harvested copy holds the FULL PROCESS ENVIRONMENT IN CLEARTEXT (FORENSICS_52_STARTUP_CRASH')
+    Say     ('                       _2026-09-04 sec 10) - NEVER attach it to a ticket, mail or issue; send the .callstack.log / .dmp instead.')
     Say     ('         scenario    : {0} (relative to {1}\userData\scenarios)' -f $Scenario, $VrfRoot)
     foreach ($k in $ProfileEnv.Keys) { Say ('         env         : {0}={1}' -f $k, $ProfileEnv[$k]) }
 }
@@ -1459,6 +1464,22 @@ $Manifest.inputs.vrfProfile = [ordered]@{
     bridgeDeviceAddress = $(if ($Is52) { $BridgeDeviceAddress } else { $null })
     deviceAddressStatus = $(if ($Is52) { 'NOT part of the observation-channel repair: run 3857 (PREREG_52_RTIEXEC sec 4 P4) reflected 54-56 entities with the observer device address blank. Sim-side necessity still open.' } else { $null })
     rtiExec             = $(if ($Is52) { [ordered]@{ script = $StartRtiExec; logDir = $RtiExecLogDir; logFile = $null; exitCode = $null; rtiExecPid = $null; forwarderPid = $null; started = $null; tcpPort = 4001 } } else { $null })
+    # THE BACK-END LOG, and why it is a COPY. --logFileName is NOT passed on the 5.2 profile:
+    # PREREG_52_CRASH_BISECT_2026-09-04 sec 5 measured 6 startup crashes / 18 launches with the
+    # option against 0 / 12 without (Fisher's exact, one-sided, p = 0.031), and a 22-character
+    # path inside the vendor's own log directory crashed too, so it is the OPTION, not the path.
+    # The sim writes its own log regardless; LaunchVrf52 harvests THAT file for its pid into
+    # runs\launch52 and prints one marker line, parsed at Stage 3 into harvestedFrom/To.
+    # SECRETS: the harvested copy carries the full process environment in cleartext
+    # (FORENSICS_52_STARTUP_CRASH_2026-09-04 sec 10) - never attach it to a ticket or mail.
+    vendorLog           = $(if ($Is52) { [ordered]@{
+            logFileNamePassed = $false
+            reason            = 'NOT passed - PREREG_52_CRASH_BISECT_2026-09-04 sec 5: 6 startup crashes / 18 launches with --logFileName, 0 / 12 without (p = 0.031); the OPTION, not the path.'
+            harvestedFrom     = $null
+            harvestedTo       = $null
+            harvestOccasion   = $null
+            secrets           = 'The harvested copy contains the FULL PROCESS ENVIRONMENT IN CLEARTEXT (DtPrintEnvironmentVariables at notifyLevel 3, FORENSICS_52_STARTUP_CRASH_2026-09-04 sec 10). NEVER attach it to a ticket, mail or issue - send the .callstack.log / .dmp instead. Not scrubbed, by decision.'
+        } } else { $null })
     env                 = $ProfileEnv
     nativeStack         = $null
 }
@@ -2202,6 +2223,19 @@ try {
     # -q | --doNotUseConsole for the back end. Off by default; see the -QuietBackend
     # note in the param block. Recorded in the manifest as inputs.quietBackend either way.
     if ($QuietBackend) { $launchArgs += '-QuietBackend' }
+    # 5.2 back-end log. NOTHING is added to the launch line: -LogFileName is left off, so
+    # LaunchVrf52 does not pass --logFileName to the sim (PREREG_52_CRASH_BISECT_2026-09-04
+    # sec 5 - 6 startup crashes / 18 launches with it, 0 / 12 without, p = 0.031), and it
+    # harvests the vendor's own log for the back-end pid instead. Said out loud because an
+    # ABSENT argument is otherwise invisible in the evidence.
+    if ($Is52) {
+        Say '  back-end log: -LogFileName NOT passed, so the sim gets no --logFileName (PREREG_52_CRASH_BISECT_2026-09-04 sec 5:'
+        Say '                6 startup crashes / 18 launches with it, 0 / 12 without, p = 0.031 - the OPTION, not the path).'
+        Say '                LaunchVrf52 HARVESTS C:\MAK\logs\vrfSim*-<pid>.log for the back-end pid into runs\launch52 and'
+        Say '                reports src/dst; this stage records both in the manifest (inputs.vrfProfile.vendorLog).'
+        Say '                SECRETS: that copy holds the full process environment in cleartext - never attach it to a ticket'
+        Say '                or mail; send the .callstack.log / .dmp instead (FORENSICS_52_STARTUP_CRASH_2026-09-04 sec 10).'
+    }
     # THIS IS THE STAGE THAT DEADLOCKED THE RUNNER FOR 47 MINUTES ON 2026-07-19.
     # LaunchVrf's pwsh exits in ~35-60 s, but vrfGui and vrfSimHLA1516e are its
     # DESCENDANTS and are MEANT to keep running. Invoke-External now waits for the
@@ -2222,9 +2256,31 @@ try {
             0 { Say-Ok 'VR-Forces READY' }
             2 { Stop-Runner 2 'LaunchVrf exited 2 (precondition/argument failure). Nothing joined.' }
             1 { Stop-Runner 3 'LaunchVrf exited 1 PARTIAL - back-end healthy but no front-end. That is the known 0xC0000005 crash-risk condition; refusing to run a scored trace on it.' }
-            3 { Stop-Runner 3 ('LaunchVrf exited 3: NOT READY within timeout, or - on the 5.2 profile - the back-end CRASHED AT STARTUP (0xC0000005 in DtVrfSimOptions::parseCmdLine, 2 of 5 launches on 2026-09-04, trigger UNKNOWN and NOT the rid). Read {0}: a crash prints its callstack frames there. Other usual cause is an UNANSWERED RTI Assistant prompt (RUNBOOK 0.5.3). Nothing force-killed, nothing retried.' -f $PathLaunchOut) }
+            3 { Stop-Runner 3 ('LaunchVrf exited 3: NOT READY within timeout, or - on the 5.2 profile - the back-end CRASHED AT STARTUP (0xC0000005 in DtVrfSimOptions::parseCmdLine; its known trigger, --logFileName, is NOT passed by this profile - PREREG_52_CRASH_BISECT_2026-09-04 sec 5 - so a crash here is NEW and must be recorded, not explained away). Read {0}: a crash prints its callstack frames there. Other usual cause is an UNANSWERED RTI Assistant prompt (RUNBOOK 0.5.3). Nothing force-killed, nothing retried.' -f $PathLaunchOut) }
             4 { Stop-Runner 3 'LaunchVrf exited 4 BLOCKED - the front-end has no main window, i.e. a modal dialog is waiting. Nothing force-killed.' }
             default { Stop-Runner 3 ('LaunchVrf exited {0} - undocumented code.' -f $r.ExitCode) }
+        }
+        # THE HARVESTED BACK-END LOG (5.2 only). The launcher does not pass --logFileName - it
+        # copies the vendor's own log for the back-end pid instead - and says so in one marker
+        # line, which is where the manifest's path comes from. Read AFTER the exit-code switch,
+        # which is where the run is failed; a missing marker is recorded as null and flagged,
+        # never fatal: the log is evidence, not a gate. Note Stop-Runner would already have
+        # ended a crashed run above, so this fills in only on the paths that survive.
+        if ($Is52 -and (Test-Path -LiteralPath $PathLaunchOut -PathType Leaf)) {
+            # occasion is a single token; src runs to ' dst='; dst runs to end of line (paths
+            # may contain spaces).
+            $hm = [regex]::Match((Get-Content -LiteralPath $PathLaunchOut -Raw),
+                                 'VENDOR LOG HARVESTED occasion=(\S+) src=(.*?) dst=(.*?)\s*$',
+                                 [System.Text.RegularExpressions.RegexOptions]::Multiline)
+            if ($hm.Success) {
+                $Manifest.inputs.vrfProfile.vendorLog.harvestOccasion = $hm.Groups[1].Value
+                $Manifest.inputs.vrfProfile.vendorLog.harvestedFrom   = $hm.Groups[2].Value
+                $Manifest.inputs.vrfProfile.vendorLog.harvestedTo     = $hm.Groups[3].Value
+                Say-Ok ('back-end log HARVESTED from the vendor copy ({0}) -> {1}. SECRETS: it holds the full process environment in cleartext - never attach it to a ticket or mail; send the .callstack.log / .dmp instead.' -f $hm.Groups[2].Value, $hm.Groups[3].Value)
+            } else {
+                Add-Flag 'WARN' ('No vendor back-end log was harvested by LaunchVrf52 (no "VENDOR LOG HARVESTED" line in {0}). The run has no back-end log; look in C:\MAK\logs by hand (the vendor stamps LOCAL time). NOT fatal and NOT a readiness verdict.' -f $PathLaunchOut)
+            }
+            Save-Manifest
         }
     }
 
