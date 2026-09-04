@@ -41,29 +41,42 @@ Success = P1 AND P3. P3 alone decides whether the observation channel is repaire
 
 ## 4. Result (2026-09-04 06:25 local; captures runs/launch52/*3854-3856*)
 P1 HELD: sim 3854 joined MAK-ONE-2025 on the rtiexec connection, no crash (log 6212 lines,
-loaded, 71 threads). So the earlier parseCmdLine crash (3848) came from the three extra keys
-in rid-501-rtiexec.mtl (distributeFedFile / fomModuleMerging / tcpNetworkInterfaceAddr) -
-that rid is superseded by rid-501-rtiexec-min.mtl.
+loaded, 71 threads). CORRECTED by COLDSTART_REVIEW_RTIEXEC_2026-09-04: the earlier
+parseCmdLine crash (3848) is NOT explained by rid keys - run 3853 (LIGHTWEIGHT rid, direct
+launch) crashed with a byte-identical callstack (C:\MAK\logs\...39028.callstack.log; the
+ledger row 3853 was mislabelled "stalled"). The crash hit 2 of 5 sim launches today on both
+rid types; TRIGGER UNKNOWN - the launch stage must detect it (callstack file / Error window)
+and fail loudly. rid-501-rtiexec-min differs from stock 5.0.1 in SIX keys (the other six of
+the "twelve" are stock values) and from rid-501-rtiexec in ONE (tcpNetworkInterfaceAddr;
+distributeFedFile/fomModuleMerging are 1 in stock). rid-min is the profile rid.
 P2 HELD: RunSim 3855 BackendCount=1 in 0.1 s, clock started.
 P3 HELD - THE OBSERVATION CHANNEL IS REPAIRED: WatchVrf 3856 direct list counts ent=44 at
 t=3 s rising to ent=62 / env=19 / ctl=19 at t=53 s (vendor printReflectedObjectCounts:
 Reflected Entities 62, Total 81); UUID-callback reflected=67 -> 106; real POS lines
 (21.29xx, -157.86xx, alt 1.0) plus the known placeholder encoding (NaN, 90, NaN) for
 objects without a resolved location. discovered=1, backends=1, licence rti=1 vrlink=1.
-CAUSE (HEAVY - falsification gate): the run changed TWO documented settings at once
-against every earlier run - (a) MAK RTI in rtiexec mode instead of the prohibited
-lightweight mode (UG52 5.5.1 p190), (b) interface pinned to 127.0.0.1 on sim, observer
-and RTI (the 5.0.2 configuration's fixed value). VERIFIED: with both, entities reflect;
-with neither (every run 2026-09-03) nothing did. NOT separated: which of (a)/(b) is
-necessary - the single-variable discriminator is one observer run with the interface
-unpinned on the same rtiexec sim (needs a tool flag to blank DeviceAddress; the facade
-now pushes 127.0.0.1 by default). Operationally moot: BOTH are documented requirements
-(5.5.1 prohibits lightweight outright; the 5.0.2 setup pinned the interface), so the 5.2
-profile carries both. Strongest competitor to "posture" as cause = "the Traffic scenario
-simply has entities while the earlier scenarios did not": REFUTED - Traffic itself ran
-on 4.6.1 lightweight (3835/3839, running clock) and on 5.0.1 lightweight (3844-3847) with
-0 reflected. Unexplained residue: none material; the placeholder-encoded objects are the
-5.0.2-known census pattern (run_census.py filters them).
+CAUSE (HEAVY - falsification gate, corrected after COLDSTART_REVIEW_RTIEXEC_2026-09-04):
+(a) MAK RTI in rtiexec mode instead of the prohibited lightweight mode (UG52 5.5.1 p190,
+verbatim, verified in both PDFs; 5.0.2 only forbade it for multiple federations) is
+SUPPORTED BY ELIMINATION - no mechanism is named for WHY lightweight passed one object
+class (MAK_TimeAndDate) and every interaction yet dropped entity classes; that residue
+stays OPEN. (b) the VR-Forces-level --deviceAddress/--hostAddressString 127.0.0.1 is NOT
+established as part of the cause: the RTI-layer interface (RTI_networkInterfaceAddr) is
+inherent to the loopback-broadcast rtiexec connection, and every lightweight run already
+had sim and observer on one interface with traffic crossing both ways. It is carried as
+the 5.0.2 configuration's value, TUNABLE and UNTESTED; discriminator = WatchVrf with
+--deviceAddress suppressed against the live rtiexec sim (observer side), then a sim
+relaunch on rid-min without -DeviceAddress. VALID negative controls: 3839 (4.6.1
+lightweight, Traffic RUNNING, 60 s complete), 3845 (5.0.1 lightweight, paused), and the
+vendor listen_3838 (Traffic running, joined, 30 s, 0 entities). NOT valid: 3847 (cut at
+3 s), listen_3829/3834 (sim 3826 had crashed). "The scenario is the difference" is
+REFUTED by 3839 and 3838. Evidence notes: the 19 (NaN,90,NaN) POS lines are the 19
+CONTROL objects (readable = ent + ctl every sample), not unresolved entities; env=19 ==
+ctl=19 at every sample is a ReflectedCounts() instrument anomaly (env accessor) to fix;
+the rtiexec log shows at most two federates joined, so the unlicensed-for-two cap is
+UNTESTED; "received size does not match header size" appears in every 5.0.1 lightweight
+federate, unexplained; the launch_3854 stdout capture was not written (Tee path) - the
+sim log is the launch evidence.
 CONSEQUENCES: the assistant-free LIGHTWEIGHT rid (config/rid-461-ridconfigured.mtl,
 2026-09-03) was a WRONG fix - it bypassed the version-locked assistant but put the
 federation in a mode VR-Forces does not support; assistant-free stays (RTI_ASSISTANT_

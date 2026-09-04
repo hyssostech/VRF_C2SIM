@@ -1914,7 +1914,7 @@ join) are BURNED, not recycled. The run manifest records which were actually use
 
 - 3852: CONSUMED 2026-09-03 (joined; -q log has no RTI trace either) - as 3851 but -QuietBackend (-q routes the sim's console incl. the RTI trace into the log file; 3851's RTI=> lines went to the unattached console).
 
-- 3853: BURNED 2026-09-03 (sim stalled at 4 threads with redirected stdio, never joined) - vrfSimHLA1516e launched DIRECTLY with stdout/stderr redirected (the RTI trace never reaches the VRF log), RTI 5.0.1 rid-configured lightweight at notify 4, Traffic, 90 s: does the sim registerObjectInstance/publish entities (H1)?
+- 3853: BURNED 2026-09-03 (sim CRASHED at start - callstack byte-identical to 3848, DtVrfSimOptions::parseCmdLine, on the LIGHTWEIGHT rid: the crash trigger is UNKNOWN, not rid keys; COLDSTART_REVIEW_RTIEXEC) - vrfSimHLA1516e launched DIRECTLY with stdout/stderr redirected (the RTI trace never reaches the VRF log), RTI 5.0.1 rid-configured lightweight at notify 4, Traffic, 90 s: does the sim registerObjectInstance/publish entities (H1)?
 
 - 3854: CLAIMED 2026-09-04 - PREREG_52_RTIEXEC step 1: LaunchVrf52 -NoGui, RTI 5.0.1, rid-501-rtiexec-min.mtl (documented rtiexec posture), -DeviceAddress 127.0.0.1, Traffic.
 - 3855: CLAIMED 2026-09-04 - PREREG_52_RTIEXEC step 2: RunSim-5.2 on that connection.
