@@ -126,6 +126,13 @@ RM 6.3.1/14.3) remain the top two; H4 (created entities never existed) still not
 excluded; H7 transport untested (the rtiexec rid crashes the sim). Screenshot
 gui_traffic_rti461_running.png: the GUI showed Traffic loaded, clock RUNNING, but a
 blank white view - it did not settle H4 either.
+RESOLVED 2026-09-04 (PREREG_52_RTIEXEC_2026-09-04.md): the observation channel is
+REPAIRED under the DOCUMENTED posture - MAK RTI in rtiexec mode (UG52 5.5.1 p190
+prohibits lightweight mode with VR-Forces; every 2026-09-03 run was lightweight) with
+the interface pinned to 127.0.0.1 (the 5.0.2 Launcher's fixed value). WatchVrf 3856:
+62 reflected entities, real POS lines. H1/H2/H4/H7 are all subsumed: nothing was wrong
+with the sim or the bridge; the RTI connection posture was unsupported. The record
+below stands as the trail of a docs-first breach.
 NEXT (frame per the user's rulings 2026-09-03/04: vendor-managed 5.2 stack, no 4.6.1
 anywhere, and NO questions to MAK - docs and our own runs only): (0) DOCS FIRST, the
 part skipped all night: the 5.2d equivalent of the 5.0.2 HLA connection configuration

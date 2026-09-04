@@ -66,14 +66,11 @@ THE RULE: FFRTC stays the default for REPEATABILITY and time-managed HLA; TIMEMU
 fixed amount to compute" (3.4.3), so the ratio lands on WHICHEVER SIDE OF 1.0 the load puts it.
 BUDGET A SCALE RUN AS wall = sim / measured ratio. CORRECTION: "compression only ever gives MORE
 margin" IS FALSE at scale - task timers are WALL, so at 0.2652 a 600 s wall timeout is 159 SIM s.
-THE C2SIM POSITION-REPORT STREAM IS SIM-PACED (rung 2, re-confirmed by the -q run and by QPAIR
-A-1/A-2: 1,664 reports each). **THE LS SLOPE IS THE NOISIER CLOCK - residual sd ranges 1.66 to
-58.66 across runs; where a sim window matters, CROSS-CHECK WITH THE FIT-FREE REPORT COUNT.**
-THRESHOLD RULE: EVERY speed or timeout threshold MUST NAME ITS CLOCK **AND BOUND ANY DENOMINATOR
-IT DIVIDES BY** - rung 2 P4(c), the -q run's P1(b) and QPAIR I4/I6 were all this error class.
-FIXTURE: tools/FixtureGen/frame_variants/TropicTortoise_FFRTC.scnx - stock TropicTortoise with TWO
-lines moved, (frame-mode "fixed-frame-run-to-complete") + (frame-time 0.033333); DEPLOYED at
-C:\MAK\vrforces5.0.2\userData\scenarios\ (SHA-256 D27E540F8BCC...B0B9). Mode check `python
+THE C2SIM POSITION-REPORT STREAM IS SIM-PACED (rung 2, -q run, QPAIR A-1/A-2: 1,664 reports each).
+**THE LS SLOPE IS THE NOISIER CLOCK (residual sd 1.66-58.66) - CROSS-CHECK WITH THE FIT-FREE REPORT
+COUNT.** THRESHOLD RULE: every speed/timeout threshold MUST NAME ITS CLOCK AND BOUND ITS DENOMINATOR.
+FIXTURE: tools/FixtureGen/frame_variants/TropicTortoise_FFRTC.scnx (stock + frame-mode fixed-frame-
+run-to-complete, frame-time 0.033333); DEPLOYED at C:\MAK\vrforces5.0.2\userData\scenarios\. Mode check `python
 tools/analysis/frame_gaps.py . <run>`: PASS = Test A >= 95% in {0.033,0.034} AND R >= 0.99; rung 1
 (variable-frame) scores R = 0.0276, so it DISCRIMINATES. OPEN DESIGN ITEM, MEDIUM: OUR APP HAS NO
 NOTION OF SIM TIME (VrfFacade.cpp:478-482 pins the federate clock to elapsedRealTime; TickLoop is
@@ -177,9 +174,12 @@ USER RULING 2026-09-03 21:20: NO OLD BITS - the 5.2 stack runs on MAK RTI 5.0.1 
 joins on 5.0.1 unchanged, PREREG_52_REFLECTION sec 5). Observer still blind on 5.0.1 lightweight;
 rid-configured rtiexec CRASHES the sim at start; sim-side RTI trace not yet capturable; rtiexec
 15720 + forwarder 43728 + four -K assistants LEFT RUNNING (never kill). NO questions to MAK (user
-2026-09-04). NEXT = DOCS FIRST: the 5.2d equivalent of the 5.0.2 HLA connection setup (UG52 4.7 /
-5.3.1 Launcher one-time connection, IOG) - RESEARCH_52_HLA_CONNECTION_CONFIG_2026-09-04.md - then
-perform it and re-observe; RTI log-file trace of the sim; runner flips to 5.0.1 when that lands.
+2026-09-04). RESOLVED 2026-09-04 (PREREG_52_RTIEXEC_2026-09-04): UG52 5.5.1 p190 prohibits the MAK
+RTI in LIGHTWEIGHT mode with VR-Forces - every 2026-09-03 run was lightweight. Documented posture =
+RTI 5.0.1 in rtiexec mode (config/rid-501-rtiexec-min.mtl, headless rtiexec) + interface 127.0.0.1
+(-DeviceAddress; facade pushes --deviceAddress): WatchVrf reflects 62 entities, real POS. NEXT = the
+runner 5.2 profile on that posture (executor: StartRtiExec52 stage, rid, DeviceAddress), then
+PREREG_R9_52 (Phase 2) with WatchVrf re-baselined on 5.2.
 ## PROBE PROTOCOL (adopted 2026-09-01/02; do NOT change mid-protocol)
 FFRTC mode per the block above; TimeMultiplier 1x; -RunSecs is a CAP under -StopWhenComplete.
 SHORT-ROUTE probe variants are allowed (platoon/entity legs ~200 m) but COMPANY probe routes stay
