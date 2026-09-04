@@ -1,6 +1,6 @@
 # SESSION-JUMP HANDOFF (opened 2026-09-01, current 2026-09-02) - THE AGGREGATE FREEZE IS FIXED
 
-THE CURRENT entry point (newest HANDOFF_*.md by git log). SUPERSEDES
+THE CURRENT entry point (newest HANDOFF_*.md by git log). Read CLAUDE.md first. SUPERSEDES
 HANDOFF_2026-07-23_TYPEFIX_CONFIRMED.md. ASCII only. HARD CAP 200 LINES - when a phase closes,
 collapse it to a few lines plus a pointer; never drop live guidance to make room. RE-VERIFY
 load-bearing claims against artifacts, not prose.
@@ -55,8 +55,8 @@ night of RTI probing dissolved in one sentence, UG52 5.5.1 p190). NO questions t
 TASKCMPLT; the FULL COA-STP1 ORDER marches (`Can't find entity route` 14,904 -> 0, names to 99 chars);
 merged build GATED; type map LIVE-CONFIRMED 6/6; FFRTC = 3.2-3.8x SLOWDOWN at scale; OPEN: Tank Company
 distribution non-determinism (PARKED). 5.2: launch/join/control/OBSERVATION proven, and 2026-09-04
-the FIRST AUTHORED FIXTURE loaded headless (PREREG_52_FIXTURE_LOAD 3908/3909/3910; entity clamped
-to terrain 1149.8 m at the R9 AOI).
+the FIRST AUTHORED FIXTURE loaded headless (PREREG_52_FIXTURE_LOAD 3908-3910; entity clamped to
+terrain 1149.8 m at the R9 AOI). NO C2SIM STAGE HAS EVER RUN ON 5.2.
 ## WORKING CONFIGURATION
 TypeMappingMode=RealTemplates + GroundWaypointAltitudeMode=TerrainProfile (both compiled DEFAULTS
 since 2026-09-02, bridge A7504441) + NavArea disabled + STOCK templates, no env overrides - an
@@ -89,8 +89,7 @@ contract violation at the DtUUID string ctor (rwUUID.h:246-253/:412; names survi
 four route/waypoint sites pass e.Uuid, not e.Name.
 STILL OPEN (5.0.2-era, carried to 5.2): the NATIVE completion-status item; (B) 26 echelon-F units
 land the GENERIC Ground_Aggregate fallback (UnitTranslator.cs:70/:134, TYPE_GAP 4, USER call) - it
-MARCHES; (C) TerrainProfile re-entry double-logs; (D) ResetVrf after StopVrf is blind. NOT EXERCISED
-by any order: PatrolRoute, PlanAndMoveTo.
+MARCHES; (C) TerrainProfile re-entry double-logs; (D) ResetVrf after StopVrf is blind.
 UNEXPLAINED (5.0.2, PARKED - numbers in the QPAIR/rung preregs): 1,732 ever-real was old-config
 residue (**DO NOT REUSE AS A CHECK**); reflections 28 -> 58 cast-corrupted; **THE THREE TANK
 COMPANIES ARE THE UNSTABLE CLASS** - identical invocations stall or march (QPAIR A-1 vs A-2).
@@ -102,34 +101,35 @@ CLIENTID TRAP (LIVE): the DEPLOYED (gitignored) bin\...\appsettings.json Vrf:Cli
 the init's SystemName or the runner ABORTS at validation, exit 2 (RunC2SimScenario.ps1:1154-1165).
 R9 inits declare STP, COA-STP1 declares C2SIM; it currently reads "STP". DEPLOYED copy only.
 RTI: inventory fresh at session start - never trust recorded PIDs. Docker: `c2sim-server-vrf` is
-OURS (18080/61614); the operator's servers are NOT. Firewall: do NOT set NotifyOnListen False
-(user ruling); Cancel the testhost prompt. MAK licence expires 2026-09-15. VENDOR LOG STAMPS ARE
-LOCAL (-04:00); ours are UTC.
+OURS (18080/61614); the operator's servers are NOT. Firewall: do NOT set NotifyOnListen False (user
+ruling); Cancel the testhost prompt. MAK licence expires 2026-09-15. VENDOR LOG STAMPS ARE LOCAL
+(-04:00); ours are UTC.
 
 ## NEXT (in order)
-DONE 2026-09-02 pm, three probes (READ THE PREREG SEC 7s): merged-build control GATE PASSED
-(3759-3765, zero-hunk diff); `-q` at scale STOPPED on its miss rule (3767-3773; -q does NOT
-suppress vrfSim.log); type-map live gate PASSES / run invalid (3775-3781; 6/6, 3/3).
-1. **TANK-COMPANY NON-DISTRIBUTION - PAIR ADJUDICATED (PREREG_COASTP1_QPAIR sec 9):** `-q`
-   FALSIFIED as the cause; NON-DETERMINISM SUPPORTED (A-1 vs A-2 identical, B/5-20 0 vs 4
-   sub-routes); run B NOT owed; `-q` stays default-OFF; both instrument misses falsified.
-   NEXT OBJECT (5.0.2, PARKED behind the 5.2 migration): the SERIAL COMPANY BUILD, docs first.
-   Known-unexplained (bounded): why the placeholder encoding flipped between 18:31Z and 20:47Z.
-2. DONE 2026-09-02 (supervisor, a5cdc95): RULE 4 `~PXY` MATCH - RunnerLib Resolve-MarkingKey maps
-   the init <Name> to the unique `<name>~<tag>` marking; replayed 3/3 at 0.00 m, tagged and not.
-3. DONE 2026-09-02 (supervisor, a5cdc95): THE PRIVATE C2SIM SERVER `c2sim-server-vrf`
-   (18080/61614) is the runner DEFAULT and reaches every stage; the app logs the endpoints it
-   heard (VERIFIED LIVE, QPAIR A-1/A-2). RUNBOOK sec 1. **NEVER push to, reset, or restart the
-   operator's 8080/61613 server.** STILL OWED by the type-map gate: run 3 (PRC must REFUSE TO
-   START) and run 4 (COA-STP1, 128 units). FidelityTable is NOT the default - a USER decision.
-4. NATIVE COMPLETION STATUS - forward DtTaskCompleteReport success()/taskId()/
-   taskTrackingNumber() through VrfFacade::TaskCompleted. The only known remaining cause of a
-   FALSE TASKCMPLT. Standing authorization: back up the DLLs, /t:Rebuild always, REDEPLOY ALL 10
-   COPIES, verify ONE hash (VrfFacade.cpp:217-242).
-5. A COMPLETION-CAPABLE SCALE RUN. No COA-STP1 run has reached a route end: shortest head route
-   24.11 km, best ever 26.84 km. Pick the mode from the FFRTC block, budget wall = sim / ratio.
+DONE 2026-09-02 pm (READ THE PREREG SEC 7s): merged-build control GATE PASSED (3759-3765); `-q` at
+scale STOPPED on its miss rule (3767-3773); type-map live gate PASSES (3775-3781; 6/6, 3/3).
+1. **TANK-COMPANY NON-DISTRIBUTION - ADJUDICATED (PREREG_COASTP1_QPAIR sec 9):** `-q` FALSIFIED
+   as the cause; NON-DETERMINISM SUPPORTED (A-1 vs A-2 identical, 0 vs 4 sub-routes); run B NOT
+   owed. PARKED behind the 5.2 migration (5.2 replaced this mechanism - Y-11/RN VRF-8977).
+2/3. DONE 2026-09-02 (a5cdc95): rule-4 `~PXY` marking match (replayed 3/3 at 0.00 m); the private
+   `c2sim-server-vrf` (18080/61614) is the runner DEFAULT and reaches every stage (RUNBOOK sec 1;
+   **NEVER touch the operator's 8080/61613**). STILL OWED by the type-map gate: run 3 (PRC must
+   REFUSE TO START) and run 4 (COA-STP1, 128 units). FidelityTable is NOT default - USER decision.
+4. NATIVE COMPLETION STATUS - forward DtTaskCompleteReport success()/taskId()/taskTrackingNumber()
+   through VrfFacade::TaskCompleted (VrfFacade.cpp:217-242). Only known remaining cause of a FALSE
+   TASKCMPLT. Standing auth: back up DLLs, /t:Rebuild, REDEPLOY ALL 10 COPIES, verify ONE hash.
+5. A COMPLETION-CAPABLE SCALE RUN. No COA-STP1 run has reached a route end (shortest head route
+   24.11 km, best 26.84 km). Mode from the FFRTC block; budget wall = sim / ratio.
 6. TYPE_GAP ITEM 4 - echelon-'F' -> Ground_Aggregate fallback needs a USER RULING
    (docs/TYPE_GAP_ADJUDICATION.md item 4); not a movement cause.
+6a. **PLAN vs RESEARCH RECONCILIATION - docs/VRF_5.2_PLAN_RECONCILIATION_2026-09-04.md** (7 ruled
+   items never queued). BEFORE THE R9 5.2 RUN, both READS not probes: (B1) **NAV DATA DOES NOT
+   COVER THE AOI** - MAK Earth (online) ships nav areas only for Ala Moana/Kilo2/Range220/Thun,
+   NONE at Mojave, while 5.2 has planning ON and armour off-road; MoveAlongRoute is documented
+   NON-planning so it may not matter - settle it from the docs. (B2) does the R9 route touch roads
+   (decides how much Y-13 bites). THEN A1 Y-9 knobs+seed NOT WIRED (a "golden" run is not
+   repeatable by our own ruling), A2 Y-3 --settingsFile NOT WIRED; also A3 terrain profiles, A4
+   two missing type substitutes, A5 SQLite, A6 Y-15 unit representation.
 6b. **RETIRE THE 10000 m MSL BIRTH** (user directive 2026-09-04). AGL placement VERIFIED
    (PREREG_CLAMP_DIRECTION sec 8a: buried entity lifted to the surface by one AGL setAltitude).
    Change = stop overriding the create altitude and stop SKIPPING the deferred SetAltitude,
@@ -138,10 +138,10 @@ suppress vrfSim.log); type-map live gate PASSES / run invalid (3775-3781; 6/6, 3
 7. MAK MESSAGE - docs/MAK_MESSAGE_2026-09-02.md is send-ready and THE USER SENDS IT. *** ITS
    APPENDED DtUUID ROUTE-NAME-LENGTH DRAFT IS STALE - the cause was OUR contract violation
    (rwUUID.h:246-253; fix 726f762). REWRITE OR DROP IT; do not send it as a defect report. ***
-8. BACKLOG: type adjudications (54 units - 5.2b checklist first), task vocabulary, completion
-   re-keying, scoring (Phase 5). LOW (user, 2026-09-02): a DIRECT FILE-LOAD PATH for the app -
-   init + order from files, C2SIM server BYPASSED (not dismantled; SDK path stays default) so it
-   runs where there is NO server; reports need a file sink. A deployment mode, not a shortcut.
+8. BACKLOG: type adjudications (54 units), task vocabulary, completion re-keying, scoring
+   (Phase 5). LOW (user, 2026-09-02): a DIRECT FILE-LOAD PATH - init + order from files, C2SIM
+   server BYPASSED (SDK path stays default) so it runs where there is NO server; reports need a
+   file sink. A deployment mode, not a shortcut.
 ## VR-FORCES 5.2 MIGRATION - IN PROGRESS (user ruling 2026-09-02: move to 5.2d, docs first)
 Phase 0 DONE 2026-09-02 + evidence pass 2026-09-03: docs/VRF_5.2_MIGRATION_DIFF.md (rows A-E
 cited, C# re-verify list F, PHASE 1 RECORD sec H, sec G = the CANONICAL decision ledger, ALL

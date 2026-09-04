@@ -152,7 +152,7 @@ FACTS of the version drift - changes required, no ruling (user agreed, Y-2 named
 - Y-1 launch: vrfSimHLA1516e.exe direct from bin64 (UG52 4.1.2); LaunchVrf.ps1 5.2 profile
   (folds Y-5). Y-2 federation identity: resolve the shipped MAK-ONE-2025 config exactly as
   the 5.2d sample; C# FomModules EMPTIED (modules additive); overrides = a SECOND file via
-  myMultipleConfigFiles. Y-4 --logFileName keeps bin64\vrfSim.log. Y-6 remoteControlInit
+  myMultipleConfigFiles. **Y-4 SUPERSEDED: NEVER PASS --logFileName** (crashes the sim ~1 in 3, PREREG_52_CRASH_BISECT); harvest C:\MAK\logs. Y-6 remoteControlInit
   + Start/Tick re-authored on the 5.2d sample loop (drop setSimTime(elapsedRealTime()),
   setMonitorBackendState(true), session id from config, -a/-s ledger kept). Y-10 keep
   MoveAlongRoute (adapter repackages unit move-along as maneuver-along; MoveToLocation
