@@ -70,5 +70,37 @@ NOT reproducible (zip entries carry file mtimes); verify the `.scn` inside it in
 orientation math (validated: ECEF reproduces the handoff Mojave number to 0.000 m;
 orientation round-trips stored attitudes to clean integer headings).
 
+## `--profile 5.2 --empty`: the EMPTY 5.2-native fixture (added 2026-09-04)
+
+A SEPARATE, EXPLICIT code path (`--profile` is always named; nothing sniffs a version).
+It copies a 5.2-NATIVE-saved donor READ-ONLY, strips every simulation object from the
+`.oob` (globals-only), rewrites `.omp`/`.gui_settings` to match, and sets terrain
+(`MAK Earth (online).mtf`), SMS (`EntityLevel.sms`), the frame lever and the
+`ScenarioExtentInformation` playbox on the R9 Mojave AOI.
+
+```
+python build_fixture.py --profile 5.2 --empty \
+       --frame-mode fixed-frame-run-to-complete --frame-time 0.033333 \
+       --scenario-name "R9 Mojave empty fixture (5.2, FFRTC)"
+```
+Default `--out-dir` is `frame_variants/`, so the builder writes nothing under `C:\MAK`.
+SANCTIONED DEPLOY (a live executor, not the offline builder): the same command plus
+`--out-dir "C:\MAK\vrforces5.2d\userData\scenarios"`, then
+`LaunchVrf52.ps1 -Scenario R9_Mojave_Empty_52`.
+
+Unlike the 5.0.2 writer, this one stamps a fixed zip date, so the `.scnx` SHA-256 IS
+reproducible. `--negative-controls DIR` also emits two deliberately-broken copies
+(missing `frame-time`; a stray simulation object) for the validator's negative gate -
+never point it at a tracked directory.
+
+`validate_fixture.py` gates both generations and exits non-zero on failure:
+```
+python validate_fixture.py                                            # 5.0.2 pair
+python validate_fixture.py --empty-52 frame_variants/R9_Mojave_Empty_52.scnx
+python validate_fixture.py --expect-fail --empty-52 <the two _NEG_ copies>
+```
+Full record: `docs/experiments/FIXTURE_52_EMPTY_2026-09-04.md`; format facts:
+`docs/experiments/RESEARCH_52_FIXTURE_FORMAT_2026-09-04.md`.
+
 Offline-validated with the sibling tool `tools/ScnxDiff/scnx_diff.py dump`.
 The `_work/` extract + staging dir is disposable (git-ignored).

@@ -230,6 +230,45 @@ public sealed class VrfC2SimService : BackgroundService
         _log.LogInformation("VrfBridge native stack = {Stack}; ConnectionConfigFile='{Cfg}'.",
                             VrfBridge.NativeStackInfo(), _vrf.ConnectionConfigFile);
 
+        // 1b. BACK-END SETTLE (PREREG_52_APP_SMOKE_2026-09-04 sec 4 P2). JOINING IS NOT
+        // DISCOVERING: back-ends are not known at the instant Start() returns, and until this
+        // block existed the log said nothing about them at all - a manifest/log reader could not
+        // tell a federate that saw the sim's back-end from one talking to nobody (creates and
+        // tasks against zero back-ends are silent no-ops). Same idiom, and the same 15 s cap, as
+        // tools/RunSim (Program.cs:112-137) and tools/CreateOne (Program.cs:149-165). Ticking
+        // here is safe: this is still the only thread touching the single-threaded facade (the
+        // tick thread starts below) and _tickActions cannot have anything in it yet, because the
+        // C2SIM connect that starts the event flow is step 3.
+        // OBSERVATION ONLY - unlike the tools, a timeout is NOT a refusal: it logs a WARNING and
+        // both arms continue exactly as before (a back-end discovered later is still used), so
+        // no behaviour, exit code or existing log line changes.
+        {
+            var settleCap = TimeSpan.FromSeconds(15);
+            var swSettle = System.Diagnostics.Stopwatch.StartNew();
+            int backends = 0;
+            while (swSettle.Elapsed < settleCap)
+            {
+                try { _bridge.Tick(); }
+                catch (Exception e)
+                {
+                    _log.LogWarning("Backend settle: Tick failed ({Msg}); ending the settle early.", e.Message);
+                    break;
+                }
+                backends = _bridge.BackendCount();
+                if (backends > 0) break;
+                Thread.Sleep(50);
+            }
+            if (backends > 0)
+                _log.LogInformation("Backend discovered (BackendCount={Count}) after {Secs:F1} s.",
+                                    backends, swSettle.Elapsed.TotalSeconds);
+            else
+                _log.LogWarning("NO BACKEND DISCOVERED after {Secs:F1} s (BackendCount=0). This interface is " +
+                                "joined but has seen no VR-Forces simulation back-end, so creates and tasks " +
+                                "would be silent no-ops. Confirm VR-Forces is running with a scenario loaded " +
+                                "on the same RTI/exercise. Continuing anyway - a back-end that appears later " +
+                                "is still used.", swSettle.Elapsed.TotalSeconds);
+        }
+
         // 2. Drive the sim on a dedicated thread (drain queued commands, then Tick).
         // The tick loop runs until _stopTick (NOT the host stoppingToken) so the shutdown
         // path can still enqueue + flush cleanup deletes while it is ticking (see step 5).

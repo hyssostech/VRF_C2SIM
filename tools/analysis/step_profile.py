@@ -98,6 +98,23 @@ def vendor_log(path):
                 pairs.add((int(h) * 3600 + int(m) * 60 + int(s), t))
     pairs = sorted(pairs, key=lambda p: (p[1], p[0]))
     sims = sorted(set(t for _, t in pairs))
+    if not sims:
+        # RE-BASELINE 2026-09-04. MEASURED: all 14 VR-Forces 5.2d back-end logs
+        # in runs/launch52 carry ZERO wall stamps (the 5.0.2 comparator has
+        # 582,691). LIKELY CAUSE, not proved offline: 5.2d ships vrfSim.mtl
+        # enableLogFileTimestamps 0 (MIGRATION_DIFF row A4) where our 5.0.2 box
+        # was edited to 1. (The log's own "Using relative timestamps" banner is
+        # the SEPARATE --useAbsoluteTimeStamps PDU option, not this one.) The old
+        # code died on sims[0] with a bare IndexError that named neither the file
+        # nor the cause. Every number below (clock slope, tick proxy, frame grid)
+        # is undefined without stamps - fail loudly, do not guess.
+        raise SystemExit(
+            "step_profile/frame_gaps: NO vendor timestamps in %s - zero lines "
+            "matched '[Www Mmm D HH:MM:SS YYYY] <sim>.mmm'. The back end logged "
+            "without timestamps (VR-Forces 5.2 ships enableLogFileTimestamps 0 in "
+            "vrfSim.mtl; the command-line equivalent is --enableLogFileTimestamps, "
+            "5.2 Users Guide sec 5.2). No clock, tick or frame measurement can be "
+            "made from this log." % path)
     # clusters of stamps separated by < 5 sim s
     clusters = []
     cur = [sims[0]]

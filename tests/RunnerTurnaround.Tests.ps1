@@ -411,8 +411,13 @@ Check 'runner: Stage 2r invokes StartRtiExec52 BEFORE the Stage 2c RtiProbe gate
 foreach ($rel in @('scripts\StartRtiExec52.ps1', 'scripts\LaunchVrf52.ps1')) {
     $t = Get-Content -LiteralPath (Join-Path $RepoRoot $rel) -Raw
     Check ('{0}: defaults to makRti5.0.1' -f $rel) ($t -match "\`$RtiDir\s+=\s+'C:\\MAK\\makRti5\.0\.1'")
-    Check ('{0}: never force-kills RTI infrastructure' -f $rel) ($t -notmatch 'Stop-Process|taskkill\s+/F')
 }
+# StartRtiExec52 owns the RTI infrastructure and stops NOTHING, ever.
+Check 'StartRtiExec52: no Stop-Process / taskkill anywhere' (
+    (Get-Content -LiteralPath (Join-Path $RepoRoot 'scripts\StartRtiExec52.ps1') -Raw) -notmatch 'Stop-Process|taskkill')
+# LaunchVrf52 MAY now stop exactly one thing - its own crashed back-end (section 8e). The
+# blanket "never Stop-Process" check that used to stand here would have hidden a kill-by-name,
+# so it is replaced by the narrower invariants in 8e, not dropped.
 $sreAst = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $RepoRoot 'scripts\StartRtiExec52.ps1'), [ref]$null, [ref]$null)
 $sreParams = @{}
 foreach ($p in $sreAst.ParamBlock.Parameters) { $sreParams[$p.Name.VariablePath.UserPath] = $p }
@@ -471,12 +476,16 @@ Check 'the readiness poll checks for the crash on EVERY iteration' ($lv52Text -m
 Check 'a crash is decided BEFORE the READY verdict (no false green)' (
     $lv52Text.IndexOf("if (`$simCrash.Crashed) {`r`n    # Checked FIRST") -gt 0 -and
     $lv52Text.IndexOf("if (`$simCrash.Crashed) {`r`n    # Checked FIRST") -lt $lv52Text.IndexOf("READY: 5.2d back-end HEALTHY"))
-Check 'LaunchVrf52 still force-kills nothing on the crash path' ($lv52Text -notmatch 'Stop-Process|taskkill')
+Check 'LaunchVrf52 never uses taskkill, and stops nothing BY NAME (section 8e pins the one pid it may stop)' (
+    $lv52Text -notmatch 'taskkill' -and $lv52Text -notmatch 'Stop-Process[^\r\n]*-Name')
 # ...and the detector must actually FIRE. The checks above only prove the code is shaped
 # right; this one runs the SHIPPED function (lifted out of the script by its own AST, so no
 # copy can drift from it) against a synthetic MAK log directory. Real filenames, taken from
 # C:\MAK\logs on 2026-09-04: vrfSimHLA1516e5.2d-20260903-215720-Legatus-282607-39028
 # .callstack.log, whose last field is the faulting pid.
+$csFileFn = $lv52Ast.FindAll({ param($a) $a -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $a.Name -eq 'Get-CallstackFileForPid' }, $true)
+Check 'LaunchVrf52 defines Get-CallstackFileForPid (the ONE place the pid/-Since rule lives)' (@($csFileFn).Count -eq 1)
+Invoke-Expression $csFileFn[0].Extent.Text   # Get-SimCrashEvidence delegates the file lookup to it
 Invoke-Expression $crashFn[0].Extent.Text
 $tmpLogDir = Join-Path ([System.IO.Path]::GetTempPath()) ('lv52crash-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $tmpLogDir -Force | Out-Null
@@ -500,12 +509,141 @@ try {
     Check 'detector does NOT fire for a DIFFERENT pid (39029 vs the 39028 file)' (-not $miss.Crashed) "reason=$($miss.Reason)"
     Check 'detector does NOT fire on a callstack older than this launch (pid recycling)' (-not $stale.Crashed) "reason=$($stale.Reason)"
     Check 'a missing log directory is not a crash and does not throw' (-not $noDir.Crashed)
+    # The MAK log dir is shared by the whole toolchain: C:\MAK\logs held
+    # rtiAssistant5.0.1-20260903-194550-Legatus-281993-54616.callstack.log on 2026-09-04.
+    # A pid-only match would have blamed the back-end for another exe's crash.
+    Set-Content -LiteralPath (Join-Path $tmpLogDir 'rtiAssistant5.0.1-20260903-194550-Legatus-281993-54616.callstack.log') `
+        -Encoding ascii -Value @('Error Code - 0xC0000005')
+    Check "detector does NOT fire on ANOTHER MAK exe's callstack for the polled pid (rtiAssistant, same directory)" (
+        -not (Get-SimCrashEvidence -ProcessId 54616 -LogDir $tmpLogDir -Since $old).Crashed)
 } finally { Remove-Item -LiteralPath $tmpLogDir -Recurse -Force -ErrorAction SilentlyContinue }
+Check 'the callstack match is scoped to the vrfSim exe family, not the pid alone' (
+    $lv52Text -match "\`$NamePrefix = 'vrfSim'")
 Check 'LaunchVrf52 takes the -Since floor BEFORE starting the back-end' (
     $lv52Text.IndexOf('$simStartFloor = (Get-Date)') -gt 0 -and
     $lv52Text.IndexOf('$simStartFloor = (Get-Date)') -lt $lv52Text.IndexOf('$simProc = Start-Process'))
 Check 'both crash checks pass -Since' (
     @([regex]::Matches($lv52Text, 'Get-SimCrashEvidence -ProcessId \$simProc\.Id -LogDir \$MakLogDir -Since \$simStartFloor')).Count -eq 2)
+
+# 8e. THE CRASHED PROCESS LINGERS, AND IT BLOCKED THE RETRY (observed 2026-09-04 11:28-11:30
+# UTC; those two console captures were not persisted under runs\launch52, but the crash is on
+# disk: C:\MAK\logs\vrfSimHLA1516e5.2d-20260904-072806-Legatus-282607-59936.callstack.log +
+# .dmp, 07:28:06 LOCAL = 11:28 UTC). 8c's detection worked - exit 3 for pid 59936 - but MAK's
+# keeps the faulted process ALIVE (0 threads, title 'Error vrfSimHLA1516e.exe'), so the very
+# next launch was refused by the pre-existing-process precondition with exit 2 and an
+# unattended runner could not retry. What is pinned here is as much the LIMIT as the fix: the
+# leftover classifier must need BOTH conditions (a callstack file for the pid AND <= 4
+# threads), and the script must be unable to stop anything except one vrfSimHLA1516e pid it
+# has itself identified - never a name, never RTI infrastructure.
+Write-Host '=== 8e. the crashed back-end is closed (own pid) / classified (pre-existing leftover) ==='
+Check 'LaunchVrf52 declares -LeaveCrashedProcess and -CloseCrashedLeftover as switches' (
+    $lv52Params.ContainsKey('LeaveCrashedProcess') -and $lv52Params['LeaveCrashedProcess'].StaticType -eq [switch] -and
+    $lv52Params.ContainsKey('CloseCrashedLeftover') -and $lv52Params['CloseCrashedLeftover'].StaticType -eq [switch])
+$leftoverFn = $lv52Ast.FindAll({ param($a) $a -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $a.Name -eq 'Test-CrashedLeftover' }, $true)
+$closeFn    = $lv52Ast.FindAll({ param($a) $a -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $a.Name -eq 'Close-CrashedBackend' }, $true)
+Check 'LaunchVrf52 defines Test-CrashedLeftover(-ProcessId, -ThreadCount, -LogDir, -MaxThreads)' (
+    @($leftoverFn).Count -eq 1 -and
+    (@('ProcessId','ThreadCount','LogDir','MaxThreads') |
+        Where-Object { $leftoverFn[0].Body.ParamBlock.Parameters.Name.VariablePath.UserPath -contains $_ }).Count -eq 4)
+Check 'LaunchVrf52 defines Close-CrashedBackend(-ProcessId, -ExpectedName)' (
+    @($closeFn).Count -eq 1 -and
+    $closeFn[0].Body.ParamBlock.Parameters.Name.VariablePath.UserPath -contains 'ProcessId' -and
+    $closeFn[0].Body.ParamBlock.Parameters.Name.VariablePath.UserPath -contains 'ExpectedName')
+
+# The classifier, RUN (lifted from the script by its own AST, like 8c's detector). BOTH
+# conditions or nothing: this is the predicate that authorises closing a process this script
+# did not start, so a one-sided pass here would be a licence to kill a healthy sim.
+Invoke-Expression $leftoverFn[0].Extent.Text
+$tmpLeft = Join-Path ([System.IO.Path]::GetTempPath()) ('lv52left-' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $tmpLeft -Force | Out-Null
+try {
+    # Real name shape, real faulting pid position (last field) - C:\MAK\logs, 2026-09-04.
+    Set-Content -LiteralPath (Join-Path $tmpLeft 'vrfSimHLA1516e5.2d-20260904-112832-Legatus-282607-59936.callstack.log') `
+        -Encoding ascii -Value @('Thread ID - 1', 'Error Code - 0xC0000005', 'Callstack: ')
+    $old = (Get-Date).AddHours(-1)
+    # 59936 = the pid MAK wrote a callstack for; 59937 = a pid it did not.
+    Check 'BOTH conditions (0 threads + callstack for that pid) -> crashed leftover' (
+        Test-CrashedLeftover -ProcessId 59936 -ThreadCount 0 -LogDir $tmpLeft -Since $old)
+    Check 'boundary: 4 threads (the blocked-back-end ceiling) still counts as a leftover' (
+        Test-CrashedLeftover -ProcessId 59936 -ThreadCount 4 -LogDir $tmpLeft -Since $old)
+    Check 'boundary: 5 threads does NOT, even with the callstack present' (
+        -not (Test-CrashedLeftover -ProcessId 59936 -ThreadCount 5 -LogDir $tmpLeft -Since $old))
+    Check 'a HEALTHY sim (36 threads, the observed 5.2d baseline) is never a leftover, callstack or not' (
+        -not (Test-CrashedLeftover -ProcessId 59936 -ThreadCount 36 -LogDir $tmpLeft -Since $old))
+    Check 'a LOW-thread process with NO callstack for its pid is not a leftover (that is the blocked-on-RTI signature)' (
+        -not (Test-CrashedLeftover -ProcessId 59937 -ThreadCount 0 -LogDir $tmpLeft -Since $old))
+    Check 'a callstack OLDER than the process (recycled pid) does not make it a leftover' (
+        -not (Test-CrashedLeftover -ProcessId 59936 -ThreadCount 0 -LogDir $tmpLeft -Since (Get-Date).AddHours(1)))
+    Check 'a missing log directory is not a leftover and does not throw' (
+        -not (Test-CrashedLeftover -ProcessId 59936 -ThreadCount 0 -LogDir (Join-Path $tmpLeft 'nope') -Since $old))
+    # C:\MAK\logs is shared by the whole toolchain - it really does hold
+    # rtiAssistant5.0.1-20260903-194550-Legatus-281993-54616.callstack.log (seen 2026-09-04).
+    # ANOTHER exe's callstack for the same pid must not be read as this back-end's crash.
+    Set-Content -LiteralPath (Join-Path $tmpLeft 'rtiAssistant5.0.1-20260903-194550-Legatus-281993-54617.callstack.log') `
+        -Encoding ascii -Value 'x'
+    Check "another MAK exe's callstack for that pid (rtiAssistant) is NOT this back-end's crash" (
+        -not (Test-CrashedLeftover -ProcessId 54617 -ThreadCount 0 -LogDir $tmpLeft -Since $old))
+    Check 'the -MaxThreads knob is the ceiling it claims to be (8 accepts what 4 rejects)' (
+        (Test-CrashedLeftover -ProcessId 59936 -ThreadCount 5 -LogDir $tmpLeft -Since $old -MaxThreads 8) -and
+        -not (Test-CrashedLeftover -ProcessId 59936 -ThreadCount 5 -LogDir $tmpLeft -Since $old -MaxThreads 4))
+} finally { Remove-Item -LiteralPath $tmpLeft -Recurse -Force -ErrorAction SilentlyContinue }
+Check 'the script uses the documented ceiling of 4 threads' ($lv52Text -match '\$CrashedLeftoverMaxThreads = 4')
+
+# What may be stopped, and by what route. ONE Stop-Process in the whole script, by -Id, inside
+# Close-CrashedBackend, which re-checks the process NAME first (pid recycling).
+$stopCalls = $lv52Ast.FindAll({ param($a) $a -is [System.Management.Automation.Language.CommandAst] -and $a.GetCommandName() -eq 'Stop-Process' }, $true)
+Check 'exactly ONE Stop-Process call in LaunchVrf52, and it stops a PID, not a name' (
+    @($stopCalls).Count -eq 1 -and $stopCalls[0].Extent.Text -match '-Id \$ProcessId' -and $stopCalls[0].Extent.Text -notmatch '-Name') (
+    ($stopCalls | ForEach-Object { $_.Extent.Text }) -join ' | ')
+Check 'that Stop-Process lives inside Close-CrashedBackend (nowhere else can reach it)' (
+    $closeFn[0].Extent.Text.Contains($stopCalls[0].Extent.Text))
+Check 'Close-CrashedBackend re-checks the process NAME against -ExpectedName before stopping (pid recycling)' (
+    $closeFn[0].Extent.Text -match '\$p\.Name -ne \$ExpectedName' -and
+    $closeFn[0].Extent.Text.IndexOf('$p.Name -ne $ExpectedName') -lt $closeFn[0].Extent.Text.IndexOf('Stop-Process'))
+Check 'Close-CrashedBackend tries AnswerCrashDumpDialog.ps1 BEFORE Stop-Process' (
+    $closeFn[0].Extent.Text -match 'AnswerCrashDumpDialog\.ps1' -and
+    $closeFn[0].Extent.Text.IndexOf('AnswerCrashDumpDialog.ps1') -lt $closeFn[0].Extent.Text.IndexOf('Stop-Process'))
+Check 'nothing in LaunchVrf52 stops a process by name, and no RTI name appears near the stop' (
+    $stopCalls[0].Extent.Text -notmatch 'rti')
+
+# Where the two closes may be called from - exactly two call sites, each behind its own gate.
+$closeCalls = @($lv52Ast.FindAll({ param($a) $a -is [System.Management.Automation.Language.CommandAst] -and $a.GetCommandName() -eq 'Close-CrashedBackend' }, $true))
+Check 'exactly TWO Close-CrashedBackend call sites: our own crashed pid, and the opted-in leftover' (
+    $closeCalls.Count -eq 2 -and
+    @($closeCalls | Where-Object { $_.Extent.Text -match '\$simProc\.Id' }).Count -eq 1 -and
+    @($closeCalls | Where-Object { $_.Extent.Text -match '\$bp\.Id' }).Count -eq 1) (
+    ($closeCalls | ForEach-Object { $_.Extent.Text }) -join ' | ')
+$ifLeave = @($lv52Ast.FindAll({ param($a)
+    $a -is [System.Management.Automation.Language.IfStatementAst] -and
+    $a.Clauses[0].Item1.Extent.Text -eq '$LeaveCrashedProcess' -and $a.Extent.Text -match 'Close-CrashedBackend' }, $true))
+Check '-LeaveCrashedProcess really opts out: the own-pid close is in the ELSE branch only' (
+    $ifLeave.Count -eq 1 -and $null -ne $ifLeave[0].ElseClause -and
+    $ifLeave[0].ElseClause.Extent.Text -match 'Close-CrashedBackend -ProcessId \$simProc\.Id' -and
+    $ifLeave[0].Clauses[0].Item2.Extent.Text -notmatch 'Close-CrashedBackend')
+$ifLeftover = @($lv52Ast.FindAll({ param($a)
+    $a -is [System.Management.Automation.Language.IfStatementAst] -and $a.Clauses[0].Item1.Extent.Text -match 'Test-CrashedLeftover' }, $true))
+Check 'the leftover close sits behind BOTH gates: the classifier AND -CloseCrashedLeftover' (
+    $ifLeftover.Count -eq 1 -and
+    $ifLeftover[0].Extent.Text -match 'if \(\$CloseCrashedLeftover\)' -and
+    $ifLeftover[0].Extent.Text -match 'Close-CrashedBackend -ProcessId \$bp\.Id')
+Check 'the leftover branch never closes anything in -DryRun (it plans the close instead)' (
+    $ifLeftover[0].Extent.Text -match 'if \(\$DryRun\) \{ Say-Plan')
+Check 'the own-pid close is downstream of the -DryRun exit (a dry run can never reach it)' (
+    $lv52Text.IndexOf("Say-Ok 'DRY-RUN complete") -gt 0 -and
+    $lv52Text.IndexOf("Say-Ok 'DRY-RUN complete") -lt $lv52Text.IndexOf('Close-CrashedBackend -ProcessId $simProc.Id'))
+Check 'an UNREADABLE thread count is not read as 0 (that is the corpse signature)' (
+    $lv52Text -match '\$bThrOk = \$false' -and $lv52Text -match 'if \(\$bThrOk -and \(Test-CrashedLeftover')
+Check 'the crash path still exits 3 after closing (the close does not turn a crash into a green)' (
+    $lv52Text.IndexOf('Close-CrashedBackend -ProcessId $simProc.Id') -lt $lv52Text.IndexOf('NOT READY, NOT retried here') -and
+    $lv52Text -match "NOT retried here[^\r\n]*\r?\n[^\r\n]*\r?\n[^\r\n]*\r?\n    exit 3")
+# The precondition message is the operator's only instruction when the leftover predates the
+# launch: it must SAY it is a corpse, and name the switch that closes it.
+Check 'the precondition calls a pre-existing corpse a CRASHED LEFTOVER and names -CloseCrashedLeftover' (
+    $lv52Text -match 'is a CRASHED LEFTOVER, not a running sim' -and
+    $lv52Text -match 'closes a crashed back-end automatically ONLY on the launch that DETECTED the crash' -and
+    $lv52Text -match 'rerun with -CloseCrashedLeftover')
+Check 'the precondition re-inventories after a close, so a closed leftover no longer refuses the launch' (
+    $lv52Text -match '# Re-inventory: only what is STILL running can refuse this launch\.')
 
 # 8d. THE DRY-RUN FALSE GREEN (found 2026-09-04 while wiring Stage 2r). The -DryRun Result
 # branch used to `exit 0` unconditionally, so a dry run that hit the runner's generic catch

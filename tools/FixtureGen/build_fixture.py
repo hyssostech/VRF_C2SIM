@@ -555,13 +555,436 @@ def build_site(site, cfg, frame_mode=None, frame_time=None, out_dir=None):
     return scnx_path
 
 
+# ---------------------------------------------------------------------------
+# PROFILE 5.2 - the EMPTY 5.2-native fixture (R1 of
+# docs/experiments/RESEARCH_52_FIXTURE_FORMAT_2026-09-04.md sec 5).
+#
+# Everything below is a SEPARATE, EXPLICIT code path selected by --profile 5.2
+# --empty. Nothing in the 5.0.2 path above is touched, and there is no implicit
+# version detection anywhere: the profile is always named on the command line.
+#
+# Sources (all verified on disk 2026-09-04; see the research note for the walk):
+#   donors   C:\MAK\vrforces5.2d\userData\scenarios\Sample\VR-TheWorld_Online\
+#            {GroundMovement,Weather,BehaviorGroundAttackByFire}.scnx - the three
+#            5.2-NATIVE-saved samples that already carry MAK Earth (online) +
+#            EntityLevel.sms and the flat (object-type k k k k k k k) syntax.
+#            GroundMovement is the default: its .pln (36 B), .osrx, .sgr, .ovl and
+#            .spt are already the EMPTY stubs, so only .scn/.oob/.omp/.gui_settings
+#            need authoring. The donor is opened READ-ONLY and never modified.
+#   terrain  "MAK Earth (online).mtf", listed 2026-09-04 in
+#            C:\MAK\SharedData\19\latest\TerrainData\TerrainConfiguration\ .
+#            It is the Y-7 ruling and the only shipped family covering the R9 AOI
+#            (RESEARCH sec 2; "MAK Earth Space (online).mtf" is ABSENT from 5.2d).
+#   SMS      $(DATA_DIR)\simulationModelSets\EntityLevel.sms (UG52 Table 20 p.354;
+#            there is no C2simEx.sms under 5.2d - DIFF C2 / Y-8).
+#   frame    frame-mode / frame-time, UG52 Table 20 p.354 + sec 3.4.3 p.122 (Y-9);
+#            the keys are UNCHANGED from 5.0.2, so set_frame_settings() is reused.
+#
+# SANCTIONED DEPLOY (documented, NOT executed by the offline builder):
+#   python build_fixture.py --profile 5.2 --empty \
+#          --out-dir "C:\MAK\vrforces5.2d\userData\scenarios"
+# The default --out-dir for --empty is tools/FixtureGen/frame_variants/, i.e. the
+# builder writes nothing under C:\MAK unless that path is passed explicitly.
+
+SCEN_DIR_52 = r"C:\MAK\vrforces5.2d\userData\scenarios"
+FRAME_VARIANTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                  "frame_variants")
+
+DONORS_52 = {
+    "GroundMovement": os.path.join(SCEN_DIR_52, "Sample", "VR-TheWorld_Online",
+                                   "GroundMovement.scnx"),
+    "Weather": os.path.join(SCEN_DIR_52, "Sample", "VR-TheWorld_Online",
+                            "Weather.scnx"),
+    "BehaviorGroundAttackByFire": os.path.join(SCEN_DIR_52, "Sample",
+                                               "VR-TheWorld_Online",
+                                               "BehaviorGroundAttackByFire.scnx"),
+}
+
+TERRAIN_52 = (r"$(SHARED_DATA_DIR)\TerrainData\TerrainConfiguration"
+              r"\MAK Earth (online).mtf")
+SMS_52 = r"$(DATA_DIR)\simulationModelSets\EntityLevel.sms"
+
+# R9 Mojave AOI - data\R9_Mojave_Initialization.xml (58 pts) + _UnitMove_Order.xml (6).
+R9_AOI = dict(lat_min=34.5605, lat_max=34.6696,
+              lon_min=-116.7127, lon_max=-116.3867, h=1041.0)
+
+# The two GLOBAL singletons a scenario keeps when every simulation object is
+# stripped. Matched on the FIRST SIX object-type fields, because the 7th differs
+# across versions (5.0.2 GlobalEnv = 21 0 0 1 0 0 0, 5.2 = 21 0 0 1 0 0 1).
+# Matching on the KIND alone would be WRONG: Weather.scnx carries ordinary weather
+# REGION objects of type (21 0 0 2 0 0 1) that are simulation objects, not globals.
+GLOBAL_TYPE_PREFIXES = {
+    (105, 105, 105, 105, 105, 105): "global dynamic terrain damage",
+    (21, 0, 0, 1, 0, 0): "global environment",
+}
+
+# Both .oob object-type syntaxes (RESEARCH sec 1):
+#   5.0.2 nested  (object-type  1 (17 0 0 2 0 0 0))   <- class prefix + 7-tuple
+#   5.2   flat    (object-type 17 0 0 2 0 0 0)        <- 7-tuple only
+OBJTYPE_NESTED_RE = re.compile(
+    r"\(object-type\s+(\d+)\s+\(\s*(\d+(?:\s+\d+){6})\s*\)\s*\)")
+OBJTYPE_FLAT_RE = re.compile(r"\(object-type\s+(\d+(?:\s+\d+){6})\s*\)")
+
+
+def parse_object_type(block):
+    """Return (class_or_None, 7-tuple_or_None) for either .oob syntax."""
+    m = OBJTYPE_NESTED_RE.search(block)
+    if m:
+        return int(m.group(1)), tuple(int(x) for x in m.group(2).split())
+    m = OBJTYPE_FLAT_RE.search(block)
+    if m:
+        return None, tuple(int(x) for x in m.group(1).split())
+    return None, None
+
+
+def global_object_kind(block):
+    """Name of the global singleton this block is, or None if it is a sim object."""
+    _cls, t = parse_object_type(block)
+    if t is None:
+        return None
+    return GLOBAL_TYPE_PREFIXES.get(t[:6])
+
+
+def block_spans(text):
+    """Like iter_blocks() but returns (start, end) spans of each top-level block."""
+    spans = []
+    for m in re.finditer(r"\(local-vrf-object", text):
+        start = m.start()
+        depth, i, n, instr = 0, start, len(text), False
+        while i < n:
+            c = text[i]
+            if instr:
+                if c == '"':
+                    instr = False
+            elif c == '"':
+                instr = True
+            elif c == '(':
+                depth += 1
+            elif c == ')':
+                depth -= 1
+                if depth == 0:
+                    spans.append((start, i + 1))
+                    break
+            i += 1
+    return spans
+
+
+def strip_oob_to_globals(oob):
+    """Return (new_oob, kept_uuids, dropped_uuids, kept_names).
+
+    Keeps the .oob prefix/separator/suffix glue byte-for-byte so the result is
+    the donor file with non-global (local-vrf-object ...) blocks removed.
+    """
+    spans = block_spans(oob)
+    assert spans, "no (local-vrf-object ...) blocks in the .oob"
+    prefix = oob[:spans[0][0]]
+    suffix = oob[spans[-1][1]:]
+    sep = oob[spans[0][1]:spans[1][0]] if len(spans) > 1 else "\n   "
+    kept, kept_names, dropped = [], [], []
+    for s, e in spans:
+        blk = oob[s:e]
+        u = own_uuid(blk)
+        name = global_object_kind(blk)
+        if name:
+            kept.append(blk)
+            kept_names.append((name, u))
+        else:
+            dropped.append(u)
+    assert kept, "donor .oob has no global singletons to keep"
+    return prefix + sep.join(kept) + suffix, [u for _n, u in kept_names], dropped, kept_names
+
+
+# NOTE the leading [ \t]* rather than \n: entries are back-to-back, so a pattern
+# that ate BOTH the leading and the trailing newline could only match every other
+# entry (23 of GroundMovement's 45). The independent (map-entry count below is the
+# tripwire for that class of bug.
+OMP_ENTRY_RE = re.compile(
+    r"[ \t]*\(map-entry[ \t]*\n"
+    r"[ \t]*\(address[^)]*\)[ \t]*\n"
+    r'[ \t]*\(uuid[ \t]+"(VRF_UUID:[0-9a-fA-F-]+)"\)[ \t]*\n'
+    r"[ \t]*\)[ \t]*\n")
+
+
+def strip_omp_to(omp, keep_uuids):
+    """Drop every (map-entry ...) whose uuid is not in keep_uuids."""
+    keep = set(keep_uuids)
+    found = [m.group(1) for m in OMP_ENTRY_RE.finditer(omp)]
+    assert found, "no (map-entry ...) parsed out of the .omp"
+    assert len(found) == omp.count("(map-entry"), \
+        "regex saw %d of %d (map-entry blocks" % (len(found), omp.count("(map-entry"))
+    out = OMP_ENTRY_RE.sub(lambda m: m.group(0) if m.group(1) in keep else "", omp)
+    left = [m.group(1) for m in OMP_ENTRY_RE.finditer(out)]
+    assert len(left) == out.count("(map-entry"), "post-strip .omp scan is incomplete"
+    assert set(left) == keep and len(left) == len(keep), \
+        "omp keep-set mismatch: %s vs %s" % (sorted(left), sorted(keep))
+    return out, found
+
+
+# The canonical EMPTY .gui_settings. Structure copied VERBATIM from a shipped 5.2d
+# scenario that already has zero object settings (Sample\DroneAttack.gui_settings),
+# so the boost class_id numbering is the one VR-Forces itself writes: with
+# DtObjectSettings empty, SystemScriptsAvailable is class_id 2 and Overlays 3 - NOT
+# 4 and 5 as in a donor that carries object settings. Renumbering by hand is the
+# trap here; the donor's Overlays block is spliced in with its ids rewritten.
+GUI_SETTINGS_52_HEAD = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>\n'
+    "<!DOCTYPE boost_serialization>\n"
+    '<boost_serialization signature="serialization::archive" version="20">\n'
+    '<DtGuiScenarioSettingsManager class_id="0" tracking_level="0" version="0">\n'
+    '\t<DtObjectSettings class_id="1" tracking_level="0" version="0">\n'
+    "\t\t<count>0</count>\n"
+    "\t\t<item_version>0</item_version>\n"
+    "\t</DtObjectSettings>\n"
+    '\t<SystemScriptsAvailable class_id="2" tracking_level="0" version="0">\n'
+    "\t\t<count>0</count>\n"
+    "\t\t<item_version>0</item_version>\n"
+    "\t</SystemScriptsAvailable>\n")
+GUI_SETTINGS_52_TAIL = ("</DtGuiScenarioSettingsManager>\n"
+                        "</boost_serialization>\n")
+
+
+def strip_gui_settings(gui):
+    """Empty DtObjectSettings; keep the donor's Overlays block, class ids renumbered."""
+    m = re.search(r"\t<Overlays\b.*?</Overlays>\n", gui, re.S)
+    assert m, "no <Overlays> block in the donor .gui_settings"
+    ov = m.group(0)
+    ids = []
+    for cm in re.finditer(r'class_id="(\d+)"', ov):
+        if cm.group(1) not in ids:
+            ids.append(cm.group(1))
+    assert len(ids) == 3, "unexpected Overlays class ids %s" % ids
+    remap = dict(zip(ids, ["3", "4", "5"]))
+    ov = re.sub(r'class_id="(\d+)"',
+                lambda cm: 'class_id="%s"' % remap[cm.group(1)], ov)
+    out = GUI_SETTINGS_52_HEAD + ov + GUI_SETTINGS_52_TAIL
+    assert "VRF_UUID" not in out, "uuid survived the .gui_settings strip"
+    return out
+
+
+def aoi_extent_ecef(aoi):
+    """(x, y, z, radius) covering the AOI box - the .scn ScenarioExtentInformation.
+
+    Verified against the donor: GroundMovement's "4.33827e+06,576541,4.62543e+06,
+    13563.5" back-converts to 46.78N 7.57E, its own Swiss play area.
+    """
+    lat = 0.5 * (aoi["lat_min"] + aoi["lat_max"])
+    lon = 0.5 * (aoi["lon_min"] + aoi["lon_max"])
+    h = aoi["h"]
+    c = geodetic_to_ecef(lat, lon, h)
+    r = 0.0
+    for la in (aoi["lat_min"], aoi["lat_max"]):
+        for lo in (aoi["lon_min"], aoi["lon_max"]):
+            p = geodetic_to_ecef(la, lo, h)
+            r = max(r, math.sqrt(sum((p[k] - c[k]) ** 2 for k in range(3))))
+    return c[0], c[1], c[2], r
+
+
+def set_scn_string(scn, key, value):
+    """Rewrite (<key> "...") in a .scn. Raises if the key is absent."""
+    pat = re.compile(r"(\(" + re.escape(key) + r'\s+")[^"]*(")')
+    new, n = pat.subn(lambda m: m.group(1) + value + m.group(2), scn, count=1)
+    assert n == 1, "no (%s \"...\") line in the .scn" % key
+    return new
+
+
+DETERMINISTIC_ZIP_DATE = (1980, 1, 1, 0, 0, 0)
+
+
+def write_zip(path, members, deterministic=False):
+    """members = list of (arcname, text-or-bytes), written in the order given."""
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+        for arcname, payload in members:
+            data = payload.encode("utf-8") if isinstance(payload, str) else payload
+            if deterministic:
+                zi = zipfile.ZipInfo(arcname, date_time=DETERMINISTIC_ZIP_DATE)
+                zi.compress_type = zipfile.ZIP_DEFLATED
+                zi.external_attr = 0o600 << 16
+                z.writestr(zi, data)
+            else:
+                z.writestr(arcname, data)
+
+
+def build_empty_52(out_name, donor="GroundMovement", frame_mode=None,
+                   frame_time=None, out_dir=None, scenario_name=None,
+                   aoi=None, verbose=True):
+    """Emit <out_name>.scnx: the donor 5.2-native scenario with EVERY simulation
+    object stripped, leaving a globals-only .oob, on MAK Earth (online) +
+    EntityLevel.sms with the frame lever set and the extent on the R9 AOI.
+
+    Returns (scnx_path, report_dict). The donor .scnx is only READ.
+    """
+    aoi = aoi or R9_AOI
+    donor_path = DONORS_52.get(donor, donor)
+    if not os.path.isfile(donor_path):
+        raise SystemExit("donor .scnx not found: %s" % donor_path)
+
+    with zipfile.ZipFile(donor_path) as z:
+        order = list(z.namelist())
+        raw = {n: z.read(n) for n in order}
+    dname = os.path.splitext(os.path.basename(donor_path))[0]
+
+    def txt(ext):
+        return raw[dname + ext].decode("utf-8")
+
+    # ---- .oob : globals only -------------------------------------------------
+    new_oob, kept_uuids, dropped_uuids, kept_names = strip_oob_to_globals(txt(".oob"))
+    assert not [b for b in iter_blocks(new_oob) if global_object_kind(b) is None], \
+        "a simulation object survived the .oob strip"
+
+    # ---- .omp : one map-entry per surviving global ---------------------------
+    new_omp, omp_before = strip_omp_to(txt(".omp"), kept_uuids)
+
+    # ---- .gui_settings : drop the stale per-object settings ------------------
+    new_gui = strip_gui_settings(txt(".gui_settings"))
+
+    # ---- members that carry NO reference to a stripped object ---------------
+    # .pln/.xtr/.sgr/.ovl/.spt/.osrx/.orb are copied byte-for-byte; assert first
+    # that none of them names an object we removed (verified for GroundMovement:
+    # its .pln is the empty 36-byte stub and the .xtr's only uuids are the two
+    # spawn-TEMPLATE self-ids, whose sink-nodes/spawn-points lists are empty).
+    dropped_set = set(u for u in dropped_uuids if u)
+    copied = []
+    for n in order:
+        ext = os.path.splitext(n)[1]
+        if ext in (".oob", ".omp", ".gui_settings", ".scn"):
+            continue
+        body = raw[n].decode("utf-8", "replace")
+        stale = sorted(set(re.findall(r"VRF_UUID:[0-9a-fA-F-]+", body)) & dropped_set)
+        assert not stale, "%s still references stripped objects: %s" % (n, stale[:3])
+        copied.append(n)
+
+    # ---- .scn ----------------------------------------------------------------
+    scn = txt(".scn")
+    scn = scn.replace(dname, out_name)             # part-name references
+    scn = set_scn_string(scn, "Terrain-Database", TERRAIN_52)
+    scn = set_scn_string(scn, "Gui-Terrain-Database", TERRAIN_52)
+    scn = set_scn_string(scn, "Simulation-Model-Set-Files", SMS_52)
+    scn = set_frame_settings(scn, frame_mode, frame_time)
+    if scenario_name is not None:
+        scn = set_scn_string(scn, "scenario-name", scenario_name)
+    ex, ey, ez, er = aoi_extent_ecef(aoi)
+    extent = "%g,%g,%g,%g" % (ex, ey, ez, er)
+    scn = set_scn_string(scn, "ScenarioExtentInformation", extent)
+    new_keys = [k for k in ("gui-runtime-scheme", "gui-runtime-scheme-data",
+                            "remote-attachment-scheme", "remote-attachment-scheme-data")
+                if ("(%s " % k) in scn]
+
+    # ---- assemble ------------------------------------------------------------
+    members = []
+    for n in order:
+        outname = n.replace(dname, out_name)
+        ext = os.path.splitext(n)[1]
+        if ext == ".scn":
+            members.append((outname, scn))
+        elif ext == ".oob":
+            members.append((outname, new_oob))
+        elif ext == ".omp":
+            members.append((outname, new_omp))
+        elif ext == ".gui_settings":
+            members.append((outname, new_gui))
+        else:
+            members.append((outname, raw[n]))
+
+    target_dir = out_dir or FRAME_VARIANTS_DIR
+    if not os.path.isdir(target_dir):
+        os.makedirs(target_dir)
+    scnx_path = os.path.join(target_dir, out_name + ".scnx")
+    write_zip(scnx_path, members, deterministic=True)
+
+    rep = dict(scnx=scnx_path, donor=donor_path, donor_name=dname,
+               members=[m for m, _ in members], donor_members=order,
+               kept=kept_names, n_dropped=len(dropped_uuids),
+               omp_before=len(omp_before), omp_after=len(kept_uuids),
+               terrain=TERRAIN_52, sms=SMS_52, extent=extent,
+               frame_mode=frame_mode, frame_time=frame_time, new_52_keys=new_keys)
+    if verbose:
+        print("BUILT %s" % scnx_path)
+        print("  donor         = %s (READ-ONLY)" % donor_path)
+        print("  members       = %d (donor %d, %d copied byte-for-byte)"
+              % (len(members), len(order), len(copied)))
+        print("  .oob globals  = %s" % ", ".join("%s %s" % (n, u.split(":")[1][:8])
+                                                 for n, u in kept_names))
+        print("  .oob dropped  = %d simulation objects" % len(dropped_uuids))
+        print("  .omp entries  = %d -> %d" % (len(omp_before), len(kept_uuids)))
+        print("  terrain       = %s" % TERRAIN_52)
+        print("  sms           = %s" % SMS_52)
+        print("  frame-mode    = %s" % (frame_mode if frame_mode else "(unchanged)"))
+        print("  frame-time    = %s" % (("%.6f" % float(frame_time))
+                                        if frame_time is not None else "(unchanged)"))
+        print("  extent (R9)   = %s" % extent)
+        print("  5.2 .scn keys = %s" % (", ".join(new_keys) or "(none)"))
+    return scnx_path, rep
+
+
+def build_empty_52_negative_controls(out_name, out_dir, donor="GroundMovement",
+                                     frame_mode=None, frame_time=None,
+                                     scenario_name=None):
+    """Two DELIBERATELY BROKEN copies of the empty fixture, for the validator gate.
+
+    (a) _NEG_noframetime : the (frame-time ...) line deleted from the .scn.
+    (b) _NEG_strayobject : one real simulation object spliced back into the .oob.
+    Both must FAIL validate_fixture.py --empty-52.
+    """
+    good, _rep = build_empty_52(out_name, donor=donor, frame_mode=frame_mode,
+                                frame_time=frame_time, out_dir=out_dir,
+                                scenario_name=scenario_name, verbose=False)
+    donor_path = DONORS_52.get(donor, donor)
+    dname = os.path.splitext(os.path.basename(donor_path))[0]
+    with zipfile.ZipFile(donor_path) as z:
+        donor_oob = z.read(dname + ".oob").decode("utf-8")
+    stray = next(b for b in iter_blocks(donor_oob) if global_object_kind(b) is None)
+
+    with zipfile.ZipFile(good) as z:
+        order = list(z.namelist())
+        raw = {n: z.read(n) for n in order}
+
+    out = []
+    for suffix, mutate in (("_NEG_noframetime", "frametime"),
+                           ("_NEG_strayobject", "stray")):
+        name = out_name + suffix
+        members = []
+        for n in order:
+            outname = n.replace(out_name, name)
+            body = raw[n]
+            if n.endswith(".scn"):
+                # retarget the part-name references too, so the control carries
+                # EXACTLY ONE fault and not a second (dangling .scn refs).
+                body = body.decode("utf-8").replace(out_name, name).encode("utf-8")
+            if mutate == "frametime" and n.endswith(".scn"):
+                t = body.decode("utf-8")
+                t, k = re.subn(r"[ \t]*\(frame-time[^\n]*\n", "", t, count=1)
+                assert k == 1, "no (frame-time ...) line to delete"
+                body = t.encode("utf-8")
+            elif mutate == "stray" and n.endswith(".oob"):
+                t = body.decode("utf-8")
+                cut = t.rstrip().rfind(")")
+                body = (t[:cut] + "\n   " + stray + "\n" + t[cut:]).encode("utf-8")
+            members.append((outname, body))
+        p = os.path.join(out_dir, name + ".scnx")
+        write_zip(p, members, deterministic=True)
+        print("BUILT NEGATIVE CONTROL %s (%s)" % (p, mutate))
+        out.append(p)
+    return out
+
+
 if __name__ == "__main__":
     import argparse
     import sys
 
     ap = argparse.ArgumentParser(
-        description="Build the authored Tank Platoon fixtures, or a frame-mode "
-                    "variant of an existing .scnx.")
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description="Build the authored Tank Platoon fixtures, a frame-mode "
+                    "variant of an existing .scnx, or (--profile 5.2 --empty) the "
+                    "EMPTY 5.2-native fixture.",
+        epilog="EMPTY 5.2 FIXTURE (R1)\n"
+               "  Build into the repo (default, writes nothing under C:\\MAK):\n"
+               "    python build_fixture.py --profile 5.2 --empty \\\n"
+               "           --frame-mode fixed-frame-run-to-complete --frame-time 0.033333\n"
+               "  SANCTIONED DEPLOY (a live executor runs this, not the offline builder):\n"
+               "    python build_fixture.py --profile 5.2 --empty \\\n"
+               "           --frame-mode fixed-frame-run-to-complete --frame-time 0.033333 \\\n"
+               '           --out-dir "C:\\MAK\\vrforces5.2d\\userData\\scenarios"\n'
+               "  Then: LaunchVrf52.ps1 -Scenario R9_Mojave_Empty_52\n")
     ap.add_argument("sites", nargs="*",
                     help="site(s) to build; default = all of %s" % ", ".join(SITES))
     ap.add_argument("--frame-mode", default=None, choices=list(FRAME_MODES),
@@ -581,11 +1004,50 @@ if __name__ == "__main__":
                          "ONLY --frame-mode / --frame-time changed (every other part "
                          "copied byte-for-byte). Example: TropicTortoise:TropicTortoise_FFRTC")
     ap.add_argument("--scenario-name", default=None,
-                    help="optional (scenario-name \"...\") for --frame-variant.")
+                    help="optional (scenario-name \"...\") for --frame-variant "
+                         "and for --empty.")
+    ap.add_argument("--profile", default="5.0.2", choices=["5.0.2", "5.2"],
+                    help="which VR-Forces generation to build for. EXPLICIT ONLY - "
+                         "nothing in this script sniffs the version. Default 5.0.2 "
+                         "(every pre-existing behaviour).")
+    ap.add_argument("--empty", action="store_true",
+                    help="build the EMPTY fixture: a 5.2-native donor with every "
+                         "simulation object stripped (globals-only .oob). Requires "
+                         "--profile 5.2.")
+    ap.add_argument("--donor", default="GroundMovement",
+                    help="--empty donor: %s, or a path to a .scnx. Default "
+                         "GroundMovement." % ", ".join(sorted(DONORS_52)))
+    ap.add_argument("--out-name", default="R9_Mojave_Empty_52",
+                    help="--empty output base name (default R9_Mojave_Empty_52).")
+    ap.add_argument("--negative-controls", default=None, metavar="DIR",
+                    help="--empty only: also write two DELIBERATELY BROKEN copies "
+                         "(missing frame-time; a stray simulation object) into DIR, "
+                         "for the validator's negative gate. Never point this at a "
+                         "tracked directory.")
     args = ap.parse_args()
 
     if not os.path.exists(OUTDIR):
         os.makedirs(OUTDIR)
+
+    if args.empty:
+        if args.profile != "5.2":
+            raise SystemExit("--empty is only defined for --profile 5.2")
+        if args.sites or args.frame_variant:
+            raise SystemExit("--empty takes neither sites nor --frame-variant")
+        print("=" * 70)
+        build_empty_52(args.out_name, donor=args.donor,
+                       frame_mode=args.frame_mode, frame_time=args.frame_time,
+                       out_dir=args.out_dir, scenario_name=args.scenario_name)
+        if args.negative_controls:
+            print("=" * 70)
+            build_empty_52_negative_controls(
+                args.out_name, args.negative_controls, donor=args.donor,
+                frame_mode=args.frame_mode, frame_time=args.frame_time,
+                scenario_name=args.scenario_name)
+        sys.exit(0)
+
+    if args.profile != "5.0.2":
+        raise SystemExit("--profile 5.2 currently builds only --empty")
 
     if args.frame_variant:
         if ":" not in args.frame_variant:

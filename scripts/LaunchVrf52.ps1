@@ -75,6 +75,37 @@
 # carries the evidence, and the exit is 3. NO RETRY: whether a crashed launch should be
 # retried is a separate decision, and a silent retry would hide how often this fires.
 #
+# THE CRASHED PROCESS LINGERS, AND IT BLOCKED THE NEXT LAUNCH (observed 2026-09-04 11:28-11:30
+# UTC; the two console captures named in that report, runs\launch52\launch_3860_appsmoke.txt and
+# launch_3862_appsmoke_retry.txt, were NOT persisted, but the crash itself is on disk:
+# C:\MAK\logs\vrfSimHLA1516e5.2d-20260904-072806-Legatus-282607-59936.callstack.log and its
+# .dmp, stamped 07:28:06 LOCAL = 11:28 UTC). Detection worked - "CRASHED AT STARTUP ... exit 3"
+# for that pid 59936 - but MAK's crash handler KEEPS THE
+# FAULTED PROCESS ALIVE (title becomes 'Error vrfSimHLA1516e.exe', 0 threads), so the very next
+# launch was refused by the pre-existing-process precondition (exit 2) and an unattended runner
+# could not even retry. Two narrow, asymmetric remedies, both bounded by the project rule that
+# a process which FAILED ITS OWN start/join may be closed without asking while a healthy one
+# may not:
+#   - OUR OWN pid, this launch: when the poll declares CRASHED AT STARTUP for the pid THIS
+#     script started, it closes that pid before exiting 3 - first scripts\AnswerCrashDumpDialog
+#     .ps1 (it answers the 5.0.2-form '<exe>...dmp' prompt; the 5.2 box titled 'Error <exe>' is
+#     NOT one it matches, so it simply reports no dialog), then Stop-Process on that single pid.
+#     -LeaveCrashedProcess opts out when the live process is wanted for forensics.
+#   - A PRE-EXISTING pid, some earlier launch's: NOT closed by default - this script cannot know
+#     it failed its own start, only that it looks dead. -CloseCrashedLeftover closes it, and
+#     ONLY when BOTH hold: MAK wrote a <pid>.callstack.log for it AND it has <= 4 threads. Both
+#     are required because either alone is ambiguous - a callstack file can be a recycled pid's
+#     (Windows reuses pids and C:\MAK\logs keeps files across boots), and a low thread count
+#     alone is also the signature of a back-end merely BLOCKED on the RTI (2-4 threads while
+#     present). Together they cannot describe a healthy sim, which runs at 34-62 threads here.
+# NOTHING ELSE IS EVER CLOSED: not vrfGui, not another vrfSim, and never rtiexec / rtiForwarder
+# / rtiAssistant. If a front-end this script started is still up after a crash it is reported,
+# not killed - it will block the next launch until a human deals with it.
+# On the CAUSE of the crash itself see docs/experiments/FORENSICS_52_STARTUP_CRASH_2026-09-04.md
+# (a vendor-side fault in vl.dll, with rid / argv / launcher / cwd / timing all falsified as
+# triggers). It does not change this script's job: detect it, print the evidence, exit 3, and
+# do not leave the corpse blocking the next launch.
+#
 # Exit codes (same contract as LaunchVrf.ps1): 0 READY; 1 PARTIAL (back-end healthy,
 # no front-end); 2 precondition/usage failure (nothing launched); 3 NOT READY within
 # timeout, or the back-end CRASHED at startup; 4 BLOCKED (front-end process up, no
@@ -126,6 +157,15 @@ param(
     # Where MAK's crash handler writes <exe><ver>-<date>-<time>-<host>-<build>-<pid>.callstack
     # .log (and the matching .dmp) - see the STARTUP CRASH block in the header.
     [string] $MakLogDir          = 'C:\MAK\logs',
+    # Do NOT close the back-end THIS launch started when it crashes at startup (default is to
+    # close it, so an unattended retry is not blocked by the corpse). For forensics: the live
+    # process, its crash box and its handles stay put - and WILL refuse the next launch.
+    [switch] $LeaveCrashedProcess,
+    # Close a PRE-EXISTING vrfSimHLA1516e that this script did not start, and only one that
+    # BOTH has a <pid>.callstack.log in -MakLogDir AND runs <= 4 threads (header: either
+    # condition alone is ambiguous). Off by default: a process this script did not start is
+    # not one it can prove failed its own startup.
+    [switch] $CloseCrashedLeftover,
     [switch] $DryRun
 )
 $ErrorActionPreference = 'Stop'
@@ -136,6 +176,87 @@ function Say-Ok   { param([string]$m) Write-Host ('  [OK]   ' + $m) }
 function Say-Warn { param([string]$m) Write-Host ('  [WARN] ' + $m) }
 function Say-Fail { param([string]$m) Write-Host ('  [FAIL] ' + $m) }
 function Say-Plan { param([string]$m) Write-Host ('  [DRY-RUN] would ' + $m) }
+
+# ---- crashed-process helpers (used by the preconditions AND by the readiness verdict) ------
+# Newest MAK callstack file whose LAST NAME FIELD is $ProcessId, written at or after $Since,
+# or '' when there is none. Two filters, both load-bearing:
+#   $Since  - C:\MAK\logs keeps callstacks across boots and Windows RECYCLES pids, so a file
+#             older than the process being judged says nothing about it.
+#   $NamePrefix - the directory is shared by the whole MAK toolchain, not just the sim: it
+#             holds e.g. rtiAssistant5.0.1-20260903-194550-Legatus-281993-54616.callstack.log
+#             (observed 2026-09-04). A pid-only match could therefore pin ANOTHER exe's crash
+#             on this back-end, so the exe family is part of the match.
+# Read-only, never throws.
+function Get-CallstackFileForPid {
+    param([int]$ProcessId, [string]$LogDir, [datetime]$Since = [datetime]::MinValue,
+          [string]$NamePrefix = 'vrfSim')
+    try {
+        $cs = @(Get-ChildItem -LiteralPath $LogDir -Filter ($NamePrefix + ('*-{0}.callstack.log' -f $ProcessId)) -File -ErrorAction SilentlyContinue |
+                Where-Object { $_.LastWriteTime -ge $Since } |
+                Sort-Object LastWriteTime -Descending)
+        if ($cs.Count -gt 0) { return $cs[0].FullName }
+    } catch { }
+    return ''
+}
+
+# TRUE only for a process that is a CRASHED LEFTOVER: MAK wrote a callstack for its pid AND it
+# is down to $MaxThreads or fewer threads. BOTH conditions, deliberately (header): a callstack
+# alone can belong to a recycled pid, and a low thread count alone is also what a back-end
+# merely BLOCKED on the RTI looks like (2-4 threads while present). A healthy 5.2d sim runs at
+# 34-62 threads, so it can never satisfy the thread half. This is the ONLY predicate that may
+# authorise closing a process this script did not start.
+function Test-CrashedLeftover {
+    param([int]$ProcessId, [int]$ThreadCount, [string]$LogDir,
+          [datetime]$Since = [datetime]::MinValue, [int]$MaxThreads = 4)
+    if ($ThreadCount -gt $MaxThreads) { return $false }
+    return ((Get-CallstackFileForPid -ProcessId $ProcessId -LogDir $LogDir -Since $Since) -ne '')
+}
+
+# Close ONE named-checked back-end pid: the vendor's crash prompt first, Stop-Process only if
+# the process survives it. The name re-check is the pid-recycling guard - between the verdict
+# and this call the pid could belong to something else entirely, and this function must never
+# be able to stop anything but a vrfSimHLA1516e. It takes a pid, never a name, so it CANNOT
+# reach rtiexec / rtiForwarder / rtiAssistant even by mistake.
+function Close-CrashedBackend {
+    param([int]$ProcessId, [string]$ExpectedName = 'vrfSimHLA1516e',
+          [int]$DialogConfirmSec = 20, [int]$ExitWaitSec = 15)
+    $p = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
+    if (-not $p) { Say-Ok ('  pid {0} is already gone - nothing to close.' -f $ProcessId); return }
+    if ($p.Name -ne $ExpectedName) {
+        Say-Warn ("  pid {0} is now '{1}', not '{2}' - the pid was recycled. NOT touched." -f $ProcessId, $p.Name, $ExpectedName)
+        return
+    }
+    $answer = Join-Path $PSScriptRoot 'AnswerCrashDumpDialog.ps1'
+    if (Test-Path -LiteralPath $answer) {
+        Say ('  answering MAK''s crash-dump prompt first: AnswerCrashDumpDialog.ps1 -TargetPid {0} -ConfirmSec {1}' -f $ProcessId, $DialogConfirmSec)
+        try {
+            # 6>&1 as well as 2>&1: AnswerCrashDumpDialog.ps1 reports with Write-Host, whose
+            # information stream a bare pipeline does not carry - without it its lines land
+            # unprefixed in the middle of this script's output.
+            & $answer -TargetPid $ProcessId -ConfirmSec $DialogConfirmSec 6>&1 2>&1 | ForEach-Object { Say ('         | ' + $_) }
+            Say ('  AnswerCrashDumpDialog.ps1 exit {0} (1 = no prompt of the 5.0.2 form it matches; the 5.2 box is titled "Error <exe>" and is NOT answered by it - Stop-Process below is then the only exit)' -f $LASTEXITCODE)
+        } catch { Say-Warn ('  AnswerCrashDumpDialog.ps1 failed: {0}' -f $_.Exception.Message) }
+    } else {
+        Say-Warn ('  {0} not found - skipping the crash-dump prompt step.' -f $answer)
+    }
+    if (-not (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue)) {
+        Say-Ok ('  pid {0} exited after the crash-dump prompt was answered; no Stop-Process needed.' -f $ProcessId)
+        return
+    }
+    Say-Warn ('  Stop-Process -Id {0} -Force: closing OUR OWN failed vrfSimHLA1516e (a process that failed its own startup, kept alive only by MAK''s crash handler). No other pid is touched.' -f $ProcessId)
+    try { Stop-Process -Id $ProcessId -Force -ErrorAction Stop }
+    catch { Say-Warn ('  Stop-Process failed: {0}. The pid remains and WILL block the next launch.' -f $_.Exception.Message); return }
+    $wait = (Get-Date).AddSeconds($ExitWaitSec)
+    while ((Get-Date) -lt $wait) {
+        if (-not (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue)) { break }
+        Start-Sleep -Seconds 1
+    }
+    if (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue) {
+        Say-Fail ('  pid {0} is STILL present {1}s after Stop-Process - the next launch will be refused until it is gone.' -f $ProcessId, $ExitWaitSec)
+    } else {
+        Say-Ok ('  pid {0} closed; the pre-existing-process precondition will not block the next launch on its account.' -f $ProcessId)
+    }
+}
 
 $modeTag = if ($DryRun) { 'DRY-RUN' } else { 'LIVE' }
 $scenarioDisplay = if ([string]::IsNullOrWhiteSpace($Scenario)) { '(none - -L omitted)' } else { $Scenario }
@@ -149,6 +270,9 @@ Say ("  Back-end appNumber: {0}" -f $BackendAppNumber)
 Say ("  Front-end appNo   : {0}{1}" -f $FrontendAppNumber, $(if ($NoGui) { ' (-NoGui: not launched)' } else { '' }))
 Say ("  DeviceAddress     : {0}" -f $(if ([string]::IsNullOrWhiteSpace($DeviceAddress)) { '(empty - --deviceAddress/--hostAddressString NOT passed; VR-Forces picks the first device listed)' } else { $DeviceAddress }))
 Say ("  MakLogDir         : {0} (startup-crash callstacks)" -f $MakLogDir)
+Say ("  Crashed processes : own pid on a startup crash -> {0}; pre-existing crashed leftover -> {1}" -f `
+    $(if ($LeaveCrashedProcess) { 'LEFT RUNNING (-LeaveCrashedProcess; it will block the next launch)' } else { 'CLOSED before exit 3' }), `
+    $(if ($CloseCrashedLeftover) { 'CLOSED if it has a callstack AND <= 4 threads (-CloseCrashedLeftover)' } else { 'left alone (refuses the launch; -CloseCrashedLeftover closes it)' }))
 
 # ---- argument gate (hard, checked first, nothing launched on failure) ------
 $appNoFail = $false
@@ -203,6 +327,13 @@ $licMachine = [Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','Mac
 
 $procBackend  = 'vrfSimHLA1516e'
 $procFrontend = 'vrfGui'
+# Thread ceiling for the crashed-leftover classifier (Test-CrashedLeftover). 4, not
+# $BackendMinThreads (8): the two answer different questions. 8 is the HEALTH floor - above it
+# the sim is serviceable. 4 is the CORPSE ceiling - the crashed process observed on 2026-09-04
+# sat at 0 threads, and a back-end merely blocked on the RTI sits at 2-4. The gap 5..8 is
+# deliberately claimed by NEITHER: a process in it is neither healthy nor provably dead, so it
+# is reported and left alone.
+$CrashedLeftoverMaxThreads = 4
 
 # ---- PRECONDITIONS (read-only; run in both DryRun and live) ----------------
 Say-Head 'Preconditions'
@@ -235,14 +366,52 @@ if ($mRid) { Say ("         Machine RTI_RID_FILE={0}" -f $mRid) }
 
 # Stale VR-Forces processes (federates). rtiexec/rtiForwarder/rtiAssistant are RTI
 # infrastructure: reported, never refused on, NEVER killed.
+$vrfProcNames = @('vrfLauncher',$procBackend,$procFrontend)
 $existing = @()
-foreach ($n in @('vrfLauncher',$procBackend,$procFrontend)) {
+foreach ($n in $vrfProcNames) {
     $p = Get-Process -Name $n -ErrorAction SilentlyContinue
     if ($p) { $existing += ($p | ForEach-Object { '{0}(pid {1})' -f $_.Name, $_.Id }) }
 }
 if ($existing.Count -gt 0) {
     Say-Warn ("VR-Forces processes ALREADY running: {0}" -f ($existing -join ', '))
-    if (-not $AllowExistingVrf) { Say-Fail '  Refusing to launch on top of existing VR-Forces processes (-AllowExistingVrf overrides deliberately).'; $hardFail = $true }
+    # A pre-existing back-end is not necessarily a RUNNING sim. On 2026-09-04 (launch_3860 ->
+    # launch_3862) the previous launch's back-end had crashed at startup and MAK's handler kept
+    # the corpse alive at 0 threads, titled 'Error vrfSimHLA1516e.exe'; this precondition then
+    # refused the retry with exit 2. Say what it is, and close it ONLY under
+    # -CloseCrashedLeftover and ONLY when both leftover conditions hold.
+    foreach ($bp in @(Get-Process -Name $procBackend -ErrorAction SilentlyContinue)) {
+        # An UNREADABLE thread count must never be read as 0: that is the corpse signature, and
+        # inventing it would let this script close a process it knows nothing about.
+        $bThr = 0; $bThrOk = $false
+        try { $bThr = $bp.Threads.Count; $bThrOk = $true } catch { }
+        $bStart = [datetime]::MinValue; try { $bStart = $bp.StartTime }    catch { }
+        $bTitle = '';                   try { $bTitle = $bp.MainWindowTitle } catch { }
+        $bCs = Get-CallstackFileForPid -ProcessId $bp.Id -LogDir $MakLogDir -Since $bStart
+        if ($bThrOk -and (Test-CrashedLeftover -ProcessId $bp.Id -ThreadCount $bThr -LogDir $MakLogDir -Since $bStart -MaxThreads $CrashedLeftoverMaxThreads)) {
+            Say-Fail ("  pid {0} is a CRASHED LEFTOVER, not a running sim: {1} thread(s) (<= {2}) AND MAK wrote a callstack for that pid ({3}){4}. MAK's crash handler keeps a faulted process alive, so it goes on blocking launches until something closes it." -f `
+                $bp.Id, $bThr, $CrashedLeftoverMaxThreads, $bCs, $(if ($bTitle) { ", window title '$bTitle'" } else { '' }))
+            Say-Fail ('  LaunchVrf52 closes a crashed back-end automatically ONLY on the launch that DETECTED the crash - the pid it started itself. This pid predates this launch, so it is left alone by default. Close it by hand (Stop-Process -Id {0} -Force) or rerun with -CloseCrashedLeftover, which closes ONLY a pre-existing vrfSimHLA1516e whose pid HAS a callstack file AND has <= {1} threads (both, so a healthy 34-62 thread sim can never match, and neither can an RTI process - only vrfSimHLA1516e pids are ever considered).' -f $bp.Id, $CrashedLeftoverMaxThreads)
+            if ($CloseCrashedLeftover) {
+                if ($DryRun) { Say-Plan ('close crashed leftover pid {0} (-CloseCrashedLeftover): AnswerCrashDumpDialog.ps1 then Stop-Process on that pid only.' -f $bp.Id) }
+                else {
+                    Say-Warn ('  -CloseCrashedLeftover: closing pid {0} now.' -f $bp.Id)
+                    Close-CrashedBackend -ProcessId $bp.Id -ExpectedName $procBackend
+                }
+            }
+        } else {
+            Say-Warn ('  pid {0} is NOT classified as a crashed leftover (threads: {1}; callstack for this pid since its start: {2}) - it is left alone even with -CloseCrashedLeftover. Only a process failing BOTH tests may be closed.' -f `
+                $bp.Id, $(if ($bThrOk) { $bThr } else { 'UNREADABLE - treated as not-a-corpse' }), $(if ($bCs) { $bCs } else { 'none' }))
+        }
+    }
+    # Re-inventory: only what is STILL running can refuse this launch.
+    $existing = @()
+    foreach ($n in $vrfProcNames) {
+        $p = Get-Process -Name $n -ErrorAction SilentlyContinue
+        if ($p) { $existing += ($p | ForEach-Object { '{0}(pid {1})' -f $_.Name, $_.Id }) }
+    }
+}
+if ($existing.Count -gt 0) {
+    if (-not $AllowExistingVrf) { Say-Fail ('  Refusing to launch on top of existing VR-Forces processes ({0}) (-AllowExistingVrf overrides deliberately).' -f ($existing -join ', ')); $hardFail = $true }
     else { Say-Warn '  -AllowExistingVrf set: proceeding despite existing processes.' }
 } else { Say-Ok 'no pre-existing vrfLauncher / vrfSimHLA1516e / vrfGui processes' }
 $infra = @()
@@ -317,33 +486,33 @@ if ($DryRun) {
     if (-not $NoGui) { Say-Plan ("Start-Process '{0}' -WorkingDirectory '{1}' -ArgumentList '{2}'" -f $guiExe, $bin64, $guiArgString) }
     Say-Plan ("poll up to {0}s every {1}s: back-end threads > {2}{3}" -f $ReadyTimeoutSec, $PollIntervalSec, $BackendMinThreads, $(if ($NoGui) { '' } else { ' AND vrfGui MainWindowTitle non-empty' }))
     Say-Plan ("watch the SAME poll for a STARTUP CRASH (0xC0000005 in DtVrfSimOptions::parseCmdLine, 2 of 5 launches on 2026-09-04, trigger UNKNOWN): back-end gone, a MAK crash-box window title, or a new {0}\vrfSimHLA1516e*-<pid>.callstack.log. On any of them: print the first frames and exit 3, WITHOUT retrying." -f $MakLogDir)
+    if ($LeaveCrashedProcess) {
+        Say-Plan 'LEAVE the crashed back-end running on that crash (-LeaveCrashedProcess) - and it would then refuse the NEXT launch until closed by hand or with -CloseCrashedLeftover.'
+    } else {
+        Say-Plan 'close OUR OWN failed back-end pid on that crash, before exiting 3 (AnswerCrashDumpDialog.ps1, then Stop-Process on that pid only - never the GUI, never rtiexec / rtiForwarder / rtiAssistant), so the next launch is not refused by the corpse.'
+    }
     Say-Ok 'DRY-RUN complete: preconditions passed, nothing launched.'
     exit 0
 }
 
 # ---- STARTUP-CRASH DETECTOR (see the header block) --------------------------
 # Returns a record for the back-end pid: crashed yes/no, which signature fired, the
-# callstack file if MAK wrote one, and its first frames. Read-only and NEVER kills: a
-# crashed federate is already dead, and its crash box is answered by
-# scripts\AnswerCrashDumpDialog.ps1, not here.
+# callstack file if MAK wrote one, and its first frames. Read-only: it decides, it does not
+# act. Closing the crashed pid is the caller's job (Close-CrashedBackend, after the evidence
+# has been printed), and only ever for the pid this script started.
 function Get-SimCrashEvidence {
     param([int]$ProcessId, [string]$LogDir, [datetime]$Since)
     $o = [ordered]@{ Crashed = $false; Reason = ''; File = ''; Frames = @() }
     # (c) the callstack file - the strongest signature, and the only one that survives the
-    # process exiting before we look. The faulting pid is the LAST field of the name.
-    # -Since IS LOAD-BEARING, not tidiness: C:\MAK\logs accumulates callstacks across boots
-    # and Windows RECYCLES pids, so a file from a long-dead process that happened to hold
-    # this pid would fail a perfectly healthy launch. Only a file written at or after this
-    # back-end started can be this back-end's.
+    # process exiting before we look. Get-CallstackFileForPid owns the pid-recycling guard
+    # ($Since); see its comment.
     try {
-        $cs = @(Get-ChildItem -LiteralPath $LogDir -Filter ('*-{0}.callstack.log' -f $ProcessId) -File -ErrorAction SilentlyContinue |
-                Where-Object { $_.LastWriteTime -ge $Since } |
-                Sort-Object LastWriteTime -Descending)
-        if ($cs.Count -gt 0) {
+        $csFile = Get-CallstackFileForPid -ProcessId $ProcessId -LogDir $LogDir -Since $Since
+        if ($csFile) {
             $o.Crashed = $true
             $o.Reason  = 'MAK crash handler wrote a callstack for this pid'
-            $o.File    = $cs[0].FullName
-            $o.Frames  = @(Get-Content -LiteralPath $cs[0].FullName -TotalCount 12 -ErrorAction SilentlyContinue)
+            $o.File    = $csFile
+            $o.Frames  = @(Get-Content -LiteralPath $csFile -TotalCount 12 -ErrorAction SilentlyContinue)
             return $o
         }
     } catch { }
@@ -429,7 +598,20 @@ if ($simCrash.Crashed) {
     if ($simCrash.File) { Say-Fail ('  callstack: {0}' -f $simCrash.File) }
     foreach ($ln in @($simCrash.Frames)) { Say ('         | ' + $ln) }
     Say-Fail '  KNOWN AND UNEXPLAINED: 0xC0000005 in makVrf::DtVrfSimOptions::parseCmdLine hit 2 of 5 launches on 2026-09-04, under BOTH the lightweight and the rtiexec rid - the trigger is NOT the rid and is NOT known. NOT retried here.'
-    Say-Fail '  The process is already dead; MAK''s crash box (if any) is answered by scripts\AnswerCrashDumpDialog.ps1. Nothing is killed.'
+    # The process is dead as a simulator but NOT gone: MAK's crash handler parks it (0 threads,
+    # title 'Error vrfSimHLA1516e.exe'), and on 2026-09-04 that corpse made the next launch
+    # exit 2 on the pre-existing-process precondition - an unattended runner could not retry.
+    # This is OUR OWN pid, and it failed ITS OWN startup, so closing it needs no permission
+    # (project rule); a healthy instance would still need one, and gets none here.
+    if ($LeaveCrashedProcess) {
+        Say-Warn ('  -LeaveCrashedProcess: pid {0} is LEFT AS IT IS for forensics (crash box, handles, dump prompt intact). It WILL refuse the next launch until it is closed by hand or with -CloseCrashedLeftover.' -f $simProc.Id)
+    } else {
+        Say-Warn ('  closing pid {0}: it is the back-end THIS script started and it failed its own startup. RTI infrastructure (rtiexec / rtiForwarder / rtiAssistant) and every other pid are untouched. -LeaveCrashedProcess keeps it instead.' -f $simProc.Id)
+        Close-CrashedBackend -ProcessId $simProc.Id -ExpectedName $procBackend
+    }
+    if ($needFront -and $guiProc -and (Get-Process -Id $guiProc.Id -ErrorAction SilentlyContinue)) {
+        Say-Warn ('  the front-end this script started (pid {0}) is still up. It did NOT fail its own startup, so it is NOT closed here - but it will refuse the next launch unless it is stopped (scripts\StopVrf52.ps1) or -AllowExistingVrf is passed.' -f $guiProc.Id)
+    }
 }
 if (-not $backendUp) {
     Say-Fail ("back-end pid {0} NOT present (exit code {1}) - check the log: {2}" -f $simProc.Id, $backendExit, $LogFile)
@@ -453,7 +635,9 @@ if ($simCrash.Crashed) {
     # Checked FIRST: a crashed back-end can momentarily still satisfy the thread-count
     # oracle, and "READY" on a process with a callstack file would be the worst false green
     # this script could produce.
-    Say-Fail ('CRASHED: the 5.2d back-end died at startup ({0}). NOT READY, NOT retried. Exit 3.' -f $simCrash.Reason)
+    Say-Fail ('CRASHED: the 5.2d back-end died at startup ({0}). NOT READY, NOT retried here - {1}. Exit 3.' -f `
+        $simCrash.Reason,
+        $(if ($LeaveCrashedProcess) { 'the crashed pid was LEFT RUNNING (-LeaveCrashedProcess) and will block the next launch' } else { 'the crashed pid was closed above, so a retry is not blocked by it' }))
     exit 3
 }
 if ($backendHealthy -and ((-not $needFront) -or ($frontUp -and $guiTitleOk))) {

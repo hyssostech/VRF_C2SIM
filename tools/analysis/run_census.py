@@ -27,6 +27,22 @@ Definitions, taken from the two sec 7s:
                 to the published 1,732 / 132 / 110. A SECOND encoding of the same
                 placeholder, (0, -90, ~1.9e34 m), appears from run A-1 on; it is filtered
                 by |alt| > 1e8 m (see object_census).
+
+VR-FORCES 5.2d RE-BASELINE, 2026-09-04 (REBASELINE_52_INSTRUMENTS). object_census PARSES
+5.2 traces unchanged - the new `# t=` fields (ent/agg/env/ctl/extattr/waitext/discovered/
+backends), the `# DIAG` lines and the vendor `Printing Reflected Object List counts` block
+are all non-POS and already skipped - but READ "poleOnly" WITH CARE ON 5.2:
+
+  - Neither 5.0.2 placeholder encoding occurs on 5.2. Measured over the three 5.2d
+    captures: (90,-90) lines 0, |alt| > 1e8 lines 0.
+  - The ONLY never-real form on 5.2 is (NaN, +90.000000, NaN) - note lon +90, where
+    5.0.2's NaN form was lon -90 - and it is NOT a placeholder. Those uuids are the
+    19 CONTROL OBJECTS (COLDSTART_REVIEW_RTIEXEC_2026-09-04): readable = ent + ctl,
+    and the count is exactly 19 in every sample of every 5.2 capture.
+  - So on a 5.2 trace `poleOnly` reads "objects with no position", which on this
+    build means the control objects, not un-placed entities. `everReal` is still the
+    entity population - but it is a UNION over the run, and the 5.2 Traffic fixture
+    churns entities, so everReal EXCEEDS the final ent= count and is not a headcount.
 """
 
 import argparse

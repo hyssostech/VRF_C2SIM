@@ -21,7 +21,13 @@ import math
 import re
 import sys
 
-STAMP_RE = re.compile(r'^(.*?)\[Tue Sep  1 (\d\d:\d\d:\d\d) 2026\] (\d+\.\d{3}):? (.*)$')
+# The weekday/month/day/year are NOT pinned. The original pattern hard-coded
+# "[Tue Sep  1 ... 2026]" and silently parsed ZERO stamps from any other day's
+# log while still exiting 0 with a plausible-looking report - the same false
+# green step_profile.py:41 records. Generalised 2026-09-04; on a 2026-09-01 log
+# it matches the same lines at the same offsets (proved by an empty diff).
+STAMP_RE = re.compile(
+    r'^(.*?)\[[A-Za-z]{3} [A-Za-z]{3} [ 0-9]\d (\d\d:\d\d:\d\d) \d{4}\] (\d+\.\d{3}):? (.*)$')
 RPT_RE = re.compile(r'^RPT,([\d.]+),"POSITION ""([^"]+)"" ([-\d.]+) ([-\d.]+)"')
 NAMES = ['M1A2 %d' % i for i in range(1, 29)] + [
     'AUV 1', 'M3 1', 'HMMWV 1', 'HMMWV 2', '1222.MechPlt', '114.MechCoy',
@@ -112,6 +118,7 @@ def rpt_approach(path, mult, order_t, names=('M1A2 15', 'M1A2 16', 'M1A2 17', 'M
 
 def main():
     root = sys.argv[1]
+    bad = 0
     for spec in sys.argv[2:]:
         parts = spec.split(':')
         run = parts[0]
@@ -121,12 +128,23 @@ def main():
         print('== %s (x%g, order at trace t=%.1f)' % (run, mult, order_t))
         order, ev, ns, nd = phase_events(base + 'bin64-vrfSim.log')
         print('  stamped lines %d, discarded (sim>=5000) %d, order sim stamp %s' % (ns, nd, order))
+        if ns == 0:
+            # A stampless vendor log (VR-Forces 5.2d ships vrfSim.mtl
+            # enableLogFileTimestamps 0, MIGRATION_DIFF row A4) used to print an
+            # empty event table and exit 0 - a false green. Say so, and fail.
+            print('  *** NO VENDOR TIMESTAMPS in bin64-vrfSim.log - zero lines matched')
+            print('      "[Www Mmm D HH:MM:SS YYYY] <sim>.mmm". The back end logged without')
+            print('      timestamps (5.2 ships enableLogFileTimestamps 0; command-line')
+            print('      equivalent --enableLogFileTimestamps, 5.2 Users Guide sec 5.2).')
+            print('      NO phase timing can be read from this run. NOT an empty task list.')
+            bad += 1
         for sim, off, key, who, wall in ev:
             print('   %8.3f %+8.3f %-10s %-16s %s' % (sim, off, key, who, wall))
         print('  RPT truth approach (AR Plt 3):')
         for line in rpt_approach(base + 'watchvrf-trace.csv', mult, order_t):
             print(line)
+    return 1 if bad else 0
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
