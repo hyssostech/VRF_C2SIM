@@ -176,10 +176,10 @@ rid-configured rtiexec CRASHES the sim at start; sim-side RTI trace not yet capt
 15720 + forwarder 43728 + four -K assistants LEFT RUNNING (never kill). NO questions to MAK (user
 2026-09-04). RESOLVED 2026-09-04 (PREREG_52_RTIEXEC_2026-09-04): UG52 5.5.1 p190 prohibits the MAK
 RTI in LIGHTWEIGHT mode with VR-Forces - every 2026-09-03 run was lightweight. Documented posture =
-RTI 5.0.1 in rtiexec mode (config/rid-501-rtiexec-min.mtl, headless rtiexec) + interface 127.0.0.1
-(-DeviceAddress; facade pushes --deviceAddress): WatchVrf reflects 62 entities, real POS. NEXT = the
-runner 5.2 profile on that posture (executor: StartRtiExec52 stage, rid, DeviceAddress), then
-PREREG_R9_52 (Phase 2) with WatchVrf re-baselined on 5.2.
+RTI 5.0.1 in rtiexec mode (config/rid-501-rtiexec-min.mtl, headless rtiexec): WatchVrf reflects 62
+entities, real POS (cause by ELIMINATION; --deviceAddress 127.0.0.1 = 5.0.2 value, UNTESTED; the sim's
+parseCmdLine startup crash hits ~2/5 launches on any rid, trigger UNKNOWN - COLDSTART_REVIEW_RTIEXEC).
+NEXT = runner 5.2 profile on that posture (StartRtiExec52 stage, rid, crash detection), PREREG_R9_52.
 ## PROBE PROTOCOL (adopted 2026-09-01/02; do NOT change mid-protocol)
 FFRTC mode per the block above; TimeMultiplier 1x; -RunSecs is a CAP under -StopWhenComplete.
 SHORT-ROUTE probe variants are allowed (platoon/entity legs ~200 m) but COMPANY probe routes stay

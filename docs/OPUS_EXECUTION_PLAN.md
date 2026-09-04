@@ -1920,7 +1920,10 @@ join) are BURNED, not recycled. The run manifest records which were actually use
 - 3855: CLAIMED 2026-09-04 - PREREG_52_RTIEXEC step 2: RunSim-5.2 on that connection.
 - 3856: CLAIMED 2026-09-04 - PREREG_52_RTIEXEC step 3: WatchVrf-5.2 --diag --report-backends 60 s (P3).
 
-*** NEXT FREE: 3857 *** (authoritative - the ONLY such marker in this file. Update this
+- 3857: CLAIMED 2026-09-04 - WatchVrf-5.2 --diag --report-backends --device-address none, 60 s, against the LIVE
+  rtiexec sim 3854 (pid 59296): observer-side single-variable discriminator for --deviceAddress (COLDSTART_REVIEW_RTIEXEC Q2).
+
+*** NEXT FREE: 3858 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
