@@ -100,6 +100,12 @@ public:
     // 5.2 build only: VR-Link connection config file (MAK-ONE-2025-Config.xml); null/empty =
     // the shipped file from the VR-Forces settings tree. Ignored by the 5.0.2 bridge.
     String^ ConnectionConfigFile;
+    // OPT-IN observation-channel lever, default false = shipped behaviour. True makes
+    // Start() clear the reflected ext-entity list's waitForVrfExtendedData, so objects are
+    // no longer withheld pending VRF object data (mirrors
+    // vrf::StartupConfig::disableWaitForVrfExtendedData - see VrfFacade.h for the header
+    // citations and the H3 hypothesis it tests).
+    bool DisableWaitForVrfExtendedData;
 
     StartupConfig() {
         // Defaults mirror vrf::StartupConfig
@@ -113,7 +119,20 @@ public:
         DisPort = 3000;
         FomModules = gcnew List<String^>();
         RprFomVersion = "2.0";
+        DisableWaitForVrfExtendedData = false;
     }
+};
+
+// Sizes of the controller's reflected lists, read off the lists rather than via our UUID
+// callbacks - mirror of vrf::ReflectedListCounts (see VrfFacade.h for what each field maps
+// to, and why ExtendedAttributes is always -1). -1 means "not reachable", never "empty".
+public value struct ReflectedListCounts {
+    int  Entities;
+    int  Aggregates;
+    int  EnvironmentProcesses;
+    int  ControlObjects;
+    int  ExtendedAttributes;            // always -1: no public accessor on either stack
+    bool WaitingForVrfExtendedData;     // the entity list's current wait flag
 };
 
 // -- Event payloads (managed) ----------------------------------------
@@ -218,6 +237,7 @@ public:
             n.rprFomVersion = ToStd(cfg->RprFomVersion);
         if (cfg->ConnectionConfigFile != nullptr)
             n.connectionConfigFile = ToStd(cfg->ConnectionConfigFile);
+        n.disableWaitForVrfExtendedData = cfg->DisableWaitForVrfExtendedData;
         return _facade->Start(n);
     }
 
@@ -228,6 +248,33 @@ public:
     bool AllBackendsReady() { return _facade->AllBackendsReady(); }
     // "<bridge build>|<path of the vrfcontrol.dll this process bound>" - see VrfFacade.h
     static String^ NativeStackInfo() { return marshal_as<String^>(vrf::VrfFacade::NativeStackInfo()); }
+
+    // -- observation-channel diagnostics (read-only) ------------------
+    // Reflected-list sizes taken from the lists themselves, so they do NOT depend on the
+    // UUID-change callbacks GetAllReflectedUuids() relies on. The discriminator for
+    // "nothing reflected into this process" vs "reflected but our callbacks never fired"
+    // (VrfFacade.h; RESEARCH_52_OBSERVER_DISCOVERY_2026-09-03.md H2/H3).
+    ReflectedListCounts ReflectedCounts() {
+        vrf::ReflectedListCounts n = _facade->ReflectedCounts();
+        ReflectedListCounts c;
+        c.Entities = n.entities;
+        c.Aggregates = n.aggregates;
+        c.EnvironmentProcesses = n.environmentProcesses;
+        c.ControlObjects = n.controlObjects;
+        c.ExtendedAttributes = n.extendedAttributes;
+        c.WaitingForVrfExtendedData = n.waitingForVrfExtendedData;
+        return c;
+    }
+    // VR-Forces' own "has anything remote been discovered": 1 yes, 0 no, -1 UNKNOWN.
+    int HasDiscoveredObjects() { return _facade->HasDiscoveredObjects(); }
+    // Vendor per-type breakdown to the MAK NOTIFY stream (not to our CSV) - a caller that
+    // mixes it into a trace must bracket it. No-op when the manager is unreachable.
+    void PrintReflectedObjectCounts() { _facade->PrintReflectedObjectCounts(); }
+    // VR-Link licence probes (vl/checkLicense.h). Assistant-free mode removes the License
+    // Not Found dialog and an unlicensed federate exchanges nothing (COLDSTART_REVIEW R2),
+    // so an observer must be able to say which side of that line it is on.
+    static bool HaveVrLinkLicense() { return vrf::VrfFacade::HaveVrLinkLicense(); }
+    static bool HaveRtiLicense()    { return vrf::VrfFacade::HaveRtiLicense(); }
 
     // -- scenario / simulation control -------------------------------
     void Run()   { _facade->Run(); }

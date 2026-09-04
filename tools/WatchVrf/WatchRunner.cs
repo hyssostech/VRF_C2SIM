@@ -44,11 +44,17 @@ namespace WatchVrf;
 // FRESH ApplicationNumber each run.
 //
 // Args: [applicationNumber] [durationSecs] [sampleSecs] [federation] [--stop-file <path>]
-// Defaults: 3399, 120, 15, CWIX-2024, no stop file (duration only).
+//       [--diag] [--no-wait-ext]
+// Defaults: 3399, 120, 15, CWIX-2024, no stop file (duration only), diagnostics off.
 // --stop-file: the runner touches <path> when its observation window (plus trail) is over;
 // the tick loop polls for it about once a second, emits one '# STOP requested' line and
 // falls through to the SAME bridge.Stop() resign as the duration expiry. durationSecs is
 // then the upper bound (safety net for a runner that dies mid-run).
+// --diag / --no-wait-ext: the 5.2 OBSERVATION-CHANNEL instruments (2026-09-03). --diag adds
+// '# DIAG' lines and per-sample reflected-LIST counts that bypass the UUID callbacks the
+// 'reflected=' figure comes from; --no-wait-ext flips the one facade lever that changes what
+// is reflected. Everything still goes to stdout in the existing line shapes - no new files -
+// so a caller tees the stream. See WatchVrfUsage for the full contract.
 internal static class WatchRunner
 {
     // Argument handling uses the shared tools/Shared/ToolArgs.cs standard (0 success /
@@ -82,12 +88,19 @@ internal static class WatchRunner
                                       WatchVrfUsage.Lines());
         }
 
+        // Two VALUELESS options on the LIVE path (2026-09-03, 5.2 observation-channel
+        // instruments). Both are read AFTER --stop-file's pair has been taken out and
+        // BEFORE UnknownFlags, which is told about them so they are not rejected. Neither
+        // is a positional, so Positionals() already ignores them.
+        bool diag = ToolArgs.HasFlag(args, WatchVrfUsage.DiagFlag);
+        bool noWaitExt = ToolArgs.HasFlag(args, WatchVrfUsage.NoWaitExtFlag);
+
         // No OTHER options are valid on the LIVE path. --con-selftest and --capabilities are
         // dispatched in Program.cs and only when they are args[0]; reaching here with one
         // (e.g. "WatchVrf 3399 --con-selftest") means the caller asked for two different
         // things at once. For the movement oracle that MUST be a hard failure, not a
         // silently-ignored token.
-        string[] unknown = ToolArgs.UnknownFlags(args);
+        string[] unknown = ToolArgs.UnknownFlags(args, WatchVrfUsage.DiagFlag, WatchVrfUsage.NoWaitExtFlag);
         if (unknown.Length > 0)
             return ToolArgs.Usage($"unknown or misplaced option(s): {string.Join(" ", unknown)}. "
                                 + "--con-selftest and --capabilities are offline-only and must be the sole argument.",
@@ -122,6 +135,9 @@ internal static class WatchRunner
             SiteId = 1,
             SessionId = 1,
             HostInetAddr = "127.0.0.1",
+            // OPT-IN probe lever; false (the bridge default) leaves Start() on the shipped
+            // path. See the --no-wait-ext usage text and VrfFacade.h.
+            DisableWaitForVrfExtendedData = noWaitExt,
         };
         // Stack-aware identity (tools/Shared/StackIdentity.cs): 5.0.2 keeps the
         // CWIX-2024 constants; 5.2 joins via the connection config (MAK-ONE-2025).
@@ -129,7 +145,8 @@ internal static class WatchRunner
 
         Console.WriteLine("=== WatchVrf - position + Object Console telemetry (R3 / groundwork 0.6) ===");
         Console.WriteLine($"    {fedDesc} appNumber={appNumber} duration={durationSecs}s sample={sampleSecs}s"
-                        + (stopFile != null ? $" stop-file={stopFile} (duration is the upper bound)" : "") + "\n");
+                        + (stopFile != null ? $" stop-file={stopFile} (duration is the upper bound)" : "")
+                        + (diag ? " diag=on" : "") + (noWaitExt ? " no-wait-ext=on" : "") + "\n");
 
         // All DATA lines (POS, CON, and the # summary) go through this one lock so a CON
         // callback that arrives on a different thread than the sampling loop can never tear
@@ -152,6 +169,23 @@ internal static class WatchRunner
             bridge.BeginTrackingReflectedObjects();
             Console.WriteLine("[OK] joined; discovering + sampling (POS,t,uuid,lat,lon,alt ; "
                             + "CON,t,uuid,level,msg ; TSK,t,marking,taskType ; RPT,t,text)...");
+
+            // JOIN-TIME DIAGNOSTICS. '#' lines on stdout like every other non-CSV record, so
+            // an existing trace reader skips them and a caller can simply tee the stream.
+            //
+            // WHY THE LICENCE LINE. Assistant-free RTI (RTI_ASSISTANT_DISABLE) removes the
+            // License Not Found dialog, MAK RTI Users Guide 8.3 then runs the federate
+            // UNLICENSED, and 8.2 says licensed and unlicensed federates exchange NO
+            // messages - which looks exactly like reflected=0 (COLDSTART_REVIEW_2026-09-03
+            // R2). Without this line an empty trace cannot be told from an unlicensed one.
+            if (diag)
+            {
+                Emit("# DIAG stack=" + VrfBridge.NativeStackInfo());
+                Emit(string.Create(CultureInfo.InvariantCulture,
+                    $"# DIAG licence rti={(VrfBridge.HaveRtiLicense() ? 1 : 0)} "
+                  + $"vrlink={(VrfBridge.HaveVrLinkLicense() ? 1 : 0)} "
+                  + $"no-wait-ext={(noWaitExt ? 1 : 0)}"));
+            }
 
             var start = DateTime.UtcNow;
 
@@ -252,8 +286,39 @@ internal static class WatchRunner
                     Emit(string.Create(CultureInfo.InvariantCulture,
                         $"POS,{t},{u},{g.LatDeg:F6},{g.LonDeg:F6},{g.AltMeters:F1}"));
                 }
-                Emit(string.Create(CultureInfo.InvariantCulture,
-                    $"# t={t}s reflected={uuids.Count()} readable={readable}"));
+                // The summary line keeps its exact shape when --diag is off. With --diag it
+                // GAINS trailing fields rather than becoming a second line, so both numbers
+                // for one instant stay on one record: 'reflected=' is what OUR UUID-change
+                // callbacks collected, ent=/agg=/env=/ctl= are the reflected lists' own
+                // count()s. The two disagreeing is the H2 finding; both zero kills H2 with H3.
+                string summary = string.Create(CultureInfo.InvariantCulture,
+                    $"# t={t}s reflected={uuids.Count()} readable={readable}");
+                if (diag)
+                {
+                    var c = bridge.ReflectedCounts();
+                    summary += string.Create(CultureInfo.InvariantCulture,
+                        $" ent={c.Entities} agg={c.Aggregates} env={c.EnvironmentProcesses}"
+                      + $" ctl={c.ControlObjects} extattr={c.ExtendedAttributes}"
+                      + $" waitext={(c.WaitingForVrfExtendedData ? 1 : 0)}"
+                      + $" discovered={bridge.HasDiscoveredObjects()}");
+                }
+                Emit(summary);
+            }
+
+            // VR-Forces' OWN per-type breakdown, once, after the whole observation window -
+            // the vendor cross-check on the ent=/agg=/env=/ctl= numbers above. Bracketed
+            // because its text is MAK notify format, not CSV, so a reader that skips '#'
+            // lines must also skip whatever lies between the two markers.
+            // AN EMPTY BRACKET IS NOT A RESULT. The MAK notify stream is NOT this process's
+            // Console.Out: where it lands is a VR-Forces/notify-level matter, so nothing
+            // between the markers means "not captured here", never "VR-Forces reported
+            // zero objects". The numbers that ARE ours are the '# t=' fields.
+            if (diag)
+            {
+                Emit("# DIAG vendor printReflectedObjectCounts BEGIN (MAK notify stream, not this "
+                   + "tool's stdout; empty means NOT CAPTURED, not zero)");
+                bridge.PrintReflectedObjectCounts();
+                Emit("# DIAG vendor printReflectedObjectCounts END");
             }
 
             Console.WriteLine("[..] bridge.Stop() - resigning...");

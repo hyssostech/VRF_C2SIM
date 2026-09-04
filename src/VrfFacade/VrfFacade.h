@@ -99,6 +99,46 @@ struct StartupConfig {
     // file from the VR-Forces settings tree as the 5.2d remoteControl sample does.
     // Ignored by the 5.0.2 build.
     std::string connectionConfigFile;
+
+    // OPT-IN diagnostic lever, default false = the shipped behaviour (Start() executes
+    // nothing extra). When true, Start() calls
+    // DtReflectedExtEntityList::setWaitForVrfExtendedData(false)
+    // (vrfExtObjects/reflectedExtEntityList.h:77 on 5.2d, :75 on 5.0.2) on the entity list
+    // the UUID network manager owns, right after init.
+    // WHY: that flag defaults TRUE (:238 myWaitForVrfExtendedData) and readyToAdd()
+    // WITHHOLDS a VR-Forces object from the reflected list until its VRF object data
+    // arrives or theTimeoutRequestTime elapses (:163-170, :186). H3 of
+    // docs/experiments/RESEARCH_52_OBSERVER_DISCOVERY_2026-09-03.md: that withholding is a
+    // candidate cause of the 5.2 reflected=0 symptom. Only the ENTITY list has this setter
+    // - the aggregate and control-object lists do not declare it (reflectedExtAggregateList.h,
+    // reflectedControlObjectList.h have setPropertyPrototypes but no wait flag).
+    bool disableWaitForVrfExtendedData = false;
+};
+
+// Sizes of the controller's REFLECTED LISTS, read straight off the lists themselves
+// (DtReflectedObjectList::count(), vl/reflectedObjectListHLA.h:98 in vrlink 5.8 AND 5.10),
+// so the numbers do NOT depend on our UUID-change callbacks the way GetAllReflectedUuids()
+// does. This is the H2 discriminator of
+// docs/experiments/RESEARCH_52_OBSERVER_DISCOVERY_2026-09-03.md: "objects are in the lists
+// but the UUID callbacks never fire" vs "nothing is reflected into this process at all".
+// -1 = the list was not reachable (controller not started, or no public accessor).
+struct ReflectedListCounts {
+    int entities = -1;              // uuidNetworkManager()->entityList()
+    int aggregates = -1;            // uuidNetworkManager()->aggregateList()
+    int environmentProcesses = -1;  // controller->reflectedEnvironmentProcessList()
+    int controlObjects = -1;        // uuidNetworkManager()->controlObjectList()
+    // ALWAYS -1: the reflected extended-attributes object list has NO public accessor on
+    // either stack. DtUUIDNetworkManager keeps it as a protected member with no getter
+    // beside the three public ones (UUIDNetworkManager.h:123-125 vs :189-192 on 5.2d), and
+    // DtVrlinkNetworkInterface's DtReflectedObjectLists is protected too
+    // (vrlinkNetworkInterface.h:783; only setReflectedLists(:510) is public). The one
+    // public finder, DtExtendedAttributesExistenceListener::findExtendedAttributesObjectList
+    // (vrvVrl/DtExtendedAttributesExistenceListener.h:60), belongs to VR-Vantage's vrvVrl,
+    // which this bridge does not link. Reported as unknown rather than faked.
+    int extendedAttributes = -1;
+    // The entity list's current waitForVrfExtendedData() (reflectedExtEntityList.h:80 on
+    // 5.2d, :78 on 5.0.2) - so a trace records whether the H3 lever was actually in effect.
+    bool waitingForVrfExtendedData = false;
 };
 
 // ------------------------------------------------------------------
@@ -238,6 +278,43 @@ public:
 
     int  BackendCount() const;
     bool AllBackendsReady() const;
+
+    // -- observation-channel diagnostics (read-only; no protocol traffic) ----
+    // Sizes of the reflected lists themselves - see ReflectedListCounts. Safe before Start()
+    // (everything reads -1) and on the StartAdopting() path. Call between ticks, like the
+    // other state reads: the lists mutate on the tick thread.
+    ReflectedListCounts ReflectedCounts() const;
+
+    // makVrf::DtRemoteObjectManager::hasDiscoveredObjects()
+    // (vrlinkNetworkInterface/remoteObjectManager.h:110 on 5.2d, :121 on 5.0.2) - VR-Forces'
+    // own answer to "has anything remote been discovered". 1 yes, 0 no, -1 UNKNOWN. Unknown
+    // whenever the manager cannot be reached: before Start(), after Stop(), on the
+    // StartAdopting() path (the adopted controller's concrete type is not ours to assume),
+    // or when init was given disableRemoteDiscovery=true, which is documented NOT to create
+    // the manager at all (vrlinkVrfRemoteController.h:92-93).
+    int HasDiscoveredObjects() const;
+
+    // Ask VR-Forces to print its own per-type reflected-object breakdown
+    // (makVrf::DtRemoteObjectManager::printReflectedObjectCounts(),
+    // remoteObjectManager.h:85-86 on 5.2d, :86-87 on 5.0.2). The text goes to the MAK
+    // NOTIFY stream in the vendor's own format, NOT to our CSV, so a caller must bracket it
+    // in its trace. No-op when the manager is unreachable (see HasDiscoveredObjects).
+    void PrintReflectedObjectCounts() const;
+
+    // VR-Link's licence probes (vl/checkLicense.h:19/:27 - identical in vrlink 5.8 and
+    // 5.10, exported by vlHLA1516e.lib / vlHLA4.lib, both already in the link set).
+    // R2 of docs/experiments/COLDSTART_REVIEW_2026-09-03.md: assistant-free mode removes the
+    // License Not Found dialog, and MAK RTI Users Guide 8.3 then lets the federate run
+    // UNLICENSED while 8.2 says licensed and unlicensed federates exchange no messages -
+    // exactly the reflected=0 shape. These are the pre-flight that record makes a gate.
+    // The header's own caveat: a successful check does not guarantee a later object
+    // creation succeeds, because the licence manager's state can change in between.
+    // NOTE the MAK RTI itself exposes no licence-state query we can call here: the only
+    // licence API in makRti4.6.1/include is the Assistant wire protocol
+    // (MAK/assistant/assistantLicQueryMsg.h:26-65, isUnlicensed() etc.), and
+    // RTI_ASSISTANT_DISABLE is precisely what our runs set.
+    static bool HaveVrLinkLicense();
+    static bool HaveRtiLicense();
 
     // Which MAK stack this process actually loaded: "<build tag>|<full path of vrfcontrol.dll>"
     // (build tag = "5.2" for VRF_API_52 builds, else "5.0.2"). The native DLLs are found by

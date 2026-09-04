@@ -44,6 +44,13 @@
 #include <vrfExtObjects/reflectedExtEntity.h>
 #include <vrfExtObjects/reflectedExtAggregateList.h>
 #include <vrfExtObjects/reflectedExtAggregate.h>
+// Observation-channel diagnostics only (ReflectedCounts / HasDiscoveredObjects /
+// PrintReflectedObjectCounts / Have*License). None of these headers is used by the
+// pre-existing command path.
+#include <vrfExtObjects/reflectedControlObjectList.h>
+#include <vl/reflectedEnvironmentProcessList.h>
+#include <vrlinkNetworkInterface/remoteObjectManager.h>
+#include <vl/checkLicense.h>
 #include <vl/globalObjectDesignatorList.h>
 #include <vl/globalObjectDesignator.h>
 #include <vrftasks/radioMessageTypes.h>
@@ -153,6 +160,18 @@ public:
 #endif
         );
     }
+
+    // DIAGNOSTIC-ONLY accessor (VrfFacade::HasDiscoveredObjects /
+    // PrintReflectedObjectCounts). DtVrlinkVrfRemoteController keeps its network interface
+    // in a PROTECTED member with no public getter (vrlinkVrfRemoteController.h:177 on 5.2d,
+    // :175 on 5.0.2), and makVrf::DtRemoteObjectManager - the only public holder of
+    // hasDiscoveredObjects() / printReflectedObjectCounts() - hangs off it
+    // (vrlinkNetworkInterface.h:464 on 5.2d, :382 on 5.0.2; the network interface's own
+    // printReflectedObjectCounts override is protected, :599 / :502). A derived class may
+    // read its base's protected member; this changes no wiring. Null until an init() runs.
+    makVrf::DtVrlinkNetworkInterface* diagNetworkInterface() const {
+        return myVrlinkNetworkInterface;
+    }
 };
 
 namespace vrf {
@@ -203,6 +222,26 @@ struct VrfFacade::Impl {
     }
 
     makVrf::DtVrlinkVrfRemoteController* c() const { return controller; }
+
+    // -- observation-channel diagnostics (no state of their own) ---------------
+    // The controller Start() built, TYPED. Start() always constructs a
+    // MyDtVrlinkVrfRemoteController and sets owns=true; StartAdopting() stores a caller's
+    // controller of unknown concrete type and sets owns=false. So 'owns' already records
+    // exactly when this cast is valid - Start() needs no extra bookkeeping for it.
+    MyDtVrlinkVrfRemoteController* diagOwnController() const {
+        return owns ? static_cast<MyDtVrlinkVrfRemoteController*>(controller) : nullptr;
+    }
+
+    // The remote object manager behind hasDiscoveredObjects() /
+    // printReflectedObjectCounts(). Null when the controller is not ours, not started, or
+    // was inited with disableRemoteDiscovery=true (vrlinkVrfRemoteController.h:92-93 says
+    // the manager is then never created).
+    makVrf::DtRemoteObjectManager* diagRemoteObjectManager() const {
+        MyDtVrlinkVrfRemoteController* mine = diagOwnController();
+        if (!mine) return nullptr;
+        makVrf::DtVrlinkNetworkInterface* netIf = mine->diagNetworkInterface();
+        return netIf ? netIf->remoteObjectManager() : nullptr;
+    }
 };
 
 // ------------------------------------------------------------------
@@ -426,14 +465,18 @@ bool VrfFacade::Start(const StartupConfig& cfg) {
     p_->exConn = new DtExerciseConn(*p_->appInit);
 #if VRF_API_52
     // 5.2: call the BASE init(DtExerciseConn*, rel, reel, ral, ael, marking,
-    // disableRemoteDiscovery=false) - the overload the 5.2d sample uses. Its doc
+    // disableRemoteDiscovery=false) - the overload the 5.2d sample uses
+    // (examples\remoteControl\main.cxx:47-49). Its doc
     // (vrlinkVrfRemoteController.h :90-93): it creates the communication manager
     // AND, when disableRemoteDiscovery is false, the DtRemoteObjectManager that
-    // discovers state data. Our 5.0.2-era derived overload replicates only the
-    // 5.0.2 wiring (comm manager + vrlink interface) and never creates that
-    // manager - on 5.2 that left every observer BLIND (reflected=0 while the
-    // command/backend-state channel worked; PREREG_52_TOOLJOIN_2026-09-03.md,
-    // appNos 3808/3810/3811). Qualified call = the base overload explicitly.
+    // discovers state data.
+    // THIS IS PARITY WITH THE SAMPLE, NOT A FIX. The hypothesis that the derived
+    // overload's not creating the DtRemoteObjectManager CAUSED observer blindness is
+    // FALSIFIED: run 3811 (derived overload, disableRemoteDiscovery=false) and run 3812
+    // (this base overload) both reported reflected=0
+    // (docs/experiments/PREREG_52_TOOLJOIN_2026-09-03.md sec 6). Keeping or reverting
+    // this line is the supervisor's call; it is recorded here so no later session reads
+    // it as a settled cause. Qualified call = the base overload explicitly.
     newController->makVrf::DtVrlinkVrfRemoteController::init(
         p_->exConn, nullptr, nullptr, nullptr, nullptr, "entity-identifier", false);
 #else
@@ -466,6 +509,19 @@ bool VrfFacade::Start(const StartupConfig& cfg) {
     // host address + uuid manager
     p_->controller->setHostInetAddr(&(std::string(cfg.hostInetAddr))[0]);
     p_->uuidMgr = p_->controller->uuidNetworkManager();
+
+    // OPT-IN extended-data handshake lever (StartupConfig::disableWaitForVrfExtendedData,
+    // default false). With the default this block executes NOTHING and Start() is the
+    // pre-feature path statement for statement (2026-07-19 rule: native changes are
+    // additive and opt-in). Set, it clears the entity list's myWaitForVrfExtendedData so
+    // readyToAdd() stops withholding VR-Forces objects that have no VRF object data yet
+    // (reflectedExtEntityList.h:74-80 / :163-170 on 5.2d). setPropertyPrototypes is
+    // deliberately NOT called: we hold no prototypes to supply, and passing the empty ones
+    // is exactly what the constructor already did (:37-39), so it would decode nothing new.
+    if (cfg.disableWaitForVrfExtendedData && p_->uuidMgr) {
+        if (DtReflectedExtEntityList* entityList = p_->uuidMgr->entityList())
+            entityList->setWaitForVrfExtendedData(false);
+    }
 
     return p_->controller != nullptr;
 }
@@ -552,6 +608,52 @@ std::string VrfFacade::NativeStackInfo() {
 bool VrfFacade::AllBackendsReady() const {
     return p_->controller && p_->controller->allBackendsReady();
 }
+
+// -- observation-channel diagnostics ---------------------------------------------
+// All read-only: they send nothing on the wire and register no callback, so a consumer
+// that never calls them runs the unchanged path (2026-07-19 rule).
+
+ReflectedListCounts VrfFacade::ReflectedCounts() const {
+    // Every field stays -1 unless its list is actually reachable, so "no controller" and
+    // "list is empty" can never be confused - the difference is the whole point here.
+    ReflectedListCounts counts;
+    if (!p_->controller) return counts;
+    // The three lists the UUID network manager owns and exposes (UUIDNetworkManager.h
+    // :123-125, identical on both stacks). count() is DtReflectedObjectList's
+    // (vl/reflectedObjectListHLA.h:98); DtReflectedExtEntityList/DtReflectedExtAggregateList/
+    // DtReflectedControlObjectList all derive from it through DtReflectedEntityList /
+    // DtReflectedAggregateList / DtReflectedEnvironmentProcessList.
+    if (makVrf::DtUUIDNetworkManager* mgr = p_->controller->uuidNetworkManager()) {
+        if (DtReflectedExtEntityList* entityList = mgr->entityList()) {
+            counts.entities = entityList->count();
+            counts.waitingForVrfExtendedData = entityList->waitForVrfExtendedData();
+        }
+        if (DtReflectedExtAggregateList* aggregateList = mgr->aggregateList())
+            counts.aggregates = aggregateList->count();
+        if (DtReflectedControlObjectList* controlList = mgr->controlObjectList())
+            counts.controlObjects = controlList->count();
+    }
+    // The environment-process list hangs off the controller, not the UUID manager
+    // (vrlinkVrfRemoteController.h:143 on 5.2d, :141 on 5.0.2).
+    if (DtReflectedEnvironmentProcessList* envList = p_->controller->reflectedEnvironmentProcessList())
+        counts.environmentProcesses = envList->count();
+    // counts.extendedAttributes stays -1 - see the header for why it is unreachable.
+    return counts;
+}
+
+int VrfFacade::HasDiscoveredObjects() const {
+    makVrf::DtRemoteObjectManager* rom = p_->diagRemoteObjectManager();
+    if (!rom) return -1;                       // unknown, NOT "no"
+    return rom->hasDiscoveredObjects() ? 1 : 0;
+}
+
+void VrfFacade::PrintReflectedObjectCounts() const {
+    if (makVrf::DtRemoteObjectManager* rom = p_->diagRemoteObjectManager())
+        rom->printReflectedObjectCounts();
+}
+
+bool VrfFacade::HaveVrLinkLicense() { return DtHaveVrLinkLicense(); }
+bool VrfFacade::HaveRtiLicense()    { return DtHaveRtiLicense(); }
 
 void VrfFacade::Run()  { if (p_->controller) p_->controller->run(); }
 void VrfFacade::Pause(){ if (p_->controller) p_->controller->pause(); }
