@@ -127,8 +127,7 @@ suppress vrfSim.log); type-mapping live gate PASSES / run invalid (3775-3781; 6/
    NON-DETERMINISM SUPPORTED (A-1 vs A-2, identical invocations, B/5-20 0 vs 4 sub-routes);
    run B NOT owed; `-q` stays default-OFF; both instrument misses falsified as misses (I4
    second placeholder encoding now filtered, I6 raw distances match within 4% - prereg sec 9).
-   NEXT OBJECT (5.0.2, now parked behind the 5.2 migration): the SERIAL COMPANY BUILD, docs
-   first (5.0.2 UG aggregate disaggregation / task processing), cited in a prereg before any probe.
+   NEXT OBJECT (5.0.2, PARKED behind the 5.2 migration): the SERIAL COMPANY BUILD, docs first.
    Known-unexplained (bounded): why the placeholder encoding flipped between 18:31Z and 20:47Z.
 2. DONE 2026-09-02 (supervisor, a5cdc95): RULE 4 `~PXY` MATCH - RunnerLib Resolve-MarkingKey maps
    the init <Name> to the unique `<name>~<tag>` marking; replayed 3/3 at 0.00 m, tagged and not.
@@ -177,9 +176,10 @@ UNVERIFIED). Lead hypothesis: UUID-change-callback counter vs waitForVrfExtended
 USER RULING 2026-09-03 21:20: NO OLD BITS - the 5.2 stack runs on MAK RTI 5.0.1 (bridge loads +
 joins on 5.0.1 unchanged, PREREG_52_REFLECTION sec 5). Observer still blind on 5.0.1 lightweight;
 rid-configured rtiexec CRASHES the sim at start; sim-side RTI trace not yet capturable; rtiexec
-15720 + forwarder 43728 + four -K assistants LEFT RUNNING (never kill). NEXT = vendor-managed
-rtiexec connection on 5.0.1 (assistant connections.xml / Launcher), RTI log file for the sim
-trace, then MAK support if H1/H2 survive; runner default flips to 5.0.1 when that lands.
+15720 + forwarder 43728 + four -K assistants LEFT RUNNING (never kill). NO questions to MAK (user
+2026-09-04). NEXT = DOCS FIRST: the 5.2d equivalent of the 5.0.2 HLA connection setup (UG52 4.7 /
+5.3.1 Launcher one-time connection, IOG) - RESEARCH_52_HLA_CONNECTION_CONFIG_2026-09-04.md - then
+perform it and re-observe; RTI log-file trace of the sim; runner flips to 5.0.1 when that lands.
 ## PROBE PROTOCOL (adopted 2026-09-01/02; do NOT change mid-protocol)
 FFRTC mode per the block above; TimeMultiplier 1x; -RunSecs is a CAP under -StopWhenComplete.
 SHORT-ROUTE probe variants are allowed (platoon/entity legs ~200 m) but COMPANY probe routes stay

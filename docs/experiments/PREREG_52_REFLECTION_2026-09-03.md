@@ -126,10 +126,12 @@ RM 6.3.1/14.3) remain the top two; H4 (created entities never existed) still not
 excluded; H7 transport untested (the rtiexec rid crashes the sim). Screenshot
 gui_traffic_rti461_running.png: the GUI showed Traffic loaded, clock RUNNING, but a
 blank white view - it did not settle H4 either.
-NEXT (frame per the user's ruling - vendor-managed 5.2 stack, no 4.6.1 anywhere):
-(1) the vendor way to an rtiexec connection: the 5.0.1 assistant's predefined rtiexec
-connection chosen in connections.xml (user-scope file; format known from the 4.6 file)
-or via the Launcher, then observer + create; (2) capture the sim's RTI trace via the
-RTI's own log file (rid RTI_logFileName / RTI_reuseLogFile) instead of stdout; (3) if
-H1/H2 survive, a MAK support question with the captures. Runner default stays
--VrfProfile 5.2 on 4.6.1 until (1) lands - flip RtiDir/rid then.
+NEXT (frame per the user's rulings 2026-09-03/04: vendor-managed 5.2 stack, no 4.6.1
+anywhere, and NO questions to MAK - docs and our own runs only): (0) DOCS FIRST, the
+part skipped all night: the 5.2d equivalent of the 5.0.2 HLA connection configuration
+(UG52 4.7 Launcher connections, 5.3.1 "launch a predefined connection at least once",
+IOG connection chapters) - RESEARCH_52_HLA_CONNECTION_CONFIG_2026-09-04.md; (1) perform
+that documented one-time configuration (headlessly if the files allow, else once via
+the Launcher) and re-run observer + create on it; (2) the sim's RTI trace via the RTI's
+own log file (rid RTI_logFileName) instead of stdout. Runner default stays -VrfProfile
+5.2 on 4.6.1 until (1) lands - flip RtiDir/rid then.
