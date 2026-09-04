@@ -351,16 +351,32 @@ internal static class WatchRunner
                 // for one instant stay on one record: 'reflected=' is what OUR UUID-change
                 // callbacks collected, ent=/agg=/env=/ctl= are the reflected lists' own
                 // count()s. The two disagreeing is the H2 finding; both zero kills H2 with H3.
+                // env= and ctl= are ONE list seen twice (see below) - total= already
+                // accounts for that, so never re-derive a total by adding the fields.
                 string summary = string.Create(CultureInfo.InvariantCulture,
                     $"# t={t}s reflected={uuids.Count()} readable={readable}");
                 if (diag)
                 {
                     var c = bridge.ReflectedCounts();
+                    // total= is the VENDOR-STYLE total, and it deliberately OMITS env=.
+                    // VR-Forces publishes control objects as environment processes, so
+                    // env= and ctl= are the same list read through two accessors and
+                    // adding both would double-count (VrfFacade.h ReflectedListCounts has
+                    // the header trail; envalias= is the runtime proof, 1 = same object).
+                    // There is no vendor ACCESSOR for the total - printReflectedObjectCounts
+                    // only prints it - so this is the sum of the same three terms the
+                    // vendor prints, which matched its "Reflected Objects" line exactly on
+                    // 2026-09-03 (44..62 + 0 + 19 = 63..81). -1 whenever any term is
+                    // unreachable, so a partial read can never masquerade as a small total.
+                    int total = (c.Entities >= 0 && c.Aggregates >= 0 && c.ControlObjects >= 0)
+                        ? c.Entities + c.Aggregates + c.ControlObjects
+                        : -1;
                     summary += string.Create(CultureInfo.InvariantCulture,
                         $" ent={c.Entities} agg={c.Aggregates} env={c.EnvironmentProcesses}"
                       + $" ctl={c.ControlObjects} extattr={c.ExtendedAttributes}"
                       + $" waitext={(c.WaitingForVrfExtendedData ? 1 : 0)}"
-                      + $" discovered={bridge.HasDiscoveredObjects()}");
+                      + $" discovered={bridge.HasDiscoveredObjects()}"
+                      + $" envalias={c.EnvironmentAliasesControlObjects} total={total}");
                 }
                 // Back-end count LAST, so the field sits at the end of the record whether or
                 // not --diag widened it. This is the control-channel reading (the sim engine

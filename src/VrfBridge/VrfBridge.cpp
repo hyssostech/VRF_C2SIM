@@ -129,8 +129,16 @@ public:
 public value struct ReflectedListCounts {
     int  Entities;
     int  Aggregates;
+    // EnvironmentProcesses and ControlObjects are TWO VIEWS OF ONE LIST, not two
+    // populations: VR-Forces publishes control objects as environment processes and the
+    // controller holds a single list for both (VrfFacade.h carries the header trail).
+    // NEVER add them together - the vendor's own total is Entities + Aggregates +
+    // ControlObjects. EnvironmentAliasesControlObjects is the runtime proof: 1 = same
+    // object (so EnvironmentProcesses is a duplicate), 0 = genuinely different objects
+    // (which would falsify that reading), -1 = nothing was compared.
     int  EnvironmentProcesses;
     int  ControlObjects;
+    int  EnvironmentAliasesControlObjects;
     int  ExtendedAttributes;            // always -1: no public accessor on either stack
     bool WaitingForVrfExtendedData;     // the entity list's current wait flag
 };
@@ -261,6 +269,7 @@ public:
         c.Aggregates = n.aggregates;
         c.EnvironmentProcesses = n.environmentProcesses;
         c.ControlObjects = n.controlObjects;
+        c.EnvironmentAliasesControlObjects = n.environmentAliasesControlObjects;
         c.ExtendedAttributes = n.extendedAttributes;
         c.WaitingForVrfExtendedData = n.waitingForVrfExtendedData;
         return c;

@@ -1926,7 +1926,16 @@ join) are BURNED, not recycled. The run manifest records which were actually use
 - 3858: CONSUMED 2026-09-04 (joined, no crash, no --deviceAddress) - PREREG_52_PROFILE_SMOKE: LaunchVrf52 on the profile DEFAULTS (5.0.1, rid-501-rtiexec-min, NO -DeviceAddress), -NoGui, Traffic.
 - 3859: CONSUMED 2026-09-04 (ent=44, 264 real POS lines, paused sim) - PREREG_52_PROFILE_SMOKE: WatchVrf-5.2 --diag --report-backends 60 s (P3 HELD: deviceAddress not required sim-side either).
 
-*** NEXT FREE: 3860 *** (authoritative - the ONLY such marker in this file. Update this
+- 3860: BURNED 2026-09-04 (sim CRASHED at startup - parseCmdLine 0xC0000005, pid 59936; detected by LaunchVrf52, exit 3) - PREREG_52_APP_SMOKE launch 1.
+- 3861: BURNED 2026-09-04 (app never started - its sim crashed) - PREREG_52_APP_SMOKE app, attempt 1.
+
+- 3862: BURNED 2026-09-04 (launch REFUSED, exit 2: the crashed pid 59936 still lingered under the crash box - not a crash) - PREREG_52_APP_SMOKE retry attempt.
+- 3863: BURNED 2026-09-04 (app never started - its launch was refused) - PREREG_52_APP_SMOKE retry app.
+
+- 3864: CONSUMED 2026-09-04 (READY, joined) - PREREG_52_APP_SMOKE retry: LaunchVrf52 profile defaults, Traffic, -NoGui.
+- 3865: CONSUMED 2026-09-04 (P1 HELD: app joined the CONFIG-FILE way, native stack 5.2; C2SIM connect refused as designed) - PREREG_52_APP_SMOKE retry: VrfC2SimApp Release-5.2.
+
+*** NEXT FREE: 3866 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN

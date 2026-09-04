@@ -125,8 +125,39 @@ struct StartupConfig {
 struct ReflectedListCounts {
     int entities = -1;              // uuidNetworkManager()->entityList()
     int aggregates = -1;            // uuidNetworkManager()->aggregateList()
+    // ENV AND CTL ARE THE SAME LIST - they are NOT two populations, and a reader must not
+    // add them. VR-Forces publishes its control objects AS environment processes, so the
+    // one list object is reached through two differently-typed accessors:
+    //   - DtReflectedControlObjectList IS-A DtReflectedEnvironmentProcessList
+    //     (vrfExtObjects/reflectedControlObjectList.h:24 on 5.2d, :23 on 5.0.2).
+    //   - DtVrlinkVrfRemoteController holds exactly ONE such member,
+    //     myReflectedEnvironmentProcessList (vrlinkVrfRemoteController.h:167 on 5.2d, :165
+    //     on 5.0.2), and exposes it under BOTH reflectedEnvironmentProcessList() and
+    //     controlObjectList() (:143-144 on 5.2d, :141-142 on 5.0.2). There is no second
+    //     member for either accessor to return.
+    //   - The vendor's own remote-object manager says the same thing twice: its
+    //     environmentals member is TYPED DtReflectedControlObjectList* and its
+    //     reflectedEnvironmentProcessList() RETURNS that type (remoteObjectManager.h:479
+    //     and :159 on 5.0.2), and the factory that fills it is
+    //     createReflectedControlObjectList(), documented as "Called to create the reflected
+    //     environmental list" (remoteObjectManager.h:280-282 on 5.2d, :222 on 5.0.2).
+    // Hence the vendor's printReflectedObjectCounts() total is entities + aggregates +
+    // control objects with NO separate environment term: it prints exactly the four labels
+    // "Reflected Entities" / "Reflected Aggregates" / "Reflected Control Objects" /
+    // "Reflected Objects" (string constants in bin64/vrlinkNetworkInterfaceDIS.dll and
+    // vrlinkNetworkInterfaceHLA1516e.dll). Observed 2026-09-03: entities 44-62 + aggregates
+    // 0 + control objects 19 = total 63-81, while this struct reported env=19 ctl=19.
+    // environmentProcesses is KEPT (it is a real count of a real list, and dropping it would
+    // silently rewrite older traces' field set) but it is a DUPLICATE of controlObjects
+    // whenever environmentAliasesControlObjects is 1.
     int environmentProcesses = -1;  // controller->reflectedEnvironmentProcessList()
     int controlObjects = -1;        // uuidNetworkManager()->controlObjectList()
+    // Runtime PROOF of the aliasing above rather than an assumption carried from headers:
+    // 1 = the two accessors returned the SAME object, so env is a duplicate of ctl and a
+    // total must count it once; 0 = they returned DIFFERENT objects, which would falsify
+    // the reading above and is the case a trace must flag; -1 = at least one side was
+    // unreachable, so nothing was compared.
+    int environmentAliasesControlObjects = -1;
     // ALWAYS -1: the reflected extended-attributes object list has NO public accessor on
     // either stack. DtUUIDNetworkManager keeps it as a protected member with no getter
     // beside the three public ones (UUIDNetworkManager.h:123-125 vs :189-192 on 5.2d), and

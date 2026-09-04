@@ -639,9 +639,28 @@ ReflectedListCounts VrfFacade::ReflectedCounts() const {
             counts.controlObjects = controlList->count();
     }
     // The environment-process list hangs off the controller, not the UUID manager
-    // (vrlinkVrfRemoteController.h:143 on 5.2d, :141 on 5.0.2).
+    // (vrlinkVrfRemoteController.h:143 on 5.2d, :141 on 5.0.2). It is the SAME OBJECT as
+    // the control-object list read just above - VR-Forces publishes control objects as
+    // environment processes and keeps one list for both. See ReflectedListCounts in
+    // VrfFacade.h for the full header trail; the check below proves it at runtime instead
+    // of trusting that reading.
     if (DtReflectedEnvironmentProcessList* envList = p_->controller->reflectedEnvironmentProcessList())
         counts.environmentProcesses = envList->count();
+    // Pointer identity, not equal counts: two lists that merely HAPPEN to hold 19 objects
+    // each would report 1 from a count comparison and 0 from this one. The control-object
+    // pointer is upcast to its base (DtReflectedControlObjectList : public
+    // DtReflectedEnvironmentProcessList, reflectedControlObjectList.h:24 on 5.2d, :23 on
+    // 5.0.2) so the comparison is between like subobjects and not a raw address pun.
+    // Both accessors are plain member returns, so calling them again costs nothing.
+    {
+        DtReflectedEnvironmentProcessList* envSide = p_->controller->reflectedEnvironmentProcessList();
+        DtReflectedControlObjectList* ctlSide = 0;
+        if (makVrf::DtUUIDNetworkManager* aliasMgr = p_->controller->uuidNetworkManager())
+            ctlSide = aliasMgr->controlObjectList();
+        if (envSide && ctlSide)
+            counts.environmentAliasesControlObjects =
+                (static_cast<DtReflectedEnvironmentProcessList*>(ctlSide) == envSide) ? 1 : 0;
+    }
     // counts.extendedAttributes stays -1 - see the header for why it is unreachable.
     return counts;
 }
