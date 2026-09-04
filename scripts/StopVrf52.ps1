@@ -21,7 +21,9 @@
 #   3. wait out the remaining budget; report what is still up. Still-running is exit 3.
 # rtiAssistant / rtiexec / rtiForwarder are RTI infrastructure: inventoried, never touched
 # (RUNBOOK 0.5.2). Note the 5.2 profile launches assistant-free anyway (RTI_ASSISTANT_DISABLE
-# + config/rid-461-ridconfigured.mtl), so a running assistant there belongs to someone else.
+# + config/rid-501-rtiexec-min.mtl), so a running assistant there belongs to someone else -
+# and its rtiexec/rtiForwarder are the federation's RENDEZVOUS, deliberately left up for the
+# next run (StartRtiExec52.ps1 finds them and starts nothing).
 #
 # Exit codes (same contract as StopVrf.ps1, so the runner's teardown branch is unchanged):
 #   0 = down, or already down, or a dry run completed

@@ -132,14 +132,23 @@
 .PARAMETER VrfProfile
     WHICH VR-FORCES STACK the whole pipeline runs on: '5.0.2' (default, the historical
     path - unchanged in every observable way) or '5.2'. It is the ONLY selector, and it
-    derives: the roots (vrforces5.2d + vrlink5.10 + makRti4.6.1), the per-process
-    environment (5.2 PATH prefix, MAK_VRFDIR/MAK_VRLDIR/MAK_RTIDIR, the SHARED
-    assistant-free rid config\rid-461-ridconfigured.mtl, RTI_ASSISTANT_DISABLE), the
-    launch and stop scripts (LaunchVrf52.ps1 / StopVrf52.ps1), the Release-5.2 build tree
-    of every bridge-linked binary, the config-file federation identity (NO federation
-    argument - execName comes from MAK-ONE-2025-Config.xml) and the 5.2 type-map table.
-    Passing -VrfRoot / -VrLinkRoot / -RtiDir / -Federation beside it is REFUSED: a mixed
-    environment loads the wrong DLLs silently. See docs/RUNBOOK.md "5.2 profile".
+    derives: the roots (vrforces5.2d + vrlink5.10 + makRti5.0.1), the per-process
+    environment (5.2 PATH prefix, MAK_VRFDIR/MAK_VRLDIR/MAK_RTIDIR, the SHARED rtiexec
+    rid config\rid-501-rtiexec-min.mtl, RTI_ASSISTANT_DISABLE), the launch and stop
+    scripts (LaunchVrf52.ps1 / StopVrf52.ps1), a headless-rtiexec stage
+    (StartRtiExec52.ps1), the Release-5.2 build tree of every bridge-linked binary, the
+    config-file federation identity (NO federation argument - execName comes from
+    MAK-ONE-2025-Config.xml) and the 5.2 type-map table. Passing -VrfRoot / -VrLinkRoot /
+    -RtiDir / -Federation beside it is REFUSED: a mixed environment loads the wrong DLLs
+    silently. See docs/RUNBOOK.md "5.2 profile".
+
+    THE RTI CONNECTION MODE IS NOT A KNOB (2026-09-04). UG52 5.5.1 p190: "You cannot use
+    the MAK RTI in lightweight mode with VR-Forces". Every lightweight 5.2 run reflected
+    ZERO entities; with MAK RTI 5.0.1 in rtiexec mode the same observer reflected 62
+    (PREREG_52_RTIEXEC_2026-09-04). The profile therefore always runs rtiexec mode. The
+    VR-Forces-level interface address is SEPARATE, TUNABLE and NOT part of that repair -
+    see -DeviceAddress, which run 3857 falsified observer-side and which now defaults to
+    passing nothing at all.
 
 .PARAMETER NoGui
     5.2 only: launch the back end without vrfGui. Default OFF - the GUI is the one channel
@@ -253,6 +262,23 @@ param(
     # observation-channel defect, PREREG_52_TOOLJOIN_2026-09-03.md). Refused on 5.0.2,
     # whose combined-mode launcher has no such option.
     [switch] $NoGui,
+
+    # 5.2 ONLY: the VR-Forces-level network interface address - the 5.0.2 Launcher panel's
+    # "Network Interface Address", which that configuration fixed at 127.0.0.1. It becomes
+    # --deviceAddress + --hostAddressString on the sim and the gui (UG52 Table 10 p177 /
+    # Table 11 p180-181) and --deviceAddress on the bridge federates' HLA argv.
+    #
+    # DEFAULT EMPTY = PASS NOTHING, and VR-Forces picks "the first device listed" (IOG 5.2.1
+    # p81). It defaulted to 127.0.0.1 for a few hours on 2026-09-04 because
+    # PREREG_52_RTIEXEC's repairing run had set it at the same time as the RTI connection
+    # mode. The DISCRIMINATOR then ran (sec 4 P4, run 3857): an observer with
+    # --device-address none, against the same rtiexec sim, still reflected 54-56 entities -
+    # so the VR-Forces-level address is NOT required observer-side, and it is not part of the
+    # cause. The SIM-SIDE half is still open, which is why the first live run of this profile
+    # launches WITHOUT it. Set a dotted IPv4 here to pin it deliberately; the RTI-layer pin
+    # (RTI_networkInterfaceAddr 127.0.0.1 in the rid) is a DIFFERENT layer and is unaffected.
+    # Refused on 5.0.2, whose combined-mode launcher takes the value from its saved profile.
+    [string] $DeviceAddress = '',
 
     # VR-Forces bring-up (passed straight through to the profile's launch script).
     # The four below are 5.0.2 values and are DERIVED from -VrfProfile on 5.2.
@@ -421,8 +447,25 @@ $LedgerDoc = Join-Path $DocsDir 'OPUS_EXECUTION_PLAN.md'
 # ---- THE PROFILE: everything the stack choice decides, decided in ONE place ---
 # 5.0.2 is the historical path and MUST stay byte-for-byte what it was (its -DryRun
 # output is the regression control for this parameter). 5.2 derives:
-#   roots            vrforces5.2d + vrlink5.10 + makRti4.6.1 (HLA 1516e; HLA 4 is a
-#                    separate phase on makRti5.0.1 - DIFF Y-16, NOT reachable here)
+#   roots            vrforces5.2d + vrlink5.10 + makRti5.0.1 (HLA 1516e; HLA 4 is a
+#                    separate phase - DIFF Y-16, NOT reachable here). 4.6.1 does NOT
+#                    appear in this profile: the posture below is defined on 5.0.1.
+#   RTI posture      the DOCUMENTED one and nothing else (UG52 5.5.1 p190 "You cannot use
+#                    the MAK RTI in lightweight mode with VR-Forces"; PREREG_52_RTIEXEC_
+#                    2026-09-04: rtiexec mode -> 62 entities reflected, lightweight -> 0):
+#                    MAK RTI 5.0.1 in RTIEXEC mode on config\rid-501-rtiexec-min.mtl and a
+#                    headless rtiexec ensured up before anything joins (Stage 2r). The rid
+#                    pins the RTI's OWN interface (RTI_networkInterfaceAddr 127.0.0.1),
+#                    which is inherent to the loopback-broadcast rtiexec connection rather
+#                    than a separate decision. RTI_ASSISTANT_DISABLE stays: assistant-free
+#                    is orthogonal to lightweight-vs-rtiexec, and a 5.0.1 assistant
+#                    version-rejects peers.
+#   interface addr   -DeviceAddress, a TUNABLE that DEFAULTS TO EMPTY = pass nothing. This
+#                    is the VR-FORCES-level address (--deviceAddress/--hostAddressString on
+#                    sim + gui), NOT the RTI-level pin above. It is NOT part of the repair:
+#                    run 3857 (PREREG_52_RTIEXEC sec 4 P4) had an observer reflect 54-56
+#                    entities with its device address blank against the same rtiexec sim.
+#                    The sim-side half is still open, so the profile pins nothing.
 #   launch / stop    LaunchVrf52.ps1 (independent mode, UG52 4.1.2) / StopVrf52.ps1
 #   binaries         the Release-5.2 build tree of the BRIDGE-LINKED tools and the app
 #                    (BridgeConfig axis). PushInit/PushOrder/ListenReports/StopIface are
@@ -433,16 +476,16 @@ $LedgerDoc = Join-Path $DocsDir 'OPUS_EXECUTION_PLAN.md'
 #                    (tools/Shared/StackIdentity.cs; DIFF rows A2/A9 - config FOM modules
 #                    are ADDITIVE, so the 5.0.2 module list must not be submitted).
 #   environment      the 5.2 PATH prefix + MAK_VRFDIR/MAK_VRLDIR/MAK_RTIDIR + the SHARED
-#                    assistant-free rid + RTI_ASSISTANT_DISABLE, for EVERY spawned
-#                    process. Federates that do not share the rid do not share a
-#                    connection (PREREG_52_LAUNCH_2026-09-03.md).
+#                    rtiexec rid + RTI_ASSISTANT_DISABLE, for EVERY spawned process.
+#                    Federates that do not share the rid do not share a connection
+#                    (PREREG_52_LAUNCH_2026-09-03.md).
 $Is52 = ($VrfProfile -eq '5.2')
 # The BridgeConfig output tree the bridge-linked binaries were built into.
 $BridgeOut = if ($Is52) { 'Release-5.2' } else { 'Release' }
 if ($Is52) {
     if (-not $PSBoundParameters.ContainsKey('VrfRoot'))    { $VrfRoot    = 'C:\MAK\vrforces5.2d' }
     if (-not $PSBoundParameters.ContainsKey('VrLinkRoot')) { $VrLinkRoot = 'C:\MAK\vrlink5.10' }
-    if (-not $PSBoundParameters.ContainsKey('RtiDir'))     { $RtiDir     = 'C:\MAK\makRti4.6.1' }
+    if (-not $PSBoundParameters.ContainsKey('RtiDir'))     { $RtiDir     = 'C:\MAK\makRti5.0.1' }
     if (-not $PSBoundParameters.ContainsKey('Federation')) { $Federation = '' }
     # 5.2d ships its samples one level down (userData\scenarios\Sample\...). The 5.0.2
     # default TropicTortoise does not exist there, and its terrain 'MAK Earth Space
@@ -455,6 +498,14 @@ if ($Is52) {
 
 $LaunchVrf = Join-Path $PSScriptRoot $(if ($Is52) { 'LaunchVrf52.ps1' } else { 'LaunchVrf.ps1' })
 $StopVrf   = Join-Path $PSScriptRoot $(if ($Is52) { 'StopVrf52.ps1' }   else { 'StopVrf.ps1' })
+# 5.2 ONLY: the headless-rtiexec ENSURE-UP stage (Stage 2r). Never used on 5.0.2, whose
+# rtiexec comes up behind an ANSWERED rtiAssistant connection instead.
+$StartRtiExec = Join-Path $PSScriptRoot 'StartRtiExec52.ps1'
+# Where THE RTIEXEC's own log goes - runs\launch52 (persistent, gitignored), NOT a run
+# directory. The rtiexec outlives the run that started it and keeps writing to that file
+# while it serves later runs, so filing it under one run's evidence would misattribute a
+# shared, long-lived process's output. The stage's own stdout/stderr stay in the run dir.
+$RtiExecLogDir = Join-Path $RepoRoot 'runs\launch52'
 
 $ExeWatchVrf      = Join-Path $ToolsDir ('WatchVrf\bin\{0}\net10.0\win-x64\WatchVrf.exe' -f $BridgeOut)
 $ExePushInit      = Join-Path $ToolsDir 'PushInit\bin\Release\net10.0\PushInit.exe'
@@ -478,9 +529,29 @@ $FederationArg = if ($Is52) { '' } else { $Federation }
 # Per-process environment the PROFILE adds on top of PATH/licence. EMPTY on 5.0.2, so
 # that profile's environment is untouched. Applied to EVERY child: the capability probe
 # (Stage 0b), the launch script, both observers, the tools and the app.
-$RidFile        = Join-Path $RepoRoot 'config\rid-461-ridconfigured.mtl'
+# THE RID IS THE POSTURE. rid-501-rtiexec-min.mtl is the 5.0.1 rid configured EXACTLY like
+# an assistant rtiexec connection (RTI UG 5.0.1 sec 7.3 p73: useRtiExec 1, tcp/udp 4001,
+# dest 127.255.255.255, interface 127.0.0.1, forwarder 5000, internal messages reliable) and
+# nothing more - the superset rid-501-rtiexec.mtl crashed the 5.2 sim in
+# DtVrfSimOptions::parseCmdLine. The assistant-free LIGHTWEIGHT rid used until 2026-09-03
+# (config/rid-461-ridconfigured.mtl) was a WRONG FIX: it removed the version-locked assistant
+# but put the federation in a mode VR-Forces does not support (UG52 5.5.1 p190), and every
+# observer under it reflected 0. It is NOT reachable from this profile any more.
+$RidFile        = Join-Path $RepoRoot 'config\rid-501-rtiexec-min.mtl'
 $ConnConfigFile = Join-Path $VrfRoot 'appData\settings\connections\MAK-ONE-2025-Config.xml'
 $TypeMapFile52  = 'data/unit-type-map-52.json'
+# The VR-Forces-level interface address for this run (-DeviceAddress; see the param block).
+# EMPTY by default and therefore NOT PASSED anywhere: run 3857 falsified it observer-side
+# (an observer with no device address still reflected 54-56 entities off the rtiexec sim), so
+# it is not part of the repair and must not be smuggled in as if it were. When it IS set, it
+# reaches the sim and the gui through LaunchVrf52 -DeviceAddress and the app through
+# Vrf__DeviceAddress. With it empty, the bridge federates keep VrfFacade's own default
+# (127.0.0.1, VrfFacade.h) - recorded in the manifest so the run says what it really used.
+$DeviceAddress52 = $DeviceAddress
+$DeviceAddressPassed = -not [string]::IsNullOrWhiteSpace($DeviceAddress52)
+# What the bridge-linked federates (tools + app) end up with either way. Not a decision this
+# runner makes when -DeviceAddress is empty - just the C++ default, stated so it is evidence.
+$BridgeDeviceAddress = $(if ($DeviceAddressPassed) { $DeviceAddress52 } else { '127.0.0.1 (VrfFacade default - nothing overrode it)' })
 $ProfileEnv = [ordered]@{}
 if ($Is52) {
     $ProfileEnv['MAK_VRFDIR']           = $VrfRoot
@@ -1256,12 +1327,29 @@ if ($Is52) {
         }
     }
     foreach ($f in @(
-        @{n='assistant-free rid (RTI_RID_FILE, shared by EVERY federate)'; p=$RidFile},
-        @{n='connection config (federation identity, DIFF row A2)';        p=$ConnConfigFile})) {
+        @{n='rtiexec rid (RTI_RID_FILE, shared by EVERY federate)';  p=$RidFile},
+        @{n='connection config (federation identity, DIFF row A2)';  p=$ConnConfigFile},
+        @{n='Stage 2r headless-rtiexec script';                      p=$StartRtiExec})) {
         if (-not (Test-Path -LiteralPath $f.p -PathType Leaf)) { $bad += ('{0} not found: {1}' -f $f.n, $f.p) }
     }
-} elseif ($NoGui) {
-    $bad += '-NoGui is a 5.2 profile switch (LaunchVrf52.ps1 -NoGui). The 5.0.2 combined-mode launcher has no headless option; use -VrfProfile 5.2 or drop -NoGui.'
+    # A 4.6.1 RTI in the 5.2 profile is the version gate that rejected every federate on
+    # 2026-09-03. The default is 5.0.1 and -RtiDir is refused above, so this can only fire
+    # if the derivation itself is edited - which is exactly when it must.
+    if ($RtiDir -notmatch '5\.0\.1') {
+        $bad += ('the 5.2 profile RTI is {0}. The documented posture is MAK RTI 5.0.1 in rtiexec mode (UG52 5.5.1 p190, PREREG_52_RTIEXEC_2026-09-04); a mixed RTI version rejects every federate.' -f $RtiDir)
+    }
+    # -DeviceAddress is a tunable, but a MALFORMED one would be handed to the sim's command
+    # line and to the app's config; empty is legal and means "pass nothing" (the discriminator).
+    if ((-not [string]::IsNullOrWhiteSpace($DeviceAddress)) -and ($DeviceAddress -notmatch '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$')) {
+        $bad += ("-DeviceAddress must be a dotted IPv4 address or EMPTY (empty = pass nothing, VR-Forces picks the first device listed, IOG 5.2.1 p81); got '{0}'." -f $DeviceAddress)
+    }
+} else {
+    if ($NoGui) {
+        $bad += '-NoGui is a 5.2 profile switch (LaunchVrf52.ps1 -NoGui). The 5.0.2 combined-mode launcher has no headless option; use -VrfProfile 5.2 or drop -NoGui.'
+    }
+    if ($PSBoundParameters.ContainsKey('DeviceAddress')) {
+        $bad += '-DeviceAddress is a 5.2 profile switch (LaunchVrf52.ps1 -DeviceAddress). On 5.0.2 the interface address comes from the saved Launcher connection profile; use -VrfProfile 5.2 or drop -DeviceAddress.'
+    }
 }
 
 # LIMITATION 1: the server must be on this host, and a deployed ListenReports that
@@ -1310,7 +1398,14 @@ if ($Is52) {
     Say     ('         binaries    : bin\{0}\ (bridge-linked tools + app); PushInit/PushOrder/ListenReports/StopIface are managed-only and shared with 5.0.2' -f $BridgeOut)
     Say     ('         launch/stop : {0} / {1}{2}' -f (Split-Path -Leaf $LaunchVrf), (Split-Path -Leaf $StopVrf), $(if ($NoGui) { '  (-NoGui: no vrfGui)' } else { '  (GUI ON - migration observability)' }))
     Say     ('         federation  : NO argument passed - identity from {0} (execName MAK-ONE-2025)' -f $ConnConfigFile)
+    Say     ('         RTI posture : RTIEXEC MODE on MAK RTI 5.0.1 - the DOCUMENTED posture and the only one offered')
+    Say     ('                       (UG52 5.5.1 p190 "You cannot use the MAK RTI in lightweight mode with VR-Forces";')
+    Say     ('                        PREREG_52_RTIEXEC_2026-09-04: rtiexec mode reflects 62 entities, lightweight 0)')
     Say     ('         rid (SHARED by every federate): {0}' -f $RidFile)
+    Say     ('         rtiexec     : Stage 2r ensures one is up on TCP 4001 ({0}); NEVER killed or restarted, persists across runs' -f (Split-Path -Leaf $StartRtiExec))
+    Say     ('         interface   : -DeviceAddress {0}' -f $(if ($DeviceAddressPassed) { ('{0} - pinned on sim + gui and on the app' -f $DeviceAddress52) } else { 'EMPTY (the default): NOT passed to the sim or the gui; VR-Forces picks the first device listed (IOG 5.2.1 p81)' }))
+    Say     ('                       bridge federates (tools + app) use {0}' -f $BridgeDeviceAddress)
+    Say     ('                       NOT part of the repair: run 3857 reflected 54-56 entities with the observer device address blank (PREREG_52_RTIEXEC sec 4 P4). Sim-side necessity still OPEN.')
     Say     ('         scenario    : {0} (relative to {1}\userData\scenarios)' -f $Scenario, $VrfRoot)
     foreach ($k in $ProfileEnv.Keys) { Say ('         env         : {0}={1}' -f $k, $ProfileEnv[$k]) }
 }
@@ -1351,6 +1446,19 @@ $Manifest.inputs.vrfProfile = [ordered]@{
     ridSha256           = $(if ($Is52 -and (Test-Path -LiteralPath $RidFile -PathType Leaf)) { (Get-FileHash -LiteralPath $RidFile -Algorithm SHA256).Hash } else { $null })
     rtiAssistantDisable = $(if ($Is52) { '1' } else { $null })
     typeMapFile         = $(if ($Is52) { $TypeMapFile52 } else { $null })
+    # THE CONNECTION SETTINGS, in the evidence. connectionMode is the repair (rtiexec, not
+    # lightweight). The interface fields are recorded BECAUSE they are not the repair: run
+    # 3857 showed an observer with no device address still reflects, so a later reader must
+    # be able to see exactly what this run passed (usually nothing) and what the bridge
+    # federates therefore used (VrfFacade's own default). rtiExec.* is filled in by Stage 2r
+    # with the pids of the rtiexec and the rtiForwarder it started - NOT this run's children,
+    # and they outlive it.
+    connectionMode      = $(if ($Is52) { 'rtiexec (UG52 5.5.1 p190 - lightweight is NOT supported with VR-Forces)' } else { 'assistant-chosen (5.0.2 golden path: rtiexec loopback, 4.6.1)' })
+    deviceAddressPassed = $(if ($Is52) { [bool]$DeviceAddressPassed } else { $null })
+    deviceAddress       = $(if ($Is52 -and $DeviceAddressPassed) { $DeviceAddress52 } elseif ($Is52) { '(not passed - sim/gui launched without --deviceAddress)' } else { $null })
+    bridgeDeviceAddress = $(if ($Is52) { $BridgeDeviceAddress } else { $null })
+    deviceAddressStatus = $(if ($Is52) { 'NOT part of the observation-channel repair: run 3857 (PREREG_52_RTIEXEC sec 4 P4) reflected 54-56 entities with the observer device address blank. Sim-side necessity still open.' } else { $null })
+    rtiExec             = $(if ($Is52) { [ordered]@{ script = $StartRtiExec; logDir = $RtiExecLogDir; logFile = $null; exitCode = $null; rtiExecPid = $null; forwarderPid = $null; started = $null; tcpPort = 4001 } } else { $null })
     env                 = $ProfileEnv
     nativeStack         = $null
 }
@@ -1386,6 +1494,8 @@ foreach ($t in @(
     @{k='RunC2SimScenario'; p=$PSCommandPath})) {
     $Manifest.tools[$t.k] = Get-ToolIdentity -Path $t.p
 }
+# 5.2 ONLY, so the 5.0.2 manifest keeps exactly the tool set it always had.
+if ($Is52) { $Manifest.tools['StartRtiExec'] = Get-ToolIdentity -Path $StartRtiExec }
 try {
     $gitHead = & git -C $RepoRoot rev-parse HEAD 2>$null
     $gitBranch = & git -C $RepoRoot rev-parse --abbrev-ref HEAD 2>$null
@@ -1564,9 +1674,12 @@ if ($existing.Count -gt 0) {
 }
 Say-Ok 'no pre-existing vrfLauncher / vrfSimHLA1516e / vrfGui and no leftover WatchVrf / ListenReports - clear to launch'
 if ($infra.Count -eq 0 -and $Is52) {
-    # NOT a warning on this profile: assistant-free is the DESIGN here (RTI_ASSISTANT_DISABLE
-    # + the rid-configured connection). An assistant would be ignored, not consulted.
-    Say-Ok 'no RTI infrastructure process running - EXPECTED on the 5.2 profile (assistant-free; the connection comes from the rid).'
+    # No ASSISTANT is expected here (RTI_ASSISTANT_DISABLE + the rid-configured connection;
+    # one would be ignored, not consulted). An RTIEXEC, however, IS required from 2026-09-04
+    # on - lightweight mode is not supported with VR-Forces - and Stage 2r starts one if this
+    # inventory found none. That is the normal first-run-after-a-reboot path, not a fault.
+    Say-Ok 'no RTI infrastructure process running - no rtiAssistant is expected on the 5.2 profile (assistant-free; the connection comes from the rid).'
+    Say-Ok '  No rtiexec either: Stage 2r will START one (headless, rid-configured). Later runs find it already up and touch nothing.'
 } elseif ($infra.Count -eq 0) {
     Say-Warn 'no rtiAssistant is running. RUNBOOK 0.5.3: on HLA a federate does not start until an'
     Say-Warn '  RTI Assistant has been ANSWERED. LaunchVrf.ps1 warns about this too and will proceed;'
@@ -1709,6 +1822,14 @@ $PathCreateOneOut = Join-Path $RunDir 'createone-diagnostic.stdout.log'
 $PathCreateOneErr = Join-Path $RunDir 'createone-diagnostic.stderr.log'
 $PathRtiProbeOut  = Join-Path $RunDir 'rtiprobe.stdout.log'
 $PathRtiProbeErr  = Join-Path $RunDir 'rtiprobe.stderr.log'
+# Stage 2r (5.2 only). Named for the stage, not for rtiexec, because the process it ensures
+# is up is NOT this run's child. The STAGE's own stdout/stderr are this run's evidence and
+# live here; the RTIEXEC'S log does NOT - it goes to runs\launch52 (persistent and
+# gitignored), because the rtiexec outlives the run that started it and keeps writing to that
+# file while it serves later runs. Filing it under one run's directory would attribute a
+# shared, long-lived process's output to a single run. The manifest records the exact path.
+$PathRtiExecOut   = Join-Path $RunDir 'startrtiexec.stdout.log'
+$PathRtiExecErr   = Join-Path $RunDir 'startrtiexec.stderr.log'
 $PathStopVrfOut   = Join-Path $RunDir 'stopvrf.stdout.log'
 $PathStopVrfErr   = Join-Path $RunDir 'stopvrf.stderr.log'
 $ManifestPath     = Join-Path $RunDir 'run-manifest.json'
@@ -1806,6 +1927,9 @@ if ($Is52) {
     Say ('  app config  : Vrf__Federation="" Vrf__FedFileName="" Vrf__ConfigFileIdentity=true (FomModules CLEARED - config modules are ADDITIVE, DIFF row A9)')
     Say ('                Vrf__ConnectionConfigFile={0}' -f $ConnConfigFile)
     Say ('                Vrf__TypeMapFile={0}' -f $TypeMapFile52)
+    Say ('                Vrf__DeviceAddress={0}' -f $(if ($DeviceAddressPassed) { $DeviceAddress52 } else { '(NOT SET - -DeviceAddress is empty; the app keeps VrfFacade''s 127.0.0.1)' }))
+    Say ('  RTI         : rtiexec mode on {0}, rid {1}' -f $RtiDir, (Split-Path -Leaf $RidFile))
+    Say ('                Stage 2r ensures a headless rtiexec is LISTENING on TCP 4001 before anything joins; it is never killed and outlives the run.')
 }
 
 # =============================================================================
@@ -1840,6 +1964,11 @@ if ($Is52) {
     $AppEnv52['Vrf__FedFileName']         = ''
     $AppEnv52['Vrf__ConnectionConfigFile']= $ConnConfigFile
     $AppEnv52['Vrf__TypeMapFile']         = $TypeMapFile52
+    # The interface address is an OVERRIDE only. With -DeviceAddress empty (the default) no
+    # Vrf__DeviceAddress is set at all and the app keeps VrfFacade's own 127.0.0.1 - the
+    # runner asserts nothing it has not tested. Setting it binds Vrf:DeviceAddress in
+    # VrfSettings, which BuildStartupConfig passes to the bridge.
+    if ($DeviceAddressPassed) { $AppEnv52['Vrf__DeviceAddress'] = $DeviceAddress52 }
 }
 $SavedAppEnv52 = [ordered]@{}
 foreach ($k in $AppEnv52.Keys) { $SavedAppEnv52[$k] = [Environment]::GetEnvironmentVariable($k) }
@@ -1934,6 +2063,78 @@ try {
         Say-Warn ('Stage 2b: AnswerRtiDialog.ps1 not found at {0} - the once-per-reboot dialog would block Stage 2c unanswered.' -f $AnswerDialogScript)
     }
 
+    # ---------------------------------------------------------------------
+    # STAGE 2r - HEADLESS rtiexec (5.2 PROFILE ONLY) - FATAL, BEFORE STAGE 2c
+    # ---------------------------------------------------------------------
+    # THE RULING (UG52 5.5.1 p190: "You cannot use the MAK RTI in lightweight mode with
+    # VR-Forces"; PREREG_52_RTIEXEC_2026-09-04: with the documented posture the observer
+    # reflects 62 entities, with any lightweight posture 0). This stage ENSURES a headless
+    # MAK RTI 5.0.1 rtiexec is up on the rendezvous port for the rid every federate in this
+    # run shares, and it runs BEFORE Stage 2c: RtiProbe's create-or-join is the first thing
+    # that needs the rendezvous, so a missing rtiexec must be fixed before, not diagnosed
+    # after. It NEVER kills or restarts an rtiexec/rtiForwarder/rtiAssistant (RUNBOOK 0.5.2);
+    # when one is already up it reports READY and touches nothing. RTI INFRASTRUCTURE
+    # PERSISTS ACROSS RUNS BY DESIGN - teardown does not bring it down, so on a machine that
+    # has run once since boot this stage is a no-op that costs a second.
+    # The rtiexec's pid and the pid of the rtiForwarder it starts are recorded in the
+    # manifest: they are NOT this run's processes, and a later run reading the manifest must
+    # be able to tell whether it inherited the same rendezvous or a different one.
+    if ($Is52) {
+        Say-Head 'Stage 2r - headless MAK RTI 5.0.1 rtiexec (5.2 profile) - ensure-up, never restarted'
+        Say '  UG52 5.5.1 p190: the MAK RTI in LIGHTWEIGHT mode is not supported with VR-Forces, and every'
+        Say '  lightweight 5.2 run reflected ZERO entities. exit 0 = a rid-configured rtiexec is LISTENING on'
+        Say '  TCP 4001 (already up, or started here); 2 = precondition/args (nothing started); 3 = not'
+        Say '  listening within the timeout -> the launch is REFUSED before anything joins.'
+        $rtiExecTimeoutSec = 30 + $StageTimeoutSec
+        # -InterfaceAddress is deliberately NOT passed: the rtiexec's interface is the
+        # RTI-LAYER pin, fixed at 127.0.0.1 by the loopback-broadcast connection the rid
+        # describes, and it has nothing to do with -DeviceAddress (the VR-Forces layer).
+        # Coupling the two would hand the RTI a blank address whenever -DeviceAddress keeps
+        # its empty default. StartRtiExec52's own default and the rid must agree, which is
+        # why neither is derived from the other here.
+        $r = Invoke-External -Name 'StartRtiExec52' -File 'pwsh' `
+                -Arguments @('-NoProfile','-File', $StartRtiExec,
+                             '-RtiDir', $RtiDir, '-RidFile', $RidFile,
+                             '-VrfRoot', $VrfRoot, '-VrLinkRoot', $VrLinkRoot,
+                             '-LogDir', $RtiExecLogDir) `
+                -Cwd $RepoRoot -StdOutFile $PathRtiExecOut -StdErrFile $PathRtiExecErr `
+                -TimeoutSec $rtiExecTimeoutSec `
+                -Note 'ENSURE-UP, never a restart. exit 0 READY (already up = nothing touched; or started and LISTENING); 2 precondition/usage; 3 not listening within the timeout. The rtiexec and the rtiForwarder it spawns OUTLIVE this run by design and are never killed by teardown.'
+        if (-not $DryRun) {
+            if (-not (Test-StageProduced -Result $r)) { Stop-Runner 3 (Get-StageFailureText -Name 'StartRtiExec52' -Result $r) }
+            # The pids come from the stage's own marker line (it filters by image path, which
+            # this runner cannot do for an elevated process), with a Get-Process fallback so a
+            # changed banner degrades to a coarser answer instead of an empty manifest field.
+            $rtiExecPid = $null; $rtiFwdPid = $null; $rtiStarted = $null; $rtiLog = $null
+            if (Test-Path -LiteralPath $PathRtiExecOut -PathType Leaf) {
+                # log= is last and may contain spaces, so it runs to end of line.
+                $m = [regex]::Match((Get-Content -LiteralPath $PathRtiExecOut -Raw),
+                                    'RTIEXEC READY rtiexec=(\d+|none) forwarder=(\d+|none) tcp=\S+ started=(yes|no) log=(.*?)\s*$',
+                                    [System.Text.RegularExpressions.RegexOptions]::Multiline)
+                if ($m.Success) {
+                    if ($m.Groups[1].Value -ne 'none') { $rtiExecPid = [int]$m.Groups[1].Value }
+                    if ($m.Groups[2].Value -ne 'none') { $rtiFwdPid  = [int]$m.Groups[2].Value }
+                    $rtiStarted = ($m.Groups[3].Value -eq 'yes')
+                    $rtiLog     = $m.Groups[4].Value
+                }
+            }
+            if ($null -eq $rtiExecPid) { $rtiExecPid = @(Get-Process -Name 'rtiexec'      -ErrorAction SilentlyContinue | ForEach-Object { $_.Id }) | Select-Object -First 1 }
+            if ($null -eq $rtiFwdPid)  { $rtiFwdPid  = @(Get-Process -Name 'rtiForwarder' -ErrorAction SilentlyContinue | ForEach-Object { $_.Id }) | Select-Object -First 1 }
+            $Manifest.inputs.vrfProfile.rtiExec.exitCode     = $r.ExitCode
+            $Manifest.inputs.vrfProfile.rtiExec.rtiExecPid   = $rtiExecPid
+            $Manifest.inputs.vrfProfile.rtiExec.forwarderPid = $rtiFwdPid
+            $Manifest.inputs.vrfProfile.rtiExec.started      = $rtiStarted
+            $Manifest.inputs.vrfProfile.rtiExec.logFile      = $rtiLog
+            Save-Manifest
+            switch ($r.ExitCode) {
+                0 { Say-Ok ('rtiexec READY (pid {0}, forwarder {1}, started-by-this-run={2}). It is NEVER torn down - the next run will find it.' -f $rtiExecPid, $rtiFwdPid, $rtiStarted) }
+                2 { Stop-Runner 2 ('StartRtiExec52 exited 2 (precondition/argument failure). Its arguments are GENERATED by this runner, so a usage failure is a RUNNER DEFECT. Nothing was started - see {0}.' -f $PathRtiExecOut) }
+                3 { Stop-Runner 3 ('StartRtiExec52 exited 3: no rid-configured rtiexec is LISTENING on TCP 4001. Without it the federation would fall back to the LIGHTWEIGHT mode UG52 5.5.1 p190 says is not supported with VR-Forces, and every observer would reflect 0 (PREREG_52_RTIEXEC_2026-09-04). REFUSING the launch before anything joins. Nothing was killed - read {0} and the newest rtiexec_*.log in {1}.' -f $PathRtiExecOut, $RtiExecLogDir) }
+                default { Stop-Runner 3 ('StartRtiExec52 exited {0} - undocumented code. Refusing to launch on an uninterpretable gate result.' -f $r.ExitCode) }
+            }
+        }
+    }
+
     Say-Head 'Stage 2c - RTI readiness gate (C1) - FATAL, before any back-end launch'
     Say '  Proves the RTI can service a create-or-join NOW (the RUN-2 fix). RtiProbe joins the'
     Say '  federation as a throwaway federate with internal retry+backoff, then resigns cleanly.'
@@ -1987,9 +2188,15 @@ try {
     )
     # 5.2 extras. -VrLinkRoot/-RidFile are passed EXPLICITLY even though LaunchVrf52
     # defaults to the same values: the launch command line is what the manifest records,
-    # and the rid is the object every federate in this run has to share.
+    # and the rid is the object every federate in this run has to share. -DeviceAddress
+    # (RESEARCH_52_HLA_CONNECTION_CONFIG P3) is passed ONLY when non-empty: by default the sim
+    # and the gui are launched WITHOUT --deviceAddress/--hostAddressString, which is the
+    # sim-side arm still open after run 3857 closed the observer-side one. The flag is left
+    # off the command line entirely rather than passed empty, so the launch line in the
+    # evidence says plainly that nothing was pinned.
     if ($Is52) {
         $launchArgs += @('-VrLinkRoot', $VrLinkRoot, '-RidFile', $RidFile)
+        if ($DeviceAddressPassed) { $launchArgs += @('-DeviceAddress', $DeviceAddress52) }
         if ($NoGui) { $launchArgs += '-NoGui' }
     }
     # -q | --doNotUseConsole for the back end. Off by default; see the -QuietBackend
@@ -2015,7 +2222,7 @@ try {
             0 { Say-Ok 'VR-Forces READY' }
             2 { Stop-Runner 2 'LaunchVrf exited 2 (precondition/argument failure). Nothing joined.' }
             1 { Stop-Runner 3 'LaunchVrf exited 1 PARTIAL - back-end healthy but no front-end. That is the known 0xC0000005 crash-risk condition; refusing to run a scored trace on it.' }
-            3 { Stop-Runner 3 'LaunchVrf exited 3 NOT READY within timeout. Usual cause is an UNANSWERED RTI Assistant prompt (RUNBOOK 0.5.3). Nothing force-killed.' }
+            3 { Stop-Runner 3 ('LaunchVrf exited 3: NOT READY within timeout, or - on the 5.2 profile - the back-end CRASHED AT STARTUP (0xC0000005 in DtVrfSimOptions::parseCmdLine, 2 of 5 launches on 2026-09-04, trigger UNKNOWN and NOT the rid). Read {0}: a crash prints its callstack frames there. Other usual cause is an UNANSWERED RTI Assistant prompt (RUNBOOK 0.5.3). Nothing force-killed, nothing retried.' -f $PathLaunchOut) }
             4 { Stop-Runner 3 'LaunchVrf exited 4 BLOCKED - the front-end has no main window, i.e. a modal dialog is waiting. Nothing force-killed.' }
             default { Stop-Runner 3 ('LaunchVrf exited {0} - undocumented code.' -f $r.ExitCode) }
         }
@@ -2704,6 +2911,18 @@ finally {
 
     Say-Head 'Result'
     if ($DryRun) {
+        # *** FALSE GREEN FIXED 2026-09-04. This branch used to `exit 0` UNCONDITIONALLY, so a
+        # dry run that hit the generic catch above printed "[FAIL] unexpected terminating
+        # error ..." and then "DRY-RUN complete" and exited 0. It cost nothing that day only
+        # because someone grepped the output; the defect that produced it (a comment between a
+        # backtick continuation and its argument, breaking the Stage 2r call) would otherwise
+        # have shipped. The live path below always honoured $RunnerExit - only -DryRun did not.
+        # A SUCCESSFUL dry run is untouched, byte for byte: same four lines, same exit 0. ***
+        if ($RunnerExit -ne 0) {
+            Say-Fail ('DRY-RUN FAILED (exit {0}). Nothing was launched, but this dry run did NOT complete: a stage or the script itself raised the error(s) recorded above.' -f $RunnerExit)
+            Say-Fail '  A dry run exists to prove the planned sequence is well-formed. Treat this exactly like a failed run: fix the cause, do not proceed to a live run.'
+            exit $RunnerExit
+        }
         Say-Ok 'DRY-RUN complete.'
         Say-Ok ('  NOTHING was launched, NO server was contacted, the Appendix B marker was NOT advanced (it still reads {0}).' -f $FirstFree)
         Say-Ok ('  No run directory was created ({0} does not exist because of this invocation).' -f $RunDir)

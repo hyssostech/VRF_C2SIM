@@ -12,6 +12,18 @@ public class VrfSettings
     public int SessionId { get; set; } = 1;
     public string HostInetAddr { get; set; } = "127.0.0.1";
 
+    // The network card the UDP / best-effort leg binds - the 5.0.2 Launcher's "Network
+    // Interface Address" (RESEARCH_52_HLA_CONNECTION_CONFIG_2026-09-04 P3). On the 5.2
+    // bridge VrfFacade::Start pushes it as --deviceAddress on the HLA argv too, not only on
+    // DIS (UG52 Table 11 p180-181); on 5.0.2 it reaches only the DIS argv, exactly as before.
+    // The default equals the bridge's own StartupConfig default AND the value the 5.0.2
+    // configuration fixed, so binding this key changes nothing until a caller sets it - what
+    // it buys is that the address a run used is CONFIGURABLE and RECORDED instead of resting
+    // on a C++ constructor default. WHETHER 5.2 REQUIRES IT IS UNTESTED: PREREG_52_RTIEXEC_
+    // 2026-09-04 changed it together with the RTI connection mode and never separated them.
+    // An explicit EMPTY value suppresses --deviceAddress (the unpinned arm of that test).
+    public string DeviceAddress { get; set; } = "127.0.0.1";
+
     // HLA 1516e
     public string Federation { get; set; } = "";       // --execName (e.g. CWIX-2024)
     public string FedFileName { get; set; } = "";       // full path, optional

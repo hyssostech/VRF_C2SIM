@@ -178,24 +178,19 @@ it, so element-based automation FAILS. What works, used successfully 2026-07-18:
 
 ### 0.5.5 RTI_ASSISTANT_DISABLE - ONLY WITH A rid THAT CONFIGURES THE CONNECTION
 
-Never set it ALONE. The Assistant does TWO jobs - prompting (unwanted) and
-supplying the connection (REQUIRED). Disable it with the stock
-`C:\MAK\makRti4.6.1\rid.mtl` (which sets `RTI_configureConnectionWithRid 0`) and
-nothing supplies connection values: federates join but NEVER DISCOVER EACH OTHER
-and the movement oracle goes SILENTLY BLIND (`reflected=0 readable=0` for 40 s
-against a back-end whose log proved the scenario was loaded). RefMan Appendix A,
-verbatim: `RTI_mcastDiscoveryEnabled` "is set to 0 unless
-RTI_configureConnectionWithRid is set to 1".
-
-CORRECTED 2026-09-03 (PREREG_52_LAUNCH_2026-09-03.md; RefMan 5.2.10): with a rid
-that DOES configure the connection the pair is safe, and is the assistant-free
-launch this project now uses - repo-owned `config\rid-461-ridconfigured.mtl`
-(`RTI_configureConnectionWithRid 1`, lightweight, no rtiexec, UDP/TCP 4000, mcast
-229.7.7.7) + per-process `RTI_ASSISTANT_DISABLE`, gated on 4.6.1 rtiSimple joining
-and exchanging interactions with zero assistant contact. It is the 5.2 profile's
-default (0.5.13). NEVER edit the shared rid.mtl to get there, and every federate in
-a run must point at the SAME rid file or they do not share a connection (RefMan
-also requires them to agree on `RTI_useRtiExec`).
+Never set it ALONE. The Assistant does TWO jobs - prompting (unwanted) and supplying the
+connection (REQUIRED). Disable it with a stock `rid.mtl` (`RTI_configureConnectionWithRid 0`)
+and nothing supplies connection values: federates join but NEVER DISCOVER EACH OTHER and the
+movement oracle goes SILENTLY BLIND (`reflected=0 readable=0` for 40 s against a back-end
+whose log proved the scenario was loaded). RefMan App. A, verbatim: `RTI_mcastDiscoveryEnabled`
+"is set to 0 unless RTI_configureConnectionWithRid is set to 1". CORRECTED 2026-09-03
+(PREREG_52_LAUNCH; RefMan 5.2.10): with a repo-owned rid copy that DOES configure the
+connection the pair is safe, and is the assistant-free launch this project uses. SUPERSEDED IN
+PART 2026-09-04 (PREREG_52_RTIEXEC): the first such rid, `rid-461-ridconfigured.mtl`, was
+LIGHTWEIGHT, which UG52 5.5.1 p190 forbids with VR-Forces - every observer under it saw 0
+entities; the 5.2 rid is now `config\rid-501-rtiexec-min.mtl` (0.5.13). NEVER edit the shared
+rid.mtl, and every federate in a run must point at the SAME rid file or they do not share a
+connection (RefMan: they must also agree on `RTI_useRtiExec`).
 
 ### 0.5.6 IS THE BACK-END ACTUALLY UP? - HEALTH ORACLE
 
@@ -700,38 +695,43 @@ per-path inbound BLOCK rule per testhost.exe copy (grants nothing, loopback unaf
 
 ---
 
-### 0.5.13 THE 5.2 PROFILE (VR-Forces 5.2d; added 2026-09-03)
+### 0.5.13 THE 5.2 PROFILE (VR-Forces 5.2d; added 2026-09-03, RTI posture 2026-09-04)
 
 ONE SWITCH runs the whole pipeline on the 5.2d stack (5.0.2 unchanged, still the default):
-`pwsh -File scripts\RunC2SimScenario.ps1 -VrfProfile 5.2 [-NoGui] [-Scenario <name>]`.
-
-It DERIVES: roots `C:\MAK\vrforces5.2d` + `vrlink5.10` + `makRti4.6.1`; `LaunchVrf52.ps1`
-(independent mode, UG52 4.1.2) and `StopVrf52.ps1`; the `Release-5.2` tree of every
-bridge-linked binary (app, WatchVrf, CreateOne, RtiProbe - PushInit/PushOrder/
-ListenReports/StopIface are managed-only and shared); NO federation argument (identity =
-`appData\settings\connections\MAK-ONE-2025-Config.xml`, execName MAK-ONE-2025, FOM module
-list CLEARED because config modules are ADDITIVE); `data/unit-type-map-52.json`. Passing
--VrfRoot/-VrLinkRoot/-RtiDir/-Federation beside it is REFUSED - a mixed environment loads
-the wrong DLLs silently. GUI ON by default (observability); -NoGui is headless.
-EVERY spawned process gets: PATH prefixed with the three 5.2 bin dirs, MAK_VRFDIR /
-MAK_VRLDIR / MAK_RTIDIR, `RTI_RID_FILE=<repo>\config\rid-461-ridconfigured.mtl` (the
-assistant-free rid - federates that do not share it do not share a connection),
-`RTI_ASSISTANT_DISABLE=1`, cwd = the 5.2d `bin64`. No dialog watcher is armed - none can
-fire (0.5.5). FIXTURES: the sanctioned write is FixtureGen's existing `--out-dir` aimed at
-the 5.2 tree - `build_fixture.py <site> --out-dir C:\MAK\vrforces5.2d\userData\scenarios`;
-nothing else writes under `C:\MAK`. The manifest records the profile, rid path + sha256,
-connection config and the app's own `VrfBridge native stack = ...` line (the RUNTIME
-stack - that, not the switch typed, is what a trace is comparable against).
+`pwsh -File scripts\RunC2SimScenario.ps1 -VrfProfile 5.2 [-NoGui]`. It DERIVES the roots
+(`vrforces5.2d`+`vrlink5.10`+`makRti5.0.1`; 4.6.1 appears NOWHERE here), LaunchVrf52/StopVrf52,
+the `Release-5.2` binaries, the config-file identity (`MAK-ONE-2025-Config.xml`, FOM list
+CLEARED - config modules are ADDITIVE), `data/unit-type-map-52.json` and the per-child
+environment; `-VrfProfile 5.2 -DryRun` prints every value and a hand-passed -VrfRoot/
+-VrLinkRoot/-RtiDir/-Federation is REFUSED. GUI ON by default; no dialog watcher is armed
+(0.5.5); FixtureGen's `--out-dir` stays the only sanctioned write under `C:\MAK`. RTI POSTURE
+- NOT A KNOB (UG52 5.5.1 p190 "You cannot use the MAK RTI in lightweight mode with
+VR-Forces"; PREREG_52_RTIEXEC: rtiexec mode reflected 62 entities, lightweight 0):
+RTIEXEC MODE on `config\rid-501-rtiexec-min.mtl`, which EVERY child must share as
+`RTI_RID_FILE` (federates that do not share it do not share a connection), plus
+`RTI_ASSISTANT_DISABLE=1`. `scripts\StartRtiExec52.ps1` (runner Stage 2r, before the RtiProbe
+gate) ensures a headless rtiexec LISTENS on TCP 4001; it is NEVER killed or restarted and
+PERSISTS ACROSS RUNS. `-DeviceAddress` is NOT part of the repair - run 3857 reflected 54-56
+entities with the observer's device address blank - so it defaults to EMPTY and nothing is
+passed (the sim-side arm is still open); the rid's `RTI_networkInterfaceAddr` is another
+layer. The lightweight `rid-461-ridconfigured.mtl` is unreachable from here.
+STARTUP CRASH: the sim died in `DtVrfSimOptions::parseCmdLine` (0xC0000005) on 2 of 5 launches on
+2026-09-04 under BOTH rids - trigger UNKNOWN. LaunchVrf52's poll FAILS the launch (exit 3, no
+retry) on a vanished back-end, a MAK crash-box title, or a new `C:\MAK\logs\*-<pid>.callstack.log`, whose first frames it prints.
+LICENCE CAP UNTESTED: the rtiexec log shows at most TWO federates joined, so the unlicensed-
+for-two cap (RTI UG 8.2) is unexercised on 5.2; the first FOUR-federate run must confirm
+`HaveRtiLicense()=1` on EVERY federate (`WatchVrf --diag` prints it). MANIFEST: profile, rid +
+sha256, connection mode, the device address used, rtiexec/forwarder pids and the app's
+`VrfBridge native stack` line - the RUNTIME stack, which is what a trace compares against.
 
 ---
 
 ## 0.5-ARCHIVE - the raw vrfSimHLA1516e headless recipe (CONFIRMED UNSAFE, 2026-07-15)
 
-RETAINED FOR THE HISTORICAL RECORD ONLY. DO NOT USE THIS RECIPE. The supported
-bring-up is 0.5.1 above. Everything below predates the 2026-07-18 root cause and
-its "root cause found" claims should be read in that light - the crash it
-describes is real, but the launch-hang symptoms discussed alongside it were the
-RTI Assistant prompt (0.5.3), which nothing in this archive knew about.
+RETAINED FOR THE HISTORICAL RECORD ONLY. DO NOT USE THIS RECIPE; the supported bring-up is
+0.5.1 above. Everything below predates the 2026-07-18 root cause, so read its "root cause
+found" claims in that light: the crash it describes is real, but the launch-hang symptoms
+discussed alongside it were the RTI Assistant prompt (0.5.3), unknown to this archive.
 
 GOTCHA: `vrfSimHLA1516e.exe --help` does NOT print usage and exit - it silently starts a
 real (unconfigured) sim instance instead. Do not probe with `--help`; the option reference

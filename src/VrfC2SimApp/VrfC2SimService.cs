@@ -375,6 +375,14 @@ public sealed class VrfC2SimService : BackgroundService
             FedFileName = _vrf.FedFileName,
             ConnectionConfigFile = _vrf.ConnectionConfigFile
         };
+        // The VR-Forces-level UDP / best-effort interface (Vrf:DeviceAddress). Passed through
+        // as configured, INCLUDING an explicit empty string: empty suppresses --deviceAddress
+        // on the 5.2 HLA argv (VrfFacade::Start pushes it only when non-empty), which is the
+        // unpinned arm the 5.2 interface question still needs (PREREG_52_RTIEXEC sec 4 changed
+        // this address together with the RTI connection mode and never separated the two).
+        // Guarded against null only, so a stack whose settings omit the key keeps the bridge's
+        // own default rather than blanking the DIS argv.
+        if (_vrf.DeviceAddress != null) c.DeviceAddress = _vrf.DeviceAddress;
         // 5.2 CONFIG-FILE JOIN (Vrf:ConfigFileIdentity, set by the runner's -VrfProfile 5.2).
         // Submit NO identity: VrfFacade::Start then pushes neither --execName nor --fedFileName
         // and MAK-ONE-2025-Config.xml supplies both, and the FOM module list stays EMPTY because

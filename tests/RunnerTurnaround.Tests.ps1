@@ -1,7 +1,10 @@
 # tests/RunnerTurnaround.Tests.ps1 - OFFLINE regression check for the runner's
-# turnaround logic (docs/RUNNER_TURNAROUND_2026-09-01.md). No simulator, no server,
-# no process start. Plain pwsh (no Pester dependency): exits 0 when every check
-# passes, 1 otherwise, and prints one line per check.
+# turnaround logic (docs/RUNNER_TURNAROUND_2026-09-01.md). No simulator, no server.
+# Plain pwsh (no Pester dependency): exits 0 when every check passes, 1 otherwise,
+# and prints one line per check.
+# ONE exception to "no process start": check 8d runs the runner itself, in -DryRun,
+# against a throwaway patched copy - the false green it guards is an EXIT CODE, and
+# no static assertion can distinguish exit 0 from exit 5.
 #
 #   pwsh -NoProfile -File tests\RunnerTurnaround.Tests.ps1
 #
@@ -310,8 +313,9 @@ Check 'null exit (timed out / could not start) -> unsupported' (-not (Test-ToolC
 Check 'empty stdout -> unsupported' (-not (Test-ToolCapability -ProbeLines @() -ExitCode 0 -Capability 'stop-file'))
 Check 'token match is exact after trim (" stop-file " ok, "stop-files" not)' ((Test-ToolCapability -ProbeLines @(' stop-file ') -ExitCode 0 -Capability 'stop-file') -and -not (Test-ToolCapability -ProbeLines @('stop-files') -ExitCode 0 -Capability 'stop-file'))
 
-Write-Host '=== 7. both PowerShell files parse ==='
-foreach ($rel in @('scripts\RunC2SimScenario.ps1', 'scripts\RunnerLib.ps1')) {
+Write-Host '=== 7. the runner and its 5.2 profile scripts parse ==='
+foreach ($rel in @('scripts\RunC2SimScenario.ps1', 'scripts\RunnerLib.ps1',
+                   'scripts\StartRtiExec52.ps1', 'scripts\LaunchVrf52.ps1', 'scripts\StopVrf52.ps1')) {
     $tokens = $null; $errors = $null
     [void][System.Management.Automation.Language.Parser]::ParseFile((Join-Path $RepoRoot $rel), [ref]$tokens, [ref]$errors)
     Check ('{0} parses with 0 errors' -f $rel) ($errors.Count -eq 0) (($errors | ForEach-Object { $_.Message }) -join '; ')
@@ -365,6 +369,167 @@ $missAssign = $runnerAst.FindAll({ param($a) $a -is [System.Management.Automatio
 Check 'runner: $missing wraps the PROPERTY, not the call - @( (Test-EarlyExit ...).Missing )' (
     @($missAssign).Count -eq 1 -and $missAssign[0].Right.Extent.Text -match '^@\(\s*\(Test-EarlyExit.*\)\.Missing\s*\)$') (
     ($missAssign | ForEach-Object { $_.Right.Extent.Text }) -join ' | ')
+
+# 8b. THE 5.2 RTI CONNECTION MODE IS NOT A KNOB (2026-09-04, PREREG_52_RTIEXEC). UG52 5.5.1
+# p190: "You cannot use the MAK RTI in lightweight mode with VR-Forces". Under the
+# lightweight rid every 5.2 observer reflected 0 entities; under MAK RTI 5.0.1 in rtiexec
+# mode the same observer reflected 62. These checks are the tripwire: they fail the moment
+# the profile drifts back toward 4.6.1 or the lightweight rid - which no downstream test
+# could catch, because the symptom is silence, not an error.
+# The VR-Forces-level interface address is DIFFERENT and is NOT part of that repair: the
+# discriminator (run 3857) reflected 54-56 entities with the observer's device address blank.
+# -DeviceAddress therefore DEFAULTS TO EMPTY and nothing is passed; the checks below pin that
+# default and the wiring, so a later edit cannot quietly re-pin an address the evidence does
+# not support.
+Write-Host '=== 8b. the 5.2 profile: fixed rtiexec mode, interface address off by default ==='
+$runnerText = Get-Content -LiteralPath (Join-Path $RepoRoot 'scripts\RunC2SimScenario.ps1') -Raw
+Check 'runner: the 5.2 RtiDir is makRti5.0.1 (never 4.6.1)' (
+    $runnerText -match "ContainsKey\('RtiDir'\)\)\s*\{\s*\`$RtiDir\s*=\s*'C:\\MAK\\makRti5\.0\.1'")
+Check 'runner: the SHARED rid is rid-501-rtiexec-min.mtl' (
+    $runnerText -match "\`$RidFile\s*=\s*Join-Path \`$RepoRoot 'config\\rid-501-rtiexec-min\.mtl'")
+Check 'runner: -DeviceAddress exists and DEFAULTS TO EMPTY (run 3857 falsified it observer-side)' (
+    $params.ContainsKey('DeviceAddress') -and "$($params['DeviceAddress'].DefaultValue)" -match "^''$")
+Check 'runner: the 5.2 interface address comes FROM that parameter (tunable, not a literal)' (
+    $runnerText -match "\`$DeviceAddress52\s*=\s*\`$DeviceAddress")
+Check 'runner: -DeviceAddress is refused on the 5.0.2 profile' (
+    $runnerText -match "ContainsKey\('DeviceAddress'\)")
+Check 'runner: LaunchVrf52 gets -DeviceAddress ONLY when one was asked for' (
+    $runnerText -match "if \(\`$DeviceAddressPassed\) \{ \`$launchArgs \+= @\('-DeviceAddress', \`$DeviceAddress52\) \}")
+Check 'runner: Vrf__DeviceAddress is set ONLY when one was asked for' (
+    $runnerText -match "if \(\`$DeviceAddressPassed\) \{ \`$AppEnv52\['Vrf__DeviceAddress'\] = \`$DeviceAddress52 \}")
+Check 'runner: the manifest records what the BRIDGE federates ended up using either way' (
+    $runnerText -match 'bridgeDeviceAddress\s*=' -and $runnerText -match 'deviceAddressStatus\s*=')
+# The rtiexec's interface is the RTI LAYER (fixed by the loopback-broadcast rid) and must NOT
+# be wired to -DeviceAddress: with the empty default that would hand the RTI a blank address
+# and StartRtiExec52 would exit 2 on every run.
+Check 'runner: Stage 2r does NOT derive the rtiexec interface from -DeviceAddress' (
+    $runnerText -notmatch "'-InterfaceAddress', \`$DeviceAddress")
+Check 'runner: Stage 2r invokes StartRtiExec52 BEFORE the Stage 2c RtiProbe gate' (
+    $runnerText.IndexOf("Stage 2r") -gt 0 -and
+    $runnerText.IndexOf("-Name 'StartRtiExec52'") -gt 0 -and
+    $runnerText.IndexOf("-Name 'StartRtiExec52'") -lt $runnerText.IndexOf("-Name 'RtiProbe'"))
+foreach ($rel in @('scripts\StartRtiExec52.ps1', 'scripts\LaunchVrf52.ps1')) {
+    $t = Get-Content -LiteralPath (Join-Path $RepoRoot $rel) -Raw
+    Check ('{0}: defaults to makRti5.0.1' -f $rel) ($t -match "\`$RtiDir\s+=\s+'C:\\MAK\\makRti5\.0\.1'")
+    Check ('{0}: never force-kills RTI infrastructure' -f $rel) ($t -notmatch 'Stop-Process|taskkill\s+/F')
+}
+$sreAst = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $RepoRoot 'scripts\StartRtiExec52.ps1'), [ref]$null, [ref]$null)
+$sreParams = @{}
+foreach ($p in $sreAst.ParamBlock.Parameters) { $sreParams[$p.Name.VariablePath.UserPath] = $p }
+foreach ($n in @('RtiDir','RidFile','LogDir','TcpPort','UdpPort','DestAddress','InterfaceAddress','ForwarderPort','ReadyTimeoutSec','DryRun')) {
+    Check ('StartRtiExec52 declares -{0}' -f $n) ($sreParams.ContainsKey($n))
+}
+Check 'StartRtiExec52 defaults to the 4001/4001/5000 rendezvous of the golden connection' (
+    "$($sreParams['TcpPort'].DefaultValue)" -eq '4001' -and "$($sreParams['UdpPort'].DefaultValue)" -eq '4001' -and
+    "$($sreParams['ForwarderPort'].DefaultValue)" -eq '5000')
+Check 'StartRtiExec52 defaults to the loopback broadcast + 127.0.0.1 interface' (
+    "$($sreParams['DestAddress'].DefaultValue)" -match '127\.255\.255\.255' -and
+    "$($sreParams['InterfaceAddress'].DefaultValue)" -match '127\.0\.0\.1')
+# The rtiexec OUTLIVES the run that started it, so its own log must NOT be filed under one
+# run's evidence directory - it goes to the persistent, gitignored runs\launch52, stamped.
+$sreText = Get-Content -LiteralPath (Join-Path $RepoRoot 'scripts\StartRtiExec52.ps1') -Raw
+Check 'StartRtiExec52 logs to runs\launch52 with a UTC-stamped name, not a run directory' (
+    $sreText -match "Join-Path \`$repoRoot 'runs\\launch52'" -and $sreText -match "rtiexec_\{0\}\.log")
+Check 'runner: Stage 2r passes -LogDir runs\launch52 (never the run directory)' (
+    $runnerText -match "\`$RtiExecLogDir = Join-Path \`$RepoRoot 'runs\\launch52'" -and
+    $runnerText -match "'-LogDir', \`$RtiExecLogDir" -and
+    $runnerText -notmatch "'-RunDir', \`$RunDir")
+Check 'runner: the manifest carries the rtiexec logDir and logFile' (
+    $runnerText -match 'logDir = \$RtiExecLogDir' -and $runnerText -match 'rtiExec\.logFile\s*=\s*\$rtiLog')
+# The pid/log marker the manifest depends on must parse BOTH banner forms, log= last and
+# allowed to contain spaces. A silent miss would leave the manifest fields null.
+$rx = 'RTIEXEC READY rtiexec=(\d+|none) forwarder=(\d+|none) tcp=\S+ started=(yes|no) log=(.*?)\s*$'
+$mYes = [regex]::Match('  [OK]   RTIEXEC READY rtiexec=4242 forwarder=99 tcp=127.0.0.1:4001 started=yes log=C:\r\runs\launch52\rtiexec_20260904T110000Z.log', $rx)
+$mNo  = [regex]::Match('  [OK]   RTIEXEC READY rtiexec=15720 forwarder=43728 tcp=127.0.0.1:4001 started=no log=(not started by this run - see C:\r\runs\launch52)', $rx)
+Check 'marker parses started=yes with the stamped log path' (
+    $mYes.Success -and $mYes.Groups[1].Value -eq '4242' -and $mYes.Groups[3].Value -eq 'yes' -and
+    $mYes.Groups[4].Value -match 'rtiexec_20260904T110000Z\.log$') "got '$($mYes.Groups[4].Value)'"
+Check 'marker parses started=no, whose log= contains spaces' (
+    $mNo.Success -and $mNo.Groups[1].Value -eq '15720' -and $mNo.Groups[2].Value -eq '43728' -and
+    $mNo.Groups[3].Value -eq 'no' -and $mNo.Groups[4].Value -match '^\(not started') "got '$($mNo.Groups[4].Value)'"
+
+# 8c. THE 5.2 STARTUP CRASH must FAIL the launch, not be waited out (2026-09-04 cold-start
+# review): 0xC0000005 in makVrf::DtVrfSimOptions::parseCmdLine hit 2 of 5 launches, under
+# BOTH rids, so the trigger is unknown and the launch stage must DETECT it. Without this the
+# runner pushes an init at a back-end that never existed.
+Write-Host '=== 8c. LaunchVrf52 detects the startup crash and exits 3 without retrying ==='
+$lv52Ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $RepoRoot 'scripts\LaunchVrf52.ps1'), [ref]$null, [ref]$null)
+$lv52Params = @{}
+foreach ($p in $lv52Ast.ParamBlock.Parameters) { $lv52Params[$p.Name.VariablePath.UserPath] = $p }
+$lv52Text = Get-Content -LiteralPath (Join-Path $RepoRoot 'scripts\LaunchVrf52.ps1') -Raw
+Check 'LaunchVrf52 declares -MakLogDir defaulting to C:\MAK\logs' (
+    $lv52Params.ContainsKey('MakLogDir') -and "$($lv52Params['MakLogDir'].DefaultValue)" -match 'C:\\MAK\\logs')
+$crashFn = $lv52Ast.FindAll({ param($a) $a -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $a.Name -eq 'Get-SimCrashEvidence' }, $true)
+Check 'LaunchVrf52 defines Get-SimCrashEvidence(-ProcessId, -LogDir)' (
+    @($crashFn).Count -eq 1 -and
+    $crashFn[0].Body.ParamBlock.Parameters.Name.VariablePath.UserPath -contains 'ProcessId' -and
+    $crashFn[0].Body.ParamBlock.Parameters.Name.VariablePath.UserPath -contains 'LogDir')
+Check 'it looks for the pid-suffixed callstack file MAK writes' ($lv52Text -match "\*-\{0\}\.callstack\.log")
+Check 'it recognises the MAK crash-box window titles (5.2 "Error <exe>" and 5.0.2 "<exe>.dmp")' (
+    $lv52Text -match "\^Error \.\*vrfSim" -and $lv52Text -match "\^vrfSim\.\*\\\.dmp\`$")
+Check 'the readiness poll checks for the crash on EVERY iteration' ($lv52Text -match 'while \(\(Get-Date\) -lt \$deadline\) \{\s*\r?\n\s*\$simCrash = Get-SimCrashEvidence')
+Check 'a crash is decided BEFORE the READY verdict (no false green)' (
+    $lv52Text.IndexOf("if (`$simCrash.Crashed) {`r`n    # Checked FIRST") -gt 0 -and
+    $lv52Text.IndexOf("if (`$simCrash.Crashed) {`r`n    # Checked FIRST") -lt $lv52Text.IndexOf("READY: 5.2d back-end HEALTHY"))
+Check 'LaunchVrf52 still force-kills nothing on the crash path' ($lv52Text -notmatch 'Stop-Process|taskkill')
+# ...and the detector must actually FIRE. The checks above only prove the code is shaped
+# right; this one runs the SHIPPED function (lifted out of the script by its own AST, so no
+# copy can drift from it) against a synthetic MAK log directory. Real filenames, taken from
+# C:\MAK\logs on 2026-09-04: vrfSimHLA1516e5.2d-20260903-215720-Legatus-282607-39028
+# .callstack.log, whose last field is the faulting pid.
+Invoke-Expression $crashFn[0].Extent.Text
+$tmpLogDir = Join-Path ([System.IO.Path]::GetTempPath()) ('lv52crash-' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $tmpLogDir -Force | Out-Null
+try {
+    $csName = 'vrfSimHLA1516e5.2d-20260903-215720-Legatus-282607-39028.callstack.log'
+    Set-Content -LiteralPath (Join-Path $tmpLogDir $csName) -Encoding ascii -Value @(
+        'Thread ID - 41792', 'Error Code - 0xC0000005', 'Callstack: ',
+        '0x7FF8BCCD5851: makVrf::DtVrfSimOptions::parseCmdLine(768) in vrlinkNetworkInterfaceHLA1516e.dll',
+        '0x7FF61370F8C1: DtVrfApp::init(632) in vrfSimHLA1516e.exe')
+    $old   = (Get-Date).AddHours(-1)
+    $hit   = Get-SimCrashEvidence -ProcessId 39028 -LogDir $tmpLogDir -Since $old
+    $miss  = Get-SimCrashEvidence -ProcessId 39029 -LogDir $tmpLogDir -Since $old
+    $noDir = Get-SimCrashEvidence -ProcessId 39028 -LogDir (Join-Path $tmpLogDir 'does-not-exist') -Since $old
+    # PID RECYCLING: C:\MAK\logs keeps callstacks across boots and Windows reuses pids, so a
+    # file older than this back-end's start must NOT fail a healthy launch.
+    $stale = Get-SimCrashEvidence -ProcessId 39028 -LogDir $tmpLogDir -Since (Get-Date).AddHours(1)
+    Check 'detector FIRES on a callstack file whose last field is the back-end pid' ($hit.Crashed) "reason=$($hit.Reason)"
+    Check 'detector reports the file and its first frames' (
+        $hit.File -match 'callstack\.log$' -and @($hit.Frames).Count -ge 4 -and
+        (@($hit.Frames) -join ' ') -match 'parseCmdLine') ("frames=" + @($hit.Frames).Count)
+    Check 'detector does NOT fire for a DIFFERENT pid (39029 vs the 39028 file)' (-not $miss.Crashed) "reason=$($miss.Reason)"
+    Check 'detector does NOT fire on a callstack older than this launch (pid recycling)' (-not $stale.Crashed) "reason=$($stale.Reason)"
+    Check 'a missing log directory is not a crash and does not throw' (-not $noDir.Crashed)
+} finally { Remove-Item -LiteralPath $tmpLogDir -Recurse -Force -ErrorAction SilentlyContinue }
+Check 'LaunchVrf52 takes the -Since floor BEFORE starting the back-end' (
+    $lv52Text.IndexOf('$simStartFloor = (Get-Date)') -gt 0 -and
+    $lv52Text.IndexOf('$simStartFloor = (Get-Date)') -lt $lv52Text.IndexOf('$simProc = Start-Process'))
+Check 'both crash checks pass -Since' (
+    @([regex]::Matches($lv52Text, 'Get-SimCrashEvidence -ProcessId \$simProc\.Id -LogDir \$MakLogDir -Since \$simStartFloor')).Count -eq 2)
+
+# 8d. THE DRY-RUN FALSE GREEN (found 2026-09-04 while wiring Stage 2r). The -DryRun Result
+# branch used to `exit 0` unconditionally, so a dry run that hit the runner's generic catch
+# printed "[FAIL] unexpected terminating error ..." AND "DRY-RUN complete" AND exited 0. The
+# live path always honoured $RunnerExit; only -DryRun did not. This is the only check here
+# that RUNS THE RUNNER (against a throwaway copy beside the real one, so $PSScriptRoot and
+# $RepoRoot resolve identically) - a pure AST assertion could not tell 0 from 5.
+Write-Host '=== 8d. a terminating error yields a NONZERO exit, in -DryRun as in a live run ==='
+$probe = Join-Path $RepoRoot 'scripts\_TerminatingErrorProbe.tmp.ps1'
+try {
+    $src = Get-Content -LiteralPath (Join-Path $RepoRoot 'scripts\RunC2SimScenario.ps1') -Raw
+    $anchor = "        Say-Head 'DRY RUN - the full planned sequence, in order. NOTHING below is executed.'"
+    Check 'probe anchor found in the runner (the test is wired to real code)' ($src.Contains($anchor))
+    $patched = $src.Replace($anchor, "        throw 'SYNTHETIC TERMINATING ERROR (RunnerTurnaround.Tests.ps1)'" + [Environment]::NewLine + $anchor)
+    [System.IO.File]::WriteAllText($probe, $patched, (New-Object System.Text.UTF8Encoding($false)))
+    $out  = & pwsh -NoProfile -File $probe -DryRun -SkipServerCheck 2>&1
+    $code = $LASTEXITCODE
+    $text = ($out | Out-String)
+    Check 'a terminating error in -DryRun exits 5 (UNEXPECTED TERMINATING ERROR), not 0' ($code -eq 5) "exit=$code"
+    Check 'it says the dry run FAILED and does not also claim completion' (
+        $text -match 'DRY-RUN FAILED' -and $text -notmatch 'DRY-RUN complete\.') "exit=$code"
+    Check 'the underlying error is still reported' ($text -match 'SYNTHETIC TERMINATING ERROR')
+} finally { Remove-Item -LiteralPath $probe -Force -ErrorAction SilentlyContinue }
+Check 'the probe copy was removed from scripts\' (-not (Test-Path -LiteralPath $probe))
 
 # 9. Get-VrfUuidByName must parse BOTH app-log route-line forms. The app started
 # logging the route's own uuid on 2026-09-02 with the route-uuid fix ("Route '<r>'
