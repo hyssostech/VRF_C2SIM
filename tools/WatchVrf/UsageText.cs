@@ -15,19 +15,26 @@ internal static class WatchVrfUsage
     // optional flag is added to the live path; never remove one while the flag exists.
     public static readonly string[] Capabilities =
         { "capabilities", "con-selftest", "stop-file", "diag", "no-wait-ext",
-          "no-track", "report-backends" };
+          "no-track", "report-backends", "device-address" };
 
     public const string StopFileFlag = "--stop-file";
     public const string DiagFlag = "--diag";
     public const string NoWaitExtFlag = "--no-wait-ext";
     public const string NoTrackFlag = "--no-track";
     public const string ReportBackendsFlag = "--report-backends";
+    public const string DeviceAddressFlag = "--device-address";
+
+    // The sentinel value that means "push NO --deviceAddress at all", as opposed to pushing
+    // an address. Matched case-insensitively on purpose: treating "None" as a literal
+    // interface address would be a SILENT wrong-arm run, and this flag exists to be the
+    // single variable in a discriminating pair (PREREG_52_RTIEXEC sec 4).
+    public const string DeviceAddressNone = "none";
 
     public static string[] Lines() => new[]
     {
         "usage: WatchVrf.exe [applicationNumber] [durationSecs] [sampleSecs] [federation]",
         "                    [--stop-file <path>] [--diag] [--no-wait-ext] [--no-track]",
-        "                    [--report-backends]",
+        "                    [--report-backends] [--device-address <addr|none>]",
         "       WatchVrf.exe --con-selftest",
         "       WatchVrf.exe --capabilities",
         "",
@@ -73,12 +80,30 @@ internal static class WatchVrfUsage
         "                     the controller's back-end count - the same reading CreateOne",
         "                     refuses to act on when it is 0. Says whether this observer sees",
         "                     the sim engine at all, independently of any reflected object.",
+        "  --device-address <addr|none>",
+        "                     Optional. The VR-Forces-level network interface for UDP",
+        "                     (best-effort) traffic - the 5.0.2 Launcher's 'Network Interface",
+        "                     Address', passed through to VR-Link as --deviceAddress",
+        "                     (UG52 Table 11 p180-181; VrfFacade.cpp Start()).",
+        "                       omitted   keep the facade default (127.0.0.1),",
+        "                       <addr>    use that address, e.g. --device-address 10.5.0.2,",
+        "                       none      pass NO --deviceAddress at all, so VR-Forces picks",
+        "                                 'the first device listed' (IOG 5.2.1).",
+        "                     A PROBE LEVER, and the observer-side SINGLE VARIABLE against a",
+        "                     live rtiexec sim: whether this setting matters at all is",
+        "                     UNTESTED (PREREG_52_RTIEXEC sec 4). The value is echoed in the",
+        "                     run banner and, with --diag, on the '# DIAG licence' line, so a",
+        "                     trace always records which arm produced it.",
+        "                     SCOPE: the argv push happens on the 5.2 HLA build only; the",
+        "                     5.0.2 HLA argv carries no --deviceAddress, so on that build the",
+        "                     flag is recorded but inert.",
         "  --con-selftest     Offline check of the CON,/TSK,/RPT, line formatting. Takes NO other",
         "                     arguments: it joins no federation and observes nothing, so",
         "                     pairing it with observation arguments is a contradiction.",
         "  --capabilities     Offline. Prints one capability token per line (currently:",
         "                     capabilities, con-selftest, stop-file, diag, no-wait-ext,",
-        "                     no-track, report-backends) and exits 0. Sole argument.",
+        "                     no-track, report-backends, device-address) and exits 0.",
+        "                     Sole argument.",
         "",
         "WatchVrf is the MOVEMENT ORACLE: an unparseable argument is a HARD FAILURE,",
         "never a silent fallback to a default, because the resulting trace would",
@@ -91,6 +116,8 @@ internal static class WatchVrfUsage
         "           WatchVrf.exe 3821 60 5 --diag --no-wait-ext",
         "           WatchVrf.exe 3823 60 5 --diag --report-backends",
         "           WatchVrf.exe 3824 60 5 --diag --report-backends --no-track",
+        "           WatchVrf.exe 3830 60 5 --diag --device-address none",
+        "           WatchVrf.exe 3831 60 5 --diag --device-address 10.5.0.2",
         "           WatchVrf.exe --con-selftest",
         "           WatchVrf.exe --capabilities",
     };

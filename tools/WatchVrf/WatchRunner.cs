@@ -45,8 +45,9 @@ namespace WatchVrf;
 //
 // Args: [applicationNumber] [durationSecs] [sampleSecs] [federation] [--stop-file <path>]
 //       [--diag] [--no-wait-ext] [--no-track] [--report-backends]
+//       [--device-address <addr|none>]
 // Defaults: 3399, 120, 15, CWIX-2024, no stop file (duration only), diagnostics off,
-// tracking ON, back-end count not reported.
+// tracking ON, back-end count not reported, device address left at the facade default.
 // --stop-file: the runner touches <path> when its observation window (plus trail) is over;
 // the tick loop polls for it about once a second, emits one '# STOP requested' line and
 // falls through to the SAME bridge.Stop() resign as the duration expiry. durationSecs is
@@ -59,6 +60,11 @@ namespace WatchVrf;
 // CONSTRUCTION); --report-backends adds the control-channel reading beside them. Everything
 // still goes to stdout in the existing line shapes - no new files - so a caller tees the
 // stream. See WatchVrfUsage for the full contract.
+// --device-address <addr|none> is the 2026-09-04 addition (PREREG_52_RTIEXEC sec 4): the
+// VR-Forces-level --deviceAddress the facade pushes on the 5.2 HLA argv is UNTESTED, and
+// this is the observer-side single-variable discriminator for it. Absent = the facade
+// default; an address = that address; 'none' = an EMPTY cfg.DeviceAddress, which makes the
+// facade push no --deviceAddress at all so VR-Forces picks "the first device listed".
 internal static class WatchRunner
 {
     // Argument handling uses the shared tools/Shared/ToolArgs.cs standard (0 success /
@@ -67,10 +73,13 @@ internal static class WatchRunner
     // print it without touching this bridge-referencing type.
     public static int Run(string[] args)
     {
-        // --stop-file <path> is the ONE option valid on the LIVE path (2026-09-01, runner
-        // turnaround). It is a VALUE-taking option, so it is extracted FIRST with
-        // TryTakeOptionValue - otherwise Positionals() would see its path as a stray
-        // positional and mis-assign it (see the ToolArgs note on that helper).
+        // TWO VALUE-taking options are valid on the LIVE path: --stop-file <path>
+        // (2026-09-01, runner turnaround) and --device-address <addr|none> (2026-09-04,
+        // PREREG_52_RTIEXEC sec 4). Both are extracted FIRST with TryTakeOptionValue -
+        // otherwise Positionals() would see each VALUE as a stray positional and mis-assign
+        // it (see the ToolArgs note on that helper), e.g. parsing an IP address as
+        // applicationNumber. TryTakeOptionValue also removes the flag AND its value from
+        // args, so UnknownFlags below is told about neither: they are already consumed.
         string stopFile = null;
         string problem;
         if (!ToolArgs.TryTakeOptionValue(args, WatchVrfUsage.StopFileFlag, out args, out stopFile, out problem))
@@ -91,6 +100,29 @@ internal static class WatchRunner
                                     + "would end immediately. Remove it or pass a fresh path. Nothing joined.",
                                       WatchVrfUsage.Lines());
         }
+
+        // --device-address <addr|none>. TryTakeOptionValue already rejects the operator
+        // errors that must not be guessed at: repeated, missing value, an option where the
+        // value belongs, or an empty/whitespace value. So the only decision left here is
+        // 'none' (case-insensitive) vs a literal address; nothing else is validated, because
+        // what counts as a usable interface address is VR-Forces' judgement, not this tool's.
+        //
+        // deviceAddress stays null when the flag is ABSENT, and null means "do not touch
+        // cfg.DeviceAddress" - the facade default (127.0.0.1) then applies exactly as before
+        // this flag existed. An empty string is a DIFFERENT instruction ("push no
+        // --deviceAddress"), which is why 'none' is a sentinel token and not just "".
+        string deviceAddress = null;
+        if (!ToolArgs.TryTakeOptionValue(args, WatchVrfUsage.DeviceAddressFlag, out args,
+                                         out deviceAddress, out problem))
+            return ToolArgs.Usage(problem, WatchVrfUsage.Lines());
+        bool deviceAddressNone = deviceAddress != null
+            && string.Equals(deviceAddress, WatchVrfUsage.DeviceAddressNone,
+                             StringComparison.OrdinalIgnoreCase);
+        // What the banner and the '# DIAG licence' line report. Three distinguishable
+        // states, ALWAYS printed: an absent flag and an old binary that never had it must
+        // not produce the same-looking trace as a deliberate default-arm run.
+        string deviceAddressEcho = deviceAddress == null ? "default"
+                                 : deviceAddressNone ? "none" : deviceAddress;
 
         // Four VALUELESS options on the LIVE path (2026-09-03, 5.2 observation-channel
         // instruments). All are read AFTER --stop-file's pair has been taken out and
@@ -146,6 +178,12 @@ internal static class WatchRunner
             // path. See the --no-wait-ext usage text and VrfFacade.h.
             DisableWaitForVrfExtendedData = noWaitExt,
         };
+        // OPT-IN probe lever. Assigned ONLY when the flag was given, so an absent flag leaves
+        // StartupConfig's own default ("127.0.0.1") untouched and this build behaves exactly
+        // as it did before the flag existed. 'none' assigns "" - the facade tests
+        // cfg.deviceAddress.empty() and pushes nothing, letting VR-Forces pick the first
+        // listed device (IOG 5.2.1; VrfFacade.cpp Start(), VrfFacade.h:87).
+        if (deviceAddress != null) cfg.DeviceAddress = deviceAddressNone ? "" : deviceAddress;
         // Stack-aware identity (tools/Shared/StackIdentity.cs): 5.0.2 keeps the
         // CWIX-2024 constants; 5.2 joins via the connection config (MAK-ONE-2025).
         string fedDesc = StackIdentity.Apply(cfg, federation);
@@ -155,7 +193,11 @@ internal static class WatchRunner
                         + (stopFile != null ? $" stop-file={stopFile} (duration is the upper bound)" : "")
                         + (diag ? " diag=on" : "") + (noWaitExt ? " no-wait-ext=on" : "")
                         + (noTrack ? " no-track=on (reflected=/readable= WILL stay 0; no POS lines)" : "")
-                        + (reportBackends ? " report-backends=on" : "") + "\n");
+                        + (reportBackends ? " report-backends=on" : "")
+                        // ALWAYS printed, unlike the on/off levers above: 'default' is a
+                        // real arm of the PREREG sec 4 comparison, so every trace must say
+                        // which of default/none/<addr> produced it.
+                        + $" device-address={deviceAddressEcho}" + "\n");
 
         // All DATA lines (POS, CON, and the # summary) go through this one lock so a CON
         // callback that arrives on a different thread than the sampling loop can never tear
@@ -201,7 +243,8 @@ internal static class WatchRunner
                 Emit(string.Create(CultureInfo.InvariantCulture,
                     $"# DIAG licence rti={(VrfBridge.HaveRtiLicense() ? 1 : 0)} "
                   + $"vrlink={(VrfBridge.HaveVrLinkLicense() ? 1 : 0)} "
-                  + $"no-wait-ext={(noWaitExt ? 1 : 0)} no-track={(noTrack ? 1 : 0)}"));
+                  + $"no-wait-ext={(noWaitExt ? 1 : 0)} no-track={(noTrack ? 1 : 0)} "
+                  + $"device-address={deviceAddressEcho}"));
             }
 
             var start = DateTime.UtcNow;

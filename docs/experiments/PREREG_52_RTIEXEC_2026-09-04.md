@@ -77,6 +77,19 @@ the rtiexec log shows at most two federates joined, so the unlicensed-for-two ca
 UNTESTED; "received size does not match header size" appears in every 5.0.1 lightweight
 federate, unexplained; the launch_3854 stdout capture was not written (Tee path) - the
 sim log is the launch evidence.
+P4 (added 2026-09-04 before run 3857, MEDIUM): WatchVrf-5.2 --device-address none (the
+facade pushes NO --deviceAddress; VR-Forces picks its first device) against the LIVE
+rtiexec sim 3854, 60 s, STILL reflects >= 1 entity -> the VR-Forces-level device address
+is NOT required on 5.2 and drops from the posture (kept only as a tunable). Falsifier:
+ent=0 for 60 s with backends=1 -> it IS required observer-side; then a sim relaunch
+without -DeviceAddress decides the sim side.
+P4 HELD (watchvrf_3857_rtiexec_nodevaddr.txt): device-address=none, ent=56 -> 54 over
+60 s, vendor count Reflected Entities 55 / Total 74, 323 real POS lines, backends=1,
+licence rti=1. The VR-Forces-level --deviceAddress is NOT required observer-side; it
+drops from the posture (tunable, default = not passed). Sim side: still launched WITH
+-DeviceAddress 127.0.0.1 (3854); the runner profile's first run launches WITHOUT it and
+closes that half. Posture now = MAK RTI 5.0.1 in rtiexec mode (rid-501-rtiexec-min +
+headless rtiexec), nothing else.
 CONSEQUENCES: the assistant-free LIGHTWEIGHT rid (config/rid-461-ridconfigured.mtl,
 2026-09-03) was a WRONG fix - it bypassed the version-locked assistant but put the
 federation in a mode VR-Forces does not support; assistant-free stays (RTI_ASSISTANT_

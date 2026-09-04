@@ -15,7 +15,7 @@ using WatchVrf;
 //                                 of killed with exit 2 (the -ConsoleLogDir landmine).
 //
 //   WatchVrf [appNo] [dur] [samp] [federation] [--stop-file <path>] [--diag] [--no-wait-ext]
-//            [--no-track] [--report-backends]
+//            [--no-track] [--report-backends] [--device-address <addr|none>]
 //                                 LIVE observation: join the federation and stream POS,...
 //                                 position lines, CON,... Object Console lines, and
 //                                 TSK,... / RPT,... task-completion + text-report lines
@@ -26,6 +26,11 @@ using WatchVrf;
 //                                 observation-channel diagnostics, the extended-data lever,
 //                                 the skip-tracking isolation (which zeroes POS by
 //                                 construction) and the back-end count (see WatchVrfUsage).
+//                                 --device-address: the VR-Forces-level --deviceAddress this
+//                                 observer joins with - <addr>, or 'none' to push none at
+//                                 all; absent keeps the facade default (PREREG_52_RTIEXEC
+//                                 sec 4). Echoed in the banner and on the '# DIAG licence'
+//                                 line so a trace records which arm produced it.
 //
 // The dispatch below references only ConSelfTest, WatchVrfUsage and ToolArgs - all pure
 // managed, none of them touching VrfBridge - plus WatchRunner, whose bridge-using code
