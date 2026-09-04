@@ -77,6 +77,43 @@ foreach ($legacy in @($false, $true)) {
     Check ("real script $tag wrote nothing"         ) ($out2 -match 'DRY-RUN\] nothing was written')
 }
 
+# ---- BITNESS GATE (added 2026-09-04) ----
+# The script classifies entries with Test-Path, and a 32-bit process on 64-bit Windows has
+# System32 redirected to SysWOW64 - so it must refuse to -Apply from 32-bit. Exercised
+# against a copy whose ONLY write is replaced by a marker, so -Apply is risk-free here AND
+# "it never reached the write" is provable instead of assumed.
+Write-Host ''
+Write-Host '  -- bitness gate --'
+$pw32 = 'C:\Program Files (x86)\PowerShell\7\pwsh.exe'
+$pw64 = 'C:\Program Files\PowerShell\7\pwsh.exe'
+$w = "Set-ItemProperty -LiteralPath `$key -Name 'Path' -Value `$new -Type `$kind"
+if ($txt -notmatch [regex]::Escape($w)) {
+    Check 'write line found for neutering (script changed shape; update this test)' $false
+} else {
+    $safe = $txt.Replace($w, "Write-Host '  !!! REACHED THE WRITE (neutered) !!!'")
+    Check 'neutered copy differs from the original' ($safe -cne $txt)
+    $tb = Join-Path ([IO.Path]::GetTempPath()) ('fixpath_bitness_' + [Guid]::NewGuid().ToString('N') + '.ps1')
+    [IO.File]::WriteAllText($tb, $safe)
+    try {
+        if (Test-Path -LiteralPath $pw32) {
+            $o = & $pw32 -NoProfile -File $tb -Apply 2>&1 | Out-String
+            $c = $LASTEXITCODE
+            Check '32-bit -Apply refuses (exit 2)'        ($c -eq 2)
+            Check '32-bit -Apply says REFUSING'           ($o -match 'REFUSING to -Apply from a 32-bit process')
+            Check '32-bit -Apply never reaches the write' ($o -notmatch 'REACHED THE WRITE')
+            Check 'bitness gates BEFORE the elevation test' ($o -notmatch 'needs an ELEVATED shell')
+            $o = & $pw32 -NoProfile -File $tb 2>&1 | Out-String
+            Check '32-bit dry-run still analyses (exit 0)' ($LASTEXITCODE -eq 0)
+            Check '32-bit dry-run warns about WOW64'       ($o -match '32-BIT PowerShell on 64-bit Windows')
+        } else { Write-Host '  [skip] no 32-bit pwsh on this machine' }
+        if (Test-Path -LiteralPath $pw64) {
+            $o = & $pw64 -NoProfile -File $tb 2>&1 | Out-String
+            Check '64-bit dry-run exits 0'        ($LASTEXITCODE -eq 0)
+            Check '64-bit dry-run does NOT warn'  ($o -notmatch '32-BIT PowerShell')
+        } else { Write-Host '  [skip] no 64-bit pwsh at the expected path' }
+    } finally { Remove-Item -LiteralPath $tb -Force -ErrorAction SilentlyContinue }
+}
+
 Write-Host ''
 if ($fails -eq 0) { Write-Host '  SELFTEST PASS - the refusal guard fires when it should and passes when it should'; exit 0 }
 Write-Host ("  SELFTEST FAIL - " + $fails + ' check(s) failed'); exit 1

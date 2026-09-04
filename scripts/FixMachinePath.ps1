@@ -74,6 +74,27 @@ $RemoveLegacy = @('C:\MAK\vrforces5.0.2\bin64', 'C:\MAK\vrlink5.8\bin64')
 Say ''
 Say ('=== FixMachinePath.ps1 (' + $(if ($Apply) { 'APPLY' } else { 'DRY-RUN' }) + ') ===')
 
+# BITNESS GATE (added 2026-09-04, AFTER the applied run; deliberately the FIRST check,
+# ahead of elevation, because bitness invalidates the ANALYSIS itself, not just the write).
+# This script decides whether to keep an entry with Test-Path. In a 32-BIT process on 64-bit
+# Windows, WOW64 FILE REDIRECTION sends C:\Windows\System32\* to SysWOW64, so a System32
+# directory that really exists can test FALSE and be classified "(missing)". Observed live:
+# C:\Windows\System32\OpenSSH tests False from 32-bit pwsh and True from 64-bit - ssh.exe is
+# genuinely there. NOTHING on today's removal lists lives under System32, so the run applied
+# on 2026-09-04 was NOT affected (all 7 re-confirmed MISSING from a true 64-bit process via
+# C:\Windows\SysNative\cmd.exe) - but the next entry someone adds might be. Note that
+# C:\Program Files is NOT file-redirected; only the ProgramFiles ENV VAR differs. So the
+# Pitch verdict never depended on bitness, and it was re-confirmed 64-bit regardless.
+if ((-not [Environment]::Is64BitProcess) -and [Environment]::Is64BitOperatingSystem) {
+    Say-Warn '32-BIT PowerShell on 64-bit Windows: WOW64 redirects System32, so the'
+    Say-Warn 'directory-exists checks can misclassify a System32 path as missing.'
+    Say-Warn ('this process: ' + (Get-Process -Id $PID).Path)
+    Say-Warn 'use 64-bit PowerShell: C:\Program Files\PowerShell\7\pwsh.exe'
+    if ($Apply) { Say-Fail 'REFUSING to -Apply from a 32-bit process.'; exit 2 }
+    Say-Warn 'continuing DRY-RUN only - treat any "(missing)" line as UNVERIFIED.'
+    Say ''
+}
+
 $id = [Security.Principal.WindowsIdentity]::GetCurrent()
 $elevated = (New-Object Security.Principal.WindowsPrincipal($id)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 Say ("  elevated: {0}   user: {1}" -f $elevated, $id.Name)
@@ -148,7 +169,12 @@ Say-Ok 'no entry outside the removal lists is affected'
 Say ''
 Say '  MAK entries KEPT:'
 $keep | Where-Object { $_ -match 'MAK' } | ForEach-Object { Say ('    . ' + $_) }
-if (-not $RemoveLegacyMak) {
+# Only advise -RemoveLegacyMak if the legacy entries are ACTUALLY still present. Without this
+# test the advice kept printing after they had been removed, telling the reader they "are
+# still here" when they were not - a small false statement, but this file's whole job is to
+# be trusted about what is on the PATH.
+$legacyStillThere = @($keep | Where-Object { $RemoveLegacy -contains $_ })
+if ((-not $RemoveLegacyMak) -and $legacyStillThere.Count -gt 0) {
     Say '    (the 2022-era vrforces5.0.2 / vrlink5.8 entries are still here. 5.0.2 is ARCHIVE,'
     Say '     so -RemoveLegacyMak drops them - RECOMMENDED: they are how an un-prefixed process,'
     Say '     e.g. our own VrfC2SimApp.exe, can silently bind 2022 MAK DLLs.)'
