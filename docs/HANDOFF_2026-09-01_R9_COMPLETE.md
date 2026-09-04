@@ -73,25 +73,19 @@ tools/analysis/frame_gaps.py . <run>`: PASS = Test A >= 95% in {0.033,0.034} AND
 NOTION OF SIM TIME (VrfFacade.cpp:478-482 pins the federate clock to elapsedRealTime; TickLoop is
 20 Hz WALL); at 0.27-0.31x that changes which chains dispatch.
 ## COA-STP1 SCALE - CLOSED (rungs 0/1/2). Full records in the preregs; this is the residue.
-Rung 0 fc93a1e; rung 1 20260902T125423Z (d1f2e10 / 7963aed) - 5 performers built ZERO offset routes
-and never moved, SILENTLY; rung 2 20260902T165144Z (b3792d1) - ALL NINE march. ROOT CAUSE (SETTLED,
-FIXED 726f762, VERIFIED FIVE TIMES incl. QPAIR A-1/A-2): OURS - a contract violation at the DtUUID
-string ctor (`rwUUID.h:246-253`; the 36-byte blob at `rwUUID.h:412`, one byte the type tag, so a
-marking-text name survives to 35 chars). All FOUR route/waypoint sites pass `e.Uuid`, not `e.Name`.
+Rungs 0-2 (fc93a1e / d1f2e10 / b3792d1): ROOT CAUSE SETTLED, FIXED 726f762, verified 5x - OURS, a
+contract violation at the DtUUID string ctor (rwUUID.h:246-253/:412; names survive to 35 chars). All
+four route/waypoint sites pass e.Uuid, not e.Name.
 STILL OPEN: the NATIVE completion-status item (NEXT row 4) - rung 1 finding A did NOT reproduce,
 so the OCCASION is gone but THE NATIVE GAP IS UNTESTED AND STANDS. OTHER RUNG-1 FINDINGS, unfixed:
 (B) 26 echelon-'F' units land the GENERIC Ground_Aggregate fallback under RealTemplates
 (UnitTranslator.cs:70/:134, TYPE_GAP item 4, USER call) - it MARCHES; (C) TerrainProfile re-entry
 double-logs the verb classification; (D) ResetVrf after StopVrf is blind (BackendCount=0). NOT
 EXERCISED by any order: PatrolRoute and PlanAndMoveTo.
-UNEXPLAINED, item 3 being the LIVE one: (1) pole-only objects were 132 (rung 2) / 110 (-q run),
-ever-real 1,732 in BOTH - **BUT BOTH QPAIR RUNS HAVE ZERO POLE AND ZERO NaN POS LINES, ever-real
-1,847 / 1,864, while `Created radio` stays 1,733 in ALL FOUR.** The observer now resolves
-everything; 1,732 was old-configuration residue - DO NOT REUSE IT AS A CHECK (NEXT row 1);
-(2) cast-corrupted reflections 28 -> 58; (3) **THE THREE TANK COMPANIES ARE THE UNSTABLE CLASS** -
-rung 2 T27 1.80 / T35 2.85 km against six performers at 6.07-6.64 km; the -q run CLEARED T27 to
-6.55 and STALLED T35 at 0.41 km with ZERO sub-routes; QPAIR A-1 stalled T35 again (0, 0.37 km) and
-A-2, an IDENTICAL invocation, did not (4, 3.69 km). NEXT row 1.
+UNEXPLAINED (5.0.2, PARKED; full numbers in the QPAIR/rung preregs): (1) the ever-real 1,732 count
+was old-configuration residue - **DO NOT REUSE IT AS A CHECK**; (2) cast-corrupted reflections
+28 -> 58; (3) **THE THREE TANK COMPANIES ARE THE UNSTABLE CLASS** - identical invocations stall or
+march run to run (QPAIR A-1 vs A-2). That non-determinism is the parked 5.0.2 object.
 ## OPERATIONAL STATE (2026-09-02, after the TWO no-`-q` COA-STP1 runs of the QPAIR probe)
 VR-FORCES DOWN (graceful; ResetVrf sweeps 3790/3798 clean, 0 reflected, exit 0). appNo marker
 appNo marker: docs/OPUS_EXECUTION_PLAN.md Appendix B (runner-managed; read the marker, per-run
@@ -177,8 +171,14 @@ RTI 5.0.1 in rtiexec mode (config/rid-501-rtiexec-min.mtl, headless rtiexec): Wa
 entities, real POS (cause by ELIMINATION; --deviceAddress NOT required either side (3857/3859); the sim's
 parseCmdLine startup crash hit 2/7 launches on any rid, trigger UNKNOWN, now DETECTED by LaunchVrf52).
 RUNNER 5.2 PROFILE ON THAT POSTURE DONE (5cea2ed; StartRtiExec52 Stage 2r; smoke PREREG_52_PROFILE_SMOKE
-green: paused Traffic reflects 44; app 3865 joins the config-file way, PREREG_52_APP_SMOKE). NEXT = 5.2
-FIXTURES (Y-7; no C2SIM stage runs without them), PREREG_R9_52; startup-crash forensics (3/8 launches).
+green for the INFRASTRUCTURE STAGES ONLY - no C2SIM stage has ever run on 5.2 (COLDSTART_AUDIT R3):
+paused Traffic reflects 44; app 3865 joins the config-file way (PREREG_52_APP_SMOKE). STARTUP CRASH
+root-caused as a VENDOR heap defect, ~1 in 3, any rid/method (FORENSICS_52_STARTUP_CRASH): close the
+corpse, retry ONCE. SECURITY: vendor logs dump the whole environment in cleartext - never attach one
+(send .callstack/.dmp). NEXT = a first 5.2 C2SIM run; per COLDSTART_AUDIT R7 a FIXTURE IS NOT REQUIRED
+(the app creates units from the init; RESEARCH_52_FIXTURE_FORMAT R2 = -T terrain, no -L, but that loses
+the frame lever) - the empty fixture R9_Mojave_Empty_52.scnx is built and validated as the R1 route.
+Then PREREG_R9_52, which may NOT cite frame mode until a stamped 5.2 log exists (REBASELINE_52).
 ## PROBE PROTOCOL (adopted 2026-09-01/02; do NOT change mid-protocol)
 FFRTC mode per the block above; TimeMultiplier 1x; -RunSecs is a CAP under -StopWhenComplete.
 SHORT-ROUTE probe variants are allowed (platoon/entity legs ~200 m) but COMPANY probe routes stay
