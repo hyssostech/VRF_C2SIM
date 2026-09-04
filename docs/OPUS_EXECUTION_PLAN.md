@@ -1855,7 +1855,13 @@ join) are BURNED, not recycled. The run manifest records which were actually use
   NETDUMPTEST entityId 1:3805:12 (console only - NO file capture; evidence-discipline defect,
   COLDSTART_REVIEW F1). NOT observed by anything.
 
-*** NEXT FREE: 3816 *** (authoritative - the ONLY such marker in this file. Update this
+- 3816: CLAIMED 2026-09-03 - PREREG_52_REFLECTION step 1 back-end vrfSimHLA1516e (Probe52Reflection.ps1).
+- 3817: CLAIMED 2026-09-03 - PREREG_52_REFLECTION step 1 front-end vrfGui.
+- 3818: CLAIMED 2026-09-03 - PREREG_52_REFLECTION step 2 CreateOne-5.2 (REFLTEST), tee'd.
+- 3819: CLAIMED 2026-09-03 - PREREG_52_REFLECTION step 3 WatchVrf-5.2 --diag 60 s, tee'd.
+- 3820: CLAIMED 2026-09-03 - PREREG_52_REFLECTION step 4 WatchVrf-5.2 --diag --no-wait-ext, tee'd.
+
+*** NEXT FREE: 3821 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
