@@ -1844,12 +1844,16 @@ join) are BURNED, not recycled. The run manifest records which were actually use
 - 3812: CLAIMED 2026-09-03 - tools/WatchVrf Release-5.2 re-observation after the facade 5.2 path
   switched to the BASE init(DtExerciseConn*) (DtRemoteObjectManager wiring; X3 hypothesis).
 
-- 3813: CLAIMED 2026-09-03 - vrlink5.10 listenHLA1516e_64 RAW observer vs MAK-ONE-2025
-  (does the 5.2 sim publish RPR entities at all? PREREG_52_TOOLJOIN sec 6 discrimination).
+- 3813: CONSUMED 2026-09-03 - vrlink5.10 listenHLA1516e_64 raw observer, --exConnConfigFile
+  MAK-ONE-2025 config, assistant-free env. OUTCOME UNKNOWN: the capture (runs/launch52/
+  listen_3813.txt) shows RTI init + [0,0] only, no federation/join line - an INVALID control
+  (COLDSTART_REVIEW_2026-09-03 F2/R5). Never reuse.
 
-- 3814: CLAIMED 2026-09-03 - vrlink5.10 netdumpHLA1516e_64 RAW class dump vs MAK-ONE-2025
-  (which object CLASS does a create publish - RPR vs NETN vs nothing).
-- 3815: CLAIMED 2026-09-03 - tools/CreateOne Release-5.2 second create, observed by netdump 3814.
+- 3814: BURNED 2026-09-03 - netdumpHLA1516e_64 REJECTED --exConnConfigFile (PARSE ERROR, runs/
+  launch52/netdump_3814.txt); it never joined anything. Never reuse.
+- 3815: CONSUMED 2026-09-03 - tools/CreateOne Release-5.2 second create: ObjectCreated
+  NETDUMPTEST entityId 1:3805:12 (console only - NO file capture; evidence-discipline defect,
+  COLDSTART_REVIEW F1). NOT observed by anything.
 
 *** NEXT FREE: 3816 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)

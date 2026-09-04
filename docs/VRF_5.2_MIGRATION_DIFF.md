@@ -109,27 +109,20 @@ VRFExt-9/VRFAggregate-6; the shipped config carries VRFExt-12/VRFAggregate-7).
 
 ## H. Phase 1 compile record (2026-09-03) - what is proven, what is not
 - Build axis VRF_API_52 (VrfBridge.vcxproj configs Release | Release-5.2 | Release-5.2-HLA4,
-  toolset v145, OutDir build\<Configuration>\); app: `dotnet build src\VrfC2SimApp -c Release
-  -p:BridgeConfig=Release-5.2` -> bin\Release-5.2\. 0 compile errors on all three; the ONE
-  predicted break (A8) never fired because the 5.2d sample compiles as its own TU
-  (remoteControlInit52.{h,cxx}, verbatim copy). Start(): 3-arg initializer with the config
-  file resolved as the sample does (A9; override = Vrf:ConnectionConfigFile), --execName/
-  --fedFileName only when non-empty, -a/-s kept; setMonitorBackendState(true); Tick() no
-  longer calls setSimTime (A10). KEPT vs sample, deliberately: disableRemoteDiscovery=true and
-  drainInput() (sample: false, none) - a golden-trace variable if the join misbehaves.
-- UNPREDICTED, new facts: (1) v143 gone -> v145 (CLOSED list). (2) PATH name-binding trap:
-  MAK DLLs resolve by NAME and the system PATH lists the 5.0.2 stack first - a 5.2 process
-  dies with FileLoadException unless PATH is prefixed per process with vrforces5.2d\bin64;
-  vrlink5.10\bin64;makRti4.6.1\bin. Tripwire: VrfBridge.NativeStackInfo() ("<ver>|<loaded
-  vrfcontrol.dll path>"), logged after Start(), goes in the runner manifest. (3) 5.2d init()
-  aerodrome param (B1): no break, as predicted.
-- Offline gates: 8/8 C# self-tests pass on both apps (each under its own PATH). Type map:
-  sec F CONFIRMED (2182/2190 5.2d simObjects 7-field; 5.0.2 superType 3 <=> kind 11, resolver
-  re-derives it). Y-8: data/unit-type-map-52.json re-points the five AR Scout rows to
-  Mechanized Platoon/Company (USA Army M2) (PROXY - 5.2d has NO USA scout unit; the Armored
-  Cavalry .entity files are Country-0 abstracts). --typemap-selftest picks the table by
-  catalog root; 783/784 checks; the 5.2 table FAILS 5 rows on the 5.0.2 catalog (negative
-  control - the instrument discriminates).
+  v145, OutDir build\<Configuration>\); app `dotnet build src\VrfC2SimApp -c Release
+  -p:BridgeConfig=Release-5.2` -> bin\Release-5.2\. 0 errors on all three; the ONE predicted
+  break (A8) never fired (remoteControlInit52.{h,cxx} = the 5.2d sample as its own TU).
+  Start(): 3-arg initializer + config file as the sample (A9), --execName/--fedFileName only
+  when non-empty, setMonitorBackendState(true), no setSimTime (A10); drainInput() kept.
+- UNPREDICTED: (1) v143 gone -> v145 (CLOSED list). (2) PATH name-binding trap: MAK DLLs
+  resolve by NAME on PATH - a 5.2 process dies with FileLoadException unless PATH is prefixed
+  per process (vrforces5.2d\bin64;vrlink5.10\bin64;makRti4.6.1\bin); tripwire = VrfBridge.
+  NativeStackInfo() logged after Start(), manifested. (3) aerodrome init param (B1): no break.
+- Offline gates: 8/8 C# self-tests on both apps (own PATH each). Type map: sec F CONFIRMED
+  (2182/2190 5.2d simObjects 7-field). Y-8: data/unit-type-map-52.json re-points the five AR
+  Scout rows to Mechanized Platoon/Company (USA Army M2) (PROXY - 5.2d has NO USA scout unit).
+  --typemap-selftest picks the table by catalog root; 783/784 checks; the 5.2 table FAILS 5
+  rows on the 5.0.2 catalog (negative control - the instrument discriminates).
 - 2026-09-03 pm (PREREG_52_LAUNCH_2026-09-03.md): first 5.2 LAUNCH + JOIN proven - log
   "Joined federation MAK-ONE-2025 ... VR-Forces Sim Engine 5.2d"; healthy back-end = 36
   threads (new baseline). Path: scripts/LaunchVrf52.ps1, UG52 4.1.2 INDEPENDENT mode (every
@@ -138,13 +131,20 @@ VRFExt-9/VRFAggregate-6; the shipped config carries VRFExt-12/VRFAggregate-7).
   6003 that version-rejects EVERY 4.6.1 LRC (both stacks; A12). Fix (RTI Ref Manual 5.2.10):
   per-process RTI_ASSISTANT_DISABLE + repo rid config/rid-461-ridconfigured.mtl - no
   assistant, no boot dialog, headless. Prototype zero NOT automatable (keyboard-only stdin).
-- TOOL JOIN GATE PASSED 2026-09-03 pm (PREREG_52_TOOLJOIN): tools carry BridgeConfig +
-  tools/Shared/StackIdentity.cs (5.2 = config-file identity); RtiProbe-5.2 joins, CreateOne-5.2
-  discovers the backend (0.1 s) and CREATES entities on the sim (entityId 1:<simApp>:N),
-  RunSim-5.2 starts the clock. Facade 5.2 path now calls the BASE init(DtExerciseConn*, ...,
-  disableRemoteDiscovery=false) as the sample does (A10 addendum). OPEN: observation channel -
-  WatchVrf-5.2 AND vendor listenHLA1516e_64 see reflected=0 while rtiSimple peers reflect on
-  the same connection; Phase 2 re-baseline item, own prereg. NOT proven: HLA 4, behaviour.
+- TOOL GATE 2026-09-03 pm, RELABELLED by COLDSTART_REVIEW_2026-09-03 R5: CONTROL CHANNEL
+  PASSED (RtiProbe-5.2 joins; CreateOne-5.2 BackendCount=1 in 0.1 s + ObjectCreated entityId
+  1:<simApp>:N; RunSim-5.2 runs) - prose-only, no file captures; OBSERVATION CHANNEL FAILED
+  (WatchVrf-5.2 reflected=0 x4; the vendor-listen control was INVALID; the 5.2 sim log has NO
+  creation lines, so entity existence is UNVERIFIED). Facade 5.2 path calls the BASE
+  init(DtExerciseConn*, ..., false) for SAMPLE PARITY only - it did NOT change reflected=0
+  (sec H "kept true" above is superseded). Lead hypothesis (RESEARCH_52_OBSERVER_DISCOVERY):
+  our counter hooks UUID-change callbacks while DtReflectedExtEntityList withholds entities
+  under waitForVrfExtendedData; second: silent UNLICENSED mode (A13 DtHaveRtiLicense is now a
+  GATE). Env DRIFT 2026-09-03: Machine PATH now leads with makRti5.0.1\bin - 5.0.2 launches
+  without a per-process prefix bind the wrong RTI; the 5.0.2 regression control is BLOCKED.
+  Restored facts: the 5.0.2 Release bridge was rebuilt v145 (which copy is deployed is open);
+  --sessionId must equal the sim engine's; 5.b prototype zero is DEMOTED (piped stdin ignored;
+  ConPTY untested) - sec G/COLD_START_MAP "ADOPT" is superseded. NOT proven: HLA 4, behaviour.
 
 ## G. Decisions ledger (canonical IDs; a reply that uses other numbers is wrong)
 Evidence: docs/VRF_5.2_DECISION_EVIDENCE.md. Rulings dated 2026-09-03 unless noted.

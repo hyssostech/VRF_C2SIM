@@ -74,13 +74,31 @@ peers reflect to each other on this connection. This is an INSTRUMENT-REBASELINE
 task (plan Phase 2: "re-baseline WatchVrf on the new build"), not a join-gate
 failure - the join gate is PASSED. It gets its own prereg with fresh eyes.
 
-Adversarial review: the join-gate claim's strongest competing hypothesis - "exit 0
-but not actually in the sim's federation" - is falsified by CreateOne discovering
-THE SIM's backend (BackendCount=1) and the sim stamping the created entity with its
-own site:app (1:3805). The reflected=0 symptom is NOT swept under that claim: it is
-called out as an unexplained, separately-tracked observation-channel defect, not a
-footnote. Ruled out for reflected=0 so far: paused clock (3810 post-RunSim),
-disableRemoteDiscovery flag (3811), the derived-init-not-creating-the-object-manager
-hypothesis (3812 base init, still 0). NOT yet explained - the live falsifier for the
-next prereg: whether the vrfGui front-end (already joined, same federation) DOES see
-the entities on screen (control-only vs network-reflection discrimination).
+RELABELLED after the cold-start review (COLDSTART_REVIEW_2026-09-03.md R5/F1-F3):
+CONTROL CHANNEL PASSED; OBSERVATION CHANNEL FAILED; ENTITY EXISTENCE UNVERIFIED.
+- The "vendor observer also blind" leg is WITHDRAWN as evidence: listen_3813.txt has no
+  federation/join line (it accepted --exConnConfigFile per its own -h text, but whether
+  it joined MAK-ONE-2025 is unproven); netdump_3814 was a PARSE ERROR (never joined).
+- Assistant pid 54616 (5.0.1, -K, non-elevated) was spawned at 19:45:48 by the
+  supervisor's OWN stray `rtiSimple1516e_64 --help` run from a shell WITHOUT the env
+  (its capture reads "Attempt to create and connect to Assistant ... shutdown
+  message"); listen 3813 ran afterwards WITH the env (its capture loads the repo rid).
+- Sim log 3805 carries NO creation line for ORACLETEST/NETDUMPTEST at notify 3: the
+  5.0.2 "Locally Simulated" creation-line oracle is silent on 5.2 too. So the only
+  evidence the entities exist is the controller's ObjectCreated echo (entityId
+  1:3805:N). Competing hypothesis kept OPEN: the entities never existed on the sim.
+- Evidence-discipline defect: 3803/3804/3807/3809/3815 have NO file capture (console
+  only). From now on every live tool run tees to runs/launch52/<tool>_<appNo>.txt.
+- Falsified for reflected=0: paused clock (3810), disableRemoteDiscovery flag (3811),
+  derived-vs-base init (3812). NOT falsified, now ranked first (RESEARCH_52_OBSERVER_
+  DISCOVERY): our counter hooks UUID-CHANGE callbacks only, while 5.2's
+  DtReflectedExtEntityList withholds entities under waitForVrfExtendedData=true; also
+  unverified licensing (assistant-free mode hides the License Not Found dialog; RTI UG
+  8.2/8.3: unlicensed = 2-federate cap and no exchange with licensed peers).
+Adversarial review: the control-channel claim's strongest competitor - "exit 0 but a
+parallel federation" - is countered by BackendCount=1 (the sim's vrfExt backend-state
+interactions reach the tool; interactions do not cross federation executions) - but
+that observation is prose-only (no capture), so it stays ASSUMED until re-run with
+tee. Next prereg gates: (1) WatchVrf --diag ReflectedCounts + HaveRtiLicense at join;
+(2) --no-wait-ext as the single variable; (3) the user's answer on whether vrfGui
+showed the two entities; (4) listen re-run capturing its join line.

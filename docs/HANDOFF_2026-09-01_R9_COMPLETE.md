@@ -120,10 +120,9 @@ it). Firewall: do NOT set NotifyOnListen False (user ruling); Cancel the testhos
 license expires 2026-09-15. THE VENDOR LOG'S WALL STAMPS ARE LOCAL (-04:00), NOT UTC (ours UTC).
 
 ## NEXT (in order)
-DONE 2026-09-02 pm, three probes (READ THE PREREG SEC 7s, NOT THIS SUMMARY): merged-build
-control GATE PASSED (3759-3765, zero-hunk log diff); `-q` at scale STOPPED on its own miss
-rule (3767-3773; -q does NOT suppress vrfSim.log, console ~18%); type-mapping live gate
-PASSES / run formally invalid (3775-3781; 6/6 map names, 3/3 TASKCMPLT).
+DONE 2026-09-02 pm, three probes (READ THE PREREG SEC 7s): merged-build control GATE PASSED
+(3759-3765, zero-hunk diff); `-q` at scale STOPPED on its miss rule (3767-3773; -q does NOT
+suppress vrfSim.log); type-mapping live gate PASSES / run invalid (3775-3781; 6/6, 3/3).
 1. **TANK-COMPANY NON-DISTRIBUTION - PAIR ADJUDICATED (supervisor, PREREG_COASTP1_QPAIR sec 9):**
    `-q` FALSIFIED as the cause (clause (a): A-1, no `-q`, B/5-20 at 0 sub-routes / 0.37 km);
    NON-DETERMINISM SUPPORTED (A-1 vs A-2, identical invocations, B/5-20 0 vs 4 sub-routes);
@@ -161,25 +160,26 @@ Phase 0 DONE 2026-09-02 + evidence pass 2026-09-03: docs/VRF_5.2_MIGRATION_DIFF.
 cited, C# re-verify list F, PHASE 1 RECORD sec H, sec G = the CANONICAL decision ledger, ALL
 RULED Y-1..Y-16; full ruling texts in docs/VRF_5.2_DECISION_EVIDENCE.md). Cold-start check:
 docs/VRF_5.2_COLD_START_MAP.md; STP vocabulary docs/STP_TASK_VOCABULARY_2026-09-03.md. PHASE 1 COMPILE DONE 2026-09-03 (sec H): VrfBridge configs Release (5.0.2) | Release-5.2 |
-Release-5.2-HLA4, 0 errors, toolset v145 (v143 GONE from the machine); app
-`dotnet build src\VrfC2SimApp -c Release -p:BridgeConfig=Release-5.2` -> bin\Release-5.2\;
-8/8 offline self-tests on both stacks; 7-field type fix CONFIRMED as predicted; 5.2 type table =
-data/unit-type-map-52.json (AR Scout -> Mechanized Platoon/Company (USA Army M2), PROXY, Y-8).
+Release-5.2-HLA4, 0 errors, v145 (v143 GONE); app `dotnet build src\VrfC2SimApp -c Release
+-p:BridgeConfig=Release-5.2` -> bin\Release-5.2\; 8/8 offline self-tests on both stacks; 7-field
+type fix CONFIRMED; 5.2 type table data/unit-type-map-52.json (AR Scout PROXY, Y-8).
 TRAP: a 5.2 process needs the 5.2 PATH prefix (name-bound MAK DLLs; NativeStackInfo() logs
 which stack bound). FIRST 5.2 LAUNCH+JOIN PROVEN 2026-09-03 pm (PREREG_52_LAUNCH_2026-09-03.md):
 scripts/LaunchVrf52.ps1 (independent mode; LaunchVrf.ps1 is INVALID on 5.2) -> "Joined
 federation MAK-ONE-2025", healthy back-end 36 threads. Blocker fixed: the installer's ELEVATED
 5.0.1 rtiAssistant on 6003 version-rejects EVERY 4.6.1 LRC (5.0.2 runs ALSO blocked); fix =
 per-process RTI_ASSISTANT_DISABLE + config/rid-461-ridconfigured.mtl (assistant-free,
-dialog-free; DIFF A12/H). Prototype zero NOT automatable. TOOL JOIN GATE PASSED 2026-09-03 pm
-(PREREG_52_TOOLJOIN_2026-09-03.md): tools carry BridgeConfig + tools/Shared/StackIdentity.cs
-(5.2 = config-file join, MAK-ONE-2025); RtiProbe-5.2 exit 0; CreateOne-5.2 discovers the
-backend in 0.1 s and CREATES entities (entityId 1:<simApp>:N); RunSim-5.2 starts the clock.
-OPEN - OBSERVATION CHANNEL: WatchVrf-5.2 reflected=0 (4 runs) AND vendor listenHLA1516e_64
-see no entities while rtiSimple peers reflect on the same connection; ruled out paused clock,
-discovery flag, derived-vs-base init (5.2 path now = BASE init, sample-identical). Phase 2
-"re-baseline WatchVrf" task, own prereg; first falsifier = does vrfGui show the entities.
-NEXT = that prereg, then the runner 5.2 profile, then PREREG_R9_52.
+dialog-free; DIFF A12/H). Prototype zero NOT automatable by pipe (ConPTY untested). TOOL GATE
+2026-09-03 pm (PREREG_52_TOOLJOIN sec 6, RELABELLED by COLDSTART_REVIEW_2026-09-03): CONTROL
+CHANNEL PASSED (RtiProbe/CreateOne/RunSim-5.2 join, BackendCount=1, ObjectCreated entityId
+1:<simApp>:N - prose-only, no captures); OBSERVATION CHANNEL FAILED (WatchVrf-5.2 reflected=0
+x4; the vendor-listen control was INVALID; sim log has no creation lines - entity existence
+UNVERIFIED). Lead hypothesis: UUID-change-callback counter vs waitForVrfExtendedData (RESEARCH_
+52_OBSERVER_DISCOVERY); second: silent UNLICENSED mode - A13 DtHaveRtiLicense is now a GATE.
+ENV DRIFT: Machine PATH now leads with makRti5.0.1\bin (who changed it = user question);
+5.0.2 launches need the same per-process overrides - regression control BLOCKED until then.
+NEXT = reflection prereg (WatchVrf --diag counts + licence; --no-wait-ext single variable;
+tee every run), then the runner 5.2 profile, then PREREG_R9_52.
 ## PROBE PROTOCOL (adopted 2026-09-01/02; do NOT change mid-protocol)
 FFRTC mode per the block above; TimeMultiplier 1x; -RunSecs is a CAP under -StopWhenComplete.
 SHORT-ROUTE probe variants are allowed (platoon/entity legs ~200 m) but COMPANY probe routes stay
