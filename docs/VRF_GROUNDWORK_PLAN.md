@@ -30,9 +30,12 @@ work lands.
      fully-closed class". BOTH HALVES ARE FALSIFIED. The 10000 m fix was ALREADY ACTIVE in
      the three 2026-07-19 scored runs and the units froze anyway; in the discriminator test
      three taskees at the SAME birth altitude split into one mover and two bit-exact freezes.
-     BIRTH ALTITUDE IS NOT THE FREEZE DISCRIMINATOR and this is NOT a closed class. The open
-     surfaces are ROUTE/WAYPOINT altitude (not birth altitude) and the never-opened model-set
-     defaults. Record: docs/CORRECTIONS_LOG.md "Birth altitude / the underground-birth freeze
+     BIRTH ALTITUDE IS NOT THE FREEZE DISCRIMINATOR and burial-cured is not freeze-cured.
+     (A first version added "the open surfaces are ROUTE/WAYPOINT altitude and the never-opened
+     model-set defaults" - WITHDRAWN 2026-09-04: copied from the 2026-07-21 log; WAYPOINT altitude
+     is itself FALSIFIED and the freeze question is CLOSED - route-by-NAME addressing, fixed
+     726f762, all nine march at scale. See the CLOSED list in HANDOFF_2026-09-01_R9_COMPLETE.md.)
+     Record: docs/CORRECTIONS_LOG.md "Birth altitude / the underground-birth freeze
      hypothesis". The claim survived here because this file - the plan of record - carried no
      pointer to its own refutation; a 2026-09-04 session re-derived the refuted link from a
      code comment that repeated it. ***

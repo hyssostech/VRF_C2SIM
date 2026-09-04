@@ -46,8 +46,12 @@ using VrfC2Sim.Tools;
 // FALSIFIED (docs/CORRECTIONS_LOG.md "Birth altitude"): the 10000 m fix was ALREADY ACTIVE
 // in the three 2026-07-19 scored runs and the units froze anyway, and in the discriminator
 // test three taskees at the SAME birth altitude split into one mover and two bit-exact
-// freezes. Birth altitude is NOT the freeze discriminator; the open surfaces are
-// ROUTE/WAYPOINT altitude and the model-set defaults. This comment used to assert the
+// freezes. Birth altitude is NOT the freeze discriminator.
+// (A first version of this note continued "the open surfaces are ROUTE/WAYPOINT altitude and
+// the model-set defaults" - WITHDRAWN 2026-09-04: copied from the 2026-07-21 corrections log,
+// but WAYPOINT altitude is itself FALSIFIED and the freeze question is CLOSED - route-by-NAME
+// addressing, fixed 726f762. See the CLOSED list in HANDOFF_2026-09-01_R9_COMPLETE.md.)
+// This comment used to assert the
 // refuted link and a 2026-09-04 session read it here and repeated it in a prereg - which is
 // why the warning is now louder than the default it explains.
 //

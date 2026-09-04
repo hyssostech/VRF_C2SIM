@@ -68,8 +68,14 @@ Three locations are in play:
 > (docs/CORRECTIONS_LOG.md "Birth altitude"). Burial is real; the freeze link is not. The
 > paragraph is kept verbatim below ONLY as the historical record of what was believed - do not
 > act on it, do not cite it. Canonical altitude behaviour, header-cited:
-> docs/VRF_ALTITUDE_FRAMES.md. What is still genuinely open: what makes a tasked,
-> surface-clamped ground unit execute vs ignore its MoveAlongRoute. ***
+> docs/VRF_ALTITUDE_FRAMES.md.
+> (A first version of this banner added "what is still genuinely open: what makes a tasked,
+> surface-clamped ground unit execute vs ignore its MoveAlongRoute". WITHDRAWN 2026-09-04 - that
+> sentence was copied from the 2026-07-21 corrections log and the question has since been CLOSED:
+> the cause was OUR route-by-NAME addressing, fixed 726f762, live-verified on R9 and at scale with
+> all nine performers marching. See the CLOSED - DO NOT REOPEN list at the top of
+> HANDOFF_2026-09-01_R9_COMPLETE.md. A retraction pass re-opened a settled question; that is the
+> same defect it was written to cure.) ***
 >
 > **BREAKTHROUGH (2026-07-16 evening) [FALSIFIED - see the retraction above]: THE ENTITY-FREEZE
 > ROOT CAUSE IS FOUND, LIVE-VERIFIED,

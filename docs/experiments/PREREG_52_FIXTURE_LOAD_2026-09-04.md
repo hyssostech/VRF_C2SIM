@@ -71,14 +71,24 @@ byte-identical after the copy (ED65C351...3A68). Nothing else under C:\MAK was w
 P1 HELD - the sim launched READY FIRST TRY (pid 83912, 12 threads, floor 8) and joined:
 "Joined federation MAK-ONE-2025 with federate type VR-Forces Sim Engine 5.2d". NO CRASH,
 consistent with the amendment's tightened expectation now that --logFileName is not passed.
-  CARE POINT, recorded because it nearly read as a falsifier: the vendor log NEVER prints a
-  "Successfully loaded scenario" line and names the fixture ONLY in the echoed command line;
-  what it prints is "Creating new scenario on terrain ...MAK Earth (online).mtf". That is not
-  evidence of an empty default start. DISCRIMINATOR: vrfSim.mtl sets
-  (setqb defaultTerrainDatabasePath "") - a scenario-less 5.2 start has NO terrain - yet this
-  run loaded the exact terrain our .scn names, resolved through SHARED_DATA_DIR, with 218
-  elevation extents and max_lod 15. The terrain could only have come from the fixture.
-  P3's clamp (below) is the second, independent confirmation.
+  *** CARE POINT WITHDRAWN 2026-09-04 - IT WAS FACTUALLY FALSE (adversarial audit). It read:
+  "the vendor log NEVER prints a 'Successfully loaded scenario' line and names the fixture ONLY
+  in the echoed command line". BOTH HALVES WRONG. The LIVE vendor log prints
+  `Successfully loaded scenario.` at line 6414. What I read was the HARVESTED COPY, which stops
+  at 5,294 lines against the live file's 6,837 - LaunchVrf52 harvested at thread-count READY,
+  which fires BEFORE the load completes, and the launcher's own output said "SNAPSHOT ONLY".
+  I built a discriminator on the ABSENCE OF A LINE IN A TRUNCATED FILE. Second error in the same
+  paragraph's follow-up: sec 4 claimed no Traffic-load control survived for comparison - FIVE
+  did, in this repo's own runs/launch52/ (vrfSim_3851/3852/3854/3858/3864), each containing the
+  load line. FIXED IN THE TOOL, not just here: LaunchVrf52 now waits for the vendor's load line
+  before harvesting (-ScenarioLoadTimeoutSec, default 180 s) and WARNS when it cannot find it,
+  so a truncated copy can no longer be mistaken for a silent product. ***
+  THE CONCLUSION SURVIVES, on evidence that does not depend on the absent line: (a) the load
+  line itself, now read from the live log; (b) vrfSim.mtl `(setqb defaultTerrainDatabasePath "")`
+  - correct path appData\settings\vrfSim\vrfSim.mtl:269, NOT the data/simulationModelSets path
+  cited earlier - so a scenario-less start has NO terrain, yet this run loaded the exact terrain
+  our .scn names; (c) the negative control I should have used: the same morning's Traffic runs
+  load `Ala Moana.mtf`, so terrain provably tracks the scenario file; (d) P3's clamp below.
 P2 HELD - MAK Earth (online) paged in well inside the 120 s cap; navData for that terrain
 found; no tile errors. Unrelated noise present and NOT a miss: missing DIGuy/vegetation
 model data under SharedData\19 and a Nahimic-service warning.
@@ -96,14 +106,16 @@ the discriminating control, so the pair is ready for that baseline.
 ROUTE DECIDED: R1 (the authored empty fixture) LOADS HEADLESS. The R2 fallback (-T terrain,
 no -L), which would have cost the frame lever, is NOT needed.
 
-Adversarial review: the strongest competing account was "the sim ignored our file and built a
-default scenario, and the terrain is a coincidence" - which the missing load line and the
-"Creating NEW scenario" phrasing actively suggest. Falsified by the empty
-defaultTerrainDatabasePath (no scenario => no terrain) plus the clamp landing on real
-elevation at the requested AOI. Not independently checked: whether a 5.2 sim prints a load
-line at all at notifyLevel 3 - no surviving Traffic-load log was available to compare against,
-so the "no load line is normal" reading is INFERRED, not verified. Cheapest way to close it if
-it ever matters: one scenario-less launch, which should show NO terrain load at all.
+Adversarial review (SUPERSEDED BY THE AUDIT ABOVE - kept to show how the error was reasoned):
+the competing account weighed was "the sim ignored our file and built a default scenario, and
+the terrain is a coincidence", falsified by the empty defaultTerrainDatabasePath plus the clamp
+landing on real elevation. That reasoning was sound but rested on a premise I never checked -
+that no load line exists and that no control log survived. Both were false and BOTH WERE
+CHEAP TO CHECK: one grep of the live log, one `ls` of our own runs directory. The review
+correctly labelled the reading "INFERRED, not verified" and then proceeded on it anyway.
+LESSON: labelling an assumption does not discharge it. When the whole argument turns on the
+ABSENCE of something, go and look for it in the primary artifact before reasoning around it -
+and never read absence from a file a tool told you was a partial snapshot.
 UNRELATED CORRECTION made during this run, at user challenge: amendment 2 originally justified
 the altitude choice with the FALSIFIED "low-MSL create freezes entities" claim. See that
 amendment; the code comment and plan-of-record that carried the refuted link are now fixed.

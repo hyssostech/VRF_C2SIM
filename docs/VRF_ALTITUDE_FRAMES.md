@@ -5,6 +5,17 @@ having to redirect something that have been solved"). Every claim below carries 
 DOC citation, or is marked VERIFIED BY RUN with the run id, or is marked OPEN. Nothing here
 rests on inference from observed behaviour alone - that is precisely what rotted.
 
+## UNITS - READ THIS BEFORE QUOTING ANY NUMBER IN THIS FILE
+Every altitude this project reports as "m MSL" is in fact **height above the WGS-84 ELLIPSOID**.
+`VrfFacade.cpp` reads position via `DtGeodeticCoord::setGeocentric()` then `geod.alt()`, and
+`matrix/geodeticCoord.h` returns the raw third component unless a geoid datum is set;
+`matrix/geoidDatum.h` says the default is `DtNoGeoid`, and nothing in src/, tools/, config/ or
+the 5.2d configs ever sets one. So "-0.0 m MSL" means THE ELLIPSOID SURFACE, not sea level, and
+the geoid separation at the Mojave AOI (roughly -32 m) is absent from every figure here.
+Found 2026-09-04 by adversarial audit; the mislabelling is repo-wide and NOT yet corrected at
+every site. It is also material to the OPEN question in sec 2: a below-terrain create landing on
+the ELLIPSOID is a far more specific clue than "snapped to zero".
+
 ## THE ONE-PARAGRAPH ANSWER
 VR-Forces has TWO altitude frames, MSL and above-terrain, and it exposes them
 **unevenly**: an ENTITY's altitude can be set directly in AGL through the remote API, but a
@@ -29,15 +40,25 @@ virtual void setAltitude(const DtUUID& uuid, double altitude,
   `setAltitude(DtUUID(uuid), altitudeMeters, TRUE)`. The capability has been wired the whole
   time. On the normal path it never fires, because the app SKIPS the deferred SetAltitude
   whenever it used the safe-high create (`VrfC2SimService.cs`, "SKIP the deferred SetAltitude").
-- **VERIFIED END TO END 2026-09-04** (PREREG_CLAMP_DIRECTION sec 8a; `tools/SetAlt`, appNos
-  3913/3914, scored by an INDEPENDENT observer, not by the tool that issued the change): an
-  entity sitting BURIED at -0.0 m under ~1150 m of terrain was lifted ONTO THE SURFACE
-  (1149.8 m) by one AGL call, while an untouched control held 1149.8 m in the same capture.
-  That is the direction the create clamp cannot go. Before that run no tool in this repo had
-  ever called SetAltitude - the capability was documented, wired, and never exercised.
-  Recorded honestly: 2 m AGL on a TANK settles at the surface, not 2 m above it, because
-  VR-Forces holds ground vehicles on the surface continuously. Whether AGL preserves a
-  non-zero offset for an entity that can leave the ground is UNTESTED.
+- **EXERCISED ONCE 2026-09-04, UNCONTROLLED** (PREREG_CLAMP_DIRECTION sec 8a; `tools/SetAlt`,
+  appNos 3913/3914, scored by an INDEPENDENT observer, not by the tool that issued the change):
+  an entity sitting BURIED at -0.0 m under ~1150 m of terrain read 1149.8 m - ON THE SURFACE -
+  after one AGL call, while an untouched control held 1149.8 m in the same capture. Before that
+  run no tool in this repo had ever called SetAltitude: documented, wired since July, never
+  exercised. The wire path IS verified (SetAlt -> VrfBridge.cpp:353 -> VrfFacade.cpp:739 ->
+  vrfRemoteController.h:1372) and the AGL semantics are vendor-stated (help
+  DataRequests/EntityLevel/vrf_sets_setAltitude.htm, a SIMULATION request).
+  *** "VERIFIED END TO END" WITHDRAWN 2026-09-04 by adversarial audit - the experiment does not
+  exclude its alternatives: 29 minutes passed unobserved between the two captures; the control
+  was ALREADY on the surface so a global re-clamp or terrain re-page would leave it unchanged
+  and look identical; and no capture of the SetAlt run itself was retained. To VERIFY: two
+  buried entities, set ONE, capture the tool output, and sample within ~1 s. ***
+  Also withdrawn: "2 m AGL on a TANK settles at the surface BECAUSE VR-Forces holds ground
+  vehicles on the surface continuously" - NO VENDOR SOURCE SAYS THAT. The Glossary defines
+  ground clamping as a 3D VISUALIZATION behaviour, and the sim-side note in CORRECTIONS_LOG
+  covers MOVING vehicles, which this stationary one was not. An untested competing mechanism
+  fits equally: the entity was placed at terrain+2 m and FELL 2 m under ground contact long
+  before it was observed. Whether AGL preserves a non-zero offset is UNTESTED either way.
 
 ## 2. CREATE-time clamp - REAL, but ONE-DIRECTIONAL
 `vrfmsgs/ifCreateVrfObject.h:210-214` - "If True (the default) the object will be created and
@@ -95,12 +116,16 @@ project at least twice after being falsified.
 no longer born underground. That outcome stands and is not retracted anywhere in this file.
 What was falsified is only the claim that burial explained the FREEZES (sec 5).
 
-**BUT THE MECHANISM IS THE WRONG FRAME, AND SAYING OTHERWISE IS THE ROT.** The approach is
-sec 1: set the altitude ABOVE GROUND LEVEL and the simulator finds the ground. Birthing a unit
-at 10000 m MSL so gravity-by-clamp drops it onto the surface is compensation for having picked
-an MSL frame when an above-terrain frame was available and already wired. It is to be RETIRED,
-not defended. (Sequencing: the AGL path must be exercised once first - no tool had ever called
-SetAltitude - and route vertices are unaffected either way, sec 3.)
+**THE MECHANISM IS THE WRONG FRAME.** The approach is sec 1: set the altitude ABOVE GROUND LEVEL
+and the simulator finds the ground. Birthing a unit at 10000 m so gravity-by-clamp drops it onto
+the surface is compensation for having picked an MSL frame when an above-terrain frame was
+available and already wired. THE FRAME ARGUMENT IS A DESIGN ARGUMENT AND RESTS ON THE HEADERS AND
+THE VENDOR DOCS (sec 1), NOT ON THE ONE-ENTITY PROBE - keep them apart, per Q3 below. What the
+probe showed is narrow: one buried stationary M1A2 read on-surface after one AGL call, once,
+uncontrolled. It does not establish that retiring the create path is SAFE for every unit: the
+AGL create path has never run through the app, air/sea units are out of scope, and aggregates
+are untested. Retirement therefore needs its own prereg and confirming run (HANDOFF NEXT 6b) -
+that is not hedging, it is the difference between the direction and the change.
 *** A first version of this section said `CreateAltitudeSafeMslMeters` "WORKS and STAYS" and
 called AGL merely "tidier". WITHDRAWN - see Q3. ***
 

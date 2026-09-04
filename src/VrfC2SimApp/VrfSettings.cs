@@ -223,9 +223,14 @@ public class VrfSettings
     // 100 m MSL (a sea-level assumption that works where terrain < 100 m, e.g. Sweden) and ground
     // units are created at their plan altitude (ElevationAgl MSL) with the deferred SetAltitude -
     // byte-for-byte today's path (the golden-parity escape hatch). At a high-elevation region
-    // (Mojave terrain ~1100 m) a 100 m waypoint sits ~1000 m UNDERGROUND, so the aggregate member
-    // offset-route GROUND CLAMP (which entity move-along tolerates but the disaggregated move-along
-    // controller does not - Thread A: closestIntersection/dataAvailable) yields EMPTY offset routes.
+    // (Mojave terrain ~1100 m) a 100 m waypoint sits ~1000 m UNDERGROUND.
+    //   *** THE MECHANISM THAT USED TO FOLLOW HERE IS ALSO REFUTED (removed 2026-09-04, caught by
+    //   an adversarial audit that found the 2026-09-04 retraction had deleted only half of it):
+    //   "so the aggregate member offset-route GROUND CLAMP ... yields EMPTY offset routes". The
+    //   EMPTY offset routes were TYPE MAPPING - no member set for buildOffsetRoute to build routes
+    //   for (CORRECTIONS_LOG "empty offset routes") - and the R9 freeze was route-by-NAME
+    //   addressing (fixed 726f762). Waypoint altitude is FALSIFIED as a freeze cause; do not
+    //   restore a below-terrain-waypoint causal chain here. ***
     //   *** CORRECTED 2026-09-04: a clause here used to add "and the unit freezes; and a ground
     //   unit BORN below terrain never executes movement at all". BOTH ARE FALSIFIED. Birth
     //   altitude is NOT the freeze discriminator (the 10000 m fix was already active in the

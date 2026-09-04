@@ -171,6 +171,12 @@ param(
     [string] $RidFile            = '',
     [switch] $UseRtiAssistant,
     [int]    $ReadyTimeoutSec    = 120,
+    # How long to wait, AFTER thread-count READY and only when -Scenario was given, for the
+    # vendor's own "Successfully loaded scenario" line before harvesting its log. READY fires
+    # before load completes, so harvesting at READY truncates the copy mid-load - which once cost
+    # a false finding (see the SCENARIO-LOAD GATE comment at the harvest call). 0 disables the
+    # wait and restores the old harvest-at-READY behaviour.
+    [int]    $ScenarioLoadTimeoutSec = 180,
     [int]    $PollIntervalSec    = 3,
     [int]    $BackendMinThreads  = 8,
     [switch] $IgnoreUnansweredRtiAssistant,
@@ -739,6 +745,30 @@ if ($needFront) {
 # READY back-end is exactly when its log matters most. The crash path harvested already,
 # before closing the corpse, so it is not repeated here.
 if (-not $simCrash.Crashed) {
+    # SCENARIO-LOAD GATE, added 2026-09-04 after an adversarial audit. READY is THREAD-COUNT
+    # readiness and fires BEFORE the scenario finishes loading, so harvesting there truncates the
+    # log mid-load. That is not hypothetical: the 3908 fixture harvest stopped at 5,294 lines
+    # while the live file reached 6,837, and the missing tail contained the very line the run was
+    # trying to observe - "Successfully loaded scenario." at :6414. A session then concluded from
+    # the truncated copy that 5.2 "never prints a load line" and built a discriminator around the
+    # absence (PREREG_52_FIXTURE_LOAD sec 4, corrected). When a scenario was requested, wait for
+    # the vendor's own load line before harvesting, so the copy contains the outcome.
+    if ($backendHealthy -and $ScenarioLoadTimeoutSec -gt 0 -and -not [string]::IsNullOrWhiteSpace($Scenario)) {
+        $liveLog = Get-VendorSimLogForPid -ProcessId $simProc.Id -LogDir $MakLogDir -Since $simStartFloor
+        if ($liveLog) {
+            $loadDeadline = (Get-Date).AddSeconds($ScenarioLoadTimeoutSec)
+            $loaded = $false
+            while ((Get-Date) -lt $loadDeadline) {
+                try {
+                    if (Select-String -LiteralPath $liveLog -SimpleMatch 'Successfully loaded scenario' -List -ErrorAction SilentlyContinue) { $loaded = $true; break }
+                    if (Select-String -LiteralPath $liveLog -SimpleMatch 'Failed to load scenario' -List -ErrorAction SilentlyContinue) { break }
+                } catch { }
+                Start-Sleep -Seconds 2
+            }
+            if ($loaded) { Say-Ok ('scenario LOAD CONFIRMED in the vendor log ("Successfully loaded scenario") - harvesting after it, not at READY') }
+            else { Say-Warn ('no "Successfully loaded scenario" line within {0}s; harvesting anyway. The copy may be TRUNCATED MID-LOAD - do not read absence of a line in it as evidence.' -f $ScenarioLoadTimeoutSec) }
+        }
+    }
     $null = Copy-VendorSimLog -ProcessId $simProc.Id -LogDir $MakLogDir -Since $simStartFloor -Destination $LogFile `
                 -Occasion $(if ($backendHealthy) { 'READY' } else { 'NOT-READY' })
 }

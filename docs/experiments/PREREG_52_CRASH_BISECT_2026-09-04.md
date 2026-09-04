@@ -76,6 +76,20 @@ vrlink5.10\bin64 (so both on PATH cannot mix them); the MAK-family DLLs unique t
 that a 1516e process never loads; C:\MAK\vrvantageTOT2018-01-17 is referenced by a 5.2d
 feature-source config but DOES NOT EXIST on this machine (the sim logs "Ignoring feature
 source" and continues) - stale config, not a crash cause.
+AUDIT 2026-09-04 (cold-start, adversarial - recomputed from the CSVs and the vendor logs):
+ARITHMETIC EXACT (11/30, 0/12; p = 0.012762 -> 0.0128; round-2 p = 0.03126 -> 0.031). ARMS
+CONFIRMED IDENTICAL AND INTERLEAVED from the vendor's OWN echoed command lines, not our CSVs.
+P3 STRENGTHENED BEYOND WHAT WE CLAIMED: all ELEVEN .callstack.log files share one caller chain
+(vl.dll <- vlHLA1516e.dll <- DtVrfSimOptions::parseCmdLine(768) <- DtVrfApp::init(632) <-
+main(107)); rounds 2-3 had no frame column, so our "every crash the same frame" was unevidenced
+for 8 of 11 until the audit read them. Also confirmed: no C-arm pid has a callstack log and all
+12 C-arm launches wrote full-size vendor logs - the 0/12 is 12 real launches, not 12 no-ops.
+TWO OVERSTATEMENTS CORRECTED: (1) "NEVER PASS" is the right OPERATING rule but 0/12 does not
+show the option is NECESSARY - the exact 95% upper bound on the no-option crash rate is
+1 - 0.05^(1/12) ~ 22%. (2) OPTION COUNT IS CONFOUNDED WITH THE OPTION: 5 options 0/12, 6 options
+6/18, 7 options 5/12. Round 3 added --appDataDir to BOTH arms and so never ran the one cell that
+separates them - `--appDataDir` WITHOUT `--logFileName`, a 6-launch arm. Until that runs, the
+supported claim is "bound to --logFileName OR to one more option in that position".
 ACTION: stop passing --logFileName. The vendor always writes its own log to C:\MAK\logs;
 the runner/launcher must HARVEST that file into the run directory instead (and it is the
 file that carries the cleartext environment - see the secrets memory - so it is copied,

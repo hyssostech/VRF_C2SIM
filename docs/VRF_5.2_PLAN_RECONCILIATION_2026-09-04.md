@@ -10,6 +10,24 @@ Sources read for this pass: VRF_5.2_MIGRATION_DIFF.md (all sections incl. G ledg
 VRF_5.2_DECISION_EVIDENCE.md (Y-7..Y-16), HANDOFF NEXT + 5.2 section, plus disk checks named
 below. Nothing here rests on recollection.
 
+## AUDIT CORRECTIONS 2026-09-04 - READ BEFORE THE TABLES
+A cold-start adversarial audit was run on this pass. It found, and these are fixed in place below:
+- **A4 is a FALSE POSITIVE** - Y-8 explicitly owes no substitute. Withdrawn; it had already
+  reached HANDOFF NEXT 6a and was dispatching retired work.
+- **B1 was ALREADY ANSWERED** by Y-7 on 2026-09-03, in a document this pass names as a source.
+  Re-stated as CLOSED with the vendor citations.
+- **The headline count is inflated.** "Seven ruled items never queued" counts A4 (false) and A7
+  (created AND queued the same day, and not a DECISION_EVIDENCE ruling at all - it is DIFF row C8
+  promoted today). The defensible count is **at most five**: A1, A2, A3, A5, A6.
+- **A3's wording is wrong**: FixtureGen HAS a `--profile` flag - but a VERSION profile (5.0.2 /
+  5.2), not the Y-7 TERRAIN profile. The substantive gap stands; the sentence did not.
+- **A1 drops the ruling's own precondition**: blockOnAsynchronousOperations applies ONLY to
+  fixed-frame scenarios (DIFF:176). Wiring it into a variable-frame run is a no-op that would be
+  reported as done. And the only seed mechanism in the record is batch mode's, which Y-14
+  REJECTED - so "pinned seed" has NO identified delivery path. Both must be said out loud.
+- **Coverage**: the commit says Y-1..Y-17 were walked; this doc's own sources line says Y-7..Y-16.
+  Y-1..Y-6 were NOT walked. Treat the "no false negatives" claim as unproven for those.
+
 ## A. RULED ALREADY, MISSING FROM THE PLAN (no new research needed - just not queued)
 
 | # | Ruling | State on disk | Why it matters now |
@@ -17,14 +35,40 @@ below. Nothing here rests on recollection.
 | A1 | **Y-9 repeatability knobs**: golden/prereg runs use `blockOnAsynchronousOperations` ON + a pinned seed, always stated in the run header | **NOT WIRED** - 0 hits for blockOnAsync/seed in scripts/, src/, tools/, config/ | PREREG_R9_52 is a golden run. Without this it is not repeatable BY THE PROJECT'S OWN RULING, and 5.2 adds async terrain/path-planning that the knob exists to fence |
 | A2 | **Y-3 knob delivery**: use `--notifyLevel` and `--settingsFile <repo file>`; edit C:\MAK only for a knob with no CLI path | **NOT WIRED** - no `--settingsFile` anywhere in scripts/ | This is the mechanism A1 rides on, and the ruled way to avoid touching C:\MAK at all |
 | A3 | **Y-7 terrain PROFILES**: four (1 online / 2 offline-cached / 3 offline-authored / 4 shipped USGS N34W117); each is its own baseline, NEVER compare traces across profiles; offline is a REQUIREMENT in some deployments | Only profile 1 exists. FixtureGen has no profile concept | Any trace comparison must name its profile. Offline capability is a deliverable, not a nicety |
-| A4 | **Y-8 substitutes** for the three types with no 5.2d equivalent, recorded with the source file cited | AR Scout DONE (6 rows in unit-type-map-52.json). **Mobile Irregular = 0, Mobile Light Infantry = 0** | 2 of 3 never recorded. Not blocking today (neither appears in data/), but the type-map live gate is incomplete until they are |
+| A4 | ~~Y-8 substitutes for Mobile Irregular / Mobile Light Infantry~~ | **WITHDRAWN 2026-09-04 - FALSE POSITIVE** | DECISION_EVIDENCE Y-8 states: "Mobile Irregular / Mobile Light Infantry **were never map rows** (ground-truth check only) - **no substitute owed**." NOTHING IS MISSING. I read the stale DIFF G cell instead of the ruling - *the exact D1 defect this same pass had just written a CLAUDE.md rule against, reproduced one commit later*, and it dispatched retired work into HANDOFF NEXT 6a. Also miscounted: AR Scout is **5** rows, not 6 (I counted grep occurrences, in a doc claiming "verified on disk"). Related stale cell to fix: DIFF Y-8 still says the substitutes go in `data/unit-type-map.json`; they are in `unit-type-map-52.json` |
 | A5 | **Y-14 SQLite logging** evaluated in Phase 2 (batch mode REJECTED - "Batch mode is read-only") | Not started - 0 hits for sqlite/databaseConfig | This is the MACHINE-READABLE verification channel. THE GOAL is headless verification without human reading of logs; we are still scraping text |
 | A6 | **Y-15 unit representation**: hybrid, two profiles by echelon (EntityLevel + authored doctrinal Lua for company-and-below; AggregateTacticalLevel for battalion+). Authoring order: attack-to-objective family first. No runtime aggregate/disaggregate exists (UG52 13.7) | Not in the NEXT list at all | The largest single body of remaining work, and it decides what a "unit" IS on 5.2 |
 | A7 | **Y-17 retire the MSL birth** (2026-09-04) | Queued as NEXT 6b today | Done this pass |
 
 ## B. NEEDS RESEARCH BEFORE THE NEXT RUN (read, do not probe)
 
-**B1. NAV DATA DOES NOT COVER OUR AOI - the highest-value unread item.**
+**B1. CLOSED, NOT OPEN - AND IT WAS ALREADY ANSWERED IN THIS REPO BEFORE I RAISED IT.**
+*** CORRECTED 2026-09-04 by adversarial audit. DECISION_EVIDENCE Y-7 (2026-09-03) ALREADY said
+both halves: the shipped nav areas "do NOT cover it; Range220 is the nearest, just east", AND
+"Nav data is not required for Move To (UG52 23.2.1: roads -> nav mesh -> feature-obstacle
+planning fallback); generating it needs the GUI plus an extra Gameware licence." I listed Y-7 as
+a source of this very pass and still presented the disk facts as a discovery and the answer as
+"the highest-value unread item", putting it at the head of the plan. THE ANSWER, now confirmed
+against the vendor docs as well:
+- Ground movement does NOT require a nav mesh. help ConceptsEntityLevel/GroundVehMove/
+  vrf_groundVehiclePathPlanning.htm: the planner "either uses a nav mesh OR creates a clear route
+  between feature obstacles"; vrf_groundVehiclePathPlanningNavMesh.htm: "if there is no
+  navigation mesh in the area ... planned around obstacles using feature path planning".
+- Move Along Route needs none and plans nothing: vrf_MoveAlongRouteTaskFunctionality.htm -
+  "There is no path planning done ... However, the vehicle does avoid obstacles as it moves."
+- Dynamic obstacle avoidance does NOT use nav data: vrf_groundMovementDynamicObstacleAvoid.htm -
+  obstacles come from a TERRAIN QUERY (MAK_OBSTACLES in featureconfig.txt) plus nearby entities.
+  MG p19: "Ground vehicles no longer use Gameware for steering or obstacle avoidance."
+- A planning task outside a nav area falls back silently (MG p18); nav data is a hard requirement
+  only for advanced navigation and human/crowd tasks.
+=> THE MISSING NAV MESH IS A NON-ISSUE FOR OUR PATH. Do NOT regenerate nav data (it needs the
+GUI and a paid Gameware licence, which THE GOAL forbids, and a project-generated NavArea was the
+Jul-Sep freeze). The real 5.2 divergence risk is Y-13 plus the new dynamic avoider.
+STILL GENUINELY UNDOCUMENTED (flagged, not inferred): start inside a nav area with the
+destination outside it. Not addressed anywhere in the 5.2 doc set. ***
+The original text is kept below as the record of the error.
+
+**B1 (as originally written - WRONG FRAMING, see above). NAV DATA DOES NOT COVER OUR AOI.**
 DISK CHECK 2026-09-04: `SharedData\19\latest\TerrainData\navData\MAK Earth (online)\` ships
 exactly FOUR nav areas - Ala Moana, Kilo2, Range220, Thun (Hawaii / Switzerland). **There is no
 nav area at the R9 Mojave AOI (34.615, -116.55).** DIFF C4 says "Ground planning keys off nav

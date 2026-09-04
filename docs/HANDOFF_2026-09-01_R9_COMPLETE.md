@@ -27,12 +27,12 @@ load-bearing claims against artifacts, not prose.
 - FFRTC IS NOT A SPEED LEVER AT SCALE - a 3.2-3.8x SLOWDOWN on COA-STP1 (0.265-0.314 vs 0.9995
   variable-frame and 7.4-13.1 on the 3-unit R9 order). Do NOT budget as if FFRTC compresses.
 - **ALTITUDE: READ docs/VRF_ALTITUDE_FRAMES.md, DO NOT RE-DERIVE.** ENTITY altitude takes an AGL
-  flag (vrfRemoteController.h:1372; VrfFacade.cpp:739 passes TRUE) - VERIFIED 2026-09-04, one call
-  lifted a BURIED entity onto the surface - so entities need NO terrain query and NO birth
-  altitude. The 10000 m MSL birth is the WRONG FRAME, retiring (NEXT 6b); do not re-justify it,
-  that has happened three times. A ROUTE VERTEX has NO AGL frame, so vertices DO need the query -
-  TerrainProfile stays. BIRTH ALTITUDE IS NOT THE FREEZE DISCRIMINATOR, nor is WAYPOINT altitude.
-  Also "nav data ruled out", 10-char marking: CORRECTIONS_LOG (L9).
+  flag (vrfRemoteController.h:1372; VrfFacade.cpp:739 passes TRUE) so entities need NO terrain
+  query and NO birth altitude - the FRAME argument rests on the headers/vendor docs. The AGL call
+  was EXERCISED ONCE, UNCONTROLLED (audit: 29-min gap, control insensitive) - direction settled,
+  retiring the 10000 m birth still owes a prereg (NEXT 6b). Do not re-justify the MSL birth.
+  ROUTE VERTICES have NO AGL frame - TerrainProfile stays. BIRTH ALTITUDE IS NOT THE FREEZE
+  DISCRIMINATOR, nor is WAYPOINT altitude. **Our altitudes are ELLIPSOIDAL, not MSL** (DtNoGeoid).
 - **5.0.2 IS ARCHIVE** (user direction 2026-09-04: "Are you still pursuing 5.0.2?" / "why keep
   5.0.2 stuff in there" - supersedes the plan's "must stay runnable side by side"): do NOT repair,
   re-run or spend effort on it. Oracle = the 39 RECORDED run dirs; nothing on the 5.2 path
@@ -122,14 +122,14 @@ scale STOPPED on its miss rule (3767-3773); type-map live gate PASSES (3775-3781
    24.11 km, best 26.84 km). Mode from the FFRTC block; budget wall = sim / ratio.
 6. TYPE_GAP ITEM 4 - echelon-'F' -> Ground_Aggregate fallback needs a USER RULING
    (docs/TYPE_GAP_ADJUDICATION.md item 4); not a movement cause.
-6a. **PLAN vs RESEARCH RECONCILIATION - docs/VRF_5.2_PLAN_RECONCILIATION_2026-09-04.md** (7 ruled
-   items never queued). BEFORE THE R9 5.2 RUN, both READS not probes: (B1) **NAV DATA DOES NOT
-   COVER THE AOI** - MAK Earth (online) ships nav areas only for Ala Moana/Kilo2/Range220/Thun,
-   NONE at Mojave, while 5.2 has planning ON and armour off-road; MoveAlongRoute is documented
-   NON-planning so it may not matter - settle it from the docs. (B2) does the R9 route touch roads
-   (decides how much Y-13 bites). THEN A1 Y-9 knobs+seed NOT WIRED (a "golden" run is not
-   repeatable by our own ruling), A2 Y-3 --settingsFile NOT WIRED; also A3 terrain profiles, A4
-   two missing type substitutes, A5 SQLite, A6 Y-15 unit representation.
+6a. **RECONCILIATION - docs/VRF_5.2_PLAN_RECONCILIATION_2026-09-04.md**, AUDITED and corrected:
+   FIVE ruled items are genuinely unqueued (A1 A2 A3 A5 A6), not seven. **A4 WITHDRAWN** (Y-8 owes
+   no substitute); **B1 CLOSED** (Y-7 answered it 2026-09-03 - no nav mesh needed: MoveAlongRoute
+   does no planning, avoidance uses a terrain query, planning falls back to feature obstacles; do
+   NOT regenerate nav data). Before the R9 run only B2 remains: does the R9 route touch roads.
+   Then A1 Y-9 knobs NOT WIRED (ruling scopes them to FIXED-FRAME; the "pinned seed" has NO
+   delivery path - batch mode was rejected); A2 --settingsFile NOT WIRED; A3 terrain profiles;
+   A5 SQLite; A6 Y-15 unit representation.
 6b. **RETIRE THE 10000 m MSL BIRTH** (user directive 2026-09-04). AGL placement VERIFIED
    (PREREG_CLAMP_DIRECTION sec 8a: buried entity lifted to the surface by one AGL setAltitude).
    Change = stop overriding the create altitude and stop SKIPPING the deferred SetAltitude,
