@@ -1861,7 +1861,35 @@ join) are BURNED, not recycled. The run manifest records which were actually use
 - 3819: CLAIMED 2026-09-03 - PREREG_52_REFLECTION step 3 WatchVrf-5.2 --diag 60 s, tee'd.
 - 3820: CLAIMED 2026-09-03 - PREREG_52_REFLECTION step 4 WatchVrf-5.2 --diag --no-wait-ext, tee'd.
 
-*** NEXT FREE: 3821 *** (authoritative - the ONLY such marker in this file. Update this
+- 3821: CLAIMED 2026-09-03 - vrlink5.10 listenHLA1516e_64 with EXPLICIT classic flags (-x MAK-ONE-2025, fed file,
+  17 --fomModules, RPR/NETN versions, -n 3) so its JOIN line is captured (PREREG_52_REFLECTION step 5).
+- 3822: CONSUMED 2026-09-03 (JOINED, then KILLED at ~0.6 s by a Select-Object -First pipeline - supervisor
+  instrument defect; capture truncated, inference withdrawn) - WatchVrf-5.2 --diag, RTI notify-4 rid:
+  which classes we subscribe, whether the LRC delivers ANY discoverObjectInstance.
+
+- 3823: CLAIMED 2026-09-03 - listenHLA1516e_64 (explicit flags) under the RTI notify-4 rid: CONTROL for
+  whether the LRC logs subscribe/discover calls at level 4 at all (WatchVrf 3822 showed none).
+
+- 3824: CLAIMED 2026-09-03 - tools/CreateOne Release-5.2 under the RTI notify-4 rid: our federate's FULL
+  RTI call set on the working control path (subscribe/publish/sendInteraction?) - PREREG_52_REFLECTION.
+- 3825: CLAIMED 2026-09-03 - VENDOR examples\remoteControl remoteControlHLA1516e.exe under the notify-4 rid,
+  join only (no commands; keyboard-only stdin), ~20 s, then closed: what a correct 5.2 controller
+  does at the RTI level (prototype zero as symptom discrimination).
+
+- 3826: CLAIMED 2026-09-03 - LaunchVrf52 back-end, ENTITY-BEARING scenario Sample\FirstExperience\first_experience_advanced (does the 5.2 sim
+  publish its OWN scenario entities to HLA? PREREG_52_REFLECTION H4 vs H7).
+- 3827: CLAIMED 2026-09-03 - LaunchVrf52 front-end vrfGui, same launch.
+- 3828: CLAIMED 2026-09-03 - listenHLA1516e_64 explicit flags, 40 s, vs that scenario (tee'd).
+
+- 3829: CLAIMED 2026-09-03 - listenHLA1516e_64 -n 3, 30 s, first_experience_advanced PAUSED (join line + discoveries printed).
+- 3830: CONSUMED 2026-09-03 - tools/RunSim Release-5.2: joined, BackendCount=0 after 15 s, REFUSED Run, exit 1.
+- 3831: CLAIMED 2026-09-03 - listenHLA1516e_64 -n 3, 30 s, same scenario RUNNING (paused-vs-running for SCENARIO entities).
+
+- 3832: CONSUMED 2026-09-03 - tools/RunSim RETRY: same outcome, BackendCount=0 after 15 s, refused, exit 1.
+- 3833: CLAIMED 2026-09-03 - WatchVrf-5.2 --diag --report-backends 90 s, FULL capture (no -First pipeline), same scenario.
+- 3834: CLAIMED 2026-09-03 - listenHLA1516e_64 -n 3, 30 s, after the clock start attempt.
+
+*** NEXT FREE: 3835 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN

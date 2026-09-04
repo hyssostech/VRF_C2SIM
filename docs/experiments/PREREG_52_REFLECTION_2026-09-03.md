@@ -59,5 +59,48 @@ the licence is proven. Otherwise the phase stays STOPPED at the observation gate
    line; then the sim relaunched at --notifyLevel 4 for VRF-8063 warnings.
 6. Fill sec 5; relabel the tool gate if an observer channel now works.
 
-## 5. Result
-(filled after the run)
+## 5. Result (2026-09-03 late; every run tee'd in runs/launch52/)
+Steps 1-4 (3816-3820, Probe52Reflection.ps1, EMPTY-ish scenario firstexperience): P1 HELD -
+licence rti=1 vrlink=1 (H3 DEAD). P2 MISSED - the reflected lists themselves are empty
+(ent=0 agg=0 env=0 ctl=0, discovered=0; the vendor's own printReflectedObjectCounts says
+Total 0) -> H1 DEAD (counter is not the problem). P3 MISSED - --no-wait-ext (waitext=0)
+changed nothing -> H2 DEAD. Control channel captured: BackendCount=1, ObjectCreated
+REFLTEST 1:3816:9 (createone_3818.txt).
+RTI notify-4 traces (rid copy config/rid-461-ridconfigured-notify4.mtl, observer only):
+- createone_3824_notify4.txt (complete, 4.5 MB): our federate performs full declaration
+  management - 113 subscribeObjectClassAttributes (RPR + NETN + MAK trees incl.
+  Platform.GroundVehicle), 26 subscribeInteractionClass, 251 requestClassAttributeValue-
+  Update, 3 sendInteraction - IDENTICAL to the vendor remoteControlHLA1516e.exe profile
+  (remotecontrol_3825_notify4.txt). It discovered exactly ONE object from the sim:
+  "Time and Date-1:3816" (MAK_TimeAndDate). No entity, ever, on either federate.
+- watchvrf_3822_notify4.txt is TRUNCATED at 0.6 s (11 KB, no trailer): the supervisor's
+  pipeline `| Select-Object -First 40` stopped the pipeline and KILLED the federate (a
+  joined federate killed - a rule breach by instrument). The "WatchVrf subscribes to
+  nothing" inference drawn from it is WITHDRAWN (executor caught it). Never put -First
+  on a live pipeline; tee to file, filter afterwards.
+- listen_3823_notify4.txt: the vendor listener subscribes 42 object classes; discovered 0.
+Vendor listener, joined (join line captured), explicit classic flags: listen_3821 (30 s,
+empty scenario) 0 entities; listen_3829/3834 (30 s each, first_experience_advanced, 741
+OOB uuids, "Successfully loaded scenario", sim 3826) 0 entities, "[0, 0]" throughout.
+Scenario relaunch 3826/3827 (first_experience_advanced): NO federate discovers the
+back-end any more - RunSim 3830 and 3832 BackendCount=0 after 15 s (exit 1, refused
+Run), WatchVrf 3833 --diag --report-backends backends=0 for 90 s. The clock was never
+started on that scenario, so "running + entity-bearing" remains UNOBSERVED.
+Corrections: ".scnx has 0 entities" (earlier) was a grep on a ZIP - .scnx is a zip
+(.scn/.oob/.pln/...); entity/unit records live in the .oob (firstexperience 11 uuids,
+first_experience_advanced 741, Raid 273, Traffic 487).
+STANDING (verified): H1 H2 H3 dead; H4 (created entities never existed) NOT excluded -
+no sim-side evidence exists in any log; H5 (class mismatch) weakened - our federate
+subscribes the whole Platform tree and still sees nothing; H6 untested (no notify-4 sim
+run). NEW LEAD H7 (transport): the assistant-free rid is a pure LIGHTWEIGHT connection
+(useRtiExec 0, mcastDiscoveryEnabled 0, discovery from data updates only) whereas the
+5.0.2 golden path ran on the assistant's rtiexec LOOPBACK connection; a paused sim sends
+few updates, HLAreliable traffic has no forwarder to ride. Research lane opened:
+RESEARCH_RTI_CONNECTION_TRANSPORT_2026-09-03.md. Falsifier for H7 = the same observer
+against the same sim on a rid-configured rtiexec connection reflecting > 0.
+Adversarial review: strongest competitor to H7 is H4 (entities never existed) - it
+explains every empty observer but NOT the loss of back-end discovery on the bigger
+scenario, which H7 does; both stay open until the rtiexec run and the user's GUI report
+(does vrfGui show units, and paused/running state - Q3). Unexplained and NOT swept:
+why "Time and Date" crosses but nothing else; why back-end discovery worked on the empty
+scenario and died on the loaded one.
