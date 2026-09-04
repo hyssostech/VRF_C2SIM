@@ -44,17 +44,21 @@ namespace WatchVrf;
 // FRESH ApplicationNumber each run.
 //
 // Args: [applicationNumber] [durationSecs] [sampleSecs] [federation] [--stop-file <path>]
-//       [--diag] [--no-wait-ext]
-// Defaults: 3399, 120, 15, CWIX-2024, no stop file (duration only), diagnostics off.
+//       [--diag] [--no-wait-ext] [--no-track] [--report-backends]
+// Defaults: 3399, 120, 15, CWIX-2024, no stop file (duration only), diagnostics off,
+// tracking ON, back-end count not reported.
 // --stop-file: the runner touches <path> when its observation window (plus trail) is over;
 // the tick loop polls for it about once a second, emits one '# STOP requested' line and
 // falls through to the SAME bridge.Stop() resign as the duration expiry. durationSecs is
 // then the upper bound (safety net for a runner that dies mid-run).
-// --diag / --no-wait-ext: the 5.2 OBSERVATION-CHANNEL instruments (2026-09-03). --diag adds
-// '# DIAG' lines and per-sample reflected-LIST counts that bypass the UUID callbacks the
-// 'reflected=' figure comes from; --no-wait-ext flips the one facade lever that changes what
-// is reflected. Everything still goes to stdout in the existing line shapes - no new files -
-// so a caller tees the stream. See WatchVrfUsage for the full contract.
+// --diag / --no-wait-ext / --no-track / --report-backends: the 5.2 OBSERVATION-CHANNEL
+// instruments (2026-09-03). --diag adds '# DIAG' lines and per-sample reflected-LIST counts
+// that bypass the UUID callbacks the 'reflected=' figure comes from; --no-wait-ext flips the
+// one facade lever that changes what is reflected; --no-track removes the one call this tool
+// makes that the CreateOne federate does not (and therefore zeroes the POS stream BY
+// CONSTRUCTION); --report-backends adds the control-channel reading beside them. Everything
+// still goes to stdout in the existing line shapes - no new files - so a caller tees the
+// stream. See WatchVrfUsage for the full contract.
 internal static class WatchRunner
 {
     // Argument handling uses the shared tools/Shared/ToolArgs.cs standard (0 success /
@@ -88,19 +92,22 @@ internal static class WatchRunner
                                       WatchVrfUsage.Lines());
         }
 
-        // Two VALUELESS options on the LIVE path (2026-09-03, 5.2 observation-channel
-        // instruments). Both are read AFTER --stop-file's pair has been taken out and
-        // BEFORE UnknownFlags, which is told about them so they are not rejected. Neither
+        // Four VALUELESS options on the LIVE path (2026-09-03, 5.2 observation-channel
+        // instruments). All are read AFTER --stop-file's pair has been taken out and
+        // BEFORE UnknownFlags, which is told about them so they are not rejected. None
         // is a positional, so Positionals() already ignores them.
         bool diag = ToolArgs.HasFlag(args, WatchVrfUsage.DiagFlag);
         bool noWaitExt = ToolArgs.HasFlag(args, WatchVrfUsage.NoWaitExtFlag);
+        bool noTrack = ToolArgs.HasFlag(args, WatchVrfUsage.NoTrackFlag);
+        bool reportBackends = ToolArgs.HasFlag(args, WatchVrfUsage.ReportBackendsFlag);
 
         // No OTHER options are valid on the LIVE path. --con-selftest and --capabilities are
         // dispatched in Program.cs and only when they are args[0]; reaching here with one
         // (e.g. "WatchVrf 3399 --con-selftest") means the caller asked for two different
         // things at once. For the movement oracle that MUST be a hard failure, not a
         // silently-ignored token.
-        string[] unknown = ToolArgs.UnknownFlags(args, WatchVrfUsage.DiagFlag, WatchVrfUsage.NoWaitExtFlag);
+        string[] unknown = ToolArgs.UnknownFlags(args, WatchVrfUsage.DiagFlag, WatchVrfUsage.NoWaitExtFlag,
+                                                       WatchVrfUsage.NoTrackFlag, WatchVrfUsage.ReportBackendsFlag);
         if (unknown.Length > 0)
             return ToolArgs.Usage($"unknown or misplaced option(s): {string.Join(" ", unknown)}. "
                                 + "--con-selftest and --capabilities are offline-only and must be the sole argument.",
@@ -146,7 +153,9 @@ internal static class WatchRunner
         Console.WriteLine("=== WatchVrf - position + Object Console telemetry (R3 / groundwork 0.6) ===");
         Console.WriteLine($"    {fedDesc} appNumber={appNumber} duration={durationSecs}s sample={sampleSecs}s"
                         + (stopFile != null ? $" stop-file={stopFile} (duration is the upper bound)" : "")
-                        + (diag ? " diag=on" : "") + (noWaitExt ? " no-wait-ext=on" : "") + "\n");
+                        + (diag ? " diag=on" : "") + (noWaitExt ? " no-wait-ext=on" : "")
+                        + (noTrack ? " no-track=on (reflected=/readable= WILL stay 0; no POS lines)" : "")
+                        + (reportBackends ? " report-backends=on" : "") + "\n");
 
         // All DATA lines (POS, CON, and the # summary) go through this one lock so a CON
         // callback that arrives on a different thread than the sampling loop can never tear
@@ -166,9 +175,17 @@ internal static class WatchRunner
                 Console.WriteLine("[FAIL] bridge.Start() returned false.");
                 return ToolArgs.ExitFailure;
             }
-            bridge.BeginTrackingReflectedObjects();
+            // The ONE call this observer makes that the CreateOne federate does not.
+            // --no-track skips it and NOTHING else, so a run with the flag and a run without
+            // it differ in exactly this statement (2026-09-03: WatchVrf logs no declaration
+            // management at RTI notify 4 while CreateOne logs the full vendor profile).
+            // A skipped registration means the UUID-change callbacks never fire, so the
+            // POS stream and reflected=/readable= are EMPTY BY CONSTRUCTION - the banner and
+            // the usage text both say so, because a silent zero here would read as a finding.
+            if (!noTrack) bridge.BeginTrackingReflectedObjects();
             Console.WriteLine("[OK] joined; discovering + sampling (POS,t,uuid,lat,lon,alt ; "
-                            + "CON,t,uuid,level,msg ; TSK,t,marking,taskType ; RPT,t,text)...");
+                            + "CON,t,uuid,level,msg ; TSK,t,marking,taskType ; RPT,t,text)..."
+                            + (noTrack ? " [--no-track: reflected-object tracking NOT started]" : ""));
 
             // JOIN-TIME DIAGNOSTICS. '#' lines on stdout like every other non-CSV record, so
             // an existing trace reader skips them and a caller can simply tee the stream.
@@ -184,7 +201,7 @@ internal static class WatchRunner
                 Emit(string.Create(CultureInfo.InvariantCulture,
                     $"# DIAG licence rti={(VrfBridge.HaveRtiLicense() ? 1 : 0)} "
                   + $"vrlink={(VrfBridge.HaveVrLinkLicense() ? 1 : 0)} "
-                  + $"no-wait-ext={(noWaitExt ? 1 : 0)}"));
+                  + $"no-wait-ext={(noWaitExt ? 1 : 0)} no-track={(noTrack ? 1 : 0)}"));
             }
 
             var start = DateTime.UtcNow;
@@ -302,6 +319,14 @@ internal static class WatchRunner
                       + $" waitext={(c.WaitingForVrfExtendedData ? 1 : 0)}"
                       + $" discovered={bridge.HasDiscoveredObjects()}");
                 }
+                // Back-end count LAST, so the field sits at the end of the record whether or
+                // not --diag widened it. This is the control-channel reading (the sim engine
+                // answering our remote-control discovery) beside the reflection readings -
+                // the two can disagree, and CreateOne refusing to act on backends=0 is the
+                // precedent for treating 0 here as "no sim engine seen", not "no objects".
+                if (reportBackends)
+                    summary += string.Create(CultureInfo.InvariantCulture,
+                        $" backends={bridge.BackendCount()}");
                 Emit(summary);
             }
 

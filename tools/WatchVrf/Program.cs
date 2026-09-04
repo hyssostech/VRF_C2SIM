@@ -15,14 +15,17 @@ using WatchVrf;
 //                                 of killed with exit 2 (the -ConsoleLogDir landmine).
 //
 //   WatchVrf [appNo] [dur] [samp] [federation] [--stop-file <path>] [--diag] [--no-wait-ext]
+//            [--no-track] [--report-backends]
 //                                 LIVE observation: join the federation and stream POS,...
 //                                 position lines, CON,... Object Console lines, and
 //                                 TSK,... / RPT,... task-completion + text-report lines
 //                                 (see WatchRunner). Requires a running VR-Forces federation.
 //                                 --stop-file: end the observation EARLY (clean resign) as
 //                                 soon as that file exists; [dur] stays the upper bound.
-//                                 --diag / --no-wait-ext: observation-channel diagnostics
-//                                 and the extended-data lever (see WatchVrfUsage).
+//                                 --diag / --no-wait-ext / --no-track / --report-backends:
+//                                 observation-channel diagnostics, the extended-data lever,
+//                                 the skip-tracking isolation (which zeroes POS by
+//                                 construction) and the back-end count (see WatchVrfUsage).
 //
 // The dispatch below references only ConSelfTest, WatchVrfUsage and ToolArgs - all pure
 // managed, none of them touching VrfBridge - plus WatchRunner, whose bridge-using code

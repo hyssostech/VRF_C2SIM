@@ -14,16 +14,20 @@ internal static class WatchVrfUsage
     // probes these BEFORE passing an optional flag. ADD a token here whenever a new
     // optional flag is added to the live path; never remove one while the flag exists.
     public static readonly string[] Capabilities =
-        { "capabilities", "con-selftest", "stop-file", "diag", "no-wait-ext" };
+        { "capabilities", "con-selftest", "stop-file", "diag", "no-wait-ext",
+          "no-track", "report-backends" };
 
     public const string StopFileFlag = "--stop-file";
     public const string DiagFlag = "--diag";
     public const string NoWaitExtFlag = "--no-wait-ext";
+    public const string NoTrackFlag = "--no-track";
+    public const string ReportBackendsFlag = "--report-backends";
 
     public static string[] Lines() => new[]
     {
         "usage: WatchVrf.exe [applicationNumber] [durationSecs] [sampleSecs] [federation]",
-        "                    [--stop-file <path>] [--diag] [--no-wait-ext]",
+        "                    [--stop-file <path>] [--diag] [--no-wait-ext] [--no-track]",
+        "                    [--report-backends]",
         "       WatchVrf.exe --con-selftest",
         "       WatchVrf.exe --capabilities",
         "",
@@ -56,12 +60,25 @@ internal static class WatchVrfUsage
         "                     A PROBE LEVER: it changes what this observer sees. Off by",
         "                     default; pair it with --diag or the trace cannot say whether",
         "                     it took effect (waitext= reports the live flag).",
+        "  --no-track         Optional. SKIP BeginTrackingReflectedObjects(); everything else -",
+        "                     Start, the tick loop, the CON/TSK/RPT subscriptions, the resign -",
+        "                     is unchanged. The UUID-change callbacks are then never registered,",
+        "                     so 'reflected=' and 'readable=' NECESSARILY STAY 0 and NO POS line",
+        "                     can ever be emitted: a zero trace under this flag is the flag",
+        "                     working, not a finding. It exists to isolate the one call the",
+        "                     observer makes that the CreateOne federate does not - pair it with",
+        "                     --diag (whose ent=/agg=/... counts do NOT come from those",
+        "                     callbacks) or the run measures nothing at all.",
+        "  --report-backends  Optional. Append ' backends=<n>' to every '# t=' sample line, n =",
+        "                     the controller's back-end count - the same reading CreateOne",
+        "                     refuses to act on when it is 0. Says whether this observer sees",
+        "                     the sim engine at all, independently of any reflected object.",
         "  --con-selftest     Offline check of the CON,/TSK,/RPT, line formatting. Takes NO other",
         "                     arguments: it joins no federation and observes nothing, so",
         "                     pairing it with observation arguments is a contradiction.",
         "  --capabilities     Offline. Prints one capability token per line (currently:",
-        "                     capabilities, con-selftest, stop-file, diag, no-wait-ext) and",
-        "                     exits 0. Sole argument.",
+        "                     capabilities, con-selftest, stop-file, diag, no-wait-ext,",
+        "                     no-track, report-backends) and exits 0. Sole argument.",
         "",
         "WatchVrf is the MOVEMENT ORACLE: an unparseable argument is a HARD FAILURE,",
         "never a silent fallback to a default, because the resulting trace would",
@@ -72,6 +89,8 @@ internal static class WatchVrfUsage
         "           WatchVrf.exe 3401 1460 2 CWIX-2024 --stop-file C:\\runs\\x\\observers.stop",
         "           WatchVrf.exe 3820 60 5 --diag",
         "           WatchVrf.exe 3821 60 5 --diag --no-wait-ext",
+        "           WatchVrf.exe 3823 60 5 --diag --report-backends",
+        "           WatchVrf.exe 3824 60 5 --diag --report-backends --no-track",
         "           WatchVrf.exe --con-selftest",
         "           WatchVrf.exe --capabilities",
     };
