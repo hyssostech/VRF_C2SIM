@@ -20,8 +20,27 @@ Where they are (all local, all searchable, no excuse):
 - Online: docs.mak.com/support (every product PDF, every version) and
   docs.mak.com/api/vrforces5.2/classref.
 
-A probe is registered only AFTER the relevant docs are read and CITED. Two failed fix attempts
-on the same symptom = stop and research before the third.
+### NO PROBE UNTIL YOU CAN CITE THE DOCS IT RESTS ON - BOTH KINDS
+
+**Probing is not a remedy. You will never learn how VR-Forces works by random walks.** A probe
+that is not derived from a document is a guess with a run attached, and this project has paid
+for that repeatedly.
+
+Before ANY experiment, prereg, or "let's just try it", write down BOTH:
+1. the VENDOR citation - file + section/page, or a header + line - saying what is supposed to
+   happen; and
+2. the OWN-RECORD citation - the diff row, decision-evidence ruling, prereg or corrections-log
+   entry that says what we already established.
+
+If you cannot produce both, you are not ready to run anything; go read. Two failed attempts on
+the same symptom = stop and research before the third. State the citations IN the prereg; a
+prereg without them is not registered.
+
+**Check the RULING before proposing work.** `docs/VRF_5.2_DECISION_EVIDENCE.md` is the ruling
+ledger and it BEATS the effect-cell prose in the diff, which can lag. On 2026-09-04 a session
+proposed a HEAVY probe of the ground-movement path that had already been RETIRED by ruling Y-10
+two days earlier - "no consumer, no class": `DtMoveToLocationTask` is deleted in 5.2, so the
+probe had nothing to probe.
 
 ## 2. READ THE MIGRATION DIFF BEFORE ANY 5.2 BEHAVIOUR WORK
 
@@ -34,13 +53,20 @@ handling from a stale code comment, got it wrong, and had to be corrected by the
 Row **C8** of that diff already said it, cited to Release Notes p64, two days earlier, naming
 the exact source file. Nobody opened it. Do not be the next one.
 
-Live rows that change APPROACH, not just symbols - read them before touching those areas:
-- **D1 (Y-10)**: MAK's own words - "remote-control applications that issue movement tasks to
-  ground vehicles may need to be updated". That is OUR MoveToLocation/PlanAndMoveTo path.
-- **D2 (Y-11)**: Unit Move To is silently redirected to Maneuver To; sub-route mechanism changed.
-- **D7 (Y-13)**: Navigation Preferences now decide road behaviour.
+Read the row AND its ruling in `docs/VRF_5.2_DECISION_EVIDENCE.md` (the ruling wins):
+- **D1 / Y-10 - RULED, no probe owed.** MAK flags that remote-control apps issuing ground
+  movement "may need to be updated", but the ruling settles it: KEEP MoveAlongRoute.
+  `moveAlongRoute` is byte-identical and undeprecated; `DtMoveToLocationTask` is DELETED.
+  Vendor: Move To plans a route then follows it; Move Along Route "does not use road movement,
+  nor does the entity plan paths before moving" - so an AUTHORED C2SIM route MUST use
+  MoveAlongRoute, or the planner overrides the route we were asked to drive.
+- **D2 / Y-11**: unit move-along is repackaged as maneuver-along; per-subordinate offset routes
+  are computed at task time; units wait for a valid formation before moving (RN VRF-8977 is a
+  competing hypothesis for the 5.0.2 company non-determinism).
+- **D7 / Y-13**: Navigation Preferences now decide road behaviour, defaulting per SMS.
 - **A2/A9 (Y-2)**: federation identity lives in MAK-ONE-2025-Config.xml; FOM modules are ADDITIVE.
 - **C5 (Y-9)**: blockOnAsynchronousOperations - determinism knob for fixed-frame runs.
+- **C8 (Y-17)**: altitude - see sec 3.
 
 ## 3. SETTLED - DO NOT RE-DERIVE
 
