@@ -1889,7 +1889,24 @@ join) are BURNED, not recycled. The run manifest records which were actually use
 - 3833: CLAIMED 2026-09-03 - WatchVrf-5.2 --diag --report-backends 90 s, FULL capture (no -First pipeline), same scenario.
 - 3834: CLAIMED 2026-09-03 - listenHLA1516e_64 -n 3, 30 s, after the clock start attempt.
 
-*** NEXT FREE: 3835 *** (authoritative - the ONLY such marker in this file. Update this
+- 3835: CLAIMED 2026-09-03 - LaunchVrf52 back-end, Sample\Traffic (vehicle-only; 3826 first_experience_advanced CRASHED in DtDiGuyController on first tick).
+- 3836: CLAIMED 2026-09-03 - LaunchVrf52 front-end vrfGui, same launch.
+- 3837: CLAIMED 2026-09-03 - tools/RunSim Release-5.2: start the Traffic clock (tee'd).
+- 3838: CLAIMED 2026-09-03 - listenHLA1516e_64 -n 3, 30 s, Traffic RUNNING.
+- 3839: CLAIMED 2026-09-03 - WatchVrf-5.2 --diag --report-backends 60 s, Traffic RUNNING (full capture).
+
+- 3840: CLAIMED 2026-09-03 - LaunchVrf52 back-end on MAK RTI 5.0.1 + its assistant (vendor defaults, no custom rid), Sample\Traffic (user ruling: no old bits).
+- 3841: CLAIMED 2026-09-03 - LaunchVrf52 front-end vrfGui, same launch.
+- 3842: CLAIMED 2026-09-03 - tools/CreateOne Release-5.2 under the 5.0.1 PATH (bridge loads on 5.0.1?), tee'd.
+- 3843: CLAIMED 2026-09-03 - WatchVrf-5.2 --diag --report-backends 60 s under the 5.0.1 PATH, tee'd.
+
+- 3844: CLAIMED 2026-09-03 - LaunchVrf52 -NoGui on RTI 5.0.1 + assistant, rid copy at RTI notify 4 (config/rid-501-notify4.mtl): the RTI's own reason for 'RTI Connection failed' (3840).
+
+- 3845: CLAIMED 2026-09-03 - WatchVrf-5.2 --diag --report-backends 40 s on the 5.0.1 lightweight sim 3844 (bridge on 5.0.1 DLLs; paused).
+- 3846: CLAIMED 2026-09-03 - tools/RunSim Release-5.2 on RTI 5.0.1 (assistant mode), Traffic.
+- 3847: CLAIMED 2026-09-03 - WatchVrf-5.2 --diag --report-backends 40 s, same sim RUNNING.
+
+*** NEXT FREE: 3848 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
