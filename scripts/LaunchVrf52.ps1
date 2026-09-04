@@ -80,6 +80,11 @@ param(
     [switch] $IgnoreUnansweredRtiAssistant,
     [switch] $AllowExistingVrf,
     [switch] $QuietBackend,
+    # The 5.0.2 Launcher's "Network Interface Address" (its profile <hostAddress>): the card
+    # for UDP/best-effort traffic. UG52 Table 10 p177 / Table 11 p180-181: --deviceAddress and
+    # --hostAddressString|-H on BOTH vrfGui and vrfSim. EMPTY = not passed (VR-Forces picks
+    # "the first device listed", IOG 5.2.1 p81). RESEARCH_52_HLA_CONNECTION_CONFIG P3.
+    [string] $DeviceAddress      = '',
     [switch] $DryRun
 )
 $ErrorActionPreference = 'Stop'
@@ -225,8 +230,10 @@ $simArgs = @('--siteId', $SiteId, '--appNumber', $BackendAppNumber, '--sessionId
 if ($scenarioRel) { $simArgs += @('--scenarioFileName', ('"{0}"' -f $scenarioRel)) }
 if (-not [string]::IsNullOrWhiteSpace($ExConnConfigFile)) { $simArgs += @('--exConnConfigFile', ('"{0}"' -f $ExConnConfigFile)) }
 if ($QuietBackend) { $simArgs += '--doNotUseConsole' }
+if (-not [string]::IsNullOrWhiteSpace($DeviceAddress)) { $simArgs += @('--deviceAddress', $DeviceAddress, '--hostAddressString', $DeviceAddress) }
 $guiArgs = @('--siteId', $SiteId, '--appNumber', $FrontendAppNumber, '--sessionId', $SessionId, '--hla1516e')
 if (-not [string]::IsNullOrWhiteSpace($ExConnConfigFile)) { $guiArgs += @('--exConnConfigFile', ('"{0}"' -f $ExConnConfigFile)) }
+if (-not [string]::IsNullOrWhiteSpace($DeviceAddress)) { $guiArgs += @('--deviceAddress', $DeviceAddress, '--hostAddressString', $DeviceAddress) }
 $simArgString = ($simArgs -join ' ')
 $guiArgString = ($guiArgs -join ' ')
 $pathPrefix = '{0};{1};{2};' -f $bin64, $vrlBin, $rtiBin

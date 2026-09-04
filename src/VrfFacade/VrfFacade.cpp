@@ -420,6 +420,11 @@ bool VrfFacade::Start(const StartupConfig& cfg) {
     // MAK-ONE-2025-Config.xml); an explicit value on the command line overrides it.
     if (!cfg.federation.empty())  { s.push_back("--execName");    s.push_back(cfg.federation); }
     if (!cfg.fedFileName.empty()) { s.push_back("--fedFileName"); s.push_back(cfg.fedFileName); }
+    // 5.2d: the network interface for UDP (best-effort) traffic - the 5.0.2 Launcher's
+    // "Network Interface Address" (RESEARCH_52_HLA_CONNECTION_CONFIG_2026-09-04 P3). VR-Link
+    // HLA takes --deviceAddress like DIS (UG52 Table 11 p180-181); the sim is launched with the
+    // same value, so both ends' UDP legs sit on one interface. Default 127.0.0.1 (VrfFacade.h).
+    if (!cfg.deviceAddress.empty()) { s.push_back("--deviceAddress"); s.push_back(cfg.deviceAddress); }
 #else
     s.push_back("--execName"); s.push_back(cfg.federation);
     s.push_back("--fedFileName"); s.push_back(cfg.fedFileName);

@@ -1916,7 +1916,11 @@ join) are BURNED, not recycled. The run manifest records which were actually use
 
 - 3853: BURNED 2026-09-03 (sim stalled at 4 threads with redirected stdio, never joined) - vrfSimHLA1516e launched DIRECTLY with stdout/stderr redirected (the RTI trace never reaches the VRF log), RTI 5.0.1 rid-configured lightweight at notify 4, Traffic, 90 s: does the sim registerObjectInstance/publish entities (H1)?
 
-*** NEXT FREE: 3854 *** (authoritative - the ONLY such marker in this file. Update this
+- 3854: CLAIMED 2026-09-04 - PREREG_52_RTIEXEC step 1: LaunchVrf52 -NoGui, RTI 5.0.1, rid-501-rtiexec-min.mtl (documented rtiexec posture), -DeviceAddress 127.0.0.1, Traffic.
+- 3855: CLAIMED 2026-09-04 - PREREG_52_RTIEXEC step 2: RunSim-5.2 on that connection.
+- 3856: CLAIMED 2026-09-04 - PREREG_52_RTIEXEC step 3: WatchVrf-5.2 --diag --report-backends 60 s (P3).
+
+*** NEXT FREE: 3857 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
