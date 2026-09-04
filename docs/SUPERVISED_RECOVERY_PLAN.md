@@ -182,13 +182,22 @@ Supervisor-specified design (executor implements; adversarial review before merg
 ## ordering below for movement work; full records: investigation doc parts 14/15/16)
 
 - FIX-ACCEPT-1 (part 14): sec-3b fix LIVE-ACCEPTED, prediction P1 - all three lean-set
-  units moved with NO drag; entity parked 0.5 m from its waypoint. Entity-freeze CURED.
+  units moved with NO drag; entity parked 0.5 m from its waypoint. ~~Entity-freeze CURED.~~
+  *** "Entity-freeze CURED" RETRACTED 2026-09-04. This doc is cited from the SOURCE
+  (VrfSettings.cs / VrfC2SimService.cs "docs/SUPERVISED_RECOVERY_PLAN.md sec 3b"), so the
+  retraction has to live HERE, not only in CORRECTIONS_LOG. The fix was ALREADY ACTIVE in the
+  three 2026-07-19 scored runs and units froze anyway; three taskees at the SAME birth
+  altitude split one-mover / two-frozen. One accepted run is not a cure. What sec 3b actually
+  delivered: units are no longer BORN BURIED. That is real and worth keeping. It is not a
+  freeze fix. CORRECTIONS_LOG "Birth altitude"; docs/VRF_ALTITUDE_FRAMES.md. ***
 - COA-DEMO-1 (part 15): full COA-STP1 under the fix - 38 movers (RUN C: 3) but E4
   FALSIFIED: runaway class persists at scale (541 km top, underground/offshore
   terminations). Yellow warning badges on most units - UNIDENTIFIED (docs dig queued).
 - CPP-ALT-1 (part 16, user-directed): PRISTINE C++ + one constant (birth 1000->10000 MSL,
-  branch b96688b) - 6 tasked units marched 18+ km on-terrain (Q1: root cause confirmed
-  code-independent), 5 stayed frozen at the pile (split is altitude-independent; MAK
+  branch b96688b) - 6 tasked units marched 18+ km on-terrain (Q1: "root cause confirmed
+  code-independent" - READ AS: the BURIAL behaviour is code-independent. It is NOT a
+  confirmation of a freeze root cause; note this same run left 5 units frozen at the pile,
+  which is itself the falsifier), 5 stayed frozen at the pile (split is altitude-independent; MAK
   question sharpened), runaway/warp class present in the pristine too (Q2: altitude
   exonerated for runaway in BOTH codebases), and a NEW signature: all marchers stopped
   mid-route on a common ~18.4 km radius (tile-boundary vs waypoint-stall - own probe).

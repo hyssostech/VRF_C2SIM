@@ -29,9 +29,22 @@ using VrfC2Sim.Tools;
 //
 // Defaults are a single M1A2 Abrams (DIS 1.1.225.1.1.3.0 - the real installed template
 // used by PHASE1_SESSION_SCRIPT.md) at a COA-STP1 AO coordinate taken from the shipped
-// order data. Altitude defaults to 10000 m MSL: the buried-birth altitude bug froze
-// entities created at low MSL, and a safe-high MSL create is the shipped fix in both
-// codebases (ground clamp brings it down). Do NOT lower this default casually.
+// order data. Altitude defaults to 10000 m MSL because a safe-high create is the SHIPPED
+// posture in both codebases: VRF's create-time ground clamp drops the entity onto the
+// surface, so this is the configuration every other run is measured in.
+//
+// *** DO NOT WRITE THAT A LOW-MSL CREATE FREEZES ENTITIES. *** That causal claim is
+// FALSIFIED (docs/CORRECTIONS_LOG.md "Birth altitude"): the 10000 m fix was ALREADY ACTIVE
+// in the three 2026-07-19 scored runs and the units froze anyway, and in the discriminator
+// test three taskees at the SAME birth altitude split into one mover and two bit-exact
+// freezes. Birth altitude is NOT the freeze discriminator; the open surfaces are
+// ROUTE/WAYPOINT altitude and the model-set defaults. This comment used to assert the
+// refuted link and a 2026-09-04 session read it here and repeated it in a prereg - which is
+// why the warning is now louder than the default it explains.
+//
+// The real reason not to lower this casually: what a below-terrain create does to a
+// STATIONARY entity is still an OPEN question (docs/VRF_GROUND_TRUTH.md sec 5 item 3), so a
+// low create adds an unresolved variable to whatever you are actually measuring.
 
 static int Fail(string msg)
 {

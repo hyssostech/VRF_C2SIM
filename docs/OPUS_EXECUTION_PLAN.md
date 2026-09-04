@@ -1945,7 +1945,16 @@ join) are BURNED, not recycled. The run manifest records which were actually use
 - 3896-3907: CLAIMED 2026-09-04 - PREREG_52_CRASH_BISECT round 3 (12 launches, --logFileName ALWAYS passed,
   --appDataDir to a scratchpad copy; arm A2 = plugin record present, arm E = scenarioPerformanceTest.xml removed).
 
-*** NEXT FREE: 3908 *** (authoritative - the ONLY such marker in this file. Update this
+- 3908-3910: CLAIMED 2026-09-04 - PREREG_52_FIXTURE_LOAD, the first 5.2 run on an AUTHORED fixture
+  (R9_Mojave_Empty_52.scnx, sha256 ED65C351..., fixed-frame-run-to-complete, empty .oob, MAK Earth
+  (online)). 3908 = vrfSimHLA1516e via LaunchVrf52; 3909 = CreateOne at the R9 AOI; 3910 = WatchVrf
+  --diag --report-backends. A crashed launch BURNS its number. Outcomes in the prereg sec 4.
+
+- 3911-3912: CLAIMED 2026-09-04 - PREREG_CLAMP_DIRECTION, testing whether the create-time ground
+  clamp RAISES a below-terrain birth (docs say "nearest polygon"; our code asserts "cannot RAISE").
+  3911 = CreateOne at 50 m MSL under ~1150 m terrain; 3912 = WatchVrf. Shares live sim 3908.
+
+*** NEXT FREE: 3913 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN

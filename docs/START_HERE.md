@@ -60,7 +60,19 @@ Three locations are in play:
 
 ## Current status (2026-07-16)
 
-> **BREAKTHROUGH (2026-07-16 evening): THE ENTITY-FREEZE ROOT CAUSE IS FOUND, LIVE-VERIFIED,
+> *** RETRACTED 2026-09-04 - READ THIS BEFORE THE PARAGRAPH BELOW. The "BREAKTHROUGH" headline
+> that follows is FALSIFIED and was left standing in this ENTRY DOC for seven weeks. Birth
+> altitude is NOT the entity-freeze root cause and the frozen class was NOT cured by it: the
+> 10000 m fix was ALREADY ACTIVE in the three 2026-07-19 scored runs and units froze anyway,
+> and three taskees at the SAME birth altitude split one-mover / two-frozen
+> (docs/CORRECTIONS_LOG.md "Birth altitude"). Burial is real; the freeze link is not. The
+> paragraph is kept verbatim below ONLY as the historical record of what was believed - do not
+> act on it, do not cite it. Canonical altitude behaviour, header-cited:
+> docs/VRF_ALTITUDE_FRAMES.md. What is still genuinely open: what makes a tasked,
+> surface-clamped ground unit execute vs ignore its MoveAlongRoute. ***
+>
+> **BREAKTHROUGH (2026-07-16 evening) [FALSIFIED - see the retraction above]: THE ENTITY-FREEZE
+> ROOT CAUSE IS FOUND, LIVE-VERIFIED,
 > CODE-VERIFIED, AND AUTHOR-CORROBORATED - ground units are created UNDERGROUND at
 > high-elevation terrain** (fixed-MSL create/SetAltitude/route constants that are above-ground
 > at sea-level Bogaland and ~130-1030 m below terrain at 1131 m Mojave; VR-Forces then accepts
@@ -72,8 +84,15 @@ Three locations are in play:
 > FIX-ACCEPT-1, prediction P1: ALL THREE units moved with NO drag)**: GroundWaypointAltitudeMode
 > =Live is now the DEFAULT; under Live, ground units are created at CreateAltitudeSafeMslMeters
 > (10000 MSL, above all terrain - VRF's create ground clamp places them on the surface) and the
-> parity post-create SetAltitude is skipped (it is AGL anyway per the MAK header - part 13c);
+> parity post-create SetAltitude is skipped (it is AGL anyway per the MAK header - part 13c)
+> [*** THIS IS THE ORIGIN OF A SEVEN-WEEK DETOUR. Part 13c correctly read the header and found
+> setAltitude's third argument is `aboveGroundLevel`, which VrfFacade already passes as TRUE.
+> That finding was used ONLY to exonerate a suspect, and then the AGL call was SKIPPED in
+> favour of the 10000 m safe-high birth it makes unnecessary. An AGL setAltitude places a unit
+> on the ground in ONE call with no terrain knowledge; see docs/VRF_ALTITUDE_FRAMES.md sec 1.
+> It does NOT apply to route vertices, which have no AGL frame at all - sec 3. ***];
 > Fixed100 remains the byte-parity escape hatch. LIVE RESULT: the frozen entity class is CURED
+> [FALSE - retracted above; it froze again in the 07-19 scored runs with this fix active]
 > (1157 m march, parked 0.5 m from its waypoint); platoon third textbook 8 m arrival; the
 > never-publishes company PUBLISHED + marched (leading-edge halt is the documented completion
 > semantics, not a freeze). Vacuous completions unchanged - the TRUTHFUL-ARRIVAL GATE (plan

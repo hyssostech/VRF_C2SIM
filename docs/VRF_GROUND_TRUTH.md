@@ -528,8 +528,12 @@ local terrain elevation is created underground. There is no create-time
 auto-clamp in the GUI dialog; the reference frame is the author's/caller's
 responsibility. (The remote API adds an explicit create-time clamp switch,
 createEntity groundClamp=true / DtIfCreateVrfObject::clampToGround - see 0.3
-section 1a - which snaps Z to the nearest polygon and is the fix that cured the
-buried-birth freeze.)
+section 1a - which snaps Z to the nearest polygon and is the shipped fix for
+buried birth. CORRECTED 2026-09-04: it did NOT "cure the buried-birth freeze",
+as this passage used to say. The fix was already active in the 2026-07-19
+scored runs and units froze anyway, so birth altitude is FALSIFIED as the
+freeze cause - CORRECTIONS_LOG.md "Birth altitude". The clamp cures BURIAL,
+not freezing; the two were never shown to be the same thing.)
 
 **(b) Display/visual ground clamping (front-end only, cosmetic).**
 [SharedTopics\3Dnovaentities\GroundClamping.htm]: "Because of differences in

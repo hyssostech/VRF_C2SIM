@@ -225,9 +225,15 @@ public class VrfSettings
     // byte-for-byte today's path (the golden-parity escape hatch). At a high-elevation region
     // (Mojave terrain ~1100 m) a 100 m waypoint sits ~1000 m UNDERGROUND, so the aggregate member
     // offset-route GROUND CLAMP (which entity move-along tolerates but the disaggregated move-along
-    // controller does not - Thread A: closestIntersection/dataAvailable) yields EMPTY offset routes
-    // and the unit freezes; and a ground unit BORN below terrain never executes movement at all
-    // (parts 13/13c). "Live" instead puts each ground waypoint at the unit's OWN live ground
+    // controller does not - Thread A: closestIntersection/dataAvailable) yields EMPTY offset routes.
+    //   *** CORRECTED 2026-09-04: a clause here used to add "and the unit freezes; and a ground
+    //   unit BORN below terrain never executes movement at all". BOTH ARE FALSIFIED. Birth
+    //   altitude is NOT the freeze discriminator (the 10000 m fix was already active in the
+    //   07-19 scored runs and units froze anyway; three taskees at the SAME altitude split
+    //   one-mover/two-frozen), and WAYPOINT altitude is falsified too - the below-terrain
+    //   fixture variant MOVED. See docs/VRF_ALTITUDE_FRAMES.md sec 5 and CORRECTIONS_LOG
+    //   "Birth altitude". Do not restore a "buried therefore frozen" claim here. ***
+    // "Live" instead puts each ground waypoint at the unit's OWN live ground
     // altitude (read from the sim) + LiveClearanceMeters, and creates ground units at
     // CreateAltitudeSafeMslMeters so VRF's create ground clamp drops them onto the surface.
     // "TerrainProfile" (docs/DESIGN_TERRAIN_PROFILE_VERTICES_2026-09-01.md) creates like Live,
@@ -253,9 +259,23 @@ public class VrfSettings
     // (the default) or "Live" - the two modes share the create path - a ground
     // unit is created at THIS altitude instead of its plan altitude (ElevationAgl MSL). It must be
     // guaranteed ABOVE all Earth terrain (highest ground ~8849 m at Everest) so that VRF's
-    // createEntity ground clamp (default on) can only DROP the birth onto the local surface - a
-    // clamp cannot RAISE a below-terrain birth, which is why fixed-MSL births bury units at high
-    // elevation. Default 10000 m clears every land surface with margin. Ignored under "Fixed100"
+    // createEntity ground clamp (default on) can only DROP the birth onto the local surface.
+    // THE CLAMP'S DIRECTION IS NOW VERIFIED, NOT ASSUMED (PREREG_CLAMP_DIRECTION_2026-09-04,
+    // one sim, one observer, one capture: create at 10000 -> reflected 1149.8 m on the surface;
+    // create at 50 under ~1150 m terrain -> reflected -0.0 m, NOT raised). So this setting IS
+    // load-bearing for the CREATE path. (Unexplained and not to be built on: the below-terrain
+    // create landed at -0.0 rather than at its requested 50.)
+    //
+    // *** BUT IT IS NOT THE ONLY WAY TO PUT A UNIT ON THE GROUND, and treating it as such cost
+    // this project weeks. The remote API takes an AGL flag directly:
+    //     vrfRemoteController.h:1372  setAltitude(uuid, altitude, bool aboveGroundLevel = false)
+    // and VrfFacade.cpp:739 ALREADY passes TRUE. "Put this unit N m above the ground" is one
+    // call needing no terrain knowledge. What defeats it today is that VrfC2SimService SKIPS the
+    // deferred SetAltitude whenever it used this safe-high create. Read
+    // docs/VRF_ALTITUDE_FRAMES.md sec 1-2 BEFORE changing anything here. Note the AGL flag does
+    // NOT exist for ROUTE VERTICES (sec 3) - that asymmetry is the whole story. ***
+    //
+    // Default 10000 m clears every land surface with margin. Ignored under "Fixed100"
     // and for non-ground (air/sea) units, which keep parity behavior.
     public double CreateAltitudeSafeMslMeters { get; set; } = 10000.0;
 }

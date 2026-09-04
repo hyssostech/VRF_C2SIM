@@ -581,7 +581,16 @@ public sealed class VrfC2SimService : BackgroundService
             // MOJAVE_ROOTCAUSE_INVESTIGATION parts 13/13c). Ground units are otherwise born at a
             // fixed MSL (ElevationAgl default 1000) that sits BELOW high-elevation terrain: VRF's
             // create ground-clamp can DROP an above-terrain birth to the surface but cannot RAISE a
-            // below-terrain one, so the unit is born buried and never executes movement. Gated on
+            // below-terrain one, so the unit is born BURIED.
+            //   *** CORRECTED 2026-09-04: this sentence used to end "...and never executes
+            //   movement". THAT IS FALSIFIED - birth altitude is not the freeze discriminator
+            //   (CORRECTIONS_LOG "Birth altitude"). Burial is real; the freeze link is not.
+            //   The clamp direction itself IS now verified - PREREG_CLAMP_DIRECTION_2026-09-04.
+            //   ALSO: burial is avoidable WITHOUT this workaround - setAltitude takes an
+            //   aboveGroundLevel flag (vrfRemoteController.h:1372) and VrfFacade.cpp:739 already
+            //   passes TRUE; the "SKIP the deferred SetAltitude" branch below is what stops it
+            //   firing. See docs/VRF_ALTITUDE_FRAMES.md before changing this. ***
+            // Gated on
             // the SAME Vrf:GroundWaypointAltitudeMode string the route path uses (case-insensitive
             // "Live") and the SAME per-unit ground predicate the route path applies (SIDC battle-
             // dimension char at index 2 == 'G'; the route path reads it off CreatedUnit.SymbolId,

@@ -23,8 +23,19 @@ work lands.
    properly ... task-follows-task"; "We do not plan to expand c2simVRF to the full
    capabilities of VR-Forces". COA-scale parallel tasking was never in its envelope.
 3. What a week of probes DID establish (all telemetry-verified, none wasted):
-   - Buried-birth altitude bug: FOUND and FIXED in both codebases (entity-freeze cured;
-     the one fully-closed class).
+   - Buried-birth altitude bug: FOUND and FIXED in both codebases - the create-time ground
+     clamp now places units on the terrain surface (verified: three distinct terrain-following
+     altitudes, zero samples at 10000, zero negative).
+     *** CORRECTED 2026-09-04. This line used to read "entity-freeze cured; the one
+     fully-closed class". BOTH HALVES ARE FALSIFIED. The 10000 m fix was ALREADY ACTIVE in
+     the three 2026-07-19 scored runs and the units froze anyway; in the discriminator test
+     three taskees at the SAME birth altitude split into one mover and two bit-exact freezes.
+     BIRTH ALTITUDE IS NOT THE FREEZE DISCRIMINATOR and this is NOT a closed class. The open
+     surfaces are ROUTE/WAYPOINT altitude (not birth altitude) and the never-opened model-set
+     defaults. Record: docs/CORRECTIONS_LOG.md "Birth altitude / the underground-birth freeze
+     hypothesis". The claim survived here because this file - the plan of record - carried no
+     pointer to its own refutation; a 2026-09-04 session re-derived the refuted link from a
+     code comment that repeated it. ***
    - Runaway/warp class: CODE-INDEPENDENT, altitude-exonerated, unexplained.
    - Pile mover/frozen split: CODE-INDEPENDENT, altitude-independent, every offline
      discriminator falsified; VRF-internal.
