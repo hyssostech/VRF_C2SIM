@@ -33,18 +33,15 @@ load-bearing claims against artifacts, not prose.
   every July FALSIFIED stamp is LAYER-RELATIVE (L9) - re-adjudicate before trusting it.
 
 ## THE STANDING RULE (user directive 2026-09-01, enforced)
-DOCUMENTATION FIRST for any issue: local help + C:\MAK\vrforces5.0.2\doc\VRFUsersGuide.pdf -> the
-PUBLIC Developer's Guide at docs.mak.com/api/vrforces{5.2,5.1.1,4.10}/classref/ -> internet
-research. A probe is registrable ONLY after its prereg cites the documentation consulted; two
-months of probing dissolved in one afternoon of reading. VRF_GROUNDWORK_PLAN L8-L10.
+DOCUMENTATION FIRST for any issue: C:\MAK\vrforces5.2d\doc (Users Guide, IOG, RTI manuals) -> docs.mak.com
+classref -> internet. A probe is registrable ONLY after its prereg cites the docs consulted (2026-09-03: a
+night of RTI probing dissolved in one sentence, UG52 5.5.1 p190). NO questions to MAK (user 2026-09-04).
 
 ## ONE-LINE STATUS
-THE AGGREGATE FREEZE IS FIXED AND THE FIX HOLDS AT SCALE. Routes are addressed by their real
-VRF_UUID, not by name (726f762, C# only). R9 runs headless 3/3 TASKCMPLT; the FULL COA-STP1 ORDER
-marches, `Can't find entity route` 14,904 -> 0 in five consecutive scale runs, names intact to 99
-chars. The MERGED build is GATED and the type-map table LIVE-CONFIRMED 6/6 on R9. FFRTC is a
-3.2-3.8x SLOWDOWN at scale. OPEN: the three Tank Companies distribute unreliably run to run, and
-TWO INSTRUMENT CHECKS NEED A RULING (NEXT row 1).
+5.0.2: THE AGGREGATE FREEZE IS FIXED AND HOLDS AT SCALE (routes by real VRF_UUID, 726f762); R9 3/3
+TASKCMPLT; the FULL COA-STP1 ORDER marches (`Can't find entity route` 14,904 -> 0, names to 99 chars);
+merged build GATED; type map LIVE-CONFIRMED 6/6; FFRTC = 3.2-3.8x SLOWDOWN at scale; OPEN: Tank Company
+distribution non-determinism (PARKED). 5.2: launch + join + control + OBSERVATION all proven (below).
 ## WORKING CONFIGURATION
 TypeMappingMode=RealTemplates + GroundWaypointAltitudeMode=TerrainProfile (both compiled DEFAULTS
 since 2026-09-02, bridge A7504441) + NavArea disabled + STOCK templates, no env overrides - an
@@ -177,9 +174,11 @@ rid-configured rtiexec CRASHES the sim at start; sim-side RTI trace not yet capt
 2026-09-04). RESOLVED 2026-09-04 (PREREG_52_RTIEXEC_2026-09-04): UG52 5.5.1 p190 prohibits the MAK
 RTI in LIGHTWEIGHT mode with VR-Forces - every 2026-09-03 run was lightweight. Documented posture =
 RTI 5.0.1 in rtiexec mode (config/rid-501-rtiexec-min.mtl, headless rtiexec): WatchVrf reflects 62
-entities, real POS (cause by ELIMINATION; --deviceAddress NOT required observer-side (3857); the sim's
-parseCmdLine startup crash hits ~2/5 launches on any rid, trigger UNKNOWN - COLDSTART_REVIEW_RTIEXEC).
-NEXT = runner 5.2 profile on that posture (StartRtiExec52 stage, rid, crash detection), PREREG_R9_52.
+entities, real POS (cause by ELIMINATION; --deviceAddress NOT required either side (3857/3859); the sim's
+parseCmdLine startup crash hit 2/7 launches on any rid, trigger UNKNOWN, now DETECTED by LaunchVrf52).
+RUNNER 5.2 PROFILE ON THAT POSTURE DONE (5cea2ed; StartRtiExec52 Stage 2r; smoke PREREG_52_PROFILE_SMOKE
+green: paused Traffic reflects 44). NEXT = 5.2 FIXTURES (Y-7 terrain re-authoring; no C2SIM stage can
+run without them), then PREREG_R9_52 with WatchVrf re-baselined (env==ctl anomaly open).
 ## PROBE PROTOCOL (adopted 2026-09-01/02; do NOT change mid-protocol)
 FFRTC mode per the block above; TimeMultiplier 1x; -RunSecs is a CAP under -StopWhenComplete.
 SHORT-ROUTE probe variants are allowed (platoon/entity legs ~200 m) but COMPANY probe routes stay
