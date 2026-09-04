@@ -1,7 +1,7 @@
 # FixMachinePath.ps1 - clean the MACHINE PATH (needs an ELEVATED shell).
 #
-# WHY (2026-09-04): the machine PATH carries one CORRUPT entry, seven directories that do
-# not exist, and five exact duplicates. None of it caused the 5.2 startup crash (that was
+# WHY (2026-09-04): the machine PATH carries one CORRUPT entry and seven directories that
+# do not exist. None of it caused the 5.2 startup crash (that was
 # --logFileName - PREREG_52_CRASH_BISECT_2026-09-04), but it is a live hazard for OUR C#
 # interface exe: VrfC2SimApp.exe does NOT live in a MAK bin64, so when it is started
 # WITHOUT the runner's per-process PATH prefix the machine PATH decides which MAK DLLs it
@@ -91,6 +91,14 @@ $entries = $old -split ';'
 Say ("  current: {0} chars, {1} entries" -f $old.Length, ($entries | Where-Object { $_ }).Count)
 
 # ---- build the new list: keep order, first occurrence wins ----
+# WHY THIS REPORTS NO DUPLICATES, though an earlier note claimed five (CORRECTED 2026-09-04):
+# the five pairs are %SystemRoot%\system32 etc. against literal C:\Windows\system32 etc.
+# They are identical only AFTER EXPANSION. This script compares the RAW registry strings -
+# which is the correct comparison, because raw is what it writes back - so it sees them as
+# distinct and keeps both. That is deliberate: collapsing them means choosing one form and
+# throwing away either the %SystemRoot% indirection or the literal, and five redundant
+# directory probes per name lookup is a non-issue. Do not "fix" this by expanding first;
+# expanding would bake C:\Windows into a REG_EXPAND_SZ value on write.
 $seen = New-Object System.Collections.Generic.HashSet[string]
 $keep = @(); $dropped = @()
 foreach ($e in $entries) {
@@ -123,9 +131,16 @@ foreach ($e in $entries) {
     $n = $e.TrimEnd('\').ToLower()
     if ($keep.TrimEnd('\').ToLower() -contains $n) { continue }
     if ($allowed -contains $n) { continue }
-    $lost += $e                                  # a duplicate is fine: its twin is kept
+    $lost += $e
 }
-$lost = @($lost | Where-Object { ($entries | Where-Object { $_.TrimEnd('\').ToLower() -eq $_.TrimEnd('\').ToLower() }).Count -le 1 })
+# NOTE (2026-09-04): a line used to stand here trying to re-exclude duplicates from $lost.
+# It was BOTH dead and BROKEN - inside its inner Where-Object, $_ rebound to the entries
+# item, so the test read "x -eq x", was always true, the count was always the full entry
+# count, and EVERY candidate was filtered out. That made $lost unconditionally empty and
+# this refusal unreachable: the [OK] below was a FALSE GREEN and the script's whole safety
+# story rested on it. It was also unnecessary - a duplicate's normalised form is already in
+# $keep via its surviving twin, so the -contains test above skips it. Deleted, and a
+# negative control (SelfTest-FixMachinePath.ps1) now proves this refusal actually fires.
 if ($lost.Count -gt 0) { Say-Fail 'REFUSING: these entries are on no removal list and would disappear:'; $lost | ForEach-Object { Say ('    ! ' + $_) }; exit 1 }
 Say-Ok 'no entry outside the removal lists is affected'
 
