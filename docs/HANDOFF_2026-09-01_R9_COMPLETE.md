@@ -26,13 +26,12 @@ load-bearing claims against artifacts, not prose.
   (+50 m) the fallback, Fixed100 a relic (DESIGN_TERRAIN_PROFILE_VERTICES_2026-09-01 sec 7).
 - FFRTC IS NOT A SPEED LEVER AT SCALE - a 3.2-3.8x SLOWDOWN on COA-STP1 (0.265-0.314 vs 0.9995
   variable-frame and 7.4-13.1 on the 3-unit R9 order). Do NOT budget as if FFRTC compresses.
-- **ALTITUDE: READ docs/VRF_ALTITUDE_FRAMES.md, DO NOT RE-DERIVE.** ENTITY altitude takes an AGL
-  flag (vrfRemoteController.h:1372; VrfFacade.cpp:739 passes TRUE) so entities need NO terrain
-  query and NO birth altitude - the FRAME argument rests on the headers/vendor docs. The AGL call
-  was EXERCISED ONCE, UNCONTROLLED (audit: 29-min gap, control insensitive) - direction settled,
-  retiring the 10000 m birth still owes a prereg (NEXT 6b). Do not re-justify the MSL birth.
-  ROUTE VERTICES have NO AGL frame - TerrainProfile stays. BIRTH ALTITUDE IS NOT THE FREEZE
-  DISCRIMINATOR, nor is WAYPOINT altitude. **Our altitudes are ELLIPSOIDAL, not MSL** (DtNoGeoid).
+- **ALTITUDE: READ docs/VRF_ALTITUDE_FRAMES.md sec 0, DO NOT RE-DERIVE.** Root = SOURCE frame error:
+  C2SIM has AltitudeAGL AND AltitudeMSL, both optional (xsd :2716-2717), our inits carry neither;
+  the oracle read either as ABSOLUTE, invented 1000, sent +1 as AGL. FIXED 4b4d0f9 (PlacementPolicy):
+  authored lat/lon + setAltitude(agl,TRUE) (vrfRemoteController.h:1372); land + nothing = AGL 0;
+  "ground" = DIS domain, not SIDC. 10000/+1/SIDC GONE; LIVE CONFIRMATION OWED (6b). Route VERTICES
+  have NO AGL frame (TerrainProfile stays). Birth/waypoint alt NOT freeze causes. "MSL" = ellipsoid.
 - **5.0.2 IS ARCHIVE** (user direction 2026-09-04: "Are you still pursuing 5.0.2?" / "why keep
   5.0.2 stuff in there" - supersedes the plan's "must stay runnable side by side"): do NOT repair,
   re-run or spend effort on it. Oracle = the 39 RECORDED run dirs; nothing on the 5.2 path
@@ -130,11 +129,12 @@ scale STOPPED on its miss rule (3767-3773); type-map live gate PASSES (3775-3781
    Then A1 Y-9 knobs NOT WIRED (ruling scopes them to FIXED-FRAME; the "pinned seed" has NO
    delivery path - batch mode was rejected); A2 --settingsFile NOT WIRED; A3 terrain profiles;
    A5 SQLite; A6 Y-15 unit representation.
-6b. **RETIRE THE 10000 m MSL BIRTH** (user directive 2026-09-04). AGL placement VERIFIED
-   (PREREG_CLAMP_DIRECTION sec 8a: buried entity lifted to the surface by one AGL setAltitude).
-   Change = stop overriding the create altitude and stop SKIPPING the deferred SetAltitude,
-   which is already AGL. Needs a prereg + one confirming run (it changes creation for EVERY
-   unit). Route vertices NOT in scope - no AGL frame exists, TerrainProfile stays.
+6b. **PLACEMENT REWRITE - CODE DONE 2026-09-05 (4b4d0f9), LIVE CONFIRMATION OWED.** 10000 m birth,
+   oracle +1 and SIDC 'G' test GONE; PlacementPolicy.cs decides from C2SIM AltitudeAGL/MSL x DIS
+   domain -> AGL setAltitude. 9/9 offline gates incl. new --placement-selftest. NEXT = prereg citing
+   VRF_ALTITUDE_FRAMES sec 0 + ONE R9 run: 6/6 PLACEMENT lines, every land object at terrain height
+   in WatchVrf (platforms AND unit members), no -0.0, no 10000; aggregate expectations from the
+   entity-vs-aggregate research first.
 7. MAK MESSAGE - docs/MAK_MESSAGE_2026-09-02.md is send-ready and THE USER SENDS IT. *** ITS
    APPENDED DtUUID ROUTE-NAME-LENGTH DRAFT IS STALE - the cause was OUR contract violation
    (rwUUID.h:246-253; fix 726f762). REWRITE OR DROP IT; do not send it as a defect report. ***

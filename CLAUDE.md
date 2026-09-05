@@ -92,10 +92,15 @@ CORRECT.
 
 ## 3. SETTLED - DO NOT RE-DERIVE
 
-- **Altitude**: `docs/VRF_ALTITUDE_FRAMES.md` is canonical and header-cited. An ENTITY takes an
-  AGL flag directly (`setAltitude(uuid, m, aboveGroundLevel)`) and needs no terrain query; a
-  ROUTE VERTEX has no AGL frame in the API and does need one. The 10000 m MSL birth is the wrong
-  frame and is retiring. "Born buried therefore never moves" is FALSIFIED.
+- **Altitude**: `docs/VRF_ALTITUDE_FRAMES.md` is canonical and header-cited - read sec 0 first.
+  The root was a SOURCE frame error: C2SIM has `AltitudeAGL` AND `AltitudeMSL`, both optional
+  (xsd :2716-2717); every init we have carries NEITHER; the oracle read either into one field
+  and used it as absolute. FIXED 2026-09-05 (4b4d0f9, `PlacementPolicy.cs`): create at the
+  authored lat/lon, place with `setAltitude(agl, aboveGroundLevel=TRUE)`; land + nothing given =
+  on the ground (AGL 0); "ground" = DIS domain of the created type, never an APP6 character. The
+  10000 m birth, the oracle's +1 and the SIDC 'G' test are GONE - do not reintroduce any of them.
+  A ROUTE VERTEX has no AGL frame in the API and does need the terrain query (TerrainProfile).
+  "Born buried therefore never moves" is FALSIFIED. Live confirmation of the rewrite is still owed.
 - `docs/HANDOFF_2026-09-01_R9_COMPLETE.md` opens with a **CLOSED - DO NOT REOPEN** list. Each
   line names its record and its reopening evidence. Read it before proposing a cause.
 - `docs/CORRECTIONS_LOG.md` holds refuted claims. If a code comment and this log disagree, the

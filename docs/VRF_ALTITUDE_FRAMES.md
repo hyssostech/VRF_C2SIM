@@ -5,16 +5,41 @@ having to redirect something that have been solved"). Every claim below carries 
 DOC citation, or is marked VERIFIED BY RUN with the run id, or is marked OPEN. Nothing here
 rests on inference from observed behaviour alone - that is precisely what rotted.
 
-## UNITS - READ THIS BEFORE QUOTING ANY NUMBER IN THIS FILE
-Every altitude this project reports as "m MSL" is in fact **height above the WGS-84 ELLIPSOID**.
-`VrfFacade.cpp` reads position via `DtGeodeticCoord::setGeocentric()` then `geod.alt()`, and
-`matrix/geodeticCoord.h` returns the raw third component unless a geoid datum is set;
-`matrix/geoidDatum.h` says the default is `DtNoGeoid`, and nothing in src/, tools/, config/ or
-the 5.2d configs ever sets one. So "-0.0 m MSL" means THE ELLIPSOID SURFACE, not sea level, and
-the geoid separation at the Mojave AOI (roughly -32 m) is absent from every figure here.
-Found 2026-09-04 by adversarial audit; the mislabelling is repo-wide and NOT yet corrected at
-every site. It is also material to the OPEN question in sec 2: a below-terrain create landing on
-the ELLIPSOID is a far more specific clue than "snapped to zero".
+## 0. THE SOURCE FRAME - where the whole problem started (2026-09-05, read from the schema)
+C2SIM does not have "an altitude". `GeodeticCoordinate` carries TWO OPTIONAL elements
+(C2SIM_SMX_LOX_CWIX2024.xsd :2716-2717): `AltitudeAGL` - "distance vertically above ground level"
+(:155) - and `AltitudeMSL` - "distance vertically above mean sea level" (:163). **Every init in
+data/ carries NEITHER** (checked 2026-09-05), so "no altitude given" is the normal case.
+The oracle (frozen C++) read whichever element it met into ONE field, used it as an ABSOLUTE
+create altitude (C2SIMinterface.cpp:1384), invented "1000.0" when absent on the belief that
+"1000.0 triggers VRForces Gound Clamping" (:685, :1378-1379 - never a VR-Forces behaviour; it
+was simply above the ground at sea-level Bogaland), and then sent ElevationAgl+1 through
+setAltitude(..., TRUE) (:721-724) - about 1001 m ABOVE GROUND for a ground unit. The port
+inherited all of it (InitParser.Elevation collapsed AGL/MSL into a string named ElevationAgl;
+UnitTranslator.cs:63/:159), added a 10000 m "safe-high birth" on top, and skipped the one call
+that places things. Three weeks of altitude machinery compensated for a frame that was wrong at
+the point of ingestion.
+**WHAT THE CODE DOES NOW (4b4d0f9, PlacementPolicy.cs, --placement-selftest):** the typed
+AltitudeAgl/AltitudeMsl are preserved from the init; the create position is the AUTHORED
+lat/lon (altitude = C2SIM MSL if given, else 0 - irrelevant for land under the default clamp);
+the altitude the object should HAVE is stated in the frame C2SIM stated it - AGL through
+setAltitude(agl, aboveGroundLevel=TRUE); land with nothing given -> AGL 0 (on the ground); air
+with nothing given -> a NAMED knob logged as ARBITRARY; surface/subsurface -> the sim's own water
+handling. "Ground" = the DIS domain of the created type (SISO-REF-010.xml:3116-3119), not an
+APP6 symbology character. The 10000 m birth, the +1 and the SIDC test are gone; Fixed100 keeps
+the oracle's behaviour byte-for-byte as the parity escape hatch. LIVE CONFIRMATION STILL OWED.
+
+## UNITS - what "m MSL" means in this project
+Our readback is `DtGeodeticCoord::alt()` with no geoid datum set (`matrix/geoidDatum.h` default
+`DtNoGeoid`; nothing in the tree sets one), i.e. height above the WGS-84 ELLIPSOID. That is NOT a
+mislabel, it is MAK's documented convention: "for coordinates in DIS PDUs, it is assumed the
+simulation model of mean sea level is coincident with the WGS84 ellipsoid. Altitude MSL shall use
+the ellipsoid as their zero-reference surface" and "MAK ONE applications assume 0 MSL and make use
+of geoid-based values as-is" (help AddingContent/Terrain/EarthFiles/vrf_egmModel.htm:199, :201).
+So "m MSL" here = ellipsoidal height, by the vendor's definition; the geoid separation (~-32 m at
+the Mojave AOI) is absent from every figure by design. (2026-09-04's audit called this "WRONG
+(labels)"; the vendor page above re-scopes that to "MAK-convention MSL, state it once".) The
+"-0.0" of the below-terrain create is still the ellipsoid surface - see sec 2, still OPEN.
 
 ## THE ONE-PARAGRAPH ANSWER
 VR-Forces has TWO altitude frames, MSL and above-terrain, and it exposes them
@@ -38,8 +63,10 @@ virtual void setAltitude(const DtUUID& uuid, double altitude,
   terrain knowledge, NO terrain query and NO safe-high birth.
 - WE ALREADY PASS IT: `src/VrfFacade/VrfFacade.cpp:739` calls
   `setAltitude(DtUUID(uuid), altitudeMeters, TRUE)`. The capability has been wired the whole
-  time. On the normal path it never fires, because the app SKIPS the deferred SetAltitude
-  whenever it used the safe-high create (`VrfC2SimService.cs`, "SKIP the deferred SetAltitude").
+  time. Until 2026-09-05 the normal path never reached it - the app SKIPPED the deferred
+  SetAltitude whenever it used the 10000 m create. As of 4b4d0f9 the normal path IS this call:
+  PlacementPolicy decides the AGL value (C2SIM's, or 0 for a land unit with none) and the
+  ObjectCreated handler sends it (VrfC2SimService.cs, `_pendingAltitude`).
 - **EXERCISED ONCE 2026-09-04, UNCONTROLLED** (PREREG_CLAMP_DIRECTION sec 8a; `tools/SetAlt`,
   appNos 3913/3914, scored by an INDEPENDENT observer, not by the tool that issued the change):
   an entity sitting BURIED at -0.0 m under ~1150 m of terrain read 1149.8 m - ON THE SURFACE -
