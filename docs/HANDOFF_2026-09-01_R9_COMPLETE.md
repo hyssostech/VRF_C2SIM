@@ -85,8 +85,7 @@ OF SIM TIME (VrfFacade.cpp:478-482 pins the federate clock to elapsedRealTime; T
 WALL); at 0.27-0.31x that changes which chains dispatch.
 ## COA-STP1 SCALE - CLOSED (rungs 0/1/2). Full records in the preregs; this is the residue.
 Rungs 0-2 (fc93a1e / d1f2e10 / b3792d1): ROOT CAUSE SETTLED, FIXED 726f762, verified 5x - OURS, a
-contract violation at the DtUUID string ctor (rwUUID.h:246-253/:412; names survive to 35 chars). All
-four route/waypoint sites pass e.Uuid, not e.Name.
+DtUUID string-ctor contract violation (rwUUID.h:246-253/:412, names survive to 35 chars).
 STILL OPEN (5.0.2-era, carried to 5.2): the NATIVE completion-status item; (B) 26 echelon-F units
 land the GENERIC Ground_Aggregate fallback (UnitTranslator.cs:70/:134, TYPE_GAP 4, USER call) - it
 MARCHES; (C) TerrainProfile re-entry double-logs; (D) ResetVrf after StopVrf is blind.
@@ -115,26 +114,27 @@ scale STOPPED on its miss rule (3767-3773); type-map live gate PASSES (3775-3781
    **NEVER touch the operator's 8080/61613**). STILL OWED by the type-map gate: run 3 (PRC must
    REFUSE TO START) and run 4 (COA-STP1, 128 units). FidelityTable is NOT default - USER decision.
 4. NATIVE COMPLETION STATUS - forward DtTaskCompleteReport success()/taskId()/taskTrackingNumber()
-   through VrfFacade::TaskCompleted (VrfFacade.cpp:217-242). Only known remaining cause of a FALSE
-   TASKCMPLT. Standing auth: back up DLLs, /t:Rebuild, REDEPLOY ALL 10 COPIES, verify ONE hash.
-5. A COMPLETION-CAPABLE SCALE RUN. No COA-STP1 run has reached a route end (shortest head route
-   24.11 km, best 26.84 km). Mode from the FFRTC block; budget wall = sim / ratio.
-6. TYPE_GAP ITEM 4 - echelon-'F' -> Ground_Aggregate fallback needs a USER RULING
-   (docs/TYPE_GAP_ADJUDICATION.md item 4); not a movement cause.
+   through VrfFacade::TaskCompleted (VrfFacade.cpp:217-242). Only known FALSE-TASKCMPLT cause. Std
+   auth: back up DLLs, /t:Rebuild, REDEPLOY 10 COPIES, verify ONE hash.
+5. A COMPLETION-CAPABLE SCALE RUN. No COA-STP1 run reached a route end (shortest head 24.11 km,
+   best 26.84 km). Mode from the FFRTC block; budget wall = sim / ratio.
+6. TYPE_GAP ITEM 4 (echelon-'F' -> Ground_Aggregate) needs a USER RULING (TYPE_GAP_ADJUDICATION.md).
 6a. **RECONCILIATION (docs/VRF_5.2_PLAN_RECONCILIATION_2026-09-04.md, AUDITED)**: FIVE ruled items
    unqueued (A1 A2 A3 A5 A6); A4 WITHDRAWN; B1 CLOSED (Y-7: no nav mesh needed - MoveAlongRoute does
    no planning; do NOT regenerate nav data). Before the R9 run only B2 (does the route touch roads).
    Then A1 Y-9 knobs NOT WIRED (FIXED-FRAME only; seed has no delivery path), A2, A3, A5, A6.
    **STANCE 2026-09-05: THE CODE IS ENTITY-LEVEL ONLY.** Every scenario ever loaded declares
-   EntityLevel.sms (5.0.2 C2simEx.sms = EntityLevel + extras); nothing branches on the SMS; the
-   Y-15 hybrid = two scenario PROFILES per run (13.7 forbids mixing), NOT IMPLEMENTED. EntityLevel
-   places member PLATFORMS (14.3.3); aggregate-level places the aggregate as a point object.
+   EntityLevel.sms; nothing branches on the SMS; the Y-15 hybrid = two scenario PROFILES per run
+   (13.7 forbids mixing), NOT IMPLEMENTED. Placement acts on member PLATFORMS (VRF_ALTITUDE_FRAMES).
 6b. **PLACEMENT - DONE AND LIVE-CONFIRMED 2026-09-05 (def8a5c + the run, PREREG_PLACEMENT_R9_52).**
    The create asks the back end for terrain height at each point (one DtIfRequestTerrainProfileInfo,
    the route path's plumbing) and creates AT terrain+1 m. Run with the set ISOLATED: **44/44 on
    terrain, mech=CREATE, 0 fail**; 6/6 TERRAIN QUERY (real heights even for points sent ~1150 m
    below); no -0.0/10000/NaN. 10000 m birth, +1, SIDC test GONE; AGL set proven not needed, kept
-   default-ON. NEXT = the ORDER run (PREREG_R9_52: movement + TASKCMPLT).
+   default-ON. NEXT = the ORDER run (PREREG_R9_52), 5.2 basis in RESEARCH_52_MOVEMENT_ORDER_
+   2026-09-05: completion = ALL-subordinates (not 5.0.2 leading-edge); arrival at the SHIPPED
+   at-distance 1.0 m / near 15 m (NOT 250 m); route CONSUMED (route-by-uuid holds); expect the
+   VRF-8968 formation wait; GATE the order on all-taskees-created (DROPPING/ABANDONING == 0).
 7. MAK MESSAGE - docs/MAK_MESSAGE_2026-09-02.md is send-ready and THE USER SENDS IT. *** ITS
    APPENDED DtUUID ROUTE-NAME-LENGTH DRAFT IS STALE - the cause was OUR contract violation
    (rwUUID.h:246-253; fix 726f762). REWRITE OR DROP IT; do not send it as a defect report. ***
