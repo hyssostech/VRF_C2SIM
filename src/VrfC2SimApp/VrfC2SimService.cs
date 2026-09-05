@@ -133,8 +133,23 @@ public sealed class VrfC2SimService : BackgroundService
     // 2026-09-01.md sec 3.3): terrain-height requests in flight, keyed by the bridge's request
     // id. The reply (OnVrfTerrainProfile) or the tick-loop expiry runs Continue(samples) on the
     // tick thread; samples == null = timed out. Whichever fires first removes the entry.
-    private sealed record PendingTerrain(DateTime Deadline, string TaskName, Action<List<TerrainHeightSample>> Continue);
+    // TWO consumers now share this plumbing: the ROUTE-VERTEX authoring (the original, per task)
+    // and the INIT PLACEMENT query (one request for all create positions of an init, 2026-09-05).
+    // FallbackNote is what the timeout warning says the consumer will do instead, so each keeps
+    // its own accurate wording.
+    private sealed record PendingTerrain(DateTime Deadline, string TaskName, Action<List<TerrainHeightSample>> Continue,
+                                         string FallbackNote = "dispatching with Live vertices");
     private readonly ConcurrentDictionary<uint, PendingTerrain> _pendingTerrain = new();
+
+    // What the shared terrain-profile plumbing's TaskName field says for the INIT PLACEMENT
+    // request - that consumer is an init, not a task.
+    private const string PlacementTerrainLabel = "INIT PLACEMENT";
+
+    // The PlacementPolicy inputs for one planned create, kept parallel to the toCreate list so the
+    // terrain reply can re-decide the create altitude without re-parsing the init. DeStacker.Apply
+    // rewrites plans IN PLACE (DeStacker.Apply's summary: "De-stack plans IN PLACE ...", and its
+    // body assigns plans[idx]), so index i keeps meaning plan i after de-stacking.
+    private readonly record struct PlacementInput(int Domain, double? Agl, double? Msl);
 
     /// <summary>What OnInitialization created for one C2SIM unit, so OnOrder can task it.
     /// AutoFormation is the E1 per-created-type formation name (null for entities and
@@ -521,6 +536,7 @@ public sealed class VrfC2SimService : BackgroundService
         int unmapped = 0;
         var proxiesToReport = new List<(string Uuid, string Name, string Marking, string Substitution)>();
         var toCreate = new List<CreationPlan>();   // collected, then (optionally) de-stacked, then enqueued
+        var placements = new List<PlacementInput>();   // index-parallel to toCreate (see PlacementInput)
         foreach (var u in init.Units)
         {
             if (string.IsNullOrEmpty(u.Uuid)) continue;
@@ -641,30 +657,38 @@ public sealed class VrfC2SimService : BackgroundService
             //  - Domain is the DIS domain of the type we create (SISO-REF-010.xml:3116-3119:
             //    1 Land, 2 Air, 3 Surface, 4 Subsurface), not the SIDC symbology character the
             //    oracle tested (C2SIMinterface.cpp:2158).
-            // So the create position is the AUTHORED lat/lon - altitude 0 unless C2SIM gave MSL, and
-            // irrelevant for land objects under the default clamp - and the altitude the object should
-            // HAVE is stated in the frame C2SIM stated it, or "on the ground" when C2SIM said nothing.
+            // So the create position is the AUTHORED lat/lon, and its ALTITUDE is - since 2026-09-05 -
+            // the back end's OWN TERRAIN HEIGHT under that point plus Vrf:CreateClearanceMeters, i.e.
+            // the object is created AT the surface. That is MAK's own documented pattern, twice over:
+            // the shipped remoteControl sample creates a Tank_Plt and its M1A2 members at a point that
+            // is already at the terrain ("Points are from Ala Moana terrain",
+            // commandLineRemoteController.cxx:710-772 - 1.0 m above the ellipsoid there) and never
+            // calls setAltitude. The terrain height comes from one DtIfRequestTerrainProfileInformation
+            // for ALL create positions of the init (ifRequestTerrainProfileInformation.h:45-51), issued
+            // in the block after the de-stack; when it does not answer within
+            // TerrainProfileTimeoutSeconds the creates go out at the FALLBACK altitude - C2SIM's MSL if
+            // given, else 0 - which is exactly what this code did before, with a WARN naming it.
             // RETIRED here 2026-09-05 (user direction): the 10000 m MSL birth + skipped SetAltitude,
             // and the SIDC 'G' test. Record: docs/VRF_ALTITUDE_FRAMES.md.
             bool liveMode = IsLiveLikeAltitudeMode();   // Live or TerrainProfile (identical creation)
             int domain = plan.Type.Domain;
             if (liveMode)
             {
-                // The rule itself is PlacementPolicy.Decide (pure; --placement-selftest). This block
-                // only applies it: create position = authored lat/lon + the decided create altitude;
-                // the decided AGL (if any) goes to the deferred setAltitude(aboveGroundLevel=TRUE).
-                var d = PlacementPolicy.Decide(domain, unit.AltitudeAgl, unit.AltitudeMsl, _vrf.AirDefaultAltitudeAglMeters);
+                // Decide with NO terrain height yet, so plan.Pos already carries the fallback value
+                // even if the query is never issued or never answered; FinalizePlacement re-decides
+                // with the reply and overwrites it. The rule itself is PlacementPolicy.Decide (pure;
+                // --placement-selftest) - this block only applies it. The deferred AGL set is
+                // registered there too, so it can never be registered for a create that is still
+                // waiting on the terrain reply.
+                var d = PlacementPolicy.Decide(domain, unit.AltitudeAgl, unit.AltitudeMsl,
+                                               _vrf.AirDefaultAltitudeAglMeters, null, _vrf.CreateClearanceMeters);
                 plan = plan with { Pos = new Geodetic { LatDeg = plan.Pos.LatDeg, LonDeg = plan.Pos.LonDeg, AltMeters = d.CreateAltMeters } };
-                if (d.SetAglMeters is double a) _pendingAltitude[plan.Name] = a;
-                _log.LogInformation("PLACEMENT: {Kind} {Name} domain={Domain} created at authored lat/lon (create alt {CreateAlt} m); " +
-                                    "post-create SetAltitude: {Set} - {Why}.",
-                                    plan.IsAggregate ? "UNIT" : "PLATFORM", plan.Name, domain, d.CreateAltMeters,
-                                    d.SetAglMeters is double s ? $"{s} m ABOVE GROUND LEVEL" : "none", d.Why);
             }
             else if (plan.PostCreateAltitude is double alt)
             {
                 // Fixed100: the golden-parity escape hatch - the oracle's behaviour byte-for-byte,
                 // including its frame error (ElevationAgl+1 sent as AGL; C2SIMinterface.cpp:721-724).
+                // No terrain query, no PLACEMENT line: this branch is unchanged by the 2026-09-05 work.
                 _pendingAltitude[plan.Name] = alt;
             }
 
@@ -675,6 +699,7 @@ public sealed class VrfC2SimService : BackgroundService
             _c2SimUuidByName[plan.Name] = unit.Uuid;
 
             toCreate.Add(plan);
+            placements.Add(new PlacementInput(domain, unit.AltitudeAgl, unit.AltitudeMsl));
             planned++;
         }
 
@@ -689,17 +714,20 @@ public sealed class VrfC2SimService : BackgroundService
                                     g.Count, g.LatDeg, g.LonDeg, _vrf.DeStackSpacingMeters);
         }
 
-        foreach (var p in toCreate)
-        {
-            _tickActions.Enqueue(() =>
-            {
-                if (p.IsAggregate)
-                    _bridge.CreateAggregate(p.Type, p.Pos, p.Force, p.HeadingDeg, p.Name,
-                                            AggregateState.Disaggregated, true);
-                else
-                    _bridge.CreateEntity(p.Type, p.Pos, p.Force, p.HeadingDeg, p.Name);
-            });
-        }
+        // PLACEMENT (Live / TerrainProfile): ask the back end for the terrain height under every
+        // create position - ONE request for the whole init - and create each object AT the surface.
+        // MUST run AFTER the de-stack: de-stacking moves units off their authored lat/lon, and a
+        // terrain height queried at the old point would be the wrong point's answer.
+        // Fixed100 never queries; its creates go out immediately, byte-for-byte as before.
+        // ORDERING: in the querying modes the unit creates are now enqueued AFTER the control-area
+        // creates below (they wait for the reply), where they used to precede them. Nothing couples
+        // the two - a DtIfCreateVrfObject for a TacticalArea neither reads nor is read by a unit
+        // create - but it IS a departure from the golden command order, so a trace comparison must
+        // expect areas first. Fixed100, the golden-parity mode, keeps the original order.
+        if (toCreate.Count > 0 && IsLiveLikeAltitudeMode())
+            StartPlacementTerrainQuery(toCreate, placements, source);
+        else
+            EnqueueCreates(toCreate);
 
         // R-SURFACE-PROXY: one ObservationReport/NameObservation per substituted unit, so a
         // downstream C2SIM consumer sees WHICH template stands in and why (ReportBuilder
@@ -753,6 +781,188 @@ public sealed class VrfC2SimService : BackgroundService
 
         _log.LogInformation("Init dispatched: {Units} units + {Areas} areas queued for creation.",
                             planned, areasQueued);
+    }
+
+    /// <summary>
+    /// Queue the creates on the tick thread. Extracted 2026-09-05 because there are now two
+    /// callers: the immediate path (Fixed100, and any init with nothing to place) and the
+    /// terrain-reply path. Enqueuing is kept even when the caller is ALREADY on the tick thread,
+    /// so the command order out of an init is the same in both paths.
+    /// </summary>
+    private void EnqueueCreates(List<CreationPlan> plans)
+    {
+        foreach (var p in plans)
+        {
+            _tickActions.Enqueue(() =>
+            {
+                if (p.IsAggregate)
+                    _bridge.CreateAggregate(p.Type, p.Pos, p.Force, p.HeadingDeg, p.Name,
+                                            AggregateState.Disaggregated, true);
+                else
+                    _bridge.CreateEntity(p.Type, p.Pos, p.Force, p.HeadingDeg, p.Name);
+            });
+        }
+    }
+
+    /// <summary>
+    /// INIT PLACEMENT terrain query (2026-09-05). ONE DtIfRequestTerrainProfileInformation for ALL
+    /// create positions of this init (ifRequestTerrainProfileInformation.h:45-51 - the request is a
+    /// plain vector of points and carries no task, so nothing binds this plumbing to the route
+    /// path); the reply gives each object a create altitude AT the terrain, which is what MAK's own
+    /// sample does (commandLineRemoteController.cxx:710-772) and what UG52 14.3.3 says the
+    /// simulator then honours ("ground ... entities are placed on the ground ... at the highest
+    /// possible terrain intersection").
+    /// THREADING: the request is issued from a tick action because the native facade is
+    /// single-threaded; the reply (OnVrfTerrainProfile) and the timeout sweep (ExpireTerrainRequests)
+    /// both run Continue on that same thread, so FinalizePlacement and the create enqueue never race.
+    /// CREATION IS NEVER BLOCKED ON THE QUERY: a request that cannot be sent finalizes immediately,
+    /// and a request that is not answered is expired by the tick loop after
+    /// TerrainProfileTimeoutSeconds - both with the pre-2026-09-05 fallback altitudes and a WARN.
+    /// </summary>
+    private void StartPlacementTerrainQuery(List<CreationPlan> plans, List<PlacementInput> inputs, string source)
+    {
+        // The request points ARE the (post-de-stack) create positions, so reply sample #i answers
+        // plan i - the reply's user data "is the index of the terrain profile request satisfied with
+        // the response" (ifRequestTerrainProfileInformation.h:47), which the facade puts in
+        // TerrainHeightSample.Index (VrfFacade.h:234-246).
+        //
+        // *** OPEN - the request point's ALTITUDE. The request is a plain vector of geocentric
+        // points (ifRequestTerrainProfileInformation.h:51) and NO vendor source says what role
+        // their altitude plays. The back end's own per-point result is {soilType, testPoint,
+        // terrainHeight} (vrfobjcore/terrainProfileRequestManager.h:109-117), which reads like a
+        // height-of-terrain lookup at the test point rather than a ray cast from the requested
+        // altitude - but the reply the facade actually reads is an intersectionPoint()
+        // (VrfFacade.cpp:384), and "intersection" is ray language. These points carry the create
+        // altitude (0, or the authored C2SIM MSL), which at a high-elevation AOI is ~1150 m BELOW
+        // the surface; the route path has only ever sent points ABOVE it. If the altitude does
+        // matter, the samples come back invalid or out of frame and every object falls back to the
+        // pre-2026-09-05 altitude - the PLACEMENT summary line ("N of M came from the TERRAIN
+        // QUERY") is the discriminator, and no run is silently placed on a fiction. Do not claim
+        // either way without a run or a vendor statement. ***
+        var points = plans.Select(p => p.Pos).ToList();
+        _tickActions.Enqueue(() =>
+        {
+            uint requestId;
+            try { requestId = _bridge.RequestTerrainProfile(points); }
+            catch (Exception ex)
+            {
+                // Guard added 2026-09-05 (cold-start review): an exception here is otherwise
+                // swallowed by TickLoop, leaving no pending entry and no FinalizePlacement, so the
+                // creates would SILENTLY never happen. Fall back and create anyway.
+                _log.LogWarning(ex, "Init ({Source}): terrain-profile request THREW for {N} create " +
+                                "position(s) - creating at the FALLBACK altitudes.", source, points.Count);
+                FinalizePlacement(plans, inputs, points, null);
+                return;
+            }
+            if (requestId == 0)
+            {
+                _log.LogWarning("Init ({Source}): terrain-profile request for {N} create position(s) was NOT SENT " +
+                                "(no controller, or no points) - creating at the FALLBACK altitudes (C2SIM MSL if " +
+                                "given, else 0); the default create clamp is then the only thing placing them " +
+                                "(ifCreateVrfObject.h:210-212).", source, points.Count);
+                FinalizePlacement(plans, inputs, points, null);
+                return;
+            }
+            var deadline = DateTime.UtcNow.AddSeconds(Math.Max(1, _vrf.TerrainProfileTimeoutSeconds));
+            _pendingTerrain[requestId] = new PendingTerrain(
+                deadline, PlacementTerrainLabel,
+                samples => FinalizePlacement(plans, inputs, points, samples),
+                "creating at the FALLBACK altitudes (C2SIM MSL if given, else 0)");
+            _log.LogInformation("Init ({Source}): terrain-profile request {Id} sent for {N} create position(s); " +
+                                "creation deferred to the reply (timeout {T} s -> fallback altitudes).",
+                                source, requestId, points.Count, _vrf.TerrainProfileTimeoutSeconds);
+        });
+    }
+
+    /// <summary>
+    /// Apply the terrain reply (or its absence) to every planned create, then queue the creates.
+    /// Runs on the tick thread - see StartPlacementTerrainQuery. samples == null means no terrain
+    /// height for anything (timeout, or the request was never sent).
+    /// </summary>
+    private void FinalizePlacement(List<CreationPlan> plans, List<PlacementInput> inputs,
+                                   List<Geodetic> points, List<TerrainHeightSample> samples)
+    {
+        var terrain = ResolvePlacementTerrain(points, samples);
+        int fromTerrain = 0;
+        for (int i = 0; i < plans.Count; i++)
+        {
+            double? th = terrain.TryGetValue(i, out double h) ? h : null;
+            var input = inputs[i];
+            var d = PlacementPolicy.Decide(input.Domain, input.Agl, input.Msl,
+                                           _vrf.AirDefaultAltitudeAglMeters, th, _vrf.CreateClearanceMeters);
+            var p = plans[i];
+            p = p with { Pos = new Geodetic { LatDeg = p.Pos.LatDeg, LonDeg = p.Pos.LonDeg, AltMeters = d.CreateAltMeters } };
+            plans[i] = p;
+            // Vrf:PlacementAglSet=false suppresses the belt-and-braces set so a run measures the
+            // CREATE alone (PREREG_PLACEMENT_R9_52 A1; VrfSettings.PlacementAglSet). Default true.
+            bool setRegistered = _vrf.PlacementAglSet && d.SetAglMeters is double;
+            if (setRegistered) _pendingAltitude[p.Name] = d.SetAglMeters.Value;
+            if (d.CreateAltFromTerrain) fromTerrain++;
+            // The set field reports what was ACTUALLY registered, not what the policy computed:
+            // with Vrf:PlacementAglSet=false the policy still returns a value but none is sent, and
+            // the log must not claim a set that did not happen (caught in the seat's own review).
+            _log.LogInformation("PLACEMENT: {Kind} {Name} domain={Domain} created at authored lat/lon; create alt " +
+                                "{CreateAlt} m from the {AltSource} (terrain height under the create point: " +
+                                "{Terrain}); post-create SetAltitude: {Set} - {Why}.",
+                                p.IsAggregate ? "UNIT" : "PLATFORM", p.Name, input.Domain, d.CreateAltMeters,
+                                d.CreateAltFromTerrain ? "TERRAIN QUERY" : "FALLBACK",
+                                th is double t ? FormattableString.Invariant($"{t:F1} m") : "UNKNOWN",
+                                setRegistered ? $"{d.SetAglMeters.Value} m ABOVE GROUND LEVEL"
+                                    : (d.SetAglMeters is double sup ? $"SUPPRESSED (policy {sup} m; Vrf:PlacementAglSet=false)" : "none"),
+                                d.Why);
+        }
+        _log.LogInformation("PLACEMENT summary: {T} of {N} create altitude(s) came from the TERRAIN QUERY, " +
+                            "{F} from the FALLBACK.", fromTerrain, plans.Count, plans.Count - fromTerrain);
+        EnqueueCreates(plans);
+    }
+
+    /// <summary>
+    /// Reply sample -> terrain height per create-point index. Same FRAME check the route path
+    /// applies (TerrainVertexAuthoring.DefaultMaxHorizontalMismatchMeters): a sample whose returned
+    /// lat/lon is not under the point it claims to answer is not an answer for it, and a request or
+    /// reply in the wrong frame lands nowhere near the points, so every sample fails here and the
+    /// whole init falls back rather than being placed at a fiction.
+    /// ECHO / NO-DATA GUARD (added 2026-09-05 per the cold-start review; an earlier version of this
+    /// comment argued it was unnecessary - that was wrong). The back end returns terrainHeight 0.0
+    /// when it finds no intersection (terrainDatabase.h:398-399); a create point sent at altitude 0
+    /// that comes back "0.0 at its own lat/lon" would otherwise pass the frame check and be logged
+    /// as a real sea-level answer. Reject a height within EchoToleranceMeters of the request point's
+    /// own altitude - the fallback for that point is create-at-0 regardless, so it costs nothing.
+    /// A genuine sea-level object is domain surface/subsurface, which never takes the terrain branch.
+    /// </summary>
+    private Dictionary<int, double> ResolvePlacementTerrain(List<Geodetic> points, List<TerrainHeightSample> samples)
+    {
+        var byIndex = new Dictionary<int, double>();
+        if (samples == null) return byIndex;
+        foreach (var s in samples)
+        {
+            if (!s.Valid || s.Index < 0 || s.Index >= points.Count) continue;
+            var v = points[s.Index];
+            double off = TerrainVertexAuthoring.DistMeters(v.LatDeg, v.LonDeg, s.LatDeg, s.LonDeg);
+            if (off > TerrainVertexAuthoring.DefaultMaxHorizontalMismatchMeters)
+            {
+                _log.LogWarning("PLACEMENT: terrain sample #{Idx} came back {Off:F0} m from the create point it " +
+                                "claims to answer - REJECTED (frame check); that object falls back.", s.Index, off);
+                continue;
+            }
+            // ECHO / NO-DATA GUARD (added 2026-09-05 per the cold-start review). The back end
+            // returns terrainHeight 0.0 when it finds no intersection (terrainDatabase.h:398-399;
+            // terrainProfileRequestManager.h:111 defaults terrainHeight(0.)). A create point sent
+            // at altitude 0 that comes back "terrain 0.0" at its own lat/lon would pass the frame
+            // check and be logged as a real TERRAIN QUERY answer. Reject a height within 1 cm of
+            // the request point's own altitude (same constant as TerrainVertexAuthoring.cs:30):
+            // the fallback for that point is create-at-0 anyway, so rejecting it costs nothing and
+            // stops a no-data 0 from masquerading as a sea-level terrain answer.
+            if (Math.Abs(s.TerrainAltMeters - v.AltMeters) < TerrainVertexAuthoring.EchoToleranceMeters)
+            {
+                _log.LogWarning("PLACEMENT: terrain sample #{Idx} returned {H:F2} m = the request point's own " +
+                                "altitude (echo / no-data, terrainDatabase.h:398-399) - REJECTED; that object " +
+                                "falls back.", s.Index, s.TerrainAltMeters);
+                continue;
+            }
+            byIndex.TryAdd(s.Index, s.TerrainAltMeters);   // first answer per point wins
+        }
+        return byIndex;
     }
 
     private void OnObjectInitialization(object sender, C2SIMSDK.C2SIMNotificationEventParams e)
@@ -1731,8 +1941,8 @@ public sealed class VrfC2SimService : BackgroundService
         foreach (var kv in _pendingTerrain)
         {
             if (kv.Value.Deadline > now || !_pendingTerrain.TryRemove(kv.Key, out var pending)) continue;
-            _log.LogWarning("Terrain profile request {Id} for task '{Task}' got no reply within {T} s - " +
-                            "dispatching with Live vertices.", kv.Key, pending.TaskName, _vrf.TerrainProfileTimeoutSeconds);
+            _log.LogWarning("Terrain profile request {Id} for task '{Task}' got no reply within {T} s - {Fallback}.",
+                            kv.Key, pending.TaskName, _vrf.TerrainProfileTimeoutSeconds, pending.FallbackNote);
             _tickActions.Enqueue(() => pending.Continue(null));
         }
     }

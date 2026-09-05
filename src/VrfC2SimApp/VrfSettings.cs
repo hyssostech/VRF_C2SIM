@@ -260,6 +260,24 @@ public class VrfSettings
     public double TerrainClearanceMeters { get; set; } = 10.0;
     public int TerrainProfileTimeoutSeconds { get; set; } = 10;
 
+    // CREATE-TIME clearance (2026-09-05). In the Live/TerrainProfile modes the app asks the back end
+    // for the terrain height under EVERY create position of an init - one
+    // DtIfRequestTerrainProfileInformation for the whole init (ifRequestTerrainProfileInformation.h
+    // :45-51), the same query the route path uses - and creates each LAND object at
+    // terrainHeight + this clearance instead of at 0. That is MAK's own documented pattern: the
+    // shipped remoteControl sample creates a Tank_Plt and its M1A2 members at a point that is
+    // ALREADY at the terrain ("Points are from Ala Moana terrain",
+    // commandLineRemoteController.cxx:710-772; the point decodes to 1.0 m above the ellipsoid on
+    // that near-sea-level terrain - docs/VRF_ALTITUDE_FRAMES.md sec 1a), and never calls
+    // setAltitude. 1.0 is that number. The vendor rule the create relies on is UG52 14.3.3 /
+    // vrf_newEntityPlacement.htm ("ground ... entities are placed on the ground ... at the highest
+    // possible terrain intersection") plus the default clamp (ifCreateVrfObject.h:210-212).
+    // If the query is not answered within TerrainProfileTimeoutSeconds the creates go out with the
+    // PREVIOUS altitude (C2SIM MSL if the init gave one, else 0) and a WARN naming the fallback -
+    // creation is never blocked on the query. Surface/subsurface are untouched (UG52 14.3.3:
+    // "Surface and subsurface entities are created at sea level"). Fixed100 never queries.
+    public double CreateClearanceMeters { get; set; } = 1.0;
+
     // AIR units only: the altitude ABOVE GROUND to give an air platform whose C2SIM init carries
     // NEITHER AltitudeAGL nor AltitudeMSL (xsd :2716-2717, both optional; every init in data/ omits
     // both). C2SIM defines no default, so this number is ARBITRARY and is logged as such on use.
@@ -273,4 +291,16 @@ public class VrfSettings
     // oracle's folk belief that "1000.0 triggers VRForces Gound Clamping" (C2SIMinterface.cpp:685)
     // was never a VR-Forces behaviour; it was just above the ground at sea-level Bogaland.
     public double AirDefaultAltitudeAglMeters { get; set; } = 1000.0;
+
+    // The post-create setAltitude(...,aboveGroundLevel=TRUE) is BELT-AND-BRACES: since 2026-09-05
+    // the create itself is at terrain+clearance (the documented placement, UG52 14.3.3), so the set
+    // only insures against the create landing wrong. It is documented as ignored for a non-air
+    // vehicle (setAltitudeRequest.h:24-25) yet was observed to lift a buried ground M1A2
+    // (PREREG_CLAMP_DIRECTION sec 8a), so on the create path it CONFOUNDS a test of the create:
+    // an object could read on-terrain because the create placed it OR because the set rescued it.
+    // Set false to ISOLATE the create (the confirming-run control, PREREG_PLACEMENT_R9_52 A1):
+    // no post-create set is registered for the placement path, so where an object ends up is the
+    // create alone. Default TRUE = production safety. This gates ONLY the placement path's set;
+    // the Fixed100 parity branch and any air-unit set are unaffected (they do not read this).
+    public bool PlacementAglSet { get; set; } = true;
 }

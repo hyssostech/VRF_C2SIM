@@ -249,7 +249,13 @@ says what the world will look like; it does not say what should then be built.
 
 ## 7. TRIPWIRES (fire before writing, not after)
 - Writing "buried" or "underground" near "freeze"/"never moves"? STOP - falsified, sec 5.
-- About to add terrain-height machinery to place an ENTITY? STOP - sec 1, one AGL call.
+- About to place an ENTITY by GUESSING an altitude (a constant, a "safe-high" number, a +1)? STOP.
+  Two documented ways exist and both are in the code: hand the create a point AT the terrain
+  (MAK's own sample; the terrain height comes from the existing DtIfRequestTerrainProfileInformation
+  request, since 2026-09-05), and the AGL setAltitude for the frame C2SIM stated (sec 1b). Never a
+  number nobody measured. [Reworded 2026-09-05: an earlier tripwire here said "no terrain-height
+  machinery for an ENTITY, one AGL call" - that over-read sec 1; the AGL set is documented as
+  ignored for non-air vehicles (setAltitudeRequest.h:24-25), so it cannot be the ONLY mechanism.]
 - About to put an AGL/above-terrain altitude on a ROUTE VERTEX? STOP - sec 3, no such frame;
   query terrain and send absolute.
 - About to state ANY altitude behaviour? Cite a header line or a help page, or mark it OPEN.
