@@ -1965,7 +1965,12 @@ join) are BURNED, not recycled. The run manifest records which were actually use
   ConfigFileIdentity, PlacementAglSet=false, Debug); 3921 = spare (RtiProbe retry). A crashed launch
   BURNS its number. Outcome: prereg sec 5.
 
-*** NEXT FREE: 3922 *** (authoritative - the ONLY such marker in this file. Update this
+- 3922-3925: CLAIMED 2026-09-05 - PREREG_R9_52 ORDER run (R9_Mojave_UnitMove_Order, movement +
+  TASKCMPLT on 5.2). 3922 = vrfSimHLA1516e via LaunchVrf52 on R9_Mojave_Empty_52; 3923 = WatchVrf
+  --diag (before init); 3924 = VrfC2SimApp (Release-5.2, production PlacementAglSet, Debug);
+  3925 = spare. A crashed launch BURNS its number. Outcome: PREREG_R9_52 sec 5.
+
+*** NEXT FREE: 3926 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
