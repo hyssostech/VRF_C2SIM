@@ -53,9 +53,10 @@ night of RTI probing dissolved in one sentence, UG52 5.5.1 p190). NO questions t
 5.0.2: THE AGGREGATE FREEZE IS FIXED AND HOLDS AT SCALE (routes by real VRF_UUID, 726f762); R9 3/3
 TASKCMPLT; the FULL COA-STP1 ORDER marches (`Can't find entity route` 14,904 -> 0, names to 99 chars);
 merged build GATED; type map LIVE-CONFIRMED 6/6; FFRTC = 3.2-3.8x SLOWDOWN at scale; OPEN: Tank Company
-distribution non-determinism (PARKED). 5.2: launch/join/control/OBSERVATION proven, and 2026-09-04
-the FIRST AUTHORED FIXTURE loaded headless (PREREG_52_FIXTURE_LOAD 3908-3910; entity clamped to
-terrain 1149.8 m at the R9 AOI). NO C2SIM STAGE HAS EVER RUN ON 5.2.
+distribution non-determinism (PARKED). 5.2: launch/join/control/OBSERVATION proven; 2026-09-05 the
+FIRST C2SIM INIT RAN END-TO-END ON 5.2 (PREREG_PLACEMENT_R9_52): PushInit -> app late-join -> 6
+units created AT queried terrain height -> 44/44 on terrain in WatchVrf. Order/movement not yet
+(PREREG_R9_52 next). No frame-mode claim until REBASELINE_52.
 ## WORKING CONFIGURATION
 TypeMappingMode=RealTemplates + GroundWaypointAltitudeMode=TerrainProfile (both compiled DEFAULTS
 since 2026-09-02, bridge A7504441) + NavArea disabled + STOCK templates, no env overrides - an
@@ -101,8 +102,7 @@ the init's SystemName or the runner ABORTS at validation, exit 2 (RunC2SimScenar
 R9 inits declare STP, COA-STP1 declares C2SIM; it currently reads "STP". DEPLOYED copy only.
 RTI: inventory fresh at session start - never trust recorded PIDs. Docker: `c2sim-server-vrf` is
 OURS (18080/61614); the operator's servers are NOT. Firewall: do NOT set NotifyOnListen False (user
-ruling); Cancel the testhost prompt. MAK licence expires 2026-09-15. VENDOR LOG STAMPS ARE LOCAL
-(-04:00); ours are UTC.
+ruling); Cancel the testhost prompt. MAK licence expires 2026-09-15. VENDOR LOG STAMPS LOCAL (-04:00), ours UTC.
 
 ## NEXT (in order)
 DONE 2026-09-02 pm (READ THE PREREG SEC 7s): merged-build control GATE PASSED (3759-3765); `-q` at
@@ -129,12 +129,12 @@ scale STOPPED on its miss rule (3767-3773); type-map live gate PASSES (3775-3781
    EntityLevel.sms (5.0.2 C2simEx.sms = EntityLevel + extras); nothing branches on the SMS; the
    Y-15 hybrid = two scenario PROFILES per run (13.7 forbids mixing), NOT IMPLEMENTED. EntityLevel
    places member PLATFORMS (14.3.3); aggregate-level places the aggregate as a point object.
-6b. **PLACEMENT REWRITE - CODE DONE 2026-09-05 (4b4d0f9), LIVE CONFIRMATION OWED.** 10000 m birth,
-   oracle +1 and SIDC 'G' test GONE; PlacementPolicy.cs decides from C2SIM AltitudeAGL/MSL x DIS
-   domain -> AGL setAltitude. 9/9 offline gates incl. new --placement-selftest. NEXT = prereg citing
-   VRF_ALTITUDE_FRAMES sec 0 + ONE R9 run: 6/6 PLACEMENT lines, every land object at terrain height
-   in WatchVrf (platforms AND unit members), no -0.0, no 10000; aggregate expectations from the
-   entity-vs-aggregate research first.
+6b. **PLACEMENT - DONE AND LIVE-CONFIRMED 2026-09-05 (def8a5c + the run, PREREG_PLACEMENT_R9_52).**
+   The create asks the back end for terrain height at each point (one DtIfRequestTerrainProfileInfo,
+   the route path's plumbing) and creates AT terrain+1 m. Run with the set ISOLATED: **44/44 on
+   terrain, mech=CREATE, 0 fail**; 6/6 TERRAIN QUERY (real heights even for points sent ~1150 m
+   below); no -0.0/10000/NaN. 10000 m birth, +1, SIDC test GONE; AGL set proven not needed, kept
+   default-ON. NEXT = the ORDER run (PREREG_R9_52: movement + TASKCMPLT).
 7. MAK MESSAGE - docs/MAK_MESSAGE_2026-09-02.md is send-ready and THE USER SENDS IT. *** ITS
    APPENDED DtUUID ROUTE-NAME-LENGTH DRAFT IS STALE - the cause was OUR contract violation
    (rwUUID.h:246-253; fix 726f762). REWRITE OR DROP IT; do not send it as a defect report. ***

@@ -497,5 +497,37 @@ STEP 8 scoring:
   silently drop every create (it was swallowed by TickLoop).
 All three: build 0 errors, 9/9 offline self-tests green.
 
-## 5. Result
-(filled after the run)
+## 5. Result - 2026-09-05, RUN COMPLETE. SUCCESS (P1 AND P2 AND P4 all held).
+appNos 3918 sim / 3919 WatchVrf / 3920 app (3921 spare, unused -> burned). Artifacts:
+runs/launch52/placement_sim_3918_*.txt, watch_3919_placement_*.trace, app_3920_placement_*.log,
+vrfSim_3918_placement_live.log. PlacementAglSet=false (create ISOLATED), Debug logging on.
+
+HEADLINE: 44 of 44 scored objects on terrain, `mech=CREATE`, 0 failed
+(placement_check.py, exit 0). The AGL set was SUPPRESSED, so this is the CREATE ALONE.
+- 6 objects created, 0 skip-WARNs (A2.1 confirmed live): 1.BdeHQ PLATFORM + 114/1141/1142/1143/
+  1222.MechPlt UNITS; PushInit reported "6 Units, SystemName=[STP]".
+- PLACEMENT: 6 of 6 create altitudes from the TERRAIN QUERY, 0 FALLBACK. The request points were
+  sent at altitude 0 (~1150+ m below the surface) and the query STILL returned real terrain
+  heights - so **the OPEN question (does a below-terrain request point defeat the query?) is
+  answered NO** (finding 9 / A1.0 Q2 closed). Terrain returned: 1.BdeHQ 1154.7, 1222.MechPlt
+  1117.2, 114.MechCoy/1141/1142/1143 1260.1 (the three platoons inherit 114's point).
+- P1 (ENTITY, create alone): 1.BdeHQ reflected 1154.7 m = its terrain height exactly, from its
+  first sample, mech=CREATE. HELD.
+- P2 (MEMBERS, create alone): every member of every unit on terrain, first sample, mech=CREATE -
+  M1A2 1/2/3/4 at 1114.9-1120.1 (1222's ~1117 m terrain); the 114+3-platoon members (M1A2 6-30,
+  HMMWV, M3, M577A2, AR Plt) at 1243-1328 m (~1260 m terrain + formation spread). HELD.
+- P4 (no forbidden altitude): no scored object at |alt|<=1, -0.0, NaN or 10000 at any of 82
+  samples. HELD. (The one skipped object is GlobalEnv, the fixture's cast-corrupted control.)
+- GAP-2 CLOSED: "Locally Simulated:" appears 46x in this 5.2 vendor log (0x in the fixture-only
+  log), so member-by-name labelling works on 5.2; all 44 labelled.
+- The 5.0.2 reference bands (1131.4/1116.7/1040.6) did NOT apply - the 5.2 "MAK Earth (online)"
+  terrain differs and NOT uniformly (per-object, not a flat offset). Scored per A2.3 against THIS
+  run's own terrain replies +/-20 m; every object passed its own band.
+
+WHAT THIS SETTLES: create-at-terrain-height places ground platforms AND unit members on the
+surface with NO altitude set, NO 10000 m birth, NO reliance on the clamp raising anything. The
+whole altitude saga is closed on the create path. The belt-and-braces AGL set stays default-ON
+in production (it did no harm and is cheap insurance); this run proved it is not NEEDED.
+STILL NOT DONE (out of this prereg's scope): a run that pushes an ORDER and confirms movement
+(PREREG_R9_52); the aggregate's own published Z was recorded (units read 1117-1276 m, member-
+derived) not scored, its rule still undocumented.
