@@ -1954,7 +1954,12 @@ join) are BURNED, not recycled. The run manifest records which were actually use
   clamp RAISES a below-terrain birth (docs say "nearest polygon"; our code asserts "cannot RAISE").
   3911 = CreateOne at 50 m MSL under ~1150 m terrain; 3912 = WatchVrf. Shares live sim 3908.
 
-*** NEXT FREE: 3915 *** (authoritative - the ONLY such marker in this file. Update this
+- 3915-3917: CLAIMED 2026-09-05 by the supervisor for a HAND-SEQUENCED PREREG_PLACEMENT_R9_52 run
+  (3915 sim, 3916 VrfC2SimApp, 3917 WatchVrf). DECISION 2026-09-05: the run goes through the
+  RUNNER (RunC2SimScenario.ps1 -VrfProfile 5.2), which ledgers its OWN numbers from this marker;
+  these three are therefore BURNED UNUSED. Never recycle them. Outcome: prereg sec 5.
+
+*** NEXT FREE: 3918 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
