@@ -48,7 +48,36 @@ ROUTE VERTEX cannot - vertices are geocentric-absolute only, so a remote control
 the simulator for terrain height and author absolute values. Most of the confusion in this
 project came from answering one of those questions with the other one's answer.
 
-## 1. ENTITY / AGGREGATE altitude - AGL IS DIRECTLY SUPPORTED
+## 1a. PLATFORMS CLAMP, UNITS ORGANIZE (2026-09-05, from the entity-vs-aggregate research)
+The vendor's placement rule is the simulator's, not the caller's: "By default, ground, lifeform,
+rotary-wing, and fixed-wing entities are placed on the ground. Surface and subsurface entities
+are created at sea level. Ground-based entities are placed at the highest possible terrain
+intersection at the location." (UG52 14.3.3; help vrf_newEntityPlacement.htm). Each created
+platform is `place(location, heading, clampToGround=true)`d (vrfMovingObjectStateRepository.h
+:251-253; localObjectManager.h:1013-1025). A UNIT in an EntityLevel scenario is a "pseudo-
+aggregate" - "a unit that has subordinate simulation objects that are separately simulated"
+(UG52 App. D p.1685) - with NO movement actuator and NO clamp key of its own
+(VehicleAggregate.ope:233-271); its location/extent are recomputed each tick by
+DtDisaggregatedActuator from the immediate subordinates (vrfmodel/disaggregatedActuator.h
+:20-26,48-51). So GROUND CONTACT LIVES ON THE MEMBER PLATFORMS; the unit's published Z is a
+derived quantity whose exact rule is NOT DOCUMENTED (the 5.0.2 traces show the members' bounding-
+box centre = the create point, CELLC 04_watch_main.trace). Verifying "on the ground" means
+reading the MEMBERS, never the aggregate's Z.
+**Unit-level levers, by the docs:** setAltitude on a unit is documented to do NOTHING - neither
+unit set-controller registers an altitude callback (vrfmodel/disaggregatedSetController.h:51-71;
+pseudoAggregatedSetController.h:39-62); the "applies to the entire aggregate" note at
+vrfRemoteController.h:1369-1371 is boilerplate repeated on ~17 setters. What IS documented is
+setLocation: the unit's formation controller turns it into a snap-into-formation, which issues a
+DtSetLocationRequest per subordinate, and "Ground vehicles will be clamped to the terrain
+surface" (vrftasks/setLocationRequest.h:27,31-32; classref DtDisaggregatedFormationController).
+That is plan B for a unit whose members end up buried - not yet used.
+**Two documented statements vs two observations, UNRESOLVED:** (i) 14.3.3 says ground entities
+are placed on the ground; PREREG_CLAMP_DIRECTION sec 6 observed a create at 50 m under ~1150 m
+terrain reflect -0.0. (ii) setAltitudeRequest.h:24-25 says the set "is ignored if the vehicle is
+not an air-going vehicle"; sec 8a observed a ground M1A2 lifted -0.0 -> 1149.8 by that set (one
+run, uncontrolled). The confirming run (PREREG_PLACEMENT_R9_52) is designed to settle both.
+
+## 1b. ENTITY altitude - AGL IS SUPPORTED IN THE API (scope per 1a)
 `vrfcontrol/vrfRemoteController.h:1372-1374`
 ```
 virtual void setAltitude(const DtUUID& uuid, double altitude,

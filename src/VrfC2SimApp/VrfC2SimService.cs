@@ -628,9 +628,16 @@ public sealed class VrfC2SimService : BackgroundService
             //  - VR-Forces places a created object on the terrain by default: createEntity /
             //    createAggregate default groundClamp=true (vrfRemoteController.h:1275, :1291); the
             //    create message: "placed on the nearest polygon" (ifCreateVrfObject.h:210-212).
-            //  - "Above ground" is a first-class frame in the API: setAltitude(uuid, m,
-            //    aboveGroundLevel) (vrfRemoteController.h:1372-1374); VrfFacade.cpp:739 passes TRUE.
-            //    For an aggregate leader "the change will apply to the entire aggregate" (:1369-1371).
+            //  - The placement RULE is the simulator's: "ground ... entities are placed on the ground
+            //    ... at the highest possible terrain intersection" (UG52 14.3.3, help
+            //    vrf_newEntityPlacement.htm); each member platform is place()d with clampToGround
+            //    (vrfMovingObjectStateRepository.h:251-253). The AGL set below is belt-and-braces:
+            //    setAltitude(uuid, m, aboveGroundLevel) (vrfRemoteController.h:1372-1374; VrfFacade.cpp
+            //    :739 passes TRUE) - documented "ignored if the vehicle is not an air-going vehicle"
+            //    (setAltitudeRequest.h:24-25) yet observed to lift a ground M1A2 (PREREG_CLAMP_DIRECTION
+            //    sec 8a). On a UNIT it is documented to do NOTHING (no altitude callback in either unit
+            //    set-controller); the documented unit lever is setLocation -> snap-into-formation ->
+            //    per-member clamp (setLocationRequest.h:31-32). See PlacementPolicy.cs header.
             //  - Domain is the DIS domain of the type we create (SISO-REF-010.xml:3116-3119:
             //    1 Land, 2 Air, 3 Surface, 4 Subsurface), not the SIDC symbology character the
             //    oracle tested (C2SIMinterface.cpp:2158).

@@ -61,7 +61,7 @@ Read the row AND its ruling in `docs/VRF_5.2_DECISION_EVIDENCE.md` (the ruling w
   nor does the entity plan paths before moving" - so an AUTHORED C2SIM route MUST use
   MoveAlongRoute, or the planner overrides the route we were asked to drive.
 - **D2 / Y-11**: unit move-along is repackaged as maneuver-along; per-subordinate offset routes
-  are computed at task time; units wait for a valid formation before moving (RN VRF-8977 is a
+  are computed at task time; units wait for a valid formation before moving (RN VRF-8968 is a
   competing hypothesis for the 5.0.2 company non-determinism).
 - **D7 / Y-13 - THE DEFAULT MOVEMENT FLIPPED. Armour now IGNORES ROADS.** 5.0.2
   `ground-tracked.sysdef:71` hard-coded `(default-preference "Prefer Roads")`; 5.2d :132 is

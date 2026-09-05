@@ -218,7 +218,7 @@ determinism only where the vendor put the knob.
   (DtRwLocationReference control point); `DtPlanAndMoveToTask` still derives from it and
   our :575-579 usage compiles; `DtPlanAndMoveToLocationTask` header is gone. moveToTask.h
   :181-184: "move-to is deprecated for ground vehicles. When a move-to is issued, a
-  ground-vehicle-move-to is started as a subtask". RN VRF-8977: unit Move Along Route
+  ground-vehicle-move-to is started as a subtask". RN VRF-8968: unit Move Along Route
   failed unless saved-and-rewound; 5.2 "waits until a unit's formation is considered
   valid before initiating the movement".
 - Vendor direction: their own 5.2 ground scenarios task `move-along`,
@@ -229,7 +229,7 @@ determinism only where the vendor put the knob.
   expresses; probing MoveToLocation buys nothing since the class it named no longer
   exists.
 - Recommendation CHANGED: keep MoveAlongRoute; RETIRE the MoveToLocation/PlanAndMoveTo
-  headless probe from the queue (no consumer, no class). Phase 3 prereg carries VRF-8977
+  headless probe from the queue (no consumer, no class). Phase 3 prereg carries VRF-8968
   as a competing hypothesis for the 5.0.2 company non-determinism (formation-validity
   race at task time) with its falsifier (stable sub-routes on 5.2 across 2 runs).
 
@@ -333,7 +333,12 @@ Y-15 UNIT REPRESENTATION LEVEL (user goal: best sim ability within what STP hand
   roads only by task option (UG52 27.1, 27.1.4, 28.2.2); telemetry = centroid + health.
   Runtime hybrid does NOT exist: modeling type is fixed by the scenario's SMS (UG52
   13.7); an aggregate SMS may hold entities but they run aggregate models; UG52 has no
-  aggregate/disaggregate-at-runtime feature (NETN-MRM module ships in bin64 unused).
+  aggregate/disaggregate-at-runtime COMMAND (none in the UG52 40.96 / ch 41 set lists or any
+  Objects/Set menu; the SDK state repository says the aggregation STATE "may change mode",
+  vrfAggregateStateRepository.h:120-124 - SDK only). NETN-MRM: the IOG lists NETN_Aggregate
+  (MRM) as a supported object class for Callsign/UniqueId only and NO MRM interaction (IOG 2.3
+  p.27-28), so no runtime aggregate/disaggregate arrives over NETN either. [re-cited 2026-09-05
+  after the entity-vs-aggregate research; the earlier "13.7" and "unused" wording was imprecise]
   RULED as recommended (2026-09-03 pm): hybrid = TWO PROFILES selected by the order's
   echelon/scale - EntityLevel + authored doctrinal Lua for company-and-below COAs (the
   fidelity is in the physics), AggregateTacticalLevel for battalion+ or entity counts that

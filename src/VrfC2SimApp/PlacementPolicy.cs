@@ -16,10 +16,27 @@ namespace VrfC2SimApp;
 ///    (the default) the object will be created and placed on the nearest polygon"
 ///    (ifCreateVrfObject.h:210-212). The create altitude is therefore irrelevant for land objects
 ///    under the default; it is honoured only when the clamp is off, which this interface never does.
-///  - Altitude ABOVE GROUND is a first-class API frame: setAltitude(uuid, altitude,
-///    bool aboveGroundLevel) (vrfRemoteController.h:1372-1374); VrfFacade.cpp:739 passes TRUE.
-///    "if this command is specified for an aggregate leader, the change will apply to the entire
-///    aggregate" (:1369-1371) - so one call places a UNIT's platforms too.
+///  - THE PLACEMENT RULE IS THE SIMULATOR'S, NOT OURS: "By default, ground, lifeform, rotary-wing,
+///    and fixed-wing entities are placed on the ground. Surface and subsurface entities are created
+///    at sea level. Ground-based entities are placed at the highest possible terrain intersection
+///    at the location." (UG52 14.3.3; help SimObjectsSection/ObjectCreation/
+///    vrf_newEntityPlacement.htm). Each created member platform goes through place(location,
+///    heading, clampToGround=true) (vrfMovingObjectStateRepository.h:251-253; localObjectManager.h
+///    :1013-1025). So the create altitude we send is not what decides where a land object ends up.
+///  - The AGL set is belt-and-braces, and its scope is narrower than the boilerplate suggests:
+///    setAltitude(uuid, altitude, bool aboveGroundLevel) (vrfRemoteController.h:1372-1374;
+///    VrfFacade.cpp:739 passes TRUE) is carried by DtSetAltitudeRequest, whose header says it "is
+///    ignored if the vehicle is not an air-going vehicle" (vrftasks/setAltitudeRequest.h:24-25) -
+///    yet a ground M1A2 was observed lifted -0.0 -> 1149.8 m by exactly this call
+///    (PREREG_CLAMP_DIRECTION sec 8a; uncontrolled). Header and observation disagree; the
+///    confirming run decides. For a UNIT the "applies to the entire aggregate" note (:1369-1371)
+///    is generic boilerplate on ~17 setters, and NEITHER unit set-controller registers an
+///    altitude callback (vrfmodel/disaggregatedSetController.h:51-71;
+///    pseudoAggregatedSetController.h:39-62) - so on a unit this set is documented to do nothing.
+///    The documented unit-level lever is setLocation: the unit's formation controller turns it
+///    into a snap-into-formation, which issues a DtSetLocationRequest per subordinate, and
+///    "Ground vehicles will be clamped to the terrain surface" (vrftasks/setLocationRequest.h
+///    :27,31-32). Not used here yet; it is the plan-B named in the confirming-run prereg.
 ///  - Domain is the DIS domain of the type we CREATE (SISO-REF-010.xml:3116-3119: 1 Land, 2 Air,
 ///    3 Surface, 4 Subsurface) - the simulator's classification, not APP6 symbology.
 ///  - For air units with no C2SIM altitude there is NO documented default anywhere; the value is

@@ -47,7 +47,7 @@ to each other reached the same direction: treat sec 0 as settled.
 | 3 Telemetry plane in C# | WatchVrf (positions, placeholder encodings), tools/analysis/run_census.py, frame_gaps.py, phase_timing.py | DONE on 5.0.2; re-baseline on 5.2d before any claim (plan Phase 2) |
 | 4 Order compiler (C2SIM -> tasks) | src/VrfC2SimApp (parse, type map, verbs, routes, sequencing, reports, STOMP); private server c2sim-server-vrf 18080/61614 | DONE - the agent's Phase 4 is our whole C# layer |
 | 5 Units and fidelity | 30/31 types resolve on 5.2d once the resolver accepts 7 fields; AR Scout / Mobile Irregular / Mobile Light Infantry gaps; PRC units absent (5.g) | PARTIAL |
-| 6 Repeatability (FFRTC, seed, A/B) | FFRTC adopted; ratio 9x on R9, 0.27x on COA-STP1; Tank-Company non-determinism SUPPORTED, -q FALSIFIED (5c1a76e); VRF-8977 is the 5.2 hypothesis | PARTIAL - seed not pinned; 5.2d re-adjudication is plan Phase 3 |
+| 6 Repeatability (FFRTC, seed, A/B) | FFRTC adopted; ratio 9x on R9, 0.27x on COA-STP1; Tank-Company non-determinism SUPPORTED, -q FALSIFIED (5c1a76e); VRF-8968 is the 5.2 hypothesis | PARTIAL - seed not pinned; 5.2d re-adjudication is plan Phase 3 |
 | 7 One button | scripts/RunC2SimScenario.ps1 + RunnerLib.ps1 (launch, fixture deploy, push init/order, watch, stop) | PARTIAL - blocked by the teardown gap only |
 
 ## 4. Predictions and traps worth carrying
@@ -101,10 +101,10 @@ Traps that are new to our record (the others are already memories):
 - 5.f Scenario-embedded laydown: FixtureGen already writes the .scn; the agent
   would also embed the initial units (from the C2SIM Initialization) and their
   plans, so the sim starts with everything in place and no create-then-task
-  race (VRF-8977). This changes the product shape (orders become scenario
+  race (VRF-8968). This changes the product shape (orders become scenario
   edits, not runtime commands) and conflicts with THE GOAL's "C2SIM in" being
   live. Recommendation: reject for the interface; permissible as a Phase 3
-  A/B instrument only if VRF-8977 survives on 5.2d.
+  A/B instrument only if VRF-8968 survives on 5.2d.
 - 5.g PRC units: 0 unit templates in EntityLevel (both versions), 7 in 5.2d
   AggregateTacticalLevel (MECH CO PA / Mech HQ SEC / Mech PLT (CHN, ZBL),
   Rocket PLT (CHN, DF-21 / YJ-62)), 19 PRC platforms; RUS has 34 EntityLevel

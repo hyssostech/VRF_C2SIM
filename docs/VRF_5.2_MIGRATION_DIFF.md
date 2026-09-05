@@ -13,7 +13,7 @@ VRFExt-9/VRFAggregate-6; the shipped config carries VRFExt-12/VRFAggregate-7).
 - HLA 4 needs MAK RTI 5.0 (IOG; vrfSimHLA4.exe -> librti1516_2025vc141.dll); 5.0.1 INSTALLED
   2026-09-03 (Y-16). Migration gates stay HLA 1516e on makRti4.6.1 (librti1516e64.dll).
 - Our tank company is an ENTITY-LEVEL unit (DtDisaggregated + createSubordinates,
-  UnitTranslator.cs :156). UG52 ch 28 aggregate-level distribution does NOT govern us;
+  VrfC2SimService.cs CreateAggregate(..., Disaggregated, true)). UG52 ch 28 does NOT govern us;
   the entity-level unit rules (rows D1-D4) do.
 - VrfFacade.cpp has no predicted source break (B1-B9, HDR); the ONE predicted break is
   remoteControlInit.cxx :19-20 (myHlaConnection deleted in VR-Link 5.10, A8). Facade uses
@@ -156,7 +156,7 @@ FACTS of the version drift - changes required, no ruling (user agreed, Y-2 named
   + Start/Tick re-authored on the 5.2d sample loop (drop setSimTime(elapsedRealTime()),
   setMonitorBackendState(true), session id from config, -a/-s ledger kept). Y-10 keep
   MoveAlongRoute (adapter repackages unit move-along as maneuver-along; MoveToLocation
-  probe RETIRED, class deleted); Phase 3 prereg carries RN VRF-8977 as competing
+  probe RETIRED, class deleted); Phase 3 prereg carries RN VRF-8968 as competing
   hypothesis. Y-11 unit Move To -> Maneuver To default accepted. Y-12 golden traces with
   Autonomous Actions enabled. 7-field ObjectTypeResolver fix (sec F). 5.b prototype zero
   and 5.d requestTasksAndSetsFor assertion adopted as instruments.
@@ -189,7 +189,7 @@ RULED:
 - Y-15 UNIT REPRESENTATION LEVEL RULED as recommended (2026-09-03 pm): hybrid = TWO PROFILES
   selected by the order's echelon/scale - EntityLevel + authored doctrinal Lua unit tasks for
   company-and-below COAs; AggregateTacticalLevel for battalion+ or entity counts that make
-  FFRTC crawl. No runtime aggregate/disaggregate exists (UG52 13.7). Authoring order:
+  FFRTC crawl. No runtime aggregate/disaggregate COMMAND exists (absent from UG52 40.96/ch 41 set lists and every Objects/Set menu; 13.7 is about SMS MIXING, not this; vrfAggregateStateRepository.h:120-124 says the STATE "may change mode" - SDK only). Authoring order:
   attack-to-objective family first. Profile = fixture/runner setting (SMS + terrain + type
   map). STP vocabulary: docs/STP_TASK_VOCABULARY_2026-09-03.md. Full text: DECISION_EVIDENCE Y-15.
 - Y-16 PROTOCOL: HLA 4 (IEEE 1516-2025) needs MAK RTI 5.0; RTI 5.0.1 INSTALLED 2026-09-03

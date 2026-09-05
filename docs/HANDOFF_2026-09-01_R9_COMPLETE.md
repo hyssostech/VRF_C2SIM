@@ -109,7 +109,7 @@ DONE 2026-09-02 pm (READ THE PREREG SEC 7s): merged-build control GATE PASSED (3
 scale STOPPED on its miss rule (3767-3773); type-map live gate PASSES (3775-3781; 6/6, 3/3).
 1. **TANK-COMPANY NON-DISTRIBUTION - ADJUDICATED (PREREG_COASTP1_QPAIR sec 9):** `-q` FALSIFIED
    as the cause; NON-DETERMINISM SUPPORTED (A-1 vs A-2 identical, 0 vs 4 sub-routes); run B NOT
-   owed. PARKED behind the 5.2 migration (5.2 replaced this mechanism - Y-11/RN VRF-8977).
+   owed. PARKED behind the 5.2 migration (5.2 replaced this mechanism - Y-11/RN VRF-8968).
 2/3. DONE 2026-09-02 (a5cdc95): rule-4 `~PXY` marking match (replayed 3/3 at 0.00 m); the private
    `c2sim-server-vrf` (18080/61614) is the runner DEFAULT and reaches every stage (RUNBOOK sec 1;
    **NEVER touch the operator's 8080/61613**). STILL OWED by the type-map gate: run 3 (PRC must
