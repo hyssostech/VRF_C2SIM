@@ -99,5 +99,47 @@ Do not implement any of these until section 4 settles R1 vs R2:
   at platoon echelon. (Company-level tasking may simply be unsupported for reliable move on
   this build - a real capability limit to surface, not paper over.)
 
-## 6. Result
-(filled after the probe)
+## 6. Result - 2026-09-05, 3 byte-identical repeats (runs 223752Z/224754Z/225732Z, appNos 3933-3953)
+All 3 repeats + the original (4 total) ran clean: RTI serviceable, oracle gate PASSED, NO
+wedge (the 3rd-5th launcher-fixtures on the preserved rtiexec did not wedge - RtiProbe +
+oracle gate green each time), clean teardown.
+
+D1 DETERMINISM - **ANSWERED: the divergence is a RACE, not deterministic geometry.** The
+far-runaways' COUNT, BEARING and DISTANCE VARY across byte-identical runs:
+  - original: 2 divergers @ 327/331 (NNW), 13.7 / 2.05 km
+  - repeat 1: 2 @ 359/359 (~due NORTH), 15.7 / 2.3 km
+  - repeat 2: 3 @ 334/347/360, 15.1 / 13.3 / 4.3 km
+  - repeat 3: 3 @ 338/46/10 (one NE!), 13.5 / 11.4 / 3.2 km
+Bearings scatter across 10-360 deg. D1's falsifier (same ~2 members, same ~331 deg every run)
+FIRED -> R1 (deterministic Company-path geometry) is FALSIFIED as the divergence cause; R2
+(race) is SUPPORTED. My earlier "consistent ~29 deg NNW rotation" was a single draw, not a
+signature. Re-confirms the prior record "Tank-Company non-determinism SUPPORTED"
+([[c2sim-vrf-port]]) - now on 5.2.
+D2 COMPANY-ONLY - **CONFIRMED (4/4).** Every run completes 1.BdeHQ + 1222.MechPlt (2 TASKCMPLT)
+and never completes 114.MechCoy.
+D3 SPEED - **open, now systematic:** every run has 2-3 members covering 11-16 km in 360 s
+(~30-45 m/s) at timeMult=1, above M1A2 governed speed. A garbage far-offset target (member
+driving full-speed toward a point placed km away) fits both the distance and the random
+direction, but is UNVERIFIED (offset vertices unobservable, D4).
+D4 OBSERVABILITY - **CONFIRMED:** the harvested backend log (--notifyLevel 3) carries no
+per-subordinate working-route / waypoint / move-along / controller lines. Offset vertices
+need a higher notify level or publishFormationRoutes - deferred.
+
+INTEGRATED DIAGNOSIS (STRONGLY SUPPORTED): the Company members rapidly form up at the
+backward-extended route start (~19-20 reach ~412 m due SOUTH within ~40 s and then HARD-STALL,
+holding exactly 412 m for the remaining ~320 s - verified), and the unit WAITS for formation
+validity (G1) before advancing. A NON-DETERMINISTIC race in per-subordinate offset/orientation
+resolution sends 2-3 members off toward far, randomly-directed targets; because they never
+arrive/rejoin, formation validity is never reached, the unit NEVER advances north, and the
+Company higher-unit path has NO isUnitMovementExhausted fail-safe to abandon or recover, so it
+hangs for the whole window. STILL UNOBSERVED (needs the backend route log): the exact trigger
+that hands 2-3 members a garbage target, and whether the freeze is strictly "waiting for the
+runaways" vs an independent stop. Correction to sec 2: "DeStackCreates" is NOT a real setting
+(verified absent from our code, vendor data, and the scenario) - do not build a fix on it.
+
+CONCLUSION: the Company (higher-unit) disaggregated move-along path is UNRELIABLE on this 5.2d
+build for our scenario. The PLATOON echelon works (1222.MechPlt 4/4) and the ENTITY works
+(1.BdeHQ 4/4). This is a CAPABILITY finding, not a one-line fix. The remedy is a DESIGN choice
+(how C2SIM company-level tasks should map to VRF) - raised to the user, not decided here. A
+VRF-side change to the Company SMS controller wiring would be a C:\MAK vendor-model edit
+(ground-higherUnit-disaggregated-movement.sysdef) - out of scope without explicit direction.
