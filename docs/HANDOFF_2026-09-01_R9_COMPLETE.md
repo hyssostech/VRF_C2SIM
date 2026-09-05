@@ -121,14 +121,14 @@ scale STOPPED on its miss rule (3767-3773); type-map live gate PASSES (3775-3781
    24.11 km, best 26.84 km). Mode from the FFRTC block; budget wall = sim / ratio.
 6. TYPE_GAP ITEM 4 - echelon-'F' -> Ground_Aggregate fallback needs a USER RULING
    (docs/TYPE_GAP_ADJUDICATION.md item 4); not a movement cause.
-6a. **RECONCILIATION - docs/VRF_5.2_PLAN_RECONCILIATION_2026-09-04.md**, AUDITED and corrected:
-   FIVE ruled items are genuinely unqueued (A1 A2 A3 A5 A6), not seven. **A4 WITHDRAWN** (Y-8 owes
-   no substitute); **B1 CLOSED** (Y-7 answered it 2026-09-03 - no nav mesh needed: MoveAlongRoute
-   does no planning, avoidance uses a terrain query, planning falls back to feature obstacles; do
-   NOT regenerate nav data). Before the R9 run only B2 remains: does the R9 route touch roads.
-   Then A1 Y-9 knobs NOT WIRED (ruling scopes them to FIXED-FRAME; the "pinned seed" has NO
-   delivery path - batch mode was rejected); A2 --settingsFile NOT WIRED; A3 terrain profiles;
-   A5 SQLite; A6 Y-15 unit representation.
+6a. **RECONCILIATION (docs/VRF_5.2_PLAN_RECONCILIATION_2026-09-04.md, AUDITED)**: FIVE ruled items
+   unqueued (A1 A2 A3 A5 A6); A4 WITHDRAWN; B1 CLOSED (Y-7: no nav mesh needed - MoveAlongRoute does
+   no planning; do NOT regenerate nav data). Before the R9 run only B2 (does the route touch roads).
+   Then A1 Y-9 knobs NOT WIRED (FIXED-FRAME only; seed has no delivery path), A2, A3, A5, A6.
+   **STANCE 2026-09-05: THE CODE IS ENTITY-LEVEL ONLY.** Every scenario ever loaded declares
+   EntityLevel.sms (5.0.2 C2simEx.sms = EntityLevel + extras); nothing branches on the SMS; the
+   Y-15 hybrid = two scenario PROFILES per run (13.7 forbids mixing), NOT IMPLEMENTED. EntityLevel
+   places member PLATFORMS (14.3.3); aggregate-level places the aggregate as a point object.
 6b. **PLACEMENT REWRITE - CODE DONE 2026-09-05 (4b4d0f9), LIVE CONFIRMATION OWED.** 10000 m birth,
    oracle +1 and SIDC 'G' test GONE; PlacementPolicy.cs decides from C2SIM AltitudeAGL/MSL x DIS
    domain -> AGL setAltitude. 9/9 offline gates incl. new --placement-selftest. NEXT = prereg citing

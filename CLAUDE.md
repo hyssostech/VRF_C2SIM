@@ -101,6 +101,16 @@ CORRECT.
   10000 m birth, the oracle's +1 and the SIDC 'G' test are GONE - do not reintroduce any of them.
   A ROUTE VERTEX has no AGL frame in the API and does need the terrain query (TerrainProfile).
   "Born buried therefore never moves" is FALSIFIED. Live confirmation of the rewrite is still owed.
+- **Entity-level vs aggregate-level - THE STANCE**: this code is ENTITY-LEVEL ONLY. Every
+  scenario ever loaded declares `EntityLevel.sms`; nothing in src/ branches on the SMS. A unit is
+  created as a pseudo-aggregate (`createAggregate(..., Disaggregated, createSubordinates=true)`)
+  whose member PLATFORMS are separately simulated and placed on terrain (UG52 14.3.3); the unit's
+  own position is derived from them each tick and has no clamp of its own. `setAltitude` on a
+  unit is documented to do nothing; `setLocation` on a unit snaps members into formation and
+  clamps them (`setLocationRequest.h:31-32`). The Y-15 "hybrid" is two scenario PROFILES chosen
+  per run - UG52 13.7 forbids mixing SMS families in one scenario - and it is NOT IMPLEMENTED.
+  MAK's own samples never call `setAltitude` for placement: they hand the create a point at/near
+  the terrain and rely on the default clamp. Do not describe the code as adapting to the SMS.
 - `docs/HANDOFF_2026-09-01_R9_COMPLETE.md` opens with a **CLOSED - DO NOT REOPEN** list. Each
   line names its record and its reopening evidence. Read it before proposing a cause.
 - `docs/CORRECTIONS_LOG.md` holds refuted claims. If a code comment and this log disagree, the

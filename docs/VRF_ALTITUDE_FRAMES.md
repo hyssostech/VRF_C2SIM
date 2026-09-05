@@ -71,6 +71,28 @@ setLocation: the unit's formation controller turns it into a snap-into-formation
 DtSetLocationRequest per subordinate, and "Ground vehicles will be clamped to the terrain
 surface" (vrftasks/setLocationRequest.h:27,31-32; classref DtDisaggregatedFormationController).
 That is plan B for a unit whose members end up buried - not yet used.
+**What MAK's own shipped samples do (read 2026-09-05, C:\MAK\vrforces5.2d\examples):** the
+remoteControl sample creates a Tank_Plt aggregate AND its three M1A2 members with `createEntity`
+at the SAME geocentric point `-5506764,-2240896,2301927` ("Points are from Ala Moana terrain",
+commandLineRemoteController.cxx:710-772) - that point decodes to lat 21.29567 lon -157.85686 at
+**1.0 m above the ellipsoid**, i.e. AT the near-sea-level terrain - and it NEVER calls setAltitude
+(0 hits in examples/ for setAltitude or clampToGround). simpleCGF/main.cxx:120-133 passes a
+database-coordinate point with z = 21.3 (terrain-ish) and notes that creating before the sim
+starts "will insure that when using a paging terrain, the necessary pages will immediately get
+paged in" (:124-128). MAK's pattern, twice: hand the create a point ON/NEAR the surface and let
+the default clamp place it; no altitude set afterwards. Our 5.0.2/5.2 traces used altitude 0 or
+1000 as an absolute at ~1150 m terrain - not what any sample does.
+**Public web (2026-09-05):** docs.mak.com/api/vrforces5.2/classref carries the SAME text as the
+installed headers (DtSetAltitudeRequest "ignored if the vehicle is not an air-going vehicle";
+createEntity groundClamp "positioned at ground level (true) or at the specified altitude");
+mak.com/vr-forces/capabilities describes ground clamping as letting "the simulation object's
+position match the terrain even if the positions communicated over the network drifted slightly
+off the terrain" - a correction of small network drift, not a rescue of a 1-km-deep create.
+MAK's blog "Multi-Resolution Modeling with MAK ONE" says VR-Forces "can simulate both models at
+the same time - in the same exercise", but the mechanism it names is a customer LUA SCRIPT that
+spawns entities from an aggregate's parameters and deletes the aggregate ("there is no semantic
+understanding between them"); no automatic mechanism, no NETN-MRM, and it does not contradict
+UG52 13.7 (one SMS family per scenario; the "both at once" is scripted replacement).
 **Two documented statements vs two observations, UNRESOLVED:** (i) 14.3.3 says ground entities
 are placed on the ground; PREREG_CLAMP_DIRECTION sec 6 observed a create at 50 m under ~1150 m
 terrain reflect -0.0. (ii) setAltitudeRequest.h:24-25 says the set "is ignored if the vehicle is
