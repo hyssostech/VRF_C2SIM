@@ -143,6 +143,12 @@ def read_names(path):
 
     Same regex family as tools/analysis/run_census.py. MEMBER platforms of a
     disaggregated unit appear here too, which is what makes P2 scorable by name.
+    The 5.2 vendor log QUOTES the marking ('Locally Simulated: "1.BdeHQ" (...)'),
+    while the app log and --expect-name keys are unquoted; strip the surrounding
+    quotes so an EXACT-match key works and the displayed label carries no quotes
+    (matches tools/analysis/movement_check.py read_labels). Substring matching hid
+    this before - '1.BdeHQ' is a substring of '"1.BdeHQ"' - so scores were right
+    but exact keys and labels were not.
     """
     names = {}
     marker = "Locally Simulated: "
@@ -158,7 +164,7 @@ def read_names(path):
             close_paren = rest.find(")", open_paren)
             if close_paren < 0:
                 continue
-            name = rest[:open_paren].strip()
+            name = rest[:open_paren].strip().strip('"').strip()
             uuid = rest[open_paren + 1:close_paren].strip()
             if uuid and name:
                 names.setdefault(uuid, name)
