@@ -31,7 +31,7 @@ public static class TerrainVertexAuthoring
 
     // Vertex-0 diagnostic (F3): the taskee should sit ON the terrain (VRF ground clamp), so a
     // terrain height under vertex 0 far from its live altitude means the published altitude is
-    // not the surface (unclamped at CreateAltitudeSafeMslMeters, or an aggregate). That is
+    // not the surface (an AGGREGATE's published altitude, or a platform not yet placed). That is
     // exactly the case the mode exists for, so it is REPORTED, never a fallback trigger.
     public const double DefaultVertex0NoteThresholdMeters = 100.0;
 

@@ -139,8 +139,13 @@ public sealed class VrfC2SimService : BackgroundService
     /// <summary>What OnInitialization created for one C2SIM unit, so OnOrder can task it.
     /// AutoFormation is the E1 per-created-type formation name (null for entities and
     /// unmapped types) - see AutoFormationFor.</summary>
+    // Domain = the DIS domain of the VR-Forces type we CREATED (SISO-REF-010.xml:3116-3119:
+    // 1 Land, 2 Air, 3 Surface, 4 Subsurface) - the simulator's own classification. It replaces
+    // the oracle's SIDC[2]=='G' symbology test (C2SIMinterface.cpp:2158) as the "is this a ground
+    // thing" discriminator. IsAggregate is the platform-vs-unit distinction: platforms have
+    // ground contact, units organize platforms (docs/VRF_ALTITUDE_FRAMES.md).
     private readonly record struct CreatedUnit(string Name, string SymbolId, bool IsAggregate,
-                                               string AutoFormation);
+                                               int Domain, string AutoFormation);
 
     public VrfC2SimService(ILoggerFactory loggerFactory, IConfiguration config,
                            IHostApplicationLifetime life)
@@ -538,8 +543,14 @@ public sealed class VrfC2SimService : BackgroundService
                 _log.LogWarning("Unit {Name} missing lat/lon - skipping (parent fallback TODO).", unit.Name);
                 continue;
             }
+            // ORACLE PARITY ONLY. The oracle invented "1000.0" when C2SIM gave no altitude
+            // (C2SIMinterface.cpp:1378-1379) on the folk belief that "1000.0 triggers VRForces
+            // Gound Clamping" (:685) - not a VR-Forces behaviour, just "above the ground at Bogaland".
+            // The string feeds UnitTranslator's byte-parity plan (pos.AltMeters, PostCreateAltitude)
+            // which only the Fixed100 path acts on. The Live/TerrainProfile PLACEMENT below ignores it
+            // and reads the typed AltitudeAgl/AltitudeMsl instead.
             if (string.IsNullOrEmpty(unit.ElevationAgl))
-                unit = unit with { ElevationAgl = "1000.0" };     // ground-clamp default (:1445-1446)
+                unit = unit with { ElevationAgl = "1000.0" };
 
             var plan = UnitTranslator.Plan(unit, typeMapping, _typeMap, _nations);
 
@@ -596,8 +607,8 @@ public sealed class VrfC2SimService : BackgroundService
             // dimension char at index 2 == 'G'; the route path reads it off CreatedUnit.SymbolId,
             // which is this same unit.SymbolId - constant across the unit's tasks, so per-unit).
             //   Fixed100 (parity): create at the plan altitude + register the deferred SetAltitude.
-            //   Live + GROUND: create at CreateAltitudeSafeMslMeters (above all Earth terrain; the
-            //     clamp places the unit on the surface) and SKIP the deferred SetAltitude.
+            //   Live + GROUND (RETIRED 2026-09-05): used to create at 10000 m MSL and SKIP the
+            //     deferred SetAltitude. Now: PlacementPolicy (authored lat/lon + AGL set).
             //   Live + NON-ground (air/sea): parity behavior, unchanged.
             //
             // *** THE "Live + GROUND" BRANCH IS DEPRECATED - WRONG FRAME. The deferred
@@ -610,28 +621,50 @@ public sealed class VrfC2SimService : BackgroundService
             // create altitude and stop skipping the deferred SetAltitude; it needs a prereg +
             // confirming run because it changes creation for every unit. Do not "fix" it by
             // re-justifying the 10000 m birth. Canonical: docs/VRF_ALTITUDE_FRAMES.md. ***
+            // PLACEMENT (Live / TerrainProfile modes). Every line below has a documented basis:
+            //  - C2SIM states altitude as AltitudeAGL ("distance vertically above ground level") or
+            //    AltitudeMSL ("above mean sea level"), BOTH OPTIONAL (C2SIM_SMX_LOX_CWIX2024.xsd
+            //    :155, :163, :2716-2717). Every init in data/ carries NEITHER.
+            //  - VR-Forces places a created object on the terrain by default: createEntity /
+            //    createAggregate default groundClamp=true (vrfRemoteController.h:1275, :1291); the
+            //    create message: "placed on the nearest polygon" (ifCreateVrfObject.h:210-212).
+            //  - "Above ground" is a first-class frame in the API: setAltitude(uuid, m,
+            //    aboveGroundLevel) (vrfRemoteController.h:1372-1374); VrfFacade.cpp:739 passes TRUE.
+            //    For an aggregate leader "the change will apply to the entire aggregate" (:1369-1371).
+            //  - Domain is the DIS domain of the type we create (SISO-REF-010.xml:3116-3119:
+            //    1 Land, 2 Air, 3 Surface, 4 Subsurface), not the SIDC symbology character the
+            //    oracle tested (C2SIMinterface.cpp:2158).
+            // So the create position is the AUTHORED lat/lon - altitude 0 unless C2SIM gave MSL, and
+            // irrelevant for land objects under the default clamp - and the altitude the object should
+            // HAVE is stated in the frame C2SIM stated it, or "on the ground" when C2SIM said nothing.
+            // RETIRED here 2026-09-05 (user direction): the 10000 m MSL birth + skipped SetAltitude,
+            // and the SIDC 'G' test. Record: docs/VRF_ALTITUDE_FRAMES.md.
             bool liveMode = IsLiveLikeAltitudeMode();   // Live or TerrainProfile (identical creation)
-            bool isGround = unit.SymbolId is { Length: > 2 } sidc && sidc[2] == 'G';
-            if (liveMode && isGround)
+            int domain = plan.Type.Domain;
+            if (liveMode)
             {
-                double originalCreateAlt = plan.Pos.AltMeters;
-                double safeAlt = _vrf.CreateAltitudeSafeMslMeters;
-                plan = plan with { Pos = new Geodetic { LatDeg = plan.Pos.LatDeg, LonDeg = plan.Pos.LonDeg, AltMeters = safeAlt } };
-                // Deliberately do NOT register _pendingAltitude for this unit (skip the parity SetAltitude).
-                _log.LogInformation("Create-altitude mode=Live: GROUND unit {Name} created at safe MSL " +
-                                    "{Safe} m (original create alt {Orig} m); parity post-create SetAltitude " +
-                                    "SKIPPED (born-above-terrain + VRF ground clamp places it on the surface).",
-                                    plan.Name, safeAlt, originalCreateAlt);
+                // The rule itself is PlacementPolicy.Decide (pure; --placement-selftest). This block
+                // only applies it: create position = authored lat/lon + the decided create altitude;
+                // the decided AGL (if any) goes to the deferred setAltitude(aboveGroundLevel=TRUE).
+                var d = PlacementPolicy.Decide(domain, unit.AltitudeAgl, unit.AltitudeMsl, _vrf.AirDefaultAltitudeAglMeters);
+                plan = plan with { Pos = new Geodetic { LatDeg = plan.Pos.LatDeg, LonDeg = plan.Pos.LonDeg, AltMeters = d.CreateAltMeters } };
+                if (d.SetAglMeters is double a) _pendingAltitude[plan.Name] = a;
+                _log.LogInformation("PLACEMENT: {Kind} {Name} domain={Domain} created at authored lat/lon (create alt {CreateAlt} m); " +
+                                    "post-create SetAltitude: {Set} - {Why}.",
+                                    plan.IsAggregate ? "UNIT" : "PLATFORM", plan.Name, domain, d.CreateAltMeters,
+                                    d.SetAglMeters is double s ? $"{s} m ABOVE GROUND LEVEL" : "none", d.Why);
             }
             else if (plan.PostCreateAltitude is double alt)
             {
+                // Fixed100: the golden-parity escape hatch - the oracle's behaviour byte-for-byte,
+                // including its frame error (ElevationAgl+1 sent as AGL; C2SIMinterface.cpp:721-724).
                 _pendingAltitude[plan.Name] = alt;
             }
 
             // Retain the taskee lookup so OnOrder can resolve PerformingEntity -> VRF uuid,
             // and the inverse (name -> uuid) so the report callbacks can name their subject.
             _unitByC2SimUuid[unit.Uuid] = new CreatedUnit(plan.Name, unit.SymbolId, plan.IsAggregate,
-                plan.IsAggregate ? AutoFormationFor(plan.Type) : null);
+                plan.Type.Domain, plan.IsAggregate ? AutoFormationFor(plan.Type) : null);
             _c2SimUuidByName[plan.Name] = unit.Uuid;
 
             toCreate.Add(plan);
@@ -911,8 +944,9 @@ public sealed class VrfC2SimService : BackgroundService
                             string.IsNullOrEmpty(task.AffectedEntity) ? "(none)" : task.AffectedEntity);
         }
 
-        // Ground units clamp elevation to 100 (VRF ground-clamping; :2237, :2266, :2290).
-        bool isGround = unit.SymbolId.Length > 2 && unit.SymbolId[2] == 'G';
+        // "Ground" = the DIS domain of the type we CREATED (SISO-REF-010.xml:3116 Land=1), not the
+        // oracle's SIDC[2]=='G' symbology test (C2SIMinterface.cpp:2158). Replaced 2026-09-05.
+        bool isGround = unit.Domain == 1;
 
         // Point 0 = the unit's live location from the sim (getUnitGeodeticFromSim, :2228).
         // KNOWN LIVE-RUN RISK (PORT.md sec 8): the port facade's TryGetEntityGeodetic uses

@@ -88,7 +88,7 @@ public static class InitParser
             string uuid = (u.UUID ?? "").Trim();
             if (uuid.Length == 0) continue;
             var siso = u.SISOEntityType;
-            var (lat, lon, elev) = LocationOf(u.CurrentState);
+            var (lat, lon, elev, agl, msl) = LocationOf(u.CurrentState);
             data.Units.Add(new InitUnit
             {
                 Name = (u.Name ?? "").Trim(),
@@ -98,6 +98,8 @@ public static class InitParser
                 Latitude = lat,
                 Longitude = lon,
                 ElevationAgl = elev,
+                AltitudeAgl = agl,
+                AltitudeMsl = msl,
                 SymbolId = (u.APP6CSymbol?.APP6CSIDC ?? "").Trim(),
                 DisEntityType = DisTypeString(siso),
                 DisDomain = siso?.DISDomain ?? 0,
@@ -127,7 +129,8 @@ public static class InitParser
             if (u.SuperiorUuid.Length == 0 || !idxByUuid.TryGetValue(u.SuperiorUuid, out int si)) continue;
             var sup = data.Units[si];
             if (sup.Latitude.Length != 0 && sup.Longitude.Length != 0)
-                data.Units[i] = u with { Latitude = sup.Latitude, Longitude = sup.Longitude, ElevationAgl = sup.ElevationAgl };
+                data.Units[i] = u with { Latitude = sup.Latitude, Longitude = sup.Longitude, ElevationAgl = sup.ElevationAgl,
+                                         AltitudeAgl = sup.AltitudeAgl, AltitudeMsl = sup.AltitudeMsl };
         }
 
         foreach (var a in areas)
@@ -143,11 +146,16 @@ public static class InitParser
 
     // ---- typed navigation helpers -----------------------------------------
 
-    private static (string lat, string lon, string elev) LocationOf(S.EntityStateType state)
+    // Returns the parity string (frame-ambiguous, oracle behaviour) AND the two typed C2SIM
+    // altitudes with their frames intact (xsd :2716-2717 - AltitudeAGL and AltitudeMSL are
+    // separate optional elements; collapsing them into one number was the source frame error).
+    private static (string lat, string lon, string elev, double? agl, double? msl) LocationOf(S.EntityStateType state)
     {
         var g = AllGeodetics(state).FirstOrDefault();
-        if (g == null) return ("", "", "");
-        return (Str(g.Latitude), Str(g.Longitude), Elevation(g));
+        if (g == null) return ("", "", "", null, null);
+        return (Str(g.Latitude), Str(g.Longitude), Elevation(g),
+                g.AltitudeAGLSpecified ? g.AltitudeAGL : (double?)null,
+                g.AltitudeMSLSpecified ? g.AltitudeMSL : (double?)null);
     }
 
     private static IEnumerable<S.GeodeticCoordinateType> AllGeodetics(S.EntityStateType state)

@@ -53,6 +53,10 @@ if (args.Length > 0 && args[0] == "--typemap-selftest")
 if (args.Length > 0 && args[0] == "--terrain-selftest")
     return TerrainSelfTest.Run();
 
+// Offline placement check: C2SIM AltitudeAGL/AltitudeMSL/none x DIS domain -> create altitude + AGL set (no bridge).
+if (args.Length > 0 && args[0] == "--placement-selftest")
+    return PlacementSelfTest.Run();
+
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddHostedService<VrfC2SimService>();
 await builder.Build().RunAsync();

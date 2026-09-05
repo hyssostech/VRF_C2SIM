@@ -64,7 +64,7 @@ public static class TerrainSelfTest
         }
 
         // 5. Vertex-0 terrain far below the entity's live altitude (unclamped taskee, e.g. born
-        //    at CreateAltitudeSafeMslMeters): still authored from terrain; the gap is a Note,
+        //    high, or an aggregate's published altitude): still authored from terrain; the gap is a Note,
         //    not a fallback and not a frame claim (review F3).
         {
             var samples = new List<TerrainHeightSample> { S(0, 34.60, -116.55, 100.0), S(1, 34.61, -116.54, 120.0), S(2, 34.62, -116.53, 140.0) };
