@@ -567,6 +567,9 @@ public sealed class VrfC2SimService : BackgroundService
         // Index-parallel to toCreate: (this unit's C2SIM uuid, its declared Superior uuid) - the raw
         // material for Vrf:ComposeHierarchy parent/child classification (ApplyHierarchyComposition).
         var hierarchy = new List<(string Uuid, string SuperiorUuid)>();
+        // parent C2SIM uuid -> its AUTHORED <Subordinate> uuid order (N2: the attach order = the
+        // declared order, so the declared first child becomes the leader, UG52 18.1.1).
+        var declaredByParent = new Dictionary<string, IReadOnlyList<string>>();
         foreach (var u in init.Units)
         {
             if (string.IsNullOrEmpty(u.Uuid)) continue;
@@ -731,6 +734,7 @@ public sealed class VrfC2SimService : BackgroundService
             toCreate.Add(plan);
             placements.Add(new PlacementInput(domain, unit.AltitudeAgl, unit.AltitudeMsl));
             hierarchy.Add((unit.Uuid, (unit.SuperiorUuid ?? "").Trim()));
+            if (unit.DeclaredSubordinates is { Count: > 0 }) declaredByParent[unit.Uuid] = unit.DeclaredSubordinates;
             planned++;
         }
 
@@ -740,7 +744,7 @@ public sealed class VrfC2SimService : BackgroundService
         // (vendor-sample recipe). Runs BEFORE de-stack/terrain/enqueue: it rewrites toCreate entries
         // in place and needs the full survivor set. Index-parallel with `hierarchy`.
         if (_vrf.ComposeHierarchy && toCreate.Count > 0)
-            ApplyHierarchyComposition(toCreate, hierarchy);
+            ApplyHierarchyComposition(toCreate, hierarchy, declaredByParent);
         // Coarse ORBAT leaves (a company/battalion the ORBAT did NOT decompose): expand into their
         // doctrinal sub-units and compose, instead of the broken template higher-unit (G-A).
         if (_vrf.ComposeHierarchy && toCreate.Count > 0)
@@ -859,7 +863,8 @@ public sealed class VrfC2SimService : BackgroundService
     /// PendingComposition per parent. `hierarchy` is index-parallel to `plans` ((uuid, superiorUuid)).
     /// Mutates `plans` in place. Runs at init BEFORE any create is enqueued (happens-before arrivals).
     /// </summary>
-    private void ApplyHierarchyComposition(List<CreationPlan> plans, List<(string Uuid, string SuperiorUuid)> hierarchy)
+    private void ApplyHierarchyComposition(List<CreationPlan> plans, List<(string Uuid, string SuperiorUuid)> hierarchy,
+                                           IReadOnlyDictionary<string, IReadOnlyList<string>> declaredByParent = null)
     {
         if (plans.Count != hierarchy.Count)
         {
@@ -893,12 +898,33 @@ public sealed class VrfC2SimService : BackgroundService
 
         // parentUuid -> ordered child names (declared/init order fixes the leader/echelon, UG52 18.1.1)
         var childrenByParent = new Dictionary<string, List<string>>();
+        var childUuidByName = new Dictionary<string, string>();
         for (int i = 0; i < plans.Count; i++)
         {
             string sup = hierarchy[i].SuperiorUuid;
             if (string.IsNullOrEmpty(sup) || !parentUuids.Contains(sup)) continue;
             if (!childrenByParent.TryGetValue(sup, out var list)) childrenByParent[sup] = list = new List<string>();
             list.Add(plans[i].Name);
+            childUuidByName[plans[i].Name] = hierarchy[i].Uuid;
+        }
+        // N2: the creation list is UUID-sorted (InitParser:118, oracle parity), which is NOT the authored
+        // order. Attach in the parent's DECLARED <Subordinate> order so the declared first child is the
+        // leader (designator 1) - UG52 18.1.1 / 13.3.1. Children the parent did not declare keep their
+        // creation order after the declared ones.
+        if (declaredByParent != null)
+        {
+            foreach (var key in childrenByParent.Keys.ToList())
+            {
+                if (!declaredByParent.TryGetValue(key, out var declared) || declared.Count == 0) continue;
+                var before = childrenByParent[key];
+                var after = ComposeOrder.ByDeclared(declared, before, n => childUuidByName.TryGetValue(n, out var cu) ? cu : "");
+                if (!after.SequenceEqual(before))
+                    _log.LogInformation("ComposeHierarchy: {Parent} children attach in the DECLARED <Subordinate> order " +
+                                        "[{After}] (creation order was [{Before}]); first = leader (UG52 18.1.1).",
+                                        parentName.TryGetValue(key, out var pn) ? pn : key,
+                                        string.Join(", ", after), string.Join(", ", before));
+                childrenByParent[key] = after;
+            }
         }
 
         var deadline = DateTime.UtcNow.AddSeconds(Math.Max(1, _vrf.CompositionTimeoutSeconds));

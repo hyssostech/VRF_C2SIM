@@ -64,8 +64,8 @@ C10 sendVrfObjectCreateMsg + initialFormation is a real API but NOT a compose re
     its slot, which an initial formation cannot fix. Do not build it.
 C11 THE FIRST INSTRUMENT for any VRF behavior question is the object's OWN CONSOLE at notify level 4
     (UG52 21.9.1 p483; remote API setObjectNotifyLevel vrfRemoteController.h:1953; app setting
-    Vrf:ObjectConsoleNotifyLevel; WatchVrf CON rows = the complete capture, the app callback sees
-    only its own objects). One run at level 4 closed C1b after a week of inference. Silence at the
+    Vrf:ObjectConsoleNotifyLevel; WatchVrf CON rows = the complete capture, the app callback gets
+    only a subset by an unestablished rule). One run at level 4 closed C1b after a week of inference. Silence at the
     vendor default level 1 is the configured outcome, not evidence (lessons-vendor-diagnostics-first).
     The template company path is unusable in this build not because of our create call but because
     the vendor's Tank/Mech HQ-section templates carry M998 HMMWVs whose generated slot move never

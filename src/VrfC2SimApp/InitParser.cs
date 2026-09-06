@@ -105,6 +105,10 @@ public static class InitParser
                 DisDomain = siso?.DISDomain ?? 0,
                 DirectionPhi = "",
                 SuperiorUuid = (u.EntityDescriptor?.Superior ?? "").Trim(),
+                // The AUTHORED <Subordinate> order (UnitType.Subordinate[]): first = the unit leader
+                // (UG52 18.1.1 / 13.3.1). Kept verbatim; the UUID sort below is for creation order only.
+                DeclaredSubordinates = (u.Subordinate ?? Array.Empty<string>())
+                    .Select(s => (s ?? "").Trim()).Where(s => s.Length > 0).ToList(),
                 // CAVEAT: EchelonCode is a mandatory, NON-nullable generated enum with no
                 // *Specified flag, so an ABSENT element deserializes as the enum's first member
                 // ("AG"). That is safe for the only consumer (FidelityTable lookup key c, a

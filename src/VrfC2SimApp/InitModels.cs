@@ -29,6 +29,10 @@ public record InitUnit
     public int DisDomain { get; init; }
     public string DirectionPhi { get; init; } = "";     // heading source (may be empty)
     public string SuperiorUuid { get; init; } = "";     // for the missing-coords fallback
+    // The AUTHORED <Subordinate> uuid order from UnitType.Subordinate[] - first = the unit leader
+    // (UG52 18.1.1). Drives the compose attach order (N2, ComposeOrder.ByDeclared). Empty when the
+    // init declares none (the child->Superior links alone still define the tree).
+    public IReadOnlyList<string> DeclaredSubordinates { get; init; } = Array.Empty<string>();
     // C2SIM UnitType/EchelonCode (COY, BN, PLT, SECT, NOS, BDE, ...). Read by the
     // FidelityTable lookup key (c) as a cross-check when the SIDC echelon character has
     // no row (docs/UNIT_TYPE_MAPPING_FIDELITY_2026-09-02.md sec 7.1).

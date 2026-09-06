@@ -409,8 +409,9 @@ reading the vendor's own procedure. Order of resort:
   `Vrf__ObjectConsoleNotifyLevel=4` (setting Vrf:ObjectConsoleNotifyLevel; default -1 leaves
   the vendor default) - which calls DtVrfRemoteController::setObjectNotifyLevel for every
   object we create and for the tasked aggregate's members. The COMPLETE capture is the
-  WatchVrf trace's `CON,` rows (the app's own callback only sees the objects it created; the
-  app log shows them decoded as "VRF console [level] name (uuid): text"). Read it with
+  WatchVrf trace's `CON,` rows (the app's own callback receives only a subset, by a rule not
+  established - own units in one run, member warnings in another; the app log shows what it
+  gets decoded as "VRF console [level] name (uuid): text"). Read it with
   `python tools/analysis/console_narrative.py runs/<run> [<unit name>|<uuid tail>] [--all]`.
   One run at level 4 closed a week-old movement question (DESIGN_ORBAT C1b/C11). Volume:
   ~170k rows per 7-minute run at level 4 - fine for a diagnostic run, not a default.

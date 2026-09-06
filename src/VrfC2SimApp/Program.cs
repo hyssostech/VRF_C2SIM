@@ -57,6 +57,10 @@ if (args.Length > 0 && args[0] == "--terrain-selftest")
 if (args.Length > 0 && args[0] == "--placement-selftest")
     return PlacementSelfTest.Run();
 
+// Offline compose-order check: declared <Subordinate> order -> attach order (leader = first) (no bridge).
+if (args.Length > 0 && args[0] == "--compose-selftest")
+    return ComposeOrderSelfTest.Run();
+
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddHostedService<VrfC2SimService>();
 await builder.Build().RunAsync();

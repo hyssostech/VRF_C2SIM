@@ -267,10 +267,12 @@ VERDICT (both directions of the gate hypothesis observed on the vendor's own cha
   template's behavior and is not on our path: compose/expand never instantiate that HQ section.
 
 Instrument caveats found in T (recorded for the next slice, not fixed in this one):
-- The app's `ObjectConsoleMessage` callback delivered messages ONLY for the three objects
-  this controller created (53 lines: 1222.MechPlt 38, 114.MechCoy 9, 1.BdeHQ 6); WatchVrf's
-  `CON` rows (171,945) carry every object. The trace is the complete channel; the app log is
-  a convenience for our own units.
+- The app's `ObjectConsoleMessage` callback is PARTIAL by an unknown rule: in T it delivered
+  53 lines, all for the three objects this controller created (1222.MechPlt 38, 114.MechCoy 9,
+  1.BdeHQ 6) and none of the members' 170k; in C 279 lines (the three units + the three
+  declared platoons); in D (no level requests) 24 level-1 lines FROM MEMBER ENTITIES the app
+  did not create. So it is not "own objects only" and not a level filter. WatchVrf's `CON` rows
+  are the complete channel; the app log is a convenience. Not pursued.
 - The app logs the raw DtRwTranslatableStringObject XML (first line only visible per log
   line). Decode `<string>` parts before logging (LIGHT follow-up).
 - Some rows' level field carries a sim-time prefix (e.g. 4180 = level 4 at 180.7 s of the

@@ -128,8 +128,12 @@ public class VrfSettings
     // survivor's Superior) is created as an EMPTY shell (createSubordinates=false) and its declared
     // child units are attached via AddToOrganization once created - the MAK vendor-sample recipe
     // (commandLineRemoteController.cxx:717-775 build, :1520-1554 attach). Leaves/entities are
-    // unchanged. OPT-IN, default OFF -> flag-off run is byte-identical to today.
-    public bool ComposeHierarchy { get; set; } = false;
+    // unchanged. DEFAULT ON since 2026-09-06 (N1, DESIGN_ORBAT_TO_VRF C2): compose is the design -
+    // 3/3 deterministic (PREREG_COMPOSE_A) and the template higher-unit path is closed by C1b/C11
+    // (its HQ-section HMMWV never reaches its formation slot, so the unit never moves). OFF =
+    // explicit legacy (Vrf__ComposeHierarchy=false): hierarchy-blind template create, kept only as
+    // the regression control (N3) - never for real runs.
+    public bool ComposeHierarchy { get; set; } = true;
 
     // VR-Forces install root whose data/simulationModelSets the live expand-to-compose path reads to
     // learn a coarse leaf's DOCTRINAL sub-units (ObjectTypeResolver, .entity <subordinate> lists).

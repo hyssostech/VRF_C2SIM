@@ -45,6 +45,8 @@ G1 COMPOSE IS OFF BY DEFAULT. appsettings.json has no ComposeHierarchy key -> fa
    load applies the TEMPLATE method to every unit = the phantom breakage. UG52 22.3 p493 mandates the
    combine-existing method (18.1.1) for ORBAT units. FIX: default Vrf:ComposeHierarchy=true (add to
    appsettings.json); keep false only as an explicit legacy golden-parity mode.
+   DONE 2026-09-06 (N1): VrfSettings default true + appsettings "ComposeHierarchy": true; OFF only via
+   Vrf__ComposeHierarchy=false (the N3 regression control). Verified by PREREG_N1_COMPOSE_DEFAULT.
 G2 AUTHORED SUBORDINATE ORDER DISCARDED -> WRONG LEADER. InitParser sorts units by UUID
    (InitParser.cs:118) and never parses the authored <Subordinate> order (init xml HQ-first); attach
    follows UUID order, so the lowest-UUID child (not the intended leader) becomes designator 1. UG52
