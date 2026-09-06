@@ -181,8 +181,10 @@ arrive/rejoin, formation validity is never reached, the unit NEVER advances nort
 Company higher-unit path has NO isUnitMovementExhausted fail-safe to abandon or recover, so it
 hangs for the whole window. STILL UNOBSERVED (needs the backend route log): the exact trigger
 that hands 2-3 members a garbage target, and whether the freeze is strictly "waiting for the
-runaways" vs an independent stop. Correction to sec 2: "DeStackCreates" is NOT a real setting
-(verified absent from our code, vendor data, and the scenario) - do not build a fix on it.
+runaways" vs an independent stop. [SUPERSEDED BY AMENDMENT A] I wrote here that "DeStackCreates
+is NOT a real setting" - that was a FALSE-NEGATIVE from a grep truncated by head -10 after binary
+matches. Vrf:DeStackCreates IS real (VrfSettings.cs:130, default false; VrfC2SimService.cs:709),
+independent of AggregateFormation. Amendment A re-frames the whole diagnosis toward OUR B1 misuse.
 
 CONCLUSION: the Company (higher-unit) disaggregated move-along path is UNRELIABLE on this 5.2d
 build for our scenario. The PLATOON echelon works (1222.MechPlt 4/4) and the ENTITY works
