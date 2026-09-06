@@ -183,3 +183,39 @@ CreationPolicy (the runner injects Vrf__CreationPolicy; the app log states the p
 competing explanation for the four slow units is not adjudicated here (consoles off); the
 falsifier for "the policy causes slowness" would be a unit slower than in the control - none
 is (every unit moved farther than its control counterpart).
+
+### 3.3 C11 DIAGNOSTIC - run 20260906T224326Z (treatment + tasked units' MEMBER consoles at 3)
+MID-RUN (t = 400 s, order at ~60 s): 18 member-console requests (64 members named); movement
+at +340 s: 141, 534, 607, 628, 1,657, 3,294, 3,517, 4,416, 5,036 m - 5 of 9 beyond 1 km
+already, and the SLOW SET IS NOT THE SAME as in 3.2 (C/1-35 and B/5-20 fast here, 856/HHC and
+40/2/1_AD slow here): the slow set is not type-determined; it varies run to run.
+THE SIM'S OWN ACCOUNT (the object consoles, C11): among ~21k non-routine member messages so
+far, 3,073 x 'Status of task "move-to-direct" is "BlockedByVehicle"', 1,755 x 'Status of task
+"move-along" is "BlockedByVehicle"', 546 x "Movement stopped by vehicle; will be blocked at
+time <sim s>", from 48 of the 64 members, from t = 65 s (tasking) onwards. The routine
+behaviour-tree loop (Maybe plan path / Is path blocked? / Maybe Skirt Blockage) runs at ~3 Hz
+per member. No "not embarked" line so far.
+TIME PROFILE OF THE BLOCKING (per 30 s of wall): 819 / 1,861 / 976 / 420 / 382 / 325 / 38 / 7
+messages in the seven half-minutes after tasking, then ZERO from t = 300 s on (order at ~60 s).
+The blocking is TRANSIENT: the vehicles of the 11 materialized units, all born on the one
+coordinate STP gave them, block each other for ~3.5 min of wall (the sim's own words,
+"BlockedByVehicle" / "Movement stopped by vehicle", on 5.2 whose ground movement has dynamic
+obstacle avoidance among vehicles - MG 2.4, UG52 23.6), and the pile then clears. Which unit
+escapes first is run-dependent.
+SIM/WALL RATIO (sim_ratio.py on the CON rows, t = 63..522 s): 2.08x (LS) / 2.11x (endpoints).
+The full-creation runs measured 0.44x-0.73x. The engine is no longer behind wall time.
+WHAT THIS DOES NOT EXPLAIN: a unit still slow AFTER t = 300 s (no blocking anywhere) is not
+explained by co-location; the final displacement of this run decides whether such units exist
+(in 3.2 four units were < 600 m at 1,400 s). If they do, their members' post-300 s messages
+are the next thing to read - not a theory.
+DISSENT LINE (per feedback-anchor-vendor-and-own-notes; reopening is the user's call): the
+R8 ruling ("stacked spawns are not the blocker", 2026-07-13) was made on 5.0.2, which had no
+vehicle-vehicle avoidance; the sim's console on 5.2 now records ~5,400 vehicle-blocking
+messages in the first minutes after tasking on the co-located units. The cost is a start-up
+delay of minutes, not a stall. Not acted on. If the user wants that delay removed: (a) an
+interface-side assembly-area layout at materialization; (b) STP supplies real positions;
+(c) Autonomous Actions off (no avoidance at all - realism cost); (d) the aggregate-level
+profile, where "aggregate-level scenarios do not support collision avoidance among simulation
+objects" (UG52 27.1.4) - already in the plan.
+INSTRUMENT GAP: the member-console request line names the members but not their uuids, so
+the CON rows (uuid-keyed) cannot be attributed to units offline - add the uuids to that line.

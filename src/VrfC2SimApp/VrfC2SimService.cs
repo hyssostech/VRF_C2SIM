@@ -1759,9 +1759,12 @@ public sealed class VrfC2SimService : BackgroundService
                     _nameByVrfUuid.TryAdd(m.Uuid, m.Name ?? "");
                     _bridge.SetObjectNotifyLevel(m.Uuid, _vrf.ObjectConsoleMemberNotifyLevel);
                 }
+                // Members are named WITH their uuids (2026-09-06): the console rows the observer captures
+                // are uuid-keyed, and without this line's uuids a member's account could not be attributed
+                // to its unit offline (PREREG_ORDER_TIME_MATERIALIZATION sec 3.3, instrument gap).
                 _log.LogInformation("VRF console level {Level} requested for {N} members of {Name}: {Members}.",
                                     _vrf.ObjectConsoleMemberNotifyLevel, consoleMembers.Count, unit.Name,
-                                    string.Join(", ", consoleMembers.Select(m => m.Name)));
+                                    string.Join(", ", consoleMembers.Select(m => $"{m.Name} [{m.Uuid}]")));
             }
             else
                 _log.LogInformation("VRF console: {Name} ({Vrf}) publishes NO members at task time - " +
