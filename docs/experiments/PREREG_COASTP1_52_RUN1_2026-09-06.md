@@ -379,6 +379,29 @@ composed 3/3 from Tank Platoon (USA) children; the CP proxy), 16-entity cluster,
 and P7 (hygiene) PASS on the small fixture. P2 (no generic/empty unit) holds for the units
 created. The gate at scale is what S4/S6 measure.
 
+### 12. S6 - 20260906T202713Z, first 2 minutes (members of the 9 tasked units at console 3)
+Read, not inferred (the tanks' own lines):
+- Every member plans its path ("Job Plan path success", "Planned path has 1 parts") and then
+  "Saving ordered speed 3 mps" - 35 of 35 in S6 AND 19 of 19 in L3. 3 m/s is the platform's
+  off-road ordered speed here; L3 completed its 900 m route at ~3.3 m/s, so 3 m/s alone is
+  NOT the crawl. The crawl is that S4's movers made 0.7-2 m/s effective and the aggregates
+  0.1-0.9 km.
+- 28 "Entity not embarked on same object as target [Route N]. Ending task" failures in S6's
+  first ~2 min (tanks, not only HMMWVs: M1A2 96/98/52/54/10 ...), each followed by "Attempt
+  Global Replanning Once / Global Replan / Loop to stall for replanning". 0 in L3. EVERY
+  failing member was born at the 54-unit spawn stack with 54 other objects at 0.0 m. The
+  message is DtGroundAutoControllerComponent::decideToGiveUpTask ("if the entity is ATTACHED
+  and the target of the task is not"); UG52 14.3 (p382) documents placement that
+  "automatically embark[s] simulation objects" when placed on one; the M998 template carries
+  can-embark / can-be-embarked-upon True.
+DISSENT LINE (per the anchor rule; NOT a probe, NOT a reopening): the R8 ruling (2026-07-13,
+5.0.2: de-stacking did not make aggregates march) stands. NEW evidence for the user's
+judgement: on 5.2d the sim itself reports co-located births as ATTACHED entities whose moves
+FAIL and stall in replanning - a mechanism the 5.0.2 A/B never showed (its units moved 6-7 km
+from the same stack). Whether that reopens create-time de-stacking FOR 5.2 is the user's call.
+Falsifier for the attachment reading: a "not embarked" failure on a member NOT born co-located
+(none in the first 28), or vendor evidence that the message means something else.
+
 - Run 2 is also the TYPE-MAP LIVE GATE on 5.2 (PREREG_TYPEMAP_LIVE_GATE_2026-09-02, registered
   for 5.0.2 and never run there): its safety properties apply verbatim - P2 no generic / empty
   unit created (a Country-0 or zero-subordinate abstract is a STOP); P3 the mode line proves
