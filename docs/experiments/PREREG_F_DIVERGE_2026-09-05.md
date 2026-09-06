@@ -192,3 +192,38 @@ build for our scenario. The PLATOON echelon works (1222.MechPlt 4/4) and the ENT
 (how C2SIM company-level tasks should map to VRF) - raised to the user, not decided here. A
 VRF-side change to the Company SMS controller wiring would be a C:\MAK vendor-model edit
 (ground-higherUnit-disaggregated-movement.sysdef) - out of scope without explicit direction.
+
+## AMENDMENT A - RESULT (B1 off A/B) - 2026-09-05, 3 runs 005713Z/010700Z/011640Z, appNos 3954-3974
+B1 confirmed OFF (0 set/reorganize lines; AggregateFormation unset -> "" default). DeStackCreates
+unchanged (false) -> clean one-variable A/B vs the 4 auto runs.
+COMPLETIONS: run1 3/3 (INCLUDING 114.MechCoy - never seen with auto), run2 2/3, run3 2/3. So
+company completes 1/3 with B1 OFF vs 0/4 with B1 ON.
+- AP1 (company advances+completes): **FALSIFIED as stated** - only 1/3, not reliable. Per its
+  falsifier: B1 removal is NECESSARY-BUT-NOT-SUFFICIENT; a residual nested-move gap remains.
+- AP2 (race disappears): **FALSIFIED** - still non-deterministic. Movement per run: run1 all 23
+  CO members NORTH, 0 south, 0 runaways (clean); run2 19 south + 3 runaways NE (14/7/3 km @38-42);
+  run3 20 south + 2 runaways NE (11/1.7 km @47-56). The failing runs show the SAME race; B1-off
+  just lets it sometimes resolve cleanly.
+- AP3 (no regression): **HELD** - 1.BdeHQ + 1222.MechPlt complete all 3 runs.
+- AP4 (south resolves north): PARTIAL - in the SUCCESS run there was no residual south (net
+  north); in failures the south stage persists. Consistent with "staging is normal; the north
+  release is what races".
+NET: B1 (my set 'column' + reorganize) was HARMFUL - it forced the bad outcome every time
+(0/4); removing it reveals an underlying RACE in the nested-company move (1/3 clean). B1 must go
+(it is already the "" default; the fix is to NOT enable auto - order-file comment corrected).
+The residual race is NOT fixed by the config toggle -> a code-level remedy is needed.
+OBSERVATIONS carried (not over-claimed): (a) object count VARIES run-to-run (auto runs ~44
+uuids; B1-off run1 74, run2 52) - a racy nested create/reflect, possibly correlated with success
+(full instantiation) vs failure (partial), UNVERIFIED small sample; (b) the "R1: created
+aggregate NAME (uuid)" logging is gated on the B1 path (VrfC2SimService.cs:1584), so B1-off runs
+lose name->uuid create visibility - a logging coupling to fix so B1-off runs are debuggable;
+(c) whether the company's DECLARED children 1141/1142/1143 move vs only template subordinates is
+STILL UNRESOLVED (create logging absent with B1 off) - the open double-creation question.
+REMEDY OPTIONS (evidence-backed, decision pending):
+  1. TASK AT PLATOON ECHELON (decompose company -> its declared child platoons in the projector).
+     Robust: platoon/entity are reliable; sidesteps the nested-company race. Code change +
+     completion-aggregation semantics.
+  2. NATIVE-RACE INVESTIGATION first: restore B1-independent create logging + a higher notify
+     level to see the created structure and offset routes, and test a create->settle barrier
+     (wait all members reflected + formation valid before tasking). May fix the native path;
+     needs better instrumentation. Also resolves the double-creation question.

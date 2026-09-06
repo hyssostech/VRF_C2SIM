@@ -4,9 +4,13 @@
      clientId STP - DISPERSED unit positions, unlike COA-STP1). One MOVE task each, no
      temporal relationships: one ArmorPlatoon-typed aggregate (Ground_Aggregate fallback,
      lowercase formations), one ArmorCompany-typed aggregate (Tank Company match,
-     Title-Case), one tank ENTITY control. Run with Vrf__AggregateFormation=auto so R1
-     repairs formation state + reorganizes AT CREATION; the move then exercises the
-     create->snap->reorganize->move sequence. Routes ~550 m + ~1100 m legs. -->
+     Title-Case), one tank ENTITY control. Routes ~550 m + ~1100 m legs.
+     DO NOT run with Vrf__AggregateFormation=auto: PREREG_F_DIVERGE_2026-09-05 (Amendment A)
+     showed auto (SetAggregateFormation+ReorganizeAggregate) is NON-CANONICAL and HARMFUL -
+     the nested company completed 0/4 with auto vs 1/3 with auto OFF. MAK samples call neither
+     API; leave AggregateFormation="" (the default) and let 5.2 VRF-8968 wait for validity.
+     The nested company move is still only ~1/3 reliable with auto off (a residual race);
+     entity + platoon echelons are reliable. -->
 <MessageBody xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.sisostds.org/schemas/C2SIM/1.1">
   <DomainMessageBody>
     <OrderBody>
