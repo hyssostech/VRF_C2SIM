@@ -231,6 +231,65 @@ a fidelity-neutral change the vendor's own deprecation supports; (b) L2 crashes 
 frames -> every DI-Guy lifeform crashes the 5.2d headless sim under remote create; then the
 lifeform rows need an interim vehicle-only proxy (a fidelity regression = user ruling) and the
 minimal repro + callstack + .dmp go to MAK (user's call).
+CORRECTION before L2's result (catalog re-read by the humans' OWN .entity files, not by
+files that merely mention the type): the deprecated squads' humans are US_Army_M16
+(hand-item 'M16AssaultRifle') and US_Army_AT4 ('at4') - explicit hand items too. The
+"empty hand item" split is dead. L2 still splits deprecated-vs-current TEMPLATE, but the
+stronger candidate is now on the MACHINE: the vendor log warns "DtOsgFileCache could not
+load file 'c:/MAK/SharedData/19/latest/ModelData/Vehicles/...'" for model files, and DI-Guy
+hand items resolve against DI-Guy character data under SharedData - if that data is absent
+or unloadable on this install, determineInitialHandItem dereferences nothing (checked in the
+next lines).
+CHECKED 2026-09-06 18:57Z: `C:\MAK\SharedData\19\latest\ModelData\Lifeforms\` contains only
+`Animals\`, FootPrints.rgb and FootPrints_rgb.meif - NO `DIGuy` directory, which UG52 74.1.1
+(p1465) names as the DI-Guy character-data home ("./SharedData/19/latest/ModelData/Lifeforms/
+DIGuy and its subdirectories"); `C:\MAK\vrforces5.2d\data\Lifeforms\DIGuy` does not exist
+either, while the sim's plugin table reads "vrfDiGuy | 1 | diguy | True" (plugin enabled) and
+the FOM carries MAK-DIGuy-7. The vendor log's 200+ "DtOsgFileCache could not load file
+.../SharedData/19/latest/ModelData/Vegetation/Trees/*.medf" warnings say the same thing about
+the vegetation models: SharedData 19 on this machine is PARTIAL. LEADING CAUSE (machine, not
+code): the DI-Guy content package is not installed, the DI-Guy plugin is on, and the first
+DI-Guy human's controller resolves its hand item against nothing. Falsifier = L2 running
+(then the current templates do not need the data, and the deprecated ones do).
+Two corrections to the line above, from the record: (1) "vrfDiGuy | 1 | diguy | True" is a
+CONSOLE CHANNEL row (channelSettings.mtl), not a plugin table - DI-Guy is built into
+vrfmodel.dll, there is nothing to unload; (2) the ROOT is a 2026-09-02 install ruling
+(memory vrf-52d-package-and-data): makData19 was installed as the MINIMAL set - Core +
+Terrain 1-4 + TestTerrain - with "DI-Guy-20260108 (6.33 GB, GUI lifeform visuals, optional)"
+deliberately left out. That ruling was wrong for the headless sim: the sim engine itself
+needs the DI-Guy character data the moment a DI-Guy human ticks, GUI or not. On 5.0.2 the
+same ruling never bit because the parity types were all vehicles. The fix is a DATA
+INSTALL (the makData19 DI-Guy package, user action: SharePoint download + the data
+installer as on 2026-09-02), not code; the interim alternative is a type-map policy that
+maps lifeform rows to vehicle-only proxies, a fidelity regression that needs the user's
+ruling. L2's result decides nothing about the fix any more - it only measures whether the
+current templates hit the same frame (expected: yes).
+RUN L2 RESULT - 20260906T185519Z: CRASH, prediction (b) - the current "Infantry Platoon (USA
+Army)" template (every human with an explicit hand item) dies the same way: 0 ObjectCreated,
+new .dmp for the sim's pid 122232, the 5 compositions expired with nothing ever created.
+Three runs, three templates (mortar/FA section, deprecated mech platoon, current infantry
+platoon), one frame. Adversarial review: the competing hypothesis "template-specific data
+defect" is refuted by L2; "any DI-Guy human" + "DI-Guy data absent" stands. What would
+falsify the data-absence cause now is a crash AFTER the package is installed - that is the
+next observation, and it is the user's install.
+
+### 8. PROBE S3 (registered): the scale measurement WITHOUT lifeforms, repo map untouched
+Purpose: the numbers run 1/2 could not give (composed companies at scale, BN CP proxies,
+sub-routes, sim/wall ratio, R1 at 128) while the DI-Guy package is pending. Mechanism: the
+runner's `Vrf__TypeMapFile` points at a SCRATCH copy of the 5.2 map (outside the repo:
+scratchpad unit-type-map-52-nolifeform.json) in which the 23 rows whose template carries a
+DI-Guy human are redirected to same-side vehicle-only proxies (aggregates -> Tank Platoon
+(USA)/(RUS); teams -> M577A2 / MT-LBu command vehicles), verified by walking every row's
+template to zero humans. This is a PROBE: it changes no repo file, states no fidelity policy,
+and its results are labelled "no-lifeform proxy map". Config otherwise = run 2 (FidelityTable,
+activity deadline, terrain 30 s, console 4 on our objects, R1 10 s, -ClientId C2SIM, 2700 s).
+PREDICTIONS: no crash; 128 created (mode line FidelityTable, 123 rows from the scratch path);
+EXPAND for the pure higher-unit companies (Tank Company USA/RUS, Tank Breach, ~19) with 0
+"never created" (the activity-based deadline's first scale test); 26 BN CP proxies created;
+the 11 taskees' units move (companies via offset routes - subRoutes > 0 for tasked companies;
+CP proxies via the platoon-class sysdef); 128 in every R1 round; sim_ratio.py returns a
+ratio (samples from the composed platoons' task lines). A crash here would be a NEW class
+(no lifeforms are created) and a STOP.
 
 - Run 2 is also the TYPE-MAP LIVE GATE on 5.2 (PREREG_TYPEMAP_LIVE_GATE_2026-09-02, registered
   for 5.0.2 and never run there): its safety properties apply verbatim - P2 no generic / empty

@@ -79,6 +79,14 @@ C11 THE FIRST INSTRUMENT for any VRF behavior question is the object's OWN CONSO
     The template company path is unusable in this build not because of our create call but because
     the vendor's Tank/Mech HQ-section templates carry M998 HMMWVs whose generated slot move never
     completes; compose/expand (C2/C5) sidestep it and are the design regardless (fidelity, C1a).
+C12 LIFEFORMS CRASH THE 5.2d HEADLESS SIM until the DI-Guy DATA is installed (2026-09-06, three runs
+    183612Z / 184832Z / 185519Z, identical callstack DtDiGuyController::determineInitialHandItem <-
+    preFirstTickInit; C:\MAK\SharedData\19\latest\ModelData\Lifeforms\DIGuy ABSENT - the 2026-09-02
+    minimal-data ruling skipped the 6.33 GB DI-Guy package as "GUI visuals"). Not our code, not the
+    type map: the fidelity table is the first thing on any build to instantiate a DI-Guy human.
+    FIX = install the package (user). No vrfSim switch disables DI-Guy (--nodiguy is
+    translationFileCreate's). Interim vehicle-only proxies for lifeform rows = fidelity regression
+    = user ruling. PREREG_COASTP1_52_RUN1 sec 6-7; DEMO_READINESS row 17.
 RESEARCH AUDIT (2026-09-06, supervisor) - the ORBAT thread's workflows, graded on what survived
 the NEXT live run. Sound core throughout = the vendor sample + installed UG52 + deterministic runs;
 every specific MECHANISM the workflows produced was later falsified or left open:

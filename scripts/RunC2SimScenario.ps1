@@ -2557,9 +2557,16 @@ try {
             # Mid-run liveness: a back-end that has DIED cannot produce a real coordinate; fail now,
             # with the right reason, instead of waiting out the gate (its crash record is the
             # newest C:\MAK\logs\vrfSimHLA1516e5.2d-*.callstack.log + .dmp - sharable; the .log is not).
-            if ($BackendPid -and -not (Get-Process -Id $BackendPid -ErrorAction SilentlyContinue)) {
-                $cs = Get-ChildItem -Path 'C:\MAK\logs' -Filter 'vrfSimHLA1516e5.2d-*.callstack.log' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-                Stop-Runner 3 ('BACK-END pid {0} DIED during the oracle-gate wait (not a gate result). Newest crash record: {1}. Read its callstack before anything else; the harvested .log holds the environment and is NOT for sharing.' -f $BackendPid, $(if ($cs) { $cs.FullName } else { '(none found in C:\MAK\logs)' }))
+            if ($BackendPid) {
+                # Two forms of death: the process is gone, or it is PARKED on the MAK crash-dump prompt
+                # (still a live pid, 3+ GB resident, doing nothing) - in which case its crash record
+                # <build>-<pid>.callstack.log / .dmp already exists (runs L1/L2 2026-09-06 sat like that
+                # for the whole 180 s gate).
+                $gone = -not (Get-Process -Id $BackendPid -ErrorAction SilentlyContinue)
+                $cs = Get-ChildItem -Path 'C:\MAK\logs' -Filter ('vrfSimHLA1516e5.2d-*-{0}.callstack.log' -f $BackendPid) -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($gone -or $cs) {
+                    Stop-Runner 3 ('BACK-END pid {0} {1} during the oracle-gate wait (not a gate result). Crash record: {2}. Read its callstack before anything else; the harvested .log holds the environment and is NOT for sharing.' -f $BackendPid, $(if ($gone) { 'DIED' } else { 'CRASHED and is PARKED on the dump prompt' }), $(if ($cs) { $cs.FullName } else { '(none found in C:\MAK\logs)' }))
+                }
             }
             Say-Info ('  no real coordinate yet - {0}' -f $(if (Get-TraceSummaryLine -TraceText $traceText) { Get-TraceSummaryLine -TraceText $traceText } else { 'no samples yet' }))
             Start-Sleep -Seconds 5
