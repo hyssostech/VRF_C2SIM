@@ -102,4 +102,12 @@ BUDGET under a self-inflicted object count, not a saturated machine. The vendor'
 scenario that genuinely needs 1,400 entities is the thread configuration ("about 2 less than
 the total available logical CPUs" - a C:\MAK settings edit, user's call); for COA-STP1 the
 object count itself was the error (C13).
-(final numbers + ratio + movement after teardown)
+INSTRUMENT GAP (found during the run): with the object consoles at the vendor default there are
+no CON rows, and sim_ratio.py reads the sim clock from CON rows only - P1 (the ratio) is NOT
+measurable in either run of this pair. The comparable metric is displacement per WALL time
+(tools/analysis/taskee_displacement.py, joined through the app log's MoveAlongRoute lines), the
+same in both runs. The vendor log carries no sim time at notify level 3.
+INTERIM MOVEMENT (t = 418 s, order at ~230 s): the 9 units with MoveAlongRoute issued moved
+13-103 m (max displacement from birth) - the crawl reproduces with the consoles OFF, so the
+console instrument was not the crawl (the 1.1 alternative is refuted).
+(final numbers + movement after teardown)
