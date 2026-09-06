@@ -227,3 +227,40 @@ REMEDY OPTIONS (evidence-backed, decision pending):
      level to see the created structure and offset routes, and test a create->settle barrier
      (wait all members reflected + formation valid before tasking). May fix the native path;
      needs better instrumentation. Also resolves the double-creation question.
+
+## ROOT CAUSE (VERIFIED 2026-09-05, from the original run's create-log + trace) - HIERARCHY-BLIND CREATE
+The double-creation question is now RESOLVED and IS the root. In the original B1-on run (has the
+name->uuid create-log), when 114.MechCoy is tasked:
+  114.MechCoy  aggregate point moved 304 m
+  1141.MechPlt STILL (0 m)  } the company's DECLARED C2SIM children (init Superior=139aa71b =
+  1142.MechPlt STILL (0 m)  } 114.MechCoy's uuid) - created by us as SEPARATE aggregates,
+  1143.MechPlt STILL (0 m)  } never tasked, sit idle
+  1222.MechPlt moved 1150 m  (standalone leaf platoon - works)
+Of 53 trace objects only 5 are units WE name; ~48 are VR-Forces-generated TEMPLATE
+subordinates. So VrfBridge.cpp:304-308 passes createSubordinates=true for EVERY unit, and for
+114.MechCoy that instantiates the whole "Tank Company (USA)" template (~48 phantom vehicles that
+are NOT the C2SIM OOB). We ALSO separately create the declared platoons 1141/1142/1143 as orphan
+aggregates. Tasking the company drives the ~48 PHANTOM template members (scatter); the declared
+platoons sit still. We are MOVING THE WRONG OBJECTS. Even the B1-off "1/3 completion" was phantom
+template subs completing - not the declared platoons. The platoon 1222 works only because it is a
+LEAF (no declared children) so its template subs ARE its real vehicles.
+Falsification check: competing hypothesis "the ~48 movers are the declared platoons' own
+vehicles, only their points are still" - REFUTED, a disaggregated unit's point derives from its
+members, so still points (0 m) mean still members; the ~48 movers are not theirs.
+VERIFIED: InitParser.cs:107,129 captures SuperiorUuid but uses it ONLY for the missing-coords
+cascade; the create path has NO leaf-vs-parent logic and never composes a parent from its
+declared children (grep). So the create is HIERARCHY-BLIND.
+This SUPERSEDES the "unreliable vendor controller / task at platoon echelon" framing as the
+PRIMARY issue: the company move was never operating on the right objects. B1 and the residual
+race are secondary. THE FIX is hierarchy-aware creation:
+  - Create LEAF units (platoons -> vehicles via createSubordinates, standalone platoons,
+    entities) - as today for leaves.
+  - For a NON-LEAF unit that has declared C2SIM children (a company), do NOT createSubordinates
+    (no phantom template); instead compose the parent aggregate FROM its declared child units
+    (VRF API for building an aggregate from specific members - RESEARCH NEEDED), or represent
+    the company logically for reporting and task its child platoons.
+  - Reconcile the init: when both a parent and its children are listed, do not create both as
+    independent top-level aggregates.
+Open design choice (user steer): compose-parent-from-children (proper VRF nesting) vs
+create-leaves-only-and-task-children vs dedupe-echelons. Needs a short VRF-API research pass on
+composing an aggregate from existing member units before implementing.
