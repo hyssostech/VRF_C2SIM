@@ -210,4 +210,71 @@ Instrument caveat: the notify-level requests do not alter behavior on the eviden
 (same gate, same runaway class as G-A); confirmed numerically in 6.2.
 
 ### 6.2 Scoring
-(pending teardown)
+Run T (20260906T160640Z), runner exit 0, RUN COMPLETE. Threshold correction, stated before
+run C is scored: the pre-registered "unit move = all members displaced > 1 km" was mis-sized -
+the company's route is ~600-900 m long (the V baseline's members moved 467-926 m at bearing
+357-3 deg and completed 3/3). Read "unit move" as: members displaced 400-1500 m within 30 deg
+of the route bearing (~0 deg) AND the company's TASKCMPLT; "scatter" as: any member > 2 km OR
+final spread > 2 km. The qualitative verdicts below do not depend on the correction.
+
+| run | company TASKCMPLT | members snapped 412 m @ 180 deg | runaways (> 2 km) | final spread | verdict |
+|---|---|---|---|---|---|
+| G-A 112702Z (baseline, console 1) | 0 (2/3 tasks) | 19 of 23 | 3 (4.7 / 13.6 / 16.7 km, brg 358/346/8) | 17.6 km | scatter |
+| T 160640Z (console 4, backend 4) | 0 (2/3 tasks) | 20 of 23 | 2 (HMMWV 2 15.5 km brg 50; unnamed 2.4 km brg 56) | 16.1 km | scatter |
+| V 104042Z (compose baseline) | 3/3 | 0 | 0 | 0.56 km | unit move |
+| C 161714Z (compose, console 4) | 3/3 (by t=78) | 0 | 0 (16 of 16 moved 467-924 m, brg 357-3) | 0.56 km | unit move |
+
+P2 CONFIRMED: the console level is inert on behavior (same gate, same snap, same runaway
+class). P1 CONFIRMED. P3 answered by 6.1: (b)/(c), (a) refuted.
+
+### 6.3 Run C - 20260906T161714Z (composed company, console level 4, backend 3) - THE CONTROL
+Same controller, same first subtask, different ending - the composed 114.MechCoy (e317ca80),
+58 console rows, verbatim skeleton:
+```
+t=29.0 [2] move-along-controller beginning to process move-along task (ID=0)
+t=29.0 [3] Task 0: Move-Along Route: "T_R5_CO1 ROUTE"
+t=29.0     Task 0 starting subtask move-into-formation
+t=29.0 [3] Subtask 1: Move into formation: formation: keep-existing-formation loc: {current}
+t=42.1     Disagg mv into form: task complete msg rcvd from 1141.MechPlt
+t=45.9     Disagg mv into form: task complete msg rcvd from 1143.MechPlt
+t=51.3     Disagg mv into form: task complete msg rcvd from 1142.MechPlt
+t=51.3 [2] move-into-formation-controller's subtask has Completed (ID=1)
+t=51.3     Disagg mv alng: Move into formation complete.
+t=51.3 [4] Subordinate 1141/1142/1143.MechPlt: maintain-speed 10  (then speed-up 15 / slow-down 1
+           adjustments for the rest of the move - the unit pacing its subordinates)
+t=75.7     Disagg mv alng: sub 1142.MechPlt completed move along task (tracking num: 4)
+t=77.1     Disagg mv alng: sub 1141.MechPlt completed move along task (tracking num: 3)
+t=77.7     Disagg mv alng: sub 1143.MechPlt completed move along task (tracking num: 2)
+t=77.7 [2] move-along-controller's task has Completed (ID=0)
+```
+Each declared platoon's console shows the vendor's UG52 25.2 mechanism exactly: at t=29.0 a
+move-into-formation (its own formation: Wedge-Right / Column-Left / column) which Completes
+(42.1 / 51.3 / 45.9); at t=51.3 a move-along on a company-generated OFFSET ROUTE named
+`114.MechCoy_R0` / `_R1` / `_R2` (the "routes ... offset from the leader's route" of 25.2),
+executed by the platoon's maneuver-along-controller (unitRoute=114.MechCoy_Rn,
+startAtClosest=True), Completed at 77.1 / 75.7 / 77.7. App: 3/3 `VRF task complete` + 3/3
+TASKCMPLT by t=78 (V baseline reproduced; instrument inert on the control as well). The only
+level-1 rows in the whole run are the members' "Making pivot geometry" path-start chatter.
+
+VERDICT (both directions of the gate hypothesis observed on the vendor's own channel):
+- The higher-unit move-along = [move-into-formation at the current location, gated on a
+  completion message from EVERY subordinate] -> [offset route per subordinate, leader-relative]
+  -> [complete when every subordinate completes]. Not our code, not our create call.
+- Template company (T): one HQ-section HMMWV never completes its slot move -> gate never opens
+  -> no route move (C1b). Composed company (C): all declared subordinates complete -> gate opens
+  -> offset routes -> complete.
+- The remaining unknown (why the M998's generated move-along never ends) is the vendor
+  template's behavior and is not on our path: compose/expand never instantiate that HQ section.
+
+Instrument caveats found in T (recorded for the next slice, not fixed in this one):
+- The app's `ObjectConsoleMessage` callback delivered messages ONLY for the three objects
+  this controller created (53 lines: 1222.MechPlt 38, 114.MechCoy 9, 1.BdeHQ 6); WatchVrf's
+  `CON` rows (171,945) carry every object. The trace is the complete channel; the app log is
+  a convenience for our own units.
+- The app logs the raw DtRwTranslatableStringObject XML (first line only visible per log
+  line). Decode `<string>` parts before logging (LIGHT follow-up).
+- Some rows' level field carries a sim-time prefix (e.g. 4180 = level 4 at 180.7 s of the
+  message text); treat level > 4 as 4.
+- `-BackendNotifyLevel 4` added nothing decision-relevant to the vendor log for this question;
+  the object console is the channel. (The vendor log still holds the environment in
+  cleartext - not quoted.)

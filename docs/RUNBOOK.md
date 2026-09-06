@@ -402,6 +402,19 @@ and never finishes also produces no TSK.
 The 2026-07-18 session ran seven probes against documented behaviour before
 reading the vendor's own procedure. Order of resort:
 
+- FIRST, FOR ANY "WHY DID THE UNIT DO THAT" QUESTION (added 2026-09-06, PREREG_CONSOLE_
+  CHANNEL): THE OBJECT'S OWN CONSOLE. Every VR-Forces object narrates what its controllers
+  do on a per-object console (UG52 21.9.1 p483, level 0 fatal .. 4 debug; the installed
+  vrfSim.mtl leaves objects at 1 = warnings only). Open it from the app - env
+  `Vrf__ObjectConsoleNotifyLevel=4` (setting Vrf:ObjectConsoleNotifyLevel; default -1 leaves
+  the vendor default) - which calls DtVrfRemoteController::setObjectNotifyLevel for every
+  object we create and for the tasked aggregate's members. The COMPLETE capture is the
+  WatchVrf trace's `CON,` rows (the app's own callback only sees the objects it created; the
+  app log shows them decoded as "VRF console [level] name (uuid): text"). Read it with
+  `python tools/analysis/console_narrative.py runs/<run> [<unit name>|<uuid tail>] [--all]`.
+  One run at level 4 closed a week-old movement question (DESIGN_ORBAT C1b/C11). Volume:
+  ~170k rows per 7-minute run at level 4 - fine for a diagnostic run, not a default.
+  `-BackendNotifyLevel 4` (runner) raises the SIM-WIDE log instead; it did not help there.
 - VR-Forces help (HTML, offline): C:\MAK\vrforces5.0.2\doc\help\Content
   Startup/connections/sessions: Introduction\Starting\ and Introduction\Concepts\
   CLI options: Introduction\CLI\vrf_vrfSimCommandLine.htm and

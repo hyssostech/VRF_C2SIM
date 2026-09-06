@@ -12,10 +12,24 @@ C1 (CORRECTED 2026-09-06 audit) the company move failure had TWO INDEPENDENT cau
    C1b MOVEMENT bug, INDEPENDENT of C1a: a template higher-unit created via remote createAggregate
        does not move - it scatters - with OR without a post-create formation settle (G-A 112702Z clean
        template, auto off; 131748Z auto on; same signature). FALSIFIER of "C1a caused the move
-       failure": fixing the structure alone (G-A) did NOT fix movement. Fixed by compose
-       (addToOrganization resolves the formation) / expand-to-compose. MECHANISM OPEN: "unresolved
-       formation" is the leading candidate but a set+reorganize did not rescue it; the one untested
-       lever is initialFormation AT create (C10, parked). Do not assert the mechanism as closed.
+       failure": fixing the structure alone (G-A) did NOT fix movement. Fixed by compose /
+       expand-to-compose. MECHANISM CLOSED 2026-09-06 BY THE SIM'S OWN CONSOLE (PREREG_CONSOLE_
+       CHANNEL sec 6.1, run T 160640Z at object notify level 4): the higher-unit's move-along
+       controller starts a move-into-formation subtask first (VRF-8977: "waits until a unit's
+       formation is considered valid before initiating the movement") which fans a formation-slot
+       Move-To to every DIRECT member; the 3 sub-platoons report complete at t=51 but ONE
+       template-created HQ-section vehicle (M998 HMMWV "AUX", Tank Headquarters Section (USA).entity
+       :65/:67) never completes its slot move - an internally generated move-along drives it 12-15 km
+       off in a straight line - so the formation is never valid, the gate never opens, the route move
+       never starts. NOT a formation-at-creation problem (no formation/leader/organization complaint
+       on the company's console; birth geometry not stacked). Compose works because its members are
+       the DECLARED platoons (+ our one HQ entity), never the template's HMMWV pair. CONTROL run C
+       (161714Z, composed, console 4): identical controller path, all three platoons report
+       move-into-formation complete by t=51.3, "Move into formation complete", the company issues
+       offset routes 114.MechCoy_R0/R1/R2 (UG52 25.2), each platoon's maneuver-along completes,
+       company move-along Completed t=77.7, 3/3 TASKCMPLT. "Unresolved formation", "orientation
+       race", "settle" were all wrong; initialFormation-at-create (C10) cannot help a member that
+       never arrives.
    Compose fixes BOTH, which is why it is the answer and why the session reached the right FIX from
    a conflated causal story. Not a vendor bug (the vendor sample = compose); not a race per se (the
    non-determinism was C1b's symptom).
@@ -46,7 +60,16 @@ C9 There is NO vendor sample/source for the MSDL/ORBAT importer (headers only; i
    DATA tree and does not create objects). The vendor's only worked aggregate sample = compose (C2).
 C10 sendVrfObjectCreateMsg + initialFormation is a real API but NOT a compose replacement for a
     declared ORBAT (template subs get VRF-assigned uuids -> violates one-object-per-UUID, UG52 22.1);
-    at most a coarse-leaf probe. PARKED, untested. Do not build it as "the direct bind".
+    at most a coarse-leaf probe. DROPPED 2026-09-06: C1b's mechanism is a member that never reaches
+    its slot, which an initial formation cannot fix. Do not build it.
+C11 THE FIRST INSTRUMENT for any VRF behavior question is the object's OWN CONSOLE at notify level 4
+    (UG52 21.9.1 p483; remote API setObjectNotifyLevel vrfRemoteController.h:1953; app setting
+    Vrf:ObjectConsoleNotifyLevel; WatchVrf CON rows = the complete capture, the app callback sees
+    only its own objects). One run at level 4 closed C1b after a week of inference. Silence at the
+    vendor default level 1 is the configured outcome, not evidence (lessons-vendor-diagnostics-first).
+    The template company path is unusable in this build not because of our create call but because
+    the vendor's Tank/Mech HQ-section templates carry M998 HMMWVs whose generated slot move never
+    completes; compose/expand (C2/C5) sidestep it and are the design regardless (fidelity, C1a).
 RESEARCH AUDIT (2026-09-06, supervisor) - the ORBAT thread's workflows, graded on what survived
 the NEXT live run. Sound core throughout = the vendor sample + installed UG52 + deterministic runs;
 every specific MECHANISM the workflows produced was later falsified or left open:
@@ -57,7 +80,9 @@ every specific MECHANISM the workflows produced was later falsified or left open
     wrong to dismiss C1a (the trace then found it).
   wf_e5cb1379 compose feasibility -> CORRECT; validated 3/3 (C2).
   wf_16e3e97f template-vs-composed -> "unresolved formation, settle fixes it": the settle (auto)
-    did NOT rescue the template (131748Z) - mechanism INCOMPLETE, kept OPEN in C1b.
+    did NOT rescue the template (131748Z) - mechanism INCOMPLETE; CLOSED 2026-09-06 by the sim's
+    own console (C1b/C11): a formation GATE, but the blocker is a template HQ-section vehicle that
+    never reaches its slot - not an "unresolved formation".
   wf_1f29a1ad vendor catalog-leaf -> "auto is the missing settle" FALSIFIED by 131748Z; "the MSDL
     importer IS the recursion (verified)" OVERSTATED (data model only, no sample; C9).
   wf_80d19fed loading mandate -> manufactured gaps G3/G4 (refuted by V) + G5 (settled 2026-09-02,

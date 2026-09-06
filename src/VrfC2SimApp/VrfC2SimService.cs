@@ -2236,7 +2236,30 @@ public sealed class VrfC2SimService : BackgroundService
     {
         _nameByVrfUuid.TryGetValue(e.Uuid ?? "", out var objName);
         _log.LogInformation("VRF console [{Level}] {Name} ({Uuid}): {Msg}",
-                            e.NotifyLevel, objName ?? "?", e.Uuid, (e.Message ?? "").TrimEnd());
+                            e.NotifyLevel, objName ?? "?", e.Uuid, DecodeConsoleText(e.Message));
+    }
+
+    // The sim wraps console text in a DtRwTranslatableStringObject XML blob (a "string-queue" of
+    // <string> parts: the translatable template followed by its arguments, e.g. "%1: Controller %2
+    // beginning to process %3 task (ID=%4)" | "92.466" | "...move-along-controller" | ...). Log the
+    // parts joined with " | " instead of the raw multi-line XML; plain (non-XML) text passes through.
+    private static readonly System.Text.RegularExpressions.Regex ConsoleStringPart =
+        new(@"<string[^>]*>(.*?)</string>", System.Text.RegularExpressions.RegexOptions.Singleline);
+    // the translatable template part is itself wrapped in an ESCAPED <string translate=...> tag
+    private static readonly System.Text.RegularExpressions.Regex ConsoleNestedTag = new(@"^<string[^>]*>");
+
+    internal static string DecodeConsoleText(string raw)
+    {
+        var s = (raw ?? "").TrimEnd();
+        if (!s.StartsWith("<?xml", StringComparison.Ordinal) && !s.Contains("<string", StringComparison.Ordinal))
+            return s;
+        var parts = new List<string>();
+        foreach (System.Text.RegularExpressions.Match m in ConsoleStringPart.Matches(s))
+        {
+            var p = ConsoleNestedTag.Replace(System.Net.WebUtility.HtmlDecode(m.Groups[1].Value).Trim(), "").Trim();
+            if (p.Length > 0) parts.Add(p);
+        }
+        return parts.Count > 0 ? string.Join(" | ", parts) : s;
     }
 
     private void OnVrfAvailableFormations(object sender, AvailableFormationsEventArgs e)
