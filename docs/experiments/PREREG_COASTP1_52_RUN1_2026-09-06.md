@@ -361,6 +361,24 @@ units live there. Sec 9's crawl stays OPEN with NO mechanism claimed. Correct ne
 fixture); S6 = S4 with Vrf__ObjectConsoleMemberNotifyLevel=3 so the TASKED units' member
 tanks narrate their own move (planner outcomes, speed, blockage) at scale.
 
+### 11. L3 RESULT - 20260906T201623Z (one CP proxy alone, member consoles at 4): IT MOVES
+1222.MechPlt as BN -> F-UCI-F "Tank Headquarters Section (USA)" (M1A2 x2, M3, HMMWV x2,
+M577), tasked with the R9 platoon route: move-along-controller -> maneuver-along at sim
+94.7 s, "Completed" at sim 275.3 s; app "VRF task complete: 1222.MechPlt~PXY / move-along".
+All six members: maneuver-in-formation -> ground-vehicle-move-to -> move_to_position_and_
+heading -> turn-to-heading, every subtask Completed, 0 warnings (HMMWV 1 and 2 included -
+no "not embarked" line this time). So the template is NOT intrinsically unusable as a tasked
+unit; the five CP proxies that sat silent for 1,376 sim-s in S4 stalled for a reason that
+exists at scale (1,333 objects) and not on the 6-unit fixture. Mechanism NOT claimed.
+S6 (next) puts the member consoles on the tasked units at scale, which is the only channel
+that can say what a tank at S4's load was waiting for.
+L3 also completed 3/3 under FidelityTable (1.BdeHQ -> M577A2 proxy entity; 114.MechCoy
+composed 3/3 from Tank Platoon (USA) children; the CP proxy), 16-entity cluster, spread
+556 m, 0 dropped - the TYPE-MAP LIVE GATE's P3 (mode took effect), P4 (proxies surface:
+"~PXY" markings + TYPE MAP Proxy lines), P5 (tasking resolves, units move under proxies)
+and P7 (hygiene) PASS on the small fixture. P2 (no generic/empty unit) holds for the units
+created. The gate at scale is what S4/S6 measure.
+
 - Run 2 is also the TYPE-MAP LIVE GATE on 5.2 (PREREG_TYPEMAP_LIVE_GATE_2026-09-02, registered
   for 5.0.2 and never run there): its safety properties apply verbatim - P2 no generic / empty
   unit created (a Country-0 or zero-subordinate abstract is a STOP); P3 the mode line proves
