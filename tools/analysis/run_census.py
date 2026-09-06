@@ -60,6 +60,13 @@ RE_LON = re.compile(r"<Longitude>([-0-9.eE+]+)</Longitude>")
 RE_SUBJ = re.compile(r"<SubjectEntity>([0-9a-fA-F-]+)</SubjectEntity>")
 RE_ISO = re.compile(r"<IsoDateTime>([^<]+)</IsoDateTime>")
 RE_SUBROUTE = re.compile(r"Locally Simulated: ([A-Za-z0-9/_.-]+_R\d+)")
+# 5.2 (2026-09-06): the vendor log no longer prints per-object "Locally Simulated" lines (2 lines,
+# both global objects, even at --notifyLevel 4 - PREREG_CONSOLE_CHANNEL). The offset sub-routes a
+# unit generates for its subordinates are visible instead on the SUBORDINATE's object console at
+# level 3 ("Task 1 name and parameters: Move-Along Route: "<parent>_R<n>""), captured by WatchVrf
+# as CON rows when Vrf:ObjectConsoleNotifyLevel >= 3 is set for the subordinates we created.
+# In the trace CSV the quotes around the route name are CSV-doubled ("") or XML-escaped (&quot;).
+RE_SUBROUTE_CON = re.compile(r'Move-Along Route: (?:&quot;|"{1,2})([A-Za-z0-9/_.-]+_R\d+)(?:&quot;|"{1,2})')
 
 
 def great_circle_km(a, b):
@@ -98,12 +105,22 @@ def read_reports(path):
     return tracks
 
 
-def subroute_census(path):
+def subroute_census(path, trace_path=None):
+    """Distinct <parent>_R<n> sub-route names: from the vendor log (5.0.2 form) and, when a trace
+    is given, from the object-console CON rows (5.2 form). Union of both; a name counts once."""
     names = set()
-    with open(path, "r", encoding="utf-8", errors="replace") as fh:
-        for line in fh:
-            for m in RE_SUBROUTE.finditer(line):
-                names.add(m.group(1))
+    if path and os.path.exists(path):
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                for m in RE_SUBROUTE.finditer(line):
+                    names.add(m.group(1))
+    if trace_path and os.path.exists(trace_path):
+        with open(trace_path, "r", encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                if not line.startswith("CON,"):
+                    continue
+                for m in RE_SUBROUTE_CON.finditer(line):
+                    names.add(m.group(1) or m.group(2))
     by_parent = {}
     for n in sorted(names):
         parent = n.rsplit("_R", 1)[0]
@@ -168,13 +185,24 @@ def census(repo, run):
             net = 0.0
         perf.append({"uuid": t, "fixes": len(fixes), "net_km": round(net, 2)})
 
+    # Vendor log: 5.0.2 runs keep bin64-vrfSim.log in the run dir; the 5.2 profile HARVESTS the
+    # vendor's own log to runs/launch52/vrfSim_<appNo>_<stamp>.log and records the path in the
+    # manifest (inputs.vrfProfile.vendorLog.harvestedTo). Prefer the run-dir file; fall back.
+    vendor_log = os.path.join(rd, "bin64-vrfSim.log")
+    if not os.path.exists(vendor_log):
+        harvested = (((man.get("inputs") or {}).get("vrfProfile") or {}).get("vendorLog") or {}).get("harvestedTo")
+        if harvested and os.path.exists(harvested):
+            vendor_log = harvested
+    trace = os.path.join(rd, "watchvrf-trace.csv")
+
     return {
         "run": run,
         "reports": sum(len(v) for v in tracks.values()),
         "reportUuids": len(tracks),
         "performers": perf,
-        "subRoutes": subroute_census(os.path.join(rd, "bin64-vrfSim.log")),
-        "objects": object_census(os.path.join(rd, "watchvrf-trace.csv")),
+        "subRoutes": subroute_census(vendor_log, trace),
+        "vendorLog": vendor_log,
+        "objects": object_census(trace),
         "quietBackend": man["inputs"].get("quietBackend"),
         "restUrl": man["inputs"].get("restUrl"),
         "stompUrl": man["inputs"].get("stompUrl"),

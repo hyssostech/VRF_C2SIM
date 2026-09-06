@@ -47,6 +47,10 @@ public sealed class VrfC2SimService : BackgroundService
     // _vrfUuidByName key) and its SIDC (for the ground-clamp test). Parity: executeTask
     // looks the taskee up in the C++ unit map by taskeeUuid (C2SIMinterface.cpp:2044).
     private readonly ConcurrentDictionary<string, CreatedUnit> _unitByC2SimUuid = new();
+    // C2SIM uuid -> hostility code of the init unit ("HO" = red), for the R1 position-report side
+    // filter (oracle C2SIMinterface.cpp:436-437). Written at init, read on the tick thread.
+    private readonly ConcurrentDictionary<string, string> _hostilityByC2SimUuid = new();
+    private DateTime _nextPositionReport = DateTime.MinValue;   // R1 poll schedule (tick thread)
 
     // Route name -> FIFO of tasks waiting for that route's ObjectCreated (the along-route
     // task cannot be issued in the same tick as the async CreateRoute; parity:
@@ -443,8 +447,50 @@ public sealed class VrfC2SimService : BackgroundService
             catch (Exception e) { _log.LogError("Tick failed: {Msg}", e.Message); }
             if (!_pendingTerrain.IsEmpty) ExpireTerrainRequests();
             if (!_compositions.IsEmpty) ExpireCompositions();
+            if (_vrf.PositionReportSeconds > 0) MaybeSendPositionReports();
             Thread.Sleep(50);
         }
+    }
+
+    // R1: the oracle's periodic position-report loop (C2SIMinterface.cpp:388-460), on the tick
+    // thread: every PositionReportSeconds, for every unit WE created that passes the side filter,
+    // read its reflected location (TryGetEntityGeodetic - entity or aggregate, the port of
+    // getUnitGeodeticFromSim) and push one C2SIM PositionReport; units with no reflected object
+    // yet are skipped (the oracle printed "CAN'T MAKE POSITION REPORT" and continued). When
+    // Vrf:BundlePositionReports is on, fixes go through the P4b bundle instead of one report each.
+    private void MaybeSendPositionReports()
+    {
+        var now = DateTime.UtcNow;
+        if (now < _nextPositionReport) return;
+        _nextPositionReport = now.AddSeconds(_vrf.PositionReportSeconds);
+
+        bool blue = !_vrf.PositionReportSides.Equals("red", StringComparison.OrdinalIgnoreCase);
+        bool red  = !_vrf.PositionReportSides.Equals("blue", StringComparison.OrdinalIgnoreCase);
+        int sent = 0, skipped = 0;
+        List<(string uuid, double lat, double lon)> bundle = _vrf.BundlePositionReports ? new() : null;
+        foreach (var kv in _unitByC2SimUuid)
+        {
+            string c2simUuid = kv.Key, name = kv.Value.Name;
+            bool hostile = _hostilityByC2SimUuid.TryGetValue(c2simUuid, out var h) && h == "HO";
+            if (hostile ? !red : !blue) continue;
+            if (!_vrfUuidByName.TryGetValue(name, out var vrfUuid)) { skipped++; continue; }
+            if (!_bridge.TryGetEntityGeodetic(vrfUuid, out var g)) { skipped++; continue; }
+            if (bundle != null) { bundle.Add((c2simUuid, g.LatDeg, g.LonDeg)); continue; }
+            _ = PushReportAsync(ReportBuilder.BuildPositionReport(c2simUuid, g.LatDeg, g.LonDeg, IsoNow(), NewReportId()));
+            sent++;
+        }
+        if (bundle is { Count: > 0 })
+        {
+            List<(string uuid, double lat, double lon)> snapshot;
+            lock (_posBundleLock)
+            {
+                foreach (var b in bundle) _posBundle.Add(b);
+                snapshot = DrainBundleLocked();
+            }
+            if (snapshot != null && snapshot.Count > 0) { _ = PushBundleSnapshot(snapshot); sent = snapshot.Count; }
+        }
+        _log.LogInformation("R1 position reports: {Sent} sent, {Skipped} skipped (no reflected object yet), " +
+                            "sides={Sides}, every {Secs}s.", sent, skipped, _vrf.PositionReportSides, _vrf.PositionReportSeconds);
     }
 
     private StartupConfig BuildStartupConfig()
@@ -583,6 +629,7 @@ public sealed class VrfC2SimService : BackgroundService
                 _log.LogWarning("Unit {Name} missing Hostility - skipping.", u.Name);
                 continue;
             }
+            _hostilityByC2SimUuid[u.Uuid] = u.HostilityCode;
 
             var unit = u;
             if (string.IsNullOrEmpty(unit.Latitude) || string.IsNullOrEmpty(unit.Longitude))
@@ -1061,13 +1108,27 @@ public sealed class VrfC2SimService : BackgroundService
     {
         var res = GetResolver();
         if (res == null) return;                 // no catalog -> leaves fall back to template (logged)
-        int originalCount = toCreate.Count;      // only expand ORIGINAL plans, not appended children
-        for (int i = 0; i < originalCount; i++)
+        // N4 (2026-09-06): RECURSIVE. A synthesized sub-unit that is itself coarse (a battalion leaf's
+        // companies) is expanded in turn, else it would be created as a TEMPLATE company - the exact
+        // path C1b closed (a template HQ-section vehicle never reaches its slot, the unit never moves;
+        // PREREG_CONSOLE_CHANNEL sec 6). The loop therefore runs over the GROWING list; depth is
+        // bounded (MaxExpandDepth) and the platoon rule still stops it: a template whose subordinates
+        // are vehicles is never expanded.
+        const int MaxExpandDepth = 3;            // leaf -> sub-unit -> sub-sub-unit (bn -> coy -> plt)
+        var depthOf = new Dictionary<string, int>();   // synthesized child name -> depth below its leaf
+        for (int i = 0; i < toCreate.Count; i++)
         {
             var plan = toCreate[i];
             // A coarse leaf: an aggregate still slated for template creation (ApplyHierarchyComposition
             // did NOT flip it to a shell => it has no DECLARED children) and not already a composition.
             if (!plan.IsAggregate || !plan.CreateSubordinates || _compositions.ContainsKey(plan.Name)) continue;
+            int depth = depthOf.TryGetValue(plan.Name, out var d) ? d : 0;
+            if (depth >= MaxExpandDepth)
+            {
+                _log.LogWarning("ComposeHierarchy: {Name} is {Depth} levels below its leaf - expansion stops here " +
+                                "(MaxExpandDepth); it is created as a template.", plan.Name, depth);
+                continue;
+            }
 
             int st = plan.Type.Kind == 11 ? 3 : 1;
             var q = new[] { st, plan.Type.Kind, plan.Type.Domain, plan.Type.Country,
@@ -1096,6 +1157,7 @@ public sealed class VrfC2SimService : BackgroundService
                 placements.Add(new PlacementInput(ot[2], null, null));  // child DIS domain; placed on terrain
                 hierarchy.Add(("", ""));                                // synthetic - not a C2SIM unit
                 childNames.Add(childName);
+                depthOf[childName] = depth + 1;                        // the loop will visit it (recursive)
             }
 
             toCreate[i] = plan with { CreateSubordinates = false };     // empty shell
@@ -1104,9 +1166,9 @@ public sealed class VrfC2SimService : BackgroundService
                 Deadline = DateTime.UtcNow.AddSeconds(Math.Max(1, _vrf.CompositionTimeoutSeconds)) };
             _compositionReady[plan.Name] = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             foreach (var c in childNames) _childToParent[c] = plan.Name;
-            _log.LogInformation("ComposeHierarchy: EXPAND coarse leaf {Parent} ({Tmpl}) -> {N} doctrinal " +
+            _log.LogInformation("ComposeHierarchy: EXPAND coarse leaf {Parent} ({Tmpl}, depth {Depth}) -> {N} doctrinal " +
                                 "sub-units (declared order) [{Kids}] + empty shell; compose via AddToOrganization.",
-                                plan.Name, template.Name, childNames.Count, string.Join(", ", childNames));
+                                plan.Name, template.Name, depth, childNames.Count, string.Join(", ", childNames));
         }
     }
 
@@ -1411,7 +1473,7 @@ public sealed class VrfC2SimService : BackgroundService
         // ObjectCreated never opened THEIR consoles. Open them now (Vrf:ObjectConsoleNotifyLevel
         // >= 0) from the aggregate's published member list, so the per-member offset-route /
         // formation messages of this task are captured too (UG52 21.9.1 p483).
-        if (_vrf.ObjectConsoleNotifyLevel >= 0 && unit.IsAggregate)
+        if (_vrf.ObjectConsoleMemberNotifyLevel >= 0 && unit.IsAggregate)
         {
             var consoleMembers = _bridge.GetAggregateMembers(vrfUuid);
             if (consoleMembers is { Count: > 0 })
@@ -1420,10 +1482,10 @@ public sealed class VrfC2SimService : BackgroundService
                 {
                     if (string.IsNullOrEmpty(m.Uuid)) continue;
                     _nameByVrfUuid.TryAdd(m.Uuid, m.Name ?? "");
-                    _bridge.SetObjectNotifyLevel(m.Uuid, _vrf.ObjectConsoleNotifyLevel);
+                    _bridge.SetObjectNotifyLevel(m.Uuid, _vrf.ObjectConsoleMemberNotifyLevel);
                 }
                 _log.LogInformation("VRF console level {Level} requested for {N} members of {Name}: {Members}.",
-                                    _vrf.ObjectConsoleNotifyLevel, consoleMembers.Count, unit.Name,
+                                    _vrf.ObjectConsoleMemberNotifyLevel, consoleMembers.Count, unit.Name,
                                     string.Join(", ", consoleMembers.Select(m => m.Name)));
             }
             else

@@ -44,8 +44,14 @@ C4 AggregateFormation='auto' (SetAggregateFormation+Reorganize) is NOT needed fo
    settle" flip-flops were confounds (phantom context; then falsified by 131748Z).
 C5 COARSE LEAF (no declared children) at company+ = EXPAND-to-compose: read the mapped template's
    .entity doctrinal sub-units (ObjectTypeResolver), create each as a platoon template, compose in
-   DECLARED order (HQ first) - full TO&E moved + completed (124700Z, 1 run; 3x owed). LEAF PLATOON =
-   template (1222 4/4). Regiment+ leaf exceeds the EntityLevel ceiling -> Y-15.
+   DECLARED order (HQ first) - full TO&E moved + completed (124700Z; DETERMINISTIC 3/3 more:
+   PREREG_N3_EXPAND_3X X1/X2/X3 170113Z/171105Z/172132Z, identical). LEAF PLATOON = template
+   (1222 4/4). Regiment+ leaf exceeds the EntityLevel ceiling -> Y-15. RECURSIVE since N4
+   (2026-09-06): a synthesized sub-unit that is itself coarse is expanded too (MaxExpandDepth 3),
+   so no template COMPANY is ever created under a battalion leaf (C1b). NOTE the 5.2 type map sends
+   BN rows to the "Tank Headquarters Section (USA)" CP PROXY (data/unit-type-map-52.json F-*-F),
+   whose subs are vehicles - so for COA-STP1 the recursion does not fire; the proxy is a type-map
+   fidelity ruling, not a compose question.
 C6 NO post-attach reorganize is needed (addToOrganization resolves the formation - designators +
    promotion map) and NO client-side formation-validity wait is needed (VRF-8977: the app waits).
    Both were listed as "gaps" by the requirements audit and are REFUTED by V. Do not add them.
@@ -97,9 +103,10 @@ NEXT (the only real work): N1 DONE 2026-09-06 (PREREG_N1_COMPOSE_DEFAULT: defaul
 run D 162958Z 3/3 with no env; flag-off run L 164022Z reproduces the legacy 38-phantom / 2-of-3
 signature - the switch is the regression control). N2 DONE 2026-09-06 (PREREG_N2_DECLARED_ORDER:
 ComposeOrder.ByDeclared + --compose-selftest 5/5; run E 165015Z attaches [1141, 1142, 1143] in the
-authored order, 3/3). N3 expand 3x determinism (the flag-off leg is covered by L) is the next slice.
-THEN the queue: REBASELINE_52, COA-STP1 at scale, type-map live gate. Everything else below is
-history.
+authored order, 3/3). N3 DONE 2026-09-06 (PREREG_N3_EXPAND_3X: 3/3 identical; flag-off covered by
+L). NEXT = COA-STP1 at scale on 5.2 (readiness: REBASELINE_52_INSTRUMENTS sec 6 - census reads 5.2
+sub-routes from the console; position reports need slice R1 = the oracle's periodic poll; runner
+-ClientId C2SIM; NO -StopWhenComplete on 5.2 until R1 lands). Everything else below is history.
 
 2026-09-06. Generalizes the compose recipe (PREREG_COMPOSE_A, validated V) from one company to an
 arbitrary C2SIM ORBAT where units are declared to DIFFERENT depths (some to platoon/platform, some

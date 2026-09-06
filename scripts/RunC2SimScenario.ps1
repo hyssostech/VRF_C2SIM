@@ -301,6 +301,13 @@ param(
     # 21.9.1 p483). Recorded in the manifest.
     [int]    $BackendNotifyLevel = 3,
 
+    # The app's C2SIM clientId (Vrf:ClientId), which MUST equal the init's SystemName (RUNBOOK sec 2,
+    # LIMITATION 6). EMPTY (default) = whatever the deployed appsettings.json pins ("STP" - the R9
+    # inits). Pass e.g. -ClientId C2SIM for data\COA-STP1_Initialization.xml: the value is exported
+    # as Vrf__ClientId to the app (env overrides appsettings) and validated against the init here.
+    # Before 2026-09-06 this needed a hand edit of appsettings.json per init (d1f2e10 / 7963aed).
+    [string] $ClientId = '',
+
     # C2SIM endpoints. DEFAULT = THE PRIVATE TEST SERVER (2026-09-02): docker container
     # c2sim-server-vrf on 18080 / 61614, a second instance of the same image with its
     # own bind mount (RUNBOOK sec 1). The operator's own server stays on 8080 / 61613;
@@ -1387,6 +1394,12 @@ if (Test-Path -LiteralPath $appSettings -PathType Leaf) {
             $cfg.Vrf.PSObject.Properties.Name -contains 'ClientId') { $appClientId = [string]$cfg.Vrf.ClientId }
     } catch { Say-Warn ('could not parse {0}: {1}' -f $appSettings, $_.Exception.Message) }
 }
+if ($ClientId) {
+    # -ClientId wins over appsettings: the app reads Vrf__ClientId from its environment (the standard
+    # env-override mechanism every other Vrf__ setting uses). Exported here so the app inherits it.
+    $appClientId = $ClientId
+    $env:Vrf__ClientId = $ClientId
+}
 if ($appClientId -and $initSystemNames.Count -gt 0 -and ($initSystemNames -notcontains $appClientId)) {
     $bad += ("clientId MISMATCH: appsettings Vrf:ClientId='{0}' but the init declares SystemName [{1}]. RUNBOOK sec 2: they MUST match or the interface creates 0 UNITS. Fix appsettings.json (or the init) before running." -f $appClientId, ($initSystemNames -join ','))
 }
@@ -1437,6 +1450,7 @@ $Manifest.inputs.sampleSecs    = $SampleSecs
 $Manifest.inputs.scenario      = $Scenario
 $Manifest.inputs.quietBackend  = [bool]$QuietBackend
 $Manifest.inputs.backendNotifyLevel = $BackendNotifyLevel
+$Manifest.inputs.clientId      = $(if ($ClientId) { $ClientId } else { ('(appsettings) {0}' -f $appClientId) })
 $Manifest.inputs.federation    = $Federation
 # THE PROFILE, in the evidence. A trace can only be compared with another trace from the
 # SAME stack, so which stack ran is a first-class manifest field - roots, binaries, the
@@ -1948,6 +1962,7 @@ Say ('  observers   : {0}s CAP (derived: preRoll {1} + appJoin {2} + initDispatc
         $EffWatchSecs, $PreRollSecs, $AppJoinTimeoutSec, $InitDispatchWaitSec, $OracleGateTimeoutSec, $PushOrderListenSec, $RunSecs, $TrailSecs)
 Say ('  trace stop  : {0} - {1}' -f $TraceStopMode, $(if ($TraceStopMode -eq 'stop-file') { ('teardown touches {0} at StopIface + {1}s; observers resign within ~1 s; grace {2}s' -f $PathStopFile, $TrailSecs, $TraceStopGraceSec) } else { 'observers run to the CAP and teardown waits for them (pre-turnaround dead time)' }))
 Say ('  window      : {0}s{1}' -f $RunSecs, $(if ($StopWhenComplete) { (' CAP; -StopWhenComplete closes it once all {0} taskee(s) / {1} task(s) report TASKCMPLT, {2}s have passed AND every taskee has a post-completion RPT agreeing with its POS' -f $OrderTaskees.Count, $OrderTasks.Count, $SettleHoldSecs) } else { ' fixed (-StopWhenComplete not set)' }))
+Say ('  clientId    : {0}' -f $(if ($ClientId) { ('{0} (-ClientId -> Vrf__ClientId)' -f $ClientId) } else { ('{0} (appsettings.json)' -f $appClientId) }))
 Say ('  HLA PATH    : {0};<inherited>' -f $PathPrefix)
 Say ('  license     : MAKLMGRD_LICENSE_FILE (Machine) = {0}' -f $(if ($LicMachine) { $LicMachine } else { '(EMPTY - checkout may hang, RUNBOOK sec 7 item 2)' }))
 Say ('  HLA cwd     : {0}' -f $Bin64)

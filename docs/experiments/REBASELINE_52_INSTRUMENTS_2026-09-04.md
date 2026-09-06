@@ -118,3 +118,35 @@ output, exit 0. Both gates still PASS; `frame_gaps` still reproduces LS slope
    name lists and a `statistics.mean` over RPT intervals that raises on a
    scenario with no RPT records (Traffic has none). Phase 3 work; untouched
    here, because the 5.2 captures never reach that code.
+
+## 6. 2026-09-06 additions (found while preparing COA-STP1 on 5.2)
+
+3. THE 5.2 VENDOR LOG HAS NO PER-OBJECT LINES. 5.0.2 printed `Locally Simulated:
+   <name> (VRF_UUID:...) using parameters: ...` for every object (rung 2: 1,841 lines,
+   incl. every `<unit>_R<n>` sub-route). 5.2d prints exactly 2 such lines (GlblTerrDmg,
+   GlobalEnv) even at `--notifyLevel 4` (run T 160640Z). So `run_census.py`'s sub-route
+   census had no source on 5.2. FIXED: `subroute_census` now also reads the WatchVrf
+   `CON` rows - a subordinate's console at level 3 prints `Task n name and parameters:
+   Move-Along Route: "<parent>_R<n>"` (PREREG_CONSOLE_CHANNEL 6.3) - and the vendor log
+   path falls back to the manifest's `inputs.vrfProfile.vendorLog.harvestedTo`. Gated:
+   rung2 and quiet still PASS; run C 161714Z reads `114.MechCoy: [R0, R1, R2]`. It only
+   works when `Vrf:ObjectConsoleNotifyLevel >= 3` was set for the subordinates WE create
+   (the members' level is separate, `Vrf:ObjectConsoleMemberNotifyLevel`, and must stay
+   at the vendor default at scale - PREREG_CONSOLE_CHANNEL 6.2 volume figures).
+4. NO POSITION REPORTS REACH THE C2SIM BUS ON 5.2. rung 2 captured 1,536
+   `PositionReportContent`; every 5.2 run captured only its TASKCMPLT task-status
+   reports (run E: 3 of 3). Cause, read not inferred: the app's only position path is
+   `OnVrfTextReport` relaying `POSITION "<name>" <lat> <lon>` VRF text reports, which the
+   5.0.2 fixture's C2simEx SMS Lua tracking script emitted (WatchVrf `RPT` rows: 20,784 in
+   rung 2, 0 in every 5.2 run; the 5.2 fixture is on EntityLevel.sms, DIFF row C2). The
+   C++ oracle did NOT depend on that script for its periodic reports: C2SIMinterface.cpp
+   :388-460 polls `getUnitGeodeticFromSim` (reflected object -> state repository ->
+   location) every `reportInterval` and bundles. Consequences: (a) `run_census.py`
+   `reports`/`net_km` and the runner's `-StopWhenComplete` rule 4 (`RPT POSITION` later
+   than the `TSK` record) are BLIND on 5.2 - do not use `-StopWhenComplete` on 5.2 until
+   fixed; WatchVrf `POS` is the position oracle; (b) the fix is to port the oracle's poll
+   (bridge `TryGetEntityGeodetic` for entities plus an aggregate read), gated on
+   `PositionReportSeconds > 0` like the oracle's `reportInterval` - queued as slice R1.
+5. `tests/RunnerTurnaround.Tests.ps1`: 5 checks fail on HEAD before any 2026-09-06
+   runner change (the LaunchVrf52 harvest / -DryRun terminating-error cluster; 218 pass).
+   Pre-existing; not touched by `-BackendNotifyLevel` / `-ClientId`.

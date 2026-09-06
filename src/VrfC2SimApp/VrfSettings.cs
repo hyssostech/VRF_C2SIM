@@ -157,6 +157,25 @@ public class VrfSettings
     // console message is logged as "VRF console". -1 (default): leave the vendor default alone.
     public int ObjectConsoleNotifyLevel { get; set; } = -1;
 
+    // The same, for the MEMBERS of a tasked aggregate (sim-created entities we never saw in
+    // ObjectCreated). -1 (default) = leave them at the vendor default; a unit's own console at 4 is
+    // ~60 rows per task (its subtask gate, "task complete msg rcvd from <sub>", offset routes), while
+    // every member at 3-4 is tens of thousands of rows per unit (PREREG_CONSOLE_CHANNEL 6.2) - at scale
+    // that is the difference between a usable trace and gigabytes. Set >= 0 only for a per-member
+    // diagnostic on a small init.
+    public int ObjectConsoleMemberNotifyLevel { get; set; } = -1;
+
+    // R1 (REBASELINE_52_INSTRUMENTS sec 6 item 4): PERIODIC C2SIM POSITION REPORTS, the C++ oracle's
+    // own mechanism (C2SIMinterface.cpp:388-460: every reportInterval, for every unit we simulate,
+    // getUnitGeodeticFromSim -> position report, bundled). The text-report POSITION path
+    // (OnVrfTextReport) needs the 5.0.2 fixture's Lua tracking script, which the 5.2 fixtures do not
+    // carry, so on 5.2 the C2SIM bus saw no positions at all. 0 (default) = off, exactly the oracle's
+    // "runs only if reportInterval > 0"; the 5.0.2 scale runs are equivalent to 10 s.
+    public int PositionReportSeconds { get; set; } = 0;
+    // Which sides are reported: "both" (the oracle's sendTrackingCode 1, what the 2026-09-02 scale
+    // runs used - 128 units reported), "blue" (code 0, blue only), "red" (code 2).
+    public string PositionReportSides { get; set; } = "both";
+
     // R8 create-time de-stacking (docs/UNIT_MOVEMENT_RESEARCH.md sec 4). When ON, init
     // units that share IDENTICAL coordinates (the COA-STP1 blocking data pathology:
     // dozens of units at literally the same lat/lon gridlock disaggregated-unit
