@@ -160,6 +160,34 @@ true + a settle / reorganizeAggregate / formation-validity wait) that makes a te
 taskable, replacing the synthesize-and-compose expand? Research wf_1f29a1ad running. Expand stands
 as the verified fallback.
 
+## RESEARCH wf_1f29a1ad (refuter SURVIVES) - reframes G-A; VENDOR-DIRECT bind is now on live test
+Verified from docs/headers (independent of any run):
+- The vendor has TWO first-class create paths, both taskable at any echelon: COMPOSE (empty shell +
+  addToOrganization; the only worked sample, commandLineRemoteController.cxx:717-775,1520-1554) and
+  PRECONFIGURED CATALOG TYPE (createSubordinates=true; the GUI/ORBAT/MSDL DEFAULT, entityCreationData
+  .h:33, cgf.h:617-621). createSubordinates=true is NOT inherently broken.
+- The remote createAggregate(createSubordinates) overload has NO initialFormation param
+  (vrfRemoteController.h:1295-1306); the GUI create data DOES (entityCreationData.h:33). So a REMOTE
+  template create skips the initial geometry the GUI supplies - the app must settle it via
+  AggregateFormation='auto' (SetAggregateFormation+ReorganizeAggregate). THIS WAS OFF IN BOTH G-A
+  RUNS. Composed passed WITHOUT it (addToOrganization resolves geometry); template scattered WITHOUT
+  it. So G-A did NOT test the vendor-canonical direct path, and my "B1/auto is harmful" was
+  CONFOUNDED (that verdict came from the double-creation phantom + top-only application; auto
+  completed a battalion 3/3 on GOLDEN terrain 2026-07-14).
+- The user's rule IS the vendor MSDL/ORBAT importer recursion (explicit subordinates -> create
+  members with parent; leaf -> catalog type at any echelon; "empty" unit types for explicit-children
+  nodes, UG52 7.2.2). Move Along works at any echelon, forwarded to the lead subordinate
+  (moveAlongTasks.h:32-37, Migration 2.4.1). CORRECTION: the 5.2 formation-validity wait is VRF-8977,
+  NOT VRF-8968 (our docs say 8968 - fix on the next pass).
+- Also noted (unused): sendVrfObjectCreateMsg (vrfRemoteController.h:1577-1595) carries createSubObjects
+  AND initialFormation - a more-GUI-like create the port does not use.
+DECISIVE LIVE TEST (running, bvw2w4q44): G-A leaf-company, createSubordinates=true (direct catalog
+bind, ComposeHierarchy OFF) + AggregateFormation='auto' (the settle that was off). PASS => the
+coarse leaf binds to the catalog DIRECTLY (+ auto) and expand is unnecessary (simpler, more vendor-
+native, matches the user rule). Caveat (refuter): Mojave has an empty-leader-path failure mode where
+only SubordinateFanOut has worked, so auto-alone may not suffice -> then + fan-out; if still not,
+compose stays. NOTE: my prior "B1 harmful / do not use auto" record is UNDER REVIEW pending this test.
+
 ## 6. Adversarial review
 Strongest competing view: "leaf=template just works at every echelon, no gate needed." Not safe -
 the one higher-echelon template we tasked failed (phantom), and although that is best explained by
