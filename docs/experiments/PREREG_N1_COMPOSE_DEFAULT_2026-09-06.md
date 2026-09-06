@@ -27,4 +27,11 @@ an explicit legacy switch (Vrf__ComposeHierarchy=false) kept only as the regress
   Side observation: with ObjectConsoleNotifyLevel at its default (-1, no level requests) the app
   still logged 24 level-1 console lines (members' "Making pivot geometry" chatter), decoded by the
   new decoder - the subscription itself is unconditional and cheap; only the level is opt-in.
-- Run L: (pending)
+- Run L 20260906T164022Z (Vrf__ComposeHierarchy=false, same init/order, N2 build): PASS as the
+  regression control - 0 ComposeHierarchy lines; cluster 38 entities (template phantoms; 16 when
+  composed); company NOT complete (2/3 TASKCMPLT: 1.BdeHQ + 1222.MechPlt only); 2 runaways to
+  14.0 km at bearing 22-26 deg; final spread 14.9 km; 0 dropped; runner exit 0. The pre-compose
+  signature (C1a phantoms + C1b gate) returns exactly when the flag is off.
+
+VERDICT: N1 DONE. Compose is the default; OFF reproduces the legacy failure and exists only as
+this control. The next flag-off run is owed only if the compose path changes (N3 policy).

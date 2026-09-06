@@ -28,4 +28,15 @@ subordinates are added fixes the leader (designator 1) and echelon IDs; not chan
   to complete -> STOP.
 
 ## Results
-(pending)
+- Offline: `--compose-selftest` 5/5 PASS; the other 9 self-tests unchanged (0 failed).
+- Run E 20260906T165015Z (default settings, N2 build): PASS. App log, verbatim:
+  "ComposeHierarchy: 114.MechCoy children attach in the DECLARED <Subordinate> order
+  [1141.MechPlt, 1142.MechPlt, 1143.MechPlt] (creation order was [1143.MechPlt, 1141.MechPlt,
+  1142.MechPlt]); first = leader (UG52 18.1.1)." then "-> EMPTY shell; will attach 3 declared
+  child unit(s) [1141.MechPlt, 1142.MechPlt, 1143.MechPlt]" and "composed - 3/3 declared
+  children attached." 3/3 VRF task complete, 3/3 TASKCMPLT, 0 dropped; 16-entity cluster moved
+  north as V/C/D, final spread 559 m; runner exit 0. No movement change (as C7 predicts).
+
+VERDICT: N2 DONE. The attach follows the authored order; 1141.MechPlt (declared first) is attached
+first and is therefore the leader per UG52 18.1.1 - the designator itself is not observable on our
+channels (UG52 25.2.1) and is not claimed as measured.

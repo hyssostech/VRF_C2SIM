@@ -93,10 +93,13 @@ every specific MECHANISM the workflows produced was later falsified or left open
   notes): anchor order sample > installed docs > deterministic runs > headers > agents.
 DISSENT LOG: a session that disagrees writes ONE line here naming the NEW evidence; reopening is
 the user's call.
-NEXT (the only real work): N1 make compose the DEFAULT (Vrf:ComposeHierarchy=true in appsettings;
-the off path = explicit legacy). N2 honor the declared subordinate order for the attach (InitParser
-UUID-sorts today). N3 expand 3x determinism + a flag-off regression run. THEN the queue:
-REBASELINE_52, COA-STP1 at scale, type-map live gate. Everything else below is history.
+NEXT (the only real work): N1 DONE 2026-09-06 (PREREG_N1_COMPOSE_DEFAULT: default ON verified by
+run D 162958Z 3/3 with no env; flag-off run L 164022Z reproduces the legacy 38-phantom / 2-of-3
+signature - the switch is the regression control). N2 DONE 2026-09-06 (PREREG_N2_DECLARED_ORDER:
+ComposeOrder.ByDeclared + --compose-selftest 5/5; run E 165015Z attaches [1141, 1142, 1143] in the
+authored order, 3/3). N3 expand 3x determinism (the flag-off leg is covered by L) is the next slice.
+THEN the queue: REBASELINE_52, COA-STP1 at scale, type-map live gate. Everything else below is
+history.
 
 2026-09-06. Generalizes the compose recipe (PREREG_COMPOSE_A, validated V) from one company to an
 arbitrary C2SIM ORBAT where units are declared to DIFFERENT depths (some to platoon/platform, some

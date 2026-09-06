@@ -47,7 +47,9 @@ G1 COMPOSE IS OFF BY DEFAULT. appsettings.json has no ComposeHierarchy key -> fa
    appsettings.json); keep false only as an explicit legacy golden-parity mode.
    DONE 2026-09-06 (N1): VrfSettings default true + appsettings "ComposeHierarchy": true; OFF only via
    Vrf__ComposeHierarchy=false (the N3 regression control). Verified by PREREG_N1_COMPOSE_DEFAULT.
-G2 AUTHORED SUBORDINATE ORDER DISCARDED -> WRONG LEADER. InitParser sorts units by UUID
+G2 DONE 2026-09-06 (N2): InitUnit.DeclaredSubordinates + ComposeOrder.ByDeclared; the attach follows
+   the authored <Subordinate> order (run E 165015Z; PREREG_N2_DECLARED_ORDER). Original finding:
+   AUTHORED SUBORDINATE ORDER DISCARDED -> WRONG LEADER. InitParser sorts units by UUID
    (InitParser.cs:118) and never parses the authored <Subordinate> order (init xml HQ-first); attach
    follows UUID order, so the lowest-UUID child (not the intended leader) becomes designator 1. UG52
    18.1.1 p438-439 / 13.3.1 p365: subordinate ORDER fixes the leader + echelon and cannot change
