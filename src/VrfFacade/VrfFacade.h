@@ -414,6 +414,13 @@ public:
     // vrfRemoteController.h:1334-1339) used to build a company aggregate from its declared
     // child platoons instead of instantiating a generic template.
     void AddToOrganization(const std::string& childUuid, const std::string& superiorUuid);
+    // Raise/lower ONE object's console notify level (0 fatal .. 4 debug) in the sim engine
+    // (vrfRemoteController.h:1951-1954 setObjectNotifyLevel; UG52 21.9.1 p483: the level is
+    // per object, default 2, and the installed vrfSim.mtl sets objectConsoleNotifyLevel 1).
+    // The object's console messages then arrive through OnObjectConsoleMessage - the vendor's
+    // observation channel for what a unit's controllers do (UG52 21.9: "messages sent from the
+    // simulation engine, from a simulation object's plan, from other simulation objects").
+    void SetObjectNotifyLevel(const std::string& uuid, int notifyLevel);
     void SetRulesOfEngagement(const std::string& uuid, Roe roe);
 
     // -- tasking --------------------------------------------------

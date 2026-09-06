@@ -143,6 +143,16 @@ public class VrfSettings
     // never round-trips hanging the parent (and its tasks) forever.
     public double CompositionTimeoutSeconds { get; set; } = 15.0;
 
+    // OBSERVATION CHANNEL (UG52 21.9 p483): every VR-Forces object has its own console that
+    // carries "messages sent from the simulation engine, from a simulation object's plan, from
+    // other simulation objects, and from scripts", filtered by a PER-OBJECT notify level
+    // (0 fatal, 1 warn, 2 diag, 3 verbose, 4 debug). The installed vrfSim.mtl leaves objects at
+    // objectConsoleNotifyLevel 1 (warnings only), so nothing a unit's movement/formation
+    // controllers say ever reached us. >= 0: after each of OUR objects is created (ObjectCreated)
+    // its level is set to this value (vrfRemoteController.h:1953 setObjectNotifyLevel) and every
+    // console message is logged as "VRF console". -1 (default): leave the vendor default alone.
+    public int ObjectConsoleNotifyLevel { get; set; } = -1;
+
     // R8 create-time de-stacking (docs/UNIT_MOVEMENT_RESEARCH.md sec 4). When ON, init
     // units that share IDENTICAL coordinates (the COA-STP1 blocking data pathology:
     // dozens of units at literally the same lat/lon gridlock disaggregated-unit

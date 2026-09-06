@@ -365,6 +365,11 @@ public:
     void AddToOrganization(String^ childUuid, String^ superiorUuid) {
         _facade->AddToOrganization(ToStd(childUuid), ToStd(superiorUuid));
     }
+    // Per-object console notify level (0 fatal .. 4 debug), vrfRemoteController.h:1953. The
+    // object's console messages then arrive via the ObjectConsoleMessage event.
+    void SetObjectNotifyLevel(String^ uuid, int notifyLevel) {
+        _facade->SetObjectNotifyLevel(ToStd(uuid), notifyLevel);
+    }
     void SetRulesOfEngagement(String^ uuid, Roe roe) {
         _facade->SetRulesOfEngagement(ToStd(uuid), ToNative(roe));
     }

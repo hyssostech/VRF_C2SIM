@@ -294,6 +294,13 @@ param(
     # console; it does NOT suppress vrfSim.log (sec 4.9 p.161). Recorded in the manifest.
     [switch] $QuietBackend,
 
+    # 5.2 ONLY: the back end's --notifyLevel (0 fatal .. 4 debug; LaunchVrf52.ps1 -NotifyLevel,
+    # default 3 = the level every 5.2 run in the record used). 4 makes the vendor log carry the
+    # engine's debug stream for a diagnostic run. This is the SIM-WIDE level; a unit's own
+    # console is a separate per-object level (app setting Vrf:ObjectConsoleNotifyLevel, UG52
+    # 21.9.1 p483). Recorded in the manifest.
+    [int]    $BackendNotifyLevel = 3,
+
     # C2SIM endpoints. DEFAULT = THE PRIVATE TEST SERVER (2026-09-02): docker container
     # c2sim-server-vrf on 18080 / 61614, a second instance of the same image with its
     # own bind mount (RUNBOOK sec 1). The operator's own server stays on 8080 / 61613;
@@ -1429,6 +1436,7 @@ $Manifest.inputs.runSecs       = $RunSecs
 $Manifest.inputs.sampleSecs    = $SampleSecs
 $Manifest.inputs.scenario      = $Scenario
 $Manifest.inputs.quietBackend  = [bool]$QuietBackend
+$Manifest.inputs.backendNotifyLevel = $BackendNotifyLevel
 $Manifest.inputs.federation    = $Federation
 # THE PROFILE, in the evidence. A trace can only be compared with another trace from the
 # SAME stack, so which stack ran is a first-class manifest field - roots, binaries, the
@@ -2219,6 +2227,7 @@ try {
         $launchArgs += @('-VrLinkRoot', $VrLinkRoot, '-RidFile', $RidFile)
         if ($DeviceAddressPassed) { $launchArgs += @('-DeviceAddress', $DeviceAddress52) }
         if ($NoGui) { $launchArgs += '-NoGui' }
+        $launchArgs += @('-NotifyLevel', [string]$BackendNotifyLevel)
     }
     # -q | --doNotUseConsole for the back end. Off by default; see the -QuietBackend
     # note in the param block. Recorded in the manifest as inputs.quietBackend either way.

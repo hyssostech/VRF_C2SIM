@@ -233,6 +233,7 @@ public sealed class VrfC2SimService : BackgroundService
         _bridge.ScenarioClosed += OnVrfScenarioClosed;
         _bridge.AvailableFormations += OnVrfAvailableFormations;
         _bridge.TerrainProfile += OnVrfTerrainProfile;
+        _bridge.ObjectConsoleMessage += OnVrfObjectConsoleMessage;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -1380,6 +1381,30 @@ public sealed class VrfC2SimService : BackgroundService
             return;
         }
 
+        // OBSERVATION CHANNEL: a template unit's members were created by the sim, not by us, so
+        // ObjectCreated never opened THEIR consoles. Open them now (Vrf:ObjectConsoleNotifyLevel
+        // >= 0) from the aggregate's published member list, so the per-member offset-route /
+        // formation messages of this task are captured too (UG52 21.9.1 p483).
+        if (_vrf.ObjectConsoleNotifyLevel >= 0 && unit.IsAggregate)
+        {
+            var consoleMembers = _bridge.GetAggregateMembers(vrfUuid);
+            if (consoleMembers is { Count: > 0 })
+            {
+                foreach (var m in consoleMembers)
+                {
+                    if (string.IsNullOrEmpty(m.Uuid)) continue;
+                    _nameByVrfUuid.TryAdd(m.Uuid, m.Name ?? "");
+                    _bridge.SetObjectNotifyLevel(m.Uuid, _vrf.ObjectConsoleNotifyLevel);
+                }
+                _log.LogInformation("VRF console level {Level} requested for {N} members of {Name}: {Members}.",
+                                    _vrf.ObjectConsoleNotifyLevel, consoleMembers.Count, unit.Name,
+                                    string.Join(", ", consoleMembers.Select(m => m.Name)));
+            }
+            else
+                _log.LogInformation("VRF console: {Name} ({Vrf}) publishes NO members at task time - " +
+                                    "only the aggregate's own console is open.", unit.Name, vrfUuid);
+        }
+
         // The unit's in-flight record (P0.1) is written by MarkDispatched at each point a
         // VRF task is actually issued below - NOT here, so a task that aborts before
         // tasking VRF does not clobber the unit's real in-flight task.
@@ -1861,8 +1886,21 @@ public sealed class VrfC2SimService : BackgroundService
     {
         // parity: onVrfObjectCreated correlates the requested name to its VRF uuid.
         if (!string.IsNullOrEmpty(e.Name))
+        {
             _vrfUuidByName[e.Name] = e.Uuid;
+            _nameByVrfUuid[e.Uuid] = e.Name;   // reverse map for console/formation replies (all paths)
+        }
         _log.LogDebug("VRF created {Name} -> {Uuid}", e.Name, e.Uuid);
+
+        // OBSERVATION CHANNEL (Vrf:ObjectConsoleNotifyLevel >= 0): open this object's console at
+        // the requested level so its controllers' messages reach OnVrfObjectConsoleMessage
+        // (UG52 21.9.1 p483; vrfRemoteController.h:1953). Tick thread - bridge call is safe.
+        if (_vrf.ObjectConsoleNotifyLevel >= 0 && !string.IsNullOrEmpty(e.Uuid))
+        {
+            _bridge.SetObjectNotifyLevel(e.Uuid, _vrf.ObjectConsoleNotifyLevel);
+            _log.LogInformation("VRF console level {Level} requested for {Name} ({Uuid}).",
+                                _vrf.ObjectConsoleNotifyLevel, e.Name, e.Uuid);
+        }
 
         // COMPOSE-FROM-CHILDREN (Vrf:ComposeHierarchy): attach declared children under their parent
         // shell once both exist (vendor sample commandLineRemoteController.cxx:1520-1554). This
@@ -2190,6 +2228,17 @@ public sealed class VrfC2SimService : BackgroundService
     // march), else the first listed - then SET it (snap members into clean geometry)
     // and REORGANIZE (establish the lead subordinate). Later replies (e.g. the
     // move-time diagnostic re-query) only log, so the unit is never re-snapped mid-run.
+    // Object console messages (UG52 21.9): the vendor's per-object channel for what the engine,
+    // the object's plan/controllers and other objects say about it. Logged verbatim with the
+    // object's level and name so a run's evidence carries the unit's own account of a task
+    // (formation, leader, subordinate dispatch) instead of our inference from positions.
+    private void OnVrfObjectConsoleMessage(object sender, ObjectConsoleMessageEventArgs e)
+    {
+        _nameByVrfUuid.TryGetValue(e.Uuid ?? "", out var objName);
+        _log.LogInformation("VRF console [{Level}] {Name} ({Uuid}): {Msg}",
+                            e.NotifyLevel, objName ?? "?", e.Uuid, (e.Message ?? "").TrimEnd());
+    }
+
     private void OnVrfAvailableFormations(object sender, AvailableFormationsEventArgs e)
     {
         _nameByVrfUuid.TryGetValue(e.Uuid ?? "", out var unitName);

@@ -753,6 +753,15 @@ void VrfFacade::AddToOrganization(const std::string& childUuid, const std::strin
     p_->controller->addToOrganization(DtUUID(childUuid), DtUUID(superiorUuid));
 }
 
+void VrfFacade::SetObjectNotifyLevel(const std::string& uuid, int notifyLevel) {
+    // vrfRemoteController.h:1953 - setObjectNotifyLevel(objectName, DtNotifyLevelType, addr).
+    // DtNotifyLevelType (vlutil/vlPrint.h:39-46): DtNlFatal 0 .. DtNlDebug 4; clamp, never cast
+    // an out-of-range int into the enum.
+    if (notifyLevel < 0) notifyLevel = 0;
+    if (notifyLevel > 4) notifyLevel = 4;
+    p_->controller->setObjectNotifyLevel(DtUUID(uuid), static_cast<DtNotifyLevelType>(notifyLevel));
+}
+
 void VrfFacade::SetRulesOfEngagement(const std::string& uuid, Roe roe) {
     p_->controller->setRulesOfEngagement(DtUUID(uuid), toRoeString(roe), DtSimSendToAll);
 }
