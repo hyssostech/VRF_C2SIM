@@ -401,6 +401,33 @@ FAIL and stall in replanning - a mechanism the 5.0.2 A/B never showed (its units
 from the same stack). Whether that reopens create-time de-stacking FOR 5.2 is the user's call.
 Falsifier for the attachment reading: a "not embarked" failure on a member NOT born co-located
 (none in the first 28), or vendor evidence that the message means something else.
+VENDOR READING (2026-09-06 21:0xZ, after the user asked for it) - the "attachment" reading is
+NOT backed:
+- UG52 15.1.1 "Automatic embarkation" is a GUI CREATE-PANEL option ("Automatic Embarkation
+  check box", "Embark in Slot if Available", a green box when the cursor is over a host,
+  p409). Nothing in the docs says the SIM embarks an object because of where it is created.
+- vrfRemoteController.h: `attachTo` / `keepExistingAttachment` belong to OVERLAY objects
+  (createOverlayObject :1177, sendVrfOverlayObjectModifyMsg :1215); `ComponentAttachmentRule`
+  is a loadScenario parameter (:538). Our createEntity/createAggregate (VrfFacade.cpp:697/707)
+  carry no embark or attach argument. Not an API misuse on our side.
+- Shipped Lua ground-vehicle-move-to.lua:11-16, 134-155: "If the entity is embarked, the task
+  will not do any path planning ... If entity is embarked, attaches route to same parent
+  (set-attached attach_to = parent)". The C++ give-up text compares the ENTITY's attachment
+  with the TARGET route's. Which of the two is attached in S6 is NOT observable on the console.
+- COUNTER-EVIDENCE already in the record: every R9 run creates 114.MechCoy's three platoons at
+  IDENTICAL coordinates (terrain reply #1/#2/#4 all 34.64763,-116.69339) and none of their 12
+  tanks has ever printed "not embarked"; co-located birth alone is therefore NOT sufficient.
+- Ordered speed 3 m/s: move_to_position_and_heading.lua "Save Ordered Speed" merely SAVES
+  this:getOrderedSpeed() before disabling navigation; the value is set upstream by the
+  maneuver-in-formation controller (C++), identical in L3, so it is the vendor's formation-
+  approach speed, not a defect.
+- Web: nothing indexed for the message text.
+STATUS: the S6 failures are an OBSERVATION with no vendor-backed mechanism. The one
+observation that would decide it is the EMBARKATION STATE of a failing tank read from the
+sim (UG52 15.1: embarkation is published over RPR FOM 2 - the Embarkation View / the object's
+Information dialog / the FOM attribute), which no current instrument reads. No probe is
+registered on this until that is read. The R8 ruling stands; the dissent line above is the
+only record of the S6 failures.
 
 - Run 2 is also the TYPE-MAP LIVE GATE on 5.2 (PREREG_TYPEMAP_LIVE_GATE_2026-09-02, registered
   for 5.0.2 and never run there): its safety properties apply verbatim - P2 no generic / empty
