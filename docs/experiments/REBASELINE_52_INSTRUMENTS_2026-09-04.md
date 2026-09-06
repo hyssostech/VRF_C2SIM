@@ -150,3 +150,12 @@ output, exit 0. Both gates still PASS; `frame_gaps` still reproduces LS slope
 5. `tests/RunnerTurnaround.Tests.ps1`: 5 checks fail on HEAD before any 2026-09-06
    runner change (the LaunchVrf52 harvest / -DryRun terminating-error cluster; 218 pass).
    Pre-existing; not touched by `-BackendNotifyLevel` / `-ClientId`.
+6. `frame_gaps.py` IS BLIND ON 5.2: it opens `<run>/bin64-vrfSim.log` (absent - the 5.2 log is
+   harvested to runs/launch52) and needs the wall stamps that the 5.2 vendor log does not carry
+   (sec 2; `--enableLogFileTimestamps` still unverified). REPLACEMENT for the sim/wall ratio:
+   `tools/analysis/sim_ratio.py <run_dir>` - the sim narrates its own clock at the head of its
+   level-3/4 console lines ("100.199 Task 0 starting subtask ...") and WatchVrf stamps each CON
+   row with wall seconds; the LS slope of (wall, sim) is the ratio. Validated: run C 161714Z
+   7.57x (486 samples, resid sd 4.3 s), run T 160640Z 10.49x (3,473 samples) - the R9 FFRTC
+   ratio class the 5.0.2 record put at ~9x; run E (no console) correctly reports no samples.
+   Needs `Vrf:ObjectConsoleNotifyLevel >= 3` on at least one of our objects.
