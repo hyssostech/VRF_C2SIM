@@ -122,6 +122,10 @@ moving 469-926 m; H-phantom-still-present killed by 0 still + object-count drop 
 log; H-not-really-recursion killed by tasking ONLY the company (139aa71b, no fan-out) yet 16
 coherent northward movers. NOT independently verified: per-platoon name->uuid (Debug create-log
 off with B1 off) - cluster evidence conclusive; enable Debug for a by-name confirm if wanted.
-CAVEAT: the phantom failure was NON-DETERMINISTIC, so a single clean run is not a determinism
-proof - 2 confirming repeats running (V2a/V2b). VERDICT (pending the 2 repeats): the root cause
-is FIXED - a C2SIM company-level move now drives the real declared platoons and completes.
+DETERMINISM CONFIRMED (V + 2 byte-identical repeats: 104042Z / 105344Z / 110323Z, appNos
+3975-3995): all 3 IDENTICAL - 3/3 children attached, TASKCMPLT 3/3 incl 114.MechCoy, DROP=0, 45
+objects, MechCoy cluster 16 movers / 0 still, ALL NORTH, 0 runaways, maxdisp 925-927 m. The
+phantom's non-determinism (2-3 runaways at bearings 10-360 deg; completion 0/4..1/3) is GONE.
+VERDICT (FINAL): the root cause is FIXED and the fix is DETERMINISTIC - a C2SIM company-level move
+now reliably drives the real declared platoons and completes. Owed (small): a flag-off regression
+run (default off = byte-identical by construction) and a by-name confirm with Debug logging.
