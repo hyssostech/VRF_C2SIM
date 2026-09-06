@@ -308,6 +308,14 @@ param(
     # Before 2026-09-06 this needed a hand edit of appsettings.json per init (d1f2e10 / 7963aed).
     [string] $ClientId = '',
 
+    # 5.2 ONLY: the fidelity table the app loads (Vrf__TypeMapFile, read under
+    # Vrf:TypeMappingMode=FidelityTable). EMPTY (default) = data/unit-type-map-52.json, the repo map.
+    # A PROBE may pass another file (e.g. a scratch copy with lifeform rows redirected while the
+    # DI-Guy data package is absent - PREREG_COASTP1_52_RUN1 sec 8); the path is recorded in the
+    # manifest so the run can never be mistaken for a repo-map run. Note the 5.2 profile SETS
+    # Vrf__TypeMapFile for the app from this value - an inherited env var is overwritten.
+    [string] $TypeMapFile = '',
+
     # C2SIM endpoints. DEFAULT = THE PRIVATE TEST SERVER (2026-09-02): docker container
     # c2sim-server-vrf on 18080 / 61614, a second instance of the same image with its
     # own bind mount (RUNBOOK sec 1). The operator's own server stays on 8080 / 61613;
@@ -553,7 +561,8 @@ $FederationArg = if ($Is52) { '' } else { $Federation }
 # observer under it reflected 0. It is NOT reachable from this profile any more.
 $RidFile        = Join-Path $RepoRoot 'config\rid-501-rtiexec-min.mtl'
 $ConnConfigFile = Join-Path $VrfRoot 'appData\settings\connections\MAK-ONE-2025-Config.xml'
-$TypeMapFile52  = 'data/unit-type-map-52.json'
+$TypeMapFile52  = $(if ($TypeMapFile) { $TypeMapFile } else { 'data/unit-type-map-52.json' })
+if ($TypeMapFile -and -not (Test-Path -LiteralPath $TypeMapFile -PathType Leaf)) { $bad += ('-TypeMapFile not found: {0}' -f $TypeMapFile) }
 # The VR-Forces-level interface address for this run (-DeviceAddress; see the param block).
 # EMPTY by default and therefore NOT PASSED anywhere: run 3857 falsified it observer-side
 # (an observer with no device address still reflected 54-56 entities off the rtiexec sim), so
@@ -1451,6 +1460,8 @@ $Manifest.inputs.scenario      = $Scenario
 $Manifest.inputs.quietBackend  = [bool]$QuietBackend
 $Manifest.inputs.backendNotifyLevel = $BackendNotifyLevel
 $Manifest.inputs.clientId      = $(if ($ClientId) { $ClientId } else { ('(appsettings) {0}' -f $appClientId) })
+$Manifest.inputs.typeMapFile   = $(if ($Is52) { $TypeMapFile52 } else { '(5.0.2 profile: appsettings)' })
+$Manifest.inputs.typeMapIsRepoMap = [bool](-not $TypeMapFile)
 $Manifest.inputs.federation    = $Federation
 # THE PROFILE, in the evidence. A trace can only be compared with another trace from the
 # SAME stack, so which stack ran is a first-class manifest field - roots, binaries, the
