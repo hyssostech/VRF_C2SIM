@@ -210,6 +210,44 @@ Mojave mitigation); even a pass would be more moving parts than compose and woul
 the unit. => DECISION: ship EXPAND-TO-COMPOSE (validated) for coarse leaves; template higher-units
 are not a usable direct bind on this build.
 
+### INSTALLED 5.2 USERS GUIDE - READ DIRECTLY 2026-09-06 (had been skipping these for this Q)
+The vendor's documented ORBAT/unit build, from the installed VRFUsersGuide.pdf (page = PDF page):
+- Ch 22 "Creating and Using an Order of Battle" (p489-495): an ORBAT is a hierarchy of sim objects
+  each with a UNIQUE UUID (unlike the palette, which is a template for many instances); you build it
+  (add members, aggregate into units), INSTANTIATE members into a scenario, and import/export it.
+- 22.3 "Creating Units in the Order of Battle Panel" (p493): units in an ORBAT are built "the SAME as
+  18.1.1 Creating a Unit by Combining Existing Simulation Objects" -> i.e. COMPOSE ("Aggregate As"),
+  NOT preconfigured templates. So the vendor's documented ORBAT-unit build IS COMPOSE - exactly the
+  user rule + our expand-to-compose.
+- 18.1 (p438): two create methods - combine existing (compose, "Aggregate As") vs preconfigured unit
+  from the palette (template). "You cannot create units that are subordinates of an existing unit...
+  once you create a unit, you can subordinate it" = create-flat-then-reparent (= addToOrganization).
+- 18.1.1 / 13.3.1 (p438/p365): subordinate ORDER at create fixes the LEADER (= designator 1),
+  unchangeable after; aggregate assigns leader designator 1 then successive. Matches our declared-
+  order attach (HQ-first worked in the expand run).
+- AddingContent 13.11 (p327) "Importing a Hierarchy File" is about ELEMENT DEFINITIONS (.hier/.leaf
+  visual/definition catalog), NOT instantiating an ORBAT of units - not the create-and-task path.
+NET: the installed docs GROUND compose as the vendor-canonical ORBAT-unit build. Expand-to-compose
+is that method with the leaf's composition read from the catalog. The direct preconfigured-template
+is the GUI's other option; its REMOTE equivalent needs initialFormation (sendVrfObjectCreateMsg,
+vrfRemoteController.h:1577-1600) which our createAggregate overload lacks - the reason the remote
+direct bind scattered. DECISION UNCHANGED: expand-to-compose (validated + documented). sendVrfObject
+CreateMsg + initialFormation is the documented remote direct-bind alternative, untested, native add.
+
+### CORRECTION 2026-09-06 - "the MSDL importer IS the recursion (VERIFIED)" was OVERSTATED
+There is NO vendor SAMPLE for the MSDL/ORBAT importer (checked: no examples/ MSDL|ORBAT project - only
+scenarioMetrics; every "source" grep hit is a compiled .dll; no msdl/orbat .cxx/.cpp anywhere; the
+symbols live only in headers). The importer is a built-in GUI/core feature and its importOrbat()
+"simply creates the structures. Does not do anything with the imported data"
+(vrfMsdlOrbatImporterExporter.h:57) - it builds an ORBAT DATA tree (DtOrbatManagerNode: parentUUID +
+orbatOrderedList + childAdded/Removed, orbatManagerNode.h), it does NOT create or task entities.
+createFromMSDLItem is protected with no shipped .cpp. So the importer is verified only as a DATA
+STRUCTURE (parent/ordered-children tree - the SHAPE of the user rule), NOT as a runnable create-and-
+task recipe, and the entity-create step is the GUI's (not shipped; it carries initialFormation the
+remote API lacks - the same gap that scatters the remote template). NET: the ONLY runnable vendor
+sample for a taskable aggregate is commandLineRemoteController = COMPOSE. The importer gives no
+shortcut. This firms the decision (expand-to-compose) rather than changing it.
+
 ## 6. Adversarial review
 Strongest competing view: "leaf=template just works at every echelon, no gate needed." Not safe -
 the one higher-echelon template we tasked failed (phantom), and although that is best explained by
