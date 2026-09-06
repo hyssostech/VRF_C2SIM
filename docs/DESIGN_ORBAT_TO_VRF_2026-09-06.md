@@ -144,6 +144,22 @@ G-D: HQ elements + leader order. Many real units carry an HQ section (type map s
 6. Ceiling/Y-15: regiment+ leaf policy.
 Internal-compose CODE is done + validated (COMPOSE_A); the EXPAND step (items 2-3) is NEW.
 
+## EXPAND VALIDATION RESULT 2026-09-06 (run 20260906T124700Z) - PASS (recipe-faithful, full TO&E)
+Coarse leaf 114.MechCoy (childless, GA_LeafCompany init), Vrf:ComposeHierarchy=true: live catalog
+loaded (C:\MAK\vrforces5.2d, EntityLevel, 1912 templates); 114.MechCoy resolved to "Tank Company
+(USA)"; EXPANDED to 4 doctrinal sub-units [HQ1, TANK2, TANK3, TANK4] in the .entity's DECLARED order
+(HQ first, full TO&E per the user ruling), 4/4 attached via AddToOrganization; company TASKCMPLT
+(139aa71b), DROP=0; MechCoy cluster 23 movers / 0 still, ALL NORTH, 0 runaway, maxdisp 1040 m (route
+legs ~550-1100 m); 59 objects. The HQ-as-leader hazard did NOT materialize (HQ attached first, unit
+moved clean) - which is why the earlier maneuver-first reordering was removed as an unneeded
+invention. Members are catalog templates + the vendor addToOrganization recipe; the only new code is
+the compose orchestration + reusing the existing ObjectTypeResolver to read the .entity composition.
+1 run; the compose path itself is 3/3 deterministic - confirm 3/3 if this ships.
+OPEN (user 2026-09-06): is a SIMPLER vendor-DIRECT catalog-leaf bind possible (createSubordinates=
+true + a settle / reorganizeAggregate / formation-validity wait) that makes a template higher-unit
+taskable, replacing the synthesize-and-compose expand? Research wf_1f29a1ad running. Expand stands
+as the verified fallback.
+
 ## 6. Adversarial review
 Strongest competing view: "leaf=template just works at every echelon, no gate needed." Not safe -
 the one higher-echelon template we tasked failed (phantom), and although that is best explained by
