@@ -1970,7 +1970,202 @@ join) are BURNED, not recycled. The run manifest records which were actually use
   --diag (before init); 3924 = VrfC2SimApp (Release-5.2, production PlacementAglSet, Debug);
   3925 = spare. A crashed launch BURNS its number. Outcome: PREREG_R9_52 sec 5.
 
-*** NEXT FREE: 3926 *** (authoritative - the ONLY such marker in this file. Update this
+
+CLAIMED 2026-09-05 21:42 by scripts/RunC2SimScenario.ps1 (run 20260905T214240Z_run). Ledgered BEFORE any join,
+per the never-reuse non-negotiable. Annotate with results from the run manifest.
+- 3926: CLAIMED - LaunchVrf52.ps1 back-end (vrfSimHLA1516e), 5.2d independent mode
+- 3927: CLAIMED - LaunchVrf52.ps1 front-end (vrfGui), 5.2d independent mode (allocated even with -NoGui, then BURNED)
+- 3928: CLAIMED - WatchVrf ADVISORY pre-init oracle pre-check (RUNBOOK 0.5.7)
+- 3929: CLAIMED - WatchVrf MAIN run trace - the movement oracle / scoring input
+- 3930: CLAIMED - VrfC2SimApp Vrf__ApplicationNumber (the interface federate)
+- 3931: CLAIMED - tools/RtiProbe - STAGE 2c PRE-LAUNCH RTI READINESS GATE (C1). Throwaway create-or-join against the federation with internal retry+backoff, then clean resign, BEFORE the back-end launches (RTI_LAUNCH_HARDENING_DESIGN.md A2-A7 - the RUN-2 fix). CONSUMED on EVERY run (the gate always runs pre-launch). One number covers all internal retries - RtiProbe reuses this single appNumber across attempts by design.
+- 3932: CLAIMED - tools/CreateOne - STAGE 7b FAILURE-PATH DIAGNOSTIC ONLY (RUNBOOK 0.5.7 STRONGER CHECK). CONSUMED ONLY IF THE ORACLE GATE FAILS; on a healthy run it is NEVER JOINED and this number goes UNCONSUMED. Unconsumed numbers are BURNED, never recycled - see the NOTE below. Allocated here rather than mid-run because every number must be ledgered BEFORE any join.
+NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
+join) are BURNED, not recycled. The run manifest records which were actually used.
+
+
+CLAIMED 2026-09-05 22:37 by scripts/RunC2SimScenario.ps1 (run 20260905T223752Z_run). Ledgered BEFORE any join,
+per the never-reuse non-negotiable. Annotate with results from the run manifest.
+- 3933: CLAIMED - LaunchVrf52.ps1 back-end (vrfSimHLA1516e), 5.2d independent mode
+- 3934: CLAIMED - LaunchVrf52.ps1 front-end (vrfGui), 5.2d independent mode (allocated even with -NoGui, then BURNED)
+- 3935: CLAIMED - WatchVrf ADVISORY pre-init oracle pre-check (RUNBOOK 0.5.7)
+- 3936: CLAIMED - WatchVrf MAIN run trace - the movement oracle / scoring input
+- 3937: CLAIMED - VrfC2SimApp Vrf__ApplicationNumber (the interface federate)
+- 3938: CLAIMED - tools/RtiProbe - STAGE 2c PRE-LAUNCH RTI READINESS GATE (C1). Throwaway create-or-join against the federation with internal retry+backoff, then clean resign, BEFORE the back-end launches (RTI_LAUNCH_HARDENING_DESIGN.md A2-A7 - the RUN-2 fix). CONSUMED on EVERY run (the gate always runs pre-launch). One number covers all internal retries - RtiProbe reuses this single appNumber across attempts by design.
+- 3939: CLAIMED - tools/CreateOne - STAGE 7b FAILURE-PATH DIAGNOSTIC ONLY (RUNBOOK 0.5.7 STRONGER CHECK). CONSUMED ONLY IF THE ORACLE GATE FAILS; on a healthy run it is NEVER JOINED and this number goes UNCONSUMED. Unconsumed numbers are BURNED, never recycled - see the NOTE below. Allocated here rather than mid-run because every number must be ledgered BEFORE any join.
+NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
+join) are BURNED, not recycled. The run manifest records which were actually used.
+
+
+CLAIMED 2026-09-05 22:47 by scripts/RunC2SimScenario.ps1 (run 20260905T224754Z_run). Ledgered BEFORE any join,
+per the never-reuse non-negotiable. Annotate with results from the run manifest.
+- 3940: CLAIMED - LaunchVrf52.ps1 back-end (vrfSimHLA1516e), 5.2d independent mode
+- 3941: CLAIMED - LaunchVrf52.ps1 front-end (vrfGui), 5.2d independent mode (allocated even with -NoGui, then BURNED)
+- 3942: CLAIMED - WatchVrf ADVISORY pre-init oracle pre-check (RUNBOOK 0.5.7)
+- 3943: CLAIMED - WatchVrf MAIN run trace - the movement oracle / scoring input
+- 3944: CLAIMED - VrfC2SimApp Vrf__ApplicationNumber (the interface federate)
+- 3945: CLAIMED - tools/RtiProbe - STAGE 2c PRE-LAUNCH RTI READINESS GATE (C1). Throwaway create-or-join against the federation with internal retry+backoff, then clean resign, BEFORE the back-end launches (RTI_LAUNCH_HARDENING_DESIGN.md A2-A7 - the RUN-2 fix). CONSUMED on EVERY run (the gate always runs pre-launch). One number covers all internal retries - RtiProbe reuses this single appNumber across attempts by design.
+- 3946: CLAIMED - tools/CreateOne - STAGE 7b FAILURE-PATH DIAGNOSTIC ONLY (RUNBOOK 0.5.7 STRONGER CHECK). CONSUMED ONLY IF THE ORACLE GATE FAILS; on a healthy run it is NEVER JOINED and this number goes UNCONSUMED. Unconsumed numbers are BURNED, never recycled - see the NOTE below. Allocated here rather than mid-run because every number must be ledgered BEFORE any join.
+NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
+join) are BURNED, not recycled. The run manifest records which were actually used.
+
+
+CLAIMED 2026-09-05 22:57 by scripts/RunC2SimScenario.ps1 (run 20260905T225732Z_run). Ledgered BEFORE any join,
+per the never-reuse non-negotiable. Annotate with results from the run manifest.
+- 3947: CLAIMED - LaunchVrf52.ps1 back-end (vrfSimHLA1516e), 5.2d independent mode
+- 3948: CLAIMED - LaunchVrf52.ps1 front-end (vrfGui), 5.2d independent mode (allocated even with -NoGui, then BURNED)
+- 3949: CLAIMED - WatchVrf ADVISORY pre-init oracle pre-check (RUNBOOK 0.5.7)
+- 3950: CLAIMED - WatchVrf MAIN run trace - the movement oracle / scoring input
+- 3951: CLAIMED - VrfC2SimApp Vrf__ApplicationNumber (the interface federate)
+- 3952: CLAIMED - tools/RtiProbe - STAGE 2c PRE-LAUNCH RTI READINESS GATE (C1). Throwaway create-or-join against the federation with internal retry+backoff, then clean resign, BEFORE the back-end launches (RTI_LAUNCH_HARDENING_DESIGN.md A2-A7 - the RUN-2 fix). CONSUMED on EVERY run (the gate always runs pre-launch). One number covers all internal retries - RtiProbe reuses this single appNumber across attempts by design.
+- 3953: CLAIMED - tools/CreateOne - STAGE 7b FAILURE-PATH DIAGNOSTIC ONLY (RUNBOOK 0.5.7 STRONGER CHECK). CONSUMED ONLY IF THE ORACLE GATE FAILS; on a healthy run it is NEVER JOINED and this number goes UNCONSUMED. Unconsumed numbers are BURNED, never recycled - see the NOTE below. Allocated here rather than mid-run because every number must be ledgered BEFORE any join.
+NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
+join) are BURNED, not recycled. The run manifest records which were actually used.
+
+
+CLAIMED 2026-09-06 00:57 by scripts/RunC2SimScenario.ps1 (run 20260906T005713Z_run). Ledgered BEFORE any join,
+per the never-reuse non-negotiable. Annotate with results from the run manifest.
+- 3954: CLAIMED - LaunchVrf52.ps1 back-end (vrfSimHLA1516e), 5.2d independent mode
+- 3955: CLAIMED - LaunchVrf52.ps1 front-end (vrfGui), 5.2d independent mode (allocated even with -NoGui, then BURNED)
+- 3956: CLAIMED - WatchVrf ADVISORY pre-init oracle pre-check (RUNBOOK 0.5.7)
+- 3957: CLAIMED - WatchVrf MAIN run trace - the movement oracle / scoring input
+- 3958: CLAIMED - VrfC2SimApp Vrf__ApplicationNumber (the interface federate)
+- 3959: CLAIMED - tools/RtiProbe - STAGE 2c PRE-LAUNCH RTI READINESS GATE (C1). Throwaway create-or-join against the federation with internal retry+backoff, then clean resign, BEFORE the back-end launches (RTI_LAUNCH_HARDENING_DESIGN.md A2-A7 - the RUN-2 fix). CONSUMED on EVERY run (the gate always runs pre-launch). One number covers all internal retries - RtiProbe reuses this single appNumber across attempts by design.
+- 3960: CLAIMED - tools/CreateOne - STAGE 7b FAILURE-PATH DIAGNOSTIC ONLY (RUNBOOK 0.5.7 STRONGER CHECK). CONSUMED ONLY IF THE ORACLE GATE FAILS; on a healthy run it is NEVER JOINED and this number goes UNCONSUMED. Unconsumed numbers are BURNED, never recycled - see the NOTE below. Allocated here rather than mid-run because every number must be ledgered BEFORE any join.
+NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
+join) are BURNED, not recycled. The run manifest records which were actually used.
+
+
+CLAIMED 2026-09-06 01:07 by scripts/RunC2SimScenario.ps1 (run 20260906T010700Z_run). Ledgered BEFORE any join,
+per the never-reuse non-negotiable. Annotate with results from the run manifest.
+- 3961: CLAIMED - LaunchVrf52.ps1 back-end (vrfSimHLA1516e), 5.2d independent mode
+- 3962: CLAIMED - LaunchVrf52.ps1 front-end (vrfGui), 5.2d independent mode (allocated even with -NoGui, then BURNED)
+- 3963: CLAIMED - WatchVrf ADVISORY pre-init oracle pre-check (RUNBOOK 0.5.7)
+- 3964: CLAIMED - WatchVrf MAIN run trace - the movement oracle / scoring input
+- 3965: CLAIMED - VrfC2SimApp Vrf__ApplicationNumber (the interface federate)
+- 3966: CLAIMED - tools/RtiProbe - STAGE 2c PRE-LAUNCH RTI READINESS GATE (C1). Throwaway create-or-join against the federation with internal retry+backoff, then clean resign, BEFORE the back-end launches (RTI_LAUNCH_HARDENING_DESIGN.md A2-A7 - the RUN-2 fix). CONSUMED on EVERY run (the gate always runs pre-launch). One number covers all internal retries - RtiProbe reuses this single appNumber across attempts by design.
+- 3967: CLAIMED - tools/CreateOne - STAGE 7b FAILURE-PATH DIAGNOSTIC ONLY (RUNBOOK 0.5.7 STRONGER CHECK). CONSUMED ONLY IF THE ORACLE GATE FAILS; on a healthy run it is NEVER JOINED and this number goes UNCONSUMED. Unconsumed numbers are BURNED, never recycled - see the NOTE below. Allocated here rather than mid-run because every number must be ledgered BEFORE any join.
+NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
+join) are BURNED, not recycled. The run manifest records which were actually used.
+
+
+CLAIMED 2026-09-06 01:16 by scripts/RunC2SimScenario.ps1 (run 20260906T011640Z_run). Ledgered BEFORE any join,
+per the never-reuse non-negotiable. Annotate with results from the run manifest.
+- 3968: CLAIMED - LaunchVrf52.ps1 back-end (vrfSimHLA1516e), 5.2d independent mode
+- 3969: CLAIMED - LaunchVrf52.ps1 front-end (vrfGui), 5.2d independent mode (allocated even with -NoGui, then BURNED)
+- 3970: CLAIMED - WatchVrf ADVISORY pre-init oracle pre-check (RUNBOOK 0.5.7)
+- 3971: CLAIMED - WatchVrf MAIN run trace - the movement oracle / scoring input
+- 3972: CLAIMED - VrfC2SimApp Vrf__ApplicationNumber (the interface federate)
+- 3973: CLAIMED - tools/RtiProbe - STAGE 2c PRE-LAUNCH RTI READINESS GATE (C1). Throwaway create-or-join against the federation with internal retry+backoff, then clean resign, BEFORE the back-end launches (RTI_LAUNCH_HARDENING_DESIGN.md A2-A7 - the RUN-2 fix). CONSUMED on EVERY run (the gate always runs pre-launch). One number covers all internal retries - RtiProbe reuses this single appNumber across attempts by design.
+- 3974: CLAIMED - tools/CreateOne - STAGE 7b FAILURE-PATH DIAGNOSTIC ONLY (RUNBOOK 0.5.7 STRONGER CHECK). CONSUMED ONLY IF THE ORACLE GATE FAILS; on a healthy run it is NEVER JOINED and this number goes UNCONSUMED. Unconsumed numbers are BURNED, never recycled - see the NOTE below. Allocated here rather than mid-run because every number must be ledgered BEFORE any join.
+NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
+join) are BURNED, not recycled. The run manifest records which were actually used.
+
+
+CLAIMED 2026-09-06 10:40 by scripts/RunC2SimScenario.ps1 (run 20260906T104042Z_run). Ledgered BEFORE any join,
+per the never-reuse non-negotiable. Annotate with results from the run manifest.
+- 3975: CLAIMED - LaunchVrf52.ps1 back-end (vrfSimHLA1516e), 5.2d independent mode
+- 3976: CLAIMED - LaunchVrf52.ps1 front-end (vrfGui), 5.2d independent mode (allocated even with -NoGui, then BURNED)
+- 3977: CLAIMED - WatchVrf ADVISORY pre-init oracle pre-check (RUNBOOK 0.5.7)
+- 3978: CLAIMED - WatchVrf MAIN run trace - the movement oracle / scoring input
+- 3979: CLAIMED - VrfC2SimApp Vrf__ApplicationNumber (the interface federate)
+- 3980: CLAIMED - tools/RtiProbe - STAGE 2c PRE-LAUNCH RTI READINESS GATE (C1). Throwaway create-or-join against the federation with internal retry+backoff, then clean resign, BEFORE the back-end launches (RTI_LAUNCH_HARDENING_DESIGN.md A2-A7 - the RUN-2 fix). CONSUMED on EVERY run (the gate always runs pre-launch). One number covers all internal retries - RtiProbe reuses this single appNumber across attempts by design.
+- 3981: CLAIMED - tools/CreateOne - STAGE 7b FAILURE-PATH DIAGNOSTIC ONLY (RUNBOOK 0.5.7 STRONGER CHECK). CONSUMED ONLY IF THE ORACLE GATE FAILS; on a healthy run it is NEVER JOINED and this number goes UNCONSUMED. Unconsumed numbers are BURNED, never recycled - see the NOTE below. Allocated here rather than mid-run because every number must be ledgered BEFORE any join.
+NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
+join) are BURNED, not recycled. The run manifest records which were actually used.
+
+
+CLAIMED 2026-09-06 10:53 by scripts/RunC2SimScenario.ps1 (run 20260906T105344Z_run). Ledgered BEFORE any join,
+per the never-reuse non-negotiable. Annotate with results from the run manifest.
+- 3982: CLAIMED - LaunchVrf52.ps1 back-end (vrfSimHLA1516e), 5.2d independent mode
+- 3983: CLAIMED - LaunchVrf52.ps1 front-end (vrfGui), 5.2d independent mode (allocated even with -NoGui, then BURNED)
+- 3984: CLAIMED - WatchVrf ADVISORY pre-init oracle pre-check (RUNBOOK 0.5.7)
+- 3985: CLAIMED - WatchVrf MAIN run trace - the movement oracle / scoring input
+- 3986: CLAIMED - VrfC2SimApp Vrf__ApplicationNumber (the interface federate)
+- 3987: CLAIMED - tools/RtiProbe - STAGE 2c PRE-LAUNCH RTI READINESS GATE (C1). Throwaway create-or-join against the federation with internal retry+backoff, then clean resign, BEFORE the back-end launches (RTI_LAUNCH_HARDENING_DESIGN.md A2-A7 - the RUN-2 fix). CONSUMED on EVERY run (the gate always runs pre-launch). One number covers all internal retries - RtiProbe reuses this single appNumber across attempts by design.
+- 3988: CLAIMED - tools/CreateOne - STAGE 7b FAILURE-PATH DIAGNOSTIC ONLY (RUNBOOK 0.5.7 STRONGER CHECK). CONSUMED ONLY IF THE ORACLE GATE FAILS; on a healthy run it is NEVER JOINED and this number goes UNCONSUMED. Unconsumed numbers are BURNED, never recycled - see the NOTE below. Allocated here rather than mid-run because every number must be ledgered BEFORE any join.
+NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
+join) are BURNED, not recycled. The run manifest records which were actually used.
+
+
+CLAIMED 2026-09-06 11:03 by scripts/RunC2SimScenario.ps1 (run 20260906T110323Z_run). Ledgered BEFORE any join,
+per the never-reuse non-negotiable. Annotate with results from the run manifest.
+- 3989: CLAIMED - LaunchVrf52.ps1 back-end (vrfSimHLA1516e), 5.2d independent mode
+- 3990: CLAIMED - LaunchVrf52.ps1 front-end (vrfGui), 5.2d independent mode (allocated even with -NoGui, then BURNED)
+- 3991: CLAIMED - WatchVrf ADVISORY pre-init oracle pre-check (RUNBOOK 0.5.7)
+- 3992: CLAIMED - WatchVrf MAIN run trace - the movement oracle / scoring input
+- 3993: CLAIMED - VrfC2SimApp Vrf__ApplicationNumber (the interface federate)
+- 3994: CLAIMED - tools/RtiProbe - STAGE 2c PRE-LAUNCH RTI READINESS GATE (C1). Throwaway create-or-join against the federation with internal retry+backoff, then clean resign, BEFORE the back-end launches (RTI_LAUNCH_HARDENING_DESIGN.md A2-A7 - the RUN-2 fix). CONSUMED on EVERY run (the gate always runs pre-launch). One number covers all internal retries - RtiProbe reuses this single appNumber across attempts by design.
+- 3995: CLAIMED - tools/CreateOne - STAGE 7b FAILURE-PATH DIAGNOSTIC ONLY (RUNBOOK 0.5.7 STRONGER CHECK). CONSUMED ONLY IF THE ORACLE GATE FAILS; on a healthy run it is NEVER JOINED and this number goes UNCONSUMED. Unconsumed numbers are BURNED, never recycled - see the NOTE below. Allocated here rather than mid-run because every number must be ledgered BEFORE any join.
+NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
+join) are BURNED, not recycled. The run manifest records which were actually used.
+
+
+CLAIMED 2026-09-06 11:27 by scripts/RunC2SimScenario.ps1 (run 20260906T112702Z_run). Ledgered BEFORE any join,
+per the never-reuse non-negotiable. Annotate with results from the run manifest.
+- 3996: CLAIMED - LaunchVrf52.ps1 back-end (vrfSimHLA1516e), 5.2d independent mode
+- 3997: CLAIMED - LaunchVrf52.ps1 front-end (vrfGui), 5.2d independent mode (allocated even with -NoGui, then BURNED)
+- 3998: CLAIMED - WatchVrf ADVISORY pre-init oracle pre-check (RUNBOOK 0.5.7)
+- 3999: CLAIMED - WatchVrf MAIN run trace - the movement oracle / scoring input
+- 4000: CLAIMED - VrfC2SimApp Vrf__ApplicationNumber (the interface federate)
+- 4001: CLAIMED - tools/RtiProbe - STAGE 2c PRE-LAUNCH RTI READINESS GATE (C1). Throwaway create-or-join against the federation with internal retry+backoff, then clean resign, BEFORE the back-end launches (RTI_LAUNCH_HARDENING_DESIGN.md A2-A7 - the RUN-2 fix). CONSUMED on EVERY run (the gate always runs pre-launch). One number covers all internal retries - RtiProbe reuses this single appNumber across attempts by design.
+- 4002: CLAIMED - tools/CreateOne - STAGE 7b FAILURE-PATH DIAGNOSTIC ONLY (RUNBOOK 0.5.7 STRONGER CHECK). CONSUMED ONLY IF THE ORACLE GATE FAILS; on a healthy run it is NEVER JOINED and this number goes UNCONSUMED. Unconsumed numbers are BURNED, never recycled - see the NOTE below. Allocated here rather than mid-run because every number must be ledgered BEFORE any join.
+NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
+join) are BURNED, not recycled. The run manifest records which were actually used.
+
+
+CLAIMED 2026-09-06 12:47 by scripts/RunC2SimScenario.ps1 (run 20260906T124700Z_run). Ledgered BEFORE any join,
+per the never-reuse non-negotiable. Annotate with results from the run manifest.
+- 4003: CLAIMED - LaunchVrf52.ps1 back-end (vrfSimHLA1516e), 5.2d independent mode
+- 4004: CLAIMED - LaunchVrf52.ps1 front-end (vrfGui), 5.2d independent mode (allocated even with -NoGui, then BURNED)
+- 4005: CLAIMED - WatchVrf ADVISORY pre-init oracle pre-check (RUNBOOK 0.5.7)
+- 4006: CLAIMED - WatchVrf MAIN run trace - the movement oracle / scoring input
+- 4007: CLAIMED - VrfC2SimApp Vrf__ApplicationNumber (the interface federate)
+- 4008: CLAIMED - tools/RtiProbe - STAGE 2c PRE-LAUNCH RTI READINESS GATE (C1). Throwaway create-or-join against the federation with internal retry+backoff, then clean resign, BEFORE the back-end launches (RTI_LAUNCH_HARDENING_DESIGN.md A2-A7 - the RUN-2 fix). CONSUMED on EVERY run (the gate always runs pre-launch). One number covers all internal retries - RtiProbe reuses this single appNumber across attempts by design.
+- 4009: CLAIMED - tools/CreateOne - STAGE 7b FAILURE-PATH DIAGNOSTIC ONLY (RUNBOOK 0.5.7 STRONGER CHECK). CONSUMED ONLY IF THE ORACLE GATE FAILS; on a healthy run it is NEVER JOINED and this number goes UNCONSUMED. Unconsumed numbers are BURNED, never recycled - see the NOTE below. Allocated here rather than mid-run because every number must be ledgered BEFORE any join.
+NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
+join) are BURNED, not recycled. The run manifest records which were actually used.
+
+
+CLAIMED 2026-09-06 13:17 by scripts/RunC2SimScenario.ps1 (run 20260906T131748Z_run). Ledgered BEFORE any join,
+per the never-reuse non-negotiable. Annotate with results from the run manifest.
+- 4010: CLAIMED - LaunchVrf52.ps1 back-end (vrfSimHLA1516e), 5.2d independent mode
+- 4011: CLAIMED - LaunchVrf52.ps1 front-end (vrfGui), 5.2d independent mode (allocated even with -NoGui, then BURNED)
+- 4012: CLAIMED - WatchVrf ADVISORY pre-init oracle pre-check (RUNBOOK 0.5.7)
+- 4013: CLAIMED - WatchVrf MAIN run trace - the movement oracle / scoring input
+- 4014: CLAIMED - VrfC2SimApp Vrf__ApplicationNumber (the interface federate)
+- 4015: CLAIMED - tools/RtiProbe - STAGE 2c PRE-LAUNCH RTI READINESS GATE (C1). Throwaway create-or-join against the federation with internal retry+backoff, then clean resign, BEFORE the back-end launches (RTI_LAUNCH_HARDENING_DESIGN.md A2-A7 - the RUN-2 fix). CONSUMED on EVERY run (the gate always runs pre-launch). One number covers all internal retries - RtiProbe reuses this single appNumber across attempts by design.
+- 4016: CLAIMED - tools/CreateOne - STAGE 7b FAILURE-PATH DIAGNOSTIC ONLY (RUNBOOK 0.5.7 STRONGER CHECK). CONSUMED ONLY IF THE ORACLE GATE FAILS; on a healthy run it is NEVER JOINED and this number goes UNCONSUMED. Unconsumed numbers are BURNED, never recycled - see the NOTE below. Allocated here rather than mid-run because every number must be ledgered BEFORE any join.
+NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
+join) are BURNED, not recycled. The run manifest records which were actually used.
+
+
+CLAIMED 2026-09-06 16:06 by scripts/RunC2SimScenario.ps1 (run 20260906T160640Z_run). Ledgered BEFORE any join,
+per the never-reuse non-negotiable. Annotate with results from the run manifest.
+- 4017: CLAIMED - LaunchVrf52.ps1 back-end (vrfSimHLA1516e), 5.2d independent mode
+- 4018: CLAIMED - LaunchVrf52.ps1 front-end (vrfGui), 5.2d independent mode (allocated even with -NoGui, then BURNED)
+- 4019: CLAIMED - WatchVrf ADVISORY pre-init oracle pre-check (RUNBOOK 0.5.7)
+- 4020: CLAIMED - WatchVrf MAIN run trace - the movement oracle / scoring input
+- 4021: CLAIMED - VrfC2SimApp Vrf__ApplicationNumber (the interface federate)
+- 4022: CLAIMED - tools/RtiProbe - STAGE 2c PRE-LAUNCH RTI READINESS GATE (C1). Throwaway create-or-join against the federation with internal retry+backoff, then clean resign, BEFORE the back-end launches (RTI_LAUNCH_HARDENING_DESIGN.md A2-A7 - the RUN-2 fix). CONSUMED on EVERY run (the gate always runs pre-launch). One number covers all internal retries - RtiProbe reuses this single appNumber across attempts by design.
+- 4023: CLAIMED - tools/CreateOne - STAGE 7b FAILURE-PATH DIAGNOSTIC ONLY (RUNBOOK 0.5.7 STRONGER CHECK). CONSUMED ONLY IF THE ORACLE GATE FAILS; on a healthy run it is NEVER JOINED and this number goes UNCONSUMED. Unconsumed numbers are BURNED, never recycled - see the NOTE below. Allocated here rather than mid-run because every number must be ledgered BEFORE any join.
+NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
+join) are BURNED, not recycled. The run manifest records which were actually used.
+
+
+CLAIMED 2026-09-06 16:17 by scripts/RunC2SimScenario.ps1 (run 20260906T161714Z_run). Ledgered BEFORE any join,
+per the never-reuse non-negotiable. Annotate with results from the run manifest.
+- 4024: CLAIMED - LaunchVrf52.ps1 back-end (vrfSimHLA1516e), 5.2d independent mode
+- 4025: CLAIMED - LaunchVrf52.ps1 front-end (vrfGui), 5.2d independent mode (allocated even with -NoGui, then BURNED)
+- 4026: CLAIMED - WatchVrf ADVISORY pre-init oracle pre-check (RUNBOOK 0.5.7)
+- 4027: CLAIMED - WatchVrf MAIN run trace - the movement oracle / scoring input
+- 4028: CLAIMED - VrfC2SimApp Vrf__ApplicationNumber (the interface federate)
+- 4029: CLAIMED - tools/RtiProbe - STAGE 2c PRE-LAUNCH RTI READINESS GATE (C1). Throwaway create-or-join against the federation with internal retry+backoff, then clean resign, BEFORE the back-end launches (RTI_LAUNCH_HARDENING_DESIGN.md A2-A7 - the RUN-2 fix). CONSUMED on EVERY run (the gate always runs pre-launch). One number covers all internal retries - RtiProbe reuses this single appNumber across attempts by design.
+- 4030: CLAIMED - tools/CreateOne - STAGE 7b FAILURE-PATH DIAGNOSTIC ONLY (RUNBOOK 0.5.7 STRONGER CHECK). CONSUMED ONLY IF THE ORACLE GATE FAILS; on a healthy run it is NEVER JOINED and this number goes UNCONSUMED. Unconsumed numbers are BURNED, never recycled - see the NOTE below. Allocated here rather than mid-run because every number must be ledgered BEFORE any join.
+NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
+join) are BURNED, not recycled. The run manifest records which were actually used.
+
+*** NEXT FREE: 4031 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
