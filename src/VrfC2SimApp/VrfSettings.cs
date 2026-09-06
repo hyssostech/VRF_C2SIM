@@ -135,6 +135,24 @@ public class VrfSettings
     // the regression control (N3) - never for real runs.
     public bool ComposeHierarchy { get; set; } = true;
 
+    // CREATION POLICY (C13, user ruling 2026-09-06): the C2SIM init carries the WHOLE ORBAT (corps-
+    // level context); only the units the ORDERS reference are the COA proper. COA-STP1 = 128 units
+    // in the init, 11 referenced by its 42 tasks.
+    //   "AtInit"  = every matched unit is created IN FULL at initialization (the C++ oracle's
+    //               behaviour; COA-STP1 -> 1,333-1,732 objects, the self-inflicted crawl recorded in
+    //               PREREG_COASTP1_52_RUN1 sec 12). Kept as the regression control.
+    //   "AtOrder" = every matched aggregate is created at initialization as an EMPTY organizational
+    //               shell at its authored position (it displays and reflects its position - a member-
+    //               less shell did so for a whole run, 174427Z), shells attach to their declared
+    //               superiors (the organization tree exists), and a unit's MEMBERS are created and
+    //               attached (the same compose / expand / template recipes as AtInit) only when an
+    //               order first references it as PerformingEntity or AffectedEntity. Units no order
+    //               touches stay shells for the run. Platforms (single-entity units) are created in
+    //               full either way. Needs ComposeHierarchy. PREREG_ORDER_TIME_MATERIALIZATION.
+    public string CreationPolicy { get; set; } = "AtInit";
+    public bool MaterializeAtOrder =>
+        string.Equals((CreationPolicy ?? "").Trim(), "AtOrder", System.StringComparison.OrdinalIgnoreCase);
+
     // VR-Forces install root whose data/simulationModelSets the live expand-to-compose path reads to
     // learn a coarse leaf's DOCTRINAL sub-units (ObjectTypeResolver, .entity <subordinate> lists).
     // "" -> fall back to the MAK_VRFDIR env (set by the 5.2 runner) then ObjectTypeResolver's default.

@@ -191,6 +191,19 @@ public sealed class VrfC2SimService : BackgroundService
     private ObjectTypeResolver _resolver;
     private bool _resolverTried;
 
+    // ============ ORDER-TIME MATERIALIZATION (Vrf:CreationPolicy=AtOrder, C13) ============
+    // Per matched unit: the creation plan exactly as UnitTranslator produced it, its placement input
+    // and its declared C2SIM superior, kept from init so an ORDER can materialize the unit later
+    // (MaterializeUnit). Written on the init thread, read on the order thread strictly after the init
+    // has dispatched (the C2SIM SDK delivers the init before any order) - concurrent maps for the
+    // cross-thread handoff. Keyed by C2SIM uuid.
+    private sealed record DeferredUnit(CreationPlan Plan, PlacementInput Placement, string SuperiorUuid);
+    private readonly ConcurrentDictionary<string, DeferredUnit> _deferred = new();
+    private readonly ConcurrentDictionary<string, List<string>> _childUuidsBySuperior = new(); // superior uuid -> declared child uuids (init order)
+    private readonly ConcurrentDictionary<string, byte> _materialized = new();                 // uuid -> materialization started (once)
+    private readonly ConcurrentDictionary<string, byte> _recreatePending = new();              // unit name -> shell deleted, template re-create in flight
+    private readonly ConcurrentDictionary<string, string> _reattachToParentVrfUuid = new();    // unit name -> superior shell VRF uuid to re-attach under
+
     public VrfC2SimService(ILoggerFactory loggerFactory, IConfiguration config,
                            IHostApplicationLifetime life)
     {
@@ -792,6 +805,15 @@ public sealed class VrfC2SimService : BackgroundService
             placements.Add(new PlacementInput(domain, unit.AltitudeAgl, unit.AltitudeMsl));
             hierarchy.Add((unit.Uuid, (unit.SuperiorUuid ?? "").Trim()));
             if (unit.DeclaredSubordinates is { Count: > 0 }) declaredByParent[unit.Uuid] = unit.DeclaredSubordinates;
+            if (_vrf.MaterializeAtOrder)
+            {
+                // C13: keep the FULL plan for order time; the create below becomes a shell (see the
+                // CreationPolicy block after composition).
+                string supUuid = (unit.SuperiorUuid ?? "").Trim();
+                _deferred[unit.Uuid] = new DeferredUnit(plan, placements[^1], supUuid);
+                if (supUuid.Length > 0)
+                    _childUuidsBySuperior.GetOrAdd(supUuid, _ => new List<string>()).Add(unit.Uuid);
+            }
             planned++;
         }
 
@@ -802,9 +824,25 @@ public sealed class VrfC2SimService : BackgroundService
         // in place and needs the full survivor set. Index-parallel with `hierarchy`.
         if (_vrf.ComposeHierarchy && toCreate.Count > 0)
             ApplyHierarchyComposition(toCreate, hierarchy, declaredByParent);
+        if (_vrf.MaterializeAtOrder && toCreate.Count > 0)
+        {
+            // C13 (CreationPolicy=AtOrder): SHELLS ONLY at init. Every aggregate is created as an EMPTY
+            // shell at its authored position - it displays, reflects its position and sits in the
+            // organization tree (ApplyHierarchyComposition above attaches declared child shells to
+            // parent shells). Members follow when an order references the unit (MaterializeUnit).
+            // Expansion is NOT run here; it runs per referenced unit. Platforms are created as-is.
+            int shells = 0;
+            for (int i = 0; i < toCreate.Count; i++)
+                if (toCreate[i].IsAggregate && toCreate[i].CreateSubordinates)
+                { toCreate[i] = toCreate[i] with { CreateSubordinates = false }; shells++; }
+            if (_vrf.ComposeHierarchy) GetResolver();   // load the catalog here (init thread); order thread only reads
+            _log.LogInformation("CreationPolicy=AtOrder (C13): {Shells} unit(s) created as EMPTY shells at their " +
+                                "authored positions; members are created when an order first references a unit. " +
+                                "{Platforms} platform(s) created in full.", shells, toCreate.Count - shells);
+        }
         // Coarse ORBAT leaves (a company/battalion the ORBAT did NOT decompose): expand into their
         // doctrinal sub-units and compose, instead of the broken template higher-unit (G-A).
-        if (_vrf.ComposeHierarchy && toCreate.Count > 0)
+        else if (_vrf.ComposeHierarchy && toCreate.Count > 0)
             ExpandCoarseLeaves(toCreate, placements, hierarchy);
 
         // R8 (opt-in, docs/UNIT_MOVEMENT_RESEARCH.md sec 4): spread units that share
@@ -1206,6 +1244,90 @@ public sealed class VrfC2SimService : BackgroundService
         }
     }
 
+    /// <summary>
+    /// ORDER-TIME MATERIALIZATION (Vrf:CreationPolicy=AtOrder, C13): give a shell its members the first
+    /// time an order references it. Order thread. Three cases, each the recipe already proven at init:
+    ///  1. a unit with DECLARED children: materialize each child (recursively); the parent is ready when
+    ///     all its children are (its shell and its organization already exist from init);
+    ///  2. a coarse leaf whose template is a PURE higher unit (a tank company): EXPAND-to-compose into
+    ///     the existing shell (ExpandCoarseLeaves on a one-plan list; the shell's uuid is pre-resolved
+    ///     so the children attach as soon as they are created);
+    ///  3. a leaf whose template carries platforms (a platoon, a mixed template, a CP-proxy HQ section):
+    ///     the shell is DELETED and the unit re-created as the TEMPLATE (createSubordinates=true, the
+    ///     proven 1222 4/4 path); OnVrfObjectCreated re-attaches it under its superior shell.
+    /// Registers _compositionReady[name] BEFORE returning, so RunTaskAsync's existing await gates the
+    /// task. Idempotent per unit. Creates go through the same terrain-placement path as init.
+    /// </summary>
+    private void MaterializeUnit(string c2simUuid, string why)
+    {
+        if (string.IsNullOrEmpty(c2simUuid) || !_materialized.TryAdd(c2simUuid, 0)) return;   // once per unit
+        if (!_deferred.TryGetValue(c2simUuid, out var d)) return;          // not a planned unit
+        var plan = d.Plan;
+        if (!plan.IsAggregate) return;                                     // platforms were created in full at init
+        string name = plan.Name;
+
+        // Case 1: declared children.
+        if (_childUuidsBySuperior.TryGetValue(c2simUuid, out var childUuids) && childUuids.Count > 0)
+        {
+            var childReady = new List<Task>();
+            foreach (var cu in childUuids)
+            {
+                MaterializeUnit(cu, why + " -> declared child of " + name);
+                if (_deferred.TryGetValue(cu, out var cd) && _compositionReady.TryGetValue(cd.Plan.Name, out var ct))
+                    childReady.Add(ct.Task);
+            }
+            var parentTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            _compositionReady[name] = parentTcs;
+            _ = Task.WhenAll(childReady).ContinueWith(_ => parentTcs.TrySetResult(), TaskScheduler.Default);
+            _log.LogInformation("MATERIALIZE {Name} ({Why}): {N} declared child unit(s) materialized; the unit is " +
+                                "ready when they are.", name, why, childUuids.Count);
+            return;
+        }
+
+        if (!_vrfUuidByName.TryGetValue(name, out var shellUuid) || string.IsNullOrEmpty(shellUuid))
+        {
+            _log.LogWarning("MATERIALIZE {Name} ({Why}): its shell was never created - nothing to materialize; " +
+                            "its task will drop.", name, why);
+            return;
+        }
+
+        var toCreate = new List<CreationPlan> { plan with { CreateSubordinates = true } };
+        var placements = new List<PlacementInput> { d.Placement };
+        var hierarchy = new List<(string Uuid, string SuperiorUuid)> { (c2simUuid, d.SuperiorUuid) };
+
+        // Case 2: pure higher unit -> expand into the existing shell.
+        if (_vrf.ComposeHierarchy && GetResolver() != null) ExpandCoarseLeaves(toCreate, placements, hierarchy);
+        if (toCreate.Count > 1)
+        {
+            // ExpandCoarseLeaves registered the composition expecting the shell's ObjectCreated; the shell
+            // already exists - pre-resolve it and create only the sub-units.
+            if (_compositions.TryGetValue(name, out var comp)) comp.ParentVrfUuid = shellUuid;
+            toCreate.RemoveAt(0); placements.RemoveAt(0); hierarchy.RemoveAt(0);
+            _log.LogInformation("MATERIALIZE {Name} ({Why}): EXPAND into the existing shell {Uuid} - {N} sub-unit " +
+                                "create(s) issued.", name, why, shellUuid, toCreate.Count);
+        }
+        else
+        {
+            // Case 3: template with platforms -> delete the shell, re-create as the template.
+            _compositionReady[name] = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            _recreatePending[name] = 0;
+            bool reattach = false;
+            if (d.SuperiorUuid.Length > 0 && _deferred.TryGetValue(d.SuperiorUuid, out var sup)
+                && _vrfUuidByName.TryGetValue(sup.Plan.Name, out var supUuid) && !string.IsNullOrEmpty(supUuid))
+            {
+                _reattachToParentVrfUuid[name] = supUuid;
+                reattach = true;
+            }
+            var shellToDelete = shellUuid;
+            _tickActions.Enqueue(() => _bridge.DeleteObject(shellToDelete));
+            _log.LogInformation("MATERIALIZE {Name} ({Why}): shell {Uuid} deleted; re-creating as the TEMPLATE " +
+                                "{Tmpl} with its members{Re}.", name, why, shellUuid, plan.TemplateName,
+                                reattach ? " and re-attaching under its superior" : "");
+        }
+        if (IsLiveLikeAltitudeMode()) StartPlacementTerrainQuery(toCreate, placements, "ORDER MATERIALIZATION");
+        else EnqueueCreates(toCreate);
+    }
+
     /// <summary>A short, unique VRF marking for a synthesized sub-unit: "&lt;parent&gt;.&lt;handle&gt;&lt;n&gt;",
     /// trimmed to the marking limit.</summary>
     private static string MakeChildName(string parent, string handle, int n)
@@ -1430,6 +1552,16 @@ public sealed class VrfC2SimService : BackgroundService
             // (TaskSequencer), THEN marshal the bridge work onto the tick thread. The C++
             // busy-waited inline (one detached thread per task); this awaits without
             // blocking, and bounds the predecessor wait with a timeout (PORT.md sec 6).
+            // C13 (CreationPolicy=AtOrder): give the referenced unit(s) their members NOW, before the
+            // task orchestration starts; MaterializeUnit registers the composition-ready gate that
+            // RunTaskAsync already awaits, so the task cannot drive an empty shell.
+            if (_vrf.MaterializeAtOrder)
+            {
+                MaterializeUnit(task.TaskeeUuid, $"task '{task.TaskName}' performer");
+                if (!string.IsNullOrEmpty(task.AffectedEntity) && task.AffectedEntity != task.TaskeeUuid
+                    && _unitByC2SimUuid.ContainsKey(task.AffectedEntity))
+                    MaterializeUnit(task.AffectedEntity, $"task '{task.TaskName}' affected entity");
+            }
             var t = task;
             var u = unit;
             _ = RunTaskAsync(t, u);
@@ -2039,6 +2171,22 @@ public sealed class VrfC2SimService : BackgroundService
         if (_vrf.ComposeHierarchy && !string.IsNullOrEmpty(e.Name)
             && (_compositions.ContainsKey(e.Name) || _childToParent.ContainsKey(e.Name)))
             TryAdvanceComposition(e.Name, e.Uuid);
+
+        // ORDER-TIME MATERIALIZATION case 3 (C13): a shell that was deleted and re-created as its
+        // TEMPLATE has arrived. Re-attach it under its superior shell (if it had one) and release the
+        // task waiting on it. _vrfUuidByName already carries the NEW uuid (set at the top).
+        if (!string.IsNullOrEmpty(e.Name) && _recreatePending.TryRemove(e.Name, out _))
+        {
+            string parentUuid = null;
+            if (_reattachToParentVrfUuid.TryRemove(e.Name, out var pu))
+            {
+                parentUuid = pu;
+                _bridge.AddToOrganization(e.Uuid, pu);
+            }
+            if (_compositionReady.TryGetValue(e.Name, out var recreatedReady)) recreatedReady.TrySetResult();
+            _log.LogInformation("MATERIALIZE {Name}: re-created as the template ({Uuid}){Re}; ready for tasking.",
+                                e.Name, e.Uuid, parentUuid == null ? "" : " and re-attached under " + parentUuid);
+        }
 
         // Apply any deferred SetAltitude now that we have the uuid. This callback
         // already runs on the tick thread, so the bridge call is safe here.
