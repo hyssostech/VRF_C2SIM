@@ -1,5 +1,27 @@
 # Vendor ORBAT-loading mandate vs our implementation - requirements + gaps
 
+## SUPERVISOR CORRECTION 2026-09-06 (regroup) - READ THIS FIRST; the gap list below is OVERSTATED
+This audit was doc-inferred and did NOT check the repo's own settled notes or the passing runs. Its
+gaps re-graded against the anchors (vendor sample + installed UG52 + the deterministic runs):
+- G1 (compose off by default) - REAL. The only true fix. Already decided; flip the default.
+- G2 (authored subordinate order discarded) - REAL but FIDELITY only: leader identity does NOT gate
+  movement (V: platoon leader; expand: HQ leader; both completed). Small fix, no ruling needed.
+- G3 (reorganize after attach) - REFUTED. Run V composed with ZERO formation calls and moved +
+  completed 3/3: addToOrganization resolves the formation. Do not add a reorganize.
+- G4 (client formation-validity wait) - REFUTED. VRF-8977: the app waits; V moved with no client
+  wait. Do not add one.
+- G5 (name-only correlation) - NOT A GAP; a SETTLED rule re-discovered. PREREG_ROUTE_UUID_FIX
+  (2026-09-02) + VrfC2SimService.cs:1908-1916: never pass a NAME as a DtUUID (rwUUID.h 35-char
+  blob); address by the real VRF_UUID from ObjectCreated - which the code does (name = in-app map
+  KEY only; all VRF calls use the real uuid, :1375). The audit conflated the vendor's import-rename
+  behaviour with our in-app map over names we control. Preserving the C2SIM uuid as startingUUID is
+  an OPTIONAL simplification, not a gap.
+- G6 (unmapped-type silent default) - real but minor; per refuter it is a silent Tank default, not
+  Ground_Aggregate. Track, low priority.
+The direct-create (sendVrfObjectCreateMsg) item is PARKED (see DESIGN_ORBAT CLOSED C10).
+Lesson recorded in memory: a doc-inferred gap that a passing run contradicts is not a gap; check
+the repo's own settled notes before "discovering" anything.
+
 2026-09-06. Captured from the INSTALLED 5.2 docs (VRFUsersGuide.pdf, ReleaseNotes, class ref) and
 audited against our code. Workflow wf_80d19fed (5 doc/code angles + synth + refuter SURVIVES; every
 load-bearing doc page + code line re-opened by the refuter). User was right: we had not captured the

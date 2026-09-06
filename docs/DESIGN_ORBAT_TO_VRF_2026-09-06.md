@@ -1,5 +1,47 @@
 # DESIGN - representing a C2SIM ORBAT of mixed echelon depth in VR-Forces
 
+## CLOSED - tripwires (REGROUP 2026-09-06, supervisor). Do NOT reopen without NEW live evidence.
+Anchors: the vendor sample (commandLineRemoteController.cxx:717-775 build, :1520-1554 attach), the
+installed UG52 (22.3 -> 18.1.1 compose; 18.1 create-flat-then-reparent + order fixes leader), and
+the DETERMINISTIC runs. A doc-inferred "gap" that a passing run contradicts is NOT a gap.
+C1 ROOT CAUSE of the company move failure = hierarchy-blind create (createSubordinates=true on a
+   unit that ALSO has declared children -> ~48 template phantoms move, declared platoons idle at 0 m).
+   PREREG_F_DIVERGE ROOT CAUSE. Not a vendor bug; not the double-creation alone; not a race.
+C2 THE FIX = COMPOSE per the vendor sample: empty shell (createSubordinates=false) + create members
+   + addToOrganization in the object-created callback + task the parent. 3/3 DETERMINISTIC with ZERO
+   formation calls (V 104042Z/105344Z/110323Z). PREREG_COMPOSE_A. UG52 22.3: ORBAT units are built
+   this way (combine existing = Aggregate As).
+C3 A TEMPLATE higher-unit via remote createAggregate SCATTERS - with AggregateFormation OFF (G-A
+   112702Z) AND ON (131748Z), same signature. Do not retry the template path for company+.
+C4 AggregateFormation='auto' (SetAggregateFormation+Reorganize) is NOT needed for compose (V ran with
+   it OFF) and does NOT rescue a template. Keep OFF. The earlier "B1 harmful" / "B1 is the missing
+   settle" flip-flops were confounds (phantom context; then falsified by 131748Z).
+C5 COARSE LEAF (no declared children) at company+ = EXPAND-to-compose: read the mapped template's
+   .entity doctrinal sub-units (ObjectTypeResolver), create each as a platoon template, compose in
+   DECLARED order (HQ first) - full TO&E moved + completed (124700Z, 1 run; 3x owed). LEAF PLATOON =
+   template (1222 4/4). Regiment+ leaf exceeds the EntityLevel ceiling -> Y-15.
+C6 NO post-attach reorganize is needed (addToOrganization resolves the formation - designators +
+   promotion map) and NO client-side formation-validity wait is needed (VRF-8977: the app waits).
+   Both were listed as "gaps" by the requirements audit and are REFUTED by V. Do not add them.
+C7 LEADER IDENTITY does not gate movement (V: platoon leader; expand: HQ leader; both completed).
+   Honor the C2SIM declared <Subordinate> order for FIDELITY (UG52 18.1.1) - a small fix, not a
+   ruling. There is no "HQ vs maneuver" policy decision.
+C8 VRF objects are addressed by their REAL VRF_UUID (from ObjectCreated), NEVER a name-as-DtUUID -
+   SETTLED 2026-09-02 (PREREG_ROUTE_UUID_FIX; rwUUID.h 35-char marking blob; VrfC2SimService.cs:
+   1908-1916). The name is only the in-app map KEY; all VRF calls use the real uuid (:1375). The
+   audit's "G5 name-correlation gap" re-discovered this settled rule and is NOT a gap.
+C9 There is NO vendor sample/source for the MSDL/ORBAT importer (headers only; importOrbat builds a
+   DATA tree and does not create objects). The vendor's only worked aggregate sample = compose (C2).
+C10 sendVrfObjectCreateMsg + initialFormation is a real API but NOT a compose replacement for a
+    declared ORBAT (template subs get VRF-assigned uuids -> violates one-object-per-UUID, UG52 22.1);
+    at most a coarse-leaf probe. PARKED, untested. Do not build it as "the direct bind".
+DISSENT LOG: a session that disagrees writes ONE line here naming the NEW evidence; reopening is
+the user's call.
+NEXT (the only real work): N1 make compose the DEFAULT (Vrf:ComposeHierarchy=true in appsettings;
+the off path = explicit legacy). N2 honor the declared subordinate order for the attach (InitParser
+UUID-sorts today). N3 expand 3x determinism + a flag-off regression run. THEN the queue:
+REBASELINE_52, COA-STP1 at scale, type-map live gate. Everything else below is history.
+
 2026-09-06. Generalizes the compose recipe (PREREG_COMPOSE_A, validated V) from one company to an
 arbitrary C2SIM ORBAT where units are declared to DIFFERENT depths (some to platoon/platform, some
 only to battalion). Plan/design - not yet implemented beyond what COMPOSE_A already ships. All
