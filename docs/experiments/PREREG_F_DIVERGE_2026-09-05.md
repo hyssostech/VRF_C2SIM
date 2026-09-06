@@ -99,6 +99,53 @@ Do not implement any of these until section 4 settles R1 vs R2:
   at platoon echelon. (Company-level tasking may simply be unsupported for reliable move on
   this build - a real capability limit to surface, not paper over.)
 
+# AMENDMENT A - 2026-09-05 - USER-DIRECTED re-frame: OUR MISUSE, not a vendor bug
+
+The user rejected the "vendor higher-unit controller is broken" reading as an over-reach:
+"you are clearly doing something really wrong ... mixing entity and aggregate commands, or
+something worse." A docs-first research workflow (wf_5004b243: 5 angles + refuter; MAK samples,
+UG52, vendor headers, our code) CONFIRMS the user. Corrected findings, all VERIFIED:
+- The vendor-correct pattern is: createAggregate(Disaggregated, createSubordinates=true) ONCE,
+  let formation validity settle (5.2 AUTO-waits, VRF-8968), then ONE moveAlongRoute(unitUuid).
+  MAK's shipped samples call NEITHER SetAggregateFormation NOR ReorganizeAggregate (grep of
+  C:\MAK\vrforces5.2d\examples = 0 hits). reorganizeAggregate is documented POST-CASUALTY
+  echelon-ID reassignment (vrfRemoteController.h:1551-1555; UG52 25.1.1/40.66) - we call it on
+  intact units.
+- OUR B1 (the set 'column' + reorganize I added this session) is applied TOP-ONLY to the
+  company, never its sub-platoons, and ASYNC with NO barrier before the move
+  (VrfC2SimService.cs:1576-1586, 1889-1906 set/reorganize; :1636 move on route-create; no
+  happens-before). The SAME B1 runs on the flat platoon (works) - so NESTING x B1 is the
+  operative variable. Leading cause: OUR B1 formation repair, not the controller.
+- We are NOT literally mixing entity/aggregate commands (SubordinateFanOut OFF by default; every
+  command targets the one company uuid) - rank 6, verified.
+- MISREADS corrected: the ~412 m due-SOUTH drive is NORMAL column staging (members form up
+  rearward up to 430 m; Formation-Column-Armor-Co(US).frm) - the defect is the northward phase
+  never releasing, "why never north" not "why south". The "double-creation" worry is NOT the
+  established fault (createSubordinates=true is vendor-correct; the working platoon uses it too).
+  OPEN (not the first probe): 1141/1142/1143.MechPlt ARE 114.MechCoy's declared C2SIM children
+  (Superior=139aa71b) yet are also created as separate aggregates - a modeling redundancy to
+  revisit only if the B1-off test does not resolve the move.
+
+## AMENDMENT A - PROBE: B1 off (AggregateFormation="") A/B - the single highest-value test
+ONE VARIABLE: Vrf:AggregateFormation 'auto' -> '' (empty = B1 block skipped entirely: no
+RequestAvailableFormations/SetAggregateFormation/ReorganizeAggregate). Rerun the identical
+EntityLevel R5 order on 5.2d, 3 repeats, nothing else changed; compare to the 4 'auto' runs.
+IMPLIES: CONFIG_TOGGLE (the fix if it works); a CODE change (per-echelon validity barrier or
+platoon-echelon tasking) if it does not.
+Predictions (from the workflow):
+- AP1 (crux): 114.MechCoy ADVANCES north and COMPLETES like the flat platoon. Falsifier: still
+  stalls/never completes -> B1 removal is necessary-but-not-sufficient; per-echelon formation
+  validity is an independent nested gap -> escalate to a code fix.
+- AP2: the non-deterministic 2-3-member runaway race DISAPPEARS; repeats become repeatable.
+  Falsifier: runaways persist with B1 off -> the race is not sourced in the async set+reorganize.
+- AP3: 1.BdeHQ + 1222.MechPlt still advance+complete (no regression). Falsifier: B1 removal
+  breaks the flat platoon/entity -> formation priming was load-bearing (contradicts VRF-8968).
+- AP4: any residual south drive RESOLVES into northward advance (it was staging). Falsifier: a
+  permanent ~412 m south stall persists -> inherent nested-formation-validity problem (-> AP1
+  code-fix path).
+NOTE the prior code comment "aggregates freeze without a formation" was NOT a fresh 5.2
+observation; VRF-8968 may make '' work on 5.2 - AP3/AP1 test exactly that.
+
 ## 6. Result - 2026-09-05, 3 byte-identical repeats (runs 223752Z/224754Z/225732Z, appNos 3933-3953)
 All 3 repeats + the original (4 total) ran clean: RTI serviceable, oracle gate PASSED, NO
 wedge (the 3rd-5th launcher-fixtures on the preserved rtiexec did not wedge - RtiProbe +
