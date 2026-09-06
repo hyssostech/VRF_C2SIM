@@ -119,6 +119,10 @@ C13 THE INIT IS THE ORBAT (CONTEXT), THE ORDERS DEFINE THE SIMULATED SET - user 
     the "scale" crawl was self-inflicted. Do NOT size a run by the init's unit count. Policy
     (pending the user's choice on context units): register the ORBAT, materialize a unit when an
     order first references it. Record: PREREG_COASTP1_52_RUN1 sec 12; memory coa-is-not-the-orbat.
+    BUILT AND VERIFIED 2026-09-06 22:12Z (Vrf:CreationPolicy=AtOrder, demo default; review
+    wf_dcad86e3 fixes in): control (AtInit) 0 of 9 tasked units beyond 1 km, max 586 m; treatment
+    (AtOrder) 5 of 9, max 10.5 km, 368 objects instead of ~1,500 - PREREG_ORDER_TIME_MATERIALIZATION
+    sec 3. The machine was never overwhelmed (sim pinned at its thread budget, machine ~25 %).
 NEXT (the only real work): N1 DONE 2026-09-06 (PREREG_N1_COMPOSE_DEFAULT: default ON verified by
 run D 162958Z 3/3 with no env; flag-off run L 164022Z reproduces the legacy 38-phantom / 2-of-3
 signature - the switch is the regression control). N2 DONE 2026-09-06 (PREREG_N2_DECLARED_ORDER:

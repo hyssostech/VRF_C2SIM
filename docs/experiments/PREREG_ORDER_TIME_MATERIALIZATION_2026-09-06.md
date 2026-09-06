@@ -110,4 +110,76 @@ same in both runs. The vendor log carries no sim time at notify level 3.
 INTERIM MOVEMENT (t = 418 s, order at ~230 s): the 9 units with MoveAlongRoute issued moved
 13-103 m (max displacement from birth) - the crawl reproduces with the consoles OFF, so the
 console instrument was not the crawl (the 1.1 alternative is refuted).
-(final numbers + movement after teardown)
+FINAL (run 20260906T213656Z, RunSecs 1500, runner exit 0, clean resign; cpu-samples.csv in the
+run dir, 281 samples over the app's lifetime):
+- post-order (244 samples): sim 5.34 cores' worth mean / 5.48 p90 / 5.67 max, 74 threads;
+  machine 24.6 % mean / 30.6 p90 / 48.3 max; interface 0.17; WatchVrf 0.21; RTI ~0.
+- movement (taskee_displacement.py, ~1,350 s after the order): 48, 53, 82, 86, 259, 284, 349,
+  400, 586 m max displacement for the 9 tasked units with MoveAlongRoute; 0 of 9 beyond 1 km;
+  TASKCMPLT 0.
+VERDICT on the user's question ("is this machine being overwhelmed?"): NO. P2 holds, P3 holds.
+The crawl is the sim engine saturating its CONFIGURED thread budget (~5.5 cores of 32) under
+1,4xx entity-level objects the scenario never needed (C13). The console instrument is
+exonerated (crawl reproduced with consoles off).
+REVIEW OF THE TREATMENT CODE (workflow wf_dcad86e3, 37 agents, 3 lenses x 2 verifiers): 16
+findings, 9 distinct, all fixed before the treatment run (commit after this run): early order
+before the shell's ObjectCreated is now DEFERRED to the shell's arrival (was: dropped forever);
+a composition completes its OWN gate (PendingComposition.Ready) so a case-1 parent cannot be
+released by its init composition; tasks gate on the AffectedEntity's readiness too; AtOrder
+without ComposeHierarchy refuses to start; init deliveries serialised (_initLock); case-3
+release on REFLECTION (ReleaseReflected, deadline CompositionTimeoutSeconds); case-3 re-attach
+restores the DECLARED subordinate order; case-1 children materialize in declared order;
+de-stacked positions carried into the stored plans; only an aggregate superior takes a
+re-created child back. Non-findings: the AtInit path is behaviourally unchanged (all three
+lenses); deleteObject on an attached subordinate needs no removeFromOrganization; a member-less
+createAggregate is the vendor sample's own first step; late addToOrganization has no timing
+precondition in the header.
+
+CAVEAT ON THE CPU METRIC (found at the treatment's first samples): the fixture runs fixed-
+frame-run-to-complete, and UG52 (Time Management, ~p160) says the engine then "tries to
+advance simulation time as fast as possible, independent of wall-clock time" - so the engine
+consumes its thread budget WHATEVER the load (control 5.3 cores with 1,45x objects; treatment
+4.5 cores with 357). CPU alone therefore cannot grade a run in this mode; the sim/wall ratio
+can (needs CON rows), and displacement per wall time is the proxy used here. The machine-level
+verdict (never above half the CPUs, 28 GB free) is unaffected.
+
+### 3.2 TREATMENT (AtOrder) - run 20260906T221202Z, launched 22:12Z
+MID-RUN (t = 204 s, order at ~170 s): the design ran as specified - "CreationPolicy=AtOrder
+(C13): 127 unit(s) created as EMPTY shells", 128 of 128 placed from the terrain query, reflected
+357 objects (control: 1,455-1,529); the order triggered 9 case-3 re-creates (the CP-proxy
+battalions, the mixed-template companies) and 2 case-2 expands (510/40 Tank Breach Company,
+C/1-35 Tank Company -> 4 sub-units each), all 9 re-created objects REFLECTED before release,
+2 compositions composed, 9 MoveAlongRoute issued, 0 tasks dropped, 0 gate timeouts. Within
+~35 s of tasking the 9 units had moved 50-400 m (control at +190 s: 13-103 m). P4 holds. The
+two "Failed to deserialize xml" SDK lines are pre-existing (2 in the control as well).
+FINAL (runner exit 0, window ran its 1500 s cap; -StopWhenComplete did not fire):
+- objects: reflected 368 at the end (control 1,529) - P4 HOLDS (128 shells + the 11 taskees'
+  members).
+- movement (taskee_displacement.py, ~1,400 s after the order; 9 units with MoveAlongRoute):
+  454, 490, 511, 559, 1,017, 1,149, 1,418, 2,231, 10,471 m; 5 of 9 beyond 1 km (control: 0 of
+  9, max 586 m). Median 1,017 m vs 259 m (4x); max 10,471 m vs 586 m (18x).
+- TASKCMPLT 0 - but the first-leg routes are 24-45 km (route length per task computed from the
+  order; the fastest unit, 1-1/2/1_AD recon, did 10.5 km in ~1,400 s wall = 7.5 m/s), so no
+  completion was reachable inside the window: P6 was MIS-SPECIFIED (written without the route
+  lengths), not falsified. The 33 remaining tasks were correctly held by the predecessor policy.
+- CPU post-order: sim 4.26 cores mean / 5.29 max, machine 19.4 % mean / 31.0 max - see the
+  FFRTC caveat (the engine consumes its budget regardless); P7's "< 4 cores" was mis-specified
+  for this frame mode; the machine-level reading holds.
+- P8 HOLDS: the shells reflected (368 = shells + members) and were tasked/placed normally.
+- mechanics: 0 dropped tasks, 0 gate timeouts, 9 case-3 re-creates all reflected before release
+  (ReleaseReflected), 2 case-2 expands composed; the two 'Failed to deserialize' SDK lines are
+  pre-existing.
+VERDICT: order-time materialization WORKS as designed and is the new baseline: same order, same
+map, same window, 4x median / 18x max displacement, a quarter of the objects. RESIDUAL: four of
+the nine tasked units stayed under 600 m in 23 minutes (C/1-35 = the expanded tank company;
+B/5-20 = a mixed IFV-platoon template; 4-27/2/1_A and 856/HHC = CP-proxy HQ sections, the SAME
+type as 1-1/2/1_AD which made 10.5 km). No theory is offered: their consoles were off in this
+pair (by design, for the CPU question). NEXT (C11): the same run with the tasked units' MEMBER
+consoles at level 3 (11 units only, so the volume is small) for the sim's own account of the
+four slow units - and CON rows also give the sim/wall ratio this pair could not measure.
+Adversarial review: the competing explanation for the 4x/18x gain is "different tasks, not
+the policy" - refuted: identical order, map, fixture, window and code path except
+CreationPolicy (the runner injects Vrf__CreationPolicy; the app log states the policy). The
+competing explanation for the four slow units is not adjudicated here (consoles off); the
+falsifier for "the policy causes slowness" would be a unit slower than in the control - none
+is (every unit moved farther than its control counterpart).
