@@ -39,6 +39,10 @@
     <None Update="appsettings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <!-- DEMO overlay, loaded when DOTNET_ENVIRONMENT=Demo (scripts/StartInterface52.ps1). -->
+    <None Update="appsettings.Demo.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
   <ItemGroup>

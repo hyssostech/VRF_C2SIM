@@ -71,5 +71,64 @@ measurement, not a prediction. Load-bound expectation from the 5.0.2 record: wel
 - FALSIFIERS / STOP: P1 or P2 missed -> stop, read the console/vendor log, no code change first;
   a company that stalls with all sub-units reporting complete -> NEW mechanism, console first.
 
-## 4. Results
-(pending)
+## 4. Results - run 1, 20260906T174427Z (read mid-run at t+5 min; final numbers after teardown)
+P1 MISSED, and the prereg itself carried an error. Read from the logs, in order:
+1. CREATION IS FAST, NOT SLOW: 128 units + 64 expansions = 369 creates; the sim answered the
+   whole batch inside one 10-s window (428 ObjectCreated echoes at wall t=100-110 s; WatchVrf:
+   1,732 objects with real coordinates at t=144 s - the same population as the 5.0.2 runs).
+   The sim's live log holds only cosmetic model-cache warnings.
+2. EVERY COMPOSITION EXPIRED ANYWAY (64 x "parent shell ... was never created within 15s"):
+   the deadline was set at PLANNING (CompositionTimeoutSeconds=15 from registration), the
+   creates left only after the 10-s terrain-profile wait ("Terrain profile request 1 ... got
+   no reply within 10 s - creating at the FALLBACK altitudes") and 369 tick-paced issues, so
+   every parent's 15 s were spent before its own create had returned. Fixed in code the same
+   hour: ExpireCompositions is now activity-based (quiet for CompositionTimeoutSeconds since
+   the creates were handed to the bridge AND since the last ObjectCreated).
+3. PREREG ERROR (mine): sec 1's coverage line assumed the 5.2 fidelity table, but the table is
+   read ONLY under Vrf:TypeMappingMode=FidelityTable (VrfSettings.cs:77; the type-map live
+   gate, PREREG_TYPEMAP_LIVE_GATE_2026-09-02, still pending) and the run used the default
+   RealTemplates = the 5.0.2 parity dispatch: 64 COY -> Tank Company (USA) (hostile included,
+   exactly as the 5.0.2 rung-2 vendor log shows for 3/7159), 26 BN -> 11.1.225.5.20.0.0,
+   23 PLT -> Tank Platoon (USA), 15 -> M1A2 entities (`--parse-init` reproduces the four
+   shapes offline). So the MIXED-template guard could not fire (0 lines) and the audit's
+   per-row targets never applied. Every 5.2 run before this one ran RealTemplates types too;
+   the R9 inits (all tanks) could not distinguish the modes.
+4. Terrain-profile query timed out at scale (369 points, 10 s) -> fallback altitudes
+   (AGL 0 post-create; ground units, so movement is unaffected). Raise to 30 s at scale.
+Decision: run 1 continues to its cap as a MEASUREMENT (creation census, sim/wall ratio at
+scale, BN/PLT movement under RealTemplates); its P3/P4 verdicts are void for the 64 orphaned
+companies. Run 2 is registered below.
+FINAL (teardown, runner exit 0): creation census everReal 1,732 (= rung 2 / quiet on 5.0.2),
+poleOnly 66; R1 at scale: 282 rounds x 128 units, 35,072 PositionReportContent captured for 128
+uuids (reports/net_km instrument live at scale). MOVEMENT: 9 tasks issued (the first wave; 3
+successors skipped upstream), 0 completed, 0 TASKCMPLT, all 11 taskees net_km 0.00 over 2,700 s
+wall, subRoutes {} - nothing moved. sim_ratio: 3 samples (no task narrative on any console),
+so the scale ratio is NOT measured by run 1. The tasked units' consoles are read in sec 4a.
+
+## 5. Run 2 - registered 2026-09-06 (after run 1's teardown; build carries the fixes)
+Config = run 1 + `Vrf__TypeMappingMode=FidelityTable` (the type-map live gate, at last) +
+`Vrf__TerrainProfileTimeoutSeconds=30` + the activity-based composition deadline +
+IsPureHigherUnit (mixed templates stay templates). Three deliberate changes over run 1, each
+named; run 1 is not a baseline for them (its companies were orphaned).
+Predictions (H unless marked):
+- Mode line "Type-mapping mode = FidelityTable (123 rows from ...unit-type-map-52.json)"; the
+  app does NOT refuse to start (a missing/invalid table is fatal by design).
+- 128 PLACEMENT lines; shapes per the audit: EXPAND lines for the pure higher-unit companies
+  (Tank Company (USA) 7, Tank Company (RUS) 6, Tank Breach Company 6, aggregate-Company-HQ-
+  Friendly 4 if its 4 subs are units - else template) = 19-23; "MIXED template" lines = 22
+  (the three mech-platoon templates); no EXPAND for BN (HQ-section CP proxies, vehicle subs).
+- 0 "was never created within" lines; every expanded parent logs "composed - N/N declared
+  children attached" (M); 0 DROPPING TASK from composition.
+- 128 units in the R1 rounds ("128 sent, 0 skipped" once all exist); console level 4
+  requested for 128 + 4 x (expanded parents) objects.
+- P3/P4 of sec 3 apply to run 2 as written; sim/wall ratio measured by sim_ratio.py.
+- RISK carried: the "(Deprecated)" platoon templates (gui-can-create=False, 22 units) - a
+  remote create that fails shows as those names never reaching ObjectCreated (counted).
+- Run 2 is also the TYPE-MAP LIVE GATE on 5.2 (PREREG_TYPEMAP_LIVE_GATE_2026-09-02, registered
+  for 5.0.2 and never run there): its safety properties apply verbatim - P2 no generic / empty
+  unit created (a Country-0 or zero-subordinate abstract is a STOP); P3 the mode line proves
+  the mode took effect; P4 every PROXY substitution surfaces (the substitution report / marking
+  tag) - the audit expects 100 PROXY units; P5 tasking still resolves and the units still move
+  under proxies; P7 hygiene. The 5.2 vendor log carries no creation lines (REBASELINE sec 6
+  item 3), so the gate's "six creation lines" evidence comes from the console echoes + the app's
+  PLACEMENT lines + the trace instead. The table is NOT adjusted to fit a miss.

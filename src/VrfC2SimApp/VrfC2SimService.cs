@@ -309,8 +309,18 @@ public sealed class VrfC2SimService : BackgroundService
                 Thread.Sleep(50);
             }
             if (backends > 0)
+            {
                 _log.LogInformation("Backend discovered (BackendCount={Count}) after {Secs:F1} s.",
                                     backends, swSettle.Elapsed.TotalSeconds);
+                // The operator's one-line state (DEMO_READINESS row 15): joined, talking to a sim,
+                // which type mapping is in force, and what happens next.
+                _log.LogInformation("READY - joined the federation, {Count} VR-Forces back-end(s), type mapping = {Mode}, " +
+                                    "compose = {Compose}, position reports every {Secs}s. Waiting for the C2SIM " +
+                                    "initialization (clientId={ClientId}).",
+                                    backends, _vrf.TypeMappingMode, _vrf.ComposeHierarchy ? "on" : "off",
+                                    _vrf.PositionReportSeconds > 0 ? _vrf.PositionReportSeconds.ToString() : "off (0)",
+                                    _vrf.ClientId);
+            }
             else
                 _log.LogWarning("NO BACKEND DISCOVERED after {Secs:F1} s (BackendCount=0). This interface is " +
                                 "joined but has seen no VR-Forces simulation back-end, so creates and tasks " +
@@ -885,6 +895,7 @@ public sealed class VrfC2SimService : BackgroundService
     /// </summary>
     private void EnqueueCreates(List<CreationPlan> plans)
     {
+        _createsIssuedUtc = DateTime.UtcNow;   // composition clocks start here, not at planning
         foreach (var p in plans)
         {
             _tickActions.Enqueue(() =>
@@ -1050,7 +1061,17 @@ public sealed class VrfC2SimService : BackgroundService
     /// finished from whatever children arrived, so a never-created child cannot hang the parent's tasks.</summary>
     private void ExpireCompositions()
     {
+        // ACTIVITY-BASED (COA-STP1 run 1, 174427Z): a composition's deadline is registered at PLANNING,
+        // but at scale the creates leave only after the terrain-profile wait (10 s) and 369 of them
+        // are issued tick by tick, while the sim answers the whole batch inside ~10 s once they are
+        // out. With a fixed 15 s from registration every one of 64 parents "expired" seconds before
+        // its own ObjectCreated returned. So a composition may expire only when CompositionTimeout-
+        // Seconds have passed since the LATEST of: its registration deadline, the moment the creates
+        // were handed to the bridge, and the last ObjectCreated received from the sim.
         var now = DateTime.UtcNow;
+        var quiet = TimeSpan.FromSeconds(Math.Max(1, _vrf.CompositionTimeoutSeconds));
+        if (_createsIssuedUtc != DateTime.MinValue && now - _createsIssuedUtc < quiet) return;
+        if (_lastObjectCreatedUtc != DateTime.MinValue && now - _lastObjectCreatedUtc < quiet) return;
         foreach (var kv in _compositions)
         {
             if (kv.Value.Done) { _compositions.TryRemove(kv.Key, out _); continue; }
@@ -1058,6 +1079,8 @@ public sealed class VrfC2SimService : BackgroundService
             FinishComposition(kv.Value, timedOut: true);
         }
     }
+    private DateTime _createsIssuedUtc = DateTime.MinValue;     // tick thread: when EnqueueCreates ran
+    private DateTime _lastObjectCreatedUtc = DateTime.MinValue; // tick thread: last ObjectCreated seen
 
     /// <summary>Load the offline catalog resolver once (lazy). Home = Vrf:VrfHome, else MAK_VRFDIR
     /// (set by the 5.2 runner), else the resolver default. A missing catalog is a WARN, not a crash -
@@ -1377,6 +1400,14 @@ public sealed class VrfC2SimService : BackgroundService
 
         foreach (var w in order.Warnings)
             _log.LogWarning("Order parse: {Warning}", w);
+
+        // Operator summary (DEMO_READINESS row 15): what this order asks for, before per-task lines.
+        _log.LogInformation("ORDER: {Tasks} task(s) for {Taskees} taskee(s); verbs [{Verbs}].",
+                            order.Tasks.Count,
+                            order.Tasks.Select(t => t.TaskeeUuid ?? "").Distinct().Count(),
+                            string.Join(", ", order.Tasks.Select(t => t.ActionCode ?? "?").GroupBy(c => c)
+                                                    .OrderByDescending(g => g.Count())
+                                                    .Select(g => g.Count() > 1 ? $"{g.Key} x{g.Count()}" : g.Key)));
 
         foreach (var task in order.Tasks)
         {
@@ -1983,6 +2014,7 @@ public sealed class VrfC2SimService : BackgroundService
 
     private void OnVrfObjectCreated(object sender, ObjectCreatedEventArgs e)
     {
+        _lastObjectCreatedUtc = DateTime.UtcNow;   // keeps composition deadlines from firing mid-batch
         // parity: onVrfObjectCreated correlates the requested name to its VRF uuid.
         if (!string.IsNullOrEmpty(e.Name))
         {
