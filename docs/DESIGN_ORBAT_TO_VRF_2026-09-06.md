@@ -188,6 +188,28 @@ native, matches the user rule). Caveat (refuter): Mojave has an empty-leader-pat
 only SubordinateFanOut has worked, so auto-alone may not suffice -> then + fan-out; if still not,
 compose stays. NOTE: my prior "B1 harmful / do not use auto" record is UNDER REVIEW pending this test.
 
+### DIRECT-BIND + auto RESULT 2026-09-06 (run 20260906T131748Z) - FAILS; direct catalog bind is out
+G-A leaf-company, createSubordinates=true (direct template, ComposeHierarchy OFF) + AggregateFormation
+='auto'. The settle FIRED (app log: "114.MechCoy - set formation 'column' (from its own list) +
+reorganize"). It STILL SCATTERED: 19 south + 3 runaways (16.6/15.1/5.0 km), 4 north, 114.MechCoy NOT
+completed (TASKCMPLT=2); 37 objects - essentially identical to G-A (auto off). So the settle made NO
+difference. CONCLUSIONS (now un-confounded, both arms tested):
+- The DIRECT catalog-template bind does NOT work at company level on 5.2/Mojave, WITH OR WITHOUT the
+  vendor settle (auto). The research's "auto is the missing step" hypothesis is FALSIFIED here.
+- COMPOSE is the working path (V 3/3; expand full-TO&E 124700) and is the vendor's own only worked
+  aggregate recipe. "resolve to the catalog at the leaf" must mean COMPOSE from the catalog's
+  declared composition (= expand-to-compose), NOT template-instantiate it.
+- B1/auto reconciled: it does NOT rescue a template company (tested); it is neither the fix nor
+  needed for the working (compose) path (V + expand passed with auto OFF). So "do not rely on auto
+  for a higher-unit" stands - now for a tested reason, not the earlier confounded one.
+- MECHANISM still not fully closed (carried, not asserted): SetFormation+Reorganize resolves
+  designators but the template's per-member follow-offsets stay degenerate on this build - reason
+  unverified.
+UNTESTED (declined - not simpler, not "direct"): template + auto + SubordinateFanOut (the flagged
+Mojave mitigation); even a pass would be more moving parts than compose and would task members, not
+the unit. => DECISION: ship EXPAND-TO-COMPOSE (validated) for coarse leaves; template higher-units
+are not a usable direct bind on this build.
+
 ## 6. Adversarial review
 Strongest competing view: "leaf=template just works at every echelon, no gate needed." Not safe -
 the one higher-echelon template we tasked failed (phantom), and although that is best explained by
