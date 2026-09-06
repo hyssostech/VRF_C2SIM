@@ -218,4 +218,29 @@ interface-side assembly-area layout at materialization; (b) STP supplies real po
 profile, where "aggregate-level scenarios do not support collision avoidance among simulation
 objects" (UG52 27.1.4) - already in the plan.
 INSTRUMENT GAP: the member-console request line names the members but not their uuids, so
-the CON rows (uuid-keyed) cannot be attributed to units offline - add the uuids to that line.
+the CON rows (uuid-keyed) cannot be attributed to units offline - FIXED in the source (uuids
+in the line, commit fa123b0; deployed after this run).
+THE SLOW MEMBERS' OWN ACCOUNT (t = 300..604 s, attribution by each member's OWN POS
+displacement since the uuid map is missing in this run): of the 64 members with consoles, 32
+had moved >= 1.5 km and 15 < 700 m - twelve of those at 0-17 m (six at exactly 0 m: never
+moved) and three at ~300 m. After the blocking ended (t >= 300 s) the 15 slow members
+emitted ONE message kind only: 'Status of task "move-along" is "TaskRunning"' (1,789 times) -
+no blocking, no planning, no path job, no give-up, no "not embarked". The fast members show the
+normal sequence (plan path success, "Planned path has N parts", move-along, one "Completed").
+READING: a member whose move-along is "running" while it stands still and reports nothing is
+waiting on its UNIT, and the unit-level gate the record already knows is C1b (CLOSED
+2026-09-06 by the unit's console at level 4): a template unit's move-along first runs
+move-into-formation and waits for "task complete msg rcvd from" EVERY subordinate; a template
+HQ-section HMMWV that never reaches its slot keeps the gate shut. The slow units here are
+case-3 TEMPLATES (the CP-proxy HQ sections: M1A2 x2, M3, HMMWV x2, M577A2 - the very object
+type whose HMMWV failed inside the company in C1b), and which of them stalls varies by run.
+This is a candidate with prior evidence, NOT a verified cause for this run: the members'
+consoles cannot show the unit's gate; the UNIT's console at level 4 can (that is how C1b was
+closed). FALSIFIER: the slow units' own consoles show "Move into formation complete" (gate
+open) - then the stall is something else. NEXT RUN: the same run with Vrf:ObjectConsoleNotify-
+Level=4 (unit consoles; the 128 shells add little) + member level 3.
+IF C1b IS CONFIRMED for the proxies, the fix is the vendor sample's own recipe one level
+lower: compose the HQ section from ENTITIES (shell + createEntity x6 + addToOrganization,
+commandLineRemoteController.cxx:717-775 does exactly this for a platoon) instead of creating
+it as a template - i.e. lift the "platforms stay a template" rule in ExpandCoarseLeaves behind
+a setting, and verify 3/3 on the small fixture first.
