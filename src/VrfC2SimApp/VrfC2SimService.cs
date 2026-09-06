@@ -182,6 +182,10 @@ public sealed class VrfC2SimService : BackgroundService
     private readonly ConcurrentDictionary<string, PendingComposition> _compositions = new();   // parent name -> composition
     private readonly ConcurrentDictionary<string, string> _childToParent = new();               // child name -> parent name
     private readonly ConcurrentDictionary<string, TaskCompletionSource> _compositionReady = new(); // parent name -> children attached
+    // EXPAND-to-compose (coarse ORBAT leaves): the offline catalog resolver, loaded lazily on the
+    // first coarse leaf so a run with no composite leaves pays nothing. Read on the init thread only.
+    private ObjectTypeResolver _resolver;
+    private bool _resolverTried;
 
     public VrfC2SimService(ILoggerFactory loggerFactory, IConfiguration config,
                            IHostApplicationLifetime life)
@@ -736,6 +740,10 @@ public sealed class VrfC2SimService : BackgroundService
         // in place and needs the full survivor set. Index-parallel with `hierarchy`.
         if (_vrf.ComposeHierarchy && toCreate.Count > 0)
             ApplyHierarchyComposition(toCreate, hierarchy);
+        // Coarse ORBAT leaves (a company/battalion the ORBAT did NOT decompose): expand into their
+        // doctrinal sub-units and compose, instead of the broken template higher-unit (G-A).
+        if (_vrf.ComposeHierarchy && toCreate.Count > 0)
+            ExpandCoarseLeaves(toCreate, placements, hierarchy);
 
         // R8 (opt-in, docs/UNIT_MOVEMENT_RESEARCH.md sec 4): spread units that share
         // identical init coordinates onto deterministic rings BEFORE creating them -
@@ -975,6 +983,114 @@ public sealed class VrfC2SimService : BackgroundService
             if (kv.Value.Deadline > now) continue;
             FinishComposition(kv.Value, timedOut: true);
         }
+    }
+
+    /// <summary>Load the offline catalog resolver once (lazy). Home = Vrf:VrfHome, else MAK_VRFDIR
+    /// (set by the 5.2 runner), else the resolver default. A missing catalog is a WARN, not a crash -
+    /// coarse leaves then fall back to template creation.</summary>
+    private ObjectTypeResolver GetResolver()
+    {
+        if (_resolverTried) return _resolver;
+        _resolverTried = true;
+        try
+        {
+            string home = !string.IsNullOrWhiteSpace(_vrf.VrfHome) ? _vrf.VrfHome
+                        : Environment.GetEnvironmentVariable("MAK_VRFDIR") is { Length: > 0 } m ? m
+                        : ObjectTypeResolver.DefaultVrfHome;
+            if (!Directory.Exists(ObjectTypeResolver.ModelSetsDir(home)))
+            {
+                _log.LogWarning("ComposeHierarchy: no VR-Forces catalog at {Dir} - cannot EXPAND coarse " +
+                                "leaves; set Vrf:VrfHome. They fall back to template creation.",
+                                ObjectTypeResolver.ModelSetsDir(home));
+                return null;
+            }
+            _resolver = ObjectTypeResolver.LoadChain(home);
+            _log.LogInformation("ComposeHierarchy: catalog loaded from {Home} (root {Sms}, {N} templates) " +
+                                "for coarse-leaf expansion.", home, _resolver.RootSms, _resolver.Templates.Count);
+        }
+        catch (Exception e)
+        {
+            _log.LogWarning("ComposeHierarchy: catalog load failed ({Msg}) - coarse leaves fall back to " +
+                            "template creation.", e.Message);
+            _resolver = null;
+        }
+        return _resolver;
+    }
+
+    /// <summary>
+    /// EXPAND-to-compose (Vrf:ComposeHierarchy): a COARSE LEAF aggregate - a childless unit whose
+    /// catalog template is itself composed of UNIT sub-units (a company/battalion; a platoon whose
+    /// members are vehicles is NOT expanded - it works as a template) - must not be created as a
+    /// template (template higher-units scatter: G-A + mechanism wf_16e3e97f). Instead follow the
+    /// vendor recipe with the member list read from the mapped template's .entity: create the leaf as
+    /// an EMPTY shell, create each doctrinal sub-unit as an aggregate (createSubordinates=true - the
+    /// PROVEN platoon path), and compose via AddToOrganization. Members are created + attached in the
+    /// .entity's DECLARED order (the vendor's own composition order - NO reordering). Full TO&E incl
+    /// the HQ (user ruling 2026-09-06). Appends synthesized children to toCreate/placements/hierarchy
+    /// and registers the composition; runs AFTER ApplyHierarchyComposition, BEFORE de-stack/enqueue.
+    /// </summary>
+    private void ExpandCoarseLeaves(List<CreationPlan> toCreate, List<PlacementInput> placements,
+                                   List<(string Uuid, string SuperiorUuid)> hierarchy)
+    {
+        var res = GetResolver();
+        if (res == null) return;                 // no catalog -> leaves fall back to template (logged)
+        int originalCount = toCreate.Count;      // only expand ORIGINAL plans, not appended children
+        for (int i = 0; i < originalCount; i++)
+        {
+            var plan = toCreate[i];
+            // A coarse leaf: an aggregate still slated for template creation (ApplyHierarchyComposition
+            // did NOT flip it to a shell => it has no DECLARED children) and not already a composition.
+            if (!plan.IsAggregate || !plan.CreateSubordinates || _compositions.ContainsKey(plan.Name)) continue;
+
+            int st = plan.Type.Kind == 11 ? 3 : 1;
+            var q = new[] { st, plan.Type.Kind, plan.Type.Domain, plan.Type.Country,
+                            plan.Type.Category, plan.Type.Subcategory, plan.Type.Specific, plan.Type.Extra };
+            var template = res.Resolve(q);
+            if (template == null) continue;
+            // EXPAND only when the subordinates are themselves UNITS (a company of platoons). A platoon
+            // (subs are vehicles) stays a template - proven to work (1222 4/4).
+            var unitSubs = template.SubordinateSpecs.Where(s => s.IsUnit).ToList();
+            if (unitSubs.Count == 0) continue;
+
+            var childNames = new List<string>();
+            int n = 0;
+            foreach (var s in unitSubs)          // DECLARED order - no reordering (vendor composition)
+            {
+                n++;
+                string handle = string.IsNullOrEmpty(s.FunctionHandle) ? "SUB" : s.FunctionHandle;
+                string childName = MakeChildName(plan.Name, handle, n);
+                var ot = s.ObjectType;
+                var childType = new EntityTypeSpec {
+                    Kind = ot[1], Domain = ot[2], Country = ot[3], Category = ot[4],
+                    Subcategory = ot[5], Specific = ot[6], Extra = ot[7] };
+                var childPlan = new CreationPlan(true, childType, plan.Force, plan.HeadingDeg,
+                                                 childName, plan.Pos, null) { CreateSubordinates = true };
+                toCreate.Add(childPlan);
+                placements.Add(new PlacementInput(ot[2], null, null));  // child DIS domain; placed on terrain
+                hierarchy.Add(("", ""));                                // synthetic - not a C2SIM unit
+                childNames.Add(childName);
+            }
+
+            toCreate[i] = plan with { CreateSubordinates = false };     // empty shell
+            _compositions[plan.Name] = new PendingComposition {
+                ParentName = plan.Name, ExpectedChildNames = childNames,
+                Deadline = DateTime.UtcNow.AddSeconds(Math.Max(1, _vrf.CompositionTimeoutSeconds)) };
+            _compositionReady[plan.Name] = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            foreach (var c in childNames) _childToParent[c] = plan.Name;
+            _log.LogInformation("ComposeHierarchy: EXPAND coarse leaf {Parent} ({Tmpl}) -> {N} doctrinal " +
+                                "sub-units (declared order) [{Kids}] + empty shell; compose via AddToOrganization.",
+                                plan.Name, template.Name, childNames.Count, string.Join(", ", childNames));
+        }
+    }
+
+    /// <summary>A short, unique VRF marking for a synthesized sub-unit: "&lt;parent&gt;.&lt;handle&gt;&lt;n&gt;",
+    /// trimmed to the marking limit.</summary>
+    private static string MakeChildName(string parent, string handle, int n)
+    {
+        string suffix = "." + handle + n;
+        int room = MaxVrfMarkingChars - suffix.Length;
+        string p = parent.Length <= room ? parent : parent.Substring(0, Math.Max(1, room));
+        return p + suffix;
     }
 
     /// <summary>

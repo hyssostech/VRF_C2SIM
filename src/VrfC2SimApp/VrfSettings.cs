@@ -131,6 +131,12 @@ public class VrfSettings
     // unchanged. OPT-IN, default OFF -> flag-off run is byte-identical to today.
     public bool ComposeHierarchy { get; set; } = false;
 
+    // VR-Forces install root whose data/simulationModelSets the live expand-to-compose path reads to
+    // learn a coarse leaf's DOCTRINAL sub-units (ObjectTypeResolver, .entity <subordinate> lists).
+    // "" -> fall back to the MAK_VRFDIR env (set by the 5.2 runner) then ObjectTypeResolver's default.
+    // Only consulted when ComposeHierarchy is ON and a coarse leaf (company+) needs expanding.
+    public string VrfHome { get; set; } = "";
+
     // Seconds to wait for all of a composed parent's declared children to be created (ObjectCreated)
     // before the parent shell is created from the children that DID arrive (a warning is logged for
     // any missing child). Mirrors TerrainProfileTimeoutSeconds; guards against a child whose create

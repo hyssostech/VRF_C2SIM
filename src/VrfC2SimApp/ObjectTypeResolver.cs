@@ -16,9 +16,24 @@ public sealed class SimObjectTemplate
     public int[] ObjectType { get; init; }         // 8 fields, published
     public TypeField[] MatchType { get; init; }    // 8 fields, may wildcard (-1) or range
     public IReadOnlyList<int[]> Subordinates { get; init; } = Array.Empty<int[]>();
+    // Same subordinate list, but carrying the functionHandle (e.g. "HQ", "MECH") so the live
+    // expand-to-compose path (VrfC2SimService) can include the HQ as a real member yet order the
+    // attach so a MANEUVER sub-unit leads. Parallel to Subordinates; --typemap-selftest keeps using
+    // Subordinates (int[]) unchanged.
+    public IReadOnlyList<SubordinateSpec> SubordinateSpecs { get; init; } = Array.Empty<SubordinateSpec>();
 
     public bool IsUnit => ObjectType is { Length: 8 } && ObjectType[0] == 3;
     public override string ToString() => Name;
+}
+
+/// <summary>One .entity subordinate: its objectType (8-field normalised) + role (functionHandle,
+/// e.g. "HQ" / "MECH"). The live expand-to-compose path creates + attaches these in this DECLARED
+/// order (the vendor's own composition order) - functionHandle is kept for logging only, NOT to
+/// reorder. A subordinate that is itself a UNIT (kind 11 -> superType 3): a company's platoons are
+/// units, a platoon's members are platforms - expand-to-compose only fires when subs are units.</summary>
+public readonly record struct SubordinateSpec(int[] ObjectType, string FunctionHandle)
+{
+    public bool IsUnit => ObjectType is { Length: 8 } && ObjectType[0] == 3;
 }
 
 /// <summary>One matchType field: a wildcard, an exact value, or an inclusive range.</summary>
@@ -138,6 +153,11 @@ public sealed class ObjectTypeResolver
                 Subordinates = so.Descendants("subordinate")
                                  .Select(s => ParseType((string)s.Attribute("objectType"), out _))
                                  .Where(t => t != null).ToList(),
+                SubordinateSpecs = so.Descendants("subordinate")
+                                 .Select(s => new SubordinateSpec(
+                                     ParseType((string)s.Attribute("objectType"), out _),
+                                     ((string)s.Attribute("functionHandle") ?? "").Trim()))
+                                 .Where(s => s.ObjectType != null).ToList(),
             };
         }
     }
