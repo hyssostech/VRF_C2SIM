@@ -4,9 +4,21 @@
 Anchors: the vendor sample (commandLineRemoteController.cxx:717-775 build, :1520-1554 attach), the
 installed UG52 (22.3 -> 18.1.1 compose; 18.1 create-flat-then-reparent + order fixes leader), and
 the DETERMINISTIC runs. A doc-inferred "gap" that a passing run contradicts is NOT a gap.
-C1 ROOT CAUSE of the company move failure = hierarchy-blind create (createSubordinates=true on a
-   unit that ALSO has declared children -> ~48 template phantoms move, declared platoons idle at 0 m).
-   PREREG_F_DIVERGE ROOT CAUSE. Not a vendor bug; not the double-creation alone; not a race.
+C1 (CORRECTED 2026-09-06 audit) the company move failure had TWO INDEPENDENT causes superimposed -
+   the earlier "root cause = hierarchy-blind create" CONFLATED them:
+   C1a STRUCTURE/LOADING bug: createSubordinates=true on a unit that ALSO has declared children ->
+       ~48 template phantoms + the declared platoons orphaned at 0 m. A fidelity error (wrong objects
+       moved). Verified by the trace. Fixed by compose (represents the declared structure).
+   C1b MOVEMENT bug, INDEPENDENT of C1a: a template higher-unit created via remote createAggregate
+       does not move - it scatters - with OR without a post-create formation settle (G-A 112702Z clean
+       template, auto off; 131748Z auto on; same signature). FALSIFIER of "C1a caused the move
+       failure": fixing the structure alone (G-A) did NOT fix movement. Fixed by compose
+       (addToOrganization resolves the formation) / expand-to-compose. MECHANISM OPEN: "unresolved
+       formation" is the leading candidate but a set+reorganize did not rescue it; the one untested
+       lever is initialFormation AT create (C10, parked). Do not assert the mechanism as closed.
+   Compose fixes BOTH, which is why it is the answer and why the session reached the right FIX from
+   a conflated causal story. Not a vendor bug (the vendor sample = compose); not a race per se (the
+   non-determinism was C1b's symptom).
 C2 THE FIX = COMPOSE per the vendor sample: empty shell (createSubordinates=false) + create members
    + addToOrganization in the object-created callback + task the parent. 3/3 DETERMINISTIC with ZERO
    formation calls (V 104042Z/105344Z/110323Z). PREREG_COMPOSE_A. UG52 22.3: ORBAT units are built
@@ -35,6 +47,25 @@ C9 There is NO vendor sample/source for the MSDL/ORBAT importer (headers only; i
 C10 sendVrfObjectCreateMsg + initialFormation is a real API but NOT a compose replacement for a
     declared ORBAT (template subs get VRF-assigned uuids -> violates one-object-per-UUID, UG52 22.1);
     at most a coarse-leaf probe. PARKED, untested. Do not build it as "the direct bind".
+RESEARCH AUDIT (2026-09-06, supervisor) - the ORBAT thread's workflows, graded on what survived
+the NEXT live run. Sound core throughout = the vendor sample + installed UG52 + deterministic runs;
+every specific MECHANISM the workflows produced was later falsified or left open:
+  wf_52b70722 F-DIVERGE mechanism -> "higher-unit controller / orientation race": characterised
+    C1b's SYMPTOM (non-deterministic scatter) but missed the template-vs-compose split; superseded.
+  wf_5004b243 aggregate-tasking -> "B1 harmful; double-creation not the fault (rank5)": B1 verdict
+    was context-confounded (later: auto neither needed nor rescuing); rank5 was right about C1b,
+    wrong to dismiss C1a (the trace then found it).
+  wf_e5cb1379 compose feasibility -> CORRECT; validated 3/3 (C2).
+  wf_16e3e97f template-vs-composed -> "unresolved formation, settle fixes it": the settle (auto)
+    did NOT rescue the template (131748Z) - mechanism INCOMPLETE, kept OPEN in C1b.
+  wf_1f29a1ad vendor catalog-leaf -> "auto is the missing settle" FALSIFIED by 131748Z; "the MSDL
+    importer IS the recursion (verified)" OVERSTATED (data model only, no sample; C9).
+  wf_80d19fed loading mandate -> manufactured gaps G3/G4 (refuted by V) + G5 (settled 2026-09-02,
+    C8); G1 real (compose default); G2 fidelity-only.
+  Pattern: doc/header inference + agent synthesis, in isolation from the repo's settled notes and
+  the passing runs, produced confident causes that the next run falsified. The (A)/(B) conflation
+  in C1 survived INTO the first regroup until this audit. Rule (feedback-anchor-vendor-and-own-
+  notes): anchor order sample > installed docs > deterministic runs > headers > agents.
 DISSENT LOG: a session that disagrees writes ONE line here naming the NEW evidence; reopening is
 the user's call.
 NEXT (the only real work): N1 make compose the DEFAULT (Vrf:ComposeHierarchy=true in appsettings;
