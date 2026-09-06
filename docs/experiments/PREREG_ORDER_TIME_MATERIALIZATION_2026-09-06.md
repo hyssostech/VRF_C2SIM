@@ -239,8 +239,37 @@ consoles cannot show the unit's gate; the UNIT's console at level 4 can (that is
 closed). FALSIFIER: the slow units' own consoles show "Move into formation complete" (gate
 open) - then the stall is something else. NEXT RUN: the same run with Vrf:ObjectConsoleNotify-
 Level=4 (unit consoles; the 128 shells add little) + member level 3.
-IF C1b IS CONFIRMED for the proxies, the fix is the vendor sample's own recipe one level
-lower: compose the HQ section from ENTITIES (shell + createEntity x6 + addToOrganization,
+WHOLE-RUN HISTORY OF THE SLOW MEMBERS (t = 63..230 s, then silence): 74 path-plan jobs (71
+successes), 69 move-along subtasks started, 1,011 + 296 "BlockedByVehicle", 85 "Movement
+stopped by vehicle", 34 x "Entity not embarked on same object as target [Route N]. Ending
+task" (6 of the 15 members), 31 x "Global Replan" + "Loop to stall for replanning" (10 of 15),
+82 script-controller task clears - a blocked/replan churn that ends at t = 230 s; afterwards
+only 'move-along TaskRunning'. The FAST members went through the SAME churn (12 "not embarked"
+on 8 of 34; the stall loop on 22 of 34) and still made 1.5-5 km.
+VENDOR SCRIPT (ground-vehicle-move-to.lua, EntityLevel/scripts): MAX_REPLANS = 3 ("Attempts to
+replan and move before deciding it is permanently stuck and aborting", :46); after the path
+parts fail, "Attempt Global Replanning Once" = hasNotAttemptedGlobalReplanning -> globalReplan
+(setStateVar replan) -> loopToStall = a loop with doWhile = true and child alwaysSucceed
+(:1279-1284) - i.e. by design the member's move-to STALLS FOREVER after its one global replan
+fails; it leaves that state only when a NEW subtask replaces it (the unit re-tasking its
+member: "script-controller clearing one of its tasks"). So the fast members were rescued by
+re-tasking and the slow ones were not: after t = 230 s their unit issued nothing new. The
+decider is the UNIT's controller, whose console is off in this run - the level-4 unit-console
+run registered above is the observation, and "Ending task" on a member (the give-up) is the
+candidate for what leaves the unit waiting (its move-along waits for every member's
+completion; a member whose task ENDED never completes - the C1b shape at the move-along
+stage). Verified: the script text and the counts. Assumed: the unit-level wait.
+REFUTED ON THE VENDOR DATA (2026-09-06 23:05Z): "a member vehicle got EMBARKED on another
+vehicle at the pile" as the meaning of "Entity not embarked on same object as target". The
+member types of the HQ section cannot embark on each other: M1A2's embarkation slots accept
+only 3:3:1 (lifeforms), M577A2 has can-be-embarked-upon=False, the HMMWV template carries no
+embarkation parameters at all. The message's give-up condition therefore concerns something
+other than vehicle-on-vehicle embarkation (the entity's attachment to its own aggregate, or
+the ROUTE object's attachment - the header text "the entity is attached and the target of the
+current task is not" leaves both open). Not resolved here; the unit console run is the next
+observation either way.
+IF THE UNIT CONSOLE CONFIRMS a member give-up leaves the unit waiting, the fix is the vendor
+sample's own recipe one level lower: compose the HQ section from ENTITIES (shell + createEntity x6 + addToOrganization,
 commandLineRemoteController.cxx:717-775 does exactly this for a platoon) instead of creating
 it as a template - i.e. lift the "platforms stay a template" rule in ExpandCoarseLeaves behind
 a setting, and verify 3/3 on the small fixture first.
