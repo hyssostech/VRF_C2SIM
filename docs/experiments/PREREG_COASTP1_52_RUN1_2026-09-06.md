@@ -307,6 +307,56 @@ humans, 25 rows are redirected (F-UCIZ-D/E added), zero rows or proxy targets ca
 S4 (190900Z-ish) = S3 re-run on that v3 map; a crash there would again be instrument-first
 (re-walk), sim-second.
 
+### 9. S4 RESULT - 20260906T191037Z (v3 scratch map): the first COA-STP1 run on 5.2 to
+survive its window. Runner exit 0, 2,700 s wall.
+CREATION (all predictions met): 234 creates (128 + 106 synthesized); 29 EXPAND, 25 MIXED-
+template lines, 0 "(Deprecated)"; 29 of 29 compositions attached (20 x 4/4, 9 x 3/3), 0
+expired - the activity-based deadline's first scale pass; 279 ObjectCreated; no crash.
+Census: everReal 1,333 (vehicle-only proxies are lighter than the 5.0.2 tank-company
+templates' 1,732). R1: 276 rounds, 127 sent / 1 skipped, 34,671 position reports for 127
+uuids (one unit never reflected - identified below).
+RATIO: sim_ratio.py 0.729x (44 samples, wall 46-1,942 s, sim 12-1,389 s, resid sd 2.7 s) -
+2.7x the 5.0.2 figure (0.27x) at the same 128-unit load and the same FFRTC fixture.
+MOVEMENT (the open part): 9 first-wave tasks issued, 0 completed within 1,389 sim-s; taskee
+net displacement 0.09-0.87 km (two 0.00, the same two as on 5.0.2). Sub-routes: only C/1-35
+(4). The consoles, unit by unit (level 4 on our objects):
+- C/1-35 (composed Tank Company, HQ1 + TANK2-4): the gate OPENED - "task complete msg rcvd"
+  from TANK3 at sim 92 s, TANK4 153 s, TANK2 185 s, HQ1 323 s, "Move into formation
+  complete" at 323.5 s, offset routes issued, "sub C/1-35.TANK4 completed move along task" at
+  sim 1,388.6 s (the window's end). The company mechanism of run C reproduces at scale; the
+  HQ section (Tank HQ Section template, 2 HMMWVs) is the slow subordinate, 3.5x the platoons.
+- 1-1/2/1_AD, B/5-20, 856/HHC (Tank Platoon proxies): maneuver-along running - their consoles
+  count their tanks down ("Subs still moving: 3" at t=312, "2" at t=423) between weapon-list
+  responses; the tanks ARE moving. Population-wide only 39 of 1,333 entities moved > 100 m and
+  12 moved > 1 km (max 3.2 km), and EVERY one of the 12 was born at (34.6802,-116.7243) - the
+  54-unit STACK the parse-check flags ("54 units at 34.679985,-116.724799"), i.e. the R8
+  create-time de-stacking pathology (UNIT_MOVEMENT_RESEARCH sec 4: identical spawn coordinates
+  gridlock disaggregated-unit geometry; Vrf:DeStackCreates is the existing opt-in lever). At
+  1-3 km in 23 sim-min the movers crawl at ~1-2 m/s; 5.2's obstacle avoidance is ON by
+  default (Migration Guide 2.4), which a jam of hundreds of co-located vehicles exercises.
+  Probe S5 (sec 10) tests that lever, one variable.
+- 1-35/2/1_A, 4-27/2/1_A, 40/2/1_AD, 5-20/2/1_A, 1-6/2/1_AD (BN -> Tank Headquarters Section
+  CP proxies): "maneuver-along" started at sim 12 s and NOTHING after it for 1,376 sim-s -
+  9-12 rows total, no subordinate commands; net 0.39-0.45 km; four sim-created HMMWVs warned
+  "Entity not embarked on same object as target" at t=49.5 s. The Tank HQ Section template
+  does NOT move as a tasked unit on 5.2 (the same HMMWV pair the C1b company waited on).
+NEXT (movement, console-first): (a) the crawl - probe S5 below; (b) the CP proxy stall - one
+CP unit alone with MEMBER console level 4 (data/L3_CpProxy_Initialization.xml, R9 fixture,
+10-min run); (c) the BN->HQ-section proxy is a type-map question for the user once (b) is read.
+
+### 10. PROBE S5 (registered): S4 + Vrf__DeStackCreates=true (one variable)
+The R8 lever spreads units that share identical create coordinates onto deterministic hex
+rings (DeStacker.cs, --destack-selftest; DeStackSpacingMeters 50) BEFORE creation; the 54-unit
+stack at (34.679985,-116.724799) becomes 54 slots ~50 m apart. Everything else = S4 (v3 scratch
+map, FidelityTable, terrain 30 s, console 4, R1 10 s, 2,700 s).
+PREDICTIONS: "DeStack (R8):" lines in the app log for the 10 stacked groups (72 units);
+creation and compositions as S4 (29/29, 0 expired); C/1-35's gate opens EARLIER than 323 sim-s
+(members start unjammed); the tasked Tank Platoon proxies' aggregates displace >= 3x S4's
+(>= 1 km) and the population's ">1 km" count rises well above 12; the CP proxies still stall
+(their defect is internal, sec 9); ratio ~0.7x. FALSIFIER of "the stack is the crawl": movers
+no faster with de-stacking -> the crawl is 5.2's per-entity movement at this load, not the
+geometry, and the next split is one platoon alone on the scale fixture.
+
 - Run 2 is also the TYPE-MAP LIVE GATE on 5.2 (PREREG_TYPEMAP_LIVE_GATE_2026-09-02, registered
   for 5.0.2 and never run there): its safety properties apply verbatim - P2 no generic / empty
   unit created (a Country-0 or zero-subordinate abstract is a STOP); P3 the mode line proves
