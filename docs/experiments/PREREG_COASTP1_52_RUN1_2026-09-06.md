@@ -349,13 +349,17 @@ The R8 lever spreads units that share identical create coordinates onto determin
 rings (DeStacker.cs, --destack-selftest; DeStackSpacingMeters 50) BEFORE creation; the 54-unit
 stack at (34.679985,-116.724799) becomes 54 slots ~50 m apart. Everything else = S4 (v3 scratch
 map, FidelityTable, terrain 30 s, console 4, R1 10 s, 2,700 s).
-PREDICTIONS: "DeStack (R8):" lines in the app log for the 10 stacked groups (72 units);
-creation and compositions as S4 (29/29, 0 expired); C/1-35's gate opens EARLIER than 323 sim-s
-(members start unjammed); the tasked Tank Platoon proxies' aggregates displace >= 3x S4's
-(>= 1 km) and the population's ">1 km" count rises well above 12; the CP proxies still stall
-(their defect is internal, sec 9); ratio ~0.7x. FALSIFIER of "the stack is the crawl": movers
-no faster with de-stacking -> the crawl is 5.2's per-entity movement at this load, not the
-geometry, and the next split is one platoon alone on the scale fixture.
+WITHDRAWN 2026-09-06 20:1xZ, minutes after launch (run 200343Z stopped at Stage 3b, its
+back-end stopped with StopVrf52, RTI untouched) - the user asked whether this was "the
+de-stacking BS you ruled out ages ago". It was. The record I did not re-read: START_HERE
+"2026-07-12/13 night - R8 LIVE-VERIFIED; STACK HYPOTHESIS FALSIFIED"; UNIT_MOVEMENT_RESEARCH
+sec 4b (same); ANALYSIS_COASTP1_RUNG1_FREEZE H3 "physical boxing-in on the de-stacked pile:
+REFUTED"; and the 5.0.2 rung-2 run itself moved 6-7 km from this same 54-unit stack. The
+"evidence" I used - the 12 movers were all born at the stack point - is trivial: the tasked
+units live there. Sec 9's crawl stays OPEN with NO mechanism claimed. Correct next split
+(C11, console-first): L3 = the CP proxy alone with MEMBER console level 4 (10 min, R9
+fixture); S6 = S4 with Vrf__ObjectConsoleMemberNotifyLevel=3 so the TASKED units' member
+tanks narrate their own move (planner outcomes, speed, blockage) at scale.
 
 - Run 2 is also the TYPE-MAP LIVE GATE on 5.2 (PREREG_TYPEMAP_LIVE_GATE_2026-09-02, registered
   for 5.0.2 and never run there): its safety properties apply verbatim - P2 no generic / empty
