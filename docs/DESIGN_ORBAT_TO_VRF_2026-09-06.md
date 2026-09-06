@@ -123,6 +123,11 @@ C13 THE INIT IS THE ORBAT (CONTEXT), THE ORDERS DEFINE THE SIMULATED SET - user 
     wf_dcad86e3 fixes in): control (AtInit) 0 of 9 tasked units beyond 1 km, max 586 m; treatment
     (AtOrder) 5 of 9, max 10.5 km, 368 objects instead of ~1,500 - PREREG_ORDER_TIME_MATERIALIZATION
     sec 3. The machine was never overwhelmed (sim pinned at its thread budget, machine ~25 %).
+    Runs 2 and 3 of AtOrder: 8 of 9 beyond 1 km, ratios 1.84x / 2.82x (full ORBAT: 0.44-0.73x).
+    RESIDUAL (verified by the unit console, sec 3.4): a COMPOSED unit's move-along waits on
+    move-into-formation from every sub-unit (C1b's gate); at the 11-unit start-point pile one
+    sub-unit can stall in the vendor script's replan loop and the unit never leaves; TEMPLATE
+    units have no such gate. Which unit it hits varies by run.
 NEXT (the only real work): N1 DONE 2026-09-06 (PREREG_N1_COMPOSE_DEFAULT: default ON verified by
 run D 162958Z 3/3 with no env; flag-off run L 164022Z reproduces the legacy 38-phantom / 2-of-3
 signature - the switch is the regression control). N2 DONE 2026-09-06 (PREREG_N2_DECLARED_ORDER:

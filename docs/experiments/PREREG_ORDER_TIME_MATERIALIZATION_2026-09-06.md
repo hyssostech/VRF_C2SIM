@@ -195,6 +195,24 @@ messages in the first 300 s, 15 in 600-900 s, 1 after 1,200 s - the pile clears 
 only unit under 1 km, 856/HHC (587 m), and the three at ~1.3 km are the residual. Which units
 are slow differs from 3.2 (there C/1-35 was slowest; here it made 7.8 km): the residual is
 run-dependent, not type-determined.
+### 3.4 UNIT-CONSOLE RUN - run 20260906T231401Z (AtOrder + the UNITS' own consoles at 4, members off)
+FINAL (runner exit 0; 1,392 CON rows - the unit level is quiet; ratio 2.82x (LS) / 2.78x):
+displacement at ~1,530 s after the order: 241 / 1,168 / 1,258 / 1,334 / 1,367 / 1,561 /
+5,256 / 11,608 / 14,493 m - 8 of 9 beyond 1 km (third AtOrder run: 5/9, 8/9, 8/9). The one
+unit under 1 km this time is C/1-35 - the EXPANDED tank company (case 2) - at 241 m.
+THE UNIT'S OWN ACCOUNT (verified, its console at level 4): C/1-35's move-along-controller
+task starts with subtask "move-into-formation" ("Move into formation: formation: keep-
+existing-formation loc: {...}") and then logs "Disagg mv into form: task complete msg rcvd
+from" C/1-35.TANK4 (sim t 233 s), C/1-35.HQ1 (251 s), C/1-35.TANK3 (330 s) - and NEVER from
+C/1-35.TANK2. The gate needs every sub-unit (C1b, closed 2026-09-06 with the same line), so
+the company never advanced to maneuver-along; the 241 m is the platoons shuffling into
+formation. The nine TEMPLATE units (the CP-proxy HQ sections, the mixed platoons) start their
+move-along with subtask "maneuver-along" directly - no formation gate - which is why a
+template unit with a stalled member still leaves (the maneuver-along re-tasks members).
+MECHANISM OF THE RESIDUAL (now verified at the unit level, two runs): a COMPOSED unit's
+move-along waits for every sub-unit's move-into-formation; a sub-unit that stalls in the
+vendor script's loop at the start-point pile (3.3) never reports, and the unit waits for the
+rest of the run. Which unit that hits is run-dependent because which sub-unit stalls is.
 Adversarial review of 3.2+3.3 together: the treatment ran the same code path twice and got
 5 of 9 and 8 of 9 - the difference is not the consoles (more load here, better result), so
 the per-run variance is in the sim's resolution of the start-point pile; the competing claim
