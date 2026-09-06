@@ -34,4 +34,17 @@ Date: 2026-09-06. Tier: STANDARD. Source: REBASELINE_52_INSTRUMENTS sec 6 item 4
   request no member levels ("console-level requests" = 0).
 
 ## Results
-(pending)
+Run P 20260906T173325Z: PASS on every line.
+- App log: 40 "R1 position reports: 6 sent, 0 skipped" rounds (every 10 s from the first tick
+  after all 6 units existed; never a skipped unit).
+- Bus capture (reports-captured.log): 237 REPORT# = 234 PositionReportContent + 3 TaskStatus;
+  6 distinct SubjectEntity uuids (all 6 units). 234 = 6 x 39 rounds, inside the predicted
+  216 +/- 20%.
+- run_census.py on the 5.2 run: reports 234, reportUuids 6, net_km of the taskees 1.15 /
+  0.69 / 0.99 km (39 fixes each) - the C2SIM-side net-displacement measurement works on 5.2
+  again; everReal 22.
+- 3/3 VRF task complete + 3/3 TASKCMPLT; 16-entity cluster, final spread 557 m (= E); POS
+  cadence unchanged. N4 inert (4 compose lines incl. the N2 order line); member-level split at
+  default requested 0 member levels. Runner exit 0.
+VERDICT: R1 DONE. Vrf:PositionReportSeconds=10 is the value for the scale run and the demo
+default (DEMO_READINESS row 4 -> D once the demo appsettings carry it).

@@ -48,7 +48,10 @@ C5 COARSE LEAF (no declared children) at company+ = EXPAND-to-compose: read the 
    PREREG_N3_EXPAND_3X X1/X2/X3 170113Z/171105Z/172132Z, identical). LEAF PLATOON = template
    (1222 4/4). Regiment+ leaf exceeds the EntityLevel ceiling -> Y-15. RECURSIVE since N4
    (2026-09-06): a synthesized sub-unit that is itself coarse is expanded too (MaxExpandDepth 3),
-   so no template COMPANY is ever created under a battalion leaf (C1b). NOTE the 5.2 type map sends
+   so no template COMPANY is ever created under a battalion leaf (C1b). EXPAND ONLY PURE HIGHER-UNITS
+   (every subordinate a unit): a MIXED template (mech platoon = IFVs + squads) stays a template,
+   because synthesizing its unit subs would drop its vehicles (readiness audit 2026-09-06; 22 COA-STP1
+   units; ComposeOrder.IsPureHigherUnit, --compose-selftest). NOTE the 5.2 type map sends
    BN rows to the "Tank Headquarters Section (USA)" CP PROXY (data/unit-type-map-52.json F-*-F),
    whose subs are vehicles - so for COA-STP1 the recursion does not fire; the proxy is a type-map
    fidelity ruling, not a compose question.
@@ -106,7 +109,10 @@ ComposeOrder.ByDeclared + --compose-selftest 5/5; run E 165015Z attaches [1141, 
 authored order, 3/3). N3 DONE 2026-09-06 (PREREG_N3_EXPAND_3X: 3/3 identical; flag-off covered by
 L). NEXT = COA-STP1 at scale on 5.2 (readiness: REBASELINE_52_INSTRUMENTS sec 6 - census reads 5.2
 sub-routes from the console; position reports need slice R1 = the oracle's periodic poll; runner
--ClientId C2SIM; NO -StopWhenComplete on 5.2 until R1 lands). Everything else below is history.
+-ClientId C2SIM; NO -StopWhenComplete on 5.2 until R1 lands). THEN (user ruling 2026-09-06)
+DEMO-READY = the interface as a STANDALONE deployment without the harness (docs/DEMO_READINESS_
+2026-09-06.md, 15-item gap list) BEFORE the real STP task vocabulary. Everything else below is
+history.
 
 2026-09-06. Generalizes the compose recipe (PREREG_COMPOSE_A, validated V) from one company to an
 arbitrary C2SIM ORBAT where units are declared to DIFFERENT depths (some to platoon/platform, some

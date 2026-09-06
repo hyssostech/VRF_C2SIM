@@ -18,7 +18,18 @@ Tank-Company non-determinism SUPPORTED on 5.0.2; -q not a cause).
 - Type map: data/unit-type-map-52.json (123 rows; --typemap-selftest 783 checks). BN rows map to
   the "Tank Headquarters Section (USA)" CP PROXY (fidelity PROXY by design); COY rows to company
   templates that expand-to-compose (C5) into HQ + platoons; PLT rows to platoon templates.
-  Coverage of the 128 units by fidelity class: (from the readiness audit - fill before launch).
+  Coverage of the 128 units (readiness audit wf_1352995f, refuter-checked, 2026-09-06): every
+  unit carries SISOEntityType 0.0.0.0.0.0.0, so all resolve by SIDC function + echelon (key b);
+  EXACT 28 / PROXY 100 / unmapped-or-pending 0 -> all 128 are created. Shapes: 64 COY -> 7 Tank
+  Company (USA) + 6 Tank Company (RUS) + 6 Tank Breach Company + 4 aggregate-Company-HQ-Friendly
+  (pure higher-units: EXPAND); 13 FR + 9 HO -> "Mechanized Platoon (USA) IFV (Deprecated)" /
+  "(RUS) (Deprecated)" and 6 -> "Mechanized Platoon (USA Army M2)" (MIXED templates: vehicles +
+  squads - created as templates by the rule added today, NOT expanded); the rest (CSS platoon,
+  infantry platoon, ADA, FA battery, fire-support team) are platoon-class templates. 26 BN -> the
+  "Tank Headquarters Section (USA/RUS)" CP PROXY (6 vehicles incl. 2 M998; vehicle subs ->
+  template). RISK named before launch: the two "(Deprecated)" platoon templates carry
+  gui-can-create=False (22 units) - whether a REMOTE create instantiates them is unverified;
+  a failure shows as missing ObjectCreated for those names (P1 counts them).
 - Fixture: R9_Mojave_Empty_52 (MAK Earth (online), EntityLevel.sms, FFRTC frame-time 0.033333).
   clientId: `-ClientId C2SIM` (new runner switch; validated against the init's SystemName).
 

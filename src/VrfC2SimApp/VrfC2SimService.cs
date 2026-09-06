@@ -1136,9 +1136,20 @@ public sealed class VrfC2SimService : BackgroundService
             var template = res.Resolve(q);
             if (template == null) continue;
             // EXPAND only when the subordinates are themselves UNITS (a company of platoons). A platoon
-            // (subs are vehicles) stays a template - proven to work (1222 4/4).
+            // (subs are vehicles) stays a template - proven to work (1222 4/4). A MIXED template (vehicles
+            // AND sub-units, e.g. "Mechanized Platoon (USA Army M2)": 4 IFVs + HQ section + 3 rifle squads)
+            // also stays a template: expanding it would synthesize the squads and DROP the vehicles
+            // (readiness audit 2026-09-06; 22 COA-STP1 units map to such templates), and the template's
+            // own mounting ("assign transports to squads") is the vendor's business.
             var unitSubs = template.SubordinateSpecs.Where(s => s.IsUnit).ToList();
-            if (unitSubs.Count == 0) continue;
+            if (!ComposeOrder.IsPureHigherUnit(template.SubordinateSpecs.Count, unitSubs.Count))
+            {
+                if (unitSubs.Count > 0)
+                    _log.LogInformation("ComposeHierarchy: {Name} ({Tmpl}) is a MIXED template ({Units} unit + {Veh} vehicle " +
+                                        "subordinates) - created as a template, not expanded (vehicles would be lost).",
+                                        plan.Name, template.Name, unitSubs.Count, template.SubordinateSpecs.Count - unitSubs.Count);
+                continue;
+            }
 
             var childNames = new List<string>();
             int n = 0;

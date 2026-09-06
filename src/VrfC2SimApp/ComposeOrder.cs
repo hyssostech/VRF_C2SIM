@@ -30,6 +30,14 @@ public static class ComposeOrder
         }
         return declared.OrderBy(d => d.Rank).Select(d => d.Name).Concat(rest).ToList();
     }
+
+    /// <summary>
+    /// Expand-to-compose applies only to a PURE higher-unit template: every declared subordinate is
+    /// itself a unit (a company of platoons, a battalion of companies). A template with no unit subs
+    /// is a platoon (vehicles) and a template with BOTH (a mechanized platoon: IFVs + squads) is
+    /// created as a template too - synthesizing only its unit subs would drop the vehicles.
+    /// </summary>
+    public static bool IsPureHigherUnit(int totalSubs, int unitSubs) => totalSubs > 0 && unitSubs == totalSubs;
 }
 
 // Offline check: `VrfC2SimApp --compose-selftest` (no bridge).
@@ -63,6 +71,15 @@ public static class ComposeOrderSelfTest
         Check("unresolvable name counts as undeclared",
               ComposeOrder.ByDeclared(new[] { "u-1141" }, new[] { "ghost", "1141" }, _ => ""),
               "ghost", "1141");
+        void CheckBool(string what, bool got, bool want)
+        {
+            Console.WriteLine((got == want ? "[PASS] " : "[FAIL] ") + what);
+            if (got != want) failures++;
+        }
+        CheckBool("Tank Company (USA): 4 unit subs of 4 -> expand", ComposeOrder.IsPureHigherUnit(4, 4), true);
+        CheckBool("Tank Platoon (USA): 0 unit subs of 4 -> template", ComposeOrder.IsPureHigherUnit(4, 0), false);
+        CheckBool("Mechanized Platoon (USA Army M2): 4 unit subs of 8 (4 IFVs) -> template, never expanded", ComposeOrder.IsPureHigherUnit(8, 4), false);
+        CheckBool("empty subordinate list -> template", ComposeOrder.IsPureHigherUnit(0, 0), false);
         Console.WriteLine(failures == 0 ? "compose-selftest: ALL CHECKS PASSED" : $"compose-selftest: {failures} FAILED");
         return failures == 0 ? 0 : 1;
     }
