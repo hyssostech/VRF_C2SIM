@@ -290,6 +290,22 @@ the 11 taskees' units move (companies via offset routes - subRoutes > 0 for task
 CP proxies via the platoon-class sysdef); 128 in every R1 round; sim_ratio.py returns a
 ratio (samples from the composed platoons' task lines). A crash here would be a NEW class
 (no lifeforms are created) and a STOP.
+S3 RESULT - 20260906T190427Z: CRASHED, same frame - and NOT a new class: the app log shows
+4 units still planned as "Mechanized Platoon (USA) IFV (Deprecated)" (rows F-UCIZ-D/E), the
+very template that killed L1. My template walker had scanned EntityLevel\vrfSim only; that
+platoon's squads ("Infantry Squad (USA) (Deprecated)", 11:1:225:13:4:0:0) live in the BASE
+SMS (simulationModelSets\base\vrfSim, included by EntityLevel.sms), so the walk saw no humans
+and left those rows alone. Instrument, not sim. The runner's new liveness check fired during
+the gate wait ("BACK-END pid 133136 CRASHED and is PARKED ... Crash record: ...133136.
+callstack.log") - the first crash reported for the right reason. The walker's real defect was
+its RESOLUTION, not its directory list: it took the FIRST matchType hit (Ground_Aggregate's
+wide wildcard) instead of the MOST SPECIFIC one, as the sim (and ObjectTypeResolver.Score)
+does; "Infantry Squad (USA) (Deprecated)" publishes objectType 11:1:225:13:3:0:1 with
+matchType 11:1:-1:13:-1:-1:-1 and is reached only by specificity scoring. Fixed walk
+(EntityLevel + base, most-specific match): the deprecated USA mech platoon now shows 4
+humans, 25 rows are redirected (F-UCIZ-D/E added), zero rows or proxy targets carry a human.
+S4 (190900Z-ish) = S3 re-run on that v3 map; a crash there would again be instrument-first
+(re-walk), sim-second.
 
 - Run 2 is also the TYPE-MAP LIVE GATE on 5.2 (PREREG_TYPEMAP_LIVE_GATE_2026-09-02, registered
   for 5.0.2 and never run there): its safety properties apply verbatim - P2 no generic / empty
