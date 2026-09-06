@@ -422,6 +422,22 @@ NOT backed:
   maneuver-in-formation controller (C++), identical in L3, so it is the vendor's formation-
   approach speed, not a defect.
 - Web: nothing indexed for the message text.
+S6 OUTCOME (run 20260906T202713Z, completed 21:2xZ, runner exit 0, no crash): ratio 0.437x
+(S4 0.73x; the member consoles at level 3 on the tasked units are the added load); TASKCMPLT 1
+(856/HHC~PXY move-along - one CP proxy completed at scale, which S4 never did); moved > 1 km:
+none; member-console signatures over the whole run: "not embarked on same object" 38, "Loop to
+stall for replanning" 176, "Global Replan" 509, "Job Plan path success" 472, "Saving ordered
+speed" 50. Per-unit distances not re-computed (score_run's taskee join found 0 uuids on both
+S4 and S6 - the order names taskees by UUID; instrument gap, noted, not fixed tonight).
+FRAME FINDING THE SAME EVENING (user-led, 21:00-21:40Z): COA-STP1 is an aggregate-level
+scenario (128 units, 0 entities, 64 COY / 26 BN / 23 PLT / 12 none / 2 SECT / 1 BDE; every
+SISO field zero) run in EntityLevel.sms with every type-map row on an EntityLevel container
+template - the 5.0.2 oracle's approach, against our own Y-15 ruling (2026-09-03: battalion+
+or crawl-scale entity counts -> AggregateTacticalLevel). The same aggregate code
+11:1:225:5:2:0:0 is "Tank Company (USA)" (6 subordinate entity types) in EntityLevel and
+"Tank CO (USA, M1A2)" (0 subordinates, a leaf unit) in AggregateTacticalLevel: codes pick the
+template, the SMS picks the atom. No further EntityLevel scale run is registered; the next
+object is the user's ruling on applying Y-15 to COA-STP1.
 STATUS: the S6 failures are an OBSERVATION with no vendor-backed mechanism. The one
 observation that would decide it is the EMBARKATION STATE of a failing tank read from the
 sim (UG52 15.1: embarkation is published over RPR FOM 2 - the Embarkation View / the object's
