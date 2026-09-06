@@ -2,8 +2,11 @@
 
 User ruling 2026-09-06: "When the time comes for tackling the real tasks, not just move along,
 let's first get the app ready for deployment as a demo, working without the harness for this
-bit." SEQUENCE: (1) finish the current move-along / scale measurement (COA-STP1 on 5.2), then
-(2) THIS milestone, then (3) the STP task vocabulary (goal-full-stp-task-vocabulary).
+bit." SEQUENCE: (1) finish the current move-along / scale measurement (COA-STP1 on 5.2 - since
+2026-09-06 22:00Z: 11 taskees with order-time materialization, C13), then (2) THIS milestone,
+then (3) ADDED 2026-09-06 ("Add to the plan as suggested"): the aggregate-level profile, Y-15
+realized - docs/PLAN_AGGREGATE_LEVEL_PROFILE_2026-09-06.md, then (4) the STP task vocabulary
+(goal-full-stp-task-vocabulary) targeting both model sets.
 
 "Without the harness" = the operator starts VR-Forces and the interface by hand (or by ONE thin
 start script that only sets the interface's own environment), STP pushes the init and orders to
