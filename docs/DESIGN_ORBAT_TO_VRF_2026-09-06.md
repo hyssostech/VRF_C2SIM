@@ -31,9 +31,23 @@ FALSIFIES two beliefs: (1) the phantom failure was the double-creation - NO, a c
 scatters too; (2) leaf->template works above platoon - NO. The real distinction is COMPOSE vs
 TEMPLATE: composed company = 3/3 deterministic PASS; template company = 7/8 runs scatter (phantom
 4/4 + B1-off 2/3 + this clean 1/1), same signature. Only TEMPLATE PLATOONS work (1222 4/4; the
-platoon controller, not the higher-unit one). MECHANISM OPEN (not asserted): why composed beats
-template when both are aggregates-of-platoons - candidate: our empty-shell + addToOrganization
-establishes a resolved formation/leader that the template's auto-generated internal org does not.
+platoon controller, not the higher-unit one). MECHANISM (VERIFIED 2026-09-06, wf_16e3e97f, refuter
+SURVIVES, all cites opened): task-time is byte-identical (both send only CreateRoute+MoveAlongRoute
+on the company uuid) - the fork is entirely CREATE-TIME. The company higher-unit sysdef's ONLY mover
+is aggregate-move-along-controller (no adapter, no maneuver-along, NO isUnitMovementExhausted
+fail-safe, no take_formation; ground-higherUnit-disaggregated-movement.sysdef:177-203;
+disaggregatedMoveAlongController.h:56,422,449) and builds member routes purely from DtFormationState
+offsets. createSubordinates=true batch-instantiates 1 HQ + 3 platoons all at offset (0,0,0) with an
+UNRESOLVED formation state -> lookupFollowOffset returns (0,0,0)/default offsets (formationState.h:
+52-53,61-66,150-152) -> members staged backward + flung km away, no fail-safe -> scatter (birth
+dispersal 738 m vs composed 79 m). COMPOSE fixes it: addToOrganization makes the org controller
+assign distinct leader-first designators + the command net -> VALID promotion map
+(aggregateOrganizationController.h:96,103,108) -> valid offsets. Template PLATOONS work only because
+the platoon sysdef adds the adapter + maneuver-along controller (leader + fail-safe;
+ground-disaggregated-movement.sysdef:176-221). ASSUMED (one inferred link): the template's formation
+state is invalid specifically AT TASK TIME (batch-instantiation path not in the headers) - but every
+candidate sub-trigger routes through the same fail-safe-less controller, so expand-to-compose
+sidesteps it by construction.
 => REVISED RULE (sec 1): a LEAF at COMPANY+ echelon must NOT be a template; EXPAND it into its
 doctrinal sub-units (platoon templates, which work) and COMPOSE (the proven path). Leaf platoon/
 platform unchanged. See sec 1 (revised) + sec 5.
