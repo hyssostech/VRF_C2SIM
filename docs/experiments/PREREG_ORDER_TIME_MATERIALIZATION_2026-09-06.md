@@ -185,6 +185,23 @@ falsifier for "the policy causes slowness" would be a unit slower than in the co
 is (every unit moved farther than its control counterpart).
 
 ### 3.3 C11 DIAGNOSTIC - run 20260906T224326Z (treatment + tasked units' MEMBER consoles at 3)
+FINAL (runner exit 0, 1500 s window, 1.04 M CON rows): displacement at ~1,530 s after the
+order: 587 / 1,317 / 1,348 / 1,390 / 4,502 / 7,820 / 24,323 / 24,490 / 26,036 m - 8 of 9
+tasked units beyond 1 km (treatment 3.2: 5 of 9; control 3.1: 0 of 9); three units at 24-26
+km, i.e. near the END of their 28.5-28.7 km first legs at road speed (~9 m/s of sim time);
+TASKCMPLT still 0 (the legs were not finished at the cap; the closest was 2.5 km short).
+Ratio 1.84x (LS) / 1.87x (endpoints) WITH the member consoles on. "BlockedByVehicle": 4,828
+messages in the first 300 s, 15 in 600-900 s, 1 after 1,200 s - the pile clears once. The
+only unit under 1 km, 856/HHC (587 m), and the three at ~1.3 km are the residual. Which units
+are slow differs from 3.2 (there C/1-35 was slowest; here it made 7.8 km): the residual is
+run-dependent, not type-determined.
+Adversarial review of 3.2+3.3 together: the treatment ran the same code path twice and got
+5 of 9 and 8 of 9 - the difference is not the consoles (more load here, better result), so
+the per-run variance is in the sim's resolution of the start-point pile; the competing claim
+"AtOrder is what makes units move" is supported only in contrast to the control (0 of 9,
+twice: S4/S6 earlier and 3.1 today), never against a run with AtInit and 11 units, which
+does not exist because AtInit creates all 128. Nothing here reopens R8; the pile costs
+minutes, and a unit left stalled after the pile clears is the open item (unit console, 3.4).
 MID-RUN (t = 400 s, order at ~60 s): 18 member-console requests (64 members named); movement
 at +340 s: 141, 534, 607, 628, 1,657, 3,294, 3,517, 4,416, 5,036 m - 5 of 9 beyond 1 km
 already, and the SLOW SET IS NOT THE SAME as in 3.2 (C/1-35 and B/5-20 fast here, 856/HHC and
