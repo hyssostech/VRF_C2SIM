@@ -110,6 +110,15 @@ every specific MECHANISM the workflows produced was later falsified or left open
   notes): anchor order sample > installed docs > deterministic runs > headers > agents.
 DISSENT LOG: a session that disagrees writes ONE line here naming the NEW evidence; reopening is
 the user's call.
+C13 THE INIT IS THE ORBAT (CONTEXT), THE ORDERS DEFINE THE SIMULATED SET - user ruling 2026-09-06
+    ~21:50Z ("There are just 11 taskees. These are the only ones that need to be simulated. You are
+    confusing the ORBAT for the whole Corps with the specific elements that are part of the COA
+    proper"). Verified: COA-STP1's 42 tasks reference exactly 11 units (5 BN, 4 COY, 2 no echelon),
+    every AffectedEntity is the performer itself, the other 117 units are context. Every COA-STP1
+    run since July created all 128 (1,333-1,732 entities) - the oracle's behaviour, unexamined;
+    the "scale" crawl was self-inflicted. Do NOT size a run by the init's unit count. Policy
+    (pending the user's choice on context units): register the ORBAT, materialize a unit when an
+    order first references it. Record: PREREG_COASTP1_52_RUN1 sec 12; memory coa-is-not-the-orbat.
 NEXT (the only real work): N1 DONE 2026-09-06 (PREREG_N1_COMPOSE_DEFAULT: default ON verified by
 run D 162958Z 3/3 with no env; flag-off run L 164022Z reproduces the legacy 38-phantom / 2-of-3
 signature - the switch is the regression control). N2 DONE 2026-09-06 (PREREG_N2_DECLARED_ORDER:

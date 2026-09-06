@@ -438,6 +438,23 @@ or crawl-scale entity counts -> AggregateTacticalLevel). The same aggregate code
 "Tank CO (USA, M1A2)" (0 subordinates, a leaf unit) in AggregateTacticalLevel: codes pick the
 template, the SMS picks the atom. No further EntityLevel scale run is registered; the next
 object is the user's ruling on applying Y-15 to COA-STP1.
+USER CORRECTION 2026-09-06 ~21:50Z (supersedes the scale framing above): "You are overblowing
+the coa-stp1 scenario. There are just 11 taskees. These are the only ones that need to be
+simulated. You are confusing the ORBAT for the whole Corps, likely, with the specific elements
+that are part of the COA proper." VERIFIED against the files: the order's 42 tasks reference
+exactly 11 units (PerformingEntity), and every AffectedEntity is the performing unit itself -
+no other unit in the init is referenced by any task. The 11 = 5 BN (1-35/2/1_A, 4-27/2/1_A,
+1-6/2/1_AD, 40/2/1_AD, 5-20/2/1_A), 4 COY (856/HHC, B/5-20, C/1-35, 510/40), 2 without
+echelon (A/6-56/HHC, 1-1/2/1_AD); all 11 born at the one 54-unit coordinate; none has a
+declared subordinate in the init (flat). The other 117 units are ORBAT context that no order
+touches, and 43 of the 54 units on that coordinate are context. EVERY COA-STP1 run since
+2026-07 (5.0.2 and 5.2) created all 128 and expanded them to 1,333-1,732 entities - the
+oracle's behaviour, carried forward unexamined. The scale problem is therefore mostly
+self-inflicted: the COA proper is 11 units. The Y-15 model-set question survives only as a
+FIDELITY question for the 5 battalions (no EntityLevel template -> CP proxy today), no longer
+as a survival question. Policy to rule: register the whole ORBAT from the init, simulate only
+the units the orders reference (materialize at order time), with context units either absent
+or as empty organizational shells for the GUI audience.
 STATUS: the S6 failures are an OBSERVATION with no vendor-backed mechanism. The one
 observation that would decide it is the EMBARKATION STATE of a failing tank read from the
 sim (UG52 15.1: embarkation is published over RPR FOM 2 - the Embarkation View / the object's
