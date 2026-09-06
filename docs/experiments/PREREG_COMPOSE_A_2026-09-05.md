@@ -96,5 +96,32 @@ timeout-less _pendingRouteTasks (use a deadline sweep); re-parent transient doub
 scoring PHANTOM-GONE; native-rebuild blast radius (redeploy all 7, partial redeploy is a
 false-green); licence deadline 2026-09-15.
 
-## 5. Result
-(filled after V1 / V2)
+## 5. Result - 2026-09-06, validation V (run 20260906T104042Z, appNos 3975-3981) - PASS
+Vrf__ComposeHierarchy=true, AggregateFormation unset (B1 off - sample calls no formation API).
+Commit 06b0cd8 (native Release-5.2 rebuilt EXIT=0; app rebuilt; app-deployed VrfBridge.dll == the
+fresh native). Env clean: RTI serviceable, oracle gate PASSED, clean teardown.
+- Compose fired (app log): "114.MechCoy -> EMPTY shell; will attach 3 declared child unit(s)
+  [1143,1141,1142] ... composed - 3/3 declared children attached."
+- P1 PHANTOM GONE: 45 trace objects (was 53 with the phantom); the company cluster is 16
+  real-platoon objects, no ~48-vehicle generic "Tank Company (USA)" template.
+- P2 MEMBERSHIP: 3/3 declared children attached (log); the company move recursed to them.
+- P3 DECLARED PLATOONS MOVE (core) **PASS**: MechCoy cluster = 16 movers / 0 still, all NORTH
+  (~357-3 deg, the route direction) 469-926 m. Baseline every phantom run: declared platoons 0 m.
+  Strict inversion. Runaways GONE (max ~2.6 m/s, realistic; the ~30-45 m/s runaways were the
+  phantom).
+- P4 NO IDLE-ORPHAN: 0 still in the cluster.
+- P5 COMPANY TASKCMPLT: 3/3 - 114.MechCoy (139aa71b) + 1.BdeHQ + 1222.MechPlt. DROP/ABANDON=0.
+- P6 LEAF REGRESSION: 1222.MechPlt + 1.BdeHQ moved + completed (6 non-cluster movers). Flag-off
+  byte-identical is by construction (default off); a flag-off confirm run is owed.
+CONFIRMED (were ASSUMED, sec 1): a composed aggregate IS taskable; addToOrganization accepts an
+aggregate child (3/3 platoons attached + moved); a company move-along recurses to its declared
+members. NO post-attach SetFormation/Reorganize was needed (the move started on its own -
+VRF-8968) - the retired B1 stays retired.
+Adversarial review: H-vacuous (empty shell reports done, nothing moved) killed by 16 members
+moving 469-926 m; H-phantom-still-present killed by 0 still + object-count drop + the shell/3-3
+log; H-not-really-recursion killed by tasking ONLY the company (139aa71b, no fan-out) yet 16
+coherent northward movers. NOT independently verified: per-platoon name->uuid (Debug create-log
+off with B1 off) - cluster evidence conclusive; enable Debug for a by-name confirm if wanted.
+CAVEAT: the phantom failure was NON-DETERMINISTIC, so a single clean run is not a determinism
+proof - 2 confirming repeats running (V2a/V2b). VERDICT (pending the 2 repeats): the root cause
+is FIXED - a C2SIM company-level move now drives the real declared platoons and completes.
