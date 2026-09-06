@@ -119,6 +119,24 @@ public class VrfSettings
     // Opt-in - deliberately diverges from the frozen golden-trace behavior.
     public string AggregateFormation { get; set; } = "";
 
+    // COMPOSE-FROM-CHILDREN hierarchy-aware create (docs/experiments/PREREG_COMPOSE_A_2026-09-05).
+    // ROOT-CAUSE fix for the broken company move: today the app passes createSubordinates=true for
+    // EVERY unit, so a company (a unit that has declared C2SIM children) instantiates a generic
+    // ~48-vehicle "Tank Company (USA)" TEMPLATE and we ALSO create its declared child platoons as
+    // orphan aggregates - tasking the company moves the phantom template while the declared platoons
+    // sit idle (PREREG_F_DIVERGE ROOT CAUSE, verified). When ON, a PARENT unit (whose uuid is another
+    // survivor's Superior) is created as an EMPTY shell (createSubordinates=false) and its declared
+    // child units are attached via AddToOrganization once created - the MAK vendor-sample recipe
+    // (commandLineRemoteController.cxx:717-775 build, :1520-1554 attach). Leaves/entities are
+    // unchanged. OPT-IN, default OFF -> flag-off run is byte-identical to today.
+    public bool ComposeHierarchy { get; set; } = false;
+
+    // Seconds to wait for all of a composed parent's declared children to be created (ObjectCreated)
+    // before the parent shell is created from the children that DID arrive (a warning is logged for
+    // any missing child). Mirrors TerrainProfileTimeoutSeconds; guards against a child whose create
+    // never round-trips hanging the parent (and its tasks) forever.
+    public double CompositionTimeoutSeconds { get; set; } = 15.0;
+
     // R8 create-time de-stacking (docs/UNIT_MOVEMENT_RESEARCH.md sec 4). When ON, init
     // units that share IDENTICAL coordinates (the COA-STP1 blocking data pathology:
     // dozens of units at literally the same lat/lon gridlock disaggregated-unit

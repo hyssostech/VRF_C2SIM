@@ -747,6 +747,12 @@ void VrfFacade::SetTarget(const std::string& uuid, const std::string& targetUuid
     p_->controller->setTarget(DtUUID(uuid), DtUUID(targetUuid));
 }
 
+void VrfFacade::AddToOrganization(const std::string& childUuid, const std::string& superiorUuid) {
+    // vrfRemoteController.h:1334-1339 - addToOrganization(objectId, newSuperiorId): the child is
+    // detached from any prior superior first. Child may be an entity OR an aggregate (nested).
+    p_->controller->addToOrganization(DtUUID(childUuid), DtUUID(superiorUuid));
+}
+
 void VrfFacade::SetRulesOfEngagement(const std::string& uuid, Roe roe) {
     p_->controller->setRulesOfEngagement(DtUUID(uuid), toRoeString(roe), DtSimSendToAll);
 }

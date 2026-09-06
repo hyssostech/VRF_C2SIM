@@ -408,6 +408,12 @@ public:
     void SetAltitude(const std::string& uuid, double altitudeMeters);
     void SetLocation(const std::string& uuid, const Geodetic& pos); // magic move
     void SetTarget(const std::string& uuid, const std::string& targetUuid);
+    // Attach an existing object (entity or aggregate) as a subordinate of an existing
+    // superior aggregate; it is detached from any prior superior first. This is the
+    // vendor-sample compose-from-members primitive (commandLineRemoteController.cxx:1550;
+    // vrfRemoteController.h:1334-1339) used to build a company aggregate from its declared
+    // child platoons instead of instantiating a generic template.
+    void AddToOrganization(const std::string& childUuid, const std::string& superiorUuid);
     void SetRulesOfEngagement(const std::string& uuid, Roe roe);
 
     // -- tasking --------------------------------------------------

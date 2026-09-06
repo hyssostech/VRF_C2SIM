@@ -24,7 +24,13 @@ public readonly record struct CreationPlan(
     string TemplateName = "",       // the VR-Forces template this objectType lands
     string MapRowId = "",           // data/unit-type-map.json row id
     string Substitution = "",       // R-SURFACE-PROXY text; "" when EXACT
-    string MapNote = "");           // which key matched / why (logged, not published)
+    string MapNote = "",            // which key matched / why (logged, not published)
+    // COMPOSE-FROM-CHILDREN (Vrf:ComposeHierarchy): false = create an EMPTY aggregate shell
+    // (no ~48-vehicle template) that is then populated from its declared C2SIM child units via
+    // AddToOrganization - the vendor-sample recipe. The service sets this false on a PARENT
+    // (a unit that is another survivor's Superior); leaves keep true (a leaf platoon's template
+    // subs ARE its real vehicles). Default true = today's behaviour, byte-identical.
+    bool CreateSubordinates = true);
 
 /// <summary>
 /// How C2SIM/echelon unit classes map onto VR-Forces DIS objectTypes. See VrfSettings.TypeMappingMode.

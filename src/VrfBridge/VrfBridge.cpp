@@ -359,6 +359,12 @@ public:
     void SetTarget(String^ uuid, String^ targetUuid) {
         _facade->SetTarget(ToStd(uuid), ToStd(targetUuid));
     }
+    // Compose-from-members: attach an existing child (entity or aggregate) under an existing
+    // superior aggregate (vendor sample commandLineRemoteController.cxx:1550). Used to build a
+    // company aggregate from its declared child platoons.
+    void AddToOrganization(String^ childUuid, String^ superiorUuid) {
+        _facade->AddToOrganization(ToStd(childUuid), ToStd(superiorUuid));
+    }
     void SetRulesOfEngagement(String^ uuid, Roe roe) {
         _facade->SetRulesOfEngagement(ToStd(uuid), ToNative(roe));
     }

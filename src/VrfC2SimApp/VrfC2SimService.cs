@@ -162,6 +162,27 @@ public sealed class VrfC2SimService : BackgroundService
     private readonly record struct CreatedUnit(string Name, string SymbolId, bool IsAggregate,
                                                int Domain, string AutoFormation);
 
+    // ============ COMPOSE-FROM-CHILDREN (Vrf:ComposeHierarchy) ============
+    // Build a PARENT aggregate (e.g. a company) from its DECLARED C2SIM child units instead of a
+    // generic template, following MAK's own sample (commandLineRemoteController.cxx:717-775 build,
+    // :1520-1554 attach): the parent is created as an EMPTY shell (createSubordinates=false) and
+    // each declared child is attached via AddToOrganization once BOTH the parent and the child
+    // exist. All state below is registered at init (before any create is enqueued) and then read/
+    // mutated ONLY on the tick thread (OnVrfObjectCreated + the ExpireCompositions sweep), so the
+    // registration happens-before every arrival and no extra locking is needed.
+    private sealed class PendingComposition
+    {
+        public string ParentName = "";
+        public List<string> ExpectedChildNames = new();      // DECLARED order (fixes leader/echelon, UG52 18.1.1)
+        public readonly Dictionary<string, string> ArrivedChildVrfUuid = new(); // child name -> VRF uuid
+        public string ParentVrfUuid = "";                    // set when the parent shell is created ("" until then)
+        public DateTime Deadline;                            // past this, attach the arrived subset + warn
+        public bool Done;
+    }
+    private readonly ConcurrentDictionary<string, PendingComposition> _compositions = new();   // parent name -> composition
+    private readonly ConcurrentDictionary<string, string> _childToParent = new();               // child name -> parent name
+    private readonly ConcurrentDictionary<string, TaskCompletionSource> _compositionReady = new(); // parent name -> children attached
+
     public VrfC2SimService(ILoggerFactory loggerFactory, IConfiguration config,
                            IHostApplicationLifetime life)
     {
@@ -416,6 +437,7 @@ public sealed class VrfC2SimService : BackgroundService
             try { _bridge.Tick(); }
             catch (Exception e) { _log.LogError("Tick failed: {Msg}", e.Message); }
             if (!_pendingTerrain.IsEmpty) ExpireTerrainRequests();
+            if (!_compositions.IsEmpty) ExpireCompositions();
             Thread.Sleep(50);
         }
     }
@@ -537,6 +559,9 @@ public sealed class VrfC2SimService : BackgroundService
         var proxiesToReport = new List<(string Uuid, string Name, string Marking, string Substitution)>();
         var toCreate = new List<CreationPlan>();   // collected, then (optionally) de-stacked, then enqueued
         var placements = new List<PlacementInput>();   // index-parallel to toCreate (see PlacementInput)
+        // Index-parallel to toCreate: (this unit's C2SIM uuid, its declared Superior uuid) - the raw
+        // material for Vrf:ComposeHierarchy parent/child classification (ApplyHierarchyComposition).
+        var hierarchy = new List<(string Uuid, string SuperiorUuid)>();
         foreach (var u in init.Units)
         {
             if (string.IsNullOrEmpty(u.Uuid)) continue;
@@ -700,8 +725,17 @@ public sealed class VrfC2SimService : BackgroundService
 
             toCreate.Add(plan);
             placements.Add(new PlacementInput(domain, unit.AltitudeAgl, unit.AltitudeMsl));
+            hierarchy.Add((unit.Uuid, (unit.SuperiorUuid ?? "").Trim()));
             planned++;
         }
+
+        // COMPOSE-FROM-CHILDREN (Vrf:ComposeHierarchy): classify parent/child/leaf from the declared
+        // Superior chain, flip PARENT aggregate plans to createSubordinates=false (empty shell), and
+        // register the compositions so OnVrfObjectCreated attaches each declared child once created
+        // (vendor-sample recipe). Runs BEFORE de-stack/terrain/enqueue: it rewrites toCreate entries
+        // in place and needs the full survivor set. Index-parallel with `hierarchy`.
+        if (_vrf.ComposeHierarchy && toCreate.Count > 0)
+            ApplyHierarchyComposition(toCreate, hierarchy);
 
         // R8 (opt-in, docs/UNIT_MOVEMENT_RESEARCH.md sec 4): spread units that share
         // identical init coordinates onto deterministic rings BEFORE creating them -
@@ -797,10 +831,149 @@ public sealed class VrfC2SimService : BackgroundService
             {
                 if (p.IsAggregate)
                     _bridge.CreateAggregate(p.Type, p.Pos, p.Force, p.HeadingDeg, p.Name,
-                                            AggregateState.Disaggregated, true);
+                                            AggregateState.Disaggregated, p.CreateSubordinates);
                 else
                     _bridge.CreateEntity(p.Type, p.Pos, p.Force, p.HeadingDeg, p.Name);
             });
+        }
+    }
+
+    // ============ COMPOSE-FROM-CHILDREN (Vrf:ComposeHierarchy) ============
+    // See PendingComposition (fields) and docs/experiments/PREREG_COMPOSE_A_2026-09-05.md. The
+    // vendor-sample recipe (commandLineRemoteController.cxx:717-775 build, :1520-1554 attach):
+    // create the PARENT as an empty shell, create the members, then AddToOrganization in the
+    // object-created callback once both exist; then task the parent (VR-Forces recurses).
+
+    /// <summary>
+    /// Classify each planned unit as PARENT / CHILD / LEAF from the declared C2SIM Superior chain,
+    /// flip PARENT aggregates to an EMPTY shell (CreateSubordinates=false), and register a
+    /// PendingComposition per parent. `hierarchy` is index-parallel to `plans` ((uuid, superiorUuid)).
+    /// Mutates `plans` in place. Runs at init BEFORE any create is enqueued (happens-before arrivals).
+    /// </summary>
+    private void ApplyHierarchyComposition(List<CreationPlan> plans, List<(string Uuid, string SuperiorUuid)> hierarchy)
+    {
+        if (plans.Count != hierarchy.Count)
+        {
+            _log.LogError("ComposeHierarchy: plans/hierarchy length mismatch ({P} vs {H}) - skipping.",
+                          plans.Count, hierarchy.Count);
+            return;
+        }
+        var survivorUuids = new HashSet<string>(
+            hierarchy.Select(h => h.Uuid).Where(u => !string.IsNullOrEmpty(u)));
+        // A unit is a PARENT iff some SURVIVING unit names it as Superior.
+        var parentUuids = new HashSet<string>(
+            hierarchy.Where(h => !string.IsNullOrEmpty(h.SuperiorUuid) && survivorUuids.Contains(h.SuperiorUuid))
+                     .Select(h => h.SuperiorUuid));
+        if (parentUuids.Count == 0) return;   // flat init - nothing to compose
+
+        var parentName = new Dictionary<string, string>();   // parentUuid -> parent plan name (survivor aggregates only)
+        for (int i = 0; i < plans.Count; i++)
+        {
+            string uuid = hierarchy[i].Uuid, name = plans[i].Name;
+            if (!parentUuids.Contains(uuid)) continue;
+            if (!plans[i].IsAggregate)
+            {
+                _log.LogWarning("ComposeHierarchy: {Name} has declared children but is NOT an aggregate - " +
+                                "cannot compose; created as-is, its children become standalone.", name);
+                parentUuids.Remove(uuid);
+                continue;
+            }
+            parentName[uuid] = name;
+            plans[i] = plans[i] with { CreateSubordinates = false };   // EMPTY shell - no template phantom
+        }
+
+        // parentUuid -> ordered child names (declared/init order fixes the leader/echelon, UG52 18.1.1)
+        var childrenByParent = new Dictionary<string, List<string>>();
+        for (int i = 0; i < plans.Count; i++)
+        {
+            string sup = hierarchy[i].SuperiorUuid;
+            if (string.IsNullOrEmpty(sup) || !parentUuids.Contains(sup)) continue;
+            if (!childrenByParent.TryGetValue(sup, out var list)) childrenByParent[sup] = list = new List<string>();
+            list.Add(plans[i].Name);
+        }
+
+        var deadline = DateTime.UtcNow.AddSeconds(Math.Max(1, _vrf.CompositionTimeoutSeconds));
+        foreach (var kv in childrenByParent)
+        {
+            if (!parentName.TryGetValue(kv.Key, out var pName)) continue;  // parent not a survivor aggregate
+            _compositions[pName] = new PendingComposition
+            {
+                ParentName = pName, ExpectedChildNames = kv.Value, Deadline = deadline
+            };
+            _compositionReady[pName] = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            foreach (var c in kv.Value) _childToParent[c] = pName;
+            _log.LogInformation("ComposeHierarchy: {Parent} -> EMPTY shell; will attach {N} declared child unit(s) " +
+                                "[{Children}] via AddToOrganization once created.",
+                                pName, kv.Value.Count, string.Join(", ", kv.Value));
+        }
+    }
+
+    /// <summary>Tick-thread: a VR-Forces object was just created; advance any composition it belongs
+    /// to (as the parent shell and/or as a declared child).</summary>
+    private void TryAdvanceComposition(string name, string vrfUuid)
+    {
+        if (_compositions.TryGetValue(name, out var asParent))   // `name` is a parent shell
+        {
+            asParent.ParentVrfUuid = vrfUuid;
+            AttachIfComplete(asParent);
+        }
+        if (_childToParent.TryGetValue(name, out var parentOfChild)
+            && _compositions.TryGetValue(parentOfChild, out var comp))   // `name` is a declared child
+        {
+            comp.ArrivedChildVrfUuid[name] = vrfUuid;
+            AttachIfComplete(comp);
+        }
+    }
+
+    private void AttachIfComplete(PendingComposition comp)
+    {
+        if (comp.Done || string.IsNullOrEmpty(comp.ParentVrfUuid)) return;         // parent shell not created yet
+        if (comp.ArrivedChildVrfUuid.Count < comp.ExpectedChildNames.Count) return; // wait for all children
+        FinishComposition(comp, timedOut: false);
+    }
+
+    /// <summary>Attach the arrived children (declared order) under the parent shell and signal ready.
+    /// Runs on the tick thread (AddToOrganization is a bridge call).</summary>
+    private void FinishComposition(PendingComposition comp, bool timedOut)
+    {
+        if (comp.Done) return;
+        comp.Done = true;
+        if (string.IsNullOrEmpty(comp.ParentVrfUuid))
+        {
+            _log.LogError("ComposeHierarchy: parent shell {Parent} was never created within {T}s - children " +
+                          "cannot be attached; its task will drop.", comp.ParentName, _vrf.CompositionTimeoutSeconds);
+        }
+        else
+        {
+            int attached = 0;
+            foreach (var childName in comp.ExpectedChildNames)   // DECLARED order: first = leader (UG52 18.1.1)
+            {
+                if (comp.ArrivedChildVrfUuid.TryGetValue(childName, out var childUuid))
+                {
+                    _bridge.AddToOrganization(childUuid, comp.ParentVrfUuid);
+                    attached++;
+                }
+                else
+                    _log.LogWarning("ComposeHierarchy: child {Child} of {Parent} never created within {T}s - " +
+                                    "attaching without it.", childName, comp.ParentName, _vrf.CompositionTimeoutSeconds);
+            }
+            _log.LogInformation("ComposeHierarchy: {Parent} composed - {N}/{M} declared children attached{TO}.",
+                                comp.ParentName, attached, comp.ExpectedChildNames.Count, timedOut ? " (TIMED OUT)" : "");
+        }
+        _compositions.TryRemove(comp.ParentName, out _);
+        if (_compositionReady.TryGetValue(comp.ParentName, out var tcs)) tcs.TrySetResult();
+    }
+
+    /// <summary>Tick-thread sweep (mirrors ExpireTerrainRequests): a composition past its deadline is
+    /// finished from whatever children arrived, so a never-created child cannot hang the parent's tasks.</summary>
+    private void ExpireCompositions()
+    {
+        var now = DateTime.UtcNow;
+        foreach (var kv in _compositions)
+        {
+            if (kv.Value.Done) { _compositions.TryRemove(kv.Key, out _); continue; }
+            if (kv.Value.Deadline > now) continue;
+            FinishComposition(kv.Value, timedOut: true);
         }
     }
 
@@ -1044,6 +1217,22 @@ public sealed class VrfC2SimService : BackgroundService
                     _sequencer.NotifyAbandoned(task.TaskUuid); // successors fail fast
                     return;
                 }
+            }
+            // COMPOSE-FROM-CHILDREN: a composed PARENT (e.g. a company) is tasked only AFTER its
+            // declared children are attached (AddToOrganization), else the move would drive an empty
+            // shell. _compositionReady is signalled by FinishComposition on success OR on the
+            // ExpireCompositions timeout, so this await always completes within CompositionTimeoutSeconds
+            // of init; the generous bound is a backstop only.
+            if (_vrf.ComposeHierarchy && _compositionReady.TryGetValue(unit.Name, out var readyTcs)
+                && !readyTcs.Task.IsCompleted)
+            {
+                var composeBound = TimeSpan.FromSeconds(_vrf.CompositionTimeoutSeconds + 30);
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(_stoppingToken);
+                var done = await Task.WhenAny(readyTcs.Task, Task.Delay(composeBound, cts.Token));
+                if (done == readyTcs.Task) cts.Cancel();   // stop the timer
+                else
+                    _log.LogWarning("Task '{Task}': composition of {Name} not signalled within {T}s - dispatching " +
+                                    "anyway (move may drive an incomplete unit).", task.TaskName, unit.Name, composeBound.TotalSeconds);
             }
             _tickActions.Enqueue(() => ExecuteTaskOnTick(task, unit));
         }
@@ -1558,6 +1747,13 @@ public sealed class VrfC2SimService : BackgroundService
         if (!string.IsNullOrEmpty(e.Name))
             _vrfUuidByName[e.Name] = e.Uuid;
         _log.LogDebug("VRF created {Name} -> {Uuid}", e.Name, e.Uuid);
+
+        // COMPOSE-FROM-CHILDREN (Vrf:ComposeHierarchy): attach declared children under their parent
+        // shell once both exist (vendor sample commandLineRemoteController.cxx:1520-1554). This
+        // callback runs on the tick thread, so the AddToOrganization bridge call inside is safe.
+        if (_vrf.ComposeHierarchy && !string.IsNullOrEmpty(e.Name)
+            && (_compositions.ContainsKey(e.Name) || _childToParent.ContainsKey(e.Name)))
+            TryAdvanceComposition(e.Name, e.Uuid);
 
         // Apply any deferred SetAltitude now that we have the uuid. This callback
         // already runs on the tick thread, so the bridge call is safe here.
