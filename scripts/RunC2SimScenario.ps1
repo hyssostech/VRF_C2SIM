@@ -2284,6 +2284,15 @@ try {
             4 { Stop-Runner 3 'LaunchVrf exited 4 BLOCKED - the front-end has no main window, i.e. a modal dialog is waiting. Nothing force-killed.' }
             default { Stop-Runner 3 ('LaunchVrf exited {0} - undocumented code.' -f $r.ExitCode) }
         }
+        # BACK-END PID for the mid-run liveness check (2026-09-06: COA-STP1 run 2's sim died in
+        # the DI-Guy controller 3 min after READY and the runner waited the full 180 s oracle gate
+        # before failing for the wrong reason). LaunchVrf52 prints "back-end started (pid N)".
+        $BackendPid = $null
+        if (Test-Path -LiteralPath $PathLaunchOut -PathType Leaf) {
+            $pm = [regex]::Match((Get-Content -LiteralPath $PathLaunchOut -Raw), 'back-end started \(pid (\d+)\)')
+            if ($pm.Success) { $BackendPid = [int]$pm.Groups[1].Value; Say-Ok ('back-end pid {0} (liveness is checked while the run waits)' -f $BackendPid) }
+            else { Say-Warn 'back-end pid not found in the launch output - the mid-run liveness check is OFF for this run.' }
+        }
         # THE HARVESTED BACK-END LOG (5.2 only). The launcher does not pass --logFileName - it
         # copies the vendor's own log for the back-end pid instead - and says so in one marker
         # line, which is where the manifest's path comes from. Read AFTER the exit-code switch,
@@ -2545,6 +2554,13 @@ try {
             $gate = Get-RealPositions -TraceText $traceText
             if ($gate.RealCount -gt 0) { break }
             if ((Get-Date) -ge $deadline) { break }
+            # Mid-run liveness: a back-end that has DIED cannot produce a real coordinate; fail now,
+            # with the right reason, instead of waiting out the gate (its crash record is the
+            # newest C:\MAK\logs\vrfSimHLA1516e5.2d-*.callstack.log + .dmp - sharable; the .log is not).
+            if ($BackendPid -and -not (Get-Process -Id $BackendPid -ErrorAction SilentlyContinue)) {
+                $cs = Get-ChildItem -Path 'C:\MAK\logs' -Filter 'vrfSimHLA1516e5.2d-*.callstack.log' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+                Stop-Runner 3 ('BACK-END pid {0} DIED during the oracle-gate wait (not a gate result). Newest crash record: {1}. Read its callstack before anything else; the harvested .log holds the environment and is NOT for sharing.' -f $BackendPid, $(if ($cs) { $cs.FullName } else { '(none found in C:\MAK\logs)' }))
+            }
             Say-Info ('  no real coordinate yet - {0}' -f $(if (Get-TraceSummaryLine -TraceText $traceText) { Get-TraceSummaryLine -TraceText $traceText } else { 'no samples yet' }))
             Start-Sleep -Seconds 5
         }

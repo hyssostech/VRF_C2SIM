@@ -105,6 +105,31 @@ successors skipped upstream), 0 completed, 0 TASKCMPLT, all 11 taskees net_km 0.
 wall, subRoutes {} - nothing moved. sim_ratio: 3 samples (no task narrative on any console),
 so the scale ratio is NOT measured by run 1. The tasked units' consoles are read in sec 4a.
 
+### 4a. The nine tasked units, in the sim's words (console level 4 on the UNITS; members at
+the vendor default by design, so no per-member narrative in this run)
+All nine received their task at wall t=113 s (sim time 4.47-4.63 s at that moment - the sim
+clock was ~110 s wall behind: Run() was queued at init dispatch, ~t=85). Three companies
+(B/5-20, 856/HHC, C/1-35 - the empty shells of the expired compositions) started
+`move-into-formation` (keep-existing-formation) and then said nothing more for 2,600 s: a
+formation with no members never becomes valid (the C1b gate with zero subordinates). Six
+BN-echelon units (4-27/2/1_A, 40/2/1_AD, 5-20/2/1_A, 1-35/2/1_A, 1-6/2/1_AD - the RealTemplates
+11.1.225.5.20.0.0 aggregates - and 1-1/2/1_AD via `base-system.movement.move-along`, an
+ENTITY controller) started `maneuver-along` and then said nothing more either; net 0.00 km.
+What their type resolved to in the 5.2 catalog is checked in sec 4b. The platoon-level
+sub-unit consoles (the expanded TANK/HQ shells' children) carried ~8,600 "Subordinate ...
+maintain-speed" rows through t=575, so the sim clock was running; its RATE at this load is
+not measured (no sim-stamped task lines after t=113) - run 2's composed members will stamp it.
+
+### 4b. Why the RealTemplates BN units could not move (read from the catalog, not inferred)
+RealTemplates emits 11.1.225.5.20.0.0 for a BN. The only 5.2 EntityLevel template in that
+family is `aggregate-Company-HQ-Friendly.entity`, objectType 11:1:225:5:20:1:0 with an EXACT
+matchType 11:1:225:5:20:1:0 (no wildcard) - 5:20:0:0 matches nothing, so the sim built a
+subordinate-less abstract aggregate: `maneuver-along` on zero members, silent forever. On
+5.0.2 (C2simEx.sms) the same type resolved to a populated template; on 5.2 it does not. This
+is RealTemplates-specific and moot under FidelityTable (BN -> HQ-section CP proxy), but it is
+one more reason the 5.2 profile must run the table: RealTemplates on 5.2 silently creates
+EMPTY units for every BN. Recorded for the DEMO defaults (appsettings.Demo.json: FidelityTable).
+
 ## 5. Run 2 - registered 2026-09-06 (after run 1's teardown; build carries the fixes)
 Config = run 1 + `Vrf__TypeMappingMode=FidelityTable` (the type-map live gate, at last) +
 `Vrf__TerrainProfileTimeoutSeconds=30` + the activity-based composition deadline +
@@ -124,6 +149,89 @@ Predictions (H unless marked):
 - P3/P4 of sec 3 apply to run 2 as written; sim/wall ratio measured by sim_ratio.py.
 - RISK carried: the "(Deprecated)" platoon templates (gui-can-create=False, 22 units) - a
   remote create that fails shows as those names never reaching ObjectCreated (counted).
+### 6. Run 2 result - 20260906T183612Z: THE SIM CRASHED at the first lifeform (STOP)
+Runner exit 3 (oracle gate: 761 POS rows, 36 uuids, 0 with a real coordinate). The mode took
+effect ("Type-mapping mode = FidelityTable (123 rows ...)", 28 Exact + 100 Proxy TYPE MAP
+lines, 33 EXPAND, 61 MIXED-template lines, terrain reply for 255 points inside the 30 s). The
+app received 35 ObjectCreated - all 35 CONTROL AREAS - and not one unit. The sim's own crash
+record (C:\MAK\logs\vrfSimHLA1516e5.2d-20260906-143636-...callstack.log, sharable; the .dmp
+1.3 MB beside it; the main .log holds the environment and is NOT shared):
+```
+[objects]: DtLocalObjectManager::processCreateVrfObject() : created object named 2MTR/7154~PXY.FIRES2
+Error Code - 0xC0000005
+0x...: DtDiGuyController::determineInitialHandItem(504) in vrfmodel.dll
+0x...: DtDiGuyController::preFirstTickInit(608) in vrfmodel.dll
+0x...: DtSimComponent::timedTick(225) ... DtLocalObject::tick(3633) ... DtVrfCallbackQueue::runOne(598)
+```
+So: the first object whose members are DI-Guy HUMANS (a fires/mortar section synthesized from
+the mortar company's template) killed the 5.2d headless sim in the DI-Guy controller's first
+tick. Run 1 (RealTemplates: tank companies/platoons only) and every R9 run never created a
+lifeform; the fidelity table maps infantry / mortar / CSS / fire-support units to templates
+with human crews, so this is the first time our path instantiated one on any build.
+Adversarial review: competing hypothesis = a random 5.2 crash unrelated to lifeforms (the
+startup crash class of PREREG_52_CRASH_BISECT is --logFileName-triggered and happens BEFORE
+READY; this sim was READY, joined, and created 35 areas). The callstack is DI-Guy-specific and
+the last created object is a human-crewed sub-unit; a second run that crashes at a different
+non-lifeform object would falsify this. Verified: mode, counts, callstack, last object.
+Assumed: that ALL lifeform templates trigger it (only the first was reached).
+Also found: the runner did not notice the crash for 180 s (it waited for the oracle gate) -
+a mid-run back-end liveness check belongs in the runner (LIGHT).
+The compositions' "never created within 15s" lines are the correct behaviour of the new
+activity-based expiry when NOTHING is ever created (no ObjectCreated to keep them alive).
+Mitigation is decided from the docs (DI-Guy options), not guessed - sec 7.
+
+### 7. After the docs: no vrfSim switch disables DI-Guy; isolate first (run L1, registered)
+UG52: `--nodiguy` belongs to translationFileCreate.exe (Table 3, p111), NOT to vrfSim; vrfSim
+has only `--diGuyAnimationsFile` / `--diGuyCharacterDataFile` (Table 11) and vrfSim.mtl
+`diGuyAnimationsFile`; DI-Guy performance settings are GUI display settings (6.16). Per
+template: `di-guy-enabled` (the human .entity: True; the platoon aggregate: False) and
+`use-random-hand-item-upon-creation` (True on "Infantry Platoon (USA Army)" with an EMPTY
+`hand-items-for-random-selection` list; the human "USAR Sergeant M4": False, hand-item
+M4A1Carbine). Editing the catalog under C:\MAK is out (prohibited, and a fidelity change).
+RUN L1 (one variable vs run E 165015Z): the R9 Lean init under `Vrf__TypeMappingMode=
+FidelityTable`. Its SIDCs (SFGPUCIZ---D/E---) map to the deprecated mech-platoon template
+(4 IFVs + 3 infantry squads = ~12 DI-Guy humans per platoon), so this is the smallest possible
+"remote-created lifeform" test with a known 3/3 movement baseline, console level 4 on, R1 on.
+PREDICTIONS: (a) if the crash is general to remote-created lifeforms on 5.2d headless, the
+sim dies at the first squad's first tick with the same DtDiGuyController callstack, before any
+unit reaches ObjectCreated (runner exit 3, oracle gate); (b) if it runs, the units are created
+(mode line FidelityTable; PLACEMENT 6; MIXED-template lines for the platoons) and the
+crash is specific to something in run 2's object (the mortar/FA section) - then the next
+isolation is that single template. Either outcome is a STOP for the scale run until the
+lifeform path is safe; a crash with this minimal reproduction + callstack is MAK-ticket
+material (the user's call - the licence is a demo one).
+Internet check 2026-09-06 (research bias): docs.mak.com/support lists VR-Forces release notes
+up to 5.2 only (no 5.2.1 / 5.3, no "known issues" document); web search for the callstack
+symbol returns nothing VR-Forces-related. No vendor fix to cite.
+
+RUN L1 RESULT - 20260906T184832Z: CRASH, prediction (a). Mode FidelityTable took effect; the
+four platoons hit "Mechanized Platoon (USA) IFV (Deprecated)" (three via key (a): the init's
+declared 3:11:1:225:3:4:0:0 is honoured; 1222 via SIDC), the MIXED-template guard logged all
+four; 5 PLACEMENT lines went out, 0 ObjectCreated ever returned, WatchVrf saw 0 real
+coordinates, and C:\MAK\logs got a new .dmp + .callstack.log for the sim's pid (119160) with
+the IDENTICAL frames: 0xC0000005 in DtDiGuyController::determineInitialHandItem(504) <-
+preFirstTickInit(608) <- DtSimComponent::timedTick. So a 6-unit init with ~48 DI-Guy humans
+kills the 5.2d headless sim exactly like the 128-unit one: the crash is GENERAL to remote-
+created lifeform templates, at least for this template.
+Catalog discriminator (read, not inferred): the deprecated chain's squads/fire teams are
+"(Deprecated)" templates; the current "Infantry Platoon (USA Army)" chain resolves every human
+to a DI-Guy entity with an explicit hand-item (US_Army_M4 'M4A1Carbine', US_Army_M249
+'M249SAW', US_Army_M16-M203 'M16_M203', US_Army_M240, US_Army_Javelin 'javelin'; the squad
+aggregates carry use-random-hand-item-upon-creation=True with an EMPTY selection list). The
+crashing frame is determineInitialHandItem, so "deprecated humans with no resolvable hand
+item" vs "any DI-Guy human" is the next split.
+RUN L2 (registered): data/L2_Infantry_Initialization.xml = the R9 Lean init with every
+SISOEntityType zeroed (so key (a) cannot re-select the deprecated type) and SIDCs
+SFGPUCI----D/E--- -> F-UCI-D/E "Infantry Platoon (USA Army)" (EXACT/PROXY), BdeHQ -> F-GEN-H
+M577. One variable vs L1: the lifeform TEMPLATE (current vs deprecated). PREDICTIONS:
+(a) L2 runs (units created, the four platoons walk the R9 routes, 114.MechCoy composed 3/3)
+-> the trigger is the deprecated humans' hand item; FIX = the type map must not reference
+"(Deprecated)" templates (rows F-UCIZ-D/E, H-UCIZ-D/E/F, H-GEN-B -> the current equivalents),
+a fidelity-neutral change the vendor's own deprecation supports; (b) L2 crashes with the same
+frames -> every DI-Guy lifeform crashes the 5.2d headless sim under remote create; then the
+lifeform rows need an interim vehicle-only proxy (a fidelity regression = user ruling) and the
+minimal repro + callstack + .dmp go to MAK (user's call).
+
 - Run 2 is also the TYPE-MAP LIVE GATE on 5.2 (PREREG_TYPEMAP_LIVE_GATE_2026-09-02, registered
   for 5.0.2 and never run there): its safety properties apply verbatim - P2 no generic / empty
   unit created (a Country-0 or zero-subordinate abstract is a STOP); P3 the mode line proves
