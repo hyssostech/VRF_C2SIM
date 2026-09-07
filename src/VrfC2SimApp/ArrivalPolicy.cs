@@ -42,8 +42,9 @@ public static class ArrivalPolicy
         int within = distances.Count(d => d <= radiusMeters);
         double nearest = distances.Min();
         // "more than the fraction" of ALL members (unreadable members count against arrival):
-        // with fraction 0.5 and 6 members, 4 within arrive, 3 do not.
-        bool arrived = within > fraction * totalMembers;
+        // with fraction 0.5 and 6 members, 4 within arrive, 3 do not. fraction >= 1.0 means ALL
+        // members (a strictly-greater test could never hold there - review wf_62e5bdf7).
+        bool arrived = fraction >= 1.0 ? within >= totalMembers : within > fraction * totalMembers;
         return new Decision(arrived, within, totalMembers, nearest);
     }
 }
@@ -72,6 +73,10 @@ public static class ArrivalSelfTest
         Check("fraction 0.75 with 4 of 4 -> arrived (4 > 3)", d.Arrived);
         d = ArrivalPolicy.Decide(new double[] { 100, 100, 100, 900 }, 4, 500, 0.75);
         Check("fraction 0.75 with 3 of 4 -> NOT arrived (3 is not > 3)", !d.Arrived);
+        d = ArrivalPolicy.Decide(new double[] { 100, 100, 100, 100 }, 4, 500, 1.0);
+        Check("fraction 1.0 (ALL) with 4 of 4 -> arrived", d.Arrived);
+        d = ArrivalPolicy.Decide(new double[] { 100, 100, 100, 900 }, 4, 500, 1.0);
+        Check("fraction 1.0 (ALL) with 3 of 4 -> NOT arrived", !d.Arrived);
         Console.WriteLine(fails == 0 ? "arrival-selftest: ALL CHECKS PASSED" : $"arrival-selftest: {fails} FAILED");
         return fails == 0 ? 0 : 1;
     }

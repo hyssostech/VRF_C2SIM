@@ -99,6 +99,11 @@ def main():
                 m = re.search(r'VRF task complete: (.+?) / ', line)
                 if m:
                     cmplt.add(m.group(1).strip())
+            elif 'ARRIVAL EVIDENCE:' in line:
+                # the interface's own completion (C15): counts as a completion for the unit
+                m = re.search(r"ARRIVAL EVIDENCE: (.+?) task '", line)
+                if m:
+                    cmplt.add(m.group(1).strip())
     if not members:
         print('no member map in the app log (member console level must be >= 0)')
         return 1

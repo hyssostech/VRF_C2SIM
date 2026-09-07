@@ -142,6 +142,27 @@ vehicle types never arrived) and by net movement of metres over 15 minutes; it h
 one CLOSING case, which the majority rule handles without waiting for it. Verified: all
 numbers from the trace and the app log. Assumed: none.
 
+REVIEW OF THE ARRIVAL-EVIDENCE CODE (workflow wf_62e5bdf7, 37 agents, 3 lenses x 2
+verifiers; 14 findings, 9 distinct, all fixed before the P9 run): BLOCKER - the new
+unknown-switch guard refused the runner's own --contentRoot=<dir> host argument (host
+switches "--Key=Value" now pass; a bare unknown switch is still refused); the swallow flag
+was cleared when a successor was MARKED (CreateRoute) instead of when its VR-Forces command
+is ISSUED (now cleared at the synchronous bridge calls, in the route-created callback, and in
+IssueEngage - a deferred engage's own completion was being swallowed and left the unit BUSY);
+the R10 fan-out (opt-in) would have emitted a second empty-uuid TASKCMPLT (the fan-out is
+marked synthesized under the task uuid before the evidence completion); ArrivalMemberFraction
+1.0 could never fire (>= all); "arrival-evidence" as a task type tripped the attribution-
+anomaly warning (empty type now); the scorers (movement_check.py, straggler_track.py) key on
+"VRF task complete" and now count ARRIVAL EVIDENCE lines and un-count swallowed vendor
+completions. ACCEPTED AS THE RULING'S TOLERANCE (split vote): a move whose destination is
+within 500 m of the unit at dispatch reports complete ~30 s later without moving - the
+COA-STP1 order chains seven successors at 0 m from their predecessor's destination
+(T40->T41->T42 ...), which is exactly what lets a unit with a stuck straggler progress; an
+"must have left the radius first" gate would stall those chains for good. Non-findings: inert
+with ArrivalCompletion=false; the company's members ARE vehicles (GetAggregateMembers
+recurses, depth 3); tick cost is local lookups; the vendor callback and the check share the
+tick thread (no race); -StopWhenComplete's closing rule is unchanged.
+
 ## 4. Results
 Run 20260907T003457Z (launched 00:35Z on the deployed build 7ac70c9). RUNNER INCIDENT: the
 runner process exited with code 9 at ~t = 590 s of the window with no Stop-Runner message;

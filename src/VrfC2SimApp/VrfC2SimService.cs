@@ -1849,6 +1849,7 @@ public sealed class VrfC2SimService : BackgroundService
                 _bridge.SetRulesOfEngagement(vrfUuid, escortRoe);
                 MarkDispatched(task, unit, "follow");
                 _bridge.FollowEntity(vrfUuid, follow);
+                _arrivalReported.TryRemove(unit.Name, out _);   // the new VRF task is issued: its completion is its own
                 _log.LogInformation("ESCRT task '{Task}': FollowEntity {Vrf} -> {Tgt} (escort; no route).",
                                     task.TaskName, vrfUuid, follow);
                 return;
@@ -1899,6 +1900,7 @@ public sealed class VrfC2SimService : BackgroundService
             {
                 MarkDispatched(task, unit, "fire");
                 _bridge.FireAtTarget(vrfUuid, attackTargetVrf);
+                _arrivalReported.TryRemove(unit.Name, out _);
                 _log.LogInformation("ATTACK task '{Task}': no route points; FireAtTarget {Vrf} -> {Tgt} (engage in place).",
                                     task.TaskName, vrfUuid, attackTargetVrf);
                 return;
@@ -1907,6 +1909,7 @@ public sealed class VrfC2SimService : BackgroundService
             {
                 MarkDispatched(task, unit, "breach");
                 _bridge.Breach(vrfUuid, breachTargetVrf);
+                _arrivalReported.TryRemove(unit.Name, out _);
                 _log.LogInformation("BREACH task '{Task}': no route points; Breach {Vrf} -> {Tgt} (breach in place).",
                                     task.TaskName, vrfUuid, breachTargetVrf);
                 return;
@@ -1989,6 +1992,7 @@ public sealed class VrfC2SimService : BackgroundService
             double headingDeg = BearingDeg(routeGeo[0], dest);
             MarkDispatched(task, unit, "move-into-formation", dest);
             _bridge.MoveIntoFormation(vrfUuid, dest, headingDeg, _vrf.MoveIntoFormation);
+            _arrivalReported.TryRemove(unit.Name, out _);
             _log.LogInformation("Task '{Task}': MoveIntoFormation for AGGREGATE {Name} ({Vrf}) -> " +
                                 "{Lat}/{Lon} formation '{Form}' hdg {Hdg:F0}deg (Unit 4; {N} route pts -> destination).",
                                 task.TaskName, unit.Name, vrfUuid, dest.LatDeg, dest.LonDeg,
@@ -2013,6 +2017,7 @@ public sealed class VrfC2SimService : BackgroundService
             string wptName = task.TaskName + " WPT";
             var wptQueue = _pendingRouteTasks.GetOrAdd(wptName, _ => new ConcurrentQueue<PendingRouteTask>());
             wptQueue.Enqueue(new PendingRouteTask(vrfUuid, Patrol: false, PlanMove: true));
+            _pendingRouteUnit[wptName] = unit.Name;   // the arrival swallow clears when the VRF task is issued (route-created)
             MarkDispatched(task, unit, "plan-move", routeGeo[^1]);
             if (attackTargetVrf != null)
                 DeferEngageUntilMoveCompletes(unit, task, "fire", vrfUuid, attackTargetVrf);
@@ -2059,6 +2064,7 @@ public sealed class VrfC2SimService : BackgroundService
         {
             MarkDispatched(task, unit, "move-to", routeGeo[^1]);
             _bridge.MoveToLocation(vrfUuid, routeGeo[^1]);
+            _arrivalReported.TryRemove(unit.Name, out _);
             _log.LogInformation("Task '{Task}': MoveToLocation for {Name} ({Vrf}).",
                                 task.TaskName, unit.Name, vrfUuid);
             // Layer 2 + P0.3: engage/breach AFTER the move COMPLETES (same-tick issue would
@@ -2104,6 +2110,7 @@ public sealed class VrfC2SimService : BackgroundService
                                 task.TaskName, unit.Name, vrfUuid);
         }
         routeQueue.Enqueue(new PendingRouteTask(vrfUuid, patrol, FanOutMembers: fanOutMembers));
+        _pendingRouteUnit[routeName] = unit.Name;   // the arrival swallow clears when the VRF task is issued (route-created)
         // The unit is committed to this move now (the route-created callback issues the
         // along-route task); record it so the completion attributes here (P0.1) and any
         // engage below gates on it (P0.3).
@@ -2142,9 +2149,11 @@ public sealed class VrfC2SimService : BackgroundService
     /// </summary>
     private void MarkDispatched(OrderTask task, CreatedUnit unit, string kind, Geodetic? dest = null)
     {
-        // A new task for this unit: a vendor completion arriving later belongs to IT, never to a
-        // task already reported from arrival evidence (see OnVrfTaskCompleted's swallow).
-        _arrivalReported.TryRemove(unit.Name, out _);
+        // NOTE (review wf_62e5bdf7): the arrival-evidence swallow flag is NOT cleared here - it is
+        // cleared where the replacing VR-Forces command is actually ISSUED (the synchronous bridge
+        // calls below, the route-created callback for deferred kinds, IssueEngage), because a
+        // deferred kind's old task keeps running until then and its late completion must still
+        // be swallowed.
         var superseded = _inFlight.RecordDispatch(unit.Name,
             new InFlightTracker.InFlight(task.TaskUuid, task.TaskName, kind, DateTime.UtcNow,
                                          dest?.LatDeg, dest?.LonDeg));
@@ -2230,6 +2239,9 @@ public sealed class VrfC2SimService : BackgroundService
         {
             if (eng.Kind == "breach") _bridge.Breach(eng.TaskeeVrf, eng.TargetVrf);
             else _bridge.FireAtTarget(eng.TaskeeVrf, eng.TargetVrf);
+            // The engage replaces the move in VR-Forces: the next completion is the ENGAGE's and must
+            // attribute (review wf_62e5bdf7) - drop any arrival-evidence swallow for this unit.
+            _arrivalReported.TryRemove(unitName, out _);
         });
         _log.LogInformation("{Kind} {Vrf} -> {Tgt} issued (task '{Task}').",
                             eng.Kind == "breach" ? "BREACH: Breach" : "ATTACK: FireAtTarget",
@@ -2368,6 +2380,10 @@ public sealed class VrfC2SimService : BackgroundService
         if (!string.IsNullOrEmpty(e.Name) && _pendingRouteTasks.TryGetValue(e.Name, out var routeQueue)
             && routeQueue.TryDequeue(out var pending))
         {
+            // The replacing VR-Forces task is issued in this block (same tick action): from here on a
+            // vendor completion for this unit belongs to the NEW task - drop the arrival-evidence swallow.
+            if (_pendingRouteUnit.TryRemove(e.Name, out var issuedForUnit))
+                _arrivalReported.TryRemove(issuedForUnit, out _);
             if (pending.Patrol)
             {
                 _bridge.PatrolRoute(pending.TaskeeVrfUuid, e.Uuid);
@@ -2426,6 +2442,7 @@ public sealed class VrfC2SimService : BackgroundService
     // releases the successors, issues a deferred engage). The vendor's own completion for that
     // task, if it ever comes, is swallowed once (OnVrfTaskCompleted).
     private readonly ConcurrentDictionary<string, string> _arrivalReported = new();   // unit name -> task uuid reported from evidence
+    private readonly ConcurrentDictionary<string, string> _pendingRouteUnit = new();  // route/waypoint name -> unit name (swallow cleared when its VRF task is issued)
     private DateTime _nextArrivalCheck = DateTime.MinValue;
 
     private void MaybeCheckArrivals()
@@ -2470,7 +2487,14 @@ public sealed class VrfC2SimService : BackgroundService
                                 "unit's own evidence (user ruling 2026-09-07); a later vendor completion is swallowed.",
                                 name, rec.TaskName, d.Within, d.Total, _vrf.ArrivalRadiusMeters, d.NearestMeters,
                                 (now - rec.DispatchedUtc).TotalSeconds);
-            SynthesizeUnitCompletion(name, "arrival-evidence");
+            // R10 fan-out (opt-in): mark the unit's fan-out synthesized under THIS task uuid so the
+            // later member completions and the straggler timer are swallowed by the tracker's own
+            // Synthesized state instead of emitting a second, empty-uuid TASKCMPLT.
+            _fanOut.TrySynthesizeByTimeout(name, rec.TaskUuid ?? "", out _, out _);
+            // No VRF completion callback on this path -> no VRF task type to sanity-check; empty =
+            // "can't tell" for KindLooksRight (no spurious attribution-anomaly warning). The
+            // provenance is the ARRIVAL EVIDENCE line above.
+            SynthesizeUnitCompletion(name, "");
         }
     }
 

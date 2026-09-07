@@ -266,6 +266,20 @@ def read_app_log(path):
                 else:
                     name, task_type = rest, ""
                 completed.setdefault(name.strip(), []).append(task_type.strip())
+            # C15 (2026-09-07): the interface's own completion from arrival evidence produces no
+            # 'VRF task complete' line; count its ARRIVAL EVIDENCE line as the completion, and
+            # un-count the vendor's later completion that the interface swallowed.
+            at = line.find("ARRIVAL EVIDENCE: ")
+            if at >= 0:
+                rest = line[at + len("ARRIVAL EVIDENCE: "):]
+                name = rest.split(" task '", 1)[0].strip()
+                if name:
+                    completed.setdefault(name, []).append("arrival-evidence")
+            at = line.find("VRF completion for ")
+            if at >= 0 and "after the arrival-evidence report" in line and "swallowed" in line:
+                name = line[at + len("VRF completion for "):].split(" after the arrival-evidence", 1)[0].strip()
+                if completed.get(name):
+                    completed[name].pop()
             if "SENT TASK STATUS REPORT (TASKCMPLT)" in line:
                 report_count += 1
             if "DROPPING TASK" in line:

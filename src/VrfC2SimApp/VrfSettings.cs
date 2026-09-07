@@ -185,7 +185,7 @@ public class VrfSettings
     // formations' half-length (members sit up to +/-430 m from the last vertex).
     public bool ArrivalCompletion { get; set; } = true;
     public double ArrivalRadiusMeters { get; set; } = 500.0;
-    public double ArrivalMemberFraction { get; set; } = 0.5;
+    public double ArrivalMemberFraction { get; set; } = 0.5;   // 1.0 = every member must be within the radius
     public double ArrivalCheckSeconds { get; set; } = 5.0;
     public double ArrivalMinSecondsSinceDispatch { get; set; } = 30.0;
 

@@ -68,12 +68,15 @@ if (args.Length > 0 && args[0] == "--arrival-selftest")
 // AN UNKNOWN "--..." SWITCH MUST NEVER START THE HOST (2026-09-07: an older build given a flag it
 // did not know fell through to here, joined the federation beside a running experiment for five
 // minutes and had to be killed). Only a bare start (no args) or host-builder args reach the host.
-if (args.Length > 0 && args[0].StartsWith("--") && args[0] != "--runtime-check")
+// Host-builder switches are "--Key=Value" (the runner starts the app with --contentRoot=<exe dir>,
+// RunC2SimScenario.ps1) and pass through; a bare unknown "--switch" is the incident's shape.
+if (args.Length > 0 && args[0].StartsWith("--") && args[0] != "--runtime-check" && !args[0].Contains('='))
 {
     Console.Error.WriteLine("VrfC2SimApp: unknown switch '" + args[0] + "' - NOT starting the host. Known: " +
                             "--translator/--report/--sequencer/--verb/--destack/--fanout/--typemap/--terrain/" +
                             "--placement/--compose/--arrival-selftest, --parse-init <file> [clientId], " +
-                            "--parse-order <file>, --runtime-check; no arguments = run the interface.");
+                            "--parse-order <file>, --runtime-check, host switches --Key=Value; " +
+                            "no arguments = run the interface.");
     return 2;
 }
 
