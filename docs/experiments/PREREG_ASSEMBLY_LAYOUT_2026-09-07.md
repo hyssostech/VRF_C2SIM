@@ -125,6 +125,17 @@ arrival evidence, majority within 500 m of the last vertex. Applied to THIS run'
 the rule would have reported 40/2/1_AD (5 of 6 within), 1-35/2/1_A (5 of 6), C/1-35 (17 of
 18) and, once the M1A2 closes, 5-20/2/1_A; it would NOT report 1-6/2/1_AD (leader alone) -
 the correct answer in every case. P9 (next run, new build) tests exactly that.
+CORRECTION FROM THE DESTINATION CHECK (straggler_track.py against each task's last point):
+at the 2,700 s cap the non-completing units were NOT yet at their destinations - centroid
+1.4 km (1-35), 1.8 km (40/2/1_AD), 7.6 km (5-20), 9.2 km (4-27), 9.8 km (1-1) and 29 km
+(C/1-35, 1-6) from the last vertex, 0 members within 500 m - while the two vendor-completed
+units sat 5-6 m from theirs with 4 of 4 members within 500 m. So in a 45-minute window the
+majorities had simply not arrived (legs of 24-33 km at ~20-29 km covered), and the stuck
+stragglers were behind units still en route; last night's 8-hour run is the evidence that
+the majorities DO arrive later and the straggler does not. P9 therefore needs a window in
+which majorities can arrive: RunSecs 4200 (70 min) for the verification run. The "arrival
+rule COMPLETE" column of the tool matched the two vendor completions exactly (4/4 within,
+5-6 m) - a first agreement check of the rule against the vendor's own verdicts.
 Adversarial review: the alternative reading "the stragglers are still coming and would
 complete given time" is refuted for the four STUCK ones by last night's 8-hour run (the same
 vehicle types never arrived) and by net movement of metres over 15 minutes; it holds for the
