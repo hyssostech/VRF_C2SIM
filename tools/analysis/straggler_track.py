@@ -40,7 +40,44 @@ def main():
     ap.add_argument('run')
     ap.add_argument('--window-min', type=float, default=15.0)
     ap.add_argument('--unit', action='append', default=None)
+    ap.add_argument('--init', default='data/COA-STP1_Initialization.xml')
+    ap.add_argument('--order', default='data/COA-STP1_Order.xml')
     a = ap.parse_args()
+    # unit name -> the LAST point of its dispatched task (the arrival-evidence destination):
+    # order task name -> PerformingEntity -> init unit name; the app names the route "<task> ROUTE"
+    dest_by_unit = {}
+    try:
+        init = io.open(a.init, encoding='utf-8', errors='replace').read()
+        order = io.open(a.order, encoding='utf-8', errors='replace').read()
+        name_of = {}
+        for u in re.findall(r'<Unit>(.*?)</Unit>', init, flags=re.S):
+            n = re.search(r'<Name>([^<]+)<', u)
+            uu = re.search(r'<UUID>([^<]+)<', u)
+            if n and uu:
+                name_of[uu.group(1).strip()] = n.group(1).strip()
+        task_pts = {}
+        for t in re.findall(r'<Task>(.*?)</Task>', order, flags=re.S):
+            n = re.search(r'<Name>(T[0-9]+_[^<]+)<', t)
+            p = re.search(r'<PerformingEntity>([^<]+)<', t)
+            pts = [(float(x), float(y)) for x, y in re.findall(r'<Latitude>([^<]+)</Latitude>\s*<Longitude>([^<]+)</Longitude>', t)]
+            if n and p and pts:
+                task_pts[n.group(1).strip()] = (name_of.get(p.group(1).strip(), ''), pts[-1])
+        applog = [f for f in glob.glob(a.run + '/*.log') if 'app' in f.lower()]
+        if applog:
+            for m in re.finditer(r"Route '([^']+) ROUTE' \([^)]+\) created; (?:MoveAlongRoute|R10 fan-out MoveAlongRoute) issued", io.open(applog[0], encoding='utf-8', errors='replace').read()):
+                tn = m.group(1)
+                if tn in task_pts:
+                    uname, last = task_pts[tn]
+                    # the app's unit name may carry the ~PXY marking tag; match on the prefix
+                    dest_by_unit[uname] = last
+    except OSError:
+        pass
+
+    def dest_for(unit_name):
+        for k, v in dest_by_unit.items():
+            if unit_name == k or unit_name.startswith(k + '~'):
+                return v
+        return None
     logs = [f for f in glob.glob(a.run + '/*.log') if 'app' in f.lower()]
     if not logs:
         print('no app log in', a.run)
@@ -105,7 +142,14 @@ def main():
             rows.append((dcen, name, disp, x))
         rows.sort(reverse=True)
         status = 'TASKCMPLT' if u in cmplt else 'no completion'
-        print(f'\n[{u}] {status}; {len(uu)} members with tracks')
+        dest = dest_for(u)
+        arrival = ''
+        if dest is not None:
+            dd = [hav(dest, (finals[x][1], finals[x][2])) for x in uu]
+            within = sum(1 for v in dd if v <= 500.0)
+            arrival = (f'; destination: centroid {hav(dest, cen):.0f} m from the last vertex, '
+                       f'{within}/{len(uu)} members within 500 m -> arrival rule {"COMPLETE" if within > 0.5 * len(uu) else "not yet"}')
+        print(f'\n[{u}] {status}; {len(uu)} members with tracks{arrival}')
         for dcen, name, disp, x in rows:
             print(f'   {name:10} displacement {disp:8.0f} m   from the others\' centroid {dcen:7.0f} m   last t {track[x][-1][0]:6.0f}')
         # straggler = farthest from the centroid, only meaningful if > 1 km

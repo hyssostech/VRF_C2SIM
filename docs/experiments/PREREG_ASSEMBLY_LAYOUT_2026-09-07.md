@@ -102,6 +102,35 @@ minutes until the tool timeout killed it; the run's object count never moved (34
 log shows one init and one order - no contamination. Guard added: an unknown "--" switch
 never starts the host (exit 2), verified.
 
+### 3b RESULTS - run 20260907T103246Z (runner exit 0 with a proper teardown this time; trace
+35 MB to t = 2,770 s covering the whole window; 69,314 position reports captured; ratio 1.88x)
+- P6 HOLDS: TASKCMPLT x2 (856/HHC~PXY, B/5-20~PXY) - the vendor's own completions, again for
+  two units.
+- P7 HOLDS: every unit without a completion that has a straggler shows exactly one member far
+  from the others: 1-6/2/1_AD HMMWV 7 (28.9 km from its five followers - the SAME vehicle as
+  last night: the leader drives the leg alone, the followers never leave), 40/2/1_AD M577A2 5
+  (1.1 km back - the SAME command-post vehicle as last night), 1-35/2/1_A M3 1 (1.0 km back),
+  C/1-35 M577A2 7 (3.7 km back, the company HQ's M577; 17 of 18 members together), 5-20/2/1_A
+  M1A2 32 (2.9 km back and CLOSING at ~100 m/min). 4-27/2/1_A and 1-1/2/1_AD: all members
+  within 1 km of each other, no completion at the cap (their legs are 33.5 / 28.7 km).
+- P8: STUCK in four of five (net 0-4 m over the last 15 min with 14-799 m of path = oscillating
+  in place), CLOSING in one. Two of the stuck vehicles are the same vehicles in the same units
+  as last night -> reproducible, vehicle-type-specific vendor behaviour (an M577A2 command post
+  twice, an M3 twice across the two runs, a lone HMMWV leader twice), not chance. None is near
+  a vertex we authored (the route-authoring branch of the decision is out).
+- A/6-56/HHC (the ADA battery, four SAM launchers): never moved - its task carries no route
+  points (an air-defence coverage verb), so no move was issued; not a straggler case.
+DECISION (already ruled and built while the run was up): completion from the unit's own
+arrival evidence, majority within 500 m of the last vertex. Applied to THIS run's end state
+the rule would have reported 40/2/1_AD (5 of 6 within), 1-35/2/1_A (5 of 6), C/1-35 (17 of
+18) and, once the M1A2 closes, 5-20/2/1_A; it would NOT report 1-6/2/1_AD (leader alone) -
+the correct answer in every case. P9 (next run, new build) tests exactly that.
+Adversarial review: the alternative reading "the stragglers are still coming and would
+complete given time" is refuted for the four STUCK ones by last night's 8-hour run (the same
+vehicle types never arrived) and by net movement of metres over 15 minutes; it holds for the
+one CLOSING case, which the majority rule handles without waiting for it. Verified: all
+numbers from the trace and the app log. Assumed: none.
+
 ## 4. Results
 Run 20260907T003457Z (launched 00:35Z on the deployed build 7ac70c9). RUNNER INCIDENT: the
 runner process exited with code 9 at ~t = 590 s of the window with no Stop-Runner message;
