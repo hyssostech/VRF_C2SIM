@@ -150,6 +150,61 @@ Measurement, not a verdict on the mechanism. All three gates HOLD.
   copy. Not tested by G1: whether navigation data CHANGES movement outcomes - G1 was the
   loading chain only; that is G2.
 
+### G2 RESULTS - run 20260907T174654Z (COA-STP1 on R9_Mojave_Empty_52_Nav; 4200 s cap; exit 0)
+TRACK STOPPED per sec 4: two HIGH predictions missed as written. No parameter was adjusted.
+The verdict and the lever choice are the user's / Fable's; what follows is measurement only.
+One variable vs P11 (20260907T150643Z): the scenario, hence the terrain copy and the area.
+Same build (80daed6, exe 11:06Z), same env, same probe type map, same 4200 s cap.
+
+THE HEADLINE MEASUREMENT - THE ENGINE COLLAPSED, THE MOVEMENT DID NOT.
+Sim/wall ratio in 300 s wall windows (sim_ratio.py samples, 406,540 console timestamps):
+  window (wall s)   0-300  300-600  600-900  900-1200  1200-1500  then to 4500
+  G2 (nav area)     1.86x   1.68x    0.36x     0.05x      0.04x    0.02x flat
+  P11 (no area)     1.97x   1.81x    1.70x     1.62x      1.57x    decays to 1.10x
+G2 simulated about 1,170 sim-seconds in 4,216 s of wall; P11 simulated about 6,236. The
+G2 curve is a step, not a decay: it holds P11's rate for ten minutes, falls over two
+windows, then sits on a floor near 0.02x for the remaining fifty minutes.
+- Distances (median member displacement, metres): 1-1 11,134 (P11 26,111); 1-35 1,958
+  (1,970); 1-6 6,254 (2,931); 4-27 11,310 (23,734); 40 9,693 (27,910); 5-20 10,958
+  (15,086); 856/HHC 11,069 (24,133); B/5-20 11,427 (13,989); C/1-35 7,786 (21,412);
+  A/6-56/HHC 0 (0, the ADA task refused for want of a location - DEMO row 16, unchanged).
+  Per SIMULATED second the G2 units covered roughly two to three times what P11's did.
+- Formation: straggler_track reports "no straggler (all members within 1 km)" for EVERY
+  unit in G2. P11's signature shape, one runaway member with the rest stalled, is absent.
+- Completions: 0 TASKCMPLT and 0 arrival-evidence completions (P11: 3 and 3). With ~1,170
+  sim-seconds and legs of 24-33 km, no unit was near its last vertex when the cap fell.
+- Mesh demonstrably in use: 324 "New/Leaving Primary nav area" console rows (P11: 0) and
+  292 in-nav-area behaviour-tree condition nodes (P11: 184 of the generic form).
+- Per SIMULATED minute: BlockedByVehicle 26.7 (P11 4.1); replan 9.5 (P11 2.1); stall or
+  give-up 0.21 (P11 0.05).
+PREDICTIONS AS WRITTEN: P12a MISS (it required both units past 6 km; 1-6 passed at 6,254 m,
+1-35 did not at 1,958 m). P12b UNTESTABLE (1-35 never approached the 26 km trap). P12c MISS
+(0 completions, not >= 3; ratio 0.24x against P11's 1.46x, far outside the 20 % band).
+P12d HOLDS. P12e recorded above.
+
+Adversarial review of the one causal-sounding statement, "the collapse is associated with
+this scenario's vehicle count ON the mesh":
+- Competing hypothesis 1, MY OWN CONTAMINATION: I launched a 212-agent documentation sweep
+  on this machine at about wall 300 s of this run, and it ran for 1,112 s doing local PDF
+  extraction. That overlap is a self-inflicted breach of the one-variable rule and it
+  covers the onset window, so THE ONSET TIMING IS CONTAMINATED AND CANNOT BE USED. It does
+  not explain the floor: the sweep ended near wall 1,400 s and the ratio stayed at 0.02x
+  for the following 2,800 s with the machine otherwise idle.
+- Competing hypothesis 2, the mesh is expensive per se: REFUTED by G1, which ran the SAME
+  area with 6 units at 3.95x, the fastest ratio in the record.
+- Competing hypothesis 3, COA-STP1 is simply slow at this scale: WEAKENED by P11, the same
+  128 units and the same order without an area, which held 1.10-1.97x for the whole window.
+- UNEXPLAINED, recorded as falsifiers rather than footnotes: (a) why the collapse begins
+  around wall 600-900 s rather than at first mesh use at wall 44 s; (b) why 1-35 stopped at
+  about 1.95 km in BOTH runs, with and without the mesh, which no terrain-planner account
+  covers; (c) whether the engine was CPU-bound at the floor - CPU was NOT sampled during
+  this run, so that is unmeasured, not established.
+- NOT MEASURED / NOT CLAIMED: nothing here says navigation data cannot work. It says this
+  run bought better formation-keeping and better distance per simulated second at a wall
+  cost that made the fixed 4200 s window unusable, on a machine whose contamination window
+  is known. A clean repeat with no concurrent load, CPU sampling, and either a longer cap
+  or fewer vehicles is the obvious next measurement, and it is Fable's call to order it.
+
 ## 4. What counts as a stop
 A missed HIGH prediction (P12a or P12c) stops the track; no parameter is adjusted to make
 it pass. G1a missing stops G2 until fixed.
