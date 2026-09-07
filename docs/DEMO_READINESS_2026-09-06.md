@@ -20,7 +20,7 @@ and does not contradict the headless goal; the interface itself stays headless.
 | # | Requirement | Status | Evidence / what is owed |
 |---|---|---|---|
 | 1 | ORBAT loads faithfully (declared tree composed; coarse leaves expanded; leader = declared first) | D | N1/N2/N3 2026-09-06: PREREG_N1/N2/N3; DESIGN_ORBAT C1-C11 |
-| 2 | Units MOVE as units on 5.2 (company) | D | compose 3/3 x5 runs; C1b closed by the console |
+| 2 | Units MOVE as units on 5.2 (company) | D | compose 3/3 x5 runs; C1b closed by the console. AT SCALE 2026-09-07 (PREREG_ASSEMBLY_LAYOUT): the 11-unit COA, spread on 700 m rings (C14), drives 24-33 km legs and reports the first two TASKCMPLT at scale; demo overlay carries CreationPolicy=AtOrder + DeStackCreates/700 + TaskPredecessorTimeoutSeconds 7200. OPEN: 7 legs without a completion report after 9 h at their ends (unit consoles of run 003457Z to read) |
 | 3 | Task-status (TASKCMPLT) reports to the C2SIM bus | D | every run since R9 |
 | 4 | POSITION reports to the C2SIM bus on 5.2 | V | R1 (PREREG_R1): run P shows "6 sent" per round and ListenReports counts Position reports; final verdict pending teardown. Demo default `Vrf:PositionReportSeconds` must be > 0 in appsettings (today 0 = oracle default) |
 | 5 | appsettings.json DEMO defaults | V | `src/VrfC2SimApp/appsettings.Demo.json` (2026-09-06): the 5.2 profile keys the runner injects (ConfigFileIdentity, Federation "", FedFileName "", ConnectionConfigFile MAK-ONE-2025, TypeMapFile 52, VrfHome) + ClientId STP (override per init), compose ON, PositionReportSeconds 10, console levels -1. Loaded by DOTNET_ENVIRONMENT=Demo (HostApplicationBuilder default overlay); csproj copies it. Owed: one standalone start with it (row 7's run) |

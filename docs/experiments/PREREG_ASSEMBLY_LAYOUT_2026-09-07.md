@@ -88,4 +88,43 @@ MID-RUN, t = 646 s (order at ~t = 40 s):
   10.6 km); the ninth is C/1-35 at 415 m, which began maneuvering at t = 103 s. At the same
   wall time the co-located diagnostic (224326Z) had 0.14-5.0 km.
 - P4 pending (first legs 24-45 km).
-(final numbers after the manual teardown)
+FINAL (trace capped at t = 3,258 s by WatchVrf's own limit; the app and the sim ran on
+unattended until the manual teardown at 10:12Z - StopIface resign in 10 s, StopVrf52 graceful,
+RTI untouched):
+- P4 HOLDS: TASKCMPLT x2 inside the window - B/5-20 (28.7 km leg) and 1-1/2/1_AD (28.7 km) -
+  the FIRST task completions ever reported at scale on this interface (5.0.2 never reached a
+  route end; PREREG_COASTP1_QPAIR / HANDOFF item 5). One successor (T13, 510/40 breach company)
+  was released and its move issued.
+- P2: at t = 3,258 s eight units at 18.7-29.7 km, i.e. at or near the end of their 24-33 km
+  first legs (1-35 25.0/28.5, 40/2/1_AD 27.4/28.5, 4-27 29.7/33.5, 5-20 29.0/28.7, 856/HHC
+  18.7/24.1); 1-6/2/1_AD at 5.2 km; C/1-35 maneuvering (its console: formation speed-up /
+  slow-down commands to its platoons). 9 of 10 tasked units beyond 1 km.
+- P1 over the trace window: 63 blocking messages in the first 10 min; over the whole night
+  3,018 in the app log (vs 4,828 in five minutes co-located) - the residual blocking is
+  units meeting on the roads over 9 hours, not the start point.
+- ratio 1.64x with unit consoles at 4 + member consoles at 3 (the heaviest instrument load
+  of the series; 745 MB trace, 1.2 GB app log - the console stream is ALSO written to the app
+  log at INFO, which a demo must not do: set ObjectConsole levels to -1, the demo overlay
+  already does).
+VERDICT: the spacing ruling (C14) is CONFIRMED on every prediction. Spread on 700 m rings,
+the 11-unit COA moves as a unit set, the composed company's formation gate opens, and units
+complete 28 km legs and report it. NEW OPEN OBSERVATION (outside this prereg): only 2 of the
+9 first legs reported completion in 9 unattended hours although the others stood at the ends
+of their legs by 54 minutes; the sim kept ticking (console lines still streaming at 10:11Z).
+The predecessor-timeout policy (TaskPredecessorTimeoutSeconds 600, policy skip) had
+abandoned 31 successor tasks long before any 28 km leg could complete - a HARNESS default
+that the demo must override (legs run 30-60 min of sim time). The completion-at-the-leg-end
+question is the next thing to read from this run's unit consoles - not a theory.
+FIRST READ (10:15Z): the sim reached sim time 29,847 s (8.3 h) overnight; the two completions
+came at sim 3,121 s and 3,295 s. The unfinished CP proxies' LAST unit-console lines are all
+". Subs still moving: N" (4-27: 2 then 1; 40/2/1_AD: 3 then 2; 1-6: 3 then 2) - the unit's
+move-along holds its completion until EVERY member reports arrival, and one to three members
+per unit never did. Which members and why is in the member consoles (level 3) of the 1.2 GB
+app log - the next analysis. This is the C1b family at the END of the leg (the unit waits on
+a member that never reaches its slot), no longer the pile at the start.
+Adversarial review: the competing explanation for the movement gain, "a lucky run", is
+refuted by the size of the effect against four co-located runs (blocking 63 vs 4,828; the
+formation gate opened in 3 sim-min where it never opened; 9 of 10 past 1 km) and by the
+mechanism the vendor documents. Verified: everything above from the trace and the app log.
+Assumed: none on the placement claim. Unexplained and recorded: 7 legs without a
+completion report after 9 hours.
