@@ -59,4 +59,22 @@ and P3 met -> movement is limited elsewhere (route, terrain, speed) - measure be
 claiming.
 
 ## 4. Results
-(after the run)
+Run 20260907T003457Z (launched 00:35Z on the deployed build 7ac70c9). RUNNER INCIDENT: the
+runner process exited with code 9 at ~t = 590 s of the window with no Stop-Runner message;
+the sim, the interface and WatchVrf kept running (the runner's teardown never ran - manual
+teardown after the window). Scored from the live trace.
+MID-RUN, t = 646 s (order at ~t = 40 s):
+- P5 HOLDS: "DeStack (R8): 54 units ... spread onto 700 m rings" (+ a second group of 2);
+  341 reflected objects on 308 distinct ~10 m cells, largest co-located group 5 (co-located
+  runs: one cell holding every taskee's vehicles).
+- P1 HOLDS: "BlockedByVehicle" 63 messages in 10 minutes, all runs' worst minute 30 (the
+  co-located diagnostic: 4,828 in the first 5 minutes).
+- P3 HOLDS: C/1-35's console logs "task complete msg rcvd from" TANK2 (sim 89 s), HQ1 (111 s),
+  TANK3 (141 s), TANK4 (163 s) - all four - then issues maneuver-along on its four offset
+  routes C/1-35_R0..R3 at wall t = 103 s. The gate that stayed shut in 231401Z opened in under
+  three sim minutes.
+- P2 in progress: 8 of 9 beyond 1 km at t = 646 s (2.8 / 5.0 / 5.2 / 8.8 / 9.0 / 9.6 / 10.4 /
+  10.6 km); the ninth is C/1-35 at 415 m, which began maneuvering at t = 103 s. At the same
+  wall time the co-located diagnostic (224326Z) had 0.14-5.0 km.
+- P4 pending (first legs 24-45 km).
+(final numbers after the manual teardown)
