@@ -90,6 +90,18 @@ answer is interface-side: report a unit's completion from the unit's OWN arrival
 (leader / majority at the route end) instead of waiting for the vendor's all-members report
 - a POLICY the user rules on, since it changes what "complete" means to STP.
 
+RULING RECEIVED WHILE THE RUN WAS UP (user, ~11:00Z): "report a unit's completion from the
+unit's own arrival evidence is fine". BUILT: ArrivalPolicy.cs (majority within 500 m of the
+last vertex; --arrival-selftest 9/9), MaybeCheckArrivals on the tick thread, the vendor's
+later completion swallowed once; DESIGN_ORBAT C15. NOT in this run (deployed after it); the
+run after this one verifies it: prediction P9 = every unit whose majority reaches the leg
+end reports TASKCMPLT within ~35 s of arriving, and the lone-leader case does not.
+INCIDENT (11:10Z): a self-test invocation on a STALE scratch build fell through to the host
+(the flag was unknown to that build) and joined the federation beside this run for five
+minutes until the tool timeout killed it; the run's object count never moved (342) and its
+log shows one init and one order - no contamination. Guard added: an unknown "--" switch
+never starts the host (exit 2), verified.
+
 ## 4. Results
 Run 20260907T003457Z (launched 00:35Z on the deployed build 7ac70c9). RUNNER INCIDENT: the
 runner process exited with code 9 at ~t = 590 s of the window with no Stop-Runner message;
