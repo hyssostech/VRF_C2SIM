@@ -51,6 +51,12 @@ south. It does NOT hold 1-35's fixed mid-route trap (34.58197/-116.98337, 26 km 
 the far ends of the 24-45 km legs - those stay on standard navigation = the within-run
 control.
 
+GENERATED 2026-09-07 16:42-17:06Z (before any run): 4,803 files, 166 MB, 1,600 sectors
+("Generated: ground-platform", no error), 1,436 s wall (the 3x3 km test area took 47 s -
+roughly linear in area, ~3.6 s per km2 at cell-size 43 / raster 0.2). Nothing under C:\MAK.
+The .navRuntimeConfig (offset ECEF, extent +/-10 km, nav-data-path absolute via the
+junction, original-terrain = the C:\MAK .mtf) is the record registered on the terrain copy.
+
 ## 2. Gate G1 - the loading chain on the small fixture (R9, 3 units, ~10 min)
 Run: R9 init + R9 order on R9_Mojave_Empty_52_Nav (runner -Scenario), -NoGui, everything
 else as the last green R9 run on the fidelity table (L3, 201623Z 2026-09-06: FidelityTable,
@@ -107,6 +113,42 @@ Run: COA-STP1 init + order, 4200 s, -NoGui, member consoles as P11. Command = P1
   the nav-mesh planner in use (messages naming "nav" / the area / advanced navigation)
   for legs inside the area and not for legs outside. Recorded.
 - P12e (blocking, not predicted): "BlockedByVehicle" count recorded against P11's 424.
+
+### G1 RESULTS - run 20260907T170643Z (R9 on R9_Mojave_Empty_52_Nav; 600 s cap; runner exit 0)
+Measurement, not a verdict on the mechanism. All three gates HOLD.
+- G1a HOLDS: the sim read 10 .navRuntimeConfig records at terrain load (9 shipped + ours,
+  "NavArea-ground-platform MojaveAO20.navRuntimeConfig"); the baseline of the P11 run was 9.
+  The record form written by tools/navdata/make_nav_terrain.py is accepted as shipped ones are.
+- G1b HOLDS: the sim loaded the terrain COPY from a path outside $(SHARED_DATA_DIR) - its own
+  lines name "...\tools\navdata\out\MAK Earth (online) + MojaveAO20.mtf" for "Creating new
+  scenario on terrain", "Loading terrain ... into VR-Vantage" and the surface-characteristics
+  paging. No fallback to the shipped terrain. 6 of 6 create altitudes came from the terrain
+  query; 3 taskees, 3 routes, 3 MoveAlongRoute, 3/3 TASKCMPLT by t+120 s (t+8/72/108 s);
+  interface resigned with exit 0; RTI infra untouched (rtiexec 15720, forwarder 43728).
+  Vendor-log error-ish line count identical to the P11 harvest (278 vs 278; the set difference
+  of error-ish lines is EMPTY), so the terrain copy introduced no new vendor complaint.
+- G1c HOLDS - the data is loaded and the planner uses it: the entities' own consoles carry
+  39 "New Primary nav area: NavArea-ground-platform MojaveAO20" and 42 "Leaving Primary nav
+  area: NavArea-ground-platform MojaveAO20" rows across 17 distinct entities between t=24.5 s
+  and t=81.1 s, and the ground-vehicle-move-to behaviour tree runs its condition nodes "Is
+  current point in nav area?" and "Is destination in nav area?" in the same window. The
+  entering/leaving is expected from the geometry: the R9 units are created inside the area
+  (8 of 9 distinct placement coordinates fall in lat 34.518-34.698, lon -116.809 to -116.591)
+  and their routes run east out of it, which is the vendor's "advanced navigation within the
+  areas and standard navigation if they move between them" (UG52 66.3 p1281).
+  UNEXPLAINED DETAIL (recorded, not smoothed): 42 "Leaving" vs 39 "New" - three more exits
+  than entries. Candidates not yet checked: the trace opened after the first entries, or an
+  entity created inside the area counts an initial area without a "New" line.
+- INSTRUMENT NOTE (not a fixture defect): -StopWhenComplete did not fire, so the window ran
+  its 600 s cap. The early-exit criterion also wants a post-completion RPT POSITION per
+  taskee, and this run did not set Vrf__PositionReportSeconds. Set it for G2 (P11 used 10 s).
+- Adversarial review: the competing explanation for the nav-area rows is a SHIPPED area
+  (Range220 / Ala Moana / Thun / Kilo2) being entered instead of ours - refuted, the message
+  names MojaveAO20, which exists only in the copy's tenth record. Second competing
+  explanation, "the sim silently fell back to the shipped terrain and found the area some
+  other way" - refuted, only the copy carries the record and the sim's terrain lines name the
+  copy. Not tested by G1: whether navigation data CHANGES movement outcomes - G1 was the
+  loading chain only; that is G2.
 
 ## 4. What counts as a stop
 A missed HIGH prediction (P12a or P12c) stops the track; no parameter is adjusted to make
