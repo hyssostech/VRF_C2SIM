@@ -221,6 +221,30 @@ spacing, e.g. 750 m) - if 1-6's stall moves or vanishes, its slot's terrain was 
 (c) A look at 34.582,-116.98 and at 1-6's slot 34.6625,-116.7326 in the VR-Forces GUI (the
 audience's window, a human look) would settle the terrain question directly.
 
+### 3c RESULTS - run 20260907T114026Z (P9), 4200 s cap, runner exit 0
+- P9a HOLDS: 4 ARRIVAL EVIDENCE completions -> 4 TASKCMPLT: 856/HHC, 1-1/2/1_AD, B/5-20 (the
+  vendor's own completion arrived ~90 log lines later each time and was SWALLOWED - 3 swallow
+  lines) and 1-35/2/1_A, the C15 target case: reported with 4 of 6 members within 500 m
+  (centroid 529 m from the last vertex; its M3 straggler 1 km back) while the vendor never
+  completed it in 70 minutes.
+- P9b HOLDS: one TASKCMPLT per task uuid (no duplicates); 4 reports for 4 tasks.
+- P9c HOLDS: 1-6/2/1_AD not reported (1 of 6 within: the lone HMMWV); 5-20 (1 of 6, centroid
+  1.0 km short), 40/2/1_AD (0 of 6, 1.17 km short), 4-27 (9.3 km short), C/1-35 (35.6 km
+  short - the company again went almost nowhere) not reported - all correct.
+- P9e HOLDS: no attribution anomaly, no empty-uuid report.
+- P9d NOT TESTABLE HERE: 9 MoveAlongRoute = the first 9 only; the successors had been
+  abandoned at 600 s by the HARNESS default TaskPredecessorTimeoutSeconds (the demo overlay's
+  7200 is not applied under the runner). The rotation run passes 7200 through the environment
+  so successor dispatch after an evidence completion is exercised there.
+VERDICT: the arrival-evidence completion works as ruled; STP now receives a completion for a
+unit that arrives, whatever one straggler does. Adversarial review: the falsifier "a
+TASKCMPLT for a unit whose centroid is > 500 m from its last vertex" did not occur (the
+farthest reported centroid was 529 m with 4 of 6 members inside the radius - within the
+ruling's tolerance, majority rule); "two TASKCMPLT for one task" did not occur; "a unit at
+its destination with a majority inside and no report" did not occur.
+HARNESS: tests/RunnerTurnaround.Tests.ps1 rerun with no run active at 12:58Z (result in the
+rotation-run task output header).
+
 ### 3e. ROTATION TEST (user, 12:40Z: "Rotate the unit placements to verify your terrain theory")
 - registered before launch
 Lever: Vrf:DeStackRotationDeg (new; DeStacker.RingOffset rotates the hex pattern about the
