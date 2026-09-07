@@ -376,6 +376,33 @@ per STP vertex instead of one Move Along Route, so the leader's path is planned 
 (with navigation data: slope/soil aware; without: feature-aware). Test = one unit family,
 one run, against the fixed trap of 1-35's lane.
 
+### 3f RESULTS - run 20260907T150643Z (P11: origin vertex dropped; 4200 s cap; runner exit 0)
+- P11a HOLDS: 16 leading origin vertices dropped (7 first legs + successors); at the end NO
+  member of any unit was within 500 m of the STP point, and NO unit showed the "runaway +
+  stalled rest" shape (no member < 6 km while its lead > 15 km) - the pattern of three runs
+  is gone.
+- P11c HOLDS: "BlockedByVehicle" 424 over the whole run (66 + 80 in the first 10 min, then
+  ~0 until a second cluster of 258 at 1,800-2,400 s somewhere mid-route) vs 4,828 co-located.
+- P11e HOLDS: 3 evidence completions, all legitimate (1-1 4/4 within 500 m nearest 328 m;
+  B/5-20 4/4, 326 m; 5-20 6/6, 390 m), 3 TASKCMPLT for 3 task uuids, 2 successors dispatched
+  (11 MoveAlongRoute), no anomaly. (straggler_track's "23 km from the last vertex" for 5-20
+  is the SUCCESSOR leg in progress - the tool keys the first task's destination.)
+- P11b FAILS in a new shape: 1-6/2/1_AD moved 3.3 km as a WHOLE unit and stopped; 1-35/2/1_A
+  (25 km in every previous run) moved 2.0 km as a whole and stopped. Their members' level-3
+  consoles are almost silent (1-2 path plans each, no blocking, no stall loop, no wall; only
+  1-6's #6 HMMWV stalled early with 3 stall loops). Both units start from the WEST side of
+  the ring (slots at 291/300 deg) and, with the origin vertex gone, now take their own direct
+  line toward their second vertex instead of the shared corridor through the point. A silent
+  whole-unit stop after 2-3 km on a new cross-country line is the max-slope signature again
+  (UG52 23.5), on ground no one drove before.
+- P11d untestable (1-35 never reached its trap).
+VERDICT: the assembly-point re-convergence was real and is fixed (P11a/c); completion and
+sequencing work (P11e); what remains is the terrain the vendor's slope-blind planner sends
+vehicles across - which is exactly the navigation-data question (3g).
+Adversarial review: the competing explanation for 1-35/1-6, "a unit defect", is contradicted
+by 1-35's five previous 25 km runs; the untested assumption is the grade at their stop
+points (a height profile would settle it; navigation data would remove it).
+
 ## 4. Results
 Run 20260907T003457Z (launched 00:35Z on the deployed build 7ac70c9). RUNNER INCIDENT: the
 runner process exited with code 9 at ~t = 590 s of the window with no Stop-Runner message;
