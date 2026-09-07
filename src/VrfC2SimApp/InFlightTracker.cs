@@ -15,11 +15,16 @@ namespace VrfC2SimApp;
 /// </summary>
 public sealed class InFlightTracker
 {
-    /// <summary>One dispatched-and-not-yet-completed task.</summary>
+    /// <summary>One dispatched-and-not-yet-completed task. DestLat/DestLon (degrees) = the move's
+    /// last vertex when the task is a move, for the arrival-evidence completion (ArrivalPolicy);
+    /// null for tasks without a destination (patrol, engage).</summary>
     public readonly record struct InFlight(string TaskUuid, string TaskName, string ExpectedKind,
-                                           DateTime DispatchedUtc);
+                                           DateTime DispatchedUtc, double? DestLat = null, double? DestLon = null);
 
     private readonly ConcurrentDictionary<string, InFlight> _byUnitName = new();
+
+    /// <summary>A snapshot of every in-flight (unit name, record) for the arrival monitor.</summary>
+    public IReadOnlyList<KeyValuePair<string, InFlight>> Snapshot() => _byUnitName.ToArray();
 
     /// <summary>
     /// Record that a task was dispatched to a unit. Returns the record it SUPERSEDED (the

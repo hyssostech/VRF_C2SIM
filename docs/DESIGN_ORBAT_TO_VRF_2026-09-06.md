@@ -136,6 +136,16 @@ C14 CO-LOCATED UNITS ARE SPREAD AT STARTUP - user ruling 2026-09-07 ~00:20Z ("bi
     entities, vehicles "could become trapped"); the shipped Armor-Co formations span up to 630 m.
     Lever: the existing DeStacker rings with Vrf:DeStackSpacingMeters=700 (> the longest company
     formation). Record: PREREG_ASSEMBLY_LAYOUT_2026-09-07.
+C15 A UNIT'S TASK COMPLETION IS REPORTED FROM THE UNIT'S OWN ARRIVAL EVIDENCE - user ruling
+    2026-09-07 ~11:00Z ("report a unit's completion from the unit's own arrival evidence is
+    fine"). Why: on 5.2 the vendor holds a unit's Move Along Route completion until EVERY member
+    reports arrival ("Subs still moving: N"); in the spaced run 003457Z seven of nine units stood
+    at the ends of their legs for eight sim-hours behind one straggling member (an M3 7 km back,
+    an M577 1.3 km back), and one leader drove 33 km alone. Rule (ArrivalPolicy.cs): TASKCMPLT
+    when MORE THAN ArrivalMemberFraction (0.5) of the members are within ArrivalRadiusMeters
+    (500 = the shipped Armor-Co formations' half-length) of the last vertex - a MAJORITY rule,
+    never leader-only (the lone-leader case must not complete). The vendor's later completion
+    is swallowed once. Settings Vrf:Arrival* (VrfSettings); --arrival-selftest.
 NEXT (the only real work): N1 DONE 2026-09-06 (PREREG_N1_COMPOSE_DEFAULT: default ON verified by
 run D 162958Z 3/3 with no env; flag-off run L 164022Z reproduces the legacy 38-phantom / 2-of-3
 signature - the switch is the regression control). N2 DONE 2026-09-06 (PREREG_N2_DECLARED_ORDER:

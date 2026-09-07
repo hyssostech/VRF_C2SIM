@@ -61,6 +61,22 @@ if (args.Length > 0 && args[0] == "--placement-selftest")
 if (args.Length > 0 && args[0] == "--compose-selftest")
     return ComposeOrderSelfTest.Run();
 
+// Offline arrival-evidence check: member distances -> unit completion decision (ArrivalPolicy; no bridge).
+if (args.Length > 0 && args[0] == "--arrival-selftest")
+    return ArrivalSelfTest.Run();
+
+// AN UNKNOWN "--..." SWITCH MUST NEVER START THE HOST (2026-09-07: an older build given a flag it
+// did not know fell through to here, joined the federation beside a running experiment for five
+// minutes and had to be killed). Only a bare start (no args) or host-builder args reach the host.
+if (args.Length > 0 && args[0].StartsWith("--") && args[0] != "--runtime-check")
+{
+    Console.Error.WriteLine("VrfC2SimApp: unknown switch '" + args[0] + "' - NOT starting the host. Known: " +
+                            "--translator/--report/--sequencer/--verb/--destack/--fanout/--typemap/--terrain/" +
+                            "--placement/--compose/--arrival-selftest, --parse-init <file> [clientId], " +
+                            "--parse-order <file>, --runtime-check; no arguments = run the interface.");
+    return 2;
+}
+
 // CONTENT ROOT = the executable's folder (2026-09-07, found by --runtime-check): the generic host
 // resolves appsettings*.json against the CURRENT DIRECTORY by default, so an exe started from any
 // other folder silently ran without its settings (and without the Demo overlay). The deliverable

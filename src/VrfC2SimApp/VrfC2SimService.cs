@@ -500,6 +500,7 @@ public sealed class VrfC2SimService : BackgroundService
             if (!_compositions.IsEmpty) ExpireCompositions();
             if (!_awaitReflection.IsEmpty) ReleaseReflected();
             if (_vrf.PositionReportSeconds > 0) MaybeSendPositionReports();
+            if (_vrf.ArrivalCompletion) MaybeCheckArrivals();
             Thread.Sleep(50);
         }
     }
@@ -1986,7 +1987,7 @@ public sealed class VrfC2SimService : BackgroundService
         {
             var dest = routeGeo[^1];
             double headingDeg = BearingDeg(routeGeo[0], dest);
-            MarkDispatched(task, unit, "move-into-formation");
+            MarkDispatched(task, unit, "move-into-formation", dest);
             _bridge.MoveIntoFormation(vrfUuid, dest, headingDeg, _vrf.MoveIntoFormation);
             _log.LogInformation("Task '{Task}': MoveIntoFormation for AGGREGATE {Name} ({Vrf}) -> " +
                                 "{Lat}/{Lon} formation '{Form}' hdg {Hdg:F0}deg (Unit 4; {N} route pts -> destination).",
@@ -2012,7 +2013,7 @@ public sealed class VrfC2SimService : BackgroundService
             string wptName = task.TaskName + " WPT";
             var wptQueue = _pendingRouteTasks.GetOrAdd(wptName, _ => new ConcurrentQueue<PendingRouteTask>());
             wptQueue.Enqueue(new PendingRouteTask(vrfUuid, Patrol: false, PlanMove: true));
-            MarkDispatched(task, unit, "plan-move");
+            MarkDispatched(task, unit, "plan-move", routeGeo[^1]);
             if (attackTargetVrf != null)
                 DeferEngageUntilMoveCompletes(unit, task, "fire", vrfUuid, attackTargetVrf);
             if (breachTargetVrf != null)
@@ -2056,7 +2057,7 @@ public sealed class VrfC2SimService : BackgroundService
         // Single point -> MoveToLocation; otherwise CreateRoute then move along it (:2393).
         if (routeGeo.Count == 1)
         {
-            MarkDispatched(task, unit, "move-to");
+            MarkDispatched(task, unit, "move-to", routeGeo[^1]);
             _bridge.MoveToLocation(vrfUuid, routeGeo[^1]);
             _log.LogInformation("Task '{Task}': MoveToLocation for {Name} ({Vrf}).",
                                 task.TaskName, unit.Name, vrfUuid);
@@ -2106,7 +2107,7 @@ public sealed class VrfC2SimService : BackgroundService
         // The unit is committed to this move now (the route-created callback issues the
         // along-route task); record it so the completion attributes here (P0.1) and any
         // engage below gates on it (P0.3).
-        MarkDispatched(task, unit, patrol ? "patrol" : "move-along");
+        MarkDispatched(task, unit, patrol ? "patrol" : "move-along", patrol ? (Geodetic?)null : routeGeo[^1]);
         if (fanOutMembers != null)
         {
             _fanOut.Register(unit.Name, task.TaskUuid, fanOutMembers.Select(m => m.Name),
@@ -2139,10 +2140,14 @@ public sealed class VrfC2SimService : BackgroundService
     /// Also tells the sequencer the task dispatched (P0.2: successors' completion clock
     /// starts here, not at order arrival).
     /// </summary>
-    private void MarkDispatched(OrderTask task, CreatedUnit unit, string kind)
+    private void MarkDispatched(OrderTask task, CreatedUnit unit, string kind, Geodetic? dest = null)
     {
+        // A new task for this unit: a vendor completion arriving later belongs to IT, never to a
+        // task already reported from arrival evidence (see OnVrfTaskCompleted's swallow).
+        _arrivalReported.TryRemove(unit.Name, out _);
         var superseded = _inFlight.RecordDispatch(unit.Name,
-            new InFlightTracker.InFlight(task.TaskUuid, task.TaskName, kind, DateTime.UtcNow));
+            new InFlightTracker.InFlight(task.TaskUuid, task.TaskName, kind, DateTime.UtcNow,
+                                         dest?.LatDeg, dest?.LonDeg));
         if (superseded is InFlightTracker.InFlight old && old.TaskUuid != task.TaskUuid)
         {
             _log.LogWarning("Unit {Name}: task '{New}' SUPERSEDES in-flight task '{Old}' ({OldUuid}) - VRF " +
@@ -2413,9 +2418,74 @@ public sealed class VrfC2SimService : BackgroundService
         return false;
     }
 
+    // ARRIVAL-EVIDENCE COMPLETION (user ruling 2026-09-07; ArrivalPolicy.cs; VrfSettings.Arrival*).
+    // Tick thread. For every in-flight task with a destination, read the unit's members (the
+    // entity itself for a platform), count those within ArrivalRadiusMeters of the last vertex,
+    // and when MORE THAN ArrivalMemberFraction of them are there, report TASKCMPLT through the
+    // same path a vendor completion takes (SynthesizeUnitCompletion pops the in-flight record,
+    // releases the successors, issues a deferred engage). The vendor's own completion for that
+    // task, if it ever comes, is swallowed once (OnVrfTaskCompleted).
+    private readonly ConcurrentDictionary<string, string> _arrivalReported = new();   // unit name -> task uuid reported from evidence
+    private DateTime _nextArrivalCheck = DateTime.MinValue;
+
+    private void MaybeCheckArrivals()
+    {
+        var now = DateTime.UtcNow;
+        if (now < _nextArrivalCheck) return;
+        _nextArrivalCheck = now.AddSeconds(Math.Max(1, _vrf.ArrivalCheckSeconds));
+        foreach (var kv in _inFlight.Snapshot())
+        {
+            string name = kv.Key;
+            var rec = kv.Value;
+            if (rec.DestLat is not double dlat || rec.DestLon is not double dlon) continue;
+            if ((now - rec.DispatchedUtc).TotalSeconds < _vrf.ArrivalMinSecondsSinceDispatch) continue;
+            if (_arrivalReported.ContainsKey(name)) continue;
+            if (!_vrfUuidByName.TryGetValue(name, out var vrfUuid) || string.IsNullOrEmpty(vrfUuid)) continue;
+            bool isAggregate = _c2SimUuidByName.TryGetValue(name, out var cu)
+                               && _unitByC2SimUuid.TryGetValue(cu, out var created) && created.IsAggregate;
+            var distances = new List<double>();
+            int total;
+            if (isAggregate)
+            {
+                var members = _bridge.GetAggregateMembers(vrfUuid);
+                if (members is not { Count: > 0 }) continue;   // nothing readable yet (or a shell)
+                total = members.Count;
+                foreach (var m in members)
+                {
+                    if (string.IsNullOrEmpty(m.Uuid) || !_bridge.TryGetEntityGeodetic(m.Uuid, out var g)) continue;
+                    distances.Add(TerrainVertexAuthoring.DistMeters(g.LatDeg, g.LonDeg, dlat, dlon));
+                }
+            }
+            else
+            {
+                total = 1;
+                if (_bridge.TryGetEntityGeodetic(vrfUuid, out var g))
+                    distances.Add(TerrainVertexAuthoring.DistMeters(g.LatDeg, g.LonDeg, dlat, dlon));
+            }
+            var d = ArrivalPolicy.Decide(distances, total, _vrf.ArrivalRadiusMeters, _vrf.ArrivalMemberFraction);
+            if (!d.Arrived) continue;
+            _arrivalReported[name] = rec.TaskUuid ?? "";
+            _log.LogInformation("ARRIVAL EVIDENCE: {Name} task '{Task}' - {Within}/{Total} member(s) within {R} m of the " +
+                                "last vertex (nearest {Near:F0} m) {T:F0}s after dispatch - reporting completion from the " +
+                                "unit's own evidence (user ruling 2026-09-07); a later vendor completion is swallowed.",
+                                name, rec.TaskName, d.Within, d.Total, _vrf.ArrivalRadiusMeters, d.NearestMeters,
+                                (now - rec.DispatchedUtc).TotalSeconds);
+            SynthesizeUnitCompletion(name, "arrival-evidence");
+        }
+    }
+
     private void OnVrfTaskCompleted(object sender, TaskCompletedEventArgs e)
     {
         _log.LogInformation("VRF task complete: {Unit} / {Task}", e.UnitMarking, e.TaskType);
+        // A vendor completion for a task already reported from arrival evidence: swallow it ONCE
+        // (VR-Forces runs one task at a time and a re-task abandons the old one without a
+        // callback, so this can only be the pre-empted task's own late completion).
+        if (!string.IsNullOrEmpty(e.UnitMarking) && _arrivalReported.TryRemove(e.UnitMarking, out var reportedTask))
+        {
+            _log.LogInformation("VRF completion for {Unit} after the arrival-evidence report of task {Task} - swallowed.",
+                                e.UnitMarking, reportedTask);
+            return;
+        }
 
         // Port of executeTask's TASKCMPLT emit (C2SIMinterface.cpp:2435), triggered here by
         // the completion callback instead of a busy-wait. Resolve the marking -> taskee

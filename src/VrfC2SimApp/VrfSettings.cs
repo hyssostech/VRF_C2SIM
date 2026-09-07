@@ -173,6 +173,22 @@ public class VrfSettings
     // never round-trips hanging the parent (and its tasks) forever.
     public double CompositionTimeoutSeconds { get; set; } = 15.0;
 
+    // ARRIVAL-EVIDENCE COMPLETION (user ruling 2026-09-07; ArrivalPolicy.cs). A move task is
+    // reported complete (TASKCMPLT) when MORE THAN ArrivalMemberFraction of the unit's members (or
+    // the entity itself) are within ArrivalRadiusMeters of the task's last vertex, checked every
+    // ArrivalCheckSeconds on the tick thread, no earlier than ArrivalMinSecondsSinceDispatch after
+    // dispatch (so a genuine vendor completion for a short move gets there first). The vendor's own
+    // completion, when it does arrive, is then swallowed for that task. Why: on 5.2 a unit's Move
+    // Along Route holds its completion until EVERY member reports arrival, and one straggling
+    // member (an M3 7 km back, an M577 1.3 km back) held units at the ends of their legs for
+    // eight sim-hours (PREREG_ASSEMBLY_LAYOUT 2026-09-07). Radius 500 m = the shipped Armor-Co
+    // formations' half-length (members sit up to +/-430 m from the last vertex).
+    public bool ArrivalCompletion { get; set; } = true;
+    public double ArrivalRadiusMeters { get; set; } = 500.0;
+    public double ArrivalMemberFraction { get; set; } = 0.5;
+    public double ArrivalCheckSeconds { get; set; } = 5.0;
+    public double ArrivalMinSecondsSinceDispatch { get; set; } = 30.0;
+
     // OBSERVATION CHANNEL (UG52 21.9 p483): every VR-Forces object has its own console that
     // carries "messages sent from the simulation engine, from a simulation object's plan, from
     // other simulation objects, and from scripts", filtered by a PER-OBJECT notify level
