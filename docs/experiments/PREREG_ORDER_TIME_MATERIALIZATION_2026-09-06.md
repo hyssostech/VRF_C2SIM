@@ -213,6 +213,15 @@ MECHANISM OF THE RESIDUAL (now verified at the unit level, two runs): a COMPOSED
 move-along waits for every sub-unit's move-into-formation; a sub-unit that stalls in the
 vendor script's loop at the start-point pile (3.3) never reports, and the unit waits for the
 rest of the run. Which unit that hits is run-dependent because which sub-unit stalls is.
+### 3.5 COMPLETION RUN - run 20260906T234525Z (AtOrder, unit consoles at 4, RunSecs 2700)
+FINAL: window ran to its 2700 s cap (-StopWhenComplete did not fire); TASKCMPLT 0; ratio 2.91x;
+displacement at ~2,700 s: 438 / 466 / 1,023 / 1,087 / 1,340 / 2,074 / 3,188 / 11,054 / 22,421 m -
+7 of 9 beyond 1 km; the farthest (856/HHC, first leg 24.1 km) ended 1.7 km short of its leg.
+Even at 2.9x, 7,800 sim-s did not complete a 24 km leg for the fastest unit (mean 2.9 m/s of
+sim time against ~9 m/s in 3.3): the start-point pile costs every unit minutes, and two units
+(4-27/2/1_A, 1-6/2/1_AD) stayed under 500 m for 45 minutes - the fourth run in a row with a
+run-dependent stalled subset (3.2: 4 units; 3.3: 1; 3.4: 1; 3.5: 2). Completion at scale
+therefore waits on the spacing ruling (C14, PREREG_ASSEMBLY_LAYOUT), not on the window.
 Adversarial review of 3.2+3.3 together: the treatment ran the same code path twice and got
 5 of 9 and 8 of 9 - the difference is not the consoles (more load here, better result), so
 the per-run variance is in the sim's resolution of the start-point pile; the competing claim
