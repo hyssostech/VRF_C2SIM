@@ -242,8 +242,9 @@ TASKCMPLT for a unit whose centroid is > 500 m from its last vertex" did not occ
 farthest reported centroid was 529 m with 4 of 6 members inside the radius - within the
 ruling's tolerance, majority rule); "two TASKCMPLT for one task" did not occur; "a unit at
 its destination with a majority inside and no report" did not occur.
-HARNESS: tests/RunnerTurnaround.Tests.ps1 rerun with no run active at 12:58Z (result in the
-rotation-run task output header).
+HARNESS: tests/RunnerTurnaround.Tests.ps1 rerun with no run active at 12:55Z: 222 passed,
+1 failed (the pre-existing LaunchVrf52 harvest check) - the five extra failures seen during
+the live run were the observer artefact, as recorded.
 
 ### 3e. ROTATION TEST (user, 12:40Z: "Rotate the unit placements to verify your terrain theory")
 - registered before launch
