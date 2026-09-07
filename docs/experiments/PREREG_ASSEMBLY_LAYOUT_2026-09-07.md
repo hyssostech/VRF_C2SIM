@@ -58,6 +58,21 @@ composed unit's stall has another cause; that unit's console decides. P2/P4 miss
 and P3 met -> movement is limited elsewhere (route, terrain, speed) - measure before
 claiming.
 
+## 3b. FOLLOWER-TRACK RUN (user: "Go", 2026-09-07 ~10:40Z) - registered before launch
+Question: what does the LAST member of a unit that never reports completion do after the
+others arrive. Same configuration as the spaced run with: Vrf:PositionReportSeconds=10 (the
+R1 reports, the demo default; ListenReports captures them), -WatchSecs 3000 (the observer
+covers the whole 2700 s window), unit consoles at 4, MEMBER consoles at 0 (fatal only: the
+member -> unit map is still logged, the app log stays small - last night's 1.2 GB came from
+level 3), runner launched from a 64-bit pwsh (the 32-bit tool host died at 176 MB).
+Predictions: P6 >= 2 TASKCMPLT again (the report path is proven). P7 every unit without a
+TASKCMPLT at the end shows "Subs still moving: 1" and exactly one member > 1 km from the
+unit's other members. P8 (the decision) that member's last-15-minute track is ONE of:
+STUCK (net movement < 100 m), CIRCLING (returns within 200 m of where it was), CLOSING
+(monotonic approach to the others). Falsifier of "vendor quirk": the straggler is heading
+for a vertex OUR route authoring placed (compare its heading/goal with the route's last
+vertices, which the app log carries) - then the defect is ours.
+
 ## 4. Results
 Run 20260907T003457Z (launched 00:35Z on the deployed build 7ac70c9). RUNNER INCIDENT: the
 runner process exited with code 9 at ~t = 590 s of the window with no Stop-Runner message;
