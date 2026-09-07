@@ -134,6 +134,15 @@ end (level 4, in the same log) and UG52 30.24's unit paragraph ("the pseudo-aggr
 considers the task complete when its lead subordinate completes", moveAlongTasks.h:35-38)
 are the next reading. The demo needs this closed: a unit must report completion when it
 arrives.
+THE UNIT'S OWN COUNT (4-27/2/1_A~PXY, six members, whole night): ". Subs still moving: 5"
+(app-log line 6.56 M), 4, 3 (6.56 M), 2 (9.26 M), 1 (9.35 M) - and never 0 in the remaining
+6.9 M lines. Five of six members arrived one at a time over the night; the sixth kept
+planning and driving to the end. UG52 30.22: in Maneuver Along "each subordinate computes an
+offset route and then traverses it by planning a path to each vertex in sequence at its own
+pace. There are a leader and followers, which use speed control to remain within some
+distance of each other". The next reading is THAT member's console at the leg end (which
+vertex it is on, what it re-plans toward) - the instrument exists (member level 3 is in the
+log; the member -> unit map is in the request line since fa123b0).
 Adversarial review: the competing explanation for the movement gain, "a lucky run", is
 refuted by the size of the effect against four co-located runs (blocking 63 vs 4,828; the
 formation gate opened in 3 sim-min where it never opened; 9 of 10 past 1 km) and by the
