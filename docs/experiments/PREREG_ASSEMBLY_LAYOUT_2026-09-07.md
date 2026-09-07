@@ -184,6 +184,43 @@ failures are the dry-run tests, whose pre-flight refuses to start beside a joine
 (the live run's observer) - an artefact of running the suite while a run is up, to be
 re-confirmed at 222+/223 after the teardown.
 
+### 3d. WHAT IS SPECIAL ABOUT THE STUCK VEHICLES (user question, 11:50Z) - from both spaced runs
+Per member, designator, type, displacement and deficit behind the unit's lead member, night
+(003457Z) vs day (103246Z):
+- The stuck vehicle stops at the SAME PLACE in both runs: 1-35's M3 1 (designator 3) at
+  23.9 km both times, 0.0 km apart; 40/2/1_AD's M577A2 5 (designator 5) at 26.2 km both
+  times, 0.0 km apart; 4-27's M3 2 (designator 3) at 22.7 km both times, 0.0 km apart.
+  Deterministic, not chance.
+- Two DIFFERENT units' stragglers stopped ~500 m from each other: 1-35's M3 at
+  34.58197,-116.98337 and 40/2/1_AD's M577 at 34.58285,-116.97806 (their routes share the
+  same axis) - the same patch of terrain catches one lane of each unit's formation.
+- 1-6/2/1_AD is a different shape, also deterministic: its LEADER (M1A2 19, designator 1)
+  and four followers never left their ring slot (0.7-1.6 km, both runs, 0.1 km apart) while
+  designator 4 (HMMWV 7) drove the whole 33.5 km leg alone, twice. C/1-35 (night) likewise:
+  17 members within 2.3 km of their slot and M1A2 42 (designator 10) 37 km away alone.
+- Not a vehicle-type property: M3s and M577s are the mid-route stragglers, but in 1-6 and
+  C/1-35 the M1A2s and HMMWVs are the stuck ones; the same types drive 25-31 km in the other
+  units.
+- Navigation preference: the unit consoles log "Setting navigation preference to
+  ignore-roads" at task start. OUR CODE DOES NOT SET IT (grep of src: nothing); it is the
+  vendor default - UG52 40.54: "Military vehicles typically default to ignoring roads ...
+  they plan a path that is as direct as possible while avoiding obstacles"; "Civilian
+  vehicles typically default to preferring roads".
+READING (candidate, not verified): a terrain feature on that vehicle's OFFSET LANE (each
+member of a maneuver-along "computes an offset route and then traverses it ... at its own
+pace", UG52 30.22) that the direct-path planner cannot cross or skirt (UG52 23.2.3 "trapped
+by a very large alley"; the script parks after MAX_REPLANS=3 + one global replan), while
+the neighbouring lanes 50-100 m away pass. The whole-unit cases are the same thing at the
+unit's ring slot (the slot is deterministic, so the terrain under it is too), with one
+member whose lane escaped. Competing reading: a vehicle-type limit (the M577 is a box on an
+M113 chassis) - refuted by the M1A2s stuck in 1-6/C/1-35 and the M577s that drove 25-31 km
+elsewhere. FALSIFIER / TEST, one run each, vendor-backed: (a) Navigation Preferences =
+Prefer Roads for the tasked units (UG52 40.54 set data; MG 2.4) - if the same vehicles then
+pass the same spots, the trap is cross-country terrain; (b) shift the ring (a different
+spacing, e.g. 750 m) - if 1-6's stall moves or vanishes, its slot's terrain was the cause.
+(c) A look at 34.582,-116.98 and at 1-6's slot 34.6625,-116.7326 in the VR-Forces GUI (the
+audience's window, a human look) would settle the terrain question directly.
+
 ## 4. Results
 Run 20260907T003457Z (launched 00:35Z on the deployed build 7ac70c9). RUNNER INCIDENT: the
 runner process exited with code 9 at ~t = 590 s of the window with no Stop-Runner message;
