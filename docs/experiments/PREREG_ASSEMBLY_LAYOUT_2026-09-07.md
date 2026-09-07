@@ -163,6 +163,20 @@ with ArrivalCompletion=false; the company's members ARE vehicles (GetAggregateMe
 recurses, depth 3); tick cost is local lookups; the vendor callback and the check share the
 tick thread (no race); -StopWhenComplete's closing rule is unchanged.
 
+### 3c. P9 VERIFICATION RUN - launched 11:41Z on build 392cc81 (arrival-evidence completion
+ON by default), same configuration as 3b with RunSecs 4200 / WatchSecs 4500 (70 min, so the
+majorities can reach their 24-33 km legs' ends).
+Predictions: P9a every unit whose majority reaches its last vertex logs "ARRIVAL EVIDENCE"
+and a TASKCMPLT within ~35 s of the majority entering 500 m (the check runs every 5 s);
+P9b the two units the vendor completed in 3b complete again, by whichever path is first,
+and their vendor completion (if later) is logged as swallowed - ONE TASKCMPLT per task;
+P9c 1-6/2/1_AD (leader alone, followers at the start) does NOT report; P9d successors
+released by evidence completions are dispatched (MoveAlongRoute lines beyond the first 9);
+P9e no "attribution anomaly" warning and no empty-uuid TASKCMPLT.
+Falsifiers: a TASKCMPLT for a unit whose centroid is > 500 m from its last vertex at the
+time of the report (false completion); two TASKCMPLT for one task uuid; a unit at its
+destination with a majority within 500 m and no report for > 60 s.
+
 ## 4. Results
 Run 20260907T003457Z (launched 00:35Z on the deployed build 7ac70c9). RUNNER INCIDENT: the
 runner process exited with code 9 at ~t = 590 s of the window with no Stop-Runner message;
