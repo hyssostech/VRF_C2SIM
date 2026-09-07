@@ -239,6 +239,16 @@ public class VrfSettings
     // PREREG_ASSEMBLY_LAYOUT 3e). The anchor (first unit of a stack) never moves.
     public double DeStackRotationDeg { get; set; } = 0.0;
 
+    // ORIGIN VERTEX DROP (2026-09-07, PREREG_ASSEMBLY_LAYOUT 3f): STP writes a unit's own position
+    // as the FIRST vertex of its route ("from here"). Once the unit has been spread away from that
+    // coordinate (DeStackCreates), a route that still starts there drags every unit back to the one
+    // point and the start-of-run pile re-forms at vertex 1 (three spaced runs: the early-stalled
+    // members all stopped at 0.0-0.2 km from the STP point). A task's LEADING points that lie within
+    // this distance of the unit's AUTHORED init position are dropped when the unit's live position is
+    // farther than this from it; the unit's live position is point 0 of the route regardless
+    // (moveAlongTasks.h: "move to the first vertex, then move successively"). 0 disables.
+    public double DropOriginVertexMeters { get; set; } = 100.0;
+
     // R10 subordinate fan-out (docs/UNIT_MOVEMENT_RESEARCH.md sec 4c). When ON, an
     // AGGREGATE'S along-route move is fanned out to its member ENTITIES (each member
     // gets MoveAlongRoute on the same route; the unit-level TASKCMPLT is synthesized

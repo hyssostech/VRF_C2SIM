@@ -307,6 +307,41 @@ height profile at the stall points, or the vendor's navigation data). The compet
 "template/leader property" for 1-6 is weakened by 40/2/1_AD and 1-1 showing the same
 shape only after rotation - the property is the approach path, not the template.
 
+### 3f. THE FIRST VERTEX IS THE ASSEMBLY POINT (found 13:55Z answering "did the vehicles stuck
+at startup stay stuck in their new positions?")
+Per unit across the three spaced runs (night / day / rot90), members stalled < 6 km while
+their unit's lead went > 15 km: 1-6/2/1_AD in ALL THREE (#1,#2,#3,#5,#6 / same / #1,#2,#3,#5);
+40/2/1_AD only rot90 (#1,#2,#3,#5,#6); 1-1 only rot90 (#1,#2,#3); C/1-35 only the night run
+(17 of 18); none of the others.
+THE MECHANISM, verified from the order and the traces: for SEVEN of the nine tasked units
+(1-1, 1-35, 1-6, 40, 5-20, B/5-20, C/1-35) the order's FIRST route vertex is the STP
+assembly point itself (distance 0.0 km from 34.67998,-116.72480). The interface builds each
+route as [live position, task points...] (ExecuteTaskOnTick), so every spread unit's first
+move is BACK to the single coordinate we spread them from - and there the pile re-forms. In
+rot90 the early-stalled members stopped at 0.0-0.2 km from the point (1-1 #2/#3, 1-6 #2/#5,
+40/2/1_AD #3/#5) with the rest queued 0.6-1.0 km out on their own slot bearings. Rotation
+changed the approach bearings and arrival order, hence which units got caught; 1-6 was
+caught every time. The "one runaway member" is the one that cleared the point before the
+jam closed. (4-27 and 856 have first vertices 33.5 km / 24.1 km away: never early-stalled.)
+The ground AT the point is passable: every co-located run's units were born there and
+drove off after the 3.5-minute jam.
+FIX (interface-side, our data interpretation): a task's leading route point that coincides
+with the unit's AUTHORED initialization position (STP's "from here" marker; identical to the
+last digit) is dropped when the unit was spread away from it - the unit's live position is
+point 0 of the route anyway (moveAlongTasks.h: "move to the first vertex, then move
+successively"). Setting Vrf:DropOriginVertexMeters (default 100; 0 disables). Not a vendor
+lever: the vendor's Start at Closest Vertex (UG52 30.22) would still pick vertex 0, which is
+the closest for a unit 2 km away when vertex 1 is 20 km off.
+PREDICTIONS for the run with the origin vertex dropped (P11): (a) no member of any unit stops
+within 500 m of the STP point after tasking; (b) 1-6/2/1_AD's six members all pass 6 km; (c)
+"BlockedByVehicle" near the point ~0 (member consoles at 3 for this run, to count it); (d)
+the fixed mid-route trap of 1-35's M3 recurs at the same coordinates (unrelated); (e)
+completions as in P9. FALSIFIER of the mechanism: 1-6 stalls again with no unit converging
+on the point.
+Adversarial review: the competing explanation, bad ground at the point, is refuted by the
+co-located runs; the competing explanation, a 1-6 template defect, is weakened by 40/2/1_AD
+and 1-1 showing the same shape when their approach changed, and is decided by P11 (b).
+
 ## 4. Results
 Run 20260907T003457Z (launched 00:35Z on the deployed build 7ac70c9). RUNNER INCIDENT: the
 runner process exited with code 9 at ~t = 590 s of the window with no Stop-Runner message;

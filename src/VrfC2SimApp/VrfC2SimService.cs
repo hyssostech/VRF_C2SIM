@@ -838,6 +838,9 @@ public sealed class VrfC2SimService : BackgroundService
             _unitByC2SimUuid[unit.Uuid] = new CreatedUnit(plan.Name, unit.SymbolId, plan.IsAggregate,
                 plan.Type.Domain, plan.IsAggregate ? AutoFormationFor(plan.Type) : null);
             _c2SimUuidByName[plan.Name] = unit.Uuid;
+            // The AUTHORED position (before any de-stack) - the coordinate STP also writes as the
+            // route's first vertex (the origin-vertex drop in ExecuteTaskOnTick, sec 3f).
+            _authoredPosByName[plan.Name] = (plan.Pos.LatDeg, plan.Pos.LonDeg);
 
             toCreate.Add(plan);
             placements.Add(new PlacementInput(domain, unit.AltitudeAgl, unit.AltitudeMsl));
@@ -1918,7 +1921,26 @@ public sealed class VrfC2SimService : BackgroundService
             _sequencer.NotifyAbandoned(task.TaskUuid);
             return;
         }
-        foreach (var p in task.Points)
+        // ORIGIN VERTEX DROP (Vrf:DropOriginVertexMeters; PREREG_ASSEMBLY_LAYOUT 3f): STP's first route
+        // point is the unit's own authored position. Once the unit has been spread away from it, that
+        // vertex would march every unit back to the single assembly coordinate where the pile re-forms.
+        // Drop the LEADING task points that sit on the authored origin when the unit is no longer
+        // there - never all of them (a task whose only point is the origin keeps it).
+        int skip = 0;
+        if (_vrf.DropOriginVertexMeters > 0 && task.Points.Count > 1
+            && _authoredPosByName.TryGetValue(unit.Name, out var authored)
+            && TerrainVertexAuthoring.DistMeters(live.LatDeg, live.LonDeg, authored.Lat, authored.Lon) > _vrf.DropOriginVertexMeters)
+        {
+            while (skip < task.Points.Count - 1
+                   && TerrainVertexAuthoring.DistMeters(task.Points[skip].Lat, task.Points[skip].Lon, authored.Lat, authored.Lon) <= _vrf.DropOriginVertexMeters)
+                skip++;
+            if (skip > 0)
+                _log.LogInformation("Task '{Task}': dropped {N} leading route point(s) on {Name}'s authored origin " +
+                                    "({Lat:F5},{Lon:F5}) - the unit was spread {D:F0} m from it; the route starts at its live position.",
+                                    task.TaskName, skip, unit.Name, authored.Lat, authored.Lon,
+                                    TerrainVertexAuthoring.DistMeters(live.LatDeg, live.LonDeg, authored.Lat, authored.Lon));
+        }
+        foreach (var p in task.Points.Skip(skip))
             routeGeo.Add(new Geodetic
             {
                 LatDeg = p.Lat,
@@ -2443,6 +2465,7 @@ public sealed class VrfC2SimService : BackgroundService
     // task, if it ever comes, is swallowed once (OnVrfTaskCompleted).
     private readonly ConcurrentDictionary<string, string> _arrivalReported = new();   // unit name -> task uuid reported from evidence
     private readonly ConcurrentDictionary<string, string> _pendingRouteUnit = new();  // route/waypoint name -> unit name (swallow cleared when its VRF task is issued)
+    private readonly ConcurrentDictionary<string, (double Lat, double Lon)> _authoredPosByName = new();  // unit name -> C2SIM authored position (origin-vertex drop)
     private DateTime _nextArrivalCheck = DateTime.MinValue;
 
     private void MaybeCheckArrivals()
