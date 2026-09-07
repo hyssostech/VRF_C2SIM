@@ -143,6 +143,18 @@ pace. There are a leader and followers, which use speed control to remain within
 distance of each other". The next reading is THAT member's console at the leg end (which
 vertex it is on, what it re-plans toward) - the instrument exists (member level 3 is in the
 log; the member -> unit map is in the request line since fa123b0).
+THAT MEMBER (4-27/2/1_A~PXY, six members - M1A2 x2, M3, HMMWV x2, M577A2): over the whole
+night NONE of the six ever logged "Loop to stall", "Global Replan", "not embarked" or
+"BlockedByVehicle" (the spacing removed every one of those); each planned two paths. In the
+trace window (to t = 3,258 s) five members stood at 30.9-31.2 km and the M3 (Bradley) at
+22.7 km - 8 km behind - and it alone kept ticking its move behaviour tree (29,330 "Maybe Skirt
+Blockage" checks vs 9-15k for the others, i.e. active to the last line at sim 29,847 s) with
+no failure event at all. Where it went after t = 3,258 s is UNOBSERVED: WatchVrf capped at
+its own duration and the R1 position reports were off in this harness run. So: the unit
+waited all night for a follower that was 8 km behind at 54 minutes and never reported
+arriving. Open, with two instrument notes for the next run: WatchVrf's cap must cover the
+whole window (-WatchSecs), and position reports on (the demo default) would have shown the
+follower's track.
 Adversarial review: the competing explanation for the movement gain, "a lucky run", is
 refuted by the size of the effect against four co-located runs (blocking 63 vs 4,828; the
 formation gate opened in 3 sim-min where it never opened; 9 of 10 past 1 km) and by the
