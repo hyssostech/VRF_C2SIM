@@ -177,6 +177,13 @@ Falsifiers: a TASKCMPLT for a unit whose centroid is > 500 m from its last verte
 time of the report (false completion); two TASKCMPLT for one task uuid; a unit at its
 destination with a majority within 500 m and no report for > 60 s.
 
+HARNESS NOTE (11:45Z): the runner's status line now reads the trace TAIL (Read-LiveTail,
+256 KB; commit 66f96a7) instead of the whole file - the mechanism of the 00:47Z runner
+death. tests/RunnerTurnaround.Tests.ps1 run DURING the P9 run reports 218/223: the five
+failures are the dry-run tests, whose pre-flight refuses to start beside a joined WatchVrf
+(the live run's observer) - an artefact of running the suite while a run is up, to be
+re-confirmed at 222+/223 after the teardown.
+
 ## 4. Results
 Run 20260907T003457Z (launched 00:35Z on the deployed build 7ac70c9). RUNNER INCIDENT: the
 runner process exited with code 9 at ~t = 590 s of the window with no Stop-Runner message;
