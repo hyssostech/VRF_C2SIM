@@ -371,10 +371,84 @@ Point 7 (paged terrain as a wall): the full vendor sim log of the rotation run (
 holds no terrain, paging, navigation or planner warning at all - unsupported. Points 2-6
 apply once navigation data exists; today there is none, so the members' planner is the
 feature-obstacle planner that ignores slope (UG52 23.5) - consistent with silent stalls.
-CANDIDATE TASK CHANGE (not built): task units with sequenced Move To (-> Maneuver To, D2/Y-11)
-per STP vertex instead of one Move Along Route, so the leader's path is planned leg by leg
-(with navigation data: slope/soil aware; without: feature-aware). Test = one unit family,
-one run, against the fixed trap of 1-35's lane.
+CANDIDATE TASK CHANGE - WITHDRAWN 2026-09-07 17:00Z (user: "Are you sure about splitting the
+task per segment? Is this something backed by the vendor's docs and samples? Or another
+invention?" / "You must have pointers to sources for every decision"). Sequenced Move To
+per STP vertex was MY inference from the consoles + moveToTask.h:181-184 + the quoted
+analysis - an invention. The sources, read 2026-09-07 17:05Z:
+- NO vendor sample tasks a unit that way: grep of C:\MAK\vrforces5.2d\examples for
+  AlongRoute|MoveAlong|along-route hits only decideToGiveUpTask/derivedMoveAlongController
+  (a DtGroundMoveAlongControllerComponent subclass - the controller is the extension
+  point, not the task list); the remoteControl sample tasks an ENTITY with a plan holding
+  one DtMoveToTask (commandLineRemoteController.cxx:1852). (My earlier line "the vendor
+  sample gives a unit one Move Along Route" was wrong and is retracted: the sample does
+  not task units at all.)
+- The unit task the vendor provides for a route is ONE Move Along Route / Maneuver Along:
+  UG52 30.22 p598 "This task causes a ground vehicle unit to move along a route in a
+  formation offset from the selected route. ... Each subordinate computes an offset route
+  and then traverses it BY PLANNING A PATH TO EACH VERTEX IN SEQUENCE at its own pace";
+  30.24 p599 Move Along Route; Migration Guide 2.4.1 Table 1 p20: units' move-along ->
+  move-along "works for both lower-level and higher-level units, though the lower-level
+  units will simply call maneuver-along". So leg-by-leg planning already IS the vendor's
+  design inside the unit task - the split would have duplicated it from outside.
+- What that per-leg planner sees: UG52 30.28 p604 "If navigation data is present,
+  simulation objects take it into account in planning their path to the location";
+  Migration Guide 2.4 p18 "If there is no navigation mesh available from the start of the
+  entity's movement path to the end, the Move To script accounts for feature obstacles";
+  UG52 23.5 (slope ignored by the feature-obstacle planner). Navigation data therefore
+  acts per ENTITY leg, whichever unit task issued the leg - it carries over to the real
+  tasks unchanged.
+- The real STP verbs are vendor unit tasks whose controllers own their movement: UG52
+  33.7.6 p677 Movement to Contact ("causes a mechanized ground unit to move towards an
+  objective"), 33.7.7 p678 Seize Objective ("causes a tank company to move to take
+  control of an area"), 33.5 p673 movement tasks for unit behaviours; SMS
+  EntityLevel\scripts\maneuver-along.xml, vrfSim\taskRules\default-task-rules.tsk,
+  scripts\ground-vehicle-move-to.lua. Route surgery would not compose with them.
+- Our own deterministic runs: R9 3/3 with one moveAlongRoute per unit (PREREG_N3), the
+  night-run console counts above.
+Not built; reopening needs a vendor citation that tasks a unit per vertex.
+
+### 3g RESULTS - THE GENERATOR RUNS HEADLESS UNDER THE DEMO LICENCE (2026-09-07 16:30-17:10Z)
+Four launches of bin64\vrfNavGenerator.exe (5.2 PATH prefix + MAK_VRFDIR, cwd bin64), config
+in the shipped Ala Moana .navGenConfig format (ECEF corners of a 3x3 km box around the STP
+assembly point 34.67998/-116.72480, tile-count 30x30, raster-precision 0.2, cell-size 43,
+profile ground-platform), terrain = MAK Earth (online).mtf:
+- gen1: loaded the online terrain (OSM water/buildings/roads layers), 4,012 transition
+  points in 2.25 s, then "Unable to remove existing navData. Canceling generation." - the
+  generator EMPTIES --outputPath first and my log was open there; it also deleted my config
+  (same folder) and wrote the .navRuntimeConfig under C:\MAK\SharedData\...\navData because
+  --navDataDir was not given (removed the same minute; navData dir verified clean).
+- gen2: "config file ... does not exist" (deleted by gen1).
+- gen3 (config re-created under a cfg\ folder, scratch output tree mirroring the shipped
+  layout): initialised, tagged, "Could not open file [...\ground-platform_0_0_qk40.ClientInput]"
+  - the path was 338 chars, over Windows MAX_PATH.
+- gen4 through a junction C:\Users\PAULOB~1\Temp\nav -> the scratch tree: SUCCESS. 2,704
+  files / 11 MB (900 REGULAR sectors, "Generated NavData count: 1" per sector, transition
+  points generated), 47 s wall incl. ~25 s terrain load; the .navRuntimeConfig written beside
+  the area folder (extent +/-1505 m, offset ECEF, nav-data-path absolute, original-terrain =
+  the C:\MAK .mtf, profile-entry ground-platform). NO licence error - the DEMO licence's
+  vrf_pathgen_rt (or the toolchain licence) covers CREATION, not only regeneration. Nothing
+  under C:\MAK.
+HOW THE SIM LOADS AN AREA (docs read, not inferred): UG52 66.5 "Import Navigation Area" =
+select the .navRuntimeConfig, "the navigation area is added to the terrain", "Save the
+terrain"; 66.3.3 reopen the scenario; the shipped terrain carries 9 `<Type>navData</Type>`
+generic records (myGenericRecords, count 9, .mtf:63423-63434), each `path` -> a
+.navRuntimeConfig; the sim logs "File found at <path>.navRuntimeConfig" for each at terrain
+load (baseline log of run 150643Z: 9 hits) and loads the data lazily when a ground object
+is placed inside the area (p1281). Every real path in the .mtf is a `$(SHARED_DATA_DIR)`
+macro in `<myFilename>` (the 13 `../` strings are `<myName>` labels), so a COPY of the
+.mtf with a 10th record works from any folder - no write under C:\MAK for the probe.
+LIMITS (UG52 66.2, Table 54): 20x20 km per area at the default raster precision; several
+areas per terrain; entities use advanced navigation INSIDE areas and standard navigation
+between them (66.3); sectorize large areas (generation of large unsectorized areas
+"sometimes fails"). The COA's route box is 39 x 52 km (66 vertices; median 24 km from the
+STP point; 1-35's trap 26 km out), so ONE 20 km area cannot cover it - the probe area is a
+20x20 km box whose north edge is 2 km north of the STP point, centred on lon -116.70 (covers
+the 2-3 km stall points of P11b and the R9 anchor; leaves 1-35's trap OUTSIDE as the
+within-run control). Research workflow wf_c3f93816 (46 agents, headers/docs/web) agrees:
+no other slope/soil planner exists without navigation data (DtIfComputeRoute plans roads
+and feature obstacles only); the remote-controllable lever without data is
+DtSetNavigationPreference 'prefer-roads' (set-data) - lever B, not taken yet.
 
 ### 3f RESULTS - run 20260907T150643Z (P11: origin vertex dropped; 4200 s cap; runner exit 0)
 - P11a HOLDS: 16 leading origin vertices dropped (7 first legs + successors); at the end NO

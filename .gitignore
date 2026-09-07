@@ -35,5 +35,8 @@ build/
 
 runs/
 
+# generated navigation data + terrain copies (tools/navdata; MBs to GBs, regenerable)
+tools/navdata/out/
+
 # vendor PDFs (see docs/vendor/README.txt for source URLs)
 docs/vendor/**/*.pdf

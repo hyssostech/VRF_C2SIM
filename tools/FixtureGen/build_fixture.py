@@ -806,14 +806,22 @@ def write_zip(path, members, deterministic=False):
 
 def build_empty_52(out_name, donor="GroundMovement", frame_mode=None,
                    frame_time=None, out_dir=None, scenario_name=None,
-                   aoi=None, verbose=True):
+                   aoi=None, verbose=True, terrain=None):
     """Emit <out_name>.scnx: the donor 5.2-native scenario with EVERY simulation
     object stripped, leaving a globals-only .oob, on MAK Earth (online) +
     EntityLevel.sms with the frame lever set and the extent on the R9 AOI.
 
+    terrain: the Terrain-Database / Gui-Terrain-Database string. Default
+    TERRAIN_52 (the shipped online terrain). A COPY of that .mtf carrying
+    navigation-area records (tools/navdata/make_nav_terrain.py) is passed
+    here by absolute path; the copy is verified to exist on this machine.
+
     Returns (scnx_path, report_dict). The donor .scnx is only READ.
     """
     aoi = aoi or R9_AOI
+    terrain = terrain or TERRAIN_52
+    if terrain != TERRAIN_52 and not os.path.isfile(terrain):
+        raise SystemExit("terrain not found: %s" % terrain)
     donor_path = DONORS_52.get(donor, donor)
     if not os.path.isfile(donor_path):
         raise SystemExit("donor .scnx not found: %s" % donor_path)
@@ -856,8 +864,8 @@ def build_empty_52(out_name, donor="GroundMovement", frame_mode=None,
     # ---- .scn ----------------------------------------------------------------
     scn = txt(".scn")
     scn = scn.replace(dname, out_name)             # part-name references
-    scn = set_scn_string(scn, "Terrain-Database", TERRAIN_52)
-    scn = set_scn_string(scn, "Gui-Terrain-Database", TERRAIN_52)
+    scn = set_scn_string(scn, "Terrain-Database", terrain)
+    scn = set_scn_string(scn, "Gui-Terrain-Database", terrain)
     scn = set_scn_string(scn, "Simulation-Model-Set-Files", SMS_52)
     scn = set_frame_settings(scn, frame_mode, frame_time)
     if scenario_name is not None:
@@ -895,7 +903,7 @@ def build_empty_52(out_name, donor="GroundMovement", frame_mode=None,
                members=[m for m, _ in members], donor_members=order,
                kept=kept_names, n_dropped=len(dropped_uuids),
                omp_before=len(omp_before), omp_after=len(kept_uuids),
-               terrain=TERRAIN_52, sms=SMS_52, extent=extent,
+               terrain=terrain, sms=SMS_52, extent=extent,
                frame_mode=frame_mode, frame_time=frame_time, new_52_keys=new_keys)
     if verbose:
         print("BUILT %s" % scnx_path)
@@ -906,7 +914,8 @@ def build_empty_52(out_name, donor="GroundMovement", frame_mode=None,
                                                  for n, u in kept_names))
         print("  .oob dropped  = %d simulation objects" % len(dropped_uuids))
         print("  .omp entries  = %d -> %d" % (len(omp_before), len(kept_uuids)))
-        print("  terrain       = %s" % TERRAIN_52)
+        print("  terrain       = %s%s" % (terrain, "" if terrain == TERRAIN_52
+                                          else "  (OVERRIDE - not the shipped terrain)"))
         print("  sms           = %s" % SMS_52)
         print("  frame-mode    = %s" % (frame_mode if frame_mode else "(unchanged)"))
         print("  frame-time    = %s" % (("%.6f" % float(frame_time))
@@ -1024,6 +1033,11 @@ if __name__ == "__main__":
                          "(missing frame-time; a stray simulation object) into DIR, "
                          "for the validator's negative gate. Never point this at a "
                          "tracked directory.")
+    ap.add_argument("--terrain", default=None, metavar="MTF",
+                    help="--empty only: Terrain-Database / Gui-Terrain-Database to "
+                         "write instead of the shipped MAK Earth (online).mtf - e.g. "
+                         "the navigation-area copy made by tools/navdata/"
+                         "make_nav_terrain.py (absolute path; must exist).")
     args = ap.parse_args()
 
     if not os.path.exists(OUTDIR):
@@ -1037,7 +1051,8 @@ if __name__ == "__main__":
         print("=" * 70)
         build_empty_52(args.out_name, donor=args.donor,
                        frame_mode=args.frame_mode, frame_time=args.frame_time,
-                       out_dir=args.out_dir, scenario_name=args.scenario_name)
+                       out_dir=args.out_dir, scenario_name=args.scenario_name,
+                       terrain=args.terrain)
         if args.negative_controls:
             print("=" * 70)
             build_empty_52_negative_controls(
