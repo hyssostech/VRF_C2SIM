@@ -53,7 +53,19 @@ control.
 
 ## 2. Gate G1 - the loading chain on the small fixture (R9, 3 units, ~10 min)
 Run: R9 init + R9 order on R9_Mojave_Empty_52_Nav (runner -Scenario), -NoGui, everything
-else as the last green R9 run.
+else as the last green R9 run on the fidelity table (L3, 201623Z 2026-09-06: FidelityTable,
+repo map, 3/3). Build = the deployed P11 build (80daed6, exe 2026-09-07 11:06Z), unchanged.
+Command (64-bit pwsh from Bash; env = observation levels + the type-mapping mode only):
+  export Vrf__TypeMappingMode=FidelityTable Vrf__ObjectConsoleNotifyLevel=4 \
+         Vrf__ObjectConsoleMemberNotifyLevel=3
+  pwsh -NoProfile -File scripts\RunC2SimScenario.ps1 -VrfProfile 5.2 -NoGui \
+       -Scenario R9_Mojave_Empty_52_Nav -Init data\R9_Mojave_Lean_Initialization.xml \
+       -Order data\R9_Mojave_UnitMove_Order.xml -RunSecs 600 -SampleSecs 2
+(RunSecs 600 vs 360: a cap, not a lever - the runner exits early on completion; the margin
+is for the lazy nav-data load.)
+Instruments: the vendor sim log in C:\MAK\logs (grep COUNTS only - it holds the process
+environment in cleartext), the unit/member consoles in the WatchVrf trace, the runner
+verdict (3/3 TASKCMPLT), sim_ratio.py.
 - G1a (record read): the vendor sim log prints "File found at <our .navRuntimeConfig>" -
   10 such lines (9 shipped + ours) vs 9 in the baseline. MISS = the record form or the
   absolute path is not accepted -> fix the record, not the run.
@@ -69,7 +81,18 @@ $(SHARED_DATA_DIR) - then the copy must sit beside the original under C:\MAK (a 
 C:\MAK = the user's call, asked, not taken).
 
 ## 3. Gate G2 - COA-STP1 with the area (the P11 run, one variable)
-Run: COA-STP1 init + order, 4200 s, -NoGui, member consoles as P11.
+Run: COA-STP1 init + order, 4200 s, -NoGui, member consoles as P11. Command = P11's
+(recovered from the session transcript 2026-09-07 17:00Z) with ONLY -Scenario changed:
+  export Vrf__TypeMappingMode=FidelityTable Vrf__CreationPolicy=AtOrder \
+         Vrf__DeStackCreates=true Vrf__DeStackSpacingMeters=700 Vrf__DeStackRotationDeg=0 \
+         Vrf__DropOriginVertexMeters=100 Vrf__TaskPredecessorTimeoutSeconds=7200 \
+         Vrf__ObjectConsoleNotifyLevel=4 Vrf__ObjectConsoleMemberNotifyLevel=3 \
+         Vrf__PositionReportSeconds=10
+  pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\RunC2SimScenario.ps1 -VrfProfile 5.2 \
+       -NoGui -Scenario R9_Mojave_Empty_52_Nav -Init data\COA-STP1_Initialization.xml \
+       -Order data\COA-STP1_Order.xml -ClientId C2SIM \
+       -TypeMapFile <scratch>\unit-type-map-52-nolifeform.json   (PROBE map, as P11) \
+       -RunSecs 4200 -WatchSecs 4500 -BackendNotifyLevel 3 -StopWhenComplete
 - P12a (inside the area, HIGH confidence): 1-6/2/1_AD and 1-35/2/1_A, which stopped as
   whole units 3.3 km and 2.0 km out in P11, pass 6 km (both, straggler_track). MISS =
   slope is NOT the mechanism of those stops -> stop, read their consoles; competing
