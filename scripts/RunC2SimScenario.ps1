@@ -1063,6 +1063,33 @@ function Get-RealPositions {
     }
 }
 
+# Read only the LAST $TailBytes of a live file (default 256 KB). For the observation-window status
+# line, which needs nothing but the newest "# t=..." summary: Read-LiveText's ReadToEnd of a trace
+# growing at ~17 MB/min (object consoles on) inside a 32-bit host killed the runner at 176 MB on
+# 2026-09-07 (PREREG_ASSEMBLY_LAYOUT sec 4, runner incident). Same share mode as Read-LiveText.
+function Read-LiveTail {
+    param([string]$Path, [int]$TailBytes = 262144)
+    if (-not $Path -or -not (Test-Path -LiteralPath $Path)) { return '' }
+    $fs = $null
+    try {
+        $share = [System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete
+        $fs = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, $share)
+        $len = $fs.Length
+        $start = [Math]::Max(0, $len - $TailBytes)
+        $null = $fs.Seek($start, [System.IO.SeekOrigin]::Begin)
+        $buf = New-Object byte[] ($len - $start)
+        $read = $fs.Read($buf, 0, $buf.Length)
+        $text = [System.Text.Encoding]::UTF8.GetString($buf, 0, $read)
+        # drop the (possibly partial) first line when we did not start at 0
+        if ($start -gt 0) { $nl = $text.IndexOf("`n"); if ($nl -ge 0) { $text = $text.Substring($nl + 1) } }
+        return $text
+    } catch {
+        return ''
+    } finally {
+        if ($fs) { $fs.Dispose() }
+    }
+}
+
 function Get-TraceSummaryLine {
     # The "# t=..s reflected=N readable=M" line WatchVrf emits after each sample.
     param([string]$TraceText)
@@ -2706,7 +2733,7 @@ try {
             $remaining = [int]([Math]::Max(0, ($obsEnd - (Get-Date)).TotalSeconds))
             if ((Get-Date) -ge $nextStatus -or $remaining -eq 0) {
                 $nextStatus = (Get-Date).AddSeconds(30)
-                $sum = Get-TraceSummaryLine -TraceText (Read-LiveText -Path $PathTrace)
+                $sum = Get-TraceSummaryLine -TraceText (Read-LiveTail -Path $PathTrace)
                 Say-Info ('  {0}s remaining   trace: {1}' -f $remaining, $(if ($sum) { $sum } else { '(no samples)' }))
             }
             # An interface that dies mid-window is RECORDED, ONCE, and the window is
