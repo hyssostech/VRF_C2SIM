@@ -62,7 +62,18 @@ claiming.
 Run 20260907T003457Z (launched 00:35Z on the deployed build 7ac70c9). RUNNER INCIDENT: the
 runner process exited with code 9 at ~t = 590 s of the window with no Stop-Runner message;
 the sim, the interface and WatchVrf kept running (the runner's teardown never ran - manual
-teardown after the window). Scored from the live trace.
+teardown after the window). Scored from the live trace. MECHANISM (code + instrument
+facts, not a run): the window loop's status line calls Read-LiveText, which reads the WHOLE
+trace with StreamReader.ReadToEnd (RunC2SimScenario.ps1:976-990) every 30 s; with unit
+consoles at 4 AND member consoles at 3 the trace grew ~17 MB/min (176 MB at t = 590 s), and
+the launching PowerShell host is 32-bit ([Environment]::Is64BitProcess False, found
+2026-09-06) - a 350 MB UTF-16 string plus copies inside a 32-bit process is an out-of-memory
+death. The diagnostic run 224326Z (member consoles only, ~150 MB by its END) survived the
+same host; this one crossed the line at 10 minutes. Competing explanation - the tool's
+10-minute background timeout - is refuted by the 45-minute run bxe7sxsdb from the same host.
+FIX OWED (runner, not product): Read-LiveText for the status line reads a tail, not the file;
+launch long runs from a 64-bit host. Falsifier of the mechanism: the same configuration
+dying under a 64-bit host with a tail read.
 MID-RUN, t = 646 s (order at ~t = 40 s):
 - P5 HOLDS: "DeStack (R8): 54 units ... spread onto 700 m rings" (+ a second group of 2);
   341 reflected objects on 308 distinct ~10 m cells, largest co-located group 5 (co-located
