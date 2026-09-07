@@ -73,6 +73,23 @@ STUCK (net movement < 100 m), CIRCLING (returns within 200 m of where it was), C
 for a vertex OUR route authoring placed (compare its heading/goal with the route's last
 vertices, which the app log carries) - then the defect is ours.
 
+PRE-READ ON LAST NIGHT'S DATA (tools/analysis/straggler_track.py on 003457Z, trace to t =
+3,258 s, last-15-min window) - written before the new run reports, as a prior, not a result:
+- 4-27/2/1_A~PXY: straggler M3 2 at 22.7 km, 7.0 km behind the others; window net 1 m,
+  path 603 m -> STUCK (oscillating in place).
+- 40/2/1_AD~PXY: straggler M577A2 5 (the command-post vehicle) 1.26 km behind; net 0 m,
+  path 222 m -> STUCK (oscillating).
+- 1-6/2/1_AD~PXY: the opposite split - HMMWV 7 drove the whole 33.5 km leg ALONE while the
+  other five members stayed at 0.8-1.6 km from birth; the leader finished, the followers
+  never followed; net 0 at the end -> STUCK.
+So the prior for P8 is STUCK/oscillating, in two shapes: a follower left behind mid-route
+(vehicle-specific: an M3, an M577), and followers that never left with their leader. Neither
+is a route-authoring shape (the routes are the units' 24-33 km legs; the stragglers are
+kilometres from any vertex WE placed, not at one). If the new run repeats this, the demo
+answer is interface-side: report a unit's completion from the unit's OWN arrival evidence
+(leader / majority at the route end) instead of waiting for the vendor's all-members report
+- a POLICY the user rules on, since it changes what "complete" means to STP.
+
 ## 4. Results
 Run 20260907T003457Z (launched 00:35Z on the deployed build 7ac70c9). RUNNER INCIDENT: the
 runner process exited with code 9 at ~t = 590 s of the window with no Stop-Runner message;
