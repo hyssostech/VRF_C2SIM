@@ -122,6 +122,18 @@ move-along holds its completion until EVERY member reports arrival, and one to t
 per unit never did. Which members and why is in the member consoles (level 3) of the 1.2 GB
 app log - the next analysis. This is the C1b family at the END of the leg (the unit waits on
 a member that never reaches its slot), no longer the pile at the start.
+MEMBER-LEVEL READ (last 900 MB of the app log, sim 7,000-28,800 s): the members of the
+unfinished units were NOT parked - they kept planning and driving all night: "Job Plan path
+success" x10-18 per tank (C/1-35's M1A2 44 planned its 18th path at sim 28,778 s), "Task Move
+along route success" x9-17, "Turn to route success", "Move On Arc success", "Backup success",
+one "FailWhen condition is true; exiting" (1-35's M1A2 1 at sim 9,425 s). So the picture at
+the leg end is a unit whose maneuver-along keeps completing per member and being re-issued
+while the unit-level task holds "Subs still moving: N" - repeated per-member success without
+unit completion over 8 sim-hours. NOT explained here; the unit-level console around the leg
+end (level 4, in the same log) and UG52 30.24's unit paragraph ("the pseudo-aggregate
+considers the task complete when its lead subordinate completes", moveAlongTasks.h:35-38)
+are the next reading. The demo needs this closed: a unit must report completion when it
+arrives.
 Adversarial review: the competing explanation for the movement gain, "a lucky run", is
 refuted by the size of the effect against four co-located runs (blocking 63 vs 4,828; the
 formation gate opened in 3 sim-min where it never opened; 9 of 10 past 1 km) and by the
