@@ -221,6 +221,32 @@ spacing, e.g. 750 m) - if 1-6's stall moves or vanishes, its slot's terrain was 
 (c) A look at 34.582,-116.98 and at 1-6's slot 34.6625,-116.7326 in the VR-Forces GUI (the
 audience's window, a human look) would settle the terrain question directly.
 
+### 3e. ROTATION TEST (user, 12:40Z: "Rotate the unit placements to verify your terrain theory")
+- registered before launch
+Lever: Vrf:DeStackRotationDeg (new; DeStacker.RingOffset rotates the hex pattern about the
+anchor). Run = the P9 configuration (spaced 700 m, AtOrder, arrival evidence on, position
+reports, unit consoles 4, members 0, 70 min, 64-bit host) with DeStackRotationDeg = 90:
+every displaced unit gets different ground, the same neighbours and spacing, and IDENTICAL
+routes (a route starts at the unit's live position and then follows the order's vertices).
+Predictions (the theory splits in two, and so do they):
+- P10a SLOT STALLS MOVE: 1-6/2/1_AD's leader and followers, stuck at their slot in both
+  previous runs (0.7-1.6 km, 0.1 km apart), leave and drive their leg; the runaway-follower
+  pattern for that unit does not recur. (C/1-35's night-run slot stall likewise does not recur
+  on its new ground.) High confidence if the theory is right.
+- P10b MID-ROUTE TRAPS STAY: 1-35's M3 (designator 3) and 40/2/1_AD's M577 (designator 5)
+  stop again within ~500 m of 34.582,-116.98, and 4-27's M3 within ~500 m of
+  34.479,-116.820 - the route lanes cross the same ground whatever the start slot. High
+  confidence; a miss here means the trap depends on the approach, not the patch.
+- P10c NEW SLOT STALLS MAY APPEAR for units whose rotated slot is bad ground (unpredicted
+  which; recorded if any).
+- P10d the arrival-evidence completions and the vendor completions behave as in P9.
+FALSIFIERS: 1-6 stuck again at its NEW slot -> the stall is in the unit, not the ground
+(then the unit's template/leader is the suspect); the mid-route stragglers stop at NEW places
+or not at all -> the trap is start-dependent (approach path), not a fixed patch.
+Competing hypothesis kept alive for the record: the whole-unit stall is a template/leader
+property of the CP-proxy for infantry battalions (1-6 is an IN battalion mapped to the
+scratch no-lifeform proxy) - P10a's outcome decides between them in one run.
+
 ## 4. Results
 Run 20260907T003457Z (launched 00:35Z on the deployed build 7ac70c9). RUNNER INCIDENT: the
 runner process exited with code 9 at ~t = 590 s of the window with no Stop-Runner message;

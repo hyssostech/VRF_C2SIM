@@ -134,6 +134,22 @@ public static class DeStackSelfTest
                   "spacing 0 -> no-op");
             var one = new List<CreationPlan> { Plan("a", 34.5, -116.5) };
             Check(ref failures, DeStacker.Apply(one, Spacing).Count == 0, "single plan -> no-op");
+
+            // Rotation (2026-09-07 terrain test lever): 0 deg = the old geometry; 90 deg maps the
+            // first ring-1 slot from due north to due east; 360 deg = identity; the anchor never moves.
+            var (n0, e0) = DeStacker.RingOffset(1, Spacing);
+            var (n90, e90) = DeStacker.RingOffset(1, Spacing, 90.0);
+            var (n360, e360) = DeStacker.RingOffset(1, Spacing, 360.0);
+            Check(ref failures, Math.Abs(n0 - Spacing) < 1e-9 && Math.Abs(e0) < 1e-9, "rotation 0: slot 1 due north at one spacing");
+            Check(ref failures, Math.Abs(n90) < 1e-9 && Math.Abs(e90 - Spacing) < 1e-9, "rotation 90: slot 1 due east at one spacing");
+            Check(ref failures, Math.Abs(n360 - n0) < 1e-9 && Math.Abs(e360 - e0) < 1e-9, "rotation 360 = identity");
+            List<CreationPlan> Stack8() => Enumerable.Range(0, 8).Select(i => Plan("u" + i, 34.5, -116.5)).ToList();
+            var rotA = Stack8(); DeStacker.Apply(rotA, Spacing, 0.0);
+            var rotB = Stack8(); DeStacker.Apply(rotB, Spacing, 45.0);
+            Check(ref failures, rotA[0].Pos.LatDeg == rotB[0].Pos.LatDeg && rotA[0].Pos.LonDeg == rotB[0].Pos.LonDeg,
+                  "rotation keeps the anchor in place");
+            Check(ref failures, Enumerable.Range(1, rotA.Count - 1).All(i => rotA[i].Pos.LatDeg != rotB[i].Pos.LatDeg || rotA[i].Pos.LonDeg != rotB[i].Pos.LonDeg),
+                  "rotation 45 moves every displaced unit");
         }
 
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");

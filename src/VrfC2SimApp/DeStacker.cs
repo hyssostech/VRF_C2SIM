@@ -36,7 +36,7 @@ public static class DeStacker
     /// alike (both pile up - the R5c entity control needed ~13 min to escape the
     /// stack). Altitude, name, type, force and heading are untouched.
     /// </summary>
-    public static List<StackGroup> Apply(IList<CreationPlan> plans, double spacingMeters)
+    public static List<StackGroup> Apply(IList<CreationPlan> plans, double spacingMeters, double rotationDeg = 0.0)
     {
         var groups = new List<StackGroup>();
         if (plans.Count < 2 || spacingMeters <= 0)
@@ -62,7 +62,7 @@ public static class DeStacker
 
             for (int n = 1; n < members.Count; n++)
             {
-                var (north, east) = RingOffset(n, spacingMeters);
+                var (north, east) = RingOffset(n, spacingMeters, rotationDeg);
                 int idx = members[n];
                 var p = plans[idx];
                 plans[idx] = p with
@@ -85,13 +85,17 @@ public static class DeStacker
     /// and never moves). Hex ring k = 1, 2, ... holds 6k slots at radius k*spacing;
     /// cumulative capacity of rings 1..k is 3k(k+1).
     /// </summary>
-    public static (double NorthMeters, double EastMeters) RingOffset(int n, double spacingMeters)
+    /// <param name="rotationDeg">Rotates the whole hex pattern about the anchor (clockwise from
+    /// north, degrees; default 0). Every displaced unit then lands on DIFFERENT ground with the
+    /// same neighbours and spacing - the lever for the terrain test of 2026-09-07
+    /// (PREREG_ASSEMBLY_LAYOUT 3e: "rotate the unit placements to verify your terrain theory").</param>
+    public static (double NorthMeters, double EastMeters) RingOffset(int n, double spacingMeters, double rotationDeg = 0.0)
     {
         int k = 1;
         while (3 * k * (k + 1) < n)
             k++;
         int j = n - 3 * (k - 1) * k - 1;          // 0-based slot index on ring k
-        double angle = 2.0 * Math.PI * j / (6 * k);
+        double angle = 2.0 * Math.PI * j / (6 * k) + rotationDeg * Math.PI / 180.0;
         double r = k * spacingMeters;
         return (r * Math.Cos(angle), r * Math.Sin(angle));
     }

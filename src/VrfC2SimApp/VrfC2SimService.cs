@@ -888,10 +888,10 @@ public sealed class VrfC2SimService : BackgroundService
         // stacked spawns are the COA-STP1 pathology that blocks aggregate marching.
         if (_vrf.DeStackCreates && toCreate.Count > 1)
         {
-            foreach (var g in DeStacker.Apply(toCreate, _vrf.DeStackSpacingMeters))
+            foreach (var g in DeStacker.Apply(toCreate, _vrf.DeStackSpacingMeters, _vrf.DeStackRotationDeg))
                 _log.LogInformation("DeStack (R8): {N} units at ({Lat},{Lon}) spread onto " +
-                                    "{Spacing} m rings (first unit kept in place).",
-                                    g.Count, g.LatDeg, g.LonDeg, _vrf.DeStackSpacingMeters);
+                                    "{Spacing} m rings rotated {Rot} deg (first unit kept in place).",
+                                    g.Count, g.LatDeg, g.LonDeg, _vrf.DeStackSpacingMeters, _vrf.DeStackRotationDeg);
             // Review fix: the stored order-time plans must carry the DE-STACKED position, else the
             // members would be born at the authored point, away from their shell. `hierarchy` is
             // index-parallel to toCreate here (no expansion has run in AtOrder mode).

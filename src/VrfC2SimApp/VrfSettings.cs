@@ -233,6 +233,12 @@ public class VrfSettings
     // (Vrf__DeStackSpacingMeters) if 50 proves too tight for member footprints.
     public double DeStackSpacingMeters { get; set; } = 50.0;
 
+    // Rotation of the hex-ring layout about the anchor, degrees clockwise from north (default 0).
+    // Same neighbours and spacing, different ground under every displaced unit - the terrain
+    // test lever (user 2026-09-07: "Rotate the unit placements to verify your terrain theory";
+    // PREREG_ASSEMBLY_LAYOUT 3e). The anchor (first unit of a stack) never moves.
+    public double DeStackRotationDeg { get; set; } = 0.0;
+
     // R10 subordinate fan-out (docs/UNIT_MOVEMENT_RESEARCH.md sec 4c). When ON, an
     // AGGREGATE'S along-route move is fanned out to its member ENTITIES (each member
     // gets MoveAlongRoute on the same route; the unit-level TASKCMPLT is synthesized
