@@ -272,6 +272,41 @@ Competing hypothesis kept alive for the record: the whole-unit stall is a templa
 property of the CP-proxy for infantry battalions (1-6 is an IN battalion mapped to the
 scratch no-lifeform proxy) - P10a's outcome decides between them in one run.
 
+### 3e RESULTS - run 20260907T125540Z (rings rotated 90 deg; 4200 s cap; runner exit 0)
+- P10b HOLDS for the clearest case: 1-35's M3 (designator 3) stopped at the SAME coordinates
+  as in both previous runs (0.00 km apart) from a start 4 km away - a fixed trap on that lane
+  of that route, THREE runs in a row. 4-27's M3 and 40/2/1_AD's M577 could not be tested:
+  their units never got that far this time.
+- P10a FAILS: 1-6/2/1_AD's leader (#1) and followers #2, #3, #5 stalled again 1.3-5 km out
+  from a slot 3 km from the old one, while #4 (HMMWV 7) drove the 34.8 km leg alone, and #6
+  this time too. The stall is not the ground under 1-6's slot.
+- P10c, worse than "may appear": the rotation spread the pattern. 40/2/1_AD (26 km last run)
+  stalled at 1.1-2.0 km with #4 (HMMWV 9) alone at 26.4 km; 1-1 stalled #1-#3 at 1.9-2.8 km
+  with #4 (M1A2 26) alone at 27.8 km; 5-20 all six at 2.6 km (#6 at 0); 4-27 all at 3-4.6 km;
+  C/1-35's HQ + three platoons at 24.7 km with the fourth platoon (#11-#18) at 8-12 km. The
+  runaway is DESIGNATOR 4 in three units (1-6 twice, 40/2/1_AD, 1-1).
+- P10d HOLDS: 12 MoveAlongRoute = 9 first legs + 3 successors (T28, T36, ...) released by
+  completions with the 7200 s predecessor timeout; 4 TASKCMPLT for 4 task uuids, no
+  duplicates: T27 + T28 (856/HHC; T28's destination is T27's end, so the evidence completed
+  it 30 s after dispatch - the ruling's accepted tolerance, and STP's plan advanced), T35
+  (B/5-20, 3 of 4 within 500 m at 1,588 s) + T36.
+READING (revised): the stalls are NOT the ground under the slot. They happen 1-5 km after
+leaving it, on the cross-country APPROACH from the slot to the route's first vertex, and
+rotating the slots changed the approaches and therefore which units got caught. One member
+per unit (designator 4, twice a HMMWV) escapes and drives the leg. With the vendor's own
+rules: military vehicles ignore roads by default (UG52 40.54), the feature-obstacle planner
+"does not take ground slope into account" (23.5), and "vehicles can just barely move up the
+max-slope ... may slide down slopes" - a unit sent cross-country through the Mojave hills
+without navigation data stalls wherever a lane meets a grade it cannot climb, silently (no
+block message: verified in 3d's member consoles). The fixed trap of 1-35's M3 is the same
+mechanism on the route itself.
+Adversarial review: verified - positions, designators, the same-spot repeat, the vendor
+text. Refuted by this run - "bad ground under the slot" (1-6 stalled on two different
+slots). Not yet verified - that the stall points are grades above max-slope (needs a
+height profile at the stall points, or the vendor's navigation data). The competing
+"template/leader property" for 1-6 is weakened by 40/2/1_AD and 1-1 showing the same
+shape only after rotation - the property is the approach path, not the template.
+
 ## 4. Results
 Run 20260907T003457Z (launched 00:35Z on the deployed build 7ac70c9). RUNNER INCIDENT: the
 runner process exited with code 9 at ~t = 590 s of the window with no Stop-Runner message;
