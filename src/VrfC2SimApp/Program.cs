@@ -61,7 +61,26 @@ if (args.Length > 0 && args[0] == "--placement-selftest")
 if (args.Length > 0 && args[0] == "--compose-selftest")
     return ComposeOrderSelfTest.Run();
 
-var builder = Host.CreateApplicationBuilder(args);
+// CONTENT ROOT = the executable's folder (2026-09-07, found by --runtime-check): the generic host
+// resolves appsettings*.json against the CURRENT DIRECTORY by default, so an exe started from any
+// other folder silently ran without its settings (and without the Demo overlay). The deliverable
+// must run from anywhere; a settings file that is NOT beside the exe is not ours.
+var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
+{
+    Args = args,
+    ContentRootPath = AppContext.BaseDirectory,
+});
+// MAK runtime bootstrap from the app's own settings (MakRuntime.cs): PATH + MAK_*DIR + the RTI
+// posture, BEFORE any bridge type loads. Makes the executable + appsettings the whole deliverable;
+// the start script and the test runner keep working because a variable already set wins.
+var rt = MakRuntime.Bootstrap(builder.Configuration, AppContext.BaseDirectory);
+foreach (var a in rt.Applied) Console.WriteLine("MakRuntime: " + a);
+foreach (var w in rt.Warnings) Console.Error.WriteLine("MakRuntime WARNING: " + w);
+// --runtime-check: deployment smoke test for the solutions engineers - apply the bootstrap, then
+// touch the bridge so the MAK stack actually binds (a wrong PATH fails HERE, not at the join),
+// print which stack bound, and exit without starting the host (nothing joins, nothing is created).
+if (args.Length > 0 && args[0] == "--runtime-check")
+    return RuntimeCheck.Run(rt);
 builder.Services.AddHostedService<VrfC2SimService>();
 await builder.Build().RunAsync();
 return 0;

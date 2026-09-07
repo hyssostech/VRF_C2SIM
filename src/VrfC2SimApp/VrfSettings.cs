@@ -159,6 +159,14 @@ public class VrfSettings
     // Only consulted when ComposeHierarchy is ON and a coarse leaf (company+) needs expanding.
     public string VrfHome { get; set; } = "";
 
+    // MAK RUNTIME BOOTSTRAP (MakRuntime.cs, 2026-09-07): with these set, the executable prepares its
+    // own process (PATH, MAK_VRLDIR/MAK_RTIDIR, RTI_RID_FILE, RTI_ASSISTANT_DISABLE) and no start
+    // script is needed. Empty = the process environment must already be right (harness runs).
+    public string VrLinkHome { get; set; } = "";
+    public string RtiHome { get; set; } = "";
+    public string RidFile { get; set; } = "";              // relative to the app directory when not rooted
+    public bool RtiAssistantDisable { get; set; } = false;
+
     // Seconds to wait for all of a composed parent's declared children to be created (ObjectCreated)
     // before the parent shell is created from the children that DID arrive (a warning is logged for
     // any missing child). Mirrors TerrainProfileTimeoutSeconds; guards against a child whose create

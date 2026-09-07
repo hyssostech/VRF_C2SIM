@@ -43,6 +43,11 @@
     <None Update="appsettings.Demo.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <!-- The RTI rid the in-process bootstrap points RTI_RID_FILE at (MakRuntime.cs; Demo overlay
+         RidFile is relative to the app directory). The rtiexec posture UG52 5.5.1 requires. -->
+    <None Include="..\..\config\rid-501-rtiexec-min.mtl" Link="rid-501-rtiexec-min.mtl">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
   <ItemGroup>

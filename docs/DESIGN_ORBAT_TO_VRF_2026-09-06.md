@@ -128,6 +128,14 @@ C13 THE INIT IS THE ORBAT (CONTEXT), THE ORDERS DEFINE THE SIMULATED SET - user 
     move-into-formation from every sub-unit (C1b's gate); at the 11-unit start-point pile one
     sub-unit can stall in the vendor script's replan loop and the unit never leaves; TEMPLATE
     units have no such gate. Which unit it hits varies by run.
+C14 CO-LOCATED UNITS ARE SPREAD AT STARTUP - user ruling 2026-09-07 ~00:20Z ("bite my tongue and
+    accept trying to space out the entities at startup, given the evidence of the triangular
+    position you now cite"). Supersedes R8's 2026-07-13 ruling FOR 5.2 (that one was on 5.0.2, no
+    vehicle-vehicle avoidance). Anchors: the vendor sample offsets even a platoon's tanks by 10 m
+    (commandLineRemoteController.cxx:756-770); UG52 23.2.3 (avoidance does not plan through
+    entities, vehicles "could become trapped"); the shipped Armor-Co formations span up to 630 m.
+    Lever: the existing DeStacker rings with Vrf:DeStackSpacingMeters=700 (> the longest company
+    formation). Record: PREREG_ASSEMBLY_LAYOUT_2026-09-07.
 NEXT (the only real work): N1 DONE 2026-09-06 (PREREG_N1_COMPOSE_DEFAULT: default ON verified by
 run D 162958Z 3/3 with no env; flag-off run L 164022Z reproduces the legacy 38-phantom / 2-of-3
 signature - the switch is the regression control). N2 DONE 2026-09-06 (PREREG_N2_DECLARED_ORDER:
