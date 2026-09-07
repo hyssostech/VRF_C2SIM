@@ -18,6 +18,12 @@ steps are the ones the test runner performs, reduced to what an operator needs. 
 - Nothing from a previous session may still be running: `Get-Process vrfSim*,vrfGui*,
   VrfC2SimApp` must be empty (a leftover back end blocks the launch - RUNBOOK 0.5.0).
   rtiexec / rtiForwarder MAY stay up between sessions and must NEVER be killed.
+- DEPLOYMENT SMOKE TEST (2026-09-07, do this first on any new machine): from the deployed
+  folder, `set DOTNET_ENVIRONMENT=Demo` then `VrfC2SimApp.exe --runtime-check`. Expect
+  "MakRuntime: PATH prefixed with ...", "VrfBridge loaded; native stack = 5.2|C:\MAK\
+  vrforces5.2d\bin64\vrfcontrol.dll" and "runtime-check: OK", exit 0. It applies the app's
+  own MAK runtime settings (appsettings.Demo.json: VrfHome / VrLinkHome / RtiHome / RidFile),
+  binds the bridge and exits without joining anything; a wrong install path fails loudly.
 
 ## 1. Start order (three consoles)
 1. rtiexec (once; survives sessions): `pwsh -File scripts\StartRtiExec52.ps1`
@@ -28,15 +34,28 @@ steps are the ones the test runner performs, reduced to what an operator needs. 
    expect: "VR-Forces READY"; the GUI shows an empty Mojave scenario, sim clock RUNNING.
    (The fixture is the test one - fixed-frame-run-to-complete; for a real-time demo build a
    real-time fixture with tools/FixtureGen and name it here - DEMO_READINESS row 10.)
-3. The interface: `pwsh -File scripts\StartInterface52.ps1 -ClientId <SystemName of STP's init>`
-   expect (its console): "Connected to C2SIM (...) clientId=<...>", then the join lines and
-   "READY" / waiting for the initialization. `-WhatIf` prints the environment without starting.
-4. STP pushes the Initialization: expect one "PLACEMENT: UNIT <name>" line per unit, the
-   "ComposeHierarchy:" lines for units with declared children or coarse companies, and the
-   units appearing in the GUI within ~30 s.
-5. STP pushes Orders: expect "CreateRoute ... move deferred to route-created" then
-   "MoveAlongRoute issued" per task; units move in the GUI; STP receives position reports every
-   10 s and a task-status (TASKCMPLT) report per completed task.
+3. The interface: either `set DOTNET_ENVIRONMENT=Demo` + `set Vrf__ClientId=<SystemName of
+   STP's init>` + `VrfC2SimApp.exe` from the deployed folder (the exe prepares its own MAK
+   runtime since 2026-09-07 - MakRuntime lines first), or the convenience script
+   `pwsh -File scripts\StartInterface52.ps1 -ClientId <SystemName>` which sets the same.
+   expect (its console): "MakRuntime: ..." lines, "Connected to C2SIM (...) clientId=<...>",
+   then the join lines and "READY" / waiting for the initialization.
+4. STP pushes the Initialization: expect "CreationPolicy=AtOrder (C13): N unit(s) created as
+   EMPTY shells" (every unit is a shell until an order names it - the whole ORBAT displays,
+   only the COA's units get vehicles), "DeStack (R8): N units at (...) spread onto 700 m
+   rings" for units STP placed on one coordinate (C14), one "PLACEMENT: UNIT <name>" line per
+   unit, and the units appearing in the GUI within ~30 s as unit icons spread over an
+   assembly area (a brigade's worth of units on 700 m rings spans a few km).
+5. STP pushes Orders: expect "MATERIALIZE <unit> (task ...)" lines (the referenced units get
+   their members: a company expands into its platoons, an HQ section is re-created as its
+   template), "CreateRoute ... move deferred to route-created" then "MoveAlongRoute issued"
+   per task; units move in the GUI; STP receives position reports every 10 s and a
+   task-status (TASKCMPLT) report per completed task. A completion comes from either the
+   vendor ("VRF task complete: <unit>") or, when the vendor waits on a straggling member,
+   from the interface's own arrival evidence ("ARRIVAL EVIDENCE: <unit> ... N/M member(s)
+   within 500 m of the last vertex", C15) - one TASKCMPLT per task either way. Successor
+   tasks wait up to 2 h (TaskPredecessorTimeoutSeconds) for their predecessor; a 28 km leg
+   takes 30-60 min of sim time.
 
 ## 2. Stop order
 Ctrl+C the interface (it resigns from the federation), close VR-Forces (GUI File > Exit, or
@@ -48,9 +67,16 @@ interface (step 3) so its unit map is empty; push the init again. Do not push a 
 into a running interface - it ignores duplicates by uuid (a guard, not a reset).
 
 ## 4. Known traps
-- PATH: the interface must start through StartInterface52.ps1 (or an equivalent prefix); a
-  bare `VrfC2SimApp.exe` fails at the first bridge call ("procedure imported by VrfBridge.dll
-  could not be loaded").
+- PATH: no longer a trap when the Demo overlay is in place - the exe prefixes its own PATH
+  from appsettings.Demo.json (MakRuntime) and `--runtime-check` proves it. Without the
+  overlay (no DOTNET_ENVIRONMENT=Demo, empty VrfHome keys) a bare `VrfC2SimApp.exe` still
+  fails at the first bridge call ("procedure imported by VrfBridge.dll could not be loaded").
+- A stale build given a switch it does not know used to fall through and START the interface;
+  since 2026-09-07 an unknown "--switch" exits 2 without starting (host "--Key=Value" switches
+  pass).
+- The console stream: the demo overlay keeps the VR-Forces object consoles OFF
+  (ObjectConsoleNotifyLevel -1). Turning them on writes every console line into the
+  interface's log (1.2 GB overnight at scale) - a diagnostic setting, never a demo one.
 - clientId vs SystemName: they must be equal or the interface creates nothing (RUNBOOK sec 2).
 - Terrain: MAK Earth (online) needs internet; without it VR-Forces stalls on terrain load.
 - Two interfaces on one network need different -AppNumber values.
