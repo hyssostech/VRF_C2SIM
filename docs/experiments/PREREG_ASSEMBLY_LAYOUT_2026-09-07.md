@@ -342,6 +342,40 @@ Adversarial review: the competing explanation, bad ground at the point, is refut
 co-located runs; the competing explanation, a 1-6 template defect, is weakened by 40/2/1_AD
 and 1-1 showing the same shape when their approach changed, and is decided by P11 (b).
 
+### 3g. TASK CHOICE AND NAVIGATION DATA (user's two questions, 15:20-15:40Z) - what is verified
+NAVIGATION DATA WITHOUT THE GUI: bin64 ships vrfNavGenerator.exe (options --config --terrain
+--navDataDir --outputPath --runtimeConfigPath --regenAll --model --appDataDir --dataDir
+--sharedDataDir --userDataDir --logFileName --verbose --tracy), vrfNavigation.dll,
+navGenerationFunctions.dll (the plugin navigationProfiles.mtl names) and a navigationLab
+folder; vrfGuiCore.dll's strings show the GUI merely spawns it ("Cannot start vrfNavGenerator
+process"). The API reference has DtNavigationGeneratorInput / DtNavigationFeatureCreator.
+The GUI writes <area>.navGenConfig + <area>.navRuntimeConfig under userData/navData (UG52
+66.5); none is installed here to copy. Licence: the DEMO licence carries vrf_pathgen_rt
+(runtime regeneration - "does not require an additional license" and generated data "can be
+distributed to users without a license for creating navigation areas", help page
+vrf_automaticRegeneratio.htm); the CREATION feature name is not visible in the binaries -
+settled by running the generator once (after P11). Public web: MAK confirms the mesh needs
+"an additional license", nothing on the command line.
+TASK CHOICE (the user's quoted analysis, checked against the consoles): our facade issues
+moveAlongRoute (native DtMoveAlongTask), moveToLocation (DEPRECATED for ground vehicles per
+moveToTask.h:181-184 - "a ground-vehicle-move-to is started as a subtask" - i.e. the sim
+converts it), planAndMoveTo (R11 waypoint), MoveIntoFormation, FollowEntity, PatrolRoute. For
+UNITS (every COA-STP1 taskee) the sim's own chain is move-along-controller -> maneuver-along-
+controller -> per member: movement.move-along on the OFFSET ROUTE with move-to / move-to-direct
+legs (night run: 1,180 move-along, 265 move-to, 168 move-to-adapter, 175 maneuver-in-formation
+subtask starts; 9,555 "move-to-direct" status lines) and the ground-vehicle-move-to behaviour
+tree only for the planned approach to the first vertex. So point 1 of the analysis holds
+for the vendor's OWN unit design: mid-route legs are "go straight" between offset-route
+vertices; the 5.2 replanner runs at the start, not between STP's vertices 20 km apart.
+Point 7 (paged terrain as a wall): the full vendor sim log of the rotation run (9,165 lines)
+holds no terrain, paging, navigation or planner warning at all - unsupported. Points 2-6
+apply once navigation data exists; today there is none, so the members' planner is the
+feature-obstacle planner that ignores slope (UG52 23.5) - consistent with silent stalls.
+CANDIDATE TASK CHANGE (not built): task units with sequenced Move To (-> Maneuver To, D2/Y-11)
+per STP vertex instead of one Move Along Route, so the leader's path is planned leg by leg
+(with navigation data: slope/soil aware; without: feature-aware). Test = one unit family,
+one run, against the fixed trap of 1-35's lane.
+
 ## 4. Results
 Run 20260907T003457Z (launched 00:35Z on the deployed build 7ac70c9). RUNNER INCIDENT: the
 runner process exited with code 9 at ~t = 590 s of the window with no Stop-Runner message;
