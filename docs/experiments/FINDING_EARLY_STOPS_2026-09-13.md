@@ -115,5 +115,49 @@ UNEXPLAINED, recorded: G3's HMMWV 2 crept 271 m after the freeze while four peer
 M3 4 received six goals and still did not move; G2's 1-6 leader had its maneuver-in-formation task
 Failed at sim 320.4 when the same unit in P11 and G3 never failed at all.
 
-## 5. Check results
-(filled when the executor returns)
+## 5. Check results (Opus executor, 2026-09-13 ~19:30Z) - THE SLOPE READING OF SEC 4 IS REFUTED AS STATED
+C1 - the vehicles' own limits (movingObjectParameters.h:294-310: max-slope is rise-over-run, "the
+maximum slope at which the entity can still have acceleration >= 0"): M1A2_Abrams_MBT.entity:300
+0.94 (43.2 deg); M3 via parent M2A2_Bradley_IFV.entity:358 0.94; HMMWV (M998:168 / M1025:227) 1.0
+(45 deg); M577A2_Command_Post.entity:47 1.0. Soil derates it (navigationPreferenceDescriptor.h:
+125-127: multiplied by the soil acceleration-factor; ground-tracked.sysdef:787 rocks/sand 0.80,
+muck 0.40, deep-water 0). The nav-mesh profile slope-max is 46 deg (navigationProfiles.mtl:246,
+units degrees per lines 50-52) - STEEPER than any of these vehicles can climb: the shipped mesh
+marks as traversable ground an Abrams cannot drive (a real vendor-configuration gap, recorded, but
+not what stopped these units - see C2).
+C2 - the grade under the stop, from the POS altitude (live, not a placeholder), resampled along
+path: 1-35's leader (G3) birth 1239 m -> freeze 1586 m, path 2,449 m, climb +346 m; max 100 m
+grade in the last 500 m +0.674 (34 deg) at the CREST (alt 1604, sim 331); grade AT the stop -0.010
+(G3) / +0.030 (P11); steepest 20 m surmounted +0.896 (41.9 deg) = 95 % of the limit; after the
+stop the leader sits in a 3 m ball (alt 1583.7-1586.6) for the rest of the run. P11 freezes at the
+same point to ~1 m. 1-6's leader (G3): climb +408 m, max grade last 500 m +0.292, grade at the
+stop +0.101, steepest surmounted +0.693. CONTRAST 1-1's leaders (same run, same type) passed
+361-410 m from 1-35's freeze point at 1574-1600 m and drove 24 km, surmounting +0.713. The
+remaining leg ahead of each freeze is net DOWNHILL (-0.055 for 1-35 to V1; -0.086 for 1-6).
+VERDICT: the stop is not on a grade the vehicles cannot climb; they froze on near-level ground just
+past a crest after climbing steeper pitches. Slope as the sufficient cause is REFUTED.
+C3 - the area edge: 1-35's V1 is 229 m OUTSIDE the area, 1-6's V1 533 m INSIDE, 1-1's V1 272 m
+OUTSIDE (further than 1-35's) - and 1-1 ran 24 km while 1-6 froze. Inside/outside does not
+partition frozen from moving units. The mesh gate is isPathPartOutsideNavArea (ground-vehicle-
+move-to.lua:478-483: either endpoint outside -> no mesh planning for that part); "Planned path has N
+parts" (lua:1398) = parts of the feature path (on-feature/off-feature), a different message from
+the mesh's "Planned path has N points" (lua:511); neither survives at the captured console level.
+Discrepancy between the two executors, recorded: the console read gave the leader "max excursion
+23 m, integrated path 861 m" after the stop; the grade check gives "a 3 m ball". Same member, same
+run; the metric or the window differs; not resolved here.
+REVISED STATE: CAUSE OPEN. What is now VERIFIED: (i) all three runs freeze on the same near-level
+ground just past a crest at ~1,590 m, 2 km out; (ii) the movement layer reports running /
+unblocked / goal unchanged forever and enters no failure branch; (iii) the vehicles had just
+climbed 41-42 deg pitches, 95 % of their limit; (iv) the leader keeps moving inside a few metres
+with its altitude cycling 1,579-1,596 m at a ~25 s period (from the console read) - a 17 m
+vertical oscillation within a few metres horizontal, which the terrain cannot supply unless it has
+a step there; (v) a same-type unit crossed the ridge 400 m away without stopping. UNMEASURED:
+soil class at the stop (the facade drops soilType); terrain relief at metre scale around and
+ahead of the stop (the 90 m worldwide elevation of MAK Earth (online) can hold a stair-step at a
+crest); whether the mesh's polygons cover the freeze point; the controller's COMMANDED speed and
+throttle at the stop, which is what separates "cannot move" from "chose to stop".
+NEXT DISCRIMINATOR (cheapest first; registered as PREREG_EARLYSTOP_G5_2026-09-13.md): a 10-minute
+run of the same scenario with a PROBE order holding only 1-35's first task, so only 1-35
+materializes, with its six member consoles at the vendor's DEBUG level 4 (UG52 21.9.1) - the
+freeze happens by sim ~360, i.e. ~4 minutes of wall at 1.6x. Then, if needed, a terrain-height and
+soil grid probe around the freeze point (new tool) and the elevation source's posting there.
