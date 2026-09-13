@@ -2547,7 +2547,7 @@ public sealed class VrfC2SimService : BackgroundService
             // neither be sampled nor de-duplicated and is left out of both sides.
             // ArrivalSelfTest carries the before/after decision table.
             var seen = new HashSet<string>(StringComparer.Ordinal);
-            total = members.Count(m => !string.IsNullOrEmpty(m.Uuid) && seen.Add(m.Uuid));
+            total = members.Count(m => string.IsNullOrEmpty(m.Uuid) || seen.Add(m.Uuid));   // unreadable (empty-uuid) members still count; duplicates once
             foreach (var m in members)
             {
                 if (string.IsNullOrEmpty(m.Uuid) || !_bridge.TryGetEntityGeodetic(m.Uuid, out var g)) continue;

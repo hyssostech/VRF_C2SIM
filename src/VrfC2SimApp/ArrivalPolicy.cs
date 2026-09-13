@@ -87,8 +87,9 @@ public static class ArrivalSelfTest
         //   BROKEN (C16 as first written) the sample is a DICTIONARY keyed by uuid (ONE distance)
         //          but total is still members.Count (TWO): the duplicate weighs against arrival
         //          while contributing one position - strictly HARDER than main. That is the bug.
-        //   FIXED  (this build) dictionary sample AND total = DISTINCT non-empty uuids: one
-        //          physical vehicle counted once on both sides.
+        //   FIXED  (this build) dictionary sample AND total = DISTINCT uuids, with an EMPTY-uuid
+        //          member still counted against arrival exactly as main did: one physical vehicle
+        //          counted once on both sides; an unreadable one keeps its vote.
         static (List<double> D, int Total) SampleMain((string Uuid, double Dist)[] ms)
         {
             var d = new List<double>();
@@ -106,7 +107,7 @@ public static class ArrivalSelfTest
             var p = new Dictionary<string, double>(StringComparer.Ordinal);
             foreach (var m in ms) if (!string.IsNullOrEmpty(m.Uuid)) p[m.Uuid] = m.Dist;
             var seen = new HashSet<string>(StringComparer.Ordinal);
-            int total = ms.Count(m => !string.IsNullOrEmpty(m.Uuid) && seen.Add(m.Uuid));
+            int total = ms.Count(m => string.IsNullOrEmpty(m.Uuid) || seen.Add(m.Uuid));
             return (p.Values.ToList(), total);
         }
         static bool Arrives((List<double> D, int Total) s) => ArrivalPolicy.Decide(s.D, s.Total, 500, 0.5).Arrived;
@@ -129,13 +130,13 @@ public static class ArrivalSelfTest
               "counted) - a DELIBERATE divergence: one vehicle is one vote",
               Arrives(SampleFixed(dupFar)) && !Arrives(SampleMain(dupFar)));
 
-        // (c) the other documented divergence: a member whose uuid is EMPTY cannot be identified, so
-        //     it can be neither sampled nor de-duplicated and is excluded from total. main counted it
-        //     against arrival. Flagged for the supervisor; no such member has ever been observed.
+        // (c) a member whose uuid is EMPTY cannot be sampled or de-duplicated, but it is still a
+        //     vehicle: it counts against arrival exactly as on main (supervisor ruling 2026-09-13,
+        //     'unreadable members must still count'). No such member has ever been observed.
         var withEmpty = new[] { ("A", 10.0), ("B", 10.0), ("", 30000.0), ("C", 30000.0) };
-        Check("EMPTY-uuid member: excluded from total by the fix (2 of 3 -> arrived) where main " +
-              "counted it (2 of 4 -> not) - known divergence, documented in TryReadMemberPositions",
-              Arrives(SampleFixed(withEmpty)) && !Arrives(SampleMain(withEmpty)));
+        Check("EMPTY-uuid member: FIXED counts it against arrival as MAIN does (2 of 4 -> not " +
+              "arrived on both) - no divergence",
+              Arrives(SampleFixed(withEmpty)) == Arrives(SampleMain(withEmpty)) && !Arrives(SampleFixed(withEmpty)));
 
         // (d) the property that matters: over EVERY near/far arrangement of five members with one
         //     duplicated, the fixed sampler is never STRICTER than main - and the broken one is.
