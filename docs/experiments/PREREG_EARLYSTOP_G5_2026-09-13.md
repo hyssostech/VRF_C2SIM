@@ -64,5 +64,27 @@ Command (64-bit pwsh from Bash):
 P15a or P15d missed = stop, report. Whatever P15b shows, the next step (a terrain/soil grid probe,
 or a controller read) is a NEW prereg.
 
-## 4. Results
-(to be filled after the run; nothing here was written before it)
+## 4. Results - run 20260913T185936Z (launched 18:59:36Z, 600 s cap, runner exit 0, clean teardown)
+SUPERVISOR QUICK LOOK (19:12Z; the executor's full harvest follows):
+- P15a HOLDS: 1-35 ALONE froze at the same place. Leader M1A2 1 net 1,970 m at 34.65607/-116.76144,
+  alt 1,585.5 m - the P11/G3 freeze point (34.65608/-116.76142, 1,969-1,970 m) to ~1 m. The other
+  five: HMMWV 1 1,981 m, HMMWV 2 2,047 m, M1A2 2 1,941 m, M3 1 2,042 m, M577A2 1 1,900 m, all
+  within the same ~120 m patch (alts 1,560-1,624). The freeze is intrinsic to this unit / route /
+  ground; interaction with the other eight tasked units is REFUTED (only 1-35 existed as
+  vehicles; 127 shells).
+- P15d HOLDS: 443 distinct console message shapes from the six members (level 3 gave 7); ~93,500
+  console rows per member; the unit console printed 7 rows (unchanged). Instrument live.
+- The level-4 stream is the ground-vehicle-move-to BEHAVIOUR TREE tick trace: at the freeze, every
+  tick reads "Primitive or Planned Move: running -> Plan Then Move: running -> loop until no more
+  path parts or block skirt fail -> Maybe plan path: FAIL (Goal new or changed? fail) -> Move on
+  unblocked path or replan: running -> Move while checking blockage: running -> Maybe Skirt
+  Blockage: FAIL (Is path blocked? fail) -> Select move technique: running -> Maybe Move Off Road:
+  running -> Move along offroad path: running -> Move along route: RUNNING -> Status of task
+  move-along is TaskRunning" plus "Checking status of task for <member>". The tree is parked in
+  its move-along task node and sees nothing wrong. Whether the stream also carries commanded vs
+  actual speed (P15b) is the executor's read.
+- The leader's altitude over the last 240 s of wall: 1,584.0-1,585.5 m (1.5 m band), position
+  spread 1.3 m. The "17 m altitude cycling with a 25 s period" reported by the 2026-09-13 console
+  read of G3 is NOT reproduced here; the grade check's "3 m ball" is. The FINDING doc's item (iv)
+  is to be corrected once the executor has compared the runs.
+(Executor harvest: appended below when it lands.)
