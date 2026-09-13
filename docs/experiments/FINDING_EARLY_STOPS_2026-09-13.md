@@ -159,5 +159,15 @@ throttle at the stop, which is what separates "cannot move" from "chose to stop"
 NEXT DISCRIMINATOR (cheapest first; registered as PREREG_EARLYSTOP_G5_2026-09-13.md): a 10-minute
 run of the same scenario with a PROBE order holding only 1-35's first task, so only 1-35
 materializes, with its six member consoles at the vendor's DEBUG level 4 (UG52 21.9.1) - the
-freeze happens by sim ~360, i.e. ~4 minutes of wall at 1.6x. Then, if needed, a terrain-height and
-soil grid probe around the freeze point (new tool) and the elevation source's posting there.
+freeze happens by sim ~360, i.e. ~4 minutes of wall at 1.6x. [G5 RAN 19:00Z: the unit ALONE froze
+at the same point to ~1 m - interaction refuted; the debug stream is the BT tick trace parked in
+move-along; harvest in progress.]
+USER DIRECTIVE 2026-09-13 ~19:40Z, before any further probe: "there is nothing special in what you
+are trying to achieve. No random walks - read the vendor documentation, samples, community
+insights instead." Accordingly the path-shift run and the terrain-grid probe tool I had proposed
+are PARKED; the next executor is a docs / sample / community reader on the ordinary question "a
+VR-Forces ground vehicle stops mid-route while its task runs; what stops a vehicle on a patch of
+terrain" - the vendor's decideToGiveUpTask sample, UG52 ch 23 in full (soil Table 26, slope,
+paging, clamping), the terrain's surface-characteristics mapping files (landCoverDataSurfChar.map,
+smc_fid_soiltype_map.csv) read at the freeze point offline, and the public record. Sec 6 holds
+its result.
