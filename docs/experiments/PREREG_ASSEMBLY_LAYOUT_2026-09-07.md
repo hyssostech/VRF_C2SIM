@@ -364,9 +364,10 @@ UNITS (every COA-STP1 taskee) the sim's own chain is move-along-controller -> ma
 controller -> per member: movement.move-along on the OFFSET ROUTE with move-to / move-to-direct
 legs (night run: 1,180 move-along, 265 move-to, 168 move-to-adapter, 175 maneuver-in-formation
 subtask starts; 9,555 "move-to-direct" status lines) and the ground-vehicle-move-to behaviour
-tree only for the planned approach to the first vertex. So point 1 of the analysis holds
-for the vendor's OWN unit design: mid-route legs are "go straight" between offset-route
-vertices; the 5.2 replanner runs at the start, not between STP's vertices 20 km apart.
+tree only for the planned approach to the first vertex. [REFUTED 2026-09-07 by the withdrawal
+paragraph below - UG52 30.22 p598: each subordinate plans a path to each offset-route vertex
+in sequence; the entity-level Move Along Route of UG52 23.1 p500 does not plan, the unit task
+does.]
 Point 7 (paged terrain as a wall): the full vendor sim log of the rotation run (9,165 lines)
 holds no terrain, paging, navigation or planner warning at all - unsupported. Points 2-6
 apply once navigation data exists; today there is none, so the members' planner is the
@@ -376,13 +377,14 @@ task per segment? Is this something backed by the vendor's docs and samples? Or 
 invention?" / "You must have pointers to sources for every decision"). Sequenced Move To
 per STP vertex was MY inference from the consoles + moveToTask.h:181-184 + the quoted
 analysis - an invention. The sources, read 2026-09-07 17:05Z:
-- NO vendor sample tasks a unit that way: grep of C:\MAK\vrforces5.2d\examples for
-  AlongRoute|MoveAlong|along-route hits only decideToGiveUpTask/derivedMoveAlongController
-  (a DtGroundMoveAlongControllerComponent subclass - the controller is the extension
-  point, not the task list); the remoteControl sample tasks an ENTITY with a plan holding
-  one DtMoveToTask (commandLineRemoteController.cxx:1852). (My earlier line "the vendor
-  sample gives a unit one Move Along Route" was wrong and is retracted: the sample does
-  not task units at all.)
+- NO vendor sample tasks a unit per vertex: grep of C:\MAK\vrforces5.2d\examples for
+  AlongRoute|MoveAlong|along-route hits decideToGiveUpTask/derivedMoveAlongController (a
+  DtGroundMoveAlongControllerComponent subclass), modifyTask/modifyTaskPlugin.cxx
+  (7 lines naming DtTaskMoveAlongRouteDialog and its creator, plus the include at :15) and remoteControl/commandLineRemoteController.cxx:1748
+  (controller()->patrolAlongRoute(DtUUID(name), DtUUID(route)) - one route-based remote
+  tasking call); the same sample's plan example holds one DtMoveToTask (:1852). None issues
+  a Move To per vertex. (My earlier line "the vendor sample gives a unit one Move Along
+  Route" was wrong and is retracted: the sample does not task units at all.)
 - The unit task the vendor provides for a route is ONE Move Along Route / Maneuver Along:
   UG52 30.22 p598 "This task causes a ground vehicle unit to move along a route in a
   formation offset from the selected route. ... Each subordinate computes an offset route
@@ -395,9 +397,16 @@ analysis - an invention. The sources, read 2026-09-07 17:05Z:
   simulation objects take it into account in planning their path to the location";
   Migration Guide 2.4 p18 "If there is no navigation mesh available from the start of the
   entity's movement path to the end, the Move To script accounts for feature obstacles";
-  UG52 23.5 (slope ignored by the feature-obstacle planner). Navigation data therefore
-  acts per ENTITY leg, whichever unit task issued the leg - it carries over to the real
-  tasks unchanged.
+  UG52 23.5 (slope ignored by the feature-obstacle planner). DERIVED, not stated in one
+  place: UG52 30.22 p598 (each subordinate plans a path to each vertex) + UG52 23.2.1 p500
+  (the planner either uses a nav mesh or creates a clear route between feature obstacles) +
+  the Developer's Guide help topic vrf_groundVehiclePathPlanningNavMesh.htm (each off-road
+  segment is planned using the nav mesh when available) together imply navigation data acts
+  on every planned leg, whichever unit task issued it. Inference, marked as such.
+OPEN (2026-09-13 review): which component performs 30.22's per-vertex planning, given that
+ground-vehicle-move-to.lua runs only for the first-vertex approach (its header line 3: "Other
+tasks handle move-along route, follow-entity, etc."; console counts 1,180 move-along vs 265
+move-to) - not stated by the vendor in one place.
 - The real STP verbs are vendor unit tasks whose controllers own their movement: UG52
   33.7.6 p677 Movement to Contact ("causes a mechanized ground unit to move towards an
   objective"), 33.7.7 p678 Seize Objective ("causes a tank company to move to take

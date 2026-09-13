@@ -119,6 +119,8 @@ Measurement, not a verdict on the mechanism. All three gates HOLD.
 - G1a HOLDS: the sim read 10 .navRuntimeConfig records at terrain load (9 shipped + ours,
   "NavArea-ground-platform MojaveAO20.navRuntimeConfig"); the baseline of the P11 run was 9.
   The record form written by tools/navdata/make_nav_terrain.py is accepted as shipped ones are.
+  COUNT PROVENANCE (from the harvested VENDOR log - unauditable from the run dir under the
+  secrets rule; OWED: the runner emits these two grep COUNTS into the run dir).
 - G1b HOLDS: the sim loaded the terrain COPY from a path outside $(SHARED_DATA_DIR) - its own
   lines name "...\tools\navdata\out\MAK Earth (online) + MojaveAO20.mtf" for "Creating new
   scenario on terrain", "Loading terrain ... into VR-Vantage" and the surface-characteristics
@@ -126,19 +128,30 @@ Measurement, not a verdict on the mechanism. All three gates HOLD.
   query; 3 taskees, 3 routes, 3 MoveAlongRoute, 3/3 TASKCMPLT by t+120 s (t+8/72/108 s);
   interface resigned with exit 0; RTI infra untouched (rtiexec 15720, forwarder 43728).
   Vendor-log error-ish line count identical to the P11 harvest (278 vs 278; the set difference
-  of error-ish lines is EMPTY), so the terrain copy introduced no new vendor complaint.
-- G1c HOLDS - the data is loaded and the planner uses it: the entities' own consoles carry
+  of error-ish lines is EMPTY), so the terrain copy introduced no new vendor complaint - again
+  from the harvested VENDOR log, unauditable from the run dir under the secrets rule; OWED:
+  the runner emits these two grep COUNTS into the run dir.
+- G1 sim/wall ratio: 3.95x least-squares (sim_ratio.py, 612 samples, wall 29-233 s, sim 55-864 s) - the fastest in the record, on 6 units / 3 taskees.
+- G1c HOLDS - the data is loaded and the entities' movement scripts QUERY the area (whether a path was planned THROUGH the mesh was not observed in G1): the entities' own consoles carry
   39 "New Primary nav area: NavArea-ground-platform MojaveAO20" and 42 "Leaving Primary nav
-  area: NavArea-ground-platform MojaveAO20" rows across 17 distinct entities between t=24.5 s
+  area: NavArea-ground-platform MojaveAO20" rows across 14 distinct entities between t=24.5 s
   and t=81.1 s, and the ground-vehicle-move-to behaviour tree runs its condition nodes "Is
-  current point in nav area?" and "Is destination in nav area?" in the same window. The
-  entering/leaving is expected from the geometry: the R9 units are created inside the area
-  (8 of 9 distinct placement coordinates fall in lat 34.518-34.698, lon -116.809 to -116.591)
-  and their routes run east out of it, which is the vendor's "advanced navigation within the
-  areas and standard navigation if they move between them" (UG52 66.3 p1281).
-  UNEXPLAINED DETAIL (recorded, not smoothed): 42 "Leaving" vs 39 "New" - three more exits
-  than entries. Candidates not yet checked: the trace opened after the first entries, or an
-  entity created inside the area counts an initial area without a "New" line.
+  current point in nav area?" and "Is destination in nav area?" in the same window.
+- SUPERVISOR CORRECTION 2026-09-13 (cold-start review) - WHAT THOSE ROWS ARE: per entity the
+  rows come in Leaving/New PAIRS (1 to 4 pairs per entity, spanning 2-18 s); each "Leaving" is followed at the
+  IDENTICAL timestamp by a "New" for the SAME area (1 to 4 pairs per entity, spanning 2-18 s),
+  and 12 of the 14 entities open with a "Leaving". The 42-vs-39 imbalance decomposes EXACTLY
+  as 4 trailing unmatched "Leaving" rows minus 1 leading unmatched "New" - no third term. So
+  the rows are repeated RE-ACQUISITION OF THE SAME PRIMARY AREA, once per plan (observed
+  behaviour; the vendor does not state the mechanism), not units driving out of the area.
+  WITHDRAWN with this correction: (i) the geometry reading, that the units are created inside
+  the area and their routes run east out of it, i.e. UG52 66.3's advanced-inside/standard-
+  between; and (ii) BOTH candidates offered for the imbalance (a trace that opened after the
+  first entries; an initial area counted without a "New" line). The containment fact stands
+  on its own but is not evidence for these rows, and the "8 of 9 placement coordinates" figure
+  does not reproduce - the app log prints no coordinates; the init's 3 distinct coordinates
+  all fall in lat 34.518-34.698, lon -116.809 to -116.591
+  (data\R9_Mojave_Lean_Initialization.xml has 3 distinct lat/lon pairs).
 - INSTRUMENT NOTE (not a fixture defect): -StopWhenComplete did not fire, so the window ran
   its 600 s cap. The early-exit criterion also wants a post-completion RPT POSITION per
   taskee, and this run did not set Vrf__PositionReportSeconds. Set it for G2 (P11 used 10 s).
@@ -151,59 +164,115 @@ Measurement, not a verdict on the mechanism. All three gates HOLD.
   loading chain only; that is G2.
 
 ### G2 RESULTS - run 20260907T174654Z (COA-STP1 on R9_Mojave_Empty_52_Nav; 4200 s cap; exit 0)
-TRACK STOPPED per sec 4: two HIGH predictions missed as written. No parameter was adjusted.
-The verdict and the lever choice are the user's / Fable's; what follows is measurement only.
-One variable vs P11 (20260907T150643Z): the scenario, hence the terrain copy and the area.
-Same build (80daed6, exe 11:06Z), same env, same probe type map, same 4200 s cap.
+TRACK STOPPED per sec 4: two HIGH predictions missed as written; no parameter was adjusted,
+and the verdict is the user's / Fable's. REWRITTEN 2026-09-13 by the supervisor after an
+independent recomputation and a cold-start review; the 2026-09-07 text overclaimed in two
+places (a per-sim-second speed advantage and "no straggler in any unit"), both refuted at
+equal simulated time.
 
-THE HEADLINE MEASUREMENT - THE ENGINE COLLAPSED, THE MOVEMENT DID NOT.
-Sim/wall ratio in 300 s wall windows (sim_ratio.py samples, 406,540 console timestamps):
-  window (wall s)   0-300  300-600  600-900  900-1200  1200-1500  then to 4500
-  G2 (nav area)     1.86x   1.68x    0.36x     0.05x      0.04x    0.02x flat
-  P11 (no area)     1.97x   1.81x    1.70x     1.62x      1.57x    decays to 1.10x
-G2 simulated about 1,170 sim-seconds in 4,216 s of wall; P11 simulated about 6,236. The
-G2 curve is a step, not a decay: it holds P11's rate for ten minutes, falls over two
-windows, then sits on a floor near 0.02x for the remaining fifty minutes.
-- Distances (median member displacement, metres): 1-1 11,134 (P11 26,111); 1-35 1,958
-  (1,970); 1-6 6,254 (2,931); 4-27 11,310 (23,734); 40 9,693 (27,910); 5-20 10,958
-  (15,086); 856/HHC 11,069 (24,133); B/5-20 11,427 (13,989); C/1-35 7,786 (21,412);
-  A/6-56/HHC 0 (0, the ADA task refused for want of a location - DEMO row 16, unchanged).
-  Per SIMULATED second the G2 units covered roughly two to three times what P11's did.
-- Formation: straggler_track reports "no straggler (all members within 1 km)" for EVERY
-  unit in G2. P11's signature shape, one runaway member with the rest stalled, is absent.
-- Completions: 0 TASKCMPLT and 0 arrival-evidence completions (P11: 3 and 3). With ~1,170
-  sim-seconds and legs of 24-33 km, no unit was near its last vertex when the cap fell.
-- Mesh demonstrably in use: 324 "New/Leaving Primary nav area" console rows (P11: 0) and
-  292 in-nav-area behaviour-tree condition nodes (P11: 184 of the generic form).
-- Per SIMULATED minute: BlockedByVehicle 26.7 (P11 4.1); replan 9.5 (P11 2.1); stall or
-  give-up 0.21 (P11 0.05).
-PREDICTIONS AS WRITTEN: P12a MISS (it required both units past 6 km; 1-6 passed at 6,254 m,
-1-35 did not at 1,958 m). P12b UNTESTABLE (1-35 never approached the 26 km trap). P12c MISS
-(0 completions, not >= 3; ratio 0.24x against P11's 1.46x, far outside the 20 % band).
-P12d HOLDS. P12e recorded above.
+TWO VARIABLES, NOT ONE, vs P11 (20260907T150643Z). (1) The scenario - hence the terrain copy
+and the navigation area. (2) A concurrent 212-agent documentation workflow on this machine:
+its files span 17:48:02Z-18:06:32Z and this run's trace t=0 is 17:48:49Z, so the load ran from
+wall -47 s to +1063 s - over the whole fast phase, the onset, AND the establishment of the
+floor. MY OWN breach of the one-variable rule: a measurement with a known contaminant, not
+a clean comparison. Same build/env/type map/4200 s cap as P11; order pushed at wall 50 s.
 
-Adversarial review of the one causal-sounding statement, "the collapse is associated with
-this scenario's vehicle count ON the mesh":
-- Competing hypothesis 1, MY OWN CONTAMINATION: I launched a 212-agent documentation sweep
-  on this machine at about wall 300 s of this run, and it ran for 1,112 s doing local PDF
-  extraction. That overlap is a self-inflicted breach of the one-variable rule and it
-  covers the onset window, so THE ONSET TIMING IS CONTAMINATED AND CANNOT BE USED. It does
-  not explain the floor: the sweep ended near wall 1,400 s and the ratio stayed at 0.02x
-  for the following 2,800 s with the machine otherwise idle.
-- Competing hypothesis 2, the mesh is expensive per se: REFUTED by G1, which ran the SAME
-  area with 6 units at 3.95x, the fastest ratio in the record.
-- Competing hypothesis 3, COA-STP1 is simply slow at this scale: WEAKENED by P11, the same
-  128 units and the same order without an area, which held 1.10-1.97x for the whole window.
-- UNEXPLAINED, recorded as falsifiers rather than footnotes: (a) why the collapse begins
-  around wall 600-900 s rather than at first mesh use at wall 44 s; (b) why 1-35 stopped at
-  about 1.95 km in BOTH runs, with and without the mesh, which no terrain-planner account
-  covers; (c) whether the engine was CPU-bound at the floor - CPU was NOT sampled during
-  this run, so that is unmeasured, not established.
-- NOT MEASURED / NOT CLAIMED: nothing here says navigation data cannot work. It says this
-  run bought better formation-keeping and better distance per simulated second at a wall
-  cost that made the fixed 4200 s window unusable, on a machine whose contamination window
-  is known. A clean repeat with no concurrent load, CPU sampling, and either a longer cap
-  or fewer vehicles is the obvious next measurement, and it is Fable's call to order it.
+THE HEADLINE: THE ENGINE COLLAPSED. Least-squares sim/wall ratio per 300 s wall window, in
+order from wall 0 to wall 4500:
+  G2 (area)  1.545 1.675 0.28* 0.050 0.039 0.038 0.033 0.024 0.022 0.023 0.025 0.023 0.018
+             0.018 0.015        (* 600-900 is 0.352x by endpoints, 0.28x by least squares)
+  P11 (none) 1.550 1.806 1.700 1.623 1.574 1.556 1.537 1.510 1.373 1.333 1.252 1.247 1.145
+             1.095 1.139
+Overall least squares: G2 0.240x, P11 1.456x. Wall spans are close (G2 51-4368 s = 4,317 s; P11
+66-4327 s = 4,261 s, 1.3 % shorter); sim spans differ: G2 56.5-1224.4 (1,167.9 s), P11 53.4-6288.1
+(6,234.7 s). The fall is a STEP, and at 60 s resolution it is sharp: the last fast window is
+wall 580-640 (1.566x), the next 640-700 is 0.337x, then 0.175, 0.114, 0.100, 0.089, 0.056 -
+onset wall ~628-660 s. From wall 1,200 to 4,368 the engine advanced 81.3 SIM-SECONDS in
+3,168 wall-seconds. The floor is not flat: the post-step windows decay 0.039 -> 0.015.
+
+MOVEMENT AT EQUAL SIMULATED TIME (median member displacement from birth, metres) - totals at
+equal WALL time are meaningless when the clocks run at different rates, so both runs are cut
+at the same sim clock:
+  unit           G2@sim1170  P11@sim1170  G2@sim600  P11@sim600
+  1-1/2/1_AD          10493        10459       5014        5010
+  1-35/2/1_A           1974         1970       1972        1971
+  1-6/2/1_AD           6190         2845       2988        2804
+  4-27/2/1_A          10632        10692       4804        4968
+  40/2/1_AD            9235         8516       4985        4346
+  5-20/2/1_A          10412         9391       4770        5017
+  856/HHC             10461        10675       4694        4966
+  A/6-56/HHC              0            0          0           0   (ADA task refused for want
+  B/5-20              10828        10786       5129        5145    of a location, DEMO row 16)
+  C/1-35               7077         9165       3077        3558
+  SUM                 77302        74498      37432       37786
+Rate over the first 1,170 sim-s: G2 66.1 vs P11 63.7 m per sim-second (1.04x); over the first
+600 sim-s, 62.4 vs 63.0 (0.99x) - at equal sim time the two runs move the same distance.
+WITHDRAWN: the 2026-09-07 claim of "two to three times" the distance per simulated second
+(69.7 vs 25.1 = 2.78x). It used total displacement over total sim-seconds, which charges P11
+for the 5,065 sim-seconds G2 never ran - seconds in which its units slowed or stood (1-1:
+10.5 km by sim 1170, 26.1 km by sim 6288; 1-35 frozen at 1.97 km from sim 600).
+
+(Per-unit figures in the tables above are rounded; the SUM rows were computed at full precision, so cells may not add exactly.)
+FORMATION AT EQUAL SIMULATED TIME (max member distance from the unit centroid). At sim 600 G2
+is tighter: all units <= 180 m except C/1-35 at 475 m; P11 all <= 311 m except C/1-35 at
+400 m. At sim 1170 G2 is WORSE where it matters: 1-6/2/1_AD 2,278 m and C/1-35 536 m (856/HHC
+137 m, the rest <= 95 m), while NO P11 unit is above 1 km at that clock (max C/1-35 359 m,
+1-6 353 m); P11's first >1 km straggler is 856/HHC at sim 1960, after G2's whole run had
+ended at sim 1224. WITHDRAWN: "no straggler in any unit" - straggler_track on G2 reports
+1-6/2/1_AD "STRAGGLER M3 4 ... 2301 m => STUCK", so 9 of 10 units show no straggler, not 10
+of 10. That instrument is also not comparable between the runs: its window is 15 WALL minutes,
+holding ~18 sim-seconds at G2's floor against ~1,400 in P11.
+
+COMPLETIONS: 0 TASKCMPLT and 0 arrival-evidence completions (P11: 3 and 3) - the clock, not
+the movement: 1,168 sim-seconds against legs of 24-33 km left no unit near its last vertex.
+BLOCKING AT EQUAL SIM TIME: BlockedByVehicle 518 (G2) vs 147 (P11) by sim 1170 - 3.5x. The
+2026-09-07 per-sim-minute figures for replan (9.5 vs 2.1) and stall/give-up (0.21 vs 0.05)
+used the same invalid total/total denominator and have NOT been recounted; they are struck.
+MESH IN USE: 324 "New/Leaving Primary nav area" console rows (P11: 0) and 292 in-nav-area
+behaviour-tree condition nodes (P11: 184 of the generic form), front-loaded - per 300 s wall
+window 250, 14, 54 (48 of them in 600-660), 0, 0, 0, 6, 0 ...; last row at wall 2,022 s.
+PER UNIT: 1-35/2/1_A stops at 1.97 km in BOTH runs - the area does not touch it. 1-6/2/1_AD
+is SPLIT in G2, not freed: M1A2 20, M577A2 4, HMMWV 7 and HMMWV 8 reach 6,219-6,397 m while
+M3 4 and M1A2 19 stand at 2,883-2,918 m, the same ~2.9 km line at which P11's WHOLE 1-6
+stopped (2,804 at sim 600; 2,845 at 1170; 2,884 at 6000). The median 6,190 m hides the split.
+EVENT AT THE BREAK (correlation only, no mechanism claimed): at wall 627.9-631.5 s, inside the
+628-660 s onset band, HMMWV 7 of 1-6/2/1_AD (uuid ending 6fa96235442f) logs "Controller's
+subtask has Failed (base-system.movement.move-along, ID 25)", then "Task Move along route
+fail" and "Task Turn to route fail", and toggles Leaving/New Primary nav area four times in
+3.6 s; at wall 628.0 every 1-6 member is re-tasked to maneuver-in-formation on unitRoute
+T15_AOA_SE_1-6_IN;_2/1_AD_P1 ROUTE. Console volume falls across the same seconds: 41,457 CON
+rows in wall 540-600, 28,774 in 600-660, 6,452 in 660-720, 2,843 in 780-840, ~900-1,100
+thereafter. No app-log exception near the onset. One entity's trace beside the step, not
+tested as its cause.
+PREDICTIONS AS WRITTEN: P12a MISS - 1-6 did not pass 6 km AS A UNIT (two of its six members
+stand at the 2.9 km line) and 1-35 did not move past 1.97 km. P12b UNTESTABLE (1-35 never
+approached the 26 km trap). P12c MISS (0 completions, not >= 3; 0.240x against P11's 1.456x,
+far outside the 20 % band). P12d HOLDS. P12e recorded above.
+
+Adversarial review (statement under test: "the navigation mesh made this scenario collapse"):
+- Competing hypothesis 1, MY OWN CONCURRENT LOAD: the 212-agent workflow spans wall -47 s to
+  +1063 s, covering the fast phase, the onset AND the establishment of the floor - THE ONSET
+  TIMING IS UNUSABLE. It does not cover the following ~3,300 s, over which the ratio never
+  recovered (1063-1363 s 0.040; 1663-1963 s 0.037; 3000-3300 s 0.025; 4000-4300 s 0.017). But
+  "the machine was otherwise idle" was NOT measured - no CPU, memory or process sampling was
+  taken during this run - so the persistence is CONSISTENT WITH a load-induced onset that left
+  the engine in a slow state; it is not evidence against that hypothesis.
+- Competing hypothesis 2, the mesh is expensive per se: REFUTED IN ITS SCALE-FREE FORM by G1 - the same area on the R9 fixture (6
+  units, 3 taskees) ran at 3.95x (sim_ratio.py on run 20260907T170643Z, measured 2026-09-07 - see G1 RESULTS). A LOAD-DEPENDENT mesh cost at 11-unit scale is NOT refuted by G1.
+- Competing hypothesis 3, COA-STP1 is simply slow at this scale: WEAKENED by P11 - the same
+  units and order without an area held 1.10-1.81x for the whole window.
+- Competing hypothesis 4, a PER-UNIT pathology rather than a global cost: 1-6's failed
+  move-along subtask and its nav-area toggling at the 2.9 km line could drive per-frame
+  replanning for that unit's members. NOT TESTED. The discriminating observation is whether a
+  clean repeat (no concurrent load, CPU sampled) collapses at the same SIM time (~950-1000 s),
+  which points at the scenario state, or at the same WALL time, which points at the machine.
+- UNEXPLAINED, recorded as falsifiers rather than footnotes: (a) why 1-35 stops at 1.97 km in
+  BOTH runs, mesh or no mesh, which no terrain-planner account covers; (b) why 2 of the 6
+  members of 1-6 stop at the same ~2.9 km line that held P11's whole unit, mesh or no mesh.
+- NOT MEASURED / NOT CLAIMED: nothing here says navigation data cannot work, and nothing here
+  establishes that it caused the collapse. A clean repeat with no concurrent load, with CPU
+  sampling, and with either a longer cap or fewer vehicles is the next measurement; ordering
+  it is Fable's / the user's call.
 
 ## 4. What counts as a stop
 A missed HIGH prediction (P12a or P12c) stops the track; no parameter is adjusted to make
