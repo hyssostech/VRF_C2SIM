@@ -54,7 +54,8 @@ Mid-leg, not at a vertex (the nearest vertex is 4.2 km away); all three runs sto
 the same ground. Displacement grows at ~9-10 m/s of sim to ~1,950 m by sim 300-360 while altitude
 climbs 1,238 -> ~1,590 m (+350 m over 2.0 km; ~25 % over the last leg), then stops. After the stop
 the LEADER M1A2 1 has net movement 15 m but an integrated path of 861 m in G3 (1,735 m over 6,000
-sim-seconds in P11) inside a 23 m box, altitude cycling 1,579-1,596 with a ~25 s period; M1A2 2,
+sim-seconds in P11) inside a 23 m box, reported altitude spanning 1,579-1,596 m (the span REPRODUCED in G5 with
+damping; the "~25 s period" of this first read is NOT confirmed - G5 could not resolve it); M1A2 2,
 M3 1 and M577A2 1 are stationary (0-2 m). POS sampling continues to the end (679 / 2,025 samples
 after the stop) - not a telemetry dropout.
 1-6/2/1_AD in G3 (task T15; V1 34.609047/-116.803322): the identical pattern - two goals per
