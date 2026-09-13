@@ -420,9 +420,12 @@ Not built; reopening needs a vendor citation that tasks a unit per vertex.
 RESOLUTION POINTER (2026-09-13): the "silent whole-unit stops" of 3f/3g were read from the units'
 own consoles in three runs - FINDING_EARLY_STOPS_2026-09-13.md. The sim reports the move as running
 and unblocked forever; the units freeze on near-level ground just past a crest; the slope-blind-
-planner explanation is REFUTED as stated (grade at the stop -1 to +6 %); navigation data changes
-neither the freeze nor the COA's speed (PREREG_NAVDATA_G3_2026-09-13); the cause is OPEN and the
-next discriminator is PREREG_EARLYSTOP_G5_2026-09-13 (1-35 alone at console debug level 4).
+planner explanation as first stated (a 100 m grade AT the stop) was refuted, then SUPERSEDED: the
+CAUSE (FINDING sec 7, cold-start reviewed, stands with fixes) is 55 m of sustained 0.70-0.95 face on
+sand AHEAD of the stop in the sim's 8 m elevation data, which no leader in any run surmounted, met
+by STP's straight leg; the vendor tests no progress (by design), and our route authoring sampled
+only the vertices. Navigation data as generated changed neither the freeze nor the COA's speed
+(PREREG_NAVDATA_G3_2026-09-13); G5 (1-35 alone) showed the freeze is intrinsic.
 
 ### 3g RESULTS - THE GENERATOR RUNS HEADLESS UNDER THE DEMO LICENCE (2026-09-07 16:30-17:10Z)
 Four launches of bin64\vrfNavGenerator.exe (5.2 PATH prefix + MAK_VRFDIR, cwd bin64), config

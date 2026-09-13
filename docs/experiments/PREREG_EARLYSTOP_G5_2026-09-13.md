@@ -134,3 +134,8 @@ the leader alone oscillates while M3 1 is still. No console row attaches to eith
 CONSEQUENCE for instruments: "cannot move" vs "commanded to stop" needs the vehicle's own
 velocity (the reflected entity state - WatchVrf can carry it) or the vendor's own progress test
 (the decideToGiveUpTask sample, being read), not the object console.
+OUTCOME (same day): the vendor pass and the elevation test that followed this run found the cause -
+FINDING_EARLY_STOPS_2026-09-13 sec 7 (cold-start reviewed, stands with fixes): 55 m of sustained
+0.70-0.95 face on sand ahead of the freeze, which no leader in any run surmounted; the leader sits
+at its toe. G5's contribution: the freeze is intrinsic (P15a), and the console cannot carry the
+speed discriminator (P15b) - which is why the elevation data, not another run, settled it.
