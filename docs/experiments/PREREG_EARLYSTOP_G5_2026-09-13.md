@@ -87,4 +87,50 @@ SUPERVISOR QUICK LOOK (19:12Z; the executor's full harvest follows):
   spread 1.3 m. The "17 m altitude cycling with a 25 s period" reported by the 2026-09-13 console
   read of G3 is NOT reproduced here; the grade check's "3 m ball" is. The FINDING doc's item (iv)
   is to be corrected once the executor has compared the runs.
-(Executor harvest: appended below when it lands.)
+EXECUTOR HARVEST (Opus, g5_harvest.py in the session scratchpad):
+- Clock: sim 37-3,954 s over wall 35-666 s = 6.21x (six vehicles instead of ~1,700). Leader stops
+  between sim 300 and 330 (gap to its final position 135 m at sim 280, 34 m at 300, 17 m at 320,
+  8 m at 360) and never moves again through sim 3,954 - about 3,600 sim-seconds standing still.
+  Stops: M1A2 1 1,970 m (5 m from the reference point), M1A2 2 1,941, M3 1 2,042, HMMWV 1 1,981,
+  HMMWV 2 2,047 (creeps ~90 m more until sim ~1,270), M577A2 1 1,900; all 4.57-4.66 km short of V1.
+  P15a HOLDS.
+- P15d HOLDS: 561,831 member console rows; 434 distinct shapes vs 139 at level 3 (299 new). But
+  280 of the 299 new shapes are one-shot, at sim <= 93.7 (the behaviour tree being BUILT -
+  "Creating selector, Primitive or Planned Move", "Creating loop, Loop to stall for replanning",
+  ... - and the initial turn-to-route). After the freeze the members emit 26 shapes: the 7 of
+  level 3 plus 19 indented renderings of the SAME tick. The shape set while MOVING (sim 240-300)
+  is byte-identical to the shape set while FROZEN (330-450 and 3,800-3,900).
+- P15b NOT CONFIRMED - AND NOT MISSED: the instrument does not carry it. Every speed row in the
+  run lies in sim 40.6-93.7: "Setting ordered speed: | 3mps" -> 8 -> "10mps" (leader last at sim
+  56.1, M3 1 at 50.2), "maneuver-in-formation-controller::processSetSpeed: Using ordered speed |
+  #mps instead of task speed", "Saving ordered speed 3 mps". No actual / current speed row exists
+  at level 4 anywhere; no throttle row; no stop / hold / halt / wait row; no "Goal new or changed?
+  true". The last commanded value, 10 m/s, is never re-stated and never rescinded. The vendor's
+  object console at its highest level is NOT an instrument for commanded-vs-actual speed.
+- P15c: zero rows naming slope, slide, traction, soil, terrain contact, clamp, ground contact,
+  "waiting for terrain page", stuck, physics, dynamics, accel, brake, gear, or any movement-system
+  component (ground-tracked, ground-wheels, ground-auto-controller) at any level. Six incidental
+  name matches only (the task name ground-vehicle-move-to; "Loop to stall for replanning").
+- Leader altitude at the freeze (sim >= 330, 287 POS samples at 12.4 sim-s per sample): 1,579.2-
+  1,595.8 m (span 16.6 m, mean 1,585.0, sd 1.24), horizontal shuffle 22.8 m E-W, integrated path
+  318.7 m over 3,339 sim-s, DAMPING (a 22.9 m swing at sim 330-343, then 2-6 m between consecutive
+  samples, 7 of 286 pairs above 5 m). The span REPRODUCES the G3 console read's 1,579-1,596 m; the
+  ~25 s period is NOT measurable here (12.4 s per sample = the Nyquist limit; the apparent 38 s
+  is aliasing). M3 1 beside it: 0.4 m of altitude span, 0.6 m E-W - genuinely still. The
+  supervisor's "1.5 m band over the last 240 s of wall" was the damped tail, not the freeze.
+- Unit console: 7 rows, silent from sim 37.6 to 3,953.6. Its maneuver-along subtask prints
+  "speed=0" (the default); the members then take 3 -> 8 -> 10 m/s from the maneuver-in-formation
+  controller.
+EXECUTOR'S INFERENCE, flagged as such (not printed by the sim): the leader's reported altitude
+tracks its longitude monotonically across the 22.8 m shuffle - 1,583.2 m at lon -116.761401 to
+1,595.8 m at -116.761577, i.e. 12.6 m of altitude over 16.1 m of ground, a local rise-over-run of
+~0.78 - so the leader appears parked on a steep local face, shuffling along the fall line, while
+its still companions sit on level ground metres away. A 100 m resample (the C2 grade check) cannot
+see a 16 m face; 0.78 is below the M1A2's 0.94 limit but ABOVE the soil-derated 0.752 (rocks/sand).
+This is geometry from POS rows only; it does not by itself re-open the refuted slope reading and
+is recorded for the docs pass to weigh.
+UNEXPLAINED (flagged): HMMWV 2 kept creeping to sim ~1,270 while the other five stopped by ~400;
+the leader alone oscillates while M3 1 is still. No console row attaches to either.
+CONSEQUENCE for instruments: "cannot move" vs "commanded to stop" needs the vehicle's own
+velocity (the reflected entity state - WatchVrf can carry it) or the vendor's own progress test
+(the decideToGiveUpTask sample, being read), not the object console.

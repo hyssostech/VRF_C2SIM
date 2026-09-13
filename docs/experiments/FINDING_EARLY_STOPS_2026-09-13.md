@@ -148,10 +148,12 @@ run; the metric or the window differs; not resolved here.
 REVISED STATE: CAUSE OPEN. What is now VERIFIED: (i) all three runs freeze on the same near-level
 ground just past a crest at ~1,590 m, 2 km out; (ii) the movement layer reports running /
 unblocked / goal unchanged forever and enters no failure branch; (iii) the vehicles had just
-climbed 41-42 deg pitches, 95 % of their limit; (iv) the leader keeps moving inside a few metres
-with its altitude cycling 1,579-1,596 m at a ~25 s period (from the console read) - a 17 m
-vertical oscillation within a few metres horizontal, which the terrain cannot supply unless it has
-a step there; (v) a same-type unit crossed the ridge 400 m away without stopping. UNMEASURED:
+climbed 41-42 deg pitches, 95 % of their limit; (iv) the leader keeps shuffling inside ~23 m
+horizontally with its reported altitude spanning 1,579-1,596 m (G3 console read; REPRODUCED in
+G5: span 16.6 m, damping over time; the ~25 s period is NOT measurable in G5 - aliasing at 12.4
+sim-s per sample); the altitude tracks the longitude across the shuffle (~0.78 rise-over-run over
+16 m, an executor's inference from POS rows) - a steep local face metres from where its
+companions sit still, which a 100 m grade resample cannot see; (v) a same-type unit crossed the ridge 400 m away without stopping. UNMEASURED:
 soil class at the stop (the facade drops soilType); terrain relief at metre scale around and
 ahead of the stop (the 90 m worldwide elevation of MAK Earth (online) can hold a stair-step at a
 crest); whether the mesh's polygons cover the freeze point; the controller's COMMANDED speed and
