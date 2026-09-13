@@ -77,6 +77,88 @@ public static class ArrivalSelfTest
         Check("fraction 1.0 (ALL) with 4 of 4 -> arrived", d.Arrived);
         d = ArrivalPolicy.Decide(new double[] { 100, 100, 100, 900 }, 4, 500, 1.0);
         Check("fraction 1.0 (ALL) with 3 of 4 -> NOT arrived", !d.Arrived);
+        // ---- C16 SAMPLER REGRESSION GUARD (cold-start review D1, 2026-09-13) -----------------
+        // VrfFacade::collectMembers recurses to depth 3 WITHOUT de-duplicating, so a member
+        // published under two sub-aggregates appears TWICE in the member list. Three samplers over
+        // the SAME list, all feeding this same Decide:
+        //   MAIN   (pre-C16) distances is a LIST - the duplicate contributes TWO distances - and
+        //          total = members.Count - the duplicate counts TWICE. Weighted consistently on
+        //          both sides of the fraction.
+        //   BROKEN (C16 as first written) the sample is a DICTIONARY keyed by uuid (ONE distance)
+        //          but total is still members.Count (TWO): the duplicate weighs against arrival
+        //          while contributing one position - strictly HARDER than main. That is the bug.
+        //   FIXED  (this build) dictionary sample AND total = DISTINCT non-empty uuids: one
+        //          physical vehicle counted once on both sides.
+        static (List<double> D, int Total) SampleMain((string Uuid, double Dist)[] ms)
+        {
+            var d = new List<double>();
+            foreach (var m in ms) if (!string.IsNullOrEmpty(m.Uuid)) d.Add(m.Dist);
+            return (d, ms.Length);
+        }
+        static (List<double> D, int Total) SampleBroken((string Uuid, double Dist)[] ms)
+        {
+            var p = new Dictionary<string, double>(StringComparer.Ordinal);
+            foreach (var m in ms) if (!string.IsNullOrEmpty(m.Uuid)) p[m.Uuid] = m.Dist;
+            return (p.Values.ToList(), ms.Length);
+        }
+        static (List<double> D, int Total) SampleFixed((string Uuid, double Dist)[] ms)
+        {
+            var p = new Dictionary<string, double>(StringComparer.Ordinal);
+            foreach (var m in ms) if (!string.IsNullOrEmpty(m.Uuid)) p[m.Uuid] = m.Dist;
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            int total = ms.Count(m => !string.IsNullOrEmpty(m.Uuid) && seen.Add(m.Uuid));
+            return (p.Values.ToList(), total);
+        }
+        static bool Arrives((List<double> D, int Total) s) => ArrivalPolicy.Decide(s.D, s.Total, 500, 0.5).Arrived;
+
+        // (a) the real case - the duplicate is a member that HAS arrived. main 4 of 6 -> arrived;
+        //     fixed 3 of 5 -> arrived (SAME); broken 3 of 6 -> NOT arrived (the regression).
+        var dupNear = new[] { ("A", 10.0), ("A", 10.0), ("B", 20.0), ("C", 30.0), ("D", 30000.0), ("E", 30000.0) };
+        var mMain = SampleMain(dupNear); var mBroken = SampleBroken(dupNear); var mFixed = SampleFixed(dupNear);
+        Check($"duplicated ARRIVED member: FIXED ({mFixed.D.Count} dist/{mFixed.Total} total) decides as MAIN " +
+              $"({mMain.D.Count}/{mMain.Total}) - both arrive",
+              Arrives(mFixed) == Arrives(mMain) && Arrives(mFixed));
+        Check($"... and the UN-deduplicated total ({mBroken.D.Count}/{mBroken.Total}) would NOT arrive - " +
+              "the D1 regression is real", !Arrives(mBroken));
+
+        // (b) the documented DIVERGENCE from main: the duplicate is a member that has NOT arrived.
+        //     main double-counted one vehicle against arrival (3 of 6 -> no); fixed counts it once
+        //     (3 of 5 -> yes). Intended: there are five vehicles, three of them are there.
+        var dupFar = new[] { ("A", 30000.0), ("A", 30000.0), ("B", 10.0), ("C", 10.0), ("D", 10.0), ("E", 30000.0) };
+        Check("duplicated ABSENT member: FIXED arrives (3 of 5 real vehicles), MAIN did not (3 of 6 " +
+              "counted) - a DELIBERATE divergence: one vehicle is one vote",
+              Arrives(SampleFixed(dupFar)) && !Arrives(SampleMain(dupFar)));
+
+        // (c) the other documented divergence: a member whose uuid is EMPTY cannot be identified, so
+        //     it can be neither sampled nor de-duplicated and is excluded from total. main counted it
+        //     against arrival. Flagged for the supervisor; no such member has ever been observed.
+        var withEmpty = new[] { ("A", 10.0), ("B", 10.0), ("", 30000.0), ("C", 30000.0) };
+        Check("EMPTY-uuid member: excluded from total by the fix (2 of 3 -> arrived) where main " +
+              "counted it (2 of 4 -> not) - known divergence, documented in TryReadMemberPositions",
+              Arrives(SampleFixed(withEmpty)) && !Arrives(SampleMain(withEmpty)));
+
+        // (d) the property that matters: over EVERY near/far arrangement of five members with one
+        //     duplicated, the fixed sampler is never STRICTER than main - and the broken one is.
+        bool fixedNeverStricter = true, brokenStricterSomewhere = false;
+        for (int mask = 0; mask < 32; mask++)
+        {
+            var ms = new List<(string, double)>();
+            const string ids = "ABCDE";
+            for (int i = 0; i < 5; i++)
+            {
+                double dist = (mask & (1 << i)) != 0 ? 10.0 : 30000.0;
+                ms.Add((ids[i].ToString(), dist));
+                if (i == 0) ms.Add((ids[i].ToString(), dist));   // A is published under two sub-aggregates
+            }
+            var arr = ms.ToArray();
+            bool am = Arrives(SampleMain(arr));
+            if (am && !Arrives(SampleFixed(arr))) fixedNeverStricter = false;
+            if (am && !Arrives(SampleBroken(arr))) brokenStricterSomewhere = true;
+        }
+        Check("over all 32 near/far arrangements of a duplicated member the FIXED sampler is NEVER " +
+              "stricter than main", fixedNeverStricter);
+        Check("... and the BROKEN one is stricter somewhere (so the guard above has teeth)",
+              brokenStricterSomewhere);
         Console.WriteLine(fails == 0 ? "arrival-selftest: ALL CHECKS PASSED" : $"arrival-selftest: {fails} FAILED");
         return fails == 0 ? 0 : 1;
     }

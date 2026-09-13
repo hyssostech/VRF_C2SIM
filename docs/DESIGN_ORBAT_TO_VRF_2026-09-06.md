@@ -164,32 +164,97 @@ C16 PROGRESS WATCHDOG (REPORT-ONLY) - user approval 2026-09-13 ("2 as recommende
     StallCheckSeconds=5, StallMinMembersWithData=1. The window is WALL seconds on the tick
     thread: neither VrfFacade.h nor VrfBridge.cpp exports a sim-clock READER (grep 2026-09-13:
     the only hit is VrfFacade.cpp:590, which SETS the exercise clock), so at sim/wall ratio r the
-    window covers r x 240 sim s - at G5's 6.21x, ~1,490 sim s. Row 19's "N = 120 SIM-seconds,
-    must fire by sim ~500" is therefore NOT met on the sim clock at high ratios; closing that
-    needs a clock accessor on the facade (open, user's call).
+    window covers r x 240 sim s - at G5's 6.21x, ~1,490 sim s. Row 19's original "N = 120
+    SIM-seconds, must fire by sim ~500" is therefore not the criterion this build meets; the row
+    is reworded to wall seconds. The reader that would close the gap EXISTS one layer down -
+    DtClock::simTime() is declared at C:\MAK\vrlink5.10\include\vlutil\vlTime.h:47 - so a
+    one-line facade accessor plus a bridge export is all it needs. OWED, after G6.
+    THE SAMPLER IS SHARED WITH C15 (TryReadMemberPositions) so the two policies can never judge
+    different samples. It keys member positions by VRF uuid, and the member count it is judged
+    against therefore counts DISTINCT non-empty uuids: VrfFacade::collectMembers recurses to
+    depth 3 WITHOUT de-duplicating, so a member published under two sub-aggregates would
+    otherwise weigh twice against arrival while contributing one position - strictly harder than
+    the pre-C16 sampler, which weighted the duplicate consistently on both sides. Guarded by a
+    decision table in --arrival-selftest (main / un-deduplicated / fixed over all 32 near-far
+    arrangements of a duplicated member). Two DELIBERATE divergences from the pre-C16 arithmetic,
+    both in the direction of "one vehicle is one vote": a duplicated ABSENT member no longer
+    counts twice against arrival, and a member whose uuid is EMPTY (never observed) is left out
+    of the count entirely rather than counted as an unreadable member.
     WHAT IT NEVER DOES: no VR-Forces command, no re-task, no change to the in-flight record, the
     sequencer or the pending-engage map. It sends ONE C2SIM TaskStatus with TASKABRT per
     unit-task through the SAME ReportBuilder path as TASKCMPLT (BuildTaskStatusReport now takes
     the code; --report-selftest has the TASKABRT round-trip) and logs "STALL: unit ... TASKABRT
-    reported". State is cleared wherever the C15 arrival swallow is cleared (a new task).
+    reported". State is cleared wherever the C15 arrival swallow is cleared (a new task) AND at
+    the top of SynthesizeUnitCompletion, which EVERY completion path reaches under the UNIT name;
+    OnVrfTaskCompleted's own clear keys on e.UnitMarking, which under R10 fan-out is a MEMBER
+    name and clears nothing. The per-unit window and the one-report flag are both pruned for
+    units that have left the in-flight set, so neither map grows across a run.
+    ABORT-THEN-COMPLETE IS INTENDED (supervisor ruling 2026-09-13; the user may override). A unit
+    that has already reported TASKABRT and then moves and ARRIVES still sends TASKCMPLT for the
+    SAME task uuid: the abort was the interface's judgement at the time, the arrival is evidence,
+    and STP sees the truthful sequence. TASKABRT NEVER suppresses a later TASKCMPLT. The converse
+    DOES hold - a TASKCMPLT suppresses any later TASKABRT for that task - because completing pops
+    the in-flight record and the watchdog only ever looks at in-flight move tasks (and the C15
+    arrival gate skips the unit besides).
+    SILENCE IS NOT STALLING: a unit whose members stop being REFLECTED has no data, not a stall -
+    Decide() returns "not stalled" whenever fewer than StallMinMembersWithData members had a
+    readable position at both ends of the window, so a reflection gap is never reported as a unit
+    standing still. Deliberate for a report-only watchdog: a false TASKABRT costs STP more than a
+    missed one.
+    THE SEQUENCER IS NOT TOLD: a TASKABRT does not call _sequencer.CompleteTask, so the
+    successors of an aborted task stay gated until their own predecessor timeout. After an abort
+    STP's view (this task is aborted, move on) and the interface's view (the task is still in
+    flight, its successors still wait) DIVERGE - by design for report-only, and noted for the
+    user as the first thing to revisit if the watchdog is ever allowed to act.
     REPLAY VALIDATION (tools/analysis/stall_replay.py, the same rule over each run's
     watchvrf-trace.csv POS rows; C15's arrival rule is replayed too, so a fire after arrival is
-    suppressed as it is in the product):
-    | run | ratio | fires (first, wall s) | true neg | false alarms |
+    suppressed as it is in the product). THE EXACT INVOCATIONS, all re-run 2026-09-13 after the
+    review fixes; runs/ is read-only and was not modified:
+      G5  stall_replay.py runs/20260913T185936Z_run --order data/COA-STP1_Order.xml
+            --expect-fire 1-35          (the order actually pushed was a scratchpad copy holding
+                                         T1 alone, whose vertices are identical to T1 in the repo
+                                         order; only 1-35 is tasked, so only 1-35 can fire)
+      G3  stall_replay.py runs/20260913T174516Z_run --order data/COA-STP1_Order.xml
+            --expect-fire 1-35,1-6
+      P11 stall_replay.py runs/20260907T150643Z_run --order data/COA-STP1_Order.xml
+            --expect-fire 1-35,1-6
+    | run | ratio | fires: wall s, max moved in the window, distance still to go | true neg | false alarms |
     |---|---|---|---|---|
-    | G5 20260913T185936Z | 6.21x | 1-35 @ 385 s (max 49.6 m; moves 0.4 m in the 279 s left) | - | 0 |
-    | G3 20260913T174516Z | 1.60x | 1-35 @ 431 s, 1-6 @ 742 s | 7 of 9 | 0 |
-    | P11 20260907T150643Z | 1.46x | 1-35 @ 419 s, 1-6 @ 1824 s | 7 of 9 | 0 |
-    THE WINDOW IS 240 s BECAUSE 120 s FALSE-ALARMS ON CRAWLERS: at 120 s the rule also fired on
-    P11's 4-27 (@1519), 40 (@3475), 856/HHC (@2520) and C/1-35 (@3699), each of which then
-    covered 203-1,191 m more - they creep at 0.4-0.5 m/s for thousands of seconds and dip below
-    50 m/120 s only transiently. A bigger THRESHOLD cannot fix this (the crawlers' per-window
-    minima, 41-50 m, overlap the frozen units', 22-49 m); only persistence separates them. The
-    last false alarm disappears between a 160 s and a 180 s window, so 240 s keeps ~1.5x margin;
-    the tightest surviving true negative is 74 m per window against the 50 m floor. COST of the
-    wider window: G3's 856/HHC (a REAL early stop found by this replay - all four members under
-    47 m/120 s, 3.5 km short of its destination at t~1,500 while 1-1 was still covering 1.7 km
-    per window) is NOT detected in G3 because that trace ends 90 s after the stop began.
+    | G5 20260913T185936Z | 6.21x | 1-35 @ 385 s, 49.6 m, 24,304 m short | n/a (1 unit tasked) | 0 |
+    | G3 20260913T174516Z | 1.60x | 1-35 @ 431 s, 43.9 m, 24,131 m short; 1-6 @ 742 s, 49.5 m, 30,098 m short | 7 of 9 | 0 |
+    | P11 20260907T150643Z | 1.46x | 1-35 @ 419 s, 43.4 m, 24,337 m short; 1-6 @ 1824 s, 48.6 m, 30,300 m short | 7 of 9 | 0 |
+    The "distance still to go" is the replay's end-dist column (added on review): the nearest
+    member's distance to the task destination at the END of the trace. It is the evidence behind
+    each label - a unit that never fires and ends kilometres short is a real early stop the rule
+    missed, whatever --expect-fire says.
+    THE WINDOW IS 240 s BECAUSE 120 s FALSE-ALARMS ON CRAWLERS: at 120 s the rule also fires on
+    P11's 4-27 (@1519), 40 (@3475), 856/HHC (@2520) and C/1-35 (@3699), each of which then covers
+    203-1,191 m more - they creep at 0.4-0.5 m/s for thousands of seconds and dip below 50 m/120 s
+    only transiently. AT THE 120 s WINDOW a bigger THRESHOLD cannot separate them (there the
+    crawlers' per-window minima, 41-50 m, overlap the frozen units', 22-49 m); only persistence
+    can. Measured boundary: window 160 still leaves three false alarms in P11 (40 @4150, 856/HHC
+    @4070, C/1-35 @4119) and window 170 leaves none in either run - the last false alarm
+    disappears between 160 s and 170 s, so the shipped 240 s keeps a 1.41x margin (240/170).
+    AT THE 240 s WINDOW the threshold separation the 120 s window lacked is there: the tightest
+    true negative is 74 m per window (P11's 40, 856/HHC and C/1-35; 4-27 at 78 m) against frozen
+    per-window maxima of 43-50 m. MEASURED BAND over all three runs: move thresholds from 35 m to
+    70 m are clean AND still catch both frozen units. Not lower - at 30 m G3's 1-6 is MISSED (its
+    per-window minimum is 34 m) - and not 74 m or above, where the P11 crawlers start firing. The
+    shipped 50 m sits in the middle of that band.
+    G3's 856/HHC - the one row whose LABEL the trace does not decide. It stops 3,448 m short of
+    its destination: after wall 1,456 s no member is ever again more than 50 m from where it ends,
+    and the POS rows end at 1,591 s - 135 s later. The 120 s window fires on it at 1,512 s, 79 s
+    before the trace ends, and because 856/HHC is not in --expect-fire the tool prints FALSE ALARM
+    for it there. The 240 s window cannot fire at all: 135 s of stillness cannot fill a 240 s
+    window (its tightest per-window max is 60 m at window 160 and 65 m at 170, and over the LAST
+    240 s of the trace three of its four members still covered 660-670 m). WHETHER IT IS A TRUE
+    POSITIVE IS UNDECIDABLE FROM THIS TRACE: 135 s of stillness is exactly the transient dip the
+    P11 crawlers show, and the SAME unit in P11 is a crawler that ends 307 m short still moving
+    (per-window minimum 74 m). The 2026-09-13 review called it a real early stop and asked for it
+    to be relabelled a true positive; the measurements above support neither label, so it is
+    recorded UNDECIDED for the user to rule on and --expect-fire is deliberately left unchanged so
+    the window settings stay comparable. It is certainly NOT the 1-35 / 1-6 signature, which holds
+    under 50 m for the whole remaining trace and ends 24-30 km short of the destination.
 NEXT (the only real work): N1 DONE 2026-09-06 (PREREG_N1_COMPOSE_DEFAULT: default ON verified by
 run D 162958Z 3/3 with no env; flag-off run L 164022Z reproduces the legacy 38-phantom / 2-of-3
 signature - the switch is the regression control). N2 DONE 2026-09-06 (PREREG_N2_DECLARED_ORDER:

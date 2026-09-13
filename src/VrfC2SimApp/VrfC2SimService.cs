@@ -2535,7 +2535,19 @@ public sealed class VrfC2SimService : BackgroundService
         {
             var members = _bridge.GetAggregateMembers(vrfUuid);
             if (members is not { Count: > 0 }) return false;   // nothing readable yet (or a shell)
-            total = members.Count;
+            // DE-DUPLICATION (review D1, 2026-09-13). VrfFacade::collectMembers recurses to depth 3
+            // WITHOUT de-duplicating, so a member published under two sub-aggregates appears TWICE
+            // in this list. The sample below is a DICTIONARY keyed by uuid - the duplicate lands in
+            // ONE entry - so the count it is judged against must be of DISTINCT uuids too. Counting
+            // members.Count would let the duplicate weigh against arrival while contributing a
+            // single position: strictly harder than the pre-C16 sampler, which appended the
+            // duplicate distance twice AND counted it twice (consistent on both sides of the
+            // fraction). NOT positions.Count: a member whose position cannot be READ must still
+            // count against arrival. A member with an empty uuid cannot be identified, so it can
+            // neither be sampled nor de-duplicated and is left out of both sides.
+            // ArrivalSelfTest carries the before/after decision table.
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            total = members.Count(m => !string.IsNullOrEmpty(m.Uuid) && seen.Add(m.Uuid));
             foreach (var m in members)
             {
                 if (string.IsNullOrEmpty(m.Uuid) || !_bridge.TryGetEntityGeodetic(m.Uuid, out var g)) continue;
@@ -2636,9 +2648,14 @@ public sealed class VrfC2SimService : BackgroundService
             _ = PushReportAsync(report);
         }
         // Units whose task is no longer in flight (completed, superseded, or never a move) keep no
-        // window: the buffer must not grow across a whole run.
+        // window: the buffer must not grow across a whole run. The one-report flag is pruned with
+        // it (review D4): a unit that has left the in-flight set has no task left to report
+        // against, the next dispatch clears the flag anyway (ClearStallState), and leaving it
+        // behind would pin a dead unit name in the map for the life of the process.
         foreach (var key in _stallSamples.Keys)
             if (!live.Contains(key)) _stallSamples.TryRemove(key, out _);
+        foreach (var key in _stallReported.Keys)
+            if (!live.Contains(key)) _stallReported.TryRemove(key, out _);
     }
 
     private void OnVrfTaskCompleted(object sender, TaskCompletedEventArgs e)
@@ -2647,7 +2664,11 @@ public sealed class VrfC2SimService : BackgroundService
         // A vendor completion for a task already reported from arrival evidence: swallow it ONCE
         // (VR-Forces runs one task at a time and a re-task abandons the old one without a
         // callback, so this can only be the pre-empted task's own late completion).
-        if (!string.IsNullOrEmpty(e.UnitMarking)) ClearStallState(e.UnitMarking);   // the task is over: drop its window (C16)
+        // C16: drop the watchdog window for whatever this marking names. On the unit-level path
+        // the marking IS the unit; under R10 fan-out it is a MEMBER entity's name and this clear is
+        // a no-op (review D3) - the unit's own window is dropped in SynthesizeUnitCompletion, which
+        // every completion path reaches under the UNIT's name.
+        if (!string.IsNullOrEmpty(e.UnitMarking)) ClearStallState(e.UnitMarking);
         if (!string.IsNullOrEmpty(e.UnitMarking) && _arrivalReported.TryRemove(e.UnitMarking, out var reportedTask))
         {
             _log.LogInformation("VRF completion for {Unit} after the arrival-evidence report of task {Task} - swallowed.",
@@ -2707,6 +2728,14 @@ public sealed class VrfC2SimService : BackgroundService
     /// </summary>
     private void SynthesizeUnitCompletion(string name, string vrfTaskTypeForLog)
     {
+        // C16 (review D3): the unit's task is over on EVERY path that reaches here - vendor
+        // completion, R10 fan-out quorum, fan-out straggler timeout, arrival evidence - so drop
+        // its progress window and its one-report flag under the UNIT's name. The R10 paths never
+        // clear otherwise: OnVrfTaskCompleted keys its clear by e.UnitMarking, which under fan-out
+        // is the MEMBER entity name. NOTE this is deliberately NOT a suppressor: a unit that has
+        // already reported TASKABRT and then arrives still sends TASKCMPLT (C16 ruling).
+        ClearStallState(name);
+
         if (!_c2SimUuidByName.TryGetValue(name, out var taskeeUuid))
         {
             _log.LogWarning("Task-complete for '{Name}' but no C2SIM uuid known - no report sent.", name);

@@ -40,6 +40,33 @@ usage:
       [--expect-fire 1-35,1-6] [--dispatch-t 200] [--quiet]
 
 All files are read with encoding='utf-8' (errors replaced), per the repo's Windows rules.
+
+CALIBRATION RUNS - THE EXACT INVOCATIONS (review D7; runs/ is read-only, never modified):
+
+  G5  python tools/analysis/stall_replay.py runs/20260913T185936Z_run \
+          --order data/COA-STP1_Order.xml --expect-fire 1-35
+      One-task probe run: the order actually pushed was a scratchpad copy holding only T1
+      (run-manifest.json), whose four vertices are identical to T1 in the repo order, so the
+      repo order resolves the same destination. Only 1-35 is tasked, so only 1-35 can fire.
+
+  G3  python tools/analysis/stall_replay.py runs/20260913T174516Z_run \
+          --order data/COA-STP1_Order.xml --expect-fire 1-35,1-6
+      EVIDENCE FOR THE LABELS, and one row whose label neither this tool nor the trace
+      decides: 856/HHC stops 3,448 m short of its destination (the 'end dist' column) - after
+      wall 1,456 s no member is ever again more than 50 m from where it ends - but the POS
+      rows end at 1,591 s, only 135 s later. At a 120 s window it therefore fires, at 1,512 s,
+      79 s before the trace ends, and prints FALSE ALARM only because it is not in
+      --expect-fire; at the shipped 240 s window it cannot fire at all, since 135 s of
+      stillness cannot fill a 240 s window. Whether it is a true positive is UNDECIDABLE here:
+      135 s of stillness is the same transient dip the P11 crawlers show, and over the LAST
+      240 s of this trace three of its four members still covered 660-670 m. --expect-fire is
+      deliberately left as it is so the window settings stay comparable. Read 'end dist', not
+      the verdict alone.
+
+  P11 python tools/analysis/stall_replay.py runs/20260907T150643Z_run \
+          --order data/COA-STP1_Order.xml --expect-fire 1-35,1-6
+      Here 856/HHC is a CRAWLER, not a stop: it ends 307 m short and is still moving. It is
+      one of the four units that made the 120 s window false-alarm.
 """
 import argparse
 import csv
@@ -252,11 +279,12 @@ def main():
         if t0 is None:
             t0, anchor = a.dispatch_t, 'given'
         if t0 is None:
-            rows.append((unit, task, None, None, float('nan'), float('nan'),
+            rows.append((unit, task, None, None, float('nan'), float('nan'), float('nan'),
                          'NO ANCHOR (no console rows; pass --dispatch-t)', anchor))
             continue
         if not mem:
-            rows.append((unit, task, None, None, float('nan'), float('nan'), 'NO POSITION DATA', anchor))
+            rows.append((unit, task, None, None, float('nan'), float('nan'), float('nan'),
+                         'NO POSITION DATA', anchor))
             continue
         tend = max(s[-1][0] for s in (pos[u] for u in mem))
         d = dest.get(task)
@@ -301,7 +329,15 @@ def main():
         # difference between "stopped short" (a real early stop) and "stopped because it is there"
         last = [at(pos[u], fire or arrive or tend) for u in mem]
         short = min([hav(p[1], p[2], d[0], d[1]) for p in last if p], default=float('nan')) if d else float('nan')
-        rows.append((unit, task, fire, maxfire, closest, short, verdict, anchor + ' t0=%.0f' % t0))
+        # ... and how far it still is at the END OF THE TRACE, whether or not it fired: the
+        # label evidence (review D7). A unit that fired and then covered ground shows it here;
+        # a unit that never fired but ends kilometres short is a real early stop the rule
+        # missed, whatever --expect-fire says.
+        endlast = [at(pos[u], tend) for u in mem]
+        enddist = float('nan') if not d else \
+            min([hav(p[1], p[2], d[0], d[1]) for p in endlast if p], default=float('nan'))
+        rows.append((unit, task, fire, maxfire, closest, short, enddist, verdict,
+                     anchor + ' t0=%.0f' % t0))
 
     print('== %s ==' % a.run)
     print('rule: window %.0f s wall, move %.0f m net, min %.0f s since dispatch, check %.0f s, '
@@ -310,21 +346,25 @@ def main():
     if retasked:
         print('NOTE: re-tasked in this run (scanned as one stretch: first anchor, last destination): %s'
               % ', '.join(retasked))
-    print('%-24s %-11s %-11s %-11s %-11s %s'
-          % ('unit', 'first fire', 'max moved', 'closest', 'short by', 'verdict'))
-    for unit, task, fire, maxfire, closest, short, verdict, anchor in rows:
-        print('%-24s %-11s %-11s %-11s %-11s %s   [%s]'
+    print('%-24s %-11s %-11s %-11s %-11s %-11s %s'
+          % ('unit', 'first fire', 'max moved', 'closest', 'short by', 'end dist', 'verdict'))
+    for unit, task, fire, maxfire, closest, short, enddist, verdict, anchor in rows:
+        print('%-24s %-11s %-11s %-11s %-11s %-11s %s   [%s]'
               % (unit[:24],
                  '-' if fire is None else '%.0f s' % fire,
                  '-' if maxfire is None else '%.1f m' % maxfire,
                  '-' if closest in (None, float('inf')) or closest != closest else '%.0f m' % closest,
                  '-' if short != short else '%.0f m' % short,
+                 '-' if enddist != enddist else '%.0f m' % enddist,
                  verdict, anchor))
         if not a.quiet:
             print('%-24s   task %s' % ('', task))
     print('columns: closest = the SMALLEST per-window max displacement seen while the task ran '
-          '(the margin to firing); short by = the nearest member\'s distance to the destination there.')
-    bad = [r for r in rows if 'FALSE ALARM' in r[6] or r[6].startswith('MISSED')]
+          '(the margin to firing); short by = the nearest member\'s distance to the destination '
+          'at the fire / arrival / end of scan; end dist = that same distance at the END OF THE '
+          'TRACE - the evidence behind the verdict (kilometres short and never fired = a real '
+          'early stop, whatever --expect-fire says).')
+    bad = [r for r in rows if 'FALSE ALARM' in r[7] or r[7].startswith('MISSED')]
     print('verdict: %d row(s) need attention' % len(bad) if bad else 'verdict: every row as expected')
     return 1 if bad else 0
 
