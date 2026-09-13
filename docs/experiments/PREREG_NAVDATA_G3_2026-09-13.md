@@ -189,9 +189,11 @@ ADDED 2026-09-13 ~22:40Z (found by the progress-watchdog replay validator, tools
 stall_replay.py on this run): 856/HHC~PXY stopped EARLY in G3 - all four members under 47 m of
 movement per 120 s from wall ~1,500 s (sim ~2,400), 3.5 km short of its destination, while 1-1 was
 still covering 1.7 km per window (the sim was live). P11's 856/HHC reached 23.1 km by sim 2500 and
-its stragglers appeared at sim 1,960; G3's stopped as a unit. A third early stop, previously
-uncatalogued, on the mesh run; its geometry (face? soil?) is UNREAD - a candidate for the
-pre-flight tool's calibration set and for the G6 run's watch list.
+its stragglers appeared at sim 1,960; G3's stopped as a unit. [CORRECTED 2026-09-13 ~23:20Z by a second measurement: over the LAST 240 s of the same trace
+three of its four members covered 660-670 m; the stillness lasted 135 s at the end of a trace that
+stops at wall 1,591 s, and the same unit is a crawler in P11 (ends 307 m short, still moving). The
+"early stop" reading is UNDECIDABLE from this trace and is withdrawn as a finding; recorded as a
+transient dip until a longer trace says otherwise.]
 Adversarial review of the reading: the strongest competing account for 1-35's identical freeze
 is "the mesh does not cover its position" - refuted: its authored position and its 1.97 km
 stop point lie inside lat 34.518-34.698 / lon -116.809 to -116.591 by construction (the area
