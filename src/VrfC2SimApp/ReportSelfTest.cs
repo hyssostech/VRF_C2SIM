@@ -35,6 +35,28 @@ public static class ReportSelfTest
         }
         else { failures++; Console.WriteLine("  FAIL: task-status did not round-trip to a TaskStatus content"); }
 
+        // ---- task-status (TASKABRT) - the progress watchdog's report (C16, StallPolicy.cs) ----
+        // Same builder, same path to the server, only the code differs; the round-trip proves the
+        // TASKABRT enum serializes and deserializes as schema-valid xml exactly as TASKCMPLT does.
+        string abrtXml = ReportBuilder.BuildTaskStatusReport(taskee, taskUuid,
+                                                            S.TaskStatusCodeType.TASKABRT, iso, reportId);
+        Console.WriteLine();
+        Console.WriteLine("=== TaskStatus (TASKABRT) report ===");
+        Console.WriteLine(abrtXml);
+        var ra = ReportBodyOf(Roundtrip(abrtXml));
+        if (ra != null && ra.ReportContent is { Length: 1 }
+            && ra.ReportContent[0].Item is S.TaskStatusType ta)
+        {
+            Check(ref failures, ta.TaskStatusCode == S.TaskStatusCodeType.TASKABRT, "TaskStatusCode == TASKABRT");
+            Check(ref failures, ta.CurrentTask == taskUuid, "TASKABRT CurrentTask == taskUuid");
+            Check(ref failures, ra.ReportingEntity == taskee, "TASKABRT ReportingEntity == taskee");
+            Check(ref failures, IsoOf(ta.TimeOfObservation) == iso, "TASKABRT TimeOfObservation == iso");
+            Check(ref failures, abrtXml.Contains("TASKABRT", StringComparison.Ordinal)
+                                && !abrtXml.Contains("TASKCMPLT", StringComparison.Ordinal),
+                  "the TASKABRT wire xml carries TASKABRT and no TASKCMPLT");
+        }
+        else { failures++; Console.WriteLine("  FAIL: TASKABRT did not round-trip to a TaskStatus content"); }
+
         // ---- position ----
         const string subject = "001aa71b-4c26-a1ea-28b2-f7dfe8e76342";
         const double lat = 58.703, lon = 16.4992;

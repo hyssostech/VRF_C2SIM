@@ -4,6 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using C2SIM;
 using VrfC2Sim;
+using S = C2SIM.Schema102;   // task-status codes (TASKCMPLT / TASKABRT) for the C16 watchdog report
 
 namespace VrfC2SimApp;
 
@@ -501,6 +502,7 @@ public sealed class VrfC2SimService : BackgroundService
             if (!_awaitReflection.IsEmpty) ReleaseReflected();
             if (_vrf.PositionReportSeconds > 0) MaybeSendPositionReports();
             if (_vrf.ArrivalCompletion) MaybeCheckArrivals();
+            if (_vrf.StallDetection) MaybeCheckStalls();
             Thread.Sleep(50);
         }
     }
@@ -1853,6 +1855,7 @@ public sealed class VrfC2SimService : BackgroundService
                 MarkDispatched(task, unit, "follow");
                 _bridge.FollowEntity(vrfUuid, follow);
                 _arrivalReported.TryRemove(unit.Name, out _);   // the new VRF task is issued: its completion is its own
+                ClearStallState(unit.Name);                     // ... and its own progress window (C16)
                 _log.LogInformation("ESCRT task '{Task}': FollowEntity {Vrf} -> {Tgt} (escort; no route).",
                                     task.TaskName, vrfUuid, follow);
                 return;
@@ -1904,6 +1907,7 @@ public sealed class VrfC2SimService : BackgroundService
                 MarkDispatched(task, unit, "fire");
                 _bridge.FireAtTarget(vrfUuid, attackTargetVrf);
                 _arrivalReported.TryRemove(unit.Name, out _);
+                ClearStallState(unit.Name);
                 _log.LogInformation("ATTACK task '{Task}': no route points; FireAtTarget {Vrf} -> {Tgt} (engage in place).",
                                     task.TaskName, vrfUuid, attackTargetVrf);
                 return;
@@ -1913,6 +1917,7 @@ public sealed class VrfC2SimService : BackgroundService
                 MarkDispatched(task, unit, "breach");
                 _bridge.Breach(vrfUuid, breachTargetVrf);
                 _arrivalReported.TryRemove(unit.Name, out _);
+                ClearStallState(unit.Name);
                 _log.LogInformation("BREACH task '{Task}': no route points; Breach {Vrf} -> {Tgt} (breach in place).",
                                     task.TaskName, vrfUuid, breachTargetVrf);
                 return;
@@ -2015,6 +2020,7 @@ public sealed class VrfC2SimService : BackgroundService
             MarkDispatched(task, unit, "move-into-formation", dest);
             _bridge.MoveIntoFormation(vrfUuid, dest, headingDeg, _vrf.MoveIntoFormation);
             _arrivalReported.TryRemove(unit.Name, out _);
+            ClearStallState(unit.Name);
             _log.LogInformation("Task '{Task}': MoveIntoFormation for AGGREGATE {Name} ({Vrf}) -> " +
                                 "{Lat}/{Lon} formation '{Form}' hdg {Hdg:F0}deg (Unit 4; {N} route pts -> destination).",
                                 task.TaskName, unit.Name, vrfUuid, dest.LatDeg, dest.LonDeg,
@@ -2087,6 +2093,7 @@ public sealed class VrfC2SimService : BackgroundService
             MarkDispatched(task, unit, "move-to", routeGeo[^1]);
             _bridge.MoveToLocation(vrfUuid, routeGeo[^1]);
             _arrivalReported.TryRemove(unit.Name, out _);
+            ClearStallState(unit.Name);
             _log.LogInformation("Task '{Task}': MoveToLocation for {Name} ({Vrf}).",
                                 task.TaskName, unit.Name, vrfUuid);
             // Layer 2 + P0.3: engage/breach AFTER the move COMPLETES (same-tick issue would
@@ -2264,6 +2271,7 @@ public sealed class VrfC2SimService : BackgroundService
             // The engage replaces the move in VR-Forces: the next completion is the ENGAGE's and must
             // attribute (review wf_62e5bdf7) - drop any arrival-evidence swallow for this unit.
             _arrivalReported.TryRemove(unitName, out _);
+            ClearStallState(unitName);
         });
         _log.LogInformation("{Kind} {Vrf} -> {Tgt} issued (task '{Task}').",
                             eng.Kind == "breach" ? "BREACH: Breach" : "ATTACK: FireAtTarget",
@@ -2405,7 +2413,10 @@ public sealed class VrfC2SimService : BackgroundService
             // The replacing VR-Forces task is issued in this block (same tick action): from here on a
             // vendor completion for this unit belongs to the NEW task - drop the arrival-evidence swallow.
             if (_pendingRouteUnit.TryRemove(e.Name, out var issuedForUnit))
+            {
                 _arrivalReported.TryRemove(issuedForUnit, out _);
+                ClearStallState(issuedForUnit);
+            }
             if (pending.Patrol)
             {
                 _bridge.PatrolRoute(pending.TaskeeVrfUuid, e.Uuid);
@@ -2480,28 +2491,10 @@ public sealed class VrfC2SimService : BackgroundService
             if (rec.DestLat is not double dlat || rec.DestLon is not double dlon) continue;
             if ((now - rec.DispatchedUtc).TotalSeconds < _vrf.ArrivalMinSecondsSinceDispatch) continue;
             if (_arrivalReported.ContainsKey(name)) continue;
-            if (!_vrfUuidByName.TryGetValue(name, out var vrfUuid) || string.IsNullOrEmpty(vrfUuid)) continue;
-            bool isAggregate = _c2SimUuidByName.TryGetValue(name, out var cu)
-                               && _unitByC2SimUuid.TryGetValue(cu, out var created) && created.IsAggregate;
+            if (!TryReadMemberPositions(name, out var positions, out int total)) continue;
             var distances = new List<double>();
-            int total;
-            if (isAggregate)
-            {
-                var members = _bridge.GetAggregateMembers(vrfUuid);
-                if (members is not { Count: > 0 }) continue;   // nothing readable yet (or a shell)
-                total = members.Count;
-                foreach (var m in members)
-                {
-                    if (string.IsNullOrEmpty(m.Uuid) || !_bridge.TryGetEntityGeodetic(m.Uuid, out var g)) continue;
-                    distances.Add(TerrainVertexAuthoring.DistMeters(g.LatDeg, g.LonDeg, dlat, dlon));
-                }
-            }
-            else
-            {
-                total = 1;
-                if (_bridge.TryGetEntityGeodetic(vrfUuid, out var g))
-                    distances.Add(TerrainVertexAuthoring.DistMeters(g.LatDeg, g.LonDeg, dlat, dlon));
-            }
+            foreach (var p in positions.Values)
+                distances.Add(TerrainVertexAuthoring.DistMeters(p.Lat, p.Lon, dlat, dlon));
             var d = ArrivalPolicy.Decide(distances, total, _vrf.ArrivalRadiusMeters, _vrf.ArrivalMemberFraction);
             if (!d.Arrived) continue;
             _arrivalReported[name] = rec.TaskUuid ?? "";
@@ -2521,12 +2514,140 @@ public sealed class VrfC2SimService : BackgroundService
         }
     }
 
+    /// <summary>
+    /// Read the LIVE position of every materialized member of a unit (the entity itself for a
+    /// platform). This is the ONE way the interface sees where a unit is, shared by C15
+    /// (MaybeCheckArrivals) and C16 (MaybeCheckStalls) so the two policies can never drift onto
+    /// different samples. Returns false when there is nothing to judge this tick - no VRF uuid
+    /// yet, or an aggregate whose members have not materialized (a shell) - and the callers then
+    /// skip the unit entirely, exactly as MaybeCheckArrivals always has. Tick thread only.
+    /// </summary>
+    private bool TryReadMemberPositions(string name, out Dictionary<string, (double Lat, double Lon)> positions,
+                                        out int total)
+    {
+        positions = null;
+        total = 0;
+        if (!_vrfUuidByName.TryGetValue(name, out var vrfUuid) || string.IsNullOrEmpty(vrfUuid)) return false;
+        bool isAggregate = _c2SimUuidByName.TryGetValue(name, out var cu)
+                           && _unitByC2SimUuid.TryGetValue(cu, out var created) && created.IsAggregate;
+        positions = new Dictionary<string, (double Lat, double Lon)>(StringComparer.Ordinal);
+        if (isAggregate)
+        {
+            var members = _bridge.GetAggregateMembers(vrfUuid);
+            if (members is not { Count: > 0 }) return false;   // nothing readable yet (or a shell)
+            total = members.Count;
+            foreach (var m in members)
+            {
+                if (string.IsNullOrEmpty(m.Uuid) || !_bridge.TryGetEntityGeodetic(m.Uuid, out var g)) continue;
+                positions[m.Uuid] = (g.LatDeg, g.LonDeg);
+            }
+        }
+        else
+        {
+            total = 1;
+            if (_bridge.TryGetEntityGeodetic(vrfUuid, out var g)) positions[vrfUuid] = (g.LatDeg, g.LonDeg);
+        }
+        return true;
+    }
+
+    // PROGRESS WATCHDOG (C16, REPORT-ONLY; StallPolicy.cs; VrfSettings.Stall*; default OFF).
+    // Tick thread, beside MaybeCheckArrivals. VR-Forces 5.2 never reports a unit that stops
+    // making progress while its move task runs - the base give-up test "always returns false"
+    // and the move-to script has no progress test (FINDING_EARLY_STOPS_2026-09-13 sec 6a) - so
+    // the interface watches for it: keep a per-unit ring buffer of member positions covering
+    // StallWindowSeconds of WALL time, and when NO member's NET displacement over that window
+    // reaches StallMoveMeters, send ONE TaskStatus with TASKABRT for that task uuid.
+    //
+    // WHAT THIS PATH NEVER DOES (the user's "report-only" ruling of 2026-09-13): it issues no
+    // VR-Forces command of any kind, does not re-task, does not pop the in-flight record, does
+    // not release a sequencer gate and does not touch _pendingEngage. STP is told; the
+    // simulation is left exactly as it was, so a vendor completion that does eventually arrive
+    // still flows through OnVrfTaskCompleted unchanged. One report per unit-task, ever.
+    private sealed class StallSamples
+    {
+        public readonly List<(DateTime T, Dictionary<string, (double Lat, double Lon)> P)> Ring = new();
+    }
+    private readonly ConcurrentDictionary<string, StallSamples> _stallSamples = new();   // unit name -> position window
+    private readonly ConcurrentDictionary<string, string> _stallReported = new();        // unit name -> task uuid reported TASKABRT
+    private DateTime _nextStallCheck = DateTime.MinValue;
+
+    /// <summary>Drop a unit's watchdog state. Called wherever the arrival-evidence swallow is
+    /// dropped - i.e. whenever a NEW VRF task is issued for the unit: the new task gets its own
+    /// window and its own single report, and the old task's samples must not leak into it.</summary>
+    private void ClearStallState(string unitName)
+    {
+        _stallReported.TryRemove(unitName, out _);
+        _stallSamples.TryRemove(unitName, out _);
+    }
+
+    private void MaybeCheckStalls()
+    {
+        var now = DateTime.UtcNow;
+        if (now < _nextStallCheck) return;
+        _nextStallCheck = now.AddSeconds(Math.Max(1, _vrf.StallCheckSeconds));
+        double window = Math.Max(1, _vrf.StallWindowSeconds);
+        var live = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var kv in _inFlight.Snapshot())
+        {
+            string name = kv.Key;
+            var rec = kv.Value;
+            // MOVE tasks only. A task with no destination (engage, breach, fire in place) has no
+            // progress to make and standing still IS its correct behaviour.
+            if (rec.DestLat is null || rec.DestLon is null) continue;
+            live.Add(name);
+            if (_stallReported.ContainsKey(name)) continue;     // already reported for this task
+            if (_arrivalReported.ContainsKey(name)) continue;   // C15 already reported it complete
+            if (!TryReadMemberPositions(name, out var positions, out int total)) continue;
+
+            var ring = _stallSamples.GetOrAdd(name, _ => new StallSamples()).Ring;
+            ring.Add((now, positions));
+            // Sliding window: keep exactly ONE sample at or before the window edge and drop the
+            // rest, so ring[0] is the oldest sample the window needs (and the buffer stays at
+            // roughly StallWindowSeconds / StallCheckSeconds entries per unit).
+            while (ring.Count >= 2 && (now - ring[1].T).TotalSeconds >= window) ring.RemoveAt(0);
+
+            if ((now - rec.DispatchedUtc).TotalSeconds < _vrf.StallMinSecondsSinceDispatch) continue;
+            var oldest = ring[0];
+            // Never judge on a partial window: a unit 60 s into its dispatch has only 60 s of
+            // history, and 50 m over 60 s is a different (much stricter) test than 50 m over 120.
+            if ((now - oldest.T).TotalSeconds < window) continue;
+
+            var displacements = new List<double>();
+            foreach (var cur in positions)
+                if (oldest.P.TryGetValue(cur.Key, out var was))
+                    displacements.Add(TerrainVertexAuthoring.DistMeters(was.Lat, was.Lon, cur.Value.Lat, cur.Value.Lon));
+            var d = StallPolicy.Decide(displacements, total, _vrf.StallMoveMeters, _vrf.StallMinMembersWithData);
+            if (!d.Stalled) continue;
+
+            _stallReported[name] = rec.TaskUuid ?? "";
+            _log.LogInformation("STALL: unit {Name} task {Task}: no member moved more than {M:F0} m in the last {W} s " +
+                                "(max {Max:F1} m); TASKABRT reported.",
+                                name, rec.TaskName, _vrf.StallMoveMeters, (int)window, d.MaxMeters);
+            if (!_c2SimUuidByName.TryGetValue(name, out var taskeeUuid))
+            {
+                _log.LogWarning("STALL for '{Name}' but no C2SIM uuid known - no TASKABRT report sent.", name);
+                continue;
+            }
+            var report = ReportBuilder.BuildTaskStatusReport(taskeeUuid, rec.TaskUuid ?? "",
+                                                             S.TaskStatusCodeType.TASKABRT, IsoNow(), NewReportId());
+            _log.LogInformation("SENT TASK STATUS REPORT (TASKABRT) taskee={Uuid} task={Task} - report only: the task " +
+                                "stays in flight, no VR-Forces command is issued and nothing is re-tasked.",
+                                taskeeUuid, rec.TaskUuid ?? "(none)");
+            _ = PushReportAsync(report);
+        }
+        // Units whose task is no longer in flight (completed, superseded, or never a move) keep no
+        // window: the buffer must not grow across a whole run.
+        foreach (var key in _stallSamples.Keys)
+            if (!live.Contains(key)) _stallSamples.TryRemove(key, out _);
+    }
+
     private void OnVrfTaskCompleted(object sender, TaskCompletedEventArgs e)
     {
         _log.LogInformation("VRF task complete: {Unit} / {Task}", e.UnitMarking, e.TaskType);
         // A vendor completion for a task already reported from arrival evidence: swallow it ONCE
         // (VR-Forces runs one task at a time and a re-task abandons the old one without a
         // callback, so this can only be the pre-empted task's own late completion).
+        if (!string.IsNullOrEmpty(e.UnitMarking)) ClearStallState(e.UnitMarking);   // the task is over: drop its window (C16)
         if (!string.IsNullOrEmpty(e.UnitMarking) && _arrivalReported.TryRemove(e.UnitMarking, out var reportedTask))
         {
             _log.LogInformation("VRF completion for {Unit} after the arrival-evidence report of task {Task} - swallowed.",

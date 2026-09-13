@@ -146,6 +146,50 @@ C15 A UNIT'S TASK COMPLETION IS REPORTED FROM THE UNIT'S OWN ARRIVAL EVIDENCE - 
     (500 = the shipped Armor-Co formations' half-length) of the last vertex - a MAJORITY rule,
     never leader-only (the lone-leader case must not complete). The vendor's later completion
     is swallowed once. Settings Vrf:Arrival* (VrfSettings); --arrival-selftest.
+C16 PROGRESS WATCHDOG (REPORT-ONLY) - user approval 2026-09-13 ("2 as recommended"), BUILT on
+    branch worktree-agent-afc0b0f7b8d49ef63, NOT deployed. Why: VR-Forces 5.2 never reports a
+    unit that stops making progress while its move task runs - the base give-up test
+    (vrfobjcore/singleTaskControllerComponent.h:192-205) "always returns false",
+    ground-vehicle-move-to.lua has no progress test (only the stop-before-replan precondition
+    :1350-1353 and MAX_REPLANS=3 :47, which count blockage replans), and the shipped
+    examples/decideToGiveUpTask hands the test to the integrator as a SIM-SIDE PLUGIN we cannot
+    install from an HLA client (FINDING_EARLY_STOPS_2026-09-13 sec 6a). So the interface detects
+    it. POLICY (StallPolicy.cs, pure, --stall-selftest 14/14): the unit is STALLED when EVERY
+    member with a readable position has net displacement < StallMoveMeters over the last
+    StallWindowSeconds and at least StallMinMembersWithData members were readable. Net, not path
+    length (the 1-35 signature is a ~2 m limit cycle held for 480 s). A moving LEADER with still
+    followers is NOT a stall; one runaway member with five still ones is NOT a stall (that is
+    C15's straggler case). DEFAULTS: Vrf:StallDetection=false (OFF - deployed behaviour
+    unchanged), StallWindowSeconds=240, StallMoveMeters=50, StallMinSecondsSinceDispatch=60,
+    StallCheckSeconds=5, StallMinMembersWithData=1. The window is WALL seconds on the tick
+    thread: neither VrfFacade.h nor VrfBridge.cpp exports a sim-clock READER (grep 2026-09-13:
+    the only hit is VrfFacade.cpp:590, which SETS the exercise clock), so at sim/wall ratio r the
+    window covers r x 240 sim s - at G5's 6.21x, ~1,490 sim s. Row 19's "N = 120 SIM-seconds,
+    must fire by sim ~500" is therefore NOT met on the sim clock at high ratios; closing that
+    needs a clock accessor on the facade (open, user's call).
+    WHAT IT NEVER DOES: no VR-Forces command, no re-task, no change to the in-flight record, the
+    sequencer or the pending-engage map. It sends ONE C2SIM TaskStatus with TASKABRT per
+    unit-task through the SAME ReportBuilder path as TASKCMPLT (BuildTaskStatusReport now takes
+    the code; --report-selftest has the TASKABRT round-trip) and logs "STALL: unit ... TASKABRT
+    reported". State is cleared wherever the C15 arrival swallow is cleared (a new task).
+    REPLAY VALIDATION (tools/analysis/stall_replay.py, the same rule over each run's
+    watchvrf-trace.csv POS rows; C15's arrival rule is replayed too, so a fire after arrival is
+    suppressed as it is in the product):
+    | run | ratio | fires (first, wall s) | true neg | false alarms |
+    |---|---|---|---|---|
+    | G5 20260913T185936Z | 6.21x | 1-35 @ 385 s (max 49.6 m; moves 0.4 m in the 279 s left) | - | 0 |
+    | G3 20260913T174516Z | 1.60x | 1-35 @ 431 s, 1-6 @ 742 s | 7 of 9 | 0 |
+    | P11 20260907T150643Z | 1.46x | 1-35 @ 419 s, 1-6 @ 1824 s | 7 of 9 | 0 |
+    THE WINDOW IS 240 s BECAUSE 120 s FALSE-ALARMS ON CRAWLERS: at 120 s the rule also fired on
+    P11's 4-27 (@1519), 40 (@3475), 856/HHC (@2520) and C/1-35 (@3699), each of which then
+    covered 203-1,191 m more - they creep at 0.4-0.5 m/s for thousands of seconds and dip below
+    50 m/120 s only transiently. A bigger THRESHOLD cannot fix this (the crawlers' per-window
+    minima, 41-50 m, overlap the frozen units', 22-49 m); only persistence separates them. The
+    last false alarm disappears between a 160 s and a 180 s window, so 240 s keeps ~1.5x margin;
+    the tightest surviving true negative is 74 m per window against the 50 m floor. COST of the
+    wider window: G3's 856/HHC (a REAL early stop found by this replay - all four members under
+    47 m/120 s, 3.5 km short of its destination at t~1,500 while 1-1 was still covering 1.7 km
+    per window) is NOT detected in G3 because that trace ends 90 s after the stop began.
 NEXT (the only real work): N1 DONE 2026-09-06 (PREREG_N1_COMPOSE_DEFAULT: default ON verified by
 run D 162958Z 3/3 with no env; flag-off run L 164022Z reproduces the legacy 38-phantom / 2-of-3
 signature - the switch is the regression control). N2 DONE 2026-09-06 (PREREG_N2_DECLARED_ORDER:

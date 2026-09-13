@@ -189,6 +189,44 @@ public class VrfSettings
     public double ArrivalCheckSeconds { get; set; } = 5.0;
     public double ArrivalMinSecondsSinceDispatch { get; set; } = 30.0;
 
+    // PROGRESS WATCHDOG (C16, report-only; StallPolicy.cs). VR-Forces 5.2 NEVER reports a unit
+    // that stops making progress while its move task runs: the base give-up test "always returns
+    // false" (vrfobjcore/singleTaskControllerComponent.h:192-205) and ground-vehicle-move-to.lua
+    // has no progress test - docs/experiments/FINDING_EARLY_STOPS_2026-09-13.md sec 6a. So the
+    // interface detects it itself: when NO member of a moving unit has covered StallMoveMeters of
+    // NET displacement over the last StallWindowSeconds, ONE C2SIM TaskStatus with TASKABRT is
+    // reported for that task and nothing else happens - no re-task, no VRF command, no state
+    // change (the task stays in flight; the vendor's own completion, if it ever comes, still
+    // flows normally). DEFAULT OFF: the deployed behaviour is unchanged until a preregistered
+    // run turns it on.
+    //
+    // THE WINDOW IS WALL SECONDS on the tick thread, not sim seconds: neither VrfFacade.h nor
+    // VrfBridge.cpp exposes any sim-clock READER (verified 2026-09-13 by grepping both for
+    // simTime/SimulationTime/GetTime/clock/currentTime/elapsedTime - the only hit is
+    // VrfFacade.cpp:590, which SETS the exercise clock; the exported surface has Tick(),
+    // SetTimeMultiplier and SetExerciseStartTime and no getter). At a sim/wall ratio r the
+    // window therefore covers r x StallWindowSeconds of SIM time - at the 6.2x measured on the
+    // 2026-09-13 G5 run, 240 wall s is ~1,490 sim s. If a sim-clock accessor is ever added to
+    // the facade, prefer sim seconds here and restate this comment.
+    //
+    // Defaults CALIBRATED offline on three replayed traces - G5 20260913T185936Z, G3
+    // 20260913T174516Z, P11 20260907T150643Z - with tools/analysis/stall_replay.py (numbers in
+    // C16 of docs/DESIGN_ORBAT_TO_VRF_2026-09-06.md). The window is 240 s, NOT the 120 s first
+    // tried: at 120 s the rule fires on units that are CRAWLING rather than stopped (P11's
+    // 4-27, 40, 856/HHC and C/1-35 creep at 0.4-0.5 m/s for thousands of seconds and each
+    // covered 200-1,200 m AFTER the 120 s rule would have aborted them). Their crawl dips below
+    // 50 m/120 s transiently but not below 50 m/240 s; the genuinely frozen units never move
+    // again (0.4-53 m over the remaining 850-4,000 s). The last false alarm disappears between
+    // a 160 s and a 180 s window, so 240 s keeps a 1.5x margin. A larger threshold cannot do
+    // this job in place of a longer window - the per-window minima of the crawlers (41-50 m)
+    // and of the frozen units (22-49 m) overlap; only persistence separates them.
+    public bool StallDetection { get; set; } = false;
+    public int StallWindowSeconds { get; set; } = 240;          // WALL seconds (see above)
+    public double StallMoveMeters { get; set; } = 50.0;         // net displacement per member over the window
+    public int StallMinSecondsSinceDispatch { get; set; } = 60; // grace after dispatch before the watchdog may fire
+    public int StallCheckSeconds { get; set; } = 5;             // how often the tick thread samples
+    public int StallMinMembersWithData { get; set; } = 1;       // readable members needed before a stall may be called
+
     // OBSERVATION CHANNEL (UG52 21.9 p483): every VR-Forces object has its own console that
     // carries "messages sent from the simulation engine, from a simulation object's plan, from
     // other simulation objects, and from scripts", filtered by a PER-OBJECT notify level
