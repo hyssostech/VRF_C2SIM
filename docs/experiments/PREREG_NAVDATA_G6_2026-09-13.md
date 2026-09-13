@@ -83,4 +83,12 @@ P16a or P16e missed = stop. P16b miss with P16a held = the profile question goes
 numbers; nothing is edited under C:\MAK without the word.
 
 ## 5. Results
-(to be filled after the run; nothing here was written before it)
+GENERATION started 2026-09-13 20:39Z: the generator ACCEPTED the 41.3 x 54.2 km area at raster 0.2
+(no size refusal - the 20 km figure of UG52 p1276 is a GUI-side default, not a generator limit);
+runtime config extent nw (-27176, 20597) to se (27262, -20597) m about the area centre; ~500 m
+sectors with ~99,000 terrain triangles each; "Generated 3 distinct nav tags"; 842 sector files after
+6 min (the 20 km area produced 4,803 files in 24 min, so 3-3.5 h expected). Terrain copy "MAK Earth
+(online) + MojaveCOA.mtf" = 10 navData records, this area only (the AO20 record dropped); fixture
+R9_Mojave_Empty_52_NavAO built, validated (positive gate) and deployed byte-identical to the sanctioned
+scenarios folder. Nothing else under C:\MAK.
+(run results to be filled after the run; nothing here was written before it)
