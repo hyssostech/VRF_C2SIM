@@ -379,13 +379,15 @@ outcomes from the traces instead of from net displacement. Findings that bear on
   80831b9; 22,723 m on the equal-scale plane used earlier in this section - a projection constant,
   not a disagreement) and then froze for the remaining 2,870 s (+/-2 m), INSIDE the tool's own worst
   40 m window (centred at 22,702 m; scored 0.966 of the vehicle limit). It had been labelled "moved"
-  from its net displacement. 1-35's freeze is 38 m before its window centre (18 m before its near
+  from its net displacement. CORRECTED by the console read (sec 7c): the LEADER froze; three of its
+  five members crawled 1.1-1.25 km past it. 1-35's freeze is 38 m before its window centre (18 m before its near
   edge). Two independent freezes ON scored faces support the mechanism of sec 7.
 - The mechanism does NOT cover every early stop: in P11, 1-6/2/1_AD stopped at 2,840 m on ground
   DESCENDING at -0.14 over 55 m, 480 m SHORT of the face the tool flags (in G3 the same unit froze
   ON that face - sec 7 B1); and 856/HHC~PXY in P11 stopped 699 m short of its vertex on FLAT ground
   (-0.04), crawling at 0.23 m/s. Every stuck unit degrades into a 0.2-0.8 m/s crawl and all units
-  slow after sim ~1,400 regardless of terrain. A SECOND stop mechanism is therefore active in these
+  slow after sim ~1,400 regardless of terrain (NOT 4-27's leader - sec 7c: 10.0 m/s in every 200 s
+  bin to sim 2,200 and 9.92 m/s in its last 60 s; the crawl there is post-stop and in the followers). A SECOND stop mechanism is therefore active in these
   runs - the candidate already in the record is the formation / scale-crawl stop (DESIGN_ORBAT C1b:
   the move-into-formation gate; the S4 crawl of 2026-09-06), unmeasured here.
 - Consequently the VERDICT of sec 7 is a claim about 1-35 (and 4-27), not about "the early stops":
@@ -397,10 +399,58 @@ outcomes from the traces instead of from net displacement. Findings that bear on
   label (0.025 corrected); at 80 m the separation dies. One order, one terrain, three positives.
 Adversarial review of 7b: the alternative reading of 4-27 - "it stopped for the second mechanism and
 happened to be near a steep window" - is weakened by the stop falling inside the scored 40 m window on a 32 km leg and by the
-identical +/-2 m signature to 1-35's; it is not excluded without 4-27's console (unread). The
+identical +/-2 m signature to 1-35's; the console has now been read (sec 7c) and excludes blockage,
+replan, give-up, goal change and any formation-wait print, but not speed control. The
 alternative reading of 1-6/P11 and 856 - "they are slope stops the metric mis-scores" - is refuted
 by the ground itself (descending / flat at the stop). What remains unexplained: the second
 mechanism's identity; G3's 856/HHC stop (PREREG_NAVDATA_G3 sec 6 addition).
+
+## 7c. 4-27's console, read (Opus reader, 2026-09-13 ~23:35Z; docs/experiments/READ_4-27_CONSOLE_2026-09-13.md; spot-checked)
+P11 (runs/20260907T150643Z_run), 4-27/2/1_A re-created as the template Tank HQ Section: leader M1A2 3
+(uuid ac191858, verified from the five followers' own leader=M1A2 3 task rows, vrfc2simapp.log:2077-2091),
+unit object at level 4, six members at level 3 (their own "Setting to notify level 3." rows,
+watchvrf-trace.csv:926-931). No member row at level 4 exists (configured outcome, not evidence) and
+WatchVrf carries position only (tools/WatchVrf/WatchRunner.cs:14) - no velocity in the capture.
+- THE LEADER: 10.0 m/s net in every 200-sim-s bin from sim 200 to 2,200, 9.92 m/s in its last 60 s, then
+  at sim 2,366.0 (wall 1,396.4; 34.479042/-116.819676) net progress ends. Its own sim-reported altitudes
+  over its own last fixes: +14.9 m over 26.7 m (0.558), then +10.9 m over 12.4 m (0.879) to a peak of
+  1,111.8 m at 22,708.6 m along; it then fell back 22.5 m along and 16.6 m of height and held a limit
+  cycle decaying from 22.5 m to 3.2 m by sim ~2,620 (0.78 m/s of shuffle, zero net progress, 3,922 sim s
+  to the end of the capture) - the shape 1-35 shows (22.8 m -> ~2.0 m). Its oscillation band
+  22,694.8-22,708.6 m straddles the pre-flight's worst 40 m (22,702) and 55 m (22,709.9) window centres.
+  Console, every ~1 s cycle from sim 105 to the end (258,631 rows, seven shapes only): "Goal new or
+  changed? -> Condition false", "Is path blocked? -> Condition false", Status move-along TaskRunning.
+  Zero BlockedBy / stuck / give-up / replan / task-complete / formation-wait / speed rows after wall 90.
+  Supervisor spot-check from the trace reproduced: peak 22,708.6 m at wall 1,398.4 alt 1,111.8; final
+  22,697.2 m; the two pre-stop pitches 0.558 and 0.879.
+- VERDICT: CONFIRMED slope stop for the LEADER - same signature as 1-35 on every listed point.
+  Competing hypothesis, formation mutual speed control holding the leader (UG52 30.22 p598): weakened -
+  at the stop the leader was the MOST ADVANCED of the six, three followers then passed it and walked
+  1.1-1.25 km away while it stayed, and a commanded hold does not slide back 16.6 m of height. NOT
+  EXCLUDED: the leader's commanded speed / reflected velocity inside the window is not in the capture.
+  The falsifier is unchanged from sec 7: a level-4 leader console row setting speed, reflected velocity,
+  or the leader completing the leg when routed around the window (G6 tests the router).
+- THE UNIT DID NOT FREEZE: HMMWV 3 and M577A2 2 converged onto the leader (6.5 m / 47.9 m) and stopped;
+  M1A2 4, M3 2 and HMMWV 4 went past it and were still creeping at 0.301 / 0.299 / 0.301 m/s (sim) when
+  the capture ended, 1,246 / 1,202 / 1,078 m further along and 130-142 m LOWER (descending - not a slope
+  stop). The pre-flight's "the formation leader stands for the unit" assumption (PREFLIGHT_CALIBRATION
+  sec 4 item 6) is doing real work: the unit-level statement "4-27 froze" is true of M1A2 3 only.
+- THE SECOND MECHANISM, seen inside the same unit: a constant ~0.30 m/s crawl in followers that overran
+  their slots relative to a stopped leader. The vendor documents follower speed control for this task -
+  UG52 30.22 p598 Maneuver Along: "a leader and followers, which use speed control to remain within some
+  distance of each other ... speed control can override ordered speed" - but no numeric floor; the
+  EntityLevel Lua scripts and vrfobjcore/groundManeuverInFormationPSR.h carry no speed parameter (grep
+  2026-09-13). CANDIDATE, not a finding: follower speed control at its floor. It does NOT explain the
+  LEADER crawls of 1-6 (P11) and 856/HHC, which remain open. Discriminator for both: member consoles at
+  level 4 (a set-speed row) or reflected velocity - G6 runs member consoles at 4.
+- Other runs carrying 4-27 member consoles at level 3, unread: runs/20260913T174516Z_run (G3) and
+  runs/20260907T174654Z_run - a second read would test whether the 3-of-5 crawl-past reproduces.
+Adversarial review of 7c: the strongest alternative to "slope stop" for the leader is the same speed-
+control hold sec 7 could not exclude, and this read does not close it either - it repeats the gap
+(position-only capture, members at 3). What this read DOES add: obstacle blockage, paging and the generic
+crawl are refuted for the leader by rows, and the followers' behaviour is inconsistent with a hold that
+pins the leader. Unexplained and recorded as a falsifier of any single-mechanism story: the leaders of
+1-6/P11 and 856/HHC crawl without a slope.
 
 ## 8. What follows (decisions for the user; none taken here)
 - The interface needs its OWN progress watchdog: no net movement for N sim-seconds while the
