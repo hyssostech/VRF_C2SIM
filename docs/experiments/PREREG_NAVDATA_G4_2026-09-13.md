@@ -72,4 +72,10 @@ P14a missed = stop. Everything else is measurement to be reviewed cold before th
 - P14a misses: reopen the engine question with threads.csv in hand; no lever touched first.
 
 ## 5. Results
+STATUS 2026-09-13 ~19:45Z: NOT RUN - DEFERRED by the supervisor behind the early-stop diagnostic
+(PREREG_EARLYSTOP_G5_2026-09-13). Reason: the console read (FINDING_EARLY_STOPS_2026-09-13) showed the
+early stops are not mesh-related (identical freeze with and without the area, on near-level ground
+past a crest), so the mesh's effect on completions and the far legs is second in value to finding
+what stops the units, and machine time before the licence lapses (2026-09-15) is the scarce
+resource. The predictions above stay registered unchanged; if G4 runs later it runs as written.
 (to be filled after the run; nothing here was written before it)
