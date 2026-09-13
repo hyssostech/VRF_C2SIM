@@ -104,5 +104,37 @@ prereg, not a continuation.
 - P13a HOLDS and P13d HOLDS: first the H3 discriminator (same run minus 1-6's task), then the levers.
 - P13a MISS: full-length clean repeat of G2; the record's "engine collapsed" finding is withdrawn.
 
-## 6. Results
-(to be filled after the run; nothing here was written before it)
+## 6. Results - run 20260913T174516Z (launched 17:45:16Z, 1500 s cap, runner exit 0, clean teardown)
+HEADLINE (supervisor's own read of the two instruments, 18:15Z; the executor's full harvest
+follows below when it lands): THE COLLAPSE DID NOT REPRODUCE. P13a MISSED.
+- sim/wall per 300 s wall window (endpoint ratios, sim_ratio.samples): 1.800x, 1.672x, 1.573x,
+  1.573x, 1.544x, 1.451x (partial last window). Sim reached 2,563 s in 1,592 s of wall; no
+  window anywhere near 0.2x. G2 at the same wall times: 1.545, 1.675, 0.352, 0.050, 0.039.
+- threads.csv (351 samples): the sim process held 4.6-5.0 cores from wall ~180 s to the cap,
+  working set 4.2 -> 4.75 GB, 81-84 threads; the SAME five hot threads all run (tid 44084 at
+  0.85-0.90 cores - the main thread by its birth at t=5 s - plus four at 0.67-0.81 = the four
+  callback threads of vrfSim.mtl:218). No thread-set change, no idle phase.
+- Bring-up after the reboot: rtiexec/forwarder started by the runner (pids 69856/50520 - the
+  never-kill rule now covers these), no RTI dialog (assistant-free profile), oracle gate 256
+  POS lines / 128 uuids, order accepted; nothing else ran on the machine (verified before
+  launch; the only concurrent processes were the runner's own observers and the sampler).
+- P13e HOLDS (128 units, order accepted, thread CSV 351 rows with non-zero CPU; nav-area rows
+  counted by the harvest). P13b/P13c are moot for "the floor" - there was none - but recorded:
+  the fast-phase profile above IS the engine's steady state under this scenario with the mesh.
+CONSEQUENCE, per sec 4/5 as written before launch: the "engine collapsed under navigation
+data" finding of PREREG_NAVDATA_2026-09-07 G2 RESULTS is WITHDRAWN. G2's equal-sim-time
+movement result (1.04x vs P11 at sim 1170; 1-35 frozen at 1.97 km in both; 1-6 SPLIT 4/2 at
+the 2.9 km line) stands as the mesh's measured effect so far. G4 = the full-length clean repeat
+of G2 (4200 s), registered in PREREG_NAVDATA_G4_2026-09-13.md before launch.
+Adversarial review: the pre-committed reading of a P13a miss is H2 (my concurrent 212-agent
+load induced G2's collapse). A second difference between G2 and G3 was NOT controlled and is
+named here rather than buried: G2 ran on an rtiexec/forwarder pair alive since 09-04 with a
+teardown-relaunch history (vrf-teardown-relaunch-wedges-rti); G3 ran on a fresh pair started
+minutes earlier after a reboot. So G3 shows "not reproduced on an idle machine with a fresh
+RTI"; it does not by itself separate load (H2) from RTI age (H5). Both are absent from G4's
+conditions, so G4 does not need to separate them either; the discriminating test for H2 alone
+would be a deliberate re-contamination on a fresh RTI, not worth a run before the licence
+lapses. H3 (a 1-6 pathology) is decided by the harvest's event check (task 6). The mechanism by
+which a transient load could leave a 50-minute floor after it ended (G2 showed no recovery)
+remains UNEXPLAINED and is recorded as such, not smoothed.
+(Executor harvest: appended below when it lands.)
