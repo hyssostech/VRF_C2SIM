@@ -173,3 +173,79 @@ terrain" - the vendor's decideToGiveUpTask sample, UG52 ch 23 in full (soil Tabl
 paging, clamping), the terrain's surface-characteristics mapping files (landCoverDataSurfChar.map,
 smc_fid_soiltype_map.csv) read at the freeze point offline, and the public record. Sec 6 holds
 its result.
+
+## 6. The vendor's answer (docs / sample / community pass, Opus reader, 2026-09-13 ~20:10Z)
+(a) SAMPLE - C:\MAK\vrforces5.2d\examples\decideToGiveUpTask (derivedMoveAlongController.h:18-25):
+"The purpose of this class is to demonstrate how to check for and handle a situation in which an
+entity is unable to carry out a given task behavior ... determine when it should 'give up' trying
+to reach its waypoint." The shipped test is a 10 s timer (.cxx:48-62); giveUpTask() calls
+taskComplete() "which results in a task complete report being sent and the controller put into a
+non-tasked state" (.h:35-36); it is installed as a sim-side PLUGIN replacing the stock creator
+(plugin.cxx:29-30, addCreatorFcn(DtGroundAutoMoveAlongType, ...)). The BASE CONTRACT
+(vrfobjcore/singleTaskControllerComponent.h:192-205): "Override this function to provide the test
+for determining if the task controller should give up. For example, a derived move-to-waypoint
+controller tasked to reach an unreachable waypoint might decide to give up after a certain amount
+of time, or after circling the point and failing to reach it. ... The implementation in this class
+always returns false." DtGroundMoveAlongControllerComponent declares an override
+(groundMoveAlongControllerComponent.h:160) with no doc and no shipped source - what it tests is
+NOT STATED. ground-vehicle-move-to.lua has NO speed, distance or progress watchdog; its only exits
+are BlockedByWall, BlockedByVehicle held 10 s (:219-264, :756-760), or completion. "stuck" appears
+ZERO times in UG52. VERDICT: a ground vehicle that stops making progress while its task runs is
+UNDETECTED BY DESIGN in VR-Forces 5.2; the vendor's sample hands the detection to the integrator.
+(b) WHAT PHYSICALLY STOPS A VEHICLE (UG52 23.5.1 p507 = vrf_movementAndSoilType.htm): the soil
+acceleration-factor "0.0 means the surface's drag prevents the vehicle from moving at all (deep
+water)"; the only roughness rated 0 in ground-tracked.sysdef is deep-water (:813-816), muck is
+0.4/0.6 (:817-820), sand 0.80/0.75 (:805-808), rocks 0.80/0.90. Slope (23.5.2 p508): "vehicles can
+just barely move up the max-slope defined in the entity parameters by using maximum throttle. It
+is possible that vehicles may slide down slopes, especially if the soil is slippery" - and
+navigationPreferenceDescriptor.h:125-127: the effective max-slope "is reduced by the soil
+modifier (i.e. multiplied by the acceleration-factor)". Trapping (23.2.3 p502): "the vehicle could
+become trapped either by a very large alley or by moving entities that close off its path".
+Paging (63.6.1 p1247): terrain loads on demand, moving objects' pages are high priority; what a
+moving entity does on terrain not yet streamed is NOT STATED anywhere; vrfSim.mtl has no paging
+keys (they are in terrainInterfaceConfig.mtl:19,76,144-156). Clamping (63.7 p1248) is never tied
+to movement failure.
+(c) THE SOIL UNDER THE STOP, READ OFFLINE WITH CONTROLS: MAK Earth (online) has no local
+soil raster; its land cover is a streamed composite (biomes.landcover.coverage.online.xml) whose
+tiles on vr-theworld.com are publicly fetchable (EPSG:4326 TMS). At 34.65607/-116.76144 the
+highest-resolution layer with data, CA FVEG 15 m (tileset 154), reads 30 = "Sagebrush" ->
+soiltype BM_SAND (layer.CA-FVEG.15m.online.xml:38) -> landCoverDataSurfChar.map:317 -> sand ->
+acceleration 0.80 / stopping 0.75. NLCD 30 m reads 52 Shrub/Scrub (BM_VEGETATION-BRUSH),
+Copernicus 100 m reads 30 Herbaceous (BM_LAND-GRASS). Controls: Pacific -> Ocean/Open Water,
+downtown LA -> Urban/Developed, Lake Tahoe -> water/Lacustrine, all correct. Where 1-1 crossed
+400 m away: FVEG 60 "Desert Scrub" -> BM_SAND too. SOIL AS AN OUTRIGHT STOP IS REFUTED (sand, not
+deep water or muck). The generated nav area carries no soil file, and the ground-platform profile
+tags only road/pavedroad (navigationProfiles.mtl:261-264), so the mesh never knew about sand.
+(d) COMMUNITY: nothing public on the symptom; docs.mak.com classref 404s for these classes; MAK's
+5.2 announcement only says vehicles "use the MAK Behavior Tree System" and "ground path planning
+is enhanced with vector-based terrain data". The support portal is the vendor channel (not used).
+(e) SILENT: what DtGroundMoveAlongControllerComponent's give-up override tests; entities on
+unstreamed terrain; page-in areas on osgEarth terrain; any stall-while-running mechanism; any
+progress watchdog; what happens at 95 % of max-slope on lower-traction soil.
+
+REVISED MECHANISM - A HYPOTHESIS, cited, with its falsifier (sec 7 records the test):
+SAND-DERATED MAX-SLOPE EXCEEDED BY A METRE-SCALE FACE. The M1A2's max-slope is 0.94; on sand it is
+0.94 x 0.80 = 0.752 (navigationPreferenceDescriptor.h:125-127). The G5 leader's own track across
+its 23 m shuffle reports 12.6 m of altitude over 16.1 m of ground - a local face of ~0.78, above
+0.752 - while a 100 m resample of the same track reads the stop as level (sec 5 C2). UG52 23.5.2
+predicts exactly the observed behaviour at that limit: "just barely move up ... may slide down
+slopes" = the leader's 318 m of back-and-forth along the fall line; the four still followers are
+the formation's speed control holding station on their leader (UG52 30.22 p598); the movement
+layer prints nothing because nothing in it tests progress (sec 6a). The 90 m elevation posting of
+MAK Earth (online) is where a 12 m face over 16 m plausibly comes from (a cell edge), and a
+different cell edge 400 m away lets 1-1 through - consistent with the determinism (data-driven)
+and with the contrast. FALSIFIER: the elevation data at the freeze point, read at its native
+posting and interpolated as the sim does, shows NO local gradient >= 0.752 along the leader's
+heading within its 23 m shuffle line - then the face is not in the terrain and the mechanism
+fails; a second test at 1-6's G3 stop (34.64236/-116.75907, sand?) and P11's 2.85 km stop must
+show the same signature or the hypothesis is weakened.
+Adversarial review: competing account (1) "commanded to stop" - weakened, not excluded, by the
+leader's continuous shuffle (a commanded stop sits still, as M3 1 does) and by the ordered speed
+of 10 m/s never rescinded; the reflected entity velocity would settle it. (2) A terrain-streaming
+gap under the vehicle - not excluded by any doc (silent), but the freeze reproduces to ~1 m in
+four runs at very different wall clocks (1.5x and 6.2x), which a transient page would not do.
+(3) An obstacle trap (23.2.3) - the avoider's trap prints BlockedBy statuses; none appear.
+Unexplained, still: HMMWV 2's 90 m creep to sim 1,270; G2's 1-6 leader task failure at sim 320.
+
+## 7. The elevation test (registered before its result; executor running)
+(filled when the executor returns)
