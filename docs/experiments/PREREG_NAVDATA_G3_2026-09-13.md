@@ -137,4 +137,58 @@ would be a deliberate re-contamination on a fresh RTI, not worth a run before th
 lapses. H3 (a 1-6 pathology) is decided by the harvest's event check (task 6). The mechanism by
 which a transient load could leave a 50-minute floor after it ended (G2 showed no recovery)
 remains UNEXPLAINED and is recorded as such, not smoothed.
-(Executor harvest: appended below when it lands.)
+EXECUTOR HARVEST (Opus, g3_harvest.py in the session scratchpad; its instrument check reproduced
+P11's 147 BlockedByVehicle-by-sim-1170 exactly):
+- Ratio: full-run LS 1.601x (envelope 1.616x); 60 s windows min 1.437x / max 2.112x / mean
+  1.634x; windows below 1.0x: 0. Slow monotone decay, no step. P13a MISS CONFIRMED.
+- Threads: from tSec 300 to the end exactly the same five hot tids every sample - 44084 (main)
+  0.87 cores, four workers 0.70-0.78 each; top-1 share of process CPU mean 0.24 -> CPU spread
+  evenly over main + the 4 callback threads, no serial hot section. Process mean 4.89 cores over
+  tSec 300-1500. Working set 4589 -> 4758 MB from tSec 600 = 8.8 MB/min, decelerating. Threads
+  flat at 81-83.
+- Equal-sim-time displacement (median member, m) G3 / P11 / G2 at sim 1170 and G3 / P11 at 2500:
+  1-1 10022/10459/10493, 23140/23518; 1-35 1970/1970/1974, 1969/1970; 1-6 3291/2845/6190,
+  3292/2884; 4-27 10321/10692/10632, 22778/22674; 40 9081/8516/9235, 22022/21405; 5-20
+  9206/9391/10412, 22353/22500; 856/HHC 10226/10675/10461, 21035/23090; B/5-20
+  10622/10786/10828, 23813/23937; C/1-35 8601/9165/7077, 21152/21165; A/6-56 0 (ADA task
+  refused). SUM G3/P11 = 0.984 at 1170 and 0.990 at 2500. THE MESH HAS NO GENERAL SPEED EFFECT.
+- Formation (max member-to-centroid, m) at 2500: G3 tighter than P11 on every unit except
+  1-35 (194 vs 57) and 4-27 (155 vs 106); the only members > 1 km are 856/HHC's, in BOTH runs
+  (G3 2, P11 4).
+- 1-6/2/1_AD in G3: NEITHER the P11 whole-unit stop at 2.85 km NOR the G2 4/2 split - it passed
+  the 2.9 km line and stopped AS A WHOLE at 3.29 km (spread 108 m), frozen from sim 1170 to the
+  end with zero failure rows. Three runs, three different outcomes at the same unit's early stop.
+- 1-35/2/1_A in G3: 1970 m at sim 1170 and 2500 - IDENTICAL to P11 (1970) and G2 (1974). Three
+  runs, one freeze, with the slope-aware planner active over its position.
+- H3 check: "Controller's subtask has Failed" rows in G3 = 0 (all 370 task-controller outcome
+  rows are Completed; the instrument is live). The G2 break event did not recur. P11 - no area,
+  no collapse - carries 9 such failures for 1-6's HMMWV 8 at sim 739-795 and 2 for C/1-35: the
+  1-6 move-along failure is a P11 feature too. P13d MISS; H3 REFUTED as a collapse mechanism.
+- Nav-area rows: G3 141 (New 79 / Leaving 62; C/1-35 50, 4-27 16, 1-1 12, 5-20 12, 40 12, 856
+  12, B/5-20 8, 1-6 8, 1-35 6, A/6-56 4) vs G2 324 vs P11 0; the ratio is unchanged through
+  every nav-row burst.
+- BlockedByVehicle: G3 172 by sim 1170 then SATURATES at 181 for the run; P11 147 by 1170 and
+  keeps accruing to 424; G2 518 by 1170. G2's 3.5x was NOT a mesh effect (G3 ~ P11 early).
+- P13b not evaluable (no floor); P13c recorded above; P13e HOLDS (128 units, order accepted,
+  141 nav rows, 349 sampler rows).
+SUPERVISOR READING (the verdict is mine; the user decides the demo lever):
+1. The engine question is CLOSED for this scenario at this scale: the mesh does not slow the
+   engine; a concurrent load on the machine did. Rule: nothing else runs during a timed run.
+2. The MOVEMENT question the track was opened for - "silent whole-unit stops 2-3 km out are the
+   slope-blind planner" (PREREG_ASSEMBLY_LAYOUT 3f/3g) - is REFUTED for 1-35: the slope-aware
+   planner was active over its position in G2 and G3 and it froze at the same 1.97 km as
+   without it. For 1-6 the stop is VARIABLE across three runs (2.85 km whole / 4-2 split at
+   2.9 and 6.2 km / 3.29 km whole), which no fixed terrain feature produces. Whatever stops
+   these two units, navigation data is not the cure and terrain is not the demonstrated cause.
+3. NEXT INSTRUMENT (no run needed): the units' OWN consoles at the freeze, in the three traces
+   we already hold (lessons-vendor-diagnostics-first) - what 1-35's controller and members say
+   from sim 300 to 900, and where the freeze point sits relative to 1-35's route vertices.
+4. G4 (the full-length clean repeat) stays registered and is run after that read, on an idle
+   machine; it answers completions and the far legs, which G3's 2,563 sim-seconds could not.
+Adversarial review of the reading: the strongest competing account for 1-35's identical freeze
+is "the mesh does not cover its position" - refuted: its authored position and its 1.97 km
+stop point lie inside lat 34.518-34.698 / lon -116.809 to -116.591 by construction (the area
+is centred 2 km north of the STP point) and 1-35 itself emitted 6 nav-area rows in G3. Second
+competing account, "the unit is waiting on its ADA task chain or a predecessor" - not excluded
+here; the console read decides it. Unexplained and recorded: why G3's blocking count saturates
+at 181 while P11's keeps accruing; why 1-6 stops at three different places.
