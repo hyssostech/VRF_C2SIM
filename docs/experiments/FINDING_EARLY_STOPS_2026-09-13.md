@@ -371,6 +371,35 @@ this: a run in which 1-35 is released from the toe by a route that avoids the fa
 Roads) and then completes its leg - the confirming test - or a run in which it freezes at the same
 point with the face removed from the data.
 
+## 7b. Scope of the cause claim, narrowed by the pre-flight calibration review (2026-09-13 ~23:15Z)
+The route pre-flight tool (tools/preflight/leg_check.py; DEMO_READINESS row 20) scores every first leg
+of the COA against the sim's own elevation and soil, and its cold-start review re-derived P11's
+outcomes from the traces instead of from net displacement. Findings that bear on THIS document:
+- A THIRD slope stop: 4-27/2/1_A drove 22,723 m along its 32 km leg and then froze for the remaining
+  2,870 s (+/-2 m), 13 m from the tool's own worst-window centre (a 40 m window scored 0.966 of
+  the vehicle limit). It had been labelled "moved" from its net displacement. 1-35's freeze is 22 m
+  from its window. Two independent freezes ON scored faces support the mechanism of sec 7.
+- The mechanism does NOT cover every early stop: in P11, 1-6/2/1_AD stopped at 2,840 m on ground
+  DESCENDING at -0.14 over 55 m, 480 m SHORT of the face the tool flags (in G3 the same unit froze
+  ON that face - sec 7 B1); and 856/HHC~PXY in P11 stopped 699 m short of its vertex on FLAT ground
+  (-0.04), crawling at 0.23 m/s. Every stuck unit degrades into a 0.2-0.8 m/s crawl and all units
+  slow after sim ~1,400 regardless of terrain. A SECOND stop mechanism is therefore active in these
+  runs - the candidate already in the record is the formation / scale-crawl stop (DESIGN_ORBAT C1b:
+  the move-into-formation gate; the S4 crawl of 2026-09-06), unmeasured here.
+- Consequently the VERDICT of sec 7 is a claim about 1-35 (and 4-27), not about "the early stops":
+  it stands for units that freeze ON a scored face, and it is silent on the stops on benign ground.
+  The pre-flight's correct wording is "this leg crosses a sustained face your vehicles probably
+  cannot climb", never "this is why your unit will stop".
+- Calibration as corrected: at a 40 m window, frozen legs score 1.098 / 0.990 / 0.966 and the best
+  clean pass 0.870 (margin 0.096; threshold 0.92); at 55 m the margin was an artefact of the wrong
+  label (0.025 corrected); at 80 m the separation dies. One order, one terrain, three positives.
+Adversarial review of 7b: the alternative reading of 4-27 - "it stopped for the second mechanism and
+happened to be near a steep window" - is weakened by the 13 m coincidence on a 32 km leg and by the
+identical +/-2 m signature to 1-35's; it is not excluded without 4-27's console (unread). The
+alternative reading of 1-6/P11 and 856 - "they are slope stops the metric mis-scores" - is refuted
+by the ground itself (descending / flat at the stop). What remains unexplained: the second
+mechanism's identity; G3's 856/HHC stop (PREREG_NAVDATA_G3 sec 6 addition).
+
 ## 8. What follows (decisions for the user; none taken here)
 - The interface needs its OWN progress watchdog: no net movement for N sim-seconds while the
   task reports running -> report to STP (a TaskStatus the demo audience can see) and/or re-task.
