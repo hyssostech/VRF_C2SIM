@@ -61,6 +61,64 @@ public static class StallPolicy
             return new Decision(false, moved, totalMembers, max);
         return new Decision(moved == 0, moved, totalMembers, max);
     }
+
+    // ---------------------------------------------------------------------------------------
+    // WHICH CLOCK THE WINDOW RUNS ON. Both helpers are PURE - every time value is injected, no
+    // time source is read in here - so the paused-sim and reader-failure cases can be exercised
+    // offline by --stall-selftest without a simulation.
+    //
+    // The sim reading comes from VrfBridge.SimTimeSeconds() -> VrfFacade::SimTimeSeconds() ->
+    // DtVrfRemoteController::simTime() (vrfcontrol/vrfRemoteController.h:356 on 5.2d, :352 on
+    // 5.0.2): the BACK END's scenario clock, which runs fast under fixed-frame-run-to-complete
+    // and stops when the scenario is paused. -1.0 from that reader means "no reading" (no
+    // controller, or no back end discovered yet) and is NOT a time.
+    // ---------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// The window's time base, in seconds. The sim clock is used only when it was ASKED FOR
+    /// (Vrf:StallClock = "sim") AND actually READ (>= 0); every other case is wall seconds, so a
+    /// build that cannot see the sim clock behaves exactly as the wall-clock watchdog did.
+    /// A sim reading of exactly 0.0 is a reading (a scenario at t = 0), not a failure.
+    /// </summary>
+    public static double SelectClock(bool preferSim, double simSeconds, double wallSeconds)
+        => (preferSim && simSeconds >= 0.0) ? simSeconds : wallSeconds;
+
+    /// <summary>True when SelectClock would take the sim reading. Drives the one log line.</summary>
+    public static bool UsingSimClock(bool preferSim, double simSeconds)
+        => preferSim && simSeconds >= 0.0;
+
+    /// <summary>
+    /// THE WINDOW GATE. All five arguments are seconds on the SAME clock (whichever SelectClock
+    /// chose). A unit may be judged only when (a) its watch has been open for
+    /// minSecondsSinceStart - the post-dispatch grace - and (b) the sample ring actually SPANS
+    /// the full window: a unit 60 s into a 240 s window holds 60 s of history, and "50 m in
+    /// 60 s" is a far stricter test than "50 m in 240 s".
+    ///
+    /// On the sim clock this is what makes a PAUSED scenario safe: simTime stops, so neither
+    /// difference grows and the gate cannot open however long wall time runs.
+    /// </summary>
+    public static bool WindowReady(double clockNow, double oldestClock, double startClock,
+                                   double windowSeconds, double minSecondsSinceStart)
+        => (clockNow - startClock) >= minSecondsSinceStart
+        && (clockNow - oldestClock) >= windowSeconds;
+
+    /// <summary>
+    /// SLIDING-WINDOW PRUNE. Drop the oldest sample when EITHER
+    ///   (a) the next one is already at or beyond the window edge - the ordinary case, which
+    ///       leaves exactly one sample at or before the edge, or
+    ///   (b) the clock did not ADVANCE between the two.
+    /// (b) exists only because of the sim clock. A wall clock always advances, so the old
+    /// watchdog needed only (a); a scenario clock does NOT - it stops dead while the scenario is
+    /// paused and it can jump BACKWARDS (DtVrfRemoteController::rollbackToSnapshot). With (a)
+    /// alone a paused scenario would add a sample every StallCheckSeconds of wall time forever
+    /// and prune none of them (each carrying a full member-position dictionary), and a
+    /// rolled-back scenario would keep pre-rollback samples that belong to no window. Rule (b)
+    /// collapses both: samples that carry no new clock information are redundant, and dropping
+    /// them cannot shrink the measured window because they do not extend it.
+    /// </summary>
+    public static bool ShouldDropOldest(double clockNow, double oldestClock, double nextClock,
+                                        double windowSeconds)
+        => (clockNow - nextClock) >= windowSeconds || nextClock <= oldestClock;
 }
 
 public static class StallSelfTest
@@ -113,6 +171,121 @@ public static class StallSelfTest
         d = StallPolicy.Decide(new double[] { 12.0, 9.0, 11.0, 10.0 }, 6, 50, 1);
         Check("4 readable of 6, all under the threshold -> STALLED (unreadable members do not block)",
               d.Stalled && d.Total == 6 && Math.Abs(d.MaxMeters - 12.0) < 1e-9);
+
+        // -- CLOCK SELECTION (Vrf:StallClock x VrfBridge.SimTimeSeconds) ------------------------
+
+        Check("StallClock=sim with a readable clock -> the SIM reading is the window's time base",
+              StallPolicy.SelectClock(true, 1480.0, 12345.0) == 1480.0 && StallPolicy.UsingSimClock(true, 1480.0));
+
+        Check("a sim clock of exactly 0 (scenario just loaded) is a READING, not a failure",
+              StallPolicy.SelectClock(true, 0.0, 12345.0) == 0.0 && StallPolicy.UsingSimClock(true, 0.0));
+
+        Check("reader returns -1 (no controller / no back end yet) -> FALL BACK to wall seconds",
+              StallPolicy.SelectClock(true, -1.0, 12345.0) == 12345.0 && !StallPolicy.UsingSimClock(true, -1.0));
+
+        Check("StallClock=wall ignores a perfectly good sim reading",
+              StallPolicy.SelectClock(false, 1480.0, 12345.0) == 12345.0 && !StallPolicy.UsingSimClock(false, 1480.0));
+
+        // -- THE WINDOW GATE, on whichever clock was selected -----------------------------------
+
+        Check("full window + grace served -> the gate OPENS",
+              StallPolicy.WindowReady(300.0, 60.0, 0.0, 240.0, 60.0));
+
+        Check("window full but still inside the post-dispatch grace -> gate SHUT",
+              !StallPolicy.WindowReady(250.0, 0.0, 200.0, 240.0, 60.0));
+
+        Check("grace served but the ring spans only 239 s of a 240 s window -> gate SHUT",
+              !StallPolicy.WindowReady(300.0, 61.0, 0.0, 240.0, 60.0));
+
+        // A PAUSED SIMULATION. Wall time runs, the scenario clock does not: 100 checks x 5 wall
+        // seconds against a simTime frozen at 1,480.0. The window must NEVER open - even though
+        // every member is motionless, which on the wall clock is exactly the pattern that aborts
+        // the task. This is the whole reason the reader exists.
+        {
+            double simFrozen = 1480.0, wall = 0.0;
+            double start = StallPolicy.SelectClock(true, simFrozen, wall);
+            double oldest = start;
+            bool everReadyOnSim = false, everReadyOnWall = false;
+            for (int i = 0; i < 100; i++)
+            {
+                wall += 5.0;
+                everReadyOnSim |= StallPolicy.WindowReady(
+                    StallPolicy.SelectClock(true, simFrozen, wall), oldest, start, 240.0, 60.0);
+                everReadyOnWall |= StallPolicy.WindowReady(wall, 0.0, 0.0, 240.0, 60.0);
+            }
+            Check("PAUSED SIM: 500 s of wall time at a frozen sim clock NEVER opens the window", !everReadyOnSim);
+            Check("...while the same 500 s measured on the WALL clock does (the behaviour this replaces)",
+                  everReadyOnWall);
+        }
+
+        // READER DEAD FOR THE WHOLE RUN. -1.0 every time: the watchdog must revert to wall
+        // seconds and keep working, not go silent.
+        {
+            double wall = 0.0;
+            bool ready = false;
+            for (int i = 0; i < 100; i++)
+            {
+                wall += 5.0;
+                ready |= StallPolicy.WindowReady(StallPolicy.SelectClock(true, -1.0, wall), 0.0, 0.0, 240.0, 60.0);
+            }
+            Check("reader returns -1 for the whole run -> the WALL window still opens (graceful fallback)", ready);
+        }
+
+        // FIXED-FRAME-RUN-TO-COMPLETE, 6.21x (the 2026-09-13 G5 run). The 240 s window now fills
+        // after ~38.6 s of WALL time - the abort lands at 240 sim seconds of no progress instead
+        // of 240 x 6.21 = 1,490.
+        Check("at 6.21x a 240 s SIM window is full while only 38.6 wall s have passed",
+              StallPolicy.WindowReady(240.0, 0.0, 0.0, 240.0, 60.0)
+              && !StallPolicy.WindowReady(38.6, 0.0, 0.0, 240.0, 60.0));
+
+        // -- SLIDING-WINDOW PRUNE (the ring must stay bounded on a clock that can stop) ---------
+
+        Check("ordinary prune: the next sample is past the window edge -> drop the oldest",
+              StallPolicy.ShouldDropOldest(300.0, 0.0, 55.0, 240.0));
+
+        Check("ordinary keep: dropping would leave the ring spanning only 239 s -> keep the oldest",
+              !StallPolicy.ShouldDropOldest(300.0, 0.0, 61.0, 240.0));
+
+        Check("FROZEN clock (paused scenario): a sample that did not advance the clock is dropped",
+              StallPolicy.ShouldDropOldest(1480.0, 1480.0, 1480.0, 240.0));
+
+        Check("clock jumped BACKWARDS (rollback to snapshot): the stale sample is dropped",
+              StallPolicy.ShouldDropOldest(1000.0, 1480.0, 1000.0, 240.0));
+
+        // The buffer-growth guard, run as the tick thread would: a paused scenario, sampled every
+        // 5 wall seconds for 100 checks. Without rule (b) this ring reaches 100 entries, each a
+        // member-position dictionary, and never prunes - for as long as the pause lasts.
+        {
+            var ring = new List<double>();
+            double simFrozen = 1480.0;
+            for (int i = 0; i < 100; i++)
+            {
+                ring.Add(simFrozen);
+                while (ring.Count >= 2 && StallPolicy.ShouldDropOldest(simFrozen, ring[0], ring[1], 240.0))
+                    ring.RemoveAt(0);
+            }
+            // It collapses to ONE: each new sample prunes its predecessor, and a one-sample ring
+            // spans zero seconds, so the window stays shut for the whole pause and rebuilds from
+            // the moment the scenario resumes - which is the correct window to measure.
+            Check("PAUSED SIM: 100 samples at a frozen clock leave the ring at 1 entry, not 100",
+                  ring.Count == 1);
+        }
+
+        // ... and the same loop on a clock that IS advancing keeps a full window of history:
+        // 5 s per sample over a 240 s window is 48 intervals, so 49 or 50 samples.
+        {
+            var ring = new List<double>();
+            double c = 0.0;
+            for (int i = 0; i < 100; i++)
+            {
+                c += 5.0;
+                ring.Add(c);
+                while (ring.Count >= 2 && StallPolicy.ShouldDropOldest(c, ring[0], ring[1], 240.0))
+                    ring.RemoveAt(0);
+            }
+            Check("RUNNING clock: the ring holds one full 240 s window and no more",
+                  ring.Count >= 2 && (c - ring[0]) >= 240.0 && (c - ring[1]) < 240.0);
+        }
 
         Console.WriteLine(fails == 0 ? "stall-selftest: ALL CHECKS PASSED" : $"stall-selftest: {fails} FAILED");
         return fails == 0 ? 0 : 1;

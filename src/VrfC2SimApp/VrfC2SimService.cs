@@ -2567,8 +2567,10 @@ public sealed class VrfC2SimService : BackgroundService
     // making progress while its move task runs - the base give-up test "always returns false"
     // and the move-to script has no progress test (FINDING_EARLY_STOPS_2026-09-13 sec 6a) - so
     // the interface watches for it: keep a per-unit ring buffer of member positions covering
-    // StallWindowSeconds of WALL time, and when NO member's NET displacement over that window
-    // reaches StallMoveMeters, send ONE TaskStatus with TASKABRT for that task uuid.
+    // StallWindowSeconds on the clock Vrf:StallClock selects - by default the BACK END's own
+    // simulation clock, VrfBridge.SimTimeSeconds() (wall seconds when it is set to "wall", or
+    // whenever that reader has nothing to report) - and when NO member's NET displacement over
+    // that window reaches StallMoveMeters, send ONE TaskStatus with TASKABRT for that task uuid.
     //
     // WHAT THIS PATH NEVER DOES (the user's "report-only" ruling of 2026-09-13): it issues no
     // VR-Forces command of any kind, does not re-task, does not pop the in-flight record, does
@@ -2577,11 +2579,16 @@ public sealed class VrfC2SimService : BackgroundService
     // still flows through OnVrfTaskCompleted unchanged. One report per unit-task, ever.
     private sealed class StallSamples
     {
-        public readonly List<(DateTime T, Dictionary<string, (double Lat, double Lon)> P)> Ring = new();
+        // Clock = seconds on whichever clock the watchdog is running on (see MaybeCheckStalls);
+        // NOT a wall timestamp. StartClock is that clock when this task's watch opened, i.e. the
+        // first check after the dispatch that called ClearStallState - it anchors the grace.
+        public readonly List<(double Clock, Dictionary<string, (double Lat, double Lon)> P)> Ring = new();
+        public double StartClock = double.NaN;
     }
     private readonly ConcurrentDictionary<string, StallSamples> _stallSamples = new();   // unit name -> position window
     private readonly ConcurrentDictionary<string, string> _stallReported = new();        // unit name -> task uuid reported TASKABRT
     private DateTime _nextStallCheck = DateTime.MinValue;
+    private int _stallClockMode;   // 0 = not announced yet, 1 = simulation clock, 2 = wall clock
 
     /// <summary>Drop a unit's watchdog state. Called wherever the arrival-evidence swallow is
     /// dropped - i.e. whenever a NEW VRF task is issued for the unit: the new task gets its own
@@ -2598,6 +2605,44 @@ public sealed class VrfC2SimService : BackgroundService
         if (now < _nextStallCheck) return;
         _nextStallCheck = now.AddSeconds(Math.Max(1, _vrf.StallCheckSeconds));
         double window = Math.Max(1, _vrf.StallWindowSeconds);
+
+        // CLOCK SELECTION (Vrf:StallClock, default "sim"). The check CADENCE above stays on wall
+        // time - it is a sampling rate, not a measurement. Everything MEASURED below (the window
+        // and the post-dispatch grace) is in seconds on the clock chosen here.
+        //
+        // The sim reading is the BACK END's scenario clock, VrfBridge.SimTimeSeconds() ->
+        // DtVrfRemoteController::simTime() (vrfRemoteController.h:356 on 5.2d): it runs fast
+        // under fixed-frame-run-to-complete and STOPS while the scenario is paused, so a paused
+        // sim can no longer be mistaken for a stalled unit. -1.0 = no reading, and then the
+        // watchdog silently keeps its old wall-clock behaviour rather than going blind.
+        bool preferSim = !string.Equals(_vrf.StallClock, "wall", StringComparison.OrdinalIgnoreCase);
+        double simSeconds = -1.0;
+        if (preferSim)
+        {
+            try { simSeconds = _bridge.SimTimeSeconds(); }
+            catch (Exception ex) { simSeconds = -1.0; _log.LogDebug(ex, "STALL: sim-clock read failed; using wall."); }
+        }
+        bool usingSim = StallPolicy.UsingSimClock(preferSim, simSeconds);
+        // Wall seconds as an absolute double on the SAME source the watchdog always used
+        // (DateTime.UtcNow); only differences are ever taken, so the epoch is irrelevant.
+        double clockNow = StallPolicy.SelectClock(preferSim, simSeconds,
+                                                  now.Ticks / (double)TimeSpan.TicksPerSecond);
+        int mode = usingSim ? 1 : 2;
+        if (mode != _stallClockMode)
+        {
+            // ONE line the first time the watchdog resolves its clock, and one more if it ever
+            // changes (the reader going away mid-run is the case that matters). Every ring is
+            // dropped on a change: its stamps are on the OLD clock and mixing the two would
+            // produce a nonsense window - better to re-open every watch than to mis-abort one.
+            if (_stallClockMode != 0) _stallSamples.Clear();
+            _log.LogInformation("STALL WATCHDOG: the {W} s no-progress window is measured on the {Clock} clock{Why}.",
+                                (int)window, usingSim ? "SIMULATION" : "WALL",
+                                usingSim ? "" : (preferSim
+                                    ? " - Vrf:StallClock=sim, but the sim clock could not be read (no back end reporting)"
+                                    : " (Vrf:StallClock=wall)"));
+            _stallClockMode = mode;
+        }
+
         var live = new HashSet<string>(StringComparer.Ordinal);
         foreach (var kv in _inFlight.Snapshot())
         {
@@ -2611,18 +2656,28 @@ public sealed class VrfC2SimService : BackgroundService
             if (_arrivalReported.ContainsKey(name)) continue;   // C15 already reported it complete
             if (!TryReadMemberPositions(name, out var positions, out int total)) continue;
 
-            var ring = _stallSamples.GetOrAdd(name, _ => new StallSamples()).Ring;
-            ring.Add((now, positions));
+            var samples = _stallSamples.GetOrAdd(name, _ => new StallSamples());
+            var ring = samples.Ring;
+            // The watch opens at the first sample after the dispatch that cleared this unit's
+            // state, so StartClock is the dispatch anchor on the selected clock (within one
+            // StallCheckSeconds, plus however long the members took to reflect).
+            if (double.IsNaN(samples.StartClock)) samples.StartClock = clockNow;
+            ring.Add((clockNow, positions));
             // Sliding window: keep exactly ONE sample at or before the window edge and drop the
             // rest, so ring[0] is the oldest sample the window needs (and the buffer stays at
             // roughly StallWindowSeconds / StallCheckSeconds entries per unit).
-            while (ring.Count >= 2 && (now - ring[1].T).TotalSeconds >= window) ring.RemoveAt(0);
+            // StallPolicy.ShouldDropOldest also drops samples that did NOT advance the clock:
+            // the sim clock stops while the scenario is paused and can jump backwards on a
+            // snapshot rollback, and without that rule this ring would grow for the whole pause.
+            while (ring.Count >= 2 && StallPolicy.ShouldDropOldest(clockNow, ring[0].Clock, ring[1].Clock, window))
+                ring.RemoveAt(0);
 
-            if ((now - rec.DispatchedUtc).TotalSeconds < _vrf.StallMinSecondsSinceDispatch) continue;
             var oldest = ring[0];
-            // Never judge on a partial window: a unit 60 s into its dispatch has only 60 s of
-            // history, and 50 m over 60 s is a different (much stricter) test than 50 m over 120.
-            if ((now - oldest.T).TotalSeconds < window) continue;
+            // Grace + full window, both on the selected clock (StallPolicy.WindowReady). Never
+            // judge on a partial window: a unit 60 s into its watch has only 60 s of history, and
+            // 50 m over 60 s is a different (much stricter) test than 50 m over 240.
+            if (!StallPolicy.WindowReady(clockNow, oldest.Clock, samples.StartClock,
+                                         window, _vrf.StallMinSecondsSinceDispatch)) continue;
 
             var displacements = new List<double>();
             foreach (var cur in positions)
@@ -2632,9 +2687,10 @@ public sealed class VrfC2SimService : BackgroundService
             if (!d.Stalled) continue;
 
             _stallReported[name] = rec.TaskUuid ?? "";
-            _log.LogInformation("STALL: unit {Name} task {Task}: no member moved more than {M:F0} m in the last {W} s " +
-                                "(max {Max:F1} m); TASKABRT reported.",
-                                name, rec.TaskName, _vrf.StallMoveMeters, (int)window, d.MaxMeters);
+            _log.LogInformation("STALL: unit {Name} task {Task}: no member moved more than {M:F0} m in the last {W} " +
+                                "{Clock} s (max {Max:F1} m); TASKABRT reported.",
+                                name, rec.TaskName, _vrf.StallMoveMeters, (int)window,
+                                _stallClockMode == 1 ? "SIM" : "wall", d.MaxMeters);
             if (!_c2SimUuidByName.TryGetValue(name, out var taskeeUuid))
             {
                 _log.LogWarning("STALL for '{Name}' but no C2SIM uuid known - no TASKABRT report sent.", name);

@@ -200,16 +200,30 @@ public class VrfSettings
     // flows normally). DEFAULT OFF: the deployed behaviour is unchanged until a preregistered
     // run turns it on.
     //
-    // THE WINDOW IS WALL SECONDS on the tick thread, not sim seconds: neither VrfFacade.h nor
-    // VrfBridge.cpp exposes any sim-clock READER (verified 2026-09-13 by grepping both for
-    // simTime/SimulationTime/GetTime/clock/currentTime/elapsedTime - the only hit is
-    // VrfFacade.cpp:590, which SETS the exercise clock; the exported surface has Tick(),
-    // SetTimeMultiplier and SetExerciseStartTime and no getter). At a sim/wall ratio r the
-    // window therefore covers r x StallWindowSeconds of SIM time - at the 6.2x measured on the
-    // 2026-09-13 G5 run, 240 wall s is ~1,490 sim s. If a sim-clock accessor is ever added to
-    // the facade, prefer sim seconds here and restate this comment.
+    // THE WINDOW IS MEASURED ON THE SIMULATION CLOCK (StallClock = "sim", the default): the back
+    // end's own scenario time, read through VrfBridge.SimTimeSeconds() ->
+    // VrfFacade::SimTimeSeconds() -> DtVrfRemoteController::simTime()
+    // (vrfcontrol/vrfRemoteController.h:356 on 5.2d, :352 on 5.0.2 - the clock the vendor's
+    // remote-control sample prints as "Sim time from sim engine status",
+    // examples/remoteControl/commandLineRemoteController.cxx:1247-1252). Two consequences:
+    // a PAUSED scenario can no longer trip the watchdog (its clock stops while wall time runs),
+    // and under fixed-frame-run-to-complete the abort lands after StallWindowSeconds of SIM
+    // seconds instead of ratio x StallWindowSeconds (at the 6.21x measured on the 2026-09-13 G5
+    // run the wall-clock window's 240 s were ~1,490 sim s). StallClock = "wall" restores the
+    // pre-2026-09-13 behaviour; the watchdog ALSO falls back to wall seconds by itself whenever
+    // the reader answers -1.0 (no controller, no back end yet), logging one line when it does,
+    // so it is never left without a clock. The check CADENCE (StallCheckSeconds) stays on wall
+    // time in both modes - it is a sampling rate, not a measurement.
     //
-    // Defaults CALIBRATED offline on three replayed traces - G5 20260913T185936Z, G3
+    // *** RE-CALIBRATION OWED BEFORE StallDetection IS TURNED ON WITH StallClock = "sim" ***
+    // The 240 below was calibrated in WALL seconds: tools/analysis/stall_replay.py scores the
+    // trace's POS rows and those are wall-stamped. 240 SIM seconds is a SHORTER window by the
+    // run's sim/wall ratio - 164 wall s at P11's 1.46x, 39 wall s at G5's 6.21x - while the
+    // measured false-alarm boundary on those same traces sat between 160 and 170 WALL seconds.
+    // The value has NOT been re-derived on the sim clock. Re-derive it, or run with
+    // StallClock = "wall", before any run whose report is acted on.
+    //
+    // Defaults CALIBRATED offline IN WALL SECONDS on three replayed traces - G5 20260913T185936Z, G3
     // 20260913T174516Z, P11 20260907T150643Z - with tools/analysis/stall_replay.py (numbers in
     // C16 of docs/DESIGN_ORBAT_TO_VRF_2026-09-06.md). The window is 240 s, NOT the 120 s first
     // tried: at 120 s the rule fires on units that are CRAWLING rather than stopped (P11's
@@ -221,7 +235,8 @@ public class VrfSettings
     // this job in place of a longer window - the per-window minima of the crawlers (41-50 m)
     // and of the frozen units (22-49 m) overlap; only persistence separates them.
     public bool StallDetection { get; set; } = false;
-    public int StallWindowSeconds { get; set; } = 240;          // WALL seconds (see above)
+    public string StallClock { get; set; } = "sim";             // "sim" = scenario clock | "wall" (see above)
+    public int StallWindowSeconds { get; set; } = 240;          // seconds on the StallClock clock (see above)
     public double StallMoveMeters { get; set; } = 50.0;         // net displacement per member over the window
     public int StallMinSecondsSinceDispatch { get; set; } = 60; // grace after dispatch before the watchdog may fire
     public int StallCheckSeconds { get; set; } = 5;             // how often the tick thread samples

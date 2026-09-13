@@ -310,6 +310,27 @@ public:
     int  BackendCount() const;
     bool AllBackendsReady() const;
 
+    // SIMULATION (SCENARIO) CLOCK in seconds, as reported by the VR-Forces BACK END:
+    // DtVrfRemoteController::simTime() - "Returns the simulation time of the specified back
+    // end. If no back end specified, returns the first back ends simulation time"
+    // (vrfcontrol/vrfRemoteController.h:356 on 5.2d, :352 on 5.0.2). This is the clock the
+    // SCENARIO advances: it runs fast under fixed-frame-run-to-complete and it STOPS while the
+    // scenario is paused. It is what the vendor's own remote-control sample prints as "Sim time
+    // from sim engine status" (examples/remoteControl/commandLineRemoteController.cxx:1247-1252).
+    //
+    // Deliberately NOT the local VR-Link federate clock - DtExerciseConn::clock()->simTime(),
+    // vl/baseExerciseConn.h:64 + vlutil/vlTime.h:47 - which the same sample prints separately as
+    // "Local sim time" (:1256). That one is useless as a sim clock in THIS process: on the 5.0.2
+    // build Tick() sets it from elapsedRealTime() (so it IS wall time, dressed up), and on 5.2
+    // nothing here sets it at all (VRF_5.2_MIGRATION_DIFF row A10: the 5.2d sample stopped
+    // driving the clock by hand).
+    //
+    // Returns -1.0 when there is no controller (before Start(), after Stop()) or when no back
+    // end has been discovered yet, so "no reading" is never confused with "the scenario is at
+    // t = 0". Never throws. Read-only and sends nothing on the wire; call it between ticks,
+    // like the other state reads.
+    double SimTimeSeconds() const;
+
     // -- observation-channel diagnostics (read-only; no protocol traffic) ----
     // Sizes of the reflected lists themselves - see ReflectedListCounts. Safe before Start()
     // (everything reads -1) and on the StartAdopting() path. Call between ticks, like the
