@@ -185,6 +185,13 @@ SUPERVISOR READING (the verdict is mine; the user decides the demo lever):
    from sim 300 to 900, and where the freeze point sits relative to 1-35's route vertices.
 4. G4 (the full-length clean repeat) stays registered and is run after that read, on an idle
    machine; it answers completions and the far legs, which G3's 2,563 sim-seconds could not.
+ADDED 2026-09-13 ~22:40Z (found by the progress-watchdog replay validator, tools/analysis/
+stall_replay.py on this run): 856/HHC~PXY stopped EARLY in G3 - all four members under 47 m of
+movement per 120 s from wall ~1,500 s (sim ~2,400), 3.5 km short of its destination, while 1-1 was
+still covering 1.7 km per window (the sim was live). P11's 856/HHC reached 23.1 km by sim 2500 and
+its stragglers appeared at sim 1,960; G3's stopped as a unit. A third early stop, previously
+uncatalogued, on the mesh run; its geometry (face? soil?) is UNREAD - a candidate for the
+pre-flight tool's calibration set and for the G6 run's watch list.
 Adversarial review of the reading: the strongest competing account for 1-35's identical freeze
 is "the mesh does not cover its position" - refuted: its authored position and its 1.97 km
 stop point lie inside lat 34.518-34.698 / lon -116.809 to -116.591 by construction (the area
