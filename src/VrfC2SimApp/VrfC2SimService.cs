@@ -2085,7 +2085,11 @@ public sealed class VrfC2SimService : BackgroundService
         // would stall the simulation for as long as the network takes. The vertices are COPIED and
         // handed to a worker, which scores them and pushes its reports through the same
         // PushReportAsync every other report uses.
-        if (_vrf.PreflightWarnings && routeGeo.Count > 1)
+        //
+        // GROUND ONLY. The whole metric is a tracked vehicle's max-slope derated by the soil it is
+        // driving on; an air platform does not drive over the ridge it crosses, so scoring its route
+        // would manufacture warnings about ground it never touches.
+        if (_vrf.PreflightWarnings && isGround && routeGeo.Count > 1)
             QueuePreflight(task, unit, routeGeo);
 
         // Rules of engagement (:2374-2379): ROEFree -> FireAtWill, ROEHold -> HoldFire,
@@ -2594,7 +2598,8 @@ public sealed class VrfC2SimService : BackgroundService
     // ============ ROUTE PRE-FLIGHT (Vrf:PreflightWarnings; DEMO_READINESS row 20) ============
     // Built on FIRST USE, never at start-up: when the feature is off - which is the shipped
     // default - nothing here reads a vendor file, opens a socket or creates a directory.
-    private Preflight.PreflightService _preflight;
+    // volatile: the fast path reads this OUTSIDE the lock, and several task workers can race it.
+    private volatile Preflight.PreflightService _preflight;
     private readonly object _preflightLock = new();
     private bool _preflightDisabled;          // one construction failure retires it for the run
 
