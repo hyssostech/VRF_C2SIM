@@ -997,6 +997,36 @@ public static class RulingsSelfTest
                   "(vi) ... and the superseded task never reports a later timed TASKCMPLT");
         }
 
+        // (f7) B4: THE LONG WINDOW IS DERIVED FROM AN END TIME THAT MUST ACTUALLY EXIST. With
+        //      Vrf:TimedCompletion OFF - the documented evidence-only escape hatch - nothing is
+        //      ever armed, so a window derived from the predecessor's Duration only made the
+        //      eventual skip eight times slower and quieter than the operator had configured.
+        {
+            Check(ref failures,
+                  TaskDispatchPolicy.PredecessorEndSeconds(false, true, 4800_000L, 1.0) == 0.0
+                  && TaskDispatchPolicy.PredecessorEndSeconds(true, true, 4800_000L, 1.0) == 4800.0
+                  && TaskDispatchPolicy.PredecessorTimeoutSeconds(
+                         configured, TaskDispatchPolicy.PredecessorEndSeconds(false, true, 4800_000L, 1.0),
+                         margin) == configured,
+                  "(vii) B4: with Vrf:TimedCompletion OFF the predecessor has no armed end time, so the gate " +
+                  "is the configured floor; with it ON the Duration raises it");
+
+            var chain = SerialChain(7200_000L, 4800_000L, 4800_000L, 4800_000L);
+            var preB4 = WalkChain(chain, configured, margin, 1.0, backstop, 60.0,
+                                  timedCompletion: false, derivesFromDuration: true);
+            Check(ref failures,
+                  preB4.Dispatched == 1 && preB4.SkippedAtSeconds("T2") == 7260.0,
+                  $"(vii) FAIL-FIRST (B4): deriving the window anyway makes the skip wait {preB4.SkippedAtSeconds("T2"):F0} s " +
+                  $"for a completion that can never come ({preB4.Dispatched} of 4 dispatched)");
+
+            var run = WalkChain(chain, configured, margin, 1.0, backstop, 60.0, timedCompletion: false);
+            Check(ref failures,
+                  run.Dispatched == 1 && run.SkippedAtSeconds("T2") == configured
+                  && run.Result("T3") == GateResult.PredecessorAbandoned,
+                  $"(vii) ... and with the fix the same run gives up at the CONFIGURED " +
+                  $"{configured:F0} s (got {run.SkippedAtSeconds("T2"):F0} s), which is what the operator asked for");
+        }
+
         // (f5) THE WHOLE COA-STP1 GRAPH, end to end, from the order on disk. This is the branch's
         //      own live gate 2 ("42 dispatches, not 9") decided OFFLINE.
         {
@@ -1084,11 +1114,17 @@ public static class RulingsSelfTest
     /// dispatched with MarkDispatched's own ordering, and a gate that does not open abandons its
     /// task so its successors fail fast. Returns when every task has dispatched or been skipped.
     /// </summary>
-    /// <param name="preFixPhase1">The FAIL-FIRST control: give phase 1 the same window phase 2
-    /// gets, which is what the branch did before A1.</param>
+    /// <param name="preFixPhase1">The FAIL-FIRST control for A1: give phase 1 the same window
+    /// phase 2 gets, which is what the branch did before A1.</param>
+    /// <param name="timedCompletion">Vrf:TimedCompletion. OFF means MarkDispatched arms no end
+    /// time at all, so nothing in the walk ever completes - the documented evidence-only mode.</param>
+    /// <param name="derivesFromDuration">The FAIL-FIRST control for B4: derive the long completion
+    /// window from the predecessor's Duration even though no timer will arm it. Null follows
+    /// <paramref name="timedCompletion"/>, which is what the service now does.</param>
     private static ChainOutcome WalkChain(IReadOnlyList<ChainTask> tasks, double configured,
                                           double margin, double scale, double backstop,
-                                          double stepSeconds, bool preFixPhase1 = false)
+                                          double stepSeconds, bool preFixPhase1 = false,
+                                          bool timedCompletion = true, bool? derivesFromDuration = null)
     {
         var clock = new StepClock();
         var seq = new TaskSequencer();
@@ -1102,7 +1138,8 @@ public static class RulingsSelfTest
         {
             bool predFound = !string.IsNullOrEmpty(t.Pred) && byUuid.ContainsKey(t.Pred);
             double predEnd = TaskDispatchPolicy.PredecessorEndSeconds(
-                predFound, predFound ? byUuid[t.Pred].DurationMs : 0L, scale);
+                derivesFromDuration ?? timedCompletion, predFound,
+                predFound ? byUuid[t.Pred].DurationMs : 0L, scale);
             double window = TaskDispatchPolicy.PredecessorTimeoutSeconds(configured, predEnd, margin);
             double phase1 = preFixPhase1 ? window
                           : TaskDispatchPolicy.PredecessorDispatchTimeoutSeconds(predFound, window, backstop);
@@ -1116,7 +1153,7 @@ public static class RulingsSelfTest
         bool signalled = true;      // t = 0: every root's gate is open before the walk starts
         while (true)
         {
-            Settle(tasks, gates, outcome, seq, timed, clock, scale, signalled);
+            Settle(tasks, gates, outcome, seq, timed, clock, scale, timedCompletion, signalled);
             if (outcome.Dispatched + outcome.SkippedCount >= tasks.Count) break;
             if (clock.Now >= horizon) break;
             int released = clock.AdvanceTo(clock.Now + stepSeconds);
@@ -1140,14 +1177,14 @@ public static class RulingsSelfTest
     /// reading, so a continuation IS expected.</param>
     private static void Settle(IReadOnlyList<ChainTask> tasks, Dictionary<string, Task<GateResult>> gates,
                                ChainOutcome outcome, TaskSequencer seq, TimedCompletionPolicy timed,
-                               StepClock clock, double scale, bool signalled)
+                               StepClock clock, double scale, bool timedCompletion, bool signalled)
     {
-        bool moved = SpinDrain(tasks, gates, outcome, seq, timed, clock, scale);
+        bool moved = SpinDrain(tasks, gates, outcome, seq, timed, clock, scale, timedCompletion);
         if (!signalled && !moved) return;
         for (int round = 0; round < 8; round++)
         {
             Thread.Sleep(1);
-            if (!SpinDrain(tasks, gates, outcome, seq, timed, clock, scale)) return;
+            if (!SpinDrain(tasks, gates, outcome, seq, timed, clock, scale, timedCompletion)) return;
         }
     }
 
@@ -1156,14 +1193,14 @@ public static class RulingsSelfTest
     /// pool that has to inject a worker, which is what Settle's coarse ticks are for.</summary>
     private static bool SpinDrain(IReadOnlyList<ChainTask> tasks, Dictionary<string, Task<GateResult>> gates,
                                   ChainOutcome outcome, TaskSequencer seq, TimedCompletionPolicy timed,
-                                  StepClock clock, double scale)
+                                  StepClock clock, double scale, bool timedCompletion)
     {
         bool movedEver = false;
         long lastRegistrations = -1;
         for (int quiet = 0; quiet < 128; quiet++)
         {
             long registrations = Volatile.Read(ref clock.Registrations);
-            bool moved = Drain(tasks, gates, outcome, seq, timed, clock, scale);
+            bool moved = Drain(tasks, gates, outcome, seq, timed, clock, scale, timedCompletion);
             if (moved || registrations != lastRegistrations)
             {
                 lastRegistrations = registrations;
@@ -1181,7 +1218,7 @@ public static class RulingsSelfTest
     /// the task-clock reading, THEN the end-time Register, THEN the anchoring walk.</summary>
     private static bool Drain(IReadOnlyList<ChainTask> tasks, Dictionary<string, Task<GateResult>> gates,
                               ChainOutcome outcome, TaskSequencer seq, TimedCompletionPolicy timed,
-                              StepClock clock, double scale)
+                              StepClock clock, double scale, bool timedCompletion)
     {
         bool moved = false;
         foreach (var t in tasks)
@@ -1195,9 +1232,13 @@ public static class RulingsSelfTest
             {
                 outcome.DispatchedAt[t.Uuid] = now;
                 seq.NotifyDispatched(t.Uuid, now);
-                timed.Register(t.Uuid, "taskee-" + t.Uuid, t.Uuid, "unit-" + t.Uuid,
-                               TaskDispatchPolicy.ScaleOrderMs(t.DurationMs, scale) / 1000.0);
-                foreach (var d in timed.Advance(now, usingSim: true)) seq.CompleteTask(d.TaskUuid);
+                // MarkDispatched arms the end time only under Vrf:TimedCompletion (B4).
+                if (timedCompletion)
+                {
+                    timed.Register(t.Uuid, "taskee-" + t.Uuid, t.Uuid, "unit-" + t.Uuid,
+                                   TaskDispatchPolicy.ScaleOrderMs(t.DurationMs, scale) / 1000.0);
+                    foreach (var d in timed.Advance(now, usingSim: true)) seq.CompleteTask(d.TaskUuid);
+                }
             }
             else
             {

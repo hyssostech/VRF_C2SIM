@@ -196,18 +196,24 @@ public static class TaskDispatchPolicy
 
     /// <summary>
     /// The predecessor's own ARMED END TIME in seconds on the task clock - what
-    /// <see cref="PredecessorTimeoutSeconds"/> derives the completion window from. One line, but
+    /// <see cref="PredecessorTimeoutSeconds"/> derives the completion window from. ARMED is the
+    /// operative word: with Vrf:TimedCompletion off nothing is armed and this is 0. One line, but
     /// it lives here rather than inline in the service so the offline chain walk
     /// (`--rulings-selftest`) and the live gate cannot drift apart: A1 survived a green suite
     /// precisely because the suite tested the parts and the service assembled them.
     /// </summary>
+    /// <param name="timedCompletionOn">Vrf:TimedCompletion (B4 of the pass-2 review). With it OFF
+    /// no end time is ever ARMED, so the predecessor's Duration says nothing about when it will
+    /// complete and deriving a window from it only makes the eventual skip EIGHT TIMES SLOWER and
+    /// quieter than the operator configured. Turning R4 off must not silently change the gate.</param>
     /// <param name="predecessorIsInThisOrder">The startAfterTaskUuid names a task the order
     /// actually carries. A DANGLING reference has no Duration to derive anything from.</param>
     /// <param name="predecessorDurationMs">That task's authored C2SIM Duration, in ms.</param>
     /// <param name="durationScale">Vrf:DurationScale, already validated by the service (m8).</param>
-    public static double PredecessorEndSeconds(bool predecessorIsInThisOrder, long predecessorDurationMs,
-                                               double durationScale)
-        => predecessorIsInThisOrder ? ScaleOrderMs(predecessorDurationMs, durationScale) / 1000.0 : 0.0;
+    public static double PredecessorEndSeconds(bool timedCompletionOn, bool predecessorIsInThisOrder,
+                                               long predecessorDurationMs, double durationScale)
+        => timedCompletionOn && predecessorIsInThisOrder
+         ? ScaleOrderMs(predecessorDurationMs, durationScale) / 1000.0 : 0.0;
 
     /// <summary>The absolute backstop on phase 1 when nothing else bounds it - one day. Long
     /// enough that no authored chain reaches it (COA-STP1's deepest is 26,400 s), short enough

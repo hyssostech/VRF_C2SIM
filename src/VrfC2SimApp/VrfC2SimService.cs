@@ -2283,8 +2283,13 @@ public sealed class VrfC2SimService : BackgroundService
             OrderTask predTask = null;
             bool predecessorInThisOrder = !string.IsNullOrEmpty(task.StartAfterTaskUuid)
                                           && _taskByUuid.TryGetValue(task.StartAfterTaskUuid, out predTask);
+            // B4 (pass-2 review): the long window is derived from an end time that only exists
+            // when Vrf:TimedCompletion is ON. With R4 turned off - the documented evidence-only
+            // escape hatch - no timer is ever armed, so deriving 4,860 s from the predecessor's
+            // Duration made the eventual skip eight times slower and quieter than the configured
+            // 600 s, on the very setting an operator reaches for when something is already wrong.
             double predecessorEndSeconds = TaskDispatchPolicy.PredecessorEndSeconds(
-                predecessorInThisOrder, predTask?.DurationMs ?? 0L, _durationScale);
+                _vrf.TimedCompletion, predecessorInThisOrder, predTask?.DurationMs ?? 0L, _durationScale);
             double timeoutSeconds = TaskDispatchPolicy.PredecessorTimeoutSeconds(
                 _vrf.TaskPredecessorTimeoutSeconds, predecessorEndSeconds,
                 _vrf.TaskPredecessorEndMarginSeconds);
