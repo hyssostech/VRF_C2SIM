@@ -116,6 +116,41 @@ public static class ReportSelfTest
         Check(ref failures, pol.ShouldEmitComplete(unattributed) && pol.ShouldEmitComplete(unattributed),
               "an EMPTY task uuid is never suppressed (two unattributed completions = two reports)");
 
+        // Review finding 10: a TASKABRT is OUR judgement that the task will not run; it does not end
+        // the execution in VR-Forces, so a re-entered dispatch after one is the SAME execution.
+        const string tE = "task-E";
+        Check(ref failures, pol.ShouldEmitStart(tE), "dispatch of E emits TASKSTRT");
+        Check(ref failures, pol.ShouldEmitAbort(tE), "the watchdog aborts E");
+        Check(ref failures, !pol.ShouldEmitStart(tE),
+              "a dispatch RE-ENTERED after a TASKABRT emits NO second TASKSTRT (re-armed by a COMPLETION only)");
+        Check(ref failures, pol.ShouldEmitComplete(tE) && pol.ShouldEmitStart(tE),
+              "... and a COMPLETION does re-arm it (a genuine re-task still announces)");
+
+        // Review finding 4: ONE C2SIM ATTACK/BREACH task runs as TWO VR-Forces tasks - a move, then
+        // the engage parked on its completion. The move's completion is PROGRESS. Before this, it
+        // consumed the task's single TASKCMPLT and the engage's own completion was suppressed, so
+        // STP was told the attack had finished the moment the unit reached its firing position.
+        Console.WriteLine();
+        Console.WriteLine("=== advance-then-engage: one task, two VR-Forces tasks (finding 4) ===");
+        var atk = new TaskStatusPolicy();
+        const string tAtk = "task-ATTACK";
+        Check(ref failures, atk.ShouldEmit(S.TaskStatusCodeType.TASKSTRT, tAtk),
+              "the ATTACK dispatch emits TASKSTRT");
+        var moveCode = TaskStatusPolicy.CodeForCompletion(true, taskContinues: true);
+        bool moveEmitted = atk.ShouldEmit(moveCode, tAtk);
+        var engageCode = TaskStatusPolicy.CodeForCompletion(true, taskContinues: false);
+        bool engageEmitted = atk.ShouldEmit(engageCode, tAtk);
+        Check(ref failures, moveCode == S.TaskStatusCodeType.TASKINPRG && moveEmitted,
+              $"the MOVE half's completion reports TASKINPRG (saw {moveCode}, emitted {moveEmitted})");
+        Check(ref failures, engageCode == S.TaskStatusCodeType.TASKCMPLT && engageEmitted,
+              $"the ENGAGE's completion still reports TASKCMPLT and is NOT suppressed " +
+              $"(saw {engageCode}, emitted {engageEmitted})");
+        Check(ref failures, !atk.ShouldEmit(S.TaskStatusCodeType.TASKCMPLT, tAtk),
+              "exactly ONE TASKCMPLT for the whole task - TASKINPRG consumed no slot");
+        Check(ref failures, TaskStatusPolicy.CodeForCompletion(false, taskContinues: true)
+                            == S.TaskStatusCodeType.TASKABRT,
+              "a FAILED move is still TASKABRT - nothing continues after it");
+
         // ---- DELIVERY (B2, ReportPush): the push knows whether the report arrived ----
         // Fake transports, no SDK and no server; sleep is a no-op so the test runs instantly.
         Console.WriteLine();
@@ -164,6 +199,25 @@ public static class ReportSelfTest
               "backoff is 1 s, 2 s, 4 s");
         Check(ref failures, ReportPush.BackoffFor(20).TotalSeconds <= 30, "backoff is capped at 30 s");
 
+        // (e) review finding 6: an EMPTY server body is the server saying NOTHING, which is not the
+        // server saying OK. It is reachable - SendTrans returns the body with no status-code check
+        // (C2SIMClientRestLib.cs:377-401) - so a TaskStatus must not be counted as delivered on it.
+        // (The measured G6 "response ended prematurely" is a THROW, covered by (b) above.)
+        Check(ref failures, !ReportPush.Interpret(true, false, null, ReportKind.TaskStatus).Ok,
+              "an EMPTY server body FAILS a TaskStatus push (so it is retried, not counted as sent)");
+        Check(ref failures, ReportPush.Interpret(true, false, null, ReportKind.Position).Ok,
+              "... but not a POSITION push - it is never retried and the next poll carries the same fix");
+        Check(ref failures, ReportPush.Interpret(false, true, "OK", ReportKind.TaskStatus).Ok
+                            && !ReportPush.Interpret(false, false, "server busy", ReportKind.TaskStatus).Ok,
+              "a body that IS there is still judged by the server's own OK/ERROR status");
+        calls = 0; warns.Clear();
+        var r4 = ReportPush.SendAsync(
+            _ => { calls++; return Task.FromResult(ReportPush.Interpret(true, false, null, ReportKind.TaskStatus)); },
+            statusXml, 2, a => ReportPush.BackoffFor(a), noSleep, w => warns.Add(w)).Result;
+        Check(ref failures, !r4.Ok && calls == 2
+                            && r4.LastMessage.Contains("EMPTY body", StringComparison.Ordinal),
+              $"an empty-bodied TaskStatus is retried and finally reported LOST (attempts {calls})");
+
         // ---- R-SURFACE-PROXY re-announcement (B8, SubstitutionAnnouncer) ----
         // A unit created as an EMPTY SHELL at init and re-created at order time as something else
         // must announce again; a re-creation as the same thing must not.
@@ -195,6 +249,21 @@ public static class ReportSelfTest
               "a unit composed from sub-units IS a substitution (of representation)");
         Check(ref failures, SubstitutionAnnouncer.Substituted("Proxy: M577A2_Command_Post - ...", 0),
               "a proxy template IS a substitution");
+
+        // Review finding 8: the init loop's fallback when a proxied unit's FINAL creation plan is
+        // not in the batch. It used the unit's own NAME - a false statement about the unit, and one
+        // that would SUPPRESS the re-announcement outright if it ever equalled a template name.
+        Check(ref failures, SubstitutionAnnouncer.UnknownRepresentation
+                            != SubstitutionAnnouncer.Representation(unit, true, 0)
+                            && SubstitutionAnnouncer.UnknownRepresentation
+                            != SubstitutionAnnouncer.Representation(unit, false, 0)
+                            && SubstitutionAnnouncer.UnknownRepresentation
+                            != SubstitutionAnnouncer.Representation(unit, true, 4),
+              "the unknown-plan SENTINEL is not a representation any template can produce");
+        var unknown = new SubstitutionAnnouncer();
+        unknown.Record("no-plan-unit", SubstitutionAnnouncer.UnknownRepresentation);
+        Check(ref failures, unknown.ShouldAnnounce("no-plan-unit", composed),
+              "a unit recorded under the sentinel announces once its real representation is known");
 
         // ---- position ----
         const string subject = "001aa71b-4c26-a1ea-28b2-f7dfe8e76342";
