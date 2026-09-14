@@ -488,7 +488,7 @@ public sealed class VrfC2SimService : BackgroundService
         // dispatched all 42 tasks at once and completed none - and said so only as a per-task
         // warning on one half. It is a configuration error, so it is caught once, loudly, here.
         _durationScale = _vrf.DurationScale;
-        if (!double.IsFinite(_durationScale) || _durationScale <= 0.0)
+        if (!TaskDispatchPolicy.IsUsableDurationScale(_durationScale))
         {
             _log.LogError("Vrf:DurationScale={Bad} is not a usable scale (it must be finite and greater than " +
                           "zero). A scale of zero or less is not an instruction to complete every task " +

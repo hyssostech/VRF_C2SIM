@@ -182,8 +182,128 @@ public static class RulingsSelfTest
                   TaskDispatchPolicy.PredecessorTimeoutSeconds(configured, 0.0, margin) == configured
                   && TaskDispatchPolicy.PredecessorTimeoutSeconds(configured, double.NaN, margin) == configured,
                   "a predecessor with no armed end time leaves Vrf:TaskPredecessorTimeoutSeconds alone");
+
+            // A COMPRESSED demo must keep the relation: the gate still outlives the scaled end
+            // time, because both sides are computed from the SAME scaled number.
+            double demoEnd = TaskDispatchPolicy.ScaleOrderMs(4800000L, 0.01) / 1000.0;
+            Check(ref failures,
+                  TaskDispatchPolicy.PredecessorTimeoutSeconds(configured, demoEnd, margin) == configured
+                  && demoEnd < configured,
+                  $"a compressed demo (scale 0.01 -> {demoEnd:F0} s) stays under the configured floor, so the " +
+                  $"floor is what applies - the relation holds at both ends of the scale");
+
+            // A NEGATIVE or absurd margin cannot shorten the gate below the predecessor's end time.
+            Check(ref failures,
+                  TaskDispatchPolicy.PredecessorTimeoutSeconds(configured, predDuration, -500.0) == predDuration
+                  && TaskDispatchPolicy.PredecessorTimeoutSeconds(configured, predDuration, double.NaN) == predDuration,
+                  "a negative or non-finite margin is treated as zero - never as a reason to expire early");
+        }
+
+        // (b9) Vrf:DurationScale ARITHMETIC (review item 8). One function scales both halves of the
+        //      order's clock; if it ever disagreed with itself, M1's relation would break silently.
+        Check(ref failures,
+              TaskDispatchPolicy.ScaleOrderMs(4800000L, 1.0) == 4800000L
+              && TaskDispatchPolicy.ScaleOrderMs(4800000L, 0.01) == 48000L
+              && TaskDispatchPolicy.ScaleOrderMs(7200000L, 0.5) == 3600000L,
+              "Vrf:DurationScale scales an authored time as written (1.0, 0.01, 0.5)");
+        Check(ref failures,
+              TaskDispatchPolicy.ScaleOrderMs(0L, 0.5) == 0L
+              && TaskDispatchPolicy.ScaleOrderMs(-5L, 1.0) == 0L,
+              "a zero or negative authored time is not a time: 0 in, 0 out, at any scale");
+
+        // (b10) ... AND ITS BOUNDS (m8). Zero, negative, NaN and the infinities are configuration
+        //       errors, not instructions - one scale must not mean "no end time" on one half of the
+        //       order's clock and "dispatch now" on the other.
+        Check(ref failures,
+              !TaskDispatchPolicy.IsUsableDurationScale(0.0)
+              && !TaskDispatchPolicy.IsUsableDurationScale(-1.0)
+              && !TaskDispatchPolicy.IsUsableDurationScale(double.NaN)
+              && !TaskDispatchPolicy.IsUsableDurationScale(double.PositiveInfinity)
+              && !TaskDispatchPolicy.IsUsableDurationScale(double.NegativeInfinity)
+              && TaskDispatchPolicy.IsUsableDurationScale(1.0)
+              && TaskDispatchPolicy.IsUsableDurationScale(0.001),
+              "Vrf:DurationScale must be finite and greater than zero (0, negative, NaN, +/-Inf are refused)");
+        Check(ref failures,
+              TaskDispatchPolicy.ScaleOrderMs(4800000L, 0.0) == 4800000L
+              && TaskDispatchPolicy.ScaleOrderMs(4800000L, double.NaN) == 4800000L,
+              "... and a refused scale leaves the authored time UNCHANGED - the order as written, " +
+              "never a task that ends at once");
+
+        // (b11) THE ORDER'S DURATION FORMATS (review item 8). findTotalIsoMs is a strict
+        //       fixed-shape decoder, and R4 now decides completion on its output, so what it
+        //       ACCEPTS and what it REFUSES both matter.
+        Check(ref failures, OrderParser.FindTotalIsoMs("P00Y00M00DT01H20M00S") == 4800000L
+                         && OrderParser.FindTotalIsoMs("P00Y00M00DT02H00M00S") == 7200000L,
+              "the two COA-STP1 Durations decode to 4,800 s and 7,200 s");
+        Check(ref failures, OrderParser.FindTotalIsoMs("P00Y01M00DT00H00M00S") == 2592000000L,
+              $"m4: ONE MONTH is 30 DAYS ({OrderParser.FindTotalIsoMs("P00Y01M00DT00H00M00S") / 3600000.0:F0} h), " +
+              "not the C++'s 30 hours - R4 decides completion on this number now");
+        Check(ref failures, OrderParser.FindTotalIsoMs("P00Y00M01DT00H00M00S") == 86400000L
+                         && OrderParser.FindTotalIsoMs("P01Y00M00DT00H00M00S") == 31536000000L,
+              "the day and year terms are unchanged (nominal 24 h and 365 d)");
+        Check(ref failures, OrderParser.FindTotalIsoMs("PT1H20M") == -1L,
+              "the SHORT ISO-8601 form PT1H20M is REFUSED (-1), not silently read as zero");
+        Check(ref failures, OrderParser.FindTotalIsoMs("P00Y00M00D01H20M00S") == -1L,
+              "a Duration with no 'T' separator is REFUSED (-1)");
+        Check(ref failures, OrderParser.FindTotalIsoMs("P00Y00M00DT01H20M00.5S") == -1L,
+              "FRACTIONAL seconds are REFUSED (-1) rather than truncated");
+        Check(ref failures, OrderParser.FindTotalIsoMs(null) == -1L
+                         && OrderParser.FindTotalIsoMs("") == -1L
+                         && OrderParser.FindTotalIsoMs("1H20M") == -1L,
+              "null, empty and a string that does not start with 'P' are REFUSED (-1)");
+        Check(ref failures, OrderParser.FindTotalIsoMs("P00Y00M00DT-01H00M00S") < 0L,
+              "a NEGATIVE term yields a negative total, which the parser clamps and warns about");
+
+        // (b12) ... and the PARSER's contract on top of it: an unreadable Duration must not pass
+        //       as "no Duration", because those two have different consequences (a warning and no
+        //       end time, vs a task that is supposed to have one).
+        {
+            var bad = OrderParser.Parse(TimedOrderXml(duration: "PT1H20M", startIso: null));
+            Check(ref failures, bad.Tasks.Count == 1 && bad.Tasks[0].DurationMs == 0
+                             && bad.Warnings.Any(w => w.Contains("PT1H20M")),
+                  $"a Duration that is PRESENT but unreadable gives DurationMs=0 AND a warning naming it " +
+                  $"({bad.Warnings.Count} warning(s))");
+            var good = OrderParser.Parse(TimedOrderXml(duration: "P00Y00M00DT01H20M00S", startIso: null));
+            Check(ref failures, good.Tasks[0].DurationMs == 4800000L && good.Warnings.Count == 0,
+                  "... and a readable one gives the authored milliseconds with no warning");
+        }
+
+        // (b13) THE ABSOLUTE StartTime (review item 8). STP exports the SimulationTime delay form,
+        //       so this path has never run on a real order - which is exactly why it is checked
+        //       here: an order from another producer that DATES its tasks must not be dispatched
+        //       immediately.
+        {
+            var parsed = OrderParser.Parse(TimedOrderXml(duration: "P00Y00M00DT01H20M00S",
+                                                         startIso: "2026-09-14T12:00:00Z"));
+            var t = parsed.Tasks[0];
+            Check(ref failures,
+                  t.AbsoluteStartUtc is DateTime abs
+                  && abs == new DateTime(2026, 9, 14, 12, 0, 0, DateTimeKind.Utc)
+                  && abs.Kind == DateTimeKind.Utc
+                  && t.SimulationStartMs == 0,
+                  $"an ABSOLUTE StartTime is lifted as a UTC instant (got {t.AbsoluteStartUtc:O}) and leaves " +
+                  $"the relative delay at {t.SimulationStartMs} ms");
+            var noStart = OrderParser.Parse(TimedOrderXml(duration: "P00Y00M00DT01H20M00S", startIso: null));
+            Check(ref failures, noStart.Tasks[0].AbsoluteStartUtc is null,
+                  "... and a task with no StartTime has none (it dispatches when its gate opens)");
         }
     }
+
+    /// <summary>A minimal, schema-shaped order carrying a Duration and, optionally, an ABSOLUTE
+    /// StartTime (TimeInstantType/DateTime/IsoDateTime) - the form STP does not export.</summary>
+    private static string TimedOrderXml(string duration, string startIso) =>
+        "<OrderBody xmlns=\"http://www.sisostds.org/schemas/C2SIM/1.1\">"
+        + "<OrderID>rulings-selftest-timing</OrderID>"
+        + "<Task><ManeuverWarfareTask>"
+        + "<Name>T_Timed</Name>"
+        + "<UUID>77777777-7777-7777-7777-777777777777</UUID>"
+        + "<PerformingEntity>88888888-8888-8888-8888-888888888888</PerformingEntity>"
+        + "<TaskActionCode>SECURE</TaskActionCode>"
+        + "<Duration><IsoTimeDuration>" + duration + "</IsoTimeDuration></Duration>"
+        + (startIso == null ? ""
+           : "<StartTime><DateTime><IsoDateTime>" + startIso + "</IsoDateTime></DateTime></StartTime>")
+        + "</ManeuverWarfareTask></Task>"
+        + "</OrderBody>";
 
     /// <summary>
     /// Run ONE STREND gate against the real TaskSequencer and the real TimedCompletionPolicy on a
@@ -430,11 +550,22 @@ public static class RulingsSelfTest
                          && TaskDispatchPolicy.FallsBackToGeometry(self),
               "... is dispatched (never refused) and routed to the task's own geometry");
 
-        // (d2) NO target resolution refuses a verb - R3 in one line.
-        bool anyRefuses = false;
-        foreach (TargetResolution r in Enum.GetValues<TargetResolution>())
-            anyRefuses |= TaskDispatchPolicy.RefusesForTarget(r);
-        Check(ref failures, !anyRefuses, "NO verb is refused for its target resolution, self included");
+        // (d2) WHERE EACH RESOLUTION SENDS THE TASK. The old check here asserted that
+        //      RefusesForTarget is false for every enum value while the method body IS
+        //      "return false" - it could not fail, and n8 of the cold-start review of 5c67d41
+        //      called it out. What is worth checking is the MAPPING, which has four arms and can
+        //      be got wrong: exactly ONE resolution names an entity to VR-Forces, and the other
+        //      three route the task to its own geometry.
+        var toGeometry = Enum.GetValues<TargetResolution>()
+                             .Where(TaskDispatchPolicy.FallsBackToGeometry).ToArray();
+        Check(ref failures,
+              toGeometry.Length == 3
+              && toGeometry.Contains(TargetResolution.SelfIsObjective)
+              && toGeometry.Contains(TargetResolution.Unresolved)
+              && toGeometry.Contains(TargetResolution.NoTarget)
+              && !toGeometry.Contains(TargetResolution.DistinctEntity),
+              $"exactly one target resolution (DistinctEntity) is named to VR-Forces; the other " +
+              $"{toGeometry.Length} route the task to its own geometry");
 
         // (d3) A self-targeted ATTACK that ALSO carries no geometry executes in place (R2 + R3
         //      together) - the T9-T12 shape, which used to be a refusal AND a chain abandon.

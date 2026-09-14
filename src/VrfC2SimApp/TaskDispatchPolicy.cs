@@ -126,8 +126,17 @@ public static class TaskDispatchPolicy
     /// </summary>
     public static long ScaleOrderMs(long ms, double scale)
         => ms <= 0 ? 0L
-         : !double.IsFinite(scale) || scale <= 0.0 ? ms
+         : !IsUsableDurationScale(scale) ? ms
          : (long)Math.Round(ms * scale);
+
+    /// <summary>
+    /// m8: is Vrf:DurationScale a scale at all? It must be FINITE and GREATER THAN ZERO. Zero,
+    /// negative, NaN and the infinities are configuration errors, not instructions: at scale 0 the
+    /// Duration collapsed to "no end time armed" while the start delay collapsed to "dispatch
+    /// now", so the whole order went out at once and none of it ever completed. The service
+    /// rejects a bad value ONCE at start-up and runs at 1.0 - the order as written.
+    /// </summary>
+    public static bool IsUsableDurationScale(double scale) => double.IsFinite(scale) && scale > 0.0;
 
     /// <param name="marginSeconds">Vrf:TaskPredecessorEndMarginSeconds - the slack that covers the
     /// timed walk's cadence and the ordering above. Negative is treated as 0.</param>
