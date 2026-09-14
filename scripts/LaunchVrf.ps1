@@ -188,7 +188,17 @@ $autoConnect = Join-Path $VrfRoot 'appData\settings\vrfLauncher\autoConnect.xml'
 $scenarioRel = "../userData/scenarios/$Scenario.scnx"
 $scenarioAbs = Join-Path $VrfRoot ("userData\scenarios\{0}.scnx" -f $Scenario)
 $rtiBin      = Join-Path $RtiDir 'bin'
+# THE LICENCE, resolved USER SCOPE FIRST, then Machine - the same rule as
+# scripts\LaunchVrf52.ps1 Resolve-MakLicenseFile (c8730e7) and scripts\RunScenario.sh.
+# CHANGE ONE, CHANGE ALL. Until 2026-09-14 this read the MACHINE scope ONLY, and on the
+# live path (below) it then OVERWROTE the per-process pin the runner had just set with it:
+# the licence renewed on 2026-09-14 is named in the USER scope while the Machine scope
+# still names the lapsed 15-sep-2026 file, so a run that had resolved the good licence had
+# the bad one put back under it by this launcher. RUNBOOK 0.5.15.
+$licUser     = [Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','User')
 $licMachine  = [Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','Machine')
+$licResolved = $(if (-not [string]::IsNullOrWhiteSpace($licUser)) { $licUser } else { $licMachine })
+$licScope    = $(if (-not [string]::IsNullOrWhiteSpace($licUser)) { 'User' } elseif (-not [string]::IsNullOrWhiteSpace($licMachine)) { 'Machine' } else { 'NEITHER' })
 
 # Process names to poll (exe base names, no extension)
 $procBackend  = 'vrfSimHLA1516e'
@@ -219,14 +229,17 @@ if ($makRtiDir -and ($makRtiDir -notmatch '4\.6\.1')) {
 }
 
 # 3. License reachability (passive only - never contact a license server)
-if ([string]::IsNullOrWhiteSpace($licMachine)) {
-    Say-Warn 'MAKLMGRD_LICENSE_FILE (Machine) is empty - VR-Forces license checkout may hang (RUNBOOK sec 7 item 2)'
-} elseif ($licMachine -match '@') {
-    Say-Warn ("MAKLMGRD_LICENSE_FILE is a port@host form ({0}) - cannot passively verify without a network probe; not probing." -f $licMachine)
-} elseif (Test-Path $licMachine) {
-    Say-Ok ("license file present (existence only; expiry/validity NOT checked - no checkout): {0}" -f $licMachine)
+if ([string]::IsNullOrWhiteSpace($licResolved)) {
+    Say-Warn 'MAKLMGRD_LICENSE_FILE is empty in BOTH the User and the Machine scope - VR-Forces license checkout may hang (RUNBOOK 0.5.15)'
+} elseif ($licResolved -match '@') {
+    Say-Warn ("MAKLMGRD_LICENSE_FILE is a port@host form ({0}, {1} scope) - cannot passively verify without a network probe; not probing." -f $licResolved, $licScope)
+} elseif (Test-Path $licResolved) {
+    Say-Ok ("license file present (existence only; expiry/validity NOT checked - no checkout): {0}  [{1} scope]" -f $licResolved, $licScope)
 } else {
-    Say-Warn ("MAKLMGRD_LICENSE_FILE points at a path that does not exist: {0}" -f $licMachine)
+    Say-Warn ("MAKLMGRD_LICENSE_FILE ({0} scope) points at a path that does not exist: {1}" -f $licScope, $licResolved)
+}
+if ((-not [string]::IsNullOrWhiteSpace($licUser)) -and (-not [string]::IsNullOrWhiteSpace($licMachine)) -and ($licUser -ne $licMachine)) {
+    Say-Warn ("the two registry scopes DISAGREE - User '{0}' wins over Machine '{1}'. Point both at the renewed .lic (RUNBOOK 0.5.15)." -f $licUser, $licMachine)
 }
 
 # 4. Connection profile saved (the doc's 'launch from the Launcher at least once'
@@ -380,10 +393,10 @@ if ($hardFail) {
 # ---- LAUNCH + READINESS POLL -----------------------------------------------
 Say-Head 'Launch'
 if ($DryRun) {
-    if (-not [string]::IsNullOrWhiteSpace($licMachine)) {
-        Say-Plan ("set MAKLMGRD_LICENSE_FILE (process) = {0}  (refresh from Machine scope; RUNBOOK sec 7 item 2)" -f $licMachine)
+    if (-not [string]::IsNullOrWhiteSpace($licResolved)) {
+        Say-Plan ("set MAKLMGRD_LICENSE_FILE (process) = {0}  (resolved from the {1} scope, User first; RUNBOOK 0.5.15)" -f $licResolved, $licScope)
     } else {
-        Say-Plan 'PRESERVE the existing process-scope MAKLMGRD_LICENSE_FILE - the Machine value is EMPTY, and this script deliberately does NOT blank it (DEFECT-3).'
+        Say-Plan 'PRESERVE the existing process-scope MAKLMGRD_LICENSE_FILE - BOTH registry scopes are EMPTY, and this script deliberately does NOT blank it (DEFECT-3).'
     }
     Say-Plan ("Start-Process -FilePath '{0}' -WorkingDirectory '{1}' -ArgumentList '{2}'" -f $launcher, $bin64, $argString)
     Say-Plan ("poll every {0}s up to {1}s for readiness signals:" -f $PollIntervalSec, $ReadyTimeoutSec)
@@ -400,18 +413,20 @@ if ($DryRun) {
 }
 
 # --- live path (NOT executed in this drafting task) ---
-# DEFECT-3 FIX (2026-07-18): only overwrite from Machine scope when the Machine
-# value is actually non-empty. The old unconditional assignment BLANKED a
-# working process-scope license value whenever the Machine value was empty or
-# null (which was itself only a warning), turning a launchable session into a
-# license-hang for no reason.
-if (-not [string]::IsNullOrWhiteSpace($licMachine)) {
-    $env:MAKLMGRD_LICENSE_FILE = $licMachine
-    Say-Ok ("MAKLMGRD_LICENSE_FILE (process) refreshed from Machine scope = {0}" -f $licMachine)
+# DEFECT-3 FIX (2026-07-18): only overwrite from the registry when the registry value is
+# actually non-empty. The old unconditional assignment BLANKED a working process-scope
+# license value whenever the registry value was empty or null (which was itself only a
+# warning), turning a launchable session into a license-hang for no reason.
+# 2026-09-14: the registry value is now resolved USER SCOPE FIRST (RUNBOOK 0.5.15). Reading
+# Machine only was the residual: the runner pins the renewed licence onto the process and
+# this line put the lapsed Machine one back.
+if (-not [string]::IsNullOrWhiteSpace($licResolved)) {
+    $env:MAKLMGRD_LICENSE_FILE = $licResolved
+    Say-Ok ("MAKLMGRD_LICENSE_FILE (process) refreshed from the {0} scope = {1}" -f $licScope, $licResolved)
 } elseif (-not [string]::IsNullOrWhiteSpace($env:MAKLMGRD_LICENSE_FILE)) {
-    Say-Warn ("Machine-scope MAKLMGRD_LICENSE_FILE is EMPTY - PRESERVING the existing process-scope value ({0}) rather than blanking it." -f $env:MAKLMGRD_LICENSE_FILE)
+    Say-Warn ("MAKLMGRD_LICENSE_FILE is EMPTY in both registry scopes - PRESERVING the existing process-scope value ({0}) rather than blanking it." -f $env:MAKLMGRD_LICENSE_FILE)
 } else {
-    Say-Warn 'MAKLMGRD_LICENSE_FILE is empty in BOTH Machine and process scope - license checkout may hang (RUNBOOK sec 7 item 2). Launching anyway; watch for a license dialog.'
+    Say-Warn 'MAKLMGRD_LICENSE_FILE is empty in the User scope, the Machine scope AND this process - license checkout may hang (RUNBOOK 0.5.15). Launching anyway; watch for a license dialog.'
 }
 
 Say-Ok ("launching: {0} {1}" -f $launcher, $argString)

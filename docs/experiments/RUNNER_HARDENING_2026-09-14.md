@@ -775,3 +775,245 @@ the death criterion, and the rule buys exactly one transient, not immunity.
    and the branch logic were exercised. What it now prevents is the overlap, not a failure.
 3. **A genuine transient `OpenProcess` failure has never been observed** on this machine; test (d)
    INJECTS one. The fix is reasoned + injected, not field-observed.
+
+---
+
+## 14. FIVE DEFECTS FROM THE RUNS OF 2026-09-14 (third pass)
+
+Evidence: `docs/experiments/G7_ATTEMPT4_RESULTS_2026-09-14.md` sec 4.2 and the runs of
+2026-09-14. Everything below is OFFLINE - no simulator, no VR-Forces, no launch.
+
+### 14.1 Defect 1 - `-StopWhenComplete` had never fired, and could not
+
+`--stop-when-complete` is ON by default in `RunScenario.sh` and has closed ZERO windows.
+The cause is not timing or tuning: condition (4) of the early exit ("post-completion report
+evidence") could only be satisfied by an **RPT** record in the WatchVrf trace, and an RPT row
+is a VR-FORCES RADIO TEXT REPORT (`tools/WatchVrf/ConFormat.cs:83-96`) - the Lua tracker's
+`POSITION "<marking>" <lat> <lon>` broadcast. This interface never asks for one and these
+scenarios never run that tracker.
+
+    RPT rows in the trace: 0     (all 8 runs of 2026-09-14)
+
+So every run ran its `-RunSecs` cap out with its units already stopped. The report channel
+the interface DOES drive is the C2SIM PositionReport (R1, `Vrf__PositionReportSeconds`;
+`VrfC2SimService.MaybeSendPositionReports`) - 147 fixes for the single taskee of run
+`20260914T154243Z` against 0 RPT rows - and it is the channel the adjudication reads.
+
+**THE FIX.** `RunnerLib Test-ReportEvidence` now accepts, per taskee, ANY ONE of three
+sources, and records which one in `oracle.earlyExit.reportEvidence[<taskee>].via`:
+
+| via | what it is | live? |
+|-----|------------|-------|
+| `RPT` | the 2026-09-02 rule, UNCHANGED: a post-completion text report within `-ReportToleranceMeters` of the sampled POS | yes, but has never existed |
+| `C2SIM-capture` | a C2SIM PositionReport for the taskee's OWN uuid, captured after that taskee's TASKCMPLT (`Get-ReportCaptureEvidence` over `reports-captured.log`) | **no** - see below |
+| `R1-applog` | an `R1 position reports: N sent, 0 skipped` line appearing BELOW that taskee's TASKCMPLT line in `vrfc2simapp.log` (`Get-AppLogPositionEvidence`) | yes |
+
+`-SettleHoldSecs` (60) stays the FLOOR; an unsatisfied taskee still runs the window to its
+cap, which is the safe direction, and its reason is printed every 30 s and ledgered.
+
+**THE SUPERVISOR'S BRIEF ASKED FOR `reports-captured.log` AS THE LIVE SOURCE. IT CANNOT BE.**
+`tools/ListenReports/Program.cs` writes that file exactly once, in the closing
+`await File.WriteAllTextAsync(outPath, ...)` after the listen ends. During an observation
+window the file does not exist, so a live read returns nothing. It is nevertheless
+implemented and is the AUTHORITY, because it is what the offline replay below and the
+adjudication read, it carries the taskee's own uuid, and it dates BOTH the TASKCMPLT (which
+the interface also publishes, as a `TaskStatus` report) and every position fix on ONE wall
+clock. `R1-applog` is the live stand-in: the app log has no timestamps at all, but it is a
+single totally ordered file, so line order answers "did a position-report round happen after
+this taskee completed". (Making `C2SIM-capture` live would mean changing `ListenReports` to
+flush incrementally, which is outside this change's edit surface; it is the better long-term
+fix.)
+
+TWO GUARDS ON `R1-applog`, both found by reading `MaybeSendPositionReports` rather than the
+log line:
+
+* `0 skipped` - a round WITH skips does not say WHICH units were sent, so it cannot be
+  attributed to this taskee.
+* `sides=both` - the side filter runs BEFORE either `skipped++` branch
+  (`if (hostile ? !red : !blue) continue;`), so under `Vrf__PositionReportSides=blue` a
+  HOSTILE taskee is neither sent nor skipped and the round still reads `N sent, 0 skipped`.
+  That would have satisfied condition (4) on behalf of a unit that got nothing. Rounds now
+  count only when the interface says it is reporting both sides - its default, and what
+  every run in the record logs. Under a one-sided filter the satisfier never fires and the
+  window runs to its cap, exactly as before 2026-09-14.
+
+Checked against synthetic logs (`Get-AppLogPositionEvidence` directly):
+
+```
+sides=both AFTER the TASKCMPLT line -> True
+sides=blue AFTER the TASKCMPLT line -> False
+"5 sent, 1 skipped" AFTER           -> False
+a clean round BEFORE the TASKCMPLT  -> False
+```
+
+### 14.2 The offline replay, and what it says
+
+`Condition4Replay.ps1` (scratchpad) replays a finished run's capture through the REAL
+functions - `Get-ReportCaptureEvidence`, `Update-CompletionState`, `Test-ReportEvidence`,
+`Test-EarlyExit` - on the runner's own 5 s poll grid, with the RPT source deliberately
+starved (`-TraceText ''`) and the app-log source withheld, so what fires is
+`C2SIM-capture` ALONE.
+
+```
+=== 20260914T154243Z_run ===
+  run start (UTC)  : 2026-09-14T15:42:43.348Z
+  order taskees    : 001aa71b-4c26-a1ea-28b2-f7dfe8e76342   tasks: 1
+  RECORDED OUTCOME : fired=False  window used 1200.7s of 1200s cap
+  RPT rows in the trace: 0   (the old condition (4) could ONLY be satisfied by these)
+  taskee 001aa71b-...-f7dfe8e76342: TASKCMPLT 2026-09-14T15:51:22.659Z, 147 PositionReports, last 2026-09-14T16:10:15.353Z
+  replay grid      : 2026-09-14T15:51:17.659Z .. 2026-09-14T16:13:15.367Z every 5s
+  WOULD HAVE FIRED at 2026-09-14T15:52:22.659Z   (hold 60s >= 60s, evidence IN)
+    via=C2SIM-capture  C2SIM PositionReport at 2026-09-14T15:52:21.935Z is later than the capture own TASKCMPLT at 2026-09-14T15:51:22.659Z (40 fixes captured)
+  recorded close   : 09/14/2026 16:10:20   replay close: 2026-09-14T15:52:22.659Z
+```
+
+That is **t+123.0 s of a 1200 s window instead of the full 1200.7 s - 18.0 minutes of dead
+time per run**, and it matches the prediction in the brief (~15:52:23Z) to within one poll.
+
+```
+=== 20260914T130439Z_run ===
+  RECORDED OUTCOME : fired=False  window used 1208.1s of 1200s cap
+  RPT rows in the trace: 0
+  taskee 001aa71b-...-f7dfe8e76342: TASKCMPLT 2026-09-14T13:08:54.159Z, 123 PositionReports, last 2026-09-14T13:28:02.242Z
+  WOULD HAVE FIRED at 2026-09-14T13:09:54.159Z   (hold 60s >= 60s, evidence IN)
+    via=C2SIM-capture  C2SIM PositionReport at 2026-09-14T13:09:49.238Z is later than the capture own TASKCMPLT at 2026-09-14T13:08:54.159Z (14 fixes captured)
+```
+
+**CORRECTION TO THE BRIEF.** `20260914T130439Z` was named as the negative control ("no
+completion -> never"). It is not one: that run DID reach ALL-COMPLETE - its manifest records
+`allCompleteUtc 2026-09-14T13:08:57.568Z` and `reason: "no RPT POSITION line for this
+marking yet"` - and it failed on condition (4) alone, exactly like the other. With the fix it
+closes at t+112.3 s instead of 1208.1 s, another 18.3 minutes. The real negative control is
+`20260914T120444Z`, whose taskee never reported TASKCMPLT at all:
+
+```
+=== 20260914T120444Z_run ===
+  taskee 670cfdb2-6c43-f267-ad7f-bd6e739def24: TASKCMPLT (none), 93 PositionReports, last 2026-09-14T12:23:18.197Z
+  VERDICT: at least one taskee never reported TASKCMPLT - ALL-COMPLETE can never hold,
+           so -StopWhenComplete NEVER fires and the window runs to its cap. (control)
+```
+
+The LIVE source was exercised separately, against the same runs' REAL app logs
+(`LiveSourcesCheck.ps1`, scratchpad) - this is the path a running runner takes:
+
+```
+=== 20260914T154243Z_run : LIVE sources ===
+  app log          : ...\vrfc2simapp.log (14527528 bytes)
+  R1-applog satisfier for 001aa71b-4c26-a1ea-28b2-f7dfe8e76342 : True
+  Test-ReportEvidence with the app-log source ONLY -> AllSatisfied = True
+    via=R1-applog  the interface logged a COMPLETE R1 position-report round (0 skipped) after this taskee TASKCMPLT line
+  ORDER reached the bus at : 2026-09-14T15:49:49.653Z
+
+=== 20260914T120444Z_run : LIVE sources ===
+  R1-applog satisfier for 670cfdb2-6c43-f267-ad7f-bd6e739def24 : False (no TASKCMPLT line for this taskee)
+  Test-ReportEvidence with the app-log source ONLY -> AllSatisfied = False
+```
+
+### 14.3 Defect 2 - the thread sampler died before the order
+
+`RunScenario.sh` started `SampleThreads.ps1` with `-MaxSec $((WATCH_SECS + 100))`.
+`--watch-secs 0` means "let the runner derive the cap", so that arithmetic is **100
+seconds** - and in run `20260914T164906Z` the sampler was gone long before PushOrder. The
+wrapper now derives the effective observer window itself (the runner's own formula, printed
+in the banner) and sizes the sampler from it:
+
+    SAMPLER_MAX = EFF_WATCH + 75 + 360 + 100
+                  EFF_WATCH  the derived (or explicit) observer cap
+                  + 75       launchSettle 45 + preCheck 30, spent BEFORE the observers start
+                             (SampleThreads starts its clock when the SIM APPEARS)
+                  + 360      traceStopGrace 120 + appExit 120 + stopVrf 120  (teardown)
+                  + 100      the historical margin
+
+`SampleThreads.ps1` exits on its own when the sim exits, so a generous budget costs nothing
+and a short one loses the measurement silently. `--sample-threads` semantics are unchanged,
+except that a `--dry-run` no longer STARTS the sampler: with no sim to find it would idle for
+ten minutes and, worse, could attach to a sim ANOTHER LANE is running. It now prints what it
+would start.
+
+`--watch-secs` also DEFAULTS TO 0 (derive) in the wrapper, and the derived value is printed:
+
+```
+  observers   : DERIVED 1460 (20+180+120+180+30+run 900+30+settle 0)
+  observers   : EXPLICIT 900 (derived would be 1460)  *** BELOW the derived cap - the observers can end BEFORE the window does; pass --watch-secs 0 ***
+```
+
+Every explicit `--watch-secs` passed on 2026-09-14 was below the derived cap and earned the
+runner's truncation WARN (`20260914T170824Z`: 900 < 1100).
+
+### 14.4 Defect 3 - the interface was pointed at the VENDOR appData
+
+With `-VrfAppDataDir` set, `LaunchVrf52.ps1` gives the sim and the gui `--appDataDir <the
+relocated tree>`, but the runner still set
+`Vrf__ConnectionConfigFile=C:\MAK\vrforces5.2d\appData\settings\connections\MAK-ONE-2025-Config.xml`
+- the VENDOR copy (banner of run `20260914T164906Z`). The two files are byte-identical
+today, so nothing has failed yet; the point is that the relocated tree is the one the sim
+reads, and "identical today" is not a property the runner should depend on. The runner now
+follows the relocation, and says which tree it used:
+
+```
+  (default)                Vrf__ConnectionConfigFile=C:\MAK\vrforces5.2d\appData\settings\connections\MAK-ONE-2025-Config.xml  (vendor appData)
+  --vrf-appdata-dir ...    Vrf__ConnectionConfigFile=C:\C2SIM\vrf-appdata\appData\settings\connections\MAK-ONE-2025-Config.xml  (from the RELOCATED -VrfAppDataDir tree - the one the sim reads)
+```
+
+The pre-launch existence check and `inputs.connectionConfigFile` follow the same value, so a
+relocated tree that is missing the file is refused before anything is launched.
+
+### 14.5 Defect 4 - two clocks printed as one
+
+`TASKCMPLT seen for 1/1 taskee(s) ... (t+77s)` is the OBSERVATION-WINDOW clock, which starts
+when **PushOrder RETURNS** - up to `-PushOrderListenSec` (30 s) after the order actually
+reached the bus. Every stage-8b message now says `t+Ns after PushOrder returned` and, when
+`c2sim-bus.log` holds an `ORDER` record, appends `, Ms after the ORDER reached the bus at
+HH:MM:SS.fffZ`. The moment is parsed by `RunnerLib Get-BusOrderUtc` (the first
+`[HH:mm:ss.fff] ORDER (<n> chars)` header - NOT necessarily line 1: run `20260914T120444Z`'s
+bus log opens with a `REPORT`) and ledgered as `clocks.orderOnBusUtc`. Measured on run
+`20260914T154243Z`: the order reached the bus at `15:49:49.653Z`.
+
+### 14.6 Defect 5 - the licence residual (RUNBOOK 0.5.15)
+
+Two scripts still read the MACHINE scope alone, and `scripts\LaunchVrf.ps1` (the 5.0.2
+profile) did worse than read it: on its live path it ASSIGNED `$env:MAKLMGRD_LICENSE_FILE`
+from Machine, OVERWRITING the per-process pin the runner had just set - so a 5.0.2 run
+resolved the renewed licence and then had the lapsed 15-sep-2026 one put back underneath it.
+`LaunchVrf.ps1` (`$licUser`/`$licMachine`/`$licResolved`/`$licScope`, used by the
+precondition report, the dry-run plan and the live assignment) and
+`scripts\Probe52Reflection.ps1` now use the same User-then-Machine resolver as
+`LaunchVrf52.ps1` (c8730e7), preserve an inherited value rather than replacing it with a path
+that resolves to nothing, and name the scope they used. `LaunchVrf.ps1` additionally WARNS
+when the two scopes disagree. The resolver now exists in SIX places; RUNBOOK 0.5.15 says
+CHANGE ONE, CHANGE ALL SIX.
+
+### 14.7 Gates run
+
+| gate | result |
+|------|--------|
+| `Parser::ParseFile` on `RunnerLib.ps1`, `RunC2SimScenario.ps1`, `SampleThreads.ps1`, `LaunchVrf.ps1`, `Probe52Reflection.ps1`, `LaunchVrf52.ps1` | PARSE OK, 0 errors, all six |
+| `bash -n scripts/RunScenario.sh` | OK |
+| condition (4) replay, `20260914T154243Z` | fires at `15:52:22.659Z` = t+123.0 s (recorded: never, 1200.7 s) |
+| condition (4) replay, `20260914T130439Z` | fires at `13:09:54.159Z` = t+112.3 s (recorded: never, 1208.1 s) |
+| condition (4) replay, `20260914T120444Z` (control) | never fires - no TASKCMPLT for the taskee |
+| live source over the real app logs | `R1-applog` True for `154243Z`, False for the control |
+| `RunScenario.sh --dry-run` | exit 0; `observers : DERIVED 1460`; vendor connection config |
+| `RunScenario.sh --dry-run --vrf-appdata-dir C:\C2SIM\vrf-appdata\appData` | exit 0; `Vrf__ConnectionConfigFile=C:\C2SIM\vrf-appdata\appData\...` |
+| `RunScenario.sh --dry-run --watch-secs 0` | exit 0; DERIVED 1460 (identical to the default - 0 IS the default now) |
+| `RunScenario.sh --dry-run --watch-secs 900` | exit 0; `EXPLICIT 900 (derived would be 1460)` + the BELOW-the-cap shout |
+| `RunScenario.sh --dry-run --sample-threads` | exit 0; `WOULD start SampleThreads.ps1 ... -MaxSec 1995s` (was 100 s with `--watch-secs 0`) |
+| `tests\RunnerTurnaround.Tests.ps1` | 222 passed, 1 failed - the SAME pre-existing failure ("the ready-path harvest is skipped when the launch crashed"). Baseline unchanged. |
+| `rg -nP "[^\x09\x0a\x0d\x20-\x7E]"` on every touched file | clean; the checker reproduces on a dirty control |
+| line endings | `.ps1` / `.md` CRLF, `scripts/RunScenario.sh` LF |
+
+### 14.8 NOT covered
+
+1. **No live run.** All of the above is a replay of finished runs and a set of dry runs. The
+   first live run with `--stop-when-complete` must confirm that the window really closes, that
+   `oracle.earlyExit.via` names `R1-applog`, and that the trace still covers the whole run.
+2. **`C2SIM-capture` cannot fire live** until `ListenReports` flushes incrementally. Today it
+   is exercised only offline. If the app log's R1 line ever changes shape, the live satisfier
+   goes silent and every window runs to its cap again - noisy, not dangerous, but it would be
+   invisible without the `via` field in the manifest.
+3. **No test was added to `tests\RunnerTurnaround.Tests.ps1`** - that file was outside this
+   change's edit surface. The replay harnesses live in the session scratchpad; their sources
+   are short and their outputs are quoted above in full.
+4. **The sampler budget is arithmetic mirrored from the runner's parameter defaults.** If a
+   runner budget default moves, the wrapper's sum goes stale (the comment says so). Only the
+   banner and the sampler size are affected - the runner still derives its own cap.

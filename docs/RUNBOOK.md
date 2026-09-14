@@ -899,6 +899,67 @@ on 2026-09-14; each is now closed by something this section names
    path in which `--logFileName` crashes ~1 launch in 3. There is no evidence it shares that
    defect, but if the sim dies at STARTUP the first thing to drop is this option.
 
+
+9. `--stop-when-complete` FINALLY CLOSES A WINDOW (2026-09-14). It is ON by default in the
+   wrapper and had NEVER ONCE FIRED. Condition (4) of the early exit - "post-completion
+   report evidence" - demanded an **RPT** row in the WatchVrf trace, and an RPT row is a
+   VR-FORCES RADIO TEXT REPORT (`tools/WatchVrf/ConFormat.cs:83-96`), emitted by a Lua
+   tracker this interface never asks for and these scenarios never run. RPT = 0 in all 8
+   traces of 2026-09-14, so every run burned its whole `-RunSecs` cap with its units
+   already stopped: 1200.7 s instead of ~154 s in run `20260914T154243Z`, 1208.1 s instead
+   of ~314 s in `20260914T130439Z`.
+   Condition (4) now accepts ANY ONE of three sources, per taskee (RunnerLib
+   `Test-ReportEvidence`; the manifest's `oracle.earlyExit.reportEvidence[<taskee>].via`
+   records which one closed it):
+
+       RPT            the old rule, kept unchanged - a post-completion text report within
+                      `-ReportToleranceMeters` of the sampled POS. Strongest when it exists.
+       C2SIM-capture  a C2SIM PositionReport for the taskee's OWN uuid, captured after that
+                      taskee's TASKCMPLT, out of `reports-captured.log`. THE AUTHORITY: that
+                      file dates the TASKCMPLT (a TaskStatus report) and the position fixes
+                      on ONE wall clock. It is NOT readable during a window - ListenReports
+                      writes it once, AT EXIT - so it fires only when a capture is already
+                      on disk, and it is what the offline replay and the adjudication read.
+       R1-applog      THE LIVE STAND-IN, and the only per-taskee post-completion position
+                      evidence a running runner can see: an `R1 position reports: N sent,
+                      0 skipped` line appearing BELOW that taskee's TASKCMPLT line in
+                      `vrfc2simapp.log`. Line order is the clock - that log has no
+                      timestamps. `0 skipped` AND `sides=both` are both load-bearing: a
+                      round with skips does not say which units were sent, and the side
+                      filter is applied BEFORE the skip counters, so under
+                      `Vrf__PositionReportSides=blue` a hostile taskee is neither sent nor
+                      skipped and the round would read `0 skipped` on its behalf. Under a
+                      one-sided filter this satisfier never fires.
+
+   `-SettleHoldSecs` (60) remains the FLOOR, so the window closes 60 s after the last
+   TASKCMPLT plus however long the next position report takes - about 65 s in practice at
+   `Vrf__PositionReportSeconds=10`. Unsatisfied evidence still runs the window to its cap:
+   the safe direction, and the per-taskee reason is printed every 30 s and ledgered.
+
+10. `--sample-threads` IS SIZED FROM THE DERIVED WINDOW, and `--watch-secs` DEFAULTS TO 0.
+   The sampler used to get `-MaxSec $((WATCH_SECS + 100))`. `--watch-secs 0` means "let the
+   runner derive the cap", so that arithmetic handed `SampleThreads.ps1` **100 seconds** and
+   the sampler was dead long before the order was pushed (run `20260914T164906Z`). It now
+   gets `EFF_WATCH + 75 + 360 + 100`: the derived observer cap, plus the launch settle and
+   pre-check spent BEFORE the observers start (the sampler's clock starts when the SIM
+   appears), plus every teardown budget, plus the historical margin. The sampler exits on
+   its own when the sim exits, so being generous costs nothing; being short loses the
+   measurement silently.
+   `--watch-secs` now DEFAULTS TO 0 = derive, and the wrapper prints the derived number
+   (`observers : DERIVED 1460 (20+180+120+180+30+run 900+30+settle 0)`). Every explicit
+   value passed on 2026-09-14 was BELOW the derived cap and earned the runner's truncation
+   WARN (`20260914T170824Z`: 900 < 1100) - which is the very failure the derivation exists
+   to prevent. Pass a number only to deliberately shorten the observers; the wrapper then
+   says `EXPLICIT n (derived would be m)` and shouts if n < m.
+
+11. THE `t+Ns` IN THE STAGE-8b MESSAGES IS THE OBSERVATION-WINDOW CLOCK, which starts when
+   **PushOrder RETURNS** - up to `-PushOrderListenSec` (30 s) after the order actually
+   reached the bus. Every such message now says so, and appends the seconds since the
+   ORDER record in `c2sim-bus.log` (`[HH:mm:ss.fff] ORDER (<n> chars)`, PushOrder's own
+   capture) when that file has one; the moment is ledgered as `clocks.orderOnBusUtc`. Read
+   `TASKCMPLT ... (t+77s)` in an older log as "77 s after PushOrder returned", never as
+   "77 s after the order".
+
 ---
 
 ### 0.5.15 THE LICENCE FILE - two registry scopes that disagree (added 2026-09-14)
@@ -920,9 +981,10 @@ than a licence error.
 
 WHAT THE SCRIPTS DO ABOUT IT. `scripts\RunC2SimScenario.ps1` (at the Stage 0 banner, so the
 runner AND every child it starts get it), `scripts\LaunchVrf52.ps1`,
-`scripts\StartInterface52.ps1` and `scripts\RunScenario.sh` each read the registry
-themselves - User scope, else Machine - set `MAKLMGRD_LICENSE_FILE` on their OWN process so
-children inherit it, and print one line:
+`scripts\StartInterface52.ps1`, `scripts\RunScenario.sh`, `scripts\LaunchVrf.ps1` (the
+5.0.2 launcher) and `scripts\Probe52Reflection.ps1` each read the registry themselves -
+User scope, else Machine - set `MAKLMGRD_LICENSE_FILE` on their OWN process so children
+inherit it, and print one line:
 
     [OK]   licence file: C:\MAK\MAKLicenseManager\SALES-TEMP-10-31-26-...lic (expires 31-oct-2026)
 
@@ -931,8 +993,18 @@ the file. A path that resolves to a file that does not exist WARNS loudly and st
 `LaunchVrf52.ps1` additionally REFUSES to launch when that date is in the past (exit 2,
 before any process, log or app number is spent) and takes `-LicenseFile <path>` to override
 the resolution - for an install whose licence is not in the registry, and to exercise that
-gate without touching the machine's environment. The four copies of the resolver are
-deliberate (no module is shared by all four scripts): CHANGE ONE, CHANGE ALL FOUR.
+gate without touching the machine's environment. The SIX copies of the resolver are
+deliberate (no module is shared by all six scripts): CHANGE ONE, CHANGE ALL SIX.
+
+THE RESIDUAL IS CLOSED (2026-09-14). Two scripts still read the MACHINE scope alone, and
+`LaunchVrf.ps1` did worse than read it - on its live path it ASSIGNED
+`$env:MAKLMGRD_LICENSE_FILE` from Machine, OVERWRITING the per-process pin the runner had
+just set, so a 5.0.2 run resolved the renewed licence and then had the lapsed one put back
+underneath it. `scripts\LaunchVrf.ps1` (`$licResolved`/`$licScope`, used by the
+precondition report, the dry-run plan and the live assignment) and
+`scripts\Probe52Reflection.ps1` now resolve User-then-Machine like the rest, PRESERVE an
+inherited value rather than replacing it with a path that resolves to nothing, and say
+which scope they used. `LaunchVrf.ps1` additionally WARNS when the two scopes disagree.
 
 ALIGN THE MACHINE SCOPE ONCE - the real fix, one elevated command:
 

@@ -45,7 +45,7 @@ ORDER='data/COA-STP1_Order.xml'
 CLIENT_ID='C2SIM'
 TYPEMAP=''
 RUN_SECS=900
-WATCH_SECS=1200
+WATCH_SECS=0          # 0 = DERIVE (the runner's own formula; see EFF_WATCH below)
 BACKEND_NOTIFY=3
 OBJ_CONSOLE=4
 MEMBER_CONSOLE=4
@@ -73,7 +73,7 @@ usage: scripts/RunScenario.sh [options] [-- <extra runner arguments>]
   --client-id ID            must equal the init's SystemName  (default C2SIM)
   --type-map PATH           Vrf__TypeMapFile (WINDOWS path)   (default: the repo map)
   --run-secs N              observation window cap            (default 900)
-  --watch-secs N            observer duration cap             (default 1200)
+  --watch-secs N            observer duration cap; 0 = DERIVE (default 0)
   --backend-notify N        sim-wide --notifyLevel 0..4       (default 3)
   --object-console N        Vrf__ObjectConsoleNotifyLevel     (default 4)
   --member-console N        Vrf__ObjectConsoleMemberNotifyLevel (default 4)
@@ -201,6 +201,34 @@ export Vrf__ObjectConsoleMemberNotifyLevel="$MEMBER_CONSOLE"
 export Vrf__PositionReportSeconds="$POS_REPORT"
 for kv in "${EXTRA_ENV[@]}"; do export "$kv"; done
 
+# ---- the observer duration, DERIVED HERE TOO --------------------------------
+# --watch-secs 0 means "let the runner derive it", which the runner has always done
+# (RunC2SimScenario.ps1: $EffWatchSecs = if ($WatchSecs -gt 0) { $WatchSecs } else
+# { $DerivedWatchSecs }). It is now this script's DEFAULT: every explicit value passed on
+# 2026-09-14 was BELOW the derived cap and earned the runner's truncation WARN
+# (run 20260914T170824Z: 900 < 1100), which is exactly the failure the derivation exists
+# to prevent. The same sum is computed here for two reasons only - to PRINT it in the
+# banner, and to size the thread sampler below. It never reaches the runner: the runner
+# derives its own, from its own parameter defaults.
+#
+# RunnerLib Get-DerivedWatchSecs = preRoll 20 + appJoin 180 + initDispatch 120
+#                                + oracleGate 180 + pushOrderListen 30 + run + trail 30
+# plus the stage-7d hold, which the runner adds separately. CHANGE ONE, CHANGE BOTH: if a
+# runner budget default moves, this sum is stale and only the banner is wrong (the runner
+# still uses its own), but the sampler would then be sized off a stale number.
+WATCH_FIXED=560
+DERIVED_WATCH=$((WATCH_FIXED + RUN_SECS + PRE_ORDER_SETTLE))
+if [ "$WATCH_SECS" -gt 0 ]; then
+    EFF_WATCH="$WATCH_SECS"
+    WATCH_NOTE="EXPLICIT $WATCH_SECS (derived would be $DERIVED_WATCH)"
+    if [ "$WATCH_SECS" -lt "$DERIVED_WATCH" ]; then
+        WATCH_NOTE="$WATCH_NOTE  *** BELOW the derived cap - the observers can end BEFORE the window does; pass --watch-secs 0 ***"
+    fi
+else
+    EFF_WATCH="$DERIVED_WATCH"
+    WATCH_NOTE="DERIVED $DERIVED_WATCH (20+180+120+180+30+run $RUN_SECS+30+settle $PRE_ORDER_SETTLE)"
+fi
+
 # ---- the runner's command line ----------------------------------------------
 ARGS=(-NoProfile -ExecutionPolicy Bypass -File scripts/RunC2SimScenario.ps1)
 ARGS+=(-VrfProfile "$PROFILE")
@@ -228,7 +256,8 @@ echo "  licence file: ${LIC:-(none)} (expires $LIC_EXPIRY)"
 echo "  profile     : $PROFILE   scenario: $SCENARIO   gui: $([ "$NOGUI" -eq 1 ] && echo off || echo on)"
 echo "  init/order  : $INIT | $ORDER   clientId: $CLIENT_ID"
 echo "  type map    : ${TYPEMAP:-(repo default)}"
-echo "  windows     : RunSecs=$RUN_SECS WatchSecs=$WATCH_SECS backendNotify=$BACKEND_NOTIFY"
+echo "  windows     : RunSecs=$RUN_SECS backendNotify=$BACKEND_NOTIFY"
+echo "  observers   : $WATCH_NOTE"
 echo "  pre-order   : PreOrderSettleSecs=$PRE_ORDER_SETTLE  (stage 7d hold before PushOrder; 0 = off)"
 [ -n "$VRF_APPDATA_DIR" ] && echo "  appData     : $VRF_APPDATA_DIR  (-VrfAppDataDir -> LaunchVrf52 --appDataDir on sim + gui)"
 echo "  consoles    : object=$OBJ_CONSOLE member=$MEMBER_CONSOLE positionReport=${POS_REPORT}s"
@@ -245,11 +274,30 @@ echo
 if [ "$SAMPLE_THREADS" -eq 1 ]; then
     SAMPLER_LOG="runs/launch52/RunScenario-$STAMP.sampler.log"
     SAMPLER_CSV="$(cygpath -w "$REPO/runs/launch52/RunScenario-$STAMP.threads.csv" 2>/dev/null || echo "runs/launch52/RunScenario-$STAMP.threads.csv")"
-    ( for i in $(seq 1 120); do tasklist | grep -qi vrfSimHLA1516e && break; sleep 5; done
-      "$PWSH64" -NoProfile -ExecutionPolicy Bypass -File scripts/SampleThreads.ps1 \
-          -ProcessName vrfSimHLA1516e -MaxSec $((WATCH_SECS + 100)) -IntervalSec 5 \
-          -OutFile "$SAMPLER_CSV" ) > "$SAMPLER_LOG" 2>&1 < /dev/null &
-    echo "  thread sampler started (log: $SAMPLER_LOG)"
+    # -MaxSec IS SIZED FROM THE DERIVED WINDOW, NOT FROM $WATCH_SECS. It used to be
+    # $((WATCH_SECS + 100)); with the new default of 0 that is 100 SECONDS and the sampler
+    # would die before the order is even pushed - which is what happened to run
+    # 20260914T164906Z under an explicit 0 (RUNNER_HARDENING sec 14, defect 2).
+    # SampleThreads starts its clock when the SIM APPEARS - before the observers start and
+    # long before the order - and it exits on its own when the sim exits, so the budget is
+    # the whole run from that moment plus every teardown budget, and being generous costs
+    # nothing:
+    #   EFF_WATCH                      the observers' own cap (derived above)
+    #   + 75   launchSettle 45 + preCheck 30   spent BEFORE the observers start
+    #   + 360  traceStopGrace 120 + appExit 120 + stopVrf 120   teardown, after the window
+    #   + 100  margin (the historical constant)
+    SAMPLER_MAX=$((EFF_WATCH + 75 + 360 + 100))
+    if [ "$DRYRUN" -eq 1 ]; then
+        # A dry run launches no sim, so the sampler would spend ten minutes looking for one -
+        # and, worse, would ATTACH TO A SIM ANOTHER LANE IS RUNNING. Say what it would do.
+        echo "  thread sampler: WOULD start SampleThreads.ps1 -ProcessName vrfSimHLA1516e -MaxSec ${SAMPLER_MAX}s -IntervalSec 5 (not started: --dry-run)"
+    else
+        ( for i in $(seq 1 120); do tasklist | grep -qi vrfSimHLA1516e && break; sleep 5; done
+          "$PWSH64" -NoProfile -ExecutionPolicy Bypass -File scripts/SampleThreads.ps1 \
+              -ProcessName vrfSimHLA1516e -MaxSec "$SAMPLER_MAX" -IntervalSec 5 \
+              -OutFile "$SAMPLER_CSV" ) > "$SAMPLER_LOG" 2>&1 < /dev/null &
+        echo "  thread sampler started, -MaxSec ${SAMPLER_MAX}s (log: $SAMPLER_LOG)"
+    fi
 fi
 
 # ---- THE RUN -----------------------------------------------------------------

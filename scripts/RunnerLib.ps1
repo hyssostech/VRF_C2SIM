@@ -363,21 +363,195 @@ function Resolve-MarkingKey {
     return $Name
 }
 
+# ---- condition (4) SOURCES, 2026-09-14 ---------------------------------------
+# THE DEFECT THIS FIXES. Until today condition (4) accepted ONE kind of evidence: an
+# RPT record. An RPT row is a VR-FORCES RADIO TEXT REPORT (tools/WatchVrf/ConFormat.cs
+# :83-96) - the Lua tracker's "POSITION <marking> <lat> <lon>" broadcast. Nothing in
+# this interface asks for one and the scenarios in the record do not run that tracker,
+# so RPT=0 in EVERY trace of 2026-09-14 (8 runs) and -StopWhenComplete has NEVER fired:
+# every run burned its whole -RunSecs cap while its taskees sat still. The report
+# channel the interface DOES drive is the C2SIM PositionReport (R1,
+# Vrf:PositionReportSeconds; VrfC2SimService.MaybeSendPositionReports) - 147 position
+# ticks for the single taskee of run 20260914T154243Z against 0 RPT rows - and it is
+# also the channel the adjudication reads. Condition (4) now accepts it.
+# docs/experiments/RUNNER_HARDENING_2026-09-14.md sec 14.
+
+# One pass over ListenReports' reports-captured.log.
+#   pos   : C2SIM uuid -> the LAST PositionReport capture time (UTC [datetime])
+#   posN  : C2SIM uuid -> how many PositionReports the capture holds for it
+#   cmplt : C2SIM uuid -> the FIRST TASKCMPLT TaskStatus capture time (UTC [datetime])
+#
+# FORMAT (tools/ListenReports/Program.cs; runs/20260914T154243Z_run/reports-captured.log):
+# records separated by a blank line, each headed
+#     [HH:mm:ss.fff] REPORT #<n> (<len> chars)
+# and followed by the wire-format <ReportBody>. The header stamp is DateTime.UtcNow at
+# the moment the report arrived - UTC, and WITH NO DATE, which is the only reason
+# -RunStartUtc is needed. A position record carries <PositionReportContent> with the
+# subject in <SubjectEntity>; a completion record carries
+# <TaskStatusCode>TASKCMPLT</TaskStatusCode> with the taskee in <ReportingEntity>. Both
+# therefore sit on ONE wall clock, so "a position fix later than this taskee's own
+# completion" is answerable without leaving the file. Unparseable lines are skipped.
+function Get-ReportCaptureEvidence {
+    param(
+        [AllowNull()][AllowEmptyString()][string]$CaptureText,
+        [Parameter(Mandatory)][datetime]$RunStartUtc
+    )
+    $ev = @{ pos = @{}; posN = @{}; cmplt = @{} }
+    if ([string]::IsNullOrWhiteSpace($CaptureText)) { return $ev }
+    $rxHead = [regex]'^\[(?<h>\d{2}):(?<mi>\d{2}):(?<s>\d{2})\.(?<f>\d{3})\] REPORT #\d+'
+    $rxSubj = [regex]'<SubjectEntity>\s*(?<u>[0-9a-fA-F-]{36})\s*</SubjectEntity>'
+    $rxFrom = [regex]'<ReportingEntity>\s*(?<u>[0-9a-fA-F-]{36})\s*</ReportingEntity>'
+    $start  = $RunStartUtc.ToUniversalTime()
+    $day    = $start.Date
+    $t = $null; $prev = $null; $isPos = $false; $isCmplt = $false
+    foreach ($line in ($CaptureText -split "`r?`n")) {
+        $h = $rxHead.Match($line)
+        if ($h.Success) {
+            $isPos = $false; $isCmplt = $false
+            $cand = $day.AddHours([int]$h.Groups['h'].Value).AddMinutes([int]$h.Groups['mi'].Value).AddSeconds([int]$h.Groups['s'].Value).AddMilliseconds([int]$h.Groups['f'].Value)
+            # The stamp has no date. Roll the day forward ONLY when the clock went
+            # backwards by more than half a day - i.e. a run that crossed midnight UTC.
+            # A plain "earlier than the previous record" test would roll on any
+            # out-of-order millisecond and put the rest of the capture a day ahead.
+            $ref = if ($null -eq $prev) { $start } else { $prev }
+            if ($cand -lt $ref.AddHours(-12)) { $cand = $cand.AddDays(1); $day = $day.AddDays(1) }
+            $t = $cand; $prev = $cand
+            continue
+        }
+        if ($null -eq $t) { continue }
+        if ($line.Contains('<PositionReportContent>')) { $isPos = $true; continue }
+        if ($line.Contains('TASKCMPLT')) { $isCmplt = $true; continue }
+        if ($isPos) {
+            $m = $rxSubj.Match($line)
+            if ($m.Success) {
+                $u = $m.Groups['u'].Value
+                if ((-not $ev.pos.ContainsKey($u)) -or ($t -gt [datetime]$ev.pos[$u])) { $ev.pos[$u] = $t }
+                if ($ev.posN.ContainsKey($u)) { $ev.posN[$u] = [int]$ev.posN[$u] + 1 } else { $ev.posN[$u] = 1 }
+            }
+            continue
+        }
+        if ($isCmplt) {
+            $m = $rxFrom.Match($line)
+            if ($m.Success) {
+                $u = $m.Groups['u'].Value
+                if ((-not $ev.cmplt.ContainsKey($u)) -or ($t -lt [datetime]$ev.cmplt[$u])) { $ev.cmplt[$u] = $t }
+            }
+        }
+    }
+    return $ev
+}
+
+# The LIVE stand-in for the capture above, and the only per-taskee post-completion
+# position evidence a RUNNING runner can see.
+#
+# WHY IT HAS TO EXIST: ListenReports writes reports-captured.log ONCE, AT ITS EXIT
+# (tools/ListenReports/Program.cs, the closing File.WriteAllTextAsync). During the
+# observation window that file does not exist yet, so Get-ReportCaptureEvidence can not
+# answer live - it is the AUTHORITY (the offline harness, the adjudication, and any run
+# whose capture is already on disk), not the live source.
+#
+# WHAT THIS READS: the interface logs ONE summary line per R1 round -
+#     R1 position reports: <sent> sent, <skipped> skipped (no reflected object yet), ...
+# and the app log is a SINGLE TOTALLY ORDERED FILE that also carries
+#     SENT TASK STATUS REPORT (TASKCMPLT) taskee=<uuid> task=<uuid>
+# so "a round appears BELOW this taskee's LAST TASKCMPLT line" is a post-completion
+# position report for that taskee, decided on line order alone - which is what makes it
+# usable at all, because the app log carries NO timestamps.
+#
+# "0 skipped" IS LOAD-BEARING: a round WITH skips does not say WHICH units were sent, so
+# it can not be attributed to this taskee. An unsatisfied taskee runs the window to its
+# -RunSecs cap - the safe direction - so the conservative test is the right one.
+#
+# AND SO IS "sides=both". MaybeSendPositionReports applies the side filter BEFORE the skip
+# counters (VrfC2SimService.cs: `if (hostile ? !red : !blue) continue;` precedes both
+# skipped++ branches), so under Vrf:PositionReportSides = blue a HOSTILE taskee is neither
+# sent nor skipped and the round still reads "N sent, 0 skipped". That would satisfy this
+# test on behalf of a unit that got nothing. Rounds are therefore counted ONLY when the
+# interface says it is reporting BOTH sides - which is its default, and what every run in
+# the record has logged. Under a one-sided filter this satisfier simply never fires and the
+# window runs to its cap, exactly as it did before 2026-09-14.
+# ORDER IS MEASURED IN CHARACTER OFFSETS, not line numbers, and the text is NEVER SPLIT.
+# This runs on the WHOLE app log, which reached 40 MB in 127 s in the G6 run (sec 5): a
+# -split would allocate a String[] of every line on top of the string itself, every time.
+# [regex]::Matches walks the string once and yields .Index, which orders the records just as
+# well. Same reason Get-VrfUuidByName is called on the same single read.
+function Get-AppLogPositionEvidence {
+    param([AllowNull()][AllowEmptyString()][string]$AppLogText)
+    $out = @{}
+    if ([string]::IsNullOrWhiteSpace($AppLogText)) { return $out }
+    $rxTsk = [regex]'SENT TASK STATUS REPORT \(TASKCMPLT\) taskee=(?<taskee>[0-9A-Fa-f-]{36})'
+    # The parenthetical between "skipped" and "sides=" differs between app builds, so it is
+    # matched loosely; "sides=" itself is required, and a line without it is not a round.
+    $rxR1  = [regex]'R1 position reports: (?<sent>\d+) sent, (?<skipped>\d+) skipped[^\r\n]*?sides=(?<sides>[A-Za-z]+)'
+    $lastTsk = @{}
+    foreach ($m in $rxTsk.Matches($AppLogText)) { $lastTsk[$m.Groups['taskee'].Value] = $m.Index }
+    if ($lastTsk.Count -eq 0) { return $out }
+    $lastRound = -1
+    foreach ($m in $rxR1.Matches($AppLogText)) {
+        if (([int]$m.Groups['sent'].Value -gt 0) -and ([int]$m.Groups['skipped'].Value -eq 0) -and
+            ($m.Groups['sides'].Value -eq 'both')) { $lastRound = $m.Index }
+    }
+    foreach ($k in @($lastTsk.Keys)) { $out[$k] = ($lastRound -gt [int]$lastTsk[$k]) }
+    return $out
+}
+
+# The moment the ORDER really reached the C2SIM bus, out of PushOrder's own capture
+# (c2sim-bus.log, first line: "[HH:mm:ss.fff] ORDER (<n> chars)"). UTC, and with no date
+# in the stamp, so the run's start supplies one. $null when there is no such header.
+# Used ONLY to LABEL the runner's t+Ns messages: the observation-window clock starts when
+# PushOrder RETURNS, which is up to -PushOrderListenSec LATER than this moment, and the
+# two were being printed as if they were the same thing.
+function Get-BusOrderUtc {
+    param(
+        [AllowNull()][AllowEmptyString()][string]$BusLogText,
+        [Parameter(Mandatory)][datetime]$RunStartUtc
+    )
+    if ([string]::IsNullOrWhiteSpace($BusLogText)) { return $null }
+    $m = [regex]::Match($BusLogText, '(?m)^\[(?<h>\d{2}):(?<mi>\d{2}):(?<s>\d{2})\.(?<f>\d{3})\]\s+ORDER\b')
+    if (-not $m.Success) { return $null }
+    $start = $RunStartUtc.ToUniversalTime()
+    $t = $start.Date.AddHours([int]$m.Groups['h'].Value).AddMinutes([int]$m.Groups['mi'].Value).AddSeconds([int]$m.Groups['s'].Value).AddMilliseconds([int]$m.Groups['f'].Value)
+    if ($t -lt $start.AddHours(-12)) { $t = $t.AddDays(1) }
+    return $t
+}
+
 # Condition (4). Returns AllSatisfied plus one record per taskee explaining why.
+#
+# THREE INDEPENDENT SATISFIERS, tried in this order; the FIRST that holds wins and names
+# itself in the record's 'via'. Each one on its own is the post-completion position
+# evidence the movement gate needs (HEADLESS_RUN_PLAN 4a) - demanding more than one is
+# how this condition became unfireable (see the block above).
+#   'RPT'            a post-completion VR-Forces text report agreeing with the sampled
+#                    POS within -ToleranceMeters. The 2026-09-02 rule, UNCHANGED and
+#                    still the strongest of the three - when it exists at all.
+#   'C2SIM-capture'  a C2SIM PositionReport for the taskee's OWN uuid, captured later
+#                    than that taskee's TASKCMPLT (-CaptureEvidence). The AUTHORITY.
+#   'R1-applog'      a complete R1 position-report round (>=1 sent, 0 skipped) logged
+#                    AFTER this taskee's TASKCMPLT line (-AppLogPositionEvidence). The
+#                    LIVE stand-in, because the capture is written only at exit.
+# All three new arguments are OPTIONAL: omitted, this function behaves exactly as it did
+# before 2026-09-14, which is what tests\RunnerTurnaround.Tests.ps1 check 4b pins down.
 function Test-ReportEvidence {
     param(
         [Parameter(Mandatory)][AllowEmptyCollection()][string[]]$Taskees,
         [Parameter(Mandatory)]$TaskeeNames,      # taskee uuid -> marking (Get-InitUnitNames)
         [Parameter(Mandatory)]$NameToVrfUuid,    # marking -> VRF_UUID (Get-VrfUuidByName)
         [Parameter(Mandatory)][AllowNull()][AllowEmptyString()][string]$TraceText,
-        [Parameter(Mandatory)][double]$ToleranceMeters
+        [Parameter(Mandatory)][double]$ToleranceMeters,
+        [AllowNull()]$CaptureEvidence = $null,        # Get-ReportCaptureEvidence output
+        [AllowNull()]$AppLogPositionEvidence = $null, # Get-AppLogPositionEvidence output
+        [AllowNull()]$CompletionUtcByTaskee = $null   # taskee uuid -> UTC of the poll that
+                                                      # first saw its TASKCMPLT; the anchor
+                                                      # of last resort for 'C2SIM-capture'
     )
     $ev = Get-TraceEvidence -TraceText $TraceText
     $per = [ordered]@{}
     $all = ($Taskees.Count -gt 0)
     foreach ($u in $Taskees) {
         $rec = [ordered]@{ name = $null; vrfUuid = $null; completionT = $null; lastRptT = $null
-                           posT = $null; distanceM = $null; satisfied = $false; reason = $null }
+                           posT = $null; distanceM = $null; capCompletionUtc = $null
+                           capPosUtc = $null; capPosCount = 0; via = $null
+                           satisfied = $false; reason = $null }
         $name = if ($TaskeeNames.Contains($u)) { [string]$TaskeeNames[$u] } else { $null }
         # The trace and the app log are keyed by VR-Forces MARKING: the init <Name> PLUS an
         # optional '~<tag>' the app appends to a proxy-substituted unit (VrfSettings
@@ -401,9 +575,37 @@ function Test-ReportEvidence {
             else {
                 $r = $ev.rpt[$name]; $p = $ev.pos[$vrf]
                 $rec.distanceM = [Math]::Round((Get-DistanceMeters -Lat1 $r.Lat -Lon1 $r.Lon -Lat2 $p.Lat -Lon2 $p.Lon), 2)
-                if ($rec.distanceM -le $ToleranceMeters) { $rec.satisfied = $true; $rec.reason = 'post-completion RPT agrees with POS' }
+                if ($rec.distanceM -le $ToleranceMeters) { $rec.satisfied = $true; $rec.via = 'RPT'; $rec.reason = 'post-completion RPT agrees with POS' }
                 else { $rec.reason = ('post-completion RPT is {0} m from the latest POS (tolerance {1} m)' -f $rec.distanceM, $ToleranceMeters) }
             }
+        }
+        # 'C2SIM-capture'. The anchor is the capture's OWN TASKCMPLT TaskStatus record when
+        # it holds one - same file, same clock, exact - and otherwise the runner's poll
+        # stamp, which is late by at most one poll and therefore only ever DELAYS the close.
+        if ((-not $rec.satisfied) -and $null -ne $CaptureEvidence) {
+            $anchor = $null; $anchorSrc = ''
+            if ($CaptureEvidence.cmplt.ContainsKey($u)) {
+                $anchor = [datetime]$CaptureEvidence.cmplt[$u]; $anchorSrc = 'the capture own TASKCMPLT'
+            } elseif ($null -ne $CompletionUtcByTaskee -and $CompletionUtcByTaskee.Contains($u)) {
+                $anchor = ([datetime]$CompletionUtcByTaskee[$u]); $anchorSrc = 'the runner poll that first saw TASKCMPLT'
+            }
+            if ($null -ne $anchor) {
+                $rec.capCompletionUtc = $anchor.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+                if ($CaptureEvidence.pos.ContainsKey($u)) {
+                    $lastPos = [datetime]$CaptureEvidence.pos[$u]
+                    $rec.capPosUtc = $lastPos.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+                    if ($CaptureEvidence.posN.ContainsKey($u)) { $rec.capPosCount = [int]$CaptureEvidence.posN[$u] }
+                    if ($lastPos -gt $anchor) {
+                        $rec.satisfied = $true; $rec.via = 'C2SIM-capture'
+                        $rec.reason = ('C2SIM PositionReport at {0} is later than {1} at {2} ({3} fixes captured)' -f $rec.capPosUtc, $anchorSrc, $rec.capCompletionUtc, $rec.capPosCount)
+                    }
+                }
+            }
+        }
+        # 'R1-applog'. Line order inside the app log, nothing else - that log has no clock.
+        if ((-not $rec.satisfied) -and $null -ne $AppLogPositionEvidence -and $AppLogPositionEvidence.ContainsKey($u) -and [bool]$AppLogPositionEvidence[$u]) {
+            $rec.satisfied = $true; $rec.via = 'R1-applog'
+            $rec.reason = 'the interface logged a COMPLETE R1 position-report round (0 skipped) after this taskee TASKCMPLT line'
         }
         if (-not $rec.satisfied) { $all = $false }
         $per[$u] = [pscustomobject]$rec

@@ -10,8 +10,9 @@
 #
 # Env for EVERY child = the 5.2 assistant-free profile (RunC2SimScenario.ps1 -VrfProfile
 # 5.2 / LaunchVrf52.ps1): PATH prefix, MAK_VRFDIR/MAK_VRLDIR/MAK_RTIDIR, RTI_RID_FILE =
-# config\rid-461-ridconfigured.mtl, RTI_ASSISTANT_DISABLE, MAKLMGRD_LICENSE_FILE from
-# Machine scope, cwd = C:\MAK\vrforces5.2d\bin64. Exit 0 = every step ran and was
+# config\rid-461-ridconfigured.mtl, RTI_ASSISTANT_DISABLE, MAKLMGRD_LICENSE_FILE
+# resolved User-scope-first then Machine (RUNBOOK 0.5.15), cwd = C:\MAK\vrforces5.2d\bin64.
+# Exit 0 = every step ran and was
 # captured (NOT "passed"); 2 = usage/precondition; 1 = a step failed to run.
 param(
     [int]    $BackendAppNumber = 0,
@@ -61,7 +62,15 @@ $env:PATH = 'C:\MAK\vrforces5.2d\bin64;C:\MAK\vrlink5.10\bin64;C:\MAK\makRti4.6.
 $env:MAK_VRFDIR = 'C:\MAK\vrforces5.2d'; $env:MAK_VRLDIR = 'C:\MAK\vrlink5.10'; $env:MAK_RTIDIR = 'C:\MAK\makRti4.6.1'
 $env:RTI_RID_FILE = $rid
 $env:RTI_ASSISTANT_DISABLE = '1'
-$lic = [Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','Machine'); if ($lic) { $env:MAKLMGRD_LICENSE_FILE = $lic }
+# Licence: USER scope first, then Machine - the rule scripts\LaunchVrf52.ps1
+# (Resolve-MakLicenseFile, c8730e7), scripts\LaunchVrf.ps1 and scripts\RunScenario.sh all
+# carry. CHANGE ONE, CHANGE ALL. Machine alone named the lapsed 15-sep-2026 file after the
+# 2026-09-14 renewal, and an inherited working value is PRESERVED rather than replaced by a
+# path that resolves to nothing. RUNBOOK 0.5.15.
+$lic = [Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','User')
+if (-not $lic) { $lic = [Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','Machine') }
+if ($lic -and (Test-Path -LiteralPath $lic -PathType Leaf)) { $env:MAKLMGRD_LICENSE_FILE = $lic }
+elseif ($lic) { Say ('  [WARN] MAKLMGRD_LICENSE_FILE from the registry does not exist: {0} - keeping the inherited value' -f $lic) }
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 
 # Each step: print the command, run it from bin64 with output tee'd to a file named by

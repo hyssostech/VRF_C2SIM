@@ -167,12 +167,25 @@
     and closes the window once (a) EVERY distinct PerformingEntity in the pushed
     order has at least one such line AND the number of such lines is >= the
     number of <Task> elements in the order, AND (b) -SettleHoldSecs have elapsed
-    since the poll that first saw (a). -RunSecs remains the cap. The manifest
-    records oracle.earlyExit (enabled / fired / per-taskee first-seen / closedUtc).
-    The interface log is the LIVE source because reports-captured.log is written
-    by ListenReports only at its exit. Never fires when the order yields zero
-    taskees (WARN), or after the interface has died (the window is run out so
-    the trace covers the death, exactly as before).
+    since the poll that first saw (a), AND (c) every taskee has POST-COMPLETION
+    POSITION EVIDENCE. -RunSecs remains the cap. The manifest records
+    oracle.earlyExit (enabled / fired / per-taskee first-seen / reportEvidence
+    with the 'via' that satisfied it / closedUtc).
+
+    (c) accepts ANY ONE of three sources (RunnerLib Test-ReportEvidence):
+      RPT            a VR-Forces radio TEXT report agreeing with the sampled POS.
+                     The 2026-09-02 rule, kept - but NO run has ever produced an
+                     RPT row (RPT=0 in all 8 traces of 2026-09-14), which is why
+                     this switch had never once fired before today.
+      C2SIM-capture  a C2SIM PositionReport for the taskee's own uuid, captured
+                     after its TASKCMPLT, out of reports-captured.log.
+      R1-applog      a complete R1 position-report round (>=1 sent, 0 skipped)
+                     logged AFTER this taskee's TASKCMPLT line.
+    The interface log is the LIVE source for (a) and for R1-applog, because
+    ListenReports writes reports-captured.log only at its exit; C2SIM-capture is
+    the authority whenever that file is already there. Never fires when the order
+    yields zero taskees (WARN), or after the interface has died (the window is run
+    out so the trace covers the death, exactly as before).
 
 .PARAMETER SettleHoldSecs
     Seconds the ALL-COMPLETE condition must hold before -StopWhenComplete closes
@@ -681,7 +694,18 @@ $FederationArg = if ($Is52) { '' } else { $Federation }
 # but put the federation in a mode VR-Forces does not support (UG52 5.5.1 p190), and every
 # observer under it reflected 0. It is NOT reachable from this profile any more.
 $RidFile        = Join-Path $RepoRoot 'config\rid-501-rtiexec-min.mtl'
-$ConnConfigFile = Join-Path $VrfRoot 'appData\settings\connections\MAK-ONE-2025-Config.xml'
+# The connection config is read out of the appData tree the SIM IS USING. When
+# -VrfAppDataDir relocates that tree (LaunchVrf52 --appDataDir), the vendor copy under
+# $VrfRoot is NOT the one in force, and pointing the interface at it made the app and the
+# sim read two different files - benign only for as long as they stay byte-identical
+# (they are today; run 20260914T164906Z printed the vendor path while the sim ran on
+# C:\C2SIM\vrf-appdata). Follow the relocation instead of assuming the delta stays zero.
+$ConnConfigFile = $(if ($Is52 -and -not [string]::IsNullOrWhiteSpace($VrfAppDataDir)) {
+                        Join-Path $VrfAppDataDir 'settings\connections\MAK-ONE-2025-Config.xml'
+                    } else {
+                        Join-Path $VrfRoot 'appData\settings\connections\MAK-ONE-2025-Config.xml'
+                    })
+$ConnConfigFromAppDataDir = ($Is52 -and -not [string]::IsNullOrWhiteSpace($VrfAppDataDir))
 $TypeMapFile52  = $(if ($TypeMapFile) { $TypeMapFile } else { 'data/unit-type-map-52.json' })
 if ($TypeMapFile -and -not (Test-Path -LiteralPath $TypeMapFile -PathType Leaf)) { $bad += ('-TypeMapFile not found: {0}' -f $TypeMapFile) }
 # The VR-Forces-level interface address for this run (-DeviceAddress; see the param block).
@@ -1116,6 +1140,18 @@ function Complete-Background {
 }
 
 # ---- live-file reading (the trace is being written while we read it) --------
+# The t+Ns in every stage-8b message is measured from the moment PUSHORDER RETURNED, which
+# is up to -PushOrderListenSec AFTER the order actually reached the bus. Both numbers are
+# printed so the two clocks can never be read as one (defect 4 of 2026-09-14). Empty until
+# the bus log has been copied and parsed, and empty for ever if it could not be.
+$script:OrderOnBusUtc = $null
+function Get-OrderClockNote {
+    if ($null -eq $script:OrderOnBusUtc) { return '' }
+    return (', {0}s after the ORDER reached the bus at {1}' -f `
+        [int]((Get-Date).ToUniversalTime() - [datetime]$script:OrderOnBusUtc).TotalSeconds,
+        ([datetime]$script:OrderOnBusUtc).ToString('HH:mm:ss.fffZ'))
+}
+
 function Read-LiveText {
     param([string]$Path)
     if (-not $Path -or -not (Test-Path -LiteralPath $Path)) { return '' }
@@ -1544,6 +1580,10 @@ function Invoke-CreateOneDiagnostic {
 # =============================================================================
 $nowLocal = Get-Date
 $nowUtc   = $nowLocal.ToUniversalTime()
+# The run's start, FROZEN. $nowUtc is re-assigned inside the stage-8b poll loop, so anything
+# that needs "when did this run begin" - the date for the report capture's date-less
+# [HH:mm:ss.fff] stamps, and for c2sim-bus.log's - must read this instead.
+$RunStartUtc = $nowUtc
 $stamp    = $nowUtc.ToString('yyyyMMddTHHmmssZ')
 
 Say-Head ('RunC2SimScenario.ps1 v{0} ({1})' -f $ScriptVersion, $(if ($DryRun) { 'DRY-RUN' } else { 'LIVE' }))
@@ -2319,7 +2359,7 @@ Say ('  observers   : {0}s CAP (derived {8}: preRoll {1} + appJoin {2} + initDis
         $DerivedWatchSecs, $(if ($PreOrderSettleSecs -gt 0) { (' + preOrderSettle {0}' -f $PreOrderSettleSecs) } else { '' }))
 Say ('  trace stop  : {0} - {1}' -f $TraceStopMode, $(if ($TraceStopMode -eq 'stop-file') { ('teardown touches {0} at StopIface + {1}s; observers resign within ~1 s; grace {2}s' -f $PathStopFile, $TrailSecs, $TraceStopGraceSec) } else { 'observers run to the CAP and teardown waits for them (pre-turnaround dead time)' }))
 Say ('  pre-order   : {0}' -f $(if ($PreOrderSettleSecs -gt 0) { ('stage 7d holds {0}s between the oracle gate and PushOrder (the nav area loads LAZILY after placement); it IS in the derived cap, and {1}' -f $PreOrderSettleSecs, $(if ($WatchSecs -gt 0) { 'the EXPLICIT -WatchSecs above overrides that derivation - see the flag' } else { 'the derived cap is the one in force' })) } else { 'no hold (-PreOrderSettleSecs 0)' }))
-Say ('  window      : {0}s{1}' -f $RunSecs, $(if ($StopWhenComplete) { (' CAP; -StopWhenComplete closes it once all {0} taskee(s) / {1} task(s) report TASKCMPLT, {2}s have passed AND every taskee has a post-completion RPT agreeing with its POS' -f $OrderTaskees.Count, $OrderTasks.Count, $SettleHoldSecs) } else { ' fixed (-StopWhenComplete not set)' }))
+Say ('  window      : {0}s{1}' -f $RunSecs, $(if ($StopWhenComplete) { (' CAP; -StopWhenComplete closes it once all {0} taskee(s) / {1} task(s) report TASKCMPLT, {2}s have passed AND every taskee has post-completion position evidence (RPT | C2SIM-capture | R1-applog)' -f $OrderTaskees.Count, $OrderTasks.Count, $SettleHoldSecs) } else { ' fixed (-StopWhenComplete not set)' }))
 Say ('  clientId    : {0}' -f $(if ($ClientId) { ('{0} (-ClientId -> Vrf__ClientId)' -f $ClientId) } else { ('{0} (appsettings.json)' -f $appClientId) }))
 Say ('  HLA PATH    : {0};<inherited>' -f $PathPrefix)
 Say ('  licence     : {0}' -f $(if ($LicInfo.Exists) { ('{0} (expires {1})' -f $LicInfo.Path, $LicInfo.ExpiryText) } else { '(UNRESOLVED - checkout may hang; RUNBOOK 0.5.15)' }))
@@ -2327,7 +2367,7 @@ Say ('  HLA cwd     : {0}' -f $Bin64)
 if ($Is52) {
     Say ('  profile env : {0} (EVERY child: launch, tools, observers, app)' -f (($ProfileEnv.Keys | ForEach-Object { '{0}={1}' -f $_, $ProfileEnv[$_] }) -join '  '))
     Say ('  app config  : Vrf__Federation="" Vrf__FedFileName="" Vrf__ConfigFileIdentity=true (FomModules CLEARED - config modules are ADDITIVE, DIFF row A9)')
-    Say ('                Vrf__ConnectionConfigFile={0}' -f $ConnConfigFile)
+    Say ('                Vrf__ConnectionConfigFile={0}{1}' -f $ConnConfigFile, $(if ($ConnConfigFromAppDataDir) { '  (from the RELOCATED -VrfAppDataDir tree - the one the sim reads)' } else { '  (vendor appData)' }))
     Say ('                Vrf__TypeMapFile={0}' -f $TypeMapFile52)
     Say ('                Vrf__DeviceAddress={0}' -f $(if ($DeviceAddressPassed) { $DeviceAddress52 } else { '(NOT SET - -DeviceAddress is empty; the app keeps VrfFacade''s 127.0.0.1)' }))
     Say ('  RTI         : rtiexec mode on {0}, rid {1}' -f $RtiDir, (Split-Path -Leaf $RidFile))
@@ -3226,7 +3266,12 @@ try {
             $fresh = ($busWrite -ge $orderPushedUtc.AddSeconds(-($PushOrderListenSec + 60)))
             $Manifest.artifacts.busLogSourceWriteUtc = $busWrite.ToString('yyyy-MM-ddTHH:mm:ssZ')
             $Manifest.artifacts.busLogIsFromThisRun  = $fresh
-            if ($fresh) { Say-Ok ('bus log copied: {0}' -f $PathBusLog) }
+            # The moment the ORDER really hit the bus. The observation window's t+Ns clock
+            # starts when PushOrder RETURNS, up to -PushOrderListenSec later than this, and
+            # the two were being printed as if they were one clock (defect 4 of 2026-09-14).
+            $script:OrderOnBusUtc = Get-BusOrderUtc -BusLogText (Read-LiveText -Path $PathBusLog) -RunStartUtc $RunStartUtc
+            if ($null -ne $script:OrderOnBusUtc) { $Manifest.clocks.orderOnBusUtc = ([datetime]$script:OrderOnBusUtc).ToString('yyyy-MM-ddTHH:mm:ss.fffZ') }
+            if ($fresh) { Say-Ok ('bus log copied: {0}{1}' -f $PathBusLog, $(if ($null -ne $script:OrderOnBusUtc) { ('; the ORDER reached the bus at {0}' -f $Manifest.clocks.orderOnBusUtc) } else { '' })) }
             else { Add-Flag 'WARN' ('the copied c2sim-bus.log was last written {0} - it may be from an EARLIER run (PushOrder gives no output-path override).' -f $busWrite) }
         } else {
             Add-Flag 'WARN' 'PushOrder produced no c2sim-bus.log beside its binary.'
@@ -3240,8 +3285,8 @@ try {
     # so a reader can tell "did not fire" from "was not enabled".
     $EarlyExit = [ordered]@{
         enabled        = [bool]$StopWhenComplete
-        source         = 'vrfc2simapp.log: SENT TASK STATUS REPORT (TASKCMPLT) taskee=<uuid> task=<uuid>; watchvrf-trace.csv TSK/RPT/POS records (report evidence)'
-        criterion      = '(1-3) every distinct order taskee has >= 1 TASKCMPLT line AND TASKCMPLT lines >= order task count, held for settleHoldSecs (FLOOR); AND (4) for every taskee the trace holds an RPT POSITION later than its TSK record that is within reportToleranceMeters of its latest POS; runSecs is the cap'
+        source         = 'vrfc2simapp.log: SENT TASK STATUS REPORT (TASKCMPLT) taskee=<uuid> task=<uuid> and the R1 position-report round lines; watchvrf-trace.csv TSK/RPT/POS records; reports-captured.log C2SIM PositionReport / TaskStatus records (written by ListenReports at its exit)'
+        criterion      = '(1-3) every distinct order taskee has >= 1 TASKCMPLT line AND TASKCMPLT lines >= order task count, held for settleHoldSecs (FLOOR); AND (4) every taskee has post-completion position evidence from ANY ONE of: RPT (a trace RPT POSITION later than its TSK and within reportToleranceMeters of its latest POS), C2SIM-capture (a PositionReport for its own uuid captured after its TASKCMPLT), R1-applog (a complete R1 round, 0 skipped, logged after its TASKCMPLT line); runSecs is the cap'
         taskees        = $OrderTaskees
         taskCount      = $OrderTasks.Count
         settleHoldSecs = $SettleHoldSecs
@@ -3259,7 +3304,7 @@ try {
     $Manifest.oracle.earlyExit = $EarlyExit
     if ($DryRun) {
         if ($StopWhenComplete) {
-            Say-Plan ('would poll {0} every 5s for TASKCMPLT lines; would close the window once all {1} taskee(s) / {2} task(s) have reported, {3}s have passed and every taskee has a post-completion RPT within {5} m of its POS; would otherwise sleep out the {4}s cap' -f $PathAppLog, $OrderTaskees.Count, $OrderTasks.Count, $SettleHoldSecs, $RunSecs, $ReportToleranceMeters)
+            Say-Plan ('would poll {0} every 5s for TASKCMPLT lines; would close the window once all {1} taskee(s) / {2} task(s) have reported, {3}s have passed and every taskee has post-completion position evidence - a trace RPT within {5} m of its POS, OR a C2SIM PositionReport for its own uuid captured after its TASKCMPLT, OR a complete R1 round (0 skipped) logged after it; would otherwise sleep out the {4}s cap' -f $PathAppLog, $OrderTaskees.Count, $OrderTasks.Count, $SettleHoldSecs, $RunSecs, $ReportToleranceMeters)
         } else {
             Say-Plan ('would sleep {0}s while WatchVrf and ListenReports keep sampling' -f $RunSecs)
         }
@@ -3325,27 +3370,47 @@ try {
                 $before = $completion.firstSeenUtc.Count
                 $completion = Update-CompletionState -State $completion -Taskees $OrderTaskees -TaskCount $OrderTasks.Count -Completions $done -NowUtc $nowUtc
                 if ($completion.firstSeenUtc.Count -gt $before) {
-                    Say-Info ('  TASKCMPLT seen for {0}/{1} taskee(s), {2} line(s) for order taskees ({4} total) (t+{3}s)' -f $completion.firstSeenUtc.Count, $OrderTaskees.Count, $completion.lineCount, [int]((Get-Date) - $obsStart).TotalSeconds, $completionLinesAll)
+                    Say-Info ('  TASKCMPLT seen for {0}/{1} taskee(s), {2} line(s) for order taskees ({4} total) (t+{3}s after PushOrder returned{5})' -f `
+                        $completion.firstSeenUtc.Count, $OrderTaskees.Count, $completion.lineCount, `
+                        [int]((Get-Date) - $obsStart).TotalSeconds, $completionLinesAll, (Get-OrderClockNote))
                 }
-                # Condition (4): report evidence, from the live trace (TSK/RPT/POS on one
-                # clock). Only evaluated once all taskees have completed - before that the
-                # answer is "not yet" by construction and the parse is wasted work.
+                # Condition (4): post-completion POSITION EVIDENCE, from three sources -
+                # the live trace (RPT vs POS on the trace clock), the app log (a complete
+                # R1 round below this taskee's TASKCMPLT line) and, when it is already on
+                # disk, the C2SIM report capture. ANY ONE satisfies a taskee; RunnerLib
+                # Test-ReportEvidence says which in 'via'. Only evaluated once all taskees
+                # have completed - before that the answer is "not yet" by construction and
+                # the parse is wasted work.
                 if ($null -ne $completion.allCompleteUtc -and ($null -eq $evidence -or (Get-Date) -ge $nextEvidence)) {
                     $nextEvidence = (Get-Date).AddSeconds(30)
-                    $nameToVrf = Get-VrfUuidByName -AppLogText (Read-LiveText -Path $PathAppLog)
+                    # ONE whole-file read of the app log feeds both parsers (they need
+                    # cross-line and cross-poll context a delta reader can not give).
+                    $appWhole  = Read-LiveText -Path $PathAppLog
+                    $nameToVrf = Get-VrfUuidByName -AppLogText $appWhole
+                    $appPosEv  = Get-AppLogPositionEvidence -AppLogText $appWhole
+                    # reports-captured.log is written by ListenReports ONLY at its exit, so it is
+                    # normally ABSENT here and this read returns '' (Read-LiveText tolerates a
+                    # missing file). It is read anyway because when it IS there it is the
+                    # authority - the taskee's own uuid and its completion on ONE wall clock.
+                    $capEv     = Get-ReportCaptureEvidence -CaptureText (Read-LiveText -Path $PathReports) -RunStartUtc $RunStartUtc
                     $evidence  = Test-ReportEvidence -Taskees $OrderTaskees -TaskeeNames $TaskeeNames -NameToVrfUuid $nameToVrf `
-                                     -TraceText (Read-LiveText -Path $PathTrace) -ToleranceMeters $ReportToleranceMeters
+                                     -TraceText (Read-LiveText -Path $PathTrace) -ToleranceMeters $ReportToleranceMeters `
+                                     -CaptureEvidence $capEv -AppLogPositionEvidence $appPosEv `
+                                     -CompletionUtcByTaskee $completion.firstSeenUtc
                     $evidenceOk = [bool]$evidence.AllSatisfied
                     foreach ($k in @($evidence.PerTaskee.Keys)) { $EarlyExit.reportEvidence[$k] = $evidence.PerTaskee[$k] }
                     if ($evidenceOk -and $null -eq $EarlyExit.evidenceSatisfiedUtc) {
                         $EarlyExit.evidenceSatisfiedUtc = $nowUtc.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
-                        Say-Ok ('  report evidence IN for all {0} taskee(s) at t+{1}s: {2}' -f $OrderTaskees.Count, [int]((Get-Date) - $obsStart).TotalSeconds, (@($evidence.PerTaskee.Values | ForEach-Object { '{0} RPT t={1} vs POS {2} m' -f $_.name, $_.lastRptT, $_.distanceM }) -join '; '))
+                        Say-Ok ('  report evidence IN for all {0} taskee(s) at t+{1}s after PushOrder returned{3}: {2}' -f `
+                            $OrderTaskees.Count, [int]((Get-Date) - $obsStart).TotalSeconds, `
+                            (@($evidence.PerTaskee.Values | ForEach-Object { '{0} via {1} ({2})' -f $(if ($_.name) { $_.name } else { '(unnamed)' }), $_.via, $_.reason }) -join '; '), `
+                            (Get-OrderClockNote))
                     }
                 }
                 $verdict = Test-EarlyExit -State $completion -Taskees $OrderTaskees -SettleHoldSecs $SettleHoldSecs -NowUtc $nowUtc -ReportEvidence $evidenceOk
                 if ($verdict.AllComplete -and $null -eq $EarlyExit.allCompleteUtc) {
                     $EarlyExit.allCompleteUtc = ([datetime]$completion.allCompleteUtc).ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
-                    Say-Ok ('  ALL taskees reported TASKCMPLT at t+{0}s; holding >= {1}s AND waiting for post-completion reports before closing the window' -f [int]((Get-Date) - $obsStart).TotalSeconds, $SettleHoldSecs)
+                    Say-Ok ('  ALL taskees reported TASKCMPLT at t+{0}s after PushOrder returned{2}; holding >= {1}s AND waiting for post-completion position evidence before closing the window' -f [int]((Get-Date) - $obsStart).TotalSeconds, $SettleHoldSecs, (Get-OrderClockNote))
                 }
                 if ($verdict.HoldElapsed -and -not $verdict.EvidenceIn -and (Get-Date) -ge $nextEvidenceNote) {
                     # Report once per 30 s why the window is still open past the floor.
@@ -3355,7 +3420,7 @@ try {
                 }
                 if ($verdict.ShouldClose) {
                     $EarlyExit.fired = $true
-                    Say-Ok ('  settle hold of {0}s elapsed ({1}s) and report evidence in - closing the observation window EARLY at t+{2}s of the {3}s cap' -f $SettleHoldSecs, $verdict.HoldElapsedSecs, [int]((Get-Date) - $obsStart).TotalSeconds, $RunSecs)
+                    Say-Ok ('  settle hold of {0}s elapsed ({1}s) and position evidence in - closing the observation window EARLY at t+{2}s after PushOrder returned{4}, of the {3}s cap' -f $SettleHoldSecs, $verdict.HoldElapsedSecs, [int]((Get-Date) - $obsStart).TotalSeconds, $RunSecs, (Get-OrderClockNote))
                     break
                 }
             }
