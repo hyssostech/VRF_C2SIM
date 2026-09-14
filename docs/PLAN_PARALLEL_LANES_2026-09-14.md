@@ -27,9 +27,16 @@ data is connected and 5 km fails; (b) DONE 13:00Z: custom including SMS at C:\C2
 | L4 | Runner robustness | A run can never leave the sim + interface running; status line truthful on a 1 GB trace; 64-bit host enforced; no inherited stdout pipe. | DONE 12:30Z (f6e68d9): 64-bit gate, launched/teardown markers + wrapper backstop, block-scan status line, incremental log read, RUNBOOK 0.5.14. A2 detached watchdog deferred; killer unidentified. | First live use = G7 (scripts/RunScenario.sh). | STANDARD | none |
 | L5 | Records | This plan; the entry HANDOFF doc; DEMO_READINESS rows 19-22; memory. | Current. | Update the same turn a lane settles. | - | none |
 | L6 | User-owned | Licence renewal (row 12, lapses 2026-09-15); DI-Guy data package (row 17, any lifeform run); TASKABRT code; C:\MAK sanctions above. | 12:40Z user "Ok on 2-3": TASKABRT DECIDED as the stalled-unit code; SMS placement under C:\MAK and --appDataDir relocation SANCTIONED if needed. Licence + DI-Guy still open. | - | RULE | yes |
+| L8 | Task vocabulary (user goal beyond MOVE) | Every STP verb -> vendor task -> completion evidence; build list. | Assessment RUNNING 12:50Z (docs-first: UG52 task chapters, vrftasks/*.h, Lua task scripts, the remote-control sample). | Proposal -> user ruling on the mapping -> builds. | PLAN | mapping rulings |
+| L9 | STP-side parse check (B10 part 1) | Our three report bodies through STP's own parser (SDK 1.3.1 strict; STP-615). | RUNNING 12:50Z (offline console test). | Feeds B1/B4/B7/B9 and the five questions. | - | none |
+| L10 | Records refresh | HANDOFF_2026-09-14_PARALLEL_LANES.md (cold-start entry, CLOSED tripwires) + DEMO_RUNBOOK.md (row 13, for the operator). | RUNNING 12:50Z. | Review -> commit. | - | none |
+| L11 | Second read of 4-27 on G3 + offset-line pre-flight scoring | Reproducibility of the crawl-past; whether formation-band scoring keeps the calibration (row 20 false-alarm candidate). | RUNNING 12:50Z. | Tool change if warranted. | - | none |
+| L12 | A2 detached run watchdog (STP-794) | Teardown even when the wrapper dies. | RUNNING 12:50Z (scripts only). | Live use on the next non-timed run. | STANDARD | none |
 | L7 | DEMO-READY residue | Rows 13 (runbook), 15 (operator observability), 18 (slot validator). | Open. | After L2's list - 13 and 15 overlap with reporting delivery. | STANDARD | none |
 
 ## 1b. Jira (created 2026-09-14 ~12:00Z, project STP; tracker STP-621 carries the status comment)
+STP-795 bug: a blank line in a pushed message kills the SDK STOMP pump (G7 attempt 1). G7 attempts 1-2 void (STP-790 comment);
+attempt 3 = tank platoon performer. Task-vocabulary epic created 12:55Z (see Jira).
 STP-777 epic C2SIM reporting: STP-778 B5 false deserialize error, STP-779 B3 platform-unit name truncation, STP-780 B1
 TaskStatus codes, STP-781 B2 push loss, STP-782 B8 re-announce, STP-783 B6 watchdog landing, STP-784 B7 heading+speed,
 STP-785 B4 pre-flight port, STP-786 B9 bundle run, STP-787 B10 STP questions (+ STP-615 strict-parse check).
