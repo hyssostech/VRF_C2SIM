@@ -154,7 +154,7 @@ C16 PROGRESS WATCHDOG (REPORT-ONLY) - user approval 2026-09-13 ("2 as recommende
     :1350-1353 and MAX_REPLANS=3 :47, which count blockage replans), and the shipped
     examples/decideToGiveUpTask hands the test to the integrator as a SIM-SIDE PLUGIN we cannot
     install from an HLA client (FINDING_EARLY_STOPS_2026-09-13 sec 6a). So the interface detects
-    it. POLICY (StallPolicy.cs, pure, --stall-selftest 62/62): the unit is STALLED when EVERY
+    it. POLICY (StallPolicy.cs, pure, --stall-selftest 66/66): the unit is STALLED when EVERY
     member with a readable position has net displacement < StallMoveMeters over the last
     StallWindowSeconds and at least StallMinMembersWithData members were readable. Net, not path
     length (the 1-35 signature is a ~2 m limit cycle held for 480 s). A moving LEADER with still
@@ -207,7 +207,9 @@ C16 PROGRESS WATCHDOG (REPORT-ONLY) - user approval 2026-09-13 ("2 as recommende
     exactly "sim" or "wall", trimmed and case-insensitive, logs one line and runs on WALL. Row 19's
     original "N = 120 SIM-seconds, must fire by sim ~500" is a criterion only under
     StallClock=sim; at the shipped default the row reads in wall seconds.
-    COLD-START REVIEW OF THE SIM-CLOCK COMMIT (1616614 -> feat/sim-clock, --stall-selftest 52/52).
+    COLD-START REVIEW OF THE SIM-CLOCK COMMIT (1616614 -> feat/sim-clock, --stall-selftest 52/52
+    [that was the count AT 1805ee3, 2026-09-13; it is 62/62 after the pass-3 fixes and 66/66 after
+    the pass-4 fixes - see the two paragraphs below]).
     The clock choice and every vendor citation held; the RING built around it did not, and four
     defects were fixed in the same branch. (1) and (2) the sliding window pruned only at the
     FRONT, and that rule fires only when the two OLDEST stamps are equal - true only when the
@@ -217,18 +219,26 @@ C16 PROGRESS WATCHDOG (REPORT-ONLY) - user approval 2026-09-13 ("2 as recommende
     dictionary), and a snapshot rollback (DtVrfRemoteController::rollbackToSnapshot) left
     PRE-rollback samples that the re-opened window then compared against POST-rollback positions.
     StallPolicy.Admit now prunes at BOTH ends: a sample that does not advance the clock REPLACES
-    its predecessor, and a backwards step drops every entry from the abandoned timeline and
-    re-arms the watch. (3) the grace anchor had moved from the in-flight record's own
-    DispatchedUtc to the watch's first sample, and on the DEFAULT aggregate move path
-    (MarkDispatched at VrfC2SimService.cs:2146, dest = the route's last vertex) and the R11
+    its predecessor [REFUTED - pass 2 F1 showed that replace MANUFACTURES a TASKABRT on a ring of
+    one entry, and pass 3 reversed it: such a sample is now DISCARDED, and the replace survives
+    ONLY on the rollback branch. This clause describes 1805ee3 and becomes live again only if that
+    fix is rolled back - see the pass-2 paragraph below], and a backwards step drops every entry
+    from the abandoned timeline and re-arms the watch. (3) the grace anchor had moved from the
+    in-flight record's own DispatchedUtc to the watch's first sample, and on the DEFAULT aggregate
+    move path (MarkDispatched at VrfC2SimService.cs:2146, dest = the route's last vertex) and the
+    R11
     plan-move path (:2049) a NEW task is recorded while ClearStallState still waits for the
     route-created callback - so the previous task's ring could produce a TASKABRT stamped with the
     NEW task uuid, unboundedly if that callback never arrives (the silent-freeze mode this
     watchdog exists for). MarkDispatched now drops the unit's stall SAMPLES whenever the new task
     carries a destination (the one-report flag still clears at ClearStallState, the conservative
-    direction), and the old wall grace is restored as an additional AND. (4) with the window on
-    the sim clock and the cadence on wall time, a high ratio let the gate open on TWO position
-    reads over a span 25 % wider than the configured window; the gate now also requires
+    direction), and the old wall grace is restored as an additional AND [NARROWED - pass 2 F8:
+    ANDing that 60 s WALL floor onto the SIM clock let the floor, not the calibrated window, set
+    the detection time above ratio ~6x (at 60x: wall 60 s / sim 3,600 s, ten times the window). It
+    is ANDed on the WALL path ONLY; MinRingDepth covers the two-sample case it guarded].
+    (4) with the window on the sim clock and the cadence on wall time, a high ratio let the gate
+    open on TWO position reads over a span 25 % wider than the configured window; the gate now
+    also requires
     StallPolicy.MinRingDepth (4) samples inside the window and StallMinSecondsSinceDispatch of
     WALL time since dispatch [pass 2 narrowed that floor to the WALL path - see below], and the
     CADENCE FOLLOWS THE CLOCK (StallPolicy.NextCheckSeconds: sample often enough, down to a 1 s
@@ -244,7 +254,8 @@ C16 PROGRESS WATCHDOG (REPORT-ONLY) - user approval 2026-09-13 ("2 as recommende
     misses its status timeout is DEACTIVATED, not removed (vrfBackendListener.h:161-163 against
     :154-155), so backends().count() stays > 0 and the reader would otherwise return its last
     cached value for the rest of the run and be read as a pause.
-    COLD-START REVIEW PASS 2 OF 1805ee3, FIXES IN PASS 3 (same branch, --stall-selftest 62/62).
+    COLD-START REVIEW PASS 2 OF 1805ee3, FIXES IN PASS 3 (same branch, --stall-selftest 62/62 at
+    08146a2; 66/66 after pass 4, below).
     Pass 2's verdict was MERGE WITH FIXES: the WALL path - the shipped default - reproduced
     51d78a5's decision sequence exactly, Decide was byte-identical, and the pass-1 fixes did what
     they claimed; but the SIM path, the point of the branch, carried three defects a preregistered
@@ -295,6 +306,69 @@ C16 PROGRESS WATCHDOG (REPORT-ONLY) - user approval 2026-09-13 ("2 as recommende
     only, and so is F6. THE TWO LIVE UNKNOWNS BELOW ARE UNCHANGED by any of this, and F1's trigger
     is the second of them: if the reader extrapolates, a paused reading is a sawtooth rather than
     the flat line that produced the false TASKABRT.
+    COLD-START REVIEW PASS 3 OF 08146a2, FIXES IN PASS 4 (same branch, --stall-selftest 66/66).
+    Pass 3's verdict was MERGE WITH FIXES: every pass-2 finding is closed or correctly narrowed,
+    the WALL path is still decision-identical to 51d78a5 across TEN synthetic feeds (the seven of
+    pass 2 plus a 300 s reader outage, a 60 m step at the window edge, and exactly 50.0 m per
+    240 s), and Decide is still byte-identical to 51d78a5. Two defects, one of them NEW and made
+    reachable by the pass-3 fixes themselves. P1 (MAJOR, introduced by pass 3): the F2 fix taught
+    Admit to REFUSE a non-finite clock, but the caller's gate stayed `simSeconds >= 0.0`, which is
+    TRUE for +Infinity - so +Inf became clockNow, Admit returned without appending, and either the
+    ring was left EMPTY for `var oldest = ring[0]` to index (IndexOutOfRangeException on the
+    vrf-tick thread, which has no handler and terminates the process) or, on a ring with entries,
+    both window terms went trivially true against +Inf and the gate opened on whatever depth
+    existed - a TASKABRT on the SAME TICK, on 6.9 / 13.8 / 20.7 m at wall 20 / 40 / 60, on the
+    RECAL doc's own tightest true negative. FIXED: UsingSimClock requires double.IsFinite,
+    SelectClock routes through it, and the caller tests ring.Count before indexing. P4: the new
+    dormancy line was armed on ONE CAUSE - the cadence at its 1 s floor with every ring below
+    MinRingDepth - which is the high-ratio cause only. MODE THRASH is the measured miss: a reader
+    out for 3 or more CONSECUTIVE checks flips the clock mode for real, every flip drops every
+    ring and swaps the window, and at 1.5x the cadence never leaves 5 s - 3 consecutive misses in
+    every 10 at 1.5x, frozen unit, 3,000 wall s gave 0 verdicts, 0 judgeable checks, 40 mode lines
+    and NOTHING saying no unit was being watched. FIXED: the line is armed on the OBSERVABLE
+    condition (nothing satisfied JudgeReady for DormancyWindows = 2 whole windows while samples
+    were being taken), measured on the watchdog's own monotone un-judged axis so it survives the
+    thrash it reports; the high-ratio explanation stays as a hint when the cadence is at its floor.
+    Both fixes carry a self-test that FAILS against the logic it replaces (4 FAILED on the revert,
+    ALL CHECKS PASSED restored). Also in pass 4: P7 - the rollback and dormancy lines now carry the
+    suppressed-count suffix the mode line already had, and the operator-facing text quotes the
+    MEASURED 150x-200x boundary rather than the conservative analytic 120x; P8 - the four checks
+    that are invariants or new-API tables rather than discriminators are now labelled
+    (INVARIANT ...) / (NEW API ...), and the honest claim is that each FINDING, not each check,
+    carries a discriminating test; P11 - the 0c pre-flight prints BOTH clocks' numbers when
+    Vrf:StallClock=sim (sim 360 s / cadence C, wall fallback 240 s / cadence C') and says that
+    which pair is in effect is not known until the first check; P2/P3 - the last three code texts
+    and three doc sentences asserting refuted claims were repaired in place.
+    RESIDUALS FROM PASS 3, recorded and NOT fixed. (P5) The one-report guard compares the task
+    uuid, so a re-task with a NEW uuid is watched again - but a re-task carrying the SAME uuid
+    leaves _stallReported matching while MarkDispatched has dropped the samples, and the unit is
+    skipped for the rest of the run with nothing in the log; narrow, because four of the six
+    dispatch sites call ClearStallState in the same block and only :2049 and :2146 defer it to the
+    route-created callback. (P5, inherited from 51d78a5) ClearStallState also clears
+    _stallReported, so if that route-created callback lands MORE THAN ONE WINDOW after
+    MarkDispatched the same task uuid can be reported TWICE, against the "one report per
+    unit-task, ever" promise. (P6) F8's removal of the wall floor on the sim clock is entirely
+    outside the calibrated ratio range (RECAL: P11 1.10x-1.99x, G5 6.21x): the first verdict now
+    lands about window/ratio WALL seconds after a watch opens - 240 s at 1.5x, 60 s at 6.21x, 8 s
+    at 60x, 7 s at 120x - so at high ratios a TASKABRT can rest on four position reads one second
+    apart, with MinRingDepth carrying the whole load against an unrefreshed HLA reflection. The
+    number is now in the 0c line; the behaviour stands. (P7, partly) The dormancy line is still
+    rate-limited at 60 wall s, so a two-hour run stuck at 200x emits ~120 warnings - now each
+    carrying the count it suppressed. (P9) EVERY backwards step is diagnosed as
+    rollbackToSnapshot, so a JITTERING sim reading produces a stream of false rollback lines and
+    can SUPPRESS A TRUE DETECTION: on a reading oscillating about a rising 1.5x trend with a
+    frozen unit over 6,000 wall s, amplitudes 5 s and 200 s never reported the unit (92-100 false
+    rollback warnings) while 30 / 100 / 400 / 1000 s did fire. That amplitude sweep is
+    NON-MONOTONIC and the reviewer could not fully explain it - traced to the phase relationship
+    between the square wave, the 5 s cadence and the front prune, but not characterised; recorded
+    here as an UNEXPLAINED observation, not a footnote. Falsifier: evidence that simTime() is
+    monotone between genuine rollbacks, which is part of the instrumented run below. (P10) The
+    sim-blackout early return happens BEFORE the dead-unit prune, so during a blackout
+    _stallSamples and _stallReported retain entries for units that have completed; bounded by unit
+    count, but the "the buffer must not grow across a whole run" comment does not cover it.
+    STILL UNTESTED at the service level, unchanged: MarkDispatched dropping _stallSamples on a
+    re-task with a destination, and F6 - --stall-selftest cannot reach the service, so both are
+    modelled offline only.
     TWO LIVE UNKNOWNS, both settled by ONE instrumented run (log SimTimeSeconds() every check for
     60 s running and 60 s paused, and compare one reading against a CON row's own sim prefix at the
     same wall instant): (a) whether DtVrfRemoteController::simTime() reports THE SAME CLOCK the

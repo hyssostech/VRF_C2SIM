@@ -75,17 +75,39 @@ public static class StallPolicy
     // ---------------------------------------------------------------------------------------
 
     /// <summary>
-    /// The window's time base, in seconds. The sim clock is used only when it was ASKED FOR
-    /// (Vrf:StallClock = "sim") AND actually READ (>= 0); every other case is wall seconds, so a
-    /// build that cannot see the sim clock behaves exactly as the wall-clock watchdog did.
-    /// A sim reading of exactly 0.0 is a reading (a scenario at t = 0), not a failure.
+    /// The window's time base, in seconds. ONE predicate decides which clock that is -
+    /// UsingSimClock - so the time base, the log line and the caller's tick gate can never
+    /// disagree about the same reading (pass-2 review N1/F2, pass-3 review P1).
     /// </summary>
     public static double SelectClock(bool preferSim, double simSeconds, double wallSeconds)
-        => (preferSim && simSeconds >= 0.0) ? simSeconds : wallSeconds;
+        => UsingSimClock(preferSim, simSeconds) ? simSeconds : wallSeconds;
 
-    /// <summary>True when SelectClock would take the sim reading. Drives the one log line.</summary>
+    /// <summary>
+    /// True when SelectClock would take the sim reading: the sim clock is used only when it was
+    /// ASKED FOR (Vrf:StallClock = "sim") AND actually READ, so a build that cannot see the sim
+    /// clock behaves exactly as the wall-clock watchdog did. A reading of exactly 0.0 IS a
+    /// reading (a scenario at t = 0), not a failure; -1.0 is the reader's "no reading".
+    ///
+    /// AND THE READING MUST BE FINITE (pass-3 review P1). "simSeconds >= 0.0" alone is TRUE for
+    /// +Infinity - the one non-finite value the pass-2 F2 fix left reachable. +Inf passed this
+    /// gate, became clockNow, and then Admit - which pass 2 correctly taught to REFUSE a
+    /// non-finite clock - returned WITHOUT APPENDING. Two outcomes, both bad: on a unit's FIRST
+    /// check that left a zero-length ring for the caller to index (an unhandled
+    /// IndexOutOfRangeException on the vrf-tick thread, which terminates the interface process);
+    /// and on a ring that already had entries, (clockNow - oldest) >= window and
+    /// (clockNow - startClock) >= grace are both trivially true against +Inf, so the gate opened
+    /// on WHATEVER depth happened to exist, however little clock time it spanned - measured on
+    /// the RECAL doc's own tightest true negative, a 0.23 m/s-of-sim crawler at 1.5x: a TASKABRT
+    /// on the SAME TICK at wall 20 / 40 / 60, reporting 6.9 / 13.8 / 20.7 m "in the last 360
+    /// SIM s" over 30-90 sim s of history. Whether DtVrfRemoteController::simTime() can return
+    /// +Infinity is unproven either way and is part of C16's LIVE UNKNOWNS
+    /// (VrfFacade::SimTimeSeconds, VrfFacade.cpp:600-612, manufactures only -1.0 and passes the
+    /// vendor value through unfiltered); the guard costs nothing if it cannot, and is the
+    /// difference between a crashed process and a wall-clock run if it can. NaN and -Infinity
+    /// were already refused (NaN compares false, -Inf fails >= 0.0).
+    /// </summary>
     public static bool UsingSimClock(bool preferSim, double simSeconds)
-        => preferSim && simSeconds >= 0.0;
+        => preferSim && double.IsFinite(simSeconds) && simSeconds >= 0.0;
 
     /// <summary>
     /// THE WINDOW GATE. All five arguments are seconds on the SAME clock (whichever SelectClock
@@ -227,7 +249,10 @@ public static class StallPolicy
     ///     that reached index 1: measured with a NaN on every 7th read at 1.5x, 1,195 entries and
     ///     still climbing, 171 of them NaN, and a measured window of 8,955 sim s against a
     ///     configured 360. The caller guards this too, with the same predicate UsingSimClock uses;
-    ///     this is the belt to that pair of braces.
+    ///     this is the belt to that pair of braces. A REFUSAL RETURNS A RING THE CALLER MAY NOT
+    ///     INDEX: on a unit's FIRST check the ring is still EMPTY afterwards, so the caller must
+    ///     test Count before reading ring[0] (pass-3 review P1 - 08146a2 did not, and the throw
+    ///     terminates the tick thread and with it the interface process).
     ///   ROLLBACK (clockNow is BEFORE the newest stamp - DtVrfRemoteController::rollbackToSnapshot,
     ///     vrfRemoteController.h:605): every entry stamped after clockNow belongs to an abandoned
     ///     timeline. Drop them all and re-anchor the grace (startClock = clockNow): a rollback is
@@ -323,8 +348,10 @@ public static class StallPolicy
     /// <summary>
     /// Vrf:StallClock -> preferSim. EXACTLY "sim" or "wall" (trimmed, case-insensitive); anything
     /// else - "", "Wal", "walltime", "WALL " with a trailing space, "true" - is a CONFIGURATION
-    /// ERROR and resolves to WALL, the calibrated mode (review findings 5 and 7: the 240 s window
-    /// was derived in wall seconds, so a typo must never silently select the un-derived one).
+    /// ERROR and resolves to WALL, the mode measured live so far (review findings 5 and 7, as
+    /// narrowed by pass-2 F7 and pass-3 P2: BOTH windows are calibrated now - this same branch
+    /// derived the 360 sim s default - so the reason a typo must resolve to wall is NOT that the
+    /// sim window is un-derived; it is that only the wall clock has been exercised in a run).
     /// valid=false tells the caller to log one line.
     /// </summary>
     public static bool ParseClockPreference(string configured, out bool valid)
@@ -390,6 +417,48 @@ public static class StallPolicy
         => clockNow > lastSeen ? SimClockStep.Advanced
          : clockNow < lastSeen ? SimClockStep.RolledBack
          : SimClockStep.Flat;
+
+    /// <summary>
+    /// Whole windows of un-judged clock time that must pass, WHILE SAMPLES ARE BEING TAKEN,
+    /// before the watchdog admits it is dormant. One window is the minimum any ring must span
+    /// before a first verdict is even possible, so silence for one window is ordinary start-up;
+    /// a SECOND full window on top of that is silence that has no innocent reading.
+    /// </summary>
+    public const int DormancyWindows = 2;
+
+    /// <summary>
+    /// IS THE WATCHDOG JUDGING ANYTHING AT ALL? (pass-3 review P4.) 1805ee3 said nothing in this
+    /// state; 08146a2 armed a line on ONE CAUSE - "the cadence is already at its 1 s floor and
+    /// the deepest ring is below MinRingDepth" - which is the HIGH-RATIO cause only. It misses
+    /// every other way the watchdog can fall silent, and the measured one is MODE THRASH: a
+    /// reader that is out for ModeSwitchConfirmations or more CONSECUTIVE checks (the
+    /// deactivated-back-end shape this watchdog exists to survive) flips the clock mode for
+    /// real, and every flip DROPS EVERY RING and swaps the window 360 &lt;-&gt; 240. Measured: 3
+    /// consecutive misses in every 10 reads at 1.5x, frozen unit, 3,000 wall s - 0 verdicts, 0
+    /// judgeable checks, 40 mode lines, and not one word that no unit was being watched. The
+    /// cadence never leaves 5 s at 1.5x, so 08146a2's arming condition is never even evaluated
+    /// true. A reader that keeps going out, and units re-tasked faster than one window, are two
+    /// more causes with the same signature.
+    ///
+    /// So the watch is armed on the OBSERVABLE CONDITION instead of on any one cause: NO UNIT HAS
+    /// SATISFIED JudgeReady while samples were being taken. clockNow and lastJudgeableClock are
+    /// on the caller's own MONOTONE UN-JUDGED AXIS - the sum of the per-check advances of
+    /// whichever clock was in effect, accumulated only across checks that actually sampled and
+    /// never across a mode change (the two clocks are not comparable, and the wall clock's epoch
+    /// is astronomically larger than a scenario clock's). That axis is what makes this test
+    /// survive the thrash it is meant to catch, and it is why the caller may not simply subtract
+    /// two readings of the selected clock.
+    ///
+    /// samplingActive is the caller's "at least one unit was sampled on this check": with no move
+    /// task in flight, during a stale-clock hold (which announces itself) or through a sim-clock
+    /// blackout (ditto), dormancy is not a question and the axis does not advance.
+    /// </summary>
+    public static bool DormancyDue(double lastJudgeableClock, double clockNow,
+                                   double windowSeconds, bool samplingActive)
+        => samplingActive
+        && windowSeconds > 0.0
+        && double.IsFinite(lastJudgeableClock) && double.IsFinite(clockNow)
+        && (clockNow - lastJudgeableClock) >= DormancyWindows * windowSeconds;
 }
 
 public static class StallSelfTest
@@ -723,12 +792,15 @@ public static class StallSelfTest
                   && ring.Count >= StallPolicy.MinRingDepth);
         }
 
-        // FINDING 7 - Vrf:StallClock is validated; a typo must not select the un-calibrated mode.
+        // FINDING 7 - Vrf:StallClock is validated; a typo must not select the mode that has never
+        // been exercised in a run (pass-3 review P2: it is not "un-calibrated" - this branch
+        // calibrated it - it is un-MEASURED, which is a different and smaller claim).
         Check("StallClock accepts exactly \"sim\", trimmed and case-insensitive",
               StallPolicy.ParseClockPreference("  SiM ", out bool okSim) && okSim);
         Check("StallClock accepts exactly \"wall\", trimmed and case-insensitive",
               !StallPolicy.ParseClockPreference("WALL ", out bool okWall) && okWall);
-        Check("every other value is a CONFIGURATION ERROR and falls back to WALL, the calibrated mode",
+        Check("every other value is a CONFIGURATION ERROR and falls back to WALL, the mode measured "
+              + "live so far",
               !StallPolicy.ParseClockPreference("walltime", out bool e1) && !e1
               && !StallPolicy.ParseClockPreference("Wal", out bool e2) && !e2
               && !StallPolicy.ParseClockPreference("", out bool e3) && !e3
@@ -853,8 +925,10 @@ public static class StallSelfTest
                   + "(1805ee3: one warning and 84 suspended checks), and the rollback is reported as "
                   + "itself - exactly once",
                   warns == 0 && heldChecks == 0 && rollbacks == 1);
-            Check("... and the three steps are classified as they read, with the first reading against "
-                  + "an unset mark counting as an advance",
+            Check("(NEW API - ClassifyClockStep did not exist at 1805ee3, which inlined a high-water "
+                  + "comparison; this is its truth table, not a discriminator) ... and the three steps "
+                  + "are classified as they read, with the first reading against an unset mark counting "
+                  + "as an advance",
                   StallPolicy.ClassifyClockStep(10.0, 5.0) == StallPolicy.SimClockStep.Advanced
                   && StallPolicy.ClassifyClockStep(5.0, 10.0) == StallPolicy.SimClockStep.RolledBack
                   && StallPolicy.ClassifyClockStep(5.0, 5.0) == StallPolicy.SimClockStep.Flat
@@ -911,8 +985,11 @@ public static class StallSelfTest
                     && StallPolicy.Decide(new[] { Math.Abs(pos - oldest.P) }, 1, 50.0, 1).Stalled)
                     verdicts++;
             }
-            Check("... and a 3,000 wall-second pause after the ring filled still leaves it at its filled "
-                  + "size, with no verdict manufactured during the pause",
+            Check("(INVARIANT - 1805ee3's back-REPLACE also held the ring at its filled size here and "
+                  + "also produced no verdict; this guards the F1 fix against RE-OPENING the hole the "
+                  + "replace closed, it does not discriminate against it) ... a 3,000 wall-second pause "
+                  + "after the ring filled still leaves it at its filled size, with no verdict "
+                  + "manufactured during the pause",
                   filled == 49 && maxRing <= filled + 1 && ring.Count <= filled + 1 && verdicts == 0);
         }
 
@@ -923,8 +1000,11 @@ public static class StallSelfTest
         // window: StallCheckSeconds 120 and 240 both went dormant with nothing in the log, where
         // 51d78a5 fired at 240 s in both cases.
         {
-            Check("the cadence ceiling is window / (MinRingDepth - 1): 80 s on the 240 s wall window, "
-                  + "120 s on the 360 s sim window, and a sane cadence is left alone",
+            Check("(NEW API - neither MaxCheckSeconds nor ClampCheckSeconds existed at 1805ee3, which "
+                  + "held the configured cadence against nothing; this is their table, and the "
+                  + "DISCRIMINATING case is the run below it) the cadence ceiling is window / "
+                  + "(MinRingDepth - 1): 80 s on the 240 s wall window, 120 s on the 360 s sim window, "
+                  + "and a sane cadence is left alone",
                   StallPolicy.ClampCheckSeconds(120, 240.0) == 80
                   && StallPolicy.ClampCheckSeconds(240, 240.0) == 80
                   && StallPolicy.ClampCheckSeconds(200, 360.0) == 120
@@ -972,10 +1052,159 @@ public static class StallSelfTest
                   Math.Abs(cadence - 1.5) < 1e-9 && firstSample == 5
                   && Math.Abs(wallAt - 7.5) < 1e-9 && Math.Abs(simAt - 450.0) < 1e-9
                   && ring.Count >= StallPolicy.MinRingDepth);
-            Check("... while the WALL path keeps that floor exactly as 51d78a5 had it: a frozen unit is "
-                  + "not judged 59 wall s after dispatch, and is 60 s after",
+            Check("(INVARIANT - identical under 1805ee3, which ANDed the floor on BOTH clocks; this is "
+                  + "the guard that F8 narrowed the floor to the sim path only and left the shipped wall "
+                  + "path alone) ... the WALL path keeps that floor exactly as 51d78a5 had it: a frozen "
+                  + "unit is not judged 59 wall s after dispatch, and is 60 s after",
                   !StallPolicy.JudgeReady(300.0, 0.0, 0.0, 240.0, 60.0, 10, 59.0, applyWallFloor: true)
                   && StallPolicy.JudgeReady(300.0, 0.0, 0.0, 240.0, 60.0, 10, 60.0, applyWallFloor: true));
+        }
+
+        // =====================================================================================
+        // PASS-3 COLD-START REVIEW OF 08146a2 (P1, P4). P1 is a defect this branch INTRODUCED: the
+        // F2 fix taught Admit to refuse a non-finite clock, but left the caller's gate at
+        // "simSeconds >= 0.0", which is TRUE for +Infinity. P4 is the dormancy line armed on one
+        // cause instead of on the condition. Both blocks FAIL against the logic they replace.
+        // =====================================================================================
+
+        // P1(a) - THE PREDICATE. +Infinity is not a reading, and SelectClock must route it to wall.
+        Check("+INFINITY IS NOT A CLOCK: UsingSimClock refuses it (08146a2: `simSeconds >= 0.0` is "
+              + "TRUE for +Inf, the one non-finite value that reached Admit), and SelectClock - which "
+              + "now routes through that one predicate - falls back to wall seconds",
+              !StallPolicy.UsingSimClock(true, double.PositiveInfinity)
+              && StallPolicy.SelectClock(true, double.PositiveInfinity, 4242.0) == 4242.0
+              && !StallPolicy.UsingSimClock(true, double.NegativeInfinity)
+              && !StallPolicy.UsingSimClock(true, double.NaN)
+              && StallPolicy.UsingSimClock(true, 0.0)            // t = 0 IS a reading
+              && !StallPolicy.UsingSimClock(true, -1.0)          // the reader's "no reading"
+              && !StallPolicy.UsingSimClock(false, 123.0));
+
+        // P1(b) - THE CRASH POINT. A unit's FIRST check with the reader at +Infinity: 08146a2 let
+        // the value through, Admit refused it (correctly), and the service's very next statement -
+        // `var oldest = ring[0];` - indexed a zero-length list. MaybeCheckStalls is called bare from
+        // TickLoop and Program.cs installs no AppDomain.UnhandledException handler, so that throw
+        // terminates the interface process. Belt: the predicate above. Braces: the caller's
+        // ring.Count guard, modelled here as the service now has it.
+        {
+            var ring = new List<(double Clock, double P)>();
+            double start = double.NaN, wall = 5000.0;
+            bool threw = false, judged = false, ringEmptyAfterAdmit = false;
+            try
+            {
+                double clockNow = StallPolicy.SelectClock(true, double.PositiveInfinity, wall);
+                start = StallPolicy.Admit(ring, clockNow, 1.0, 360.0, start);
+                ringEmptyAfterAdmit = ring.Count == 0;
+                if (ring.Count == 0) _ = ring[0];       // 08146a2's unconditional index - it threw here
+                else
+                {
+                    var oldest = ring[0];
+                    judged = StallPolicy.JudgeReady(clockNow, oldest.Clock, start, 360.0, 60.0,
+                                                    ring.Count, 9999.0, applyWallFloor: false);
+                }
+            }
+            catch (Exception) { threw = true; }
+            Check("+INFINITY ON AN EMPTY RING: the tick does not throw and judges nothing - the sample "
+                  + "is admitted on the WALL clock instead, so the ring is never left empty for the "
+                  + "caller to index (08146a2: IndexOutOfRangeException on the vrf-tick thread, which "
+                  + "takes the process with it)",
+                  !threw && !judged && !ringEmptyAfterAdmit
+                  && ring.Count == 1 && Math.Abs(ring[0].Clock - wall) < 1e-9);
+        }
+
+        // P1(c) - THE FALSE TASKABRT. Same feed as F1 above - the RECAL doc's own tightest true
+        // negative, a unit crawling at 0.23 m/s of SIM time - at 1.5x, with the reader returning
+        // +Infinity at wall 20, 40 and 60. Against +Inf BOTH window terms are trivially true, so
+        // 08146a2 opened the gate on whatever depth existed and reported 6.9 / 13.8 / 20.7 m "in the
+        // last 360 SIM s" on 30-90 sim s of history - a TASKABRT to STP on a healthy unit, on the
+        // same tick, three times.
+        {
+            var ring = new List<(double Clock, double P)>();
+            double start = double.NaN;
+            int verdicts = 0, refusedTicks = 0;
+            for (double wall = 0.0; wall <= 200.0; wall += 5.0)
+            {
+                double sim = 1.5 * wall;                      // the scenario really is running
+                double pos = 0.23 * sim;                      // 0.23 m per SIM second
+                double reading = (wall == 20.0 || wall == 40.0 || wall == 60.0)
+                               ? double.PositiveInfinity : sim;
+                if (!StallPolicy.UsingSimClock(true, reading)) { refusedTicks++; continue; }
+                double clockNow = StallPolicy.SelectClock(true, reading, wall);
+                start = StallPolicy.Admit(ring, clockNow, pos, 360.0, start);
+                if (ring.Count == 0) continue;                // the caller's guard
+                var oldest = ring[0];
+                if (StallPolicy.JudgeReady(clockNow, oldest.Clock, start, 360.0, 60.0, ring.Count,
+                                           wall, applyWallFloor: false)
+                    && StallPolicy.Decide(new[] { Math.Abs(pos - oldest.P) }, 1, 50.0, 1).Stalled)
+                    verdicts++;
+            }
+            Check("+INFINITY, CRAWLING UNIT: a +Inf reading at wall 20/40/60 produces NO verdict - the "
+                  + "tick is simply not taken on the sim clock (08146a2: three TASKABRTs, one per "
+                  + "poisoned tick, on 6.9 / 13.8 / 20.7 m over a NOMINAL 360 sim s window)",
+                  verdicts == 0 && refusedTicks == 3 && ring.Count >= StallPolicy.MinRingDepth);
+        }
+
+        // P4 - MODE THRASH IS DORMANCY TOO, AND IT MUST BE SAID. The reviewer's A8b feed: the sim
+        // reader answers on 7 of every 10 checks and is OUT for the other 3 CONSECUTIVE ones, at
+        // 1.5x, with a FROZEN unit, for 3,000 wall seconds. Every third consecutive miss flips the
+        // clock mode for real; every flip drops every ring and swaps the window; no ring ever spans
+        // a window and nothing is ever judged. 08146a2 armed its dormancy line on the CADENCE FLOOR
+        // (appliedCadence <= 1 s AND deepest ring < MinRingDepth) and at 1.5x the cadence never
+        // leaves 5 s - so that condition is true on ZERO checks here and the operator saw 0 verdicts,
+        // a stream of mode lines, and nothing saying no unit was being watched.
+        {
+            int mode = 0, cand = 0, streak = 0, modeChanges = 0;
+            var ring = new List<(double Clock, double P)>();
+            double start = double.NaN, sim = 0.0, lastCheckClock = double.NaN;
+            double unjudged = 0.0, judgeableAt = 0.0;
+            int dormantChecks = 0, cadenceFloorChecks = 0, verdicts = 0, judgeableChecks = 0;
+            for (int i = 0; i < 600; i++)                      // 600 checks x 5 wall s = 3,000 wall s
+            {
+                double wall = 5000.0 + 5.0 * i;
+                sim += 7.5;                                    // 1.5x throughout - the sim never stops
+                double reading = (i % 10) >= 7 ? -1.0 : sim;   // 3 CONSECUTIVE misses in every 10
+                bool simReadable = StallPolicy.UsingSimClock(true, reading);
+                int held = mode;
+                (mode, cand, streak) = StallPolicy.NextClockMode(mode, cand, streak,
+                                                                simReadable ? 1 : 2,
+                                                                StallPolicy.ModeSwitchConfirmations);
+                if (mode != held)
+                {
+                    if (held != 0) { ring.Clear(); start = double.NaN; lastCheckClock = double.NaN; }
+                    modeChanges++;
+                }
+                bool usingSim = mode == 1;
+                double window = StallPolicy.ResolveWindowSeconds(0, usingSim);
+                if (usingSim && !simReadable) continue;        // the service's sim-blackout return
+                double clockNow = StallPolicy.SelectClock(usingSim, reading, wall);
+                double advance = (!double.IsNaN(lastCheckClock) && clockNow > lastCheckClock)
+                               ? clockNow - lastCheckClock : 0.0;   // never across a mode change
+                lastCheckClock = clockNow;
+                start = StallPolicy.Admit(ring, clockNow, 0.0, window, start);   // the unit is FROZEN
+                if (ring.Count == 0) continue;
+                bool judgeable = StallPolicy.JudgeReady(clockNow, ring[0].Clock, start, window, 60.0,
+                                                        ring.Count, wall - 5000.0,
+                                                        applyWallFloor: !usingSim);
+                if (judgeable)
+                {
+                    judgeableChecks++;
+                    if (StallPolicy.Decide(new[] { 0.0 }, 1, 50.0, 1).Stalled) verdicts++;
+                }
+                unjudged += advance;
+                if (judgeable) judgeableAt = unjudged;
+                else if (StallPolicy.DormancyDue(judgeableAt, unjudged, window, samplingActive: true))
+                    dormantChecks++;
+                // 08146a2's arming condition, evaluated on the same feed, for the record.
+                if (StallPolicy.NextCheckSeconds(5.0, window, 1.5) <= 1.0
+                    && ring.Count < StallPolicy.MinRingDepth) cadenceFloorChecks++;
+            }
+            Check("MODE THRASH GOES DORMANT, AND NOW SAYS SO: a reader out for 3 CONSECUTIVE checks in "
+                  + "every 10 at 1.5x flips the clock mode for real, every flip drops every ring, and a "
+                  + "FROZEN unit is never judged once in 3,000 wall s - the dormancy watch fires on the "
+                  + "OBSERVABLE condition (nothing judgeable for " + StallPolicy.DormancyWindows
+                  + " whole windows while sampling), where 08146a2's cadence-floor arming condition is "
+                  + "true on NO check here and printed nothing",
+                  verdicts == 0 && judgeableChecks == 0 && modeChanges > 1
+                  && dormantChecks > 0 && cadenceFloorChecks == 0);
         }
 
         Console.WriteLine(fails == 0 ? "stall-selftest: ALL CHECKS PASSED" : $"stall-selftest: {fails} FAILED");
