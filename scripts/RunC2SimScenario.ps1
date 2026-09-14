@@ -453,6 +453,25 @@ function Say-Warn { param([string]$m) Write-Host ('  [WARN] ' + $m) }
 function Say-Fail { param([string]$m) Write-Host ('  [FAIL] ' + $m) }
 function Say-Plan { param([string]$m) Write-Host ('  [DRY-RUN] ' + $m) }
 
+# ---- HARD GATE: 64-BIT HOST ONLY (added 2026-09-14) --------------------------
+# Bare "pwsh" on this machine's PATH resolves to C:\Program Files (x86)\PowerShell\7 -
+# the 32-BIT build, ~2 GB of address space - because that PATH entry precedes the
+# 64-bit one. A 32-bit host died of address-space exhaustion inside this runner's
+# observation loop on 2026-09-07 (docs/experiments/PREREG_ASSEMBLY_LAYOUT_2026-09-07.md
+# sec 4, recorded exit 9). The mitigation written down that day was a PROCEDURE -
+# "launch the runner from a 64-bit pwsh" - and a procedure lapses silently: the G6 run
+# of 2026-09-14 ran 32-bit again (docs/experiments/RUNNER_HARDENING_2026-09-14.md).
+# A rule a checker can enforce becomes one. Refused HERE, before any path, marker,
+# ledger entry, run directory or process exists, so exit 2 keeps its documented
+# meaning: "aborted at validation; nothing was launched".
+if (-not [Environment]::Is64BitProcess) {
+    Say-Fail ('this runner is hosted in a 32-BIT PowerShell (PSHOME {0}). Long runs die of address-space exhaustion in the observation loop (2026-09-07: dead at 176 MB).' -f $PSHOME)
+    Say-Fail '  Relaunch with the 64-bit build, BY FULL PATH - bare "pwsh" is the 32-bit one on this machine:'
+    Say-Fail '      "C:\Program Files\PowerShell\7\pwsh.exe" -NoProfile -ExecutionPolicy Bypass -File scripts\RunC2SimScenario.ps1 ...'
+    Say-Fail '  scripts\RunScenario.sh pins that path (and redirects stdout to a file) for you. NOTHING was launched.'
+    exit 2
+}
+
 # ---- pure helpers shared with tests/RunnerTurnaround.Tests.ps1 ---------------
 # Duration cap, order/taskee parse, TASKCMPLT parse, early-exit decision, stop-file
 # timing and the capability-probe parse live in RunnerLib.ps1 so they can be
@@ -989,6 +1008,56 @@ function Read-LiveText {
     }
 }
 
+# ---- incremental reading of a live, growing log (added 2026-09-14) ----------
+# Read-LiveText above reads the WHOLE file. The observation loop called it on the app
+# log every 5 s; by t+127 s of the G6 run that log was ~40 MB, i.e. an ~80 MB UTF-16
+# string plus a ~500,000-element String[] rebuilt six times a minute, and the status
+# cadence had already stretched from 30 s to 46 s
+# (docs/experiments/RUNNER_HARDENING_2026-09-14.md sec 5). Read-LiveDelta returns ONLY
+# the bytes appended since the last call for the same $Key, cut back to the last
+# COMPLETE line so a half-written line is never parsed-and-skipped: the remainder is
+# re-read on the next poll. The offset is per-key script state, so use one key per file.
+$script:LiveOffsets = @{}
+function Read-LiveDelta {
+    # $MaxBytes bounds the peak allocation even after a long stall; the rest of the
+    # backlog is returned by the following calls, in order.
+    param([string]$Path, [string]$Key, [int]$MaxBytes = 16777216)
+    if (-not $Path -or -not $Key) { return '' }
+    if (-not (Test-Path -LiteralPath $Path)) { return '' }
+    if (-not $script:LiveOffsets.ContainsKey($Key)) { $script:LiveOffsets[$Key] = [long]0 }
+    $fs = $null
+    try {
+        $share = [System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete
+        $fs = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, $share)
+        $start = [long]$script:LiveOffsets[$Key]
+        $len   = [long]$fs.Length
+        # A file that SHRANK was rotated or replaced under us. Start over rather than
+        # seek past its end and silently read nothing for the rest of the run.
+        if ($start -gt $len) { $start = [long]0 }
+        if ($len -le $start) { return '' }
+        $want = [int][Math]::Min([long]$MaxBytes, ($len - $start))
+        $null = $fs.Seek($start, [System.IO.SeekOrigin]::Begin)
+        $buf  = New-Object byte[] $want
+        $got  = 0
+        while ($got -lt $want) {
+            $n = $fs.Read($buf, $got, $want - $got)
+            if ($n -le 0) { break }
+            $got += $n
+        }
+        if ($got -le 0) { return '' }
+        # 0x0A cannot occur inside a UTF-8 multi-byte sequence, so cutting on the byte
+        # is safe and never splits a character.
+        $cut = [Array]::LastIndexOf($buf, [byte]10, $got - 1)
+        if ($cut -lt 0) { return '' }   # no complete line yet - offset deliberately unchanged
+        $script:LiveOffsets[$Key] = $start + $cut + 1
+        return [System.Text.Encoding]::UTF8.GetString($buf, 0, $cut + 1)
+    } catch {
+        return ''
+    } finally {
+        if ($fs) { $fs.Dispose() }
+    }
+}
+
 # ---- the RUNBOOK 0.5.7 CORRECTED coordinate criterion -----------------------
 # PASS = at least one POS line whose lat/lon are real numbers, NOT NaN, and NOT
 #        the 90.000000,-90.000000 pole placeholder.
@@ -1085,6 +1154,75 @@ function Read-LiveTail {
         return $text
     } catch {
         return ''
+    } finally {
+        if ($fs) { $fs.Dispose() }
+    }
+}
+
+# Find the LAST line starting with $Prefix by walking BACKWARD in $BlockBytes blocks,
+# newest first, stopping at the first block that holds one. Peak allocation is ONE
+# block - not the file, and not a fixed tail.
+#
+# WHY (2026-09-14): the status line used Read-LiveTail's fixed 256 KB window. With the
+# member consoles at notify level 4 each CON row of the trace is a full XML document, so
+# WatchVrf's "# t=..." summaries end up ~1.6 MB apart: the last 256 KB of the G6 trace
+# held 724 CON rows and ZERO summaries, and the only instrument the observation window
+# has printed "trace: (no samples)" for the whole run against a file holding 162k POS
+# rows (docs/experiments/RUNNER_HARDENING_2026-09-14.md sec 4). Enlarging the tail is
+# not the fix - 4 MB still held only 2 summaries and costs an 8 MB string every 30 s.
+#
+# Only COMPLETE lines are returned: the newest block is truncated at its last newline
+# (the file is being appended to while we read it), and a line straddling a block
+# boundary is rejoined through $carry. $MaxScanBytes bounds the work when the prefix is
+# absent from the file entirely.
+function Get-LastLineWithPrefix {
+    param([string]$Path, [string]$Prefix, [int]$BlockBytes = 1048576, [long]$MaxScanBytes = 33554432)
+    if (-not $Path -or -not $Prefix) { return $null }
+    if (-not (Test-Path -LiteralPath $Path)) { return $null }
+    $fs = $null
+    try {
+        $share = [System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete
+        $fs = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, $share)
+        $end     = [long]$fs.Length
+        $scanned = [long]0
+        $carry   = ''
+        $first   = $true
+        while ($end -gt 0 -and $scanned -lt $MaxScanBytes) {
+            $start = [long][Math]::Max(0, $end - $BlockBytes)
+            $null  = $fs.Seek($start, [System.IO.SeekOrigin]::Begin)
+            $want  = [int]($end - $start)
+            $buf   = New-Object byte[] $want
+            $got   = 0
+            while ($got -lt $want) {
+                $n = $fs.Read($buf, $got, $want - $got)
+                if ($n -le 0) { break }
+                $got += $n
+            }
+            $text = [System.Text.Encoding]::UTF8.GetString($buf, 0, $got)
+            if ($first) {
+                # the newest block can end in a HALF-WRITTEN line; never return one
+                $lastNl = $text.LastIndexOf("`n")
+                $text = $(if ($lastNl -ge 0) { $text.Substring(0, $lastNl) } else { '' })
+                $first = $false
+            } else {
+                $text = $text + $carry
+            }
+            $carry = ''
+            if ($start -gt 0) {
+                # this block's own first line began in the block BEFORE it - hand it back
+                $nl = $text.IndexOf("`n")
+                if ($nl -ge 0) { $carry = $text.Substring(0, $nl + 1); $text = $text.Substring($nl + 1) }
+                else           { $carry = $text; $text = '' }
+            }
+            $hit = $null
+            foreach ($line in ($text -split "`r?`n")) { if ($line.StartsWith($Prefix)) { $hit = $line } }
+            if ($hit) { return $hit }
+            $scanned += $got
+            $end = $start
+        }
+        return $null
+    } catch {
+        return $null
     } finally {
         if ($fs) { $fs.Dispose() }
     }
@@ -2313,6 +2451,22 @@ try {
         # VR-Forces may be up even if LaunchVrf itself never reported, so teardown
         # must be armed BEFORE the result is judged.
         $VrfLaunched = $true
+        # OUT-OF-PROCESS TEARDOWN BACKSTOP, half 1 of 2 (2026-09-14). The finally at the
+        # foot of this script is the teardown, and on 2026-09-14 it did NOT run: the runner
+        # was TERMINATED from outside (TerminateProcess), which no finally, trap or
+        # PowerShell.Exiting handler can intercept, and VR-Forces plus the interface stayed
+        # joined for nine hours. The backstop therefore has to live OUTSIDE this process, in
+        # the launching wrapper (scripts\RunScenario.sh). These two marker files are its
+        # entire contract:
+        #   runner.launched     - written HERE, the instant VR-Forces becomes OURS to stop.
+        #                         Its ABSENCE tells the wrapper this run launched nothing, so
+        #                         a validation abort can never make the wrapper tear down
+        #                         someone ELSE's live session (RUNBOOK sec 0).
+        #   runner.teardown-ran - written as the last statement of the finally.
+        # Wrapper rule: launched AND NOT teardown-ran => the runner died; tear down for it.
+        # The file CONTENTS are this runner's own PID, so an operator (or a cleanup script)
+        # can name the one process that must not be swept while the window is open.
+        try { Set-Content -LiteralPath (Join-Path $RunDir 'runner.launched') -Value ([string]$PID) -Encoding ascii } catch { }
         if (-not (Test-StageProduced -Result $r)) { Stop-Runner 3 (Get-StageFailureText -Name 'LaunchVrf' -Result $r) }
         switch ($r.ExitCode) {
             0 { Say-Ok 'VR-Forces READY' }
@@ -2728,12 +2882,39 @@ try {
         $nextStatus = (Get-Date).AddSeconds(30)
         $nextEvidenceNote = Get-Date
         $completion = New-CompletionState
+        # TASKCMPLT lines seen in the app log for ANY taskee (the state's own lineCount
+        # counts only the order's taskees). A RUNNING TOTAL now that the reader is
+        # incremental: each poll sees only what was appended since the previous one.
+        $completionLinesAll = 0
+        # Condition (4) below reads the WHOLE app log and the WHOLE trace (Get-VrfUuidByName
+        # correlates a CreateRoute line with a later Route-created line, and
+        # Test-ReportEvidence needs the last RPT and the last POS - neither can be fed a
+        # delta without cross-poll state of its own). It is therefore THROTTLED to once per
+        # 30 s instead of once per 5 s, and these two variables persist across polls instead
+        # of being recomputed on every one. It is evaluated IMMEDIATELY the first time
+        # all-complete holds, so $evidence is never $null where the pending-reason message
+        # below reads it.
+        # HONEST COST, BOTH DIRECTIONS (do not restate this as "safe"): the decision now runs
+        # on an evidence snapshot up to 30 s old. A flip from out to IN is seen up to 30 s
+        # LATE - that lengthens the window, which is safe. A flip from in to OUT is also seen
+        # up to 30 s late, so the window CAN close on evidence that was satisfied 30 s ago and
+        # is not satisfied now. $ReportToleranceMeters is 2.0 m (:1826), so that is not
+        # impossible; it is judged acceptable because condition (4) is only ever evaluated
+        # AFTER every taskee has reported TASKCMPLT - the units have stopped, the RPT stream
+        # converges on a static POS - and because $EarlyExit.evidenceSatisfiedUtc plus the
+        # per-taskee reportEvidence written at that evaluation record exactly which snapshot
+        # the close was made on. If a run ever closes on stale evidence, that pair is the
+        # evidence of it. The alternative measured on 2026-09-14 was 12 whole-trace reads
+        # during a 60 s hold, at ~2 GB of UTF-16 per read on a 1 GB trace.
+        $evidence     = $null
+        $evidenceOk   = $false
+        $nextEvidence = Get-Date
         while ((Get-Date) -lt $obsEnd) {
             Start-Sleep -Seconds ([int][Math]::Min($pollSecs, [Math]::Max(1, [Math]::Ceiling(($obsEnd - (Get-Date)).TotalSeconds))))
             $remaining = [int]([Math]::Max(0, ($obsEnd - (Get-Date)).TotalSeconds))
             if ((Get-Date) -ge $nextStatus -or $remaining -eq 0) {
                 $nextStatus = (Get-Date).AddSeconds(30)
-                $sum = Get-TraceSummaryLine -TraceText (Read-LiveTail -Path $PathTrace)
+                $sum = Get-LastLineWithPrefix -Path $PathTrace -Prefix '# t='
                 Say-Info ('  {0}s remaining   trace: {1}' -f $remaining, $(if ($sum) { $sum } else { '(no samples)' }))
             }
             # An interface that dies mid-window is RECORDED, ONCE, and the window is
@@ -2747,18 +2928,18 @@ try {
             }
             if ($StopWhenComplete -and -not $appDeathRecorded -and $OrderTaskees.Count -gt 0) {
                 $nowUtc = (Get-Date).ToUniversalTime()
-                $done = @(Get-CompletedTasks -AppLogText (Read-LiveText -Path $PathAppLog))
+                $done = @(Get-CompletedTasks -AppLogText (Read-LiveDelta -Path $PathAppLog -Key 'applog-completions'))
+                $completionLinesAll += $done.Count
                 $before = $completion.firstSeenUtc.Count
                 $completion = Update-CompletionState -State $completion -Taskees $OrderTaskees -TaskCount $OrderTasks.Count -Completions $done -NowUtc $nowUtc
                 if ($completion.firstSeenUtc.Count -gt $before) {
-                    Say-Info ('  TASKCMPLT seen for {0}/{1} taskee(s), {2} line(s) for order taskees ({4} total) (t+{3}s)' -f $completion.firstSeenUtc.Count, $OrderTaskees.Count, $completion.lineCount, [int]((Get-Date) - $obsStart).TotalSeconds, $done.Count)
+                    Say-Info ('  TASKCMPLT seen for {0}/{1} taskee(s), {2} line(s) for order taskees ({4} total) (t+{3}s)' -f $completion.firstSeenUtc.Count, $OrderTaskees.Count, $completion.lineCount, [int]((Get-Date) - $obsStart).TotalSeconds, $completionLinesAll)
                 }
                 # Condition (4): report evidence, from the live trace (TSK/RPT/POS on one
                 # clock). Only evaluated once all taskees have completed - before that the
                 # answer is "not yet" by construction and the parse is wasted work.
-                $evidence = $null
-                $evidenceOk = $false
-                if ($null -ne $completion.allCompleteUtc) {
+                if ($null -ne $completion.allCompleteUtc -and ($null -eq $evidence -or (Get-Date) -ge $nextEvidence)) {
+                    $nextEvidence = (Get-Date).AddSeconds(30)
                     $nameToVrf = Get-VrfUuidByName -AppLogText (Read-LiveText -Path $PathAppLog)
                     $evidence  = Test-ReportEvidence -Taskees $OrderTaskees -TaskeeNames $TaskeeNames -NameToVrfUuid $nameToVrf `
                                      -TraceText (Read-LiveText -Path $PathTrace) -ToleranceMeters $ReportToleranceMeters
@@ -3099,5 +3280,16 @@ finally {
         4 { Say-Fail 'TEARDOWN INCOMPLETE. VR-Forces and/or the interface MAY STILL BE RUNNING and MAY STILL BE JOINED. Nothing was force-killed. INSPECT BEFORE THE NEXT RUN.' }
         5 { Say-Fail 'UNEXPECTED TERMINATING ERROR. Same warning as exit 4 - inspect before the next run.' }
     }
+    # OUT-OF-PROCESS TEARDOWN BACKSTOP, half 2 of 2 (2026-09-14). LAST statement before the
+    # exit, so its presence means the whole finally above ran. The wrapper
+    # (scripts\RunScenario.sh) tears down on its own when runner.launched exists and this
+    # does not. Best-effort and silent: a teardown that completed must not be turned into a
+    # failure by a marker that could not be written. -DryRun never reaches here (it exits
+    # earlier and creates no run directory), which is correct - it launches nothing.
+    try {
+        if ($RunDir -and (Test-Path -LiteralPath $RunDir)) {
+            New-Item -ItemType File -Path (Join-Path $RunDir 'runner.teardown-ran') -Force | Out-Null
+        }
+    } catch { }
     exit $RunnerExit
 }

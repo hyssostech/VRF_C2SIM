@@ -105,7 +105,15 @@ function Get-CompletedTasks {
 # ---- early-exit state machine ------------------------------------------------
 # State is a hashtable the caller owns across polls:
 #   firstSeenUtc    : ordered map taskee -> UTC of the poll that FIRST saw its TASKCMPLT
-#   lineCount       : TASKCMPLT lines seen at the latest poll
+#   lineCount       : RUNNING TOTAL of TASKCMPLT lines for order taskees across all
+#                     polls. It was "lines seen at the latest poll" until 2026-09-14,
+#                     when the runner's observation loop stopped re-reading the whole
+#                     app log every 5 s and started feeding this function only the text
+#                     APPENDED since the previous poll (Read-LiveDelta,
+#                     docs/experiments/RUNNER_HARDENING_2026-09-14.md sec 5). Under a
+#                     whole-file reader the two definitions coincide, so the change is
+#                     invisible to a caller that still passes the whole log; under a
+#                     delta reader only the running total is correct.
 #   allCompleteUtc  : UTC of the poll that first satisfied the ALL-COMPLETE condition
 # The app log carries NO timestamps, so "when did the last completion happen" is
 # necessarily "the runner's poll that first saw it" - late by at most one poll
@@ -144,9 +152,14 @@ function Update-CompletionState {
     foreach ($u in $completed) {
         if (-not $State.firstSeenUtc.Contains($u)) { $State.firstSeenUtc[$u] = $NowUtc }
     }
-    $State.lineCount = $inOrder.Count
+    $State.lineCount += $inOrder.Count
+    # ALL-COMPLETE is asked of the ACCUMULATED set (firstSeenUtc), never of $completed,
+    # which holds only the taskees seen in THIS call's input. With a whole-file reader the
+    # two were the same set; with the delta reader added 2026-09-14 they are not, and using
+    # $completed would make all-complete demand that every taskee re-report inside a single
+    # poll - it would essentially never fire. Equivalent on whole-file input.
     $all = ($Taskees.Count -gt 0)
-    foreach ($u in $Taskees) { if ($completed -notcontains $u) { $all = $false } }
+    foreach ($u in $Taskees) { if (-not $State.firstSeenUtc.Contains($u)) { $all = $false } }
     if ($all -and $State.lineCount -lt $TaskCount) { $all = $false }
     if ($all -and $null -eq $State.allCompleteUtc) { $State.allCompleteUtc = $NowUtc }
     return $State

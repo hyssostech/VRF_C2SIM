@@ -738,6 +738,68 @@ for-two cap (RTI UG 8.2) is unexercised on 5.2; the first FOUR-federate run must
 sha256, connection mode, the device address used, rtiexec/forwarder pids and the app's
 `VrfBridge native stack` line - the RUNTIME stack, which is what a trace compares against.
 
+### 0.5.14 LAUNCHING A RUN - the wrapper, the markers, exit 127, the 64-bit rule (2026-09-14)
+
+LAUNCH EVERY LIVE RUN THROUGH `scripts\RunScenario.sh`. It is a parameterised template
+(`--help` lists every option; anything after `--` goes to the runner unchanged) and it is
+the only supported launch path. Three defects met in the ad-hoc wrapper that launched G6
+on 2026-09-14; each is now closed by something this section names
+(docs/experiments/RUNNER_HARDENING_2026-09-14.md).
+
+1. 64-BIT ONLY. Bare `pwsh` on this machine resolves to `C:\Program Files (x86)\PowerShell\7`
+   - the 32-BIT build, ~2 GB of address space - because that PATH entry precedes the 64-bit
+   one. A 32-bit host died of address-space exhaustion in the observation loop on
+   2026-09-07, the mitigation recorded then was a PROCEDURE, and the procedure lapsed
+   silently. It is now a GATE at both layers: `RunScenario.sh` pins
+   `C:\Program Files\PowerShell\7\pwsh.exe` and verifies `Is64BitProcess`, and
+   `RunC2SimScenario.ps1` refuses a 32-bit host with exit 2 before anything is allocated.
+
+2. STDOUT TO A FILE. NEVER PIPE THE RUNNER. NEVER `| tee` IT. `Start-External`
+   (RunC2SimScenario.ps1) starts every child through `Start-Process` with redirection, and
+   .NET's `Process.Start` then calls `CreateProcess` with `bInheritHandles=TRUE`, which
+   duplicates EVERY inheritable handle into the child - including whatever the runner holds
+   as its own stdout. In G6 that was the harness's pipe: `VrfC2SimApp` never wrote to it but
+   held it open, and the harness did not see EOF for nine hours. No `Start-Process` switch
+   suppresses this, so the fix is upstream - give the runner a FILE for stdout and stderr and
+   `/dev/null` for stdin, which `RunScenario.sh` does. `| tee` additionally makes `$?` the
+   exit status of `tee`. Watch a run from ANOTHER shell with `tail -f <the log>`. The same
+   rule applies to any background subshell in a wrapper: give it `< /dev/null` too.
+
+3. THE TEARDOWN BACKSTOP AND ITS TWO MARKERS. The runner's teardown is a `finally` and it
+   covers every in-process path - but on 2026-09-14 the runner was TERMINATED from outside,
+   and no `finally`, `trap` or `PowerShell.Exiting` handler survives `TerminateProcess`.
+   VR-Forces and the interface stayed joined for nine hours. The backstop is therefore
+   OUT-OF-PROCESS, in the wrapper, and reads two marker files in the run directory:
+
+       runner.launched       written the instant VR-Forces became this run's to stop.
+                             Contains the runner's PID. ABSENT => the run launched nothing,
+                             and the wrapper tears down NOTHING (a foreign live session
+                             must never be touched - sec 0).
+       runner.teardown-ran   written as the last statement of the runner's finally.
+
+   launched AND NOT teardown-ran => the wrapper runs StopIface (clean resign), then
+   StopVrf52/StopVrf, then touches `observers.stop`, and prints what is still up. Nothing is
+   force-killed there either. NOT COVERED: the wrapper dying too - a detached watchdog is
+   designed but not built.
+
+4. `runner exit: 127` DOES NOT MEAN "COMMAND NOT FOUND" and does not mean PowerShell failed.
+   On this MSYS bash it means the child exited with a HIGH-BIT (NTSTATUS-shaped) Windows exit
+   code that MSYS does not map to a signal. Of the codes that produce it, exactly one is
+   SILENT: `0xFFFFFFFF` (-1), which is what `TerminateProcess(handle, -1)` writes - i.e. .NET
+   `Process.Kill()` / PowerShell `Stop-Process`. The other three (`0xC0000409`, `0xC00000FD`,
+   `0xE0434352`) are CLR fatal errors that print to stderr AND raise a WER / Application Error
+   event. So 127 + a silent log + no WER event = THE RUNNER WAS KILLED FROM OUTSIDE. For
+   contrast: `0xC0000017` (OS out of memory) is bash 138 "Bus error" and `0xC0000005` is bash
+   139 "Segmentation fault" - neither is 127. The runner's own codes are 0/2/3/4/5 only.
+   `RunScenario.sh` prints this legend after every run.
+
+5. NO PROCESS SWEEPS DURING A RUN WINDOW. `Stop-Process` / `taskkill` sweeps are BANNED while
+   a run is open - a sweep filtered on a CommandLine substring is the shape that fits every
+   observation of the G6 kill. If a cleanup is unavoidable it MUST exclude the runner's PID,
+   which is the content of `<RunDir>\runner.launched`, and MUST exclude the killer's own
+   shell (filter on a token the killer cannot contain; list before killing). State the quiet
+   period in the run's prereg.
+
 ---
 
 ## 0.5-ARCHIVE - the raw vrfSimHLA1516e headless recipe (CONFIRMED UNSAFE, 2026-07-15)
