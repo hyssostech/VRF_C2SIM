@@ -102,3 +102,35 @@ sectors with ~99,000 terrain triangles each; "Generated 3 distinct nav tags"; 84
 R9_Mojave_Empty_52_NavAO built, validated (positive gate) and deployed byte-identical to the sanctioned
 scenarios folder. Nothing else under C:\MAK.
 (run results to be filled after the run; nothing here was written before it)
+
+## 5. RESULTS (run 2026-09-14 00:27Z, runs/20260914T002716Z_run; harvest docs/experiments/G6_RESULTS_2026-09-14.md) - STOP
+| prediction | verdict | evidence |
+|---|---|---|
+| P16a (HIGH, gate): mesh branch plans the leg ("Planned path has N points.") | MISS | 1-35's leader: "Is current point in nav area?: success", "Is destination in nav area?: success" (goal = V1 exactly), then "Planned nav path has not enough (0) points." then "Planned path has 1 parts." (feature planner) at sim ~101. Whole run: 15 "points" rows, ALL for goals 6-23 m away (formation slots); 178 "not enough (0) points" rows, 110 of 112 paired ones for goals 9.3-20.1 km; 145 "parts" rows. Dest-in-area success 101 / fail 0. |
+| P16e (HIGH, instrument): the sim reads the new area | HOLDS | 259 console rows name NavArea-ground-platform MojaveCOA; MojaveAO20 0 rows; "New Primary nav area" 162 rows from sim 75.9 on all nine moving units. |
+| P16b: 1-35's leader > 3 km net by sim 600 | MISS | Stopped at 34.65608/-116.76142 - 0.0 m from its P11 and G3 final fixes, 4,104 m along-track in all three runs; plateau reached at sim 334 (G3 324, P11 285). NOT a test of the router: the mesh never planned the leg. |
+| P16c: 1-6's leader > 4 km by sim 700 | MISS | Stopped 0.9 m from its G3 stop (5,208 m along). Same reason. |
+| P16d (recorded): engine cost | recorded | sim/wall 1.52 / 1.74 / 1.66 / 1.45 per 300 s wall bin (P11 1.55/1.81/1.70/1.62; G3 1.52/1.67/1.57/1.57); mean 4.5 cores over five threads, no collapse (G2's 0.35/0.05 did not recur). The router's cost at scale is STILL unmeasured - no long path was ever planned. |
+The MISS is not the anticipated one (the prereg's stop condition assumed the gate reads differently or the area
+did not load): the area loaded, both gate conditions succeeded, and the vendor's mesh query returned nothing for
+every multi-kilometre goal. G6 is therefore a FOURTH reproduction of the stops (every leader within a few hundred
+metres of its P11/G3 counterpart at sim 300/600/900; the two freezes at the same metre), not a discriminator.
+Level 4 bought: the nav-area OUTCOME rows (which made P16a decidable), and the ordered-speed rows ("Setting
+ordered speed:", "processSetSpeed: Using ordered speed Nmps instead of task speed.") - none at or after any
+maneuver-in-formation leader's stop (1-35: last at sim 132, stop at sim 642); the formation slow-down /
+maintain-speed / speed-up rows appear ONLY on C/1-35's disaggregated controller. The seven-shape loop of FINDING
+sec 7c reproduces verbatim for 1-35's leader at level 3, with 17 level-4 "Ticking ..." rows around it and nothing
+else. Instrument caveats: POS capture began at sim ~191 (58 s later than P11), so net-from-first-fix is not
+comparable across runs (along-track from the authored origin is used instead); the thread sampler's wsMB column
+is pinned at 4096 (a counter ceiling); the runner was killed at t+127 s of the window (RUNNER_EXIT127_2026-09-14.md)
+and the sim ran unattended for nine hours - the capture itself is complete (observers ran to their 1200 s caps).
+PRELIMINARY, same-day (grep counts, pairing with goal distance pending): G1 (R9, 3x3 km area) points 44 / parts 4
+/ not-enough 0; G2 (COA, 20x20 km) 96 / 62 / 4; G3 (20x20 km) 19 / 144 / 6; G6 (41x54 km, 8,856 sectors) 15 /
+145 / 178. If G1's 44 mesh paths include R9's kilometre-scale legs, the failure is SCALE-dependent.
+THE QUESTION MOVED: not "does the default slope cost route around the face" but "why does vrf:findPathToLocation
+return zero points for a multi-kilometre goal inside one loaded area". Doc-backed candidates, none tested:
+(setqb gamewareMemorySize 16) vrfSim.mtl:383 ("increasing this limit can allow for path plans on larger nav areas
+by more entities simultaneously"), (setqb gamewareQueryTimeBudget 5.0) :389, UG52 66.2.1 sectorisation ("path
+planning over long distances may be slower"), 66.3 lazy per-sector loading. Both .mtl settings live under C:\MAK
+(a user decision; must survive reinstalls - DEMO_READINESS row 21). Docs read + goal-distance analysis dispatched
+2026-09-14 ~11:00Z; no probe is registered before they report.
