@@ -155,6 +155,46 @@ public static class NameSelfTest
         Check(ref failures, settled.TryGetUuid(requested, out var su) && su == "VRF_UUID:settled",
               "... and the unit is still found by its requested name");
 
+        // ---- m1 (cold-start review 02b51de): a SECOND ObjectCreated under a name that is
+        // EXACTLY a requested name ALREADY BOUND to a different object. Finding 2's awaiting-only
+        // rule guards the PREFIX path; the exact-match short-circuit bypasses it, so the write
+        // `_uuidByName[resolved] = uuid` used to hand the live unit's identity to the newcomer.
+        // The real shape: "510/40~PXY" is exactly MarkingTruncationWidth chars, so any of its four
+        // EXPAND children can come back under it. From then on R1 reported the WRONG object's
+        // position for that unit and ExecuteTaskOnTick would have tasked it.
+        Console.WriteLine();
+        Console.WriteLine("=== m1: an already-bound EXACT name is never re-pointed at another object ===");
+        var rebind = new NameRegistry();
+        const string liveUnit = "510/40~PXY";
+        rebind.Requested(liveUnit);
+        rebind.Bind(liveUnit, "VRF_UUID:first");
+        var second = rebind.Bind(liveUnit, "VRF_UUID:second");
+        Check(ref failures, rebind.TryGetUuid(liveUnit, out var ru) && ru == "VRF_UUID:first",
+              "a second ObjectCreated under a BOUND requested name does NOT take the unit's uuid");
+        Check(ref failures, rebind.TryGetName("VRF_UUID:first", out var rn) && rn == liveUnit,
+              "... the reverse map still names the FIRST object");
+        Check(ref failures, !rebind.TryGetName("VRF_UUID:second", out _),
+              "... and the newcomer is given no name (it is not this unit)");
+        Check(ref failures, second.RefusedRebind && second.PriorUuid == "VRF_UUID:first",
+              "... and Bind SAYS SO (RefusedRebind + the uuid it kept), so the caller can log ERROR");
+
+        // The DELIBERATE re-create (MaterializeUnit case 3, VrfC2SimService.cs: _recreatePending):
+        // the shell is DELETED and the same name re-created as its template, so that one rebind is
+        // legitimate and must still work. ExpectRebind is the one-shot allowance for exactly it.
+        var recreate = new NameRegistry();
+        recreate.Requested(liveUnit);
+        recreate.Bind(liveUnit, "VRF_UUID:shell");
+        recreate.ExpectRebind(liveUnit);
+        var templated = recreate.Bind(liveUnit, "VRF_UUID:template");
+        Check(ref failures, !templated.RefusedRebind
+                            && recreate.TryGetUuid(liveUnit, out var tu) && tu == "VRF_UUID:template"
+                            && recreate.TryGetName("VRF_UUID:template", out var tn) && tn == liveUnit,
+              "the MATERIALIZE re-create (shell deleted) DOES rebind - both maps follow the new object");
+        var afterwards = recreate.Bind(liveUnit, "VRF_UUID:intruder");
+        Check(ref failures, afterwards.RefusedRebind
+                            && recreate.TryGetUuid(liveUnit, out var tu2) && tu2 == "VRF_UUID:template",
+              "the allowance is ONE-SHOT: the next unexpected rebind is refused again");
+
         // ---- cleanup list: one uuid however many names point at it ----
         Check(ref failures, reg.CreatedUuids().Count == 2,
               "CreatedUuids is DISTINCT (the truncated unit's two names are one object)");

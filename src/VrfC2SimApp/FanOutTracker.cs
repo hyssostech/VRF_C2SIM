@@ -29,6 +29,7 @@ public sealed class FanOutTracker
         public int Total;
         public double Fraction;      // completion quorum fraction, (0,1]; 1.0 = all must finish
         public bool Synthesized;     // a quorum/timeout synthesis already fired for this fan-out
+        public bool AnyFailed;       // m8: at least one member reported success=false
     }
 
     private readonly object _lock = new();
@@ -60,6 +61,7 @@ public sealed class FanOutTracker
                 Total = pending.Count,
                 Fraction = frac,
                 Synthesized = false,
+                AnyFailed = false,
             };
             _byUnit[unitName] = f;
             foreach (var m in pending) _unitByMember[m] = unitName;
@@ -68,12 +70,19 @@ public sealed class FanOutTracker
     }
 
     /// <summary>
-    /// Back-compat overload (a caller that does not need the swallow signal). Forwards to the
-    /// six-out form and discards <c>alreadySynthesized</c>. Used by the existing offline checks.
+    /// Back-compat overload (a caller that does not need the swallow signal). Forwards to the full
+    /// form as a SUCCEEDING member and discards the extra outs. Used by the existing offline checks.
     /// </summary>
     public bool TryCompleteMember(string memberName, out string unitName, out string taskUuid,
                                   out int remaining, out bool allDone)
-        => TryCompleteMember(memberName, out unitName, out taskUuid, out remaining, out allDone, out _);
+        => TryCompleteMember(memberName, true, out unitName, out taskUuid, out remaining, out allDone,
+                             out _, out _);
+
+    /// <summary>Back-compat overload that keeps the swallow signal but not the outcome (m8).</summary>
+    public bool TryCompleteMember(string memberName, out string unitName, out string taskUuid,
+                                  out int remaining, out bool allDone, out bool alreadySynthesized)
+        => TryCompleteMember(memberName, true, out unitName, out taskUuid, out remaining, out allDone,
+                             out alreadySynthesized, out _);
 
     /// <summary>
     /// If <paramref name="memberName"/> belongs to an active fan-out, mark it complete.
@@ -88,11 +97,20 @@ public sealed class FanOutTracker
     ///    caller's "N remaining" progress log).
     /// A name that is not a pending fan-out member returns false (normal unit-level completions
     /// flow through the caller's existing path).
+    ///
+    /// m8 (cold-start review 02b51de): <paramref name="memberSuccess"/> is what VR-Forces said about
+    /// THIS member's task (DtTaskCompleteReport::success). The fan-out REMEMBERS a false, and
+    /// <paramref name="anyMemberFailed"/> hands it to the caller on the quorum branch. Before this,
+    /// only the member that happened to meet the quorum decided the unit's C2SIM code, so members
+    /// 1..n-1 could all have FAILED and the unit still reported TASKCMPLT.
     /// </summary>
-    public bool TryCompleteMember(string memberName, out string unitName, out string taskUuid,
-                                  out int remaining, out bool allDone, out bool alreadySynthesized)
+    public bool TryCompleteMember(string memberName, bool memberSuccess,
+                                  out string unitName, out string taskUuid,
+                                  out int remaining, out bool allDone, out bool alreadySynthesized,
+                                  out bool anyMemberFailed)
     {
         unitName = ""; taskUuid = ""; remaining = 0; allDone = false; alreadySynthesized = false;
+        anyMemberFailed = false;
         if (string.IsNullOrEmpty(memberName)) return false;
         lock (_lock)
         {
@@ -105,6 +123,11 @@ public sealed class FanOutTracker
             unitName = f.UnitName;
             taskUuid = f.TaskUuid;
             remaining = f.Pending.Count;
+            // m8: recorded BEFORE the quorum test, so the very completion that meets the quorum
+            // counts its own failure. A late straggler's failure is recorded too - it changes
+            // nothing for the report already sent, but it keeps the record truthful for the timer.
+            if (!memberSuccess) f.AnyFailed = true;
+            anyMemberFailed = f.AnyFailed;
 
             if (f.Synthesized)
             {
@@ -144,10 +167,18 @@ public sealed class FanOutTracker
     /// prematurely. The Synthesized flag makes timer-vs-quorum idempotent; the uuid makes
     /// timer-vs-supersession safe.
     /// </summary>
+    /// <summary>Back-compat overload (m8): discards <c>anyMemberFailed</c>.</summary>
     public bool TrySynthesizeByTimeout(string unitName, string expectedTaskUuid,
                                        out int completed, out int total)
+        => TrySynthesizeByTimeout(unitName, expectedTaskUuid, out completed, out total, out _);
+
+    /// <summary>As above, plus <paramref name="anyMemberFailed"/> (m8): did any member that DID
+    /// report before the timeout report a FAILURE? Members that never reported are unknown, not
+    /// failures - the flag is evidence of failure, never of success.</summary>
+    public bool TrySynthesizeByTimeout(string unitName, string expectedTaskUuid,
+                                       out int completed, out int total, out bool anyMemberFailed)
     {
-        completed = 0; total = 0;
+        completed = 0; total = 0; anyMemberFailed = false;
         lock (_lock)
         {
             if (!_byUnit.TryGetValue(unitName, out var f)) return false;              // no fan-out (drained/cancelled)
@@ -156,6 +187,7 @@ public sealed class FanOutTracker
             f.Synthesized = true;
             total = f.Total;
             completed = f.Total - f.Pending.Count;
+            anyMemberFailed = f.AnyFailed;
             return true;
         }
     }

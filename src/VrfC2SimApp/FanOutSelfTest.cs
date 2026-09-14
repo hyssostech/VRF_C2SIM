@@ -164,6 +164,49 @@ public static class FanOutSelfTest
         Check(ref failures, !t.TrySynthesizeByTimeout("V/1", "task-v", out _, out _),
               "timeout no-ops after all members already completed (record gone)");
 
+        // 16. m8 (cold-start review 02b51de): "ANY MEMBER FAILED" reaches the unit's C2SIM code.
+        //     Before this the vendor success flag was consulted ONLY on the quorum branch, so the
+        //     LAST member's flag alone decided the unit's code: members 1..n-1 could every one of
+        //     them report success=false and the unit still reported TASKCMPLT to STP. The service
+        //     now passes `success && !anyMemberFailed` into SynthesizeUnitCompletion, and
+        //     TaskStatusPolicy.CodeForCompletion(false) is TASKABRT (--report-selftest).
+        Check(ref failures, t.Register("W/1", "task-w", new[] { "W1", "W2", "W3" }, 1.0) == 3,
+              "m8: register a 3-member fan-out");
+        Check(ref failures,
+              t.TryCompleteMember("W1", false, out _, out _, out _, out bool wd1, out _, out bool wf1)
+              && !wd1 && wf1,
+              "m8: a FAILED member is remembered while the quorum is still open");
+        Check(ref failures,
+              t.TryCompleteMember("W2", true, out _, out _, out _, out bool wd2, out _, out bool wf2)
+              && !wd2 && wf2,
+              "m8: a later SUCCEEDING member does not erase it");
+        Check(ref failures,
+              t.TryCompleteMember("W3", true, out var wu, out _, out _, out bool wd3, out _, out bool wf3)
+              && wu == "W/1" && wd3 && wf3,
+              "m8: the QUORUM-meeting member carries anyMemberFailed=true (was invisible before)");
+
+        //     Control, so the flag is not simply always true: an all-succeeding fan-out reports false.
+        t.Register("W/2", "task-w2", new[] { "X1", "X2" }, 1.0);
+        t.TryCompleteMember("X1", true, out _, out _, out _, out _, out _, out _);
+        Check(ref failures,
+              t.TryCompleteMember("X2", true, out _, out _, out _, out bool xd, out _, out bool xf)
+              && xd && !xf,
+              "m8 CONTROL: an all-succeeding fan-out reports anyMemberFailed=false");
+
+        //     The STRAGGLER TIMER path: it synthesized success=true BY CONSTRUCTION. A member that
+        //     reported a FAILURE before the timeout must reach the unit's code; members that never
+        //     reported are UNKNOWN, not failures.
+        t.Register("W/3", "task-w3", new[] { "Y1", "Y2", "Y3" }, 1.0);
+        t.TryCompleteMember("Y1", false, out _, out _, out _, out _, out _, out _);
+        Check(ref failures,
+              t.TrySynthesizeByTimeout("W/3", "task-w3", out int yc, out int yt, out bool yf)
+              && yc == 1 && yt == 3 && yf,
+              "m8: the straggler TIMEOUT carries the failure of the one member that did report");
+        t.Register("W/4", "task-w4", new[] { "Z1", "Z2" }, 1.0);
+        Check(ref failures,
+              t.TrySynthesizeByTimeout("W/4", "task-w4", out _, out _, out bool zf) && !zf,
+              "m8: a timeout with NO member report is not a failure (never reported != failed)");
+
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
         return failures == 0 ? 0 : 1;
     }

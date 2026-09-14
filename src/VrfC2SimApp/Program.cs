@@ -121,6 +121,25 @@ foreach (var w in rt.Warnings) Console.Error.WriteLine("MakRuntime WARNING: " + 
 // print which stack bound, and exit without starting the host (nothing joins, nothing is created).
 if (args.Length > 0 && args[0] == "--runtime-check")
     return RuntimeCheck.Run(rt);
+// M1 (cold-start review 02b51de): there was NO AppDomain.UnhandledException handler, so an
+// unhandled throw on a non-host thread - the vrf-tick thread above all - ended the process with
+// nothing in our own log to say why (the .NET default writes to stderr and exits). This does NOT
+// swallow anything: the CLR still terminates on IsTerminating, exactly as before. It exists so the
+// LAST LINE of a demo-time death names the exception and its stack instead of leaving a silent gap.
+// Console, not ILogger: the host may be half-built or already torn down when this fires.
+AppDomain.CurrentDomain.UnhandledException += (_, ev) =>
+{
+    try
+    {
+        var ex = ev.ExceptionObject as Exception;
+        Console.Error.WriteLine("FATAL: unhandled exception on a background thread (terminating=" +
+                                ev.IsTerminating + "): " +
+                                (ex == null ? ev.ExceptionObject?.ToString() ?? "(null)" : ex.ToString()));
+        Console.Error.Flush();
+    }
+    catch { /* a handler that throws would replace the diagnosis with its own */ }
+};
+
 builder.Services.AddHostedService<VrfC2SimService>();
 await builder.Build().RunAsync();
 return 0;
