@@ -3,6 +3,7 @@
 # Attack/Defend/Seize task classes - every tactical task is a Lua scripted task, many shipped in EntityLevel; the init's
 # 35 tactical areas are already created in VR-Forces with the C2SIM uuid; the binding constraint is parameter supply
 # (9 of 42 COA-STP1 tasks carry no location; 42/42 self-target). Six rulings R1-R6 are the user's (sec 7).
+# RULINGS 2026-09-14: R1 STP export defect (fix upstream), R2 who-unit geometry, R3 target = objective, R4 end time = start + Duration; R5/R6 open - see sec 7 and DOCTRINE_FOR_TASKING_RULINGS_2026-09-14.md.
 
 # TASK VOCABULARY ASSESSMENT - STP verbs -> VR-Forces 5.2 tasks (2026-09-14, lane L8)
 
@@ -764,21 +765,32 @@ proves it. "User?" marks an item that needs a ruling before it is built.
   wants CONVEX polygons - STP areas may not be. Measure before assuming.
 - User? no.
 
-### V4. Resolve a task to its objective graphic (the missing link)
+### V4. Resolve a task to its objective graphic - UUID LINKAGE ONLY (BUILT, 2026-09-14)
+REVISED UNDER R1. The name/geometry heuristic this item originally proposed is WITHDRAWN:
+the user ruled the missing MapGraphicID an STP export defect (STP-801), to be fixed by
+re-exporting with IncludeMapGraphicIdInTasks=True, and the embedded Location is valid
+C2SIM that stays supported alongside it. So the item is the LINKAGE and nothing else.
 - Vendor anchor: none (interface logic).
-- C2SIM anchor: ManeuverWarfareTask/MapGraphicID (schema :4080; parsed already into
-  OrderTask.MapGraphicUuid, OrderParser.cs:62) - 0 present in both exports on disk.
-- Change: resolution order (1) MapGraphicID if present; (2) name match - the task Name
-  contains an area Name (MADISON, MONROE, PAA_25E, PL_BLUE, ...); (3) geometry - the
-  task's LAST Location inside, or nearest to, one of the created areas; (4) none ->
-  fall back to today's bare movement AND emit a reported warning.
-- Offline test: run the resolver over all 42 COA-STP1 tasks against the 35 init areas and
-  assert the expected pairs (T2->MADISON, T3->MONROE, T33->MADISON, T36->AT_PAA_25E,
-  T11/T12->BP_PL_BLUE, ...). This is a pure function; it needs no sim.
-- Live gate: none needed (offline-decidable), but the chosen pairs must be logged.
-- User? YES - two rulings: (a) is the name/geometry fallback acceptable at all, or do we
-  require STP to re-export with IncludeMapGraphicIdInTasks=True (add to the L2 B10
-  question list); (b) what happens when no graphic resolves - refuse the task, or move.
+- C2SIM anchor: ManeuverWarfareTask/MapGraphicID (schema :4080) - a LIST, now parsed whole
+  into OrderTask.MapGraphicUuids; 0 present in both exports on disk.
+- Change (BUILT, `TaskGeometryResolver.cs`): precedence is (1) each MapGraphicID resolved
+  against the graphic created at init UNDER THE SAME C2SIM UUID - an area to its centroid,
+  a line/point to its vertices, several ids to a route; (2) the embedded Location; (3)
+  nothing, which is V9's in-place case. Which path was taken is LOGGED on every task. No
+  name matching, no geometry-proximity matching, no verb-typed reading of the points
+  (that is V4b, below).
+- Offline test: `--rulings-selftest` section R1 (9 checks) + the `--parse-order` R1
+  geometry census (COA-STP1: 0 with a MapGraphicID, 33 embedded, 9 with none).
+- Live gate: an order carrying a MapGraphicID (an STP re-export, or a hand-edited fixture)
+  dispatches to the init area's centroid and logs the uuid -> name line.
+- User? RULED (R1).
+
+### V4b. What the points MEAN, per verb (NOT BUILT - deliberately deferred)
+The embedded Location is one list of points for every verb today: a route to drive. For a
+HoldObjective verb the same list is really an objective to occupy, and for a fires verb a
+target area. Splitting that reading per verb is a separate item from the linkage and was
+explicitly held back on 2026-09-14; it belongs with V5/V6, which need the objective as a
+task PARAMETER rather than as a route.
 
 ### V5. Wire the HoldObjective family (14 of 42 tasks) - EntityLevel first
 - Vendor anchor: company_seize / co_clear / occupy_firing_positions / plt_perimeter_defense
@@ -793,8 +805,14 @@ proves it. "User?" marks an item that needs a ruling before it is built.
   a sequencer test for the synthesised hold completion.
 - Live gate: ONE fixture, ONE taskee, SECURE with a resolved area: the unit moves to the
   area, stays, and a TASKCMPLT is emitted at the dwell deadline.
-- User? YES - the hold semantics: does SECURE complete at arrival, at Duration, or never?
-  STP's own expectation decides (L2 B10 question).
+- User? RULED on both counts, and PART OF IT IS ALREADY BUILT.
+  R4 settles the hold semantics this item was blocked on: SECURE completes AT THE END TIME
+  (dispatch + Duration), and that half shipped on 2026-09-14 - a hold-type task already
+  reports exactly one TASKCMPLT and releases its STREND successors WITHOUT any vendor
+  scripted task. R3 settles the parameter: the objective, not an enemy entity. What is
+  left in V5 is the VR-Forces composition itself (company_seize / co_clear /
+  occupy_firing_positions / plt_perimeter_defense) so the units DO something at the
+  objective instead of only standing on it; the reporting no longer waits on it.
 
 ### V6. Wire the ATTACK family onto the objective (19 of 42 tasks)
 - Vendor anchor: unit-attack-to-objective (ATL) / plt_movement_to_contact +
@@ -805,12 +823,16 @@ proves it. "User?" marks an item that needs a ruling before it is built.
   the resolved objective area. Split the family: assault verbs -> attack-to-objective;
   FIX/DISRPT/SUPPRS -> attack-by-fire onto the area.
 - Offline test: classifier + composition assertions for all five verbs; a test that a
-  self-targeted task no longer takes the "advance only" branch.
+  self-targeted task no longer takes the "advance only" branch (BUILT - R3 section of
+  `--rulings-selftest`).
 - Live gate: ONE fixture with a hostile unit inside the objective area: the tasked unit
   advances and engages it.
-- User? YES - confirm that "the enemy is whatever is in the objective area" is the
-  intended military semantics (it is what both STP and VR-Forces assume, but it is a
-  doctrine call, not a code call).
+- User? RULED (R3): the target IS the objective; enemies may happen to be inside it. The
+  DEFECT half shipped on 2026-09-14 - no verb is refused or degraded for self-targeting
+  any more, and an ATTACK-family task routes to its own geometry. R4 also gives every one
+  of these tasks an end time, so a fires task that can never be "achieved" still closes.
+  What is left in V6 is the vendor composition (unit-attack-to-objective /
+  plt_movement_to_contact / plt_attack_by_fire) onto the resolved objective.
 
 ### V7. Reconnoiter with a duration (3 SCREEN + 29 SCOUT)
 - Vendor anchor: reconnoiter-route (ATL; route, duration, patrol, deployDrones, useRoads);
@@ -834,18 +856,27 @@ proves it. "User?" marks an item that needs a ruling before it is built.
 - Live gate: ATL profile only.
 - User? YES - this is ATL-only, so it is an explicit Y-15 item, not a demo item.
 
-### V9. Zero-geometry policy (9 of 42 tasks)
+### V9. Zero-geometry policy (9 of 42 tasks) - WHO-UNIT GEOMETRY (BUILT, 2026-09-14)
+REVISED UNDER R2: a task without geometry uses the geometry of the PERFORMING (who) unit.
 - Vendor anchor: n/a.
-- C2SIM anchor: the 9 tasks with 0 Location elements.
-- Change: today a zero-location task is an ERROR that abandons the whole downstream chain
-  (VrfC2SimService.cs:1920-1922; G6 lost T9-T12 this way). Proposed: resolve geometry from
-  the objective graphic (V4); if still none, treat it as an IN-PLACE task (hold / engage /
-  defend where the unit stands) rather than an abandon, and REPORT it.
-- Offline test: the 42-task parse asserts 9 in-place tasks and 0 abandons.
-- Live gate: the ADA chain T9-T12 dispatches instead of collapsing.
-- User? YES - "no geometry" could legitimately mean "continue what you are doing"
-  (STP phrases them as "Provide...", "Continue...", "Maintain..."), and that reading
-  should be confirmed with the STP owner (L2 B10).
+- C2SIM anchor: the 9 tasks with 0 Location elements (confirmed offline by the
+  `--parse-order` R1 census: 9 of 42).
+- Change (BUILT): the refusal + chain-abandon is gone. A zero-geometry task now dispatches
+  IN PLACE - TASKSTRT at dispatch, no vendor move issued (the unit holds where it is), a
+  NameObservation on the existing R-SURFACE-PROXY observation channel carrying the
+  ruling's own sentence ("no geometry in the order: executing at the performing unit's
+  position"), completion at R4's end time, and the STREND chain continues. NO destination
+  is recorded, which is what keeps the progress watchdog off a unit that is correctly
+  standing still. The only refusal left is the one that was never about geometry: there is
+  no performing unit to task.
+- Offline test: `--rulings-selftest` section R2 (7 checks), including the successor of an
+  in-place task dispatching at its predecessor's end time; the `--parse-order` R1 census
+  counts the 9.
+- Live gate: the ADA chain T9-T12 dispatches instead of collapsing, and T10-T12 are no
+  longer skipped as "predecessor abandoned upstream".
+- User? RULED (R2). Remaining zero-geometry tasks whose own NAME references a graphic
+  (T16 OBJ MONROE, T34 OBJ MADISON, T21 PL GOLD, T10 PL BRONZE) are STP-side issues to
+  raise with the exporter - deliberately NOT name heuristics here.
 
 ### V10. Follow with a real offset (ESCRT, FOLSPT, FOLASS)
 - Vendor anchor: unit-ground-follow (followSubject, followOffset) or
@@ -868,8 +899,14 @@ proves it. "User?" marks an item that needs a ruling before it is built.
 - User? no.
 
 ### Suggested order
-V1, V2, V3 (enablers, all offline-testable) -> V4 (+user ruling) -> V5, V6 (the 33 tasks
-that matter) -> V9 -> V7, V10, V11 -> V8 with the Y-15 profile.
+REVISED 2026-09-14 after the rulings. V4 (uuid linkage) and V9 (who-unit geometry) are
+BUILT, and R4's timed completion - which was not an item in this list at all - turned out
+to be the thing that made a COA-STP1 chain run to its end at all. What remains:
+V1, V2, V3 (enablers, all offline-testable) -> V5, V6 (the vendor compositions; their
+reporting and parameter questions are now settled) -> V4b (what the points mean per verb)
+-> V7, V10, V11 -> V8 with the Y-15 profile.
+Superseded order, for the record: V1, V2, V3 -> V4 (+user ruling) -> V5, V6 -> V9 ->
+V7, V10, V11 -> V8.
 
 Cross-lane: V1 is L2's B1; V3 and V4 produce the objective overlay the operator view
 (row 15) wants; V9 changes what the reporting lane has to report. Build V1 once, in L2.
@@ -990,3 +1027,139 @@ Cross-lane: V1 is L2's B1; V3 and V4 produce the objective overlay the operator 
 
 R1, R2 and R4 are also the natural additions to the five STP questions already drafted in
 docs\DRAFT_STP_QUESTIONS_2026-09-14.md (lane L2, item B10).
+
+---
+
+### 7.1 Rulings received 2026-09-14
+
+Doctrine research pass (docs/experiments/DOCTRINE_FOR_TASKING_RULINGS_2026-09-14.md,
+Opus executor, ~14:10Z) read FM 3-90 / ADP 3-90 / FM 1-02.1 and re-parsed the init:
+every one of the 409 init MapGraphic elements carries an APP6C-SIDC (409/409), and 16
+of them ARE FM 3-90 Appendix B tactical-mission-task symbols. Separately, the exported
+TaskActionCode disagrees with the drawn task SYMBOL in at least 4 places (three FOLLOW
+AND SUPPORT `GFTPAS`, one FOLLOW AND ASSUME `GFTPA`, one NEUTRALIZE `GFTPN` symbol
+exist in the init, but FOLSPT/FOLASS/NTRCOM appear in none of the 42 task codes) - an
+unexplained STP-side symptom, not resolved here. The user ruled on R1-R4 the same day;
+R5 and R6 remain open. Citations below are to that doctrine record unless noted.
+
+- **R1 RULED - STP export defect, not an interface problem.** The missing MapGraphicID
+  is not ours to fix. Verified: COA-STP1_Order.xml carries 0 MapGraphicID elements and
+  66 embedded GeodeticCoordinates; STP's C2SimXmlBuilder emits MapGraphicID only when
+  IncludeMapGraphicIdInTasks is set (C2SimBridgeAgentParams.cs:128; C2SimXmlBuilder.cs
+  ~383/460), which was OFF for this export; absent that flag, Location is the FIRST
+  tactical graphic linearised (a live `// TODO: multiple TGs` in the builder), and the
+  task.Objective emission branch is commented out entirely. Fix belongs on the STP side
+  (re-export with the flag on); the interface links task -> graphic by UUID, since the
+  init already creates every area under its own C2SIM UUID. V4's name/geometry
+  heuristic as originally written is WITHDRAWN; keep a reported fallback only for the
+  transition period before STP re-exports.
+
+  USER 2026-09-14: the embedded Location is valid C2SIM and stays supported
+  alongside MapGraphicID; gap = verb-typed interpretation of the points (route /
+  area polygon-line-point-with-radius / line), on-the-fly creation of the
+  VR-Forces control object from them, precedence MapGraphicID > embedded,
+  consistency check when both; inherent limits reported not guessed (first graphic
+  only, single point cannot identify the graphic in a cluster - STP-801);
+  RelativeLocation unsupported (STP does not emit it). Follow-up build item V4b.
+
+- **R2 RULED - a task without geometry uses the geometry of the performing (who) unit.**
+  Execute in place and report the derivation; do not refuse and do not silently invent a
+  location. Zero-geometry tasks whose own statement names a graphic (T16 OBJ MONROE,
+  T34 OBJ MADISON, T21 PL GOLD obstacle belts, T10 PL BRONZE) are STP-side issues to
+  raise with the exporter, not interface heuristics to build around.
+
+- **R3 RULED - the target IS the objective (doctrinal); enemies may happen to be inside
+  it.** VR-Forces' own tactical tasks agree: company_seize, co_clear, company_breach,
+  plt_attack_by_fire and unit-attack-to-objective all take the objective graphic as
+  their parameter, never a named enemy entity. The interface's self-target-is-an-error
+  logic (VrfC2SimService.cs :1813-1815, :1820-1822) is the defect to remove, not the
+  order to fix.
+
+  USER 2026-09-14: confirmed aligned with STP's own task model (C2SimTask:
+  Who/What/How/Objective-by-SIDC/Routes/Tgs/Start/End; no enemy or target-entity
+  field; task_generation_tables.pl defines seize/clear/breach/block/destroy by their
+  task graphic and the objective by the objective-area graphic); destroy vs defeat
+  by DesiredEffectCode.
+
+- **R4 RULED - completion is given by the END TIME = StartTime + Duration.** Verified
+  in the order itself: Duration is present on all 42 tasks (32 x PT1H20M, 10 x PT2H),
+  StartTime is a relative delay (0 on 41, 3h20m on T13), EndTime is absent. The
+  interface must parse Duration (dropped today by OrderParser) and close hold-type
+  tasks (SECURE/OCCUPY/DEFEND/RETAIN/BLOCK/FIX/SCREEN/GUARD) with TASKCMPLT at that sim
+  time; evaluable tasks (SEIZE/OCCUPY arrival, BREACH, MOVE) may still complete earlier
+  on their own evidence.
+
+- **R5 OPEN - EntityLevel first vs straight to AggregateTacticalLevel.** Explained to
+  the user 2026-09-14; doctrine does not settle it directly (an engineering/schedule
+  call).
+
+  RULED 2026-09-14 (user): proceed as recommended (EntityLevel first, aggregate
+  profile second) BUT the product must offer the user the OPTION of entity-level or
+  aggregate-level mode with the limitations of each documented; a scenario is one
+  mode, never mixed.
+
+- **R6 OPEN - whether to change the type map so COA-STP1 companies are created as
+  COMPANY types.** Explained to the user 2026-09-14; doctrine note: the type should
+  follow the taskee's ECHELON, not a global switch (company-typed vendor tasks
+  implement company-level doctrine, and COA-STP1's taskees are a mix of battalions and
+  companies) - a shape constraint on the answer, not a decision.
+
+  CLARIFIED 2026-09-14: R6 is NOT a mixed entity/aggregate mode (user: 'a bridge too
+  far'); it is the DIS type of the EntityLevel aggregate object that the vendor
+  script's myEntityTypes filter checks. Options restated: (a) fan out to composed
+  companies for battalion taskees (SubordinateFanOut exists, default off) -
+  doctrinally right; (b) widen the filter in our copy of the script (custom
+  including SMS) - transition only; (c) one run to test whether the filter is
+  enforced over the remote-control channel at all. Recommendation: (c), then (a),
+  (b) as transition. Ruling still owed.
+
+---
+
+### 7.1a STATUS 2026-09-14 (branch `feat/tasking-rulings`, base `02b51de`) - R1-R4 BUILT, LIVE CONFIRMATION OWED
+
+R4 `746c091`, R2 `1f65f55`, R3 `0cd8905`, R1 `0193379`. Offline only: every check is a
+`--rulings-selftest` (41 checks across the four sections) or a `--parse-order` census, and
+all 16 existing self-tests stay green (typemap 783). NOTHING here has been run against
+VR-Forces yet.
+
+- **R4 BUILT** - `OrderParser` lifts Duration (and the absolute StartTime form);
+  `TimedCompletionPolicy` arms one timer per task at dispatch and measures ELAPSED clock,
+  not a deadline stamp, so a paused scenario does not age a task and a
+  `rollbackToSnapshot` does not complete one early; the service walks it on the tick
+  thread against the SAME clock the progress watchdog uses (`Vrf:StallClock`), pushes ONE
+  TASKCMPLT through `PushTaskStatus` and releases the STREND gate. Any TASKCMPLT/TASKABRT
+  cancels the timer; TASKSTRT/TASKINPRG do not. Config: `Vrf:TimedCompletion` (default ON),
+  `Vrf:DurationScale` (default 1.0) - the scale applies to BOTH the Duration and the
+  StartTime delay, so a compressed demo does not still wait 3h20m for T13's successor. The
+  VR-Forces task is deliberately NOT cancelled at the end time.
+- **R2 BUILT** - `TaskDispatchPolicy.ForZeroGeometry`. A zero-geometry task dispatches in
+  place with TASKSTRT, no vendor move, a NameObservation carrying the ruling's sentence,
+  R4's end time and an unbroken chain. The only refusal left is "no performing unit".
+- **R3 BUILT** - `TaskDispatchPolicy.ForTarget`. The three self-target guards (ATTACK,
+  BREACH, ESCRT) are one resolver; self is `SelfIsObjective`, not an error and not "no
+  target"; nothing is refused for its target resolution; a DISTINCT resolved entity is
+  still engaged as an entity. No new vendor tactical task (V5/V6 still to come).
+- **R1 BUILT (transition)** - `TaskGeometryResolver`. MapGraphicID(s) -> the graphic
+  created at init under the same C2SIM uuid (area -> centroid, line/point -> vertices,
+  several ids -> a route), else the embedded Location, which the user ruled is valid C2SIM
+  and stays supported; the path taken is logged on every task. No name heuristics, and no
+  verb-typed reading of the points (V4b).
+
+**WHAT A LIVE RUN MUST PROVE** (none of it is offline-decidable):
+1. A COA-STP1 run emits TASKSTRT for every dispatched task and exactly one TASKCMPLT per
+   task at its end time, and `reports-captured.log` shows them (G6 captured 0 TaskStatus).
+2. The STREND chain runs past its first link: T1 -> T2 -> ... dispatches on timed
+   completions instead of dying at the 600 s predecessor timeout. 42 dispatches, not 9.
+3. The air-defence chain T9-T12 dispatches - T9 in place with its NameObservation, T10-T12
+   as successors - instead of collapsing on the refusal.
+4. No ATTACK/BREACH/ESCRT task logs a self-target degradation; the ATTACK family routes to
+   its geometry and the 42-task order reads as 42 executions.
+5. The end-time clock behaves at scale: with `Vrf:StallClock=sim` the TIMED COMPLETION line
+   names the SIMULATION clock, and the completions land at Duration x `Vrf:DurationScale`
+   of SIM time - the first live exercise of the sim-clock path (the watchdog has only ever
+   been measured on the wall clock).
+6. A demo run with a compressed `Vrf:DurationScale` completes the whole order in minutes
+   and T13 still dispatches after its (scaled) 3h20m delay, not before.
+7. An order carrying a MapGraphicID (an STP re-export with IncludeMapGraphicIdInTasks=True,
+   or a hand-edited fixture) logs "geometry from MapGraphicID <uuid> -> <name>" and drives
+   the init area's centroid.
