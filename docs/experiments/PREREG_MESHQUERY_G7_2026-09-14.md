@@ -74,5 +74,20 @@ server's envelope) - a blank line terminates a STOMP frame body; the working R9 
 init created all six R9 units (CreationPolicy=AtOrder creates empty shells at init and platforms in full), so the
 one-entity expectation in the design was wrong - 1.BdeHQ is still the only tasked object. Order rewritten without
 blank lines or multi-line comments (same tasks, same vertices); attempt 2 follows on the same fixture and build.
+ATTEMPT 2 (run 20260914T122525Z, 12:25Z): the order arrived (one ORDER on the bus at 12:27:54), the route was
+created (4 pts) and MoveAlongRoute issued; the interface's arrival-evidence rule reported TASKCMPLT 47 s after
+dispatch - and the by-name lookup WORKED for the 11-character marking "1.BdeHQ~PXY" (P17e's expected symptom did
+NOT appear: the sim's marking limit is therefore >= 11, and the G6 truncation of the 14-char "2/1_AD/25_~PXY" to 10
+chars is the case to explain - reporting B3 stands, the width is 11 not 10). VOID FOR THE MESH QUESTION: the lone
+PLATFORM's Move-Along ran the NATIVE move-along controller ("Controller base-system.movement.move-along beginning
+to process" at sim 112.3, "Completed" at sim 878.1) and never entered ground-vehicle-move-to.lua - zero
+destination / gate / "Planned" rows at console level 4 - so P17a is a MISS for a third, unforeseen reason: the
+wrong performer KIND. Control: G1's 1.BdeHQ printed 0 planner rows on the small area while 114.MechCoy's members
+printed 48. The vehicle drove the whole 7,584 m route to V3 at ~9.9 m/s (766 sim s; the one-entity sim ran ~15x
+real time). The hardened wrapper worked end to end twice (markers, StopIface, graceful StopVrf, RTI preserved).
+ATTEMPT 3: performer = the tank platoon 1222.MechPlt (an aggregate; its members run the Lua planner through
+maneuver-in-formation - the proven G1 mover), route re-derived from its position with the same seam design and
+150 m margins for the formation spread; order without blank lines. Predictions P17a-P17d unchanged in substance;
+P17e withdrawn (the marking width is >= 11).
 (to be written from the harvest; verdict table per leg: seams / gate cur / gate dest / mesh outcome /
 N points / gate->outcome s / vertex reached)
