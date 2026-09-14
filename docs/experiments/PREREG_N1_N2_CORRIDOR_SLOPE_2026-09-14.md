@@ -854,6 +854,54 @@ south-west of V0) - if the slot move and the leg PLAN from there, the hole/islan
 and P20b (slope factor 2.0 vs the face) becomes readable in the same run; if they refuse again, the defect is wider
 than one cell and the flat-query control from the same spot is the next arm.
 
+### 10.3 N2d - run 20260914T224505Z (launched 22:40Z; order pushed 22:50Z at the ready gate; window 900 s to its cap; first run on the MERGED, G-A-pinned build)
+
+**P22a HOLD, P22b REFUSED for every long goal (and for the leader's short one), P22c UNREADABLE - and the unit DROVE THE
+WHOLE COA ROUTE.** Harvest with the three scripts (923,496 trace lines):
+- The six members were created at the shifted point (leader 34.658134/-116.745512, 34 m from the predicted 34.657894/
+  -116.745512; all six within 60 m) - the init copy was the placement anchor, as designed.
+- Short goals at the NEW spot: the ~30 m formation-slot move PLANNED for 4 of 6 members (HMMWV 1 "Planned path has 5
+  points", M3 1, M577A2 1, HMMWV 2 one success each) and was REFUSED for both M1A2s. At the OLD spot (N2b, N2c) 0 of 6.
+  So the new spot is on the mesh for short queries; the old one is not (for these six positions).
+- Long goals: EVERY one refused with "not enough (0) points" for every member - the route's V0 (2.3 km NE; see next
+  bullet), V1 (8.5 km), V2 (14 km), V3 (20 km) - 8-10 refusals per member, the abstract-graph proof line at each. On the
+  eastern lane the same override planned 4.9-5.1 km legs 8/8 (G7b C, G7c-gate). Distance does not separate (2.3 km refused
+  here, 5 km planned there); REGION does.
+- CONFOUND I INTRODUCED, recorded: because 1-35 no longer sat within Vrf:DropOriginVertexMeters (100 m) of V0, the 3f
+  origin-vertex drop did NOT fire and the route kept V0 - the unit first drove 2.3 km back north-east to the assembly point,
+  then V0 -> V1 -> V2 -> V3. The V0->V1 line is the AUTHORED line, ~1.28 km NORTH of the destack-start->V1 line every
+  earlier run drove (at the freeze longitude: 34.6677 vs 34.6561). So P22c (slope factor 2.0 vs the face) is unreadable
+  twice over: no mesh path, and a different line.
+- THE FIRST COMPLETED 1-35 ROUTE IN ANY RUN: on straight feature paths the unit reached V1 ("Task completed successfully"
+  at wall 243.5, sim ~1,500 since dispatch for 8.5 km -> ~5.7 m/s), then V2 (479.6), and was 0.85 km short of V3 when the
+  window closed (leader last fix 34.57419/-116.99830; along-track 24.6 km on the old leg axis; sim ran ~7.5x wall, 5,820 sim
+  s in the window). Its closest approach to the P11 worst-window centre was 1,188 m (north). The ridge that froze six runs is
+  passable 1.3 km north of the line those runs drove - exactly what PREREG_RIDGE_AG sec 3.3's lateral table predicted (+550 m
+  already clear at 0.720; the authored V0->V1 line was never scored, and is now known to pass).
+- Runner: gate fired after 10 s (warm), StopWhenComplete did not fire (the leg outlasted the window), teardown clean (14th),
+  RTI preserved. The merged build joined, dispatched the init and the order, and pushed reports with no MissingMethod /
+  Tick-phase failure line - the first live confirmation of gate G-A. (V2 is the deliberate proof run.)
+
+**Adversarial review.** (1) "The unit completed because the slope factor 2.0 steered it" - NO: no mesh path was ever
+planned, the factor acts inside mesh planning only; the line itself avoided the face. (2) "The old spot is off-mesh" -
+supported (0/6 short there vs 4/6 here) but the two M1A2s' short refusals here show it is not clean; a 30 m query can also
+fail for a 3 m-radius vehicle whose slot lies across a micro-feature at the 0.2 m raster - not excluded. (3) "Long queries
+fail because the abstract graph is DISCONNECTED between the 1-35 region and V0/V1/V2/V3" - the surviving reading: the
+eastern lane's 5 km legs plan, the western 2.3-20 km legs do not, whatever the start; the generation log shows abstract
+graphs in every leg sector but says nothing about their inter-sector links (63,752 transition points area-wide, not per
+sector). Falsifier available offline: none found (no connectivity dump). Falsifier live: a FLAT-query run from the new spot
+- if the flat query plans a 1-2 km goal there, the mesh is connected locally and the abstract layer is what fails.
+(4) Unexplained and carried: why the flat query in G6 planned nothing beyond 23 m anywhere while the abstract query plans
+5 km in the east; and the two M1A2 short refusals here.
+
+**Consequences.** (a) DEMO/ROUTING: the freeze is a LINE property; the pre-flight tool's lateral sensitivity plus a
+north-shift rule would have routed 1-35 through - FINDING sec 7 stands and gains a remedy the interface can apply
+(STP-804/806: pre-flight the leg, shift the line to the cleared side, log it). (b) NAV: the abstract-graph override is
+regional on this area; the western half needs either a connectivity diagnosis (NavigationLab is the vendor's only viewer
+- GUI) or a regeneration with a smaller sector / different abstract settings, or the question to MAK (user's call).
+(c) The origin-vertex drop must key on the TASKEE's position relative to V0 as it does, but a unit placed away from the
+assembly point will legitimately drive to V0 first - correct behaviour, worth a log line naming it.
+
 ---
 
 ## 11. ORDERING
@@ -863,7 +911,8 @@ than one cell and the flat-query control from the same spot is the next arm.
 | 1 | Supervisor ruling on sec 1.5 (a) / (b) / (c) | RULE | RULED 2026-09-14 per the project record: (c) - N1 is NOT run, the abstract-graph override stays the product fix, N2b is the lever |
 | 2 | N2b - `n2b_launch.sh`, ridge lane, AG + saf 2.0, single variable vs RIDGE-AG | SPEND | RUN 205046Z: P20a MISS -> STOP (sec 10.1) |
 | 2b | N2c - `n2c_launch.sh`, N2b + 300 s task start delay (sec 5.5), the (T)/(L) discriminator | SPEND | RUN 215944Z: P21b REFUSED -> (T) FALSIFIED; spatial (L) live (sec 10.2) |
-| 2c | N2d - `n2d_launch.sh`, 1-35 placed 500 m along the leg by an init copy (sec 5.6), the spatial discriminator that keeps the face | SPEND | ready (parse-init + dry run clean); runs when no agent is active |
+| 2c | N2d - `n2d_launch.sh`, 1-35 placed 500 m along the leg by an init copy (sec 5.6), the spatial discriminator that keeps the face | SPEND | RUN 224505Z: short goals plan 4/6, ALL long goals refused (regional), the unit drove V0->V1->V2->V3 on straight paths 1.3 km north of the freeze line (sec 10.3) |
+| 2d | Flat-query control from the new spot (vendor SMS fixture, same init copy) - local mesh connected? | PREREG | owed if the nav thread continues; the demo remedy (route shift) does not need it |
 | 3 | N1 - `n1_launch.sh`, only if sec 1.1 is to be falsified live | SPEND | ready, dry-run clean |
 | 4 | N2 - `n2_launch.sh`, only if N1 hits | SPEND | ready, dry-run clean; gate predicted to miss |
 | 5 | `validate_fixture.py` script-gate extension (sec 8 item 2) | - | owed, one line, outside this task's write set |
