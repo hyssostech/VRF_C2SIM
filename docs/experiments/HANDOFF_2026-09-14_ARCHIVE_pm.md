@@ -79,3 +79,45 @@ text below is kept verbatim as the record of what this doc said before that.)
 
 - LICENCE: the node-locked DEMO licence LAPSES 2026-09-15. It gates the whole toolchain, including
   vrfNavGenerator. The renewal is user-owned and the download was still owed at 13:00Z.
+
+## sec 6 - Branches and what each needs to land, as of 2026-09-14 ~17:30Z (was HANDOFF section 2)
+
+(Superseded 2026-09-14 20:30Z: sim-clock, reporting, heading-speed and preflight-port all
+landed via feat/integration @ 26efe0c; only feat/tasking-rulings remains to land, per
+section 1's state paragraph. Kept verbatim as the record of what this doc said before that.)
+
+BRANCHES AND WHAT EACH NEEDS TO LAND (worktrees under .claude\worktrees\; `git worktree list`):
+- feat/sim-clock @ f052ea7 - the C16 progress watchdog (report-only, DEFAULT OFF) measured on the
+  back end's scenario clock. Reviewed until clean (pass 3 = REVIEW3_SIMCLOCK_08146a2; pass-4 fixes
+  verified: 66/66 stall checks, wall path identical to 51d78a5 on ten feeds, Decide byte-identical).
+  Needs: the merge, then the validation run below.
+- feat/reporting @ f0d1c68 - B5 (sniff the inbound root: no more false SDK deserialize ERROR), B3
+  (find the created object when VR-Forces truncates its name), B1 (TASKSTRT at dispatch, TASKABRT
+  for tasks that will never run), B2 (never lose a report silently), B8 (re-announce a substitution),
+  plus one review fix. Branched off 08146a2, so it carries part of the sim-clock series with it.
+  Needs: a cold review pass, the merge, then its live gates.
+- feat/heading-speed (B7, heading + speed in the reports; native) and feat/preflight-port @ 7672957
+  (B4, the calibrated leg scorer ported into the interface at order receipt - the Python tool stays
+  test-harness only; the product contains no Python). Both branched off f052ea7; both worktrees are
+  locked while their executors run.
+- MERGE ORDER: sim-clock, reporting, heading-speed, preflight-port.
+- AFTER THE SIM-CLOCK MERGE THE NATIVE DLL MUST BE REBUILT AND REDEPLOYED. main's VrfFacade /
+  VrfBridge have NO SimTimeSeconds (verified: the symbol exists only on the branch), so the merged
+  managed code cannot read the scenario clock until the C++ is rebuilt (/t:Rebuild always; back up
+  the DLLs; redeploy all 7 copies). Re-pin the deployed build for the next run afterwards.
+
+## sec 7 - Next steps items 1-2, as of 2026-09-14 17:30Z (was HANDOFF section 5)
+
+(Superseded 2026-09-14 20:30Z: the nav-mesh question these items awaited is now CLOSED
+(section 1's CLOSED list) and the four branches in item 2 all landed via feat/integration.
+Kept verbatim as the record of what this doc said before that.)
+
+1. G7 ATTEMPT 3 VERDICT (L1). Harvest against PREREG_MESHQUERY_G7 sec 3 and fill sec 5: per leg -
+   seams / gate current / gate destination / mesh outcome / N points / gate-to-outcome seconds /
+   vertex reached. Points on leg 1 AND 0 on leg 3 -> the graph IS connected across seams and the
+   failure is length or budget -> G7b (the abstract-graph SMS, fixture _AG), then G8
+   (gamewareMemorySize via --appDataDir). 0 points on leg 1 -> the generated data is unusable across
+   seams, the "area size" reading is WITHDRAWN and the generation becomes the suspect.
+2. MERGES + REBUILD + DEPLOY: sim-clock, then reporting (after its cold review), then heading-speed,
+   then preflight-port; rebuild and redeploy the native VrfBridge / VrfFacade after the sim-clock
+   merge (section 2), then re-pin the deployed build.

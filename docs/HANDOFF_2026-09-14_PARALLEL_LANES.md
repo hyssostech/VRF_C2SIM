@@ -45,6 +45,14 @@ Navigation mesh (PREREG_NAVDATA_G6_2026-09-13.md sec 5 = STOP; MESH_QUERY_VS_DIS
 - The dependence is on the AREA, not goal distance: 10,131.6 m planned twice on the 1,600-sector MojaveAO20, 0 points on the 8,856-sector MojaveCOA for byte-identical destinations (22/22 pairs); refusals return FASTER (0.4-1.3 s) than successes (2.4-4.2 s) - a refusal, not an exhausted search; G1 ran on MojaveAO20, there never was a 3 x 3 km COA area.
 - The generator accepted a 41 x 54 km area: UG52's 20 x 20 km is a GUI default, not a generator limit.
 - G6/G7 CLOSED 2026-09-14 17:15Z: the refusal was the vendor script's hard-coded useAbstractGraphs = false (ground-vehicle-move-to.lua:488), not area-size or memory/budget - the custom including SMS (C:\C2SIM\vrf-sms) planned the 10-seam 4,989 m leg 8/8 with 0 refusals (G7b); gamewareMemorySize/QueryTimeBudget are NOT the lever (G8/G8b still refused on the stock SMS); docs/experiments/G7B_G8_RESULTS_2026-09-14.md; OPEN: whether abstract-graph paths avoid the ridge faces (FINDING_EARLY_STOPS).
+- DOCS PASS 2026-09-14 20:00Z (NAVDOCS_ABSTRACT_GRAPHS_AND_SLOPE_2026-09-14.md): the flat A*
+  query's documented propagation-box-extent is 200 m (Autodesk AStarQuery option,
+  Ground_Vehicle.ope); the successful G7c-gate abstract routes deviated 231-292 m, outside it.
+  Abstract graphs are documented COST-BLIND; the ridge face is legal to the mesh (slope-max 46
+  deg, cost no-go unreachable at factor 1.0, soil invisible), so no planner flag routes around it
+  - the documented lever is slope-avoidance-factor. PLAN CHANGE: the ridge test is replaced by N1
+  (propagation-box-extent 2000, stock Lua) then N2 (+ slope-avoidance-factor 2.0 on the 1-35
+  lane), N3 (the abstract-graph SMS on the ridge) only if N1 refuses.
 
 Harness (docs/experiments/RUNNER_EXIT127_2026-09-14.md; RUNBOOK 0.5.14; full recap archived docs/experiments/HANDOFF_2026-09-14_ARCHIVE_pm.md sec 3):
 - "runner exit: 127" does NOT mean "command not found" - on this MSYS bash it is a high-bit Windows code; the only SILENT one is 0xFFFFFFFF (TerminateProcess(-1) / Stop-Process / Process.Kill), so 127 + a silent log + no WER event = THE RUNNER WAS KILLED FROM OUTSIDE (killer unidentified, no process auditing here); the G6 capture was COMPLETE - "trace: (no samples)" was a separate tail-read defect, now fixed. NO Stop-Process / taskkill sweeps while a run window is open.
@@ -60,6 +68,13 @@ User rulings, 2026-09-13/14 (docs/DEMO_READINESS_2026-09-06.md rows 19-23 carry 
   placement there is SANCTIONED, as is relocating appData via --appDataDir for the G8 variable.
 - rows 22/23: the hardened runner is built (f6e68d9); the reporting gaps are ranked B1-B10, with
   TASKABRT also decided (supervisor) for refused or skipped tasks.
+- row 16: task-vocabulary rulings Q1-Q7 IN 2026-09-14 20:00Z (Q1 superseded -> TASKABRT and its
+  successors abandoned; Q2 Duration measured on the sim clock; Q3 wire ambiguity accepted; Q4 no
+  Duration + no geometry = MALFORMED, refused with error + TASKABRT, no invented hold; Q5 a
+  paused scenario holds task time while the back end reports; Q6 no interim stop-gap; Q7 rollback
+  forward-only). Fix pass 2 LANDED on feat/tasking-rulings @ 8db033e; pass-3 cold-start review
+  RUNNING before merge; follow-up STP-809 filed (facade exposes back-end status
+  Paused/Playing/gone so a dead back end does not freeze task time under Q5).
 
 Method lessons (each one cost a false claim or a night):
 - COMPARE RUNS AT EQUAL SIM TIME. Total-displacement and wall-windowed straggler verdicts produced
@@ -75,24 +90,34 @@ Method lessons (each one cost a false claim or a night):
   so it cannot test the mesh planner - G7 attempt 2. Measured there too: the sim's marking width is
   >= 11 characters, so reporting item B3 is about the 14-character name, not a 10-char limit.
 
-**State at 2026-09-14 17:30Z:** main is at cd2106c (appNo ledger for the appData validation, G8,
-G7b and G8b runs); landed since: db77917 (runner: StopWhenComplete closes on C2SIM/R1 position
-evidence, sampler sized from the derived window, relocated connection config, licence resolver in
-the 5.0.2 launcher) and 5fca73d (FixtureGen: the abstract-graph including SMS is the 5.2 default,
-G7b; demo fixture siblings *_AG deployed, originals untouched). feat/integration sits at 26efe0c
-(tasking foundation V2/V3 merged, 10 suites green, native rebuilt in the worktree, gate G-B PASS)
-and feat/tasking-rulings at 5c67d41 plus its fix pass (cold-start review
-REVIEW_RULINGS_5c67d41_2026-09-14.md = FIX FIRST on M1-M5; fix pass running). The day's four probe
-runs (4-7) all tore down cleanly, the watchdog standing down each time. Owed: gate G-A - rebuild
-the native VrfBridge/VrfFacade and redeploy to the ten consumer copies, then re-pin the deployed
-build, once the rulings fix pass merges into feat/integration; the validation runs follow. Open
-with the user (Q1-Q4 of REVIEW_RULINGS_5c67d41_2026-09-14.md): whether a superseded task still
-completes at its authored end time, which clock a C2SIM Duration is measured on, whether a
-zero-geometry task may look identical to a performed one on the wire, and how a task with no
-Duration and no geometry should behave; supervisor defaults stand meanwhile (superseded ->
-TASKABRT, Duration on the SIM clock under Vrf:TaskClock, wire ambiguity accepted,
-DefaultHoldSeconds 60). The MAK licence is RENEWED to 2026-10-31 (RUNBOOK 0.5.15; c8730e7); the
-2026-09-15 lapse warning is superseded (archived, section 4).
+**State at 2026-09-14 20:30Z:** main is at 5047114 (ledger: appNo claims for the G7c and G7c-gate
+runs, 185945Z/190751Z). feat/integration sits at 26efe0c (tasking foundation V2/V3 merged, 10
+suites green, native rebuilt in the worktree, gate G-B PASS) and feat/tasking-rulings at 8db033e
+(fix pass 2 LANDED: A1 chain gate - COA-STP1 42 dispatches / 0 skips offline, deterministic; A2,
+B1, B4, B6, B7; Q4 and Q5 built; 18 suites, rulings suite 112 checks; pass-3 cold-start review
+RUNNING before merge; follow-up STP-809 filed - the facade must expose back-end status
+Paused/Playing/gone so a dead back end does not freeze task time under Q5). The day's 11 runs,
+one line each: G7 attempt 1 VOID (a blank line killed the STOMP pump, STP-795); attempt 2 VOID (a
+lone platform never enters the Lua planner); attempt 3 VOID (AtOrder tasked members ~175 s before
+the area was recognised); attempt 4 MEASURED 15:42Z (legs 1-2 mesh-planned 4/4, the 10-seam leg 3
+refused 4/4 - a length ceiling, AREA-dependent); appData validation (164906Z) CORRECTED (8
+current-point gate failures; loadAllNavigationDataOnTerrainLoad=1 is a NULL RESULT); G8 (165919Z)
+refused 4/4 at gamewareMemorySize=128 - memory is NOT the lever; G7b (170824Z) planned the 4,989
+m / 10-seam leg 8/8 with 0 refusals via the custom including SMS - THE FIX; G8b (172134Z) refused
+again at gamewareQueryTimeBudget=50ms - time budget is NOT the lever; G7c (185945Z) VOID (cache
+cold again within the hour, nav area never registered, 31/31 gate-failed); G7c-gate (190751Z)
+CONFIRMED the custom SMS single-variable (0 gate failures, 8/8 long legs planned, 32/32 mesh
+plans). Owed: gate G-A (native rebuild + deploy to the ten consumer copies + re-pin) once the
+rulings pass-3 review merges into feat/integration and then main; N1 (propagation-box-extent
+2000, stock Lua) then N2 (+ slope-avoidance-factor 2.0 on the 1-35 lane) are next on L1,
+replacing the paused ridge test, per the 20:00Z docs pass
+(NAVDOCS_ABSTRACT_GRAPHS_AND_SLOPE_2026-09-14.md). The user's rulings are ALL IN: task-vocabulary
+Q1-Q7 (20:00Z) alongside the earlier R1-R6, TASKABRT (row 19), pre-flight-as-warnings (row 20),
+and the C:\C2SIM homes (row 21). The MAK licence is RENEWED to 2026-10-31 (RUNBOOK 0.5.15;
+c8730e7). METHOD LESSON for memory: a docs-first relapse - L1 drifted back to probing (the paused
+ridge test) before the Gameware Navigation docs were read; the user's 2026-09-14 correction
+("drift back to probing") produced the 20:00Z docs pass that redirected L1 to N1/N2. The
+2026-09-15 lapse warning stays superseded (archived, section 4).
 
 ## 2. Where each lane stands (source: docs/PLAN_PARALLEL_LANES_2026-09-14.md - the live plan)
 
@@ -113,25 +138,10 @@ Per-lane "State 2026-09-14 ~13:00Z" column dropped here (morning snapshot, dupli
 docs/PLAN_PARALLEL_LANES_2026-09-14.md and superseded within this file by section 1 where later);
 full table archived verbatim docs/experiments/HANDOFF_2026-09-14_ARCHIVE_pm.md sec 4.
 
-BRANCHES AND WHAT EACH NEEDS TO LAND (worktrees under .claude\worktrees\; `git worktree list`):
-- feat/sim-clock @ f052ea7 - the C16 progress watchdog (report-only, DEFAULT OFF) measured on the
-  back end's scenario clock. Reviewed until clean (pass 3 = REVIEW3_SIMCLOCK_08146a2; pass-4 fixes
-  verified: 66/66 stall checks, wall path identical to 51d78a5 on ten feeds, Decide byte-identical).
-  Needs: the merge, then the validation run below.
-- feat/reporting @ f0d1c68 - B5 (sniff the inbound root: no more false SDK deserialize ERROR), B3
-  (find the created object when VR-Forces truncates its name), B1 (TASKSTRT at dispatch, TASKABRT
-  for tasks that will never run), B2 (never lose a report silently), B8 (re-announce a substitution),
-  plus one review fix. Branched off 08146a2, so it carries part of the sim-clock series with it.
-  Needs: a cold review pass, the merge, then its live gates.
-- feat/heading-speed (B7, heading + speed in the reports; native) and feat/preflight-port @ 7672957
-  (B4, the calibrated leg scorer ported into the interface at order receipt - the Python tool stays
-  test-harness only; the product contains no Python). Both branched off f052ea7; both worktrees are
-  locked while their executors run.
-- MERGE ORDER: sim-clock, reporting, heading-speed, preflight-port.
-- AFTER THE SIM-CLOCK MERGE THE NATIVE DLL MUST BE REBUILT AND REDEPLOYED. main's VrfFacade /
-  VrfBridge have NO SimTimeSeconds (verified: the symbol exists only on the branch), so the merged
-  managed code cannot read the scenario clock until the C++ is rebuilt (/t:Rebuild always; back up
-  the DLLs; redeploy all 7 copies). Re-pin the deployed build for the next run afterwards.
+BRANCHES AND WHAT EACH NEEDS TO LAND section dropped here (2026-09-14 20:30Z, superseded -
+sim-clock, reporting, heading-speed and preflight-port are all in feat/integration @ 26efe0c
+per section 1's state paragraph; only feat/tasking-rulings remains to land); full text
+archived verbatim docs/experiments/HANDOFF_2026-09-14_ARCHIVE_pm.md sec 6.
 
 ## 3. Standing rules (breaking one of these is how this project has lost its days)
 
@@ -174,21 +184,17 @@ BRANCHES AND WHAT EACH NEEDS TO LAND (worktrees under .claude\worktrees\; `git w
 
 ## 5. Next steps, in order
 
-1. G7 ATTEMPT 3 VERDICT (L1). Harvest against PREREG_MESHQUERY_G7 sec 3 and fill sec 5: per leg -
-   seams / gate current / gate destination / mesh outcome / N points / gate-to-outcome seconds /
-   vertex reached. Points on leg 1 AND 0 on leg 3 -> the graph IS connected across seams and the
-   failure is length or budget -> G7b (the abstract-graph SMS, fixture _AG), then G8
-   (gamewareMemorySize via --appDataDir). 0 points on leg 1 -> the generated data is unusable across
-   seams, the "area size" reading is WITHDRAWN and the generation becomes the suspect.
-2. MERGES + REBUILD + DEPLOY: sim-clock, then reporting (after its cold review), then heading-speed,
-   then preflight-port; rebuild and redeploy the native VrfBridge / VrfFacade after the sim-clock
-   merge (section 2), then re-pin the deployed build.
-3. WATCHDOG VALIDATION RUN (C16, STP-783): it is default OFF, so enable it explicitly for that run;
+Next-steps items 1-2 (the G7 attempt-3 verdict and the sim-clock/reporting/heading-speed/
+preflight-port merge series) dropped here (2026-09-14 20:30Z, superseded - the nav-mesh
+question is CLOSED per section 1 and those four branches already landed via feat/integration);
+current owed next steps are in section 1's state paragraph (gate G-A, then N1/N2). Full text
+archived verbatim docs/experiments/HANDOFF_2026-09-14_ARCHIVE_pm.md sec 7.
+1. WATCHDOG VALIDATION RUN (C16, STP-783): it is default OFF, so enable it explicitly for that run;
    it must fire on the known 1-35 freeze by sim ~500 and must NOT fire on the units that completed.
-4. REPORTING LIVE GATES (L2): one run whose bus capture shows TASKSTRT at dispatch, a TASKABRT for a
+2. REPORTING LIVE GATES (L2): one run whose bus capture shows TASKSTRT at dispatch, a TASKABRT for a
    refused or stalled task, a position report for the platform-mapped unit, and zero silent push
    losses. B10's five questions to STP are drafted (DRAFT_STP_QUESTIONS_2026-09-14.md) - the USER
    sends them.
-5. B9 BUNDLE RUN (STP-786): the whole reporting set exercised together on one scenario.
-6. DEMO-READY residue (readiness rows 9, 13, 15, 18), then the STP TASK VOCABULARY (L8) - the user's
+3. B9 BUNDLE RUN (STP-786): the whole reporting set exercised together on one scenario.
+4. DEMO-READY residue (readiness rows 9, 13, 15, 18), then the STP TASK VOCABULARY (L8) - the user's
    stated goal beyond MOVE - and then the aggregate-level profile (Y-15).
