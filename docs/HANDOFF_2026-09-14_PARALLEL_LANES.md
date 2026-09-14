@@ -129,7 +129,10 @@ BRANCHES AND WHAT EACH NEEDS TO LAND (worktrees under .claude\worktrees\; `git w
 - AFTER THE SIM-CLOCK MERGE THE NATIVE DLL MUST BE REBUILT AND REDEPLOYED. main's VrfFacade /
   VrfBridge have NO SimTimeSeconds (verified: the symbol exists only on the branch), so the merged
   managed code cannot read the scenario clock until the C++ is rebuilt (/t:Rebuild always; back up
-  the DLLs; redeploy all 7 copies). Re-pin the deployed build for the next run afterwards.
+  the DLLs; redeploy all TEN csproj consumers - src/SmokeTest, src/VrfC2SimApp, tools/CreateOne,
+  tools/CreateTaskAgg, tools/ResetVrf, tools/RtiProbe, tools/RunSim, tools/SetAlt, tools/SetSimRate,
+  tools/WatchVrf; the "7 copies" figure was STALE, corrected 2026-09-14, docs/RUNBOOK.md sec 9).
+  Re-pin the deployed build for the next run afterwards.
 
 ## 3. Standing rules (breaking one of these is how this project has lost its days)
 
