@@ -62,6 +62,15 @@
 #include <vrfutil/scenario.h>
 #include <matrix/geodeticCoord.h>
 #include <matrix/vlVector.h>
+// Scripted-task variable reader/writers (V2). scriptedTaskTask.h already pulls
+// rwVariableBindings.h + rwString.h + rwUUID.h; the rest are named explicitly so the
+// DescribeScriptVars read-back does not depend on a transitive include.
+#include <readerWriter/rwBoolean.h>
+#include <readerWriter/rwInt.h>
+#include <readerWriter/rwReal.h>
+#include <readerWriter/rwString.h>
+#include <readerWriter/rwVector.h>
+#include <vrfutil/rwUUID.h>
 
 // VRF_API_52 = the VR-Forces 5.2d / VR-Link 5.10 build axis (VrfBridge.vcxproj Release-5.2*).
 // docs/VRF_5.2_MIGRATION_DIFF.md sec G Y-6: Start/Tick follow the 5.2d remoteControl sample.
@@ -75,6 +84,7 @@
 
 #include <cstring>
 #include <cstdlib>
+#include <cstdio>      // snprintf (DescribeScriptVars value formatting)
 #include <string>
 #include <vector>
 #include <set>
@@ -113,6 +123,60 @@ namespace {
                              g.lonDeg / kDegRadFactor,
                              g.altMeters);
         return geod.geocentric();
+    }
+
+    // Inverse of toGeocentric; used by DescribeScriptVars to read a location variable
+    // back in the units the caller supplied it in.
+    vrf::Geodetic toGeodetic(const DtVector& v) {
+        DtGeodeticCoord geod;
+        geod.setGeocentric(v);
+        vrf::Geodetic g;
+        g.latDeg = geod.lat() * kDegRadFactor;
+        g.lonDeg = geod.lon() * kDegRadFactor;
+        g.altMeters = geod.alt();
+        return g;
+    }
+
+    // ONE place where a vrf::ScriptVar becomes a VR-Forces scripted-task variable.
+    // Shared by RunScriptedTask (DtScriptedTaskTask), SendScriptedSet (DtScriptedTaskSet)
+    // and DescribeScriptVars, so the self-test exercises the shipping path and not a copy.
+    //
+    // Every branch is the vendor's own DtScriptedTask::setValue overload with its DEFAULT
+    // type constant (scriptedTaskTask.h:90-97; the constants in
+    // vrfutil/vrfScriptedTasksConstants.h). That is the pattern MAK's own plugin sample
+    // uses - examples/displayStateData/plugin.cxx:121-132 builds a DtScriptedTaskTask,
+    // setScriptId("launch_flight_mission"), then setValue("Airbase", obj->uuid()) and
+    // setValue("Loadout", "Intercept") with no explicit type argument.
+    //
+    // WHY NOT the old "variables().addVariable(new DtRw*)" form (which this replaces, and
+    // which examples/addTask/addTaskGui/DtTaskRetreatDialog.cxx:64 still shows): that writes
+    // the VALUE binding only and leaves variableDataTypes() empty, so the receiver gets no
+    // scripted-task type for the variable. setValue writes both (scriptedTaskTask.h:140-146).
+    // RunScriptedTask/SendScriptedSet had NO caller in src/VrfC2SimApp when this changed
+    // (grep, 2026-09-14), so no existing verb's behaviour moves.
+    void addScriptVar(DtScriptedTask& task, const vrf::ScriptVar& v) {
+        const DtString name(v.name.c_str());
+        switch (v.kind) {
+            case vrf::ScriptVar::Kind::ObjectUuid:
+                task.setValue(name, DtUUID(v.uuidValue));            // "simulationobject"
+                break;
+            case vrf::ScriptVar::Kind::Bool:
+                task.setValue(name, v.boolValue);                    // "checkbox"
+                break;
+            case vrf::ScriptVar::Kind::Integer:
+                task.setValue(name, v.intValue);                     // "integer"
+                break;
+            case vrf::ScriptVar::Kind::String:
+                task.setValue(name, v.stringValue);                  // "string"
+                break;
+            case vrf::ScriptVar::Kind::Location:
+                task.setValue(name, toGeocentric(v.locValue));       // "location"
+                break;
+            case vrf::ScriptVar::Kind::Real:
+            default:
+                task.setValue(name, v.realValue);                    // "double"
+                break;
+        }
     }
 
     // Free a DtList of DtVector* we allocated for createRoute/createControlArea.
@@ -963,17 +1027,7 @@ void VrfFacade::RunScriptedTask(const std::string& uuid, const std::string& scri
     DtScriptedTaskTask task;
     task.init();
     task.setScriptId(scriptId.c_str());
-    for (const ScriptVar& v : vars) {
-        if (v.kind == ScriptVar::Kind::ObjectUuid) {
-            DtRwObjectName* var = new DtRwObjectName(v.name.c_str());
-            var->setUUID(DtUUID(v.uuidValue));
-            task.variables().addVariable(var);
-        } else {
-            DtRwReal* var = new DtRwReal(v.name.c_str());
-            var->setValue(v.realValue);
-            task.variables().addVariable(var);
-        }
-    }
+    for (const ScriptVar& v : vars) addScriptVar(task, v);
     p_->controller->sendTaskMsg(DtUUID(uuid), &task);
 }
 
@@ -982,18 +1036,60 @@ void VrfFacade::SendScriptedSet(const std::string& uuid, const std::string& scri
     DtScriptedTaskSet set;
     set.init();
     set.setScriptId(scriptId.c_str());
-    for (const ScriptVar& v : vars) {
-        if (v.kind == ScriptVar::Kind::ObjectUuid) {
-            DtRwObjectName* var = new DtRwObjectName(v.name.c_str());
-            var->setUUID(DtUUID(v.uuidValue));
-            set.variables().addVariable(var);
-        } else {
-            DtRwReal* var = new DtRwReal(v.name.c_str());
-            var->setValue(v.realValue);
-            set.variables().addVariable(var);
-        }
-    }
+    for (const ScriptVar& v : vars) addScriptVar(set, v);
     p_->controller->sendSetDataMsg(DtUUID(uuid), &set, DtSimSendToAll);
+}
+
+std::vector<std::string> VrfFacade::DescribeScriptVars(const std::vector<ScriptVar>& vars) {
+    // No controller, no federation, nothing sent: a DtScriptedTaskTask is a plain
+    // reader/writer object (scriptedTaskTask.h:275 DtScriptedTaskTemplate<DtSimTask>).
+    DtScriptedTaskTask task;
+    task.init();
+    task.setScriptId("selftest");
+    for (const ScriptVar& v : vars) addScriptVar(task, v);
+
+    std::vector<std::string> out;
+    out.reserve(vars.size());
+    for (const ScriptVar& v : vars) {
+        const DtString name(v.name.c_str());
+        const DtReaderWriter* rw = task.variables().findVariableBinding(name);
+        std::string rwType = "?";
+        std::string value  = "?";
+        if (rw) {
+            const char* t = rw->readerWriterType();          // readerWriter.h:361
+            if (t) rwType = t;
+            // Decode from the CONCRETE reader/writer the vendor chose, so a wrong
+            // overload shows up as a cast miss rather than a plausible-looking value.
+            if (const DtRwObjectName* u = dynamic_cast<const DtRwObjectName*>(rw)) {
+                value = std::string(u->uuidString().c_str());  // rwUUID.h:82
+            } else if (const DtRwBoolean* b = dynamic_cast<const DtRwBoolean*>(rw)) {
+                value = b->value() ? "true" : "false";          // rwBoolean.h:90
+            } else if (const DtRwInt* i = dynamic_cast<const DtRwInt*>(rw)) {
+                value = std::to_string(i->value());             // rwInt.h:104
+            } else if (const DtRwString* s = dynamic_cast<const DtRwString*>(rw)) {
+                value = std::string(s->c_str());                // DtRwString IS a DtString
+            } else if (const DtRwVector* p = dynamic_cast<const DtRwVector*>(rw)) {
+                Geodetic g = toGeodetic(*p);                    // rwVector.h:23 IS a DtVector
+                char buf[128];
+                std::snprintf(buf, sizeof(buf), "%.6f,%.6f,%.3f", g.latDeg, g.lonDeg, g.altMeters);
+                value = buf;
+            } else if (const DtRwReal* r = dynamic_cast<const DtRwReal*>(rw)) {
+                // AFTER DtRwVector: both are numeric, but DtRwVector is not a DtRwReal,
+                // so order only matters against future numeric subclasses.
+                char buf[64];
+                std::snprintf(buf, sizeof(buf), "%.6f", (double)r->value());  // rwReal.h:103
+                value = buf;
+            }
+        }
+        // The scripted-task data type setValue recorded for this variable, read from the
+        // SECOND binding set (scriptedTaskTask.h:60-63 variableDataTypes()).
+        std::string dataType = "?";
+        if (const DtReaderWriter* dt = task.variableDataTypes().findVariableBinding(name))
+            if (const DtRwString* s = dynamic_cast<const DtRwString*>(dt))
+                dataType = std::string(s->c_str());
+        out.push_back(v.name + "|" + rwType + "|" + dataType + "|" + value);
+    }
+    return out;
 }
 
 unsigned int VrfFacade::RequestTerrainProfile(const std::vector<Geodetic>& points) {

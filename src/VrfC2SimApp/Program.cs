@@ -69,6 +69,12 @@ if (args.Length > 0 && args[0] == "--arrival-selftest")
 if (args.Length > 0 && args[0] == "--stall-selftest")
     return StallSelfTest.Run();
 
+// Offline scripted-task variable check (V2): every ScriptVar kind -> the vendor's DtRw* binding and
+// back (VrfBridge.DescribeScriptVars; builds a real DtScriptedTaskTask, sends nothing). Loads the
+// bridge assembly, so the MAK bin dirs must be on PATH - like --typemap-selftest.
+if (args.Length > 0 && args[0] == "--scripted-task-selftest")
+    return ScriptedTaskSelfTest.Run();
+
 // AN UNKNOWN "--..." SWITCH MUST NEVER START THE HOST (2026-09-07: an older build given a flag it
 // did not know fell through to here, joined the federation beside a running experiment for five
 // minutes and had to be killed). Only a bare start (no args) or host-builder args reach the host.
@@ -78,7 +84,8 @@ if (args.Length > 0 && args[0].StartsWith("--") && args[0] != "--runtime-check" 
 {
     Console.Error.WriteLine("VrfC2SimApp: unknown switch '" + args[0] + "' - NOT starting the host. Known: " +
                             "--translator/--report/--sequencer/--verb/--destack/--fanout/--typemap/--terrain/" +
-                            "--placement/--compose/--arrival/--stall-selftest, --parse-init <file> [clientId], " +
+                            "--placement/--compose/--arrival/--stall/--scripted-task-selftest, " +
+                            "--parse-init <file> [clientId], " +
                             "--parse-order <file>, --runtime-check, host switches --Key=Value; " +
                             "no arguments = run the interface.");
     return 2;

@@ -52,19 +52,65 @@ enum class Roe { FireAtWill, HoldFire, FireWhenFiredUpon };
 // on aggregate movement).
 enum class AggregateState { Aggregated, Disaggregated };
 
-// One variable of a VR-Forces scripted task (Lua). Either an object
-// reference (by UUID) or a real number, matching DtRwObjectName / DtRwReal.
+// One variable of a VR-Forces scripted task (Lua).
+//
+// VENDOR CONTRACT (C:/MAK/vrforces5.2d/include/vrftasks/scriptedTaskTask.h:90-106):
+// DtScriptedTask::setValue is overloaded for, in header order -
+//   :90  bool                (default type DtScriptedTaskCheckBoxVariable         "checkbox")
+//   :91  int                 (default type DtScriptedTaskIntegerVariable          "integer")
+//   :92  double              (default type DtScriptedTaskDoubleVariable           "double")
+//   :93  const std::string&  (default type DtScriptedTaskStringVariable           "string")
+//   :94  const DtString&     (default type DtScriptedTaskStringVariable           "string")
+//   :95  const char*         (default type DtScriptedTaskStringVariable           "string")
+//   :96  const DtUUID&       (default type DtScriptedTaskSimulationObjectVariable "simulationobject")
+//   :97  const DtVector&     (default type DtScriptedTaskLocationVariable         "location")
+//   :98  const DtEntityType& (default type DtScriptedTaskEntityTypeVariable       "entitytype")
+//   :99  const DtTaitBryan&  (default type DtScriptedTaskOrientationVariable      "orientation")
+//   :100-106 vector/map forms (offset-vector list, vector list, vector<DtUUID>,
+//            vector<DtVector>, map<DtString,int|double|DtString>).
+// The type strings are the DtScriptedTask*Variable constants of
+// vrfutil/vrfScriptedTasksConstants.h ("integer","string","double","location",
+// "simulationobject","checkbox", ...). setValue writes BOTH bindings - the value into
+// variables() and the scripted-task type into variableDataTypes() (scriptedTaskTask.h
+// :140-146) - which the previous addVariable-only marshalling here did not.
+//
+// MODELLED HERE (V2): the six SCALAR kinds a COA-STP1-shaped task needs - ObjectUuid
+// (a tactical graphic or a unit), Real, Bool, Integer, String and Location. NOT
+// modelled: DtEntityType, DtTaitBryan and the vector/map forms; no scripted task in
+// the build list of docs/experiments/TASK_VOCABULARY_ASSESSMENT_2026-09-14.md
+// sec 3.2/3.3 asks for one, and each is a mechanical extra case in the same switch.
+//
+// Location carries a GEODETIC point (degrees, metres) and is converted to the
+// geocentric DtVector the vendor's location variable expects - the same convention as
+// every other position on this boundary (CreateWaypoint/CreateRoute/CreateControlArea,
+// vrfRemoteController.h:991-1011 "the position needs to be in geocentric coordinates").
 struct ScriptVar {
-    enum class Kind { ObjectUuid, Real } kind = Kind::Real;
+    enum class Kind { ObjectUuid, Real, Bool, Integer, String, Location } kind = Kind::Real;
     std::string name;        // e.g. "pickupPoint", "altitudeAgl"
     std::string uuidValue;   // used when kind == ObjectUuid
-    double      realValue = 0.0; // used when kind == Real
+    double      realValue = 0.0;    // used when kind == Real
+    bool        boolValue = false;  // used when kind == Bool
+    int         intValue = 0;       // used when kind == Integer
+    std::string stringValue;        // used when kind == String
+    Geodetic    locValue;           // used when kind == Location
 
     static ScriptVar Object(const std::string& n, const std::string& uuid) {
         ScriptVar v; v.kind = Kind::ObjectUuid; v.name = n; v.uuidValue = uuid; return v;
     }
     static ScriptVar Number(const std::string& n, double val) {
         ScriptVar v; v.kind = Kind::Real; v.name = n; v.realValue = val; return v;
+    }
+    static ScriptVar Flag(const std::string& n, bool val) {
+        ScriptVar v; v.kind = Kind::Bool; v.name = n; v.boolValue = val; return v;
+    }
+    static ScriptVar Count(const std::string& n, int val) {
+        ScriptVar v; v.kind = Kind::Integer; v.name = n; v.intValue = val; return v;
+    }
+    static ScriptVar Text(const std::string& n, const std::string& val) {
+        ScriptVar v; v.kind = Kind::String; v.name = n; v.stringValue = val; return v;
+    }
+    static ScriptVar Place(const std::string& n, const Geodetic& val) {
+        ScriptVar v; v.kind = Kind::Location; v.name = n; v.locValue = val; return v;
     }
 };
 
@@ -525,12 +571,27 @@ public:
                       bool autoSelectWeapon = true, int maxRounds = 0);
 
     // Scripted (Lua) task, sent via a task message (e.g. evacuate_civilians).
+    // Signature UNCHANGED by V2 - only the ScriptVar kinds it accepts grew.
     void RunScriptedTask(const std::string& uuid, const std::string& scriptId,
                          const std::vector<ScriptVar>& vars);
 
     // Scripted (Lua) set-data, sent via a set-data message (e.g. set_point_agl).
     void SendScriptedSet(const std::string& uuid, const std::string& scriptId,
                          const std::vector<ScriptVar>& vars);
+
+    // OFFLINE ROUND-TRIP of the ScriptVar -> DtRw* marshalling (V2 self-test surface).
+    // STATIC and controller-free: it builds a real DtScriptedTaskTask through the SAME
+    // helper RunScriptedTask/SendScriptedSet use, then reads each variable BACK out of
+    // the vendor's own DtRwVariableBindings. Nothing is sent; no federation, no sim.
+    // One line per variable, pipe-separated and stable for assertions:
+    //   "<name>|<readerWriterType>|<scriptedTaskDataType>|<value>"
+    // where readerWriterType is DtReaderWriter::readerWriterType() (readerWriter.h:361),
+    // scriptedTaskDataType is the string setValue stored in variableDataTypes(), and
+    // value is decoded from the concrete DtRw* type (a location comes back GEODETIC,
+    // "lat,lon,alt" in degrees/metres, so the geocentric conversion is covered too).
+    // A variable that cannot be found or cast reports "?" in the failing field rather
+    // than throwing - the self-test then fails on the mismatch, which is the point.
+    static std::vector<std::string> DescribeScriptVars(const std::vector<ScriptVar>& vars);
 
     // -- state read (pure; does NOT task the unit) ----------------
     // Reads the reflected entity's current geocentric location and returns
