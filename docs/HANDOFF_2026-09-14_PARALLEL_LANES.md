@@ -50,9 +50,9 @@ Navigation mesh (PREREG_NAVDATA_G6_2026-09-13.md sec 5 = STOP; MESH_QUERY_VS_DIS
   Ground_Vehicle.ope); the successful G7c-gate abstract routes deviated 231-292 m, outside it.
   Abstract graphs are documented COST-BLIND; the ridge face is legal to the mesh (slope-max 46
   deg, cost no-go unreachable at factor 1.0, soil invisible), so no planner flag routes around it
-  - the documented lever is slope-avoidance-factor. PLAN CHANGE: the ridge test is replaced by N1
-  (propagation-box-extent 2000, stock Lua) then N2 (+ slope-avoidance-factor 2.0 on the 1-35
-  lane), N3 (the abstract-graph SMS on the ridge) only if N1 refuses.
+  - the documented lever is slope-avoidance-factor. 20:40Z HEADER READING (PREREG_N1_N2_CORRIDOR_SLOPE):
+  propagation-box-extent is DEAD for ground vehicles (DtNavBot parameter; Ground_Vehicle.ope uses the
+  dynamic-obstacle nav interface) -> N1 NOT RUN, AG SMS stays the fix; the ridge run is N2b (AG + slope 2.0).
 
 Harness (docs/experiments/RUNNER_EXIT127_2026-09-14.md; RUNBOOK 0.5.14; full recap archived docs/experiments/HANDOFF_2026-09-14_ARCHIVE_pm.md sec 3):
 - "runner exit: 127" does NOT mean "command not found" - on this MSYS bash it is a high-bit Windows code; the only SILENT one is 0xFFFFFFFF (TerminateProcess(-1) / Stop-Process / Process.Kill), so 127 + a silent log + no WER event = THE RUNNER WAS KILLED FROM OUTSIDE (killer unidentified, no process auditing here); the G6 capture was COMPLETE - "trace: (no samples)" was a separate tail-read defect, now fixed. NO Stop-Process / taskkill sweeps while a run window is open.
@@ -108,15 +108,15 @@ again at gamewareQueryTimeBudget=50ms - time budget is NOT the lever; G7c (18594
 cold again within the hour, nav area never registered, 31/31 gate-failed); G7c-gate (190751Z)
 CONFIRMED the custom SMS single-variable (0 gate failures, 8/8 long legs planned, 32/32 mesh
 plans). Owed: gate G-A (native rebuild + deploy to the ten consumer copies + re-pin) once the
-rulings pass-3 review merges into feat/integration and then main; N1 (propagation-box-extent
-2000, stock Lua) then N2 (+ slope-avoidance-factor 2.0 on the 1-35 lane) are next on L1,
-replacing the paused ridge test, per the 20:00Z docs pass
+rulings pass-3 review merges into feat/integration and then main; N2b (abstract-graph SMS +
+slope-avoidance-factor 2.0, fixture _AG_S2, 1-35 lane) is next on L1, replacing the paused ridge
+test (N1 dropped 20:40Z: propagation-box-extent is a dead parameter for vehicles)
 (NAVDOCS_ABSTRACT_GRAPHS_AND_SLOPE_2026-09-14.md). The user's rulings are ALL IN: task-vocabulary
 Q1-Q7 (20:00Z) alongside the earlier R1-R6, TASKABRT (row 19), pre-flight-as-warnings (row 20),
 and the C:\C2SIM homes (row 21). The MAK licence is RENEWED to 2026-10-31 (RUNBOOK 0.5.15;
 c8730e7). METHOD LESSON for memory: a docs-first relapse - L1 drifted back to probing (the paused
 ridge test) before the Gameware Navigation docs were read; the user's 2026-09-14 correction
-("drift back to probing") produced the 20:00Z docs pass that redirected L1 to N1/N2. The
+("drift back to probing") produced the 20:00Z docs pass that redirected L1 to N2b. The
 2026-09-15 lapse warning stays superseded (archived, section 4).
 
 ## 2. Where each lane stands (source: docs/PLAN_PARALLEL_LANES_2026-09-14.md - the live plan)
@@ -187,7 +187,7 @@ archived verbatim docs/experiments/HANDOFF_2026-09-14_ARCHIVE_pm.md sec 6.
 Next-steps items 1-2 (the G7 attempt-3 verdict and the sim-clock/reporting/heading-speed/
 preflight-port merge series) dropped here (2026-09-14 20:30Z, superseded - the nav-mesh
 question is CLOSED per section 1 and those four branches already landed via feat/integration);
-current owed next steps are in section 1's state paragraph (gate G-A, then N1/N2). Full text
+current owed next steps are in section 1's state paragraph (gate G-A, then N2b). Full text
 archived verbatim docs/experiments/HANDOFF_2026-09-14_ARCHIVE_pm.md sec 7.
 1. WATCHDOG VALIDATION RUN (C16, STP-783): it is default OFF, so enable it explicitly for that run;
    it must fire on the known 1-35 freeze by sim ~500 and must NOT fire on the units that completed.
