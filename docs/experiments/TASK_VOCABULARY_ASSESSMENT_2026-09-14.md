@@ -1089,8 +1089,8 @@ R5 and R6 remain open. Citations below are to that doctrine record unless noted.
   time; evaluable tasks (SEIZE/OCCUPY arrival, BREACH, MOVE) may still complete earlier
   on their own evidence.
 
-  **R4's CLOCK IS THE SIMULATION CLOCK** (supervisor default 2026-09-14, Q2 of the
-  cold-start review of `5c67d41`; the user may flip it). `Vrf:TaskClock`, default
+  **R4's CLOCK IS THE SIMULATION CLOCK** (Q2, **RULED 2026-09-14 (user)**: the
+  supervisor default stands). `Vrf:TaskClock`, default
   `"sim"`, with an automatic WALL fallback whenever `DtVrfRemoteController::simTime()`
   cannot be read or has gone stale. The ruling above already says "at that sim time";
   what the setting adds is that the SAME clock carries all THREE task times - the
@@ -1101,16 +1101,20 @@ R5 and R6 remain open. Citations below are to that doctrine record unless noted.
   expired three to four times too early and every successor was skipped.
   `Vrf:StallClock` now governs the progress watchdog ONLY.
 
-  **THE OTHER THREE REVIEW QUESTIONS**, also supervisor defaults pending the user's own
-  ruling:
-  - **Q1, a SUPERSEDED task**: `Vrf:SupersededTaskCode`, default `TASKABRT` AT THE
-    SUPERSEDE POINT - the taskee is demonstrably not performing it, and the interface's
-    own log already said so while its report stream said the opposite. `TASKCMPLT`
-    (the literal reading: the order says when the task ends, whatever the simulator did)
-    is selectable. Not reachable on COA-STP1 under `PredecessorTimeoutPolicy=skip`.
-  - **Q3, the WIRE AMBIGUITY is ACCEPTED**: STP sees TASKSTRT + TASKCMPLT for a
-    zero-geometry in-place task exactly as for a performed one; the derivation goes out
-    as an ObservationReport, which STP discards (STP-800). Recorded, not worked around.
+  **THE OTHER SIX REVIEW QUESTIONS - ALL RULED 2026-09-14 (user).** Q1-Q3 confirm the
+  supervisor defaults; Q4 REPLACES one; Q5-Q7 were raised by the pass-2 review of
+  `0c96f50` and are answered here for the first time. Nothing below is "pending".
+  - **Q1, a SUPERSEDED task - RULED (user)**: `Vrf:SupersededTaskCode`, default
+    `TASKABRT` AT THE SUPERSEDE POINT - the taskee is demonstrably not performing it, and
+    the interface's own log already said so while its report stream said the opposite -
+    **AND its successors are abandoned immediately** (`821b359`), so each reports its own
+    TASKABRT at once instead of waiting out a gate of up to 7,260 s. `TASKCMPLT` (the
+    literal reading: the order says when the task ends, whatever the simulator did) is
+    selectable and deliberately does NOT abandon. Not reachable on COA-STP1 under
+    `PredecessorTimeoutPolicy=skip`.
+  - **Q3, the WIRE AMBIGUITY is ACCEPTED - RULED (user)**: STP sees TASKSTRT + TASKCMPLT
+    for a zero-geometry in-place task exactly as for a performed one; the derivation goes
+    out as an ObservationReport, which STP discards (STP-800). Recorded, not worked around.
   - **Q4, a task with NO Duration AND no geometry - RULED 2026-09-14 (user),
     REPLACING the supervisor default**: such a task is **MALFORMED** and is REFUSED.
     No hold is invented and `Vrf:DefaultHoldSeconds` is DELETED. The task gets an
@@ -1118,7 +1122,28 @@ R5 and R6 remain open. Citations below are to that doctrine record unless noted.
     a `NotifyAbandoned`, so its successors fail fast like every other refusal - a
     number that is not in the order is not this interface's to invent, and a chain
     built on one is worse than a chain that stops with a named cause. None of
-    COA-STP1's 42 tasks is affected: all 42 carry a Duration.
+    COA-STP1's 42 tasks is affected: all 42 carry a Duration. Built in `168207f`.
+  - **Q5, does a PAUSED scenario age a task? NO - RULED 2026-09-14 (user)**, as the
+    pass-2 review recommended. M4's cure for a frozen reader served WALL seconds after
+    60 s of flatness, so a ten-minute pause burned 600 s off every armed Duration. The
+    task clock now HOLDS on the sim axis while a VR-Forces back end is still present and
+    falls back to wall only when there is none (`f2794d7`, `StallPolicy.TaskClockAction`).
+    **THE LIMIT, recorded rather than papered over**: the only liveness the facade exposes
+    is `BackendCount` -> `backends().count()`, and that list KEEPS a back end deactivated
+    for missing its status timeout, so on this signal a DEAD back end holds task time
+    exactly as a paused one does. The hold line therefore REPEATS instead of being said
+    once, and says so. OWED (needs a C++ facade change): expose
+    `DtVrfBackendListener::lookupBackend(addr)->status()` (Paused vs Playing) or
+    `getControlState(addr)` and decide on that.
+  - **Q6, the interim demo setting - RULED 2026-09-14 (user)**: NO stop-gap. A1
+    (`b6471a3`) is the answer; `Vrf:TaskPredecessorTimeoutSeconds` is NOT raised to
+    20,000 anywhere, and `appsettings.Demo.json` keeps its 7,200 as the floor it always
+    was.
+  - **Q7, a task after a `rollbackToSnapshot` - RULED 2026-09-14 (user), ACCEPTED as
+    recorded**: the axis adds FORWARD movement only, so the re-simulated stretch is served
+    TWICE and the task ends LATER in scenario time than the order says. That is the
+    intended trade against a deadline STAMP, which would fire the moment a rollback landed
+    past it. Stated where the clock is configured (`VrfSettings.TaskClock`).
 
 - **R5 OPEN - EntityLevel first vs straight to AggregateTacticalLevel.** Explained to
   the user 2026-09-14; doctrine does not settle it directly (an engineering/schedule
@@ -1201,7 +1226,7 @@ the order it was built for. What changed:
 | M4 | No stale-clock detection in the timed walk. A deactivated back end is not removed, so the reader returns its last value for the rest of the run and every end time froze. | The shared tracker's `Stale` verdict; the task clock falls back to WALL seconds and keeps serving, warning once each way. | `48e7c5d` |
 | M5 | `_graphicsByC2SimUuid` was written only from `init.Areas`: 35 of the init's 409 graphics. A MapGraphicID naming a phase line or an axis of advance matched nothing and the task fell through to the embedded Location - or, on an export that drops it, to R2 IN PLACE. | Lines and points are registered too, UNCONDITIONALLY (the map holds authored points, not VR-Forces objects, so the create flags are irrelevant to it). An unmatched id is now a WARNING. | `1ddb9a7` |
 | m1-m9 | The superseded task still reported TASKCMPLT; the in-place dispatch cleared state for a command it never issued; `Unresolved`/`NoTarget` were relabelled as R3; the month term was 30 HOURS; the timer survived the empty-taskee guard; the real "no performing unit" path was silent; a discarded embedded Location said nothing; `DurationScale` had two opposite readings; an in-place task stayed `IsBusy` forever. | All fixed; Q1 and Q4 answered by the supervisor defaults recorded in 7.1. | `06f8cf0` |
-| n8 | The 41-check suite was pure-function checks of 3-line methods; `(d2)` could not fail. | 77 checks, including service-level ones on real objects and FAIL-FIRST controls for M1, M3 and M4. | `6d46921` |
+| n8 | The 41-check suite was pure-function checks of 3-line methods; `(d2)` could not fail. | 78 checks (the brief said 77; the pass-2 review counted them), including service-level ones on real objects and FAIL-FIRST controls for M1, M3 and M4. | `6d46921` |
 
 NEW CONFIG KEYS (all documented in `VrfSettings.cs` and `docs/RUNBOOK.md` sec 11):
 `Vrf:TaskClock` (`sim`), `Vrf:TaskPredecessorEndMarginSeconds` (60),
@@ -1211,19 +1236,22 @@ user's Q4 ruling of 2026-09-14 - a malformed task is refused, not held.
 
 #### PASS 2 - review of `0c96f50` (in-repo, `docs/experiments/REVIEW2_RULINGS_0c96f50_2026-09-14.md`)
 
-Verdict **FIX FIRST**, on M1: it was fixed one level down and re-created one level up.
+Verdict **FIX FIRST**, on M1: it was fixed one level down and re-created one level up. All
+FIX-FIRST items are now closed; the suite is **112 checks** and all 18 offline suites exit 0.
+NOTHING below has been run against VR-Forces.
 
 | item | what was wrong | status |
 |------|----------------|--------|
 | **A1** | **M1 WAS MOVED, NOT CLOSED.** The derived window covers the predecessor's DURATION but not its LEAD TIME, and phase 1 of the gate ("has it dispatched at all?") runs from ORDER RECEIPT - `HandleOrder` starts all 42 orchestrations in one loop. MEASURED on the real classes over the whole order graph: **21 dispatches, 21 TASKABRT(SKIPPED)** at the 600 s default AND at the Demo overlay's 7,200, and NOT DETERMINISTIC at `DurationScale=0.05`. | **FIXED `b6471a3`** - phase 1 takes its own window: `Vrf:TaskChainBackstopSeconds` when the predecessor is a task in this order (a real dead end ABANDONS it), the configured value for a DANGLING reference. 15 new checks walk WHOLE graphs, including COA-STP1 off disk: 42 / 0, deterministic over 20 repetitions at 0.05. |
-| **A2** | `docs/RUNBOOK.md` sec 11 told the operator the OPPOSITE of what the code did ("you no longer need to raise `TaskPredecessorTimeoutSeconds`"), sec 11 sat ABOVE sec 10, and this section claimed ALL ITEMS FIXED. | **FIXED (this commit)** - sec 11 states both windows and what was true before A1 (>= 20,000 s, measured), sec 11 now follows sec 10, and this table replaces the claim. |
-| B1 | The Q1 supersede TASKABRT does not call `_sequencer.NotifyAbandoned`, so the successors of a task the interface has just told STP is NOT being performed still wait out the full derived gate. | FIX QUEUED |
+| **A2** | `docs/RUNBOOK.md` sec 11 told the operator the OPPOSITE of what the code did ("you no longer need to raise `TaskPredecessorTimeoutSeconds`"), sec 11 sat ABOVE sec 10, and this section claimed ALL ITEMS FIXED. | **FIXED `4ca7afa`** - sec 11 states both windows and what was true before A1 (>= 20,000 s, measured), sec 11 now follows sec 10, and this table replaces the claim. |
+| B1 | The Q1 supersede TASKABRT does not call `_sequencer.NotifyAbandoned`, so the successors of a task the interface has just told STP is NOT being performed still wait out the full derived gate. | **FIXED `821b359`** - and the user's Q1 ruling says the same. The branch decision is a named predicate; `TASKCMPLT` deliberately does not abandon. |
 | B3 | `Vrf:DefaultHoldSeconds` is invisible to the gate derivation, so the two knobs can be set to contradict each other with no warning. | **MOOT** - the user's Q4 ruling of 2026-09-14 removes the invented hold entirely (a task with no Duration AND no geometry is MALFORMED and is refused), so there is no second knob to cross-check. |
-| B4 | The derivation ignores `Vrf:TimedCompletion`: with timed completion OFF every gated successor still waits `predDuration + 60` instead of the configured window. | FIX QUEUED |
-| B6 | None of the R4 keys is in either settings file, on a branch whose next milestone is a STANDALONE demo deployment. | FIX QUEUED |
-| B7 | The gate-timeout message cannot tell a phase-1 timeout ("never dispatched") from a phase-2 one ("did not complete"), so the log mis-states the cause. | FIX QUEUED |
+| B4 | The derivation ignores `Vrf:TimedCompletion`: with timed completion OFF every gated successor still waits `predDuration + 60` instead of the configured window. | **FIXED `df7f7e2`** - measured: the same chain gave up after 7,260 s and now gives up at the configured 600 s. |
+| B6 | None of the R4 keys is in either settings file, on a branch whose next milestone is a STANDALONE demo deployment. | **FIXED `d792901`** - seven keys in `appsettings.json` at their defaults, six in `appsettings.Demo.json` with a `_Key` line each; RUNBOOK sec 11 rewritten. |
+| B7 | The gate-timeout message cannot tell a phase-1 timeout ("never dispatched") from a phase-2 one ("did not complete"), so the log mis-states the cause. | **FIXED `ba44d7e`** - `GateResult.PredecessorNeverDispatched` is its own outcome and `TaskDispatchPolicy.GateFailureReason` is a pure function whose two sentences the suite locks verbatim. |
 | B2 | A superseded move's LATE vendor completion is attributed to the NEW task (TASKCMPLT for a task that has not finished). Needs a supersede, which COA-STP1 does not reach under `policy=skip`. | RECORDED DEBT |
 | B5 | An ABSOLUTE `StartTime` is a WALL instant served on the SIM axis, and scaled. No order on disk reaches it (STP exports the relative form). | RECORDED DEBT |
+| Q4, Q5 | Not review items but USER RULINGS taken in the same pass, and both change code the review had accepted: a zero-geometry task with no Duration is MALFORMED and is REFUSED (`Vrf:DefaultHoldSeconds` deleted), and a flat sim clock HOLDS task time while a back end is present instead of falling to wall after 60 s. | **BUILT `168207f`, `f2794d7`** - see 7.1 |
 | C1-C15 | Doc misattachment (C1), the dead mode-change re-anchor (C2), the quantified staircase error (C3), the new per-second bridge read (C4), PAUSED vs DEAD (C5, and Q5 to the user), flat-time accounting (C6), a non-volatile carrier struct (C7), the uncovered `SampleTaskClock` glue (C8), a stale comment (C9), section order (C10, fixed by A2), a registration-window ordering nit (C11), the area "centroid" (C12, pass-1 n1), pre-existing CS8632 (C13), the 5 Hz gate poller (C14), the clean ASCII/CRLF audit (C15). | RECORDED DEBT |
 
 **WHAT A LIVE RUN MUST PROVE** (none of it is offline-decidable):
@@ -1264,3 +1292,15 @@ Verdict **FIX FIRST**, on M1: it was fixed one level down and re-created one lev
    `PredecessorTimeoutPolicy=skip`): a supersede TASKABRT needs an order with concurrent
    tasks per taskee, or a run with `force`/`whenIdle`, before it is anything but a
    self-test.
+10. **A1's gate lines appear, and no task reports the phase-1 skip.** Each of the 31 gated
+    tasks logs "gated on ..., which IS a task in this order ... It has 86400 s to DISPATCH
+    ... and then N s to COMPLETE", and the string "never dispatched within" appears
+    NOWHERE in the run log. The graph itself is decided offline; what the run adds is that
+    the live clock, the bridge and the report path do not break it.
+11. **Q5's hold behaves on a real pause.** Pause the scenario for more than 60 s: the
+    "TASK CLOCK: ... a VR-Forces back end IS still present ... C2SIM task times are HELD"
+    line must appear and REPEAT, no task may complete during the pause, and the tasks must
+    complete their full remaining Duration after the resume. This is also the only way to
+    learn whether `BackendCount` behaves as assumed when a back end genuinely dies - kill
+    one and confirm the log switches to the "NO VR-Forces back end is present" line rather
+    than holding forever.
