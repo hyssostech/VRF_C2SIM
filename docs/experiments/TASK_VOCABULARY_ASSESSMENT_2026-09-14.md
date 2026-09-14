@@ -1178,8 +1178,12 @@ R4 `746c091`, R2 `1f65f55`, R3 `0cd8905`, R1 `0193379`; merged with `feat/integr
 `docs/experiments/REVIEW_RULINGS_5c67d41_2026-09-14.md`) fixed in `075c0b7` (M1),
 `3fe69fa` (M2), `48e7c5d` (M3+M4), `1ddb9a7` (M5), `06f8cf0` (m1-m9 + the Q1/Q4 defaults)
 and `6d46921` (tests); then the PASS-2 review of `0c96f50` (verdict FIX FIRST again, on
-one item) fixed in `b6471a3` and the commits listed in 7.1b. Offline only: every check is
-a `--rulings-selftest` (90 checks across SIX sections) or a `--parse-order` census, and
+one item) fixed in `b6471a3` and the commits listed in 7.1b; then the PASS-3 review of
+`8db033e` (verdict FIX FIRST again, on two items - and A1 independently re-derived and
+CLOSED at 42/0) fixed in `5f661f5` (D1), `fc23f14` (D2), `2cbd722` (E1), `846de1d` (E3),
+`c4f7785` (E4+E6), `9a0a928` (E5) and the docs commit carrying 7.1b's pass-3 table.
+Offline only: every check is a `--rulings-selftest` (136 checks across SIX sections - the
+count 7.1b quotes, and the one the suite prints) or a `--parse-order` census, and
 all 18 self-tests stay green (typemap 783, scripted-task, initgraphics, preflight
 included). NOTHING here has been run against VR-Forces yet.
 
@@ -1208,10 +1212,11 @@ included). NOTHING here has been run against VR-Forces yet.
   and stays supported; the path taken is logged on every task. No name heuristics, and no
   verb-typed reading of the points (V4b).
 
-### 7.1b THE TWO COLD-START REVIEWS OF THIS BRANCH - ITEM TABLE WITH STATUSES
+### 7.1b THE THREE COLD-START REVIEWS OF THIS BRANCH - ITEM TABLE WITH STATUSES
 
-Two reviews, and the second one found that the first one's headline fix was MOVED rather
-than closed. Nothing here is "all fixed": the table below is the status of every item.
+Three reviews. The second found that the first one's headline fix had been MOVED rather than
+closed; the third found that the second one's own follow-up fix guarded the dispatch path the
+demo does NOT take. Nothing here is "all fixed": the tables below are the status of every item.
 
 #### PASS 1 - review of `5c67d41` (in-repo, `docs/experiments/REVIEW_RULINGS_5c67d41_2026-09-14.md`)
 
@@ -1237,7 +1242,8 @@ user's Q4 ruling of 2026-09-14 - a malformed task is refused, not held.
 #### PASS 2 - review of `0c96f50` (in-repo, `docs/experiments/REVIEW2_RULINGS_0c96f50_2026-09-14.md`)
 
 Verdict **FIX FIRST**, on M1: it was fixed one level down and re-created one level up. All
-FIX-FIRST items are now closed; the suite is **112 checks** and all 18 offline suites exit 0.
+FIX-FIRST items are now closed; at the end of pass 2 the suite was **112 checks** (it is **136**
+after pass 3 - see below) and all 18 offline suites exit 0.
 NOTHING below has been run against VR-Forces.
 
 | item | what was wrong | status |
@@ -1253,6 +1259,42 @@ NOTHING below has been run against VR-Forces.
 | B5 | An ABSOLUTE `StartTime` is a WALL instant served on the SIM axis, and scaled. No order on disk reaches it (STP exports the relative form). | RECORDED DEBT |
 | Q4, Q5 | Not review items but USER RULINGS taken in the same pass, and both change code the review had accepted: a zero-geometry task with no Duration is MALFORMED and is REFUSED (`Vrf:DefaultHoldSeconds` deleted), and a flat sim clock HOLDS task time while a back end is present instead of falling to wall after 60 s. | **BUILT `168207f`, `f2794d7`** - see 7.1 |
 | C1-C15 | Doc misattachment (C1), the dead mode-change re-anchor (C2), the quantified staircase error (C3), the new per-second bridge read (C4), PAUSED vs DEAD (C5, and Q5 to the user), flat-time accounting (C6), a non-volatile carrier struct (C7), the uncovered `SampleTaskClock` glue (C8), a stale comment (C9), section order (C10, fixed by A2), a registration-window ordering nit (C11), the area "centroid" (C12, pass-1 n1), pre-existing CS8632 (C13), the 5 Hz gate poller (C14), the clean ASCII/CRLF audit (C15). | RECORDED DEBT |
+
+#### PASS 3 - review of `8db033e` (in-repo, `docs/experiments/REVIEW_RULINGS_8db033e_2026-09-14.md`)
+
+Verdict **FIX FIRST**, on two items. The reviewer re-derived A1's outcome independently - its
+own parse of `COA-STP1_Order.xml` plus a hand re-implementation of the three window formulas -
+and got 42 dispatches / 0 skips at `DurationScale` 1.0 AND 0.05, at the shipped 600 s floor and
+at the Demo overlay's 7,200, so **A1 IS CLOSED** by two independent derivations. The two
+FIX-FIRST items were not in that work. The suite is now **136 checks**, 0 failures, and all 18
+offline suites exit 0. NOTHING below has been run against VR-Forces.
+
+| item | what was wrong | status |
+|------|----------------|--------|
+| **D1** | **`b76c9c7` guarded the enqueue the demo does NOT take.** `Vrf:GroundWaypointAltitudeMode` defaults to `"TerrainProfile"` and neither settings file overrides it, so for a ground unit with route points the guarded first pass of `ExecuteTaskOnTick` only asks the back end for terrain heights and RETURNS with nothing marked. The REAL dispatch is the re-entry from the terrain reply (or the timeout sweep) - it creates the route, calls the bridge and runs `MarkDispatched` - and it was a bare lambda. A throw there reached only the tick drain's catch, which logs and returns: no TASKSTRT, no TASKABRT, no abandon, and successors parked on the 86,400 s chain backstop because A1 removed the configured bound for an in-order predecessor. | **FIXED `5f661f5`** - `DeferredDispatch.Run` is the one ending, and BOTH enqueues go through it (ERROR + `NotifyAbandoned` + ONE TASKABRT via the single emit point; never a second TASKSTRT). 8 new checks drive a THROWING continuation through the production runner with the real `TaskSequencer` and `TaskStatusPolicy`; FAIL-FIRST, with the runner reduced to the pre-fix ending, 6 of the 8 fail. |
+| **D2** | **RUNBOOK sec 11 stated the rule Q5 REPLACED** - "falls back to WALL ... or has been flat for 60 wall seconds", and "the TASK CLOCK lines say each way, ONCE". Since `f2794d7` a flat clock with a back end present HOLDS and the line REPEATS. Sec 11 carried no Q5 bullet at all, so a demo operator was not told what a pause costs (nothing) or what the one symptom of a dead back end is. | **FIXED `fc23f14`** - four bullets: the HOLD and that all three task times freeze together; wall only when the READER is gone; the once-a-minute repeat and why; and the `BackendCount` LIMIT stated as the symptom, with the vendor citations and STP-809. The start-up `TASK CLOCK (R4):` line carried the same stale clause and is fixed too. |
+| E1 | The hysteresis exit printed **"the simulation clock is readable and advancing again" on the way TO the wall clock**: the branch fires on `!taskSimStale`, which also goes false when `heldOnSim` does - i.e. when the reader is confirmed GONE. | **FIXED `2cbd722`** - the two exits are said apart, and 2 checks lock the reachability of the branch and the opposite meaning of the two (a HOLD, then losing the reader clears `taskSimStale` exactly as a recovery does while `TaskClockAction` turns to `FallBackToWall`). |
+| E3 | **No cycle or self-reference guard**, and A1 made a cycle 144x more expensive: `predecessorInThisOrder` is TRUE, so phase 1 takes the backstop, and a cycle is the one dead end nothing ever abandons. | **FIXED `846de1d`** - SUPERVISOR DECISION, an EXTENSION of Q4 rather than an implementation of it. The graph is walked once at order receipt and every task on a loop gets Q4's shape (ERROR naming the loop, abandon, one TASKABRT) before any TASKSTRT. 8 checks incl. NO FALSE POSITIVE on the real 42-task graph; FAIL-FIRST measures the cost (0 dispatched, skipped only after 86,400 s). |
+| E4 | Nothing compared an order's own longest chain lead against the backstop that truncates it. | **FIXED `c4f7785`** - `TaskDispatchPolicy.LongestChainLeadSeconds` / `LongestChainEndSeconds`; one `CHAIN DEPTH:` INFO line per order and a WARNING when the lead meets the backstop. The suite's private copy of that arithmetic is gone - `WalkChain`'s horizon calls the production function. |
+| E5 | `Vrf:TaskPredecessorEndMarginSeconds = 0` makes the phase-2 window EQUAL the predecessor's scaled Duration, which races the <= 3 x (sim ratio) s observation lag - and the suite's label called zero safe. | **FIXED `9a0a928`** - DECISION: refuse, do not clamp. A non-positive value is an ERROR at start-up and the run proceeds at the shipped 60 s; the validated value is resolved into a field so the refused one cannot be read again. RUNBOOK sec 11 documents it. The label is now three checks that say which half is which. |
+| E6 | The backstop's justification said COA-STP1's deepest chain is 26,400 s, in `TaskDispatchPolicy` and again in `VrfSettings`. | **FIXED `c4f7785`** - 16,800 s to the last DISPATCH, 21,600 s to the last END, in both places, and now MEASURED by the suite off the order on disk rather than asserted in a comment. |
+| E7 | 7.1a said "(90 checks across SIX sections)" while 7.1b and the suite said 112. | **FIXED** (this table's commit) - both places say 136, the count the suite prints after pass 3. |
+| **E2** | **Q5's wall-fallback branch is DEAD CODE.** `VrfFacade::SimTimeSeconds` returns -1 exactly when `backends().count() <= 0`, which is the same expression `VrfFacade::BackendCount` returns, and `SampleTaskClock` returns early unless the sample was readable - so `taskSimStale && !backEndPresent` is unreachable and the "NO VR-Forces back end is present" line never prints. The ruling is still honoured in OUTCOME (a genuinely removed back end makes the reader unreadable and the axis falls to wall through the hysteresis path, which E1 now labels correctly). | **RECORDED DEBT** - the fix is a facade change: `DtVrfRemoteController::backendsControlState()` (`vrfRemoteController.h:321-323`) returns Paused vs Running, the discriminator the predicate actually wants. **STP-809.** Live gate 11's probe is what says which of the three readings the vendor really gives. |
+| N1 | Pass-2's C1: `TaskDispatchPolicy`'s M1 doc block and its `<param>` tags bind to `ScaleOrderMs`, not to the method they describe. | RECORDED DEBT |
+| N2 | `_taskByUuid` is never pruned and spans ORDERS, so `predecessorInThisOrder` - and its log line "IS a task in this order" - really mean "in any order this process has seen". No unsafe case constructed; the words are wrong, and a cross-order reference gets the backstop rather than the configured window. (E3's cycle walk deliberately uses the SAME map, so what is checked is the graph that would take the backstop.) | RECORDED DEBT |
+| N3 | The start-delay LOG reports `Math.Max(scaledStartMs, scaledRelativeMs)` while `TaskSequencer` uses sim-first-else-relative. Differs only for an order carrying BOTH forms; COA-STP1 does not. The suite's graph builder copies the log's rule, not the sequencer's. | RECORDED DEBT |
+| N4 | The `(e2)` check drives a READABLE frozen reader with `backEndPresent: false` - a state E2 shows the facade cannot produce. Sound as a unit test of the policy; not evidence that Q5's "gone" half is exercised. | RECORDED DEBT |
+| N5 | `WalkTaskClock` and `WalkChain` re-implement the service glue rather than driving it. Verified faithful argument by argument as of `8db033e`, but a future drift in the service would not fail a check. (Pass 3 removed ONE of these copies - the chain-lead arithmetic, E4 - and D1's runner was extracted precisely so the new checks drive production code.) | RECORDED DEBT |
+| N6 | `IssueEngage` enqueues a bare lambda too. A throw leaves the parked engage unissued and unreported - but the task was already `MarkDispatched`'d as the move, so its armed end time still closes it. Same family as D1, far lower stakes. | RECORDED DEBT |
+| N7-N9 | Record only: the pass-2 debt below is unchanged (N7); ASCII/CRLF clean across every changed file with a dirty control proving the instrument (N8); and `-t:Rebuild` is required - the incremental build's "up-to-date / 0 warnings" is a no-op result, the real number is 6 pre-existing warnings (N9). | RECORDED |
+
+**RECORDED DEBT CARRIED FORWARD, unchanged by pass 3:** pass-2's **B2** (a superseded move's
+late vendor completion attributed to the NEW task) and **B5** (an absolute `StartTime` served as
+a scaled wall delta on the sim axis), and **C2-C15** - including C3 (the quantified staircase
+error, still unstated in `VrfSettings`), C8 (the uncovered `SampleTaskClock` glue, = N5) and C12
+(the area "centroid" is the vertex arithmetic mean, 149-1,130 m off on 12 multi-vertex areas
+against a 500 m arrival radius). Pass-1's doctrine verb-vs-symbol mismatch is on the STP side
+and is still open there.
 
 **WHAT A LIVE RUN MUST PROVE** (none of it is offline-decidable):
 1. A COA-STP1 run emits TASKSTRT for every dispatched task and exactly one TASKCMPLT per
@@ -1297,10 +1339,30 @@ NOTHING below has been run against VR-Forces.
     ... and then N s to COMPLETE", and the string "never dispatched within" appears
     NOWHERE in the run log. The graph itself is decided offline; what the run adds is that
     the live clock, the bridge and the report path do not break it.
-11. **Q5's hold behaves on a real pause.** Pause the scenario for more than 60 s: the
-    "TASK CLOCK: ... a VR-Forces back end IS still present ... C2SIM task times are HELD"
-    line must appear and REPEAT, no task may complete during the pause, and the tasks must
-    complete their full remaining Duration after the resume. This is also the only way to
-    learn whether `BackendCount` behaves as assumed when a back end genuinely dies - kill
-    one and confirm the log switches to the "NO VR-Forces back end is present" line rather
-    than holding forever.
+11. **Q5's hold behaves on a real pause - and then, as a PROBE, what a killed back end does.**
+    Two halves, and only the first is a pass/fail.
+    - **PASS/FAIL.** Pause the scenario for more than 60 s: the "TASK CLOCK: ... a VR-Forces
+      back end IS still present ... C2SIM task times are HELD" line must appear and REPEAT
+      (once a wall minute), no task may complete during the pause, and every task must
+      complete its full remaining Duration after the resume.
+    - **PROBE, THREE OUTCOMES, NO PREDICTION** (re-worded by the pass-3 review; the previous
+      wording predicted the "NO VR-Forces back end is present" line, and E2 shows that branch
+      CANNOT print: `VrfFacade::SimTimeSeconds` returns -1 exactly when
+      `backends().count() <= 0`, which is the same expression `BackendCount` returns, and
+      `SampleTaskClock` returns early unless the sample was readable - so by the time the
+      back-end count is read, the reader has already proved the count is above zero). Kill a
+      back end and RECORD which of these happens, because what
+      `DtVrfRemoteController::simTime()` returns for an entry that is in the list but
+      DEACTIVATED is unknown and all three are defensible:
+      (a) **the last cached value** -> readable, flat -> `Stale` after 60 s -> the HOLD line,
+          repeating, forever;
+      (b) **0.0** -> a large BACKWARDS step, classified `RolledBack` rather than `Stale`,
+          re-anchored at 0, then flat -> HOLD by a different route, with a misleading
+          "SIM CLOCK: stepped BACKWARDS" WARNING first;
+      (c) **a throw** -> the facade returns -1 -> unreadable -> after
+          `ModeSwitchConfirmations` samples the axis falls to the WALL clock through the
+          hysteresis path, and says so in the transition line E1 corrected.
+      The gate records WHICH occurred and WHAT THE LOG SAID, verbatim. All three end in a
+      defensible state; which one occurs decides what an operator sees, and nobody has seen
+      it. Outcome (a) or (b) is the STP-809 case: task time frozen with one WARNING a minute
+      as the only symptom, and the facade's `backendsControlState()` is the fix.
