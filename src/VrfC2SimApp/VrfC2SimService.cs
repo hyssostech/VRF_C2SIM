@@ -142,6 +142,18 @@ public sealed class VrfC2SimService : BackgroundService
     // which consults it - so the guarantees are properties of the report STREAM, not of call sites.
     private readonly TaskStatusPolicy _taskStatus = new();
 
+    // R4 (user ruling 2026-09-14): the tasks whose END TIME has not arrived yet. Armed at dispatch
+    // (MarkDispatched), walked forward on the tick thread (MaybeCompleteTimedTasks) and cancelled
+    // by any real end (PushTaskStatus). See TimedCompletionPolicy for the rule.
+    private readonly TimedCompletionPolicy _timed = new();
+    private DateTime _nextTimedCheck = DateTime.MinValue;
+    private bool _timedClockLineLogged;
+    private bool _timedUsingSim;
+    // The timed-completion cadence is FIXED, not configurable: it costs one SimTimeSeconds read a
+    // second, and the only thing a knob could do is make a compressed demo (Vrf:DurationScale)
+    // miss its deadlines by up to the cadence.
+    private const double TimedCheckSeconds = 1.0;
+
     // The service lifetime token, captured in ExecuteAsync so task orchestrations started
     // from SDK-event threads can cancel their waits on shutdown.
     private CancellationToken _stoppingToken = CancellationToken.None;
@@ -603,6 +615,7 @@ public sealed class VrfC2SimService : BackgroundService
             if (_vrf.PositionReportSeconds > 0) MaybeSendPositionReports();
             if (_vrf.ArrivalCompletion) MaybeCheckArrivals();
             if (_vrf.StallDetection) MaybeCheckStalls();
+            if (_vrf.TimedCompletion) MaybeCompleteTimedTasks();
             Thread.Sleep(50);
         }
     }
@@ -1916,13 +1929,41 @@ public sealed class VrfC2SimService : BackgroundService
         }
     }
 
+    /// <summary>R4: one place applies Vrf:DurationScale to an authored order time, so the Duration
+    /// that ENDS a task and the StartTime that HOLDS one back can never be compressed differently.
+    /// A negative scale is a configuration error and is clamped to 0 (dispatch now / end now).</summary>
+    private long ScaleOrderMs(long ms)
+        => ms <= 0 ? 0 : (long)Math.Round(ms * Math.Max(0.0, _vrf.DurationScale));
+
     private async Task RunTaskAsync(OrderTask task, CreatedUnit unit)
     {
         try
         {
             var timeout = TimeSpan.FromSeconds(Math.Max(1, _vrf.TaskPredecessorTimeoutSeconds));
-            var gate = await _sequencer.WaitForStartAsync(task.StartAfterTaskUuid, task.SimulationStartMs,
-                                                          task.RelativeDelayMs, timeout, _stoppingToken);
+            // R4, the START half. The delay itself is NOT new - TaskSequencer has always waited
+            // StartTime/SimulationTime/DelayTimeAmount before dispatching, and that is what keeps
+            // COA-STP1's T13 (3h20m) from going out with the rest of the order. Two things are new:
+            //   - the ABSOLUTE form of StartTime (TimeInstantType/DateTime) becomes a delay against
+            //     order receipt, so an order from a producer that dates its tasks instead of
+            //     delaying them is no longer dispatched immediately;
+            //   - Vrf:DurationScale compresses the wait exactly as it compresses the Duration, so a
+            //     demo that shortens a 2 h task does not then wait 3h20m for its successor.
+            long startMs = task.SimulationStartMs;
+            if (startMs == 0 && task.AbsoluteStartUtc is DateTime absoluteStart)
+            {
+                startMs = (long)Math.Max(0.0, (absoluteStart - DateTime.UtcNow).TotalMilliseconds);
+                _log.LogInformation("Task '{Task}': StartTime is the ABSOLUTE form ({At:O}) - dispatching " +
+                                    "{S:F0} s after order receipt.", task.TaskName, absoluteStart, startMs / 1000.0);
+            }
+            long scaledStartMs = ScaleOrderMs(startMs);
+            long scaledRelativeMs = ScaleOrderMs(task.RelativeDelayMs);
+            if (scaledStartMs > 0 || scaledRelativeMs > 0)
+                _log.LogInformation("Task '{Task}': start delay {S:F0} s (order says {O:F0} s; " +
+                                    "Vrf:DurationScale={Scale}) - it will not dispatch before then.",
+                                    task.TaskName, Math.Max(scaledStartMs, scaledRelativeMs) / 1000.0,
+                                    Math.Max(startMs, task.RelativeDelayMs) / 1000.0, _vrf.DurationScale);
+            var gate = await _sequencer.WaitForStartAsync(task.StartAfterTaskUuid, scaledStartMs,
+                                                          scaledRelativeMs, timeout, _stoppingToken);
             if (gate != GateResult.Proceed)
             {
                 // P0.2 (DEFECT B): the predecessor never completed. The OLD behavior always
@@ -2514,6 +2555,28 @@ public sealed class VrfC2SimService : BackgroundService
         // policy, a genuine re-task announces again.
         PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKSTRT,
                        $"dispatched to {unit.Name} as '{kind}'");
+
+        // R4: ARM THE END TIME HERE, for the same reason TASKSTRT is pushed here - this is the one
+        // point every dispatch path reaches. endTime = dispatch + Duration x Vrf:DurationScale.
+        // Register is first-dispatch-wins, so the TerrainProfile re-entry does not restart it.
+        if (_vrf.TimedCompletion)
+        {
+            double seconds = ScaleOrderMs(task.DurationMs) / 1000.0;
+            if (task.DurationMs <= 0)
+                _log.LogWarning("Task '{Task}': the order gives NO Duration, so this task has no end time - " +
+                                "it completes only on its own evidence (arrival, or a VR-Forces completion). " +
+                                "A hold-type task without one never completes and its successors will be " +
+                                "skipped at the predecessor timeout.", task.TaskName);
+            else if (seconds <= 0.0)
+                _log.LogWarning("Task '{Task}': Vrf:DurationScale={Scale} collapses its {D:F0} s Duration to " +
+                                "zero - NO end time is armed (a scale of 0 is a configuration error, not an " +
+                                "instruction to complete every task immediately).",
+                                task.TaskName, _vrf.DurationScale, task.DurationMs / 1000.0);
+            else if (_timed.Register(task.TaskUuid, task.TaskeeUuid, task.TaskName, unit.Name, seconds))
+                _log.LogInformation("Task '{Task}': end time armed at {S:F0} s from dispatch " +
+                                    "(C2SIM Duration {D:F0} s x Vrf:DurationScale {Scale}) - R4.",
+                                    task.TaskName, seconds, task.DurationMs / 1000.0, _vrf.DurationScale);
+        }
     }
 
     /// <summary>
@@ -2964,6 +3027,72 @@ public sealed class VrfC2SimService : BackgroundService
             // "can't tell" for KindLooksRight (no spurious attribution-anomaly warning). The
             // provenance is the ARRIVAL EVIDENCE line above.
             SynthesizeUnitCompletion(name, "");
+        }
+    }
+
+    /// <summary>
+    /// R4 (user ruling 2026-09-14, "completion is given by the end time"). Tick thread: walk every
+    /// dispatched task forward on the interface's clock and close the ones whose C2SIM Duration has
+    /// elapsed - one TASKCMPLT through the single emit point, and the STREND gate released so the
+    /// successors dispatch, exactly as a vendor or arrival completion does.
+    ///
+    /// THE CLOCK IS THE ONE THE PROGRESS WATCHDOG ALREADY USES (Vrf:StallClock, StallPolicy):
+    /// the back end's scenario clock when it is asked for AND readable, the wall clock otherwise.
+    /// One preference, one pair of predicates, one fallback rule - a second clock abstraction
+    /// here would be free to disagree with the watchdog about whether the scenario is running.
+    /// The TimedCompletionPolicy is what makes the fallback safe: it accumulates FORWARD movement
+    /// only and re-anchors on a mode change, so losing the sim reader mid-task neither completes
+    /// the task early nor restarts its clock.
+    ///
+    /// NOT DONE HERE, on purpose: the VR-Forces task is NOT cancelled. The end time is the ORDER'S
+    /// statement about the task, not the simulator's - the unit may still be driving, and if it
+    /// later arrives or the vendor reports completion, TaskStatusPolicy suppresses the duplicate
+    /// report (a task that has completed cannot complete twice). Cancelling the vendor task would
+    /// be an unasked-for change to what the units do.
+    /// </summary>
+    private void MaybeCompleteTimedTasks()
+    {
+        var now = DateTime.UtcNow;
+        if (now < _nextTimedCheck) return;
+        _nextTimedCheck = now.AddSeconds(TimedCheckSeconds);
+        if (_timed.Count == 0) return;
+
+        double wallNow = now.Ticks / (double)TimeSpan.TicksPerSecond;
+        bool preferSim = StallPolicy.ParseClockPreference(_vrf.StallClock, out _);
+        double simSeconds = -1.0;
+        if (preferSim)
+        {
+            try { simSeconds = _bridge.SimTimeSeconds(); }
+            catch (Exception ex)
+            { simSeconds = -1.0; _log.LogDebug(ex, "TIMED COMPLETION: sim-clock read failed; using the wall clock."); }
+        }
+        bool usingSim = StallPolicy.UsingSimClock(preferSim, simSeconds);
+        double clockNow = StallPolicy.SelectClock(usingSim, simSeconds, wallNow);
+        if (!_timedClockLineLogged || usingSim != _timedUsingSim)
+        {
+            _timedClockLineLogged = true;
+            _timedUsingSim = usingSim;
+            _log.LogInformation("TIMED COMPLETION (R4): {N} task(s) are timing out against the {Clock} clock" +
+                                "{Why}; Vrf:DurationScale={Scale}.", _timed.Count,
+                                usingSim ? "SIMULATION" : "WALL",
+                                usingSim ? "" : (preferSim
+                                    ? " - Vrf:StallClock=sim, but the sim clock could not be read"
+                                    : " (Vrf:StallClock=wall)"),
+                                _vrf.DurationScale);
+        }
+
+        foreach (var p in _timed.Advance(clockNow, usingSim))
+        {
+            _log.LogInformation("TIMED COMPLETION: task '{Task}' on {Unit} reached its END TIME - " +
+                                "{Served:F0} s of a {Dur:F0} s Duration served on the {Clock} clock " +
+                                "(C2SIM Duration x Vrf:DurationScale {Scale}). R4: completion is given by " +
+                                "the end time.", p.TaskName, p.UnitName, p.Elapsed, p.DurationSeconds,
+                                usingSim ? "simulation" : "wall", _vrf.DurationScale);
+            PushTaskStatus(p.TaskeeUuid, p.TaskUuid, S.TaskStatusCodeType.TASKCMPLT,
+                           $"task '{p.TaskName}' reached the end time given by its C2SIM Duration " +
+                           $"({p.DurationSeconds:F0} s after dispatch)");
+            // The chain does not care HOW the task ended (R4): release the successors' gate.
+            _sequencer.CompleteTask(p.TaskUuid);
         }
     }
 
@@ -3926,6 +4055,15 @@ public sealed class VrfC2SimService : BackgroundService
                             code, string.IsNullOrEmpty(taskUuid) ? "(none)" : taskUuid, why);
             return;
         }
+        // R4: any REAL end cancels the task's timed end, BEFORE the emission rules are consulted -
+        // a completion that is suppressed as a duplicate has still happened, and leaving the timer
+        // armed behind it would fire a second, later TASKCMPLT for a task that is already over.
+        // (The timed completion itself arrives here with its entry already removed; Cancel then
+        // returns false and says nothing.)
+        if (TimedCompletionPolicy.CancelsTimer(code) && _timed.Cancel(taskUuid))
+            _log.LogInformation("TIMED COMPLETION: the end time armed for task {Task} is cancelled - " +
+                                "{Code} reached the reporting point first ({Why}).", taskUuid, code, why);
+
         bool allowed = _taskStatus.ShouldEmit(code, taskUuid);
         if (!allowed)
         {

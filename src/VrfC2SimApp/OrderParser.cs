@@ -18,6 +18,9 @@ namespace VrfC2SimApp;
 ///   - mapGraphicUuid = MapGraphicID             (:2061-2063)
 ///   - ruleOfEngagementCode = WeaponRuleOfEngagementCode (:2074-2076)
 ///   - simulationStartMs / relativeDelayMs via findTotalIsoMs (:245)
+/// BEYOND PARITY (R4, user ruling 2026-09-14 - "completion is given by the end time"):
+///   - durationMs = Duration/IsoTimeDuration (schema :4132), which the C++ never read;
+///   - absoluteStartUtc = StartTime/DateTime/IsoDateTime, the other TimeInstantType branch.
 ///
 /// This is PURE (no bridge / MAK dependency) so it can be reviewed and tested offline
 /// (VrfC2SimApp --parse-order &lt;file&gt;).
@@ -61,7 +64,8 @@ public static class OrderParser
             var m = t?.Item;
             if (m == null) continue;
 
-            var (simMs, startAfter, relMs) = TimingOf(m);
+            var (simMs, startAfter, relMs, absStart) = TimingOf(m);
+            long durationMs = DurationMsOf(m.Duration);
             var task = new OrderTask
             {
                 TaskUuid = (m.UUID ?? "").Trim(),
@@ -74,7 +78,14 @@ public static class OrderParser
                 SimulationStartMs = simMs,
                 StartAfterTaskUuid = startAfter,
                 RelativeDelayMs = relMs,
+                DurationMs = Math.Max(0, durationMs),
+                AbsoluteStartUtc = absStart,
             };
+            // R4: a Duration that is PRESENT but unreadable must not pass as "no duration" - the
+            // task would then have no end time at all and (for a hold-type verb) never complete.
+            if (m.Duration != null && durationMs < 0)
+                data.Warnings.Add($"task '{task.TaskName}' Duration '{m.Duration.IsoTimeDuration}' is not the " +
+                                  "P00Y00M00DT00H00M00S form findTotalIsoMs decodes; the task has NO end time");
             foreach (var loc in m.Location ?? Array.Empty<S.LocationType>())
                 if (loc?.Item is S.GeodeticCoordinateType g)
                     task.Points.Add((g.Latitude, g.Longitude, ElevOf(g)));
@@ -112,11 +123,28 @@ public static class OrderParser
         return "";
     }
 
-    private static (long simMs, string startAfter, long relMs) TimingOf(S.ManeuverWarfareTaskType m)
+    /// <summary>
+    /// R4: the task's own Duration (ManeuverWarfareTaskType.Duration, schema :4132) in ms.
+    /// Returns -1 when the element is present but undecodable (the caller warns) and 0 when it
+    /// is absent - an absent Duration is not an error, it just leaves the task with no end time.
+    /// </summary>
+    private static long DurationMsOf(S.DurationType d)
+        => d == null ? 0 : FindTotalIsoMs(d.IsoTimeDuration);
+
+    private static (long simMs, string startAfter, long relMs, DateTime? absStart) TimingOf(S.ManeuverWarfareTaskType m)
     {
         long simMs = 0;
+        DateTime? absStart = null;
+        // StartTime is a TimeInstantType: SimulationTime (a relative DelayTimeAmount - the form
+        // STP exports), DateTime (an absolute IsoDateTime), or RelativeTime (no delay amount in
+        // the schema, so nothing to honour). R4 accepts the first two.
         if (m.StartTime?.Item is S.SimulationTimeType st && st.DelayTimeAmount != null)
             simMs = Math.Max(0, FindTotalIsoMs(st.DelayTimeAmount.IsoTimeDuration));
+        else if (m.StartTime?.Item is S.DateTimeType dt && !string.IsNullOrWhiteSpace(dt.IsoDateTime)
+                 && DateTime.TryParse(dt.IsoDateTime, System.Globalization.CultureInfo.InvariantCulture,
+                                      System.Globalization.DateTimeStyles.AdjustToUniversal
+                                      | System.Globalization.DateTimeStyles.AssumeUniversal, out var parsed))
+            absStart = parsed;
 
         string startAfter = "";
         long relMs = 0;
@@ -127,7 +155,7 @@ public static class OrderParser
             startAfter = (atr.TemporalAssociationWithAction ?? "").Trim();
             if (atr.Duration != null) relMs = Math.Max(0, FindTotalIsoMs(atr.Duration.IsoTimeDuration));
         }
-        return (simMs, startAfter, relMs);
+        return (simMs, startAfter, relMs, absStart);
     }
 
     private static double? ElevOf(S.GeodeticCoordinateType g)

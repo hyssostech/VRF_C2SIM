@@ -403,6 +403,25 @@ public class VrfSettings
     // Golden orders carry no temporal deps, so this never fires there (parity-neutral).
     public string PredecessorTimeoutPolicy { get; set; } = "skip";
 
+    // R4 (user ruling 2026-09-14): "completion is given by the end time". A dispatched task whose
+    // C2SIM Duration has elapsed is reported TASKCMPLT, once, through the single emit point, and
+    // its STREND successors dispatch (TimedCompletionPolicy). ON by default: without it the
+    // hold-type half of a real order - SECURE/OCCUPY/DEFEND/RETAIN/BLOCK/FIX/SCREEN/GUARD, fires
+    // and air defence - has no completion at all and every successor chain dies at the
+    // predecessor timeout (run G6: 9 of 42 tasks dispatched, 0 completed).
+    // Set false to go back to evidence-only completion (arrival / the vendor's own report).
+    public bool TimedCompletion { get; set; } = true;
+
+    // R4 scale factor on the ORDER'S AUTHORED TIME. 1.0 = as written (the default, and the only
+    // value that reproduces the order). A DEMO compresses it: COA-STP1's tasks are PT1H20M and
+    // PT2H, so 0.01 turns a 1h20m hold into 48 s and the whole 42-task chain into minutes.
+    // It scales BOTH halves of the order's clock - the Duration that ends a task AND the
+    // StartTime delay that holds one back (T13's 3h20m) - because compressing one without the
+    // other would leave a "compressed" demo waiting 3h20m for its breach.
+    // Applied where the value is USED, never in the parser: --parse-order always prints the
+    // order as written.
+    public double DurationScale { get; set; } = 1.0;
+
     // P0.3: an ATTACK/BREACH engage is issued when its approach move COMPLETES (previously
     // it was issued in the same tick as the move, which - VRF running one task at a time -
     // would REPLACE the move the moment both are real). If the move never completes, issue

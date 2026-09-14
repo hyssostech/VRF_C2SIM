@@ -79,6 +79,11 @@ if (args.Length > 0 && args[0] == "--arrival-selftest")
 if (args.Length > 0 && args[0] == "--stall-selftest")
     return StallSelfTest.Run();
 
+// Offline check of the 2026-09-14 tasking rulings: timed completion (R4), zero-geometry in-place
+// dispatch (R2), self-targeting (R3) and MapGraphicID -> init-graphic linkage (R1). No bridge.
+if (args.Length > 0 && args[0] == "--rulings-selftest")
+    return RulingsSelfTest.Run();
+
 // Offline route pre-flight check: the ported scorer against the python tool's own reference
 // output over COA-STP1 (tools/preflight/leg_check.py --json/--c2sim-observations). Reads the
 // tool's committed tile cache offline; no bridge, no network. Optional args: reference json,
@@ -95,7 +100,8 @@ if (args.Length > 0 && args[0].StartsWith("--") && args[0] != "--runtime-check" 
 {
     Console.Error.WriteLine("VrfC2SimApp: unknown switch '" + args[0] + "' - NOT starting the host. Known: " +
                             "--translator/--report/--sequencer/--verb/--destack/--fanout/--typemap/--terrain/" +
-                            "--placement/--compose/--arrival/--stall/--parse/--name/--preflight-selftest, --parse-init <file> [clientId], " +
+                            "--placement/--compose/--arrival/--stall/--parse/--name/--preflight/--rulings-selftest, " +
+                            "--parse-init <file> [clientId], " +
                             "--parse-order <file>, --runtime-check, host switches --Key=Value; " +
                             "no arguments = run the interface.");
     return 2;

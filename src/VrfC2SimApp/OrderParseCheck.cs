@@ -34,11 +34,36 @@ public static class OrderParseCheck
                 Console.WriteLine($"      {p.Lat.ToString("R", CultureInfo.InvariantCulture)}," +
                                   $"{p.Lon.ToString("R", CultureInfo.InvariantCulture)}," +
                                   $"{(p.Elev.HasValue ? p.Elev.Value.ToString("R", CultureInfo.InvariantCulture) : "(none)")}");
-            if (t.SimulationStartMs > 0 || t.RelativeDelayMs > 0 || t.StartAfterTaskUuid.Length > 0)
+            if (t.SimulationStartMs > 0 || t.RelativeDelayMs > 0 || t.StartAfterTaskUuid.Length > 0
+                || t.AbsoluteStartUtc.HasValue)
                 Console.WriteLine($"    timing: simStartMs={t.SimulationStartMs} relDelayMs={t.RelativeDelayMs} " +
-                                  $"startAfter={Blank(t.StartAfterTaskUuid)}");
+                                  $"startAfter={Blank(t.StartAfterTaskUuid)}" +
+                                  (t.AbsoluteStartUtc.HasValue
+                                      ? $" absoluteStartUtc={t.AbsoluteStartUtc.Value:O}" : ""));
+            // R4: the end time is dispatch + Duration, so the Duration is part of the parse.
+            Console.WriteLine($"    duration: {(t.DurationMs > 0 ? t.DurationMs + " ms" : "(none)")}");
         }
+
+        // R4 SELF-TEST (a): the census the ruling is checked against - how many tasks carry a
+        // Duration and a StartTime at all, and the histogram of the values. COA-STP1_Order.xml is
+        // expected to print 42 / 42 with 32 x 4800000 + 10 x 7200000 and 41 x 0 + 1 x 12000000.
+        Console.WriteLine("=== R4 timing census ===");
+        Console.WriteLine($"durations present: {data.Tasks.Count(t => t.DurationMs > 0)} of {data.Tasks.Count}");
+        Console.WriteLine($"  histogram: {Histogram(data.Tasks.Select(t => t.DurationMs))}");
+        Console.WriteLine($"start delays: {data.Tasks.Count} task(s), " +
+                          $"{data.Tasks.Count(t => t.SimulationStartMs > 0 || t.RelativeDelayMs > 0 || t.AbsoluteStartUtc.HasValue)} " +
+                          "of them non-zero");
+        Console.WriteLine($"  histogram: {Histogram(data.Tasks.Select(t => t.SimulationStartMs))}");
         return 0;
+    }
+
+    /// <summary>"32 x 4800000 ms, 10 x 7200000 ms" - ascending by value, so two runs of the same
+    /// order print the same string.</summary>
+    private static string Histogram(IEnumerable<long> values)
+    {
+        var groups = values.GroupBy(v => v).OrderBy(g => g.Key)
+                           .Select(g => $"{g.Count()} x {g.Key} ms").ToList();
+        return groups.Count == 0 ? "(no tasks)" : string.Join(", ", groups);
     }
 
     private static string Short(string uuid) => uuid.Length > 8 ? uuid.Substring(0, 8) + "..." : uuid;
