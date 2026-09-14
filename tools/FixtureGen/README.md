@@ -75,7 +75,7 @@ orientation round-trips stored attitudes to clean integer headings).
 A SEPARATE, EXPLICIT code path (`--profile` is always named; nothing sniffs a version).
 It copies a 5.2-NATIVE-saved donor READ-ONLY, strips every simulation object from the
 `.oob` (globals-only), rewrites `.omp`/`.gui_settings` to match, and sets terrain
-(`MAK Earth (online).mtf`), SMS (`EntityLevel.sms`), the frame lever and the
+(`MAK Earth (online).mtf`), the SMS (see below), the frame lever and the
 `ScenarioExtentInformation` playbox on the R9 Mojave AOI.
 
 ```
@@ -88,6 +88,40 @@ SANCTIONED DEPLOY (a live executor, not the offline builder): the same command p
 `--out-dir "C:\MAK\vrforces5.2d\userData\scenarios"`, then
 `LaunchVrf52.ps1 -Scenario R9_Mojave_Empty_52`.
 
+### The SMS default: the abstract-graph including SMS (since 2026-09-14, G7b)
+
+`--sms` DEFAULTS to `C:\C2SIM\vrf-sms\C2SIM_EntityLevel_AbstractGraphs.sms` whenever that
+file exists on the machine. It is a derived simulation model set that INCLUDES the shipped
+`EntityLevel.sms` unchanged (UG52 68.3.1 p1310) and overrides exactly one system script by
+script id, `scripts/ground-vehicle-move-to.lua`, with `useAbstractGraphs = true` plus one
+`printInfo` line that proves at run time which copy executed (UG52 68.3.3 p1312 priority;
+68.3.4 p1313 "scripts in the highest priority SMS supersede those in the lower priority
+SMSs").
+
+WHY IT IS THE DEFAULT: the vendor's copy of that script hard-codes `useAbstractGraphs =
+false`, and with that setting the nav-mesh query REFUSES a leg beyond roughly 2 km on a
+large sectorised navigation area (G7 attempt 4, run `20260914T154243Z`: legs up to 1,994 m
+planned 4/4, a 4,914 m leg refused 4/4). With the override the same legs plan 8/8 (G7b).
+Every fixture this path builds is meant to be driven by multi-kilometre C2SIM order legs.
+
+- `--sms vendor` (or `--no-custom-sms`) writes the shipped `EntityLevel.sms` - the
+  pre-2026-09-14 behaviour, byte-identical output.
+- `--sms <path>` is unchanged and still wins; a fixture built with an explicit `--sms`
+  before this default existed rebuilds to the same SHA-256.
+- If the derived SMS is ABSENT the builder prints a NOTE and falls back to the shipped SMS;
+  it never fails the build.
+- The SMS is named by ABSOLUTE path (UG52 Table 15 p271 allows it for MTL filename
+  parameters), so it lives outside `C:\MAK` and survives a vendor reinstall - but the demo
+  machine must actually have that directory.
+
+Fixtures carrying it are named with an `_AG` suffix: `R9_Mojave_Empty_52_AG`,
+`R9_Mojave_Empty_52_NavAO_AG`.
+
+`validate_fixture.py --empty-52` expects the same default, OPENS the derived SMS, and
+reports its include chain plus the script id it overrides, the `useAbstractGraphs` value
+and the run-time proof line. Pass `--sms vendor` to validate a fixture deliberately built
+on the shipped SMS.
+
 Unlike the 5.0.2 writer, this one stamps a fixed zip date, so the `.scnx` SHA-256 IS
 reproducible. `--negative-controls DIR` also emits two deliberately-broken copies
 (missing `frame-time`; a stray simulation object) for the validator's negative gate -
@@ -96,7 +130,8 @@ never point it at a tracked directory.
 `validate_fixture.py` gates both generations and exits non-zero on failure:
 ```
 python validate_fixture.py                                            # 5.0.2 pair
-python validate_fixture.py --empty-52 frame_variants/R9_Mojave_Empty_52.scnx
+python validate_fixture.py --empty-52 frame_variants/R9_Mojave_Empty_52_AG.scnx
+python validate_fixture.py --empty-52 frame_variants/R9_Mojave_Empty_52.scnx --sms vendor
 python validate_fixture.py --expect-fail --empty-52 <the two _NEG_ copies>
 ```
 Full record: `docs/experiments/FIXTURE_52_EMPTY_2026-09-04.md`; format facts:

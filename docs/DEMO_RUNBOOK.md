@@ -49,6 +49,54 @@ WHICH SCENARIO AND WHICH DATA
   something you can fix in the room.
 - The fixture runs FASTER than real time (roughly 1.5-2.8x at the eleven-unit size). A real-time
   fixture was built (`R9_Mojave_Empty_52_RT`) but is NOT deployed - UNVERIFIED, do not plan on it.
+- Fixtures whose name ends in `_AG` are the same scenarios carrying the navigation fix of
+  section 0.5, and are deployed alongside the ones above. WHICH fixture the demo names is an
+  engineering decision - confirm it before the demo rather than substituting one yourself.
+
+---
+
+## 0.5 Navigation - what lets the units plan long routes
+
+Three things outside the interface decide whether a tasked unit can plan a multi-kilometre
+route. All three are already set up on this machine; this section says what they are so that
+a failure is recognisable and so a rebuilt machine can be put back.
+
+THE CUSTOM SIMULATION MODEL SET (the `_AG` fixtures)
+- VR-Forces plans off-road movement on a navigation mesh. The vendor's own movement script
+  asks the mesh NOT to use abstract graphs, and with that setting the mesh REFUSES any leg
+  beyond roughly 2 km on a large sectorised navigation area - measured 2026-09-14: legs up
+  to 1,994 m planned 4/4, a 4,914 m leg refused 4/4. The long COA demo legs are 24-33 km.
+- The fix is a CUSTOM simulation model set at `C:\C2SIM\vrf-sms\C2SIM_EntityLevel_AbstractGraphs.sms`.
+  It includes the shipped `EntityLevel.sms` unchanged and replaces exactly one script
+  (`ground-vehicle-move-to.lua`) with a copy that turns abstract graphs ON. With it the same
+  legs planned 8/8. It lives OUTSIDE `C:\MAK` so a VR-Forces reinstall does not delete it -
+  but the fixture names it by absolute path, so that folder MUST exist on the demo machine.
+- WHICH FIXTURES CARRY IT: the ones whose name ends in `_AG` -
+  `R9_Mojave_Empty_52_AG` (sibling of the section-0 scenario, shipped terrain) and
+  `R9_Mojave_Empty_52_NavAO_AG` (the COA navigation-area terrain). Both are deployed under
+  `C:\MAK\vrforces5.2d\userData\scenarios`. The non-`_AG` fixtures of the same names are
+  the old ones on the vendor script and are left in place unchanged.
+- UNVERIFIED as a DEMO: the `_AG` fixtures are proven for path planning (8/8), not yet
+  rehearsed as a full demo run. Ask an engineer which fixture to name before the demo.
+
+THE RELOCATED appData (navigation data loaded WITH the terrain)
+- `C:\C2SIM\vrf-appdata\appData` is a copy of the vendor `appData` tree whose ONE change is
+  `loadAllNavigationDataOnTerrainLoad 1`: navigation data is loaded when the scenario loads
+  instead of lazily when the first entity is placed.
+- How to pass it: `scripts/RunScenario.sh --vrf-appdata-dir C:\C2SIM\vrf-appdata\appData`,
+  or `RunC2SimScenario.ps1 -VrfAppDataDir ...`, or `LaunchVrf52.ps1 -AppDataDir ...`. Leave
+  it out and VR-Forces uses its own `appData` exactly as before.
+- UNVERIFIED: the validation launch for this option is still owed (DEMO_READINESS row 21).
+  Do not introduce it for the first time on demo day.
+
+THE CACHE WARM-UP (the trap on a first run after a reboot)
+- On the lazy path the navigation area starts streaming when the FIRST ENTITY IS PLACED and
+  takes about 237 seconds and 2.3 GB. Units tasked before that finishes plan with no mesh.
+- On a warm cache the same load is 15-20 seconds.
+- So a first run after a boot needs EITHER the pre-order settle
+  (`scripts/RunScenario.sh --pre-order-settle 240`, which holds after the units exist and
+  before the order is pushed) OR one throw-away warm-up run beforehand. A rehearsal run the
+  same day is the simplest warm-up and is worth doing anyway.
 
 ---
 

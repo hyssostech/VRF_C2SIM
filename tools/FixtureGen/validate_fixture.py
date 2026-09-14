@@ -155,6 +155,65 @@ def _say(ok_flag, label, detail, good):
     return ok_flag and good
 
 
+def _info(label, detail):
+    """A reported fact that is NOT a pass/fail condition."""
+    print("  %-40s %-44s [%s]" % (label, detail, "info"))
+
+
+def _read(path):
+    with open(path, "r", encoding="utf-8", errors="replace") as fh:
+        return fh.read()
+
+
+def describe_sms(path):
+    """Report what a DERIVED simulation model set carries, and gate the parts a
+    fixture depends on: the file exists, it INCLUDES a shipped SMS (UG52 68.3.1
+    p1310), it names a model-set-directory, and that directory holds at least one
+    overriding script. For every overriding script, print the script id taken from
+    its .xml sidecar (<myScriptId>, the id the higher-priority SMS supersedes -
+    UG52 68.3.4 p1313), the useAbstractGraphs setting found in the .lua, and the
+    run-time proof line the .lua prints. The last two are INFO, not gates: another
+    derived SMS may legitimately override a different script.
+
+    Returns the ok flag.
+    """
+    ok = _say(True, "sms file exists on disk", path, os.path.isfile(path))
+    if not os.path.isfile(path):
+        return ok
+    sms_txt = _read(path)
+    includes = re.findall(r'\(include\s+"([^"]*)"\s*\)', sms_txt)
+    ok = _say(ok, "sms includes another SMS (UG52 68.3.1)",
+              ", ".join(includes) or "(none)",
+              any(i.lower().endswith(".sms") for i in includes))
+    m = re.search(r'\(model-set-directory\s+"([^"]*)"\s*\)', sms_txt)
+    mset = m.group(1) if m else None
+    ok = _say(ok, "sms model-set-directory", mset or "(absent)", bool(mset))
+    if not mset:
+        return ok
+    sdir = os.path.join(os.path.dirname(os.path.abspath(path)), mset, "scripts")
+    luas = (sorted(f for f in os.listdir(sdir) if f.lower().endswith(".lua"))
+            if os.path.isdir(sdir) else [])
+    ok = _say(ok, "sms overriding scripts", "%d in %s" % (len(luas), sdir), bool(luas))
+    for lua in luas:
+        stem = os.path.splitext(lua)[0]
+        body = _read(os.path.join(sdir, lua))
+        xml = os.path.join(sdir, stem + ".xml")
+        sid = None
+        if os.path.isfile(xml):
+            mm = re.search(r"<myScriptId>([^<]*)</myScriptId>", _read(xml))
+            sid = mm.group(1) if mm else None
+        ok = _say(ok, "  overrides script id",
+                  "%s   (from %s)" % (sid or "(no myScriptId in the .xml sidecar)", lua),
+                  sid == stem)
+        ag = re.findall(r"useAbstractGraphs\s*=\s*(\w+)", body)
+        _info("    useAbstractGraphs", ", ".join(ag) or "(not set in this script)")
+        proof = re.search(r'printInfo\(\s*"([^"]*override[^"]*)"', body)
+        _info("    run-time proof line",
+              proof.group(1) if proof
+              else "(none - a run cannot prove which copy executed)")
+    return ok
+
+
 def check_empty_52(path, donor=None, frame_mode="fixed-frame-run-to-complete",
                    frame_time=0.033333, aoi=None, terrain=None, sms=None):
     """Validate an EMPTY 5.2 fixture. Returns True/False; prints every check.
@@ -164,8 +223,12 @@ def check_empty_52(path, donor=None, frame_mode="fixed-frame-run-to-complete",
     built with build_fixture.py --terrain <copy> is validated with the same path.
 
     sms: the Simulation-Model-Set-Files string the fixture is EXPECTED to carry.
-    Default = the shipped EntityLevel.sms; a fixture built with build_fixture.py
-    --sms <derived.sms> is validated with the same path.
+    Default = whatever build_fixture.resolve_sms_52() would write today, i.e. the
+    derived abstract-graph SMS when it is on this machine (the 5.2 default since
+    2026-09-14 / G7b) and the shipped EntityLevel.sms otherwise. Pass "vendor" to
+    validate a fixture deliberately built on the shipped SMS, or the path of
+    another derived SMS. A derived SMS is also OPENED and described: its include
+    chain and the script ids it overrides.
     """
     aoi = aoi or bf.R9_AOI
     donor = donor or bf.DONORS_52["GroundMovement"]
@@ -233,11 +296,13 @@ def check_empty_52(path, donor=None, frame_mode="fixed-frame-run-to-complete",
 
     # ---- terrain / SMS -------------------------------------------------------
     want_terrain = terrain or bf.TERRAIN_52
-    want_sms = sms or bf.SMS_52
+    want_sms = bf.resolve_sms_52(sms, verbose=False)
     if terrain and terrain != bf.TERRAIN_52:
         ok = _say(ok, "terrain override exists on disk", terrain, os.path.isfile(terrain))
-    if sms and sms != bf.SMS_52:
-        ok = _say(ok, "sms override exists on disk", sms, os.path.isfile(sms))
+    if want_sms == bf.SMS_52:
+        _info("sms", "the shipped EntityLevel.sms ($(DATA_DIR) macro; no script override)")
+    else:
+        ok = describe_sms(want_sms) and ok
     for key, want in (("Terrain-Database", want_terrain),
                       ("Gui-Terrain-Database", want_terrain),
                       ("Simulation-Model-Set-Files", want_sms)):
@@ -341,8 +406,12 @@ if __name__ == "__main__":
                          "navigation-area copy for fixtures built with --terrain.")
     ap.add_argument("--sms", default=None, metavar="SMS",
                     help="--empty-52: the simulation model set the fixtures are "
-                         "EXPECTED to name (default: the shipped EntityLevel.sms). "
-                         "Pass the derived SMS for fixtures built with --sms.")
+                         "EXPECTED to name. Default = the build default, i.e. the "
+                         "derived abstract-graph SMS when it exists on this machine "
+                         "(%s) and the shipped EntityLevel.sms otherwise. Pass "
+                         "'vendor' for a fixture deliberately built on the shipped "
+                         "SMS, or the path of another derived SMS."
+                         % bf.SMS_52_CUSTOM)
     args = ap.parse_args()
 
     results = []

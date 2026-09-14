@@ -575,8 +575,10 @@ def build_site(site, cfg, frame_mode=None, frame_time=None, out_dir=None):
 #            C:\MAK\SharedData\19\latest\TerrainData\TerrainConfiguration\ .
 #            It is the Y-7 ruling and the only shipped family covering the R9 AOI
 #            (RESEARCH sec 2; "MAK Earth Space (online).mtf" is ABSENT from 5.2d).
-#   SMS      $(DATA_DIR)\simulationModelSets\EntityLevel.sms (UG52 Table 20 p.354;
-#            there is no C2simEx.sms under 5.2d - DIFF C2 / Y-8).
+#   SMS      the DERIVED SMS SMS_52_CUSTOM by default since 2026-09-14 (G7b); the
+#            shipped $(DATA_DIR)\simulationModelSets\EntityLevel.sms (UG52 Table 20
+#            p.354; there is no C2simEx.sms under 5.2d - DIFF C2 / Y-8) with
+#            --sms vendor / --no-custom-sms. See SMS_52_CUSTOM below.
 #   frame    frame-mode / frame-time, UG52 Table 20 p.354 + sec 3.4.3 p.122 (Y-9);
 #            the keys are UNCHANGED from 5.0.2, so set_frame_settings() is reused.
 #
@@ -603,6 +605,56 @@ DONORS_52 = {
 TERRAIN_52 = (r"$(SHARED_DATA_DIR)\TerrainData\TerrainConfiguration"
               r"\MAK Earth (online).mtf")
 SMS_52 = r"$(DATA_DIR)\simulationModelSets\EntityLevel.sms"
+
+# The DEFAULT Simulation-Model-Set-Files for generated 5.2 fixtures since
+# 2026-09-14 (G7b): a derived SMS that INCLUDES the shipped EntityLevel.sms
+# unchanged (UG52 68.3.1 p1310) and overrides exactly ONE system script by script
+# id - scripts/ground-vehicle-move-to.lua - whose only functional change is
+# useAbstractGraphs = true, plus one printInfo line that proves at run time which
+# copy executed (UG52 68.3.3 p1312 priority; 68.3.4 p1313 "scripts in the highest
+# priority SMS supersede those in the lower priority SMSs").
+#
+# WHY IT IS THE DEFAULT AND NOT AN OPT-IN: the vendor's ground-vehicle-move-to.lua
+# hard-codes useAbstractGraphs = false, and with that setting the nav-mesh query
+# REFUSES a leg beyond roughly 2 km on a large sectorised navigation area (G7
+# attempt 4, run 20260914T154243Z: legs up to 1,994 m planned 4/4, a 4,914 m leg
+# refused 4/4). With the override the same legs plan 8/8 (G7b). Every fixture this
+# path builds exists to be driven by multi-kilometre C2SIM order legs, so the
+# override is the fixture's normal state and the vendor script is the opt-out.
+#
+# It is named by ABSOLUTE path - allowed for MTL filename parameters, which are
+# "an absolute path or a path relative to the directory in which the executable is
+# located" (UG52 Table 15 p271) - so the SMS lives OUTSIDE C:\MAK and survives a
+# vendor reinstall. If the file is absent (a machine that has not got it) the
+# builder falls back to the shipped SMS and says so on stdout; it never fails.
+SMS_52_CUSTOM = r"C:\C2SIM\vrf-sms\C2SIM_EntityLevel_AbstractGraphs.sms"
+
+# --sms values that mean "the shipped EntityLevel.sms, no script override" - the
+# same as --no-custom-sms. Anything else is taken as a path to a derived SMS.
+SMS_VENDOR_ALIASES = ("vendor", "shipped", "entitylevel", "none")
+
+
+def resolve_sms_52(sms, verbose=True):
+    """Return the Simulation-Model-Set-Files string a 5.2 fixture should carry.
+
+    sms None           -> SMS_52_CUSTOM when it exists on disk, else SMS_52.
+    sms a vendor alias -> SMS_52, the shipped EntityLevel.sms.
+    anything else      -> returned UNCHANGED, so a fixture built with an explicit
+                          --sms <path> is byte-identical to one built before this
+                          default existed. The caller still checks that it exists.
+    """
+    if sms is None:
+        if os.path.isfile(SMS_52_CUSTOM):
+            return SMS_52_CUSTOM
+        if verbose:
+            print("NOTE: %s is ABSENT - falling back to the shipped SMS. The fixture "
+                  "will NOT carry the abstract-graph override, so nav-mesh legs beyond "
+                  "~2 km will be refused on a sectorised area (G7b)." % SMS_52_CUSTOM)
+        return SMS_52
+    if sms.strip().lower() in SMS_VENDOR_ALIASES:
+        return SMS_52
+    return sms
+
 
 # R9 Mojave AOI - data\R9_Mojave_Initialization.xml (58 pts) + _UnitMove_Order.xml (6).
 R9_AOI = dict(lat_min=34.5605, lat_max=34.6696,
@@ -816,12 +868,14 @@ def build_empty_52(out_name, donor="GroundMovement", frame_mode=None,
     navigation-area records (tools/navdata/make_nav_terrain.py) is passed
     here by absolute path; the copy is verified to exist on this machine.
 
-    sms: the Simulation-Model-Set-Files string. Default SMS_52 (the shipped
-    EntityLevel.sms, named through the $(DATA_DIR) macro). A derived SMS that
-    INCLUDES EntityLevel.sms (UG52 68.3.1 p1310) is passed here by absolute
-    path - allowed for MTL filename parameters, which are "an absolute path or
-    a path relative to the directory in which the executable is located"
-    (UG52 Table 15 p271) - and is verified to exist on this machine.
+    sms: the Simulation-Model-Set-Files string, resolved by resolve_sms_52().
+    None (the default) = SMS_52_CUSTOM, the derived abstract-graph SMS, when it
+    exists on this machine, else the shipped SMS_52. "vendor" = the shipped
+    EntityLevel.sms named through the $(DATA_DIR) macro. Any other value is used
+    verbatim: a derived SMS that INCLUDES EntityLevel.sms (UG52 68.3.1 p1310)
+    passed by absolute path - allowed for MTL filename parameters, which are "an
+    absolute path or a path relative to the directory in which the executable is
+    located" (UG52 Table 15 p271) - and verified to exist on this machine.
 
     Returns (scnx_path, report_dict). The donor .scnx is only READ.
     """
@@ -829,7 +883,7 @@ def build_empty_52(out_name, donor="GroundMovement", frame_mode=None,
     terrain = terrain or TERRAIN_52
     if terrain != TERRAIN_52 and not os.path.isfile(terrain):
         raise SystemExit("terrain not found: %s" % terrain)
-    sms = sms or SMS_52
+    sms = resolve_sms_52(sms, verbose=verbose)
     if sms != SMS_52 and not os.path.isfile(sms):
         raise SystemExit("sms not found: %s" % sms)
     donor_path = DONORS_52.get(donor, donor)
@@ -926,8 +980,13 @@ def build_empty_52(out_name, donor="GroundMovement", frame_mode=None,
         print("  .omp entries  = %d -> %d" % (len(omp_before), len(kept_uuids)))
         print("  terrain       = %s%s" % (terrain, "" if terrain == TERRAIN_52
                                           else "  (OVERRIDE - not the shipped terrain)"))
-        print("  sms           = %s%s" % (sms, "" if sms == SMS_52
-                                          else "  (OVERRIDE - not the shipped SMS)"))
+        if sms == SMS_52:
+            sms_note = "  (the shipped SMS - no script override)"
+        elif sms == SMS_52_CUSTOM:
+            sms_note = "  (DEFAULT since G7b - includes EntityLevel.sms, abstract graphs on)"
+        else:
+            sms_note = "  (OVERRIDE - not the shipped SMS)"
+        print("  sms           = %s%s" % (sms, sms_note))
         print("  frame-mode    = %s" % (frame_mode if frame_mode else "(unchanged)"))
         print("  frame-time    = %s" % (("%.6f" % float(frame_time))
                                         if frame_time is not None else "(unchanged)"))
@@ -1005,7 +1064,10 @@ if __name__ == "__main__":
                "    python build_fixture.py --profile 5.2 --empty \\\n"
                "           --frame-mode fixed-frame-run-to-complete --frame-time 0.033333 \\\n"
                '           --out-dir "C:\\MAK\\vrforces5.2d\\userData\\scenarios"\n'
-               "  Then: LaunchVrf52.ps1 -Scenario R9_Mojave_Empty_52\n")
+               "  Then: LaunchVrf52.ps1 -Scenario R9_Mojave_Empty_52\n"
+               "  The SMS defaults to the abstract-graph derived SMS when present:\n"
+               "    " + SMS_52_CUSTOM + "\n"
+               "  --no-custom-sms (= --sms vendor) writes the shipped EntityLevel.sms.\n")
     ap.add_argument("sites", nargs="*",
                     help="site(s) to build; default = all of %s" % ", ".join(SITES))
     ap.add_argument("--frame-mode", default=None, choices=list(FRAME_MODES),
@@ -1051,11 +1113,22 @@ if __name__ == "__main__":
                          "the navigation-area copy made by tools/navdata/"
                          "make_nav_terrain.py (absolute path; must exist).")
     ap.add_argument("--sms", default=None, metavar="SMS",
-                    help="--empty only: Simulation-Model-Set-Files to write instead "
-                         "of the shipped EntityLevel.sms - e.g. a derived SMS that "
-                         "INCLUDES EntityLevel.sms and overrides one script "
-                         "(absolute path; must exist).")
+                    help="--empty only: Simulation-Model-Set-Files to write. DEFAULT "
+                         "since 2026-09-14 (G7b) = %s when that file exists - the "
+                         "derived SMS that INCLUDES EntityLevel.sms and overrides "
+                         "ground-vehicle-move-to.lua with useAbstractGraphs=true. Pass "
+                         "'vendor' (same as --no-custom-sms) for the shipped "
+                         "EntityLevel.sms, or another derived SMS by absolute path "
+                         "(must exist)." % SMS_52_CUSTOM)
+    ap.add_argument("--no-custom-sms", action="store_true",
+                    help="--empty only: shorthand for --sms vendor. Writes the shipped "
+                         "EntityLevel.sms, i.e. the pre-2026-09-14 default - nav-mesh "
+                         "legs beyond ~2 km are then refused on a sectorised area.")
     args = ap.parse_args()
+
+    if (args.sms or args.no_custom_sms) and not args.empty:
+        raise SystemExit("--sms / --no-custom-sms are --profile 5.2 --empty options "
+                         "(the 5.0.2 path takes its SMS from the base scenario)")
 
     if not os.path.exists(OUTDIR):
         os.makedirs(OUTDIR)
@@ -1065,17 +1138,21 @@ if __name__ == "__main__":
             raise SystemExit("--empty is only defined for --profile 5.2")
         if args.sites or args.frame_variant:
             raise SystemExit("--empty takes neither sites nor --frame-variant")
+        if args.no_custom_sms and args.sms:
+            raise SystemExit("--no-custom-sms and --sms are mutually exclusive "
+                             "(--no-custom-sms IS --sms vendor)")
+        sms_arg = "vendor" if args.no_custom_sms else args.sms
         print("=" * 70)
         build_empty_52(args.out_name, donor=args.donor,
                        frame_mode=args.frame_mode, frame_time=args.frame_time,
                        out_dir=args.out_dir, scenario_name=args.scenario_name,
-                       terrain=args.terrain, sms=args.sms)
+                       terrain=args.terrain, sms=sms_arg)
         if args.negative_controls:
             print("=" * 70)
             build_empty_52_negative_controls(
                 args.out_name, args.negative_controls, donor=args.donor,
                 frame_mode=args.frame_mode, frame_time=args.frame_time,
-                scenario_name=args.scenario_name, sms=args.sms)
+                scenario_name=args.scenario_name, sms=sms_arg)
         sys.exit(0)
 
     if args.profile != "5.0.2":
