@@ -303,6 +303,12 @@ public class VrfSettings
     // and no deployed appsettings sets either, so the blast radius is nil, but a config file
     // carrying an explicit 0 behaves completely differently here than it did.
     public bool StallDetection { get; set; } = false;
+    // NOTE (M2 of the cold-start review of 5c67d41): StallClock governs THE PROGRESS WATCHDOG AND
+    // NOTHING ELSE. It used to pick the clock the R4 timed completion served its Durations on too,
+    // so an operator turning it on for C16 silently changed when every task in the order completed.
+    // R4 has its own knob now - Vrf:TaskClock, below. The two READ THE SAME SIM CLOCK through the
+    // same shared sample and the same hysteresis, so they can never disagree about whether the
+    // scenario is running; they may still be configured to different preferences.
     public string StallClock { get; set; } = "wall";            // "wall" = measured live (default) | "sim" = scenario clock
     public int StallWindowSeconds { get; set; } = 0;            // 0 or negative = the clock's calibrated window (240 wall / 360 sim); else as given
     public double StallMoveMeters { get; set; } = 50.0;         // net displacement per member over the window
@@ -460,6 +466,25 @@ public class VrfSettings
     // Applied where the value is USED, never in the parser: --parse-order always prints the
     // order as written.
     public double DurationScale { get; set; } = 1.0;
+
+    // WHICH CLOCK A C2SIM TASK TIME IS MEASURED ON (M2 of the cold-start review of 5c67d41;
+    // supervisor ruling 2026-09-14, Q2 default - the user may flip it).
+    //   "sim"  (DEFAULT) the VR-Forces scenario clock, with an automatic WALL fallback whenever it
+    //          cannot be read or has gone stale. A Duration in an order is a statement about
+    //          SIMULATED time - "hold this objective for one hour twenty" is an hour twenty of the
+    //          scenario, not of the operator's afternoon - and at the measured COA-STP1 sim ratios
+    //          (0.27x-0.73x) the two differ by a factor of three or four.
+    //   "wall" real seconds. Choose this to reproduce the pre-R4 behaviour, or when the scenario
+    //          clock is not trustworthy for a particular run.
+    // THREE THINGS RIDE ON IT, and they must ride on the SAME one or the chain breaks: the
+    // Duration that ends a task (R4), the StartTime/DelayTimeAmount delay that holds one back, and
+    // the STREND predecessor gate. Before this branch the first was on Vrf:StallClock and the
+    // other two were pure wall seconds, so a run configured for sim had a gate that expired
+    // 3-4x too early and skipped every successor.
+    // The axis they are all served on accumulates FORWARD movement only (VrfC2SimService
+    // .SampleTaskClock), so a PAUSED scenario adds nothing, a rollbackToSnapshot adds nothing, and
+    // a fall back to the wall clock mid-run does not restart anybody's wait.
+    public string TaskClock { get; set; } = "sim";              // "sim" (default) | "wall"
 
     // P0.3: an ATTACK/BREACH engage is issued when its approach move COMPLETES (previously
     // it was issued in the same tick as the move, which - VRF running one task at a time -

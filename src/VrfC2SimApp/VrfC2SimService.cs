@@ -170,6 +170,39 @@ public sealed class VrfC2SimService : BackgroundService
     // miss its deadlines by up to the cadence.
     private const double TimedCheckSeconds = 1.0;
 
+    // ================= THE TASK CLOCK (M2, cold-start review of 5c67d41) =========================
+    // ONE MONOTONE AXIS, IN SECONDS, ON WHICH EVERY C2SIM TASK TIME IS SERVED: the Duration that
+    // ends a task (R4), the StartTime delay that holds one back, and the STREND predecessor gate.
+    // Vrf:TaskClock says which underlying clock feeds it ("sim", the default, with a wall
+    // fallback); StallClock no longer has anything to do with it.
+    //
+    // WHY AN AXIS AND NOT A CLOCK READING. The three consumers must be comparable to each other
+    // and to themselves ACROSS a fall back to the wall clock, whose epoch is astronomically larger
+    // than a scenario clock's. The axis is the running sum of the FORWARD movement of whichever
+    // clock was in effect, never accumulated across a mode change - so a paused scenario adds
+    // nothing, DtVrfRemoteController::rollbackToSnapshot (vrfRemoteController.h:605) adds nothing,
+    // and losing the sim reader mid-task neither completes a task early nor restarts anybody's
+    // wait. It is exactly TimedCompletionPolicy's own discipline, applied once for everyone.
+    // Sampled on the tick thread; READ from the SDK callback threads and the thread pool (the gate
+    // pollers), hence Volatile.
+    private double _taskClockSeconds;                          // the axis
+    private double _taskClockLastReading = double.NaN;         // previous sample of the clock in effect
+    private bool _taskClockLastUsingSim;                       // ... and which clock that was
+    private volatile bool _taskClockUsingSim;                  // the mode the last sample served on (log only)
+    private DateTime _nextTaskClockSample = DateTime.MinValue;
+    private bool _taskClockConfigWarned;                       // Vrf:TaskClock typo, logged once
+    private const double TaskClockSampleSeconds = 1.0;
+    // How often a gate/delay waiting on the axis re-checks it. A WALL cadence by necessity (there
+    // is nothing else to sleep on); 200 ms costs nothing against the shortest wait in a real order
+    // and bounds the overshoot of a heavily compressed demo.
+    private const int TaskClockPollMs = 200;
+
+    /// <summary>The task-clock axis, in seconds (see the field block). Safe from any thread.</summary>
+    private double TaskClockSeconds => Volatile.Read(ref _taskClockSeconds);
+
+    /// <summary>The axis, packaged for TaskSequencer: one Now and one clock-aware delay.</summary>
+    private TaskClock _taskClockAxis;
+
     // The service lifetime token, captured in ExecuteAsync so task orchestrations started
     // from SDK-event threads can cancel their waits on shutdown.
     private CancellationToken _stoppingToken = CancellationToken.None;
@@ -275,6 +308,8 @@ public sealed class VrfC2SimService : BackgroundService
     {
         _log = loggerFactory.CreateLogger("VrfC2Sim");
         _life = life;
+        // M2: the ONE clock every C2SIM task time is served on (see the _taskClockSeconds block).
+        _taskClockAxis = new TaskClock(() => TaskClockSeconds, TaskClockDelayAsync);
 
         var c2 = config.GetSection("C2SIM").Get<C2SIMSDKSettings>() ?? new C2SIMSDKSettings();
         _vrf = config.GetSection("Vrf").Get<VrfSettings>() ?? new VrfSettings();
@@ -432,6 +467,32 @@ public sealed class VrfC2SimService : BackgroundService
                                       + "in effect is not known until the first check, and the clock-mode line names "
                                       + "it then (pass-3 review P11)"
                                     : "");
+        }
+
+        // 0d. TASK-CLOCK PRE-FLIGHT (R4/M2). THREE THINGS RIDE ON ONE CLOCK - the Duration that
+        // ends a task, the StartTime delay that holds one back, and the STREND predecessor gate -
+        // and which one that is decides whether a 42-task order runs or dies at its first gate.
+        // Said once, at start-up, in the same shape as the watchdog line above.
+        {
+            bool taskPrefersSim = StallPolicy.ParseClockPreference(_vrf.TaskClock, out bool taskClockValid);
+            if (!taskClockValid)
+                _log.LogWarning("Vrf:TaskClock='{Value}' is neither \"sim\" nor \"wall\" - C2SIM task times will " +
+                                "be measured on the WALL clock.", _vrf.TaskClock);
+            _log.LogInformation("TASK CLOCK (R4): C2SIM task times are measured on the {Clock} clock " +
+                                "(Vrf:TaskClock={Cfg}){Fallback}. It carries ALL THREE of the task Duration that " +
+                                "ends a task, the StartTime/DelayTimeAmount delay that holds one back, and the " +
+                                "STREND predecessor gate. Vrf:DurationScale={Scale}; the predecessor gate is " +
+                                "max(Vrf:TaskPredecessorTimeoutSeconds={Cfgt} s, the predecessor's own scaled " +
+                                "Duration + Vrf:TaskPredecessorEndMarginSeconds={Margin} s) - M1. " +
+                                "Vrf:StallClock governs the progress watchdog ONLY.",
+                                taskClockValid && taskPrefersSim ? "SIMULATION" : "WALL",
+                                _vrf.TaskClock,
+                                taskClockValid && taskPrefersSim
+                                    ? " - falling back to WALL seconds whenever DtVrfRemoteController::simTime() " +
+                                      "cannot be read or has gone stale, without restarting any wait"
+                                    : "",
+                                _vrf.DurationScale, _vrf.TaskPredecessorTimeoutSeconds,
+                                _vrf.TaskPredecessorEndMarginSeconds);
         }
 
         // 1. Start VR-Forces (the bridge owns the controller/exConn).
@@ -633,6 +694,9 @@ public sealed class VrfC2SimService : BackgroundService
             // an OLD VrfBridge.dll) makes the R1 poll JIT TryGetEntityKinematics ten seconds in and
             // throw MissingMethodException. Guarding does not make a stale deploy correct - it makes
             // it a loud, repeating ERROR line naming the phase instead of a dead interface.
+            // M2: the task-clock axis is advanced BEFORE anything reads it. Always on - the axis
+            // carries the wall clock too, and the gates wait on it whatever Vrf:TaskClock says.
+            TickPhase("SampleTaskClock", true, SampleTaskClock);
             TickPhase("ExpireTerrainRequests", !_pendingTerrain.IsEmpty, ExpireTerrainRequests);
             TickPhase("ExpireCompositions", !_compositions.IsEmpty, ExpireCompositions);
             TickPhase("ReleaseReflected", !_awaitReflection.IsEmpty, ReleaseReflected);
@@ -2173,7 +2237,7 @@ public sealed class VrfC2SimService : BackgroundService
                                     Math.Max(startMs, task.RelativeDelayMs) / 1000.0, _vrf.DurationScale);
             var gate = await _sequencer.WaitForStartAsync(task.StartAfterTaskUuid, scaledStartMs,
                                                           scaledRelativeMs, timeoutSeconds,
-                                                          TaskClock.Wall, _stoppingToken);
+                                                          _taskClockAxis, _stoppingToken);
             if (gate != GateResult.Proceed)
             {
                 // P0.2 (DEFECT B): the predecessor never completed. The OLD behavior always
@@ -2813,7 +2877,7 @@ public sealed class VrfC2SimService : BackgroundService
         // still clears where the replacing VR-Forces command is actually issued (ClearStallState),
         // which is the conservative direction.
         if (dest is not null) _stallSamples.TryRemove(unit.Name, out _);
-        _sequencer.NotifyDispatched(task.TaskUuid, TaskClock.Wall.Now());
+        _sequencer.NotifyDispatched(task.TaskUuid, TaskClockSeconds);
         // B1: the task has STARTED. This is the one point every dispatch path reaches (it is what
         // records the in-flight task), so it is where the C2SIM consumer is told - one TASKSTRT per
         // dispatch; a re-entered dispatch (the TerrainProfile second pass) is suppressed by the
@@ -3340,6 +3404,71 @@ public sealed class VrfC2SimService : BackgroundService
     /// report (a task that has completed cannot complete twice). Cancelling the vendor task would
     /// be an unasked-for change to what the units do.
     /// </summary>
+    /// <summary>
+    /// M2: advance the TASK-CLOCK AXIS by the forward movement of whichever clock Vrf:TaskClock
+    /// asks for and can actually be read. Tick thread, once a second. The one place the sim clock
+    /// is read for tasking; everything else reads the axis.
+    /// </summary>
+    private void SampleTaskClock()
+    {
+        var now = DateTime.UtcNow;
+        if (now < _nextTaskClockSample) return;
+        _nextTaskClockSample = now.AddSeconds(TaskClockSampleSeconds);
+
+        bool preferSim = StallPolicy.ParseClockPreference(_vrf.TaskClock, out bool clockValid);
+        if (!clockValid && !_taskClockConfigWarned)
+        {
+            _taskClockConfigWarned = true;
+            _log.LogWarning("Vrf:TaskClock='{Value}' is neither \"sim\" nor \"wall\" - C2SIM task times " +
+                            "(Duration, StartTime delay, the STREND gate) are measured on the WALL clock.",
+                            _vrf.TaskClock);
+        }
+        double simSeconds = -1.0;
+        if (preferSim)
+        {
+            try { simSeconds = _bridge.SimTimeSeconds(); }
+            catch (Exception ex)
+            { simSeconds = -1.0; _log.LogDebug(ex, "TASK CLOCK: sim-clock read failed; using the wall clock."); }
+        }
+        bool usingSim = StallPolicy.UsingSimClock(preferSim, simSeconds);
+        double wallNow = now.Ticks / (double)TimeSpan.TicksPerSecond;
+        AdvanceTaskClock(StallPolicy.SelectClock(usingSim, simSeconds, wallNow), usingSim);
+    }
+
+    /// <summary>
+    /// Add this sample's FORWARD movement to the axis. Nothing is added across a mode change (the
+    /// two clocks are not comparable), on a flat reading (a paused scenario), or on a backwards
+    /// one (a rollback) - so the axis is monotone whatever the reader does, and never invents time.
+    /// Tick thread only.
+    /// </summary>
+    private void AdvanceTaskClock(double reading, bool usingSim)
+    {
+        if (!double.IsFinite(reading)) return;
+        if (!double.IsNaN(_taskClockLastReading) && usingSim == _taskClockLastUsingSim
+            && reading > _taskClockLastReading)
+            Volatile.Write(ref _taskClockSeconds, _taskClockSeconds + (reading - _taskClockLastReading));
+        _taskClockLastReading = reading;
+        _taskClockLastUsingSim = usingSim;
+        _taskClockUsingSim = usingSim;
+    }
+
+    /// <summary>
+    /// Wait <paramref name="seconds"/> OF THE TASK CLOCK. This is what puts the StartTime delay and
+    /// the STREND predecessor gate on the same clock as the Duration (M2): a wall Task.Delay here
+    /// is what made a run configured for the sim clock skip every successor, because 4,800 sim
+    /// seconds is 6,600-17,800 wall seconds at the measured COA-STP1 ratios.
+    /// </summary>
+    private async Task TaskClockDelayAsync(double seconds, CancellationToken ct)
+    {
+        if (!(seconds > 0.0)) return;
+        double start = TaskClockSeconds;
+        while (TaskClockSeconds - start < seconds)
+        {
+            ct.ThrowIfCancellationRequested();
+            await Task.Delay(TaskClockPollMs, ct).ConfigureAwait(false);
+        }
+    }
+
     private void MaybeCompleteTimedTasks()
     {
         var now = DateTime.UtcNow;
@@ -3347,17 +3476,13 @@ public sealed class VrfC2SimService : BackgroundService
         _nextTimedCheck = now.AddSeconds(TimedCheckSeconds);
         if (_timed.Count == 0) return;
 
-        double wallNow = now.Ticks / (double)TimeSpan.TicksPerSecond;
-        bool preferSim = StallPolicy.ParseClockPreference(_vrf.StallClock, out _);
-        double simSeconds = -1.0;
-        if (preferSim)
-        {
-            try { simSeconds = _bridge.SimTimeSeconds(); }
-            catch (Exception ex)
-            { simSeconds = -1.0; _log.LogDebug(ex, "TIMED COMPLETION: sim-clock read failed; using the wall clock."); }
-        }
-        bool usingSim = StallPolicy.UsingSimClock(preferSim, simSeconds);
-        double clockNow = StallPolicy.SelectClock(usingSim, simSeconds, wallNow);
+        // M2: ONE axis, already advanced by SampleTaskClock earlier in this same tick. The mode is
+        // read for the LOG LINE only - the axis itself never accumulates across a mode change, so
+        // handing the raw mode to Advance would re-anchor a second time for no gain (and, with an
+        // unsteady reader, would re-anchor every walk and never serve anything: M3).
+        bool preferSim = StallPolicy.ParseClockPreference(_vrf.TaskClock, out _);
+        bool usingSim = _taskClockUsingSim;
+        double clockNow = TaskClockSeconds;
         if (!_timedClockLineLogged || usingSim != _timedUsingSim)
         {
             _timedClockLineLogged = true;
@@ -3366,12 +3491,12 @@ public sealed class VrfC2SimService : BackgroundService
                                 "{Why}; Vrf:DurationScale={Scale}.", _timed.Count,
                                 usingSim ? "SIMULATION" : "WALL",
                                 usingSim ? "" : (preferSim
-                                    ? " - Vrf:StallClock=sim, but the sim clock could not be read"
-                                    : " (Vrf:StallClock=wall)"),
+                                    ? " - Vrf:TaskClock=sim, but the sim clock could not be read"
+                                    : " (Vrf:TaskClock=wall)"),
                                 _vrf.DurationScale);
         }
 
-        foreach (var p in _timed.Advance(clockNow, usingSim))
+        foreach (var p in _timed.Advance(clockNow, usingSim: true))
         {
             _log.LogInformation("TIMED COMPLETION: task '{Task}' on {Unit} reached its END TIME - " +
                                 "{Served:F0} s of a {Dur:F0} s Duration served on the {Clock} clock " +
