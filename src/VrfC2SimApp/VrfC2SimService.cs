@@ -307,6 +307,31 @@ public sealed class VrfC2SimService : BackgroundService
             return;
         }
 
+        // 0c. PROGRESS-WATCHDOG PRE-FLIGHT (C16). The window belongs to the CLOCK - 240 WALL
+        // seconds or 360 SIM seconds, both calibrated on the 2026-09-13 replay set - so the one
+        // startup line names the clock AND the window that will actually be in effect, and says
+        // whether that window came from the calibration or from configuration. Not a refusal: the
+        // watchdog is report-only and Vrf:StallDetection ships OFF.
+        if (_vrf.StallDetection)
+        {
+            bool stallPrefersSim = StallPolicy.ParseClockPreference(_vrf.StallClock, out bool stallClockValid);
+            if (!stallClockValid)
+                _log.LogWarning("Vrf:StallClock='{Value}' is neither \"sim\" nor \"wall\" - the progress watchdog " +
+                                "will run on the WALL clock.", _vrf.StallClock);
+            _log.LogInformation("PROGRESS WATCHDOG ON (C16, report-only): a {W} s no-progress window on the {Clock} " +
+                                "clock, {M:F0} m of net displacement per member; the window is {Src}. Both defaults " +
+                                "are calibrated on the same three replayed traces - 240 WALL s, 360 SIM s " +
+                                "(docs/experiments/RECAL_STALL_SIMSECONDS_2026-09-13.md) - and are NOT a conversion " +
+                                "of one another. On the sim clock the reader is DtVrfRemoteController::simTime(); if " +
+                                "it cannot be read the watchdog falls back to WALL seconds AND to the wall window.",
+                                (int)StallPolicy.ResolveWindowSeconds(_vrf.StallWindowSeconds,
+                                                                     stallClockValid && stallPrefersSim),
+                                (stallClockValid && stallPrefersSim) ? "SIMULATION" : "WALL",
+                                _vrf.StallMoveMeters,
+                                _vrf.StallWindowSeconds > 0 ? "the configured Vrf:StallWindowSeconds"
+                                                            : "that clock's calibrated default");
+        }
+
         // 1. Start VR-Forces (the bridge owns the controller/exConn).
         var cfg = BuildStartupConfig();
         _log.LogInformation("Starting VrfBridge (protocol={Protocol}, federation={Fed})...",
@@ -2200,6 +2225,22 @@ public sealed class VrfC2SimService : BackgroundService
                 _log.LogWarning("Unit {Name}: cancelled the member fan-out tied to superseded task '{Old}'.",
                                 unit.Name, old.TaskName);
         }
+        // C16 cold-start review finding 3: A NEW MOVE TASK GETS A NEW PROGRESS WINDOW. The
+        // arrival-evidence swallow above is deferred on purpose - that is _arrivalReported, a
+        // different map, and a deferred kind's OLD task keeps running until the replacing command
+        // is issued - but the stall window has no such reason to survive a dispatch. 51d78a5
+        // re-armed 60 s of grace here because its anchor was this record's own DispatchedUtc;
+        // 1616614 moved the anchor to the watch's first sample and left nothing at all on the two
+        // paths where a NEW in-flight record with a destination is written before ClearStallState
+        // runs: :2049 (R11 plan-move) and :2146 (CreateRoute + MoveAlongRoute, the DEFAULT
+        // aggregate move). There the previous task's ring could satisfy the window on the same
+        // tick the new task was recorded, and the TASKABRT would be stamped with the NEW task uuid
+        // while being computed entirely from the OLD task's samples - unbounded whenever the
+        // route-created callback never arrives, which is exactly the silent-freeze mode this
+        // watchdog exists for. Only the SAMPLES are dropped: the one-report-per-unit-task flag
+        // still clears where the replacing VR-Forces command is actually issued (ClearStallState),
+        // which is the conservative direction.
+        if (dest is not null) _stallSamples.TryRemove(unit.Name, out _);
         _sequencer.NotifyDispatched(task.TaskUuid);
     }
 
@@ -2589,6 +2630,18 @@ public sealed class VrfC2SimService : BackgroundService
     private readonly ConcurrentDictionary<string, string> _stallReported = new();        // unit name -> task uuid reported TASKABRT
     private DateTime _nextStallCheck = DateTime.MinValue;
     private int _stallClockMode;   // 0 = not announced yet, 1 = simulation clock, 2 = wall clock
+    // Clock-mode hysteresis and stale-clock state (cold-start review of 1616614, findings 8 and
+    // 9). All of these are touched only on the tick thread - MaybeCheckStalls is their one writer.
+    private int _stallClockCandidate;                             // the mode an unsteady reader proposes
+    private int _stallClockStreak;                                // consecutive readings of that candidate
+    private DateTime _stallModeLineUtc = DateTime.MinValue;       // rate limit for the mode line
+    private int _stallModeLinesSuppressed;                        // mode changes the rate limit did not print
+    private bool _stallClockConfigWarned;                         // Vrf:StallClock typo, logged once
+    private double _stallSimClockLast = double.NegativeInfinity;  // highest sim reading seen
+    private double _stallSimClockLastAdvanceWall;                 // wall seconds when it last advanced
+    private bool _stallSimClockStaleWarned;                       // stale-clock warning, logged once per stall
+    private double _stallLastCheckClock = double.NaN;             // previous check's clock, for the ratio
+    private double _stallLastCheckWall = double.NaN;              // previous check's wall seconds
 
     /// <summary>Drop a unit's watchdog state. Called wherever the arrival-evidence swallow is
     /// dropped - i.e. whenever a NEW VRF task is issued for the unit: the new task gets its own
@@ -2603,55 +2656,161 @@ public sealed class VrfC2SimService : BackgroundService
     {
         var now = DateTime.UtcNow;
         if (now < _nextStallCheck) return;
-        _nextStallCheck = now.AddSeconds(Math.Max(1, _vrf.StallCheckSeconds));
-        double window = Math.Max(1, _vrf.StallWindowSeconds);
+        // Wall seconds as an absolute double on the SAME source the watchdog always used
+        // (DateTime.UtcNow); only differences are ever taken, so the epoch is irrelevant.
+        double wallNow = now.Ticks / (double)TimeSpan.TicksPerSecond;
+        _nextStallCheck = now.AddSeconds(Math.Max(1, _vrf.StallCheckSeconds));   // refined below
 
-        // CLOCK SELECTION (Vrf:StallClock, default "sim"). The check CADENCE above stays on wall
-        // time - it is a sampling rate, not a measurement. Everything MEASURED below (the window
-        // and the post-dispatch grace) is in seconds on the clock chosen here.
+        // CLOCK SELECTION (Vrf:StallClock, default "wall"). Everything MEASURED below - the window
+        // and the post-dispatch grace - is in seconds on the clock chosen here.
         //
         // The sim reading is the BACK END's scenario clock, VrfBridge.SimTimeSeconds() ->
-        // DtVrfRemoteController::simTime() (vrfRemoteController.h:356 on 5.2d): it runs fast
-        // under fixed-frame-run-to-complete and STOPS while the scenario is paused, so a paused
-        // sim can no longer be mistaken for a stalled unit. -1.0 = no reading, and then the
-        // watchdog silently keeps its old wall-clock behaviour rather than going blind.
-        bool preferSim = !string.Equals(_vrf.StallClock, "wall", StringComparison.OrdinalIgnoreCase);
+        // DtVrfRemoteController::simTime() (vrfRemoteController.h:355-356 on 5.2d): it runs fast
+        // under fixed-frame-run-to-complete and STOPS while the scenario is paused. -1.0 = no
+        // reading, and then the watchdog keeps its old wall-clock behaviour rather than going
+        // blind. The VALUE is only validated here (review finding 7): anything that is not
+        // exactly "sim" or "wall" is a configuration error and resolves to WALL - the CALIBRATED
+        // mode - because the 240 s window was derived on wall-stamped traces and has not been
+        // re-derived in sim seconds (VrfSettings.cs "RE-CALIBRATION OWED").
+        bool preferSim = StallPolicy.ParseClockPreference(_vrf.StallClock, out bool clockValid);
+        if (!clockValid && !_stallClockConfigWarned)
+        {
+            _stallClockConfigWarned = true;
+            _log.LogWarning("Vrf:StallClock='{Value}' is neither \"sim\" nor \"wall\" - the progress watchdog " +
+                            "measures its window on the WALL clock (the calibrated mode).", _vrf.StallClock);
+        }
         double simSeconds = -1.0;
         if (preferSim)
         {
             try { simSeconds = _bridge.SimTimeSeconds(); }
             catch (Exception ex) { simSeconds = -1.0; _log.LogDebug(ex, "STALL: sim-clock read failed; using wall."); }
         }
-        bool usingSim = StallPolicy.UsingSimClock(preferSim, simSeconds);
-        // Wall seconds as an absolute double on the SAME source the watchdog always used
-        // (DateTime.UtcNow); only differences are ever taken, so the epoch is irrelevant.
-        double clockNow = StallPolicy.SelectClock(preferSim, simSeconds,
-                                                  now.Ticks / (double)TimeSpan.TicksPerSecond);
-        int mode = usingSim ? 1 : 2;
-        if (mode != _stallClockMode)
+        int observedMode = StallPolicy.UsingSimClock(preferSim, simSeconds) ? 1 : 2;
+        int heldMode = _stallClockMode;
+        bool announceMode = false;
+        (int nextMode, _stallClockCandidate, _stallClockStreak) =
+            StallPolicy.NextClockMode(_stallClockMode, _stallClockCandidate, _stallClockStreak,
+                                      observedMode, StallPolicy.ModeSwitchConfirmations);
+        if (nextMode != heldMode)
         {
-            // ONE line the first time the watchdog resolves its clock, and one more if it ever
-            // changes (the reader going away mid-run is the case that matters). Every ring is
-            // dropped on a change: its stamps are on the OLD clock and mixing the two would
-            // produce a nonsense window - better to re-open every watch than to mis-abort one.
-            if (_stallClockMode != 0) _stallSamples.Clear();
-            _log.LogInformation("STALL WATCHDOG: the {W} s no-progress window is measured on the {Clock} clock{Why}.",
-                                (int)window, usingSim ? "SIMULATION" : "WALL",
-                                usingSim ? "" : (preferSim
-                                    ? " - Vrf:StallClock=sim, but the sim clock could not be read (no back end reporting)"
-                                    : " (Vrf:StallClock=wall)"));
-            _stallClockMode = mode;
+            // Every ring is dropped on a real change: its stamps are on the OLD clock and mixing
+            // the two would produce a nonsense window - better to re-open every watch than to
+            // mis-abort one. The HYSTERESIS above (review finding 8) is what makes that safe: a
+            // reader alternating -1 / >= 0 at the check cadence never reaches here, so it can no
+            // longer wipe the watchdog's whole memory every tick while logging a line about it.
+            // The line itself is rate-limited, and says how many changes it did not print.
+            if (heldMode != 0)
+            {
+                _stallSamples.Clear();
+                _stallSimClockLast = double.NegativeInfinity;
+                _stallSimClockStaleWarned = false;
+                _stallLastCheckClock = double.NaN;
+            }
+            _stallClockMode = nextMode;
+            announceMode = true;
         }
 
+        // Measure on the HELD mode, not on the raw reading: while a change is still unconfirmed
+        // the rings are stamped with the held clock and must be read on it. In sim mode with no
+        // reading this tick there is nothing to measure at all, so the check is skipped whole -
+        // the ring is preserved and picked up again when the reader answers.
+        // (A mode CHANGE can never take this return: switching TO sim requires a reading >= 0,
+        // and switching to wall leaves usingSim false - so no announcement is ever swallowed.)
+        bool usingSim = _stallClockMode == 1;
+        if (usingSim && simSeconds < 0.0) return;
+        double clockNow = usingSim ? simSeconds : wallNow;
+
+        // THE WINDOW BELONGS TO THE CLOCK. Vrf:StallWindowSeconds = 0 - the shipped default - takes
+        // the calibration derived for whichever clock is actually in use: 240 WALL seconds, or 360
+        // SIM seconds from the 2026-09-13 sim-second re-calibration
+        // (docs/experiments/RECAL_STALL_SIMSECONDS_2026-09-13.md). They are not a conversion of one
+        // another - P11's ratio swings 1.10x-1.99x inside one run - so falling back to the wall
+        // clock mid-run also falls back to the wall window, which is the correct pair.
+        double window = StallPolicy.ResolveWindowSeconds(_vrf.StallWindowSeconds, usingSim);
+        if (announceMode)
+        {
+            // ONE line per real mode change, rate-limited (a change drops every ring, so it has to
+            // be visible, but an unsteady reader must not be able to fill the log with it); the
+            // line says how many changes it did not print.
+            if ((now - _stallModeLineUtc).TotalSeconds >= StallPolicy.StaleClockWarnSeconds)
+            {
+                _log.LogInformation("STALL WATCHDOG: the {W} s no-progress window is measured on the {Clock} clock{Why}.{Sup}",
+                                    (int)window, usingSim ? "SIMULATION" : "WALL",
+                                    usingSim ? "" : (preferSim
+                                        ? " - Vrf:StallClock=sim, but the sim clock could not be read (no back end reporting)"
+                                        : " (Vrf:StallClock=wall)"),
+                                    _stallModeLinesSuppressed > 0
+                                        ? " (" + _stallModeLinesSuppressed + " earlier mode change(s) not logged)" : "");
+                _stallModeLineUtc = now;
+                _stallModeLinesSuppressed = 0;
+            }
+            else _stallModeLinesSuppressed++;
+        }
+
+        // CADENCE (review finding 4). The cadence stays a WALL sampling rate, but on the sim clock
+        // it also sets the ring's RESOLUTION: at ratio r one 5 s step advances the window by 5r
+        // sim seconds, and past r = window / (MinRingDepth x cadence) the front prune leaves only
+        // the two entries it must keep, so the ring-depth floor could never be cleared. The
+        // cadence therefore follows the clock - never slower than configured, never faster than 1 s.
+        if (usingSim && !double.IsNaN(_stallLastCheckClock) && wallNow > _stallLastCheckWall)
+        {
+            double ratio = (clockNow - _stallLastCheckClock) / (wallNow - _stallLastCheckWall);
+            _nextStallCheck = now.AddSeconds(StallPolicy.NextCheckSeconds(_vrf.StallCheckSeconds, window, ratio));
+        }
+        _stallLastCheckClock = clockNow;
+        _stallLastCheckWall = wallNow;
+
+        var snapshot = _inFlight.Snapshot();
         var live = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var kv in _inFlight.Snapshot())
+        bool anyMoveInFlight = false;
+        // MOVE tasks only. A task with no destination (engage, breach, fire in place) has no
+        // progress to make and standing still IS its correct behaviour.
+        foreach (var kv in snapshot)
+            if (kv.Value.DestLat is not null && kv.Value.DestLon is not null)
+            { live.Add(kv.Key); anyMoveInFlight = true; }
+
+        // STALE (not paused) SIM CLOCK - review finding 9. VrfFacade::SimTimeSeconds gates on
+        // backends().count() > 0, and a back end that misses its status timeout is DEACTIVATED,
+        // not removed (vrfBackendListener.h:161-163 against :154-155), so count() stays > 0 and
+        // the reader returns its last cached value forever. That is indistinguishable from a
+        // paused scenario, and both must stop the watchdog judging - but a silent stop in front
+        // of the silence C16 exists to catch is not acceptable, so it says so, once.
+        bool staleHold = false;
+        if (usingSim)
+        {
+            if (clockNow > _stallSimClockLast)
+            {
+                if (_stallSimClockStaleWarned)
+                    _log.LogInformation("STALL WATCHDOG: the simulation clock is advancing again ({T:F1} s); " +
+                                        "the no-progress window is being measured once more.", clockNow);
+                _stallSimClockLast = clockNow;
+                _stallSimClockLastAdvanceWall = wallNow;
+                _stallSimClockStaleWarned = false;
+            }
+            else if (anyMoveInFlight
+                     && StallPolicy.SimClockStale(clockNow, _stallSimClockLast, wallNow,
+                                                  _stallSimClockLastAdvanceWall, StallPolicy.StaleClockWarnSeconds))
+            {
+                staleHold = true;
+                if (!_stallSimClockStaleWarned)
+                {
+                    _stallSimClockStaleWarned = true;
+                    _log.LogWarning("STALL WATCHDOG: the simulation clock has not advanced past {T:F1} s for {S:F0} " +
+                                    "wall seconds while {N} move task(s) are in flight - the scenario is PAUSED, or " +
+                                    "the back end has stopped answering (a back end that misses its status timeout " +
+                                    "is deactivated, not removed, so the reader keeps returning its last value). " +
+                                    "No unit is judged until this clock moves again.",
+                                    clockNow, wallNow - _stallSimClockLastAdvanceWall, live.Count);
+                }
+            }
+        }
+
+        if (!staleHold)
+        foreach (var kv in snapshot)
         {
             string name = kv.Key;
             var rec = kv.Value;
-            // MOVE tasks only. A task with no destination (engage, breach, fire in place) has no
-            // progress to make and standing still IS its correct behaviour.
             if (rec.DestLat is null || rec.DestLon is null) continue;
-            live.Add(name);
             if (_stallReported.ContainsKey(name)) continue;     // already reported for this task
             if (_arrivalReported.ContainsKey(name)) continue;   // C15 already reported it complete
             if (!TryReadMemberPositions(name, out var positions, out int total)) continue;
@@ -2660,24 +2819,23 @@ public sealed class VrfC2SimService : BackgroundService
             var ring = samples.Ring;
             // The watch opens at the first sample after the dispatch that cleared this unit's
             // state, so StartClock is the dispatch anchor on the selected clock (within one
-            // StallCheckSeconds, plus however long the members took to reflect).
-            if (double.IsNaN(samples.StartClock)) samples.StartClock = clockNow;
-            ring.Add((clockNow, positions));
-            // Sliding window: keep exactly ONE sample at or before the window edge and drop the
-            // rest, so ring[0] is the oldest sample the window needs (and the buffer stays at
-            // roughly StallWindowSeconds / StallCheckSeconds entries per unit).
-            // StallPolicy.ShouldDropOldest also drops samples that did NOT advance the clock:
-            // the sim clock stops while the scenario is paused and can jump backwards on a
-            // snapshot rollback, and without that rule this ring would grow for the whole pause.
-            while (ring.Count >= 2 && StallPolicy.ShouldDropOldest(clockNow, ring[0].Clock, ring[1].Clock, window))
-                ring.RemoveAt(0);
+            // StallCheckSeconds, plus however long the members took to reflect). StallPolicy.Admit
+            // owns the ring: it appends, REPLACES a sample that did not advance the clock (a
+            // paused scenario, or a status period coarser than the cadence), drops everything
+            // from an abandoned timeline on a snapshot rollback and re-arms the watch there, and
+            // then front-prunes to one sample at or before the window edge.
+            samples.StartClock = StallPolicy.Admit(ring, clockNow, positions, window, samples.StartClock);
 
             var oldest = ring[0];
-            // Grace + full window, both on the selected clock (StallPolicy.WindowReady). Never
-            // judge on a partial window: a unit 60 s into its watch has only 60 s of history, and
-            // 50 m over 60 s is a different (much stricter) test than 50 m over 240.
-            if (!StallPolicy.WindowReady(clockNow, oldest.Clock, samples.StartClock,
-                                         window, _vrf.StallMinSecondsSinceDispatch)) continue;
+            // Grace + full window on the selected clock, AND the two floors that clock cannot
+            // supply (review findings 3 and 4): MinRingDepth samples inside the window, and
+            // StallMinSecondsSinceDispatch of WALL time since THIS record's own dispatch - the
+            // anchor 51d78a5 used and 1616614 dropped. Never judge on a partial window: a unit
+            // 60 s into its watch has only 60 s of history, and 50 m over 60 s is a different
+            // (much stricter) test than 50 m over 240.
+            if (!StallPolicy.JudgeReady(clockNow, oldest.Clock, samples.StartClock, window,
+                                        _vrf.StallMinSecondsSinceDispatch, ring.Count,
+                                        (now - rec.DispatchedUtc).TotalSeconds)) continue;
 
             var displacements = new List<double>();
             foreach (var cur in positions)

@@ -200,7 +200,9 @@ public class VrfSettings
     // flows normally). DEFAULT OFF: the deployed behaviour is unchanged until a preregistered
     // run turns it on.
     //
-    // THE WINDOW IS MEASURED ON THE SIMULATION CLOCK (StallClock = "sim", the default): the back
+    // WHICH CLOCK THE WINDOW RUNS ON (StallClock). "wall" is the DEFAULT and the only CALIBRATED
+    // mode - see RE-CALIBRATION OWED below; a build that selects "sim" says so at startup.
+    // "sim" measures the window on the back
     // end's own scenario time, read through VrfBridge.SimTimeSeconds() ->
     // VrfFacade::SimTimeSeconds() -> DtVrfRemoteController::simTime()
     // (vrfcontrol/vrfRemoteController.h:356 on 5.2d, :352 on 5.0.2 - the clock the vendor's
@@ -209,34 +211,57 @@ public class VrfSettings
     // a PAUSED scenario can no longer trip the watchdog (its clock stops while wall time runs),
     // and under fixed-frame-run-to-complete the abort lands after StallWindowSeconds of SIM
     // seconds instead of ratio x StallWindowSeconds (at the 6.21x measured on the 2026-09-13 G5
-    // run the wall-clock window's 240 s were ~1,490 sim s). StallClock = "wall" restores the
+    // run the wall-clock window's 240 s were ~1,490 sim s). StallClock = "wall" is the
     // pre-2026-09-13 behaviour; the watchdog ALSO falls back to wall seconds by itself whenever
     // the reader answers -1.0 (no controller, no back end yet), logging one line when it does,
-    // so it is never left without a clock. The check CADENCE (StallCheckSeconds) stays on wall
-    // time in both modes - it is a sampling rate, not a measurement.
+    // so it is never left without a clock, and it needs THREE consecutive readings of a new
+    // mode before it switches (a reader flapping at the check cadence would otherwise clear
+    // every window on every tick). The VALUE is validated: anything that is not exactly "sim"
+    // or "wall" (trimmed, case-insensitive) logs one line and runs on WALL, so a typo can never
+    // pick a mode nobody chose. The check CADENCE (StallCheckSeconds) is a wall-time sampling
+    // rate, but in "sim" mode it is also the window's RESOLUTION, so it FOLLOWS the clock: the
+    // watchdog samples often enough (down to a 1 s floor) that one step advances the sim clock
+    // by at most StallWindowSeconds / StallPolicy.MinRingDepth, and it never judges on fewer
+    // than MinRingDepth samples, nor inside StallMinSecondsSinceDispatch WALL seconds of the
+    // dispatch. A sim clock that STOPS ADVANCING for 60 wall seconds while a move task is in
+    // flight - a paused scenario, or a back end that stopped answering and was deactivated
+    // rather than removed - warns once and suspends judging until it moves again.
     //
-    // *** RE-CALIBRATION OWED BEFORE StallDetection IS TURNED ON WITH StallClock = "sim" ***
-    // The 240 below was calibrated in WALL seconds: tools/analysis/stall_replay.py scores the
-    // trace's POS rows and those are wall-stamped. 240 SIM seconds is a SHORTER window by the
-    // run's sim/wall ratio - 164 wall s at P11's 1.46x, 39 wall s at G5's 6.21x - while the
-    // measured false-alarm boundary on those same traces sat between 160 and 170 WALL seconds.
-    // The value has NOT been re-derived on the sim clock. Re-derive it, or run with
-    // StallClock = "wall", before any run whose report is acted on.
-    //
-    // Defaults CALIBRATED offline IN WALL SECONDS on three replayed traces - G5 20260913T185936Z, G3
-    // 20260913T174516Z, P11 20260907T150643Z - with tools/analysis/stall_replay.py (numbers in
-    // C16 of docs/DESIGN_ORBAT_TO_VRF_2026-09-06.md). The window is 240 s, NOT the 120 s first
-    // tried: at 120 s the rule fires on units that are CRAWLING rather than stopped (P11's
-    // 4-27, 40, 856/HHC and C/1-35 creep at 0.4-0.5 m/s for thousands of seconds and each
-    // covered 200-1,200 m AFTER the 120 s rule would have aborted them). Their crawl dips below
-    // 50 m/120 s transiently but not below 50 m/240 s; the genuinely frozen units never move
-    // again (0.4-53 m over the remaining 850-4,000 s). The last false alarm disappears between
-    // a 160 s and a 180 s window, so 240 s keeps a 1.5x margin. A larger threshold cannot do
-    // this job in place of a longer window - the per-window minima of the crawlers (41-50 m)
-    // and of the frozen units (22-49 m) overlap; only persistence separates them.
+    // *** CALIBRATION - THE WINDOW BELONGS TO THE CLOCK ***
+    // StallWindowSeconds = 0, the shipped default, means "the window calibrated for whichever
+    // clock is in use"; any positive value is used exactly as configured. Both numbers come from
+    // the SAME three replayed traces - G5 20260913T185936Z, G3 20260913T174516Z, P11
+    // 20260907T150643Z - and they are NOT a conversion of one another: P11's sim/wall ratio swings
+    // 1.10x-1.99x WITHIN that one run, so 240 wall s covers 264-478 sim s depending on the load.
+    //   WALL, 240 s (tools/analysis/stall_replay.py; numbers in C16 of
+    //     docs/DESIGN_ORBAT_TO_VRF_2026-09-06.md). NOT the 120 s first tried: at 120 s the rule
+    //     fires on units that are CRAWLING rather than stopped (P11's 4-27, 40, 856/HHC and
+    //     C/1-35 creep at 0.4-0.5 m/s for thousands of seconds and each covered 200-1,200 m AFTER
+    //     the 120 s rule would have aborted them). The last false alarm disappears between a 160 s
+    //     and a 170 s window, so 240 s keeps a 1.41x margin, and the clean threshold band there is
+    //     35-70 m with 50 m mid-band. A larger THRESHOLD cannot do this job in place of a longer
+    //     window - at 120 s the crawlers' per-window minima (41-50 m) and the frozen units'
+    //     (22-49 m) overlap; only persistence separates them.
+    //   SIM, 360 s (docs/experiments/RECAL_STALL_SIMSECONDS_2026-09-13.md). The re-calibration
+    //     re-stamped the wall-stamped POS rows onto the sim axis by piecewise-linear interpolation
+    //     over the (wall, sim) pairs the object console's own line prefixes carry - not one
+    //     least-squares slope, which hides the load variation - and REPRODUCED EVERY DOCUMENTED
+    //     WALL NUMBER first (the 120 s quartet and the 160 s triple to the second, the 160/170
+    //     boundary, the 240 s fires, the 74/78 m true-negative minima, the 35-70 m band). The
+    //     sweep over 100-500 sim s then put the pooled false-alarm boundary at 50 m at 250 sim s
+    //     (P11 250, G3 200, G5 none), and 250 x 1.41 = 353 -> 360. At 360 sim s the clean
+    //     threshold band is 35-75 m and all five true positives fire EARLIER in wall time than the
+    //     240 wall s window does (135 s against 385 s in G5), because the freezes happen while the
+    //     sim runs fastest.
+    // TWO LIVE UNKNOWNS, both settled by one instrumented run: whether
+    // DtVrfRemoteController::simTime() reports the same clock the object console prints as its own
+    // sim prefix - that IS the clock the 360 was calibrated on - and whether DtBackend::simTime()
+    // EXTRAPOLATES between back-end status messages (its member layout,
+    // mySimTimeToRealTimeRatio / myLastSimTimeUpdated at vrfutil/backend.h:410-419, suggests it
+    // may, which would make a paused reading a sawtooth rather than a flat line).
     public bool StallDetection { get; set; } = false;
-    public string StallClock { get; set; } = "sim";             // "sim" = scenario clock | "wall" (see above)
-    public int StallWindowSeconds { get; set; } = 240;          // seconds on the StallClock clock (see above)
+    public string StallClock { get; set; } = "wall";            // "wall" = calibrated (default) | "sim" = scenario clock
+    public int StallWindowSeconds { get; set; } = 0;            // 0 = the clock's calibrated window (240 wall / 360 sim); else as given
     public double StallMoveMeters { get; set; } = 50.0;         // net displacement per member over the window
     public int StallMinSecondsSinceDispatch { get; set; } = 60; // grace after dispatch before the watchdog may fire
     public int StallCheckSeconds { get; set; } = 5;             // how often the tick thread samples

@@ -154,21 +154,107 @@ C16 PROGRESS WATCHDOG (REPORT-ONLY) - user approval 2026-09-13 ("2 as recommende
     :1350-1353 and MAX_REPLANS=3 :47, which count blockage replans), and the shipped
     examples/decideToGiveUpTask hands the test to the integrator as a SIM-SIDE PLUGIN we cannot
     install from an HLA client (FINDING_EARLY_STOPS_2026-09-13 sec 6a). So the interface detects
-    it. POLICY (StallPolicy.cs, pure, --stall-selftest 14/14): the unit is STALLED when EVERY
+    it. POLICY (StallPolicy.cs, pure, --stall-selftest 52/52): the unit is STALLED when EVERY
     member with a readable position has net displacement < StallMoveMeters over the last
     StallWindowSeconds and at least StallMinMembersWithData members were readable. Net, not path
     length (the 1-35 signature is a ~2 m limit cycle held for 480 s). A moving LEADER with still
     followers is NOT a stall; one runaway member with five still ones is NOT a stall (that is
     C15's straggler case). DEFAULTS: Vrf:StallDetection=false (OFF - deployed behaviour
-    unchanged), StallWindowSeconds=240, StallMoveMeters=50, StallMinSecondsSinceDispatch=60,
-    StallCheckSeconds=5, StallMinMembersWithData=1. The window is WALL seconds on the tick
-    thread: neither VrfFacade.h nor VrfBridge.cpp exports a sim-clock READER (grep 2026-09-13:
-    the only hit is VrfFacade.cpp:590, which SETS the exercise clock), so at sim/wall ratio r the
-    window covers r x 240 sim s - at G5's 6.21x, ~1,490 sim s. Row 19's original "N = 120
-    SIM-seconds, must fire by sim ~500" is therefore not the criterion this build meets; the row
-    is reworded to wall seconds. The reader that would close the gap EXISTS one layer down -
-    DtClock::simTime() is declared at C:\MAK\vrlink5.10\include\vlutil\vlTime.h:47 - so a
-    one-line facade accessor plus a bridge export is all it needs. OWED, after G6.
+    unchanged), Vrf:StallClock=wall, StallWindowSeconds=0 (= the clock's calibrated window:
+    240 WALL s or 360 SIM s), StallMoveMeters=50, StallMinSecondsSinceDispatch=60,
+    StallCheckSeconds=5, StallMinMembersWithData=1.
+    WHICH CLOCK THE WINDOW RUNS ON - built 2026-09-13 on branch feat/sim-clock; this SUPERSEDES
+    the earlier "neither VrfFacade.h nor VrfBridge.cpp exports a sim-clock reader ... the reader
+    that would close the gap EXISTS one layer down - DtClock::simTime()" paragraph, which was
+    wrong in both halves. The reader was built, and it is NOT DtClock::simTime(): that LOCAL
+    VR-Link clock is the one VrfFacade.cpp:587-589 drives from elapsedRealTime() under
+    #if !VRF_API_52 - wall time on 5.0.2, unset on 5.2. The usable clock is the BACK END's,
+    DtVrfRemoteController::simTime(), declared at vrfcontrol/vrfRemoteController.h:355-356 on 5.2d
+    (:351-352 on 5.0.2): "Returns the simulation time of the specified back end. If no back end
+    specified, returns the first back ends simulation time". The vendor sample prints it as "Sim
+    time from sim engine status" and prints the local DtClock separately as "Local sim time"
+    (examples/remoteControl/commandLineRemoteController.cxx:1247-1256). It is fed by back-end
+    STATUS messages (DtIfStatus::simTime, vrfmsgs/ifStatus.h:85-87, cached per back end in
+    DtBackend::mySimTime, vrfutil/backend.h:273-274) and runs fast under
+    fixed-frame-run-to-complete. Exported as VrfFacade::SimTimeSeconds -> VrfBridge.SimTimeSeconds(),
+    -1.0 for "no reading" (no controller, or no back end discovered), on which the watchdog falls
+    back to wall seconds instead of going blind.
+    CALIBRATION - THE WINDOW BELONGS TO THE CLOCK (supersedes the "RE-CALIBRATION OWED" note; the
+    re-calibration is DONE, docs/experiments/RECAL_STALL_SIMSECONDS_2026-09-13.md). Vrf:StallClock
+    still DEFAULTS TO WALL - that is the mode measured live so far - and StallWindowSeconds now
+    defaults to 0, meaning "the window calibrated for the clock actually in use": 240 WALL seconds
+    or 360 SIM seconds. An explicit value is used as given, and a mid-run fallback to the wall
+    clock falls back to the wall window with it. The two numbers are NOT a conversion of each
+    other: P11's sim/wall ratio swings 1.10x-1.99x WITHIN that one run, so 240 wall s covers
+    264-478 sim s depending on load - which is why a single ratio was never going to give the sim
+    default. HOW 360 WAS DERIVED: the POS rows were re-stamped onto the sim axis by
+    piecewise-linear interpolation over the (wall, sim) pairs the object console's own line
+    prefixes carry (not one least-squares slope, which hides the load variation; hold-out p95
+    0.07/0.07/0.34 sim s, zero monotonicity violations), the replay REPRODUCED EVERY DOCUMENTED
+    WALL NUMBER first - the 120 s quartet and the 160 s triple to the second, the 160/170 boundary,
+    the 240 s fires, the 74/78 m true-negative minima, the 35-70 m clean band - and the sweep over
+    100-500 sim s then put the pooled false-alarm boundary at 50 m at 250 sim s (P11 250, G3 200,
+    G5 none, set by P11's 4-27 and G3's 856/HHC). 250 x 1.41, the wall default's own margin
+    convention, is 353 -> 360 on the sweep grid. At 360 sim s the clean threshold band is 35-75 m
+    (50 m mid-band, as at 240 wall s), the true-negative separation is 76-103 m against firing
+    maxima of 34-49 m, and ALL FIVE true positives fire EARLIER IN WALL TIME than the 240 wall s
+    window does (G5 135 s vs 385 s, P11 375 vs 419 and 1,813 vs 1,824, G3 396 vs 431 and 709 vs
+    742) - the freezes happen while the sim is running fastest, which is exactly what a sim-second
+    window is for. LIMITS, from that record: one order, one terrain, three runs, two true positives
+    and seven true negatives, and the sim boundary rests on two crawling units where the wall one
+    rested on four; a scenario whose crawl floor is slower than ~0.23 m/s of sim time would push
+    the boundary up and 360 would not hold. Vrf:StallClock is also VALIDATED - anything that is not
+    exactly "sim" or "wall", trimmed and case-insensitive, logs one line and runs on WALL. Row 19's
+    original "N = 120 SIM-seconds, must fire by sim ~500" is a criterion only under
+    StallClock=sim; at the shipped default the row reads in wall seconds.
+    COLD-START REVIEW OF THE SIM-CLOCK COMMIT (1616614 -> feat/sim-clock, --stall-selftest 52/52).
+    The clock choice and every vendor citation held; the RING built around it did not, and four
+    defects were fixed in the same branch. (1) and (2) the sliding window pruned only at the
+    FRONT, and that rule fires only when the two OLDEST stamps are equal - true only when the
+    pause or the rollback hits an empty or degenerate ring, which is the shape the self-test used
+    and NOT the shape a run produces. A pause beginning AFTER the ring filled grew it without
+    bound (249 entries after 400 s of run plus 1,000 wall s paused, each a member-position
+    dictionary), and a snapshot rollback (DtVrfRemoteController::rollbackToSnapshot) left
+    PRE-rollback samples that the re-opened window then compared against POST-rollback positions.
+    StallPolicy.Admit now prunes at BOTH ends: a sample that does not advance the clock REPLACES
+    its predecessor, and a backwards step drops every entry from the abandoned timeline and
+    re-arms the watch. (3) the grace anchor had moved from the in-flight record's own
+    DispatchedUtc to the watch's first sample, and on the DEFAULT aggregate move path
+    (MarkDispatched at VrfC2SimService.cs:2146, dest = the route's last vertex) and the R11
+    plan-move path (:2049) a NEW task is recorded while ClearStallState still waits for the
+    route-created callback - so the previous task's ring could produce a TASKABRT stamped with the
+    NEW task uuid, unboundedly if that callback never arrives (the silent-freeze mode this
+    watchdog exists for). MarkDispatched now drops the unit's stall SAMPLES whenever the new task
+    carries a destination (the one-report flag still clears at ClearStallState, the conservative
+    direction), and the old wall grace is restored as an additional AND. (4) with the window on
+    the sim clock and the cadence on wall time, a high ratio let the gate open on TWO position
+    reads over a span 25 % wider than the configured window; the gate now also requires
+    StallPolicy.MinRingDepth (4) samples inside the window and StallMinSecondsSinceDispatch of
+    WALL time since dispatch, and the CADENCE FOLLOWS THE CLOCK (StallPolicy.NextCheckSeconds:
+    sample often enough, down to a 1 s floor, that one step advances the sim clock by at most
+    window / MinRingDepth) so the depth floor stays reachable instead of becoming a silent OFF
+    switch. KNOWN LIMIT, not silent: above sim/wall ratio window / (MinRingDepth x 1 s) - 90x at
+    the 360 s sim window - the 1 s cadence floor binds and the depth floor cannot be cleared, so the
+    watchdog cannot judge. Also fixed: the clock mode needs THREE consecutive readings before it
+    switches (an unsteady reader was clearing every ring on every flip and logging a line each
+    time) and the mode line is rate-limited; and a sim clock that has not advanced for 60 wall
+    seconds while a move task is in flight now WARNS once and suspends judging - a back end that
+    misses its status timeout is DEACTIVATED, not removed (vrfBackendListener.h:161-163 against
+    :154-155), so backends().count() stays > 0 and the reader would otherwise return its last
+    cached value for the rest of the run and be read as a pause.
+    TWO LIVE UNKNOWNS, both settled by ONE instrumented run (log SimTimeSeconds() every check for
+    60 s running and 60 s paused, and compare one reading against a CON row's own sim prefix at the
+    same wall instant): (a) whether DtVrfRemoteController::simTime() reports THE SAME CLOCK the
+    object console prints as its own sim prefix - that prefix is the only sim stamp in the capture
+    and therefore the axis the 360 was calibrated on, so if the reader returned a different
+    quantity (exercise time rather than scenario time, say) the sim window would need re-deriving;
+    (b) whether DtBackend::simTime() EXTRAPOLATES between back-end status messages - the member
+    layout (mySimTimeToRealTimeRatio, myLastSimTimeUpdated "wall-clock time elapsed since last sim
+    time was updated", vrfutil/backend.h:410-419) suggests it may, which would make a paused
+    reading a sawtooth and weaken the headline "a paused scenario can no longer trip the watchdog".
+    Lesser residual: the back-end STATUS PERIOD, i.e. the reader's resolution - if it is coarser
+    than StallCheckSeconds, consecutive samples share a stamp (the back-prune bounds the ring, but
+    the measured displacement is still biased downward by up to one sampling interval).
     THE SAMPLER IS SHARED WITH C15 (TryReadMemberPositions) so the two policies can never judge
     different samples. It keys member positions by VRF uuid, and the member count it is judged
     against therefore counts DISTINCT non-empty uuids: VrfFacade::collectMembers recurses to
