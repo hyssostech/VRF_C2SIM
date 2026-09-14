@@ -220,3 +220,19 @@ logged 10 mps order, on ground they had climbed at 9.5 m/s minutes earlier; D cr
 same corridor and recovered; C, whose track leaves the chord by up to 292 m, did not enter it. That
 is the FINDING_EARLY_STOPS signature and it is recorded against that thread, NOT attributed to
 gamewareMemorySize.
+
+G7c and G7c-gate (2026-09-14 19:00-19:12Z), the single-variable run promised in
+G7B_G8_RESULTS sec 6 item 1: G7c (run 20260914T185945Z, same _AG fixture, relocated appData,
+AtOrder, no settle) hit a COLD file cache again (evicted by an hour of build/review load) - the
+nav area never registered inside the run, all 31 goals failed the current-point gate and ran on
+the feature planner, 0 mesh queries; VOID for the SMS question, a second cold-cache datum.
+G7c-gate (run 20260914T190751Z, same fixture/tree/policy, -PreOrderGate NavArea) used a READY
+GATE for the first time: it held PushOrder until the first `New Primary nav area` row printed
+(fired at 118.1 s, still cold), then pushed the order and got 0 gate failures, 32 gate successes,
+32 mesh plans, 8/8 long legs planned (0 refusals) - the single-variable confirmation of the
+abstract-graph cause against run A (same tree, same policy, stock SMS -> 3 of 4 long legs
+refused there), with CR5 (the settle/AtInit confound) and run C's appData confound both removed.
+Demo-flow implication: the cache goes cold within about an hour under build load, so the prepare
+step must warm it immediately before the demo and the ready gate, not a timer, is the control.
+The ridge test (FINDING_EARLY_STOPS 1-35 lane) is PAUSED pending a docs-first pass on Gameware
+Navigation abstract graphs and mesh slope/soil.
