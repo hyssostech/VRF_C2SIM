@@ -1426,11 +1426,38 @@ no Duration and no geometry is malformed and is refused, not held (below).
   onto the sim clock silently changed when every task in the order completed. Both read the
   SAME sim-clock sample through the same hysteresis, so they can never disagree about whether
   the scenario is running - only about which clock they prefer.
-- **The sim clock falls back to WALL seconds on its own**, whenever
-  `DtVrfRemoteController::simTime()` cannot be read for three consecutive samples or has been
-  flat for 60 wall seconds. Nothing is lost when it does: the axis every task time is served on
-  adds FORWARD movement only, so a fall back keeps the time already served and serves the rest
-  on wall seconds. The `TASK CLOCK:` lines say each way, once.
+- **A PAUSED SCENARIO DOES NOT AGE A TASK: task time HOLDS** (Q5, USER RULING 2026-09-14,
+  built in `f2794d7`). When `DtVrfRemoteController::simTime()` is READABLE but has not advanced
+  for 60 wall seconds and a VR-Forces back end is still listed, the task-clock axis adds
+  NOTHING. All three task times ride that one axis, so all three freeze TOGETHER: the armed
+  Duration that ends a task, both phases of the STREND gate, and the StartTime/DelayTimeAmount
+  start delay. Pause the scenario for a ten-minute coffee break and it costs the order nothing,
+  and nothing completes early when it runs again. (Before Q5 the interface served WALL seconds
+  after 60 s of flatness - which burned those ten minutes off every armed Duration.)
+- **It falls back to WALL seconds only when the READER IS GONE**, not when the clock is merely
+  flat: three consecutive UNREADABLE samples (`StallPolicy.ModeSwitchConfirmations`) take the
+  hysteresis path and the axis then serves wall seconds. Nothing is lost either way - the axis
+  adds FORWARD movement only, so a fall back keeps the time already served, serves the rest on
+  the new base, and restarts no wait. The `TASK CLOCK:` transition lines name which happened:
+  losing the reader says the sim reader is GONE and task times are now on the wall clock, and
+  "readable and advancing again" is said ONLY on a genuine recovery.
+- **The HOLD line REPEATS, once a wall minute** (`StallPolicy.LogRateLimitSeconds` = 60), and
+  that is deliberate rather than a rate-limit bug: it is the only symptom of the case below, so
+  the one thing it must not be is quiet. It carries its own caveat sentence.
+- **THE LIMIT - AND THE SYMPTOM TO RECOGNISE AT A DEMO: a back end that dies IN PLACE freezes
+  task time indefinitely.** The predicate's only signal is `BackendCount`, which is
+  `backends().count()`, and the vendor's back-end list DEACTIVATES an entry that has missed its
+  status timeout rather than removing it (`vrfBackendListener.h:161-163`, `doTimeouts()`
+  "deactivates any status objects which have not responded within the timeout interval";
+  `remove()` at `:153-155` "normally, this should not need to get called!"; `backends()` is the
+  list of "all KNOWN back ends"). So the count stays above zero, the hold keeps firing, and no
+  Duration completes, no gate expires, no start delay runs out and the progress watchdog stays
+  suspended - with ONE WARNING A MINUTE as the only output. **If that line keeps repeating and
+  nobody paused anything, the back end has died and task time is frozen until it returns.** The
+  real fix is a facade accessor the code itself names (`StallPolicy.cs`):
+  `DtVrfRemoteController::backendsControlState()` (`vrfRemoteController.h:321-323`) returns
+  Paused vs Running, which is the discriminator the predicate actually wants. STP-809; NOT
+  taken before the demo, so the repeating WARNING is what an operator has to read.
 - **The predecessor gate is a FLOOR, not the whole window - and it asks TWO questions.** A gated
   task waits for its predecessor to COMPLETE for at least
   `(that predecessor's Duration x Vrf:DurationScale) + Vrf:TaskPredecessorEndMarginSeconds` (M1),

@@ -527,8 +527,13 @@ public sealed class VrfC2SimService : BackgroundService
                                 taskClockValid && taskPrefersSim ? "SIMULATION" : "WALL",
                                 _vrf.TaskClock,
                                 taskClockValid && taskPrefersSim
-                                    ? " - falling back to WALL seconds whenever DtVrfRemoteController::simTime() " +
-                                      "cannot be read or has gone stale, without restarting any wait"
+                                    // D2 (pass-3 review): "or has gone stale" is the PRE-Q5 rule. Since
+                                    // the user's Q5 ruling a clock that is merely FLAT while a back end is
+                                    // still listed HOLDS task time; only an UNREADABLE reader falls back.
+                                    ? " - falling back to WALL seconds only when DtVrfRemoteController::" +
+                                      "simTime() cannot be READ at all, without restarting any wait. A clock " +
+                                      "that is readable but FLAT while a VR-Forces back end is still present " +
+                                      "is a PAUSE: task times are HELD and age by nothing (Q5)"
                                     : "",
                                 _durationScale, _vrf.TaskPredecessorTimeoutSeconds,
                                 _vrf.TaskPredecessorEndMarginSeconds, _vrf.TaskChainBackstopSeconds);
