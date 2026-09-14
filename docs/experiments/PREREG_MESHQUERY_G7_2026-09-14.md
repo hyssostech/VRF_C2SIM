@@ -65,5 +65,14 @@ seams. Nothing in the captures separates them.
   fresh boot (teardown-relaunch wedges the RTI).
 
 ## 5. RESULTS
+ATTEMPT 1 (run 20260914T120444Z, launched 12:04Z through scripts/RunScenario.sh - the wrapper's stages, markers and
+status line all worked): VOID before measurement. The server accepted the order but the interface never received it:
+the SDK's STOMP message pump died parsing it ("Unexpected end of file while parsing Comment has occurred. Line 1,
+position 769", C2SIMClientSTOMPLib.cs:688) and the interface logged "C2SIM error ... Restart recommended". Cause: the
+probe order carried a multi-line leading XML comment containing a BLANK LINE (byte 263 of the file; ~769 after the
+server's envelope) - a blank line terminates a STOMP frame body; the working R9 order has none. Also observed: the
+init created all six R9 units (CreationPolicy=AtOrder creates empty shells at init and platforms in full), so the
+one-entity expectation in the design was wrong - 1.BdeHQ is still the only tasked object. Order rewritten without
+blank lines or multi-line comments (same tasks, same vertices); attempt 2 follows on the same fixture and build.
 (to be written from the harvest; verdict table per leg: seams / gate cur / gate dest / mesh outcome /
 N points / gate->outcome s / vertex reached)
