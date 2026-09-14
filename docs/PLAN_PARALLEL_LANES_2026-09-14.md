@@ -29,6 +29,13 @@ data is connected and 5 km fails; (b) DONE 13:00Z: custom including SMS at C:\C2
 | L6 | User-owned | Licence renewal (row 12, lapses 2026-09-15); DI-Guy data package (row 17, any lifeform run); TASKABRT code; C:\MAK sanctions above. | 12:40Z user "Ok on 2-3": TASKABRT DECIDED as the stalled-unit code; SMS placement under C:\MAK and --appDataDir relocation SANCTIONED if needed. Licence + DI-Guy still open. | - | RULE | yes |
 | L7 | DEMO-READY residue | Rows 13 (runbook), 15 (operator observability), 18 (slot validator). | Open. | After L2's list - 13 and 15 overlap with reporting delivery. | STANDARD | none |
 
+## 1b. Jira (created 2026-09-14 ~12:00Z, project STP; tracker STP-621 carries the status comment)
+STP-777 epic C2SIM reporting: STP-778 B5 false deserialize error, STP-779 B3 platform-unit name truncation, STP-780 B1
+TaskStatus codes, STP-781 B2 push loss, STP-782 B8 re-announce, STP-783 B6 watchdog landing, STP-784 B7 heading+speed,
+STP-785 B4 pre-flight port, STP-786 B9 bundle run, STP-787 B10 STP questions (+ STP-615 strict-parse check).
+STP-788 epic nav-mesh refusal: STP-790 G7, STP-791 G7b, STP-792 G8, STP-793 confirming slope test.
+STP-789 epic harness: STP-794 A2 detached watchdog. B7 and B4 dispatched 12:05Z (worktrees off f052ea7).
+
 ## 2. Serial spine (the only ordering that matters)
 1. L4 lands (hardened runner) and L3 merges + main rebuilds (optional for G7; pinned either way).
 2. G7 runs on an idle machine, foreground-polled, ~25 min: ONE variable (L1), instrumentation only
