@@ -1256,7 +1256,7 @@ public sealed class VrfC2SimService : BackgroundService
                 _substitutions.Record(fp.Name, SubstitutionAnnouncer.Representation(
                     fp.TemplateName, fp.CreateSubordinates, 0));
 
-        int areasQueued = 0;
+        int areasQueued = 0, areasRegistered = 0;
         foreach (var a in init.Areas)
         {
             // Same duplicate-delivery guard for areas (keyed by uuid, falling back to name).
@@ -1267,9 +1267,12 @@ public sealed class VrfC2SimService : BackgroundService
             // arrive while the creates are still draining, and the geometry a MapGraphicID names
             // is the AUTHORED geometry either way (the create carries these very points).
             if (!string.IsNullOrEmpty(area.Uuid))
+            {
                 _graphicsByC2SimUuid[area.Uuid] = new TaskGraphic(
                     area.Uuid, area.Name, TaskGraphic.KindArea,
                     area.Points.Select(pt => (pt.Lat, pt.Lon, (double?)pt.Elev)).ToList());
+                areasRegistered++;
+            }
             _names.Requested(area.Name);   // B3: so an area's ObjectCreated is an EXACT match, not a prefix scan
             _tickActions.Enqueue(() =>
             {
@@ -1428,12 +1431,12 @@ public sealed class VrfC2SimService : BackgroundService
                             "skipped), {ParsedPoints} point(s) parsed -> {Points} queued ({EmptyPoints} with no " +
                             "position skipped). Vrf:CreateInitLines={LinesOn} Vrf:CreateInitPoints={PointsOn}. " +
                             "R1 RESOLUTION (M5) is independent of those flags: {Registered} graphic(s) are now " +
-                            "addressable by MapGraphicID ({Areas} area(s), {RegLines} line(s), {RegPoints} " +
-                            "point(s)).",
+                            "addressable by MapGraphicID ({RegAreas} area(s), {RegLines} line(s), {RegPoints} " +
+                            "point(s) from this delivery).",
                             source, areasQueued, init.Lines.Count, linesQueued, linesDegenerate,
                             init.Points.Count, pointsQueued, pointsEmpty,
                             _vrf.CreateInitLines, _vrf.CreateInitPoints,
-                            _graphicsByC2SimUuid.Count, linesRegistered, pointsRegistered);
+                            _graphicsByC2SimUuid.Count, areasRegistered, linesRegistered, pointsRegistered);
 
         if (duplicates > 0)
             _log.LogWarning("Init ({Source}): skipped {N} units/graphics ALREADY created " +
