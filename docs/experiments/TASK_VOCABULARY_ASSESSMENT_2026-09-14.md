@@ -1144,6 +1144,14 @@ R5 and R6 remain open. Citations below are to that doctrine record unless noted.
     TWICE and the task ends LATER in scenario time than the order says. That is the
     intended trade against a deadline STAMP, which would fire the moment a rollback landed
     past it. Stated where the clock is configured (`VrfSettings.TaskClock`).
+  - **E3, a CYCLIC or self-referencing StartAfterTaskUuid chain - RULED 2026-09-14 ~23:00Z (user: "Good on
+    these")**: the supervisor's extension of Q4 stands - malformed, refused at order receipt with an ERROR
+    naming the loop, one TASKABRT per task on the loop, successors released through the abandon path, never a
+    TASKSTRT (built in `846de1d`, merged in `0f4d09e`).
+  - **STP-809, the facade back-end control-state reader - APPROVED 2026-09-14 ~23:00Z (user)**: spend the
+    native change before the demo so the Q5 hold can tell PAUSED from DEAD (`backendsControlState()`,
+    vrfRemoteController.h:321-323); brief scratchpad review3/BRIEF_STP809_backend_state.md; executor dispatched
+    after the N2d timed run.
 
 - **R5 RULED - EntityLevel first vs straight to AggregateTacticalLevel.** Explained to
   the user 2026-09-14; doctrine does not settle it directly (an engineering/schedule
