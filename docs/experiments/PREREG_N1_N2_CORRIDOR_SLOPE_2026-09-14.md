@@ -485,6 +485,56 @@ to pass), then N1 only if the supervisor wants sec 1.1 falsified, then N2 only i
 
 ---
 
+### 5.5 N2c - the same run with the V1 query issued 300 s after placement (SUPERVISOR ADDITION, 2026-09-14 21:40Z, written AFTER N2b and BEFORE N2c)
+
+N2b (sec 10) missed P20a: with the abstract-graph override provably active, EVERY goal of every 1-35
+member - the ~30 m formation-slot move at creation and the 6,593 m V1 leg - returned "not enough (0)
+points", and the unit drove the straight fallback into the fifth ridge freeze. G7c-gate planned 8/8 with
+the same override on the eastern lane. Two hypotheses survive the record, and one run separates them:
+
+- **(T) load timing.** UG52 66.2 (p1281, read): "For performance reasons, navigation data does not load
+  until you place a simulation object that will use it." vrfNavigation.dll carries an asynchronous NavData
+  queue (`DtNavAreaImpl::loadNavData`, `DtNavAreaImpl::processQueues`, states `NavData: ToBeAdded /
+  BeingAdded / ToBeRemoved / BeingRemoved` - Gameware's streaming states; strings read from the shipped
+  DLL). N2b's members were materialised AtOrder in a sector no init object occupied (destack start,
+  sector i=50 j=75; the init's 1-35 shell sits at V0, i=53 j=80) and queried 0.3 s (slot move) and 5 s (V1)
+  after placement; their OWN "New Primary nav area" rows came AFTER the first query (72.3 vs 71.8 wall).
+  G7c-gate's tasked unit also queried 0.4 s after creation, but in a sector its small init had populated
+  140 s earlier (i=76 j=65). The docs do not say whether loading is per sector or whole-area, nor what a
+  query returns during loading; the DLL's queue says it is asynchronous.
+- **(L) lane.** The abstract-coverage variant is REFUTED OFFLINE from the generation log
+  (scratchpad navtest/log/gen-COA.log, 8,856 sector blocks parsed): every sector of the leg, i 36..51
+  x j 73..75, carries an abstract graph (count 4; 98,576-114,139 triangles each), identical to the
+  G7c-gate lane; the 46 sectors without one lie at i 63-106, j 20-54, far to the east and south. What is
+  left of (L) is a mesh hole exactly under the destack start, which the triangle counts make unlikely
+  but do not exclude.
+
+**N2c = N2b with ONE change:** the task carries a 300 s `StartTime/SimulationTime/DelayTimeAmount`
+(the COA order's own form; the deployed 2026-09-07 build parses it - `--parse-order` prints
+`timing: simStartMs=300000 relDelayMs=0`; `TaskSequencer.WaitForStartAsync` sleeps it on the wall clock;
+AtOrder materialises the members at order RECEIPT, `VrfC2SimService.cs` HandleOrder, before the task
+orchestration). Order `data/PROBE_RIDGE_1-35_DELAYED_Order.xml`; launch line scratchpad n1n2/n2c_launch.sh
+(`n2b_launch.sh` with the order swapped and `--run-secs 1200` to cover the delay); dry run clean. The
+creation-time slot query is the BUILT-IN CONTROL - same 0.3 s timing as N2b.
+
+**P21a (control, HIGH):** the slot-move query at creation (+0.3 s) returns 0 points again, as in N2b.
+If it PLANS, N2b's refusal was not deterministic at that timing - recorded, does not decide.
+**P21b (THE DISCRIMINATOR, prediction PLANNED at MEDIUM):** the V1 query at ~+300 s prints
+`Planned path has N points.` with N > 1 and no "not enough (0)". PLANNED -> (T) confirmed: a mesh query
+issued within seconds of placing an object in a fresh sector fails while the sector's NavData streams,
+and the runner's ready gate (first area row from ANY object) is INSUFFICIENT for a taskee placed in a
+sector no init object occupied - a demo-flow finding (STP-806: per-taskee readiness or a settle after
+materialisation). P20b-P20d then become READABLE in this run and are scored as written in sec 5.3 (the
+slope factor 2.0 is present). REFUSED -> (T) falsified for a 300 s delay; (L)'s mesh-hole variant or an
+undocumented query limit is live; STOP, no further arm without a docs/vendor answer.
+**P21c:** with P21b PLANNED, P20b is read: DETOUR (>= +150 m north at s = 2,006, > 150 m from the window
+centre) or STRAIGHT (< 50 m from the P11 point, < 20 m advance over the final 600 sim s) or MIDDLE, per
+sec 5.3, at equal SIM time since dispatch.
+
+Confounds carried: the 300 s wall delay is served by the interface, not the sim (fine: the sim clock ran
+~1.0x in N2b, 4,755 sim s over the window); the members idle in formation for 300 s (no movement, so no
+sector change); the same warmed cache as N2b (the launch line warms it).
+
 ## 6. N3
 
 `N3` in the copied record is the abstract-graph ridge run, i.e. the already-written and already-gated
@@ -657,7 +707,33 @@ another mechanism hunt.
 
 ## 10. RESULTS
 
-(to be filled after the runs; nothing in this section was written before them)
+### 10.1 N2b - run 20260914T205046Z (launched 20:47Z, order pushed at the ready gate, window 900 s to its cap)
+
+**P20a MISSED -> STOP; the run is VOID for the slope question** (sec 5.3's own rule). Harvest
+scratchpad n1n2/harvest/n2b_harvest.py, plan_counts.py, area_timing.py on watchvrf-trace.csv
+(764,906 lines; no vendor log opened):
+- Every 1-35 member (M1A2 1, M1A2 2, M3 1, M577A2 1, HMMWV 1, HMMWV 2): 2 goals, 4 planning attempts,
+  **0 planned, 4 x "Planned nav path has not enough (0) points"**, the override proof line printed at
+  every attempt, both nav-area gates `success` every time, then `Planned path has 1 parts.` (straight
+  feature path). The slot move at creation (+0.3 s, ~30 m) failed exactly like the 6,593 m V1 leg.
+- The members' own `New Primary nav area` rows arrived AFTER their first query (M1A2 1: query 71.8,
+  area row 72.3; HMMWV 2: query 71.7, area row 79.2); the ready gate had fired at 67.1 on an init object
+  elsewhere, 18 s after placement on the warmed cache (113 s cold in G7c-gate).
+- The fifth ridge freeze, to the metre: leader M1A2 1 last fix 34.65608/-116.76142 = **0.7 m** from the
+  P11/G3/G5/G6 point, leg s 1,971, cross-track -23.3 m (south), 0.0 m advance over the final 600 sim s;
+  O-axis at sim +300/+600/+900 since dispatch 4,106/4,106/4,106 (P11 4,117/4,108/4,105). M1A2 2 at
+  50.6 m, M577A2 1 at 41.2 m, HMMWV 1 at 11.0 m, M3 1 at 61.7 m from that point; HMMWV 2 crawled past
+  the window (+18.9 m north at s = 2,006, closest 18.9 m to its centre) to s = 2,975 at 0.1-0.4 m/s -
+  **P20d PRESENT**. Altitude steps up to 47 m between samples on the face (sec 6.5 caveat: the
+  positions at the freeze are stable, the crawl speeds are indicative).
+- Runner: `-StopWhenComplete` did not fire (no TASKCMPLT), window 901.7 s, teardown clean, RTI preserved
+  (12th clean teardown). Side finding: the sim log says
+  `NavArea-ground-platform MojaveCOA.navGenConfig does not exist` beside the runtime config - the
+  headless generator wrote none; G7c-gate planned without it, so not the blocker (STP-803 note).
+- Adversarial note: the strongest reading of this run is NOT "the slope factor did nothing" - the factor
+  was never reached; it is "the abstract-graph override is not sufficient on this lane in this
+  configuration". The two explanations and the discriminating run are sec 5.5.
+
 
 ---
 
@@ -666,7 +742,8 @@ another mechanism hunt.
 | # | step | gate | state |
 |---|---|---|---|
 | 1 | Supervisor ruling on sec 1.5 (a) / (b) / (c) | RULE | RULED 2026-09-14 per the project record: (c) - N1 is NOT run, the abstract-graph override stays the product fix, N2b is the lever |
-| 2 | N2b - `n2b_launch.sh`, ridge lane, AG + saf 2.0, single variable vs RIDGE-AG | SPEND | ready, dry-run clean |
+| 2 | N2b - `n2b_launch.sh`, ridge lane, AG + saf 2.0, single variable vs RIDGE-AG | SPEND | RUN 205046Z: P20a MISS -> STOP (sec 10.1) |
+| 2b | N2c - `n2c_launch.sh`, N2b + 300 s task start delay (sec 5.5), the (T)/(L) discriminator | SPEND | ready, dry-run clean, parse-check clean; runs when no agent is active |
 | 3 | N1 - `n1_launch.sh`, only if sec 1.1 is to be falsified live | SPEND | ready, dry-run clean |
 | 4 | N2 - `n2_launch.sh`, only if N1 hits | SPEND | ready, dry-run clean; gate predicted to miss |
 | 5 | `validate_fixture.py` script-gate extension (sec 8 item 2) | - | owed, one line, outside this task's write set |

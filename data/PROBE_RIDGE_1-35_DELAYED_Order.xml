@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- RIDGE probe order, N2c DELAYED variant (300 s SimulationTime start delay on the one task; otherwise byte-identical to PROBE_RIDGE_1-35_Order.xml): task T1 of data/COA-STP1_Order.xml, verbatim vertices, verbatim task name and uuid, performer 1-35/2/1_A. Sole content change: TaskActionCode PENTRT -> MOVE. PENTRT and MOVE dispatch identically for THIS task because AffectedEntity == PerformingEntity trips the self-target guard (VrfC2SimService.cs:1803-1815 "affected entity is the taskee itself ... no fire, advancing only"; VerbMapping.cs:84,90), so AffectedEntity is dropped and the verb is stated plainly. Purpose: drive 1-35's ridge lane with the abstract-graph SMS (fixture R9_Mojave_Empty_52_NavAO_AG) and see whether the planned route avoids the 55 m sustained face at 34.6561/-116.7614 that froze the leader at 1.97 km in P11/G2/G3/G5/G6. Design: docs/experiments/PREREG_RIDGE_AG_2026-09-14.md. NOTE: no blank lines and no multi-line comments - a blank line inside the message body killed the SDK STOMP pump on 2026-09-14 (STP-795). -->
+<MessageBody xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.sisostds.org/schemas/C2SIM/1.1">
+  <DomainMessageBody>
+    <OrderBody>
+      <FromSender>00000000-0000-0001-0001-000000000000</FromSender>
+      <ToReceiver>00000000-0007-0001-0000-000000000000</ToReceiver>
+      <IssuedTime>
+        <IsoDateTime>2026-07-09T13:56:50Z</IsoDateTime>
+      </IssuedTime>
+      <OrderID>90e271eb-0d6e-4f05-8b35-572076f5ceff</OrderID>
+      <Task>
+        <ManeuverWarfareTask>
+          <Location>
+            <GeodeticCoordinate>
+              <Latitude>34.67998497486787</Latitude>
+              <Longitude>-116.72479854165415</Longitude>
+            </GeodeticCoordinate>
+          </Location><!--V0: the authored assembly point; the interface DROPS it (Vrf:DropOriginVertexMeters 100, unit spread 2774 m) exactly as in P11/G2/G3/G5/G6-->
+          <Location>
+            <GeodeticCoordinate>
+              <Latitude>34.651212159120796</Latitude>
+              <Longitude>-116.81163703922806</Longitude>
+            </GeodeticCoordinate>
+          </Location><!--V1: 6593.3 m from the DeStack start on bearing 263.02; THE MEASUREMENT - the flagged 40 m window is at 1992-2032 m along, the P11/G3/G5 freeze at 1970 m-->
+          <Location>
+            <GeodeticCoordinate>
+              <Latitude>34.59635066271489</Latitude>
+              <Longitude>-116.95232918947032</Longitude>
+            </GeodeticCoordinate>
+          </Location><!--V2: 14245.9 m from V1 on bearing 244.69-->
+          <Location>
+            <GeodeticCoordinate>
+              <Latitude>34.570294428586486</Latitude>
+              <Longitude>-117.00622314755442</Longitude>
+            </GeodeticCoordinate>
+          </Location><!--V3: 5721.6 m from V2 on bearing 239.59; all four vertices lie inside NavArea-ground-platform MojaveCOA (34.318..34.689, -117.019..-116.428)-->
+          <Name>T1_AOA_SE_1-35_AR;_2/1_AD_P1</Name>
+          <UUID>cd589832-e19f-44e9-91b0-a81ee68d5666</UUID>
+          <DesiredEffectCode>TaskSuccess</DesiredEffectCode>
+          <Duration>
+            <IsoTimeDuration>P00Y00M00DT02H00M00S</IsoTimeDuration>
+          </Duration>
+          <PerformingEntity>d6df3c3d-f31b-701a-bfc6-2fb9bc86092a</PerformingEntity><!--1-35/2/1_A, EchelonCode BN, APP6C functionId UCA with echelon char F, resolved to Tank Headquarters Section (USA) under unit-type-map-52-nolifeform.json: M1A2 1, M1A2 2, M3 1, HMMWV 1, HMMWV 2, M577A2 1-->
+          <StartTime><!--N2c: a 300 s SimulationTime delay (the COA order's own form, OrderParser.TimingOf -> simMs -> Task.Delay on the deployed build); the members are materialised at order RECEIPT (AtOrder), so they stand at the destack start for 300 s before the V1 query - the single variable vs N2b (PREREG_N1_N2 sec 5.5)-->
+            <SimulationTime>
+              <DelayTimeAmount>
+                <IsoTimeDuration>P00Y00M00DT00H05M00S</IsoTimeDuration>
+              </DelayTimeAmount>
+            </SimulationTime>
+          </StartTime>
+          <TaskActionCode>MOVE</TaskActionCode>
+          <RuleOfEngagement>
+            <MipWeaponUseROE>
+              <WeaponROECode>
+                <WeaponRuleOfEngagementCode>ROEHold</WeaponRuleOfEngagementCode>
+              </WeaponROECode>
+            </MipWeaponUseROE>
+          </RuleOfEngagement>
+        </ManeuverWarfareTask>
+      </Task>
+    </OrderBody>
+  </DomainMessageBody>
+</MessageBody>
