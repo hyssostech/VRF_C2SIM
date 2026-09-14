@@ -510,9 +510,12 @@ public sealed class VrfC2SimService : BackgroundService
             _log.LogInformation("TASK CLOCK (R4): C2SIM task times are measured on the {Clock} clock " +
                                 "(Vrf:TaskClock={Cfg}){Fallback}. It carries ALL THREE of the task Duration that " +
                                 "ends a task, the StartTime/DelayTimeAmount delay that holds one back, and the " +
-                                "STREND predecessor gate. Vrf:DurationScale={Scale}; the predecessor gate is " +
+                                "STREND predecessor gate. Vrf:DurationScale={Scale}; a successor waits " +
                                 "max(Vrf:TaskPredecessorTimeoutSeconds={Cfgt} s, the predecessor's own scaled " +
-                                "Duration + Vrf:TaskPredecessorEndMarginSeconds={Margin} s) - M1. " +
+                                "Duration + Vrf:TaskPredecessorEndMarginSeconds={Margin} s) for its predecessor to " +
+                                "COMPLETE (M1) and, when that predecessor is a task in the same order, " +
+                                "Vrf:TaskChainBackstopSeconds={Backstop} s for it to DISPATCH at all (A1) - a " +
+                                "predecessor that really dies is abandoned, not timed out. " +
                                 "Vrf:StallClock governs the progress watchdog ONLY.",
                                 taskClockValid && taskPrefersSim ? "SIMULATION" : "WALL",
                                 _vrf.TaskClock,
@@ -521,7 +524,7 @@ public sealed class VrfC2SimService : BackgroundService
                                       "cannot be read or has gone stale, without restarting any wait"
                                     : "",
                                 _durationScale, _vrf.TaskPredecessorTimeoutSeconds,
-                                _vrf.TaskPredecessorEndMarginSeconds);
+                                _vrf.TaskPredecessorEndMarginSeconds, _vrf.TaskChainBackstopSeconds);
         }
 
         // 1. Start VR-Forces (the bridge owns the controller/exConn).
@@ -2267,20 +2270,43 @@ public sealed class VrfC2SimService : BackgroundService
             // gated tasks skipped, 11 dispatches out of 42). The configured value stays the FLOOR;
             // a predecessor that carries a Duration raises the window to its own end time plus
             // Vrf:TaskPredecessorEndMarginSeconds.
-            double predecessorEndSeconds = 0.0;
-            if (!string.IsNullOrEmpty(task.StartAfterTaskUuid)
-                && _taskByUuid.TryGetValue(task.StartAfterTaskUuid, out var predTask))
-                predecessorEndSeconds = ScaleOrderMs(predTask.DurationMs) / 1000.0;
+            // A1 (pass-2 review of 0c96f50). AND THE GATE MUST ALSO OUTLIVE ITS PREDECESSOR'S LEAD
+            // TIME. The window above covers the predecessor's DURATION; phase 1 of the gate - "has
+            // it dispatched at all?" - is measured from THIS task's wait-start, which is order
+            // receipt for all 42 tasks (the foreach above fires them in one loop). A d2 task
+            // therefore demanded that its predecessor dispatch within 4,860 s while that
+            // predecessor was itself waiting out a 7,200 s root: measured, 21 of 42 dispatched and
+            // 21 were TASKABRT'd, at the defaults AND at the Demo overlay. Phase 1 now takes its
+            // own window - the backstop when the predecessor is a task in THIS order (a real dead
+            // end ABANDONS it, which fails the gate at once), the configured value only for a
+            // DANGLING reference nothing will ever speak for.
+            OrderTask predTask = null;
+            bool predecessorInThisOrder = !string.IsNullOrEmpty(task.StartAfterTaskUuid)
+                                          && _taskByUuid.TryGetValue(task.StartAfterTaskUuid, out predTask);
+            double predecessorEndSeconds = TaskDispatchPolicy.PredecessorEndSeconds(
+                predecessorInThisOrder, predTask?.DurationMs ?? 0L, _durationScale);
             double timeoutSeconds = TaskDispatchPolicy.PredecessorTimeoutSeconds(
                 _vrf.TaskPredecessorTimeoutSeconds, predecessorEndSeconds,
                 _vrf.TaskPredecessorEndMarginSeconds);
-            if (timeoutSeconds > Math.Max(1, _vrf.TaskPredecessorTimeoutSeconds))
-                _log.LogInformation("Task '{Task}': its predecessor {Pred} is armed to end {End:F0} s after ITS " +
-                                    "dispatch, so this task's gate is {T:F0} s, not the configured " +
-                                    "Vrf:TaskPredecessorTimeoutSeconds={Cfg} s (+{Margin} s margin) - M1: a gate " +
-                                    "shorter than the end time it waits for skips the successor by construction.",
-                                    task.TaskName, task.StartAfterTaskUuid, predecessorEndSeconds, timeoutSeconds,
-                                    _vrf.TaskPredecessorTimeoutSeconds, _vrf.TaskPredecessorEndMarginSeconds);
+            double dispatchTimeoutSeconds = TaskDispatchPolicy.PredecessorDispatchTimeoutSeconds(
+                predecessorInThisOrder, timeoutSeconds, _vrf.TaskChainBackstopSeconds);
+            if (!string.IsNullOrEmpty(task.StartAfterTaskUuid))
+                _log.LogInformation("Task '{Task}': gated on {Pred}, which {Where} and is armed to end {End:F0} s " +
+                                    "after ITS dispatch. It has {D:F0} s to DISPATCH ({Why}) and then {T:F0} s to " +
+                                    "COMPLETE; the configured Vrf:TaskPredecessorTimeoutSeconds={Cfg} s " +
+                                    "(+{Margin} s margin) is the floor. M1/A1: a gate shorter than the end time it " +
+                                    "waits for, or than its predecessor's own lead time, skips the successor by " +
+                                    "construction.",
+                                    task.TaskName, task.StartAfterTaskUuid,
+                                    predecessorInThisOrder ? "IS a task in this order" : "is NOT in this order",
+                                    predecessorEndSeconds, dispatchTimeoutSeconds,
+                                    predecessorInThisOrder
+                                        ? "A1: the Vrf:TaskChainBackstopSeconds backstop - a predecessor that really " +
+                                          "dies is ABANDONED, which fails this gate at once"
+                                        : "a DANGLING reference: nothing will ever dispatch or abandon it, so the " +
+                                          "configured window is what bounds the wait",
+                                    timeoutSeconds, _vrf.TaskPredecessorTimeoutSeconds,
+                                    _vrf.TaskPredecessorEndMarginSeconds);
             // R4, the START half. The delay itself is NOT new - TaskSequencer has always waited
             // StartTime/SimulationTime/DelayTimeAmount before dispatching, and that is what keeps
             // COA-STP1's T13 (3h20m) from going out with the rest of the order. Two things are new:
@@ -2305,7 +2331,8 @@ public sealed class VrfC2SimService : BackgroundService
                                     Math.Max(startMs, task.RelativeDelayMs) / 1000.0, _durationScale);
             var gate = await _sequencer.WaitForStartAsync(task.StartAfterTaskUuid, scaledStartMs,
                                                           scaledRelativeMs, timeoutSeconds,
-                                                          _taskClockAxis, _stoppingToken);
+                                                          _taskClockAxis, _stoppingToken,
+                                                          dispatchTimeoutSeconds);
             if (gate != GateResult.Proceed)
             {
                 // P0.2 (DEFECT B): the predecessor never completed. The OLD behavior always

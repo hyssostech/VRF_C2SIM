@@ -33,6 +33,8 @@ public static class RulingsSelfTest
         R1(ref failures);
         Console.WriteLine("=== The TASK CLOCK: an unsteady or frozen sim reader must not stop the order ===");
         TaskClockChecks(ref failures);
+        Console.WriteLine("=== The STREND CHAIN: a gate is a GRAPH, and its predecessor has a lead time ===");
+        ChainTopology(ref failures);
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
         return failures == 0 ? 0 : 1;
     }
@@ -774,6 +776,430 @@ public static class RulingsSelfTest
         + "<TaskActionCode>ATTACK</TaskActionCode>"
         + "</ManeuverWarfareTask></Task>"
         + "</OrderBody>";
+
+
+    // ------------------------------------------- THE STREND CHAIN TOPOLOGY ----
+    // A1 (cold-start review of `0c96f50`, pass 2). A GATE IS A GRAPH, NOT A PAIR. Every other
+    // check in this file looks at ONE gate whose predecessor is ALREADY DISPATCHED, so phase 1
+    // of the gate - "the predecessor must dispatch at all" - was never exercised and a defect
+    // worth half the order survived a green suite. COA-STP1's 42 tasks are 11 SERIAL CHAINS up
+    // to four tasks deep; `HandleOrder` fires every task's orchestration in ONE loop, so all 42
+    // gates start waiting at ORDER RECEIPT. Phase 1's window was the same window phase 2 uses -
+    // derived from the predecessor's own DURATION - and it therefore knew nothing about the
+    // predecessor's LEAD TIME: a d2 task demanded that its predecessor dispatch within 4,860 s
+    // while that predecessor was itself waiting out a 7,200 s root, so 21 of the 42 tasks were
+    // skipped with TASKABRT at every shipped setting.
+    //
+    // THE RULE THESE CHECKS LOCK: when the predecessor NAMES A TASK IN THIS ORDER, phase 1 has
+    // no timeout of its own - every dispatch dead end calls NotifyAbandoned, so a successor
+    // still fails FAST on a real one - and only a generous absolute backstop
+    // (Vrf:TaskChainBackstopSeconds) bounds it. A DANGLING predecessor reference keeps the
+    // configured window, because nothing will ever abandon a task that does not exist.
+    //
+    // Everything below runs the REAL TaskSequencer, TimedCompletionPolicy and TaskDispatchPolicy
+    // over the WHOLE graph on one monotone clock, reproducing MarkDispatched's order
+    // (NotifyDispatched, then Register, then the anchoring walk). The PRE-FIX rule - phase 1
+    // measured from order receipt on the completion window - is kept beside each case as the
+    // FAIL-FIRST control, because it is exactly what the sequencer does when the caller hands it
+    // the same number twice.
+    private static void ChainTopology(ref int failures)
+    {
+        const double configured = 600.0;       // the shipped Vrf:TaskPredecessorTimeoutSeconds
+        const double demoConfigured = 7200.0;  // appsettings.Demo.json's overlay
+        const double margin = 60.0;            // the shipped Vrf:TaskPredecessorEndMarginSeconds
+        const double backstop = 86400.0;       // the shipped Vrf:TaskChainBackstopSeconds
+        // Every authored time in COA-STP1 (4,800 s, 7,200 s, 12,000 s) is a whole multiple of
+        // 1,200 s, and of 120 s once scaled by 0.05, so a walk in those steps lands EXACTLY on
+        // every end time instead of observing it late - the walk's granularity never eats the
+        // gate's margin.
+        const double step = 1200.0;
+        const double compressedStep = 120.0;
+
+        // (f1) A FOUR-DEEP CHAIN, every gate started at order receipt. This is COA-STP1's shape:
+        //      a PT2H root and three PT1H20M successors on one taskee.
+        {
+            var chain = SerialChain(7200_000L, 4800_000L, 4800_000L, 4800_000L);
+            var preFix = WalkChain(chain, configured, margin, 1.0, backstop, step, preFixPhase1: true);
+            Check(ref failures,
+                  preFix.Dispatched == 2 && preFix.SkippedCount == 2
+                  && preFix.Result("T3") == GateResult.PredecessorTimeout,
+                  $"FAIL-FIRST (A1): with phase 1 measured from order receipt on the COMPLETION window, " +
+                  $"the same chain dispatches only {preFix.Dispatched} of 4 - T3's 4,860 s window expires " +
+                  $"2,340 s before T2 dispatches, and T4 dies on T3's abandon " +
+                  $"({preFix.Times("T1", "T2", "T3", "T4")})");
+
+            var run = WalkChain(chain, configured, margin, 1.0, backstop, step);
+            Check(ref failures,
+                  run.Dispatched == 4 && run.SkippedCount == 0
+                  && run.At("T1") == 0.0 && run.At("T2") == 7200.0
+                  && run.At("T3") == 12000.0 && run.At("T4") == 16800.0,
+                  $"(i) A1: a 4-deep chain whose gates all start at ORDER RECEIPT dispatches all four " +
+                  $"at their predecessors' TIMED completions - expected 0 / 7200 / 12000 / 16800, got " +
+                  $"{run.Times("T1", "T2", "T3", "T4")} ({run.SkippedCount} skipped)");
+
+            var demo = WalkChain(chain, demoConfigured, margin, 1.0, backstop, step);
+            Check(ref failures, demo.Dispatched == 4 && demo.SkippedCount == 0,
+                  $"(i) ... and the same chain under the Demo overlay's 7200 s floor: " +
+                  $"{demo.Dispatched} of 4 dispatched, {demo.SkippedCount} skipped");
+        }
+
+        // (f2) A DELAYED ROOT. COA-STP1's T13 carries a PT3H20M start delay (12,000 s) and one
+        //      successor, T14, whose window is derived from T13's 4,800 s Duration - 7,140 s
+        //      before T13 dispatches at all.
+        {
+            var pair = new[] { new ChainTask("T13", "", 4800_000L, 12000_000L),
+                               new ChainTask("T14", "T13", 4800_000L, 0L) };
+            var preFix = WalkChain(pair, configured, margin, 1.0, backstop, step, preFixPhase1: true);
+            Check(ref failures,
+                  preFix.Dispatched == 1 && preFix.Result("T14") == GateResult.PredecessorTimeout,
+                  $"FAIL-FIRST (A1): with the pre-fix rule T14's 4,860 s window expires 7,140 s before T13 " +
+                  $"dispatches ({preFix.Times("T13", "T14")})");
+
+            var run = WalkChain(pair, configured, margin, 1.0, backstop, step);
+            Check(ref failures,
+                  run.Dispatched == 2 && run.SkippedCount == 0
+                  && run.At("T13") == 12000.0 && run.At("T14") == 16800.0,
+                  $"(ii) A1: T13's 12,000 s start delay does not skip T14 - expected 12000 / 16800, got " +
+                  $"{run.Times("T13", "T14")} ({run.SkippedCount} skipped)");
+        }
+
+        // (f3) A DANGLING predecessor reference - a uuid no task in this order carries. NOTHING
+        //      will ever dispatch or abandon it, so this is the ONE case the configured window
+        //      still has to bound, and it must still expire at exactly that value.
+        {
+            var dangling = new[] { new ChainTask("T1", "no-such-task-uuid", 4800_000L, 0L) };
+            var run = WalkChain(dangling, configured, margin, 1.0, backstop, 60.0);
+            Check(ref failures,
+                  run.Dispatched == 0 && run.SkippedCount == 1
+                  && run.Result("T1") == GateResult.PredecessorTimeout
+                  && run.SkippedAtSeconds("T1") == configured,
+                  $"(iii) a DANGLING predecessor still times out at the configured " +
+                  $"{configured:F0} s (got {run.Times("T1")} at {run.SkippedAtSeconds("T1"):F0} s)");
+        }
+
+        // (f4) AN ABANDONED predecessor must still fail its successor FAST. This is what pays for
+        //      dropping phase 1's timeout: every dispatch dead end in the service calls
+        //      NotifyAbandoned, so the backstop is never what ends a chain that really died.
+        {
+            var clock = new StepClock();
+            var seq = new TaskSequencer();
+            var gate = seq.WaitForStartAsync("PRED-A1", 0, 0, backstop, clock.AsTaskClock(),
+                                             CancellationToken.None);
+            Thread.Sleep(50);
+            Check(ref failures, !gate.IsCompleted,
+                  "(iv) a gate whose predecessor has NOT dispatched waits (it does not proceed on its own)");
+            seq.NotifyAbandoned("PRED-A1");
+            bool done = gate.Wait(TimeSpan.FromSeconds(5));
+            Check(ref failures, done && gate.Result == GateResult.PredecessorAbandoned && clock.Now == 0.0,
+                  $"(iv) ... and an ABANDONED predecessor fails it FAST - 0 s of clock spent, not the " +
+                  $"{backstop:F0} s backstop (got {(done ? gate.Result.ToString() : "still waiting")} at " +
+                  $"{clock.Now:F0} s)");
+        }
+
+        // (f5) THE WHOLE COA-STP1 GRAPH, end to end, from the order on disk. This is the branch's
+        //      own live gate 2 ("42 dispatches, not 9") decided OFFLINE.
+        {
+            string file = FindCoaStp1Order();
+            var order = file == null ? null : OrderParser.Parse(File.ReadAllText(file));
+            Check(ref failures, order != null && order.Tasks.Count == 42,
+                  $"(v) data/COA-STP1_Order.xml parses to 42 tasks (got " +
+                  $"{(order == null ? "NOT FOUND" : order.Tasks.Count.ToString())})");
+            if (order != null && order.Tasks.Count == 42)
+            {
+                var graph = new List<ChainTask>();
+                foreach (var t in order.Tasks)
+                    graph.Add(new ChainTask(t.TaskUuid, t.StartAfterTaskUuid, t.DurationMs,
+                                            Math.Max(t.SimulationStartMs, t.RelativeDelayMs)));
+
+                var preFix = WalkChain(graph, configured, margin, 1.0, backstop, step, preFixPhase1: true);
+                Check(ref failures, preFix.Dispatched == 21 && preFix.SkippedCount == 21,
+                      $"FAIL-FIRST (A1): the pre-fix rule dispatches {preFix.Dispatched} of the order's 42 tasks " +
+                      $"and skips {preFix.SkippedCount} with TASKABRT - the roots and their first successors run, " +
+                      $"the two deeper levels and T14 do not");
+
+                var asWritten = WalkChain(graph, configured, margin, 1.0, backstop, step);
+                Check(ref failures, asWritten.Dispatched == 42 && asWritten.SkippedCount == 0,
+                      $"(v) the whole COA-STP1 graph at Vrf:DurationScale=1.0 and the SHIPPED " +
+                      $"{configured:F0} s floor: {asWritten.Dispatched} dispatches, " +
+                      $"{asWritten.SkippedCount} skipped (must be 42 / 0)");
+
+                var demo = WalkChain(graph, demoConfigured, margin, 1.0, backstop, step);
+                Check(ref failures, demo.Dispatched == 42 && demo.SkippedCount == 0,
+                      $"(v) ... and under the Demo overlay's {demoConfigured:F0} s floor: " +
+                      $"{demo.Dispatched} dispatches, {demo.SkippedCount} skipped");
+
+                // DETERMINISM. The compressed profile is where the pre-fix rule put a task on the
+                // exact boundary between its window and its predecessor's dispatch, and a demo
+                // that fails one run in seven is worse than one that fails every time.
+                var seen = new HashSet<string>(StringComparer.Ordinal);
+                for (int i = 0; i < 20; i++)
+                {
+                    var r = WalkChain(graph, configured, margin, 0.05, backstop, compressedStep);
+                    seen.Add($"{r.Dispatched}/{r.SkippedCount}");
+                }
+                Check(ref failures, seen.Count == 1 && seen.Contains("42/0"),
+                      $"(v) 20 repetitions at Vrf:DurationScale=0.05 all give 42 dispatches and 0 skips " +
+                      $"(distinct outcomes seen: {string.Join(", ", seen)})");
+            }
+        }
+    }
+
+    /// <summary>One task as the gate graph sees it: its uuid, its STREND predecessor (empty for a
+    /// root), its authored Duration and its authored start delay, both in milliseconds.</summary>
+    private sealed record ChainTask(string Uuid, string Pred, long DurationMs, long StartDelayMs);
+
+    /// <summary>A serial chain T1 -> T2 -> ... with the given authored Durations.</summary>
+    private static List<ChainTask> SerialChain(params long[] durationsMs)
+    {
+        var chain = new List<ChainTask>();
+        for (int i = 0; i < durationsMs.Length; i++)
+            chain.Add(new ChainTask("T" + (i + 1), i == 0 ? "" : "T" + i, durationsMs[i], 0L));
+        return chain;
+    }
+
+    /// <summary>What a walk of the graph produced: when each task dispatched, or why it did not.</summary>
+    private sealed class ChainOutcome
+    {
+        public readonly Dictionary<string, double> DispatchedAt = new(StringComparer.Ordinal);
+        public readonly Dictionary<string, (GateResult Result, double At)> Skipped = new(StringComparer.Ordinal);
+        public int Dispatched => DispatchedAt.Count;
+        public int SkippedCount => Skipped.Count;
+        public double At(string uuid) => DispatchedAt.TryGetValue(uuid, out var t) ? t : double.NaN;
+        public GateResult Result(string uuid) => Skipped.TryGetValue(uuid, out var s) ? s.Result : GateResult.Proceed;
+        public double SkippedAtSeconds(string uuid) => Skipped.TryGetValue(uuid, out var s) ? s.At : double.NaN;
+        public string Times(params string[] uuids)
+        {
+            var parts = new List<string>();
+            foreach (var u in uuids)
+                parts.Add(DispatchedAt.TryGetValue(u, out var t) ? t.ToString("F0")
+                        : Skipped.TryGetValue(u, out var s) ? s.Result.ToString() : "-");
+            return string.Join(" / ", parts);
+        }
+    }
+
+    /// <summary>
+    /// Walk a whole gate graph on one monotone clock, exactly as the service orchestrates one:
+    /// every task's gate starts at t = 0 (HandleOrder's single foreach), a gate that opens is
+    /// dispatched with MarkDispatched's own ordering, and a gate that does not open abandons its
+    /// task so its successors fail fast. Returns when every task has dispatched or been skipped.
+    /// </summary>
+    /// <param name="preFixPhase1">The FAIL-FIRST control: give phase 1 the same window phase 2
+    /// gets, which is what the branch did before A1.</param>
+    private static ChainOutcome WalkChain(IReadOnlyList<ChainTask> tasks, double configured,
+                                          double margin, double scale, double backstop,
+                                          double stepSeconds, bool preFixPhase1 = false)
+    {
+        var clock = new StepClock();
+        var seq = new TaskSequencer();
+        var timed = new TimedCompletionPolicy();
+        var byUuid = new Dictionary<string, ChainTask>(StringComparer.Ordinal);
+        foreach (var t in tasks) byUuid[t.Uuid] = t;
+        var gates = new Dictionary<string, Task<GateResult>>(StringComparer.Ordinal);
+        var outcome = new ChainOutcome();
+
+        foreach (var t in tasks)
+        {
+            bool predFound = !string.IsNullOrEmpty(t.Pred) && byUuid.ContainsKey(t.Pred);
+            double predEnd = TaskDispatchPolicy.PredecessorEndSeconds(
+                predFound, predFound ? byUuid[t.Pred].DurationMs : 0L, scale);
+            double window = TaskDispatchPolicy.PredecessorTimeoutSeconds(configured, predEnd, margin);
+            double phase1 = preFixPhase1 ? window
+                          : TaskDispatchPolicy.PredecessorDispatchTimeoutSeconds(predFound, window, backstop);
+            gates[t.Uuid] = seq.WaitForStartAsync(t.Pred,
+                                                  TaskDispatchPolicy.ScaleOrderMs(t.StartDelayMs, scale),
+                                                  0L, window, clock.AsTaskClock(), CancellationToken.None,
+                                                  phase1);
+        }
+
+        double horizon = LongestLeadSeconds(tasks, scale) + configured + margin + 4.0 * stepSeconds;
+        bool signalled = true;      // t = 0: every root's gate is open before the walk starts
+        while (true)
+        {
+            Settle(tasks, gates, outcome, seq, timed, clock, scale, signalled);
+            if (outcome.Dispatched + outcome.SkippedCount >= tasks.Count) break;
+            if (clock.Now >= horizon) break;
+            int released = clock.AdvanceTo(clock.Now + stepSeconds);
+            var due = timed.Advance(clock.Now, usingSim: true);
+            foreach (var d in due) seq.CompleteTask(d.TaskUuid);
+            signalled = released > 0 || due.Count > 0;
+        }
+        return outcome;
+    }
+
+    /// <summary>
+    /// Let every gate that can move at THIS clock reading move, and do not return until nothing
+    /// has moved for a while. The clock never advances inside a settle, so a continuation the
+    /// thread pool runs late cannot change WHEN a task dispatched - only how long this loop takes
+    /// to notice it (and a phase-2 wait registered late is self-correcting: its window is measured
+    /// from the predecessor's DISPATCH, an absolute anchor, not from the registration). A step at
+    /// which nothing was signalled costs yields only; a step that released a waiter or completed a
+    /// task also buys coarse ticks, because that is when the thread pool has something to run.
+    /// </summary>
+    /// <param name="signalled">The walk released a clock waiter or completed a task at this
+    /// reading, so a continuation IS expected.</param>
+    private static void Settle(IReadOnlyList<ChainTask> tasks, Dictionary<string, Task<GateResult>> gates,
+                               ChainOutcome outcome, TaskSequencer seq, TimedCompletionPolicy timed,
+                               StepClock clock, double scale, bool signalled)
+    {
+        bool moved = SpinDrain(tasks, gates, outcome, seq, timed, clock, scale);
+        if (!signalled && !moved) return;
+        for (int round = 0; round < 8; round++)
+        {
+            Thread.Sleep(1);
+            if (!SpinDrain(tasks, gates, outcome, seq, timed, clock, scale)) return;
+        }
+    }
+
+    /// <summary>Drain until nothing has moved for 128 yields; true when anything moved at all. A
+    /// yield covers a thread-pool continuation that is already queued - what it cannot cover is a
+    /// pool that has to inject a worker, which is what Settle's coarse ticks are for.</summary>
+    private static bool SpinDrain(IReadOnlyList<ChainTask> tasks, Dictionary<string, Task<GateResult>> gates,
+                                  ChainOutcome outcome, TaskSequencer seq, TimedCompletionPolicy timed,
+                                  StepClock clock, double scale)
+    {
+        bool movedEver = false;
+        long lastRegistrations = -1;
+        for (int quiet = 0; quiet < 128; quiet++)
+        {
+            long registrations = Volatile.Read(ref clock.Registrations);
+            bool moved = Drain(tasks, gates, outcome, seq, timed, clock, scale);
+            if (moved || registrations != lastRegistrations)
+            {
+                lastRegistrations = registrations;
+                movedEver |= moved;
+                quiet = -1;
+                continue;
+            }
+            Thread.Yield();
+        }
+        return movedEver;
+    }
+
+    /// <summary>Dispatch every gate that has opened and abandon every gate that has not. Returns
+    /// true when anything changed. The dispatch reproduces MarkDispatched: NotifyDispatched with
+    /// the task-clock reading, THEN the end-time Register, THEN the anchoring walk.</summary>
+    private static bool Drain(IReadOnlyList<ChainTask> tasks, Dictionary<string, Task<GateResult>> gates,
+                              ChainOutcome outcome, TaskSequencer seq, TimedCompletionPolicy timed,
+                              StepClock clock, double scale)
+    {
+        bool moved = false;
+        foreach (var t in tasks)
+        {
+            if (outcome.DispatchedAt.ContainsKey(t.Uuid) || outcome.Skipped.ContainsKey(t.Uuid)) continue;
+            var gate = gates[t.Uuid];
+            if (!gate.IsCompleted) continue;
+            moved = true;
+            double now = clock.Now;
+            if (gate.Result == GateResult.Proceed)
+            {
+                outcome.DispatchedAt[t.Uuid] = now;
+                seq.NotifyDispatched(t.Uuid, now);
+                timed.Register(t.Uuid, "taskee-" + t.Uuid, t.Uuid, "unit-" + t.Uuid,
+                               TaskDispatchPolicy.ScaleOrderMs(t.DurationMs, scale) / 1000.0);
+                foreach (var d in timed.Advance(now, usingSim: true)) seq.CompleteTask(d.TaskUuid);
+            }
+            else
+            {
+                outcome.Skipped[t.Uuid] = (gate.Result, now);
+                seq.NotifyAbandoned(t.Uuid);
+            }
+        }
+        return moved;
+    }
+
+    /// <summary>The deepest chain's LEAD, in clock seconds: how long the last task of the longest
+    /// chain waits before it can dispatch at all. Bounds the walk; cycle-guarded, so a malformed
+    /// order cannot hang the suite.</summary>
+    private static double LongestLeadSeconds(IReadOnlyList<ChainTask> tasks, double scale)
+    {
+        var byUuid = new Dictionary<string, ChainTask>(StringComparer.Ordinal);
+        foreach (var t in tasks) byUuid[t.Uuid] = t;
+        var memo = new Dictionary<string, double>(StringComparer.Ordinal);
+        double Lead(string uuid, int depth)
+        {
+            if (depth > 64 || !byUuid.TryGetValue(uuid, out var t)) return 0.0;
+            if (memo.TryGetValue(uuid, out double cached)) return cached;
+            memo[uuid] = 0.0;      // cycle guard: a task that reaches itself contributes nothing
+            double lead = TaskDispatchPolicy.ScaleOrderMs(t.StartDelayMs, scale) / 1000.0;
+            if (!string.IsNullOrEmpty(t.Pred) && byUuid.TryGetValue(t.Pred, out var pred))
+                lead += Lead(t.Pred, depth + 1)
+                      + TaskDispatchPolicy.ScaleOrderMs(pred.DurationMs, scale) / 1000.0;
+            memo[uuid] = lead;
+            return lead;
+        }
+        double max = 0.0;
+        foreach (var t in tasks) max = Math.Max(max, Lead(t.Uuid, 0));
+        return max;
+    }
+
+    /// <summary>Walk up from the executable and from the working directory until COA-STP1's order
+    /// is in sight - the same search --preflight-selftest and --initgraphics-selftest use.</summary>
+    private static string FindCoaStp1Order()
+    {
+        foreach (var start in new[] { AppContext.BaseDirectory, Directory.GetCurrentDirectory() })
+            for (var d = new DirectoryInfo(start); d != null; d = d.Parent)
+            {
+                string candidate = Path.Combine(d.FullName, "data", "COA-STP1_Order.xml");
+                if (File.Exists(candidate)) return candidate;
+            }
+        return null;
+    }
+
+    /// <summary>
+    /// The chain walk's clock. Unlike <see cref="FakeClock"/> it is SIGNALLED rather than polled:
+    /// a waiter registers the reading it is due at and is released the instant the walk reaches
+    /// it, so a gate expires at EXACTLY its window and a 42-gate graph can be walked in whole
+    /// minutes without buying a poll interval per step. Monotone, in seconds, exactly what the
+    /// service's own task-clock axis is.
+    /// </summary>
+    private sealed class StepClock
+    {
+        private readonly object _lock = new();
+        private readonly List<(double Due, TaskCompletionSource Tcs)> _waiters = new();
+        private double _seconds;
+        /// <summary>Every DelayAsync bumps this, so a settle loop can tell "a gate moved on to its
+        /// next wait" from "nothing happened".</summary>
+        public long Registrations;
+
+        public double Now { get { lock (_lock) return _seconds; } }
+        public TaskClock AsTaskClock() => new(() => Now, DelayAsync);
+
+        private Task DelayAsync(double seconds, CancellationToken ct)
+        {
+            Interlocked.Increment(ref Registrations);
+            var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            if (!(seconds > 0.0)) { tcs.TrySetResult(); return tcs.Task; }
+            lock (_lock) _waiters.Add((_seconds + seconds, tcs));
+            if (ct.CanBeCanceled)
+                ct.Register(() =>
+                {
+                    lock (_lock) _waiters.RemoveAll(w => ReferenceEquals(w.Tcs, tcs));
+                    tcs.TrySetCanceled();
+                });
+            return tcs.Task;
+        }
+
+        /// <summary>Move the clock forward to this reading and release everything it reaches.
+        /// Returns how many waiters were released, so the walk knows whether to expect a
+        /// continuation at all.</summary>
+        public int AdvanceTo(double seconds)
+        {
+            List<TaskCompletionSource> due = null;
+            lock (_lock)
+            {
+                _seconds = Math.Max(_seconds, seconds);
+                for (int i = _waiters.Count - 1; i >= 0; i--)
+                    if (_waiters[i].Due <= _seconds)
+                    {
+                        (due ??= new List<TaskCompletionSource>()).Add(_waiters[i].Tcs);
+                        _waiters.RemoveAt(i);
+                    }
+            }
+            if (due == null) return 0;
+            foreach (var tcs in due) tcs.TrySetResult();
+            return due.Count;
+        }
+    }
 
     private static void Check(ref int failures, bool ok, string label)
     {

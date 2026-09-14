@@ -439,6 +439,21 @@ public class VrfSettings
     // nothing but 60 s of patience when a predecessor genuinely never completes.
     public int TaskPredecessorEndMarginSeconds { get; set; } = 60;
 
+    // A1 (cold-start review of 0c96f50): THE ABSOLUTE BACKSTOP ON A CHAINED GATE'S PHASE 1.
+    // Phase 1 asks "has the predecessor DISPATCHED at all", and for a predecessor that is a task
+    // in the same order the honest answer is "wait - something will dispatch it, complete it or
+    // ABANDON it", because every dispatch dead end calls TaskSequencer.NotifyAbandoned and a
+    // successor therefore fails fast on any real one. Measuring that wait with
+    // Vrf:TaskPredecessorTimeoutSeconds instead skipped 21 of COA-STP1's 42 tasks at every
+    // shipped setting (the window covered the predecessor's Duration but not its LEAD TIME).
+    // This is the only bound left on it: one day, longer than any authored chain
+    // (COA-STP1's deepest lead is 26,400 s) and short enough that a wedged interface does not
+    // hold a gate for the life of the process. A DANGLING startAfterTaskUuid - a predecessor no
+    // task in the order carries - is NOT covered by it and still expires at
+    // Vrf:TaskPredecessorTimeoutSeconds, because nothing will ever abandon a task that does not
+    // exist. 0 or negative falls back to the 86400 default rather than skipping every chain.
+    public int TaskChainBackstopSeconds { get; set; } = 86400;
+
     // P0.2 (NEXT_SESSION_GUIDANCE.md sec 3, DEFECT B): what to do when a task's predecessor
     // times out or was abandoned.
     //   "skip"     (default) log + do NOT dispatch; the task's own successors then fail fast.

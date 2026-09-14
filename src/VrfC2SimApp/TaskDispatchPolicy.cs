@@ -148,4 +148,70 @@ public static class TaskDispatchPolicy
         double margin = double.IsFinite(marginSeconds) ? Math.Max(0.0, marginSeconds) : 0.0;
         return Math.Max(floor, predecessorEndSeconds + margin);
     }
+
+    /// <summary>
+    /// The predecessor's own ARMED END TIME in seconds on the task clock - what
+    /// <see cref="PredecessorTimeoutSeconds"/> derives the completion window from. One line, but
+    /// it lives here rather than inline in the service so the offline chain walk
+    /// (`--rulings-selftest`) and the live gate cannot drift apart: A1 survived a green suite
+    /// precisely because the suite tested the parts and the service assembled them.
+    /// </summary>
+    /// <param name="predecessorIsInThisOrder">The startAfterTaskUuid names a task the order
+    /// actually carries. A DANGLING reference has no Duration to derive anything from.</param>
+    /// <param name="predecessorDurationMs">That task's authored C2SIM Duration, in ms.</param>
+    /// <param name="durationScale">Vrf:DurationScale, already validated by the service (m8).</param>
+    public static double PredecessorEndSeconds(bool predecessorIsInThisOrder, long predecessorDurationMs,
+                                               double durationScale)
+        => predecessorIsInThisOrder ? ScaleOrderMs(predecessorDurationMs, durationScale) / 1000.0 : 0.0;
+
+    /// <summary>The absolute backstop on phase 1 when nothing else bounds it - one day. Long
+    /// enough that no authored chain reaches it (COA-STP1's deepest is 26,400 s), short enough
+    /// that a wedged interface does not hold a gate open for the life of the process.</summary>
+    public const double DefaultChainBackstopSeconds = 86400.0;
+
+    /// <summary>
+    /// A1 (cold-start review of `0c96f50`, pass 2). HOW LONG THE GATE WAITS FOR ITS PREDECESSOR
+    /// TO **DISPATCH** - which is not the same question as how long it then waits for it to
+    /// COMPLETE, and was wrongly answered with the same number.
+    ///
+    /// THE DEFECT. `HandleOrder` starts EVERY task's orchestration in one loop, so all 42 of
+    /// COA-STP1's gates begin waiting at ORDER RECEIPT. Phase 1's window was the completion
+    /// window - derived from the predecessor's own Duration - so it covered the predecessor's
+    /// DURATION but knew nothing about its LEAD TIME (its start delay plus its own gate wait).
+    /// A d2 task therefore demanded that its predecessor dispatch within 4,860 s while that
+    /// predecessor was itself waiting out a 7,200 s root: measured, 21 of the 42 tasks dispatched
+    /// and 21 were SKIPPED with TASKABRT, at the defaults AND at appsettings.Demo.json's 7,200 -
+    /// and at a compressed DurationScale the outcome was not even deterministic.
+    ///
+    /// THE RULE. When the predecessor NAMES A TASK IN THIS ORDER there is no reason for phase 1
+    /// to time out at all: every path in the service that can end a task without dispatching it
+    /// calls TaskSequencer.NotifyAbandoned, so a successor already fails FAST on any real dead
+    /// end (no PerformingEntity, unknown taskee, no performing unit, no route points, a refused
+    /// dispatch, an exception). The phase-1 timer is only a backstop against a predecessor that
+    /// will never speak for itself - and the ONE case of that is a DANGLING startAfterTaskUuid,
+    /// which keeps the configured window exactly as before. Everything else gets the absolute
+    /// backstop (Vrf:TaskChainBackstopSeconds), so a wedged chain still ends rather than waiting
+    /// for the life of the process.
+    ///
+    /// Phase 2 is unchanged: once the predecessor HAS dispatched, the window is the derived
+    /// completion window of <see cref="PredecessorTimeoutSeconds"/>, measured from its dispatch.
+    /// </summary>
+    /// <param name="predecessorIsInThisOrder">The startAfterTaskUuid names a task the order
+    /// carries - so something will eventually dispatch it, complete it or abandon it.</param>
+    /// <param name="completionWindowSeconds">The phase-2 window, from
+    /// <see cref="PredecessorTimeoutSeconds"/>. It is the FLOOR here: a phase-1 window shorter
+    /// than the phase-2 one would make no sense.</param>
+    /// <param name="backstopSeconds">Vrf:TaskChainBackstopSeconds. Non-finite or non-positive
+    /// falls back to <see cref="DefaultChainBackstopSeconds"/> - a misconfigured backstop must
+    /// not become "skip the chain immediately".</param>
+    public static double PredecessorDispatchTimeoutSeconds(bool predecessorIsInThisOrder,
+                                                           double completionWindowSeconds,
+                                                           double backstopSeconds)
+    {
+        double floor = double.IsFinite(completionWindowSeconds) ? Math.Max(1.0, completionWindowSeconds) : 1.0;
+        if (!predecessorIsInThisOrder) return floor;
+        double backstop = double.IsFinite(backstopSeconds) && backstopSeconds > 0.0
+                        ? backstopSeconds : DefaultChainBackstopSeconds;
+        return Math.Max(floor, backstop);
+    }
 }

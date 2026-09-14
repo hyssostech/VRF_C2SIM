@@ -52,18 +52,24 @@ public enum GateResult
 ///   2. once dispatched, it gets a FRESH full window (from its dispatch time) to complete.
 /// A predecessor that is skipped/abandoned (<see cref="NotifyAbandoned"/>) fails its
 /// waiters FAST (PredecessorAbandoned) instead of letting them run out the clock.
-/// LIMITATION (accepted): phase 1's window runs from wait-start, so a healthy chain deeper
-/// than one timeout-length per link can still phase-1-time-out; the real orders carry
-/// single-level chains only.
 ///
-/// M1 (cold-start review of 5c67d41). THE WINDOW MUST OUTLIVE THE END TIME IT IS WAITING FOR.
+/// A1 (cold-start review of `0c96f50`, pass 2). THE TWO PHASES ARE TWO QUESTIONS, SO THEY TAKE
+/// TWO WINDOWS. The accepted limitation recorded here - "phase 1's window runs from wait-start,
+/// so a healthy chain deeper than one timeout-length per link can still phase-1-time-out; the
+/// real orders carry single-level chains only" - rested on a premise that is FALSE for the order
+/// this port exists for: COA-STP1 is 11 SERIAL CHAINS up to four tasks deep, and measured on
+/// these very classes it lost 21 of its 42 tasks at every shipped setting. Phase 1 now takes its
+/// own window (<paramref name="dispatchTimeoutSeconds"/>), which the caller derives from
+/// TaskDispatchPolicy.PredecessorDispatchTimeoutSeconds: effectively unbounded for a predecessor
+/// that exists in the order (a real dead end ABANDONS it, which is instant), the configured
+/// value for a DANGLING reference that nothing will ever speak for.
+///
+/// M1 (cold-start review of 5c67d41). THE PHASE-2 WINDOW MUST OUTLIVE THE END TIME IT IS WAITING FOR.
 /// The window used to be the flat Vrf:TaskPredecessorTimeoutSeconds while the predecessor's
 /// completion is given by its C2SIM Duration (R4) - 4,800 s or 7,200 s on COA-STP1 against a
 /// 600 s default - so the gate expired FIRST, by construction, and all 31 gated tasks were
 /// skipped with TASKABRT. The caller now derives the window from the predecessor's own armed end
 /// time (TaskDispatchPolicy.PredecessorTimeoutSeconds) and hands it in; this class only obeys it.
-/// Both phases use the derived value: a predecessor that has not even DISPATCHED is usually one
-/// waiting behind a long task of its own.
 ///
 /// Parity notes: the C++ waits predecessor-first, then the delay - reproduced. It scales
 /// delays by the sim time-multiple and (via a doubled wait loop) actually waits TWICE the
@@ -125,20 +131,31 @@ public sealed class TaskSequencer
     /// then for its start delay. Returns <see cref="GateResult.Proceed"/> when the task
     /// should dispatch, or a Predecessor* result when it never became ready.
     /// </summary>
+    /// <param name="predecessorTimeoutSeconds">PHASE 2: how long the predecessor has to COMPLETE
+    /// once it has dispatched, measured from its dispatch.</param>
+    /// <param name="dispatchTimeoutSeconds">PHASE 1 (A1): how long the predecessor has to
+    /// DISPATCH AT ALL, measured from this gate's own wait-start - which for every task in an
+    /// order is order receipt. NaN (the default) means "the same window as phase 2", the
+    /// pre-A1 behaviour, kept so a caller that has no chain context is unchanged; the service
+    /// passes TaskDispatchPolicy.PredecessorDispatchTimeoutSeconds.</param>
     public async Task<GateResult> WaitForStartAsync(string startAfterTaskUuid, long simulationStartMs,
-        long relativeDelayMs, double predecessorTimeoutSeconds, TaskClock clock, CancellationToken ct)
+        long relativeDelayMs, double predecessorTimeoutSeconds, TaskClock clock, CancellationToken ct,
+        double dispatchTimeoutSeconds = double.NaN)
     {
         clock ??= TaskClock.Wall;
         double timeoutSeconds = Math.Max(0.0, predecessorTimeoutSeconds);
+        double dispatchSeconds = double.IsFinite(dispatchTimeoutSeconds)
+                               ? Math.Max(0.0, dispatchTimeoutSeconds) : timeoutSeconds;
         if (!string.IsNullOrEmpty(startAfterTaskUuid))
         {
             var pred = State(startAfterTaskUuid);
 
-            // Phase 1: the predecessor must at least DISPATCH within the window.
+            // Phase 1: the predecessor must at least DISPATCH within ITS OWN window (A1) - the
+            // one that knows whether anything will ever speak for that predecessor at all.
             using (var cts1 = CancellationTokenSource.CreateLinkedTokenSource(ct))
             {
                 await Task.WhenAny(pred.Completed.Task, pred.Dispatched.Task, pred.Abandoned.Task,
-                                   clock.DelayAsync(timeoutSeconds, cts1.Token)).ConfigureAwait(false);
+                                   clock.DelayAsync(dispatchSeconds, cts1.Token)).ConfigureAwait(false);
                 cts1.Cancel(); // stop the timer if a signal won (no lingering delay)
                 if (!pred.Completed.Task.IsCompleted)
                 {
