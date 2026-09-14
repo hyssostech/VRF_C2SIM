@@ -118,9 +118,13 @@ Fixtures carrying it are named with an `_AG` suffix: `R9_Mojave_Empty_52_AG`,
 `R9_Mojave_Empty_52_NavAO_AG`.
 
 `validate_fixture.py --empty-52` expects the same default, OPENS the derived SMS, and
-reports its include chain plus the script id it overrides, the `useAbstractGraphs` value
-and the run-time proof line. Pass `--sms vendor` to validate a fixture deliberately built
-on the shipped SMS.
+reports its include chain plus every vendor artefact it overrides: for a `.lua` under
+`scripts/`, the script id, the `useAbstractGraphs` value and the run-time proof line; for a
+`.ope`/`.sysdef` (or any other file) under `vrfSim/`, its kind and a one-line diff against the
+vendor file at the same relative path. The gate itself only requires that the SMS override
+SOMETHING - a derived SMS legitimately overriding only a `.ope`/`.sysdef` and no script (as
+`C2SIM_EntityLevel_Corridor2000[.sms|_Slope2.sms]` do) still passes. Pass `--sms vendor` to
+validate a fixture deliberately built on the shipped SMS.
 
 Unlike the 5.0.2 writer, this one stamps a fixed zip date, so the `.scnx` SHA-256 IS
 reproducible. `--negative-controls DIR` also emits two deliberately-broken copies

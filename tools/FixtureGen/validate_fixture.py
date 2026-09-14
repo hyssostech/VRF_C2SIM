@@ -165,15 +165,95 @@ def _read(path):
         return fh.read()
 
 
+# Vendor EntityLevel model set shipped with VR-Forces 5.2d. Every override
+# under a derived SMS's model-set-directory is diffed against the file at the
+# same relative path here (UG52 68.3.1 p1310: "any parameters or files in the
+# higher priority SMSs that are also in the lower priority SMSs override
+# those in the lower priority SMSs").
+VENDOR_ENTITY_LEVEL = r"C:\MAK\vrforces5.2d\data\simulationModelSets\EntityLevel"
+
+
+def _iter_files(root):
+    """Yield (relpath, abspath) for every regular file under root, relpath
+    using forward slashes. Yields nothing if root does not exist."""
+    if not os.path.isdir(root):
+        return
+    for dirpath, _dirs, files in os.walk(root):
+        for f in files:
+            ap = os.path.join(dirpath, f)
+            rp = os.path.relpath(ap, root).replace(os.sep, "/")
+            yield rp, ap
+
+
+def _override_kind(relpath):
+    ext = os.path.splitext(relpath)[1].lower()
+    if ext == ".ope":
+        return "object-parameter file (.ope)"
+    if ext == ".sysdef":
+        return "system definition (.sysdef)"
+    return "vendor artefact"
+
+
+def _parse_name_value_lines(text):
+    """Parse single-line S-expression assignments of the shape `(name value)`
+    or `(DtRwType name value)` - the flat form used throughout .ope/.sysdef
+    parameter blocks (e.g. `(DtRwReal propagation-box-extent 200.000000)`,
+    `(slope-avoidance-factor 1.000000)`). A line that does not close its own
+    paren (a nested block opener) is skipped. Returns {name: raw value
+    string}; a name repeated on more than one line keeps its last value."""
+    out = {}
+    for line in text.splitlines():
+        s = line.strip()
+        if not (s.startswith("(") and s.endswith(")") and len(s) > 2):
+            continue
+        inner = s[1:-1].strip()
+        m = re.match(r"^(?:Dt[A-Za-z]+\s+)?([A-Za-z][\w-]*)\s+(.+)$", inner)
+        if m:
+            out[m.group(1)] = m.group(2).strip()
+    return out
+
+
+def _diff_overlay_file(derived_abs, vendor_abs):
+    """One-line-per-difference summary of a derived overlay file against its
+    vendor same-relative-path counterpart, as flat (name value) assignments:
+    "name old -> new" for a changed value, "name (absent) -> new" for a name
+    the vendor file does not set at all. Falls back to a whole-file note when
+    neither side parses into any name/value pairs (e.g. a binary asset)."""
+    dtxt = _read(derived_abs)
+    if not os.path.isfile(vendor_abs):
+        return ["(new file - no vendor counterpart at %s)" % vendor_abs]
+    vtxt = _read(vendor_abs)
+    dvals = _parse_name_value_lines(dtxt)
+    vvals = _parse_name_value_lines(vtxt)
+    if not dvals and not vvals:
+        return (["(identical to vendor)"] if dtxt == vtxt
+                else ["(differs from vendor - not parsed as name/value lines)"])
+    diffs = ["%s %s -> %s" % (name, vvals.get(name, "(absent)"), dval)
+             for name, dval in dvals.items() if vvals.get(name) != dval]
+    return diffs or ["(no differing name/value lines found)"]
+
+
 def describe_sms(path):
     """Report what a DERIVED simulation model set carries, and gate the parts a
     fixture depends on: the file exists, it INCLUDES a shipped SMS (UG52 68.3.1
-    p1310), it names a model-set-directory, and that directory holds at least one
-    overriding script. For every overriding script, print the script id taken from
-    its .xml sidecar (<myScriptId>, the id the higher-priority SMS supersedes -
-    UG52 68.3.4 p1313), the useAbstractGraphs setting found in the .lua, and the
-    run-time proof line the .lua prints. The last two are INFO, not gates: another
-    derived SMS may legitimately override a different script.
+    p1310), it names a model-set-directory, and that directory overrides at
+    least one vendor artefact of ANY kind - a script under <dir>\\scripts, or
+    any file under <dir>\\vrfSim\\** (an object-parameter file (.ope), a
+    system definition (.sysdef), or another vendor artefact type). UG52
+    68.3.1 p1310 makes the whole model-set-directory tree override-capable,
+    not scripts alone; scripts/ and vrfSim/ are the two subtrees actually used
+    across the AbstractGraphs/Corridor2000 SMS family. A pointless derived SMS
+    that overrides nothing at all is the only FAIL here.
+
+    For every overriding .lua, print the script id taken from its .xml sidecar
+    (<myScriptId>, the id the higher-priority SMS supersedes - UG52 68.3.4
+    p1313), the useAbstractGraphs setting found in the .lua, and the run-time
+    proof line the .lua prints (INFO, not gates - another derived SMS may
+    legitimately override a different script). For every overriding file under
+    vrfSim/ (.ope, .sysdef, or otherwise), print its kind and a one-line diff
+    summary against the vendor file at the same relative path under
+    VENDOR_ENTITY_LEVEL (also INFO: the diff is a report, not a gate - the
+    only thing gated here is that SOME override exists).
 
     Returns the ok flag.
     """
@@ -190,14 +270,22 @@ def describe_sms(path):
     ok = _say(ok, "sms model-set-directory", mset or "(absent)", bool(mset))
     if not mset:
         return ok
-    sdir = os.path.join(os.path.dirname(os.path.abspath(path)), mset, "scripts")
-    luas = (sorted(f for f in os.listdir(sdir) if f.lower().endswith(".lua"))
-            if os.path.isdir(sdir) else [])
-    ok = _say(ok, "sms overriding scripts", "%d in %s" % (len(luas), sdir), bool(luas))
+
+    mset_dir = os.path.join(os.path.dirname(os.path.abspath(path)), mset)
+    scripts_dir = os.path.join(mset_dir, "scripts")
+    vrfsim_dir = os.path.join(mset_dir, "vrfSim")
+    luas = (sorted(f for f in os.listdir(scripts_dir) if f.lower().endswith(".lua"))
+            if os.path.isdir(scripts_dir) else [])
+    vrf_overrides = sorted(_iter_files(vrfsim_dir))
+    ok = _say(ok, "sms overrides at least one vendor artefact",
+              "%d script(s) under %s\\scripts, %d file(s) under %s\\vrfSim"
+              % (len(luas), mset, len(vrf_overrides), mset),
+              bool(luas) or bool(vrf_overrides))
+
     for lua in luas:
         stem = os.path.splitext(lua)[0]
-        body = _read(os.path.join(sdir, lua))
-        xml = os.path.join(sdir, stem + ".xml")
+        body = _read(os.path.join(scripts_dir, lua))
+        xml = os.path.join(scripts_dir, stem + ".xml")
         sid = None
         if os.path.isfile(xml):
             mm = re.search(r"<myScriptId>([^<]*)</myScriptId>", _read(xml))
@@ -211,6 +299,15 @@ def describe_sms(path):
         _info("    run-time proof line",
               proof.group(1) if proof
               else "(none - a run cannot prove which copy executed)")
+
+    for relpath, abspath in vrf_overrides:
+        kind = _override_kind(relpath)
+        vendor_abs = os.path.join(VENDOR_ENTITY_LEVEL, "vrfSim",
+                                  relpath.replace("/", os.sep))
+        _info("  overrides %s" % kind, "vrfSim/%s" % relpath)
+        for d in _diff_overlay_file(abspath, vendor_abs):
+            _info("    diff vs vendor", d)
+
     return ok
 
 
