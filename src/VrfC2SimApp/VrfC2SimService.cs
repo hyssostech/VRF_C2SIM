@@ -540,6 +540,8 @@ public sealed class VrfC2SimService : BackgroundService
                             C2SIMSDK.GetRootException(e).Message);
         }
 
+        _log.LogInformation("Reports this run: {Sent} delivered, {Failed} FAILED (a failed report is lost - " +
+                            "it is never re-sent).", Interlocked.Read(ref _reportsSent), Interlocked.Read(ref _reportsFailed));
         _stopTick = true;
         tickThread.Join(TimeSpan.FromSeconds(5));
         try { await _sdk.Disconnect(); } catch { /* best effort */ }
@@ -625,8 +627,10 @@ public sealed class VrfC2SimService : BackgroundService
             if (snapshot != null && snapshot.Count > 0) { _ = PushBundleSnapshot(snapshot); sent = snapshot.Count; }
         }
         _log.LogInformation("R1 position reports: {Sent} sent, {Unresolved} skipped (NAME UNRESOLVED - no VRF uuid), " +
-                            "{Unreflected} skipped (no reflected object yet), sides={Sides}, every {Secs}s.",
-                            sent, unresolved, unreflected, _vrf.PositionReportSides, _vrf.PositionReportSeconds);
+                            "{Unreflected} skipped (no reflected object yet), sides={Sides}, every {Secs}s; " +
+                            "reports: {Delivered} sent, {Failed} failed.",
+                            sent, unresolved, unreflected, _vrf.PositionReportSides, _vrf.PositionReportSeconds,
+                            Interlocked.Read(ref _reportsSent), Interlocked.Read(ref _reportsFailed));
     }
 
     // R1 diagnostics: units already named as unresolved / unreflected, so each is reported ONCE
@@ -1012,7 +1016,7 @@ public sealed class VrfC2SimService : BackgroundService
         // .BuildTypeSubstitutionReport). Fire-and-forget, exactly like the position reports.
         foreach (var (uuid, name, marking, substitution) in proxiesToReport)
             _ = PushReportAsync(ReportBuilder.BuildTypeSubstitutionReport(
-                    uuid, name, marking, substitution, IsoNow(), NewReportId()));
+                    uuid, name, marking, substitution, IsoNow(), NewReportId()), ReportKind.Observation);
 
         int areasQueued = 0;
         foreach (var a in init.Areas)
@@ -3452,11 +3456,55 @@ public sealed class VrfC2SimService : BackgroundService
     private bool IsLiveLikeAltitudeMode() =>
         _vrf.GroundWaypointAltitudeMode.Equals("Live", StringComparison.OrdinalIgnoreCase) || IsTerrainProfileMode();
 
-    private async Task PushReportAsync(string reportXml)
+    // B2: cumulative report delivery, appended to the R1 line and logged once at shutdown. Touched
+    // from every thread that pushes (tick, SDK events, the bundle timer) - Interlocked, not ++.
+    private long _reportsSent;
+    private long _reportsFailed;
+
+    /// <summary>
+    /// Push one report and KNOW WHETHER IT ARRIVED (B2). The SDK's PushReportMessage returns the
+    /// server's C2SIMServerResponse - Status OK or ERROR (C2SIMServerResponse.cs:31) - and does NOT
+    /// throw on ERROR (C2SIMSSDK.cs:505-528), so the answer is inspected here. A TASK-STATUS push is
+    /// retried (Vrf:TaskStatusPushTries, backing off 1/2/4 s): there is one of those per task per
+    /// outcome and nothing re-sends it. A POSITION push is never retried - the next poll carries the
+    /// same information - and an OBSERVATION is informational. Either way the outcome is counted and
+    /// a final failure is LOUD: in run G6, 129 pushes failed with "The response ended prematurely"
+    /// and nothing in the log said so.
+    /// </summary>
+    private async Task PushReportAsync(string reportXml, ReportKind kind = ReportKind.Position)
     {
         if (string.IsNullOrEmpty(reportXml)) return;
-        try { await _sdk.PushReportMessage(reportXml); }
-        catch (Exception e) { _log.LogError("PushReport failed: {Msg}", C2SIMSDK.GetRootException(e).Message); }
+        int tries = kind == ReportKind.TaskStatus ? Math.Max(1, _vrf.TaskStatusPushTries) : 1;
+        var outcome = await ReportPush.SendAsync(
+            async xml =>
+            {
+                var resp = await _sdk.PushReportMessage(xml);
+                // A null response is an empty server body - the pre-B2 behaviour treated any
+                // non-throwing push as delivered, and there is nothing here to contradict it.
+                return resp == null
+                    ? new ReportPush.PushResult(true, "(no response body)")
+                    : new ReportPush.PushResult(resp.IsSuccess, resp.Message ?? "");
+            },
+            reportXml, tries,
+            attempt => ReportPush.BackoffFor(attempt, _vrf.TaskStatusPushBackoffMs),
+            delay => Task.Delay(delay, _stoppingToken),
+            why => _log.LogWarning("PushReport ({Kind}): {Why}.", kind, why),
+            _stoppingToken);
+
+        if (outcome.Ok)
+        {
+            Interlocked.Increment(ref _reportsSent);
+            if (outcome.Attempts > 1)
+                _log.LogInformation("PushReport ({Kind}): delivered on attempt {N}.", kind, outcome.Attempts);
+        }
+        else
+        {
+            Interlocked.Increment(ref _reportsFailed);
+            _log.LogError("PUSH FAILED ({Kind}) after {N} attempt(s) - THE REPORT IS LOST: {Why}. " +
+                          "Cumulative: {Sent} sent, {Failed} failed.",
+                          kind, outcome.Attempts, outcome.LastMessage,
+                          Interlocked.Read(ref _reportsSent), Interlocked.Read(ref _reportsFailed));
+        }
     }
 
     /// <summary>
@@ -3490,7 +3538,7 @@ public sealed class VrfC2SimService : BackgroundService
         var xml = ReportBuilder.BuildTaskStatusReport(taskeeUuid, taskUuid ?? "", code, IsoNow(), NewReportId());
         _log.LogInformation("SENT TASK STATUS REPORT ({Code}) taskee={Uuid} task={Task} - {Why}.",
                             code, taskeeUuid, string.IsNullOrEmpty(taskUuid) ? "(none)" : taskUuid, why);
-        _ = PushReportAsync(xml);
+        _ = PushReportAsync(xml, ReportKind.TaskStatus);
     }
 
     // ================= P4b position-report bundle helpers (see the _posBundle field block) =========

@@ -116,6 +116,54 @@ public static class ReportSelfTest
         Check(ref failures, pol.ShouldEmitComplete(unattributed) && pol.ShouldEmitComplete(unattributed),
               "an EMPTY task uuid is never suppressed (two unattributed completions = two reports)");
 
+        // ---- DELIVERY (B2, ReportPush): the push knows whether the report arrived ----
+        // Fake transports, no SDK and no server; sleep is a no-op so the test runs instantly.
+        Console.WriteLine();
+        Console.WriteLine("=== ReportPush (delivery + bounded retry) ===");
+        Func<TimeSpan, Task> noSleep = _ => Task.CompletedTask;
+
+        // (a) the server answers ERROR once, then OK: one retry, one warn line, delivered.
+        int calls = 0;
+        var warns = new List<string>();
+        var r = ReportPush.SendAsync(
+            _ => Task.FromResult(++calls == 1
+                     ? new ReportPush.PushResult(false, "duplicate ReportID")
+                     : new ReportPush.PushResult(true, "OK")),
+            statusXml, 3, a => ReportPush.BackoffFor(a), noSleep, w => warns.Add(w)).Result;
+        Check(ref failures, r.Ok, "ERROR-then-OK: the report IS delivered");
+        Check(ref failures, r.Attempts == 2, $"ERROR-then-OK: exactly 2 attempts (saw {r.Attempts})");
+        Check(ref failures, warns.Count == 1, $"ERROR-then-OK: exactly ONE retry line (saw {warns.Count})");
+        Check(ref failures, warns.Count == 1 && warns[0].Contains("duplicate ReportID", StringComparison.Ordinal),
+              "the retry line carries the SERVER's message");
+
+        // (b) the transport throws every time: 3 attempts, 2 retry lines, a final failure to be loud about.
+        calls = 0; warns.Clear();
+        var r2 = ReportPush.SendAsync(
+            _ => { calls++; throw new InvalidOperationException("The response ended prematurely"); },
+            statusXml, 3, a => ReportPush.BackoffFor(a), noSleep, w => warns.Add(w)).Result;
+        Check(ref failures, !r2.Ok, "3 throws: the push FAILS (it is not silently counted as sent)");
+        Check(ref failures, calls == 3 && r2.Attempts == 3, $"3 throws: exactly 3 attempts (saw {calls})");
+        Check(ref failures, warns.Count == 2, $"3 throws: 2 retry lines before the loud failure (saw {warns.Count})");
+        Check(ref failures, r2.LastMessage.Contains("The response ended prematurely", StringComparison.Ordinal),
+              "the failure carries the transport's own message (the G6 symptom)");
+
+        // (c) a POSITION push is NOT retried: one attempt, no retry line, failure reported.
+        calls = 0; warns.Clear();
+        var r3 = ReportPush.SendAsync(
+            _ => { calls++; return Task.FromResult(new ReportPush.PushResult(false, "server busy")); },
+            // tries=1 IS what "a position push" means to ReportPush (the service passes
+            // Vrf:TaskStatusPushTries only for ReportKind.TaskStatus).
+            statusXml, 1, a => ReportPush.BackoffFor(a), noSleep, w => warns.Add(w)).Result;
+        Check(ref failures, !r3.Ok && calls == 1 && warns.Count == 0,
+              $"a position push is tried ONCE and not retried (attempts {calls}, retry lines {warns.Count})");
+
+        // (d) the backoff is the documented 1 / 2 / 4 s.
+        Check(ref failures, (int)ReportPush.BackoffFor(1).TotalMilliseconds == 1000
+                            && (int)ReportPush.BackoffFor(2).TotalMilliseconds == 2000
+                            && (int)ReportPush.BackoffFor(3).TotalMilliseconds == 4000,
+              "backoff is 1 s, 2 s, 4 s");
+        Check(ref failures, ReportPush.BackoffFor(20).TotalSeconds <= 30, "backoff is capped at 30 s");
+
         // ---- position ----
         const string subject = "001aa71b-4c26-a1ea-28b2-f7dfe8e76342";
         const double lat = 58.703, lon = 16.4992;
