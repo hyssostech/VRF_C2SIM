@@ -993,6 +993,9 @@ public sealed class VrfC2SimService : BackgroundService
             // The AUTHORED position (before any de-stack) - the coordinate STP also writes as the
             // route's first vertex (the origin-vertex drop in ExecuteTaskOnTick, sec 3f).
             _authoredPosByName[plan.Name] = (plan.Pos.LatDeg, plan.Pos.LonDeg);
+            // The template this unit landed - the route pre-flight resolves its vehicles' own
+            // max-slope from it, and names it in the warning.
+            if (!string.IsNullOrEmpty(plan.TemplateName)) _templateByName[plan.Name] = plan.TemplateName;
 
             toCreate.Add(plan);
             placements.Add(new PlacementInput(domain, unit.AltitudeAgl, unit.AltitudeMsl));
@@ -2262,6 +2265,23 @@ public sealed class VrfC2SimService : BackgroundService
             }
         }
 
+        // ROUTE PRE-FLIGHT (Vrf:PreflightWarnings, DEFAULT OFF - DEMO_READINESS row 20). The route
+        // is final here: the live start, the origin-vertex drop and any terrain authoring have all
+        // been applied, so this scores exactly what is about to be driven. It is a WARNING channel
+        // and nothing else - it never refuses, delays or alters the task, and the dispatch below
+        // runs whatever it finds.
+        //
+        // OFF THE TICK THREAD, ALWAYS. A cold leg fetches terrain tiles over HTTP; doing that here
+        // would stall the simulation for as long as the network takes. The vertices are COPIED and
+        // handed to a worker, which scores them and pushes its reports through the same
+        // PushReportAsync every other report uses.
+        //
+        // GROUND ONLY. The whole metric is a tracked vehicle's max-slope derated by the soil it is
+        // driving on; an air platform does not drive over the ridge it crosses, so scoring its route
+        // would manufacture warnings about ground it never touches.
+        if (_vrf.PreflightWarnings && isGround && routeGeo.Count > 1)
+            QueuePreflight(task, unit, routeGeo);
+
         // Rules of engagement (:2374-2379): ROEFree -> FireAtWill, ROEHold -> HoldFire,
         // everything else (incl. ROETight) -> FireWhenFiredUpon.
         Roe roe = task.RuleOfEngagementCode == "ROEFree" ? Roe.FireAtWill
@@ -2792,7 +2812,125 @@ public sealed class VrfC2SimService : BackgroundService
     private readonly ConcurrentDictionary<string, string> _arrivalReported = new();   // unit name -> task uuid reported from evidence
     private readonly ConcurrentDictionary<string, string> _pendingRouteUnit = new();  // route/waypoint name -> unit name (swallow cleared when its VRF task is issued)
     private readonly ConcurrentDictionary<string, (double Lat, double Lon)> _authoredPosByName = new();  // unit name -> C2SIM authored position (origin-vertex drop)
+    private readonly ConcurrentDictionary<string, string> _templateByName = new();    // unit name -> the VR-Forces template the type map landed (route pre-flight)
     private DateTime _nextArrivalCheck = DateTime.MinValue;
+
+    // ============ ROUTE PRE-FLIGHT (Vrf:PreflightWarnings; DEMO_READINESS row 20) ============
+    // Built on FIRST USE, never at start-up: when the feature is off - which is the shipped
+    // default - nothing here reads a vendor file, opens a socket or creates a directory.
+    // volatile: the fast path reads this OUTSIDE the lock, and several task workers can race it.
+    private volatile Preflight.PreflightService _preflight;
+    private readonly object _preflightLock = new();
+    private bool _preflightDisabled;          // one construction failure retires it for the run
+
+    private Preflight.PreflightService GetPreflight()
+    {
+        if (_preflight != null) return _preflight;
+        lock (_preflightLock)
+        {
+            if (_preflight != null || _preflightDisabled) return _preflight;
+            try
+            {
+                string cache = string.IsNullOrWhiteSpace(_vrf.PreflightCacheDir)
+                    ? Path.Combine(AppContext.BaseDirectory, "preflight-cache")
+                    : _vrf.PreflightCacheDir;
+                var opt = new Preflight.PreflightOptions
+                {
+                    CacheDir = cache,
+                    SharedData = _vrf.PreflightSharedDataDir,
+                    StepM = _vrf.PreflightStepMeters,
+                    WindowM = _vrf.PreflightWindowMeters,
+                    ShortWindowM = _vrf.PreflightShortWindowMeters,
+                    Threshold = _vrf.PreflightThreshold,
+                    DropOriginMeters = _vrf.DropOriginVertexMeters,
+                    Offline = _vrf.PreflightOffline,
+                    FriendlyNation = _nations.Friendly,
+                    OpposingNation = _nations.Opposing,
+                };
+                if (!string.IsNullOrWhiteSpace(_vrf.VrfHome)) opt = opt with { VrfHome = _vrf.VrfHome };
+                _preflight = new Preflight.PreflightService(opt);
+                _log.LogInformation("ROUTE PRE-FLIGHT enabled: threshold {T:F2} on a {W:F0} m sustained window, " +
+                                    "step {S:F0} m, tiles cached in {Cache}{Off}. Warnings only - no task is ever " +
+                                    "refused or altered.", opt.Threshold, opt.WindowM, opt.StepM, cache,
+                                    opt.Offline ? " (offline)" : "");
+                foreach (var s in _preflight.Soil.Sources) _log.LogInformation("ROUTE PRE-FLIGHT vendor data: {Source}", s);
+                if (!_preflight.Sms.Ok)
+                    _log.LogWarning("ROUTE PRE-FLIGHT: vendor SMS not found at {Dir} - every unit falls back to " +
+                                    "max-slope {Fallback:F2} and the warnings say so.",
+                                    _preflight.Sms.Directory, Preflight.VendorSms.MaxSlopeFallbackMin);
+            }
+            catch (Exception e)
+            {
+                _preflightDisabled = true;
+                _log.LogError("ROUTE PRE-FLIGHT disabled for this run - could not start: {Msg}", e.Message);
+            }
+            return _preflight;
+        }
+    }
+
+    /// <summary>
+    /// Score one dispatched route OFF the tick thread and push a C2SIM ObservationReport pair for
+    /// each flagged leg. The vertices are copied first: the caller's list belongs to the tick
+    /// thread and is not safe to read from a worker.
+    ///
+    /// Failure is ALWAYS silent-but-logged. A pre-flight that throws - a missing vendor file, a
+    /// dead network - must never disturb a task that VR-Forces has already been given.
+    /// </summary>
+    private void QueuePreflight(OrderTask task, CreatedUnit unit, List<Geodetic> routeGeo)
+    {
+        var route = routeGeo.Select(v => (Lat: v.LatDeg, Lon: v.LonDeg)).ToList();
+        string template = _templateByName.TryGetValue(unit.Name, out var t) ? t : "";
+        string taskName = task.TaskName;
+        string taskeeUuid = task.TaskeeUuid;
+        string unitName = unit.Name;
+        // Only the LIFEFORM PROXY reads this (a DI-Guy row falls back to Tank Platoon USA/RUS),
+        // but reading it off the same map the creates used keeps a red unit's proxy red.
+        bool hostile = _hostilityByC2SimUuid.TryGetValue(taskeeUuid ?? "", out var hc) && hc == "HO";
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var svc = GetPreflight();
+                if (svc == null) return;
+                var limit = svc.LimitFor(template, hostile);
+                var (legs, degenerate) = svc.ScoreRoute(route, limit.LimitRaw);
+                var scored = new Preflight.TaskPreflight
+                {
+                    TaskName = taskName, TaskUuid = task.TaskUuid, UnitName = unitName,
+                    UnitUuid = taskeeUuid, Template = limit.Template, LimitRaw = limit.LimitRaw,
+                    VehicleNote = limit.Note, DegenerateLegs = degenerate,
+                    Route = route, Legs = legs,
+                };
+                int noVerdict = legs.Count(l => l.NoVerdict);
+                foreach (var leg in legs.Where(l => l.Flagged))
+                    _log.LogWarning("ROUTE PRE-FLIGHT task '{Task}' ({Unit}) leg {Leg}: {Win:F0} m of {Grade:F3} on " +
+                                    "{Soil} at {Lat:F4}/{Lon:F4}, {Km:F1} km along the leg; {Tmpl} limit {Limit:F3} " +
+                                    "(max-slope {Raw:F2} x soil {Factor:F2}); {Verdict}.",
+                                    taskName, unitName, leg.Index, leg.SustainedWindowM, leg.Sustained, leg.Soil,
+                                    leg.WorstLat, leg.WorstLon, leg.WorstSM / 1000.0,
+                                    string.IsNullOrEmpty(limit.Template) ? "unit" : limit.Template,
+                                    leg.Limit, leg.LimitRaw, leg.Factor,
+                                    Preflight.PreflightReports.Verdict(leg.Ratio, svc.Options.Threshold));
+                if (noVerdict > 0)
+                    _log.LogInformation("ROUTE PRE-FLIGHT task '{Task}' ({Unit}): {N} leg(s) got NO VERDICT - tiles " +
+                                        "missing; they are neither flagged nor passed.", taskName, unitName, noVerdict);
+
+                var reports = Preflight.PreflightReports.BuildForTask(scored, svc.Options.Threshold,
+                                                                     IsoNow(), NewReportId);
+                foreach (var xml in reports) await PushReportAsync(xml);
+                if (reports.Count > 0)
+                    _log.LogInformation("ROUTE PRE-FLIGHT task '{Task}' ({Unit}): {Flagged} flagged leg(s) of " +
+                                        "{Total} checked; sent {Sent} ObservationReport(s).", taskName, unitName,
+                                        reports.Count, legs.Count, reports.Count);
+            }
+            catch (Exception e)
+            {
+                _log.LogError("ROUTE PRE-FLIGHT task '{Task}' ({Unit}) failed - the task itself is unaffected: {Msg}",
+                              taskName, unitName, C2SIMSDK.GetRootException(e).Message);
+            }
+        });
+    }
 
     private void MaybeCheckArrivals()
     {
