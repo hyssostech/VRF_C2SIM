@@ -164,6 +164,26 @@ param(
     # vendor's own log is harvested to -LogFile instead.
     [string] $LogFileName        = '',
     [string] $ExConnConfigFile   = '',
+    # RELOCATED appData. UG52 Table 11 p178 (vrfSim) and Table 10 p164 (vrfGui), same text:
+    # '--appDataDir directory - Specifies the location of application data. If not specified,
+    # VR-Forces uses the default: ./appData'. EMPTY (the default) = the option is NOT passed
+    # and both executables use $VrfRoot\appData exactly as before - no behaviour change.
+    # Point it at C:\C2SIM\vrf-appdata\appData (that tree's README-C2SIM.txt carries the
+    # provenance and the reinstall procedure) to run on the reinstall-safe copy whose ONLY
+    # delta from the vendor tree is (setqb loadAllNavigationDataOnTerrainLoad 1): navigation
+    # data loaded WITH the scenario instead of lazily when an entity is placed (UG52 App. C
+    # Table 76 p1671). On run 20260914T130439Z the lazy path put 'New Primary nav area' at
+    # wall 201 s against member creation at wall 25 s, so units tasked at creation planned
+    # with no mesh; 5.2 Release Notes VRF-9225 confirms lazy loading is the designed
+    # behaviour for local entities, not a misconfiguration.
+    # 5.2 is the first release where this option can be trusted: Release Notes VRF-9265 fixed
+    # '--appDataDir is not processed until after attempting to load config files and many
+    # instances of hard-coded relative paths', and VRF-9255 taught the Launcher about it.
+    # The directory must EXIST (hard precondition below). It is ALSO where the sim's terrain
+    # cache goes - terrainInterfaceConfig.mtl:244 documents the default sim-cache-path as
+    # $(APP_DIR)/cache/vrfsim - which is why the supplied tree junctions its cache\ back to
+    # the vendor's warm one instead of starting cold.
+    [string] $AppDataDir         = '',
     # rid with RTI_configureConnectionWithRid 1; EMPTY = the repo-owned
     # config\rid-501-rtiexec-min.mtl (the RTIEXEC posture - see the header; an rtiexec must
     # already be up for it, scripts\StartRtiExec52.ps1). Assistant use is DISABLED unless
@@ -406,7 +426,11 @@ $repoRootEarly = Split-Path -Parent $PSScriptRoot
 $ridFile    = if ($UseRtiAssistant) { Join-Path $RtiDir 'rid.mtl' }
               elseif ([string]::IsNullOrWhiteSpace($RidFile)) { Join-Path $repoRootEarly 'config\rid-501-rtiexec-min.mtl' }
               else { $RidFile }
-$connDir    = Join-Path $VrfRoot 'appData\settings\connections'
+# With -AppDataDir the sim's DEFAULT exercise-connection config comes from THERE
+# (./appData/settings/connections relative to the appData dir, UG52 4.1.2), so the
+# precondition must check the file the sim will actually open, not the vendor copy.
+$connDir    = if ([string]::IsNullOrWhiteSpace($AppDataDir)) { Join-Path $VrfRoot 'appData\settings\connections' }
+              else { Join-Path $AppDataDir 'settings\connections' }
 $connFile   = if ([string]::IsNullOrWhiteSpace($ExConnConfigFile)) { Join-Path $connDir 'MAK-ONE-2025-Config.xml' } else { $ExConnConfigFile }
 $scenarioRel = ''
 $scenarioAbs = ''
@@ -452,6 +476,25 @@ if ($scenarioAbs) {
 $logDir = Split-Path -Parent $LogFile
 if ($logDir -like 'C:\MAK*') { Say-Fail ("log file would land under C:\MAK ({0}) - refused; pass -LogFile outside the vendor tree." -f $LogFile); $hardFail = $true }
 else { Say-Ok ("back-end log (HARVEST DESTINATION - the vendor's own log for this pid is copied here; --logFileName is not passed): {0}" -f $LogFile) }
+
+# Relocated appData (--appDataDir). Not given = vendor default, nothing to check.
+if (-not [string]::IsNullOrWhiteSpace($AppDataDir)) {
+    if (Test-Path -LiteralPath $AppDataDir -PathType Container) {
+        Say-Ok ("relocated appData (--appDataDir): {0}" -f $AppDataDir)
+        $appDataMtl = Join-Path $AppDataDir 'settings\vrfSim\vrfSim.mtl'
+        if (Test-Path -LiteralPath $appDataMtl) {
+            # Echo the setting this relocation exists for, so the run log records which way it was set.
+            $navLine = @(Get-Content -LiteralPath $appDataMtl | Where-Object { $_ -match '^\(setqb\s+loadAllNavigationDataOnTerrainLoad\s' })
+            if ($navLine.Count -eq 1) { Say ('         ' + $navLine[0].Trim() + '   (1 = nav data loads WITH the scenario, UG52 App. C p1671)') }
+            else { Say-Warn ('  settings\vrfSim\vrfSim.mtl has {0} loadAllNavigationDataOnTerrainLoad lines - expected 1.' -f $navLine.Count) }
+        } else {
+            Say-Warn ('  {0} has no settings\vrfSim\vrfSim.mtl - pass the directory that CONTAINS settings\, e.g. C:\C2SIM\vrf-appdata\appData, not its parent.' -f $AppDataDir)
+        }
+    } else {
+        Say-Fail ('-AppDataDir is MISSING or is not a directory: {0}' -f $AppDataDir)
+        $hardFail = $true
+    }
+} else { Say-Ok ('appData: vendor default (-AppDataDir not given; the sim uses ./appData = ' + (Join-Path $VrfRoot 'appData') + ')') }
 
 # Mixed-RTI environment report (Machine scope, informational - overridden per process)
 $mRti = [Environment]::GetEnvironmentVariable('MAK_RTIDIR','Machine')
@@ -560,9 +603,13 @@ if ($scenarioRel) { $simArgs += @('--scenarioFileName', ('"{0}"' -f $scenarioRel
 if (-not [string]::IsNullOrWhiteSpace($ExConnConfigFile)) { $simArgs += @('--exConnConfigFile', ('"{0}"' -f $ExConnConfigFile)) }
 if ($QuietBackend) { $simArgs += '--doNotUseConsole' }
 if (-not [string]::IsNullOrWhiteSpace($DeviceAddress)) { $simArgs += @('--deviceAddress', $DeviceAddress, '--hostAddressString', $DeviceAddress) }
+# --appDataDir on BOTH executables (UG52 Table 11 p178 / Table 10 p164) so the front end
+# reads the same settings tree as the back end. Absent unless -AppDataDir was given.
+if (-not [string]::IsNullOrWhiteSpace($AppDataDir)) { $simArgs += @('--appDataDir', ('"{0}"' -f $AppDataDir)) }
 $guiArgs = @('--siteId', $SiteId, '--appNumber', $FrontendAppNumber, '--sessionId', $SessionId, '--hla1516e')
 if (-not [string]::IsNullOrWhiteSpace($ExConnConfigFile)) { $guiArgs += @('--exConnConfigFile', ('"{0}"' -f $ExConnConfigFile)) }
 if (-not [string]::IsNullOrWhiteSpace($DeviceAddress)) { $guiArgs += @('--deviceAddress', $DeviceAddress, '--hostAddressString', $DeviceAddress) }
+if (-not [string]::IsNullOrWhiteSpace($AppDataDir)) { $guiArgs += @('--appDataDir', ('"{0}"' -f $AppDataDir)) }
 $simArgString = ($simArgs -join ' ')
 $guiArgString = ($guiArgs -join ' ')
 $pathPrefix = '{0};{1};{2};' -f $bin64, $vrlBin, $rtiBin
@@ -575,6 +622,8 @@ if (-not $UseRtiAssistant) { Say '                RTI_ASSISTANT_DISABLE=1 (assis
 Say ("  back-end    : {0} {1}" -f $simExe, $simArgString)
 if ($NoGui) { Say '  front-end   : (not launched: -NoGui)' } else { Say ("  front-end   : {0} {1}" -f $guiExe, $guiArgString) }
 Say ("  cwd         : {0}" -f $bin64)
+if (-not [string]::IsNullOrWhiteSpace($AppDataDir)) { Say ("  appData     : {0}  (--appDataDir; the vendor default {1}\appData is NOT used)" -f $AppDataDir, $VrfRoot) }
+else { Say ("  appData     : {0}\appData  (vendor default; -AppDataDir not given)" -f $VrfRoot) }
 
 if ($hardFail) {
     Say-Head 'Result'
