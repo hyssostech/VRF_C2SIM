@@ -575,17 +575,19 @@ at +0.3 s and at +304 s alike. Docs and data consulted for a SPATIAL cause, all 
 - Positive control one cell away: in G6 (flat query) 1-1's M1A2 23/26 planned their slot moves (2 points at 7-9 m)
   from cell (49,76), ~700 m north-west of the destack start.
 
-**N2d = N2b with ONE change:** the assembly vertex V0 of the probe order moves 500 m along the leg bearing (263.00 deg),
-from 34.67998497486787/-116.72479854165415 to 34.679437/-116.730220. The deployed build drops V0 from the route (the 3f
-assembly-point rule; N2b/N2c show the V1 goal issued directly), so the ONLY effect is where the destack places the six
-members: predicted start 34.657894/-116.745512 (on the old axis at s = 500.0 m, cross-track 0.0 m; cell i=49 j=75; elev
-1265.6 m, dryground, max local slope 21 deg). The leg axis, the face and every P20 threshold stay as scored: the worst
-window sits at OLD s = 2,006 m = 1,506 m from the new start. Order `data/PROBE_RIDGE_1-35_SHIFTED_Order.xml`; launch
-line scratchpad n1n2/n2d_launch.sh (n2b's with the order swapped; no start delay - timing is closed). Harvest with the
-same scripts, axis origin unchanged (the old destack start) so s is comparable across N2b/N2c/N2d.
+**N2d = N2b with ONE change:** the INIT places 1-35/2/1_A at 34.657894/-116.745512 = the old destack start moved 500 m
+along the leg bearing (263.00 deg): old axis s = 500.0 m, cross-track 0.0 m; cell i=49 j=75; elev 1265.6 m, dryground,
+max local slope 21 deg. (CORRECTED 22:55Z before launch: the first design moved the ORDER's V0, but `DeStacker.Apply`
+anchors on the init creation plans - 64 units share the stack location 34.67998497486787/-116.72479854165415 and 1-35 is
+slot 4 of that stack - so moving V0 would have moved nothing; the wrong order file was removed.) As a singleton 1-35 is
+not destacked and its members form up around the given point. The leg axis, the face and every P20 threshold stay as
+scored: the worst window sits at OLD s = 2,006 m = 1,506 m from the new start. Init `data/COA-STP1_Initialization_N2d.xml`
+(verified with `--parse-init`), order unchanged (`PROBE_RIDGE_1-35_Order.xml`); launch line scratchpad n1n2/n2d_launch.sh
+(n2b's with the init swapped; no start delay - timing is closed). Harvest with the same scripts, axis origin unchanged
+(the old destack start) so s is comparable across N2b/N2c/N2d.
 
-**P22a (HIGH):** the members are created within 60 m of 34.657894/-116.745512 (the destack geometry scales with V0).
-MISS -> the order's V0 was not the placement anchor; STOP and read the placement code before anything else.
+**P22a (HIGH):** the members are created within 60 m of 34.657894/-116.745512 (the init location; a singleton is not
+destacked). MISS -> the init copy was not the one loaded, or the singleton was still destacked; STOP and read the log.
 **P22b (THE TEST, prediction PLANNED at MEDIUM):** the slot move and the V1 goal print `Planned path has N points.`,
 N > 1, no "not enough (0)". PLANNED -> the refusal is LOCAL to the original destack start (a spot the profile's
 documented rules do not explain; filed for STP-804/806 as "validate every placement point against the mesh / snap to
@@ -861,7 +863,7 @@ than one cell and the flat-query control from the same spot is the next arm.
 | 1 | Supervisor ruling on sec 1.5 (a) / (b) / (c) | RULE | RULED 2026-09-14 per the project record: (c) - N1 is NOT run, the abstract-graph override stays the product fix, N2b is the lever |
 | 2 | N2b - `n2b_launch.sh`, ridge lane, AG + saf 2.0, single variable vs RIDGE-AG | SPEND | RUN 205046Z: P20a MISS -> STOP (sec 10.1) |
 | 2b | N2c - `n2c_launch.sh`, N2b + 300 s task start delay (sec 5.5), the (T)/(L) discriminator | SPEND | RUN 215944Z: P21b REFUSED -> (T) FALSIFIED; spatial (L) live (sec 10.2) |
-| 2c | N2d - `n2d_launch.sh`, V0 moved 500 m along the leg (sec 5.6), the spatial discriminator that keeps the face | SPEND | ready after dry run + parse check; runs when no agent is active |
+| 2c | N2d - `n2d_launch.sh`, 1-35 placed 500 m along the leg by an init copy (sec 5.6), the spatial discriminator that keeps the face | SPEND | ready (parse-init + dry run clean); runs when no agent is active |
 | 3 | N1 - `n1_launch.sh`, only if sec 1.1 is to be falsified live | SPEND | ready, dry-run clean |
 | 4 | N2 - `n2_launch.sh`, only if N1 hits | SPEND | ready, dry-run clean; gate predicted to miss |
 | 5 | `validate_fixture.py` script-gate extension (sec 8 item 2) | - | owed, one line, outside this task's write set |
