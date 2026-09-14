@@ -1148,10 +1148,11 @@ R4 `746c091`, R2 `1f65f55`, R3 `0cd8905`, R1 `0193379`; merged with `feat/integr
 `182bd51`; then the cold-start review of `5c67d41` (verdict FIX FIRST, in-repo at
 `docs/experiments/REVIEW_RULINGS_5c67d41_2026-09-14.md`) fixed in `075c0b7` (M1),
 `3fe69fa` (M2), `48e7c5d` (M3+M4), `1ddb9a7` (M5), `06f8cf0` (m1-m9 + the Q1/Q4 defaults)
-and `6d46921` (tests) - see 7.1b. Offline only: every check is a `--rulings-selftest`
-(now 77 checks across FIVE sections) or a `--parse-order` census, and all 18 self-tests
-stay green (typemap 783, scripted-task, initgraphics, preflight included). NOTHING here
-has been run against VR-Forces yet.
+and `6d46921` (tests); then the PASS-2 review of `0c96f50` (verdict FIX FIRST again, on
+one item) fixed in `b6471a3` and the commits listed in 7.1b. Offline only: every check is
+a `--rulings-selftest` (90 checks across SIX sections) or a `--parse-order` census, and
+all 18 self-tests stay green (typemap 783, scripted-task, initgraphics, preflight
+included). NOTHING here has been run against VR-Forces yet.
 
 - **R4 BUILT** - `OrderParser` lifts Duration (and the absolute StartTime form);
   `TimedCompletionPolicy` arms one timer per task at dispatch and measures ELAPSED clock,
@@ -1178,11 +1179,15 @@ has been run against VR-Forces yet.
   and stays supported; the path taken is logged on every task. No name heuristics, and no
   verb-typed reading of the points (V4b).
 
-### 7.1b COLD-START REVIEW OF `5c67d41` - VERDICT FIX FIRST, ALL ITEMS FIXED
+### 7.1b THE TWO COLD-START REVIEWS OF THIS BRANCH - ITEM TABLE WITH STATUSES
 
-The review (in-repo, `docs/experiments/REVIEW_RULINGS_5c67d41_2026-09-14.md`) found five
-MAJOR items, one of which meant the branch did not achieve its own stated purpose on the
-order it was built for. What changed:
+Two reviews, and the second one found that the first one's headline fix was MOVED rather
+than closed. Nothing here is "all fixed": the table below is the status of every item.
+
+#### PASS 1 - review of `5c67d41` (in-repo, `docs/experiments/REVIEW_RULINGS_5c67d41_2026-09-14.md`)
+
+Five MAJOR items, one of which meant the branch did not achieve its own stated purpose on
+the order it was built for. What changed:
 
 | item | what was wrong | fix | sha |
 |------|----------------|-----|-----|
@@ -1196,13 +1201,35 @@ order it was built for. What changed:
 
 NEW CONFIG KEYS (all documented in `VrfSettings.cs` and `docs/RUNBOOK.md` sec 11):
 `Vrf:TaskClock` (`sim`), `Vrf:TaskPredecessorEndMarginSeconds` (60),
-`Vrf:SupersededTaskCode` (`TASKABRT`), `Vrf:DefaultHoldSeconds` (60).
+`Vrf:SupersededTaskCode` (`TASKABRT`), `Vrf:DefaultHoldSeconds` (60),
+`Vrf:TaskChainBackstopSeconds` (86400, added by pass 2's A1).
+
+#### PASS 2 - review of `0c96f50` (in-repo, `docs/experiments/REVIEW2_RULINGS_0c96f50_2026-09-14.md`)
+
+Verdict **FIX FIRST**, on M1: it was fixed one level down and re-created one level up.
+
+| item | what was wrong | status |
+|------|----------------|--------|
+| **A1** | **M1 WAS MOVED, NOT CLOSED.** The derived window covers the predecessor's DURATION but not its LEAD TIME, and phase 1 of the gate ("has it dispatched at all?") runs from ORDER RECEIPT - `HandleOrder` starts all 42 orchestrations in one loop. MEASURED on the real classes over the whole order graph: **21 dispatches, 21 TASKABRT(SKIPPED)** at the 600 s default AND at the Demo overlay's 7,200, and NOT DETERMINISTIC at `DurationScale=0.05`. | **FIXED `b6471a3`** - phase 1 takes its own window: `Vrf:TaskChainBackstopSeconds` when the predecessor is a task in this order (a real dead end ABANDONS it), the configured value for a DANGLING reference. 15 new checks walk WHOLE graphs, including COA-STP1 off disk: 42 / 0, deterministic over 20 repetitions at 0.05. |
+| **A2** | `docs/RUNBOOK.md` sec 11 told the operator the OPPOSITE of what the code did ("you no longer need to raise `TaskPredecessorTimeoutSeconds`"), sec 11 sat ABOVE sec 10, and this section claimed ALL ITEMS FIXED. | **FIXED (this commit)** - sec 11 states both windows and what was true before A1 (>= 20,000 s, measured), sec 11 now follows sec 10, and this table replaces the claim. |
+| B1 | The Q1 supersede TASKABRT does not call `_sequencer.NotifyAbandoned`, so the successors of a task the interface has just told STP is NOT being performed still wait out the full derived gate. | FIX QUEUED |
+| B3 | `Vrf:DefaultHoldSeconds` is invisible to the gate derivation, so the two knobs can be set to contradict each other with no warning. | **MOOT** - the user's Q4 ruling of 2026-09-14 removes the invented hold entirely (a task with no Duration AND no geometry is MALFORMED and is refused), so there is no second knob to cross-check. |
+| B4 | The derivation ignores `Vrf:TimedCompletion`: with timed completion OFF every gated successor still waits `predDuration + 60` instead of the configured window. | FIX QUEUED |
+| B6 | None of the R4 keys is in either settings file, on a branch whose next milestone is a STANDALONE demo deployment. | FIX QUEUED |
+| B7 | The gate-timeout message cannot tell a phase-1 timeout ("never dispatched") from a phase-2 one ("did not complete"), so the log mis-states the cause. | FIX QUEUED |
+| B2 | A superseded move's LATE vendor completion is attributed to the NEW task (TASKCMPLT for a task that has not finished). Needs a supersede, which COA-STP1 does not reach under `policy=skip`. | RECORDED DEBT |
+| B5 | An ABSOLUTE `StartTime` is a WALL instant served on the SIM axis, and scaled. No order on disk reaches it (STP exports the relative form). | RECORDED DEBT |
+| C1-C15 | Doc misattachment (C1), the dead mode-change re-anchor (C2), the quantified staircase error (C3), the new per-second bridge read (C4), PAUSED vs DEAD (C5, and Q5 to the user), flat-time accounting (C6), a non-volatile carrier struct (C7), the uncovered `SampleTaskClock` glue (C8), a stale comment (C9), section order (C10, fixed by A2), a registration-window ordering nit (C11), the area "centroid" (C12, pass-1 n1), pre-existing CS8632 (C13), the 5 Hz gate poller (C14), the clean ASCII/CRLF audit (C15). | RECORDED DEBT |
 
 **WHAT A LIVE RUN MUST PROVE** (none of it is offline-decidable):
 1. A COA-STP1 run emits TASKSTRT for every dispatched task and exactly one TASKCMPLT per
    task at its end time, and `reports-captured.log` shows them (G6 captured 0 TaskStatus).
 2. The STREND chain runs past its first link: T1 -> T2 -> ... dispatches on timed
-   completions instead of dying at the 600 s predecessor timeout. 42 dispatches, not 9.
+   completions instead of dying at the predecessor gate. 42 dispatches, not 9. SINCE A1
+   THE GRAPH ITSELF IS DECIDED OFFLINE - `--rulings-selftest` walks the real sequencer
+   over the whole order and gets 42 / 0 at scale 1.0, under the Demo overlay and in 20
+   repetitions at 0.05 - so what the live run adds is that VR-Forces, the bridge and the
+   report path do not break what the graph already proves.
 3. The air-defence chain T9-T12 dispatches - T9 in place with its NameObservation, T10-T12
    as successors - instead of collapsing on the refusal.
 4. No ATTACK/BREACH/ESCRT task logs a self-target degradation; the ATTACK family routes to
@@ -1211,8 +1238,9 @@ NEW CONFIG KEYS (all documented in `VrfSettings.cs` and `docs/RUNBOOK.md` sec 11
    TASK CLOCK line names the SIMULATION clock, the TIMED COMPLETION line agrees, and the
    completions land at Duration x `Vrf:DurationScale` of SIM time - the first live exercise
    of the sim-clock path (the watchdog has only ever been measured on the wall clock).
-   With it, that the STREND gate SURVIVES the whole Duration: the M1 line "its predecessor
-   is armed to end ... so this task's gate is ... s" must appear for each of the 31 gated
+   With it, that the STREND gate SURVIVES the whole Duration: the M1/A1 line "gated on
+   ..., which IS a task in this order and is armed to end ... s after ITS dispatch. It has
+   ... s to DISPATCH ... and then ... s to COMPLETE" must appear for each of the 31 gated
    tasks, and none of them may report the skip TASKABRT.
 6. A demo run with a compressed `Vrf:DurationScale` completes the whole order in minutes
    and T13 still dispatches after its (scaled) 3h20m delay, not before.

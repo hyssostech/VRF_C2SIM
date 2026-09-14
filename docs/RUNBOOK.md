@@ -1370,6 +1370,33 @@ this, and the answer is steps 1-4 above.
 
 ---
 
+## 10. THE C16 PROGRESS WATCHDOG IS OFF BY DEFAULT - HOW TO TURN IT ON FOR THE VALIDATION RUN
+
+Added 2026-09-14 (cold-start review sec 2.8). `Vrf:StallDetection` defaults FALSE, is absent from
+BOTH `appsettings.json` and `appsettings.Demo.json`, and `scripts/StartInterface52.ps1` has NO
+parameter for it. There is therefore NO config key and NO script switch to flip: the C16 validation
+run is enabled by ENVIRONMENT OVERRIDE, in the interface's own shell, before it starts:
+
+```powershell
+$env:Vrf__StallDetection = "true"     # double underscore = the ':' of Vrf:StallDetection
+$env:Vrf__StallClock     = "sim"      # optional; default is "wall"
+```
+
+`Vrf:StallClock` governs THIS WATCHDOG ONLY (2026-09-14). The clock C2SIM task times run on is
+`Vrf:TaskClock` - sec 11 above.
+
+The gate is at the CALL SITE (`TickLoop`: `if (_vrf.StallDetection) MaybeCheckStalls();`), so with
+the default nothing inside the watchdog executes and no TASKABRT can be emitted by it - which is why
+the merged build is safe to run without this.
+
+*** `Vrf:StallWindowSeconds` 0 NOW MEANS "CALIBRATED", NOT "1 SECOND" ***. On main, an explicit 0
+meant a one-second window; on this build 0 (and any negative) means "use the clock's calibrated
+window" - 240 s wall / 360 s sim. Nothing SHIPS a value, so the reinterpretation has nil blast
+radius on the shipped configs; it matters to anyone HAND-WRITING a config for the validation run. If
+you want a short window, write the number you want - do not write 0 and expect one second.
+
+---
+
 ## 11. THE CLOCK C2SIM TASK TIMES RUN ON, AND THE FOUR NEW TASKING KEYS
 
 Added 2026-09-14 (cold-start review of `5c67d41`, items M1/M2 and questions Q1/Q4). All four
@@ -1396,41 +1423,26 @@ $env:Vrf__DefaultHoldSeconds             = "60"        # DEFAULT. 0 = no invente
   flat for 60 wall seconds. Nothing is lost when it does: the axis every task time is served on
   adds FORWARD movement only, so a fall back keeps the time already served and serves the rest
   on wall seconds. The `TASK CLOCK:` lines say each way, once.
-- **The predecessor gate is a FLOOR, not the whole window.** A task whose predecessor carries a
-  Duration waits at least `(that Duration x Vrf:DurationScale) + Vrf:TaskPredecessorEndMarginSeconds`.
-  Before this, the flat 600 s `Vrf:TaskPredecessorTimeoutSeconds` expired before COA-STP1's
-  4,800 s and 7,200 s Durations by construction and SKIPPED all 31 gated tasks. You no longer
-  need to raise `TaskPredecessorTimeoutSeconds` for a long order - and raising it does no harm.
+- **The predecessor gate is a FLOOR, not the whole window - and it asks TWO questions.** A gated
+  task waits for its predecessor to COMPLETE for at least
+  `(that predecessor's Duration x Vrf:DurationScale) + Vrf:TaskPredecessorEndMarginSeconds` (M1),
+  and it waits for that predecessor to DISPATCH AT ALL for `Vrf:TaskChainBackstopSeconds`
+  (86,400 s by default) whenever the predecessor is a task in the SAME order (A1). The second
+  window is generous on purpose: a predecessor that really dies is ABANDONED - every dispatch
+  dead end in the interface says so - which fails the gate at once, so a timeout there only ever
+  punished a HEALTHY deep chain. A DANGLING `startAfterTaskUuid`, one no task in the order
+  carries, is the single case nothing will ever speak for, and it still expires at
+  `Vrf:TaskPredecessorTimeoutSeconds`.
+- **Do you need to raise `TaskPredecessorTimeoutSeconds` for a long order? NO - but only since
+  A1 (`b6471a3`).** Before that commit COA-STP1 needed **>= 20,000 s**: measured on the real
+  `TaskSequencer` + `TimedCompletionPolicy` + `TaskDispatchPolicy`, the shipped 600 s AND the
+  Demo overlay's 7,200 both dispatched 21 of the 42 tasks and TASKABRT'd the other 21, because
+  the gate covered the predecessor's Duration but not its LEAD TIME (its start delay plus its own
+  gate wait); at a compressed `Vrf:DurationScale` the outcome was not even the same twice.
+  Raising it is still harmless - it is a floor - and it is no longer necessary.
 - **`Vrf:DurationScale` is validated at start-up.** A zero, negative, NaN or infinite value is
   REJECTED with an ERROR line and the run proceeds at 1.0 (the order as written). It used to
   mean "no end time armed" on one half of the order's clock and "dispatch now" on the other.
 
 START-UP PROOF: one `TASK CLOCK (R4):` line names the clock in force, the scale, and the gate
 formula. If that line is missing, the build predates this change.
-
----
-
-## 10. THE C16 PROGRESS WATCHDOG IS OFF BY DEFAULT - HOW TO TURN IT ON FOR THE VALIDATION RUN
-
-Added 2026-09-14 (cold-start review sec 2.8). `Vrf:StallDetection` defaults FALSE, is absent from
-BOTH `appsettings.json` and `appsettings.Demo.json`, and `scripts/StartInterface52.ps1` has NO
-parameter for it. There is therefore NO config key and NO script switch to flip: the C16 validation
-run is enabled by ENVIRONMENT OVERRIDE, in the interface's own shell, before it starts:
-
-```powershell
-$env:Vrf__StallDetection = "true"     # double underscore = the ':' of Vrf:StallDetection
-$env:Vrf__StallClock     = "sim"      # optional; default is "wall"
-```
-
-`Vrf:StallClock` governs THIS WATCHDOG ONLY (2026-09-14). The clock C2SIM task times run on is
-`Vrf:TaskClock` - sec 11 above.
-
-The gate is at the CALL SITE (`TickLoop`: `if (_vrf.StallDetection) MaybeCheckStalls();`), so with
-the default nothing inside the watchdog executes and no TASKABRT can be emitted by it - which is why
-the merged build is safe to run without this.
-
-*** `Vrf:StallWindowSeconds` 0 NOW MEANS "CALIBRATED", NOT "1 SECOND" ***. On main, an explicit 0
-meant a one-second window; on this build 0 (and any negative) means "use the clock's calibrated
-window" - 240 s wall / 360 s sim. Nothing SHIPS a value, so the reinterpretation has nil blast
-radius on the shipped configs; it matters to anyone HAND-WRITING a config for the validation run. If
-you want a short window, write the number you want - do not write 0 and expect one second.
