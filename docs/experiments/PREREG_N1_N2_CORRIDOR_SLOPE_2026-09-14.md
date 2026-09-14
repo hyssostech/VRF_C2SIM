@@ -531,6 +531,22 @@ undocumented query limit is live; STOP, no further arm without a docs/vendor ans
 centre) or STRAIGHT (< 50 m from the P11 point, < 20 m advance over the final 600 sim s) or MIDDLE, per
 sec 5.3, at equal SIM time since dispatch.
 
+**Docs consulted for (T), and the one number that does NOT separate the runs (recorded before N2c).**
+The 5.2 class reference (docs.mak.com/api/vrforces5.2/classref/class_dt_nav_area.html, fetched 21:50Z):
+`DtNavArea::loadNavData` "Loads Nav Data for this area" (one call, the whole area; returns bool); the
+sector API at runtime is about REGENERATION after terrain change (`sectorsQueuedForRegeneration`,
+`sectorsBeingRegenerated`, `requestNavDataGeneration`, regeneration callbacks), not about streaming;
+queries are asynchronous (`hasPendingQueries`, `numberOfPendingQueries`, `cancelQuery` - the console's
+"Job Calc off road nav path part" is such a queued query). Nothing documents what a query returns while
+the area's NavData is still being added to the Gameware world (the DLL's `NavData: ToBeAdded /
+BeingAdded` states). The number: G7c-gate's tasked unit planned 6 points **2.2 s after the run's first
+area row** (row 140.2, plan 142.6); N2b's members were refused **4.7-9.7 s after theirs** (row 67.1,
+queries 71.8-76.8). Time since the first area row therefore does NOT separate success from refusal - if
+(T) is right, the operative variable is whether the cell the object was placed in had been resident
+(populated by an earlier placement) rather than the clock since registration. N2c's 300 s covers either
+form of (T); a PLANNED result confirms "time after placement in the cell" without deciding between them,
+and the follow-up is then a placement-history read, not another arm.
+
 Confounds carried: the 300 s wall delay is served by the interface, not the sim (fine: the sim clock ran
 ~1.0x in N2b, 4,755 sim s over the window); the members idle in formation for 300 s (no movement, so no
 sector change); the same warmed cache as N2b (the launch line warms it).
