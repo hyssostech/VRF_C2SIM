@@ -83,20 +83,35 @@ THE RELOCATED appData (navigation data loaded WITH the terrain)
 - `C:\C2SIM\vrf-appdata\appData` is a copy of the vendor `appData` tree whose ONE change is
   `loadAllNavigationDataOnTerrainLoad 1`: navigation data is loaded when the scenario loads
   instead of lazily when the first entity is placed.
+- VALIDATED 2026-09-14 (G7B_G8_RESULTS sec 3, 3.1) as a NULL RESULT, not a fix. The relocated
+  tree IS read by the sim (it rewrites 19 settings files into it at every launch, proving the
+  settings root was adopted), but the setting itself changes NOTHING OBSERVABLE: runs with it
+  ON and OFF show the identical ~2.3 GB placement-triggered navigation-data stream, and runs
+  with it ON still fail the first 7-8 goals' current-point gate exactly like runs without it.
+  Keep it - free, documented, reversible - but do not rely on it to close the early-goal-
+  failure window below; that needs the ready signal instead.
 - How to pass it: `scripts/RunScenario.sh --vrf-appdata-dir C:\C2SIM\vrf-appdata\appData`,
   or `RunC2SimScenario.ps1 -VrfAppDataDir ...`, or `LaunchVrf52.ps1 -AppDataDir ...`. Leave
   it out and VR-Forces uses its own `appData` exactly as before.
-- UNVERIFIED: the validation launch for this option is still owed (DEMO_READINESS row 21).
-  Do not introduce it for the first time on demo day.
 
-THE CACHE WARM-UP (the trap on a first run after a reboot)
-- On the lazy path the navigation area starts streaming when the FIRST ENTITY IS PLACED and
-  takes about 237 seconds and 2.3 GB. Units tasked before that finishes plan with no mesh.
-- On a warm cache the same load is 15-20 seconds.
-- So a first run after a boot needs EITHER the pre-order settle
+THE CACHE WARM-UP AND THE READY SIGNAL (the trap on a first run after a reboot)
+- On the lazy path the navigation area starts streaming when the FIRST ENTITY IS PLACED (init
+  shells and platforms, not the tasked members) and every ground-vehicle-move-to falls to the
+  feature planner, silently, until the stream finishes. Measured 2026-09-14: the unusable
+  window from first placement to first usable area is 9.1-12.1 seconds WARM and 236.9 seconds
+  COLD (a freshly evicted filesystem cache) - the same ~2.3 GB stream either way; only the
+  read time differs.
+- The cheap, real READY SIGNAL is the first `New Primary nav area` row printed by any placed
+  platform's object console (level 3). Gating order push on that row is the correct fix (a
+  runner item, owed) rather than a fixed wait.
+- Until that gate exists, a first run after a boot needs EITHER a fixed pre-order settle
   (`scripts/RunScenario.sh --pre-order-settle 240`, which holds after the units exist and
-  before the order is pushed) OR one throw-away warm-up run beforehand. A rehearsal run the
-  same day is the simplest warm-up and is worth doing anyway.
+  before the order is pushed) sized to the WORST case - at least 30 seconds warm, 240+
+  seconds COLD - OR one throw-away warm-up run beforehand (loading the scenario once drops
+  the read to the warm figure). A rehearsal run the same day is the simplest warm-up and is
+  worth doing anyway.
+- `CreationPolicy=AtInit` also helps: it places the tasked members before the wait instead of
+  at order time, so a wait taken before the order actually covers them.
 
 ---
 

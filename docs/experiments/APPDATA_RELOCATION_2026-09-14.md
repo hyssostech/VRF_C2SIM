@@ -4,6 +4,7 @@
 # started cold) and ONE change, loadAllNavigationDataOnTerrainLoad 1. Launcher -AppDataDir committed with this record;
 # the runner passthrough (-VrfAppDataDir) is applied separately. Caveat carried: --appDataDir shares the option-parsing
 # path with --logFileName (the ~1-in-3 startup crash) - if the validation launch dies at startup, drop it once first.
+# HARVEST 3615869: prediction 'gates pass at once' MISSED (8 gate fails in run 164906Z); the setting is a NULL result on this terrain although the tree was read (sec 7 RESULTS); the ready signal is the first nav-area row from a placed platform.
 
 # appData relocation for VR-Forces 5.2 - eager navigation-data load
 
