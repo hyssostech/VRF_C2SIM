@@ -12,7 +12,9 @@
 # and its own redirected handles, started by the runner at Stage 6b and outliving it by
 # design.
 #
-# WHAT IT DOES. Polls the runner's PID every -PollSec. When the runner is gone:
+# WHAT IT DOES. Polls the runner's PID every -PollSec. A death must be observed TWICE, 2 s
+# apart, before anything is touched - one transient failed read is not a death (review of
+# 374ea49, finding F2). When the runner is gone:
 #   runner.launched      ABSENT  -> REFUSE and touch nothing. The run launched nothing, so
 #                                   whatever is up may be a FOREIGN live session (RUNBOOK
 #                                   sec 0). This is the same rule the wrapper follows.
@@ -68,7 +70,16 @@ param(
     # How long this watchdog lives at most. It must outlast the whole observation window plus
     # teardown; the runner computes it from the same budgets it uses for the observers.
     [int]    $MaxSec     = 7200,
-    [int]    $PollSec    = 5
+    [int]    $PollSec    = 5,
+    # TEST-ONLY. Both default OFF and both log LOUDLY when on, and RunC2SimScenario.ps1
+    # passes NEITHER on any path. They exist because the two things finding F2 fixed are
+    # otherwise unreachable offline: nothing can make Windows fail an OpenProcess on demand.
+    #   -NoHandleCache      skip the handle cache, so liveness runs on the Get-Process +
+    #                       StartTime FALLBACK - the path whose behaviour F2 was about.
+    #   -TestFakeDeadReads  force the first N liveness observations to report GONE; that is
+    #                       exactly the transient the two-observation rule must absorb.
+    [switch] $NoHandleCache,
+    [int]    $TestFakeDeadReads = 0
 )
 
 Set-StrictMode -Version Latest
@@ -108,6 +119,7 @@ if (-not $RestUrl)  { $bad += '-RestUrl is required (StopIface has no defaults, 
 if (-not $StompUrl) { $bad += '-StompUrl is required (same reason as -RestUrl).' }
 if ($PollSec -lt 1 -or $PollSec -gt 60)     { $bad += ('-PollSec must be 1..60 (got {0}).' -f $PollSec) }
 if ($MaxSec  -lt 30 -or $MaxSec  -gt 86400) { $bad += ('-MaxSec must be 30..86400 (got {0}).' -f $MaxSec) }
+if ($TestFakeDeadReads -lt 0 -or $TestFakeDeadReads -gt 10) { $bad += ('-TestFakeDeadReads must be 0..10 (got {0}). It is a TEST switch and must be 0 on a real run.' -f $TestFakeDeadReads) }
 
 if ($RunDir -and (Test-Path -LiteralPath $RunDir -PathType Container)) {
     $script:LogFile = Join-Path $RunDir 'runner-watchdog.log'
@@ -139,6 +151,10 @@ Log 'INFO' ('  endpoints  : rest={0} stomp={1}' -f $RestUrl, $StompUrl)
 Log 'INFO' ('  budget     : poll {0}s, max {1}s ({2:N1} min)' -f $PollSec, $MaxSec, ($MaxSec / 60.0))
 Log 'INFO' ('  this pid   : {0}   host: {1} (64-bit: {2})' -f $PID, $PSHOME, [Environment]::Is64BitProcess)
 Log 'INFO' '  NOTHING is force-killed on any path; rtiexec / rtiForwarder / rtiAssistant are never touched.'
+Log 'INFO' '  a death is acted on only after TWO observations 2 s apart (review of 374ea49, finding F2).'
+if ($NoHandleCache -or $TestFakeDeadReads -gt 0) {
+    Log 'WARN' ('*** TEST SWITCHES ARE ON: -NoHandleCache={0} -TestFakeDeadReads={1}. This is NOT a production posture; the runner never passes them. ***' -f [bool]$NoHandleCache, $TestFakeDeadReads)
+}
 
 # ---------------------------------------------------------------------------
 # THE FOREIGN-SESSION GUARD. Absence of runner.launched means the run launched nothing (the
@@ -172,21 +188,57 @@ if ($markerPid -and ($markerPid -match '^\d+$')) {
 # so this removes PID reuse from the liveness test entirely. If the handle cannot be taken
 # (already exited, or an access failure) the loop falls back to Get-Process + StartTime,
 # which is a weaker but explicit reuse guard.
+#
+# FINDING F2 (review of 374ea49). That fallback is only REAL if the cached-process object is
+# DROPPED. .NET's Process.HasExited re-opens the process on every call when no handle is
+# cached and treats ANY failure to open it as 'exited' - and the flag is STICKY. Keeping the
+# object after a failed cache would therefore convert one transient OpenProcess failure into
+# a permanent 'the runner is dead', i.e. the teardown of a HEALTHY run - the one thing this
+# design promises never to do.
 # ---------------------------------------------------------------------------
 $runnerProc  = $null
 $runnerStart = $null
 try {
     $runnerProc = Get-Process -Id $RunnerPid -ErrorAction Stop
-    try { $null = $runnerProc.Handle } catch { Log 'WARN' ('could not cache a handle on pid {0} ({1}); falling back to a StartTime comparison.' -f $RunnerPid, $_.Exception.Message) }
     try { $runnerStart = $runnerProc.StartTime } catch { }
-    Log 'OK' ('watching runner pid {0} (started {1})' -f $RunnerPid, $(if ($runnerStart) { $runnerStart.ToString('yyyy-MM-dd HH:mm:ss') } else { 'unknown' }))
+    if ($NoHandleCache) {
+        $runnerProc = $null
+        Log 'WARN' ('-NoHandleCache (TEST): the handle cache is SKIPPED, so liveness runs on the Get-Process + StartTime FALLBACK for pid {0}.' -f $RunnerPid)
+    } else {
+        try { $null = $runnerProc.Handle }
+        catch {
+            $runnerProc = $null
+            Log 'WARN' ('could not cache a handle on pid {0} ({1}). The cached-process object is DROPPED (finding F2) and liveness falls back to Get-Process + StartTime - a weaker PID-reuse guard, but one that cannot latch a transient failure into a permanent death.' -f $RunnerPid, $_.Exception.Message)
+        }
+    }
+    Log 'OK' ('watching runner pid {0} (started {1}; liveness via {2})' -f $RunnerPid, $(if ($runnerStart) { $runnerStart.ToString('yyyy-MM-dd HH:mm:ss') } else { 'unknown' }), $(if ($null -ne $runnerProc) { 'a cached handle' } else { 'Get-Process + StartTime' }))
 } catch {
-    $runnerProc = $null
-    Log 'WARN' ('runner pid {0} is ALREADY GONE at watchdog start. Going straight to the teardown decision.' -f $RunnerPid)
+    # Get-Process ITSELF failed. That is usually 'the process is gone' - but it is not proof,
+    # and logging it as 'ALREADY GONE' when the runner is alive is a false statement in the
+    # one log that outlives the run (finding F2). Ask a SECOND, independent source, and take
+    # the StartTime from it when it answers so the PID-reuse guard survives.
+    $getProcErr  = $_.Exception.Message
+    $runnerProc  = $null
+    $cimProc     = $null
+    try { $cimProc = Get-CimInstance -ClassName Win32_Process -Filter ('ProcessId = {0}' -f $RunnerPid) -ErrorAction Stop } catch { $cimProc = $null }
+    if ($null -ne $cimProc) {
+        try { $runnerStart = [datetime]$cimProc.CreationDate } catch { $runnerStart = $null }
+        Log 'WARN' ('Get-Process FAILED for pid {0} ({1}) but Win32_Process says the process EXISTS (started {2}). The runner is ALIVE - NOT gone. Polling continues on the Get-Process + StartTime fallback.' -f $RunnerPid, $getProcErr, $(if ($runnerStart) { $runnerStart.ToString('yyyy-MM-dd HH:mm:ss') } else { 'unknown' }))
+    } else {
+        Log 'WARN' ('runner pid {0} is ALREADY GONE at watchdog start - Get-Process ({1}) and Win32_Process BOTH say so. Going straight to the teardown decision.' -f $RunnerPid, $getProcErr)
+    }
 }
+
+# How many liveness observations are still to be FORCED to 'gone' (TEST ONLY, 0 in a run).
+$script:FakeDeadLeft = $TestFakeDeadReads
 
 function Test-RunnerAlive {
     param($Proc, [int]$ProcessId, $StartTime)
+    if ($script:FakeDeadLeft -gt 0) {
+        $script:FakeDeadLeft = $script:FakeDeadLeft - 1
+        Log 'WARN' ('-TestFakeDeadReads (TEST): this observation of pid {0} is FORCED to report GONE ({1} forced read(s) left).' -f $ProcessId, $script:FakeDeadLeft)
+        return $false
+    }
     if ($null -ne $Proc) {
         try { return (-not $Proc.HasExited) } catch { }
     }
@@ -205,11 +257,25 @@ function Test-RunnerAlive {
 # runner is alive the watchdog reads no markers and touches nothing, so a long, healthy run is
 # never at risk from it.
 # ---------------------------------------------------------------------------
+# TWO CONSECUTIVE OBSERVATIONS, 2 s apart, are required before the loop is left (finding F2).
+# The death decision used to be made on ONE reading, and every way a LIVE runner can read as
+# dead - a transient Get-Process failure, a momentarily unopenable process - then cost a
+# healthy run its teardown. A confirmation costs a dead runner 2 s and costs a live one
+# nothing at all.
 $deadline = (Get-Date).AddSeconds($MaxSec)
 $alive    = $true
 while ((Get-Date) -lt $deadline) {
     $alive = Test-RunnerAlive -Proc $runnerProc -ProcessId $RunnerPid -StartTime $runnerStart
-    if (-not $alive) { break }
+    if (-not $alive) {
+        Log 'INFO' ('pid {0} read as GONE. CONFIRMING in 2 s - one observation is never enough to tear down a run.' -f $RunnerPid)
+        Start-Sleep -Seconds 2
+        $alive = Test-RunnerAlive -Proc $runnerProc -ProcessId $RunnerPid -StartTime $runnerStart
+        if (-not $alive) {
+            Log 'INFO' ('pid {0} read as GONE TWICE, 2 s apart. Treating the runner as dead.' -f $RunnerPid)
+            break
+        }
+        Log 'WARN' ('pid {0} read as GONE once and ALIVE 2 s later: the first read was TRANSIENT and NOTHING was touched. Continuing to poll.' -f $RunnerPid)
+    }
     Start-Sleep -Seconds $PollSec
 }
 if ($alive) {

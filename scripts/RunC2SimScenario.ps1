@@ -2309,6 +2309,7 @@ try {
     if ($DryRun) {
         Say-Head 'DRY RUN - the full planned sequence, in order. NOTHING below is executed.'
         Say-Plan ('would create the run directory {0}' -f $RunDir)
+        Say-Plan ('would write the run-directory pointer {0} (scripts\RunScenario.sh reads it instead of guessing by mtime)' -f (Join-Path $RepoRoot 'runs\launch52\last-run-dir.txt'))
         if ($PathConsoleDir) {
             Say-Plan ('would IGNORE -ConsoleLogDir ({0}). The --console-log-dir flag does NOT exist in tools/WatchVrf (native revert 5d14eda) and passing it would fail the oracle stage with exit 2. Nothing is created and nothing is passed.' -f $PathConsoleDir)
         }
@@ -2320,6 +2321,22 @@ try {
     } else {
         New-Item -ItemType Directory -Path $RunDir -Force | Out-Null
         Say-Ok ('run directory created: {0}' -f $RunDir)
+        # THE RUN-DIRECTORY POINTER (review of 374ea49, finding F10). scripts\RunScenario.sh
+        # used to find the run directory by MTIME (`ls -1dt runs/*_run | head -1`), which names
+        # the NEWEST directory - not necessarily the one it launched - and any later write into
+        # another run directory (the watchdog's own runner.watchdog-ran, for one) can flip that
+        # ordering. The wrapper reads this file instead. It DELETES it before launching, so a
+        # pointer found afterwards is this run's or it is not there at all.
+        try {
+            $PointerDir = Join-Path $RepoRoot 'runs\launch52'
+            if (-not (Test-Path -LiteralPath $PointerDir -PathType Container)) {
+                New-Item -ItemType Directory -Path $PointerDir -Force | Out-Null
+            }
+            [System.IO.File]::WriteAllText((Join-Path $PointerDir 'last-run-dir.txt'), ($RunDir + "`r`n"))
+            Say-Ok ('run-directory pointer written: {0}' -f (Join-Path $PointerDir 'last-run-dir.txt'))
+        } catch {
+            Say-Warn ('could not write the run-directory pointer ({0}). scripts\RunScenario.sh falls back to its mtime scan, which can name the wrong directory.' -f $_.Exception.Message)
+        }
         Save-Manifest
 
         Update-Ledger -From $FirstFree -To $NextFree -RunId $RunId -Allocation $Alloc
@@ -2618,6 +2635,139 @@ try {
         }
     }
 
+    # =====================================================================
+    # STAGE 3w - THE DETACHED TEARDOWN WATCHDOG (design A2, RUNNER_EXIT127 sec 3.1)
+    # =====================================================================
+    # ARMED HERE, immediately after runner.launched was written above, and NOT at stage 6b as
+    # it was in 374ea49 (review finding F6). runner.launched is written the instant VR-Forces
+    # becomes THIS run's to stop, and from that instant a death of this process leaves a
+    # back-end up - which HARD-BLOCKS the next launch. Between the marker and stage 6b run
+    # stage 3b's settle, the stage-4 pre-check, the observers, the pre-roll and PushInit: tens
+    # of seconds to a couple of minutes, not the "sub-second" the first version assumed. The
+    # watchdog needs nothing but the marker, so there is no reason to wait for the interface.
+    #
+    # WHY IT EXISTS AT ALL. The teardown below is a finally, and a finally is exactly what
+    # TerminateProcess defeats; on 2026-09-14 that cost nine hours of a joined federate and a
+    # 5.89 GB app log. The wrapper backstop (scripts\RunScenario.sh) repairs that only while
+    # its bash survives. This process covers the wrapper dying too. It polls THIS pid, reads
+    # nothing while we live, and tears down only on "runner.launched present AND
+    # runner.teardown-ran absent" - the wrapper's rule.
+    $WatchdogScript = Join-Path $PSScriptRoot 'RunnerWatchdog.ps1'
+    # Stage 4's own pre-check window, named HERE because the watchdog budget below includes it
+    # and the two must not drift. Stage 4 reads this same variable.
+    $PreCheckSecs   = 30
+    # -MaxSec. The watchdog NEVER tears down on its own timer (expiry is exit 4 and nothing
+    # touched), so a generous budget is the safe direction and an under-budget one silently
+    # ends the backstop mid-run. Armed at stage 3, it must now cover EVERYTHING from here to
+    # this runner's last statement, which is the observation window PLUS the stages between
+    # this point and the observers' start PLUS the teardown:
+    #
+    #   observation coverage  max(EffWatchSecs, DerivedWatchSecs)   - whichever is larger, because
+    #                         an EXPLICIT -WatchSecs may be below the derived cap (it wins for the
+    #                         observers and is WARNed about, but it must not shrink this budget).
+    #                         derived = preRoll 20 + appJoin 180 + initDispatch 120 +
+    #                         oracleGate 180 + pushOrderListen 30 + runSecs + trail 30 [+ settle]
+    #   stage 3b settle       LaunchSettleSec                       (45 by default)
+    #   stage 4 pre-check     PreCheckSecs + StageTimeoutSec        (30 + 600, its Invoke-External cap)
+    #   stage 6 PushInit      StageTimeoutSec                       (600, its Invoke-External cap)
+    #   teardown budgets      TraceStopGraceSec + AppExitTimeoutSec + StopVrfTimeoutSec (120+120+120)
+    #   slack                 600
+    #
+    # G7 attempt 4 (-RunSecs 1200 -WatchSecs 2000 -PreOrderSettleSecs 240, defaults elsewhere):
+    #   max(2000, 2000) + 45 + (30 + 600) + 600 + (120 + 120 + 120) + 600 = 4235 s = 70.6 min,
+    #   against a run whose whole span from here to exit is ~1900-2100 s. Capped at 86400.
+    $WatchdogCoverSecs = [Math]::Max($EffWatchSecs, $DerivedWatchSecs)
+    $WatchdogMaxSec = [Math]::Min(86400, ($WatchdogCoverSecs +
+                                          $LaunchSettleSec +
+                                          ($PreCheckSecs + $StageTimeoutSec) +
+                                          $StageTimeoutSec +
+                                          $TraceStopGraceSec + $AppExitTimeoutSec + $StopVrfTimeoutSec +
+                                          600))
+    if ($NoWatchdog) {
+        Say-Head 'Stage 3w - detached teardown watchdog: SKIPPED (-NoWatchdog)'
+        Say-Warn 'no detached watchdog for this run. If this runner is killed, the ONLY backstop left is scripts\RunScenario.sh, which needs its bash to survive.'
+        Add-Flag 'WARN' '-NoWatchdog was passed: this run has NO detached teardown watchdog. A kill that takes the wrapper too leaves VR-Forces and the interface joined.'
+    } elseif (-not (Test-Path -LiteralPath $WatchdogScript -PathType Leaf)) {
+        Say-Head 'Stage 3w - detached teardown watchdog: NOT AVAILABLE'
+        Say-Warn ('{0} is missing. The run CONTINUES - a backstop must never fail a healthy run - but it is unprotected against a kill that also takes the wrapper.' -f $WatchdogScript)
+        Add-Flag 'WARN' ('scripts\RunnerWatchdog.ps1 not found at {0}; no detached teardown watchdog for this run.' -f $WatchdogScript)
+    } else {
+        Say-Head 'Stage 3w - start the DETACHED teardown watchdog (out-of-process backstop)'
+        # $PSHOME\pwsh.exe, never a bare 'pwsh': this runner is gated to a 64-bit host and the
+        # watchdog must be the same one. Bare pwsh resolves to the 32-BIT build on this
+        # machine (RUNBOOK 0.5.14 item 1).
+        $WatchdogPwsh = Join-Path $PSHOME 'pwsh.exe'
+        $WatchdogArgs = @('-NoProfile','-ExecutionPolicy','Bypass','-File', $WatchdogScript,
+                          '-RunnerPid', [string]$PID,
+                          '-RunDir',    $RunDir,
+                          '-VrfProfile',$VrfProfile,
+                          '-RestUrl',   $RestUrl,
+                          '-StompUrl',  $StompUrl,
+                          '-MaxSec',    [string]$WatchdogMaxSec,
+                          '-PollSec',   '5')
+        Say ('  watches pid {0} (this runner) every 5s for at most {1}s ({2:N1} min): cover {3} + settle {4} + preCheck {5} + pushInit {6} + teardown {7} + slack 600' -f `
+                $PID, $WatchdogMaxSec, ($WatchdogMaxSec / 60.0), $WatchdogCoverSecs, $LaunchSettleSec, ($PreCheckSecs + $StageTimeoutSec), $StageTimeoutSec, ($TraceStopGraceSec + $AppExitTimeoutSec + $StopVrfTimeoutSec))
+        Say  '  DETACHED: its own HIDDEN console (not ours - a shared console dies with the terminal and takes the'
+        Say  '  watchdog with it), stdout/stderr to files in the run directory, stdin from an empty file there.'
+        Say  '  It force-kills NOTHING and never touches rtiexec / rtiForwarder / rtiAssistant, and it acts on a'
+        Say  '  death only after TWO observations 2 s apart (review of 374ea49, finding F2).'
+        if (-not $DryRun) {
+            # Start-Process needs a real path to redirect stdin FROM; an empty file is the
+            # Windows equivalent of the wrapper's `< /dev/null`.
+            try { [System.IO.File]::WriteAllText($PathWatchdogIn, '') }
+            catch { Say-Warn ('could not create {0}: {1}. The watchdog will inherit this runner''s stdin instead.' -f $PathWatchdogIn, $_.Exception.Message) }
+        } else {
+            Say-Plan ('would create the empty stdin file {0}' -f $PathWatchdogIn)
+        }
+        # A BACKSTOP MUST NEVER FAIL A HEALTHY RUN. Start-External does not wrap Start-Process,
+        # and $ErrorActionPreference is 'Stop', so without this try/catch a watchdog that could
+        # not be started would raise a terminating error and tear down a run that is fine.
+        $WatchdogProc = $null
+        try {
+        $WatchdogProc = Start-External -Name 'RunnerWatchdog' -File $WatchdogPwsh -Arguments $WatchdogArgs -Cwd $RepoRoot `
+                -StdOutFile $PathWatchdogOut -StdErrFile $PathWatchdogErr `
+                -StdInFile $(if ($DryRun -or (Test-Path -LiteralPath $PathWatchdogIn)) { $PathWatchdogIn } else { '' }) -NewConsole `
+                -Note 'OUTLIVES THIS RUNNER BY DESIGN - it is never completed or waited on here, and it exits on its own the moment this pid is gone. exit 0 nothing owed / teardown done; 2 REFUSED (no runner.launched, or a pid mismatch - it touched nothing); 3 teardown ran with a failed step; 4 -MaxSec expired while the runner was still alive (nothing torn down); 5 unexpected. Its log: <runDir>\runner-watchdog.log.'
+        } catch {
+            Say-Warn ('the detached teardown watchdog could not be started: {0}' -f $_.Exception.Message)
+            Add-Flag 'WARN' ('the detached teardown watchdog could not be started ({0}). The run CONTINUES - a backstop must never fail a healthy run - but it is unprotected against a kill that also takes the wrapper.' -f $_.Exception.Message)
+        }
+        if (-not $DryRun) {
+            if ($null -ne $WatchdogProc) {
+                try { Set-Content -LiteralPath $PathWatchdogPid -Value ([string]$WatchdogProc.Id) -Encoding ascii } catch { }
+                Say-Ok ('teardown watchdog pid {0} armed (pid also in {1})' -f $WatchdogProc.Id, $PathWatchdogPid)
+                $Manifest.artifacts.watchdog = [ordered]@{
+                    pid     = $WatchdogProc.Id
+                    pidFile = $PathWatchdogPid
+                    stdout  = $PathWatchdogOut
+                    stderr  = $PathWatchdogErr
+                    log     = (Join-Path $RunDir 'runner-watchdog.log')
+                    maxSec  = $WatchdogMaxSec
+                    pollSec = 5
+                    armedAtStage = '3w - immediately after runner.launched'
+                }
+                # DID IT SURVIVE ARMING? (review finding F5.) A watchdog that REFUSES at
+                # validation exits in ~50 ms, and without this check the manifest would record
+                # "armed" while the run went on unprotected. The run still continues - a
+                # backstop must never fail a healthy run - but the manifest says what happened.
+                Start-Sleep -Milliseconds 750
+                $WatchdogGone = $false
+                try { $WatchdogGone = $WatchdogProc.HasExited } catch { $WatchdogGone = $false }
+                if ($WatchdogGone) {
+                    $WatchdogCode = 'unknown'
+                    try { $WatchdogCode = [string]$WatchdogProc.ExitCode } catch { }
+                    $Manifest.artifacts.watchdog.exitedAtArming = $WatchdogCode
+                    Add-Flag 'WARN' ('the detached teardown watchdog EXITED {0} within 750 ms of being started (2 = REFUSED at validation, touching nothing; 5 = unexpected error). THIS RUN IS UNPROTECTED against a kill that also takes the wrapper - the run continues anyway, because a backstop must never fail a healthy run. Its reason is the last lines of {1}.' -f $WatchdogCode, (Join-Path $RunDir 'runner-watchdog.log'))
+                } else {
+                    Say-Ok 'the watchdog was still alive 750 ms after arming (it did not refuse at validation).'
+                }
+                Save-Manifest
+            } else {
+                Add-Flag 'WARN' 'the detached teardown watchdog did not start (Start-External returned no process). The run CONTINUES unprotected against a kill that also takes the wrapper.'
+            }
+        }
+    }
+
     # LaunchVrf's READY is thread-count + main-window only. It does NOT imply
     # scenario loaded or federation joined - the script says so itself, and
     # RUNBOOK 0.5.7 measured settle times past 50 s.
@@ -2632,7 +2782,7 @@ try {
     Say '  so a DEGENERATE result here is EXPECTED and is NOT a fault. What this stage proves'
     Say '  is that the oracle can JOIN and DISCOVER. The real coordinate criterion is applied'
     Say '  post-init at stage 7, against the scoring trace.'
-    $preSecs = 30
+    $preSecs = $PreCheckSecs
     $r = Invoke-External -Name 'WatchVrf-precheck' -File $ExeWatchVrf `
             -Arguments @([string]$AppNo['oraclePre'], [string]$preSecs, [string]$SampleSecs, $FederationArg) `
             -Cwd $Bin64 -StdOutFile $PathPreTrace -StdErrFile $PathPreTraceErr `
@@ -2765,88 +2915,6 @@ try {
         $env:C2SIM__RestUrl  = $SavedC2SimRestUrl
         $env:C2SIM__StompUrl = $SavedC2SimStompUrl
         foreach ($k in $AppEnv52.Keys) { Set-Item -Path ('Env:' + $k) -Value ([string]$SavedAppEnv52[$k]) }
-    }
-
-    # =====================================================================
-    # STAGE 6b-w - THE DETACHED TEARDOWN WATCHDOG (design A2, RUNNER_EXIT127 sec 3.1)
-    # =====================================================================
-    # Started HERE, the instant the interface exists, because from this instant a death of
-    # THIS process leaves BOTH VR-Forces and a JOINED interface up - which on 2026-09-14 cost
-    # nine hours of a joined federate and a 5.89 GB app log. The teardown below is a finally,
-    # and a finally is exactly what TerminateProcess defeats; the wrapper backstop
-    # (scripts\RunScenario.sh) repairs that only while its bash survives. This process covers
-    # the wrapper dying too. It polls THIS pid, reads nothing while we live, and tears down
-    # only on "runner.launched present AND runner.teardown-ran absent" - the wrapper's rule.
-    $WatchdogScript = Join-Path $PSScriptRoot 'RunnerWatchdog.ps1'
-    # The watchdog NEVER tears down on its own timer (it exits 4 and says the runner outlived
-    # it), so a generous budget is the safe direction: the observers' whole cap plus every
-    # teardown budget plus 10 minutes.
-    $WatchdogMaxSec = [Math]::Min(86400, ($EffWatchSecs + $TraceStopGraceSec + $AppExitTimeoutSec + $StopVrfTimeoutSec + 600))
-    if ($NoWatchdog) {
-        Say-Head 'Stage 6b-w - detached teardown watchdog: SKIPPED (-NoWatchdog)'
-        Say-Warn 'no detached watchdog for this run. If this runner is killed, the ONLY backstop left is scripts\RunScenario.sh, which needs its bash to survive.'
-        Add-Flag 'WARN' '-NoWatchdog was passed: this run has NO detached teardown watchdog. A kill that takes the wrapper too leaves VR-Forces and the interface joined.'
-    } elseif (-not (Test-Path -LiteralPath $WatchdogScript -PathType Leaf)) {
-        Say-Head 'Stage 6b-w - detached teardown watchdog: NOT AVAILABLE'
-        Say-Warn ('{0} is missing. The run CONTINUES - a backstop must never fail a healthy run - but it is unprotected against a kill that also takes the wrapper.' -f $WatchdogScript)
-        Add-Flag 'WARN' ('scripts\RunnerWatchdog.ps1 not found at {0}; no detached teardown watchdog for this run.' -f $WatchdogScript)
-    } else {
-        Say-Head 'Stage 6b-w - start the DETACHED teardown watchdog (out-of-process backstop)'
-        # $PSHOME\pwsh.exe, never a bare 'pwsh': this runner is gated to a 64-bit host and the
-        # watchdog must be the same one. Bare pwsh resolves to the 32-BIT build on this
-        # machine (RUNBOOK 0.5.14 item 1).
-        $WatchdogPwsh = Join-Path $PSHOME 'pwsh.exe'
-        $WatchdogArgs = @('-NoProfile','-ExecutionPolicy','Bypass','-File', $WatchdogScript,
-                          '-RunnerPid', [string]$PID,
-                          '-RunDir',    $RunDir,
-                          '-VrfProfile',$VrfProfile,
-                          '-RestUrl',   $RestUrl,
-                          '-StompUrl',  $StompUrl,
-                          '-MaxSec',    [string]$WatchdogMaxSec,
-                          '-PollSec',   '5')
-        Say ('  watches pid {0} (this runner) every 5s for at most {1}s' -f $PID, $WatchdogMaxSec)
-        Say  '  DETACHED: its own HIDDEN console (not ours - a shared console dies with the terminal and takes the'
-        Say  '  watchdog with it), stdout/stderr to files in the run directory, stdin from an empty file there.'
-        Say  '  It force-kills NOTHING and never touches rtiexec / rtiForwarder / rtiAssistant.'
-        if (-not $DryRun) {
-            # Start-Process needs a real path to redirect stdin FROM; an empty file is the
-            # Windows equivalent of the wrapper's `< /dev/null`.
-            try { [System.IO.File]::WriteAllText($PathWatchdogIn, '') }
-            catch { Say-Warn ('could not create {0}: {1}. The watchdog will inherit this runner''s stdin instead.' -f $PathWatchdogIn, $_.Exception.Message) }
-        } else {
-            Say-Plan ('would create the empty stdin file {0}' -f $PathWatchdogIn)
-        }
-        # A BACKSTOP MUST NEVER FAIL A HEALTHY RUN. Start-External does not wrap Start-Process,
-        # and $ErrorActionPreference is 'Stop', so without this try/catch a watchdog that could
-        # not be started would raise a terminating error and tear down a run that is fine.
-        $WatchdogProc = $null
-        try {
-        $WatchdogProc = Start-External -Name 'RunnerWatchdog' -File $WatchdogPwsh -Arguments $WatchdogArgs -Cwd $RepoRoot `
-                -StdOutFile $PathWatchdogOut -StdErrFile $PathWatchdogErr `
-                -StdInFile $(if ($DryRun -or (Test-Path -LiteralPath $PathWatchdogIn)) { $PathWatchdogIn } else { '' }) -NewConsole `
-                -Note 'OUTLIVES THIS RUNNER BY DESIGN - it is never completed or waited on here, and it exits on its own the moment this pid is gone. exit 0 nothing owed / teardown done; 2 REFUSED (no runner.launched, or a pid mismatch - it touched nothing); 3 teardown ran with a failed step; 4 -MaxSec expired while the runner was still alive (nothing torn down); 5 unexpected. Its log: <runDir>\runner-watchdog.log.'
-        } catch {
-            Say-Warn ('the detached teardown watchdog could not be started: {0}' -f $_.Exception.Message)
-            Add-Flag 'WARN' ('the detached teardown watchdog could not be started ({0}). The run CONTINUES - a backstop must never fail a healthy run - but it is unprotected against a kill that also takes the wrapper.' -f $_.Exception.Message)
-        }
-        if (-not $DryRun) {
-            if ($null -ne $WatchdogProc) {
-                try { Set-Content -LiteralPath $PathWatchdogPid -Value ([string]$WatchdogProc.Id) -Encoding ascii } catch { }
-                Say-Ok ('teardown watchdog pid {0} armed (pid also in {1})' -f $WatchdogProc.Id, $PathWatchdogPid)
-                $Manifest.artifacts.watchdog = [ordered]@{
-                    pid     = $WatchdogProc.Id
-                    pidFile = $PathWatchdogPid
-                    stdout  = $PathWatchdogOut
-                    stderr  = $PathWatchdogErr
-                    log     = (Join-Path $RunDir 'runner-watchdog.log')
-                    maxSec  = $WatchdogMaxSec
-                    pollSec = 5
-                }
-                Save-Manifest
-            } else {
-                Add-Flag 'WARN' 'the detached teardown watchdog did not start (Start-External returned no process). The run CONTINUES unprotected against a kill that also takes the wrapper.'
-            }
-        }
     }
 
     Say-Head ('Stage 6c - wait up to {0}s for the interface to connect to C2SIM' -f $AppJoinTimeoutSec)
@@ -3019,7 +3087,26 @@ try {
             while ((Get-Date) -lt $settleEnd) {
                 $remaining = [int][Math]::Ceiling(($settleEnd - (Get-Date)).TotalSeconds)
                 if ($remaining -le 0) { break }
-                Say-Info ('pre-order settle: {0}s remaining' -f $remaining)
+                # LIVENESS, not a blind sleep (review of 374ea49, finding F7). Stage 7 polls the
+                # back-end for exactly this reason and stage 8b polls the app: a 5.2 sim can die
+                # mid-run (DI-Guy, 0xC0000005). Without these three checks a death during the
+                # hold is slept through, the order is pushed into a corpse, and the failure then
+                # surfaces later and for the WRONG REASON. The order has NOT been pushed yet at
+                # this point, so a death here is a clean stop, not a truncated window.
+                if ($BackendPid) {
+                    $gone = -not (Get-Process -Id $BackendPid -ErrorAction SilentlyContinue)
+                    $cs = Get-ChildItem -Path 'C:\MAK\logs' -Filter ('vrfSimHLA1516e5.2d-*-{0}.callstack.log' -f $BackendPid) -ErrorAction SilentlyContinue | Select-Object -First 1
+                    if ($gone -or $cs) {
+                        Stop-Runner 3 ('BACK-END pid {0} {1} DURING the stage-7d pre-order hold. The order was NOT pushed. Crash record: {2}. Read its callstack before anything else; the harvested .log holds the environment and is NOT for sharing.' -f $BackendPid, $(if ($gone) { 'DIED' } else { 'CRASHED and is PARKED on the dump prompt' }), $(if ($cs) { $cs.FullName } else { '(none found in C:\MAK\logs)' }))
+                    }
+                }
+                if ($AppProc.HasExited) {
+                    Stop-Runner 3 ('VrfC2SimApp EXITED with code {0} during the stage-7d pre-order hold - there is nothing left to push the order into. See {1} and {2}.' -f $AppProc.ExitCode, $PathAppLog, $PathAppErr)
+                }
+                if ($null -ne $WatchProc -and $WatchProc.HasExited) {
+                    Stop-Runner 3 ('the trace observer WatchVrf-trace EXITED with code {0} during the stage-7d pre-order hold - THE MOVEMENT ORACLE IS GONE, so an order pushed now would be unscored. See {1}.' -f $WatchProc.ExitCode, $PathTrace)
+                }
+                Say-Info ('pre-order settle: {0}s remaining (back-end, interface and trace observer all alive)' -f $remaining)
                 Start-Sleep -Seconds ([Math]::Min(30, $remaining))
             }
             Say-Ok ('pre-order settle complete ({0}s)' -f $PreOrderSettleSecs)
@@ -3363,7 +3450,10 @@ finally {
 
     # 4. Bring VR-Forces down. RTI infrastructure is preserved by StopVrf itself.
     if ($VrfLaunched -or $DryRun) {
-        $r = Invoke-External -Name 'StopVrf' -File 'pwsh' `
+        # $PSHOME\pwsh.exe, never a bare 'pwsh' (RUNBOOK 0.5.14 item 1: bare pwsh on this
+        # machine is the 32-BIT build). Harmless for StopVrf itself, but the rule is the rule
+        # and the watchdog already obeys it (review of 374ea49, finding F8).
+        $r = Invoke-External -Name 'StopVrf' -File (Join-Path $PSHOME 'pwsh.exe') `
                 -Arguments @('-NoProfile','-File', $StopVrf, '-TimeoutSec', [string]$StopVrfTimeoutSec) `
                 -Cwd $RepoRoot -StdOutFile $PathStopVrfOut -StdErrFile $PathStopVrfErr `
                 -TimeoutSec ($StopVrfTimeoutSec + $StageTimeoutSec) `

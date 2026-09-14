@@ -684,3 +684,94 @@ WHOEVER RUNS THE FIRST 7d RUN: raise `--watch-secs` by at least the hold, or dro
 4. **Stage 7d has never held a real order back**, and nothing here measures whether 175 s is
    enough, or whether a loaded mesh changes anything. That is a consoles question, not a
    runner one.
+
+---
+
+## 13. THE COLD-START REVIEW OF 374ea49, AND THE FIXES IT BOUGHT (2026-09-14)
+
+A cold-start adversarial review of 374ea49 (Opus, read-only, against `git show 374ea49:<path>`)
+returned SAFE TO ARM for G7 attempt 4 with one launch-line change - `--watch-secs 2000`, not
+1800, because an explicit `-WatchSecs` overrides the derived cap and 1800 is below the 2000 the
+240 s stage-7d hold creates. The full text is copied verbatim into
+`docs\experiments\REVIEW_WATCHDOG_374ea49_2026-09-14.md`; do not re-derive its arithmetic here.
+
+Findings F2-F8 and F10 are APPLIED. F1 is the launch line (supervisor). F9 (the watchdog stage
+stays `started-background` in the manifest - correct by design), F11 (`--sample-threads` cannot
+outlive the run) and F12 (a worktree has no `StopIface.exe`, and stage 0 hard-fails first) are
+NO CHANGE.
+
+| # | what changed | where |
+|---|--------------|-------|
+| F2 | A failed handle cache now DROPS the process object, so the documented `Get-Process` + `StartTime` fallback is the code that actually runs. `Process.HasExited` with no cached handle re-opens the process on every call and treats ANY failure to open it as "exited" - and the flag is STICKY - so the old code turned one transient `OpenProcess` failure into a permanent "the runner is dead" and a teardown of a HEALTHY run. | `scripts\RunnerWatchdog.ps1` :192-215 |
+| F2 | A death must now be observed TWICE, 2 s apart, before the poll loop is left. One reading is never acted on. | `scripts\RunnerWatchdog.ps1` :260-282 |
+| F2 | `Get-Process` failing AT STARTUP no longer logs "ALREADY GONE" when the runner is alive: `Win32_Process` is asked as an independent second source, and its `CreationDate` becomes the `StartTime` PID-reuse guard when it answers. | `scripts\RunnerWatchdog.ps1` :217-230 |
+| F2 | Two TEST-ONLY switches, both off by default, both logged loudly, never passed by the runner: `-NoHandleCache` (force the fallback path) and `-TestFakeDeadReads N` (force the first N liveness observations to report GONE). Without them the two F2 fixes are unreachable offline - nothing can make Windows fail an `OpenProcess` on demand. | `scripts\RunnerWatchdog.ps1` :74-82, :122, :155-157, :233-241 |
+| F3 | `scripts\RunScenario.sh`'s own backstop now CLAIMS `runner.watchdog-ran` atomically (`set -C; : > ...` in a subshell) before it tears anything down, and STANDS DOWN with a message if the claim fails. The two backstops no longer overlap; sec 10.4's "benign but unmeasured" duplicate teardown is closed. | `scripts\RunScenario.sh` :287-311 |
+| F4 | RUNBOOK 0.5.14 item 5 now names `<RunDir>\watchdog.pid` alongside `runner.launched` as a pid a cleanup sweep must exclude. The watchdog is a direct CHILD of the runner, so a tree kill or a CommandLine-pattern sweep - the shape that fits every observation of the G6 kill - removes it with the runner. | `docs\RUNBOOK.md` 0.5.14 item 5 |
+| F5 | After arming, the runner waits 750 ms and, if the watchdog has already exited, records a WARN flag with its exit code and the path of `runner-watchdog.log`. A watchdog that REFUSES at validation exits in ~50 ms; the manifest used to say "armed" while the run went on unprotected. The run still continues - a backstop must never fail a healthy run. | `scripts\RunC2SimScenario.ps1` :2749-2764 |
+| F6 | The watchdog is armed at STAGE 3w - immediately after `runner.launched` is written - not at stage 6b. The unprotected window was never "sub-second": it held stage 3b's settle, the stage-4 pre-check, the observers, the pre-roll and PushInit, and a runner death in it leaves a back-end that HARD-BLOCKS the next launch. `-MaxSec` therefore now covers the stages between: `max(EffWatchSecs, DerivedWatchSecs) + LaunchSettleSec + (PreCheckSecs + StageTimeoutSec) + StageTimeoutSec + (TraceStopGraceSec + AppExitTimeoutSec + StopVrfTimeoutSec) + 600`. The arithmetic is spelled out in the code. | `scripts\RunC2SimScenario.ps1` :2639-2690 |
+| F7 | Stage 7d is no longer a blind sleep: the back-end pid, `VrfC2SimApp` and the trace observer are polled inside the 30 s status loop and a death is `Stop-Runner 3`, not something slept through and discovered later for the wrong reason. The order has not been pushed at that point, so this is a clean stop. | `scripts\RunC2SimScenario.ps1` :3090-3109 |
+| F8 | The runner's OWN StopVrf launch used a bare `pwsh` - the 32-BIT build on this machine (RUNBOOK 0.5.14 item 1). It is now `Join-Path $PSHOME 'pwsh.exe'`, like the watchdog. | `scripts\RunC2SimScenario.ps1` :3453-3456 |
+| F10 | The wrapper no longer guesses the run directory by MTIME. The runner writes `runs\launch52\last-run-dir.txt` when it creates the run directory; the wrapper DELETES that pointer before launching and reads it afterwards, falling back to the old scan (loudly) only if it is absent. A dry run, which creates no run directory, now skips the backstop entirely instead of scanning. | `scripts\RunC2SimScenario.ps1` :2324-2339; `scripts\RunScenario.sh` :220-285 |
+
+### 13.1 Gates and tests, all offline
+
+The machine was verified EMPTY of `vrfSimHLA1516e` / `vrfGui` / `vrfLauncher` / `VrfC2SimApp` /
+`WatchVrf` / `ListenReports` before the watchdog tests (the driver ABORTS otherwise - it did
+abort once, on a transient `VrfC2SimApp`, and the run was repeated when the machine was clean).
+`rtiexec` 69856 and `rtiForwarder` 50520 were up throughout and were untouched and still up
+afterwards. StopIface was pointed at DEAD ports 18099 / 61699 - never the private test server
+(18080 / 61614), never the operator's own (8080 / 61613). NO VR-Forces was launched.
+
+| gate | result |
+|------|--------|
+| `Parser::ParseFile` on `RunC2SimScenario.ps1`, `RunnerWatchdog.ps1`, `RunnerLib.ps1` | PARSE OK, 0 errors, all three |
+| `bash -n scripts/RunScenario.sh` | OK |
+| `scripts/RunScenario.sh --help` / unknown option | exit 0 / exit 2 |
+| `scripts/RunScenario.sh --dry-run` | exit 0; stage 3w armed in the plan, `-MaxSec` 3695 = cover 1460 + settle 45 + preCheck 630 + pushInit 600 + teardown 360 + slack 600 |
+| `scripts/RunScenario.sh --dry-run --pre-order-settle 240 --run-secs 1200 --watch-secs 2000` | exit 0; observers cap 2000 (derived 2000, no WARN); `-MaxSec` 4235 s = 70.6 min, matching the comment's arithmetic |
+| `scripts/RunScenario.sh --dry-run -- -NoWatchdog` | exit 0; "Stage 3w - detached teardown watchdog: SKIPPED" + the WARN flag |
+| `tests\RunnerTurnaround.Tests.ps1` | 222 passed, 1 failed - the SAME pre-existing failure ("the ready-path harvest is skipped when the launch crashed", a `LaunchVrf52.ps1` regex this work does not touch). Baseline unchanged. |
+| watchdog tests (a) / (b) / (c) | exit 3 (claimed + tore down) / exit 0 (stood down on `runner.teardown-ran`) / exit 2 (REFUSED, no `runner.launched`) - unchanged from sec 12 |
+| watchdog test (d), NEW | see below |
+| wrapper claim primitive | first `( set -C; : > marker )` CLAIMS, second STANDS DOWN, the marker still holds the FIRST claim only, and noclobber does not leak out of the subshell |
+| pointer read | a CRLF Windows path is read, `cygpath -u`-converted and `-d`-tested; a pointer naming a non-directory falls back with a WARN |
+| `rg -nP "[^\x09\x0a\x0d\x20-\x7E]"` on every touched file | clean; the checker reproduces on a dirty control (it caught a BEL byte that an octal escape put into the TEST DRIVER during this work - the `\7` of a `PowerShell\7` path, the MEMORY lesson exactly) |
+| line endings | `.ps1` / `.md` CRLF (CR == LF in each), `scripts\RunScenario.sh` LF, unchanged |
+
+### 13.2 Test (d) - a live runner read as GONE is NOT a death
+
+`-NoHandleCache -TestFakeDeadReads 1` against a fake runner that sleeps 30 s: the fallback path
+is the one running, the first liveness observation is FORCED to report GONE while the process is
+provably alive, and the watchdog must absorb it. Under the one-observation rule of 374ea49 this
+is a teardown of a healthy run at t+0.02 s.
+
+```
+14:28:15.367Z [WARN] -NoHandleCache (TEST): the handle cache is SKIPPED, so liveness runs on the
+                     Get-Process + StartTime FALLBACK for pid 34904.
+14:28:15.368Z [OK]   watching runner pid 34904 (started ...; liveness via Get-Process + StartTime)
+14:28:15.373Z [WARN] -TestFakeDeadReads (TEST): this observation of pid 34904 is FORCED to report GONE
+14:28:15.374Z [INFO] pid 34904 read as GONE. CONFIRMING in 2 s - one observation is never enough
+                     to tear down a run.
+14:28:17.387Z [WARN] pid 34904 read as GONE once and ALIVE 2 s later: the first read was TRANSIENT
+                     and NOTHING was touched. Continuing to poll.
+14:28:47.442Z [INFO] pid 34904 read as GONE. CONFIRMING in 2 s ...
+14:28:49.453Z [INFO] pid 34904 read as GONE TWICE, 2 s apart. Treating the runner as dead.
+```
+
+The watchdog acted 39.5 s after it started - i.e. after the runner REALLY died at ~30 s, not at
+the forced read - and then claimed the marker and ran the normal teardown (exit 3, from the
+expected StopIface refusal on a dead port). A control run with `-TestFakeDeadReads 2` tore the
+LIVE fake runner down, which is correct and is the point: two consecutive dead observations ARE
+the death criterion, and the rule buys exactly one transient, not immunity.
+
+### 13.3 Still not tested, and honestly so
+
+1. **No live run.** Everything above is offline. The watchdog has still never armed inside a real
+   run (sec 12.5 item 1 stands), and stage 3w moves the arming point, so the first live run must
+   confirm `watchdog.pid`, the manifest block with `armedAtStage`, the 750 ms survival check
+   passing, and the watchdog exiting 0 within ~7 s of a normal teardown.
+2. **The F3 stand-down has not been seen in a REAL double-teardown** - only the claim primitive
+   and the branch logic were exercised. What it now prevents is the overlap, not a failure.
+3. **A genuine transient `OpenProcess` failure has never been observed** on this machine; test (d)
+   INJECTS one. The fix is reasoned + injected, not field-observed.

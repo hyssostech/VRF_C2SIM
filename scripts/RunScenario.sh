@@ -215,6 +215,15 @@ if [ "$SAMPLE_THREADS" -eq 1 ]; then
 fi
 
 # ---- THE RUN -----------------------------------------------------------------
+# The run-directory POINTER (review of 374ea49, finding F10). The backstop below used to find
+# the run directory by MTIME (ls -1dt runs/*_run | head -1), which names the NEWEST directory,
+# not the one this script launched - and a write into another run directory (the watchdog's own
+# runner.watchdog-ran, for one) flips that ordering. The runner writes the path of the run
+# directory it creates into RUNDIR_POINTER; this script deletes it FIRST, so what is found
+# afterwards is this run's or nothing at all.
+RUNDIR_POINTER='runs/launch52/last-run-dir.txt'
+rm -f "$RUNDIR_POINTER"
+
 # stdout AND stderr to a FILE, stdin from /dev/null. No pipe. No tee. No job control.
 "$PWSH64" "${ARGS[@]}" > "$LOG" 2>&1 < /dev/null
 rc=$?
@@ -249,12 +258,56 @@ esac
 # launched AND NOT teardown-ran => the runner died where no finally could run. Tear down
 # here, in the order the runner uses: StopIface (clean resign) THEN StopVrf, then signal
 # the observers. Nothing is force-killed here either, ever.
-RUNDIR="$(ls -1dt runs/*_run 2>/dev/null | head -1)"
+RUNDIR=''
+RUNDIR_SRC=''
+if [ "$DRYRUN" -eq 1 ]; then
+    # A dry run creates NO run directory, so there is nothing here that this script could
+    # legitimately tear down - and the mtime fallback below would happily name a PREVIOUS,
+    # killed run's directory and tear down on it (finding F10, second order).
+    echo "  dry run: no run directory was created, so the wrapper backstop is not armed."
+elif [ -f "$RUNDIR_POINTER" ]; then
+    RUNDIR="$(tr -d '\r\n' < "$RUNDIR_POINTER")"
+    RUNDIR="$(cygpath -u "$RUNDIR" 2>/dev/null || echo "$RUNDIR")"
+    RUNDIR_SRC="pointer $RUNDIR_POINTER"
+    if [ ! -d "$RUNDIR" ]; then
+        echo "  [WARN] $RUNDIR_POINTER names $RUNDIR, which is not a directory. Falling back to the mtime scan."
+        RUNDIR=''
+        RUNDIR_SRC=''
+    fi
+fi
+if [ "$DRYRUN" -eq 0 ] && [ -z "$RUNDIR" ]; then
+    # Fallback only: no pointer (an older runner, a validation abort before the run directory
+    # existed, or a failed write). It can name the WRONG directory - see finding F10 - so it
+    # says so out loud.
+    RUNDIR="$(ls -1dt runs/*_run 2>/dev/null | head -1)"
+    RUNDIR_SRC='NEWEST runs/*_run by mtime (no pointer file - this can be the WRONG directory)'
+fi
+[ -n "$RUNDIR" ] && echo "  run directory : $RUNDIR   [$RUNDIR_SRC]"
 if [ -n "$RUNDIR" ] && [ -f "$RUNDIR/runner.launched" ] && [ ! -f "$RUNDIR/runner.teardown-ran" ]; then
+    # CLAIM THE TEARDOWN FIRST (review of 374ea49, finding F3). scripts/RunnerWatchdog.ps1 is a
+    # second backstop on the same run directory and claims runner.watchdog-ran with CreateNew.
+    # This script predated it and claimed nothing, so a kill that left this bash alive produced
+    # TWO OVERLAPPING teardowns - this one's StopVrf52 still inside its 20 s front-end grace
+    # when the watchdog's StopIface started. Every step is a graceful, idempotent request, so
+    # that was benign, but it was never measured. noclobber (set -C) makes the create-or-fail
+    # atomic, in a SUBSHELL so noclobber does not leak into the rest of this script.
+    if ( set -C; : > "$RUNDIR/runner.watchdog-ran" ) 2>/dev/null; then
+        printf 'claimed by RunScenario.sh pid %s at %s (runner pid %s exited %s without a completed teardown)\n' \
+            "$$" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(cat "$RUNDIR/runner.launched" 2>/dev/null)" "$rc" \
+            >> "$RUNDIR/runner.watchdog-ran"
+    else
+        echo
+        echo "  runner.watchdog-ran is ALREADY CLAIMED in $RUNDIR - the detached watchdog"
+        echo "  (scripts/RunnerWatchdog.ps1) got there first. STANDING DOWN: this script tears"
+        echo "  NOTHING down. Read $RUNDIR/runner-watchdog.log for what it did."
+        echo "  runner log: $LOG"
+        exit $rc
+    fi
     echo
     echo "*** THE RUNNER DID NOT RECORD A COMPLETED TEARDOWN (exit $rc). Tearing down from the wrapper. ***"
-    echo "    run directory : $RUNDIR"
+    echo "    run directory : $RUNDIR   [$RUNDIR_SRC]"
     echo "    runner pid was: $(cat "$RUNDIR/runner.launched" 2>/dev/null)"
+    echo "    claimed       : $RUNDIR/runner.watchdog-ran (the detached watchdog stands down on it)"
     STOPIFACE='tools/StopIface/bin/Release/net10.0/StopIface.exe'
     if [ -x "$STOPIFACE" ]; then
         echo "    StopIface ..."
@@ -279,8 +332,8 @@ else
     if [ -n "$RUNDIR" ] && [ -f "$RUNDIR/runner.teardown-ran" ]; then
         echo "  teardown marker present in $RUNDIR - the runner tore down its own run."
     else
-        echo "  no runner.launched marker in the newest run directory - nothing was launched,"
-        echo "  so the wrapper tears NOTHING down (a foreign live session must never be touched)."
+        echo "  no runner.launched marker in ${RUNDIR:-(no run directory found)} - nothing was"
+        echo "  launched, so the wrapper tears NOTHING down (a foreign live session must never be touched)."
     fi
 fi
 

@@ -795,19 +795,27 @@ on 2026-09-14; each is now closed by something this section names
 
 5. NO PROCESS SWEEPS DURING A RUN WINDOW. `Stop-Process` / `taskkill` sweeps are BANNED while
    a run is open - a sweep filtered on a CommandLine substring is the shape that fits every
-   observation of the G6 kill. If a cleanup is unavoidable it MUST exclude the runner's PID,
-   which is the content of `<RunDir>\runner.launched`, and MUST exclude the killer's own
+   observation of the G6 kill. If a cleanup is unavoidable it MUST exclude TWO pids - the
+   runner's, which is the content of `<RunDir>\runner.launched`, AND the detached watchdog's,
+   which is the content of `<RunDir>\watchdog.pid` (item 6; it is a direct CHILD of the
+   runner, so a tree kill or a CommandLine-pattern sweep takes it along with the runner and
+   removes the very backstop the sweep makes necessary) - and MUST exclude the killer's own
    shell (filter on a token the killer cannot contain; list before killing). State the quiet
    period in the run's prereg.
 
 6. THE DETACHED WATCHDOG - the backstop for the backstop (`scripts\RunnerWatchdog.ps1`,
    2026-09-14). Item 3's wrapper backstop only runs if the wrapper's bash SURVIVES the runner.
    The watchdog covers the case it does not - a closed terminal, a kill that takes the whole
-   shell, a launch path with no wrapper. The runner starts it at STAGE 6b-w, the instant the
-   interface exists, and it is the one process of a run that OUTLIVES the runner by design.
+   shell, a launch path with no wrapper. The runner starts it at STAGE 3w, the instant
+   `runner.launched` is written and VR-Forces becomes this run's to stop (it was stage 6b-w
+   until the review of 374ea49 - finding F6 - and the window between the marker and stage 6b is
+   tens of seconds to a couple of minutes, not "sub-second"). It is the one process of a run
+   that OUTLIVES the runner by design.
 
        what it watches   the runner's PID (passed as -RunnerPid; the same number is in
-                         <RunDir>\runner.launched), polled every 5 s until -MaxSec.
+                         <RunDir>\runner.launched), polled every 5 s until -MaxSec. A death
+                         must be observed TWICE, 2 s apart, before anything is touched: one
+                         transient failed read is not a death (finding F2).
        what it reads     nothing at all while the runner is alive.
        when it acts      runner gone AND runner.launched present AND runner.teardown-ran
                          absent AND runner.watchdog-ran absent. Then: claim
@@ -832,10 +840,26 @@ on 2026-09-14; each is now closed by something this section names
    terminal. It force-kills NOTHING on any path and never touches rtiexec / rtiForwarder /
    rtiAssistant. `-NoWatchdog` on the runner turns it off - then item 3 is the only backstop.
 
-   KNOWN, BENIGN OVERLAP: `RunScenario.sh` predates the watchdog and does not read or write
-   `runner.watchdog-ran`, so a kill that leaves the wrapper alive can produce TWO teardowns -
-   the wrapper's (immediate) and the watchdog's (~5 s later). Every step is a graceful,
-   idempotent request, so the second is a no-op that logs; do not read it as two failures.
+   THE OVERLAP IS CLOSED (finding F3, 2026-09-14). `RunScenario.sh` now CLAIMS
+   `runner.watchdog-ran` atomically (`set -C; : > ...`) before its own teardown and STANDS DOWN
+   if the claim fails, so the wrapper and the watchdog can no longer tear down the same run at
+   once - whichever gets the marker acts, the other says so and exits. Historic runs (and any
+   launch path that is not this wrapper) can still show the old pair, an immediate wrapper
+   teardown and a watchdog one ~5 s later; every step is a graceful, idempotent request, so
+   that is a no-op that logs, not two failures.
+
+   ITS BUDGET. `-MaxSec` is derived by the runner as
+   `max(EffWatchSecs, DerivedWatchSecs) + LaunchSettleSec + (preCheck 30 + StageTimeoutSec) +
+   StageTimeoutSec + (TraceStopGraceSec + AppExitTimeoutSec + StopVrfTimeoutSec) + 600`, capped
+   at 86400 - the observation window PLUS the stages between stage 3w and the observers PLUS
+   every teardown budget PLUS ten minutes of slack. It is printed in the stage banner with its
+   terms. Expiry with the runner still alive is exit 4 and NOTHING torn down.
+
+   THE RUN-DIRECTORY POINTER (finding F10). The runner writes the run directory it created into
+   `runs\launch52\last-run-dir.txt`; `RunScenario.sh` deletes that file before launching and
+   reads it afterwards, instead of taking the NEWEST `runs\*_run` by mtime - which is not
+   necessarily the one it launched, and which any later write into another run directory can
+   flip. If the pointer is missing the wrapper falls back to the mtime scan and SAYS SO.
 
 7. `--pre-order-settle N` (wrapper) / `-PreOrderSettleSecs N` (runner) - HOLD THE ORDER BACK.
    STAGE 7d, added 2026-09-14, OFF by default (0) so a default run stays comparable with the
