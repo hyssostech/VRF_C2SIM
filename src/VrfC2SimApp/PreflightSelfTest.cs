@@ -240,9 +240,94 @@ public static class PreflightSelfTest
             failures++;
         }
 
+        // ---- 5: the EMISSION POLICY, independent of any tile ------------------------------
+        failures += CheckEmissionPolicy(mine, threshold);
+
         Console.WriteLine();
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
         return failures == 0 ? 0 : 1;
+    }
+
+    /// <summary>
+    /// What the order-receipt hook is allowed to send: one ReportBody per FLAGGED leg, each
+    /// carrying the LocationObservation + NameObservation PAIR, and NOTHING for an order whose
+    /// legs all pass or whose legs got no verdict. Checked on the real order and then on three
+    /// synthetic tasks, so the policy is pinned without a tile, a bridge or a federation.
+    /// </summary>
+    private static int CheckEmissionPolicy(List<TaskPreflight> mine, double threshold)
+    {
+        int failures = 0;
+        Console.WriteLine();
+        Console.WriteLine("--- emission policy (PreflightReports.BuildForTask) ---");
+        const string iso = "2026-09-14T00:00:00Z";
+        int seq = 0;
+        Func<string> ids = () => $"00000000-0000-0000-0000-{(++seq):D12}";
+
+        // (a) the real order: N flagged legs -> exactly N reports, each with the pair.
+        int flagged = mine.Sum(t => t.Legs.Count(l => l.Flagged));
+        int emitted = 0, pairs = 0;
+        foreach (var t in mine)
+            foreach (var xml in PreflightReports.BuildForTask(t, threshold, iso, ids))
+            {
+                emitted++;
+                int loc = Occurrences(xml, "<LocationObservation>");
+                int nam = Occurrences(xml, "<NameObservation>");
+                if (loc == 1 && nam == 1) pairs++;
+                else Console.WriteLine($"  FAIL: a report carried {loc} LocationObservation(s) and {nam} NameObservation(s)");
+            }
+        Check(ref failures, emitted == flagged, $"the order's {flagged} flagged leg(s) yield {emitted} report(s)");
+        Check(ref failures, pairs == emitted, $"all {emitted} report(s) carry exactly one Location + one Name observation");
+
+        // (b) a task with no flagged leg emits NOTHING.
+        var clean = new TaskPreflight
+        {
+            TaskName = "T_CLEAN", UnitName = "unit", UnitUuid = "u-1", Template = "Tank Platoon (USA)",
+            Legs = new List<LegMetrics>
+            {
+                new() { Index = 1, Flagged = false, Ratio = 0.40, Soil = "hard-packed" },
+                new() { Index = 2, Flagged = false, Ratio = 0.85, Soil = "sand" },
+            },
+        };
+        Check(ref failures, PreflightReports.BuildForTask(clean, threshold, iso, ids).Count == 0,
+              "a task whose legs all pass emits nothing");
+
+        // (c) a task whose leg got NO VERDICT emits nothing either - missing tiles are not
+        //     evidence of good ground, and they are not evidence of bad ground.
+        var blind = new TaskPreflight
+        {
+            TaskName = "T_BLIND", UnitName = "unit", UnitUuid = "u-2", Template = "Tank Platoon (USA)",
+            Legs = new List<LegMetrics> { new() { Index = 1, Flagged = false, NoVerdict = true, Ratio = 9.9 } },
+        };
+        Check(ref failures, PreflightReports.BuildForTask(blind, threshold, iso, ids).Count == 0,
+              "a leg with NO VERDICT emits nothing, however bad its ratio looks");
+
+        // (d) N flagged legs on one task -> N reports, in leg order.
+        var three = new TaskPreflight
+        {
+            TaskName = "T_THREE", UnitName = "unit", UnitUuid = "u-3", Template = "Tank Platoon (USA)",
+            Legs = new List<LegMetrics>
+            {
+                new() { Index = 1, Flagged = true, Ratio = 1.10, Soil = "sand", Limit = 0.752, LimitRaw = 0.94, Factor = 0.80, Sustained = 0.826, SustainedWindowM = 40 },
+                new() { Index = 2, Flagged = false, Ratio = 0.50, Soil = "sand", Limit = 0.752, LimitRaw = 0.94, Factor = 0.80 },
+                new() { Index = 3, Flagged = true, Ratio = 0.95, Soil = "sand", Limit = 0.752, LimitRaw = 0.94, Factor = 0.80, Sustained = 0.714, SustainedWindowM = 40 },
+            },
+        };
+        var got = PreflightReports.BuildForTask(three, threshold, iso, ids);
+        Check(ref failures, got.Count == 2, "2 of 3 legs flagged -> 2 reports");
+        Check(ref failures, got.Count == 2 && got[0].Contains("leg 1", StringComparison.Ordinal)
+                            && got[1].Contains("leg 3", StringComparison.Ordinal),
+              "the reports name legs 1 and 3, in leg order");
+        Check(ref failures, got.Count > 0 && got.All(x => x.Contains("PREDICTED IMPASSABLE (pre-flight estimate,", StringComparison.Ordinal)),
+              "every report carries the PREDICTED IMPASSABLE (pre-flight estimate, ...) wording");
+        return failures;
+    }
+
+    private static int Occurrences(string haystack, string needle)
+    {
+        int n = 0;
+        for (int i = haystack.IndexOf(needle, StringComparison.Ordinal); i >= 0;
+             i = haystack.IndexOf(needle, i + needle.Length, StringComparison.Ordinal)) n++;
+        return n;
     }
 
     /// <summary>

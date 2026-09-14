@@ -545,4 +545,9 @@ public class VrfSettings
     // Never fetch a tile; score only what the cache already holds. A leg whose tiles are missing
     // gets NO VERDICT - it is never quietly passed.
     public bool PreflightOffline { get; set; } = false;
+
+    // The MAK SharedData root the land-cover CLASS -> soiltype catalogues are read from
+    // (osgEarthCatalogs/coverage/layer.*.online.xml). The vehicle limits and the soil
+    // acceleration-factors come from Vrf:VrfHome instead. Read-only, both of them.
+    public string PreflightSharedDataDir { get; set; } = @"C:\MAK\SharedData\19\latest";
 }

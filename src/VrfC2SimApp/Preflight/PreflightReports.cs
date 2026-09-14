@@ -105,6 +105,31 @@ public static class PreflightReports
         return C2SIMSDK.FromC2SIMObject(body);
     }
 
+    /// <summary>
+    /// THE EMISSION POLICY, in one pure function: one ReportBody per FLAGGED leg, and
+    /// nothing at all for a leg that passed or that got NO VERDICT. A leg without a verdict
+    /// is silent on purpose - missing tiles are not evidence of good ground, and inventing a
+    /// warning from them would be exactly the false alarm DEMO_READINESS row 20 is guarding
+    /// against.
+    ///
+    /// Kept separate from the service so the policy can be tested without a bridge, a tile or
+    /// a federation: N flagged legs -> N reports, no flagged legs -> none.
+    /// </summary>
+    public static List<string> BuildForTask(TaskPreflight task, double threshold,
+                                            string isoDateTime, Func<string> newReportId)
+    {
+        var outp = new List<string>();
+        if (task?.Legs == null) return outp;
+        foreach (var leg in task.Legs)
+        {
+            if (!leg.Flagged) continue;
+            outp.Add(BuildLegWarningReport(task.UnitUuid, task.UnitName, task.TaskName,
+                                           task.Template, leg, threshold,
+                                           isoDateTime, newReportId()));
+        }
+        return outp;
+    }
+
     /// <summary>Half-to-even, like python's "%.*f", so the two emitters agree digit for digit.</summary>
     private static double Round(double v, int digits)
         => double.IsNaN(v) || double.IsInfinity(v) ? v : Math.Round(v, digits, MidpointRounding.ToEven);
