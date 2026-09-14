@@ -1100,12 +1100,15 @@ public sealed class VrfC2SimService : BackgroundService
     private void EnqueueCreates(List<CreationPlan> plans)
     {
         _createsIssuedUtc = DateTime.UtcNow;   // composition clocks start here, not at planning
+        // B3 (review fix): register EVERY name before ANY create is issued. The tick thread runs
+        // concurrently with this method, so a create enqueued in an earlier iteration can produce
+        // its ObjectCreated - and its truncated-name resolution - while later names are still
+        // unregistered; the resolution is CACHED, so a name that would have been ambiguous once the
+        // whole batch was known could otherwise be attributed to the only candidate visible at that
+        // instant. Two loops cost nothing and make the registry complete before the first create.
+        foreach (var p in plans) _names.Requested(p.Name);
         foreach (var p in plans)
         {
-            // B3: register the name BEFORE the create is enqueued - the ObjectCreated callback can
-            // arrive as soon as the create goes out, and the registry needs the requested name to
-            // resolve a truncated one against.
-            _names.Requested(p.Name);
             _tickActions.Enqueue(() =>
             {
                 if (p.IsAggregate)
