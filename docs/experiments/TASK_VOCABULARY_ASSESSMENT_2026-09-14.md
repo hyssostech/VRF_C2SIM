@@ -3,7 +3,7 @@
 # Attack/Defend/Seize task classes - every tactical task is a Lua scripted task, many shipped in EntityLevel; the init's
 # 35 tactical areas are already created in VR-Forces with the C2SIM uuid; the binding constraint is parameter supply
 # (9 of 42 COA-STP1 tasks carry no location; 42/42 self-target). Six rulings R1-R6 are the user's (sec 7).
-# RULINGS 2026-09-14: R1 STP export defect (fix upstream), R2 who-unit geometry, R3 target = objective, R4 end time = start + Duration; R5/R6 open - see sec 7 and DOCTRINE_FOR_TASKING_RULINGS_2026-09-14.md.
+# RULINGS 2026-09-14: R1 STP export defect (fix upstream), R2 who-unit geometry, R3 target = objective, R4 end time = start + Duration; R5 ruled (entity first + user mode option), R6 ruled (test filter enforcement, then fan-out to composed companies) - see sec 7 and DOCTRINE_FOR_TASKING_RULINGS_2026-09-14.md.
 
 # TASK VOCABULARY ASSESSMENT - STP verbs -> VR-Forces 5.2 tasks (2026-09-14, lane L8)
 
@@ -1053,7 +1053,7 @@ R5 and R6 remain open. Citations below are to that doctrine record unless noted.
   time; evaluable tasks (SEIZE/OCCUPY arrival, BREACH, MOVE) may still complete earlier
   on their own evidence.
 
-- **R5 OPEN - EntityLevel first vs straight to AggregateTacticalLevel.** Explained to
+- **R5 RULED - EntityLevel first vs straight to AggregateTacticalLevel.** Explained to
   the user 2026-09-14; doctrine does not settle it directly (an engineering/schedule
   call).
 
@@ -1062,17 +1062,35 @@ R5 and R6 remain open. Citations below are to that doctrine record unless noted.
   aggregate-level mode with the limitations of each documented; a scenario is one
   mode, never mixed.
 
-- **R6 OPEN - whether to change the type map so COA-STP1 companies are created as
+- **R6 RULED - whether to change the type map so COA-STP1 companies are created as
   COMPANY types.** Explained to the user 2026-09-14; doctrine note: the type should
   follow the taskee's ECHELON, not a global switch (company-typed vendor tasks
   implement company-level doctrine, and COA-STP1's taskees are a mix of battalions and
   companies) - a shape constraint on the answer, not a decision.
 
-  CLARIFIED 2026-09-14: R6 is NOT a mixed entity/aggregate mode (user: 'a bridge too
+  RULED 2026-09-14: R6 is NOT a mixed entity/aggregate mode (user: 'a bridge too
   far'); it is the DIS type of the EntityLevel aggregate object that the vendor
   script's myEntityTypes filter checks. Options restated: (a) fan out to composed
   companies for battalion taskees (SubordinateFanOut exists, default off) -
   doctrinally right; (b) widen the filter in our copy of the script (custom
   including SMS) - transition only; (c) one run to test whether the filter is
-  enforced over the remote-control channel at all. Recommendation: (c), then (a),
-  (b) as transition. Ruling still owed.
+  enforced over the remote-control channel at all.
+
+  RULED 2026-09-14 (user): as recommended - (c) one run to test whether the
+  vendor scripted task's myEntityTypes filter is enforced over the
+  remote-control channel at all; then (a) battalion taskees fan out to
+  composed companies (SubordinateFanOut, default off; a battalion attack is
+  its companies attacking); (b) widened filters in our copy of the script
+  (custom including SMS) only as the transition.
+
+**Echelons above battalion.** User question 2026-09-14 ("Echelons above
+battalion are ignored?"), answered same day: COA-STP1 has NO taskee above
+battalion - 11 taskees = 5 BN (1-35, 4-27, 1-6, 40 EN, 5-20), 4 COY (510/40,
+856/HHC, B/5-20, C/1-35), 2 NOS (A/6-56/HHC ADA battery, 1-1 cavalry); the
+init's 128 units are BN 26 / PLT 23 / NOS 12 / COY 64 / BDE 1 / SECT 2, the
+single BDE is context (COA-is-not-the-ORBAT ruling). A brigade-or-above
+taskee runs at HQ-proxy fidelity in entity mode (movement proven: 1.BdeHQ
+drove the 7.6 km G7 route in attempt 2; tactical tasks fan out only to
+simulated subordinates and are reported as proxy-fidelity) and as a native
+aggregate object in aggregate mode; a full-fidelity brigade in entity mode is
+the withdrawn scale crawl and is not offered.
