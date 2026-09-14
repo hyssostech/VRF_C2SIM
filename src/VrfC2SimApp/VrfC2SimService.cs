@@ -39,13 +39,19 @@ public sealed class VrfC2SimService : BackgroundService
     private readonly NationRoles _nations;
     private readonly string _typeMapLoadError;
 
-    // C2SIM name -> VRF uuid correlation, populated on ObjectCreated
+    // C2SIM name <-> VRF uuid correlation, populated on ObjectCreated
     // (parity: onVrfObjectCreated in C2SIMinterface.cpp).
-    private readonly ConcurrentDictionary<string, string> _vrfUuidByName = new();
+    // B3 (2026-09-14): this is a NameRegistry, not a bare dictionary, because VR-Forces may return
+    // a created object under a name SHORTER than the one we asked for - a platform's name is a DIS
+    // MARKING, and "2/1_AD/25_~PXY" came back as "2/1_AD/25_" (runs/20260914T002716Z_run). The
+    // registry resolves such a callback to the requested name, so every lookup below - the R1
+    // position poll, the arrival-evidence check, the stall watchdog, ExecuteTaskOnTick - finds the
+    // object under the name the C2SIM init gave it. See NameRegistry for the rule and its guards.
+    private readonly NameRegistry _names = new();
 
     // C2SIM unit-uuid -> what we created for it, retained from OnInitialization so OnOrder
     // can resolve a task's PerformingEntity (a C2SIM uuid) to the VRF object's name (the
-    // _vrfUuidByName key) and its SIDC (for the ground-clamp test). Parity: executeTask
+    // _names key) and its SIDC (for the ground-clamp test). Parity: executeTask
     // looks the taskee up in the C++ unit map by taskeeUuid (C2SIMinterface.cpp:2044).
     private readonly ConcurrentDictionary<string, CreatedUnit> _unitByC2SimUuid = new();
     // C2SIM uuid -> hostility code of the init unit ("HO" = red), for the R1 position-report side
@@ -110,9 +116,8 @@ public sealed class VrfC2SimService : BackgroundService
     // guard for areas (units use _unitByC2SimUuid membership for the same purpose).
     private readonly ConcurrentDictionary<string, byte> _createdAreaKeys = new();
 
-    // VRF uuid -> created-object name (reverse of _vrfUuidByName), for the R4
-    // formation-reply handler (the reply carries only the uuid). Aggregates only.
-    private readonly ConcurrentDictionary<string, string> _nameByVrfUuid = new();
+    // (The VRF uuid -> name reverse map used by the R4 formation reply and the object console -
+    // both carry only a uuid - now lives in _names too: NameRegistry.TryGetName/TryAddName.)
 
     // VRF uuids whose R1 formation set + reorganize already ran (first reply wins;
     // later replies - e.g. the move-time diagnostic re-query - must not re-snap).
@@ -491,14 +496,13 @@ public sealed class VrfC2SimService : BackgroundService
         // is why a manual scenario reload was needed between runs). Enqueue deleteObject onto the
         // tick thread while it is STILL running, wait for the queue to drain, then a moment for the
         // messages to flush to the backend, BEFORE stopping the tick + resigning. This deletes only
-        // what THIS run created (tracked in _vrfUuidByName); orphans from crashes/force-kills need
+        // what THIS run created (tracked in _names); orphans from crashes/force-kills need
         // the hard reset (tools/ResetVrf). Opt out via Vrf:CleanupCreatedOnStop=false.
         if (_vrf.CleanupCreatedOnStop)
         {
             try
             {
-                var created = _vrfUuidByName.Values
-                    .Where(v => !string.IsNullOrEmpty(v)).Distinct().ToList();
+                var created = _names.CreatedUuids();
                 if (created.Count > 0)
                 {
                     _log.LogInformation("Cleanup: deleting {N} created VR-Forces objects before resign...",
@@ -572,15 +576,34 @@ public sealed class VrfC2SimService : BackgroundService
 
         bool blue = !_vrf.PositionReportSides.Equals("red", StringComparison.OrdinalIgnoreCase);
         bool red  = !_vrf.PositionReportSides.Equals("blue", StringComparison.OrdinalIgnoreCase);
-        int sent = 0, skipped = 0;
+        int sent = 0, unresolved = 0, unreflected = 0;
         List<(string uuid, double lat, double lon)> bundle = _vrf.BundlePositionReports ? new() : null;
         foreach (var kv in _unitByC2SimUuid)
         {
             string c2simUuid = kv.Key, name = kv.Value.Name;
             bool hostile = _hostilityByC2SimUuid.TryGetValue(c2simUuid, out var h) && h == "HO";
             if (hostile ? !red : !blue) continue;
-            if (!_vrfUuidByName.TryGetValue(name, out var vrfUuid)) { skipped++; continue; }
-            if (!_bridge.TryGetEntityGeodetic(vrfUuid, out var g)) { skipped++; continue; }
+            // B3: the two reasons a unit is skipped are NOT the same fault and used to be counted
+            // together as "no reflected object yet". NAME UNRESOLVED means no ObjectCreated has ever
+            // bound a uuid to this unit's name - the state that hid the truncated-marking bug for
+            // nine hours. Each is named ONCE, the first time it happens, not every cycle.
+            if (!_names.TryGetUuid(name, out var vrfUuid))
+            {
+                unresolved++;
+                if (_r1Unresolved.TryAdd(name, 0))
+                    _log.LogWarning("R1: unit {Name} has NO VR-Forces uuid - no ObjectCreated has bound that name. " +
+                                    "It will be skipped by the position poll, the arrival check and the stall " +
+                                    "watchdog until one does.", name);
+                continue;
+            }
+            if (!_bridge.TryGetEntityGeodetic(vrfUuid, out var g))
+            {
+                unreflected++;
+                if (_r1Unreflected.TryAdd(name, 0))
+                    _log.LogInformation("R1: unit {Name} ({Uuid}) is created but not REFLECTED yet - no position " +
+                                        "to report for it (HLA discovery lags the create callback).", name, vrfUuid);
+                continue;
+            }
             if (bundle != null) { bundle.Add((c2simUuid, g.LatDeg, g.LonDeg)); continue; }
             _ = PushReportAsync(ReportBuilder.BuildPositionReport(c2simUuid, g.LatDeg, g.LonDeg, IsoNow(), NewReportId()));
             sent++;
@@ -595,9 +618,15 @@ public sealed class VrfC2SimService : BackgroundService
             }
             if (snapshot != null && snapshot.Count > 0) { _ = PushBundleSnapshot(snapshot); sent = snapshot.Count; }
         }
-        _log.LogInformation("R1 position reports: {Sent} sent, {Skipped} skipped (no reflected object yet), " +
-                            "sides={Sides}, every {Secs}s.", sent, skipped, _vrf.PositionReportSides, _vrf.PositionReportSeconds);
+        _log.LogInformation("R1 position reports: {Sent} sent, {Unresolved} skipped (NAME UNRESOLVED - no VRF uuid), " +
+                            "{Unreflected} skipped (no reflected object yet), sides={Sides}, every {Secs}s.",
+                            sent, unresolved, unreflected, _vrf.PositionReportSides, _vrf.PositionReportSeconds);
     }
+
+    // R1 diagnostics: units already named as unresolved / unreflected, so each is reported ONCE
+    // (the pre-B3 line repeated its count every cycle and named nothing - 9 h of "1 skipped").
+    private readonly ConcurrentDictionary<string, byte> _r1Unresolved = new();
+    private readonly ConcurrentDictionary<string, byte> _r1Unreflected = new();
 
     private StartupConfig BuildStartupConfig()
     {
@@ -986,6 +1015,7 @@ public sealed class VrfC2SimService : BackgroundService
             string areaKey = "area:" + (string.IsNullOrEmpty(a.Uuid) ? a.Name : a.Uuid);
             if (!_createdAreaKeys.TryAdd(areaKey, 0)) { duplicates++; continue; }
             var area = a;
+            _names.Requested(area.Name);   // B3: so an area's ObjectCreated is an EXACT match, not a prefix scan
             _tickActions.Enqueue(() =>
             {
                 var pts = area.Points
@@ -1037,6 +1067,10 @@ public sealed class VrfC2SimService : BackgroundService
         _createsIssuedUtc = DateTime.UtcNow;   // composition clocks start here, not at planning
         foreach (var p in plans)
         {
+            // B3: register the name BEFORE the create is enqueued - the ObjectCreated callback can
+            // arrive as soon as the create goes out, and the registry needs the requested name to
+            // resolve a truncated one against.
+            _names.Requested(p.Name);
             _tickActions.Enqueue(() =>
             {
                 if (p.IsAggregate)
@@ -1398,7 +1432,7 @@ public sealed class VrfC2SimService : BackgroundService
             return;
         }
 
-        if (!_vrfUuidByName.TryGetValue(name, out var shellUuid) || string.IsNullOrEmpty(shellUuid))
+        if (!_names.TryGetUuid(name, out var shellUuid))
         {
             // Review fix: the shell's ObjectCreated has not arrived yet (the order came within seconds of
             // the init). DEFER: register the gate now so the task waits, and run this again from
@@ -1438,7 +1472,7 @@ public sealed class VrfC2SimService : BackgroundService
             // Only an AGGREGATE superior can take it back (ApplyHierarchyComposition refuses a platform parent
             // the same way - review fix).
             if (d.SuperiorUuid.Length > 0 && _deferred.TryGetValue(d.SuperiorUuid, out var sup) && sup.Plan.IsAggregate
-                && _vrfUuidByName.TryGetValue(sup.Plan.Name, out var supUuid) && !string.IsNullOrEmpty(supUuid))
+                && _names.TryGetUuid(sup.Plan.Name, out var supUuid))
             {
                 _reattachToParentVrfUuid[name] = supUuid;
                 reattach = true;
@@ -1793,7 +1827,7 @@ public sealed class VrfC2SimService : BackgroundService
     {
         // Resolve the VRF uuid via the created object's name. Parity: executeTask drops
         // the task if the unit was not created (C2SIMinterface.cpp:2046-2050).
-        if (!_vrfUuidByName.TryGetValue(unit.Name, out var vrfUuid))
+        if (!_names.TryGetUuid(unit.Name, out var vrfUuid))
         {
             _log.LogWarning("DROPPING TASK '{Task}' BECAUSE UNIT {Uuid} ({Name}) WAS NOT CREATED.",
                             task.TaskName, task.TaskeeUuid, unit.Name);
@@ -1813,7 +1847,7 @@ public sealed class VrfC2SimService : BackgroundService
                 foreach (var m in consoleMembers)
                 {
                     if (string.IsNullOrEmpty(m.Uuid)) continue;
-                    _nameByVrfUuid.TryAdd(m.Uuid, m.Name ?? "");
+                    _names.TryAddName(m.Uuid, m.Name ?? "");
                     _bridge.SetObjectNotifyLevel(m.Uuid, _vrf.ObjectConsoleMemberNotifyLevel);
                 }
                 // Members are named WITH their uuids (2026-09-06): the console rows the observer captures
@@ -1849,7 +1883,7 @@ public sealed class VrfC2SimService : BackgroundService
 
         // LAYER 2 - ATTACK-family (ATTACK/DESTRY/FIX/DISRPT/PENTRT): resolve the affected
         // entity (a C2SIM uuid) to a VRF target for a DtFireAtTargetTask. Resolution uses the
-        // init-created maps (_unitByC2SimUuid -> _vrfUuidByName) - the two-dict chain that
+        // init-created maps (_unitByC2SimUuid -> _names) - the two-dict chain that
         // dissolves the plan's uuid-resolution blocker (SEMANTIC_MAPPING.md sec 2b). The target
         // must be an entity our clientId created at init; an out-of-scope OPFOR target degrades
         // to advance-only + a warn. The fire itself is issued AFTER the move below (advance the
@@ -2094,6 +2128,7 @@ public sealed class VrfC2SimService : BackgroundService
         if (unit.IsAggregate && _vrf.AggregatePlanAndMove)
         {
             string wptName = task.TaskName + " WPT";
+            _names.Requested(wptName);   // B3: the waypoint's ObjectCreated is matched by this name
             var wptQueue = _pendingRouteTasks.GetOrAdd(wptName, _ => new ConcurrentQueue<PendingRouteTask>());
             wptQueue.Enqueue(new PendingRouteTask(vrfUuid, Patrol: false, PlanMove: true));
             _pendingRouteUnit[wptName] = unit.Name;   // the arrival swallow clears when the VRF task is issued (route-created)
@@ -2159,6 +2194,7 @@ public sealed class VrfC2SimService : BackgroundService
         // CreateRoute is async; defer the along-route task until the route's ObjectCreated fires
         // (parity: the C++ waits for the route to register before moveAlongRoute, :2408-2421).
         string routeName = task.TaskName + " ROUTE";
+        _names.Requested(routeName);   // B3: the route's ObjectCreated is matched by this name
         // Layer 2: RECONNOITER (SCREEN/SCOUT) PATROLS the route (back and forth) instead of
         // moving along it once - defer PatrolRoute; every other verb defers MoveAlongRoute.
         bool patrol = verb.Intent == TaskIntent.Reconnoiter;
@@ -2366,16 +2402,29 @@ public sealed class VrfC2SimService : BackgroundService
     {
         _lastObjectCreatedUtc = DateTime.UtcNow;   // keeps composition deadlines from firing mid-batch
         // parity: onVrfObjectCreated correlates the requested name to its VRF uuid.
-        if (!string.IsNullOrEmpty(e.Name))
+        // B3: the callback's name may be the DIS-marking TRUNCATION of the name we asked for
+        // ("2/1_AD/25_" for "2/1_AD/25_~PXY"). Resolve it ONCE here and use the resolved `name`
+        // for the whole callback - every map below (_compositions, _childToParent, _recreatePending,
+        // _reattachToParentVrfUuid, _pendingAltitude, _c2SimUuidByName, _pendingRouteTasks) is keyed
+        // by the name we REQUESTED, so a truncated callback used to miss all of them silently.
+        var bind = _names.Bind(e.Name, e.Uuid);
+        string name = bind.Name;
+        if (bind.Truncated)
+            _log.LogWarning("VRF returned created object '{Returned}' for the name we requested, '{Requested}' " +
+                            "({Uuid}) - a platform's name is its DIS MARKING and is truncated. Correlating it to " +
+                            "the requested name; every lookup uses that name.", e.Name, name, e.Uuid);
+        if (bind.Ambiguous)
+            _log.LogError("VRF returned created object '{Returned}' ({Uuid}), which is the truncation of MORE THAN " +
+                          "ONE name we requested - it cannot be attributed and is left under the returned name. " +
+                          "The units sharing that prefix will not be found by name.", e.Name, e.Uuid);
+        if (!string.IsNullOrEmpty(name))
         {
-            _vrfUuidByName[e.Name] = e.Uuid;
-            _nameByVrfUuid[e.Uuid] = e.Name;   // reverse map for console/formation replies (all paths)
             // ORDER-TIME MATERIALIZATION deferred to this shell's arrival (review fix): run it now, on the
             // tick thread - MaterializeUnit only enqueues bridge work and touches concurrent maps.
-            if (_materializeOnCreated.TryRemove(e.Name, out var deferredMat))
+            if (_materializeOnCreated.TryRemove(name, out var deferredMat))
                 MaterializeUnit(deferredMat.Uuid, deferredMat.Why + " (shell reflected)");
         }
-        _log.LogDebug("VRF created {Name} -> {Uuid}", e.Name, e.Uuid);
+        _log.LogDebug("VRF created {Name} -> {Uuid}", name, e.Uuid);
 
         // OBSERVATION CHANNEL (Vrf:ObjectConsoleNotifyLevel >= 0): open this object's console at
         // the requested level so its controllers' messages reach OnVrfObjectConsoleMessage
@@ -2384,36 +2433,36 @@ public sealed class VrfC2SimService : BackgroundService
         {
             _bridge.SetObjectNotifyLevel(e.Uuid, _vrf.ObjectConsoleNotifyLevel);
             _log.LogInformation("VRF console level {Level} requested for {Name} ({Uuid}).",
-                                _vrf.ObjectConsoleNotifyLevel, e.Name, e.Uuid);
+                                _vrf.ObjectConsoleNotifyLevel, name, e.Uuid);
         }
 
         // COMPOSE-FROM-CHILDREN (Vrf:ComposeHierarchy): attach declared children under their parent
         // shell once both exist (vendor sample commandLineRemoteController.cxx:1520-1554). This
         // callback runs on the tick thread, so the AddToOrganization bridge call inside is safe.
-        if (_vrf.ComposeHierarchy && !string.IsNullOrEmpty(e.Name)
-            && (_compositions.ContainsKey(e.Name) || _childToParent.ContainsKey(e.Name)))
-            TryAdvanceComposition(e.Name, e.Uuid);
+        if (_vrf.ComposeHierarchy && !string.IsNullOrEmpty(name)
+            && (_compositions.ContainsKey(name) || _childToParent.ContainsKey(name)))
+            TryAdvanceComposition(name, e.Uuid);
 
         // ORDER-TIME MATERIALIZATION case 3 (C13): a shell that was deleted and re-created as its
         // TEMPLATE has arrived. Re-attach it under its superior shell (if it had one) and release the
-        // task waiting on it. _vrfUuidByName already carries the NEW uuid (set at the top).
-        if (!string.IsNullOrEmpty(e.Name) && _recreatePending.TryRemove(e.Name, out _))
+        // task waiting on it. _names already carries the NEW uuid (bound at the top).
+        if (!string.IsNullOrEmpty(name) && _recreatePending.TryRemove(name, out _))
         {
             string parentUuid = null;
-            if (_reattachToParentVrfUuid.TryRemove(e.Name, out var pu))
+            if (_reattachToParentVrfUuid.TryRemove(name, out var pu))
             {
                 parentUuid = pu;
                 // Restore the DECLARED subordinate order (review fix): addToOrganization appends, so
                 // re-add EVERY declared child of that parent in declared order (each re-add detaches and
                 // appends; the final order is the declared one). Children whose own re-create is still in
                 // flight are skipped here and re-ordered again when they arrive.
-                if (_nameByVrfUuid.TryGetValue(pu, out var parentName)
+                if (_names.TryGetName(pu, out var parentName)
                     && _declaredChildNamesByParent.TryGetValue(parentName, out var declaredNames))
                 {
                     foreach (var childName in declaredNames)
                     {
                         if (_recreatePending.ContainsKey(childName)) continue;
-                        if (_vrfUuidByName.TryGetValue(childName, out var childUuid) && !string.IsNullOrEmpty(childUuid))
+                        if (_names.TryGetUuid(childName, out var childUuid))
                             _bridge.AddToOrganization(childUuid, pu);
                     }
                 }
@@ -2421,14 +2470,14 @@ public sealed class VrfC2SimService : BackgroundService
                     _bridge.AddToOrganization(e.Uuid, pu);
             }
             // Release on REFLECTION (ReleaseReflected on the tick loop), not on this control message.
-            _awaitReflection[e.Name] = (e.Uuid, DateTime.UtcNow.AddSeconds(Math.Max(1, _vrf.CompositionTimeoutSeconds)));
+            _awaitReflection[name] = (e.Uuid, DateTime.UtcNow.AddSeconds(Math.Max(1, _vrf.CompositionTimeoutSeconds)));
             _log.LogInformation("MATERIALIZE {Name}: re-created as the template ({Uuid}){Re}; waiting for it to reflect.",
-                                e.Name, e.Uuid, parentUuid == null ? "" : " and re-attached under " + parentUuid);
+                                name, e.Uuid, parentUuid == null ? "" : " and re-attached under " + parentUuid);
         }
 
         // Apply any deferred SetAltitude now that we have the uuid. This callback
         // already runs on the tick thread, so the bridge call is safe here.
-        if (!string.IsNullOrEmpty(e.Name) && _pendingAltitude.TryRemove(e.Name, out var alt))
+        if (!string.IsNullOrEmpty(name) && _pendingAltitude.TryRemove(name, out var alt))
             _bridge.SetAltitude(e.Uuid, alt);
 
         // R1 (docs/UNIT_MOVEMENT_RESEARCH.md): with Vrf:AggregateFormation=auto, repair a
@@ -2440,16 +2489,16 @@ public sealed class VrfC2SimService : BackgroundService
         // the lead subordinate - auto-promote is off in VRF). Ground truth beats static
         // analysis: the first R5 run's read-backs showed ALL units here accept only
         // LOWERCASE names, contradicting the .entity files' Title-Case company lists.
-        if (!string.IsNullOrEmpty(e.Name)
+        if (!string.IsNullOrEmpty(name)
             && _vrf.AggregateFormation.Equals("auto", StringComparison.OrdinalIgnoreCase)
-            && _c2SimUuidByName.TryGetValue(e.Name, out var createdC2SimUuid)
+            && _c2SimUuidByName.TryGetValue(name, out var createdC2SimUuid)
             && _unitByC2SimUuid.TryGetValue(createdC2SimUuid, out var createdUnit)
             && createdUnit.IsAggregate)
         {
-            _nameByVrfUuid[e.Uuid] = e.Name;
+            // (the uuid -> name binding is already in _names from the Bind at the top)
             _bridge.RequestAvailableFormations(e.Uuid);
             _log.LogInformation("R1: created aggregate {Name} ({Uuid}) - formation list " +
-                                "queried; set+reorganize follow on the reply.", e.Name, e.Uuid);
+                                "queried; set+reorganize follow on the reply.", name, e.Uuid);
         }
 
         // If this created object is a route with tasks awaiting it, issue the FIRST pending
@@ -2474,12 +2523,12 @@ public sealed class VrfC2SimService : BackgroundService
         // NOTE (P0.3): the ATTACK/BREACH engage is NO LONGER issued here - it now waits for
         // the move to COMPLETE (OnVrfTaskCompleted), since a same-tick engage would replace
         // the move (NEXT_SESSION_GUIDANCE.md sec 2.5).
-        if (!string.IsNullOrEmpty(e.Name) && _pendingRouteTasks.TryGetValue(e.Name, out var routeQueue)
+        if (!string.IsNullOrEmpty(name) && _pendingRouteTasks.TryGetValue(name, out var routeQueue)
             && routeQueue.TryDequeue(out var pending))
         {
             // The replacing VR-Forces task is issued in this block (same tick action): from here on a
             // vendor completion for this unit belongs to the NEW task - drop the arrival-evidence swallow.
-            if (_pendingRouteUnit.TryRemove(e.Name, out var issuedForUnit))
+            if (_pendingRouteUnit.TryRemove(name, out var issuedForUnit))
             {
                 _arrivalReported.TryRemove(issuedForUnit, out _);
                 ClearStallState(issuedForUnit);
@@ -2488,14 +2537,14 @@ public sealed class VrfC2SimService : BackgroundService
             {
                 _bridge.PatrolRoute(pending.TaskeeVrfUuid, e.Uuid);
                 _log.LogInformation("Route '{Route}' ({RouteUuid}) created; PatrolRoute issued for {Vrf} (Reconnoiter).",
-                                    e.Name, e.Uuid, pending.TaskeeVrfUuid);
+                                    name, e.Uuid, pending.TaskeeVrfUuid);
             }
             else if (pending.PlanMove)
             {
                 // R11: the created object is the destination WAYPOINT - issue the planned move.
                 _bridge.PlanAndMoveTo(pending.TaskeeVrfUuid, e.Uuid);
                 _log.LogInformation("Waypoint '{Wpt}' ({WptUuid}) created; PlanAndMoveTo issued for {Vrf} (R11).",
-                                    e.Name, e.Uuid, pending.TaskeeVrfUuid);
+                                    name, e.Uuid, pending.TaskeeVrfUuid);
             }
             else if (pending.FanOutMembers is { Count: > 0 } members)
             {
@@ -2503,20 +2552,20 @@ public sealed class VrfC2SimService : BackgroundService
                 foreach (var m in members)
                     _bridge.MoveAlongRoute(m.Uuid, e.Uuid);
                 _log.LogInformation("Route '{Route}' ({RouteUuid}) created; R10 fan-out MoveAlongRoute issued to " +
-                                    "{N} members of {Vrf}.", e.Name, e.Uuid, members.Count, pending.TaskeeVrfUuid);
+                                    "{N} members of {Vrf}.", name, e.Uuid, members.Count, pending.TaskeeVrfUuid);
             }
             else
             {
                 _bridge.MoveAlongRoute(pending.TaskeeVrfUuid, e.Uuid);
                 _log.LogInformation("Route '{Route}' ({RouteUuid}) created; MoveAlongRoute issued for {Vrf}.",
-                                    e.Name, e.Uuid, pending.TaskeeVrfUuid);
+                                    name, e.Uuid, pending.TaskeeVrfUuid);
             }
         }
     }
 
     /// <summary>
     /// Resolve a C2SIM entity uuid to its VRF uuid via the init-created maps
-    /// (_unitByC2SimUuid -> _vrfUuidByName). This is the two-dict chain that dissolves the
+    /// (_unitByC2SimUuid -> _names). This is the two-dict chain that dissolves the
     /// TASK_EXPANSION_PLAN "uuid-resolution blocker" (SEMANTIC_MAPPING.md sec 2b). Returns
     /// false if the entity was not created by our clientId at init (e.g. an out-of-scope
     /// OPFOR target) or has not yet been confirmed created by VR-Forces.
@@ -2526,12 +2575,7 @@ public sealed class VrfC2SimService : BackgroundService
         vrfUuid = "";
         if (string.IsNullOrEmpty(c2SimUuid)) return false;
         if (!_unitByC2SimUuid.TryGetValue(c2SimUuid, out var u)) return false;
-        if (_vrfUuidByName.TryGetValue(u.Name, out var v) && !string.IsNullOrEmpty(v))
-        {
-            vrfUuid = v;
-            return true;
-        }
-        return false;
+        return _names.TryGetUuid(u.Name, out vrfUuid);
     }
 
     // ARRIVAL-EVIDENCE COMPLETION (user ruling 2026-09-07; ArrivalPolicy.cs; VrfSettings.Arrival*).
@@ -2594,7 +2638,7 @@ public sealed class VrfC2SimService : BackgroundService
     {
         positions = null;
         total = 0;
-        if (!_vrfUuidByName.TryGetValue(name, out var vrfUuid) || string.IsNullOrEmpty(vrfUuid)) return false;
+        if (!_names.TryGetUuid(name, out var vrfUuid)) return false;
         bool isAggregate = _c2SimUuidByName.TryGetValue(name, out var cu)
                            && _unitByC2SimUuid.TryGetValue(cu, out var created) && created.IsAggregate;
         positions = new Dictionary<string, (double Lat, double Lon)>(StringComparer.Ordinal);
@@ -3003,7 +3047,12 @@ public sealed class VrfC2SimService : BackgroundService
 
     private void OnVrfTaskCompleted(object sender, TaskCompletedEventArgs e)
     {
-        _log.LogInformation("VRF task complete: {Unit} / {Task}", e.UnitMarking, e.TaskType);
+        // B3: the callback carries the marking the SIM holds, which for a platform is the TRUNCATED
+        // one - resolve it to the name we requested before any map is touched, or the completion is
+        // unattributable ("Task-complete for 'X' but no C2SIM uuid known - no report sent"). A
+        // fan-out MEMBER name was never requested, so it passes through unchanged.
+        string marking = _names.Resolve(e.UnitMarking ?? "");
+        _log.LogInformation("VRF task complete: {Unit} / {Task}", marking, e.TaskType);
         // A vendor completion for a task already reported from arrival evidence: swallow it ONCE
         // (VR-Forces runs one task at a time and a re-task abandons the old one without a
         // callback, so this can only be the pre-empted task's own late completion).
@@ -3011,11 +3060,11 @@ public sealed class VrfC2SimService : BackgroundService
         // the marking IS the unit; under R10 fan-out it is a MEMBER entity's name and this clear is
         // a no-op (review D3) - the unit's own window is dropped in SynthesizeUnitCompletion, which
         // every completion path reaches under the UNIT's name.
-        if (!string.IsNullOrEmpty(e.UnitMarking)) ClearStallState(e.UnitMarking);
-        if (!string.IsNullOrEmpty(e.UnitMarking) && _arrivalReported.TryRemove(e.UnitMarking, out var reportedTask))
+        if (!string.IsNullOrEmpty(marking)) ClearStallState(marking);
+        if (!string.IsNullOrEmpty(marking) && _arrivalReported.TryRemove(marking, out var reportedTask))
         {
             _log.LogInformation("VRF completion for {Unit} after the arrival-evidence report of task {Task} - swallowed.",
-                                e.UnitMarking, reportedTask);
+                                marking, reportedTask);
             return;
         }
 
@@ -3024,7 +3073,7 @@ public sealed class VrfC2SimService : BackgroundService
         // C2SIM uuid, attribute the completion to the unit's IN-FLIGHT task (P0.1 - the
         // callback carries no task uuid, and the old last-write map misattributed it to
         // whatever was dispatched last), then push a TaskStatus (TASKCMPLT) report.
-        string name = e.UnitMarking ?? "";
+        string name = marking;
 
         // R10: a fanned-out aggregate move completes PER MEMBER (the marking is the member
         // entity's name). Aggregate them; only when the QUORUM is met does the UNIT's
@@ -3134,6 +3183,7 @@ public sealed class VrfC2SimService : BackgroundService
         // emits one report here. Non-POSITION text is ignored, as in the C++.)
         if (!TryParsePosition(e.Text, out var objectName, out double lat, out double lon))
             return;
+        objectName = _names.Resolve(objectName);   // B3: the Lua line carries the sim's (truncated) marking
         if (!_c2SimUuidByName.TryGetValue(objectName, out var uuid))
         {
             // Not one of our units (e.g. an aggregate subordinate) - the C++ returns here too.
@@ -3247,7 +3297,7 @@ public sealed class VrfC2SimService : BackgroundService
     // (formation, leader, subordinate dispatch) instead of our inference from positions.
     private void OnVrfObjectConsoleMessage(object sender, ObjectConsoleMessageEventArgs e)
     {
-        _nameByVrfUuid.TryGetValue(e.Uuid ?? "", out var objName);
+        _names.TryGetName(e.Uuid ?? "", out var objName);
         _log.LogInformation("VRF console [{Level}] {Name} ({Uuid}): {Msg}",
                             e.NotifyLevel, objName ?? "?", e.Uuid, DecodeConsoleText(e.Message));
     }
@@ -3277,7 +3327,7 @@ public sealed class VrfC2SimService : BackgroundService
 
     private void OnVrfAvailableFormations(object sender, AvailableFormationsEventArgs e)
     {
-        _nameByVrfUuid.TryGetValue(e.Uuid ?? "", out var unitName);
+        _names.TryGetName(e.Uuid ?? "", out var unitName);
         _log.LogInformation("VRF formations for {Name} ({Uuid}): [{List}]  current='{Cur}'.",
                             unitName ?? "?", e.Uuid,
                             e.Formations == null ? "" : string.Join(", ", e.Formations),
