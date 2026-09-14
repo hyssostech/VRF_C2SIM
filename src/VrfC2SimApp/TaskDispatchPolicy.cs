@@ -96,6 +96,36 @@ public static class TaskDispatchPolicy
     /// A task the interface cannot aim at a named entity is still a task about its objective.</summary>
     public static bool RefusesForTarget(TargetResolution r) => false;
 
+    /// <summary>The exact sentence a MALFORMED zero-geometry task is refused with (Q4). Locked by
+    /// `--rulings-selftest` because it is what STP will be told, and because a refusal has to say
+    /// which two elements the order left out or the operator cannot fix the order.</summary>
+    public const string MalformedZeroGeometryRefusal =
+        "MALFORMED: the order gives this task NEITHER a Duration NOR any geometry (no MapGraphicID " +
+        "and no Location), so nothing in the order could ever end it and nothing in the simulation " +
+        "could ever evidence it";
+
+    /// <summary>
+    /// Q4 (USER RULING 2026-09-14, REPLACING the supervisor default): A TASK WITH NO DURATION AND
+    /// NO GEOMETRY IS MALFORMED, AND IS REFUSED - the interface does not invent a hold for it.
+    ///
+    /// R2 says a task without geometry is performed WHERE THE UNIT IS, and R4 says a task ends at
+    /// its Duration. A task with neither has no place to be performed that the order chose and no
+    /// time at which it is over: no vendor task is issued, so there is no arrival and no vendor
+    /// completion either, and nothing would ever end it. The supervisor default invented
+    /// Vrf:DefaultHoldSeconds (60 s) so the chain would proceed; the user ruled the other way,
+    /// and the reasoning is the project's own: a number that is not in the order is a decision
+    /// this interface is not entitled to make, and a chain built on one is worse than a chain that
+    /// stops with a named cause. It is now an ERROR, a TASKABRT through the single emit point, and
+    /// a NotifyAbandoned so the successors fail fast like every other refusal.
+    ///
+    /// SCOPE. Only the ExecuteInPlace kind - the one that issues no vendor task at all. A
+    /// zero-geometry ATTACK or BREACH has a resolved TARGET, so it has something to do and the
+    /// vendor reports when it is done; a MOVE has geometry and therefore arrival evidence. None
+    /// of COA-STP1's 42 tasks is malformed by this test: all 42 carry a Duration.
+    /// </summary>
+    public static bool IsMalformedZeroGeometryTask(ZeroGeometryAction action, long durationMs)
+        => action == ZeroGeometryAction.ExecuteInPlace && durationMs <= 0L;
+
     /// <summary>
     /// Q1 (USER RULING 2026-09-14): a superseded task is reported TASKABRT at the supersede point
     /// AND ITS SUCCESSORS ARE ABANDONED IMMEDIATELY. B1 of the pass-2 review: every other TASKABRT

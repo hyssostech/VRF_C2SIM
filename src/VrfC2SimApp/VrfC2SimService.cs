@@ -2613,6 +2613,29 @@ public sealed class VrfC2SimService : BackgroundService
                                     task.TaskName, vrfUuid, breachTargetVrf);
                 return;
             }
+            // Q4 (USER RULING 2026-09-14). NO DURATION **AND** NO GEOMETRY IS MALFORMED. R2 gives
+            // the task a place (where the unit stands) and R4 gives it an end (its Duration); a
+            // task with neither has no vendor task to evidence it and no authored time to end it,
+            // so it would sit "in flight" for the rest of the run and its successors would wait
+            // out the gate. The supervisor default invented an end time (Vrf:DefaultHoldSeconds,
+            // 60 s); the user ruled that a number which is not in the order is not ours to invent,
+            // and that the order is at fault. So it is refused, loudly, like every other dead end:
+            // ERROR naming BOTH missing elements, TASKABRT through the single emit point, and
+            // NotifyAbandoned so the successors fail fast instead of waiting.
+            if (TaskDispatchPolicy.IsMalformedZeroGeometryTask(zeroGeometry, task.DurationMs))
+            {
+                _log.LogError("Task '{Task}' is MALFORMED and will NOT be executed: the order gives it NO " +
+                              "Duration (ManeuverWarfareTask/Duration/IsoTimeDuration) AND NO geometry (no " +
+                              "MapGraphicID and no Location). R2 would execute it at {Name}'s own position and " +
+                              "R4 would end it at its Duration - with neither, no VR-Forces task is issued, " +
+                              "nothing could ever complete it, and its STREND successors would wait out the " +
+                              "gate. FIX THE ORDER: give the task a Duration, or a geometry, or both " +
+                              "(Q4, user ruling 2026-09-14).", task.TaskName, unit.Name);
+                _sequencer.NotifyAbandoned(task.TaskUuid);
+                PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKABRT,
+                               $"{TaskDispatchPolicy.MalformedZeroGeometryRefusal} - task '{task.TaskName}'");
+                return;
+            }
             if (zeroGeometry == ZeroGeometryAction.ExecuteInPlace)
             {
                 // R2: the unit's OWN position is the task's geometry. No vendor task is issued -
@@ -3064,31 +3087,15 @@ public sealed class VrfC2SimService : BackgroundService
         if (_vrf.TimedCompletion)
         {
             double seconds = ScaleOrderMs(task.DurationMs) / 1000.0;
-            // Q4 (supervisor default 2026-09-14). A TASK WITH NO DURATION AND NO GEOMETRY would
-            // otherwise never end: R2 dispatches it in place, no vendor task is issued, so there is
-            // no arrival and no vendor completion either - and its successors wait out the
-            // predecessor gate and are skipped. That is a chain dying quietly on a task the
-            // interface DID execute. Vrf:DefaultHoldSeconds gives it an end time so the chain
-            // proceeds, and the line names the invention: this number is not in the order.
-            // Only the geometry-less kind gets it - a MOVE with no Duration still has arrival
-            // evidence, and inventing an end time for it would be manufacturing a decision.
-            bool inPlaceWithoutDuration = task.DurationMs <= 0
-                                          && string.Equals(kind, "hold-in-place", StringComparison.Ordinal);
-            if (inPlaceWithoutDuration && _vrf.DefaultHoldSeconds > 0)
-            {
-                if (_timed.Register(task.TaskUuid, task.TaskeeUuid, task.TaskName, unit.Name,
-                                    _vrf.DefaultHoldSeconds))
-                    _log.LogWarning("Task '{Task}': the order gives NO Duration and the task carries NO " +
-                                    "geometry, so nothing in the order or the simulation would ever end it. " +
-                                    "End time armed at Vrf:DefaultHoldSeconds={S} s from dispatch so its STREND " +
-                                    "successors are not skipped - THIS NUMBER IS NOT IN THE ORDER (Q4, " +
-                                    "supervisor default 2026-09-14).", task.TaskName, _vrf.DefaultHoldSeconds);
-            }
-            else if (task.DurationMs <= 0)
+            // Q4 (USER RULING 2026-09-14): NOTHING IS INVENTED HERE. A task with no Duration AND no
+            // geometry is MALFORMED and was already refused at dispatch (the zero-geometry block
+            // above), so what reaches this line without a Duration is a task that HAS geometry -
+            // a move - and therefore has arrival evidence to complete on. The supervisor default
+            // that armed Vrf:DefaultHoldSeconds here is gone, knob and all.
+            if (task.DurationMs <= 0)
                 _log.LogWarning("Task '{Task}': the order gives NO Duration, so this task has no end time - " +
-                                "it completes only on its own evidence (arrival, or a VR-Forces completion). " +
-                                "A hold-type task without one never completes and its successors will be " +
-                                "skipped at the predecessor timeout.", task.TaskName);
+                                "it completes only on its own evidence (arrival, or a VR-Forces completion), " +
+                                "and until it does its STREND successors wait at the gate.", task.TaskName);
             else if (seconds <= 0.0)
                 _log.LogWarning("Task '{Task}': Vrf:DurationScale={Scale} collapses its {D:F0} s Duration to " +
                                 "zero - NO end time is armed.",

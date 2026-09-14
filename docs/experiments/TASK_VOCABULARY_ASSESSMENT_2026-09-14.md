@@ -1111,10 +1111,14 @@ R5 and R6 remain open. Citations below are to that doctrine record unless noted.
   - **Q3, the WIRE AMBIGUITY is ACCEPTED**: STP sees TASKSTRT + TASKCMPLT for a
     zero-geometry in-place task exactly as for a performed one; the derivation goes out
     as an ObservationReport, which STP discards (STP-800). Recorded, not worked around.
-  - **Q4, a task with NO Duration AND no geometry**: `Vrf:DefaultHoldSeconds`,
-    default 60, with a WARNING naming the invention, so the STREND chain proceeds
-    instead of dying at the gate on a task the interface did execute. None of
-    COA-STP1's 42 tasks needs it - all 42 carry a Duration.
+  - **Q4, a task with NO Duration AND no geometry - RULED 2026-09-14 (user),
+    REPLACING the supervisor default**: such a task is **MALFORMED** and is REFUSED.
+    No hold is invented and `Vrf:DefaultHoldSeconds` is DELETED. The task gets an
+    ERROR naming both missing elements, a TASKABRT through the single emit point and
+    a `NotifyAbandoned`, so its successors fail fast like every other refusal - a
+    number that is not in the order is not this interface's to invent, and a chain
+    built on one is worse than a chain that stops with a named cause. None of
+    COA-STP1's 42 tasks is affected: all 42 carry a Duration.
 
 - **R5 OPEN - EntityLevel first vs straight to AggregateTacticalLevel.** Explained to
   the user 2026-09-14; doctrine does not settle it directly (an engineering/schedule
@@ -1201,8 +1205,9 @@ the order it was built for. What changed:
 
 NEW CONFIG KEYS (all documented in `VrfSettings.cs` and `docs/RUNBOOK.md` sec 11):
 `Vrf:TaskClock` (`sim`), `Vrf:TaskPredecessorEndMarginSeconds` (60),
-`Vrf:SupersededTaskCode` (`TASKABRT`), `Vrf:DefaultHoldSeconds` (60),
-`Vrf:TaskChainBackstopSeconds` (86400, added by pass 2's A1).
+`Vrf:SupersededTaskCode` (`TASKABRT`), `Vrf:TaskChainBackstopSeconds` (86400, added by
+pass 2's A1). `Vrf:DefaultHoldSeconds` (60) was added by pass 1 and DELETED again by the
+user's Q4 ruling of 2026-09-14 - a malformed task is refused, not held.
 
 #### PASS 2 - review of `0c96f50` (in-repo, `docs/experiments/REVIEW2_RULINGS_0c96f50_2026-09-14.md`)
 

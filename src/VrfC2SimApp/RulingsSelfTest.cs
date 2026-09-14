@@ -518,6 +518,61 @@ public static class RulingsSelfTest
                   == "no geometry in the order: executing at the performing unit's position",
               "the in-place dispatch announces the derivation verbatim");
 
+        // (c4b) Q4 (USER RULING 2026-09-14): NO DURATION **AND** NO GEOMETRY IS MALFORMED, AND IS
+        //       REFUSED. The supervisor default invented Vrf:DefaultHoldSeconds (60 s) so the chain
+        //       would proceed; the user ruled that a number which is not in the order is not ours
+        //       to invent. The rule is scoped to the kind that issues NO vendor task at all.
+        {
+            Check(ref failures,
+                  TaskDispatchPolicy.IsMalformedZeroGeometryTask(ZeroGeometryAction.ExecuteInPlace, 0L)
+                  && TaskDispatchPolicy.IsMalformedZeroGeometryTask(ZeroGeometryAction.ExecuteInPlace, -1L)
+                  && !TaskDispatchPolicy.IsMalformedZeroGeometryTask(ZeroGeometryAction.ExecuteInPlace, 4800_000L),
+                  "Q4: a zero-geometry task with no Duration is MALFORMED; the same task WITH a Duration is not");
+            Check(ref failures,
+                  !TaskDispatchPolicy.IsMalformedZeroGeometryTask(ZeroGeometryAction.EngageInPlace, 0L)
+                  && !TaskDispatchPolicy.IsMalformedZeroGeometryTask(ZeroGeometryAction.BreachInPlace, 0L)
+                  && !TaskDispatchPolicy.IsMalformedZeroGeometryTask(ZeroGeometryAction.Refuse, 0L),
+                  "Q4: an ENGAGE or BREACH in place is NOT malformed without a Duration - it has a resolved " +
+                  "target, so the vendor reports when it is done");
+            Check(ref failures,
+                  TaskDispatchPolicy.MalformedZeroGeometryRefusal
+                      == "MALFORMED: the order gives this task NEITHER a Duration NOR any geometry (no " +
+                         "MapGraphicID and no Location), so nothing in the order could ever end it and " +
+                         "nothing in the simulation could ever evidence it",
+                  "Q4: the refusal names BOTH missing elements, so the order can be fixed from the report");
+
+            // FAIL-FIRST + the new behaviour, on the real sequencer: the OLD code armed an invented
+            // 60 s hold and released the successor at it; the NEW code abandons the task, and the
+            // successor is skipped at once with its own TASKABRT.
+            var seqOld = new TaskSequencer();
+            var timedOld = new TimedCompletionPolicy();
+            const string malformed = "T_MALFORMED";
+            seqOld.NotifyDispatched(malformed, TaskClock.Wall.Now());   // the axis the gate below reads
+            Check(ref failures,
+                  timedOld.Register(malformed, "taskee", malformed, "A/6-56 ADA", 60.0),
+                  "Q4 FAIL-FIRST: the pre-ruling code armed an INVENTED 60 s end time for a malformed task");
+            var oldSuccessor = seqOld.WaitForStartAsync(malformed, 0, 0, 600.0, TaskClock.Wall,
+                                                        CancellationToken.None, 86400.0);
+            timedOld.Advance(0.0, usingSim: false);
+            foreach (var d in timedOld.Advance(60.0, usingSim: false)) seqOld.CompleteTask(d.TaskUuid);
+            Check(ref failures,
+                  oldSuccessor.Wait(TimeSpan.FromSeconds(2)) && oldSuccessor.Result == GateResult.Proceed,
+                  "Q4 FAIL-FIRST: ... and its successor then dispatched on a completion the ORDER never " +
+                  "authorised - the chain ran on an invented number");
+
+            var seq = new TaskSequencer();
+            var successor = seq.WaitForStartAsync(malformed, 0, 0, 600.0, TaskClock.Wall,
+                                                  CancellationToken.None, 86400.0);
+            Thread.Sleep(50);
+            Check(ref failures, !successor.IsCompleted, "Q4: the successor waits while nothing has happened");
+            seq.NotifyAbandoned(malformed);          // what the refusal now does, beside the TASKABRT
+            Check(ref failures,
+                  successor.Wait(TimeSpan.FromSeconds(2))
+                  && successor.Result == GateResult.PredecessorAbandoned,
+                  "Q4: the refusal ABANDONS the malformed task, so its successor is skipped immediately " +
+                  "with its own TASKABRT rather than waiting out the gate");
+        }
+
         // (c5) THE SUCCESSOR IS NOT SKIPPED. The in-place task is dispatched (not abandoned) and
         //      closed by R4's end time, so the STREND gate releases exactly as for a moving task.
         {

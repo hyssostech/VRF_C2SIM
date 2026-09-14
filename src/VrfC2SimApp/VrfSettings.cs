@@ -518,13 +518,15 @@ public class VrfSettings
     // "force" or "whenIdle", and on any order with concurrent tasks per taskee.
     public string SupersededTaskCode { get; set; } = "TASKABRT";
 
-    // A TASK WITH NO DURATION AND NO GEOMETRY (Q4, supervisor default 2026-09-14). R2 dispatches
-    // it in place; with no Duration it arms no end time, so it never completes and its successors
-    // wait out the predecessor gate before being skipped - a chain that dies quietly on a task the
-    // interface did execute. Such a task is given this many seconds of hold instead, with a
-    // WARNING naming the invention, so the chain proceeds. 0 disables it (back to no end time).
-    // None of COA-STP1's 42 tasks needs it: all 42 carry a Duration.
-    public int DefaultHoldSeconds { get; set; } = 60;
+    // A TASK WITH NO DURATION AND NO GEOMETRY has NO KNOB (Q4, USER RULING 2026-09-14). It is
+    // MALFORMED: R2 gives a task without geometry the unit's own position and R4 gives a task its
+    // Duration as an end, and a task with neither has no vendor task to evidence it and no
+    // authored time to end it. The supervisor default invented Vrf:DefaultHoldSeconds (60 s) so
+    // the chain would proceed; the user ruled that a number which is not in the order is not ours
+    // to invent, and that such a task is refused - ERROR naming both missing elements, TASKABRT,
+    // and NotifyAbandoned so the successors fail fast. The knob is DELETED, not defaulted off:
+    // TaskDispatchPolicy.IsMalformedZeroGeometryTask is the whole rule. None of COA-STP1's 42
+    // tasks is affected - all 42 carry a Duration.
 
     // P0.3: an ATTACK/BREACH engage is issued when its approach move COMPLETES (previously
     // it was issued in the same tick as the move, which - VRF running one task at a time -

@@ -1408,7 +1408,7 @@ like the watchdog below (double underscore = the `:`):
 $env:Vrf__TaskClock                      = "sim"       # DEFAULT. "wall" to measure in real seconds
 $env:Vrf__TaskPredecessorEndMarginSeconds = "60"       # DEFAULT
 $env:Vrf__SupersededTaskCode             = "TASKABRT"  # DEFAULT. "TASKCMPLT" = the literal R4 reading
-$env:Vrf__DefaultHoldSeconds             = "60"        # DEFAULT. 0 = no invented end time
+$env:Vrf__TaskChainBackstopSeconds       = "86400"     # DEFAULT. A1: phase 1's absolute backstop
 ```
 
 - **`Vrf:TaskClock` is NOT `Vrf:StallClock`.** TaskClock carries ALL THREE C2SIM task times -
@@ -1443,6 +1443,11 @@ $env:Vrf__DefaultHoldSeconds             = "60"        # DEFAULT. 0 = no invente
 - **`Vrf:DurationScale` is validated at start-up.** A zero, negative, NaN or infinite value is
   REJECTED with an ERROR line and the run proceeds at 1.0 (the order as written). It used to
   mean "no end time armed" on one half of the order's clock and "dispatch now" on the other.
+- **A task with NO Duration AND NO geometry is REFUSED, not held** (Q4, USER RULING 2026-09-14).
+  There is no knob: `Vrf:DefaultHoldSeconds` is DELETED. Such a task gets an ERROR naming both
+  missing elements, a TASKABRT, and an abandon so its STREND successors fail fast. If you see
+  that line, the ORDER is at fault - give the task a Duration, a geometry, or both. None of
+  COA-STP1's 42 tasks is affected: all 42 carry a Duration.
 
 START-UP PROOF: one `TASK CLOCK (R4):` line names the clock in force, the scale, and the gate
 formula. If that line is missing, the build predates this change.
