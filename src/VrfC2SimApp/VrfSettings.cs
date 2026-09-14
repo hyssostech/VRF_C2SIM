@@ -510,4 +510,13 @@ public class VrfSettings
     // create alone. Default TRUE = production safety. This gates ONLY the placement path's set;
     // the Fixed100 parity branch and any air-unit set are unaffected (they do not read this).
     public bool PlacementAglSet { get; set; } = true;
+
+    // B2 (2026-09-14): a TaskStatus report is emitted ONCE per task per outcome and nothing
+    // re-sends it, so a push that fails is information lost for the whole run - 129 pushes failed
+    // in G6 with "The response ended prematurely" and the run log said nothing. TASK-STATUS pushes
+    // (not position pushes: the next poll carries the same fix seconds later) are retried this many
+    // times in total, backing off TaskStatusPushBackoffMs, doubling (1 / 2 / 4 s by default).
+    // 1 disables the retry; the failure is still counted and still says so loudly.
+    public int TaskStatusPushTries { get; set; } = 3;
+    public int TaskStatusPushBackoffMs { get; set; } = 1000;
 }

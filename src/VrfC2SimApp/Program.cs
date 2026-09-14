@@ -24,6 +24,16 @@ if (args.Length >= 2 && args[0] == "--parse-init")
 if (args.Length >= 2 && args[0] == "--parse-order")
     return OrderParseCheck.Run(args[1]);
 
+// Offline INBOUND-parse check (B5): parse the sample init + order in every root shape they
+// arrive in and prove the SDK logs no false deserialize ERROR on the way (no bridge, no server).
+if (args.Length > 0 && args[0] == "--parse-selftest")
+    return ParseSelfTest.Run();
+
+// Offline name-correlation check (B3): a VR-Forces object returned under a TRUNCATED DIS marking
+// is still found by the name we requested (NameRegistry; no bridge).
+if (args.Length > 0 && args[0] == "--name-selftest")
+    return NameSelfTest.Run();
+
 // Offline report-builder check: build + round-trip a task-status + position report (no bridge).
 if (args.Length > 0 && args[0] == "--report-selftest")
     return ReportSelfTest.Run();
@@ -78,7 +88,7 @@ if (args.Length > 0 && args[0].StartsWith("--") && args[0] != "--runtime-check" 
 {
     Console.Error.WriteLine("VrfC2SimApp: unknown switch '" + args[0] + "' - NOT starting the host. Known: " +
                             "--translator/--report/--sequencer/--verb/--destack/--fanout/--typemap/--terrain/" +
-                            "--placement/--compose/--arrival/--stall-selftest, --parse-init <file> [clientId], " +
+                            "--placement/--compose/--arrival/--stall/--parse/--name-selftest, --parse-init <file> [clientId], " +
                             "--parse-order <file>, --runtime-check, host switches --Key=Value; " +
                             "no arguments = run the interface.");
     return 2;

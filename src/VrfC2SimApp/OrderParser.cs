@@ -29,18 +29,29 @@ public static class OrderParser
         var data = new OrderData();
         if (string.IsNullOrWhiteSpace(xml)) return data;
 
-        // Root-robust: an order FILE is <MessageBody><DomainMessageBody><OrderBody>, but
-        // the SDK's live OrderReceived event delivers the BARE <OrderBody> (the dispatch
-        // descends into DomainMessageBody). Try the envelope first, then the bare OrderBody
-        // directly (OrderBodyType carries [XmlRoot], so it deserializes alone).
+        // Root-robust: an order FILE is <MessageBody><DomainMessageBody><OrderBody>, but the SDK's
+        // live OrderReceived event delivers the BARE <OrderBody> (the dispatch descends into
+        // DomainMessageBody). All three types carry [XmlRoot], so each deserializes alone.
+        //
+        // SNIFF THE ROOT, DO NOT GUESS (B5, 2026-09-14). This used to TRY the MessageBody overload
+        // and catch the failure - but ToC2SIMObject LOGS "Failed to deserialize xml to type
+        // C2SIM.Schema102.MessageBodyType ... (1, 2)" through the SDK's own logger before it throws
+        // (C2SIMSSDK.cs:823), so the catch hid the exception and not the ERROR line: every run log
+        // carried one for the inbound order. One sniff, one overload, no false error - the SDK's own
+        // STOMP pump dispatches exactly this way (C2SIMSSDK.cs:639-676). See C2SimXml.
+        // The middle shape (DomainMessageBody-rooted) is handled too: the old code could not read it
+        // at all (both speculative attempts failed, two ERROR lines and an empty order).
         S.OrderBodyType order = null;
-        try { order = (C2SIMSDK.ToC2SIMObject<S.MessageBodyType>(xml)?.Item as S.DomainMessageBodyType)?.Item as S.OrderBodyType; }
-        catch { /* not MessageBody-rooted */ }
-        if (order == null)
+        try
         {
-            try { order = C2SIMSDK.ToC2SIMObject<S.OrderBodyType>(xml); }
-            catch { return data; }
+            string root = C2SimXml.RootLocalName(xml);
+            order = root == C2SimXml.MessageBody
+                  ? (C2SIMSDK.ToC2SIMObject<S.MessageBodyType>(xml)?.Item as S.DomainMessageBodyType)?.Item as S.OrderBodyType
+                  : root == C2SimXml.DomainMessageBody
+                  ? C2SIMSDK.ToC2SIMObject<S.DomainMessageBodyType>(xml)?.Item as S.OrderBodyType
+                  : C2SIMSDK.ToC2SIMObject<S.OrderBodyType>(xml);
         }
+        catch { return data; }
         if (order == null) return data;
 
         data.OrderId = (order.OrderID ?? "").Trim();
