@@ -499,6 +499,17 @@ public class VrfSettings
     // The axis they are all served on accumulates FORWARD movement only (VrfC2SimService
     // .SampleTaskClock), so a PAUSED scenario adds nothing, a rollbackToSnapshot adds nothing, and
     // a fall back to the wall clock mid-run does not restart anybody's wait.
+    // A PAUSED SCENARIO DOES NOT AGE A TASK (Q5, USER RULING 2026-09-14): when the sim clock has
+    // been flat for StallPolicy.StaleClockWarnSeconds the axis HOLDS while a VR-Forces back end is
+    // still present, and falls back to WALL seconds only when there is none. The signal is
+    // VrfFacade::BackendCount, which cannot tell a live back end from one DEACTIVATED for missing
+    // its status timeout - so the hold line repeats rather than being said once. See
+    // StallPolicy.TaskClockAction.
+    // AFTER A ROLLBACK (Q7, USER RULING 2026-09-14, ACCEPTED as recorded): because the axis adds
+    // forward movement ONLY, a rollbackToSnapshot adds nothing and the re-simulated stretch is
+    // served TWICE - once before the rollback and once after - so a task ends LATER in scenario
+    // time than the order says. That is the intended trade: a deadline STAMP would instead fire
+    // the moment a rollback happened to land past it.
     public string TaskClock { get; set; } = "sim";              // "sim" (default) | "wall"
 
     // WHAT A SUPERSEDED TASK REPORTS (m1 of the cold-start review of 5c67d41; supervisor ruling

@@ -180,6 +180,51 @@ public static class StallPolicy
     /// </summary>
     public const double LogRateLimitSeconds = 60.0;
 
+    /// <summary>What the TASK clock does with a simulation clock that has gone FLAT past the stale
+    /// window (Q5). Not the watchdog's decision - that one SUSPENDS judging either way.</summary>
+    public enum TaskClockOnFlat
+    {
+        /// <summary>The clock is readable and not stale: serve it.</summary>
+        ServeSim,
+        /// <summary>Stale, but a VR-Forces back end is still there: the scenario is PAUSED, so the
+        /// axis stays on the sim clock and adds NOTHING until it moves again.</summary>
+        HoldOnSim,
+        /// <summary>Stale with no back end at all, or the wall clock was asked for: serve WALL
+        /// seconds, keeping everything already served.</summary>
+        FallBackToWall,
+    }
+
+    /// <summary>
+    /// Q5 (USER RULING 2026-09-14): DOES A PAUSED SCENARIO AGE A TASK? NO - while the back end is
+    /// still there.
+    ///
+    /// M4 made the task clock fall back to WALL seconds after 60 wall seconds of a flat sim clock,
+    /// because a back end that stops answering is DEACTIVATED rather than removed and its cached
+    /// reading would otherwise freeze every end time forever, silently. The cost of that cure was
+    /// that an operator who PAUSES for ten minutes burned 600 s off every armed Duration - and R4's
+    /// own rule says a paused scenario does not age a task. The user ruled: HOLD while the back end
+    /// is still reporting, fall back to wall only when it is gone.
+    ///
+    /// THE LIMIT OF THE SIGNAL, stated because it decides how much this rule is worth. The only
+    /// back-end liveness the facade exposes is VrfFacade::BackendCount ->
+    /// DtVrfRemoteController::backends().count(), and that list keeps a back end that has missed
+    /// its status timeout: DtVrfBackendListener::doTimeouts() DEACTIVATES such an entry rather than
+    /// removing it (vrfBackendListener.h; only the explicit remove() takes one out). So a non-zero
+    /// count proves the back end was DISCOVERED and never removed - NOT that it is still answering.
+    /// The consequence is deliberate and must be read with the log: on this signal a DEAD back end
+    /// holds task time exactly as a paused one does, so the hold line repeats rather than being
+    /// said once. Serving WALL seconds against a dead back end was not better - it aged tasks
+    /// against a simulation that was not running - but it was at least noisy in a different way.
+    /// OWED (needs a C++ facade change, hence not done here): expose the vendor's real answer -
+    /// DtVrfBackendListener::lookupBackend(addr)-&gt;status() gives DtBackend::Paused vs Playing, and
+    /// getControlState(addr) gives DtPauseControlType vs DtRunControlType - and decide on THAT.
+    /// </summary>
+    public static TaskClockOnFlat TaskClockAction(bool heldOnSim, bool stale, bool backEndPresent)
+        => !heldOnSim ? TaskClockOnFlat.FallBackToWall
+         : !stale ? TaskClockOnFlat.ServeSim
+         : backEndPresent ? TaskClockOnFlat.HoldOnSim
+         : TaskClockOnFlat.FallBackToWall;
+
     /// <summary>
     /// THE COARSEST CHECK CADENCE THE WINDOW CAN CARRY. MinRingDepth entries span MinRingDepth - 1
     /// intervals, so any Vrf:StallCheckSeconds above windowSeconds / (MinRingDepth - 1) leaves the

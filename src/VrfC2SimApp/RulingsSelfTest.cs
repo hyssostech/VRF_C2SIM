@@ -389,10 +389,48 @@ public static class RulingsSelfTest
               "FAIL-FIRST (M4): with no stale detection a frozen sim clock freezes every end time - " +
               "no TASKCMPLT is ever emitted, and nothing says so");
 
-        var fixedFrozen = WalkTaskClock(frozen, useConfirmedMode: true, honourStale: true, dur, 400);
+        var fixedFrozen = WalkTaskClock(frozen, useConfirmedMode: true, honourStale: true, dur, 400,
+                                        backEndPresent: false);
         Check(ref failures, fixedFrozen.Completed && fixedFrozen.StaleTransitions == 1,
-              $"a frozen sim clock is detected ONCE ({fixedFrozen.StaleTransitions} transition(s)) and the " +
-              $"task completes on the WALL fallback ({fixedFrozen.Samples} samples)");
+              $"a frozen sim clock with NO back end is detected ONCE ({fixedFrozen.StaleTransitions} " +
+              $"transition(s)) and the task completes on the WALL fallback ({fixedFrozen.Samples} samples)");
+
+        // (e2b) Q5 (USER RULING 2026-09-14): A PAUSED SCENARIO DOES NOT AGE A TASK. The same frozen
+        //       reader, but a back end is still present - which is what a PAUSE looks like from
+        //       here. M4's wall fallback burned a coffee break off every armed Duration; the axis
+        //       must now hold instead. (The limit of the signal is documented on
+        //       StallPolicy.TaskClockAction: BackendCount cannot tell a paused back end from a
+        //       deactivated one, which is why the service repeats the hold line.)
+        {
+            var paused = WalkTaskClock(frozen, useConfirmedMode: true, honourStale: true, dur, 600,
+                                       backEndPresent: true);
+            Check(ref failures, !paused.Completed && paused.AxisSeconds == 0.0 && paused.Samples == 600,
+                  $"(Q5) a flat sim clock with a back end still present ages a {dur:F0} s task by NOTHING " +
+                  $"across 600 wall seconds (axis {paused.AxisSeconds:F0} s, completed={paused.Completed})");
+            Check(ref failures,
+                  StallPolicy.TaskClockAction(heldOnSim: true, stale: true, backEndPresent: true)
+                      == StallPolicy.TaskClockOnFlat.HoldOnSim
+                  && StallPolicy.TaskClockAction(heldOnSim: true, stale: true, backEndPresent: false)
+                      == StallPolicy.TaskClockOnFlat.FallBackToWall
+                  && StallPolicy.TaskClockAction(heldOnSim: true, stale: false, backEndPresent: false)
+                      == StallPolicy.TaskClockOnFlat.ServeSim
+                  && StallPolicy.TaskClockAction(heldOnSim: false, stale: false, backEndPresent: true)
+                      == StallPolicy.TaskClockOnFlat.FallBackToWall,
+                  "(Q5) HOLD only while a back end is there; no back end falls to WALL, a running clock is " +
+                  "served, and Vrf:TaskClock=wall is unaffected");
+        }
+
+        // (e2c) ... and the HOLD is not a freeze: once the scenario runs again the task completes
+        //       on the SIM clock, having aged by nothing in between.
+        {
+            // Flat for 200 s (well past the 60 s stale window), then advancing again.
+            Func<int, double> pausedThenRunning = i => i < 200 ? 5000.0 : 5000.0 + (i - 199);
+            var resumed = WalkTaskClock(pausedThenRunning, useConfirmedMode: true, honourStale: true,
+                                        dur, 600, backEndPresent: true);
+            Check(ref failures, resumed.Completed && resumed.Samples == 200 + (int)dur,
+                  $"(Q5) ... and when the scenario runs again the task completes after its {dur:F0} SIM " +
+                  $"seconds, not counting the pause (completed at sample {resumed.Samples})");
+        }
 
         // (e3) The axis itself: it never invents time, whatever the reader does.
         {
@@ -456,9 +494,11 @@ public static class RulingsSelfTest
     /// once per WALL second exactly as SampleTaskClock does. <paramref name="useConfirmedMode"/>
     /// false and <paramref name="honourStale"/> false reproduce the PRE-FIX behaviours of M3 and M4.
     /// </summary>
+    /// <param name="backEndPresent">Q5: what VrfFacade::BackendCount would say. True = a back end
+    /// is still there, so a flat clock is a PAUSE and the axis holds.</param>
     private static (bool Completed, int Samples, double AxisSeconds, int ModeFlips, int StaleTransitions)
         WalkTaskClock(Func<int, double> reader, bool useConfirmedMode, bool honourStale,
-                      double durationSeconds, int maxSamples)
+                      double durationSeconds, int maxSamples, bool backEndPresent = false)
     {
         var tracker = new SimClockTracker();
         var axis = new TaskClockAxis();
@@ -478,7 +518,9 @@ public static class RulingsSelfTest
             if (stale != lastStale) { staleTransitions++; lastStale = stale; }
             bool heldOnSim = useConfirmedMode ? obs.ReadableConfirmed : obs.Readable;
             if (heldOnSim && !obs.Readable) continue;      // nothing to read this sample
-            bool usingSim = heldOnSim && !stale;
+            // The SERVICE's own decision (Q5), not a copy of it: SampleTaskClock calls this.
+            var action = StallPolicy.TaskClockAction(heldOnSim, stale, backEndPresent);
+            bool usingSim = action != StallPolicy.TaskClockOnFlat.FallBackToWall;
             axis.Advance(usingSim ? obs.SimSeconds : wall, usingSim);
             if (timed.Advance(axis.Seconds, usingSim: true).Count > 0) completed = true;
         }

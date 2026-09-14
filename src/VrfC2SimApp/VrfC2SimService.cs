@@ -202,6 +202,7 @@ public sealed class VrfC2SimService : BackgroundService
     private SimClockTracker.Observation _simClockLast =
         new(false, false, false, -1.0, -1.0, StallPolicy.SimClockStep.Flat, false, 0.0);
     private bool _taskClockStaleWarned;                         // M4 stale warning for the TASK clock, once
+    private DateTime _taskClockHoldLineUtc = DateTime.MinValue; // Q5: the HOLD line repeats, rate-limited
     private DateTime _simRollbackLineUtc = DateTime.MinValue;   // rate limit for the rollback line
     private int _simRollbackLinesSuppressed;                    // rollbacks the rate limit did not print
     private const double TaskClockSampleSeconds = 1.0;
@@ -3665,31 +3666,6 @@ public sealed class VrfC2SimService : BackgroundService
             else _simRollbackLinesSuppressed++;
         }
 
-        // M4: A STALE SIM CLOCK MUST NOT FREEZE EVERY END TIME. The reader keeps returning the last
-        // cached value when a back end is deactivated rather than removed, which reads as a pause
-        // forever - so the task clock stops serving on it and serves the rest of every Duration on
-        // WALL seconds. Nothing is lost: the axis keeps what it has accumulated and only stops
-        // ADDING sim seconds. Warned ONCE each way, because a run that silently changed time base
-        // is exactly what R4 exists to stop.
-        bool taskSimStale = preferSim && obs.ReadableConfirmed && obs.Stale;
-        if (taskSimStale && !_taskClockStaleWarned)
-        {
-            _taskClockStaleWarned = true;
-            _log.LogWarning("TASK CLOCK: the simulation clock has not advanced past {T:F1} s for {S:F0} wall " +
-                            "seconds - the scenario is PAUSED, or the back end has stopped answering (a back " +
-                            "end that misses its status timeout is DEACTIVATED, not removed, so the reader " +
-                            "keeps returning its last value). C2SIM task times ({N} task(s) waiting on an end " +
-                            "time) are served on the WALL clock until it moves again; no task is completed " +
-                            "early and no wait is restarted.",
-                            obs.SimSeconds, obs.FlatForWallSeconds, _timed.Count);
-        }
-        else if (_taskClockStaleWarned && !taskSimStale)
-        {
-            _taskClockStaleWarned = false;
-            _log.LogInformation("TASK CLOCK: the simulation clock is readable and advancing again ({T:F1} s) - " +
-                                "C2SIM task times are served on it once more.", obs.SimSeconds);
-        }
-
         // M3: THE MODE IS THE HYSTERESIS-CONFIRMED ONE. A reader alternating -1 / >= 0 at this
         // cadence would otherwise flip the mode on every sample, and the axis adds nothing across a
         // mode change - so nothing would ever be served, silently, forever.
@@ -3699,7 +3675,68 @@ public sealed class VrfC2SimService : BackgroundService
         // Serving the wall clock here instead would flip the mode on every miss, which is the very
         // starvation the hysteresis exists to prevent.
         if (heldOnSim && !obs.Readable) return;
-        bool usingSim = heldOnSim && !obs.Stale;
+
+        // Q5 (USER RULING 2026-09-14): A PAUSED SCENARIO DOES NOT AGE A TASK. M4's cure for a
+        // frozen reader was to serve WALL seconds after 60 s of flatness - which burned ten
+        // minutes off every armed Duration for a ten-minute coffee break. The clock now HOLDS
+        // while a VR-Forces back end is still there and falls back to wall only when there is
+        // none. The back-end read happens ONLY in the stale branch, so the golden path keeps its
+        // single per-second bridge call.
+        bool taskSimStale = heldOnSim && obs.Stale;
+        bool backEndPresent = false;
+        if (taskSimStale)
+        {
+            try { backEndPresent = _bridge.BackendCount() > 0; }
+            catch (Exception ex)
+            {
+                // Unreadable = treat it as gone: that is the pre-Q5 behaviour, and serving wall
+                // seconds is the outcome that at least keeps moving.
+                _log.LogDebug(ex, "TASK CLOCK: BackendCount read failed; treating the back end as gone.");
+            }
+        }
+        var action = StallPolicy.TaskClockAction(heldOnSim, taskSimStale, backEndPresent);
+
+        if (action == StallPolicy.TaskClockOnFlat.HoldOnSim)
+        {
+            // REPEATED, not said once: BackendCount cannot tell a paused back end from one that
+            // has been DEACTIVATED for missing its status timeout (StallPolicy.TaskClockAction
+            // documents the limit), so the one thing this line must not be is quiet.
+            if (!_taskClockStaleWarned
+                || (now - _taskClockHoldLineUtc).TotalSeconds >= StallPolicy.LogRateLimitSeconds)
+            {
+                _taskClockStaleWarned = true;
+                _taskClockHoldLineUtc = now;
+                _log.LogWarning("TASK CLOCK: the simulation clock has not advanced past {T:F1} s for {S:F0} wall " +
+                                "seconds and a VR-Forces back end IS still present (BackendCount>0) - the " +
+                                "scenario is PAUSED. C2SIM task times are HELD: {N} task(s) waiting on an end " +
+                                "time age by NOTHING until the scenario runs again (Q5, user ruling " +
+                                "2026-09-14). CAVEAT: the back-end list KEEPS an entry that has missed its " +
+                                "status timeout, so if this line keeps repeating and nobody paused anything, " +
+                                "the back end has died and task time will stay frozen until it returns.",
+                                obs.SimSeconds, obs.FlatForWallSeconds, _timed.Count);
+            }
+        }
+        else if (taskSimStale && !_taskClockStaleWarned)
+        {
+            _taskClockStaleWarned = true;
+            _log.LogWarning("TASK CLOCK: the simulation clock has not advanced past {T:F1} s for {S:F0} wall " +
+                            "seconds and NO VR-Forces back end is present (BackendCount=0) - the simulation " +
+                            "is GONE, not paused. C2SIM task times ({N} task(s) waiting on an end time) are " +
+                            "served on the WALL clock until a back end returns; no task is completed early " +
+                            "and no wait is restarted.",
+                            obs.SimSeconds, obs.FlatForWallSeconds, _timed.Count);
+        }
+        else if (_taskClockStaleWarned && !taskSimStale)
+        {
+            _taskClockStaleWarned = false;
+            _taskClockHoldLineUtc = DateTime.MinValue;
+            _log.LogInformation("TASK CLOCK: the simulation clock is readable and advancing again ({T:F1} s) - " +
+                                "C2SIM task times are served on it once more.", obs.SimSeconds);
+        }
+
+        // HoldOnSim advances on the SIM reading, which is flat by definition here, so it adds
+        // exactly nothing AND keeps the axis anchored in sim mode - no mode change, no re-anchor.
+        bool usingSim = action != StallPolicy.TaskClockOnFlat.FallBackToWall;
         _taskAxis.Advance(usingSim ? obs.SimSeconds : wallNow, usingSim);
     }
 
