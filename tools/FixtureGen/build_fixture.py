@@ -806,7 +806,7 @@ def write_zip(path, members, deterministic=False):
 
 def build_empty_52(out_name, donor="GroundMovement", frame_mode=None,
                    frame_time=None, out_dir=None, scenario_name=None,
-                   aoi=None, verbose=True, terrain=None):
+                   aoi=None, verbose=True, terrain=None, sms=None):
     """Emit <out_name>.scnx: the donor 5.2-native scenario with EVERY simulation
     object stripped, leaving a globals-only .oob, on MAK Earth (online) +
     EntityLevel.sms with the frame lever set and the extent on the R9 AOI.
@@ -816,12 +816,22 @@ def build_empty_52(out_name, donor="GroundMovement", frame_mode=None,
     navigation-area records (tools/navdata/make_nav_terrain.py) is passed
     here by absolute path; the copy is verified to exist on this machine.
 
+    sms: the Simulation-Model-Set-Files string. Default SMS_52 (the shipped
+    EntityLevel.sms, named through the $(DATA_DIR) macro). A derived SMS that
+    INCLUDES EntityLevel.sms (UG52 68.3.1 p1310) is passed here by absolute
+    path - allowed for MTL filename parameters, which are "an absolute path or
+    a path relative to the directory in which the executable is located"
+    (UG52 Table 15 p271) - and is verified to exist on this machine.
+
     Returns (scnx_path, report_dict). The donor .scnx is only READ.
     """
     aoi = aoi or R9_AOI
     terrain = terrain or TERRAIN_52
     if terrain != TERRAIN_52 and not os.path.isfile(terrain):
         raise SystemExit("terrain not found: %s" % terrain)
+    sms = sms or SMS_52
+    if sms != SMS_52 and not os.path.isfile(sms):
+        raise SystemExit("sms not found: %s" % sms)
     donor_path = DONORS_52.get(donor, donor)
     if not os.path.isfile(donor_path):
         raise SystemExit("donor .scnx not found: %s" % donor_path)
@@ -866,7 +876,7 @@ def build_empty_52(out_name, donor="GroundMovement", frame_mode=None,
     scn = scn.replace(dname, out_name)             # part-name references
     scn = set_scn_string(scn, "Terrain-Database", terrain)
     scn = set_scn_string(scn, "Gui-Terrain-Database", terrain)
-    scn = set_scn_string(scn, "Simulation-Model-Set-Files", SMS_52)
+    scn = set_scn_string(scn, "Simulation-Model-Set-Files", sms)
     scn = set_frame_settings(scn, frame_mode, frame_time)
     if scenario_name is not None:
         scn = set_scn_string(scn, "scenario-name", scenario_name)
@@ -903,7 +913,7 @@ def build_empty_52(out_name, donor="GroundMovement", frame_mode=None,
                members=[m for m, _ in members], donor_members=order,
                kept=kept_names, n_dropped=len(dropped_uuids),
                omp_before=len(omp_before), omp_after=len(kept_uuids),
-               terrain=terrain, sms=SMS_52, extent=extent,
+               terrain=terrain, sms=sms, extent=extent,
                frame_mode=frame_mode, frame_time=frame_time, new_52_keys=new_keys)
     if verbose:
         print("BUILT %s" % scnx_path)
@@ -916,7 +926,8 @@ def build_empty_52(out_name, donor="GroundMovement", frame_mode=None,
         print("  .omp entries  = %d -> %d" % (len(omp_before), len(kept_uuids)))
         print("  terrain       = %s%s" % (terrain, "" if terrain == TERRAIN_52
                                           else "  (OVERRIDE - not the shipped terrain)"))
-        print("  sms           = %s" % SMS_52)
+        print("  sms           = %s%s" % (sms, "" if sms == SMS_52
+                                          else "  (OVERRIDE - not the shipped SMS)"))
         print("  frame-mode    = %s" % (frame_mode if frame_mode else "(unchanged)"))
         print("  frame-time    = %s" % (("%.6f" % float(frame_time))
                                         if frame_time is not None else "(unchanged)"))
@@ -927,7 +938,7 @@ def build_empty_52(out_name, donor="GroundMovement", frame_mode=None,
 
 def build_empty_52_negative_controls(out_name, out_dir, donor="GroundMovement",
                                      frame_mode=None, frame_time=None,
-                                     scenario_name=None):
+                                     scenario_name=None, sms=None):
     """Two DELIBERATELY BROKEN copies of the empty fixture, for the validator gate.
 
     (a) _NEG_noframetime : the (frame-time ...) line deleted from the .scn.
@@ -936,7 +947,8 @@ def build_empty_52_negative_controls(out_name, out_dir, donor="GroundMovement",
     """
     good, _rep = build_empty_52(out_name, donor=donor, frame_mode=frame_mode,
                                 frame_time=frame_time, out_dir=out_dir,
-                                scenario_name=scenario_name, verbose=False)
+                                scenario_name=scenario_name, verbose=False,
+                                sms=sms)
     donor_path = DONORS_52.get(donor, donor)
     dname = os.path.splitext(os.path.basename(donor_path))[0]
     with zipfile.ZipFile(donor_path) as z:
@@ -1038,6 +1050,11 @@ if __name__ == "__main__":
                          "write instead of the shipped MAK Earth (online).mtf - e.g. "
                          "the navigation-area copy made by tools/navdata/"
                          "make_nav_terrain.py (absolute path; must exist).")
+    ap.add_argument("--sms", default=None, metavar="SMS",
+                    help="--empty only: Simulation-Model-Set-Files to write instead "
+                         "of the shipped EntityLevel.sms - e.g. a derived SMS that "
+                         "INCLUDES EntityLevel.sms and overrides one script "
+                         "(absolute path; must exist).")
     args = ap.parse_args()
 
     if not os.path.exists(OUTDIR):
@@ -1052,13 +1069,13 @@ if __name__ == "__main__":
         build_empty_52(args.out_name, donor=args.donor,
                        frame_mode=args.frame_mode, frame_time=args.frame_time,
                        out_dir=args.out_dir, scenario_name=args.scenario_name,
-                       terrain=args.terrain)
+                       terrain=args.terrain, sms=args.sms)
         if args.negative_controls:
             print("=" * 70)
             build_empty_52_negative_controls(
                 args.out_name, args.negative_controls, donor=args.donor,
                 frame_mode=args.frame_mode, frame_time=args.frame_time,
-                scenario_name=args.scenario_name)
+                scenario_name=args.scenario_name, sms=args.sms)
         sys.exit(0)
 
     if args.profile != "5.0.2":

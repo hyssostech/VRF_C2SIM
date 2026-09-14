@@ -156,12 +156,16 @@ def _say(ok_flag, label, detail, good):
 
 
 def check_empty_52(path, donor=None, frame_mode="fixed-frame-run-to-complete",
-                   frame_time=0.033333, aoi=None, terrain=None):
+                   frame_time=0.033333, aoi=None, terrain=None, sms=None):
     """Validate an EMPTY 5.2 fixture. Returns True/False; prints every check.
 
     terrain: the Terrain-Database / Gui-Terrain-Database string the fixture is
     EXPECTED to carry. Default = the shipped MAK Earth (online).mtf; a fixture
     built with build_fixture.py --terrain <copy> is validated with the same path.
+
+    sms: the Simulation-Model-Set-Files string the fixture is EXPECTED to carry.
+    Default = the shipped EntityLevel.sms; a fixture built with build_fixture.py
+    --sms <derived.sms> is validated with the same path.
     """
     aoi = aoi or bf.R9_AOI
     donor = donor or bf.DONORS_52["GroundMovement"]
@@ -229,11 +233,14 @@ def check_empty_52(path, donor=None, frame_mode="fixed-frame-run-to-complete",
 
     # ---- terrain / SMS -------------------------------------------------------
     want_terrain = terrain or bf.TERRAIN_52
+    want_sms = sms or bf.SMS_52
     if terrain and terrain != bf.TERRAIN_52:
         ok = _say(ok, "terrain override exists on disk", terrain, os.path.isfile(terrain))
+    if sms and sms != bf.SMS_52:
+        ok = _say(ok, "sms override exists on disk", sms, os.path.isfile(sms))
     for key, want in (("Terrain-Database", want_terrain),
                       ("Gui-Terrain-Database", want_terrain),
-                      ("Simulation-Model-Set-Files", bf.SMS_52)):
+                      ("Simulation-Model-Set-Files", want_sms)):
         m = re.search(r"\(" + key + r'\s+"([^"]*)"\)', scn)
         ok = _say(ok, key, m.group(1) if m else "(absent)", bool(m) and m.group(1) == want)
 
@@ -332,6 +339,10 @@ if __name__ == "__main__":
                     help="--empty-52: the terrain the fixtures are EXPECTED to name "
                          "(default: the shipped MAK Earth (online).mtf). Pass the "
                          "navigation-area copy for fixtures built with --terrain.")
+    ap.add_argument("--sms", default=None, metavar="SMS",
+                    help="--empty-52: the simulation model set the fixtures are "
+                         "EXPECTED to name (default: the shipped EntityLevel.sms). "
+                         "Pass the derived SMS for fixtures built with --sms.")
     args = ap.parse_args()
 
     results = []
@@ -345,7 +356,7 @@ if __name__ == "__main__":
             results.append(check_empty_52(p, donor=args.donor,
                                           frame_mode=args.frame_mode,
                                           frame_time=args.frame_time,
-                                          terrain=args.terrain))
+                                          terrain=args.terrain, sms=args.sms))
 
     if args.expect_fail:
         good = bool(results) and not any(results)
