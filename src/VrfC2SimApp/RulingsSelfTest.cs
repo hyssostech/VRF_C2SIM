@@ -467,13 +467,19 @@ public static class RulingsSelfTest
         // 34.5 / -116.5, centroid exactly at its centre) and one LINE.
         const string objMadison = "11111111-2222-3333-4444-555555555555";
         const string plBlue = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+        const string cpTango = "12121212-3434-5656-7878-909090909090";
         var graphics = new Dictionary<string, TaskGraphic>(StringComparer.Ordinal)
         {
             [objMadison] = new TaskGraphic(objMadison, "OBJ_MADISON", TaskGraphic.KindArea,
                 new[] { (34.4, -116.6, (double?)null), (34.6, -116.6, (double?)null),
                         (34.6, -116.4, (double?)null), (34.4, -116.4, (double?)null) }),
-            [plBlue] = new TaskGraphic(plBlue, "PL_BLUE", "line",
+            // M5: the init's 41 LINEs and 317 POINTs are registered for R1 resolution too, and
+            // INDEPENDENTLY of Vrf:CreateInitLines / Vrf:CreateInitPoints - this map holds
+            // authored points, not VR-Forces objects.
+            [plBlue] = new TaskGraphic(plBlue, "PL_BLUE", TaskGraphic.KindLine,
                 new[] { (35.0, -117.0, (double?)null), (35.1, -117.1, (double?)null) }),
+            [cpTango] = new TaskGraphic(cpTango, "CP_TANGO", TaskGraphic.KindPoint,
+                new[] { (36.25, -118.75, (double?)null) }),
         };
         var embedded = new List<(double Lat, double Lon, double? Elev)>
             { (33.0, -115.0, null), (33.1, -115.1, null) };
@@ -545,10 +551,64 @@ public static class RulingsSelfTest
             var r = TaskGeometryResolver.Resolve(task, graphics);
             Check(ref failures, r.Source == GeometrySource.EmbeddedLocation && r.Points.Count == 2,
                   $"an unmatched MapGraphicID falls back to the embedded Location (source {r.Source})");
-            Check(ref failures, r.Log.Any(l => l.Contains("matched no object created at init"))
+            Check(ref failures, r.Warnings.Any(l => l.Contains("matched NO graphic in the initialization"))
                              && r.Log.Any(l => l.Contains("geometry from embedded Location")
                                             && l.Contains("STP-801")),
-                  "... and says the id matched nothing, with the STP-801 marker");
+                  "... and WARNS that the id matched nothing (M5), with the STP-801 marker on the fallback");
+        }
+
+        // (e7) M5 - A MapGraphicID NAMING A LINE resolves to that line's vertices, in order, with
+        //      no area centroid collapse: a phase line or an axis of advance is a PATH.
+        {
+            var task = new OrderTask
+            {
+                TaskName = "T_Move_Along_PL_BLUE",
+                MapGraphicUuids = new[] { plBlue },
+                Points = new List<(double, double, double?)>(),
+            };
+            var r = TaskGeometryResolver.Resolve(task, graphics);
+            Check(ref failures, r.Source == GeometrySource.MapGraphic && r.Points.Count == 2
+                             && Math.Abs(r.Points[0].Lat - 35.0) < 1e-9
+                             && Math.Abs(r.Points[1].Lat - 35.1) < 1e-9
+                             && r.Warnings.Count == 0,
+                  $"a MapGraphicID naming a LINE resolves to its {r.Points.Count} vertices in order " +
+                  $"(source {r.Source})");
+            Check(ref failures, r.Log.Any(l => l.Contains("PL_BLUE") && l.Contains(TaskGraphic.KindLine)),
+                  "... and names the line and its kind in the log");
+        }
+
+        // (e8) M5 - A MapGraphicID NAMING A POINT resolves to that one authored position.
+        {
+            var task = new OrderTask
+            {
+                TaskName = "T_Occupy_CP_TANGO",
+                MapGraphicUuids = new[] { cpTango },
+                Points = new List<(double, double, double?)>(),
+            };
+            var r = TaskGeometryResolver.Resolve(task, graphics);
+            Check(ref failures, r.Source == GeometrySource.MapGraphic && r.Points.Count == 1
+                             && Math.Abs(r.Points[0].Lat - 36.25) < 1e-9
+                             && Math.Abs(r.Points[0].Lon + 118.75) < 1e-9,
+                  $"a MapGraphicID naming a POINT resolves to its authored position (source {r.Source}, " +
+                  $"{r.Points.Count} point(s))");
+        }
+
+        // (e9) M5 - THE SILENT CASE THE WARNING EXISTS FOR: an unmatched id and NO embedded
+        //      Location. Before M5 this fell through to R2 in place with an Information line; the
+        //      unit holds still for the whole Duration and the order looks executed.
+        {
+            var task = new OrderTask
+            {
+                TaskName = "T_Only_An_Unknown_Graphic",
+                MapGraphicUuids = new[] { "00000000-0000-0000-0000-000000000000" },
+                Points = new List<(double, double, double?)>(),
+            };
+            var r = TaskGeometryResolver.Resolve(task, graphics);
+            Check(ref failures, r.Source == GeometrySource.None
+                             && r.Warnings.Any(l => l.Contains("matched NO graphic"))
+                             && r.Warnings.Any(l => l.Contains("executed IN PLACE")),
+                  $"an unmatched MapGraphicID with no embedded Location WARNS that the task will be " +
+                  $"executed in place ({r.Warnings.Count} warning(s))");
         }
 
         // (e5) NO geometry at all is still no geometry - R2 executes it in place.

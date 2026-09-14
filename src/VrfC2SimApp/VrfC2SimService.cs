@@ -122,10 +122,16 @@ public sealed class VrfC2SimService : BackgroundService
     // prefix is belt-and-braces, not a workaround for an observed collision.
     private readonly ConcurrentDictionary<string, byte> _createdAreaKeys = new();
 
-    // R1: the init's graphics by the C2SIM uuid they were created under, so a task's MapGraphicID
-    // resolves to the VR-Forces object we already made (createControlArea passes the C2SIM uuid as
-    // startingUUID, VrfFacade.cpp:725-737 - uuid match IS object identity, no mapping table). Areas
-    // today; lines and points join it unchanged when Vrf:CreateInitLines/Points lands.
+    // R1: the init's graphics by the C2SIM uuid they were AUTHORED under, so a task's MapGraphicID
+    // resolves to the geometry the init gave that uuid. Areas, lines AND points (M5, cold-start
+    // review of 5c67d41: areas alone covered 35 of COA-STP1's 409 graphics, so a MapGraphicID
+    // naming a phase line or an axis of advance matched nothing and the task fell through to its
+    // embedded Location - or, on an export that drops it, to R2 in place).
+    // INDEPENDENT OF Vrf:CreateInitLines / Vrf:CreateInitPoints: this map holds AUTHORED POINTS and
+    // never touches a VR-Forces object, so a creation flag cannot decide whether a task gets its
+    // own coordinates. Where the object IS created the uuid match is also object identity
+    // (createControlArea / createRoute / createWaypoint all take the C2SIM uuid as startingUUID,
+    // VrfFacade.cpp:725-737, vrfRemoteController.h:991-1039 - no mapping table).
     private readonly ConcurrentDictionary<string, TaskGraphic> _graphicsByC2SimUuid = new();
 
     // (The VRF uuid -> name reverse map used by the R4 formation reply and the object console -
@@ -1293,6 +1299,33 @@ public sealed class VrfC2SimService : BackgroundService
         // movement problem; these are CONTROL graphics and nothing drives them. IF a build item
         // later hands one of these routes to a move task, its vertices need the terrain query
         // first - that is an open item, not something decided here.
+        // M5 (cold-start review of 5c67d41): REGISTER every line and point for R1 resolution FIRST,
+        // and unconditionally. This is the authored geometry a MapGraphicID names; whether the
+        // graphic is also CREATED in VR-Forces is a separate question answered by the two flags
+        // below, and a task must not lose its own coordinates to a display setting. Done before any
+        // create is enqueued for the same reason the area registration is (an order can arrive
+        // while the creates are still draining).
+        int linesRegistered = 0, pointsRegistered = 0;
+        foreach (var l in init.Lines)
+        {
+            if (string.IsNullOrEmpty(l.Uuid) || l.Points.Count == 0) continue;
+            _graphicsByC2SimUuid[l.Uuid] = new TaskGraphic(
+                l.Uuid, l.Name, TaskGraphic.KindLine,
+                l.Points.Select(pt => (pt.Lat, pt.Lon, (double?)pt.Elev)).ToList());
+            linesRegistered++;
+        }
+        foreach (var p in init.Points)
+        {
+            // A C2SIM Point's FIRST location is its position (InitPoint.Position); any others are
+            // kept by the parser rather than silently dropped, but a point graphic is ONE place.
+            if (string.IsNullOrEmpty(p.Uuid) || !p.HasPosition) continue;
+            var pos = p.Position;
+            _graphicsByC2SimUuid[p.Uuid] = new TaskGraphic(
+                p.Uuid, p.Name, TaskGraphic.KindPoint,
+                new List<(double, double, double?)> { (pos.Lat, pos.Lon, (double?)pos.Elev) });
+            pointsRegistered++;
+        }
+
         int linesQueued = 0, linesDegenerate = 0, pointsQueued = 0, pointsEmpty = 0;
         // MERGE NOTE (feat/tasking-foundation -> feat/integration, 2026-09-14). V3 was written
         // against a tree in which the name -> VRF-uuid map was a bare dictionary. It is now a
@@ -1377,10 +1410,14 @@ public sealed class VrfC2SimService : BackgroundService
         _log.LogInformation("Init ({Source}) graphics: {Areas} area(s) queued; " +
                             "{ParsedLines} line(s) parsed -> {Lines} queued ({DegenerateLines} with <2 vertices " +
                             "skipped), {ParsedPoints} point(s) parsed -> {Points} queued ({EmptyPoints} with no " +
-                            "position skipped). Vrf:CreateInitLines={LinesOn} Vrf:CreateInitPoints={PointsOn}.",
+                            "position skipped). Vrf:CreateInitLines={LinesOn} Vrf:CreateInitPoints={PointsOn}. " +
+                            "R1 RESOLUTION (M5) is independent of those flags: {Registered} graphic(s) are now " +
+                            "addressable by MapGraphicID ({Areas} area(s), {RegLines} line(s), {RegPoints} " +
+                            "point(s)).",
                             source, areasQueued, init.Lines.Count, linesQueued, linesDegenerate,
                             init.Points.Count, pointsQueued, pointsEmpty,
-                            _vrf.CreateInitLines, _vrf.CreateInitPoints);
+                            _vrf.CreateInitLines, _vrf.CreateInitPoints,
+                            _graphicsByC2SimUuid.Count, linesRegistered, pointsRegistered);
 
         if (duplicates > 0)
             _log.LogWarning("Init ({Source}): skipped {N} units/graphics ALREADY created " +
@@ -2348,8 +2385,15 @@ public sealed class VrfC2SimService : BackgroundService
         // same task and would otherwise say it all twice.
         var geometry = TaskGeometryResolver.Resolve(task, _graphicsByC2SimUuid);
         if (terrainRoute == null)
+        {
             foreach (var line in geometry.Log)
                 _log.LogInformation("Task '{Task}': {Line}.", task.TaskName, line);
+            // M5: an unmatched MapGraphicID is a gap between the order and the initialization that
+            // SILENTLY changes what the unit does - it falls through to the embedded Location or,
+            // on an export that carries only the id, to R2 in place. It is a WARNING.
+            foreach (var line in geometry.Warnings)
+                _log.LogWarning("Task '{Task}': {Line}.", task.TaskName, line);
+        }
         var taskPoints = geometry.Points;
 
         // OBSERVATION CHANNEL: a template unit's members were created by the sim, not by us, so
