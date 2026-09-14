@@ -30,6 +30,46 @@ public static class InitParseCheck
         foreach (var a in data.Areas)
             Console.WriteLine($"  area '{a.Name}' pts={a.Points.Count}");
 
+        // ---- V3: the LINE and POINT graphics, and what would be created from them -------------
+        // The interface used to parse these away entirely (only S.TacticalAreaType was collected),
+        // so this section is the first place the objective/phase-line/control-point geometry STP
+        // ships is visible without opening the XML. COA-STP1: 35 areas + 41 lines + 317 points.
+        Console.WriteLine($"Lines: {data.Lines.Count}  " +
+                          $"(Route={data.Lines.Count(l => l.Kind == "Route")}, " +
+                          $"Boundary={data.Lines.Count(l => l.Kind == "Boundary")}; " +
+                          $"with uuid={data.Lines.Count(l => l.Uuid.Length > 0)})");
+        Console.WriteLine($"  vertex histogram: {Histogram(data.Lines.Select(l => l.Points.Count))}");
+        int creatableLines = data.Lines.Count(l => l.Points.Count >= 2);
+        Console.WriteLine($"  creatable as VRF routes (>=2 vertices): {creatableLines}" +
+                          $"  (skipped, <2 vertices: {data.Lines.Count - creatableLines})");
+        foreach (var l in data.Lines.Take(5))
+            Console.WriteLine($"    line '{l.Name}' [{l.Kind}] pts={l.Points.Count} uuid={l.Uuid}");
+
+        Console.WriteLine($"Points: {data.Points.Count}  (with uuid={data.Points.Count(p => p.Uuid.Length > 0)}, " +
+                          $"with position={data.Points.Count(p => p.HasPosition)})");
+        Console.WriteLine($"  location-count histogram: {Histogram(data.Points.Select(p => p.Points.Count))}");
+        foreach (var p in data.Points.Take(5))
+            Console.WriteLine($"    point '{p.Name}' uuid={p.Uuid} " +
+                              (p.HasPosition ? $"{p.Position.Lat},{p.Position.Lon}" : "(NO POSITION)"));
+
+        // The GRAPHICS CREATION PLAN - what DispatchInit would queue, per flag. Printed next to
+        // the unit placement plan below so one command shows everything an init would create.
+        Console.WriteLine("Graphics creation plan (what DispatchInit would queue):");
+        Console.WriteLine($"  areas  -> CreateControlArea x{data.Areas.Count}  (always; uuid = the C2SIM uuid)");
+        Console.WriteLine($"  lines  -> CreateRoute       x{creatableLines}   (only when Vrf:CreateInitLines=true; default false)");
+        Console.WriteLine($"  points -> CreateWaypoint    x{data.Points.Count(p => p.HasPosition)}   (only when Vrf:CreateInitPoints=true; default false)");
+        // Uniqueness matters: createWaypoint/createRoute document "the name must be unique (if
+        // specified)" (vrfRemoteController.h:987, :1019). Say so here rather than find out live.
+        var allGraphicNames = data.Areas.Select(a => a.Name)
+            .Concat(data.Lines.Select(l => l.Name))
+            .Concat(data.Points.Select(p => p.Name)).ToList();
+        var nameDups = allGraphicNames.GroupBy(n => n).Where(g => g.Count() > 1).ToList();
+        var unitNames = data.Units.Select(u => u.Name).ToHashSet();
+        int nameVsUnit = allGraphicNames.Count(unitNames.Contains);
+        Console.WriteLine($"  graphic names: {allGraphicNames.Count} total, {allGraphicNames.Distinct().Count()} distinct, " +
+                          $"{nameDups.Count} duplicated, {nameVsUnit} colliding with a UNIT name" +
+                          (nameDups.Count > 0 ? "  <-- createWaypoint/createRoute want unique names" : ""));
+
         Console.WriteLine("First 6 creatable units (name | host | sidc | dis | lat,lon):");
         foreach (var u in data.Units.Where(u =>
                      u.SystemName == clientId && u.Latitude.Length > 0).Take(6))
@@ -73,6 +113,9 @@ public static class InitParseCheck
 
     private static string TypeStr(VrfC2Sim.EntityTypeSpec t)
         => $"{t.Kind}.{t.Domain}.{t.Country}.{t.Category}.{t.Subcategory}.{t.Specific}.{t.Extra}";
+
+    private static string Histogram(IEnumerable<int> counts) =>
+        string.Join(", ", counts.GroupBy(c => c).OrderBy(g => g.Key).Select(g => $"{g.Key}pt x{g.Count()}"));
 
     private static string Group(IEnumerable<string> vals) =>
         string.Join(", ", vals.GroupBy(v => v.Length == 0 ? "(none)" : v)

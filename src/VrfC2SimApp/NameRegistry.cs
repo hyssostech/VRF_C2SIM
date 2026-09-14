@@ -35,9 +35,26 @@ namespace VrfC2SimApp;
 /// ONLY A NAME STILL AWAITING ITS ObjectCreated IS A RESOLUTION TARGET (review finding 2). An object
 /// whose name is the prefix of a unit that is ALREADY BOUND binds under its OWN name, so a
 /// sim-created object (a template member, an aggregate's own subordinate) can never take a live
-/// unit's identity - a failure mode that did not exist before this class. AMBIGUITY is still judged
-/// against the WHOLE requested set: two candidates make the callback unattributable however many of
-/// them are already bound.
+/// unit's identity BY TRUNCATION. AMBIGUITY is still judged against the WHOLE requested set: two
+/// candidates make the callback unattributable however many of them are already bound.
+///
+/// NO-HIJACK, STATED ACCURATELY (cold-start review 02b51de, m1). Finding 2's awaiting-only rule
+/// covers the PREFIX-SCAN path ONLY; it says nothing about the EXACT-match short-circuit, which
+/// runs first. A second ObjectCreated whose name is EXACTLY a requested name already bound to a
+/// DIFFERENT uuid used to overwrite both maps silently - and "510/40~PXY" is exactly
+/// <see cref="MarkingTruncationWidth"/> characters, so each of its four EXPAND children can come
+/// back under precisely that string. <see cref="Bind"/> now REFUSES such a rebind: the prior
+/// binding stands, neither map is touched, and <see cref="BindResult.RefusedRebind"/> tells the
+/// caller to log an ERROR. The guarantee is therefore: ONCE A REQUESTED NAME IS BOUND, ONLY AN
+/// ANNOUNCED re-create (<see cref="ExpectRebind"/>) CAN MOVE IT. It is deliberately narrow - it
+/// does NOT cover the truncated spelling written alongside the resolved one, nor a name that was
+/// never requested.
+///
+/// THE ONE LEGITIMATE REBIND is order-time materialization case 3 (VrfC2SimService.MaterializeUnit
+/// / _recreatePending): the coarse shell is DELETED and the same requested name re-created as its
+/// template, so a second ObjectCreated for that name is expected and its uuid is the real one. The
+/// service calls <see cref="ExpectRebind"/> at the same statement that sets _recreatePending, and
+/// the allowance is ONE-SHOT - consumed by the next bind of that name and by no later one.
 ///
 /// *** CORRECTNESS DEPENDS ON EVERY REQUESTED NAME FITTING THE MARKING WIDTH *** (review finding 1).
 /// When a returned name is simultaneously (a) EXACTLY one requested name and (b) a strict prefix of
@@ -92,14 +109,25 @@ public sealed class NameRegistry
     /// any of those siblings could have produced this callback by truncation, so the caller must
     /// WARN and name them. Never a reason to refuse the binding - a wrong warning is cheap, an
     /// unbound unit is nine hours of silent nothing (the B3 bug).</param>
+    /// <param name="PriorUuid">EMPTY in the ordinary case. The uuid this name was ALREADY bound to
+    /// when a second, UNANNOUNCED ObjectCreated arrived under it (m1): the binding was REFUSED and
+    /// this is the uuid that was kept. The caller must log an ERROR - the newcomer is an object we
+    /// cannot attribute, and silently re-pointing the name at it would make R1 report the wrong
+    /// object's position for a live unit and ExecuteTaskOnTick task it.</param>
     public readonly record struct BindResult(string Name, string ReturnedName, bool Truncated, bool Ambiguous,
-                                             IReadOnlyList<string> PrefixedCandidates);
+                                             IReadOnlyList<string> PrefixedCandidates, string PriorUuid)
+    {
+        /// <summary>The bind was REFUSED to protect an existing binding; <see cref="PriorUuid"/>
+        /// is the uuid that still owns <see cref="Name"/>. Nothing was written.</summary>
+        public bool RefusedRebind => !string.IsNullOrEmpty(PriorUuid);
+    }
 
     private readonly ConcurrentDictionary<string, byte> _requested = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, string> _uuidByName = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, string> _nameByUuid = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, string> _requestedByReturned = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, byte> _ambiguous = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, byte> _rebindAllowed = new(StringComparer.Ordinal);
 
     /// <summary>Register a name we are ASKING VR-Forces to create (unit, route, waypoint). Call it
     /// before the create is enqueued - the callback can arrive as soon as the create is sent.</summary>
@@ -115,6 +143,19 @@ public sealed class NameRegistry
         foreach (var key in _requestedByReturned.Keys)
             if (name.Length > key.Length && name.StartsWith(key, StringComparison.Ordinal))
                 _requestedByReturned.TryRemove(key, out _);
+    }
+
+    /// <summary>
+    /// ANNOUNCE a deliberate re-create: the object currently bound to <paramref name="name"/> is
+    /// being DELETED and the same name re-created (order-time materialization case 3 - the coarse
+    /// shell becomes its template). Without this, <see cref="Bind"/> refuses the second
+    /// ObjectCreated for that name and the maps would keep pointing at the deleted shell.
+    /// ONE-SHOT: consumed by the next <see cref="Bind"/> of that name. Idempotent - announcing
+    /// twice still permits exactly one rebind, which is what a re-issued create needs.
+    /// </summary>
+    public void ExpectRebind(string name)
+    {
+        if (!string.IsNullOrEmpty(name)) _rebindAllowed[name] = 0;
     }
 
     /// <summary>True if <paramref name="name"/> is exactly a name we asked for.</summary>
@@ -235,13 +276,30 @@ public sealed class NameRegistry
             if (awaiting.Count > 0) collisions = awaiting;
         }
 
-        if (!string.IsNullOrEmpty(uuid))
+        // m1 (cold-start review 02b51de): the write below is an OVERWRITE. When `resolved` is
+        // already bound to a DIFFERENT object this hands a live unit's identity to a newcomer -
+        // R1 would then report that object's position AS the unit and ExecuteTaskOnTick would task
+        // it. Refuse, keep what we have, and tell the caller. The scope is deliberately the
+        // NON-TRUNCATED case: a truncation resolution has already been vetted by ScanForRequested,
+        // whose awaiting-only rule refuses a candidate that is bound (finding 2). The one
+        // legitimate rebind - the shell deleted and re-created as its template - is ANNOUNCED
+        // through ExpectRebind and consumed here, once.
+        string priorUuid = "";
+        if (!string.IsNullOrEmpty(uuid) && !truncated && !string.IsNullOrEmpty(resolved)
+            && _uuidByName.TryGetValue(resolved, out var prior) && !string.IsNullOrEmpty(prior)
+            && !string.Equals(prior, uuid, StringComparison.Ordinal)
+            && !_rebindAllowed.TryRemove(resolved, out _))
+        {
+            priorUuid = prior;
+        }
+
+        if (!string.IsNullOrEmpty(uuid) && priorUuid.Length == 0)
         {
             if (!string.IsNullOrEmpty(resolved)) _uuidByName[resolved] = uuid;
             if (truncated) _uuidByName[returnedName] = uuid;
             if (!string.IsNullOrEmpty(resolved)) _nameByUuid[uuid] = resolved;
         }
-        return new BindResult(resolved, returnedName, truncated, ambiguous, collisions);
+        return new BindResult(resolved, returnedName, truncated, ambiguous, collisions, priorUuid);
     }
 
     /// <summary>The VRF uuid bound to a name (requested or as-returned).</summary>

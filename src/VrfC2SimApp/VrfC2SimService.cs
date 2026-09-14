@@ -115,8 +115,11 @@ public sealed class VrfC2SimService : BackgroundService
     // report's CurrentTask (parity: setUnitCurrentTaskUuid, C2SIMinterface.cpp:2165).
     private readonly InFlightTracker _inFlight = new();
 
-    // Control-area keys (uuid or name) already queued for creation - the duplicate-init
-    // guard for areas (units use _unitByC2SimUuid membership for the same purpose).
+    // Tactical-graphic keys ("<kind>:<uuid-or-name>") already queued for creation - the
+    // duplicate-init guard for AREAS and, since V3, for LINES and POINTS too (units use
+    // _unitByC2SimUuid membership for the same purpose). The kind prefix keeps an area and a
+    // line that share a uuid from colliding; C2SIM gives each graphic its own uuid, so the
+    // prefix is belt-and-braces, not a workaround for an observed collision.
     private readonly ConcurrentDictionary<string, byte> _createdAreaKeys = new();
 
     // R1: the init's graphics by the C2SIM uuid they were created under, so a task's MapGraphicID
@@ -615,14 +618,40 @@ public sealed class VrfC2SimService : BackgroundService
             }
             try { _bridge.Tick(); }
             catch (Exception e) { _log.LogError("Tick failed: {Msg}", e.Message); }
-            if (!_pendingTerrain.IsEmpty) ExpireTerrainRequests();
-            if (!_compositions.IsEmpty) ExpireCompositions();
-            if (!_awaitReflection.IsEmpty) ReleaseReflected();
-            if (_vrf.PositionReportSeconds > 0) MaybeSendPositionReports();
-            if (_vrf.ArrivalCompletion) MaybeCheckArrivals();
-            if (_vrf.StallDetection) MaybeCheckStalls();
-            if (_vrf.TimedCompletion) MaybeCompleteTimedTasks();
+            // M1 (cold-start review 02b51de). EVERY phase below gets the same guard the action()
+            // drain has. An unhandled throw on THIS thread ends the thread and, because Program.cs
+            // installs no AppDomain.UnhandledException handler that can stop it, the PROCESS - in
+            // the middle of a run, with nothing in our own log to say why. The concrete shape the
+            // review found: a managed-only refresh of a deployed folder (new VrfC2SimApp.dll beside
+            // an OLD VrfBridge.dll) makes the R1 poll JIT TryGetEntityKinematics ten seconds in and
+            // throw MissingMethodException. Guarding does not make a stale deploy correct - it makes
+            // it a loud, repeating ERROR line naming the phase instead of a dead interface.
+            TickPhase("ExpireTerrainRequests", !_pendingTerrain.IsEmpty, ExpireTerrainRequests);
+            TickPhase("ExpireCompositions", !_compositions.IsEmpty, ExpireCompositions);
+            TickPhase("ReleaseReflected", !_awaitReflection.IsEmpty, ReleaseReflected);
+            TickPhase("MaybeSendPositionReports", _vrf.PositionReportSeconds > 0, MaybeSendPositionReports);
+            TickPhase("MaybeCheckArrivals", _vrf.ArrivalCompletion, MaybeCheckArrivals);
+            TickPhase("MaybeCheckStalls", _vrf.StallDetection, MaybeCheckStalls);
+            TickPhase("MaybeCompleteTimedTasks", _vrf.TimedCompletion, MaybeCompleteTimedTasks);
             Thread.Sleep(50);
+        }
+    }
+
+    /// <summary>One guarded tick-loop phase (M1). <paramref name="enabled"/> keeps the call site's
+    /// own gate - a disabled phase costs nothing and cannot throw - and the phase NAME goes into the
+    /// log so a repeating failure is attributable without a debugger. Never rethrows: the tick
+    /// thread is the simulation's clock and must outlive any one phase.</summary>
+    private void TickPhase(string phase, bool enabled, Action body)
+    {
+        if (!enabled) return;
+        try { body(); }
+        catch (Exception e)
+        {
+            _log.LogError("Tick phase '{Phase}' FAILED ({Type}): {Msg} - the tick loop continues. A " +
+                          "MissingMethodException here means the deployed VrfBridge.dll is older than " +
+                          "VrfC2SimApp.dll (docs/RUNBOOK.md deploy section: rebuild the bridge and ALL " +
+                          "TEN consumers so every bin copy is one hash).",
+                          phase, e.GetType().Name, C2SIMSDK.GetRootException(e).Message);
         }
     }
 
@@ -699,7 +728,12 @@ public sealed class VrfC2SimService : BackgroundService
                 foreach (var b in bundle) _posBundle.Add(b);
                 snapshot = DrainBundleLocked();
             }
-            if (snapshot != null && snapshot.Count > 0) { _ = PushBundleSnapshot(snapshot); sent = snapshot.Count; }
+            // m2: `sent` is THIS CYCLE's count in every other branch, so it must be here too.
+            // snapshot.Count is the whole DRAINED buffer (this cycle's fixes plus anything an
+            // earlier cycle left behind), and the drain returns null when the buffer is not yet due
+            // - which used to report 0 for a cycle that had just added fixes. Count what we added.
+            if (snapshot != null && snapshot.Count > 0) _ = PushBundleSnapshot(snapshot);
+            sent = bundle.Count;
         }
         // The first four numbers are THIS cycle's; the last pair is the run's total across every
         // report kind (review finding 12 - the unlabelled pair read as a second per-cycle count).
@@ -1147,8 +1181,131 @@ public sealed class VrfC2SimService : BackgroundService
             areasQueued++;
         }
 
+        // ---- V3: the init's LINE and POINT graphics --------------------------------------------
+        // Same code path shape as the areas above, deliberately: same duplicate-delivery guard
+        // (_createdAreaKeys, keyed by uuid with a name fallback), same _tickActions.Enqueue, same
+        // uuid policy (the C2SIM uuid IS the VRF uuid - vrfRemoteController.h:991-1011 / :1023-1039
+        // take the same optional startingUUID createControlArea does), and the same console
+        // handling, which needs no code here: OnVrfObjectCreated raises every created object's
+        // console to Vrf:ObjectConsoleNotifyLevel by uuid, graphics included.
+        //
+        // WHY A LINE BECOMES A ROUTE AND NOT A PHASE LINE - measured, not chosen by taste.
+        // The vendor has both: createPhaseLine takes EXACTLY TWO points (vrfRemoteController.h
+        // :1054-1072, "const DtVector& dbPoint1, const DtVector& dbPoint2") and createRoute takes a
+        // DtList of vertices (:1023-1039). COA-STP1's 41 lines have this vertex histogram
+        // (counted from data\COA-STP1_Initialization.xml, 2026-09-14):
+        //     1 pt x10, 2 x1, 3 x2, 4 x3, 5 x10, 7 x1, 8 x3, 11 x3, 13 x6, 14 x1, 15 x1.
+        // EXACTLY ONE of the 41 would fit createPhaseLine. So a route is the only vendor object
+        // that preserves the authored geometry, and forking on vertex count would produce two
+        // different object classes for one C2SIM element type. CONSEQUENCE, recorded because it is
+        // a live question for build items V5/V6: the vendor's line-taking scripted tasks
+        // (company_seize departLine, co_clear Limit of Advance, the breach lane) are authored
+        // against the GUI's line graphic, and whether they accept a route object is a run-only
+        // question - the help describes the parameter, not the accepted class.
+        // A line with fewer than 2 vertices is NOT created: a one-vertex route is not a line in any
+        // frame, and inventing a second vertex would be manufacturing geometry. It is counted and
+        // reported instead.
+        //
+        // ALTITUDE. Every vertex goes out at its AUTHORED elevation, which is 0 for all of
+        // COA-STP1 because C2SIM ships neither AltitudeAGL nor AltitudeMSL on these graphics
+        // (xsd :2716-2717, both optional; measured absent in every init in data/). That is exactly
+        // what the 35 areas already do. SEPARATE SENTENCE, because the two must not be fused: the
+        // terrain-anchoring machinery (StartPlacementTerrainQuery / TerrainVertexAuthoring,
+        // Vrf:AltitudeMode) exists for the routes a UNIT DRIVES, where a buried vertex is a
+        // movement problem; these are CONTROL graphics and nothing drives them. IF a build item
+        // later hands one of these routes to a move task, its vertices need the terrain query
+        // first - that is an open item, not something decided here.
+        int linesQueued = 0, linesDegenerate = 0, pointsQueued = 0, pointsEmpty = 0;
+        // MERGE NOTE (feat/tasking-foundation -> feat/integration, 2026-09-14). V3 was written
+        // against a tree in which the name -> VRF-uuid map was a bare dictionary. It is now a
+        // NameRegistry (B3), and OnVrfObjectCreated binds EVERY ObjectCreated through it - graphics
+        // included. Two consequences make the selection/registration pass below mandatory rather
+        // than tidy:
+        //   1. A returned name the registry never SAW REQUESTED falls through to the prefix scan,
+        //      whose whole job is to attach a truncated marking to the unit it came from. A route
+        //      or waypoint name that happens to be a strict prefix of exactly one still-unbound
+        //      UNIT name would therefore bind the GRAPHIC's uuid under the UNIT's name, and R1
+        //      would then report a control point's position as that unit's and ExecuteTaskOnTick
+        //      would task it. Registering the name makes the callback an EXACT match, which
+        //      short-circuits the scan before it starts - exactly what the area loop above does
+        //      with _names.Requested(area.Name).
+        //   2. Registration happens for the WHOLE batch BEFORE the first create is enqueued, which
+        //      is the rule EnqueueCreates follows for units (f0d1c68) and for the same reason: the
+        //      tick thread drains _tickActions concurrently with this method, so a create issued in
+        //      an earlier iteration can produce its ObjectCreated - and a CACHED name resolution -
+        //      while later names are still unregistered. Two loops cost nothing.
+        // Only names we actually ASK VR-Forces to create are registered: with both flags off (the
+        // default) nothing below runs and the registry is byte-for-byte what it was before V3.
+        var linesToCreate = new List<InitLine>();
+        var pointsToCreate = new List<InitPoint>();
+        if (_vrf.CreateInitLines)
+        {
+            foreach (var l in init.Lines)
+            {
+                if (l.Points.Count < 2) { linesDegenerate++; continue; }
+                string key = "line:" + (string.IsNullOrEmpty(l.Uuid) ? l.Name : l.Uuid);
+                if (!_createdAreaKeys.TryAdd(key, 0)) { duplicates++; continue; }
+                linesToCreate.Add(l);
+            }
+        }
+        if (_vrf.CreateInitPoints)
+        {
+            foreach (var p in init.Points)
+            {
+                if (!p.HasPosition) { pointsEmpty++; continue; }
+                string key = "point:" + (string.IsNullOrEmpty(p.Uuid) ? p.Name : p.Uuid);
+                if (!_createdAreaKeys.TryAdd(key, 0)) { duplicates++; continue; }
+                pointsToCreate.Add(p);
+            }
+        }
+        if (linesToCreate.Count > 0 || pointsToCreate.Count > 0)
+        {
+            foreach (var l in linesToCreate) _names.Requested(l.Name);
+            foreach (var p in pointsToCreate) _names.Requested(p.Name);
+            // Say ONCE which of the now-larger requested set are strict prefixes of others at the
+            // DIS marking width. A graphic is not a DIS entity and its name is not truncated, so a
+            // graphic/unit prefix pair cannot mis-bind the GRAPHIC - but it CAN make a genuinely
+            // truncated UNIT callback ambiguous, and an ambiguous unit is an unbound unit. That is
+            // a property of the fixture's naming, so it must be visible at create time rather than
+            // as a silent non-binding nine hours later. Advisory only; nothing is refused.
+            WarnOnPrefixedNames();
+        }
+        foreach (var l in linesToCreate)
+        {
+            var line = l;
+            _tickActions.Enqueue(() =>
+            {
+                var pts = line.Points
+                    .Select(pt => new Geodetic { LatDeg = pt.Lat, LonDeg = pt.Lon, AltMeters = pt.Elev })
+                    .ToList();
+                _bridge.CreateRoute(pts, line.Name, line.Uuid);
+            });
+            linesQueued++;
+        }
+        foreach (var p in pointsToCreate)
+        {
+            var point = p;
+            _tickActions.Enqueue(() =>
+            {
+                var pos = point.Position;
+                _bridge.CreateWaypoint(
+                    new Geodetic { LatDeg = pos.Lat, LonDeg = pos.Lon, AltMeters = pos.Elev },
+                    point.Name, point.Uuid);
+            });
+            pointsQueued++;
+        }
+        // Always say what was PARSED, even when creation is off, so a run log shows the geometry
+        // the order could have been given and nobody re-discovers it from the XML.
+        _log.LogInformation("Init ({Source}) graphics: {Areas} area(s) queued; " +
+                            "{ParsedLines} line(s) parsed -> {Lines} queued ({DegenerateLines} with <2 vertices " +
+                            "skipped), {ParsedPoints} point(s) parsed -> {Points} queued ({EmptyPoints} with no " +
+                            "position skipped). Vrf:CreateInitLines={LinesOn} Vrf:CreateInitPoints={PointsOn}.",
+                            source, areasQueued, init.Lines.Count, linesQueued, linesDegenerate,
+                            init.Points.Count, pointsQueued, pointsEmpty,
+                            _vrf.CreateInitLines, _vrf.CreateInitPoints);
+
         if (duplicates > 0)
-            _log.LogWarning("Init ({Source}): skipped {N} units/areas ALREADY created " +
+            _log.LogWarning("Init ({Source}): skipped {N} units/graphics ALREADY created " +
                             "(duplicate init delivery - late-join + broadcast?).", source, duplicates);
 
         // Fail LOUDLY when nothing matched the clientId (a silent 0 here cost live-run time:
@@ -1173,8 +1330,9 @@ public sealed class VrfC2SimService : BackgroundService
             _log.LogInformation("Init ({Source}): {N} PROXY substitution(s) surfaced to C2SIM " +
                                 "(R-SURFACE-PROXY).", source, proxiesToReport.Count);
 
-        _log.LogInformation("Init dispatched: {Units} units + {Areas} areas queued for creation.",
-                            planned, areasQueued);
+        _log.LogInformation("Init dispatched: {Units} units + {Areas} areas + {Lines} lines + " +
+                            "{Points} points queued for creation.",
+                            planned, areasQueued, linesQueued, pointsQueued);
     }
 
     /// <summary>
@@ -1623,6 +1781,11 @@ public sealed class VrfC2SimService : BackgroundService
             // Case 3: template with platforms -> delete the shell, re-create as the template.
             _compositionReady[name] = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             _recreatePending[name] = 0;
+            // m1: this is the ONE legitimate rebind - the shell is about to be deleted and the same
+            // requested name re-created as its template, so the second ObjectCreated for it carries
+            // the REAL uuid. Announce it; without this the registry refuses the rebind and every map
+            // keeps pointing at the deleted shell. One-shot, consumed by that bind.
+            _names.ExpectRebind(name);
             bool reattach = false;
             // Only an AGGREGATE superior can take it back (ApplyHierarchyComposition refuses a platform parent
             // the same way - review fix).
@@ -2691,14 +2854,19 @@ public sealed class VrfC2SimService : BackgroundService
     {
         try { await Task.Delay(TimeSpan.FromSeconds(_vrf.FanOutStragglerSeconds), _stoppingToken); }
         catch (OperationCanceledException) { return; }
-        if (_fanOut.TrySynthesizeByTimeout(unitName, capturedTaskUuid, out int completed, out int total))
+        if (_fanOut.TrySynthesizeByTimeout(unitName, capturedTaskUuid, out int completed, out int total,
+                                           out bool anyFailed))
         {
             _log.LogWarning("fan-out straggler timeout for {Unit}: {Completed}/{Total} members done - " +
-                            "synthesizing unit completion.", unitName, completed, total);
+                            "synthesizing unit completion{Failed}.", unitName, completed, total,
+                            anyFailed ? " as a FAILURE (at least one member's task failed)" : "");
             // No VRF completion callback on the timer path -> no VRF task type to sanity-check
             // against the dispatched kind; pass empty (KindLooksRight treats empty as "can't
             // tell", so it does NOT emit a spurious attribution-anomaly warning here).
-            SynthesizeUnitCompletion(unitName, "");
+            // m8: the timer path used to synthesize success=true BY CONSTRUCTION. Members that never
+            // reported are unknown - not failures - but a member that DID report a failure is
+            // evidence the unit's task did not succeed, and it must reach the C2SIM code.
+            SynthesizeUnitCompletion(unitName, "", !anyFailed);
         }
     }
 
@@ -2763,6 +2931,15 @@ public sealed class VrfC2SimService : BackgroundService
         // of which would come back as this same string if VR-Forces truncated its marking. The
         // binding stands (the exact match is the only defensible reading); this says out loud that
         // it is a reading, so a mis-bound unit is a log line and not nine hours of silence.
+        // m1: the registry REFUSED to re-point an already-bound requested name at this object.
+        // The prior binding stands; this object is unattributed. Loud, because the alternative
+        // (the pre-fix behaviour) was a live unit silently answering for the wrong object.
+        if (bind.RefusedRebind)
+            _log.LogError("NAME REBIND REFUSED: VRF returned created object '{Returned}' ({Uuid}), but that name " +
+                          "is ALREADY BOUND to {Prior} and no re-create was announced for it. KEEPING THE PRIOR " +
+                          "BINDING; this object is left unattributed. If this is a unit you expected to see, its " +
+                          "name collides with another object's marking (docs/PORT.md sec 6).",
+                          e.Name, e.Uuid, bind.PriorUuid);
         if (bind.PrefixedCandidates is { Count: > 0 })
             _log.LogWarning("NAME COLLISION RISK: VRF returned created object '{Returned}' ({Uuid}), which is " +
                             "EXACTLY a name we requested and ALSO the prefix of {N} requested name(s) still " +
@@ -3043,13 +3220,24 @@ public sealed class VrfC2SimService : BackgroundService
                                     string.IsNullOrEmpty(limit.Template) ? "unit" : limit.Template,
                                     leg.Limit, leg.LimitRaw, leg.Factor,
                                     Preflight.PreflightReports.Verdict(leg.Ratio, svc.Options.Threshold));
-                if (noVerdict > 0)
+                // m3: a few no-verdict legs is ordinary (a tile gap). EVERY leg with no verdict
+                // means the pre-flight checked NOTHING for this task - the shipped PreflightCacheDir
+                // default is empty on a fresh deploy - and that must not read as an Info footnote.
+                if (noVerdict > 0 && noVerdict == legs.Count)
+                    _log.LogWarning("ROUTE PRE-FLIGHT task '{Task}' ({Unit}): ALL {N} leg(s) got NO VERDICT - no " +
+                                    "elevation/land-cover tiles were available, so NOTHING was checked for this " +
+                                    "task. Tile cache: '{Cache}' (Vrf:PreflightCacheDir; empty on a fresh deploy - " +
+                                    "point it at a populated cache, e.g. tools/preflight/preflight_cache).",
+                                    taskName, unitName, noVerdict, svc.Tiles.CacheDirectory);
+                else if (noVerdict > 0)
                     _log.LogInformation("ROUTE PRE-FLIGHT task '{Task}' ({Unit}): {N} leg(s) got NO VERDICT - tiles " +
                                         "missing; they are neither flagged nor passed.", taskName, unitName, noVerdict);
 
                 var reports = Preflight.PreflightReports.BuildForTask(scored, svc.Options.Threshold,
                                                                      IsoNow(), NewReportId);
-                foreach (var xml in reports) await PushReportAsync(xml);
+                // m6: these are ObservationReports, so a push failure must say so (the default
+                // kind is Position). Neither kind retries - this is about the log being true.
+                foreach (var xml in reports) await PushReportAsync(xml, ReportKind.Observation);
                 if (reports.Count > 0)
                     _log.LogInformation("ROUTE PRE-FLIGHT task '{Task}' ({Unit}): {Flagged} flagged leg(s) of " +
                                         "{Total} checked; sent {Sent} ObservationReport(s).", taskName, unitName,
@@ -3090,7 +3278,7 @@ public sealed class VrfC2SimService : BackgroundService
             // R10 fan-out (opt-in): mark the unit's fan-out synthesized under THIS task uuid so the
             // later member completions and the straggler timer are swallowed by the tracker's own
             // Synthesized state instead of emitting a second, empty-uuid TASKCMPLT.
-            _fanOut.TrySynthesizeByTimeout(name, rec.TaskUuid ?? "", out _, out _);
+            _fanOut.TrySynthesizeByTimeout(name, rec.TaskUuid ?? "", out _, out _, out _);
             // No VRF completion callback on this path -> no VRF task type to sanity-check; empty =
             // "can't tell" for KindLooksRight (no spurious attribution-anomaly warning). The
             // provenance is the ARRIVAL EVIDENCE line above.
@@ -3702,8 +3890,9 @@ public sealed class VrfC2SimService : BackgroundService
         // stragglers arriving after a quorum/timeout synthesis are SWALLOWED here (they must
         // NOT fall through to the unit-level path, which would emit a spurious empty-uuid
         // TASKCMPLT - the "NO in-flight task recorded" bug this step removes).
-        if (_fanOut.TryCompleteMember(name, out var fanUnit, out _, out int fanRemaining,
-                                      out bool fanAllDone, out bool fanAlreadySynthesized))
+        if (_fanOut.TryCompleteMember(name, success, out var fanUnit, out _, out int fanRemaining,
+                                      out bool fanAllDone, out bool fanAlreadySynthesized,
+                                      out bool fanAnyFailed))
         {
             if (fanAlreadySynthesized)
             {
@@ -3717,9 +3906,14 @@ public sealed class VrfC2SimService : BackgroundService
                                     name, fanUnit, fanRemaining);
                 return;
             }
+            // m8: the unit's outcome is the AND of its members'. Before this, only the member
+            // whose completion happened to MEET the quorum decided the unit's code, so members
+            // 1..n-1 reporting success=false were counted as completions and reported TASKCMPLT.
             _log.LogInformation("R10 fan-out: completion quorum reached for {Unit} ({N} straggler(s) will be " +
-                                "swallowed) - synthesizing the unit's task completion.", fanUnit, fanRemaining);
-            SynthesizeUnitCompletion(fanUnit, e.TaskType, success);
+                                "swallowed) - synthesizing the unit's task completion{Failed}.",
+                                fanUnit, fanRemaining,
+                                fanAnyFailed ? " as a FAILURE (at least one member's task failed)" : "");
+            SynthesizeUnitCompletion(fanUnit, e.TaskType, success && !fanAnyFailed);
             return;
         }
 

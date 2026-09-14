@@ -101,8 +101,15 @@ public sealed class TileSource : IDisposable
     private readonly ConcurrentDictionary<(int ds, int level, int x, int y), PngImage.Image> _cover = new();
     private readonly ConcurrentDictionary<(int ds, int level, int x, int y), bool> _failed = new();
 
-    public int Fetched { get; private set; }
-    public int CacheHits { get; private set; }
+    // m7 (cold-start review 02b51de): several pre-flight workers score routes concurrently and
+    // both counters are written from Bytes(). Plain int++ is read-modify-write and UNDER-COUNTS, and
+    // --preflight-selftest ASSERTS `Fetched == 0` - a lost increment there would turn a live network
+    // fetch into a passing offline run. Interlocked on an int field; the properties stay read-only
+    // to callers. Volatile read is enough for a log/assert (no ordering is implied).
+    private int _fetched;
+    private int _cacheHits;
+    public int Fetched => Volatile.Read(ref _fetched);
+    public int CacheHits => Volatile.Read(ref _cacheHits);
     public string CacheDirectory => _cacheDir;
 
     public TileSource(string cacheDir, bool offline = false, bool nearest = false, HttpClient http = null)
@@ -135,7 +142,7 @@ public sealed class TileSource : IDisposable
             var fi = new FileInfo(fn);
             if (fi.Exists && fi.Length >= minBytes)
             {
-                CacheHits++;
+                Interlocked.Increment(ref _cacheHits);
                 return File.ReadAllBytes(fn);
             }
         }
@@ -153,7 +160,7 @@ public sealed class TileSource : IDisposable
 
         if (data == null || data.Length < minBytes) { _failed[(ds, level, x, y)] = true; return null; }
         try { File.WriteAllBytes(fn, data); } catch { /* cache is an optimisation, not a requirement */ }
-        Fetched++;
+        Interlocked.Increment(ref _fetched);
         return data;
     }
 

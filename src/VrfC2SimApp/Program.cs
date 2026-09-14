@@ -91,6 +91,18 @@ if (args.Length > 0 && args[0] == "--rulings-selftest")
 if (args.Length > 0 && args[0] == "--preflight-selftest")
     return PreflightSelfTest.Run(args.Length >= 2 ? args[1] : null, args.Length >= 3 ? args[2] : null);
 
+// Offline scripted-task variable check (V2): every ScriptVar kind -> the vendor's DtRw* binding and
+// back (VrfBridge.DescribeScriptVars; builds a real DtScriptedTaskTask, sends nothing). Loads the
+// bridge assembly, so the MAK bin dirs must be on PATH - like --typemap-selftest.
+if (args.Length > 0 && args[0] == "--scripted-task-selftest")
+    return ScriptedTaskSelfTest.Run();
+
+// Offline init-graphics check (V3): the Line and Point tactical graphics the parser used to discard,
+// with their C2SIM uuids, plus the creation plan they produce (no bridge). Optional 2nd arg = an
+// init file; default = data/COA-STP1_Initialization.xml found by walking up from the exe.
+if (args.Length > 0 && args[0] == "--initgraphics-selftest")
+    return InitGraphicsSelfTest.Run(args.Length >= 2 ? args[1] : null);
+
 // AN UNKNOWN "--..." SWITCH MUST NEVER START THE HOST (2026-09-07: an older build given a flag it
 // did not know fell through to here, joined the federation beside a running experiment for five
 // minutes and had to be killed). Only a bare start (no args) or host-builder args reach the host.
@@ -100,8 +112,8 @@ if (args.Length > 0 && args[0].StartsWith("--") && args[0] != "--runtime-check" 
 {
     Console.Error.WriteLine("VrfC2SimApp: unknown switch '" + args[0] + "' - NOT starting the host. Known: " +
                             "--translator/--report/--sequencer/--verb/--destack/--fanout/--typemap/--terrain/" +
-                            "--placement/--compose/--arrival/--stall/--parse/--name/--preflight/--rulings-selftest, " +
-                            "--parse-init <file> [clientId], " +
+                            "--placement/--compose/--arrival/--stall/--parse/--name/--preflight/--rulings/" +
+                            "--scripted-task/--initgraphics-selftest, --parse-init <file> [clientId], " +
                             "--parse-order <file>, --runtime-check, host switches --Key=Value; " +
                             "no arguments = run the interface.");
     return 2;
@@ -127,6 +139,25 @@ foreach (var w in rt.Warnings) Console.Error.WriteLine("MakRuntime WARNING: " + 
 // print which stack bound, and exit without starting the host (nothing joins, nothing is created).
 if (args.Length > 0 && args[0] == "--runtime-check")
     return RuntimeCheck.Run(rt);
+// M1 (cold-start review 02b51de): there was NO AppDomain.UnhandledException handler, so an
+// unhandled throw on a non-host thread - the vrf-tick thread above all - ended the process with
+// nothing in our own log to say why (the .NET default writes to stderr and exits). This does NOT
+// swallow anything: the CLR still terminates on IsTerminating, exactly as before. It exists so the
+// LAST LINE of a demo-time death names the exception and its stack instead of leaving a silent gap.
+// Console, not ILogger: the host may be half-built or already torn down when this fires.
+AppDomain.CurrentDomain.UnhandledException += (_, ev) =>
+{
+    try
+    {
+        var ex = ev.ExceptionObject as Exception;
+        Console.Error.WriteLine("FATAL: unhandled exception on a background thread (terminating=" +
+                                ev.IsTerminating + "): " +
+                                (ex == null ? ev.ExceptionObject?.ToString() ?? "(null)" : ex.ToString()));
+        Console.Error.Flush();
+    }
+    catch { /* a handler that throws would replace the diagnosis with its own */ }
+};
+
 builder.Services.AddHostedService<VrfC2SimService>();
 await builder.Build().RunAsync();
 return 0;
