@@ -805,13 +805,14 @@ sources, and records which one in `oracle.earlyExit.reportEvidence[<taskee>].via
 | via | what it is | live? |
 |-----|------------|-------|
 | `RPT` | the 2026-09-02 rule, UNCHANGED: a post-completion text report within `-ReportToleranceMeters` of the sampled POS | yes, but has never existed |
-| `C2SIM-capture` | a C2SIM PositionReport for the taskee's OWN uuid, captured after that taskee's TASKCMPLT (`Get-ReportCaptureEvidence` over `reports-captured.log`) | **no** - see below |
+| `C2SIM-capture` | a C2SIM PositionReport for the taskee's OWN uuid, captured after that taskee's TASKCMPLT (`Get-ReportCaptureEvidence` over `reports-captured.log`) | **yes** since 2026-09-14 pm - sec 14.9 (was **no**) |
 | `R1-applog` | an `R1 position reports: N sent, 0 skipped` line appearing BELOW that taskee's TASKCMPLT line in `vrfc2simapp.log` (`Get-AppLogPositionEvidence`) | yes |
 
 `-SettleHoldSecs` (60) stays the FLOOR; an unsatisfied taskee still runs the window to its
 cap, which is the safe direction, and its reason is printed every 30 s and ledgered.
 
-**THE SUPERVISOR'S BRIEF ASKED FOR `reports-captured.log` AS THE LIVE SOURCE. IT CANNOT BE.**
+**THE SUPERVISOR'S BRIEF ASKED FOR `reports-captured.log` AS THE LIVE SOURCE. IT COULD NOT BE
+- until sec 14.9 made it one. The paragraph below is the state at db77917; read 14.9 with it.**
 `tools/ListenReports/Program.cs` writes that file exactly once, in the closing
 `await File.WriteAllTextAsync(outPath, ...)` after the listen ends. During an observation
 window the file does not exist, so a live read returns nothing. It is nevertheless
@@ -822,7 +823,7 @@ clock. `R1-applog` is the live stand-in: the app log has no timestamps at all, b
 single totally ordered file, so line order answers "did a position-report round happen after
 this taskee completed". (Making `C2SIM-capture` live would mean changing `ListenReports` to
 flush incrementally, which is outside this change's edit surface; it is the better long-term
-fix.)
+fix - DONE the same day, sec 14.9.)
 
 TWO GUARDS ON `R1-applog`, both found by reading `MaybeSendPositionReports` rather than the
 log line:
@@ -1007,13 +1008,101 @@ CHANGE ONE, CHANGE ALL SIX.
 1. **No live run.** All of the above is a replay of finished runs and a set of dry runs. The
    first live run with `--stop-when-complete` must confirm that the window really closes, that
    `oracle.earlyExit.via` names `R1-applog`, and that the trace still covers the whole run.
-2. **`C2SIM-capture` cannot fire live** until `ListenReports` flushes incrementally. Today it
-   is exercised only offline. If the app log's R1 line ever changes shape, the live satisfier
-   goes silent and every window runs to its cap again - noisy, not dangerous, but it would be
-   invisible without the `via` field in the manifest.
+2. **CLOSED by sec 14.9** (was: "`C2SIM-capture` cannot fire live until `ListenReports`
+   flushes incrementally"). It does now. The residual risk is unchanged for `R1-applog`: if
+   the app log's R1 line ever changes shape that satisfier goes silent - noisy, not
+   dangerous, and visible in the manifest's `via` field.
 3. **No test was added to `tests\RunnerTurnaround.Tests.ps1`** - that file was outside this
    change's edit surface. The replay harnesses live in the session scratchpad; their sources
    are short and their outputs are quoted above in full.
 4. **The sampler budget is arithmetic mirrored from the runner's parameter defaults.** If a
    runner budget default moves, the wrapper's sum goes stale (the comment says so). Only the
    banner and the sampler size are affected - the runner still derives its own cap.
+
+---
+
+### 14.9 `C2SIM-capture` MADE LIVE - `ListenReports` appends as it listens (2026-09-14 pm)
+
+**The defect.** `tools/ListenReports/Program.cs` built the whole capture in a
+`List<string>` and wrote it in ONE call after the listen ended:
+
+    await File.WriteAllTextAsync(outPath, string.Join("\n\n", captured));
+
+So the file the `C2SIM-capture` satisfier reads did not exist until the observer had
+already been told to stop - the evidence meant to CLOSE the observation window only
+appeared after that window was over. The runner shipped the satisfier anyway (db77917) and
+leaned on the `R1-applog` stand-in.
+
+**The change.** The capture file is opened BEFORE `Connect()` with
+`FileShare.ReadWrite | FileShare.Delete` (the same share mode `Read-LiveText` opens it
+with) and each report is appended and FLUSHED in the `ReportReceived` handler, under a lock
+that also assigns the record's `#n` so the numbering can never disagree with the file order.
+`ListenReports --capabilities` now advertises `incremental-capture`, so a STALE DEPLOYED
+BINARY is detectable instead of silently one-shot. The one-shot write survives only as the
+fallback for a capture whose incremental write failed.
+
+**The format did not change.** Records joined by `\n\n` (the separator precedes every
+record but the first), no trailing newline, UTF-8 with no BOM, no newline translation - the
+bodies keep the CRLF that `XElement.ToString()` gives them. `tools/analysis/run_census.py`
+`read_reports`, `RunnerLib Get-ReportCaptureEvidence` and the offline replay are unchanged.
+
+**Offline evidence** (scratchpad `listen_flush\`; no simulator, no C2SIM server - a
+~110-line PowerShell STOMP stub on 127.0.0.1 feeds three synthetic C2SIM reports to a REAL
+`ListenReports.exe`, so what is under test is the shipped binary, not a re-implementation of
+its writer):
+
+| what | legacy binary (pre-change source, built to a scratch dir) | new binary |
+|------|-----------------------------------------------------------|------------|
+| capture size after connect, 0 reports | file ABSENT | 0 B |
+| after report 1 | file ABSENT | 761 B |
+| after report 2 | file ABSENT | 1,540 B |
+| after report 3 | file ABSENT | 2,303 B |
+| after exit | 2,303 B | 2,303 B |
+| bytes, both files, arrival stamps normalised | `sha256 4ce773e0ed70f904becfb4b01bed9c08d94575729086832af385722ccff561af` | SAME sha256 - IDENTICAL |
+
+The second driver replays the real purpose: report 1 = a PositionReport for uuid `U`,
+report 2 = a `TASKCMPLT` TaskStatus for `U`, report 3 = another PositionReport for `U`,
+with the REAL `RunnerLib Get-ReportCaptureEvidence` / `Test-ReportEvidence` run over the
+file after each one, through `Read-LiveText`'s share mode, WHILE `ListenReports` still
+holds it open:
+
+    NEW     after report 1  bytes= 739  posReports=1  TASKCMPLT=(none)      satisfied=False
+    NEW     after report 2  bytes=1473  posReports=1  TASKCMPLT=18:15:48.4  satisfied=False
+    NEW     after report 3  bytes=2214  posReports=2  TASKCMPLT=18:15:48.4  satisfied=True via=C2SIM-capture
+    LEGACY  after reports 1/2/3          file ABSENT, satisfied=False
+    LEGACY  after exit      bytes=2214  posReports=2  TASKCMPLT=18:16:05.6  satisfied=True via=C2SIM-capture
+
+i.e. the satisfier that could only ever fire AFTER the window now fires DURING it, on the
+same input and the same bytes.
+
+**Partial last line.** Each poll above was repeated against the same text with its last 37
+characters cut off. Every one parsed without error, and the truncated poll at report 2
+reported `TASKCMPLT=no` - the cut removed the `<ReportingEntity>` line. That is the only
+direction a torn tail can move the answer: a record's header is written before its body, so
+an incomplete record can DROP evidence but never invent it, and the whole file is re-read on
+the next poll.
+
+**Regression.** `Condition4Replay.ps1 -RunDir runs\20260914T154243Z_run` gives the SAME
+verdict as at db77917 - `WOULD HAVE FIRED at 2026-09-14T15:52:22.659Z`, `via=C2SIM-capture`,
+`... later than the capture own TASKCMPLT at 2026-09-14T15:51:22.659Z (40 fixes captured)`.
+
+**Gates.** `dotnet build tools\ListenReports -c Release` succeeded (0 errors; the 4 warnings
+are the pre-existing `CA2024` in `C2SIMClientSTOMPLib.cs`), and the deployed
+`tools\ListenReports\bin\Release\net10.0\ListenReports.exe` is the rebuilt one.
+`tests\RunnerTurnaround.Tests.ps1`: **222 passed, 1 failed** - the SAME baseline sec 14.7
+recorded, unchanged by this edit. HOST TRAP worth recording: run under a 32-BIT `pwsh`
+(bare `pwsh` is the 32-bit build on this machine, PSHOME `C:\Program Files (x86)\PowerShell\7`)
+the suite reports 219/4 instead - check 8d spawns the runner, and the runner REFUSES a
+32-bit host with exit 2 before it ever reaches the injected terminating error. Nothing to do
+with the code under test; use `C:\Program Files\PowerShell\7\pwsh.exe` by full path, as
+`scripts\RunScenario.sh` does. ASCII check
+`rg -nP "[^\x09\x0a\x0d\x20-\x7E]"` clean on every touched file, reproduced on a dirty
+control; `.cs` / `.ps1` / `.md` all CRLF.
+
+**Not covered.** No live run. The first live `-StopWhenComplete` run must confirm the window
+really closes and that `oracle.earlyExit.reportEvidence[<taskee>].via` names `C2SIM-capture`
+rather than `R1-applog`. Also NOT edited (another lane owns it): `RunC2SimScenario.ps1` still
+says "Writes reports-captured.log ONLY at exit" in its `-StopWhenComplete` help (line ~185),
+its `Start-External` note (~2975), the manifest `source` string (~3288) and the comment above
+the live read (~3391). Those four strings are now stale - they under-promise, so nothing
+misbehaves, but they should be corrected.

@@ -84,9 +84,10 @@ function Get-OrderTaskees {
 # The app logs exactly one line per task-complete report it SENDS
 # (src/VrfC2SimApp/VrfC2SimService.cs:1244):
 #     SENT TASK STATUS REPORT (TASKCMPLT) taskee=<uuid> task=<uuid|(none)>.
-# This is the LIVE completion source. reports-captured.log is NOT usable here:
-# tools/ListenReports writes it once, at exit (ListenReports/Program.cs, after the
-# listen window), so during the observation window it does not exist yet.
+# This is the LIVE completion source, and the one that needs no second process - the
+# interface writes it itself. reports-captured.log is readable live too since 2026-09-14
+# (ListenReports appends and flushes each report as it arrives), but it exists only when
+# an observer is up and pointed at the right endpoints, so completion is still read here.
 # Returns one (Taskee, Task) record per line, in log order, duplicates kept - the
 # count matters (see Test-EarlyExit).
 function Get-CompletedTasks {
@@ -224,10 +225,9 @@ function Test-EarlyExit {
 #                                             (VrfC2SimService.cs:1151 then :1244)
 #   RPT,<t>,"POSITION ""<marking>"" <lat> <lon>"   the Lua tracker's text report
 #   POS,<t>,<VRF_UUID>,<lat>,<lon>,<alt>        the sampled HLA position
-# reports-captured.log is written once at ListenReports exit, so it is NOT readable
-# during the window (see Get-CompletedTasks), and the app log has no timestamps, so
-# the TASKCMPLT poll stamp (UTC) can not be compared with a trace-clock RPT. The TSK
-# record is the completion on the trace clock; it is used instead of the UTC stamp.
+# reports-captured.log stamps report ARRIVAL in UTC, not trace time, and the app log has
+# no timestamps at all, so neither can be compared with a trace-clock RPT. The TSK record
+# is the completion on the trace clock; it is used instead of the UTC stamp.
 #
 # KEYS: TSK and RPT are keyed by VR-Forces MARKING (the init's <Name>), POS by
 # VRF_UUID. The taskee (C2SIM UUID) maps to its marking through the init
@@ -391,6 +391,16 @@ function Resolve-MarkingKey {
 # <TaskStatusCode>TASKCMPLT</TaskStatusCode> with the taskee in <ReportingEntity>. Both
 # therefore sit on ONE wall clock, so "a position fix later than this taskee's own
 # completion" is answerable without leaving the file. Unparseable lines are skipped.
+#
+# READ LIVE. ListenReports appends each record and FLUSHES it as it arrives (2026-09-14;
+# it advertises 'incremental-capture'), so this parses a file another process still holds
+# open - which is why the caller opens it with FileShare.ReadWrite (RunC2SimScenario
+# Read-LiveText) and why a poll can catch the LAST record half-written. That is safe in
+# ONE DIRECTION ONLY, and it is the right one: a record's HEADER is written before its
+# body, so a torn tail can only DROP evidence, never invent it. A truncated header matches
+# nothing and the lines that would have followed it do not exist yet; a complete header
+# with a half-written body yields no <SubjectEntity> / <ReportingEntity> match and so
+# contributes nothing. The cost is one poll - the whole file is re-read on the next one.
 function Get-ReportCaptureEvidence {
     param(
         [AllowNull()][AllowEmptyString()][string]$CaptureText,
@@ -525,10 +535,12 @@ function Get-BusOrderUtc {
 #                    POS within -ToleranceMeters. The 2026-09-02 rule, UNCHANGED and
 #                    still the strongest of the three - when it exists at all.
 #   'C2SIM-capture'  a C2SIM PositionReport for the taskee's OWN uuid, captured later
-#                    than that taskee's TASKCMPLT (-CaptureEvidence). The AUTHORITY.
+#                    than that taskee's TASKCMPLT (-CaptureEvidence). The AUTHORITY, and
+#                    LIVE since 2026-09-14: ListenReports appends and flushes per report.
 #   'R1-applog'      a complete R1 position-report round (>=1 sent, 0 skipped) logged
 #                    AFTER this taskee's TASKCMPLT line (-AppLogPositionEvidence). The
-#                    LIVE stand-in, because the capture is written only at exit.
+#                    fallback for a run with no usable capture - no observer, wrong
+#                    endpoints, or an observer that died.
 # All three new arguments are OPTIONAL: omitted, this function behaves exactly as it did
 # before 2026-09-14, which is what tests\RunnerTurnaround.Tests.ps1 check 4b pins down.
 function Test-ReportEvidence {

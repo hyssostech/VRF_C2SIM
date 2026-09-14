@@ -16,10 +16,9 @@ using VrfC2Sim.Tools;
 //           Missing parent directories are created.
 // --stop-file <path>
 //           Optional (2026-09-01, runner turnaround). End the listen EARLY - disconnect
-//           and write the capture - as soon as <path> exists (polled once a second).
-//           The file must NOT exist at start (exit 2, nothing connected). The capture is
-//           written ONLY at exit, so without this the runner had to wait out the whole
-//           worst-case duration before reports-captured.log appeared.
+//           and close the capture - as soon as <path> exists (polled once a second).
+//           The file must NOT exist at start (exit 2, nothing connected). Without it the
+//           runner had to wait out the whole worst-case duration before the tool exited.
 // --rest-url <url> / --stomp-url <url>
 //           Optional (2026-09-02). The C2SIM server endpoints. Until now they were
 //           HARDCODED to 127.0.0.1:8080 / 61613, so a runner pointed at any other server
@@ -34,11 +33,27 @@ using VrfC2Sim.Tools;
 //
 // Argument handling uses the shared tools/Shared/ToolArgs.cs standard (exit 0 success /
 // 1 operational failure / 2 usage error with nothing done; usage text to STDERR).
+//
+// THE CAPTURE IS WRITTEN AS IT ARRIVES (2026-09-14). Each report is appended to the output
+// file and FLUSHED the moment it is received, so a reader that opens the file with
+// FileShare.ReadWrite watches it grow. It used to be accumulated in memory and written
+// once, after the listen ended, which made the runner's 'C2SIM-capture' stop satisfier
+// (scripts/RunnerLib.ps1 Get-ReportCaptureEvidence) unfireable BY CONSTRUCTION: the
+// evidence meant to CLOSE the observation window only appeared after that window was over
+// (docs/experiments/RUNNER_HARDENING_2026-09-14.md sec 14).
+//
+// The finished file is BYTE-FOR-BYTE what the one-shot write produced: records joined by
+// "\n\n" (the separator precedes every record but the first), NO trailing newline, UTF-8
+// with NO BOM (File.WriteAllText's own default), and no newline translation - the report
+// bodies keep their own CRLF. tools/analysis/run_census.py read_reports and RunnerLib
+// Get-ReportCaptureEvidence parse that shape and are unchanged. A reader may catch a
+// record half-written; both of them skip a line that does not parse and re-read the whole
+// file next time, so a torn tail costs one poll, never a wrong answer.
 
 const string StopFileFlag = "--stop-file";
 const string RestUrlFlag = "--rest-url";
 const string StompUrlFlag = "--stomp-url";
-string[] capabilities = { "capabilities", "stop-file", "endpoints" };
+string[] capabilities = { "capabilities", "stop-file", "endpoints", "incremental-capture" };
 
 string[] UsageText() => new[]
 {
@@ -59,7 +74,8 @@ string[] UsageText() => new[]
     "            Both must be absolute http(s) URLs. Pass BOTH for a private server.",
     "  --capabilities",
     "            Offline. Prints one capability token per line (currently:",
-    "            capabilities, stop-file, endpoints) and exits 0. Sole argument.",
+    "            capabilities, stop-file, endpoints, incremental-capture) and",
+    "            exits 0. Sole argument.",
     "",
     "examples:  ListenReports.exe",
     "           ListenReports.exe 300",
@@ -168,6 +184,28 @@ else
     outPath = Path.Combine(AppContext.BaseDirectory, "reports-captured.log");
 }
 
+// Open the capture BEFORE connecting: an unwritable path now fails with nothing done
+// instead of after a whole capture window has been spent. FileShare.ReadWrite | Delete is
+// what lets the runner read the file while this process holds it open (RunC2SimScenario
+// Read-LiveText opens with exactly that share mode); FileMode.Create truncates, so a
+// re-run over an existing path behaves as File.WriteAllText did, and a listen that hears
+// nothing still leaves behind the empty file the one-shot write produced.
+FileStream captureStream;
+try
+{
+    captureStream = new FileStream(outPath, FileMode.Create, FileAccess.Write,
+                                   FileShare.ReadWrite | FileShare.Delete);
+}
+catch (Exception ex)
+{
+    return ToolArgs.Usage($"could not open the capture file '{outPath}' for writing: "
+                        + $"{ex.GetType().Name}: {ex.Message}. Nothing connected.", UsageText());
+}
+// UTF8Encoding(false) = no BOM, which is what File.WriteAllText wrote. Never WriteLine:
+// every newline this tool adds is an explicit "\n", so the bytes do not depend on the
+// platform's line terminator.
+var captureWriter = new StreamWriter(captureStream, new System.Text.UTF8Encoding(false));
+
 var settings = new C2SIMSDKSettings
 {
     SubmitterId = "REPORTLISTENER",
@@ -183,12 +221,46 @@ using var sdk = new C2SIMSDK(NullLoggerFactory.Instance, settings);
 int reports = 0;
 var captured = new List<string>();
 string firstReport = null;
+// The SDK raises ReportReceived on its own thread(s); the counter, the list and the file
+// are one state that has to move together, so the number a record is stamped with is
+// assigned under the SAME lock that writes it. Otherwise two reports could reach the file
+// in an order that disagrees with their own "#n".
+object captureLock = new object();
+bool captureOpen = true;
+Exception captureFault = null;
 
 sdk.ReportReceived += (_, e) =>
 {
-    int n = Interlocked.Increment(ref reports);
-    firstReport ??= e.Body;
-    captured.Add($"[{DateTime.UtcNow:HH:mm:ss.fff}] REPORT #{n} ({e.Body?.Length ?? 0} chars)\n{e.Body}");
+    int n;
+    lock (captureLock)
+    {
+        n = ++reports;
+        firstReport ??= e.Body;
+        string entry = $"[{DateTime.UtcNow:HH:mm:ss.fff}] REPORT #{n} ({e.Body?.Length ?? 0} chars)\n{e.Body}";
+        // Kept in memory ONLY as the source for the fallback rewrite below.
+        captured.Add(entry);
+        if (captureOpen && captureFault == null)
+        {
+            try
+            {
+                // The separator belongs to the JOIN: it precedes every record but the
+                // first. That is what makes the finished file equal
+                // string.Join("\n\n", captured) byte for byte.
+                if (n > 1) captureWriter.Write("\n\n");
+                captureWriter.Write(entry);
+                // StreamWriter.Flush() flushes the FileStream too, so the bytes reach the
+                // OS file cache and a concurrent reader sees them at once.
+                captureWriter.Flush();
+            }
+            catch (Exception ex)
+            {
+                // Stop at the FIRST failure: a partial record followed by further records
+                // would be a file no reader could trust. The whole capture is rewritten
+                // from memory at exit instead.
+                captureFault = ex;
+            }
+        }
+    }
     // Pull out the report content type + any position for a live one-liner
     string kind = e.Body?.Contains("PositionReportContent") == true ? "Position"
                 : e.Body?.Contains("ObservationReportContent") == true ? "Observation"
@@ -227,7 +299,38 @@ if (stoppedOnRequest)
                     + $"(duration cap was {secs}s) - disconnecting");
 await sdk.Disconnect();
 
-await File.WriteAllTextAsync(outPath, string.Join("\n\n", captured));
+// Close the capture. On the normal path the file on disk is ALREADY complete and nothing
+// is rewritten. The one-shot write survives only as the fallback for a capture whose
+// incremental write failed (disk full, file replaced under us), where it still produces
+// exactly the legacy bytes.
+Exception captureProblem;
+lock (captureLock) { captureOpen = false; captureProblem = captureFault; }
+try { captureWriter.Flush(); } catch (Exception ex) { captureProblem ??= ex; }
+try { captureWriter.Dispose(); } catch (Exception ex) { captureProblem ??= ex; }
+// The stream too, ALWAYS: a Dispose() that threw may have left the handle open, and the
+// rewrite below opens the path with FileShare.Read, which a live WRITE handle blocks.
+// Disposing an already-disposed stream is a no-op, so this costs nothing on the good path.
+try { captureStream.Dispose(); } catch { /* nothing further can be done about it */ }
+if (captureProblem != null)
+{
+    Console.WriteLine($"  !! the incremental capture write failed "
+                    + $"({captureProblem.GetType().Name}: {captureProblem.Message}); "
+                    + "rewriting the whole capture from memory");
+    try
+    {
+        await File.WriteAllTextAsync(outPath, string.Join("\n\n", captured));
+    }
+    catch (Exception ex)
+    {
+        // Both routes to disk are gone. Say so and exit 1, rather than let an unhandled
+        // exception bury the first and more informative failure.
+        Console.Error.WriteLine($"ListenReports: the capture could NOT be written to '{outPath}'. "
+                              + $"Incremental write: {captureProblem.GetType().Name}: {captureProblem.Message}. "
+                              + $"Rewrite: {ex.GetType().Name}: {ex.Message}. "
+                              + $"{reports} report(s) were received and are LOST.");
+        return ToolArgs.ExitFailure;
+    }
+}
 Console.WriteLine($"captured {reports} reports -> {outPath}");
 if (firstReport != null)
 {

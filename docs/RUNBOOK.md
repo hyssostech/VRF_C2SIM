@@ -917,9 +917,9 @@ on 2026-09-14; each is now closed by something this section names
        C2SIM-capture  a C2SIM PositionReport for the taskee's OWN uuid, captured after that
                       taskee's TASKCMPLT, out of `reports-captured.log`. THE AUTHORITY: that
                       file dates the TASKCMPLT (a TaskStatus report) and the position fixes
-                      on ONE wall clock. It is NOT readable during a window - ListenReports
-                      writes it once, AT EXIT - so it fires only when a capture is already
-                      on disk, and it is what the offline replay and the adjudication read.
+                      on ONE wall clock. LIVE since 2026-09-14 pm: ListenReports appends
+                      and flushes every report as it arrives (it advertises
+                      `incremental-capture`), so the capture is readable DURING the window.
        R1-applog      THE LIVE STAND-IN, and the only per-taskee post-completion position
                       evidence a running runner can see: an `R1 position reports: N sent,
                       0 skipped` line appearing BELOW that taskee's TASKCMPLT line in
