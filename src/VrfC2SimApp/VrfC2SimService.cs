@@ -115,8 +115,11 @@ public sealed class VrfC2SimService : BackgroundService
     // report's CurrentTask (parity: setUnitCurrentTaskUuid, C2SIMinterface.cpp:2165).
     private readonly InFlightTracker _inFlight = new();
 
-    // Control-area keys (uuid or name) already queued for creation - the duplicate-init
-    // guard for areas (units use _unitByC2SimUuid membership for the same purpose).
+    // Tactical-graphic keys ("<kind>:<uuid-or-name>") already queued for creation - the
+    // duplicate-init guard for AREAS and, since V3, for LINES and POINTS too (units use
+    // _unitByC2SimUuid membership for the same purpose). The kind prefix keeps an area and a
+    // line that share a uuid from colliding; C2SIM gives each graphic its own uuid, so the
+    // prefix is belt-and-braces, not a workaround for an observed collision.
     private readonly ConcurrentDictionary<string, byte> _createdAreaKeys = new();
 
     // (The VRF uuid -> name reverse map used by the R4 formation reply and the object console -
@@ -1152,8 +1155,131 @@ public sealed class VrfC2SimService : BackgroundService
             areasQueued++;
         }
 
+        // ---- V3: the init's LINE and POINT graphics --------------------------------------------
+        // Same code path shape as the areas above, deliberately: same duplicate-delivery guard
+        // (_createdAreaKeys, keyed by uuid with a name fallback), same _tickActions.Enqueue, same
+        // uuid policy (the C2SIM uuid IS the VRF uuid - vrfRemoteController.h:991-1011 / :1023-1039
+        // take the same optional startingUUID createControlArea does), and the same console
+        // handling, which needs no code here: OnVrfObjectCreated raises every created object's
+        // console to Vrf:ObjectConsoleNotifyLevel by uuid, graphics included.
+        //
+        // WHY A LINE BECOMES A ROUTE AND NOT A PHASE LINE - measured, not chosen by taste.
+        // The vendor has both: createPhaseLine takes EXACTLY TWO points (vrfRemoteController.h
+        // :1054-1072, "const DtVector& dbPoint1, const DtVector& dbPoint2") and createRoute takes a
+        // DtList of vertices (:1023-1039). COA-STP1's 41 lines have this vertex histogram
+        // (counted from data\COA-STP1_Initialization.xml, 2026-09-14):
+        //     1 pt x10, 2 x1, 3 x2, 4 x3, 5 x10, 7 x1, 8 x3, 11 x3, 13 x6, 14 x1, 15 x1.
+        // EXACTLY ONE of the 41 would fit createPhaseLine. So a route is the only vendor object
+        // that preserves the authored geometry, and forking on vertex count would produce two
+        // different object classes for one C2SIM element type. CONSEQUENCE, recorded because it is
+        // a live question for build items V5/V6: the vendor's line-taking scripted tasks
+        // (company_seize departLine, co_clear Limit of Advance, the breach lane) are authored
+        // against the GUI's line graphic, and whether they accept a route object is a run-only
+        // question - the help describes the parameter, not the accepted class.
+        // A line with fewer than 2 vertices is NOT created: a one-vertex route is not a line in any
+        // frame, and inventing a second vertex would be manufacturing geometry. It is counted and
+        // reported instead.
+        //
+        // ALTITUDE. Every vertex goes out at its AUTHORED elevation, which is 0 for all of
+        // COA-STP1 because C2SIM ships neither AltitudeAGL nor AltitudeMSL on these graphics
+        // (xsd :2716-2717, both optional; measured absent in every init in data/). That is exactly
+        // what the 35 areas already do. SEPARATE SENTENCE, because the two must not be fused: the
+        // terrain-anchoring machinery (StartPlacementTerrainQuery / TerrainVertexAuthoring,
+        // Vrf:AltitudeMode) exists for the routes a UNIT DRIVES, where a buried vertex is a
+        // movement problem; these are CONTROL graphics and nothing drives them. IF a build item
+        // later hands one of these routes to a move task, its vertices need the terrain query
+        // first - that is an open item, not something decided here.
+        int linesQueued = 0, linesDegenerate = 0, pointsQueued = 0, pointsEmpty = 0;
+        // MERGE NOTE (feat/tasking-foundation -> feat/integration, 2026-09-14). V3 was written
+        // against a tree in which the name -> VRF-uuid map was a bare dictionary. It is now a
+        // NameRegistry (B3), and OnVrfObjectCreated binds EVERY ObjectCreated through it - graphics
+        // included. Two consequences make the selection/registration pass below mandatory rather
+        // than tidy:
+        //   1. A returned name the registry never SAW REQUESTED falls through to the prefix scan,
+        //      whose whole job is to attach a truncated marking to the unit it came from. A route
+        //      or waypoint name that happens to be a strict prefix of exactly one still-unbound
+        //      UNIT name would therefore bind the GRAPHIC's uuid under the UNIT's name, and R1
+        //      would then report a control point's position as that unit's and ExecuteTaskOnTick
+        //      would task it. Registering the name makes the callback an EXACT match, which
+        //      short-circuits the scan before it starts - exactly what the area loop above does
+        //      with _names.Requested(area.Name).
+        //   2. Registration happens for the WHOLE batch BEFORE the first create is enqueued, which
+        //      is the rule EnqueueCreates follows for units (f0d1c68) and for the same reason: the
+        //      tick thread drains _tickActions concurrently with this method, so a create issued in
+        //      an earlier iteration can produce its ObjectCreated - and a CACHED name resolution -
+        //      while later names are still unregistered. Two loops cost nothing.
+        // Only names we actually ASK VR-Forces to create are registered: with both flags off (the
+        // default) nothing below runs and the registry is byte-for-byte what it was before V3.
+        var linesToCreate = new List<InitLine>();
+        var pointsToCreate = new List<InitPoint>();
+        if (_vrf.CreateInitLines)
+        {
+            foreach (var l in init.Lines)
+            {
+                if (l.Points.Count < 2) { linesDegenerate++; continue; }
+                string key = "line:" + (string.IsNullOrEmpty(l.Uuid) ? l.Name : l.Uuid);
+                if (!_createdAreaKeys.TryAdd(key, 0)) { duplicates++; continue; }
+                linesToCreate.Add(l);
+            }
+        }
+        if (_vrf.CreateInitPoints)
+        {
+            foreach (var p in init.Points)
+            {
+                if (!p.HasPosition) { pointsEmpty++; continue; }
+                string key = "point:" + (string.IsNullOrEmpty(p.Uuid) ? p.Name : p.Uuid);
+                if (!_createdAreaKeys.TryAdd(key, 0)) { duplicates++; continue; }
+                pointsToCreate.Add(p);
+            }
+        }
+        if (linesToCreate.Count > 0 || pointsToCreate.Count > 0)
+        {
+            foreach (var l in linesToCreate) _names.Requested(l.Name);
+            foreach (var p in pointsToCreate) _names.Requested(p.Name);
+            // Say ONCE which of the now-larger requested set are strict prefixes of others at the
+            // DIS marking width. A graphic is not a DIS entity and its name is not truncated, so a
+            // graphic/unit prefix pair cannot mis-bind the GRAPHIC - but it CAN make a genuinely
+            // truncated UNIT callback ambiguous, and an ambiguous unit is an unbound unit. That is
+            // a property of the fixture's naming, so it must be visible at create time rather than
+            // as a silent non-binding nine hours later. Advisory only; nothing is refused.
+            WarnOnPrefixedNames();
+        }
+        foreach (var l in linesToCreate)
+        {
+            var line = l;
+            _tickActions.Enqueue(() =>
+            {
+                var pts = line.Points
+                    .Select(pt => new Geodetic { LatDeg = pt.Lat, LonDeg = pt.Lon, AltMeters = pt.Elev })
+                    .ToList();
+                _bridge.CreateRoute(pts, line.Name, line.Uuid);
+            });
+            linesQueued++;
+        }
+        foreach (var p in pointsToCreate)
+        {
+            var point = p;
+            _tickActions.Enqueue(() =>
+            {
+                var pos = point.Position;
+                _bridge.CreateWaypoint(
+                    new Geodetic { LatDeg = pos.Lat, LonDeg = pos.Lon, AltMeters = pos.Elev },
+                    point.Name, point.Uuid);
+            });
+            pointsQueued++;
+        }
+        // Always say what was PARSED, even when creation is off, so a run log shows the geometry
+        // the order could have been given and nobody re-discovers it from the XML.
+        _log.LogInformation("Init ({Source}) graphics: {Areas} area(s) queued; " +
+                            "{ParsedLines} line(s) parsed -> {Lines} queued ({DegenerateLines} with <2 vertices " +
+                            "skipped), {ParsedPoints} point(s) parsed -> {Points} queued ({EmptyPoints} with no " +
+                            "position skipped). Vrf:CreateInitLines={LinesOn} Vrf:CreateInitPoints={PointsOn}.",
+                            source, areasQueued, init.Lines.Count, linesQueued, linesDegenerate,
+                            init.Points.Count, pointsQueued, pointsEmpty,
+                            _vrf.CreateInitLines, _vrf.CreateInitPoints);
+
         if (duplicates > 0)
-            _log.LogWarning("Init ({Source}): skipped {N} units/areas ALREADY created " +
+            _log.LogWarning("Init ({Source}): skipped {N} units/graphics ALREADY created " +
                             "(duplicate init delivery - late-join + broadcast?).", source, duplicates);
 
         // Fail LOUDLY when nothing matched the clientId (a silent 0 here cost live-run time:
@@ -1178,8 +1304,9 @@ public sealed class VrfC2SimService : BackgroundService
             _log.LogInformation("Init ({Source}): {N} PROXY substitution(s) surfaced to C2SIM " +
                                 "(R-SURFACE-PROXY).", source, proxiesToReport.Count);
 
-        _log.LogInformation("Init dispatched: {Units} units + {Areas} areas queued for creation.",
-                            planned, areasQueued);
+        _log.LogInformation("Init dispatched: {Units} units + {Areas} areas + {Lines} lines + " +
+                            "{Points} points queued for creation.",
+                            planned, areasQueued, linesQueued, pointsQueued);
     }
 
     /// <summary>

@@ -135,6 +135,35 @@ public class VrfSettings
     // the regression control (N3) - never for real runs.
     public bool ComposeHierarchy { get; set; } = true;
 
+    // ---- V3: create the init's LINE and POINT tactical graphics ------------------------------
+    // The C2SIM init carries 409 TacticalGraphic elements; the interface has only ever created the
+    // 35 TacticalAreas (with the C2SIM uuid AS the VRF uuid, VrfC2SimService -> VrfFacade
+    // CreateControlArea). COA-STP1 also ships 41 Lines and 317 Points, and every vendor tactical
+    // task that is not a bare move takes exactly such an object as a parameter - a line of
+    // departure, a limit of advance, a breach lane, a control point
+    // (docs/experiments/TASK_VOCABULARY_ASSESSMENT_2026-09-14.md sec 3.2/3.3, build item V3).
+    // Parsing them is unconditional and free (InitParser); CREATING them is behind these two.
+    //
+    // BOTH DEFAULT FALSE, and the reason is the absence of evidence, not a preference:
+    //  1. NOT SHOWN TO BE CHEAP. The only vendor sample for these calls,
+    //     examples/remoteControl/commandLineRemoteController.cxx:1563-1636, creates ONE waypoint or
+    //     ONE route per typed command. Nothing in the sample or the help measures a bulk create.
+    //     Turning both on adds 348 creates to an init that today issues 163 (128 units + 35 areas)
+    //     - a 3x increase in creation traffic that has never been timed on this stack.
+    //  2. NOT SHOWN TO BE IDEMPOTENT. createWaypoint/createRoute document the opposite of an
+    //     idempotent create: "the name must be unique (if specified)" (vrfRemoteController.h:987,
+    //     :1019). Nothing states what a second create with the same name or startingUUID does. The
+    //     interface already sees duplicate init deliveries (the _createdAreaKeys guard exists for
+    //     exactly that), so "re-create is harmless" would be an assumption, not a finding.
+    //  3. THEY MULTIPLY THE CONSOLE CHANNEL. OnVrfObjectCreated raises EVERY created object's
+    //     console to Vrf:ObjectConsoleNotifyLevel, graphics included. At level 4 - the level the
+    //     movement investigations run at - 348 more objects is 348 more open consoles.
+    // With both false the init issues exactly the commands it issued before V3, in the same order,
+    // so no existing fixture or trace comparison moves. Flip either to true for the live gate that
+    // measures 1, 2 and 3; see the V3 notes in VrfC2SimService.DispatchInit.
+    public bool CreateInitLines { get; set; } = false;
+    public bool CreateInitPoints { get; set; } = false;
+
     // CREATION POLICY (C13, user ruling 2026-09-06): the C2SIM init carries the WHOLE ORBAT (corps-
     // level context); only the units the ORDERS reference are the COA proper. COA-STP1 = 128 units
     // in the init, 11 referenced by its 42 tasks.

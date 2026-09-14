@@ -65,6 +65,13 @@ public static class InitParser
         var units = new List<S.UnitType>();
         var forceSides = new List<S.ForceSideType>();
         var areas = new List<S.TacticalAreaType>();
+        // V3: lines and points are collected through their TacticalGraphic WRAPPER, not by
+        // hunting their element types loose in the graph the way areas are. TacticalGraphicType
+        // .Item is exactly one of Line / NBC_Event / Point / TacticalArea / TaskGraphic
+        // (C2SIMSDK\C2SIM_SMX_LOX_CWIX2024.cs:8618-8635), and LineType.Item is a Route or a
+        // Boundary (:8645-8658). Going through the wrapper means a RouteType that appears
+        // somewhere else in a future message cannot be mistaken for a line graphic.
+        var graphics = new List<S.TacticalGraphicType>();
         Walk(init, new HashSet<object>(ReferenceEqualityComparer.Instance), node =>
         {
             switch (node)
@@ -72,6 +79,7 @@ public static class InitParser
                 case S.UnitType u: units.Add(u); break;
                 case S.ForceSideType f: forceSides.Add(f); break;
                 case S.TacticalAreaType a: areas.Add(a); break;
+                case S.TacticalGraphicType g: graphics.Add(g); break;
             }
         });
 
@@ -150,6 +158,41 @@ public static class InitParser
             foreach (var g in AllGeodetics(a.CurrentState))
                 area.Points.Add((g.Latitude, g.Longitude, ElevD(g)));
             data.Areas.Add(area);
+        }
+
+        // V3: LINE and POINT graphics, in document order. NBC_Event, TacticalArea (handled
+        // above) and TaskGraphic wrappers are skipped here - a TaskGraphic is STP's task arrow,
+        // not a control measure, and nothing in the build list consumes one yet.
+        foreach (var tg in graphics)
+        {
+            switch (tg?.Item)
+            {
+                case S.LineType line:
+                {
+                    // LineType.Item: RouteType or BoundaryType. Both have Name/UUID/CurrentState,
+                    // but they are unrelated generated classes, so each is read on its own.
+                    string name = "", uuid = "", kind = "";
+                    S.EntityStateType state = null;
+                    if (line.Item is S.RouteType rt)
+                    { name = rt.Name; uuid = rt.UUID; state = rt.CurrentState; kind = "Route"; }
+                    else if (line.Item is S.BoundaryType bt)
+                    { name = bt.Name; uuid = bt.UUID; state = bt.CurrentState; kind = "Boundary"; }
+                    else break;   // an unmodelled Line flavour: skipped, never guessed at
+                    var il = new InitLine { Name = (name ?? "").Trim(), Uuid = (uuid ?? "").Trim(), Kind = kind };
+                    foreach (var g in AllGeodetics(state))
+                        il.Points.Add((g.Latitude, g.Longitude, ElevD(g)));
+                    data.Lines.Add(il);
+                    break;
+                }
+                case S.PointType pt:
+                {
+                    var ip = new InitPoint { Name = (pt.Name ?? "").Trim(), Uuid = (pt.UUID ?? "").Trim() };
+                    foreach (var g in AllGeodetics(pt.CurrentState))
+                        ip.Points.Add((g.Latitude, g.Longitude, ElevD(g)));
+                    data.Points.Add(ip);
+                    break;
+                }
+            }
         }
 
         return data;
