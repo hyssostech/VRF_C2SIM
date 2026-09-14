@@ -452,6 +452,50 @@ crawl are refuted for the leader by rows, and the followers' behaviour is incons
 pins the leader. Unexplained and recorded as a falsifier of any single-mechanism story: the leaders of
 1-6/P11 and 856/HHC crawl without a slope.
 
+## 7d. 1-6's leader in G2: a THIRD stop kind, and two caveats for this document (2026-09-14; READ_G2_1-6_MESH_STOP_2026-09-14.md)
+The supervisor had read the G2 track of 1-6's leader (M1A2 19; the one mesh-planned COA leg in the record,
+"Planned path has 1109 points." at wall 67.4) as a mesh path that still stopped 128 m from its P11 stop.
+The cold read of both captures refutes that reading:
+- THE STOP IS NEITHER A SLOPE STOP NOR THE SEC-7b MECHANISM. At sim 320.097 the leader's move-along subtask
+  FAILED ("Entity not embarked on same object as target [%1]. Ending task Route 54", G2 trace :126991-126993),
+  its maneuver-in-formation task failed at 320.430 (:127123), VR-Forces re-formed the unit under M1A2 20
+  (vrfc2simapp.log:212517-212525) and M1A2 19 was never tasked again and never printed again in either sink.
+  From then to its "stop" at wall 341 (along 2,875 m) the task-less hull advanced 1,994 m with M3 4 locked
+  2.96 m (sd 0.10 m, n=2,085) off its stern at a median relative bearing of 147 deg: the vehicle behind drove
+  it up the ridge until the pair jammed. The ground at the jam is benign (40 m ahead 0.372, ratio 0.495; the
+  leader had already climbed 0.527 over 40 m on the same leg). Four members that kept a task drove 3.4-3.6 km
+  further; the vendor reported M3 4 as goal-unchanged / not-blocked / TaskRunning once a second for 4,200 s
+  while pinned against a dead tank. Unexplained and recorded: what moved the un-tasked hull (a push is the
+  only mechanism in evidence; no contact row exists), why the whole unit slowed to 1.9 m/s at wall 122-180,
+  and what the "not embarked" message means for a ground move (route/embark bookkeeping, not traction).
+- THE MESH PATH WAS NOT A DETOUR: over the 1,031 m the leader drove under the 1,109-point plan the track is
+  straight (path/chord 1.002, 1.73 deg/100 m, cross-track -35..-17 m = the formation slot, like P11's
+  -24..-19 m). The 123 m deviation I attributed to the mesh lives entirely in the pushed segment.
+- P11's 1-6 stop reproduces sec 7b exactly (descending -0.148 over 66 m; the leader froze; two followers
+  crawled 351 / 463 m past it; one stuck 371 m behind) - the sec 7c pattern again.
+- AN M1A2 CROSSED THE FLAGGED WINDOW IN G2: after the re-forming, M1A2 20, HMMWV 7 and M577A2 4 passed
+  20-22 m from the pre-flight's worst-window centre for this leg (along 3,319.6 m, ratio 0.990) on their
+  offset lines, meeting 0.41-0.43 instead of the straight-line 0.744, and continued to 6.3-6.5 km. One vehicle
+  on one offset line, contradicted by G3's freeze 28 m from the same point (sec 7 B1) - bears on row 20's
+  false-alarm count; registered follow-up owed, not a verdict.
+- CAVEAT ON THIS DOCUMENT'S LIMIT-CYCLE READINGS (sec 7, 7c): in a collapsed-ratio capture the observer's
+  dead reckoning between sparse state updates draws sawtooth excursions (G2 after wall ~628: along sweeps
+  2,584-3,013 m, altitude residual +53.7 m in the air / -139 m underground, snapping back to -0.03 m). Any
+  "excursion decaying to a limit cycle" must be checked against the altitude residual first. P11 and the
+  pre-collapse G2 readings are clean (residuals within 0.16 m), so sec 7 / 7c stand; G2's post-collapse tail
+  is withdrawn as motion.
+- THE CONFIRMING TEST OF SEC 7 REMAINS OPEN: the leader never reached the face under mesh planning (the
+  window lies 444 m beyond the jam), and the three that crossed it were on re-formed offset routes, not the
+  leader's plan. G7 (PREREG_MESHQUERY_G7) tests the mesh query itself; the router-around-the-face test still
+  needs a unit driven at the flagged window with the mesh actually planning its leg.
+- REPORTING: a vendor task FAILURE (subtask Failed -> task Failed) produced no C2SIM report; it must become a
+  TASKABRT (reporting build item B1, extended: REPORTING_ASSESSMENT_2026-09-14.md).
+Adversarial review of 7d (the reader's four passes, adopted): the strongest alternative - "the leader stalled
+on the slope first and the failure/jam followed" - is weakened by the first stall point (along 1,068 m, alt
+1,233 m, no window near the limit) and by the four members that climbed through; not excluded, because no
+throttle/velocity row exists (members at level 3). The falsifier that does exist and does not fire: a slope
+stop would have stalled the followers on the same ridge; it did not.
+
 ## 8. What follows (decisions for the user; none taken here)
 - The interface needs its OWN progress watchdog: no net movement for N sim-seconds while the
   task reports running -> report to STP (a TaskStatus the demo audience can see) and/or re-task.
