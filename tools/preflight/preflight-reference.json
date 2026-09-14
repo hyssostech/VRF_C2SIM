@@ -1,0 +1,3631 @@
+{
+ "tool": "tools/preflight/leg_check.py",
+ "generated": "2026-09-14T13:27:26Z",
+ "parameters": {
+  "step_m": 8.0,
+  "sustained_window_m": 40.0,
+  "short_window_m": 20.0,
+  "threshold": 0.92,
+  "drop_origin_meters": 100.0,
+  "min_leg_m": 1.0,
+  "max_nan_fraction": 0.01,
+  "typemap": "unit-type-map-52-nolifeform.json",
+  "elevation": "TMS 149 L13 bilinear",
+  "landcover": [
+   "TMS 154 L12 CA FVEG 15m",
+   "TMS 165 L12 NLCD 30m",
+   "TMS 188 L10 Copernicus 100m"
+  ]
+ },
+ "tasks": [
+  {
+   "task": "T1_AOA_SE_1-35_AR;_2/1_AD_P1",
+   "task_uuid": "cd589832-e19f-44e9-91b0-a81ee68d5666",
+   "unit": "1-35/2/1_A",
+   "unit_uuid": "d6df3c3d-f31b-701a-bfc6-2fb9bc86092a",
+   "action": "PENTRT",
+   "template": "Tank Headquarters Section (USA)",
+   "typemap_rule": "b:functionId+sidcEchelon",
+   "vehicles": [
+    "M1A2 Abrams MBT",
+    "M3A2 Bradley CFV",
+    "M577A2 Command Post",
+    "M998 HMMWV Utility Vehicle"
+   ],
+   "limit_raw": 0.94,
+   "vehicle_note": "",
+   "start": [
+    34.658442,
+    -116.740092
+   ],
+   "start_source": "run trace (DeStack-spread position)",
+   "dropped_vertices": 1,
+   "drop_note": "dropped 1 leading vertex(es) on the authored origin (34.67998,-116.72480); the unit was spread 2774 m from it",
+   "degenerate_legs": 0,
+   "route": [
+    [
+     34.658442,
+     -116.740092
+    ],
+    [
+     34.651212159120796,
+     -116.81163703922806
+    ],
+    [
+     34.59635066271489,
+     -116.95232918947032
+    ],
+    [
+     34.570294428586486,
+     -117.00622314755442
+    ]
+   ],
+   "legs": [
+    {
+     "length_m": 6593.2852302014235,
+     "n_samples": 826,
+     "sustained": 0.8255225198626558,
+     "sustained_window_m": 39.95930442546319,
+     "short": 0.9123248141192011,
+     "short_window_m": 15.983721770185184,
+     "worst_lat": 34.65624237568402,
+     "worst_lon": -116.76185903617727,
+     "worst_s_m": 2005.9570821582513,
+     "worst_z_m": 1614.0366327617216,
+     "worst_seg": [
+      [
+       34.656259902571,
+       -116.76168559365793
+      ],
+      [
+       34.656216085353556,
+       -116.76211919995627
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Sagebrush",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 1.0977693083279998,
+     "climb_m": 542.9334452224996,
+     "descend_m": 450.9955340618685,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.658442,
+      -116.740092
+     ],
+     "end": [
+      34.651212159120796,
+      -116.81163703922806
+     ],
+     "index": 1,
+     "flagged": true
+    },
+    {
+     "length_m": 14245.880521948196,
+     "n_samples": 1782,
+     "sustained": 0.4401662987053572,
+     "sustained_window_m": 39.99404975280231,
+     "short": 0.48165193919225935,
+     "short_window_m": 15.997619901121652,
+     "worst_lat": 34.61698918185692,
+     "worst_lon": -116.89940176630226,
+     "worst_s_m": 8886.677855072681,
+     "worst_z_m": 1247.477949072672,
+     "worst_seg": [
+      [
+       34.61705078937675,
+       -116.8992437739943
+      ],
+      [
+       34.61689677057718,
+       -116.89963875476421
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Desert Scrub",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 0.5853275248741452,
+     "climb_m": 586.842763877004,
+     "descend_m": 963.6013977444552,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.651212159120796,
+      -116.81163703922806
+     ],
+     "end": [
+      34.59635066271489,
+      -116.95232918947032
+     ],
+     "index": 2,
+     "flagged": false
+    },
+    {
+     "length_m": 5721.636855796878,
+     "n_samples": 717,
+     "sustained": 0.5246451743089855,
+     "sustained_window_m": 39.95556463545336,
+     "short": 0.5876997789559795,
+     "short_window_m": 15.982225854181706,
+     "worst_lat": 34.58390480786585,
+     "worst_lon": -116.97807183425351,
+     "worst_s_m": 2732.9606210649895,
+     "worst_z_m": 956.9235472470141,
+     "worst_seg": [
+      [
+       34.583977590642746,
+       -116.97792129247115
+      ],
+      [
+       34.583795633700504,
+       -116.97829764692705
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Desert Scrub",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 0.697666455198119,
+     "climb_m": 274.72218360417196,
+     "descend_m": 193.26413407685118,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.59635066271489,
+      -116.95232918947032
+     ],
+     "end": [
+      34.570294428586486,
+      -117.00622314755442
+     ],
+     "index": 3,
+     "flagged": false
+    }
+   ]
+  },
+  {
+   "task": "T2_PL_OBJ_MADISON",
+   "task_uuid": "e9c9969a-925f-419a-b85b-0c6c01cb3b1c",
+   "unit": "1-35/2/1_A",
+   "unit_uuid": "d6df3c3d-f31b-701a-bfc6-2fb9bc86092a",
+   "action": "FIX",
+   "template": "Tank Headquarters Section (USA)",
+   "typemap_rule": "b:functionId+sidcEchelon",
+   "vehicles": [
+    "M1A2 Abrams MBT",
+    "M3A2 Bradley CFV",
+    "M577A2 Command Post",
+    "M998 HMMWV Utility Vehicle"
+   ],
+   "limit_raw": 0.94,
+   "vehicle_note": "",
+   "start": [
+    34.570294428586486,
+    -117.00622314755442
+   ],
+   "start_source": "end of this unit's previous task's route",
+   "dropped_vertices": 0,
+   "drop_note": "",
+   "degenerate_legs": 1,
+   "route": [
+    [
+     34.570294428586486,
+     -117.00622314755442
+    ],
+    [
+     34.48840762654256,
+     -116.61492221031979
+    ],
+    [
+     34.48840762654256,
+     -116.61492221031979
+    ]
+   ],
+   "legs": [
+    {
+     "length_m": 36984.0168184165,
+     "n_samples": 4625,
+     "sustained": 0.6717471375589262,
+     "sustained_window_m": 39.99136766697302,
+     "short": 0.7123980354213338,
+     "short_window_m": 15.99654706678939,
+     "worst_lat": 34.564963994456896,
+     "worst_lon": -116.98075135211592,
+     "worst_s_m": 2407.4803335517663,
+     "worst_z_m": 1018.1451032317427,
+     "worst_seg": [
+      [
+       34.56499941262387,
+       -116.98092059992615
+      ],
+      [
+       34.564910867206436,
+       -116.98049748040059
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Desert Scrub",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 0.8932807680304871,
+     "climb_m": 760.9118239635612,
+     "descend_m": 932.2054773401115,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.570294428586486,
+      -117.00622314755442
+     ],
+     "end": [
+      34.48840762654256,
+      -116.61492221031979
+     ],
+     "index": 1,
+     "flagged": false
+    }
+   ]
+  },
+  {
+   "task": "T3_PL_OBJ_MONROE",
+   "task_uuid": "5a2bf0ea-6e1d-45ae-bf34-09e633ebfed1",
+   "unit": "1-35/2/1_A",
+   "unit_uuid": "d6df3c3d-f31b-701a-bfc6-2fb9bc86092a",
+   "action": "ATTACK",
+   "template": "Tank Headquarters Section (USA)",
+   "typemap_rule": "b:functionId+sidcEchelon",
+   "vehicles": [
+    "M1A2 Abrams MBT",
+    "M3A2 Bradley CFV",
+    "M577A2 Command Post",
+    "M998 HMMWV Utility Vehicle"
+   ],
+   "limit_raw": 0.94,
+   "vehicle_note": "",
+   "start": [
+    34.48840762654256,
+    -116.61492221031979
+   ],
+   "start_source": "end of this unit's previous task's route",
+   "dropped_vertices": 0,
+   "drop_note": "",
+   "degenerate_legs": 1,
+   "route": [
+    [
+     34.48840762654256,
+     -116.61492221031979
+    ],
+    [
+     34.32941147391077,
+     -116.50651992054665
+    ],
+    [
+     34.32941147391077,
+     -116.50651992054665
+    ]
+   ],
+   "legs": [
+    {
+     "length_m": 20284.56462868945,
+     "n_samples": 2537,
+     "sustained": 0.2963281549293311,
+     "sustained_window_m": 39.99322679157922,
+     "short": 0.5736122110085685,
+     "short_window_m": 15.99729071663387,
+     "worst_lat": 34.331543125799364,
+     "worst_lon": -116.50797326354834,
+     "worst_s_m": 20012.610686506705,
+     "worst_z_m": 1092.1061793025247,
+     "worst_seg": [
+      [
+       34.331668517086925,
+       -116.50805875431314
+      ],
+      [
+       34.33135503886802,
+       -116.50784502740113
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Desert Scrub",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 0.3940533975124084,
+     "climb_m": 498.22386743231255,
+     "descend_m": 257.71566189479154,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.48840762654256,
+      -116.61492221031979
+     ],
+     "end": [
+      34.32941147391077,
+      -116.50651992054665
+     ],
+     "index": 1,
+     "flagged": false
+    }
+   ]
+  },
+  {
+   "task": "T4_ConsolidateAndPrepareDefensivePositionsAlongPlBlue.",
+   "task_uuid": "673a474d-0942-4e43-8d2d-0f8544e947b6",
+   "unit": "1-35/2/1_A",
+   "unit_uuid": "d6df3c3d-f31b-701a-bfc6-2fb9bc86092a",
+   "action": "BLOCK",
+   "template": "Tank Headquarters Section (USA)",
+   "typemap_rule": "b:functionId+sidcEchelon",
+   "vehicles": [
+    "M1A2 Abrams MBT",
+    "M3A2 Bradley CFV",
+    "M577A2 Command Post",
+    "M998 HMMWV Utility Vehicle"
+   ],
+   "limit_raw": 0.94,
+   "vehicle_note": "",
+   "start": [
+    34.32941147391077,
+    -116.50651992054665
+   ],
+   "start_source": "end of this unit's previous task's route",
+   "dropped_vertices": 0,
+   "drop_note": "",
+   "degenerate_legs": 0,
+   "route": [
+    [
+     34.32941147391077,
+     -116.50651992054665
+    ],
+    [
+     34.3270745574951,
+     -116.973606254397
+    ]
+   ],
+   "legs": [
+    {
+     "length_m": 42891.904954248006,
+     "n_samples": 5363,
+     "sustained": 0.9103990054683309,
+     "sustained_window_m": 39.99618141947576,
+     "short": 0.9358066375283103,
+     "short_window_m": 15.998472567789577,
+     "worst_lat": 34.32728070472834,
+     "worst_lon": -116.93240300264183,
+     "worst_s_m": 39108.266191965406,
+     "worst_z_m": 2212.3671616085153,
+     "worst_seg": [
+      [
+       34.32728157638683,
+       -116.93222878170417
+      ],
+      [
+       34.3272793972406,
+       -116.93266433404831
+      ]
+     ],
+     "soil": "hard-packed",
+     "soil_desc": "Montane Hardwood-Conifer",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": true,
+     "soil_surfchar": "forest",
+     "soil_soiltype": "BM_VEGETATION",
+     "factor": 0.98,
+     "limit_raw": 0.94,
+     "limit": 0.9211999999999999,
+     "ratio": 0.9882750819239372,
+     "climb_m": 4471.727348727537,
+     "descend_m": 3331.6979067753437,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.32941147391077,
+      -116.50651992054665
+     ],
+     "end": [
+      34.3270745574951,
+      -116.973606254397
+     ],
+     "index": 1,
+     "flagged": true
+    }
+   ]
+  },
+  {
+   "task": "T5_ConductCounter-FireAndNeutralizationFiresAgainstEnemyArtillerySystemsAssociatedWith1-7158.",
+   "task_uuid": "c496e287-e9b8-4ac4-b6a3-7cb47c5ec9b1",
+   "unit": "4-27/2/1_A",
+   "unit_uuid": "3ac081eb-6adc-7e58-b0b5-9b506b4eae0f",
+   "action": "DESTRY",
+   "template": "Tank Headquarters Section (USA)",
+   "typemap_rule": "b:functionId+sidcEchelon",
+   "vehicles": [
+    "M1A2 Abrams MBT",
+    "M3A2 Bradley CFV",
+    "M577A2 Command Post",
+    "M998 HMMWV Utility Vehicle"
+   ],
+   "limit_raw": 0.94,
+   "vehicle_note": "",
+   "start": [
+    34.667649,
+    -116.724799
+   ],
+   "start_source": "run trace (DeStack-spread position)",
+   "dropped_vertices": 0,
+   "drop_note": "",
+   "degenerate_legs": 0,
+   "route": [
+    [
+     34.667649,
+     -116.724799
+    ],
+    [
+     34.3993811486055,
+     -116.85915007933568
+    ]
+   ],
+   "legs": [
+    {
+     "length_m": 32268.978421619267,
+     "n_samples": 4035,
+     "sustained": 0.7265667660547327,
+     "sustained_window_m": 39.99625486070363,
+     "short": 0.822884698288733,
+     "short_window_m": 15.998501944282907,
+     "worst_lat": 34.4789171799064,
+     "worst_lon": -116.81931768199173,
+     "worst_s_m": 22701.874258937896,
+     "worst_z_m": 1107.0524723489302,
+     "worst_seg": [
+      [
+       34.47905018330322,
+       -116.81925107263163
+      ],
+      [
+       34.47871767481116,
+       -116.8194175960319
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Desert Scrub",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 0.9661792101791659,
+     "climb_m": 500.2158888137752,
+     "descend_m": 750.2499475193739,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.667649,
+      -116.724799
+     ],
+     "end": [
+      34.3993811486055,
+      -116.85915007933568
+     ],
+     "index": 1,
+     "flagged": true
+    }
+   ]
+  },
+  {
+   "task": "T6_SuppressEnemyArtilleryAndDirectFiresSupportingObjMadison.",
+   "task_uuid": "d5d5976c-7d56-4cc6-a808-5169f9aa7b41",
+   "unit": "4-27/2/1_A",
+   "unit_uuid": "3ac081eb-6adc-7e58-b0b5-9b506b4eae0f",
+   "action": "DISRPT",
+   "template": "Tank Headquarters Section (USA)",
+   "typemap_rule": "b:functionId+sidcEchelon",
+   "vehicles": [
+    "M1A2 Abrams MBT",
+    "M3A2 Bradley CFV",
+    "M577A2 Command Post",
+    "M998 HMMWV Utility Vehicle"
+   ],
+   "limit_raw": 0.94,
+   "vehicle_note": "",
+   "start": [
+    34.3993811486055,
+    -116.85915007933568
+   ],
+   "start_source": "end of this unit's previous task's route",
+   "dropped_vertices": 0,
+   "drop_note": "",
+   "degenerate_legs": 0,
+   "route": [
+    [
+     34.3993811486055,
+     -116.85915007933568
+    ],
+    [
+     34.5751313894884,
+     -116.517415626768
+    ]
+   ],
+   "legs": [
+    {
+     "length_m": 36917.54089849613,
+     "n_samples": 4616,
+     "sustained": 0.6179532847068585,
+     "sustained_window_m": 39.997335751351784,
+     "short": 0.6449979098901483,
+     "short_window_m": 15.998934300536348,
+     "worst_lat": 34.47866868956285,
+     "worst_lon": -116.70498082034415,
+     "worst_s_m": 16654.890606862176,
+     "worst_z_m": 991.9225938466652,
+     "worst_seg": [
+      [
+       34.47859252477807,
+       -116.70512891761503
+      ],
+      [
+       34.478782936740025,
+       -116.70475867443783
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Desert Scrub",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 0.8217463892378437,
+     "climb_m": 674.0824358100856,
+     "descend_m": 834.6245310259874,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.3993811486055,
+      -116.85915007933568
+     ],
+     "end": [
+      34.5751313894884,
+      -116.517415626768
+     ],
+     "index": 1,
+     "flagged": false
+    }
+   ]
+  },
+  {
+   "task": "T7_SuppressAndNeutralizeEnemyArtilleryAndDefensivePositionsSupportingObjMonroe.",
+   "task_uuid": "c07630ad-8b2f-40bc-8ae8-9f01789e24de",
+   "unit": "4-27/2/1_A",
+   "unit_uuid": "3ac081eb-6adc-7e58-b0b5-9b506b4eae0f",
+   "action": "DISRPT",
+   "template": "Tank Headquarters Section (USA)",
+   "typemap_rule": "b:functionId+sidcEchelon",
+   "vehicles": [
+    "M1A2 Abrams MBT",
+    "M3A2 Bradley CFV",
+    "M577A2 Command Post",
+    "M998 HMMWV Utility Vehicle"
+   ],
+   "limit_raw": 0.94,
+   "vehicle_note": "",
+   "start": [
+    34.5751313894884,
+    -116.517415626768
+   ],
+   "start_source": "end of this unit's previous task's route",
+   "dropped_vertices": 0,
+   "drop_note": "",
+   "degenerate_legs": 1,
+   "route": [
+    [
+     34.5751313894884,
+     -116.517415626768
+    ],
+    [
+     34.57513138948844,
+     -116.517415626768
+    ]
+   ],
+   "legs": []
+  },
+  {
+   "task": "T8_ProvidePriorityFiresInSupportOfBrigadeDefensiveOperations.",
+   "task_uuid": "7820a94c-0985-4dd5-b4ec-15e52450fdf1",
+   "unit": "4-27/2/1_A",
+   "unit_uuid": "3ac081eb-6adc-7e58-b0b5-9b506b4eae0f",
+   "legs": [],
+   "note": "no route points in the order"
+  },
+  {
+   "task": "T9_ProvideAirDefenseCoverageForBrigadeManeuverAndSustainmentCorridorsDuringPenetrationOperations.",
+   "task_uuid": "7ba48520-e7ae-4a19-a2d8-c5b37d3cc4a8",
+   "unit": "A/6-56/HHC",
+   "unit_uuid": "5cd92a83-c6bd-875e-96ae-5650b790a1b6",
+   "legs": [],
+   "note": "no route points in the order"
+  },
+  {
+   "task": "T10_ContinueAirDefenseCoverageForManeuverAndArtilleryPositionsSouthOfPlBronze.",
+   "task_uuid": "3fb539e2-6ecc-4eb4-824a-9a3b02e5bda4",
+   "unit": "A/6-56/HHC",
+   "unit_uuid": "5cd92a83-c6bd-875e-96ae-5650b790a1b6",
+   "legs": [],
+   "note": "no route points in the order"
+  },
+  {
+   "task": "T11_OccupyAndDefendPositionsAlongPlBlueInPreparationForConsolidation.",
+   "task_uuid": "1b9230e9-ab64-405a-8fcb-f97a9c3dc296",
+   "unit": "A/6-56/HHC",
+   "unit_uuid": "5cd92a83-c6bd-875e-96ae-5650b790a1b6",
+   "action": "OCCUPY",
+   "template": "Air Defense Artillery Platoon (USA)",
+   "typemap_rule": "b:functionId+sidcEchelon",
+   "vehicles": [
+    "HMMWV with Avenger"
+   ],
+   "limit_raw": 0.6,
+   "vehicle_note": "",
+   "start": [
+    34.683261,
+    -116.701934
+   ],
+   "start_source": "run trace (DeStack-spread position)",
+   "dropped_vertices": 0,
+   "drop_note": "",
+   "degenerate_legs": 0,
+   "route": [
+    [
+     34.683261,
+     -116.701934
+    ],
+    [
+     34.3270745574951,
+     -116.973606254397
+    ]
+   ],
+   "legs": [
+    {
+     "length_m": 46779.88833788774,
+     "n_samples": 5849,
+     "sustained": 0.7732879210929314,
+     "sustained_window_m": 39.996484557021176,
+     "short": 0.8673212494498155,
+     "short_window_m": 15.99859382280556,
+     "worst_lat": 34.33480979658507,
+     "worst_lon": -116.96770639524713,
+     "worst_s_m": 45763.977630139496,
+     "worst_z_m": 2056.9831344718564,
+     "worst_seg": [
+      [
+       34.33493161137389,
+       -116.96761348407942
+      ],
+      [
+       34.334627074401844,
+       -116.9678457619987
+      ]
+     ],
+     "soil": "hard-packed",
+     "soil_desc": "Pinyon-Juniper",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": true,
+     "soil_surfchar": "forest",
+     "soil_soiltype": "BM_VEGETATION",
+     "factor": 0.98,
+     "limit_raw": 0.6,
+     "limit": 0.588,
+     "ratio": 1.3151155120628086,
+     "climb_m": 1895.9589224812476,
+     "descend_m": 924.0119234400803,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.683261,
+      -116.701934
+     ],
+     "end": [
+      34.3270745574951,
+      -116.973606254397
+     ],
+     "index": 1,
+     "flagged": true
+    }
+   ]
+  },
+  {
+   "task": "T12_OccupyAndDefendAdaBattlePositionsAlongPlBlue.",
+   "task_uuid": "2230ab35-fb6a-4cfa-bf64-3ca9cbe0bc92",
+   "unit": "A/6-56/HHC",
+   "unit_uuid": "5cd92a83-c6bd-875e-96ae-5650b790a1b6",
+   "action": "OCCUPY",
+   "template": "Air Defense Artillery Platoon (USA)",
+   "typemap_rule": "b:functionId+sidcEchelon",
+   "vehicles": [
+    "HMMWV with Avenger"
+   ],
+   "limit_raw": 0.6,
+   "vehicle_note": "",
+   "start": [
+    34.3270745574951,
+    -116.973606254397
+   ],
+   "start_source": "end of this unit's previous task's route",
+   "dropped_vertices": 0,
+   "drop_note": "",
+   "degenerate_legs": 1,
+   "route": [
+    [
+     34.3270745574951,
+     -116.973606254397
+    ],
+    [
+     34.327074557495095,
+     -116.97360625439659
+    ]
+   ],
+   "legs": []
+  },
+  {
+   "task": "T13_ConductDeliberateBreachOperationsAtPlGold.",
+   "task_uuid": "92e69020-6fb9-4a61-89a0-92384c2dad9c",
+   "unit": "510/40",
+   "unit_uuid": "e151451b-4fa5-eec8-4196-82bb73e3c355",
+   "action": "BREACH",
+   "template": "Tank Breach Company (USA)",
+   "typemap_rule": "b:functionId+sidcEchelon",
+   "vehicles": [
+    "M1A2 Abrams MBT",
+    "M1A2 SEP V2 Abrams Mineplow",
+    "M1A2 SEP V2 Abrams Mineroller",
+    "M3A2 Bradley CFV",
+    "M577A2 Command Post",
+    "M998 HMMWV Utility Vehicle"
+   ],
+   "limit_raw": 0.94,
+   "vehicle_note": "",
+   "start": [
+    34.67998497486787,
+    -116.72479854165415
+   ],
+   "start_source": "authored position (initialization)",
+   "dropped_vertices": 0,
+   "drop_note": "",
+   "degenerate_legs": 0,
+   "route": [
+    [
+     34.67998497486787,
+     -116.72479854165415
+    ],
+    [
+     34.43194755162373,
+     -116.97279105342841
+    ],
+    [
+     34.4338954604207,
+     -116.96965569672
+    ],
+    [
+     34.43148483010902,
+     -116.96991137034888
+    ]
+   ],
+   "legs": [
+    {
+     "length_m": 35727.37965494222,
+     "n_samples": 4467,
+     "sustained": 0.735625018465186,
+     "sustained_window_m": 39.99930548023076,
+     "short": 0.773736624855537,
+     "short_window_m": 15.999722192092122,
+     "worst_lat": 34.65443700919561,
+     "worst_lon": -116.7503418814249,
+     "worst_s_m": 3679.9361041812404,
+     "worst_z_m": 1393.8939104989722,
+     "worst_seg": [
+      [
+       34.654548087307234,
+       -116.7502308234259
+      ],
+      [
+       34.65427039202819,
+       -116.7505084684234
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Sagebrush",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 0.9782247585973218,
+     "climb_m": 1318.5818246406438,
+     "descend_m": 1605.6748224523117,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.67998497486787,
+      -116.72479854165415
+     ],
+     "end": [
+      34.43194755162373,
+      -116.97279105342841
+     ],
+     "index": 1,
+     "flagged": true
+    },
+    {
+     "length_m": 360.0000000010586,
+     "n_samples": 47,
+     "sustained": -0.012765034325031144,
+     "sustained_window_m": 39.13043478272376,
+     "short": -0.01180474986684035,
+     "short_window_m": 15.652173913089506,
+     "worst_lat": 34.432243972527615,
+     "worst_lon": -116.9723139339293,
+     "worst_s_m": 54.782608695813266,
+     "worst_z_m": 926.7655648999405,
+     "worst_seg": [
+      [
+       34.43215928084079,
+       -116.97245025378619
+      ],
+      [
+       34.43237101005786,
+       -116.97210945414398
+      ]
+     ],
+     "soil": "hard-packed",
+     "soil_desc": "Urban",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": true,
+     "soil_surfchar": "dryground",
+     "soil_soiltype": "BM_LAND",
+     "factor": 0.98,
+     "limit_raw": 0.94,
+     "limit": 0.9211999999999999,
+     "ratio": -0.013856963010237892,
+     "climb_m": 0.0,
+     "descend_m": 6.360154896058361,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.43194755162373,
+      -116.97279105342841
+     ],
+     "end": [
+      34.4338954604207,
+      -116.96965569672
+     ],
+     "index": 2,
+     "flagged": false
+    },
+    {
+     "length_m": 269.073520379509,
+     "n_samples": 35,
+     "sustained": 0.02885327406834236,
+     "sustained_window_m": 39.56963534992781,
+     "short": 0.03048936099443676,
+     "short_window_m": 15.827854139971095,
+     "worst_lat": 34.43254834348182,
+     "worst_lon": -116.96979857315966,
+     "worst_s_m": 150.3646143297256,
+     "worst_z_m": 924.6012680442904,
+     "worst_seg": [
+      [
+       34.43269014526486,
+       -116.96978353353444
+      ],
+      [
+       34.43233564080726,
+       -116.96982113259752
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Desert Scrub",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 0.038368715516412716,
+     "climb_m": 6.3874297986583315,
+     "descend_m": 0.0,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.4338954604207,
+      -116.96965569672
+     ],
+     "end": [
+      34.43148483010902,
+      -116.96991137034888
+     ],
+     "index": 3,
+     "flagged": false
+    }
+   ]
+  },
+  {
+   "task": "T14_SupportObstacleEmplacementAndLaneDenialOperationsSouthOfObjMonroe.",
+   "task_uuid": "5f751d49-3aa9-4835-9a9e-2caf09430926",
+   "unit": "510/40",
+   "unit_uuid": "e151451b-4fa5-eec8-4196-82bb73e3c355",
+   "action": "ATTACK",
+   "template": "Tank Breach Company (USA)",
+   "typemap_rule": "b:functionId+sidcEchelon",
+   "vehicles": [
+    "M1A2 Abrams MBT",
+    "M1A2 SEP V2 Abrams Mineplow",
+    "M1A2 SEP V2 Abrams Mineroller",
+    "M3A2 Bradley CFV",
+    "M577A2 Command Post",
+    "M998 HMMWV Utility Vehicle"
+   ],
+   "limit_raw": 0.94,
+   "vehicle_note": "",
+   "start": [
+    34.43148483010902,
+    -116.96991137034888
+   ],
+   "start_source": "end of this unit's previous task's route",
+   "dropped_vertices": 0,
+   "drop_note": "",
+   "degenerate_legs": 0,
+   "route": [
+    [
+     34.43148483010902,
+     -116.96991137034888
+    ],
+    [
+     34.327074557495095,
+     -116.97360625439659
+    ]
+   ],
+   "legs": [
+    {
+     "length_m": 11614.843261723161,
+     "n_samples": 1453,
+     "sustained": 0.9924511679243234,
+     "sustained_window_m": 39.99601674147016,
+     "short": 1.0111931667253853,
+     "short_window_m": 15.998406696586244,
+     "worst_lat": 34.33412153181752,
+     "worst_lon": -116.97335687517023,
+     "worst_s_m": 10830.92133359033,
+     "worst_z_m": 2169.93433481266,
+     "worst_seg": [
+      [
+       34.33426534762002,
+       -116.97335178579826
+      ],
+      [
+       34.33390580811378,
+       -116.97336450922818
+      ]
+     ],
+     "soil": "hard-packed",
+     "soil_desc": "Pinyon-Juniper",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": true,
+     "soil_surfchar": "forest",
+     "soil_soiltype": "BM_VEGETATION",
+     "factor": 0.98,
+     "limit_raw": 0.94,
+     "limit": 0.9211999999999999,
+     "ratio": 1.0773460355235818,
+     "climb_m": 1568.3655077467488,
+     "descend_m": 250.84506071851024,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.43148483010902,
+      -116.96991137034888
+     ],
+     "end": [
+      34.327074557495095,
+      -116.97360625439659
+     ],
+     "index": 1,
+     "flagged": true
+    }
+   ]
+  },
+  {
+   "task": "T15_AOA_SE_1-6_IN;_2/1_AD_P1",
+   "task_uuid": "03bbf711-9652-4f09-a21e-8679d44b912d",
+   "unit": "1-6/2/1_AD",
+   "unit_uuid": "74bdb03b-c85e-5e54-8f04-180c44ddc9c3",
+   "action": "ATTACK",
+   "template": "Tank Headquarters Section (USA)",
+   "typemap_rule": "b:functionId+sidcEchelon",
+   "vehicles": [
+    "M1A2 Abrams MBT",
+    "M3A2 Bradley CFV",
+    "M577A2 Command Post",
+    "M998 HMMWV Utility Vehicle"
+   ],
+   "limit_raw": 0.94,
+   "vehicle_note": "",
+   "start": [
+    34.662498,
+    -116.732644
+   ],
+   "start_source": "run trace (DeStack-spread position)",
+   "dropped_vertices": 1,
+   "drop_note": "dropped 1 leading vertex(es) on the authored origin (34.67998,-116.72480); the unit was spread 2073 m from it",
+   "degenerate_legs": 0,
+   "route": [
+    [
+     34.662498,
+     -116.732644
+    ],
+    [
+     34.60904665152399,
+     -116.8033219547244
+    ],
+    [
+     34.48593335503527,
+     -116.9268849112078
+    ],
+    [
+     34.43378352084772,
+     -116.97201062879192
+    ]
+   ],
+   "legs": [
+    {
+     "length_m": 8782.824191085434,
+     "n_samples": 1099,
+     "sustained": 0.7442185552903958,
+     "sustained_window_m": 39.99464567889572,
+     "short": 0.8357385277547171,
+     "short_window_m": 15.997858271558016,
+     "worst_lat": 34.64229553222446,
+     "worst_lon": -116.75935743461805,
+     "worst_s_m": 3319.55559134832,
+     "worst_z_m": 1627.6643000251966,
+     "worst_seg": [
+      [
+       34.642392893514945,
+       -116.7592286951741
+      ],
+      [
+       34.64214949028873,
+       -116.75955054378396
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Sagebrush",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 0.9896523341627604,
+     "climb_m": 938.540156619526,
+     "descend_m": 1004.6151590615248,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.662498,
+      -116.732644
+     ],
+     "end": [
+      34.60904665152399,
+      -116.8033219547244
+     ],
+     "index": 1,
+     "flagged": true
+    },
+    {
+     "length_m": 17761.52408410526,
+     "n_samples": 2222,
+     "sustained": 0.6001003300619248,
+     "sustained_window_m": 39.98542117088073,
+     "short": 0.681428392446765,
+     "short_window_m": 15.994168468352314,
+     "worst_lat": 34.60339264150965,
+     "worst_lon": -116.8089966154904,
+     "worst_s_m": 815.7025918859687,
+     "worst_z_m": 1195.7050043739196,
+     "worst_seg": [
+      [
+       34.603503504451105,
+       -116.80888534763224
+      ],
+      [
+       34.60322634709746,
+       -116.80916351727764
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Desert Scrub",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 0.7980057580610701,
+     "climb_m": 309.30725553523837,
+     "descend_m": 581.7309628591138,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.60904665152399,
+      -116.8033219547244
+     ],
+     "end": [
+      34.48593335503527,
+      -116.9268849112078
+     ],
+     "index": 2,
+     "flagged": false
+    },
+    {
+     "length_m": 7123.403772281428,
+     "n_samples": 892,
+     "sustained": 0.04868193227516711,
+     "sustained_window_m": 39.97420747632623,
+     "short": 0.05045488659518475,
+     "short_window_m": 15.989682990531037,
+     "worst_lat": 34.45064003290834,
+     "worst_lon": -116.95742453825967,
+     "worst_s_m": 4820.889421645007,
+     "worst_z_m": 883.2750100606565,
+     "worst_seg": [
+      [
+       34.45075709201988,
+       -116.95732324596432
+      ],
+      [
+       34.45046444424104,
+       -116.95757647670273
+      ]
+     ],
+     "soil": "hard-packed",
+     "soil_desc": "Alkali Desert Scrub",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": true,
+     "soil_surfchar": "dryground",
+     "soil_soiltype": "BM_LAND",
+     "factor": 0.98,
+     "limit_raw": 0.94,
+     "limit": 0.9211999999999999,
+     "ratio": 0.052846213933095,
+     "climb_m": 53.26645593248156,
+     "descend_m": 0.6213391135696611,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.48593335503527,
+      -116.9268849112078
+     ],
+     "end": [
+      34.43378352084772,
+      -116.97201062879192
+     ],
+     "index": 3,
+     "flagged": false
+    }
+   ]
+  },
+  {
+   "task": "T16_AdvanceToSupportTheBrigadeTransitionTowardFixingOperationsNorthOfObjMonroe.",
+   "task_uuid": "b2717bbb-3240-4a20-a617-56eae456bef4",
+   "unit": "1-6/2/1_AD",
+   "unit_uuid": "74bdb03b-c85e-5e54-8f04-180c44ddc9c3",
+   "legs": [],
+   "note": "no route points in the order"
+  },
+  {
+   "task": "T17_AOA_SE_1-6_IN;_2/1_AD_P3",
+   "task_uuid": "9280a88f-5d03-41fa-a347-96a027bbd7df",
+   "unit": "1-6/2/1_AD",
+   "unit_uuid": "74bdb03b-c85e-5e54-8f04-180c44ddc9c3",
+   "action": "FIX",
+   "template": "Tank Headquarters Section (USA)",
+   "typemap_rule": "b:functionId+sidcEchelon",
+   "vehicles": [
+    "M1A2 Abrams MBT",
+    "M3A2 Bradley CFV",
+    "M577A2 Command Post",
+    "M998 HMMWV Utility Vehicle"
+   ],
+   "limit_raw": 0.94,
+   "vehicle_note": "",
+   "start": [
+    34.43378352084772,
+    -116.97201062879192
+   ],
+   "start_source": "end of this unit's previous task's route",
+   "dropped_vertices": 1,
+   "drop_note": "dropped 1 leading vertex(es) on the authored origin (34.67998,-116.72480); the unit was spread 35524 m from it",
+   "degenerate_legs": 0,
+   "route": [
+    [
+     34.43378352084772,
+     -116.97201062879192
+    ],
+    [
+     34.57668675055838,
+     -116.66519417549965
+    ],
+    [
+     34.40792830652674,
+     -116.55813048661592
+    ],
+    [
+     34.34248700979808,
+     -116.51060294857699
+    ]
+   ],
+   "legs": [
+    {
+     "length_m": 32294.242928741376,
+     "n_samples": 4038,
+     "sustained": 0.456090603873739,
+     "sustained_window_m": 39.99782379086173,
+     "short": 0.4985776068193199,
+     "short_window_m": 15.999129516341782,
+     "worst_lat": 34.545359190911626,
+     "worst_lon": -116.73245515176015,
+     "worst_s_m": 25214.628117758934,
+     "worst_z_m": 1087.6613988544275,
+     "worst_seg": [
+      [
+       34.54528839416666,
+       -116.7326071539664
+      ],
+      [
+       34.54546538602908,
+       -116.7322271484508
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Desert Scrub",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 0.6065034625980572,
+     "climb_m": 949.0641052467959,
+     "descend_m": 734.4867035046003,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.43378352084772,
+      -116.97201062879192
+     ],
+     "end": [
+      34.57668675055838,
+      -116.66519417549965
+     ],
+     "index": 1,
+     "flagged": false
+    },
+    {
+     "length_m": 21175.575920027575,
+     "n_samples": 2648,
+     "sustained": 0.506412811526097,
+     "sustained_window_m": 39.999198942252406,
+     "short": 0.6179499240648375,
+     "short_window_m": 15.999679576903873,
+     "worst_lat": 34.408629607200844,
+     "worst_lon": -116.55857540561016,
+     "worst_s_m": 21087.577682354622,
+     "worst_z_m": 992.8735138907439,
+     "worst_seg": [
+      [
+       34.408757116414314,
+       -116.55865629997274
+      ],
+      [
+       34.40843834338063,
+       -116.55845406406627
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Desert Scrub",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 0.6734212919230013,
+     "climb_m": 214.99935542034598,
+     "descend_m": 337.2772423024081,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.57668675055838,
+      -116.66519417549965
+     ],
+     "end": [
+      34.40792830652674,
+      -116.55813048661592
+     ],
+     "index": 2,
+     "flagged": false
+    },
+    {
+     "length_m": 8483.916649448816,
+     "n_samples": 1062,
+     "sustained": 0.5627235545955609,
+     "sustained_window_m": 39.98075706620557,
+     "short": 0.66294264065795,
+     "short_window_m": 15.992302826482273,
+     "worst_lat": 34.40262392243752,
+     "worst_lon": -116.55427811312738,
+     "worst_s_m": 687.6690215387354,
+     "worst_z_m": 934.0859845373265,
+     "worst_seg": [
+      [
+       34.40274728020704,
+       -116.5543677032085
+      ],
+      [
+       34.40243888578324,
+       -116.55414372800568
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Desert Scrub",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 0.7483025991962245,
+     "climb_m": 264.9595301327853,
+     "descend_m": 235.0173702824958,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.40792830652674,
+      -116.55813048661592
+     ],
+     "end": [
+      34.34248700979808,
+      -116.51060294857699
+     ],
+     "index": 3,
+     "flagged": false
+    }
+   ]
+  },
+  {
+   "task": "T18_MaintainFixingFiresAndTransitionIntoDefensiveOperationsNorthOfObjMonroe.",
+   "task_uuid": "0cad2928-06e9-4cfc-9eb0-925cc6ba0a61",
+   "unit": "1-6/2/1_AD",
+   "unit_uuid": "74bdb03b-c85e-5e54-8f04-180c44ddc9c3",
+   "action": "FIX",
+   "template": "Tank Headquarters Section (USA)",
+   "typemap_rule": "b:functionId+sidcEchelon",
+   "vehicles": [
+    "M1A2 Abrams MBT",
+    "M3A2 Bradley CFV",
+    "M577A2 Command Post",
+    "M998 HMMWV Utility Vehicle"
+   ],
+   "limit_raw": 0.94,
+   "vehicle_note": "",
+   "start": [
+    34.34248700979808,
+    -116.51060294857699
+   ],
+   "start_source": "end of this unit's previous task's route",
+   "dropped_vertices": 0,
+   "drop_note": "",
+   "degenerate_legs": 0,
+   "route": [
+    [
+     34.34248700979808,
+     -116.51060294857699
+    ],
+    [
+     34.3270745574951,
+     -116.973606254397
+    ]
+   ],
+   "legs": [
+    {
+     "length_m": 42547.402171771595,
+     "n_samples": 5320,
+     "sustained": 1.0016881604824723,
+     "sustained_window_m": 39.995677920443995,
+     "short": 1.1047925592513956,
+     "short_window_m": 15.998271168173233,
+     "worst_lat": 34.330592270805084,
+     "worst_lon": -116.86793112499946,
+     "worst_s_m": 32836.451572687045,
+     "worst_z_m": 1898.965866983352,
+     "worst_seg": [
+      [
+       34.33059806604942,
+       -116.86775703088183
+      ],
+      [
+       34.33058357793859,
+       -116.8681922661759
+      ]
+     ],
+     "soil": "hard-packed",
+     "soil_desc": "Pinyon-Juniper",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": true,
+     "soil_surfchar": "forest",
+     "soil_soiltype": "BM_VEGETATION",
+     "factor": 0.98,
+     "limit_raw": 0.94,
+     "limit": 0.9211999999999999,
+     "ratio": 1.0873731659601307,
+     "climb_m": 4172.565508831996,
+     "descend_m": 2972.340679990539,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.34248700979808,
+      -116.51060294857699
+     ],
+     "end": [
+      34.3270745574951,
+      -116.973606254397
+     ],
+     "index": 1,
+     "flagged": true
+    }
+   ]
+  },
+  {
+   "task": "T19_AOA_SE_40_EN;_2/1_AD_P1",
+   "task_uuid": "3cb0fd2b-9d69-4360-a9d5-a931d3e58bde",
+   "unit": "40/2/1_AD",
+   "unit_uuid": "6977b035-d84c-da5f-9cc0-497b9f334eb7",
+   "action": "BREACH",
+   "template": "Tank Headquarters Section (USA)",
+   "typemap_rule": "b:functionId+sidcEchelon",
+   "vehicles": [
+    "M1A2 Abrams MBT",
+    "M3A2 Bradley CFV",
+    "M577A2 Command Post",
+    "M998 HMMWV Utility Vehicle"
+   ],
+   "limit_raw": 0.94,
+   "vehicle_note": "",
+   "start": [
+    34.665774,
+    -116.710053
+   ],
+   "start_source": "run trace (DeStack-spread position)",
+   "dropped_vertices": 1,
+   "drop_note": "dropped 1 leading vertex(es) on the authored origin (34.67998,-116.72480); the unit was spread 2077 m from it",
+   "degenerate_legs": 0,
+   "route": [
+    [
+     34.665774,
+     -116.710053
+    ],
+    [
+     34.6509867718674,
+     -116.81152342747846
+    ],
+    [
+     34.59576020177361,
+     -116.9519993552593
+    ],
+    [
+     34.56956418233244,
+     -117.00579093595098
+    ]
+   ],
+   "legs": [
+    {
+     "length_m": 9425.440225044658,
+     "n_samples": 1180,
+     "sustained": 0.5589181435018854,
+     "sustained_window_m": 39.972180767788814,
+     "short": 0.571086506704423,
+     "short_window_m": 15.988872307115344,
+     "worst_lat": 34.65846191009219,
+     "worst_lon": -116.76022879238333,
+     "worst_s_m": 4660.756277524203,
+     "worst_z_m": 1559.3710374128957,
+     "worst_seg": [
+      [
+       34.65848699444865,
+       -116.76005666273537
+      ],
+      [
+       34.6584242835575,
+       -116.76048698685528
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Sagebrush",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 0.743242212103571,
+     "climb_m": 561.640964305718,
+     "descend_m": 438.2625169044752,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.665774,
+      -116.710053
+     ],
+     "end": [
+      34.6509867718674,
+      -116.81152342747846
+     ],
+     "index": 1,
+     "flagged": false
+    },
+    {
+     "length_m": 14245.513148239777,
+     "n_samples": 1782,
+     "sustained": 0.4176825418160487,
+     "sustained_window_m": 39.993018383605886,
+     "short": 0.4335560956521448,
+     "short_window_m": 15.9972073534409,
+     "worst_lat": 34.61656706787857,
+     "worst_lon": -116.8990743987512,
+     "worst_s_m": 8878.450081160108,
+     "worst_z_m": 1234.9889521532189,
+     "worst_seg": [
+      [
+       34.616629085363236,
+       -116.89891664925341
+      ],
+      [
+       34.61647404165157,
+       -116.89931102299788
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Desert Scrub",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 0.5554289119894265,
+     "climb_m": 567.3086058604646,
+     "descend_m": 943.1226887593053,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.6509867718674,
+      -116.81152342747846
+     ],
+     "end": [
+      34.59576020177361,
+      -116.9519993552593
+     ],
+     "index": 2,
+     "flagged": false
+    },
+    {
+     "length_m": 5721.488323774857,
+     "n_samples": 717,
+     "sustained": 0.6934613192019338,
+     "sustained_window_m": 39.9545274006623,
+     "short": 0.7667812811790117,
+     "short_window_m": 15.981810960264738,
+     "worst_lat": 34.58295488500767,
+     "worst_lon": -116.9782941223572,
+     "worst_s_m": 2796.8169180463688,
+     "worst_z_m": 986.0738511142615,
+     "worst_seg": [
+      [
+       34.583028058246335,
+       -116.97814386654521
+      ],
+      [
+       34.58284512514968,
+       -116.97851950607517
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Desert Scrub",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 0.9221560095770396,
+     "climb_m": 249.58222161842946,
+     "descend_m": 182.2338413582579,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.59576020177361,
+      -116.9519993552593
+     ],
+     "end": [
+      34.56956418233244,
+      -117.00579093595098
+     ],
+     "index": 3,
+     "flagged": true
+    }
+   ]
+  },
+  {
+   "task": "T20_ExpandBreachLanesAndSupportMobilityOperationsSouthTowardPlGold.",
+   "task_uuid": "80807612-cedc-47a6-90f9-4feee41f901f",
+   "unit": "40/2/1_AD",
+   "unit_uuid": "6977b035-d84c-da5f-9cc0-497b9f334eb7",
+   "action": "SECURE",
+   "template": "Tank Headquarters Section (USA)",
+   "typemap_rule": "b:functionId+sidcEchelon",
+   "vehicles": [
+    "M1A2 Abrams MBT",
+    "M3A2 Bradley CFV",
+    "M577A2 Command Post",
+    "M998 HMMWV Utility Vehicle"
+   ],
+   "limit_raw": 0.94,
+   "vehicle_note": "",
+   "start": [
+    34.56956418233244,
+    -117.00579093595098
+   ],
+   "start_source": "end of this unit's previous task's route",
+   "dropped_vertices": 0,
+   "drop_note": "",
+   "degenerate_legs": 0,
+   "route": [
+    [
+     34.56956418233244,
+     -117.00579093595098
+    ],
+    [
+     34.43378352084772,
+     -116.97201062879192
+    ]
+   ],
+   "legs": [
+    {
+     "length_m": 15412.186064984531,
+     "n_samples": 1928,
+     "sustained": 0.7206836240829758,
+     "sustained_window_m": 39.99010395688765,
+     "short": 0.8276558071389956,
+     "short_window_m": 15.996041582755424,
+     "worst_lat": 34.51925417076,
+     "worst_lon": -116.99327451700361,
+     "worst_s_m": 5710.586845043568,
+     "worst_z_m": 1014.4917014075124,
+     "worst_seg": [
+      [
+       34.51939509516217,
+       -116.99330957700067
+      ],
+      [
+       34.51904278415676,
+       -116.99322192700804
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Desert Scrub",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 0.9583558830890636,
+     "climb_m": 819.026244991658,
+     "descend_m": 916.8020655291259,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.56956418233244,
+      -117.00579093595098
+     ],
+     "end": [
+      34.43378352084772,
+      -116.97201062879192
+     ],
+     "index": 1,
+     "flagged": true
+    }
+   ]
+  },
+  {
+   "task": "T21_SupportBreachingAndMobilityOperationsThroughObstacleBeltsSouthOfPlGold.",
+   "task_uuid": "1022bc9a-91bc-4477-ba54-5ff81980f864",
+   "unit": "40/2/1_AD",
+   "unit_uuid": "6977b035-d84c-da5f-9cc0-497b9f334eb7",
+   "legs": [],
+   "note": "no route points in the order"
+  },
+  {
+   "task": "T22_ConstructProtectiveObstaclesAndSurvivabilityPositionsAlongPlBlue.",
+   "task_uuid": "26938278-8318-4698-8e82-04a2b9070474",
+   "unit": "40/2/1_AD",
+   "unit_uuid": "6977b035-d84c-da5f-9cc0-497b9f334eb7",
+   "action": "ATTACK",
+   "template": "Tank Headquarters Section (USA)",
+   "typemap_rule": "b:functionId+sidcEchelon",
+   "vehicles": [
+    "M1A2 Abrams MBT",
+    "M3A2 Bradley CFV",
+    "M577A2 Command Post",
+    "M998 HMMWV Utility Vehicle"
+   ],
+   "limit_raw": 0.94,
+   "vehicle_note": "",
+   "start": [
+    34.43378352084772,
+    -116.97201062879192
+   ],
+   "start_source": "end of this unit's previous task's route",
+   "dropped_vertices": 0,
+   "drop_note": "",
+   "degenerate_legs": 0,
+   "route": [
+    [
+     34.43378352084772,
+     -116.97201062879192
+    ],
+    [
+     34.327074557495095,
+     -116.97360625439659
+    ]
+   ],
+   "legs": [
+    {
+     "length_m": 11866.398855503485,
+     "n_samples": 1485,
+     "sustained": 0.9746444568678645,
+     "sustained_window_m": 39.981128219351376,
+     "short": 1.0619001763711946,
+     "short_window_m": 15.99245128774055,
+     "worst_lat": 34.33404946952017,
+     "worst_lon": -116.9735019581138,
+     "worst_s_m": 11090.764968048068,
+     "worst_z_m": 2175.620419727781,
+     "worst_seg": [
+      [
+       34.33419328213924,
+       -116.97349980767498
+      ],
+      [
+       34.33383375059155,
+       -116.97350518377203
+      ]
+     ],
+     "soil": "hard-packed",
+     "soil_desc": "Pinyon-Juniper",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": true,
+     "soil_surfchar": "forest",
+     "soil_soiltype": "BM_VEGETATION",
+     "factor": 0.98,
+     "limit_raw": 0.94,
+     "limit": 0.9211999999999999,
+     "ratio": 1.0580161277332443,
+     "climb_m": 1592.3365442634054,
+     "descend_m": 269.8700407075628,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.43378352084772,
+      -116.97201062879192
+     ],
+     "end": [
+      34.327074557495095,
+      -116.97360625439659
+     ],
+     "index": 1,
+     "flagged": true
+    }
+   ]
+  },
+  {
+   "task": "T23_AOA_SE_1-1_RECON/2/1_AD_P1",
+   "task_uuid": "468c0325-99b9-4f97-afc6-39fe301e0c55",
+   "unit": "1-1/2/1_AD",
+   "unit_uuid": "de16a337-b2a6-c029-07b5-869191631621",
+   "action": "PENTRT",
+   "template": "Tank Platoon (USA)",
+   "typemap_rule": "b:functionId+sidcEchelon",
+   "vehicles": [
+    "M1A2 Abrams MBT"
+   ],
+   "limit_raw": 0.94,
+   "vehicle_note": "",
+   "start": [
+    34.662425,
+    -116.746154
+   ],
+   "start_source": "run trace (DeStack-spread position)",
+   "dropped_vertices": 1,
+   "drop_note": "dropped 1 leading vertex(es) on the authored origin (34.67998,-116.72480); the unit was spread 2762 m from it",
+   "degenerate_legs": 0,
+   "route": [
+    [
+     34.662425,
+     -116.746154
+    ],
+    [
+     34.6508861485138,
+     -116.81211493934713
+    ],
+    [
+     34.59548510469796,
+     -116.95358781065376
+    ],
+    [
+     34.56921569602198,
+     -117.00778520596653
+    ]
+   ],
+   "legs": [
+    {
+     "length_m": 6168.114129766096,
+     "n_samples": 773,
+     "sustained": 0.6539236252921852,
+     "sustained_window_m": 39.94892571092055,
+     "short": 0.6960146515763882,
+     "short_window_m": 15.979570284368037,
+     "worst_lat": 34.65937587344147,
+     "worst_lon": -116.76358409278085,
+     "worst_s_m": 1629.9161690055487,
+     "worst_z_m": 1615.7782866836494,
+     "worst_seg": [
+      [
+       34.6594057668391,
+       -116.76341320951829
+      ],
+      [
+       34.65933103334502,
+       -116.76384041767469
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Sagebrush",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 0.8695792889523739,
+     "climb_m": 457.43317808192955,
+     "descend_m": 403.7669112082249,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.662425,
+      -116.746154
+     ],
+     "end": [
+      34.6508861485138,
+      -116.81211493934713
+     ],
+     "index": 1,
+     "flagged": false
+    },
+    {
+     "length_m": 14336.231352642902,
+     "n_samples": 1794,
+     "sustained": 0.49197965404717675,
+     "sustained_window_m": 39.978336175801815,
+     "short": 0.5135557152517004,
+     "short_window_m": 15.991334470319998,
+     "worst_lat": 34.61680508251889,
+     "worst_lon": -116.89914482058037,
+     "worst_s_m": 8819.22096038211,
+     "worst_z_m": 1238.7298681982506,
+     "worst_seg": [
+      [
+       34.61686687955605,
+       -116.89898701481205
+      ],
+      [
+       34.616712386963144,
+       -116.89938152923287
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Desert Scrub",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 0.6542282633606074,
+     "climb_m": 547.1753285426662,
+     "descend_m": 930.4373919163806,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.6508861485138,
+      -116.81211493934713
+     ],
+     "end": [
+      34.59548510469796,
+      -116.95358781065376
+     ],
+     "index": 2,
+     "flagged": false
+    },
+    {
+     "length_m": 5757.647500252321,
+     "n_samples": 721,
+     "sustained": 0.5391516482906122,
+     "sustained_window_m": 39.983663196197085,
+     "short": 0.6490443826103507,
+     "short_window_m": 15.993465278478652,
+     "worst_lat": 34.573338533772514,
+     "worst_lon": -116.99927922586883,
+     "worst_s_m": 4854.016712018276,
+     "worst_z_m": 1036.759332468799,
+     "worst_seg": [
+      [
+       34.573411504352165,
+       -116.99912867754851
+      ],
+      [
+       34.57322907790303,
+       -116.9995050483493
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Desert Scrub",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 0.7169569791098567,
+     "climb_m": 261.07509192471207,
+     "descend_m": 184.09279231344476,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.59548510469796,
+      -116.95358781065376
+     ],
+     "end": [
+      34.56921569602198,
+      -117.00778520596653
+     ],
+     "index": 3,
+     "flagged": false
+    }
+   ]
+  },
+  {
+   "task": "T24_ScreenForwardMovementOfTheBrigadeMainBodyAndIdentifyEnemyReserveMovementCorridors.",
+   "task_uuid": "89a2e38a-61d8-49fa-b259-7891636e8c56",
+   "unit": "1-1/2/1_AD",
+   "unit_uuid": "de16a337-b2a6-c029-07b5-869191631621",
+   "legs": [],
+   "note": "no route points in the order"
+  },
+  {
+   "task": "T25_MaintainReconnaissanceAndScreenOperationsEastOfObjMonroe.",
+   "task_uuid": "51ef094c-f807-478f-a978-14469cf555ea",
+   "unit": "1-1/2/1_AD",
+   "unit_uuid": "de16a337-b2a6-c029-07b5-869191631621",
+   "action": "SCREEN",
+   "template": "Tank Platoon (USA)",
+   "typemap_rule": "b:functionId+sidcEchelon",
+   "vehicles": [
+    "M1A2 Abrams MBT"
+   ],
+   "limit_raw": 0.94,
+   "vehicle_note": "",
+   "start": [
+    34.56921569602198,
+    -117.00778520596653
+   ],
+   "start_source": "end of this unit's previous task's route",
+   "dropped_vertices": 0,
+   "drop_note": "",
+   "degenerate_legs": 0,
+   "route": [
+    [
+     34.56921569602198,
+     -117.00778520596653
+    ],
+    [
+     34.32941147391077,
+     -116.50651992054665
+    ]
+   ],
+   "legs": [
+    {
+     "length_m": 53137.79785015264,
+     "n_samples": 6644,
+     "sustained": 0.6184193235077359,
+     "sustained_window_m": 39.99533181556035,
+     "short": 0.7232214250810367,
+     "short_window_m": 15.998132726223957,
+     "worst_lat": 34.47770527858228,
+     "worst_lon": -116.81650001877108,
+     "worst_s_m": 20277.633230488773,
+     "worst_z_m": 1150.0880573163129,
+     "worst_seg": [
+      [
+       34.47777747615028,
+       -116.81665093410614
+      ],
+      [
+       34.47759698223028,
+       -116.81627364576848
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Desert Scrub",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 0.822366121685819,
+     "climb_m": 1295.1250471383214,
+     "descend_m": 1218.3174757947902,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.56921569602198,
+      -117.00778520596653
+     ],
+     "end": [
+      34.32941147391077,
+      -116.50651992054665
+     ],
+     "index": 1,
+     "flagged": false
+    }
+   ]
+  },
+  {
+   "task": "T26_PL_PL_BLUE",
+   "task_uuid": "0c58ca0d-d8a3-4bf8-b90d-c1abca665712",
+   "unit": "1-1/2/1_AD",
+   "unit_uuid": "de16a337-b2a6-c029-07b5-869191631621",
+   "action": "SCREEN",
+   "template": "Tank Platoon (USA)",
+   "typemap_rule": "b:functionId+sidcEchelon",
+   "vehicles": [
+    "M1A2 Abrams MBT"
+   ],
+   "limit_raw": 0.94,
+   "vehicle_note": "",
+   "start": [
+    34.32941147391077,
+    -116.50651992054665
+   ],
+   "start_source": "end of this unit's previous task's route",
+   "dropped_vertices": 0,
+   "drop_note": "",
+   "degenerate_legs": 0,
+   "route": [
+    [
+     34.32941147391077,
+     -116.50651992054665
+    ],
+    [
+     34.327074557495095,
+     -116.97360625439659
+    ]
+   ],
+   "legs": [
+    {
+     "length_m": 42891.90495421018,
+     "n_samples": 5363,
+     "sustained": 0.9103990055861653,
+     "sustained_window_m": 39.99618141943938,
+     "short": 0.9358066376096524,
+     "short_window_m": 15.998472567776844,
+     "worst_lat": 34.32728070472833,
+     "worst_lon": -116.93240300264145,
+     "worst_s_m": 39108.26619193091,
+     "worst_z_m": 2212.3671615759567,
+     "worst_seg": [
+      [
+       34.327281576386824,
+       -116.9322287817038
+      ],
+      [
+       34.327279397240595,
+       -116.93266433404793
+      ]
+     ],
+     "soil": "hard-packed",
+     "soil_desc": "Montane Hardwood-Conifer",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": true,
+     "soil_surfchar": "forest",
+     "soil_soiltype": "BM_VEGETATION",
+     "factor": 0.98,
+     "limit_raw": 0.94,
+     "limit": 0.9211999999999999,
+     "ratio": 0.9882750820518512,
+     "climb_m": 4471.7273487125785,
+     "descend_m": 3331.6979067564225,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.32941147391077,
+      -116.50651992054665
+     ],
+     "end": [
+      34.327074557495095,
+      -116.97360625439659
+     ],
+     "index": 1,
+     "flagged": true
+    }
+   ]
+  },
+  {
+   "task": "T27_SecureMovementCorridorsAndPassesAlongPlYellow.",
+   "task_uuid": "fb2aeee4-3d3a-499e-8f3c-88ca4d754de6",
+   "unit": "856/HHC",
+   "unit_uuid": "6a266f06-12d7-3159-8cd6-f1e5bc9c6e72",
+   "action": "SECURE",
+   "template": "Tank Platoon (USA)",
+   "typemap_rule": "b:functionId+sidcEchelon",
+   "vehicles": [
+    "M1A2 Abrams MBT"
+   ],
+   "limit_raw": 0.94,
+   "vehicle_note": "",
+   "start": [
+    34.662483,
+    -116.71668
+   ],
+   "start_source": "run trace (DeStack-spread position)",
+   "dropped_vertices": 0,
+   "drop_note": "",
+   "degenerate_legs": 0,
+   "route": [
+    [
+     34.662483,
+     -116.71668
+    ],
+    [
+     34.644968647111035,
+     -116.98471411872667
+    ]
+   ],
+   "legs": [
+    {
+     "length_m": 24594.125448721163,
+     "n_samples": 3076,
+     "sustained": 0.6495776598942248,
+     "sustained_window_m": 39.99044788409992,
+     "short": 0.6988806812744188,
+     "short_window_m": 15.996179153640696,
+     "worst_lat": 34.65941870021,
+     "worst_lon": -116.76357507508128,
+     "worst_s_m": 4302.972192329101,
+     "worst_z_m": 1614.029923253032,
+     "worst_seg": [
+      [
+       34.65943009165903,
+       -116.76340074394714
+      ],
+      [
+       34.659401613036444,
+       -116.76383657178248
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Sagebrush",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 0.8638000796465755,
+     "climb_m": 1813.906256557753,
+     "descend_m": 1998.2537261261414,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.662483,
+      -116.71668
+     ],
+     "end": [
+      34.644968647111035,
+      -116.98471411872667
+     ],
+     "index": 1,
+     "flagged": false
+    }
+   ]
+  },
+  {
+   "task": "T28_CNVY_PL_YELLOW",
+   "task_uuid": "bb94f274-7925-4c37-b342-c9a4853f6f55",
+   "unit": "856/HHC",
+   "unit_uuid": "6a266f06-12d7-3159-8cd6-f1e5bc9c6e72",
+   "action": "ESCRT",
+   "template": "Tank Platoon (USA)",
+   "typemap_rule": "b:functionId+sidcEchelon",
+   "vehicles": [
+    "M1A2 Abrams MBT"
+   ],
+   "limit_raw": 0.94,
+   "vehicle_note": "",
+   "start": [
+    34.644968647111035,
+    -116.98471411872667
+   ],
+   "start_source": "end of this unit's previous task's route",
+   "dropped_vertices": 0,
+   "drop_note": "",
+   "degenerate_legs": 1,
+   "route": [
+    [
+     34.644968647111035,
+     -116.98471411872667
+    ],
+    [
+     34.644968647111035,
+     -116.98471411872667
+    ]
+   ],
+   "legs": []
+  },
+  {
+   "task": "T29_ContinueRouteSecurityAndTrafficRegulationOperationsForSustainmentFlowSouthOfPlGold.",
+   "task_uuid": "ab288b31-e746-4a83-b467-45d6116808dc",
+   "unit": "856/HHC",
+   "unit_uuid": "6a266f06-12d7-3159-8cd6-f1e5bc9c6e72",
+   "action": "ATTACK",
+   "template": "Tank Platoon (USA)",
+   "typemap_rule": "b:functionId+sidcEchelon",
+   "vehicles": [
+    "M1A2 Abrams MBT"
+   ],
+   "limit_raw": 0.94,
+   "vehicle_note": "",
+   "start": [
+    34.644968647111035,
+    -116.98471411872667
+   ],
+   "start_source": "end of this unit's previous task's route",
+   "dropped_vertices": 0,
+   "drop_note": "",
+   "degenerate_legs": 0,
+   "route": [
+    [
+     34.644968647111035,
+     -116.98471411872667
+    ],
+    [
+     34.43378352084772,
+     -116.97201062879192
+    ]
+   ],
+   "legs": [
+    {
+     "length_m": 23511.52487764667,
+     "n_samples": 2940,
+     "sustained": 0.7594544518477879,
+     "sustained_window_m": 39.99919169385248,
+     "short": 1.0750559886975113,
+     "short_window_m": 15.999676677542084,
+     "worst_lat": 34.56542392619457,
+     "worst_lon": -116.97992923837357,
+     "worst_s_m": 8855.821041019008,
+     "worst_z_m": 1028.6889930078441,
+     "worst_seg": [
+      [
+       34.56556763842748,
+       -116.97993788314385
+      ],
+      [
+       34.5652083578452,
+       -116.97991627121814
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Desert Scrub",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 1.0099128349039732,
+     "climb_m": 828.8532196150129,
+     "descend_m": 929.7565767650804,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.644968647111035,
+      -116.98471411872667
+     ],
+     "end": [
+      34.43378352084772,
+      -116.97201062879192
+     ],
+     "index": 1,
+     "flagged": true
+    }
+   ]
+  },
+  {
+   "task": "T30_MaintainRearAreaSecurityAndConvoyEscortOperations.",
+   "task_uuid": "044c03db-32f9-409f-be20-a9603178b972",
+   "unit": "856/HHC",
+   "unit_uuid": "6a266f06-12d7-3159-8cd6-f1e5bc9c6e72",
+   "action": "GUARD",
+   "template": "Tank Platoon (USA)",
+   "typemap_rule": "b:functionId+sidcEchelon",
+   "vehicles": [
+    "M1A2 Abrams MBT"
+   ],
+   "limit_raw": 0.94,
+   "vehicle_note": "",
+   "start": [
+    34.43378352084772,
+    -116.97201062879192
+   ],
+   "start_source": "end of this unit's previous task's route",
+   "dropped_vertices": 0,
+   "drop_note": "",
+   "degenerate_legs": 0,
+   "route": [
+    [
+     34.43378352084772,
+     -116.97201062879192
+    ],
+    [
+     34.327074557495095,
+     -116.97360625439659
+    ]
+   ],
+   "legs": [
+    {
+     "length_m": 11866.398855503485,
+     "n_samples": 1485,
+     "sustained": 0.9746444568678645,
+     "sustained_window_m": 39.981128219351376,
+     "short": 1.0619001763711946,
+     "short_window_m": 15.99245128774055,
+     "worst_lat": 34.33404946952017,
+     "worst_lon": -116.9735019581138,
+     "worst_s_m": 11090.764968048068,
+     "worst_z_m": 2175.620419727781,
+     "worst_seg": [
+      [
+       34.33419328213924,
+       -116.97349980767498
+      ],
+      [
+       34.33383375059155,
+       -116.97350518377203
+      ]
+     ],
+     "soil": "hard-packed",
+     "soil_desc": "Pinyon-Juniper",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": true,
+     "soil_surfchar": "forest",
+     "soil_soiltype": "BM_VEGETATION",
+     "factor": 0.98,
+     "limit_raw": 0.94,
+     "limit": 0.9211999999999999,
+     "ratio": 1.0580161277332443,
+     "climb_m": 1592.3365442634054,
+     "descend_m": 269.8700407075628,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.43378352084772,
+      -116.97201062879192
+     ],
+     "end": [
+      34.327074557495095,
+      -116.97360625439659
+     ],
+     "index": 1,
+     "flagged": true
+    }
+   ]
+  },
+  {
+   "task": "T31_AOA_SE_5-20_IN_(MECH);_2/1_...",
+   "task_uuid": "986e5659-722e-43ae-a363-c77e757b56c0",
+   "unit": "5-20/2/1_A",
+   "unit_uuid": "50828a9b-0357-e75e-8873-5404000a90e6",
+   "action": "ATTACK",
+   "template": "Tank Headquarters Section (USA)",
+   "typemap_rule": "b:functionId+sidcEchelon",
+   "vehicles": [
+    "M1A2 Abrams MBT",
+    "M3A2 Bradley CFV",
+    "M577A2 Command Post",
+    "M998 HMMWV Utility Vehicle"
+   ],
+   "limit_raw": 0.94,
+   "vehicle_note": "",
+   "start": [
+    34.697952,
+    -116.716953
+   ],
+   "start_source": "run trace (DeStack-spread position)",
+   "dropped_vertices": 1,
+   "drop_note": "dropped 1 leading vertex(es) on the authored origin (34.67998,-116.72480); the unit was spread 2123 m from it",
+   "degenerate_legs": 0,
+   "route": [
+    [
+     34.697952,
+     -116.716953
+    ],
+    [
+     34.6508861485138,
+     -116.81211493934713
+    ],
+    [
+     34.59548510469796,
+     -116.95358781065376
+    ],
+    [
+     34.56921569602198,
+     -117.00778520596653
+    ]
+   ],
+   "legs": [
+    {
+     "length_m": 10154.707231127035,
+     "n_samples": 1271,
+     "sustained": 0.4036803185695195,
+     "sustained_window_m": 39.9791623272713,
+     "short": 0.4584659693730226,
+     "short_window_m": 15.991664930909792,
+     "worst_lat": 34.674270835354584,
+     "worst_lon": -116.76483369231718,
+     "worst_s_m": 5109.336945425334,
+     "worst_z_m": 1453.2804847242328,
+     "worst_seg": [
+      [
+       34.67434495480574,
+       -116.76468383099537
+      ],
+      [
+       34.67415965617784,
+       -116.76505848429989
+      ]
+     ],
+     "soil": "hard-packed",
+     "soil_desc": "Desert Succulent Shrub",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": true,
+     "soil_surfchar": "dryground",
+     "soil_soiltype": "BM_LAND",
+     "factor": 0.98,
+     "limit_raw": 0.94,
+     "limit": 0.9211999999999999,
+     "ratio": 0.43821137491263523,
+     "climb_m": 504.405469903508,
+     "descend_m": 559.3699223459366,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.697952,
+      -116.716953
+     ],
+     "end": [
+      34.6508861485138,
+      -116.81211493934713
+     ],
+     "index": 1,
+     "flagged": false
+    },
+    {
+     "length_m": 14336.231352642902,
+     "n_samples": 1794,
+     "sustained": 0.49197965404717675,
+     "sustained_window_m": 39.978336175801815,
+     "short": 0.5135557152517004,
+     "short_window_m": 15.991334470319998,
+     "worst_lat": 34.61680508251889,
+     "worst_lon": -116.89914482058037,
+     "worst_s_m": 8819.22096038211,
+     "worst_z_m": 1238.7298681982506,
+     "worst_seg": [
+      [
+       34.61686687955605,
+       -116.89898701481205
+      ],
+      [
+       34.616712386963144,
+       -116.89938152923287
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Desert Scrub",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 0.6542282633606074,
+     "climb_m": 547.1753285426662,
+     "descend_m": 930.4373919163806,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.6508861485138,
+      -116.81211493934713
+     ],
+     "end": [
+      34.59548510469796,
+      -116.95358781065376
+     ],
+     "index": 2,
+     "flagged": false
+    },
+    {
+     "length_m": 5757.647500252321,
+     "n_samples": 721,
+     "sustained": 0.5391516482906122,
+     "sustained_window_m": 39.983663196197085,
+     "short": 0.6490443826103507,
+     "short_window_m": 15.993465278478652,
+     "worst_lat": 34.573338533772514,
+     "worst_lon": -116.99927922586883,
+     "worst_s_m": 4854.016712018276,
+     "worst_z_m": 1036.759332468799,
+     "worst_seg": [
+      [
+       34.573411504352165,
+       -116.99912867754851
+      ],
+      [
+       34.57322907790303,
+       -116.9995050483493
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Desert Scrub",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 0.7169569791098567,
+     "climb_m": 261.07509192471207,
+     "descend_m": 184.09279231344476,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.59548510469796,
+      -116.95358781065376
+     ],
+     "end": [
+      34.56921569602198,
+      -117.00778520596653
+     ],
+     "index": 3,
+     "flagged": false
+    }
+   ]
+  },
+  {
+   "task": "T32_AOA_SE_5-20_IN_(MECH);_2/1_...",
+   "task_uuid": "5c2b1be4-8f8c-4792-9eba-f9dd6fc4b311",
+   "unit": "5-20/2/1_A",
+   "unit_uuid": "50828a9b-0357-e75e-8873-5404000a90e6",
+   "action": "SEIZE",
+   "template": "Tank Headquarters Section (USA)",
+   "typemap_rule": "b:functionId+sidcEchelon",
+   "vehicles": [
+    "M1A2 Abrams MBT",
+    "M3A2 Bradley CFV",
+    "M577A2 Command Post",
+    "M998 HMMWV Utility Vehicle"
+   ],
+   "limit_raw": 0.94,
+   "vehicle_note": "",
+   "start": [
+    34.56921569602198,
+    -117.00778520596653
+   ],
+   "start_source": "end of this unit's previous task's route",
+   "dropped_vertices": 1,
+   "drop_note": "dropped 1 leading vertex(es) on the authored origin (34.67998,-116.72480); the unit was spread 28674 m from it",
+   "degenerate_legs": 0,
+   "route": [
+    [
+     34.56921569602198,
+     -117.00778520596653
+    ],
+    [
+     34.620599839889636,
+     -116.69672213742032
+    ],
+    [
+     34.524808687010314,
+     -116.64179103385925
+    ],
+    [
+     34.48840762654256,
+     -116.61492221031979
+    ]
+   ],
+   "legs": [
+    {
+     "length_m": 29040.517179888935,
+     "n_samples": 3632,
+     "sustained": 0.49235910154024637,
+     "sustained_window_m": 39.989695923835825,
+     "short": 0.5684684420858275,
+     "short_window_m": 15.995878369532875,
+     "worst_lat": 34.618562022011105,
+     "worst_lon": -116.70905843096773,
+     "worst_s_m": 27888.813937282488,
+     "worst_z_m": 1207.5771337711712,
+     "worst_seg": [
+      [
+       34.61853371898501,
+       -116.70922976837812
+      ],
+      [
+       34.61860447655024,
+       -116.70880142485217
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Desert Scrub",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 0.6547328477928808,
+     "climb_m": 981.5399350783129,
+     "descend_m": 783.8790304608393,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.56921569602198,
+      -117.00778520596653
+     ],
+     "end": [
+      34.620599839889636,
+      -116.69672213742032
+     ],
+     "index": 1,
+     "flagged": false
+    },
+    {
+     "length_m": 11779.18824792326,
+     "n_samples": 1474,
+     "sustained": 0.4434294941201526,
+     "sustained_window_m": 39.9836668293392,
+     "short": 0.5002722882217606,
+     "short_window_m": 15.99346673173568,
+     "worst_lat": 34.55641391464056,
+     "worst_lon": -116.65991494175516,
+     "worst_s_m": 7892.7758321115125,
+     "worst_z_m": 1137.715922008264,
+     "worst_seg": [
+      [
+       34.5565439773057,
+       -116.65998952573827
+      ],
+      [
+       34.55621882064284,
+       -116.6598030657805
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Desert Scrub",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 0.5896668804789263,
+     "climb_m": 278.88951611810603,
+     "descend_m": 565.814059627753,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.620599839889636,
+      -116.69672213742032
+     ],
+     "end": [
+      34.524808687010314,
+      -116.64179103385925
+     ],
+     "index": 2,
+     "flagged": false
+    },
+    {
+     "length_m": 4737.589278195524,
+     "n_samples": 594,
+     "sustained": -0.008542245221953756,
+     "sustained_window_m": 39.94594669642083,
+     "short": -0.007830950537884174,
+     "short_window_m": 15.978378678568333,
+     "worst_lat": 34.48951254911999,
+     "worst_lon": -116.61573779012369,
+     "worst_s_m": 4593.783870088409,
+     "worst_z_m": 866.0635919103881,
+     "worst_seg": [
+      [
+       34.489635318295264,
+       -116.6158284101019
+      ],
+      [
+       34.48932839535709,
+       -116.61560186015637
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Desert Scrub",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": -0.0113593686462151,
+     "climb_m": 0.0,
+     "descend_m": 74.43699530181641,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.524808687010314,
+      -116.64179103385925
+     ],
+     "end": [
+      34.48840762654256,
+      -116.61492221031979
+     ],
+     "index": 3,
+     "flagged": false
+    }
+   ]
+  },
+  {
+   "task": "T33_SecureObjMadisonAndSupportTheBrigadeTransitionTowardObjMonroe.",
+   "task_uuid": "4aa091fd-47d0-4eeb-bb44-691ee02772f2",
+   "unit": "5-20/2/1_A",
+   "unit_uuid": "50828a9b-0357-e75e-8873-5404000a90e6",
+   "action": "SECURE",
+   "template": "Tank Headquarters Section (USA)",
+   "typemap_rule": "b:functionId+sidcEchelon",
+   "vehicles": [
+    "M1A2 Abrams MBT",
+    "M3A2 Bradley CFV",
+    "M577A2 Command Post",
+    "M998 HMMWV Utility Vehicle"
+   ],
+   "limit_raw": 0.94,
+   "vehicle_note": "",
+   "start": [
+    34.48840762654256,
+    -116.61492221031979
+   ],
+   "start_source": "end of this unit's previous task's route",
+   "dropped_vertices": 0,
+   "drop_note": "",
+   "degenerate_legs": 1,
+   "route": [
+    [
+     34.48840762654256,
+     -116.61492221031979
+    ],
+    [
+     34.4884076265426,
+     -116.61492221032
+    ]
+   ],
+   "legs": []
+  },
+  {
+   "task": "T34_RetainObjMadisonAndSecureBrigadeRearApproaches.",
+   "task_uuid": "e9992f77-bf7a-4bb4-9063-e449b11c70c6",
+   "unit": "5-20/2/1_A",
+   "unit_uuid": "50828a9b-0357-e75e-8873-5404000a90e6",
+   "legs": [],
+   "note": "no route points in the order"
+  },
+  {
+   "task": "T35_AOA_SE_B/5-20_IN_(MECH)_P1",
+   "task_uuid": "9e22188e-5a97-416c-8759-980361aa04e7",
+   "unit": "B/5-20",
+   "unit_uuid": "1375ca0a-d212-d86a-e275-5555aef42fd8",
+   "action": "ATTACK",
+   "template": "Tank Platoon (USA)",
+   "typemap_rule": "b:functionId+sidcEchelon",
+   "vehicles": [
+    "M1A2 Abrams MBT"
+   ],
+   "limit_raw": 0.94,
+   "vehicle_note": "",
+   "start": [
+    34.692787,
+    -116.724526
+   ],
+   "start_source": "run trace (DeStack-spread position)",
+   "dropped_vertices": 1,
+   "drop_note": "dropped 1 leading vertex(es) on the authored origin (34.67998,-116.72480); the unit was spread 1424 m from it",
+   "degenerate_legs": 0,
+   "route": [
+    [
+     34.692787,
+     -116.724526
+    ],
+    [
+     34.6508861485138,
+     -116.81211493934713
+    ],
+    [
+     34.59548510469796,
+     -116.95358781065376
+    ],
+    [
+     34.56921569602198,
+     -117.00778520596653
+    ]
+   ],
+   "legs": [
+    {
+     "length_m": 9266.450531950879,
+     "n_samples": 1160,
+     "sustained": 0.41610543488928153,
+     "sustained_window_m": 39.97605924051186,
+     "short": 0.5151355901455702,
+     "short_window_m": 15.990423696204743,
+     "worst_lat": 34.67221617644897,
+     "worst_lon": -116.76752695469241,
+     "worst_s_m": 4549.275541570362,
+     "worst_z_m": 1469.3602128617638,
+     "worst_seg": [
+      [
+       34.67228848162841,
+       -116.76737580898173
+      ],
+      [
+       34.672107718679804,
+       -116.76775367325845
+      ]
+     ],
+     "soil": "hard-packed",
+     "soil_desc": "Desert Succulent Shrub",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": true,
+     "soil_surfchar": "dryground",
+     "soil_soiltype": "BM_LAND",
+     "factor": 0.98,
+     "limit_raw": 0.94,
+     "limit": 0.9211999999999999,
+     "ratio": 0.4516993431277481,
+     "climb_m": 442.7154137817804,
+     "descend_m": 437.70960573504817,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.692787,
+      -116.724526
+     ],
+     "end": [
+      34.6508861485138,
+      -116.81211493934713
+     ],
+     "index": 1,
+     "flagged": false
+    },
+    {
+     "length_m": 14336.231352642902,
+     "n_samples": 1794,
+     "sustained": 0.49197965404717675,
+     "sustained_window_m": 39.978336175801815,
+     "short": 0.5135557152517004,
+     "short_window_m": 15.991334470319998,
+     "worst_lat": 34.61680508251889,
+     "worst_lon": -116.89914482058037,
+     "worst_s_m": 8819.22096038211,
+     "worst_z_m": 1238.7298681982506,
+     "worst_seg": [
+      [
+       34.61686687955605,
+       -116.89898701481205
+      ],
+      [
+       34.616712386963144,
+       -116.89938152923287
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Desert Scrub",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 0.6542282633606074,
+     "climb_m": 547.1753285426662,
+     "descend_m": 930.4373919163806,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.6508861485138,
+      -116.81211493934713
+     ],
+     "end": [
+      34.59548510469796,
+      -116.95358781065376
+     ],
+     "index": 2,
+     "flagged": false
+    },
+    {
+     "length_m": 5757.647500252321,
+     "n_samples": 721,
+     "sustained": 0.5391516482906122,
+     "sustained_window_m": 39.983663196197085,
+     "short": 0.6490443826103507,
+     "short_window_m": 15.993465278478652,
+     "worst_lat": 34.573338533772514,
+     "worst_lon": -116.99927922586883,
+     "worst_s_m": 4854.016712018276,
+     "worst_z_m": 1036.759332468799,
+     "worst_seg": [
+      [
+       34.573411504352165,
+       -116.99912867754851
+      ],
+      [
+       34.57322907790303,
+       -116.9995050483493
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Desert Scrub",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 0.7169569791098567,
+     "climb_m": 261.07509192471207,
+     "descend_m": 184.09279231344476,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.59548510469796,
+      -116.95358781065376
+     ],
+     "end": [
+      34.56921569602198,
+      -117.00778520596653
+     ],
+     "index": 3,
+     "flagged": false
+    }
+   ]
+  },
+  {
+   "task": "T36_ClearEnemyThreatsFromPaa25EAndSecureArtilleryDisplacementPositions.",
+   "task_uuid": "e3bebe4b-dd18-4719-ba62-de0803f743ee",
+   "unit": "B/5-20",
+   "unit_uuid": "1375ca0a-d212-d86a-e275-5555aef42fd8",
+   "action": "CLRLND",
+   "template": "Tank Platoon (USA)",
+   "typemap_rule": "b:functionId+sidcEchelon",
+   "vehicles": [
+    "M1A2 Abrams MBT"
+   ],
+   "limit_raw": 0.94,
+   "vehicle_note": "",
+   "start": [
+    34.56921569602198,
+    -117.00778520596653
+   ],
+   "start_source": "end of this unit's previous task's route",
+   "dropped_vertices": 0,
+   "drop_note": "",
+   "degenerate_legs": 0,
+   "route": [
+    [
+     34.56921569602198,
+     -117.00778520596653
+    ],
+    [
+     34.582990923293785,
+     -116.6401677051075
+    ],
+    [
+     34.57975774771338,
+     -116.64037223356547
+    ],
+    [
+     34.5814678442662,
+     -116.6424516380946
+    ]
+   ],
+   "legs": [
+    {
+     "length_m": 33692.00676868026,
+     "n_samples": 4213,
+     "sustained": 0.6019191143087599,
+     "sustained_window_m": 39.99525969691604,
+     "short": 0.6116770977811888,
+     "short_window_m": 15.998103878766415,
+     "worst_lat": 34.573336490505,
+     "worst_lon": -116.89781415870101,
+     "worst_s_m": 10078.8054436223,
+     "worst_z_m": 1031.26593569234,
+     "worst_seg": [
+      [
+       34.573329949561376,
+       -116.89798871591888
+      ],
+      [
+       34.57334630192043,
+       -116.89755232287419
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Desert Scrub",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 0.8004243541339892,
+     "climb_m": 937.45234422308,
+     "descend_m": 873.103462926477,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.56921569602198,
+      -117.00778520596653
+     ],
+     "end": [
+      34.582990923293785,
+      -116.6401677051075
+     ],
+     "index": 1,
+     "flagged": false
+    },
+    {
+     "length_m": 360.00000000004525,
+     "n_samples": 47,
+     "sustained": -0.015559604974888735,
+     "sustained_window_m": 39.13043478261361,
+     "short": -0.013996099199975394,
+     "short_window_m": 15.652173913045445,
+     "worst_lat": 34.58263949116548,
+     "worst_lon": -116.64018993646162,
+     "worst_s_m": 39.13043478261361,
+     "worst_z_m": 1091.924265902336,
+     "worst_seg": [
+      [
+       34.5827800640168,
+       -116.64018104391998
+      ],
+      [
+       34.5824286318885,
+       -116.6402032752741
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Desert Scrub",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": -0.020690964062352043,
+     "climb_m": 0.0,
+     "descend_m": 7.530406563266297,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.582990923293785,
+      -116.6401677051075
+     ],
+     "end": [
+      34.57975774771338,
+      -116.64037223356547
+     ],
+     "index": 2,
+     "flagged": false
+    },
+    {
+     "length_m": 269.0707460172376,
+     "n_samples": 35,
+     "sustained": 0.04059631165920255,
+     "sustained_window_m": 39.56922735547613,
+     "short": 0.042775994116454205,
+     "short_window_m": 15.82769094219043,
+     "worst_lat": 34.581266656436455,
+     "worst_lon": -116.64220700226764,
+     "worst_s_m": 237.4153641328567,
+     "worst_z_m": 1093.1609313933357,
+     "worst_seg": [
+      [
+       34.58116606252158,
+       -116.64208468435416
+      ],
+      [
+       34.58141754730877,
+       -116.64239047913786
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Desert Scrub",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 0.05398445699362041,
+     "climb_m": 9.374542468885693,
+     "descend_m": 0.0,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.57975774771338,
+      -116.64037223356547
+     ],
+     "end": [
+      34.5814678442662,
+      -116.6424516380946
+     ],
+     "index": 3,
+     "flagged": false
+    }
+   ]
+  },
+  {
+   "task": "T37_ProvideFollow-OnSecurityAndSupportForArtilleryDisplacementAndSustainmentOperations.",
+   "task_uuid": "cdd641dc-6b51-414d-84be-a617260e647e",
+   "unit": "B/5-20",
+   "unit_uuid": "1375ca0a-d212-d86a-e275-5555aef42fd8",
+   "legs": [],
+   "note": "no route points in the order"
+  },
+  {
+   "task": "T38_SecureArtillerySupportAreasAndSustainmentCorridors.",
+   "task_uuid": "9164158e-1137-4487-8db4-dcdec65f3022",
+   "unit": "B/5-20",
+   "unit_uuid": "1375ca0a-d212-d86a-e275-5555aef42fd8",
+   "legs": [],
+   "note": "no route points in the order"
+  },
+  {
+   "task": "T39_AOA_SE_C/1-35_AR_P1",
+   "task_uuid": "c85adce6-b53b-4963-8d2c-1c50218b347a",
+   "unit": "C/1-35",
+   "unit_uuid": "b5b42765-36d6-1d90-6ce6-0139250949c4",
+   "action": "ATTACK",
+   "template": "Tank Company (USA)",
+   "typemap_rule": "b:functionId+sidcEchelon",
+   "vehicles": [
+    "M1A2 Abrams MBT",
+    "M3A2 Bradley CFV",
+    "M577A2 Command Post",
+    "M998 HMMWV Utility Vehicle"
+   ],
+   "limit_raw": 0.94,
+   "vehicle_note": "",
+   "start": [
+    34.658442,
+    -116.709505
+   ],
+   "start_source": "run trace (DeStack-spread position)",
+   "dropped_vertices": 1,
+   "drop_note": "dropped 1 leading vertex(es) on the authored origin (34.67998,-116.72480); the unit was spread 2774 m from it",
+   "degenerate_legs": 0,
+   "route": [
+    [
+     34.658442,
+     -116.709505
+    ],
+    [
+     34.594444533432686,
+     -116.6436788075636
+    ],
+    [
+     34.456599198492206,
+     -116.50191177555976
+    ],
+    [
+     34.40432742184594,
+     -116.44118349582692
+    ]
+   ],
+   "legs": [
+    {
+     "length_m": 9322.952719763502,
+     "n_samples": 1167,
+     "sustained": 0.5454993233061544,
+     "sustained_window_m": 39.97835643123108,
+     "short": 0.6286907600938061,
+     "short_window_m": 15.991342572493522,
+     "worst_lat": 34.6002624849388,
+     "worst_lon": -116.649663006876,
+     "worst_s_m": 8475.411563421365,
+     "worst_z_m": 1262.6546700734607,
+     "worst_seg": [
+      [
+       34.60037225760873,
+       -116.64977591629699
+      ],
+      [
+       34.600097825933915,
+       -116.64949364274452
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Sagebrush",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 0.7253980363113754,
+     "climb_m": 417.36685068506245,
+     "descend_m": 490.80423954912703,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.658442,
+      -116.709505
+     ],
+     "end": [
+      34.594444533432686,
+      -116.6436788075636
+     ],
+     "index": 1,
+     "flagged": false
+    },
+    {
+     "length_m": 20090.041544444637,
+     "n_samples": 2513,
+     "sustained": 0.5210072556560029,
+     "sustained_window_m": 39.98814001680876,
+     "short": 0.565859214147943,
+     "short_window_m": 15.995256006723139,
+     "worst_lat": 34.51591878729422,
+     "worst_lon": -116.56291900549454,
+     "worst_s_m": 11444.60567281062,
+     "worst_z_m": 1113.871437486799,
+     "worst_seg": [
+      [
+       34.516028536764715,
+       -116.5630318773353
+      ],
+      [
+       34.51575416308848,
+       -116.56274969773338
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Desert Scrub",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 0.6928287974148974,
+     "climb_m": 408.40768539714566,
+     "descend_m": 678.3606757651985,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.594444533432686,
+      -116.6436788075636
+     ],
+     "end": [
+      34.456599198492206,
+      -116.50191177555976
+     ],
+     "index": 2,
+     "flagged": false
+    },
+    {
+     "length_m": 8050.154512734518,
+     "n_samples": 1008,
+     "sustained": 0.6675438402507777,
+     "sustained_window_m": 39.97097573353767,
+     "short": 0.7697186016796671,
+     "short_window_m": 15.98839029341525,
+     "worst_lat": 34.40505413969405,
+     "worst_lon": -116.44202778174177,
+     "worst_s_m": 7938.235780680612,
+     "worst_z_m": 941.8187484929922,
+     "worst_seg": [
+      [
+       34.4051579565295,
+       -116.44214839401532
+      ],
+      [
+       34.404898414440886,
+       -116.44184686333145
+      ]
+     ],
+     "soil": "sand",
+     "soil_desc": "Desert Scrub",
+     "soil_source": "CA FVEG 15m",
+     "soil_assumed": false,
+     "soil_surfchar": "sand",
+     "soil_soiltype": "BM_SAND",
+     "factor": 0.8,
+     "limit_raw": 0.94,
+     "limit": 0.752,
+     "ratio": 0.8876912769292257,
+     "climb_m": 659.3246384546296,
+     "descend_m": 527.0495827204651,
+     "nan_samples": 0,
+     "nan_fraction": 0.0,
+     "no_verdict": false,
+     "start": [
+      34.456599198492206,
+      -116.50191177555976
+     ],
+     "end": [
+      34.40432742184594,
+      -116.44118349582692
+     ],
+     "index": 3,
+     "flagged": false
+    }
+   ]
+  },
+  {
+   "task": "T40_OccupySupportPositionsAndPrepareToDestroyEnemyReserveForcesMovingTowardObjMonroe.",
+   "task_uuid": "a88a6954-deea-4b24-9aec-fde654a5b9cf",
+   "unit": "C/1-35",
+   "unit_uuid": "b5b42765-36d6-1d90-6ce6-0139250949c4",
+   "action": "OCCUPY",
+   "template": "Tank Company (USA)",
+   "typemap_rule": "b:functionId+sidcEchelon",
+   "vehicles": [
+    "M1A2 Abrams MBT",
+    "M3A2 Bradley CFV",
+    "M577A2 Command Post",
+    "M998 HMMWV Utility Vehicle"
+   ],
+   "limit_raw": 0.94,
+   "vehicle_note": "",
+   "start": [
+    34.40432742184594,
+    -116.44118349582692
+   ],
+   "start_source": "end of this unit's previous task's route",
+   "dropped_vertices": 0,
+   "drop_note": "",
+   "degenerate_legs": 1,
+   "route": [
+    [
+     34.40432742184594,
+     -116.44118349582692
+    ],
+    [
+     34.40432742184594,
+     -116.44118349582692
+    ]
+   ],
+   "legs": []
+  },
+  {
+   "task": "T41_DestroyEnemyReserveFormationsAndAttackAviationStagingAreasVicinityAbfJustice.",
+   "task_uuid": "6334491c-c223-4bf2-ad49-004721596fe0",
+   "unit": "C/1-35",
+   "unit_uuid": "b5b42765-36d6-1d90-6ce6-0139250949c4",
+   "action": "DESTRY",
+   "template": "Tank Company (USA)",
+   "typemap_rule": "b:functionId+sidcEchelon",
+   "vehicles": [
+    "M1A2 Abrams MBT",
+    "M3A2 Bradley CFV",
+    "M577A2 Command Post",
+    "M998 HMMWV Utility Vehicle"
+   ],
+   "limit_raw": 0.94,
+   "vehicle_note": "",
+   "start": [
+    34.40432742184594,
+    -116.44118349582692
+   ],
+   "start_source": "end of this unit's previous task's route",
+   "dropped_vertices": 0,
+   "drop_note": "",
+   "degenerate_legs": 1,
+   "route": [
+    [
+     34.40432742184594,
+     -116.44118349582692
+    ],
+    [
+     34.40432742184594,
+     -116.44118349582692
+    ]
+   ],
+   "legs": []
+  },
+  {
+   "task": "T42_MaintainAttack-By-FireCoverageAgainstEnemyReinforcementRoutes.",
+   "task_uuid": "f7bf0c71-217f-4346-95b0-f41f45a71cc0",
+   "unit": "C/1-35",
+   "unit_uuid": "b5b42765-36d6-1d90-6ce6-0139250949c4",
+   "action": "BLOCK",
+   "template": "Tank Company (USA)",
+   "typemap_rule": "b:functionId+sidcEchelon",
+   "vehicles": [
+    "M1A2 Abrams MBT",
+    "M3A2 Bradley CFV",
+    "M577A2 Command Post",
+    "M998 HMMWV Utility Vehicle"
+   ],
+   "limit_raw": 0.94,
+   "vehicle_note": "",
+   "start": [
+    34.40432742184594,
+    -116.44118349582692
+   ],
+   "start_source": "end of this unit's previous task's route",
+   "dropped_vertices": 0,
+   "drop_note": "",
+   "degenerate_legs": 1,
+   "route": [
+    [
+     34.40432742184594,
+     -116.44118349582692
+    ],
+    [
+     34.40432742184594,
+     -116.44118349582692
+    ]
+   ],
+   "legs": []
+  }
+ ]
+}

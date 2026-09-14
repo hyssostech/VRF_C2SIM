@@ -510,4 +510,39 @@ public class VrfSettings
     // create alone. Default TRUE = production safety. This gates ONLY the placement path's set;
     // the Fixed100 parity branch and any air-unit set are unaffected (they do not read this).
     public bool PlacementAglSet { get; set; } = true;
+
+    // ================= ROUTE PRE-FLIGHT (DEMO_READINESS row 20) ===============================
+    // Before a move is dispatched, walk its route against the SAME terrain the sim streams and
+    // warn about legs whose sustained climb reaches the performing unit's own derated limit.
+    // Ported from tools/preflight/leg_check.py; the numbers below ARE the calibration
+    // (docs/experiments/PREFLIGHT_CALIBRATION_2026-09-13.md).
+    //
+    // SHIPS OFF. A flag is a PREDICTION off terrain tiles, never a vendor verdict: DEMO_READINESS
+    // row 20 rules that the warning channel is all this earns until the calibration shows zero
+    // false alarms on more than the one run behind it (nine legs, one order, one terrain, three
+    // positives). Turning it on emits ObservationReports only - it never refuses or alters a task.
+    public bool PreflightWarnings { get; set; } = false;
+
+    // Flag a leg when sustained / (min max-slope x soil factor) reaches this. 0.92 is the
+    // MIDPOINT of the 0.096-wide gap between P11's frozen legs (0.966-1.098) and its clean
+    // movers (0.438-0.870): three flags, three units that froze, no misses, no false alarms.
+    public double PreflightThreshold { get; set; } = 0.92;
+
+    // The sustained window (m). AN OPERATING POINT, NOT A CONSTANT: at 80 m the separation dies
+    // (margin -0.003) and 55 m goes to -0.008 in the same sampling cell; only 40 m holds its
+    // margin across all six sampling variants (leg_check.py --sensitivity).
+    public double PreflightWindowMeters { get; set; } = 40.0;
+
+    // Sample spacing along a leg (m), and the SHORT window that is reported but never decides.
+    public double PreflightStepMeters { get; set; } = 8.0;
+    public double PreflightShortWindowMeters { get; set; } = 20.0;
+
+    // Where the streamed terrain tiles are cached. Empty = "preflight-cache" beside the
+    // executable. The tool's own cache (tools/preflight/preflight_cache) uses the SAME file
+    // naming, so it can be copied in to run the pre-flight with no network at all.
+    public string PreflightCacheDir { get; set; } = "";
+
+    // Never fetch a tile; score only what the cache already holds. A leg whose tiles are missing
+    // gets NO VERDICT - it is never quietly passed.
+    public bool PreflightOffline { get; set; } = false;
 }
