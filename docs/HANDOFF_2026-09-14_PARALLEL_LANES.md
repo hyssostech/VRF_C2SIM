@@ -108,7 +108,7 @@ again at gamewareQueryTimeBudget=50ms - time budget is NOT the lever; G7c (18594
 cold again within the hour, nav area never registered, 31/31 gate-failed); G7c-gate (190751Z)
 CONFIRMED the custom SMS single-variable (0 gate failures, 8/8 long legs planned, 32/32 mesh
 plans). MERGED 22:05Z: rulings 1ffb4ee (pass-3 fixes, suite 136/0) -> integration -> main 0f4d09e (46 src
-files). GATE G-A DONE 22:45Z (6f91feb/4d5f59c): bridge rebuilt, SIX 5.2 consumers one hash, 18 suites + 136/0; FOUR tools are 5.0.2-only (RULING owed); N2b (abstract-graph SMS +
+files). G-A DONE 22:45Z (6f91feb): bridge rebuilt, six 5.2 consumers, suites green; FOUR tools 5.0.2-only (RULING owed). V2 LIVE 23:09Z: 42-task chain 41/42 dispatched, 40 timed TASKCMPLT, 1 vendor TASKABRT cascade - PREREG_V2 RESULTS; runner stop rule broken (fix dispatched); N2b (abstract-graph SMS +
 slope-avoidance-factor 2.0, fixture _AG_S2, 1-35 lane) is next on L1, replacing the paused ridge
 test (N1 dropped 20:40Z: propagation-box-extent is a dead parameter for vehicles)
 (NAVDOCS_ABSTRACT_GRAPHS_AND_SLOPE_2026-09-14.md). The user's rulings are ALL IN: task-vocabulary
