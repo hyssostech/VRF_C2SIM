@@ -28,12 +28,21 @@ public sealed record TaskClock(Func<double> Now, Func<double, CancellationToken,
         (seconds, ct) => Task.Delay(TimeSpan.FromSeconds(Math.Max(0.0, seconds)), ct));
 }
 
-/// <summary>Outcome of waiting at a task's start gate.</summary>
+/// <summary>
+/// Outcome of waiting at a task's start gate. The two TIMEOUTS are deliberately distinct (B7 of
+/// the pass-2 review): they are different failures with different remedies, and the run log is
+/// where an operator has to tell them apart. A phase-1 timeout means the predecessor NEVER
+/// STARTED - look upstream, at the chain or at the order; a phase-2 timeout means it started and
+/// did not finish - look at the unit. Reporting both as "did not complete within Ns of its
+/// dispatch" mis-stated the cause of every A1 failure, for a predecessor that had never dispatched
+/// at all.
+/// </summary>
 public enum GateResult
 {
-    Proceed,              // predecessor done (or none) and any delay elapsed - dispatch now
-    PredecessorTimeout,   // the startAfterTaskUuid predecessor did not complete in time
-    PredecessorAbandoned, // the predecessor was skipped/abandoned - it will never complete
+    Proceed,                    // predecessor done (or none) and any delay elapsed - dispatch now
+    PredecessorNeverDispatched, // PHASE 1: the predecessor never even started within its window
+    PredecessorTimeout,         // PHASE 2: it started, and did not complete within its window
+    PredecessorAbandoned,       // the predecessor was skipped/abandoned - it will never complete
 }
 
 /// <summary>
@@ -161,7 +170,9 @@ public sealed class TaskSequencer
                 {
                     ct.ThrowIfCancellationRequested(); // shutdown -> propagate, not a "timeout"
                     if (pred.Abandoned.Task.IsCompleted) return GateResult.PredecessorAbandoned;
-                    if (!pred.Dispatched.Task.IsCompleted) return GateResult.PredecessorTimeout;
+                    // B7: this is NOT the same failure as phase 2's. The predecessor never
+                    // started, so nothing about ITS dispatch can be quoted at the operator.
+                    if (!pred.Dispatched.Task.IsCompleted) return GateResult.PredecessorNeverDispatched;
                 }
             }
 

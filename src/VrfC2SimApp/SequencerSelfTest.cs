@@ -57,7 +57,7 @@ public static class SequencerSelfTest
             var r = seq.WaitForStartAsync("never", 0, 0, 0.2, TaskClock.Wall, CancellationToken.None)
                        .GetAwaiter().GetResult();
             sw.Stop();
-            Check(ref failures, r == GateResult.PredecessorTimeout && sw.ElapsedMilliseconds >= 180,
+            Check(ref failures, r == GateResult.PredecessorNeverDispatched && sw.ElapsedMilliseconds >= 180,
                   $"predecessor timeout fires (not infinite wait) ({sw.ElapsedMilliseconds} ms)");
         }
 

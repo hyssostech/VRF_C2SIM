@@ -96,6 +96,29 @@ public static class TaskDispatchPolicy
     /// A task the interface cannot aim at a named entity is still a task about its objective.</summary>
     public static bool RefusesForTarget(TargetResolution r) => false;
 
+    /// <summary>
+    /// B7 (pass-2 review): WHY A GATE GAVE UP, in words that name the actual failure. The service
+    /// used one sentence for both timeouts - "did not complete within Ns of its dispatch" - so
+    /// every A1 failure was reported against a dispatch that had never happened, quoting a window
+    /// that was not the one that expired. Live gate 5 is specified as a LOG CHECK, which makes the
+    /// wording part of the contract, so it is a pure function and the self-test locks both forms.
+    /// </summary>
+    /// <param name="dispatchTimeoutSeconds">The PHASE 1 window - see
+    /// <see cref="PredecessorDispatchTimeoutSeconds"/>.</param>
+    /// <param name="completionTimeoutSeconds">The PHASE 2 window - see
+    /// <see cref="PredecessorTimeoutSeconds"/>.</param>
+    public static string GateFailureReason(GateResult gate, double dispatchTimeoutSeconds,
+                                           double completionTimeoutSeconds)
+        => gate switch
+        {
+            GateResult.PredecessorAbandoned => "was skipped/abandoned upstream",
+            GateResult.PredecessorNeverDispatched =>
+                $"never dispatched within {dispatchTimeoutSeconds:F0}s of order receipt",
+            GateResult.PredecessorTimeout =>
+                $"did not complete within {completionTimeoutSeconds:F0}s of its dispatch",
+            _ => "is ready (this is not a failure)",
+        };
+
     /// <summary>The exact sentence a MALFORMED zero-geometry task is refused with (Q4). Locked by
     /// `--rulings-selftest` because it is what STP will be told, and because a refusal has to say
     /// which two elements the order left out or the operator cannot fix the order.</summary>

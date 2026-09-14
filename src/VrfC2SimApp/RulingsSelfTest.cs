@@ -919,7 +919,7 @@ public static class RulingsSelfTest
             var preFix = WalkChain(chain, configured, margin, 1.0, backstop, step, preFixPhase1: true);
             Check(ref failures,
                   preFix.Dispatched == 2 && preFix.SkippedCount == 2
-                  && preFix.Result("T3") == GateResult.PredecessorTimeout,
+                  && preFix.Result("T3") == GateResult.PredecessorNeverDispatched,
                   $"FAIL-FIRST (A1): with phase 1 measured from order receipt on the COMPLETION window, " +
                   $"the same chain dispatches only {preFix.Dispatched} of 4 - T3's 4,860 s window expires " +
                   $"2,340 s before T2 dispatches, and T4 dies on T3's abandon " +
@@ -948,7 +948,7 @@ public static class RulingsSelfTest
                                new ChainTask("T14", "T13", 4800_000L, 0L) };
             var preFix = WalkChain(pair, configured, margin, 1.0, backstop, step, preFixPhase1: true);
             Check(ref failures,
-                  preFix.Dispatched == 1 && preFix.Result("T14") == GateResult.PredecessorTimeout,
+                  preFix.Dispatched == 1 && preFix.Result("T14") == GateResult.PredecessorNeverDispatched,
                   $"FAIL-FIRST (A1): with the pre-fix rule T14's 4,860 s window expires 7,140 s before T13 " +
                   $"dispatches ({preFix.Times("T13", "T14")})");
 
@@ -968,7 +968,7 @@ public static class RulingsSelfTest
             var run = WalkChain(dangling, configured, margin, 1.0, backstop, 60.0);
             Check(ref failures,
                   run.Dispatched == 0 && run.SkippedCount == 1
-                  && run.Result("T1") == GateResult.PredecessorTimeout
+                  && run.Result("T1") == GateResult.PredecessorNeverDispatched
                   && run.SkippedAtSeconds("T1") == configured,
                   $"(iii) a DANGLING predecessor still times out at the configured " +
                   $"{configured:F0} s (got {run.Times("T1")} at {run.SkippedAtSeconds("T1"):F0} s)");
@@ -1064,9 +1064,35 @@ public static class RulingsSelfTest
             var run = WalkChain(chain, configured, margin, 1.0, backstop, 60.0, timedCompletion: false);
             Check(ref failures,
                   run.Dispatched == 1 && run.SkippedAtSeconds("T2") == configured
+                  && run.Result("T2") == GateResult.PredecessorTimeout
                   && run.Result("T3") == GateResult.PredecessorAbandoned,
                   $"(vii) ... and with the fix the same run gives up at the CONFIGURED " +
                   $"{configured:F0} s (got {run.SkippedAtSeconds("T2"):F0} s), which is what the operator asked for");
+        }
+
+        // (f8) B7: THE LOG HAS TO SAY WHICH TIMEOUT IT WAS. Live gate 5 is specified as a log
+        //      check, so the wording is part of the contract - and one sentence for both timeouts
+        //      reported every A1 skip against a dispatch that had never happened, quoting a window
+        //      that was not the one that expired.
+        {
+            Check(ref failures,
+                  TaskDispatchPolicy.GateFailureReason(GateResult.PredecessorNeverDispatched, 86400.0, 4860.0)
+                      == "never dispatched within 86400s of order receipt",
+                  "(viii) a PHASE-1 timeout says the predecessor NEVER DISPATCHED, and quotes the DISPATCH " +
+                  "window measured from order receipt");
+            Check(ref failures,
+                  TaskDispatchPolicy.GateFailureReason(GateResult.PredecessorTimeout, 86400.0, 4860.0)
+                      == "did not complete within 4860s of its dispatch",
+                  "(viii) a PHASE-2 timeout says it did not COMPLETE, and quotes the COMPLETION window " +
+                  "measured from its dispatch");
+            Check(ref failures,
+                  TaskDispatchPolicy.GateFailureReason(GateResult.PredecessorAbandoned, 86400.0, 4860.0)
+                      == "was skipped/abandoned upstream",
+                  "(viii) an ABANDONED predecessor is neither, and names no window at all");
+            Check(ref failures,
+                  TaskDispatchPolicy.GateFailureReason(GateResult.PredecessorNeverDispatched, 86400.0, 4860.0)
+                      != TaskDispatchPolicy.GateFailureReason(GateResult.PredecessorTimeout, 86400.0, 4860.0),
+                  "(viii) ... and the two timeouts can never print the same sentence");
         }
 
         // (f5) THE WHOLE COA-STP1 GRAPH, end to end, from the order on disk. This is the branch's

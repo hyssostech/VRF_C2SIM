@@ -2345,9 +2345,10 @@ public sealed class VrfC2SimService : BackgroundService
                 // dispatched anyway, so all gated tasks burst-retasked their units together
                 // (VRF runs ONE task at a time - each retask REPLACED the in-flight task
                 // mid-route). Policy now decides; default is skip.
-                string why = gate == GateResult.PredecessorAbandoned
-                    ? "was skipped/abandoned upstream"
-                    : $"did not complete within {timeoutSeconds:F0}s of its dispatch";
+                // B7: the two timeouts are different failures and the log has to say which. One
+                // sentence for both reported every A1 skip against a dispatch that never happened.
+                string why = TaskDispatchPolicy.GateFailureReason(gate, dispatchTimeoutSeconds,
+                                                                  timeoutSeconds);
                 string policy = (_vrf.PredecessorTimeoutPolicy ?? "skip").Trim().ToLowerInvariant();
                 bool busy = _inFlight.IsBusy(unit.Name);
                 bool dispatch = policy == "force" || (policy == "whenidle" && !busy);
