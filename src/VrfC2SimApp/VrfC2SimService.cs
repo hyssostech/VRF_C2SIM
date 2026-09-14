@@ -3036,24 +3036,24 @@ public sealed class VrfC2SimService : BackgroundService
                                           && string.Equals(kind, "hold-in-place", StringComparison.Ordinal);
             if (inPlaceWithoutDuration && _vrf.DefaultHoldSeconds > 0)
             {
-                seconds = _vrf.DefaultHoldSeconds;
-                _log.LogWarning("Task '{Task}': the order gives NO Duration and the task carries NO geometry, so " +
-                                "nothing in the order or the simulation would ever end it. Holding for " +
-                                "Vrf:DefaultHoldSeconds={S} s so its STREND successors are not skipped - THIS " +
-                                "NUMBER IS NOT IN THE ORDER (Q4, supervisor default 2026-09-14).",
-                                task.TaskName, _vrf.DefaultHoldSeconds);
+                if (_timed.Register(task.TaskUuid, task.TaskeeUuid, task.TaskName, unit.Name,
+                                    _vrf.DefaultHoldSeconds))
+                    _log.LogWarning("Task '{Task}': the order gives NO Duration and the task carries NO " +
+                                    "geometry, so nothing in the order or the simulation would ever end it. " +
+                                    "End time armed at Vrf:DefaultHoldSeconds={S} s from dispatch so its STREND " +
+                                    "successors are not skipped - THIS NUMBER IS NOT IN THE ORDER (Q4, " +
+                                    "supervisor default 2026-09-14).", task.TaskName, _vrf.DefaultHoldSeconds);
             }
             else if (task.DurationMs <= 0)
                 _log.LogWarning("Task '{Task}': the order gives NO Duration, so this task has no end time - " +
                                 "it completes only on its own evidence (arrival, or a VR-Forces completion). " +
                                 "A hold-type task without one never completes and its successors will be " +
                                 "skipped at the predecessor timeout.", task.TaskName);
-            if (task.DurationMs > 0 && seconds <= 0.0)
+            else if (seconds <= 0.0)
                 _log.LogWarning("Task '{Task}': Vrf:DurationScale={Scale} collapses its {D:F0} s Duration to " +
                                 "zero - NO end time is armed.",
                                 task.TaskName, _durationScale, task.DurationMs / 1000.0);
-            else if (seconds > 0.0
-                     && _timed.Register(task.TaskUuid, task.TaskeeUuid, task.TaskName, unit.Name, seconds))
+            else if (_timed.Register(task.TaskUuid, task.TaskeeUuid, task.TaskName, unit.Name, seconds))
                 _log.LogInformation("Task '{Task}': end time armed at {S:F0} s from dispatch " +
                                     "(C2SIM Duration {D:F0} s x Vrf:DurationScale {Scale}) - R4.",
                                     task.TaskName, seconds, task.DurationMs / 1000.0, _durationScale);
