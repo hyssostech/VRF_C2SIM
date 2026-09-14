@@ -1257,6 +1257,79 @@ public static class RulingsSelfTest
             }
         }
 
+        // (f10) E3 (pass-3 review; SUPERVISOR DECISION extending Q4). A CYCLIC OR SELF-REFERENCING
+        //       STREND CHAIN IS MALFORMED. It is the one dead end nothing ever abandons - every
+        //       task on the loop waits for another task on the loop - and since A1 it is also the
+        //       most expensive: predecessorInThisOrder is TRUE, so phase 1 takes the 86,400 s
+        //       backstop where before A1 the same order failed in 600 s.
+        {
+            // FAIL-FIRST (E3): what a 2-cycle COSTS when nothing refuses it. Walked on the real
+            // sequencer under the A1 rule, neither task dispatches and neither is skipped until the
+            // chain backstop has run out - a sim day at the default - and the sentence they finally
+            // get is "never dispatched within 86400s of order receipt", which is true about the
+            // wrong thing. The steps here are coarse on purpose: the point is WHERE it ends, not
+            // how finely the walk observes it.
+            {
+                var cycle2 = new[] { new ChainTask("A", "B", 4800_000L, 0L),
+                                     new ChainTask("B", "A", 4800_000L, 0L) };
+                var preFix = WalkChain(cycle2, configured, margin, 1.0, backstop, 30000.0);
+                Check(ref failures,
+                      preFix.Dispatched == 0 && preFix.SkippedCount == 2
+                      && preFix.Result("A") == GateResult.PredecessorNeverDispatched
+                      && preFix.SkippedAtSeconds("A") >= backstop,
+                      $"FAIL-FIRST (E3): with nothing refusing it a 2-cycle dispatches {preFix.Dispatched} of 2 " +
+                      $"and is skipped only after the {backstop:F0} s chain backstop (at " +
+                      $"{preFix.SkippedAtSeconds("A"):F0} s, as {preFix.Result("A")}) - before A1 the same " +
+                      $"order failed in {configured:F0} s");
+            }
+
+            Check(ref failures,
+                  TaskDispatchPolicy.FindPredecessorCycles(
+                      new Dictionary<string, string> { ["A"] = "A" }).SetEquals(new[] { "A" }),
+                  "(x) E3: a task whose startAfterTaskUuid names ITSELF is on a cycle");
+            Check(ref failures,
+                  TaskDispatchPolicy.FindPredecessorCycles(
+                      new Dictionary<string, string> { ["A"] = "B", ["B"] = "A" })
+                      .SetEquals(new[] { "A", "B" })
+                  && TaskDispatchPolicy.FindPredecessorCycles(
+                      new Dictionary<string, string> { ["A"] = "B", ["B"] = "C", ["C"] = "A" })
+                      .SetEquals(new[] { "A", "B", "C" }),
+                  "(x) E3: a 2-cycle and a 3-cycle put EVERY task on the loop on it - both are refused at once");
+            Check(ref failures,
+                  TaskDispatchPolicy.FindPredecessorCycles(
+                      new Dictionary<string, string> { ["T1"] = "", ["T2"] = "T1", ["T3"] = "T2", ["T4"] = "T3" })
+                      .Count == 0
+                  && TaskDispatchPolicy.FindPredecessorCycles(
+                      new Dictionary<string, string> { ["T1"] = "no-such-task-uuid" }).Count == 0,
+                  "(x) E3: a healthy 4-deep chain and a DANGLING reference are NOT cycles - the dangling one " +
+                  "is the case the configured window still bounds, and refusing it would be wrong");
+            // A task that POINTS AT a loop without being on it must not be refused as malformed -
+            // it is a healthy task with a dead predecessor, and the existing cascade covers it.
+            {
+                var entrant = new Dictionary<string, string> { ["A"] = "B", ["B"] = "A", ["E"] = "A" };
+                var cyc = TaskDispatchPolicy.FindPredecessorCycles(entrant);
+                Check(ref failures, cyc.SetEquals(new[] { "A", "B" }),
+                      $"(x) E3: a task GATED ON a loop is not itself on it (found [{string.Join(",", cyc)}])");
+                var seq = new TaskSequencer();
+                var clock = new StepClock();
+                var gate = seq.WaitForStartAsync("A", 0, 0, 4860.0, clock.AsTaskClock(),
+                                                 CancellationToken.None, backstop);
+                foreach (var u in cyc) seq.NotifyAbandoned(u);       // what the refusal does
+                bool done = gate.Wait(TimeSpan.FromSeconds(5));
+                Check(ref failures, done && gate.Result == GateResult.PredecessorAbandoned && clock.Now == 0.0,
+                      $"(x) E3: ... and the refusal cascades to it through the SAME PredecessorAbandoned path " +
+                      $"every other dead end uses, at 0 s of clock (got " +
+                      $"{(done ? gate.Result.ToString() : "still waiting")} at {clock.Now:F0} s)");
+            }
+            Check(ref failures,
+                  TaskDispatchPolicy.DescribePredecessorCycle(
+                      "A", new Dictionary<string, string> { ["A"] = "B", ["B"] = "A" }) == "A -> B -> A"
+                  && TaskDispatchPolicy.DescribePredecessorCycle(
+                      "A", new Dictionary<string, string> { ["A"] = "A" }) == "A -> A",
+                  "(x) E3: the ERROR names the LOOP, not just the task - an order with 42 tasks cannot be " +
+                  "fixed from \"this one is on a cycle\"");
+        }
+
         // (f5) THE WHOLE COA-STP1 GRAPH, end to end, from the order on disk. This is the branch's
         //      own live gate 2 ("42 dispatches, not 9") decided OFFLINE.
         {
@@ -1271,6 +1344,15 @@ public static class RulingsSelfTest
                 foreach (var t in order.Tasks)
                     graph.Add(new ChainTask(t.TaskUuid, t.StartAfterTaskUuid, t.DurationMs,
                                             Math.Max(t.SimulationStartMs, t.RelativeDelayMs)));
+
+                // (x) E3 NO FALSE POSITIVES. The refusal is loud and terminal, so the one thing it
+                //     must never do is fire on the order this port exists for.
+                var realPred = new Dictionary<string, string>(StringComparer.Ordinal);
+                foreach (var t in order.Tasks) realPred[t.TaskUuid] = t.StartAfterTaskUuid;
+                var realCycles = TaskDispatchPolicy.FindPredecessorCycles(realPred);
+                Check(ref failures, realCycles.Count == 0,
+                      $"(x) E3: the real 42-task COA-STP1 graph carries NO cycle - the refusal fires on " +
+                      $"{realCycles.Count} of its tasks (must be 0)");
 
                 var preFix = WalkChain(graph, configured, margin, 1.0, backstop, step, preFixPhase1: true);
                 Check(ref failures, preFix.Dispatched == 21 && preFix.SkippedCount == 21,

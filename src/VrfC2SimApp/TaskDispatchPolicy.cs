@@ -149,6 +149,97 @@ public static class TaskDispatchPolicy
     public static bool IsMalformedZeroGeometryTask(ZeroGeometryAction action, long durationMs)
         => action == ZeroGeometryAction.ExecuteInPlace && durationMs <= 0L;
 
+    /// <summary>The exact sentence a task on a CYCLIC startAfterTaskUuid chain is refused with
+    /// (E3). Locked by `--rulings-selftest` for the same reason Q4's is: it is what STP is told,
+    /// and a refusal has to say what is wrong with the order or nobody can fix it.</summary>
+    public const string CyclicPredecessorRefusal =
+        "MALFORMED: this task's startAfterTaskUuid chain forms a CYCLE - it is gated, directly or " +
+        "through its predecessors, on itself - so no task on that chain can ever start";
+
+    /// <summary>
+    /// E3 (cold-start review of `8db033e`, pass 3; SUPERVISOR DECISION, an EXTENSION of the user's
+    /// Q4 ruling rather than an implementation of it). WHICH TASKS LIE ON A PREDECESSOR CYCLE.
+    ///
+    /// A startAfterTaskUuid that names its own task, or two tasks that name each other, make
+    /// <c>predecessorInThisOrder</c> TRUE, so phase 1 of every gate on the loop takes the A1
+    /// backstop - and a cycle is the ONE dead end that nothing ever NotifyAbandoned's, because
+    /// every task on it is waiting for another task on it. Both tasks therefore hang for a full
+    /// Vrf:TaskChainBackstopSeconds (a sim day at the default) and are then TASKABRT'd with
+    /// "never dispatched within 86400s of order receipt" - a true sentence about the wrong thing.
+    /// Before A1 the same order failed in 600 s, so A1 made a malformed order 144x more expensive.
+    ///
+    /// Q4's principle applied to it: a cyclic reference is as malformed as a task with neither a
+    /// Duration nor a geometry, and Q4 ruled that such a task is refused LOUDLY and AT ONCE rather
+    /// than held on an invented number. The graph is fully in hand at order receipt, so the answer
+    /// costs one walk. It is flagged as a supervisor decision because the user ruled Q4, not this.
+    ///
+    /// The graph has OUT-DEGREE ONE (a task has at most one predecessor), so one forward walk per
+    /// unvisited node settles it: follow the chain, and if it re-enters the path being walked,
+    /// everything from the re-entry point on lies on the cycle. A DANGLING reference - a uuid no
+    /// task carries - ends a walk without a cycle, which is right: nothing will ever speak for it,
+    /// and that is the one case the configured window is still there to bound.
+    /// </summary>
+    /// <param name="predecessorByUuid">Every known task's uuid -> its startAfterTaskUuid (null or
+    /// empty for a root). Keys are the tasks that EXIST; a value that is not a key is dangling.</param>
+    /// <returns>The uuids that lie on a cycle, including a task that names itself. Empty when the
+    /// graph is acyclic - which is what COA-STP1 is.</returns>
+    public static HashSet<string> FindPredecessorCycles(IReadOnlyDictionary<string, string> predecessorByUuid)
+    {
+        var onCycle = new HashSet<string>(StringComparer.Ordinal);
+        if (predecessorByUuid == null || predecessorByUuid.Count == 0) return onCycle;
+        var settled = new HashSet<string>(StringComparer.Ordinal);
+        var indexOnPath = new Dictionary<string, int>(StringComparer.Ordinal);
+        var path = new List<string>();
+        foreach (var start in predecessorByUuid.Keys)
+        {
+            if (settled.Contains(start)) continue;
+            path.Clear();
+            indexOnPath.Clear();
+            for (string node = start; !string.IsNullOrEmpty(node); )
+            {
+                // Reached a region a previous walk already settled: it holds no node of THIS path
+                // (those are all new), so it can close no cycle here.
+                if (settled.Contains(node)) break;
+                if (indexOnPath.TryGetValue(node, out int at))
+                {
+                    for (int i = at; i < path.Count; i++) onCycle.Add(path[i]);
+                    break;
+                }
+                // A uuid no task carries: dangling, not cyclic.
+                if (!predecessorByUuid.TryGetValue(node, out string pred)) break;
+                indexOnPath[node] = path.Count;
+                path.Add(node);
+                node = pred;
+            }
+            foreach (var p in path) settled.Add(p);
+        }
+        return onCycle;
+    }
+
+    /// <summary>
+    /// E3: the loop itself, written out for the operator - "A -&gt; B -&gt; A" - because "this task
+    /// is on a cycle" is not enough to fix an order with 42 tasks in it. Walks predecessors from
+    /// <paramref name="taskUuid"/> until a uuid repeats, and returns the arrow chain from the first
+    /// repeat onwards; the caller has already established that there IS one.
+    /// </summary>
+    public static string DescribePredecessorCycle(string taskUuid,
+                                                  IReadOnlyDictionary<string, string> predecessorByUuid)
+    {
+        if (string.IsNullOrEmpty(taskUuid) || predecessorByUuid == null) return taskUuid ?? "";
+        var seen = new Dictionary<string, int>(StringComparer.Ordinal);
+        var walk = new List<string>();
+        for (string node = taskUuid; !string.IsNullOrEmpty(node); )
+        {
+            if (seen.TryGetValue(node, out int at))
+                return string.Join(" -> ", walk.GetRange(at, walk.Count - at)) + " -> " + node;
+            if (!predecessorByUuid.TryGetValue(node, out string pred)) break;
+            seen[node] = walk.Count;
+            walk.Add(node);
+            node = pred;
+        }
+        return string.Join(" -> ", walk);
+    }
+
     /// <summary>
     /// Q1 (USER RULING 2026-09-14): a superseded task is reported TASKABRT at the supersede point
     /// AND ITS SUCCESSORS ARE ABANDONED IMMEDIATELY. B1 of the pass-2 review: every other TASKABRT

@@ -2217,12 +2217,46 @@ public sealed class VrfC2SimService : BackgroundService
         foreach (var task in order.Tasks)
             if (!string.IsNullOrEmpty(task.TaskUuid)) _taskByUuid[task.TaskUuid] = task;
 
+        // E3 (pass-3 review; SUPERVISOR DECISION extending Q4, not the user's ruling). WALK THE
+        // PREDECESSOR GRAPH ONCE, BEFORE ANYTHING DISPATCHES. A startAfterTaskUuid that names its
+        // own task, or two that name each other, make predecessorInThisOrder TRUE - so phase 1
+        // takes the A1 backstop, and a cycle is the one dead end nothing ever abandons, because
+        // every task on it waits for another task on it. Every task on the loop would hang a full
+        // Vrf:TaskChainBackstopSeconds (a sim day) and then be TASKABRT'd with "never dispatched
+        // within 86400s of order receipt" - true, and about the wrong thing. Q4 ruled that a
+        // malformed task is refused loudly and at once instead of being carried on an invented
+        // number; a cyclic reference is malformed in exactly that sense, and the whole graph is in
+        // hand right here. The graph is _taskByUuid, which is what the GATE consults - so what is
+        // checked is the same graph that would take the backstop (it spans orders; N2).
+        var predecessorByUuid = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var kv in _taskByUuid) predecessorByUuid[kv.Key] = kv.Value.StartAfterTaskUuid;
+        var onPredecessorCycle = TaskDispatchPolicy.FindPredecessorCycles(predecessorByUuid);
+
         foreach (var task in order.Tasks)
         {
             if (string.IsNullOrEmpty(task.TaskeeUuid))
             {
                 _log.LogWarning("Order task '{Name}' has no PerformingEntity - skipping.", task.TaskName);
                 _sequencer.NotifyAbandoned(task.TaskUuid); // successors fail fast, not slow-timeout
+                continue;
+            }
+            // E3: refused HERE, before any orchestration starts and therefore before any TASKSTRT -
+            // the same shape as Q4's refusal. Tasks that merely POINT AT the loop without being on
+            // it are not refused here: their gate fails PredecessorAbandoned the moment these
+            // abandons land, which is the existing cascade.
+            if (onPredecessorCycle.Contains(task.TaskUuid))
+            {
+                string cycle = TaskDispatchPolicy.DescribePredecessorCycle(task.TaskUuid, predecessorByUuid);
+                _log.LogError("Task '{Task}' is MALFORMED and will NOT be executed: its startAfterTaskUuid " +
+                              "chain forms a CYCLE ({Cycle}) - the task is gated, directly or through its " +
+                              "predecessors, on ITSELF, so nothing on that chain can ever start. Left alone " +
+                              "every task on the loop would wait out Vrf:TaskChainBackstopSeconds " +
+                              "({B:F0} s of task clock) and then be skipped anyway. FIX THE ORDER: break the " +
+                              "loop, or make one of these tasks a root (E3, extending the Q4 ruling of " +
+                              "2026-09-14).", task.TaskName, cycle, _vrf.TaskChainBackstopSeconds);
+                _sequencer.NotifyAbandoned(task.TaskUuid);
+                PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKABRT,
+                               $"{TaskDispatchPolicy.CyclicPredecessorRefusal} - task '{task.TaskName}' ({cycle})");
                 continue;
             }
             // Parity: executeTask errors if the taskee was never in the initialization
