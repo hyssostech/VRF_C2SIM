@@ -25,6 +25,8 @@ public static class RulingsSelfTest
         int failures = 0;
         Console.WriteLine("=== R4: completion is given by the end time ===");
         R4(ref failures);
+        Console.WriteLine("=== R2: a task without geometry uses the performing unit's position ===");
+        R2(ref failures);
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
         return failures == 0 ? 0 : 1;
     }
@@ -139,6 +141,60 @@ public static class RulingsSelfTest
             bool released = successor.Wait(TimeSpan.FromSeconds(2));
             Check(ref failures, released && successor.Result == GateResult.Proceed,
                   "the STREND successor dispatches after the TIMED completion");
+        }
+    }
+
+    // ---------------------------------------------------------------- R2 ----
+    private static void R2(ref int failures)
+    {
+        // (c1) A T9-SHAPED TASK - "T9_ProvideAirDefenseCoverage...", zero Locations, no distinct
+        //      affected entity - is DISPATCHED IN PLACE, not refused. This is the exact task run
+        //      G6 logged as "NO LOCATION GIVEN - CAN'T EXECUTE TASK".
+        var t9 = TaskDispatchPolicy.ForZeroGeometry(performerResolved: true, hasAttackTarget: false,
+                                                    hasBreachTarget: false);
+        Check(ref failures, t9 == ZeroGeometryAction.ExecuteInPlace,
+              $"a zero-geometry task executes at the performing unit's position (got {t9})");
+        Check(ref failures, !TaskDispatchPolicy.Refuses(t9),
+              "... and is NOT refused, so its STREND chain is not abandoned");
+
+        // (c2) The ONLY refusal left is the one that was never about geometry.
+        var noUnit = TaskDispatchPolicy.ForZeroGeometry(performerResolved: false, hasAttackTarget: false,
+                                                        hasBreachTarget: false);
+        Check(ref failures, noUnit == ZeroGeometryAction.Refuse && TaskDispatchPolicy.Refuses(noUnit),
+              "a task whose PERFORMER cannot be resolved is still refused");
+
+        // (c3) A resolved distinct target still engages in place (unchanged behaviour).
+        Check(ref failures,
+              TaskDispatchPolicy.ForZeroGeometry(true, hasAttackTarget: true, hasBreachTarget: false)
+                  == ZeroGeometryAction.EngageInPlace
+              && TaskDispatchPolicy.ForZeroGeometry(true, hasAttackTarget: false, hasBreachTarget: true)
+                  == ZeroGeometryAction.BreachInPlace,
+              "a resolved attack / breach target still engages in place");
+
+        // (c4) The derivation is REPORTED, in the ruling's own words.
+        Check(ref failures,
+              TaskDispatchPolicy.ZeroGeometryObservation
+                  == "no geometry in the order: executing at the performing unit's position",
+              "the in-place dispatch announces the derivation verbatim");
+
+        // (c5) THE SUCCESSOR IS NOT SKIPPED. The in-place task is dispatched (not abandoned) and
+        //      closed by R4's end time, so the STREND gate releases exactly as for a moving task.
+        {
+            var seq = new TaskSequencer();
+            var timed = new TimedCompletionPolicy();
+            const string inPlace = "T9";
+            seq.NotifyDispatched(inPlace);                       // what MarkDispatched does
+            timed.Register(inPlace, "taskee-9", "T9_ProvideAirDefenseCoverage", "A/6-56 ADA", 300.0);
+            var successor = seq.WaitForStartAsync(inPlace, 0, 0, TimeSpan.FromSeconds(5),
+                                                  CancellationToken.None);
+            timed.Advance(0.0, usingSim: false);
+            Thread.Sleep(120);
+            Check(ref failures, !successor.IsCompleted,
+                  "the successor of an in-place task waits (it was not abandoned)");
+            foreach (var d in timed.Advance(300.0, usingSim: false)) seq.CompleteTask(d.TaskUuid);
+            bool released = successor.Wait(TimeSpan.FromSeconds(2));
+            Check(ref failures, released && successor.Result == GateResult.Proceed,
+                  "the successor of an in-place task DISPATCHES at its predecessor's end time");
         }
     }
 

@@ -2205,13 +2205,20 @@ public sealed class VrfC2SimService : BackgroundService
             new() { LatDeg = live.LatDeg, LonDeg = live.LonDeg, AltMeters = isGround ? groundWpAlt : live.AltMeters }
         };
 
-        // Parity: no route points -> error, cannot execute (:2206-2210). EXCEPTION (Layer 2):
-        // an ATTACK with a resolved target needs no route - engage the target in place.
+        // NO GEOMETRY (R2, user ruling 2026-09-14: "a task without geometry uses the geometry of
+        // the performing (who) unit"). The C++ parity behaviour was an ERROR that abandoned the
+        // task AND, through NotifyAbandoned, its whole STREND chain (:2206-2210; run G6 lost the
+        // air-defence chain T9-T12 exactly that way). The decision table is TaskDispatchPolicy -
+        // the performer is resolved by construction here (every path that could not resolve it has
+        // already returned above), so the only outcomes reachable are the three that EXECUTE.
         if (task.Points.Count == 0)
         {
+            var zeroGeometry = TaskDispatchPolicy.ForZeroGeometry(
+                performerResolved: true, hasAttackTarget: attackTargetVrf != null,
+                hasBreachTarget: breachTargetVrf != null);
             // In-place engagements (no move to wait for) stay immediate - P0.3 gates only
             // the advance-THEN-engage compositions.
-            if (attackTargetVrf != null)
+            if (zeroGeometry == ZeroGeometryAction.EngageInPlace)
             {
                 MarkDispatched(task, unit, "fire");
                 _bridge.FireAtTarget(vrfUuid, attackTargetVrf);
@@ -2221,7 +2228,7 @@ public sealed class VrfC2SimService : BackgroundService
                                     task.TaskName, vrfUuid, attackTargetVrf);
                 return;
             }
-            if (breachTargetVrf != null)
+            if (zeroGeometry == ZeroGeometryAction.BreachInPlace)
             {
                 MarkDispatched(task, unit, "breach");
                 _bridge.Breach(vrfUuid, breachTargetVrf);
@@ -2231,12 +2238,34 @@ public sealed class VrfC2SimService : BackgroundService
                                     task.TaskName, vrfUuid, breachTargetVrf);
                 return;
             }
-            _log.LogError("NO LOCATION GIVEN - CAN'T EXECUTE TASK '{Task}'.", task.TaskName);
+            if (zeroGeometry == ZeroGeometryAction.ExecuteInPlace)
+            {
+                // R2: the unit's OWN position is the task's geometry. No vendor task is issued -
+                // "execute where you are" is what a unit already does - so the dispatch is the
+                // TASKSTRT + the end time (MarkDispatched arms both), and the C2SIM side is told
+                // how the geometry was derived instead of being left to infer it from silence.
+                // NO destination is recorded (MarkDispatched dest: null), which is what keeps the
+                // progress watchdog off a unit that is CORRECTLY standing still.
+                MarkDispatched(task, unit, "hold-in-place");
+                _arrivalReported.TryRemove(unit.Name, out _);
+                ClearStallState(unit.Name);
+                _log.LogInformation("Task '{Task}' carries NO geometry: executing IN PLACE at {Name}'s own " +
+                                    "position ({Lat:F5},{Lon:F5}) - R2 (user ruling 2026-09-14). No move is " +
+                                    "issued; the task ends at its end time and its successors follow.",
+                                    task.TaskName, unit.Name, live.LatDeg, live.LonDeg);
+                _ = PushReportAsync(ReportBuilder.BuildTypeSubstitutionReport(
+                        task.TaskeeUuid, unit.Name, unit.Name,
+                        $"task '{task.TaskName}': {TaskDispatchPolicy.ZeroGeometryObservation}",
+                        IsoNow(), NewReportId()), ReportKind.Observation);
+                return;
+            }
+            // Refuse - and by construction (see above) only when there is no performing unit at all.
+            _log.LogError("NO PERFORMING UNIT - CAN'T EXECUTE TASK '{Task}'.", task.TaskName);
             _sequencer.NotifyAbandoned(task.TaskUuid);
             // B1: the interface REFUSES this task - it will never be executed, so say so instead of
             // leaving the C2SIM side waiting for a status that can never come (supervisor 2026-09-14).
             PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKABRT,
-                           $"REFUSED at dispatch: task '{task.TaskName}' gave no location");
+                           $"REFUSED at dispatch: task '{task.TaskName}' has no performing unit to execute it");
             return;
         }
         // ORIGIN VERTEX DROP (Vrf:DropOriginVertexMeters; PREREG_ASSEMBLY_LAYOUT 3f): STP's first route
