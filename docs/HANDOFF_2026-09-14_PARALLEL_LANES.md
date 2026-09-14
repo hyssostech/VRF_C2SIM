@@ -62,6 +62,12 @@ Navigation mesh (PREREG_NAVDATA_G6 sec 5 = STOP; MESH_QUERY_VS_DISTANCE_2026-09-
   successes - a refusal, not an exhausted search. Frame correction: G1 ran on MojaveAO20; there
   never was a 3 x 3 km COA area.
 - The generator accepted a 41 x 54 km area: UG52's 20 x 20 km is a GUI default, not a generator limit.
+- G6/G7 CLOSED 2026-09-14 17:15Z: the refusal was the vendor script's hard-coded
+  useAbstractGraphs = false (ground-vehicle-move-to.lua:488), not an area-size or memory/budget
+  limit. The custom including SMS (C:\C2SIM\vrf-sms) planned the 10-seam, 4,989 m leg 8/8 with 0
+  refusals (G7b); gamewareMemorySize and gamewareQueryTimeBudget are NOT the lever (G8/G8b still
+  refused on the stock SMS). Record: docs/experiments/G7B_G8_RESULTS_2026-09-14.md (in progress);
+  OPEN: whether abstract-graph paths avoid the ridge faces (FINDING_EARLY_STOPS).
 
 Harness (docs/experiments/RUNNER_EXIT127_2026-09-14.md; RUNBOOK 0.5.14):
 - "runner exit: 127" does NOT mean "command not found". On this MSYS bash it is a high-bit Windows
@@ -95,6 +101,21 @@ Method lessons (each one cost a false claim or a night):
 - A LONE PLATFORM performer never enters ground-vehicle-move-to.lua (it runs the native move-along),
   so it cannot test the mesh planner - G7 attempt 2. Measured there too: the sim's marking width is
   >= 11 characters, so reporting item B3 is about the 14-character name, not a 10-char limit.
+
+**State at 2026-09-14 17:30Z:** main is at cd2106c (appNo ledger for the appData validation, G8,
+G7b and G8b runs). feat/integration sits at 26efe0c (tasking foundation V2/V3 merged, 10 suites
+green, native rebuilt in the worktree, gate G-B PASS) and feat/tasking-rulings at 5c67d41 plus
+its fix pass (cold-start review REVIEW_RULINGS_5c67d41_2026-09-14.md = FIX FIRST on M1-M5; fix
+pass running). The day's four probe runs (4-7) all tore down cleanly, the watchdog standing down
+each time. Owed: gate G-A - rebuild the native VrfBridge/VrfFacade and redeploy to the ten
+consumer copies, then re-pin the deployed build, once the rulings fix pass merges into
+feat/integration; the validation runs follow. Open with the user (Q1-Q4 of
+REVIEW_RULINGS_5c67d41_2026-09-14.md): whether a superseded task still completes at its authored
+end time, which clock a C2SIM Duration is measured on, whether a zero-geometry task may look
+identical to a performed one on the wire, and how a task with no Duration and no geometry should
+behave; supervisor defaults stand meanwhile (superseded -> TASKABRT, Duration on the SIM clock
+under Vrf:TaskClock, wire ambiguity accepted, DefaultHoldSeconds 60). The MAK licence is RENEWED
+to 2026-10-31 (RUNBOOK 0.5.15), superseding the 2026-09-15 lapse tripwire above.
 
 ## 2. Where each lane stands (source: docs/PLAN_PARALLEL_LANES_2026-09-14.md - the live plan)
 
