@@ -3,6 +3,7 @@
 # Attack/Defend/Seize task classes - every tactical task is a Lua scripted task, many shipped in EntityLevel; the init's
 # 35 tactical areas are already created in VR-Forces with the C2SIM uuid; the binding constraint is parameter supply
 # (9 of 42 COA-STP1 tasks carry no location; 42/42 self-target). Six rulings R1-R6 are the user's (sec 7).
+# RULINGS 2026-09-14: R1 STP export defect (fix upstream), R2 who-unit geometry, R3 target = objective, R4 end time = start + Duration; R5/R6 open - see sec 7 and DOCTRINE_FOR_TASKING_RULINGS_2026-09-14.md.
 
 # TASK VOCABULARY ASSESSMENT - STP verbs -> VR-Forces 5.2 tasks (2026-09-14, lane L8)
 
@@ -990,3 +991,60 @@ Cross-lane: V1 is L2's B1; V3 and V4 produce the objective overlay the operator 
 
 R1, R2 and R4 are also the natural additions to the five STP questions already drafted in
 docs\DRAFT_STP_QUESTIONS_2026-09-14.md (lane L2, item B10).
+
+---
+
+### 7.1 Rulings received 2026-09-14
+
+Doctrine research pass (docs/experiments/DOCTRINE_FOR_TASKING_RULINGS_2026-09-14.md,
+Opus executor, ~14:10Z) read FM 3-90 / ADP 3-90 / FM 1-02.1 and re-parsed the init:
+every one of the 409 init MapGraphic elements carries an APP6C-SIDC (409/409), and 16
+of them ARE FM 3-90 Appendix B tactical-mission-task symbols. Separately, the exported
+TaskActionCode disagrees with the drawn task SYMBOL in at least 4 places (three FOLLOW
+AND SUPPORT `GFTPAS`, one FOLLOW AND ASSUME `GFTPA`, one NEUTRALIZE `GFTPN` symbol
+exist in the init, but FOLSPT/FOLASS/NTRCOM appear in none of the 42 task codes) - an
+unexplained STP-side symptom, not resolved here. The user ruled on R1-R4 the same day;
+R5 and R6 remain open. Citations below are to that doctrine record unless noted.
+
+- **R1 RULED - STP export defect, not an interface problem.** The missing MapGraphicID
+  is not ours to fix. Verified: COA-STP1_Order.xml carries 0 MapGraphicID elements and
+  66 embedded GeodeticCoordinates; STP's C2SimXmlBuilder emits MapGraphicID only when
+  IncludeMapGraphicIdInTasks is set (C2SimBridgeAgentParams.cs:128; C2SimXmlBuilder.cs
+  ~383/460), which was OFF for this export; absent that flag, Location is the FIRST
+  tactical graphic linearised (a live `// TODO: multiple TGs` in the builder), and the
+  task.Objective emission branch is commented out entirely. Fix belongs on the STP side
+  (re-export with the flag on); the interface links task -> graphic by UUID, since the
+  init already creates every area under its own C2SIM UUID. V4's name/geometry
+  heuristic as originally written is WITHDRAWN; keep a reported fallback only for the
+  transition period before STP re-exports.
+
+- **R2 RULED - a task without geometry uses the geometry of the performing (who) unit.**
+  Execute in place and report the derivation; do not refuse and do not silently invent a
+  location. Zero-geometry tasks whose own statement names a graphic (T16 OBJ MONROE,
+  T34 OBJ MADISON, T21 PL GOLD obstacle belts, T10 PL BRONZE) are STP-side issues to
+  raise with the exporter, not interface heuristics to build around.
+
+- **R3 RULED - the target IS the objective (doctrinal); enemies may happen to be inside
+  it.** VR-Forces' own tactical tasks agree: company_seize, co_clear, company_breach,
+  plt_attack_by_fire and unit-attack-to-objective all take the objective graphic as
+  their parameter, never a named enemy entity. The interface's self-target-is-an-error
+  logic (VrfC2SimService.cs :1813-1815, :1820-1822) is the defect to remove, not the
+  order to fix.
+
+- **R4 RULED - completion is given by the END TIME = StartTime + Duration.** Verified
+  in the order itself: Duration is present on all 42 tasks (32 x PT1H20M, 10 x PT2H),
+  StartTime is a relative delay (0 on 41, 3h20m on T13), EndTime is absent. The
+  interface must parse Duration (dropped today by OrderParser) and close hold-type
+  tasks (SECURE/OCCUPY/DEFEND/RETAIN/BLOCK/FIX/SCREEN/GUARD) with TASKCMPLT at that sim
+  time; evaluable tasks (SEIZE/OCCUPY arrival, BREACH, MOVE) may still complete earlier
+  on their own evidence.
+
+- **R5 OPEN - EntityLevel first vs straight to AggregateTacticalLevel.** Explained to
+  the user 2026-09-14; doctrine does not settle it directly (an engineering/schedule
+  call).
+
+- **R6 OPEN - whether to change the type map so COA-STP1 companies are created as
+  COMPANY types.** Explained to the user 2026-09-14; doctrine note: the type should
+  follow the taskee's ECHELON, not a global switch (company-typed vendor tasks
+  implement company-level doctrine, and COA-STP1's taskees are a mix of battalions and
+  companies) - a shape constraint on the answer, not a decision.
