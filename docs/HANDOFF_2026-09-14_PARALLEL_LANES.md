@@ -107,8 +107,8 @@ m / 10-seam leg 8/8 with 0 refusals via the custom including SMS - THE FIX; G8b 
 again at gamewareQueryTimeBudget=50ms - time budget is NOT the lever; G7c (185945Z) VOID (cache
 cold again within the hour, nav area never registered, 31/31 gate-failed); G7c-gate (190751Z)
 CONFIRMED the custom SMS single-variable (0 gate failures, 8/8 long legs planned, 32/32 mesh
-plans). Owed: gate G-A (native rebuild + deploy to the ten consumer copies + re-pin) once the
-rulings pass-3 review merges into feat/integration and then main; N2b (abstract-graph SMS +
+plans). MERGED 22:05Z: rulings 1ffb4ee (pass-3 fixes, suite 136/0) -> integration -> main 0f4d09e (46 src
+files). Owed NEXT: gate G-A (native /t:Rebuild + ten consumers + re-pin; brief review3/BRIEF_gateGA.md) after N2c; N2b (abstract-graph SMS +
 slope-avoidance-factor 2.0, fixture _AG_S2, 1-35 lane) is next on L1, replacing the paused ridge
 test (N1 dropped 20:40Z: propagation-box-extent is a dead parameter for vehicles)
 (NAVDOCS_ABSTRACT_GRAPHS_AND_SLOPE_2026-09-14.md). The user's rulings are ALL IN: task-vocabulary
