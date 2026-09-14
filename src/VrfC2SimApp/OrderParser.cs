@@ -173,12 +173,20 @@ public static class OrderParser
                                          .Select(s => s.Trim()).ToArray();
 
     /// <summary>
-    /// Faithful port of C2SIMxmlHandler::findTotalIsoMs (C2SIMxmlHandler.cpp:245).
+    /// Port of C2SIMxmlHandler::findTotalIsoMs (C2SIMxmlHandler.cpp:245).
     /// Decodes "P00Y00M00DT00H00M00S" to milliseconds; returns -1 if the format is
     /// invalid (every P/Y/M/DT/H/M/S designator must be present).
-    /// PARITY QUIRK reproduced, NOT fixed: the month term uses 30*60*60 seconds (30
-    /// "hours", not 30 days) exactly as the C++ does. Behavior-neutral for the golden
-    /// trace (all durations are zero); do not correct here (parity-first, PORT.md sec 5).
+    ///
+    /// THE MONTH TERM IS CORRECTED, not reproduced (m4 of the cold-start review of 5c67d41).
+    /// The C++ multiplies months by 30*60*60 = 108,000 s - thirty HOURS - and the port carried
+    /// that as a parity quirk on the recorded grounds that it was "behavior-neutral for the
+    /// golden trace (all durations are zero)". That reasoning expired with R4: this function's
+    /// output now DECIDES when a task completes and when its successors dispatch, so
+    /// P00Y01M00DT00H00M00S would have ended a task after 30 hours instead of 30 days. The
+    /// golden trace is still unaffected - every Y/M/D term in every order on disk is zero,
+    /// COA-STP1 included - so the correction is behaviour-neutral where parity was ever
+    /// measured, and correct where it now matters. Thirty days is the same convention the day
+    /// and year terms already use (86,400 and 365*86,400: nominal, not calendar).
     /// </summary>
     public static long FindTotalIsoMs(string duration)
     {
@@ -192,7 +200,8 @@ public static class OrderParser
 
             remain = remain.Substring(yPos + 1);
             int moPos = remain.IndexOf('M'); if (moPos < 0) return -1;
-            result += 108000L * long.Parse(remain.Substring(0, moPos));                // 30*60*60 (C++ quirk)
+            result += 2592000L * long.Parse(remain.Substring(0, moPos));               // 30*24*60*60 (m4: the
+                                                                                       // C++ used 30*60*60)
 
             remain = remain.Substring(moPos + 1);
             int dtPos = remain.IndexOf("DT", StringComparison.Ordinal); if (dtPos < 0) return -1;

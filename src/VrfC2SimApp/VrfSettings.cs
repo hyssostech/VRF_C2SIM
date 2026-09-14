@@ -486,6 +486,31 @@ public class VrfSettings
     // a fall back to the wall clock mid-run does not restart anybody's wait.
     public string TaskClock { get; set; } = "sim";              // "sim" (default) | "wall"
 
+    // WHAT A SUPERSEDED TASK REPORTS (m1 of the cold-start review of 5c67d41; supervisor ruling
+    // 2026-09-14, Q1 default pending the user's - the user may flip it).
+    // VR-Forces runs ONE task per unit: dispatching a new one REPLACES the running one, and the
+    // interface's own log already says "the old task will not complete". It did not act on that -
+    // the old task's R4 timer stayed armed and duly reported TASKCMPLT at its authored end time,
+    // so STP saw TASKSTRT(old), TASKSTRT(new), TASKCMPLT(old), and the old task's successors then
+    // dispatched onto a unit doing something else. The interface contradicted itself on the wire.
+    //   "TASKABRT"  (DEFAULT) cancel the superseded task's end time and report TASKABRT AT THE
+    //               SUPERSEDE POINT. The taskee is demonstrably not performing it.
+    //   "TASKCMPLT" leave the timer armed: the end time is the ORDER'S statement about the task
+    //               and it ends when the order says it ends, whatever the simulator did. This is
+    //               the pre-fix behaviour, kept selectable because R4 read literally supports it.
+    // NOT REACHABLE on COA-STP1 under the default PredecessorTimeoutPolicy=skip (measured: 0
+    // taskees with more than one ungated task - every taskee is a serial chain); reachable with
+    // "force" or "whenIdle", and on any order with concurrent tasks per taskee.
+    public string SupersededTaskCode { get; set; } = "TASKABRT";
+
+    // A TASK WITH NO DURATION AND NO GEOMETRY (Q4, supervisor default 2026-09-14). R2 dispatches
+    // it in place; with no Duration it arms no end time, so it never completes and its successors
+    // wait out the predecessor gate before being skipped - a chain that dies quietly on a task the
+    // interface did execute. Such a task is given this many seconds of hold instead, with a
+    // WARNING naming the invention, so the chain proceeds. 0 disables it (back to no end time).
+    // None of COA-STP1's 42 tasks needs it: all 42 carry a Duration.
+    public int DefaultHoldSeconds { get; set; } = 60;
+
     // P0.3: an ATTACK/BREACH engage is issued when its approach move COMPLETES (previously
     // it was issued in the same tick as the move, which - VRF running one task at a time -
     // would REPLACE the move the moment both are real). If the move never completes, issue

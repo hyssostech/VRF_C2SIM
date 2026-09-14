@@ -116,6 +116,19 @@ public static class TaskDispatchPolicy
     /// <param name="configuredSeconds">Vrf:TaskPredecessorTimeoutSeconds, the floor.</param>
     /// <param name="predecessorEndSeconds">The predecessor's Duration AFTER Vrf:DurationScale, in
     /// seconds; 0 or non-finite when it has no armed end time (then the floor stands alone).</param>
+    /// <summary>
+    /// R4: apply Vrf:DurationScale to an authored order time (milliseconds in, milliseconds out),
+    /// so the Duration that ENDS a task and the StartTime that HOLDS one back can never be
+    /// compressed differently. PURE, and it assumes a VALIDATED scale - the service rejects a
+    /// non-finite or non-positive Vrf:DurationScale once at start-up (m8) rather than letting one
+    /// mean "no end time" on one half of the order's clock and "dispatch now" on the other.
+    /// A non-positive time is not a time: 0 in, 0 out.
+    /// </summary>
+    public static long ScaleOrderMs(long ms, double scale)
+        => ms <= 0 ? 0L
+         : !double.IsFinite(scale) || scale <= 0.0 ? ms
+         : (long)Math.Round(ms * scale);
+
     /// <param name="marginSeconds">Vrf:TaskPredecessorEndMarginSeconds - the slack that covers the
     /// timed walk's cadence and the ordering above. Negative is treated as 0.</param>
     public static double PredecessorTimeoutSeconds(double configuredSeconds, double predecessorEndSeconds,

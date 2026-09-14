@@ -482,6 +482,22 @@ public sealed class VrfC2SimService : BackgroundService
                                     : "");
         }
 
+        // 0d-i. Vrf:DurationScale (m8 of the cold-start review of 5c67d41). ONE scale, TWO
+        // opposite readings: a 0, negative or NaN scale collapsed the Duration to "no end time
+        // armed" while collapsing the start delay to "dispatch now", so a run at scale 0
+        // dispatched all 42 tasks at once and completed none - and said so only as a per-task
+        // warning on one half. It is a configuration error, so it is caught once, loudly, here.
+        _durationScale = _vrf.DurationScale;
+        if (!double.IsFinite(_durationScale) || _durationScale <= 0.0)
+        {
+            _log.LogError("Vrf:DurationScale={Bad} is not a usable scale (it must be finite and greater than " +
+                          "zero). A scale of zero or less is not an instruction to complete every task " +
+                          "immediately - it collapses the Duration to NO end time while collapsing the start " +
+                          "delay to dispatch-now, which dispatches the whole order at once and completes none " +
+                          "of it. USING 1.0 (the order as written) for this run.", _vrf.DurationScale);
+            _durationScale = 1.0;
+        }
+
         // 0d. TASK-CLOCK PRE-FLIGHT (R4/M2). THREE THINGS RIDE ON ONE CLOCK - the Duration that
         // ends a task, the StartTime delay that holds one back, and the STREND predecessor gate -
         // and which one that is decides whether a 42-task order runs or dies at its first gate.
@@ -504,7 +520,7 @@ public sealed class VrfC2SimService : BackgroundService
                                     ? " - falling back to WALL seconds whenever DtVrfRemoteController::simTime() " +
                                       "cannot be read or has gone stale, without restarting any wait"
                                     : "",
-                                _vrf.DurationScale, _vrf.TaskPredecessorTimeoutSeconds,
+                                _durationScale, _vrf.TaskPredecessorTimeoutSeconds,
                                 _vrf.TaskPredecessorEndMarginSeconds);
         }
 
@@ -2228,9 +2244,14 @@ public sealed class VrfC2SimService : BackgroundService
 
     /// <summary>R4: one place applies Vrf:DurationScale to an authored order time, so the Duration
     /// that ENDS a task and the StartTime that HOLDS one back can never be compressed differently.
-    /// A negative scale is a configuration error and is clamped to 0 (dispatch now / end now).</summary>
-    private long ScaleOrderMs(long ms)
-        => ms <= 0 ? 0 : (long)Math.Round(ms * Math.Max(0.0, _vrf.DurationScale));
+    /// The scale itself is VALIDATED ONCE at start-up (m8) - a non-finite or non-positive value is
+    /// rejected there and replaced with 1.0 - so this is a pure multiply, with no second opinion
+    /// about what a bad scale means.</summary>
+    private long ScaleOrderMs(long ms) => TaskDispatchPolicy.ScaleOrderMs(ms, _durationScale);
+
+    // The VALIDATED Vrf:DurationScale (m8). Resolved once in ExecuteAsync; never read from _vrf
+    // again, so the two halves of the order's clock cannot be compressed by different numbers.
+    private double _durationScale = 1.0;
 
     private async Task RunTaskAsync(OrderTask task, CreatedUnit unit)
     {
@@ -2278,7 +2299,7 @@ public sealed class VrfC2SimService : BackgroundService
                 _log.LogInformation("Task '{Task}': start delay {S:F0} s (order says {O:F0} s; " +
                                     "Vrf:DurationScale={Scale}) - it will not dispatch before then.",
                                     task.TaskName, Math.Max(scaledStartMs, scaledRelativeMs) / 1000.0,
-                                    Math.Max(startMs, task.RelativeDelayMs) / 1000.0, _vrf.DurationScale);
+                                    Math.Max(startMs, task.RelativeDelayMs) / 1000.0, _durationScale);
             var gate = await _sequencer.WaitForStartAsync(task.StartAfterTaskUuid, scaledStartMs,
                                                           scaledRelativeMs, timeoutSeconds,
                                                           _taskClockAxis, _stoppingToken);
@@ -2446,9 +2467,12 @@ public sealed class VrfC2SimService : BackgroundService
         // entity (a C2SIM uuid) to a VRF target for a DtFireAtTargetTask. Resolution uses the
         // init-created maps (_unitByC2SimUuid -> _names) - the two-dict chain that
         // dissolves the plan's uuid-resolution blocker (SEMANTIC_MAPPING.md sec 2b). The target
-        // must be an entity our clientId created at init; an out-of-scope OPFOR target degrades
-        // to advance-only + a warn. The fire itself is issued AFTER the move below (advance the
-        // axis, then engage); the move/fire task interaction in VRF is the live question.
+        // must be an entity our clientId created at init. R3 (user ruling 2026-09-14) settled the
+        // SELF-TARGET case - STP names the taskee as the affected entity on all 42 COA-STP1 tasks,
+        // and that is the objective, not an error - while an AffectedEntity we did not create is
+        // still a scope/data gap and still warns (m3). Either way the task routes to its own
+        // geometry and is never refused. The fire itself is issued AFTER the move below (advance
+        // the axis, then engage); the move/fire task interaction in VRF is the live question.
         string attackTargetVrf = null;
         if (verb.Intent == TaskIntent.Attack)
             attackTargetVrf = ResolveAffectedTarget(task, vrfUuid, "ATTACK", "fire");
@@ -2497,9 +2521,19 @@ public sealed class VrfC2SimService : BackgroundService
         // that is the golden-aggregate-move blocker to resolve before the live parity run.
         if (!_bridge.TryGetEntityGeodetic(vrfUuid, out var live))
         {
-            _log.LogWarning("ABANDONING TASK '{Task}': could not read live location for {Name} ({Vrf}).",
-                            task.TaskName, unit.Name, vrfUuid);
+            _log.LogError("NO PERFORMING UNIT - CAN'T EXECUTE TASK '{Task}': could not read a live location for " +
+                          "{Name} ({Vrf}).", task.TaskName, unit.Name, vrfUuid);
             _sequencer.NotifyAbandoned(task.TaskUuid);
+            // m6 (cold-start review of 5c67d41): this is the ONE real "no performing unit" case
+            // left - the unit exists in our maps but the simulation will not give us its position,
+            // so nothing can be issued for it - and it used to abandon the chain in SILENCE, which
+            // is exactly what B1 was built to end. The refusal that USED to live further down, at
+            // the zero-geometry decision, was unreachable: ForZeroGeometry was called with the
+            // literal performerResolved:true, because every path that could not resolve the
+            // performer has already returned by then. This one.
+            PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKABRT,
+                           $"REFUSED at dispatch: task '{task.TaskName}' has no performing unit to execute it - " +
+                           $"{unit.Name}'s live location could not be read from the simulation");
             return;
         }
 
@@ -2558,8 +2592,15 @@ public sealed class VrfC2SimService : BackgroundService
                 // NO destination is recorded (MarkDispatched dest: null), which is what keeps the
                 // progress watchdog off a unit that is CORRECTLY standing still.
                 MarkDispatched(task, unit, "hold-in-place");
-                _arrivalReported.TryRemove(unit.Name, out _);
-                ClearStallState(unit.Name);
+                // m2 (cold-start review of 5c67d41): NOTHING IS CLEARED HERE. The two lines that
+                // used to stand here cleared the arrival-evidence swallow and the progress
+                // watchdog's window "because the new VRF task is issued" - and this is the one
+                // dispatch kind that issues NO vendor task at all, so the OLD task keeps running
+                // permanently rather than transiently. Clearing here un-swallowed the old task's
+                // late completion and re-armed a progress window on a unit that has no destination.
+                // NOT DONE, and recorded as a live question rather than invented here: issuing a
+                // vendor HOLD so the in-place claim becomes true in the simulation. That changes
+                // what the units DO and needs a run, not a review.
                 _log.LogInformation("Task '{Task}' carries NO geometry: executing IN PLACE at {Name}'s own " +
                                     "position ({Lat:F5},{Lon:F5}) - R2 (user ruling 2026-09-14). No move is " +
                                     "issued; the task ends at its end time and its successors follow.",
@@ -2570,11 +2611,20 @@ public sealed class VrfC2SimService : BackgroundService
                         IsoNow(), NewReportId()), ReportKind.Observation);
                 return;
             }
-            // Refuse - and by construction (see above) only when there is no performing unit at all.
-            _log.LogError("NO PERFORMING UNIT - CAN'T EXECUTE TASK '{Task}'.", task.TaskName);
+            // ZeroGeometryAction.Refuse IS NOT REACHABLE HERE and no branch pretends otherwise
+            // (m6). ForZeroGeometry is called with the literal performerResolved:true because every
+            // path that could not resolve the performer has already returned - the last of them is
+            // the TryGetEntityGeodetic failure above, which is where the refusal and its TASKABRT
+            // now live. The policy still HAS the Refuse outcome, and --rulings-selftest still
+            // checks it, because it is the rule; this call site simply cannot produce it.
+            // It is kept as a GUARD, not as policy, and it is never silent: if a future change
+            // ever makes the performer predicate real, this reports rather than abandoning quietly.
+            // It does NOT throw - this runs on the tick thread, and a refusal is not worth a
+            // process-level event.
+            _log.LogError("UNREACHABLE zero-geometry action {Action} for task '{Task}' - the performer is " +
+                          "resolved by construction at this point. Treating it as a refusal.",
+                          zeroGeometry, task.TaskName);
             _sequencer.NotifyAbandoned(task.TaskUuid);
-            // B1: the interface REFUSES this task - it will never be executed, so say so instead of
-            // leaving the C2SIM side waiting for a status that can never come (supervisor 2026-09-14).
             PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKABRT,
                            $"REFUSED at dispatch: task '{task.TaskName}' has no performing unit to execute it");
             return;
@@ -2873,18 +2923,33 @@ public sealed class VrfC2SimService : BackgroundService
         var resolution = TaskDispatchPolicy.ForTarget(has, resolved, isSelf);
         if (resolution == TargetResolution.DistinctEntity) return tgt;
 
-        string why = resolution switch
+        // m3 (cold-start review of 5c67d41): R3 IS ABOUT SELF-TARGETING, and only SelfIsObjective
+        // gets R3's wording and R3's Information level. An AffectedEntity this interface did not
+        // create is a SCOPE OR DATA GAP - an out-of-scope OPFOR entity, or an init/order mismatch -
+        // and saying "the target IS the objective" about it asserts the doctrinal ruling for a case
+        // the ruling never covered. The OUTCOME is the same either way (route to the objective,
+        // never refuse: TaskDispatchPolicy.FallsBackToGeometry), because there is nothing else the
+        // interface could correctly do; what differs is what the operator is told and how loudly.
+        if (resolution == TargetResolution.SelfIsObjective)
         {
-            TargetResolution.SelfIsObjective =>
-                "the order names the PERFORMING UNIT as the affected entity (STP does this on every task)",
-            TargetResolution.Unresolved =>
-                $"the affected entity '{task.AffectedEntity}' is not an object this interface created",
-            _ => "the order names no affected entity",
-        };
-        _log.LogInformation("{Intent} task '{Task}': {Why}, so THE TARGET IS THE OBJECTIVE (R3, user ruling " +
-                            "2026-09-14) - the task's geometry is what it is about and the unit is routed " +
-                            "there. No {Engagement} against a named entity is issued.",
-                            intentLabel, task.TaskName, why, engagement);
+            _log.LogInformation("{Intent} task '{Task}': the order names the PERFORMING UNIT as the affected " +
+                                "entity (STP does this on every task), so THE TARGET IS THE OBJECTIVE (R3, user " +
+                                "ruling 2026-09-14) - the task's geometry is what it is about and the unit is " +
+                                "routed there. No {Engagement} against a named entity is issued.",
+                                intentLabel, task.TaskName, engagement);
+            return null;
+        }
+        if (resolution == TargetResolution.Unresolved)
+            _log.LogWarning("{Intent} task '{Task}': the affected entity '{Entity}' is NOT an object this " +
+                            "interface created - it is out of this clientId's scope, or the order and the " +
+                            "initialization disagree. The task is dispatched to its own geometry and NO " +
+                            "{Engagement} against a named entity is issued, so the engagement the order asked " +
+                            "for does not happen.",
+                            intentLabel, task.TaskName, task.AffectedEntity, engagement);
+        else
+            _log.LogWarning("{Intent} task '{Task}': the order names NO affected entity, so there is nothing to " +
+                            "{Engagement} at. The task is dispatched to its own geometry.",
+                            intentLabel, task.TaskName, engagement);
         return null;
     }
 
@@ -2897,12 +2962,29 @@ public sealed class VrfC2SimService : BackgroundService
         // be swallowed.
         var superseded = _inFlight.RecordDispatch(unit.Name,
             new InFlightTracker.InFlight(task.TaskUuid, task.TaskName, kind, DateTime.UtcNow,
-                                         dest?.LatDeg, dest?.LonDeg));
+                                         dest?.LatDeg, dest?.LonDeg, task.TaskeeUuid ?? ""));
         if (superseded is InFlightTracker.InFlight old && old.TaskUuid != task.TaskUuid)
         {
             _log.LogWarning("Unit {Name}: task '{New}' SUPERSEDES in-flight task '{Old}' ({OldUuid}) - VRF " +
                             "replaces the running task; the old task will not complete.",
                             unit.Name, task.TaskName, old.TaskName, old.TaskUuid);
+            // m1 (cold-start review of 5c67d41; supervisor Q1 default 2026-09-14). THE REPORT
+            // STREAM MUST NOT CONTRADICT THE LOG. The line just above says the old task will not
+            // complete - and its R4 end time was left armed, so it duly reported TASKCMPLT at its
+            // authored end time and released ITS successors onto a unit doing something else.
+            // Vrf:SupersededTaskCode decides which reading wins; the default is TASKABRT AT THE
+            // SUPERSEDE POINT, because the taskee is demonstrably not performing it. PushTaskStatus
+            // cancels the armed end time for any terminal code, so one call does both.
+            string supersededCode = (_vrf.SupersededTaskCode ?? "TASKABRT").Trim();
+            if (string.Equals(supersededCode, "TASKCMPLT", StringComparison.OrdinalIgnoreCase))
+                _log.LogInformation("Unit {Name}: task '{Old}' keeps its armed end time " +
+                                    "(Vrf:SupersededTaskCode=TASKCMPLT) - it will report TASKCMPLT when the " +
+                                    "order says it ends, even though VR-Forces is no longer running it.",
+                                    unit.Name, old.TaskName);
+            else
+                PushTaskStatus(old.TaskeeUuid, old.TaskUuid, S.TaskStatusCodeType.TASKABRT,
+                               $"SUPERSEDED: task '{task.TaskName}' replaced it on {unit.Name}; VR-Forces runs " +
+                               "one task at a time, so it is not being performed");
             if (_pendingEngage.TryGetValue(unit.Name, out var eng) && eng.MoveTaskUuid == old.TaskUuid
                 && _pendingEngage.TryRemove(new KeyValuePair<string, PendingEngage>(unit.Name, eng)))
                 _log.LogWarning("Unit {Name}: cancelled the pending {Kind} tied to superseded task '{Old}'.",
@@ -2942,20 +3024,39 @@ public sealed class VrfC2SimService : BackgroundService
         if (_vrf.TimedCompletion)
         {
             double seconds = ScaleOrderMs(task.DurationMs) / 1000.0;
-            if (task.DurationMs <= 0)
+            // Q4 (supervisor default 2026-09-14). A TASK WITH NO DURATION AND NO GEOMETRY would
+            // otherwise never end: R2 dispatches it in place, no vendor task is issued, so there is
+            // no arrival and no vendor completion either - and its successors wait out the
+            // predecessor gate and are skipped. That is a chain dying quietly on a task the
+            // interface DID execute. Vrf:DefaultHoldSeconds gives it an end time so the chain
+            // proceeds, and the line names the invention: this number is not in the order.
+            // Only the geometry-less kind gets it - a MOVE with no Duration still has arrival
+            // evidence, and inventing an end time for it would be manufacturing a decision.
+            bool inPlaceWithoutDuration = task.DurationMs <= 0
+                                          && string.Equals(kind, "hold-in-place", StringComparison.Ordinal);
+            if (inPlaceWithoutDuration && _vrf.DefaultHoldSeconds > 0)
+            {
+                seconds = _vrf.DefaultHoldSeconds;
+                _log.LogWarning("Task '{Task}': the order gives NO Duration and the task carries NO geometry, so " +
+                                "nothing in the order or the simulation would ever end it. Holding for " +
+                                "Vrf:DefaultHoldSeconds={S} s so its STREND successors are not skipped - THIS " +
+                                "NUMBER IS NOT IN THE ORDER (Q4, supervisor default 2026-09-14).",
+                                task.TaskName, _vrf.DefaultHoldSeconds);
+            }
+            else if (task.DurationMs <= 0)
                 _log.LogWarning("Task '{Task}': the order gives NO Duration, so this task has no end time - " +
                                 "it completes only on its own evidence (arrival, or a VR-Forces completion). " +
                                 "A hold-type task without one never completes and its successors will be " +
                                 "skipped at the predecessor timeout.", task.TaskName);
-            else if (seconds <= 0.0)
+            if (task.DurationMs > 0 && seconds <= 0.0)
                 _log.LogWarning("Task '{Task}': Vrf:DurationScale={Scale} collapses its {D:F0} s Duration to " +
-                                "zero - NO end time is armed (a scale of 0 is a configuration error, not an " +
-                                "instruction to complete every task immediately).",
-                                task.TaskName, _vrf.DurationScale, task.DurationMs / 1000.0);
-            else if (_timed.Register(task.TaskUuid, task.TaskeeUuid, task.TaskName, unit.Name, seconds))
+                                "zero - NO end time is armed.",
+                                task.TaskName, _durationScale, task.DurationMs / 1000.0);
+            else if (seconds > 0.0
+                     && _timed.Register(task.TaskUuid, task.TaskeeUuid, task.TaskName, unit.Name, seconds))
                 _log.LogInformation("Task '{Task}': end time armed at {S:F0} s from dispatch " +
                                     "(C2SIM Duration {D:F0} s x Vrf:DurationScale {Scale}) - R4.",
-                                    task.TaskName, seconds, task.DurationMs / 1000.0, _vrf.DurationScale);
+                                    task.TaskName, seconds, task.DurationMs / 1000.0, _durationScale);
         }
     }
 
@@ -3591,7 +3692,7 @@ public sealed class VrfC2SimService : BackgroundService
                                 usingSim ? "" : (preferSim
                                     ? " - Vrf:TaskClock=sim, but the sim clock could not be read"
                                     : " (Vrf:TaskClock=wall)"),
-                                _vrf.DurationScale);
+                                _durationScale);
         }
 
         foreach (var p in _timed.Advance(clockNow, usingSim: true))
@@ -3600,7 +3701,19 @@ public sealed class VrfC2SimService : BackgroundService
                                 "{Served:F0} s of a {Dur:F0} s Duration served on the {Clock} clock " +
                                 "(C2SIM Duration x Vrf:DurationScale {Scale}). R4: completion is given by " +
                                 "the end time.", p.TaskName, p.UnitName, p.Elapsed, p.DurationSeconds,
-                                usingSim ? "simulation" : "wall", _vrf.DurationScale);
+                                usingSim ? "simulation" : "wall", _durationScale);
+            // m9 (cold-start review of 5c67d41): AN IN-PLACE TASK MUST RELEASE ITS UNIT. Only the
+            // "hold-in-place" kind - the one that issues no vendor task, so no vendor completion
+            // will ever pop the record - and only while it is STILL the unit's current task, so a
+            // unit already re-tasked keeps its live record. Without this the unit stayed
+            // _inFlight.IsBusy forever and PredecessorTimeoutPolicy=whenIdle would never dispatch
+            // on it again. Every other kind is left alone: the vendor completion still owns it.
+            if (_inFlight.TryGetCurrent(p.UnitName, out var cur)
+                && string.Equals(cur.ExpectedKind, "hold-in-place", StringComparison.Ordinal)
+                && _inFlight.TryCompleteIfCurrent(p.UnitName, p.TaskUuid, out _))
+                _log.LogInformation("TIMED COMPLETION: {Unit} is idle again - its in-place task '{Task}' " +
+                                    "issued no VR-Forces task, so nothing else would have popped it.",
+                                    p.UnitName, p.TaskName);
             PushTaskStatus(p.TaskeeUuid, p.TaskUuid, S.TaskStatusCodeType.TASKCMPLT,
                            $"task '{p.TaskName}' reached the end time given by its C2SIM Duration " +
                            $"({p.DurationSeconds:F0} s after dispatch)");
@@ -4538,20 +4651,22 @@ public sealed class VrfC2SimService : BackgroundService
     /// </summary>
     private void PushTaskStatus(string taskeeUuid, string taskUuid, S.TaskStatusCodeType code, string why)
     {
+        // R4: any REAL end cancels the task's timed end, BEFORE anything else - a completion that
+        // cannot be SENT has still happened, and a completion that is suppressed as a duplicate has
+        // still happened; leaving the timer armed behind either would fire a second, later
+        // TASKCMPLT for a task that is already over. (m5 of the cold-start review of 5c67d41: this
+        // used to sit BELOW the taskee guard, which inverted its own argument - a status with no
+        // taskee uuid left the timer running.) The timed completion itself arrives here with its
+        // entry already removed; Cancel then returns false and says nothing.
+        if (TimedCompletionPolicy.CancelsTimer(code) && _timed.Cancel(taskUuid))
+            _log.LogInformation("TIMED COMPLETION: the end time armed for task {Task} is cancelled - " +
+                                "{Code} reached the reporting point first ({Why}).", taskUuid, code, why);
         if (string.IsNullOrEmpty(taskeeUuid))
         {
             _log.LogWarning("TASK STATUS {Code} for task {Task} NOT SENT - no C2SIM taskee uuid ({Why}).",
                             code, string.IsNullOrEmpty(taskUuid) ? "(none)" : taskUuid, why);
             return;
         }
-        // R4: any REAL end cancels the task's timed end, BEFORE the emission rules are consulted -
-        // a completion that is suppressed as a duplicate has still happened, and leaving the timer
-        // armed behind it would fire a second, later TASKCMPLT for a task that is already over.
-        // (The timed completion itself arrives here with its entry already removed; Cancel then
-        // returns false and says nothing.)
-        if (TimedCompletionPolicy.CancelsTimer(code) && _timed.Cancel(taskUuid))
-            _log.LogInformation("TIMED COMPLETION: the end time armed for task {Task} is cancelled - " +
-                                "{Code} reached the reporting point first ({Why}).", taskUuid, code, why);
 
         bool allowed = _taskStatus.ShouldEmit(code, taskUuid);
         if (!allowed)

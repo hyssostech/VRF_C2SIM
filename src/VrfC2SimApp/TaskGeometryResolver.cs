@@ -82,6 +82,24 @@ public static class TaskGeometryResolver
     /// are still running on the STP-801 export gap.</summary>
     public const string Stp801 = "STP-801";
 
+    /// <summary>m7: how far the embedded Location may sit from the resolved MapGraphic geometry
+    /// before the difference is a WARNING rather than a note. 1 km is well inside the scale of
+    /// COA-STP1's areas (kilometres across, vertex-mean centroids 149-1,130 m from the true area
+    /// centroid) and well outside authoring noise.</summary>
+    public const double EmbeddedDisagreementMeters = 1000.0;
+
+    /// <summary>Great-circle-ish metres between two authored points. Equirectangular, which is
+    /// what a separation CHECK needs - it is compared against a 1 km threshold, not reported as a
+    /// survey distance.</summary>
+    private static double DistMeters((double Lat, double Lon, double? Elev) a,
+                                     (double Lat, double Lon, double? Elev) b)
+    {
+        const double MetersPerDegLat = 111320.0;
+        double dLat = (a.Lat - b.Lat) * MetersPerDegLat;
+        double dLon = (a.Lon - b.Lon) * MetersPerDegLat * Math.Cos(a.Lat * Math.PI / 180.0);
+        return Math.Sqrt(dLat * dLat + dLon * dLon);
+    }
+
     /// <summary>
     /// The geometry this task will be dispatched on. PRECEDENCE: MapGraphicID(s) that resolve to
     /// objects created at init, else the task's embedded Location, else nothing. PURE - it reads
@@ -122,6 +140,22 @@ public static class TaskGeometryResolver
             foreach (var id in unmatched)
                 warn.Add($"MapGraphicID {id} matched NO graphic in the initialization - ignored (the other " +
                          "graphic(s) on this task resolved, so the task still has geometry)");
+            // m7 (cold-start review of 5c67d41): the embedded Location is DISCARDED here, and the
+            // user's R1 note asked for "precedence MapGraphicID > embedded, consistency check when
+            // both". Say what was dropped and how far apart the two answers were: a few metres is
+            // the same objective expressed twice, kilometres is an order that disagrees with its
+            // own initialization, and the log is the only place that difference can surface.
+            var dropped = task?.Points;
+            if (dropped is { Count: > 0 })
+            {
+                double sep = DistMeters(points[0], dropped[0]);
+                log.Add($"{dropped.Count} embedded Location point(s) ignored (MapGraphicID wins) - the first " +
+                        $"embedded point is {sep:F0} m from the first resolved one");
+                if (sep > EmbeddedDisagreementMeters)
+                    warn.Add($"the MapGraphicID geometry and the embedded Location on this task are {sep:F0} m " +
+                             $"apart (more than {EmbeddedDisagreementMeters:F0} m): the order and the " +
+                             "initialization disagree about where this task is, and the MapGraphicID was used");
+            }
             return new Resolution(points, GeometrySource.MapGraphic, log, warn);
         }
 
