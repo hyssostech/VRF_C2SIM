@@ -1095,6 +1095,131 @@ public static class RulingsSelfTest
                   "(viii) ... and the two timeouts can never print the same sentence");
         }
 
+        // (f9) D1 (pass-3 review of `8db033e`): A DISPATCH THAT DIES ON THE TICK THREAD MUST STILL
+        //      END ITS TASK. The bridge work is enqueued onto the VR-Forces tick thread, and the
+        //      drain's only handler logs and returns - so a throw there told the sequencer nothing
+        //      and STP nothing, and since A1 the successors then sat on the 86,400 s chain
+        //      backstop rather than the 4,860 s window. `b76c9c7` gave the FIRST pass the proper
+        //      ending; the re-entry that really dispatches a ground move in the DEFAULT
+        //      TerrainProfile mode did not have it.
+        //
+        //      WHAT IS DRIVEN HERE: the production DeferredDispatch.Run, the production
+        //      TaskSequencer and the production TaskStatusPolicy. The one stand-in is
+        //      PushTaskStatus, which needs a C2SIM server - so `Abort` below is its ONE deciding
+        //      line (consult TaskStatusPolicy.ShouldEmit, emit only when it says yes) and nothing
+        //      else. The service glue that assembles them cannot be driven offline; the runner it
+        //      calls was extracted so that it can be.
+        {
+            const string pred = "PRED-D1";
+            Action throwing = () => throw new InvalidOperationException("the bridge call failed");
+
+            // (a) THE THROW HAPPENS BEFORE MarkDispatched - the ordinary case, and the one where
+            //     STP has been told nothing at all about this task.
+            {
+                var clock = new StepClock();
+                var seq = new TaskSequencer();
+                var status = new TaskStatusPolicy();
+                var aborts = new List<string>();
+                int starts = 0;
+                void Emit(S.TaskStatusCodeType code, string uuid, string why)
+                {
+                    if (!status.ShouldEmit(code, uuid)) return;
+                    if (code == S.TaskStatusCodeType.TASKABRT) aborts.Add(why);
+                    else if (code == S.TaskStatusCodeType.TASKSTRT) starts++;
+                }
+
+                // The successor's gate, opened at t = 0 with NOTHING dispatched - HandleOrder's own
+                // topology, and the phase-1 window A1 gives an in-order predecessor.
+                double window = TaskDispatchPolicy.PredecessorTimeoutSeconds(configured, 4800.0, margin);
+                double phase1 = TaskDispatchPolicy.PredecessorDispatchTimeoutSeconds(true, window, backstop);
+                var gate = seq.WaitForStartAsync(pred, 0, 0, window, clock.AsTaskClock(),
+                                                 CancellationToken.None, phase1);
+
+                // FAIL-FIRST (D1): the PRE-FIX ending. The bare lambda's only handler was the tick
+                // drain's catch, which logs and tells NOBODY - the same runner with no sequencer and
+                // no report action is exactly that.
+                var preFix = DeferredDispatch.Run(throwing, pred, "T_D1", DeferredDispatch.TerrainContinuation,
+                                                  sequencer: null, reportAbort: null, logError: _ => { });
+                Thread.Sleep(50);
+                Check(ref failures,
+                      preFix is InvalidOperationException && aborts.Count == 0 && !gate.IsCompleted,
+                      $"FAIL-FIRST (D1): with the pre-fix ending - the tick drain logs the throw and tells " +
+                      $"nobody - the task reports NO TASKABRT (got {aborts.Count}) and its successor is STILL " +
+                      $"at the gate with {phase1:F0} s of backstop left to wait");
+
+                var thrown = DeferredDispatch.Run(throwing, pred, "T_D1", DeferredDispatch.TerrainContinuation,
+                                                  seq, why => Emit(S.TaskStatusCodeType.TASKABRT, pred, why),
+                                                  logError: _ => { });
+                bool done = gate.Wait(TimeSpan.FromSeconds(5));
+                Check(ref failures,
+                      thrown is InvalidOperationException && aborts.Count == 1 && starts == 0,
+                      $"(ix) D1: a continuation that THROWS reports exactly ONE TASKABRT (got {aborts.Count}) " +
+                      $"and NO TASKSTRT (got {starts}) - a task that never started must not report started");
+                Check(ref failures,
+                      done && gate.Result == GateResult.PredecessorAbandoned && clock.Now == 0.0,
+                      $"(ix) ... and its successor fails FAST - PredecessorAbandoned at 0 s of clock, not the " +
+                      $"{phase1:F0} s backstop (got {(done ? gate.Result.ToString() : "still waiting")} at " +
+                      $"{clock.Now:F0} s)");
+                Check(ref failures,
+                      aborts.Count == 1 && aborts[0].Contains("InvalidOperationException")
+                      && aborts[0].Contains(DeferredDispatch.TerrainContinuation),
+                      $"(ix) ... and the one TASKABRT names the exception TYPE and WHERE it died " +
+                      $"(got \"{(aborts.Count == 1 ? aborts[0] : "-")}\")");
+
+                // The reply and the timeout sweep can both reach a continuation; a second ending for
+                // the same task must not produce a second report.
+                DeferredDispatch.Run(throwing, pred, "T_D1", DeferredDispatch.TerrainContinuation,
+                                     seq, why => Emit(S.TaskStatusCodeType.TASKABRT, pred, why),
+                                     logError: _ => { });
+                Check(ref failures, aborts.Count == 1,
+                      $"(ix) ... and a SECOND failure of the same task adds no second TASKABRT (got {aborts.Count})");
+            }
+
+            // (b) THE THROW HAPPENS AFTER MarkDispatched - the route was created, the bridge was
+            //     called, TASKSTRT went out, and then something threw. The ending must not announce
+            //     a second start, and must still be exactly one TASKABRT.
+            {
+                const string half = "PRED-D1-HALF";
+                var clock = new StepClock();
+                var seq = new TaskSequencer();
+                var status = new TaskStatusPolicy();
+                var aborts = new List<string>();
+                int starts = 0;
+                void Emit(S.TaskStatusCodeType code, string uuid, string why)
+                {
+                    if (!status.ShouldEmit(code, uuid)) return;
+                    if (code == S.TaskStatusCodeType.TASKABRT) aborts.Add(why);
+                    else if (code == S.TaskStatusCodeType.TASKSTRT) starts++;
+                }
+                double window = TaskDispatchPolicy.PredecessorTimeoutSeconds(configured, 4800.0, margin);
+                double phase1 = TaskDispatchPolicy.PredecessorDispatchTimeoutSeconds(true, window, backstop);
+                var gate = seq.WaitForStartAsync(half, 0, 0, window, clock.AsTaskClock(),
+                                                 CancellationToken.None, phase1);
+
+                // MarkDispatched's own order: NotifyDispatched, then TASKSTRT - then the throw.
+                Action halfDispatched = () =>
+                {
+                    seq.NotifyDispatched(half, clock.Now);
+                    Emit(S.TaskStatusCodeType.TASKSTRT, half, "dispatched");
+                    throw new InvalidOperationException("the bridge call failed after MarkDispatched");
+                };
+                DeferredDispatch.Run(halfDispatched, half, "T_D1_HALF", DeferredDispatch.TerrainContinuation,
+                                     seq, why => Emit(S.TaskStatusCodeType.TASKABRT, half, why),
+                                     logError: _ => { });
+                bool done = gate.Wait(TimeSpan.FromSeconds(5));
+                Check(ref failures, starts == 1 && aborts.Count == 1,
+                      $"(ix) D1: a throw AFTER MarkDispatched leaves the one TASKSTRT it had already sent " +
+                      $"(got {starts}) and adds exactly one TASKABRT (got {aborts.Count}) - never a second start");
+                Check(ref failures, !status.ShouldEmit(S.TaskStatusCodeType.TASKSTRT, half),
+                      "(ix) ... and the task cannot announce a second start for the same execution: an ABORT " +
+                      "does not re-arm TASKSTRT, only a completion does");
+                Check(ref failures,
+                      done && gate.Result == GateResult.PredecessorAbandoned && clock.Now == 0.0,
+                      $"(ix) ... and the successor of a HALF-dispatched task is abandoned at 0 s of clock too " +
+                      $"(got {(done ? gate.Result.ToString() : "still waiting")} at {clock.Now:F0} s)");
+            }
+        }
+
         // (f5) THE WHOLE COA-STP1 GRAPH, end to end, from the order on disk. This is the branch's
         //      own live gate 2 ("42 dispatches, not 9") decided OFFLINE.
         {

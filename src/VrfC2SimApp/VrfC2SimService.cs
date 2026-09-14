@@ -237,8 +237,14 @@ public sealed class VrfC2SimService : BackgroundService
     // and the INIT PLACEMENT query (one request for all create positions of an init, 2026-09-05).
     // FallbackNote is what the timeout warning says the consumer will do instead, so each keeps
     // its own accurate wording.
+    // D1 (pass-3 review): TaskUuid/TaskeeUuid are the ROUTE consumer's, and they are what lets
+    // RunTerrainContinuation give a continuation that THREW the same ending every other dispatch
+    // dead end has - an abandon and one TASKABRT - instead of leaving the task silent and its
+    // successors parked on the chain backstop. The INIT PLACEMENT consumer leaves them empty
+    // because it has no C2SIM task to abandon.
     private sealed record PendingTerrain(DateTime Deadline, string TaskName, Action<List<TerrainHeightSample>> Continue,
-                                         string FallbackNote = "dispatching with Live vertices");
+                                         string FallbackNote = "dispatching with Live vertices",
+                                         string TaskUuid = null, string TaskeeUuid = null);
     private readonly ConcurrentDictionary<uint, PendingTerrain> _pendingTerrain = new();
 
     // What the shared terrain-profile plumbing's TaskName field says for the INIT PLACEMENT
@@ -2399,19 +2405,18 @@ public sealed class VrfC2SimService : BackgroundService
             // the CHAIN BACKSTOP after it. A1 made this one narrow path much slower rather than
             // faster, which is exactly the trade the backstop is not supposed to make. Every other
             // dead end in this file abandons the task and tells STP; so does this one now.
-            _tickActions.Enqueue(() =>
-            {
-                try { ExecuteTaskOnTick(task, unit); }
-                catch (Exception ex)
-                {
-                    _log.LogError("Task '{Task}' DISPATCH FAILED on the VR-Forces tick thread: {Msg}",
-                                  task.TaskName, ex.Message);
-                    _sequencer.NotifyAbandoned(task.TaskUuid);
-                    PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKABRT,
-                                   $"ABANDONED: dispatching task '{task.TaskName}' threw on the VR-Forces tick " +
-                                   $"thread ({ex.Message})");
-                }
-            });
+            // D1 (pass-3 review): the ending is DeferredDispatch.Run, shared with the terrain-profile
+            // re-entry (RunTerrainContinuation) - which is where the DEFAULT ground move is really
+            // dispatched, and which this guard did not cover when it was written inline here.
+            _tickActions.Enqueue(() => DeferredDispatch.Run(
+                () => ExecuteTaskOnTick(task, unit), task.TaskUuid, task.TaskName,
+                DeferredDispatch.FirstPass, _sequencer,
+                reason => PushTaskStatus(task.TaskeeUuid, task.TaskUuid,
+                                         S.TaskStatusCodeType.TASKABRT, reason),
+                ex => _log.LogError("Task '{Task}' DISPATCH FAILED on the VR-Forces tick thread " +
+                                    "({Type}: {Msg}) - it is abandoned and reported TASKABRT so its " +
+                                    "STREND successors fail fast.",
+                                    task.TaskName, ex.GetType().Name, ex.Message)));
         }
         catch (OperationCanceledException) { /* service stopping */ }
         catch (Exception e)
@@ -2766,7 +2771,11 @@ public sealed class VrfC2SimService : BackgroundService
                     if (r.Note != null)
                         _log.LogInformation("Terrain profile {Id} for task '{Task}': {Note}.", requestId, task.TaskName, r.Note);
                     ExecuteTaskOnTick(task, unit, r.Vertices);
-                });
+                },
+                // D1: THIS continuation is the dispatch (nothing above it has been marked), so it
+                // carries the task's identity and RunTerrainContinuation can end the task properly
+                // when it throws instead of leaving it silent to STP and its successors parked.
+                TaskUuid: task.TaskUuid, TaskeeUuid: task.TaskeeUuid);
                 _log.LogInformation("Task '{Task}': terrain profile request {Id} sent for {N} vertices; dispatch " +
                                     "deferred to the reply (timeout {T} s -> Live fallback).",
                                     task.TaskName, requestId, liveVertices.Count, _vrf.TerrainProfileTimeoutSeconds);
@@ -4668,7 +4677,7 @@ public sealed class VrfC2SimService : BackgroundService
                             string.Join(" ", samples.Select(x => x.Valid
                                 ? FormattableString.Invariant($"#{x.Index}:{x.LatDeg:F5},{x.LonDeg:F5},{x.TerrainAltMeters:F1}")
                                 : $"#{x.Index}:none")));
-        _tickActions.Enqueue(() => pending.Continue(samples));
+        _tickActions.Enqueue(() => RunTerrainContinuation(pending, samples));
     }
 
     /// <summary>Tick-loop sweep: a request past its deadline continues with null = Live fallback.</summary>
@@ -4680,8 +4689,49 @@ public sealed class VrfC2SimService : BackgroundService
             if (kv.Value.Deadline > now || !_pendingTerrain.TryRemove(kv.Key, out var pending)) continue;
             _log.LogWarning("Terrain profile request {Id} for task '{Task}' got no reply within {T} s - {Fallback}.",
                             kv.Key, pending.TaskName, _vrf.TerrainProfileTimeoutSeconds, pending.FallbackNote);
-            _tickActions.Enqueue(() => pending.Continue(null));
+            _tickActions.Enqueue(() => RunTerrainContinuation(pending, null));
         }
+    }
+
+    /// <summary>
+    /// D1 (pass-3 cold-start review of `8db033e`). THE ONE PLACE A TERRAIN-PROFILE CONTINUATION IS
+    /// RUN, so that a throw inside it cannot be swallowed the way TickLoop's drain swallows one.
+    ///
+    /// Both enqueue sites - the reply (OnVrfTerrainProfile) and the timeout sweep
+    /// (ExpireTerrainRequests) - come through here, because for the ROUTE consumer this
+    /// continuation IS the dispatch: in the DEFAULT Vrf:GroundWaypointAltitudeMode
+    /// ("TerrainProfile", VrfSettings.cs, overridden in neither settings file) the first pass of
+    /// ExecuteTaskOnTick only asks the back end for terrain heights and returns with NOTHING
+    /// marked, and this re-entry creates the route, calls the bridge and runs MarkDispatched. A
+    /// throw here used to reach only the drain's `catch`, which logs and returns: no TASKSTRT, no
+    /// TASKABRT, no abandon, and successors parked on Vrf:TaskChainBackstopSeconds (86,400 s of
+    /// task clock) because A1 removed the configured bound for an in-order predecessor.
+    ///
+    /// The INIT PLACEMENT consumer shares this plumbing and carries no task uuid, so its ending is
+    /// the ERROR alone - there is no C2SIM task to abandon, and the creates it was going to place
+    /// simply did not happen. That is still strictly louder than the drain's one-line swallow.
+    /// </summary>
+    private void RunTerrainContinuation(PendingTerrain pending, List<TerrainHeightSample> samples)
+    {
+        bool hasTask = !string.IsNullOrEmpty(pending.TaskUuid);
+        Action<Exception> logError = hasTask
+            ? ex => _log.LogError("Task '{Task}': THE TERRAIN-PROFILE CONTINUATION THREW on the VR-Forces " +
+                                  "tick thread ({Type}: {Msg}) - that is the pass which creates the route, " +
+                                  "calls the bridge and marks the task dispatched, so this task was NOT " +
+                                  "dispatched. It is abandoned and reported TASKABRT so its STREND " +
+                                  "successors fail fast instead of waiting out the chain backstop (D1).",
+                                  pending.TaskName, ex.GetType().Name, ex.Message)
+            : ex => _log.LogError("{Label}: the terrain-profile continuation THREW on the VR-Forces tick " +
+                                  "thread ({Type}: {Msg}). There is no C2SIM task to abandon here - this is " +
+                                  "the init placement query - so the creates it was going to place did NOT " +
+                                  "happen.", pending.TaskName, ex.GetType().Name, ex.Message);
+        DeferredDispatch.Run(() => pending.Continue(samples), pending.TaskUuid, pending.TaskName,
+                             DeferredDispatch.TerrainContinuation,
+                             hasTask ? _sequencer : null,
+                             hasTask ? reason => PushTaskStatus(pending.TaskeeUuid, pending.TaskUuid,
+                                                                S.TaskStatusCodeType.TASKABRT, reason)
+                                     : null,
+                             logError);
     }
 
     private bool UsingFidelityTable =>
