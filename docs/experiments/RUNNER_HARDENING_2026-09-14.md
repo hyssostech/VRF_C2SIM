@@ -1101,8 +1101,230 @@ control; `.cs` / `.ps1` / `.md` all CRLF.
 
 **Not covered.** No live run. The first live `-StopWhenComplete` run must confirm the window
 really closes and that `oracle.earlyExit.reportEvidence[<taskee>].via` names `C2SIM-capture`
-rather than `R1-applog`. Also NOT edited (another lane owns it): `RunC2SimScenario.ps1` still
-says "Writes reports-captured.log ONLY at exit" in its `-StopWhenComplete` help (line ~185),
-its `Start-External` note (~2975), the manifest `source` string (~3288) and the comment above
-the live read (~3391). Those four strings are now stale - they under-promise, so nothing
-misbehaves, but they should be corrected.
+rather than `R1-applog`. Those four stale "ONLY at exit" strings in
+`RunC2SimScenario.ps1` (the `-StopWhenComplete` help, the `Start-External` note, the manifest
+`source` string and the comment above the live read) are CORRECTED - see sec 15.
+
+---
+
+## 15. STAGE 7d - THE READY GATE: push on the simulator's own signal (2026-09-14, fourth pass)
+
+Supersedes nothing in sec 11 - `-PreOrderSettleSecs` still works exactly as it did - but it
+demotes it. The settle was a GUESS, and the measurement that would have sized it arrived
+after it was written: `docs/experiments/G7B_G8_RESULTS_2026-09-14.md` sec 1.5 and 3.
+
+### 15.1 What the four runs of 2026-09-14 established
+
+The sectorised navigation area is not usable when the entities are placed. It becomes usable
+at the first
+
+    VRF console [3] <object> (VRF_UUID:...): New Primary nav area: | <area>
+
+row from a placed PLATFORM, and that row partitions the move-to nav gate PERFECTLY: in runs
+A, B and D every goal issued before it failed `Is current point in nav area?` and fell to the
+FEATURE planner on one straight part, and every goal after it passed and was mesh-planned.
+Run D resolves the transition to 0.3 s. Two numbers follow, and they are why a fixed settle
+cannot be right:
+
+| | first placement -> area row | source |
+|---|---|---|
+| WARM file cache (4 back-to-back runs) | **9.1 - 12.1 s** | G7B_G8_RESULTS sec 1.5 table |
+| COLD (attempt 4, after a C:\MAK filesystem scan) | **236.9 s** | G7B_G8_RESULTS sec 3b |
+
+A 20x spread. `loadAllNavigationDataOnTerrainLoad = 1` moves it by nothing (sec 3a). Under
+`CreationPolicy=AtOrder` the order reached the bus 4.7-7.7 s BEFORE the row in every run.
+
+### 15.2 What was built
+
+`-PreOrderGate NavArea` (wrapper: `--pre-order-gate nav-area`) makes stage 7d wait for that
+row and push the order the moment it appears, instead of waiting a fixed number of seconds.
+`-PreOrderGateTimeoutSec` (wrapper `--pre-order-gate-timeout`, default 300, range 30..1800)
+bounds the wait. Default is OFF (`''`), so a default run's command line and behaviour are
+byte-identical to every run in the record.
+
+```
+scripts\RunnerLib.ps1
+  :711-779   Get-NavAreaRows / Get-PlacementRows - PURE parsers, which is what lets the
+             same code be replayed offline over a finished run (15.4)
+scripts\RunC2SimScenario.ps1
+  :191-217   .PARAMETER PreOrderGate / PreOrderGateTimeoutSec
+  :412-428   the parameters and why the gate is not the settle
+  :1279-1311 $script:NavGate + Update-NavGateWatch - ONE incremental reader, ONE offset key
+             ('applog-navgate'), called from BOTH the stage-7 loop and the gate loop
+  :1737-1754 validation: the gate name (a typo must not fall through to "off"), the
+             30..1800 timeout, and $PreOrderGateWarmSecs = 60
+  :1881-1911 STAGE 0 REFUSAL when the object console is below 3
+  :2484      the timeout is added to $DerivedWatchSecs where the settle is added, which is
+             what carries it into the stage-3w watchdog budget ($WatchdogCoverSecs); the
+             truncation WARN at :2493-2500 covers the gate too (15.7)
+  :2490-2492 inputs.preOrderGate / preOrderGateTimeoutSec / objectConsoleNotifyLevel
+  :3291      the stage-7 oracle loop stamps the PLACEMENT instant (see 15.3)
+  :3352-3505 STAGE 7d itself; :3505 `if ($RunPreOrderSettle)` is the old settle, unchanged
+scripts\RunScenario.sh
+  :59-60 :89-98 :135-136 :205-224 :257 :266 :285-288 :301-310
+```
+
+THE GATE REQUIRES OBJECT CONSOLE >= 3 and stage 0 refuses it otherwise, at BOTH layers. The
+row prints at level 3 and at no lower level, and `appsettings.json` ships
+`Vrf:ObjectConsoleNotifyLevel = -1` (consoles OFF) - so without the check the overwhelmingly
+likely first use of this flag would have been a run that burned its whole 300 s timeout with
+VR-Forces up, and then either stopped or silently fell back. The runner resolves the level
+from `Vrf__ObjectConsoleNotifyLevel` (what `--object-console` exports) and falls back to
+`appsettings.json`; it refuses when it cannot resolve it at all.
+
+GATE OR SETTLE, NEVER ONE AFTER THE OTHER. With both given the gate is in force and the
+settle is the TIMEOUT FALLBACK only (`oracle.preOrderGate.fellBackToSettle`, plus a WARN
+flag). A gate that never fires therefore degrades to the pre-existing behaviour instead of
+failing a run that would otherwise have been fine; with no settle given, a timeout is a loud
+NOT-READY `Stop-Runner 3` naming the area rows seen (0) and the elapsed time.
+
+Manifest: `clocks.preOrderGate{Start,Fired,TimedOut}Utc`, `inputs.preOrderGate`,
+`inputs.preOrderGateTimeoutSec`, and `oracle.preOrderGate` with the object, its uuid, the
+area name, the row verbatim, the first placement, `placementToAreaSec`, `cacheState` and
+`waitedSec`.
+
+### 15.3 The one non-obvious part: WHERE the placement instant is stamped
+
+The delta the gate prints - first PLACEMENT line to first area row - is the CACHE-STATE
+indicator (~10 s warm, ~240 s cold), and it is the number to quote when a demo is slow to
+start. It is measurable only because the watcher is called from the STAGE-7 ORACLE LOOP as
+well as from the gate loop: the PLACEMENT lines land DURING the oracle wait, and the gate
+starts after it. Stamping the placement at gate start instead would under-report the delta by
+the whole length of the oracle wait - about 5 s in runs A/B/D - and could report a cold
+machine as warm, which is the one thing this indicator exists to tell apart.
+
+Both instants are the RUNNER's own observation times: `vrfc2simapp.log` carries no per-line
+timestamp (one line in the whole file has a clock, `INFO[Util] ... loadConfigScript`). The
+resolution is therefore the poll interval - 5 s in the oracle loop, 2 s in the gate loop -
+which is stated in the manifest as `deltaResolutionNote` and is two orders of magnitude below
+the 10 s / 240 s the indicator separates.
+
+### 15.4 Offline replay of the detector over two finished runs
+
+`Get-NavAreaRows` / `Get-PlacementRows` are pure, so the gate's detector can be run over a
+finished run's `vrfc2simapp.log` with the shipped `RunnerLib.ps1` dot-sourced - the same code
+the live gate polls with, not a copy. The wall clock comes from `watchvrf-trace.csv` (first
+real-coordinate `POS` row = first placement; first `CON` row carrying the area text = the
+acquisition), because the app log has none.
+
+```
+=== 20260914T164906Z_run ===
+  DETECTOR (scripts\RunnerLib.ps1 over vrfc2simapp.log, 14.1 MB):
+    placement rows : 7   first = UNIT 1222.MechPlt~PXY
+    nav-area rows  : 7   first object = "1.BdeHQ~PXY"  level 3  area = "NavArea-ground-platform MojaveCOA"
+    first row      : VRF console [3] 1.BdeHQ~PXY (VRF_UUID:a0400858-513d-6346-91c2-f37ed0762dd5): New Primary nav area: | NavArea-ground-platform MojaveCOA
+  WALL CLOCK (watchvrf-trace.csv w= seconds):
+    first placement  w=23.5
+    first area row   w=35.6
+    delta            12.1s  ->  WARM (threshold 60s)
+
+=== 20260914T154243Z_run ===
+  DETECTOR (scripts\RunnerLib.ps1 over vrfc2simapp.log, 13.9 MB):
+    placement rows : 6   first = UNIT 1222.MechPlt~PXY
+    nav-area rows  : 15   first object = "1.BdeHQ~PXY"  level 3  area = "NavArea-ground-platform MojaveCOA"
+    first row      : VRF console [3] 1.BdeHQ~PXY (VRF_UUID:929db847-6be8-5c45-96eb-16a21e582798): New Primary nav area: | NavArea-ground-platform MojaveCOA
+  WALL CLOCK (watchvrf-trace.csv w= seconds):
+    first placement  w=29.5
+    first area row   w=266
+    delta            236.5s  ->  COLD (threshold 60s)
+```
+
+12.1 s WARM and 236.5 s COLD, against the 12.1 s and 236.9 s the results record derives from
+a different pair of instruments (the working-set sampler and the fitted trace t0). The
+detector found the row in both, with the object, the level and the area name.
+
+### 15.5 Dry runs
+
+```
+--pre-order-gate nav-area
+  observers   : 1760s CAP (derived 1760: preRoll 20 + appJoin 180 + initDispatch 120 +
+                oracleGate 180 + pushOrderListen 30 + run 900 + trail 30 + preOrderGate 300)
+  pre-order   : stage 7d READY GATE -PreOrderGate NavArea: PushOrder waits for the
+                simulator's own "New Primary nav area" row (object console 4), timeout 300s,
+                which IS in the derived cap; on TIMEOUT the run STOPS (exit 3) - pass
+                -PreOrderSettleSecs N to make the timeout fall back to a fixed hold instead
+  watches pid 696 ... at most 3995s (66.6 min): cover 1760 + settle 45 + preCheck 630 +
+                pushInit 600 + teardown 360 + slack 600
+
+--pre-order-gate nav-area --pre-order-settle 240
+  observers   : 2000s CAP (derived 2000: ... + preOrderGate 300 + preOrderSettle 240)
+  pre-order   : ... on TIMEOUT it falls back to the 240s -PreOrderSettleSecs hold
+                (FALLBACK ONLY - gate first, never both in sequence)
+  [DRY-RUN] on gate TIMEOUT would fall back to the 240s -PreOrderSettleSecs hold
+
+--pre-order-gate nav-area --object-console 2
+  wrapper : "--pre-order-gate nav-area needs --object-console 3 or 4; it is 2." exit 2
+  runner  : [FAIL] -PreOrderGate NavArea REQUIRES object console >= 3 and it is 2 (from env
+            Vrf__ObjectConsoleNotifyLevel ...) ... [FAIL] Aborting at validation. NOTHING was
+            launched and NO server was contacted.   exit 2
+
+(no gate flags)
+  observers   : 1460s CAP (derived 1460: ... + run 900 + trail 30)     <- unchanged
+  pre-order   : no hold and no gate (-PreOrderSettleSecs 0, -PreOrderGate off)
+```
+
+Also refused at stage 0: an unknown gate name (`-PreOrderGate Mesh`), a timeout outside
+30..1800, and the gate with the console unresolvable. `--pre-order-settle 240` ALONE prints
+the sec 11 stage-7d block unchanged, word for word.
+
+### 15.6 The four stale capture strings, fixed
+
+`ListenReports` has appended `reports-captured.log` incrementally since 0999eeb, but four
+strings in `RunC2SimScenario.ps1` still said it writes only at exit: the `-StopWhenComplete`
+help, the `Start-External` note on the tool, the `earlyExit.source` manifest string and the
+comment above the live capture read. All four now say APPENDED-as-it-arrives and name the
+commit. They under-promised rather than misbehaved, but a reader deciding whether the
+C2SIM-capture satisfier can fire live would have been told the wrong thing by all four.
+
+### 15.7 Adversarial review of this change - one defect, fixed
+
+**The truncation WARN did not cover the gate.** `:2497` fired only when
+`$PreOrderSettleSecs -gt 0`, so a gated run with an explicit low `-WatchSecs` would have had
+its derived cap grow by 300 s and its trace truncated off the END of the observation window
+IN SILENCE - the exact failure that WARN was written for (sec 12.4), reintroduced by adding a
+second budget beside the settle. Condition now
+`(($PreOrderSettleSecs -gt 0 -or $PreOrderGateOn) -and ...)` and the message names whichever
+budget applies. Verified both ways in dry runs:
+
+```
+--pre-order-gate nav-area --watch-secs 900
+  [WARN] -WatchSecs 900 ... below the derived cap 1760, which now includes the stage-7d
+         budget (READY GATE timeout 300s) ...
+--pre-order-settle 240 --watch-secs 900
+  [WARN] -WatchSecs 900 ... the derived cap 1700 ... budget (settle 240s) ...
+```
+
+Weighed and NOT changed:
+- **The placement instant could be stamped in the same poll as the area row** (delta 0.0 s ->
+  "WARM"). It cannot mislead: `Update-NavGateWatch` runs at the TOP of the stage-7 loop
+  iteration, so the placement is stamped on the same poll that breaks that loop at the
+  latest - at most ~5 s late, against a cold interval of 236 s.
+- **A row that arrives BEFORE the gate starts** (AtInit, or a very fast warm machine) is not
+  missed: the stage-7 loop's watcher records it, and the gate's first test breaks
+  immediately, pushing the order at once.
+- **Offset-key collision.** The gate reads under `'applog-navgate'`; stage 8b's completion
+  reader uses `'applog-completions'`. Separate offsets over the same file, by design.
+
+### 15.8 Gates
+
+`tests\RunnerTurnaround.Tests.ps1` under `C:\Program Files\PowerShell\7\pwsh.exe`:
+**222 passed, 1 failed** - the same baseline sec 14.7 and sec 12 record, unchanged. The
+runner and `RunnerLib.ps1` both parse with 0 errors (checks 7.1/7.2 of that suite, and
+directly); `bash -n scripts\RunScenario.sh` clean and the file is still pure LF. ASCII
+`rg -nP "[^\x09\x0a\x0d\x20-\x7E]"` clean on all five touched files, reproduced on a
+dirty control first.
+
+### 15.9 NOT covered
+
+NO LIVE RUN. Everything above is dry runs, offline replay and the test suite. What only a
+live run can show: that the gate actually fires (the replay proves the detector matches a
+finished log, not that the incremental reader sees the row within 2 s of it being written);
+that `placementToAreaSec` on the runner's own poll clock lands near the trace-derived figure;
+and - the point of the whole exercise - that the first legs of an order pushed on the gate
+are MESH-planned, i.e. that `Planned path has N points` replaces
+`fail in action Is current point in nav area?` for goal 1. Until that run exists this is a
+mechanism built on a measurement, not a demonstrated fix.
+
+Also not addressed here: `CreationPolicy=AtInit` (run C) put the members in place before the
+wait and got 32 of 32 gate successes. The gate does not make that choice; it only removes the
+guess from the waiting.

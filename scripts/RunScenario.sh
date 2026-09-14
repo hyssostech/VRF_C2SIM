@@ -56,6 +56,8 @@ STOP_WHEN_COMPLETE=1
 DRYRUN=0
 SAMPLE_THREADS=0
 PRE_ORDER_SETTLE=0
+PRE_ORDER_GATE=''
+PRE_ORDER_GATE_TIMEOUT=300
 VRF_APPDATA_DIR=''
 LOG=''
 EXTRA_ENV=()
@@ -84,6 +86,16 @@ usage: scripts/RunScenario.sh [options] [-- <extra runner arguments>]
   --env K=V                 extra environment for the app (repeatable)
   --pre-order-settle N      stage 7d: hold N s after the oracle gate and BEFORE PushOrder, so
                             the LAZILY loaded sectorised nav area can arrive (default 0 = off)
+  --pre-order-gate nav-area stage 7d READY GATE: instead of a fixed hold, wait for the
+                            SIMULATOR'S OWN "New Primary nav area" row and push the order the
+                            moment it appears (default empty = off). Measured 2026-09-14: that
+                            row lands 9-12 s after the first placement with a WARM file cache
+                            and ~237 s COLD, and the runner logs which of the two this run was.
+                            REQUIRES --object-console 3 or 4 (the row prints at level 3); the
+                            runner refuses the gate at stage 0 below that.
+  --pre-order-gate-timeout N  the gate's timeout, 30..1800 (default 300, which covers the cold
+                            ~240 s). On timeout the run STOPS - unless --pre-order-settle N is
+                            also given, which then becomes the fallback hold. GATE OR SETTLE.
   --vrf-appdata-dir DIR     5.2 only: --appDataDir for the sim and the gui (default empty =
                             not passed, VR-Forces uses its own appData). The prepared copy is
                             C:\C2SIM\vrf-appdata\appData, whose one delta from the vendor tree
@@ -120,6 +132,8 @@ while [ $# -gt 0 ]; do
         --no-stop-when-complete) STOP_WHEN_COMPLETE=0; shift ;;
         --env)                  EXTRA_ENV+=("$2"); shift 2 ;;
         --pre-order-settle)     PRE_ORDER_SETTLE="$2"; shift 2 ;;
+        --pre-order-gate)       PRE_ORDER_GATE="$2"; shift 2 ;;
+        --pre-order-gate-timeout) PRE_ORDER_GATE_TIMEOUT="$2"; shift 2 ;;
         --vrf-appdata-dir)      VRF_APPDATA_DIR="$2"; shift 2 ;;
         --sample-threads)       SAMPLE_THREADS=1; shift ;;
         --log)                  LOG="$2"; shift 2 ;;
@@ -187,6 +201,28 @@ if [ -z "$LOG" ]; then
 fi
 : > "$LOG" || { echo "[FAIL] cannot write the runner log: $LOG"; exit 2; }
 
+# ---- the stage-7d READY GATE ------------------------------------------------
+# One gate exists. The wrapper spells it nav-area (this script's convention); the runner
+# parameter is -PreOrderGate NavArea. An unknown name is a TYPO and is refused HERE as well
+# as in the runner, so it can never fall through to an ungated push.
+# GATE_BUDGET feeds the derived observer cap below for the same reason the settle does: the
+# gate's worst case is its whole timeout, spent inside the observers' coverage.
+PRE_ORDER_GATE_ARG=''
+GATE_BUDGET=0
+case "$PRE_ORDER_GATE" in
+    ''|off|none)                 PRE_ORDER_GATE_ARG='' ;;
+    nav-area|navarea|NavArea)    PRE_ORDER_GATE_ARG='NavArea'; GATE_BUDGET="$PRE_ORDER_GATE_TIMEOUT" ;;
+    *)  echo "--pre-order-gate: unknown gate '$PRE_ORDER_GATE' (supported: nav-area)"; exit 2 ;;
+esac
+# The row the gate waits for is printed at object-console level 3 and nowhere else. The
+# runner refuses the combination at stage 0; saying it here as well means the operator is
+# told BEFORE a run directory or an appNumber is spent.
+if [ -n "$PRE_ORDER_GATE_ARG" ] && [ "$OBJ_CONSOLE" -lt 3 ]; then
+    echo "--pre-order-gate $PRE_ORDER_GATE needs --object-console 3 or 4; it is $OBJ_CONSOLE."
+    echo "The 'New Primary nav area' row the gate waits for only prints at object-console level 3."
+    exit 2
+fi
+
 # ---- the app's environment ---------------------------------------------------
 # One place, printed below, and recorded in the run manifest by the runner.
 export Vrf__TypeMappingMode=FidelityTable
@@ -213,11 +249,12 @@ for kv in "${EXTRA_ENV[@]}"; do export "$kv"; done
 #
 # RunnerLib Get-DerivedWatchSecs = preRoll 20 + appJoin 180 + initDispatch 120
 #                                + oracleGate 180 + pushOrderListen 30 + run + trail 30
-# plus the stage-7d hold, which the runner adds separately. CHANGE ONE, CHANGE BOTH: if a
+# plus the stage-7d hold AND the stage-7d gate timeout, which the runner adds separately.
+# CHANGE ONE, CHANGE BOTH: if a
 # runner budget default moves, this sum is stale and only the banner is wrong (the runner
 # still uses its own), but the sampler would then be sized off a stale number.
 WATCH_FIXED=560
-DERIVED_WATCH=$((WATCH_FIXED + RUN_SECS + PRE_ORDER_SETTLE))
+DERIVED_WATCH=$((WATCH_FIXED + RUN_SECS + PRE_ORDER_SETTLE + GATE_BUDGET))
 if [ "$WATCH_SECS" -gt 0 ]; then
     EFF_WATCH="$WATCH_SECS"
     WATCH_NOTE="EXPLICIT $WATCH_SECS (derived would be $DERIVED_WATCH)"
@@ -226,7 +263,7 @@ if [ "$WATCH_SECS" -gt 0 ]; then
     fi
 else
     EFF_WATCH="$DERIVED_WATCH"
-    WATCH_NOTE="DERIVED $DERIVED_WATCH (20+180+120+180+30+run $RUN_SECS+30+settle $PRE_ORDER_SETTLE)"
+    WATCH_NOTE="DERIVED $DERIVED_WATCH (20+180+120+180+30+run $RUN_SECS+30+settle $PRE_ORDER_SETTLE+gate $GATE_BUDGET)"
 fi
 
 # ---- the runner's command line ----------------------------------------------
@@ -241,6 +278,9 @@ ARGS+=(-RestUrl "$REST_URL" -StompUrl "$STOMP_URL")
 # Stage 7d. Always passed, never compared here: the runner validates the range (0..3600) and
 # ledgers the value, so a typo is refused with a reason instead of silently dropped by bash.
 ARGS+=(-PreOrderSettleSecs "$PRE_ORDER_SETTLE")
+# Stage 7d READY GATE. Passed ONLY when a gate was asked for, so a default run's runner
+# command line stays byte-identical to every run in the record.
+[ -n "$PRE_ORDER_GATE_ARG" ] && ARGS+=(-PreOrderGate "$PRE_ORDER_GATE_ARG" -PreOrderGateTimeoutSec "$PRE_ORDER_GATE_TIMEOUT")
 # Relocated appData. Passed ONLY when non-empty, so a default run's runner command line is
 # byte-identical to every run in the record; the runner refuses a path that is not a directory
 # and refuses the switch outright on the 5.0.2 profile.
@@ -258,7 +298,16 @@ echo "  init/order  : $INIT | $ORDER   clientId: $CLIENT_ID"
 echo "  type map    : ${TYPEMAP:-(repo default)}"
 echo "  windows     : RunSecs=$RUN_SECS backendNotify=$BACKEND_NOTIFY"
 echo "  observers   : $WATCH_NOTE"
-echo "  pre-order   : PreOrderSettleSecs=$PRE_ORDER_SETTLE  (stage 7d hold before PushOrder; 0 = off)"
+if [ -n "$PRE_ORDER_GATE_ARG" ]; then
+    echo "  pre-order   : READY GATE -PreOrderGate $PRE_ORDER_GATE_ARG  timeout ${PRE_ORDER_GATE_TIMEOUT}s  (stage 7d waits for the simulator's own 'New Primary nav area' row, then pushes at once; needs object console >= 3, it is $OBJ_CONSOLE)"
+    if [ "$PRE_ORDER_SETTLE" -gt 0 ]; then
+        echo "                FALLBACK on gate timeout: PreOrderSettleSecs=$PRE_ORDER_SETTLE (fixed hold; the gate is what is in force - gate OR settle, never both in sequence)"
+    else
+        echo "                on gate timeout the run STOPS (exit 3). Pass --pre-order-settle N to fall back to a fixed hold instead."
+    fi
+else
+    echo "  pre-order   : PreOrderSettleSecs=$PRE_ORDER_SETTLE  (stage 7d hold before PushOrder; 0 = off; no READY GATE - see --pre-order-gate)"
+fi
 [ -n "$VRF_APPDATA_DIR" ] && echo "  appData     : $VRF_APPDATA_DIR  (-VrfAppDataDir -> LaunchVrf52 --appDataDir on sim + gui)"
 echo "  consoles    : object=$OBJ_CONSOLE member=$MEMBER_CONSOLE positionReport=${POS_REPORT}s"
 echo "  endpoints   : $REST_URL | $STOMP_URL"

@@ -946,7 +946,7 @@ on 2026-09-14; each is now closed by something this section names
    its own when the sim exits, so being generous costs nothing; being short loses the
    measurement silently.
    `--watch-secs` now DEFAULTS TO 0 = derive, and the wrapper prints the derived number
-   (`observers : DERIVED 1460 (20+180+120+180+30+run 900+30+settle 0)`). Every explicit
+   (`observers : DERIVED 1460 (20+180+120+180+30+run 900+30+settle 0+gate 0)`). Every explicit
    value passed on 2026-09-14 was BELOW the derived cap and earned the runner's truncation
    WARN (`20260914T170824Z`: 900 < 1100) - which is the very failure the derivation exists
    to prevent. Pass a number only to deliberately shorten the observers; the wrapper then
@@ -959,6 +959,50 @@ on 2026-09-14; each is now closed by something this section names
    capture) when that file has one; the moment is ledgered as `clocks.orderOnBusUtc`. Read
    `TASKCMPLT ... (t+77s)` in an older log as "77 s after PushOrder returned", never as
    "77 s after the order".
+
+12. **HOLD THE ORDER UNTIL THE NAVIGATION AREA IS READY - `--pre-order-gate nav-area`, not a
+   guessed settle.** The sectorised nav area is NOT usable when the entities are placed. It
+   becomes usable at the first `New Primary nav area: | <area>` row printed by a placed
+   platform, and that row partitions the move-to nav gate perfectly: every goal before it
+   fails `Is current point in nav area?` and is planned by the FEATURE planner on one
+   straight part - silently, at console level 3 - and every goal after it is mesh-planned
+   (four single-variable runs, 2026-09-14; docs/experiments/G7B_G8_RESULTS_2026-09-14.md
+   sec 1.5, resolved to 0.3 s in run D). Under `CreationPolicy=AtOrder` the order reached
+   the bus 4.7-7.7 s BEFORE that row in every run, so the first legs of every demo run so
+   far were feature-planned.
+
+   The wait is **9.1-12.1 s warm and 236.9 s cold** (same tiles, same 2.33 GB streamed; the
+   difference is the file cache - sec 3b). A fixed `--pre-order-settle N` cannot be right
+   across a 20x spread, and `loadAllNavigationDataOnTerrainLoad = 1` does not move the row
+   at all (sec 3a) - do not let it stand in for the wait.
+
+       bash scripts/RunScenario.sh --pre-order-gate nav-area --object-console 4 ...
+
+   The runner then polls `vrfc2simapp.log` for that row and pushes the order the MOMENT it
+   appears, logging the object, the area and the delta from the first `PLACEMENT:` line -
+   which it calls **WARM** (<= 60 s) or **COLD**. That delta is the cache-state indicator
+   and is the number to quote when a demo is slow to start; the prepare step should load the
+   scenario once beforehand so the second load is the cheap one.
+
+   - `--pre-order-gate-timeout N` (default 300, range 30..1800) bounds the wait. On timeout
+     the run STOPS (exit 3) with a NOT-READY message - UNLESS `--pre-order-settle N` is also
+     given, which then becomes the fallback hold. **GATE OR SETTLE, never one after the
+     other**: with both, the gate is in force and the settle is the timeout fallback only
+     (`oracle.preOrderGate.fellBackToSettle` in the manifest, plus a WARN flag).
+   - **REQUIRES `--object-console 3` or `4`.** The row prints at object-console level 3 and
+     nowhere else, and `appsettings.json` ships `Vrf:ObjectConsoleNotifyLevel = -1`
+     (consoles OFF). Both the wrapper and the runner's stage 0 REFUSE the gate below 3, with
+     exit 2, before anything is launched.
+   - The gate's timeout is inside the observers' derived cap and the stage-3w watchdog
+     budget, exactly as the settle is; the banner prints `+ preOrderGate 300`.
+   - Manifest: `clocks.preOrderGate{Start,Fired,TimedOut}Utc`, `inputs.preOrderGate`,
+     `inputs.preOrderGateTimeoutSec`, and `oracle.preOrderGate` (object, uuid, area, the row
+     verbatim, `firstPlacement`, `placementToAreaSec`, `cacheState`, `waitedSec`).
+
+   Off by default, so a run without the flag behaves exactly as every run in the record.
+   Mechanism and the offline replay that validated the detector:
+   docs/experiments/RUNNER_HARDENING_2026-09-14.md sec 15. NOT YET PROVEN LIVE - the first
+   live gated run must show the first leg mesh-planned.
 
 ---
 

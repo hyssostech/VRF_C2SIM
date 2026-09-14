@@ -707,3 +707,66 @@ function Test-ToolCapability {
     }
     return $false
 }
+
+# ---- stage 7d READY GATE: the simulator's own navigation-area acquisition -----
+# The sectorised navigation area is NOT usable when the entities are placed. It
+# becomes usable at the first
+#     VRF console [3] <object> (VRF_UUID:...): New Primary nav area: | <area>
+# row printed by a placed PLATFORM - 9.1-12.1 s after the first placement with a
+# warm file cache and 236.9 s cold (four runs, 2026-09-14;
+# docs/experiments/G7B_G8_RESULTS_2026-09-14.md sec 1.5 and 3). Before that row
+# every ground-vehicle-move-to fails the "Is current point in nav area?" gate and
+# is planned by the FEATURE planner on one straight part, silently, at console
+# level 3. These two parsers are what the runner's stage-7d gate polls the
+# interface log with; they are pure so the same code can be replayed offline over
+# a finished run's vrfc2simapp.log.
+#
+# ANY object's row counts. The row is the SIMULATOR saying the area is now its
+# primary one; the marking that prints it first is whichever platform the engine
+# reached first (1.BdeHQ in all four runs) and is not something to depend on.
+# The rows only exist at object-console level >= 3, which is why the runner
+# refuses -PreOrderGate with the console below that.
+function Get-NavAreaRows {
+    param([AllowNull()][AllowEmptyString()][string]$AppLogText)
+    $rows = @()
+    if ([string]::IsNullOrEmpty($AppLogText)) { return $rows }
+    foreach ($line in ($AppLogText -split "`r?`n")) {
+        # Cheap literal reject first: this runs over every appended line of a log
+        # that reaches gigabytes.
+        if ($line.IndexOf('New Primary nav area', [System.StringComparison]::Ordinal) -lt 0) { continue }
+        $m = [regex]::Match($line, 'VRF console \[(?<lvl>\d+)\]\s+(?<obj>.*?)\s*(?:\(VRF_UUID:(?<uuid>[^)]*)\))?\s*:\s*New Primary nav area\s*:\s*\|?\s*(?<area>.*?)\s*$')
+        if (-not $m.Success) { continue }
+        $rows += [ordered]@{
+            level  = [int]$m.Groups['lvl'].Value
+            object = $m.Groups['obj'].Value
+            uuid   = $(if ($m.Groups['uuid'].Success) { $m.Groups['uuid'].Value } else { '' })
+            area   = $m.Groups['area'].Value
+            line   = $line.Trim()
+        }
+    }
+    return $rows
+}
+
+# The interface's own placement line, the OTHER end of the measured interval:
+#     PLACEMENT: UNIT <marking> domain=1 created at authored lat/lon; ...
+# PLATFORM is matched as well as UNIT because the first entity placed is what
+# starts the terrain-tile stream, and the init shells and proxy platforms are
+# placed before any member (G7B_G8_RESULTS sec 3). The delta between the first of
+# these and the first nav-area row is the CACHE-STATE indicator: ~10 s warm,
+# ~240 s cold.
+function Get-PlacementRows {
+    param([AllowNull()][AllowEmptyString()][string]$AppLogText)
+    $rows = @()
+    if ([string]::IsNullOrEmpty($AppLogText)) { return $rows }
+    foreach ($line in ($AppLogText -split "`r?`n")) {
+        if ($line.IndexOf('PLACEMENT:', [System.StringComparison]::Ordinal) -lt 0) { continue }
+        $m = [regex]::Match($line, 'PLACEMENT:\s+(?<kind>UNIT|PLATFORM)\s+(?<name>\S+)\s.*?\bcreated\b')
+        if (-not $m.Success) { continue }
+        $rows += [ordered]@{
+            kind = $m.Groups['kind'].Value
+            name = $m.Groups['name'].Value
+            line = $line.Trim()
+        }
+    }
+    return $rows
+}

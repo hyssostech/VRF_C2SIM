@@ -181,11 +181,38 @@
                      after its TASKCMPLT, out of reports-captured.log.
       R1-applog      a complete R1 position-report round (>=1 sent, 0 skipped)
                      logged AFTER this taskee's TASKCMPLT line.
-    The interface log is the LIVE source for (a) and for R1-applog, because
-    ListenReports writes reports-captured.log only at its exit; C2SIM-capture is
-    the authority whenever that file is already there. Never fires when the order
+    The interface log is the LIVE source for (a) and for R1-applog. Since 0999eeb
+    ListenReports APPENDS reports-captured.log as each report arrives, so the
+    C2SIM capture is normally POPULATED during the window too - it is the
+    authority whenever it carries the taskee's record. Never fires when the order
     yields zero taskees (WARN), or after the interface has died (the window is run
     out so the trace covers the death, exactly as before).
+
+.PARAMETER PreOrderGate
+    OPT-IN READY GATE on stage 7d. '' (the default) = off. 'NavArea' = hold
+    PushOrder until the SIMULATOR ITSELF says the sectorised navigation area is
+    its primary one, i.e. until the first
+
+        VRF console [N] <object> (VRF_UUID:...): New Primary nav area: | <area>
+
+    row appears in the interface log, then push the order at once. Measured
+    2026-09-14 over four runs (docs/experiments/G7B_G8_RESULTS_2026-09-14.md
+    sec 1.5 and 3): that row lands 9.1-12.1 s after the first entity placement
+    with a WARM file cache and 236.9 s COLD, and under CreationPolicy=AtOrder the
+    order reached the bus 4.7-7.7 s BEFORE it in every run - so every member's
+    slot move and first leg was planned by the FEATURE planner, silently.
+    The gate logs the object, the area and the delta from the first PLACEMENT
+    line, and calls that delta WARM or COLD; it is the cache-state indicator.
+    REQUIRES the object consoles open (Vrf:ObjectConsoleNotifyLevel >= 3, the
+    level the row prints at) - stage 0 refuses the gate below that, because the
+    row would never print and the gate could only ever time out.
+
+.PARAMETER PreOrderGateTimeoutSec
+    How long -PreOrderGate waits. Default 300 (range 30..1800), which covers the
+    cold ~240 s with margin. On timeout the run STOPS (exit 3) with a NOT-READY
+    message - UNLESS -PreOrderSettleSecs is also greater than 0, in which case the
+    gate falls back to that fixed hold. GATE OR SETTLE, never one after the other:
+    with both given the gate is what is in force and the settle is the fallback.
 
 .PARAMETER SettleHoldSecs
     Seconds the ALL-COMPLETE condition must hold before -StopWhenComplete closes
@@ -382,6 +409,23 @@ param(
     # which loads every sector at terrain load; that is a CONFIG change, not a runner one.
     # The hold is INSIDE the observers' coverage, so it is added to their duration cap.
     [int] $PreOrderSettleSecs  = 0,
+
+    # STAGE 7d - THE READY GATE. '' (default) = off, and a default run is byte-identical to
+    # one without this parameter. 'NavArea' = hold PushOrder until the SIMULATOR'S OWN
+    # "New Primary nav area: | <area>" row appears in the interface log, then push at once.
+    #
+    # WHY IT IS NOT THE SETTLE ABOVE: the settle says how long we wait; this says what we
+    # are waiting FOR, and it is the simulator's own signal. Four runs on 2026-09-14
+    # (docs/experiments/G7B_G8_RESULTS_2026-09-14.md sec 1.5) put that row 9.1-12.1 s after
+    # the first placement warm and 236.9 s cold - a 20x spread no fixed number covers, and
+    # the fixed -PreOrderSettleSecs is a guess against exactly that spread.
+    # It needs the object consoles OPEN (Vrf:ObjectConsoleNotifyLevel >= 3): the row prints
+    # at level 3 and nowhere else. Stage 0 refuses the gate below that level.
+    [string] $PreOrderGate = '',
+
+    # The gate's own timeout, 30..1800. 300 covers the cold ~240 s with margin. On timeout
+    # the run STOPS unless -PreOrderSettleSecs > 0, which then serves as the fallback hold.
+    [int] $PreOrderGateTimeoutSec = 300,
 
     # SLACK added on top of a FOREGROUND stage's OWN known blocking budget before
     # the runner declares that stage timed out. An unattended runner must never
@@ -1218,6 +1262,53 @@ function Read-LiveDelta {
     }
 }
 
+# ---- stage 7d READY GATE state: the nav-area acquisition watcher ------------
+# The gate's evidence is two lines of the interface log, and they arrive at
+# DIFFERENT STAGES: the PLACEMENT lines land during the stage-7 oracle wait, the
+# "New Primary nav area" row lands after it. One watcher, one incremental reader
+# key, called from BOTH loops, so the placement instant is stamped WHEN IT HAPPENS
+# rather than when the gate starts. Stamping it at gate start would silently
+# UNDER-report the delta by the length of the oracle wait and could call a cold
+# machine warm - the one thing this indicator exists to tell apart.
+#
+# Wall clocks, not log clocks: vrfc2simapp.log carries no per-line timestamp, so
+# both instants are the runner's own observation times and carry the polling
+# interval as their resolution (5 s in the oracle loop, 2 s in the gate loop).
+# That is far below the 10 s / 240 s the indicator has to separate, and it is the
+# reason the printed delta is reported to 0.1 s but must not be read as one.
+$script:NavGate = [ordered]@{
+    firstPlacementUtc  = $null
+    firstPlacementName = $null
+    firstPlacementKind = $null
+    placementRowsSeen  = 0
+    firstRow           = $null
+    firstRowUtc        = $null
+    areaRowsSeen       = 0
+}
+function Update-NavGateWatch {
+    param([string]$AppLogPath)
+    $delta = Read-LiveDelta -Path $AppLogPath -Key 'applog-navgate'
+    if ([string]::IsNullOrEmpty($delta)) { return }
+    $nowUtc = (Get-Date).ToUniversalTime()
+    $pl = @(Get-PlacementRows -AppLogText $delta)
+    if ($pl.Count -gt 0) {
+        $script:NavGate.placementRowsSeen += $pl.Count
+        if ($null -eq $script:NavGate.firstPlacementUtc) {
+            $script:NavGate.firstPlacementUtc  = $nowUtc
+            $script:NavGate.firstPlacementName = $pl[0].name
+            $script:NavGate.firstPlacementKind = $pl[0].kind
+        }
+    }
+    $rows = @(Get-NavAreaRows -AppLogText $delta)
+    if ($rows.Count -gt 0) {
+        $script:NavGate.areaRowsSeen += $rows.Count
+        if ($null -eq $script:NavGate.firstRow) {
+            $script:NavGate.firstRow    = $rows[0]
+            $script:NavGate.firstRowUtc = $nowUtc
+        }
+    }
+}
+
 # ---- the RUNBOOK 0.5.7 CORRECTED coordinate criterion -----------------------
 # PASS = at least one POS line whose lat/lon are real numbers, NOT NaN, and NOT
 #        the 90.000000,-90.000000 pole placeholder.
@@ -1643,6 +1734,24 @@ if ($StageTimeoutSec -lt 60) {
 if ($PreOrderSettleSecs -lt 0 -or $PreOrderSettleSecs -gt 3600) {
     $bad += ('-PreOrderSettleSecs must be 0..3600 (got {0}). 0 = no stage 7d hold.' -f $PreOrderSettleSecs)
 }
+# Stage 7d READY GATE. One gate exists; an unknown name is a TYPO and must not fall through
+# to "off", which would run the very unGated push the operator asked to avoid.
+$PreOrderGateOn = $false
+if ($PreOrderGate -ne '') {
+    if ($PreOrderGate -in @('NavArea','navarea','nav-area','navArea')) {
+        $PreOrderGate   = 'NavArea'
+        $PreOrderGateOn = $true
+    } else {
+        $bad += ("-PreOrderGate '{0}' is not a gate this runner knows. Supported: NavArea (or '' = off)." -f $PreOrderGate)
+    }
+}
+if ($PreOrderGateOn -and ($PreOrderGateTimeoutSec -lt 30 -or $PreOrderGateTimeoutSec -gt 1800)) {
+    $bad += ('-PreOrderGateTimeoutSec must be 30..1800 (got {0}). The cold nav-area wait measured 236.9 s, so 30 is already optimistic and the default 300 is the one with margin.' -f $PreOrderGateTimeoutSec)
+}
+# The WARM/COLD split for the placement -> area-row delta. 60 s sits an order of magnitude
+# above the warm 9.1-12.1 s and a quarter of the cold 236.9 s, so nothing measured lands
+# near it (G7B_G8_RESULTS_2026-09-14 sec 3b).
+$PreOrderGateWarmSecs = 60
 # StopVrf.ps1 validates TimeoutSec 5..600 itself and exits 2 - catch it here so the
 # failure lands BEFORE VR-Forces is launched instead of during teardown.
 if ($StopVrfTimeoutSec -lt 5 -or $StopVrfTimeoutSec -gt 600) {
@@ -1747,9 +1856,13 @@ if (Test-Path -LiteralPath $Init -PathType Leaf) {
     } catch { $bad += ('could not read -Init to check SystemName: {0}' -f $_.Exception.Message) }
 }
 $appSettings = Join-Path (Split-Path -Parent $ExeApp) 'appsettings.json'
+# Kept after the parse: the -PreOrderGate console-level check below reads the same object,
+# so the file is opened once and the two checks can never disagree about its contents.
+$cfgApp = $null
 if (Test-Path -LiteralPath $appSettings -PathType Leaf) {
     try {
         $cfg = Get-Content -LiteralPath $appSettings -Raw -Encoding UTF8 | ConvertFrom-Json
+        $cfgApp = $cfg
         if ($cfg.PSObject.Properties.Name -contains 'Vrf' -and
             $cfg.Vrf.PSObject.Properties.Name -contains 'ClientId') { $appClientId = [string]$cfg.Vrf.ClientId }
     } catch { Say-Warn ('could not parse {0}: {1}' -f $appSettings, $_.Exception.Message) }
@@ -1764,6 +1877,36 @@ if ($appClientId -and $initSystemNames.Count -gt 0 -and ($initSystemNames -notco
     $bad += ("clientId MISMATCH: appsettings Vrf:ClientId='{0}' but the init declares SystemName [{1}]. RUNBOOK sec 2: they MUST match or the interface creates 0 UNITS. Fix appsettings.json (or the init) before running." -f $appClientId, ($initSystemNames -join ','))
 }
 if (-not $appClientId) { Say-Warn 'could not read Vrf:ClientId from the app appsettings.json - the SystemName match is UNVERIFIED.' }
+
+# -PreOrderGate NavArea REQUIRES the object consoles open. The row it waits for is printed
+# at object-console level 3 and at no lower level, so with the console below 3 the gate can
+# only ever time out - after burning its whole timeout with VR-Forces up. That is a stage-0
+# failure, before anything is launched, not a run-time surprise.
+# The level reaches the app the way every other Vrf setting does: the environment
+# (Vrf__ObjectConsoleNotifyLevel, which scripts\RunScenario.sh exports from --object-console)
+# overrides appsettings.json, where the shipped default is -1 = consoles OFF.
+$ObjectConsoleLevel       = $null
+$ObjectConsoleLevelSource = '(unresolved)'
+if (-not [string]::IsNullOrWhiteSpace($env:Vrf__ObjectConsoleNotifyLevel)) {
+    $ocl = 0
+    if ([int]::TryParse($env:Vrf__ObjectConsoleNotifyLevel.Trim(), [ref]$ocl)) {
+        $ObjectConsoleLevel       = $ocl
+        $ObjectConsoleLevelSource = 'env Vrf__ObjectConsoleNotifyLevel (RunScenario.sh --object-console)'
+    }
+}
+if ($null -eq $ObjectConsoleLevel -and $null -ne $cfgApp -and
+    $cfgApp.PSObject.Properties.Name -contains 'Vrf' -and
+    $cfgApp.Vrf.PSObject.Properties.Name -contains 'ObjectConsoleNotifyLevel') {
+    $ObjectConsoleLevel       = [int]$cfgApp.Vrf.ObjectConsoleNotifyLevel
+    $ObjectConsoleLevelSource = ('appsettings.json ({0})' -f $appSettings)
+}
+if ($PreOrderGateOn) {
+    if ($null -eq $ObjectConsoleLevel) {
+        $bad += ("-PreOrderGate {0} needs the object-console level and it could NOT be resolved (neither env Vrf__ObjectConsoleNotifyLevel nor Vrf:ObjectConsoleNotifyLevel in {1}). The gate waits for a row that only prints at level >= 3; refusing rather than waiting out {2}s for a row that may never come." -f $PreOrderGate, $appSettings, $PreOrderGateTimeoutSec)
+    } elseif ($ObjectConsoleLevel -lt 3) {
+        $bad += ("-PreOrderGate {0} REQUIRES object console >= 3 and it is {1} (from {2}). The 'New Primary nav area' row the gate waits for is printed at level 3; below that it is never emitted and the gate could only time out. Pass --object-console 3 (or 4) to scripts\RunScenario.sh, or drop the gate and use -PreOrderSettleSecs." -f $PreOrderGate, $ObjectConsoleLevel, $ObjectConsoleLevelSource)
+    }
+}
 
 if ($bad.Count -gt 0) {
     Say-Head 'Result'
@@ -2333,17 +2476,32 @@ $DerivedWatchSecs = Get-DerivedWatchSecs -PreRollSecs $PreRollSecs -AppJoinTimeo
 # Get-DerivedWatchSecs so the pinned formula (tests\RunnerTurnaround.Tests.ps1 check 1, and the
 # record it reproduces) is untouched; with the default 0 this line changes nothing.
 if ($PreOrderSettleSecs -gt 0) { $DerivedWatchSecs += $PreOrderSettleSecs }
+# Same argument for the stage-7d READY GATE, and it is the reason the watchdog budget below
+# covers it too ($WatchdogCoverSecs takes the max of this and an explicit -WatchSecs): the
+# gate's WORST case is the full timeout, spent inside the observers' coverage. When the gate
+# AND the settle are both given the settle is only the timeout fallback - but the worst case
+# is then gate-timeout THEN settle, so both are added and the cap is right for that path too.
+if ($PreOrderGateOn) { $DerivedWatchSecs += $PreOrderGateTimeoutSec }
 $EffWatchSecs = if ($WatchSecs -gt 0) { $WatchSecs } else { $DerivedWatchSecs }
 if ($EffWatchSecs -le 0) { Say-Fail 'computed observer duration is not positive.'; exit 2 }
 $Manifest.inputs.watchSecs          = $EffWatchSecs
 $Manifest.inputs.watchSecsDerived   = $DerivedWatchSecs
 $Manifest.inputs.preOrderSettleSecs = $PreOrderSettleSecs
+$Manifest.inputs.preOrderGate            = $(if ($PreOrderGateOn) { $PreOrderGate } else { '' })
+$Manifest.inputs.preOrderGateTimeoutSec  = $(if ($PreOrderGateOn) { $PreOrderGateTimeoutSec } else { 0 })
+$Manifest.inputs.objectConsoleNotifyLevel = $ObjectConsoleLevel
 # An EXPLICIT -WatchSecs wins over the derived value, settle included - which is correct (it is
 # the operator's choice) and is also how a stage-7d hold could silently truncate a trace: the
 # hold is spent INSIDE the observers' coverage, so a cap that was already below the derived
 # value loses those seconds off the END of the window. Said out loud rather than adjusted.
-if ($PreOrderSettleSecs -gt 0 -and $WatchSecs -gt 0 -and $WatchSecs -lt $DerivedWatchSecs) {
-    Add-Flag 'WARN' ('-WatchSecs {0} was passed EXPLICITLY and is below the derived cap {1}, which now includes the {2}s stage-7d hold. The observers can end BEFORE the observation window does, truncating the trace with no error. Raise -WatchSecs to at least {1}, or drop it and let the runner derive it.' -f $WatchSecs, $DerivedWatchSecs, $PreOrderSettleSecs)
+# The READY GATE grows the cap the same way and for the same reason, so it earns the same
+# WARN - found by the review of this change: without the -or below, a gated run with an
+# explicit low -WatchSecs would truncate its trace in silence.
+$PreOrderBudgetText = @()
+if ($PreOrderGateOn)           { $PreOrderBudgetText += ('READY GATE timeout {0}s' -f $PreOrderGateTimeoutSec) }
+if ($PreOrderSettleSecs -gt 0) { $PreOrderBudgetText += ('settle {0}s' -f $PreOrderSettleSecs) }
+if (($PreOrderSettleSecs -gt 0 -or $PreOrderGateOn) -and $WatchSecs -gt 0 -and $WatchSecs -lt $DerivedWatchSecs) {
+    Add-Flag 'WARN' ('-WatchSecs {0} was passed EXPLICITLY and is below the derived cap {1}, which now includes the stage-7d budget ({2}). The observers can end BEFORE the observation window does, truncating the trace with no error. Raise -WatchSecs to at least {1}, or drop it and let the runner derive it.' -f $WatchSecs, $DerivedWatchSecs, ($PreOrderBudgetText -join ' + '))
 }
 
 # HLA environment, identical for WatchVrf and the app (RUNBOOK sec 7 items 1-3).
@@ -2356,9 +2514,17 @@ Say ('  run id      : {0}' -f $RunId)
 Say ('  run dir     : {0}' -f $RunDir)
 Say ('  observers   : {0}s CAP (derived {8}: preRoll {1} + appJoin {2} + initDispatch {3} + oracleGate {4} + pushOrderListen {5} + run {6} + trail {7}{9})' -f `
         $EffWatchSecs, $PreRollSecs, $AppJoinTimeoutSec, $InitDispatchWaitSec, $OracleGateTimeoutSec, $PushOrderListenSec, $RunSecs, $TrailSecs, `
-        $DerivedWatchSecs, $(if ($PreOrderSettleSecs -gt 0) { (' + preOrderSettle {0}' -f $PreOrderSettleSecs) } else { '' }))
+        $DerivedWatchSecs, ($(if ($PreOrderGateOn) { (' + preOrderGate {0}' -f $PreOrderGateTimeoutSec) } else { '' }) +
+                            $(if ($PreOrderSettleSecs -gt 0) { (' + preOrderSettle {0}' -f $PreOrderSettleSecs) } else { '' })))
 Say ('  trace stop  : {0} - {1}' -f $TraceStopMode, $(if ($TraceStopMode -eq 'stop-file') { ('teardown touches {0} at StopIface + {1}s; observers resign within ~1 s; grace {2}s' -f $PathStopFile, $TrailSecs, $TraceStopGraceSec) } else { 'observers run to the CAP and teardown waits for them (pre-turnaround dead time)' }))
-Say ('  pre-order   : {0}' -f $(if ($PreOrderSettleSecs -gt 0) { ('stage 7d holds {0}s between the oracle gate and PushOrder (the nav area loads LAZILY after placement); it IS in the derived cap, and {1}' -f $PreOrderSettleSecs, $(if ($WatchSecs -gt 0) { 'the EXPLICIT -WatchSecs above overrides that derivation - see the flag' } else { 'the derived cap is the one in force' })) } else { 'no hold (-PreOrderSettleSecs 0)' }))
+Say ('  pre-order   : {0}' -f $(
+    if ($PreOrderGateOn) {
+        ('stage 7d READY GATE -PreOrderGate {0}: PushOrder waits for the simulator''s own "New Primary nav area" row (object console {1}), timeout {2}s, which IS in the derived cap; {3}' -f `
+            $PreOrderGate, $ObjectConsoleLevel, $PreOrderGateTimeoutSec, `
+            $(if ($PreOrderSettleSecs -gt 0) { ('on TIMEOUT it falls back to the {0}s -PreOrderSettleSecs hold (FALLBACK ONLY - gate first, never both in sequence)' -f $PreOrderSettleSecs) } else { 'on TIMEOUT the run STOPS (exit 3) - pass -PreOrderSettleSecs N to make the timeout fall back to a fixed hold instead' }))
+    } elseif ($PreOrderSettleSecs -gt 0) {
+        ('stage 7d holds {0}s between the oracle gate and PushOrder (the nav area loads LAZILY after placement); it IS in the derived cap, and {1}' -f $PreOrderSettleSecs, $(if ($WatchSecs -gt 0) { 'the EXPLICIT -WatchSecs above overrides that derivation - see the flag' } else { 'the derived cap is the one in force' }))
+    } else { 'no hold and no gate (-PreOrderSettleSecs 0, -PreOrderGate off)' }))
 Say ('  window      : {0}s{1}' -f $RunSecs, $(if ($StopWhenComplete) { (' CAP; -StopWhenComplete closes it once all {0} taskee(s) / {1} task(s) report TASKCMPLT, {2}s have passed AND every taskee has post-completion position evidence (RPT | C2SIM-capture | R1-applog)' -f $OrderTaskees.Count, $OrderTasks.Count, $SettleHoldSecs) } else { ' fixed (-StopWhenComplete not set)' }))
 Say ('  clientId    : {0}' -f $(if ($ClientId) { ('{0} (-ClientId -> Vrf__ClientId)' -f $ClientId) } else { ('{0} (appsettings.json)' -f $appClientId) }))
 Say ('  HLA PATH    : {0};<inherited>' -f $PathPrefix)
@@ -2972,7 +3138,7 @@ try {
     $ListenProc = Start-External -Name 'ListenReports' -File $ExeListenReports `
             -Arguments (@([string]$EffWatchSecs, $PathReports) + $ListenStopArgs + $ListenEndpointArgs) `
             -Cwd $RepoRoot -StdOutFile $PathReportsOut -StdErrFile $PathReportsErr `
-            -Note 'Listens on -RestUrl/-StompUrl when the deployed binary supports --rest-url/--stomp-url (Stage 0b), else the historical 8080/61613 (already checked to match). Writes reports-captured.log ONLY at exit; its stdout names the server it heard.'
+            -Note 'Listens on -RestUrl/-StompUrl when the deployed binary supports --rest-url/--stomp-url (Stage 0b), else the historical 8080/61613 (already checked to match). Writes reports-captured.log INCREMENTALLY - every captured report is appended as it arrives (0999eeb), so the capture is live evidence DURING the window and not only after exit; its stdout names the server it heard.'
 
     Say-Head ('Stage 5b - pre-roll {0}s of trace before the init is pushed' -f $PreRollSecs)
     if ($DryRun) { Say-Plan ('would sleep {0}s' -f $PreRollSecs) } else { Start-Sleep -Seconds $PreRollSecs }
@@ -3118,6 +3284,11 @@ try {
         $deadline = (Get-Date).AddSeconds($OracleGateTimeoutSec)
         $gate = $null
         while ($true) {
+            # The PLACEMENT lines - the start of the interval the stage-7d gate measures -
+            # land HERE, during this wait, and the nav-area row can land here too on a fast
+            # warm machine. Watching from this loop is what makes the delta the real one
+            # instead of one measured from the gate's own start. Off unless the gate is on.
+            if ($PreOrderGateOn) { Update-NavGateWatch -AppLogPath $PathAppLog }
             $traceText = Read-LiveText -Path $PathTrace
             $gate = Get-RealPositions -TraceText $traceText
             if ($gate.RealCount -gt 0) { break }
@@ -3178,21 +3349,161 @@ try {
     }
 
     # ---------------------------------------------------------------------
-    # STAGE 7d - PRE-ORDER SETTLE (opt-in; -PreOrderSettleSecs, default 0 = skipped)
+    # STAGE 7d - PRE-ORDER READY GATE (-PreOrderGate) or FIXED SETTLE (-PreOrderSettleSecs)
     # ---------------------------------------------------------------------
-    # WHY: the sectorised navigation area loads LAZILY, AFTER the entities are placed, so a
-    # task issued too early is PLANNED WITHOUT THE MESH. Run 20260914T130439Z shows the area's
-    # "New Primary nav area" rows 175 s after the members were created. This stage holds the
-    # order back for a fixed, ledgered number of seconds so the load has a chance to finish.
+    # WHY THE STAGE EXISTS: the sectorised navigation area loads LAZILY, AFTER the entities
+    # are placed, so a task issued too early is PLANNED WITHOUT THE MESH - and silently: the
+    # move-to tree's "Is current point in nav area?" action fails and the whole plan drops to
+    # the FEATURE planner on one straight part. Four single-variable runs on 2026-09-14
+    # (docs/experiments/G7B_G8_RESULTS_2026-09-14.md sec 1.5) put the usable instant at the
+    # first "New Primary nav area: | <area>" row from a placed platform, and it partitions
+    # the gate outcomes PERFECTLY: every goal before that row failed, every goal after it
+    # passed, resolved to 0.3 s in run D. Under CreationPolicy=AtOrder the order reached the
+    # bus 4.7-7.7 s BEFORE the row in all three AtOrder runs.
     #
-    # WHAT IT IS NOT: it is not a fix and it is not evidence. It says how long we wait, never
-    # what counts as loaded; only the object consoles can say whether the mesh actually
-    # arrived (MEMORY lessons-vendor-diagnostics-first). The vendor-side alternative is UG52
-    # Appendix C loadAllNavigationDataOnTerrainLoad - a CONFIG change that loads every sector
-    # at terrain load - and it is the better answer if this hold turns out to matter.
-    # The hold is already counted into the observers' duration cap (see $DerivedWatchSecs).
-    if ($PreOrderSettleSecs -gt 0) {
-        Say-Head ('Stage 7d - pre-order settle: hold {0}s before PushOrder (LAZY sectorised nav-area load)' -f $PreOrderSettleSecs)
+    # TWO WAYS TO WAIT, AND THEY ARE NOT EQUALS.
+    #   -PreOrderGate NavArea   waits for the SIMULATOR'S OWN row. It is the ready SIGNAL, so
+    #                           it is right at 9.1-12.1 s warm and at 236.9 s cold - a 20x
+    #                           spread (sec 3b) no fixed number covers. Needs the object
+    #                           consoles at >= 3 (stage 0 refuses it otherwise).
+    #   -PreOrderSettleSecs N   holds a FIXED N seconds. It says how long we wait, never what
+    #                           counts as loaded, and it cannot tell you the mesh arrived - a
+    #                           guess against that spread, kept because it is all there is
+    #                           when the consoles are shut. >= 30 s warm, 240 s+ cold.
+    # GATE OR SETTLE, NEVER ONE AFTER THE OTHER. With both given the GATE is in force and the
+    # settle is the TIMEOUT FALLBACK only, so a gate that never fires degrades to the old
+    # behaviour instead of stopping a run that would otherwise have been fine.
+    #
+    # WHAT NEITHER IS: a fix. The vendor-side loadAllNavigationDataOnTerrainLoad was tested
+    # and moved this row by nothing at all (sec 3a) - do not let it stand in for the wait.
+    # Both budgets are already counted into the observers' duration cap ($DerivedWatchSecs).
+    $RunPreOrderSettle = ($PreOrderSettleSecs -gt 0)
+    if ($PreOrderGateOn) {
+        Say-Head ('Stage 7d - pre-order READY GATE ({0}): hold PushOrder until the simulator acquires its nav area (timeout {1}s)' -f $PreOrderGate, $PreOrderGateTimeoutSec)
+        Say  '  The signal is the simulator''s own row, not a guess: "New Primary nav area: | <area>" from ANY'
+        Say ('  placed platform, at object-console level 3 (this run: {0}). Measured 2026-09-14: 9.1-12.1 s' -f $ObjectConsoleLevel)
+        Say  '  after the first placement WARM, 236.9 s COLD. Until it prints, every ground-vehicle-move-to'
+        Say  '  is feature-planned, silently (G7B_G8_RESULTS_2026-09-14 sec 1.5).'
+        if ($DryRun) {
+            Say-Plan ('would poll {0} incrementally every 2s for up to {1}s for that row, then push the order IMMEDIATELY' -f $PathAppLog, $PreOrderGateTimeoutSec)
+            Say-Plan ('would log the object, the area and the delta from the first "PLACEMENT: <UNIT|PLATFORM> <name> ... created" line, and call it WARM at <= {0}s or COLD above it (the cache-state indicator)' -f $PreOrderGateWarmSecs)
+            if ($PreOrderSettleSecs -gt 0) {
+                Say-Plan ('on gate TIMEOUT would fall back to the {0}s -PreOrderSettleSecs hold (FALLBACK ONLY: the gate is what is in force)' -f $PreOrderSettleSecs)
+            } else {
+                Say-Plan 'on gate TIMEOUT would STOP the run (exit 3, NOT-READY) - no -PreOrderSettleSecs fallback was given'
+            }
+            $RunPreOrderSettle = $false
+        } else {
+            $gateStartUtc = (Get-Date).ToUniversalTime()
+            $Manifest.clocks.preOrderGateStartUtc = $gateStartUtc.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+            Save-Manifest
+            $gateEnd      = (Get-Date).AddSeconds($PreOrderGateTimeoutSec)
+            $nextGateNote = (Get-Date).AddSeconds(15)
+            while ($true) {
+                # ONE incremental read per poll, shared with the stage-7 loop through the
+                # 'applog-navgate' offset key: the log reaches gigabytes and a whole-file read
+                # at 2 s would be the G6 cadence collapse all over again (RUNNER_HARDENING sec 5).
+                Update-NavGateWatch -AppLogPath $PathAppLog
+                if ($null -ne $script:NavGate.firstRow) { break }
+                if ((Get-Date) -ge $gateEnd) { break }
+                # LIVENESS, not a blind wait - the same three checks the settle below makes and
+                # for the same reason: a 5.2 sim can die here, and the order has NOT been pushed
+                # yet, so a death during the gate is a clean stop rather than a truncated window.
+                if ($BackendPid) {
+                    $gone = -not (Get-Process -Id $BackendPid -ErrorAction SilentlyContinue)
+                    $cs = Get-ChildItem -Path 'C:\MAK\logs' -Filter ('vrfSimHLA1516e5.2d-*-{0}.callstack.log' -f $BackendPid) -ErrorAction SilentlyContinue | Select-Object -First 1
+                    if ($gone -or $cs) {
+                        Stop-Runner 3 ('BACK-END pid {0} {1} DURING the stage-7d READY GATE. The order was NOT pushed. Crash record: {2}. Read its callstack before anything else; the harvested .log holds the environment and is NOT for sharing.' -f $BackendPid, $(if ($gone) { 'DIED' } else { 'CRASHED and is PARKED on the dump prompt' }), $(if ($cs) { $cs.FullName } else { '(none found in C:\MAK\logs)' }))
+                    }
+                }
+                if ($AppProc.HasExited) {
+                    Stop-Runner 3 ('VrfC2SimApp EXITED with code {0} during the stage-7d READY GATE - there is nothing left to push the order into, and nothing left to print the nav-area row. See {1} and {2}.' -f $AppProc.ExitCode, $PathAppLog, $PathAppErr)
+                }
+                if ($null -ne $WatchProc -and $WatchProc.HasExited) {
+                    Stop-Runner 3 ('the trace observer WatchVrf-trace EXITED with code {0} during the stage-7d READY GATE - THE MOVEMENT ORACLE IS GONE, so an order pushed now would be unscored. See {1}.' -f $WatchProc.ExitCode, $PathTrace)
+                }
+                if ((Get-Date) -ge $nextGateNote) {
+                    $nextGateNote = (Get-Date).AddSeconds(15)
+                    Say-Info ('  nav-area gate: {0}s of {1}s elapsed, {2} area row(s) seen, {3} placement line(s) seen{4} (back-end, interface and trace observer all alive)' -f `
+                        [int]((Get-Date).ToUniversalTime() - $gateStartUtc).TotalSeconds, $PreOrderGateTimeoutSec, `
+                        $script:NavGate.areaRowsSeen, $script:NavGate.placementRowsSeen, `
+                        $(if ($null -ne $script:NavGate.firstPlacementUtc) { (' - {0}s since the first placement ({1})' -f [int]((Get-Date).ToUniversalTime() - $script:NavGate.firstPlacementUtc).TotalSeconds, $script:NavGate.firstPlacementName) } else { '' }))
+                }
+                Start-Sleep -Seconds 2
+            }
+            $gateNowUtc = (Get-Date).ToUniversalTime()
+            $row        = $script:NavGate.firstRow
+            # The cache-state indicator: first PLACEMENT -> first area row. ~10 s means the
+            # terrain tiles were already in the file cache, ~240 s means they were not
+            # (G7B_G8_RESULTS sec 3b; identical 2.33 GB streamed either way). It is the
+            # NUMBER TO QUOTE when a demo run is slow to start, and the reason the prepare
+            # step loads the scenario once beforehand.
+            $deltaSecs  = $null
+            $cacheState = 'UNKNOWN'
+            if ($null -ne $row -and $null -ne $script:NavGate.firstPlacementUtc) {
+                $deltaSecs  = [Math]::Round(($script:NavGate.firstRowUtc - $script:NavGate.firstPlacementUtc).TotalSeconds, 1)
+                $cacheState = $(if ($deltaSecs -le $PreOrderGateWarmSecs) { 'WARM' } else { 'COLD' })
+            }
+            $Manifest.oracle.preOrderGate = [ordered]@{
+                mode               = $PreOrderGate
+                timeoutSec         = $PreOrderGateTimeoutSec
+                warmThresholdSec   = $PreOrderGateWarmSecs
+                objectConsoleLevel = $ObjectConsoleLevel
+                signal             = 'the first "VRF console [N] <object> (VRF_UUID:...): New Primary nav area: | <area>" row in vrfc2simapp.log - the simulator''s own acquisition of the sectorised nav area, which partitions the move-to nav gate perfectly (G7B_G8_RESULTS_2026-09-14 sec 1.5)'
+                fired              = ($null -ne $row)
+                object             = $(if ($null -ne $row) { $row.object } else { $null })
+                objectUuid         = $(if ($null -ne $row) { $row.uuid } else { $null })
+                area               = $(if ($null -ne $row) { $row.area } else { $null })
+                row                = $(if ($null -ne $row) { $row.line } else { $null })
+                areaRowsSeen       = $script:NavGate.areaRowsSeen
+                placementRowsSeen  = $script:NavGate.placementRowsSeen
+                firstPlacement     = $(if ($script:NavGate.firstPlacementName) { ('{0} {1}' -f $script:NavGate.firstPlacementKind, $script:NavGate.firstPlacementName) } else { $null })
+                firstPlacementUtc  = $(if ($null -ne $script:NavGate.firstPlacementUtc) { $script:NavGate.firstPlacementUtc.ToString('yyyy-MM-ddTHH:mm:ss.fffZ') } else { $null })
+                placementToAreaSec = $deltaSecs
+                cacheState         = $cacheState
+                deltaResolutionNote = 'both instants are the RUNNER''s observation times (vrfc2simapp.log carries no per-line timestamp); resolution is the poll interval - 5 s in the stage-7 loop, 2 s here.'
+                waitedSec          = [Math]::Round(($gateNowUtc - $gateStartUtc).TotalSeconds, 1)
+                fellBackToSettle   = $false
+            }
+            if ($null -ne $row) {
+                $Manifest.clocks.preOrderGateFiredUtc = $script:NavGate.firstRowUtc.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+                $RunPreOrderSettle = $false
+                Say-Ok ('NAV AREA ACQUIRED after {0}s of gate: object "{1}" took primary area "{2}"' -f $Manifest.oracle.preOrderGate.waitedSec, $row.object, $row.area)
+                Say-Ok ('  {0}' -f $row.line)
+                if ($null -ne $deltaSecs) {
+                    Say-Ok ('  first placement ({0}) -> area row: {1}s  ->  {2} file cache (warm ~10s / cold ~240s, G7B_G8_RESULTS sec 3b; threshold {3}s)' -f `
+                        $Manifest.oracle.preOrderGate.firstPlacement, $deltaSecs, $cacheState, $PreOrderGateWarmSecs)
+                } else {
+                    Say-Warn '  no PLACEMENT line was seen before the area row, so the warm/cold delta is UNKNOWN for this run (the gate itself is unaffected).'
+                }
+                if ($PreOrderSettleSecs -gt 0) {
+                    Say-Info ('  -PreOrderSettleSecs {0} is NOT spent: it is the gate''s timeout fallback and the gate fired.' -f $PreOrderSettleSecs)
+                }
+                Say-Ok '  pushing the order NOW - this is the first instant at which a move-to can be mesh-planned.'
+                Save-Manifest
+            } else {
+                $Manifest.clocks.preOrderGateTimedOutUtc = $gateNowUtc.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+                $notReady = ('PRE-ORDER READY GATE ({0}) NOT READY: no "New Primary nav area" row in {1} after {2}s ({3} area rows seen, {4} placement lines seen{5}). The navigation area is NOT usable, so every move-to in the order would be planned by the FEATURE planner on one straight part - the exact failure this gate exists to prevent (G7B_G8_RESULTS_2026-09-14 sec 1.5). Check the object-console level (this run: {6}; the row needs >= 3) and whether the scenario really carries a nav area.' -f `
+                    $PreOrderGate, $PathAppLog, $Manifest.oracle.preOrderGate.waitedSec, `
+                    $script:NavGate.areaRowsSeen, $script:NavGate.placementRowsSeen, `
+                    $(if ($null -ne $script:NavGate.firstPlacementUtc) { (', the first {0}s ago' -f [int]($gateNowUtc - $script:NavGate.firstPlacementUtc).TotalSeconds) } else { '' }), `
+                    $ObjectConsoleLevel)
+                if ($PreOrderSettleSecs -gt 0) {
+                    Say-Fail $notReady
+                    Say-Warn ('FALLING BACK to the fixed -PreOrderSettleSecs {0} hold. The order WILL be pushed after it, WITHOUT a ready signal: this run''s first legs may be feature-planned and the run must be read with that in the manifest (oracle.preOrderGate.fellBackToSettle).' -f $PreOrderSettleSecs)
+                    Add-Flag 'WARN' ($notReady + (' -PreOrderSettleSecs {0} was given, so the run CONTINUES on that fixed hold instead of stopping; the order is pushed WITHOUT a ready signal.' -f $PreOrderSettleSecs))
+                    $Manifest.oracle.preOrderGate.fellBackToSettle = $true
+                    $RunPreOrderSettle = $true
+                    Save-Manifest
+                } else {
+                    Save-Manifest
+                    Stop-Runner 3 ($notReady + ' No -PreOrderSettleSecs fallback was given, so the run STOPS here rather than spend a window on an order that cannot be planned. Pass -PreOrderSettleSecs N to fall back to a fixed hold instead.')
+                }
+            }
+        }
+    }
+    if ($RunPreOrderSettle) {
+        Say-Head ('Stage 7d - pre-order settle{1}: hold {0}s before PushOrder (LAZY sectorised nav-area load)' -f $PreOrderSettleSecs, $(if ($PreOrderGateOn) { ' (FALLBACK - the READY GATE timed out)' } else { '' }))
         Say  '  The nav area loads AFTER placement: run 20260914T130439Z logged "New Primary nav area" 175 s'
         Say  '  after the members were created. A task issued before that plans without the mesh. This is a'
         Say  '  measurement parameter, not a verdict - the object consoles are what say the mesh arrived.'
@@ -3285,7 +3596,7 @@ try {
     # so a reader can tell "did not fire" from "was not enabled".
     $EarlyExit = [ordered]@{
         enabled        = [bool]$StopWhenComplete
-        source         = 'vrfc2simapp.log: SENT TASK STATUS REPORT (TASKCMPLT) taskee=<uuid> task=<uuid> and the R1 position-report round lines; watchvrf-trace.csv TSK/RPT/POS records; reports-captured.log C2SIM PositionReport / TaskStatus records (written by ListenReports at its exit)'
+        source         = 'vrfc2simapp.log: SENT TASK STATUS REPORT (TASKCMPLT) taskee=<uuid> task=<uuid> and the R1 position-report round lines; watchvrf-trace.csv TSK/RPT/POS records; reports-captured.log C2SIM PositionReport / TaskStatus records (APPENDED by ListenReports as each report arrives, 0999eeb - live during the window)'
         criterion      = '(1-3) every distinct order taskee has >= 1 TASKCMPLT line AND TASKCMPLT lines >= order task count, held for settleHoldSecs (FLOOR); AND (4) every taskee has post-completion position evidence from ANY ONE of: RPT (a trace RPT POSITION later than its TSK and within reportToleranceMeters of its latest POS), C2SIM-capture (a PositionReport for its own uuid captured after its TASKCMPLT), R1-applog (a complete R1 round, 0 skipped, logged after its TASKCMPLT line); runSecs is the cap'
         taskees        = $OrderTaskees
         taskCount      = $OrderTasks.Count
@@ -3388,10 +3699,12 @@ try {
                     $appWhole  = Read-LiveText -Path $PathAppLog
                     $nameToVrf = Get-VrfUuidByName -AppLogText $appWhole
                     $appPosEv  = Get-AppLogPositionEvidence -AppLogText $appWhole
-                    # reports-captured.log is written by ListenReports ONLY at its exit, so it is
-                    # normally ABSENT here and this read returns '' (Read-LiveText tolerates a
-                    # missing file). It is read anyway because when it IS there it is the
-                    # authority - the taskee's own uuid and its completion on ONE wall clock.
+                    # reports-captured.log is APPENDED by ListenReports as each report arrives
+                    # (0999eeb), so it is normally POPULATED here - before that change it
+                    # existed only after the tool exited, which is why this evidence source
+                    # had never fired live. An absent or still-empty file is still tolerated
+                    # (Read-LiveText returns ''). It is the AUTHORITY once it carries the
+                    # record - the taskee's own uuid and its completion on ONE wall clock.
                     $capEv     = Get-ReportCaptureEvidence -CaptureText (Read-LiveText -Path $PathReports) -RunStartUtc $RunStartUtc
                     $evidence  = Test-ReportEvidence -Taskees $OrderTaskees -TaskeeNames $TaskeeNames -NameToVrfUuid $nameToVrf `
                                      -TraceText (Read-LiveText -Path $PathTrace) -ToleranceMeters $ReportToleranceMeters `
