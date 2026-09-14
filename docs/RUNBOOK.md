@@ -965,9 +965,12 @@ on 2026-09-14; each is now closed by something this section names
    becomes usable at the first `New Primary nav area: | <area>` row printed by a placed
    platform, and that row partitions the move-to nav gate perfectly: every goal before it
    fails `Is current point in nav area?` and is planned by the FEATURE planner on one
-   straight part - silently, at console level 3 - and every goal after it is mesh-planned
+   straight part - silently, at console level 3 - and every goal after it passes the nav gate
    (four single-variable runs, 2026-09-14; docs/experiments/G7B_G8_RESULTS_2026-09-14.md
-   sec 1.5, resolved to 0.3 s in run D). Under `CreationPolicy=AtOrder` the order reached
+   sec 1.5, resolved to 0.3 s in run D). PASSING THE GATE IS NOT THE SAME AS BEING PLANNED:
+   in N2b (205046Z) every goal issued 4.7-9.7 s after the row passed both gates and the mesh
+   query still returned 0 points (PREREG_N1_N2_CORRIDOR_SLOPE sec 10.1); the row is necessary,
+   not sufficient, and N2c (sec 5.5) tests whether a delay after it suffices. Under `CreationPolicy=AtOrder` the order reached
    the bus 4.7-7.7 s BEFORE that row in every run, so the first legs of every demo run so
    far were feature-planned.
 

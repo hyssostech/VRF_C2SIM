@@ -102,8 +102,13 @@ THE CACHE WARM-UP AND THE READY SIGNAL (the trap on a first run after a reboot)
   COLD (a freshly evicted filesystem cache) - the same ~2.3 GB stream either way; only the
   read time differs.
 - The cheap, real READY SIGNAL is the first `New Primary nav area` row printed by any placed
-  platform's object console (level 3). Gating order push on that row is the correct fix (a
-  runner item, owed) rather than a fixed wait.
+  platform's object console (level 3). The runner gates the order push on it
+  (`--pre-order-gate nav-area`, first live use 2026-09-14 19:07Z, fired at +118 s cold / +18 s warm).
+  CAVEAT (N2b, 2026-09-14 21:05Z): the row is NECESSARY, NOT SUFFICIENT - members materialised at the
+  order and queried 5-10 s after that row passed both nav-area gates and still got "not enough (0)
+  points" for every goal (straight fallback, the ridge freeze). Whether a settle after the row fixes it
+  is N2c (PREREG_N1_N2_CORRIDOR_SLOPE sec 5.5); until it decides, add a settle after the gate or
+  delay the first task (StartTime) by a few minutes on a first run.
 - Until that gate exists, a first run after a boot needs EITHER a fixed pre-order settle
   (`scripts/RunScenario.sh --pre-order-settle 240`, which holds after the units exist and
   before the order is pushed) sized to the WORST case - at least 30 seconds warm, 240+
