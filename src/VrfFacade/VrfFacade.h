@@ -196,6 +196,15 @@ struct TextReport {
 struct TaskCompleted {
     std::string unitMarking; // transmitter().markingText()
     std::string taskType;    // taskCompleted().string(), e.g. "move-along"
+    // DtTaskCompleteReport::success() - the vendor's own completed/FAILED flag:
+    // "A task complete report with success being false indicates that the task has
+    // failed and is no longer being processed" (vrfor5.2d include
+    // vrftasks/taskCompleteReport.h:84-90). The vendor's own default is true
+    // (:87 "\note Defaults to True."), which is also the default here, so a report
+    // that never carries the flag is read as a success exactly as VR-Forces reads it.
+    // A completion is therefore no longer self-evidently a SUCCESS: a consumer that
+    // maps every completion to TASKCMPLT will report a failed task as complete.
+    bool success = true;
 };
 
 // Response to RequestAvailableFormations: the formation names an aggregate can
@@ -537,6 +546,41 @@ public:
     // it as geodetic. Returns false if no reflected entity exists for the
     // uuid (e.g. an aggregate, which has no DtReflectedEntity).
     bool TryGetEntityGeodetic(const std::string& uuid, Geodetic& out) const;
+
+    // Reads the reflected object's current GROUND SPEED and HEADING, resolved
+    // through the SAME state repository (entity or aggregate) as
+    // TryGetEntityGeodetic. Returns false when no repository resolves for the
+    // uuid, or when either value is not finite.
+    //
+    // UNITS AND FRAME (B7 / STP-784). The repository's spatial attributes are
+    // GEOCENTRIC (vl/baseEntityStateRepository.h:64-67: "Velocity, acceleration,
+    // and location in Geocentric World Coordinates. Orientation is represented as
+    // a DtTaitBryan which is a set of three Euler Angles in Geocentric World
+    // Coordinates."), so neither value is usable as read - both are converted into
+    // the entity's LOCAL TOPOGRAPHIC frame with the VENDOR's own utilities, never
+    // a hand-rolled rotation:
+    //   - speedMps: metres per second, HORIZONTAL (ground speed). velocity() is
+    //     m/s geocentric (baseEntityStateRepository.h:121-128); it is rotated into
+    //     the topographic frame by the matrix from DtLatLon_to_GeocToTopo, applied
+    //     with DtDcmVecMul exactly as matrix/topoCoord.h:33-37 documents, and the
+    //     vertical component is then dropped. VR-Link's topographic frame is
+    //     X=north, Y=east, Z=DOWN (matrix/topoCoord.h:20-23), so the horizontal
+    //     magnitude is hypot(x, y).
+    //   - headingDeg: degrees TRUE, normalised to [0, 360), north = 0. The SENSE (north ->
+    //     east increasing) is the vendor helper's and is not restated in its header; it is
+    //     the one thing here a live run should confirm.
+    //     Straight from the vendor helper DtGetHeadingFromGeocentric
+    //     (matrix/topoCoord.h:46-49), which "returns your heading in radians from
+    //     your geocentric location and orientation [and] automatically does the
+    //     transformation to topographic".
+    //
+    // Heading comes from ORIENTATION (where the hull points), not from the
+    // velocity vector (course over ground): that is what C2SIM HeadingAngle means
+    // ("heading direction in degrees where north is zero",
+    // C2SIM_SMX_LOX_CWIX2024.xsd:344-350) and it stays well-defined at rest, so a
+    // STOPPED unit reports speed 0 with a valid heading rather than no heading.
+    bool TryGetEntityKinematics(const std::string& uuid,
+                                double& speedMps, double& headingDeg) const;
 
     // -- terrain query (asynchronous) -----------------------------
     // Ask the simulating back end(s) for the terrain height under each point

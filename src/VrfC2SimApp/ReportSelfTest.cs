@@ -282,15 +282,88 @@ public static class ReportSelfTest
             Check(ref failures, g != null && g.Latitude == lat && g.Longitude == lon, "Location lat/lon match");
             Check(ref failures, (pc.EntityHealthStatus?.Length ?? 0) == 0, "EntityHealthStatus omitted (no health data)");
             Check(ref failures, IsoOf(pc.TimeOfObservation) == iso, "TimeOfObservation == iso");
+            // B7 OMISSION: this overload passes no heading/speed (the simulation read failed or
+            // was not attempted), so NEITHER element may appear. Checked on the round-tripped
+            // object AND on the raw wire xml - the *Specified flag is [XmlIgnore], so only the
+            // wire proves nothing was serialized, and a fabricated 0 would be the real defect.
+            Check(ref failures, !pc.HeadingAngleSpecified && !pc.SpeedSpecified,
+                  "no-kinematics position: HeadingAngleSpecified/SpeedSpecified both false");
+            // Bare local names: an ABSENT element cannot put its name on the wire under any
+            // prefix or namespace spelling, so this negative is prefix-proof and the strongest
+            // form of the check.
+            Check(ref failures, !posXml.Contains("HeadingAngle", StringComparison.Ordinal)
+                                && !posXml.Contains("Speed", StringComparison.Ordinal),
+                  "no-kinematics position: wire xml carries NEITHER HeadingAngle nor Speed");
         }
         else { failures++; Console.WriteLine("  FAIL: position did not round-trip to a PositionReportContent"); }
 
-        // ---- position BUNDLE (P4b: ONE ReportBody carrying N PositionReportContent blocks) ----
-        var fixes = new (string uuid, double latDeg, double lonDeg)[]
+        // ---- position WITH heading + speed (B7 / STP-784) ----
+        // Units are the schema's own: HeadingAngleType = "heading direction in degrees where
+        // north is zero" (C2SIM_SMX_LOX_CWIX2024.xsd:344-350), SpeedType = "Speed in
+        // meters/second." (xsd:599-605). The facade converts VR-Forces' geocentric velocity and
+        // orientation into the local topographic frame before these values are ever built.
+        const double headingDeg = 275.25, speedMps = 8.75;
+        string kinXml = ReportBuilder.BuildPositionReport(subject, lat, lon, iso, reportId,
+                                                          headingDeg, speedMps);
+        Console.WriteLine();
+        Console.WriteLine("=== Position report WITH HeadingAngle + Speed ===");
+        Console.WriteLine(kinXml);
+        var rk = ReportBodyOf(Roundtrip(kinXml));
+        if (rk != null && rk.ReportContent is { Length: 1 }
+            && rk.ReportContent[0].Item is S.PositionReportContentType kc)
         {
-            ("aaaaaaaa-0000-0000-0000-000000000001", 58.10, 16.10),
-            ("bbbbbbbb-0000-0000-0000-000000000002", 58.20, 16.20),
-            ("cccccccc-0000-0000-0000-000000000003", 58.30, 16.30),
+            Check(ref failures, kc.HeadingAngleSpecified && kc.HeadingAngle == headingDeg,
+                  "HeadingAngle round-trips as 275.25 deg true");
+            Check(ref failures, kc.SpeedSpecified && kc.Speed == speedMps,
+                  "Speed round-trips as 8.75 m/s");
+            Check(ref failures, kinXml.Contains("HeadingAngle", StringComparison.Ordinal)
+                                && kinXml.Contains("Speed", StringComparison.Ordinal),
+                  "wire xml carries both HeadingAngle and Speed");
+            var kg = kc.Location?.Item as S.GeodeticCoordinateType;
+            Check(ref failures, kc.SubjectEntity == subject && kg != null
+                  && kg.Latitude == lat && kg.Longitude == lon,
+                  "heading/speed do not disturb SubjectEntity or Location");
+        }
+        else { failures++; Console.WriteLine("  FAIL: heading/speed position did not round-trip"); }
+
+        // A ZERO speed is real data (a stopped unit), NOT a missing read: it must be SENT.
+        // This is the check that separates "omit when unknown" from "omit when zero" - the
+        // watchdog validation run reads a frozen unit as speed 0 with a valid heading.
+        string zeroXml = ReportBuilder.BuildPositionReport(subject, lat, lon, iso, reportId, 0.0, 0.0);
+        var rz = ReportBodyOf(Roundtrip(zeroXml));
+        if (rz != null && rz.ReportContent is { Length: 1 }
+            && rz.ReportContent[0].Item is S.PositionReportContentType zc)
+        {
+            Check(ref failures, zc.SpeedSpecified && zc.Speed == 0.0
+                                && zc.HeadingAngleSpecified && zc.HeadingAngle == 0.0,
+                  "a READ zero (stopped unit, heading north) is SENT, not omitted");
+        }
+        else { failures++; Console.WriteLine("  FAIL: zero heading/speed position did not round-trip"); }
+
+        // One field present, the other absent - the two are independent, so a heading read that
+        // works alongside a speed read that does not must not drag the missing one onto the wire.
+        string halfXml = ReportBuilder.BuildPositionReport(subject, lat, lon, iso, reportId,
+                                                           headingDeg, null);
+        var rh = ReportBodyOf(Roundtrip(halfXml));
+        if (rh != null && rh.ReportContent is { Length: 1 }
+            && rh.ReportContent[0].Item is S.PositionReportContentType hc)
+        {
+            Check(ref failures, hc.HeadingAngleSpecified && !hc.SpeedSpecified
+                                && halfXml.Contains("HeadingAngle", StringComparison.Ordinal)
+                                && !halfXml.Contains("Speed", StringComparison.Ordinal),
+                  "heading present + speed absent: only HeadingAngle is serialized");
+        }
+        else { failures++; Console.WriteLine("  FAIL: heading-only position did not round-trip"); }
+
+        // ---- position BUNDLE (P4b: ONE ReportBody carrying N PositionReportContent blocks) ----
+        // B7: heading/speed are PER FIX - fix 0 has both (a good kinematics read), fix 1 has
+        // neither (a failed read), fix 2 has heading only. One bundle therefore proves that a
+        // failed read on one unit does not suppress or fabricate the fields on its neighbours.
+        var fixes = new (string uuid, double latDeg, double lonDeg, double? headingDeg, double? speedMps)[]
+        {
+            ("aaaaaaaa-0000-0000-0000-000000000001", 58.10, 16.10, 12.5, 3.25),
+            ("bbbbbbbb-0000-0000-0000-000000000002", 58.20, 16.20, null, null),
+            ("cccccccc-0000-0000-0000-000000000003", 58.30, 16.30, 359.9, null),
         };
         string bundleXml = ReportBuilder.BuildPositionReportBundle(fixes, iso, reportId);
         Console.WriteLine();
@@ -315,6 +388,18 @@ public static class ReportSelfTest
             }
             Check(ref failures, allMatch, "each bundle content has its own uuid/lat/lon (in order)");
             Check(ref failures, timeOk, "each bundle content TimeOfObservation == iso");
+            // B7 per-fix heading/speed, checked against the same table that built the bundle.
+            bool kinOk = true;
+            for (int i = 0; i < 3; i++)
+            {
+                if (rb.ReportContent[i].Item is not S.PositionReportContentType bc) { kinOk = false; break; }
+                if (bc.HeadingAngleSpecified != fixes[i].headingDeg.HasValue
+                    || bc.SpeedSpecified != fixes[i].speedMps.HasValue) { kinOk = false; break; }
+                if (fixes[i].headingDeg.HasValue && bc.HeadingAngle != fixes[i].headingDeg.Value) { kinOk = false; break; }
+                if (fixes[i].speedMps.HasValue && bc.Speed != fixes[i].speedMps.Value) { kinOk = false; break; }
+            }
+            Check(ref failures, kinOk,
+                  "bundle heading/speed are per fix (both / neither / heading-only), present exactly where read");
             Check(ref failures, rb.ReportID == reportId, "one ReportID for the whole bundle body");
             Check(ref failures, rb.ReportingEntity == fixes[0].uuid,
                   "bundle ReportingEntity == first fix uuid (C++-parity envelope choice)");
@@ -322,7 +407,8 @@ public static class ReportSelfTest
         else { failures++; Console.WriteLine("  FAIL: 3-fix bundle did not round-trip to 3 contents"); }
 
         // A 1-fix bundle is semantically the single-content shape (one content; ReportingEntity=subject).
-        var oneFix = new (string uuid, double latDeg, double lonDeg)[] { (subject, lat, lon) };
+        var oneFix = new (string uuid, double latDeg, double lonDeg, double? headingDeg, double? speedMps)[]
+                     { (subject, lat, lon, null, null) };
         string oneBundleXml = ReportBuilder.BuildPositionReportBundle(oneFix, iso, reportId);
         var r1 = ReportBodyOf(Roundtrip(oneBundleXml));
         if (r1 != null && r1.ReportContent is { Length: 1 }

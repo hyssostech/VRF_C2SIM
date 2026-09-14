@@ -94,7 +94,9 @@ public sealed class VrfC2SimService : BackgroundService
     // access; the serialize + network push runs OUTSIDE the lock (snapshot-under-lock, then
     // build+push) so the lock is never held across a serialize or a PushReportAsync. TASKCMPLT is
     // NEVER bundled (it flows through SynthesizeUnitCompletion, a wholly separate path).
-    private readonly List<(string uuid, double lat, double lon)> _posBundle = new();
+    // headingDeg/speedMps (B7) ride along per fix and are NULL when the kinematics read failed
+    // or when the fix came from a POSITION text report, which carries lat/lon only.
+    private readonly List<(string uuid, double lat, double lon, double? headingDeg, double? speedMps)> _posBundle = new();
     private readonly object _posBundleLock = new();
     // Rough serialized-size ESTIMATE constants for the SECONDARY size guard (COUNT is PRIMARY - see
     // OnVrfTextReport). We do NOT re-serialize per fix; a conservative per-fix estimate only needs
@@ -103,7 +105,8 @@ public sealed class VrfC2SimService : BackgroundService
     // guard only bites if BundleMaxReports is raised or BundleMaxBytes lowered. Overestimating is
     // safe (flush a little early).
     private const int PosBundleEnvelopeBytes = 512;  // <ReportBody> preamble/postamble + ReportID/ReportingEntity
-    private const int PosBundleFixBytes = 400;       // one <PositionReportContent> block (uuid + lat/lon + timestamp + tags)
+    private const int PosBundleFixBytes = 480;       // one <PositionReportContent> block (uuid + lat/lon + timestamp + tags
+                                                     // + the B7 HeadingAngle/Speed elements, ~80 B when both are present)
 
     // Per-unit in-flight task record (P0.1, replaces the last-write current-task map whose
     // completion misattribution corrupted TASKCMPLT reports + released the wrong successor
@@ -618,8 +621,9 @@ public sealed class VrfC2SimService : BackgroundService
 
         bool blue = !_vrf.PositionReportSides.Equals("red", StringComparison.OrdinalIgnoreCase);
         bool red  = !_vrf.PositionReportSides.Equals("blue", StringComparison.OrdinalIgnoreCase);
-        int sent = 0, unresolved = 0, unreflected = 0;
-        List<(string uuid, double lat, double lon)> bundle = _vrf.BundlePositionReports ? new() : null;
+        int sent = 0, unresolved = 0, unreflected = 0, noKinematics = 0;
+        List<(string uuid, double lat, double lon, double? headingDeg, double? speedMps)> bundle =
+            _vrf.BundlePositionReports ? new() : null;
         foreach (var kv in _unitByC2SimUuid)
         {
             string c2simUuid = kv.Key, name = kv.Value.Name;
@@ -646,13 +650,31 @@ public sealed class VrfC2SimService : BackgroundService
                                         "to report for it (HLA discovery lags the create callback).", name, vrfUuid);
                 continue;
             }
-            if (bundle != null) { bundle.Add((c2simUuid, g.LatDeg, g.LonDeg)); continue; }
-            _ = PushReportAsync(ReportBuilder.BuildPositionReport(c2simUuid, g.LatDeg, g.LonDeg, IsoNow(), NewReportId()));
+            // B7 (STP-784): heading + ground speed from the SAME reflected object. A failed
+            // kinematics read is NOT a skipped position - the fix still goes out, just without
+            // the two optional elements (ReportBuilder omits them; a 0 would claim the unit is
+            // stopped and facing north). Speed/heading are reported even when zero, because a
+            // SUCCESSFUL read of a stationary unit is real data the watchdog validation needs.
+            double? headingDeg = null, speedMps = null;
+            if (_bridge.TryGetEntityKinematics(vrfUuid, out var spd, out var hdg))
+            {
+                speedMps = spd;
+                headingDeg = hdg;
+            }
+            else noKinematics++;
+            if (bundle != null) { bundle.Add((c2simUuid, g.LatDeg, g.LonDeg, headingDeg, speedMps)); continue; }
+            // NAMED arguments deliberately: the facade/bridge read is (speed, heading) but the
+            // builder takes (heading, speed) - the schema's element order - and both are
+            // double?, so a positional swap here would compile and silently report a unit's
+            // speed as its heading.
+            _ = PushReportAsync(ReportBuilder.BuildPositionReport(c2simUuid, g.LatDeg, g.LonDeg,
+                                                                 IsoNow(), NewReportId(),
+                                                                 headingDeg: headingDeg, speedMps: speedMps));
             sent++;
         }
         if (bundle is { Count: > 0 })
         {
-            List<(string uuid, double lat, double lon)> snapshot;
+            List<(string uuid, double lat, double lon, double? headingDeg, double? speedMps)> snapshot;
             lock (_posBundleLock)
             {
                 foreach (var b in bundle) _posBundle.Add(b);
@@ -660,12 +682,14 @@ public sealed class VrfC2SimService : BackgroundService
             }
             if (snapshot != null && snapshot.Count > 0) { _ = PushBundleSnapshot(snapshot); sent = snapshot.Count; }
         }
-        // The first three numbers are THIS cycle's; the last pair is the run's total across every
+        // The first four numbers are THIS cycle's; the last pair is the run's total across every
         // report kind (review finding 12 - the unlabelled pair read as a second per-cycle count).
         _log.LogInformation("R1 position reports: {Sent} sent, {Unresolved} skipped (NAME UNRESOLVED - no VRF uuid), " +
-                            "{Unreflected} skipped (no reflected object yet), sides={Sides}, every {Secs}s; " +
+                            "{Unreflected} skipped (no reflected object yet), {NoKin} without heading/speed " +
+                            "(kinematics read failed), sides={Sides}, every {Secs}s; " +
                             "cumulative: {Delivered} sent, {Failed} failed.",
-                            sent, unresolved, unreflected, _vrf.PositionReportSides, _vrf.PositionReportSeconds,
+                            sent, unresolved, unreflected, noKinematics, _vrf.PositionReportSides,
+                            _vrf.PositionReportSeconds,
                             Interlocked.Read(ref _reportsSent), Interlocked.Read(ref _reportsFailed));
     }
 
@@ -3302,16 +3326,16 @@ public sealed class VrfC2SimService : BackgroundService
         // DID THE TASK SUCCEED? The vendor's report carries success() - "success being false
         // indicates that the task has failed and is no longer being processed"
         // (vrforces5.2d/include/vrftasks/taskCompleteReport.h:84-90).
-        // *** NATIVE success() FORWARDING IS OWED (supervisor 2026-09-14) ***: VrfFacade.cpp
-        // :275-281 reads only taskCompleted(), and TaskCompletedEventArgs (VrfBridge.cpp:160-164)
-        // has no flag, so EVERY completion arrives here as a success today. Evidence that this
-        // matters - run G2 (docs/experiments/READ_G2_1-6_MESH_STOP_2026-09-14.md): 1-6's leader
-        // printed "Entity not embarked on same object as target [%1]. Ending task Route 54", then
-        // "Controller ... maneuver-in-formation task has Failed" at sim 320.4, the unit was re-formed
-        // under another leader, and the interface reported NOTHING for nine hours. The handling is
-        // written and tested below (TaskStatusPolicy.CodeForCompletion, --report-selftest): when the
-        // bridge grows a Success property this becomes `bool success = e.Success;` and nothing else
-        // changes. Native code is NOT touched in this pass.
+        // The native forwarding that was owed here HAS NOW LANDED (feat/heading-speed:
+        // VrfFacade reads report->success(), VrfBridge exposes TaskCompletedEventArgs.Success),
+        // so the placeholder below is wired to e.Success in the next commit on this branch -
+        // it is left in place for exactly one commit so the merge and the behaviour change are
+        // separable. Evidence that it matters - run G2
+        // (docs/experiments/READ_G2_1-6_MESH_STOP_2026-09-14.md): 1-6's leader printed "Entity not
+        // embarked on same object as target [%1]. Ending task Route 54", then "Controller ...
+        // maneuver-in-formation task has Failed" at sim 320.4, the unit was re-formed under
+        // another leader, and the interface reported NOTHING for nine hours. The handling is
+        // written and tested below (TaskStatusPolicy.CodeForCompletion, --report-selftest).
         bool success = true;
         _log.LogInformation("VRF task complete: {Unit} / {Task} (success={Ok})", marking, e.TaskType, success);
         // A vendor completion for a task already reported from arrival evidence: swallow it ONCE
@@ -3475,10 +3499,13 @@ public sealed class VrfC2SimService : BackgroundService
         // single-report path below (byte-for-byte parity - the default-off invariant).
         if (_vrf.BundlePositionReports)
         {
-            List<(string uuid, double lat, double lon)> snapshot = null;
+            List<(string uuid, double lat, double lon, double? headingDeg, double? speedMps)> snapshot = null;
             lock (_posBundleLock)
             {
-                _posBundle.Add((uuid, lat, lon));
+                // No heading/speed here: a POSITION text report carries lat/lon ONLY (the C++
+                // strtok parse below), so both are null and the elements are omitted. The R1
+                // poll is the path that reads kinematics from the reflected object.
+                _posBundle.Add((uuid, lat, lon, null, null));
                 if (_posBundle.Count >= _vrf.BundleMaxReports ||
                     EstimatedBundleBytesLocked() >= _vrf.BundleMaxBytes)
                     snapshot = DrainBundleLocked();
@@ -3782,17 +3809,17 @@ public sealed class VrfC2SimService : BackgroundService
 
     // Snapshot + clear the buffer UNDER the lock; returns null when empty (nothing to flush). The
     // caller serializes + pushes the returned snapshot OUTSIDE the lock.
-    private List<(string uuid, double lat, double lon)> DrainBundleLocked()
+    private List<(string uuid, double lat, double lon, double? headingDeg, double? speedMps)> DrainBundleLocked()
     {
         if (_posBundle.Count == 0) return null;
-        var snap = new List<(string uuid, double lat, double lon)>(_posBundle);
+        var snap = new List<(string uuid, double lat, double lon, double? headingDeg, double? speedMps)>(_posBundle);
         _posBundle.Clear();
         return snap;
     }
 
     // Build one bundle envelope from the snapshot and push it. The ReportID is minted HERE (= C++
     // "created when the bundle is sent"). Returns the push Task so the stop path can await delivery.
-    private Task PushBundleSnapshot(List<(string uuid, double lat, double lon)> snapshot)
+    private Task PushBundleSnapshot(List<(string uuid, double lat, double lon, double? headingDeg, double? speedMps)> snapshot)
     {
         var xml = ReportBuilder.BuildPositionReportBundle(snapshot, IsoNow(), NewReportId());
         _log.LogDebug("SENT POSITION BUNDLE ({N} fixes) in one report.", snapshot.Count);
@@ -3803,7 +3830,7 @@ public sealed class VrfC2SimService : BackgroundService
     // AWAITs it before the SDK Disconnect); a completed no-op task when the buffer is empty.
     private Task FlushPositionBundle()
     {
-        List<(string uuid, double lat, double lon)> snapshot;
+        List<(string uuid, double lat, double lon, double? headingDeg, double? speedMps)> snapshot;
         lock (_posBundleLock) { snapshot = DrainBundleLocked(); }
         return snapshot == null ? Task.CompletedTask : PushBundleSnapshot(snapshot);
     }

@@ -161,6 +161,17 @@ public ref class TaskCompletedEventArgs : EventArgs {
 public:
     property String^ UnitMarking; // transmitter markingText
     property String^ TaskType;    // e.g. "move-along"
+    // DtTaskCompleteReport::success() (vrforces5.2d include vrftasks/taskCompleteReport.h
+    // :84-90): FALSE means the task FAILED and "is no longer being processed". The vendor
+    // defaults it to true (:87), so a report without the flag arrives here as true.
+    //
+    // CONSUMER NOTE: on feat/reporting a completion is turned into a C2SIM TaskStatus by
+    // SynthesizeUnitCompletion(..., success), which currently hardcodes `bool success = true`
+    // (~VrfC2SimService.cs:3149 on THAT branch - this branch does not carry it yet). This
+    // property is the real value that argument should be fed, so a vendor-reported FAILURE
+    // stops being reported to the C2SIM server as TASKCMPLT. Exposed only here; no consumer
+    // is changed on this branch.
+    property bool Success;
 };
 
 public ref class AvailableFormationsEventArgs : EventArgs {
@@ -469,6 +480,22 @@ public:
         return ok;
     }
 
+    // B7 (STP-784): ground speed + true heading for the C2SIM PositionReport's Speed and
+    // HeadingAngle. speedMps is HORIZONTAL metres/second, headingDeg is degrees true in
+    // [0, 360) with north = 0 - both converted into the object's local topographic frame by
+    // the facade using VR-Link's own utilities (see VrfFacade.h TryGetEntityKinematics).
+    // Returns false when the object does not resolve or a value is not finite; the outs are
+    // then ZEROED and the caller must OMIT the fields rather than send the zeros.
+    bool TryGetEntityKinematics(String^ uuid,
+                                [System::Runtime::InteropServices::Out] double% speedMps,
+                                [System::Runtime::InteropServices::Out] double% headingDeg) {
+        double s = 0.0, h = 0.0;
+        bool ok = _facade->TryGetEntityKinematics(ToStd(uuid), s, h);
+        speedMps = ok ? s : 0.0;
+        headingDeg = ok ? h : 0.0;
+        return ok;
+    }
+
 internal:
     // Called from the native callback thunks (below); construct args + raise the event.
     void RaiseObjectCreated(String^ name, String^ entityId, String^ uuid) {
@@ -481,9 +508,9 @@ internal:
         e->Text = text;
         TextReport(this, e);
     }
-    void RaiseTaskCompleted(String^ unitMarking, String^ taskType) {
+    void RaiseTaskCompleted(String^ unitMarking, String^ taskType, bool success) {
         auto e = gcnew TaskCompletedEventArgs();
-        e->UnitMarking = unitMarking; e->TaskType = taskType;
+        e->UnitMarking = unitMarking; e->TaskType = taskType; e->Success = success;
         TaskCompleted(this, e);
     }
     void RaiseScenarioClosed() {
@@ -594,7 +621,8 @@ struct TaskCompletedThunk {
     msclr::gcroot<VrfBridge^> self;
     void operator()(const vrf::TaskCompleted& t) const {
         self->RaiseTaskCompleted(marshal_as<String^>(t.unitMarking),
-                                 marshal_as<String^>(t.taskType));
+                                 marshal_as<String^>(t.taskType),
+                                 t.success);
     }
 };
 
