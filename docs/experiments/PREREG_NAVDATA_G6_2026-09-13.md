@@ -124,9 +124,17 @@ else. Instrument caveats: POS capture began at sim ~191 (58 s later than P11), s
 comparable across runs (along-track from the authored origin is used instead); the thread sampler's wsMB column
 is pinned at 4096 (a counter ceiling); the runner was killed at t+127 s of the window (RUNNER_EXIT127_2026-09-14.md)
 and the sim ran unattended for nine hours - the capture itself is complete (observers ran to their 1200 s caps).
-PRELIMINARY, same-day (grep counts, pairing with goal distance pending): G1 (R9, 3x3 km area) points 44 / parts 4
-/ not-enough 0; G2 (COA, 20x20 km) 96 / 62 / 4; G3 (20x20 km) 19 / 144 / 6; G6 (41x54 km, 8,856 sectors) 15 /
-145 / 178. If G1's 44 mesh paths include R9's kilometre-scale legs, the failure is SCALE-dependent.
+CROSS-RUN PAIRING (MESH_QUERY_VS_DISTANCE_2026-09-14.md; CORRECTION: G1 ran on the 20x20 km MojaveAO20, not
+the 3x3 km timing-test area): on MojaveAO20 (1,600 sectors) the mesh planned every goal it was asked, 0.3 m to
+10,131.6 m (G1 44/44 up to 822 m = R9's own legs; G2 92/94; G3 19/21; the 10.13 km goal got 1,104 and 1,090
+points) - with the SAME script and useAbstractGraphs = false. On MojaveCOA (8,856 sectors) 22 member+destination
+pairs byte-identical to G2's flipped from a 1,000-point path to 0 points, none the other way; the refusals
+return in 0.4-1.3 s from the gate, faster than the 10 km successes on the small area (2.4-4.2 s) - a refusal,
+not an exhausted search. So the dependence is on the AREA, not the goal. Two explanations remain: (A) the big
+graph is refused / budget-cut; (B) MojaveCOA's generated data is not connected across sector boundaries (the
+only successes fit inside one ~500 m sector). Discriminator = G7: ONE unit on MojaveCOA, legs ~0.6 km (one
+sector boundary) / 2 km / 5 km, member consoles at 4. Unexplained, recorded: on MojaveAO20 the only long-goal
+failures are HMMWVs (9.5-9.7 km) beside M1A2 successes at 9.8-10.1 km in the same second.
 THE QUESTION MOVED: not "does the default slope cost route around the face" but "why does vrf:findPathToLocation
 return zero points for a multi-kilometre goal inside one loaded area". Doc-backed candidates, none tested:
 (setqb gamewareMemorySize 16) vrfSim.mtl:383 ("increasing this limit can allow for path plans on larger nav areas
