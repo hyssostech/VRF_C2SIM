@@ -3006,15 +3006,25 @@ public sealed class VrfC2SimService : BackgroundService
             // SUPERSEDE POINT, because the taskee is demonstrably not performing it. PushTaskStatus
             // cancels the armed end time for any terminal code, so one call does both.
             string supersededCode = (_vrf.SupersededTaskCode ?? "TASKABRT").Trim();
-            if (string.Equals(supersededCode, "TASKCMPLT", StringComparison.OrdinalIgnoreCase))
+            if (!TaskDispatchPolicy.SupersedeAbandonsSuccessors(supersededCode))
                 _log.LogInformation("Unit {Name}: task '{Old}' keeps its armed end time " +
                                     "(Vrf:SupersededTaskCode=TASKCMPLT) - it will report TASKCMPLT when the " +
-                                    "order says it ends, even though VR-Forces is no longer running it.",
+                                    "order says it ends, even though VR-Forces is no longer running it, and its " +
+                                    "STREND successors keep waiting for that completion.",
                                     unit.Name, old.TaskName);
             else
+            {
                 PushTaskStatus(old.TaskeeUuid, old.TaskUuid, S.TaskStatusCodeType.TASKABRT,
                                $"SUPERSEDED: task '{task.TaskName}' replaced it on {unit.Name}; VR-Forces runs " +
                                "one task at a time, so it is not being performed");
+                // B1 (pass-2 review) + Q1 (USER RULING 2026-09-14). THE GATE MUST NOT CONTRADICT THE
+                // REPORT WE JUST SENT. Without this the successors of a task the interface has just
+                // declared NOT PERFORMED went on waiting out the full derived window - since M1 up
+                // to 7,260 s, i.e. LONGER than before that fix - and were then skipped anyway. They
+                // are exactly as dead as their predecessor, so they are abandoned at the supersede
+                // point and each reports its own TASKABRT at once, like every other dead end.
+                _sequencer.NotifyAbandoned(old.TaskUuid);
+            }
             if (_pendingEngage.TryGetValue(unit.Name, out var eng) && eng.MoveTaskUuid == old.TaskUuid
                 && _pendingEngage.TryRemove(new KeyValuePair<string, PendingEngage>(unit.Name, eng)))
                 _log.LogWarning("Unit {Name}: cancelled the pending {Kind} tied to superseded task '{Old}'.",

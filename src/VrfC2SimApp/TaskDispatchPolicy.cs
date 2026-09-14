@@ -97,6 +97,21 @@ public static class TaskDispatchPolicy
     public static bool RefusesForTarget(TargetResolution r) => false;
 
     /// <summary>
+    /// Q1 (USER RULING 2026-09-14): a superseded task is reported TASKABRT at the supersede point
+    /// AND ITS SUCCESSORS ARE ABANDONED IMMEDIATELY. B1 of the pass-2 review: every other TASKABRT
+    /// path in the service pairs the report with TaskSequencer.NotifyAbandoned, and this one did
+    /// not - so a task the interface had just told STP was NOT being performed still held its
+    /// successors at the gate for the whole derived window (up to 7,260 s) before they were
+    /// skipped. The report stream and the gate must say the same thing.
+    ///
+    /// The other reading is still selectable: Vrf:SupersededTaskCode=TASKCMPLT means "the end time
+    /// is the ORDER'S statement about the task", the timer stays armed and the successors keep
+    /// waiting for the completion that will duly arrive - so THAT branch must NOT abandon.
+    /// </summary>
+    public static bool SupersedeAbandonsSuccessors(string supersededCode)
+        => !string.Equals((supersededCode ?? "").Trim(), "TASKCMPLT", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     /// M1 (cold-start review of 5c67d41). HOW LONG A SUCCESSOR WAITS FOR ITS PREDECESSOR, given
     /// that the predecessor's completion is its ARMED END TIME (R4).
     ///

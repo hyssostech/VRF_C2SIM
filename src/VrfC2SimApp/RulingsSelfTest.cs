@@ -896,6 +896,52 @@ public static class RulingsSelfTest
                   $"{clock.Now:F0} s)");
         }
 
+        // (f6) A SUPERSEDED predecessor kills its successors AT THE SUPERSEDE POINT (B1 of the
+        //      pass-2 review; Q1, USER RULING 2026-09-14). VR-Forces runs one task per unit, so a
+        //      new dispatch REPLACES the running one and the interface reports TASKABRT for it -
+        //      and until this fix said nothing to the gate, so the successors of a task it had
+        //      just declared NOT PERFORMED waited out the whole derived window (up to 7,260 s)
+        //      before being skipped anyway.
+        {
+            Check(ref failures,
+                  TaskDispatchPolicy.SupersedeAbandonsSuccessors("TASKABRT")
+                  && TaskDispatchPolicy.SupersedeAbandonsSuccessors(null)
+                  && TaskDispatchPolicy.SupersedeAbandonsSuccessors("")
+                  && !TaskDispatchPolicy.SupersedeAbandonsSuccessors("TASKCMPLT")
+                  && !TaskDispatchPolicy.SupersedeAbandonsSuccessors("  taskcmplt  "),
+                  "(vi) the DEFAULT supersede code abandons the successors; TASKCMPLT - the reading that " +
+                  "keeps the armed end time - does not, at any casing or spacing");
+
+            var clock = new StepClock();
+            var seq = new TaskSequencer();
+            var timed = new TimedCompletionPolicy();
+            const string pred = "PRED-SUPERSEDED";
+            seq.NotifyDispatched(pred, clock.Now);
+            timed.Register(pred, "taskee", pred, "1-35 AR", 4800.0);
+            timed.Advance(clock.Now, usingSim: true);
+            double window = TaskDispatchPolicy.PredecessorTimeoutSeconds(configured, 4800.0, margin);
+            var gate = seq.WaitForStartAsync(pred, 0, 0, window, clock.AsTaskClock(),
+                                             CancellationToken.None, backstop);
+            Thread.Sleep(50);
+            Check(ref failures, !gate.IsCompleted && window >= 4860.0,
+                  $"(vi) FAIL-FIRST: while the supersede says nothing to the gate, the successor is still " +
+                  $"waiting out its {window:F0} s window (the pre-B1 behaviour)");
+
+            // What MarkDispatched now does at the supersede point, in order: report TASKABRT for
+            // the old task (which cancels its armed end time) and tell the sequencer it is dead.
+            Check(ref failures, TimedCompletionPolicy.CancelsTimer(S.TaskStatusCodeType.TASKABRT)
+                             && timed.Cancel(pred),
+                  "(vi) the supersede TASKABRT cancels the old task's armed end time");
+            seq.NotifyAbandoned(pred);
+            bool done = gate.Wait(TimeSpan.FromSeconds(5));
+            Check(ref failures, done && gate.Result == GateResult.PredecessorAbandoned && clock.Now == 0.0,
+                  $"(vi) ... and the successor is skipped IMMEDIATELY - PredecessorAbandoned with 0 s of " +
+                  $"clock spent, which the service reports as its own TASKABRT (got " +
+                  $"{(done ? gate.Result.ToString() : "still waiting")} at {clock.Now:F0} s)");
+            Check(ref failures, timed.Advance(clock.Now + 100000.0, usingSim: true).Count == 0,
+                  "(vi) ... and the superseded task never reports a later timed TASKCMPLT");
+        }
+
         // (f5) THE WHOLE COA-STP1 GRAPH, end to end, from the order on disk. This is the branch's
         //      own live gate 2 ("42 dispatches, not 9") decided OFFLINE.
         {
