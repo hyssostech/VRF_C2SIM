@@ -27,14 +27,18 @@ NOTHING HERE IS CONFIRMED LIVE. The four gates, all owed to one COA-STP1 run:
 3. **zero "Failed to deserialize" lines** in the run log - there are exactly 2 in every run today (B5);
 4. **more than 102 NameObservations** (B8 closes G10).
 
-TWO ITEMS REMAIN OWED IRRESPECTIVE OF THAT RUN:
+ONE ITEM REMAINS OWED IRRESPECTIVE OF THAT RUN (the first of the two was landed on
+`feat/integration`, 2026-09-14):
 
-- **Native `success()` forwarding.** `VrfC2SimService.cs` passes `bool success = true` into
-  `SynthesizeUnitCompletion` because the bridge does not forward
-  `DtTaskCompleteReport::success()` (`vrftasks/taskCompleteReport.h:84-90`). Until it does, the whole
-  vendor-failure TASKABRT path is DEAD CODE and G2 is only PARTLY closed: refused and skipped tasks
-  now report, the vendor's own `Failed` (G2's 1-6 maneuver-in-formation failure at sim 320.4) still
-  reports to nobody. The banner in the source says so; the landing change is one line.
+- ~~**Native `success()` forwarding.**~~ **DONE on `feat/integration`.** `feat/heading-speed`
+  added the native half (`VrfFacade` reads `DtTaskCompleteReport::success()`,
+  `taskCompleteReport.h:84-90`, into `TaskCompleted::success`; `VrfBridge` raises it as
+  `TaskCompletedEventArgs.Success`) and the integration branch wired it: `OnVrfTaskCompleted`
+  now reads `bool success = e.Success` instead of the literal, so a vendor-reported FAILURE
+  becomes TASKABRT, releases no successor and cancels a parked engage. `--report-selftest`
+  walks both flag values to the deserialized wire xml. What the offline test CANNOT see is
+  that the call site reads `e.Success` (loading the mixed-mode bridge needs the MAK runtime),
+  so G2 closes on the live gate: one run where a vendor `Failed` produces a TASKABRT.
 - **STP's behaviour on a DUPLICATE ReportID.** B2's retry is at-least-once: it re-sends the same xml,
   same ReportID, and the SDK POSTs before it parses the answer, so a TaskStatus can reach the bus
   twice under one id. Added as **question 6** of B10 (`docs/DRAFT_STP_QUESTIONS_2026-09-14.md`). It
@@ -280,7 +284,7 @@ ListenReports' `-WatchSecs` cap ended G6's capture at 1,200 s; the first TASKCMP
 **Test:** extend `--report-selftest` with a TASKSTRT round-trip; one COA-STP1 run must show 14 TASKSTRT (= the MoveAlongRoute dispatch count) on the bus within seconds of the order, plus one status per refused/skipped task; TASKCMPLT count and pairing unchanged.
 **User decision:** yes, for the FAILURE codes only - is a refused task TASKABRT, or does STP want TASKPEND/nothing? TASKSTRT itself needs none.
 **Value:** closes G4 and half of G2; turns a 27-minute silence into immediate feedback. **Cost:** low.
-**STATUS: BUILT** (`81d108c` + review fixes, `feat/reporting`), live confirmation owed - gate 2 above. `TaskStatusPolicy.cs` is the whole rule set (one TASKSTRT per execution, one TASKCMPLT per task, TASKABRT never suppresses a later TASKCMPLT, a TASKCMPLT does suppress a later TASKABRT); `PushTaskStatus` is the single emit point. Review fixes on top: TASKSTRT re-arms after a COMPLETION only, never after an abort (finding 10); the MOVE half of an advance-then-engage reports TASKINPRG (finding 4 - see the STATUS section at the top); the three silent dispatch dead ends with a taskee uuid (unit-not-created, taskee-not-in-initialization, orchestration threw) now report TASKABRT (finding 7). **Still only PARTLY closes G2**: the vendor's own `success()==false` is not forwarded by the bridge, so that branch is dead code.
+**STATUS: BUILT** (`81d108c` + review fixes, `feat/reporting`), live confirmation owed - gate 2 above. `TaskStatusPolicy.cs` is the whole rule set (one TASKSTRT per execution, one TASKCMPLT per task, TASKABRT never suppresses a later TASKCMPLT, a TASKCMPLT does suppress a later TASKABRT); `PushTaskStatus` is the single emit point. Review fixes on top: TASKSTRT re-arms after a COMPLETION only, never after an abort (finding 10); the MOVE half of an advance-then-engage reports TASKINPRG (finding 4 - see the STATUS section at the top); the three silent dispatch dead ends with a taskee uuid (unit-not-created, taskee-not-in-initialization, orchestration threw) now report TASKABRT (finding 7). **G2**: the vendor's own `success()==false` is forwarded since the `feat/integration` wiring (2026-09-14) - see the STATUS section - so that branch is live and closes on its run gate.
 
 ### B2. Never lose a task status: check the server's answer and retry
 **What:** (a) make `PushReportAsync` inspect the returned `C2SIMServerResponse` and log an ERROR status with the server's message; (b) give TASK-STATUS pushes (not position pushes) a bounded retry with backoff and a loud line if they finally fail; (c) add a cumulative counter ("reports: N sent, M failed") to the existing R1 line.

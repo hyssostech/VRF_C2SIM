@@ -151,6 +151,44 @@ public static class ReportSelfTest
                             == S.TaskStatusCodeType.TASKABRT,
               "a FAILED move is still TASKABRT - nothing continues after it");
 
+        // ---- THE VENDOR SUCCESS FLAG, END TO END ON THE WIRE (B7 wiring, 2026-09-14) ----
+        // The flag now arrives from the sim: VrfFacade reads DtTaskCompleteReport::success()
+        // (taskCompleteReport.h:84-90), VrfBridge raises it as TaskCompletedEventArgs.Success,
+        // and OnVrfTaskCompleted passes it to SynthesizeUnitCompletion, which builds the report
+        // with exactly the two calls below. Before the wiring the false case was dead code and a
+        // vendor-reported FAILURE reached STP as TASKCMPLT. This check walks a NON-CONTINUING
+        // task (the ordinary move) from the flag to the deserialized wire xml, both ways round.
+        // What it CANNOT check offline: that the call site reads e.Success rather than a
+        // literal - VrfBridge is a mixed-mode assembly and loading it needs the MAK runtime,
+        // which this self-test must not require. That one line is covered by the live gate.
+        Console.WriteLine();
+        Console.WriteLine("=== vendor success() -> TaskStatus on the wire ===");
+        foreach (var (vendorSaidOk, expected) in new[]
+                 {
+                     (false, S.TaskStatusCodeType.TASKABRT),
+                     (true, S.TaskStatusCodeType.TASKCMPLT),
+                 })
+        {
+            var wireCode = TaskStatusPolicy.CodeForCompletion(vendorSaidOk, taskContinues: false);
+            string wireXml = ReportBuilder.BuildTaskStatusReport(taskee, taskUuid, wireCode, iso, reportId);
+            var rw = ReportBodyOf(Roundtrip(wireXml));
+            bool ok = wireCode == expected
+                      && rw != null && rw.ReportContent is { Length: 1 }
+                      && rw.ReportContent[0].Item is S.TaskStatusType tw
+                      && tw.TaskStatusCode == expected
+                      && tw.CurrentTask == taskUuid
+                      && rw.ReportingEntity == taskee
+                      && wireXml.Contains(expected.ToString(), StringComparison.Ordinal)
+                      && !wireXml.Contains(
+                          (expected == S.TaskStatusCodeType.TASKABRT
+                              ? S.TaskStatusCodeType.TASKCMPLT
+                              : S.TaskStatusCodeType.TASKABRT).ToString(), StringComparison.Ordinal);
+            Check(ref failures, ok,
+                  $"a completion with success={vendorSaidOk.ToString().ToLowerInvariant()} on a "
+                  + $"non-continuing task round-trips as {expected} and carries no other code "
+                  + $"(saw {wireCode})");
+        }
+
         // ---- DELIVERY (B2, ReportPush): the push knows whether the report arrived ----
         // Fake transports, no SDK and no server; sleep is a no-op so the test runs instantly.
         Console.WriteLine();

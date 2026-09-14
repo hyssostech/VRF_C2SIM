@@ -165,12 +165,10 @@ public:
     // :84-90): FALSE means the task FAILED and "is no longer being processed". The vendor
     // defaults it to true (:87), so a report without the flag arrives here as true.
     //
-    // CONSUMER NOTE: on feat/reporting a completion is turned into a C2SIM TaskStatus by
-    // SynthesizeUnitCompletion(..., success), which currently hardcodes `bool success = true`
-    // (~VrfC2SimService.cs:3149 on THAT branch - this branch does not carry it yet). This
-    // property is the real value that argument should be fed, so a vendor-reported FAILURE
-    // stops being reported to the C2SIM server as TASKCMPLT. Exposed only here; no consumer
-    // is changed on this branch.
+    // CONSUMER: VrfC2SimService.OnVrfTaskCompleted feeds this straight into
+    // SynthesizeUnitCompletion(..., success), where false selects TASKABRT instead of
+    // TASKCMPLT, holds the successors back and cancels a parked engage
+    // (TaskStatusPolicy.CodeForCompletion; wired 2026-09-14 on feat/integration).
     property bool Success;
 };
 

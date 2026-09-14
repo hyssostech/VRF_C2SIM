@@ -3463,18 +3463,19 @@ public sealed class VrfC2SimService : BackgroundService
         string marking = _names.Resolve(e.UnitMarking ?? "");
         // DID THE TASK SUCCEED? The vendor's report carries success() - "success being false
         // indicates that the task has failed and is no longer being processed"
-        // (vrforces5.2d/include/vrftasks/taskCompleteReport.h:84-90).
-        // The native forwarding that was owed here HAS NOW LANDED (feat/heading-speed:
-        // VrfFacade reads report->success(), VrfBridge exposes TaskCompletedEventArgs.Success),
-        // so the placeholder below is wired to e.Success in the next commit on this branch -
-        // it is left in place for exactly one commit so the merge and the behaviour change are
-        // separable. Evidence that it matters - run G2
+        // (vrforces5.2d/include/vrftasks/taskCompleteReport.h:84-90), and the vendor DEFAULTS it
+        // to true (:87), so a report that never carries the flag still reads as a success.
+        // WIRED 2026-09-14 on feat/integration: VrfFacade reads report->success() into
+        // TaskCompleted::success, VrfBridge raises it as TaskCompletedEventArgs.Success, and it
+        // arrives here. Until this line the whole vendor-failure path below was dead code and a
+        // FAILED task was reported to STP as TASKCMPLT. Evidence that it matters - run G2
         // (docs/experiments/READ_G2_1-6_MESH_STOP_2026-09-14.md): 1-6's leader printed "Entity not
         // embarked on same object as target [%1]. Ending task Route 54", then "Controller ...
         // maneuver-in-formation task has Failed" at sim 320.4, the unit was re-formed under
-        // another leader, and the interface reported NOTHING for nine hours. The handling is
-        // written and tested below (TaskStatusPolicy.CodeForCompletion, --report-selftest).
-        bool success = true;
+        // another leader, and the interface reported NOTHING for nine hours. What false now does
+        // is TaskStatusPolicy.CodeForCompletion(success, taskContinues) -> TASKABRT, no successor
+        // release, no parked engage (SynthesizeUnitCompletion; --report-selftest covers both).
+        bool success = e.Success;
         _log.LogInformation("VRF task complete: {Unit} / {Task} (success={Ok})", marking, e.TaskType, success);
         // A vendor completion for a task already reported from arrival evidence: swallow it ONCE
         // (VR-Forces runs one task at a time and a re-task abandons the old one without a
