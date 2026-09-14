@@ -127,6 +127,12 @@ public sealed class VrfC2SimService : BackgroundService
     // busy-waits with async gating + a timeout. See TaskSequencer.
     private readonly TaskSequencer _sequencer = new();
 
+    // B8: what each unit was last ANNOUNCED as being represented by (R-SURFACE-PROXY). A unit
+    // re-created at order time as something else - its full template, or a composition of doctrinal
+    // sub-units instead of the empty shell it was at init - announces again. See
+    // SubstitutionAnnouncer.
+    private readonly SubstitutionAnnouncer _substitutions = new();
+
     // B1: which TaskStatus code a task may still emit, and how often (TASKSTRT at dispatch,
     // ONE TASKCMPLT per task, TASKABRT for a refused / skipped / stalled / failed task, and the
     // abort-then-complete rule). Every TaskStatus report in this file goes through PushTaskStatus,
@@ -211,7 +217,7 @@ public sealed class VrfC2SimService : BackgroundService
     // has dispatched (the C2SIM SDK delivers the init before any order) - concurrent maps for the
     // cross-thread handoff. Keyed by C2SIM uuid.
     private sealed record DeferredUnit(CreationPlan Plan, PlacementInput Placement, string SuperiorUuid,
-                                       IReadOnlyList<string> DeclaredChildUuids);
+                                       IReadOnlyList<string> DeclaredChildUuids, string C2SimName);
     private readonly ConcurrentDictionary<string, DeferredUnit> _deferred = new();
     private readonly ConcurrentDictionary<string, List<string>> _childUuidsBySuperior = new(); // superior uuid -> declared child uuids (init order)
     private readonly ConcurrentDictionary<string, byte> _materialized = new();                 // uuid -> materialization started (once)
@@ -943,7 +949,8 @@ public sealed class VrfC2SimService : BackgroundService
                 // C13: keep the FULL plan for order time; the create below becomes a shell (see the
                 // CreationPolicy block after composition).
                 string supUuid = (unit.SuperiorUuid ?? "").Trim();
-                _deferred[unit.Uuid] = new DeferredUnit(plan, placements[^1], supUuid, unit.DeclaredSubordinates);
+                _deferred[unit.Uuid] = new DeferredUnit(plan, placements[^1], supUuid,
+                                                        unit.DeclaredSubordinates, unit.Name);
                 if (supUuid.Length > 0)
                     _childUuidsBySuperior.GetOrAdd(supUuid, _ => new List<string>()).Add(unit.Uuid);
             }
@@ -1014,9 +1021,27 @@ public sealed class VrfC2SimService : BackgroundService
         // R-SURFACE-PROXY: one ObservationReport/NameObservation per substituted unit, so a
         // downstream C2SIM consumer sees WHICH template stands in and why (ReportBuilder
         // .BuildTypeSubstitutionReport). Fire-and-forget, exactly like the position reports.
+        // B8: the representation is recorded as it is announced, so an order-time re-creation as
+        // something ELSE announces again (MaterializeUnit) - and the representation is read from the
+        // FINAL plan, after the AtOrder shell flip and the coarse-leaf expansion have rewritten it.
+        var finalPlanByName = new Dictionary<string, CreationPlan>(StringComparer.Ordinal);
+        foreach (var fp in toCreate) finalPlanByName[fp.Name] = fp;
         foreach (var (uuid, name, marking, substitution) in proxiesToReport)
+        {
+            string rep = finalPlanByName.TryGetValue(marking, out var fplan)
+                ? SubstitutionAnnouncer.Representation(fplan.TemplateName, fplan.CreateSubordinates, 0)
+                : marking;
+            if (!_substitutions.ShouldAnnounce(marking, rep)) continue;
             _ = PushReportAsync(ReportBuilder.BuildTypeSubstitutionReport(
                     uuid, name, marking, substitution, IsoNow(), NewReportId()), ReportKind.Observation);
+        }
+        // Units whose type mapped EXACTLY are not announced - there is no substitution to report -
+        // but their representation is recorded, so that if an order later re-creates one as
+        // something else, that CHANGE is what the announcement is measured against.
+        foreach (var fp in toCreate)
+            if (_substitutions.Current(fp.Name).Length == 0)
+                _substitutions.Record(fp.Name, SubstitutionAnnouncer.Representation(
+                    fp.TemplateName, fp.CreateSubordinates, 0));
 
         int areasQueued = 0;
         foreach (var a in init.Areas)
@@ -1495,8 +1520,39 @@ public sealed class VrfC2SimService : BackgroundService
         }
         if (preGate != null && _compositionReady.TryGetValue(name, out var newGate) && !ReferenceEquals(preGate, newGate))
             _ = newGate.Task.ContinueWith(_ => preGate.TrySetResult(), TaskScheduler.Default);
+        // B8: the unit is no longer what it was announced as at init (an empty shell). Announce what
+        // now represents it - the full template, or the N doctrinal sub-units it was composed from -
+        // so the C2SIM side's picture does not stay stuck at creation time. Silent when the
+        // representation is unchanged, and when there is no substitution to report at all.
+        AnnounceSubstitution(c2simUuid, d, name, toCreate.Count > 1 ? toCreate.Count : 0);
         if (IsLiveLikeAltitudeMode()) StartPlacementTerrainQuery(toCreate, placements, "ORDER MATERIALIZATION");
         else EnqueueCreates(toCreate);
+    }
+
+    /// <summary>
+    /// R-SURFACE-PROXY re-announcement (B8). Called when an order-time materialization has decided
+    /// HOW the unit is now built: composedFrom &gt; 0 means EXPAND-to-compose (that many doctrinal
+    /// sub-units), 0 means the template with its own members. Emits one NameObservation only when
+    /// that representation DIFFERS from what this unit was last announced as - a re-creation as the
+    /// same thing says nothing - and only when there is a substitution to report (a proxy template,
+    /// or a composition standing in for the unit's own type). Gated by Vrf:SurfaceProxySubstitutions,
+    /// the same switch as the init announcement.
+    /// </summary>
+    private void AnnounceSubstitution(string c2simUuid, DeferredUnit d, string name, int composedFrom)
+    {
+        if (!_vrf.SurfaceProxySubstitutions) return;
+        var plan = d.Plan;
+        if (!SubstitutionAnnouncer.Substituted(plan.Substitution, composedFrom)) return;
+        string rep = SubstitutionAnnouncer.Representation(plan.TemplateName, true, composedFrom);
+        string was = _substitutions.Current(name);   // read BEFORE ShouldAnnounce records the new one
+        if (!_substitutions.ShouldAnnounce(name, rep)) return;
+        string text = plan.Substitution.Length > 0 ? rep + " - " + plan.Substitution : rep;
+        _log.LogInformation("R-SURFACE-PROXY: {Name} is now represented by '{Rep}' (it was announced as " +
+                            "'{Was}') - re-announcing the substitution to C2SIM.",
+                            name, rep, was.Length == 0 ? "(nothing)" : was);
+        _ = PushReportAsync(ReportBuilder.BuildTypeSubstitutionReport(
+                c2simUuid, string.IsNullOrEmpty(d.C2SimName) ? name : d.C2SimName, name, text,
+                IsoNow(), NewReportId()), ReportKind.Observation);
     }
 
     /// <summary>Tick thread (review fix): a case-3 re-created unit is released for tasking when its NEW

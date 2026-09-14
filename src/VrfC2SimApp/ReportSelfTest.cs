@@ -164,6 +164,38 @@ public static class ReportSelfTest
               "backoff is 1 s, 2 s, 4 s");
         Check(ref failures, ReportPush.BackoffFor(20).TotalSeconds <= 30, "backoff is capped at 30 s");
 
+        // ---- R-SURFACE-PROXY re-announcement (B8, SubstitutionAnnouncer) ----
+        // A unit created as an EMPTY SHELL at init and re-created at order time as something else
+        // must announce again; a re-creation as the same thing must not.
+        Console.WriteLine();
+        Console.WriteLine("=== SubstitutionAnnouncer (re-announce a changed representation) ===");
+        var ann = new SubstitutionAnnouncer();
+        const string unit = "2/1_AD/25_~PXY";
+        string shell = SubstitutionAnnouncer.Representation("M577A2_Command_Post", false, 0);
+        string full = SubstitutionAnnouncer.Representation("M577A2_Command_Post", true, 0);
+        string composed = SubstitutionAnnouncer.Representation("Tank Company (USA)", true, 4);
+        Check(ref failures, shell != full && full != composed && shell != composed,
+              $"shell / template / composed are distinct representations ('{shell}', '{full}', '{composed}')");
+        Check(ref failures, ann.ShouldAnnounce(unit, shell), "init: the shell is announced once");
+        Check(ref failures, !ann.ShouldAnnounce(unit, shell), "an unchanged representation emits NOTHING");
+        Check(ref failures, ann.ShouldAnnounce(unit, full),
+              "a re-creation as a DIFFERENT representation emits one more NameObservation");
+        Check(ref failures, !ann.ShouldAnnounce(unit, full), "... and only one");
+        Check(ref failures, ann.ShouldAnnounce(unit, composed), "composing it from sub-units announces again");
+        Check(ref failures, ann.Current(unit) == composed, "the announcer remembers the LAST representation");
+
+        var exact = new SubstitutionAnnouncer();
+        exact.Record("1141.MechPlt", SubstitutionAnnouncer.Representation("Mech Platoon (USA)", false, 0));
+        Check(ref failures, exact.ShouldAnnounce("1141.MechPlt",
+                                SubstitutionAnnouncer.Representation("Mech Platoon (USA)", true, 0)),
+              "a RECORDED (never announced) unit still announces when its representation changes");
+        Check(ref failures, !SubstitutionAnnouncer.Substituted("", 0),
+              "an exact-type unit created as its own template has NO substitution to report");
+        Check(ref failures, SubstitutionAnnouncer.Substituted("", 4),
+              "a unit composed from sub-units IS a substitution (of representation)");
+        Check(ref failures, SubstitutionAnnouncer.Substituted("Proxy: M577A2_Command_Post - ...", 0),
+              "a proxy template IS a substitution");
+
         // ---- position ----
         const string subject = "001aa71b-4c26-a1ea-28b2-f7dfe8e76342";
         const double lat = 58.703, lon = 16.4992;
