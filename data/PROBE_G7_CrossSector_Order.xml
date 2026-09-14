@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- G7 cross-sector probe order: one performer (1.BdeHQ), one task, three route vertices (599 m / 1,996 m / 4,989 m legs crossing 1 / 5 / 11 sector seams). Design: docs/experiments/G7_PROBE_DESIGN_2026-09-14.md; prereg PREREG_MESHQUERY_G7_2026-09-14.md. NOTE: no blank lines and no multi-line comments - a blank line inside the message body killed the SDK STOMP pump on 2026-09-14 12:08Z. -->
+<!-- G7 v3 cross-sector probe order: one performer (1222.MechPlt, a 16-member mechanized platoon), one task, three route vertices (599 m / 1,996 m / 4,989 m legs crossing 1 / 4 / 10 sector seams of the MojaveCOA nav area). Leg 1 is the measurement. A PLATFORM performer runs the native move-along controller and never enters ground-vehicle-move-to.lua (run 20260914T122525Z printed 0 planner rows); only MEMBERS of an aggregate tasked through maneuver-in-formation query the nav mesh. Design: scratchpad g7/G7_PROBE_DESIGN_v3.md. NOTE: no blank lines and no multi-line comments - a blank line inside the message body killed the SDK STOMP pump on 2026-09-14 12:08Z. -->
 <MessageBody xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.sisostds.org/schemas/C2SIM/1.1">
   <DomainMessageBody>
     <OrderBody>
@@ -13,26 +13,26 @@
         <ManeuverWarfareTask>
           <Location>
             <GeodeticCoordinate>
-              <Latitude>34.608651740</Latitude>
-              <Longitude>-116.719220764</Longitude>
+              <Latitude>34.614536922</Latitude>
+              <Longitude>-116.606743032</Longitude>
             </GeodeticCoordinate>
-          </Location><!--V1: 598.7 m from S on bearing 272.5; crosses lon-line 55 at 489 m, 110 m past it; sector (55,64)->(54,64)-->
+          </Location><!--V1: 598.9 m from S on bearing 287.0; crosses lon-line 76 at 252 m, 348 m past it; sector (76,65)->(75,65)-->
           <Location>
             <GeodeticCoordinate>
-              <Latitude>34.606767214</Latitude>
-              <Longitude>-116.740906656</Longitude>
+              <Latitude>34.614851569</Latitude>
+              <Longitude>-116.628546593</Longitude>
             </GeodeticCoordinate>
-          </Location><!--V2: 1995.7 m from V1 on bearing 264.0; 5 seams; sector (54,64)->(50,63)-->
+          </Location><!--V2: 1995.6 m from V1 on bearing 271.0; 4 seams (x=75,74,73,72); sector (75,65)->(71,65)-->
           <Location>
             <GeodeticCoordinate>
-              <Latitude>34.602055897</Latitude>
-              <Longitude>-116.795120162</Longitude>
+              <Latitude>34.615638184</Latitude>
+              <Longitude>-116.683055704</Longitude>
             </GeodeticCoordinate>
-          </Location><!--V3: 4989.4 m from V2 on bearing 264.0; 11 seams; sector (50,63)->(40,62)-->
+          </Location><!--V3: 4989.0 m from V2 on bearing 271.0; 10 seams (x=71..62); sector (71,65)->(61,65)-->
           <Name>T_G7_XSECT</Name>
           <UUID>a7000000-0000-0000-0000-000000000001</UUID>
           <DesiredEffectCode>TaskSuccess</DesiredEffectCode>
-          <PerformingEntity>670cfdb2-6c43-f267-ad7f-bd6e739def24</PerformingEntity><!--1.BdeHQ -> M577A2_Command_Post, a single ground PLATFORM-->
+          <PerformingEntity>001aa71b-4c26-a1ea-28b2-f7dfe8e76342</PerformingEntity><!--1222.MechPlt -> Mechanized Platoon (USA) IFV (Deprecated), an AGGREGATE of 16 members (4x M2A2 Bradley IFV + 12 dismounts); only the 4 Bradleys run ground-vehicle-move-to-->
           <TaskActionCode>MOVE</TaskActionCode>
           <RuleOfEngagement>
             <MipWeaponUseROE>
