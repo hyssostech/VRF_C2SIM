@@ -185,12 +185,19 @@ public sealed class VrfC2SimService : BackgroundService
     // wait. It is exactly TimedCompletionPolicy's own discipline, applied once for everyone.
     // Sampled on the tick thread; READ from the SDK callback threads and the thread pool (the gate
     // pollers), hence Volatile.
-    private double _taskClockSeconds;                          // the axis
-    private double _taskClockLastReading = double.NaN;         // previous sample of the clock in effect
-    private bool _taskClockLastUsingSim;                       // ... and which clock that was
-    private volatile bool _taskClockUsingSim;                  // the mode the last sample served on (log only)
+    private readonly TaskClockAxis _taskAxis = new();
     private DateTime _nextTaskClockSample = DateTime.MinValue;
     private bool _taskClockConfigWarned;                       // Vrf:TaskClock typo, logged once
+    // M3 + M4: the sim clock is OBSERVED ONCE PER SAMPLE for every consumer - hysteresis-confirmed
+    // readability and staleness in one place (SimClockTracker), so the progress watchdog and the
+    // task clock can never disagree about whether the scenario is running. The sampler below is
+    // the ONLY caller of _bridge.SimTimeSeconds().
+    private readonly SimClockTracker _simClock = new();
+    private SimClockTracker.Observation _simClockLast =
+        new(false, false, false, -1.0, -1.0, StallPolicy.SimClockStep.Flat, false, 0.0);
+    private bool _taskClockStaleWarned;                         // M4 stale warning for the TASK clock, once
+    private DateTime _simRollbackLineUtc = DateTime.MinValue;   // rate limit for the rollback line
+    private int _simRollbackLinesSuppressed;                    // rollbacks the rate limit did not print
     private const double TaskClockSampleSeconds = 1.0;
     // How often a gate/delay waiting on the axis re-checks it. A WALL cadence by necessity (there
     // is nothing else to sleep on); 200 ms costs nothing against the shortest wait in a real order
@@ -198,7 +205,7 @@ public sealed class VrfC2SimService : BackgroundService
     private const int TaskClockPollMs = 200;
 
     /// <summary>The task-clock axis, in seconds (see the field block). Safe from any thread.</summary>
-    private double TaskClockSeconds => Volatile.Read(ref _taskClockSeconds);
+    private double TaskClockSeconds => _taskAxis.Seconds;
 
     /// <summary>The axis, packaged for TaskSequencer: one Now and one clock-aware delay.</summary>
     private TaskClock _taskClockAxis;
@@ -3423,33 +3430,80 @@ public sealed class VrfC2SimService : BackgroundService
                             "(Duration, StartTime delay, the STREND gate) are measured on the WALL clock.",
                             _vrf.TaskClock);
         }
+        // ONE READ FOR EVERY CONSUMER (M3/M4). The watchdog asks for the sim clock through its own
+        // knob; if EITHER it or the task clock wants it, it is read here, once, and both consume
+        // the same observation. Nobody else calls SimTimeSeconds.
+        bool stallPrefersSim = _vrf.StallDetection
+                               && StallPolicy.ParseClockPreference(_vrf.StallClock, out _);
         double simSeconds = -1.0;
-        if (preferSim)
+        if (preferSim || stallPrefersSim)
         {
             try { simSeconds = _bridge.SimTimeSeconds(); }
             catch (Exception ex)
             { simSeconds = -1.0; _log.LogDebug(ex, "TASK CLOCK: sim-clock read failed; using the wall clock."); }
         }
-        bool usingSim = StallPolicy.UsingSimClock(preferSim, simSeconds);
         double wallNow = now.Ticks / (double)TimeSpan.TicksPerSecond;
-        AdvanceTaskClock(StallPolicy.SelectClock(usingSim, simSeconds, wallNow), usingSim);
-    }
+        var obs = _simClock.Observe(simSeconds, wallNow, StallPolicy.ModeSwitchConfirmations,
+                                    StallPolicy.StaleClockWarnSeconds);
+        _simClockLast = obs;
 
-    /// <summary>
-    /// Add this sample's FORWARD movement to the axis. Nothing is added across a mode change (the
-    /// two clocks are not comparable), on a flat reading (a paused scenario), or on a backwards
-    /// one (a rollback) - so the axis is monotone whatever the reader does, and never invents time.
-    /// Tick thread only.
-    /// </summary>
-    private void AdvanceTaskClock(double reading, bool usingSim)
-    {
-        if (!double.IsFinite(reading)) return;
-        if (!double.IsNaN(_taskClockLastReading) && usingSim == _taskClockLastUsingSim
-            && reading > _taskClockLastReading)
-            Volatile.Write(ref _taskClockSeconds, _taskClockSeconds + (reading - _taskClockLastReading));
-        _taskClockLastReading = reading;
-        _taskClockLastUsingSim = usingSim;
-        _taskClockUsingSim = usingSim;
+        // A BACKWARDS STEP IS A FACT ABOUT THE CLOCK, not about any one consumer, so it is reported
+        // here once rather than by each of them (rate-limited, and it says how many it did not
+        // print - a jittering reader must read as the burst it is).
+        if (obs.Step == StallPolicy.SimClockStep.RolledBack)
+        {
+            if ((now - _simRollbackLineUtc).TotalSeconds >= StallPolicy.LogRateLimitSeconds)
+            {
+                _simRollbackLineUtc = now;
+                _log.LogWarning("SIM CLOCK: stepped BACKWARDS, {Was:F1} s -> {Now:F1} s " +
+                                "(DtVrfRemoteController::rollbackToSnapshot, vrfRemoteController.h:605). " +
+                                "This is a NEW timeline, not a stale clock: no task is completed by it and " +
+                                "no wait is restarted - the task-clock axis simply adds nothing for this " +
+                                "step.{Sup}", obs.PreviousSimSeconds, obs.SimSeconds,
+                                _simRollbackLinesSuppressed > 0
+                                    ? " (" + _simRollbackLinesSuppressed + " earlier backwards step(s) not logged)"
+                                    : "");
+                _simRollbackLinesSuppressed = 0;
+            }
+            else _simRollbackLinesSuppressed++;
+        }
+
+        // M4: A STALE SIM CLOCK MUST NOT FREEZE EVERY END TIME. The reader keeps returning the last
+        // cached value when a back end is deactivated rather than removed, which reads as a pause
+        // forever - so the task clock stops serving on it and serves the rest of every Duration on
+        // WALL seconds. Nothing is lost: the axis keeps what it has accumulated and only stops
+        // ADDING sim seconds. Warned ONCE each way, because a run that silently changed time base
+        // is exactly what R4 exists to stop.
+        bool taskSimStale = preferSim && obs.ReadableConfirmed && obs.Stale;
+        if (taskSimStale && !_taskClockStaleWarned)
+        {
+            _taskClockStaleWarned = true;
+            _log.LogWarning("TASK CLOCK: the simulation clock has not advanced past {T:F1} s for {S:F0} wall " +
+                            "seconds - the scenario is PAUSED, or the back end has stopped answering (a back " +
+                            "end that misses its status timeout is DEACTIVATED, not removed, so the reader " +
+                            "keeps returning its last value). C2SIM task times ({N} task(s) waiting on an end " +
+                            "time) are served on the WALL clock until it moves again; no task is completed " +
+                            "early and no wait is restarted.",
+                            obs.SimSeconds, obs.FlatForWallSeconds, _timed.Count);
+        }
+        else if (_taskClockStaleWarned && !taskSimStale)
+        {
+            _taskClockStaleWarned = false;
+            _log.LogInformation("TASK CLOCK: the simulation clock is readable and advancing again ({T:F1} s) - " +
+                                "C2SIM task times are served on it once more.", obs.SimSeconds);
+        }
+
+        // M3: THE MODE IS THE HYSTERESIS-CONFIRMED ONE. A reader alternating -1 / >= 0 at this
+        // cadence would otherwise flip the mode on every sample, and the axis adds nothing across a
+        // mode change - so nothing would ever be served, silently, forever.
+        bool heldOnSim = preferSim && obs.ReadableConfirmed;
+        // Held on the sim clock but nothing to read THIS sample (the "back end briefly out of the
+        // list" case): add nothing and keep the anchor, exactly as the watchdog skips its check.
+        // Serving the wall clock here instead would flip the mode on every miss, which is the very
+        // starvation the hysteresis exists to prevent.
+        if (heldOnSim && !obs.Readable) return;
+        bool usingSim = heldOnSim && !obs.Stale;
+        _taskAxis.Advance(usingSim ? obs.SimSeconds : wallNow, usingSim);
     }
 
     /// <summary>
@@ -3481,7 +3535,7 @@ public sealed class VrfC2SimService : BackgroundService
         // handing the raw mode to Advance would re-anchor a second time for no gain (and, with an
         // unsteady reader, would re-anchor every walk and never serve anything: M3).
         bool preferSim = StallPolicy.ParseClockPreference(_vrf.TaskClock, out _);
-        bool usingSim = _taskClockUsingSim;
+        bool usingSim = _taskAxis.UsingSim;
         double clockNow = TaskClockSeconds;
         if (!_timedClockLineLogged || usingSim != _timedUsingSim)
         {
@@ -3586,20 +3640,15 @@ public sealed class VrfC2SimService : BackgroundService
     private readonly ConcurrentDictionary<string, string> _stallReported = new();        // unit name -> task uuid reported TASKABRT
     private DateTime _nextStallCheck = DateTime.MinValue;
     private int _stallClockMode;   // 0 = not announced yet, 1 = simulation clock, 2 = wall clock
-    // Clock-mode hysteresis and stale-clock state (cold-start review of 1616614, findings 8 and
-    // 9). All of these are touched only on the tick thread - MaybeCheckStalls is their one writer.
-    private int _stallClockCandidate;                             // the mode an unsteady reader proposes
-    private int _stallClockStreak;                                // consecutive readings of that candidate
+    // Clock-mode hysteresis and stale-clock detection (cold-start review of 1616614, findings 8
+    // and 9) MOVED to SimClockTracker in the cold-start review of 5c67d41 (M3/M4): one observer,
+    // consumed by this watchdog and by the R4 task clock alike, so the two can never disagree
+    // about whether the scenario is running. What remains here is this watchdog's own reaction to
+    // the shared verdict. All of it is touched only on the tick thread.
     private DateTime _stallModeLineUtc = DateTime.MinValue;       // rate limit for the mode line
     private int _stallModeLinesSuppressed;                        // mode changes the rate limit did not print
     private bool _stallClockConfigWarned;                         // Vrf:StallClock typo, logged once
-    // The PREVIOUS tick's sim reading - NOT a high-water mark (pass-2 review F3: a rollback is a
-    // CHANGE, so the "last advanced" wall time is refreshed on a backwards step too).
-    private double _stallSimClockLast = double.NegativeInfinity;
-    private double _stallSimClockLastAdvanceWall;                 // wall seconds when it last changed
     private bool _stallSimClockStaleWarned;                       // stale-clock warning, logged once per stall
-    private DateTime _stallRollbackLineUtc = DateTime.MinValue;   // rate limit for the rollback line
-    private int _stallRollbackLinesSuppressed;                    // rollbacks the rate limit did not print
     private double _stallLastCheckClock = double.NaN;             // previous check's clock, for the ratio
     private double _stallLastCheckWall = double.NaN;              // previous check's wall seconds
     // DORMANCY WATCH (pass-2 review F4b, re-armed by pass-3 review P4). 08146a2 armed the line on
@@ -3658,26 +3707,24 @@ public sealed class VrfC2SimService : BackgroundService
                             "measures its window on the WALL clock (the mode measured live so far).",
                             _vrf.StallClock);
         }
-        double simSeconds = -1.0;
-        if (preferSim)
-        {
-            try { simSeconds = _bridge.SimTimeSeconds(); }
-            catch (Exception ex) { simSeconds = -1.0; _log.LogDebug(ex, "STALL: sim-clock read failed; using wall."); }
-        }
-        // NaN IS NOT A READING (pass-2 review F2). The tick guard below used to be
-        // `simSeconds < 0.0`, which is FALSE for NaN, so a NaN became clockNow while
-        // StallPolicy.UsingSimClock - the very next predicate, on the same value, in the same
-        // method - called it no reading; Admit then appended the NaN stamp and the front prune
-        // stopped for the rest of the run. ONE predicate now answers both questions, and
-        // StallPolicy.SelectClock (not an inlined copy of it) picks the time base, so the product
-        // and the self-test can no longer drift apart on this (N1).
-        bool simReadable = StallPolicy.UsingSimClock(preferSim, simSeconds);
-        int observedMode = simReadable ? 1 : 2;
+        // ONE OBSERVER (M3/M4 of the cold-start review of 5c67d41). The sim clock is read and
+        // judged ONCE PER SAMPLE by SampleTaskClock -> SimClockTracker, at the top of the same tick
+        // loop, and the watchdog consumes that observation instead of taking its own reading and
+        // running its own copy of the hysteresis. Two consequences, both deliberate:
+        //   - the watchdog and the R4 task clock can never disagree about whether the scenario is
+        //     running (they may still be configured to different PREFERENCES);
+        //   - the confirmations are now counted at the sampler's 1 s cadence rather than at this
+        //     watchdog's (>= 1 s, adaptive), so a sustained change is adopted sooner. The guard is
+        //     unchanged in kind: an alternating reader still never flips the mode.
+        // NaN IS NOT A READING (pass-2 review F2) - SimClockTracker uses the same
+        // StallPolicy.UsingSimClock predicate, so a NaN or +Inf reading is "no reading" there too.
+        var simObs = _simClockLast;
+        double simSeconds = simObs.SimSeconds;
+        bool simReadable = preferSim && simObs.Readable;
+        int observedMode = (preferSim && simObs.ReadableConfirmed) ? 1 : 2;
         int heldMode = _stallClockMode;
         bool announceMode = false;
-        (int nextMode, _stallClockCandidate, _stallClockStreak) =
-            StallPolicy.NextClockMode(_stallClockMode, _stallClockCandidate, _stallClockStreak,
-                                      observedMode, StallPolicy.ModeSwitchConfirmations);
+        int nextMode = observedMode;
         if (nextMode != heldMode)
         {
             // Every ring is dropped on a real change: its stamps are on the OLD clock and mixing
@@ -3689,7 +3736,6 @@ public sealed class VrfC2SimService : BackgroundService
             if (heldMode != 0)
             {
                 _stallSamples.Clear();
-                _stallSimClockLast = double.NegativeInfinity;
                 _stallSimClockStaleWarned = false;
                 _stallLastCheckClock = double.NaN;
                 // The un-judged axis is NOT reset here (pass-3 review P4): a mode that keeps
@@ -3785,51 +3831,23 @@ public sealed class VrfC2SimService : BackgroundService
         // paused scenario, and both must stop the watchdog judging - but a silent stop in front
         // of the silence C16 exists to catch is not acceptable, so it says so, once.
         //
-        // A BACKWARDS STEP IS A CHANGE, NOT A NON-ADVANCE (pass-2 review F3). _stallSimClockLast
-        // used to be a HIGH-WATER mark compared with `>`, so after DtVrfRemoteController::
-        // rollbackToSnapshot the clock was genuinely advancing BELOW that mark, this branch was
-        // never taken, and 60 wall s later the watchdog suspended judging for EVERY unit until the
-        // clock climbed back - measured 420 wall s for a 475 sim s rollback - while telling the
-        // operator the scenario was paused or the back end had stopped answering. Admit already
-        // handled a rollback correctly and explicitly; this makes the stale detector agree with
-        // it, and say what actually happened.
+        // A BACKWARDS STEP IS A CHANGE, NOT A NON-ADVANCE (pass-2 review F3). The "last advanced"
+        // mark used to be a HIGH-WATER one compared with `>`, so after DtVrfRemoteController::
+        // rollbackToSnapshot the clock was genuinely advancing BELOW that mark, the advance branch
+        // was never taken, and 60 wall s later the watchdog suspended judging for EVERY unit until
+        // the clock climbed back - measured 420 wall s for a 475 sim s rollback - while telling
+        // the operator the scenario was paused or the back end had stopped answering. That rule,
+        // and the mark it keeps, now live in SimClockTracker (M3/M4 of the cold-start review of
+        // 5c67d41), which decides Advanced / RolledBack / Flat and Stale ONCE for every consumer;
+        // Admit still handles a rollback correctly and explicitly on this side.
         bool staleHold = false;
         if (usingSim)
         {
-            var clockStep = StallPolicy.ClassifyClockStep(clockNow, _stallSimClockLast);
-            if (clockStep != StallPolicy.SimClockStep.Flat)
-            {
-                if (clockStep == StallPolicy.SimClockStep.RolledBack)
-                {
-                    // Rate-limited like the mode line, and - pass-3 review P7 - it says how many
-                    // rollbacks it did not print, so a jittering reader reads as the burst it is
-                    // rather than as one event per minute.
-                    if ((now - _stallRollbackLineUtc).TotalSeconds >= StallPolicy.LogRateLimitSeconds)
-                    {
-                        _stallRollbackLineUtc = now;
-                        _log.LogWarning("STALL WATCHDOG: the simulation clock stepped BACKWARDS, {Was:F1} s -> " +
-                                        "{Now:F1} s (DtVrfRemoteController::rollbackToSnapshot, " +
-                                        "vrfRemoteController.h:605). Every sample stamped after the new value is " +
-                                        "dropped and each unit's watch re-arms there: this is a NEW timeline, not " +
-                                        "a stale clock, and judging is not suspended.{Sup}",
-                                        _stallSimClockLast, clockNow,
-                                        _stallRollbackLinesSuppressed > 0
-                                            ? " (" + _stallRollbackLinesSuppressed
-                                              + " earlier backwards step(s) not logged)" : "");
-                        _stallRollbackLinesSuppressed = 0;
-                    }
-                    else _stallRollbackLinesSuppressed++;
-                }
-                if (_stallSimClockStaleWarned)
-                    _log.LogInformation("STALL WATCHDOG: the simulation clock is advancing again ({T:F1} s); " +
-                                        "the no-progress window is being measured once more.", clockNow);
-                _stallSimClockLast = clockNow;
-                _stallSimClockLastAdvanceWall = wallNow;
-                _stallSimClockStaleWarned = false;
-            }
-            else if (anyMoveInFlight
-                     && StallPolicy.SimClockStale(clockNow, _stallSimClockLast, wallNow,
-                                                  _stallSimClockLastAdvanceWall, StallPolicy.StaleClockWarnSeconds))
+            // STALE (not PAUSED) is decided ONCE, by SimClockTracker, for every consumer; the
+            // rollback line is reported there too, because a backwards step is a fact about the
+            // clock and not about this watchdog. What stays here is this watchdog's REACTION:
+            // suspend judging while the clock is stale AND something is actually moving.
+            if (anyMoveInFlight && simObs.Stale)
             {
                 staleHold = true;
                 if (!_stallSimClockStaleWarned)
@@ -3840,8 +3858,14 @@ public sealed class VrfC2SimService : BackgroundService
                                     "the back end has stopped answering (a back end that misses its status timeout " +
                                     "is deactivated, not removed, so the reader keeps returning its last value). " +
                                     "No unit is judged until this clock moves again.",
-                                    clockNow, wallNow - _stallSimClockLastAdvanceWall, live.Count);
+                                    clockNow, simObs.FlatForWallSeconds, live.Count);
                 }
+            }
+            else if (_stallSimClockStaleWarned && !simObs.Stale)
+            {
+                _stallSimClockStaleWarned = false;
+                _log.LogInformation("STALL WATCHDOG: the simulation clock is advancing again ({T:F1} s); " +
+                                    "the no-progress window is being measured once more.", clockNow);
             }
         }
 

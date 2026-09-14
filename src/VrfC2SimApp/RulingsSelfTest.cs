@@ -31,6 +31,8 @@ public static class RulingsSelfTest
         R3(ref failures);
         Console.WriteLine("=== R1 (transition): MapGraphicID -> the graphic created at init ===");
         R1(ref failures);
+        Console.WriteLine("=== The TASK CLOCK: an unsteady or frozen sim reader must not stop the order ===");
+        TaskClockChecks(ref failures);
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
         return failures == 0 ? 0 : 1;
     }
@@ -228,6 +230,137 @@ public static class RulingsSelfTest
                 await Task.Delay(PollMs, ct).ConfigureAwait(false);
             }
         }
+    }
+
+    // ------------------------------------------------------- THE TASK CLOCK ----
+    // M3 + M4 of the cold-start review of 5c67d41. Both defects are the SAME failure mode from two
+    // directions: the R4 walk stops serving time, no task ever completes, nothing is logged, and
+    // every successor is then skipped at the predecessor gate. Both are checked here against the
+    // REAL SimClockTracker, the REAL TaskClockAxis and the REAL TimedCompletionPolicy, with the
+    // pre-fix behaviour kept beside each as the fail-first control.
+    private static void TaskClockChecks(ref int failures)
+    {
+        const double dur = 100.0;
+
+        // (e1) M3 - A READER ALTERNATING -1 / >= 0 AT THE SAMPLE CADENCE. This is the documented
+        //      "back end briefly out of the list" case (vrfBackendListener.h:154-163) the watchdog
+        //      was hardened against and the timed walk was not.
+        Func<int, double> flapping = i => (i % 2 == 0) ? 1000.0 + i : -1.0;
+
+        var preFix = WalkTaskClock(flapping, useConfirmedMode: false, honourStale: true, dur, 400);
+        Check(ref failures, !preFix.Completed && preFix.AxisSeconds == 0.0,
+              $"FAIL-FIRST (M3): on the RAW mode a flapping reader leaves the axis at " +
+              $"{preFix.AxisSeconds:F0} s after 400 samples - the task never completes and nothing is logged");
+
+        var fixedFlap = WalkTaskClock(flapping, useConfirmedMode: true, honourStale: true, dur, 400);
+        Check(ref failures, fixedFlap.Completed && fixedFlap.ModeFlips == 0,
+              $"with the HYSTERESIS-CONFIRMED mode the same reader completes the task " +
+              $"({fixedFlap.Samples} samples) and never flips the clock mode ({fixedFlap.ModeFlips} flips)");
+
+        // (e2) M4 - A FROZEN READER. VrfFacade::SimTimeSeconds gates on backends().count() > 0 and
+        //      a deactivated back end is NOT removed, so the reader returns its last value for the
+        //      rest of the run. Read as a pause, no Duration ever elapses again.
+        Func<int, double> frozen = _ => 5000.0;
+
+        var preFixFrozen = WalkTaskClock(frozen, useConfirmedMode: true, honourStale: false, dur, 400);
+        Check(ref failures, !preFixFrozen.Completed && preFixFrozen.AxisSeconds == 0.0,
+              "FAIL-FIRST (M4): with no stale detection a frozen sim clock freezes every end time - " +
+              "no TASKCMPLT is ever emitted, and nothing says so");
+
+        var fixedFrozen = WalkTaskClock(frozen, useConfirmedMode: true, honourStale: true, dur, 400);
+        Check(ref failures, fixedFrozen.Completed && fixedFrozen.StaleTransitions == 1,
+              $"a frozen sim clock is detected ONCE ({fixedFrozen.StaleTransitions} transition(s)) and the " +
+              $"task completes on the WALL fallback ({fixedFrozen.Samples} samples)");
+
+        // (e3) The axis itself: it never invents time, whatever the reader does.
+        {
+            var axis = new TaskClockAxis();
+            axis.Advance(1000.0, usingSim: true);          // anchor
+            axis.Advance(1060.0, usingSim: true);          // 60 s of scenario
+            double afterRun = axis.Seconds;
+            axis.Advance(1060.0, usingSim: true);          // paused
+            axis.Advance(900.0, usingSim: true);           // rollbackToSnapshot
+            Check(ref failures, axis.Seconds == afterRun && afterRun == 60.0,
+                  $"the axis adds a pause and a rollback as ZERO (60 s served, still {axis.Seconds:F0} s)");
+            axis.Advance(1.7e9, usingSim: false);          // fall back to the wall clock
+            Check(ref failures, axis.Seconds == afterRun,
+                  "a fall back to the WALL clock adds nothing across the change - the two epochs " +
+                  "are not comparable, and the task keeps the time it has served");
+            axis.Advance(1.7e9 + 30.0, usingSim: false);
+            Check(ref failures, axis.Seconds == afterRun + 30.0,
+                  "... and the rest of the Duration is then served in wall seconds");
+        }
+
+        // (e4) A SUSTAINED change is still adopted - the hysteresis must not blind the interface to
+        //      a back end that really has gone.
+        {
+            var tracker = new SimClockTracker();
+            double wall = 1.7e9;
+            tracker.Observe(1000.0, wall, StallPolicy.ModeSwitchConfirmations, StallPolicy.StaleClockWarnSeconds);
+            int adoptedAt = -1;
+            for (int i = 1; i <= 6 && adoptedAt < 0; i++)
+            {
+                var o = tracker.Observe(-1.0, wall += 1.0, StallPolicy.ModeSwitchConfirmations,
+                                        StallPolicy.StaleClockWarnSeconds);
+                if (o.ModeChanged) adoptedAt = i;
+            }
+            Check(ref failures, adoptedAt == StallPolicy.ModeSwitchConfirmations && !tracker.ReadableConfirmed,
+                  $"a SUSTAINED loss of the sim reader IS adopted, on reading " +
+                  $"{StallPolicy.ModeSwitchConfirmations} (got {adoptedAt})");
+        }
+
+        // (e5) A backwards step is reported as a ROLLBACK and never as a stale clock - the two
+        //      have opposite remedies (re-anchor and carry on, vs stop serving on this clock).
+        {
+            var tracker = new SimClockTracker();
+            double wall = 1.7e9;
+            tracker.Observe(1000.0, wall, StallPolicy.ModeSwitchConfirmations, StallPolicy.StaleClockWarnSeconds);
+            var back = tracker.Observe(500.0, wall + 1.0, StallPolicy.ModeSwitchConfirmations,
+                                       StallPolicy.StaleClockWarnSeconds);
+            Check(ref failures,
+                  back.Step == StallPolicy.SimClockStep.RolledBack && !back.Stale
+                  && back.PreviousSimSeconds == 1000.0,
+                  $"a backwards step is a ROLLBACK (1000 s -> 500 s), not a stale clock (got {back.Step})");
+            var flat = tracker.Observe(500.0, wall + 1.0 + StallPolicy.StaleClockWarnSeconds,
+                                       StallPolicy.ModeSwitchConfirmations, StallPolicy.StaleClockWarnSeconds);
+            Check(ref failures, flat.Stale && flat.Step == StallPolicy.SimClockStep.Flat,
+                  "... and the stale clock is only what stays FLAT for the whole stale window");
+        }
+    }
+
+    /// <summary>
+    /// One run of the service's OWN timed-completion loop, on a scripted sim reader: the sampler
+    /// (SimClockTracker), the axis (TaskClockAxis) and the walk (TimedCompletionPolicy), sampled
+    /// once per WALL second exactly as SampleTaskClock does. <paramref name="useConfirmedMode"/>
+    /// false and <paramref name="honourStale"/> false reproduce the PRE-FIX behaviours of M3 and M4.
+    /// </summary>
+    private static (bool Completed, int Samples, double AxisSeconds, int ModeFlips, int StaleTransitions)
+        WalkTaskClock(Func<int, double> reader, bool useConfirmedMode, bool honourStale,
+                      double durationSeconds, int maxSamples)
+    {
+        var tracker = new SimClockTracker();
+        var axis = new TaskClockAxis();
+        var timed = new TimedCompletionPolicy();
+        timed.Register("T-CLOCK", "taskee-clock", "T_Secure", "1-35 AR", durationSeconds);
+        double wall = 1.7e9;            // a plausible wall epoch, in seconds
+        int modeFlips = 0, staleTransitions = 0, samples = 0;
+        bool lastStale = false, completed = false;
+        for (; samples < maxSamples && !completed; samples++, wall += 1.0)
+        {
+            var obs = tracker.Observe(reader(samples), wall, StallPolicy.ModeSwitchConfirmations,
+                                      StallPolicy.StaleClockWarnSeconds);
+            // The FIRST resolution (mode 0 -> readable/not) is adopted at once and is not a
+            // flip - nothing has been served yet. Only later changes can starve the axis.
+            if (obs.ModeChanged && samples > 0) modeFlips++;
+            bool stale = honourStale && obs.Stale;
+            if (stale != lastStale) { staleTransitions++; lastStale = stale; }
+            bool heldOnSim = useConfirmedMode ? obs.ReadableConfirmed : obs.Readable;
+            if (heldOnSim && !obs.Readable) continue;      // nothing to read this sample
+            bool usingSim = heldOnSim && !stale;
+            axis.Advance(usingSim ? obs.SimSeconds : wall, usingSim);
+            if (timed.Advance(axis.Seconds, usingSim: true).Count > 0) completed = true;
+        }
+        return (completed, samples, axis.Seconds, modeFlips, staleTransitions);
     }
 
     // ---------------------------------------------------------------- R2 ----
