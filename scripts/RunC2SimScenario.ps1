@@ -280,6 +280,15 @@ param(
     # Refused on 5.0.2, whose combined-mode launcher takes the value from its saved profile.
     [string] $DeviceAddress = '',
 
+    # 5.2 ONLY: relocated appData for the sim and the gui (LaunchVrf52.ps1 -AppDataDir ->
+    # --appDataDir on both, UG52 Table 11 p178 / Table 10 p164). EMPTY (default) = nothing is
+    # passed and VR-Forces uses $VrfRoot\appData, so every existing command line is unchanged.
+    # 'C:\C2SIM\vrf-appdata\appData' is the reinstall-safe copy whose only delta from the
+    # vendor tree is (setqb loadAllNavigationDataOnTerrainLoad 1) - navigation data loaded
+    # WITH the scenario instead of lazily at first entity placement (UG52 App. C p1671);
+    # see that tree's README-C2SIM.txt. Refused on 5.0.2 (LaunchVrf.ps1 has no such option).
+    [string] $VrfAppDataDir = '',
+
     # VR-Forces bring-up (passed straight through to the profile's launch script).
     # The four below are 5.0.2 values and are DERIVED from -VrfProfile on 5.2.
     [string] $Scenario   = 'TropicTortoise',
@@ -1581,12 +1590,23 @@ if ($Is52) {
     if ((-not [string]::IsNullOrWhiteSpace($DeviceAddress)) -and ($DeviceAddress -notmatch '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$')) {
         $bad += ("-DeviceAddress must be a dotted IPv4 address or EMPTY (empty = pass nothing, VR-Forces picks the first device listed, IOG 5.2.1 p81); got '{0}'." -f $DeviceAddress)
     }
+    # -VrfAppDataDir is OPTIONAL (empty = pass nothing, the vendor appData), but a non-empty
+    # value that is not a directory is a typo the sim would find only after the launch had
+    # begun. LaunchVrf52 re-checks it and exits 2; this refuses it BEFORE anything starts, so
+    # a -DryRun catches the mistake too. Pass the directory that CONTAINS settings\ (i.e.
+    # ...\vrf-appdata\appData, not its parent) - LaunchVrf52 warns about that specific slip.
+    if ((-not [string]::IsNullOrWhiteSpace($VrfAppDataDir)) -and -not (Test-Path -LiteralPath $VrfAppDataDir -PathType Container)) {
+        $bad += ("-VrfAppDataDir must be an EXISTING directory or EMPTY (empty = pass nothing; VR-Forces then uses its own appData, UG52 Table 11 p178); got '{0}'." -f $VrfAppDataDir)
+    }
 } else {
     if ($NoGui) {
         $bad += '-NoGui is a 5.2 profile switch (LaunchVrf52.ps1 -NoGui). The 5.0.2 combined-mode launcher has no headless option; use -VrfProfile 5.2 or drop -NoGui.'
     }
     if ($PSBoundParameters.ContainsKey('DeviceAddress')) {
         $bad += '-DeviceAddress is a 5.2 profile switch (LaunchVrf52.ps1 -DeviceAddress). On 5.0.2 the interface address comes from the saved Launcher connection profile; use -VrfProfile 5.2 or drop -DeviceAddress.'
+    }
+    if ($VrfAppDataDir -and -not $Is52) {
+        $bad += '-VrfAppDataDir is a 5.2 profile switch (LaunchVrf52.ps1 -AppDataDir). The 5.0.2 combined-mode launcher takes appData from the installation; use -VrfProfile 5.2 or drop -VrfAppDataDir.'
     }
 }
 
@@ -1655,6 +1675,15 @@ if ($Is52) {
     Say     ('                       HARVESTS the vendor''s own C:\MAK\logs\vrfSim*-<pid>.log for that pid into runs\launch52 instead.')
     Say     ('                       SECRETS: the harvested copy holds the FULL PROCESS ENVIRONMENT IN CLEARTEXT (FORENSICS_52_STARTUP_CRASH')
     Say     ('                       _2026-09-04 sec 10) - NEVER attach it to a ticket, mail or issue; send the .callstack.log / .dmp instead.')
+    # appData. PRINTED ONLY WHEN RELOCATED, so a default run's banner is byte-identical to
+    # every run in the record; the absent case is still ledgered (inputs.vrfAppDataDir).
+    if ($VrfAppDataDir) {
+        Say ('         appData     : {0}' -f $VrfAppDataDir)
+        Say ('                       -VrfAppDataDir -> LaunchVrf52 -AppDataDir -> --appDataDir on the sim AND the gui (UG52 Table 11 p178 /')
+        Say ('                       Table 10 p164). That tree''s ONE delta from the vendor copy is loadAllNavigationDataOnTerrainLoad 1:')
+        Say ('                       nav data loads WITH the scenario instead of lazily at first entity placement (UG52 App. C p1671).')
+        Say ('                       LaunchVrf52 re-validates the path and echoes the setting it actually read into runs\launch52.')
+    }
     Say     ('         scenario    : {0} (relative to {1}\userData\scenarios)' -f $Scenario, $VrfRoot)
     foreach ($k in $ProfileEnv.Keys) { Say ('         env         : {0}={1}' -f $k, $ProfileEnv[$k]) }
 }
@@ -1674,6 +1703,7 @@ $Manifest.inputs.sampleSecs    = $SampleSecs
 $Manifest.inputs.scenario      = $Scenario
 $Manifest.inputs.quietBackend  = [bool]$QuietBackend
 $Manifest.inputs.backendNotifyLevel = $BackendNotifyLevel
+$Manifest.inputs.vrfAppDataDir = $(if ($Is52 -and $VrfAppDataDir) { $VrfAppDataDir } elseif ($Is52) { '(not passed - vendor appData)' } else { $null })
 $Manifest.inputs.clientId      = $(if ($ClientId) { $ClientId } else { ('(appsettings) {0}' -f $appClientId) })
 $Manifest.inputs.typeMapFile   = $(if ($Is52) { $TypeMapFile52 } else { '(5.0.2 profile: appsettings)' })
 $Manifest.inputs.typeMapIsRepoMap = [bool](-not $TypeMapFile)
@@ -2492,6 +2522,10 @@ try {
     if ($Is52) {
         $launchArgs += @('-VrLinkRoot', $VrLinkRoot, '-RidFile', $RidFile)
         if ($DeviceAddressPassed) { $launchArgs += @('-DeviceAddress', $DeviceAddress52) }
+        # -AppDataDir follows the same convention: absent unless -VrfAppDataDir was given, so
+        # the launch line above says plainly whether the sim read the vendor appData or the
+        # relocated copy (APPDATA_RELOCATION_2026-09-14 sec 4). Validated in the preconditions.
+        if ($VrfAppDataDir) { $launchArgs += @('-AppDataDir', $VrfAppDataDir) }
         if ($NoGui) { $launchArgs += '-NoGui' }
         $launchArgs += @('-NotifyLevel', [string]$BackendNotifyLevel)
     }

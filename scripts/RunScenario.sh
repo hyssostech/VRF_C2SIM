@@ -56,6 +56,7 @@ STOP_WHEN_COMPLETE=1
 DRYRUN=0
 SAMPLE_THREADS=0
 PRE_ORDER_SETTLE=0
+VRF_APPDATA_DIR=''
 LOG=''
 EXTRA_ENV=()
 PASSTHRU=()
@@ -83,6 +84,11 @@ usage: scripts/RunScenario.sh [options] [-- <extra runner arguments>]
   --env K=V                 extra environment for the app (repeatable)
   --pre-order-settle N      stage 7d: hold N s after the oracle gate and BEFORE PushOrder, so
                             the LAZILY loaded sectorised nav area can arrive (default 0 = off)
+  --vrf-appdata-dir DIR     5.2 only: --appDataDir for the sim and the gui (default empty =
+                            not passed, VR-Forces uses its own appData). The prepared copy is
+                            C:\C2SIM\vrf-appdata\appData, whose one delta from the vendor tree
+                            is loadAllNavigationDataOnTerrainLoad 1 (nav data loaded WITH the
+                            scenario instead of lazily at first entity placement)
   --sample-threads          also run scripts/SampleThreads.ps1 against the sim
   --log PATH                runner stdout+stderr file         (default runs/launch52/RunScenario-<stamp>.log)
   --dry-run                 pass -DryRun to the runner (launches nothing)
@@ -114,6 +120,7 @@ while [ $# -gt 0 ]; do
         --no-stop-when-complete) STOP_WHEN_COMPLETE=0; shift ;;
         --env)                  EXTRA_ENV+=("$2"); shift 2 ;;
         --pre-order-settle)     PRE_ORDER_SETTLE="$2"; shift 2 ;;
+        --vrf-appdata-dir)      VRF_APPDATA_DIR="$2"; shift 2 ;;
         --sample-threads)       SAMPLE_THREADS=1; shift ;;
         --log)                  LOG="$2"; shift 2 ;;
         --dry-run)              DRYRUN=1; shift ;;
@@ -169,6 +176,10 @@ ARGS+=(-RestUrl "$REST_URL" -StompUrl "$STOMP_URL")
 # Stage 7d. Always passed, never compared here: the runner validates the range (0..3600) and
 # ledgers the value, so a typo is refused with a reason instead of silently dropped by bash.
 ARGS+=(-PreOrderSettleSecs "$PRE_ORDER_SETTLE")
+# Relocated appData. Passed ONLY when non-empty, so a default run's runner command line is
+# byte-identical to every run in the record; the runner refuses a path that is not a directory
+# and refuses the switch outright on the 5.0.2 profile.
+[ -n "$VRF_APPDATA_DIR" ] && ARGS+=(-VrfAppDataDir "$VRF_APPDATA_DIR")
 [ "$STOP_WHEN_COMPLETE" -eq 1 ] && ARGS+=(-StopWhenComplete)
 [ "$DRYRUN" -eq 1 ] && ARGS+=(-DryRun)
 ARGS+=("${PASSTHRU[@]}")
@@ -181,6 +192,7 @@ echo "  init/order  : $INIT | $ORDER   clientId: $CLIENT_ID"
 echo "  type map    : ${TYPEMAP:-(repo default)}"
 echo "  windows     : RunSecs=$RUN_SECS WatchSecs=$WATCH_SECS backendNotify=$BACKEND_NOTIFY"
 echo "  pre-order   : PreOrderSettleSecs=$PRE_ORDER_SETTLE  (stage 7d hold before PushOrder; 0 = off)"
+[ -n "$VRF_APPDATA_DIR" ] && echo "  appData     : $VRF_APPDATA_DIR  (-VrfAppDataDir -> LaunchVrf52 --appDataDir on sim + gui)"
 echo "  consoles    : object=$OBJ_CONSOLE member=$MEMBER_CONSOLE positionReport=${POS_REPORT}s"
 echo "  endpoints   : $REST_URL | $STOMP_URL"
 echo "  runner log  : $LOG     (watch it with: tail -f '$LOG')"

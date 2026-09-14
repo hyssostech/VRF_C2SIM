@@ -851,6 +851,28 @@ on 2026-09-14; each is now closed by something this section names
    sector at terrain load instead of on demand; that is a configuration change, not a runner
    one, and it is the better answer if the hold turns out to matter.
 
+8. `--vrf-appdata-dir DIR` (wrapper) / `-VrfAppDataDir DIR` (runner) - THE RELOCATED appData.
+   5.2 ONLY, added 2026-09-14, EMPTY by default so a default run's command line is unchanged
+   and VR-Forces reads `C:\MAK\vrforces5.2d\appData` exactly as before. With a directory it
+   becomes `LaunchVrf52.ps1 -AppDataDir`, i.e. `--appDataDir` on BOTH the sim and the gui
+   (UG52 Table 11 p178 / Table 10 p164; trustworthy only since 5.2 - VRF-9255 / VRF-9265).
+   THE PREPARED TREE IS `C:\C2SIM\vrf-appdata\appData`: a full copy of the vendor appData
+   (`cache\` junctioned back, so the warm terrain cache is NOT re-tiled), with exactly ONE
+   line different - `(setqb loadAllNavigationDataOnTerrainLoad 1)`, which loads navigation
+   data WITH the scenario instead of lazily at first entity placement (UG52 Appendix C
+   p1671, the vendor-side alternative item 7 points at). Provenance and the reinstall
+   procedure are in that tree's `README-C2SIM.txt`; the design record is
+   `docs/experiments/APPDATA_RELOCATION_2026-09-14.md`. NOTHING under `C:\MAK` was modified,
+   so ROLLBACK IS DROPPING THE OPTION.
+   Pass the directory that CONTAINS `settings\` (the nested `...\vrf-appdata\appData`, not
+   its parent): the runner refuses a path that is not an existing directory, and refuses the
+   switch outright on the 5.0.2 profile (`LaunchVrf.ps1` has no such option); LaunchVrf52
+   re-checks it and echoes the `loadAllNavigationDataOnTerrainLoad` line it actually read, so
+   the run log records which way the setting was set. Ledgered as `inputs.vrfAppDataDir`.
+   WATCH ITEM: `--appDataDir` is parsed by `makVrf::DtVrfSimOptions::parseCmdLine`, the same
+   path in which `--logFileName` crashes ~1 launch in 3. There is no evidence it shares that
+   defect, but if the sim dies at STARTUP the first thing to drop is this option.
+
 ---
 
 ## 0.5-ARCHIVE - the raw vrfSimHLA1516e headless recipe (CONFIRMED UNSAFE, 2026-07-15)
