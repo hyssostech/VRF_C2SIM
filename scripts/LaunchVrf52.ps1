@@ -224,6 +224,11 @@ param(
     # condition alone is ambiguous). Off by default: a process this script did not start is
     # not one it can prove failed its own startup.
     [switch] $CloseCrashedLeftover,
+    # An EXPLICIT .lic path, used INSTEAD of the registry resolution (User scope, else
+    # Machine). Empty = resolve, which is the normal path. It exists for an install whose
+    # licence is not in the registry at all, and so the expired-licence gate below can be
+    # exercised against a scratch file without touching the machine's environment.
+    [string] $LicenseFile        = '',
     [switch] $DryRun
 )
 $ErrorActionPreference = 'Stop'
@@ -234,6 +239,76 @@ function Say-Ok   { param([string]$m) Write-Host ('  [OK]   ' + $m) }
 function Say-Warn { param([string]$m) Write-Host ('  [WARN] ' + $m) }
 function Say-Fail { param([string]$m) Write-Host ('  [FAIL] ' + $m) }
 function Say-Plan { param([string]$m) Write-Host ('  [DRY-RUN] would ' + $m) }
+
+# ---- THE MAK LICENCE: resolved from the REGISTRY, never from the inherited env ----
+# The licence was renewed on 2026-09-14 and the new path was written to the USER scope; the
+# MACHINE scope still names the old 15-sep-2026 file (the elevation to change it was refused).
+# Windows composes a NEW process's environment as Machine-then-User, so a freshly started tree
+# gets the renewed file - but a process that was ALREADY RUNNING when the value changed keeps
+# the stale one and hands it to everything it launches: the runner, the launch script, the sim,
+# the gui, the interface, the observers, every tool. An expired licence then surfaces as a sim
+# that dies at startup, not as a licence error. So each entry script resolves User-then-Machine
+# ITSELF and pins the result onto its own process, which every child inherits.
+# Only the PATH and the EXPIRY are ever printed; nothing else is read out of the file.
+# RUNBOOK 0.5.15.
+# FOUR COPIES ON PURPOSE - no module is dot-sourced by all of these scripts:
+#   scripts\RunC2SimScenario.ps1, scripts\LaunchVrf52.ps1, scripts\StartInterface52.ps1 and,
+#   in bash, scripts\RunScenario.sh. CHANGE ONE, CHANGE ALL FOUR.
+# Write-Host rather than the local Say-* helpers, so the three .ps1 copies stay byte-identical;
+# the prefixes are the ones Say-Ok / Say-Warn print.
+function Resolve-MakLicenseFile {
+    param([string]$PathOverride = '')
+    if ([string]::IsNullOrWhiteSpace($PathOverride)) {
+        $lic = [Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','User')
+        if (-not $lic) { $lic = [Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','Machine') }
+        $licSrc = 'registry: User scope, else Machine'
+    } else {
+        $lic = $PathOverride
+        $licSrc = 'EXPLICIT OVERRIDE - the registry was NOT consulted'
+    }
+    $info = [pscustomobject]@{ Path = $lic; Source = $licSrc; Exists = $false; ExpiryText = ''; Expiry = $null }
+    if ([string]::IsNullOrWhiteSpace($lic)) {
+        Write-Host '  [WARN] *** MAKLMGRD_LICENSE_FILE is EMPTY in BOTH the User and the Machine scope. ***'
+        Write-Host '  [WARN] *** Nothing is stopped here, but every MAK process may HANG on its licence checkout (RUNBOOK 0.5.15). ***'
+        return $info
+    }
+    if (-not (Test-Path -LiteralPath $lic -PathType Leaf)) {
+        Write-Host ('  [WARN] *** THE LICENCE FILE DOES NOT EXIST: {0} ***' -f $lic)
+        Write-Host ('  [WARN] *** Source: {0}. Nothing is stopped here, but expect a licence failure in every MAK process (RUNBOOK 0.5.15). ***' -f $licSrc)
+        return $info
+    }
+    $info.Exists = $true
+    # THE POINT OF ALL THIS: children inherit THIS value, not the one this tree started with.
+    $env:MAKLMGRD_LICENSE_FILE = $lic
+    # FlexLM: "INCREMENT <feature> <vendor> <version> <expiry> <count> ..." - field 5 is the
+    # expiry (d-mmm-yyyy, or permanent / 1-jan-0000). FIRST INCREMENT line only, and no other
+    # field of the file is ever read out of it.
+    try {
+        foreach ($licLine in [System.IO.File]::ReadAllLines($lic)) {
+            if ($licLine -notmatch '^\s*INCREMENT\s') { continue }
+            $licFields = @(($licLine -split '\s+') | Where-Object { $_ -ne '' })
+            if ($licFields.Count -ge 5) { $info.ExpiryText = $licFields[4] }
+            break
+        }
+    } catch { }
+    if ($info.ExpiryText -and ($info.ExpiryText -notmatch '^(permanent|1-jan-0000|0)$')) {
+        $licParsed = [datetime]::MinValue
+        # [string[]] IS LOAD-BEARING. An untyped PowerShell @(...) is an object[], which does
+        # NOT bind the string[] formats overload: PowerShell then picks the SINGLE-format one
+        # and stringifies the array to "d-MMM-yyyy dd-MMM-yyyy", so every parse returns false,
+        # $info.Expiry stays $null and the expired-licence gate silently never fires. Measured
+        # 2026-09-14 against a scratch 1-jan-2020 copy. Month names match case-insensitively,
+        # so the file's lower-case "oct" / "jan" is fine.
+        if ([datetime]::TryParseExact($info.ExpiryText, [string[]]@('d-MMM-yyyy','dd-MMM-yyyy'),
+                [System.Globalization.CultureInfo]::InvariantCulture,
+                [System.Globalization.DateTimeStyles]::None, [ref]$licParsed)) { $info.Expiry = $licParsed }
+    }
+    Write-Host ('  [OK]   licence file: {0} (expires {1})' -f $lic, $(if ($info.ExpiryText) { $info.ExpiryText } else { 'UNKNOWN - no INCREMENT line' }))
+    if ($info.Expiry -and ($info.Expiry.Date -lt (Get-Date).Date)) {
+        Write-Host ('  [WARN] *** THAT LICENCE EXPIRED ON {0} - MAK processes will fail their checkout. ***' -f $info.ExpiryText)
+    }
+    return $info
+}
 
 # ---- crashed-process helpers (used by the preconditions AND by the readiness verdict) ------
 # Newest MAK callstack file whose LAST NAME FIELD is $ProcessId, written at or after $Since,
@@ -416,6 +491,22 @@ if ((-not $NoGui) -and ($BackendAppNumber -gt 0) -and ($BackendAppNumber -eq $Fr
 }
 if ($appNoFail) { Say-Head 'Result'; Say-Fail 'Aborting: argument gate failed. NOTHING was launched.'; exit 2 }
 
+# ---- licence gate (resolve from the registry, then REFUSE an expired one) ---
+# The licence is pinned onto this process here, so the sim and the gui inherit the file the
+# REGISTRY names rather than whatever this process tree started with (RUNBOOK 0.5.15).
+# An expired licence does not announce itself: the back-end starts, fails its checkout and
+# dies in a way that reads exactly like the ~1-in-3 startup crash. So it is refused HERE,
+# in the same place and with the same exit code as the argument gate - before any path,
+# process, log or app number is spent, in -DryRun as in a live launch.
+$LicInfo = Resolve-MakLicenseFile -PathOverride $LicenseFile
+if ($LicInfo.Expiry -and ($LicInfo.Expiry.Date -lt (Get-Date).Date)) {
+    Say-Head 'Result'
+    Say-Fail ('THE MAK LICENCE EXPIRED ON {0}: {1}' -f $LicInfo.ExpiryText, $LicInfo.Path)
+    Say-Fail ('  Resolved from {0}. Renew it, point MAKLMGRD_LICENSE_FILE at the new .lic in BOTH the User and the Machine scope (RUNBOOK 0.5.15), then retry.' -f $LicInfo.Source)
+    Say-Fail 'Aborting: licence gate failed. NOTHING was launched.'
+    exit 2
+}
+
 # ---- derived paths ---------------------------------------------------------
 $bin64      = Join-Path $VrfRoot 'bin64'
 $simExe     = Join-Path $bin64 'vrfSimHLA1516e.exe'
@@ -443,7 +534,6 @@ if ([string]::IsNullOrWhiteSpace($LogFile)) {
     $stamp   = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ')
     $LogFile = Join-Path $repoRoot ('runs\launch52\vrfSim_{0}_{1}.log' -f $BackendAppNumber, $stamp)
 }
-$licMachine = [Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','Machine')
 
 $procBackend  = 'vrfSimHLA1516e'
 $procFrontend = 'vrfGui'
@@ -586,9 +676,13 @@ if (-not $UseRtiAssistant) {
 } else {
     Say-Warn '-UseRtiAssistant with NO pre-existing rtiAssistant: the first federate spawns one that PROMPTS (Choose RTI Connection); the back-end blocks until it is answered (AnswerRtiDialog.ps1 - cannot click an ELEVATED assistant).'
 }
-if ([string]::IsNullOrWhiteSpace($licMachine) -and [string]::IsNullOrWhiteSpace($env:MAKLMGRD_LICENSE_FILE)) {
-    Say-Warn 'MAKLMGRD_LICENSE_FILE empty in Machine AND process scope - license checkout may hang.'
-} else { Say-Ok ("MAKLMGRD_LICENSE_FILE = {0}" -f $(if ($licMachine) { $licMachine } else { $env:MAKLMGRD_LICENSE_FILE })) }
+if ($LicInfo.Exists) {
+    Say-Ok ("MAKLMGRD_LICENSE_FILE = {0} (expires {1}; resolved at the licence gate above)" -f $LicInfo.Path, $LicInfo.ExpiryText)
+} elseif (-not [string]::IsNullOrWhiteSpace($env:MAKLMGRD_LICENSE_FILE)) {
+    Say-Warn ("the licence gate resolved NO usable file - the INHERITED process value ({0}) is what the sim will use. RUNBOOK 0.5.15." -f $env:MAKLMGRD_LICENSE_FILE)
+} else {
+    Say-Warn 'MAKLMGRD_LICENSE_FILE empty in the registry AND in this process - licence checkout may hang. RUNBOOK 0.5.15.'
+}
 
 # ---- argument strings (UG52 4.1.2 / 4.1.3 / Table 11 / Table 12) ------------
 $simArgs = @('--siteId', $SiteId, '--appNumber', $BackendAppNumber, '--sessionId', $SessionId,
@@ -688,7 +782,9 @@ function Get-SimCrashEvidence {
 }
 
 # ---- LIVE ------------------------------------------------------------------
-if (-not [string]::IsNullOrWhiteSpace($licMachine)) { $env:MAKLMGRD_LICENSE_FILE = $licMachine }
+# MAKLMGRD_LICENSE_FILE was pinned onto this process by the licence gate above and the sim,
+# the gui and anything else started here inherit it. The Machine scope is NOT re-read: it
+# still names the pre-2026-09-14 file (RUNBOOK 0.5.15).
 $env:PATH         = $pathPrefix + $env:PATH
 $env:MAK_VRFDIR   = $VrfRoot
 $env:MAK_VRLDIR   = $VrLinkRoot

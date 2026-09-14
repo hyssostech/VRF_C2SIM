@@ -143,6 +143,43 @@ if ! "$PWSH64" -NoProfile -Command '[Environment]::Is64BitProcess' < /dev/null 2
     exit 2
 fi
 
+# ---- THE MAK LICENCE, resolved from the REGISTRY and not from this shell -----
+# The bash half of the rule the three .ps1 entry scripts carry (Resolve-MakLicenseFile;
+# CHANGE ONE, CHANGE ALL FOUR). The licence renewed on 2026-09-14 is named in the USER
+# scope; the MACHINE scope still names the old 15-sep-2026 file. A shell that was already
+# open when that changed still EXPORTS the stale path to everything it starts - this
+# wrapper, the runner, the sim, the interface, the observers - and an expired licence
+# surfaces as a sim that dies at startup, not as a licence error. So resolve it here,
+# through the pinned 64-bit pwsh, and export the answer. RUNBOOK 0.5.15.
+# The runner resolves it again for itself: this export is for the sampler subshell and
+# for anything else this script starts directly.
+# ONLY field 5 of the first INCREMENT line (the expiry) is ever read out of the file.
+lic_scope() { "$PWSH64" -NoProfile -Command "[Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','$1')" < /dev/null 2>/dev/null | tr -d '\r\n'; }
+LIC="$(lic_scope User)"
+[ -z "$LIC" ] && LIC="$(lic_scope Machine)"
+LIC_EXPIRY='unknown'
+if [ -n "$LIC" ]; then
+    LIC_U="$(cygpath -u "$LIC" 2>/dev/null || echo "$LIC")"
+    if [ -f "$LIC_U" ]; then
+        # Exported ONLY when the file is really there - same rule as the .ps1 resolver, which
+        # PRESERVES an inherited value rather than replacing it with a path that resolves to
+        # nothing. Overwriting a working inherited value with a broken registry one would be a
+        # new failure, invented here.
+        export MAKLMGRD_LICENSE_FILE="$LIC"
+        LIC_EXPIRY="$(awk '/^[[:space:]]*INCREMENT[[:space:]]/ { print $5; exit }' "$LIC_U")"
+        [ -z "$LIC_EXPIRY" ] && LIC_EXPIRY='unknown - no INCREMENT line'
+    else
+        LIC_EXPIRY='THE FILE DOES NOT EXIST'
+        echo "[WARN] *** the licence file does not exist: $LIC ***"
+        echo "       That path came from the registry (User scope, else Machine). Nothing is stopped"
+        echo "       here, but expect a licence failure in every MAK process. RUNBOOK 0.5.15."
+    fi
+else
+    LIC_EXPIRY='NO PATH IN EITHER REGISTRY SCOPE'
+    echo "[WARN] *** MAKLMGRD_LICENSE_FILE is empty in BOTH the User and the Machine scope -"
+    echo "       every MAK process may HANG on its licence checkout. RUNBOOK 0.5.15. ***"
+fi
+
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 if [ -z "$LOG" ]; then
     mkdir -p runs/launch52
@@ -187,6 +224,7 @@ ARGS+=("${PASSTHRU[@]}")
 echo "=== RunScenario.sh $STAMP ==="
 echo "  repo        : $REPO"
 echo "  pwsh        : $PWSH64 (64-bit, pinned - bare 'pwsh' here is 32-bit)"
+echo "  licence file: ${LIC:-(none)} (expires $LIC_EXPIRY)"
 echo "  profile     : $PROFILE   scenario: $SCENARIO   gui: $([ "$NOGUI" -eq 1 ] && echo off || echo on)"
 echo "  init/order  : $INIT | $ORDER   clientId: $CLIENT_ID"
 echo "  type map    : ${TYPEMAP:-(repo default)}"

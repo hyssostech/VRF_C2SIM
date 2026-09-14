@@ -72,7 +72,9 @@ process. The text overstates what the code inspects.
 
 ### 0.5.1 THE COMMAND
 
-    $env:MAKLMGRD_LICENSE_FILE = [Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','Machine')
+    # licence: User scope FIRST, Machine only as a fallback - they disagree (0.5.15)
+    $env:MAKLMGRD_LICENSE_FILE = [Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','User')
+    if (-not $env:MAKLMGRD_LICENSE_FILE) { $env:MAKLMGRD_LICENSE_FILE = [Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','Machine') }
     pwsh -File scripts\LaunchVrf.ps1 -Scenario TropicTortoise `
          -BackendAppNumber <fresh> -FrontendAppNumber <fresh>
 
@@ -899,6 +901,55 @@ on 2026-09-14; each is now closed by something this section names
 
 ---
 
+### 0.5.15 THE LICENCE FILE - two registry scopes that disagree (added 2026-09-14)
+
+WHERE IT LIVES: `C:\MAK\MAKLicenseManager\*.lic`. The live one, renewed 2026-09-14, is
+`SALES-TEMP-10-31-26-MAK-node-locked-DEMO_1-dec-2025.lic` - node-locked DEMO, **expires
+31-oct-2026**, verified with `lmutil lmdiag` for `vrfengine`, `vrfgui`,
+`vrf_remote_controller` and `vrl_run`. The superseded 15-sep-2026 file is still in that
+directory: do not point anything at it, and do not delete it either.
+
+TWO SCOPES, AND THEY DISAGREE. `MAKLMGRD_LICENSE_FILE` exists in the **User** scope (the
+renewed file) and in the **Machine** scope (still the old one - the elevation needed to
+change it was refused). Windows composes a NEW process's environment as Machine-then-User,
+so a freshly started tree gets the User value; a process that was ALREADY RUNNING when the
+value changed keeps the old one and hands it to every child it starts. That is the trap:
+the shell looks right, the run is wrong, and the symptom is a back-end that dies at startup
+- indistinguishable at a glance from the `--logFileName` startup crash (0.5.13) - rather
+than a licence error.
+
+WHAT THE SCRIPTS DO ABOUT IT. `scripts\RunC2SimScenario.ps1` (at the Stage 0 banner, so the
+runner AND every child it starts get it), `scripts\LaunchVrf52.ps1`,
+`scripts\StartInterface52.ps1` and `scripts\RunScenario.sh` each read the registry
+themselves - User scope, else Machine - set `MAKLMGRD_LICENSE_FILE` on their OWN process so
+children inherit it, and print one line:
+
+    [OK]   licence file: C:\MAK\MAKLicenseManager\SALES-TEMP-10-31-26-...lic (expires 31-oct-2026)
+
+The expiry is field 5 of the file's first `INCREMENT` line; NOTHING else is ever read out of
+the file. A path that resolves to a file that does not exist WARNS loudly and stops nothing.
+`LaunchVrf52.ps1` additionally REFUSES to launch when that date is in the past (exit 2,
+before any process, log or app number is spent) and takes `-LicenseFile <path>` to override
+the resolution - for an install whose licence is not in the registry, and to exercise that
+gate without touching the machine's environment. The four copies of the resolver are
+deliberate (no module is shared by all four scripts): CHANGE ONE, CHANGE ALL FOUR.
+
+ALIGN THE MACHINE SCOPE ONCE - the real fix, one elevated command:
+
+    setx /M MAKLMGRD_LICENSE_FILE "C:\MAK\MAKLicenseManager\SALES-TEMP-10-31-26-MAK-node-locked-DEMO_1-dec-2025.lic"
+
+After that every process agrees however it was started. `setx` writes the value for FUTURE
+processes only - this session, and anything it already launched, keeps what it inherited.
+Until it is run, the per-process resolution above is the only thing keeping runs on the
+renewed licence.
+
+BY HAND, in a shell that already has the stale value:
+
+    $env:MAKLMGRD_LICENSE_FILE = [Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','User')
+    if (-not $env:MAKLMGRD_LICENSE_FILE) { $env:MAKLMGRD_LICENSE_FILE = [Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','Machine') }
+
+---
+
 ## 0.5-ARCHIVE - the raw vrfSimHLA1516e headless recipe (CONFIRMED UNSAFE, 2026-07-15)
 
 RETAINED FOR THE HISTORICAL RECORD ONLY. DO NOT USE THIS RECIPE; the supported bring-up is
@@ -1229,7 +1280,9 @@ LAUNCH ENV that actually works (four things the offline docs got wrong or omitte
 2. **`MAKLMGRD_LICENSE_FILE` must point at the RENEWED license.** A shell may inherit a STALE
    session value pointing at a now-deleted expired `.lic` -> the RTI/VR-Link license checkout
    HANGS in `bridge.Start()` before any socket (low CPU, threads decreasing, 0 connections).
-   Fix: `$env:MAKLMGRD_LICENSE_FILE = [Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','Machine')`.
+   Fix: resolve the USER scope first, the Machine scope only as a fallback - since 2026-09-14
+   the two disagree and the Machine one still names the EXPIRED file. See sec 0.5.15; the
+   entry scripts now do this themselves, per process, and print the path and the expiry.
 3. **cwd must be `C:\MAK\vrforces5.0.2\bin64`** (as for the C++ interface) so Legion finds
    `vrfLegion.lua` + terrain data. Wrong cwd -> `FATAL[Legion] ... vrfLegion.lua ... No such file`
    then an SEHException. Since the .NET host loads appsettings from cwd, pass
@@ -1395,7 +1448,8 @@ RUN IT (same LAUNCH ENV as the app - RTI 4.6.1 on PATH, MAKLMGRD_LICENSE_FILE fr
 VRF bin64, FRESH appNumber; sec 7). PowerShell:
 ```
 $env:PATH = "C:\MAK\vrforces5.0.2\bin64;C:\MAK\vrlink5.8\bin64;C:\MAK\makRti4.6.1\bin;$env:PATH"
-$env:MAKLMGRD_LICENSE_FILE = [Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','Machine')
+$env:MAKLMGRD_LICENSE_FILE = [Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','User')  # 0.5.15: User first
+if (-not $env:MAKLMGRD_LICENSE_FILE) { $env:MAKLMGRD_LICENSE_FILE = [Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','Machine') }
 Push-Location C:\MAK\vrforces5.0.2\bin64
 & <repo>\tools\ResetVrf\bin\Release\net10.0\win-x64\ResetVrf.exe <freshAppNo> [--dry-run]
 Pop-Location

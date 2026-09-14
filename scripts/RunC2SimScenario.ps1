@@ -510,6 +510,76 @@ if (-not [Environment]::Is64BitProcess) {
 # exercised without a simulator. Nothing in there starts a process or sleeps.
 . (Join-Path $PSScriptRoot 'RunnerLib.ps1')
 
+# ---- THE MAK LICENCE: resolved from the REGISTRY, never from the inherited env ----
+# The licence was renewed on 2026-09-14 and the new path was written to the USER scope; the
+# MACHINE scope still names the old 15-sep-2026 file (the elevation to change it was refused).
+# Windows composes a NEW process's environment as Machine-then-User, so a freshly started tree
+# gets the renewed file - but a process that was ALREADY RUNNING when the value changed keeps
+# the stale one and hands it to everything it launches: the runner, the launch script, the sim,
+# the gui, the interface, the observers, every tool. An expired licence then surfaces as a sim
+# that dies at startup, not as a licence error. So each entry script resolves User-then-Machine
+# ITSELF and pins the result onto its own process, which every child inherits.
+# Only the PATH and the EXPIRY are ever printed; nothing else is read out of the file.
+# RUNBOOK 0.5.15.
+# FOUR COPIES ON PURPOSE - no module is dot-sourced by all of these scripts:
+#   scripts\RunC2SimScenario.ps1, scripts\LaunchVrf52.ps1, scripts\StartInterface52.ps1 and,
+#   in bash, scripts\RunScenario.sh. CHANGE ONE, CHANGE ALL FOUR.
+# Write-Host rather than the local Say-* helpers, so the three .ps1 copies stay byte-identical;
+# the prefixes are the ones Say-Ok / Say-Warn print.
+function Resolve-MakLicenseFile {
+    param([string]$PathOverride = '')
+    if ([string]::IsNullOrWhiteSpace($PathOverride)) {
+        $lic = [Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','User')
+        if (-not $lic) { $lic = [Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','Machine') }
+        $licSrc = 'registry: User scope, else Machine'
+    } else {
+        $lic = $PathOverride
+        $licSrc = 'EXPLICIT OVERRIDE - the registry was NOT consulted'
+    }
+    $info = [pscustomobject]@{ Path = $lic; Source = $licSrc; Exists = $false; ExpiryText = ''; Expiry = $null }
+    if ([string]::IsNullOrWhiteSpace($lic)) {
+        Write-Host '  [WARN] *** MAKLMGRD_LICENSE_FILE is EMPTY in BOTH the User and the Machine scope. ***'
+        Write-Host '  [WARN] *** Nothing is stopped here, but every MAK process may HANG on its licence checkout (RUNBOOK 0.5.15). ***'
+        return $info
+    }
+    if (-not (Test-Path -LiteralPath $lic -PathType Leaf)) {
+        Write-Host ('  [WARN] *** THE LICENCE FILE DOES NOT EXIST: {0} ***' -f $lic)
+        Write-Host ('  [WARN] *** Source: {0}. Nothing is stopped here, but expect a licence failure in every MAK process (RUNBOOK 0.5.15). ***' -f $licSrc)
+        return $info
+    }
+    $info.Exists = $true
+    # THE POINT OF ALL THIS: children inherit THIS value, not the one this tree started with.
+    $env:MAKLMGRD_LICENSE_FILE = $lic
+    # FlexLM: "INCREMENT <feature> <vendor> <version> <expiry> <count> ..." - field 5 is the
+    # expiry (d-mmm-yyyy, or permanent / 1-jan-0000). FIRST INCREMENT line only, and no other
+    # field of the file is ever read out of it.
+    try {
+        foreach ($licLine in [System.IO.File]::ReadAllLines($lic)) {
+            if ($licLine -notmatch '^\s*INCREMENT\s') { continue }
+            $licFields = @(($licLine -split '\s+') | Where-Object { $_ -ne '' })
+            if ($licFields.Count -ge 5) { $info.ExpiryText = $licFields[4] }
+            break
+        }
+    } catch { }
+    if ($info.ExpiryText -and ($info.ExpiryText -notmatch '^(permanent|1-jan-0000|0)$')) {
+        $licParsed = [datetime]::MinValue
+        # [string[]] IS LOAD-BEARING. An untyped PowerShell @(...) is an object[], which does
+        # NOT bind the string[] formats overload: PowerShell then picks the SINGLE-format one
+        # and stringifies the array to "d-MMM-yyyy dd-MMM-yyyy", so every parse returns false,
+        # $info.Expiry stays $null and the expired-licence gate silently never fires. Measured
+        # 2026-09-14 against a scratch 1-jan-2020 copy. Month names match case-insensitively,
+        # so the file's lower-case "oct" / "jan" is fine.
+        if ([datetime]::TryParseExact($info.ExpiryText, [string[]]@('d-MMM-yyyy','dd-MMM-yyyy'),
+                [System.Globalization.CultureInfo]::InvariantCulture,
+                [System.Globalization.DateTimeStyles]::None, [ref]$licParsed)) { $info.Expiry = $licParsed }
+    }
+    Write-Host ('  [OK]   licence file: {0} (expires {1})' -f $lic, $(if ($info.ExpiryText) { $info.ExpiryText } else { 'UNKNOWN - no INCREMENT line' }))
+    if ($info.Expiry -and ($info.Expiry.Date -lt (Get-Date).Date)) {
+        Write-Host ('  [WARN] *** THAT LICENCE EXPIRED ON {0} - MAK processes will fail their checkout. ***' -f $info.ExpiryText)
+    }
+    return $info
+}
+
 # ---- paths ------------------------------------------------------------------
 $RepoRoot  = Split-Path -Parent $PSScriptRoot
 $DocsDir   = Join-Path $RepoRoot 'docs'
@@ -1487,6 +1557,12 @@ Say ''
 Say '  THIS SCRIPT DOES NOT SCORE. It collects evidence. HEADLESS_RUN_PLAN sec 4a'
 Say '  was RATIFIED 2026-07-19; sec 4a.6 makes run 1 a measurement, not a test.'
 
+# THE LICENCE, resolved from the registry and pinned onto THIS process BEFORE anything
+# is launched, so LaunchVrf52, the sim, the gui, the interface, both observers and every
+# tool inherit the same file - never the stale one this process tree may have started
+# with (RUNBOOK 0.5.15). Runs in -DryRun too: the dry run is what proves the wiring.
+$LicInfo = Resolve-MakLicenseFile
+
 $Manifest.clocks.startLocal    = $nowLocal.ToString('yyyy-MM-ddTHH:mm:ss.fffzzz')
 $Manifest.clocks.startUtc      = $nowUtc.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
 $Manifest.clocks.timeZoneId    = [System.TimeZoneInfo]::Local.Id
@@ -2232,7 +2308,8 @@ if ($PreOrderSettleSecs -gt 0 -and $WatchSecs -gt 0 -and $WatchSecs -lt $Derived
 
 # HLA environment, identical for WatchVrf and the app (RUNBOOK sec 7 items 1-3).
 $PathPrefix = ('{0};{1};{2}' -f $Bin64, (Join-Path $VrLinkRoot 'bin64'), (Join-Path $RtiDir 'bin'))
-$LicMachine = [Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','Machine')
+# The licence was resolved and pinned at the Stage 0 banner ($LicInfo). The Machine scope
+# is deliberately NOT read here: it still names the pre-2026-09-14 file (RUNBOOK 0.5.15).
 
 Say-Head 'Planned run'
 Say ('  run id      : {0}' -f $RunId)
@@ -2245,7 +2322,7 @@ Say ('  pre-order   : {0}' -f $(if ($PreOrderSettleSecs -gt 0) { ('stage 7d hold
 Say ('  window      : {0}s{1}' -f $RunSecs, $(if ($StopWhenComplete) { (' CAP; -StopWhenComplete closes it once all {0} taskee(s) / {1} task(s) report TASKCMPLT, {2}s have passed AND every taskee has a post-completion RPT agreeing with its POS' -f $OrderTaskees.Count, $OrderTasks.Count, $SettleHoldSecs) } else { ' fixed (-StopWhenComplete not set)' }))
 Say ('  clientId    : {0}' -f $(if ($ClientId) { ('{0} (-ClientId -> Vrf__ClientId)' -f $ClientId) } else { ('{0} (appsettings.json)' -f $appClientId) }))
 Say ('  HLA PATH    : {0};<inherited>' -f $PathPrefix)
-Say ('  license     : MAKLMGRD_LICENSE_FILE (Machine) = {0}' -f $(if ($LicMachine) { $LicMachine } else { '(EMPTY - checkout may hang, RUNBOOK sec 7 item 2)' }))
+Say ('  licence     : {0}' -f $(if ($LicInfo.Exists) { ('{0} (expires {1})' -f $LicInfo.Path, $LicInfo.ExpiryText) } else { '(UNRESOLVED - checkout may hang; RUNBOOK 0.5.15)' }))
 Say ('  HLA cwd     : {0}' -f $Bin64)
 if ($Is52) {
     Say ('  profile env : {0} (EVERY child: launch, tools, observers, app)' -f (($ProfileEnv.Keys | ForEach-Object { '{0}={1}' -f $_, $ProfileEnv[$_] }) -join '  '))
@@ -2314,7 +2391,7 @@ try {
             Say-Plan ('would IGNORE -ConsoleLogDir ({0}). The --console-log-dir flag does NOT exist in tools/WatchVrf (native revert 5d14eda) and passing it would fail the oracle stage with exit 2. Nothing is created and nothing is passed.' -f $PathConsoleDir)
         }
         Say-Plan ('would REWRITE the Appendix B marker in {0}: {1} -> {2}, and append a CLAIMED block for {3} numbers.' -f $LedgerDoc, $FirstFree, $NextFree, $Alloc.Count)
-        Say-Plan ('would set, for HLA child processes only: PATH="{0};<inherited>", MAKLMGRD_LICENSE_FILE from Machine scope, Vrf__ApplicationNumber={1}' -f $PathPrefix, $AppNo['app'])
+        Say-Plan ('would set, for HLA child processes only: PATH="{0};<inherited>", Vrf__ApplicationNumber={1} (MAKLMGRD_LICENSE_FILE is ALREADY pinned - Stage 0 resolved it from the registry)' -f $PathPrefix, $AppNo['app'])
         foreach ($k in $ProfileEnv.Keys) { Say-Plan ('would set, for ALL children (profile {0}): {1}={2}' -f $VrfProfile, $k, $ProfileEnv[$k]) }
         foreach ($k in $AppEnv52.Keys)   { Say-Plan ('would set, for the app only (profile {0}): {1}={2}' -f $VrfProfile, $k, $(if ($AppEnv52[$k] -eq '') { '(empty)' } else { $AppEnv52[$k] })) }
         Say ''
@@ -2352,13 +2429,13 @@ try {
             Set-Item -Path ('Env:' + $k) -Value ([string]$ProfileEnv[$k])
             Say-Ok ('profile env set for all children: {0}={1}' -f $k, $ProfileEnv[$k])
         }
-        if (-not [string]::IsNullOrWhiteSpace($LicMachine)) {
-            $env:MAKLMGRD_LICENSE_FILE = $LicMachine
-            Say-Ok 'MAKLMGRD_LICENSE_FILE refreshed from Machine scope'
+        if ($LicInfo.Exists) {
+            $env:MAKLMGRD_LICENSE_FILE = $LicInfo.Path
+            Say-Ok ('MAKLMGRD_LICENSE_FILE pinned for every child = {0} (expires {1})' -f $LicInfo.Path, $LicInfo.ExpiryText)
         } elseif (-not [string]::IsNullOrWhiteSpace($SavedLicense)) {
-            Say-Warn 'Machine-scope MAKLMGRD_LICENSE_FILE is EMPTY - PRESERVING the process value rather than blanking it.'
+            Say-Warn ('the registry licence path did not resolve to an existing file - PRESERVING the inherited process value ({0}) rather than blanking it (RUNBOOK 0.5.15).' -f $SavedLicense)
         } else {
-            Add-Flag 'WARN' 'MAKLMGRD_LICENSE_FILE empty in both Machine and process scope - license checkout may hang (RUNBOOK sec 7 item 2).'
+            Add-Flag 'WARN' 'MAKLMGRD_LICENSE_FILE resolved to nothing in the User scope, the Machine scope AND this process - licence checkout may hang (RUNBOOK 0.5.15).'
         }
     }
 
