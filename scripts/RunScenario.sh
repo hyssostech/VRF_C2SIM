@@ -55,6 +55,7 @@ STOMP_URL='http://127.0.0.1:61614/topic/C2SIM'
 STOP_WHEN_COMPLETE=1
 DRYRUN=0
 SAMPLE_THREADS=0
+PRE_ORDER_SETTLE=0
 LOG=''
 EXTRA_ENV=()
 PASSTHRU=()
@@ -80,6 +81,8 @@ usage: scripts/RunScenario.sh [options] [-- <extra runner arguments>]
   --stomp-url URL           C2SIM STOMP endpoint              (default the private test server)
   --stop-when-complete | --no-stop-when-complete              (default on)
   --env K=V                 extra environment for the app (repeatable)
+  --pre-order-settle N      stage 7d: hold N s after the oracle gate and BEFORE PushOrder, so
+                            the LAZILY loaded sectorised nav area can arrive (default 0 = off)
   --sample-threads          also run scripts/SampleThreads.ps1 against the sim
   --log PATH                runner stdout+stderr file         (default runs/launch52/RunScenario-<stamp>.log)
   --dry-run                 pass -DryRun to the runner (launches nothing)
@@ -110,6 +113,7 @@ while [ $# -gt 0 ]; do
         --stop-when-complete)   STOP_WHEN_COMPLETE=1; shift ;;
         --no-stop-when-complete) STOP_WHEN_COMPLETE=0; shift ;;
         --env)                  EXTRA_ENV+=("$2"); shift 2 ;;
+        --pre-order-settle)     PRE_ORDER_SETTLE="$2"; shift 2 ;;
         --sample-threads)       SAMPLE_THREADS=1; shift ;;
         --log)                  LOG="$2"; shift 2 ;;
         --dry-run)              DRYRUN=1; shift ;;
@@ -162,6 +166,9 @@ ARGS+=(-Scenario "$SCENARIO" -Init "$INIT" -Order "$ORDER")
 [ -n "$TYPEMAP" ] && ARGS+=(-TypeMapFile "$TYPEMAP")
 ARGS+=(-RunSecs "$RUN_SECS" -WatchSecs "$WATCH_SECS" -BackendNotifyLevel "$BACKEND_NOTIFY")
 ARGS+=(-RestUrl "$REST_URL" -StompUrl "$STOMP_URL")
+# Stage 7d. Always passed, never compared here: the runner validates the range (0..3600) and
+# ledgers the value, so a typo is refused with a reason instead of silently dropped by bash.
+ARGS+=(-PreOrderSettleSecs "$PRE_ORDER_SETTLE")
 [ "$STOP_WHEN_COMPLETE" -eq 1 ] && ARGS+=(-StopWhenComplete)
 [ "$DRYRUN" -eq 1 ] && ARGS+=(-DryRun)
 ARGS+=("${PASSTHRU[@]}")
@@ -173,6 +180,7 @@ echo "  profile     : $PROFILE   scenario: $SCENARIO   gui: $([ "$NOGUI" -eq 1 ]
 echo "  init/order  : $INIT | $ORDER   clientId: $CLIENT_ID"
 echo "  type map    : ${TYPEMAP:-(repo default)}"
 echo "  windows     : RunSecs=$RUN_SECS WatchSecs=$WATCH_SECS backendNotify=$BACKEND_NOTIFY"
+echo "  pre-order   : PreOrderSettleSecs=$PRE_ORDER_SETTLE  (stage 7d hold before PushOrder; 0 = off)"
 echo "  consoles    : object=$OBJ_CONSOLE member=$MEMBER_CONSOLE positionReport=${POS_REPORT}s"
 echo "  endpoints   : $REST_URL | $STOMP_URL"
 echo "  runner log  : $LOG     (watch it with: tail -f '$LOG')"

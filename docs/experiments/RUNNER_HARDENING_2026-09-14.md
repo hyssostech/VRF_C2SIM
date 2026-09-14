@@ -344,9 +344,11 @@ end to end in its CRLF form.
 1. **THE WRAPPER DYING TOO.** The backstop only runs if the wrapper's bash survives the
    runner. In G6 it did (it printed the echo), so this design would have prevented that
    nine-hour leak. It would NOT cover a kill that takes the whole shell, a closed terminal,
-   or a reboot. The investigation's **A2 - a detached `scripts\RunnerWatchdog.ps1` polling
-   the runner pid and running the same teardown - is DESIGNED AND NOT BUILT.** Build it if a
-   wrapper-less launch path is wanted, or after a second incident.
+   or a reboot. **SUPERSEDED THE SAME DAY - A2 IS NOW BUILT: `scripts\RunnerWatchdog.ps1`,
+   started by the runner at stage 6b-w. See sec 10 (and sec 12 for its tests).** What remains
+   uncovered is narrower and is stated there: the watchdog has not yet run inside a live run,
+   and a kill in the sub-second window before stage 6b-w leaves the wrapper as the only
+   backstop.
 2. **THE KILLER IS STILL UNIDENTIFIED.** No process-creation auditing (Security 4688 count
    0 for the window), Kernel-Process/Analytic disabled, no Sysmon. The shape that fits every
    observation - exactly one pwsh dead, the sampler pwsh and the parent bash alive - is a
@@ -407,3 +409,278 @@ against a nominal 30 s. Sec 5.2 shows the whole-file read is large enough to acc
 that, but nothing here MEASURES the runner's own loop at G6's volume - that measurement is
 owed to the first live run, and if the cadence still stretches with the delta reader in
 place, this explanation is wrong and something else is eating the poll.
+
+---
+
+## 10. A2 - THE DETACHED WATCHDOG, BUILT (2026-09-14, second pass)
+
+Sec 8 item 1 said the wrapper backstop does not cover the wrapper dying too, and that A2 was
+"DESIGNED AND NOT BUILT". It is now built: `scripts\RunnerWatchdog.ps1` (361 lines), started by
+the runner at a new stage 6b-w. Tier: STANDARD - mechanical work against the already-adjudicated
+G6 diagnosis, verified by offline tests. No new cause claim is made here.
+
+### 10.1 What it is, in one paragraph
+
+A separate process, started by the runner the instant the interface exists, that polls the
+runner's PID every 5 s and does NOTHING ELSE while the runner lives. When the runner is gone it
+applies the wrapper's own rule - `runner.launched` present AND `runner.teardown-ran` absent -
+and, if it holds, claims a new marker `runner.watchdog-ran` and runs the runner's teardown
+order: StopIface (clean resign), then `StopVrf52.ps1` / `StopVrf.ps1`, then touch
+`observers.stop`, then print what is still up. It force-kills NOTHING on any path, and
+rtiexec / rtiForwarder / rtiAssistant are never touched - they appear only in its closing
+inventory. `-NoWatchdog` on the runner turns it off.
+
+Exit codes: 0 nothing owed (or teardown done, all steps ok); 2 REFUSED at validation or on the
+foreign-session guard, having touched nothing; 3 teardown ran with a failed step; 4 `-MaxSec`
+expired while the runner was STILL ALIVE (nothing torn down - a live run is never torn down by
+a timer); 5 unexpected terminating error.
+
+### 10.2 Why it is DETACHED, and the measurement that says it is
+
+Three handles decide whether this process survives what kills the runner.
+
+**Its console.** `Start-External` has always passed `-NoNewWindow`, which makes the child SHARE
+the parent's console. A console-sharing child receives that console's Ctrl+C / Ctrl+Break and
+dies when the terminal closes - i.e. it would die in exactly the scenario the watchdog exists
+for. So `Start-External` gained a `-NewConsole` switch: it drops `-NoNewWindow` and passes
+`-WindowStyle Hidden` instead, which sends PowerShell's `CreateProcess` path down its
+CREATE_NEW_CONSOLE (0x10) + STARTF_USESHOWWINDOW / SW_HIDE branch.
+
+MEASURED on this machine, 2026-09-14, with `GetConsoleProcessList` (which reports every process
+attached to the CALLER'S console) called from inside a child started BOTH ways by the same
+parent (pid 69496):
+
+```
+  PARENT ITSELF      : consoleProcessCount=4  consolePids=[43792,69496,44988,77916]  parentInList=True
+  -NoNewWindow       : consoleProcessCount=4  consolePids=[68116,69496,44988,77916]  parentInList=True
+  -WindowStyle Hidden: consoleProcessCount=1  consolePids=[33540]                    parentInList=False
+```
+
+The `-NoNewWindow` child sits in the parent's console with three other processes; the
+`-WindowStyle Hidden` child is ALONE in a console of its own. Redirection keeps working in both
+shapes (both children's stdout files were written), so the detachment costs nothing.
+
+**Its stdin.** PowerShell sets STARTF_USESTDHANDLES whenever anything is redirected and fills
+the handles it was not given from the PARENT'S own - so without `-RedirectStandardInput` the
+watchdog would hold the launching terminal's stdin for as long as it lives. `Start-External`
+therefore also gained `-StdInFile`, and the runner points it at `<RunDir>\watchdog.stdin.empty`,
+a zero-byte file: the Windows equivalent of the wrapper's `< /dev/null`.
+
+**Everything else it inherits.** `Process.Start` with any redirection calls `CreateProcess` with
+`bInheritHandles=TRUE` and there is no switch that suppresses it (sec 6), so the watchdog DOES
+receive duplicates of whatever else the runner holds. Under `scripts\RunScenario.sh` those are
+FILES, which have no EOF semantics for a reader, so the duplicates are harmless. THIS IS WHY
+RUNBOOK 0.5.14 ITEM 2 IS A RULE AND NOT A PREFERENCE: pipe the runner and this process - the one
+designed to outlive everything - would hold that pipe open for the whole window, which is
+precisely G6's nine-hour symptom. Not instrumented here; it follows from sec 6.
+
+Both `Start-External` parameters default to the previous behaviour exactly (`-NoNewWindow`, no
+stdin redirection), so no other stage changes. They have ONE caller: stage 6b-w.
+
+### 10.3 The contract, and what the runner passes
+
+```
+scripts\RunC2SimScenario.ps1
+  :421-428   -NoWatchdog switch (comment + parameter)
+  :926-941   Start-External gains -StdInFile and -NewConsole (defaults = previous behaviour)
+  :966,:970  the splat: -NoNewWindow unless -NewConsole, and the stdin redirect
+  :2104-2112 watchdog.stdout.log / watchdog.stderr.log / watchdog.stdin.empty / watchdog.pid
+  :2737-2816 STAGE 6b-w: the launch, ledgered through Start-External like every other stage
+             (:2786-2799 the try/catch: a backstop that cannot start must never fail the run)
+```
+
+The runner passes its own `$PID`, the run directory, the profile, both C2SIM endpoints (never
+guessed - StopIface has no defaults and a guessed endpoint could drive the OPERATOR'S server),
+`-PollSec 5`, and `-MaxSec` = the observers' whole cap + `-TraceStopGraceSec` +
+`-AppExitTimeoutSec` + `-StopVrfTimeoutSec` + 600, capped at 86400. Generous is the safe
+direction because the timer NEVER tears anything down. The watchdog's pid goes to
+`<RunDir>\watchdog.pid`, to `run-manifest.json` (`artifacts.watchdog`) and to the stage ledger.
+
+Two guards that the wrapper's version cannot have. (1) The watchdog is told which pid to watch
+AND reads `runner.launched`; if the two disagree it REFUSES (exit 2) - the run directory belongs
+to a different runner. (2) `runner.watchdog-ran` is claimed with `FileMode::CreateNew`, so two
+watchdogs on one run directory can never both act.
+
+A missing `RunnerWatchdog.ps1` is a WARN flag and the run CONTINUES: a backstop must never fail
+a healthy run. `-NoWatchdog` raises the same flag.
+
+### 10.4 KNOWN, BENIGN: the wrapper and the watchdog can both tear down
+
+`scripts\RunScenario.sh` predates this script and neither reads nor writes `runner.watchdog-ran`
+(the brief for this work did not open the .sh). So a kill that leaves the WRAPPER alive produces
+two teardowns: the wrapper's, immediately, and the watchdog's ~5-7 s later. Every step is a
+graceful idempotent request - StopIface against an already-UNINITIALIZED server, StopVrf against
+nothing to stop, an `observers.stop` that already exists - so the second is a no-op that logs;
+it will show as `StopIface exit 1` and a watchdog exit 3, which must NOT be read as two
+failures. The complete fix is two lines in the wrapper: check `runner.watchdog-ran` beside
+`runner.teardown-ran`, and `touch` it before its own teardown. RECOMMENDED, NOT DONE HERE.
+
+Second known false positive, shared with the wrapper: the runner's `runner.teardown-ran` write
+is best-effort (`try {} catch {}`), so a completed teardown whose marker could not be written
+looks exactly like a death. The consequence is the same benign duplicate teardown.
+
+Deliberate non-action: when `runner.teardown-ran` IS present the watchdog stands down even if
+VR-Forces is still up. That state is the runner's own exit 4 - loud, flagged, and already
+inspected by a human; a watchdog that re-ran teardown there would be overriding a judgment the
+runner already made and reported.
+
+---
+
+## 11. STAGE 7d - THE PRE-ORDER SETTLE (supervisor addition, 2026-09-14)
+
+Unrelated to the G6 death; landed in the same pass because it is the same file. OFF by
+default (`-PreOrderSettleSecs 0`), so a default run is byte-identical to one from before it
+existed.
+
+WHY. The sectorised navigation area loads LAZILY, AFTER the entities are placed. Run
+`20260914T130439Z` logged the area's "New Primary nav area" rows 175 s after the members were
+created, so a task issued before that is PLANNED WITHOUT THE MESH. With N > 0 the runner holds
+the order between the oracle gate and PushOrder for N seconds, printing one status line every
+30 s.
+
+WHAT IT IS NOT. Not a fix and not evidence. It says how long we wait; it cannot say the mesh
+arrived - only the object consoles can (MEMORY lessons-vendor-diagnostics-first). The
+vendor-side alternative is UG52 Appendix C `loadAllNavigationDataOnTerrainLoad`, which loads
+every sector at terrain load; that is a CONFIG change and the better answer if the hold turns
+out to matter. Nothing here claims it does.
+
+```
+scripts\RunC2SimScenario.ps1
+  :350-362   the parameter and why it exists
+  :1516-1520 validation 0..3600 (a negative is meaningless; a huge hold eats the run)
+  :2184-2201 the hold is ADDED to $DerivedWatchSecs, ledgered as inputs.preOrderSettleSecs, and
+             the WARN when an EXPLICIT -WatchSecs is below the now-larger derived cap (sec 12.4)
+  :2210-2214 the planned-run banner lines (observers cap breakdown, pre-order line)
+  :2962-2999 STAGE 7d itself: the 30 s status loop, clocks.preOrderSettleStart/EndUtc
+scripts\RunScenario.sh
+  :58 :84-85 :116 :168-171 :183   --pre-order-settle N -> -PreOrderSettleSecs N
+```
+
+THE ONE NON-OBVIOUS PART, and the defect it avoids: the hold sits INSIDE the observers'
+coverage (between the oracle gate and PushOrder), so without adding it to their duration cap a
+long hold could end the trace BEFORE the observation window does - silent evidence loss. It is
+added to `$DerivedWatchSecs` in the RUNNER (`:2189`), NOT inside `Get-DerivedWatchSecs`, so the
+formula pinned by `tests\RunnerTurnaround.Tests.ps1` check 1 - and by the record it reproduces
+- is untouched. With the default 0 the line changes nothing.
+
+LINE-ENDING NOTE: sec 7 says `scripts\RunScenario.sh` is CRLF. It is NOT, as checked out today:
+`git ls-files --eol` reports `i/lf w/lf` for it (the .ps1 and .md files are `i/lf w/crlf`). The
+edits above therefore use LF, matching the file, rather than introducing mixed endings.
+
+---
+
+## 12. GATES AND TESTS for sec 10 (watchdog) and sec 11 (stage 7d)
+
+All offline. NO VR-Forces was launched by this work, and every test below ran with the machine
+verified EMPTY of vrfSimHLA1516e / vrfGui / vrfLauncher / VrfC2SimApp / WatchVrf /
+ListenReports first - the driver ABORTS otherwise, because StopVrf52 would close a live sim.
+rtiexec 69856 and rtiForwarder 50520 were up throughout and were still up, unchanged,
+afterwards.
+
+| gate | result |
+|------|--------|
+| `[scriptblock]::Create((Get-Content -Raw ...))` on both .ps1 | PARSE OK, both |
+| `bash -n scripts/RunScenario.sh` | OK |
+| `scripts/RunScenario.sh --help` / unknown option | usage printed; exit 0 / exit 2 |
+| `scripts/RunScenario.sh --dry-run --pre-order-settle 175` | exit 0, DRY-RUN complete, no run directory, marker NOT advanced |
+| `scripts/RunScenario.sh --dry-run -- -NoWatchdog` | exit 0, stage 6b-w SKIPPED + WARN flag |
+| `tests\RunnerTurnaround.Tests.ps1` | 222 passed, 1 failed - the SAME pre-existing failure as sec 7 ("the ready-path harvest is skipped when the launch crashed", a `LaunchVrf52.ps1` regex this work does not touch). Baseline unchanged. |
+| `rg -nP "[^\x09\x0a\x0d\x20-\x7E]"` on all five touched files | clean; the checker reproduces on a dirty control (em dash / NBSP / VT = 3 hits) |
+| line endings | .ps1 and .md CRLF (CR == LF on each); `RunScenario.sh` LF, matching the file as checked out - see the note in sec 11 |
+| watchdog argument validation | 7 refusals in one run, exit 2, nothing touched |
+
+### 12.1 Test (a) - the runner dies, the watchdog tears down
+
+Synthetic `runs\ZZTEST_WATCHDOG_run` holding only `runner.launched` = a FAKE runner pid (a
+pwsh that sleeps 10 s), StopIface pointed at DEAD ports 18099 / 61699 (never the private test
+server 18080 / 61614, never the operator's 8080 / 61613). Watchdog started exactly as the
+runner starts it: own hidden console, stdout / stderr / stdin all files in the run directory.
+
+```
+watchdog pid 83280 started (own hidden console, stdio redirected to the run dir)
+WATCHDOG EXIT = 3
+13:34:07.196Z [OK]   runner.launched present and its pid matches (-RunnerPid 69860).
+13:34:07.201Z [OK]   watching runner pid 69860 (started 2026-09-14 09:34:06)
+13:34:17.228Z [INFO] runner pid 69860 IS GONE (exit code as seen from here: 0).
+13:34:19.242Z [WARN] *** THE RUNNER DIED WITHOUT A COMPLETED TEARDOWN. Tearing down from the watchdog. ***
+13:34:19.243Z [INFO] claimed ...\runs\ZZTEST_WATCHDOG_run\runner.watchdog-ran
+13:34:19.249Z [INFO] StopIface: ...\StopIface.exe http://127.0.0.1:18099/C2SIMServer http://127.0.0.1:61699/topic/C2SIM --yes
+13:34:21.465Z [FAIL] StopIface exit 1 (... the interface MAY STILL BE JOINED ...). Nothing was force-killed.
+13:34:21.467Z [INFO] StopVrf: C:\Program Files\PowerShell\7\pwsh.exe ... StopVrf52.ps1 -TimeoutSec 120
+13:34:22.086Z [OK]   StopVrf exit 0: VR-Forces is down or was already down (graceful; RTI preserved).
+13:34:22.089Z [OK]   observers.stop touched ... - WatchVrf and ListenReports resign within ~1 s.
+13:34:22.168Z [OK]   nothing of ours is left running.
+13:34:22.198Z [OK]   RTI infrastructure PRESERVED (correct): rtiexec(pid 69856), rtiForwarder(pid 50520)
+13:34:22.199Z [FAIL] watchdog teardown RAN but at least one step did not report success. Exit 3.
+```
+
+Death seen within ONE poll (10.0 s life, noticed at +10.03 s); markers afterwards:
+`runner.launched` T, `runner.teardown-ran` F, `runner.watchdog-ran` T, `observers.stop` T.
+`watchdog.stderr.log` 0 bytes. StopIface's own stderr carries the expected dead-port refusal
+(`Connection error: ... actively refused it. (127.0.0.1:18099)`), which is what exit 1 means
+here - the TOLERATED failure the design calls for, and the whole teardown continued past it.
+StopVrf52's stdout: `rtiexec pid=69856 - RTI infrastructure, WILL BE PRESERVED` /
+`rtiForwarder pid=50520 - ... WILL BE PRESERVED` / `no VR-Forces processes running - nothing to
+do.` Exit 3 is CORRECT for this case: the teardown ran, one step failed, and it says so.
+
+### 12.2 Test (b) - the runner tore down its own run
+
+Same directory with `runner.teardown-ran` added.
+
+```
+WATCHDOG EXIT = 0
+13:34:48.509Z [INFO] runner pid 80724 IS GONE (exit code as seen from here: 0).
+13:34:50.523Z [OK]   runner.teardown-ran is present: the runner completed its own teardown.
+                     Standing down without touching anything.
+```
+
+StopIface did NOT run, StopVrf did NOT run, `runner.watchdog-ran` F, `observers.stop` F. The
+run directory afterwards holds only the log, the two markers, watchdog.pid, the empty stdin
+file and two 0-byte stdio files.
+
+### 12.3 Test (c) - no runner.launched: REFUSE
+
+```
+WATCHDOG EXIT = 2
+13:34:59.346Z [FAIL] REFUSED: no runner.launched in ...\runs\ZZTEST_WATCHDOG_run. This run
+                     launched nothing, so what is up may be a FOREIGN live session
+                     (RUNBOOK sec 0). NOTHING was touched.
+```
+
+Refused in 50 ms, at STARTUP, while the fake runner was still alive - it never reached the poll
+loop. No marker, no stop file, no teardown tool started. `runs\ZZTEST_WATCHDOG_run` was deleted
+after the three tests.
+
+### 12.4 The stage-7d trap this testing found (FIXED)
+
+An EXPLICIT `-WatchSecs` overrides the derived cap, settle included - and `RunScenario.sh`
+passes `--watch-secs 1200` by default. So the default wrapper config plus a 175 s hold gives an
+observers' cap of 1200 against a derived requirement of 1635: the observers could end BEFORE
+the window does and truncate the trace with no error. The runner now SAYS SO rather than
+overriding the operator's explicit value, and the banner prints the derived total with the
+`+ preOrderSettle N` term in it:
+
+```
+  [WARN] -WatchSecs 1200 was passed EXPLICITLY and is below the derived cap 1635, which now
+         includes the 175s stage-7d hold. The observers can end BEFORE the observation window
+         does, truncating the trace with no error. Raise -WatchSecs to at least 1635, or drop
+         it and let the runner derive it.
+  observers   : 1200s CAP (derived 1635: preRoll 20 + appJoin 180 + initDispatch 120 +
+                oracleGate 180 + pushOrderListen 30 + run 900 + trail 30 + preOrderSettle 175)
+```
+
+WHOEVER RUNS THE FIRST 7d RUN: raise `--watch-secs` by at least the hold, or drop the flag.
+
+### 12.5 NOT TESTED - owed to the first live run
+
+1. **The watchdog has never run inside a REAL run.** Stage 6b-w is exercised only in `-DryRun`
+   (the plan lines, the command line, all four redirects) and the watchdog itself only against
+   a fake runner pid. What a live run must confirm: `watchdog.pid` written, the stage present
+   in the manifest, the watchdog exiting 0 within ~7 s of a NORMAL teardown, and
+   `watchdog.stderr.log` still 0 bytes at the end.
+2. **The kill case, live.** Nobody has killed a real runner with the watchdog armed. The honest
+   test is a deliberate one on a throwaway run, not a wait for the next incident.
+3. **The double teardown of sec 10.4** (wrapper + watchdog) has been reasoned about, not seen.
+4. **Stage 7d has never held a real order back**, and nothing here measures whether 175 s is
+   enough, or whether a loaded mesh changes anything. That is a consoles question, not a
+   runner one.

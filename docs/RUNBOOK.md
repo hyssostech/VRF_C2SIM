@@ -779,8 +779,8 @@ on 2026-09-14; each is now closed by something this section names
 
    launched AND NOT teardown-ran => the wrapper runs StopIface (clean resign), then
    StopVrf52/StopVrf, then touches `observers.stop`, and prints what is still up. Nothing is
-   force-killed there either. NOT COVERED: the wrapper dying too - a detached watchdog is
-   designed but not built.
+   force-killed there either. The wrapper dying TOO is covered by a second, independent
+   backstop - item 6.
 
 4. `runner exit: 127` DOES NOT MEAN "COMMAND NOT FOUND" and does not mean PowerShell failed.
    On this MSYS bash it means the child exited with a HIGH-BIT (NTSTATUS-shaped) Windows exit
@@ -799,6 +799,57 @@ on 2026-09-14; each is now closed by something this section names
    which is the content of `<RunDir>\runner.launched`, and MUST exclude the killer's own
    shell (filter on a token the killer cannot contain; list before killing). State the quiet
    period in the run's prereg.
+
+6. THE DETACHED WATCHDOG - the backstop for the backstop (`scripts\RunnerWatchdog.ps1`,
+   2026-09-14). Item 3's wrapper backstop only runs if the wrapper's bash SURVIVES the runner.
+   The watchdog covers the case it does not - a closed terminal, a kill that takes the whole
+   shell, a launch path with no wrapper. The runner starts it at STAGE 6b-w, the instant the
+   interface exists, and it is the one process of a run that OUTLIVES the runner by design.
+
+       what it watches   the runner's PID (passed as -RunnerPid; the same number is in
+                         <RunDir>\runner.launched), polled every 5 s until -MaxSec.
+       what it reads     nothing at all while the runner is alive.
+       when it acts      runner gone AND runner.launched present AND runner.teardown-ran
+                         absent AND runner.watchdog-ran absent. Then: claim
+                         runner.watchdog-ran, StopIface, StopVrf52/StopVrf, touch
+                         observers.stop, print the inventory.
+       when it refuses   no runner.launched, or a runner.launched holding a DIFFERENT pid
+                         (exit 2, touching nothing - same foreign-session rule as item 3).
+       its own timer     -MaxSec expiring with the runner STILL ALIVE is exit 4 and NOTHING
+                         torn down. A live run is never torn down by a timer.
+       evidence          <RunDir>\runner-watchdog.log (fixed name) and watchdog.stdout.log /
+                         watchdog.stderr.log; its pid is in <RunDir>\watchdog.pid and in the
+                         manifest (artifacts.watchdog).
+       exit codes        0 nothing owed / teardown done; 2 REFUSED; 3 teardown ran with a
+                         failed step; 4 -MaxSec expired while the runner lived; 5 unexpected.
+
+   IT IS DETACHED, AND THAT IS THE POINT. It runs in its OWN HIDDEN CONSOLE (`Start-Process`
+   WITHOUT `-NoNewWindow`, which makes PowerShell pass CREATE_NEW_CONSOLE): a child that
+   SHARES the runner's console receives that console's Ctrl+C / Ctrl+Break and dies when the
+   terminal closes - i.e. it would die in exactly the scenario it exists for. Its stdout,
+   stderr and stdin are all files in the run directory (stdin is `watchdog.stdin.empty`, the
+   Windows `< /dev/null`), so it holds no handle belonging to the runner, the wrapper or the
+   terminal. It force-kills NOTHING on any path and never touches rtiexec / rtiForwarder /
+   rtiAssistant. `-NoWatchdog` on the runner turns it off - then item 3 is the only backstop.
+
+   KNOWN, BENIGN OVERLAP: `RunScenario.sh` predates the watchdog and does not read or write
+   `runner.watchdog-ran`, so a kill that leaves the wrapper alive can produce TWO teardowns -
+   the wrapper's (immediate) and the watchdog's (~5 s later). Every step is a graceful,
+   idempotent request, so the second is a no-op that logs; do not read it as two failures.
+
+7. `--pre-order-settle N` (wrapper) / `-PreOrderSettleSecs N` (runner) - HOLD THE ORDER BACK.
+   STAGE 7d, added 2026-09-14, OFF by default (0) so a default run stays comparable with the
+   record. The sectorised navigation area loads LAZILY, AFTER the entities are placed: run
+   `20260914T130439Z` logged the area's "New Primary nav area" rows 175 s after the members
+   were created, so a task issued before that is PLANNED WITHOUT THE MESH. With N > 0 the
+   runner waits N seconds between the oracle gate and PushOrder, printing one status line
+   every 30 s, and stamps `clocks.preOrderSettleStartUtc` / `EndUtc` in the manifest. The hold
+   is ADDED TO THE OBSERVERS' DURATION CAP, so the trace still covers the whole run.
+   IT IS A MEASUREMENT PARAMETER, NOT A FIX: it says how long we wait, never whether the mesh
+   arrived - only the object consoles say that (0.5 lessons; notify level 4). The vendor-side
+   alternative is UG52 Appendix C `loadAllNavigationDataOnTerrainLoad`, which loads every
+   sector at terrain load instead of on demand; that is a configuration change, not a runner
+   one, and it is the better answer if the hold turns out to matter.
 
 ---
 

@@ -347,6 +347,20 @@ param(
     [int] $AppExitTimeoutSec   = 120,  # app: StopIface -> process gone (NEVER killed)
     [int] $StopVrfTimeoutSec   = 120,
 
+    # STAGE 7d - HOLD THE ORDER BACK this many seconds after the oracle gate passes, before
+    # PushOrder. 0 (the default) = OFF and the run is byte-identical to one without this
+    # parameter; a default run therefore stays comparable with the record.
+    #
+    # WHY IT EXISTS: the sectorised navigation area loads LAZILY, AFTER the entities are
+    # placed, so a task issued too early is planned WITHOUT the mesh. Run 20260914T130439Z
+    # shows the area's "New Primary nav area" rows 175 s after the members were created.
+    # This is a MEASUREMENT PARAMETER, not a fix: it says how long we wait, never what
+    # counts as loaded, and it cannot tell you the mesh arrived - only the consoles can.
+    # The vendor-side alternative is UG52 Appendix C loadAllNavigationDataOnTerrainLoad,
+    # which loads every sector at terrain load; that is a CONFIG change, not a runner one.
+    # The hold is INSIDE the observers' coverage, so it is added to their duration cap.
+    [int] $PreOrderSettleSecs  = 0,
+
     # SLACK added on top of a FOREGROUND stage's OWN known blocking budget before
     # the runner declares that stage timed out. An unattended runner must never
     # block forever (it did, for 47 minutes, on 2026-07-19 - see the Invoke-External
@@ -403,6 +417,15 @@ param(
 
     [switch] $StrictPreInitOracle,
     [switch] $SkipServerCheck,
+
+    # Do NOT start scripts\RunnerWatchdog.ps1 at stage 6b. The watchdog is the OUT-OF-PROCESS
+    # teardown backstop for the case the launching wrapper dies with the runner (design A2,
+    # docs\experiments\RUNNER_EXIT127_2026-09-14.md sec 3.1); with it off, the only backstop
+    # left is scripts\RunScenario.sh, which requires its bash to survive. Use this only when
+    # the watchdog itself is what is under test, or when a run is deliberately being left up
+    # for inspection after the runner exits. It is NOT a performance switch: the watchdog
+    # sleeps between 5 s polls and reads nothing while the runner is alive.
+    [switch] $NoWatchdog,
     [switch] $DryRun
 )
 
@@ -900,15 +923,32 @@ function Start-External {
         [string]$Cwd,
         [string]$StdOutFile,
         [string]$StdErrFile,
+        # ---- the two below exist for ONE caller: the stage-6b watchdog (2026-09-14) -------
+        # DEFAULTS PRESERVE THE EXACT PREVIOUS BEHAVIOUR of every other stage: no -StdInFile
+        # means no stdin redirection, and no -NewConsole means -NoNewWindow exactly as before.
+        #
+        # -StdInFile: the child's stdin comes from this file instead of the runner's own.
+        # Without it PowerShell fills hStdInput with the PARENT'S handle (it sets
+        # STARTF_USESTDHANDLES whenever anything is redirected), so a child would hold the
+        # launching terminal's stdin open for as long as it lives. Harmless for a child that
+        # dies with the run; NOT harmless for one designed to outlive it.
+        #
+        # -NewConsole: do NOT pass -NoNewWindow, so the child gets CREATE_NEW_CONSOLE plus a
+        # HIDDEN window instead of SHARING THE RUNNER'S CONSOLE. A console-sharing child
+        # receives that console's Ctrl+C / Ctrl+Break and dies when the terminal closes -
+        # i.e. it would die in exactly the scenario the watchdog exists to cover.
+        [string]$StdInFile,
+        [switch]$NewConsole,
         [string]$Note
     )
     $cmd = Format-CommandLine -File $File -Arguments $Arguments
     if ($DryRun) {
-        Say-Plan ('STAGE {0}  (background)' -f $Name)
+        Say-Plan ('STAGE {0}  (background{1})' -f $Name, $(if ($NewConsole) { ', OWN HIDDEN CONSOLE - detached' } else { '' }))
         Say      ('            cwd    : {0}' -f $Cwd)
         Say      ('            run    : {0}' -f $cmd)
         if ($StdOutFile) { Say ('            stdout : {0}' -f $StdOutFile) }
         if ($StdErrFile) { Say ('            stderr : {0}' -f $StdErrFile) }
+        if ($StdInFile)  { Say ('            stdin  : {0}' -f $StdInFile) }
         if ($Note)       { Say ('            note   : {0}' -f $Note) }
         return $null
     }
@@ -919,10 +959,15 @@ function Start-External {
     # (Complete-Background, and $AppProc.ExitCode in stages 6c/6d/8b and teardown),
     # by which time the process is usually gone. Cache the handle here too, while
     # the process is alive, so those reads are reliable.
-    $sp = @{ FilePath = $File; WorkingDirectory = $Cwd; PassThru = $true; NoNewWindow = $true }
+    $sp = @{ FilePath = $File; WorkingDirectory = $Cwd; PassThru = $true }
+    # -NoNewWindow and -WindowStyle are mutually exclusive in Start-Process; -NewConsole picks
+    # the second. PowerShell's own CreateProcess path passes CREATE_NEW_CONSOLE (0x10) plus
+    # STARTF_USESHOWWINDOW / SW_HIDE when CreateNoWindow is false and WindowStyle is Hidden.
+    if ($NewConsole) { $sp.WindowStyle = 'Hidden' } else { $sp.NoNewWindow = $true }
     if ($Arguments.Count -gt 0) { $sp.ArgumentList = $Arguments }
     if ($StdOutFile) { $sp.RedirectStandardOutput = $StdOutFile }
     if ($StdErrFile) { $sp.RedirectStandardError  = $StdErrFile }
+    if ($StdInFile)  { $sp.RedirectStandardInput  = $StdInFile }
     $p = Start-Process @sp
     try { $null = $p.Handle } catch { Say-Warn ('{0}: could not cache the process handle ({1}). Its exit code may read back as null later.' -f $Name, $_.Exception.Message) }
     $Manifest.stages += [ordered]@{
@@ -1467,6 +1512,11 @@ if ($TraceStopGraceSec -lt 10 -or $TraceStopGraceSec -gt 3600) {
 # exists to prevent.
 if ($StageTimeoutSec -lt 60) {
     $bad += ('-StageTimeoutSec must be at least 60 (got {0}). It is SLACK added on top of each stage own blocking budget; a healthy LaunchVrf takes 35-60 s.' -f $StageTimeoutSec)
+}
+# Stage 7d. Negative is meaningless and a very large hold would silently eat the run: the
+# observers' cap grows with it, but so does the wall time before a single task is issued.
+if ($PreOrderSettleSecs -lt 0 -or $PreOrderSettleSecs -gt 3600) {
+    $bad += ('-PreOrderSettleSecs must be 0..3600 (got {0}). 0 = no stage 7d hold.' -f $PreOrderSettleSecs)
 }
 # StopVrf.ps1 validates TimeoutSec 5..600 itself and exits 2 - catch it here so the
 # failure lands BEFORE VR-Forces is launched instead of during teardown.
@@ -2051,6 +2101,15 @@ $PathRtiExecOut   = Join-Path $RunDir 'startrtiexec.stdout.log'
 $PathRtiExecErr   = Join-Path $RunDir 'startrtiexec.stderr.log'
 $PathStopVrfOut   = Join-Path $RunDir 'stopvrf.stdout.log'
 $PathStopVrfErr   = Join-Path $RunDir 'stopvrf.stderr.log'
+# Stage 6b-w, the detached teardown watchdog. All four files live in the run directory
+# because the watchdog OUTLIVES the runner and must not hold a handle the runner (or the
+# wrapper, or the terminal) owns - see the -NewConsole / -StdInFile block in Start-External.
+# watchdog.stdin.empty is a zero-byte file: Start-Process needs a real path to redirect from,
+# and an empty file is the Windows equivalent of the wrapper's `< /dev/null`.
+$PathWatchdogOut  = Join-Path $RunDir 'watchdog.stdout.log'
+$PathWatchdogErr  = Join-Path $RunDir 'watchdog.stderr.log'
+$PathWatchdogIn   = Join-Path $RunDir 'watchdog.stdin.empty'
+$PathWatchdogPid  = Join-Path $RunDir 'watchdog.pid'
 $ManifestPath     = Join-Path $RunDir 'run-manifest.json'
 # The observers' stop signal. Teardown creates it at StopIface + TrailSecs; WatchVrf
 # and ListenReports poll for it once a second and resign / disconnect on seeing it.
@@ -2122,10 +2181,24 @@ $Manifest.artifacts.manifest      = $ManifestPath
 $DerivedWatchSecs = Get-DerivedWatchSecs -PreRollSecs $PreRollSecs -AppJoinTimeoutSec $AppJoinTimeoutSec `
                         -InitDispatchWaitSec $InitDispatchWaitSec -OracleGateTimeoutSec $OracleGateTimeoutSec `
                         -PushOrderListenSec $PushOrderListenSec -RunSecs $RunSecs -TrailSecs $TrailSecs
+# The stage-7d pre-order settle sits INSIDE the observers' coverage - between the oracle gate
+# and PushOrder - so it has to be added to their cap, or a run with a long hold could end its
+# trace before the window does (silent evidence loss). Added HERE rather than inside
+# Get-DerivedWatchSecs so the pinned formula (tests\RunnerTurnaround.Tests.ps1 check 1, and the
+# record it reproduces) is untouched; with the default 0 this line changes nothing.
+if ($PreOrderSettleSecs -gt 0) { $DerivedWatchSecs += $PreOrderSettleSecs }
 $EffWatchSecs = if ($WatchSecs -gt 0) { $WatchSecs } else { $DerivedWatchSecs }
 if ($EffWatchSecs -le 0) { Say-Fail 'computed observer duration is not positive.'; exit 2 }
-$Manifest.inputs.watchSecs        = $EffWatchSecs
-$Manifest.inputs.watchSecsDerived = $DerivedWatchSecs
+$Manifest.inputs.watchSecs          = $EffWatchSecs
+$Manifest.inputs.watchSecsDerived   = $DerivedWatchSecs
+$Manifest.inputs.preOrderSettleSecs = $PreOrderSettleSecs
+# An EXPLICIT -WatchSecs wins over the derived value, settle included - which is correct (it is
+# the operator's choice) and is also how a stage-7d hold could silently truncate a trace: the
+# hold is spent INSIDE the observers' coverage, so a cap that was already below the derived
+# value loses those seconds off the END of the window. Said out loud rather than adjusted.
+if ($PreOrderSettleSecs -gt 0 -and $WatchSecs -gt 0 -and $WatchSecs -lt $DerivedWatchSecs) {
+    Add-Flag 'WARN' ('-WatchSecs {0} was passed EXPLICITLY and is below the derived cap {1}, which now includes the {2}s stage-7d hold. The observers can end BEFORE the observation window does, truncating the trace with no error. Raise -WatchSecs to at least {1}, or drop it and let the runner derive it.' -f $WatchSecs, $DerivedWatchSecs, $PreOrderSettleSecs)
+}
 
 # HLA environment, identical for WatchVrf and the app (RUNBOOK sec 7 items 1-3).
 $PathPrefix = ('{0};{1};{2}' -f $Bin64, (Join-Path $VrLinkRoot 'bin64'), (Join-Path $RtiDir 'bin'))
@@ -2134,9 +2207,11 @@ $LicMachine = [Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','Mac
 Say-Head 'Planned run'
 Say ('  run id      : {0}' -f $RunId)
 Say ('  run dir     : {0}' -f $RunDir)
-Say ('  observers   : {0}s CAP (derived: preRoll {1} + appJoin {2} + initDispatch {3} + oracleGate {4} + pushOrderListen {5} + run {6} + trail {7})' -f `
-        $EffWatchSecs, $PreRollSecs, $AppJoinTimeoutSec, $InitDispatchWaitSec, $OracleGateTimeoutSec, $PushOrderListenSec, $RunSecs, $TrailSecs)
+Say ('  observers   : {0}s CAP (derived {8}: preRoll {1} + appJoin {2} + initDispatch {3} + oracleGate {4} + pushOrderListen {5} + run {6} + trail {7}{9})' -f `
+        $EffWatchSecs, $PreRollSecs, $AppJoinTimeoutSec, $InitDispatchWaitSec, $OracleGateTimeoutSec, $PushOrderListenSec, $RunSecs, $TrailSecs, `
+        $DerivedWatchSecs, $(if ($PreOrderSettleSecs -gt 0) { (' + preOrderSettle {0}' -f $PreOrderSettleSecs) } else { '' }))
 Say ('  trace stop  : {0} - {1}' -f $TraceStopMode, $(if ($TraceStopMode -eq 'stop-file') { ('teardown touches {0} at StopIface + {1}s; observers resign within ~1 s; grace {2}s' -f $PathStopFile, $TrailSecs, $TraceStopGraceSec) } else { 'observers run to the CAP and teardown waits for them (pre-turnaround dead time)' }))
+Say ('  pre-order   : {0}' -f $(if ($PreOrderSettleSecs -gt 0) { ('stage 7d holds {0}s between the oracle gate and PushOrder (the nav area loads LAZILY after placement); it IS in the derived cap, and {1}' -f $PreOrderSettleSecs, $(if ($WatchSecs -gt 0) { 'the EXPLICIT -WatchSecs above overrides that derivation - see the flag' } else { 'the derived cap is the one in force' })) } else { 'no hold (-PreOrderSettleSecs 0)' }))
 Say ('  window      : {0}s{1}' -f $RunSecs, $(if ($StopWhenComplete) { (' CAP; -StopWhenComplete closes it once all {0} taskee(s) / {1} task(s) report TASKCMPLT, {2}s have passed AND every taskee has a post-completion RPT agreeing with its POS' -f $OrderTaskees.Count, $OrderTasks.Count, $SettleHoldSecs) } else { ' fixed (-StopWhenComplete not set)' }))
 Say ('  clientId    : {0}' -f $(if ($ClientId) { ('{0} (-ClientId -> Vrf__ClientId)' -f $ClientId) } else { ('{0} (appsettings.json)' -f $appClientId) }))
 Say ('  HLA PATH    : {0};<inherited>' -f $PathPrefix)
@@ -2658,6 +2733,88 @@ try {
         foreach ($k in $AppEnv52.Keys) { Set-Item -Path ('Env:' + $k) -Value ([string]$SavedAppEnv52[$k]) }
     }
 
+    # =====================================================================
+    # STAGE 6b-w - THE DETACHED TEARDOWN WATCHDOG (design A2, RUNNER_EXIT127 sec 3.1)
+    # =====================================================================
+    # Started HERE, the instant the interface exists, because from this instant a death of
+    # THIS process leaves BOTH VR-Forces and a JOINED interface up - which on 2026-09-14 cost
+    # nine hours of a joined federate and a 5.89 GB app log. The teardown below is a finally,
+    # and a finally is exactly what TerminateProcess defeats; the wrapper backstop
+    # (scripts\RunScenario.sh) repairs that only while its bash survives. This process covers
+    # the wrapper dying too. It polls THIS pid, reads nothing while we live, and tears down
+    # only on "runner.launched present AND runner.teardown-ran absent" - the wrapper's rule.
+    $WatchdogScript = Join-Path $PSScriptRoot 'RunnerWatchdog.ps1'
+    # The watchdog NEVER tears down on its own timer (it exits 4 and says the runner outlived
+    # it), so a generous budget is the safe direction: the observers' whole cap plus every
+    # teardown budget plus 10 minutes.
+    $WatchdogMaxSec = [Math]::Min(86400, ($EffWatchSecs + $TraceStopGraceSec + $AppExitTimeoutSec + $StopVrfTimeoutSec + 600))
+    if ($NoWatchdog) {
+        Say-Head 'Stage 6b-w - detached teardown watchdog: SKIPPED (-NoWatchdog)'
+        Say-Warn 'no detached watchdog for this run. If this runner is killed, the ONLY backstop left is scripts\RunScenario.sh, which needs its bash to survive.'
+        Add-Flag 'WARN' '-NoWatchdog was passed: this run has NO detached teardown watchdog. A kill that takes the wrapper too leaves VR-Forces and the interface joined.'
+    } elseif (-not (Test-Path -LiteralPath $WatchdogScript -PathType Leaf)) {
+        Say-Head 'Stage 6b-w - detached teardown watchdog: NOT AVAILABLE'
+        Say-Warn ('{0} is missing. The run CONTINUES - a backstop must never fail a healthy run - but it is unprotected against a kill that also takes the wrapper.' -f $WatchdogScript)
+        Add-Flag 'WARN' ('scripts\RunnerWatchdog.ps1 not found at {0}; no detached teardown watchdog for this run.' -f $WatchdogScript)
+    } else {
+        Say-Head 'Stage 6b-w - start the DETACHED teardown watchdog (out-of-process backstop)'
+        # $PSHOME\pwsh.exe, never a bare 'pwsh': this runner is gated to a 64-bit host and the
+        # watchdog must be the same one. Bare pwsh resolves to the 32-BIT build on this
+        # machine (RUNBOOK 0.5.14 item 1).
+        $WatchdogPwsh = Join-Path $PSHOME 'pwsh.exe'
+        $WatchdogArgs = @('-NoProfile','-ExecutionPolicy','Bypass','-File', $WatchdogScript,
+                          '-RunnerPid', [string]$PID,
+                          '-RunDir',    $RunDir,
+                          '-VrfProfile',$VrfProfile,
+                          '-RestUrl',   $RestUrl,
+                          '-StompUrl',  $StompUrl,
+                          '-MaxSec',    [string]$WatchdogMaxSec,
+                          '-PollSec',   '5')
+        Say ('  watches pid {0} (this runner) every 5s for at most {1}s' -f $PID, $WatchdogMaxSec)
+        Say  '  DETACHED: its own HIDDEN console (not ours - a shared console dies with the terminal and takes the'
+        Say  '  watchdog with it), stdout/stderr to files in the run directory, stdin from an empty file there.'
+        Say  '  It force-kills NOTHING and never touches rtiexec / rtiForwarder / rtiAssistant.'
+        if (-not $DryRun) {
+            # Start-Process needs a real path to redirect stdin FROM; an empty file is the
+            # Windows equivalent of the wrapper's `< /dev/null`.
+            try { [System.IO.File]::WriteAllText($PathWatchdogIn, '') }
+            catch { Say-Warn ('could not create {0}: {1}. The watchdog will inherit this runner''s stdin instead.' -f $PathWatchdogIn, $_.Exception.Message) }
+        } else {
+            Say-Plan ('would create the empty stdin file {0}' -f $PathWatchdogIn)
+        }
+        # A BACKSTOP MUST NEVER FAIL A HEALTHY RUN. Start-External does not wrap Start-Process,
+        # and $ErrorActionPreference is 'Stop', so without this try/catch a watchdog that could
+        # not be started would raise a terminating error and tear down a run that is fine.
+        $WatchdogProc = $null
+        try {
+        $WatchdogProc = Start-External -Name 'RunnerWatchdog' -File $WatchdogPwsh -Arguments $WatchdogArgs -Cwd $RepoRoot `
+                -StdOutFile $PathWatchdogOut -StdErrFile $PathWatchdogErr `
+                -StdInFile $(if ($DryRun -or (Test-Path -LiteralPath $PathWatchdogIn)) { $PathWatchdogIn } else { '' }) -NewConsole `
+                -Note 'OUTLIVES THIS RUNNER BY DESIGN - it is never completed or waited on here, and it exits on its own the moment this pid is gone. exit 0 nothing owed / teardown done; 2 REFUSED (no runner.launched, or a pid mismatch - it touched nothing); 3 teardown ran with a failed step; 4 -MaxSec expired while the runner was still alive (nothing torn down); 5 unexpected. Its log: <runDir>\runner-watchdog.log.'
+        } catch {
+            Say-Warn ('the detached teardown watchdog could not be started: {0}' -f $_.Exception.Message)
+            Add-Flag 'WARN' ('the detached teardown watchdog could not be started ({0}). The run CONTINUES - a backstop must never fail a healthy run - but it is unprotected against a kill that also takes the wrapper.' -f $_.Exception.Message)
+        }
+        if (-not $DryRun) {
+            if ($null -ne $WatchdogProc) {
+                try { Set-Content -LiteralPath $PathWatchdogPid -Value ([string]$WatchdogProc.Id) -Encoding ascii } catch { }
+                Say-Ok ('teardown watchdog pid {0} armed (pid also in {1})' -f $WatchdogProc.Id, $PathWatchdogPid)
+                $Manifest.artifacts.watchdog = [ordered]@{
+                    pid     = $WatchdogProc.Id
+                    pidFile = $PathWatchdogPid
+                    stdout  = $PathWatchdogOut
+                    stderr  = $PathWatchdogErr
+                    log     = (Join-Path $RunDir 'runner-watchdog.log')
+                    maxSec  = $WatchdogMaxSec
+                    pollSec = 5
+                }
+                Save-Manifest
+            } else {
+                Add-Flag 'WARN' 'the detached teardown watchdog did not start (Start-External returned no process). The run CONTINUES unprotected against a kill that also takes the wrapper.'
+            }
+        }
+    }
+
     Say-Head ('Stage 6c - wait up to {0}s for the interface to connect to C2SIM' -f $AppJoinTimeoutSec)
     if ($DryRun) {
         Say-Plan ('would poll {0} for "Connected to C2SIM", with the app thread count as a backstop' -f $PathAppLog)
@@ -2798,6 +2955,43 @@ try {
             }
             if (-not $verdict) { $verdict = 'INCONCLUSIVE' }
             Stop-Runner 3 ("ORACLE GATE FAILED: no POS line with a real coordinate within {0}s (POS lines seen: {1}, all degenerate). RUNBOOK 0.5.7 STOP condition. Stage 7b disambiguation verdict: {2} - see oracle.createOneDiagnostic in the manifest, which spells out what that verdict means." -f $OracleGateTimeoutSec, $gate.PosLineCount, $verdict)
+        }
+    }
+
+    # ---------------------------------------------------------------------
+    # STAGE 7d - PRE-ORDER SETTLE (opt-in; -PreOrderSettleSecs, default 0 = skipped)
+    # ---------------------------------------------------------------------
+    # WHY: the sectorised navigation area loads LAZILY, AFTER the entities are placed, so a
+    # task issued too early is PLANNED WITHOUT THE MESH. Run 20260914T130439Z shows the area's
+    # "New Primary nav area" rows 175 s after the members were created. This stage holds the
+    # order back for a fixed, ledgered number of seconds so the load has a chance to finish.
+    #
+    # WHAT IT IS NOT: it is not a fix and it is not evidence. It says how long we wait, never
+    # what counts as loaded; only the object consoles can say whether the mesh actually
+    # arrived (MEMORY lessons-vendor-diagnostics-first). The vendor-side alternative is UG52
+    # Appendix C loadAllNavigationDataOnTerrainLoad - a CONFIG change that loads every sector
+    # at terrain load - and it is the better answer if this hold turns out to matter.
+    # The hold is already counted into the observers' duration cap (see $DerivedWatchSecs).
+    if ($PreOrderSettleSecs -gt 0) {
+        Say-Head ('Stage 7d - pre-order settle: hold {0}s before PushOrder (LAZY sectorised nav-area load)' -f $PreOrderSettleSecs)
+        Say  '  The nav area loads AFTER placement: run 20260914T130439Z logged "New Primary nav area" 175 s'
+        Say  '  after the members were created. A task issued before that plans without the mesh. This is a'
+        Say  '  measurement parameter, not a verdict - the object consoles are what say the mesh arrived.'
+        if ($DryRun) {
+            Say-Plan ('would hold {0}s here, printing one status line every 30s, then push the order' -f $PreOrderSettleSecs)
+        } else {
+            $settleStart = (Get-Date).ToUniversalTime()
+            $settleEnd   = (Get-Date).AddSeconds($PreOrderSettleSecs)
+            while ((Get-Date) -lt $settleEnd) {
+                $remaining = [int][Math]::Ceiling(($settleEnd - (Get-Date)).TotalSeconds)
+                if ($remaining -le 0) { break }
+                Say-Info ('pre-order settle: {0}s remaining' -f $remaining)
+                Start-Sleep -Seconds ([Math]::Min(30, $remaining))
+            }
+            Say-Ok ('pre-order settle complete ({0}s)' -f $PreOrderSettleSecs)
+            $Manifest.clocks.preOrderSettleStartUtc = $settleStart.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+            $Manifest.clocks.preOrderSettleEndUtc   = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+            Save-Manifest
         }
     }
 
