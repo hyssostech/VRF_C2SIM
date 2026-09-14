@@ -555,6 +555,48 @@ Confounds carried: the 300 s wall delay is served by the interface, not the sim 
 ~1.0x in N2b, 4,755 sim s over the window); the members idle in formation for 300 s (no movement, so no
 sector change); the same warmed cache as N2b (the launch line warms it).
 
+### 5.6 N2d - the same run with the start moved 500 m along the leg (SUPERVISOR ADDITION, 2026-09-14 22:45Z, written AFTER N2c and BEFORE N2d)
+
+N2c (sec 10.2) falsified load timing: the six 1-35 positions at the destack start refuse every abstract-graph query
+at +0.3 s and at +304 s alike. Docs and data consulted for a SPATIAL cause, all read before this design:
+- `appData\settings\vrfSim\navigationProfiles.mtl`, profile `ground-platform`: entity-radius 3.0, entity-height 3.0,
+  step-max 0.56, slope-max 46 deg, raster-precision 0.2, generate-abstract-data True, min-navigable-surface 10.0,
+  soil no-go = "mud" (underwater), feature-tag-volumes: MAK_WATERWAY and MAK_VEGETATION are `no-go-exclusive`,
+  MAK_ROAD tagged road, MAK_BUILDING commented out. So a vehicle standing inside an OSM waterway/vegetation feature
+  volume would be off the walkable mesh whatever the goal.
+- MAK Earth (online).mtf: features are OpenStreetMap ("Buildings, point features, and other data from OpenStreetMaps").
+  Overpass (overpass.kumi.systems, 22:40Z): NO OSM way with natural/landuse/waterway/highway within 200 m of the
+  destack start - no feature volume there. (overpass-api.de timed out; the mirror answered.)
+- Offline elevation tiles (tools/preflight cache, 7.9 m posting): a 200 m box around the destack start spans 14.5 m of
+  relief, max neighbour slope 5 deg, no edge near slope-max; soil "Desert Succulent Shrub" / dryground at all six
+  positions (CA FVEG 15 m). Nothing the profile names would carve a hole at that spot at this posting.
+- The vendor Lua returns the point list only (`vrf:findPathToLocation` -> `node.result()`; `AsyncJob` has `cancel` and
+  `result`, no status) - the failure REASON cannot be printed from a script override. So no cheaper instrument exists.
+- Positive control one cell away: in G6 (flat query) 1-1's M1A2 23/26 planned their slot moves (2 points at 7-9 m)
+  from cell (49,76), ~700 m north-west of the destack start.
+
+**N2d = N2b with ONE change:** the assembly vertex V0 of the probe order moves 500 m along the leg bearing (263.00 deg),
+from 34.67998497486787/-116.72479854165415 to 34.679437/-116.730220. The deployed build drops V0 from the route (the 3f
+assembly-point rule; N2b/N2c show the V1 goal issued directly), so the ONLY effect is where the destack places the six
+members: predicted start 34.657894/-116.745512 (on the old axis at s = 500.0 m, cross-track 0.0 m; cell i=49 j=75; elev
+1265.6 m, dryground, max local slope 21 deg). The leg axis, the face and every P20 threshold stay as scored: the worst
+window sits at OLD s = 2,006 m = 1,506 m from the new start. Order `data/PROBE_RIDGE_1-35_SHIFTED_Order.xml`; launch
+line scratchpad n1n2/n2d_launch.sh (n2b's with the order swapped; no start delay - timing is closed). Harvest with the
+same scripts, axis origin unchanged (the old destack start) so s is comparable across N2b/N2c/N2d.
+
+**P22a (HIGH):** the members are created within 60 m of 34.657894/-116.745512 (the destack geometry scales with V0).
+MISS -> the order's V0 was not the placement anchor; STOP and read the placement code before anything else.
+**P22b (THE TEST, prediction PLANNED at MEDIUM):** the slot move and the V1 goal print `Planned path has N points.`,
+N > 1, no "not enough (0)". PLANNED -> the refusal is LOCAL to the original destack start (a spot the profile's
+documented rules do not explain; filed for STP-804/806 as "validate every placement point against the mesh / snap to
+the nearest walkable point"), and P20b becomes readable: **P22c** = P20b scored as in sec 5.3 on the old axis (DETOUR
+>= +150 m north at old-s 2,006 and > 150 m from the window centre; STRAIGHT within 50 m of the P11 point with < 20 m
+advance over the final 600 sim s; MIDDLE), at equal SIM time since dispatch. REFUSED -> the defect spans at least
+500 m of this lane; next = the FLAT-query control from the original spot (vendor SMS fixture, same order) to separate
+"off-mesh spot" (flat fails too) from "abstract connectivity" (flat plans the 30 m slot move, as 1-1's did).
+Confounds: the new start's local relief (21 deg) is steeper than the old (5 deg) - irrelevant to a hole hypothesis
+under slope-max 46 but recorded; the first 500 m of the old leg are no longer driven (nothing was measured there).
+
 ## 6. N3
 
 `N3` in the copied record is the abstract-graph ridge run, i.e. the already-written and already-gated
@@ -819,7 +861,7 @@ than one cell and the flat-query control from the same spot is the next arm.
 | 1 | Supervisor ruling on sec 1.5 (a) / (b) / (c) | RULE | RULED 2026-09-14 per the project record: (c) - N1 is NOT run, the abstract-graph override stays the product fix, N2b is the lever |
 | 2 | N2b - `n2b_launch.sh`, ridge lane, AG + saf 2.0, single variable vs RIDGE-AG | SPEND | RUN 205046Z: P20a MISS -> STOP (sec 10.1) |
 | 2b | N2c - `n2c_launch.sh`, N2b + 300 s task start delay (sec 5.5), the (T)/(L) discriminator | SPEND | RUN 215944Z: P21b REFUSED -> (T) FALSIFIED; spatial (L) live (sec 10.2) |
-| 2c | N2d - the spatial shift (DeStackSpacingMeters 700 -> 500), after the failure-reason print in the override script | PREREG | design owed (sec 10.2 NEXT) |
+| 2c | N2d - `n2d_launch.sh`, V0 moved 500 m along the leg (sec 5.6), the spatial discriminator that keeps the face | SPEND | ready after dry run + parse check; runs when no agent is active |
 | 3 | N1 - `n1_launch.sh`, only if sec 1.1 is to be falsified live | SPEND | ready, dry-run clean |
 | 4 | N2 - `n2_launch.sh`, only if N1 hits | SPEND | ready, dry-run clean; gate predicted to miss |
 | 5 | `validate_fixture.py` script-gate extension (sec 8 item 2) | - | owed, one line, outside this task's write set |
