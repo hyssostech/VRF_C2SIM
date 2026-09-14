@@ -496,6 +496,29 @@ on the slope first and the failure/jam followed" - is weakened by the first stal
 throttle/velocity row exists (members at level 3). The falsifier that does exist and does not fire: a slope
 stop would have stalled the followers on the same ridge; it did not.
 
+## 7e. 4-27's second read, on G3 (2026-09-14; READ_4-27_G3_AND_OFFSET_SCORING_2026-09-14.md) - the pattern is a LANE
+Same order, same start, same leg, level-3 member consoles, sim 1.62x (no dead-reckoning artefact: altitude residual
+-0.09..+0.05 m). In G3 the leader M1A2 3 did NOT stop: on a line +0.1 m off the tool's (P11: +15.2 m) it climbed the face
+in steps of 0.45-0.84, crested at 1,155.5 m (43.7 m above P11's leader's peak), descended the far side and was still
+advancing at 1.40 m/s (decaying) when the capture ended 350 m past P11's stop. Three of its five followers stopped at
+the toe instead - HMMWV 4 on the +30.9 m line stopped 1.24 m from where P11's LEADER (+34.6 m line) stopped; a second
+pair matches to 6.95 m. The constant ~0.30 m/s follower crawl is absent; instead the three movers share one speed to
+three figures (1.71 then 1.40 m/s), as P11's three crawlers did at 0.30. Console: the seven-shape loop, 99.1% of the
+leader's rows, no exit row; all six had left the (20x20 km) nav area 300 wall s before the face. CONSEQUENCES: (a) sec
+7c's "three crawlers = a second mechanism in the followers of a stopped leader" does not fit G3, where the leader is a
+mover - what reproduces is WHICH LANE stops, so the slope claim is about lines across the face, not about a unit or a
+role; (b) the tool's leader-derived label for T5 is FROZE in P11 and MOVED in G3 - the truth labels are lane labels;
+(c) 4-27/T5 in G3 is a genuine pre-flight false alarm for the LEADER's line (flagged 0.966; its own line scores 0.941
+and it crossed) - one leg, one run, half the unit; logged against the threshold, the threshold not moved. Pre-flight
+offset scoring: the 40 m ratio moves 0.902 / 0.966 / 1.130 over -10 / 0 / +20 m of lateral shift on this leg (more
+than the 0.097 margin); a formation-band MAX lifts the crawler 856/HHC above the lowest frozen leg (margin -0.003 under
+the strict reading); actual member tracks curve into gentler ground than their straight slot lines (0.41-0.43 vs
+0.96-1.01). RULING (supervisor): keep the route line as the verdict; print the band (-50..+50 m slots) as a lateral
+sensitivity; wording 'a sustained face SOME of your vehicles probably cannot climb'. Unexplained: the shared speeds of
+the moving subgroup in both runs (0.30 x3 in P11, 1.40 x3 in G3) - a formation speed-control signature, unmeasured
+(no velocity, members at 3); and whether G3's leader would have decayed to a crawl (capture ended 142 sim s after its
+crest).
+
 ## 8. What follows (decisions for the user; none taken here)
 - The interface needs its OWN progress watchdog: no net movement for N sim-seconds while the
   task reports running -> report to STP (a TaskStatus the demo audience can see) and/or re-task.
