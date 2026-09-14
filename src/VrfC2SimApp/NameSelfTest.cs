@@ -83,6 +83,78 @@ public static class NameSelfTest
                             && member.TryGetName("VRF_UUID:eeee", out var m2) && m2 == "member-2",
               "TryAddName names a member the bridge reported");
 
+        // ---- REVIEW FINDING 1: a returned name that is BOTH an exact requested name AND the
+        // prefix of longer ones. This is the REAL COA-STP1 shape, not a hypothetical: the proxied
+        // brigade "510/40~PXY" is exactly MarkingTruncationWidth characters long and every EXPAND
+        // child (MakeChildName) carries it as a strict prefix. The exact match must still win - the
+        // 127 units that bind correctly today depend on it - but it must not bind SILENTLY.
+        Console.WriteLine();
+        Console.WriteLine("=== finding 1: exact match that is also a prefix (the real COA-STP1 shape) ===");
+        var coa = new NameRegistry();
+        const string parent = "510/40~PXY";
+        string[] kids = { parent + ".HQ1", parent + ".TANK2", parent + ".TANK3", parent + ".PLOW4" };
+        coa.Requested(parent);
+        foreach (var k in kids) coa.Requested(k);
+        const string coaUuid = "VRF_UUID:coa-parent";
+        var coaBind = coa.Bind(parent, coaUuid);
+        Check(ref failures, coaBind.Name == parent && !coaBind.Truncated && !coaBind.Ambiguous,
+              "the EXACT requested name still wins (the working units are untouched)");
+        Check(ref failures, coa.TryGetUuid(parent, out var cu) && cu == coaUuid
+                            && coa.TryGetName(coaUuid, out var cn) && cn == parent,
+              "... and the SAME two writes happen: name -> uuid and uuid -> name");
+        Check(ref failures, coaBind.PrefixedCandidates.Count == 4,
+              $"the 4 EXPAND children sharing the prefix are REPORTED, not swallowed " +
+              $"(saw {coaBind.PrefixedCandidates.Count})");
+        Check(ref failures, kids.All(k => coaBind.PrefixedCandidates.Contains(k, StringComparer.Ordinal)),
+              "every colliding candidate is named, so the warning can list them");
+        Check(ref failures, coa.PrefixPairs(NameRegistry.MarkingTruncationWidth).Count == 4,
+              "the start-up pre-flight finds the same 4 pairs BEFORE any object comes back");
+        var shortPair = new NameRegistry();
+        shortPair.Requested("C/1-35");                 // 6 chars - below the truncation floor
+        shortPair.Requested("C/1-35.HQ1");
+        Check(ref failures, shortPair.PrefixPairs(NameRegistry.MarkingTruncationWidth).Count == 0,
+              "a prefix shorter than the truncation floor is NOT a hazard and is not reported");
+
+        // ---- REVIEW FINDING 2: only a name still AWAITING its ObjectCreated is a resolution
+        // target, so a later object cannot take a live unit's identity ----
+        Console.WriteLine();
+        Console.WriteLine("=== finding 2: an already-bound unit cannot be hijacked by a later object ===");
+        var bound = new NameRegistry();
+        const string live = "ABCDEFGHIJ~PXY";
+        bound.Requested(live);
+        bound.Bind(live, "VRF_UUID:live");
+        var hijack = bound.Bind("ABCDEFGHIJ", "VRF_UUID:intruder");
+        Check(ref failures, !hijack.Truncated && hijack.Name == "ABCDEFGHIJ",
+              "a returned name that prefixes an ALREADY BOUND unit binds under its OWN name");
+        Check(ref failures, bound.TryGetUuid(live, out var lu) && lu == "VRF_UUID:live",
+              "the bound unit keeps its uuid - no identity hijack");
+        Check(ref failures, bound.TryGetName("VRF_UUID:live", out var ln) && ln == live,
+              "and the reverse map still names it");
+
+        // ---- REVIEW FINDING 3: a candidate registered LATER invalidates a cached resolution ----
+        Console.WriteLine();
+        Console.WriteLine("=== finding 3: the resolution cache does not outlive its candidate set ===");
+        var cache = new NameRegistry();
+        cache.Requested("ABCDEFGHIJ.tk1");
+        var firstBind = cache.Bind("ABCDEFGHIJ", "VRF_UUID:cache-1");
+        Check(ref failures, firstBind.Truncated && firstBind.Name == "ABCDEFGHIJ.tk1",
+              "the only candidate visible at that instant resolves (and is cached)");
+        cache.Requested("ABCDEFGHIJ.tk2");             // routes/waypoints/materialize register later
+        var secondBind = cache.Bind("ABCDEFGHIJ", "VRF_UUID:cache-2");
+        Check(ref failures, secondBind.Ambiguous && secondBind.Name == "ABCDEFGHIJ",
+              "a second candidate registered later makes the SAME returned name AMBIGUOUS, not cached");
+        // ... and dropping the cache entry must NOT un-resolve a unit that is already BOUND: a
+        // POSITION text report or a completion callback arrives with the sim's truncated spelling
+        // long after order-time names (routes, waypoints, materialize) have been registered.
+        var settled = new NameRegistry();
+        settled.Requested(requested);
+        settled.Bind(returned, "VRF_UUID:settled");
+        settled.Requested(requested + " ROUTE");        // registered at order time, invalidates the cache
+        Check(ref failures, settled.Resolve(returned) == requested,
+              "a SETTLED correlation survives a later Requested() that drops the cache entry");
+        Check(ref failures, settled.TryGetUuid(requested, out var su) && su == "VRF_UUID:settled",
+              "... and the unit is still found by its requested name");
+
         // ---- cleanup list: one uuid however many names point at it ----
         Check(ref failures, reg.CreatedUuids().Count == 2,
               "CreatedUuids is DISTINCT (the truncated unit's two names are one object)");
