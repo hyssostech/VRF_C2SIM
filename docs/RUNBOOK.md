@@ -1397,19 +1397,27 @@ you want a short window, write the number you want - do not write 0 and expect o
 
 ---
 
-## 11. THE CLOCK C2SIM TASK TIMES RUN ON, AND THE FOUR NEW TASKING KEYS
+## 11. THE CLOCK C2SIM TASK TIMES RUN ON, AND THE R4 TASKING KEYS
 
-Added 2026-09-14 (cold-start review of `5c67d41`, items M1/M2 and questions Q1/Q4). All four
-default to something usable; none of them appears in `appsettings.json` or
-`appsettings.Demo.json`, so they are set by environment override in the interface's own shell,
-like the watchdog below (double underscore = the `:`):
+Added 2026-09-14 (the two cold-start reviews of `5c67d41` and `0c96f50`, items M1/M2/A1 and
+the user's rulings Q1-Q7). **All seven are now IN `appsettings.json` at their defaults, and
+the six that change what a demo does are in `appsettings.Demo.json` with a `_Key` line each
+saying why** - a standalone deployment's behaviour has to be readable from its settings, not
+from C# source. Every one can still be overridden per process (double underscore = the `:`),
+which is how an experiment differs from the shipped profile:
 
 ```powershell
-$env:Vrf__TaskClock                      = "sim"       # DEFAULT. "wall" to measure in real seconds
-$env:Vrf__TaskPredecessorEndMarginSeconds = "60"       # DEFAULT
-$env:Vrf__SupersededTaskCode             = "TASKABRT"  # DEFAULT. "TASKCMPLT" = the literal R4 reading
-$env:Vrf__TaskChainBackstopSeconds       = "86400"     # DEFAULT. A1: phase 1's absolute backstop
+$env:Vrf__TimedCompletion                 = "true"      # DEFAULT. false = evidence-only completion
+$env:Vrf__TaskClock                       = "sim"       # DEFAULT. "wall" to measure in real seconds
+$env:Vrf__DurationScale                   = "1.0"       # DEFAULT. 0.05 compresses a demo into minutes
+$env:Vrf__TaskPredecessorTimeoutSeconds   = "600"       # DEFAULT (7200 in the Demo overlay)
+$env:Vrf__TaskPredecessorEndMarginSeconds = "60"        # DEFAULT
+$env:Vrf__TaskChainBackstopSeconds        = "86400"     # DEFAULT. A1: the DISPATCH wait's backstop
+$env:Vrf__SupersededTaskCode              = "TASKABRT"  # DEFAULT. "TASKCMPLT" = the literal R4 reading
 ```
+
+`Vrf:DefaultHoldSeconds` existed between `06f8cf0` and the Q4 ruling and is GONE: a task with
+no Duration and no geometry is malformed and is refused, not held (below).
 
 - **`Vrf:TaskClock` is NOT `Vrf:StallClock`.** TaskClock carries ALL THREE C2SIM task times -
   the Duration that ends a task (R4), the StartTime/DelayTimeAmount delay that holds one back,
