@@ -16,15 +16,37 @@ public record OrderTask
     public string RuleOfEngagementCode { get; init; } = "";  // WeaponRuleOfEngagementCode (e.g. "ROETight")
     public string MapGraphicUuid { get; init; } = "";        // MapGraphicID[0] (route/graphic ref; empty = inline points)
 
+    // R1 (transition): EVERY MapGraphicID the task carries, in order. The schema allows a list
+    // (ManeuverWarfareTask/MapGraphicID[], :4080) and a task may name several graphics - an
+    // attack position and then an objective, say - so the resolved geometry is their sequence.
+    // COA-STP1 carries NONE: STP emits MapGraphicID only when IncludeMapGraphicIdInTasks is set
+    // (an STP-side export defect, STP-801), which is why the embedded Location path stays.
+    public IReadOnlyList<string> MapGraphicUuids { get; init; } = Array.Empty<string>();
+
     // Inline task Location points (used when MapGraphicUuid is empty). Elev is null when
     // the point carries no altitude (the executor ground-clamps to 100 for ground units).
     public List<(double Lat, double Lon, double? Elev)> Points { get; init; } = new();
 
-    // Timing (parsed for completeness; delay/sequencing EXECUTION is deferred to the
-    // completion-future slice - the golden-trace order carries all-zero timing).
-    public long SimulationStartMs { get; init; }             // StartTime/SimulationTime delay
+    // Timing. SimulationStartMs/StartAfterTaskUuid/RelativeDelayMs gate the DISPATCH
+    // (TaskSequencer.WaitForStartAsync); DurationMs closes the task (R4, below).
+    public long SimulationStartMs { get; init; }             // StartTime/SimulationTime/DelayTimeAmount relative delay
     public string StartAfterTaskUuid { get; init; } = "";    // ActionTemporalRelationship predecessor
     public long RelativeDelayMs { get; init; }               // ActionTemporalRelationship delay
+
+    // R4 (user ruling 2026-09-14, "completion is given by the end time"): the task's own
+    // Duration (ManeuverWarfareTask/Duration/IsoTimeDuration, schema :4132). The end time is
+    // dispatch + Duration; a task still running then is reported TASKCMPLT
+    // (TimedCompletionPolicy). 0 = absent or unparseable (the parser warns) - such a task has
+    // no timed end and completes only on its own evidence.
+    // COA-STP1_Order.xml carries one on all 42 tasks: 32 x P00Y00M00DT01H20M00S (4,800,000 ms)
+    // and 10 x P00Y00M00DT02H00M00S (7,200,000 ms).
+    public long DurationMs { get; init; }
+
+    // R4: the ABSOLUTE form of StartTime (TimeInstantType/DateTime/IsoDateTime, schema :3863).
+    // STP exports the SimulationTime delay form instead, so this is null for every task on
+    // disk; it is honoured (converted to a delay against order receipt) so an order from a
+    // different producer is not silently dispatched early.
+    public DateTime? AbsoluteStartUtc { get; init; }
 }
 
 /// <summary>The parsed contents of a C2SIM Order message.</summary>

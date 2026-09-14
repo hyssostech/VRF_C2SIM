@@ -52,19 +52,65 @@ enum class Roe { FireAtWill, HoldFire, FireWhenFiredUpon };
 // on aggregate movement).
 enum class AggregateState { Aggregated, Disaggregated };
 
-// One variable of a VR-Forces scripted task (Lua). Either an object
-// reference (by UUID) or a real number, matching DtRwObjectName / DtRwReal.
+// One variable of a VR-Forces scripted task (Lua).
+//
+// VENDOR CONTRACT (C:/MAK/vrforces5.2d/include/vrftasks/scriptedTaskTask.h:90-106):
+// DtScriptedTask::setValue is overloaded for, in header order -
+//   :90  bool                (default type DtScriptedTaskCheckBoxVariable         "checkbox")
+//   :91  int                 (default type DtScriptedTaskIntegerVariable          "integer")
+//   :92  double              (default type DtScriptedTaskDoubleVariable           "double")
+//   :93  const std::string&  (default type DtScriptedTaskStringVariable           "string")
+//   :94  const DtString&     (default type DtScriptedTaskStringVariable           "string")
+//   :95  const char*         (default type DtScriptedTaskStringVariable           "string")
+//   :96  const DtUUID&       (default type DtScriptedTaskSimulationObjectVariable "simulationobject")
+//   :97  const DtVector&     (default type DtScriptedTaskLocationVariable         "location")
+//   :98  const DtEntityType& (default type DtScriptedTaskEntityTypeVariable       "entitytype")
+//   :99  const DtTaitBryan&  (default type DtScriptedTaskOrientationVariable      "orientation")
+//   :100-106 vector/map forms (offset-vector list, vector list, vector<DtUUID>,
+//            vector<DtVector>, map<DtString,int|double|DtString>).
+// The type strings are the DtScriptedTask*Variable constants of
+// vrfutil/vrfScriptedTasksConstants.h ("integer","string","double","location",
+// "simulationobject","checkbox", ...). setValue writes BOTH bindings - the value into
+// variables() and the scripted-task type into variableDataTypes() (scriptedTaskTask.h
+// :140-146) - which the previous addVariable-only marshalling here did not.
+//
+// MODELLED HERE (V2): the six SCALAR kinds a COA-STP1-shaped task needs - ObjectUuid
+// (a tactical graphic or a unit), Real, Bool, Integer, String and Location. NOT
+// modelled: DtEntityType, DtTaitBryan and the vector/map forms; no scripted task in
+// the build list of docs/experiments/TASK_VOCABULARY_ASSESSMENT_2026-09-14.md
+// sec 3.2/3.3 asks for one, and each is a mechanical extra case in the same switch.
+//
+// Location carries a GEODETIC point (degrees, metres) and is converted to the
+// geocentric DtVector the vendor's location variable expects - the same convention as
+// every other position on this boundary (CreateWaypoint/CreateRoute/CreateControlArea,
+// vrfRemoteController.h:991-1011 "the position needs to be in geocentric coordinates").
 struct ScriptVar {
-    enum class Kind { ObjectUuid, Real } kind = Kind::Real;
+    enum class Kind { ObjectUuid, Real, Bool, Integer, String, Location } kind = Kind::Real;
     std::string name;        // e.g. "pickupPoint", "altitudeAgl"
     std::string uuidValue;   // used when kind == ObjectUuid
-    double      realValue = 0.0; // used when kind == Real
+    double      realValue = 0.0;    // used when kind == Real
+    bool        boolValue = false;  // used when kind == Bool
+    int         intValue = 0;       // used when kind == Integer
+    std::string stringValue;        // used when kind == String
+    Geodetic    locValue;           // used when kind == Location
 
     static ScriptVar Object(const std::string& n, const std::string& uuid) {
         ScriptVar v; v.kind = Kind::ObjectUuid; v.name = n; v.uuidValue = uuid; return v;
     }
     static ScriptVar Number(const std::string& n, double val) {
         ScriptVar v; v.kind = Kind::Real; v.name = n; v.realValue = val; return v;
+    }
+    static ScriptVar Flag(const std::string& n, bool val) {
+        ScriptVar v; v.kind = Kind::Bool; v.name = n; v.boolValue = val; return v;
+    }
+    static ScriptVar Count(const std::string& n, int val) {
+        ScriptVar v; v.kind = Kind::Integer; v.name = n; v.intValue = val; return v;
+    }
+    static ScriptVar Text(const std::string& n, const std::string& val) {
+        ScriptVar v; v.kind = Kind::String; v.name = n; v.stringValue = val; return v;
+    }
+    static ScriptVar Place(const std::string& n, const Geodetic& val) {
+        ScriptVar v; v.kind = Kind::Location; v.name = n; v.locValue = val; return v;
     }
 };
 
@@ -196,6 +242,15 @@ struct TextReport {
 struct TaskCompleted {
     std::string unitMarking; // transmitter().markingText()
     std::string taskType;    // taskCompleted().string(), e.g. "move-along"
+    // DtTaskCompleteReport::success() - the vendor's own completed/FAILED flag:
+    // "A task complete report with success being false indicates that the task has
+    // failed and is no longer being processed" (vrfor5.2d include
+    // vrftasks/taskCompleteReport.h:84-90). The vendor's own default is true
+    // (:87 "\note Defaults to True."), which is also the default here, so a report
+    // that never carries the flag is read as a success exactly as VR-Forces reads it.
+    // A completion is therefore no longer self-evidently a SUCCESS: a consumer that
+    // maps every completion to TASKCMPLT will report a failed task as complete.
+    bool success = true;
 };
 
 // Response to RequestAvailableFormations: the formation names an aggregate can
@@ -310,6 +365,27 @@ public:
     int  BackendCount() const;
     bool AllBackendsReady() const;
 
+    // SIMULATION (SCENARIO) CLOCK in seconds, as reported by the VR-Forces BACK END:
+    // DtVrfRemoteController::simTime() - "Returns the simulation time of the specified back
+    // end. If no back end specified, returns the first back ends simulation time"
+    // (vrfcontrol/vrfRemoteController.h:356 on 5.2d, :352 on 5.0.2). This is the clock the
+    // SCENARIO advances: it runs fast under fixed-frame-run-to-complete and it STOPS while the
+    // scenario is paused. It is what the vendor's own remote-control sample prints as "Sim time
+    // from sim engine status" (examples/remoteControl/commandLineRemoteController.cxx:1247-1252).
+    //
+    // Deliberately NOT the local VR-Link federate clock - DtExerciseConn::clock()->simTime(),
+    // vl/baseExerciseConn.h:64 + vlutil/vlTime.h:47 - which the same sample prints separately as
+    // "Local sim time" (:1256). That one is useless as a sim clock in THIS process: on the 5.0.2
+    // build Tick() sets it from elapsedRealTime() (so it IS wall time, dressed up), and on 5.2
+    // nothing here sets it at all (VRF_5.2_MIGRATION_DIFF row A10: the 5.2d sample stopped
+    // driving the clock by hand).
+    //
+    // Returns -1.0 when there is no controller (before Start(), after Stop()) or when no back
+    // end has been discovered yet, so "no reading" is never confused with "the scenario is at
+    // t = 0". Never throws. Read-only and sends nothing on the wire; call it between ticks,
+    // like the other state reads.
+    double SimTimeSeconds() const;
+
     // -- observation-channel diagnostics (read-only; no protocol traffic) ----
     // Sizes of the reflected lists themselves - see ReflectedListCounts. Safe before Start()
     // (everything reads -1) and on the StartAdopting() path. Call between ticks, like the
@@ -394,9 +470,19 @@ public:
                          AggregateState state = AggregateState::Disaggregated,
                          bool createSubordinates = true);
 
-    void CreateWaypoint(const Geodetic& pos, const std::string& name);
+    // uuid (V3): the VRF UUID to assign the created control point; empty -> nullUUID,
+    // which is the pre-V3 behaviour and what every existing caller gets. The vendor's
+    // createWaypoint takes the same optional startingUUID as createControlArea does
+    // (vrfRemoteController.h:991-1011, ":1006 const DtUUID& startingUUID"), so a C2SIM
+    // Point graphic can be created under ITS OWN C2SIM uuid exactly as areas are.
+    void CreateWaypoint(const Geodetic& pos, const std::string& name,
+                        const std::string& uuid = "");
 
-    void CreateRoute(const std::vector<Geodetic>& points, const std::string& name);
+    // uuid (V3): as CreateWaypoint. vrfRemoteController.h:1023-1039 createRoute, same
+    // optional startingUUID. Used for the init's LINE graphics - see the note in
+    // VrfC2SimService on why a line becomes a route and not a phase line.
+    void CreateRoute(const std::vector<Geodetic>& points, const std::string& name,
+                     const std::string& uuid = "");
 
     // uuid: the VRF UUID to assign the created tactical graphic. The C2SIM
     // interface passes the area's C2SIM uuid here today; empty -> nullUUID.
@@ -504,6 +590,7 @@ public:
                       bool autoSelectWeapon = true, int maxRounds = 0);
 
     // Scripted (Lua) task, sent via a task message (e.g. evacuate_civilians).
+    // Signature UNCHANGED by V2 - only the ScriptVar kinds it accepts grew.
     void RunScriptedTask(const std::string& uuid, const std::string& scriptId,
                          const std::vector<ScriptVar>& vars);
 
@@ -511,11 +598,60 @@ public:
     void SendScriptedSet(const std::string& uuid, const std::string& scriptId,
                          const std::vector<ScriptVar>& vars);
 
+    // OFFLINE ROUND-TRIP of the ScriptVar -> DtRw* marshalling (V2 self-test surface).
+    // STATIC and controller-free: it builds a real DtScriptedTaskTask through the SAME
+    // helper RunScriptedTask/SendScriptedSet use, then reads each variable BACK out of
+    // the vendor's own DtRwVariableBindings. Nothing is sent; no federation, no sim.
+    // One line per variable, pipe-separated and stable for assertions:
+    //   "<name>|<readerWriterType>|<scriptedTaskDataType>|<value>"
+    // where readerWriterType is DtReaderWriter::readerWriterType() (readerWriter.h:361),
+    // scriptedTaskDataType is the string setValue stored in variableDataTypes(), and
+    // value is decoded from the concrete DtRw* type (a location comes back GEODETIC,
+    // "lat,lon,alt" in degrees/metres, so the geocentric conversion is covered too).
+    // A variable that cannot be found or cast reports "?" in the failing field rather
+    // than throwing - the self-test then fails on the mismatch, which is the point.
+    static std::vector<std::string> DescribeScriptVars(const std::vector<ScriptVar>& vars);
+
     // -- state read (pure; does NOT task the unit) ----------------
     // Reads the reflected entity's current geocentric location and returns
     // it as geodetic. Returns false if no reflected entity exists for the
     // uuid (e.g. an aggregate, which has no DtReflectedEntity).
     bool TryGetEntityGeodetic(const std::string& uuid, Geodetic& out) const;
+
+    // Reads the reflected object's current GROUND SPEED and HEADING, resolved
+    // through the SAME state repository (entity or aggregate) as
+    // TryGetEntityGeodetic. Returns false when no repository resolves for the
+    // uuid, or when either value is not finite.
+    //
+    // UNITS AND FRAME (B7 / STP-784). The repository's spatial attributes are
+    // GEOCENTRIC (vl/baseEntityStateRepository.h:64-67: "Velocity, acceleration,
+    // and location in Geocentric World Coordinates. Orientation is represented as
+    // a DtTaitBryan which is a set of three Euler Angles in Geocentric World
+    // Coordinates."), so neither value is usable as read - both are converted into
+    // the entity's LOCAL TOPOGRAPHIC frame with the VENDOR's own utilities, never
+    // a hand-rolled rotation:
+    //   - speedMps: metres per second, HORIZONTAL (ground speed). velocity() is
+    //     m/s geocentric (baseEntityStateRepository.h:121-128); it is rotated into
+    //     the topographic frame by the matrix from DtLatLon_to_GeocToTopo, applied
+    //     with DtDcmVecMul exactly as matrix/topoCoord.h:33-37 documents, and the
+    //     vertical component is then dropped. VR-Link's topographic frame is
+    //     X=north, Y=east, Z=DOWN (matrix/topoCoord.h:20-23), so the horizontal
+    //     magnitude is hypot(x, y).
+    //   - headingDeg: degrees TRUE, normalised to [0, 360), north = 0. The SENSE (north ->
+    //     east increasing) is the vendor helper's and is not restated in its header; it is
+    //     the one thing here a live run should confirm.
+    //     Straight from the vendor helper DtGetHeadingFromGeocentric
+    //     (matrix/topoCoord.h:46-49), which "returns your heading in radians from
+    //     your geocentric location and orientation [and] automatically does the
+    //     transformation to topographic".
+    //
+    // Heading comes from ORIENTATION (where the hull points), not from the
+    // velocity vector (course over ground): that is what C2SIM HeadingAngle means
+    // ("heading direction in degrees where north is zero",
+    // C2SIM_SMX_LOX_CWIX2024.xsd:344-350) and it stays well-defined at rest, so a
+    // STOPPED unit reports speed 0 with a valid heading rather than no heading.
+    bool TryGetEntityKinematics(const std::string& uuid,
+                                double& speedMps, double& headingDeg) const;
 
     // -- terrain query (asynchronous) -----------------------------
     // Ask the simulating back end(s) for the terrain height under each point

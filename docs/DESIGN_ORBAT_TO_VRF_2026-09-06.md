@@ -146,6 +146,328 @@ C15 A UNIT'S TASK COMPLETION IS REPORTED FROM THE UNIT'S OWN ARRIVAL EVIDENCE - 
     (500 = the shipped Armor-Co formations' half-length) of the last vertex - a MAJORITY rule,
     never leader-only (the lone-leader case must not complete). The vendor's later completion
     is swallowed once. Settings Vrf:Arrival* (VrfSettings); --arrival-selftest.
+C16 PROGRESS WATCHDOG (REPORT-ONLY) - user approval 2026-09-13 ("2 as recommended"), BUILT on
+    branch worktree-agent-afc0b0f7b8d49ef63, NOT deployed. Why: VR-Forces 5.2 never reports a
+    unit that stops making progress while its move task runs - the base give-up test
+    (vrfobjcore/singleTaskControllerComponent.h:192-205) "always returns false",
+    ground-vehicle-move-to.lua has no progress test (only the stop-before-replan precondition
+    :1350-1353 and MAX_REPLANS=3 :47, which count blockage replans), and the shipped
+    examples/decideToGiveUpTask hands the test to the integrator as a SIM-SIDE PLUGIN we cannot
+    install from an HLA client (FINDING_EARLY_STOPS_2026-09-13 sec 6a). So the interface detects
+    it. POLICY (StallPolicy.cs, pure, --stall-selftest 66/66): the unit is STALLED when EVERY
+    member with a readable position has net displacement < StallMoveMeters over the last
+    StallWindowSeconds and at least StallMinMembersWithData members were readable. Net, not path
+    length (the 1-35 signature is a ~2 m limit cycle held for 480 s). A moving LEADER with still
+    followers is NOT a stall; one runaway member with five still ones is NOT a stall (that is
+    C15's straggler case). DEFAULTS: Vrf:StallDetection=false (OFF - deployed behaviour
+    unchanged), Vrf:StallClock=wall, StallWindowSeconds=0 (= the clock's calibrated window:
+    240 WALL s or 360 SIM s), StallMoveMeters=50, StallMinSecondsSinceDispatch=60,
+    StallCheckSeconds=5, StallMinMembersWithData=1.
+    WHICH CLOCK THE WINDOW RUNS ON - built 2026-09-13 on branch feat/sim-clock; this SUPERSEDES
+    the earlier "neither VrfFacade.h nor VrfBridge.cpp exports a sim-clock reader ... the reader
+    that would close the gap EXISTS one layer down - DtClock::simTime()" paragraph, which was
+    wrong in both halves. The reader was built, and it is NOT DtClock::simTime(): that LOCAL
+    VR-Link clock is the one VrfFacade.cpp:587-589 drives from elapsedRealTime() under
+    #if !VRF_API_52 - wall time on 5.0.2, unset on 5.2. The usable clock is the BACK END's,
+    DtVrfRemoteController::simTime(), declared at vrfcontrol/vrfRemoteController.h:355-356 on 5.2d
+    (:351-352 on 5.0.2): "Returns the simulation time of the specified back end. If no back end
+    specified, returns the first back ends simulation time". The vendor sample prints it as "Sim
+    time from sim engine status" and prints the local DtClock separately as "Local sim time"
+    (examples/remoteControl/commandLineRemoteController.cxx:1247-1256). It is fed by back-end
+    STATUS messages (DtIfStatus::simTime, vrfmsgs/ifStatus.h:85-87, cached per back end in
+    DtBackend::mySimTime, vrfutil/backend.h:273-274) and runs fast under
+    fixed-frame-run-to-complete. Exported as VrfFacade::SimTimeSeconds -> VrfBridge.SimTimeSeconds(),
+    -1.0 for "no reading" (no controller, or no back end discovered), on which the watchdog falls
+    back to wall seconds instead of going blind.
+    CALIBRATION - THE WINDOW BELONGS TO THE CLOCK (supersedes the "RE-CALIBRATION OWED" note; the
+    re-calibration is DONE, docs/experiments/RECAL_STALL_SIMSECONDS_2026-09-13.md). Vrf:StallClock
+    still DEFAULTS TO WALL - that is the mode measured live so far - and StallWindowSeconds now
+    defaults to 0, meaning "the window calibrated for the clock actually in use": 240 WALL seconds
+    or 360 SIM seconds. An explicit value is used as given, and a mid-run fallback to the wall
+    clock falls back to the wall window with it. The two numbers are NOT a conversion of each
+    other: P11's sim/wall ratio swings 1.10x-1.99x WITHIN that one run, so 240 wall s covers
+    264-478 sim s depending on load - which is why a single ratio was never going to give the sim
+    default. HOW 360 WAS DERIVED: the POS rows were re-stamped onto the sim axis by
+    piecewise-linear interpolation over the (wall, sim) pairs the object console's own line
+    prefixes carry (not one least-squares slope, which hides the load variation; hold-out p95
+    0.07/0.07/0.34 sim s, zero monotonicity violations), the replay REPRODUCED EVERY DOCUMENTED
+    WALL NUMBER first - the 120 s quartet and the 160 s triple to the second, the 160/170 boundary,
+    the 240 s fires, the 74/78 m true-negative minima, the 35-70 m clean band - and the sweep over
+    100-500 sim s then put the pooled false-alarm boundary at 50 m at 250 sim s (P11 250, G3 200,
+    G5 none, set by P11's 4-27 and G3's 856/HHC). 250 x 1.41, the wall default's own margin
+    convention, is 353 -> 360 on the sweep grid. At 360 sim s the clean threshold band is 35-75 m
+    (50 m mid-band, as at 240 wall s), the true-negative separation is 76-103 m against firing
+    maxima of 34-49 m, and ALL FIVE true positives fire EARLIER IN WALL TIME than the 240 wall s
+    window does (G5 135 s vs 385 s, P11 375 vs 419 and 1,813 vs 1,824, G3 396 vs 431 and 709 vs
+    742) - the freezes happen while the sim is running fastest, which is exactly what a sim-second
+    window is for. LIMITS, from that record: one order, one terrain, three runs, two true positives
+    and seven true negatives, and the sim boundary rests on two crawling units where the wall one
+    rested on four; a scenario whose crawl floor is slower than ~0.23 m/s of sim time would push
+    the boundary up and 360 would not hold. Vrf:StallClock is also VALIDATED - anything that is not
+    exactly "sim" or "wall", trimmed and case-insensitive, logs one line and runs on WALL. Row 19's
+    original "N = 120 SIM-seconds, must fire by sim ~500" is a criterion only under
+    StallClock=sim; at the shipped default the row reads in wall seconds.
+    COLD-START REVIEW OF THE SIM-CLOCK COMMIT (1616614 -> feat/sim-clock, --stall-selftest 52/52
+    [that was the count AT 1805ee3, 2026-09-13; it is 62/62 after the pass-3 fixes and 66/66 after
+    the pass-4 fixes - see the two paragraphs below]).
+    The clock choice and every vendor citation held; the RING built around it did not, and four
+    defects were fixed in the same branch. (1) and (2) the sliding window pruned only at the
+    FRONT, and that rule fires only when the two OLDEST stamps are equal - true only when the
+    pause or the rollback hits an empty or degenerate ring, which is the shape the self-test used
+    and NOT the shape a run produces. A pause beginning AFTER the ring filled grew it without
+    bound (249 entries after 400 s of run plus 1,000 wall s paused, each a member-position
+    dictionary), and a snapshot rollback (DtVrfRemoteController::rollbackToSnapshot) left
+    PRE-rollback samples that the re-opened window then compared against POST-rollback positions.
+    StallPolicy.Admit now prunes at BOTH ends: a sample that does not advance the clock REPLACES
+    its predecessor [REFUTED - pass 2 F1 showed that replace MANUFACTURES a TASKABRT on a ring of
+    one entry, and pass 3 reversed it: such a sample is now DISCARDED, and the replace survives
+    ONLY on the rollback branch. This clause describes 1805ee3 and becomes live again only if that
+    fix is rolled back - see the pass-2 paragraph below], and a backwards step drops every entry
+    from the abandoned timeline and re-arms the watch. (3) the grace anchor had moved from the
+    in-flight record's own DispatchedUtc to the watch's first sample, and on the DEFAULT aggregate
+    move path (MarkDispatched at VrfC2SimService.cs:2146, dest = the route's last vertex) and the
+    R11
+    plan-move path (:2049) a NEW task is recorded while ClearStallState still waits for the
+    route-created callback - so the previous task's ring could produce a TASKABRT stamped with the
+    NEW task uuid, unboundedly if that callback never arrives (the silent-freeze mode this
+    watchdog exists for). MarkDispatched now drops the unit's stall SAMPLES whenever the new task
+    carries a destination (the one-report flag still clears at ClearStallState, the conservative
+    direction), and the old wall grace is restored as an additional AND [NARROWED - pass 2 F8:
+    ANDing that 60 s WALL floor onto the SIM clock let the floor, not the calibrated window, set
+    the detection time above ratio ~6x (at 60x: wall 60 s / sim 3,600 s, ten times the window). It
+    is ANDed on the WALL path ONLY; MinRingDepth covers the two-sample case it guarded].
+    (4) with the window on the sim clock and the cadence on wall time, a high ratio let the gate
+    open on TWO position reads over a span 25 % wider than the configured window; the gate now
+    also requires
+    StallPolicy.MinRingDepth (4) samples inside the window and StallMinSecondsSinceDispatch of
+    WALL time since dispatch [pass 2 narrowed that floor to the WALL path - see below], and the
+    CADENCE FOLLOWS THE CLOCK (StallPolicy.NextCheckSeconds: sample often enough, down to a 1 s
+    floor, that one step advances the sim clock by at most window / MinRingDepth) so the depth
+    floor stays reachable instead of becoming a silent OFF switch. KNOWN LIMIT: above sim/wall
+    ratio window / ((MinRingDepth - 1) x 1 s) - 120x at the 360 s sim window, NOT the 90x this
+    paragraph first claimed - the 1 s cadence floor binds and the depth floor cannot be cleared, so
+    the watchdog cannot judge; pass 2 found this was also not logged, and it now is. Also fixed:
+    the clock mode needs THREE consecutive readings before it
+    switches (an unsteady reader was clearing every ring on every flip and logging a line each
+    time) and the mode line is rate-limited; and a sim clock that has not advanced for 60 wall
+    seconds while a move task is in flight now WARNS once and suspends judging - a back end that
+    misses its status timeout is DEACTIVATED, not removed (vrfBackendListener.h:161-163 against
+    :154-155), so backends().count() stays > 0 and the reader would otherwise return its last
+    cached value for the rest of the run and be read as a pause.
+    COLD-START REVIEW PASS 2 OF 1805ee3, FIXES IN PASS 3 (same branch, --stall-selftest 62/62 at
+    08146a2; 66/66 after pass 4, below).
+    Pass 2's verdict was MERGE WITH FIXES: the WALL path - the shipped default - reproduced
+    51d78a5's decision sequence exactly, Decide was byte-identical, and the pass-1 fixes did what
+    they claimed; but the SIM path, the point of the branch, carried three defects a preregistered
+    StallClock=sim run would have hit, plus one that reached the wall path. All are fixed here and
+    each carries a self-test that FAILS against the logic it replaced (proved by reverting,
+    rebuilding and running). F1: a sample that did not advance the clock REPLACED the newest ring
+    entry's payload under its OLD stamp, and a ring of one entry is at both ends at once - so the
+    window was measured from an old stamp against positions read up to a flat-clock interval later,
+    the false-positive direction. A unit crawling at 0.23 m/s of SIM time (the RECAL doc's own
+    tightest true negative) was reported STALLED after a 40-wall-second flat reading at 6.21x, on
+    35.7 m over a nominal 360 s window whose true displacement was 82.8 m; the 60 s stale hold
+    lands 1-20 s too late to cover it. Such a sample is now DISCARDED (the rollback branch still
+    replaces, where the stored payload really is stale). F2: `simSeconds < 0.0` is FALSE for NaN,
+    so a NaN reading became the clock while StallPolicy.UsingSimClock - the next predicate, same
+    value, same method - called it no reading; Admit then appended the NaN and BOTH disjuncts of
+    ShouldDropOldest went false, so the front prune stopped for the rest of the run (1,195 entries,
+    window 8,955 sim s against a configured 360). The service now uses that one predicate and
+    StallPolicy.SelectClock instead of an inlined copy, and Admit refuses a non-finite clock. F3:
+    _stallSimClockLast was a HIGH-WATER mark, so after rollbackToSnapshot the clock was genuinely
+    advancing below it, the stale detector fired 60 wall s later and suspended judging for EVERY
+    unit until it climbed back - 420 wall s for a 475 sim s rollback - under the text "the scenario
+    is PAUSED, or the back end has stopped answering". A backwards step is now a CHANGE
+    (StallPolicy.ClassifyClockStep) with its own rate-limited line. F4, the one that reached the
+    WALL path: nothing bounded Vrf:StallCheckSeconds against the window, so above window /
+    (MinRingDepth - 1) - 80 s at the shipped 240 s wall window - the ring never filled and the
+    watchdog judged NOTHING, silently, where 51d78a5 fired at 240 s (measured at StallCheckSeconds
+    120 and 240). The cadence is now CLAMPED to that ceiling with one startup line - clamped, not
+    refused, because the watchdog is report-only and a mis-set knob must not stop a run - and in
+    sim mode a rate-limited line says so when the cadence sits at its 1 s floor with the ring below
+    MinRingDepth for a whole window. F6: the one-report guard tested ContainsKey(NAME) while the
+    map is documented as name -> task UUID, so a unit that stalled once and was then RE-TASKED went
+    unwatched for the rest of its life in the in-flight set; it now compares the uuid. F8: the 60 s
+    wall floor was ANDed on BOTH clocks, and 360 sim s is ~58 wall s at 6.21x, so above ratio ~6x
+    the floor - not the calibrated window - set the detection time (at 60x: wall 60 s / sim 3,600 s,
+    ten times the window), negating the "fires EARLIER in wall time" property the 360 s default was
+    chosen for. It is applied on the WALL path only; MinRingDepth, which 51d78a5 did not have,
+    covers the two-sample case it incidentally guarded. F7/F9 were comment repairs: two clauses
+    still said wall was "the only CALIBRATED mode - see RE-CALIBRATION OWED", which this same
+    branch refuted - wall is the default because it is the mode MEASURED LIVE so far - and
+    StallWindowSeconds 0 (and negative) now means the calibrated default where it used to mean a
+    ONE-SECOND window. WALL PATH UNCHANGED at shipped settings: the seven synthetic feeds pass 2
+    used (frozen; 2 m/s; crawl 0.20 and 0.21 m/s either side of the 50 m/240 s line; move-600-then-
+    freeze; a +/-2 m limit cycle; creep-then-stop) fire at identical times against 51d78a5. Off the
+    defaults the clamp moves two fire times EARLIER, to the window edge (StallCheckSeconds 81:
+    243 -> 240; 100: 300 -> 240), where 1805ee3 was dormant. UNTESTED, still: the finding-3 change
+    itself - MarkDispatched dropping _stallSamples on a re-task with a destination - has no test at
+    the service level, because --stall-selftest cannot reach the service; it is modelled offline
+    only, and so is F6. THE TWO LIVE UNKNOWNS BELOW ARE UNCHANGED by any of this, and F1's trigger
+    is the second of them: if the reader extrapolates, a paused reading is a sawtooth rather than
+    the flat line that produced the false TASKABRT.
+    COLD-START REVIEW PASS 3 OF 08146a2, FIXES IN PASS 4 (same branch, --stall-selftest 66/66).
+    Pass 3's verdict was MERGE WITH FIXES: every pass-2 finding is closed or correctly narrowed,
+    the WALL path is still decision-identical to 51d78a5 across TEN synthetic feeds (the seven of
+    pass 2 plus a 300 s reader outage, a 60 m step at the window edge, and exactly 50.0 m per
+    240 s), and Decide is still byte-identical to 51d78a5. Two defects, one of them NEW and made
+    reachable by the pass-3 fixes themselves. P1 (MAJOR, introduced by pass 3): the F2 fix taught
+    Admit to REFUSE a non-finite clock, but the caller's gate stayed `simSeconds >= 0.0`, which is
+    TRUE for +Infinity - so +Inf became clockNow, Admit returned without appending, and either the
+    ring was left EMPTY for `var oldest = ring[0]` to index (IndexOutOfRangeException on the
+    vrf-tick thread, which has no handler and terminates the process) or, on a ring with entries,
+    both window terms went trivially true against +Inf and the gate opened on whatever depth
+    existed - a TASKABRT on the SAME TICK, on 6.9 / 13.8 / 20.7 m at wall 20 / 40 / 60, on the
+    RECAL doc's own tightest true negative. FIXED: UsingSimClock requires double.IsFinite,
+    SelectClock routes through it, and the caller tests ring.Count before indexing. P4: the new
+    dormancy line was armed on ONE CAUSE - the cadence at its 1 s floor with every ring below
+    MinRingDepth - which is the high-ratio cause only. MODE THRASH is the measured miss: a reader
+    out for 3 or more CONSECUTIVE checks flips the clock mode for real, every flip drops every
+    ring and swaps the window, and at 1.5x the cadence never leaves 5 s - 3 consecutive misses in
+    every 10 at 1.5x, frozen unit, 3,000 wall s gave 0 verdicts, 0 judgeable checks, 40 mode lines
+    and NOTHING saying no unit was being watched. FIXED: the line is armed on the OBSERVABLE
+    condition (nothing satisfied JudgeReady for DormancyWindows = 2 whole windows while samples
+    were being taken), measured on the watchdog's own monotone un-judged axis so it survives the
+    thrash it reports; the high-ratio explanation stays as a hint when the cadence is at its floor.
+    Both fixes carry a self-test that FAILS against the logic it replaces (4 FAILED on the revert,
+    ALL CHECKS PASSED restored). Also in pass 4: P7 - the rollback and dormancy lines now carry the
+    suppressed-count suffix the mode line already had, and the operator-facing text quotes the
+    MEASURED 150x-200x boundary rather than the conservative analytic 120x; P8 - the four checks
+    that are invariants or new-API tables rather than discriminators are now labelled
+    (INVARIANT ...) / (NEW API ...), and the honest claim is that each FINDING, not each check,
+    carries a discriminating test; P11 - the 0c pre-flight prints BOTH clocks' numbers when
+    Vrf:StallClock=sim (sim 360 s / cadence C, wall fallback 240 s / cadence C') and says that
+    which pair is in effect is not known until the first check; P2/P3 - the last three code texts
+    and three doc sentences asserting refuted claims were repaired in place.
+    RESIDUALS FROM PASS 3, recorded and NOT fixed. (P5) The one-report guard compares the task
+    uuid, so a re-task with a NEW uuid is watched again - but a re-task carrying the SAME uuid
+    leaves _stallReported matching while MarkDispatched has dropped the samples, and the unit is
+    skipped for the rest of the run with nothing in the log; narrow, because four of the six
+    dispatch sites call ClearStallState in the same block and only :2049 and :2146 defer it to the
+    route-created callback. (P5, inherited from 51d78a5) ClearStallState also clears
+    _stallReported, so if that route-created callback lands MORE THAN ONE WINDOW after
+    MarkDispatched the same task uuid can be reported TWICE, against the "one report per
+    unit-task, ever" promise. (P6) F8's removal of the wall floor on the sim clock is entirely
+    outside the calibrated ratio range (RECAL: P11 1.10x-1.99x, G5 6.21x): the first verdict now
+    lands about window/ratio WALL seconds after a watch opens - 240 s at 1.5x, 60 s at 6.21x, 8 s
+    at 60x, 7 s at 120x - so at high ratios a TASKABRT can rest on four position reads one second
+    apart, with MinRingDepth carrying the whole load against an unrefreshed HLA reflection. The
+    number is now in the 0c line; the behaviour stands. (P7, partly) The dormancy line is still
+    rate-limited at 60 wall s, so a two-hour run stuck at 200x emits ~120 warnings - now each
+    carrying the count it suppressed. (P9) EVERY backwards step is diagnosed as
+    rollbackToSnapshot, so a JITTERING sim reading produces a stream of false rollback lines and
+    can SUPPRESS A TRUE DETECTION: on a reading oscillating about a rising 1.5x trend with a
+    frozen unit over 6,000 wall s, amplitudes 5 s and 200 s never reported the unit (92-100 false
+    rollback warnings) while 30 / 100 / 400 / 1000 s did fire. That amplitude sweep is
+    NON-MONOTONIC and the reviewer could not fully explain it - traced to the phase relationship
+    between the square wave, the 5 s cadence and the front prune, but not characterised; recorded
+    here as an UNEXPLAINED observation, not a footnote. Falsifier: evidence that simTime() is
+    monotone between genuine rollbacks, which is part of the instrumented run below. (P10) The
+    sim-blackout early return happens BEFORE the dead-unit prune, so during a blackout
+    _stallSamples and _stallReported retain entries for units that have completed; bounded by unit
+    count, but the "the buffer must not grow across a whole run" comment does not cover it.
+    STILL UNTESTED at the service level, unchanged: MarkDispatched dropping _stallSamples on a
+    re-task with a destination, and F6 - --stall-selftest cannot reach the service, so both are
+    modelled offline only.
+    TWO LIVE UNKNOWNS, both settled by ONE instrumented run (log SimTimeSeconds() every check for
+    60 s running and 60 s paused, and compare one reading against a CON row's own sim prefix at the
+    same wall instant): (a) whether DtVrfRemoteController::simTime() reports THE SAME CLOCK the
+    object console prints as its own sim prefix - that prefix is the only sim stamp in the capture
+    and therefore the axis the 360 was calibrated on, so if the reader returned a different
+    quantity (exercise time rather than scenario time, say) the sim window would need re-deriving;
+    (b) whether DtBackend::simTime() EXTRAPOLATES between back-end status messages - the member
+    layout (mySimTimeToRealTimeRatio, myLastSimTimeUpdated "wall-clock time elapsed since last sim
+    time was updated", vrfutil/backend.h:410-419) suggests it may, which would make a paused
+    reading a sawtooth and weaken the headline "a paused scenario can no longer trip the watchdog".
+    Lesser residual: the back-end STATUS PERIOD, i.e. the reader's resolution - if it is coarser
+    than StallCheckSeconds, consecutive samples share a stamp (the back-prune bounds the ring, but
+    the measured displacement is still biased downward by up to one sampling interval).
+    THE SAMPLER IS SHARED WITH C15 (TryReadMemberPositions) so the two policies can never judge
+    different samples. It keys member positions by VRF uuid, and the member count it is judged
+    against therefore counts DISTINCT non-empty uuids: VrfFacade::collectMembers recurses to
+    depth 3 WITHOUT de-duplicating, so a member published under two sub-aggregates would
+    otherwise weigh twice against arrival while contributing one position - strictly harder than
+    the pre-C16 sampler, which weighted the duplicate consistently on both sides. Guarded by a
+    decision table in --arrival-selftest (main / un-deduplicated / fixed over all 32 near-far
+    arrangements of a duplicated member). Two DELIBERATE divergences from the pre-C16 arithmetic,
+    both in the direction of "one vehicle is one vote": a duplicated ABSENT member no longer
+    counts twice against arrival, and a member whose uuid is EMPTY (never observed) is left out
+    of the count entirely rather than counted as an unreadable member.
+    WHAT IT NEVER DOES: no VR-Forces command, no re-task, no change to the in-flight record, the
+    sequencer or the pending-engage map. It sends ONE C2SIM TaskStatus with TASKABRT per
+    unit-task through the SAME ReportBuilder path as TASKCMPLT (BuildTaskStatusReport now takes
+    the code; --report-selftest has the TASKABRT round-trip) and logs "STALL: unit ... TASKABRT
+    reported". State is cleared wherever the C15 arrival swallow is cleared (a new task) AND at
+    the top of SynthesizeUnitCompletion, which EVERY completion path reaches under the UNIT name;
+    OnVrfTaskCompleted's own clear keys on e.UnitMarking, which under R10 fan-out is a MEMBER
+    name and clears nothing. The per-unit window and the one-report flag are both pruned for
+    units that have left the in-flight set, so neither map grows across a run.
+    ABORT-THEN-COMPLETE IS INTENDED (supervisor ruling 2026-09-13; the user may override). A unit
+    that has already reported TASKABRT and then moves and ARRIVES still sends TASKCMPLT for the
+    SAME task uuid: the abort was the interface's judgement at the time, the arrival is evidence,
+    and STP sees the truthful sequence. TASKABRT NEVER suppresses a later TASKCMPLT. The converse
+    DOES hold - a TASKCMPLT suppresses any later TASKABRT for that task - because completing pops
+    the in-flight record and the watchdog only ever looks at in-flight move tasks (and the C15
+    arrival gate skips the unit besides).
+    SILENCE IS NOT STALLING: a unit whose members stop being REFLECTED has no data, not a stall -
+    Decide() returns "not stalled" whenever fewer than StallMinMembersWithData members had a
+    readable position at both ends of the window, so a reflection gap is never reported as a unit
+    standing still. Deliberate for a report-only watchdog: a false TASKABRT costs STP more than a
+    missed one.
+    THE SEQUENCER IS NOT TOLD: a TASKABRT does not call _sequencer.CompleteTask, so the
+    successors of an aborted task stay gated until their own predecessor timeout. After an abort
+    STP's view (this task is aborted, move on) and the interface's view (the task is still in
+    flight, its successors still wait) DIVERGE - by design for report-only, and noted for the
+    user as the first thing to revisit if the watchdog is ever allowed to act.
+    REPLAY VALIDATION (tools/analysis/stall_replay.py, the same rule over each run's
+    watchvrf-trace.csv POS rows; C15's arrival rule is replayed too, so a fire after arrival is
+    suppressed as it is in the product). THE EXACT INVOCATIONS, all re-run 2026-09-13 after the
+    review fixes; runs/ is read-only and was not modified:
+      G5  stall_replay.py runs/20260913T185936Z_run --order data/COA-STP1_Order.xml
+            --expect-fire 1-35          (the order actually pushed was a scratchpad copy holding
+                                         T1 alone, whose vertices are identical to T1 in the repo
+                                         order; only 1-35 is tasked, so only 1-35 can fire)
+      G3  stall_replay.py runs/20260913T174516Z_run --order data/COA-STP1_Order.xml
+            --expect-fire 1-35,1-6
+      P11 stall_replay.py runs/20260907T150643Z_run --order data/COA-STP1_Order.xml
+            --expect-fire 1-35,1-6
+    | run | ratio | fires: wall s, max moved in the window, distance still to go | true neg | false alarms |
+    |---|---|---|---|---|
+    | G5 20260913T185936Z | 6.21x | 1-35 @ 385 s, 49.6 m, 24,304 m short | n/a (1 unit tasked) | 0 |
+    | G3 20260913T174516Z | 1.60x | 1-35 @ 431 s, 43.9 m, 24,131 m short; 1-6 @ 742 s, 49.5 m, 30,098 m short | 7 of 9 | 0 |
+    | P11 20260907T150643Z | 1.46x | 1-35 @ 419 s, 43.4 m, 24,337 m short; 1-6 @ 1824 s, 48.6 m, 30,300 m short | 7 of 9 | 0 |
+    The "distance still to go" is the replay's end-dist column (added on review): the nearest
+    member's distance to the task destination at the END of the trace. It is the evidence behind
+    each label - a unit that never fires and ends kilometres short is a real early stop the rule
+    missed, whatever --expect-fire says.
+    THE WINDOW IS 240 s BECAUSE 120 s FALSE-ALARMS ON CRAWLERS: at 120 s the rule also fires on
+    P11's 4-27 (@1519), 40 (@3475), 856/HHC (@2520) and C/1-35 (@3699), each of which then covers
+    203-1,191 m more - they creep at 0.4-0.5 m/s for thousands of seconds and dip below 50 m/120 s
+    only transiently. AT THE 120 s WINDOW a bigger THRESHOLD cannot separate them (there the
+    crawlers' per-window minima, 41-50 m, overlap the frozen units', 22-49 m); only persistence
+    can. Measured boundary: window 160 still leaves three false alarms in P11 (40 @4150, 856/HHC
+    @4070, C/1-35 @4119) and window 170 leaves none in either run - the last false alarm
+    disappears between 160 s and 170 s, so the shipped 240 s keeps a 1.41x margin (240/170).
+    AT THE 240 s WINDOW the threshold separation the 120 s window lacked is there: the tightest
+    true negative is 74 m per window (P11's 40, 856/HHC and C/1-35; 4-27 at 78 m) against frozen
+    per-window maxima of 43-50 m. MEASURED BAND over all three runs: move thresholds from 35 m to
+    70 m are clean AND still catch both frozen units. Not lower - at 30 m G3's 1-6 is MISSED (its
+    per-window minimum is 34 m) - and not 74 m or above, where the P11 crawlers start firing. The
+    shipped 50 m sits in the middle of that band.
+    G3's 856/HHC - the one row whose LABEL the trace does not decide. It stops 3,448 m short of
+    its destination: after wall 1,456 s no member is ever again more than 50 m from where it ends,
+    and the POS rows end at 1,591 s - 135 s later. The 120 s window fires on it at 1,512 s, 79 s
+    before the trace ends, and because 856/HHC is not in --expect-fire the tool prints FALSE ALARM
+    for it there. The 240 s window cannot fire at all: 135 s of stillness cannot fill a 240 s
+    window (its tightest per-window max is 60 m at window 160 and 65 m at 170, and over the LAST
+    240 s of the trace three of its four members still covered 660-670 m). WHETHER IT IS A TRUE
+    POSITIVE IS UNDECIDABLE FROM THIS TRACE: 135 s of stillness is exactly the transient dip the
+    P11 crawlers show, and the SAME unit in P11 is a crawler that ends 307 m short still moving
+    (per-window minimum 74 m). The 2026-09-13 review called it a real early stop and asked for it
+    to be relabelled a true positive; the measurements above support neither label, so it is
+    recorded UNDECIDED for the user to rule on and --expect-fire is deliberately left unchanged so
+    the window settings stay comparable. It is certainly NOT the 1-35 / 1-6 signature, which holds
+    under 50 m for the whole remaining trace and ends 24-30 km short of the destination.
 NEXT (the only real work): N1 DONE 2026-09-06 (PREREG_N1_COMPOSE_DEFAULT: default ON verified by
 run D 162958Z 3/3 with no env; flag-off run L 164022Z reproduces the legacy 38-phantom / 2-of-3
 signature - the switch is the regression control). N2 DONE 2026-09-06 (PREREG_N2_DECLARED_ORDER:

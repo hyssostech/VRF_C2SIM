@@ -2,8 +2,55 @@
 # TASKABRT for stalled units ('Ok on 2-3'), so G6/B6's code question is decided; B5/B3/B1/B2/B8 dispatched the
 # same turn on feat/reporting (off the watchdog branch); B10 drafted as docs/DRAFT_STP_QUESTIONS_2026-09-14.md
 # (not sent); B4 (pre-flight port) and B7 (heading/speed) queued behind them; B9 (bundle) = one run.
+# UPDATE 2026-09-14 ~13:00Z: B5/B3/B1/B2/B8 are BUILT, cold-start reviewed and the review's findings
+# applied on feat/reporting - see the STATUS section below for the shas, the four live gates and the
+# two items still owed. Sec 6 marks each item; the rest of this record is UNCHANGED and still
+# describes the shipped build as it was measured in G6.
 
 # REPORTING ASSESSMENT - what STP and the demo audience see (2026-09-14)
+
+## STATUS 2026-09-14 (branch `feat/reporting`) - B1/B2/B3/B5/B8 are BUILT, LIVE CONFIRMATION OWED
+
+B5, B3, B1, B2 and B8 are all implemented and committed on `feat/reporting`, cold-start reviewed
+(verdict MERGE WITH FIXES, 2 MAJOR latent + 11 minor/notes) and the review's findings applied. Build
+commits: `9286398` (B5), `ebf8da9` + `f0d1c68` (B3), `81d108c` (B1), `f057fc2` (B2), `4e9a9ce` (B8).
+Review-fix commits: `3242337` (NameRegistry - findings 1/2/3), `a83c79f` (the policies - findings
+4/5/6/8/10), `319a098` (--report-selftest proofs), `b965dd8` (the service call sites - findings
+1/4/6/7/8/12). Offline self-tests
+(`--report-selftest`, `--name-selftest`, `--parse-selftest`, plus the untouched
+`--stall/--arrival/--typemap` suites) are the only evidence so far.
+
+NOTHING HERE IS CONFIRMED LIVE. The four gates, all owed to one COA-STP1 run:
+
+1. the R1 line reads **128 sent, 0 skipped** (B3 closes G1);
+2. **14 TASKSTRT** on the bus within seconds of the order (B1 closes G4);
+3. **zero "Failed to deserialize" lines** in the run log - there are exactly 2 in every run today (B5);
+4. **more than 102 NameObservations** (B8 closes G10).
+
+ONE ITEM REMAINS OWED IRRESPECTIVE OF THAT RUN (the first of the two was landed on
+`feat/integration`, 2026-09-14):
+
+- ~~**Native `success()` forwarding.**~~ **DONE on `feat/integration`.** `feat/heading-speed`
+  added the native half (`VrfFacade` reads `DtTaskCompleteReport::success()`,
+  `taskCompleteReport.h:84-90`, into `TaskCompleted::success`; `VrfBridge` raises it as
+  `TaskCompletedEventArgs.Success`) and the integration branch wired it: `OnVrfTaskCompleted`
+  now reads `bool success = e.Success` instead of the literal, so a vendor-reported FAILURE
+  becomes TASKABRT, releases no successor and cancels a parked engage. `--report-selftest`
+  walks both flag values to the deserialized wire xml. What the offline test CANNOT see is
+  that the call site reads `e.Success` (loading the mixed-mode bridge needs the MAK runtime),
+  so G2 closes on the live gate: one run where a vendor `Failed` produces a TASKABRT.
+- **STP's behaviour on a DUPLICATE ReportID.** B2's retry is at-least-once: it re-sends the same xml,
+  same ReportID, and the SDK POSTs before it parses the answer, so a TaskStatus can reach the bus
+  twice under one id. Added as **question 6** of B10 (`docs/DRAFT_STP_QUESTIONS_2026-09-14.md`). It
+  also breaks the "0 duplicate ReportID" property sec 7 records for the G6 capture.
+
+BEHAVIOUR CHANGE TO STATE (review finding 4): an **advance-then-engage** task (ATTACK/BREACH with a
+resolved target) is one C2SIM task executed as two VR-Forces tasks. The MOVE half's completion now
+reports **TASKINPRG**, and the task's single **TASKCMPLT** is kept for the engage's completion.
+Before `feat/reporting` the move's completion sent TASKCMPLT and the engage's sent a second one with
+the same `CurrentTask`; with B1's once-per-task rule and no fix, the engage's report would have been
+suppressed entirely and STP would have been told the attack finished the moment the unit arrived at
+its firing position. STP now sees TASKSTRT -> TASKINPRG -> TASKCMPLT for these tasks.
 
 Lane L2 of `docs/PLAN_PARALLEL_LANES_2026-09-14.md`. READ-ONLY; every figure comes from the repo's code, its docs, or the run captures named. Tier: STANDARD. The two cause claims (sec 3, sec 5 G1) each carry a falsifier and were checked.
 
@@ -237,18 +284,21 @@ ListenReports' `-WatchSecs` cap ended G6's capture at 1,200 s; the first TASKCMP
 **Test:** extend `--report-selftest` with a TASKSTRT round-trip; one COA-STP1 run must show 14 TASKSTRT (= the MoveAlongRoute dispatch count) on the bus within seconds of the order, plus one status per refused/skipped task; TASKCMPLT count and pairing unchanged.
 **User decision:** yes, for the FAILURE codes only - is a refused task TASKABRT, or does STP want TASKPEND/nothing? TASKSTRT itself needs none.
 **Value:** closes G4 and half of G2; turns a 27-minute silence into immediate feedback. **Cost:** low.
+**STATUS: BUILT** (`81d108c` + review fixes, `feat/reporting`), live confirmation owed - gate 2 above. `TaskStatusPolicy.cs` is the whole rule set (one TASKSTRT per execution, one TASKCMPLT per task, TASKABRT never suppresses a later TASKCMPLT, a TASKCMPLT does suppress a later TASKABRT); `PushTaskStatus` is the single emit point. Review fixes on top: TASKSTRT re-arms after a COMPLETION only, never after an abort (finding 10); the MOVE half of an advance-then-engage reports TASKINPRG (finding 4 - see the STATUS section at the top); the three silent dispatch dead ends with a taskee uuid (unit-not-created, taskee-not-in-initialization, orchestration threw) now report TASKABRT (finding 7). **G2**: the vendor's own `success()==false` is forwarded since the `feat/integration` wiring (2026-09-14) - see the STATUS section - so that branch is live and closes on its run gate.
 
 ### B2. Never lose a task status: check the server's answer and retry
 **What:** (a) make `PushReportAsync` inspect the returned `C2SIMServerResponse` and log an ERROR status with the server's message; (b) give TASK-STATUS pushes (not position pushes) a bounded retry with backoff and a loud line if they finally fail; (c) add a cumulative counter ("reports: N sent, M failed") to the existing R1 line.
 **Anchor:** `C2SIMServerResponse.ResponseStatus` (`C2SIMServerResponse.cs:31`); `PushMessage` does not throw on ERROR (`C2SIMSSDK.cs:505-528`); measured loss in G6 = 129 pushes in 6 bursts.
 **Test:** offline - a fake SDK returning ERROR once then OK proves one retry and one log line; live - point the interface at a stopped server, confirm the loud line, restart, confirm the status arrives. Existing runs are the regression control (TaskStatus loss must go to 0).
 **User decision:** no. **Value:** closes G3. **Cost:** low.
+**STATUS: BUILT** (`f057fc2` + review fixes, `feat/reporting`), live confirmation owed. `ReportPush.cs` is the pure retry/inspection policy (injected transport, testable with no SDK and no server); `PushReportAsync` counts every outcome and is LOUD on a final failure; the R1 line now labels its cumulative pair ("cumulative: N sent, M failed" - review finding 12, the unlabelled pair read as a second per-cycle count). Review fixes on top: an EMPTY server body is no longer counted as a delivery for a TaskStatus (finding 6 - `SendTrans` returns the body with NO status-code check, `C2SIMClientRestLib.cs:377-401`, so "" reaches `ToC2SIMObject` and becomes a null response); and the at-least-once semantics are stated in the `ReportPush` header (finding 5). DETERMINATION for the G6 symptom, measured from the run log: "The response ended prematurely" is an EXCEPTION, not an empty body - `HttpRequestException` "An error occurred while sending the request" with inner `HttpIOException` "The response ended prematurely. (ResponseEnded)", out of `_httpClient.SendAsync` at `C2SIMClientRestLib.cs:389`, rethrown by `SendTrans` as `C2SIMClientException`. B2 already retried that case; the empty-body hole was a separate one.
 
 ### B3. Fix the platform-unit name mismatch (G1)
 **What:** key the R1 poll and the arrival check by the unit's VRF UUID rather than its name - `ObjectCreated` already gives both (`:2296`) - or record the callback's returned name against the `CreatedUnit` so the two maps cannot diverge. Separately, split the R1 "skipped" counter into "name unresolved" and "no reflected object", and name the unit the first time each occurs.
 **Anchor:** `VrfC2SimService.cs:2294-2297`, `:529-530`, `:2483`; `docs/PORT.md` sec 6 on the 10-character DIS marking limit and its collision behaviour.
 **Test:** offline - a self-test that feeds `ObjectCreated` a TRUNCATED name for a requested longer marking and asserts the unit is still found. Live - the COA-STP1 run must report 128 of 128 subjects and the R1 line must read "128 sent, 0 skipped".
 **User decision:** no. **Value:** closes G1 (a silent, total reporting failure for a whole class of unit, which also makes such a unit uncompletable). **Cost:** low; care needed not to disturb the compose/materialize paths that legitimately key by name.
+**STATUS: BUILT** (`ebf8da9` + `f0d1c68` + review fixes, `feat/reporting`), live confirmation owed - gate 1 above. `NameRegistry.cs` owns the name <-> uuid correlation: a returned name that is not itself requested resolves to the UNIQUE requested name that has it as a strict prefix, both spellings bind to the uuid, and the reverse map holds the resolved name. The R1 "skipped" counter is split into NAME UNRESOLVED and NOT REFLECTED and names each unit ONCE. The exact-match path is provably the two writes the pre-B3 code made, so the 127 units that already worked are untouched. Review fixes on top: an exact match that is ALSO a strict prefix of longer requested names keeps the exact binding but WARNS and names every candidate, and a create-time NAME PRE-FLIGHT lists such pairs once per batch (finding 1 - COA-STP1 really contains `510/40~PXY`, exactly 10 characters, plus its four EXPAND children); resolution targets only names still AWAITING their ObjectCreated, so a later object cannot take a live unit's identity (finding 2); a candidate registered after a resolution was cached invalidates that cache entry (finding 3). **Residual, stated in the class header:** correctness depends on every requested name fitting the marking width; `MaxVrfMarkingChars` here is 34, the sim truncates at 10-11.
 
 ### B4. Wire the route pre-flight into the interface at order receipt (row 20, deliveries 1 and 2)
 **What:** port `leg_check.py`'s scoring into the interface (shelling out is not an option - the product contains no Python, row 6) so that at ORDER RECEIPT, before dispatch, each leg is scored and each flagged leg emits the ObservationReport pair the tool already writes. **Warnings only**; no TASKABRT from the pre-flight until row 20's calibration gate is met.
@@ -262,6 +312,7 @@ ListenReports' `-WatchSecs` cap ended G6's capture at 1,200 s; the first TASKCMP
 **Anchor:** the SDK's own pump does exactly this - XElement, LocalName switch (`C2SIMSSDK.cs:639-676`); `ToC2SIMObject` logs at Error and rethrows (`:823`).
 **Test:** `--parse-init` / `--parse-order` on both a MessageBody-rooted FILE and a bare-body string must both parse, and the SDK logger must emit NOTHING. Live: zero "Failed to deserialize" lines in the next run's log (today exactly 2, in every run).
 **User decision:** no. **Value:** removes the loudest and most misleading line an operator sees at the demo (G9, row 15). **Cost:** trivial.
+**STATUS: BUILT** (`9286398`, `feat/reporting`), live confirmation owed - gate 3 above. `C2SimXml.RootLocalName` sniffs the root with an `XmlReader` and `InitParser`/`OrderParser` call the matching overload ONCE; `--parse-selftest` drives both parsers over MessageBody-rooted, DomainMessageBody-rooted and bare-body documents with a capturing SDK logger and asserts ZERO SDK error lines. The sniff accepts a strict SUPERSET of what the old parsers accepted (a `DomainMessageBody`-rooted order could not be read at all before). No review finding against it; the cold-start review's one note is that a DOCTYPE now produces one misleading error naming the bare type instead of two, with the same net outcome.
 
 ### B6. Land the watchdog and decide its code (G6)
 **What:** finish `feat/sim-clock`'s pass-3 review, merge, set the demo default. Then the code question: TASKABRT, or ObservationReport-plus-TASKINPRG.
@@ -280,6 +331,7 @@ ListenReports' `-WatchSecs` cap ended G6's capture at 1,200 s; the first TASKCMP
 **Anchor:** R-SURFACE-PROXY ruling 2026-07-17 ("never silently swallowed", `VrfSettings.cs:99-105`); emit site `:925-927`, proxy list built at `:740`.
 **Test:** COA-STP1 must show more than 102 observations, one per MATERIALIZE that changed the template; the init-time count unchanged.
 **User decision:** no. **Value:** G10, small. **Cost:** trivial.
+**STATUS: BUILT** (`4e9a9ce` + review fixes, `feat/reporting`), live confirmation owed - gate 4 above. `SubstitutionAnnouncer.cs` turns "how is this unit represented" into ONE comparable string (template + shell/composed-from-N) and announces only when it is new or has CHANGED, so a re-creation as the same thing stays silent; `MaterializeUnit` calls it after the case-1 and platform early-returns. Review fix on top: the init loop's fallback when a proxied unit's final plan is not in the batch is now a SENTINEL, not the unit's own name (finding 8). NOTED, not a defect: `Substituted(sub, composedFrom)` returns true for a composition even with an empty substitution string, which widens R-SURFACE-PROXY beyond the 2026-07-17 ruling's wording - a composition standing in for the unit's own type is the intent, and the ruling's record should say so.
 
 ### B9. Measure the bundle, then choose a default
 **What:** run one COA-STP1 with `Vrf:BundlePositionReports=true` against the existing default-off runs; compare server-side losses, end-to-end latency and capture size **at equal sim time**.
@@ -288,7 +340,7 @@ ListenReports' `-WatchSecs` cap ended G6's capture at 1,200 s; the first TASKCMP
 **User decision:** no (unless STP prefers one shape). **Value:** G8; also the cheapest mitigation for G3 if the bursts are load. **Cost:** low (one run, no code).
 
 ### B10. Ask the STP owner five questions (the cheapest item here)
-**What:** one message with a sample of each body we emit, asking: (1) does STP render ObservationReport/NameObservation, and where; (2) does it plot LocationObservation on the map; (3) does it use HeadingAngle/Speed/EntityHealthStatus; (4) what does it do with TASKSTRT, TASKINPRG, TASKABRT; (5) does it prefer bundled or single position reports.
+**What:** one message with a sample of each body we emit, asking: (1) does STP render ObservationReport/NameObservation, and where; (2) does it plot LocationObservation on the map; (3) does it use HeadingAngle/Speed/EntityHealthStatus; (4) what does it do with TASKSTRT, TASKINPRG, TASKABRT; (5) does it prefer bundled or single position reports; **(6) what does STP do with a DUPLICATE ReportID** - B2's retry is at-least-once and re-sends the identical xml, so the same TaskStatus can arrive twice under one id (added 2026-09-14 from the cold-start review, finding 5; not yet in the draft message).
 **Anchor:** sec 4's NOT-IN-THE-RECORD list; row 20's own words "their end; the channel to invest in".
 **Test:** the answers are the test for B1, B4, B7 and B9.
 **User decision:** yes - outward-facing message. **Value:** converts four of the eleven gaps from guesswork into specification. **Cost:** trivial.

@@ -1,6 +1,19 @@
-# Cold-start review of feat/tasking-rulings 5c67d41 (Opus, 2026-09-14 ~16:20Z): FIX FIRST - M1 the timed completion loses the race against TaskPredecessorTimeoutSeconds by construction (the chain still dies), M2 two clocks, M3 no hysteresis, M4 stale sim clock, M5 R1 covers areas only;
-# Q1-Q4 user rulings (supervisor defaults: superseded -> TASKABRT, Duration on the SIM clock under Vrf:TaskClock, wire ambiguity accepted, DefaultHoldSeconds 60);
-# fix pass running.
+SUPERVISOR HEADER (2026-09-14). VERDICT ACCEPTED: FIX FIRST. All five MAJOR items, m6 and
+every minor m1-m9 are FIXED on feat/tasking-rulings in 075c0b7 (M1), 3fe69fa (M2), 48e7c5d (M3+M4),
+1ddb9a7 (M5), 06f8cf0 (minors + defaults) and 6d46921 (tests), on top of merge 182bd51.
+Q1-Q4 are answered by SUPERVISOR DEFAULTS pending the user's own ruling: Q1 a superseded task is
+TASKABRT at the supersede point (Vrf:SupersededTaskCode, "TASKCMPLT" selectable); Q2 the Duration,
+the StartTime delay and the predecessor gate are all measured on the SIMULATION clock with a wall
+fallback, under R4's own Vrf:TaskClock (default "sim", independent of Vrf:StallClock); Q3 the wire
+ambiguity is ACCEPTED and documented (STP-800); Q4 a task with no Duration and no geometry gets
+Vrf:DefaultHoldSeconds (default 60) with a WARNING, so the chain proceeds.
+LATER THE SAME DAY the user RULED Q1-Q7 (assessment sec 7.1): Q1 and Q3 as the defaults above, Q4 REPLACED
+(no Duration + no geometry = MALFORMED, refused; Vrf:DefaultHoldSeconds deleted), Q5 hold, Q6 no stop-gap,
+Q7 forward-only accepted. Pass-2 and pass-3 reviews and their fixes: REVIEW2_RULINGS_0c96f50 and
+REVIEW_RULINGS_8db033e; the branch merged into main 2026-09-14 ~22:05Z.
+The review below is the reviewer's text, unaltered; its line/finding numbers refer to 5c67d41.
+
+---
 
 # COLD-START REVIEW - feat/tasking-rulings @ 5c67d41 (base 02b51de)
 

@@ -1595,3 +1595,180 @@ call) but the GUI scenario "bogoland" (a built-in MAK terrain) has NO loadable .
 of C:\MAK, ~/Documents, the profile found only map images), so loadScenario has no file to point at
 without the user exporting one. Signatures: vrfcontrol/vrfRemoteController.h :528 (loadScenario) /
 :451 (newScenario). Option 1 above is file-free and clears ANY orphan, so it is preferred.
+
+---
+
+## 9. REBUILDING AND DEPLOYING THE NATIVE BRIDGE - THERE ARE **TEN** CONSUMERS, NOT SEVEN
+
+Added 2026-09-14 (cold-start review of feat/integration 02b51de, NOTE in sec 2.10). The "all 7
+copies" figure that appears in docs/HANDOFF_2026-07-19.md sec 5, docs/RESUME_PROMPT.md and the
+memory entry is STALE and has been corrected in place.
+
+WHAT IS ACTUALLY BUILT. There is no `VrfFacade.dll` and no `.def`: `VrfFacade` is compiled INTO
+`VrfBridge.dll` (the build directory holds only `VrfBridge.{dll,lib,exp,pdb}` plus `Ijwhost.dll`),
+and the managed side binds by C++/CLI assembly reference, not P/Invoke. A managed build that
+SUCCEEDS against `src/VrfBridge/build/<config>/VrfBridge.dll` is therefore proof that every member
+it calls exists on the referenced assembly.
+
+THE TEN CONSUMERS. Ten csproj files reference the bridge by `<Reference Include="VrfBridge">` with a
+HintPath onto the SAME `src/VrfBridge/build/$(BridgeConfig)/VrfBridge.dll`, and each keeps its OWN
+copy in its `bin`:
+
+      src/SmokeTest            tools/CreateOne        tools/CreateTaskAgg    tools/ResetVrf
+      src/VrfC2SimApp          tools/RtiProbe         tools/RunSim           tools/SetAlt
+                               tools/SetSimRate       tools/WatchVrf
+
+  (`bridge-spikes/VrfBridgeSpike/SpikeRunner` is NOT one of them - it references
+  `VrfBridge.Spike.dll`, a different artefact, and is not part of a deploy.)
+
+THE PROCEDURE (native changes are pre-authorized; see the memory entry):
+  1. BACK UP the existing `src/VrfBridge/build/<config>/VrfBridge.dll` first - none are committed.
+  2. `/t:Rebuild` ALWAYS (never an incremental build of the C++/CLI project).
+  3. Rebuild ALL TEN consumers so every `bin` copy is ONE hash. A PARTIAL redeploy is the trap: the
+     tools and the app then disagree about what the bridge can do.
+  4. Confirm one hash, then RE-PIN the deployed build and record the pin.
+
+WHY A PARTIAL DEPLOY IS DANGEROUS, CONCRETELY (M1 of the same review): a managed-only refresh of a
+deployed folder - a new `VrfC2SimApp.dll/exe` beside an OLD `VrfBridge.dll` - does NOT fail at
+start-up. It fails ten seconds in, when the R1 position poll first JITs `TryGetEntityKinematics` and
+throws `MissingMethodException` on the vrf-tick thread. As of 2026-09-14 that no longer kills the
+process silently: every tick-loop phase is wrapped (`VrfC2SimService.TickPhase`) and logs
+`Tick phase '<name>' FAILED`, and `Program.cs` installs an `AppDomain.UnhandledException` handler
+that writes the exception to stderr before the CLR terminates. Those are DIAGNOSTICS, not a fix -
+a repeating `Tick phase 'MaybeSendPositionReports' FAILED (MissingMethodException)` means exactly
+this, and the answer is steps 1-4 above.
+
+---
+
+## 10. THE C16 PROGRESS WATCHDOG IS OFF BY DEFAULT - HOW TO TURN IT ON FOR THE VALIDATION RUN
+
+Added 2026-09-14 (cold-start review sec 2.8). `Vrf:StallDetection` defaults FALSE, is absent from
+BOTH `appsettings.json` and `appsettings.Demo.json`, and `scripts/StartInterface52.ps1` has NO
+parameter for it. There is therefore NO config key and NO script switch to flip: the C16 validation
+run is enabled by ENVIRONMENT OVERRIDE, in the interface's own shell, before it starts:
+
+```powershell
+$env:Vrf__StallDetection = "true"     # double underscore = the ':' of Vrf:StallDetection
+$env:Vrf__StallClock     = "sim"      # optional; default is "wall"
+```
+
+`Vrf:StallClock` governs THIS WATCHDOG ONLY (2026-09-14). The clock C2SIM task times run on is
+`Vrf:TaskClock` - sec 11 above.
+
+The gate is at the CALL SITE (`TickLoop`: `if (_vrf.StallDetection) MaybeCheckStalls();`), so with
+the default nothing inside the watchdog executes and no TASKABRT can be emitted by it - which is why
+the merged build is safe to run without this.
+
+*** `Vrf:StallWindowSeconds` 0 NOW MEANS "CALIBRATED", NOT "1 SECOND" ***. On main, an explicit 0
+meant a one-second window; on this build 0 (and any negative) means "use the clock's calibrated
+window" - 240 s wall / 360 s sim. Nothing SHIPS a value, so the reinterpretation has nil blast
+radius on the shipped configs; it matters to anyone HAND-WRITING a config for the validation run. If
+you want a short window, write the number you want - do not write 0 and expect one second.
+
+---
+
+## 11. THE CLOCK C2SIM TASK TIMES RUN ON, AND THE R4 TASKING KEYS
+
+Added 2026-09-14 (the two cold-start reviews of `5c67d41` and `0c96f50`, items M1/M2/A1 and
+the user's rulings Q1-Q7). **All seven are now IN `appsettings.json` at their defaults, and
+the six that change what a demo does are in `appsettings.Demo.json` with a `_Key` line each
+saying why** - a standalone deployment's behaviour has to be readable from its settings, not
+from C# source. Every one can still be overridden per process (double underscore = the `:`),
+which is how an experiment differs from the shipped profile:
+
+```powershell
+$env:Vrf__TimedCompletion                 = "true"      # DEFAULT. false = evidence-only completion
+$env:Vrf__TaskClock                       = "sim"       # DEFAULT. "wall" to measure in real seconds
+$env:Vrf__DurationScale                   = "1.0"       # DEFAULT. 0.05 compresses a demo into minutes
+$env:Vrf__TaskPredecessorTimeoutSeconds   = "600"       # DEFAULT (7200 in the Demo overlay)
+$env:Vrf__TaskPredecessorEndMarginSeconds = "60"        # DEFAULT
+$env:Vrf__TaskChainBackstopSeconds        = "86400"     # DEFAULT. A1: the DISPATCH wait's backstop
+$env:Vrf__SupersededTaskCode              = "TASKABRT"  # DEFAULT. "TASKCMPLT" = the literal R4 reading
+```
+
+`Vrf:DefaultHoldSeconds` existed between `06f8cf0` and the Q4 ruling and is GONE: a task with
+no Duration and no geometry is malformed and is refused, not held (below).
+
+- **`Vrf:TaskClock` is NOT `Vrf:StallClock`.** TaskClock carries ALL THREE C2SIM task times -
+  the Duration that ends a task (R4), the StartTime/DelayTimeAmount delay that holds one back,
+  and the STREND predecessor gate. StallClock carries the progress watchdog's no-progress
+  window and NOTHING else. They were the same knob before this change, so turning the watchdog
+  onto the sim clock silently changed when every task in the order completed. Both read the
+  SAME sim-clock sample through the same hysteresis, so they can never disagree about whether
+  the scenario is running - only about which clock they prefer.
+- **A PAUSED SCENARIO DOES NOT AGE A TASK: task time HOLDS** (Q5, USER RULING 2026-09-14,
+  built in `f2794d7`). When `DtVrfRemoteController::simTime()` is READABLE but has not advanced
+  for 60 wall seconds and a VR-Forces back end is still listed, the task-clock axis adds
+  NOTHING. All three task times ride that one axis, so all three freeze TOGETHER: the armed
+  Duration that ends a task, both phases of the STREND gate, and the StartTime/DelayTimeAmount
+  start delay. Pause the scenario for a ten-minute coffee break and it costs the order nothing,
+  and nothing completes early when it runs again. (Before Q5 the interface served WALL seconds
+  after 60 s of flatness - which burned those ten minutes off every armed Duration.)
+- **It falls back to WALL seconds only when the READER IS GONE**, not when the clock is merely
+  flat: three consecutive UNREADABLE samples (`StallPolicy.ModeSwitchConfirmations`) take the
+  hysteresis path and the axis then serves wall seconds. Nothing is lost either way - the axis
+  adds FORWARD movement only, so a fall back keeps the time already served, serves the rest on
+  the new base, and restarts no wait. The `TASK CLOCK:` transition lines name which happened:
+  losing the reader says the sim reader is GONE and task times are now on the wall clock, and
+  "readable and advancing again" is said ONLY on a genuine recovery.
+- **The HOLD line REPEATS, once a wall minute** (`StallPolicy.LogRateLimitSeconds` = 60), and
+  that is deliberate rather than a rate-limit bug: it is the only symptom of the case below, so
+  the one thing it must not be is quiet. It carries its own caveat sentence.
+- **THE LIMIT - AND THE SYMPTOM TO RECOGNISE AT A DEMO: a back end that dies IN PLACE freezes
+  task time indefinitely.** The predicate's only signal is `BackendCount`, which is
+  `backends().count()`, and the vendor's back-end list DEACTIVATES an entry that has missed its
+  status timeout rather than removing it (`vrfBackendListener.h:161-163`, `doTimeouts()`
+  "deactivates any status objects which have not responded within the timeout interval";
+  `remove()` at `:153-155` "normally, this should not need to get called!"; `backends()` is the
+  list of "all KNOWN back ends"). So the count stays above zero, the hold keeps firing, and no
+  Duration completes, no gate expires, no start delay runs out and the progress watchdog stays
+  suspended - with ONE WARNING A MINUTE as the only output. **If that line keeps repeating and
+  nobody paused anything, the back end has died and task time is frozen until it returns.** The
+  real fix is a facade accessor the code itself names (`StallPolicy.cs`):
+  `DtVrfRemoteController::backendsControlState()` (`vrfRemoteController.h:321-323`) returns
+  Paused vs Running, which is the discriminator the predicate actually wants. STP-809; NOT
+  taken before the demo, so the repeating WARNING is what an operator has to read.
+- **The predecessor gate is a FLOOR, not the whole window - and it asks TWO questions.** A gated
+  task waits for its predecessor to COMPLETE for at least
+  `(that predecessor's Duration x Vrf:DurationScale) + Vrf:TaskPredecessorEndMarginSeconds` (M1),
+  and it waits for that predecessor to DISPATCH AT ALL for `Vrf:TaskChainBackstopSeconds`
+  (86,400 s by default) whenever the predecessor is a task in the SAME order (A1). The second
+  window is generous on purpose: a predecessor that really dies is ABANDONED - every dispatch
+  dead end in the interface says so - which fails the gate at once, so a timeout there only ever
+  punished a HEALTHY deep chain. A DANGLING `startAfterTaskUuid`, one no task in the order
+  carries, is the single case nothing will ever speak for, and it still expires at
+  `Vrf:TaskPredecessorTimeoutSeconds`.
+- **Do you need to raise `TaskPredecessorTimeoutSeconds` for a long order? NO - but only since
+  A1 (`b6471a3`).** Before that commit COA-STP1 needed **>= 20,000 s**: measured on the real
+  `TaskSequencer` + `TimedCompletionPolicy` + `TaskDispatchPolicy`, the shipped 600 s AND the
+  Demo overlay's 7,200 both dispatched 21 of the 42 tasks and TASKABRT'd the other 21, because
+  the gate covered the predecessor's Duration but not its LEAD TIME (its start delay plus its own
+  gate wait); at a compressed `Vrf:DurationScale` the outcome was not even the same twice.
+  Raising it is still harmless - it is a floor - and it is no longer necessary.
+- **`Vrf:DurationScale` is validated at start-up.** A zero, negative, NaN or infinite value is
+  REJECTED with an ERROR line and the run proceeds at 1.0 (the order as written). It used to
+  mean "no end time armed" on one half of the order's clock and "dispatch now" on the other.
+- **`Vrf:TaskPredecessorEndMarginSeconds` is validated too, and ZERO IS REFUSED** (E5). A value
+  that is not greater than zero gets an ERROR line and the run proceeds at the shipped **60 s**.
+  Zero is not a harmless setting: at 0 the completion window equals the predecessor's scaled
+  Duration EXACTLY, while that completion is OBSERVED up to about `3 x (sim ratio)` seconds late
+  (the 1 s clock sample staircase plus the 1 s timed walk), so the gate and the completion race
+  and a successor is skipped on timing rather than on fact - the non-determinism A1 was fixed to
+  remove, arriving by configuration instead. A NEGATIVE margin reaching the derivation is still
+  clamped to zero there, so a window can never come out SHORTER than the end time it waits for;
+  that clamp is a floor against nonsense, not a blessing of zero. Raising the margin is free.
+- **Every order says how DEEP it is, against the backstop** (E4). One `CHAIN DEPTH:` INFO line
+  per order names how many task-clock seconds after receipt the deepest chain reaches its last
+  dispatch, when that last task is armed to end, and what `Vrf:TaskChainBackstopSeconds` is.
+  COA-STP1 measures **16,800 s** to the last dispatch and **21,600 s** to the last end, against
+  the 86,400 s backstop - 5.1x of headroom. If the lead ever meets or exceeds the backstop a
+  WARNING says so at receipt, naming what to raise, instead of the operator learning it hours
+  later as a burst of `never dispatched within 86400s` lines that look like a wedge.
+- **A task with NO Duration AND NO geometry is REFUSED, not held** (Q4, USER RULING 2026-09-14).
+  There is no knob: `Vrf:DefaultHoldSeconds` is DELETED. Such a task gets an ERROR naming both
+  missing elements, a TASKABRT, and an abandon so its STREND successors fail fast. If you see
+  that line, the ORDER is at fault - give the task a Duration, a geometry, or both. None of
+  COA-STP1's 42 tasks is affected: all 42 carry a Duration.
+
+START-UP PROOF: one `TASK CLOCK (R4):` line names the clock in force, the scale, and the gate
+formula. If that line is missing, the build predates this change.

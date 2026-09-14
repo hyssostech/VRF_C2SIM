@@ -62,6 +62,20 @@
 #include <vrfutil/scenario.h>
 #include <matrix/geodeticCoord.h>
 #include <matrix/vlVector.h>
+// B7: geocentric -> topographic conversion for the kinematics read
+// (DtGetHeadingFromGeocentric, DtLatLon_to_GeocToTopo) and DtDcmVecMul.
+#include <matrix/topoCoord.h>
+#include <matrix/vlDcm.h>
+#include <matrix/vlTaitBryan.h>
+// Scripted-task variable reader/writers (V2). scriptedTaskTask.h already pulls
+// rwVariableBindings.h + rwString.h + rwUUID.h; the rest are named explicitly so the
+// DescribeScriptVars read-back does not depend on a transitive include.
+#include <readerWriter/rwBoolean.h>
+#include <readerWriter/rwInt.h>
+#include <readerWriter/rwReal.h>
+#include <readerWriter/rwString.h>
+#include <readerWriter/rwVector.h>
+#include <vrfutil/rwUUID.h>
 
 // VRF_API_52 = the VR-Forces 5.2d / VR-Link 5.10 build axis (VrfBridge.vcxproj Release-5.2*).
 // docs/VRF_5.2_MIGRATION_DIFF.md sec G Y-6: Start/Tick follow the 5.2d remoteControl sample.
@@ -75,6 +89,8 @@
 
 #include <cstring>
 #include <cstdlib>
+#include <cmath>     // fmod/sqrt/isfinite for TryGetEntityKinematics
+#include <cstdio>      // snprintf (DescribeScriptVars value formatting)
 #include <string>
 #include <vector>
 #include <set>
@@ -113,6 +129,60 @@ namespace {
                              g.lonDeg / kDegRadFactor,
                              g.altMeters);
         return geod.geocentric();
+    }
+
+    // Inverse of toGeocentric; used by DescribeScriptVars to read a location variable
+    // back in the units the caller supplied it in.
+    vrf::Geodetic toGeodetic(const DtVector& v) {
+        DtGeodeticCoord geod;
+        geod.setGeocentric(v);
+        vrf::Geodetic g;
+        g.latDeg = geod.lat() * kDegRadFactor;
+        g.lonDeg = geod.lon() * kDegRadFactor;
+        g.altMeters = geod.alt();
+        return g;
+    }
+
+    // ONE place where a vrf::ScriptVar becomes a VR-Forces scripted-task variable.
+    // Shared by RunScriptedTask (DtScriptedTaskTask), SendScriptedSet (DtScriptedTaskSet)
+    // and DescribeScriptVars, so the self-test exercises the shipping path and not a copy.
+    //
+    // Every branch is the vendor's own DtScriptedTask::setValue overload with its DEFAULT
+    // type constant (scriptedTaskTask.h:90-97; the constants in
+    // vrfutil/vrfScriptedTasksConstants.h). That is the pattern MAK's own plugin sample
+    // uses - examples/displayStateData/plugin.cxx:121-132 builds a DtScriptedTaskTask,
+    // setScriptId("launch_flight_mission"), then setValue("Airbase", obj->uuid()) and
+    // setValue("Loadout", "Intercept") with no explicit type argument.
+    //
+    // WHY NOT the old "variables().addVariable(new DtRw*)" form (which this replaces, and
+    // which examples/addTask/addTaskGui/DtTaskRetreatDialog.cxx:64 still shows): that writes
+    // the VALUE binding only and leaves variableDataTypes() empty, so the receiver gets no
+    // scripted-task type for the variable. setValue writes both (scriptedTaskTask.h:140-146).
+    // RunScriptedTask/SendScriptedSet had NO caller in src/VrfC2SimApp when this changed
+    // (grep, 2026-09-14), so no existing verb's behaviour moves.
+    void addScriptVar(DtScriptedTask& task, const vrf::ScriptVar& v) {
+        const DtString name(v.name.c_str());
+        switch (v.kind) {
+            case vrf::ScriptVar::Kind::ObjectUuid:
+                task.setValue(name, DtUUID(v.uuidValue));            // "simulationobject"
+                break;
+            case vrf::ScriptVar::Kind::Bool:
+                task.setValue(name, v.boolValue);                    // "checkbox"
+                break;
+            case vrf::ScriptVar::Kind::Integer:
+                task.setValue(name, v.intValue);                     // "integer"
+                break;
+            case vrf::ScriptVar::Kind::String:
+                task.setValue(name, v.stringValue);                  // "string"
+                break;
+            case vrf::ScriptVar::Kind::Location:
+                task.setValue(name, toGeocentric(v.locValue));       // "location"
+                break;
+            case vrf::ScriptVar::Kind::Real:
+            default:
+                task.setValue(name, v.realValue);                    // "double"
+                break;
+        }
     }
 
     // Free a DtList of DtVector* we allocated for createRoute/createControlArea.
@@ -278,6 +348,10 @@ static void reportTrampoline(const DtVrfObjectMessage* msg, void* usr) {
             const char* mark = msg->transmitter().markingText();
             ev.unitMarking = mark ? mark : "";
             ev.taskType = tc->taskCompleted().string() ? tc->taskCompleted().string() : "";
+            // taskCompleteReport.h:84-90 - false means the task FAILED and is no longer
+            // being processed. Read straight through; the vendor defaults it to true
+            // (:87) so an old or minimal report still reads as a success.
+            ev.success = tc->success();
             self->OnTaskCompleted(ev);
         }
     } else if (kind == "text-report") {
@@ -597,6 +671,20 @@ int VrfFacade::BackendCount() const {
     return p_->controller ? p_->controller->backends().count() : 0;
 }
 
+double VrfFacade::SimTimeSeconds() const {
+    // -1.0 means "no reading" - see VrfFacade.h. The back-end gate is the point of this
+    // function: simTime() with no address returns the FIRST back end's time, and with no back
+    // end discovered there is no first one, so whatever it returns (0.0, most likely) would be
+    // indistinguishable from a scenario legitimately sitting at t = 0.
+    if (!p_ || !p_->controller) return -1.0;
+    try {
+        if (p_->controller->backends().count() <= 0) return -1.0;
+        return p_->controller->simTime();
+    } catch (...) {
+        return -1.0;   // no exception crosses the facade boundary
+    }
+}
+
 std::string VrfFacade::NativeStackInfo() {
 #if VRF_API_52
     std::string info = "5.2|";
@@ -710,15 +798,26 @@ void VrfFacade::CreateAggregate(const EntityTypeSpec& type, const Geodetic& pos,
         DtString::nullString(), DtSimSendToAll, st, DtUUID::nullUUID(), createSubordinates);
 }
 
-void VrfFacade::CreateWaypoint(const Geodetic& pos, const std::string& name) {
+void VrfFacade::CreateWaypoint(const Geodetic& pos, const std::string& name,
+                               const std::string& uuid) {
+    // Vendor signature (vrfRemoteController.h:999-1007): fcn, usr, geocentricPosition,
+    // uniqueName, label, addr, startingUUID. The label and address keep their documented
+    // defaults; only the uuid is new, and an empty one reproduces the pre-V3 call exactly.
+    DtUUID startingUuid = uuid.empty() ? DtUUID::nullUUID() : DtUUID(uuid.c_str());
     p_->controller->createWaypoint(objectCreatedTrampoline, this,
-        toGeocentric(pos), DtString(name.c_str()));
+        toGeocentric(pos), DtString(name.c_str()),
+        DtString::nullString(), DtSimSendToAll, startingUuid);
 }
 
-void VrfFacade::CreateRoute(const std::vector<Geodetic>& points, const std::string& name) {
+void VrfFacade::CreateRoute(const std::vector<Geodetic>& points, const std::string& name,
+                            const std::string& uuid) {
+    // Vendor signature (vrfRemoteController.h:1032-1039): fcn, usr, vertices, uniqueName,
+    // label, addr, startingUUID. As above: empty uuid == the pre-V3 call.
     DtList list;
     for (const Geodetic& g : points) list.add(new DtVector(toGeocentric(g)));
-    p_->controller->createRoute(objectCreatedTrampoline, this, list, DtString(name.c_str()));
+    DtUUID startingUuid = uuid.empty() ? DtUUID::nullUUID() : DtUUID(uuid.c_str());
+    p_->controller->createRoute(objectCreatedTrampoline, this, list, DtString(name.c_str()),
+        DtString::nullString(), DtSimSendToAll, startingUuid);
     freeVectorList(list);
 }
 
@@ -949,17 +1048,7 @@ void VrfFacade::RunScriptedTask(const std::string& uuid, const std::string& scri
     DtScriptedTaskTask task;
     task.init();
     task.setScriptId(scriptId.c_str());
-    for (const ScriptVar& v : vars) {
-        if (v.kind == ScriptVar::Kind::ObjectUuid) {
-            DtRwObjectName* var = new DtRwObjectName(v.name.c_str());
-            var->setUUID(DtUUID(v.uuidValue));
-            task.variables().addVariable(var);
-        } else {
-            DtRwReal* var = new DtRwReal(v.name.c_str());
-            var->setValue(v.realValue);
-            task.variables().addVariable(var);
-        }
-    }
+    for (const ScriptVar& v : vars) addScriptVar(task, v);
     p_->controller->sendTaskMsg(DtUUID(uuid), &task);
 }
 
@@ -968,18 +1057,60 @@ void VrfFacade::SendScriptedSet(const std::string& uuid, const std::string& scri
     DtScriptedTaskSet set;
     set.init();
     set.setScriptId(scriptId.c_str());
-    for (const ScriptVar& v : vars) {
-        if (v.kind == ScriptVar::Kind::ObjectUuid) {
-            DtRwObjectName* var = new DtRwObjectName(v.name.c_str());
-            var->setUUID(DtUUID(v.uuidValue));
-            set.variables().addVariable(var);
-        } else {
-            DtRwReal* var = new DtRwReal(v.name.c_str());
-            var->setValue(v.realValue);
-            set.variables().addVariable(var);
-        }
-    }
+    for (const ScriptVar& v : vars) addScriptVar(set, v);
     p_->controller->sendSetDataMsg(DtUUID(uuid), &set, DtSimSendToAll);
+}
+
+std::vector<std::string> VrfFacade::DescribeScriptVars(const std::vector<ScriptVar>& vars) {
+    // No controller, no federation, nothing sent: a DtScriptedTaskTask is a plain
+    // reader/writer object (scriptedTaskTask.h:275 DtScriptedTaskTemplate<DtSimTask>).
+    DtScriptedTaskTask task;
+    task.init();
+    task.setScriptId("selftest");
+    for (const ScriptVar& v : vars) addScriptVar(task, v);
+
+    std::vector<std::string> out;
+    out.reserve(vars.size());
+    for (const ScriptVar& v : vars) {
+        const DtString name(v.name.c_str());
+        const DtReaderWriter* rw = task.variables().findVariableBinding(name);
+        std::string rwType = "?";
+        std::string value  = "?";
+        if (rw) {
+            const char* t = rw->readerWriterType();          // readerWriter.h:361
+            if (t) rwType = t;
+            // Decode from the CONCRETE reader/writer the vendor chose, so a wrong
+            // overload shows up as a cast miss rather than a plausible-looking value.
+            if (const DtRwObjectName* u = dynamic_cast<const DtRwObjectName*>(rw)) {
+                value = std::string(u->uuidString().c_str());  // rwUUID.h:82
+            } else if (const DtRwBoolean* b = dynamic_cast<const DtRwBoolean*>(rw)) {
+                value = b->value() ? "true" : "false";          // rwBoolean.h:90
+            } else if (const DtRwInt* i = dynamic_cast<const DtRwInt*>(rw)) {
+                value = std::to_string(i->value());             // rwInt.h:104
+            } else if (const DtRwString* s = dynamic_cast<const DtRwString*>(rw)) {
+                value = std::string(s->c_str());                // DtRwString IS a DtString
+            } else if (const DtRwVector* p = dynamic_cast<const DtRwVector*>(rw)) {
+                Geodetic g = toGeodetic(*p);                    // rwVector.h:23 IS a DtVector
+                char buf[128];
+                std::snprintf(buf, sizeof(buf), "%.6f,%.6f,%.3f", g.latDeg, g.lonDeg, g.altMeters);
+                value = buf;
+            } else if (const DtRwReal* r = dynamic_cast<const DtRwReal*>(rw)) {
+                // AFTER DtRwVector: both are numeric, but DtRwVector is not a DtRwReal,
+                // so order only matters against future numeric subclasses.
+                char buf[64];
+                std::snprintf(buf, sizeof(buf), "%.6f", (double)r->value());  // rwReal.h:103
+                value = buf;
+            }
+        }
+        // The scripted-task data type setValue recorded for this variable, read from the
+        // SECOND binding set (scriptedTaskTask.h:60-63 variableDataTypes()).
+        std::string dataType = "?";
+        if (const DtReaderWriter* dt = task.variableDataTypes().findVariableBinding(name))
+            if (const DtRwString* s = dynamic_cast<const DtRwString*>(dt))
+                dataType = std::string(s->c_str());
+        out.push_back(v.name + "|" + rwType + "|" + dataType + "|" + value);
+    }
+    return out;
 }
 
 unsigned int VrfFacade::RequestTerrainProfile(const std::vector<Geodetic>& points) {
@@ -1013,20 +1144,21 @@ unsigned int VrfFacade::RequestTerrainProfile(const std::vector<Geodetic>& point
     return id;
 }
 
-bool VrfFacade::TryGetEntityGeodetic(const std::string& uuid, Geodetic& out) const {
-    if (!p_->uuidMgr) return false;
-    DtReflectedObject* obj = p_->uuidMgr->reflectedObjectFor(DtUUID(uuid));
-    if (!obj) return false;
-
-    // Resolve the location from EITHER an entity or an aggregate. The C++ oracle
-    // getUnitGeodeticFromSim static_cast'd every reflected object to DtReflectedEntity*
-    // (wrong-type UB for an aggregate, but it happened to yield a usable location, so the
-    // disaggregated aggregate 11.MechBn moved - PORT.md sec 5/8). This port handles the
-    // aggregate case PROPERLY: DtReflectedAggregate exposes aggregateStateRep(), whose
-    // DtAggregateStateRepository shares DtBaseEntityStateRepository::location() with an
-    // entity's DtEntityStateRepository - so both paths return the same geocentric vector.
-    // Without this, dynamic_cast<DtReflectedEntity*> returns null for an aggregate and the
-    // caller ABANDONS the task, breaking the golden aggregate-move.
+// Resolve the base state repository of a reflected object from EITHER an entity or an
+// aggregate. The C++ oracle getUnitGeodeticFromSim static_cast'd every reflected object to
+// DtReflectedEntity* (wrong-type UB for an aggregate, but it happened to yield a usable
+// location, so the disaggregated aggregate 11.MechBn moved - PORT.md sec 5/8). This port
+// handles the aggregate case PROPERLY: DtReflectedAggregate exposes aggregateStateRep(),
+// whose DtAggregateStateRepository shares DtBaseEntityStateRepository::location() with an
+// entity's DtEntityStateRepository - so both paths return the same geocentric vector.
+// Without this, dynamic_cast<DtReflectedEntity*> returns null for an aggregate and the
+// caller ABANDONS the task, breaking the golden aggregate-move.
+//
+// Extracted (B7) so TryGetEntityGeodetic and TryGetEntityKinematics resolve a unit through
+// ONE rule: a position and a heading/speed that disagreed about which repository to read
+// would be a silent, untestable inconsistency in the same position report.
+static DtBaseEntityStateRepository* stateRepOf(DtReflectedObject* obj) {
+    if (!obj) return nullptr;
     DtBaseEntityStateRepository* sr = nullptr;
     if (DtReflectedEntity* ent = dynamic_cast<DtReflectedEntity*>(obj))
         sr = ent->entityStateRep();
@@ -1040,6 +1172,15 @@ bool VrfFacade::TryGetEntityGeodetic(const std::string& uuid, Geodetic& out) con
     // base-offset myStateRep, so location() still yields the object's location.
     if (!sr)
         sr = static_cast<DtReflectedEntity*>(obj)->entityStateRep();
+    return sr;
+}
+
+bool VrfFacade::TryGetEntityGeodetic(const std::string& uuid, Geodetic& out) const {
+    if (!p_->uuidMgr) return false;
+    DtReflectedObject* obj = p_->uuidMgr->reflectedObjectFor(DtUUID(uuid));
+    if (!obj) return false;
+
+    DtBaseEntityStateRepository* sr = stateRepOf(obj);
     if (!sr) return false;
     DtVector geoLocation = sr->location();
     DtGeodeticCoord geod;
@@ -1047,6 +1188,58 @@ bool VrfFacade::TryGetEntityGeodetic(const std::string& uuid, Geodetic& out) con
     out.latDeg = geod.lat() * kDegRadFactor;
     out.lonDeg = geod.lon() * kDegRadFactor;
     out.altMeters = geod.alt();
+    return true;
+}
+
+bool VrfFacade::TryGetEntityKinematics(const std::string& uuid,
+                                       double& speedMps, double& headingDeg) const {
+    if (!p_->uuidMgr) return false;
+    DtReflectedObject* obj = p_->uuidMgr->reflectedObjectFor(DtUUID(uuid));
+    if (!obj) return false;
+
+    // SAME resolution rule as TryGetEntityGeodetic (see stateRepOf): entity, aggregate,
+    // then the oracle's static_cast fallback. location(), velocity() and orientation() are
+    // all DtBaseEntityStateRepository members, so one repository serves all three and the
+    // three reads describe ONE instant of the object's state.
+    DtBaseEntityStateRepository* sr = stateRepOf(obj);
+    if (!sr) return false;
+
+    const DtVector geoLocation = sr->location();
+
+    // HEADING - vendor helper, geocentric location + geocentric Euler angles -> radians
+    // true heading (matrix/topoCoord.h:46-49). It does the topographic transformation
+    // itself, so there is no rotation to hand-roll here.
+    double heading = DtGetHeadingFromGeocentric(geoLocation, sr->orientation()) * kDegRadFactor;
+    // The helper returns the topographic yaw, which is an Euler angle and so is expected to
+    // be signed (about (-180, +180]) - but that range is ASSUMED, not documented in the
+    // header, so the fold below is written to be range-agnostic: it normalises ANY finite
+    // input into [0, 360), which is what C2SIM HeadingAngle means ("degrees where north is
+    // zero", no negative convention). The final line folds -0.0 to +0.0 so a due-north
+    // heading serializes as "0" rather than "-0".
+    heading = std::fmod(heading, 360.0);
+    if (heading < 0.0) heading += 360.0;
+    if (heading == 0.0) heading = 0.0;
+
+    // GROUND SPEED - velocity() is m/s in GEOCENTRIC world coordinates
+    // (baseEntityStateRepository.h:64-65, 121-128). Rotate it into this object's local
+    // topographic frame with the vendor's own matrix, applied exactly as topoCoord.h:33-37
+    // documents the call, then take the HORIZONTAL magnitude: the topographic frame is
+    // X=north, Y=east, Z=down (topoCoord.h:20-23), so the vertical rate is z() and dropping
+    // it leaves ground speed (a climbing/descending vehicle does not inflate its speed).
+    DtGeodeticCoord geod;
+    geod.setGeocentric(geoLocation);
+    DtDcm geocToTopo;
+    DtLatLon_to_GeocToTopo(geod, geocToTopo);
+    DtVector32 vTopo;
+    DtDcmVecMul(geocToTopo, sr->velocity(), vTopo);
+    const double north = (double)vTopo.x(), east = (double)vTopo.y();
+    double speed = std::sqrt(north * north + east * east);
+
+    // A non-finite read is a FAILED read, not a zero: the caller omits the fields rather
+    // than reporting a unit as stationary and pointing north (never send a default 0).
+    if (!std::isfinite(speed) || !std::isfinite(heading)) return false;
+    speedMps = speed;
+    headingDeg = heading;
     return true;
 }
 

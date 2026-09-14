@@ -41,7 +41,9 @@ public enum class VrfProtocol { Dis, Hla1516e };
 public enum class Force { Friendly, Opposing, Neutral };
 public enum class AggregateState { Aggregated, Disaggregated };
 public enum class Roe { FireAtWill, HoldFire, FireWhenFiredUpon };
-public enum class ScriptVarKind { ObjectUuid, Real };
+// Mirrors vrf::ScriptVar::Kind. The vendor's accepted variable types are listed with
+// their header lines on vrf::ScriptVar (VrfFacade.h) - scriptedTaskTask.h:90-106.
+public enum class ScriptVarKind { ObjectUuid, Real, Bool, Integer, String, Location };
 
 public value struct Geodetic {
     double LatDeg;
@@ -66,18 +68,37 @@ public value struct AggregateMember {
     String^ Name;   // the member's marking text (matches TaskCompleted.UnitMarking)
 };
 
-// One variable of a VR-Forces scripted (Lua) task/set. Mirrors vrf::ScriptVar.
+// One variable of a VR-Forces scripted (Lua) task/set. Mirrors vrf::ScriptVar,
+// including the six scalar kinds V2 added (bool / int / string / geodetic location
+// alongside the original object-uuid and real). See VrfFacade.h for the vendor's
+// full setValue contract with header lines.
 public value struct ScriptVar {
     ScriptVarKind Kind;
     String^ Name;
-    String^ UuidValue; // used when Kind == ObjectUuid
-    double  RealValue; // used when Kind == Real
+    String^ UuidValue;   // used when Kind == ObjectUuid
+    double  RealValue;   // used when Kind == Real
+    bool    BoolValue;   // used when Kind == Bool
+    int     IntValue;    // used when Kind == Integer
+    String^ StringValue; // used when Kind == String
+    Geodetic LocValue;   // used when Kind == Location (degrees / metres)
 
     static ScriptVar Object(String^ name, String^ uuid) {
         ScriptVar v; v.Kind = ScriptVarKind::ObjectUuid; v.Name = name; v.UuidValue = uuid; return v;
     }
     static ScriptVar Number(String^ name, double value) {
         ScriptVar v; v.Kind = ScriptVarKind::Real; v.Name = name; v.RealValue = value; return v;
+    }
+    static ScriptVar Flag(String^ name, bool value) {
+        ScriptVar v; v.Kind = ScriptVarKind::Bool; v.Name = name; v.BoolValue = value; return v;
+    }
+    static ScriptVar Count(String^ name, int value) {
+        ScriptVar v; v.Kind = ScriptVarKind::Integer; v.Name = name; v.IntValue = value; return v;
+    }
+    static ScriptVar Text(String^ name, String^ value) {
+        ScriptVar v; v.Kind = ScriptVarKind::String; v.Name = name; v.StringValue = value; return v;
+    }
+    static ScriptVar Place(String^ name, Geodetic value) {
+        ScriptVar v; v.Kind = ScriptVarKind::Location; v.Name = name; v.LocValue = value; return v;
     }
 };
 
@@ -161,6 +182,15 @@ public ref class TaskCompletedEventArgs : EventArgs {
 public:
     property String^ UnitMarking; // transmitter markingText
     property String^ TaskType;    // e.g. "move-along"
+    // DtTaskCompleteReport::success() (vrforces5.2d include vrftasks/taskCompleteReport.h
+    // :84-90): FALSE means the task FAILED and "is no longer being processed". The vendor
+    // defaults it to true (:87), so a report without the flag arrives here as true.
+    //
+    // CONSUMER: VrfC2SimService.OnVrfTaskCompleted feeds this straight into
+    // SynthesizeUnitCompletion(..., success), where false selects TASKABRT instead of
+    // TASKCMPLT, holds the successors back and cancels a parked engage
+    // (TaskStatusPolicy.CodeForCompletion; wired 2026-09-14 on feat/integration).
+    property bool Success;
 };
 
 public ref class AvailableFormationsEventArgs : EventArgs {
@@ -254,6 +284,11 @@ public:
 
     int  BackendCount()     { return _facade->BackendCount(); }
     bool AllBackendsReady() { return _facade->AllBackendsReady(); }
+    // The VR-Forces BACK END's scenario clock, in seconds, or -1.0 when there is no reading
+    // (no controller, or no back end discovered yet). This is the SIM clock - not wall time and
+    // not the local VR-Link federate clock; see VrfFacade.h for the vendor trail and for why the
+    // local clock is the wrong one. Used by the progress watchdog (StallPolicy / Vrf:StallClock).
+    double SimTimeSeconds() { return _facade->SimTimeSeconds(); }
     // "<bridge build>|<path of the vrfcontrol.dll this process bound>" - see VrfFacade.h
     static String^ NativeStackInfo() { return marshal_as<String^>(vrf::VrfFacade::NativeStackInfo()); }
 
@@ -315,8 +350,13 @@ public:
                                  createSubordinates);
     }
 
+    // uuid empty/null -> nullUUID (the pre-V3 behaviour and what the 2-argument overload
+    // gives). V3 passes a C2SIM Point graphic's own uuid so it is addressable by it.
     void CreateWaypoint(Geodetic pos, String^ name) {
-        _facade->CreateWaypoint(ToNative(pos), ToStd(name));
+        CreateWaypoint(pos, name, nullptr);
+    }
+    void CreateWaypoint(Geodetic pos, String^ name, String^ uuid) {
+        _facade->CreateWaypoint(ToNative(pos), ToStd(name), ToStd(uuid));
     }
 
     // Delete a VR-Forces object by VRF uuid (counterpart to Create*; lets the app clean up
@@ -335,8 +375,12 @@ public:
         return list;
     }
 
+    // uuid empty/null -> nullUUID. V3 passes a C2SIM Line graphic's own uuid.
     void CreateRoute(IEnumerable<Geodetic>^ points, String^ name) {
-        _facade->CreateRoute(ToNativePoints(points), ToStd(name));
+        CreateRoute(points, name, nullptr);
+    }
+    void CreateRoute(IEnumerable<Geodetic>^ points, String^ name, String^ uuid) {
+        _facade->CreateRoute(ToNativePoints(points), ToStd(name), ToStd(uuid));
     }
 
     // uuid empty -> nullUUID. The C2SIM interface assigns the area's C2SIM uuid.
@@ -442,6 +486,17 @@ public:
     void SendScriptedSet(String^ uuid, String^ scriptId, IEnumerable<ScriptVar>^ vars) {
         _facade->SendScriptedSet(ToStd(uuid), ToStd(scriptId), ToNativeVars(vars));
     }
+    // OFFLINE round-trip of the scripted-task variable marshalling (V2 self-test).
+    // STATIC: needs no bridge instance, no facade, no federation - it builds a real
+    // DtScriptedTaskTask through the shipping marshalling helper and reads each variable
+    // back out of the vendor's bindings (vrf::VrfFacade::DescribeScriptVars). One string
+    // per variable: "<name>|<readerWriterType>|<scriptedTaskDataType>|<value>".
+    static List<String^>^ DescribeScriptVars(IEnumerable<ScriptVar>^ vars) {
+        std::vector<std::string> n = vrf::VrfFacade::DescribeScriptVars(ToNativeVars(vars));
+        auto list = gcnew List<String^>((int)n.size());
+        for (const std::string& s : n) list->Add(marshal_as<String^>(s));
+        return list;
+    }
 
     // -- terrain query (asynchronous) ---------------------------------
     // Ask the back end for the terrain height under each point; the reply raises the
@@ -464,6 +519,22 @@ public:
         return ok;
     }
 
+    // B7 (STP-784): ground speed + true heading for the C2SIM PositionReport's Speed and
+    // HeadingAngle. speedMps is HORIZONTAL metres/second, headingDeg is degrees true in
+    // [0, 360) with north = 0 - both converted into the object's local topographic frame by
+    // the facade using VR-Link's own utilities (see VrfFacade.h TryGetEntityKinematics).
+    // Returns false when the object does not resolve or a value is not finite; the outs are
+    // then ZEROED and the caller must OMIT the fields rather than send the zeros.
+    bool TryGetEntityKinematics(String^ uuid,
+                                [System::Runtime::InteropServices::Out] double% speedMps,
+                                [System::Runtime::InteropServices::Out] double% headingDeg) {
+        double s = 0.0, h = 0.0;
+        bool ok = _facade->TryGetEntityKinematics(ToStd(uuid), s, h);
+        speedMps = ok ? s : 0.0;
+        headingDeg = ok ? h : 0.0;
+        return ok;
+    }
+
 internal:
     // Called from the native callback thunks (below); construct args + raise the event.
     void RaiseObjectCreated(String^ name, String^ entityId, String^ uuid) {
@@ -476,9 +547,9 @@ internal:
         e->Text = text;
         TextReport(this, e);
     }
-    void RaiseTaskCompleted(String^ unitMarking, String^ taskType) {
+    void RaiseTaskCompleted(String^ unitMarking, String^ taskType, bool success) {
         auto e = gcnew TaskCompletedEventArgs();
-        e->UnitMarking = unitMarking; e->TaskType = taskType;
+        e->UnitMarking = unitMarking; e->TaskType = taskType; e->Success = success;
         TaskCompleted(this, e);
     }
     void RaiseScenarioClosed() {
@@ -552,10 +623,27 @@ private:
     static std::vector<vrf::ScriptVar> ToNativeVars(IEnumerable<ScriptVar>^ vars) {
         std::vector<vrf::ScriptVar> out;
         if (vars != nullptr) for each (ScriptVar v in vars) {
-            if (v.Kind == ScriptVarKind::ObjectUuid)
-                out.push_back(vrf::ScriptVar::Object(ToStd(v.Name), ToStd(v.UuidValue)));
-            else
-                out.push_back(vrf::ScriptVar::Number(ToStd(v.Name), v.RealValue));
+            switch (v.Kind) {
+                case ScriptVarKind::ObjectUuid:
+                    out.push_back(vrf::ScriptVar::Object(ToStd(v.Name), ToStd(v.UuidValue)));
+                    break;
+                case ScriptVarKind::Bool:
+                    out.push_back(vrf::ScriptVar::Flag(ToStd(v.Name), v.BoolValue));
+                    break;
+                case ScriptVarKind::Integer:
+                    out.push_back(vrf::ScriptVar::Count(ToStd(v.Name), v.IntValue));
+                    break;
+                case ScriptVarKind::String:
+                    out.push_back(vrf::ScriptVar::Text(ToStd(v.Name), ToStd(v.StringValue)));
+                    break;
+                case ScriptVarKind::Location:
+                    out.push_back(vrf::ScriptVar::Place(ToStd(v.Name), ToNative(v.LocValue)));
+                    break;
+                case ScriptVarKind::Real:
+                default:
+                    out.push_back(vrf::ScriptVar::Number(ToStd(v.Name), v.RealValue));
+                    break;
+            }
         }
         return out;
     }
@@ -589,7 +677,8 @@ struct TaskCompletedThunk {
     msclr::gcroot<VrfBridge^> self;
     void operator()(const vrf::TaskCompleted& t) const {
         self->RaiseTaskCompleted(marshal_as<String^>(t.unitMarking),
-                                 marshal_as<String^>(t.taskType));
+                                 marshal_as<String^>(t.taskType),
+                                 t.success);
     }
 };
 

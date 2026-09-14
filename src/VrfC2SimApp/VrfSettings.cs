@@ -135,6 +135,35 @@ public class VrfSettings
     // the regression control (N3) - never for real runs.
     public bool ComposeHierarchy { get; set; } = true;
 
+    // ---- V3: create the init's LINE and POINT tactical graphics ------------------------------
+    // The C2SIM init carries 409 TacticalGraphic elements; the interface has only ever created the
+    // 35 TacticalAreas (with the C2SIM uuid AS the VRF uuid, VrfC2SimService -> VrfFacade
+    // CreateControlArea). COA-STP1 also ships 41 Lines and 317 Points, and every vendor tactical
+    // task that is not a bare move takes exactly such an object as a parameter - a line of
+    // departure, a limit of advance, a breach lane, a control point
+    // (docs/experiments/TASK_VOCABULARY_ASSESSMENT_2026-09-14.md sec 3.2/3.3, build item V3).
+    // Parsing them is unconditional and free (InitParser); CREATING them is behind these two.
+    //
+    // BOTH DEFAULT FALSE, and the reason is the absence of evidence, not a preference:
+    //  1. NOT SHOWN TO BE CHEAP. The only vendor sample for these calls,
+    //     examples/remoteControl/commandLineRemoteController.cxx:1563-1636, creates ONE waypoint or
+    //     ONE route per typed command. Nothing in the sample or the help measures a bulk create.
+    //     Turning both on adds 348 creates to an init that today issues 163 (128 units + 35 areas)
+    //     - a 3x increase in creation traffic that has never been timed on this stack.
+    //  2. NOT SHOWN TO BE IDEMPOTENT. createWaypoint/createRoute document the opposite of an
+    //     idempotent create: "the name must be unique (if specified)" (vrfRemoteController.h:987,
+    //     :1019). Nothing states what a second create with the same name or startingUUID does. The
+    //     interface already sees duplicate init deliveries (the _createdAreaKeys guard exists for
+    //     exactly that), so "re-create is harmless" would be an assumption, not a finding.
+    //  3. THEY MULTIPLY THE CONSOLE CHANNEL. OnVrfObjectCreated raises EVERY created object's
+    //     console to Vrf:ObjectConsoleNotifyLevel, graphics included. At level 4 - the level the
+    //     movement investigations run at - 348 more objects is 348 more open consoles.
+    // With both false the init issues exactly the commands it issued before V3, in the same order,
+    // so no existing fixture or trace comparison moves. Flip either to true for the live gate that
+    // measures 1, 2 and 3; see the V3 notes in VrfC2SimService.DispatchInit.
+    public bool CreateInitLines { get; set; } = false;
+    public bool CreateInitPoints { get; set; } = false;
+
     // CREATION POLICY (C13, user ruling 2026-09-06): the C2SIM init carries the WHOLE ORBAT (corps-
     // level context); only the units the ORDERS reference are the COA proper. COA-STP1 = 128 units
     // in the init, 11 referenced by its 42 tasks.
@@ -188,6 +217,104 @@ public class VrfSettings
     public double ArrivalMemberFraction { get; set; } = 0.5;   // 1.0 = every member must be within the radius
     public double ArrivalCheckSeconds { get; set; } = 5.0;
     public double ArrivalMinSecondsSinceDispatch { get; set; } = 30.0;
+
+    // PROGRESS WATCHDOG (C16, report-only; StallPolicy.cs). VR-Forces 5.2 NEVER reports a unit
+    // that stops making progress while its move task runs: the base give-up test "always returns
+    // false" (vrfobjcore/singleTaskControllerComponent.h:192-205) and ground-vehicle-move-to.lua
+    // has no progress test - docs/experiments/FINDING_EARLY_STOPS_2026-09-13.md sec 6a. So the
+    // interface detects it itself: when NO member of a moving unit has covered StallMoveMeters of
+    // NET displacement over the last StallWindowSeconds, ONE C2SIM TaskStatus with TASKABRT is
+    // reported for that task and nothing else happens - no re-task, no VRF command, no state
+    // change (the task stays in flight; the vendor's own completion, if it ever comes, still
+    // flows normally). DEFAULT OFF: the deployed behaviour is unchanged until a preregistered
+    // run turns it on.
+    //
+    // WHICH CLOCK THE WINDOW RUNS ON (StallClock). "wall" is the DEFAULT because it is the mode
+    // this interface has actually MEASURED LIVE so far: BOTH windows are calibrated (240 wall s,
+    // 360 sim s, from the same three replayed traces - see CALIBRATION below), but only the wall
+    // clock has been exercised in a run. A build that selects "sim" says so at startup.
+    // "sim" measures the window on the back
+    // end's own scenario time, read through VrfBridge.SimTimeSeconds() ->
+    // VrfFacade::SimTimeSeconds() -> DtVrfRemoteController::simTime()
+    // (vrfcontrol/vrfRemoteController.h:356 on 5.2d, :352 on 5.0.2 - the clock the vendor's
+    // remote-control sample prints as "Sim time from sim engine status",
+    // examples/remoteControl/commandLineRemoteController.cxx:1247-1252). Two consequences:
+    // a PAUSED scenario can no longer trip the watchdog (its clock stops while wall time runs),
+    // and under fixed-frame-run-to-complete the abort lands after StallWindowSeconds of SIM
+    // seconds instead of ratio x StallWindowSeconds (at the 6.21x measured on the 2026-09-13 G5
+    // run the wall-clock window's 240 s were ~1,490 sim s). StallClock = "wall" is the
+    // pre-2026-09-13 behaviour; the watchdog ALSO falls back to wall seconds by itself whenever
+    // the reader answers -1.0 (no controller, no back end yet), logging one line when it does,
+    // so it is never left without a clock, and it needs THREE consecutive readings of a new
+    // mode before it switches (a reader flapping at the check cadence would otherwise clear
+    // every window on every tick). The VALUE is validated: anything that is not exactly "sim"
+    // or "wall" (trimmed, case-insensitive) logs one line and runs on WALL, so a typo can never
+    // pick a mode nobody chose. The check CADENCE (StallCheckSeconds) is a wall-time sampling
+    // rate, but in "sim" mode it is also the window's RESOLUTION, so it FOLLOWS the clock: the
+    // watchdog samples often enough (down to a 1 s floor) that one step advances the sim clock
+    // by at most StallWindowSeconds / StallPolicy.MinRingDepth, and it never judges on fewer
+    // than MinRingDepth samples. A cadence COARSER than StallWindowSeconds / (MinRingDepth - 1)
+    // could never fill that ring at all, so StallCheckSeconds is CLAMPED to that ceiling - 80 s
+    // on the wall window, 120 s on the sim window - with one line at startup, rather than left to
+    // go dormant in silence (pass-2 review F4a). StallMinSecondsSinceDispatch is a WALL floor and
+    // is applied on the WALL clock ONLY: 360 sim s is ~58 wall s at 6.21x, so ANDing 60 wall s
+    // onto the sim clock would let the floor, not the calibrated window, set the detection time
+    // (measured at 60x: wall 60 s / sim 3,600 s - pass-2 review F8). A sim clock that STOPS
+    // ADVANCING for 60 wall seconds while a move task is in flight - a paused scenario, or a back
+    // end that stopped answering and was deactivated rather than removed - warns once and suspends
+    // judging until it moves again; a clock that steps BACKWARDS is a rollback to a snapshot, not
+    // a stopped clock, and gets its own line without suspending anything (pass-2 review F3).
+    //
+    // *** CALIBRATION - THE WINDOW BELONGS TO THE CLOCK ***
+    // StallWindowSeconds = 0, the shipped default, means "the window calibrated for whichever
+    // clock is in use"; any positive value is used exactly as configured. Both numbers come from
+    // the SAME three replayed traces - G5 20260913T185936Z, G3 20260913T174516Z, P11
+    // 20260907T150643Z - and they are NOT a conversion of one another: P11's sim/wall ratio swings
+    // 1.10x-1.99x WITHIN that one run, so 240 wall s covers 264-478 sim s depending on the load.
+    //   WALL, 240 s (tools/analysis/stall_replay.py; numbers in C16 of
+    //     docs/DESIGN_ORBAT_TO_VRF_2026-09-06.md). NOT the 120 s first tried: at 120 s the rule
+    //     fires on units that are CRAWLING rather than stopped (P11's 4-27, 40, 856/HHC and
+    //     C/1-35 creep at 0.4-0.5 m/s for thousands of seconds and each covered 200-1,200 m AFTER
+    //     the 120 s rule would have aborted them). The last false alarm disappears between a 160 s
+    //     and a 170 s window, so 240 s keeps a 1.41x margin, and the clean threshold band there is
+    //     35-70 m with 50 m mid-band. A larger THRESHOLD cannot do this job in place of a longer
+    //     window - at 120 s the crawlers' per-window minima (41-50 m) and the frozen units'
+    //     (22-49 m) overlap; only persistence separates them.
+    //   SIM, 360 s (docs/experiments/RECAL_STALL_SIMSECONDS_2026-09-13.md). The re-calibration
+    //     re-stamped the wall-stamped POS rows onto the sim axis by piecewise-linear interpolation
+    //     over the (wall, sim) pairs the object console's own line prefixes carry - not one
+    //     least-squares slope, which hides the load variation - and REPRODUCED EVERY DOCUMENTED
+    //     WALL NUMBER first (the 120 s quartet and the 160 s triple to the second, the 160/170
+    //     boundary, the 240 s fires, the 74/78 m true-negative minima, the 35-70 m band). The
+    //     sweep over 100-500 sim s then put the pooled false-alarm boundary at 50 m at 250 sim s
+    //     (P11 250, G3 200, G5 none), and 250 x 1.41 = 353 -> 360. At 360 sim s the clean
+    //     threshold band is 35-75 m and all five true positives fire EARLIER in wall time than the
+    //     240 wall s window does (135 s against 385 s in G5), because the freezes happen while the
+    //     sim runs fastest.
+    // TWO LIVE UNKNOWNS, both settled by one instrumented run: whether
+    // DtVrfRemoteController::simTime() reports the same clock the object console prints as its own
+    // sim prefix - that IS the clock the 360 was calibrated on - and whether DtBackend::simTime()
+    // EXTRAPOLATES between back-end status messages (its member layout,
+    // mySimTimeToRealTimeRatio / myLastSimTimeUpdated at vrfutil/backend.h:410-419, suggests it
+    // may, which would make a paused reading a sawtooth rather than a flat line).
+    // REINTERPRETATION (pass-2 review F9): StallWindowSeconds 0 - and any NEGATIVE value - now
+    // mean "the clock's calibrated default". Before this branch the window was
+    // Math.Max(1, StallWindowSeconds), so 0 meant a ONE-SECOND window. StallDetection ships OFF
+    // and no deployed appsettings sets either, so the blast radius is nil, but a config file
+    // carrying an explicit 0 behaves completely differently here than it did.
+    public bool StallDetection { get; set; } = false;
+    // NOTE (M2 of the cold-start review of 5c67d41): StallClock governs THE PROGRESS WATCHDOG AND
+    // NOTHING ELSE. It used to pick the clock the R4 timed completion served its Durations on too,
+    // so an operator turning it on for C16 silently changed when every task in the order completed.
+    // R4 has its own knob now - Vrf:TaskClock, below. The two READ THE SAME SIM CLOCK through the
+    // same shared sample and the same hysteresis, so they can never disagree about whether the
+    // scenario is running; they may still be configured to different preferences.
+    public string StallClock { get; set; } = "wall";            // "wall" = measured live (default) | "sim" = scenario clock
+    public int StallWindowSeconds { get; set; } = 0;            // 0 or negative = the clock's calibrated window (240 wall / 360 sim); else as given
+    public double StallMoveMeters { get; set; } = 50.0;         // net displacement per member over the window
+    public int StallMinSecondsSinceDispatch { get; set; } = 60; // grace after dispatch before the watchdog may fire
+    public int StallCheckSeconds { get; set; } = 5;             // how often the tick thread samples
+    public int StallMinMembersWithData { get; set; } = 1;       // readable members needed before a stall may be called
 
     // OBSERVATION CHANNEL (UG52 21.9 p483): every VR-Forces object has its own console that
     // carries "messages sent from the simulation engine, from a simulation object's plan, from
@@ -302,6 +429,35 @@ public class VrfSettings
     // experiments overrode this to 30 s via env - make experiment configs explicit.
     public int TaskPredecessorTimeoutSeconds { get; set; } = 600;
 
+    // M1 (cold-start review of 5c67d41): the gate above is now a FLOOR, not the whole window. A
+    // task whose predecessor carries a C2SIM Duration waits at least
+    // (that Duration x Vrf:DurationScale) + this margin, because R4 makes the predecessor's
+    // completion its END TIME and a gate shorter than the end time it waits for skips the
+    // successor by construction (COA-STP1: 31 of 42 tasks, at every shipped setting).
+    // The margin covers the 1 s timed-walk cadence and the dispatch-then-arm ordering inside
+    // MarkDispatched; 60 s is two orders of magnitude of slack on a 4,800 s hold and costs
+    // nothing but 60 s of patience when a predecessor genuinely never completes.
+    public int TaskPredecessorEndMarginSeconds { get; set; } = 60;
+
+    // A1 (cold-start review of 0c96f50): THE ABSOLUTE BACKSTOP ON A CHAINED GATE'S PHASE 1.
+    // Phase 1 asks "has the predecessor DISPATCHED at all", and for a predecessor that is a task
+    // in the same order the honest answer is "wait - something will dispatch it, complete it or
+    // ABANDON it", because every dispatch dead end calls TaskSequencer.NotifyAbandoned and a
+    // successor therefore fails fast on any real one. Measuring that wait with
+    // Vrf:TaskPredecessorTimeoutSeconds instead skipped 21 of COA-STP1's 42 tasks at every
+    // shipped setting (the window covered the predecessor's Duration but not its LEAD TIME).
+    // This is the only bound left on it: one day, longer than any authored chain - COA-STP1's
+    // longest DISPATCH lead is 16,800 s and its last task ENDS at 21,600 s (E6 of the pass-3
+    // review; the "26,400 s" this used to say was wrong) - and short enough that a wedged
+    // interface does not hold a gate for the life of the process. E4: an order whose own deepest
+    // chain reaches this value is NOT truncated silently - the service measures the lead at order
+    // receipt (TaskDispatchPolicy.LongestChainLeadSeconds) and says so, with a WARNING when the
+    // lead meets or exceeds this. A DANGLING startAfterTaskUuid - a predecessor no
+    // task in the order carries - is NOT covered by it and still expires at
+    // Vrf:TaskPredecessorTimeoutSeconds, because nothing will ever abandon a task that does not
+    // exist. 0 or negative falls back to the 86400 default rather than skipping every chain.
+    public int TaskChainBackstopSeconds { get; set; } = 86400;
+
     // P0.2 (NEXT_SESSION_GUIDANCE.md sec 3, DEFECT B): what to do when a task's predecessor
     // times out or was abandoned.
     //   "skip"     (default) log + do NOT dispatch; the task's own successors then fail fast.
@@ -310,6 +466,82 @@ public class VrfSettings
     //   "whenIdle" dispatch only if the unit has no in-flight task at that moment.
     // Golden orders carry no temporal deps, so this never fires there (parity-neutral).
     public string PredecessorTimeoutPolicy { get; set; } = "skip";
+
+    // R4 (user ruling 2026-09-14): "completion is given by the end time". A dispatched task whose
+    // C2SIM Duration has elapsed is reported TASKCMPLT, once, through the single emit point, and
+    // its STREND successors dispatch (TimedCompletionPolicy). ON by default: without it the
+    // hold-type half of a real order - SECURE/OCCUPY/DEFEND/RETAIN/BLOCK/FIX/SCREEN/GUARD, fires
+    // and air defence - has no completion at all and every successor chain dies at the
+    // predecessor timeout (run G6: 9 of 42 tasks dispatched, 0 completed).
+    // Set false to go back to evidence-only completion (arrival / the vendor's own report).
+    public bool TimedCompletion { get; set; } = true;
+
+    // R4 scale factor on the ORDER'S AUTHORED TIME. 1.0 = as written (the default, and the only
+    // value that reproduces the order). A DEMO compresses it: COA-STP1's tasks are PT1H20M and
+    // PT2H, so 0.01 turns a 1h20m hold into 48 s and the whole 42-task chain into minutes.
+    // It scales BOTH halves of the order's clock - the Duration that ends a task AND the
+    // StartTime delay that holds one back (T13's 3h20m) - because compressing one without the
+    // other would leave a "compressed" demo waiting 3h20m for its breach.
+    // Applied where the value is USED, never in the parser: --parse-order always prints the
+    // order as written.
+    public double DurationScale { get; set; } = 1.0;
+
+    // WHICH CLOCK A C2SIM TASK TIME IS MEASURED ON (M2 of the cold-start review of 5c67d41;
+    // supervisor ruling 2026-09-14, Q2 default - the user may flip it).
+    //   "sim"  (DEFAULT) the VR-Forces scenario clock, with an automatic WALL fallback whenever it
+    //          cannot be read or has gone stale. A Duration in an order is a statement about
+    //          SIMULATED time - "hold this objective for one hour twenty" is an hour twenty of the
+    //          scenario, not of the operator's afternoon - and at the measured COA-STP1 sim ratios
+    //          (0.27x-0.73x) the two differ by a factor of three or four.
+    //   "wall" real seconds. Choose this to reproduce the pre-R4 behaviour, or when the scenario
+    //          clock is not trustworthy for a particular run.
+    // THREE THINGS RIDE ON IT, and they must ride on the SAME one or the chain breaks: the
+    // Duration that ends a task (R4), the StartTime/DelayTimeAmount delay that holds one back, and
+    // the STREND predecessor gate. Before this branch the first was on Vrf:StallClock and the
+    // other two were pure wall seconds, so a run configured for sim had a gate that expired
+    // 3-4x too early and skipped every successor.
+    // The axis they are all served on accumulates FORWARD movement only (VrfC2SimService
+    // .SampleTaskClock), so a PAUSED scenario adds nothing, a rollbackToSnapshot adds nothing, and
+    // a fall back to the wall clock mid-run does not restart anybody's wait.
+    // A PAUSED SCENARIO DOES NOT AGE A TASK (Q5, USER RULING 2026-09-14): when the sim clock has
+    // been flat for StallPolicy.StaleClockWarnSeconds the axis HOLDS while a VR-Forces back end is
+    // still present, and falls back to WALL seconds only when there is none. The signal is
+    // VrfFacade::BackendCount, which cannot tell a live back end from one DEACTIVATED for missing
+    // its status timeout - so the hold line repeats rather than being said once. See
+    // StallPolicy.TaskClockAction.
+    // AFTER A ROLLBACK (Q7, USER RULING 2026-09-14, ACCEPTED as recorded): because the axis adds
+    // forward movement ONLY, a rollbackToSnapshot adds nothing and the re-simulated stretch is
+    // served TWICE - once before the rollback and once after - so a task ends LATER in scenario
+    // time than the order says. That is the intended trade: a deadline STAMP would instead fire
+    // the moment a rollback happened to land past it.
+    public string TaskClock { get; set; } = "sim";              // "sim" (default) | "wall"
+
+    // WHAT A SUPERSEDED TASK REPORTS (m1 of the cold-start review of 5c67d41; supervisor ruling
+    // 2026-09-14, Q1 default pending the user's - the user may flip it).
+    // VR-Forces runs ONE task per unit: dispatching a new one REPLACES the running one, and the
+    // interface's own log already says "the old task will not complete". It did not act on that -
+    // the old task's R4 timer stayed armed and duly reported TASKCMPLT at its authored end time,
+    // so STP saw TASKSTRT(old), TASKSTRT(new), TASKCMPLT(old), and the old task's successors then
+    // dispatched onto a unit doing something else. The interface contradicted itself on the wire.
+    //   "TASKABRT"  (DEFAULT) cancel the superseded task's end time and report TASKABRT AT THE
+    //               SUPERSEDE POINT. The taskee is demonstrably not performing it.
+    //   "TASKCMPLT" leave the timer armed: the end time is the ORDER'S statement about the task
+    //               and it ends when the order says it ends, whatever the simulator did. This is
+    //               the pre-fix behaviour, kept selectable because R4 read literally supports it.
+    // NOT REACHABLE on COA-STP1 under the default PredecessorTimeoutPolicy=skip (measured: 0
+    // taskees with more than one ungated task - every taskee is a serial chain); reachable with
+    // "force" or "whenIdle", and on any order with concurrent tasks per taskee.
+    public string SupersededTaskCode { get; set; } = "TASKABRT";
+
+    // A TASK WITH NO DURATION AND NO GEOMETRY has NO KNOB (Q4, USER RULING 2026-09-14). It is
+    // MALFORMED: R2 gives a task without geometry the unit's own position and R4 gives a task its
+    // Duration as an end, and a task with neither has no vendor task to evidence it and no
+    // authored time to end it. The supervisor default invented Vrf:DefaultHoldSeconds (60 s) so
+    // the chain would proceed; the user ruled that a number which is not in the order is not ours
+    // to invent, and that such a task is refused - ERROR naming both missing elements, TASKABRT,
+    // and NotifyAbandoned so the successors fail fast. The knob is DELETED, not defaulted off:
+    // TaskDispatchPolicy.IsMalformedZeroGeometryTask is the whole rule. None of COA-STP1's 42
+    // tasks is affected - all 42 carry a Duration.
 
     // P0.3: an ATTACK/BREACH engage is issued when its approach move COMPLETES (previously
     // it was issued in the same tick as the move, which - VRF running one task at a time -
@@ -418,4 +650,53 @@ public class VrfSettings
     // create alone. Default TRUE = production safety. This gates ONLY the placement path's set;
     // the Fixed100 parity branch and any air-unit set are unaffected (they do not read this).
     public bool PlacementAglSet { get; set; } = true;
+
+    // B2 (2026-09-14): a TaskStatus report is emitted ONCE per task per outcome and nothing
+    // re-sends it, so a push that fails is information lost for the whole run - 129 pushes failed
+    // in G6 with "The response ended prematurely" and the run log said nothing. TASK-STATUS pushes
+    // (not position pushes: the next poll carries the same fix seconds later) are retried this many
+    // times in total, backing off TaskStatusPushBackoffMs, doubling (1 / 2 / 4 s by default).
+    // 1 disables the retry; the failure is still counted and still says so loudly.
+    public int TaskStatusPushTries { get; set; } = 3;
+    public int TaskStatusPushBackoffMs { get; set; } = 1000;
+
+    // ================= ROUTE PRE-FLIGHT (DEMO_READINESS row 20) ===============================
+    // Before a move is dispatched, walk its route against the SAME terrain the sim streams and
+    // warn about legs whose sustained climb reaches the performing unit's own derated limit.
+    // Ported from tools/preflight/leg_check.py; the numbers below ARE the calibration
+    // (docs/experiments/PREFLIGHT_CALIBRATION_2026-09-13.md).
+    //
+    // SHIPS OFF. A flag is a PREDICTION off terrain tiles, never a vendor verdict: DEMO_READINESS
+    // row 20 rules that the warning channel is all this earns until the calibration shows zero
+    // false alarms on more than the one run behind it (nine legs, one order, one terrain, three
+    // positives). Turning it on emits ObservationReports only - it never refuses or alters a task.
+    public bool PreflightWarnings { get; set; } = false;
+
+    // Flag a leg when sustained / (min max-slope x soil factor) reaches this. 0.92 is the
+    // MIDPOINT of the 0.096-wide gap between P11's frozen legs (0.966-1.098) and its clean
+    // movers (0.438-0.870): three flags, three units that froze, no misses, no false alarms.
+    public double PreflightThreshold { get; set; } = 0.92;
+
+    // The sustained window (m). AN OPERATING POINT, NOT A CONSTANT: at 80 m the separation dies
+    // (margin -0.003) and 55 m goes to -0.008 in the same sampling cell; only 40 m holds its
+    // margin across all six sampling variants (leg_check.py --sensitivity).
+    public double PreflightWindowMeters { get; set; } = 40.0;
+
+    // Sample spacing along a leg (m), and the SHORT window that is reported but never decides.
+    public double PreflightStepMeters { get; set; } = 8.0;
+    public double PreflightShortWindowMeters { get; set; } = 20.0;
+
+    // Where the streamed terrain tiles are cached. Empty = "preflight-cache" beside the
+    // executable. The tool's own cache (tools/preflight/preflight_cache) uses the SAME file
+    // naming, so it can be copied in to run the pre-flight with no network at all.
+    public string PreflightCacheDir { get; set; } = "";
+
+    // Never fetch a tile; score only what the cache already holds. A leg whose tiles are missing
+    // gets NO VERDICT - it is never quietly passed.
+    public bool PreflightOffline { get; set; } = false;
+
+    // The MAK SharedData root the land-cover CLASS -> soiltype catalogues are read from
+    // (osgEarthCatalogs/coverage/layer.*.online.xml). The vehicle limits and the soil
+    // acceleration-factors come from Vrf:VrfHome instead. Read-only, both of them.
+    public string PreflightSharedDataDir { get; set; } = @"C:\MAK\SharedData\19\latest";
 }

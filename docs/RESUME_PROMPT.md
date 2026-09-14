@@ -128,8 +128,9 @@ ever fires (see NEXT ACTION); the two-channel oracle contradiction.
 Authorized by the user (2026-07-19) when genuinely required. Rules, learned from a pipeline
 break: A DIAGNOSTIC MUST NOT CHANGE THE BEHAVIOUR OF THE THING IT OBSERVES. Additive only;
 OPT-IN only, nothing new on the default Start() path; validate a new build against the
-five-run bridge table in HANDOFF before trusting it; back up all 7 VrfBridge.dll copies
-first (none are committed) and redeploy to all 7, confirming one hash. Build from PowerShell
+five-run bridge table in HANDOFF before trusting it; back up all VrfBridge.dll copies
+first (none are committed) and redeploy to ALL TEN csproj consumers, confirming one hash (the
+"7 copies" figure was STALE - corrected 2026-09-14, the list is in docs/RUNBOOK.md sec 9). Build from PowerShell
 with VS18 Community MSBuild, ALWAYS /t:Rebuild (a plain build exits 0 having compiled nothing).
 The blind static_cast at VrfFacade.cpp:735 that crashes on control objects is STILL PRESENT
 (the fix went out with revert 5d14eda) - the raw-vs-DR oracle test is un-built, not shipping.

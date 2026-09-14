@@ -3,6 +3,9 @@
 # exactly as STP-615 says (the harness reproduces the defect); STP's ParseReportContent then DISCARDS everything but
 # PositionReportContent (NameObservation and TaskStatus never reach STP today); bundle shape A (repeated ReportContent,
 # our bundler) is accepted, shape B (several PositionReportContent in one ReportContent) silently drops all but the first.
+# 2026-09-14 ~14:40Z GATE G-B (sec 3.6): the B7 shape (HeadingAngle + Speed, from --report-selftest @02b51de) PARSES on
+# all three pins and both values are DELIVERED; a non-numeric HeadingAngle FAILS on all three, so the verdict is not
+# vacuous. No element order or name changed. STP still discards the two values (TODO at C2SimXmlBuilder.cs:720).
 
 # STP_PARSE_CHECK - do our three C2SIM report shapes survive STP's parser?
 
@@ -93,6 +96,11 @@ EntityHealthStatus-null raw-XML fallback) so the printed values are what STP wou
   (*) parses with no error but only the FIRST of three positions survives - see 3.5.
 
 Identical behavior on 1.3.0 and 1.3.1 in every case.
+
+GATE G-B, 2026-09-14 ~14:40Z: sec 3.6 adds the B7 shape (HeadingAngle + Speed) built by the
+integration build 02b51de, plus two negative controls. Result: PARSED on all three, both values
+delivered. (The supervisor's brief called this "sec 3.4"; 3.4 and 3.5 were already taken by the
+13:10Z pass, so it is appended as 3.6 rather than renumbering the existing record.)
 
 ### 3.1 position_report.xml - PARSED on all three
 
@@ -197,6 +205,90 @@ XmlElementAttribute alternatives), so XmlSerializer binds the first matching chi
 the siblings as unknown nodes, which are ignored by default. **Never emit Shape B** - it is
 silent data loss, strictly worse than a rejected report.
 
+### 3.6 B7 shape (HeadingAngle + Speed) - GATE G-B, 2026-09-14 ~14:40Z
+
+WHY THIS RE-RUN. The 13:10Z pass above predates B7. B7 adds two elements to EVERY position
+report - the one report shape STP actually consumes (sec 3.2/3.3: ParseReportContent handles only
+PositionReportContentType) - and STP wraps its whole parse+extract in one catch that returns null
+and drops the WHOLE report (C2SimXmlBuilder.cs:729). If our fork's generated
+PositionReportContentType disagreed with STP's pinned 1.3.1 on these two elements, 100% of position
+reports would vanish. Cold-start review of feat/integration 02b51de, gate G-B (MAJOR-3).
+
+BODIES. Produced by THIS build, not hand-written: `VrfC2SimApp --report-selftest` on
+feat/integration 02b51de (Release, BridgeConfig=Release-5.2) prints the wire xml of every shape it
+round-trips; the two position bodies were lifted verbatim from that output and the `<?xml ...?>`
+declaration stripped, because the SDK hands STP a BARE `<ReportBody>` element
+(`bodyElement.ToString()`, sec 1).
+
+  bodies\position_b7.xml   single PositionReportContent, HeadingAngle 275.25 + Speed 8.75
+                           (ReportSelfTest.cs: headingDeg = 275.25, speedMps = 8.75)
+  bodies\bundle_b7.xml     the P4b 3-fix bundle, per-fix kinematics: fix 0 BOTH (12.5 / 3.25),
+                           fix 1 NEITHER (a failed read), fix 2 HEADING ONLY (359.9)
+
+Element order as emitted (the schema's own sequence): TimeOfObservation, HeadingAngle, Location,
+Speed, SubjectEntity.
+
+RESULTS - verbatim verdicts, `out_b7_<version>.txt`:
+
+  | Case                     | 1.3.0  | 1.3.1  | 1.4.0  |
+  |--------------------------|--------|--------|--------|
+  | position_b7.xml          | PARSED | PARSED | PARSED |
+  | bundle_b7.xml            | PARSED | PARSED | PARSED |
+  | ctl_b7_badheading.xml    | FAILED | FAILED | FAILED |
+  | ctl_b7_disorder.xml      | PARSED | PARSED | PARSED |
+
+**GATE G-B: PASS on 1.3.0, 1.3.1 and 1.4.0.** Identical on all three. No element order or name was
+changed (the brief's stop condition was not reached).
+
+The values are not merely "not fatal" - they are DELIVERED. The harness reads the deserialized
+PositionReportContentType by reflection (so it compiles even against an SDK whose generated type
+lacks the members) and printed, on every version:
+
+  ---- CASE position_b7.xml ----
+    VERDICT: PARSED
+      [0] Item = PositionReportContentType
+          SubjectEntity = 001aa71b-4c26-a1ea-28b2-f7dfe8e76342
+          HeadingAngle = 275.25   (HeadingAngleSpecified = True)
+          Speed = 8.75   (SpeedSpecified = True)
+          Lat/Lon       = 58.703 , 16.4992
+
+and for the bundle, per fix, exactly the shape that was built - 12.5/3.25 specified, then
+False/False, then 359.9 with SpeedSpecified False:
+
+  ---- CASE bundle_b7.xml ----
+    VERDICT: PARSED
+    ReportContent[] : 3
+      [0] HeadingAngle = 12.5  (True)   Speed = 3.25 (True)
+      [1] HeadingAngle = 0     (False)  Speed = 0    (False)
+      [2] HeadingAngle = 359.9 (True)   Speed = 0    (False)
+    STP-visible positions returned: 3
+
+So the OMISSION rule survives the wire too: a fix whose kinematics read failed arrives at STP with
+HeadingAngleSpecified/SpeedSpecified FALSE, not as a fabricated 0.
+
+NEGATIVE CONTROLS (why "PARSED" is not vacuous). XmlSerializer IGNORES unknown elements by default,
+so a PARSED verdict on its own is equally consistent with "the SDK never heard of these elements and
+silently skipped them". Two controls separate the cases:
+
+  - ctl_b7_badheading.xml - the same body with `<HeadingAngle>north</HeadingAngle>`. FAILED on all
+    three: `System.InvalidOperationException: There is an error in XML document (12, 8)` ->
+    `System.FormatException: The input string 'north' was not in a correct format.` The element is
+    therefore genuinely BOUND to a double member of the pinned type, not skipped.
+  - ctl_b7_disorder.xml - HeadingAngle and Speed moved OUT of their declared sequence position (after
+    SubjectEntity). PARSED with both values still delivered, on all three. So element ORDER is not
+    load-bearing for these two on the pinned SDKs - useful to know, but the emitted order is the
+    schema's and there is no reason to move it.
+
+REGRESSION. The six original cases were re-run in the same pass and their verdicts are byte-identical
+to the 13:10Z table, including the STP-615 control (control_empty_opstatus.xml FAILED on 1.3.0/1.3.1,
+PARSED on 1.4.0) - so the harness still reproduces a known defect.
+
+WHAT THIS DOES NOT SETTLE. STP does not USE these two values: `// TODO: Add HeadingAngle, Speed`
+sits at C2SimXmlBuilder.cs:720, so today they are parsed and discarded (the same fate as
+TaskStatus and Observations - sec 3.2/3.3, and MAJOR-2 of the review). G-B's claim is exactly the
+one that mattered: adding them does not cost us the POSITION reports STP does consume. The live
+evidence for heading/speed is the BUS capture, not STP behaviour.
+
 ## 4. What remains unknown (NOT established by this exercise)
 
 1. uuid -> unit correlation. Offline parsing stops at SubjectEntity. STP then does
@@ -233,6 +325,11 @@ silent data loss, strictly worse than a rejected report.
   stpparse\bodies\name_observation.xml        verbatim bus capture
   stpparse\bodies\task_status.xml             verbatim bus capture
   stpparse\bodies\control_empty_opstatus.xml  C++ oracle shape (STP-615 control)
+  stpparse\bodies\position_b7.xml            sec 3.6 - B7 body from --report-selftest @02b51de
+  stpparse\bodies\bundle_b7.xml              sec 3.6 - B7 P4b bundle, per-fix kinematics
+  stpparse\bodies\ctl_b7_badheading.xml      sec 3.6 - negative control (non-numeric HeadingAngle)
+  stpparse\bodies\ctl_b7_disorder.xml        sec 3.6 - negative control (elements out of sequence)
+  stpparse\out_b7_1.3.0.txt / _1.3.1 / _1.4.0 sec 3.6 - verbatim harness output
   stpparse\bodies\bundle_multi_reportcontent.xml     bundle shape A (accepted)
   stpparse\bodies\bundle_multi_positioncontent.xml   bundle shape B (silent loss)
   stpparse\out_1.3.0.txt, out_1.3.1.txt, out_1.4.0.txt   full run output

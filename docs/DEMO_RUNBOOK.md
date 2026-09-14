@@ -228,6 +228,21 @@ IN STP
   dispatch) and TASKABRT (for a task that is refused or a unit that stalls) are BUILT but NOT yet
   merged or deployed - do not promise them for a demo run today.
 
+*** WHAT STP RENDERS TODAY - DO NOT NARRATE MORE THAN THIS *** (added 2026-09-14; verified from
+STP's own source, docs/experiments/STP_PARSE_CHECK_2026-09-14.md secs 1 and 3, and MAJOR-2 of
+docs/experiments/REVIEW_INTEGRATION_02b51de_2026-09-14.md). STP's C2SimBridge has exactly ONE report
+parse site, and `ParseReportContent` handles ONLY `PositionReportContentType`: an
+`ObservationReportContentType` or a `TaskStatusType` is deserialized correctly and then DISCARDED,
+with no log line. So POSITION is the only channel STP consumes today - task starts, task aborts,
+route pre-flight warnings and type-substitution announcements are all no-ops AT STP as it is pinned
+(HyssosTech.Sdk.C2SIM 1.3.1), whatever the interface sends, until STP-800. HeadingAngle and Speed
+are a third case: they now ride on every position report and STP's parser accepts them without
+complaint (gate G-B: PARSED on 1.3.0 / 1.3.1 / 1.4.0, both values delivered), but STP does not yet
+READ them - `// TODO: Add HeadingAngle, Speed` sits in its own builder. The evidence for all of
+these is therefore the BUS CAPTURE, not STP's display: do NOT tell an audience "STP now sees task
+starts, aborts, heading and speed" - say that the interface now REPORTS them, and show the capture
+if asked.
+
 SAY THIS OUT LOUD IF YOU RUN THE LONG ORDER: some units stop part-way and never arrive. The cause is
 under investigation (steep sustained ridge faces on the straight-line legs, plus at least one second
 mechanism); the simulator itself does not notice a vehicle that has stopped, which is exactly why a

@@ -19,7 +19,8 @@ public sealed class InFlightTracker
     /// last vertex when the task is a move, for the arrival-evidence completion (ArrivalPolicy);
     /// null for tasks without a destination (patrol, engage).</summary>
     public readonly record struct InFlight(string TaskUuid, string TaskName, string ExpectedKind,
-                                           DateTime DispatchedUtc, double? DestLat = null, double? DestLon = null);
+                                           DateTime DispatchedUtc, double? DestLat = null, double? DestLon = null,
+                                           string TaskeeUuid = "");
 
     private readonly ConcurrentDictionary<string, InFlight> _byUnitName = new();
 
@@ -44,6 +45,32 @@ public sealed class InFlightTracker
 
     /// <summary>Whether the unit has a task in flight (the whenIdle timeout policy).</summary>
     public bool IsBusy(string unitName) => _byUnitName.ContainsKey(unitName);
+
+    /// <summary>Peek at the unit's in-flight record without popping it.</summary>
+    public bool TryGetCurrent(string unitName, out InFlight current)
+    {
+        current = default;
+        return !string.IsNullOrEmpty(unitName) && _byUnitName.TryGetValue(unitName, out current);
+    }
+
+    /// <summary>
+    /// Pop the unit's in-flight record ONLY IF it is still the named task (m9 of the cold-start
+    /// review of 5c67d41). The R4 timed completion needs this: a task that ended because its time
+    /// was up must release the unit, but by the time the walk runs the unit may already have been
+    /// re-tasked, and popping THAT record would make a live task invisible to the arrival monitor,
+    /// the progress watchdog and the whenIdle policy. The compare-and-remove is atomic, so a
+    /// concurrent vendor completion and this call cannot both succeed.
+    /// </summary>
+    public bool TryCompleteIfCurrent(string unitName, string taskUuid, out InFlight completed)
+    {
+        completed = default;
+        if (string.IsNullOrEmpty(unitName) || string.IsNullOrEmpty(taskUuid)) return false;
+        if (!_byUnitName.TryGetValue(unitName, out var current)) return false;
+        if (!string.Equals(current.TaskUuid, taskUuid, StringComparison.Ordinal)) return false;
+        if (!_byUnitName.TryRemove(new KeyValuePair<string, InFlight>(unitName, current))) return false;
+        completed = current;
+        return true;
+    }
 
     /// <summary>
     /// Loose sanity check of a VRF completion's task-type string (e.g. "move-along")
