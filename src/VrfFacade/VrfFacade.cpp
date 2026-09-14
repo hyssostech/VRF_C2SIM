@@ -62,6 +62,11 @@
 #include <vrfutil/scenario.h>
 #include <matrix/geodeticCoord.h>
 #include <matrix/vlVector.h>
+// B7: geocentric -> topographic conversion for the kinematics read
+// (DtGetHeadingFromGeocentric, DtLatLon_to_GeocToTopo) and DtDcmVecMul.
+#include <matrix/topoCoord.h>
+#include <matrix/vlDcm.h>
+#include <matrix/vlTaitBryan.h>
 
 // VRF_API_52 = the VR-Forces 5.2d / VR-Link 5.10 build axis (VrfBridge.vcxproj Release-5.2*).
 // docs/VRF_5.2_MIGRATION_DIFF.md sec G Y-6: Start/Tick follow the 5.2d remoteControl sample.
@@ -75,6 +80,7 @@
 
 #include <cstring>
 #include <cstdlib>
+#include <cmath>     // fmod/sqrt/isfinite for TryGetEntityKinematics
 #include <string>
 #include <vector>
 #include <set>
@@ -278,6 +284,10 @@ static void reportTrampoline(const DtVrfObjectMessage* msg, void* usr) {
             const char* mark = msg->transmitter().markingText();
             ev.unitMarking = mark ? mark : "";
             ev.taskType = tc->taskCompleted().string() ? tc->taskCompleted().string() : "";
+            // taskCompleteReport.h:84-90 - false means the task FAILED and is no longer
+            // being processed. Read straight through; the vendor defaults it to true
+            // (:87) so an old or minimal report still reads as a success.
+            ev.success = tc->success();
             self->OnTaskCompleted(ev);
         }
     } else if (kind == "text-report") {
@@ -1027,20 +1037,21 @@ unsigned int VrfFacade::RequestTerrainProfile(const std::vector<Geodetic>& point
     return id;
 }
 
-bool VrfFacade::TryGetEntityGeodetic(const std::string& uuid, Geodetic& out) const {
-    if (!p_->uuidMgr) return false;
-    DtReflectedObject* obj = p_->uuidMgr->reflectedObjectFor(DtUUID(uuid));
-    if (!obj) return false;
-
-    // Resolve the location from EITHER an entity or an aggregate. The C++ oracle
-    // getUnitGeodeticFromSim static_cast'd every reflected object to DtReflectedEntity*
-    // (wrong-type UB for an aggregate, but it happened to yield a usable location, so the
-    // disaggregated aggregate 11.MechBn moved - PORT.md sec 5/8). This port handles the
-    // aggregate case PROPERLY: DtReflectedAggregate exposes aggregateStateRep(), whose
-    // DtAggregateStateRepository shares DtBaseEntityStateRepository::location() with an
-    // entity's DtEntityStateRepository - so both paths return the same geocentric vector.
-    // Without this, dynamic_cast<DtReflectedEntity*> returns null for an aggregate and the
-    // caller ABANDONS the task, breaking the golden aggregate-move.
+// Resolve the base state repository of a reflected object from EITHER an entity or an
+// aggregate. The C++ oracle getUnitGeodeticFromSim static_cast'd every reflected object to
+// DtReflectedEntity* (wrong-type UB for an aggregate, but it happened to yield a usable
+// location, so the disaggregated aggregate 11.MechBn moved - PORT.md sec 5/8). This port
+// handles the aggregate case PROPERLY: DtReflectedAggregate exposes aggregateStateRep(),
+// whose DtAggregateStateRepository shares DtBaseEntityStateRepository::location() with an
+// entity's DtEntityStateRepository - so both paths return the same geocentric vector.
+// Without this, dynamic_cast<DtReflectedEntity*> returns null for an aggregate and the
+// caller ABANDONS the task, breaking the golden aggregate-move.
+//
+// Extracted (B7) so TryGetEntityGeodetic and TryGetEntityKinematics resolve a unit through
+// ONE rule: a position and a heading/speed that disagreed about which repository to read
+// would be a silent, untestable inconsistency in the same position report.
+static DtBaseEntityStateRepository* stateRepOf(DtReflectedObject* obj) {
+    if (!obj) return nullptr;
     DtBaseEntityStateRepository* sr = nullptr;
     if (DtReflectedEntity* ent = dynamic_cast<DtReflectedEntity*>(obj))
         sr = ent->entityStateRep();
@@ -1054,6 +1065,15 @@ bool VrfFacade::TryGetEntityGeodetic(const std::string& uuid, Geodetic& out) con
     // base-offset myStateRep, so location() still yields the object's location.
     if (!sr)
         sr = static_cast<DtReflectedEntity*>(obj)->entityStateRep();
+    return sr;
+}
+
+bool VrfFacade::TryGetEntityGeodetic(const std::string& uuid, Geodetic& out) const {
+    if (!p_->uuidMgr) return false;
+    DtReflectedObject* obj = p_->uuidMgr->reflectedObjectFor(DtUUID(uuid));
+    if (!obj) return false;
+
+    DtBaseEntityStateRepository* sr = stateRepOf(obj);
     if (!sr) return false;
     DtVector geoLocation = sr->location();
     DtGeodeticCoord geod;
@@ -1061,6 +1081,58 @@ bool VrfFacade::TryGetEntityGeodetic(const std::string& uuid, Geodetic& out) con
     out.latDeg = geod.lat() * kDegRadFactor;
     out.lonDeg = geod.lon() * kDegRadFactor;
     out.altMeters = geod.alt();
+    return true;
+}
+
+bool VrfFacade::TryGetEntityKinematics(const std::string& uuid,
+                                       double& speedMps, double& headingDeg) const {
+    if (!p_->uuidMgr) return false;
+    DtReflectedObject* obj = p_->uuidMgr->reflectedObjectFor(DtUUID(uuid));
+    if (!obj) return false;
+
+    // SAME resolution rule as TryGetEntityGeodetic (see stateRepOf): entity, aggregate,
+    // then the oracle's static_cast fallback. location(), velocity() and orientation() are
+    // all DtBaseEntityStateRepository members, so one repository serves all three and the
+    // three reads describe ONE instant of the object's state.
+    DtBaseEntityStateRepository* sr = stateRepOf(obj);
+    if (!sr) return false;
+
+    const DtVector geoLocation = sr->location();
+
+    // HEADING - vendor helper, geocentric location + geocentric Euler angles -> radians
+    // true heading (matrix/topoCoord.h:46-49). It does the topographic transformation
+    // itself, so there is no rotation to hand-roll here.
+    double heading = DtGetHeadingFromGeocentric(geoLocation, sr->orientation()) * kDegRadFactor;
+    // The helper returns the topographic yaw, which is an Euler angle and so is expected to
+    // be signed (about (-180, +180]) - but that range is ASSUMED, not documented in the
+    // header, so the fold below is written to be range-agnostic: it normalises ANY finite
+    // input into [0, 360), which is what C2SIM HeadingAngle means ("degrees where north is
+    // zero", no negative convention). The final line folds -0.0 to +0.0 so a due-north
+    // heading serializes as "0" rather than "-0".
+    heading = std::fmod(heading, 360.0);
+    if (heading < 0.0) heading += 360.0;
+    if (heading == 0.0) heading = 0.0;
+
+    // GROUND SPEED - velocity() is m/s in GEOCENTRIC world coordinates
+    // (baseEntityStateRepository.h:64-65, 121-128). Rotate it into this object's local
+    // topographic frame with the vendor's own matrix, applied exactly as topoCoord.h:33-37
+    // documents the call, then take the HORIZONTAL magnitude: the topographic frame is
+    // X=north, Y=east, Z=down (topoCoord.h:20-23), so the vertical rate is z() and dropping
+    // it leaves ground speed (a climbing/descending vehicle does not inflate its speed).
+    DtGeodeticCoord geod;
+    geod.setGeocentric(geoLocation);
+    DtDcm geocToTopo;
+    DtLatLon_to_GeocToTopo(geod, geocToTopo);
+    DtVector32 vTopo;
+    DtDcmVecMul(geocToTopo, sr->velocity(), vTopo);
+    const double north = (double)vTopo.x(), east = (double)vTopo.y();
+    double speed = std::sqrt(north * north + east * east);
+
+    // A non-finite read is a FAILED read, not a zero: the caller omits the fields rather
+    // than reporting a unit as stationary and pointing north (never send a default 0).
+    if (!std::isfinite(speed) || !std::isfinite(heading)) return false;
+    speedMps = speed;
+    headingDeg = heading;
     return true;
 }
 
