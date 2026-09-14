@@ -127,6 +127,12 @@ public sealed class VrfC2SimService : BackgroundService
     // busy-waits with async gating + a timeout. See TaskSequencer.
     private readonly TaskSequencer _sequencer = new();
 
+    // B1: which TaskStatus code a task may still emit, and how often (TASKSTRT at dispatch,
+    // ONE TASKCMPLT per task, TASKABRT for a refused / skipped / stalled / failed task, and the
+    // abort-then-complete rule). Every TaskStatus report in this file goes through PushTaskStatus,
+    // which consults it - so the guarantees are properties of the report STREAM, not of call sites.
+    private readonly TaskStatusPolicy _taskStatus = new();
+
     // The service lifetime token, captured in ExecuteAsync so task orchestrations started
     // from SDK-event threads can cancel their waits on shutdown.
     private CancellationToken _stoppingToken = CancellationToken.None;
@@ -1776,6 +1782,11 @@ public sealed class VrfC2SimService : BackgroundService
                 if (!dispatch)
                 {
                     _sequencer.NotifyAbandoned(task.TaskUuid); // successors fail fast
+                    // B1: a successor SKIPPED because its predecessor never completed is not going to
+                    // be executed either - report it instead of leaving it silently unanswered
+                    // (supervisor 2026-09-14).
+                    PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKABRT,
+                                   $"SKIPPED: predecessor {task.StartAfterTaskUuid} {why}; policy={policy}");
                     return;
                 }
             }
@@ -2009,6 +2020,10 @@ public sealed class VrfC2SimService : BackgroundService
             }
             _log.LogError("NO LOCATION GIVEN - CAN'T EXECUTE TASK '{Task}'.", task.TaskName);
             _sequencer.NotifyAbandoned(task.TaskUuid);
+            // B1: the interface REFUSES this task - it will never be executed, so say so instead of
+            // leaving the C2SIM side waiting for a status that can never come (supervisor 2026-09-14).
+            PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKABRT,
+                           $"REFUSED at dispatch: task '{task.TaskName}' gave no location");
             return;
         }
         // ORIGIN VERTEX DROP (Vrf:DropOriginVertexMeters; PREREG_ASSEMBLY_LAYOUT 3f): STP's first route
@@ -2304,6 +2319,12 @@ public sealed class VrfC2SimService : BackgroundService
         // which is the conservative direction.
         if (dest is not null) _stallSamples.TryRemove(unit.Name, out _);
         _sequencer.NotifyDispatched(task.TaskUuid);
+        // B1: the task has STARTED. This is the one point every dispatch path reaches (it is what
+        // records the in-flight task), so it is where the C2SIM consumer is told - one TASKSTRT per
+        // dispatch; a re-entered dispatch (the TerrainProfile second pass) is suppressed by the
+        // policy, a genuine re-task announces again.
+        PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKSTRT,
+                       $"dispatched to {unit.Name} as '{kind}'");
     }
 
     /// <summary>
@@ -2997,12 +3018,9 @@ public sealed class VrfC2SimService : BackgroundService
                 _log.LogWarning("STALL for '{Name}' but no C2SIM uuid known - no TASKABRT report sent.", name);
                 continue;
             }
-            var report = ReportBuilder.BuildTaskStatusReport(taskeeUuid, rec.TaskUuid ?? "",
-                                                             S.TaskStatusCodeType.TASKABRT, IsoNow(), NewReportId());
-            _log.LogInformation("SENT TASK STATUS REPORT (TASKABRT) taskee={Uuid} task={Task} - report only: the task " +
-                                "stays in flight, no VR-Forces command is issued and nothing is re-tasked.",
-                                taskeeUuid, rec.TaskUuid ?? "(none)");
-            _ = PushReportAsync(report);
+            PushTaskStatus(taskeeUuid, rec.TaskUuid ?? "", S.TaskStatusCodeType.TASKABRT,
+                           "STALLED (C16 progress watchdog) - report only: the task stays in flight, no " +
+                           "VR-Forces command is issued and nothing is re-tasked");
         }
         // SILENT DORMANCY, SAID OUT LOUD (pass-2 review F4b). Above sim/wall ratio
         // window / ((MinRingDepth - 1) x 1 s) - 120x at the 360 s sim window - the cadence is
@@ -3052,7 +3070,21 @@ public sealed class VrfC2SimService : BackgroundService
         // unattributable ("Task-complete for 'X' but no C2SIM uuid known - no report sent"). A
         // fan-out MEMBER name was never requested, so it passes through unchanged.
         string marking = _names.Resolve(e.UnitMarking ?? "");
-        _log.LogInformation("VRF task complete: {Unit} / {Task}", marking, e.TaskType);
+        // DID THE TASK SUCCEED? The vendor's report carries success() - "success being false
+        // indicates that the task has failed and is no longer being processed"
+        // (vrforces5.2d/include/vrftasks/taskCompleteReport.h:84-90).
+        // *** NATIVE success() FORWARDING IS OWED (supervisor 2026-09-14) ***: VrfFacade.cpp
+        // :275-281 reads only taskCompleted(), and TaskCompletedEventArgs (VrfBridge.cpp:160-164)
+        // has no flag, so EVERY completion arrives here as a success today. Evidence that this
+        // matters - run G2 (docs/experiments/READ_G2_1-6_MESH_STOP_2026-09-14.md): 1-6's leader
+        // printed "Entity not embarked on same object as target [%1]. Ending task Route 54", then
+        // "Controller ... maneuver-in-formation task has Failed" at sim 320.4, the unit was re-formed
+        // under another leader, and the interface reported NOTHING for nine hours. The handling is
+        // written and tested below (TaskStatusPolicy.CodeForCompletion, --report-selftest): when the
+        // bridge grows a Success property this becomes `bool success = e.Success;` and nothing else
+        // changes. Native code is NOT touched in this pass.
+        bool success = true;
+        _log.LogInformation("VRF task complete: {Unit} / {Task} (success={Ok})", marking, e.TaskType, success);
         // A vendor completion for a task already reported from arrival evidence: swallow it ONCE
         // (VR-Forces runs one task at a time and a re-task abandons the old one without a
         // callback, so this can only be the pre-empted task's own late completion).
@@ -3098,12 +3130,12 @@ public sealed class VrfC2SimService : BackgroundService
             }
             _log.LogInformation("R10 fan-out: completion quorum reached for {Unit} ({N} straggler(s) will be " +
                                 "swallowed) - synthesizing the unit's task completion.", fanUnit, fanRemaining);
-            SynthesizeUnitCompletion(fanUnit, e.TaskType);
+            SynthesizeUnitCompletion(fanUnit, e.TaskType, success);
             return;
         }
 
         // Normal (non-fanned) unit-level completion.
-        SynthesizeUnitCompletion(name, e.TaskType);
+        SynthesizeUnitCompletion(name, e.TaskType, success);
     }
 
     /// <summary>
@@ -3118,7 +3150,13 @@ public sealed class VrfC2SimService : BackgroundService
     /// Synthesized flag blocks the second trigger - so only ONE of {quorum, timeout} ever reaches
     /// here for a given task.
     /// </summary>
-    private void SynthesizeUnitCompletion(string name, string vrfTaskTypeForLog)
+    /// <param name="success">What VR-Forces said about the task: false = "the task has FAILED and
+    /// is no longer being processed" (DtTaskCompleteReport::success(), vrftasks/taskCompleteReport.h
+    /// :84-90). A failure reports TASKABRT instead of TASKCMPLT, does NOT release the successors'
+    /// gate (it abandons them, so they fail fast instead of waiting out the predecessor timeout) and
+    /// does NOT fire the engage parked on the move. Every non-vendor path here is a success by
+    /// construction (arrival evidence, fan-out quorum, straggler timer).</param>
+    private void SynthesizeUnitCompletion(string name, string vrfTaskTypeForLog, bool success = true)
     {
         // C16 (review D3): the unit's task is over on EVERY path that reaches here - vendor
         // completion, R10 fan-out quorum, fan-out straggler timeout, arrival evidence - so drop
@@ -3151,13 +3189,14 @@ public sealed class VrfC2SimService : BackgroundService
         // Release any task gated on this one (parity: setTaskIsComplete unblocked the C++
         // busy-wait on getTaskIsComplete; here it completes the successor's await). Only
         // the ATTRIBUTED task's gate releases - a superseded task's gate stays closed.
-        _sequencer.CompleteTask(taskUuid);
+        if (success) _sequencer.CompleteTask(taskUuid);
+        else _sequencer.NotifyAbandoned(taskUuid);   // a FAILED task never completes: successors fail fast
 
         // P0.3: the move completed - issue the engage that was parked on it (advance the
         // axis / approach the obstacle, THEN engage/breach - now for real, not same-tick).
         // taskUuid != null (not IsNullOrEmpty): an ATTRIBUTED task with an empty uuid must
         // still match its engage; only an UNATTRIBUTED completion (null) skips this.
-        if (taskUuid != null && _pendingEngage.TryGetValue(name, out var eng)
+        if (success && taskUuid != null && _pendingEngage.TryGetValue(name, out var eng)
             && eng.MoveTaskUuid == taskUuid
             && _pendingEngage.TryRemove(new KeyValuePair<string, PendingEngage>(name, eng)))
         {
@@ -3166,10 +3205,10 @@ public sealed class VrfC2SimService : BackgroundService
             IssueEngage(name, eng);
         }
 
-        var report = ReportBuilder.BuildTaskCompleteReport(taskeeUuid, taskUuid ?? "", IsoNow(), NewReportId());
-        _log.LogInformation("SENT TASK STATUS REPORT (TASKCMPLT) taskee={Uuid} task={Task}.",
-                            taskeeUuid, taskUuid ?? "(none)");
-        _ = PushReportAsync(report);
+        PushTaskStatus(taskeeUuid, taskUuid ?? "", TaskStatusPolicy.CodeForCompletion(success),
+                       success ? $"unit {name} completed its task"
+                               : $"unit {name}: VR-Forces reported the task FAILED (success=false) - it is no " +
+                                 "longer being processed");
     }
 
     private void OnVrfTextReport(object sender, TextReportEventArgs e)
@@ -3418,6 +3457,40 @@ public sealed class VrfC2SimService : BackgroundService
         if (string.IsNullOrEmpty(reportXml)) return;
         try { await _sdk.PushReportMessage(reportXml); }
         catch (Exception e) { _log.LogError("PushReport failed: {Msg}", C2SIMSDK.GetRootException(e).Message); }
+    }
+
+    /// <summary>
+    /// THE one place a TaskStatus report leaves this interface (B1). It applies TaskStatusPolicy -
+    /// one TASKSTRT per dispatch, one TASKCMPLT per task, one TASKABRT per task and never after
+    /// that task's TASKCMPLT - logs what it sent (or why it did not), and pushes. Callable from
+    /// any thread: the policy is thread-safe and the push is fire-and-forget.
+    /// </summary>
+    private void PushTaskStatus(string taskeeUuid, string taskUuid, S.TaskStatusCodeType code, string why)
+    {
+        if (string.IsNullOrEmpty(taskeeUuid))
+        {
+            _log.LogWarning("TASK STATUS {Code} for task {Task} NOT SENT - no C2SIM taskee uuid ({Why}).",
+                            code, string.IsNullOrEmpty(taskUuid) ? "(none)" : taskUuid, why);
+            return;
+        }
+        bool allowed = code switch
+        {
+            S.TaskStatusCodeType.TASKSTRT => _taskStatus.ShouldEmitStart(taskUuid),
+            S.TaskStatusCodeType.TASKCMPLT => _taskStatus.ShouldEmitComplete(taskUuid),
+            S.TaskStatusCodeType.TASKABRT => _taskStatus.ShouldEmitAbort(taskUuid),
+            _ => true,
+        };
+        if (!allowed)
+        {
+            _log.LogInformation("TASK STATUS {Code} for task {Task} SUPPRESSED by the emission rules " +
+                                "(already reported for this task, or the task has already completed): {Why}.",
+                                code, string.IsNullOrEmpty(taskUuid) ? "(none)" : taskUuid, why);
+            return;
+        }
+        var xml = ReportBuilder.BuildTaskStatusReport(taskeeUuid, taskUuid ?? "", code, IsoNow(), NewReportId());
+        _log.LogInformation("SENT TASK STATUS REPORT ({Code}) taskee={Uuid} task={Task} - {Why}.",
+                            code, taskeeUuid, string.IsNullOrEmpty(taskUuid) ? "(none)" : taskUuid, why);
+        _ = PushReportAsync(xml);
     }
 
     // ================= P4b position-report bundle helpers (see the _posBundle field block) =========

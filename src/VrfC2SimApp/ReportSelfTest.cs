@@ -57,6 +57,65 @@ public static class ReportSelfTest
         }
         else { failures++; Console.WriteLine("  FAIL: TASKABRT did not round-trip to a TaskStatus content"); }
 
+        // ---- task-status (TASKSTRT) - emitted at DISPATCH (B1) ----
+        string strtXml = ReportBuilder.BuildTaskStatusReport(taskee, taskUuid,
+                                                            S.TaskStatusCodeType.TASKSTRT, iso, reportId);
+        Console.WriteLine();
+        Console.WriteLine("=== TaskStatus (TASKSTRT) report ===");
+        Console.WriteLine(strtXml);
+        var rt2 = ReportBodyOf(Roundtrip(strtXml));
+        if (rt2 != null && rt2.ReportContent is { Length: 1 }
+            && rt2.ReportContent[0].Item is S.TaskStatusType tstrt)
+        {
+            Check(ref failures, tstrt.TaskStatusCode == S.TaskStatusCodeType.TASKSTRT, "TaskStatusCode == TASKSTRT");
+            Check(ref failures, tstrt.CurrentTask == taskUuid, "TASKSTRT CurrentTask == taskUuid");
+            Check(ref failures, rt2.ReportingEntity == taskee, "TASKSTRT ReportingEntity == taskee");
+            Check(ref failures, strtXml.Contains("TASKSTRT", StringComparison.Ordinal)
+                                && !strtXml.Contains("TASKCMPLT", StringComparison.Ordinal),
+                  "the TASKSTRT wire xml carries TASKSTRT and no TASKCMPLT");
+        }
+        else { failures++; Console.WriteLine("  FAIL: TASKSTRT did not round-trip to a TaskStatus content"); }
+
+        // ---- the EMISSION RULES (B1, TaskStatusPolicy) ----
+        // Policy level: which code a task may still emit and how often. No bridge, no server.
+        Console.WriteLine();
+        Console.WriteLine("=== TaskStatusPolicy (emission rules) ===");
+        var pol = new TaskStatusPolicy();
+        const string tA = "task-A";
+        Check(ref failures, pol.ShouldEmitStart(tA), "a dispatch emits ONE TASKSTRT");
+        Check(ref failures, !pol.ShouldEmitStart(tA),
+              "the same dispatch RE-ENTERED (TerrainProfile second pass) emits no second TASKSTRT");
+        Check(ref failures, pol.ShouldEmitComplete(tA), "its completion emits ONE TASKCMPLT");
+        Check(ref failures, !pol.ShouldEmitComplete(tA), "a second completion of the same task emits nothing");
+        Check(ref failures, !pol.ShouldEmitAbort(tA), "a TASKCMPLT SUPPRESSES a later TASKABRT");
+        Check(ref failures, pol.ShouldEmitStart(tA), "a RE-TASK after completion re-arms and emits TASKSTRT");
+
+        const string tB = "task-B";                       // the stalled / failed task (C16 rule)
+        Check(ref failures, pol.ShouldEmitStart(tB), "dispatch of B emits TASKSTRT");
+        Check(ref failures, pol.ShouldEmitAbort(tB), "the watchdog emits ONE TASKABRT");
+        Check(ref failures, !pol.ShouldEmitAbort(tB), "a second stall of the same task emits nothing");
+        Check(ref failures, pol.ShouldEmitComplete(tB), "a TASKABRT does NOT suppress a later TASKCMPLT (C16)");
+
+        const string tC = "task-C";                       // refused at dispatch / skipped successor
+        Check(ref failures, pol.ShouldEmitAbort(tC), "a REFUSED (never dispatched) task emits ONE TASKABRT");
+        Check(ref failures, !pol.ShouldEmitAbort(tC), "and only one");
+        Check(ref failures, TaskStatusPolicy.CodeForCompletion(true) == S.TaskStatusCodeType.TASKCMPLT,
+              "a vendor completion with success=true maps to TASKCMPLT");
+        Check(ref failures, TaskStatusPolicy.CodeForCompletion(false) == S.TaskStatusCodeType.TASKABRT,
+              "a vendor completion with success=false maps to TASKABRT (taskCompleteReport.h:84-90)");
+        // A FAILED completion must produce exactly one TASKABRT and no TASKCMPLT (supervisor 2026-09-14).
+        const string tD = "task-D";
+        var failCode = TaskStatusPolicy.CodeForCompletion(false);
+        Check(ref failures, failCode == S.TaskStatusCodeType.TASKABRT && pol.ShouldEmitAbort(tD)
+                            && !pol.ShouldEmitAbort(tD),
+              "a failed vendor completion yields exactly ONE TASKABRT");
+        Check(ref failures, pol.ShouldEmitComplete(tD),
+              "... and no TASKCMPLT was consumed by it (the completion slot is untouched)");
+
+        const string unattributed = "";                   // an unattributed completion carries no uuid
+        Check(ref failures, pol.ShouldEmitComplete(unattributed) && pol.ShouldEmitComplete(unattributed),
+              "an EMPTY task uuid is never suppressed (two unattributed completions = two reports)");
+
         // ---- position ----
         const string subject = "001aa71b-4c26-a1ea-28b2-f7dfe8e76342";
         const double lat = 58.703, lon = 16.4992;
