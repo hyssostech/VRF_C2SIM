@@ -1671,6 +1671,11 @@ COA-STP1 42 tasks and PROBE_RIDGE_1-35_DELAYED 1 task / simStartMs=300000; `--ru
 exit 0 reporting `native stack = 5.2|C:\MAK\vrforces5.2d\bin64\vrfcontrol.dll`. The PRE state
 it replaced was itself a partial deploy: four different bridge hashes across the six 5.2 bin
 trees (VrfC2SimApp on 2FF06047 of 2026-09-06, the other five on three 2026-09-04 builds).
+THE PIN NAMES 165e04c, NOT the tip: two commits from a parallel lane (`fe17e7b`, `0432b98`)
+landed on main WHILE this gate ran. Both are docs + one new `data/*.xml` only - `git diff
+--name-only 165e04c 0432b98` touches nothing under `src/` or `tools/` and no csproj/vcxproj -
+so the binaries above are still the binaries of the current tip. One checkout, several lanes:
+check this before trusting any pin whose sha is not the tip.
 
 ---
 
