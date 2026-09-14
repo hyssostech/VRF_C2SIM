@@ -52,6 +52,16 @@ terrain copy carrying ONLY this area's record (the MojaveAO20 record is dropped 
 overlapping areas of the same profile), fixture R9_Mojave_Empty_52_NavAO, deployed by the
 sanctioned builder command. The three known trouble points and every leg end are inside.
 
+GENERATION RESULT (2026-09-13 20:39Z -> 23:59Z, exit 0): 8,856 sectors (108 x 82), every one
+"GENERATED NAVDATA: REGULAR" (8,856/8,856 in the log; 8,810 carry AbstractData), 11,952 s total = 3.3 h
+(vs the ~2.4 h estimate; ~5.3 s/km2), peak working set ~9 GB, 26,525 files / 1.2 GB (the ~30k files seen
+mid-run included inputs the generator cleans up). MOVED to the permanent home
+C:\C2SIM\vrf-nav\navData\MAK Earth (online)\NavArea-ground-platform MojaveCOA (DEMO_READINESS row 21),
+runtime config re-pointed, terrain copy tools/navdata/out/"MAK Earth (online) + MojaveCOA.mtf" = 10 navData
+records with exactly one at the new home, fixture R9_Mojave_Empty_52_NavAO built, validated (ALL FIXTURES:
+OK) and deployed byte-identical; C:\MAK navData carries 0 Mojave entries. Deployed build UNCHANGED (exe
+2026-09-07 11:06Z).
+
 ## 2. The run (after generation; idle machine; one variable vs P11 = the area)
 COA-STP1 full order, the P11/G2 environment, PROBE type map, -NoGui, -RunSecs 900 -WatchSecs 1200,
 member consoles at 4 (to capture the planner's own row: "Planned path has N points." = mesh,
