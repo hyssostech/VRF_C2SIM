@@ -2393,7 +2393,25 @@ public sealed class VrfC2SimService : BackgroundService
                     _log.LogWarning("Task '{Task}': composition of {Name} not signalled within {T}s - dispatching " +
                                     "anyway (move may drive an incomplete unit).", task.TaskName, gateName, composeBound.TotalSeconds);
             }
-            _tickActions.Enqueue(() => ExecuteTaskOnTick(task, unit));
+            // A1 FOLLOW-UP, caught reviewing my own change. The tick-action drain catches a throw
+            // and LOGS it (TickLoop) but tells the sequencer NOTHING, so a dispatch that died on the
+            // tick thread left its successors waiting - for the derived window before A1, and for
+            // the CHAIN BACKSTOP after it. A1 made this one narrow path much slower rather than
+            // faster, which is exactly the trade the backstop is not supposed to make. Every other
+            // dead end in this file abandons the task and tells STP; so does this one now.
+            _tickActions.Enqueue(() =>
+            {
+                try { ExecuteTaskOnTick(task, unit); }
+                catch (Exception ex)
+                {
+                    _log.LogError("Task '{Task}' DISPATCH FAILED on the VR-Forces tick thread: {Msg}",
+                                  task.TaskName, ex.Message);
+                    _sequencer.NotifyAbandoned(task.TaskUuid);
+                    PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKABRT,
+                                   $"ABANDONED: dispatching task '{task.TaskName}' threw on the VR-Forces tick " +
+                                   $"thread ({ex.Message})");
+                }
+            });
         }
         catch (OperationCanceledException) { /* service stopping */ }
         catch (Exception e)
