@@ -132,8 +132,15 @@ public static class StallPolicy
     /// the gate would then open on TWO position reads a few wall seconds apart - where a member
     /// whose reflection has not refreshed contributes 0 m and is indistinguishable from a frozen
     /// one. NextCheckSeconds keeps this floor reachable by shortening the cadence as the ratio
-    /// rises; above ratio windowSeconds / (MinRingDepth x 1 s) - 90x at the 360 s sim window - the
-    /// 1 s cadence floor binds and the watchdog cannot judge at all. Documented, not silent.
+    /// rises; above ratio windowSeconds / ((MinRingDepth - 1) x 1 s) - 120x at the 360 s sim
+    /// window - the 1 s cadence floor binds and the watchdog cannot judge at all. MinRingDepth
+    /// entries span MinRingDepth - 1 INTERVALS, so the ceiling is 120x, not the 90x 1805ee3's
+    /// docstring claimed (pass-2 review F4b; the offline model puts the measured boundary between
+    /// 150x and 200x, above the analytic ceiling because the reader is stepped on a finer grid
+    /// than the cadence). And it is no longer only documented: MaybeCheckStalls logs one
+    /// rate-limited line when the cadence is already at its 1 s floor and the ring has stayed
+    /// below this depth for a whole window - a comment is not documentation to an operator
+    /// reading a run log.
     /// </summary>
     public const int MinRingDepth = 4;
 
@@ -142,6 +149,34 @@ public static class StallPolicy
 
     /// <summary>Wall seconds of a motionless sim clock that earn the stale-clock warning (finding 9).</summary>
     public const double StaleClockWarnSeconds = 60.0;
+
+    /// <summary>
+    /// Rate limit, in wall seconds, for the watchdog's own STATUS lines - the clock-mode line, the
+    /// rollback line and the dormancy line. 1805ee3 reused StaleClockWarnSeconds for the mode line
+    /// (pass-2 review N2), which tied an unrelated log rate to the stale-clock THRESHOLD: changing
+    /// one silently changed the other. They carry the same number today and mean different things.
+    /// </summary>
+    public const double LogRateLimitSeconds = 60.0;
+
+    /// <summary>
+    /// THE COARSEST CHECK CADENCE THE WINDOW CAN CARRY. MinRingDepth entries span MinRingDepth - 1
+    /// intervals, so any Vrf:StallCheckSeconds above windowSeconds / (MinRingDepth - 1) leaves the
+    /// front prune holding fewer than MinRingDepth samples and NOTHING is ever judged - silently,
+    /// and on the DEFAULT wall path (pass-2 review F4a; measured at the shipped 240 s wall window:
+    /// StallCheckSeconds 120 and 240 both went dormant, where 51d78a5 fired at 240 s in both
+    /// cases). 80 s at the 240 s wall window, 120 s at the 360 s sim window.
+    /// </summary>
+    public static int MaxCheckSeconds(double windowSeconds)
+        => Math.Max(1, (int)Math.Floor(windowSeconds / Math.Max(1, MinRingDepth - 1)));
+
+    /// <summary>
+    /// Vrf:StallCheckSeconds held against that ceiling. CLAMPED, not refused: the watchdog is
+    /// report-only and ships OFF, so a mis-set knob must never stop a run that is otherwise fine,
+    /// and clamping restores exactly the 51d78a5 outcome instead of silence. The caller logs one
+    /// line at start-up when the clamp bites.
+    /// </summary>
+    public static int ClampCheckSeconds(int configuredSeconds, double windowSeconds)
+        => Math.Min(Math.Max(1, configuredSeconds), MaxCheckSeconds(windowSeconds));
 
     /// <summary>
     /// THE CALIBRATED WINDOW, PER CLOCK. Vrf:StallWindowSeconds = 0 (the shipped default) means
@@ -185,28 +220,53 @@ public static class StallPolicy
     /// false TASKABRT that rule (b) is documented to prevent.
     ///
     /// So the ring is pruned at BOTH ends:
+    ///   NO CLOCK AT ALL (pass-2 review F2): a NON-FINITE reading is not a time and is refused
+    ///     outright. NaN compares false against every stamp, so 1805ee3 APPENDED it (neither the
+    ///     rollback nor the back branch fires against NaN) and then BOTH disjuncts of
+    ///     ShouldDropOldest went false, so the front prune stopped permanently at the first NaN
+    ///     that reached index 1: measured with a NaN on every 7th read at 1.5x, 1,195 entries and
+    ///     still climbing, 171 of them NaN, and a measured window of 8,955 sim s against a
+    ///     configured 360. The caller guards this too, with the same predicate UsingSimClock uses;
+    ///     this is the belt to that pair of braces.
     ///   ROLLBACK (clockNow is BEFORE the newest stamp - DtVrfRemoteController::rollbackToSnapshot,
     ///     vrfRemoteController.h:605): every entry stamped after clockNow belongs to an abandoned
     ///     timeline. Drop them all and re-anchor the grace (startClock = clockNow): a rollback is
-    ///     a NEW watch, not a continuation of the old one.
+    ///     a NEW watch, not a continuation of the old one. The sample that ARRIVES with the
+    ///     rollback replaces whatever is left at the back, because that stored payload really is
+    ///     from the timeline just abandoned.
     ///   BACK (clockNow EQUALS the newest stamp - a paused scenario, or a reader whose back-end
     ///     status period is coarser than the check cadence): the sample carries no new clock
-    ///     information, so it REPLACES its predecessor instead of being appended. That bounds the
-    ///     ring at one entry over its filled size for a pause of any length, and keeps the NEWEST
-    ///     positions, which is what the verdict has to be computed from.
+    ///     information and is DISCARDED (pass-2 review F1). 1805ee3 replaced the newest entry's
+    ///     PAYLOAD under its old STAMP, arguing that the verdict has to be computed from the
+    ///     newest positions - which is not so: the verdict's NOW end is the caller's own fresh
+    ///     position dictionary, never ring[^1]. Nothing needs the newest payload in the ring
+    ///     except when that entry later becomes ring[0] - the harmful case. A ring of ONE entry is
+    ///     at both ends at once, so after a replace the window was measured from an OLD stamp
+    ///     against positions read up to a whole flat-clock interval LATER: the true elapsed
+    ///     interval is SHORTER than the window it is judged against, which is the FALSE-POSITIVE
+    ///     direction. Measured on 1805ee3: a unit crawling at 0.23 m/s of SIM time - the RECAL
+    ///     doc's own tightest true negative - was reported STALLED after a 40-wall-second flat
+    ///     reading at 6.21x, on 35.7 m over a nominal 360 sim s window whose true displacement was
+    ///     82.8 m. Discarding costs the ring bound nothing: nothing is added, so a pause of any
+    ///     length still leaves the ring at its filled size.
     ///   FRONT (rule (a), unchanged): keep exactly one sample at or before the window edge.
     /// </summary>
     public static double Admit<T>(List<(double Clock, T P)> ring, double clockNow, T sample,
                                   double windowSeconds, double startClock)
     {
-        if (ring is null) return startClock;
+        if (ring is null || !double.IsFinite(clockNow)) return startClock;
+        bool rolledBack = false;
         if (ring.Count > 0 && clockNow < ring[^1].Clock)
         {
             while (ring.Count > 0 && ring[^1].Clock > clockNow) ring.RemoveAt(ring.Count - 1);
             startClock = clockNow;
+            rolledBack = true;
         }
         if (double.IsNaN(startClock)) startClock = clockNow;
-        if (ring.Count > 0 && clockNow <= ring[^1].Clock) ring[^1] = (clockNow, sample);
+        if (ring.Count > 0 && clockNow <= ring[^1].Clock)
+        {
+            if (rolledBack) ring[^1] = (clockNow, sample);
+        }
         else ring.Add((clockNow, sample));
         while (ring.Count >= 2 && ShouldDropOldest(clockNow, ring[0].Clock, ring[1].Clock, windowSeconds))
             ring.RemoveAt(0);
@@ -215,18 +275,29 @@ public static class StallPolicy
 
     /// <summary>
     /// THE FULL GATE the product judges on. WindowReady measures the window on the SELECTED clock;
-    /// two floors the clock window cannot supply are ANDed onto it (review finding 4):
+    /// the floors that clock window cannot supply are ANDed onto it (review finding 4):
     ///   RING DEPTH - see MinRingDepth. A verdict on two position reads is not a measurement.
+    ///     Applies on BOTH clocks, always.
     ///   WALL FLOOR - 51d78a5 gated on wall seconds since the in-flight record's own DispatchedUtc
     ///     and 1616614 dropped that floor entirely when it moved the anchor to the watch's first
-    ///     sample. The same StallMinSecondsSinceDispatch is kept here as a WALL floor, so however
-    ///     fast the sim clock runs no task is ever judged inside its first minute of real time.
+    ///     sample. The same StallMinSecondsSinceDispatch is kept here as a WALL floor on the WALL
+    ///     path, where it IS the 51d78a5 behaviour. It is NOT applied on the SIM path
+    ///     (applyWallFloor false - pass-2 review F8): 1805ee3 ANDed the same 60 s onto both clocks,
+    ///     and since 360 sim s is only ~58 wall s at the 6.21x measured on G5, above ratio ~6x the
+    ///     FLOOR - not the calibrated window - decided when the watchdog fires. Measured at 60x:
+    ///     the first verdict landed at wall 60 s / sim 3,600 s, ten times the calibrated window,
+    ///     silently negating the "fires EARLIER in wall time" property the 360 s default was
+    ///     chosen for, at exactly the high ratios that motivated the sim clock. The two-sample
+    ///     case the floor incidentally covered is covered by MinRingDepth, which 51d78a5 did not
+    ///     have; the floor's other stated purpose - "no task is ever judged inside its first
+    ///     minute of real time" - is a policy choice nothing measures.
     /// </summary>
     public static bool JudgeReady(double clockNow, double oldestClock, double startClock,
                                   double windowSeconds, double minSecondsSinceStart,
-                                  int ringDepth, double wallSecondsSinceDispatch)
+                                  int ringDepth, double wallSecondsSinceDispatch,
+                                  bool applyWallFloor)
         => ringDepth >= MinRingDepth
-        && wallSecondsSinceDispatch >= minSecondsSinceStart
+        && (!applyWallFloor || wallSecondsSinceDispatch >= minSecondsSinceStart)
         && WindowReady(clockNow, oldestClock, startClock, windowSeconds, minSecondsSinceStart);
 
     /// <summary>
@@ -298,6 +369,27 @@ public static class StallPolicy
                                      double staleAfterSeconds)
         => clockNow <= lastAdvancedValue
         && (wallNowSeconds - wallLastAdvancedSeconds) >= staleAfterSeconds;
+
+    /// <summary>Where a new sim reading sits against the PREVIOUS one.</summary>
+    public enum SimClockStep { Flat = 0, Advanced = 1, RolledBack = 2 }
+
+    /// <summary>
+    /// A BACKWARDS STEP IS A CHANGE, NOT A NON-ADVANCE (pass-2 review F3). 1805ee3 held the
+    /// caller's _stallSimClockLast as a HIGH-WATER mark and refreshed the "last advanced" wall
+    /// time only on clockNow &gt; that mark. After DtVrfRemoteController::rollbackToSnapshot the
+    /// clock is genuinely ADVANCING, but below the mark, so SimClockStale went true 60 wall
+    /// seconds later and the watchdog stopped judging EVERY unit until the clock climbed back past
+    /// its pre-rollback value - measured: 45, 420 and 945 wall seconds of suspended judging for
+    /// rollbacks of 100, 475 and 1,000 sim s - under the warning text "the scenario is PAUSED, or
+    /// the back end has stopped answering", which is not what happened and which the operator has
+    /// no way to see through. Admit already handles a backwards step correctly and explicitly;
+    /// this is the stale detector agreeing with it. Only a FLAT reading is a non-advance, and only
+    /// a flat reading can be stale - so the caller reaches SimClockStale on Flat alone.
+    /// </summary>
+    public static SimClockStep ClassifyClockStep(double clockNow, double lastSeen)
+        => clockNow > lastSeen ? SimClockStep.Advanced
+         : clockNow < lastSeen ? SimClockStep.RolledBack
+         : SimClockStep.Flat;
 }
 
 public static class StallSelfTest
@@ -497,15 +589,17 @@ public static class StallSelfTest
                 start = StallPolicy.Admit(ring, clock, pos, 240.0, start);
                 if (ring.Count > maxDuringPause) maxDuringPause = ring.Count;
                 var old = ring[0];
-                if (StallPolicy.JudgeReady(clock, old.Clock, start, 240.0, 60.0, ring.Count, wall)
+                if (StallPolicy.JudgeReady(clock, old.Clock, start, 240.0, 60.0, ring.Count, wall,
+                                           applyWallFloor: true)
                     && StallPolicy.Decide(new[] { Math.Abs(pos - old.P) }, 1, 50.0, 1).Stalled)
                     verdicts++;
             }
             Check("PAUSE AFTER THE RING FILLED: 1,000 wall s of samples at a frozen clock leave the "
                   + "ring at its filled size, not 200 entries longer",
                   filled >= 40 && maxDuringPause <= filled + 1 && ring.Count <= filled + 1);
-            Check("... and the ring still holds the whole pre-pause window, so nothing is manufactured "
-                  + "during the pause", verdicts == 0 && (clock - ring[0].Clock) >= 240.0);
+            Check("(INVARIANT - passes against the pre-fix logic too; pass-2 review F5) ... and the ring "
+                  + "still holds the whole pre-pause window, so nothing is manufactured during the pause",
+                  verdicts == 0 && (clock - ring[0].Clock) >= 240.0);
         }
 
         // FINDING 2 - ROLLBACK TO SNAPSHOT WITH A FULL RING. The review's sequence: 5 s cadence up
@@ -537,12 +631,15 @@ public static class StallSelfTest
                 clock += 5.0; wall += 5.0;                  // the unit is FROZEN after the rollback
                 start = StallPolicy.Admit(ring, clock, pos, 240.0, start);
                 var old = ring[0];
-                if (StallPolicy.JudgeReady(clock, old.Clock, start, 240.0, 60.0, ring.Count, wall)
+                if (StallPolicy.JudgeReady(clock, old.Clock, start, 240.0, 60.0, ring.Count, wall,
+                                           applyWallFloor: true)
                     && StallPolicy.Decide(new[] { Math.Abs(pos - old.P) }, 1, 50.0, 1).Stalled)
                 { verdicts++; oldestAtFirstVerdict = old.Clock; }
             }
-            Check("... so the first verdict after the rollback is computed from a sample stamped AFTER "
-                  + "it, never across the discontinuity",
+            Check("(INVARIANT - the pre-fix ring's oldest entry at this point is stamped 1480, which also "
+                  + "satisfies >= 1005 while being a PRE-rollback sample; the check above carries the load "
+                  + "- pass-2 review F5) ... so the first verdict after the rollback is computed from a "
+                  + "sample stamped AFTER it, never across the discontinuity",
                   verdicts == 1 && oldestAtFirstVerdict >= 1005.0);
         }
 
@@ -558,12 +655,17 @@ public static class StallSelfTest
             var ring = new List<(double Clock, double P)>();
             double start = double.NaN, clock = 1000.0;
             for (int i = 0; i < 80; i++) { clock += 5.0; start = StallPolicy.Admit(ring, clock, 0.0, 240.0, start); }
-            bool readyBefore = StallPolicy.JudgeReady(clock, ring[0].Clock, start, 240.0, 60.0, ring.Count, 9999.0);
+            bool readyBefore = StallPolicy.JudgeReady(clock, ring[0].Clock, start, 240.0, 60.0, ring.Count,
+                                                      9999.0, applyWallFloor: true);
             ring.Clear(); start = double.NaN;               // <- MarkDispatched: a new move task
             start = StallPolicy.Admit(ring, clock, 0.0, 240.0, start);
-            bool readyAfter = StallPolicy.JudgeReady(clock, ring[0].Clock, start, 240.0, 60.0, ring.Count, 9999.0);
-            Check("FRESH DISPATCH re-arms the watch: StartClock becomes the clock at the first sample "
-                  + "after the clear and the previous task's window can no longer be judged",
+            bool readyAfter = StallPolicy.JudgeReady(clock, ring[0].Clock, start, 240.0, 60.0, ring.Count,
+                                                     9999.0, applyWallFloor: true);
+            Check("(INVARIANT - this block clears the ring ITSELF, so it exercises no product code: the "
+                  + "actual finding-3 change is VrfC2SimService.MarkDispatched dropping _stallSamples, "
+                  + "which the self-test harness cannot reach - pass-2 review F5) FRESH DISPATCH re-arms "
+                  + "the watch: StartClock becomes the clock at the first sample after the clear and the "
+                  + "previous task's window can no longer be judged",
                   readyBefore && !readyAfter && Math.Abs(start - clock) < 1e-9 && ring.Count == 1);
         }
 
@@ -582,7 +684,8 @@ public static class StallSelfTest
                 if (i == 2) clockWindowOpenAtTwo = StallPolicy.WindowReady(clock, ring[0].Clock, start, 240.0, 60.0)
                                                    && ring.Count == 2;
                 if (firstJudgeable < 0 &&
-                    StallPolicy.JudgeReady(clock, ring[0].Clock, start, 240.0, 60.0, ring.Count, wall))
+                    StallPolicy.JudgeReady(clock, ring[0].Clock, start, 240.0, 60.0, ring.Count, wall,
+                                           applyWallFloor: true))
                     firstJudgeable = i;
             }
             Check("60x ratio: the clock window ALONE is satisfied on sample 2 - that is the hole",
@@ -598,16 +701,26 @@ public static class StallSelfTest
                   && Math.Abs(StallPolicy.NextCheckSeconds(5.0, 240.0, 12.0) - 5.0) < 1e-9
                   && Math.Abs(StallPolicy.NextCheckSeconds(5.0, 240.0, -1.0) - 5.0) < 1e-9);
             ring.Clear(); start = double.NaN; clock = 0.0; wall = 0.0; firstJudgeable = -1;
-            for (int i = 1; i <= 120 && firstJudgeable < 0; i++)
+            int firstWithWallFloor = -1;
+            for (int i = 1; i <= 120; i++)
             {
                 clock += 60.0; wall += cadence;             // 60x sampled at the adapted cadence
                 start = StallPolicy.Admit(ring, clock, 0.0, 240.0, start);
-                if (StallPolicy.JudgeReady(clock, ring[0].Clock, start, 240.0, 60.0, ring.Count, wall))
+                if (firstJudgeable < 0 &&
+                    StallPolicy.JudgeReady(clock, ring[0].Clock, start, 240.0, 60.0, ring.Count, wall,
+                                           applyWallFloor: false))
                     firstJudgeable = i;
+                if (firstWithWallFloor < 0 &&
+                    StallPolicy.JudgeReady(clock, ring[0].Clock, start, 240.0, 60.0, ring.Count, wall,
+                                           applyWallFloor: true))
+                    firstWithWallFloor = i;
             }
-            Check("... and at that cadence the FIRST judgeable check is the 60 wall-second floor, on a "
-                  + "ring 5 deep - not sample 2 at 10 wall s",
-                  firstJudgeable == 60 && ring.Count >= StallPolicy.MinRingDepth);
+            Check("... and at that cadence the window opens on a ring 5 deep at sample 5 - not sample 2 "
+                  + "at 10 wall s. The 60 WALL-second floor would push it to sample 60 (ten times the "
+                  + "calibrated window in sim seconds), which is why it is not applied on the sim clock "
+                  + "(pass-2 review F8)",
+                  firstJudgeable == 5 && firstWithWallFloor == 60
+                  && ring.Count >= StallPolicy.MinRingDepth);
         }
 
         // FINDING 7 - Vrf:StallClock is validated; a typo must not select the un-calibrated mode.
@@ -671,6 +784,199 @@ public static class StallSelfTest
               StallPolicy.SimClockStale(1480.0, 1480.0, 1000.0, 940.0, 60.0)
               && !StallPolicy.SimClockStale(1480.0, 1480.0, 999.0, 940.0, 60.0)
               && !StallPolicy.SimClockStale(1485.0, 1480.0, 1000.0, 940.0, 60.0));
+
+        // =====================================================================================
+        // PASS-2 COLD-START REVIEW OF 1805ee3 (F1, F2, F3, F4, F8). Every block drives the PRODUCT
+        // helpers with the sequence the reviewer measured, and each FAILS against the logic it
+        // replaces - the pre-fix numbers quoted below were reproduced here, from this file, before
+        // the fix was applied. All four defects are SIM-clock only except F4a, which is a
+        // regression against 51d78a5 on the DEFAULT wall path.
+        // =====================================================================================
+
+        // F2 - A NaN SIM READING IS NOT A CLOCK. NaN compares false against every stamp, so 1805ee3
+        // appended it and then BOTH disjuncts of ShouldDropOldest went false: the front prune
+        // stopped permanently at the first NaN that reached index 1, the ring grew without bound
+        // and the measured window silently became "since the first NaN". Measured on 1805ee3 with
+        // a NaN on every 7th read at 1.5x: max ring 1,195 (171 NaN stamps), window 8,955 sim s
+        // against a configured 360.
+        {
+            var ring = new List<(double Clock, double P)>();
+            double start = double.NaN;
+            int maxRing = 0;
+            for (int i = 1; i <= 1200; i++)                  // 5 wall s cadence, ratio 1.5x
+            {
+                double sim = 7.5 * i;                        // 7.5 sim s per 5 wall s
+                double reading = (i % 7 == 0) ? double.NaN : sim;   // the reader hiccups
+                start = StallPolicy.Admit(ring, reading, 2.0 * sim, 360.0, start);
+                if (ring.Count > maxRing) maxRing = ring.Count;
+            }
+            Check("NaN SIM READING: a non-finite clock is REFUSED, so the ring stays bounded (43, not "
+                  + "1,195) and the measured window stays the configured 360 s (not 8,955)",
+                  maxRing == 43 && ring.Count == 42
+                  && !ring.Any(e => double.IsNaN(e.Clock))
+                  && Math.Abs((ring[^1].Clock - ring[0].Clock) - 360.0) < 1e-9);
+            Check("(INVARIANT - UsingSimClock was already right; F2 was the service's INLINED copy of "
+                  + "it, `simSeconds < 0.0`, disagreeing on NaN, so the product now calls these two) "
+                  + "... NaN is no reading and the clock falls back to wall",
+                  !StallPolicy.UsingSimClock(true, double.NaN)
+                  && StallPolicy.SelectClock(true, double.NaN, 12345.0) == 12345.0);
+        }
+
+        // F3 - A ROLLBACK IS A CHANGE, NOT A NON-ADVANCE. The stale detector compared against a
+        // HIGH-WATER mark, so after rollbackToSnapshot the clock was genuinely running below that
+        // mark, the detector fired 60 wall s later, and judging was suspended for EVERY unit until
+        // the clock climbed back - measured on 1805ee3: 45 / 420 / 945 wall s for rollbacks of
+        // 100 / 475 / 1,000 sim s, under the text "the scenario is PAUSED, or the back end has
+        // stopped answering". Neither was true and nothing in the log said rollback.
+        {
+            double last = double.NegativeInfinity, lastAdvanceWall = 0.0, sim = 0.0, wall = 0.0;
+            bool warned = false;
+            int warns = 0, heldChecks = 0, rollbacks = 0;
+            for (int i = 1; i <= 600; i++)                   // 5 s cadence, ratio 1.0x
+            {
+                wall += 5.0; sim += 5.0;
+                if (i == 300) sim -= 475.0;                  // DtVrfRemoteController::rollbackToSnapshot
+                var step = StallPolicy.ClassifyClockStep(sim, last);
+                if (step != StallPolicy.SimClockStep.Flat)
+                {
+                    if (step == StallPolicy.SimClockStep.RolledBack) rollbacks++;
+                    last = sim; lastAdvanceWall = wall; warned = false;
+                }
+                else if (StallPolicy.SimClockStale(sim, last, wall, lastAdvanceWall,
+                                                   StallPolicy.StaleClockWarnSeconds))
+                {
+                    heldChecks++;
+                    if (!warned) { warned = true; warns++; }
+                }
+            }
+            Check("ROLLBACK OF 475 SIM s: no STALE warning and not one check of suspended judging "
+                  + "(1805ee3: one warning and 84 suspended checks), and the rollback is reported as "
+                  + "itself - exactly once",
+                  warns == 0 && heldChecks == 0 && rollbacks == 1);
+            Check("... and the three steps are classified as they read, with the first reading against "
+                  + "an unset mark counting as an advance",
+                  StallPolicy.ClassifyClockStep(10.0, 5.0) == StallPolicy.SimClockStep.Advanced
+                  && StallPolicy.ClassifyClockStep(5.0, 10.0) == StallPolicy.SimClockStep.RolledBack
+                  && StallPolicy.ClassifyClockStep(5.0, 5.0) == StallPolicy.SimClockStep.Flat
+                  && StallPolicy.ClassifyClockStep(0.0, double.NegativeInfinity)
+                     == StallPolicy.SimClockStep.Advanced);
+        }
+
+        // F1 - A FLAT CLOCK MUST NOT SKEW THE OLDEST SAMPLE. 1805ee3 replaced the newest entry's
+        // PAYLOAD under its old STAMP when the clock did not advance; a ring of ONE entry has that
+        // entry at both ends, so the window was then measured from an old stamp against positions
+        // read up to a whole flat-clock interval later - the false-positive direction. The
+        // sequence is the RECAL doc's own tightest true negative: a unit crawling at 0.23 m/s of
+        // SIM time, dispatched at wall 100 while the reader sits flat for 40 wall s at 6.21x (G5's
+        // measured ratio). Measured on 1805ee3: TASKABRT at wall 160 on 35.7 m over a nominal
+        // 360 sim s window whose TRUE displacement was 82.8 m. The 60 wall-second stale hold does
+        // NOT cover this - the false verdict lands inside its grace.
+        {
+            var ring = new List<(double Clock, double P)>();
+            double start = double.NaN, held = double.NaN;
+            int verdicts = 0;
+            for (double wall = 100.0; wall <= 1500.0; wall += 5.0)
+            {
+                double simTrue = 6.21 * wall;                 // the scenario really is running
+                if (wall < 140.0 && double.IsNaN(held)) held = simTrue;
+                double reading = (wall < 140.0) ? held : simTrue;   // 40 wall s of a flat reading
+                double pos = 0.23 * simTrue;                  // 0.23 m per SIM second
+                start = StallPolicy.Admit(ring, reading, pos, 360.0, start);
+                var oldest = ring[0];
+                if (StallPolicy.JudgeReady(reading, oldest.Clock, start, 360.0, 60.0, ring.Count,
+                                           wall - 100.0, applyWallFloor: false)
+                    && StallPolicy.Decide(new[] { Math.Abs(pos - oldest.P) }, 1, 50.0, 1).Stalled)
+                    verdicts++;
+            }
+            Check("FLAT CLOCK, CRAWLING UNIT: a sample carrying no new clock information is DISCARDED, "
+                  + "so a 40 wall-second flat reading at 6.21x can no longer manufacture a TASKABRT on "
+                  + "the calibration's own tightest true negative", verdicts == 0);
+        }
+
+        // ... and discarding must not re-open the unbounded-ring hole the 1805ee3 back-prune closed:
+        // 3,000 wall seconds of pause AFTER the ring has filled, on the 360 s sim window.
+        {
+            var ring = new List<(double Clock, double P)>();
+            double start = double.NaN, sim = 0.0, pos = 0.0;
+            int filled = 0, maxRing = 0, verdicts = 0;
+            for (double wall = 5.0; wall <= 4000.0; wall += 5.0)
+            {
+                if (wall < 600.0 || wall >= 3600.0) { sim += 7.5; pos += 15.0; }   // 1.5x, 2 m/s
+                start = StallPolicy.Admit(ring, sim, pos, 360.0, start);
+                if (wall <= 600.0) filled = ring.Count;
+                if (ring.Count > maxRing) maxRing = ring.Count;
+                var oldest = ring[0];
+                if (StallPolicy.JudgeReady(sim, oldest.Clock, start, 360.0, 60.0, ring.Count, wall,
+                                           applyWallFloor: false)
+                    && StallPolicy.Decide(new[] { Math.Abs(pos - oldest.P) }, 1, 50.0, 1).Stalled)
+                    verdicts++;
+            }
+            Check("... and a 3,000 wall-second pause after the ring filled still leaves it at its filled "
+                  + "size, with no verdict manufactured during the pause",
+                  filled == 49 && maxRing <= filled + 1 && ring.Count <= filled + 1 && verdicts == 0);
+        }
+
+        // F4a - A CADENCE THE WINDOW CANNOT CARRY IS CLAMPED, NOT OBEYED. MinRingDepth entries span
+        // MinRingDepth - 1 intervals, so any StallCheckSeconds above window / (MinRingDepth - 1)
+        // leaves the front prune holding three entries forever and nothing is EVER judged -
+        // silently, and on the DEFAULT wall path. Measured on 1805ee3 at the shipped 240 s wall
+        // window: StallCheckSeconds 120 and 240 both went dormant with nothing in the log, where
+        // 51d78a5 fired at 240 s in both cases.
+        {
+            Check("the cadence ceiling is window / (MinRingDepth - 1): 80 s on the 240 s wall window, "
+                  + "120 s on the 360 s sim window, and a sane cadence is left alone",
+                  StallPolicy.ClampCheckSeconds(120, 240.0) == 80
+                  && StallPolicy.ClampCheckSeconds(240, 240.0) == 80
+                  && StallPolicy.ClampCheckSeconds(200, 360.0) == 120
+                  && StallPolicy.ClampCheckSeconds(5, 240.0) == 5
+                  && StallPolicy.ClampCheckSeconds(80, 240.0) == 80
+                  && StallPolicy.ClampCheckSeconds(0, 240.0) == 1
+                  && StallPolicy.MaxCheckSeconds(240.0) == 80 && StallPolicy.MaxCheckSeconds(360.0) == 120);
+            int cadence = StallPolicy.ClampCheckSeconds(120, 240.0);
+            var ring = new List<(double Clock, double P)>();
+            double start = double.NaN, firstFire = -1.0;
+            for (int i = 0; i < 400 && firstFire < 0.0; i++)
+            {
+                double wall = cadence * i;                   // WALL clock: the clock IS wall time
+                start = StallPolicy.Admit(ring, wall, 0.0, 240.0, start);   // the unit is FROZEN
+                var oldest = ring[0];
+                if (StallPolicy.JudgeReady(wall, oldest.Clock, start, 240.0, 60.0, ring.Count, wall,
+                                           applyWallFloor: true)
+                    && StallPolicy.Decide(new[] { Math.Abs(0.0 - oldest.P) }, 1, 50.0, 1).Stalled)
+                    firstFire = wall;
+            }
+            Check("... so Vrf:StallCheckSeconds=120 on the 240 s WALL window fires at 240 s - what "
+                  + "51d78a5 did - instead of going dormant with nothing in the log",
+                  Math.Abs(firstFire - 240.0) < 1e-9);
+        }
+
+        // F8 - IN SIM MODE THE WALL FLOOR MUST NOT SET THE DETECTION TIME. See JudgeReady: 1805ee3
+        // ANDed the same 60 s onto both clocks as a WALL floor, and 360 sim s is ~58 wall s at
+        // 6.21x, so above ratio ~6x the floor decided when the watchdog fires.
+        {
+            double cadence = StallPolicy.NextCheckSeconds(5.0, 360.0, 60.0);   // 1.5 s at 60x
+            var ring = new List<(double Clock, double P)>();
+            double start = double.NaN, wallAt = -1.0, simAt = -1.0;
+            int firstSample = -1;
+            for (int i = 1; i <= 200 && firstSample < 0; i++)
+            {
+                double wall = cadence * i, sim = 60.0 * wall;
+                start = StallPolicy.Admit(ring, sim, 0.0, 360.0, start);
+                if (StallPolicy.JudgeReady(sim, ring[0].Clock, start, 360.0, 60.0, ring.Count, wall,
+                                           applyWallFloor: false))
+                { firstSample = i; wallAt = wall; simAt = sim; }
+            }
+            Check("60x on the 360 s SIM window: the first verdict is set by the window and the ring depth "
+                  + "(sample 5, wall 7.5 s, sim 450 s), not by the 60 wall-second floor (which put it at "
+                  + "sample 40, wall 60 s, sim 3,600 s - ten times the calibrated window)",
+                  Math.Abs(cadence - 1.5) < 1e-9 && firstSample == 5
+                  && Math.Abs(wallAt - 7.5) < 1e-9 && Math.Abs(simAt - 450.0) < 1e-9
+                  && ring.Count >= StallPolicy.MinRingDepth);
+            Check("... while the WALL path keeps that floor exactly as 51d78a5 had it: a frozen unit is "
+                  + "not judged 59 wall s after dispatch, and is 60 s after",
+                  !StallPolicy.JudgeReady(300.0, 0.0, 0.0, 240.0, 60.0, 10, 59.0, applyWallFloor: true)
+                  && StallPolicy.JudgeReady(300.0, 0.0, 0.0, 240.0, 60.0, 10, 60.0, applyWallFloor: true));
+        }
 
         Console.WriteLine(fails == 0 ? "stall-selftest: ALL CHECKS PASSED" : $"stall-selftest: {fails} FAILED");
         return fails == 0 ? 0 : 1;

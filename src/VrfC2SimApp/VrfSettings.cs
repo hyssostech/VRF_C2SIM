@@ -200,8 +200,10 @@ public class VrfSettings
     // flows normally). DEFAULT OFF: the deployed behaviour is unchanged until a preregistered
     // run turns it on.
     //
-    // WHICH CLOCK THE WINDOW RUNS ON (StallClock). "wall" is the DEFAULT and the only CALIBRATED
-    // mode - see RE-CALIBRATION OWED below; a build that selects "sim" says so at startup.
+    // WHICH CLOCK THE WINDOW RUNS ON (StallClock). "wall" is the DEFAULT because it is the mode
+    // this interface has actually MEASURED LIVE so far: BOTH windows are calibrated (240 wall s,
+    // 360 sim s, from the same three replayed traces - see CALIBRATION below), but only the wall
+    // clock has been exercised in a run. A build that selects "sim" says so at startup.
     // "sim" measures the window on the back
     // end's own scenario time, read through VrfBridge.SimTimeSeconds() ->
     // VrfFacade::SimTimeSeconds() -> DtVrfRemoteController::simTime()
@@ -222,10 +224,17 @@ public class VrfSettings
     // rate, but in "sim" mode it is also the window's RESOLUTION, so it FOLLOWS the clock: the
     // watchdog samples often enough (down to a 1 s floor) that one step advances the sim clock
     // by at most StallWindowSeconds / StallPolicy.MinRingDepth, and it never judges on fewer
-    // than MinRingDepth samples, nor inside StallMinSecondsSinceDispatch WALL seconds of the
-    // dispatch. A sim clock that STOPS ADVANCING for 60 wall seconds while a move task is in
-    // flight - a paused scenario, or a back end that stopped answering and was deactivated
-    // rather than removed - warns once and suspends judging until it moves again.
+    // than MinRingDepth samples. A cadence COARSER than StallWindowSeconds / (MinRingDepth - 1)
+    // could never fill that ring at all, so StallCheckSeconds is CLAMPED to that ceiling - 80 s
+    // on the wall window, 120 s on the sim window - with one line at startup, rather than left to
+    // go dormant in silence (pass-2 review F4a). StallMinSecondsSinceDispatch is a WALL floor and
+    // is applied on the WALL clock ONLY: 360 sim s is ~58 wall s at 6.21x, so ANDing 60 wall s
+    // onto the sim clock would let the floor, not the calibrated window, set the detection time
+    // (measured at 60x: wall 60 s / sim 3,600 s - pass-2 review F8). A sim clock that STOPS
+    // ADVANCING for 60 wall seconds while a move task is in flight - a paused scenario, or a back
+    // end that stopped answering and was deactivated rather than removed - warns once and suspends
+    // judging until it moves again; a clock that steps BACKWARDS is a rollback to a snapshot, not
+    // a stopped clock, and gets its own line without suspending anything (pass-2 review F3).
     //
     // *** CALIBRATION - THE WINDOW BELONGS TO THE CLOCK ***
     // StallWindowSeconds = 0, the shipped default, means "the window calibrated for whichever
@@ -259,9 +268,14 @@ public class VrfSettings
     // EXTRAPOLATES between back-end status messages (its member layout,
     // mySimTimeToRealTimeRatio / myLastSimTimeUpdated at vrfutil/backend.h:410-419, suggests it
     // may, which would make a paused reading a sawtooth rather than a flat line).
+    // REINTERPRETATION (pass-2 review F9): StallWindowSeconds 0 - and any NEGATIVE value - now
+    // mean "the clock's calibrated default". Before this branch the window was
+    // Math.Max(1, StallWindowSeconds), so 0 meant a ONE-SECOND window. StallDetection ships OFF
+    // and no deployed appsettings sets either, so the blast radius is nil, but a config file
+    // carrying an explicit 0 behaves completely differently here than it did.
     public bool StallDetection { get; set; } = false;
-    public string StallClock { get; set; } = "wall";            // "wall" = calibrated (default) | "sim" = scenario clock
-    public int StallWindowSeconds { get; set; } = 0;            // 0 = the clock's calibrated window (240 wall / 360 sim); else as given
+    public string StallClock { get; set; } = "wall";            // "wall" = measured live (default) | "sim" = scenario clock
+    public int StallWindowSeconds { get; set; } = 0;            // 0 or negative = the clock's calibrated window (240 wall / 360 sim); else as given
     public double StallMoveMeters { get; set; } = 50.0;         // net displacement per member over the window
     public int StallMinSecondsSinceDispatch { get; set; } = 60; // grace after dispatch before the watchdog may fire
     public int StallCheckSeconds { get; set; } = 5;             // how often the tick thread samples
