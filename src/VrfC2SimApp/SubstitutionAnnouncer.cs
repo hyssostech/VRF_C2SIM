@@ -22,6 +22,16 @@ public sealed class SubstitutionAnnouncer
     // unit name -> the representation last announced (or recorded) for it.
     private readonly ConcurrentDictionary<string, string> _byUnit = new(StringComparer.Ordinal);
 
+    /// <summary>
+    /// What to record for a proxied unit whose FINAL creation plan is not available at announcement
+    /// time (review finding 8, 2026-09-14). The init loop used the unit's own NAME as the fallback
+    /// representation: harmless in the sense that such a unit simply re-announces once at
+    /// materialize, but it is a lie about what the unit is, and a name that happened to equal a
+    /// template's name would SUPPRESS the re-announcement instead. A sentinel cannot be produced by
+    /// <see cref="Representation"/> for any template, so it always compares unequal to a real one.
+    /// </summary>
+    public const string UnknownRepresentation = "(creation plan not available at announcement time)";
+
     /// <summary>How this unit is represented in the simulation, as one comparable string.</summary>
     /// <param name="templateName">The VR-Forces template the plan names.</param>
     /// <param name="createSubordinates">False = an EMPTY SHELL (CreationPolicy=AtOrder at init).</param>
