@@ -1018,6 +1018,14 @@ R5 and R6 remain open. Citations below are to that doctrine record unless noted.
   heuristic as originally written is WITHDRAWN; keep a reported fallback only for the
   transition period before STP re-exports.
 
+  USER 2026-09-14: the embedded Location is valid C2SIM and stays supported
+  alongside MapGraphicID; gap = verb-typed interpretation of the points (route /
+  area polygon-line-point-with-radius / line), on-the-fly creation of the
+  VR-Forces control object from them, precedence MapGraphicID > embedded,
+  consistency check when both; inherent limits reported not guessed (first graphic
+  only, single point cannot identify the graphic in a cluster - STP-801);
+  RelativeLocation unsupported (STP does not emit it). Follow-up build item V4b.
+
 - **R2 RULED - a task without geometry uses the geometry of the performing (who) unit.**
   Execute in place and report the derivation; do not refuse and do not silently invent a
   location. Zero-geometry tasks whose own statement names a graphic (T16 OBJ MONROE,
@@ -1031,6 +1039,12 @@ R5 and R6 remain open. Citations below are to that doctrine record unless noted.
   logic (VrfC2SimService.cs :1813-1815, :1820-1822) is the defect to remove, not the
   order to fix.
 
+  USER 2026-09-14: confirmed aligned with STP's own task model (C2SimTask:
+  Who/What/How/Objective-by-SIDC/Routes/Tgs/Start/End; no enemy or target-entity
+  field; task_generation_tables.pl defines seize/clear/breach/block/destroy by their
+  task graphic and the objective by the objective-area graphic); destroy vs defeat
+  by DesiredEffectCode.
+
 - **R4 RULED - completion is given by the END TIME = StartTime + Duration.** Verified
   in the order itself: Duration is present on all 42 tasks (32 x PT1H20M, 10 x PT2H),
   StartTime is a relative delay (0 on 41, 3h20m on T13), EndTime is absent. The
@@ -1043,8 +1057,22 @@ R5 and R6 remain open. Citations below are to that doctrine record unless noted.
   the user 2026-09-14; doctrine does not settle it directly (an engineering/schedule
   call).
 
+  RULED 2026-09-14 (user): proceed as recommended (EntityLevel first, aggregate
+  profile second) BUT the product must offer the user the OPTION of entity-level or
+  aggregate-level mode with the limitations of each documented; a scenario is one
+  mode, never mixed.
+
 - **R6 OPEN - whether to change the type map so COA-STP1 companies are created as
   COMPANY types.** Explained to the user 2026-09-14; doctrine note: the type should
   follow the taskee's ECHELON, not a global switch (company-typed vendor tasks
   implement company-level doctrine, and COA-STP1's taskees are a mix of battalions and
   companies) - a shape constraint on the answer, not a decision.
+
+  CLARIFIED 2026-09-14: R6 is NOT a mixed entity/aggregate mode (user: 'a bridge too
+  far'); it is the DIS type of the EntityLevel aggregate object that the vendor
+  script's myEntityTypes filter checks. Options restated: (a) fan out to composed
+  companies for battalion taskees (SubordinateFanOut exists, default off) -
+  doctrinally right; (b) widen the filter in our copy of the script (custom
+  including SMS) - transition only; (c) one run to test whether the filter is
+  enforced over the remote-control channel at all. Recommendation: (c), then (a),
+  (b) as transition. Ruling still owed.
