@@ -2,6 +2,32 @@ using System.Collections.Concurrent;
 
 namespace VrfC2SimApp;
 
+/// <summary>
+/// THE CLOCK A TASK'S TIMING IS MEASURED ON (cold-start review of 5c67d41, M2; supervisor ruling
+/// 2026-09-14, Q2 default: "a C2SIM Duration, the StartTime delay and the predecessor gate are all
+/// measured on the SIMULATION clock with a wall fallback when unreadable").
+///
+/// WHY IT IS INJECTED RATHER THAN READ HERE. Before this, the Duration was served on the clock
+/// Vrf:StallClock selected while the start delay and the predecessor gate were pure
+/// <c>Task.Delay</c> - WALL. At COA-STP1's measured sim ratios (0.27x-0.73x) 4,800 SIM seconds is
+/// 6,600-17,800 WALL seconds, so a gate measured in wall seconds expires long before the Duration
+/// it is waiting for has been served, and every successor is skipped. One clock, injected, is what
+/// makes "the gate outlives the end time it waits for" a property rather than a coincidence.
+///
+/// <paramref name="Now"/> must be MONOTONE NON-DECREASING and expressed in seconds of that clock.
+/// The service hands in its own task-clock axis (VrfC2SimService.TaskClockSeconds), which
+/// accumulates FORWARD movement only, so a paused scenario adds nothing, a rollback adds nothing,
+/// and a fall back to the wall clock does not restart anybody's wait. Tests hand in a fake.
+/// </summary>
+public sealed record TaskClock(Func<double> Now, Func<double, CancellationToken, Task> DelayAsync)
+{
+    /// <summary>The wall clock in seconds - the behaviour every caller had before the injection.
+    /// Used by the offline self-tests and as the defensive fallback for a null clock.</summary>
+    public static readonly TaskClock Wall = new(
+        () => DateTime.UtcNow.Ticks / (double)TimeSpan.TicksPerSecond,
+        (seconds, ct) => Task.Delay(TimeSpan.FromSeconds(Math.Max(0.0, seconds)), ct));
+}
+
 /// <summary>Outcome of waiting at a task's start gate.</summary>
 public enum GateResult
 {
@@ -30,6 +56,15 @@ public enum GateResult
 /// than one timeout-length per link can still phase-1-time-out; the real orders carry
 /// single-level chains only.
 ///
+/// M1 (cold-start review of 5c67d41). THE WINDOW MUST OUTLIVE THE END TIME IT IS WAITING FOR.
+/// The window used to be the flat Vrf:TaskPredecessorTimeoutSeconds while the predecessor's
+/// completion is given by its C2SIM Duration (R4) - 4,800 s or 7,200 s on COA-STP1 against a
+/// 600 s default - so the gate expired FIRST, by construction, and all 31 gated tasks were
+/// skipped with TASKABRT. The caller now derives the window from the predecessor's own armed end
+/// time (TaskDispatchPolicy.PredecessorTimeoutSeconds) and hands it in; this class only obeys it.
+/// Both phases use the derived value: a predecessor that has not even DISPATCHED is usually one
+/// waiting behind a long task of its own.
+///
 /// Parity notes: the C++ waits predecessor-first, then the delay - reproduced. It scales
 /// delays by the sim time-multiple and (via a doubled wait loop) actually waits TWICE the
 /// delay; NEITHER is reproduced here (the time-multiple scaling is a later refinement, the
@@ -43,7 +78,11 @@ public sealed class TaskSequencer
         public readonly TaskCompletionSource Completed = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public readonly TaskCompletionSource Dispatched = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public readonly TaskCompletionSource Abandoned = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public DateTime DispatchedAtUtc; // written before Dispatched fires (happens-before via the await)
+        // The TASK CLOCK reading at dispatch (NaN = never stamped), written before Dispatched
+        // fires (happens-before via the await). It is a reading of the caller's monotone axis,
+        // NOT a wall timestamp: phase 2 subtracts it from the same axis, so the window a
+        // successor gets is measured in the same seconds its predecessor's Duration is.
+        public double DispatchedAtClock = double.NaN;
     }
 
     private readonly ConcurrentDictionary<string, TaskState> _tasks = new();
@@ -59,11 +98,14 @@ public sealed class TaskSequencer
     /// Signal that the task with this uuid was actually dispatched to VR-Forces. Restarts
     /// its successors' completion window (P0.2: the clock runs from dispatch, not arrival).
     /// </summary>
-    public void NotifyDispatched(string taskUuid)
+    /// <param name="atClock">The task clock (seconds) at the moment of dispatch - the same axis
+    /// <see cref="WaitForStartAsync"/> measures phase 2 on. NaN means "not stamped", and the
+    /// successor then gets the full window.</param>
+    public void NotifyDispatched(string taskUuid, double atClock)
     {
         if (string.IsNullOrEmpty(taskUuid)) return;
         var st = State(taskUuid);
-        st.DispatchedAtUtc = DateTime.UtcNow;
+        st.DispatchedAtClock = atClock;
         st.Dispatched.TrySetResult();
     }
 
@@ -84,8 +126,10 @@ public sealed class TaskSequencer
     /// should dispatch, or a Predecessor* result when it never became ready.
     /// </summary>
     public async Task<GateResult> WaitForStartAsync(string startAfterTaskUuid, long simulationStartMs,
-        long relativeDelayMs, TimeSpan predecessorTimeout, CancellationToken ct)
+        long relativeDelayMs, double predecessorTimeoutSeconds, TaskClock clock, CancellationToken ct)
     {
+        clock ??= TaskClock.Wall;
+        double timeoutSeconds = Math.Max(0.0, predecessorTimeoutSeconds);
         if (!string.IsNullOrEmpty(startAfterTaskUuid))
         {
             var pred = State(startAfterTaskUuid);
@@ -94,7 +138,7 @@ public sealed class TaskSequencer
             using (var cts1 = CancellationTokenSource.CreateLinkedTokenSource(ct))
             {
                 await Task.WhenAny(pred.Completed.Task, pred.Dispatched.Task, pred.Abandoned.Task,
-                                   Task.Delay(predecessorTimeout, cts1.Token)).ConfigureAwait(false);
+                                   clock.DelayAsync(timeoutSeconds, cts1.Token)).ConfigureAwait(false);
                 cts1.Cancel(); // stop the timer if a signal won (no lingering delay)
                 if (!pred.Completed.Task.IsCompleted)
                 {
@@ -109,11 +153,12 @@ public sealed class TaskSequencer
             // long gate wait).
             if (!pred.Completed.Task.IsCompleted)
             {
-                var remaining = predecessorTimeout - (DateTime.UtcNow - pred.DispatchedAtUtc);
-                if (remaining < TimeSpan.Zero) remaining = TimeSpan.Zero;
+                double served = double.IsNaN(pred.DispatchedAtClock)
+                              ? 0.0 : Math.Max(0.0, clock.Now() - pred.DispatchedAtClock);
+                double remaining = Math.Max(0.0, timeoutSeconds - served);
                 using var cts2 = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 await Task.WhenAny(pred.Completed.Task, pred.Abandoned.Task,
-                                   Task.Delay(remaining, cts2.Token)).ConfigureAwait(false);
+                                   clock.DelayAsync(remaining, cts2.Token)).ConfigureAwait(false);
                 cts2.Cancel();
                 if (!pred.Completed.Task.IsCompleted)
                 {
@@ -128,8 +173,10 @@ public sealed class TaskSequencer
         // executeTask's if/else-if (:2099 / :2128).
         long delayMs = simulationStartMs > 0 ? simulationStartMs
                      : relativeDelayMs > 0 ? relativeDelayMs : 0;
+        // M2: the start delay is served on the SAME clock as the Duration and the gate above.
+        // An order's delay is a statement about the scenario, not about the operator's afternoon.
         if (delayMs > 0)
-            await Task.Delay(TimeSpan.FromMilliseconds(delayMs), ct).ConfigureAwait(false);
+            await clock.DelayAsync(delayMs / 1000.0, ct).ConfigureAwait(false);
 
         return GateResult.Proceed;
     }

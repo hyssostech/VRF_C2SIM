@@ -139,6 +139,13 @@ public sealed class VrfC2SimService : BackgroundService
     // busy-waits with async gating + a timeout. See TaskSequencer.
     private readonly TaskSequencer _sequencer = new();
 
+    // M1 (cold-start review of 5c67d41): every task this interface has been given, by uuid, so a
+    // gated task can read its PREDECESSOR'S OWN Duration and wait at least that long. Written for
+    // the WHOLE order before the first task is orchestrated, because a successor may appear before
+    // its predecessor in document order. Never pruned: an order's task set is tens of entries and
+    // a late TaskStatus may still need to name one.
+    private readonly ConcurrentDictionary<string, OrderTask> _taskByUuid = new(StringComparer.Ordinal);
+
     // B8: what each unit was last ANNOUNCED as being represented by (R-SURFACE-PROXY). A unit
     // re-created at order time as something else - its full template, or a composition of doctrinal
     // sub-units instead of the empty shell it was at init - announces again. See
@@ -2062,6 +2069,12 @@ public sealed class VrfC2SimService : BackgroundService
                                                     .OrderByDescending(g => g.Count())
                                                     .Select(g => g.Count() > 1 ? $"{g.Key} x{g.Count()}" : g.Key)));
 
+        // M1: record the WHOLE order before orchestrating any of it. A gated task derives its
+        // predecessor window from the predecessor's Duration, and STREND predecessors are not
+        // guaranteed to come first in document order.
+        foreach (var task in order.Tasks)
+            if (!string.IsNullOrEmpty(task.TaskUuid)) _taskByUuid[task.TaskUuid] = task;
+
         foreach (var task in order.Tasks)
         {
             if (string.IsNullOrEmpty(task.TaskeeUuid))
@@ -2115,7 +2128,27 @@ public sealed class VrfC2SimService : BackgroundService
     {
         try
         {
-            var timeout = TimeSpan.FromSeconds(Math.Max(1, _vrf.TaskPredecessorTimeoutSeconds));
+            // M1 (cold-start review of 5c67d41). THE GATE MUST OUTLIVE THE END TIME IT WAITS FOR.
+            // R4 makes a predecessor's completion its ARMED END TIME - dispatch + Duration x
+            // Vrf:DurationScale - and the flat Vrf:TaskPredecessorTimeoutSeconds expired first by
+            // construction (600 s default against COA-STP1's 4,800 s and 7,200 s Durations: all 31
+            // gated tasks skipped, 11 dispatches out of 42). The configured value stays the FLOOR;
+            // a predecessor that carries a Duration raises the window to its own end time plus
+            // Vrf:TaskPredecessorEndMarginSeconds.
+            double predecessorEndSeconds = 0.0;
+            if (!string.IsNullOrEmpty(task.StartAfterTaskUuid)
+                && _taskByUuid.TryGetValue(task.StartAfterTaskUuid, out var predTask))
+                predecessorEndSeconds = ScaleOrderMs(predTask.DurationMs) / 1000.0;
+            double timeoutSeconds = TaskDispatchPolicy.PredecessorTimeoutSeconds(
+                _vrf.TaskPredecessorTimeoutSeconds, predecessorEndSeconds,
+                _vrf.TaskPredecessorEndMarginSeconds);
+            if (timeoutSeconds > Math.Max(1, _vrf.TaskPredecessorTimeoutSeconds))
+                _log.LogInformation("Task '{Task}': its predecessor {Pred} is armed to end {End:F0} s after ITS " +
+                                    "dispatch, so this task's gate is {T:F0} s, not the configured " +
+                                    "Vrf:TaskPredecessorTimeoutSeconds={Cfg} s (+{Margin} s margin) - M1: a gate " +
+                                    "shorter than the end time it waits for skips the successor by construction.",
+                                    task.TaskName, task.StartAfterTaskUuid, predecessorEndSeconds, timeoutSeconds,
+                                    _vrf.TaskPredecessorTimeoutSeconds, _vrf.TaskPredecessorEndMarginSeconds);
             // R4, the START half. The delay itself is NOT new - TaskSequencer has always waited
             // StartTime/SimulationTime/DelayTimeAmount before dispatching, and that is what keeps
             // COA-STP1's T13 (3h20m) from going out with the rest of the order. Two things are new:
@@ -2139,7 +2172,8 @@ public sealed class VrfC2SimService : BackgroundService
                                     task.TaskName, Math.Max(scaledStartMs, scaledRelativeMs) / 1000.0,
                                     Math.Max(startMs, task.RelativeDelayMs) / 1000.0, _vrf.DurationScale);
             var gate = await _sequencer.WaitForStartAsync(task.StartAfterTaskUuid, scaledStartMs,
-                                                          scaledRelativeMs, timeout, _stoppingToken);
+                                                          scaledRelativeMs, timeoutSeconds,
+                                                          TaskClock.Wall, _stoppingToken);
             if (gate != GateResult.Proceed)
             {
                 // P0.2 (DEFECT B): the predecessor never completed. The OLD behavior always
@@ -2148,7 +2182,7 @@ public sealed class VrfC2SimService : BackgroundService
                 // mid-route). Policy now decides; default is skip.
                 string why = gate == GateResult.PredecessorAbandoned
                     ? "was skipped/abandoned upstream"
-                    : $"did not complete within {_vrf.TaskPredecessorTimeoutSeconds}s of its dispatch";
+                    : $"did not complete within {timeoutSeconds:F0}s of its dispatch";
                 string policy = (_vrf.PredecessorTimeoutPolicy ?? "skip").Trim().ToLowerInvariant();
                 bool busy = _inFlight.IsBusy(unit.Name);
                 bool dispatch = policy == "force" || (policy == "whenidle" && !busy);
@@ -2779,7 +2813,7 @@ public sealed class VrfC2SimService : BackgroundService
         // still clears where the replacing VR-Forces command is actually issued (ClearStallState),
         // which is the conservative direction.
         if (dest is not null) _stallSamples.TryRemove(unit.Name, out _);
-        _sequencer.NotifyDispatched(task.TaskUuid);
+        _sequencer.NotifyDispatched(task.TaskUuid, TaskClock.Wall.Now());
         // B1: the task has STARTED. This is the one point every dispatch path reaches (it is what
         // records the in-flight task), so it is where the C2SIM consumer is told - one TASKSTRT per
         // dispatch; a re-entered dispatch (the TerrainProfile second pass) is suppressed by the

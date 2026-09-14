@@ -423,6 +423,16 @@ public class VrfSettings
     // experiments overrode this to 30 s via env - make experiment configs explicit.
     public int TaskPredecessorTimeoutSeconds { get; set; } = 600;
 
+    // M1 (cold-start review of 5c67d41): the gate above is now a FLOOR, not the whole window. A
+    // task whose predecessor carries a C2SIM Duration waits at least
+    // (that Duration x Vrf:DurationScale) + this margin, because R4 makes the predecessor's
+    // completion its END TIME and a gate shorter than the end time it waits for skips the
+    // successor by construction (COA-STP1: 31 of 42 tasks, at every shipped setting).
+    // The margin covers the 1 s timed-walk cadence and the dispatch-then-arm ordering inside
+    // MarkDispatched; 60 s is two orders of magnitude of slack on a 4,800 s hold and costs
+    // nothing but 60 s of patience when a predecessor genuinely never completes.
+    public int TaskPredecessorEndMarginSeconds { get; set; } = 60;
+
     // P0.2 (NEXT_SESSION_GUIDANCE.md sec 3, DEFECT B): what to do when a task's predecessor
     // times out or was abandoned.
     //   "skip"     (default) log + do NOT dispatch; the task's own successors then fail fast.

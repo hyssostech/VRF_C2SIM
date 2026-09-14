@@ -19,7 +19,7 @@ public static class SequencerSelfTest
         // 1. Predecessor gate: a task waiting on "A" must NOT proceed until A completes.
         {
             var seq = new TaskSequencer();
-            var wait = seq.WaitForStartAsync("A", 0, 0, TimeSpan.FromSeconds(5), CancellationToken.None);
+            var wait = seq.WaitForStartAsync("A", 0, 0, 5.0, TaskClock.Wall, CancellationToken.None);
             Thread.Sleep(150);
             Check(ref failures, !wait.IsCompleted, "waits while predecessor pending");
             seq.CompleteTask("A");
@@ -32,7 +32,7 @@ public static class SequencerSelfTest
             var seq = new TaskSequencer();
             seq.CompleteTask("B");
             var sw = Stopwatch.StartNew();
-            var r = seq.WaitForStartAsync("B", 0, 0, TimeSpan.FromSeconds(5), CancellationToken.None)
+            var r = seq.WaitForStartAsync("B", 0, 0, 5.0, TaskClock.Wall, CancellationToken.None)
                        .GetAwaiter().GetResult();
             sw.Stop();
             Check(ref failures, r == GateResult.Proceed && sw.ElapsedMilliseconds < 500,
@@ -43,7 +43,7 @@ public static class SequencerSelfTest
         {
             var seq = new TaskSequencer();
             var sw = Stopwatch.StartNew();
-            var r = seq.WaitForStartAsync("", 200, 0, TimeSpan.FromSeconds(5), CancellationToken.None)
+            var r = seq.WaitForStartAsync("", 200, 0, 5.0, TaskClock.Wall, CancellationToken.None)
                        .GetAwaiter().GetResult();
             sw.Stop();
             Check(ref failures, r == GateResult.Proceed && sw.ElapsedMilliseconds >= 180,
@@ -54,7 +54,7 @@ public static class SequencerSelfTest
         {
             var seq = new TaskSequencer();
             var sw = Stopwatch.StartNew();
-            var r = seq.WaitForStartAsync("never", 0, 0, TimeSpan.FromMilliseconds(200), CancellationToken.None)
+            var r = seq.WaitForStartAsync("never", 0, 0, 0.2, TaskClock.Wall, CancellationToken.None)
                        .GetAwaiter().GetResult();
             sw.Stop();
             Check(ref failures, r == GateResult.PredecessorTimeout && sw.ElapsedMilliseconds >= 180,
@@ -66,9 +66,9 @@ public static class SequencerSelfTest
         //    clock made all gated tasks time out together -> retask burst, DEFECT B).
         {
             var seq = new TaskSequencer();
-            var wait = seq.WaitForStartAsync("P", 0, 0, TimeSpan.FromMilliseconds(600), CancellationToken.None);
+            var wait = seq.WaitForStartAsync("P", 0, 0, 0.6, TaskClock.Wall, CancellationToken.None);
             Thread.Sleep(400);            // most of the arrival-relative window elapses undispatched
-            seq.NotifyDispatched("P");    // the completion window (re)starts HERE
+            seq.NotifyDispatched("P", TaskClock.Wall.Now());    // the completion window (re)starts HERE
             Thread.Sleep(400);            // t ~800 ms: the old arrival-relative clock expired at 600
             Check(ref failures, !wait.IsCompleted,
                   "completion window restarts at predecessor DISPATCH (no arrival-relative timeout)");
@@ -83,7 +83,7 @@ public static class SequencerSelfTest
         {
             var seq = new TaskSequencer();
             var sw = Stopwatch.StartNew();
-            var wait = seq.WaitForStartAsync("Q", 0, 0, TimeSpan.FromSeconds(5), CancellationToken.None);
+            var wait = seq.WaitForStartAsync("Q", 0, 0, 5.0, TaskClock.Wall, CancellationToken.None);
             Thread.Sleep(100);
             seq.NotifyAbandoned("Q");
             var ok = wait.Wait(TimeSpan.FromSeconds(2));
@@ -103,8 +103,8 @@ public static class SequencerSelfTest
             Check(ref failures, sup0 == null && supA?.TaskUuid == "A",
                   "second dispatch supersedes the first (A superseded by B)");
 
-            var waitOnA = seq.WaitForStartAsync("A", 0, 0, TimeSpan.FromSeconds(5), CancellationToken.None);
-            var waitOnB = seq.WaitForStartAsync("B", 0, 0, TimeSpan.FromSeconds(5), CancellationToken.None);
+            var waitOnA = seq.WaitForStartAsync("A", 0, 0, 5.0, TaskClock.Wall, CancellationToken.None);
+            var waitOnB = seq.WaitForStartAsync("B", 0, 0, 5.0, TaskClock.Wall, CancellationToken.None);
 
             bool got = tracker.TryComplete("1-1 AR", out var fin);
             Check(ref failures, got && fin.TaskUuid == "B", "completion attributes to the in-flight task (B)");

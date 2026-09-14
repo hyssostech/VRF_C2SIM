@@ -134,8 +134,8 @@ public static class RulingsSelfTest
             var p = new TimedCompletionPolicy();
             var seq = new TaskSequencer();
             p.Register("PRED", "taskee-7", "T7_Secure", "1-35 AR", 100.0);
-            seq.NotifyDispatched("PRED");
-            var successor = seq.WaitForStartAsync("PRED", 0, 0, TimeSpan.FromSeconds(5),
+            seq.NotifyDispatched("PRED", TaskClock.Wall.Now());
+            var successor = seq.WaitForStartAsync("PRED", 0, 0, 5.0, TaskClock.Wall,
                                                   CancellationToken.None);
             p.Advance(0.0, usingSim: false);
             Thread.Sleep(120);
@@ -145,6 +145,88 @@ public static class RulingsSelfTest
             bool released = successor.Wait(TimeSpan.FromSeconds(2));
             Check(ref failures, released && successor.Result == GateResult.Proceed,
                   "the STREND successor dispatches after the TIMED completion");
+        }
+
+        // (b8) M1 - THE GATE MUST OUTLIVE THE END TIME IT WAITS FOR. This is the one check in this
+        //      file that runs the REAL TaskSequencer and the REAL TimedCompletionPolicy against a
+        //      common clock, because the defect it covers is an interaction between the two and
+        //      not a property of either: the gate expired at dispatch + configured timeout while
+        //      the completion fires at dispatch + Duration, so on COA-STP1 (600 s configured,
+        //      4,800 s Duration) all 31 gated tasks were SKIPPED with TASKABRT.
+        {
+            const double predDuration = 4800.0;   // COA-STP1's PT1H20M, in seconds
+            const double configured = 600.0;      // the shipped Vrf:TaskPredecessorTimeoutSeconds
+            const double margin = 60.0;           // the shipped Vrf:TaskPredecessorEndMarginSeconds
+
+            double preFixWindow = configured;     // what the branch used before M1
+            double derivedWindow = TaskDispatchPolicy.PredecessorTimeoutSeconds(
+                configured, predDuration, margin);
+            Check(ref failures, preFixWindow < predDuration && derivedWindow >= predDuration + margin,
+                  $"the PRE-FIX window ({preFixWindow:F0} s) is shorter than the predecessor's end time " +
+                  $"({predDuration:F0} s); the derived one ({derivedWindow:F0} s) is not");
+
+            // FAIL-FIRST CONTROL: the pre-fix window, on the same clock, still SKIPS the successor.
+            Check(ref failures, GateOutcome(preFixWindow, predDuration) == GateResult.PredecessorTimeout,
+                  "FAIL-FIRST: with the flat configured window the successor times out while its " +
+                  "predecessor is still running (the behaviour M1 replaces)");
+
+            // FIXED: the derived window outlives the end time, and the timed completion releases it.
+            Check(ref failures, GateOutcome(derivedWindow, predDuration) == GateResult.Proceed,
+                  "with the window derived from the predecessor's ARMED END TIME the successor " +
+                  "dispatches AT the timed completion, and is not skipped");
+
+            // A predecessor with NO Duration leaves the configured floor exactly as it was.
+            Check(ref failures,
+                  TaskDispatchPolicy.PredecessorTimeoutSeconds(configured, 0.0, margin) == configured
+                  && TaskDispatchPolicy.PredecessorTimeoutSeconds(configured, double.NaN, margin) == configured,
+                  "a predecessor with no armed end time leaves Vrf:TaskPredecessorTimeoutSeconds alone");
+        }
+    }
+
+    /// <summary>
+    /// Run ONE STREND gate against the real TaskSequencer and the real TimedCompletionPolicy on a
+    /// fake clock, and report what the gate decided. The predecessor is dispatched, armed with
+    /// <paramref name="predDurationSeconds"/>, and the clock is walked forward in 60 s steps; the
+    /// timed completion is fed to CompleteTask exactly as MaybeCompleteTimedTasks does.
+    /// </summary>
+    private static GateResult GateOutcome(double windowSeconds, double predDurationSeconds)
+    {
+        var clock = new FakeClock();
+        var seq = new TaskSequencer();
+        var timed = new TimedCompletionPolicy();
+        const string pred = "PRED-M1";
+        seq.NotifyDispatched(pred, clock.Now);
+        timed.Register(pred, "taskee-m1", "T_Secure", "1-35 AR", predDurationSeconds);
+        timed.Advance(clock.Now, usingSim: true);     // the anchoring walk MarkDispatched leaves behind
+        var gate = seq.WaitForStartAsync(pred, 0, 0, windowSeconds, clock.AsTaskClock(),
+                                         CancellationToken.None);
+        for (double served = 0.0; served <= predDurationSeconds + 600.0 && !gate.IsCompleted; served += 60.0)
+        {
+            clock.Advance(60.0);
+            foreach (var d in timed.Advance(clock.Now, usingSim: true)) seq.CompleteTask(d.TaskUuid);
+            Thread.Sleep(FakeClock.PollMs * 2);       // let the gate's poller observe the step
+        }
+        return gate.Wait(TimeSpan.FromSeconds(5)) ? gate.Result : GateResult.PredecessorTimeout;
+    }
+
+    /// <summary>A clock the test drives by hand. Monotone, in seconds, exactly what the service's
+    /// own task-clock axis is - so a delay taken on it is a delay in SIMULATED time.</summary>
+    private sealed class FakeClock
+    {
+        public const int PollMs = 20;
+        private readonly object _lock = new();
+        private double _seconds;
+        public double Now { get { lock (_lock) return _seconds; } }
+        public void Advance(double seconds) { lock (_lock) _seconds += seconds; }
+        public TaskClock AsTaskClock() => new(() => Now, DelayAsync);
+        private async Task DelayAsync(double seconds, CancellationToken ct)
+        {
+            double start = Now;
+            while (Now - start < seconds)
+            {
+                ct.ThrowIfCancellationRequested();
+                await Task.Delay(PollMs, ct).ConfigureAwait(false);
+            }
         }
     }
 
@@ -187,9 +269,9 @@ public static class RulingsSelfTest
             var seq = new TaskSequencer();
             var timed = new TimedCompletionPolicy();
             const string inPlace = "T9";
-            seq.NotifyDispatched(inPlace);                       // what MarkDispatched does
+            seq.NotifyDispatched(inPlace, TaskClock.Wall.Now());  // what MarkDispatched does
             timed.Register(inPlace, "taskee-9", "T9_ProvideAirDefenseCoverage", "A/6-56 ADA", 300.0);
-            var successor = seq.WaitForStartAsync(inPlace, 0, 0, TimeSpan.FromSeconds(5),
+            var successor = seq.WaitForStartAsync(inPlace, 0, 0, 5.0, TaskClock.Wall,
                                                   CancellationToken.None);
             timed.Advance(0.0, usingSim: false);
             Thread.Sleep(120);

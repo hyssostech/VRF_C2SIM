@@ -95,4 +95,35 @@ public static class TaskDispatchPolicy
     /// <summary>R3: no verb is refused for self-targeting - or for any other target resolution.
     /// A task the interface cannot aim at a named entity is still a task about its objective.</summary>
     public static bool RefusesForTarget(TargetResolution r) => false;
+
+    /// <summary>
+    /// M1 (cold-start review of 5c67d41). HOW LONG A SUCCESSOR WAITS FOR ITS PREDECESSOR, given
+    /// that the predecessor's completion is its ARMED END TIME (R4).
+    ///
+    /// The defect this replaces was an ordering proof, not a race. The gate expired at
+    /// dispatch + Vrf:TaskPredecessorTimeoutSeconds while the timed completion fires at
+    /// dispatch + Duration x Vrf:DurationScale (strictly later: MarkDispatched calls
+    /// NotifyDispatched BEFORE TimedCompletionPolicy.Register, and the first walk after
+    /// registration anchors only). With the shipped 600 s default against COA-STP1's 4,800 s and
+    /// 7,200 s Durations, all 31 gated tasks were SKIPPED with TASKABRT - 11 dispatches out of 42.
+    /// Even appsettings.Demo.json's 7,200 s lost the ten PT2H chains by a second or two.
+    ///
+    /// THE RULE: the window is the longer of what the operator configured and the predecessor's
+    /// own end time plus a margin. The configured value keeps its meaning - it is the floor, and
+    /// the only thing bounding a predecessor with NO Duration at all - while a predecessor that
+    /// carries one can never be outlived by the gate waiting for it.
+    /// </summary>
+    /// <param name="configuredSeconds">Vrf:TaskPredecessorTimeoutSeconds, the floor.</param>
+    /// <param name="predecessorEndSeconds">The predecessor's Duration AFTER Vrf:DurationScale, in
+    /// seconds; 0 or non-finite when it has no armed end time (then the floor stands alone).</param>
+    /// <param name="marginSeconds">Vrf:TaskPredecessorEndMarginSeconds - the slack that covers the
+    /// timed walk's cadence and the ordering above. Negative is treated as 0.</param>
+    public static double PredecessorTimeoutSeconds(double configuredSeconds, double predecessorEndSeconds,
+                                                   double marginSeconds)
+    {
+        double floor = double.IsFinite(configuredSeconds) ? Math.Max(1.0, configuredSeconds) : 1.0;
+        if (!double.IsFinite(predecessorEndSeconds) || predecessorEndSeconds <= 0.0) return floor;
+        double margin = double.IsFinite(marginSeconds) ? Math.Max(0.0, marginSeconds) : 0.0;
+        return Math.Max(floor, predecessorEndSeconds + margin);
+    }
 }
