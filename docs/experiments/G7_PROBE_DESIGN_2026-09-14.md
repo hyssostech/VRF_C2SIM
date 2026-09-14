@@ -1,4 +1,4 @@
-# G7 probe design (Opus executor, 2026-09-14 ~13:20Z; supervisor-adopted in PREREG_MESHQUERY_G7_2026-09-14.md)
+# G7 probe design (Opus executor, 2026-09-14 ~11:25Z; supervisor-adopted in PREREG_MESHQUERY_G7_2026-09-14.md)
 
 # G7 - CROSS-SECTOR PROBE ON MojaveCOA: is the 8,856-sector graph connected across seams?
 
