@@ -105,5 +105,48 @@ ATTEMPT 4: CreationPolicy=AtInit (members exist from init) + a pre-order settle 
 being added) so the area's rows precede the first goal; the harvest must show the 'New Primary nav area' rows BEFORE
 the first goal row for each member. Vendor-side fix (loadAllNavigationDataOnTerrainLoad 1 in a relocated appData,
 sanctioned) being prepared in parallel for the demo flow.
-(to be written from the harvest; verdict table per leg: seams / gate cur / gate dest / mesh outcome /
-N points / gate->outcome s / vertex reached)
+ATTEMPT 4 (run 20260914T154243Z, launched 15:42:43Z; CreationPolicy=AtInit, -PreOrderSettleSecs 240, order on
+the bus 15:49:49.653Z; performer 1222.MechPlt = Tank Platoon (USA), 4 x M1A2 under the nolifeform map): THE
+MEASUREMENT WAS TAKEN. Full record docs/experiments/G7_ATTEMPT4_RESULTS_2026-09-14.md (trace t=0 fitted to
+2026-09-14T15:45:14.2Z from the taskee's own position reports; engine 8.84x).
+VERDICT TABLE - 18 goals over 4 members, 36 of 36 gate rows "success", 0 failures, the only area named in the
+run being NavArea-ground-platform MojaveCOA. Per member, seams re-derived from its OWN position at the goal
+row: slot move 36-94 m / 0 seams -> mesh 6, 6, 11, 11 points; leg 1 520-673 m / 1 seam -> mesh 54, 59, 63, 69
+points; a second 0-seam slot refresh at V1 for M1A2 1 and 4 -> mesh 2 points; leg 2 1,902-1,994 m / 4 seams ->
+mesh 209, 209, 225, 226 points; leg 3 4,914-5,048 m / 10 seams -> "Planned nav path has not enough (0) points."
+on 4 of 4, ONE query each, NO RETRY, then "Not using roads" + "Planned path has 1 parts" (feature planner) and
+one further per-part query also 0. Gate-row to outcome-row: 0.0-0.2 s wall for EVERY outcome, successes and
+refusals alike. All four tanks then drove the refused 4,989 m on the feature planner's straight part and
+stopped at their V3 slots at 15:51:27.8Z (aggregate 5.1 m from V3; members 26.8-83.8 m; 7,617-7,692 m driven;
+no motion for the remaining 18.7 min).
+P17a HIT (36/36 gates success, MojaveCOA the only area named - by the Primary-area rows, not by the gate rows).
+P17b - the FIRST branch of the decision table fires: points on leg 1 AND 0 on leg 3, so the graph IS CONNECTED
+ACROSS SEAMS, reading (B) as stated is FALSIFIED, and the failure is length/budget-related -> G7b (abstract-
+graph SMS) then G8 (gamewareMemorySize via --appDataDir). Stronger than the branch required: leg 2 planned
+too, so connectivity holds across 4 seams / 1,994 m. MojaveCOA's ceiling is now bracketed to (1,994 m,
+4,914 m], replacing G6's 9,346.5 m; MojaveAO20 (same ~502 m sectors, 1,600 vs 8,856) planned 10.1 km, so the
+ceiling is a property of the AREA, not of the leg - which is reading (A). CAVEAT ON THE DESIGN: at 501.9 m per
+sector, length and seam count are perfectly collinear on this area, so a residual (B') "connectivity degrades
+with seam distance" is untested and only a different sector size or area can separate them.
+P17c HIT (4 of 4). P17d HIT (V3 reached, evidence above plus the C2SIM reports). TIMING READING NOT
+REPRODUCED: MESH_QUERY sec 7's "fast refusal" is not a discriminator here because the successes were equally
+fast; at 0.1 s trace resolution and 8.84x, one bucket is 0.88 sim s - coarser than the effect.
+LAZY-LOAD ADJUDICATED: H1 ("the area loads on the first planning request") FALSIFIED - 1.BdeHQ, never tasked
+and never planning, printed the run's only first-acquisition "New Primary nav area" row (no "Leaving"
+predecessor) at 15:49:40.2Z, 236.9 s after placement and 9.5 s BEFORE the order; and the members' FIRST goal
+already passed both gates and got a mesh path. H2 survives corrected (the five aggregates print no row because
+the area is a ground-PLATFORM area; the one console-enabled platform did print). H3 survives as complementary
+(all 14 member rows are "Leaving X" then "New X" - re-registrations). Second instrument agrees: the back-end's
+working set climbs 2,324 MB at a steady ~5 MB/s from the placement instant and plateaus within one 5 s sample
+of that row. So the 240 s settle bought the run with ~9 s of margin; the implication (NOT verified here) is
+that loadAllNavigationDataOnTerrainLoad=1 in the relocated appData is the demo-grade fix.
+INSTRUMENT CORRECTIONS: the taskee's 16-char marking was NOT truncated (TSK,373,"1222.MechPlt~PXY" in full)
+and it DID produce 147 C2SIM position-report ticks; -StopWhenComplete ran to its 1200 s cap because runner
+condition (4) needs an RPT (VR-Forces radio text) line in the trace and this trace - like the four prior traces
+checked - carries ZERO RPT rows, so the condition is unsatisfiable as written. "TASKCMPLT at t+77 s" is
+window-relative; from the order it was +93.0 s. The 28 "VRF console [4] ?" rows are the five AGGREGATES inside
+one 0.1 s window at creation (a transient name-resolution gap), never again. The watchdog's first live use was
+clean (armed 15:43:48.8Z, two-observation confirm, stood down without touching anything). The concurrent
+C:\MAK scan ended ~4.5 min before the first mesh query, against a back-end then holding 0.10-0.17 cores and a
+flat working set; no instrument shows an effect, though it could only have LENGTHENED the nav load, which is
+conservative for the settle-margin conclusion.
