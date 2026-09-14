@@ -505,6 +505,26 @@ public sealed class VrfC2SimService : BackgroundService
             _durationScale = 1.0;
         }
 
+        // 0d-ii. Vrf:TaskPredecessorEndMarginSeconds (E5, pass-3 review). ZERO IS NOT A MARGIN.
+        // TaskDispatchPolicy.PredecessorTimeoutSeconds clamps a negative one to 0 so the derived
+        // window can never be SHORTER than the end time it waits for - but at 0 the window EQUALS
+        // the predecessor's scaled Duration exactly, and the completion that releases the gate is
+        // OBSERVED up to ~3 x (sim ratio) seconds late (the 1 s clock staircase plus the 1 s timed
+        // walk). Gate and completion then race: the same non-determinism A1 was fixed to remove,
+        // arriving by configuration instead. Caught once, here, like the scale above.
+        _predecessorEndMargin = _vrf.TaskPredecessorEndMarginSeconds;
+        if (!TaskDispatchPolicy.IsUsablePredecessorEndMargin(_predecessorEndMargin))
+        {
+            _log.LogError("Vrf:TaskPredecessorEndMarginSeconds={Bad} is not a usable margin (it must be " +
+                          "greater than zero). At zero the STREND gate's completion window equals the " +
+                          "predecessor's scaled Duration EXACTLY, while that completion is observed up to " +
+                          "about 3 x the sim ratio seconds late - so the gate and the completion race and a " +
+                          "successor is skipped on timing rather than on fact. USING {Good} s (the shipped " +
+                          "default) for this run.", _vrf.TaskPredecessorEndMarginSeconds,
+                          TaskDispatchPolicy.DefaultPredecessorEndMarginSeconds);
+            _predecessorEndMargin = TaskDispatchPolicy.DefaultPredecessorEndMarginSeconds;
+        }
+
         // 0d. TASK-CLOCK PRE-FLIGHT (R4/M2). THREE THINGS RIDE ON ONE CLOCK - the Duration that
         // ends a task, the StartTime delay that holds one back, and the STREND predecessor gate -
         // and which one that is decides whether a 42-task order runs or dies at its first gate.
@@ -536,7 +556,7 @@ public sealed class VrfC2SimService : BackgroundService
                                       "is a PAUSE: task times are HELD and age by nothing (Q5)"
                                     : "",
                                 _durationScale, _vrf.TaskPredecessorTimeoutSeconds,
-                                _vrf.TaskPredecessorEndMarginSeconds, _vrf.TaskChainBackstopSeconds);
+                                _predecessorEndMargin, _vrf.TaskChainBackstopSeconds);
         }
 
         // 1. Start VR-Forces (the bridge owns the controller/exConn).
@@ -2334,6 +2354,11 @@ public sealed class VrfC2SimService : BackgroundService
     // again, so the two halves of the order's clock cannot be compressed by different numbers.
     private double _durationScale = 1.0;
 
+    // The VALIDATED Vrf:TaskPredecessorEndMarginSeconds (E5). Resolved once in ExecuteAsync for
+    // the same reason: a value the start-up line has already refused must not be read again by
+    // the gate derivation and quietly applied anyway.
+    private double _predecessorEndMargin = TaskDispatchPolicy.DefaultPredecessorEndMarginSeconds;
+
     private async Task RunTaskAsync(OrderTask task, CreatedUnit unit)
     {
         try
@@ -2367,7 +2392,7 @@ public sealed class VrfC2SimService : BackgroundService
                 _vrf.TimedCompletion, predecessorInThisOrder, predTask?.DurationMs ?? 0L, _durationScale);
             double timeoutSeconds = TaskDispatchPolicy.PredecessorTimeoutSeconds(
                 _vrf.TaskPredecessorTimeoutSeconds, predecessorEndSeconds,
-                _vrf.TaskPredecessorEndMarginSeconds);
+                _predecessorEndMargin);
             double dispatchTimeoutSeconds = TaskDispatchPolicy.PredecessorDispatchTimeoutSeconds(
                 predecessorInThisOrder, timeoutSeconds, _vrf.TaskChainBackstopSeconds);
             if (!string.IsNullOrEmpty(task.StartAfterTaskUuid))
@@ -2386,7 +2411,7 @@ public sealed class VrfC2SimService : BackgroundService
                                         : "a DANGLING reference: nothing will ever dispatch or abandon it, so the " +
                                           "configured window is what bounds the wait",
                                     timeoutSeconds, _vrf.TaskPredecessorTimeoutSeconds,
-                                    _vrf.TaskPredecessorEndMarginSeconds);
+                                    _predecessorEndMargin);
             // R4, the START half. The delay itself is NOT new - TaskSequencer has always waited
             // StartTime/SimulationTime/DelayTimeAmount before dispatching, and that is what keeps
             // COA-STP1's T13 (3h20m) from going out with the rest of the order. Two things are new:

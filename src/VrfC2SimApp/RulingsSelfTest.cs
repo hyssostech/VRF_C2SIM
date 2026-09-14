@@ -195,10 +195,33 @@ public static class RulingsSelfTest
                   $"floor is what applies - the relation holds at both ends of the scale");
 
             // A NEGATIVE or absurd margin cannot shorten the gate below the predecessor's end time.
+            // E5 (pass-3 review): the old wording here said a negative margin is "treated as zero -
+            // never as a reason to expire early", which reads as a guarantee that ZERO is safe. It
+            // is not, and the three checks now say which half is which: the clamp is a floor
+            // against nonsense, and zero is refused at start-up instead of being blessed.
             Check(ref failures,
                   TaskDispatchPolicy.PredecessorTimeoutSeconds(configured, predDuration, -500.0) == predDuration
                   && TaskDispatchPolicy.PredecessorTimeoutSeconds(configured, predDuration, double.NaN) == predDuration,
-                  "a negative or non-finite margin is treated as zero - never as a reason to expire early");
+                  "a negative or non-finite margin is CLAMPED TO ZERO, so the derived window is never SHORTER " +
+                  "than the predecessor's end time");
+            Check(ref failures,
+                  !TaskDispatchPolicy.IsUsablePredecessorEndMargin(0.0)
+                  && !TaskDispatchPolicy.IsUsablePredecessorEndMargin(-1.0)
+                  && !TaskDispatchPolicy.IsUsablePredecessorEndMargin(double.NaN)
+                  && !TaskDispatchPolicy.IsUsablePredecessorEndMargin(double.PositiveInfinity)
+                  && TaskDispatchPolicy.IsUsablePredecessorEndMargin(1.0)
+                  && TaskDispatchPolicy.IsUsablePredecessorEndMargin(
+                         TaskDispatchPolicy.DefaultPredecessorEndMarginSeconds),
+                  "(E5) ... but ZERO is NOT a usable margin, and Vrf:TaskPredecessorEndMarginSeconds is refused " +
+                  "at start-up when it is not greater than zero - the run then proceeds at the shipped 60 s");
+            Check(ref failures,
+                  TaskDispatchPolicy.PredecessorTimeoutSeconds(configured, predDuration, 0.0) == predDuration
+                  && TaskDispatchPolicy.PredecessorTimeoutSeconds(
+                         configured, predDuration, TaskDispatchPolicy.DefaultPredecessorEndMarginSeconds)
+                     == predDuration + TaskDispatchPolicy.DefaultPredecessorEndMarginSeconds,
+                  $"(E5) ... and the difference is the whole point: at margin 0 the gate expires at " +
+                  $"{predDuration:F0} s, EXACTLY when the predecessor is due to complete - and the completion " +
+                  $"is observed up to ~3 x (sim ratio) s late, so the two race. At the shipped 60 s it outlives it");
         }
 
         // (b9) Vrf:DurationScale ARITHMETIC (review item 8). One function scales both halves of the

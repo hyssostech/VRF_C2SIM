@@ -297,8 +297,32 @@ public static class TaskDispatchPolicy
     /// </summary>
     public static bool IsUsableDurationScale(double scale) => double.IsFinite(scale) && scale > 0.0;
 
+    /// <summary>The shipped Vrf:TaskPredecessorEndMarginSeconds, and what the service runs at when
+    /// the configured value is refused (E5).</summary>
+    public const double DefaultPredecessorEndMarginSeconds = 60.0;
+
+    /// <summary>
+    /// E5 (cold-start review of `8db033e`, pass 3): IS Vrf:TaskPredecessorEndMarginSeconds A
+    /// MARGIN AT ALL? It must be FINITE and GREATER THAN ZERO, and ZERO is the interesting case.
+    ///
+    /// <see cref="PredecessorTimeoutSeconds"/> clamps a negative margin to 0 so that the derived
+    /// window can never come out SHORTER than the end time it is waiting for - that is a floor
+    /// against a nonsense configuration, not a blessing of zero. At margin 0 the phase-2 window
+    /// EQUALS the predecessor's scaled Duration exactly, while the completion that releases the
+    /// gate is OBSERVED up to ~3 x (sim ratio) seconds late (the 1 s TaskClockSampleSeconds
+    /// staircase plus the 1 s TimedCheckSeconds walk). The gate and the completion then race,
+    /// which is precisely the non-determinism A1 was fixed to remove. So a non-positive value is
+    /// a configuration error: it is REFUSED ONCE at start-up, loudly, and the run proceeds at
+    /// <see cref="DefaultPredecessorEndMarginSeconds"/> - the same shape as Vrf:DurationScale's
+    /// validation, and documented in docs/RUNBOOK.md sec 11.
+    /// </summary>
+    public static bool IsUsablePredecessorEndMargin(double seconds)
+        => double.IsFinite(seconds) && seconds > 0.0;
+
     /// <param name="marginSeconds">Vrf:TaskPredecessorEndMarginSeconds - the slack that covers the
-    /// timed walk's cadence and the ordering above. Negative is treated as 0.</param>
+    /// timed walk's cadence and the ordering above. Negative or non-finite is clamped to 0 here so
+    /// the window is never SHORTER than the predecessor's end time; a non-positive CONFIGURED
+    /// value is refused at start-up instead (E5, <see cref="IsUsablePredecessorEndMargin"/>).</param>
     public static double PredecessorTimeoutSeconds(double configuredSeconds, double predecessorEndSeconds,
                                                    double marginSeconds)
     {

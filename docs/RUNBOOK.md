@@ -1478,6 +1478,22 @@ no Duration and no geometry is malformed and is refused, not held (below).
 - **`Vrf:DurationScale` is validated at start-up.** A zero, negative, NaN or infinite value is
   REJECTED with an ERROR line and the run proceeds at 1.0 (the order as written). It used to
   mean "no end time armed" on one half of the order's clock and "dispatch now" on the other.
+- **`Vrf:TaskPredecessorEndMarginSeconds` is validated too, and ZERO IS REFUSED** (E5). A value
+  that is not greater than zero gets an ERROR line and the run proceeds at the shipped **60 s**.
+  Zero is not a harmless setting: at 0 the completion window equals the predecessor's scaled
+  Duration EXACTLY, while that completion is OBSERVED up to about `3 x (sim ratio)` seconds late
+  (the 1 s clock sample staircase plus the 1 s timed walk), so the gate and the completion race
+  and a successor is skipped on timing rather than on fact - the non-determinism A1 was fixed to
+  remove, arriving by configuration instead. A NEGATIVE margin reaching the derivation is still
+  clamped to zero there, so a window can never come out SHORTER than the end time it waits for;
+  that clamp is a floor against nonsense, not a blessing of zero. Raising the margin is free.
+- **Every order says how DEEP it is, against the backstop** (E4). One `CHAIN DEPTH:` INFO line
+  per order names how many task-clock seconds after receipt the deepest chain reaches its last
+  dispatch, when that last task is armed to end, and what `Vrf:TaskChainBackstopSeconds` is.
+  COA-STP1 measures **16,800 s** to the last dispatch and **21,600 s** to the last end, against
+  the 86,400 s backstop - 5.1x of headroom. If the lead ever meets or exceeds the backstop a
+  WARNING says so at receipt, naming what to raise, instead of the operator learning it hours
+  later as a burst of `never dispatched within 86400s` lines that look like a wedge.
 - **A task with NO Duration AND NO geometry is REFUSED, not held** (Q4, USER RULING 2026-09-14).
   There is no knob: `Vrf:DefaultHoldSeconds` is DELETED. Such a task gets an ERROR naming both
   missing elements, a TASKABRT, and an abandon so its STREND successors fail fast. If you see
