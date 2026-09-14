@@ -1370,6 +1370,46 @@ this, and the answer is steps 1-4 above.
 
 ---
 
+## 11. THE CLOCK C2SIM TASK TIMES RUN ON, AND THE FOUR NEW TASKING KEYS
+
+Added 2026-09-14 (cold-start review of `5c67d41`, items M1/M2 and questions Q1/Q4). All four
+default to something usable; none of them appears in `appsettings.json` or
+`appsettings.Demo.json`, so they are set by environment override in the interface's own shell,
+like the watchdog below (double underscore = the `:`):
+
+```powershell
+$env:Vrf__TaskClock                      = "sim"       # DEFAULT. "wall" to measure in real seconds
+$env:Vrf__TaskPredecessorEndMarginSeconds = "60"       # DEFAULT
+$env:Vrf__SupersededTaskCode             = "TASKABRT"  # DEFAULT. "TASKCMPLT" = the literal R4 reading
+$env:Vrf__DefaultHoldSeconds             = "60"        # DEFAULT. 0 = no invented end time
+```
+
+- **`Vrf:TaskClock` is NOT `Vrf:StallClock`.** TaskClock carries ALL THREE C2SIM task times -
+  the Duration that ends a task (R4), the StartTime/DelayTimeAmount delay that holds one back,
+  and the STREND predecessor gate. StallClock carries the progress watchdog's no-progress
+  window and NOTHING else. They were the same knob before this change, so turning the watchdog
+  onto the sim clock silently changed when every task in the order completed. Both read the
+  SAME sim-clock sample through the same hysteresis, so they can never disagree about whether
+  the scenario is running - only about which clock they prefer.
+- **The sim clock falls back to WALL seconds on its own**, whenever
+  `DtVrfRemoteController::simTime()` cannot be read for three consecutive samples or has been
+  flat for 60 wall seconds. Nothing is lost when it does: the axis every task time is served on
+  adds FORWARD movement only, so a fall back keeps the time already served and serves the rest
+  on wall seconds. The `TASK CLOCK:` lines say each way, once.
+- **The predecessor gate is a FLOOR, not the whole window.** A task whose predecessor carries a
+  Duration waits at least `(that Duration x Vrf:DurationScale) + Vrf:TaskPredecessorEndMarginSeconds`.
+  Before this, the flat 600 s `Vrf:TaskPredecessorTimeoutSeconds` expired before COA-STP1's
+  4,800 s and 7,200 s Durations by construction and SKIPPED all 31 gated tasks. You no longer
+  need to raise `TaskPredecessorTimeoutSeconds` for a long order - and raising it does no harm.
+- **`Vrf:DurationScale` is validated at start-up.** A zero, negative, NaN or infinite value is
+  REJECTED with an ERROR line and the run proceeds at 1.0 (the order as written). It used to
+  mean "no end time armed" on one half of the order's clock and "dispatch now" on the other.
+
+START-UP PROOF: one `TASK CLOCK (R4):` line names the clock in force, the scale, and the gate
+formula. If that line is missing, the build predates this change.
+
+---
+
 ## 10. THE C16 PROGRESS WATCHDOG IS OFF BY DEFAULT - HOW TO TURN IT ON FOR THE VALIDATION RUN
 
 Added 2026-09-14 (cold-start review sec 2.8). `Vrf:StallDetection` defaults FALSE, is absent from
@@ -1381,6 +1421,9 @@ run is enabled by ENVIRONMENT OVERRIDE, in the interface's own shell, before it 
 $env:Vrf__StallDetection = "true"     # double underscore = the ':' of Vrf:StallDetection
 $env:Vrf__StallClock     = "sim"      # optional; default is "wall"
 ```
+
+`Vrf:StallClock` governs THIS WATCHDOG ONLY (2026-09-14). The clock C2SIM task times run on is
+`Vrf:TaskClock` - sec 11 above.
 
 The gate is at the CALL SITE (`TickLoop`: `if (_vrf.StallDetection) MaybeCheckStalls();`), so with
 the default nothing inside the watchdog executes and no TASKABRT can be emitted by it - which is why

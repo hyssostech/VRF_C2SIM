@@ -1089,6 +1089,33 @@ R5 and R6 remain open. Citations below are to that doctrine record unless noted.
   time; evaluable tasks (SEIZE/OCCUPY arrival, BREACH, MOVE) may still complete earlier
   on their own evidence.
 
+  **R4's CLOCK IS THE SIMULATION CLOCK** (supervisor default 2026-09-14, Q2 of the
+  cold-start review of `5c67d41`; the user may flip it). `Vrf:TaskClock`, default
+  `"sim"`, with an automatic WALL fallback whenever `DtVrfRemoteController::simTime()`
+  cannot be read or has gone stale. The ruling above already says "at that sim time";
+  what the setting adds is that the SAME clock carries all THREE task times - the
+  Duration that ends a task, the StartTime/DelayTimeAmount delay that holds one back,
+  and the STREND predecessor gate. Before the review fixes the Duration was served on
+  `Vrf:StallClock` (the progress watchdog's knob, default wall) while the other two were
+  pure wall `Task.Delay`, so at COA-STP1's measured sim ratios (0.27x-0.73x) a gate
+  expired three to four times too early and every successor was skipped.
+  `Vrf:StallClock` now governs the progress watchdog ONLY.
+
+  **THE OTHER THREE REVIEW QUESTIONS**, also supervisor defaults pending the user's own
+  ruling:
+  - **Q1, a SUPERSEDED task**: `Vrf:SupersededTaskCode`, default `TASKABRT` AT THE
+    SUPERSEDE POINT - the taskee is demonstrably not performing it, and the interface's
+    own log already said so while its report stream said the opposite. `TASKCMPLT`
+    (the literal reading: the order says when the task ends, whatever the simulator did)
+    is selectable. Not reachable on COA-STP1 under `PredecessorTimeoutPolicy=skip`.
+  - **Q3, the WIRE AMBIGUITY is ACCEPTED**: STP sees TASKSTRT + TASKCMPLT for a
+    zero-geometry in-place task exactly as for a performed one; the derivation goes out
+    as an ObservationReport, which STP discards (STP-800). Recorded, not worked around.
+  - **Q4, a task with NO Duration AND no geometry**: `Vrf:DefaultHoldSeconds`,
+    default 60, with a WARNING naming the invention, so the STREND chain proceeds
+    instead of dying at the gate on a task the interface did execute. None of
+    COA-STP1's 42 tasks needs it - all 42 carry a Duration.
+
 - **R5 OPEN - EntityLevel first vs straight to AggregateTacticalLevel.** Explained to
   the user 2026-09-14; doctrine does not settle it directly (an engineering/schedule
   call).
@@ -1115,12 +1142,16 @@ R5 and R6 remain open. Citations below are to that doctrine record unless noted.
 
 ---
 
-### 7.1a STATUS 2026-09-14 (branch `feat/tasking-rulings`, base `02b51de`) - R1-R4 BUILT, LIVE CONFIRMATION OWED
+### 7.1a STATUS 2026-09-14 (branch `feat/tasking-rulings`) - R1-R4 BUILT AND REVIEW-FIXED, LIVE CONFIRMATION OWED
 
-R4 `746c091`, R2 `1f65f55`, R3 `0cd8905`, R1 `0193379`. Offline only: every check is a
-`--rulings-selftest` (41 checks across the four sections) or a `--parse-order` census, and
-all 16 existing self-tests stay green (typemap 783). NOTHING here has been run against
-VR-Forces yet.
+R4 `746c091`, R2 `1f65f55`, R3 `0cd8905`, R1 `0193379`; merged with `feat/integration` at
+`182bd51`; then the cold-start review of `5c67d41` (verdict FIX FIRST, in-repo at
+`docs/experiments/REVIEW_RULINGS_5c67d41_2026-09-14.md`) fixed in `075c0b7` (M1),
+`3fe69fa` (M2), `48e7c5d` (M3+M4), `1ddb9a7` (M5), `06f8cf0` (m1-m9 + the Q1/Q4 defaults)
+and `6d46921` (tests) - see 7.1b. Offline only: every check is a `--rulings-selftest`
+(now 77 checks across FIVE sections) or a `--parse-order` census, and all 18 self-tests
+stay green (typemap 783, scripted-task, initgraphics, preflight included). NOTHING here
+has been run against VR-Forces yet.
 
 - **R4 BUILT** - `OrderParser` lifts Duration (and the absolute StartTime form);
   `TimedCompletionPolicy` arms one timer per task at dispatch and measures ELAPSED clock,
@@ -1131,7 +1162,9 @@ VR-Forces yet.
   cancels the timer; TASKSTRT/TASKINPRG do not. Config: `Vrf:TimedCompletion` (default ON),
   `Vrf:DurationScale` (default 1.0) - the scale applies to BOTH the Duration and the
   StartTime delay, so a compressed demo does not still wait 3h20m for T13's successor. The
-  VR-Forces task is deliberately NOT cancelled at the end time.
+  VR-Forces task is deliberately NOT cancelled at the end time. SINCE THE REVIEW FIXES the
+  walk runs on R4's OWN clock (`Vrf:TaskClock`, default `sim`), not the watchdog's, and the
+  predecessor gate is derived from the predecessor's armed end time - see 7.1b.
 - **R2 BUILT** - `TaskDispatchPolicy.ForZeroGeometry`. A zero-geometry task dispatches in
   place with TASKSTRT, no vendor move, a NameObservation carrying the ruling's sentence,
   R4's end time and an unbroken chain. The only refusal left is "no performing unit".
@@ -1145,6 +1178,26 @@ VR-Forces yet.
   and stays supported; the path taken is logged on every task. No name heuristics, and no
   verb-typed reading of the points (V4b).
 
+### 7.1b COLD-START REVIEW OF `5c67d41` - VERDICT FIX FIRST, ALL ITEMS FIXED
+
+The review (in-repo, `docs/experiments/REVIEW_RULINGS_5c67d41_2026-09-14.md`) found five
+MAJOR items, one of which meant the branch did not achieve its own stated purpose on the
+order it was built for. What changed:
+
+| item | what was wrong | fix | sha |
+|------|----------------|-----|-----|
+| M1 | The STREND gate expired at dispatch + `TaskPredecessorTimeoutSeconds` (600 s) while the timed completion fires at dispatch + Duration (4,800 / 7,200 s) - an ordering proof, not a race. All 31 gated COA-STP1 tasks were SKIPPED with TASKABRT: 11 dispatches, not 42. | The gate is `max(configured, predecessor Duration x DurationScale + Vrf:TaskPredecessorEndMarginSeconds)`. `TaskSequencer` takes the window in seconds and an INJECTED clock. | `075c0b7` |
+| M2 | Two clocks: the Duration on `Vrf:StallClock`, the start delay and the gate on pure wall `Task.Delay`. At 0.27x-0.73x sim ratio the gate expired 3-4x too early. R4's semantics were also controlled by a knob named for the watchdog. | `Vrf:TaskClock` (default `sim`) + ONE MONOTONE AXIS that adds forward movement only, carrying all three task times. `Vrf:StallClock` governs the watchdog only. | `3fe69fa` |
+| M3 | The timed walk took the RAW clock mode where the watchdog takes the hysteresis-CONFIRMED one, so an alternating -1 / >= 0 reader re-anchored every walk: no task ever completed, silently, forever. | `SimClockTracker` - the sim clock is read ONCE per sample and judged once for both consumers. | `48e7c5d` |
+| M4 | No stale-clock detection in the timed walk. A deactivated back end is not removed, so the reader returns its last value for the rest of the run and every end time froze. | The shared tracker's `Stale` verdict; the task clock falls back to WALL seconds and keeps serving, warning once each way. | `48e7c5d` |
+| M5 | `_graphicsByC2SimUuid` was written only from `init.Areas`: 35 of the init's 409 graphics. A MapGraphicID naming a phase line or an axis of advance matched nothing and the task fell through to the embedded Location - or, on an export that drops it, to R2 IN PLACE. | Lines and points are registered too, UNCONDITIONALLY (the map holds authored points, not VR-Forces objects, so the create flags are irrelevant to it). An unmatched id is now a WARNING. | `1ddb9a7` |
+| m1-m9 | The superseded task still reported TASKCMPLT; the in-place dispatch cleared state for a command it never issued; `Unresolved`/`NoTarget` were relabelled as R3; the month term was 30 HOURS; the timer survived the empty-taskee guard; the real "no performing unit" path was silent; a discarded embedded Location said nothing; `DurationScale` had two opposite readings; an in-place task stayed `IsBusy` forever. | All fixed; Q1 and Q4 answered by the supervisor defaults recorded in 7.1. | `06f8cf0` |
+| n8 | The 41-check suite was pure-function checks of 3-line methods; `(d2)` could not fail. | 77 checks, including service-level ones on real objects and FAIL-FIRST controls for M1, M3 and M4. | `6d46921` |
+
+NEW CONFIG KEYS (all documented in `VrfSettings.cs` and `docs/RUNBOOK.md` sec 11):
+`Vrf:TaskClock` (`sim`), `Vrf:TaskPredecessorEndMarginSeconds` (60),
+`Vrf:SupersededTaskCode` (`TASKABRT`), `Vrf:DefaultHoldSeconds` (60).
+
 **WHAT A LIVE RUN MUST PROVE** (none of it is offline-decidable):
 1. A COA-STP1 run emits TASKSTRT for every dispatched task and exactly one TASKCMPLT per
    task at its end time, and `reports-captured.log` shows them (G6 captured 0 TaskStatus).
@@ -1154,12 +1207,27 @@ VR-Forces yet.
    as successors - instead of collapsing on the refusal.
 4. No ATTACK/BREACH/ESCRT task logs a self-target degradation; the ATTACK family routes to
    its geometry and the 42-task order reads as 42 executions.
-5. The end-time clock behaves at scale: with `Vrf:StallClock=sim` the TIMED COMPLETION line
-   names the SIMULATION clock, and the completions land at Duration x `Vrf:DurationScale`
-   of SIM time - the first live exercise of the sim-clock path (the watchdog has only ever
-   been measured on the wall clock).
+5. The end-time clock behaves at scale: on the DEFAULT `Vrf:TaskClock=sim` the start-up
+   TASK CLOCK line names the SIMULATION clock, the TIMED COMPLETION line agrees, and the
+   completions land at Duration x `Vrf:DurationScale` of SIM time - the first live exercise
+   of the sim-clock path (the watchdog has only ever been measured on the wall clock).
+   With it, that the STREND gate SURVIVES the whole Duration: the M1 line "its predecessor
+   is armed to end ... so this task's gate is ... s" must appear for each of the 31 gated
+   tasks, and none of them may report the skip TASKABRT.
 6. A demo run with a compressed `Vrf:DurationScale` completes the whole order in minutes
    and T13 still dispatches after its (scaled) 3h20m delay, not before.
 7. An order carrying a MapGraphicID (an STP re-export with IncludeMapGraphicIdInTasks=True,
    or a hand-edited fixture) logs "geometry from MapGraphicID <uuid> -> <name>" and drives
-   the init area's centroid.
+   the init area's centroid - and, since M5, a MapGraphicID naming one of the init's 41
+   LINEs or 317 POINTs resolves too, with the init line reporting how many graphics are
+   addressable ("R1 RESOLUTION (M5) is independent of those flags: N graphic(s) ...").
+8. THE CLOCK HAZARDS ARE STILL UNOBSERVED. M3 and M4 are hardening against two reader
+   behaviours the neighbouring watchdog code judged real (`vrfBackendListener.h:154-163`,
+   `vrfRemoteController.h:605`) but which this project has NEVER seen live. A run must show
+   whether `DtVrfRemoteController::simTime()` alternates, goes flat, or steps backwards at
+   all: if it does, the TASK CLOCK / SIM CLOCK lines say so; if it never does, they stay
+   silent and the fallback path remains unexercised.
+9. Q1's default is UNREACHED on COA-STP1 (0 taskees with more than one ungated task under
+   `PredecessorTimeoutPolicy=skip`): a supersede TASKABRT needs an order with concurrent
+   tasks per taskee, or a run with `force`/`whenIdle`, before it is anything but a
+   self-test.
