@@ -755,6 +755,61 @@ scratchpad n1n2/harvest/n2b_harvest.py, plan_counts.py, area_timing.py on watchv
   configuration". The two explanations and the discriminating run are sec 5.5.
 
 
+### 10.2 N2c - run 20260914T215944Z (launched 21:55Z; order pushed 22:05Z at the ready gate; task dispatched +300 s; window 1200 s to its cap)
+
+**P21b REFUSED -> hypothesis (T), load timing, is FALSIFIED for a 300 s delay.** Harvest with the same three scripts
+(1,003,954 trace lines; no vendor log opened):
+- The members were materialised at order receipt (first fix wall 62.5; the same six positions as N2b to the metre) and
+  stood still for 304 s. The task dispatched at wall 366.6: EVERY member's EVERY goal - the ~30 m formation-slot move
+  AND the 6,593 m V1 leg - returned "Planned nav path has not enough (0) points" (0 planned / 4 refusals per member,
+  the abstract-graph proof line printed at every attempt, both nav-area gates `success`), then the straight
+  feature path. Same outcome as N2b at +0.3 s / +5 s, now at +304 s / +306 s after placement and 307 s after the
+  run's first area row (59.9, on `2/1_AD/25_` again).
+- P21a's "control at +0.3 s" DID NOT EXIST as designed: the slot move is issued at task DISPATCH, not at creation, so
+  under the delay both queries moved to +304 s. Recorded; it does not weaken P21b (the point was a late query).
+- The members' OWN `New Primary nav area` rows again came AFTER their first query (367.7-367.9 vs 366.9) and ~305 s
+  after placement: an object registers its primary area at its first navigation call, not at placement. That is a
+  reading of what the row MEANS (a per-object registration, not a load-complete signal) - it removes the row as a
+  readiness instrument for anything but "the area is loaded for SOMEONE".
+- The SIXTH ridge freeze, to the metre: leader last fix 34.65607/-116.76143 = **1.4 m** from the P11 point, leg s
+  1,972, cross-track -23.3 m, 0.9 m advance over the final 600 sim s; O-axis at sim +300/+600/+900 since dispatch
+  4,091/4,106/4,104 (P11 4,117/4,108/4,105). HMMWV 2 again crawled past the window (+17.1 m north at s = 2,006) to
+  s = 2,029. HMMWV 1 10.4 m, M577A2 1 41.3 m, M1A2 2 56.6 m, M3 1 61.5 m from the P11 point.
+- Runner: gate fired after 10 s (warm), StopWhenComplete did not fire, window 1,201.7 s, teardown clean (13th), RTI
+  preserved. A stale design executor woke on its own background job during Stages 3-6 (before the order), ran a few
+  read-only checks and stood down; before the measurement window, low load - recorded as a confound note.
+
+**WHAT SURVIVES.** The refusal at the 1-35 destack start is not about WHEN the query runs (0.3 s, 5 s, 304 s) and not
+about abstract coverage (sec 5.5, all leg sectors carry abstract graphs). It is about WHERE: the same six positions
+refuse a 30 m goal that units elsewhere plan in 6-23 m (G6, flat query: 1-1's members one cell away at (49,76), 40/2/1_AD,
+C/1-35) and that the eastern lane plans over 5 km with this very override (G7c-gate). Live readings of (L): (i) the start
+positions are OFF the walkable NavMesh (a hole or a disconnected island under 34.658442/-116.740092 and its five slots
+~50 m around it - the Kaim `InsidePosFromOutsidePosQuery` in vrfNavigation.dll is how VR-Forces snaps an off-mesh
+position, and a snap that finds nothing fails the whole query regardless of goal distance); (ii) an abstract-graph
+connectivity defect local to that cell (the 4 abstract nodes exist but the start's triangle is not connected to
+them). Both predict the same console output; they differ in what a FLAT query would do from the same spot - unknown
+(G6's 1-35 slot queries failed the GATE, not the mesh).
+
+**Adversarial review of this reading.** Strongest competing hypothesis: "the abstract-graph query is broken everywhere
+and G7c-gate was a fluke" - refuted by two independent runs on the eastern lane (G7b run C 8/8, G7c-gate 32/32) and by
+the flat-query control on that lane (2/24), i.e. the override moved the outcome there in the predicted direction. Second:
+"the 1-35 members' start is outside the nav AREA" - refuted by `Is current point in nav area?: success` at every attempt.
+Third: "the 300 s delay was not served" - refuted by the dispatch timestamps (order 62.5, first goal 366.6; the
+interface's own log carries the wait). Unexplained and carried: why the same query fails for a 30 m goal (a snap or
+island failure explains it; a distance or budget limit does not). VERIFIED: everything above from the trace. ASSUMED:
+that the six start positions are the operative variable (the next step tests exactly that).
+
+**NEXT (docs first, then one run):** (1) read the Lua API for `vrf:findPathToLocation` and the object it returns - if
+the path/job carries a status or failure reason, add ONE `printInfo` of it to OUR override script (the custom SMS is
+already the vehicle for that) so the console says WHY (start off-mesh vs no path) instead of "(0) points"; (2) the
+navigation profile `ground-platform` in `appData\settings\vrfSim\navigationProfiles.mtl` (entity radius / slope / soil
+entries) for what makes ground un-walkable at generation; (3) the offline tile cache under the destack start (land
+cover / slope) for a hole candidate; then (4) ONE spatial run: the same AG_S2 fixture and order with the members
+created ~800 m closer to V0 (`Vrf__DeStackSpacingMeters` 700 -> 500 moves the 1-35 slot from 2,800 m to 2,000 m
+south-west of V0) - if the slot move and the leg PLAN from there, the hole/island at the original start is confirmed
+and P20b (slope factor 2.0 vs the face) becomes readable in the same run; if they refuse again, the defect is wider
+than one cell and the flat-query control from the same spot is the next arm.
+
 ---
 
 ## 11. ORDERING
@@ -763,7 +818,8 @@ scratchpad n1n2/harvest/n2b_harvest.py, plan_counts.py, area_timing.py on watchv
 |---|---|---|---|
 | 1 | Supervisor ruling on sec 1.5 (a) / (b) / (c) | RULE | RULED 2026-09-14 per the project record: (c) - N1 is NOT run, the abstract-graph override stays the product fix, N2b is the lever |
 | 2 | N2b - `n2b_launch.sh`, ridge lane, AG + saf 2.0, single variable vs RIDGE-AG | SPEND | RUN 205046Z: P20a MISS -> STOP (sec 10.1) |
-| 2b | N2c - `n2c_launch.sh`, N2b + 300 s task start delay (sec 5.5), the (T)/(L) discriminator | SPEND | ready, dry-run clean, parse-check clean; runs when no agent is active |
+| 2b | N2c - `n2c_launch.sh`, N2b + 300 s task start delay (sec 5.5), the (T)/(L) discriminator | SPEND | RUN 215944Z: P21b REFUSED -> (T) FALSIFIED; spatial (L) live (sec 10.2) |
+| 2c | N2d - the spatial shift (DeStackSpacingMeters 700 -> 500), after the failure-reason print in the override script | PREREG | design owed (sec 10.2 NEXT) |
 | 3 | N1 - `n1_launch.sh`, only if sec 1.1 is to be falsified live | SPEND | ready, dry-run clean |
 | 4 | N2 - `n2_launch.sh`, only if N1 hits | SPEND | ready, dry-run clean; gate predicted to miss |
 | 5 | `validate_fixture.py` script-gate extension (sec 8 item 2) | - | owed, one line, outside this task's write set |
