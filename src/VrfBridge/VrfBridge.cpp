@@ -254,6 +254,11 @@ public:
 
     int  BackendCount()     { return _facade->BackendCount(); }
     bool AllBackendsReady() { return _facade->AllBackendsReady(); }
+    // The VR-Forces BACK END's scenario clock, in seconds, or -1.0 when there is no reading
+    // (no controller, or no back end discovered yet). This is the SIM clock - not wall time and
+    // not the local VR-Link federate clock; see VrfFacade.h for the vendor trail and for why the
+    // local clock is the wrong one. Used by the progress watchdog (StallPolicy / Vrf:StallClock).
+    double SimTimeSeconds() { return _facade->SimTimeSeconds(); }
     // "<bridge build>|<path of the vrfcontrol.dll this process bound>" - see VrfFacade.h
     static String^ NativeStackInfo() { return marshal_as<String^>(vrf::VrfFacade::NativeStackInfo()); }
 

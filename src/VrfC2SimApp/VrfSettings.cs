@@ -189,6 +189,98 @@ public class VrfSettings
     public double ArrivalCheckSeconds { get; set; } = 5.0;
     public double ArrivalMinSecondsSinceDispatch { get; set; } = 30.0;
 
+    // PROGRESS WATCHDOG (C16, report-only; StallPolicy.cs). VR-Forces 5.2 NEVER reports a unit
+    // that stops making progress while its move task runs: the base give-up test "always returns
+    // false" (vrfobjcore/singleTaskControllerComponent.h:192-205) and ground-vehicle-move-to.lua
+    // has no progress test - docs/experiments/FINDING_EARLY_STOPS_2026-09-13.md sec 6a. So the
+    // interface detects it itself: when NO member of a moving unit has covered StallMoveMeters of
+    // NET displacement over the last StallWindowSeconds, ONE C2SIM TaskStatus with TASKABRT is
+    // reported for that task and nothing else happens - no re-task, no VRF command, no state
+    // change (the task stays in flight; the vendor's own completion, if it ever comes, still
+    // flows normally). DEFAULT OFF: the deployed behaviour is unchanged until a preregistered
+    // run turns it on.
+    //
+    // WHICH CLOCK THE WINDOW RUNS ON (StallClock). "wall" is the DEFAULT because it is the mode
+    // this interface has actually MEASURED LIVE so far: BOTH windows are calibrated (240 wall s,
+    // 360 sim s, from the same three replayed traces - see CALIBRATION below), but only the wall
+    // clock has been exercised in a run. A build that selects "sim" says so at startup.
+    // "sim" measures the window on the back
+    // end's own scenario time, read through VrfBridge.SimTimeSeconds() ->
+    // VrfFacade::SimTimeSeconds() -> DtVrfRemoteController::simTime()
+    // (vrfcontrol/vrfRemoteController.h:356 on 5.2d, :352 on 5.0.2 - the clock the vendor's
+    // remote-control sample prints as "Sim time from sim engine status",
+    // examples/remoteControl/commandLineRemoteController.cxx:1247-1252). Two consequences:
+    // a PAUSED scenario can no longer trip the watchdog (its clock stops while wall time runs),
+    // and under fixed-frame-run-to-complete the abort lands after StallWindowSeconds of SIM
+    // seconds instead of ratio x StallWindowSeconds (at the 6.21x measured on the 2026-09-13 G5
+    // run the wall-clock window's 240 s were ~1,490 sim s). StallClock = "wall" is the
+    // pre-2026-09-13 behaviour; the watchdog ALSO falls back to wall seconds by itself whenever
+    // the reader answers -1.0 (no controller, no back end yet), logging one line when it does,
+    // so it is never left without a clock, and it needs THREE consecutive readings of a new
+    // mode before it switches (a reader flapping at the check cadence would otherwise clear
+    // every window on every tick). The VALUE is validated: anything that is not exactly "sim"
+    // or "wall" (trimmed, case-insensitive) logs one line and runs on WALL, so a typo can never
+    // pick a mode nobody chose. The check CADENCE (StallCheckSeconds) is a wall-time sampling
+    // rate, but in "sim" mode it is also the window's RESOLUTION, so it FOLLOWS the clock: the
+    // watchdog samples often enough (down to a 1 s floor) that one step advances the sim clock
+    // by at most StallWindowSeconds / StallPolicy.MinRingDepth, and it never judges on fewer
+    // than MinRingDepth samples. A cadence COARSER than StallWindowSeconds / (MinRingDepth - 1)
+    // could never fill that ring at all, so StallCheckSeconds is CLAMPED to that ceiling - 80 s
+    // on the wall window, 120 s on the sim window - with one line at startup, rather than left to
+    // go dormant in silence (pass-2 review F4a). StallMinSecondsSinceDispatch is a WALL floor and
+    // is applied on the WALL clock ONLY: 360 sim s is ~58 wall s at 6.21x, so ANDing 60 wall s
+    // onto the sim clock would let the floor, not the calibrated window, set the detection time
+    // (measured at 60x: wall 60 s / sim 3,600 s - pass-2 review F8). A sim clock that STOPS
+    // ADVANCING for 60 wall seconds while a move task is in flight - a paused scenario, or a back
+    // end that stopped answering and was deactivated rather than removed - warns once and suspends
+    // judging until it moves again; a clock that steps BACKWARDS is a rollback to a snapshot, not
+    // a stopped clock, and gets its own line without suspending anything (pass-2 review F3).
+    //
+    // *** CALIBRATION - THE WINDOW BELONGS TO THE CLOCK ***
+    // StallWindowSeconds = 0, the shipped default, means "the window calibrated for whichever
+    // clock is in use"; any positive value is used exactly as configured. Both numbers come from
+    // the SAME three replayed traces - G5 20260913T185936Z, G3 20260913T174516Z, P11
+    // 20260907T150643Z - and they are NOT a conversion of one another: P11's sim/wall ratio swings
+    // 1.10x-1.99x WITHIN that one run, so 240 wall s covers 264-478 sim s depending on the load.
+    //   WALL, 240 s (tools/analysis/stall_replay.py; numbers in C16 of
+    //     docs/DESIGN_ORBAT_TO_VRF_2026-09-06.md). NOT the 120 s first tried: at 120 s the rule
+    //     fires on units that are CRAWLING rather than stopped (P11's 4-27, 40, 856/HHC and
+    //     C/1-35 creep at 0.4-0.5 m/s for thousands of seconds and each covered 200-1,200 m AFTER
+    //     the 120 s rule would have aborted them). The last false alarm disappears between a 160 s
+    //     and a 170 s window, so 240 s keeps a 1.41x margin, and the clean threshold band there is
+    //     35-70 m with 50 m mid-band. A larger THRESHOLD cannot do this job in place of a longer
+    //     window - at 120 s the crawlers' per-window minima (41-50 m) and the frozen units'
+    //     (22-49 m) overlap; only persistence separates them.
+    //   SIM, 360 s (docs/experiments/RECAL_STALL_SIMSECONDS_2026-09-13.md). The re-calibration
+    //     re-stamped the wall-stamped POS rows onto the sim axis by piecewise-linear interpolation
+    //     over the (wall, sim) pairs the object console's own line prefixes carry - not one
+    //     least-squares slope, which hides the load variation - and REPRODUCED EVERY DOCUMENTED
+    //     WALL NUMBER first (the 120 s quartet and the 160 s triple to the second, the 160/170
+    //     boundary, the 240 s fires, the 74/78 m true-negative minima, the 35-70 m band). The
+    //     sweep over 100-500 sim s then put the pooled false-alarm boundary at 50 m at 250 sim s
+    //     (P11 250, G3 200, G5 none), and 250 x 1.41 = 353 -> 360. At 360 sim s the clean
+    //     threshold band is 35-75 m and all five true positives fire EARLIER in wall time than the
+    //     240 wall s window does (135 s against 385 s in G5), because the freezes happen while the
+    //     sim runs fastest.
+    // TWO LIVE UNKNOWNS, both settled by one instrumented run: whether
+    // DtVrfRemoteController::simTime() reports the same clock the object console prints as its own
+    // sim prefix - that IS the clock the 360 was calibrated on - and whether DtBackend::simTime()
+    // EXTRAPOLATES between back-end status messages (its member layout,
+    // mySimTimeToRealTimeRatio / myLastSimTimeUpdated at vrfutil/backend.h:410-419, suggests it
+    // may, which would make a paused reading a sawtooth rather than a flat line).
+    // REINTERPRETATION (pass-2 review F9): StallWindowSeconds 0 - and any NEGATIVE value - now
+    // mean "the clock's calibrated default". Before this branch the window was
+    // Math.Max(1, StallWindowSeconds), so 0 meant a ONE-SECOND window. StallDetection ships OFF
+    // and no deployed appsettings sets either, so the blast radius is nil, but a config file
+    // carrying an explicit 0 behaves completely differently here than it did.
+    public bool StallDetection { get; set; } = false;
+    public string StallClock { get; set; } = "wall";            // "wall" = measured live (default) | "sim" = scenario clock
+    public int StallWindowSeconds { get; set; } = 0;            // 0 or negative = the clock's calibrated window (240 wall / 360 sim); else as given
+    public double StallMoveMeters { get; set; } = 50.0;         // net displacement per member over the window
+    public int StallMinSecondsSinceDispatch { get; set; } = 60; // grace after dispatch before the watchdog may fire
+    public int StallCheckSeconds { get; set; } = 5;             // how often the tick thread samples
+    public int StallMinMembersWithData { get; set; } = 1;       // readable members needed before a stall may be called
+
     // OBSERVATION CHANNEL (UG52 21.9 p483): every VR-Forces object has its own console that
     // carries "messages sent from the simulation engine, from a simulation object's plan, from
     // other simulation objects, and from scripts", filtered by a PER-OBJECT notify level

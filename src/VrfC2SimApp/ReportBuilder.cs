@@ -31,9 +31,17 @@ public static class ReportBuilder
     // 326-327). "TODO: determine who is sender" is noted there; reproduced verbatim.
     private const string ZeroUuid = "00000000-0000-0000-0000-000000000000";
 
-    /// <summary>Task-complete status report (TASKCMPLT) for a taskee's current task.</summary>
-    public static string BuildTaskCompleteReport(string taskeeUuid, string taskUuid,
-                                                 string isoDateTime, string reportId)
+    /// <summary>
+    /// Task-status report for a taskee's current task, with the C2SIM status code as a
+    /// PARAMETER. Two codes are emitted by this interface today: TASKCMPLT (the vendor's or the
+    /// arrival-evidence completion, C15) and TASKABRT (the progress watchdog, C16 - a move whose
+    /// unit stopped making progress and which VR-Forces will never report; see StallPolicy.cs).
+    /// Both go to the C2SIM server through THIS one builder and the service's single
+    /// PushReportAsync path, so a TASKABRT is schema-identical to a TASKCMPLT but for the code.
+    /// </summary>
+    public static string BuildTaskStatusReport(string taskeeUuid, string taskUuid,
+                                               S.TaskStatusCodeType code,
+                                               string isoDateTime, string reportId)
     {
         var body = new S.ReportBodyType
         {
@@ -47,7 +55,7 @@ public static class ReportBuilder
                     {
                         TimeOfObservation = Time(isoDateTime),
                         CurrentTask = taskUuid ?? "",
-                        TaskStatusCode = S.TaskStatusCodeType.TASKCMPLT,
+                        TaskStatusCode = code,
                     }
                 }
             },
@@ -56,6 +64,11 @@ public static class ReportBuilder
         };
         return C2SIMSDK.FromC2SIMObject(body);
     }
+
+    /// <summary>Task-complete status report (TASKCMPLT) for a taskee's current task.</summary>
+    public static string BuildTaskCompleteReport(string taskeeUuid, string taskUuid,
+                                                 string isoDateTime, string reportId)
+        => BuildTaskStatusReport(taskeeUuid, taskUuid, S.TaskStatusCodeType.TASKCMPLT, isoDateTime, reportId);
 
     /// <summary>Position report (single content) for one subject entity at lat/lon.</summary>
     public static string BuildPositionReport(string subjectUuid, double latDeg, double lonDeg,

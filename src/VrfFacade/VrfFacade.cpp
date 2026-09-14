@@ -597,6 +597,20 @@ int VrfFacade::BackendCount() const {
     return p_->controller ? p_->controller->backends().count() : 0;
 }
 
+double VrfFacade::SimTimeSeconds() const {
+    // -1.0 means "no reading" - see VrfFacade.h. The back-end gate is the point of this
+    // function: simTime() with no address returns the FIRST back end's time, and with no back
+    // end discovered there is no first one, so whatever it returns (0.0, most likely) would be
+    // indistinguishable from a scenario legitimately sitting at t = 0.
+    if (!p_ || !p_->controller) return -1.0;
+    try {
+        if (p_->controller->backends().count() <= 0) return -1.0;
+        return p_->controller->simTime();
+    } catch (...) {
+        return -1.0;   // no exception crosses the facade boundary
+    }
+}
+
 std::string VrfFacade::NativeStackInfo() {
 #if VRF_API_52
     std::string info = "5.2|";
