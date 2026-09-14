@@ -14,6 +14,21 @@ public enum ZeroGeometryAction
     Refuse,
 }
 
+/// <summary>What the task's AffectedEntity turns out to be (R3).</summary>
+public enum TargetResolution
+{
+    /// <summary>A DISTINCT object this interface created: the one case that can be named as a
+    /// VR-Forces target (DtFireAtTargetTask / DtBreachTask / DtFollowEntityTask).</summary>
+    DistinctEntity,
+    /// <summary>The performing unit itself. R3: this is not an error and not "no target" - the
+    /// task's GEOMETRY is the objective, and the objective is what the task is about.</summary>
+    SelfIsObjective,
+    /// <summary>Named, but not an object we created (an out-of-scope OPFOR entity).</summary>
+    Unresolved,
+    /// <summary>The order names no AffectedEntity at all.</summary>
+    NoTarget,
+}
+
 /// <summary>
 /// THE DISPATCH DECISIONS THE 2026-09-14 RULINGS CHANGED, as pure functions so they are decidable
 /// offline (`--rulings-selftest`) instead of only inside a live run.
@@ -55,4 +70,29 @@ public static class TaskDispatchPolicy
     /// <summary>Does this action mean the task will never run - i.e. must its successors be told
     /// to stop waiting (TaskSequencer.NotifyAbandoned) and STP told TASKABRT?</summary>
     public static bool Refuses(ZeroGeometryAction action) => action == ZeroGeometryAction.Refuse;
+
+    /// <summary>
+    /// What the task's AffectedEntity is (R3, user ruling 2026-09-14: "the target IS the
+    /// objective"). SELF IS ITS OWN ANSWER, not a degenerate "no target": STP sets AffectedEntity
+    /// to the performing unit on all 42 COA-STP1 tasks (C2SimXmlBuilder.cs:427-429), so reading
+    /// that as an error made every ATTACK-family task in the order a degraded one.
+    /// </summary>
+    public static TargetResolution ForTarget(bool hasAffectedEntity, bool resolved, bool isSelf)
+    {
+        if (!hasAffectedEntity) return TargetResolution.NoTarget;
+        if (!resolved) return TargetResolution.Unresolved;
+        return isSelf ? TargetResolution.SelfIsObjective : TargetResolution.DistinctEntity;
+    }
+
+    /// <summary>
+    /// R3: every resolution except a distinct entity routes the task to ITS OWN GEOMETRY - the
+    /// objective - and NONE of them refuses the task. VR-Forces' own tactical tasks agree:
+    /// company_seize, co_clear, company_breach, plt_attack_by_fire and unit-attack-to-objective
+    /// all take the objective GRAPHIC as their parameter, never a named enemy entity.
+    /// </summary>
+    public static bool FallsBackToGeometry(TargetResolution r) => r != TargetResolution.DistinctEntity;
+
+    /// <summary>R3: no verb is refused for self-targeting - or for any other target resolution.
+    /// A task the interface cannot aim at a named entity is still a task about its objective.</summary>
+    public static bool RefusesForTarget(TargetResolution r) => false;
 }

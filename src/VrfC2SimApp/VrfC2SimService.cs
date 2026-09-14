@@ -2114,48 +2114,25 @@ public sealed class VrfC2SimService : BackgroundService
         // axis, then engage); the move/fire task interaction in VRF is the live question.
         string attackTargetVrf = null;
         if (verb.Intent == TaskIntent.Attack)
-        {
-            if (TryResolveVrfUuid(task.AffectedEntity, out var tgt))
-            {
-                // Self-target guard: some coa-gpt fire-support tasks (e.g. "ProvidePriorityFires")
-                // set AffectedEntity == PerformingEntity, which resolves to the taskee's own uuid.
-                // FireAtTarget(self) is a degenerate no-op in VRF, so skip it (found live 2026-07-11).
-                // A richer mapping would route these to provideIndirectFireTask (SEMANTIC_MAPPING.md).
-                if (string.Equals(tgt, vrfUuid, StringComparison.Ordinal))
-                    _log.LogInformation("ATTACK task '{Task}': affected entity is the taskee itself " +
-                                        "(self-target fire-support?); no fire, advancing only.", task.TaskName);
-                else
-                    attackTargetVrf = tgt;
-            }
-            else
-                _log.LogWarning("ATTACK task '{Task}': affected entity '{Aff}' is not a VRF unit we created " +
-                                "(out-of-scope target?); advancing only, no fire.",
-                                task.TaskName, string.IsNullOrEmpty(task.AffectedEntity) ? "(none)" : task.AffectedEntity);
-        }
+            attackTargetVrf = ResolveAffectedTarget(task, vrfUuid, "ATTACK", "fire");
 
         // LAYER 2 - BREACH (Unit 2): resolve the affected OBSTACLE to a VRF target for a
-        // DtBreachTask (approach move, then breach it). Same two-dict resolution + self-target
-        // guard as ATTACK. Unresolved -> advance-only + warn (no silent drop).
+        // DtBreachTask (approach move, then breach it). Same resolution as ATTACK; anything but a
+        // distinct entity routes to the task's geometry (R3), which for a breach is the obstacle's
+        // own location as the order drew it.
         string breachTargetVrf = null;
         if (verb.Intent == TaskIntent.Breach)
-        {
-            if (TryResolveVrfUuid(task.AffectedEntity, out var tgt)
-                && !string.Equals(tgt, vrfUuid, StringComparison.Ordinal))
-                breachTargetVrf = tgt;
-            else
-                _log.LogWarning("BREACH task '{Task}': affected obstacle '{Aff}' not resolvable to a distinct " +
-                                "VRF unit; advancing only, no breach.", task.TaskName,
-                                string.IsNullOrEmpty(task.AffectedEntity) ? "(none)" : task.AffectedEntity);
-        }
+            breachTargetVrf = ResolveAffectedTarget(task, vrfUuid, "BREACH", "breach");
 
         // LAYER 2 - ESCRT (Escort): follow the escorted entity (DtFollowEntityTask). Following is
         // DYNAMIC - no route or point-0 needed - so dispatch it here, before the movement logic
-        // (an ESCRT task may carry no route points, which would otherwise error below). Unresolved
-        // escorted entity -> fall through to bare movement (warn logged).
+        // (an ESCRT task may carry no route points, which would otherwise error below). Anything
+        // but a distinct escorted entity -> the task's geometry (R3): fall through to the movement
+        // below, and - when there is no geometry either - to R2's in-place execution.
         if (verb.Intent == TaskIntent.Escort)
         {
-            if (TryResolveVrfUuid(task.AffectedEntity, out var follow)
-                && !string.Equals(follow, vrfUuid, StringComparison.Ordinal))
+            string follow = ResolveAffectedTarget(task, vrfUuid, "ESCRT", "escort");
+            if (follow != null)
             {
                 Roe escortRoe = task.RuleOfEngagementCode == "ROEFree" ? Roe.FireAtWill
                               : task.RuleOfEngagementCode == "ROEHold" ? Roe.HoldFire
@@ -2169,9 +2146,6 @@ public sealed class VrfC2SimService : BackgroundService
                                     task.TaskName, vrfUuid, follow);
                 return;
             }
-            _log.LogWarning("ESCRT task '{Task}': escorted entity '{Aff}' not resolvable to a distinct VRF unit; " +
-                            "executing bare movement instead.", task.TaskName,
-                            string.IsNullOrEmpty(task.AffectedEntity) ? "(none)" : task.AffectedEntity);
         }
 
         // "Ground" = the DIS domain of the type we CREATED (SISO-REF-010.xml:3116 Land=1), not the
@@ -2537,6 +2511,46 @@ public sealed class VrfC2SimService : BackgroundService
     /// Also tells the sequencer the task dispatched (P0.2: successors' completion clock
     /// starts here, not at order arrival).
     /// </summary>
+    /// <summary>
+    /// R3 (user ruling 2026-09-14: "the target IS the objective"). Resolve a task's AffectedEntity
+    /// to a VR-Forces uuid that can be NAMED as a target, and return null when there is none - in
+    /// which case the caller routes the task to its own geometry, which is the objective.
+    ///
+    /// What this replaced: three copies of a guard that treated AffectedEntity == PerformingEntity
+    /// as an error or as "no target" (ATTACK "self-target fire-support?; no fire, advancing only";
+    /// BREACH and ESCRT "not resolvable to a distinct VRF unit", both at WARNING). STP names the
+    /// taskee as the affected entity in EVERY task it exports (C2SimXmlBuilder.cs:427-429), so on
+    /// COA-STP1 that fired on all 42 tasks and read as 42 degradations of a working order. It is
+    /// not a degradation: doctrinally the objective is what the task is about and enemies may
+    /// happen to be inside it, and VR-Forces' own tactical tasks take the objective GRAPHIC as
+    /// their parameter (company_seize, co_clear, company_breach, plt_attack_by_fire,
+    /// unit-attack-to-objective) - never a named enemy entity.
+    /// The decision table is TaskDispatchPolicy.ForTarget; this method only logs and returns.
+    /// </summary>
+    private string ResolveAffectedTarget(OrderTask task, string vrfUuid, string intentLabel, string engagement)
+    {
+        string tgt = null;
+        bool has = !string.IsNullOrEmpty(task.AffectedEntity);
+        bool resolved = has && TryResolveVrfUuid(task.AffectedEntity, out tgt);
+        bool isSelf = resolved && string.Equals(tgt, vrfUuid, StringComparison.Ordinal);
+        var resolution = TaskDispatchPolicy.ForTarget(has, resolved, isSelf);
+        if (resolution == TargetResolution.DistinctEntity) return tgt;
+
+        string why = resolution switch
+        {
+            TargetResolution.SelfIsObjective =>
+                "the order names the PERFORMING UNIT as the affected entity (STP does this on every task)",
+            TargetResolution.Unresolved =>
+                $"the affected entity '{task.AffectedEntity}' is not an object this interface created",
+            _ => "the order names no affected entity",
+        };
+        _log.LogInformation("{Intent} task '{Task}': {Why}, so THE TARGET IS THE OBJECTIVE (R3, user ruling " +
+                            "2026-09-14) - the task's geometry is what it is about and the unit is routed " +
+                            "there. No {Engagement} against a named entity is issued.",
+                            intentLabel, task.TaskName, why, engagement);
+        return null;
+    }
+
     private void MarkDispatched(OrderTask task, CreatedUnit unit, string kind, Geodetic? dest = null)
     {
         // NOTE (review wf_62e5bdf7): the arrival-evidence swallow flag is NOT cleared here - it is

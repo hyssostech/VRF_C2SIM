@@ -27,6 +27,8 @@ public static class RulingsSelfTest
         R4(ref failures);
         Console.WriteLine("=== R2: a task without geometry uses the performing unit's position ===");
         R2(ref failures);
+        Console.WriteLine("=== R3: the target IS the objective ===");
+        R3(ref failures);
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
         return failures == 0 ? 0 : 1;
     }
@@ -196,6 +198,49 @@ public static class RulingsSelfTest
             Check(ref failures, released && successor.Result == GateResult.Proceed,
                   "the successor of an in-place task DISPATCHES at its predecessor's end time");
         }
+    }
+
+    // ---------------------------------------------------------------- R3 ----
+    private static void R3(ref int failures)
+    {
+        // (d1) THE DISCRIMINATING CHECK. STP sets AffectedEntity to the performing unit on all 42
+        //      COA-STP1 tasks (C2SimXmlBuilder.cs:427-429). That is not an error and not "no
+        //      target": the task's geometry is the objective.
+        var self = TaskDispatchPolicy.ForTarget(hasAffectedEntity: true, resolved: true, isSelf: true);
+        Check(ref failures, self == TargetResolution.SelfIsObjective,
+              $"an ATTACK whose AffectedEntity IS the taskee resolves to the OBJECTIVE (got {self})");
+        Check(ref failures, !TaskDispatchPolicy.RefusesForTarget(self)
+                         && TaskDispatchPolicy.FallsBackToGeometry(self),
+              "... is dispatched (never refused) and routed to the task's own geometry");
+
+        // (d2) NO target resolution refuses a verb - R3 in one line.
+        bool anyRefuses = false;
+        foreach (TargetResolution r in Enum.GetValues<TargetResolution>())
+            anyRefuses |= TaskDispatchPolicy.RefusesForTarget(r);
+        Check(ref failures, !anyRefuses, "NO verb is refused for its target resolution, self included");
+
+        // (d3) A self-targeted ATTACK that ALSO carries no geometry executes in place (R2 + R3
+        //      together) - the T9-T12 shape, which used to be a refusal AND a chain abandon.
+        Check(ref failures,
+              TaskDispatchPolicy.ForZeroGeometry(performerResolved: true,
+                                                 hasAttackTarget: false, hasBreachTarget: false)
+                  == ZeroGeometryAction.ExecuteInPlace,
+              "a self-targeted ATTACK with no geometry executes in place, not refused");
+
+        // (d4) A genuinely distinct target is unchanged: it is still named to VR-Forces.
+        Check(ref failures,
+              TaskDispatchPolicy.ForTarget(true, resolved: true, isSelf: false) == TargetResolution.DistinctEntity
+              && !TaskDispatchPolicy.FallsBackToGeometry(TargetResolution.DistinctEntity),
+              "a DISTINCT resolved target is still engaged as an entity (FireAtTarget / Breach)");
+
+        // (d5) An out-of-scope or absent target routes to the location form at the objective
+        //      rather than producing a degraded-capability warning about a missing entity.
+        Check(ref failures,
+              TaskDispatchPolicy.ForTarget(true, resolved: false, isSelf: false) == TargetResolution.Unresolved
+              && TaskDispatchPolicy.ForTarget(false, resolved: false, isSelf: false) == TargetResolution.NoTarget
+              && TaskDispatchPolicy.FallsBackToGeometry(TargetResolution.Unresolved)
+              && TaskDispatchPolicy.FallsBackToGeometry(TargetResolution.NoTarget),
+              "an unresolved or absent target falls back to the task's geometry, not to a refusal");
     }
 
     private static void Check(ref int failures, bool ok, string label)
