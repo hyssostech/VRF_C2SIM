@@ -123,7 +123,15 @@ It is the supervisor's, not this executor's. The three options, with what each c
 - **(b) Skip N1 and make the parameter live**, by adding ONE line to the derived
   `Ground_Vehicle.ope`: `local-objects (nav-interface "active-bot")`, as `Human.ope:574`,
   `Animal.ope:431` and the vendor's own
-  `developer_toolkit_examples/extendStateRepository/vrfSim/platforms/Ground_Vehicle.ope` all do.
+  `developer_toolkit_examples/extendStateRepository/vrfSim/platforms/Ground_Vehicle.ope:530` all
+  do. CENSUS, added after the fact and it is the strongest single line of evidence in sec 1:
+  `active-bot` occurs **six times in the entire shipped 5.2d data tree** - EntityLevel's
+  `Human.ope:574` and `Animal.ope:431`, three developer-toolkit copies of those same lifeform
+  files, and exactly ONE ground vehicle, the `extendStateRepository` example above, which is a
+  DERIVED SMS doing precisely what option (b) proposes. No shipped ground vehicle runs on an
+  active bot anywhere in the product. `Navigation-profile-for-query` occurs nowhere under
+  `appData/settings/`, so there is no application-level fallback that could supply a
+  propagation box either.
   NOT BUILT HERE, deliberately: giving every ground vehicle a DtNavBot changes how it follows a
   destination, avoids other entities and replans, so it is a large second variable and needs a
   ruling, not an executor's initiative.
@@ -657,7 +665,7 @@ another mechanism hunt.
 
 | # | step | gate | state |
 |---|---|---|---|
-| 1 | Supervisor ruling on sec 1.5 (a) / (b) / (c) | RULE | OPEN - blocks the order below |
+| 1 | Supervisor ruling on sec 1.5 (a) / (b) / (c) | RULE | RULED 2026-09-14 per the project record: (c) - N1 is NOT run, the abstract-graph override stays the product fix, N2b is the lever |
 | 2 | N2b - `n2b_launch.sh`, ridge lane, AG + saf 2.0, single variable vs RIDGE-AG | SPEND | ready, dry-run clean |
 | 3 | N1 - `n1_launch.sh`, only if sec 1.1 is to be falsified live | SPEND | ready, dry-run clean |
 | 4 | N2 - `n2_launch.sh`, only if N1 hits | SPEND | ready, dry-run clean; gate predicted to miss |
