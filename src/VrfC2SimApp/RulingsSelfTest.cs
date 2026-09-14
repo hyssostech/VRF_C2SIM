@@ -432,6 +432,43 @@ public static class RulingsSelfTest
                   $"seconds, not counting the pause (completed at sample {resumed.Samples})");
         }
 
+        // (e2d) E1 (pass-3 review): THE WAY OUT OF A HOLD IS NOT ALWAYS A RECOVERY, and the service
+        //       said it was. Its "the simulation clock is readable and advancing again" branch fires
+        //       on (already warned) && !taskSimStale, and taskSimStale is heldOnSim && obs.Stale -
+        //       so it fires just as surely when heldOnSim goes FALSE, which is the hysteresis path
+        //       ONTO the wall clock. Those are opposite events. The sequence that reaches it is
+        //       below, on the real SimClockTracker and the real StallPolicy; what the service says
+        //       at each of the two exits is a log line and is checked by reading.
+        {
+            var tracker = new SimClockTracker();
+            double wall = 1.7e9;
+            SimClockTracker.Observation obs = default;
+            for (int i = 0; i < 120; i++, wall += 1.0)          // readable, FLAT, back end present
+                obs = tracker.Observe(5000.0, wall, StallPolicy.ModeSwitchConfirmations,
+                                      StallPolicy.StaleClockWarnSeconds);
+            bool heldOnSim = obs.ReadableConfirmed;
+            Check(ref failures,
+                  heldOnSim && obs.Stale
+                  && StallPolicy.TaskClockAction(heldOnSim, heldOnSim && obs.Stale, backEndPresent: true)
+                         == StallPolicy.TaskClockOnFlat.HoldOnSim,
+                  $"(e2d) E1: {obs.FlatForWallSeconds:F0} wall seconds of a readable-but-flat clock with a " +
+                  $"back end present is a HOLD - the state the service warns about and then has to get OUT of");
+
+            for (int i = 0; i < StallPolicy.ModeSwitchConfirmations; i++, wall += 1.0)   // the reader goes
+                obs = tracker.Observe(-1.0, wall, StallPolicy.ModeSwitchConfirmations,
+                                      StallPolicy.StaleClockWarnSeconds);
+            heldOnSim = obs.ReadableConfirmed;
+            bool taskSimStale = heldOnSim && obs.Stale;
+            Check(ref failures,
+                  !heldOnSim && !taskSimStale
+                  && StallPolicy.TaskClockAction(heldOnSim, taskSimStale, backEndPresent: true)
+                         == StallPolicy.TaskClockOnFlat.FallBackToWall,
+                  "(e2d) E1: ... and LOSING THE READER clears taskSimStale exactly as a recovery does, while " +
+                  "the axis goes to the WALL clock - so one sentence for both announced \"readable and " +
+                  "advancing again\" at the tick every task time left the sim clock. The service now branches " +
+                  "on heldOnSim and says which of the two happened");
+        }
+
         // (e3) The axis itself: it never invents time, whatever the reader does.
         {
             var axis = new TaskClockAxis();

@@ -3768,10 +3768,30 @@ public sealed class VrfC2SimService : BackgroundService
         }
         else if (_taskClockStaleWarned && !taskSimStale)
         {
+            // E1 (pass-3 review): THIS BRANCH IS TWO DIFFERENT TRANSITIONS AND ONLY ONE OF THEM IS
+            // A RECOVERY. taskSimStale is heldOnSim && obs.Stale, so it also goes false when
+            // heldOnSim does - i.e. when ModeSwitchConfirmations consecutive UNREADABLE samples
+            // have confirmed that the sim reader is GONE, which is the hysteresis path to the wall
+            // clock (the early return above only covers a single unreadable sample while the mode
+            // still says readable). The one sentence here announced "readable and advancing again"
+            // at the exact tick every task time moved onto the WALL clock - the inverse of what
+            // happened, on the branch Q5's own "gone" case actually travels (E2: the written-for-it
+            // branch above cannot be reached, because SimTimeSeconds and BackendCount read the same
+            // backends().count()). So the two are said apart.
             _taskClockStaleWarned = false;
             _taskClockHoldLineUtc = DateTime.MinValue;
-            _log.LogInformation("TASK CLOCK: the simulation clock is readable and advancing again ({T:F1} s) - " +
-                                "C2SIM task times are served on it once more.", obs.SimSeconds);
+            if (heldOnSim)
+                _log.LogInformation("TASK CLOCK: the simulation clock is readable and advancing again ({T:F1} s) - " +
+                                    "C2SIM task times are served on it once more.", obs.SimSeconds);
+            else
+                _log.LogWarning("TASK CLOCK: DtVrfRemoteController::simTime() is NO LONGER READABLE - {N} " +
+                                "consecutive unreadable samples have confirmed the mode change, so C2SIM task " +
+                                "times ({T} task(s) waiting on an end time) are now served on the WALL clock. " +
+                                "The last sim reading was {S:F1} s. This is NOT a recovery{Was}: the axis keeps " +
+                                "every second already served, restarts no wait and completes no task early, but " +
+                                "from here a task ages in REAL seconds until a readable sim clock returns.",
+                                StallPolicy.ModeSwitchConfirmations, _timed.Count, obs.SimSeconds,
+                                wasHolding ? " and it ends a HOLD - task time was frozen until now" : "");
         }
 
         // HoldOnSim advances on the SIM reading, which is flat by definition here, so it adds
