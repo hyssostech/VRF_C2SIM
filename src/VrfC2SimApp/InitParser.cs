@@ -32,16 +32,23 @@ public static class InitParser
 
         // Root-robust: a pushed init FILE is <MessageBody>-rooted, but the SDK's live
         // InitializationReceived event (and JoinSession/QUERYINIT) deliver the BARE
-        // <C2SIMInitializationBody>. Try the envelope first, then the bare body directly
-        // (both C2SIMInitializationBodyType carries [XmlRoot], so it deserializes alone).
+        // <C2SIMInitializationBody> (C2SIMInitializationBodyType carries [XmlRoot], so it
+        // deserializes alone).
+        //
+        // SNIFF THE ROOT, DO NOT GUESS (B5, 2026-09-14). This used to TRY the MessageBody
+        // overload and catch the failure - but ToC2SIMObject LOGS "Failed to deserialize xml to
+        // type C2SIM.Schema102.MessageBodyType ... (1, 2)" through the SDK's own logger before it
+        // throws (C2SIMSSDK.cs:823), so the catch hid the exception and not the ERROR line: every
+        // run log carried one for the inbound init. One sniff, one overload, no false error - the
+        // SDK's own STOMP pump dispatches exactly this way (C2SIMSSDK.cs:639-676). See C2SimXml.
         S.C2SIMInitializationBodyType init = null;
-        try { init = C2SIMSDK.ToC2SIMObject<S.MessageBodyType>(xml)?.Item as S.C2SIMInitializationBodyType; }
-        catch { /* not MessageBody-rooted */ }
-        if (init == null)
+        try
         {
-            try { init = C2SIMSDK.ToC2SIMObject<S.C2SIMInitializationBodyType>(xml); }
-            catch { return data; }
+            init = C2SimXml.RootLocalName(xml) == C2SimXml.MessageBody
+                ? C2SIMSDK.ToC2SIMObject<S.MessageBodyType>(xml)?.Item as S.C2SIMInitializationBodyType
+                : C2SIMSDK.ToC2SIMObject<S.C2SIMInitializationBodyType>(xml);
         }
+        catch { return data; }
         if (init == null) return data;
 
         // SystemName: SystemEntityList (ActorReference UUIDs -> SystemName).
