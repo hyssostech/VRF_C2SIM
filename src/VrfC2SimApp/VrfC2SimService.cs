@@ -3715,6 +3715,10 @@ public sealed class VrfC2SimService : BackgroundService
         }
         var action = StallPolicy.TaskClockAction(heldOnSim, taskSimStale, backEndPresent);
 
+        // _taskClockHoldLineUtc doubles as "the last line said HOLD": it is set while holding and
+        // cleared on every other outcome, so a HOLD that turns into a fall back to wall - the back
+        // end went away while the clock was already flat - is not swallowed by the once-only guard.
+        bool wasHolding = _taskClockHoldLineUtc != DateTime.MinValue;
         if (action == StallPolicy.TaskClockOnFlat.HoldOnSim)
         {
             // REPEATED, not said once: BackendCount cannot tell a paused back end from one that
@@ -3735,15 +3739,18 @@ public sealed class VrfC2SimService : BackgroundService
                                 obs.SimSeconds, obs.FlatForWallSeconds, _timed.Count);
             }
         }
-        else if (taskSimStale && !_taskClockStaleWarned)
+        else if (taskSimStale && (!_taskClockStaleWarned || wasHolding))
         {
             _taskClockStaleWarned = true;
+            _taskClockHoldLineUtc = DateTime.MinValue;   // no longer holding
             _log.LogWarning("TASK CLOCK: the simulation clock has not advanced past {T:F1} s for {S:F0} wall " +
                             "seconds and NO VR-Forces back end is present (BackendCount=0) - the simulation " +
-                            "is GONE, not paused. C2SIM task times ({N} task(s) waiting on an end time) are " +
-                            "served on the WALL clock until a back end returns; no task is completed early " +
-                            "and no wait is restarted.",
-                            obs.SimSeconds, obs.FlatForWallSeconds, _timed.Count);
+                            "is GONE, not paused{Was}. C2SIM task times ({N} task(s) waiting on an end time) " +
+                            "are served on the WALL clock until a back end returns; no task is completed " +
+                            "early and no wait is restarted.",
+                            obs.SimSeconds, obs.FlatForWallSeconds,
+                            wasHolding ? " (task time was being HELD until now - the back end has gone away)" : "",
+                            _timed.Count);
         }
         else if (_taskClockStaleWarned && !taskSimStale)
         {
