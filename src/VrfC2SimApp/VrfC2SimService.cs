@@ -632,9 +632,11 @@ public sealed class VrfC2SimService : BackgroundService
             }
             if (snapshot != null && snapshot.Count > 0) { _ = PushBundleSnapshot(snapshot); sent = snapshot.Count; }
         }
+        // The first three numbers are THIS cycle's; the last pair is the run's total across every
+        // report kind (review finding 12 - the unlabelled pair read as a second per-cycle count).
         _log.LogInformation("R1 position reports: {Sent} sent, {Unresolved} skipped (NAME UNRESOLVED - no VRF uuid), " +
                             "{Unreflected} skipped (no reflected object yet), sides={Sides}, every {Secs}s; " +
-                            "reports: {Delivered} sent, {Failed} failed.",
+                            "cumulative: {Delivered} sent, {Failed} failed.",
                             sent, unresolved, unreflected, _vrf.PositionReportSides, _vrf.PositionReportSeconds,
                             Interlocked.Read(ref _reportsSent), Interlocked.Read(ref _reportsFailed));
     }
@@ -1028,9 +1030,12 @@ public sealed class VrfC2SimService : BackgroundService
         foreach (var fp in toCreate) finalPlanByName[fp.Name] = fp;
         foreach (var (uuid, name, marking, substitution) in proxiesToReport)
         {
+            // Review finding 8: when the final plan is not in this batch, record a SENTINEL - not
+            // the unit's own name, which is a false representation and would SUPPRESS the
+            // re-announcement outright if it ever equalled a template name.
             string rep = finalPlanByName.TryGetValue(marking, out var fplan)
                 ? SubstitutionAnnouncer.Representation(fplan.TemplateName, fplan.CreateSubordinates, 0)
-                : marking;
+                : SubstitutionAnnouncer.UnknownRepresentation;
             if (!_substitutions.ShouldAnnounce(marking, rep)) continue;
             _ = PushReportAsync(ReportBuilder.BuildTypeSubstitutionReport(
                     uuid, name, marking, substitution, IsoNow(), NewReportId()), ReportKind.Observation);
@@ -1107,6 +1112,7 @@ public sealed class VrfC2SimService : BackgroundService
         // whole batch was known could otherwise be attributed to the only candidate visible at that
         // instant. Two loops cost nothing and make the registry complete before the first create.
         foreach (var p in plans) _names.Requested(p.Name);
+        WarnOnPrefixedNames();
         foreach (var p in plans)
         {
             _tickActions.Enqueue(() =>
@@ -1118,6 +1124,36 @@ public sealed class VrfC2SimService : BackgroundService
                     _bridge.CreateEntity(p.Type, p.Pos, p.Force, p.HeadingDeg, p.Name);
             });
         }
+    }
+
+    // Pairs already reported by WarnOnPrefixedNames, so each is said ONCE however many batches run.
+    private readonly ConcurrentDictionary<string, byte> _reportedPrefixPairs = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// NAME PRE-FLIGHT (B3 review finding 1), in the style of the 0c watchdog pre-flight: the moment
+    /// a batch of names is registered - at init AND at every order-time materialization, because the
+    /// interface's own derived names (EXPAND children, proxy tags) do not exist until then - say
+    /// ONCE which of them are strict prefixes of others at the DIS marking width. Those are the
+    /// pairs in which a truncated callback for the longer unit is indistinguishable from an exact
+    /// callback for the shorter one; NameRegistry keeps the exact binding and warns per object, but
+    /// the operator should know the hazard is in the fixture BEFORE any object comes back. Advisory
+    /// only - nothing is refused and nothing changes. COA-STP1's real instance is "510/40~PXY"
+    /// (exactly 10 chars) with its four EXPAND children.
+    /// </summary>
+    private void WarnOnPrefixedNames()
+    {
+        var fresh = _names.PrefixPairs(NameRegistry.MarkingTruncationWidth)
+                          .Where(p => _reportedPrefixPairs.TryAdd(p.Shorter.Length + ":" + p.Longer, 0))
+                          .ToList();
+        if (fresh.Count == 0) return;
+        _log.LogWarning("NAME PRE-FLIGHT: {N} requested name pair(s) where the shorter is a strict PREFIX of the " +
+                        "longer and is short enough to survive truncation at the {Width}-character DIS marking " +
+                        "width - if the longer unit is created as a PLATFORM its marking comes back as the " +
+                        "shorter name and the two cannot be told apart: [{Pairs}]. The exact name wins and every " +
+                        "such callback is logged; the fix is to keep every unit name inside that width " +
+                        "(docs/PORT.md sec 6).",
+                        fresh.Count, NameRegistry.MarkingTruncationWidth,
+                        string.Join("; ", fresh.Select(p => $"'{p.Shorter}' < '{p.Longer}'")));
     }
 
     // ============ COMPOSE-FROM-CHILDREN (Vrf:ComposeHierarchy) ============
@@ -1797,6 +1833,12 @@ public sealed class VrfC2SimService : BackgroundService
                 _log.LogError("TASKEEUUID {Uuid} NOT FOUND IN C2SIMINITIALIZATION - CANNOT EXECUTE TASK '{Name}'.",
                               task.TaskeeUuid, task.TaskName);
                 _sequencer.NotifyAbandoned(task.TaskUuid);
+                // B1 review finding 7: a dispatch dead end with a taskee uuid in hand is a task that
+                // will never run, which is exactly what TASKABRT is for. Silence here left STP
+                // waiting forever for a status it was never going to get.
+                PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKABRT,
+                               $"REFUSED: taskee {task.TaskeeUuid} is not in the C2SIM initialization - " +
+                               "this interface has no unit to task");
                 continue;
             }
             // Orchestrate the task off-thread: wait for its predecessor + start delay
@@ -1886,6 +1928,12 @@ public sealed class VrfC2SimService : BackgroundService
         {
             _log.LogError("Task '{Task}' orchestration failed: {Msg}", task.TaskName, e.Message);
             _sequencer.NotifyAbandoned(task.TaskUuid);
+            // B1 review finding 7: the orchestration threw, so nothing will ever be dispatched for
+            // this task. (The OperationCanceledException case above is service shutdown, not a task
+            // failure, and deliberately stays silent - the server is going away too.)
+            PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKABRT,
+                           $"ABANDONED: orchestration of task '{task.TaskName}' failed before dispatch " +
+                           $"({e.Message})");
         }
     }
 
@@ -1906,6 +1954,12 @@ public sealed class VrfC2SimService : BackgroundService
             _log.LogWarning("DROPPING TASK '{Task}' BECAUSE UNIT {Uuid} ({Name}) WAS NOT CREATED.",
                             task.TaskName, task.TaskeeUuid, unit.Name);
             _sequencer.NotifyAbandoned(task.TaskUuid);
+            // B1 review finding 7: this is precisely the path a NAME-UNRESOLVED unit takes - the G1
+            // failure class B3 exists to fix. If B3's resolution ever misses, STP must hear about
+            // it instead of the task vanishing (nine hours of silence in run G6).
+            PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKABRT,
+                           $"DROPPED: unit {unit.Name} has no VR-Forces object bound to its name - it was never " +
+                           "created, or its created object could not be correlated to the name we requested");
             return;
         }
 
@@ -2501,6 +2555,20 @@ public sealed class VrfC2SimService : BackgroundService
             _log.LogError("VRF returned created object '{Returned}' ({Uuid}), which is the truncation of MORE THAN " +
                           "ONE name we requested - it cannot be attributed and is left under the returned name. " +
                           "The units sharing that prefix will not be found by name.", e.Name, e.Uuid);
+        // B3 review finding 1: the returned name is EXACTLY one we asked for, so it is bound to that
+        // unit - but it is ALSO the prefix of names we asked for and have not yet seen created, any
+        // of which would come back as this same string if VR-Forces truncated its marking. The
+        // binding stands (the exact match is the only defensible reading); this says out loud that
+        // it is a reading, so a mis-bound unit is a log line and not nine hours of silence.
+        if (bind.PrefixedCandidates is { Count: > 0 })
+            _log.LogWarning("NAME COLLISION RISK: VRF returned created object '{Returned}' ({Uuid}), which is " +
+                            "EXACTLY a name we requested and ALSO the prefix of {N} requested name(s) still " +
+                            "awaiting creation [{Candidates}]. BOUND TO THE EXACT NAME. If any of those is " +
+                            "created as a PLATFORM its marking truncates to this same string and would be " +
+                            "attributed to the wrong unit - keep every requested name inside the " +
+                            "{Width}-character marking width (docs/PORT.md sec 6).",
+                            e.Name, e.Uuid, bind.PrefixedCandidates.Count,
+                            string.Join(", ", bind.PrefixedCandidates), NameRegistry.MarkingTruncationWidth);
         if (!string.IsNullOrEmpty(name))
         {
             // ORDER-TIME MATERIALIZATION deferred to this shell's arrival (review fix): run it now, on the
@@ -3259,6 +3327,7 @@ public sealed class VrfC2SimService : BackgroundService
         // axis / approach the obstacle, THEN engage/breach - now for real, not same-tick).
         // taskUuid != null (not IsNullOrEmpty): an ATTRIBUTED task with an empty uuid must
         // still match its engage; only an UNATTRIBUTED completion (null) skips this.
+        bool taskContinues = false;
         if (success && taskUuid != null && _pendingEngage.TryGetValue(name, out var eng)
             && eng.MoveTaskUuid == taskUuid
             && _pendingEngage.TryRemove(new KeyValuePair<string, PendingEngage>(name, eng)))
@@ -3266,12 +3335,21 @@ public sealed class VrfC2SimService : BackgroundService
             _log.LogInformation("Unit {Name}: move for task '{Task}' completed; issuing the deferred {Kind}.",
                                 name, eng.TaskName, eng.Kind);
             IssueEngage(name, eng);
+            // Review finding 4: ONE C2SIM task, TWO VR-Forces tasks. The engage has just been
+            // re-recorded as this unit's in-flight task under the SAME task uuid, so the C2SIM task
+            // is NOT over - reporting TASKCMPLT here would both mislead STP (the attack has not
+            // happened yet) and consume the task's single completion slot, silently suppressing the
+            // engage's own TASKCMPLT when it finally arrives. Report progress instead.
+            taskContinues = true;
         }
 
-        PushTaskStatus(taskeeUuid, taskUuid ?? "", TaskStatusPolicy.CodeForCompletion(success),
-                       success ? $"unit {name} completed its task"
-                               : $"unit {name}: VR-Forces reported the task FAILED (success=false) - it is no " +
-                                 "longer being processed");
+        var code = TaskStatusPolicy.CodeForCompletion(success, taskContinues);
+        PushTaskStatus(taskeeUuid, taskUuid ?? "", code,
+                       !success ? $"unit {name}: VR-Forces reported the task FAILED (success=false) - it is no " +
+                                  "longer being processed"
+                       : taskContinues ? $"unit {name} completed the MOVE half of its task; the deferred engage " +
+                                         "is now in flight under the same task - TASKCMPLT follows when it ends"
+                       : $"unit {name} completed its task");
     }
 
     private void OnVrfTextReport(object sender, TextReportEventArgs e)
@@ -3538,11 +3616,15 @@ public sealed class VrfC2SimService : BackgroundService
             async xml =>
             {
                 var resp = await _sdk.PushReportMessage(xml);
-                // A null response is an empty server body - the pre-B2 behaviour treated any
-                // non-throwing push as delivered, and there is nothing here to contradict it.
-                return resp == null
-                    ? new ReportPush.PushResult(true, "(no response body)")
-                    : new ReportPush.PushResult(resp.IsSuccess, resp.Message ?? "");
+                // Review finding 6: a NULL response is the server sending an EMPTY BODY, which is
+                // reachable (SendTrans never checks the status code - C2SIMClientRestLib.cs:377-401)
+                // and is not a confirmation of anything. ReportPush.Interpret counts it as a failed
+                // delivery for a TaskStatus (retried) and leaves Position/Observation alone; the
+                // measured G6 "response ended prematurely" is a THROW, not this case, and is already
+                // counted as a failed attempt. See ReportPush.Interpret for the full citation chain.
+                if (resp == null)
+                    _log.LogWarning("PushReport ({Kind}): {Why}.", kind, ReportPush.EmptyBodyMessage);
+                return ReportPush.Interpret(resp == null, resp?.IsSuccess ?? false, resp?.Message, kind);
             },
             reportXml, tries,
             attempt => ReportPush.BackoffFor(attempt, _vrf.TaskStatusPushBackoffMs),
@@ -3580,13 +3662,7 @@ public sealed class VrfC2SimService : BackgroundService
                             code, string.IsNullOrEmpty(taskUuid) ? "(none)" : taskUuid, why);
             return;
         }
-        bool allowed = code switch
-        {
-            S.TaskStatusCodeType.TASKSTRT => _taskStatus.ShouldEmitStart(taskUuid),
-            S.TaskStatusCodeType.TASKCMPLT => _taskStatus.ShouldEmitComplete(taskUuid),
-            S.TaskStatusCodeType.TASKABRT => _taskStatus.ShouldEmitAbort(taskUuid),
-            _ => true,
-        };
+        bool allowed = _taskStatus.ShouldEmit(code, taskUuid);
         if (!allowed)
         {
             _log.LogInformation("TASK STATUS {Code} for task {Task} SUPPRESSED by the emission rules " +
