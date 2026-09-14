@@ -446,9 +446,13 @@ public class VrfSettings
     // successor therefore fails fast on any real one. Measuring that wait with
     // Vrf:TaskPredecessorTimeoutSeconds instead skipped 21 of COA-STP1's 42 tasks at every
     // shipped setting (the window covered the predecessor's Duration but not its LEAD TIME).
-    // This is the only bound left on it: one day, longer than any authored chain
-    // (COA-STP1's deepest lead is 26,400 s) and short enough that a wedged interface does not
-    // hold a gate for the life of the process. A DANGLING startAfterTaskUuid - a predecessor no
+    // This is the only bound left on it: one day, longer than any authored chain - COA-STP1's
+    // longest DISPATCH lead is 16,800 s and its last task ENDS at 21,600 s (E6 of the pass-3
+    // review; the "26,400 s" this used to say was wrong) - and short enough that a wedged
+    // interface does not hold a gate for the life of the process. E4: an order whose own deepest
+    // chain reaches this value is NOT truncated silently - the service measures the lead at order
+    // receipt (TaskDispatchPolicy.LongestChainLeadSeconds) and says so, with a WARNING when the
+    // lead meets or exceeds this. A DANGLING startAfterTaskUuid - a predecessor no
     // task in the order carries - is NOT covered by it and still expires at
     // Vrf:TaskPredecessorTimeoutSeconds, because nothing will ever abandon a task that does not
     // exist. 0 or negative falls back to the 86400 default rather than skipping every chain.

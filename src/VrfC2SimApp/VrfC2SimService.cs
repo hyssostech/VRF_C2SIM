@@ -2232,6 +2232,35 @@ public sealed class VrfC2SimService : BackgroundService
         foreach (var kv in _taskByUuid) predecessorByUuid[kv.Key] = kv.Value.StartAfterTaskUuid;
         var onPredecessorCycle = TaskDispatchPolicy.FindPredecessorCycles(predecessorByUuid);
 
+        // E4 (pass-3 review): SAY HOW DEEP THIS ORDER IS, AGAINST THE BACKSTOP THAT BOUNDS IT.
+        // Nothing compared the two. COA-STP1 is safe - its longest DISPATCH lead is 16,800 s
+        // against 86,400 - but a deeper chain, or a Vrf:DurationScale above 1, is truncated at the
+        // backstop and the operator finds out hours later as a burst of "never dispatched within
+        // 86400s" lines with no way to tell they were arithmetic rather than a wedge. The graph is
+        // in hand here and the arithmetic is the gate's own, so it costs one line.
+        {
+            var chain = new List<TaskDispatchPolicy.ChainNode>();
+            foreach (var t in order.Tasks)
+                chain.Add(new TaskDispatchPolicy.ChainNode(t.TaskUuid, t.StartAfterTaskUuid, t.DurationMs,
+                                                           Math.Max(t.SimulationStartMs, t.RelativeDelayMs)));
+            double lead = TaskDispatchPolicy.LongestChainLeadSeconds(chain, _durationScale);
+            double end = TaskDispatchPolicy.LongestChainEndSeconds(chain, _durationScale);
+            double backstop = TaskDispatchPolicy.PredecessorDispatchTimeoutSeconds(
+                true, 0.0, _vrf.TaskChainBackstopSeconds);
+            _log.LogInformation("CHAIN DEPTH: the deepest STREND chain in this order dispatches its last task " +
+                                "{L:F0} s of TASK CLOCK after order receipt and is armed to end at {E:F0} s " +
+                                "(Vrf:DurationScale={Scale}); Vrf:TaskChainBackstopSeconds is {B:F0} s. A1: the " +
+                                "backstop is what bounds phase 1 for a predecessor that is a task in this " +
+                                "order, so it has to outlive that lead.", lead, end, _durationScale, backstop);
+            if (lead >= backstop)
+                _log.LogWarning("CHAIN DEEPER THAN THE BACKSTOP: the deepest chain in this order needs {L:F0} s " +
+                                "of task clock to reach its last dispatch, and Vrf:TaskChainBackstopSeconds is " +
+                                "only {B:F0} s. Every task whose predecessor has not dispatched by then WILL BE " +
+                                "SKIPPED with \"never dispatched within {Bq:F0}s of order receipt\", however " +
+                                "healthy the chain is. Raise Vrf:TaskChainBackstopSeconds above the lead, or " +
+                                "compress the order with Vrf:DurationScale (E4).", lead, backstop, backstop);
+        }
+
         foreach (var task in order.Tasks)
         {
             if (string.IsNullOrEmpty(task.TaskeeUuid))

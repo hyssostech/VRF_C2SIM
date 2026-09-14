@@ -330,9 +330,76 @@ public static class TaskDispatchPolicy
          ? ScaleOrderMs(predecessorDurationMs, durationScale) / 1000.0 : 0.0;
 
     /// <summary>The absolute backstop on phase 1 when nothing else bounds it - one day. Long
-    /// enough that no authored chain reaches it (COA-STP1's deepest is 26,400 s), short enough
-    /// that a wedged interface does not hold a gate open for the life of the process.</summary>
+    /// enough that no authored chain reaches it - COA-STP1's longest DISPATCH lead is 16,800 s and
+    /// its last task ENDS at 21,600 s, 5.1x and 4.0x of headroom (E6 of the pass-3 review: the
+    /// "26,400 s" this used to claim was wrong, and it is the load-bearing figure in the
+    /// justification, so it is now MEASURED rather than asserted - see
+    /// <see cref="LongestChainLeadSeconds"/> and <see cref="LongestChainEndSeconds"/>, which
+    /// `--rulings-selftest` runs over the order on disk) - and short enough that a wedged
+    /// interface does not hold a gate open for the life of the process. An order whose own chain
+    /// is deeper than this is NOT silently truncated: the service says so at order receipt (E4).
+    /// </summary>
     public const double DefaultChainBackstopSeconds = 86400.0;
+
+    /// <summary>One task as the CHAIN-LEAD arithmetic sees it: its uuid, its STREND predecessor
+    /// (null/empty for a root), and its authored Duration and start delay in milliseconds.</summary>
+    public readonly record struct ChainNode(string Uuid, string PredecessorUuid,
+                                            long DurationMs, long StartDelayMs);
+
+    /// <summary>
+    /// E4 (cold-start review of `8db033e`, pass 3). HOW LONG AFTER ORDER RECEIPT THE DEEPEST CHAIN
+    /// IN THIS ORDER DISPATCHES ITS LAST TASK, in task-clock seconds and AFTER Vrf:DurationScale.
+    ///
+    /// Nothing compared an order's own depth against the backstop. COA-STP1 is safe - 16,800 s
+    /// against 86,400 - but a deeper chain, or a Vrf:DurationScale above 1, is silently truncated
+    /// at Vrf:TaskChainBackstopSeconds and the operator learns it hours later as a burst of "never
+    /// dispatched within 86400s" lines. The arithmetic is the gate's own: a task cannot dispatch
+    /// before its predecessor has dispatched AND served its full armed end time, plus its own
+    /// start delay. Both are scaled by the same ScaleOrderMs the dispatch uses, so the answer is
+    /// in the units the backstop is measured in.
+    ///
+    /// CYCLE-GUARDED. E3 refuses a cyclic order before this runs, but a lead walk that can hang is
+    /// a worse failure than the one it is reporting on, so a node that reaches itself contributes
+    /// nothing and the recursion is depth-bounded as well.
+    /// </summary>
+    public static double LongestChainLeadSeconds(IReadOnlyList<ChainNode> tasks, double durationScale)
+        => MaxOverChain(tasks, durationScale, includeOwnDuration: false);
+
+    /// <summary>E4/E6: when the LAST task of the deepest chain is armed to END - its lead plus its
+    /// own scaled Duration. The lead is what the backstop bounds; this is what an operator waiting
+    /// for the order to finish is actually waiting for.</summary>
+    public static double LongestChainEndSeconds(IReadOnlyList<ChainNode> tasks, double durationScale)
+        => MaxOverChain(tasks, durationScale, includeOwnDuration: true);
+
+    private static double MaxOverChain(IReadOnlyList<ChainNode> tasks, double durationScale,
+                                       bool includeOwnDuration)
+    {
+        if (tasks == null || tasks.Count == 0) return 0.0;
+        var byUuid = new Dictionary<string, ChainNode>(StringComparer.Ordinal);
+        foreach (var t in tasks) if (!string.IsNullOrEmpty(t.Uuid)) byUuid[t.Uuid] = t;
+        var memo = new Dictionary<string, double>(StringComparer.Ordinal);
+        double Lead(string uuid, int depth)
+        {
+            if (depth > 64 || !byUuid.TryGetValue(uuid, out var t)) return 0.0;
+            if (memo.TryGetValue(uuid, out double cached)) return cached;
+            memo[uuid] = 0.0;              // cycle guard: a task that reaches itself adds nothing
+            double lead = ScaleOrderMs(t.StartDelayMs, durationScale) / 1000.0;
+            if (!string.IsNullOrEmpty(t.PredecessorUuid) && byUuid.TryGetValue(t.PredecessorUuid, out var pred))
+                lead += Lead(t.PredecessorUuid, depth + 1)
+                      + ScaleOrderMs(pred.DurationMs, durationScale) / 1000.0;
+            memo[uuid] = lead;
+            return lead;
+        }
+        double max = 0.0;
+        foreach (var t in tasks)
+        {
+            if (string.IsNullOrEmpty(t.Uuid)) continue;
+            double v = Lead(t.Uuid, 0);
+            if (includeOwnDuration) v += ScaleOrderMs(t.DurationMs, durationScale) / 1000.0;
+            max = Math.Max(max, v);
+        }
+        return max;
+    }
 
     /// <summary>
     /// A1 (cold-start review of `0c96f50`, pass 2). HOW LONG THE GATE WAITS FOR ITS PREDECESSOR

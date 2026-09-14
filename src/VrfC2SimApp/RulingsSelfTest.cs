@@ -1263,24 +1263,40 @@ public static class RulingsSelfTest
         //       most expensive: predecessorInThisOrder is TRUE, so phase 1 takes the 86,400 s
         //       backstop where before A1 the same order failed in 600 s.
         {
-            // FAIL-FIRST (E3): what a 2-cycle COSTS when nothing refuses it. Walked on the real
-            // sequencer under the A1 rule, neither task dispatches and neither is skipped until the
-            // chain backstop has run out - a sim day at the default - and the sentence they finally
-            // get is "never dispatched within 86400s of order receipt", which is true about the
-            // wrong thing. The steps here are coarse on purpose: the point is WHERE it ends, not
-            // how finely the walk observes it.
+            // FAIL-FIRST (E3): what a cycle COSTS when nothing refuses it. Walked on the real
+            // sequencer under the A1 rule, nothing dispatches and nothing is skipped until the
+            // chain backstop has run out - a sim day at the default - and the sentence the tasks
+            // finally get is "never dispatched within 86400s of order receipt", which is true about
+            // the wrong thing. The steps are coarse on purpose: the point is WHERE it ends.
+            //
+            // A SELF-cycle for the exact outcome (one task, so nothing can race), and the 2-cycle
+            // for the cost. In the 2-cycle the two gates expire at the same reading and whichever
+            // the pool resolves first abandons the other, so which of the two sentences each task
+            // gets is not deterministic - only that at least one is the phase-1 timeout and that
+            // BOTH land after the backstop. Asserting more than that would be asserting a race.
             {
-                var cycle2 = new[] { new ChainTask("A", "B", 4800_000L, 0L),
-                                     new ChainTask("B", "A", 4800_000L, 0L) };
-                var preFix = WalkChain(cycle2, configured, margin, 1.0, backstop, 30000.0);
+                var self = new[] { new ChainTask("A", "A", 4800_000L, 0L) };
+                var preFix = WalkChain(self, configured, margin, 1.0, backstop, 30000.0);
                 Check(ref failures,
-                      preFix.Dispatched == 0 && preFix.SkippedCount == 2
+                      preFix.Dispatched == 0 && preFix.SkippedCount == 1
                       && preFix.Result("A") == GateResult.PredecessorNeverDispatched
                       && preFix.SkippedAtSeconds("A") >= backstop,
-                      $"FAIL-FIRST (E3): with nothing refusing it a 2-cycle dispatches {preFix.Dispatched} of 2 " +
-                      $"and is skipped only after the {backstop:F0} s chain backstop (at " +
-                      $"{preFix.SkippedAtSeconds("A"):F0} s, as {preFix.Result("A")}) - before A1 the same " +
+                      $"FAIL-FIRST (E3): with nothing refusing it a SELF-referencing task dispatches " +
+                      $"{preFix.Dispatched} of 1 and is skipped only after the {backstop:F0} s chain backstop " +
+                      $"(at {preFix.SkippedAtSeconds("A"):F0} s, as {preFix.Result("A")}) - before A1 the same " +
                       $"order failed in {configured:F0} s");
+
+                var cycle2 = new[] { new ChainTask("A", "B", 4800_000L, 0L),
+                                     new ChainTask("B", "A", 4800_000L, 0L) };
+                var two = WalkChain(cycle2, configured, margin, 1.0, backstop, 30000.0);
+                Check(ref failures,
+                      two.Dispatched == 0 && two.SkippedCount == 2
+                      && two.SkippedAtSeconds("A") >= backstop && two.SkippedAtSeconds("B") >= backstop
+                      && (two.Result("A") == GateResult.PredecessorNeverDispatched
+                          || two.Result("B") == GateResult.PredecessorNeverDispatched),
+                      $"FAIL-FIRST (E3): ... and a 2-cycle costs the same - {two.Dispatched} of 2 dispatched, " +
+                      $"both skipped no earlier than the backstop (at {two.SkippedAtSeconds("A"):F0} / " +
+                      $"{two.SkippedAtSeconds("B"):F0} s, as {two.Result("A")} / {two.Result("B")})");
             }
 
             Check(ref failures,
@@ -1353,6 +1369,29 @@ public static class RulingsSelfTest
                 Check(ref failures, realCycles.Count == 0,
                       $"(x) E3: the real 42-task COA-STP1 graph carries NO cycle - the refusal fires on " +
                       $"{realCycles.Count} of its tasks (must be 0)");
+
+                // (xi) E4 + E6: THE NUMBER THE BACKSTOP IS JUSTIFIED BY, MEASURED. The comment on
+                //      Vrf:TaskChainBackstopSeconds claimed COA-STP1's deepest chain is 26,400 s;
+                //      the order says 16,800 s to the last DISPATCH and 21,600 s to the last END
+                //      (ten PT2H roots + three PT1H20M successors, and T13's 12,000 s delay + one
+                //      PT1H20M then T14). The service logs these at order receipt, so they are the
+                //      operator's numbers and not just a comment's.
+                double realLead = TaskDispatchPolicy.LongestChainLeadSeconds(AsChainNodes(graph), 1.0);
+                double realEnd = TaskDispatchPolicy.LongestChainEndSeconds(AsChainNodes(graph), 1.0);
+                Check(ref failures, realLead == 16800.0 && realEnd == 21600.0,
+                      $"(xi) E6: COA-STP1's longest DISPATCH lead is 16,800 s and its last task ENDS at " +
+                      $"21,600 s (measured {realLead:F0} / {realEnd:F0}) - not the 26,400 s the backstop's " +
+                      $"justification used to claim");
+                Check(ref failures, realLead < backstop && realEnd < backstop,
+                      $"(xi) E4: ... and both fit inside Vrf:TaskChainBackstopSeconds={backstop:F0} s " +
+                      $"({backstop / realLead:F1}x headroom on the lead), so this order logs the INFO line " +
+                      $"and NOT the 'chain deeper than the backstop' WARNING");
+                Check(ref failures,
+                      TaskDispatchPolicy.LongestChainLeadSeconds(AsChainNodes(graph), 0.05) == 16800.0 * 0.05
+                      && TaskDispatchPolicy.LongestChainLeadSeconds(AsChainNodes(graph), 10.0) >= backstop,
+                      $"(xi) E4: the lead is measured AFTER Vrf:DurationScale - 0.05 compresses it to " +
+                      $"{16800.0 * 0.05:F0} s, and a scale of 10 pushes it past the backstop, which is the " +
+                      $"case the WARNING exists for");
 
                 var preFix = WalkChain(graph, configured, margin, 1.0, backstop, step, preFixPhase1: true);
                 Check(ref failures, preFix.Dispatched == 21 && preFix.SkippedCount == 21,
@@ -1562,28 +1601,21 @@ public static class RulingsSelfTest
     }
 
     /// <summary>The deepest chain's LEAD, in clock seconds: how long the last task of the longest
-    /// chain waits before it can dispatch at all. Bounds the walk; cycle-guarded, so a malformed
-    /// order cannot hang the suite.</summary>
+    /// chain waits before it can dispatch at all. Bounds the walk.
+    /// E4/E6 (pass-3 review): this WAS a private copy of the arithmetic. It is now the production
+    /// TaskDispatchPolicy.LongestChainLeadSeconds - the same function the service logs at order
+    /// receipt and the same one the backstop's justification quotes - so the suite's horizon and
+    /// the operator's warning cannot drift apart (one re-implementation fewer; N5's family).</summary>
     private static double LongestLeadSeconds(IReadOnlyList<ChainTask> tasks, double scale)
+        => TaskDispatchPolicy.LongestChainLeadSeconds(AsChainNodes(tasks), scale);
+
+    /// <summary>The suite's chain shape as the production arithmetic takes it.</summary>
+    private static List<TaskDispatchPolicy.ChainNode> AsChainNodes(IReadOnlyList<ChainTask> tasks)
     {
-        var byUuid = new Dictionary<string, ChainTask>(StringComparer.Ordinal);
-        foreach (var t in tasks) byUuid[t.Uuid] = t;
-        var memo = new Dictionary<string, double>(StringComparer.Ordinal);
-        double Lead(string uuid, int depth)
-        {
-            if (depth > 64 || !byUuid.TryGetValue(uuid, out var t)) return 0.0;
-            if (memo.TryGetValue(uuid, out double cached)) return cached;
-            memo[uuid] = 0.0;      // cycle guard: a task that reaches itself contributes nothing
-            double lead = TaskDispatchPolicy.ScaleOrderMs(t.StartDelayMs, scale) / 1000.0;
-            if (!string.IsNullOrEmpty(t.Pred) && byUuid.TryGetValue(t.Pred, out var pred))
-                lead += Lead(t.Pred, depth + 1)
-                      + TaskDispatchPolicy.ScaleOrderMs(pred.DurationMs, scale) / 1000.0;
-            memo[uuid] = lead;
-            return lead;
-        }
-        double max = 0.0;
-        foreach (var t in tasks) max = Math.Max(max, Lead(t.Uuid, 0));
-        return max;
+        var nodes = new List<TaskDispatchPolicy.ChainNode>(tasks.Count);
+        foreach (var t in tasks)
+            nodes.Add(new TaskDispatchPolicy.ChainNode(t.Uuid, t.Pred, t.DurationMs, t.StartDelayMs));
+        return nodes;
     }
 
     /// <summary>Walk up from the executable and from the working directory until COA-STP1's order
