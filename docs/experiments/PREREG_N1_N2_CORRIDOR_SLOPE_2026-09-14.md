@@ -496,9 +496,13 @@ the same override on the eastern lane. Two hypotheses survive the record, and on
   until you place a simulation object that will use it." vrfNavigation.dll carries an asynchronous NavData
   queue (`DtNavAreaImpl::loadNavData`, `DtNavAreaImpl::processQueues`, states `NavData: ToBeAdded /
   BeingAdded / ToBeRemoved / BeingRemoved` - Gameware's streaming states; strings read from the shipped
-  DLL). N2b's members were materialised AtOrder in a sector no init object occupied (destack start,
-  sector i=50 j=75; the init's 1-35 shell sits at V0, i=53 j=80) and queried 0.3 s (slot move) and 5 s (V1)
-  after placement; their OWN "New Primary nav area" rows came AFTER the first query (72.3 vs 71.8 wall).
+  DLL). N2b's members were materialised AtOrder at the destack start (sector i=50 j=75) and queried 0.3 s
+  (slot move) and 5 s (V1) after placement. CORRECTION 22:00Z (placement_cells.py on the N2b trace): that
+  cell was NOT fresh - the init had placed the 1-35 shell proxy `1-35/2/1_A~PXY` IN cell (50,75) at wall
+  49.8, 22 s before the members (and 1-1's and HQ/1-6's proxies in the adjacent cells); in G7c-gate the
+  resident proxy `1222.MechPlt~PXY` had been in cell (76,65) for 119 s (cold cache) before its members
+  planned. So the surviving (T) variable is the time between the cell's first placement and the query
+  (22 s warm vs 119 s cold), not whether the cell was occupied; their OWN "New Primary nav area" rows came AFTER the first query (72.3 vs 71.8 wall).
   G7c-gate's tasked unit also queried 0.4 s after creation, but in a sector its small init had populated
   140 s earlier (i=76 j=65). The docs do not say whether loading is per sector or whole-area, nor what a
   query returns during loading; the DLL's queue says it is asynchronous.
@@ -522,8 +526,8 @@ If it PLANS, N2b's refusal was not deterministic at that timing - recorded, does
 **P21b (THE DISCRIMINATOR, prediction PLANNED at MEDIUM):** the V1 query at ~+300 s prints
 `Planned path has N points.` with N > 1 and no "not enough (0)". PLANNED -> (T) confirmed: a mesh query
 issued within seconds of placing an object in a fresh sector fails while the sector's NavData streams,
-and the runner's ready gate (first area row from ANY object) is INSUFFICIENT for a taskee placed in a
-sector no init object occupied - a demo-flow finding (STP-806: per-taskee readiness or a settle after
+and the runner's ready gate (first area row from ANY object) is INSUFFICIENT on its own - a taskee
+queried within ~5-10 s of that row can still be refused - a demo-flow finding (STP-806: per-taskee readiness or a settle after
 materialisation). P20b-P20d then become READABLE in this run and are scored as written in sec 5.3 (the
 slope factor 2.0 is present). REFUSED -> (T) falsified for a 300 s delay; (L)'s mesh-hole variant or an
 undocumented query limit is live; STOP, no further arm without a docs/vendor answer.

@@ -52,7 +52,7 @@ Navigation mesh (PREREG_NAVDATA_G6_2026-09-13.md sec 5 = STOP; MESH_QUERY_VS_DIS
   deg, cost no-go unreachable at factor 1.0, soil invisible), so no planner flag routes around it
   - the documented lever is slope-avoidance-factor. 20:40Z HEADER READING (PREREG_N1_N2_CORRIDOR_SLOPE):
   propagation-box-extent is DEAD for ground vehicles (DtNavBot parameter; Ground_Vehicle.ope uses the
-  dynamic-obstacle nav interface) -> N1 NOT RUN, AG SMS stays the fix. N2b RAN 21:05Z: P20a MISS -> STOP (AG query 0 points for EVERY goal of AtOrder members in a fresh sector; 5th freeze at the P11 point); N2c (+300 s task delay) is the (T) timing vs (L) lane discriminator - PREREG_N1_N2 sec 5.5/10.1.
+  dynamic-obstacle nav interface) -> N1 NOT RUN, AG SMS stays the fix. N2b RAN 21:05Z: P20a MISS -> STOP (AG query 0 points for EVERY goal of AtOrder members queried 5-10 s after the first area row; 5th freeze at the P11 point); N2c (+300 s task delay) is the (T) timing vs (L) lane discriminator - PREREG_N1_N2 sec 5.5/10.1.
 
 Harness (docs/experiments/RUNNER_EXIT127_2026-09-14.md; RUNBOOK 0.5.14; full recap archived docs/experiments/HANDOFF_2026-09-14_ARCHIVE_pm.md sec 3):
 - "runner exit: 127" does NOT mean "command not found" - on this MSYS bash it is a high-bit Windows code; the only SILENT one is 0xFFFFFFFF (TerminateProcess(-1) / Stop-Process / Process.Kill), so 127 + a silent log + no WER event = THE RUNNER WAS KILLED FROM OUTSIDE (killer unidentified, no process auditing here); the G6 capture was COMPLETE - "trace: (no samples)" was a separate tail-read defect, now fixed. NO Stop-Process / taskkill sweeps while a run window is open.
