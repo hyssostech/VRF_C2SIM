@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- G7 CROSS-SECTOR PROBE ORDER (scratchpad/g7/G7_PROBE_DESIGN.md).
+     ONE task, ONE performer, THREE route vertices, on the 41.3 x 54.2 km / 8,856-sector
+     navigation area MojaveCOA (fixture R9_Mojave_Empty_52_NavAO).
+
+     WHY: G6 got "Planned nav path has not enough (0) points." for every multi-km goal on
+     MojaveCOA while the byte-identical destination planned 1,090-1,104 points on the
+     1,600-sector MojaveAO20 (scratchpad/meshq/MESH_QUERY_VS_DISTANCE.md sec 5). Two
+     explanations survive (ibid. sec 10): (A) the big graph is refused / budget-cut, or
+     (B) MojaveCOA's data is not connected across sector boundaries. The legs below
+     discriminate: leg 1 is 599 m and crosses EXACTLY ONE sector seam (lon-line index 55,
+     489 m from the start; V1 lands 110 m inside the next sector), leg 2 is 1,996 m over
+     5 seams, leg 3 is 4,989 m over 11 seams.
+       leg 1 plans + leg 3 returns 0  -> the graph IS connected across seams; the failure is
+                                         length / budget related on the big graph.
+       leg 1 returns 0                -> the MojaveCOA data is unusable and G6's "area size"
+                                         reading is WITHDRAWN.
+       all three plan                 -> the ceiling lies between 5 and 9 km.
+
+     PERFORMER: 1.BdeHQ (UUID below), the R9 single-PLATFORM taskee. The type map resolves it
+     to M577A2_Command_Post - ONE ground entity, so there is one console, one mesh query per
+     leg, no formation gate and no lifeform (DI-Guy) creation. Requires
+     data/R9_Mojave_Lean_Initialization.xml (G1's init; 1.BdeHQ is authored at
+     34.608415817915 / -116.712685404877, inside MojaveCOA with a 8.9 km edge margin).
+
+     ROUTE: the interface prefixes the unit's live position, so this order yields a 4-point
+     route (S -> V1 -> V2 -> V3). No vertex is within Vrf:DropOriginVertexMeters (100 m) of
+     the authored position, so none is dropped. Every leg was scored with
+     tools/preflight/leg_check.py against the terrain VR-Forces streams: sustained-grade
+     ratios 0.101 / 0.205 / 0.052 of the M1A2 limit (0.095 / 0.193 / 0.049 of the performing
+     M577A2's own), all soil sand, no missing tiles - far inside the 0.92 flag threshold, so
+     a stop on this route is NOT a slope stop.
+
+     NOT FOR THE OPERATOR'S SERVER. Push only through the run harness against the private
+     c2sim-server-vrf instance. -->
+<MessageBody xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.sisostds.org/schemas/C2SIM/1.1">
+  <DomainMessageBody>
+    <OrderBody>
+      <FromSender>00000000-0000-0001-0001-000000000000</FromSender>
+      <ToReceiver>00000000-0007-0001-0000-000000000000</ToReceiver>
+      <IssuedTime>
+        <IsoDateTime>2026-09-14T00:00:00Z</IsoDateTime>
+      </IssuedTime>
+      <OrderID>a7000000-0000-0000-0000-000000000000</OrderID>
+      <Task>
+        <ManeuverWarfareTask>
+          <Location>
+            <GeodeticCoordinate>
+              <Latitude>34.608651740</Latitude>
+              <Longitude>-116.719220764</Longitude>
+            </GeodeticCoordinate>
+          </Location><!--V1: 598.7 m from S on bearing 272.5; crosses lon-line 55 at 489 m, 110 m past it; sector (55,64)->(54,64)-->
+          <Location>
+            <GeodeticCoordinate>
+              <Latitude>34.606767214</Latitude>
+              <Longitude>-116.740906656</Longitude>
+            </GeodeticCoordinate>
+          </Location><!--V2: 1995.7 m from V1 on bearing 264.0; 5 seams; sector (54,64)->(50,63)-->
+          <Location>
+            <GeodeticCoordinate>
+              <Latitude>34.602055897</Latitude>
+              <Longitude>-116.795120162</Longitude>
+            </GeodeticCoordinate>
+          </Location><!--V3: 4989.4 m from V2 on bearing 264.0; 11 seams; sector (50,63)->(40,62)-->
+          <Name>T_G7_XSECT</Name>
+          <UUID>a7000000-0000-0000-0000-000000000001</UUID>
+          <DesiredEffectCode>TaskSuccess</DesiredEffectCode>
+          <PerformingEntity>670cfdb2-6c43-f267-ad7f-bd6e739def24</PerformingEntity><!--1.BdeHQ -> M577A2_Command_Post, a single ground PLATFORM-->
+          <TaskActionCode>MOVE</TaskActionCode>
+          <RuleOfEngagement>
+            <MipWeaponUseROE>
+              <WeaponROECode>
+                <WeaponRuleOfEngagementCode>ROETight</WeaponRuleOfEngagementCode>
+              </WeaponROECode>
+            </MipWeaponUseROE>
+          </RuleOfEngagement>
+        </ManeuverWarfareTask>
+      </Task>
+    </OrderBody>
+  </DomainMessageBody>
+</MessageBody>
