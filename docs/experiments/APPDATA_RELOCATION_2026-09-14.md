@@ -420,3 +420,162 @@ vendor default is one absent argument away.
   `--appDataDir` for `vrfSim.mtl` itself (VRF-9265 says it does in 5.2; not yet
   observed on this box), and that `$(APP_DIR)`-based cache paths follow it (read
   from a COMMENTED vendor default, never observed live).
+
+## 7. RESULTS - the validation launch (2026-09-14), and the narrowing it forces
+
+Tier HEAVY (this block adjudicates a cause claim). Full record:
+docs/experiments/G7B_G8_RESULTS_2026-09-14.md. Three of the four runs of 2026-09-14 16:49-17:30Z
+exercised the relocated tree:
+
+| run | id | --appDataDir | delta from the vendor vrfSim.mtl |
+|---|---|---|---|
+| A | 20260914T164906Z_run | C:\C2SIM\vrf-appdata\appData | :436 loadAllNavigationDataOnTerrainLoad 0 -> 1 |
+| B | 20260914T165919Z_run | C:\C2SIM\vrf-appdata-g8\appData | + :383 gamewareMemorySize 16 -> 128 |
+| D | 20260914T172134Z_run | C:\C2SIM\vrf-appdata-g8b\appData | + :389 gamewareQueryTimeBudget 5.0 -> 50.0 |
+
+Control in the same session: run C (20260914T170824Z_run) took the VENDOR appData, i.e.
+loadAllNavigationDataOnTerrainLoad = 0, on the same terrain and the same navigation area.
+`diff` confirms exactly one changed line in A's tree and exactly two in each of B's and D's (A's line
+plus one), and the rest of each tree byte-identical to the vendor copy.
+
+### 7.1 VERDICT: PASS as an operation, MISS on the effect it was built for
+
+**PASS (verified).** `--appDataDir "C:\C2SIM\vrf-appdata*\appData"` is on the back-end command line
+in all three runs (launchvrf.stdout.log:41), and all three launched, joined, ran and tore down
+cleanly: runnerExitCode 0, no startup crash in 3 of 3 (the watch item in sec 5 - that `--appDataDir`
+shares the option-parsing path with the ~1-in-3 `--logFileName` crash - did not fire), the launcher's
+precondition echoed the setting it read from the tree, the relocated
+`settings\connections\MAK-ONE-2025-Config.xml` resolved, the watchdog stood down without touching
+anything in each run, and rtiexec 69856 / rtiForwarder 50520 survived all four runs unchanged.
+The rollback path was never needed. Default behaviour was also exercised in the same session and is
+unchanged: run C passed no `-VrfAppDataDir` and its manifest records
+`"vrfAppDataDir": "(not passed - vendor appData)"`.
+
+**Prediction 1 (HIGH: the sim's own log names the relocated path): still UNCHECKED as written** - the
+harvesting executor is barred from opening any vendor sim log (they dump the process environment in
+cleartext). **But fallback 1b FIRED, positively and decisively.** The sim rewrites 19 files under
+`<appData>\settings\vrfSim\` at back-end startup - `vrfSimSettings.xml`, six `default_*` files
+(.mlsx/.lrsx/.edsx/.clcx/.ppsx/.mrsx) and twelve `backups\*.backup`. Each of the four runs of this
+session produced exactly one such burst, and every burst landed in exactly the tree that run's
+command line named:
+
+| run | --appDataDir passed | LaunchVrf stage | write burst | tree written |
+|---|---|---|---|---|
+| A | C:\C2SIM\vrf-appdata\appData | 16:49:22.2 - 16:49:43.3Z | 16:49:28.4 - 16:49:30.3Z | vrf-appdata |
+| B | C:\C2SIM\vrf-appdata-g8\appData | 16:59:33.8 - 16:59:52.9Z | 16:59:39.7 - 16:59:41.5Z | vrf-appdata-g8 |
+| C | **(none)** | 17:08:41.0 - 17:09:01.1Z | 17:08:46.7 - 17:08:48.3Z | **C:\MAK\vrforces5.2d\appData** |
+| D | C:\C2SIM\vrf-appdata-g8b\appData | 17:21:50.9 - 17:22:10.0Z | 17:21:56.9 - 17:21:58.6Z | vrf-appdata-g8b |
+
+One-to-one, four for four, with run C as a clean negative control: today the vendor tree was written
+only inside C's launch window, and each relocated tree only inside its own run's. **`--appDataDir` is
+honoured, and the directory it redirects is `settings\vrfSim` - the directory that holds the edited
+`vrfSim.mtl`.** (Earlier draft of this block said 1b was negative; that was based on `appData\logs\`,
+which is not where the sim writes - it writes to C:\MAK\logs by default. The settings directory is.)
+Residual, stated rather than hidden: this proves the settings ROOT was adopted, not that a particular
+`setqb` line was parsed and obeyed. Prediction 1 remains the way to close that last gap and is still
+cheap; it is no longer blocking.
+
+**Operational consequence for this tree, and it belongs in README-C2SIM.txt: the relocated appData is
+NOT read-only at runtime.** The sim rewrites those 19 files on every launch, so "a byte copy of the
+vendor tree with one change" is true at creation and drifts from then on. Any future byte-comparison
+against the vendor tree must exclude `settings\vrfSim\vrfSimSettings.xml`,
+`settings\vrfSim\default_*` and `settings\vrfSim\backups\*`.
+
+**Prediction 2 (HIGH: `New Primary nav area` rows during SCENARIO LOAD, before the first entity):
+MISSED.** In every run the row lands AFTER entity placement, with the setting on and off alike:
+
+| run | loadAll | first entity placed | first `New Primary nav area` | delta |
+|---|---|---|---|---|
+| A | 1 | 16:51:31.9Z | 16:51:44.0Z | +12.1 s |
+| B | 1 | 17:01:41.3Z | 17:01:51.9Z | +10.6 s |
+| C | **0** | 17:10:49.7Z | 17:10:58.9Z | **+9.3 s** |
+| D | 1 | 17:23:58.5Z | 17:24:07.6Z | +9.1 s |
+
+A fair caveat the prediction did not anticipate: `New Primary nav area` is an OBJECT console row, so
+it can never precede the object. The prediction as written was not falsifiable in the intended
+direction, and the honest instrument is the back-end working set, which says the same thing more
+strongly.
+
+**Prediction 3 (MEDIUM: scenario load measurably LONGER): MISSED.** The 0 -> ~2,920 MB scenario-load
+ramp is 15-20 s in every run, with the setting on and off. At the samplers' own t = 20.1 s mark:
+A 2,918 MB, B 2,923 MB, D 2,925 MB - and C, with the setting OFF, 2,925 MB (already 2,962 MB at
+t = 15.1 s). Sec 5 said a load time indistinguishable from baseline "is a reason to doubt prediction
+2 actually fired". It is.
+
+**The measurement that decides it (back-end working set, 5 s sampling):**
+
+| run | loadAll | pre-placement plateau | growth window | total |
+|---|---|---|---|---|
+| B | 1 | 2,924 MB, flat for 100 s | 17:01:41.1 -> 17:02:01.2 (placement at 17:01:41.3) | +2,349 MB |
+| C | **0** | 2,926 MB, flat for 100 s | 17:10:49.1 -> 17:11:04.2 (placement at 17:10:49.7) | **+2,324 MB** |
+| D | 1 | 2,926 MB, flat for 100 s | 17:23:58.9 -> 17:24:19.0 (placement at 17:23:58.5) | +2,352 MB |
+
+Same size, same shape, same trigger, with the setting ON and OFF. **On this evidence
+`loadAllNavigationDataOnTerrainLoad = 1` produced no observable effect: the ~2.33 GB navigation-area
+stream is placement-triggered either way.** The falsifier sec 6 held open has fired, and 1b's write
+bursts pick which branch: not "the option did not reach the sim" but **"nav areas are loaded on a
+path this setting does not govern"** - at least for a sectorised area on a streamed (MAK Earth
+online + MojaveCOA.mtf) terrain. The relocation is therefore sound infrastructure with, so far, an
+inert payload.
+
+Run A has no working-set curve of its own: its sampler was capped at `max=100s`
+(runs\launch52\RunScenario-20260914T164905Z.sampler.log) and stopped 31 s before PushInit. That is an
+instrument defect, not a result; the ruling above rests on B, C and D.
+
+### 7.2 What the runs DID establish about the load, and what the demo must do instead
+
+- The nav-area stream costs the same 2,324-2,352 MB every time and is triggered by the FIRST entity
+  placement (init shells and platforms, not the tasked members).
+- **Its duration is cache-bound, not setting-bound:** 236.9 s on G7 attempt 4 (15:45Z, first load of
+  the day on that area, minutes after a C:\MAK filesystem scan) against 20-25 s on four back-to-back
+  runs an hour later. The "area ready" delay follows: 9.1-12.1 s warm, 236.9 s cold.
+- **The window is real and it is silent.** Under CreationPolicy=AtOrder with no settle the order
+  reaches the bus 4.7-7.7 s BEFORE the area is usable, and every member's slot move and first leg
+  (476-673 m) failed `Is current point in nav area?` and fell to the FEATURE planner - 8 such
+  failures in A, 8 in B, 7 in D - with the only trace a level-3 console line. Run D resolves the
+  transition to 0.3 s: a goal at w=32.40 fails the gate, the area row is at w=32.60, a goal at
+  w=32.70 returns 69 mesh points. Run C (AtInit + 240 s settle) had 32 of 32 gate successes.
+- **Demo rule:** (1) warm the cache in the prepare step - load the scenario once before the
+  demo; (2) keep `loadAllNavigationDataOnTerrainLoad = 1` (free, documented, reversible) but do not
+  let it stand in for the wait; (3) gate PushOrder on the first `New Primary nav area` row from any
+  created PLATFORM at object-console level 3 - 1.BdeHQ printed it in all four runs, 235 s before the
+  order in C - rather than on a fixed settle; (4) if a fixed settle is used anyway, >= 30 s warm and
+  240 s+ cold; (5) prefer CreationPolicy=AtInit, which puts the members in place before the wait.
+
+### 7.3 Prediction 4 (route quality) - measured separately, and the answer is NOT about this tree
+
+Sec 5 said route quality "must be measured separately". It was, in the same session, and the result
+belongs to the SMS thread rather than to appData: with `useAbstractGraphs = true` in a derived
+simulation model set (run C, vendor appData) the 5 km legs planned 8 of 8, against 2 of 24 for the
+shipped flat query across attempt 4 and runs A, B and D. Neither `gamewareMemorySize 128` (B) nor
+`gamewareQueryTimeBudget 50 ms` (D) changed any long-query outcome. Full adjudication:
+docs/experiments/G7B_G8_RESULTS_2026-09-14.md sec 2; prereg record: PREREG_MESHQUERY_G7_2026-09-14
+sec 5. **This does not close FINDING_EARLY_STOPS_2026-09-13** - the caution in sec 6 stands, and run
+B in fact added a fresh unexplained crawl (four members at 0.29-0.37 m/s for ~2,400 sim s under a
+logged 10 mps order) to that thread.
+
+### 7.4 Adversarial review of this block
+
+- **Competing hypothesis for "the setting does nothing": the option never reached the sim.**
+  REFUTED by 7.1's write bursts - four runs, four bursts, each in the tree its own command line named,
+  with the vendor tree as C's negative control. The surviving form of the objection is narrower: the
+  sim adopted the relocated `settings\vrfSim` root but might take `vrfSim.mtl` itself from elsewhere.
+  Nothing supports that and VRF-9265 is against it; prediction 1 closes it.
+- **Falsifier held open, restated:** a run on a COLD cache with the setting at 1 that shows the
+  ~2.33 GB arriving during scenario load, before any entity exists. That would mean the setting does
+  work and today's four runs were all too warm to see it - which would be surprising (C, with the
+  setting OFF, was equally warm and behaved identically) but has not been excluded.
+- **Unexplained symptom, named:** why the same 2.33 GB streams at placement whether the setting is 0
+  or 1, when the vendor text (p1671) says it should load with the scenario.
+- **Second unexplained symptom, named because it appeared in one of these runs:** run B's four
+  members crawled its entire return leg at 0.29-0.37 m/s for ~2,400 sim s under a logged 10 mps
+  order, on ground they had climbed at 9.5 m/s minutes earlier. It is recorded against
+  FINDING_EARLY_STOPS_2026-09-13, NOT attributed to `gamewareMemorySize 128`; n = 1.
+- **Verified vs assumed.** VERIFIED: the three trees are single-variable at byte level; the option is
+  on the command line; three clean launches with no startup crash and clean teardown; the four
+  startup write bursts and their one-to-one mapping to the four `--appDataDir` values; the
+  working-set curves and their placement trigger in B, C and D; the gate-failure counts and their
+  partition by the area row; the 9.1-12.1 s warm / 236.9 s cold delay. ASSUMED: that adopting the
+  relocated settings root means the relocated `vrfSim.mtl` is the file parsed (prediction 1 still
+  unchecked); that the working-set growth IS the nav-area load (inherited from G7 attempt 4 CR4 and
+  still not isolated); that the warm/cold ratio generalises off this machine.

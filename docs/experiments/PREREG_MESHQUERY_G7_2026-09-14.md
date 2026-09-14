@@ -150,3 +150,73 @@ clean (armed 15:43:48.8Z, two-observation confirm, stood down without touching a
 C:\MAK scan ended ~4.5 min before the first mesh query, against a back-end then holding 0.10-0.17 cores and a
 flat working set; no instrument shows an effect, though it could only have LENGTHENED the nav load, which is
 conservative for the settle-margin conclusion.
+G7b / G8 / G8b (four runs, 2026-09-14 16:49-17:30Z, all on MojaveCOA, all the same performer
+1222.MechPlt = 4 x M1A2 and the same legs; full record docs/experiments/G7B_G8_RESULTS_2026-09-14.md;
+each trace's t=0 fitted from the taskee's own C2SIM position reports and cross-checked twice):
+A = 20260914T164906Z (relocated appData, loadAllNavigationDataOnTerrainLoad 1, AtOrder, no settle,
+one-task order); B = 20260914T165919Z "G8" (A's tree + gamewareMemorySize 128, two-task order);
+C = 20260914T170824Z "G7b" (fixture R9_Mojave_Empty_52_NavAO_AG, derived SMS whose only functional
+diff is useAbstractGraphs=true at ground-vehicle-move-to.lua:488, VENDOR appData, AtInit + 240 s
+settle, two-task order); D = 20260914T172134Z "G8b" (A's tree + gamewareQueryTimeBudget 50.0 ms,
+two-task order). The three appData trees differ from the vendor file by exactly one, two and two
+lines respectively (byte-verified), and the two .scnx differ only in Simulation-Model-Set-Files.
+THE ADJUDICATION, IN THIS PREREG'S OWN TERMS. Reading (B) - "MojaveCOA's data is not connected
+across sector seams" - stays FALSIFIED: leg 2 (4 seams, ~1,990 m) planned 4/4 in every one of the
+four runs, and C planned 10-seam legs 8/8. Reading (A) - "the planner refuses or budget-cuts the big
+graph" - is now REFUTED IN BOTH OF ITS TESTABLE FORMS. (i) The budget knobs do nothing: B (128 MB,
+8x the shipped working memory) refused 8 of 8 long queries; D (50 ms, 10x the shipped per-frame time
+budget) planned 1 of 8 - the same query, the same 718 points and the same 0.5 s gate-to-outcome delta
+that run A produced on the vendor's 5.0 ms - and refused the other 7. Plan sizes, timings and the
+back-end working-set plateau are indistinguishable across A/B/D. "The knobs never reached the sim" is
+REFUTED, not assumed away: each run's back-end rewrote 19 files under <appDataDir>\settings\vrfSim\
+inside its own launch window, in exactly the tree its command line named, with run C (no
+--appDataDir) writing the vendor tree instead - one-to-one, four for four - and that directory is
+where the edited vrfSim.mtl lives. (ii) A length-or-seam CEILING is
+falsified inside one run: D's M1A2 1 planned 5,013.7 m / 10 seams (718 points) at 17:24:34.2Z and was
+refused on 4,550.2 m / 9 seams at 17:25:26.9Z, same vehicle, 51 s apart. THE THIRD READING WINS: the
+cause is the FLAT QUERY ITSELF, i.e. the shipped Lua overriding the API's own default by passing
+useAbstractGraphs = FALSE (the sole occurrence in all 1,646 lines of ground-vehicle-move-to.lua and
+the sole findPathToLocation call site; classref struct_dt_lua_nav_find_path_parameters documents the
+default as TRUE and vrf_the_navigation_a_p_i.html calls the flag the one lever for "long path
+planning queries"). Pooled over the same area, legs and performer: FLAT 2 of 24 long queries planned
+(A4, A, B, D) vs ABSTRACT 8 of 8 (C); Fisher one-sided p = 4.3e-6.
+WHAT THE ABSTRACT PLAN IS. Coarse, and coarseness scales with range: point spacing 7-19 m at 0 seams
+(same as the flat mesh), 34-67 m on the 600 m leg, 117-133 m on the 2 km leg, 137-177 m on the 5 km
+leg, against a flat 7-10 m everywhere. It is NOT a straight line: C's driven track leaves the V2->V3
+chord by up to 263-267 m (rms 141-158 m) for 1.8-4.1 % extra distance, where every flat-mesh and
+feature-planned track in A4/A/B/D stays inside 24-59 m, which is the formation offset. No timing cost
+(0.0-0.3 s gate-to-outcome, same as a refusal) and no speed cost (7.8-9.2 m/s vs 8.9-9.5 m/s).
+CARRIED, NOT CLOSED. (a) C is not single-variable against A/B/D (SMS + appData + creation policy +
+settle all differ); the appData knobs are measured to do nothing and the settle only moves the
+current-point gate, which passed on 100 % of the long queries in every run, but the clean run is owed:
+G7c = the _AG fixture under AtOrder, zero settle, relocated appData. (b) Strongest surviving
+competing hypothesis: "abstract graphs merely return SOMETHING - a coarse path that ignores terrain."
+Falsifier, and the next run that matters: the abstract-graph SMS on the FINDING_EARLY_STOPS 1-35
+ridge lane; if the coarse path crosses the 55 m sustained 0.70-0.95 face and freezes at 1.97 km, the
+flag is only a way to get non-empty output.
+THE GATE, AND A CORRECTION TO THE DEMO-FLOW CLAIM. "First legs mesh-planned under AtOrder with zero
+settle" IS WITHDRAWN. A, B and D show 8, 8 and 7 failures of `Is current point in nav area?` (logged
+as `fail in action ...`, never as `Node ...: fail`, which is why a live count read 0), and each
+failure sends the goal to the FEATURE planner - `Planned path has 1 parts.` with no mesh call at all,
+because ground-vehicle-move-to.lua:1570 is a fallback selector over the gate sequence. Every slot move
+and every first leg (476-673 m) in those three runs was feature-planned. The failures partition
+exactly on the object's first `New Primary nav area` row, which lands 9.1-12.1 s after the FIRST
+entity placement while the order arrives 4.7-7.7 s BEFORE it; run D resolves the transition to 0.3 s
+(a goal at w=32.40 fails, the area row is at w=32.60, a goal at w=32.70 returns 69 mesh points).
+C, which waited, got 32 of 32 gate successes. loadAllNavigationDataOnTerrainLoad=1 did not move that
+window: the back-end allocates the same ~2.33 GB starting at entity placement with the setting ON
+(B, D) and OFF (C) alike, in 20-25 s warm against attempt 4's 236 s cold - so the duration is
+cache-bound and the trigger is placement. Demo rule: warm the cache in the prepare step and gate
+PushOrder on the first `New Primary nav area` row from any created platform, not on a fixed settle.
+INSTRUMENTS. -StopWhenComplete failed to fire in all four for attempt 4's reason - 0 RPT rows in
+every trace, so runner condition (4) is unsatisfiable; B also never completed its second task. A's
+thread/memory sampler was capped at max=100s and died before entity placement, so the appData run has
+no working-set curve (sec 3 of the RESULTS rests on B/C/D). C's `-WatchSecs 900 below the derived cap
+1100` WARN did not bite (trace ran to t=608.4 s, window closed at 17:20:34.85Z, observers outlived it
+by 33 s). Two deserialize failures per run, all four runs, both followed by correct handling. The
+"28 unresolved-name rows at creation" are not a fixed property: 17 / 5 / 0 / 0 here. NEW AND
+UNEXPLAINED: B's four members crawled the whole return leg at 0.29-0.37 m/s for ~2,400 sim s under a
+logged 10 mps order, on ground they had climbed at 9.5 m/s minutes earlier; D crawled ~600 m in the
+same corridor and recovered; C, whose track leaves the chord by up to 292 m, did not enter it. That
+is the FINDING_EARLY_STOPS signature and it is recorded against that thread, NOT attributed to
+gamewareMemorySize.
