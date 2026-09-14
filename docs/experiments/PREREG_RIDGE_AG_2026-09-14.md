@@ -478,3 +478,13 @@ data (sec 6.4), which would look like a refusal rather than a design fault.
 ## 8. RESULTS
 
 (to be filled after the run; nothing in this section was written before it)
+
+## Addendum before the run (supervisor, 2026-09-14 ~18:40Z)
+One deviation from the launch line above, recorded BEFORE launch: the run uses the runner's new READY GATE
+(`--pre-order-gate nav-area`, commit 7531bc6 - PushOrder waits for the simulator's own "New Primary nav area" row
+from a placed platform and logs the placement-to-row delta as WARM/COLD) with the 240 s settle kept ONLY as the
+timeout fallback. This does not change the measurement (P18a-P18d) - it replaces a guessed wait with the
+simulator's own ready signal (G7B_G8_RESULTS sec 3) - and makes this run the gate's FIRST LIVE USE; if the gate
+misfires (pushes before the members can plan, or times out on a warm machine) that is a runner finding to record
+in RUNNER_HARDENING sec 15, separate from the ridge verdict. Cache state at launch: warm (seven scenario loads of
+the same area in the preceding three hours), so P18a's fallback (AtInit re-run) should not be needed on that account.
