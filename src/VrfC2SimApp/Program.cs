@@ -75,6 +75,12 @@ if (args.Length > 0 && args[0] == "--stall-selftest")
 if (args.Length > 0 && args[0] == "--scripted-task-selftest")
     return ScriptedTaskSelfTest.Run();
 
+// Offline init-graphics check (V3): the Line and Point tactical graphics the parser used to discard,
+// with their C2SIM uuids, plus the creation plan they produce (no bridge). Optional 2nd arg = an
+// init file; default = data/COA-STP1_Initialization.xml found by walking up from the exe.
+if (args.Length > 0 && args[0] == "--initgraphics-selftest")
+    return InitGraphicsSelfTest.Run(args.Length >= 2 ? args[1] : null);
+
 // AN UNKNOWN "--..." SWITCH MUST NEVER START THE HOST (2026-09-07: an older build given a flag it
 // did not know fell through to here, joined the federation beside a running experiment for five
 // minutes and had to be killed). Only a bare start (no args) or host-builder args reach the host.
@@ -84,8 +90,8 @@ if (args.Length > 0 && args[0].StartsWith("--") && args[0] != "--runtime-check" 
 {
     Console.Error.WriteLine("VrfC2SimApp: unknown switch '" + args[0] + "' - NOT starting the host. Known: " +
                             "--translator/--report/--sequencer/--verb/--destack/--fanout/--typemap/--terrain/" +
-                            "--placement/--compose/--arrival/--stall/--scripted-task-selftest, " +
-                            "--parse-init <file> [clientId], " +
+                            "--placement/--compose/--arrival/--stall/--scripted-task/" +
+                            "--initgraphics-selftest, --parse-init <file> [clientId], " +
                             "--parse-order <file>, --runtime-check, host switches --Key=Value; " +
                             "no arguments = run the interface.");
     return 2;

@@ -341,8 +341,13 @@ public:
                                  createSubordinates);
     }
 
+    // uuid empty/null -> nullUUID (the pre-V3 behaviour and what the 2-argument overload
+    // gives). V3 passes a C2SIM Point graphic's own uuid so it is addressable by it.
     void CreateWaypoint(Geodetic pos, String^ name) {
-        _facade->CreateWaypoint(ToNative(pos), ToStd(name));
+        CreateWaypoint(pos, name, nullptr);
+    }
+    void CreateWaypoint(Geodetic pos, String^ name, String^ uuid) {
+        _facade->CreateWaypoint(ToNative(pos), ToStd(name), ToStd(uuid));
     }
 
     // Delete a VR-Forces object by VRF uuid (counterpart to Create*; lets the app clean up
@@ -361,8 +366,12 @@ public:
         return list;
     }
 
+    // uuid empty/null -> nullUUID. V3 passes a C2SIM Line graphic's own uuid.
     void CreateRoute(IEnumerable<Geodetic>^ points, String^ name) {
-        _facade->CreateRoute(ToNativePoints(points), ToStd(name));
+        CreateRoute(points, name, nullptr);
+    }
+    void CreateRoute(IEnumerable<Geodetic>^ points, String^ name, String^ uuid) {
+        _facade->CreateRoute(ToNativePoints(points), ToStd(name), ToStd(uuid));
     }
 
     // uuid empty -> nullUUID. The C2SIM interface assigns the area's C2SIM uuid.

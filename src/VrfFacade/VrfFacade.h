@@ -461,9 +461,19 @@ public:
                          AggregateState state = AggregateState::Disaggregated,
                          bool createSubordinates = true);
 
-    void CreateWaypoint(const Geodetic& pos, const std::string& name);
+    // uuid (V3): the VRF UUID to assign the created control point; empty -> nullUUID,
+    // which is the pre-V3 behaviour and what every existing caller gets. The vendor's
+    // createWaypoint takes the same optional startingUUID as createControlArea does
+    // (vrfRemoteController.h:991-1011, ":1006 const DtUUID& startingUUID"), so a C2SIM
+    // Point graphic can be created under ITS OWN C2SIM uuid exactly as areas are.
+    void CreateWaypoint(const Geodetic& pos, const std::string& name,
+                        const std::string& uuid = "");
 
-    void CreateRoute(const std::vector<Geodetic>& points, const std::string& name);
+    // uuid (V3): as CreateWaypoint. vrfRemoteController.h:1023-1039 createRoute, same
+    // optional startingUUID. Used for the init's LINE graphics - see the note in
+    // VrfC2SimService on why a line becomes a route and not a phase line.
+    void CreateRoute(const std::vector<Geodetic>& points, const std::string& name,
+                     const std::string& uuid = "");
 
     // uuid: the VRF UUID to assign the created tactical graphic. The C2SIM
     // interface passes the area's C2SIM uuid here today; empty -> nullUUID.

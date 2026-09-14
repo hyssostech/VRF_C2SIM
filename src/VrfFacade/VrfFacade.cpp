@@ -788,15 +788,26 @@ void VrfFacade::CreateAggregate(const EntityTypeSpec& type, const Geodetic& pos,
         DtString::nullString(), DtSimSendToAll, st, DtUUID::nullUUID(), createSubordinates);
 }
 
-void VrfFacade::CreateWaypoint(const Geodetic& pos, const std::string& name) {
+void VrfFacade::CreateWaypoint(const Geodetic& pos, const std::string& name,
+                               const std::string& uuid) {
+    // Vendor signature (vrfRemoteController.h:999-1007): fcn, usr, geocentricPosition,
+    // uniqueName, label, addr, startingUUID. The label and address keep their documented
+    // defaults; only the uuid is new, and an empty one reproduces the pre-V3 call exactly.
+    DtUUID startingUuid = uuid.empty() ? DtUUID::nullUUID() : DtUUID(uuid.c_str());
     p_->controller->createWaypoint(objectCreatedTrampoline, this,
-        toGeocentric(pos), DtString(name.c_str()));
+        toGeocentric(pos), DtString(name.c_str()),
+        DtString::nullString(), DtSimSendToAll, startingUuid);
 }
 
-void VrfFacade::CreateRoute(const std::vector<Geodetic>& points, const std::string& name) {
+void VrfFacade::CreateRoute(const std::vector<Geodetic>& points, const std::string& name,
+                            const std::string& uuid) {
+    // Vendor signature (vrfRemoteController.h:1032-1039): fcn, usr, vertices, uniqueName,
+    // label, addr, startingUUID. As above: empty uuid == the pre-V3 call.
     DtList list;
     for (const Geodetic& g : points) list.add(new DtVector(toGeocentric(g)));
-    p_->controller->createRoute(objectCreatedTrampoline, this, list, DtString(name.c_str()));
+    DtUUID startingUuid = uuid.empty() ? DtUUID::nullUUID() : DtUUID(uuid.c_str());
+    p_->controller->createRoute(objectCreatedTrampoline, this, list, DtString(name.c_str()),
+        DtString::nullString(), DtSimSendToAll, startingUuid);
     freeVectorList(list);
 }
 
