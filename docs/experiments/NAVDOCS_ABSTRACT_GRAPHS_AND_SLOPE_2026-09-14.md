@@ -1,6 +1,6 @@
 # NAVDOCS: abstract graphs and slope - the documentation-first pass (2026-09-14, verbatim)
 Written by an Opus research executor after the user's drift call and BEFORE any ridge launch: five questions answered read-only from the Autodesk Navigation SDK help, the installed VR-Forces 5.2d tree and web search, with what the sources SAY kept apart from what it IMPLIES. It makes UNNECESSARY the gamewareMemorySize and gamewareQueryTimeBudget ladders, the hunt for a distance-or-sector ceiling, and the three runs section 6 answers from documentation alone; it reorders the work as N1 (propagation-box-extent 200 -> 2000, the flat query's corridor), then N2 (slope-avoidance-factor 1.0 -> 2.0, the cost model's no-go gate), keeping the abstract-graph ridge run as N3 to be spent only if N1 refuses.
-CORRECTED THE SAME DAY, read this before acting on section 1.2 / 2.1 / 6: docs/experiments/PREREG_N1_N2_CORRIDOR_SLOPE_2026-09-14.md sec 1 shows that every navigation-parameters line this record quotes out of Ground_Vehicle.ope - use-abstract-graph, min-abstract-graph-replan-distance, propagation-box-extent, radius-factor - is DEAD for a LOCAL GROUND VEHICLE, because the shipped file binds both local-objects and remote-objects to nav-interface "dynamic-obstacle" and only DtActiveBotNavInterface builds a DtNavBot::NavigationConfiguration from an .ope; so sec 2.1's "MAK ships abstract graphs ON for the NavBot's own destination-following" does not hold for vehicles, and N1's lever is inert as this record proposes it. Sections 3 and 4 (slope, soil, cost, stall detection) are untouched by the correction.
+CORRECTED THE SAME DAY (the executor's own amendment is now folded in below: H1, 1.2, 1.3, sec 6, sec 7 corrected in place; N1 struck): docs/experiments/PREREG_N1_N2_CORRIDOR_SLOPE_2026-09-14.md sec 1 shows that every navigation-parameters line this record quotes out of Ground_Vehicle.ope - use-abstract-graph, min-abstract-graph-replan-distance, propagation-box-extent, radius-factor - is DEAD for a LOCAL GROUND VEHICLE, because the shipped file binds both local-objects and remote-objects to nav-interface "dynamic-obstacle" and only DtActiveBotNavInterface builds a DtNavBot::NavigationConfiguration from an .ope; so sec 2.1's "MAK ships abstract graphs ON for the NavBot's own destination-following" does not hold for vehicles, and N1's lever is inert as this record proposes it. Sections 3 and 4 (slope, soil, cost, stall detection) are untouched by the correction.
 
 NAVDOCS: ABSTRACT GRAPHS AND SLOPE
 ==================================
@@ -16,6 +16,24 @@ or URL given in section 8.
 Rule applied throughout: what the sources SAY is separated from what it
 IMPLIES for us, and from what is still UNVERIFIED.
 
+*** AMENDMENT, same session, after the first issue of this document ***
+Recommendation N1 (raise propagation-box-extent) is REFUTED and has been
+demoted everywhere it appeared. The parameter is DEAD for ground vehicles:
+Ground_Vehicle.ope selects (nav-interface "dynamic-obstacle") for BOTH its
+local-objects (line 520) and remote-objects (line 532) sections, and that
+interface is documented as being for "objects which are treated as frequently
+moving obstacles by the navigation system, but are not using the navigation
+system to plan paths" (dynamicObstacleNavInterface.h:19-21). No NavBot is
+constructed for a ground vehicle, so DtNavBot::NavigationConfiguration - the
+only consumer of propagation-box-extent - is never built, and the line sitting
+in that same .ope navigation-parameters block is inert. The contrast case is
+Animal.ope, which selects "active-bot" for local objects and
+"dynamic-obstacle" only for remote ones. The 200 m box is still real inside
+the Gameware query (it is the library default and VR-Forces offers no other
+way to set it for this path) - what is dead is the LEVER, not the limit.
+Corrected in place: H1, 1.2, 1.3, section 6 and section 7. The rest of the
+document stands; sections 3 and 4 are unaffected.
+
 
 0. HEADLINE - the seven things the documentation already settles
 ---------------------------------------------------------------
@@ -30,9 +48,14 @@ H1. The flat A* query has a documented 200 m HARD CORRIDOR around the
     (myPropagationBoxExtent(200.)) AND as a per-platform parameter
     propagation-box-extent 200.000000 in Ground_Vehicle.ope.
     G7b measured the abstract route's cross-track at 231-292 m - larger than
-    the corridor the flat query is allowed to search. This is the leading
-    DOCUMENTED mechanism for the G6/G7 "not enough (0) points" refusals, and
-    it has never been tested: we varied memory and time budget, never the box.
+    the corridor the flat query is allowed to search. This remains the best
+    DOCUMENTED mechanism for the G6/G7 "not enough (0) points" refusals.
+    BUT IT IS NOT A LEVER WE HAVE: see the amendment above. Ground vehicles
+    take the dynamic-obstacle nav interface, which builds no NavBot, so the
+    propagation-box-extent line in Ground_Vehicle.ope is never read and the
+    query runs at the library's own 200 m default. The box explains the
+    symptom; it does not give us a knob. This is why the useAbstractGraphs
+    override stays the product fix rather than a workaround.
 
 H2. Abstract graphs are a genuine hierarchical layer, generated at NavData
     generation time, and they are documented as COST-BLIND and STATIC:
@@ -227,28 +250,34 @@ What VR-Forces adds on top (headers, read directly):
   chord by 231-292 m on exactly the legs the flat query refused. A route that
   must deviate more than 200 m is, by the vendor's own sentence, not merely
   slow to find - it is unreachable.
-- Corollary that matters more than the flag: raising propagation-box-extent
-  would give us a FINE mesh path (7-9 m spacing, per G7B's flat-query column)
-  that still carries NavTag and slope costs, whereas the abstract flag gives
-  a coarse path whose top layer is documented as cost-blind. If the box is
-  the mechanism, it is the better fix.
+- The corollary this document originally drew here - "raise the box and get a
+  FINE path that still carries the costs the abstract layer discards" - is
+  WITHDRAWN. It was the right trade to want and there is no way to buy it:
+  the box is not settable for a platform that has no NavBot. The consequence
+  is that we do NOT get to keep a fine-grained cost-bearing long path. The
+  abstract override is the only configuration that answers a long query, and
+  its top layer is cost-blind, so the cost model has to be made to bite in
+  the part that IS refined - which is what section 3.5 R-a does.
 
 1.3 Confidence
 
 - What an AbstractGraph is, how it is generated, that it is static and
   cost-blind, that the path is refined after it: HIGH (primary vendor docs,
   quoted).
-- That the 200 m propagation box is THE cause of our refusals: MEDIUM. It is
-  the only documented mechanism that predicts a deviation-dependent refusal,
-  and G7b's cross-track measurement lands on the right side of the threshold.
-  It is NOT proven, and one row in our own record argues against a purely
-  geometric explanation: run A and run D both planned M1A2 1's outbound
-  5,013.7 m query with 718 points, and run B - which differs from A only by
-  gamewareMemorySize 128 - refused the identical query. A pure geometry gate
-  is deterministic per (start, goal) pair; that row is not. So either the box
-  is necessary-but-not-sufficient (box admits the route, working memory or
-  query slicing then decides), or something else is also in play. Do not
-  write "the propagation box is the cause" anywhere until a run tests it.
+- That the 200 m propagation box is THE cause of our refusals: MEDIUM, and
+  now UNTESTABLE BY CONFIGURATION. It is the only documented mechanism that
+  predicts a deviation-dependent refusal, and G7b's cross-track measurement
+  lands on the right side of the threshold. It is NOT proven, and one row in
+  our own record argues against a purely geometric explanation: run A and run
+  D both planned M1A2 1's outbound 5,013.7 m query with 718 points, and run B
+  - which differs from A only by gamewareMemorySize 128 - refused the
+  identical query. A pure geometry gate is deterministic per (start, goal)
+  pair; that row is not. So either the box is necessary-but-not-sufficient
+  (box admits the route, working memory or query slicing then decides), or
+  something else is also in play. Since the value cannot be changed from
+  configuration for a vehicle, settling this would need C++ or a vendor
+  question, and neither is worth spending on: the AG override already gets
+  us a long route. Do not write "the propagation box is the cause" anywhere.
 - One doc-derived caution on gamewareMemorySize that explains B without
   inventing anything: vrfSim.mtl says "Multiple working memory blocks are
   allocated with this limit, so this is not an overall limit for GameWare."
@@ -766,30 +795,32 @@ NECESSARY - the docs raise these, and only a run can close them
 
 | run | what it tests | why it is now first |
 |---|---|---|
-| N1. propagation-box-extent raised (e.g. 200 -> 2000) in an SMS-overridden copy of platforms/Ground_Vehicle.ope, stock Lua (flat query), 1-35 ridge lane | Does the long flat query stop refusing? | It is the ONLY documented mechanism that predicts deviation-dependent refusal, it was never varied, and G7b measured the successful abstract route at 231-292 m cross-track - outside the 200 m corridor. If it works it also returns a FINE path (7-9 m) that keeps slope and NavTag costs, which the abstract flag does not. Single variable. |
-| N2. N1 plus slope-avoidance-factor 1.0 -> 2.0 in an SMS-overridden copy of systems/movement/ground-tracked.sysdef | With the query succeeding, does the cost model now route around the 55 m face? | This is the first configuration in which the planner is both ABLE to answer and ABLE to refuse the face. 2.0 is not tuned: it puts the no-go threshold exactly at max-slope x acceleration-factor. |
-| N3. The ridge-AG run, if and only if N1 refuses | Whether abstract graphs remain the only way to get a long route at all | See section 7. |
+| ~~N1. propagation-box-extent raised~~ | REFUTED, DO NOT RUN | Ground_Vehicle.ope:520 selects the dynamic-obstacle nav interface for LOCAL objects too; that interface builds no NavBot, so the parameter is never read. There is nothing to vary. See the amendment at the top. |
+| N2b. AG override (useAbstractGraphs=true) PLUS slope-avoidance-factor 1.0 -> 2.0 in an SMS-overridden copy of systems/movement/ground-tracked.sysdef, on the 1-35 ridge lane | With a query that answers, does the cost model now refuse the 55 m face in the refined part of the path? | This is now the FIRST and only configuration in which the planner is both ABLE to answer a long query and ABLE to call the face no-go. 2.0 is not tuned: it puts the no-go threshold exactly at max-slope x acceleration-factor = 0.752. |
 
 Two mechanical notes for whoever writes the prereg:
-- Both N1 and N2 are shipped-configuration edits carried by the SAME custom
-  including-SMS mechanism that already carries the Lua override at
-  C:\C2SIM\vrf-sms. VERIFY FIRST that the include mechanism covers
-  platforms\ and systems\movement\ and not only scripts\ - that is a
-  read-only check of the .sms file, not a run.
-- vrfobjcore.dll's parameter-name string table contains propagation-box-extent,
-  min-abstract-graph-replan-distance, radius-factor and
-  enable-path-plan-timing alongside the three parameters the header's doc
-  comment lists (navigation-method, use-abstract-graph,
-  min-abstract-graph-replan-distance). The header comment at
-  activeBotNavInterface.h:248-253 is therefore INCOMPLETE, not authoritative,
-  and the .ope's propagation-box-extent line is read. Treat the binary string
-  as supporting evidence only; the run is the proof.
+- N2b is a shipped-configuration edit carried by the SAME custom including-SMS
+  mechanism that already carries the Lua override at C:\C2SIM\vrf-sms.
+  VERIFY FIRST that the include mechanism covers systems\movement\ and not
+  only scripts\ - that is a read-only check of the .sms file, not a run.
+- A METHOD WARNING, from the mistake this amendment corrects. The first issue
+  of this document argued that propagation-box-extent is live because the
+  parameter NAME appears in vrfobjcore.dll's string table and in the .ope.
+  Both were true and the conclusion was still wrong: a parameter can be
+  parsed into a descriptor and then consumed by nobody, because the object
+  never constructs the component that reads it. The string table proves a
+  parser exists, never that a consumer runs. Before treating any .ope
+  navigation parameter as a lever, check which nav-interface that platform
+  selects in its local-objects section - "active-bot" means a NavBot exists
+  and the NavBot parameters are live; "dynamic-obstacle" means they are not.
 
 
 7. VERDICT ON THE RIDGE TEST
 -----------------------------
 
-REDESIGN IT, and reorder it behind one cheaper run. As PREREG_RIDGE_AG stands,
+REDESIGN IT - and after the amendment above, the redesign is SMALLER than the
+first issue of this document proposed, because the cheaper run it wanted to
+put first does not exist. As PREREG_RIDGE_AG stands,
 the abstract-graph run on the 1-35 ridge lane is built to falsify "abstract
 graphs return something USEFUL" by seeing whether the coarse route avoids the
 55 m face. The documentation now answers a large part of that before the sim
@@ -804,23 +835,24 @@ froze at 1.97 km" outcome would therefore be over-determined by three
 independent documented causes - cost-blind coarse layer, unreachable no-go
 gate, and (if the query falls back) a feature planner the Users Guide says
 ignores slope entirely - and would not distinguish among them, which is
-precisely the failure mode the run was designed to avoid. The higher-value
-sequence is N1 then N2: first raise propagation-box-extent, the one documented
-mechanism that fits the refusal pattern and the one knob we never touched, and
-see whether the ordinary fine-grained flat query starts answering long legs
-(if it does, it is strictly better than the abstract flag, because it keeps
-the cost model the abstract layer discards, and the whole "should we adopt
-useAbstractGraphs=true" question may simply dissolve); then, with a query that
-answers, raise slope-avoidance-factor to 2.0 so that the no-go boundary sits
-exactly where MAK's own documentation says the vehicle stops being able to
-accelerate, and watch whether the planned leg bends around the face. Keep the
-abstract-graph ridge run as N3, to be spent only if N1 refuses - at which
-point it stops being "is the flag useful?" and becomes "is the flag the only
-way to get a long route at all?", a question worth a run. And note the
-interaction that outranks all of them: regenerating the area with a lower
-slope-max (remedy R-b) must NOT be attempted before N1 settles, because
-excising the face forces larger deviations and a 200 m corridor would refuse
-even more often than it does today.
+precisely the failure mode the run was designed to avoid. The fix is to change
+ONE more thing in the same run rather than to schedule another one: keep the
+abstract-graph SMS, which is the only configuration that answers a long query
+at all and is therefore a precondition rather than a variable, and add
+slope-avoidance-factor 2.0 so the no-go boundary sits exactly where MAK's own
+documentation says the vehicle stops being able to accelerate. That is N2b,
+and it has a sharp prereg prediction either way: the refined portion of the
+path bends around the 55 m face, or it drives across it - and if it drives
+across it with the gate armed, the cost model itself is refuted for this
+terrain and the answer moves to remedy R-b (regenerate with a lower slope-max)
+or R-e (our own leg check), not to another flag. Two cautions carry forward.
+First, the abstract layer is cost-blind, so N2b tests whether LOCAL refinement
+is enough; a coarse route that aims at the face may not be rescuable by a
+300 m replan window, and that is a real possible outcome, not a null result.
+Second, remedy R-b must not be attempted casually now: excising the face
+forces larger deviations, the flat query's 200 m corridor is not raisable for
+a vehicle, and so a lower slope-max would push more queries onto the abstract
+path rather than onto a better fine one.
 
 
 8. SOURCES
@@ -887,7 +919,17 @@ MAK, installed 5.2d tree (all read this session, read-only)
 - C:\MAK\vrforces5.2d\data\simulationModelSets\EntityLevel\scripts\
   Move_Between_Cover_To_Location.lua:122-127
 - C:\MAK\vrforces5.2d\data\simulationModelSets\EntityLevel\vrfSim\platforms\
-  Ground_Vehicle.ope:16-35 (navigation-parameters), :475 (max-slope binding)
+  Ground_Vehicle.ope:16-35 (navigation-parameters), :475 (max-slope binding),
+  :510-520 local-objects (nav-interface "dynamic-obstacle") and :522-532
+  remote-objects (same) - the lines that refute N1
+- C:\MAK\vrforces5.2d\data\simulationModelSets\EntityLevel\vrfSim\platforms\
+  Animal.ope:431 (nav-interface "active-bot", local) and :443
+  ("dynamic-obstacle", remote) - the contrast case
+- C:\MAK\vrforces5.2d\include\vrfobjcore\dynamicObstacleNavInterface.h:19-21
+  ("not using the navigation system to plan paths")
+- C:\MAK\vrforces5.2d\include\vrfobjcore\vrfObjectNavInterface.h:34-38
+  ("The type of nav interface used for a particular type of object is defined
+  in the .ope file ... in the local-objects and remote-objects sections")
 - C:\MAK\vrforces5.2d\data\simulationModelSets\EntityLevel\vrfSim\systems\
   movement\ground-tracked.sysdef:75-134 (navigation-preference controller),
   :787-830 (soil-factors)
