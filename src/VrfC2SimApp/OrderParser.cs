@@ -75,6 +75,7 @@ public static class OrderParser
                 ActionCode = m.TaskActionCode.ToString(),
                 RuleOfEngagementCode = RoeCodeOf(m.RuleOfEngagement),
                 MapGraphicUuid = FirstOrEmpty(m.MapGraphicID),
+                MapGraphicUuids = AllNonEmpty(m.MapGraphicID),
                 SimulationStartMs = simMs,
                 StartAfterTaskUuid = startAfter,
                 RelativeDelayMs = relMs,
@@ -164,6 +165,12 @@ public static class OrderParser
 
     private static string FirstOrEmpty(string[] arr)
         => (arr ?? Array.Empty<string>()).FirstOrDefault(s => !string.IsNullOrWhiteSpace(s))?.Trim() ?? "";
+
+    /// <summary>R1: every non-blank entry, in document order (MapGraphicID is a LIST in the
+    /// schema, and a task that names several graphics means all of them).</summary>
+    private static IReadOnlyList<string> AllNonEmpty(string[] arr)
+        => (arr ?? Array.Empty<string>()).Where(s => !string.IsNullOrWhiteSpace(s))
+                                         .Select(s => s.Trim()).ToArray();
 
     /// <summary>
     /// Faithful port of C2SIMxmlHandler::findTotalIsoMs (C2SIMxmlHandler.cpp:245).

@@ -16,6 +16,13 @@ public record OrderTask
     public string RuleOfEngagementCode { get; init; } = "";  // WeaponRuleOfEngagementCode (e.g. "ROETight")
     public string MapGraphicUuid { get; init; } = "";        // MapGraphicID[0] (route/graphic ref; empty = inline points)
 
+    // R1 (transition): EVERY MapGraphicID the task carries, in order. The schema allows a list
+    // (ManeuverWarfareTask/MapGraphicID[], :4080) and a task may name several graphics - an
+    // attack position and then an objective, say - so the resolved geometry is their sequence.
+    // COA-STP1 carries NONE: STP emits MapGraphicID only when IncludeMapGraphicIdInTasks is set
+    // (an STP-side export defect, STP-801), which is why the embedded Location path stays.
+    public IReadOnlyList<string> MapGraphicUuids { get; init; } = Array.Empty<string>();
+
     // Inline task Location points (used when MapGraphicUuid is empty). Elev is null when
     // the point carries no altitude (the executor ground-clamps to 100 for ground units).
     public List<(double Lat, double Lon, double? Elev)> Points { get; init; } = new();

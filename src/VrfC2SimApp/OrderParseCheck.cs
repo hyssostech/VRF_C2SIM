@@ -28,7 +28,7 @@ public static class OrderParseCheck
             Console.WriteLine($"    taskee(PerformingEntity): {t.TaskeeUuid}");
             Console.WriteLine($"    action: {t.ActionCode}   ROE: {Blank(t.RuleOfEngagementCode)}");
             Console.WriteLine($"    affectedEntity: {Blank(t.AffectedEntity)}");
-            Console.WriteLine($"    mapGraphic: {(t.MapGraphicUuid.Length == 0 ? "(none -> inline points)" : t.MapGraphicUuid)}");
+            Console.WriteLine($"    mapGraphic: {(t.MapGraphicUuids.Count == 0 ? "(none -> embedded Location, STP-801)" : string.Join(", ", t.MapGraphicUuids))}");
             Console.WriteLine($"    points: {t.Points.Count}");
             foreach (var p in t.Points)
                 Console.WriteLine($"      {p.Lat.ToString("R", CultureInfo.InvariantCulture)}," +
@@ -47,6 +47,17 @@ public static class OrderParseCheck
         // R4 SELF-TEST (a): the census the ruling is checked against - how many tasks carry a
         // Duration and a StartTime at all, and the histogram of the values. COA-STP1_Order.xml is
         // expected to print 42 / 42 with 32 x 4800000 + 10 x 7200000 and 41 x 0 + 1 x 12000000.
+        // R1: which geometry path this order will take, task by task, before any run.
+        int withGraphic = data.Tasks.Count(t => t.MapGraphicUuids.Count > 0);
+        Console.WriteLine("=== R1 geometry census ===");
+        Console.WriteLine($"tasks with a MapGraphicID: {withGraphic} of {data.Tasks.Count}");
+        Console.WriteLine($"tasks on the embedded Location: " +
+                          $"{data.Tasks.Count(t => t.MapGraphicUuids.Count == 0 && t.Points.Count > 0)} " +
+                          $"of {data.Tasks.Count}" + (withGraphic == 0 ? " (STP-801: the export carries none)" : ""));
+        Console.WriteLine($"tasks with NO geometry at all: " +
+                          $"{data.Tasks.Count(t => t.MapGraphicUuids.Count == 0 && t.Points.Count == 0)} " +
+                          $"of {data.Tasks.Count} (R2 executes these at the performing unit's position)");
+
         Console.WriteLine("=== R4 timing census ===");
         Console.WriteLine($"durations present: {data.Tasks.Count(t => t.DurationMs > 0)} of {data.Tasks.Count}");
         Console.WriteLine($"  histogram: {Histogram(data.Tasks.Select(t => t.DurationMs))}");

@@ -119,6 +119,12 @@ public sealed class VrfC2SimService : BackgroundService
     // guard for areas (units use _unitByC2SimUuid membership for the same purpose).
     private readonly ConcurrentDictionary<string, byte> _createdAreaKeys = new();
 
+    // R1: the init's graphics by the C2SIM uuid they were created under, so a task's MapGraphicID
+    // resolves to the VR-Forces object we already made (createControlArea passes the C2SIM uuid as
+    // startingUUID, VrfFacade.cpp:725-737 - uuid match IS object identity, no mapping table). Areas
+    // today; lines and points join it unchanged when Vrf:CreateInitLines/Points lands.
+    private readonly ConcurrentDictionary<string, TaskGraphic> _graphicsByC2SimUuid = new();
+
     // (The VRF uuid -> name reverse map used by the R4 formation reply and the object console -
     // both carry only a uuid - now lives in _names too: NameRegistry.TryGetName/TryAddName.)
 
@@ -1123,6 +1129,13 @@ public sealed class VrfC2SimService : BackgroundService
             string areaKey = "area:" + (string.IsNullOrEmpty(a.Uuid) ? a.Name : a.Uuid);
             if (!_createdAreaKeys.TryAdd(areaKey, 0)) { duplicates++; continue; }
             var area = a;
+            // R1: register it under its C2SIM uuid BEFORE the create is queued - an order can
+            // arrive while the creates are still draining, and the geometry a MapGraphicID names
+            // is the AUTHORED geometry either way (the create carries these very points).
+            if (!string.IsNullOrEmpty(area.Uuid))
+                _graphicsByC2SimUuid[area.Uuid] = new TaskGraphic(
+                    area.Uuid, area.Name, TaskGraphic.KindArea,
+                    area.Points.Select(pt => (pt.Lat, pt.Lon, (double?)pt.Elev)).ToList());
             _names.Requested(area.Name);   // B3: so an area's ObjectCreated is an EXACT match, not a prefix scan
             _tickActions.Enqueue(() =>
             {
@@ -2059,6 +2072,18 @@ public sealed class VrfC2SimService : BackgroundService
             return;
         }
 
+        // R1 - WHERE THIS TASK'S GEOMETRY COMES FROM. MapGraphicID(s) resolved against the
+        // graphics created at init win; the task's embedded Location - valid C2SIM, and what STP
+        // exports today - is used when they are absent or match nothing. The lines say WHICH path
+        // was taken, on every task, so a run log answers the question without inference.
+        // Logged on the FIRST pass only: the TerrainProfile reply re-enters this method with the
+        // same task and would otherwise say it all twice.
+        var geometry = TaskGeometryResolver.Resolve(task, _graphicsByC2SimUuid);
+        if (terrainRoute == null)
+            foreach (var line in geometry.Log)
+                _log.LogInformation("Task '{Task}': {Line}.", task.TaskName, line);
+        var taskPoints = geometry.Points;
+
         // OBSERVATION CHANNEL: a template unit's members were created by the sim, not by us, so
         // ObjectCreated never opened THEIR consoles. Open them now (Vrf:ObjectConsoleNotifyLevel
         // >= 0) from the aggregate's published member list, so the per-member offset-route /
@@ -2185,7 +2210,7 @@ public sealed class VrfC2SimService : BackgroundService
         // air-defence chain T9-T12 exactly that way). The decision table is TaskDispatchPolicy -
         // the performer is resolved by construction here (every path that could not resolve it has
         // already returned above), so the only outcomes reachable are the three that EXECUTE.
-        if (task.Points.Count == 0)
+        if (taskPoints.Count == 0)
         {
             var zeroGeometry = TaskDispatchPolicy.ForZeroGeometry(
                 performerResolved: true, hasAttackTarget: attackTargetVrf != null,
@@ -2248,12 +2273,12 @@ public sealed class VrfC2SimService : BackgroundService
         // Drop the LEADING task points that sit on the authored origin when the unit is no longer
         // there - never all of them (a task whose only point is the origin keeps it).
         int skip = 0;
-        if (_vrf.DropOriginVertexMeters > 0 && task.Points.Count > 1
+        if (_vrf.DropOriginVertexMeters > 0 && taskPoints.Count > 1
             && _authoredPosByName.TryGetValue(unit.Name, out var authored)
             && TerrainVertexAuthoring.DistMeters(live.LatDeg, live.LonDeg, authored.Lat, authored.Lon) > _vrf.DropOriginVertexMeters)
         {
-            while (skip < task.Points.Count - 1
-                   && TerrainVertexAuthoring.DistMeters(task.Points[skip].Lat, task.Points[skip].Lon, authored.Lat, authored.Lon) <= _vrf.DropOriginVertexMeters)
+            while (skip < taskPoints.Count - 1
+                   && TerrainVertexAuthoring.DistMeters(taskPoints[skip].Lat, taskPoints[skip].Lon, authored.Lat, authored.Lon) <= _vrf.DropOriginVertexMeters)
                 skip++;
             if (skip > 0)
                 _log.LogInformation("Task '{Task}': dropped {N} leading route point(s) on {Name}'s authored origin " +
@@ -2261,7 +2286,7 @@ public sealed class VrfC2SimService : BackgroundService
                                     task.TaskName, skip, unit.Name, authored.Lat, authored.Lon,
                                     TerrainVertexAuthoring.DistMeters(live.LatDeg, live.LonDeg, authored.Lat, authored.Lon));
         }
-        foreach (var p in task.Points.Skip(skip))
+        foreach (var p in taskPoints.Skip(skip))
             routeGeo.Add(new Geodetic
             {
                 LatDeg = p.Lat,

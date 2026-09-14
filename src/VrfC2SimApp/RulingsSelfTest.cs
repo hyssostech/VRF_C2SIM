@@ -29,6 +29,8 @@ public static class RulingsSelfTest
         R2(ref failures);
         Console.WriteLine("=== R3: the target IS the objective ===");
         R3(ref failures);
+        Console.WriteLine("=== R1 (transition): MapGraphicID -> the graphic created at init ===");
+        R1(ref failures);
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
         return failures == 0 ? 0 : 1;
     }
@@ -242,6 +244,130 @@ public static class RulingsSelfTest
               && TaskDispatchPolicy.FallsBackToGeometry(TargetResolution.NoTarget),
               "an unresolved or absent target falls back to the task's geometry, not to a refusal");
     }
+
+    // ---------------------------------------------------------------- R1 ----
+    private static void R1(ref int failures)
+    {
+        // The init's graphics, as the service registers them: one AREA (a square around
+        // 34.5 / -116.5, centroid exactly at its centre) and one LINE.
+        const string objMadison = "11111111-2222-3333-4444-555555555555";
+        const string plBlue = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+        var graphics = new Dictionary<string, TaskGraphic>(StringComparer.Ordinal)
+        {
+            [objMadison] = new TaskGraphic(objMadison, "OBJ_MADISON", TaskGraphic.KindArea,
+                new[] { (34.4, -116.6, (double?)null), (34.6, -116.6, (double?)null),
+                        (34.6, -116.4, (double?)null), (34.4, -116.4, (double?)null) }),
+            [plBlue] = new TaskGraphic(plBlue, "PL_BLUE", "line",
+                new[] { (35.0, -117.0, (double?)null), (35.1, -117.1, (double?)null) }),
+        };
+        var embedded = new List<(double Lat, double Lon, double? Elev)>
+            { (33.0, -115.0, null), (33.1, -115.1, null) };
+
+        // (e1) A MapGraphicID that matches an init graphic resolves to THAT graphic's geometry -
+        //      an area to its centroid - and says so.
+        {
+            var task = new OrderTask
+            {
+                TaskName = "T2_PL_OBJ_MADISON",
+                MapGraphicUuid = objMadison,
+                MapGraphicUuids = new[] { objMadison },
+                Points = new List<(double, double, double?)>(embedded),
+            };
+            var r = TaskGeometryResolver.Resolve(task, graphics);
+            bool centroid = r.Points.Count == 1
+                            && Math.Abs(r.Points[0].Lat - 34.5) < 1e-9
+                            && Math.Abs(r.Points[0].Lon + 116.5) < 1e-9;
+            Check(ref failures, r.Source == GeometrySource.MapGraphic && centroid,
+                  $"a MapGraphicID matching an init AREA resolves to its centroid " +
+                  $"(source {r.Source}, {r.Points.Count} point(s))");
+            Check(ref failures, r.Log.Any(l => l.Contains("geometry from MapGraphicID")
+                                            && l.Contains(objMadison) && l.Contains("OBJ_MADISON")),
+                  "... and logs \"geometry from MapGraphicID <uuid> -> <name>\"");
+        }
+
+        // (e2) Several MapGraphicIDs become the sequence of their geometries - a LINE contributes
+        //      its vertices, in order. No verb-typed interpretation of the points (V4b, separate).
+        {
+            var task = new OrderTask
+            {
+                TaskName = "T_Multi",
+                MapGraphicUuids = new[] { objMadison, plBlue },
+                Points = new List<(double, double, double?)>(),
+            };
+            var r = TaskGeometryResolver.Resolve(task, graphics);
+            Check(ref failures, r.Source == GeometrySource.MapGraphic && r.Points.Count == 3
+                             && Math.Abs(r.Points[1].Lat - 35.0) < 1e-9
+                             && Math.Abs(r.Points[2].Lat - 35.1) < 1e-9,
+                  $"several MapGraphicIDs resolve to route vertices in order (got {r.Points.Count})");
+        }
+
+        // (e3) NO MapGraphicID - every COA-STP1 task today - uses the embedded Location, which is
+        //      valid C2SIM and stays supported, and the line says which path was taken.
+        {
+            var task = new OrderTask
+            {
+                TaskName = "T1_AOA_SE_1-35_AR",
+                Points = new List<(double, double, double?)>(embedded),
+            };
+            var r = TaskGeometryResolver.Resolve(task, graphics);
+            Check(ref failures, r.Source == GeometrySource.EmbeddedLocation && r.Points.Count == 2
+                             && Math.Abs(r.Points[0].Lat - 33.0) < 1e-9,
+                  $"no MapGraphicID -> the embedded Location, unchanged (source {r.Source})");
+            Check(ref failures, r.Log.Any(l => l.Contains("geometry from embedded Location")
+                                            && l.Contains("STP-801")),
+                  "... and logs \"geometry from embedded Location (no MapGraphicID - STP-801)\"");
+        }
+
+        // (e4) A MapGraphicID that matches NOTHING falls back to the embedded Location, says the
+        //      id matched nothing, and still carries the STP-801 marker.
+        {
+            var task = new OrderTask
+            {
+                TaskName = "T_Unknown_Graphic",
+                MapGraphicUuids = new[] { "00000000-0000-0000-0000-000000000000" },
+                Points = new List<(double, double, double?)>(embedded),
+            };
+            var r = TaskGeometryResolver.Resolve(task, graphics);
+            Check(ref failures, r.Source == GeometrySource.EmbeddedLocation && r.Points.Count == 2,
+                  $"an unmatched MapGraphicID falls back to the embedded Location (source {r.Source})");
+            Check(ref failures, r.Log.Any(l => l.Contains("matched no object created at init"))
+                             && r.Log.Any(l => l.Contains("geometry from embedded Location")
+                                            && l.Contains("STP-801")),
+                  "... and says the id matched nothing, with the STP-801 marker");
+        }
+
+        // (e5) NO geometry at all is still no geometry - R2 executes it in place.
+        {
+            var task = new OrderTask { TaskName = "T9_ProvideAirDefenseCoverage" };
+            var r = TaskGeometryResolver.Resolve(task, graphics);
+            Check(ref failures, r.Source == GeometrySource.None && r.Points.Count == 0,
+                  "a task with neither a MapGraphicID nor a Location has no geometry (R2 takes it)");
+        }
+
+        // (e6) THE PARSER lifts every MapGraphicID the schema allows, not just the first.
+        {
+            var parsed = OrderParser.Parse(TwoGraphicOrderXml(objMadison, plBlue));
+            Check(ref failures, parsed.Tasks.Count == 1 && parsed.Tasks[0].MapGraphicUuids.Count == 2
+                             && parsed.Tasks[0].MapGraphicUuids[0] == objMadison
+                             && parsed.Tasks[0].MapGraphicUuids[1] == plBlue
+                             && parsed.Tasks[0].MapGraphicUuid == objMadison,
+                  "OrderParser lifts ALL MapGraphicIDs in document order (and keeps the first)");
+        }
+    }
+
+    /// <summary>A minimal, schema-shaped order carrying two MapGraphicIDs on one task.</summary>
+    private static string TwoGraphicOrderXml(string firstUuid, string secondUuid) =>
+        "<OrderBody xmlns=\"http://www.sisostds.org/schemas/C2SIM/1.1\">"
+        + "<OrderID>rulings-selftest</OrderID>"
+        + "<Task><ManeuverWarfareTask>"
+        + "<MapGraphicID>" + firstUuid + "</MapGraphicID>"
+        + "<MapGraphicID>" + secondUuid + "</MapGraphicID>"
+        + "<Name>T_TwoGraphics</Name>"
+        + "<UUID>99999999-9999-9999-9999-999999999999</UUID>"
+        + "<PerformingEntity>88888888-8888-8888-8888-888888888888</PerformingEntity>"
+        + "<TaskActionCode>ATTACK</TaskActionCode>"
+        + "</ManeuverWarfareTask></Task>"
+        + "</OrderBody>";
 
     private static void Check(ref int failures, bool ok, string label)
     {
