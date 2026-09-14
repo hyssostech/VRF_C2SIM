@@ -89,5 +89,21 @@ ATTEMPT 3: performer = the tank platoon 1222.MechPlt (an aggregate; its members 
 maneuver-in-formation - the proven G1 mover), route re-derived from its position with the same seam design and
 150 m margins for the formation spread; order without blank lines. Predictions P17a-P17d unchanged in substance;
 P17e withdrawn (the marking width is >= 11).
+ATTEMPT 3 (run 20260914T130439Z, 13:04Z; performer 1222.MechPlt as Tank Platoon (USA) = 4 M1A2 under the
+no-lifeform map; order v3, no blank lines): VOID, and the reason is a FINDING. The four members were created at
+order time (CreationPolicy=AtOrder) at wall ~25 and ALL 18 of their goals (slot moves, V1, V2, V3) fired between
+wall 25.6 and 59.2 (the 4-tank sim ran ~15x real time; the tanks drove the whole 7.6 km route to V3 by wall ~60,
+net 7,516-7,615 m each). Every one of the 18 goals FAILED the 'Is current point in nav area?' condition (18 'fail
+in action' rows; the destination gate was never evaluated; 18 'Planned path has 1 parts' = feature planner), and
+the area's 'New Primary nav area: NavArea-ground-platform MojaveCOA' rows for the 4 members + the shell arrived at
+wall 201.4 - 140 s AFTER the last goal. The sectorised area loads LAZILY after entities are placed (vrfSim.mtl:433-436
+loadAllNavigationDataOnTerrainLoad default 0: 'navigation data will be loaded when an entity is placed'; UG52 App. C
+p1671), and under AtOrder the members are created and tasked in the same second, so NO first leg is ever mesh-planned
+in that flow. Same mechanism seen before and misread as a race: G3's 69 early current-point failures, G6's 54 before
+wall 60. Consequence for the demo: with the default AtOrder policy the mesh is never consulted for the first legs.
+ATTEMPT 4: CreationPolicy=AtInit (members exist from init) + a pre-order settle >= 240 s (runner -PreOrderSettleSecs,
+being added) so the area's rows precede the first goal; the harvest must show the 'New Primary nav area' rows BEFORE
+the first goal row for each member. Vendor-side fix (loadAllNavigationDataOnTerrainLoad 1 in a relocated appData,
+sanctioned) being prepared in parallel for the demo flow.
 (to be written from the harvest; verdict table per leg: seams / gate cur / gate dest / mesh outcome /
 N points / gate->outcome s / vertex reached)
