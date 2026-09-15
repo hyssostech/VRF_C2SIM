@@ -1807,9 +1807,16 @@ DEPLOY SET:
   three placeholder uuids (VRF_UUID:0:0:0-control-object/-entity/-unit), never the scenario's objects; ResetVrf
   printed a successful 'reset' that deleted NOTHING (false green); SetSimRate/CreateTaskAgg refused correctly.
   VrfC2SimApp in the same federation had BackendCount=1 (explicit Vrf__ConnectionConfigFile + the runner's
-  MAK_VRLDIR/MAK_VRFDIR env); a probe with MAK_VRFDIR(64)=5.2d alone did not help. Cause + fix on branch
-  fix/tools-connection-config (tools resolve/print the connection config like the app, ResetVrf waits for a
-  back end and refuses without one); V6b rerun owed with scratchpad validation/v6b_gates.ps1.
+  MAK_VRLDIR/MAK_VRFDIR env); a probe with MAK_VRFDIR(64)=5.2d alone did not help. CAUSE OPEN (harvest 04:05Z,
+  branch fix/tools-connection-config 89639c2): the null-connection-config hypothesis was FALSIFIED offline - the
+  vendor default resolves cwd-relative to ../appData/settings/connections/MAK-ONE-2025-Config.xml, which EXISTED
+  from the bin64 cwd the gates had, and no gate log carries the vendor's 'Unable to load configuration file' line;
+  the 0:0:0-* uuids are DtNonVrfUUIDResolver placeholders (one per reflected list, null DIS id) - the tools were
+  in the right federation with discovery working but received NO attribute data and NO back-end status;
+  MAK_VRLDIR/MAK_VRFDIR are read by no bridge DLL. The branch is HARDENING (explicit --config > env > stack-derived
+  path, printed before Start; ResetVrf refuses without a back end and never counts placeholders) and does not
+  explain the symptom. V6b = the discriminating probe (gate 1 twice: full runner env only vs --config only; secs
+  7b/8.0) with scratchpad validation/v6b_gates.ps1.
 
   (`bridge-spikes/VrfBridgeSpike/SpikeRunner` is NOT one of them - it references
   `VrfBridge.Spike.dll`, a different artefact, and is not part of a deploy.)

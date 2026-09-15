@@ -2872,6 +2872,7 @@ join) are BURNED, not recycled. The run manifest records which were actually use
 
 
 CLAIMED 2026-09-15 03:51 by scripts/RunC2SimScenario.ps1 (run 20260915T035132Z_run). Ledgered BEFORE any join,
+  *** RUN VOIDED (seat error: DOUBLE LAUNCH 2 s apart; the other runner's teardown stopped the sim under this one's order, or vice versa) - every number below is BURNED/CONSUMED-VOID; V8z rerun = the 04:1x block. ***
 per the never-reuse non-negotiable. Annotate with results from the run manifest.
 - 4407: CLAIMED - LaunchVrf52.ps1 back-end (vrfSimHLA1516e), 5.2d independent mode
 - 4408: CLAIMED - LaunchVrf52.ps1 front-end (vrfGui), 5.2d independent mode (allocated even with -NoGui, then BURNED)
@@ -2885,6 +2886,7 @@ join) are BURNED, not recycled. The run manifest records which were actually use
 
 
 CLAIMED 2026-09-15 03:51 by scripts/RunC2SimScenario.ps1 (run 20260915T035134Z_run). Ledgered BEFORE any join,
+  *** RUN VOIDED (seat error: DOUBLE LAUNCH 2 s apart; the other runner's teardown stopped the sim under this one's order, or vice versa) - every number below is BURNED/CONSUMED-VOID; V8z rerun = the 04:1x block. ***
 per the never-reuse non-negotiable. Annotate with results from the run manifest.
 - 4414: CLAIMED - LaunchVrf52.ps1 back-end (vrfSimHLA1516e), 5.2d independent mode
 - 4415: CLAIMED - LaunchVrf52.ps1 front-end (vrfGui), 5.2d independent mode (allocated even with -NoGui, then BURNED)
@@ -2896,7 +2898,20 @@ per the never-reuse non-negotiable. Annotate with results from the run manifest.
 NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
 join) are BURNED, not recycled. The run manifest records which were actually used.
 
-*** NEXT FREE: 4421 *** (authoritative - the ONLY such marker in this file. Update this
+
+CLAIMED 2026-09-15 04:10 by scripts/RunC2SimScenario.ps1 (run 20260915T041036Z_run). Ledgered BEFORE any join,
+per the never-reuse non-negotiable. Annotate with results from the run manifest.
+- 4421: CLAIMED - LaunchVrf52.ps1 back-end (vrfSimHLA1516e), 5.2d independent mode
+- 4422: CLAIMED - LaunchVrf52.ps1 front-end (vrfGui), 5.2d independent mode (allocated even with -NoGui, then BURNED)
+- 4423: CLAIMED - WatchVrf ADVISORY pre-init oracle pre-check (RUNBOOK 0.5.7)
+- 4424: CLAIMED - WatchVrf MAIN run trace - the movement oracle / scoring input
+- 4425: CLAIMED - VrfC2SimApp Vrf__ApplicationNumber (the interface federate)
+- 4426: CLAIMED - tools/RtiProbe - STAGE 2c PRE-LAUNCH RTI READINESS GATE (C1). Throwaway create-or-join against the federation with internal retry+backoff, then clean resign, BEFORE the back-end launches (RTI_LAUNCH_HARDENING_DESIGN.md A2-A7 - the RUN-2 fix). CONSUMED on EVERY run (the gate always runs pre-launch). One number covers all internal retries - RtiProbe reuses this single appNumber across attempts by design.
+- 4427: CLAIMED - tools/CreateOne - STAGE 7b FAILURE-PATH DIAGNOSTIC ONLY (RUNBOOK 0.5.7 STRONGER CHECK). CONSUMED ONLY IF THE ORACLE GATE FAILS; on a healthy run it is NEVER JOINED and this number goes UNCONSUMED. Unconsumed numbers are BURNED, never recycled - see the NOTE below. Allocated here rather than mid-run because every number must be ledgered BEFORE any join.
+NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
+join) are BURNED, not recycled. The run manifest records which were actually used.
+
+*** NEXT FREE: 4428 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
