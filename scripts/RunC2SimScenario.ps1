@@ -2380,6 +2380,7 @@ if ($StopWhenComplete -and $OrderTaskees.Count -eq 0) {
 # offline; the file/process I/O below cannot be pure and stays here.
 Say-Head 'Stage 1a - runner launch lock'
 
+$script:RunnerLockTaken = $false   # initialised BEFORE any path that can reach the outer finally (dry runs and early aborts never take the lock)
 $PathRunnerLock = Join-Path $RunRoot 'runner.lock'
 # The run directory THIS invocation would create if it gets past Stage 1/2 (the
 # REAL $RunId/$RunDir are computed later, under "RUN DIRECTORY + DERIVED PATHS",
