@@ -2937,10 +2937,10 @@ NOTE: numbers this runner allocates but does not consume (e.g. an abort before t
 join) are BURNED, not recycled. The run manifest records which were actually used.
 
 CLAIMED 2026-09-15 12:20 by the seat for V6c (PREREG_V6C_LATE_JOINER_2026-09-15.md; the quiet 6-unit fixture; the runner claims its own numbers). ONE NUMBER PER JOIN.
-- 4445: CLAIMED - tools/SetSimRate 1 --settle-secs 15, V6c arm A3 (EARLY: fired between VR-Forces READY and PushInit, the app's join window)
-- 4446: CLAIMED - tools/SetSimRate 1 --settle-secs 180, V6c arm A1 (PATIENCE: fired at t+180 s of the window)
-- 4447: CLAIMED - tools/<per the driver> V6c arm A2 (PROVOKE: one broadcast right after Start, then wait)
-- 4448: CLAIMED - V6c arm A4 (BUSY CONTROL, a second run on the V5 fixture): the late-join tool at t+180 s; BURNED if A4 is not run
+- 4445: CONSUMED 12:22Z V6c A3 HIT (seat-fired, 0.2 s, empty sim) - tools/SetSimRate 1 --settle-secs 15, V6c arm A3 (EARLY: fired between VR-Forces READY and PushInit, the app's join window)
+- 4446: CONSUMED 12:48Z V6c A1 MISS (180 s) - tools/SetSimRate 1 --settle-secs 180, V6c arm A1 (PATIENCE: fired at t+180 s of the window)
+- 4447: CONSUMED 12:52Z V6c A2 PROVOKE_NO_BACKEND - tools/PauseSim resume --provoke --settle-secs 180, V6c arm A2 (PROVOKE: one broadcast right after Start, then wait)
+- 4448: CONSUMED 13:39Z A4 HIT (back end 0.3 s at window+180 on the nav-data fixture) - V6c arm A4 (BUSY CONTROL, a second run on the V5 fixture): the late-join tool at t+180 s; BURNED if A4 is not run
 
 
 CLAIMED 2026-09-15 12:21 by scripts/RunC2SimScenario.ps1 (run 20260915T122145Z_run). Ledgered BEFORE any join,
@@ -2956,7 +2956,7 @@ NOTE: numbers this runner allocates but does not consume (e.g. an abort before t
 join) are BURNED, not recycled. The run manifest records which were actually used.
 
 CLAIMED 2026-09-15 12:31 by the seat for the V6c RERUN (A1/A2 did not fire in run 122145Z - the init was never dispatched; A3 4445 CONSUMED by hand, HIT). New arm:
-- 4456: CLAIMED - tools/SetSimRate 1 --settle-secs 15, V6c arm A5 (POPULATED-QUIET: fired ~30 s after 'Init dispatched', BEFORE PushOrder - objects exist, nothing tasked)
+- 4456: CONSUMED 13:10Z V6d A5 HIT (0.1 s, populated untasked) - tools/SetSimRate 1 --settle-secs 15, V6c arm A5 (POPULATED-QUIET: fired ~30 s after 'Init dispatched', BEFORE PushOrder - objects exist, nothing tasked)
 
 
 CLAIMED 2026-09-15 12:42 by scripts/RunC2SimScenario.ps1 (run 20260915T124231Z_run). Ledgered BEFORE any join,
@@ -2972,7 +2972,7 @@ NOTE: numbers this runner allocates but does not consume (e.g. an abort before t
 join) are BURNED, not recycled. The run manifest records which were actually used.
 
 CLAIMED 2026-09-15 12:57 by the seat for V6d (PREREG_V6C amendment 2: the creation-vs-tasking split, quiet fixture with --pre-order-settle 150). A5 keeps 4456 (unburned in V6c).
-- 4464: CLAIMED - tools/SetSimRate 1 --settle-secs 15, V6d arm A6 (POPULATED + TASKED, at window+120 s; the within-run pair of A5)
+- 4464: CONSUMED 13:14Z V6d A6 MISS (tasked, 15 s) - tools/SetSimRate 1 --settle-secs 15, V6d arm A6 (POPULATED + TASKED, at window+120 s; the within-run pair of A5)
 
 
 CLAIMED 2026-09-15 13:06 by scripts/RunC2SimScenario.ps1 (run 20260915T130627Z_run). Ledgered BEFORE any join,
@@ -3000,7 +3000,10 @@ per the never-reuse non-negotiable. Annotate with results from the run manifest.
 NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
 join) are BURNED, not recycled. The run manifest records which were actually used.
 
-*** NEXT FREE: 4479 *** (authoritative - the ONLY such marker in this file. Update this
+CLAIMED 2026-09-15 13:42 by the seat for V6e (PREREG_V6C amendment 4, the residual-confound run: nav data present with the VENDOR SMS + the 6-unit init + the R5 order):
+- 4479: CLAIMED - tools/SetSimRate 1 --settle-secs 15, V6e late tool at window+180 s
+
+*** NEXT FREE: 4480 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
