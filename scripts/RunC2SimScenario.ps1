@@ -224,6 +224,25 @@
     gate falls back to that fixed hold. GATE OR SETTLE, never one after the other:
     with both given the gate is what is in force and the settle is the fallback.
 
+.PARAMETER PauseAtSec
+    THE Q5 PROBE, PAUSE HALF. 0 (the default) = OFF, and the run is byte-identical
+    to one without this parameter. N > 0 = at t+Ns inside the stage-8b observation
+    window - measured from the moment PushOrder RETURNED, the same clock every
+    other stage-8b message uses - run tools/PauseSim ONCE to PAUSE the scenario
+    (controller->pause() on all back ends) and record the sim time it read either
+    side of the call. It costs ONE ledgered appNumber, claimed at stage 2 like
+    every other and ONLY when this switch is armed.
+
+.PARAMETER ResumeAtSec
+    THE Q5 PROBE, RESUME HALF. 0 (the default) = OFF. M > 0 = at t+Ms in the same
+    window, run tools/PauseSim resume (controller->run() - the vendor's own
+    counterpart to pause; there is no separate resume call). With both given, M
+    MUST be greater than N. It takes its OWN appNumber: each invocation is a whole
+    join/resign cycle, so a pause and a resume are TWO numbers, never one reused
+    (Appendix B, the tools/SetSimRate NOTE: "four invocations, four numbers").
+    THE KILL HALF OF THE Q5 PROBE IS NOT AUTOMATED AND MUST NOT BE: killing a back
+    end is a MANUAL step, RUNBOOK 0.5.14 item 14.
+
 .PARAMETER SettleHoldSecs
     Seconds the ALL-COMPLETE condition must hold before -StopWhenComplete closes
     the window. Default 60. Exists so the movement gate (HEADLESS_RUN_PLAN 4a.1
@@ -436,6 +455,21 @@ param(
     # The gate's own timeout, 30..1800. 300 covers the cold ~240 s with margin. On timeout
     # the run STOPS unless -PreOrderSettleSecs > 0, which then serves as the fallback hold.
     [int] $PreOrderGateTimeoutSec = 300,
+
+    # STAGE 8b - THE Q5 PAUSE/RESUME PROBE. Both 0 (default) = OFF, and a default run is
+    # byte-identical to one without these parameters: no tool is invoked, no appNumber is
+    # claimed for one, and the manifest keeps exactly the shape every run in the record has.
+    #
+    # WHAT IT IS FOR: Q5 says a PAUSED scenario must not age a C2SIM task clock (assessment
+    # live gate 11, validation V5). Proving that live needs the scenario paused mid-run and
+    # resumed - which nothing in the repo could do until tools/PauseSim. The offsets are in
+    # seconds after PushOrder RETURNED and are honoured at POLL granularity (the loop below
+    # polls every 5 s whenever either is armed).
+    # -ResumeAtSec MUST be greater than -PauseAtSec when both are given (stage 0 refuses
+    # otherwise): resuming before the pause would leave the scenario paused for the rest of
+    # the run, which is the one outcome that silently destroys the whole window.
+    [int] $PauseAtSec  = 0,
+    [int] $ResumeAtSec = 0,
 
     # SLACK added on top of a FOREGROUND stage's OWN known blocking budget before
     # the runner declares that stage timed out. An unattended runner must never
@@ -724,6 +758,9 @@ $ExeListenReports = Join-Path $ToolsDir 'ListenReports\bin\Release\net10.0\Liste
 $ExeStopIface     = Join-Path $ToolsDir 'StopIface\bin\Release\net10.0\StopIface.exe'
 $ExeCreateOne     = Join-Path $ToolsDir ('CreateOne\bin\{0}\net10.0\win-x64\CreateOne.exe' -f $BridgeOut)
 $ExeRtiProbe      = Join-Path $ToolsDir ('RtiProbe\bin\{0}\net10.0\win-x64\RtiProbe.exe' -f $BridgeOut)
+# Stage 8b Q5 probe only (-PauseAtSec / -ResumeAtSec). Bridge-linked, so it follows the same
+# BridgeConfig output tree as the other tools - it is the ELEVENTH consumer (RUNBOOK sec 9).
+$ExePauseSim      = Join-Path $ToolsDir ('PauseSim\bin\{0}\net10.0\win-x64\PauseSim.exe' -f $BridgeOut)
 $ExeApp           = Join-Path $RepoRoot ('src\VrfC2SimApp\bin\{0}\net10.0\win-x64\VrfC2SimApp.exe' -f $BridgeOut)
 
 $Bin64 = Join-Path $VrfRoot 'bin64'
@@ -1677,6 +1714,98 @@ function Invoke-CreateOneDiagnostic {
 }
 
 # =============================================================================
+# STAGE 8b - THE Q5 PAUSE / RESUME PROBE (-PauseAtSec / -ResumeAtSec)
+# =============================================================================
+# ONE invocation of tools/PauseSim, inside the observation window, at an offset measured from
+# the moment PUSHORDER RETURNED - the same t+Ns clock every other stage-8b message uses.
+#
+# WHY A WHOLE PROCESS AND NOT A CALL: this runner holds no federation connection of its own
+# and must not acquire one. Every VR-Forces control it issues is a short-lived federate that
+# joins, sends and RESIGNS (RtiProbe, CreateOne, the observers). PauseSim is that same shape,
+# and the price of the shape is one ledgered appNumber per invocation - which is exactly why
+# the pause and the resume take two.
+#
+# IT BLOCKS THE POLL LOOP for the tool's own ~20 s (settle up to 15 s + flush 3-10 s + a 2 s
+# clock hold). That is deliberate: the probe is a MEASUREMENT, and the scenario-clock reading
+# it takes has to be the one at THAT offset, not one a background job produces later. With the
+# probe armed the loop polls every 5 s, so at most one completion poll is displaced.
+# ITS CEILING IS THE ONE PLACE THIS DEPARTS FROM THE -StageTimeoutSec CONVENTION, and on purpose:
+# every other stage gets its own budget PLUS the full 600 s slack, but this one runs INSIDE the
+# observation window, so a hung probe under that rule would silently eat ten minutes of it. The
+# ceiling is min(-StageTimeoutSec, 120) - never below 60 (the parameter's own floor) and therefore
+# never less than twice the tool's ~30 s worst case, so a HEALTHY probe can still not be cut off.
+#
+# IT NEVER FAILS THE RUN. A pause that does not take is recorded (the tool's own verdict is
+# CONTRADICTED and its exit code is 1) and the window carries on: the run's evidence is the
+# trace and the reports, and destroying that because a probe missed would cost more than the
+# probe is worth. What must never happen is a run LABELLED as a pause probe with no record of
+# whether the pause landed - so everything the tool reported goes in the manifest.
+function Invoke-PauseSimProbe {
+    param(
+        [Parameter(Mandatory)][ValidateSet('pause','resume')][string]$Action,
+        [Parameter(Mandatory)][int]$AppNumber,
+        [Parameter(Mandatory)][string]$StdOutFile,
+        [Parameter(Mandatory)][string]$StdErrFile,
+        [Parameter(Mandatory)][int]$AtSec,
+        [Parameter(Mandatory)][int]$ElapsedSec
+    )
+
+    $firedUtc = (Get-Date).ToUniversalTime()
+    Say-Info ('  Q5 PROBE: {0} at t+{1}s (asked for t+{2}s) - tools/PauseSim, appNumber {3}. This BLOCKS the poll loop for ~20 s.' -f `
+        $Action.ToUpperInvariant(), $ElapsedSec, $AtSec, $AppNumber)
+
+    $r = Invoke-External -Name ('PauseSim-' + $Action) -File $ExePauseSim `
+            -Arguments @($Action, [string]$AppNumber, $FederationArg) -Cwd $Bin64 `
+            -StdOutFile $StdOutFile -StdErrFile $StdErrFile `
+            -TimeoutSec ([Math]::Min($StageTimeoutSec, 120)) `
+            -Note 'STAGE 8b Q5 PROBE. exit 0 issued and read back; 1 not joined / no back end / the back end CONTRADICTED the command; 2 usage. Prints one "[RESULT] PauseSim ..." line; the run is NOT failed on any of them.'
+
+    $probe = [ordered]@{
+        action            = $Action
+        askedAtSec        = $AtSec
+        firedAtTPlusSec   = $ElapsedSec
+        firedUtc          = $firedUtc.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+        appNumber         = $AppNumber
+        # BURNED the moment the tool is LAUNCHED, whatever happens after - the same rule stage
+        # 7b applies to CreateOne. Deriving "consumed" from the exit code would call a timed-out
+        # PauseSim unconsumed and invite recycling a number that has already joined.
+        appNumberConsumed = ($r.Outcome -ne 'could-not-start')
+        exitCode          = $r.ExitCode
+        outcome           = $r.Outcome
+        stdoutFile        = $StdOutFile
+        resultLine        = $null
+        verdict           = $null
+        fields            = [ordered]@{}
+    }
+    if ($DryRun) { return $probe }
+
+    # The tool's [RESULT] line is a CONTRACT (tools/PauseSim/Program.cs): "[RESULT] PauseSim "
+    # then space-separated key=value pairs with no spaces inside a value. Parsed generically so
+    # a field added at the end of that line lands in the manifest without a change here.
+    $text = Read-LiveText -Path $StdOutFile
+    $m = [regex]::Match($text, '(?m)^\[RESULT\] PauseSim (.+?)\s*$')
+    if ($m.Success) {
+        $probe.resultLine = ('[RESULT] PauseSim ' + $m.Groups[1].Value)
+        foreach ($kv in ($m.Groups[1].Value -split '\s+')) {
+            $eq = $kv.IndexOf('=')
+            if ($eq -gt 0) { $probe.fields[$kv.Substring(0, $eq)] = $kv.Substring($eq + 1) }
+        }
+        if ($probe.fields.Contains('verdict')) { $probe.verdict = $probe.fields['verdict'] }
+    }
+
+    if (-not (Test-StageProduced -Result $r)) {
+        Add-Flag 'WARN' ('the stage-8b {0} probe produced no exit code ({1}); the window was NOT cut short. See {2}.' -f $Action, $r.Outcome, $StdErrFile)
+    } elseif ($r.ExitCode -eq 0 -and $probe.verdict -and $probe.verdict -notmatch 'UNCONFIRMED') {
+        Say-Ok ('  Q5 PROBE {0}: {1}' -f $Action, $probe.resultLine)
+    } else {
+        Add-Flag 'WARN' ('the stage-8b {0} probe exited {1} with verdict [{2}]. The scenario may NOT be {3} - do not score the rest of the window as if it were. Line: {4}' -f `
+            $Action, $r.ExitCode, $(if ($probe.verdict) { $probe.verdict } else { 'no [RESULT] line' }), `
+            $(if ($Action -eq 'pause') { 'paused' } else { 'running' }), $(if ($probe.resultLine) { $probe.resultLine } else { '(none)' }))
+    }
+    return $probe
+}
+
+# =============================================================================
 # STAGE 0 - VALIDATE EVERYTHING, BEFORE ANYTHING IS LAUNCHED
 # =============================================================================
 $nowLocal = Get-Date
@@ -1762,6 +1891,20 @@ if ($PreOrderGateOn -and ($PreOrderGateTimeoutSec -lt 30 -or $PreOrderGateTimeou
 # above the warm 9.1-12.1 s and a quarter of the cold 236.9 s, so nothing measured lands
 # near it (G7B_G8_RESULTS_2026-09-14 sec 3b).
 $PreOrderGateWarmSecs = 60
+# Stage 8b Q5 probe. OFF unless one of the two offsets is positive; both must sit inside a
+# plausible window, and a resume that is not AFTER its pause is refused outright - it would
+# leave the scenario paused for the remainder of the run and destroy the evidence the window
+# exists to collect.
+$PauseProbeOn = ($PauseAtSec -gt 0 -or $ResumeAtSec -gt 0)
+if ($PauseAtSec -lt 0 -or $PauseAtSec -gt 86400) {
+    $bad += ('-PauseAtSec must be 0..86400 (got {0}). 0 = no stage 8b pause.' -f $PauseAtSec)
+}
+if ($ResumeAtSec -lt 0 -or $ResumeAtSec -gt 86400) {
+    $bad += ('-ResumeAtSec must be 0..86400 (got {0}). 0 = no stage 8b resume.' -f $ResumeAtSec)
+}
+if ($PauseAtSec -gt 0 -and $ResumeAtSec -gt 0 -and $ResumeAtSec -le $PauseAtSec) {
+    $bad += ('-ResumeAtSec ({0}) must be GREATER than -PauseAtSec ({1}). Both are offsets from the same instant (PushOrder returning), so a resume at or before the pause would run in the wrong order and leave the scenario PAUSED for the rest of the window.' -f $ResumeAtSec, $PauseAtSec)
+}
 # StopVrf.ps1 validates TimeoutSec 5..600 itself and exits 2 - catch it here so the
 # failure lands BEFORE VR-Forces is launched instead of during teardown.
 if ($StopVrfTimeoutSec -lt 5 -or $StopVrfTimeoutSec -gt 600) {
@@ -1792,6 +1935,14 @@ foreach ($f in @(
 # run - it only costs the disambiguation, which stage 7b then reports as
 # INCONCLUSIVE. Every tool above is on the happy path and stays a hard failure.
 $CreateOneAvailable = (Test-Path -LiteralPath $ExeCreateOne -PathType Leaf)
+# PauseSim is checked HARD, and only when the probe is ARMED. The opposite of CreateOne's
+# soft check on purpose: CreateOne is a failure-path diagnostic whose absence costs only the
+# disambiguation, whereas an armed -PauseAtSec that silently does nothing would produce a run
+# LABELLED as a pause probe with no pause in it - the worst of both (a false green, and an
+# appNumber burned for nothing). Unarmed, the tool need not exist at all.
+if ($PauseProbeOn -and -not (Test-Path -LiteralPath $ExePauseSim -PathType Leaf)) {
+    $bad += ('-PauseAtSec/-ResumeAtSec are armed but PauseSim.exe is not at {0}. Build it: dotnet build tools\PauseSim\PauseSim.csproj -c Release -p:BridgeConfig={1} -t:Rebuild (RUNBOOK sec 9 - CHECK FOR THE OUTPUT TREE, not the exit code).' -f $ExePauseSim, $BridgeOut)
+}
 
 if (-not (Test-Path -LiteralPath $Bin64 -PathType Container)) {
     $bad += ('VR-Forces bin64 not found: {0} - it is the mandatory cwd for every HLA process (RUNBOOK sec 7 item 3)' -f $Bin64)
@@ -2064,6 +2215,8 @@ foreach ($t in @(
 }
 # 5.2 ONLY, so the 5.0.2 manifest keeps exactly the tool set it always had.
 if ($Is52) { $Manifest.tools['StartRtiExec'] = Get-ToolIdentity -Path $StartRtiExec }
+# ARMED RUNS ONLY, so an unarmed run's manifest keeps exactly the tool set it always had.
+if ($PauseProbeOn) { $Manifest.tools['PauseSim'] = Get-ToolIdentity -Path $ExePauseSim }
 try {
     $gitHead = & git -C $RepoRoot rev-parse HEAD 2>$null
     $gitBranch = & git -C $RepoRoot rev-parse --abbrev-ref HEAD 2>$null
@@ -2320,6 +2473,17 @@ $Alloc = @(
     [ordered]@{ key='rtiProbe';    purpose='tools/RtiProbe - STAGE 2c PRE-LAUNCH RTI READINESS GATE (C1). Throwaway create-or-join against the federation with internal retry+backoff, then clean resign, BEFORE the back-end launches (RTI_LAUNCH_HARDENING_DESIGN.md A2-A7 - the RUN-2 fix). CONSUMED on EVERY run (the gate always runs pre-launch). One number covers all internal retries - RtiProbe reuses this single appNumber across attempts by design.' }
     [ordered]@{ key='createOneDiag'; purpose='tools/CreateOne - STAGE 7b FAILURE-PATH DIAGNOSTIC ONLY (RUNBOOK 0.5.7 STRONGER CHECK). CONSUMED ONLY IF THE ORACLE GATE FAILS; on a healthy run it is NEVER JOINED and this number goes UNCONSUMED. Unconsumed numbers are BURNED, never recycled - see the NOTE below. Allocated here rather than mid-run because every number must be ledgered BEFORE any join.' }
 )
+# THE Q5 PROBE, appended ONLY when armed, so a DEFAULT run's ledger footprint stays exactly
+# the seven numbers every run in the record claimed. ONE NUMBER PER INVOCATION: tools/PauseSim
+# joins and resigns each time it is called, so the pause and the resume are two joins and two
+# numbers - the rule the tools/SetSimRate entry in Appendix B already states ("four
+# invocations, four numbers"). Never one number reused for both halves.
+if ($PauseAtSec -gt 0) {
+    $Alloc += [ordered]@{ key='pauseSim'; purpose=('tools/PauseSim pause - STAGE 8b Q5 PROBE at t+{0}s of the observation window (controller->pause() on ALL back ends). CONSUMED ONLY IF the window is still open at that offset; an unconsumed number is BURNED, never recycled.' -f $PauseAtSec) }
+}
+if ($ResumeAtSec -gt 0) {
+    $Alloc += [ordered]@{ key='resumeSim'; purpose=('tools/PauseSim resume - STAGE 8b Q5 PROBE at t+{0}s of the observation window (controller->run() on ALL back ends). A SEPARATE join from the pause and therefore a separate number. CONSUMED ONLY IF the window is still open at that offset.' -f $ResumeAtSec) }
+}
 for ($i = 0; $i -lt $Alloc.Count; $i++) { $Alloc[$i].appNumber = $FirstFree + $i }
 $AppNo = @{}
 foreach ($a in $Alloc) { $AppNo[$a.key] = $a.appNumber }
@@ -2390,6 +2554,13 @@ $PathCreateOneOut = Join-Path $RunDir 'createone-diagnostic.stdout.log'
 $PathCreateOneErr = Join-Path $RunDir 'createone-diagnostic.stderr.log'
 $PathRtiProbeOut  = Join-Path $RunDir 'rtiprobe.stdout.log'
 $PathRtiProbeErr  = Join-Path $RunDir 'rtiprobe.stderr.log'
+# Stage 8b Q5 probe. Written only when -PauseAtSec / -ResumeAtSec are armed AND the offset is
+# actually reached; each half gets its own pair, so the two invocations never overwrite
+# each other's evidence.
+$PathPauseSimOut  = Join-Path $RunDir 'pausesim-pause.stdout.log'
+$PathPauseSimErr  = Join-Path $RunDir 'pausesim-pause.stderr.log'
+$PathResumeSimOut = Join-Path $RunDir 'pausesim-resume.stdout.log'
+$PathResumeSimErr = Join-Path $RunDir 'pausesim-resume.stderr.log'
 # Stage 2r (5.2 only). Named for the stage, not for rtiexec, because the process it ensures
 # is up is NOT this run's child. The STAGE's own stdout/stderr are this run's evidence and
 # live here; the RTIEXEC'S log does NOT - it goes to runs\launch52 (persistent and
@@ -2499,6 +2670,8 @@ $Manifest.inputs.watchSecsDerived   = $DerivedWatchSecs
 $Manifest.inputs.preOrderSettleSecs = $PreOrderSettleSecs
 $Manifest.inputs.preOrderGate            = $(if ($PreOrderGateOn) { $PreOrderGate } else { '' })
 $Manifest.inputs.preOrderGateTimeoutSec  = $(if ($PreOrderGateOn) { $PreOrderGateTimeoutSec } else { 0 })
+$Manifest.inputs.pauseAtSec              = $PauseAtSec
+$Manifest.inputs.resumeAtSec             = $ResumeAtSec
 $Manifest.inputs.objectConsoleNotifyLevel = $ObjectConsoleLevel
 # An EXPLICIT -WatchSecs wins over the derived value, settle included - which is correct (it is
 # the operator's choice) and is also how a stage-7d hold could silently truncate a trace: the
@@ -3627,11 +3800,35 @@ try {
         failedCondition = $null
     }
     $Manifest.oracle.earlyExit = $EarlyExit
+    # THE Q5 PROBE's own record. Written whether or not it fires, so a reader can tell
+    # "did not fire" from "was not armed" - the same reason $EarlyExit is written unconditionally.
+    $PauseProbe = [ordered]@{
+        armed        = [bool]$PauseProbeOn
+        pauseAtSec   = $PauseAtSec
+        resumeAtSec  = $ResumeAtSec
+        whatThisIs   = 'Q5 (assessment live gate 11 / validation V5): a PAUSED scenario must not age a C2SIM task clock. tools/PauseSim pauses and later resumes the scenario from inside the observation window and records the back end''s own scenario clock either side of each call. It is a MEASUREMENT: it never fails the run, and the KILL half of the Q5 probe is a MANUAL step (RUNBOOK 0.5.14 item 14), never automated here.'
+        pauseFired   = $false
+        resumeFired  = $false
+        pause        = $null
+        resume       = $null
+    }
+    if ($PauseProbeOn) { $Manifest.probes = [ordered]@{ pauseResume = $PauseProbe } }
     if ($DryRun) {
         if ($StopWhenComplete) {
             Say-Plan ('would poll {0} every 5s for TERMINAL task-status lines (TASKCMPLT or TASKABRT); would close the window once all {1} taskee(s) have one and all {2} task(s) are closed by one, {3}s have passed and every taskee has post-completion position evidence - a trace RPT within {5} m of its POS, OR a C2SIM PositionReport for its own uuid captured after its TASKCMPLT, OR a complete R1 round (0 skipped) logged after it; would otherwise sleep out the {4}s cap' -f $PathAppLog, $OrderTaskees.Count, $OrderTasks.Count, $SettleHoldSecs, $RunSecs, $ReportToleranceMeters)
         } else {
             Say-Plan ('would sleep {0}s while WatchVrf and ListenReports keep sampling' -f $RunSecs)
+        }
+        if ($PauseProbeOn) {
+            if ($PauseAtSec -gt 0) {
+                Say-Plan ('would run, at t+{0}s of that window, {1} pause {2} "{3}" (cwd {4}), blocking the poll loop ~20s, then record its [RESULT] line in the manifest' -f `
+                    $PauseAtSec, $ExePauseSim, $AppNo['pauseSim'], $FederationArg, $Bin64)
+            }
+            if ($ResumeAtSec -gt 0) {
+                Say-Plan ('would run, at t+{0}s of that window, {1} resume {2} "{3}" (cwd {4}) - a SEPARATE join and a SEPARATE appNumber' -f `
+                    $ResumeAtSec, $ExePauseSim, $AppNo['resumeSim'], $FederationArg, $Bin64)
+            }
+            Say-Plan 'the KILL half of the Q5 probe is NOT automated and is not shown here: it is a manual Stop-Process on the vrfSimHLA1516e pid (RUNBOOK 0.5.14 item 14).'
         }
     } else {
         $obsStart = Get-Date
@@ -3639,8 +3836,10 @@ try {
         $appDeathRecorded = $false
         # 5 s poll when the window can close early (so the hold is over-measured by
         # at most 5 s), the historical 30 s otherwise. The status line keeps its
-        # 30 s cadence either way.
-        $pollSecs = if ($StopWhenComplete) { 5 } else { 30 }
+        # 30 s cadence either way. An ARMED Q5 PROBE forces the 5 s cadence too: its
+        # offsets are honoured at POLL granularity, and on a 30 s poll a pause asked
+        # for at t+120 s could fire anywhere up to t+150 s.
+        $pollSecs = if ($StopWhenComplete -or $PauseProbeOn) { 5 } else { 30 }
         $nextStatus = (Get-Date).AddSeconds(30)
         $nextEvidenceNote = Get-Date
         $completion = New-CompletionState
@@ -3687,6 +3886,27 @@ try {
             if ($AppProc.HasExited -and -not $appDeathRecorded) {
                 $appDeathRecorded = $true
                 Add-Flag 'FAIL' ('VrfC2SimApp exited DURING the observation window with code {0}. The window is being RUN OUT anyway so the trace still covers it; the run is NOT valid (4a.6) but the evidence is preserved.' -f $AppProc.ExitCode)
+            }
+            # THE Q5 PROBE. Each half fires ONCE, at the first poll at or after its offset.
+            # Skipped once the interface has died: the window is being RUN OUT for the trace's
+            # sake at that point and pausing the scenario would only corrupt what is left of it.
+            # The elapsed time is re-read between the two halves because the pause BLOCKS for
+            # ~20 s - long enough for a resume offset close behind it to have come due.
+            if ($PauseProbeOn -and -not $appDeathRecorded) {
+                if ($PauseAtSec -gt 0 -and -not $PauseProbe.pauseFired -and ((Get-Date) - $obsStart).TotalSeconds -ge $PauseAtSec) {
+                    $PauseProbe.pauseFired = $true
+                    $PauseProbe.pause = Invoke-PauseSimProbe -Action 'pause' -AppNumber $AppNo['pauseSim'] `
+                        -StdOutFile $PathPauseSimOut -StdErrFile $PathPauseSimErr `
+                        -AtSec $PauseAtSec -ElapsedSec ([int]((Get-Date) - $obsStart).TotalSeconds)
+                    Save-Manifest
+                }
+                if ($ResumeAtSec -gt 0 -and -not $PauseProbe.resumeFired -and ((Get-Date) - $obsStart).TotalSeconds -ge $ResumeAtSec) {
+                    $PauseProbe.resumeFired = $true
+                    $PauseProbe.resume = Invoke-PauseSimProbe -Action 'resume' -AppNumber $AppNo['resumeSim'] `
+                        -StdOutFile $PathResumeSimOut -StdErrFile $PathResumeSimErr `
+                        -AtSec $ResumeAtSec -ElapsedSec ([int]((Get-Date) - $obsStart).TotalSeconds)
+                    Save-Manifest
+                }
             }
             if ($StopWhenComplete -and -not $appDeathRecorded -and $OrderTaskees.Count -gt 0) {
                 $nowUtc = (Get-Date).ToUniversalTime()
@@ -3789,6 +4009,22 @@ try {
                 $finalVerdict.TerminalSummary, `
                 $(if ($missing.Count -gt 0) { $missing -join ', ' } else { '(none)' }), `
                 $(if ($pendingEv.Count -gt 0) { $pendingEv -join ' | ' } else { ('(condition (4) was never evaluated - it is reached only once (1) and (2) hold; {0} of {1} task(s) closed, {2} of {3} taskee(s) covered)' -f $finalVerdict.TasksClosed, $finalVerdict.TaskCount, ($OrderTaskees.Count - $missing.Count), $OrderTaskees.Count) }))
+        }
+        # AN ARMED PROBE THAT NEVER FIRED IS A FLAG, NOT A FOOTNOTE: it means the window closed
+        # before the offset (-StopWhenComplete firing early is the ordinary cause), so the run
+        # is NOT the Q5 evidence it was launched to be, and its appNumber was burned unused.
+        if ($PauseProbeOn) {
+            foreach ($half in @(
+                @{ n='pause';  at=$PauseAtSec;  fired=$PauseProbe.pauseFired },
+                @{ n='resume'; at=$ResumeAtSec; fired=$PauseProbe.resumeFired })) {
+                if ($half.at -gt 0 -and -not $half.fired) {
+                    Add-Flag 'WARN' ('the Q5 {0} probe NEVER FIRED: it was asked for t+{1}s and the observation window closed at t+{2}s. Its appNumber is BURNED, not recycled, and this run carries NO Q5 evidence for that half.' -f `
+                        $half.n, $half.at, $EarlyExit.windowSecsUsed)
+                }
+            }
+            if ($PauseProbe.pauseFired -and $PauseAtSec -gt 0 -and $ResumeAtSec -gt 0 -and -not $PauseProbe.resumeFired) {
+                Add-Flag 'FAIL' ('the Q5 pause FIRED but the resume did NOT - the scenario was left PAUSED when the window closed, so nothing in the rest of this run moved. Teardown runs regardless (it is a finally), but whether StopVrf brings a PAUSED back end down as cleanly as a running one is UNMEASURED - watch its exit code. To resume by hand while VR-Forces is still up: tools/PauseSim resume <freshAppNo>.')
+            }
         }
         Save-Manifest
         Say-Ok ('observation window complete ({0}s used of {1}s)' -f $EarlyExit.windowSecsUsed, $RunSecs)
