@@ -323,6 +323,29 @@ public:
     // false on failure. Must be called once before anything else.
     bool Start(const StartupConfig& cfg);
 
+    // STP-832. The vendor's reason for the LAST Start() that returned false, or "" when
+    // Start() has never failed on this facade (it is cleared at the top of every Start()).
+    // WHY IT EXISTS: Start() used to build the exercise connection with NO
+    // DtExerciseConn::InitializationStatus out-parameter, and the vendor's contract for that
+    // parameter (vl/exerciseConnHLA.h:84-91, identical on VR-Link 5.8 and 5.10) is
+    //   "When status is non-null, DtFatalError will not get called, allowing users to check
+    //    programatically for initialization errors and hence deal with them as they wish ...
+    //    Do not attempt to use a DtExerciseConn instance when an error is indicated:
+    //    VR-Link's behavior will be undefined."
+    // Passing nothing was therefore two defects in one: the vendor calls DtFatalError, which
+    // calls DtAbort, and "DtAbort() exits the program" (vlutil/vlPrint.h:398, :441-445); and
+    // if control returns at all, Start() went straight on to init() the remote controller on
+    // a connection the vendor calls undefined. Observed as "Fatal error. 0xC0000005 at
+    // <Module>.vrf.VrfFacade.Start" in EVERY bridge consumer whenever rtiexec answered
+    // createFederationExecution with Error (STP-825 / STP-832, six times on 2026-09-15) -
+    // which also killed RtiProbe's own retry loop before it could retry.
+    // The string carries the InitializationStatus enumerator, its numeric value, the
+    // federation name, and - on the HLA build - DtExerciseConn::rtiError(), the vendor's own
+    // store for "the exceptions thrown by RTI during the connection initialization stage"
+    // (exerciseConnHLA.h:410-412), which is where the RTI's "ErrorReadingFDD ... Bad FDD
+    // File" words live. An EMPTY string is not itself a verdict: test Start()'s return value.
+    std::string LastStartError() const;
+
     // Transition-only (Phase 1 rewire) alternative to Start: instead of
     // creating its own controller/exConn/uuidMgr, the facade ADOPTS ones that
     // the caller already created and still owns. Used while call sites migrate

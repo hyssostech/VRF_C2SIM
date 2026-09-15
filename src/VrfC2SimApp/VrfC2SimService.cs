@@ -590,7 +590,11 @@ public sealed class VrfC2SimService : BackgroundService
                             _vrf.Protocol, _vrf.Federation);
         if (!_bridge.Start(cfg))
         {
-            _log.LogError("VrfBridge.Start failed - aborting.");
+            // STP-832: the bridge now carries VR-Link's own reason for a refused
+            // create/join (empty when Start() failed for some other reason).
+            _log.LogError("VrfBridge.Start failed - aborting. Reason: {Reason}",
+                          string.IsNullOrWhiteSpace(_bridge.LastStartError)
+                              ? "(none reported)" : _bridge.LastStartError);
             _life.StopApplication();
             return;
         }

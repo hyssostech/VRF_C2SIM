@@ -279,6 +279,19 @@ public:
         return _facade->Start(n);
     }
 
+    // STP-832. The vendor's reason for the LAST Start() that returned false, or "" when
+    // Start() has never failed on this bridge. Since the fix, an RTI that refuses
+    // createFederationExecution makes Start() return FALSE with this text set, instead of
+    // taking VR-Link's DtFatalError/DtAbort path and then init()ing the remote controller on
+    // an exercise connection the vendor documents as undefined (which surfaced as
+    // "Fatal error. 0xC0000005 at <Module>.vrf.VrfFacade.Start"). Read it in the retry loop
+    // of any caller that sees Start() == false. See VrfFacade.h for the vendor trail.
+    property String^ LastStartError {
+        String^ get() {
+            return _facade ? marshal_as<String^>(_facade->LastStartError()) : String::Empty;
+        }
+    }
+
     void Stop() { if (_facade) _facade->Stop(); }
     void Tick() { _facade->Tick(); }
 
