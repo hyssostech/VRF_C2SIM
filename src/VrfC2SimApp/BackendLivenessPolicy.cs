@@ -7,8 +7,12 @@ namespace VrfC2SimApp;
 /// STP-822: IS THE VR-FORCES BACK END STILL THERE? - read on a TIMER, not on the task clock.
 ///
 /// THE DEFECT THIS EXISTS FOR (docs/experiments/V6_LIVE_JOIN_GATE_2026-09-15.md sec 9.5, run
-/// 20260915T130627Z). On a fixture with no navigation area the back end STOPPED at the first
-/// ground move-along: no frames, no status messages, no motion, no terminal reports. The
+/// 20260915T130627Z). The back end STOPPED at the first ground move-along of the R5 order: no
+/// frames, no status messages, no motion, no terminal reports. (WHY it stops is OPEN - V6e, sec
+/// 11, falsified the nav-data account and MEASURED the stopped state as a RUNAWAY ALLOCATION,
+/// ~2.2 GB/min at under one core, which exhausts a 32 GB machine in about 30 minutes. Sec 11.6
+/// makes this read a SAFETY item, not only a reporting one: whatever the trigger turns out to
+/// be, the interface has to notice.) The
 /// interface logged "Backend discovered (BackendCount=1)" once at start-up and then delivered
 /// 543 position reports off stale reflected attributes with 0 warnings and 0 TASKABRT, because
 /// the ONLY place it re-read the back end was the task clock's stale branch

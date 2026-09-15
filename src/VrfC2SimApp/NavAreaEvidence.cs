@@ -6,12 +6,20 @@ namespace VrfC2SimApp;
 /// STP-822 part 2 / STP-823: WHAT THE INTERFACE CAN KNOW ABOUT NAVIGATION AREAS, and what it
 /// cannot.
 ///
-/// WHY IT MATTERS (docs/experiments/V6_LIVE_JOIN_GATE_2026-09-15.md sec 9.3-9.6). On a fixture
-/// with no navigation area, dispatching a ground move-along STOPS the 5.2d back end. Its own
-/// level-4 console shows the last thing it does: every member walks the movement behaviour tree
-/// to `Is current point in nav area?` -> FALSE -> `fail in action` -> `Plan off feature path` ->
-/// `Starting job node Plan path` -> `Checking status of job for M1A2 10`, and then emits nothing
-/// ever again. Nav data is therefore a PRECONDITION for ground tasking, not a quality setting.
+/// *** THIS IS NOT A CRASH GUARD - THE CAUSE STATEMENT IT WAS BUILT ON IS WITHDRAWN. ***
+/// It was built while V6d's reading stood (V6_LIVE_JOIN_GATE secs 9.3-9.6): on a fixture with no
+/// navigation area a ground move-along STOPPED the back end, its console ending at
+/// `Is current point in nav area?` -> FALSE -> `Plan off feature path` -> `Plan path` ->
+/// `Checking status of job for M1A2 10`. **V6e (run 20260915T135636Z, sec 11) FALSIFIED that**:
+/// the same order on the same MojaveAO20 area with that condition answering TRUE stopped the back
+/// end at the identical point - `Calc off road nav path part` -> one poll -> silence - and the
+/// stopped state is a RUNAWAY ALLOCATION (~2.2 GB/min at under one core), independent of nav data
+/// and of console level. Nav data only decided WHICH path job was started.
+///
+/// WHAT SURVIVES, and all this gate now claims: without a navigation area a ground move is
+/// planned by the FEATURE planner on one straight part, silently (G7B_G8_RESULTS sec 1.5). That
+/// is a fidelity precondition an operator may choose to refuse on - which is why the setting
+/// ships OFF and the default is the user's.
 ///
 /// THE EVIDENCE THAT EXISTS, IN BAND, WITH NO NATIVE CHANGE. The interface already subscribes to
 /// the VR-Forces OBJECT CONSOLE - `DtVrfRemoteController::addObjectConsoleMessageCallback`
@@ -144,8 +152,9 @@ public sealed class NavAreaEvidence
            $"{evidenceSeconds:F0} s, with this unit's object console open at level >= " +
            $"{MinLevelForAreaRow}." +
            (v.NotInAreaSeen ? " Its own console has already FAILED \"Is current point in nav area?\"." : "") +
-           " A ground move on terrain with no navigation area STOPS the VR-Forces back end " +
-           "(STP-823), so the task is refused instead of issued.";
+           " Without a navigation area this move would be planned by the FEATURE planner on one " +
+           "straight part (STP-823 - note that ticket's \"it stops the back end\" cause statement " +
+           "was WITHDRAWN by V6e), so the task is refused instead of issued.";
 
     /// <summary>The WARNING wording for the case the gate cannot judge: consoles too low to ever
     /// print the row. Said once per run - it is a configuration fact, not a per-task event.</summary>

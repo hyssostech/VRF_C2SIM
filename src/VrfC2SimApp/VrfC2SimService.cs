@@ -3056,13 +3056,13 @@ public sealed class VrfC2SimService : BackgroundService
         // driving on; an air platform does not drive over the ridge it crosses, so scoring its route
         // would manufacture warnings about ground it never touches.
         // NAV-AREA PRECONDITION FOR A GROUND MOVE (Vrf:RequireNavAreaForGroundTasks, DEFAULT
-        // OFF - the default is the user's to set). STP-823: on terrain with NO navigation area,
-        // dispatching a ground move-along STOPS the 5.2d back end - it accepts the task, drives
-        // every member into off-feature path planning because "Is current point in nav area?" is
-        // FALSE, starts a Plan path job, polls it once and then emits nothing ever again (no
-        // frames, no status, no motion, no terminal report; V6_LIVE_JOIN_GATE sec 9.3). That is
-        // not a degraded route, it is the end of the run, so the honest thing is to refuse the
-        // task rather than issue it. WHAT THE EVIDENCE IS AND IS NOT: see NavAreaEvidence - it
+        // OFF - the default is the user's to set). *** NOT A CRASH GUARD. *** It was built on
+        // V6d's reading - a ground move with no nav area STOPS the back end - and V6e stopped the
+        // back end identically WITH a nav area, so that cause statement is WITHDRAWN
+        // (V6_LIVE_JOIN_GATE sec 11; the stopped state is a runaway allocation, not a nav
+        // failure). What survives: without a navigation area a ground move is planned by the
+        // FEATURE planner on one straight part, silently - a fidelity precondition an operator
+        // may choose to refuse on. WHAT THE EVIDENCE IS AND IS NOT: see NavAreaEvidence - it
         // reads the object console's own rows, it can see nothing below level 3 (there it warns
         // once and DISPATCHES rather than refusing on ignorance), and a row from another object
         // proves an area is loaded, not that this taskee's start point is inside it.
@@ -4631,7 +4631,9 @@ public sealed class VrfC2SimService : BackgroundService
                         + "reported TASKABRT and ABANDONED, position reports are SUSPENDED and the progress "
                         + "watchdog stands down until it reports again. Signals now: BackendCount={Count}, "
                         + "active={Active}, control={Control}. A back end that stops mid-run looks exactly "
-                        + "like this (STP-822/STP-823: a ground move with no navigation area STOPS it).",
+                        + "like this, and on this stack a STOPPED 5.2d back end ALSO RUNS AWAY at "
+                        + "~2.2 GB/min (V6_LIVE_JOIN_GATE sec 11.3), so treat a lost back end as a "
+                        + "machine-safety event, not only a reporting one.",
                           why, lastGoodIso, snapshot.Count, backendCount, active,
                           (StallPolicy.BackendControl)control);
             foreach (var kv in snapshot)

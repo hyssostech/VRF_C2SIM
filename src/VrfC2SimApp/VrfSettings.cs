@@ -344,7 +344,9 @@ public class VrfSettings
     // THE DEFECT: until this setting existed the interface re-read the VR-Forces back end in
     // exactly ONE place - the task clock's stale branch (SampleTaskClock) - which is reached
     // only while the sim clock is readable-confirmed AND flat. On run 20260915T130627Z (V6d)
-    // the back end STOPPED at the first ground move-along on a fixture with no navigation area;
+    // the back end STOPPED at the first ground move-along of the R5 order (WHY is still open:
+    // V6e falsified the nav-data account and measured the stopped state as a RUNAWAY ALLOCATION,
+    // ~2.2 GB/min, which makes this read a SAFETY item - V6_LIVE_JOIN_GATE sec 11.6);
     // the interface logged "Backend discovered (BackendCount=1)" once at start-up and then
     // delivered 543 position reports off stale reflected attributes with 0 warnings and 0
     // TASKABRT, because that branch never ran (the R5 order carries no Duration). The same
@@ -362,11 +364,13 @@ public class VrfSettings
     // came 121 s after dispatch, twice measured, so the interface speaks well inside the run).
     public int BackendLossConfirmSeconds { get; set; } = 30;
 
-    // NAV-AREA PRECONDITION FOR GROUND TASKS (STP-822 part 2 / STP-823). A ground move-along on
-    // terrain with NO navigation area STOPS the 5.2d back end - it is not a quality setting
-    // (V6_LIVE_JOIN_GATE sec 9.3: every member walks the behaviour tree to "Is current point in
-    // nav area?" -> FALSE -> "Plan off feature path" -> "Plan path" and the engine emits
-    // nothing ever again). When this is ON, a ground move is REFUSED (TASKABRT +
+    // NAV-AREA PRECONDITION FOR GROUND TASKS (STP-822 part 2 / STP-823). *** NOT A CRASH GUARD:
+    // the cause statement this was built on is WITHDRAWN. *** V6d suggested that a ground move on
+    // terrain with NO navigation area STOPS the back end; V6e (run 20260915T135636Z,
+    // V6_LIVE_JOIN_GATE sec 11) stopped it identically WITH a nav area and with that condition
+    // answering TRUE, and measured the stopped state as a runaway allocation. What survives is the
+    // weaker rule: without a navigation area a ground move is planned by the FEATURE planner on
+    // one straight part, silently. When this is ON, such a move is REFUSED (TASKABRT +
     // ObservationReport) unless the interface has in-band evidence that a navigation area is
     // loaded: a "New Primary nav area" row on the VR-Forces object console within
     // NavAreaEvidenceSeconds. THE DEFAULT IS FALSE AND IS THE USER'S TO CHANGE - see

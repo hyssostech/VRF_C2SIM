@@ -2290,7 +2290,7 @@ formula. If that line is missing, the build predates this change.
 Everything above describes what the task clock does when it CAN read the back end. Until this
 addendum, the stale branch was the ONLY place the interface ever re-read it - and it is reached
 only while the sim clock is readable-confirmed AND flat. On run `20260915T130627Z` (V6d) the back
-end STOPPED at the first ground move-along (no nav area - STP-823) and the interface never
+end STOPPED at the first ground move-along of the R5 order and the interface never
 noticed: `Backend discovered (BackendCount=1)` at start-up, then **543 position reports, 0 failed,
 0 warnings, 0 TASKABRT**, read off reflected attributes the RTI still held. The R5 order has no
 Durations, so nothing was ever held on an end time and the branch never ran. `WatchVrf
@@ -2326,7 +2326,17 @@ stall; and the task clock's stale branch short-circuited to WALL, so it can neve
 end REPORTS PAUSED" about a back end already declared lost. On recovery: `BACK END RECOVERED after
 N s`, one ObservationReport, reports resume - and **NOTHING is re-tasked**.
 
-**THE NAV-AREA GATE, OFF BY DEFAULT.** `Vrf:RequireNavAreaForGroundTasks=true` refuses a ground
+**WHY A LOST BACK END IS A SAFETY EVENT, NOT ONLY A REPORTING ONE (V6e, 2026-09-15).** The
+stopped back end has been MEASURED: its working set runs away at ~2.2 GB/min at under one core
+with a flat thread count (V6_LIVE_JOIN_GATE sec 11.3), which reaches a 32 GB machine in about
+30 minutes. V6e also WITHDREW the nav-data cause statement - the same order stopped the back end
+with a nav area present and the condition answering TRUE - so the trigger is still open (V6f).
+When `BACK END LOST` appears, end the run; do not wait out the window.
+
+**THE NAV-AREA GATE, OFF BY DEFAULT - AND IT IS NOT A CRASH GUARD.** It was built on the
+withdrawn cause statement above; what survives is the weaker rule that without a navigation area
+a ground move is planned by the FEATURE planner on one straight part, silently.
+`Vrf:RequireNavAreaForGroundTasks=true` refuses a ground
 move (TASKABRT `no navigation area evidence for <taskee>` + an ObservationReport) unless the
 object console has printed a `New Primary nav area` row within `Vrf:NavAreaEvidenceSeconds` - the
 same row the runner's stage-7d READY gate polls (`RunnerLib.ps1 Get-NavAreaRows`), read in band
