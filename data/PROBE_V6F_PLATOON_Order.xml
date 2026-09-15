@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- R5 experiment order (docs/UNIT_MOVEMENT_RESEARCH.md plan R5): unit-move micro-test
+     against the GOLDEN STP init (docs/golden-trace/STP-TC-small-6-12-24_Initialization.xml,
+     clientId STP - DISPERSED unit positions, unlike COA-STP1). One MOVE task each, no
+     temporal relationships: one ArmorPlatoon-typed aggregate (Ground_Aggregate fallback,
+     lowercase formations), one ArmorCompany-typed aggregate (Tank Company match,
+     Title-Case), one tank ENTITY control. Run with Vrf__AggregateFormation=auto so R1
+     repairs formation state + reorganizes AT CREATION; the move then exercises the
+     create->snap->reorganize->move sequence. Routes ~550 m + ~1100 m legs. -->
+<!-- V6f PROBE ORDER (PREREG_V6C_LATE_JOINER_2026-09-15.md AMENDMENT 5, 2026-09-15).
+     R5 WITH THE COMPANY AND TANK TASKS REMOVED - T_R5_PL1 only, on 1222.MechPlt~PXY.
+
+     WHY. V6d and V6e both stopped the back end the moment the R5 order dispatched, on
+     fixtures with and without nav data. The level-4 console says why the load is not equal
+     across the three tasks: T_R5_CO1, the COMPANY task on a composed unit, FANS OUT to
+     1141/1142/1143.MechPlt, and 16 members begin building movement trees in the same second
+     (16 distinct emitters each creating a 'Loop to stall for replanning' node between
+     t=30.2 and t=30.7). T_R5_PL1 is one platoon; T_R5_TK1 is one entity - and the tank's
+     taskee is the ONLY object in V6e that moved at all (~299 m) before the engine seized.
+
+     So this order REMOVES THE SUSPECT and keeps the smallest ground move that still
+     exercises maneuver-in-formation and off-road path planning:
+       HIT  (back end survives) -> the company fan-out is the trigger; V6g runs the company
+                                   task ALONE to confirm it from the other side.
+       MISS (back end stops, ws climbing ~2 GB/min as in V6d/V6e) -> a single platoon move is
+                                   enough, and the trigger is the move or the composition
+                                   itself, not the fan-out.
+
+     Generated from data/R5_UnitMove_Order.xml by removing the 2nd and 3rd <Task> blocks.
+     Nothing else is edited - same OrderID, same routes, same ROE, same performing entity.
+-->
+<MessageBody xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.sisostds.org/schemas/C2SIM/1.1">
+  <DomainMessageBody>
+    <OrderBody>
+      <FromSender>00000000-0000-0001-0001-000000000000</FromSender>
+      <ToReceiver>00000000-0007-0001-0000-000000000000</ToReceiver>
+      <IssuedTime>
+        <IsoDateTime>2026-07-12T00:00:00Z</IsoDateTime>
+      </IssuedTime>
+      <OrderID>a5000000-0000-0000-0000-000000000000</OrderID>
+      <Task>
+        <ManeuverWarfareTask>
+          <Location>
+            <GeodeticCoordinate>
+              <Latitude>58.70295558741188</Latitude>
+              <Longitude>16.50922870030753</Longitude>
+            </GeodeticCoordinate>
+          </Location>
+          <Location>
+            <GeodeticCoordinate>
+              <Latitude>58.70295558741188</Latitude>
+              <Longitude>16.51922870030753</Longitude>
+            </GeodeticCoordinate>
+          </Location>
+          <Name>T_R5_PL1</Name>
+          <UUID>a5000000-0000-0000-0000-000000000001</UUID>
+          <DesiredEffectCode>TaskSuccess</DesiredEffectCode>
+          <PerformingEntity>001aa71b-4c26-a1ea-28b2-f7dfe8e76342</PerformingEntity><!--1222.MechPlt ArmorPlatoon 11.1.225.1.1.3.0 -> Ground_Aggregate, "column"-->
+          <TaskActionCode>MOVE</TaskActionCode>
+          <RuleOfEngagement>
+            <MipWeaponUseROE>
+              <WeaponROECode>
+                <WeaponRuleOfEngagementCode>ROETight</WeaponRuleOfEngagementCode>
+              </WeaponROECode>
+            </MipWeaponUseROE>
+          </RuleOfEngagement>
+        </ManeuverWarfareTask>
+      </Task>
+    </OrderBody>
+  </DomainMessageBody>
+</MessageBody>

@@ -503,3 +503,91 @@ A4 measured a RUNNING back end (~312% of one core, 83 threads, 4 GB). No quiet r
 sampled, so nobody knows whether a stopped one spins or idles. Run
 `scratchpad/validation/a4_simsampler.csv`'s sampler again for V6e; if V6e MISSES it finally
 answers hang-vs-idle, and if it HITs it costs nothing.
+
+---
+
+## AMENDMENT 5 (2026-09-15, after V6e): PREREG V6f - WHICH R5 TASK STOPS THE BACK END?
+
+**Nothing here has been run.**
+
+### V6e missed, and the STOP was honoured
+
+AMENDMENT 4 registered HIT as the high-confidence prediction and made a miss a STOP rather than
+a patch. V6e MISSED: the same R5 order on the SAME MojaveAO20 area with the VENDOR SMS stopped
+the back end exactly as V6d did. The nav-area cause statement is WITHDRAWN - and the console
+shows why it was never the mechanism:
+
+```
+V6d (no nav area):  Is current point in nav area? -> FALSE -> fail in action
+                    -> Plan off feature path -> Starting job node Plan path
+                    -> Checking status of job for M1A2 10          <- last line ever
+V6e (nav area):     Is current point in nav area? -> TRUE ... CreateOffRoadSegment: success
+                    -> Starting job node Calc off road nav path part
+                    -> Checking status of job for M1A2 2           <- last line ever
+```
+
+Different branch, different job, **identical stopping point**. And the stopped state is now
+measured, not assumed: `runs/launch52/RunScenario-<stamp>.threads.csv` shows the working set
+running away at **~2.2 GB/min with well under one core of CPU and a flat thread count** on every
+R5 run (V6d 3,117 -> 32,032 MB; V6e 2,922 -> 31,243 MB), while both ridge-order runs stay flat
+(A4 4,019 -> 4,041 MB at 3.5-4.0 cores). Idle-hang and busy-loop are both dead; this is a loop
+that allocates and blocks.
+
+### The question V6f asks
+
+The trigger is in the **R5 order**. Its three tasks are not equal loads - the console attributes:
+
+| task | taskee | load |
+|---|---|---|
+| `T_R5_PL1` | `1222.MechPlt~PXY` | one platoon, `maneuver-in-formation` on offset routes |
+| **`T_R5_CO1`** | `114.MechCoy~PXY` | **fans out to `1141`/`1142`/`1143.MechPlt`** - one task, three platoons |
+| `T_R5_TK1` | `1.BdeHQ~PXY` | one entity, `base-system.movement.move-along` - and its taskee is the ONLY object in V6e that moved (~299 m) |
+
+16 distinct members start building movement trees within half a second of dispatch; exactly one
+reaches the path job. **Neither V5 nor A4 ever tasked a composed company** - their ridge order
+moves a single entity-level proxy, and both ran flat for a full window.
+
+### The run
+
+```
+shell 1:  bash scratchpad/validation/v6f_launch.sh
+shell 2:  "C:\Program Files\PowerShell\7\pwsh.exe" -NoProfile -File scratchpad/validation/v6f_gates.ps1
+```
+
+**V6f is V6e with ONE thing changed: the order.** `data/PROBE_V6F_PLATOON_Order.xml` is R5 with
+the 2nd and 3rd `<Task>` blocks removed - `T_R5_PL1` only, same OrderID, same route, same ROE,
+same performing entity, generated from the original by structure and not by line number.
+Fixture, init, client id, nav-area gate, `--pre-order-settle 150`, consoles at 4 and the 720 s
+window are V6e's, unchanged.
+
+**Why remove the suspect rather than keep it:** a HIT then means the company fan-out was
+necessary, which is a positive result about the thing we care about; and if it MISSES we have
+reproduced the fault with the smallest possible order, which is the better starting point for
+everything after.
+
+| arm | appNo | fired at | command |
+|---|---|---|---|
+| **V6f late tool** | **4487** | window + 180 s | `SetSimRate.exe 1 4487 --settle-secs 15` |
+
+### PREDICTIONS
+
+| outcome | reading | what follows |
+|---|---|---|
+| **HIT**, and `backends=` never drops, and `wsMB` stays FLAT | **the company fan-out is the trigger** | **V6g**: the company task ALONE, to confirm from the other side. Then the product rule is about tasking composed companies, and STP-823's title is wrong as written. |
+| **HIT but `wsMB` climbs** | not a clean hit - the same fault, slower | treat as a MISS for ranking; the fan-out only changes the rate. |
+| **MISS with the same ~2 GB/min slope** | one platoon move is enough; the fan-out is NOT necessary | the next variable is the **init/composition** (R9 lean + `ComposeHierarchy` + `AtInit`), which every failing run shares and no healthy run used. One axis at a time. |
+| **MISS with NO runaway** | a different failure mode | **STOP AND ASK.** |
+
+**High-confidence prediction:** V6f HITs. Its miss is not a STOP this time - a MISS is a
+legitimate and informative outcome that promotes candidate 2 - but a MISS *without* the working
+set slope is a STOP, because it would mean two different faults wearing the same symptom.
+
+### Standing instructions for this run
+
+* Carry the working-set sampler and **watch it live**: at ~2.2 GB/min a 32 GB machine is ~30
+  minutes from exhaustion, and every R5 run so far was saved only by the 720 s window. The seat
+  is adding a runner tripwire on ws slope; until it lands, abort by hand if wsMB passes ~20 GB.
+* One fresh ledgered appNumber, never recycled; a joined tool is never killed; rtiexec /
+  rtiForwarder / rtiAssistant are never touched.
+* Read the `backends=` column and the last `Starting job node ...` / `Checking status of job`
+  pair before writing any verdict - the tool's yes/no is one instant, those are the run.

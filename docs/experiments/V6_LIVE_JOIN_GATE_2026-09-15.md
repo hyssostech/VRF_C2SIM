@@ -531,7 +531,17 @@ still never ran. STP-822 stands.
 
 ---
 
-## VERDICT - THE V6 LANE, CLOSED
+## VERDICT - THE V6 LANE
+
+> **AMENDED 2026-09-15 after V6e. READ SEC 11 FIRST.** The cause statement below said the
+> trigger was a ground move on terrain with NO NAV AREA. **V6e falsified it**: the same order on
+> the same MojaveAO20 area with the vendor SMS stopped the back end exactly the same way, and
+> the console shows the nav-area condition answering TRUE before it stopped. "No nav data" was a
+> COINCIDENT SYMPTOM of the plain fixture - it only decided which path job got started. The
+> trigger is in the **R5 ORDER**; the surviving candidates are ranked in sec 11.5 and V6f
+> (AMENDMENT 5) decides between them. The table below is still the record of what each run did -
+> only its "nav data" column has lost its explanatory force.
+
 
 | run | fixture | nav data | SMS | state at join | back end found? |
 |---|---|---|---|---|---|
@@ -542,6 +552,7 @@ still never ran. STP-822 stands.
 | **V6d** 130627Z | `R9_Mojave_Empty_52` | **none** | vendor | **populated, UNtasked** | **YES**, 0.1 s |
 | **V6d** 130627Z | `R9_Mojave_Empty_52` | **none** | vendor | populated **+ tasked** | **NO** at 15 s |
 | **A4** 133259Z | `R9_Mojave_Empty_52_NavAO20_AG_S2` | **AO20 area** | custom AG/Slope2 | populated **+ tasked** | **YES**, 0.3 s, and `backends=1` on all 347 samples |
+| **V6e** 135636Z | `R9_Mojave_Empty_52_Nav` | **AO20 area** | **vendor** | populated **+ tasked** | **NO** at 15 s - and the console shows the nav-area condition TRUE |
 
 **The cause.** On a fixture with NO nav area, dispatching a ground `move-along` STOPS the back
 end. Its own level-4 console shows the last thing it does: every member walks the movement
@@ -592,3 +603,132 @@ Two further things this lane did NOT establish, stated so nobody assumes them:
 * **The runner passes `--report-backends` always** (arm A0, on main since `0ecc14a`). Every
   finding in sections 8-10 rests on that column; before it existed, five runs could not tell a
   joiner problem from a dead back end.
+
+---
+
+## 11. V6e - THE PREDICTION MISSED, AND THAT IS THE MOST USEFUL RESULT IN THE LANE
+
+`runs/20260915T135636Z_run`. `R9_Mojave_Empty_52_Nav` - the SAME MojaveAO20 area A4 ran on,
+with the **VENDOR** SMS - V6d's init and R5 order; the nav-area gate fired on
+*New Primary nav area: NavArea-ground-platform MojaveAO20*. `SetSimRate 1 4479 --settle-secs 15`
+at window+180 s: `[OK] joined (BackendCount=0)` ... `[FAIL] no backend discovered after 15 s`,
+exit 1. **MISS.**
+
+AMENDMENT 4 registered HIT as the high-confidence prediction and made its miss a STOP. So the
+cause statement of sec 9.6 / the old VERDICT is **withdrawn, not patched**: *nav data is not the
+variable.*
+
+### 11.1 The console: the nav branch PASSED, and it stopped in the same place anyway
+
+2,263 CON rows, t=22.2 .. 30.7 s, **none after** - dispatch was 13:59:05.98, trace t~30. The
+last rows, at sim time 94.63:
+
+```
+Is current point in nav area?   -> Condition TRUE.      Node: success
+Is destination in nav area?     -> Condition TRUE.      Node: success
+CreateOffRoadSegment                                    Node: success
+Ticking job node Calc off road nav path part
+  Starting job node Calc off road nav path part
+Checking status of job for M1A2 2          <- the last line the back end ever emitted
+```
+
+Put beside V6d's last rows (no nav area):
+
+```
+V6d:  Is current point in nav area? -> FALSE -> fail in action -> Plan off feature path
+      -> Starting job node Plan path        -> Checking status of job for M1A2 10   <- last
+V6e:  Is current point in nav area? -> TRUE  ... CreateOffRoadSegment: success
+      -> Starting job node Calc off road nav path part -> Checking status of job for M1A2 2  <- last
+```
+
+**Different branch, different job, identical stopping point.** The common element is not the
+nav-area condition at all: it is *the engine starts an asynchronous path-planning job, polls it
+once, and never returns*. The nav-area line was a coincident symptom of the plain fixture - it
+only decided WHICH job got started.
+
+### 11.2 Per task, which is the load
+
+The console attributes by route name and by unit:
+
+| task | taskee | what the console shows | last mention |
+|---|---|---|---|
+| **T_R5_PL1** | `1222.MechPlt~PXY` | `Move-Along Route "T_R5_PL1 ROUTE"` -> `maneuver-along` -> `maneuver-in-formation` (leader M1A2 1, offset routes) | t=30.0 |
+| **T_R5_CO1** | `114.MechCoy~PXY` | the COMPANY **FANS OUT**: `1141.MechPlt`, `1142.MechPlt`, `1143.MechPlt` each appear 7-8 times with their own Offset Routes | t=30.1 |
+| **T_R5_TK1** | `1.BdeHQ~PXY` | a single `base-system.movement.move-along` (not `disaggregated-movement`) | t=30.1 |
+
+Between t=30.2 and t=30.7, **16 distinct emitters** each build a movement tree containing a node
+literally named `Loop to stall for replanning`. Exactly ONE of them gets as far as
+`Starting job node Calc off road nav path part` and the poll that follows it. So all three tasks
+start; the company is the one that multiplies the work by fanning one task into three platoons.
+
+**Movement: 1 of 22 objects moved** - `211e0cbf`, the taskee that emitted the `T_R5_TK1` line,
+went ~299 m and stopped. The single-entity move got going; nothing disaggregated did.
+
+### 11.3 The stopped state, MEASURED - it is a RUNAWAY ALLOCATION
+
+The wrapper's `--sample-threads` output was there all along, one directory up:
+`runs/launch52/RunScenario-<stamp>.threads.csv` (`tUtc,tSec,pid,procCpuCores,wsMB,threads`).
+That replaces the ASSUMED line in sec 9.6 with a measurement:
+
+| run | order | wsMB after dispatch | cores | threads |
+|---|---|---|---|---|
+| **V6d** 130626Z | R5 | **3,117 (13:11:50) -> 32,032 (13:24:53)** | 0.13-2.64 | 73-74, flat |
+| **V6e** 135636Z | R5 | **2,922 (13:58:54) -> 31,243 (14:11:57)** | 0.12-2.35 | 81-83, flat |
+| V6c rerun 124230Z | R5 | 3,392 -> 33,797 over 13 min | low | flat |
+| V6b 114001Z | R5 | 3,238 -> 13,734 over 12 min | low | flat |
+| **A4** 133258Z | ridge | **4,019 -> 4,041 over the WHOLE window** | **3.5-4.0** | 81-83, flat |
+| V8z 041035Z | ridge | 4.1 GB flat | ~2.0 | flat |
+
+**~2.2 GB/min, with LOW CPU and no thread churn.** So:
+
+* the **idle hang** reading is DEAD - an idle process does not allocate 29 GB;
+* the **busy loop at 100%+** reading is DEAD too - the CPU is well under one core on average;
+* what is left is a loop that ALLOCATES each iteration and blocks on something - which is
+  exactly the shape of a `Loop to stall for replanning` around a path job that never completes.
+
+It is also independent of the console level (V6b/V6c ran consoles at 1 and show the same slope)
+and of nav data (V6d has none, V6e has it). **At ~2 GB/min this exhausts a 32 GB machine in
+about 30 minutes** - every one of these runs was minutes away from taking the box down, and only
+the 720 s window saved it.
+
+### 11.4 Not a fault, still
+
+Vendor sim log for V6e (count-only, never opened): `assert` 0, `deadlock` 0, `ERROR` 0, `FATAL`
+0, `out of memory` 0, `bad_alloc` 0. No callstack, no dump, and `StopVrf` exited 0. The engine
+allocates its way toward the wall in silence.
+
+### 11.5 THE CAUSE STATEMENT, REWRITTEN
+
+**Dispatching the R5 order stops the back end, on every fixture tried, with or without nav data,
+with the vendor SMS or a custom one.** The engine accepts the tasks, builds movement trees for
+all members, starts an asynchronous path-planning job, polls it once, and from that moment emits
+no console, moves nothing, completes nothing and sends no status - while its working set climbs
+~2.2 GB/min at well under one core. Every remote controller loses it 121 +/- 2 s later, which is
+`DtVrfBackendListener::doTimeouts()` ageing out a cached entry.
+
+**What is NOT the cause** (each falsified by a run, not by argument): the tools; the connection
+config; the environment; the launch context; the RTI; late joining; a status cadence; a missing
+nav area (V6e). 
+
+**Ranked surviving candidates**, with the evidence that ranks them:
+
+1. **The R5 company task on a composed unit** (`T_R5_CO1` -> `114.MechCoy~PXY`). It is the only
+   task that fans one order into three platoons and ~16 simultaneous planners, and **neither V5
+   nor A4 ever tasked a composed company** - their ridge order moves one entity-level proxy, and
+   both ran flat. Strongest candidate; V6f tests it by subtraction.
+2. **The R9 lean init's composition** (`ComposeHierarchy` building `~PXY` proxies with members
+   under `AtInit`). Every failing run used it; every healthy run used COA-STP1 with `AtOrder`.
+   V6f keeps this constant, so a V6f MISS promotes this candidate to first place.
+3. **A plain disaggregated platoon move** - i.e. the fault needs nothing special at all. A V6f
+   MISS with the same ws slope says this.
+
+The tank task is effectively exonerated already: its taskee is the only object that moved, and
+its controller is `base-system.movement.move-along`, not the disaggregated one.
+
+### 11.6 Safety consequence, now, before any further run
+
+A runaway that reaches the machine's memory in ~30 minutes is not a measurement problem, it is
+an operational hazard. **A working-set tripwire belongs in the runner** (the seat is adding
+one): sample `wsMB` and abort the run when the slope exceeds a threshold, naming the dispatch
+that preceded it. And STP-822's liveness read is no longer only about correctness - an interface
+that noticed its back end had stopped could refuse to keep feeding it.
