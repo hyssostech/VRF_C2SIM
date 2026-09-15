@@ -785,12 +785,28 @@ C2SIM that stays supported alongside it. So the item is the LINKAGE and nothing 
   dispatches to the init area's centroid and logs the uuid -> name line.
 - User? RULED (R1).
 
-### V4b. What the points MEAN, per verb (NOT BUILT - deliberately deferred)
-The embedded Location is one list of points for every verb today: a route to drive. For a
+### V4b. What the points MEAN, per verb (BUILT 2026-09-14, branch `feat/v4b-embedded-location`)
+The embedded Location was one list of points for every verb: a route to drive. For a
 HoldObjective verb the same list is really an objective to occupy, and for a fires verb a
-target area. Splitting that reading per verb is a separate item from the linkage and was
-explicitly held back on 2026-09-14; it belongs with V5/V6, which need the objective as a
-task PARAMETER rather than as a route.
+target area.
+- Design note: `docs/experiments/DESIGN_V4B_EMBEDDED_LOCATION_2026-09-14.md` (the schema's
+  silence on shape, the 42-task shape census, the rule, the per-verb table, the limits).
+- Change: `TaskGeometryInterpretation` - (verb, shape) -> Route | ObjectiveArea | Point (+ None,
+  which is R2's in-place case). A ring - first vertex repeated as last, or an AREA verb on a
+  figure that returns to its start - is an objective: the move goes to its centroid (the SAME
+  `TaskGeometryResolver.Centroid`, so C12 stays ONE debt) and the ring is created as a VR-Forces
+  control area under the TASK's own uuid, through the same factory the init uses, exactly once
+  per task, and ONLY when no MapGraphicID resolved. MapGraphicID keeps precedence.
+- MEASURED, and the reason there is no behaviour change on COA-STP1: the export carries ZERO
+  rings. The 42 read as 9 None / 22 Point / 11 Route / 0 ObjectiveArea. T32 is a SEIZE - an area
+  verb - whose four points are a 23.6 km AXIS (closure ratio 0.998), so the rule tests the shape
+  and not only the verb; T13/T36's three points match init TaskGraphics `__FRIEN_16`/`__FRIEN_13`
+  vertex for vertex and are task-mission SYMBOLS, driven as routes and reported as symbols.
+- Offline test: `--rulings-selftest` section V4b (28 checks; FAIL-FIRST: 10 fail under the
+  pre-V4b "everything is a route" reading, and 4 under a verb-only rule with no shape test,
+  which misreads T32) + the `--parse-order` V4b shape census.
+- Live gate: design note sec 7. What is still V5/V6 is the vendor tactical task that CONSUMES the
+  objective; V4b only creates it and sends the unit to it.
 
 ### V5. Wire the HoldObjective family (14 of 42 tasks) - EntityLevel first
 - Vendor anchor: company_seize / co_clear / occupy_firing_positions / plt_perimeter_defense

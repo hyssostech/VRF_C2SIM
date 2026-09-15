@@ -164,6 +164,30 @@ public class VrfSettings
     public bool CreateInitLines { get; set; } = false;
     public bool CreateInitPoints { get; set; } = false;
 
+    // ---- V4b: create the OBJECTIVE AREA a task's embedded Location describes ------------------
+    // When a task's embedded Location is a RING (first vertex repeated as last, or an area verb on
+    // a figure that returns to its start - TaskGeometryInterpretation), the points are an objective
+    // AREA, not a route: the move goes to the ring's centroid and the ring itself is created as a
+    // VR-Forces control area under the TASK's own C2SIM uuid, so V5/V6 can bind a vendor tactical
+    // task's objective parameter to it (company_seize enemyArea, unit-attack-to-objective
+    // objective) with no extra map.
+    //
+    // DEFAULT TRUE, unlike CreateInitLines/CreateInitPoints above, and the reasons are the mirror
+    // image of theirs:
+    //  1. VOLUME. This creates at most ONE object per area-classified task, not 348. On
+    //     COA-STP1 as STP exports it today the count is ZERO (measured: 0 of 42 tasks carry a ring;
+    //     the export linearises the first task graphic, which is an axis, a task symbol or a single
+    //     point - docs/experiments/DESIGN_V4B_EMBEDDED_LOCATION_2026-09-14.md sec 2).
+    //  2. THE CALL IS THE ONE WE ALREADY MAKE IN PRODUCTION. createControlArea with a
+    //     caller-supplied uuid is exactly what the init does for its 35 tactical areas on every
+    //     run; this adds no new vendor call and no new failure mode.
+    //  3. IDEMPOTENCE IS GUARDED, not assumed: one create per task uuid through _createdAreaKeys,
+    //     which also covers the TerrainProfile re-entry and a duplicated order delivery.
+    // Turning it OFF does not move any unit: the interpretation still reads the ring as an area and
+    // the move still goes to the centroid; only the control object is skipped, with a log line
+    // saying so.
+    public bool CreateTaskObjectiveAreas { get; set; } = true;
+
     // CREATION POLICY (C13, user ruling 2026-09-06): the C2SIM init carries the WHOLE ORBAT (corps-
     // level context); only the units the ORDERS reference are the COA proper. COA-STP1 = 128 units
     // in the init, 11 referenced by its 42 tasks.

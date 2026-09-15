@@ -90,9 +90,11 @@ public static class TaskGeometryResolver
 
     /// <summary>Great-circle-ish metres between two authored points. Equirectangular, which is
     /// what a separation CHECK needs - it is compared against a 1 km threshold, not reported as a
-    /// survey distance.</summary>
-    private static double DistMeters((double Lat, double Lon, double? Elev) a,
-                                     (double Lat, double Lon, double? Elev) b)
+    /// survey distance. PUBLIC since V4b: TaskGeometryInterpretation measures the same authored
+    /// points with the same metric, and two copies of a distance function is how two answers start
+    /// disagreeing.</summary>
+    public static double DistMeters((double Lat, double Lon, double? Elev) a,
+                                    (double Lat, double Lon, double? Elev) b)
     {
         const double MetersPerDegLat = 111320.0;
         double dLat = (a.Lat - b.Lat) * MetersPerDegLat;
@@ -184,8 +186,15 @@ public static class TaskGeometryResolver
     /// <summary>The centroid of a graphic's vertices - the plain arithmetic mean, which is what an
     /// "go to this area" task needs and what the areas on disk (1-19 vertices, all within a few km)
     /// make meaningful. No spherical correction: at COA-STP1's extent the difference is centimetres
-    /// against areas kilometres across.</summary>
-    private static (double Lat, double Lon, double? Elev) Centroid(
+    /// against areas kilometres across.
+    ///
+    /// PUBLIC since V4b, and for one reason: an order that NAMES its objective (MapGraphicID) and an
+    /// order that EMBEDS it must arrive at the same point, so both paths call this one function.
+    /// It carries the same recorded debt for both - C12 (pass-2 review, TASK_VOCABULARY_ASSESSMENT
+    /// sec 7.1b): the vertex arithmetic mean is NOT the polygon centroid, and on the init's 12
+    /// multi-vertex areas it sits 149-1,130 m from the true centroid against a 500 m arrival radius.
+    /// V4b does not fix C12; it makes sure the fix will only have to land once.</summary>
+    public static (double Lat, double Lon, double? Elev) Centroid(
         IReadOnlyList<(double Lat, double Lon, double? Elev)> pts)
     {
         double lat = 0, lon = 0;
