@@ -8,17 +8,29 @@
     <PlatformTarget>x64</PlatformTarget>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>false</SelfContained>
+    <!-- Which VrfBridge build to reference: Release (5.0.2 stack, default) |
+         Release-5.2 | Release-5.2-HLA4. Select: dotnet build -p:BridgeConfig=Release-5.2.
+         Non-default bridges build to their own tree (bin\Release-5.2\...) so the 5.0.2
+         deploy is never overwritten (pattern: tools/RunSim/RunSim.csproj). -->
+    <BridgeConfig Condition="'$(BridgeConfig)'==''">Release</BridgeConfig>
+    <OutputPath Condition="'$(BridgeConfig)'!='Release'">bin\$(BridgeConfig)\</OutputPath>
+    <IntermediateOutputPath Condition="'$(BridgeConfig)'!='Release'">obj\$(BridgeConfig)\</IntermediateOutputPath>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- Stack-aware federation identity (needs the VrfBridge reference below).
+         SmokeTest lives under src/, so the shared file is two levels up. -->
+    <Compile Include="..\..\tools\Shared\StackIdentity.cs" Link="StackIdentity.cs" />
+  </ItemGroup>
   <ItemGroup>
     <!-- The C++/CLI bridge. CopyLocal (default) drops VrfBridge.dll beside the exe. -->
     <Reference Include="VrfBridge">
-      <HintPath>..\VrfBridge\build\Release\VrfBridge.dll</HintPath>
+      <HintPath>..\VrfBridge\build\$(BridgeConfig)\VrfBridge.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
     <!-- IJW bootstrap: required next to the consumer exe for a /clr:netcore assembly.
          A bare <Reference> does NOT copy it (PORT.md sec 3), so copy it explicitly. -->
-    <None Include="..\VrfBridge\build\Release\Ijwhost.dll">
+    <None Include="..\VrfBridge\build\$(BridgeConfig)\Ijwhost.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
