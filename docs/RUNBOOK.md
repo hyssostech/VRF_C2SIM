@@ -2154,12 +2154,48 @@ gate ran, a parallel lane held `docs/OPUS_EXECUTION_PLAN.md` and
 `21c1430` on main. `git diff --name-only 5881b7d 21c1430` is that ONE docs file - nothing under
 `src/` or `tools/`, no csproj/vcxproj - so the binaries above are still the binaries of the tip.
 Check that before trusting any pin whose sha is not the tip.
-POST-PIN MANAGED REBUILD 2026-09-15 03:30Z: VrfC2SimApp REBUILT on main `c5f166d` (the route-shift chooser fix, managed code only) with -p:BridgeConfig=Release-5.2 -t:Rebuild against this SAME bridge - VrfBridge.dll hash E3F40524... unchanged (997,376 B), --routeshift-selftest 84 ok / 0 fail on main. The app's tree is c5f166d; the bridge pin stands.
+POST-PIN MANAGED REBUILD 2026-09-15 03:30Z: VrfC2SimApp REBUILT on main `c5f166d` (the route-shift chooser fix, managed code only) with -p:BridgeConfig=Release-5.2 -t:Rebuild against this SAME bridge - VrfBridge.dll hash E3F40524... unchanged (997,376 B), --routeshift-selftest 83 ok / 0 fail (the 84 first recorded here was a counting slip; 83 re-measured 14:52Z on unchanged source) on main. The app's tree is c5f166d; the bridge pin stands.
 POST-PIN MANAGED REBUILD 2026-09-15 11:11Z (after the Windows reboot at 04:31Z; runner double-launch + RtiProbe junk-federation defects = ticket STP-821): ALL ELEVEN consumers REBUILT on main `0abe9ce` (the tools connection-config hardening merge; managed code only) with -p:BridgeConfig=Release-5.2 -t:Rebuild - eleven output trees, VrfBridge.dll hash E3F40524... in every one (unchanged), 0 errors. The bridge pin stands; the managed tree is 0abe9ce. NOTE: the reboot killed rtiexec/rtiForwarder (pids 69856/50520 are gone) - the next runner launch starts them fresh (Stage 2r) and answers the once-per-reboot RTI dialog (Stage 2b).
 POST-PIN MANAGED REBUILD 2026-09-15 12:11Z: the five consumers touched by the V6c enablers (CreateTaskAgg, PauseSim, ResetVrf, SetSimRate, WatchVrf; merge 9cf0d1f: --settle-secs via tools/Shared/SettleCap.cs, WatchVrf --report-backends advertised and passed by the runner) REBUILT on main with -p:BridgeConfig=Release-5.2 -t:Rebuild - VrfBridge.dll E3F40524... unchanged in all five, 0 errors; the other six consumers stand at the 11:11Z build (0abe9ce). Managed tree for the tools: 9cf0d1f.
 POST-PIN MANAGED REBUILD 2026-09-15 12:19Z: PauseSim REBUILT on main 81b00fc (--provoke, V6c arm A2) with -p:BridgeConfig=Release-5.2 -t:Rebuild - VrfBridge.dll E3F40524... unchanged, 0 errors. Managed tree for PauseSim: 81b00fc.
+POST-PIN MANAGED REBUILD 2026-09-15 14:52Z (merges ff29deb STP-822 liveness + 08038ad WS runaway tripwire, test fix 3c71025): ALL ELEVEN consumers REBUILT on main 3c71025 with -p:BridgeConfig=Release-5.2 -t:Rebuild (per-csproj; no .sln) - VrfBridge.dll E3F405249C561284... (997,376 B, mtime 01:34:46Z) unchanged in every output tree, 0 errors, the 6 documented warnings; deployed appsettings.json byte-identical to src (carries BackendLivenessSeconds 10, BackendLossConfirmSeconds 30, RequireNavAreaForGroundTasks false, NavAreaEvidenceSeconds 300); 20/20 selftest suites exit 0 under the 5.2 PATH prefix (rulings 176/0, liveness 25/0 with the --disabled fail-first arm 11 FAILED, routeshift 83 ok / 0 fail); tests/RunnerTurnaround.Tests.ps1 236 passed / 0 failed after 3c71025 (checks 8d and 8f were false reds in the TEST - 8d ran the probe under the 32-bit pwsh and the default profile, 8f asserted layout, not the property; both now pinned like 8h / AST-based). Report: scratchpad validation/merge_lanes_report.md. Gate lesson: the stray-CR scan needs `rg -nUP` (multiline); the `-nP` form flags every CRLF line.
 
 ---
+
+### 9c. STP-825 (2026-09-15): the sim's federation CREATE can fail on a long-lived rtiexec - and the JOIN-path workaround
+
+FACT (rtiexec log, runs/launch52/rtiexec_<stamp>5.0.1-...-<pid>.log): on the 5.2 runner the SIM CREATES MAK-ONE-2025 on
+every launch, because Stage 2c's RtiProbe destroys the federation on its clean stop whenever it is the last federate.
+The vendor log's "Joined federation MAK-ONE-2025" is the join after that create. A create = CreateMsgKind (module names)
++ 2 FomModuleRequest + 58 FomModuleDistExec blocks (the creator's LRC ships the module CONTENT; block bytes = file size
+minus CR count) + rtiexec's own parse ("Creating federation ... Using FDD files:") + "Sending Create Response = Success|Error".
+
+FAILURE SEEN 14:23Z, 14:26Z, 15:11Z (sim 3/3) on rtiexec pid 36840 (up since 11:40Z, after the V6e sim's abnormal exit at
+31 GB): rtiexec's FOM Reader reports "Entity: line N+1: parser error : Extra content at the end of the document" on a
+random module (N = that module's line count), the sim logs "ErrorReadingFDD ... Bad FDD File. Could not find Document
+Root" and exits at startup (LaunchVrf exit 3). Launch args/cwd/rid/config/environment/files/protocol order+sizes+timing
+were identical to the 40 successful creates before it; RtiProbe's creates succeeded 6/6 in the same period (P1: five in a
+row). Cause OPEN (receiver state sensitive to the sim's stream, or the sim's stream); docs read: RTI Reference Manual FED
+file distribution, Release Notes 5.0.1, rid.mtl comments. Record: docs/experiments/PREREG_V6F_FDD_CREATE_2026-09-15.md.
+
+HOW TO READ IT: a startup failure with that vendor text -> count-grep the rtiexec log's create block for the sim's appNo
+("Sending Create Response = Error", "parser error"). Two identical failures in a row = do NOT launch a third time blindly.
+
+REMEDIES: (1) restart rtiexec (+forwarder) - the USER's call, never the seat's (standing rule). (2) WORKAROUND, CONFIRMED
+15:20Z (P3): make the sim JOIN instead of create - start a HOLDER federate before the runner:
+
+    RtiProbe.exe <ledgered appNo> MAK-ONE-2025 1 900 3     (5.2 env: PATH prefix bin64;vrlink5.10\bin64;makRti5.0.1\bin,
+                                                            RTI_RID_FILE=config\rid-501-rtiexec-min.mtl, RTI_ASSISTANT_DISABLE=1,
+                                                            cwd bin64; settle 900 s = it stays joined that long, then resigns)
+
+verify "remoteControl <pid> ... has joined federation" in the rtiexec log, THEN trigger the runner once. Stage 2c's
+RtiProbe joins and resigns (its destroy fails: federates joined), the sim's create returns "already exists" and it
+JOINS with the module set merged (rtiexec: 18x "a module of that name already exists"), READY as usual. Costs one
+appNo (claim it in the ledger first) and one extra remoteControl federate for <= 15 min; BackendCount is unaffected
+(status messages come from the back end only). Script: scratchpad validation/p3_holder.ps1 (seat, 2026-09-15).
+
+PRODUCT FOLLOW-UP (not done): let Stage 2c HOLD the federation until the sim has joined instead of create-and-destroy,
+so no launch depends on the sim's create path.
 
 ## 10. THE C16 PROGRESS WATCHDOG IS OFF BY DEFAULT - HOW TO TURN IT ON FOR THE VALIDATION RUN
 
