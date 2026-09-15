@@ -79,7 +79,20 @@ using VrfC2Sim.Tools;
 // (OPUS_EXECUTION_PLAN.md Appendix B, the SetSimRate NOTE: "four invocations, four numbers").
 // This tool NEVER allocates one itself.
 //
-// Args: <pause|resume> <applicationNumber> [federation] [--dry-run] [--help]
+// --provoke (V6c arm A2, 2026-09-15). A PROBE MODE, resume only, and a deliberate exception to
+// this tool's own rule about never sending at BackendCount=0. The V6/V6b question is whether a
+// BROADCAST remote-control message makes a silent back end answer with a status: the listener
+// asks for status exactly once, from its constructor (vrfBackendListener.h:265-268, protected,
+// no public re-request), so a late joiner that misses that one answer has no way of its own to
+// ask again. With --provoke the tool issues run() ONCE, immediately after Start() and BEFORE the
+// settle, then settles as usual and reports how long the back end took to appear AFTERWARDS.
+// resume only, on purpose: run() is a no-op on an already-running scenario, so the probe changes
+// nothing if it works and nothing if it does not. --provoke pause is REFUSED (exit 2) - that
+// would stop a running scenario to ask a question.
+// The blind send is STATED in the output and on the [RESULT] line (provoke=, provokeBackends=),
+// so no reader can mistake this run for the normal contract.
+//
+// Args: <pause|resume> <applicationNumber> [federation] [--provoke] [--settle-secs n] [--dry-run] [--help]
 
 // The bound native stack, read from the LOADED DLLs. Same probe as VrfC2SimApp
 // --runtime-check; NoInlining so the bridge assembly is resolved only when it is called.
@@ -134,6 +147,11 @@ static void PrintUsage(System.IO.TextWriter w)
     w.WriteLine("usage: PauseSim.exe <pause|resume> <applicationNumber> [federation] [--dry-run]");
     w.WriteLine("       PauseSim.exe --help");
     w.WriteLine();
+    w.WriteLine("  --provoke          PROBE (V6c arm A2), resume ONLY. Issue run() ONCE immediately");
+    w.WriteLine("                     after Start(), BEFORE the settle - i.e. deliberately at");
+    w.WriteLine("                     BackendCount=0 - then settle as usual and report how long the");
+    w.WriteLine("                     back end took to appear. run() is a no-op on a running");
+    w.WriteLine("                     scenario. REFUSED with pause.");
     w.WriteLine("  pause | resume     REQUIRED. pause -> controller->pause(); resume -> controller->run()");
     w.WriteLine("                     (the 5.2 remoteControl sample's own pair; neither takes an");
     w.WriteLine("                     address, so both apply to ALL back ends).");
@@ -172,12 +190,14 @@ if (!SettleCap.TryTakeFlag(args, out args, out int settleSecs, out string settle
 if (!ConnectionConfig.TryTakeFlag(args, out args, out string connArg, out string connProblem))
     return Usage(connProblem);
 
+bool provoke = args.Any(a => string.Equals(a, "--provoke", StringComparison.OrdinalIgnoreCase));
 bool dryRun = args.Any(a => string.Equals(a, "--dry-run", StringComparison.OrdinalIgnoreCase));
 bool help = args.Any(a => string.Equals(a, "--help", StringComparison.OrdinalIgnoreCase)
                        || string.Equals(a, "-h", StringComparison.OrdinalIgnoreCase));
 var unknownFlags = args.Where(a => a.StartsWith("--", StringComparison.Ordinal))
                        .Where(a => !string.Equals(a, "--dry-run", StringComparison.OrdinalIgnoreCase)
-                                && !string.Equals(a, "--help", StringComparison.OrdinalIgnoreCase))
+                                && !string.Equals(a, "--help", StringComparison.OrdinalIgnoreCase)
+                                && !string.Equals(a, "--provoke", StringComparison.OrdinalIgnoreCase))
                        .ToArray();
 var positional = args.Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToArray();
 
@@ -244,6 +264,11 @@ string federation = positional.Length >= 3 && !string.IsNullOrWhiteSpace(positio
     ? positional[2]
     : null;   // null = stack default (5.0.2 CWIX-2024; 5.2 config-file identity)
 
+// --provoke is a resume-only probe: run() is a no-op on an already-running scenario, so asking
+// the question costs nothing. With pause it would STOP a running scenario to ask it - refused.
+if (provoke && isPause)
+    return Usage("--provoke is resume ONLY. With pause it would stop a running scenario just to ask whether a broadcast provokes a status message.");
+
 string action      = isPause ? "pause" : "resume";
 string call        = isPause ? "bridge.Pause() -> controller->pause()" : "bridge.Run() -> controller->run()";
 int    expectState = isPause ? 1 : 2;   // BackendControl.Paused / .Running
@@ -271,6 +296,8 @@ Console.WriteLine($"    {fedDesc}  appNumber={appNumber}  action={action}");
 Console.WriteLine($"    {NativeStackLine()}");
 Console.WriteLine($"    {conn.Banner}");
 Console.WriteLine($"    {SettleCap.Banner(settleSecs)}");
+if (provoke)
+    Console.WriteLine("    PROVOKE MODE (V6c arm A2): run() will be issued ONCE at BackendCount=0, BEFORE the settle. This is a PROBE and a deliberate exception to the no-blind-send rule.");
 // A --dry-run JOINS NOTHING, so a missing config is reported there, not refused: a dry run's
 // contract is 'arguments validated, no action taken', and turning it into exit 1 would make a
 // runner's own dry run fail on a machine where the real run is fine. tools/ResetVrf is the
@@ -290,6 +317,7 @@ if (dryRun)
 {
     Console.WriteLine("[DRY-RUN] arguments validated; the plan above is what a real run would do.");
     Console.WriteLine($"[DRY-RUN] NOT joining, NOT sending {(isPause ? "pause()" : "run()")}. No appNumber was consumed.");
+    if (provoke) Console.WriteLine("[DRY-RUN] --provoke would have sent run() blind before the settle.");
     return 0;
 }
 
@@ -310,6 +338,21 @@ try
     }
     Console.WriteLine($"[OK] joined (BackendCount={bridge.BackendCount()} immediately after Start).");
 
+    // 1b. THE PROVOKE (V6c arm A2). One broadcast run(), issued deliberately at BackendCount=0,
+    //     then a 2 s flush so it actually leaves the controller, then the normal settle below.
+    //     The question this answers: does a broadcast remote-control message make a silent back
+    //     end emit the status message that the listener's ctor-only request did not get?
+    int provokeBackends = -1;
+    if (provoke)
+    {
+        provokeBackends = bridge.BackendCount();
+        Console.WriteLine($"[..] PROVOKE: issuing bridge.Run() -> controller->run() BLIND at BackendCount={provokeBackends} (no-op on a running scenario)...");
+        bridge.Run();
+        var swProvoke = Stopwatch.StartNew();
+        while (swProvoke.Elapsed < TimeSpan.FromSeconds(2)) { bridge.Tick(); Thread.Sleep(50); }
+        Console.WriteLine($"[OK] PROVOKE sent and flushed ({swProvoke.Elapsed.TotalSeconds:F1} s of ticks); BackendCount={bridge.BackendCount()} immediately after.");
+    }
+
     // 2. SETTLE: tick until a backend is actually discovered. LOAD-BEARING - backends are NOT
     //    known at the instant Start() returns (same idiom as tools/RunSim / SetSimRate).
     //    Issuing pause()/run() against zero known backends risks a silent no-op reported as
@@ -328,8 +371,11 @@ try
 
     if (backends == 0)
     {
+        if (provoke)
+            Console.Error.WriteLine($"[RESULT] PauseSim action=provoke verdict=PROVOKE_NO_BACKEND basis=backend-count exit=1 appNumber={appNumber} backends=0 provoke=yes provokeBackends={provokeBackends} settleSecs={settleSecs} "
+                                  + $"utc={DateTime.UtcNow:yyyy-MM-ddTHH:mm:ss.fffZ}");
         Console.Error.WriteLine($"[FAIL] no backend discovered after {swSettle.Elapsed.TotalSeconds:F0} s " +
-                                $"(BackendCount=0). The {action} was NOT sent - sending it now would be a " +
+                                $"(BackendCount=0)." + (provoke ? " A broadcast run() was ALREADY sent blind and did not provoke one - that is arm A2's answer, not a tool fault." : "") + " The {action} was NOT sent - sending it now would be a " +
                                 "silent no-op reported as success. Confirm VR-Forces is running with a " +
                                 "scenario loaded and a simulation backend connected, then retry with a " +
                                 "FRESH appNumber.");
@@ -442,12 +488,14 @@ try
     Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
         "[RESULT] PauseSim action={0} verdict={1} basis={2} exit={3} appNumber={4} backends={5} " +
         "controlBefore={6} controlAfter={7} confirmSecs={8:F1} simTimeBefore={9} " +
-        "simTimeAfterCmd={10} simTimeAfterHold={11} holdSecs={12:F1} clockDelta={13} utc={14}",
+        "simTimeAfterCmd={10} simTimeAfterHold={11} holdSecs={12:F1} clockDelta={13} utc={14} " +
+        "provoke={15} provokeBackends={16} settleSecs={17} settleTookSecs={18:F1}",
         action, verdict, basis, exitCode, appNumber, backends,
         ControlName(controlBefore), ControlName(controlAfter), confirmSecs, SimTimeText(simBefore),
         SimTimeText(simAfterCmd), SimTimeText(simAfterHold), holdSecs,
         clockReadable ? clockDelta.ToString("F3", CultureInfo.InvariantCulture) : "none",
-        DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ", CultureInfo.InvariantCulture)));
+        DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ", CultureInfo.InvariantCulture),
+        provoke ? "yes" : "no", provokeBackends, settleSecs, swSettle.Elapsed.TotalSeconds));
     Console.WriteLine($"     {verdict}: {why}.");
     if (exitCode != 0)
         Console.Error.WriteLine($"[FAIL] {verdict} - the scenario was NOT {(isPause ? "paused" : "resumed")}. " +
