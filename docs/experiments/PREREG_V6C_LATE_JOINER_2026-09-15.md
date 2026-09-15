@@ -279,3 +279,78 @@ STOP AND ASK.
 
 A3 (seat-fired, done) -> **A5** at init+30 s -> A1 at window+180 s -> A2 at window+420 s, then
 A4 in its own run. A0's `backends=` column is on in both runs.
+
+---
+
+## AMENDMENT 2 (2026-09-15, after the V6c rerun): PREREG V6d - CREATION OR TASKING?
+
+**Nothing in this amendment has been run.**
+
+### What V6c settled, and what it left
+
+Results in `V6_LIVE_JOIN_GATE_2026-09-15.md` sec 8. In short: A1 waited **180 s** and saw no
+back end (**H1 dead**); A2's blind broadcast `run()` provoked nothing (**H3 dead**); A3 and the
+CreateOne diagnostic both hit in 0.2 s in an EMPTY scenario, the latter **6 minutes late**
+(**"late joiners are the problem" dead**). And the A0 instrument produced the finding of the
+run: a LONG-LIVED observer that held `backends=1` for 150 s **lost it** at t=151 s - ~2 minutes
+after the order was pushed - and never got it back, while still reflecting all 48 objects. The
+tasked units never moved and no terminal report was ever produced.
+
+So H5 stands, refined: **the back end stops emitting status once the scenario is populated
+and/or tasked**, and every controller loses it. **A5 never fired** - the runner pushed the order
+inside the driver's 30 s post-init hold - so creation and tasking are still not separated. That
+is the whole job of V6d.
+
+### The run
+
+```
+shell 1:  bash scratchpad/validation/v6d_launch.sh
+shell 2:  "C:\Program Files\PowerShell\7\pwsh.exe" -NoProfile -File scratchpad/validation/v6d_gates.ps1
+```
+
+`v6d_launch.sh` is `v6c_launch.sh` plus **`--pre-order-settle 150`**. That is the only change,
+and it is the enabling one: it holds PushOrder back for 150 s after the init dispatches, which
+turns the few seconds that swallowed A5 into a window wide enough to fire in and measure.
+Log: `v6d_runner.log`.
+
+### The two arms - ONE variable between them: the order
+
+| arm | appNo | fired at | command | scenario state |
+|---|---|---|---|---|
+| **A5 POPULATED-QUIET** | **4456** | the runner's `interface dispatched` line **+ 45 s**, and only while `Stage 8 - PushOrder` has NOT appeared | `SetSimRate.exe 1 4456 --settle-secs 15` | objects EXIST, **nothing tasked** |
+| **A6 TASKED** | **4464** | **window + 120 s** (`Stage 8b` + `PushOrder: EXIT=0`) | `SetSimRate.exe 1 4464 --settle-secs 15` | objects exist **and are tasked** |
+
+Same tool, same 15 s cap, same environment, same cwd, ~4 minutes apart. The only thing that
+changes between them is whether the order has been pushed. A6 deliberately reuses the 15 s cap
+rather than A1's 180 s: V6c already proved 180 s buys nothing, and a 15 s arm keeps A5 and A6
+strictly comparable.
+
+### Predictions - written before the run
+
+| outcome | reading | what follows |
+|---|---|---|
+| **A5 HIT + A6 MISS** | **TASKING is the trigger** | the back end goes silent when it accepts the `move-along` tasks. Next: the object console at notify level 4 on a taskee, to see whether it is refusing, busy or stopped. |
+| **A5 MISS** | **CREATION is the trigger** | the back end goes silent once the app's controller has created objects. Next: a run where the app joins and creates NOTHING while a second federate creates the units - which separates "objects exist" from "this controller created them". |
+| **A5 HIT + A6 HIT** | neither is the trigger | **STOP AND ASK.** It would mean V6c's A1/A2 misses came from something the arms do not model, and a seventh probe is not the answer. |
+| A5 NOT RUN again | the window still closed too fast | raise `--pre-order-settle` and rerun; do NOT reinterpret A6 alone. |
+
+**Also read, every time:** the trace's `backends=` column. The A5/A6 verdicts are the tools'
+own; the column says WHEN the back end went quiet for a federate that already had it, which is
+the measurement that made V6c worth running.
+
+### A4, the busy control - what it means NOW
+
+`v6c_busy_launch.sh` + `v6c_busy_gates.ps1` (appNo **4448**) are already written and unchanged.
+After V6c, A4's two outcomes mean:
+
+* **A4 HIT** (V5's fixture, populated AND tasked, late tool finds the back end) -> H5 is NOT
+  about population or tasking as such, and the difference is in V5's FIXTURE: the AO20 nav data
+  with the custom SMS, the relocated appData, `AtOrder` creation, 128 units, DurationScale 0.25.
+  The next question becomes which of those keeps the back end alive - and the honest reading is
+  that the QUIET fixture's back end is the broken one, not V5's.
+* **A4 MISS** -> V5's 0.3 s success is the anomaly, not the rule. Everything since V5 has been
+  measured against a run that may itself have been unusual; re-examine what V5's `PauseSim`
+  actually proved before treating it as the baseline.
+
+Run A4 AFTER V6d: V6d costs one run and answers a two-way question, while A4 costs a run on the
+heavier fixture and only matters once creation and tasking are separated.
