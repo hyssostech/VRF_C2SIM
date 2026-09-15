@@ -98,6 +98,14 @@ if (args.Length > 0 && args[0] == "--preflight-selftest")
 if (args.Length > 0 && args[0] == "--routeshift-selftest")
     return RouteShiftSelfTest.Run();
 
+// Offline BACK-END LIVENESS check (STP-822): a tick loop driven through BackendCount 1 -> 0 -> 1,
+// asserting the TASKABRT / ObservationReport / position-report-suppression / recovery sequence,
+// plus the nav-area evidence gate. `--disabled` re-runs the SAME assertions with
+// Vrf:BackendLivenessSeconds = 0 - the V6d build - and MUST fail: that arm IS the defect.
+// No bridge, no server, no network.
+if (args.Length > 0 && args[0] == "--liveness-selftest")
+    return LivenessSelfTest.Run(featureEnabled: !(args.Length >= 2 && args[1] == "--disabled"));
+
 // Offline scripted-task variable check (V2): every ScriptVar kind -> the vendor's DtRw* binding and
 // back (VrfBridge.DescribeScriptVars; builds a real DtScriptedTaskTask, sends nothing). Loads the
 // bridge assembly, so the MAK bin dirs must be on PATH - like --typemap-selftest.
@@ -120,6 +128,7 @@ if (args.Length > 0 && args[0].StartsWith("--") && args[0] != "--runtime-check" 
     Console.Error.WriteLine("VrfC2SimApp: unknown switch '" + args[0] + "' - NOT starting the host. Known: " +
                             "--translator/--report/--sequencer/--verb/--destack/--fanout/--typemap/--terrain/" +
                             "--placement/--compose/--arrival/--stall/--parse/--name/--preflight/--routeshift/--rulings/" +
+                            "--liveness-selftest [--disabled], " +
                             "--scripted-task/--initgraphics-selftest, --parse-init <file> [clientId], " +
                             "--parse-order <file>, --runtime-check, host switches --Key=Value; " +
                             "no arguments = run the interface.");

@@ -340,6 +340,49 @@ public class VrfSettings
     public int StallCheckSeconds { get; set; } = 5;             // how often the tick thread samples
     public int StallMinMembersWithData { get; set; } = 1;       // readable members needed before a stall may be called
 
+    // BACK-END LIVENESS (STP-822; docs/experiments/DESIGN_BACKEND_LIVENESS_2026-09-15.md).
+    // THE DEFECT: until this setting existed the interface re-read the VR-Forces back end in
+    // exactly ONE place - the task clock's stale branch (SampleTaskClock) - which is reached
+    // only while the sim clock is readable-confirmed AND flat. On run 20260915T130627Z (V6d)
+    // the back end STOPPED at the first ground move-along of the R5 order (WHY is still open:
+    // V6e falsified the nav-data account and measured the stopped state as a RUNAWAY ALLOCATION,
+    // ~2.2 GB/min, which makes this read a SAFETY item - V6_LIVE_JOIN_GATE sec 11.6);
+    // the interface logged "Backend discovered (BackendCount=1)" once at start-up and then
+    // delivered 543 position reports off stale reflected attributes with 0 warnings and 0
+    // TASKABRT, because that branch never ran (the R5 order carries no Duration). The same
+    // reading held on the healthy A4 run, so it is not a fixture property.
+    //
+    // BackendLivenessSeconds is how often the tick loop asks, on the WALL clock, independent of
+    // the task clock and of whether anything is held on an end time. 0 = OFF (the pre-STP-822
+    // behaviour, exactly). 10 s costs three read-only vendor calls per sample - the same three
+    // STP-809 added, which send nothing on the wire.
+    public int BackendLivenessSeconds { get; set; } = 10;
+    // How long the count must read ZERO before the loss is DECLARED. Never one sample: a loss
+    // needs BackendLivenessPolicy.ConfirmSamples consecutive misses AND this many seconds, so a
+    // single missed status message or one momentarily empty vendor list cannot abort an order.
+    // At the defaults a real loss is reported ~30-40 s after the count drops (V6d's own drop
+    // came 121 s after dispatch, twice measured, so the interface speaks well inside the run).
+    public int BackendLossConfirmSeconds { get; set; } = 30;
+
+    // NAV-AREA PRECONDITION FOR GROUND TASKS (STP-822 part 2 / STP-823). *** NOT A CRASH GUARD:
+    // the cause statement this was built on is WITHDRAWN. *** V6d suggested that a ground move on
+    // terrain with NO navigation area STOPS the back end; V6e (run 20260915T135636Z,
+    // V6_LIVE_JOIN_GATE sec 11) stopped it identically WITH a nav area and with that condition
+    // answering TRUE, and measured the stopped state as a runaway allocation. What survives is the
+    // weaker rule: without a navigation area a ground move is planned by the FEATURE planner on
+    // one straight part, silently. When this is ON, such a move is REFUSED (TASKABRT +
+    // ObservationReport) unless the interface has in-band evidence that a navigation area is
+    // loaded: a "New Primary nav area" row on the VR-Forces object console within
+    // NavAreaEvidenceSeconds. THE DEFAULT IS FALSE AND IS THE USER'S TO CHANGE - see
+    // NavAreaEvidence for exactly what the evidence does and does not prove, and note that the
+    // gate can see nothing below Vrf:ObjectConsoleNotifyLevel 3 (there it WARNS once and
+    // dispatches rather than refusing on ignorance).
+    public bool RequireNavAreaForGroundTasks { get; set; } = false;
+    // How long a "New Primary nav area" row stays good as evidence. 300 s covers the measured
+    // cold-cache acquisition (236.9 s from first placement, G7B_G8_RESULTS sec 1.5/3) with
+    // margin; it is a freshness bound, not a timer anything waits on.
+    public int NavAreaEvidenceSeconds { get; set; } = 300;
+
     // OBSERVATION CHANNEL (UG52 21.9 p483): every VR-Forces object has its own console that
     // carries "messages sent from the simulation engine, from a simulation object's plan, from
     // other simulation objects, and from scripts", filtered by a PER-OBJECT notify level

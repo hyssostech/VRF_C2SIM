@@ -2317,6 +2317,77 @@ no Duration and no geometry is malformed and is refused, not held (below).
 START-UP PROOF: one `TASK CLOCK (R4):` line names the clock in force, the scale, and the gate
 formula. If that line is missing, the build predates this change.
 
+
+### 11a. ADDENDUM 2026-09-15 - BACK-END LIVENESS IS READ ON A TIMER NOW (STP-822)
+
+Everything above describes what the task clock does when it CAN read the back end. Until this
+addendum, the stale branch was the ONLY place the interface ever re-read it - and it is reached
+only while the sim clock is readable-confirmed AND flat. On run `20260915T130627Z` (V6d) the back
+end STOPPED at the first ground move-along of the R5 order and the interface never
+noticed: `Backend discovered (BackendCount=1)` at start-up, then **543 position reports, 0 failed,
+0 warnings, 0 TASKABRT**, read off reflected attributes the RTI still held. The R5 order has no
+Durations, so nothing was ever held on an end time and the branch never ran. `WatchVrf
+--report-backends` watched the same federation's `backends=` column drop 1 -> 0 exactly
+121 +/- 2 s after dispatch, twice.
+
+**THE READ IS NOW ITS OWN TICK PHASE** (`MaybeCheckBackendLiveness`, before the R1 poll), on the
+WALL clock, independent of the task clock and of whether anything is held. It uses the same three
+STP-809 signals - `ActiveBackendCount`, `BackendCount`, `BackendControlState` - each guarded on
+its own, so a bridge that predates STP-809 still detects the loss on `BackendCount` alone.
+
+```powershell
+$env:Vrf__BackendLivenessSeconds      = "10"     # DEFAULT. 0 = OFF (the pre-STP-822 blindness)
+$env:Vrf__BackendLossConfirmSeconds   = "30"     # DEFAULT. Zero must hold this long AND for 2
+                                                 # consecutive samples - never one sample
+$env:Vrf__RequireNavAreaForGroundTasks = "false" # DEFAULT - the user rules this one (below)
+$env:Vrf__NavAreaEvidenceSeconds      = "300"    # DEFAULT. How long a nav-area row stays evidence
+```
+
+All four ship in `appsettings.json`. **START-UP PROOF:** one `BACK-END LIVENESS (STP-822):` INFO
+line names the cadence, the confirm window and whether the nav gate is on. If that line is missing
+the build predates this change; if it says the read is OFF, a `BACK-END LIVENESS IS OFF` WARNING
+says what that costs.
+
+**WHAT THE OPERATOR READS ON A LOSS** - one ERROR line, `BACK END LOST: VR-Forces back end lost
+(no status for N s). Last good reading <iso>; K task(s) in flight ...`, and then, in this order:
+one **TASKABRT per running task** carrying that same reason through the B1 emit point (and each
+task ABANDONED, so its STREND successors fail fast instead of waiting out their window); **ONE
+ObservationReport** to STP naming the loss, the last good stamp and the running-task count;
+`R1 position reports SUSPENDED` (counted, said once - no fix is sent off stale attributes);
+`STALL WATCHDOG: STANDING DOWN` with its rings dropped, because a back-end loss is NOT a unit
+stall; and the task clock's stale branch short-circuited to WALL, so it can never print "the back
+end REPORTS PAUSED" about a back end already declared lost. On recovery: `BACK END RECOVERED after
+N s`, one ObservationReport, reports resume - and **NOTHING is re-tasked**.
+
+**WHY A LOST BACK END IS A SAFETY EVENT, NOT ONLY A REPORTING ONE (V6e, 2026-09-15).** The
+stopped back end has been MEASURED: its working set runs away at ~2.2 GB/min at under one core
+with a flat thread count (V6_LIVE_JOIN_GATE sec 11.3), which reaches a 32 GB machine in about
+30 minutes. V6e also WITHDREW the nav-data cause statement - the same order stopped the back end
+with a nav area present and the condition answering TRUE - so the trigger is still open (V6f).
+When `BACK END LOST` appears, end the run; do not wait out the window.
+
+**THE NAV-AREA GATE, OFF BY DEFAULT - AND IT IS NOT A CRASH GUARD.** It was built on the
+withdrawn cause statement above; what survives is the weaker rule that without a navigation area
+a ground move is planned by the FEATURE planner on one straight part, silently.
+`Vrf:RequireNavAreaForGroundTasks=true` refuses a ground
+move (TASKABRT `no navigation area evidence for <taskee>` + an ObservationReport) unless the
+object console has printed a `New Primary nav area` row within `Vrf:NavAreaEvidenceSeconds` - the
+same row the runner's stage-7d READY gate polls (`RunnerLib.ps1 Get-NavAreaRows`), read in band
+this time. **It needs `Vrf:ObjectConsoleNotifyLevel >= 3`**: below that the row is never printed,
+the gate cannot tell "no nav area" from "not watching", and it logs ONE warning and DISPATCHES
+rather than refusing on ignorance. A row from ANOTHER object clears the gate (an area is loaded)
+but is NOT proof that this taskee's start point is inside one - the log line and the report say
+which of the two was seen. Full limitations: `docs/experiments/DESIGN_BACKEND_LIVENESS_2026-09-15.md`.
+
+OFFLINE PROOF, no bridge and no network: `VrfC2SimApp --liveness-selftest` (a tick fixture driven
+through BackendCount 1 -> 0 -> 1, asserting the whole sequence above) and
+`--liveness-selftest --disabled`, which runs the SAME assertions with the feature off - the V6d
+build - and FAILS 11 of them.
+
+UNCONFIRMED LIVE: nobody has yet watched this fire on a real back end. The V6d recipe (plain
+`R9_Mojave_Empty_52`, R9 lean init, the R5 order, console 4) is the confirming run, and it must
+produce 3 TASKABRT within ~40 s of the `backends=` drop, ONE loss ObservationReport, and 0
+position reports after it.
 ---
 
 ## 12. THE ROUTE PRE-FLIGHT AND ITS LATERAL SHIFT - BOTH OFF BY DEFAULT (STP-804/806)
