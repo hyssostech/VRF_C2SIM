@@ -43,8 +43,9 @@
          as a DISAMBIGUATION DIAGNOSTIC (tools/CreateOne). It does NOT rescue the
          run - see the block below.
       8  PushOrder, then observe for -RunSecs (or, with -StopWhenComplete, until
-         every taskee has reported TASKCMPLT and -SettleHoldSecs has passed -
-         RunSecs stays the cap)
+         every order task has a TERMINAL status report (TASKCMPLT or TASKABRT),
+         every taskee has one, and -SettleHoldSecs has passed - RunSecs stays
+         the cap)
       9  teardown in a finally: StopIface (clean resign), wait for the app to
          exit, hold until StopIface + TrailSecs, then TELL THE OBSERVERS TO STOP
          (touch <runDir>\observers.stop - they resign cleanly on seeing it), THEN
@@ -163,14 +164,23 @@
     OPT-IN early close of the observation window (default OFF, so a default run
     stays comparable with the record). When set, the stage-8b loop polls the
     interface log (vrfc2simapp.log) every 5 s for
-        SENT TASK STATUS REPORT (TASKCMPLT) taskee=<uuid> task=<uuid>.
-    and closes the window once (a) EVERY distinct PerformingEntity in the pushed
-    order has at least one such line AND the number of such lines is >= the
-    number of <Task> elements in the order, AND (b) -SettleHoldSecs have elapsed
-    since the poll that first saw (a), AND (c) every taskee has POST-COMPLETION
-    POSITION EVIDENCE. -RunSecs remains the cap. The manifest records
-    oracle.earlyExit (enabled / fired / per-taskee first-seen / reportEvidence
-    with the 'via' that satisfied it / closedUtc).
+        SENT TASK STATUS REPORT (<CODE>) taskee=<uuid> task=<uuid> - <why>.
+    and closes the window once (a1) EVERY distinct PerformingEntity in the pushed
+    order has at least one TERMINAL report AND (a2) EVERY order task - counted per
+    (taskee, task) PAIR, not by line total - has one, AND (b) -SettleHoldSecs have
+    elapsed since the poll that first saw (a), AND (c) every taskee has
+    POST-COMPLETION POSITION EVIDENCE. -RunSecs remains the cap. The manifest
+    records oracle.earlyExit (enabled / fired / per-taskee first-seen /
+    tasksClosed / terminalByCode / reportEvidence with the 'via' that satisfied
+    it / failedCondition / closedUtc).
+
+    TERMINAL = TASKCMPLT *or* TASKABRT (2026-09-14). A task VR-Forces fails, and a
+    successor the interface skips because its predecessor was abandoned, are END
+    STATES: an order containing either could never satisfy a TASKCMPLT-only count
+    and the window always ran to its cap (run 20260914T230706Z: 42 tasks, 40
+    TASKCMPLT + 2 TASKABRT). TASKSTRT is not terminal. A report the app can not
+    attribute to a task uuid (task=(none)) is counted and printed but closes no
+    task - the window then runs to its cap, the safe direction.
 
     (c) accepts ANY ONE of three sources (RunnerLib Test-ReportEvidence):
       RPT            a VR-Forces radio TEXT report agreeing with the sampled POS.
@@ -2525,7 +2535,7 @@ Say ('  pre-order   : {0}' -f $(
     } elseif ($PreOrderSettleSecs -gt 0) {
         ('stage 7d holds {0}s between the oracle gate and PushOrder (the nav area loads LAZILY after placement); it IS in the derived cap, and {1}' -f $PreOrderSettleSecs, $(if ($WatchSecs -gt 0) { 'the EXPLICIT -WatchSecs above overrides that derivation - see the flag' } else { 'the derived cap is the one in force' }))
     } else { 'no hold and no gate (-PreOrderSettleSecs 0, -PreOrderGate off)' }))
-Say ('  window      : {0}s{1}' -f $RunSecs, $(if ($StopWhenComplete) { (' CAP; -StopWhenComplete closes it once all {0} taskee(s) / {1} task(s) report TASKCMPLT, {2}s have passed AND every taskee has post-completion position evidence (RPT | C2SIM-capture | R1-applog)' -f $OrderTaskees.Count, $OrderTasks.Count, $SettleHoldSecs) } else { ' fixed (-StopWhenComplete not set)' }))
+Say ('  window      : {0}s{1}' -f $RunSecs, $(if ($StopWhenComplete) { (' CAP; -StopWhenComplete closes it once all {0} taskee(s) and all {1} task(s) have a TERMINAL report (TASKCMPLT or TASKABRT), {2}s have passed AND every taskee has post-completion position evidence (RPT | C2SIM-capture | R1-applog)' -f $OrderTaskees.Count, $OrderTasks.Count, $SettleHoldSecs) } else { ' fixed (-StopWhenComplete not set)' }))
 Say ('  clientId    : {0}' -f $(if ($ClientId) { ('{0} (-ClientId -> Vrf__ClientId)' -f $ClientId) } else { ('{0} (appsettings.json)' -f $appClientId) }))
 Say ('  HLA PATH    : {0};<inherited>' -f $PathPrefix)
 Say ('  licence     : {0}' -f $(if ($LicInfo.Exists) { ('{0} (expires {1})' -f $LicInfo.Path, $LicInfo.ExpiryText) } else { '(UNRESOLVED - checkout may hang; RUNBOOK 0.5.15)' }))
@@ -3596,8 +3606,8 @@ try {
     # so a reader can tell "did not fire" from "was not enabled".
     $EarlyExit = [ordered]@{
         enabled        = [bool]$StopWhenComplete
-        source         = 'vrfc2simapp.log: SENT TASK STATUS REPORT (TASKCMPLT) taskee=<uuid> task=<uuid> and the R1 position-report round lines; watchvrf-trace.csv TSK/RPT/POS records; reports-captured.log C2SIM PositionReport / TaskStatus records (APPENDED by ListenReports as each report arrives, 0999eeb - live during the window)'
-        criterion      = '(1-3) every distinct order taskee has >= 1 TASKCMPLT line AND TASKCMPLT lines >= order task count, held for settleHoldSecs (FLOOR); AND (4) every taskee has post-completion position evidence from ANY ONE of: RPT (a trace RPT POSITION later than its TSK and within reportToleranceMeters of its latest POS), C2SIM-capture (a PositionReport for its own uuid captured after its TASKCMPLT), R1-applog (a complete R1 round, 0 skipped, logged after its TASKCMPLT line); runSecs is the cap'
+        source         = 'vrfc2simapp.log: SENT TASK STATUS REPORT (TASKCMPLT|TASKABRT) taskee=<uuid> task=<uuid> - <why> and the R1 position-report round lines; watchvrf-trace.csv TSK/RPT/POS records; reports-captured.log C2SIM PositionReport / TaskStatus records (APPENDED by ListenReports as each report arrives, 0999eeb - live during the window)'
+        criterion      = '(1) every distinct order taskee has >= 1 TERMINAL report (TASKCMPLT or TASKABRT); (2) every order task, keyed (taskee, task), has one - a line COUNT is not the test; (3) (1)+(2) held for settleHoldSecs (FLOOR); (4) every taskee has post-completion position evidence from ANY ONE of: RPT (a trace RPT POSITION later than its TSK and within reportToleranceMeters of its latest POS), C2SIM-capture (a PositionReport for its own uuid captured after its TASKCMPLT), R1-applog (a complete R1 round, 0 skipped, logged after its TASKCMPLT line); runSecs is the cap'
         taskees        = $OrderTaskees
         taskCount      = $OrderTasks.Count
         settleHoldSecs = $SettleHoldSecs
@@ -3611,11 +3621,15 @@ try {
         closedUtc      = $null
         windowSecsUsed = $null
         completionLinesSeen = 0
+        tasksClosed    = 0
+        terminalByCode = [ordered]@{}
+        unattributedTerminalLines = 0
+        failedCondition = $null
     }
     $Manifest.oracle.earlyExit = $EarlyExit
     if ($DryRun) {
         if ($StopWhenComplete) {
-            Say-Plan ('would poll {0} every 5s for TASKCMPLT lines; would close the window once all {1} taskee(s) / {2} task(s) have reported, {3}s have passed and every taskee has post-completion position evidence - a trace RPT within {5} m of its POS, OR a C2SIM PositionReport for its own uuid captured after its TASKCMPLT, OR a complete R1 round (0 skipped) logged after it; would otherwise sleep out the {4}s cap' -f $PathAppLog, $OrderTaskees.Count, $OrderTasks.Count, $SettleHoldSecs, $RunSecs, $ReportToleranceMeters)
+            Say-Plan ('would poll {0} every 5s for TERMINAL task-status lines (TASKCMPLT or TASKABRT); would close the window once all {1} taskee(s) have one and all {2} task(s) are closed by one, {3}s have passed and every taskee has post-completion position evidence - a trace RPT within {5} m of its POS, OR a C2SIM PositionReport for its own uuid captured after its TASKCMPLT, OR a complete R1 round (0 skipped) logged after it; would otherwise sleep out the {4}s cap' -f $PathAppLog, $OrderTaskees.Count, $OrderTasks.Count, $SettleHoldSecs, $RunSecs, $ReportToleranceMeters)
         } else {
             Say-Plan ('would sleep {0}s while WatchVrf and ListenReports keep sampling' -f $RunSecs)
         }
@@ -3630,9 +3644,9 @@ try {
         $nextStatus = (Get-Date).AddSeconds(30)
         $nextEvidenceNote = Get-Date
         $completion = New-CompletionState
-        # TASKCMPLT lines seen in the app log for ANY taskee (the state's own lineCount
-        # counts only the order's taskees). A RUNNING TOTAL now that the reader is
-        # incremental: each poll sees only what was appended since the previous one.
+        # TERMINAL task-status lines seen in the app log for ANY taskee (the state's own
+        # lineCount counts only the order's taskees). A RUNNING TOTAL now that the reader
+        # is incremental: each poll sees only what was appended since the previous one.
         $completionLinesAll = 0
         # Condition (4) below reads the WHOLE app log and the WHOLE trace (Get-VrfUuidByName
         # correlates a CreateRoute line with a later Route-created line, and
@@ -3676,14 +3690,21 @@ try {
             }
             if ($StopWhenComplete -and -not $appDeathRecorded -and $OrderTaskees.Count -gt 0) {
                 $nowUtc = (Get-Date).ToUniversalTime()
-                $done = @(Get-CompletedTasks -AppLogText (Read-LiveDelta -Path $PathAppLog -Key 'applog-completions'))
+                # TERMINAL reports, not TASKCMPLT alone: a task VR-Forces failed, and a
+                # successor skipped behind it, are TASKABRT, and both are end states of an
+                # order task (run 20260914T230706Z). -OrderTasks gives the state the order's
+                # own (taskee, task) keys, so coverage is asked per TASK, not per line.
+                $done = @(Get-TerminalTaskReports -AppLogText (Read-LiveDelta -Path $PathAppLog -Key 'applog-completions'))
                 $completionLinesAll += $done.Count
-                $before = $completion.firstSeenUtc.Count
-                $completion = Update-CompletionState -State $completion -Taskees $OrderTaskees -TaskCount $OrderTasks.Count -Completions $done -NowUtc $nowUtc
-                if ($completion.firstSeenUtc.Count -gt $before) {
-                    Say-Info ('  TASKCMPLT seen for {0}/{1} taskee(s), {2} line(s) for order taskees ({4} total) (t+{3}s after PushOrder returned{5})' -f `
-                        $completion.firstSeenUtc.Count, $OrderTaskees.Count, $completion.lineCount, `
-                        [int]((Get-Date) - $obsStart).TotalSeconds, $completionLinesAll, (Get-OrderClockNote))
+                $before       = $completion.firstSeenUtc.Count
+                $beforeClosed = (Get-TaskCoverage -State $completion).Closed
+                $completion = Update-CompletionState -State $completion -Taskees $OrderTaskees -TaskCount $OrderTasks.Count -Completions $done -NowUtc $nowUtc -OrderTasks $OrderTasks
+                $cov = Get-TaskCoverage -State $completion
+                if ($completion.firstSeenUtc.Count -gt $before -or $cov.Closed -gt $beforeClosed) {
+                    Say-Info ('  terminal task reports: {0}/{1} taskee(s) covered, {2}/{3} task(s) closed [{4}]; {5} line(s) for order taskees ({6} total) (t+{7}s after PushOrder returned{8})' -f `
+                        $completion.firstSeenUtc.Count, $OrderTaskees.Count, $cov.Closed, $cov.TaskCount, `
+                        $cov.Text, $completion.lineCount, $completionLinesAll, `
+                        [int]((Get-Date) - $obsStart).TotalSeconds, (Get-OrderClockNote))
                 }
                 # Condition (4): post-completion POSITION EVIDENCE, from three sources -
                 # the live trace (RPT vs POS on the trace clock), the app log (a complete
@@ -3723,7 +3744,7 @@ try {
                 $verdict = Test-EarlyExit -State $completion -Taskees $OrderTaskees -SettleHoldSecs $SettleHoldSecs -NowUtc $nowUtc -ReportEvidence $evidenceOk
                 if ($verdict.AllComplete -and $null -eq $EarlyExit.allCompleteUtc) {
                     $EarlyExit.allCompleteUtc = ([datetime]$completion.allCompleteUtc).ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
-                    Say-Ok ('  ALL taskees reported TASKCMPLT at t+{0}s after PushOrder returned{2}; holding >= {1}s AND waiting for post-completion position evidence before closing the window' -f [int]((Get-Date) - $obsStart).TotalSeconds, $SettleHoldSecs, (Get-OrderClockNote))
+                    Say-Ok ('  ALL taskees and ALL tasks have a TERMINAL report at t+{0}s after PushOrder returned{2} - closed: {3}; holding >= {1}s AND waiting for post-completion position evidence before closing the window' -f [int]((Get-Date) - $obsStart).TotalSeconds, $SettleHoldSecs, (Get-OrderClockNote), $verdict.TerminalSummary)
                 }
                 if ($verdict.HoldElapsed -and -not $verdict.EvidenceIn -and (Get-Date) -ge $nextEvidenceNote) {
                     # Report once per 30 s why the window is still open past the floor.
@@ -3733,7 +3754,7 @@ try {
                 }
                 if ($verdict.ShouldClose) {
                     $EarlyExit.fired = $true
-                    Say-Ok ('  settle hold of {0}s elapsed ({1}s) and position evidence in - closing the observation window EARLY at t+{2}s after PushOrder returned{4}, of the {3}s cap' -f $SettleHoldSecs, $verdict.HoldElapsedSecs, [int]((Get-Date) - $obsStart).TotalSeconds, $RunSecs, (Get-OrderClockNote))
+                    Say-Ok ('  settle hold of {0}s elapsed ({1}s) and position evidence in - closing the observation window EARLY at t+{2}s after PushOrder returned{4}, of the {3}s cap; closed: {5}' -f $SettleHoldSecs, $verdict.HoldElapsedSecs, [int]((Get-Date) - $obsStart).TotalSeconds, $RunSecs, (Get-OrderClockNote), $verdict.TerminalSummary)
                     break
                 }
             }
@@ -3742,6 +3763,10 @@ try {
         $EarlyExit.closedUtc      = $Manifest.clocks.observationEndUtc
         $EarlyExit.windowSecsUsed = [Math]::Round(((Get-Date) - $obsStart).TotalSeconds, 1)
         $EarlyExit.completionLinesSeen = $completion.lineCount
+        $covFinal = Get-TaskCoverage -State $completion
+        $EarlyExit.tasksClosed    = $covFinal.Closed
+        $EarlyExit.terminalByCode = $covFinal.ByCode
+        $EarlyExit.unattributedTerminalLines = $covFinal.Unattributed
         foreach ($k in @($completion.firstSeenUtc.Keys)) { $EarlyExit.firstSeenUtc[$k] = ([datetime]$completion.firstSeenUtc[$k]).ToString('yyyy-MM-ddTHH:mm:ss.fffZ') }
         if ($StopWhenComplete -and -not $EarlyExit.fired) {
             # The @() MUST wrap the .Missing PROPERTY, not the call: member enumeration over a
@@ -3749,8 +3774,21 @@ try {
             # Latest (:314) the $missing.Count at :2171 then throws (runner EXIT=5, first hit by
             # run 20260902T143638Z - exactly one taskee missing is the only branch that reaches it).
             $missing = @( (Test-EarlyExit -State $completion -Taskees $OrderTaskees -SettleHoldSecs $SettleHoldSecs -NowUtc (Get-Date).ToUniversalTime() -ReportEvidence $false).Missing )
+            # The SAME verdict, taken once more only to read its FailedCondition: the
+            # $missing assignment above must keep the exact @( (call).Missing ) shape the
+            # offline gate pins (tests sec 8, the run 20260902T143638Z EXIT=5 defect), and
+            # $evidenceFinal aliases $evidenceOk so that gate's "exactly one call takes
+            # -ReportEvidence $evidenceOk" still identifies the POLL-LOOP call.
+            $evidenceFinal = $evidenceOk
+            $finalVerdict  = Test-EarlyExit -State $completion -Taskees $OrderTaskees -SettleHoldSecs $SettleHoldSecs -NowUtc (Get-Date).ToUniversalTime() -ReportEvidence $evidenceFinal
+            $EarlyExit.failedCondition = $finalVerdict.FailedCondition
             $pendingEv = @($EarlyExit.reportEvidence.GetEnumerator() | Where-Object { -not $_.Value.satisfied } | ForEach-Object { '{0}: {1}' -f $(if ($_.Value.name) { $_.Value.name } else { $_.Key }), $_.Value.reason })
-            Say-Info ('  -StopWhenComplete did NOT fire; window ran to its {0}s cap. Taskees without TASKCMPLT: {1}. Report evidence pending: {2}' -f $RunSecs, $(if ($missing.Count -gt 0) { $missing -join ', ' } else { '(none)' }), $(if ($pendingEv.Count -gt 0) { $pendingEv -join ' | ' } else { '(none - the hold had not elapsed, or the line count was below the task count)' }))
+            Say-Info ('  -StopWhenComplete did NOT fire; window ran to its {0}s cap. BLOCKED BY {1}. Terminal reports: {2}. Taskees without a terminal report: {3}. Report evidence pending: {4}' -f `
+                $RunSecs, `
+                $(if ($finalVerdict.FailedCondition) { $finalVerdict.FailedCondition } else { 'nothing - every condition held by the time the window ended' }), `
+                $finalVerdict.TerminalSummary, `
+                $(if ($missing.Count -gt 0) { $missing -join ', ' } else { '(none)' }), `
+                $(if ($pendingEv.Count -gt 0) { $pendingEv -join ' | ' } else { ('(condition (4) was never evaluated - it is reached only once (1) and (2) hold; {0} of {1} task(s) closed, {2} of {3} taskee(s) covered)' -f $finalVerdict.TasksClosed, $finalVerdict.TaskCount, ($OrderTaskees.Count - $missing.Count), $OrderTaskees.Count) }))
         }
         Save-Manifest
         Say-Ok ('observation window complete ({0}s used of {1}s)' -f $EarlyExit.windowSecsUsed, $RunSecs)

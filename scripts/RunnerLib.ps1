@@ -81,32 +81,61 @@ function Get-OrderTaskees {
 }
 
 # ---- what the INTERFACE reported --------------------------------------------
-# The app logs exactly one line per task-complete report it SENDS
-# (src/VrfC2SimApp/VrfC2SimService.cs:1244):
-#     SENT TASK STATUS REPORT (TASKCMPLT) taskee=<uuid> task=<uuid|(none)>.
-# This is the LIVE completion source, and the one that needs no second process - the
-# interface writes it itself. reports-captured.log is readable live too since 2026-09-14
-# (ListenReports appends and flushes each report as it arrives), but it exists only when
-# an observer is up and pointed at the right endpoints, so completion is still read here.
-# Returns one (Taskee, Task) record per line, in log order, duplicates kept - the
-# count matters (see Test-EarlyExit).
-function Get-CompletedTasks {
-    param([string]$AppLogText)
+# The app logs exactly one line per task-status report it SENDS
+# (src/VrfC2SimApp/VrfC2SimService.cs:4958):
+#     SENT TASK STATUS REPORT (<CODE>) taskee=<uuid> task=<uuid|(none)> - <why>.
+#
+# THE " - <why>." SUFFIX IS THE D1 DEFECT (run 20260914T230706Z). Until 2026-09-14 the
+# app logged the task uuid LAST ("... task=<uuid>.") and the regex here anchored that
+# token to the END OF THE LINE. Commit 81d108c (B1: TASKSTRT at dispatch, TASKABRT for
+# tasks that will never run) appended " - {Why}." to every one of those lines, and this
+# parser then matched NOTHING: the V2 chain run pushed 41 TASKCMPLT and 2 TASKABRT lines
+# for its 11 taskees and the runner still reported ALL ELEVEN as having no TASKCMPLT,
+# with completionLinesSeen = 0 in its manifest. The task token is now delimited by a
+# LOOKAHEAD (an optional period, then whitespace or end of text), so whatever the app
+# appends to the line after it can never break the parse again.
+#
+# TERMINAL CODES, not TASKCMPLT alone. A task VR-Forces FAILS is reported TASKABRT, and
+# so is a successor the interface skips because its predecessor was abandoned: both are
+# legitimate END STATES of an order task. Counting only TASKCMPLT made the task-coverage
+# test unmeetable for any order containing one (the V2 run: 42 tasks, at most 40 of which
+# could ever be TASKCMPLT). TASKSTRT is NOT terminal and is deliberately not matched.
+#
+# Returns one (Taskee, Task, Code) record per report line, in log order, duplicates kept.
+# task=(none) - the app's form for a report it could not attribute to a task uuid - is
+# returned as-is; Update-CompletionState counts it as UNATTRIBUTED and it closes no task
+# (the safe direction: the window then runs to its cap).
+function Get-TerminalTaskReports {
+    param([AllowNull()][AllowEmptyString()][string]$AppLogText)
     $out = @()
     if ([string]::IsNullOrWhiteSpace($AppLogText)) { return $out }
-    $rx = [regex]'SENT TASK STATUS REPORT \(TASKCMPLT\) taskee=(?<taskee>[0-9A-Fa-f-]{36}) task=(?<task>\S+?)\.?\s*$'
-    foreach ($line in ($AppLogText -split "`r?`n")) {
-        $m = $rx.Match($line)
-        if (-not $m.Success) { continue }
-        $out += [pscustomobject]@{ Taskee = $m.Groups['taskee'].Value; Task = $m.Groups['task'].Value }
+    # No line split and no '$' line anchor: [regex]::Matches walks the text once (the app
+    # log reached 40 MB in 127 s in the G6 run) and the task token ends where the LOOKAHEAD
+    # says it does, not where the line happens to end.
+    $rx = [regex]'SENT TASK STATUS REPORT \((?<code>TASKCMPLT|TASKABRT)\) taskee=(?<taskee>[0-9A-Fa-f-]{36}) task=(?<task>\S+?)(?=\.?(?:\s|$))'
+    foreach ($m in $rx.Matches($AppLogText)) {
+        $out += [pscustomobject]@{
+            Taskee = $m.Groups['taskee'].Value
+            Task   = $m.Groups['task'].Value
+            Code   = $m.Groups['code'].Value
+        }
     }
     return $out
 }
 
+# The pre-2026-09-14 name. Kept because tests\RunnerTurnaround.Tests.ps1 section 3 calls
+# it with the log fixtures of the record, and because "the tasks that completed" is what
+# a reader of the early exit expects to find. Same records, TASKABRT included.
+function Get-CompletedTasks {
+    param([AllowNull()][AllowEmptyString()][string]$AppLogText)
+    return @(Get-TerminalTaskReports -AppLogText $AppLogText)
+}
+
 # ---- early-exit state machine ------------------------------------------------
 # State is a hashtable the caller owns across polls:
-#   firstSeenUtc    : ordered map taskee -> UTC of the poll that FIRST saw its TASKCMPLT
-#   lineCount       : RUNNING TOTAL of TASKCMPLT lines for order taskees across all
+#   firstSeenUtc    : ordered map taskee -> UTC of the poll that FIRST saw a terminal
+#                     report for it
+#   lineCount       : RUNNING TOTAL of terminal report lines for order taskees across all
 #                     polls. It was "lines seen at the latest poll" until 2026-09-14,
 #                     when the runner's observation loop stopped re-reading the whole
 #                     app log every 5 s and started feeding this function only the text
@@ -114,7 +143,17 @@ function Get-CompletedTasks {
 #                     docs/experiments/RUNNER_HARDENING_2026-09-14.md sec 5). Under a
 #                     whole-file reader the two definitions coincide, so the change is
 #                     invisible to a caller that still passes the whole log; under a
-#                     delta reader only the running total is correct.
+#                     delta reader only the running total is correct. It is a DIAGNOSTIC
+#                     now, not the criterion - see terminalByTask.
+#   terminalByTask  : ordered map '<taskee>|<task>' -> the FIRST terminal code seen for
+#                     that pair. THE criterion for task coverage, and idempotent: a
+#                     duplicate line, or a poll that re-reads the same text, can not
+#                     inflate it the way lineCount could.
+#   codeCounts      : ordered map code -> terminal LINES seen for order taskees
+#   unattributed    : terminal lines for order taskees with task=(none)
+#   taskCount       : the order's (Task, PerformingEntity) record count, as last given
+#   orderTaskKeys   : the order's own '<taskee>|<task>' keys when the caller supplies
+#                     -OrderTasks; empty otherwise (the count-only fallback)
 #   allCompleteUtc  : UTC of the poll that first satisfied the ALL-COMPLETE condition
 # The app log carries NO timestamps, so "when did the last completion happen" is
 # necessarily "the runner's poll that first saw it" - late by at most one poll
@@ -123,45 +162,127 @@ function New-CompletionState {
     return @{
         firstSeenUtc   = [ordered]@{}
         lineCount      = 0
+        terminalByTask = [ordered]@{}
+        codeCounts     = [ordered]@{}
+        unattributed   = 0
+        taskCount      = 0
+        orderTaskKeys  = @()
         allCompleteUtc = $null
     }
 }
 
-# ALL-COMPLETE = every distinct taskee in the order has at least one TASKCMPLT line
-#                AND the number of TASKCMPLT lines FOR ORDER TASKEES is >= the number
-#                of tasks in the order (so an order with two tasks for one taskee needs
-#                two completions, without the runner having to attribute task uuids -
-#                the app logs "(none)" for an unattributed completion).
+# The UNIT of the task-coverage test is the (taskee, task) PAIR, which is exactly what
+# Get-OrderTasks returns - one record per PerformingEntity of each <Task>. A task with two
+# performers is two records and the interface reports it once per taskee, so the pair is
+# the only key on which "one terminal report per order task" is true on both sides.
+function Get-TaskKey {
+    param([AllowNull()][AllowEmptyString()][string]$Taskee, [AllowNull()][AllowEmptyString()][string]$Task)
+    return ('{0}|{1}' -f $Taskee, $Task)
+}
+
+# TASK COVERAGE, read off a completion state. Closed = order tasks with a terminal report.
+# With -OrderTasks supplied (the runner always does) the closed set is the INTERSECTION
+# with the order's own keys, so a terminal report for a task nobody ordered can not close
+# anything; without it (the unit fixtures) the fallback is the number of DISTINCT pairs
+# seen, which is what the old lineCount was reaching for.
+# Text is the line the runner prints: "40 TASKCMPLT + 2 TASKABRT = 42 terminal of 42 tasks".
+function Get-TaskCoverage {
+    param([Parameter(Mandatory)][hashtable]$State)
+    $taskCount = 0; if ($State.Contains('taskCount'))    { $taskCount = [int]$State['taskCount'] }
+    $unatt     = 0; if ($State.Contains('unattributed')) { $unatt     = [int]$State['unattributed'] }
+    $keys      = @(); if ($State.Contains('orderTaskKeys')) { $keys = @($State['orderTaskKeys']) }
+    $term = [ordered]@{}
+    if ($State.Contains('terminalByTask') -and $null -ne $State['terminalByTask']) { $term = $State['terminalByTask'] }
+    $byCode     = [ordered]@{}
+    $open       = @()
+    $closedKeys = @()
+    if ($keys.Count -gt 0) {
+        foreach ($k in $keys) { if ($term.Contains($k)) { $closedKeys += $k } else { $open += $k } }
+    } else {
+        $closedKeys = @($term.Keys)
+    }
+    foreach ($k in $closedKeys) {
+        $c = [string]$term[$k]
+        if ($byCode.Contains($c)) { $byCode[$c] = [int]$byCode[$c] + 1 } else { $byCode[$c] = 1 }
+    }
+    # TASKCMPLT first, TASKABRT second, anything the app grows later after them.
+    $known = @('TASKCMPLT', 'TASKABRT')
+    $parts = @()
+    foreach ($c in $known)          { if ($byCode.Contains($c))    { $parts += ('{0} {1}' -f $byCode[$c], $c) } }
+    foreach ($c in @($byCode.Keys)) { if ($known -notcontains $c) { $parts += ('{0} {1}' -f $byCode[$c], $c) } }
+    $text = ('0 terminal of {0} tasks' -f $taskCount)
+    if ($parts.Count -gt 0) { $text = ('{0} = {1} terminal of {2} tasks' -f ($parts -join ' + '), $closedKeys.Count, $taskCount) }
+    if ($unatt -gt 0) { $text += ('; {0} unattributed terminal line(s) (task=(none)) closing no task' -f $unatt) }
+    return [pscustomobject]@{
+        Closed       = $closedKeys.Count
+        TaskCount    = $taskCount
+        Open         = $open
+        ByCode       = $byCode
+        Unattributed = $unatt
+        Text         = $text
+    }
+}
+
+# ALL-COMPLETE = (1) every distinct taskee in the order has at least one TERMINAL report
+#                (TASKCMPLT or TASKABRT) AND (2) every order task has one, counted per
+#                (taskee, task) PAIR.
+# (2) REPLACED "terminal lines >= order task count" on 2026-09-14 (D2, run
+# 20260914T230706Z). The line count could never reach the task count once ANY task ended
+# in TASKABRT under the old TASKCMPLT-only parse, and even with TASKABRT counted a line
+# total is the wrong instrument: a duplicate line, or one taskee reporting twice, satisfies
+# it on behalf of a task that never ended. Per-pair coverage says exactly what the
+# criterion means and is idempotent under the delta reader.
 # Lines whose taskee is NOT in the order (a unit tasked by someone else on the same
 # server, or a stale report) are ignored entirely: they are neither stamped nor
 # counted, so a stray line can never satisfy the count on behalf of an order task
 # (review F2, docs/experiments/REVIEW_RUNNER_TURNAROUND_2026-09-01.md).
 # NOTE (review F3): two tasks dispatched SIMULTANEOUSLY to one taskee are SUPERSEDED
-# by VR-Forces (the old task never completes - VrfC2SimService.cs:954), so the
-# count can never reach TaskCount and the early exit never fires; the window then
-# runs to its cap, which is the safe direction. Sequenced (gated) tasks do complete.
+# by VR-Forces (VrfC2SimService.cs:954). The superseded one now reports TASKABRT
+# (Vrf__SupersededTaskCode), which is terminal, so such an order CAN close - it could
+# not before. A task that ends with NO report of either kind still holds the window to
+# its cap, which is the safe direction.
 function Update-CompletionState {
     param(
         [Parameter(Mandatory)][hashtable]$State,
         [Parameter(Mandatory)][AllowEmptyCollection()][string[]]$Taskees,
         [Parameter(Mandatory)][int]$TaskCount,
         [Parameter(Mandatory)][AllowEmptyCollection()][object[]]$Completions,
-        [Parameter(Mandatory)][datetime]$NowUtc
+        [Parameter(Mandatory)][datetime]$NowUtc,
+        [AllowEmptyCollection()][object[]]$OrderTasks = @()   # Get-OrderTasks records
     )
+    $State.taskCount = $TaskCount
+    if ($OrderTasks.Count -gt 0) {
+        $State.orderTaskKeys = @($OrderTasks | ForEach-Object { Get-TaskKey -Taskee ([string]$_.Taskee) -Task ([string]$_.TaskUuid) })
+    }
     $inOrder   = @($Completions | Where-Object { $Taskees -contains $_.Taskee })
     $completed = @($inOrder | ForEach-Object { $_.Taskee } | Select-Object -Unique)
     foreach ($u in $completed) {
         if (-not $State.firstSeenUtc.Contains($u)) { $State.firstSeenUtc[$u] = $NowUtc }
     }
     $State.lineCount += $inOrder.Count
-    # ALL-COMPLETE is asked of the ACCUMULATED set (firstSeenUtc), never of $completed,
-    # which holds only the taskees seen in THIS call's input. With a whole-file reader the
-    # two were the same set; with the delta reader added 2026-09-14 they are not, and using
-    # $completed would make all-complete demand that every taskee re-report inside a single
-    # poll - it would essentially never fire. Equivalent on whole-file input.
+    foreach ($c in $inOrder) {
+        # A record without a Code is a TASKCMPLT: that is what every caller before
+        # 2026-09-14 produced, and it keeps the unit fixtures of the record meaningful.
+        $code = 'TASKCMPLT'
+        if ($null -ne $c.PSObject.Properties['Code'] -and -not [string]::IsNullOrWhiteSpace([string]$c.Code)) { $code = [string]$c.Code }
+        if ($State.codeCounts.Contains($code)) { $State.codeCounts[$code] = [int]$State.codeCounts[$code] + 1 } else { $State.codeCounts[$code] = 1 }
+        $task = ''
+        if ($null -ne $c.PSObject.Properties['Task']) { $task = [string]$c.Task }
+        if ([string]::IsNullOrWhiteSpace($task) -or $task -eq '(none)') { $State.unattributed = [int]$State.unattributed + 1; continue }
+        $k = Get-TaskKey -Taskee ([string]$c.Taskee) -Task $task
+        if (-not $State.terminalByTask.Contains($k)) { $State.terminalByTask[$k] = $code }
+    }
+    # ALL-COMPLETE is asked of the ACCUMULATED state (firstSeenUtc, terminalByTask), never
+    # of this call's input. With a whole-file reader the two were the same; with the delta
+    # reader added 2026-09-14 they are not, and using the input would make all-complete
+    # demand that every taskee re-report inside a single poll - it would essentially never
+    # fire. Equivalent on whole-file input.
     $all = ($Taskees.Count -gt 0)
     foreach ($u in $Taskees) { if (-not $State.firstSeenUtc.Contains($u)) { $all = $false } }
-    if ($all -and $State.lineCount -lt $TaskCount) { $all = $false }
+    if ($all) {
+        $cov = Get-TaskCoverage -State $State
+        if ($cov.Closed -lt $cov.TaskCount) { $all = $false }
+    }
     if ($all -and $null -eq $State.allCompleteUtc) { $State.allCompleteUtc = $NowUtc }
     return $State
 }
@@ -175,6 +296,11 @@ function Update-CompletionState {
 # TrailSecs is added on top by the teardown. Zero taskees => never closes (the
 # window then runs to its RunSecs cap). ReportEvidence is MANDATORY so a caller
 # can not forget condition (4).
+#
+# FailedCondition NAMES THE FIRST UNMET CONDITION, WITH ITS NUMBERS, and is $null when
+# ShouldClose. Before 2026-09-14 the runner's did-not-fire line could only offer "the
+# hold had not elapsed, or the line count was below the task count" - a guess printed as
+# a fact, at the one moment a reader needs to know which.
 function Test-EarlyExit {
     param(
         [Parameter(Mandatory)][hashtable]$State,
@@ -187,12 +313,42 @@ function Test-EarlyExit {
     $all  = ($Taskees.Count -gt 0 -and $null -ne $State.allCompleteUtc)
     $held = 0.0
     if ($all) { $held = ($NowUtc - [datetime]$State.allCompleteUtc).TotalSeconds }
+    $cov  = Get-TaskCoverage -State $State
+    $openTxt = '(none)'
+    if ($cov.Open.Count -gt 0) {
+        $shown = @($cov.Open | Select-Object -First 5 | ForEach-Object { ($_ -split '\|')[-1] })
+        $openTxt = ($shown -join ', ')
+        if ($cov.Open.Count -gt $shown.Count) { $openTxt += (' (+{0} more)' -f ($cov.Open.Count - $shown.Count)) }
+    }
+    $failed = $null
+    if ($Taskees.Count -eq 0) {
+        $failed = 'condition (1) taskee coverage: the order yields ZERO taskees, so the early exit can never fire'
+    } elseif ($missing.Count -gt 0) {
+        $failed = ('condition (1) taskee coverage: {0} of {1} order taskee(s) have NO terminal report (TASKCMPLT/TASKABRT): {2}' -f `
+                   $missing.Count, $Taskees.Count, ($missing -join ', '))
+    } elseif ($cov.Closed -lt $cov.TaskCount) {
+        $failed = ('condition (2) task coverage: {0} of {1} order task(s) have a terminal report [{2}]; still open: {3}' -f `
+                   $cov.Closed, $cov.TaskCount, $cov.Text, $openTxt)
+    } elseif (-not $all) {
+        $failed = 'conditions (1-2): ALL-COMPLETE has not been recorded by any poll yet'
+    } elseif ($held -lt $SettleHoldSecs) {
+        $failed = ('condition (3) settle hold: {0}s of {1}s elapsed since ALL-COMPLETE' -f [Math]::Round($held, 1), $SettleHoldSecs)
+    } elseif (-not $ReportEvidence) {
+        $failed = ('condition (4) position evidence: no post-completion position report yet for every one of the {0} taskee(s)' -f $Taskees.Count)
+    }
     return [pscustomobject]@{
         AllComplete     = $all
         Missing         = $missing
+        MissingTasks    = $cov.Open
+        TasksClosed     = $cov.Closed
+        TaskCount       = $cov.TaskCount
+        TerminalByCode  = $cov.ByCode
+        TerminalSummary = $cov.Text
+        Unattributed    = $cov.Unattributed
         HoldElapsedSecs = [Math]::Round($held, 1)
         HoldElapsed     = ($all -and $held -ge $SettleHoldSecs)
         EvidenceIn      = $ReportEvidence
+        FailedCondition = $failed
         ShouldClose     = ($all -and $held -ge $SettleHoldSecs -and $ReportEvidence)
     }
 }

@@ -936,6 +936,51 @@ on 2026-09-14; each is now closed by something this section names
    `Vrf__PositionReportSeconds=10`. Unsatisfied evidence still runs the window to its cap:
    the safe direction, and the per-taskee reason is printed every 30 s and ledgered.
 
+9b. **IT STILL DID NOT FIRE - TWO MORE DEFECTS, BOTH CLOSED (2026-09-14, run
+   `20260914T230706Z`).** That run pushed **41 TASKSTRT, 41 TASKCMPLT and 2 TASKABRT**
+   lines for its 42-task / 11-taskee order and the runner reported *every one of the
+   eleven taskees* as having no TASKCMPLT, `completionLinesSeen: 0` in the manifest, and
+   ran the full 1500 s cap.
+
+   **D1 - the parse, not the run.** `RunnerLib.ps1` `Get-CompletedTasks` matched
+   `... task=(?<task>\S+?)\.?\s*$` - the task uuid had to be the LAST thing on the line.
+   Commit `81d108c` ("B1: TASKSTRT at dispatch, TASKABRT for tasks that will never run")
+   changed the app's own log line (`src/VrfC2SimApp/VrfC2SimService.cs:4958`) to
+
+       SENT TASK STATUS REPORT ({Code}) taskee={Uuid} task={Task} - {Why}.
+
+   so every line now ends with a reason, the `$` anchor never matched again, and the
+   parser returned ZERO records against a perfectly healthy log. The task token is now
+   delimited by a LOOKAHEAD (optional period, then whitespace or end of text): whatever
+   the interface appends after it cannot break the parse again. **When the runner says a
+   taskee never reported, grep the app log yourself before believing it** - this is the
+   second time a healthy run was read as a failed one by a log regex (the first was the
+   route-uuid parenthetical, 0.5.11).
+
+   **D2 - TASKCMPLT is not the only end state.** The criterion was "TASKCMPLT lines >=
+   order task count". A task VR-Forces FAILS is reported `TASKABRT`, and so is a successor
+   the interface skips because its predecessor was abandoned - in that run one of each. A
+   TASKCMPLT-only count therefore had a ceiling of 40 against a task count of 42 and could
+   never be met. The rule now counts **TERMINAL** reports - `TASKCMPLT` **or** `TASKABRT` -
+   and counts them **per (taskee, task) PAIR**, not by line total, so a duplicate line or
+   one taskee reporting twice can no longer close a task that never ended. `TASKSTRT` is
+   not terminal. A report the app cannot attribute (`task=(none)`) is counted and printed
+   but closes no task. The close line now names the arithmetic:
+
+       closed: 40 TASKCMPLT + 2 TASKABRT = 42 terminal of 42 tasks
+
+   and the did-not-fire line names **which condition blocked it, with its numbers**
+   ("BLOCKED BY condition (2) task coverage: 39 of 42 order task(s) have a terminal report
+   ...") instead of the old guess "(none - the hold had not elapsed, or the line count was
+   below the task count)". The manifest gains `oracle.earlyExit.tasksClosed`,
+   `.terminalByCode`, `.unattributedTerminalLines` and `.failedCondition`.
+
+   OFFLINE REPLAY of the fixed rule (RunnerLib's own functions over the finished run
+   directories): `20260914T230706Z` - conditions (1)+(2) met at **23:20:12Z** (last closing
+   terminal report 23:20:08.8Z), evidence in, **WOULD HAVE CLOSED at 23:21:12Z, t+655 s of
+   the 1500 s cap - 845 s saved**; `20260914T224505Z` (1 task, TASKSTRT only, no terminal
+   report) - **would NOT close**, blocked by condition (1), which is the correct answer.
+
 10. `--sample-threads` IS SIZED FROM THE DERIVED WINDOW, and `--watch-secs` DEFAULTS TO 0.
    The sampler used to get `-MaxSec $((WATCH_SECS + 100))`. `--watch-secs 0` means "let the
    runner derive the cap", so that arithmetic handed `SampleThreads.ps1` **100 seconds** and
