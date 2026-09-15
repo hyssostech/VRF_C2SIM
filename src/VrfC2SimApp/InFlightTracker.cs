@@ -17,10 +17,18 @@ public sealed class InFlightTracker
 {
     /// <summary>One dispatched-and-not-yet-completed task. DestLat/DestLon (degrees) = the move's
     /// last vertex when the task is a move, for the arrival-evidence completion (ArrivalPolicy);
-    /// null for tasks without a destination (patrol, engage).</summary>
+    /// null for tasks without a destination (patrol, engage).
+    /// RouteLengthMeters / StartLat / StartLon (STP-837) describe the JOURNEY, not just its end:
+    /// the great-circle length of the route as dispatched, and the position the taskee was
+    /// dispatched from. ArrivalPolicy needs both - the length sets the arrival radius and the
+    /// traversal bar, and the start is what says whether the last vertex is far enough from it
+    /// for arriving there to mean anything at all. NaN/null = "not a move, or not recorded",
+    /// which degrades to the pre-STP-837 tolerances rather than to a stricter unasked-for rule.</summary>
     public readonly record struct InFlight(string TaskUuid, string TaskName, string ExpectedKind,
                                            DateTime DispatchedUtc, double? DestLat = null, double? DestLon = null,
-                                           string TaskeeUuid = "");
+                                           string TaskeeUuid = "",
+                                           double RouteLengthMeters = double.NaN,
+                                           double? StartLat = null, double? StartLon = null);
 
     private readonly ConcurrentDictionary<string, InFlight> _byUnitName = new();
 

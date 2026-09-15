@@ -236,11 +236,26 @@ public class VrfSettings
     // member (an M3 7 km back, an M577 1.3 km back) held units at the ends of their legs for
     // eight sim-hours (PREREG_ASSEMBLY_LAYOUT 2026-09-07). Radius 500 m = the shipped Armor-Co
     // formations' half-length (members sit up to +/-430 m from the last vertex).
+    //
+    // *** STP-837 (2026-09-15): PROXIMITY ALONE IS NOT ARRIVAL. *** Run V6g closed two of three
+    // tasks EARLY on this rule - 116 s and 516 s before the vendor's own (swallowed) completions
+    // - because T_R5_PL1's order mirrors the platoon's LAST VERTEX onto its own start: "4/4
+    // within 500 m of the last vertex (nearest 26 m)" held from the first check while M1A2 1 had
+    // moved 20 m. So a counted member must now ALSO have travelled
+    // max(0.5 x the route's authored length, ArrivalMinTravelMeters) from where it stood at
+    // dispatch, the radius is min(ArrivalRadiusMeters, 0.25 x route length), and a route whose
+    // last vertex lies inside that radius of the dispatch position CANNOT be closed by arrival
+    // evidence at all - it waits for the vendor or for its C2SIM Duration. ArrivalRadiusMeters
+    // keeps its 500 m meaning as the CEILING; on a 30 km leg nothing changes.
     public bool ArrivalCompletion { get; set; } = true;
     public double ArrivalRadiusMeters { get; set; } = 500.0;
     public double ArrivalMemberFraction { get; set; } = 0.5;   // 1.0 = every member must be within the radius
     public double ArrivalCheckSeconds { get; set; } = 5.0;
     public double ArrivalMinSecondsSinceDispatch { get; set; } = 30.0;
+    // The FLOOR under the traversal bar, for a move too short for half its length to exceed the
+    // wander a parked vehicle's published position can show. 100 m is two M1A2 lengths beyond the
+    // de-stacking ring (10 m offsets) and the formation jitter seen on the V6g consoles.
+    public double ArrivalMinTravelMeters { get; set; } = 100.0;
 
     // PROGRESS WATCHDOG (C16, report-only; StallPolicy.cs). VR-Forces 5.2 NEVER reports a unit
     // that stops making progress while its move task runs: the base give-up test "always returns
@@ -382,6 +397,35 @@ public class VrfSettings
     // cold-cache acquisition (236.9 s from first placement, G7B_G8_RESULTS sec 1.5/3) with
     // margin; it is a freshness bound, not a timer anything waits on.
     public int NavAreaEvidenceSeconds { get; set; } = 300;
+
+    // ROUTE EXTENT AND PLAUSIBILITY (STP-833; RouteExtentPolicy.cs). *** DEFAULT ON. *** Before
+    // anything is sent to the back end, the route the interface is about to author is measured
+    // against the taskee's own position: (a) no vertex further from the taskee than
+    // MaxVertexFromTaskeeKm, (b) no leg longer than MaxRouteLegKm (leg 0 is taskee -> first
+    // authored vertex), (c) - when a loaded terrain extent is ever readable - no vertex outside
+    // it. A violation is MALFORMED in Q4's sense: the task is SKIPPED (nothing is dispatched),
+    // one TASKABRT names the vertex, the distance and the bound, one ObservationReport carries
+    // the same sentence, and the successors are abandoned exactly as every other refusal
+    // abandons them.
+    //
+    // WHY IT IS ON BY DEFAULT, unlike the two gates above: this one needs no extra evidence
+    // channel, no console level and no vendor query - it is arithmetic on data the interface
+    // already holds - and the failure it catches is not a fidelity nicety. On 2026-09-15 the V6f
+    // run drove a Mojave platoon at Swedish waypoints 8,768.9 km away; VR-Forces accepted it and
+    // `Calc off road nav path part` allocated from 3 GB to 16 GB at 780 MB/min, went silent to
+    // every controller 112 s after dispatch and moved nothing (V6_LIVE_JOIN_GATE secs 12-13).
+    //
+    // THE DEFAULTS ARE SIZED ON THIS PROJECT'S OWN REFERENCE ORDER, NOT ON A ROUND NUMBER'S
+    // APPEAL. COA-STP1's worst leg and worst vertex-from-taskee are BOTH 45.384 km
+    // (T4_ConsolidateAndPrepareDefensivePositionsAlongPlBlue, leg 0), so 50 km leaves 4.6 km of
+    // headroom and 100 km leaves 54.6 km. THAT IS NOT MUCH: an order with one 55 km leg is
+    // perfectly legitimate and would be refused. Raise the knob for such an order - do not
+    // remove the check - and note that 0 turns an individual rule off while
+    // RouteExtentCheck=false turns the whole gate off (the fail-first arm of
+    // --routeextent-selftest).
+    public bool RouteExtentCheck { get; set; } = true;
+    public double MaxRouteLegKm { get; set; } = 50.0;
+    public double MaxVertexFromTaskeeKm { get; set; } = 100.0;
 
     // OBSERVATION CHANNEL (UG52 21.9 p483): every VR-Forces object has its own console that
     // carries "messages sent from the simulation engine, from a simulation object's plan, from

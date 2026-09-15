@@ -75,6 +75,13 @@ if (args.Length > 0 && args[0] == "--compose-selftest")
 if (args.Length > 0 && args[0] == "--arrival-selftest")
     return ArrivalSelfTest.Run();
 
+// Offline route-extent check (STP-833): a route vertex or a leg that is implausibly far from the
+// taskee is MALFORMED and is refused before anything reaches the back end (RouteExtentPolicy).
+// The fixtures are the V6f (Sweden waypoints on a Mojave taskee) and V6g (the same tasks on
+// Mojave ground) orders of 2026-09-15; no bridge, no network.
+if (args.Length > 0 && args[0] == "--routeextent-selftest")
+    return RouteExtentSelfTest.Run();
+
 // Offline progress-watchdog check: member displacements -> stall decision (StallPolicy; no bridge).
 if (args.Length > 0 && args[0] == "--stall-selftest")
     return StallSelfTest.Run();
@@ -128,6 +135,7 @@ if (args.Length > 0 && args[0].StartsWith("--") && args[0] != "--runtime-check" 
     Console.Error.WriteLine("VrfC2SimApp: unknown switch '" + args[0] + "' - NOT starting the host. Known: " +
                             "--translator/--report/--sequencer/--verb/--destack/--fanout/--typemap/--terrain/" +
                             "--placement/--compose/--arrival/--stall/--parse/--name/--preflight/--routeshift/--rulings/" +
+                            "--routeextent-selftest, " +
                             "--liveness-selftest [--disabled], " +
                             "--scripted-task/--initgraphics-selftest, --parse-init <file> [clientId], " +
                             "--parse-order <file>, --runtime-check, host switches --Key=Value; " +
