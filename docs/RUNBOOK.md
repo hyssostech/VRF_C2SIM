@@ -2499,6 +2499,40 @@ produce 3 TASKABRT within ~40 s of the `backends=` drop, ONE loss ObservationRep
 position reports after it.
 ---
 
+### 11c. STP-833 - A TASK WHOSE GEOMETRY IS NOT ON THE TASKEE'S GROUND IS REFUSED (default ON; merged 2026-09-15)
+
+Vrf:RouteExtentCheck (true), Vrf:MaxRouteLegKm (50), Vrf:MaxVertexFromTaskeeKm (100). Before anything reaches the
+back end every route vertex - the task's Location and, for an objective ring, its centroid included - is measured
+great-circle against the TASKEE'S LIVE POSITION: no vertex further than MaxVertexFromTaskeeKm, no leg longer than
+MaxRouteLegKm (leg 0 = taskee -> first authored vertex). A violation is MALFORMED in Q4's sense: the task is SKIPPED,
+one ERROR and one TASKABRT name the vertex, the distance and the bound, one ObservationReport carries the sentence to
+the C2 side, successors are abandoned as Q4's refusal abandons them. It runs BEFORE the route shift and BEFORE the
+terrain-profile request. WHY ON BY DEFAULT: it needs no evidence channel - it is arithmetic on data the interface
+already holds. V6f (2026-09-15) drove a Mojave platoon at SWEDEN waypoints 8,768.9 km away; VR-Forces accepted it,
+the off-road path job allocated 3 -> 16 GB and the back end went silent (V6_LIVE_JOIN_GATE secs 12-13); V6g on Mojave
+vertices was flat. THE DEFAULTS ARE TIGHT: COA-STP1's worst leg and worst vertex-from-taskee are BOTH 45.384 km
+(T4_Consolidate...AlongPlBlue leg 0), so the 50 km leg default leaves 4.6 km of headroom - a legitimate 55 km leg WILL
+be refused with 'route leg N ... is 55.0 km long (bound 50 km)'; raise the knob for that order, do not remove the
+check (0 turns one rule off; Vrf:RouteExtentCheck=false turns the gate off). RULE (c) 'inside the loaded terrain' is
+NOT ARMED (no remote-controller nav/terrain-extent query exists; the terrain-profile reply answers for off-database
+points too - V6f got 97 m for its Swedish vertices); RouteExtentPolicy.KnownExtent() is the seam. Offline proof:
+VrfC2SimApp --routeextent-selftest (39 checks on the real V6f / V6g / COA-STP1 coordinates, fail-first arm included).
+
+### 11d. STP-837 - ARRIVAL EVIDENCE REQUIRES TRAVERSAL, NOT PROXIMITY (merged 2026-09-15)
+
+Vrf:ArrivalMinTravelMeters (100); Vrf:ArrivalRadiusMeters (500) is now the CEILING. A member counts toward the
+2026-09-07 arrival-evidence completion only if it is BOTH within min(ArrivalRadiusMeters, 0.25 x the route's authored
+length) of the last vertex AND at least max(0.5 x that length, ArrivalMinTravelMeters) from its own position at
+dispatch. A route whose last vertex lies inside that radius of the dispatch position CANNOT be closed by arrival
+evidence at all - it waits for the vendor completion or its C2SIM Duration (R4), and one line per unit-task says so.
+WHY: V6g closed two of three tasks EARLY (116 s and 516 s before the vendor), because a route mirrored onto its own
+start satisfied '4/4 within 500 m of the last vertex' while one tank had moved 20 m. WHAT IT COSTS: nothing on long
+moves (COA-STP1's 24-33 km legs keep the 500 m radius); on routes under ~2.5 km the radius shrinks (1,155 m route ->
+289 m), so a formation whose slots span more than that at the end may hold the completion longer - raise
+Vrf:ArrivalRadiusMeters only when a run shows it. WATCH: a degenerate out-and-back task with NO Duration now waits out
+Vrf:TaskChainBackstopSeconds instead of closing early-but-wrongly. Offline proof: --arrival-selftest (38 checks on
+V6g's measured geometry; the superseded proximity-only rule runs as the fail-first arm). No kill switch by design.
+
 ## 12. THE ROUTE PRE-FLIGHT AND ITS LATERAL SHIFT - BOTH OFF BY DEFAULT (STP-804/806)
 
 Design: `docs/experiments/DESIGN_ROUTE_SHIFT_2026-09-15.md`. Evidence: FINDING_EARLY_STOPS
