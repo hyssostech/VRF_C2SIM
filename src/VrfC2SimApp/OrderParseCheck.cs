@@ -42,6 +42,10 @@ public static class OrderParseCheck
                                       ? $" absoluteStartUtc={t.AbsoluteStartUtc.Value:O}" : ""));
             // R4: the end time is dispatch + Duration, so the Duration is part of the parse.
             Console.WriteLine($"    duration: {(t.DurationMs > 0 ? t.DurationMs + " ms" : "(none)")}");
+            // V4b: what those points MEAN under this verb, by the same rule the dispatch applies.
+            var kind = TaskGeometryInterpretation.Classify(t.ActionCode, t.Points);
+            Console.WriteLine($"    embedded shape: {kind}" + ShapeDetail(t)
+                              + (t.MapGraphicUuids.Count > 0 ? "  (a MapGraphicID takes precedence at dispatch)" : ""));
         }
 
         // R4 SELF-TEST (a): the census the ruling is checked against - how many tasks carry a
@@ -57,6 +61,18 @@ public static class OrderParseCheck
         Console.WriteLine($"tasks with NO geometry at all: " +
                           $"{data.Tasks.Count(t => t.MapGraphicUuids.Count == 0 && t.Points.Count == 0)} " +
                           $"of {data.Tasks.Count} (R2 executes these at the performing unit's position)");
+
+        // V4b: the SHAPE census - what the embedded points mean, per verb, before any run. The
+        // reading is the production classifier (TaskGeometryInterpretation), not a copy of it.
+        Console.WriteLine("=== V4b shape census (embedded Location, per verb) ===");
+        var kinds = data.Tasks.Select(t => (Verb: t.ActionCode, Kind: TaskGeometryInterpretation.Classify(t.ActionCode, t.Points))).ToList();
+        foreach (var k in new[] { GeometryKind.None, GeometryKind.Point, GeometryKind.Route, GeometryKind.ObjectiveArea })
+            Console.WriteLine($"{k,-14}: {kinds.Count(x => x.Kind == k)} of {data.Tasks.Count}");
+        foreach (var g in kinds.GroupBy(x => x.Verb).OrderBy(g => g.Key, StringComparer.Ordinal))
+            Console.WriteLine($"  {g.Key,-8} {string.Join(", ", g.GroupBy(x => x.Kind).OrderBy(x => x.Key).Select(x => $"{x.Count()} x {x.Key}"))}");
+        Console.WriteLine($"objective areas to create on the fly: " +
+                          $"{kinds.Count(x => x.Kind == GeometryKind.ObjectiveArea)} " +
+                          "(one VR-Forces control area each, under the task's own uuid)");
 
         Console.WriteLine("=== R4 timing census ===");
         Console.WriteLine($"durations present: {data.Tasks.Count(t => t.DurationMs > 0)} of {data.Tasks.Count}");
@@ -75,6 +91,20 @@ public static class OrderParseCheck
         var groups = values.GroupBy(v => v).OrderBy(g => g.Key)
                            .Select(g => $"{g.Count()} x {g.Key} ms").ToList();
         return groups.Count == 0 ? "(no tasks)" : string.Join(", ", groups);
+    }
+
+    /// <summary>The two numbers the V4b shape rule actually turns on, printed for any task that has
+    /// enough points for them to mean anything: how far the figure reaches, and how much of that the
+    /// last point gives back on its way to the first (1.00 = a straight run, 0.00 = a closed ring).</summary>
+    private static string ShapeDetail(OrderTask t)
+    {
+        if (t.Points.Count < 2) return "";
+        double span = TaskGeometryInterpretation.Spread(t.Points);
+        // A closure ratio on a figure with no extent is arithmetic noise (the path length is zero),
+        // so say what is actually true: every point is the same place.
+        return span <= TaskGeometryInterpretation.PointCoincidenceMeters
+             ? $"  (all {t.Points.Count} points within {span:F0} m - ONE place)"
+             : $"  (span {span:F0} m, closure ratio {TaskGeometryInterpretation.ClosureRatio(t.Points):F2})";
     }
 
     private static string Short(string uuid) => uuid.Length > 8 ? uuid.Substring(0, 8) + "..." : uuid;

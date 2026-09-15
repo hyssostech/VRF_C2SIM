@@ -14,6 +14,9 @@ namespace VrfC2SimApp;
 ///      for self-targeting).
 ///   R1 (transition) MapGraphicID -> the init graphic created under the same C2SIM uuid -
 ///      TaskGeometryResolver.
+///   V4b "what those points MEAN, per verb" - TaskGeometryInterpretation: a bare C2SIM Location
+///      list read as a Route, an ObjectiveArea or a Point, and the census of the real 42-task
+///      order it produces.
 ///
 /// Every policy under test is PURE: no clock is read, no bridge is called, no report is sent,
 /// so the checks are decidable offline and a live run has nothing to prove about them.
@@ -31,12 +34,249 @@ public static class RulingsSelfTest
         R3(ref failures);
         Console.WriteLine("=== R1 (transition): MapGraphicID -> the graphic created at init ===");
         R1(ref failures);
+        Console.WriteLine("=== V4b: what the embedded Location's points MEAN, per verb ===");
+        V4b(ref failures);
         Console.WriteLine("=== The TASK CLOCK: an unsteady or frozen sim reader must not stop the order ===");
         TaskClockChecks(ref failures);
         Console.WriteLine("=== The STREND CHAIN: a gate is a GRAPH, and its predecessor has a lead time ===");
         ChainTopology(ref failures);
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
         return failures == 0 ? 0 : 1;
+    }
+
+    // --------------------------------------------------------------- V4b ----
+    /// <summary>
+    /// V4b - what the embedded Location's points MEAN, per verb. The rule is
+    /// <see cref="TaskGeometryInterpretation"/>; these checks are the rule's evidence, and the
+    /// census half of them is measured against `data/COA-STP1_Order.xml` on disk rather than
+    /// against a fixture, so the order the port exists for cannot drift away from the reading
+    /// without a check failing.
+    /// </summary>
+    private static void V4b(ref int failures)
+    {
+        // A SQUARE ring around 34.5 / -116.5, authored the way the init authors its 12 multi-vertex
+        // tactical areas: the first vertex repeated as the last (measured: 0 m on all 12).
+        var ring = new List<(double Lat, double Lon, double? Elev)>
+        {
+            (34.4, -116.6, null), (34.6, -116.6, null), (34.6, -116.4, null), (34.4, -116.4, null),
+            (34.4, -116.6, null),
+        };
+        // T32's REAL points, copied from data/COA-STP1_Order.xml: a SEIZE - an area verb - whose
+        // four points are a 23.6 km axis of advance. This is the case that falsifies a verb-only
+        // rule, so it is a fixture in its own right.
+        var seizeAxis = new List<(double Lat, double Lon, double? Elev)>
+        {
+            (34.679985, -116.724799, null), (34.620600, -116.696722, null),
+            (34.524809, -116.641791, null), (34.488408, -116.614922, null),
+        };
+
+        // (f1) A CLOSED RING under an area verb is an OBJECTIVE AREA: the move goes to the centroid,
+        //      the ring's corners are what the control area is made of, and the closing duplicate is
+        //      NOT counted twice.
+        {
+            var r = TaskGeometryInterpretation.Interpret("SEIZE", ring, GeometrySource.EmbeddedLocation);
+            bool centroid = r.Points.Count == 1
+                            && Math.Abs(r.Points[0].Lat - 34.5) < 1e-9
+                            && Math.Abs(r.Points[0].Lon + 116.5) < 1e-9;
+            Check(ref failures, r.Kind == GeometryKind.ObjectiveArea && centroid,
+                  $"(f1) a CLOSED RING under SEIZE reads as an ObjectiveArea and moves to its centroid " +
+                  $"(kind {r.Kind}, {r.Points.Count} point(s))");
+            Check(ref failures, r.AreaVertices.Count == 4,
+                  $"... the area is built from the 4 distinct corners, not 5 (the closing vertex is dropped " +
+                  $"before the centroid, got {r.AreaVertices.Count})");
+            Check(ref failures, r.CreateObjectiveArea,
+                  "... and it IS created on the fly, because the ring came from the embedded Location");
+            Check(ref failures, r.Log.StartsWith("embedded Location read as ObjectiveArea (5 points, verb SEIZE)",
+                                                 StringComparison.Ordinal),
+                  $"... and the line says so verbatim: \"{r.Log.Split(" - ")[0]}\"");
+        }
+
+        // (f2) THE AMBIGUITY RULE, STATED: an ATTACK with a closed ring is an OBJECTIVE, not a lap of
+        //      the perimeter. Doctrine: an attack's minimum control measures are an LD, a time and
+        //      "the objective" (FM 3-90 5-8). The ring branch is verb-INDEPENDENT.
+        {
+            var attack = TaskGeometryInterpretation.Interpret("ATTACK", ring, GeometrySource.EmbeddedLocation);
+            var move = TaskGeometryInterpretation.Interpret("MOVE", ring, GeometrySource.EmbeddedLocation);
+            Check(ref failures, attack.Kind == GeometryKind.ObjectiveArea && attack.Points.Count == 1,
+                  $"(f2) an ATTACK with a CLOSED RING is an ObjectiveArea, not a route (kind {attack.Kind})");
+            Check(ref failures, move.Kind == GeometryKind.ObjectiveArea && move.Points.Count == 1
+                             && Math.Abs(move.Points[0].Lat - 34.5) < 1e-9,
+                  $"... and a MOVE to a ring goes to the CENTROID, it does not drive the ring (kind {move.Kind}, " +
+                  $"{move.Points.Count} point(s))");
+        }
+
+        // (f3) THE MEASUREMENT THAT FORCED THE SHAPE TEST: T32's real points are a SEIZE (area verb)
+        //      on a 23.6 km axis. Closure ratio 0.998 - it never turns back - so it stays a ROUTE and
+        //      the battalion keeps driving it.
+        {
+            var r = TaskGeometryInterpretation.Interpret("SEIZE", seizeAxis, GeometrySource.EmbeddedLocation);
+            double ratio = TaskGeometryInterpretation.ClosureRatio(seizeAxis);
+            Check(ref failures, r.Kind == GeometryKind.Route && r.Points.Count == 4 && !r.CreateObjectiveArea,
+                  $"(f3) T32's real SEIZE axis (4 points, closure ratio {ratio:F3}) stays a Route - a verb-only " +
+                  $"rule would have collapsed 23.6 km to a centroid (kind {r.Kind})");
+            Check(ref failures, ratio > TaskGeometryInterpretation.RingClosureRatio,
+                  $"... because its closure ratio {ratio:F3} is above the {TaskGeometryInterpretation.RingClosureRatio:F2} " +
+                  "ring threshold");
+            Check(ref failures, r.Note != null && r.Note.Contains("AREA verb") && r.Note.Contains("STP-801"),
+                  "... and the disagreement between the verb and the shape is REPORTED, not swallowed");
+        }
+
+        // (f4) AN OPEN LINE UNDER MOVE IS A ROUTE, unchanged, point for point. This is the whole
+        //      COA-STP1 movement path and the golden-trace fixtures: V4b must not touch it.
+        {
+            var line = new List<(double Lat, double Lon, double? Elev)>
+                { (34.0, -116.0, null), (34.1, -116.1, 100.0), (34.2, -116.2, null) };
+            var r = TaskGeometryInterpretation.Interpret("MOVE", line, GeometrySource.EmbeddedLocation);
+            Check(ref failures, r.Kind == GeometryKind.Route && r.Points.Count == 3
+                             && Math.Abs(r.Points[1].Lat - 34.1) < 1e-9 && r.Points[1].Elev == 100.0
+                             && !r.CreateObjectiveArea && r.Note == null,
+                  $"(f4) an OPEN LINE under MOVE is a Route, unchanged, altitudes included (kind {r.Kind}, " +
+                  $"{r.Points.Count} point(s))");
+        }
+
+        // (f5) ONE POINT is a Point; and so are TWO IDENTICAL points, which is what COA-STP1's T2 and
+        //      T3 actually export (measured: 0 m apart).
+        {
+            var one = new List<(double Lat, double Lon, double? Elev)> { (34.488408, -116.614922, null) };
+            var twice = new List<(double Lat, double Lon, double? Elev)>
+                { (34.488408, -116.614922, null), (34.488408, -116.614922, null) };
+            var r1 = TaskGeometryInterpretation.Interpret("OCCUPY", one, GeometrySource.EmbeddedLocation);
+            var r2 = TaskGeometryInterpretation.Interpret("FIX", twice, GeometrySource.EmbeddedLocation);
+            Check(ref failures, r1.Kind == GeometryKind.Point && r1.Points.Count == 1 && !r1.CreateObjectiveArea,
+                  $"(f5) a ONE-POINT task is a Point objective, and no area is invented for it (kind {r1.Kind})");
+            Check(ref failures, r2.Kind == GeometryKind.Point && r2.Points.Count == 1,
+                  $"... T2/T3's TWO IDENTICAL points collapse to ONE place (kind {r2.Kind}, {r2.Points.Count} point(s))");
+            Check(ref failures, r2.Log.StartsWith("embedded Location read as Point (2 points, verb FIX)",
+                                                  StringComparison.Ordinal),
+                  "... and the line still reports the 2 points the order carried");
+        }
+
+        // (f6) A DEGENERATE "ring" - out and back along one leg - is NOT an area. Three points with
+        //      the first repeated as the last are TWO corners, and createControlArea cannot make a
+        //      polygon of two vertices.
+        {
+            var outAndBack = new List<(double Lat, double Lon, double? Elev)>
+                { (34.0, -116.0, null), (34.1, -116.1, null), (34.0, -116.0, null) };
+            var r = TaskGeometryInterpretation.Interpret("SECURE", outAndBack, GeometrySource.EmbeddedLocation);
+            Check(ref failures, r.Kind == GeometryKind.Route && !r.CreateObjectiveArea,
+                  $"(f6) an out-and-back 3-point list is NOT an objective area - two corners are not a polygon " +
+                  $"(kind {r.Kind})");
+            Check(ref failures, r.Note != null && r.Note.Contains("distinct corners")
+                             && !r.Note.Contains("do not close"),
+                  "... and the note says WHY (two corners), not the false claim that the figure does not close");
+        }
+
+        // (f10) NO GEOMETRY AT ALL is not a reading of anything. Caught reviewing this change: the
+        //       MapGraphicID passthrough used to swallow GeometrySource.None and log a sentence about
+        //       a uuid that is not there - on the NINE COA-STP1 tasks that carry neither.
+        {
+            var r = TaskGeometryInterpretation.Interpret("DEFEND", new List<(double, double, double?)>(),
+                                                         GeometrySource.None);
+            Check(ref failures, r.Kind == GeometryKind.None && r.Points.Count == 0 && !r.CreateObjectiveArea
+                             && r.Log.Contains("no task geometry to read") && !r.Log.Contains("MapGraphicID"),
+                  $"(f10) a task with NO geometry reads as None and the line says so without inventing a " +
+                  $"MapGraphicID (kind {r.Kind})");
+        }
+
+        // (f7) MapGraphicID PRECEDENCE. When the order NAMES its graphic, the init already created it
+        //      under that uuid: the resolver's first branch wins, the points pass through as the
+        //      graphic authored them, and V4b creates NOTHING.
+        {
+            const string objMadison = "11111111-2222-3333-4444-555555555555";
+            var graphics = new Dictionary<string, TaskGraphic>(StringComparer.Ordinal)
+            {
+                [objMadison] = new TaskGraphic(objMadison, "OBJ_MADISON", TaskGraphic.KindArea,
+                    new[] { (34.4, -116.6, (double?)null), (34.6, -116.6, (double?)null),
+                            (34.6, -116.4, (double?)null), (34.4, -116.4, (double?)null) }),
+            };
+            var task = new OrderTask
+            {
+                TaskName = "T_Seize_Madison",
+                TaskUuid = "task-uuid-1",
+                ActionCode = "SEIZE",
+                MapGraphicUuids = new[] { objMadison },
+                Points = new List<(double, double, double?)>(ring),
+            };
+            var resolved = TaskGeometryResolver.Resolve(task, graphics);
+            var r = TaskGeometryInterpretation.Interpret(task.ActionCode, resolved.Points, resolved.Source);
+            Check(ref failures, resolved.Source == GeometrySource.MapGraphic && !r.CreateObjectiveArea,
+                  $"(f7) with a MapGraphicID that resolves, NO on-the-fly area is created - the init made that " +
+                  $"object (source {resolved.Source}, create {r.CreateObjectiveArea})");
+            Check(ref failures, r.Points.Count == 1 && Math.Abs(r.Points[0].Lat - 34.5) < 1e-9,
+                  "... and the points are the graphic's own centroid, not a re-reading of the embedded ring");
+            Check(ref failures, r.Log.Contains("MapGraphicID used as the graphic authored it"),
+                  "... and the line says the interpretation did NOT apply");
+        }
+
+        // (f8) EXACTLY ONCE PER TASK. ExecuteTaskOnTick is re-entered for the SAME task by the
+        //      TerrainProfile reply - the DEFAULT ground path - and an order can be delivered twice.
+        //      This is the production decision function, driven on a real dictionary.
+        {
+            var created = new System.Collections.Concurrent.ConcurrentDictionary<string, byte>();
+            bool first = TaskGeometryInterpretation.ShouldCreateObjectiveArea(created, "task-uuid-1", "T32_Seize");
+            bool terrainReentry = TaskGeometryInterpretation.ShouldCreateObjectiveArea(created, "task-uuid-1", "T32_Seize");
+            bool secondDelivery = TaskGeometryInterpretation.ShouldCreateObjectiveArea(created, "task-uuid-1", "T32_Seize");
+            bool otherTask = TaskGeometryInterpretation.ShouldCreateObjectiveArea(created, "task-uuid-2", "T33_Secure");
+            Check(ref failures, first && !terrainReentry && !secondDelivery,
+                  $"(f8) the objective area is created ONCE per task - the terrain re-entry and a duplicate " +
+                  $"delivery create nothing (first {first}, re-entry {terrainReentry}, redelivery {secondDelivery})");
+            Check(ref failures, otherTask && created.Count == 2,
+                  $"... and a DIFFERENT task still gets its own ({created.Count} key(s))");
+            Check(ref failures, TaskGeometryInterpretation.ObjectiveAreaName("T32_Seize") == "T32_Seize OBJECTIVE"
+                             && TaskGeometryInterpretation.ObjectiveAreaKey("task-uuid-1", "T32_Seize")
+                                == "taskarea:task-uuid-1",
+                  "... under the '<TaskName> OBJECTIVE' name and the task's own uuid");
+        }
+
+        // (f9) THE CENSUS, measured on the real order rather than asserted in a comment. The counts
+        //      are the ones this pass measured independently (scratchpad census.py): 9 with no
+        //      geometry, 22 one place, 11 routes, and - because STP linearises the FIRST task graphic
+        //      and that graphic is an axis, a task symbol or a point - NOT ONE ring.
+        {
+            string file = FindCoaStp1Order();
+            var order = file == null ? null : OrderParser.Parse(File.ReadAllText(file));
+            Check(ref failures, order != null && order.Tasks.Count == 42,
+                  $"(f9) data/COA-STP1_Order.xml still parses to 42 tasks " +
+                  $"(got {(order == null ? "NOT FOUND" : order.Tasks.Count.ToString())})");
+            if (order != null && order.Tasks.Count == 42)
+            {
+                var kinds = order.Tasks
+                    .Select(t => TaskGeometryInterpretation.Classify(t.ActionCode, t.Points)).ToList();
+                int none = kinds.Count(k => k == GeometryKind.None);
+                int point = kinds.Count(k => k == GeometryKind.Point);
+                int route = kinds.Count(k => k == GeometryKind.Route);
+                int area = kinds.Count(k => k == GeometryKind.ObjectiveArea);
+                Check(ref failures, none == 9 && point == 22 && route == 11 && area == 0,
+                      $"... the 42 tasks read as 9 None / 22 Point / 11 Route / 0 ObjectiveArea " +
+                      $"(got {none}/{point}/{route}/{area})");
+                Check(ref failures, none == order.Tasks.Count(t => t.Points.Count == 0),
+                      "... every None is a task with no points at all (R2's nine), and nothing else");
+
+                // The two 3-point tasks are TASK-MISSION SYMBOLS: their point lists match the init's
+                // TaskGraphics __FRIEN_16 / __FRIEN_13 vertex for vertex, and FM 3-90 B-8 / B-17 say
+                // what those symbols are. They are driven as routes - and SAID to be symbols.
+                var symbols = order.Tasks.Where(t => t.Points.Count == 3).ToList();
+                var readings = symbols
+                    .Select(t => TaskGeometryInterpretation.Interpret(t.ActionCode, t.Points, GeometrySource.EmbeddedLocation))
+                    .ToList();
+                Check(ref failures, symbols.Count == 2
+                                 && readings.All(r => r.Kind == GeometryKind.Route)
+                                 && readings.All(r => r.Note != null && r.Note.Contains("task-mission SYMBOL")),
+                      $"... the 2 three-point tasks (T13 BREACH, T36 CLRLND) are driven as routes and REPORTED " +
+                      $"as task-mission symbols ({symbols.Count} found)");
+                Check(ref failures, symbols.All(t => TaskGeometryInterpretation.Spread(t.Points) < 400.0),
+                      "... which is the measurement behind that note: both span under 400 m");
+
+                // And the nine axes: 4 points each, closure ratio at the far end of the scale.
+                var axes = order.Tasks.Where(t => t.Points.Count == 4).ToList();
+                Check(ref failures, axes.Count == 9
+                                 && axes.All(t => TaskGeometryInterpretation.ClosureRatio(t.Points) > 0.9)
+                                 && axes.All(t => TaskGeometryInterpretation.Classify(t.ActionCode, t.Points)
+                                                  == GeometryKind.Route),
+                      $"... and all {axes.Count} four-point tasks are axes of advance (closure ratio > 0.9), " +
+                      "read as routes");
+            }
+        }
     }
 
     // ---------------------------------------------------------------- R4 ----

@@ -87,9 +87,21 @@ public static class OrderParser
             if (m.Duration != null && durationMs < 0)
                 data.Warnings.Add($"task '{task.TaskName}' Duration '{m.Duration.IsoTimeDuration}' is not the " +
                                   "P00Y00M00DT00H00M00S form findTotalIsoMs decodes; the task has NO end time");
+            // LocationType (schema :3610-3625) is a CHOICE of GeodeticCoordinate or
+            // RelativeLocation. Only the geodetic branch is supported (user ruling 2026-09-14:
+            // RelativeLocation is unsupported and STP does not emit it) - but V4b reads the SHAPE of
+            // this list, so a point dropped in silence would change the shape it reads (a ring can
+            // lose the vertex that closes it). Say what was dropped.
+            int droppedLocations = 0;
             foreach (var loc in m.Location ?? Array.Empty<S.LocationType>())
                 if (loc?.Item is S.GeodeticCoordinateType g)
                     task.Points.Add((g.Latitude, g.Longitude, ElevOf(g)));
+                else if (loc?.Item != null)
+                    droppedLocations++;
+            if (droppedLocations > 0)
+                data.Warnings.Add($"task '{task.TaskName}' carries {droppedLocations} Location element(s) that are " +
+                                  "NOT a GeodeticCoordinate (RelativeLocation is the schema's other branch and is " +
+                                  "NOT supported); they are dropped, so this task's geometry is incomplete");
 
             // Surface what the executor silently assumes about temporal relationships:
             // only the FIRST one is honored, and it is treated as start-after-END (STREND).

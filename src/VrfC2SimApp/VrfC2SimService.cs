@@ -743,6 +743,33 @@ public sealed class VrfC2SimService : BackgroundService
         _bridge.Dispose();
     }
 
+    /// <summary>
+    /// V4b - THE ONE CONTROL-AREA FACTORY. Register the object's NAME, then marshal the create onto
+    /// the tick thread with the C2SIM uuid as the VR-Forces uuid (createControlArea's startingUUID,
+    /// vrfRemoteController.h:1091-1108, the same policy the init has always used for the 35
+    /// tactical areas).
+    ///
+    /// THE ORDER OF THE TWO STEPS IS THE POINT, not an implementation detail. A returned name the
+    /// NameRegistry never saw requested falls through to the prefix scan, whose job is to attach a
+    /// truncated DIS marking to the unit it came from - so an unregistered graphic name that is a
+    /// strict prefix of a still-unbound UNIT name would bind the GRAPHIC's uuid under the UNIT's
+    /// name, and the unit would then be tasked by its area's uuid. Registering first makes the
+    /// callback an EXACT match and short-circuits the scan.
+    ///
+    /// The caller owns the duplicate guard, because the two callers key it differently: the init by
+    /// the graphic's own C2SIM uuid ("area:..."), a task-derived objective by the TASK's uuid
+    /// (TaskGeometryInterpretation.ObjectiveAreaKey, "taskarea:...").
+    /// </summary>
+    private void EnqueueControlAreaCreate(string uuid, string name,
+                                          IReadOnlyList<(double Lat, double Lon, double? Elev)> points)
+    {
+        var pts = points
+            .Select(pt => new Geodetic { LatDeg = pt.Lat, LonDeg = pt.Lon, AltMeters = pt.Elev ?? 0.0 })
+            .ToList();
+        _names.Requested(name);   // B3: so the area's ObjectCreated is an EXACT match, not a prefix scan
+        _tickActions.Enqueue(() => _bridge.CreateControlArea(pts, name, "TacticalArea", uuid));
+    }
+
     private void TickLoop()
     {
         while (!_stopTick)
@@ -1312,14 +1339,12 @@ public sealed class VrfC2SimService : BackgroundService
                     area.Points.Select(pt => (pt.Lat, pt.Lon, (double?)pt.Elev)).ToList());
                 areasRegistered++;
             }
-            _names.Requested(area.Name);   // B3: so an area's ObjectCreated is an EXACT match, not a prefix scan
-            _tickActions.Enqueue(() =>
-            {
-                var pts = area.Points
-                    .Select(pt => new Geodetic { LatDeg = pt.Lat, LonDeg = pt.Lon, AltMeters = pt.Elev })
-                    .ToList();
-                _bridge.CreateControlArea(pts, area.Name, "TacticalArea", area.Uuid);
-            });
+            // V4b: ONE control-area factory, shared with the task path (EnqueueControlAreaCreate) -
+            // same name registration, same tick marshalling, same uuid policy. The dedupe stays HERE
+            // because the two callers key it differently (an init graphic by its own uuid, a task by
+            // the task's).
+            EnqueueControlAreaCreate(area.Uuid, area.Name,
+                area.Points.Select(pt => (pt.Lat, pt.Lon, (double?)pt.Elev)).ToList());
             areasQueued++;
         }
 
@@ -2562,6 +2587,14 @@ public sealed class VrfC2SimService : BackgroundService
         // Logged on the FIRST pass only: the TerrainProfile reply re-enters this method with the
         // same task and would otherwise say it all twice.
         var geometry = TaskGeometryResolver.Resolve(task, _graphicsByC2SimUuid);
+        // V4b - WHAT THOSE POINTS MEAN, PER VERB. The resolver says WHERE the geometry came from;
+        // this says WHAT IT IS. C2SIM attaches no shape to a Location list (LocationType is a bare
+        // choice of GeodeticCoordinate or RelativeLocation), so an objective ring, an axis of
+        // advance and a control point arrive as the same XML and were all driven as routes before
+        // this item. The rule is (verb, shape) -> Route | ObjectiveArea | Point, and it applies to
+        // the EMBEDDED Location only: geometry that came from a MapGraphicID was already typed by
+        // the graphic it names. See docs/experiments/DESIGN_V4B_EMBEDDED_LOCATION_2026-09-14.md.
+        var reading = TaskGeometryInterpretation.Interpret(task.ActionCode, geometry.Points, geometry.Source);
         if (terrainRoute == null)
         {
             foreach (var line in geometry.Log)
@@ -2571,8 +2604,36 @@ public sealed class VrfC2SimService : BackgroundService
             // on an export that carries only the id, to R2 in place. It is a WARNING.
             foreach (var line in geometry.Warnings)
                 _log.LogWarning("Task '{Task}': {Line}.", task.TaskName, line);
+            _log.LogInformation("Task '{Task}': {Line}.", task.TaskName, reading.Log);
+            if (reading.Note != null)
+                _log.LogInformation("Task '{Task}': {Line}.", task.TaskName, reading.Note);
         }
-        var taskPoints = geometry.Points;
+        // THE OBJECTIVE AREA ITSELF. Created through the same factory the init uses, from the ring's
+        // own vertices, under the TASK's C2SIM uuid - so V5/V6 can bind a vendor tactical task's
+        // objective parameter to it with no extra map. EXACTLY ONCE per task: this method is
+        // re-entered for the SAME task by the TerrainProfile reply (the default ground path) and an
+        // order can be delivered twice, so the guard is the init's own _createdAreaKeys dictionary.
+        // NEVER for a MapGraphicID ring - the init already created that object under that uuid.
+        if (reading.CreateObjectiveArea && reading.AreaVertices.Count >= 3)
+        {
+            string objectiveName = TaskGeometryInterpretation.ObjectiveAreaName(task.TaskName);
+            if (!_vrf.CreateTaskObjectiveAreas)
+            {
+                if (terrainRoute == null)
+                    _log.LogInformation("Task '{Task}': objective area '{Name}' NOT created " +
+                                        "(Vrf:CreateTaskObjectiveAreas=false); the move to its centroid is " +
+                                        "unchanged, but no VR-Forces object carries the ring.",
+                                        task.TaskName, objectiveName);
+            }
+            else if (TaskGeometryInterpretation.ShouldCreateObjectiveArea(_createdAreaKeys, task.TaskUuid, task.TaskName))
+            {
+                EnqueueControlAreaCreate(task.TaskUuid, objectiveName, reading.AreaVertices);
+                _log.LogInformation("Task '{Task}': objective area '{Name}' queued for creation from {N} ring " +
+                                    "vertex(es) under the TASK's own uuid {Uuid} (V4b).",
+                                    task.TaskName, objectiveName, reading.AreaVertices.Count, task.TaskUuid);
+            }
+        }
+        var taskPoints = reading.Points;
 
         // OBSERVATION CHANNEL: a template unit's members were created by the sim, not by us, so
         // ObjectCreated never opened THEIR consoles. Open them now (Vrf:ObjectConsoleNotifyLevel
