@@ -105,6 +105,20 @@ outside 4.6-8.2, the kill half's completion element (V5h) is VOID and says nothi
 COUNTERFACTUAL, for reading the pause half: with no kill, T1 would complete at `t + 2 + 1800/r + 180`, i.e. **t+498 at
 r=5.7**. The +180 in that expression IS the pause. The kill at +400 arrives first by design.
 
+**WHY t+400 AND NOT THE SKETCH'S t+420.** The armed-at-the-kill condition is `r < 1800 / (running wall at the kill)`.
+At t+400 that is 8.26; at t+420 it is 7.53, which N2d's ~7.5x straddles. Twenty seconds buys the whole margin.
+
+**THE ONE LOAD-BEARING ASSUMPTION UNDER BOTH HALVES: NOTHING ELSE TERMINATES T1 BEFORE THE KILL.** Any TASKCMPLT or
+TASKABRT CANCELS the armed end time, and an unarmed T1 takes V5h away and - on probe outcome (c) - leaves the kill with
+no witness at all (sec 4). Three things could terminate it and none is expected here: (i) ARRIVAL at V3 - impossible,
+since ~1,250 sim s of driving reaches only about V1 (V7 measured V1 at sim 1,348 and V2 at 2,787) and after the kill
+nothing moves; (ii) the C16 progress watchdog - it is OFF, which is the whole reason this run does not set
+`Vrf__StallDetection`; (iii) a VENDOR give-up on the ridge freeze - the vendor does not give up, by design: the base
+give-up test always returns false and the move-to Lua has no progress watchdog (memory: VRF stall detection is the
+integrator's), and in six freeze runs the sim reported running / unblocked / goal-unchanged forever. **If T1 does carry
+a terminal report before t+400, the kill half is VOID for V5h and the run is scored on V5f/V5g alone** - and the
+terminal report itself is then the finding, because item (iii) would have been refuted.
+
 ---
 
 ## 3. PASS/FAIL, THE PAUSE (assessment gate 11, first half)
