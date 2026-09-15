@@ -2017,6 +2017,31 @@ if (Test-Path -LiteralPath $Init -PathType Leaf) {
     } catch { $bad += ('could not read -Init to check SystemName: {0}' -f $_.Exception.Message) }
 }
 $appSettings = Join-Path (Split-Path -Parent $ExeApp) 'appsettings.json'
+# A MISSING appsettings.json is FATAL, not a warning (2026-09-15, run 20260915T122145Z).
+#
+# That run reached the observation window with no units in it. The app joined, saw the back end,
+# and then died on its late-join QUERYINIT with
+#     C2SimClientLib.C2SIMClientException: Error - Submitter not specified
+# which C2SIMClientRestLib.cs:190-194 throws BEFORE it builds a URL - so nothing ever reached the
+# server, and no amount of restarting the container could have helped. The submitter comes from
+# C2SIM:SubmitterId in appsettings.json ONLY: there is no Vrf__/C2SIM__ override for it in this
+# runner or in RunScenario.sh, and no C# default. The app's deployed content root had lost both
+# appsettings.json and appsettings.Demo.json (a Clean that ran while the previous run still held
+# the exe: the locked .exe survived, the unlocked .json files did not), and EVERY other setting
+# the run depends on is injected as an environment variable - so the app started, logged a
+# normal-looking banner, joined, and only failed three stages later.
+#
+# The block below already opened this file, but only WARNED when it could not - and -ClientId
+# masked even that, because it assigns $appClientId itself. Fail here instead: Stage 0 has
+# launched nothing, contacted no server and burned no appNumber.
+if (-not (Test-Path -LiteralPath $appSettings -PathType Leaf)) {
+    $bad += ("appsettings.json is MISSING from the app's content root ({0}). The interface reads " +
+             "C2SIM:SubmitterId from it and from NOWHERE else - no environment override exists - so " +
+             "its QUERYINIT would throw 'Error - Submitter not specified' and the init would never be " +
+             "dispatched (run 20260915T122145Z). Rebuild the app: dotnet build " +
+             "src\VrfC2SimApp\VrfC2SimApp.csproj -c Release -p:BridgeConfig={1} - and never Clean it " +
+             "while a run still holds the exe.") -f $appSettings, $BridgeOut
+}
 # Kept after the parse: the -PreOrderGate console-level check below reads the same object,
 # so the file is opened once and the two checks can never disagree about its contents.
 $cfgApp = $null
