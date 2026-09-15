@@ -56,7 +56,7 @@ Navigation mesh (PREREG_NAVDATA_G6_2026-09-13.md sec 5 = STOP; MESH_QUERY_VS_DIS
 - WESTERN ABSTRACT-GRAPH REFUSALS = the oversized nav area (UG52 66.2's 20 x 20 km maximum) - not
   load timing (N2c's +300 s start delay refused identically to N2b) and not a query flag; do not
   re-probe query flags. RESEARCH_ABSTRACT_GRAPH_CONNECTIVITY_2026-09-15.md.
-- Western AG refusals = oversized nav area (UG52 66.2 20x20 km max; connectivity ratio) - PREREG_V7; do not reopen (6/6 live-confirmed on MojaveAO20).
+- Western AG refusals = FRAGMENTED GENERATED nav data; SIZE FALSIFIED as cause (WEST20 control 0b765a2: a fresh 20 km area is as fragmented as COA; date/terrain input is the variable); the offline connectivity gate is the control (STP-803); AO20 = a dated artefact. V7's live result stands, its attribution does not.
 - THE RIDGE FREEZE IS A LINE PROPERTY (N2d drove the authored line 1.3 km north of the six-run
   freeze) - the remedy is a pre-flight route shift, not a planner flag.
 

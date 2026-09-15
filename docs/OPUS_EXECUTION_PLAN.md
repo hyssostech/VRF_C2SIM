@@ -2912,16 +2912,31 @@ NOTE: numbers this runner allocates but does not consume (e.g. an abort before t
 join) are BURNED, not recycled. The run manifest records which were actually used.
 
 CLAIMED 2026-09-15 04:14 by the seat for V6b (the live join gate RERUN of the 5.2-converted tools, hardening branch 89639c2; driver scratchpad validation/v6b_gates.ps1; a scratch federation launched by the runner, which claims its own numbers). ONE NUMBER PER JOIN.
-- 4428: CLAIMED - tools/ResetVrf --dry-run, gate 1a (FULL runner env, no --config) - the env-only defence
-- 4429: CLAIMED - tools/ResetVrf --dry-run --config <MAK-ONE-2025-Config.xml>, gate 1b (minimal env) - the config-only defence
-- 4430: CLAIMED - tools/SetSimRate 10, gate 3a
-- 4431: CLAIMED - tools/SetSimRate 1, gate 3b (60 s after 3a)
-- 4432: CLAIMED - tools/CreateTaskAgg create, gate 4a
-- 4433: CLAIMED - tools/CreateTaskAgg task <uuid>, gate 4b (BURNED if create fails)
-- 4434: CLAIMED - tools/ResetVrf REAL RESET, gate 2a - DESTRUCTIVE, runs LAST
-- 4435: CLAIMED - tools/ResetVrf --dry-run, gate 2b (the AFTER half: expect Nothing deletable, exit 0)
+- 4428: CONSUMED 2026-09-15 11:4xZ V6b (gate 1a FULL env: joined, no back end after 15 s) - tools/ResetVrf --dry-run, gate 1a (FULL runner env, no --config) - the env-only defence
+- 4429: CONSUMED 2026-09-15 11:4xZ V6b (gate 1b --config: joined, no back end after 15 s) - tools/ResetVrf --dry-run --config <MAK-ONE-2025-Config.xml>, gate 1b (minimal env) - the config-only defence
+- 4430: CONSUMED 2026-09-15 11:4xZ V6b (gate 3a: refused, no back end) - tools/SetSimRate 10, gate 3a
+- 4431: CONSUMED 2026-09-15 11:4xZ V6b (gate 3b: refused, no back end) - tools/SetSimRate 1, gate 3b (60 s after 3a)
+- 4432: CONSUMED 2026-09-15 11:4xZ V6b (gate 4a: refused, no back end) - tools/CreateTaskAgg create, gate 4a
+- 4433: BURNED (V6b: create refused, no uuid) - tools/CreateTaskAgg task <uuid>, gate 4b (BURNED if create fails)
+- 4434: CONSUMED 2026-09-15 11:4xZ V6b (gate 2a: refused, no back end) - tools/ResetVrf REAL RESET, gate 2a - DESTRUCTIVE, runs LAST
+- 4435: CONSUMED 2026-09-15 11:4xZ V6b (gate 2b: refused, no back end) - tools/ResetVrf --dry-run, gate 2b (the AFTER half: expect Nothing deletable, exit 0)
 
-*** NEXT FREE: 4436 *** (authoritative - the ONLY such marker in this file. Update this
+
+CLAIMED 2026-09-15 11:40 by scripts/RunC2SimScenario.ps1 (run 20260915T114001Z_run). Ledgered BEFORE any join,
+per the never-reuse non-negotiable. Annotate with results from the run manifest.
+- 4436: CLAIMED - LaunchVrf52.ps1 back-end (vrfSimHLA1516e), 5.2d independent mode
+- 4437: CLAIMED - LaunchVrf52.ps1 front-end (vrfGui), 5.2d independent mode (allocated even with -NoGui, then BURNED)
+- 4438: CLAIMED - WatchVrf ADVISORY pre-init oracle pre-check (RUNBOOK 0.5.7)
+- 4439: CLAIMED - WatchVrf MAIN run trace - the movement oracle / scoring input
+- 4440: CLAIMED - VrfC2SimApp Vrf__ApplicationNumber (the interface federate)
+- 4441: CLAIMED - tools/RtiProbe - STAGE 2c PRE-LAUNCH RTI READINESS GATE (C1). Throwaway create-or-join against the federation with internal retry+backoff, then clean resign, BEFORE the back-end launches (RTI_LAUNCH_HARDENING_DESIGN.md A2-A7 - the RUN-2 fix). CONSUMED on EVERY run (the gate always runs pre-launch). One number covers all internal retries - RtiProbe reuses this single appNumber across attempts by design.
+- 4442: CLAIMED - tools/CreateOne - STAGE 7b FAILURE-PATH DIAGNOSTIC ONLY (RUNBOOK 0.5.7 STRONGER CHECK). CONSUMED ONLY IF THE ORACLE GATE FAILS; on a healthy run it is NEVER JOINED and this number goes UNCONSUMED. Unconsumed numbers are BURNED, never recycled - see the NOTE below. Allocated here rather than mid-run because every number must be ledgered BEFORE any join.
+- 4443: CLAIMED - tools/PauseSim pause - STAGE 8b Q5 PROBE at t+150s of the observation window (controller->pause() on ALL back ends). CONSUMED ONLY IF the window is still open at that offset; an unconsumed number is BURNED, never recycled.
+- 4444: CLAIMED - tools/PauseSim resume - STAGE 8b Q5 PROBE at t+210s of the observation window (controller->run() on ALL back ends). A SEPARATE join from the pause and therefore a separate number. CONSUMED ONLY IF the window is still open at that offset.
+NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
+join) are BURNED, not recycled. The run manifest records which were actually used.
+
+*** NEXT FREE: 4445 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
