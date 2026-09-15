@@ -768,9 +768,26 @@ $Bin64 = Join-Path $VrfRoot 'bin64'
 # The federation ARGUMENT the tools are given. On 5.2 it is deliberately EMPTY: RtiProbe
 # and WatchVrf treat a blank positional as "stack default" and StackIdentity then joins
 # the config-file way, while a non-empty value is an explicit OVERRIDE of the connection
-# config's execName (tools/Shared/StackIdentity.cs). Empty arguments survive
-# ProcessStartInfo.ArgumentList as "" and stay in position, which is what RtiProbe (where
-# the federation sits between the appNumber and the retry counts) needs.
+# config's execName (tools/Shared/StackIdentity.cs).
+#
+# *** CORRECTED 2026-09-15 (RUNBOOK 0.5.14 item 15 addendum) - THE CLAIM BELOW WAS FALSE. ***
+# This used to say an empty argument "survives ProcessStartInfo.ArgumentList as "" and
+# stays in position". It does not: $sp.ArgumentList here (Invoke-External/Start-External,
+# below) is the Start-Process CMDLET PARAMETER of that name, not the .NET
+# System.Diagnostics.ProcessStartInfo.ArgumentList collection the comment described - and
+# Start-Process SILENTLY DROPS an empty-string element instead of passing it through as a
+# real "" argument (reproduced directly: an array of 5 elements with element[1] = ''
+# reaches the child as 4 elements, everything after the gap shifted down one slot).
+# Every OTHER call site puts federation LAST (WatchVrf, PauseSim: appNumber/duration/
+# sample/[federation], action/appNumber/[federation]), where a dropped trailing argument
+# is harmless - a tool that never receives its optional last positional behaves exactly
+# as if it received it empty. RtiProbe is the ONE tool that takes federation in the
+# MIDDLE, between appNumber and its retry counts, so this drop moved every argument
+# after it - the C1 gate joined a federation literally named "5" (its own maxAttempts
+# value, shifted left), not MAK-ONE-2025 (runs/20260915T030650Z_run/rtiprobe.stdout.log:
+# "federation=5 (explicit override...)"; V6 harvest, scratchpad/v6harvest). FIXED at the
+# Stage 2c call site below: the argument list is now built CONDITIONALLY instead of
+# always passing all five positionals.
 $FederationArg = if ($Is52) { '' } else { $Federation }
 
 # Per-process environment the PROFILE adds on top of PATH/licence. EMPTY on 5.0.2, so
@@ -935,11 +952,16 @@ function Format-CommandLine {
     $parts = @()
     foreach ($a in @($Arguments)) {
         if ($null -eq $a) { continue }
-        # An EMPTY argument is quoted too. ProcessStartInfo.ArgumentList passes it to the
-        # child as "" and it HOLDS ITS POSITION (the 5.2 profile's blank federation sits
-        # between RtiProbe's appNumber and its retry counts); a manifest command line that
-        # dropped it would not be the line that ran. No 5.0.2 stage passes an empty
-        # argument, so this cannot change that profile's recorded command lines.
+        # An EMPTY argument is quoted too, so the MANIFEST line shows it explicitly rather
+        # than silently collapsing two spaces into one. *** CORRECTED 2026-09-15: this used
+        # to claim ProcessStartInfo.ArgumentList "passes it to the child as "" and it HOLDS
+        # ITS POSITION" - FALSE for the Start-Process -ArgumentList this runner actually
+        # uses (RUNBOOK 0.5.14 item 15 addendum): an empty element is silently DROPPED, so
+        # for RtiProbe specifically this function's quoted "" in the logged line did NOT
+        # match what the child actually received - the manifest recorded a command line
+        # that never ran. Harmless here only because Format-CommandLine is display/manifest
+        # only, never the actual invocation; the real fix is building RtiProbe's argument
+        # list conditionally (Stage 2c), not this function. ***
         if ($a -eq '' -or $a -match '[\s"]') { $parts += ('"' + ($a -replace '"','\"') + '"') } else { $parts += $a }
     }
     if ($parts.Count -eq 0) { return $File }
@@ -2333,6 +2355,131 @@ if ($StopWhenComplete -and $OrderTaskees.Count -eq 0) {
 }
 
 # =============================================================================
+# STAGE 1a - RUNNER LAUNCH LOCK (RUNBOOK 0.5.14 item 15)
+# =============================================================================
+# WHY THIS EXISTS. Run V8z (2026-09-15 03:51Z, voided): two RunC2SimScenario.ps1
+# instances were started 2 s apart. BOTH passed the pre-flight inventory below (it
+# checks vrfLauncher/vrfSimHLA1516e/vrfGui/WatchVrf/ListenReports, never ANOTHER
+# RUNNER), both allocated appNos, both launched; the second saw the first's READY
+# back end, its PushInit failed, and ITS teardown STOPPED THE SIM under the FIRST
+# runner's live order. Before anything else: refuse if another runner is live,
+# then take an exclusive lock so a second runner cannot start until the first has
+# finished tearing down. The parsing/matching helpers are PURE and live in
+# RunnerLib.ps1 (Get-OtherRunnerProcessInfo, ConvertFrom-RunnerLockText,
+# Format-RunnerLockContent, Format-OtherRunnerRefusal) so they can be exercised
+# offline; the file/process I/O below cannot be pure and stays here.
+Say-Head 'Stage 1a - runner launch lock'
+
+$PathRunnerLock = Join-Path $RunRoot 'runner.lock'
+# The run directory THIS invocation would create if it gets past Stage 1/2 (the
+# REAL $RunId/$RunDir are computed later, under "RUN DIRECTORY + DERIVED PATHS",
+# from this same $stamp/$RunRoot - known early only so the lock can name it).
+$IntendedRunDir = Join-Path $RunRoot ('{0}_run' -f $stamp)
+
+$PwshSnapshot = @()
+try { $PwshSnapshot = @(Get-CimInstance -ClassName Win32_Process -Filter "Name = 'pwsh.exe'" -ErrorAction Stop) } catch { $PwshSnapshot = @() }
+# @(...) on both: see the note in RunnerLib.ps1's Get-OtherRunnerProcessInfo - a
+# HashSet or array return value gets unwrapped to a bare scalar by the pipeline
+# when it holds exactly one item, which breaks .Contains()/.Count/[0] downstream.
+$SelfAncestorIds = @(Get-ProcessAncestorIds -StartPid $PID -Processes $PwshSnapshot)
+$OtherRunners    = @(Get-OtherRunnerProcessInfo -Processes $PwshSnapshot -SelfPid $PID)
+
+$ExistingLockText = ''
+if (Test-Path -LiteralPath $PathRunnerLock -PathType Leaf) {
+    try { $ExistingLockText = Get-Content -LiteralPath $PathRunnerLock -Raw -Encoding ASCII } catch { $ExistingLockText = '' }
+}
+$ExistingLock = ConvertFrom-RunnerLockText -Text $ExistingLockText
+
+# Fold the lock file's pid into the picture: if it names a pid the process scan
+# already found, reuse its recorded run dir instead of "(unknown)". If the scan
+# found nothing but the lock names a DIFFERENT, still-alive, non-ancestor pid,
+# that is a second live runner the scan missed (only a race before it wrote the
+# lock should ever produce this).
+$LiveOther = $null
+if ($OtherRunners.Count -gt 0) {
+    $o  = $OtherRunners[0]
+    $rd = if ($ExistingLock.pid -eq $o.pid -and $ExistingLock.runDir) { $ExistingLock.runDir } else { '(unknown - no launch lock written yet)' }
+    $LiveOther = [ordered]@{ pid = $o.pid; utc = $o.startedUtc; runDir = $rd }
+} elseif ($ExistingLock.pid -gt 0 -and -not $SelfAncestorIds.Contains($ExistingLock.pid)) {
+    $stillAlive = $false
+    try { $null = Get-Process -Id $ExistingLock.pid -ErrorAction Stop; $stillAlive = $true } catch { $stillAlive = $false }
+    if ($stillAlive) { $LiveOther = $ExistingLock }
+}
+
+if ($LiveOther) {
+    $lockMsg = Format-OtherRunnerRefusal -OtherPid $LiveOther.pid -Utc $LiveOther.utc -RunDir $LiveOther.runDir
+    if ($DryRun) {
+        Say-Warn ('DRY RUN - would REFUSE: {0}' -f $lockMsg)
+        Say-Warn '  a dry run launches nothing, so it proceeds anyway - reporting only, by design.'
+    } else {
+        Say-Head 'Result'
+        Say-Fail $lockMsg
+        Say-Fail '  RUNBOOK 0.5.14 item 15 (the V8z double-launch incident): a second runner must never'
+        Say-Fail '  start while a first one is live. It releases the lock in its own teardown, AFTER'
+        Say-Fail '  tearing down - wait for it, then re-run.'
+        exit 2
+    }
+} else {
+    Say-Ok 'no other runner process is live'
+}
+
+if ($DryRun) {
+    Say-Plan ('would take the exclusive lock file {0} (pid {1}, run dir {2}); NOT taken in a dry run.' -f $PathRunnerLock, $PID, $IntendedRunDir)
+} else {
+    if ($ExistingLock.pid -gt 0) {
+        # Reaching here with a lock file already on disk means $LiveOther above was
+        # $null for it - its pid is dead (or our own ancestor) - so it is STALE.
+        # Report it and remove it rather than refuse a healthy launch forever.
+        Say-Warn ('stale lock file {0}: pid {1} is not running. Removing it.' -f $PathRunnerLock, $ExistingLock.pid)
+        try { Remove-Item -LiteralPath $PathRunnerLock -Force -ErrorAction Stop } catch {
+            Say-Fail ('could not remove the stale lock file {0}: {1}' -f $PathRunnerLock, $_.Exception.Message)
+            exit 2
+        }
+    }
+    $LockDir = Split-Path -Parent $PathRunnerLock
+    if (-not (Test-Path -LiteralPath $LockDir -PathType Container)) { New-Item -ItemType Directory -Path $LockDir -Force | Out-Null }
+    $LockNowUtc  = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+    $LockContent = Format-RunnerLockContent -RunnerPid $PID -Utc $LockNowUtc -RunDir $IntendedRunDir
+    $LockTaken = $false
+    for ($lockAttempt = 1; $lockAttempt -le 2 -and -not $LockTaken; $lockAttempt++) {
+        try {
+            $lockFs = [System.IO.File]::Open($PathRunnerLock, [System.IO.FileMode]::CreateNew,
+                                             [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
+            try {
+                $lockBytes = [System.Text.Encoding]::ASCII.GetBytes($LockContent)
+                $lockFs.Write($lockBytes, 0, $lockBytes.Length)
+            } finally { $lockFs.Dispose() }
+            $LockTaken = $true
+        } catch [System.IO.IOException] {
+            # CreateNew fails if the file exists - either a genuine race (someone
+            # else took it in the instant between our checks above and here) or a
+            # lock left by a runner that has since died. Distinguish by pid.
+            $racedText = ''
+            try { $racedText = Get-Content -LiteralPath $PathRunnerLock -Raw -Encoding ASCII } catch { }
+            $raced = ConvertFrom-RunnerLockText -Text $racedText
+            $racedAlive = $false
+            if ($raced.pid -gt 0) { try { $null = Get-Process -Id $raced.pid -ErrorAction Stop; $racedAlive = $true } catch { $racedAlive = $false } }
+            if ($racedAlive -and -not $SelfAncestorIds.Contains($raced.pid)) {
+                Say-Head 'Result'
+                Say-Fail (Format-OtherRunnerRefusal -OtherPid $raced.pid -Utc $raced.utc -RunDir $raced.runDir)
+                Say-Fail '  (won the lock in the instant between this runner''s checks - RUNBOOK 0.5.14 item 15.)'
+                exit 2
+            }
+            if ($lockAttempt -eq 1) {
+                Say-Warn ('stale lock file {0} appeared mid-check. Removing it and retrying once.' -f $PathRunnerLock)
+                try { Remove-Item -LiteralPath $PathRunnerLock -Force -ErrorAction Stop } catch { }
+            } else {
+                Say-Fail ('could not create the lock file {0} after a retry: {1}' -f $PathRunnerLock, $_.Exception.Message)
+                exit 2
+            }
+        }
+    }
+    $script:RunnerLockTaken = $true
+    $script:RunnerLockPath  = $PathRunnerLock
+    Say-Ok ('launch lock taken: {0}' -f $PathRunnerLock)
+}
+
+# =============================================================================
 # STAGE 1 - PRE-FLIGHT PROCESS INVENTORY (RUNBOOK 0.5.0)
 # =============================================================================
 Say-Head 'Stage 1 - pre-flight process inventory (RUNBOOK 0.5.0)'
@@ -2955,8 +3102,27 @@ try {
     # attempts*(settle+backoff); Start()'s own per-attempt cost is absorbed by the large
     # $StageTimeoutSec slack, so a slow-but-eventually-ready RTI is never cut off early.
     $probeTimeoutSec = $probeAttempts * ($probeSettle + $probeBackoff) + $StageTimeoutSec
+    # CONDITIONAL ARGUMENT LIST (RUNBOOK 0.5.14 item 15 addendum, 2026-09-15). RtiProbe
+    # takes federation as its SECOND positional, ahead of the three retry-tuning numbers -
+    # the one call site among all of $FederationArg's users where an empty middle argument
+    # is not harmless. RtiProbe.exe has no named flags (tools/RtiProbe/Program.cs), so the
+    # only way to "omit" federation without shifting maxAttempts/settleSecs/backoffSecs
+    # left is to omit federation AND those three together, relying on RtiProbe's own
+    # defaults - which $probeAttempts/$probeSettle/$probeBackoff above are already set to
+    # match exactly (5/2/3; tools/RtiProbe/Program.cs, UsageLines()), so omitting all four
+    # changes NOTHING about what RtiProbe does, only which slot is or is not on the command
+    # line. Positional arguments stay aligned on both branches. [string[]] on the
+    # assignment (not just Invoke-External's own [string[]] parameter) so $RtiProbeArgs
+    # is a real one-element array even in the empty branch - PowerShell's if/else-as-
+    # expression enumerates a single-element @(...) result back down to a bare string
+    # otherwise (verified: an untyped assignment here gives type String, not String[]).
+    [string[]]$RtiProbeArgs = if ([string]::IsNullOrEmpty($FederationArg)) {
+        @([string]$AppNo['rtiProbe'])
+    } else {
+        @([string]$AppNo['rtiProbe'], $FederationArg, [string]$probeAttempts, [string]$probeSettle, [string]$probeBackoff)
+    }
     $r = Invoke-External -Name 'RtiProbe' -File $ExeRtiProbe `
-            -Arguments @([string]$AppNo['rtiProbe'], $FederationArg, [string]$probeAttempts, [string]$probeSettle, [string]$probeBackoff) `
+            -Arguments $RtiProbeArgs `
             -Cwd $Bin64 -StdOutFile $PathRtiProbeOut -StdErrFile $PathRtiProbeErr `
             -TimeoutSec $probeTimeoutSec `
             -Note 'C1 pre-launch FATAL gate (the RUN-2 fix). RtiProbe exit 0 = RTI serviceable (create/join OK, clean resign) -> proceed; 1 = RTI NOT serviceable after all internal retries -> REFUSE the launch BEFORE any back-end/PushInit; 2 = arg/usage (args are generated, so a 2 is a RUNNER DEFECT). Self-resigns on every path. Uses ONE ledgered appNumber for all retries.'
@@ -4338,5 +4504,21 @@ finally {
             New-Item -ItemType File -Path (Join-Path $RunDir 'runner.teardown-ran') -Force | Out-Null
         }
     } catch { }
+
+    # LAUNCH LOCK RELEASE (RUNBOOK 0.5.14 item 15). Only the runner that actually
+    # took the lock releases it (a dry run never takes it - Stage 1a - so this is a
+    # no-op there), and only HERE, after every teardown step above has run: a
+    # second runner must not be able to start until this one has finished tearing
+    # down. Best-effort, like the teardown-ran marker above - a release that fails
+    # must not turn a completed teardown into a reported failure; the next
+    # runner's stale-pid check (Stage 1a) recovers it anyway.
+    if ($script:RunnerLockTaken -and $script:RunnerLockPath) {
+        try {
+            Remove-Item -LiteralPath $script:RunnerLockPath -Force -ErrorAction Stop
+            Say-Ok ('launch lock released: {0}' -f $script:RunnerLockPath)
+        } catch {
+            Say-Warn ('could not remove the launch lock {0}: {1}. The next runner will find pid {2} already gone and report it stale.' -f $script:RunnerLockPath, $_.Exception.Message, $PID)
+        }
+    }
     exit $RunnerExit
 }

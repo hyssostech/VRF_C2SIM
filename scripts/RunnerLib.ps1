@@ -926,3 +926,104 @@ function Get-PlacementRows {
     }
     return $rows
 }
+
+# ---- STAGE 1a: is another runner already live? (RUNBOOK 0.5.14 item 15) -----
+# WHY THIS EXISTS. Run V8z (2026-09-15 03:51Z, voided): two RunC2SimScenario.ps1
+# instances were started 2 s apart. BOTH passed the OLD Stage 1 (RUNBOOK 0.5.0
+# checks vrfLauncher/vrfSimHLA1516e/vrfGui/WatchVrf/ListenReports, never ANOTHER
+# RUNNER), both allocated appNos, both launched; the second saw the first's READY
+# back end, its PushInit failed, and ITS teardown stopped the sim under the FIRST
+# runner's live order.
+#
+# PURE ON PURPOSE, like every other helper in this file. These take an
+# ALREADY-FETCHED process snapshot (one Get-CimInstance Win32_Process call, made
+# by the runner) instead of querying WMI themselves, so the detection and
+# ancestor-exclusion logic can be exercised offline with a synthetic array - no
+# real second pwsh needed to prove the match/exclude rules.
+function Get-ProcessAncestorIds {
+    param(
+        [Parameter(Mandatory)][int]$StartPid,
+        [Parameter(Mandatory)][AllowEmptyCollection()]$Processes
+    )
+    $byPid = @{}
+    foreach ($p in $Processes) { $byPid[[int]$p.ProcessId] = $p }
+    $ids = New-Object 'System.Collections.Generic.HashSet[int]'
+    $cur = $StartPid
+    for ($i = 0; $i -lt 64; $i++) {
+        if (-not $ids.Add($cur)) { break }           # cycle guard
+        if (-not $byPid.ContainsKey($cur)) { break }  # chain ends where the snapshot does
+        $parent = $byPid[$cur]
+        if (-not $parent.ParentProcessId -or [int]$parent.ParentProcessId -eq 0) { break }
+        $cur = [int]$parent.ParentProcessId
+    }
+    return $ids
+}
+
+# Every OTHER pwsh.exe in $Processes whose CommandLine names $ScriptPattern,
+# excluding $SelfPid and its ancestor chain (a debugger or a nested pwsh
+# invocation must not refuse against itself). Get-Process exposes no
+# CommandLine property, which is why the runner fetches Win32_Process instead.
+function Get-OtherRunnerProcessInfo {
+    param(
+        [Parameter(Mandatory)][AllowEmptyCollection()]$Processes,
+        [Parameter(Mandatory)][int]$SelfPid,
+        [string]$ScriptPattern = 'RunC2SimScenario\.ps1'
+    )
+    # @(...): PowerShell enumerates an IEnumerable return value onto the pipeline
+    # and unwraps a single emitted item back to a scalar (Hashtable/PSCustomObject
+    # are the documented exceptions - a HashSet[int] is not), so a chain of exactly
+    # one ancestor would otherwise hand back a bare int with no .Contains(). Wrapping
+    # the call forces an array regardless of count, matching this file's existing
+    # convention at every Get-OrderTasks/Get-NavAreaRows/... call site.
+    $exclude = @(Get-ProcessAncestorIds -StartPid $SelfPid -Processes $Processes)
+    $found = @()
+    foreach ($p in $Processes) {
+        $ppid = [int]$p.ProcessId
+        if ($exclude.Contains($ppid)) { continue }
+        if ([string]::IsNullOrEmpty($p.CommandLine)) { continue }
+        if ($p.CommandLine -notmatch $ScriptPattern) { continue }
+        $startedUtc = ''
+        if ($p.PSObject.Properties['StartedUtc'] -and $p.StartedUtc) {
+            $startedUtc = $p.StartedUtc
+        } elseif ($p.PSObject.Properties['CreationDate'] -and $p.CreationDate) {
+            try { $startedUtc = ([Management.ManagementDateTimeConverter]::ToDateTime($p.CreationDate)).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ') }
+            catch { try { $startedUtc = ([datetime]$p.CreationDate).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ') } catch { $startedUtc = '' } }
+        }
+        $found += [ordered]@{ pid = $ppid; startedUtc = $startedUtc; commandLine = $p.CommandLine }
+    }
+    return $found
+}
+
+# The lock file's content is three "key=value" lines (pid/utc/runDir) - simple
+# enough to hand-read in an incident, structured enough to parse back reliably.
+function ConvertFrom-RunnerLockText {
+    param([AllowNull()][AllowEmptyString()][string]$Text)
+    $info = [ordered]@{ pid = 0; utc = ''; runDir = '' }
+    if ([string]::IsNullOrEmpty($Text)) { return $info }
+    if ($Text -match '(?m)^pid=(\d+)\s*$')    { $info.pid    = [int]$Matches[1] }
+    if ($Text -match '(?m)^utc=(\S+)\s*$')    { $info.utc    = $Matches[1] }
+    if ($Text -match '(?m)^runDir=(.*?)\s*$')  { $info.runDir = $Matches[1] }
+    return $info
+}
+
+function Format-RunnerLockContent {
+    param(
+        [Parameter(Mandatory)][int]$RunnerPid,
+        [Parameter(Mandatory)][string]$Utc,
+        [Parameter(Mandatory)][string]$RunDir
+    )
+    return ('pid={0}{3}utc={1}{3}runDir={2}{3}' -f $RunnerPid, $Utc, $RunDir, "`r`n")
+}
+
+# The exact wording RUNBOOK 0.5.14 item 15 documents for a refusal, factored out
+# so both the process-scan path and the lock-file path in the runner produce the
+# same line and a test can pin it down once.
+function Format-OtherRunnerRefusal {
+    param(
+        [Parameter(Mandatory)][int]$OtherPid,
+        [Parameter(Mandatory)][string]$Utc,
+        [Parameter(Mandatory)][string]$RunDir
+    )
+    return ('another runner is live: pid {0} started {1}, run dir {2}' -f $OtherPid, $Utc, $RunDir)
+}
+
