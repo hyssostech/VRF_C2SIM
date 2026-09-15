@@ -2795,7 +2795,7 @@ is scratchpad tools52/progress.md). Ledgered BEFORE any join, per the never-reus
 needs no number - it never calls Start(). ONE NUMBER PER INVOCATION: each of these is a whole join/resign
 cycle, the rule the tools/SetSimRate entry in this appendix already states. Annotate each with CONSUMED or
 BURNED from what actually ran.
-- 4367: CLAIMED - tools/ResetVrf --dry-run, V6 GATE 1 (PART A): join a LOADED scenario, discover, issue NO deletes, resign. The read-only half of the before/after reset verification (RUNBOOK sec 8). This is the ONLY joining command of the V6 gate that may run inside V5's measured federation, between the resume at t+305 and the kill at t+400 (PREREG_V5 sec 2).
+- 4367: BURNED (2026-09-15 02:2x: JOIN hang, no 5.2 env, cut at 90 s, unscored) - tools/ResetVrf --dry-run, V6 GATE 1 (PART A): join a LOADED scenario, discover, issue NO deletes, resign. The read-only half of the before/after reset verification (RUNBOOK sec 8). This is the ONLY joining command of the V6 gate that may run inside V5's measured federation, between the resume at t+305 and the kill at t+400 (PREREG_V5 sec 2).
 - 4368: CLAIMED - tools/ResetVrf REAL RESET, V6 GATE 2 (PART B), DESTRUCTIVE: deletes every discovered object. A SCRATCH scenario only - NEVER inside V5's federation.
 - 4369: CLAIMED - tools/ResetVrf --dry-run, V6 GATE 2's AFTER half (PART B): re-discover and expect 0 deletable objects. The before/after PAIR is the evidence; one run's own log is not.
 - 4370: CLAIMED - tools/SetSimRate 10, V6 GATE 3 (PART B): changes the SIM CLOCK, which is the very thing V5 measures - a SCRATCH scenario only. The tool cannot read the rate back; the confirming instrument is external (tools/analysis/sim_ratio.py or WatchVrf).
@@ -2834,7 +2834,13 @@ per the never-reuse non-negotiable. Annotate with results from the run manifest.
 NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
 join) are BURNED, not recycled. The run manifest records which were actually used.
 
-*** NEXT FREE: 4390 *** (authoritative - the ONLY such marker in this file. Update this
+CLAIMED 2026-09-15 03:05 by the seat for V6 (the live join gate of the 5.2-converted tools), REDO of gate 1.
+- 4390: CLAIMED - tools/ResetVrf --dry-run, V6 GATE 1 REDO: the 4367 attempt hung inside bridge.Start() because the
+  shell lacked the 5.2 launch env (RTI_ASSISTANT_DISABLE, rid-501-rtiexec-min.mtl, bin64 cwd) - a JOIN hang, not a
+  discovery timeout; this one runs from scratchpad validation/v6_gates.ps1 with that env, inside the V6 scratch
+  federation (R9_Mojave_Empty_52 + R9_Mojave_Lean init, 6 units at AtInit). Annotate CONSUMED/BURNED from the gate log.
+
+*** NEXT FREE: 4391 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
