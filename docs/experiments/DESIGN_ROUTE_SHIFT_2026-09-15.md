@@ -2,9 +2,13 @@
 
 STP-804 / STP-806. Tier HEAVY: this changes WHERE units drive. PLAN gate - this note is
 written and committed BEFORE the code, and the supervisor reads it before the code lands.
-Status: DESIGN ONLY. Nothing here has been run against VR-Forces. The feature ships OFF
-(`Vrf:PreflightRouteShift` defaults false); sec 9 is the prereg draft for the run that would
-earn it a default.
+Status 2026-09-15: **BUILT, RUN AND ATTRIBUTED** - superseding the original "DESIGN ONLY."
+Three live runs settled it (sec 7a): V8 shifted the wrong way and exposed a rule defect (sec
+4.2a), V8b on the fixed chooser put 6 of 6 vehicles across the ridge, and the V8z zero-offset
+control froze on the authored line. The feature STILL SHIPS OFF (`Vrf:PreflightRouteShift`
+defaults false): turning it on is a PRODUCT RULING and is the user's call, not this note's.
+Sec 9 is the prereg draft the runs were scored against; its results live in
+docs/experiments/PREREG_V8_ROUTE_SHIFT_2026-09-15.md.
 
 Author: Opus executor, worktree `feat/route-shift` off `main` `7afd9bf`.
 
@@ -86,6 +90,16 @@ REJECTED ALTERNATIVES, with the reason:
   whose driven path is not our polyline anyway.
 - **Prefer Roads** (FINDING sec 8 option (a)) - needs a native facade method and changes the
   movement strategy for the whole task. Not excluded; out of scope here.
+
+THE QUESTION THIS SECTION LEFT OPEN - "does the INSERTION do the work, or the OFFSET?" - is
+**CLOSED, 2026-09-15, by the V8z zero-offset control** (PREREG_V8_ROUTE_SHIFT_2026-09-15.md,
+"RESULTS - run 20260915T041036Z"). Inserting the same four waypoints at the same along-track
+stations WITHOUT any lateral offset produced the same 8-vertex route, the same short
+mesh-planned hops and zero planning refusals - and five of six vehicles froze 8-39 m from the
+point six earlier runs froze at, with under 2 m of movement in the final 600 sim s. **Waypoint
+insertion is the DELIVERY MECHANISM and is inert on its own; the lateral offset is the remedy.**
+Argument 3 above still stands - inserted vertices are what move every slot line - but they move
+nothing useful unless they are moved sideways.
 
 ### 2.2 WHERE in the dispatch path, and on WHICH thread
 
@@ -488,6 +502,42 @@ n8 finding).
 
 The existing 18 offline suites must stay green, `--preflight-selftest` included: the shift
 must not perturb the port's fixture comparison with the python tool.
+
+### 7a. THE LIVE RESULT - V8 / V8b / V8z, and what it attributes (2026-09-15)
+
+Three runs on ONE leg from ONE start, with the SAME live anchor
+(`34.65820208652259,-116.74009186651882`, byte-identical in all three), the same 8-vertex
+inserted-waypoint route and the same mesh-planned regime with zero planning refusals. They
+differ in one thing: where the two offset vertices sit. Full records in
+docs/experiments/PREREG_V8_ROUTE_SHIFT_2026-09-15.md.
+
+| run | lateral offset | leader outcome | formation |
+|---|---|---|---|
+| V8 (20260915T023743Z) | **-125 m SOUTH** (0.661) | stopped at s = 4,138 m, crawling 0.3 m/s | 5 of 6 past, M3 1 froze 38.3 m from the P11 point |
+| V8b (20260915T033226Z) | **+250 m NORTH** (0.761) | s = 15,148 m at ~10 m/s, past V1 | **6 of 6 crossed** |
+| V8z (20260915T041036Z) | **ZERO** - the authored line (1.248) | **froze 19.7 m from the P11 point**, +1.7 m in 600 sim s | 5 of 6 froze; 1 crawled 478 m past |
+
+**THE ATTRIBUTION, in one line: the LATERAL OFFSET is the remedy; waypoint insertion is the
+DELIVERY MECHANISM and is inert on its own.** The side and size of the offset decide the
+outcome (V8 vs V8b); insertion with no offset changes nothing (V8z). M3 1 alone makes the chain
+visible: the same vehicle in the same slot froze / crossed / froze as the offset went south /
+north / none.
+
+**THE SAMPLER LOCATED THE FACE, and the toe distance is now measured twice.** In V8z the six
+members stopped at s = 1,931-1,999 m against a flagged 40 m window at s ~ 1,983-2,023 m - i.e.
+**0-52 m SHORT of the window they were predicted to fail in**. That reproduces the 31.5-44.0 m
+the record measured (PREREG_RIDGE_AG 3.2) and is the independent confirmation that
+`PreflightRouteShiftPadMeters` = 50 is a MEASURED quantity and not a tuned one (sec 3.2).
+
+**THE BOUND: n = 1 per condition.** Three runs, one leg, one terrain, one unit. Nothing here
+speaks to other legs, other terrain, or the threshold's false-alarm rate (L2), and a repeat of
+any one of the three could still move it. What would falsify the attribution is named in the
+V8z RESULTS adversarial section.
+
+**OPEN PRODUCT RULING - NOT TAKEN HERE.** `Vrf:PreflightRouteShift` remains **default OFF**.
+Flipping it to ON is a product decision and is the USER'S CALL; this note records that the
+evidence for it now exists and deliberately does NOT act on it. The demo turns it on explicitly
+per sec 5.
 
 ## 8. LIMITATIONS, STATED
 
