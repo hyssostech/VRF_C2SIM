@@ -375,7 +375,7 @@ try
             Console.Error.WriteLine($"[RESULT] PauseSim action=provoke verdict=PROVOKE_NO_BACKEND basis=backend-count exit=1 appNumber={appNumber} backends=0 provoke=yes provokeBackends={provokeBackends} settleSecs={settleSecs} "
                                   + $"utc={DateTime.UtcNow:yyyy-MM-ddTHH:mm:ss.fffZ}");
         Console.Error.WriteLine($"[FAIL] no backend discovered after {swSettle.Elapsed.TotalSeconds:F0} s " +
-                                $"(BackendCount=0)." + (provoke ? " A broadcast run() was ALREADY sent blind and did not provoke one - that is arm A2's answer, not a tool fault." : "") + " The {action} was NOT sent - sending it now would be a " +
+                                $"(BackendCount=0)." + (provoke ? " A broadcast run() was ALREADY sent blind and did not provoke one - that is arm A2's answer, not a tool fault." : "") + $" The {action} was NOT sent - sending it now would be a " +
                                 "silent no-op reported as success. Confirm VR-Forces is running with a " +
                                 "scenario loaded and a simulation backend connected, then retry with a " +
                                 "FRESH appNumber.");
