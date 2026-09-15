@@ -610,3 +610,35 @@ against a MOJAVE init, and the console shows the formation leader given a
 multi-member ~PXY proxy through the SAME `Calc off road nav path part` job and finishes it
 in ~1.1 sim s, so composition is exonerated too. See V6_LIVE_JOIN_GATE sec 12.
 NEXT: V6e recipe with `data/R9_Mojave_UnitMove_Order.xml` - one variable, no authoring.
+
+## AMENDMENT 6 - V6g: the R5 order with MOJAVE coordinates (pre-registered 2026-09-15 ~17:00Z, before the run)
+
+FINDING that motivates it (V6f harvest, sec 12 of V6_LIVE_JOIN_GATE, commit e67e084): the R5 order's waypoints are
+in SWEDEN (58.70-58.75 N, 16.33-16.52 E; authored for the golden STP init) while the R9 lean init's units are in
+the MOJAVE (34.61 N, -116.60 W); our own terrain-profile line shows vertex 0 at 1,117 m and vertices 1-2 at 85-87 m;
+the formation leader's destination is 8,769 km away and the off-road path job never returns. Every runaway run
+today carried a Sweden order on the R9 lean init (5/5); every flat run a Mojave order on COA-STP1 + the custom
+abstract-graph SMS (9/9). The SMS/init/order-region are perfectly confounded across those 21 runs.
+
+RECIPE: V6e's exactly (fixture R9_Mojave_Empty_52_Nav = vendor EntityLevel.sms, init R9_Mojave_Lean, consoles 4,
+nav-area gate + 150 s settle, 720 s window, AtInit, FidelityTable, thread sampler + WS tripwire, STP-822 liveness ON,
+the sim on the JOIN path via a holder) with ONE file swapped: data/PROBE_V6G_MOJAVE_Order.xml = R9_Mojave_UnitMove
+_Order.xml (the SAME three tasks T_R5_PL1 / T_R5_CO1 / T_R5_TK1 on the SAME taskees 1222.MechPlt / 114.MechCoy /
+1.BdeHQ, Mojave coordinates, ~0.58 km legs) with T_R5_PL1's second vertex moved from -116.587860 (290 m outside the
+AO20 nav-area east edge) to -116.600487 (the 580 m leg mirrored WESTWARD, well inside) and a one-line comment (STP-830). Late tool: SetSimRate 1
+<ledgered appNo> --settle-secs 15 at window+180 s (back-end discovery by a late joiner).
+
+PREDICTIONS (the geometry hypothesis is the one under test):
+- HIT (HIGH under the geometry reading): the back end survives the 720 s window - observer backends=1 on every
+  sample, the late tool discovers the back end, every tasked member logs 'Job Calc off road nav path part success'
+  within a few sim seconds of 'Starting job node', units MOVE (position displacement > 0 for the taskees), wsMB
+  stays within 500 MB of its pre-order value and the WS tripwire stays silent after the creation burst. Reading:
+  the runaway is a DATA defect (route vertices off the loaded terrain/nav area); SMS and init exonerated; STP-823
+  retitled; product rule = refuse (MALFORMED) a task whose route vertices fall outside the loaded terrain/nav area.
+- MISS at ~0.8-2 GB/min with the single 'Checking status of job' line: geometry exonerated, the vendor flat-query SMS
+  promoted; the confirming run is this order on R9_Mojave_Empty_52_NavAO20_AG_S2 (same terrain, SMS the only
+  difference).
+- MISS with a clearly reduced slope, or a partial move: the Sweden leg contributes but is not the whole cause; STOP
+  and design the next single-variable run - do not iterate.
+- Any other failure mode (startup, push, gate) -> STOP and report; not a result.
+ONE run. The harvest reader adjudicates; live reads steer only.

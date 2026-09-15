@@ -3103,7 +3103,10 @@ per the never-reuse non-negotiable. Annotate with results from the run manifest.
 NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
 join) are BURNED, not recycled. The run manifest records which were actually used.
 
-*** NEXT FREE: 4552 *** (authoritative - the ONLY such marker in this file. Update this
+- 2026-09-15 STP-832 bridge lane (failed-create handling, live proof against a rejecting rtiexec): RtiProbe attempts, appNos 4552-4557 CLAIMED (seat).
+- 2026-09-15 STP-825 wire-capture lane (relay 4002->4001 via a per-process rid copy): RtiProbe attempts, appNos 4558-4565 CLAIMED (seat).
+- 2026-09-15 V6g late tool (SetSimRate at window+180 s, gate driver v6g_gates.ps1): appNo 4566 CLAIMED (seat; PREREG_V6C amendment 6).
+*** NEXT FREE: 4567 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
