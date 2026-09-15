@@ -114,9 +114,9 @@ nothing, PauseSim PAUSE_CONFIRMED/RESUME_CONFIRMED basis=state+clock both halves
 RUN (the seat's Stop-Process was refused by the permission classifier, window closed with the back
 end alive, STP-809's active-count path stays UNCONFIRMED LIVE - a re-run must anchor the kill on
 the DISPATCH, t-29 s of PushOrder's own 30 s argument, not stage-8b t=0, and needs the user's hand
-or a permission rule). V8 route-shift ON RUN 20260915T023743Z is COMPLETE, harvest IN PROGRESS -
-live read (PROVISIONAL): the chooser shifted the leg 125 m SOUTH (ratio 1.248 -> 0.661) against the
-PREDICTED +75 m NORTH; adjudication owed. OPEN USER RULINGS: none. V6 RUN 03:10Z (scratch federation
+or a permission rule). V8 route-shift ON RUN 20260915T023743Z HARVESTED (de32dac): V8a MISS, the
+chooser shifted 125 m SOUTH because C2 (formation band) SIDED the choice; FIXED c5f166d (two-phase
+chooser, self-test 84/0), V8b RUNNING 03:31Z, zero-offset control V8z owed. OPEN USER RULINGS: none. V6 RUN 03:10Z (scratch federation
 20260915T030650Z): the tools JOIN but see NO back end + placeholder uuids only, ResetVrf a false green
 (RUNBOOK sec 9); fix branch fix/tools-connection-config, V6b owed. OWED: V6b, the V8 harvest
 verdict, the Q5 kill-half re-run, and the nav second mechanism / offline 20x20 km control. Prior

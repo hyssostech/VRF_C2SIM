@@ -1873,6 +1873,7 @@ gate ran, a parallel lane held `docs/OPUS_EXECUTION_PLAN.md` and
 `21c1430` on main. `git diff --name-only 5881b7d 21c1430` is that ONE docs file - nothing under
 `src/` or `tools/`, no csproj/vcxproj - so the binaries above are still the binaries of the tip.
 Check that before trusting any pin whose sha is not the tip.
+POST-PIN MANAGED REBUILD 2026-09-15 03:30Z: VrfC2SimApp REBUILT on main `c5f166d` (the route-shift chooser fix, managed code only) with -p:BridgeConfig=Release-5.2 -t:Rebuild against this SAME bridge - VrfBridge.dll hash E3F40524... unchanged (997,376 B), --routeshift-selftest 84 ok / 0 fail on main. The app's tree is c5f166d; the bridge pin stands.
 
 ---
 
