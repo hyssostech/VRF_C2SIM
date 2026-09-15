@@ -1891,7 +1891,7 @@ DEPLOY SET:
   read-only half of the before/after reset verification (sec 8); use `ResetVrf --help` for the
   no-join plan.
 
-  LIVE JOIN GATE RUN 2026-09-15 03:10Z (V6, scratch federation 20260915T030650Z): FAILED ON EFFECT. SmokeTest
+  LIVE JOIN GATE RUN 2026-09-15 03:10Z (V6, scratch federation 20260915T030650Z; ticket STP-820): FAILED ON EFFECT. SmokeTest
   PASS; ResetVrf/SetSimRate/CreateTaskAgg JOIN (rid loaded, resign cleanly) but discover 0 back ends and only
   three placeholder uuids (VRF_UUID:0:0:0-control-object/-entity/-unit), never the scenario's objects; ResetVrf
   printed a successful 'reset' that deleted NOTHING (false green); SetSimRate/CreateTaskAgg refused correctly.
@@ -1970,7 +1970,7 @@ gate ran, a parallel lane held `docs/OPUS_EXECUTION_PLAN.md` and
 `src/` or `tools/`, no csproj/vcxproj - so the binaries above are still the binaries of the tip.
 Check that before trusting any pin whose sha is not the tip.
 POST-PIN MANAGED REBUILD 2026-09-15 03:30Z: VrfC2SimApp REBUILT on main `c5f166d` (the route-shift chooser fix, managed code only) with -p:BridgeConfig=Release-5.2 -t:Rebuild against this SAME bridge - VrfBridge.dll hash E3F40524... unchanged (997,376 B), --routeshift-selftest 84 ok / 0 fail on main. The app's tree is c5f166d; the bridge pin stands.
-POST-PIN MANAGED REBUILD 2026-09-15 11:11Z (after the Windows reboot at 04:31Z): ALL ELEVEN consumers REBUILT on main `0abe9ce` (the tools connection-config hardening merge; managed code only) with -p:BridgeConfig=Release-5.2 -t:Rebuild - eleven output trees, VrfBridge.dll hash E3F40524... in every one (unchanged), 0 errors. The bridge pin stands; the managed tree is 0abe9ce. NOTE: the reboot killed rtiexec/rtiForwarder (pids 69856/50520 are gone) - the next runner launch starts them fresh (Stage 2r) and answers the once-per-reboot RTI dialog (Stage 2b).
+POST-PIN MANAGED REBUILD 2026-09-15 11:11Z (after the Windows reboot at 04:31Z; runner double-launch + RtiProbe junk-federation defects = ticket STP-821): ALL ELEVEN consumers REBUILT on main `0abe9ce` (the tools connection-config hardening merge; managed code only) with -p:BridgeConfig=Release-5.2 -t:Rebuild - eleven output trees, VrfBridge.dll hash E3F40524... in every one (unchanged), 0 errors. The bridge pin stands; the managed tree is 0abe9ce. NOTE: the reboot killed rtiexec/rtiForwarder (pids 69856/50520 are gone) - the next runner launch starts them fresh (Stage 2r) and answers the once-per-reboot RTI dialog (Stage 2b).
 
 ---
 

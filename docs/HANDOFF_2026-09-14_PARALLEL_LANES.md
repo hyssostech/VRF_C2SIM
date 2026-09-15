@@ -118,7 +118,7 @@ or a permission rule). V8 (023743Z, de32dac): shift went SOUTH - C2 SIDED the ch
 V8b (033226Z, 79d3fe4): ALL R8 MET - +250 m north, SIX OF SIX crossed the ridge, no crawl. V8z zero-
 offset control: first attempt VOIDED (double launch, 03:51Z), rerun pending. OPEN USER RULINGS: none. V6 RUN 03:10Z (scratch federation
 20260915T030650Z): the tools JOIN but see NO back end + placeholder uuids only, ResetVrf a false green
-(RUNBOOK sec 9); fix branch fix/tools-connection-config, V6b owed. OWED: V6b, the V8 harvest
+(RUNBOOK sec 9; STP-820; cause OPEN, hardening MERGED 0abe9ce, eleven consumers rebuilt). OWED: V6b, V8z verdict
 verdict, the Q5 kill-half re-run, and the nav second mechanism / offline 20x20 km control. Prior
 01:00Z paragraph archived verbatim: docs/experiments/HANDOFF_2026-09-14_ARCHIVE_pm.md sec 8
 (append).
