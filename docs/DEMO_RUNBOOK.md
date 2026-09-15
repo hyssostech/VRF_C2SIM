@@ -260,8 +260,16 @@ What the record actually supports on 5.2, in order of preference:
    one command again.
 2. Reloading the scenario in the GUI and restarting only the interface: plausible but UNVERIFIED on
    5.2 (DEMO_READINESS row 9). Rehearse it before relying on it in front of an audience.
-3. `tools\ResetVrf`: live-verified in 2026-07 on the OLD 5.0.2 stack only, and it needs that stack's
-   environment. UNVERIFIED on 5.2 - do not use it during a demo.
+3. `tools\ResetVrf`: BUILDS for 5.2 since 2026-09-15 (it was 5.0.2-only before; RUNBOOK sec 9), and
+   it now joins with the 5.2 connection-config identity instead of the old CWIX-2024 constants. It
+   is still UNVERIFIED against a LIVE 5.2 federation - the live join gate is owed - so do not use it
+   during a demo. When it is verified, the invocation is, from `C:\MAK\vrforces5.2d\bin64` with the
+   5.2 PATH / RTI_RID_FILE / RTI_ASSISTANT_DISABLE environment and a FRESH ledgered appNo:
+   `tools\ResetVrf\bin\Release-5.2\net10.0\win-x64\ResetVrf.exe <freshAppNo> --dry-run` to see what
+   is present, then the same command without `--dry-run` to delete it. `--help` prints the plan and
+   the bound stack without joining anything. `tools\SetSimRate` (same tree,
+   `SetSimRate.exe <multiplier> <freshAppNo>`) is 5.2-capable on the same terms - also unverified
+   live - and is NOT part of a reset; it only changes the clock rate.
 
 In all cases the interface must be restarted between runs: its map of units is built at
 initialization time, and pushing a second initialization into a live interface does nothing.
