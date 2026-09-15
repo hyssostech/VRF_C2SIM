@@ -1219,6 +1219,28 @@ on 2026-09-14; each is now closed by something this section names
 
 ---
 
+17a. THE RUNNER NOW ACTS ON IT (added 2026-09-15, merge f5c38d2 of 5e71ab5; V6f harvest defects 1+2,
+     docs/experiments/V6_LIVE_JOIN_GATE_2026-09-15.md sec 12 item 5). Item 17's tripwire only warned -
+     nothing read thread-samples.alerts.txt while a run was live, and its 60 s -WsSlopeWarmupSec is
+     relative to the SAMPLER's start, not the order's dispatch, so a legitimate mid-run step (V6f's
+     object-creation-and-compose burst, ~10 s after the order reached the bus) could still alert.
+     RunC2SimScenario.ps1 Stage 8b now polls the same alerts file every 10 s during the observation
+     window and counts only alerts timestamped AT OR AFTER the order reaching the bus (orderOnBusUtc,
+     fallback orderPushedUtc). At -WsRunawayAbortAfter (default 3; 0 = off, the pre-2026-09-15
+     behaviour) alerts since dispatch the runner logs "[FAIL] BACK-END WS RUNAWAY confirmed: N alerts
+     since the order at <t>; last: <line>", records preflight.wsRunaway in the manifest, and fails the
+     run through the SAME path every other post-launch Stage 8b failure uses (Stop-Runner, normal
+     StopIface-then-StopVrf teardown, nothing force-killed, the Stage 2h holder left alone), with the
+     new exit code 6. -DryRun prints the plan and reads nothing; -WsRunawayAbortAfter 0 omits it.
+     HONEST LIMIT: the dispatch-time filter does NOT remove the creation-burst alert (it fires ~10 s
+     AFTER dispatch); the threshold of 3 is what protects. SampleThreads.ps1 separately gained
+     -WarmupResetAtUtc <UTC datetime> / -WarmupResetFile <path>, which re-arm the tripwire's own
+     60 s warm-up at the dispatch instant - that is what suppresses the burst alert (verified offline
+     with -ReplayCsv on the V6f CSV: the 16:07:20Z alert dropped, the 5 later ones unchanged; the
+     healthy 133258Z CSV still 0) - but -WarmupResetFile is NOT yet wired into the live runner/wrapper.
+     Tests: RunnerTurnaround checks 8l / 8l-0 (suite 258 passed / 0 failed on main f5c38d2). Not live-
+     tested yet: the first run that trips it is the confirming run.
+
 18. THE FEDERATION HOLDER (Stage 2h, STP-825; added 2026-09-15, runner a06653b). On the 5.2 profile
     the SIM is the federation's CREATOR unless something else got there first: Stage 2c's RtiProbe
     creates MAK-ONE-2025, joins, resigns and - being the last federate - DESTROYS it. Since
