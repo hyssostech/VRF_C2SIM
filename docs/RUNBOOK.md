@@ -1219,6 +1219,36 @@ on 2026-09-14; each is now closed by something this section names
 
 ---
 
+18. THE FEDERATION HOLDER (Stage 2h, STP-825; added 2026-09-15, runner a06653b). On the 5.2 profile
+    the SIM is the federation's CREATOR unless something else got there first: Stage 2c's RtiProbe
+    creates MAK-ONE-2025, joins, resigns and - being the last federate - DESTROYS it. Since
+    2026-09-15 14:23Z rtiexec 5.0.1 rejects a CREATOR's FOM-module distribution intermittently
+    ("Failed to process FOM file <module> ... Sending Create Response = Error"; sec 9c), so the sim's
+    create fails and it dies at startup (LaunchVrf exit 3) after a full launch cycle. JOINS HAVE
+    NEVER FAILED. The runner now starts a HOLDER federate itself, before Stage 2c:
+        RtiProbe.exe <ledgered appNo> MAK-ONE-2025 1 <FederationHoldSecs> 3
+    detached, in bin64, under the 5.2 profile environment; it joins and STAYS JOINED, so Stage 2c
+    and the sim take the JOIN path (vendor log: "already exists" then "Joined federation").
+    - -FederationHoldSecs default 900 (wall clock from the holder's join); 0 = stage OFF = the
+      pre-STP-825 failure mode, kept only as the single-variable control.
+    - -FederationHoldAttempts default 4: ONE LEDGERED appNumber PER ATTEMPT (fedHold1..N in the
+      Appendix B block; a failed create may crash the process after registering a federate, so a
+      retry never reuses the number; unconsumed attempt numbers are BURNED). A 5.2 run's ledger
+      block grows from 7 to 11 numbers.
+    - THE HOLDER IS A FEDERATE and OUTLIVES the run on purpose. NEVER kill it (sec 0); it resigns on
+      its own timer and its destroy then fails harmlessly. "federation holder STILL JOINED and
+      that is EXPECTED" in the post-teardown inventory is correct; a holder left by the previous
+      run helps the next one; Stage 1 does not refuse on a live RtiProbe.
+    - Evidence: <rundir>\holder.<n>.stdout.log / .stderr.log; manifest
+      inputs.vrfProfile.federationHolder (pid, appNumber, attempts, hold, join time, join evidence,
+      per-attempt FOM module) and preflight.postRunFederationHolder.
+    - All attempts failing = the runner REFUSES THE LAUNCH (exit 3, before any back end starts)
+      naming the rejected module; do not work around it with -FederationHoldSecs 0 - read the
+      rtiexec log it names. The join is read from the rtiexec log (Stage 2r records the path);
+      a 900 s hold means the holder's own stdout cannot confirm the join within the 45 s wait.
+    - The wall-clock hold does not cover a pathological Stage 2c/3 that crawls past 900 s; raise
+      -FederationHoldSecs for such a run. First live run on this stage: V6g (2026-09-15).
+
 ### 0.5.15 THE LICENCE FILE - two registry scopes that disagree (added 2026-09-14)
 
 WHERE IT LIVES: `C:\MAK\MAKLicenseManager\*.lic`. The live one, renewed 2026-09-14, is
@@ -2203,6 +2233,11 @@ link; six seconds later an unrelated user process (COA-GPT app.py, VS Code termi
 RTI_distributedForwarderPort (Users Guide port table: the port RTI Forwarders use among themselves; rtiexec/
 forwarder -D in manual mode - federates never connect to it). Moved to 5002 in config/rid-501-rtiexec-min.mtl
 (shared rid) and scripts/StartRtiExec52.ps1 (default -ForwarderPort). Revert both together if 5000 is wanted back.
+
+STAGE 2h (2026-09-15, runner a06653b; 0.5.14 item 18): the JOIN-path workaround is no longer a hand-run holder script -
+scripts\RunC2SimScenario.ps1 Stage 2h starts the holder before Stage 2c on every 5.2 run (-FederationHoldSecs, default
+900; -FederationHoldAttempts 4, one ledgered appNo each). The seat scripts scratchpad validation\p3_holder.ps1 /
+p7_holder_retry.ps1 are superseded for runner-driven runs; keep them for probing without the runner.
 
 Since the STP-832 fix a refused create is a clean Start()==false with the vendor reason; Stage 2c's RtiProbe retries on the same appNumber (live: 4 rejections absorbed, serviceable on attempt 4/5 and 2/5).
 
