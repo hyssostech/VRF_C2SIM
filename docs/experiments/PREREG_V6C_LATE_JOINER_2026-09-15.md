@@ -642,3 +642,24 @@ PREDICTIONS (the geometry hypothesis is the one under test):
   and design the next single-variable run - do not iterate.
 - Any other failure mode (startup, push, gate) -> STOP and report; not a result.
 ONE run. The harvest reader adjudicates; live reads steer only.
+
+## AMENDMENT 6 RESULTS (2026-09-15, `runs/20260915T171152Z_run`)
+
+**HIT.** ws 3,478 MB at dispatch -> 3,508 at teardown (LSQ 13.4 MB/min, r2 0.63) at 1.92 cpu
+cores mean, threads 81-82; observer `backends=1` on 68/68 samples, never 0; 0 `BACK END LOST`,
+0 loss ObservationReport, 0 TASKABRT; all 16 tasked members returned `Job Calc off road nav path
+part success` 0.94-1.10 sim s after `Starting job node` (A4 ~1.1; V6f: one emitter, never
+returned); every decoded `ground-vehicle-move-to destination` within 549 m of an authored vertex
+(V6f: 8,768.6 km); all three taskees MOVED and each got a vendor `move-along Completed`.
+
+Reading, as registered: **the runaway is a DATA defect - route vertices off the loaded terrain.**
+SMS (vendor EntityLevel.sms), init (R9 lean) and composition are exonerated - V6f and V6g share
+all three and differ only in the order file. STP-823 retitles; STP-833's refusal rule must NOT
+rely on the vendor `Is destination in nav area?` predicate, which answered `success` for V6f's
+8,768 km Sweden destination.
+
+Two caveats. (1) Survival to 720 s is UNTESTED: our arrival-evidence rule reported 2 of 3
+TASKCMPLTs early and the stop rule closed the window at t+68 s; flat-and-serving is verified to
+dispatch+127 s, past the +112 s at which V6e/V6f had lost status. (2) The late-join arm
+(SetSimRate 4566, 17:17:59Z) is VOID, not a MISS - it fired after teardown, into a federation the
+sim had already resigned from. Detail: V6_LIVE_JOIN_GATE sec 13.

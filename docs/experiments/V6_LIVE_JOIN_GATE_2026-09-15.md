@@ -792,3 +792,54 @@ Predict HIT - back end survives 720 s, `backends=1` throughout, `Job Calc off ro
 part success` for every member, units move, ws within 500 MB of pre-order. A MISS at ~2 GB/min
 exonerates geometry and promotes the vendor flat-query SMS (G7b: 8/8 `useAbstractGraphs=true`
 vs 2/24 flat). Check first: T_R5_PL1 last Mojave vertex (-116.5879) is ~290 m east of AO20.
+
+## 13. V6g RESULTS (2026-09-15 17:11Z run)
+
+`runs/20260915T171152Z_run`. AMENDMENT 6's recipe EXACTLY - V6e's fixture `R9_Mojave_Empty_52_Nav` (vendor
+EntityLevel.sms, `fixed-frame-run-to-complete` 0.033333 s), init `R9_Mojave_Lean`, consoles 4, NavArea gate
++ 150 s settle, AtInit, FidelityTable, sampler + ws tripwire, STP-822 ON, main 7bddedb, Stage 2h holder -
+ONE file swapped: `data/PROBE_V6G_MOJAVE_Order.xml`, the same 3 tasks and taskees on MOJAVE vertices.
+
+**VERDICT (AMENDMENT 6 vocabulary): HIT. The runaway is a DATA defect in the order geometry;
+SMS, init and composition are exonerated - V6f and V6g share all three.**
+
+| quantity | V6g Mojave | V6f Sweden | A4 healthy |
+|---|---|---|---|
+| ws dispatch -> end | 3,478 -> **3,508** MB | 3,468 -> 16,244 | 4,021 -> 4,041 |
+| LSQ slope from dispatch | **13.4 MB/min** (r2 .63) | 780 (r2 .93) | 1.8 |
+| observer `backends=` | **1 on 68/68 samples** | 1 -> 0, never back | 1 on all |
+| taskee displacement | **1,155 / 964 m + out-and-back** | 0.0 m, all six | 2.3-2.5 km |
+
+**Console - A4's shape at full width** (cpu 1.92 cores mean / 3.07 max, threads 81-82 flat). All 16 tasked members
+start `Calc off road nav path part` at sim 93.43-93.63 and ALL 16 return `Job ... success` at 94.37-94.63 (0.94-1.10
+sim s; A4 ~1.1); 51 starts / 51 successes over the run; `Checking status of job` 102 = 2 per job, never terminal;
+nav-area 51/51 `success` on BOTH predicates; `Loop to stall for replanning` 54 and `Plan off feature path` 50 are
+CONSTRUCTION lines; 0 `Plan path job`. All 50 decoded `ground-vehicle-move-to destination` ECEF triples land within
+**549 m** of an authored vertex (V6f: 8,768.6 km).
+
+**The three tasks completed for real.** Each taskee got a vendor `move-along ... Completed (success=True)`:
+1.BdeHQ~PXY sim 209.931 (118.5 sim s after dispatch at 91.466), 114.MechCoy~PXY 372.196 (280.7 s), 1222.MechPlt~PXY
+772.492 (681.5 s after 91.032). 1.BdeHQ covered 1,155 m of its 1,156 m route in 118.5 sim s = 9.75 m/s vs reported
+Speed 9.96/9.85/9.34: the "23 wall s" TASKCMPLT is 118 SIM s at ~5.2x, what a load-bound fixed-frame fixture gives.
+
+**NEW DEFECT (not the geometry question): 2 of 3 TASKCMPLTs were EARLY, on OUR rule.** Only 1.BdeHQ paired to the vendor
+event; `ARRIVAL EVIDENCE` fired for the company and the platoon at sim ~256 - 116 s and **516 s** before their (swallowed)
+vendor completions. For T_R5_PL1 it is degenerate BY CONSTRUCTION: vertex 2 was mirrored onto the platoon's own start, so
+"4/4 within 500 m of the last vertex (nearest 26 m)" held while M1A2 1 had moved 20 m and M1A2 4 133 m - only M1A2 2 and 3
+drove the leg. A 500 m arrival radius against a 578 m leg is a false-green surface; it closed the window at t+68 s of 720.
+
+**ws tripwire: ONE alert, and it is the CREATION burst.** `1112.3 MB/min over 30.1 s` at 17:14:33.48Z spans
+17:14:03 (2,921 MB, flat 105 s) -> 17:14:33 (3,479 MB): the PushInit creation + compose step at 17:14:19,
+over before the alert printed. Manifest `backendWsRunaway=true` is a FALSE POSITIVE here - exclude the
+pre-order warm-up before wiring that alert to an ABORT (sec 12.2).
+
+**Holder (STP-825) first live run, clean; STP-822 healthy.** Attempt 1/4, pid 75000 appNo 4574: `Sending Create Response =
+Success`, then `Federate remoteControl 75000 ... has joined federation "MAK-ONE-2025"` at 17:12:04.495Z, 8 s of a 45 s wait;
+Stage 2c (4572) and the SIM both got `... because it already exists` and JOINED, no `Create Response = Error`; vendor copy
+`Joined federation` 1, `Could not create Federation` 0, bad_alloc/assert/deadlock 0; teardown left it joined, named EXPECTED.
+STP-822: 0 `BACK END LOST`, 0 loss ObservationReport, 0 TASKABRT, 66 position reports sent / 0 failed, 72 delivered / 0 FAILED.
+
+**The late-join arm is VOID, not a MISS.** `SetSimRate 1 4566 --settle-secs 15` fired 17:17:59Z (window-open + 180 s) but the
+window had closed at 17:16:03.9Z and rtiexec shows `Federate4 ("VR-Forces Sim Engine 5.2d") has resigned` before it joined -
+`BackendCount=0` is the right answer to an empty federation. 4566 burned; the driver's "V6f" text is stale. UNTESTED and said
+so: survival to the full 720 s - flat-and-serving is verified only to dispatch+127 s, past V6e/V6f's +112 s status loss.
