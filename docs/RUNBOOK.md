@@ -1731,6 +1731,61 @@ file (no "Unable to load" line in any of their logs), yet still reported Backend
 only non-VRF placeholders while the runner's own WatchVrf, in the same window, held
 reflected=48. That remains OPEN; see sec 8's ResetVrf note and V6b.
 
+## 7c. "Submitter not specified" = THE APP'S appsettings.json IS GONE FROM ITS CONTENT ROOT
+
+Added 2026-09-15 after run 20260915T122145Z, which reached its observation window with an EMPTY
+scenario and burned a launch for nothing.
+
+**The symptom.** The app starts, prints a completely normal banner, joins the federation and
+reports `Backend discovered (BackendCount=1) after 0.0 s` - and then:
+
+```
+Error pushing QUERYINIT command: C2SimClientLib.C2SIMClientException: Error - Submitter not specified
+```
+
+No `Init dispatched` line follows, no units are created, and the oracle gate times out three
+stages later. Meanwhile `tools/PushInit` succeeds and the runner even logs
+`QUERYINIT reports 6 units will be handed to a late joiner` - because PushInit carries its own
+hard-coded `SubmitterId = "GOLDENTRACE"` (tools/PushInit/Program.cs:73) and is not affected.
+
+**The cause.** `C2SIMClientRestLib.C2SimCommand` throws that exact string when `_submitter` is
+null or blank (`C2SIMClientRestLib.cs:190-194`), and it throws it BEFORE it builds a URL
+(`:212`), so **nothing ever reaches the server**. Restarting the C2SIM container cannot help and
+the server's per-submitter state is irrelevant - the failure is entirely client-side.
+`_submitter` comes from `settings.SubmitterId` (`:71`), which the app binds from the `C2SIM`
+section (`VrfC2SimService.cs:336`), which lives ONLY in `appsettings.json`
+(`"SubmitterId": "VRF_C2SIM"`). **There is no `C2SIM__SubmitterId` override anywhere** - not in
+RunC2SimScenario.ps1's AppEnv52 (it sets ConfigFileIdentity / Federation / FedFileName /
+ConnectionConfigFile / TypeMapFile only), not in RunScenario.sh - and no C# default.
+
+So when `appsettings.json` is missing from the app's content root, **every other setting still
+works** (they are all injected as environment variables) and only the submitter is empty. That
+is why the run looks healthy for three stages.
+
+**How it went missing, and the rule that follows.** In 122145Z the content root
+(`src\VrfC2SimApp\bin\Release-5.2\net10.0\win-x64`) held the exe, `.deps.json`,
+`.runtimeconfig.json` and the rid file - but NOT `appsettings.json` or `appsettings.Demo.json`,
+and its mtime was 11:54Z: between V6b (11:42Z, which worked) and V6c (12:24Z, which did not).
+That is the signature of a Clean that ran while the previous run still held the exe - the locked
+`.exe` survived deletion, the unlocked `.json` files did not, and the Build half never restored
+them. **Never rebuild or clean VrfC2SimApp while a run still holds it**; the teardown's
+`VrfC2SimApp exited with code 0` line is the earliest safe moment.
+
+**The check.** Stage 0 now FAILS when the file is absent, instead of warning (the old warn was
+masked by `-ClientId`, which assigns `$appClientId` itself). Nothing is launched, no server is
+contacted and no appNumber is burned. Offline proof: with the file present the run prints no
+such line; with it moved aside, Stage 0 aborts naming the file and the rebuild command.
+
+**The repair.**
+
+```
+dotnet build src\VrfC2SimApp\VrfC2SimApp.csproj -c Release -p:BridgeConfig=Release-5.2
+# then CONFIRM the two files are back - check the output tree, not the exit code:
+dir src\VrfC2SimApp\bin\Release-5.2\net10.0\win-x64\appsettings*.json
+```
+
+No `-t:Rebuild` is needed and none should be used while anything might hold the exe.
+
 ## 8. Self-service VR-Forces reset (avoid the manual GUI reload) - API found 2026-07-11
 
 The manual GUI scenario reload is needed ONLY to (a) clear accumulated entities (sec 7 note)

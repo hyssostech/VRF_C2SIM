@@ -196,3 +196,86 @@ not a tool fault. `v6c_gates.ps1` refuses to start if the deployed PauseSim lack
   `v6c_busy_gates.log`, UTC-stamped.
 * Arm A0 is already in the runner (main, `0ecc14a`): WatchVrf gets `--report-backends` when the
   deployed binary advertises it, so BOTH runs' traces carry a `backends=` column. Read it.
+
+---
+
+## AMENDMENT 1 (2026-09-15, after run 20260915T122145Z): LATE JOIN ALONE IS NOT THE VARIABLE
+
+Run 122145Z never dispatched its init (a separate defect - the app's deployed content root had
+lost `appsettings.json`, so `C2SIM:SubmitterId` was unset and the late-join QUERYINIT threw
+`Error - Submitter not specified`; see the RUNBOOK sec 7c note). A1 and A2 therefore did not
+fire. But the run produced two results that change this prereg:
+
+**A3 HIT.** Fired by hand at 12:22:59Z inside the `VR-Forces READY`..`PushInit` window
+(`SetSimRate 1 4445 --settle-secs 15`, full ProfileEnv, cwd bin64):
+`[OK] 1 backend(s) discovered after 0.2 s`, multiplier set, clean resign, exit 0.
+`scratchpad/validation/v6c_A3_manual.out`. appNo 4445 is CONSUMED. **The prereg's
+high-confidence prediction held**, so its STOP did not trigger.
+
+**AND A LATE JOINER SUCCEEDED TOO - in an EMPTY scenario.** The runner's own CreateOne
+diagnostic (appNo 4449) joined at ~12:29Z, **six minutes** after the app, and got
+`[OK] backend discovered (BackendCount=1) after 0.2s`; it created ORACLETEST
+(`createone-diagnostic.stdout.log`). That federation had NO units and NO tasks, because the
+init never dispatched.
+
+So the contrast is no longer early-vs-late. It is:
+
+| run | scenario state when the tool joined | offset | result |
+|---|---|---|---|
+| 122145Z A3 | empty | early (in the app's window) | **HIT** 0.2 s |
+| 122145Z CreateOne | **empty** | **+6 min, late** | **HIT** 0.2 s |
+| V6 / V6b tools | 6 units created AtInit, R5 order dispatched | late | **MISS**, every one |
+| V5 PauseSim | 128 units, tasks running | late | HIT 0.3 s |
+
+### H5 - THE POPULATED/TASKED FEDERATION IS THE TRIGGER
+
+Once the app's controller has CREATED objects and/or DISPATCHED TASKS, the back end stops
+answering a new remote controller's status request - or the request/response path stops
+working for a joiner that arrives after that point. An empty federation answers in 0.2 s no
+matter how late the joiner is.
+
+H5 SUPERSEDES the early/late framing of H1-H3 (the cadence question stays open underneath it:
+if H5 holds, the "cadence" is simply that a busy back end never volunteers status).
+
+**V5 REMAINS THE COUNTEREXAMPLE AND IS NOT EXPLAINED.** It was populated (128 units) AND tasked,
+and its late joiner hit in 0.3 s. What differed from V6/V6b, all of it, so the next reader does
+not have to re-derive the list:
+
+* fixture `R9_Mojave_Empty_52_NavAO20_AG_S2` (AO20 nav data + the custom SMS with
+  `useAbstractGraphs=true`), not the plain `R9_Mojave_Empty_52`;
+* a RELOCATED appData tree for the sim (the custom SMS lives outside the vendor appData);
+* `Vrf__CreationPolicy=AtOrder`, not `AtInit` - units are created when an order references
+  them, so creation is spread out rather than a single burst;
+* a 128-unit COA-STP1 init instead of a 6-unit lean init;
+* `Vrf__DurationScale=0.25`, the de-stack settings, `--pre-order-gate nav-area`, consoles at 3.
+
+Any of those could be the difference; none is tested by the arms below. A4 (the busy control)
+reproduces V5's fixture EXACTLY for that reason - it is the only arm that can tell "busy back
+ends do answer" from "V5 was special".
+
+### NEW ARM A5 - POPULATED-QUIET (appNo 4456)
+
+`SetSimRate 1 4456 --settle-secs 15`, fired **~30 s after the app dispatches the init** (the
+runner's Stage 6d line `interface dispatched N units`) and **BEFORE `Stage 8 - PushOrder`**.
+Objects EXIST; nothing is TASKED. Wired into `v6c_gates.ps1` rev 2.
+
+With A3 and A1 it makes a three-point curve out of a yes/no:
+
+| point | scenario state | prediction if H5 = creation | prediction if H5 = tasking |
+|---|---|---|---|
+| A3 | empty | HIT (measured) | HIT (measured) |
+| **A5** | populated, untasked | **MISS** | **HIT** |
+| A1 | populated + tasked | MISS | MISS |
+
+**A5 HIT + A1 MISS** -> TASKING is the trigger. Look at what dispatching a task does to the
+back end's message interface.
+**A5 MISS** -> CREATION is the trigger; the suspect is the app's own controller having created
+objects, and the next probe is a run where the app joins but creates NOTHING while a second
+federate creates the units.
+**A5 HIT + A1 HIT** -> nothing is the trigger and the 122145Z CreateOne result was the anomaly:
+STOP AND ASK.
+
+### Arm order, revised
+
+A3 (seat-fired, done) -> **A5** at init+30 s -> A1 at window+180 s -> A2 at window+420 s, then
+A4 in its own run. A0's `backends=` column is on in both runs.
