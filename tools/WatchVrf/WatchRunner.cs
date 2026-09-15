@@ -111,6 +111,15 @@ internal static class WatchRunner
         // cfg.DeviceAddress" - the facade default (127.0.0.1) then applies exactly as before
         // this flag existed. An empty string is a DIFFERENT instruction ("push no
         // --deviceAddress"), which is why 'none' is a sentinel token and not just "".
+        // --config <path>: the VR-Link connection config, resolved EXPLICITLY (arg > env
+        // Vrf__ConnectionConfigFile > the loaded stack's own tree). The vendor default is
+        // CWD-RELATIVE, so an observer started from the wrong directory joined with built-in
+        // defaults and reflected nothing - a blind trace that looks like a quiet federation
+        // (V6, 2026-09-15). tools/Shared/ConnectionConfig.cs.
+        string connArg = null;
+        if (!ConnectionConfig.TryTakeFlag(args, out args, out connArg, out problem))
+            return ToolArgs.Usage(problem, WatchVrfUsage.Lines());
+
         string deviceAddress = null;
         if (!ToolArgs.TryTakeOptionValue(args, WatchVrfUsage.DeviceAddressFlag, out args,
                                          out deviceAddress, out problem))
@@ -187,6 +196,13 @@ internal static class WatchRunner
         // Stack-aware identity (tools/Shared/StackIdentity.cs): 5.0.2 keeps the
         // CWIX-2024 constants; 5.2 joins via the connection config (MAK-ONE-2025).
         string fedDesc = StackIdentity.Apply(cfg, federation);
+        var conn = ConnectionConfig.Resolve(connArg);
+        conn.ApplyTo(cfg);
+        if (!conn.Ok)
+        {
+            Console.Error.WriteLine(conn.RefusalText);
+            return ToolArgs.ExitFailure;
+        }
 
         Console.WriteLine("=== WatchVrf - position + Object Console telemetry (R3 / groundwork 0.6) ===");
         Console.WriteLine($"    {fedDesc} appNumber={appNumber} duration={durationSecs}s sample={sampleSecs}s"
@@ -197,7 +213,8 @@ internal static class WatchRunner
                         // ALWAYS printed, unlike the on/off levers above: 'default' is a
                         // real arm of the PREREG sec 4 comparison, so every trace must say
                         // which of default/none/<addr> produced it.
-                        + $" device-address={deviceAddressEcho}" + "\n");
+                        + $" device-address={deviceAddressEcho}");
+        Console.WriteLine($"    {conn.Banner}\n");
 
         // All DATA lines (POS, CON, and the # summary) go through this one lock so a CON
         // callback that arrives on a different thread than the sampling loop can never tear

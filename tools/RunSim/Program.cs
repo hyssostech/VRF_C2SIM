@@ -45,6 +45,14 @@ static int Usage(string problem)
     return 2;
 }
 
+// --config <path> (V6 harvest 2026-09-15): the VR-Link connection config is resolved
+// EXPLICITLY - arg > env Vrf__ConnectionConfigFile > the loaded stack's own tree - because the
+// vendor default is CWD-RELATIVE and silently falls back to built-in defaults when the cwd is
+// not the VR-Forces bin64. Taken out of args FIRST so the parsing below never sees either
+// token (tools/Shared/ConnectionConfig.cs).
+if (!ConnectionConfig.TryTakeFlag(args, out args, out string connArg, out string connProblem))
+    return Usage(connProblem);
+
 var positional = args.Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToArray();
 
 // -- argument validation: fail LOUDLY and non-zero, never guess a default ---------
@@ -85,9 +93,16 @@ var cfg = new StartupConfig
     HostInetAddr = "127.0.0.1",
 };
 string fedDesc = StackIdentity.Apply(cfg, federation);
+// Resolve the connection config, apply it to cfg, and REFUSE to join when it is missing:
+// without it VR-Link joins with built-in defaults and the tool reports a successful join and
+// then sees nothing (V6, 2026-09-15).
+var conn = ConnectionConfig.Resolve(connArg);
+conn.ApplyTo(cfg);
 
 Console.WriteLine("=== RunSim - START the VR-Forces simulation clock (remote control) ===");
 Console.WriteLine($"    {fedDesc}  appNumber={appNumber}  multiplier={multiplier}x");
+Console.WriteLine($"    {conn.Banner}");
+if (!conn.Ok) { Console.Error.WriteLine(conn.RefusalText); return 1; }
 Console.WriteLine($"    started {DateTime.Now:yyyy-MM-dd HH:mm:ss} local / {DateTime.UtcNow:HH:mm:ss} UTC");
 Console.WriteLine("    ACTION: controller->run() (play) on ALL backends" +
                   (multiplier > 1 ? $", then set {multiplier}x." : ".") +

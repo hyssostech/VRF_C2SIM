@@ -20,6 +20,10 @@
   <ItemGroup>
     <!-- Stack-aware federation identity (needs the VrfBridge reference below). -->
     <Compile Include="..\Shared\StackIdentity.cs" Link="StackIdentity.cs" />
+    <!-- Explicit VR-Link connection-config resolution (V6 harvest 2026-09-15): the vendor
+         default is CWD-RELATIVE ("..\appData\settings\connections"), so a tool started
+         from anywhere but the 5.2d bin64 silently joined with built-in defaults. -->
+    <Compile Include="..\Shared\ConnectionConfig.cs" Link="ConnectionConfig.cs" />
   </ItemGroup>
   <ItemGroup>
     <!-- The C++/CLI bridge (native VR-Forces control). CopyLocal drops VrfBridge.dll

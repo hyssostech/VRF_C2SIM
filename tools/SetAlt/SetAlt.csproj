@@ -17,6 +17,10 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="..\Shared\StackIdentity.cs" Link="StackIdentity.cs" />
+    <!-- Explicit VR-Link connection-config resolution (V6 harvest 2026-09-15): the vendor
+         default is CWD-RELATIVE ("..\appData\settings\connections"), so a tool started
+         from anywhere but the 5.2d bin64 silently joined with built-in defaults. -->
+    <Compile Include="..\Shared\ConnectionConfig.cs" Link="ConnectionConfig.cs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="VrfBridge">
