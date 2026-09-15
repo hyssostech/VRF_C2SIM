@@ -83,7 +83,10 @@ static void PrintUsage(System.IO.TextWriter w)
     w.WriteLine("                     The tool REFUSES to join when that file is not there.");
     w.WriteLine("  --dry-run/--list   JOIN and discover, but issue NO deletes. Exit 3 when anything");
     w.WriteLine("                     deletable was found, 0 when the federation is clean.");
-    w.WriteLine("  --config-selftest  Run the OFFLINE connection-config resolution suite and exit.");
+    w.WriteLine("  --settle-secs <n>  How long to wait for a VR-Forces back end before refusing.");
+    w.WriteLine("                     Default " + SettleCap.DefaultSeconds + " s (unchanged); "
+                     + SettleCap.MinSeconds + ".." + SettleCap.MaxSeconds + ". V6c arm A1.");
+    w.WriteLine("  --config-selftest  Run the OFFLINE connection-config + settle-cap suites and exit.");
     w.WriteLine("                     Joins nothing, reads no file, needs no VR-Forces.");
 }
 
@@ -100,10 +103,15 @@ static int Usage(string problem)
 if (!ConnectionConfig.TryTakeFlag(args, out args, out string connArg, out string connProblem))
     return Usage(connProblem);
 
+// --settle-secs N (V6c arm A1): how long to wait for a VR-Forces back end before refusing.
+// DEFAULT 15 s - unchanged. Taken out of args before the parsing below, like --config.
+if (!SettleCap.TryTakeFlag(args, out args, out int settleSecs, out string settleProblem))
+    return Usage(settleProblem);
+
 // The offline resolution suite. NO join, NO file system, NO VR-Forces - it is the regression
 // test for tools/Shared/ConnectionConfig.cs and exits with the number of FAILED checks.
 if (args.Any(a => string.Equals(a, "--config-selftest", StringComparison.OrdinalIgnoreCase)))
-    return ConnectionConfig.SelfTest(Console.Out);
+    return ConnectionConfig.SelfTest(Console.Out) + SettleCap.SelfTest(Console.Out);
 
 bool dryRun = args.Any(a => string.Equals(a, "--dry-run", StringComparison.OrdinalIgnoreCase)
                          || string.Equals(a, "--list", StringComparison.OrdinalIgnoreCase));
@@ -176,7 +184,8 @@ conn.ApplyTo(cfg);
 Console.WriteLine("=== ResetVrf - hard reset of a live VR-Forces federation (RUNBOOK sec 8) ===");
 Console.WriteLine($"    {fedDesc}  appNumber={appNumber}  dryRun={dryRun}  (use a FRESH appNumber each run)");
 Console.WriteLine($"    {NativeStackLine()}");
-Console.WriteLine($"    {conn.Banner}\n");
+Console.WriteLine($"    {conn.Banner}");
+Console.WriteLine($"    {SettleCap.Banner(settleSecs)}\n");
 
 if (!conn.Ok)
 {
@@ -206,10 +215,10 @@ try
     //     BackendCount=0 while all 48 real objects stayed in the scenario. A blind read is not
     //     evidence, so this refuses in BOTH modes: --dry-run included, because the dry run is
     //     the BEFORE half of a verification pair and a blind count would poison the pair.
-    Console.WriteLine("[..] waiting for a back end to be discovered (15 s cap)...");
+    Console.WriteLine($"[..] waiting for a back end to be discovered ({settleSecs} s cap)...");
     var swBackend = Stopwatch.StartNew();
     int backends = 0;
-    while (swBackend.Elapsed < TimeSpan.FromSeconds(15))
+    while (swBackend.Elapsed < TimeSpan.FromSeconds(settleSecs))
     {
         bridge.Tick();
         Thread.Sleep(50);

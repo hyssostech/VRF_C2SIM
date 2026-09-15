@@ -146,6 +146,11 @@ static EntityTypeSpec TankPlatoonUsaType() => new()
 // vendor default is CWD-RELATIVE and silently falls back to built-in defaults when the cwd is
 // not the VR-Forces bin64. Taken out of args FIRST so the parsing below never sees either
 // token (tools/Shared/ConnectionConfig.cs).
+// --settle-secs N (V6c arm A1): how long to wait for a VR-Forces back end before refusing.
+// DEFAULT 15 s - unchanged. Taken out of args before the parsing below, like --config.
+if (!SettleCap.TryTakeFlag(args, out args, out int settleSecs, out string settleProblem))
+    return Fail(settleProblem);
+
 if (!ConnectionConfig.TryTakeFlag(args, out args, out string connArg, out string connProblem))
     return Fail(connProblem);
 
@@ -210,7 +215,7 @@ static StartupConfig MakeConfig(int appNumber, string federation, out string fed
 }
 
 // Join + wait for a backend to be discovered. Returns null on failure (already logged + resigned).
-static VrfBridge JoinAndWaitBackend(StartupConfig cfg)
+static VrfBridge JoinAndWaitBackend(StartupConfig cfg, int settleSecs)
 {
     var bridge = new VrfBridge();
     Console.WriteLine("[..] bridge.Start() - joining the federation...");
@@ -224,16 +229,16 @@ static VrfBridge JoinAndWaitBackend(StartupConfig cfg)
     }
     Console.WriteLine($"[OK] joined (BackendCount={bridge.BackendCount()}).");
 
-    Console.WriteLine("[..] waiting for a backend to be discovered (15 s cap)...");
+    Console.WriteLine($"[..] waiting for a backend to be discovered ({settleSecs} s cap)...");
     var swBe = Stopwatch.StartNew();
-    while (bridge.BackendCount() == 0 && swBe.Elapsed < TimeSpan.FromSeconds(15))
+    while (bridge.BackendCount() == 0 && swBe.Elapsed < TimeSpan.FromSeconds(settleSecs))
     {
         bridge.Tick();
         Thread.Sleep(50);
     }
     if (bridge.BackendCount() == 0)
     {
-        Console.WriteLine("[FAIL] no backend discovered after 15 s. Refusing to act - it would be a " +
+        Console.WriteLine($"[FAIL] no backend discovered after {settleSecs} s. Refusing to act - it would be a " +
                           "silent no-op reported as success. Confirm VR-Forces is up with a scenario " +
                           "loaded and the RTI connection is the one the backend uses.");
         bridge.Stop();
@@ -289,6 +294,7 @@ int RunCreate()
     Console.WriteLine($"    {fedDesc}  appNumber={appNumber}  (use a FRESH appNumber each join)");
     Console.WriteLine($"    {NativeStackLine()}");
     Console.WriteLine($"    {conn.Banner}");
+Console.WriteLine($"    {SettleCap.Banner(settleSecs)}");
     Console.WriteLine("    type=Tank Platoon (USA)  DIS 11.1.225.3.2.0.0  (class 3 aggregate; disaggregated + subordinates)");
     Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
         "    name='{0}'  pos=({1:F6}, {2:F6}) alt={3:F1} m MSL  heading={4:F1} deg", name, lat, lon, alt, headingDeg));
@@ -305,7 +311,7 @@ int RunCreate()
     string createdUuid = null, createdEntityId = null;
     try
     {
-        bridge = JoinAndWaitBackend(cfg);
+        bridge = JoinAndWaitBackend(cfg, settleSecs);
         if (bridge == null) return 1;
 
         // Creation is ASYNC - the backend answers on ObjectCreated. Subscribe BEFORE issuing the
@@ -421,7 +427,7 @@ int RunTask()
     string routeUuid = null;
     try
     {
-        bridge = JoinAndWaitBackend(cfg);
+        bridge = JoinAndWaitBackend(cfg, settleSecs);
         if (bridge == null) return 1;
 
         // CreateRoute is ASYNC; the along-route move is deferred until the route's ObjectCreated

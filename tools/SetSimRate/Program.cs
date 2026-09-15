@@ -92,6 +92,11 @@ static int Usage(string problem)
 // vendor default is CWD-RELATIVE and silently falls back to built-in defaults when the cwd is
 // not the VR-Forces bin64. Taken out of args FIRST so the parsing below never sees either
 // token (tools/Shared/ConnectionConfig.cs).
+// --settle-secs N (V6c arm A1): how long to wait for a VR-Forces back end before refusing.
+// DEFAULT 15 s - unchanged. Taken out of args before the parsing below, like --config.
+if (!SettleCap.TryTakeFlag(args, out args, out int settleSecs, out string settleProblem))
+    return Usage(settleProblem);
+
 if (!ConnectionConfig.TryTakeFlag(args, out args, out string connArg, out string connProblem))
     return Usage(connProblem);
 
@@ -192,6 +197,7 @@ Console.WriteLine("=== SetSimRate - set the VR-Forces simulation time multiplier
 Console.WriteLine($"    {fedDesc}  appNumber={appNumber}  multiplier={multiplier}x");
 Console.WriteLine($"    {NativeStackLine()}");
 Console.WriteLine($"    {conn.Banner}");
+Console.WriteLine($"    {SettleCap.Banner(settleSecs)}");
 // A --dry-run JOINS NOTHING, so a missing config is reported there, not refused: a dry run's
 // contract is 'arguments validated, no action taken', and turning it into exit 1 would make a
 // runner's own dry run fail on a machine where the real run is fine. tools/ResetVrf is the
@@ -235,10 +241,10 @@ try
     //    ticks (this is why tools/ResetVrf ticks before it trusts BackendCount /
     //    discovery). Issuing setTimeMultiplier against zero known backends risks a silent
     //    no-op: the tool would report success while the clock never changed.
-    Console.WriteLine("[..] settling - ticking until a backend is discovered (up to 15 s)...");
+    Console.WriteLine($"[..] settling - ticking until a backend is discovered (up to {settleSecs} s)...");
     var swSettle = Stopwatch.StartNew();
     int backends = 0;
-    while (swSettle.Elapsed < TimeSpan.FromSeconds(15))
+    while (swSettle.Elapsed < TimeSpan.FromSeconds(settleSecs))
     {
         bridge.Tick();
         Thread.Sleep(50);
