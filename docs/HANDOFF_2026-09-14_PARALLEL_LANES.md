@@ -115,8 +115,8 @@ RUN (the seat's Stop-Process was refused by the permission classifier, window cl
 end alive, STP-809's active-count path stays UNCONFIRMED LIVE - a re-run must anchor the kill on
 the DISPATCH, t-29 s of PushOrder's own 30 s argument, not stage-8b t=0, and needs the user's hand
 or a permission rule). V8 (023743Z, de32dac): shift went SOUTH - C2 SIDED the choice; FIXED c5f166d.
-V8b (033226Z, 79d3fe4): ALL R8 MET - +250 m north, SIX OF SIX crossed the ridge, no crawl. V8z zero-
-offset control: first attempt VOIDED (double launch, 03:51Z), rerun pending. OPEN USER RULINGS: none. V6 RUN 03:10Z (scratch federation
+V8b (033226Z, 79d3fe4): ALL R8 MET - +250 m north, SIX OF SIX crossed, no crawl. V8z zero-offset control
+(041036Z, 8d87391): BRANCH A - froze 19.7 m from P11; THE LATERAL OFFSET IS THE REMEDY, insertion inert. OPEN USER RULINGS: none. V6 RUN 03:10Z (scratch federation
 20260915T030650Z): the tools JOIN but see NO back end + placeholder uuids only, ResetVrf a false green
 (RUNBOOK sec 9; STP-820; cause OPEN, hardening MERGED 0abe9ce, eleven consumers rebuilt). OWED: V6b, V8z verdict
 verdict, the Q5 kill-half re-run, and the nav second mechanism / offline 20x20 km control. Prior
