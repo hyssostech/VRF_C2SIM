@@ -122,3 +122,77 @@ wrong together.
 * Live reads steer the next probe only; the harvest reader's verdict is what goes to Jira
   (`lessons-live-reads-are-provisional`).
 * A2's probe build is a PROBE. It must not be merged and must not be left in a deployed tree.
+
+---
+
+## HOW THE ARMS ARE FIRED
+
+Written 2026-09-15 before the run. Two runs, four arms, four ledgered appNumbers (claimed by the
+seat, ledger commit 96e5a96). **Nothing below has been executed.**
+
+### Run 1 - the QUIET fixture (arms A3, A1, A2)
+
+```
+shell 1:  bash scratchpad/validation/v6c_launch.sh          # R9_Mojave_Empty_52, 6 units, --run-secs 720
+shell 2:  pwsh -NoProfile -File scratchpad/validation/v6c_gates.ps1
+```
+
+`v6c_launch.sh` is `v6b_launch.sh` with the PauseSim probe removed (V6b already used the
+runner's own PauseSim as the positive control and it failed with everything else), `--run-secs`
+raised to 720 so the window outlasts A2 + its settle, and `--log ...\v6c_runner.log`.
+`--client-id STP`, the fixture, the init, the order, the type map and the consoles are V6b's,
+unchanged: the arms change WHEN a tool joins and WHAT it does on joining, nothing else.
+
+| arm | appNo | fired at | exact command |
+|---|---|---|---|
+| **A3 EARLY** | **4445** | the runner log's `VR-Forces READY` **+ 5 s**, and only while `PushInit: EXIT` has NOT yet appeared (Stage 3b's ~45 s settle is the window) | `SetSimRate.exe 1 4445 --settle-secs 15` |
+| **A1 PATIENCE** | **4446** | **t+180 s** of the observation window (`Stage 8b - observation window` + `PushOrder: EXIT=0`) | `SetSimRate.exe 1 4446 --settle-secs 180` |
+| **A2 PROVOKE** | **4447** | **t+420 s** of the same window | `PauseSim.exe resume 4447 --provoke --settle-secs 180` |
+
+### Run 2 - the BUSY control (arm A4)
+
+```
+shell 1:  bash scratchpad/validation/v6c_busy_launch.sh     # V5's fixture, --run-secs 600
+shell 2:  pwsh -NoProfile -File scratchpad/validation/v6c_busy_gates.ps1
+```
+
+| arm | appNo | fired at | exact command |
+|---|---|---|---|
+| **A4 BUSY CONTROL** | **4448** | **t+180 s** of the observation window - the SAME offset as A1 | `SetSimRate.exe 1 4448 --settle-secs 180` |
+
+`v6c_busy_launch.sh` is `v5_launch.sh`'s scenario line (R9_Mojave_Empty_52_NavAO20_AG_S2 +
+COA-STP1 init + PROBE_RIDGE_1-35 order + the nav-area gate + DurationScale 0.25 + the de-stack
+settings + the read-only AO20 navData warm) with the pause probe removed, `--run-secs 600`, and
+`--log ...\v6c_busy_runner.log`. A4 is A1 with ONE variable changed: the scenario under it.
+
+### A2 needed a new flag, and it is built
+
+`tools/PauseSim --provoke` (worktree `fix/tools-connection-config`, commit **b160aaa**) issues
+`bridge.Run()` -> `controller->run()` ONCE, immediately after `Start()` and BEFORE the settle -
+i.e. deliberately at `BackendCount=0` - flushes it with 2 s of ticks, then settles normally.
+**resume only**; `--provoke pause` is exit 2, because `run()` is a no-op on an already-running
+scenario while `pause` would stop one just to ask a question. The blind send is stated in a
+`PROVOKE MODE` banner and on the `[RESULT]` line (`provoke=`, `provokeBackends=`,
+`settleSecs=`, `settleTookSecs=`, appended at the END - the format is a contract the runner
+greps), and a settle that still finds nothing emits
+`[RESULT] PauseSim action=provoke verdict=PROVOKE_NO_BACKEND`. That verdict is arm A2's ANSWER,
+not a tool fault. `v6c_gates.ps1` refuses to start if the deployed PauseSim lacks the flag.
+
+### What every arm shares, and what the drivers refuse
+
+* The FULL runner `ProfileEnv` for every child - PATH prefix, `MAK_VRFDIR`,
+  `MAK_VRLDIR=C:\MAK\vrlink5.10`, `MAK_RTIDIR`, `RTI_RID_FILE`, `RTI_ASSISTANT_DISABLE`,
+  `MAKLMGRD_LICENSE_FILE` - and `-WorkingDirectory C:\MAK\vrforces5.2d\bin64` passed
+  explicitly, never inherited. (V6b showed none of this is the variable; it is held fixed so it
+  cannot become one.)
+* Both drivers key on the run's OWN markers in its OWN log, polling `VR-Forces READY` every 1 s
+  for A3 and `Stage 8b` + `PushOrder: EXIT=0` for the rest, and ABORT without firing if the log
+  matches dry-run text (`would `, `DRY RUN`, `Nothing was launched`) or if the runner has
+  already reached teardown.
+* A tool that printed `[OK] joined` is NEVER killed. rtiexec / rtiForwarder / rtiAssistant are
+  never touched. One appNumber per join, BURNED on launch whatever the outcome - and an arm the
+  driver declines to fire says so in the log and leaves its number unburned.
+* Per-arm stdout/stderr to `v6c_<arm>.out` / `.err`; the driver log is `v6c_gates.log` /
+  `v6c_busy_gates.log`, UTC-stamped.
+* Arm A0 is already in the runner (main, `0ecc14a`): WatchVrf gets `--report-backends` when the
+  deployed binary advertises it, so BOTH runs' traces carry a `backends=` column. Read it.
