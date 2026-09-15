@@ -591,3 +591,22 @@ set slope is a STOP, because it would mean two different faults wearing the same
   rtiForwarder / rtiAssistant are never touched.
 * Read the `backends=` column and the last `Starting job node ...` / `Checking status of job`
   pair before writing any verdict - the tool's yes/no is one instant, those are the run.
+
+## AMENDMENT 5 RESULTS (2026-09-15, `runs/20260915T160411Z_run`)
+
+**MISS, with a runaway.** `SetSimRate 1 4487 --settle-secs 15` at window+180 s found no
+back end; last status 16:09:03Z, LOST 16:09:43Z, observer `backends=` 1 -> 0 at 16:09:09Z.
+ws 3,468 -> 16,244 MB, LSQ slope 780 MB/min from dispatch (r2 0.93) at 0.49 cores mean,
+threads 81-83 flat, nothing moved (0.0 m, all six units).
+
+Registered reading: **one platoon move is enough - the company fan-out is NOT necessary.**
+Not literally the same ~2 GB/min: 780 MB/min is ~35% of V6e 2,219 on 1 of 3 tasks, so the
+fan-out SCALES the rate rather than causing the fault. Not the NO-runaway STOP branch.
+
+The next-variable call (init/composition) is SUPERSEDED by the harvest:
+`R5_UnitMove_Order.xml` and this probe order carry SWEDEN waypoints (58.703 N, 16.509 E)
+against a MOJAVE init, and the console shows the formation leader given a
+`ground-vehicle-move-to destination` 8,768.6 km away. A4 healthy run drives a composed
+multi-member ~PXY proxy through the SAME `Calc off road nav path part` job and finishes it
+in ~1.1 sim s, so composition is exonerated too. See V6_LIVE_JOIN_GATE sec 12.
+NEXT: V6e recipe with `data/R9_Mojave_UnitMove_Order.xml` - one variable, no authoring.

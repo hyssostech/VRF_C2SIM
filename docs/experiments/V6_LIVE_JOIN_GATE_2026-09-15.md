@@ -732,3 +732,63 @@ an operational hazard. **A working-set tripwire belongs in the runner** (the sea
 one): sample `wsMB` and abort the run when the slope exceeds a threshold, naming the dispatch
 that preceded it. And STP-822's liveness read is no longer only about correctness - an interface
 that noticed its back end had stopped could refuse to keep feeding it.
+
+## 12. V6f RESULTS (2026-09-15 16:02Z run)
+
+`runs/20260915T160411Z_run`. Platoon-only order (`PROBE_V6F_PLATOON_Order.xml`, T_R5_PL1
+only), fixture `R9_Mojave_Empty_52_Nav`, init `R9_Mojave_Lean_Initialization.xml`, consoles
+4, STP-822 liveness ON, order on bus 16:07:10.5Z / TASKSTRT 16:07:11Z; the sim JOINED a
+helper-held federation (STP-825: vendor copy `Joined federation` 1, `Could not create
+Federation` 0, 0 runtime ERROR / assert / deadlock / bad_alloc).
+
+**VERDICT (AMENDMENT 5 vocabulary): MISS, with a runaway - the company fan-out is NOT
+necessary.** `SetSimRate 1 4487 --settle-secs 15` at window+180 s found no back end.
+
+| quantity | V6f (1 task, 5 emitters) | V6e (3 tasks, 16) | A4 ridge (healthy) |
+|---|---|---|---|
+| ws dispatch -> peak | 3,468 -> **16,244** MB | 3,563 -> 31,244 | 4,021 -> 4,041 |
+| LSQ slope from dispatch | **780 MB/min** (r2 .93) | 2,219 (r2 .97) | 1.8 |
+| cpu cores mean / max | 0.49 / 1.82 | 1.11 / 2.96 | 3.46 / 4.25 |
+| last status -> LOST | 16:09:03Z -> 16:09:43Z (112 s) | 121 s | never |
+| observer `backends=` | 1 -> 0 at 16:09:09Z, never back | same | 1 on all samples |
+| movement | **0.0 m, all 6 units** | 1 of 22 moved 299 m | 7 moved 2.3-2.5 km |
+
+Threads 81-83 and flat. Pre-order ws was FLAT at 2,918 MB for 111 s; the step to 3,398 MB at
+16:07:10 is creation + compose (firstPlacement 16:07:09.5), BEFORE the order hit the bus.
+Growth resumes ~16:07:45 (one 60 s plateau at 8,772 MB); 780 MB/min is ~35% of V6e on 1 of 3
+tasks, so the fan-out SCALES the rate and does not cause the fault.
+
+**Console - V6e shape exactly.** All four M1A2s BUILD a tree containing `Loop to stall for
+replanning` (level-4 `Creating loop` construction output, NOT an execution stall); exactly
+one, M1A2 3, ticks it: nav-area current TRUE -> destination TRUE -> `CreateOffRoadSegment`
+success -> `Starting job node Calc off road nav path part` (sim 75.70) -> `Checking status
+of job for M1A2 3`, the last line the back end ever emitted. A4 starts the SAME job 6 times
+and returns `Job ... success` for all 6 in ~1.1 sim s.
+
+### 12.1 THE CAUSE IS IN THE ORDER FILE
+
+`R5_UnitMove_Order.xml` and its V6f derivative carry **SWEDEN** waypoints (58.703 N, 16.509
+E); every failing run paired them with the **MOJAVE** init (34.608-34.648 N, -116.60..-116.71
+W). Our own log: `Terrain profile 8 ... all 3 vertices authored from terrain`, alts [1127.2,
+97.2, 95.3] - vertex 0 Mojave at 1,117 m, vertices 1-2 Swedish coast. The console ECEF
+confirms the sim resolved them there: formation LEADER M1A2 1 got `ground-vehicle-move-to
+destination` 58.70285 N, 16.50897 E, **8,768.6 km away**; followers got their 9.3 km Mojave
+slots. So `Calc off road nav path part` is an unbounded off-road search toward another
+continent - it allocates and blocks, exactly the measured shape. Correlation is perfect
+across 09-15: Sweden order + R9 lean init ran away 5/5, Mojave order + COA-STP1 flat 9/9.
+SMS and init are confounded with it (the two fixtures name the SAME terrain, differing ONLY
+in the SMS). **`data/R9_Mojave_UnitMove_Order.xml` already exists**: same 3 tasks, same
+taskees, Mojave coordinates, ~0.58 km legs.
+
+### 12.2 STP-822 LIVE PASS, the tripwire, and the next run
+
+STP-822 clean: exactly ONE loss ObservationReport (16:09:43Z), TASKABRT 1 = tasks in flight 1,
+**0 position reports after the LOSS** (90 captured, last 16:09:33Z; V6d sent 543 off a dead
+back end), watchdog stood down, no recovery line, no false-loss risk. The ws tripwire FIRED 6x
+from 16:07:20Z - the CPU-gate suspicion is FALSIFIED; `-ReplayCsv` reproduces 6/6 and A4 stays
+clean ONLY at the default gate (1.5 false-alerts): do NOT raise it - wire the alert to an ABORT.
+**NEXT (one variable, zero authoring): V6e recipe with `data/R9_Mojave_UnitMove_Order.xml`.**
+Predict HIT - back end survives 720 s, `backends=1` throughout, `Job Calc off road nav path
+part success` for every member, units move, ws within 500 MB of pre-order. A MISS at ~2 GB/min
+exonerates geometry and promotes the vendor flat-query SMS (G7b: 8/8 `useAbstractGraphs=true`
+vs 2/24 flat). Check first: T_R5_PL1 last Mojave vertex (-116.5879) is ~290 m east of AO20.
