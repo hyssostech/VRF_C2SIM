@@ -236,11 +236,26 @@ public class VrfSettings
     // member (an M3 7 km back, an M577 1.3 km back) held units at the ends of their legs for
     // eight sim-hours (PREREG_ASSEMBLY_LAYOUT 2026-09-07). Radius 500 m = the shipped Armor-Co
     // formations' half-length (members sit up to +/-430 m from the last vertex).
+    //
+    // *** STP-837 (2026-09-15): PROXIMITY ALONE IS NOT ARRIVAL. *** Run V6g closed two of three
+    // tasks EARLY on this rule - 116 s and 516 s before the vendor's own (swallowed) completions
+    // - because T_R5_PL1's order mirrors the platoon's LAST VERTEX onto its own start: "4/4
+    // within 500 m of the last vertex (nearest 26 m)" held from the first check while M1A2 1 had
+    // moved 20 m. So a counted member must now ALSO have travelled
+    // max(0.5 x the route's authored length, ArrivalMinTravelMeters) from where it stood at
+    // dispatch, the radius is min(ArrivalRadiusMeters, 0.25 x route length), and a route whose
+    // last vertex lies inside that radius of the dispatch position CANNOT be closed by arrival
+    // evidence at all - it waits for the vendor or for its C2SIM Duration. ArrivalRadiusMeters
+    // keeps its 500 m meaning as the CEILING; on a 30 km leg nothing changes.
     public bool ArrivalCompletion { get; set; } = true;
     public double ArrivalRadiusMeters { get; set; } = 500.0;
     public double ArrivalMemberFraction { get; set; } = 0.5;   // 1.0 = every member must be within the radius
     public double ArrivalCheckSeconds { get; set; } = 5.0;
     public double ArrivalMinSecondsSinceDispatch { get; set; } = 30.0;
+    // The FLOOR under the traversal bar, for a move too short for half its length to exceed the
+    // wander a parked vehicle's published position can show. 100 m is two M1A2 lengths beyond the
+    // de-stacking ring (10 m offsets) and the formation jitter seen on the V6g consoles.
+    public double ArrivalMinTravelMeters { get; set; } = 100.0;
 
     // PROGRESS WATCHDOG (C16, report-only; StallPolicy.cs). VR-Forces 5.2 NEVER reports a unit
     // that stops making progress while its move task runs: the base give-up test "always returns

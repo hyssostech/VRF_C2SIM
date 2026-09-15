@@ -3193,7 +3193,9 @@ public sealed class VrfC2SimService : BackgroundService
         {
             var dest = routeGeo[^1];
             double headingDeg = BearingDeg(routeGeo[0], dest);
-            MarkDispatched(task, unit, "move-into-formation", dest);
+            // The route is COLLAPSED here (this dispatch drives to the final point only), so the
+            // journey recorded for STP-837 is the line actually driven, not the authored polyline.
+            MarkDispatched(task, unit, "move-into-formation", dest, new List<Geodetic> { routeGeo[0], dest });
             _bridge.MoveIntoFormation(vrfUuid, dest, headingDeg, _vrf.MoveIntoFormation);
             _arrivalReported.TryRemove(unit.Name, out _);
             ClearStallState(unit.Name);
@@ -3223,7 +3225,9 @@ public sealed class VrfC2SimService : BackgroundService
             var wptQueue = _pendingRouteTasks.GetOrAdd(wptName, _ => new ConcurrentQueue<PendingRouteTask>());
             wptQueue.Enqueue(new PendingRouteTask(vrfUuid, Patrol: false, PlanMove: true));
             _pendingRouteUnit[wptName] = unit.Name;   // the arrival swallow clears when the VRF task is issued (route-created)
-            MarkDispatched(task, unit, "plan-move", routeGeo[^1]);
+            // Collapsed like the formation move above: PlanAndMoveTo drives to the final point.
+            MarkDispatched(task, unit, "plan-move", routeGeo[^1],
+                           new List<Geodetic> { routeGeo[0], routeGeo[^1] });
             if (attackTargetVrf != null)
                 DeferEngageUntilMoveCompletes(unit, task, "fire", vrfUuid, attackTargetVrf);
             if (breachTargetVrf != null)
@@ -3267,7 +3271,7 @@ public sealed class VrfC2SimService : BackgroundService
         // Single point -> MoveToLocation; otherwise CreateRoute then move along it (:2393).
         if (routeGeo.Count == 1)
         {
-            MarkDispatched(task, unit, "move-to", routeGeo[^1]);
+            MarkDispatched(task, unit, "move-to", routeGeo[^1], routeGeo);
             _bridge.MoveToLocation(vrfUuid, routeGeo[^1]);
             _arrivalReported.TryRemove(unit.Name, out _);
             ClearStallState(unit.Name);
@@ -3321,7 +3325,8 @@ public sealed class VrfC2SimService : BackgroundService
         // The unit is committed to this move now (the route-created callback issues the
         // along-route task); record it so the completion attributes here (P0.1) and any
         // engage below gates on it (P0.3).
-        MarkDispatched(task, unit, patrol ? "patrol" : "move-along", patrol ? (Geodetic?)null : routeGeo[^1]);
+        MarkDispatched(task, unit, patrol ? "patrol" : "move-along", patrol ? (Geodetic?)null : routeGeo[^1],
+                       patrol ? null : routeGeo);
         if (fanOutMembers != null)
         {
             _fanOut.Register(unit.Name, task.TaskUuid, fanOutMembers.Select(m => m.Name),
@@ -3409,16 +3414,34 @@ public sealed class VrfC2SimService : BackgroundService
         return null;
     }
 
-    private void MarkDispatched(OrderTask task, CreatedUnit unit, string kind, Geodetic? dest = null)
+    /// <param name="route">STP-837: the vertex list the unit was actually given. For the two
+    /// AGGREGATE kinds that COLLAPSE the route to its final point (MoveIntoFormation, the R11
+    /// plan-move) the caller passes the two points that will really be driven, not the authored
+    /// polyline - the traversal bar must measure the journey the unit was asked to make, not one
+    /// the dispatch threw away. null for kinds with no journey (fire, breach, hold-in-place,
+    /// follow, patrol), which the arrival monitor already skips for want of a destination.</param>
+    private void MarkDispatched(OrderTask task, CreatedUnit unit, string kind, Geodetic? dest = null,
+                                IReadOnlyList<Geodetic> route = null)
     {
         // NOTE (review wf_62e5bdf7): the arrival-evidence swallow flag is NOT cleared here - it is
         // cleared where the replacing VR-Forces command is actually ISSUED (the synchronous bridge
         // calls below, the route-created callback for deferred kinds, IssueEngage), because a
         // deferred kind's old task keeps running until then and its late completion must still
         // be swallowed.
+        double routeLengthM = double.NaN;
+        double? startLat = null, startLon = null;
+        if (route is { Count: > 0 })
+        {
+            startLat = route[0].LatDeg;
+            startLon = route[0].LonDeg;
+            var routeLatLon = new List<(double Lat, double Lon)>(route.Count);
+            foreach (var g in route) routeLatLon.Add((g.LatDeg, g.LonDeg));
+            routeLengthM = RouteExtentPolicy.PathLengthMeters(routeLatLon);
+        }
         var superseded = _inFlight.RecordDispatch(unit.Name,
             new InFlightTracker.InFlight(task.TaskUuid, task.TaskName, kind, DateTime.UtcNow,
-                                         dest?.LatDeg, dest?.LonDeg, task.TaskeeUuid ?? ""));
+                                         dest?.LatDeg, dest?.LonDeg, task.TaskeeUuid ?? "",
+                                         routeLengthM, startLat, startLon));
         if (superseded is InFlightTracker.InFlight old && old.TaskUuid != task.TaskUuid)
         {
             _log.LogWarning("Unit {Name}: task '{New}' SUPERSEDES in-flight task '{Old}' ({OldUuid}) - VRF " +
@@ -3475,7 +3498,20 @@ public sealed class VrfC2SimService : BackgroundService
         // watchdog exists for. Only the SAMPLES are dropped: the one-report-per-unit-task flag
         // still clears where the replacing VR-Forces command is actually issued (ClearStallState),
         // which is the conservative direction.
-        if (dest is not null) _stallSamples.TryRemove(unit.Name, out _);
+        if (dest is not null)
+        {
+            _stallSamples.TryRemove(unit.Name, out _);
+            // STP-837: WHERE EVERY MEMBER STOOD WHEN THE TASK WAS DISPATCHED. Arrival evidence
+            // now has to show that a member WENT somewhere, and "somewhere" is measured from
+            // here. Read through the same TryReadMemberPositions C15 and C16 share, on the same
+            // (tick) thread, so the baseline and the later samples can never come from different
+            // views of the unit. A unit whose members are not readable yet gets a null map and
+            // the record's own StartLat/StartLon - the taskee's dispatch position - stands in.
+            _dispatchPositions[unit.Name] =
+                new DispatchBaseline(task.TaskUuid ?? "",
+                                     TryReadMemberPositions(unit.Name, out var atDispatch, out _)
+                                         ? atDispatch : null);
+        }
         _sequencer.NotifyDispatched(task.TaskUuid, TaskClockSeconds);
         // B1: the task has STARTED. This is the one point every dispatch path reaches (it is what
         // records the in-flight task), so it is where the C2SIM consumer is told - one TASKSTRT per
@@ -3824,7 +3860,16 @@ public sealed class VrfC2SimService : BackgroundService
     // STP-833: the "rule (c) is skipped, and here is why" line is a CONFIGURATION fact, not a
     // per-task event - said once per run, like the nav gate's blind warning.
     private bool _routeExtentNoteLogged;
+    // STP-837: said once per run - a move dispatched with no recorded start is a code defect,
+    // not a per-task event.
+    private bool _arrivalNoBaselineWarned;
     private readonly ConcurrentDictionary<string, string> _arrivalReported = new();   // unit name -> task uuid reported from evidence
+    // STP-837: where each member stood at dispatch, per unit, under the task uuid that wrote it
+    // (a stale baseline from a previous task must never be measured against the current one).
+    private sealed record DispatchBaseline(string TaskUuid, Dictionary<string, (double Lat, double Lon)> ByUuid);
+    private readonly ConcurrentDictionary<string, DispatchBaseline> _dispatchPositions = new();
+    // unit name -> task uuid already named as un-closable by arrival evidence (one line per task).
+    private readonly ConcurrentDictionary<string, string> _arrivalNotClosable = new();
     private readonly ConcurrentDictionary<string, string> _pendingRouteUnit = new();  // route/waypoint name -> unit name (swallow cleared when its VRF task is issued)
     private readonly ConcurrentDictionary<string, (double Lat, double Lon)> _authoredPosByName = new();  // unit name -> C2SIM authored position (origin-vertex drop)
     private readonly ConcurrentDictionary<string, string> _templateByName = new();    // unit name -> the VR-Forces template the type map landed (route pre-flight)
@@ -4170,17 +4215,71 @@ public sealed class VrfC2SimService : BackgroundService
             if (rec.DestLat is not double dlat || rec.DestLon is not double dlon) continue;
             if ((now - rec.DispatchedUtc).TotalSeconds < _vrf.ArrivalMinSecondsSinceDispatch) continue;
             if (_arrivalReported.ContainsKey(name)) continue;
+            // STP-837: IS ARRIVING THERE EVIDENCE OF ANYTHING? A route whose last vertex sits
+            // inside the arrival radius of the position the unit was dispatched from cannot be
+            // closed this way at all - V6g's T_R5_PL1 mirrored vertex 2 onto the platoon's own
+            // start, and "4/4 within 500 m (nearest 26 m)" was true before anything moved.
+            double startLat = rec.StartLat ?? double.NaN, startLon = rec.StartLon ?? double.NaN;
+            double lastFromStart = double.IsNaN(startLat)
+                ? double.NaN
+                : RouteExtentPolicy.GreatCircleMeters(startLat, startLon, dlat, dlon);
+            double radius = ArrivalPolicy.RadiusFor(_vrf.ArrivalRadiusMeters, rec.RouteLengthMeters);
+            if (!ArrivalPolicy.ClosableByArrival(lastFromStart, radius))
+            {
+                if (_arrivalNotClosable.TryGetValue(name, out var said) && said == (rec.TaskUuid ?? "")) continue;
+                _arrivalNotClosable[name] = rec.TaskUuid ?? "";
+                _log.LogInformation("ARRIVAL EVIDENCE CANNOT CLOSE {Name}'s task '{Task}': the route's last vertex is " +
+                                    "{D:F0} m from the position the unit was dispatched from, inside the {R:F0} m " +
+                                    "arrival radius of a {Len:F0} m route - standing there is not evidence of having " +
+                                    "driven it (STP-837; V6g reported 4/4 'within 500 m of the last vertex, nearest " +
+                                    "26 m' while one M1A2 had moved 20 m). This task closes only on a VR-Forces " +
+                                    "completion or on its C2SIM Duration.",
+                                    name, rec.TaskName, lastFromStart, radius, rec.RouteLengthMeters);
+                continue;
+            }
             if (!TryReadMemberPositions(name, out var positions, out int total)) continue;
-            var distances = new List<double>();
-            foreach (var p in positions.Values)
-                distances.Add(TerrainVertexAuthoring.DistMeters(p.Lat, p.Lon, dlat, dlon));
-            var d = ArrivalPolicy.Decide(distances, total, _vrf.ArrivalRadiusMeters, _vrf.ArrivalMemberFraction);
+            // WHERE EACH MEMBER IS, AND HOW FAR IT HAS COME. The baseline is that member's own
+            // dispatch position when we have it; otherwise the taskee's, which is the position the
+            // route was built from. A member with neither carries NaN travel and is never counted -
+            // loudly, because that would silently stop a healthy task from closing.
+            _dispatchPositions.TryGetValue(name, out var baseline);
+            bool baselineFits = baseline != null
+                                && string.Equals(baseline.TaskUuid, rec.TaskUuid ?? "", StringComparison.Ordinal);
+            if (double.IsNaN(startLat) && !_arrivalNoBaselineWarned)
+            {
+                _arrivalNoBaselineWarned = true;
+                _log.LogWarning("ARRIVAL EVIDENCE: {Name}'s in-flight task '{Task}' carries NO dispatch position, so " +
+                                "the STP-837 traversal test cannot be applied and this task will not close on arrival " +
+                                "evidence. Every move dispatch records one; this means a dispatch path was added " +
+                                "without passing its route to MarkDispatched.", name, rec.TaskName);
+            }
+            var samples = new List<ArrivalPolicy.MemberSample>(positions.Count);
+            foreach (var p in positions)
+            {
+                double dist = TerrainVertexAuthoring.DistMeters(p.Value.Lat, p.Value.Lon, dlat, dlon);
+                double fromLat = startLat, fromLon = startLon;
+                if (baselineFits && baseline.ByUuid != null && baseline.ByUuid.TryGetValue(p.Key, out var was))
+                {
+                    fromLat = was.Lat;
+                    fromLon = was.Lon;
+                }
+                double travel = double.IsNaN(fromLat)
+                    ? double.NaN
+                    : TerrainVertexAuthoring.DistMeters(fromLat, fromLon, p.Value.Lat, p.Value.Lon);
+                samples.Add(new ArrivalPolicy.MemberSample(dist, travel));
+            }
+            var d = ArrivalPolicy.DecideWithTraversal(samples, total, _vrf.ArrivalRadiusMeters,
+                                                      _vrf.ArrivalMemberFraction, rec.RouteLengthMeters,
+                                                      _vrf.ArrivalMinTravelMeters);
             if (!d.Arrived) continue;
             _arrivalReported[name] = rec.TaskUuid ?? "";
-            _log.LogInformation("ARRIVAL EVIDENCE: {Name} task '{Task}' - {Within}/{Total} member(s) within {R} m of the " +
-                                "last vertex (nearest {Near:F0} m) {T:F0}s after dispatch - reporting completion from the " +
-                                "unit's own evidence (user ruling 2026-09-07); a later vendor completion is swallowed.",
-                                name, rec.TaskName, d.Within, d.Total, _vrf.ArrivalRadiusMeters, d.NearestMeters,
+            _log.LogInformation("ARRIVAL EVIDENCE: {Name} task '{Task}' - {Within}/{Total} member(s) within {R:F0} m of the " +
+                                "last vertex (nearest {Near:F0} m) AND past {Req:F0} m of travel since dispatch (farthest " +
+                                "{Far:F0} m of a {Len:F0} m route) {T:F0}s after dispatch - reporting completion from the " +
+                                "unit's own evidence (user ruling 2026-09-07; traversal required, STP-837); a later vendor " +
+                                "completion is swallowed.",
+                                name, rec.TaskName, d.Within, d.Total, d.RadiusMeters, d.NearestMeters,
+                                d.RequiredTravelMeters, d.FarthestTravelMeters, rec.RouteLengthMeters,
                                 (now - rec.DispatchedUtc).TotalSeconds);
             // R10 fan-out (opt-in): mark the unit's fan-out synthesized under THIS task uuid so the
             // later member completions and the straggler timer are swallowed by the tracker's own
@@ -5093,6 +5192,13 @@ public sealed class VrfC2SimService : BackgroundService
             if (!live.Contains(key)) _stallSamples.TryRemove(key, out _);
         foreach (var key in _stallReported.Keys)
             if (!live.Contains(key)) _stallReported.TryRemove(key, out _);
+        // STP-837's two maps ride the same prune, for the same reason: a unit that has left the
+        // in-flight set has no task left to measure travel for, and the next dispatch rewrites
+        // its baseline anyway.
+        foreach (var key in _dispatchPositions.Keys)
+            if (!live.Contains(key)) _dispatchPositions.TryRemove(key, out _);
+        foreach (var key in _arrivalNotClosable.Keys)
+            if (!live.Contains(key)) _arrivalNotClosable.TryRemove(key, out _);
     }
 
     private void OnVrfTaskCompleted(object sender, TaskCompletedEventArgs e)
