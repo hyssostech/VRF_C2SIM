@@ -519,6 +519,24 @@ if [ "$SAMPLE_THREADS" -eq 1 ] && [ -n "${SAMPLER_BG_PID:-}" ] && [ -n "$RUNDIR"
         else
             echo "  thread sampler: $CSV_W (manifest not found - path not recorded)"
         fi
+        # ---- WS runaway tripwire: SampleThreads.ps1 (RUNBOOK 0.5.11 item 17) writes ONE
+        # line per confirmed episode to the sidecar <csv base>.alerts.txt beside thread-
+        # samples.csv. Non-empty file = at least one confirmed runaway; surface it loudly
+        # and record it in the manifest the same way artifacts.threadSamples is recorded
+        # above - nothing here kills or touches the back end, this only reports.
+        ALERTS_U="${CSV_U%.csv}.alerts.txt"
+        if [ -s "$ALERTS_U" ]; then
+            ALERTS_W="$(cygpath -w "$ALERTS_U" 2>/dev/null || echo "$ALERTS_U")"
+            ALERTS_FIRST="$(head -n 1 "$ALERTS_U")"
+            echo
+            echo "  [WARN] BACK-END WS RUNAWAY detected: $ALERTS_FIRST"
+            echo "         full alert log: $ALERTS_W"
+            if [ -f "$RUNDIR/run-manifest.json" ]; then
+                MANIFEST_W="$(cygpath -w "$RUNDIR/run-manifest.json" 2>/dev/null || echo "$RUNDIR/run-manifest.json")"
+                "$PWSH64" -NoProfile -Command "\$p='$MANIFEST_W'; \$m = Get-Content -LiteralPath \$p -Raw | ConvertFrom-Json; \$m.artifacts | Add-Member -NotePropertyName threadSampleAlerts -NotePropertyValue '$ALERTS_W' -Force; \$m | Add-Member -NotePropertyName backendWsRunaway -NotePropertyValue \$true -Force; [System.IO.File]::WriteAllText(\$p, (\$m | ConvertTo-Json -Depth 12), (New-Object System.Text.UTF8Encoding(\$false)))" < /dev/null > /dev/null 2>&1
+                echo "  thread sampler: $ALERTS_W (recorded in the manifest as artifacts.threadSampleAlerts, backendWsRunaway=true)"
+            fi
+        fi
     else
         echo "  [WARN] thread sampler: no thread-samples.csv in $RUNDIR - check $SAMPLER_LOG"
     fi

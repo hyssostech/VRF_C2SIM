@@ -1210,6 +1210,13 @@ on 2026-09-14; each is now closed by something this section names
     build). Offline test: tests/RunnerTurnaround.Tests.ps1 check 8i (dry-run plan text, and a
     direct SampleThreads.ps1 invocation against a throwaway process that writes real rows).
 
+17. WORKING-SET RUNAWAY TRIPWIRE on `--sample-threads` (added 2026-09-15): SampleThreads.ps1 alerts when the ws slope
+    over -WsSlopeWindowSamples samples (default 6, ~30 s) is >= -WsSlopeMBPerMinAlert (default 500 MB/min) AND avg
+    procCpuCores <= -WsSlopeMaxAvgCpuCores (default 1.0) for 3 consecutive evaluations past a 60 s -WsSlopeWarmupSec
+    grace period. Writes ONE line to sidecar `thread-samples.alerts.txt` plus stdout, never kills; RunScenario.sh
+    WARNs and records `artifacts.threadSampleAlerts` + `backendWsRunaway` when non-empty. `-ReplayCsv <path>` replays
+    a CSV offline through the same code (check 8j: fires on 20260915T130626Z, silent on 133258Z).
+
 ---
 
 ### 0.5.15 THE LICENCE FILE - two registry scopes that disagree (added 2026-09-14)
