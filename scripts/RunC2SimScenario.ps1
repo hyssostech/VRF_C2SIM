@@ -243,6 +243,28 @@
     THE KILL HALF OF THE Q5 PROBE IS NOT AUTOMATED AND MUST NOT BE: killing a back
     end is a MANUAL step, RUNBOOK 0.5.14 item 14.
 
+.PARAMETER FederationHoldSecs
+    STAGE 2h, THE FEDERATION HOLDER (STP-825). 5.2 PROFILE ONLY. Seconds a holder
+    federate STAYS JOINED to the federation before Stage 2c runs, so that neither
+    the C1 gate nor the SIM ever has to CREATE it - and the CREATE is the operation
+    rtiexec 5.0.1 has been rejecting intermittently since 2026-09-15 14:23Z ("Failed
+    to process FOM file <module> ... Sending Create Response = Error"), which kills
+    the sim at startup (LaunchVrf exit 3) and crashes the creating process (STP-832).
+    JOINS have never failed. Default 900. It is a WALL-CLOCK hold measured from the
+    holder's own join, and the holder DELIBERATELY OUTLIVES this run: teardown never
+    touches it and never waits for it, and it resigns on its own timer (RUNBOOK sec
+    0 - a joined federate is never force-killed). 0 DISABLES the stage entirely and
+    restores the pre-STP-825 behaviour, which is the failure mode; it exists as the
+    single-variable control, not as a normal setting.
+
+.PARAMETER FederationHoldAttempts
+    How many times Stage 2h will try to get a holder joined, default 4. EACH ATTEMPT
+    COSTS ONE LEDGERED appNumber, allocated up front like every other join: the
+    operation that fails is the create, a failed create can crash the creating
+    process AFTER it registered a federate, and reusing that number would be the
+    stale-federate trap. Attempts after the one that succeeds are UNCONSUMED and
+    BURNED. All attempts failing is FATAL before anything is launched.
+
 .PARAMETER SettleHoldSecs
     Seconds the ALL-COMPLETE condition must hold before -StopWhenComplete closes
     the window. Default 60. Exists so the movement gate (HEADLESS_RUN_PLAN 4a.1
@@ -470,6 +492,27 @@ param(
     # the run, which is the one outcome that silently destroys the whole window.
     [int] $PauseAtSec  = 0,
     [int] $ResumeAtSec = 0,
+
+    # STAGE 2h - THE FEDERATION HOLDER (STP-825, 2026-09-15). 5.2 PROFILE ONLY.
+    #
+    # WHY IT EXISTS. On the 5.2 profile nothing creates the federation before the SIM does:
+    # Stage 2c's RtiProbe creates MAK-ONE-2025, joins, resigns - and, being the last
+    # federate in it, DESTROYS it again. Since 14:23Z on 2026-09-15 rtiexec 5.0.1 rejects a
+    # CREATOR's FOM-module distribution intermittently ("Failed to process FOM file
+    # <module> ... FOM Reader reports", "Sending Create Response = Error"), so the sim's own
+    # create fails at Stage 3 and it dies at startup (LaunchVrf exit 3); a failed create
+    # also crashes the creating process (STP-832). JOINS have never failed. A HOLDER
+    # federate started before Stage 2c keeps the federation alive, so both the gate and the
+    # sim take the JOIN path instead (confirmed live, runs 20260915T151959Z / 20260915T160253Z).
+    #
+    # -FederationHoldSecs is how long the holder STAYS JOINED (RtiProbe's settleSecs), in
+    # WALL-CLOCK seconds measured from its own join - it deliberately outlives this runner.
+    # 0 DISABLES the stage completely: no stage, no appNumbers, no output, i.e. exactly the
+    # pre-STP-825 behaviour. -FederationHoldAttempts is how many times the stage will try,
+    # each on its OWN ledgered appNumber (the create is the operation that fails, and it can
+    # crash the process after registering a federate - so a retry must never reuse a number).
+    [int] $FederationHoldSecs     = 900,
+    [int] $FederationHoldAttempts = 4,
 
     # SLACK added on top of a FOREGROUND stage's OWN known blocking budget before
     # the runner declares that stage timed out. An unattended runner must never
@@ -1252,6 +1295,47 @@ function Complete-Background {
     else { Add-Flag 'WARN' ("{0} (pid {1}) had not exited after {2}s. NOT killed - it is a joined federate. It will resign on its own timer. The NEXT run's Stage 1 inventory REFUSES to launch while it is up." -f $Name, $Process.Id, $waitedSec) }
 }
 
+# ---- Stage 2h (STP-825) helpers --------------------------------------------
+# THE RTIEXEC LOG IS THE JOIN AUTHORITY, because the holder's own stdout is not: RtiProbe
+# writes its "[OK] ... created/joined <federation> and resigned cleanly" line AFTER the
+# settle loop (tools/RtiProbe/Program.cs), i.e. only once the WHOLE hold has elapsed. A
+# 45 s wait can therefore only be answered by the rtiexec's own
+#     Federate remoteControl <pid> ("remoteControl" 2) has joined federation "<name>".
+# line. Stage 2r knows which rtiexec is serving; this resolves ITS log file. The recorded
+# path is a REAL path only when this run started the rtiexec - when it found one already up
+# the marker reads "(not started by this run - see <dir>)" - so fall back to the file the
+# RTI names after the serving pid (rtiexec_<stamp>...-<pid>.log).
+function Get-RtiExecLogPath {
+    param([string]$Recorded, [string]$LogDir, $RtiExecPid)
+    if ($Recorded -and (Test-Path -LiteralPath $Recorded -PathType Leaf)) { return $Recorded }
+    if ($RtiExecPid -and $LogDir -and (Test-Path -LiteralPath $LogDir -PathType Container)) {
+        $f = @(Get-ChildItem -LiteralPath $LogDir -Filter ('rtiexec_*-{0}.log' -f $RtiExecPid) -ErrorAction SilentlyContinue |
+               Sort-Object LastWriteTimeUtc -Descending) | Select-Object -First 1
+        if ($f) { return $f.FullName }
+    }
+    return ''
+}
+
+# Read a live log from a byte OFFSET instead of loading the whole file. The rtiexec log runs
+# to tens of thousands of lines (44k+ on 2026-09-15) and Stage 2h polls it once a second, so
+# the seat's Get-Content | Select-Object -Skip would re-read megabytes per tick. FileShare
+# ReadWrite because the rtiexec holds it open for writing; an Offset past the end means the
+# file was rotated or truncated under us, so start again from 0 rather than return nothing.
+function Read-TextFromOffset {
+    param([string]$Path, [long]$Offset)
+    if (-not $Path -or -not (Test-Path -LiteralPath $Path -PathType Leaf)) { return '' }
+    try {
+        $fs = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+        try {
+            $from = $Offset
+            if ($from -gt $fs.Length -or $from -lt 0) { $from = 0 }
+            $null = $fs.Seek($from, [System.IO.SeekOrigin]::Begin)
+            $sr = New-Object System.IO.StreamReader($fs)
+            try { return $sr.ReadToEnd() } finally { $sr.Dispose() }
+        } finally { $fs.Dispose() }
+    } catch { return '' }
+}
+
 # ---- live-file reading (the trace is being written while we read it) --------
 # The t+Ns in every stage-8b message is measured from the moment PUSHORDER RETURNED, which
 # is up to -PushOrderListenSec AFTER the order actually reached the bus. Both numbers are
@@ -1927,6 +2011,60 @@ if ($ResumeAtSec -lt 0 -or $ResumeAtSec -gt 86400) {
 if ($PauseAtSec -gt 0 -and $ResumeAtSec -gt 0 -and $ResumeAtSec -le $PauseAtSec) {
     $bad += ('-ResumeAtSec ({0}) must be GREATER than -PauseAtSec ({1}). Both are offsets from the same instant (PushOrder returning), so a resume at or before the pause would run in the wrong order and leave the scenario PAUSED for the rest of the window.' -f $ResumeAtSec, $PauseAtSec)
 }
+# Stage 2h federation holder (STP-825). ARMED only on the 5.2 profile and only when the
+# hold is positive, so a 5.0.2 run and a -FederationHoldSecs 0 run are byte-identical to
+# what they were before this stage existed. The bounds mirror RtiProbe's own contract:
+# settleSecs must be a POSITIVE int (tools/RtiProbe/Program.cs, ToolArgs.TryPositiveInt), so
+# 0 can only mean "stage off", never "hold for zero seconds".
+$FederationHoldOn = ($Is52 -and $FederationHoldSecs -gt 0)
+if ($FederationHoldSecs -lt 0 -or $FederationHoldSecs -gt 86400) {
+    $bad += ('-FederationHoldSecs must be 0..86400 (got {0}). 0 = no Stage 2h holder (pre-STP-825 behaviour); anything positive is the wall-clock hold RtiProbe is given as its settleSecs.' -f $FederationHoldSecs)
+}
+if ($FederationHoldAttempts -lt 1 -or $FederationHoldAttempts -gt 10) {
+    $bad += ('-FederationHoldAttempts must be 1..10 (got {0}). Each attempt costs ONE ledgered appNumber, so the ceiling is deliberately low.' -f $FederationHoldAttempts)
+}
+# EXPLICITLY PASSED ONLY. The default is 900, so testing the VALUE here would have made
+# every 5.0.2 run abort at validation on a parameter its operator never typed - the 5.0.2
+# profile must stay byte-for-byte what it was. Same shape as the -NoGui / -DeviceAddress
+# refusals above: the complaint is about the ARGUMENT, not about the default.
+if ($PSBoundParameters.ContainsKey('FederationHoldSecs') -and $FederationHoldSecs -gt 0 -and -not $Is52) {
+    $bad += ('-FederationHoldSecs {0} was passed on the 5.0.2 profile. Stage 2h is a 5.2-only repair (STP-825 is an rtiexec 5.0.1 CREATE failure under the 5.2 posture); on 5.0.2 nothing would run and the appNumbers would be burned for nothing. Pass -VrfProfile 5.2, or drop the argument.' -f $FederationHoldSecs)
+}
+if ($PSBoundParameters.ContainsKey('FederationHoldAttempts') -and -not $Is52) {
+    $bad += '-FederationHoldAttempts is a 5.2 profile switch (Stage 2h, STP-825). On 5.0.2 the stage does not run; drop the argument or pass -VrfProfile 5.2.'
+}
+# How long Stage 2h waits for ONE attempt to show up as JOINED in the rtiexec log before it
+# gives up on that attempt. Not a parameter: the holder either joins in the first seconds or
+# its create was rejected (measured joins are sub-second; the seat's hand-run holders on
+# 2026-09-15 joined immediately or crashed). 45 s is ~50x the observed join latency.
+$FederationHoldJoinWaitSec = 45
+# THE FEDERATION THE HOLDER MUST CREATE. It has to be the identity Stage 2c and the sim use,
+# and on 5.2 that is the connection config's own execName - the tools are given NO federation
+# argument and tools/Shared/StackIdentity.cs reads it from there. Read it out of the file this
+# run is ACTUALLY using rather than restating the string: -VrfAppDataDir can relocate that
+# file, and a holder on the wrong execName would create a SECOND federation and help nothing.
+# The literal is the documented fallback for a config that cannot be read or parsed.
+$FederationHoldName = ''
+$FederationHoldNameSource = ''
+if ($Is52) {
+    $FederationHoldName       = 'MAK-ONE-2025'
+    $FederationHoldNameSource = ('FALLBACK literal - execName could not be read from {0}' -f $ConnConfigFile)
+    if (Test-Path -LiteralPath $ConnConfigFile -PathType Leaf) {
+        try {
+            $ccExec = [regex]::Match((Get-Content -LiteralPath $ConnConfigFile -Raw -Encoding UTF8),
+                                     '<execName\s+value\s*=\s*"([^"]+)"')
+            if ($ccExec.Success -and -not [string]::IsNullOrWhiteSpace($ccExec.Groups[1].Value)) {
+                $FederationHoldName       = $ccExec.Groups[1].Value
+                $FederationHoldNameSource = ('execName from {0}' -f $ConnConfigFile)
+            }
+        } catch {
+            $FederationHoldNameSource = ('FALLBACK literal - {0} could not be read: {1}' -f $ConnConfigFile, $_.Exception.Message)
+        }
+    }
+} else {
+    $FederationHoldName       = $Federation
+    $FederationHoldNameSource = '-Federation (5.0.2 profile - Stage 2h does not run there)'
+}
 # StopVrf.ps1 validates TimeoutSec 5..600 itself and exits 2 - catch it here so the
 # failure lands BEFORE VR-Forces is launched instead of during teardown.
 if ($StopVrfTimeoutSec -lt 5 -or $StopVrfTimeoutSec -gt 600) {
@@ -2209,6 +2347,11 @@ $Manifest.inputs.vrfProfile = [ordered]@{
     bridgeDeviceAddress = $(if ($Is52) { $BridgeDeviceAddress } else { $null })
     deviceAddressStatus = $(if ($Is52) { 'NOT part of the observation-channel repair: run 3857 (PREREG_52_RTIEXEC sec 4 P4) reflected 54-56 entities with the observer device address blank. Sim-side necessity still open.' } else { $null })
     rtiExec             = $(if ($Is52) { [ordered]@{ script = $StartRtiExec; logDir = $RtiExecLogDir; logFile = $null; exitCode = $null; rtiExecPid = $null; forwarderPid = $null; started = $null; tcpPort = 4001 } } else { $null })
+    # STAGE 2h's HOLDER (STP-825), filled in by the stage. armed=false means the stage was
+    # off (-FederationHoldSecs 0) and the SIM created the federation itself - which is the
+    # failure mode, so a later reader must be able to tell the two runs apart at a glance.
+    # processId names a federate that OUTLIVES this run on purpose; it is never killed.
+    federationHolder    = $(if ($Is52) { [ordered]@{ armed = [bool]$FederationHoldOn; federation = $FederationHoldName; federationSource = $FederationHoldNameSource; holdSecs = $FederationHoldSecs; maxAttempts = $FederationHoldAttempts; joinWaitSec = $FederationHoldJoinWaitSec; appNumbers = @(); appNumber = $null; processId = $null; attemptsUsed = 0; joinedUtc = $null; joinWaitedSec = $null; rtiExecLog = $null; joinEvidence = $null; attempts = @() } } else { $null })
     # THE BACK-END LOG, and why it is a COPY. --logFileName is NOT passed on the 5.2 profile:
     # PREREG_52_CRASH_BISECT_2026-09-04 sec 5 measured 6 startup crashes / 18 launches with the
     # option against 0 / 12 without (Fisher's exact, one-sided, p = 0.031), and a 22-character
@@ -2674,10 +2817,29 @@ if ($PauseAtSec -gt 0) {
 if ($ResumeAtSec -gt 0) {
     $Alloc += [ordered]@{ key='resumeSim'; purpose=('tools/PauseSim resume - STAGE 8b Q5 PROBE at t+{0}s of the observation window (controller->run() on ALL back ends). A SEPARATE join from the pause and therefore a separate number. CONSUMED ONLY IF the window is still open at that offset.' -f $ResumeAtSec) }
 }
+# STAGE 2h - THE FEDERATION HOLDER (STP-825), appended ONLY when the stage is armed, so a
+# 5.0.2 run and a -FederationHoldSecs 0 run keep exactly the ledger footprint every run in
+# the record claimed (the first seven numbers above are untouched either way). ONE NUMBER PER
+# ATTEMPT, and that is not tidiness: the operation that fails here is the CREATE, a failed
+# create CRASHES the creating process (STP-832), and a crashed creator may already have
+# registered a federate - so retrying on the same appNumber is exactly the stale-federate
+# trap RUNBOOK sec 0 exists for. Attempts after the one that succeeds are UNCONSUMED and
+# BURNED, like every other unconsumed number this runner allocates.
+if ($FederationHoldOn) {
+    for ($h = 1; $h -le $FederationHoldAttempts; $h++) {
+        $Alloc += [ordered]@{ key=('fedHold{0}' -f $h); purpose=('tools/RtiProbe - STAGE 2h FEDERATION HOLDER attempt {0} of {1} (STP-825): create-or-join {2} and STAY JOINED for {3}s so the SIM never has to CREATE the federation (rtiexec 5.0.1 rejects creator FOM distribution intermittently; joins have never failed). CONSUMED ONLY IF attempt {0} is reached; an earlier success leaves the rest UNCONSUMED and BURNED.' -f $h, $FederationHoldAttempts, $FederationHoldName, $FederationHoldSecs) }
+    }
+}
 for ($i = 0; $i -lt $Alloc.Count; $i++) { $Alloc[$i].appNumber = $FirstFree + $i }
 $AppNo = @{}
 foreach ($a in $Alloc) { $AppNo[$a.key] = $a.appNumber }
 $NextFree = $FirstFree + $Alloc.Count
+# The holder's numbers in attempt order, so Stage 2h can index them without re-deriving
+# the key names. EMPTY (and never read) when the stage is off.
+$FedHoldAppNos = @()
+if ($FederationHoldOn) {
+    for ($h = 1; $h -le $FederationHoldAttempts; $h++) { $FedHoldAppNos += $AppNo[('fedHold{0}' -f $h)] }
+}
 
 Say ('  marker currently reads : {0}' -f $FirstFree)
 foreach ($a in $Alloc) { Say ('    {0,-6}  {1,-12} {2}' -f $a.appNumber, $a.key, $a.purpose) }
@@ -2687,6 +2849,7 @@ $Manifest.appNumbers      = $Alloc
 $Manifest.ledger.file     = $LedgerDoc
 $Manifest.ledger.wasValue = $FirstFree
 $Manifest.ledger.newValue = $NextFree
+if ($FederationHoldOn) { $Manifest.inputs.vrfProfile.federationHolder.appNumbers = $FedHoldAppNos }
 
 function Update-Ledger {
     param([int]$From, [int]$To, [string]$RunId, $Allocation)
@@ -2770,6 +2933,12 @@ $PathWatchdogOut  = Join-Path $RunDir 'watchdog.stdout.log'
 $PathWatchdogErr  = Join-Path $RunDir 'watchdog.stderr.log'
 $PathWatchdogIn   = Join-Path $RunDir 'watchdog.stdin.empty'
 $PathWatchdogPid  = Join-Path $RunDir 'watchdog.pid'
+# Stage 2h - the federation holder (STP-825). Each ATTEMPT gets its own stdout/stderr pair
+# (holder.<n>.stdout.log / .stderr.log, built in the stage) so a failed create and the
+# attempt that finally joined never overwrite each other's evidence. holder.stdin.empty is
+# the same zero-byte device the watchdog uses and for the same reason: the holder is started
+# DETACHED and OUTLIVES this runner, so it must not hold the launching terminal's stdin open.
+$PathHolderStdIn  = Join-Path $RunDir 'holder.stdin.empty'
 $ManifestPath     = Join-Path $RunDir 'run-manifest.json'
 # The observers' stop signal. Teardown creates it at StopIface + TrailSecs; WatchVrf
 # and ListenReports poll for it once a second and resign / disconnect on seeing it.
@@ -2862,6 +3031,8 @@ $Manifest.inputs.preOrderGate            = $(if ($PreOrderGateOn) { $PreOrderGat
 $Manifest.inputs.preOrderGateTimeoutSec  = $(if ($PreOrderGateOn) { $PreOrderGateTimeoutSec } else { 0 })
 $Manifest.inputs.pauseAtSec              = $PauseAtSec
 $Manifest.inputs.resumeAtSec             = $ResumeAtSec
+$Manifest.inputs.federationHoldSecs      = $FederationHoldSecs
+$Manifest.inputs.federationHoldAttempts  = $FederationHoldAttempts
 $Manifest.inputs.objectConsoleNotifyLevel = $ObjectConsoleLevel
 # An EXPLICIT -WatchSecs wins over the derived value, settle included - which is correct (it is
 # the operator's choice) and is also how a stage-7d hold could silently truncate a trace: the
@@ -2928,6 +3099,13 @@ $SavedVrfAppNumber   = $env:Vrf__ApplicationNumber
 $SavedC2SimRestUrl   = $env:C2SIM__RestUrl
 $SavedC2SimStompUrl  = $env:C2SIM__StompUrl
 $LedgerAdvanced      = $false
+# Stage 2h (STP-825). Initialised BEFORE the try so the teardown inventory and the outer
+# finally can read them on EVERY exit path, including an abort that never reaches the stage
+# (Set-StrictMode -Version Latest turns an unset variable into a terminating error - the
+# exact defect check 8h pins for $script:RunnerLockTaken).
+$script:RtiExecLogPath        = ''
+$script:RtiExecServingPid     = $null
+$script:FederationHolderPids  = @()
 # The profile's own environment, and what it displaced. Both maps are EMPTY on 5.0.2,
 # so every loop over them below is a no-op there. Restored in the finally beside PATH.
 $SavedProfileEnv     = [ordered]@{}
@@ -3123,6 +3301,12 @@ try {
             $Manifest.inputs.vrfProfile.rtiExec.forwarderPid = $rtiFwdPid
             $Manifest.inputs.vrfProfile.rtiExec.started      = $rtiStarted
             $Manifest.inputs.vrfProfile.rtiExec.logFile      = $rtiLog
+            # Stage 2h reads THIS rtiexec's log to see the holder's join, so resolve the file
+            # once, here, where the stage's own pids and marker line are in hand. log= is a
+            # real path only when this run STARTED the rtiexec; on the ordinary
+            # already-up path it is prose, and the file has to be found by the serving pid.
+            $script:RtiExecServingPid = $rtiExecPid
+            $script:RtiExecLogPath    = Get-RtiExecLogPath -Recorded ([string]$rtiLog) -LogDir $RtiExecLogDir -RtiExecPid $rtiExecPid
             Save-Manifest
             switch ($r.ExitCode) {
                 0 { Say-Ok ('rtiexec READY (pid {0}, forwarder {1}, started-by-this-run={2}). It is NEVER torn down - the next run will find it.' -f $rtiExecPid, $rtiFwdPid, $rtiStarted) }
@@ -3131,6 +3315,207 @@ try {
                 default { Stop-Runner 3 ('StartRtiExec52 exited {0} - undocumented code. Refusing to launch on an uninterpretable gate result.' -f $r.ExitCode) }
             }
         }
+    }
+
+    # ---------------------------------------------------------------------
+    # STAGE 2h - FEDERATION HOLDER (5.2 PROFILE ONLY) - FATAL, BEFORE STAGE 2c
+    # ---------------------------------------------------------------------
+    # STP-825 (2026-09-15). WHAT GOES WRONG WITHOUT IT. On this profile the SIM ends up
+    # being the federation's CREATOR at Stage 3: Stage 2c's RtiProbe creates MAK-ONE-2025,
+    # joins it, resigns - and, being the last federate in it, DESTROYS it on the way out.
+    # Since 14:23Z on 2026-09-15 rtiexec 5.0.1 rejects a CREATOR's FOM-module distribution
+    # INTERMITTENTLY ("Failed to process FOM file <module> when creating federation
+    # MAK-ONE-2025, FOM Reader reports ...", "Sending Create Response = Error"), so the
+    # sim's create fails and it DIES AT STARTUP (LaunchVrf exit 3); a failed create also
+    # crashes the creating process (STP-832). JOINS HAVE NEVER FAILED - not once, in any
+    # run in the record.
+    #
+    # THE REPAIR: make sure the federation ALREADY EXISTS before the sim asks. This stage
+    # starts a HOLDER federate - RtiProbe with maxAttempts 1 and a LONG settle - which
+    # creates-or-joins the federation and then STAYS JOINED for -FederationHoldSecs. Stage
+    # 2c then JOINS instead of creating, and its resign no longer destroys the federation
+    # because the holder is still in it; the sim's own create returns "already exists" and
+    # it JOINS too. Confirmed live with exactly this holder started by hand: runs
+    # 20260915T151959Z and 20260915T160253Z.
+    #
+    # THE HOLDER IS A JOINED FEDERATE, and two consequences are not negotiable:
+    #   * it is started DETACHED (its own hidden console plus a file for stdin, exactly like
+    #     the stage-6b watchdog) because it MUST outlive this runner - the hold is a
+    #     WALL-CLOCK timer, not a run length; and
+    #   * teardown NEVER touches it and never waits for it. It resigns by itself when the
+    #     settle expires. Force-killing a federate strands it and the next start hangs at
+    #     RTI join (RUNBOOK sec 0). Its own destroy attempt after resigning fails
+    #     harmlessly - by then the sim is joined, so it is not the last one out.
+    #
+    # COST: one ledgered appNumber PER ATTEMPT (see the allocation block for why a retry
+    # must not reuse one). -FederationHoldSecs 0 disables the stage completely and restores
+    # the pre-STP-825 behaviour: no stage, no appNumbers, no output.
+    if ($FederationHoldOn) {
+        Say-Head 'Stage 2h - federation HOLDER (STP-825) - FATAL, before Stage 2c'
+        Say ('  A holder federate creates-or-joins {0} and STAYS JOINED for {1}s, so neither Stage 2c nor' -f $FederationHoldName, $FederationHoldSecs)
+        Say '  the SIM ever has to CREATE the federation - and the CREATE is the operation rtiexec 5.0.1'
+        Say '  rejects intermittently ("Failed to process FOM file <module> ... Sending Create Response = Error").'
+        Say '  Joins have never failed. The sim will then log "already exists" followed by "Joined federation".'
+        Say ('  Up to {0} attempt(s), ONE ledgered appNumber each; join is read from the rtiexec log, not from' -f $FederationHoldAttempts)
+        Say ('  the holder''s stdout (RtiProbe prints "created/joined" only AFTER the {0}s hold).' -f $FederationHoldSecs)
+        Say '  The holder is DETACHED, OUTLIVES this run, is NEVER killed by teardown and is never waited for.'
+        Say ('  federation identity: {0}' -f $FederationHoldNameSource)
+
+        $holderExeArgs1 = @([string]$(if ($FedHoldAppNos.Count -gt 0) { $FedHoldAppNos[0] } else { 0 }),
+                            $FederationHoldName, '1', [string]$FederationHoldSecs, '3')
+        $holderNote = ('STP-825 federation holder: create-or-join and HOLD. maxAttempts 1 (a retry is a NEW appNumber, by design), settle = the hold, backoff 3. It RESIGNS ON ITS OWN TIMER and is NEVER killed or waited for - teardown leaves it alone (RUNBOOK sec 0). Its later destroy attempt fails harmlessly because the sim is joined by then.')
+
+        if ($DryRun) {
+            Say-Plan ('would start the federation holder RtiProbe.exe <appNo> {0} 1 {1} 3 DETACHED (own hidden console), cwd {2}, under the 5.2 profile env + PATH prefix + RTI_RID_FILE + RTI_ASSISTANT_DISABLE - exactly as Stage 2c' -f $FederationHoldName, $FederationHoldSecs, $Bin64)
+            Say-Plan ('would allocate {0} appNumbers for it, ONE PER ATTEMPT ({1}) - a dry run consumes NONE and the marker is not advanced' -f $FederationHoldAttempts, ($FedHoldAppNos -join ','))
+            Say-Plan ('would wait up to {0}s per attempt for the rtiexec log line: Federate remoteControl <holderPid> ... has joined federation "{1}"' -f $FederationHoldJoinWaitSec, $FederationHoldName)
+            Say-Plan ('would write holder.<attempt>.stdout.log / holder.<attempt>.stderr.log and the empty stdin file {0} into the run directory' -f $PathHolderStdIn)
+            Say-Plan ('would FAIL the run (Stop-Runner, STP-825) if no attempt joins after {0} tries, naming the rejected FOM module' -f $FederationHoldAttempts)
+            Say-Plan 'would LEAVE the holder joined at teardown and NOT wait for it - it is a federate on a wall-clock hold, named in the post-teardown inventory as EXPECTED'
+            $null = Start-External -Name 'FederationHolder-1' -File $ExeRtiProbe -Arguments $holderExeArgs1 `
+                        -Cwd $Bin64 -StdOutFile (Join-Path $RunDir 'holder.1.stdout.log') `
+                        -StdErrFile (Join-Path $RunDir 'holder.1.stderr.log') `
+                        -StdInFile $PathHolderStdIn -NewConsole -Note $holderNote
+        } else {
+            try { [System.IO.File]::WriteAllText($PathHolderStdIn, '') }
+            catch { Say-Warn ('could not create {0}: {1}. The holder will inherit this runner''s stdin instead.' -f $PathHolderStdIn, $_.Exception.Message) }
+
+            $holderLog = $script:RtiExecLogPath
+            if ($holderLog) {
+                Say-Ok ('join will be read from the rtiexec log: {0}' -f $holderLog)
+            } else {
+                Add-Flag 'WARN' ('Stage 2h could not resolve the serving rtiexec''s log file (Stage 2r recorded none and no rtiexec_*-<pid>.log was found in {0}). The join can then only be confirmed from the holder''s OWN stdout, which RtiProbe writes AFTER its {1}s hold - so with the default hold this stage will report the join UNCONFIRMED even when it succeeded.' -f $RtiExecLogDir, $FederationHoldSecs)
+            }
+
+            $holderJoined     = $false
+            $holderPid        = $null
+            $holderAppNo      = $null
+            $holderJoinedUtc  = $null
+            $holderWaitedSec  = 0
+            $holderEvidence   = ''
+            $holderAttemptLog = @()
+            $holderUsed       = 0
+
+            for ($a = 1; $a -le $FederationHoldAttempts -and -not $holderJoined; $a++) {
+                $holderUsed = $a
+                $hAppNo = $FedHoldAppNos[$a - 1]
+                $hOut   = Join-Path $RunDir ('holder.{0}.stdout.log' -f $a)
+                $hErr   = Join-Path $RunDir ('holder.{0}.stderr.log' -f $a)
+                # Byte offset BEFORE the holder exists, so the scan can never match another
+                # federate's earlier join line - the pid filter already makes that unlikely,
+                # and pids are reused on Windows, which makes "unlikely" not good enough.
+                [long]$hOffset = 0
+                if ($holderLog) { try { $hOffset = (Get-Item -LiteralPath $holderLog).Length } catch { $hOffset = 0 } }
+
+                $hProc = $null
+                try {
+                    $hProc = Start-External -Name ('FederationHolder-{0}' -f $a) -File $ExeRtiProbe `
+                                -Arguments @([string]$hAppNo, $FederationHoldName, '1', [string]$FederationHoldSecs, '3') `
+                                -Cwd $Bin64 -StdOutFile $hOut -StdErrFile $hErr `
+                                -StdInFile $(if (Test-Path -LiteralPath $PathHolderStdIn) { $PathHolderStdIn } else { '' }) `
+                                -NewConsole -Note $holderNote
+                } catch {
+                    $hProc = $null
+                    Say-Warn ('Stage 2h attempt {0}: the holder could not be started: {1}' -f $a, $_.Exception.Message)
+                }
+                if ($null -eq $hProc) {
+                    # SAME RECORD SHAPE as every other attempt (waitedSec included), and
+                    # $holderWaitedSec is reset so the manifest's joinWaitedSec can never
+                    # report a PREVIOUS attempt's wait for one that never started.
+                    $holderWaitedSec = 0
+                    $holderAttemptLog += [ordered]@{ attempt = $a; appNumber = $hAppNo; processId = $null; joined = $false; exited = $true; exitCode = $null; fomModule = ''; stdout = $hOut; waitedSec = 0; atUtc = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ') }
+                    continue
+                }
+                $script:FederationHolderPids += $hProc.Id
+                $hJoinRe = ('remoteControl\s+{0}\b.*has joined federation "{1}"' -f $hProc.Id, [regex]::Escape($FederationHoldName))
+                Say-Info ('Stage 2h attempt {0}/{1}: holder pid {2} on appNumber {3}; waiting up to {4}s for its join.' -f $a, $FederationHoldAttempts, $hProc.Id, $hAppNo, $FederationHoldJoinWaitSec)
+
+                $hStart = Get-Date
+                while (((Get-Date) - $hStart).TotalSeconds -lt $FederationHoldJoinWaitSec) {
+                    Start-Sleep -Seconds 1
+                    if ($holderLog) {
+                        if ((Read-TextFromOffset -Path $holderLog -Offset $hOffset) -match $hJoinRe) {
+                            $holderJoined   = $true
+                            $holderEvidence = ('rtiexec log: remoteControl {0} has joined federation "{1}"' -f $hProc.Id, $FederationHoldName)
+                            break
+                        }
+                    } elseif ((Read-LiveText -Path $hOut) -match 'created/joined') {
+                        # The documented fallback when the rtiexec log path is unknown. It can
+                        # only fire for a hold SHORTER than the wait (RtiProbe prints that line
+                        # after the settle) - it is here so a short-hold probe run is still
+                        # confirmable, not because it can answer the default 900 s case.
+                        $holderJoined   = $true
+                        $holderEvidence = ('holder stdout: "created/joined" in {0} (rtiexec log path unknown)' -f $hOut)
+                        break
+                    }
+                    if ($hProc.HasExited) { break }
+                }
+                $holderWaitedSec = [int]((Get-Date) - $hStart).TotalSeconds
+
+                $hExited = $hProc.HasExited
+                $hCode   = $null
+                if ($hExited) { try { $hCode = $hProc.ExitCode } catch { $hCode = $null } }
+                # The rtiexec's own account of WHY a create was refused, when it refused one.
+                $hFom = ''
+                if ($holderLog) {
+                    $hFomM = [regex]::Matches((Read-TextFromOffset -Path $holderLog -Offset $hOffset), 'Failed to process FOM file (\S+)')
+                    if ($hFomM.Count -gt 0) { $hFom = $hFomM[$hFomM.Count - 1].Groups[1].Value }
+                }
+                $holderAttemptLog += [ordered]@{
+                    attempt   = $a
+                    appNumber = $hAppNo
+                    processId = $hProc.Id
+                    joined    = $holderJoined
+                    exited    = [bool]$hExited
+                    exitCode  = $hCode
+                    fomModule = $hFom
+                    stdout    = $hOut
+                    waitedSec = $holderWaitedSec
+                    atUtc     = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+                }
+
+                if ($holderJoined) {
+                    $holderPid       = $hProc.Id
+                    $holderAppNo     = $hAppNo
+                    $holderJoinedUtc = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+                    Say-Ok ('federation HELD: holder pid {0} (appNumber {1}) joined {2} in {3}s on attempt {4}/{5}. {6}' -f `
+                                $holderPid, $holderAppNo, $FederationHoldName, $holderWaitedSec, $a, $FederationHoldAttempts, $holderEvidence)
+                    Say-Ok ('  It stays joined for {0}s from now, so Stage 2c JOINS and the sim''s own create returns "already exists". It is NEVER killed.' -f $FederationHoldSecs)
+                } else {
+                    Say-Warn ('Stage 2h attempt {0}/{1} FAILED: holder pid {2} on appNumber {3} did not join within {4}s (exited={5}, exitCode={6}{7}).' -f `
+                                $a, $FederationHoldAttempts, $hProc.Id, $hAppNo, $holderWaitedSec, $hExited, $hCode, `
+                                $(if ($hFom) { (', rtiexec: Failed to process FOM file ' + $hFom) } else { '' }))
+                    if (-not $hExited) {
+                        Add-Flag 'WARN' ('Stage 2h attempt {0}: holder pid {1} did NOT join within {2}s but is STILL RUNNING. It was NOT killed (RUNBOOK sec 0 - it may be a joined federate this runner simply could not see). The next attempt starts a SECOND holder on a fresh appNumber; both resign on their own {3}s timers.' -f $a, $hProc.Id, $holderWaitedSec, $FederationHoldSecs)
+                    }
+                }
+            }
+
+            $Manifest.inputs.vrfProfile.federationHolder.appNumber     = $holderAppNo
+            $Manifest.inputs.vrfProfile.federationHolder.processId     = $holderPid
+            $Manifest.inputs.vrfProfile.federationHolder.attemptsUsed  = $holderUsed
+            $Manifest.inputs.vrfProfile.federationHolder.joinedUtc     = $holderJoinedUtc
+            $Manifest.inputs.vrfProfile.federationHolder.joinWaitedSec = $holderWaitedSec
+            $Manifest.inputs.vrfProfile.federationHolder.rtiExecLog    = $holderLog
+            $Manifest.inputs.vrfProfile.federationHolder.joinEvidence  = $holderEvidence
+            $Manifest.inputs.vrfProfile.federationHolder.attempts      = $holderAttemptLog
+            Save-Manifest
+
+            if (-not $holderJoined) {
+                $hFoms = @($holderAttemptLog | ForEach-Object { $_.fomModule } | Where-Object { $_ } | Select-Object -Unique)
+                Stop-Runner 3 ('STP-825: the federation HOLDER could not join {0} after {1} attempt(s) on appNumbers {2}. Without a holder the SIM becomes the federation CREATOR at Stage 3, and rtiexec 5.0.1 is currently rejecting creator FOM distribution{3} - the sim would die at startup (LaunchVrf exit 3) after a full launch cycle, and a failed create also crashes the creating process (STP-832). REFUSING THE LAUNCH here instead, before any back end is started. Read {4} and the rtiexec log {5}. Nothing was killed; any holder process still alive is a federate and resigns on its own {6}s timer. To run WITHOUT the holder (the pre-STP-825 behaviour, which is the failure mode): -FederationHoldSecs 0.' -f `
+                    $FederationHoldName, $FederationHoldAttempts, ($FedHoldAppNos -join ','), `
+                    $(if ($hFoms.Count -gt 0) { (' (modules refused this run: ' + ($hFoms -join ', ') + ')') } else { '' }), `
+                    (Join-Path $RunDir 'holder.1.stdout.log'), $(if ($holderLog) { $holderLog } else { $RtiExecLogDir }), $FederationHoldSecs)
+            }
+        }
+    } elseif ($Is52) {
+        Say-Head 'Stage 2h - federation HOLDER (STP-825)'
+        Say-Warn '-FederationHoldSecs 0: the holder is DISABLED, so the SIM becomes the federation CREATOR at Stage 3.'
+        Say-Warn '  That is the STP-825 failure mode: rtiexec 5.0.1 rejects a creator''s FOM-module distribution'
+        Say-Warn '  intermittently, and the sim then dies at startup (LaunchVrf exit 3) after a full launch cycle.'
+        Say-Warn '  This is the pre-2026-09-15 behaviour and it is kept only as the single-variable control.'
+        Add-Flag 'WARN' 'Stage 2h federation holder DISABLED (-FederationHoldSecs 0). The sim will CREATE the federation, which is the STP-825 failure mode.'
     }
 
     Say-Head 'Stage 2c - RTI readiness gate (C1) - FATAL, before any back-end launch'
@@ -4474,6 +4859,24 @@ finally {
             Add-Flag 'WARN' ('Observer processes still present after teardown: {0}. Not killed - they end on their own duration cap. The next run REFUSES to launch (Stage 1) until they are gone.' -f ($obsLeft -join ', '))
         } else { Say-Ok 'no WatchVrf / ListenReports observer remains' }
         if ($rtiLeft.Count -gt 0) { Say-Ok ('RTI infrastructure preserved (correct): {0}' -f ($rtiLeft -join ', ')) }
+
+        # STAGE 2h's HOLDER IS EXPECTED TO BE ALIVE HERE (STP-825). It is not a leftover and
+        # not a fault: it is a joined federate on a WALL-CLOCK hold that deliberately
+        # outlives this run, so the next run's sim also finds the federation already there.
+        # Named in the inventory so "nothing left running" stays honest, never killed
+        # (RUNBOOK sec 0) and never waited for - teardown does not block on it.
+        $holdLeft = @()
+        foreach ($hp in $script:FederationHolderPids) {
+            $hAlive = $false
+            try { $null = Get-Process -Id $hp -ErrorAction Stop; $hAlive = $true } catch { $hAlive = $false }
+            if ($hAlive) { $holdLeft += ('RtiProbe-holder(pid {0})' -f $hp) }
+        }
+        $Manifest.preflight.postRunFederationHolder = $holdLeft
+        if ($holdLeft.Count -gt 0) {
+            Say-Ok ('federation holder STILL JOINED and that is EXPECTED (STP-825): {0}. It holds {1} on a {2}s wall-clock timer so the next create is an "already exists" JOIN. NOT killed, NOT waited for.' -f ($holdLeft -join ', '), $FederationHoldName, $FederationHoldSecs)
+        } elseif ($FederationHoldOn) {
+            Say-Ok 'the Stage 2h federation holder has already resigned (its hold expired during the run) - nothing left to leave alone.'
+        }
 
         # Restore this process's environment.
         $env:PATH                  = $SavedPath

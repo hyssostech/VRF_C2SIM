@@ -426,9 +426,13 @@ foreach ($p in $sreAst.ParamBlock.Parameters) { $sreParams[$p.Name.VariablePath.
 foreach ($n in @('RtiDir','RidFile','LogDir','TcpPort','UdpPort','DestAddress','InterfaceAddress','ForwarderPort','ReadyTimeoutSec','DryRun')) {
     Check ('StartRtiExec52 declares -{0}' -f $n) ($sreParams.ContainsKey($n))
 }
-Check 'StartRtiExec52 defaults to the 4001/4001/5000 rendezvous of the golden connection' (
+# FORWARDER PORT 5000 -> 5002 (main c0c4185, 2026-09-15; RUNBOOK 9c): an unrelated user
+# process took 0.0.0.0:5000 after the forwarder died, so the rid and StartRtiExec52's default
+# were moved together. This check was left behind and has been a FALSE RED on main ever since
+# - the product is correct and the assertion was stale, exactly like 8d/8f were in 3c71025.
+Check 'StartRtiExec52 defaults to the 4001/4001/5002 rendezvous of the golden connection' (
     "$($sreParams['TcpPort'].DefaultValue)" -eq '4001' -and "$($sreParams['UdpPort'].DefaultValue)" -eq '4001' -and
-    "$($sreParams['ForwarderPort'].DefaultValue)" -eq '5000')
+    "$($sreParams['ForwarderPort'].DefaultValue)" -eq '5002')
 Check 'StartRtiExec52 defaults to the loopback broadcast + 127.0.0.1 interface' (
     "$($sreParams['DestAddress'].DefaultValue)" -match '127\.255\.255\.255' -and
     "$($sreParams['InterfaceAddress'].DefaultValue)" -match '127\.0\.0\.1')
@@ -1011,6 +1015,70 @@ if (-not (Test-Path -LiteralPath $wsRunawayCsv) -or -not (Test-Path -LiteralPath
     Check '8j healthy fixture (133258Z) does NOT alert' (
         $wsHealthyOut -notmatch 'BACK-END WS RUNAWAY' -and $wsHealthyOut -match '0 alerts') ("output: " + $wsHealthyOut)
 }
+
+# 8k. STAGE 2h - THE FEDERATION HOLDER (STP-825, 2026-09-15). On the 5.2 profile nothing
+# creates the federation before the SIM does: Stage 2c's RtiProbe creates MAK-ONE-2025 and
+# then DESTROYS it again on resign, being the last federate in it. Since 14:23Z rtiexec 5.0.1
+# rejects a CREATOR's FOM-module distribution intermittently ("Sending Create Response =
+# Error"), so the sim dies at startup - after a full launch cycle and a whole ledger block of
+# burned appNumbers. Stage 2h starts a HOLDER federate first, so the gate and the sim both
+# take the JOIN path (joins have never failed; confirmed live, runs 20260915T151959Z /
+# 20260915T160253Z). Like 8d/8g/8h this runs the REAL runner in -DryRun, because what is
+# asserted is what the stage would DO - a command line, a stage ORDERING and an appNumber
+# ALLOCATION - and a static read of the AST proves none of the three. NOTHING is launched:
+# -DryRun starts no process, contacts no server and does not advance the ledger marker.
+#
+# SKIPPED (not failed) in a checkout with no Release-5.2 build tree: Stage 0's tool-existence
+# validation aborts there long before Stage 2h, and asserting on plan lines that were never
+# reached is the false-RED shape 3c71025 already had to undo twice.
+Write-Host '=== 8k. Stage 2h federation holder: planned by default, omitted at -FederationHoldSecs 0 ==='
+$holdPwsh    = 'C:\Program Files\PowerShell\7\pwsh.exe'
+$holdScript  = Join-Path $RepoRoot 'scripts\RunC2SimScenario.ps1'
+$holdOn      = (& $holdPwsh -NoProfile -File $holdScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck 2>&1 | Out-String)
+$holdOnCode  = $LASTEXITCODE
+$holdOff     = (& $holdPwsh -NoProfile -File $holdScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck -FederationHoldSecs 0 2>&1 | Out-String)
+$holdOffCode = $LASTEXITCODE
+if ($holdOn -notmatch 'DRY RUN - the full planned sequence' -or $holdOff -notmatch 'DRY RUN - the full planned sequence') {
+    Check '8k SKIPPED - neither dry run reached the planned sequence in this checkout (Stage 0 aborts on the missing Release-5.2 binaries)' $true
+} else {
+    Check '8k both dry runs exit 0 or 2, never 1 (the StrictMode "has not been set" throw - 8h''s defect class)' (
+        $holdOnCode -in @(0, 2) -and $holdOffCode -in @(0, 2)) "on=$holdOnCode off=$holdOffCode"
+    Check '8k the plan lists the holder stage and the exact RtiProbe command line it would run' (
+        $holdOn -match 'would start the federation holder RtiProbe\.exe <appNo> \S+ 1 900 3 DETACHED' -and
+        $holdOn -match 'RtiProbe\.exe \d+ \S+ 1 900 3')
+    Check '8k the holder stage is planned BEFORE the Stage 2c RTI readiness gate' (
+        $holdOn.IndexOf('Stage 2h - federation HOLDER') -gt 0 -and
+        $holdOn.IndexOf('Stage 2h - federation HOLDER') -lt $holdOn.IndexOf('Stage 2c - RTI readiness gate'))
+    Check '8k the plan allocates ONE ledgered appNumber PER ATTEMPT and consumes none in a dry run' (
+        $holdOn -match 'would allocate 4 appNumbers for it, ONE PER ATTEMPT \(\d+,\d+,\d+,\d+\) - a dry run consumes NONE' -and
+        $holdOn -match 'fedHold1' -and $holdOn -match 'fedHold4')
+    Check '8k the plan reads the join from the RTIEXEC LOG, pid-anchored (the holder stdout cannot say it in time)' (
+        $holdOn -match 'would wait up to 45s per attempt for the rtiexec log line: Federate remoteControl <holderPid> \.\.\. has joined federation')
+    Check '8k the plan says teardown LEAVES the holder joined and does NOT wait for it' (
+        $holdOn -match 'would LEAVE the holder joined at teardown and NOT wait for it')
+    Check '8k -FederationHoldSecs 0 OMITS the stage: no holder start line, no fedHold appNumber' (
+        $holdOff -notmatch 'would start the federation holder' -and $holdOff -notmatch 'fedHold')
+    Check '8k -FederationHoldSecs 0 says out loud that the SIM then CREATES the federation (the STP-825 failure mode)' (
+        $holdOff -match 'the holder is DISABLED, so the SIM becomes the federation CREATOR')
+}
+# THE REGRESSION THIS PINS, caught in review before it shipped: the 5.0.2 refusal first
+# tested the VALUE of -FederationHoldSecs, and its default is 900 - so EVERY 5.0.2 run would
+# have aborted at Stage 0 validation over a parameter its operator never typed. The 5.0.2
+# profile must stay byte-for-byte what it was: a default dry run there may not mention the
+# holder at all. This assertion holds even in a checkout with no 5.0.2 binaries, because a
+# refusal would land in that run's Stage 0 Result block, which is always printed.
+$holdLegacy = (& $holdPwsh -NoProfile -File $holdScript -DryRun -SkipServerCheck 2>&1 | Out-String)
+Check '8k the 5.0.2 profile is untouched: a DEFAULT dry run there never mentions the holder' (
+    $holdLegacy -notmatch 'FederationHold' -and $holdLegacy -notmatch 'Stage 2h')
+
+# Static half: the holder is a JOINED FEDERATE, so it must be started detached and must never
+# be force-killed or waited on. Complete-Background is this runner's only wait-for-a-child
+# helper; the holder must never be handed to it (RUNBOOK sec 0).
+Check '8k runner: the holder is started DETACHED (own console) and never passed to Complete-Background' (
+    $runnerText -match 'FederationHolder' -and
+    $runnerText -match '-NewConsole -Note \$holderNote' -and
+    $runnerText -notmatch 'Complete-Background[^\r\n]*FederationHolder' -and
+    $runnerText -match 'NOT killed, NOT waited for')
 
 # 9. Get-VrfUuidByName must parse BOTH app-log route-line forms. The app started
 # logging the route's own uuid on 2026-09-02 with the route-uuid fix ("Route '<r>'
