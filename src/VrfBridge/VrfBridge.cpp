@@ -284,6 +284,22 @@ public:
 
     int  BackendCount()     { return _facade->BackendCount(); }
     bool AllBackendsReady() { return _facade->AllBackendsReady(); }
+    // STP-809. The VR-Forces back end's CONTROL STATE, as one of vrf::VrfFacade::BackendControl:
+    //   -3 Other (a vendor control type that is none of the three below)
+    //   -2 NoBackend (the vendor says no remote back end exists)
+    //   -1 Unreadable (no controller, or the vendor call threw) - "no reading", not a state
+    //    0 Unknown  = DtUnknownControlType, with back ends still in the list
+    //    1 Paused   = DtPauseControlType
+    //    2 Running  = DtRunControlType
+    // The managed mirror of these values is StallPolicy.BackendControl; VrfFacade.h carries the
+    // vendor trail and states what the answer does NOT say (it is the FIRST back end's CACHED
+    // control state). Read in the task clock's stale branch only - see ActiveBackendCount.
+    int  BackendControlState() { return _facade->BackendControlState(); }
+    // STP-809. How many KNOWN back ends the vendor reports as simulatable or in transition
+    // (DtBackend::isInSimulatableState / isInTransitionStatus), or -1 for "no reading". 0 is the
+    // discriminator BackendCount() cannot give: backends().count() KEEPS a back end that missed
+    // its status timeout, so a count above zero does not mean anything is still answering.
+    int  ActiveBackendCount()  { return _facade->ActiveBackendCount(); }
     // The VR-Forces BACK END's scenario clock, in seconds, or -1.0 when there is no reading
     // (no controller, or no back end discovered yet). This is the SIM clock - not wall time and
     // not the local VR-Link federate clock; see VrfFacade.h for the vendor trail and for why the

@@ -1208,8 +1208,9 @@ one item) fixed in `b6471a3` and the commits listed in 7.1b; then the PASS-3 rev
 `8db033e` (verdict FIX FIRST again, on two items - and A1 independently re-derived and
 CLOSED at 42/0) fixed in `5f661f5` (D1), `fc23f14` (D2), `2cbd722` (E1), `846de1d` (E3),
 `c4f7785` (E4+E6), `9a0a928` (E5) and the docs commit carrying 7.1b's pass-3 table.
-Offline only: every check is a `--rulings-selftest` (136 checks across SIX sections - the
-count 7.1b quotes, and the one the suite prints) or a `--parse-order` census, and
+Offline only: every check is a `--rulings-selftest` (**148** checks across SIX sections since
+STP-809 - 136 at the end of pass 3 - the count 7.1b quotes, and the one the suite prints) or a
+`--parse-order` census, and
 all 18 self-tests stay green (typemap 783, scripted-task, initgraphics, preflight
 included). NOTHING here has been run against VR-Forces yet.
 
@@ -1292,8 +1293,9 @@ Verdict **FIX FIRST**, on two items. The reviewer re-derived A1's outcome indepe
 own parse of `COA-STP1_Order.xml` plus a hand re-implementation of the three window formulas -
 and got 42 dispatches / 0 skips at `DurationScale` 1.0 AND 0.05, at the shipped 600 s floor and
 at the Demo overlay's 7,200, so **A1 IS CLOSED** by two independent derivations. The two
-FIX-FIRST items were not in that work. The suite is now **136 checks**, 0 failures, and all 18
-offline suites exit 0. NOTHING below has been run against VR-Forces.
+FIX-FIRST items were not in that work. The suite was **136 checks** at the end of pass 3 and is
+**148** since STP-809, 0 failures, and all 18 offline suites exit 0. NOTHING below has been run
+against VR-Forces.
 
 | item | what was wrong | status |
 |------|----------------|--------|

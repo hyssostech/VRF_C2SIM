@@ -1743,30 +1743,54 @@ no Duration and no geometry is malformed and is refused, not held (below).
   start delay. Pause the scenario for a ten-minute coffee break and it costs the order nothing,
   and nothing completes early when it runs again. (Before Q5 the interface served WALL seconds
   after 60 s of flatness - which burned those ten minutes off every armed Duration.)
-- **It falls back to WALL seconds only when the READER IS GONE**, not when the clock is merely
-  flat: three consecutive UNREADABLE samples (`StallPolicy.ModeSwitchConfirmations`) take the
-  hysteresis path and the axis then serves wall seconds. Nothing is lost either way - the axis
+- **It falls back to WALL seconds only when the BACK END IS GONE**, not when the clock is merely
+  flat: either three consecutive UNREADABLE samples (`StallPolicy.ModeSwitchConfirmations`) take
+  the hysteresis path, or - since STP-809, see below - the vendor reports that not one known
+  back end is still operating. The axis then serves wall seconds. Nothing is lost either way - the axis
   adds FORWARD movement only, so a fall back keeps the time already served, serves the rest on
   the new base, and restarts no wait. The `TASK CLOCK:` transition lines name which happened:
   losing the reader says the sim reader is GONE and task times are now on the wall clock, and
   "readable and advancing again" is said ONLY on a genuine recovery.
 - **The HOLD line REPEATS, once a wall minute** (`StallPolicy.LogRateLimitSeconds` = 60), and
-  that is deliberate rather than a rate-limit bug: it is the only symptom of the case below, so
-  the one thing it must not be is quiet. It carries its own caveat sentence.
-- **THE LIMIT - AND THE SYMPTOM TO RECOGNISE AT A DEMO: a back end that dies IN PLACE freezes
-  task time indefinitely.** The predicate's only signal is `BackendCount`, which is
+  that is deliberate rather than a rate-limit bug: while the hold rests on the BackendCount
+  fallback it is the only symptom of the case below, so the one thing it must not be is quiet.
+  It then carries its own caveat sentence; a hold on a CONFIRMED pause does not need one and
+  says so (STP-809, below).
+- **CLOSED BY STP-809: the interface now asks the back end WHAT IT IS DOING, not just whether
+  it was ever discovered.** Until STP-809 the hold rested on one signal, `BackendCount` =
   `backends().count()`, and the vendor's back-end list DEACTIVATES an entry that has missed its
   status timeout rather than removing it (`vrfBackendListener.h:161-163`, `doTimeouts()`
   "deactivates any status objects which have not responded within the timeout interval";
   `remove()` at `:153-155` "normally, this should not need to get called!"; `backends()` is the
-  list of "all KNOWN back ends"). So the count stays above zero, the hold keeps firing, and no
-  Duration completes, no gate expires, no start delay runs out and the progress watchdog stays
-  suspended - with ONE WARNING A MINUTE as the only output. **If that line keeps repeating and
-  nobody paused anything, the back end has died and task time is frozen until it returns.** The
-  real fix is a facade accessor the code itself names (`StallPolicy.cs`):
-  `DtVrfRemoteController::backendsControlState()` (`vrfRemoteController.h:321-323`) returns
-  Paused vs Running, which is the discriminator the predicate actually wants. STP-809; NOT
-  taken before the demo, so the repeating WARNING is what an operator has to read.
+  list of "all KNOWN back ends"). A back end that died IN PLACE therefore looked exactly like a
+  paused one and froze task time for the rest of the run (pass-3 review E2). The facade now also
+  reads:
+  - `VrfFacade::BackendControlState()` -> `DtVrfRemoteController::backendsControlState()`
+    (`vrfRemoteController.h:320-323`): **PAUSED** (`DtPauseControlType`) vs **RUNNING**
+    (`DtRunControlType`) vs no back end at all. A pause is now a POSITIVE reading.
+  - `VrfFacade::ActiveBackendCount()` -> how many KNOWN back ends the vendor still calls
+    simulatable or in transition (`DtBackend::isInSimulatableState` / `isInTransitionStatus`,
+    `vrfutil/backend.h:109`/`:115`, over `backendListener()->backendList()`).
+
+  **The rule (`StallPolicy.TaskClockAction`), in the order it is applied:** not one active back
+  end -> **WALL** (it has DIED, whatever its last status said); PAUSED -> **HOLD**; no back end
+  at all -> **WALL**; RUNNING with a flat clock -> **HOLD** (the status message and the clock
+  sample refresh on different cadences, so this is a blind period, not a death - only the
+  three-unreadable-sample hysteresis may switch clocks); anything unreadable -> the old
+  `BackendCount` rule, unchanged. **A signal that says nothing can never change an outcome**, so
+  a deployment carrying an older `VrfBridge.dll` behaves exactly as it did before (it also gets
+  one WARNING a minute naming the partial deploy - RUNBOOK sec 9).
+- **WHAT THE OPERATOR READS.** The repeating `TASK CLOCK:` line now names the state it decided
+  on: "the back end REPORTS PAUSED (DtPauseControlType; BackendCount=1, active=1)" is a
+  confirmed pause and carries NO caveat; "the control state is UNKNOWN - falling back to the
+  back-end COUNT" still carries the old caveat sentence, because on that fallback a dead back
+  end still looks paused. If the back end dies, the line that fires is the WALL one: "the back
+  end's last status said RUNNING but NOT ONE known back end is still simulatable or in
+  transition ... it has DIED, it was not paused", and task times move to the wall clock keeping
+  every second already served. **UNCONFIRMED LIVE** (assessment live gate 11): nobody has yet
+  killed a back end and watched what the vendor reports for the deactivated entry. If the active
+  count never drops, the behaviour is exactly the pre-STP-809 one - the repeating WARNING with
+  its caveat - so that is still the line to recognise at a demo.
 - **The predecessor gate is a FLOOR, not the whole window - and it asks TWO questions.** A gated
   task waits for its predecessor to COMPLETE for at least
   `(that predecessor's Duration x Vrf:DurationScale) + Vrf:TaskPredecessorEndMarginSeconds` (M1),
