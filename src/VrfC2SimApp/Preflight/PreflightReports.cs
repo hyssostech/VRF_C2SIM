@@ -244,6 +244,75 @@ public static class PreflightReports
         return outp;
     }
 
+    // ============= THE ROUTE-EXTENT REFUSAL (STP-833; RouteExtentPolicy) ====================
+    // A REFUSAL is the loudest thing this interface does to an order, so it is never silent to
+    // the C2 side either: the same Location + Name observation pair as a warning or a shift, with
+    // the location at the OFFENDING VERTEX - the coordinate the operator has to correct - and the
+    // whole refusal sentence in the Marking. The TASKABRT that accompanies it is pushed through
+    // the single emit point by the service, exactly as Q4's malformed-task refusal is.
+
+    /// <summary>
+    /// One refused task -> one bare ReportBody. AltitudeMSL is NOT set: the vertex is refused
+    /// BEFORE the terrain profile authors an altitude for it, so there is no altitude to report
+    /// and inventing 0 would put a sea-level claim on a Mojave coordinate.
+    /// </summary>
+    public static string BuildRouteExtentRefusalReport(string unitUuid, string unitName, string taskName,
+                                                       RouteExtentPolicy.Verdict verdict,
+                                                       string isoDateTime, string reportId)
+    {
+        string actor = unitUuid ?? "";
+        var body = new S.ReportBodyType
+        {
+            FromSender = ZeroUuid,
+            ToReceiver = ZeroUuid,
+            ReportContent = new[]
+            {
+                new S.ReportContentType
+                {
+                    Item = new S.ObservationReportContentType
+                    {
+                        TimeOfObservation = new S.TimeInstantType
+                        {
+                            Item = new S.DateTimeType { IsoDateTime = isoDateTime }
+                        },
+                        Observation = new[]
+                        {
+                            // WHERE: the vertex that broke the bound.
+                            new S.ObservationType
+                            {
+                                Item = new S.LocationObservationType
+                                {
+                                    ActorReference = actor,
+                                    Location = new S.LocationType
+                                    {
+                                        Item = new S.GeodeticCoordinateType
+                                        {
+                                            Latitude = Round(verdict.Lat, 6),
+                                            Longitude = Round(verdict.Lon, 6),
+                                        }
+                                    }
+                                }
+                            },
+                            // WHAT: the refusal sentence, verbatim.
+                            new S.ObservationType
+                            {
+                                Item = new S.NameObservationType
+                                {
+                                    ActorReference = actor,
+                                    Marking = RouteExtentPolicy.RefusalMarking(unitName, taskName, verdict),
+                                    Name = unitName ?? "",
+                                }
+                            },
+                        }
+                    }
+                }
+            },
+            ReportID = reportId,
+            ReportingEntity = actor,
+        };
+        return C2SIMSDK.FromC2SIMObject(body);
+    }
+
     /// <summary>Half-to-even, like python's "%.*f", so the two emitters agree digit for digit.</summary>
     private static double Round(double v, int digits)
         => double.IsNaN(v) || double.IsInfinity(v) ? v : Math.Round(v, digits, MidpointRounding.ToEven);

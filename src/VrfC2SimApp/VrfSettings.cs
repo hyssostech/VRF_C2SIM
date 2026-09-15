@@ -383,6 +383,35 @@ public class VrfSettings
     // margin; it is a freshness bound, not a timer anything waits on.
     public int NavAreaEvidenceSeconds { get; set; } = 300;
 
+    // ROUTE EXTENT AND PLAUSIBILITY (STP-833; RouteExtentPolicy.cs). *** DEFAULT ON. *** Before
+    // anything is sent to the back end, the route the interface is about to author is measured
+    // against the taskee's own position: (a) no vertex further from the taskee than
+    // MaxVertexFromTaskeeKm, (b) no leg longer than MaxRouteLegKm (leg 0 is taskee -> first
+    // authored vertex), (c) - when a loaded terrain extent is ever readable - no vertex outside
+    // it. A violation is MALFORMED in Q4's sense: the task is SKIPPED (nothing is dispatched),
+    // one TASKABRT names the vertex, the distance and the bound, one ObservationReport carries
+    // the same sentence, and the successors are abandoned exactly as every other refusal
+    // abandons them.
+    //
+    // WHY IT IS ON BY DEFAULT, unlike the two gates above: this one needs no extra evidence
+    // channel, no console level and no vendor query - it is arithmetic on data the interface
+    // already holds - and the failure it catches is not a fidelity nicety. On 2026-09-15 the V6f
+    // run drove a Mojave platoon at Swedish waypoints 8,768.9 km away; VR-Forces accepted it and
+    // `Calc off road nav path part` allocated from 3 GB to 16 GB at 780 MB/min, went silent to
+    // every controller 112 s after dispatch and moved nothing (V6_LIVE_JOIN_GATE secs 12-13).
+    //
+    // THE DEFAULTS ARE SIZED ON THIS PROJECT'S OWN REFERENCE ORDER, NOT ON A ROUND NUMBER'S
+    // APPEAL. COA-STP1's worst leg and worst vertex-from-taskee are BOTH 45.384 km
+    // (T4_ConsolidateAndPrepareDefensivePositionsAlongPlBlue, leg 0), so 50 km leaves 4.6 km of
+    // headroom and 100 km leaves 54.6 km. THAT IS NOT MUCH: an order with one 55 km leg is
+    // perfectly legitimate and would be refused. Raise the knob for such an order - do not
+    // remove the check - and note that 0 turns an individual rule off while
+    // RouteExtentCheck=false turns the whole gate off (the fail-first arm of
+    // --routeextent-selftest).
+    public bool RouteExtentCheck { get; set; } = true;
+    public double MaxRouteLegKm { get; set; } = 50.0;
+    public double MaxVertexFromTaskeeKm { get; set; } = 100.0;
+
     // OBSERVATION CHANNEL (UG52 21.9 p483): every VR-Forces object has its own console that
     // carries "messages sent from the simulation engine, from a simulation object's plan, from
     // other simulation objects, and from scripts", filtered by a PER-OBJECT notify level

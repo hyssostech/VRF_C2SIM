@@ -2966,6 +2966,57 @@ public sealed class VrfC2SimService : BackgroundService
                 AltMeters = isGround ? groundWpAlt : (p.Elev ?? 0.0)
             });
 
+        // ROUTE EXTENT AND PLAUSIBILITY (STP-833; Vrf:RouteExtentCheck, DEFAULT ON;
+        // RouteExtentPolicy.cs). THE EARLIEST POINT AT WHICH THE WHOLE GEOMETRY EXISTS: the
+        // taskee's live position is routeGeo[0], the task's own Location/objective has already
+        // been read through TaskGeometryResolver + TaskGeometryInterpretation into taskPoints, and
+        // the origin-vertex drop has been applied - and NOTHING has been sent to the back end yet.
+        // Deliberately BEFORE the route shift and the terrain-profile request: a route to another
+        // continent must not cost a tile search or a terrain round-trip, and it must never reach
+        // `RequestTerrainProfile`, which on V6f answered for the Swedish vertices and made the
+        // authoring log read "all 3 vertices authored from terrain".
+        //
+        // WHAT IT COSTS A HEALTHY TASK: two haversines per vertex, no allocation beyond the
+        // coordinate copy, no I/O. Successful tasks are byte-identical - the check returns Ok and
+        // the next line is the one that ran before it.
+        //
+        // A VIOLATION IS MALFORMED IN Q4'S SENSE (user ruling 2026-09-14): the order is at fault,
+        // so the interface refuses LOUDLY rather than inventing a substitute geometry - ERROR
+        // naming the vertex, the distance and the bound; TASKABRT through the single emit point;
+        // one ObservationReport carrying the same sentence; and NotifyAbandoned so the successors
+        // fail fast instead of waiting out the chain backstop, exactly as Q4's refusal does.
+        if (_vrf.RouteExtentCheck)
+        {
+            var extentVertices = new List<(double Lat, double Lon)>(routeGeo.Count);
+            foreach (var g in routeGeo) extentVertices.Add((g.LatDeg, g.LonDeg));
+            var extent = RouteExtentPolicy.KnownExtent();
+            if (extent == null && !_routeExtentNoteLogged)
+            {
+                _routeExtentNoteLogged = true;
+                _log.LogInformation("{Note}", RouteExtentPolicy.ExtentUnavailableNote);
+            }
+            // The setting is passed THROUGH to the policy (it is also the `if` above, which is what
+            // makes a disabled check cost nothing): the OFF arm of --routeextent-selftest then
+            // exercises the same call this line makes, not a separate imitation of it.
+            var extentVerdict = RouteExtentPolicy.Check(_vrf.RouteExtentCheck, live.LatDeg, live.LonDeg,
+                                                        extentVertices, _vrf.MaxVertexFromTaskeeKm,
+                                                        _vrf.MaxRouteLegKm, extent);
+            if (extentVerdict.Violated)
+            {
+                _log.LogError("Task '{Task}' is MALFORMED and will NOT be executed: {Why}",
+                              task.TaskName, RouteExtentPolicy.RefusalMarking(unit.Name, task.TaskName, extentVerdict));
+                _sequencer.NotifyAbandoned(task.TaskUuid);
+                PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKABRT,
+                               $"{RouteExtentPolicy.MalformedGeometryRefusal} - task '{task.TaskName}': " +
+                               $"{extentVerdict.Reason} - refused, not dispatched");
+                _ = PushReportAsync(Preflight.PreflightReports.BuildRouteExtentRefusalReport(
+                                        task.TaskeeUuid, unit.Name, task.TaskName, extentVerdict,
+                                        IsoNow(), NewReportId()),
+                                    ReportKind.Observation);
+                return;
+            }
+        }
+
         // THE LATERAL ROUTE SHIFT (Vrf:PreflightRouteShift, DEFAULT OFF - STP-804/806;
         // docs/experiments/DESIGN_ROUTE_SHIFT_2026-09-15.md). The route geometry is final here -
         // the live start and the origin-vertex drop have both been applied - and the altitudes are
@@ -3770,6 +3821,9 @@ public sealed class VrfC2SimService : BackgroundService
     // same path a vendor completion takes (SynthesizeUnitCompletion pops the in-flight record,
     // releases the successors, issues a deferred engage). The vendor's own completion for that
     // task, if it ever comes, is swallowed once (OnVrfTaskCompleted).
+    // STP-833: the "rule (c) is skipped, and here is why" line is a CONFIGURATION fact, not a
+    // per-task event - said once per run, like the nav gate's blind warning.
+    private bool _routeExtentNoteLogged;
     private readonly ConcurrentDictionary<string, string> _arrivalReported = new();   // unit name -> task uuid reported from evidence
     private readonly ConcurrentDictionary<string, string> _pendingRouteUnit = new();  // route/waypoint name -> unit name (swallow cleared when its VRF task is issued)
     private readonly ConcurrentDictionary<string, (double Lat, double Lon)> _authoredPosByName = new();  // unit name -> C2SIM authored position (origin-vertex drop)
