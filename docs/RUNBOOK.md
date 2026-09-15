@@ -1926,21 +1926,51 @@ DEPLOY SET:
   read-only half of the before/after reset verification (sec 8); use `ResetVrf --help` for the
   no-join plan.
 
-  LIVE JOIN GATE RUN 2026-09-15 03:10Z (V6, scratch federation 20260915T030650Z; ticket STP-820): FAILED ON EFFECT. SmokeTest
-  PASS; ResetVrf/SetSimRate/CreateTaskAgg JOIN (rid loaded, resign cleanly) but discover 0 back ends and only
-  three placeholder uuids (VRF_UUID:0:0:0-control-object/-entity/-unit), never the scenario's objects; ResetVrf
-  printed a successful 'reset' that deleted NOTHING (false green); SetSimRate/CreateTaskAgg refused correctly.
-  VrfC2SimApp in the same federation had BackendCount=1 (explicit Vrf__ConnectionConfigFile + the runner's
-  MAK_VRLDIR/MAK_VRFDIR env); a probe with MAK_VRFDIR(64)=5.2d alone did not help. CAUSE OPEN (harvest 04:05Z,
-  branch fix/tools-connection-config 89639c2): the null-connection-config hypothesis was FALSIFIED offline - the
-  vendor default resolves cwd-relative to ../appData/settings/connections/MAK-ONE-2025-Config.xml, which EXISTED
-  from the bin64 cwd the gates had, and no gate log carries the vendor's 'Unable to load configuration file' line;
-  the 0:0:0-* uuids are DtNonVrfUUIDResolver placeholders (one per reflected list, null DIS id) - the tools were
-  in the right federation with discovery working but received NO attribute data and NO back-end status;
-  MAK_VRLDIR/MAK_VRFDIR are read by no bridge DLL. The branch is HARDENING (explicit --config > env > stack-derived
-  path, printed before Start; ResetVrf refuses without a back end and never counts placeholders) and does not
-  explain the symptom. V6b = the discriminating probe (gate 1 twice: full runner env only vs --config only; secs
-  7b/8.0) with scratchpad validation/v6b_gates.ps1.
+  LIVE JOIN GATE, TWO RUNS, STILL FAILING - AND THE CAUSE IS NOT IN THIS SECTION (STP-820).
+  V6  2026-09-15 03:10Z, runs/20260915T030650Z_run, preserved rtiexec.
+  V6b 2026-09-15 11:43Z, runs/20260915T114001Z_run, FRESH rtiexec, tools hardened at 89639c2.
+  In BOTH: SmokeTest PASS; every tool that JOINS (rid loaded, clean resign) reports
+  BackendCount=0 after 15 s and refuses. In V6 ResetVrf also printed a 'reset' that deleted
+  NOTHING (three DtNonVrfUUIDResolver placeholders, one per reflected list) - a false green the
+  hardening has since made impossible.
+
+  V6b WAS THE DISCRIMINATING RUN AND IT KILLED THE LAUNCH-CONTEXT FRAME. Gate 1 ran TWICE - the
+  FULL runner ProfileEnv with no --config, and V6's minimal env with an explicit --config - and
+  the two arms are byte-identical failures. THE POSITIVE CONTROL FAILED TOO: the RUNNER-launched
+  tools/PauseSim (appNos 4443/4444, the same Invoke-External path that found a back end in 0.3 s
+  in V5) got BackendCount=0. Meanwhile VrfC2SimApp in the SAME federation logged
+  'Backend discovered (BackendCount=1) after 0.1 s', WatchVrf held reflected=48 readable=45, and
+  units moved. So: env, cwd, connection config, bridge hash, StartupConfig, appNumber, firewall,
+  RTI freshness and runner-vs-external are ALL FALSIFIED - see
+  docs/experiments/V6_LIVE_JOIN_GATE_2026-09-15.md for each one and how it died.
+
+  WHAT THE EVIDENCE NARROWS IT TO. Two channels, and only one is broken. WatchVrf-precheck - a
+  SHORT-LIVED federate that joined a quiet federation with no units in it - still got object
+  discovery AND attribute data (reflected=2 readable=1). The VR-Forces back-end STATUS never
+  arrives. BackendCount is fed ONLY by VR-Forces status MESSAGES (DtSimMessage) through
+  DtVrfBackendListener (vrfcontrol/vrfBackendListener.h:73-78, :178-186), never by object
+  attributes - so requestAttributeValueUpdate and the DtReflectedObjectList request flags are
+  the WRONG instrument. The listener asks for status ONCE, from its constructor (sendRequest,
+  protected, :265-268); there is no public re-request, so a federate that misses that one answer
+  has no second chance of its own.
+
+  EVERYTHING THAT JOINED AT OR BEFORE 11:42:45Z SUCCEEDED; EVERYTHING FROM 11:43:47Z FAILED. The
+  app is not a counterexample - it joins 2 s after PushInit, into a back end that is about to
+  create units. The surviving hypothesis is the back end's status cadence (fixed period > 15 s,
+  or on-change only), and NOBODY HAS EVER MEASURED IT: the runner has never passed WatchVrf
+  --report-backends, so no trace in the record carries a backends= column. Turn that flag on
+  before running another gate.
+
+  A REAL SAMPLE-PARITY GAP FOUND WHILE READING, NOT A PROVEN CAUSE: the 5.2d sample calls
+  communicationManager()->run() after setSessionId (examples/remoteControl/main.cxx:56,
+  'Puts the simulation into run mode by letting the network connections know').
+  VrfFacade::Start never calls it, and since Y-6 it does not drive the exercise clock either
+  (VrfFacade.cpp:668-671). It cannot explain app-vs-tool (the app omits it too and works), so it
+  is arm A5 of the prereg, behind the G-A eleven-consumer redeploy - not a drive-by fix.
+
+  NEXT: docs/experiments/PREREG_V6C_LATE_JOINER_2026-09-15.md (arms A0 instrument, A1 patience,
+  A2 provoke, A3 early, A4 busy control; STOP conditions written first). The hardening branch
+  fix/tools-connection-config 89639c2 is NOT a fix for this and is not merged.
 
   (`bridge-spikes/VrfBridgeSpike/SpikeRunner` is NOT one of them - it references
   `VrfBridge.Spike.dll`, a different artefact, and is not part of a deploy.)
