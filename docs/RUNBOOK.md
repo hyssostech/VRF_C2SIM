@@ -1897,3 +1897,65 @@ no Duration and no geometry is malformed and is refused, not held (below).
 
 START-UP PROOF: one `TASK CLOCK (R4):` line names the clock in force, the scale, and the gate
 formula. If that line is missing, the build predates this change.
+
+---
+
+## 12. THE ROUTE PRE-FLIGHT AND ITS LATERAL SHIFT - BOTH OFF BY DEFAULT (STP-804/806)
+
+Design: `docs/experiments/DESIGN_ROUTE_SHIFT_2026-09-15.md`. Evidence: FINDING_EARLY_STOPS
+sec 7/7e, PREREG_RIDGE_AG sec 3.2-3.3, PREREG_N1_N2 sec 10.3 (N2d),
+READ_4-27_G3_AND_OFFSET_SCORING sec 2.3/2.5. NOTHING BELOW HAS BEEN RUN LIVE.
+
+Two separate features, two separate keys:
+
+| key | default | what it does |
+|---|---|---|
+| `Vrf:PreflightWarnings` | false | AFTER dispatch, score the route that was driven and push one ObservationReport per flagged leg. Never alters a task. |
+| `Vrf:PreflightRouteShift` | false | BEFORE dispatch, score the route and detour each FLAGGED leg laterally onto ground the same sampler scores as clear. CHANGES WHERE UNITS DRIVE. |
+
+Turn them on with environment overrides in the interface's own shell (double underscore = the
+`:` of the key), as with the C16 watchdog in sec 10:
+
+```powershell
+$env:Vrf__PreflightRouteShift  = "true"
+$env:Vrf__PreflightWarnings    = "true"     # so the route that IS driven is reported too
+$env:Vrf__PreflightOffline     = "true"     # the AO tile cache must be pre-warmed
+$env:Vrf__PreflightCacheDir    = "C:\C2SIM\preflight-cache"
+```
+
+WHAT THE SHIFT DOES, EXACTLY. For each leg whose sustained-40 m ratio reaches
+`Vrf:PreflightThreshold` (0.92), it searches offsets outward from `...ShiftStepMeters` (25 m) to
+`...ShiftMaxMeters` (600 m), both sides, and takes the SMALLEST that clears. "Clears" means the
+whole detoured polyline re-scores at or below `threshold - ...ShiftMarginRatio` (0.82) AND -
+while `...ShiftClearFormationBand` is true - every formation slot line (-50/-25/0/+25/+50 m)
+scores below the threshold. It then inserts FOUR points between the leg's two authored
+vertices: two ON the authored line where the path leaves and rejoins it, and two on the offset
+line spanning the flagged window plus `...ShiftPadMeters` (50) plus `...ShiftLeadMeters` (110)
+each side. `...ShiftMaxTurnDegrees` (30) sets the corner and hence the transit length.
+
+WHAT IT NEVER DOES: move, drop or reorder one of STP's own vertices; refuse a task; or act
+silently. A flagged leg no offset clears is dispatched AS AUTHORED with an ObservationReport
+saying so.
+
+THE THREE THINGS TO LOOK FOR IN THE LOG:
+
+    ROUTE SHIFT check queued for <unit> (<n> vertices); dispatch deferred ...   (it is running)
+    ROUTE SHIFTED <d> m <side> - ratio <before> -> <after> ...                  (it acted)
+    NO ROUTE SHIFT - NO CLEARED LINE within +/-<band> m ...                     (it declined)
+
+and one failure mode that must never be silent:
+
+    the ROUTE SHIFT check did not finish within <t> s - dispatching on the line as authored
+
+DISPATCH IS DEFERRED WHILE IT RUNS. The check runs OFF the tick thread (a cold leg fetches
+terrain tiles over HTTP) and the task is dispatched from the re-entry, exactly as the
+TerrainProfile continuation works. `Vrf:PreflightRouteShiftTimeoutSeconds` (30) bounds it; on
+expiry the AUTHORED line is dispatched. PRE-WARM THE CACHE for the AO and set
+`Vrf:PreflightOffline=true` (the STP-802 scenario-prep posture) so a demo never waits on the
+network at dispatch.
+
+OFFLINE PROOF, no bridge and no network: `VrfC2SimApp --routeshift-selftest` (it asserts that
+zero tiles were fetched). On the 1-35 ridge leg it reproduces the record: the authored line
+1.098, the chosen shift +75 m NORTH at 0.803 with a formation band max of 0.878, 1-1's T23 leg
+(0.870) and 1-35's authored V0->V1 line (0.524 - the line N2d drove) left untouched, and the
+42.9 km PL BLUE leg flagged with no cleared line in the band.

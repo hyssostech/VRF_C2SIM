@@ -91,6 +91,13 @@ if (args.Length > 0 && args[0] == "--rulings-selftest")
 if (args.Length > 0 && args[0] == "--preflight-selftest")
     return PreflightSelfTest.Run(args.Length >= 2 ? args[1] : null, args.Length >= 3 ? args[2] : null);
 
+// Offline route-shift check (STP-804/806): the lateral shift's geometry, its chooser on the 1-35
+// ridge leg, the legs it must leave alone, the flagged leg no offset can clear, the splice, the
+// reports and the one-shot dispatch claim. Reads the tool's committed tile cache offline (a tile
+// fetch is a failure); no bridge, no network. docs/experiments/DESIGN_ROUTE_SHIFT_2026-09-15.md.
+if (args.Length > 0 && args[0] == "--routeshift-selftest")
+    return RouteShiftSelfTest.Run();
+
 // Offline scripted-task variable check (V2): every ScriptVar kind -> the vendor's DtRw* binding and
 // back (VrfBridge.DescribeScriptVars; builds a real DtScriptedTaskTask, sends nothing). Loads the
 // bridge assembly, so the MAK bin dirs must be on PATH - like --typemap-selftest.
@@ -112,7 +119,7 @@ if (args.Length > 0 && args[0].StartsWith("--") && args[0] != "--runtime-check" 
 {
     Console.Error.WriteLine("VrfC2SimApp: unknown switch '" + args[0] + "' - NOT starting the host. Known: " +
                             "--translator/--report/--sequencer/--verb/--destack/--fanout/--typemap/--terrain/" +
-                            "--placement/--compose/--arrival/--stall/--parse/--name/--preflight/--rulings/" +
+                            "--placement/--compose/--arrival/--stall/--parse/--name/--preflight/--routeshift/--rulings/" +
                             "--scripted-task/--initgraphics-selftest, --parse-init <file> [clientId], " +
                             "--parse-order <file>, --runtime-check, host switches --Key=Value; " +
                             "no arguments = run the interface.");

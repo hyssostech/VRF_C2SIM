@@ -50,6 +50,10 @@ public static class DeferredDispatch
     /// terrain heights and defers.</summary>
     public const string FirstPass = "the first dispatch pass";
 
+    /// <summary>Where the ROUTE SHIFT re-entry runs - the pass that carries the route with its
+    /// inserted waypoints back into the dispatch (Vrf:PreflightRouteShift; STP-804/806).</summary>
+    public const string RouteShiftContinuation = "the route-shift continuation";
+
     /// <summary>
     /// The sentence a dispatch that threw on the tick thread reports to C2SIM. The exception TYPE
     /// is in it as well as the message: a MissingMethodException from a stale native deploy (the
