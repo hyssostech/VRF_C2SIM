@@ -1634,6 +1634,62 @@ OPERATIONAL NOTE for repeated live runs: entities VR-Forces creates on the inter
 PERSIST across a clean interface resign; several back-to-back runs accumulate them and can stop
 new creates from reflecting - recover headlessly per sec 8 (tools/ResetVrf) between heavy runs - NO GUI reload; sec 5 and sec 0 both record the GUI-reload claim as false.
 
+## 7b. EVERY BRIDGE TOOL NAMES ITS CONNECTION CONFIG - THE VENDOR DEFAULT IS CWD-RELATIVE
+
+Added 2026-09-15 after the V6 harvest (run 20260915T030650Z).
+
+On the 5.2 stack the federation identity - `execName MAK-ONE-2025` plus the 17 NETN/MAK FOM
+modules - comes from a connection config XML, not from our constants. Until now every tool left
+`StartupConfig.ConnectionConfigFile` NULL and took the vendor default. **Measure what that
+default is before trusting it** (offline probe, scratchpad v6harvest/probe/printconfig.cpp -
+a native exe that prints the resolver's answer and joins nothing):
+
+```
+DtDefaultConfigFile             = "MAK-ONE-2025-Config.xml"   vrlink5.10 include/vlpi/exerciseConnConfig.h:24
+connectionsSettingsDirectory()  = "..\appData\settings\connections"       <-- RELATIVE TO THE PROCESS CWD
+appDataPath()                   = "..\appData"                          (also relative)
+```
+
+`MAK_VRFDIR`, `MAK_VRFDIR64`, `MAK_VRLDIR` and `MAK_RTIDIR` do **not** enter into it: varying
+them does not move the answer, and a byte scan of every DLL/EXE in `vrforces5.2d\bin64` and
+`vrlink5.10\bin64` finds `MAK_VRFDIR` in NONE of them, `MAK_VRLDIR` only in
+`managedInterface.dll` / `vrfLauncher.exe`, and `MAK_RTIDIR` only in `vrvVrlQt.dll` - none of
+which a bridge tool loads. So the default is right **only while the process cwd is the 5.2d
+bin64**, and silently wrong everywhere else. The failure is quiet by design: the vendor prints
+
+```
+Unable to load configuration file: ..\appData\settings\connections\MAK-ONE-2025-Config.xml
+```
+
+and then carries on with BUILT-IN defaults - a different execName and no FOM modules - so the
+federate joins *something* and discovers nothing. (That line is in the record: the 4367 attempt
+of 2026-09-15 02:22Z, scratchpad validation/v6_partA_out.txt.)
+
+**THE RULE.** `tools/Shared/ConnectionConfig.cs` resolves the file explicitly for every consumer
+that calls `Start()` - ResetVrf, SetSimRate, CreateTaskAgg, PauseSim, CreateOne, RtiProbe,
+RunSim, SetAlt, WatchVrf (SmokeTest never joins):
+
+1. `--config <path>` - the operator names it; wins over everything.
+2. env `Vrf__ConnectionConfigFile` - the same variable the runner already gives the app.
+3. the bound stack's own tree: `<VrfRoot>\appData\settings\connections\MAK-ONE-2025-Config.xml`,
+   where `VrfRoot` is the parent of the directory the **loaded** `vrfcontrol.dll` lives in
+   (`VrfBridge.NativeStackInfo()` - a runtime fact, never a build flag). This is cwd-independent.
+
+Every tool PRINTS the result before it joins and REFUSES to Start when the file is missing:
+
+```
+connection config = C:\MAK\vrforces5.2d\appData\settings\connections\MAK-ONE-2025-Config.xml  exists=YES  source=bound stack (loaded vrfcontrol.dll -> C:\MAK\vrforces5.2d)
+```
+
+`ResetVrf.exe --config-selftest` runs the offline resolution suite (20 checks; needs the 5.2
+PATH only because the tool's Main names bridge types, not because the checks do). On 5.0.2 the
+bridge ignores the field, so the helper resolves nothing and never refuses - it says so.
+
+WHAT THIS DOES **NOT** EXPLAIN. The V6 gate tools DID have the right cwd and DID load the real
+file (no "Unable to load" line in any of their logs), yet still reported BackendCount=0 and saw
+only non-VRF placeholders while the runner's own WatchVrf, in the same window, held
+reflected=48. That remains OPEN; see sec 8's ResetVrf note and V6b.
+
 ## 8. Self-service VR-Forces reset (avoid the manual GUI reload) - API found 2026-07-11
 
 The manual GUI scenario reload is needed ONLY to (a) clear accumulated entities (sec 7 note)
@@ -1654,6 +1710,39 @@ session need NOT wait on a human to reload:
 - `vrlinkNetworkInterface::removeAndDeleteAll()` / `resetSimulation()` exist too, but are
   network-interface-level (may only clear the LOCAL reflected view, not command the backend);
   `deleteObject` / `loadScenario` are the backend-commanding calls - prefer those.
+
+### 8.0 tools/ResetVrf AFTER THE V6 HARVEST (2026-09-15) - IT CAN NO LONGER DELETE BLIND
+
+V6 had ResetVrf report `3 deletable`, issue three deletes and print `deletes flushed` while
+**every** object stayed in the scenario (the oracle trace held `reflected=48` right across the
+window). Two defects, both fixed:
+
+* **It never waited for a back end.** It printed `[OK] joined (BackendCount=0)` and went
+  straight to discovery. A federate that sees no back end also sees no VR-Forces object data,
+  so its discovery is worthless. ResetVrf now ticks up to 15 s for a back end and REFUSES in
+  BOTH modes - `--dry-run` included, because the dry run is the BEFORE half of a verification
+  pair and a blind count poisons the pair.
+* **It counted placeholders as deletable.** `VRF_UUID:0:0:0-entity` / `-unit` /
+  `-control-object` are not three objects: they are ONE PLACEHOLDER PER REFLECTED LIST,
+  synthesised by `makVrf::DtNonVrfUUIDResolver` under the `entity-identifier` scheme
+  (`vrlinkNetworkInterface/nonVrfUUIDResolver.h`, `UUIDNetworkManager.h`; the three list
+  suffixes sit adjacent to the three scheme names in `vrlinkNetworkInterfaceHLA1516e.dll`'s
+  string pool) from the NULL identifier `0:0:0`, then de-duplicated by the set behind
+  `GetAllReflectedUuids()`. The old test - `EndsWith(":0:0:0")` - could not see them because
+  the suffix comes AFTER the zeros. The whole non-VRF scheme is now excluded, with the reason
+  printed beside each skipped uuid.
+
+**EXIT CODES** (the before/after pair is now a pair of exit codes, not a grep over two logs):
+
+| code | meaning |
+|------|---------|
+| 0 | a real reset was issued, OR a `--dry-run` found NOTHING deletable (clean) - the AFTER half |
+| 1 | operational failure: connection config missing, not joined, NO BACK END, or an exception |
+| 2 | usage / argument error - no action taken |
+| 3 | `--dry-run` found deletable objects, i.e. NOT clean - the BEFORE half |
+
+A reset pair therefore reads `3` then `0`. **Confirm it against the oracle trace anyway**: a
+reset the trace does not confirm is exactly the V6 false green, whatever the tool printed.
 
 Solution A IMPLEMENTED + LIVE-VERIFIED (2026-07-11): `VrfFacade::DeleteObject(uuid)` -> bridge ->
 `VrfC2SimService` deletes every created uuid (tracked in `_vrfUuidByName`) on clean-stop, before

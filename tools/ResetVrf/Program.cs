@@ -30,7 +30,23 @@ using VrfC2Sim.Tools;
 // LAUNCH ENV, 5.0.2 (unchanged - RUNBOOK sec 7/8): RTI 4.6.1 on PATH, cwd =
 // C:\MAK\vrforces5.0.2\bin64, and bin\Release\ instead of bin\Release-5.2\.
 //
-// Args: <applicationNumber> [federation] [--dry-run|--list] [--help]
+// CONNECTION CONFIG (V6 harvest 2026-09-15). On 5.2 the federation identity lives in
+// MAK-ONE-2025-Config.xml and the VENDOR DEFAULT PATH IS CWD-RELATIVE
+// ("..\appData\settings\connections"), so a tool launched from anywhere but the 5.2d bin64
+// silently joined with BUILT-IN defaults - a different execName, no FOM modules - and then saw
+// nothing. This tool now resolves the file EXPLICITLY (--config > env Vrf__ConnectionConfigFile
+// > the loaded vrfcontrol.dll's own tree), PRINTS it with an exists= flag before Start(), and
+// REFUSES to join when it is not there. See tools/Shared/ConnectionConfig.cs.
+//
+// EXIT CODES (the --dry-run pair criterion has its own code, so a runner never has to grep):
+//   0  the action completed: a real reset was issued, OR a --dry-run found NOTHING deletable
+//      (the federation is already clean - what the AFTER half of a reset pair expects)
+//   1  operational failure: connection config missing, not joined, NO BACK END, or an exception
+//   2  usage / argument error - no action taken
+//   3  --dry-run found deletable objects, i.e. the federation is NOT clean (what the BEFORE
+//      half of a reset pair expects). Never returned by a real reset.
+//
+// Args: <applicationNumber> [federation] [--config <path>] [--dry-run|--list] [--help]
 //   applicationNumber  REQUIRED. NO DEFAULT - the old baked-in 3299 was removed 2026-09-15:
 //                      a default invites silent reuse of a burned appNo, which steals a
 //                      federate slot (RUNBOOK sec 7, "never allocate one").
@@ -54,14 +70,21 @@ static string NativeStackLine()
 // (exit 0), so a runner capturing stdout for data never ingests a failure block.
 static void PrintUsage(System.IO.TextWriter w)
 {
-    w.WriteLine("usage: ResetVrf.exe <applicationNumber> [federation] [--dry-run|--list]");
-    w.WriteLine("       ResetVrf.exe --help");
+    w.WriteLine("usage: ResetVrf.exe <applicationNumber> [federation] [--config <path>] [--dry-run|--list]");
+    w.WriteLine("       ResetVrf.exe --help | --config-selftest");
     w.WriteLine();
     w.WriteLine("  applicationNumber  REQUIRED. NO DEFAULT - use a FRESH, ledgered appNo every");
     w.WriteLine("                     run (RUNBOOK sec 7). Reusing one steals a federate slot.");
     w.WriteLine("  federation         Optional. Default is stack-aware (5.0.2 -> CWIX-2024;");
     w.WriteLine("                     5.2 -> connection-config identity; tools/Shared/StackIdentity.cs).");
-    w.WriteLine("  --dry-run/--list   JOIN and discover, but issue NO deletes.");
+    w.WriteLine("  --config <path>    The VR-Link connection config XML (MAK-ONE-2025-Config.xml).");
+    w.WriteLine("                     Default: env " + ConnectionConfig.EnvVar + ", else the loaded");
+    w.WriteLine("                     stack's <VrfRoot>\\" + ConnectionConfig.RelativeDir + "\\" + ConnectionConfig.FileName + ".");
+    w.WriteLine("                     The tool REFUSES to join when that file is not there.");
+    w.WriteLine("  --dry-run/--list   JOIN and discover, but issue NO deletes. Exit 3 when anything");
+    w.WriteLine("                     deletable was found, 0 when the federation is clean.");
+    w.WriteLine("  --config-selftest  Run the OFFLINE connection-config resolution suite and exit.");
+    w.WriteLine("                     Joins nothing, reads no file, needs no VR-Forces.");
 }
 
 static int Usage(string problem)
@@ -72,6 +95,16 @@ static int Usage(string problem)
     return 2;
 }
 
+// --config <path> is taken out of args FIRST so the positional / unknown-flag parsing below
+// never sees either token. ConnectionConfig owns the option name and the three-rule order.
+if (!ConnectionConfig.TryTakeFlag(args, out args, out string connArg, out string connProblem))
+    return Usage(connProblem);
+
+// The offline resolution suite. NO join, NO file system, NO VR-Forces - it is the regression
+// test for tools/Shared/ConnectionConfig.cs and exits with the number of FAILED checks.
+if (args.Any(a => string.Equals(a, "--config-selftest", StringComparison.OrdinalIgnoreCase)))
+    return ConnectionConfig.SelfTest(Console.Out);
+
 bool dryRun = args.Any(a => string.Equals(a, "--dry-run", StringComparison.OrdinalIgnoreCase)
                          || string.Equals(a, "--list", StringComparison.OrdinalIgnoreCase));
 bool help = args.Any(a => string.Equals(a, "--help", StringComparison.OrdinalIgnoreCase)
@@ -79,7 +112,8 @@ bool help = args.Any(a => string.Equals(a, "--help", StringComparison.OrdinalIgn
 var unknown = args.Where(a => a.StartsWith("--", StringComparison.Ordinal))
                   .Where(a => !string.Equals(a, "--dry-run", StringComparison.OrdinalIgnoreCase)
                            && !string.Equals(a, "--list", StringComparison.OrdinalIgnoreCase)
-                           && !string.Equals(a, "--help", StringComparison.OrdinalIgnoreCase))
+                           && !string.Equals(a, "--help", StringComparison.OrdinalIgnoreCase)
+                           && !string.Equals(a, "--config-selftest", StringComparison.OrdinalIgnoreCase))
                   .ToArray();
 var positional = args.Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToArray();
 
@@ -91,10 +125,13 @@ if (help)
     Console.WriteLine("    " + NativeStackLine());
     var planCfg = new StartupConfig { Protocol = VrfProtocol.Hla1516e, SiteId = 1, SessionId = 1 };
     Console.WriteLine("    " + StackIdentity.Apply(planCfg, positional.Length >= 2 ? positional[1] : null));
+    Console.WriteLine("    " + ConnectionConfig.Resolve(connArg).Banner);
     Console.WriteLine();
-    Console.WriteLine("    PLAN: join -> BeginTrackingReflectedObjects -> tick until the discovered count");
-    Console.WriteLine("          settles (cap 20 s) -> DeleteObject each non-nil uuid -> flush ~3 s ->");
-    Console.WriteLine("          resign cleanly. --dry-run stops before the deletes (it still JOINS).");
+    Console.WriteLine("    PLAN: join -> tick until a BACK END is discovered (cap 15 s; REFUSE at 0, in");
+    Console.WriteLine("          both modes) -> BeginTrackingReflectedObjects -> tick until the discovered");
+    Console.WriteLine("          count settles (cap 20 s) -> DeleteObject each uuid that is NOT a non-VRF");
+    Console.WriteLine("          entity-identifier id -> flush ~3 s -> resign cleanly. --dry-run stops");
+    Console.WriteLine("          before the deletes (it still JOINS) and exits 3 if anything was found.");
     Console.WriteLine("    THIS INVOCATION JOINED NOTHING and deleted nothing.");
     Console.WriteLine();
     PrintUsage(Console.Out);
@@ -102,7 +139,7 @@ if (help)
 }
 
 if (unknown.Length > 0)
-    return Usage($"unknown option(s): {string.Join(" ", unknown)}. ResetVrf accepts --dry-run, --list and --help only.");
+    return Usage($"unknown option(s): {string.Join(" ", unknown)}. ResetVrf accepts --config <path>, --dry-run, --list, --config-selftest and --help only.");
 
 if (positional.Length == 0)
     return Usage("Missing <applicationNumber>. It is REQUIRED and has NO default - supply a " +
@@ -130,9 +167,22 @@ var cfg = new StartupConfig
 // here: on 5.2 the connection config owns them (MIGRATION_DIFF A2/A9).
 string fedDesc = StackIdentity.Apply(cfg, federation);
 
+// The connection config is resolved and PRINTED before anything joins, and a missing file is a
+// REFUSAL, not a fallback: without it VR-Link joins with built-in defaults and the tool would
+// report "[OK] joined" and then discover nothing (V6, 2026-09-15).
+var conn = ConnectionConfig.Resolve(connArg);
+conn.ApplyTo(cfg);
+
 Console.WriteLine("=== ResetVrf - hard reset of a live VR-Forces federation (RUNBOOK sec 8) ===");
 Console.WriteLine($"    {fedDesc}  appNumber={appNumber}  dryRun={dryRun}  (use a FRESH appNumber each run)");
-Console.WriteLine($"    {NativeStackLine()}\n");
+Console.WriteLine($"    {NativeStackLine()}");
+Console.WriteLine($"    {conn.Banner}\n");
+
+if (!conn.Ok)
+{
+    Console.Error.WriteLine(conn.RefusalText);
+    return 1;
+}
 
 VrfBridge bridge = null;
 try
@@ -148,7 +198,38 @@ try
                           "MAKLMGRD_LICENSE_FILE, FED/FOM, cwd = VRF bin64, fresh appNumber.");
         return 1;
     }
-    Console.WriteLine($"[OK] joined (BackendCount={bridge.BackendCount()}).");
+    Console.WriteLine($"[OK] joined (BackendCount={bridge.BackendCount()} immediately after Start).");
+
+    // 1b. WAIT FOR A BACK END, exactly as tools/SetSimRate does. LOAD-BEARING: back ends are
+    //     not known at the instant Start() returns, and a federate that never discovers one is
+    //     BLIND - in V6 (2026-09-15) this tool reported "3 deletable" and "deletes flushed" at
+    //     BackendCount=0 while all 48 real objects stayed in the scenario. A blind read is not
+    //     evidence, so this refuses in BOTH modes: --dry-run included, because the dry run is
+    //     the BEFORE half of a verification pair and a blind count would poison the pair.
+    Console.WriteLine("[..] waiting for a back end to be discovered (15 s cap)...");
+    var swBackend = Stopwatch.StartNew();
+    int backends = 0;
+    while (swBackend.Elapsed < TimeSpan.FromSeconds(15))
+    {
+        bridge.Tick();
+        Thread.Sleep(50);
+        backends = bridge.BackendCount();
+        if (backends > 0) break;
+    }
+    if (backends == 0)
+    {
+        Console.Error.WriteLine($"[FAIL] no back end discovered after {swBackend.Elapsed.TotalSeconds:F0} s " +
+                                "(BackendCount=0). NOTHING was deleted, and the discovery below would be " +
+                                "meaningless: a federate that sees no back end also sees no VR-Forces object " +
+                                "data, so the only uuids it can report are non-VRF placeholders. Confirm " +
+                                "VR-Forces is up with a scenario loaded, that this federate uses the SAME " +
+                                "connection config and rid as the simulator, then retry with a FRESH appNumber.");
+        Console.Error.WriteLine("[..] bridge.Stop() - resigning cleanly...");
+        bridge.Stop();
+        Console.Error.WriteLine($"[OK] resigned. Mark appNumber {appNumber} as USED.");
+        return 1;
+    }
+    Console.WriteLine($"[OK] {backends} back end(s) discovered after {swBackend.Elapsed.TotalSeconds:F1} s.");
 
     // 2. Collect reflected UUIDs. Register BEFORE the first Tick() so no discovery is missed,
     //    then tick until the discovered count stops growing (or a cap).
@@ -180,13 +261,14 @@ try
     // Skip nil / zero uuids (e.g. "VRF_UUID:0:0:0" - the entity-identifier nil, or an
     // all-zero GUID). These are backend/control artifacts, not created objects; deleting one
     // is at best a no-op and could poke a backend object, so leave them alone.
-    var uuids = all.Where(u => !IsNilUuid(u)).ToList();
+    var uuids = all.Where(u => !IsNotDeletable(u)).ToList();
     int skipped = all.Count - uuids.Count;
     Console.WriteLine($"[OK] discovery complete: {all.Count} reflected object(s) " +
                       $"({uuids.Count} deletable, {skipped} nil/backend skipped).");
 
     // Show a sample of what was found (uuids are opaque, but the count + a few is useful).
-    foreach (var u in all.Take(12)) Console.WriteLine($"       {u}{(IsNilUuid(u) ? "   [skip: nil]" : "")}");
+    foreach (var u in all.Take(12))
+        Console.WriteLine($"       {u}{(IsNotDeletable(u) ? "   [skip: " + SkipReason(u) + "]" : "")}");
     if (all.Count > 12) Console.WriteLine($"       ... and {all.Count - 12} more.");
 
     if (uuids.Count == 0)
@@ -197,6 +279,13 @@ try
     else if (dryRun)
     {
         Console.WriteLine($"[DRY-RUN] would delete {uuids.Count} object(s); NO deletes issued.");
+        Console.WriteLine("[..] bridge.Stop() - resigning from the federation...");
+        bridge.Stop();
+        Console.WriteLine("[OK] resigned cleanly.");
+        Console.WriteLine($"     Mark appNumber {appNumber} as USED in the ledger.");
+        // EXIT 3 = NOT CLEAN. Its own code, so the before/after halves of a reset are a pair of
+        // EXIT CODES (3 then 0) instead of a grep over two logs.
+        return 3;
     }
     else
     {
@@ -230,11 +319,41 @@ finally
     bridge?.Dispose();
 }
 
-// A nil / zero uuid ("VRF_UUID:0:0:0" entity-identifier nil, or an all-zero GUID) is a
-// backend/control artifact, not a created object - never a delete target.
-static bool IsNilUuid(string u)
+// WHICH UUIDS ARE NEVER A DELETE TARGET.
+//
+// VR-Forces publishes its own objects with a real UUID attribute. For an object that does NOT
+// carry one, makVrf::DtNonVrfUUIDResolver SYNTHESISES an id under the scheme the controller was
+// initialised with - ours is "entity-identifier" (VrfFacade.cpp passes it to
+// DtVrlinkVrfRemoteController::init; the three schemes are listed in
+// vrlinkNetworkInterface/nonVrfUUIDResolver.h and UUIDNetworkManager.h). That scheme spells the
+// object's DIS-style identifier and appends the list it came from: the literals "-entity",
+// "-unit" and "-control-object" sit side by side in the string pool of
+// vrlinkNetworkInterfaceHLA1516e.dll, next to "entity-identifier" / "global-identifier" /
+// "marking-text".
+//
+// So "VRF_UUID:0:0:0-entity" / "-unit" / "-control-object" are NOT three objects and NOT
+// VR-Forces objects: they are ONE PLACEHOLDER PER REFLECTED LIST, built from the NULL identifier
+// 0:0:0 because no attribute data had arrived, then de-duplicated by the set behind
+// GetAllReflectedUuids(). The V6 run (2026-09-15) issued three deleteObject calls against
+// exactly those and reported "deletes flushed" while every real object stayed in the scenario
+// (the oracle trace held reflected=48 right across the window). The old test - EndsWith
+// ":0:0:0" - could not see them because the list suffix comes AFTER the zeros.
+//
+// A non-VRF id with a REAL identifier (e.g. "VRF_UUID:1:3001:25-entity") is a foreign federate's
+// object: VR-Forces did not create it and deleteObject on it is a no-op at best, so the whole
+// scheme is excluded, not just the null case.
+static bool IsNotDeletable(string u) => SkipReason(u) != null;
+
+// null = deletable. Otherwise the reason, printed beside the uuid.
+static string SkipReason(string u)
 {
-    if (string.IsNullOrWhiteSpace(u)) return true;
-    return u.EndsWith(":0:0:0", StringComparison.Ordinal)
-        || u.Contains("00000000-0000-0000-0000-000000000000", StringComparison.Ordinal);
+    if (string.IsNullOrWhiteSpace(u)) return "empty";
+    if (u.Contains("00000000-0000-0000-0000-000000000000", StringComparison.Ordinal)) return "nil guid";
+    if (u.EndsWith(":0:0:0", StringComparison.Ordinal)) return "nil entity-identifier";
+    foreach (string suffix in new[] { "-entity", "-unit", "-control-object" })
+        if (u.EndsWith(suffix, StringComparison.Ordinal))
+            return u.Contains(":0:0:0" + suffix, StringComparison.Ordinal)
+                 ? "non-VRF placeholder (null id, one per reflected list)"
+                 : "non-VRF object (entity-identifier scheme; VR-Forces did not create it)";
+    return null;
 }

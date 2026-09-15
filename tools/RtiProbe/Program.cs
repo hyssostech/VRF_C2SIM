@@ -68,6 +68,14 @@ static string[] UsageLines() => new[]
 };
 
 // --- argument handling (tools/Shared/ToolArgs.cs standard: 0 ok / 1 op / 2 usage) ---
+// --config <path> (V6 harvest 2026-09-15): the VR-Link connection config is resolved
+// EXPLICITLY - arg > env Vrf__ConnectionConfigFile > the loaded stack's own tree - because the
+// vendor default is CWD-RELATIVE and silently falls back to built-in defaults when the cwd is
+// not the VR-Forces bin64. Taken out of args FIRST so the parsing below never sees either
+// token (tools/Shared/ConnectionConfig.cs).
+if (!ConnectionConfig.TryTakeFlag(args, out args, out string connArg, out string connProblem))
+    return ToolArgs.Usage(connProblem, UsageLines());
+
 string[] unknown = ToolArgs.UnknownFlags(args);
 if (unknown.Length > 0)
     return ToolArgs.Usage($"unknown option(s): {string.Join(" ", unknown)}. "
@@ -105,10 +113,17 @@ var cfg = new StartupConfig
     HostInetAddr = "127.0.0.1",
 };
 string fedDesc = StackIdentity.Apply(cfg, federation);
+// Resolve the connection config, apply it to cfg, and REFUSE to join when it is missing:
+// without it VR-Link joins with built-in defaults and the tool reports a successful join and
+// then sees nothing (V6, 2026-09-15).
+var conn = ConnectionConfig.Resolve(connArg);
+conn.ApplyTo(cfg);
 string fedShown = string.IsNullOrEmpty(cfg.Federation) ? "(config-file identity)" : cfg.Federation;
 
 Console.WriteLine("=== RtiProbe - RTI readiness gate (create-or-join, internal retry+backoff) ===");
 Console.WriteLine($"    {fedDesc}");
+Console.WriteLine($"    {conn.Banner}");
+if (!conn.Ok) { Console.Error.WriteLine(conn.RefusalText); return 1; }
 Console.WriteLine($"    appNumber={appNumber}  maxAttempts={maxAttempts}  "
                 + $"settle={settleSecs}s  backoff={backoffSecs}s");
 Console.WriteLine("    exit 0 = serviceable (join OK, clean resign); 1 = NOT ready; 2 = usage.");

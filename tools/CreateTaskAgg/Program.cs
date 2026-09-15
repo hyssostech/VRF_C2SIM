@@ -141,6 +141,14 @@ static EntityTypeSpec TankPlatoonUsaType() => new()
 
 // ------------------------------------------------------------------------------------------
 
+// --config <path> (V6 harvest 2026-09-15): the VR-Link connection config is resolved
+// EXPLICITLY - arg > env Vrf__ConnectionConfigFile > the loaded stack's own tree - because the
+// vendor default is CWD-RELATIVE and silently falls back to built-in defaults when the cwd is
+// not the VR-Forces bin64. Taken out of args FIRST so the parsing below never sees either
+// token (tools/Shared/ConnectionConfig.cs).
+if (!ConnectionConfig.TryTakeFlag(args, out args, out string connArg, out string connProblem))
+    return Fail(connProblem);
+
 var positional = args.Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToArray();
 bool dryRun = args.Any(a => string.Equals(a, "--dry-run", StringComparison.OrdinalIgnoreCase));
 bool help = args.Any(a => string.Equals(a, "--help", StringComparison.OrdinalIgnoreCase)
@@ -160,6 +168,7 @@ if (help)
     Console.WriteLine("    " + NativeStackLine());
     var planCfg = new StartupConfig { Protocol = VrfProtocol.Hla1516e, SiteId = 1, SessionId = 1 };
     Console.WriteLine("    " + StackIdentity.Apply(planCfg, null));
+    Console.WriteLine("    " + ConnectionConfig.Resolve(connArg).Banner);
     Console.WriteLine("    PLAN (create): join -> wait for a backend -> CreateAggregate(Disaggregated,");
     Console.WriteLine("                   createSubordinates) -> await ObjectCreated -> flush -> resign.");
     Console.WriteLine("    PLAN (task):   join -> wait for a backend -> CreateRoute -> await ObjectCreated ->");
@@ -234,6 +243,21 @@ static VrfBridge JoinAndWaitBackend(StartupConfig cfg)
     return bridge;
 }
 
+// One resolution for both phases, and a REFUSAL when the file is missing: a join with
+// built-in defaults would create a Tank Platoon nobody can see (V6, 2026-09-15).
+var conn = ConnectionConfig.Resolve(connArg);
+// A --dry-run JOINS NOTHING, so a missing config is reported there, not refused: a dry run's
+// contract is 'arguments validated, no action taken', and turning it into exit 1 would make a
+// runner's own dry run fail on a machine where the real run is fine. tools/ResetVrf is the
+// deliberate exception - its --dry-run DOES join, so it refuses like a real run.
+if (!conn.Ok)
+{
+    if (!dryRun) { Console.Error.WriteLine(conn.RefusalText); return 1; }
+    Console.WriteLine("    " + conn.Banner);
+    Console.WriteLine("[DRY-RUN] the resolved connection config does NOT exist; a real run would " +
+                      "REFUSE to join. Nothing was joined either way.");
+}
+
 return phase == "create" ? RunCreate() : RunTask();
 
 // ============================ CREATE PHASE ================================================
@@ -259,10 +283,12 @@ int RunCreate()
     if (!double.IsFinite(alt) || !double.IsFinite(headingDeg)) return Fail("alt/headingDeg must be finite.");
 
     var cfg = MakeConfig(appNumber, federation, out string fedDesc);
+    conn.ApplyTo(cfg);
 
     Console.WriteLine("=== CreateTaskAgg CREATE - remote-create a Tank Platoon (USA) with the CORRECT type ===");
     Console.WriteLine($"    {fedDesc}  appNumber={appNumber}  (use a FRESH appNumber each join)");
     Console.WriteLine($"    {NativeStackLine()}");
+    Console.WriteLine($"    {conn.Banner}");
     Console.WriteLine("    type=Tank Platoon (USA)  DIS 11.1.225.3.2.0.0  (class 3 aggregate; disaggregated + subordinates)");
     Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
         "    name='{0}'  pos=({1:F6}, {2:F6}) alt={3:F1} m MSL  heading={4:F1} deg", name, lat, lon, alt, headingDeg));
@@ -372,10 +398,12 @@ int RunTask()
     };
 
     var cfg = MakeConfig(appNumber, federation, out string fedDesc);
+    conn.ApplyTo(cfg);
 
     Console.WriteLine("=== CreateTaskAgg TASK - CreateRoute + MoveAlongRoute (R9's exact path) ===");
     Console.WriteLine($"    {fedDesc}  appNumber={appNumber}  aggUuid={aggUuid}");
     Console.WriteLine($"    {NativeStackLine()}");
+    Console.WriteLine($"    {conn.Banner}");
     Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
         "    route '{0}' 3 pts @ {1:F1} m MSL: ({2:F6},{3:F6}) -> ({2:F6},{4:F6}) -> ({2:F6},{5:F6})",
         RouteName, routeAlt, StartLat, StartLon, Wp1Lon, Wp2Lon));

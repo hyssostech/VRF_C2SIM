@@ -87,6 +87,14 @@ static int Usage(string problem)
     return 2;
 }
 
+// --config <path> (V6 harvest 2026-09-15): the VR-Link connection config is resolved
+// EXPLICITLY - arg > env Vrf__ConnectionConfigFile > the loaded stack's own tree - because the
+// vendor default is CWD-RELATIVE and silently falls back to built-in defaults when the cwd is
+// not the VR-Forces bin64. Taken out of args FIRST so the parsing below never sees either
+// token (tools/Shared/ConnectionConfig.cs).
+if (!ConnectionConfig.TryTakeFlag(args, out args, out string connArg, out string connProblem))
+    return Usage(connProblem);
+
 bool dryRun = args.Any(a => string.Equals(a, "--dry-run", StringComparison.OrdinalIgnoreCase));
 bool help = args.Any(a => string.Equals(a, "--help", StringComparison.OrdinalIgnoreCase)
                        || string.Equals(a, "-h", StringComparison.OrdinalIgnoreCase));
@@ -103,6 +111,7 @@ if (help)
     Console.WriteLine("    " + NativeStackLine());
     var planCfg = new StartupConfig { Protocol = VrfProtocol.Hla1516e, SiteId = 1, SessionId = 1 };
     Console.WriteLine("    " + StackIdentity.Apply(planCfg, positional.Length >= 3 ? positional[2] : null));
+    Console.WriteLine("    " + ConnectionConfig.Resolve(connArg).Banner);
     Console.WriteLine();
     Console.WriteLine("    PLAN: join -> tick until a backend is discovered (cap 15 s) ->");
     Console.WriteLine("          SetTimeMultiplier(n) -> flush ~3 s -> resign cleanly.");
@@ -173,10 +182,26 @@ var cfg = new StartupConfig
     HostInetAddr = "127.0.0.1",
 };
 string fedDesc = StackIdentity.Apply(cfg, federation);
+// Resolve the connection config, apply it to cfg, and REFUSE to join when it is missing:
+// without it VR-Link joins with built-in defaults and the tool reports a successful join and
+// then sees nothing (V6, 2026-09-15).
+var conn = ConnectionConfig.Resolve(connArg);
+conn.ApplyTo(cfg);
 
 Console.WriteLine("=== SetSimRate - set the VR-Forces simulation time multiplier (remote control) ===");
 Console.WriteLine($"    {fedDesc}  appNumber={appNumber}  multiplier={multiplier}x");
 Console.WriteLine($"    {NativeStackLine()}");
+Console.WriteLine($"    {conn.Banner}");
+// A --dry-run JOINS NOTHING, so a missing config is reported there, not refused: a dry run's
+// contract is 'arguments validated, no action taken', and turning it into exit 1 would make a
+// runner's own dry run fail on a machine where the real run is fine. tools/ResetVrf is the
+// deliberate exception - its --dry-run DOES join, so it refuses like a real run.
+if (!conn.Ok)
+{
+    if (!dryRun) { Console.Error.WriteLine(conn.RefusalText); return 1; }
+    Console.WriteLine("[DRY-RUN] the connection config above does NOT exist; a real run would " +
+                      "REFUSE to join. Nothing was joined either way.");
+}
 Console.WriteLine($"    started {DateTime.Now:yyyy-MM-dd HH:mm:ss} local / {DateTime.UtcNow:HH:mm:ss} UTC");
 Console.WriteLine($"    ACTION: set simulation clock to {multiplier}x real time on ALL backends.");
 Console.WriteLine("    This tool creates/deletes/tasks NOTHING. (use a FRESH appNumber each run)\n");

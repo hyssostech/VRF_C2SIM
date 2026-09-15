@@ -15,7 +15,7 @@ internal static class WatchVrfUsage
     // optional flag is added to the live path; never remove one while the flag exists.
     public static readonly string[] Capabilities =
         { "capabilities", "con-selftest", "stop-file", "diag", "no-wait-ext",
-          "no-track", "report-backends", "device-address" };
+          "no-track", "report-backends", "device-address", "config" };
 
     public const string StopFileFlag = "--stop-file";
     public const string DiagFlag = "--diag";
@@ -93,6 +93,14 @@ internal static class WatchVrfUsage
         "                     the controller's back-end count - the same reading CreateOne",
         "                     refuses to act on when it is 0. Says whether this observer sees",
         "                     the sim engine at all, independently of any reflected object.",
+        "  --config <path>    Optional. The VR-Link connection config XML",
+        "                     (MAK-ONE-2025-Config.xml) this observer joins with. Default:",
+        "                     env Vrf__ConnectionConfigFile, else the LOADED vrfcontrol.dll's",
+        "                     own <VrfRoot>\\appData\\settings\\connections tree. The vendor",
+        "                     default is CWD-RELATIVE, so an observer started from the wrong",
+        "                     directory joined with built-in defaults and reflected nothing -",
+        "                     a blind trace that reads like a quiet federation. WatchVrf now",
+        "                     prints the resolved path and REFUSES to join when it is absent.",
         "  --device-address <addr|none>",
         "                     Optional. The VR-Forces-level network interface for UDP",
         "                     (best-effort) traffic - the 5.0.2 Launcher's 'Network Interface",
