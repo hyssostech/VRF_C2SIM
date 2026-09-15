@@ -4,7 +4,7 @@
 # POST PROCESS REPORT gives a connectivity ratio nbrs/(nodes-1): 254 of 8,856 COA sectors are fragmented (< 0.5), concentrated in the
 # north-west = 1-35's lane (destack start 0.11 -> 0/6 short plans; N2d start 0.29 -> 4/6; east 1.00 -> all); the SAME ground on AO20 has 0
 # fragmented sectors. Product consequence (STP-802/803): cap every generated area at 20 x 20 km and tile the AO. Probe V7 = N2d on the
-# AO20 terrain. Carried: a second mechanism (same-second success/refusal for co-located vehicles in G7b run A) is NOT explained by this.
+# AO20 terrain. Carried: a second mechanism (same-second success/refusal for co-located vehicles in G7b run A) is NOT explained by this - ticketed STP-819 (2026-09-15 03:28Z): offline test first (query-time positions vs the sector table), one staggered-dispatch run only if inconclusive.
 
 # FINDINGS: why the WEST refuses and the EAST plans on NavArea-ground-platform MojaveCOA
 Opus research executor, 2026-09-14. READ-ONLY: nothing launched, no build, no vendor sim log
@@ -587,7 +587,7 @@ scratchpad was written.
    one area and fragmented on the other) and a VENDOR LIMIT that the two areas fall on opposite
    sides of, whereas the region story rests on a pair of runs that also differ in initialization.
    But size is the CORRELATE, not the demonstrated mechanism, and sec 9.2 says so.
-4. **UNEXPLAINED AND CARRIED, do not bury it.** G7b run A: on a lane whose sectors are all clean,
+4. **UNEXPLAINED AND CARRIED, do not bury it (ticket STP-819).** G7b run A: on a lane whose sectors are all clean,
    the 5,013.7 m leg planned with 718 points for M1A2 1 and was REFUSED for M1A2 2/3/4 with goals
    within 130 m of it, in the same wall second. Fragmentation cannot explain that. A per-query
    working-memory or concurrency limit can, and G8's null on gamewareMemorySize does not settle it
