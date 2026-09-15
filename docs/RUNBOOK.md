@@ -1139,6 +1139,16 @@ on 2026-09-14; each is now closed by something this section names
     - AFTERWARDS THE FEDERATION HAS A CORPSE IN IT. Inventory before the next launch (0.5.0): a
       leftover back end HARD-BLOCKS `LaunchVrf`, and `-AllowExistingVrf` is the false-READY trap.
 
+15. THE LAUNCH LOCK - TWO RUNNERS CANNOT BOTH LAUNCH (2026-09-15). V8z: two runner
+    instances started 2 s apart both passed Stage 1 (0.5.0 checked vrfLauncher/
+    vrfSimHLA1516e/vrfGui/WatchVrf/ListenReports, never ANOTHER RUNNER), both allocated
+    appNos and launched; the second's PushInit failed against the first's READY back end,
+    and its teardown STOPPED THE SIM under the first runner's live order. FIX: Stage 1a
+    now refuses (exit 2) if another pwsh process's CommandLine contains
+    RunC2SimScenario.ps1 (excluding this pid/ancestors), then takes `runs\runner.lock`
+    (FileMode.CreateNew; pid+UTC+run dir - a dead pid's lock is stale and removed, a live
+    one refuses) - released in `finally` AFTER teardown. `-DryRun` reports only.
+
 ---
 
 ### 0.5.15 THE LICENCE FILE - two registry scopes that disagree (added 2026-09-14)

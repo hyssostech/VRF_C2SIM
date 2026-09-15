@@ -2333,6 +2333,131 @@ if ($StopWhenComplete -and $OrderTaskees.Count -eq 0) {
 }
 
 # =============================================================================
+# STAGE 1a - RUNNER LAUNCH LOCK (RUNBOOK 0.5.14 item 15)
+# =============================================================================
+# WHY THIS EXISTS. Run V8z (2026-09-15 03:51Z, voided): two RunC2SimScenario.ps1
+# instances were started 2 s apart. BOTH passed the pre-flight inventory below (it
+# checks vrfLauncher/vrfSimHLA1516e/vrfGui/WatchVrf/ListenReports, never ANOTHER
+# RUNNER), both allocated appNos, both launched; the second saw the first's READY
+# back end, its PushInit failed, and ITS teardown STOPPED THE SIM under the FIRST
+# runner's live order. Before anything else: refuse if another runner is live,
+# then take an exclusive lock so a second runner cannot start until the first has
+# finished tearing down. The parsing/matching helpers are PURE and live in
+# RunnerLib.ps1 (Get-OtherRunnerProcessInfo, ConvertFrom-RunnerLockText,
+# Format-RunnerLockContent, Format-OtherRunnerRefusal) so they can be exercised
+# offline; the file/process I/O below cannot be pure and stays here.
+Say-Head 'Stage 1a - runner launch lock'
+
+$PathRunnerLock = Join-Path $RunRoot 'runner.lock'
+# The run directory THIS invocation would create if it gets past Stage 1/2 (the
+# REAL $RunId/$RunDir are computed later, under "RUN DIRECTORY + DERIVED PATHS",
+# from this same $stamp/$RunRoot - known early only so the lock can name it).
+$IntendedRunDir = Join-Path $RunRoot ('{0}_run' -f $stamp)
+
+$PwshSnapshot = @()
+try { $PwshSnapshot = @(Get-CimInstance -ClassName Win32_Process -Filter "Name = 'pwsh.exe'" -ErrorAction Stop) } catch { $PwshSnapshot = @() }
+# @(...) on both: see the note in RunnerLib.ps1's Get-OtherRunnerProcessInfo - a
+# HashSet or array return value gets unwrapped to a bare scalar by the pipeline
+# when it holds exactly one item, which breaks .Contains()/.Count/[0] downstream.
+$SelfAncestorIds = @(Get-ProcessAncestorIds -StartPid $PID -Processes $PwshSnapshot)
+$OtherRunners    = @(Get-OtherRunnerProcessInfo -Processes $PwshSnapshot -SelfPid $PID)
+
+$ExistingLockText = ''
+if (Test-Path -LiteralPath $PathRunnerLock -PathType Leaf) {
+    try { $ExistingLockText = Get-Content -LiteralPath $PathRunnerLock -Raw -Encoding ASCII } catch { $ExistingLockText = '' }
+}
+$ExistingLock = ConvertFrom-RunnerLockText -Text $ExistingLockText
+
+# Fold the lock file's pid into the picture: if it names a pid the process scan
+# already found, reuse its recorded run dir instead of "(unknown)". If the scan
+# found nothing but the lock names a DIFFERENT, still-alive, non-ancestor pid,
+# that is a second live runner the scan missed (only a race before it wrote the
+# lock should ever produce this).
+$LiveOther = $null
+if ($OtherRunners.Count -gt 0) {
+    $o  = $OtherRunners[0]
+    $rd = if ($ExistingLock.pid -eq $o.pid -and $ExistingLock.runDir) { $ExistingLock.runDir } else { '(unknown - no launch lock written yet)' }
+    $LiveOther = [ordered]@{ pid = $o.pid; utc = $o.startedUtc; runDir = $rd }
+} elseif ($ExistingLock.pid -gt 0 -and -not $SelfAncestorIds.Contains($ExistingLock.pid)) {
+    $stillAlive = $false
+    try { $null = Get-Process -Id $ExistingLock.pid -ErrorAction Stop; $stillAlive = $true } catch { $stillAlive = $false }
+    if ($stillAlive) { $LiveOther = $ExistingLock }
+}
+
+if ($LiveOther) {
+    $lockMsg = Format-OtherRunnerRefusal -OtherPid $LiveOther.pid -Utc $LiveOther.utc -RunDir $LiveOther.runDir
+    if ($DryRun) {
+        Say-Warn ('DRY RUN - would REFUSE: {0}' -f $lockMsg)
+        Say-Warn '  a dry run launches nothing, so it proceeds anyway - reporting only, by design.'
+    } else {
+        Say-Head 'Result'
+        Say-Fail $lockMsg
+        Say-Fail '  RUNBOOK 0.5.14 item 15 (the V8z double-launch incident): a second runner must never'
+        Say-Fail '  start while a first one is live. It releases the lock in its own teardown, AFTER'
+        Say-Fail '  tearing down - wait for it, then re-run.'
+        exit 2
+    }
+} else {
+    Say-Ok 'no other runner process is live'
+}
+
+if ($DryRun) {
+    Say-Plan ('would take the exclusive lock file {0} (pid {1}, run dir {2}); NOT taken in a dry run.' -f $PathRunnerLock, $PID, $IntendedRunDir)
+} else {
+    if ($ExistingLock.pid -gt 0) {
+        # Reaching here with a lock file already on disk means $LiveOther above was
+        # $null for it - its pid is dead (or our own ancestor) - so it is STALE.
+        # Report it and remove it rather than refuse a healthy launch forever.
+        Say-Warn ('stale lock file {0}: pid {1} is not running. Removing it.' -f $PathRunnerLock, $ExistingLock.pid)
+        try { Remove-Item -LiteralPath $PathRunnerLock -Force -ErrorAction Stop } catch {
+            Say-Fail ('could not remove the stale lock file {0}: {1}' -f $PathRunnerLock, $_.Exception.Message)
+            exit 2
+        }
+    }
+    $LockDir = Split-Path -Parent $PathRunnerLock
+    if (-not (Test-Path -LiteralPath $LockDir -PathType Container)) { New-Item -ItemType Directory -Path $LockDir -Force | Out-Null }
+    $LockNowUtc  = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+    $LockContent = Format-RunnerLockContent -RunnerPid $PID -Utc $LockNowUtc -RunDir $IntendedRunDir
+    $LockTaken = $false
+    for ($lockAttempt = 1; $lockAttempt -le 2 -and -not $LockTaken; $lockAttempt++) {
+        try {
+            $lockFs = [System.IO.File]::Open($PathRunnerLock, [System.IO.FileMode]::CreateNew,
+                                             [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
+            try {
+                $lockBytes = [System.Text.Encoding]::ASCII.GetBytes($LockContent)
+                $lockFs.Write($lockBytes, 0, $lockBytes.Length)
+            } finally { $lockFs.Dispose() }
+            $LockTaken = $true
+        } catch [System.IO.IOException] {
+            # CreateNew fails if the file exists - either a genuine race (someone
+            # else took it in the instant between our checks above and here) or a
+            # lock left by a runner that has since died. Distinguish by pid.
+            $racedText = ''
+            try { $racedText = Get-Content -LiteralPath $PathRunnerLock -Raw -Encoding ASCII } catch { }
+            $raced = ConvertFrom-RunnerLockText -Text $racedText
+            $racedAlive = $false
+            if ($raced.pid -gt 0) { try { $null = Get-Process -Id $raced.pid -ErrorAction Stop; $racedAlive = $true } catch { $racedAlive = $false } }
+            if ($racedAlive -and -not $SelfAncestorIds.Contains($raced.pid)) {
+                Say-Head 'Result'
+                Say-Fail (Format-OtherRunnerRefusal -OtherPid $raced.pid -Utc $raced.utc -RunDir $raced.runDir)
+                Say-Fail '  (won the lock in the instant between this runner''s checks - RUNBOOK 0.5.14 item 15.)'
+                exit 2
+            }
+            if ($lockAttempt -eq 1) {
+                Say-Warn ('stale lock file {0} appeared mid-check. Removing it and retrying once.' -f $PathRunnerLock)
+                try { Remove-Item -LiteralPath $PathRunnerLock -Force -ErrorAction Stop } catch { }
+            } else {
+                Say-Fail ('could not create the lock file {0} after a retry: {1}' -f $PathRunnerLock, $_.Exception.Message)
+                exit 2
+            }
+        }
+    }
+    $script:RunnerLockTaken = $true
+    $script:RunnerLockPath  = $PathRunnerLock
+    Say-Ok ('launch lock taken: {0}' -f $PathRunnerLock)
+}
+
+# =============================================================================
 # STAGE 1 - PRE-FLIGHT PROCESS INVENTORY (RUNBOOK 0.5.0)
 # =============================================================================
 Say-Head 'Stage 1 - pre-flight process inventory (RUNBOOK 0.5.0)'
@@ -4338,5 +4463,21 @@ finally {
             New-Item -ItemType File -Path (Join-Path $RunDir 'runner.teardown-ran') -Force | Out-Null
         }
     } catch { }
+
+    # LAUNCH LOCK RELEASE (RUNBOOK 0.5.14 item 15). Only the runner that actually
+    # took the lock releases it (a dry run never takes it - Stage 1a - so this is a
+    # no-op there), and only HERE, after every teardown step above has run: a
+    # second runner must not be able to start until this one has finished tearing
+    # down. Best-effort, like the teardown-ran marker above - a release that fails
+    # must not turn a completed teardown into a reported failure; the next
+    # runner's stale-pid check (Stage 1a) recovers it anyway.
+    if ($script:RunnerLockTaken -and $script:RunnerLockPath) {
+        try {
+            Remove-Item -LiteralPath $script:RunnerLockPath -Force -ErrorAction Stop
+            Say-Ok ('launch lock released: {0}' -f $script:RunnerLockPath)
+        } catch {
+            Say-Warn ('could not remove the launch lock {0}: {1}. The next runner will find pid {2} already gone and report it stale.' -f $script:RunnerLockPath, $_.Exception.Message, $PID)
+        }
+    }
     exit $RunnerExit
 }
