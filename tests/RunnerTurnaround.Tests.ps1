@@ -883,6 +883,80 @@ Check '-DryRun prints the Stage 1a "would take the exclusive lock" plan line' (
 Check '-DryRun never reports the RunnerLockTaken StrictMode throw' (
     $dryLockOut -notmatch "RunnerLockTaken.*cannot be retrieved")
 
+# 8i. `--sample-threads` WROTE ITS ARTIFACT WHERE NOBODY LOOKED (found 2026-09-15;
+# 20260915T114001Z_run / 20260915T124231Z_run / 20260915T130627Z_run all passed
+# --sample-threads and none had a thread-sample file in the run directory or the manifest).
+# The sampler DID run - three real CSVs, 188/185/219 rows - at
+# runs/launch52/RunScenario-<stamp>.threads.csv, under a stamp scripts/RunScenario.sh takes
+# for itself BEFORE the runner starts, 1-4 s off the stamp RunC2SimScenario.ps1 picks
+# independently for its OWN run directory (~line 1839). Fixed in scripts/RunScenario.sh: the
+# sampler now waits on the runner's run-directory pointer (runs/launch52/last-run-dir.txt)
+# and writes <runDir>\thread-samples.csv, recorded in the manifest as
+# artifacts.threadSamples (RUNBOOK 0.5.11 item 16). TWO independent OFFLINE assertions, in
+# the style of 8h: (1) the wrapper's dry-run plan line, which a static read cannot prove
+# right any more than 8h's StrictMode throw could - this runs the REAL bash script, like
+# 8d/8g/8h run the real ps1; (2) a DIRECT SampleThreads.ps1 invocation, offline, against a
+# throwaway renamed copy of timeout.exe (never vrfSimHLA1516e, never VR-Forces, nothing to
+# tear down), proving the instrument itself still writes real rows.
+Write-Host '=== 8i. --sample-threads: wrapper dry-run plan + a direct sampler invocation writes real rows ==='
+$sampleBash = 'C:\Program Files\Git\bin\bash.exe'
+if (-not (Test-Path -LiteralPath $sampleBash)) {
+    Check '8i-1 dry-run plan SKIPPED (no bash.exe at the pinned Git path)' $true
+} else {
+    function ConvertTo-PosixPathLocal([string]$WinPath) {
+        $p = $WinPath -replace '\\', '/'
+        if ($p -match '^([A-Za-z]):(.*)$') { return ('/' + $Matches[1].ToLower() + $Matches[2]) }
+        return $p
+    }
+    $sampleWrapperPosix = ConvertTo-PosixPathLocal (Join-Path $RepoRoot 'scripts\RunScenario.sh')
+    $sampleDryOut = (& $sampleBash $sampleWrapperPosix '--dry-run' '--sample-threads' 2>&1 | Out-String)
+    Check '8i-1 the wrapper accepted the flags (no usage/unknown-option text)' (
+        $sampleDryOut -notmatch 'unknown option' -and $sampleDryOut -notmatch 'usage: scripts/RunScenario\.sh')
+    Check '8i-1 dry run still prints the historical plan prefix (docs/tests grep on it)' (
+        $sampleDryOut -match [regex]::Escape('thread sampler: WOULD start SampleThreads.ps1 -ProcessName vrfSimHLA1516e -MaxSec') -and
+        $sampleDryOut -match [regex]::Escape('-IntervalSec 5'))
+    Check '8i-1 dry run now says the csv lands in the run directory, not a bare stamp file' (
+        $sampleDryOut -match 'thread-samples\.csv')
+}
+
+Write-Host '--- 8i-2. a direct SampleThreads.ps1 invocation against a throwaway process ---'
+$samplerTestDir = Join-Path ([System.IO.Path]::GetTempPath()) ('sampler-test-' + [Guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $samplerTestDir -Force | Out-Null
+$samplerTargetExe = Join-Path $samplerTestDir 'RunnerTurnaroundSamplerTarget.exe'
+$samplerCsvPath   = Join-Path $samplerTestDir 'thread-samples.csv'
+$samplerTargetProc = $null
+try {
+    Copy-Item -LiteralPath (Join-Path $env:WINDIR 'System32\timeout.exe') -Destination $samplerTargetExe -Force
+    $samplerTargetProc = Start-Process -FilePath $samplerTargetExe -ArgumentList '/T','60','/NOBREAK' -PassThru -WindowStyle Hidden
+    Start-Sleep -Seconds 1
+    & 'C:\Program Files\PowerShell\7\pwsh.exe' -NoProfile -ExecutionPolicy Bypass `
+        -File (Join-Path $RepoRoot 'scripts\SampleThreads.ps1') `
+        -ProcessName 'RunnerTurnaroundSamplerTarget' -OutFile $samplerCsvPath -MaxSec 19 -IntervalSec 5 | Out-Null
+    $samplerRows = @()
+    if (Test-Path -LiteralPath $samplerCsvPath) { $samplerRows = @(Get-Content -LiteralPath $samplerCsvPath) }
+    Check '8i-2 the csv header is the documented column set' (
+        $samplerRows.Count -ge 1 -and
+        $samplerRows[0] -eq 'tUtc,tSec,pid,procCpuCores,wsMB,threads,top1,top2,top3,top4,top5,top6,top7,top8')
+    Check '8i-2 a direct sampler invocation writes >= 3 data rows against a real process' (
+        $samplerRows.Count -ge 4) "got $($samplerRows.Count) lines including header"
+    if ($samplerRows.Count -ge 2) {
+        $samplerFirstRow = $samplerRows[1] -split ','
+        Check '8i-2 the pid column matches the throwaway process' (
+            $samplerTargetProc -and $samplerFirstRow[2] -eq [string]$samplerTargetProc.Id) (
+            "row pid " + $samplerFirstRow[2] + " vs started " + $(if ($samplerTargetProc) { $samplerTargetProc.Id } else { '?' }))
+        Check '8i-2 the row carries utc/threads/cpu/working-set columns' (
+            $samplerFirstRow[0] -match '^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d' -and
+            $samplerFirstRow[3] -match '^[0-9.]+$' -and
+            $samplerFirstRow[4] -match '^[0-9.]+$' -and
+            $samplerFirstRow[5] -match '^[0-9]+$') ("row: " + $samplerRows[1])
+    }
+} finally {
+    if ($samplerTargetProc -and -not $samplerTargetProc.HasExited) {
+        Stop-Process -Id $samplerTargetProc.Id -Force -ErrorAction SilentlyContinue
+    }
+    Remove-Item -LiteralPath $samplerTestDir -Recurse -Force -ErrorAction SilentlyContinue
+}
+
 # 9. Get-VrfUuidByName must parse BOTH app-log route-line forms. The app started
 # logging the route's own uuid on 2026-09-02 with the route-uuid fix ("Route '<r>'
 # (VRF_UUID:<route>) created; ..."); every run in the record before that logs the

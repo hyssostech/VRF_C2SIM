@@ -360,12 +360,42 @@ echo "                The run directory's runner.launched file holds the runner'
 echo "                any cleanup MUST exclude it. See docs/RUNBOOK.md sec 0.5.14."
 echo
 
+# ---- the run-directory POINTER, cleared BEFORE anything below (including the sampler)
+# can read it (review of 374ea49, finding F10; moved earlier 2026-09-15 so the sampler
+# subshell cannot race this script's own deletion and read a PREVIOUS run's stale pointer).
+# The backstop further down used to find the run directory by MTIME (ls -1dt runs/*_run |
+# head -1), which names the NEWEST directory, not the one this script launched - and a write
+# into another run directory (the watchdog's own runner.watchdog-ran, for one) flips that
+# ordering. The runner writes the path of the run directory it creates into RUNDIR_POINTER;
+# this script deletes it FIRST, so what is found afterwards is this run's or nothing at all.
+RUNDIR_POINTER='runs/launch52/last-run-dir.txt'
+rm -f "$RUNDIR_POINTER"
+
 # ---- optional: the thread sampler, as a DETACHED subshell --------------------
 # Note the "< /dev/null": a background subshell that keeps stdin open holds a handle
 # this script's children can inherit, which is defect 3 in the header all over again.
+#
+# THE ARTIFACT LANDED OUTSIDE EVERY RUN DIRECTORY (found 2026-09-15; RUNBOOK 0.5.11 item
+# 16). The sampler DID run and DID write real rows - 188/185/219 for the three runs that
+# flagged this (20260915T114001Z_run, 20260915T124231Z_run, 20260915T130627Z_run) - but at
+# runs/launch52/RunScenario-<this script's own STAMP>.threads.csv, a stamp taken by THIS
+# script before the runner is even started, while the runner computes its OWN run-directory
+# stamp independently a few seconds later (scripts/RunC2SimScenario.ps1 ~line 1839,
+# $stamp = $nowUtc.ToString('yyyyMMddTHHmmssZ')). Every one of the three was off by 1-4 s
+# (114001Z_run <-> RunScenario-113733Z/114001Z, 124231Z_run <-> RunScenario-124230Z,
+# 130627Z_run <-> RunScenario-130626Z): the file was never IN the run directory and the
+# manifest never named it, so nobody who trusted either ever found it. FIXED: wait for the
+# runner's OWN run-directory pointer (RUNDIR_POINTER above, written within the first few
+# seconds of a live run - long before LaunchVrf, let alone the sim process the old tasklist
+# poll waited for) and write straight into that directory as thread-samples.csv.
+# SampleThreads.ps1 itself is UNCHANGED and still does its own internal wait for the sim
+# process by name (default up to 600 s) before it writes a single data row, so this only
+# moves WHERE the file lands, never WHEN sampling starts. Falls back to the historical
+# flat-file location, with a printed WARN, if the pointer never appears (a validation abort
+# before any run directory exists, or an older runner build) - the flag degrades instead of
+# silently doing nothing.
 if [ "$SAMPLE_THREADS" -eq 1 ]; then
     SAMPLER_LOG="runs/launch52/RunScenario-$STAMP.sampler.log"
-    SAMPLER_CSV="$(cygpath -w "$REPO/runs/launch52/RunScenario-$STAMP.threads.csv" 2>/dev/null || echo "runs/launch52/RunScenario-$STAMP.threads.csv")"
     # -MaxSec IS SIZED FROM THE DERIVED WINDOW, NOT FROM $WATCH_SECS. It used to be
     # $((WATCH_SECS + 100)); with the new default of 0 that is 100 SECONDS and the sampler
     # would die before the order is even pushed - which is what happened to run
@@ -380,28 +410,35 @@ if [ "$SAMPLE_THREADS" -eq 1 ]; then
     #   + 100  margin (the historical constant)
     SAMPLER_MAX=$((EFF_WATCH + 75 + 360 + 100))
     if [ "$DRYRUN" -eq 1 ]; then
-        # A dry run launches no sim, so the sampler would spend ten minutes looking for one -
-        # and, worse, would ATTACH TO A SIM ANOTHER LANE IS RUNNING. Say what it would do.
-        echo "  thread sampler: WOULD start SampleThreads.ps1 -ProcessName vrfSimHLA1516e -MaxSec ${SAMPLER_MAX}s -IntervalSec 5 (not started: --dry-run)"
+        # A dry run launches no sim (and no run directory), so the sampler would spend ten
+        # minutes looking for one - and, worse, would ATTACH TO A SIM ANOTHER LANE IS
+        # RUNNING. Say what it would do.
+        echo "  thread sampler: WOULD start SampleThreads.ps1 -ProcessName vrfSimHLA1516e -MaxSec ${SAMPLER_MAX}s -IntervalSec 5, writing <runDir>/thread-samples.csv once the runner creates its run directory (not started: --dry-run)"
     else
-        ( for i in $(seq 1 120); do tasklist | grep -qi vrfSimHLA1516e && break; sleep 5; done
+        ( SAMPLER_RUN_DIR=''
+          for i in $(seq 1 60); do
+              if [ -s "$RUNDIR_POINTER" ]; then
+                  cand="$(tr -d '\r\n' < "$RUNDIR_POINTER")"
+                  cand="$(cygpath -u "$cand" 2>/dev/null || echo "$cand")"
+                  if [ -d "$cand" ]; then SAMPLER_RUN_DIR="$cand"; break; fi
+              fi
+              sleep 2
+          done
+          if [ -n "$SAMPLER_RUN_DIR" ]; then
+              SAMPLER_CSV="$(cygpath -w "$SAMPLER_RUN_DIR/thread-samples.csv" 2>/dev/null || echo "$SAMPLER_RUN_DIR/thread-samples.csv")"
+          else
+              echo "SampleThreads: $RUNDIR_POINTER never appeared after 120s - falling back to runs/launch52 (this run's own artifact will be hard to find by stamp alone)"
+              SAMPLER_CSV="$(cygpath -w "$REPO/runs/launch52/RunScenario-$STAMP.threads.csv" 2>/dev/null || echo "runs/launch52/RunScenario-$STAMP.threads.csv")"
+          fi
           "$PWSH64" -NoProfile -ExecutionPolicy Bypass -File scripts/SampleThreads.ps1 \
               -ProcessName vrfSimHLA1516e -MaxSec "$SAMPLER_MAX" -IntervalSec 5 \
               -OutFile "$SAMPLER_CSV" ) > "$SAMPLER_LOG" 2>&1 < /dev/null &
-        echo "  thread sampler started, -MaxSec ${SAMPLER_MAX}s (log: $SAMPLER_LOG)"
+        SAMPLER_BG_PID=$!
+        echo "  thread sampler started (pid $SAMPLER_BG_PID), -MaxSec ${SAMPLER_MAX}s (log: $SAMPLER_LOG; csv lands in the run directory as thread-samples.csv once the runner creates it)"
     fi
 fi
 
 # ---- THE RUN -----------------------------------------------------------------
-# The run-directory POINTER (review of 374ea49, finding F10). The backstop below used to find
-# the run directory by MTIME (ls -1dt runs/*_run | head -1), which names the NEWEST directory,
-# not the one this script launched - and a write into another run directory (the watchdog's own
-# runner.watchdog-ran, for one) flips that ordering. The runner writes the path of the run
-# directory it creates into RUNDIR_POINTER; this script deletes it FIRST, so what is found
-# afterwards is this run's or nothing at all.
-RUNDIR_POINTER='runs/launch52/last-run-dir.txt'
-rm -f "$RUNDIR_POINTER"
-
 # stdout AND stderr to a FILE, stdin from /dev/null. No pipe. No tee. No job control.
 "$PWSH64" "${ARGS[@]}" > "$LOG" 2>&1 < /dev/null
 rc=$?
@@ -461,6 +498,32 @@ if [ "$DRYRUN" -eq 0 ] && [ -z "$RUNDIR" ]; then
     RUNDIR_SRC='NEWEST runs/*_run by mtime (no pointer file - this can be the WRONG directory)'
 fi
 [ -n "$RUNDIR" ] && echo "  run directory : $RUNDIR   [$RUNDIR_SRC]"
+
+# ---- thread sampler: wait for it, then record the artifact in the manifest ---------------
+# SampleThreads.ps1 notices the sim is gone within one -IntervalSec (5s) of StopVrf tearing
+# it down above and writes its own "process gone" row before exiting, so this is normally a
+# few-second wait, never the sampler's full -MaxSec budget (which is deliberately generous -
+# see the comment above SAMPLER_MAX).
+if [ "$SAMPLE_THREADS" -eq 1 ] && [ -n "${SAMPLER_BG_PID:-}" ] && [ -n "$RUNDIR" ]; then
+    for i in $(seq 1 12); do
+        kill -0 "$SAMPLER_BG_PID" 2>/dev/null || break
+        sleep 5
+    done
+    CSV_U="$RUNDIR/thread-samples.csv"
+    if [ -f "$CSV_U" ]; then
+        CSV_W="$(cygpath -w "$CSV_U" 2>/dev/null || echo "$CSV_U")"
+        if [ -f "$RUNDIR/run-manifest.json" ]; then
+            MANIFEST_W="$(cygpath -w "$RUNDIR/run-manifest.json" 2>/dev/null || echo "$RUNDIR/run-manifest.json")"
+            "$PWSH64" -NoProfile -Command "\$p='$MANIFEST_W'; \$m = Get-Content -LiteralPath \$p -Raw | ConvertFrom-Json; \$m.artifacts | Add-Member -NotePropertyName threadSamples -NotePropertyValue '$CSV_W' -Force; [System.IO.File]::WriteAllText(\$p, (\$m | ConvertTo-Json -Depth 12), (New-Object System.Text.UTF8Encoding(\$false)))" < /dev/null > /dev/null 2>&1
+            echo "  thread sampler: $CSV_W (recorded in the manifest as artifacts.threadSamples)"
+        else
+            echo "  thread sampler: $CSV_W (manifest not found - path not recorded)"
+        fi
+    else
+        echo "  [WARN] thread sampler: no thread-samples.csv in $RUNDIR - check $SAMPLER_LOG"
+    fi
+fi
+
 if [ -n "$RUNDIR" ] && [ -f "$RUNDIR/runner.launched" ] && [ ! -f "$RUNDIR/runner.teardown-ran" ]; then
     # CLAIM THE TEARDOWN FIRST (review of 374ea49, finding F3). scripts/RunnerWatchdog.ps1 is a
     # second backstop on the same run directory and claims runner.watchdog-ran with CreateNew.
