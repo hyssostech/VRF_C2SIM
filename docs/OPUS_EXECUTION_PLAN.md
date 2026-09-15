@@ -3123,7 +3123,8 @@ per the never-reuse non-negotiable. Annotate with results from the run manifest.
 NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
 join) are BURNED, not recycled. The run manifest records which were actually used.
 
-*** NEXT FREE: 4578 *** (authoritative - the ONLY such marker in this file. Update this
+- 2026-09-15 V6i (STP-833 live: the Sweden order must be REFUSED) late tool SetSimRate at window+180 s, gate driver v6f_gates.ps1: appNo 4578 CLAIMED (seat).
+*** NEXT FREE: 4579 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN

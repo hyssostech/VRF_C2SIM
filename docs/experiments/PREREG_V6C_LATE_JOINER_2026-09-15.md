@@ -663,3 +663,22 @@ TASKCMPLTs early and the stop rule closed the window at t+68 s; flat-and-serving
 dispatch+127 s, past the +112 s at which V6e/V6f had lost status. (2) The late-join arm
 (SetSimRate 4566, 17:17:59Z) is VOID, not a MISS - it fired after teardown, into a federation the
 sim had already resigned from. Detail: V6_LIVE_JOIN_GATE sec 13.
+
+## AMENDMENT 7 - V6i: STP-833 LIVE - the Sweden platoon order must be REFUSED before dispatch (pre-registered before the run)
+
+RECIPE: V6f's exactly (fixture R9_Mojave_Empty_52_Nav, init R9_Mojave_Lean, consoles 4, nav-area gate + 150 s settle,
+720 s window, order data/PROBE_V6F_PLATOON_Order.xml = T_R5_PL1 with its SWEDEN vertices 58.70296,16.50923 / 16.51923,
+late tool SetSimRate at window+180 s) on main 5306641: the runner's Stage 2h holder, the STP-832 bridge pin 90272BC9,
+and the STP-833 route-extent check ON at its defaults (MaxVertexFromTaskeeKm 100, MaxRouteLegKm 50).
+
+PREDICTIONS (HIGH - the offline selftest ran this exact geometry; a miss is a STOP, not a patch):
+- PushOrder exit 0; the app logs the MALFORMED refusal naming vertex 1, ~8768.9 km, the 100 km bound; ONE TASKABRT for
+  T_R5_PL1 on the bus with the STP-833 reason and ONE ObservationReport (NameObservation + LocationObservation at the
+  vertex); NOTHING is sent to the back end: zero 'Starting job node' / 'Calc off road nav path part' console lines, no
+  ground-vehicle-move-to dispatch for the platoon's members.
+- The back end stays healthy: observer backends=1 throughout, no BACK END LOST, wsMB within 500 MB of the pre-order
+  value, the late tool at window+180 s DISCOVERS the back end (V6f: MISS) - if the window is still open then; the
+  runner's stop rule may close it earlier once the single task is terminal (TASKABRT) - that early close is NOT a miss.
+- Units do not move (nothing was dispatched): 0 m displacement is the expected reading here.
+MISS = any dispatch to the back end, any back-end loss, or no refusal reported -> STOP and read the app log.
+ONE run. Harvest adjudicates.
