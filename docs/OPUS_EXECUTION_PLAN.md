@@ -2911,7 +2911,17 @@ per the never-reuse non-negotiable. Annotate with results from the run manifest.
 NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
 join) are BURNED, not recycled. The run manifest records which were actually used.
 
-*** NEXT FREE: 4428 *** (authoritative - the ONLY such marker in this file. Update this
+CLAIMED 2026-09-15 04:14 by the seat for V6b (the live join gate RERUN of the 5.2-converted tools, hardening branch 89639c2; driver scratchpad validation/v6b_gates.ps1; a scratch federation launched by the runner, which claims its own numbers). ONE NUMBER PER JOIN.
+- 4428: CLAIMED - tools/ResetVrf --dry-run, gate 1a (FULL runner env, no --config) - the env-only defence
+- 4429: CLAIMED - tools/ResetVrf --dry-run --config <MAK-ONE-2025-Config.xml>, gate 1b (minimal env) - the config-only defence
+- 4430: CLAIMED - tools/SetSimRate 10, gate 3a
+- 4431: CLAIMED - tools/SetSimRate 1, gate 3b (60 s after 3a)
+- 4432: CLAIMED - tools/CreateTaskAgg create, gate 4a
+- 4433: CLAIMED - tools/CreateTaskAgg task <uuid>, gate 4b (BURNED if create fails)
+- 4434: CLAIMED - tools/ResetVrf REAL RESET, gate 2a - DESTRUCTIVE, runs LAST
+- 4435: CLAIMED - tools/ResetVrf --dry-run, gate 2b (the AFTER half: expect Nothing deletable, exit 0)
+
+*** NEXT FREE: 4436 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
