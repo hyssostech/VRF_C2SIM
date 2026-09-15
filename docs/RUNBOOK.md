@@ -1180,6 +1180,36 @@ on 2026-09-14; each is now closed by something this section names
     1 instead of 0/2 - RULE: every $script: flag a finally reads must be
     initialised before the matching try, not only on the branch that sets it true.
 
+16. `--sample-threads` (wrapper) WROTE ITS ARTIFACT WHERE NOBODY LOOKED (found 2026-09-15:
+    `--sample-threads` was on all three of 20260915T114001Z_run, 20260915T124231Z_run and
+    20260915T130627Z_run, and zero thread-sample files turned up in any of the three run
+    directories or in their manifests). THE SAMPLER DID RUN: three real CSVs exist -
+    188/185/219 rows - at `runs/launch52/RunScenario-<stamp>.threads.csv`, just under a
+    STAMP the WRAPPER computes for itself (scripts/RunScenario.sh, before the runner is even
+    started) rather than the stamp the runner computes independently for its own run
+    directory a few seconds later (scripts/RunC2SimScenario.ps1 ~line 1839,
+    `$stamp = $nowUtc.ToString('yyyyMMddTHHmmssZ')`). Every affected run was off by 1-4 s
+    (`114001Z_run` <-> `RunScenario-113733Z`/`114001Z`, `124231Z_run` <->
+    `RunScenario-124230Z`, `130627Z_run` <-> `RunScenario-130626Z`), so neither a grep on the
+    run's own stamp, nor a look inside the run directory, nor the manifest (which never named
+    the file at all) could ever find it - the same miss is recorded live in
+    PREREG_V6C_LATE_JOINER_2026-09-15.md and PREREG_V8_ROUTE_SHIFT_2026-09-15.md ("no
+    thread/CPU artifact reached the run directory"), and both stopped short of the actual
+    cause. FIXED: the sampler subshell now waits (up to 120 s, 2 s poll) on the runner's OWN
+    run-directory pointer (`runs/launch52/last-run-dir.txt`, written within the first few
+    seconds of a live run - long before LaunchVrf, let alone the sim process the old tasklist
+    poll waited for) and writes directly into that directory as `thread-samples.csv`; once
+    the runner exits, the wrapper records that path in the run's own manifest
+    (`artifacts.threadSamples`). SampleThreads.ps1 itself is UNCHANGED and still does its own
+    internal wait for the sim process by name (default up to 600 s) before it writes a single
+    data row, so this only moves WHERE the file lands, never WHEN sampling starts. The
+    `last-run-dir.txt` deletion (finding F10) moved earlier in the script too, to before the
+    sampler subshell starts, so it can never read a stale pointer left by a previous run.
+    Falls back to the historical flat-file location, with a printed WARN, if the pointer
+    never appears (a validation abort before any run directory exists, or an older runner
+    build). Offline test: tests/RunnerTurnaround.Tests.ps1 check 8i (dry-run plan text, and a
+    direct SampleThreads.ps1 invocation against a throwaway process that writes real rows).
+
 ---
 
 ### 0.5.15 THE LICENCE FILE - two registry scopes that disagree (added 2026-09-14)
