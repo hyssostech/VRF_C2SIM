@@ -1802,8 +1802,14 @@ DEPLOY SET:
   read-only half of the before/after reset verification (sec 8); use `ResetVrf --help` for the
   no-join plan.
 
-  LIVE JOIN GATE: STILL OWED. The conversion is proven offline (builds, one hash, stack reported,
-  argument paths). Nothing has joined a live 5.2 federation with these four yet.
+  LIVE JOIN GATE RUN 2026-09-15 03:10Z (V6, scratch federation 20260915T030650Z): FAILED ON EFFECT. SmokeTest
+  PASS; ResetVrf/SetSimRate/CreateTaskAgg JOIN (rid loaded, resign cleanly) but discover 0 back ends and only
+  three placeholder uuids (VRF_UUID:0:0:0-control-object/-entity/-unit), never the scenario's objects; ResetVrf
+  printed a successful 'reset' that deleted NOTHING (false green); SetSimRate/CreateTaskAgg refused correctly.
+  VrfC2SimApp in the same federation had BackendCount=1 (explicit Vrf__ConnectionConfigFile + the runner's
+  MAK_VRLDIR/MAK_VRFDIR env); a probe with MAK_VRFDIR(64)=5.2d alone did not help. Cause + fix on branch
+  fix/tools-connection-config (tools resolve/print the connection config like the app, ResetVrf waits for a
+  back end and refuses without one); V6b rerun owed with scratchpad validation/v6b_gates.ps1.
 
   (`bridge-spikes/VrfBridgeSpike/SpikeRunner` is NOT one of them - it references
   `VrfBridge.Spike.dll`, a different artefact, and is not part of a deploy.)

@@ -116,9 +116,9 @@ end alive, STP-809's active-count path stays UNCONFIRMED LIVE - a re-run must an
 the DISPATCH, t-29 s of PushOrder's own 30 s argument, not stage-8b t=0, and needs the user's hand
 or a permission rule). V8 route-shift ON RUN 20260915T023743Z is COMPLETE, harvest IN PROGRESS -
 live read (PROVISIONAL): the chooser shifted the leg 125 m SOUTH (ratio 1.248 -> 0.661) against the
-PREDICTED +75 m NORTH; adjudication owed. OPEN USER RULINGS: none. OWED: V6 (live join gate for
-ResetVrf/SetSimRate/CreateTaskAgg plus PauseSim, needs 5-7 fresh appNos and the 5.2 launch env -
-gate 1's first attempt hung inside bridge.Start() without it, appNo 4367 burned), the V8 harvest
+PREDICTED +75 m NORTH; adjudication owed. OPEN USER RULINGS: none. V6 RUN 03:10Z (scratch federation
+20260915T030650Z): the tools JOIN but see NO back end + placeholder uuids only, ResetVrf a false green
+(RUNBOOK sec 9); fix branch fix/tools-connection-config, V6b owed. OWED: V6b, the V8 harvest
 verdict, the Q5 kill-half re-run, and the nav second mechanism / offline 20x20 km control. Prior
 01:00Z paragraph archived verbatim: docs/experiments/HANDOFF_2026-09-14_ARCHIVE_pm.md sec 8
 (append).
