@@ -59,6 +59,8 @@ PRE_ORDER_SETTLE=0
 PRE_ORDER_GATE=''
 PRE_ORDER_GATE_TIMEOUT=300
 VRF_APPDATA_DIR=''
+PAUSE_AT=0
+RESUME_AT=0
 LOG=''
 EXTRA_ENV=()
 PASSTHRU=()
@@ -96,6 +98,15 @@ usage: scripts/RunScenario.sh [options] [-- <extra runner arguments>]
   --pre-order-gate-timeout N  the gate's timeout, 30..1800 (default 300, which covers the cold
                             ~240 s). On timeout the run STOPS - unless --pre-order-settle N is
                             also given, which then becomes the fallback hold. GATE OR SETTLE.
+  --pause-at N              stage 8b Q5 PROBE: at t+Ns of the observation window (measured from
+                            PushOrder returning) run tools/PauseSim and PAUSE the scenario
+                            (default 0 = off). Costs ONE ledgered appNumber.
+  --resume-at M             stage 8b Q5 PROBE: at t+Ms RESUME it (controller->run()). M must be
+                            GREATER than N when both are given (default 0 = off). A SEPARATE
+                            join and therefore a SEPARATE appNumber - a pause and a resume are
+                            never one number reused.
+                            The KILL half of the Q5 probe is NOT automated: it is a manual
+                            Stop-Process on the vrfSimHLA1516e pid, RUNBOOK 0.5.14 item 14.
   --vrf-appdata-dir DIR     5.2 only: --appDataDir for the sim and the gui (default empty =
                             not passed, VR-Forces uses its own appData). The prepared copy is
                             C:\C2SIM\vrf-appdata\appData, whose one delta from the vendor tree
@@ -135,6 +146,8 @@ while [ $# -gt 0 ]; do
         --pre-order-gate)       PRE_ORDER_GATE="$2"; shift 2 ;;
         --pre-order-gate-timeout) PRE_ORDER_GATE_TIMEOUT="$2"; shift 2 ;;
         --vrf-appdata-dir)      VRF_APPDATA_DIR="$2"; shift 2 ;;
+        --pause-at)             PAUSE_AT="$2"; shift 2 ;;
+        --resume-at)            RESUME_AT="$2"; shift 2 ;;
         --sample-threads)       SAMPLE_THREADS=1; shift ;;
         --log)                  LOG="$2"; shift 2 ;;
         --dry-run)              DRYRUN=1; shift ;;
@@ -223,6 +236,28 @@ if [ -n "$PRE_ORDER_GATE_ARG" ] && [ "$OBJ_CONSOLE" -lt 3 ]; then
     exit 2
 fi
 
+# ---- the stage-8b Q5 PAUSE/RESUME PROBE -------------------------------------
+# The runner validates these itself and refuses at stage 0; saying it here as well means the
+# operator is told BEFORE a run directory or an appNumber is spent. A resume at or before the
+# pause is the one ordering error that would leave the scenario PAUSED for the rest of the
+# window, so it is refused rather than warned about.
+case "$PAUSE_AT$RESUME_AT" in
+    *[!0-9]*) echo "--pause-at / --resume-at take whole seconds (got '$PAUSE_AT' / '$RESUME_AT')."; exit 2 ;;
+esac
+if [ "$PAUSE_AT" -gt 0 ] && [ "$RESUME_AT" -gt 0 ] && [ "$RESUME_AT" -le "$PAUSE_AT" ]; then
+    echo "--resume-at ($RESUME_AT) must be GREATER than --pause-at ($PAUSE_AT): both are offsets"
+    echo "from the same instant (PushOrder returning), and resuming first would leave the scenario"
+    echo "PAUSED for the rest of the observation window."
+    exit 2
+fi
+if { [ "$PAUSE_AT" -gt 0 ] || [ "$RESUME_AT" -gt 0 ]; } && [ "$RUN_SECS" -gt 0 ]; then
+    if [ "$PAUSE_AT" -ge "$RUN_SECS" ] || { [ "$RESUME_AT" -gt 0 ] && [ "$RESUME_AT" -ge "$RUN_SECS" ]; }; then
+        echo "[WARN] a Q5 probe offset is at or beyond --run-secs $RUN_SECS, so that half can never"
+        echo "       fire - and --stop-when-complete can close the window even earlier. The runner"
+        echo "       flags a probe that never fired; its appNumber is burned either way."
+    fi
+fi
+
 # ---- the app's environment ---------------------------------------------------
 # One place, printed below, and recorded in the run manifest by the runner.
 export Vrf__TypeMappingMode=FidelityTable
@@ -285,6 +320,10 @@ ARGS+=(-PreOrderSettleSecs "$PRE_ORDER_SETTLE")
 # byte-identical to every run in the record; the runner refuses a path that is not a directory
 # and refuses the switch outright on the 5.0.2 profile.
 [ -n "$VRF_APPDATA_DIR" ] && ARGS+=(-VrfAppDataDir "$VRF_APPDATA_DIR")
+# Stage 8b Q5 probe. Passed ONLY when armed, so a default run's runner command line stays
+# byte-identical to every run in the record.
+[ "$PAUSE_AT" -gt 0 ] && ARGS+=(-PauseAtSec "$PAUSE_AT")
+[ "$RESUME_AT" -gt 0 ] && ARGS+=(-ResumeAtSec "$RESUME_AT")
 [ "$STOP_WHEN_COMPLETE" -eq 1 ] && ARGS+=(-StopWhenComplete)
 [ "$DRYRUN" -eq 1 ] && ARGS+=(-DryRun)
 ARGS+=("${PASSTHRU[@]}")
@@ -309,6 +348,10 @@ else
     echo "  pre-order   : PreOrderSettleSecs=$PRE_ORDER_SETTLE  (stage 7d hold before PushOrder; 0 = off; no READY GATE - see --pre-order-gate)"
 fi
 [ -n "$VRF_APPDATA_DIR" ] && echo "  appData     : $VRF_APPDATA_DIR  (-VrfAppDataDir -> LaunchVrf52 --appDataDir on sim + gui)"
+if [ "$PAUSE_AT" -gt 0 ] || [ "$RESUME_AT" -gt 0 ]; then
+    echo "  Q5 probe    : pause at t+${PAUSE_AT}s, resume at t+${RESUME_AT}s of the observation window (0 = that half off)"
+    echo "                tools/PauseSim, ONE ledgered appNumber per half; the KILL half is MANUAL (RUNBOOK 0.5.14 item 14)"
+fi
 echo "  consoles    : object=$OBJ_CONSOLE member=$MEMBER_CONSOLE positionReport=${POS_REPORT}s"
 echo "  endpoints   : $REST_URL | $STOMP_URL"
 echo "  runner log  : $LOG     (watch it with: tail -f '$LOG')"

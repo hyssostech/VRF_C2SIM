@@ -1052,6 +1052,89 @@ on 2026-09-14; each is now closed by something this section names
    docs/experiments/RUNNER_HARDENING_2026-09-14.md sec 15. NOT YET PROVEN LIVE - the first
    live gated run must show the first leg mesh-planned.
 
+13. `--pause-at N` / `--resume-at M` (wrapper) / `-PauseAtSec N` / `-ResumeAtSec M` (runner) -
+    THE Q5 PAUSE/RESUME PROBE. STAGE 8b, added 2026-09-15, BOTH 0 (OFF) by default, so a default
+    run is byte-identical to every run in the record: no tool is invoked, no appNumber is claimed
+    for one, and the manifest keeps the shape it has always had.
+    WHAT IT IS FOR: Q5 (assessment live gate 11, validation V5) says a PAUSED scenario must not
+    age a C2SIM task clock. Proving that live needs the scenario paused mid-run and resumed, and
+    until `tools/PauseSim` (sec 9, the eleventh consumer) nothing in the repo could pause.
+
+    - THE OFFSETS ARE THE STAGE-8b `t+Ns` CLOCK (item 11): seconds after PushOrder RETURNED. At
+      `t+N` the runner invokes `PauseSim pause`, at `t+M` `PauseSim resume`. `M` MUST be greater
+      than `N`; both the wrapper and the runner's stage 0 refuse otherwise with exit 2, because a
+      resume that ran first would leave the scenario PAUSED for the rest of the window.
+    - ONE LEDGERED appNumber PER INVOCATION - so a pause and a resume are TWO numbers, never one
+      reused. Each invocation is a whole join/resign cycle; this is the rule the `tools/SetSimRate`
+      entry in Appendix B already states ("four invocations, four numbers"). They are claimed at
+      stage 2 with every other number and ONLY when the switch is armed; an offset the window never
+      reaches leaves its number BURNED, not recycled.
+    - IT BLOCKS THE POLL LOOP for the tool's own ~20 s (settle up to 15 s, flush and confirm 3-10 s,
+      a 2 s clock hold). Deliberate: the scenario-clock reading has to be the one AT that offset.
+      With either half armed the loop polls every 5 s instead of 30, so the offsets are honoured to
+      about 5 s and at most one completion poll is displaced.
+    - IT NEVER FAILS THE RUN. A probe that reports `CONTRADICTED` (the back end says the opposite of
+      what was asked) exits 1 and is recorded as a WARN flag; the window carries on, because the
+      run's evidence is the trace and the reports and destroying those would cost more than the
+      probe is worth. An ARMED half that NEVER FIRED - the window closed first, which
+      `-StopWhenComplete` makes ordinary - is its own WARN flag, and a pause that fired with no
+      resume is a FAIL flag naming the obvious consequence: the scenario was left PAUSED, and
+      `PauseSim resume <freshAppNo>` by hand is the fix while VR-Forces is still up.
+    - EVIDENCE: `runs\<run>\pausesim-pause.stdout.log` and `pausesim-resume.stdout.log`, each
+      carrying ONE `[RESULT] PauseSim action=... verdict=... simTimeBefore=... simTimeAfterHold=...
+      clockDelta=... ` line, parsed into `probes.pauseResume` in the manifest (armed, the offsets,
+      whether each half fired, the appNumber, whether it was consumed, the exit code and every
+      field of that line).
+    - WHAT THE VERDICT RESTS ON: the SCENARIO clock (`DtVrfRemoteController::simTime`, the vendor
+      sample's "Sim time from sim engine status"), sampled either side of a 2 s hold - it stops
+      while the scenario is paused - and, when the deployed bridge has it, `backendsControlState`.
+      ON THE CURRENT G-A PIN THAT STATE READER IS ABSENT (pre-STP-809; sec 9), so the verdict is
+      CLOCK-ONLY and the tool's own output says so. Do not read `PAUSE_CONFIRMED` as two
+      independent confirmations until the bridge is re-pinned.
+    - THE KILL HALF OF THE Q5 PROBE IS NOT HERE. It is item 14, and it is MANUAL.
+
+14. KILLING A BACK END MID-RUN - MANUAL, DELIBERATELY, AND NOT AUTOMATED ANYWHERE (2026-09-15).
+    The third Q5 observation is what happens when a back end DIES while tasks are outstanding: the
+    task clock must not keep ageing them against a back end that is gone (STP-809 - `BackendCount`
+    KEEPS a back end that missed its status timeout, which is why `ActiveBackendCount` exists).
+    THERE IS NO RUNNER SWITCH FOR THIS AND THERE MUST NOT BE. The runner force-kills NOTHING, ever
+    (sec 0); a switch that made it kill a healthy joined federate on the happy path would make the
+    runner a program that kills the thing it is measuring, and both teardown backstops (items 3
+    and 6) are written to treat a dead sim as a fault to recover from. So a HUMAN does it, names
+    the offset in the run's prereg, and records the wall-clock instant.
+
+    THE PROCEDURE, at the operator's chosen offset inside the observation window:
+
+        # 1. the pid. The launch log records it verbatim:
+        #      [OK]   back-end started (pid NNNN)
+        Select-String -Path runs\<run>\launchvrf.stdout.log -Pattern 'back-end started \(pid'
+        #    or, equivalently:
+        Get-Process vrfSimHLA1516e | Select-Object Id, StartTime, Threads.Count
+
+        # 2. LIST BEFORE KILLING, and kill BY PID - never by name pattern, never a sweep.
+        Stop-Process -Id NNNN -Force
+
+    THE STANDING WARNINGS, all of which have cost this project days:
+    - `rtiexec`, `rtiForwarder` and `rtiAssistant` are NEVER touched (0.5.2). They are not part of
+      this probe and killing one ends every federate on the machine.
+    - NEVER a `Stop-Process` / `taskkill` SWEEP (item 5). A CommandLine-pattern sweep fits every
+      observation of the G6 kill, and twice it has killed the killer's own shell. Exclude the
+      runner's pid (`<RunDir>\runner.launched`) and the watchdog's (`<RunDir>\watchdog.pid`),
+      exclude `$PID`, filter on a token the killer cannot contain, and list before killing.
+    - Kill the BACK END (`vrfSimHLA1516e`) only - not `vrfGui`, not `VrfC2SimApp`. Killing the
+      interface instead is a different experiment: the runner detects THAT (it records the death
+      and RUNS THE WINDOW OUT so the trace still covers it) and it disables the early exit.
+    - THE RUNNER DOES NOT DETECT THE SIM'S DEATH DURING THE WINDOW. Stage 8b polls the APP
+      (`$AppProc.HasExited`); the ONE place the runner watches the back-end pid is the stage-7d
+      pre-order hold, which is over before the order is pushed. So the window runs to its
+      `-RunSecs` cap with a dead sim - expect that, and size `-RunSecs` for it.
+    - Teardown still runs on every path (it is a `finally`). Whether `StopVrf52.ps1` behaves
+      exactly as it does against a live sim is UNMEASURED here - read its exit code rather than
+      assuming. MAK's crash-dump prompt may appear; `scripts\AnswerCrashDumpDialog.ps1` (0.5.12)
+      is what answers it.
+    - AFTERWARDS THE FEDERATION HAS A CORPSE IN IT. Inventory before the next launch (0.5.0): a
+      leftover back end HARD-BLOCKS `LaunchVrf`, and `-AllowExistingVrf` is the false-READY trap.
+
 ---
 
 ### 0.5.15 THE LICENCE FILE - two registry scopes that disagree (added 2026-09-14)
@@ -1643,7 +1726,7 @@ without the user exporting one. Signatures: vrfcontrol/vrfRemoteController.h :52
 
 ---
 
-## 9. REBUILDING AND DEPLOYING THE NATIVE BRIDGE - THERE ARE **TEN** CONSUMERS, NOT SEVEN
+## 9. REBUILDING AND DEPLOYING THE NATIVE BRIDGE - THERE ARE **ELEVEN** CONSUMERS, NOT SEVEN
 
 Added 2026-09-14 (cold-start review of feat/integration 02b51de, NOTE in sec 2.10). The "all 7
 copies" figure that appears in docs/HANDOFF_2026-07-19.md sec 5, docs/RESUME_PROMPT.md and the
@@ -1655,19 +1738,40 @@ and the managed side binds by C++/CLI assembly reference, not P/Invoke. A manage
 SUCCEEDS against `src/VrfBridge/build/<config>/VrfBridge.dll` is therefore proof that every member
 it calls exists on the referenced assembly.
 
-THE TEN CONSUMERS - ALL TEN CAN NOW BUILD A 5.2 TREE (the four that could not were converted
-2026-09-15 on `feat/tools-52-conversion`, user ruling 00:15Z "Convert tools"). Ten csproj files
+THE ELEVEN CONSUMERS - ALL ELEVEN CAN BUILD A 5.2 TREE (the four that could not were converted
+2026-09-15 on `feat/tools-52-conversion`, user ruling 00:15Z "Convert tools"; `tools/PauseSim`
+landed 2026-09-15 on `feat/pausesim-tool` and was BORN with the axis). Eleven csproj files
 reference the bridge by `<Reference Include="VrfBridge">` and each keeps its OWN copy in its `bin`.
-All ten now carry the BridgeConfig axis (a `BridgeConfig` property defaulting to `Release`, plus
+All eleven carry the BridgeConfig axis (a `BridgeConfig` property defaulting to `Release`, plus
 `OutputPath` / `IntermediateOutputPath` overrides and a HintPath onto `build/$(BridgeConfig)/`), so
 `-p:BridgeConfig=Release-5.2` gives each of them its own `bin\Release-5.2\` tree. THIS IS THE 5.2
 DEPLOY SET:
 
       src/VrfC2SimApp    tools/CreateOne        tools/RtiProbe    tools/RunSim
       tools/SetAlt       tools/WatchVrf         src/SmokeTest     tools/CreateTaskAgg
-      tools/ResetVrf     tools/SetSimRate
+      tools/ResetVrf     tools/SetSimRate       tools/PauseSim
 
-  (Plus `tools/PauseSim` if and when it exists - add it here when it lands, not before.)
+  `tools/PauseSim` IS THE ELEVENTH (2026-09-15). It pauses and resumes the scenario for the Q5
+  probe - `PauseSim.exe <pause|resume> <applicationNumber> [federation]`, one join and one CLEAN
+  resign per invocation, `--help` and `--dry-run` joining nothing. `pause` is
+  `controller->pause()`; `resume` is `controller->run()` - the vendor's own pair
+  (`examples/remoteControl/commandLineRemoteController.cxx:1044-1050` and `:1095-1102`), neither
+  address-scoped, so both apply to ALL back ends. Its csproj is `tools/RunSim`'s verbatim. TWO
+  THINGS ABOUT IT BELONG IN THIS SECTION:
+  * IT IS NOT IN THE G-A PIN BELOW. Nothing recorded in that pin was measured with it.
+  * IT READS `BackendControlState` BY REFLECTION, ON PURPOSE. That STP-809 member is on `main` in
+    `src/VrfBridge/VrfBridge.cpp` but is NOT in the DEPLOYED `Release-5.2` `VrfBridge.dll` (the
+    2026-09-14 pin below - grep the dll: it carries `SimTimeSeconds`, `BackendCount` and
+    `TryGetEntityKinematics`, and not this). A direct call therefore does not COMPILE against the
+    deployed bridge, and the answer to that is the RE-PIN this section already owes, not a partial
+    redeploy driven by one tool. Absent, the tool reports `controlState=Unavailable` and its verdict
+    rests on the scenario clock alone - which it says on its own `[RESULT]` line rather than hiding.
+    Present, it is used. WHEN THE RE-PIN HAPPENS the tool starts reading the state with NO code
+    change, and the reflection can be collapsed into a direct call.
+    The same staleness is why `tools/PauseSim` cannot be built `-c Release` (5.0.2) at all: the
+    5.0.2 `VrfBridge.dll` of 2026-09-04 has no `SimTimeSeconds` either. That is equally true of
+    `src/VrfC2SimApp`, which calls it too, so it is a property of that stale 5.0.2 tree and not of
+    this tool.
 
   WHAT THE 2026-09-15 CONVERSION DID, and why it was not a one-line fix. Until then those four -
   `src/SmokeTest`, `tools/CreateTaskAgg`, `tools/ResetVrf`, `tools/SetSimRate` - hard-coded
@@ -1703,8 +1807,9 @@ DEPLOY SET:
 THE PROCEDURE (native changes are pre-authorized; see the memory entry):
   1. BACK UP the existing `src/VrfBridge/build/<config>/VrfBridge.dll` first - none are committed.
   2. `/t:Rebuild` ALWAYS (never an incremental build of the C++/CLI project).
-  3. Rebuild ALL TEN consumers so every `bin` copy of that bridge is ONE hash (all ten for
-     `Release-5.2`, all ten for `Release`). A PARTIAL redeploy is the trap: the tools and the app
+  3. Rebuild ALL ELEVEN consumers so every `bin` copy of that bridge is ONE hash (all eleven for
+     `Release-5.2`; for `Release`, only those the stale 5.0.2 bridge still satisfies - see the
+     PauseSim note above). A PARTIAL redeploy is the trap: the tools and the app
      then disagree about what the bridge can do. CHECK FOR THE OUTPUT TREE, NOT THE EXIT CODE -
      that rule outlived its original cause (a build that ignored `BridgeConfig` still exited 0) and
      stays, because it is the only check that distinguishes "built what I asked for" from "built
@@ -1727,7 +1832,8 @@ which brought the SimTimeSeconds/BackendCount readers and `TryGetEntityKinematic
 (996352 bytes), native `/t:Rebuild` of `Release-5.2|x64` at 2026-09-14T22:28:04Z, 0 errors.
 All TEN consumers rebuilt with `-t:Rebuild`, 0 errors; the SIX consumers that HAD the 5.2 axis at
 that date are at THAT ONE hash. THIS PIN PREDATES the 2026-09-15 conversion of the other four and
-is therefore STALE for them: re-pin with all ten after `feat/tools-52-conversion` merges.
+is therefore STALE for them: re-pin with all ELEVEN after `feat/tools-52-conversion` (merged
+`b4fcf58`) and `feat/pausesim-tool`. `tools/PauseSim` did not exist on 2026-09-14 and is in NO pin.
 Offline suites 18/18 exit 0, `--rulings-selftest` 136 PASS / 0 FAIL; `--parse-order`
 COA-STP1 42 tasks and PROBE_RIDGE_1-35_DELAYED 1 task / simStartMs=300000; `--runtime-check`
 exit 0 reporting `native stack = 5.2|C:\MAK\vrforces5.2d\bin64\vrfcontrol.dll`. The PRE state
