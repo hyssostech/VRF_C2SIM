@@ -1159,6 +1159,20 @@ on 2026-09-14; each is now closed by something this section names
     about a real run changes). Every OTHER $FederationArg caller (WatchVrf x2, PauseSim
     x2) is unaffected - federation is their TRAILING positional, so a dropped empty one
     shifts nothing.
+    ADDENDUM 2, 2026-09-15 (V6b LIVE DEFECT, first live use of the lock, merged main
+    56f3a20): the lock RELEASE lived only in the launch try/finally's teardown, so an
+    abort BETWEEN Stage 1a (lock taken) and that try - V6b hit the C2SIM REST
+    reachability check, further down Stage 1, refusing via a bare exit outside any
+    try block because the private server was down after the reboot - never reached
+    it and left runs\runner.lock on disk naming the dead pid. Self-healed on the
+    NEXT run (the stale-pid rule), but a lock must be released on every exit path,
+    not merely be recoverable from on the next one. FIXED: an OUTER try opened right
+    after the lock is taken, closed by a finally at the true end of the script, so
+    every exit after that point - validation aborts, the server check, appNo
+    allocation failures, an uncaught exception, or the ordinary teardown-and-exit
+    path - releases the lock (verified: exit inside a nested try still unwinds
+    through an enclosing finally in PowerShell). -DryRun is unaffected (never takes
+    the lock).
 
 ---
 

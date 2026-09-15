@@ -2479,6 +2479,13 @@ if ($DryRun) {
     Say-Ok ('launch lock taken: {0}' -f $PathRunnerLock)
 }
 
+# OUTER try covering EVERYTHING from here to the end of the script (closed by the
+# "finally" at the very end of the file, which releases the launch lock). See that
+# finally's header comment for why this exists (RUNBOOK 0.5.14 item 15 addendum,
+# 2026-09-15, V6b live defect) - every exit path after the lock is taken, not only
+# the ones that reach the launch try/catch/finally below, must release it.
+try {
+
 # =============================================================================
 # STAGE 1 - PRE-FLIGHT PROCESS INVENTORY (RUNBOOK 0.5.0)
 # =============================================================================
@@ -4504,14 +4511,33 @@ finally {
             New-Item -ItemType File -Path (Join-Path $RunDir 'runner.teardown-ran') -Force | Out-Null
         }
     } catch { }
-
-    # LAUNCH LOCK RELEASE (RUNBOOK 0.5.14 item 15). Only the runner that actually
-    # took the lock releases it (a dry run never takes it - Stage 1a - so this is a
-    # no-op there), and only HERE, after every teardown step above has run: a
-    # second runner must not be able to start until this one has finished tearing
-    # down. Best-effort, like the teardown-ran marker above - a release that fails
-    # must not turn a completed teardown into a reported failure; the next
-    # runner's stale-pid check (Stage 1a) recovers it anyway.
+    exit $RunnerExit
+}
+} # closes the OUTER try opened right after Stage 1a takes the lock (see there)
+finally {
+    # LAUNCH LOCK RELEASE (RUNBOOK 0.5.14 item 15 addendum, 2026-09-15 - V6b LIVE
+    # DEFECT). This finally is the OUTER one opened right after Stage 1a takes the
+    # lock (see "try {" there) and it closes the true end of the script, so it wraps
+    # EVERYTHING after the lock: Stage 1's own pre-flight checks, the C2SIM server
+    # reachability probe, Stage 2 appNo allocation, the entire launch try/catch/
+    # finally above (including its own exit $RunnerExit, which unwinds through here
+    # on its way out) - every exit path, not only the teardown-complete one.
+    #
+    # WHY THE PREVIOUS PLACEMENT WAS WRONG: v1 (commit 0acd4fe) released the lock
+    # INSIDE the teardown finally above, which only executes for code paths that
+    # reach the main try. V6b's first live use (2026-09-15 11:37Z, merged main
+    # 56f3a20) proved the gap: the runner took the lock in Stage 1a, then aborted at
+    # the C2SIM REST reachability check further down Stage 1 ("[FAIL] Aborting
+    # BEFORE VR-Forces is launched" - the private test server was down after a
+    # reboot) via a bare `exit 2` OUTSIDE any try block, so the inner finally never
+    # ran and runs/runner.lock stayed on disk naming the now-dead pid. The
+    # stale-pid rule (Stage 1a) made the NEXT run self-heal, but a lock must be
+    # released on every exit path, not merely be recoverable from on the next one.
+    #
+    # -DryRun never takes the lock (Stage 1a), so this is a no-op there. Best-effort,
+    # like the teardown-ran marker inside the inner finally - a release that fails
+    # must not turn a completed run into a reported failure; the next runner's
+    # stale-pid check (Stage 1a) recovers it anyway.
     if ($script:RunnerLockTaken -and $script:RunnerLockPath) {
         try {
             Remove-Item -LiteralPath $script:RunnerLockPath -Force -ErrorAction Stop
@@ -4520,5 +4546,4 @@ finally {
             Say-Warn ('could not remove the launch lock {0}: {1}. The next runner will find pid {2} already gone and report it stale.' -f $script:RunnerLockPath, $_.Exception.Message, $PID)
         }
     }
-    exit $RunnerExit
 }
