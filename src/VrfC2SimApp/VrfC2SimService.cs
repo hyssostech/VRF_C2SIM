@@ -3898,6 +3898,19 @@ public sealed class VrfC2SimService : BackgroundService
                         else
                             _log.LogWarning("Task '{Task}' ({Unit}) leg {Leg}: NO ROUTE SHIFT - {Note}. The task is " +
                                             "dispatched on the line as authored.", taskName, unitName, s.LegIndex, s.Note);
+                        // The FALLBACK ending of the two-phase chooser: C1 chose the side, nothing on it
+                        // could also clear the formation band, and the route-line rule alone was taken.
+                        // It is a WARNING because some of the formation is knowingly left on flagged ground.
+                        if (s.BandNotCleared)
+                            _log.LogWarning("Task '{Task}' ({Unit}) leg {Leg}: the ROUTE SHIFT could NOT clear the " +
+                                            "formation band anywhere on the {Side} side within +/-{Band:F0} m; it was " +
+                                            "taken on the ROUTE LINE alone, so some formation slots may sit on flagged " +
+                                            "ground. The side is C1's and is never traded for a band.",
+                                            taskName, unitName, s.LegIndex, s.SideWord, opt.MaxMeters);
+                        // Every candidate, with its missing-tile count: a feature that changes where
+                        // units drive does not get to keep its reasoning to itself.
+                        _log.LogInformation("Task '{Task}' ({Unit}) leg {Leg}: ROUTE SHIFT candidates - {Trace}",
+                                            taskName, unitName, s.LegIndex, Preflight.RouteShift.DescribeCandidates(s));
                     }
                     if (outcome.Changed)
                     {

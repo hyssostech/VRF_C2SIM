@@ -141,6 +141,10 @@ public static class PreflightReports
            $"{F(s.BaseRatio, 3)} against this unit's own limit; the interface detoured it {F(Math.Abs(s.OffsetMeters), 0)} m " +
            $"{s.SideWord} of the authored line around that window, scoring {F(s.ShiftedRatio, 3)}" +
            (double.IsNaN(s.BandMax) ? "" : $" (formation band max {F(s.BandMax, 3)})") +
+           (s.BandNotCleared
+              ? $" - NOTE: no offset on the {s.SideWord} side could also clear the formation band, so this "
+                + "detour is chosen on the route line alone and some formation slots may sit on flagged ground"
+              : "") +
            $". STP's own vertices are unchanged and in order; the detour lies between them.";
 
     /// <summary>The Marking of a flagged leg NO offset in the band could clear.</summary>
