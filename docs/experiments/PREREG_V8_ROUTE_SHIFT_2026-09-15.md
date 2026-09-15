@@ -932,3 +932,208 @@ when nothing is flagged. That the two candidate mechanisms for the sim-100-250 r
 plausible ones. That no other executor's work loaded the machine during the window - not claimed,
 simply not visible from this run's evidence. That +250 m north is representative of the northern
 corridor rather than a single fortunate line (one leg, one terrain).
+
+---
+
+## RESULTS - run 20260915T041036Z (V8z, the zero-offset control)
+
+Scored against the PREREG V8z section above, exactly as registered. Read-only on `runs/`; no vendor
+sim log opened. **Two earlier directories, `20260915T035132Z_run` and `20260915T035134Z_run`, are a
+VOIDED double-launch pair (created 2 s apart) and are not scored.**
+
+**TEARDOWN CAVEAT, not a defect of the measurement.** Windows rebooted at ~04:31Z, moments after the
+observation window closed. The runner had reached `StopVrf: waiting for the DIRECT CHILD only` and
+never printed `VR-Forces is down`, so the final StopVrf stage and the manifest's completion flags are
+absent. Everything the measurement rests on completed first: `observation window complete (902.6s
+used of 900s)`, StopIface ran, `ListenReports: EXIT=0`, the observers resigned, and
+`watchvrf-trace.csv` carries 362,407 rows to wall 995.5 s with `vrfc2simapp.log` and
+`reports-captured.log` intact. Nothing below reads the manifest.
+
+### Z1. VERDICT TABLE
+
+| prediction | required | measured | verdict |
+|---|---|---|---|
+| **P-z1** GATE | **no** `ROUTE SHIFT` line of any kind | **0 occurrences** in the whole log | **MET** |
+| P-z1 | 8-vertex route | `terrain profile request 167 sent for 8 vertices`; all four Z vertices present in order; `CreateRoute '... ROUTE' (8 pts)`; one `MoveAlongRoute` | **MET** |
+| P-z1 | **exactly one** `ROUTE PRE-FLIGHT ... leg 3` warning | exactly one, quoted in Z2 - **40 m of 0.939 on sand, limit 0.752, ratio 1.25**, at 34.6561/-116.7618, plus `1 flagged leg(s) of 7 checked; sent 1 ObservationReport(s)` | **MET, to the digit** |
+| **P-z2** CONTROL HOLDS | leader cross-track within **+/- 15 m** at s = 1,970 +/- 3 | **-7.0 m** at the nearest fix (s = 1,988) | **MET** |
+| **P-z3** | **Branch A**: < 150 m of the P11 point AND < 20 m over the final 600 sim s | leader **19.7 m** and **+1.7 m**; four more members 8.4-38.6 m and -1.3 to +1.8 m | **BRANCH A** (5 of 6) |
+| P-z3 | Branch B: max s > 3,000 m | max s **1,934-1,999 m** for five; HMMWV 2 reached 2,466 m - **neither branch**, see Z4 | **not Branch B** |
+| **P-z4** | recorded | M3 1, hop plan counts, the crawl - Z4 | RECORDED |
+| falsifiers | (a) a shift line; (b) cross-track > 15 m; (c) the Z2 -> Z3 hop not mesh-planned; (d) live anchor moved > ~5 m | **none fired** - see Z6 | **CLEAN** |
+| STOPs | crash / `Tick phase FAILED` / `MissingMethodException` / double dispatch | **0 / 0 / 0 /** 1 `CreateRoute`, 1 `MoveAlongRoute`, 1 TASKSTRT, 0 terminal | **CLEAN** |
+
+### Z2. THE PRE-FLIGHT LINES, VERBATIM (`vrfc2simapp.log` 1547 / 2309) - and the silence that matters
+
+    ROUTE PRE-FLIGHT task 'T1_AOA_SE_1-35_AR;_2/1_AD_P1' (1-35/2/1_A~PXY) leg 3: 40 m of 0.939 on sand at 34.6561/-116.7618, 0.2 km along the leg; Tank Headquarters Section (USA) limit 0.752 (max-slope 0.94 x soil 0.80); PREDICTED IMPASSABLE (pre-flight estimate, ratio 1.25 vs threshold 0.92).
+    ROUTE PRE-FLIGHT task 'T1_AOA_SE_1-35_AR;_2/1_AD_P1' (1-35/2/1_A~PXY): 1 flagged leg(s) of 7 checked; sent 1 ObservationReport(s).
+
+**`grep -c "ROUTE SHIFT" = 0`.** The feature was off and stayed off; the control is a control.
+
+The ObservationReport is on the bus (`reports-captured.log`):
+
+    <Marking>ROUTE PRE-FLIGHT: task T1_AOA_SE_1-35_AR;_2/1_AD_P1 leg 3 - 40 m of sustained 0.939
+    rise-over-run on sand, 0.18 km along the leg; Tank Headquarters Section (USA) limit 0.752
+    (max-slope 0.94 x soil 0.80). PREDICTED IMPASSABLE (pre-flight estimate, ratio 1.25 vs
+    threshold 0.92).</Marking>
+
+Terrain profile 167 authored all eight vertices and every authored Z point is there, in order:
+`#0 34.65820,-116.74009 (live) #1 34.65650,-116.75754 (Z1) #2 34.65627,-116.75989 (Z2)
+#3 34.65589,-116.76380 (Z3) #4 34.65566,-116.76615 (Z4) #5 V1 #6 V2 #7 V3`.
+
+### Z3. THE SIX MEMBERS (same columns as R5/V4; axis = the reference anchor -> V1, NORTH positive)
+
+| member | slot | cross-track at s ~ 2,006 | closest approach to the P11 freeze point | max s | last s | advance over final 600 sim s | verdict |
+|---|---|---|---|---|---|---|---|
+| **M1A2 1 (leader)** | 0 | **-7.0 m** (fix at s = 1,988) | **19.7 m** | 1,988 | 1,974 | **+1.7 m** | **FROZE (Branch A)** |
+| M1A2 2 | -50 | -57.9 m (s = 1,999) | 38.6 m | 1,999 | 1,983 | -1.3 m | FROZE |
+| M577A2 1 | -25 | -25.6 m (s = 1,934) | 36.5 m | 1,934 | 1,931 | -0.5 m | FROZE |
+| HMMWV 1 | 0 | -18.7 m (s = 1,994) | **8.4 m** | 1,994 | 1,977 | +0.2 m | FROZE |
+| **M3 1** | +50 | -7.9 m (s = 1,988) | **19.0 m** | 1,988 | 1,974 | +1.8 m | **FROZE** |
+| HMMWV 2 | +25 | +55.3 m (s = 1,995) | 8.1 m | **2,466** | 2,466 | **+323.3 m** | **neither** (Z4) |
+
+The cross-track spread (-57.9 to +55.3 m) is the formation's own `rightOffset` band of +/- 50 m; the
+prediction is scored on the LEADER, which sat **7 m** from the authored line. **The unit stopped on
+the line six earlier runs stopped on, at the point they stopped at.**
+
+### Z4. P-z4 - WHAT WAS RECORDED
+
+**M3 1.** It froze 19.0 m from the P11 point, on its +50 slot line. Across the three runs, the same
+vehicle: **V8 froze at 38.3 m** (south shift), **V8b crossed to s = 15,166 m** (north shift),
+**V8z froze at 19.0 m** (no shift). One vehicle, three lines, three outcomes that track the lateral
+offset and nothing else.
+
+**HOP PLAN COUNTS - the planning regime is IDENTICAL to V8 and V8b.** **Zero** `not enough (0)
+points` refusals for any member; every goal passed `Node Is destination in nav area?: success`.
+Goals landing within 60 m of an authored vertex: **five of six members were goaled to BOTH Z2 and
+Z3** (HMMWV 1, HMMWV 2, M1A2 2, M3 1, M577A2 1), and HMMWV 2 alone went on to Z4 and V1. The leader's
+own eleven goals planned `5 / 22 / 10 / 7 / 18 / 5 / 5 / 5` points. So the inserted waypoints WERE
+turned into short mesh-planned hops here exactly as in V8 and V8b - and the units froze anyway.
+
+**THE FREEZE SIGNATURE.** `Starting condition node Is path blocked? / fail in action Is path
+blocked?` repeats **5,323-5,887 times** for each of five members to the end of the run (806 for the
+leader, which drives its own offset route): the "running, unblocked, goal unchanged, forever"
+signature of FINDING_EARLY_STOPS sec 7, P11, G3, G5, G6 and V8's M3 1.
+
+**THE CRAWL, per 200 sim s (m/s along path).** Every member collapses at sim ~700-800 and never
+recovers:
+
+    M1A2 1    0:1.84  200:3.25  400:6.37  600:1.87  800:0.56  1000:0.43 ... 2000:0.28
+    M3 1      0:2.19  200:3.29  400:6.37  600:1.86  800:0.56  1000:0.43 ... 2000:0.28
+    HMMWV 1   0:2.01  200:2.89  400:5.66  600:0.99  800:0.03 ... 2000:0.11
+    M577A2 1  0:1.64  200:4.04  400:5.20  600:0.57  800:0.05 ... 2000:0.06
+    HMMWV 2   0:2.13  200:3.32  400:5.20  600:1.23  800:1.51  1000:0.27 ... 2000:0.40
+
+**THE ONE EXCEPTION, reported as NEITHER and not forced into a branch.** HMMWV 2 (the +25 slot, whose
+own line sits ~55 m north of the authored line here) crawled **478 m past** the freeze point to
+s = 2,466 m at 0.2-0.95 m/s. That is 534 m short of Branch B's 3,000 m and 16x slower than V8b's
+10 m/s. It is a partial effect of being a little further north - the same variable V8b tested at
+250 m - not a crossing.
+
+Sim ratio **2.16x** (sim 43 -> 2,052 in 931 wall s), against V8b's 2.20x and V8's 5.92x.
+
+### Z5. EQUAL SIM TIME - THE THREE RUNS (leader leg s in metres; one axis, one clock origin)
+
+Axis: reference anchor `34.658442,-116.740092` -> V1. Clock origin: the leader's first
+`ground-vehicle-move-to` goal (V8 sim 53.7, V8b sim 47.8, V8z sim 44.1).
+
+| since sim0 | V8 (shift -125 m SOUTH) | V8b (shift +250 m NORTH) | **V8z (insertion, ZERO offset)** |
+|---|---|---|---|
+| 300 s | 1,732 | 695 | **696** |
+| 600 s | 2,362 | 2,191 | **1,959** |
+| 900 s | 2,602 | 4,251 | **1,970** |
+| 1,000 s | 2,639 | 5,253 | **1,973** |
+| 1,200 s | 2,722 | 7,111 | **1,973** |
+| end of track | 4,138 (sim 5,556) | **15,148** (sim 2,095) | **1,988** (sim 2,052) |
+
+Two readings fall out of this table. **First: V8z is flat from sim0+900 onward** - 1,970, 1,973,
+1,973 - which is a stop, not a slow crossing. **Second: V8z's sim0+300 figure (696 m) is within 1 m
+of V8b's (695 m) while V8's is 1,732 m.** The slow first 300 sim s that V8b's RESULTS left OPEN is
+therefore NOT a property of the lateral offset: it appears at +250 m north and at zero offset and is
+absent at -125 m south, on the same ground, from the same anchor. V8z shows the same early re-goal
+cycle (the leader was goaled to Z1 at sim 68, then back to s = 133 / 184 / 681-700 between sim 172
+and 322). Best reading: a run-to-run vendor formation/replan behaviour, seen in 2 of 3 runs,
+attributable to neither variable. V8b's RESULTS sec V6 should be read with that correction.
+
+### Z6. THE FOUR FALSIFIERS - CHECKED, NONE FIRED
+
+- **(a) a `ROUTE SHIFT` line of any kind** - `grep -c` = **0**. The control was not a shift run.
+- **(b) leader cross-track > +/- 15 m at s ~ 1,970** - **-7.0 m**. The unit drove the authored line.
+- **(c) the `Z2 -> Z3` hop not mesh-planned while V8's `D1 -> D2` was** - five of six members were
+  goaled to Z2 AND Z3, every goal passed the destination-in-nav-area gate, and there were **0**
+  zero-point refusals anywhere. Same regime, so the comparison is not broken in the direction that
+  would make Branch A look true for the wrong reason.
+- **(d) the live anchor moved** - the unit's first PositionReport (04:13:09.989Z) is
+  `34.65820208652259, -116.74009186651882`, **byte-identical to V8's and V8b's**. The authored Z
+  points sit exactly on the dispatched line; "zero offset" is exactly zero.
+
+### Z7. ADVERSARIAL REVIEW (HEAVY)
+
+**The competing explanation this run was built to kill: "waypoint insertion, not the lateral offset,
+is what carried units across in V8b."** It is dead. V8z inserts the same four points at the same
+along-track stations, gets the same 8-vertex route, the same mesh-planned hops and the same zero
+planning refusals - and five of six members stop within 8-39 m of the point six earlier runs stopped
+at, with less than 2 m of movement in the final 600 sim s. Insertion alone does nothing.
+
+**Strongest surviving objection: the machine rebooted at ~04:31Z, minutes after the window closed -
+was it already degrading during the run?** Cannot be excluded outright, and it is recorded. Three
+things bound it: every quantity above is binned on the SIM clock, so wall-clock contention cannot
+move it; the sim ratio (2.16x) is within 2 % of V8b's (2.20x), so the simulator was not visibly
+starved; and a freeze is not a slowdown - the leader moved 1.7 m in 600 sim s while the `Is path
+blocked?` loop ran 5,000+ times, which is the vendor's own "running and unblocked" state, not a
+stalled host.
+
+**Second objection: HMMWV 2 got 478 m past, so insertion is not completely inert.** Correct, and it
+is reported as NEITHER rather than folded into Branch A. But it crawled that distance at 0.2-0.95 m/s
+on the +25 slot line - 55 m north of the authored line here - and stopped 534 m short of the Branch B
+threshold. That is more evidence for the lateral variable, not against it.
+
+**Third: does the sampler's window match where they actually stopped?** Yes, and this is the
+control's incidental confirmation of the instrument. The flagged 40 m window sits at s ~ 1,983-2,023
+on the reference axis (the warning puts it 0.18-0.2 km into the 360 m Z2 -> Z3 leg); the six members'
+last fixes are at s = 1,931-1,983 and their furthest reach 1,934-1,999 (HMMWV 2 excepted). They stop
+at the **TOE**, 0-52 m short of the window - exactly the 31.5-44.0 m the record measured
+(PREREG_RIDGE_AG 3.2) and exactly why `PadMeters` is 50.
+
+**What would still falsify the attribution.** A V8b repeat that freezes (the north crossing is one
+run); a V8z repeat that crosses (the freeze is one run); evidence that the +250 m north corridor is
+drivable for a reason unrelated to slope, which would leave the sampler right by accident; or a
+demonstration that the early re-goal cycle - present in V8b and V8z, absent in V8 - is itself doing
+work rather than being vendor noise. None of these is addressed by the three runs in hand.
+
+**VERIFIED (measured this pass).** Zero `ROUTE SHIFT` lines. The single leg-3 warning and its
+ObservationReport, verbatim. The 8-vertex terrain profile with all four Z points in order,
+`CreateRoute (8 pts)`, one `MoveAlongRoute`, one TASKSTRT, 0 terminal reports. 0 `Tick phase
+FAILED`, 0 `MissingMethodException`, 0 crash. The six tracks, cross-tracks, closest approaches, max
+and last s, final-600 advance and per-200-sim-s speeds. The goal/plan stream, the 0 zero-point
+refusals, the Z2/Z3 goals for five of six, and the 5,323-5,887-row `Is path blocked?` loops. The live
+anchor byte-identical to V8's and V8b's. Sim ratio 2.16x. The runner's `observation window complete
+(902.6s used of 900s)` and the absent StopVrf stage.
+
+**ASSUMED (not verified).** That the reboot did not degrade the host during the window - argued from
+the sim ratio and the freeze signature, not proven. That the early re-goal cycle is vendor noise
+rather than a mechanism - it is consistent across V8b and V8z but its cause is unread (the console
+prints commands, never the vehicle's response). That one run per condition is enough to rank the
+three; each of V8, V8b and V8z is n = 1. That the two voided 0351xxZ directories contain nothing that
+contradicts this - they were not opened.
+
+---
+
+## ATTRIBUTION (V8 / V8b / V8z)
+
+Three runs, one leg, one start, one anchor (`34.65820208652259,-116.74009186651882`, byte-identical
+in all three), the same 8-vertex inserted-waypoint route and the same mesh-planned regime with zero
+planning refusals. They differ in ONE thing: where the two offset vertices sit.
+
+| run | lateral offset | leader outcome | formation |
+|---|---|---|---|
+| V8 | **-125 m SOUTH** (0.661) | stopped at s = 4,138, crawling 0.3 m/s | 5 of 6 past, M3 1 froze at 38.3 m |
+| V8b | **+250 m NORTH** (0.761) | s = 15,148 at ~10 m/s, past V1 | **6 of 6 crossed** |
+| V8z | **ZERO** (the authored line, 1.248) | **froze 19.7 m from the P11 point**, +1.7 m in 600 sim s | 5 of 6 froze; 1 crawled 478 m past |
+
+**The lateral offset is the remedy.** Waypoint insertion is the DELIVERY MECHANISM and is inert on
+its own (V8z); the SIDE and SIZE of the offset decide the outcome (V8 vs V8b); and the sampler that
+picks them located the face correctly, since the V8z units stopped at its toe, 0-52 m short of the
+window it flagged. M3 1 alone makes the chain visible: same vehicle, same slot, froze / crossed /
+froze as the offset went south / north / none. Each condition is n = 1, and the three runs cannot
+speak to other legs, other terrain, or the threshold's false-alarm rate.
