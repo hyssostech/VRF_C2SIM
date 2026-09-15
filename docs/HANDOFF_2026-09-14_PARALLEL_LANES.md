@@ -118,7 +118,7 @@ or a permission rule). V8 (023743Z, de32dac): shift went SOUTH - C2 SIDED the ch
 V8b (033226Z, 79d3fe4): ALL R8 MET - +250 m north, SIX OF SIX crossed, no crawl. V8z zero-offset control
 (041036Z, 8d87391): BRANCH A - froze 19.7 m from P11; THE LATERAL OFFSET IS THE REMEDY, insertion inert. OPEN USER RULINGS: none. V6 RUN 03:10Z (scratch federation
 20260915T030650Z): the tools JOIN but see NO back end + placeholder uuids only, ResetVrf a false green
-(STP-820/823/822). The R5 ORDER stops the back end 121 s after dispatch on BOTH the plain fixture (V6d) and the nav-data fixture (V6e MISS 14:02Z) - 'no nav data' REOPENED; A4 (ridge order) ran fine. Leading candidate: R5's COMPANY move on a composed unit. OWED: V6f (platoon only), STP-822 liveness lane
+(STP-820/823/822). The R5 ORDER sends the back end into a MEMORY RUNAWAY (1-2.5 GB/min, low CPU; 3 -> 31 GB; thread samples in runs/launch52) on BOTH fixtures; status/frames/units stop 121 s after dispatch; the ridge order stays flat at 4 GB. OWED: V6f (platoon only), a runner ws tripwire, STP-822 liveness
 verdict, the Q5 kill-half re-run, and the nav second mechanism / offline 20x20 km control. Prior
 01:00Z paragraph archived verbatim: docs/experiments/HANDOFF_2026-09-14_ARCHIVE_pm.md sec 8
 (append).
