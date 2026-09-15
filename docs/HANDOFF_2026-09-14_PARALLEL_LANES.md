@@ -118,7 +118,7 @@ or a permission rule). V8 (023743Z, de32dac): shift went SOUTH - C2 SIDED the ch
 V8b (033226Z, 79d3fe4): ALL R8 MET - +250 m north, SIX OF SIX crossed, no crawl. V8z zero-offset control
 (041036Z, 8d87391): BRANCH A - froze 19.7 m from P11; THE LATERAL OFFSET IS THE REMEDY, insertion inert. OPEN USER RULINGS: none. V6 RUN 03:10Z (scratch federation
 20260915T030650Z): the tools JOIN but see NO back end + placeholder uuids only, ResetVrf a false green
-(STP-820). V6b: every late joiner FAILED, the early app saw the back end (d9dd06e). V6c 12:22Z: A3 EARLY HIT (0.2 s); CreateOne LATE in the EMPTY sim also HIT; A1/A2 not run (QUERYINIT 'Submitter not specified', no init). OWED: V6c rerun (A5/A1/A2)
+(STP-820). V6c (9f55f19): empty sim answers early AND late (0.2 s); populated+tasked answers nobody (180 s, broadcast); A0 shows the BACK END DROPS status ~2 min after the order and units do not move. OWED: V6d (A5/A6), A4
 verdict, the Q5 kill-half re-run, and the nav second mechanism / offline 20x20 km control. Prior
 01:00Z paragraph archived verbatim: docs/experiments/HANDOFF_2026-09-14_ARCHIVE_pm.md sec 8
 (append).
