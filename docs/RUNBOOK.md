@@ -1987,13 +1987,22 @@ DEPLOY SET:
   read-only half of the before/after reset verification (sec 8); use `ResetVrf --help` for the
   no-join plan.
 
-  LIVE JOIN GATE, TWO RUNS, STILL FAILING - AND THE CAUSE IS NOT IN THIS SECTION (STP-820).
-  V6  2026-09-15 03:10Z, runs/20260915T030650Z_run, preserved rtiexec.
-  V6b 2026-09-15 11:43Z, runs/20260915T114001Z_run, FRESH rtiexec, tools hardened at 89639c2.
-  In BOTH: SmokeTest PASS; every tool that JOINS (rid loaded, clean resign) reports
-  BackendCount=0 after 15 s and refuses. In V6 ResetVrf also printed a 'reset' that deleted
-  NOTHING (three DtNonVrfUUIDResolver placeholders, one per reflected list) - a false green the
-  hardening has since made impossible.
+  LIVE JOIN GATE - RESOLVED 2026-09-15 13:30Z (V6 03:10Z, V6b 11:40Z, V6c 12:22Z/12:42Z, V6d 13:06Z; STP-820; cause
+  STP-823; interface defect STP-822; docs/experiments/V6_LIVE_JOIN_GATE_2026-09-15.md secs 1-9, main cd599ea). THE
+  TOOLS WORK. Every 'no back end' in V6/V6b was the BACK END STOPPED: on the plain R9_Mojave_Empty_52 fixture (no
+  navData) the R5 order's move-along makes every member log 'Is current point in nav area? -> FALSE -> fail in
+  action -> Plan off feature path -> Starting job node Plan path -> Checking status of job' and the back end never
+  emits another console line, moves a unit or answers a status request; each observer's cached status ages out
+  121 +/- 2 s after dispatch (twice); not a crash. Before dispatch, or with units created but untasked, a late
+  joiner sees the back end in 0.1-0.2 s (V6c A3, CreateOne; V6d A5). Falsified on the way: null connection config,
+  env, cwd, launch context, RTI freshness, join lateness, a heartbeat > 15 s, a provoking broadcast. RULES: nav
+  data is a PRECONDITION for any ground task (prep + the nav-area READY gate + an interface refusal - STP-823);
+  the interface must re-read back-end liveness on a timer (it delivered 543 position reports off stale data with
+  the back end dead - STP-822); every WatchVrf run passes --report-backends. Hardening kept (89639c2, 0ecc14a,
+  b160aaa, 161285e, 919aa14): --config resolution printed before Start, ResetVrf refuses without a back end and
+  never counts placeholders, --settle-secs, PauseSim --provoke (a probe), Stage 0 fails on a missing deployed
+  appsettings.json (sec 7c). Still owed on a fixture WITH nav data: the destructive reset pair and SetSimRate's
+  effect (A4 on V5's fixture, 4448, running).
 
   V6b WAS THE DISCRIMINATING RUN AND IT KILLED THE LAUNCH-CONTEXT FRAME. Gate 1 ran TWICE - the
   FULL runner ProfileEnv with no --config, and V6's minimal env with an explicit --config - and
@@ -2088,7 +2097,7 @@ bytes, no STP-809 members in the dll; it covered six of the TEN consumers that e
 The PRE state this rerun measured was exactly that partial deploy: six consumers at that hash
 and FIVE - the four converted tools plus the new `tools/PauseSim` - with no `bin\Release-5.2`
 tree at all. DO NOT USE THAT HASH.
-STILL OUTSIDE EVERY PIN: nothing here joined a live federation. The LIVE JOIN GATE for the four
+(SUPERSEDED 2026-09-15: the tools have joined live federations in V6-V6d; see the RESOLVED paragraph above.) The LIVE JOIN GATE for the four
 converted tools and for `tools/PauseSim` is still owed. ONE CHECKOUT, SEVERAL LANES: while this
 gate ran, a parallel lane held `docs/OPUS_EXECUTION_PLAN.md` and
 `docs/experiments/PREREG_V7_AO20_2026-09-15.md` modified (both left untouched here) and landed
