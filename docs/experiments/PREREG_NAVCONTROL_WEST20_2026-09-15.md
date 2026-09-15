@@ -425,3 +425,245 @@ vendor-limit compliance, not as the navigation fix; the connectivity-ratio gate 
 area; "regenerate the nav data" is not a safe idempotent operation on a streamed terrain and needs the gate plus a
 recorded terrain state; and MojaveAO20's clean data should be treated as a dated artefact, not as a reproducible
 baseline. The owed measurement is the falsifier in point 6 above.
+
+---
+
+# PART 2 - THE FALSIFIER OF PART 1'S OWN VERDICT: regenerate MojaveAO20's EXACT extents today
+# (prediction sections written 2026-09-15 11:52Z, BEFORE the second generator run; RESULTS appended after)
+
+Part 1 ended by naming the one measurement that would collapse its own reading (RESULTS, adversarial review point 6):
+"Regenerate MojaveAO20's exact extents today. If it comes back with 0 of 1,600 fragmented, then something about the
+WEST20 box - not the date - is responsible and this reading collapses." The coordinator ordered it; this is it. Tier
+HEAVY, gate PREREG, same stop discipline: a missed HIGH prediction stops the track and nothing is adjusted to recover it.
+
+## 9. WHAT PART 2 TESTS
+
+Part 1 concluded that the terrain input changed between 2026-09-07 and 2026-09-13, not that the extent matters. That
+conclusion rests on comparing TWO DIFFERENT BOXES over shared ground. The surviving competing reading is that something
+about the WEST20 box itself - its origin, its position relative to the terrain's own tiling, anything extent-dependent
+that my matched-ground argument did not reach - produced the denser meshes, and that the date had nothing to do with it.
+The clean separation is to regenerate **the same box** that was clean on 2026-09-07 and see what it does today.
+
+**This is the strongest possible test of Part 1's verdict, because it removes the last variable.** Same terrain, same
+ground-platform profile, same generator binary, and a .navGenConfig **copied byte-for-byte** from
+`NavArea-ground-platform MojaveAO20.navGenConfig` (580 bytes, verified identical), so the ECEF corners, tile-count 40x40,
+raster 0.2 and cell-size 43 are not merely equal but the same bytes. Only the DATE differs. Nothing else is left.
+
+Because the extents are identical, **the rerun's sector (i,j) is the same ground as the 2026-09-07 area's sector (i,j)** -
+there is no lat/lon mapping in this comparison at all, and P-B can be scored on named sector indices.
+
+## 10. THE RUN
+
+Area name `NavArea-ground-platform MojaveAO20R` ("R" for regenerated), home
+`C:\C2SIM\vrf-nav\control-ao20-2026-09-15`, reached through the short junction `C:\Users\PAULOB~1\Temp\navr` (MAX_PATH).
+**The deployed MojaveAO20 area, its navData, its runtime config and the terrain copies that reference it are not touched**;
+nothing is written under C:\MAK; no fixture is built or deployed. Command line identical in form to Part 1's:
+
+    cwd  : C:\MAK\vrforces5.2d\bin64 ; PATH prefixed bin64;vrlink5.10\bin64;makRti5.0.1\bin ;
+           MAK_VRFDIR / MAK_VRLDIR set ; MAKLMGRD_LICENSE_FILE resolved from the USER scope
+    exe  : vrfNavGenerator.exe
+           --terrain      "C:\MAK\SharedData\19\latest\TerrainData\TerrainConfiguration\MAK Earth (online).mtf"
+           --config       "C:\Users\PAULOB~1\Temp\navr\cfg\NavArea-ground-platform MojaveAO20R.navGenConfig"
+           --outputPath   "C:\Users\PAULOB~1\Temp\navr\navData\MAK Earth (online)\NavArea-ground-platform MojaveAO20R"
+           --verbose
+           --navDataDir   "C:\Users\PAULOB~1\Temp\navr\navData\MAK Earth (online)"
+           --logFileName  "C:\Users\PAULOB~1\Temp\navr\log\gen-AO20R.log"
+
+Scheduling: started only once no `vrfSimHLA1516e` process exists, polled every 60 s, two consecutive clear polls so a
+teardown is past. A live run was up at 11:49Z when this section was written.
+
+### 10.1 METHOD NOTES CARRIED FORWARD (both were learned the hard way in Part 1)
+
+1. **`vrfNavGenerator --verbose` is a SWITCH, not a valued option.** The `--verbose 1` line printed in the
+   "Command line arguments:" header of every generation log is the tool's own RENDERING of its parsed options, not the
+   argv it received. Passing `--verbose 1` is refused in 1.0 s with `PARSE ERROR: Argument: 1 / Couldn't find match for
+   argument` and nothing is written. Reconstructing a command line from a log header is therefore unsafe for switches;
+   check it against `--help` or the usage block the tool prints on refusal.
+2. **Navigation-data generation on MAK Earth (online) is NOT reproducible across weeks.** The same command, same config,
+   same binary and same terrain path produced a clean area on 2026-09-07 and fragmented abstract graphs on 2026-09-13 and
+   2026-09-15, because the streamed terrain input itself changed (Part 1, RESULTS). Any generated nav area must therefore
+   carry a recorded terrain state alongside it, and a regeneration is a NEW artefact to be re-gated, never a rebuild of
+   the old one. Part 2 exists to test exactly this sentence.
+
+## 11. THE FROZEN SETS (computed from Part 1's data BEFORE this run, in MojaveAO20's OWN sector indices)
+
+Saved to `scratchpad\navcontrol\frozen_sets_ao20index.json` before the generator was started:
+
+| set | n | definition |
+|---|---|---|
+| `fragmented_in_west20` | **135** | AO20 sectors whose ground came out below ratio 0.5 in the fresh WEST20 area, and which read 1.00-ish on 2026-09-07 |
+| `grew5pct` | **215** | AO20 sectors whose ground carried more than 5 % more input triangles in WEST20 than on 2026-09-07 |
+| `unchanged2pct` | **434** | AO20 sectors whose ground was within +/- 2 % of its 2026-09-07 triangle count in WEST20 |
+
+(123 sectors are in both of the first two.) Every one of these is a sector of the box being regenerated, so the rerun
+scores against them directly.
+
+## 12. PREDICTIONS (written before the generator was started; a missed HIGH prediction is a STOP)
+
+- **P-0 (HIGH, instrument).** The rerun completes on its own: 1,600 sector blocks, 1,600 `^Generated: ground-platform`,
+  a `Generation time:` line, exit 0, no licence failure, no GUI requirement; and its `.navRuntimeConfig` extents equal
+  the deployed MojaveAO20's ((-10019, 9976) / (10062, 9976) / (-10019, -9976) / (10062, -9976)) with the same sector-grid
+  shape (1,560 sectors of 11 x 11 cells plus a 39-cell column and a 36-cell row). MISS -> STOP and read nothing else.
+- **P-A (HIGH, THE TEST).** The fresh MojaveAO20R is **NOT clean**:
+  (a) area-wide, **more than 20 sectors read ratio < 0.5** (2026-09-07: 0 of 1,600), and
+  (b) **at least 100 of the 135 frozen `fragmented_in_west20` sectors (>= 74 %) read below 0.5** at their own (i,j).
+  MISS - 0 fragmented area-wide, or fewer than 45 of the 135 - means the date reading of Part 1 **COLLAPSES**: the same
+  box is still clean today, so the difference between AO20 and WEST20 is spatial or extent-dependent after all, Part 1's
+  verdict is withdrawn, and the object becomes what it is about the WEST20 box that densified the mesh. STOP, report,
+  adjust nothing. An in-between result (45-99 of 135) is a partial and is reported as one: the terrain-input reading
+  would stand in weakened form and a spatial term would have to be admitted alongside it.
+- **P-B (HIGH, the mechanism must reappear on the SAME ground).** The triangle-growth signature repeats at the same
+  sector indices: **at least 170 of the 215 frozen `grew5pct` sectors (>= 79 %) again carry more than 5 % more input
+  triangles than the 2026-09-07 run at the same (i,j)**, and **no more than 45 of the 434 frozen `unchanged2pct` sectors
+  (<= 10 %) move by more than 2 %**. This is what distinguishes "the terrain changed" from "generation is just noisy":
+  a noisy generator would scatter the growth, not reproduce it sector for sector.
+- **P-C (RECORDED, not scored).** Area-wide fragmented count and the ratio histogram on the same bins; generation time
+  (2026-09-07: 1,435.81 s; WEST20 today: 1,429.81 s); file count and bytes (2026-09-07: 4,803 files / 166 MB; WEST20
+  today: 4,802 / 283.9 MB - if the terrain really is denser this should land near WEST20's, not near 166 MB); median
+  NavData (2026-09-07: 59.9 kB; WEST20 68.0 kB); warning-ish line count (2026-09-07: 4); and the four named points in
+  AO20's own indices, which on 2026-09-07 read destack start (13,32) 1.000, N2d start (12,32) 1.000, P11 freeze (9,32)
+  1.000, V1 not covered.
+
+**Reading.** P-A and P-B HOLD -> Part 1's verdict is confirmed by the strongest available test and AO20's clean data is
+definitively a dated artefact; the byte size of the output becomes a one-glance tripwire for the terrain state. P-A
+MISSES -> Part 1's verdict is WITHDRAWN, not softened. P-A holds and P-B misses -> the ground fragments today but not on
+the sectors predicted, which would mean the growth signature is not the mechanism and the record must say so.
+
+## 13. CONFOUNDS THIS SECOND RUN STILL CANNOT REMOVE
+
+1. The cache is now warmer for this ground than it was at 11:12Z, because Part 1's generation just streamed it. That cuts
+   the other way from the reboot caveat: if the rerun fragments, a cold cache cannot be blamed.
+2. It still cannot separate **online-service data change** from **local tile-cache level-of-detail change**. Both remain
+   "terrain input state". Distinguishing them needs a tile-level inspection, which is a separate piece of work.
+3. n = 1 again. No repeat of the repeat.
+4. Everything measured is still at GENERATION, not at query time (carried from RESEARCH sec 11.6).
+
+---
+
+## 14. RESULTS PART 2 - regeneration 2026-09-15 11:57:22Z -> 12:20:19Z (exit 0, 1,376.9 s wall; the generator's own "Generation time: 1364.2")
+
+**P-A HOLDS on both limbs. Part 1's verdict SURVIVES its own falsifier.** The identical box - same bytes of
+.navGenConfig, same terrain, same profile, same binary - that produced **0 of 1,600** fragmented sectors on 2026-09-07
+produces **189 of 1,600 (11.8 %)** today. MojaveAO20's clean navigation data is a dated artefact, exactly as Part 1 said.
+
+**And the run overturns Part 1's proposed MECHANISM.** P-B(1) missed, by two sectors, and chasing that miss found the
+variable that actually separates: **of the 484 sectors whose distinct-nav-tag count changed since 2026-09-07, 189 are
+fragmented today; of the 1,115 sectors whose tag count did not change, ZERO are fragmented.** Not one. Triangle growth
+was a correlate; the added nav tag is the discriminator.
+
+### Scored predictions
+
+| pred | predicted | measured | verdict |
+|---|---|---|---|
+| **P-0** (HIGH, instrument) | 1,600 sectors, 1,600 "Generated" rows, "Generation time:", exit 0, no licence/GUI failure; runtime extents and sector-grid shape equal to the deployed MojaveAO20's | exit 0; 1,600 sector blocks; 1,600 `^Generated: ground-platform`; "Generation time: 1364.2"; runtime extents **(-10019, 9976) / (10062, 9976) / (-10019, -9976) / (10062, -9976)** and offset identical to the deployed area's; sector index set **identical** to the 2026-09-07 log's (set equality, 1,600 = 1,600) | **HIT** |
+| **P-A(a)** (HIGH, the test) | more than 20 sectors below ratio 0.5 area-wide (2026-09-07: 0 of 1,600) | **189 of 1,600 (11.8 %)**; 314 below 0.9; 1,210 exactly 1.00 | **HIT** |
+| **P-A(b)** (HIGH, the test) | at least 100 of the 135 frozen `fragmented_in_west20` sectors read below 0.5 at their own (i,j) | **120 of 135 (89 %)** | **HIT** |
+| **P-B(1)** (HIGH) | at least 170 of the 215 frozen `grew5pct` sectors again carry > 5 % more triangles than 2026-09-07 | **168 of 215 (78 %)** - short of the registered 170 by **two sectors**. Reported as a MISS as written; the threshold was a round number I chose, and no threshold was moved after the fact | **MISS** |
+| **P-B(2)** (HIGH) | no more than 45 of the 434 frozen `unchanged2pct` sectors move by more than 2 % | **9 of 434 (2 %)** | **HIT** |
+| **P-C** (RECORDED) | time, counts, bytes, medians, named points | generator time **1,364.2 s** (2026-09-07: 1,435.81 s; WEST20: 1,429.81 s); **4,804 files / 268.7 MB against 2026-09-07's 4,803 / 166 MB** on identical extents - the byte size alone is a one-glance tripwire; median NavData **65.3 kB** (was 59.9); median input triangles 98,958 (was 98,760); 4 warning-ish lines, the same four; max NavData 1,535.5 kB | **RECORDED** |
+
+### The named points, AO20's own sector indices, 2026-09-07 -> today
+
+| point | sector | ratio | NavData kB | input triangles |
+|---|---|---|---|---|
+| 1-35 destack start | (13,32) | **1.000 -> 0.102** | 55.9 -> 464.9 | 98,576 -> 113,135 |
+| 1-35 N2d start | (12,32) | **1.000 -> 0.444** | 62.1 -> 368.4 | 98,978 -> 112,690 |
+| P11 freeze point | (9,32) | 1.000 -> 1.000 | 80.26 -> 80.26 | 98,575 -> 98,575 |
+| V0 assembly origin | (16,37) | **1.000 -> 0.620** | 61.0 -> 228.9 | **98,576 -> 98,576 (identical)** |
+
+V0's row is the one that broke Part 1's mechanism: **identical input geometry, 3.75x the NavData, and a degraded graph.**
+
+### The determinism control - and what it proves
+
+**1,016 of 1,599 sectors (64 %) reproduced EXACTLY**: same input triangle count AND the same NavData size to within
+0.005 kB. **Not one of them changed its connectivity ratio by so much as a floating-point step.** Given identical input
+the generator is bit-stable, eight days and a Windows reinstall-grade reboot apart. So "generation is noisy" is dead,
+and every difference measured below is a difference in what the generator was fed.
+
+### What actually changed: a nav tag was added over ~30 % of this ground
+
+| distinct nav tags per sector | 2026-09-07 | today |
+|---|---|---|
+| 1 | 1,136 | 1,050 |
+| 2 | 447 | 142 |
+| 3 | 17 | 400 |
+| 4 | 0 | 8 |
+
+Transitions, sector by sector: **391 sectors went 2 -> 3 tags**, 86 went 1 -> 2, 8 went 3 -> 4; 1,050 stayed at 1 and
+56 stayed at 2. And the contingency is absolute:
+
+- **484 sectors changed tag count -> 189 of them are fragmented today.**
+- **1,115 sectors did not change tag count -> 0 are fragmented today.**
+- By today's tag count: tags=1, **0 of 1,050 fragmented**; tags=2, 79 of 142; tags=3, 110 of 400; tags=4, 0 of 8.
+
+This is NOT a change in feature volumes. The generation logs' own feature-layer lists are line-for-line identical
+between the two runs (27 layer lines each, same layers in the same order), and the tag-volume totals are identical to
+the volume: **MAK_WATERWAY 2, MAK_ROAD 416, MAK_VEGETATION 0 in both.** What changed is the per-sector surface
+classification the generator derives from the streamed terrain - the same land-cover data the slope-and-soil work reads.
+
+The knock-on is mechanical and matches Part 1's dose-response exactly: an extra surface class carves the NavMesh, the
+NavData blob swells, and above ~300 kB per sector the abstract graph comes out shattered. On this area today: NavData
+under 100 kB -> **0 of 1,202 fragmented**; 100-300 kB -> 8 of 183 (4 %); 300-400 kB -> 68 of 87 (78 %); over 400 kB ->
+113 of 128 (88 %). Thirty sectors fragmented **without** any triangle growth at all - and all thirty had their NavData
+grow more than 1.5x, with the tag count going 2 -> 3. Six of the largest: (9,39) 183.6 -> 1,402.2 kB ratio 1.000 ->
+0.191; (8,39) 178.8 -> 1,262.5 kB 1.000 -> 0.290; (30,39) 192.0 -> 1,167.7 kB 1.000 -> 0.270; (22,39) 204.0 -> 1,144.6
+kB 1.000 -> 0.305; (23,39) 252.1 -> 1,068.3 kB 1.000 -> 0.291; (20,39) 219.9 -> 986.4 kB 1.000 -> 0.517 - every one of
+them on **identical input triangles**.
+
+### Adversarial review (Part 2)
+
+1. **"P-B(1) missed, so the record should say the mechanism failed."** It should, and it does - as written, 168 < 170 is
+   a miss and no threshold was moved. But the honest reading is sharper than "the signature did not reappear": it
+   reappeared in 78 % of the frozen set while only 2 % of the frozen unchanged set moved, and the reason it is not
+   higher is that **triangle growth was the wrong proxy all along**. The tag-count change separates 189 from 0 with no
+   errors in either direction. Part 1's mechanism sentence ("the terrain served became denser, and denser NavMesh
+   shatters the graph") is therefore **superseded, not confirmed**: the operative input change is an added surface
+   class, which usually but not always brings extra triangles with it.
+2. **"The tag counts are a parsing artefact."** The same regex, the same script, on both logs; the distribution moves
+   coherently (a near-clean 2 -> 3 shift of 391 sectors, not scatter); and it partitions fragmentation perfectly, which
+   a parsing error has no reason to do. The 1,016 exactly-reproduced sectors also parse identically in both runs.
+3. **"Something about my run, not the date."** The .navGenConfig is a byte-for-byte copy (580/580, verified before the
+   run); the feature-layer list and the tag-volume totals are identical; 64 % of sectors reproduced to 0.005 kB. There
+   is no remaining candidate inside my control.
+4. **"A cold cache after the 04:31Z reboot."** Refuted for this run: Part 1's generation had just streamed this exact
+   ground 20 minutes earlier, so the cache was WARM here - and it still fragmented. The cold-cache caveat carried from
+   Part 1 is now closed.
+5. **STILL NOT SEPARATED, and now a much smaller target.** Whether the added surface class comes from the MAK Earth
+   (online) service's data changing, or from the local cache now holding land-cover tiles it did not hold on
+   2026-09-07, is not settled here. It is one layer, not "the terrain", and a tile-level inspection would close it.
+6. **CROSS-CUTTING, flagged not pursued:** the land-cover layer is the same data the ridge work reads for SOIL
+   (effective max-slope = max-slope x soil factor). If the surface classification over this AO changed on 2026-09-13,
+   then every soil-derived number taken before that date - including the sand factor behind the 0.752 effective slope
+   limit - was computed on different data from today's. That is not this pass's object, but it must not be discovered
+   later by accident.
+7. **Clustering** is spatial again, not generation-order: bad-bad adjacency 134 generation-consecutive vs 128
+   generation-distant.
+8. **Unexplained and carried:** why 79 of 142 sectors at tags=2 fragment while only 110 of 400 at tags=3 do - the count
+   of tags is not monotone in the damage, so WHICH class was added matters and this pass did not read the class names
+   out of the log.
+
+### VERIFIED vs ASSUMED (Part 2)
+
+**VERIFIED** (this regeneration's own log and runtime config, the 2026-09-07 log, and files on disk; no vendor sim log
+opened): every number above; that the config was byte-identical (580/580, Compare-Object empty); that the runtime
+extents and the sector index set match the deployed MojaveAO20 exactly; that the feature-layer lists and tag-volume
+totals are identical between the two runs; that no VR-Forces back end was running when the generator started (two
+consecutive clear 60 s polls, from 11:56:22Z).
+
+**ASSUMED**: that the 2026-09-07 gen-AO20.log faithfully records that generation (read, never hashed); that "Generated
+N distinct nav tags." means what its name says; that generation-time connectivity is what the runtime query sees
+(carried from RESEARCH sec 11.6).
+
+### VERDICT PART 2
+
+**Part 1 stands, and its mechanism is replaced by a better one.** Regenerating MojaveAO20's exact extents today yields
+189 fragmented sectors where 2026-09-07 yielded none, so the clean AO20 data is a dated artefact and C1's size reading
+remains falsified. The generator is bit-stable given identical input (1,016 sectors reproduced exactly, zero ratio
+drift), so the cause is entirely on the input side, and the input that changed is the **per-sector surface
+classification**: 484 sectors gained a distinct nav tag, and those 484 contain all 189 fragmented sectors while the
+1,115 unchanged sectors contain none.
+
+Product consequence, sharpened: the connectivity-ratio gate (STP-803) stays mandatory, and it now has a cheap companion
+tripwire - **the output byte size and the per-sector tag count**. 166 MB on 2026-09-07 against 268.7 MB today for the
+same box is a one-glance signal that the terrain input moved under us. Any generated area must record its terrain state,
+and "regenerate the nav data" must be treated as producing a new artefact that has to pass the gate again.
