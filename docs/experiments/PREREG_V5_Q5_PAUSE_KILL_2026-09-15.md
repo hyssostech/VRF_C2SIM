@@ -325,4 +325,319 @@ the sim ratio on this fixture stays inside 4.6-8.2, which sec 2a makes a stated 
 
 ---
 
-## RESULTS - not run
+## RESULTS - run 20260915T021316Z_run (PAUSE HALF; KILL HALF NOT RUN)
+
+Harvested 2026-09-15 (Opus HARVEST executor, HEAVY). Read-only over `runs\20260915T021316Z_run`; no vendor sim log was
+opened. Sources: `vrfc2simapp.log` (589,147 lines), `reports-captured.log` (15,977 reports), `watchvrf-trace.csv`
+(251,824 usable console sim samples), `pausesim-pause.stdout.log` / `pausesim-resume.stdout.log`, `run-manifest.json`,
+the runner log (`scratchpad\validation\v5_runner.log`) and `scratchpad\validation\v6_partA_out.txt`.
+
+### R0. WHAT ACTUALLY HAPPENED, AND THE THREE CORRECTIONS TO THE TIMELINE OF SEC 2
+
+The pause half ran exactly as registered. **The kill half did not happen**: the seat's `Stop-Process` was refused by the
+permission classifier and the manual kill of pid 65952 did not arrive before the window closed at its 1,200 s cap
+(`--no-stop-when-complete`, by design). `StopVrf52.ps1` found pid 65952 alive at teardown and closed it gracefully, so
+the back end was never killed at all. **V5f, V5g and V5h are NOT RUN - they are not passes and not misses.**
+
+Three corrections the run forces on sec 2's timeline, all VERIFIED:
+
+- **C-T1. `t = 0` is NOT the dispatch; the dispatch is at `t - 29 s`.** `PushOrder` carries a 30 s argument and the
+  runner's stage-8b clock starts when the child returns, not when the order lands. The order reached the bus at
+  **02:15:49.705Z** (runner log) and TASKSTRT was on the bus at **02:15:50.715Z**, while stage-8b `t=0` is
+  **02:16:19.4-02:16:20.1Z** (back-computed from the manifest's `firedUtc` for both halves). Sec 2's "~+1 to +3 s: T1
+  dispatches" is wrong by about 30 s, and it is 30 s in the direction that SHORTENS the kill half's margin (C-T3).
+- **C-T2. The measured sim ratio is 7.13x, not 5.7x.** Pre-pause (post-order) least squares over the object-console
+  stamps: **7.30x**; post-resume **6.66x** over the whole tail and **6.80x** over the first 325 s; whole-capture 5.83x
+  (that figure is contaminated by the hold and must not be used). The one that matters is task-clock served / running
+  wall = 1828 / 256.5 = **7.13x**. Inside sec 2a's stated 4.6-8.2 precondition.
+- **C-T3. At the nominal kill instant T1 had 8.9 s of wall left, not the comfortable margin sec 2a computed.** T1
+  completed at **02:23:08.672Z = t+408.9 s**; the kill was to be at t+400. With the true dispatch at t-29.0 the
+  armed-at-the-kill condition is `r < 1800 / (429.0 - 181.5) = 7.27x` and the measured r was 7.13x - inside by 2%, not
+  by the 8.26x sec 2a claimed. **Any re-run of the kill half must anchor its offset on the DISPATCH, not on stage-8b
+  t=0, or shorten it.**
+
+### R1. VERDICT TABLE
+
+| id | tier | verdict | one line |
+|---|---|---|---|
+| V5a | HIGH | **PASS** | exactly 2 `TASK CLOCK ... HELD` lines, at 61 s and 122 s of flat clock, both naming `REPORTS PAUSED (DtPauseControlType; BackendCount=1, active=1)`, neither carrying the caveat sentence |
+| V5b | HIGH | **PASS** | 2 TaskStatus reports in the entire run (TASKSTRT 02:15:50.715Z, TASKCMPLT 02:23:08.672Z); ZERO of any code between the pause and the resume |
+| V5c | HIGH | **PASS** | `PAUSE_CONFIRMED basis=state+clock exit=0 ... clockDelta=0.000` and `RESUME_CONFIRMED basis=state+clock exit=0 ... clockDelta=2.052`; both `basis=state+clock`, neither CONTRADICTED. One parenthetical of the prediction MISSED - see F-1 |
+| V5d | HIGH | **PASS** (one tolerance exceeded) | `simTimeAfterHold` 1167.855 (pause) vs `simTimeBefore` 1167.888 (resume): +0.033 s over 181 s of wall; recovery line inside ~1 s of the clock restarting; the completion arithmetic reconciles at 7.13x. The 1828-vs-1800 overshoot is 28 sim s against sec 3's `3 x r` = 21 s tolerance - see F-2 |
+| V5e | RECORDED | **DONE** | `BackendCount=1, active=1` on both HELD lines; the recovery line carries neither, by design (it is the E1 recovery branch) |
+| V5f | HIGH | **NOT RUN** | the back end was never killed |
+| V5g | FALSIFIER | **NOT RUN** | the falsifier was not exercised; the lane is NOT cleared by this run |
+| V5h | HIGH | **NOT RUN** | no kill, so no wall-clock remainder. T1 instead completed wholly on the SIM clock, inside the window, at t+408.9 s |
+| V5i | MEDIUM | **PASS** for its whole-run half | zero `MissingMethodException`, zero `TASK CLOCK: the back-end CONTROL STATE could not be read (STP-809)`, zero `Tick phase '<name>' FAILED`, zero `SIM CLOCK:` lines of any kind (so no backwards step). `PauseSim` also printed `control-state read-back = AVAILABLE (VrfBridge.BackendControlState, STP-809)` |
+
+**The pause half of assessment live gate 11 PASSES. The kill half is still owed, and STP-809's active-count path is
+still UNCONFIRMED LIVE.**
+
+### R2. THE TASK CLOCK LINES, VERBATIM (V5a, V5e)
+
+Five `TASK CLOCK` matches in the whole app log: the start-up `TASK CLOCK (R4)` banner, the `CHAIN DEPTH` line (which
+contains the words "TASK CLOCK"), and the three below. There is no fourth HOLD line and no STP-809 warning.
+
+    warn: VrfC2Sim[0]  (line 96287)
+          TASK CLOCK: the simulation clock has not advanced past 1167.9 s for 61 wall seconds and the back end REPORTS
+          PAUSED (DtPauseControlType; BackendCount=1, active=1) - the scenario is PAUSED, not gone. C2SIM task times are
+          HELD: 1 task(s) waiting on an end time age by NOTHING until the scenario runs again (Q5, user ruling
+          2026-09-14).
+
+    warn: VrfC2Sim[0]  (line 96301)
+          TASK CLOCK: the simulation clock has not advanced past 1167.9 s for 122 wall seconds and the back end REPORTS
+          PAUSED (DtPauseControlType; BackendCount=1, active=1) - the scenario is PAUSED, not gone. C2SIM task times are
+          HELD: 1 task(s) waiting on an end time age by NOTHING until the scenario runs again (Q5, user ruling
+          2026-09-14).
+
+    info: VrfC2Sim[0]  (line 96861)
+          TASK CLOCK: the simulation clock is readable and advancing again (1168.7 s) - C2SIM task times are served on
+          it once more.
+
+COUNT 2, exactly as predicted; REPEAT 61 s, exactly `LogRateLimitSeconds`; WORDING the confirmed-pause wording, with NO
+caveat clause. **`active=1`**: the vendor called the paused back end simulatable-or-in-transition throughout, which is
+what makes `TaskClockAction` test 2 (PAUSED -> HOLD) the one that fired rather than test 1. The recovery line's
+neighbours in the log are console rows stamped sim 1174.05-1174.25, i.e. it printed about 1 s after the scenario clock
+restarted and about 4 s before `PauseSim`'s resume `[RESULT]`.
+
+### R3. TASKSTATUS ON THE BUS (V5b)
+
+Every TaskStatus report in `reports-captured.log`, in full - there are two, out of 15,977 captured reports (15,872
+Position, 103 Observation):
+
+| stamp (UTC) | report # | code | task | reporting entity |
+|---|---|---|---|---|
+| 02:15:50.715Z | 232 | TASKSTRT | cd589832-... | d6df3c3d-... |
+| 02:23:08.672Z | 5865 | TASKCMPLT | cd589832-... | d6df3c3d-... |
+
+The pause window is **02:18:21.4Z (command) / 02:18:32.3Z (`[RESULT]`) to 02:21:23.1Z / 02:21:33.6Z**. Nothing of any
+code lies in it - in fact nothing lies between 02:15:50.7Z and 02:23:08.7Z at all. No TASKABRT, no TASKINPRG, no second
+TASKSTRT. V5b PASS.
+
+### R4. THE TWO `[RESULT]` LINES (V5c)
+
+    [RESULT] PauseSim action=pause verdict=PAUSE_CONFIRMED basis=state+clock exit=0 appNumber=4381 backends=1
+    controlBefore=Running controlAfter=Paused confirmSecs=3.0 simTimeBefore=1166.988 simTimeAfterCmd=1167.855
+    simTimeAfterHold=1167.855 holdSecs=2.1 clockDelta=0.000 utc=2026-09-15T02:18:32.258Z
+
+    [RESULT] PauseSim action=resume verdict=RESUME_CONFIRMED basis=state+clock exit=0 appNumber=4382 backends=1
+    controlBefore=Paused controlAfter=Running confirmSecs=3.0 simTimeBefore=1167.888 simTimeAfterCmd=1170.794
+    simTimeAfterHold=1172.846 holdSecs=2.1 clockDelta=2.052 utc=2026-09-15T02:21:33.647Z
+
+Field order, verdict words and `basis=state+clock` are exactly the contract. Neither degraded to `basis=clock`, so V5a
+shape A did not occur on either half. appNumbers 4381/4382 CONSUMED (manifest `appNumberConsumed: true` for both);
+marker advanced 4374 -> 4383.
+
+### R5. THE PAUSE COST THE ORDER NOTHING (V5d) - THE ARITHMETIC
+
+The completion lines, verbatim:
+
+    TIMED COMPLETION: task 'T1_AOA_SE_1-35_AR;_2/1_AD_P1' on 1-35/2/1_A~PXY reached its END TIME - 1828 s of a 1800 s
+    Duration served on the simulation clock (C2SIM Duration x Vrf:DurationScale 0.25). R4: completion is given by the
+    end time.
+
+    SENT TASK STATUS REPORT (TASKCMPLT) taskee=d6df3c3d-... task=cd589832-... - task 'T1_AOA_SE_1-35_AR;_2/1_AD_P1'
+    reached the end time given by its C2SIM Duration (1800 s after dispatch).
+
+**"served on the simulation clock"** - the axis never left sim mode, which is the whole claim. Four independent
+measurements agree that the held 181 s contributed nothing:
+
+1. **The interface's own reader.** `simTimeAfterHold` 1167.855 at the pause, `simTimeBefore` 1167.888 at the resume:
+   **+0.033 s over 181 s of wall**. The two HELD lines both report the same flat reading, 1167.9.
+2. **The vendor's own console channel, which the interface does not write.** The object-console rows in
+   `watchvrf-trace.csv` stop dead for **181.5 s** (trace wall 189.3 -> 370.8; about 02:18:26.8Z -> 02:21:28.3Z) and the
+   sim stamp on the rows either side moves **1167.05 -> 1167.89, i.e. 0.84 s**. At the 7.3x that was running a moment
+   earlier, 181.5 s of wall was worth about 1,325 sim s; the scenario produced 0.84.
+3. **The served count against the clock itself.** Between the two bus reports the console sim stamp advanced
+   **1825.5 s** while the app logged **1828 s** served - 0.14% apart. The axis tracked the sim clock one for one and
+   nothing else.
+4. **The completion instant against the counterfactuals.** Observed **02:23:08.672Z**. Wall between the two bus reports
+   438.0 s, of which 181.5 s was frozen, leaving 256.5 s of running wall (1828 / 256.5 = 7.13x). Re-serving the hold on
+   the pre-Q5 rules and re-running the arithmetic at the post-resume 6.82x:
+
+   | model | task-clock seconds the hold would add | predicted TASKCMPLT | vs observed |
+   |---|---|---|---|
+   | **Q5 HOLD (shipped)** | 0 | **02:23:08.7Z** | **observed** |
+   | pre-Q5 (wall served once STALE at 60 s) | 122 | 02:22:50.9Z | 17.8 s too early |
+   | naive "a pause ages the task" | 182 | 02:22:42.1Z | 26.6 s too early |
+
+   The separation (17.8 s) is more than 4x the run's own completion overshoot (3.9 s of wall, F-2), so the observation
+   discriminates: the axis held, it did not serve wall seconds.
+
+### R6. THE KILL HALF - NOT RUN, AND WHAT IS STILL OWED
+
+No `Stop-Process` was issued. `StopVrf52.ps1`'s teardown inventory found `vrfSimHLA1516e pid=65952 threads=81` ALIVE and
+closed it with `taskkill /PID 65952` (no `/F`) - a graceful close at about 02:36:45Z, 13 minutes after the completion
+and outside any measurement. So:
+
+- V5f, V5g and V5h are NOT RUN. Sec 5's three-outcome PROBE (what `simTime()` returns for a DEACTIVATED back end) was
+  NOT exercised: no outcome (a), (b) or (c) was observed, and `active=` was never seen as anything but 1.
+- RUNBOOK sec 11's "**UNCONFIRMED LIVE** (assessment live gate 11)" line stands unchanged for the kill half.
+- Sec 6's unmeasured teardown-against-a-dead-sim question is also untouched: this teardown ran against a LIVE sim.
+
+### R7. INSTRUMENT FINDINGS (none of them changes a verdict)
+
+- **F-1 (new, and it matters for reading any future `PauseSim` output).** `DtVrfRemoteController::simTime()` as read by
+  a freshly joined control federate LAGS the back end's own console clock, and the lag GROWS for several seconds after a
+  resume. Measured against the console stamps at the same wall instants: lag 0.0 sim s at the "before" read (paused),
+  **12.4 sim s** at `simTimeAfterCmd`, **32.3 sim s** at `simTimeAfterHold`. That is why `clockDelta=2.052` over a 2.1 s
+  hold reads as 0.98x when the scenario was in fact running at 6.8x (the console went 1167.9 -> 1176.0 in the 1.2 s
+  after the resume). Sec 3's parenthetical "`clockDelta` about `2 x r` = ~11 s" is therefore REFUTED as an expectation;
+  the predicate it qualifies ("strictly positive") is what held. **`PauseSim`'s `clockDelta` is a LIVENESS test, not a
+  rate measurement** - it must never be used to estimate a sim ratio, and a `basis=clock`-only verdict off a 2 s hold is
+  quantisation-prone. Either lengthen `holdSecs` or say so in the tool's own output.
+- **F-2.** The timed completion overshot by **28 sim s** (1828 served against 1800 armed) = **3.9 s of wall** at 7.13x.
+  Sec 3's tolerance was "the 1 s sampling staircase times the ratio, about `3 x r`" = 21 s, so the overshoot is 7 sim s
+  outside it. The mechanism is F-1: the axis reader advances in bursts of up to about 30 sim s, not in a 1 s staircase,
+  so the 1 s timed walk can only ever notice the end time one burst late. The tolerance is the thing that was wrong,
+  not the interface; a future prereg should write it as `3 x r` **plus one reader burst**.
+- **F-3.** The V6 gate's `ResetVrf` ran from 02:22:11Z to 02:23:43Z, straddling the completion at 02:23:08.7Z. It cost
+  nothing measurable: the ratio over trace wall 400-500 (which contains it) is 6.89x against 6.78x for the next 100 s.
+  Sec 8's confound is CLOSED as negligible for this run.
+
+### R8. THE V6 LIVE JOIN GATE, PART A (`scratchpad\validation\v6_partA_out.txt`, 02:22:11Z-02:23:43Z)
+
+**GATE 0 SmokeTest: PASS, exit 0.** All the required strings are present:
+`[PASS] new VrfBridge() - IJW load + native vrf::VrfFacade constructed in-process`;
+`native stack = 5.2|C:\MAK\vrforces5.2d\bin64\vrfcontrol.dll  (stack=5.2)`;
+`[PASS] subscribed to ObjectCreated / TaskCompleted / TextReport / ScenarioClosed`;
+`[PASS] dispose - native facade teardown (~VrfFacade -> Stop) ran without fault`;
+`SMOKE PASSED on stack 5.2 - the managed bridge loads and the native facade lives in-process under net10.`
+No `5.0.2|` anywhere, so the deployed binary is the 5.2 one.
+
+**GATE 1 ResetVrf --dry-run 4367: DID NOT COMPLETE, exit 124 (the seat's 90 s `timeout`). It is a JOIN HANG, not a slow
+discovery, and the cause is the SHELL ENVIRONMENT, not the tool.** appNumber 4367 is BURNED.
+
+No trace of federate 4367 exists anywhere in the run's files - not in `watchvrf-trace.csv` (which carries only CON and
+POS rows plus its own join/resign banner), not in `vrfc2simapp.log` (its only "4367" matches are console rows whose SIM
+TIME happens to be 4367.xx seconds), not in `c2sim-bus.log` (VR-Forces joins are not C2SIM traffic) and not in the
+runner log. That absence is expected and is not itself evidence either way. What IS evidence is the tool's own stdout,
+read against `tools/ResetVrf/Program.cs`:
+
+- Program.cs prints `[..] bridge.Start() - joining the federation...` (line 143), then on success
+  `[OK] joined (BackendCount={n}).` (line 151), and only THEN begins discovery. **The `[OK] joined` line never
+  printed**, so the tool was inside `bridge.Start()` when the timeout cut it.
+- **Its own discovery budget could not have been the thing that ran long.** The loop at lines 157-177 is capped at
+  **20 s hard**, breaks at **8 s** if the federation is empty, and settles after about 4 s once a count holds steady.
+  90 s is 4.5x that budget. Had the join succeeded, the whole tool - join, discover, `[DRY-RUN] would delete N`,
+  resign - would have finished inside about 30 s. The control is in this same run: `PauseSim` joined the SAME
+  federation 3 minutes earlier and 1 minute later and printed `[OK] joined` about 2 s after `bridge.Start()`.
+- **Three markers in the ResetVrf stdout say the 5.2 launch environment documented at Program.cs lines 24-31 (and in
+  the V6 block's own ENVIRONMENT preamble) was not applied to that shell**, and each has `PauseSim` in the same run as
+  its control:
+  1. `Unable to load configuration file: ..\appData\settings\connections\MAK-ONE-2025-Config.xml` - the cwd was not
+     `C:\MAK\vrforces5.2d\bin64`, so the connection config that OWNS the 5.2 federation identity (execName
+     MAK-ONE-2025, FOM modules) never loaded. `PauseSim` printed no such line, and `VrfC2SimApp` logged
+     `ConnectionConfigFile='C:\MAK\vrforces5.2d\appData\settings\connections\MAK-ONE-2025-Config.xml'`.
+  2. `Attempt to create and connect to Assistant` / `Connected to RTI Assistant.` - `RTI_ASSISTANT_DISABLE` was not
+     set. No other federate in this run went near an assistant.
+  3. `Loading Config File: C:\MAK\makRti5.0.1\rid.mtl` - the DEFAULT rid, not `config\rid-501-rtiexec-min.mtl`.
+     `PauseSim`, `VrfC2SimApp` and `WatchVrf` all loaded the repo rid. Peers must SHARE the rid, and the rtiexec
+     posture (rtiexec mode + interface 127.0.0.1) is what this federation runs on.
+
+  The output stops immediately after marker 3, BEFORE the `RTI_extend13and1516interop` / FOM-sorting lines that every
+  successful join in this run printed next - i.e. it blocked in RTI connect/create/join, which is exactly what a
+  federate on the wrong rid and a wrong-posture assistant does.
+
+**FINDING (not a fix): gate 1 is UNSCORED, and `ResetVrf` is neither passed nor failed by it.** A gate that was not run
+is not a pass. Two cheap things would settle it: re-run gate 1 with the five env vars and the `Push-Location` from the
+V6 block's preamble actually applied in that shell; and - separately, as a real improvement - have `ResetVrf` refuse to
+call `bridge.Start()` at all when `RTI_RID_FILE`, `RTI_ASSISTANT_DISABLE` and the cwd do not match the bound stack, so
+a posture error fails in one line instead of hanging for 90 s. `Program.cs` already documents that environment in a
+comment; nothing enforces it. The same hole is in every bridge consumer.
+
+### R9. CRASH, TICK PHASE, DEPLOY, TEARDOWN
+
+- `MissingMethodException`: **0**. `Tick phase '<name>' FAILED`: **0**. `SIM CLOCK:` lines: **0** (so no
+  `stepped BACKWARDS`). No crash, no dump prompt, no `AnswerCrashDumpDialog` invocation.
+- App-log warnings, all six: three init-time name warnings (NAME COLLISION RISK / NAME PRE-FLIGHT for `BANDIT_II` vs
+  `BANDIT_III`, and the `2/1_AD/25_` DIS-marking truncation), the two HELD lines, and one
+  `fail: C2SIM.C2SIMSDK[0] STOMP block reading cancelled` as the very last line of the log - that is the resign, after
+  `Cleanup: 164 deletes dispatched` and `Reports this run: 15977 delivered, 0 FAILED`.
+- Teardown, every stage exit 0: StopIface 0 (server driven RUNNING -> INITIALIZED -> UNINITIALIZED), VrfC2SimApp exited
+  **0 (clean resign)**, WatchVrf 0, ListenReports 0, StopVrf52 0 with
+  `[OK] VR-Forces 5.2d is down (graceful; nothing was killed)` and
+  `[OK] RTI infrastructure preserved (correct): rtiexec(pid 69856), rtiForwarder(pid 50520)`. The detached watchdog
+  confirmed the runner GONE twice 2 s apart, found `runner.teardown-ran`, and stood down without touching anything.
+  Window: 1201.9 s used of 1200.
+- **The killed ResetVrf federate left nothing visible.** The teardown inventory lists only `vrfSimHLA1516e`, `rtiexec`
+  and `rtiForwarder`; `no VR-Forces processes remain` and `no WatchVrf / ListenReports observer remains` both fired.
+  That is consistent with a federate that never completed its join, but note the limit: **this run carries no
+  instrument that would SEE a stale federate**, so "left nothing visible" is the honest claim, not "left nothing".
+  `rtiexec`'s own federate list is where that would be checked, and it was not checked.
+- The pin (sec 9 `E3F405...4702`) is NOT recorded in `run-manifest.json`, which hashes each exe separately; all six
+  bridge-linked tools in the manifest carry `productVersion 1.0.0+5881b7d1227065b07383fecd5c9e31e651008ae5`. The
+  positive evidence that the STP-809 members are deployed is behavioural: `PauseSim` printed
+  `control-state read-back = AVAILABLE (VrfBridge.BackendControlState, STP-809)`, the HELD lines carry the STP-809
+  clause with `active=`, and no partial-deploy warning fired anywhere.
+
+### R10. ADVERSARIAL REVIEW (HEAVY)
+
+**Strongest competing reading: "the HOLD proves nothing - the clock was flat and the task simply had not accumulated
+enough sim time to finish yet, pause or no pause. Nothing was actually held; the run just ran short."**
+
+It is refuted, and by the completion rather than by the HOLD lines. T1 DID complete, inside the window, 408.9 s after
+stage-8b `t=0` - so the run did NOT run short and the end time was genuinely reached. The question is then only WHICH
+clock the 181 s of pause were charged to, and that is a 17.8 s discrimination the data makes (R5 item 4): had the
+interface served wall seconds once the clock went stale at 60 s - the pre-Q5 behaviour, the thing Q5 changed - the
+completion would have arrived at 02:22:50.9Z, and it arrived at 02:23:08.7Z. The run's own completion overshoot is
+3.9 s of wall, so the gap is over 4x the noise. A second, independent refutation needs no model at all: the log line
+says `1828 s of a 1800 s Duration served on the simulation clock`, and the sim clock is measured - by the vendor's own
+console stamps, a channel the interface does not write - to have advanced **0.84 s** across the 181.5 s hold. There is
+no reading of those two facts in which the hold aged the task.
+
+**Second competing reading: "the HELD line fired off the BackendCount fallback, and a fallback hold looks identical to
+a confirmed pause."** Refuted by the text: both lines read `the back end REPORTS PAUSED (DtPauseControlType;
+BackendCount=1, active=1)` and neither carries the `CAVEAT: this rests on the back-end COUNT` sentence, which
+`VrfC2SimService` appends whenever `control != Paused`. `PauseSim` independently read `controlBefore=Running
+controlAfter=Paused` through a SEPARATE federate. The positive control-state read is present on both channels.
+
+**Third competing reading: "the pause was never real - `PauseSim` only reported what it had just commanded."** Refuted
+by the console channel: 181.5 s with not one object-console row, on a run producing hundreds of rows a second before
+and after. The back end stopped stepping; it did not merely report that it had.
+
+**THE SYMPTOM THIS RUN DOES NOT FULLY EXPLAIN, stated rather than footnoted.** `PauseSim`'s post-resume readings
+(1167.888 -> 1170.794 -> 1172.846 over about 6.6 s) are inconsistent with the console's (1167.9 -> 1205.1 over the same
+interval). One of the two instruments is wrong about the rate. F-1 records the measurement - the control federate's
+cached `simTime()` lags and the lag GROWS after a resume, reaching 32.3 sim s - and names the likely mechanism (the
+cached scenario clock refreshes on back-end status messages and interpolates near 1x between them), but that mechanism
+is INFERRED from the numbers, NOT read out of the vendor headers, and it is not settled here. It does not touch any
+verdict: every pause-half predicate rests either on a control-state read or on a zero / non-zero clock delta, and the
+completion arithmetic uses one reader consistently end to end. It DOES mean any future prereg that predicts a
+`clockDelta` MAGNITUDE is predicting an artefact.
+
+**What this run cannot settle.** Everything in sec 4 and sec 5 (the whole kill half and the deactivated-back-end
+probe); sec 6's teardown-against-a-dead-sim question; whether a stale federate was left by the timed-out `ResetVrf`;
+and - new - whether the `simTime()` lag of F-1 is a status-message cadence or something else.
+
+### R11. VERIFIED vs ASSUMED
+
+**VERIFIED** (read this pass, from the files named at the top): every quoted log line and its count; the two bus stamps
+and that they are the only TaskStatus reports in 15,977; both `[RESULT]` lines and the manifest's `probes.pauseResume`
+block (`pauseFired` / `resumeFired` true, `firedAtTPlusSec` 122 / 303, `firedUtc` 02:18:21.439Z / 02:21:23.055Z, both
+appNumbers consumed, exit 0); the 181.5 s console silence and the 0.84 s of sim across it; the ratios (7.30x pre-pause,
+6.80x post-resume, 7.13x served / running); 1825.5 sim s between the two bus reports against 1828 s logged; the
+`ResetVrf` stdout, its exit 124, and `ResetVrf/Program.cs` lines 143-177; every teardown exit code; the zero counts for
+MissingMethod / Tick-phase / SIM CLOCK.
+
+**DERIVED** (arithmetic over verified numbers, stated so it can be rechecked): the trace's wall origin, estimated at
+**02:15:17.5Z +/- about 1 s** by aligning the runner's stage-8b poll lines and the console freeze against `PauseSim`'s
+UTC stamps - it is used only to place sim readings at named UTC instants, and every duration above (181.5 s, 438.0 s,
+256.5 s, 1825.5 s) is a difference that does not depend on it; the three counterfactual completion instants of R5; the
+7.27x armed-at-the-kill bound of C-T3.
+
+**ASSUMED** (not re-verified here): that the deployed `bin\Release-5.2` trees are the G-A RERUN pin - the manifest does
+not record that hash, so R9's behavioural evidence is what stands in for it; and that `reports-captured.log` stamps and
+the runner / manifest UTC stamps share one clock (they agree to under a second wherever both exist).
+
+### R12. WHAT A KILL-HALF RE-RUN MUST CHANGE
+
+1. **Anchor the kill offset on the DISPATCH, not on stage-8b `t=0`** (C-T1). At `DurationScale=0.25` and the measured
+   7.1-7.3x the armed-at-the-kill ceiling was 7.27x, not 8.26x, and T1 beat the nominal kill instant by 9 s. Either
+   kill at dispatch+300 s, or raise `DurationScale` to 0.35 (2,520 task s), which moves the ceiling to about 10x.
+2. **Get the kill authorised before the window opens.** The classifier refusal, not the procedure, is what cost this
+   run its second half.
+3. **Re-run V6 gate 1 with the environment actually applied** (R8), and consider making the bridge consumers refuse to
+   join on a mismatched posture instead of hanging.
+4. Keep `--no-stop-when-complete`: with the completion at t+409 the stop rule would have closed the window at about
+   t+469 and taken the kill with it, exactly as C3 predicted.
