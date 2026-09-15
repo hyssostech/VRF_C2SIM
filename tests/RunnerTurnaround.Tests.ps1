@@ -1080,6 +1080,75 @@ Check '8k runner: the holder is started DETACHED (own console) and never passed 
     $runnerText -notmatch 'Complete-Background[^\r\n]*FederationHolder' -and
     $runnerText -match 'NOT killed, NOT waited for')
 
+# 8l. THE WS RUNAWAY ABORT (RUNBOOK 0.5.11 item 17 extension, 2026-09-15 - V6f harvest defects
+# 1+2). scripts\SampleThreads.ps1's tripwire only WARNS: check 8j already proves the alert file
+# itself; this proves the RUNNER now polls it live and would act. Like 8h/8k this runs the REAL
+# runner in -DryRun (a command line and a stage ORDERING, which a static AST read cannot prove
+# right), and SKIPS (as a PASS) in a checkout with no Release-5.2 build tree, for the same
+# reason 8k does - Stage 0 aborts before Stage 8b is ever planned there. The plan text is split
+# across several SHORTER anchors (the style 8i already uses for this exact reason) because the
+# real line is long enough that -DryRun output piped through Out-String can wrap it.
+Write-Host '=== 8l. WS runaway abort: the plan lists it, -WsRunawayAbortAfter 0 omits it ==='
+Check '8l runner declares -WsRunawayAbortAfter default 3' (
+    $params.ContainsKey('WsRunawayAbortAfter') -and "$($params['WsRunawayAbortAfter'].DefaultValue)" -eq '3')
+
+# 8l-0. Get-WsRunawayAlertsSinceDispatch (RunnerLib.ps1) - the PURE filter the runner's Stage 8b
+# poll calls. Fixture text is the REAL V6f alerts file (runs\20260915T160411Z_run,
+# thread-samples.alerts.txt): 6 confirmed episodes, the FIRST at 16:07:20.469Z is the
+# object-creation-burst alert (V6f harvest defect 2) firing ~9.9s after the order reached the
+# bus at 16:07:10.545Z (both AFTER dispatch, so this filter does not and should not suppress
+# it - that is SampleThreads.ps1's own -WarmupResetAtUtc job, checked separately below).
+$wsAlertsFixtureText = @'
+2026-09-15T16:07:20.4692982Z BACK-END WS RUNAWAY: 1098.8 MB/min over 30.1 s, ws now 3470 MB, pid 47388
+2026-09-15T16:08:25.7001938Z BACK-END WS RUNAWAY: 692.2 MB/min over 30.1 s, ws now 3913 MB, pid 47388
+2026-09-15T16:10:21.0895045Z BACK-END WS RUNAWAY: 2263.6 MB/min over 30.1 s, ws now 6815 MB, pid 47388
+'@
+$wsDispatchReal = [datetime]::Parse('2026-09-15T16:07:10.545Z', [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+$wsSinceReal = @(Get-WsRunawayAlertsSinceDispatch -AlertsText $wsAlertsFixtureText -DispatchUtc $wsDispatchReal)
+Check '8l-0 all 3 V6f alerts are AFTER dispatch and all 3 are kept' ($wsSinceReal.Count -eq 3) "got $($wsSinceReal.Count)"
+$wsDispatchLate = [datetime]::Parse('2026-09-15T16:09:00Z', [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+$wsSinceLate = @(Get-WsRunawayAlertsSinceDispatch -AlertsText $wsAlertsFixtureText -DispatchUtc $wsDispatchLate)
+Check '8l-0 a LATER synthetic dispatch drops the two alerts before it, keeps the one after' (
+    $wsSinceLate.Count -eq 1 -and $wsSinceLate[0] -match '16:10:21') "got $($wsSinceLate.Count): $($wsSinceLate -join ' | ')"
+Check '8l-0 empty alerts text yields an empty array, not a throw' (
+    @(Get-WsRunawayAlertsSinceDispatch -AlertsText '' -DispatchUtc $wsDispatchReal).Count -eq 0)
+Check '8l-0 a line with an unparseable leading timestamp is CONSERVATIVELY KEPT, not dropped' (
+    @(Get-WsRunawayAlertsSinceDispatch -AlertsText 'NOT-A-TIMESTAMP BACK-END WS RUNAWAY: garbage' -DispatchUtc $wsDispatchReal).Count -eq 1)
+$wsPwshDry    = 'C:\Program Files\PowerShell\7\pwsh.exe'
+$wsDryScript  = Join-Path $RepoRoot 'scripts\RunC2SimScenario.ps1'
+$wsDryOn      = (& $wsPwshDry -NoProfile -File $wsDryScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck 2>&1 | Out-String)
+$wsDryOnCode  = $LASTEXITCODE
+$wsDryOff     = (& $wsPwshDry -NoProfile -File $wsDryScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck -WsRunawayAbortAfter 0 2>&1 | Out-String)
+$wsDryOffCode = $LASTEXITCODE
+if ($wsDryOn -notmatch 'DRY RUN - the full planned sequence' -or $wsDryOff -notmatch 'DRY RUN - the full planned sequence') {
+    Check '8l SKIPPED - neither dry run reached the planned sequence in this checkout (Stage 0 aborts on the missing Release-5.2 binaries)' $true
+} else {
+    Check '8l both dry runs exit 0 or 2, never 1 (the StrictMode "has not been set" throw - 8h''s defect class)' (
+        $wsDryOnCode -in @(0, 2) -and $wsDryOffCode -in @(0, 2)) "on=$wsDryOnCode off=$wsDryOffCode"
+    Check '8l the default plan polls the alerts file every 10s for BACK-END WS RUNAWAY alerts' (
+        $wsDryOn -match 'would poll' -and $wsDryOn -match 'thread-samples\.alerts\.txt' -and
+        $wsDryOn -match 'every 10s' -and $wsDryOn -match 'BACK-END WS' -and $wsDryOn -match 'RUNAWAY alerts')
+    Check '8l the default plan says it would abort via Stop-Runner 6 at the default count of 3' (
+        $wsDryOn -match 'Stop-Runner 6' -and $wsDryOn -match 'exit 6' -and $wsDryOn -match 'once 3 such alert')
+    Check '8l the default plan names -WsRunawayAbortAfter 0 as the off switch' (
+        $wsDryOn -match [regex]::Escape('-WsRunawayAbortAfter 0 disables this check'))
+    Check '8l -WsRunawayAbortAfter 0 OMITS the abort-rule plan line entirely' (
+        $wsDryOff -notmatch 'WS RUNAWAY' -and $wsDryOff -notmatch 'thread-samples\.alerts\.txt')
+}
+# THE REGRESSION THIS PINS: -WsRunawayAbortAfter defaults to 3 (armed), so a default dry run
+# that never mentions it would be the "no abort rule at all" false-green this whole item exists
+# to close - the same shape 8k's own final assertion guards for -FederationHoldSecs.
+$wsDryLegacy = (& $wsPwshDry -NoProfile -File $wsDryScript -DryRun -SkipServerCheck 2>&1 | Out-String)
+if ($wsDryLegacy -match 'DRY RUN - the full planned sequence') {
+    Check '8l a 5.0.2 default dry run still plans the abort rule (armed by default, profile-independent)' (
+        $wsDryLegacy -match 'BACK-END WS' -and $wsDryLegacy -match 'RUNAWAY alerts')
+} else {
+    Check '8l 5.0.2 leg SKIPPED - that dry run did not reach the planned sequence either' $true
+}
+# Static half: a negative value is refused at validation, before anything is launched.
+Check '8l runner: a negative -WsRunawayAbortAfter is refused at validation' (
+    $runnerText -match 'WsRunawayAbortAfter must be >= 0')
+
 # 9. Get-VrfUuidByName must parse BOTH app-log route-line forms. The app started
 # logging the route's own uuid on 2026-09-02 with the route-uuid fix ("Route '<r>'
 # (VRF_UUID:<route>) created; ..."); every run in the record before that logs the

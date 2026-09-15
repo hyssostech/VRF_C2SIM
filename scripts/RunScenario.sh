@@ -451,6 +451,8 @@ case "$rc" in
     3) echo "  3 = failed after VR-Forces was up. Teardown ran; evidence is partial." ;;
     4) echo "  4 = TEARDOWN INCOMPLETE. VR-Forces and/or the interface may still be joined." ;;
     5) echo "  5 = unexpected terminating error. Same warning as 4." ;;
+    6) echo "  6 = BACK-END WS RUNAWAY ABORT (RUNBOOK 0.5.11 item 17 extension). Teardown ran;"
+       echo "      see preflight.wsRunaway in the run's manifest for the alerts that triggered it." ;;
     127) echo "  127 = NOT 'command not found'. On this MSYS bash it means the child exited with a"
          echo "        HIGH-BIT (NTSTATUS-shaped) Windows exit code that MSYS does not map to a signal."
          echo "        The only SILENT one is 0xFFFFFFFF (-1), which is what TerminateProcess(handle,-1)"

@@ -321,6 +321,10 @@
          MAY STILL BE RUNNING and MAY STILL BE JOINED. Nothing was force-killed.
          MANUAL INSPECTION REQUIRED before the next run.
       5  unexpected terminating error. Same warning as 4.
+      6  Stage 8b WS RUNAWAY ABORT (RUNBOOK 0.5.11 item 17 extension): -WsRunawayAbortAfter
+         confirmed thread-samples.alerts.txt episodes accumulated since the order reached
+         the bus. Teardown ran (same path as exit 3); the manifest names the alerts under
+         preflight.wsRunaway. Disabled with -WsRunawayAbortAfter 0.
 
 .EXAMPLE
     pwsh -File scripts\RunC2SimScenario.ps1 -DryRun
@@ -492,6 +496,31 @@ param(
     # the run, which is the one outcome that silently destroys the whole window.
     [int] $PauseAtSec  = 0,
     [int] $ResumeAtSec = 0,
+
+    # STAGE 8b - THE WS RUNAWAY ABORT (RUNBOOK 0.5.11 item 17 extension; V6f harvest defects 1+2,
+    # 2026-09-15). scripts\SampleThreads.ps1's tripwire, when -SampleThreads is armed on the wrapper
+    # (scripts\RunScenario.sh --sample-threads), writes CONFIRMED "BACK-END WS RUNAWAY" lines to
+    # <runDir>\thread-samples.alerts.txt - but nothing reads that file WHILE the run is live (defect 1;
+    # the wrapper only surfaces it AFTER teardown has already completed). This polls that same file every
+    # 10 s during the Stage 8b observation window and counts only the alerts timestamped AT OR AFTER the
+    # order reaching the bus (orderOnBusUtc, falling back to orderPushedUtc if the bus log parse ever
+    # misses) - an alert from before the order existed can not be evidence the order caused a runaway.
+    # That "since dispatch" filter is deliberately NOT how defect 2 (the object-creation-burst alert
+    # firing shortly after a mid-run dispatch, independent of the universal process-start warm-up) is
+    # fixed - that fix is SampleThreads.ps1's own re-armable warm-up (-WarmupResetAtUtc /
+    # -WarmupResetFile), untouched here. -WsRunawayAbortAfter is instead the SECOND, independent net:
+    # even a real post-dispatch burst alert can not unilaterally abort a run - only a SUSTAINED signal
+    # (this many confirmed episodes) does.
+    # 0 = disabled = today's behaviour (the wrapper's post-hoc report is all a run ever gets); the
+    # default of 3 matches the V6f record, where the back end grew from 3.1 to 16+ GB over 6 confirmed
+    # episodes - by episode 3 (independent of the creation-burst alert, since the default abort-after
+    # already requires 3 REGARDLESS of which alert is first) the pattern is no longer one legitimate
+    # step. Aborting takes the SAME failure path as every other post-launch Stage 8b failure
+    # (Stop-Runner): Add-Flag 'FAIL', the normal finally teardown (StopIface then StopVrf; nothing here
+    # ever force-kills anything, and the Stage 2h federation holder is never touched), a manifest record
+    # naming which alerts triggered it, and a distinct runner exit code (6) so a caller can tell "the
+    # back end diagnosed a runaway" apart from every other failure code (2/3/4/5).
+    [int] $WsRunawayAbortAfter = 3,
 
     # STAGE 2h - THE FEDERATION HOLDER (STP-825, 2026-09-15). 5.2 PROFILE ONLY.
     #
@@ -2010,6 +2039,12 @@ if ($ResumeAtSec -lt 0 -or $ResumeAtSec -gt 86400) {
 }
 if ($PauseAtSec -gt 0 -and $ResumeAtSec -gt 0 -and $ResumeAtSec -le $PauseAtSec) {
     $bad += ('-ResumeAtSec ({0}) must be GREATER than -PauseAtSec ({1}). Both are offsets from the same instant (PushOrder returning), so a resume at or before the pause would run in the wrong order and leave the scenario PAUSED for the rest of the window.' -f $ResumeAtSec, $PauseAtSec)
+}
+# Stage 8b WS runaway abort (RUNBOOK 0.5.11 item 17 extension). 0 = off; anything positive is a
+# COUNT of confirmed SampleThreads.ps1 alerts, so there is no upper window to bound it against.
+$WsRunawayOn = ($WsRunawayAbortAfter -gt 0)
+if ($WsRunawayAbortAfter -lt 0) {
+    $bad += ("-WsRunawayAbortAfter must be >= 0 (got {0}). 0 = never abort (today's behaviour); a positive count is how many confirmed thread-samples.alerts.txt episodes, timestamped at or after the order reaching the bus, before the run is failed early." -f $WsRunawayAbortAfter)
 }
 # Stage 2h federation holder (STP-825). ARMED only on the 5.2 profile and only when the
 # hold is positive, so a 5.0.2 run and a -FederationHoldSecs 0 run are byte-identical to
@@ -4410,6 +4445,25 @@ try {
         resume       = $null
     }
     if ($PauseProbeOn) { $Manifest.probes = [ordered]@{ pauseResume = $PauseProbe } }
+    # THE WS RUNAWAY ABORT's own record. Written whether or not it is armed, and whether or not it
+    # ever fires, for the same reason $EarlyExit and $PauseProbe are: a reader must be able to tell
+    # "never checked" from "checked and clean" from "checked and aborted".
+    $wsAlertsPath = Join-Path $RunDir 'thread-samples.alerts.txt'
+    $WsDispatchUtc = if ($null -ne $script:OrderOnBusUtc) { [datetime]$script:OrderOnBusUtc } else { $orderPushedUtc }
+    $WsDispatchSource = if ($null -ne $script:OrderOnBusUtc) { 'orderOnBusUtc' } else { 'orderPushedUtc (bus log dispatch time unavailable)' }
+    $Manifest.preflight.wsRunaway = [ordered]@{
+        enabled             = $WsRunawayOn
+        abortAfter          = $WsRunawayAbortAfter
+        alertsFile          = $wsAlertsPath
+        dispatchUtc         = $WsDispatchUtc.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+        dispatchSource      = $WsDispatchSource
+        pollIntervalSecs    = 10
+        alertsSinceDispatch = @()
+        firstAlertLine      = $null
+        lastAlertLine       = $null
+        aborted             = $false
+        abortedAtUtc        = $null
+    }
     if ($DryRun) {
         if ($StopWhenComplete) {
             Say-Plan ('would poll {0} every 5s for TERMINAL task-status lines (TASKCMPLT or TASKABRT); would close the window once all {1} taskee(s) have one and all {2} task(s) are closed by one, {3}s have passed and every taskee has post-completion position evidence - a trace RPT within {5} m of its POS, OR a C2SIM PositionReport for its own uuid captured after its TASKCMPLT, OR a complete R1 round (0 skipped) logged after it; would otherwise sleep out the {4}s cap' -f $PathAppLog, $OrderTaskees.Count, $OrderTasks.Count, $SettleHoldSecs, $RunSecs, $ReportToleranceMeters)
@@ -4427,6 +4481,9 @@ try {
             }
             Say-Plan 'the KILL half of the Q5 probe is NOT automated and is not shown here: it is a manual Stop-Process on the vrfSimHLA1516e pid (RUNBOOK 0.5.14 item 14).'
         }
+        if ($WsRunawayOn) {
+            Say-Plan ('would poll {0} every 10s for BACK-END WS RUNAWAY alerts (scripts\SampleThreads.ps1, RUNBOOK 0.5.11 item 17) timestamped at or after the order reaching the bus; would ABORT the run (Stop-Runner 6, normal teardown, exit 6) once {1} such alert(s) have accumulated - never before -WsRunawayAbortAfter 0 disables this check' -f $wsAlertsPath, $WsRunawayAbortAfter)
+        }
     } else {
         $obsStart = Get-Date
         $obsEnd = $obsStart.AddSeconds($RunSecs)
@@ -4435,10 +4492,19 @@ try {
         # at most 5 s), the historical 30 s otherwise. The status line keeps its
         # 30 s cadence either way. An ARMED Q5 PROBE forces the 5 s cadence too: its
         # offsets are honoured at POLL granularity, and on a 30 s poll a pause asked
-        # for at t+120 s could fire anywhere up to t+150 s.
-        $pollSecs = if ($StopWhenComplete -or $PauseProbeOn) { 5 } else { 30 }
+        # for at t+120 s could fire anywhere up to t+150 s. The WS RUNAWAY ABORT (armed by
+        # default, -WsRunawayAbortAfter 0 turns it off) forces AT MOST a 10 s cadence for the
+        # same reason: its own alerts-file poll is specified at 10 s and must not be stretched
+        # to 30 s just because neither of the other two probes happens to be active.
+        $pollSecs = if ($StopWhenComplete -or $PauseProbeOn) { 5 } elseif ($WsRunawayOn) { 10 } else { 30 }
         $nextStatus = (Get-Date).AddSeconds(30)
         $nextEvidenceNote = Get-Date
+        # WS RUNAWAY ABORT poll state. $nextWsCheck starts in the past so the FIRST loop
+        # iteration already checks (the alerts file could in principle already exist from a
+        # stale prior run's sampler - see the manifest's alertsFile path, which is THIS run's
+        # own run directory, so that is not actually possible, but starting armed costs nothing).
+        $nextWsCheck = (Get-Date).AddSeconds(-1)
+        $wsRunawayAborted = $false
         $completion = New-CompletionState
         # TERMINAL task-status lines seen in the app log for ANY taskee (the state's own
         # lineCount counts only the order's taskees). A RUNNING TOTAL now that the reader
@@ -4483,6 +4549,33 @@ try {
             if ($AppProc.HasExited -and -not $appDeathRecorded) {
                 $appDeathRecorded = $true
                 Add-Flag 'FAIL' ('VrfC2SimApp exited DURING the observation window with code {0}. The window is being RUN OUT anyway so the trace still covers it; the run is NOT valid (4a.6) but the evidence is preserved.' -f $AppProc.ExitCode)
+            }
+            # THE WS RUNAWAY ABORT (RUNBOOK 0.5.11 item 17 extension). Reads the SAME
+            # thread-samples.alerts.txt scripts\SampleThreads.ps1 writes (armed only when the
+            # wrapper's -SampleThreads/--sample-threads started that sampler against THIS run
+            # directory; an absent file is silently 0 alerts, exactly like today's behaviour when
+            # no sampler is running at all - this check adds nothing for a run that never samples).
+            # Get-WsRunawayAlertsSinceDispatch (RunnerLib.ps1) keeps only lines timestamped at or
+            # after $WsDispatchUtc; Stop-Runner below takes the SAME failure path (Add-Flag 'FAIL',
+            # normal finally teardown) every other post-launch Stage 8b failure takes.
+            if ($WsRunawayOn -and -not $wsRunawayAborted -and (Get-Date) -ge $nextWsCheck) {
+                $nextWsCheck = (Get-Date).AddSeconds(10)
+                if (Test-Path -LiteralPath $wsAlertsPath -PathType Leaf) {
+                    $wsSince = @(Get-WsRunawayAlertsSinceDispatch -AlertsText (Read-LiveText -Path $wsAlertsPath) -DispatchUtc $WsDispatchUtc)
+                    $Manifest.preflight.wsRunaway.alertsSinceDispatch = $wsSince
+                    if ($wsSince.Count -gt 0) {
+                        $Manifest.preflight.wsRunaway.firstAlertLine = $wsSince[0]
+                        $Manifest.preflight.wsRunaway.lastAlertLine  = $wsSince[$wsSince.Count - 1]
+                    }
+                    if ($wsSince.Count -ge $WsRunawayAbortAfter) {
+                        $wsRunawayAborted = $true
+                        $Manifest.preflight.wsRunaway.aborted      = $true
+                        $Manifest.preflight.wsRunaway.abortedAtUtc = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+                        Save-Manifest
+                        Stop-Runner 6 ('BACK-END WS RUNAWAY confirmed: {0} alert(s) since the order at {1}; last: {2}' -f `
+                            $wsSince.Count, $Manifest.preflight.wsRunaway.dispatchUtc, $wsSince[$wsSince.Count - 1])
+                    }
+                }
             }
             # THE Q5 PROBE. Each half fires ONCE, at the first poll at or after its offset.
             # Skipped once the interface has died: the window is being RUN OUT for the trace's
@@ -4941,6 +5034,7 @@ finally {
         3 { Say-Fail 'RUN FAILED after VR-Forces was up. Teardown ran. Evidence is PARTIAL - the manifest names the stage.' }
         4 { Say-Fail 'TEARDOWN INCOMPLETE. VR-Forces and/or the interface MAY STILL BE RUNNING and MAY STILL BE JOINED. Nothing was force-killed. INSPECT BEFORE THE NEXT RUN.' }
         5 { Say-Fail 'UNEXPECTED TERMINATING ERROR. Same warning as exit 4 - inspect before the next run.' }
+        6 { Say-Fail 'BACK-END WS RUNAWAY ABORT (RUNBOOK 0.5.11 item 17 extension). Teardown ran. Evidence is PARTIAL - see preflight.wsRunaway in the manifest for the alerts that triggered it.' }
     }
     # OUT-OF-PROCESS TEARDOWN BACKSTOP, half 2 of 2 (2026-09-14). LAST statement before the
     # exit, so its presence means the whole finally above ran. The wrapper
