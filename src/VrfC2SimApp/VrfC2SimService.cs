@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -3831,7 +3832,7 @@ public sealed class VrfC2SimService : BackgroundService
                 // seconds is the outcome that at least keeps moving.
                 _log.LogDebug(ex, "TASK CLOCK: BackendCount read failed; treating the back end as gone.");
             }
-            try { control = (StallPolicy.BackendControl)_bridge.BackendControlState(); }
+            try { control = (StallPolicy.BackendControl)ReadBackendControlState(); }
             catch (Exception ex)
             {
                 // A bridge that predates STP-809 throws MissingMethodException here, which is a
@@ -3848,7 +3849,7 @@ public sealed class VrfC2SimService : BackgroundService
             }
             if (!Enum.IsDefined(typeof(StallPolicy.BackendControl), control))
                 control = StallPolicy.BackendControl.Other;   // a value this build does not know
-            try { activeBackends = _bridge.ActiveBackendCount(); }
+            try { activeBackends = ReadActiveBackendCount(); }
             catch (Exception ex)
             {
                 activeBackends = -1;
@@ -3939,6 +3940,20 @@ public sealed class VrfC2SimService : BackgroundService
         bool usingSim = action != StallPolicy.TaskClockOnFlat.FallBackToWall;
         _taskAxis.Advance(usingSim ? obs.SimSeconds : wallNow, usingSim);
     }
+
+    // STP-809's two bridge readers, each in its OWN method and NOT inlined. The CLR resolves a
+    // cross-assembly method token when it JITs the method that CALLS it, so a bridge that predates
+    // STP-809 would throw MissingMethodException while SampleTaskClock itself was being compiled -
+    // BEFORE its try/catch exists, on the vrf tick thread, on the FIRST tick, taking the whole task
+    // clock with it. Behind a NoInlining call the resolution happens when the helper is first
+    // invoked, INSIDE the guard, and a partial deploy degrades to the BackendCount rule with one
+    // WARNING a minute instead of a repeating `Tick phase FAILED`. Same reason as
+    // RuntimeCheck.ProbeBridge, and RUNBOOK sec 9 is the deploy procedure that prevents it.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private int ReadBackendControlState() => _bridge.BackendControlState();
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private int ReadActiveBackendCount() => _bridge.ActiveBackendCount();
 
     /// <summary>
     /// Wait <paramref name="seconds"/> OF THE TASK CLOCK. This is what puts the StartTime delay and

@@ -375,6 +375,10 @@ public:
     // it is still answering. The task clock's Q5 hold (a paused scenario does not age a task)
     // was deciding on that count alone, so a back end that died IN PLACE froze task time for
     // the rest of the run. These two readers are the vendor's own better answers.
+    //
+    // Both are READ-ONLY - they send nothing on the wire and register no callback - and both
+    // read state the tick mutates, so call them between ticks like BackendCount and
+    // SimTimeSeconds. Neither throws.
 
     // BackendControlState() values. The NON-NEGATIVE ones are the vendor's own control-type
     // constants, kept numerically identical on purpose (vrfmsgs/messageTypes.h:430-432 on 5.2d,

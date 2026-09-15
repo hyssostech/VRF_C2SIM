@@ -218,9 +218,10 @@ public static class StallPolicy
     /// is still answering, and on that signal alone a DEAD back end held task time exactly as a
     /// paused one did, for the rest of the run, with one WARNING a minute as the only symptom
     /// (pass-3 review E2). STP-809 took the facade change: see <see cref="BackendControl"/> and the
-    /// five-argument overload below. BackendCount REMAINS the fallback - a bridge that predates
-    /// STP-809, or a reader that throws, gives the three-argument overload and the pre-STP-809
-    /// behaviour exactly.
+    /// five-argument overload below. BackendCount REMAINS the fallback - a reader that throws, or a
+    /// deployed bridge that predates STP-809 (the service reads both through NoInlining helpers so
+    /// that case is a caught MissingMethodException, not a JIT failure), leaves the new arguments
+    /// saying nothing and gives the pre-STP-809 behaviour exactly.
     /// </summary>
     public static TaskClockOnFlat TaskClockAction(bool heldOnSim, bool stale, bool backEndPresent)
         => TaskClockAction(heldOnSim, stale, backEndPresent,
