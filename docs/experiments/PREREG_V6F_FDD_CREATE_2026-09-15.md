@@ -115,6 +115,32 @@ comment as the root tag, sent the order as BML, and the server answered plain te
 file (one-line comment); PushOrder hardening in flight. V6f itself (the discriminator) is still owed:
 next launch = holder + go script, unchanged recipe.
 
+## 4.4 P4 - V6f on a FRESH rtiexec (pre-registered 15:48Z before the launch)
+Fact: rtiForwarder died ~15:34:06Z and rtiexec pid 36840 then exited by itself ("Primary TCP
+connection has been broken. Perhaps the RTI Forwarder is no longer running ... Exiting"; its log's
+last lines). Nobody in the seat's chain stopped either process (the seat's only kill was its own
+capture proxy pid 15952 at 15:33:30Z; the hardening executor reports stopping only its fake server
+pid 19000). Cause of the forwarder's death OPEN. Stage 2r (ENSURE-UP) will start a fresh rtiexec
+and forwarder at the next launch, so the next V6f launch runs the sim's CREATE on a fresh rtiexec
+without a holder - which is the direct test of H-recv.
+Predictions: (a) under H-recv (MEDIUM): the sim's create SUCCEEDS on the fresh rtiexec ("Joined
+federation", READY). (b) if the create FAILS again with the same parser error on a fresh rtiexec:
+H-recv FALSIFIED as "long-lived state"; the sim's stream (H-send) or something persistent in the
+sim's module read is promoted -> STOP, MAK support with the user. (c) any other failure -> STOP.
+V6f itself then runs as pre-registered (platoon-only order, STP-822 live confirmation).
+
+### 4.5 P4/P5/P6 RESULTS (15:50-16:01Z) - H-recv FALSIFIED, sender read FALSIFIED, cause OPEN
+P4: rtiForwarder died ~15:34:06Z (an unrelated user process then took port 5000; forwarder port moved
+to 5002, commit c0c4185) and rtiexec exited; on the FRESH rtiexec 75168 the runner's Stage 2c RtiProbe
+create was rejected the same way (MAK-DynamicTerrain-2, line 248) and RtiProbe crashed (0xC0000005 in
+VrfFacade.Start on the failed create). P5: RtiProbe x3 on it: FAIL, FAIL, OK. P6: RtiProbe x8 interleaved
+cwd=bin64 vs cwd=LF-only module copies: 1/4 and 1/4, the LF arm failing on the LF-only RPR file -> the
+creator's text-mode read is not the mechanism. Defender excluded (only detection today = the seat's own
+pwsh polling loop at 15:50Z; signature updates 04:42Z/11:00Z). Verdict: an intermittent corruption in the
+transport/receive path (LRC -> forwarder -> rtiexec) that appeared during the afternoon; joins never fail.
+Next for the cause: wire capture (relay on a spare port via a per-process rid copy) and the vendor
+(tcpPacketBundlingSize 50000 vs 65 KB FOM blocks) - with the user. Operational: JOIN path via a retrying holder.
+
 ## 5. Records owed after the outcome
 Jira ticket (new, this failure, verified facts only); RUNBOOK sec 9 addendum; handoff V6 line;
 this prereg + results committed under docs/experiments.
