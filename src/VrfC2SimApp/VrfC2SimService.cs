@@ -213,6 +213,27 @@ public sealed class VrfC2SimService : BackgroundService
     // and bounds the overshoot of a heavily compressed demo.
     private const int TaskClockPollMs = 200;
 
+    // STP-822: BACK-END LIVENESS, on its OWN wall timer (Vrf:BackendLivenessSeconds). The rule
+    // and the state machine are in BackendLivenessPolicy / BackendLivenessMonitor; what lives
+    // here is the schedule and the consequences. Before this, the ONLY place the interface
+    // re-read the back end was SampleTaskClock's stale branch, which needs the sim clock
+    // readable-confirmed AND flat - on run 20260915T130627Z it never ran, and the interface
+    // delivered 543 position reports off a STOPPED back end with 0 warnings and 0 TASKABRT
+    // (V6_LIVE_JOIN_GATE sec 9.5). The monitor is touched by the tick thread only;
+    // _backendLost is the copy the other phases and the R1 poll read.
+    private BackendLivenessMonitor _liveness;
+    private DateTime _nextLivenessCheck = DateTime.MinValue;
+    private volatile bool _backendLost;
+    private DateTime _backendLastGoodUtc = DateTime.MinValue;
+    private bool _livenessSuppressionSaid;      // R1 suppression, said ONCE per outage
+    private int _positionCyclesSuppressed;      // and counted, so the recovery line can say how many
+    private bool _livenessStandDownSaid;        // C16 stand-down, said ONCE per outage
+    // STP-822 part 2 / STP-823: what the VR-Forces OBJECT CONSOLE has said about navigation
+    // areas. The interface already subscribes to that channel; NavAreaEvidence is the reading
+    // of it, and NavAreaEvidence's class comment states exactly what it does and does not prove.
+    private readonly NavAreaEvidence _navEvidence = new();
+    private bool _navGateBlindWarned;           // "consoles too low to judge", said once
+
     /// <summary>The task-clock axis, in seconds (see the field block). Safe from any thread.</summary>
     private double TaskClockSeconds => _taskAxis.Seconds;
 
@@ -627,6 +648,23 @@ public sealed class VrfC2SimService : BackgroundService
                                 "is still used.", swSettle.Elapsed.TotalSeconds);
         }
 
+        // STP-822: say whether the TIMED liveness read is armed, at start-up, where an operator
+        // reads it - the absence of this line means a build that can be blind to a dead back end
+        // for a whole run.
+        if (_vrf.BackendLivenessSeconds > 0)
+            _log.LogInformation("BACK-END LIVENESS (STP-822): the back end is re-read every {Secs}s on the "
+                              + "wall clock; a count of ZERO held for {Conf}s (and at least {N} consecutive "
+                              + "samples) is reported as a LOSS - TASKABRT for every running task, one "
+                              + "ObservationReport, position reports suspended. Nav-area gate for ground "
+                              + "tasks = {Gate}.",
+                                _vrf.BackendLivenessSeconds, _vrf.BackendLossConfirmSeconds,
+                                BackendLivenessPolicy.ConfirmSamples,
+                                _vrf.RequireNavAreaForGroundTasks ? "ON (Vrf:RequireNavAreaForGroundTasks)" : "off");
+        else
+            _log.LogWarning("BACK-END LIVENESS IS OFF (Vrf:BackendLivenessSeconds=0). This interface will "
+                          + "NOT notice a VR-Forces back end that stops: it keeps reporting positions off "
+                          + "reflected attributes the RTI still holds, which is the V6d defect (STP-822).");
+
         // 2. Drive the sim on a dedicated thread (drain queued commands, then Tick).
         // The tick loop runs until _stopTick (NOT the host stoppingToken) so the shutdown
         // path can still enqueue + flush cleanup deletes while it is ticking (see step 5).
@@ -796,6 +834,9 @@ public sealed class VrfC2SimService : BackgroundService
             TickPhase("ExpireShiftRequests", !_pendingShift.IsEmpty, ExpireShiftRequests);
             TickPhase("ExpireCompositions", !_compositions.IsEmpty, ExpireCompositions);
             TickPhase("ReleaseReflected", !_awaitReflection.IsEmpty, ReleaseReflected);
+            // STP-822: BEFORE the R1 poll, so a loss confirmed on this tick suppresses THIS
+            // tick's position reports rather than the next one's.
+            TickPhase("MaybeCheckBackendLiveness", _vrf.BackendLivenessSeconds > 0, MaybeCheckBackendLiveness);
             TickPhase("MaybeSendPositionReports", _vrf.PositionReportSeconds > 0, MaybeSendPositionReports);
             TickPhase("MaybeCheckArrivals", _vrf.ArrivalCompletion, MaybeCheckArrivals);
             TickPhase("MaybeCheckStalls", _vrf.StallDetection, MaybeCheckStalls);
@@ -833,6 +874,25 @@ public sealed class VrfC2SimService : BackgroundService
         var now = DateTime.UtcNow;
         if (now < _nextPositionReport) return;
         _nextPositionReport = now.AddSeconds(_vrf.PositionReportSeconds);
+
+        // STP-822: A STOPPED BACK END MUST NOT BE REPORTED AS A LIVE ONE. The RTI keeps every
+        // reflected object after the back end stops, so TryGetEntityGeodetic goes on succeeding
+        // and this loop would deliver fix after fix off attributes that stopped changing - 543 of
+        // them on run 20260915T130627Z, 0 failed, while nothing in the simulation moved. The fixes
+        // are SUPPRESSED (not faked, not zeroed), counted, and the suspension is said once; the
+        // count goes into the recovery line.
+        if (_backendLost)
+        {
+            _positionCyclesSuppressed++;
+            if (!_livenessSuppressionSaid)
+            {
+                _livenessSuppressionSaid = true;
+                _log.LogWarning("R1 position reports SUSPENDED: the VR-Forces back end is LOST (STP-822). "
+                              + "Its reflected attributes are still READABLE but they are STALE, so no fix is "
+                              + "sent until it reports again.");
+            }
+            return;
+        }
 
         bool blue = !_vrf.PositionReportSides.Equals("red", StringComparison.OrdinalIgnoreCase);
         bool red  = !_vrf.PositionReportSides.Equals("blue", StringComparison.OrdinalIgnoreCase);
@@ -2653,6 +2713,7 @@ public sealed class VrfC2SimService : BackgroundService
                     if (string.IsNullOrEmpty(m.Uuid)) continue;
                     _names.TryAddName(m.Uuid, m.Name ?? "");
                     _bridge.SetObjectNotifyLevel(m.Uuid, _vrf.ObjectConsoleMemberNotifyLevel);
+                    _navEvidence.ConsoleOpened(m.Uuid, _vrf.ObjectConsoleMemberNotifyLevel);
                 }
                 // Members are named WITH their uuids (2026-09-06): the console rows the observer captures
                 // are uuid-keyed, and without this line's uuids a member's account could not be attributed
@@ -2994,6 +3055,62 @@ public sealed class VrfC2SimService : BackgroundService
         // GROUND ONLY. The whole metric is a tracked vehicle's max-slope derated by the soil it is
         // driving on; an air platform does not drive over the ridge it crosses, so scoring its route
         // would manufacture warnings about ground it never touches.
+        // NAV-AREA PRECONDITION FOR A GROUND MOVE (Vrf:RequireNavAreaForGroundTasks, DEFAULT
+        // OFF - the default is the user's to set). STP-823: on terrain with NO navigation area,
+        // dispatching a ground move-along STOPS the 5.2d back end - it accepts the task, drives
+        // every member into off-feature path planning because "Is current point in nav area?" is
+        // FALSE, starts a Plan path job, polls it once and then emits nothing ever again (no
+        // frames, no status, no motion, no terminal report; V6_LIVE_JOIN_GATE sec 9.3). That is
+        // not a degraded route, it is the end of the run, so the honest thing is to refuse the
+        // task rather than issue it. WHAT THE EVIDENCE IS AND IS NOT: see NavAreaEvidence - it
+        // reads the object console's own rows, it can see nothing below level 3 (there it warns
+        // once and DISPATCHES rather than refusing on ignorance), and a row from another object
+        // proves an area is loaded, not that this taskee's start point is inside it.
+        if (_vrf.RequireNavAreaForGroundTasks && isGround && routeGeo.Count > 0)
+        {
+            double navWall = DateTime.UtcNow.Ticks / (double)TimeSpan.TicksPerSecond;
+            var navUuids = new List<string> { vrfUuid };
+            if (unit.IsAggregate)
+            {
+                // The MEMBERS are what drive, and it is their consoles that print the row.
+                try
+                {
+                    var navMembers = _bridge.GetAggregateMembers(vrfUuid);
+                    if (navMembers != null)
+                        foreach (var m in navMembers)
+                            if (!string.IsNullOrEmpty(m.Uuid)) navUuids.Add(m.Uuid);
+                }
+                catch (Exception ex) { _log.LogDebug(ex, "NAV GATE: member list unreadable for {Name}.", unit.Name); }
+            }
+            var navVerdict = _navEvidence.Decide(navUuids, navWall, _vrf.NavAreaEvidenceSeconds);
+            if (NavAreaEvidence.ShouldRefuse(navVerdict))
+            {
+                string navWhy = NavAreaEvidence.RefusalMarking(unit.Name, _vrf.NavAreaEvidenceSeconds, navVerdict);
+                _log.LogError("Task '{Task}': {Why}", task.TaskName, navWhy);
+                _sequencer.NotifyAbandoned(task.TaskUuid);
+                PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKABRT,
+                               $"no navigation area evidence for {unit.Name}");
+                _ = PushReportAsync(BackendLivenessPolicy.BuildStateChangeReport(navWhy, IsoNow(), NewReportId()),
+                                    ReportKind.Observation);
+                return;
+            }
+            if (!navVerdict.CanSee)
+            {
+                if (!_navGateBlindWarned)
+                {
+                    _navGateBlindWarned = true;
+                    _log.LogWarning("{Why}", NavAreaEvidence.BlindWarning(_vrf.ObjectConsoleNotifyLevel));
+                }
+            }
+            else
+                _log.LogInformation("Task '{Task}': nav-area evidence OK for {Name} - area '{Area}', from {Whose}.",
+                                    task.TaskName, unit.Name, navVerdict.Area,
+                                    navVerdict.TaskeeEvidence
+                                        ? "this unit's own console row"
+                                        : "ANOTHER object's row (an area is loaded; this is not proof that "
+                                          + "this unit's start point is inside it)");
+        }
+
         if (_vrf.PreflightWarnings && isGround && routeGeo.Count > 1)
             QueuePreflight(task, unit, routeGeo);
 
@@ -3492,6 +3609,10 @@ public sealed class VrfC2SimService : BackgroundService
         if (_vrf.ObjectConsoleNotifyLevel >= 0 && !string.IsNullOrEmpty(e.Uuid))
         {
             _bridge.SetObjectNotifyLevel(e.Uuid, _vrf.ObjectConsoleNotifyLevel);
+            // STP-822 part 2: remember the level we ASKED FOR, per object. "Could we have seen a
+            // nav-area row for this unit?" must be answered from what was actually opened, not
+            // from the setting - the nav gate refuses only when it COULD have seen one.
+            _navEvidence.ConsoleOpened(e.Uuid, _vrf.ObjectConsoleNotifyLevel);
             _log.LogInformation("VRF console level {Level} requested for {Name} ({Uuid}).",
                                 _vrf.ObjectConsoleNotifyLevel, name, e.Uuid);
         }
@@ -4123,7 +4244,19 @@ public sealed class VrfC2SimService : BackgroundService
         int backendCount = 0;
         var control = StallPolicy.BackendControl.Unreadable;
         int activeBackends = -1;
-        if (taskSimStale)
+        if (taskSimStale && _backendLost)
+        {
+            // STP-822: the timed liveness read has ALREADY confirmed this back end gone, on the
+            // same three vendor signals and on its own schedule. Re-reading them here could only
+            // repeat that answer a second later, and a disagreement would print "the back end
+            // REPORTS PAUSED" about a back end this interface has declared lost. The verdict is
+            // taken from there, which is TaskClockAction rule 1 (not one active back end -> WALL).
+            backendCount = 0;
+            backEndPresent = false;
+            control = StallPolicy.BackendControl.NoBackend;
+            activeBackends = 0;
+        }
+        else if (taskSimStale)
         {
             try { backendCount = _bridge.BackendCount(); backEndPresent = backendCount > 0; }
             catch (Exception ex)
@@ -4435,10 +4568,129 @@ public sealed class VrfC2SimService : BackgroundService
         _stallSamples.TryRemove(unitName, out _);
     }
 
+    /// <summary>
+    /// STP-822: IS THE VR-FORCES BACK END STILL THERE? Asked every Vrf:BackendLivenessSeconds on
+    /// the WALL clock, from the tick loop, independent of the task clock and of whether anything
+    /// is held on an end time - the two conditions that made the pre-STP-822 interface blind for
+    /// a whole run. Three read-only vendor calls per sample, each guarded on its own; the rule is
+    /// BackendLivenessPolicy's and is NEVER satisfied by one sample.
+    ///
+    /// ONLY A STATE CHANGE IS ACTED ON OR LOGGED. On a confirmed LOSS: every running task gets
+    /// one TASKABRT through the B1 emit point and is abandoned so its STREND successors fail fast
+    /// (the gate must not contradict the report just sent - the Q1 rule); ONE ObservationReport
+    /// goes to STP; the R1 poll stops sending; C16 stands down and its rings are dropped so
+    /// nothing is ever measured ACROSS the outage. On RECOVERY: one ObservationReport, reports
+    /// resume - and NOTHING is re-tasked. Restarting a task nobody asked for would be the
+    /// interface inventing an order.
+    /// </summary>
+    private void MaybeCheckBackendLiveness()
+    {
+        var now = DateTime.UtcNow;
+        if (now < _nextLivenessCheck) return;
+        _nextLivenessCheck = now.AddSeconds(Math.Max(1, _vrf.BackendLivenessSeconds));
+        _liveness ??= new BackendLivenessMonitor(Math.Max(0, _vrf.BackendLossConfirmSeconds));
+
+        // Each read guarded on its own, exactly as the task clock's stale branch guards them: one
+        // that throws leaves ITS signal at "no reading" and the classifier decides on what is
+        // left. A deployment carrying a VrfBridge that predates STP-809 throws
+        // MissingMethodException on the two new members and still detects the loss on
+        // BackendCount - the column WatchVrf --report-backends measured dropping 1 -> 0 exactly
+        // 121 s after dispatch on both quiet runs. DEBUG, not WARNING: the task clock already
+        // says the partial-deploy sentence once a minute (RUNBOOK sec 9) and this sampler must
+        // not turn that into a second stream of the same news.
+        int backendCount = -1, activeBackends = -1;
+        int control = (int)StallPolicy.BackendControl.Unreadable;
+        try { backendCount = _bridge.BackendCount(); }
+        catch (Exception ex) { _log.LogDebug(ex, "LIVENESS: BackendCount read failed; no reading."); }
+        try { activeBackends = ReadActiveBackendCount(); }
+        catch (Exception ex) { _log.LogDebug(ex, "LIVENESS: ActiveBackendCount read failed; no reading."); }
+        try { control = ReadBackendControlState(); }
+        catch (Exception ex) { _log.LogDebug(ex, "LIVENESS: BackendControlState read failed; no reading."); }
+        if (!Enum.IsDefined(typeof(StallPolicy.BackendControl), control))
+            control = (int)StallPolicy.BackendControl.Other;   // a vendor value this build does not know
+
+        double wallNow = now.Ticks / (double)TimeSpan.TicksPerSecond;
+        var sample = new BackendLivenessPolicy.Sample(activeBackends, backendCount, control);
+        var transition = _liveness.Observe(wallNow, sample);
+        if (BackendLivenessPolicy.Classify(sample) == BackendLivenessPolicy.Reading.Present)
+            _backendLastGoodUtc = now;
+        if (transition == BackendLivenessPolicy.Transition.None) return;
+
+        string active = activeBackends < 0 ? "unreadable" : activeBackends.ToString();
+        if (transition == BackendLivenessPolicy.Transition.Loss)
+        {
+            _backendLost = true;
+            double noStatus = _liveness.NoStatusSeconds(wallNow);
+            string lastGoodIso = _backendLastGoodUtc == DateTime.MinValue
+                               ? "(never)"
+                               : _backendLastGoodUtc.ToString("yyyy-MM-ddTHH:mm:ssZ",
+                                                             System.Globalization.CultureInfo.InvariantCulture);
+            string why = BackendLivenessPolicy.LossReason(noStatus);
+            var snapshot = _inFlight.Snapshot();
+            _log.LogError("BACK END LOST: {Why}. Last good reading {Iso}; {N} task(s) in flight - each is "
+                        + "reported TASKABRT and ABANDONED, position reports are SUSPENDED and the progress "
+                        + "watchdog stands down until it reports again. Signals now: BackendCount={Count}, "
+                        + "active={Active}, control={Control}. A back end that stops mid-run looks exactly "
+                        + "like this (STP-822/STP-823: a ground move with no navigation area STOPS it).",
+                          why, lastGoodIso, snapshot.Count, backendCount, active,
+                          (StallPolicy.BackendControl)control);
+            foreach (var kv in snapshot)
+            {
+                var rec = kv.Value;
+                string taskeeUuid = !string.IsNullOrEmpty(rec.TaskeeUuid) ? rec.TaskeeUuid
+                                  : (_c2SimUuidByName.TryGetValue(kv.Key, out var cu) ? cu : "");
+                PushTaskStatus(taskeeUuid, rec.TaskUuid ?? "", S.TaskStatusCodeType.TASKABRT, why);
+                // Q1's rule, applied to a death instead of a supersede: a successor waiting on a
+                // task we have just declared dead must fail NOW, not at the end of its window.
+                _sequencer.NotifyAbandoned(rec.TaskUuid);
+            }
+            // NOTHING IS MEASURED ACROSS THE OUTAGE. C16's rings are stamped with positions from
+            // before the loss; judged after it they would call every unit stalled - for a reason
+            // that is not the taskee's.
+            _stallSamples.Clear();
+            _stallLastCheckClock = double.NaN;
+            _positionCyclesSuppressed = 0;
+            _livenessSuppressionSaid = false;
+            _livenessStandDownSaid = false;
+            _ = PushReportAsync(BackendLivenessPolicy.BuildStateChangeReport(
+                    BackendLivenessPolicy.LossMarking(noStatus, lastGoodIso, snapshot.Count),
+                    IsoNow(), NewReportId()), ReportKind.Observation);
+            return;
+        }
+
+        _backendLost = false;
+        double lostFor = _liveness.LostForSeconds(wallNow);
+        _log.LogWarning("BACK END RECOVERED after {S:F0} s (BackendCount={Count}, active={Active}): position "
+                      + "reports resume and the progress watchdog judges again. {N} position-report cycle(s) "
+                      + "were suppressed. NOTHING IS RE-TASKED - the tasks aborted at the loss stay aborted; "
+                      + "a new order is required (STP-822).",
+                        lostFor, backendCount, active, _positionCyclesSuppressed);
+        _ = PushReportAsync(BackendLivenessPolicy.BuildStateChangeReport(
+                BackendLivenessPolicy.RecoveryMarking(lostFor, activeBackends),
+                IsoNow(), NewReportId()), ReportKind.Observation);
+    }
+
     private void MaybeCheckStalls()
     {
         var now = DateTime.UtcNow;
         if (now < _nextStallCheck) return;
+        // STP-822: A BACK-END LOSS IS NOT A UNIT STALL. While the back end is gone every unit is
+        // motionless for a reason this watchdog cannot see and does not own; judging here would
+        // stamp a second, contradictory verdict on tasks the loss has already aborted and would
+        // blame the taskee for the simulator. The rings were dropped at the loss, so nothing is
+        // measured across the outage either.
+        if (_backendLost)
+        {
+            _nextStallCheck = now.AddSeconds(Math.Max(1, _vrf.StallCheckSeconds));
+            if (!_livenessStandDownSaid)
+            {
+                _livenessStandDownSaid = true;
+                _log.LogWarning("STALL WATCHDOG: STANDING DOWN - the VR-Forces back end is LOST (STP-822). "
+                              + "No unit is judged until it reports again; the tasks that were running have "
+                              + "already been reported TASKABRT by the liveness check.");
+            }
+            return;
+        }
         // Wall seconds as an absolute double on the SAME source the watchdog always used
         // (DateTime.UtcNow); only differences are ever taken, so the epoch is irrelevant.
         double wallNow = now.Ticks / (double)TimeSpan.TicksPerSecond;
@@ -5077,8 +5329,13 @@ public sealed class VrfC2SimService : BackgroundService
     private void OnVrfObjectConsoleMessage(object sender, ObjectConsoleMessageEventArgs e)
     {
         _names.TryGetName(e.Uuid ?? "", out var objName);
+        string text = DecodeConsoleText(e.Message);
+        // STP-822 part 2: the SAME rows the runner's stage-7d READY gate greps out of this log
+        // (scripts/RunnerLib.ps1 Get-NavAreaRows) are read here, in band, as they arrive - a
+        // "New Primary nav area" row is the simulator's own acquisition of a navigation area.
+        _navEvidence.Observe(e.Uuid, text, DateTime.UtcNow.Ticks / (double)TimeSpan.TicksPerSecond);
         _log.LogInformation("VRF console [{Level}] {Name} ({Uuid}): {Msg}",
-                            e.NotifyLevel, objName ?? "?", e.Uuid, DecodeConsoleText(e.Message));
+                            e.NotifyLevel, objName ?? "?", e.Uuid, text);
     }
 
     // The sim wraps console text in a DtRwTranslatableStringObject XML blob (a "string-queue" of
