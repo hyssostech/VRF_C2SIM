@@ -3073,7 +3073,8 @@ per the never-reuse non-negotiable. Annotate with results from the run manifest.
 NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
 join) are BURNED, not recycled. The run manifest records which were actually used.
 
-*** NEXT FREE: 4522 *** (authoritative - the ONLY such marker in this file. Update this
+- 2026-09-15 P3 (STP-825 workaround): HOLDER federate RtiProbe 4522 MAK-ONE-2025 1 900 3 (creates and stays joined so the sim JOINS; seat, PREREG_V6F_FDD_CREATE sec 4.2) CLAIMED.
+*** NEXT FREE: 4523 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN

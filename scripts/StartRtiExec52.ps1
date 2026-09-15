@@ -71,7 +71,7 @@ param(
     [int]    $TcpPort         = 4001,
     [string] $DestAddress     = '127.255.255.255',
     [string] $InterfaceAddress= '127.0.0.1',
-    [int]    $ForwarderPort   = 5000,
+    [int]    $ForwarderPort   = 5002,   # 2026-09-15: was 5000 (RUNBOOK 9c: port conflict with an unrelated user process)
     [int]    $NotifyLevel     = 3,
     [int]    $ReadyTimeoutSec = 30,
     [int]    $PollIntervalSec = 1,

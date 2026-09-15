@@ -83,7 +83,7 @@
 (setqb RTI_tcpForwarderAddr "127.0.0.1")
 
   ;; TCP Forwarder Configuration
-(setqb RTI_distributedForwarderPort 5000)
+(setqb RTI_distributedForwarderPort 5002) ;; 2026-09-15: was 5000; an unrelated user process (COA-GPT app.py) took 0.0.0.0:5000 - RUNBOOK 9c
 ;; (setqb RTI_forwarderRoutesFile "routes.mtl")
 
   ;; Enable reliable transport for internal and/or FOM (e.g., update, reflect,

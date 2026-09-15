@@ -2197,6 +2197,12 @@ appNo (claim it in the ledger first) and one extra remoteControl federate for <=
 PRODUCT FOLLOW-UP (not done): let Stage 2c HOLD the federation until the sim has joined instead of create-and-destroy,
 so no launch depends on the sim's create path.
 
+FORWARDER PORT 5000 -> 5002 (2026-09-15 15:5xZ): rtiForwarder died ~15:34:06Z and rtiexec 36840 exited on the broken
+link; six seconds later an unrelated user process (COA-GPT app.py, VS Code terminal) bound 0.0.0.0:5000, the
+RTI_distributedForwarderPort (Users Guide port table: the port RTI Forwarders use among themselves; rtiexec/
+forwarder -D in manual mode - federates never connect to it). Moved to 5002 in config/rid-501-rtiexec-min.mtl
+(shared rid) and scripts/StartRtiExec52.ps1 (default -ForwarderPort). Revert both together if 5000 is wanted back.
+
 ## 10. THE C16 PROGRESS WATCHDOG IS OFF BY DEFAULT - HOW TO TURN IT ON FOR THE VALIDATION RUN
 
 Added 2026-09-14 (cold-start review sec 2.8). `Vrf:StallDetection` defaults FALSE, is absent from
