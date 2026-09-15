@@ -1088,9 +1088,13 @@ on 2026-09-14; each is now closed by something this section names
     - WHAT THE VERDICT RESTS ON: the SCENARIO clock (`DtVrfRemoteController::simTime`, the vendor
       sample's "Sim time from sim engine status"), sampled either side of a 2 s hold - it stops
       while the scenario is paused - and, when the deployed bridge has it, `backendsControlState`.
-      ON THE CURRENT G-A PIN THAT STATE READER IS ABSENT (pre-STP-809; sec 9), so the verdict is
-      CLOCK-ONLY and the tool's own output says so. Do not read `PAUSE_CONFIRMED` as two
-      independent confirmations until the bridge is re-pinned.
+      AS OF THE 2026-09-15 G-A RERUN PIN (sec 9) THAT STATE READER IS PRESENT: V5 (2026-09-15, run
+      20260915T021316Z_run) measured it live - `[RESULT] PauseSim action=pause
+      verdict=PAUSE_CONFIRMED basis=state+clock exit=0 appNumber=4381 backends=1` and `[RESULT]
+      PauseSim action=resume verdict=RESUME_CONFIRMED basis=state+clock exit=0 appNumber=4382
+      backends=1` (clockDelta 0.000 / 2.052; PREREG_V5_Q5_PAUSE_KILL_2026-09-15.md RESULTS V5c).
+      `basis=state+clock` means BOTH readings agree, not clock-only; `basis=clock` (the old
+      fallback) still fires against a bridge that lacks the member.
     - THE KILL HALF OF THE Q5 PROBE IS NOT HERE. It is item 14, and it is MANUAL.
 
 14. KILLING A BACK END MID-RUN - MANUAL, DELIBERATELY, AND NOT AUTOMATED ANYWHERE (2026-09-15).
@@ -1843,8 +1847,9 @@ source also changes the hash): `BackendControlState` and `ActiveBackendCount` ar
 dll and ABSENT in the backed-up 2026-09-14 one, which carries only `SimTimeSeconds`,
 `BackendCount`, `TryGetEntityKinematics` and `NativeStackInfo`.
 Offline suites 19/19 exit 0 (the 18 plus `--routeshift-selftest`); `--rulings-selftest` 176 PASS /
-0 FAIL; `--routeshift-selftest` 61 ok / 0 fail with 0 network fetches and 57 hits on the committed
-`tools/preflight/preflight_cache`; `--parse-order data\COA-STP1_Order.xml` 42 tasks (0 MapGraphicID,
+0 FAIL; `--routeshift-selftest` 61 ok / 0 fail with 0 network fetches and 57 hits on
+`tools/preflight/preflight_cache` (31 MB, GITIGNORED - lives only in the main checkout; copy it
+into any worktree before `--preflight-selftest` / `--routeshift-selftest`); `--parse-order data\COA-STP1_Order.xml` 42 tasks (0 MapGraphicID,
 33 embedded Location, 9 no geometry, 1 non-zero start delay); `--parse-init
 data\COA-STP1_Initialization_N2d.xml` 128 units, 0 stacked groups; `--runtime-check` exit 0
 reporting `native stack = 5.2|C:\MAK\vrforces5.2d\bin64\vrfcontrol.dll`; `PauseSim --help` now
@@ -1976,7 +1981,13 @@ no Duration and no geometry is malformed and is refused, not held (below).
   every second already served. **UNCONFIRMED LIVE** (assessment live gate 11): nobody has yet
   killed a back end and watched what the vendor reports for the deactivated entry. If the active
   count never drops, the behaviour is exactly the pre-STP-809 one - the repeating WARNING with
-  its caveat - so that is still the line to recognise at a demo.
+  its caveat - so that is still the line to recognise at a demo. V5 (2026-09-15,
+  PREREG_V5_Q5_PAUSE_KILL_2026-09-15.md RESULTS) ATTEMPTED the kill half and did NOT complete it -
+  the operator's `Stop-Process` was refused by the permission classifier and the window closed at
+  its cap with the back end alive, so this is STILL unconfirmed. Any re-run must anchor its kill
+  offset on the DISPATCH instant (`t - 29 s` of the stage-8b clock, `PushOrder`'s own 30 s
+  argument - item 14), not on the stage-8b `t=0` moment: anchoring on `t=0` cost the last attempt
+  29 s of margin, and T1 completed 9 s before the planned kill.
 - **The predecessor gate is a FLOOR, not the whole window - and it asks TWO questions.** A gated
   task waits for its predecessor to COMPLETE for at least
   `(that predecessor's Duration x Vrf:DurationScale) + Vrf:TaskPredecessorEndMarginSeconds` (M1),

@@ -56,6 +56,7 @@ Navigation mesh (PREREG_NAVDATA_G6_2026-09-13.md sec 5 = STOP; MESH_QUERY_VS_DIS
 - WESTERN ABSTRACT-GRAPH REFUSALS = the oversized nav area (UG52 66.2's 20 x 20 km maximum) - not
   load timing (N2c's +300 s start delay refused identically to N2b) and not a query flag; do not
   re-probe query flags. RESEARCH_ABSTRACT_GRAPH_CONNECTIVITY_2026-09-15.md.
+- Western AG refusals = oversized nav area (UG52 66.2 20x20 km max; connectivity ratio) - PREREG_V7; do not reopen (6/6 live-confirmed on MojaveAO20).
 - THE RIDGE FREEZE IS A LINE PROPERTY (N2d drove the authored line 1.3 km north of the six-run
   freeze) - the remedy is a pre-flight route shift, not a planner flag.
 
@@ -95,29 +96,32 @@ Method lessons (each one cost a false claim or a night):
   so it cannot test the mesh planner - G7 attempt 2. Measured there too: the sim's marking width is
   >= 11 characters, so reporting item B3 is about the 14-character name, not a 10-char limit.
 
-**State at 2026-09-15 01:00Z:** main is at f54a616 (the abstract-graph connectivity research
-record). main carries: rulings + three review passes merged to main (0f4d09e); STP-809 back-end
-control state merged (4cd84d7); runner stop-rule fix merged (ff15a4e); the tools52 conversion
-merged (b4fcf58); V4b merged (16995b3). G-A's PIN (99B7B235..., main 165e04c) is STALE (predates
-STP-809/tools52/V4b); rerun owed after pausesim + route-shift. LIVE PROOFS tonight, off the merged
-build: V2 (230706Z) ran the 42-task COA-STP1 chain, 41/42 dispatched, 40 timed TASKCMPLT on the sim
-clock, one ruled TASKABRT cascade, 0 push failures; V13 (001159Z) held all five gates - Q4
-malformed-task refusal at receipt before any TASKSTRT, C16 fired on the frozen 1-35 and stayed
-silent on the moving 1-1, and the fixed stop rule closed the window at +184 s of 900; B7
-heading/speed PASSED off V2's capture (heading 0.1 deg median off course, speed tracking the sim
-ratio). NAV THREAD: N2b (205046Z) - the AG override alone is NOT sufficient, every AtOrder member's
-query refused at the destack start; N2c (215944Z) - a 300 s task-start delay refused identically,
-falsifying load timing; N2d (224505Z) - a 500 m start shift let short goals plan and drove the
-route 1.3 km north of the six-run freeze - a LINE property. RESEARCH (f54a616): MojaveCOA (54x41
-km) is 5.5x over VR-Forces' documented 20x20 km nav-area maximum (UG52 66.2); the generation log's
-per-sector connectivity ratio shows 254 of 8,856 COA sectors fragmented (<0.5), concentrated on
-1-35's lane (sector ratio 0.11 at the destack start); product rule = cap every generated area at
-20x20 km and tile the AO (STP-802/803). V7 (PREREG_V7_AO20_2026-09-15.md, staged) reruns N2d on
-MojaveAO20. DEMO REMEDY (the pre-flight route-shift lane, independent of the AG research) does not
-need V7. OPEN USER RULINGS: none (four-tools ruling, 00:40Z, was the last). OWED: V5 (Q5
-pause+kill, needs the pause tool), V6 (live join gate for the four converted tools, needs 5-7 fresh
-appNos), V7, V8 (route-shift run), then the G-A rerun. Prior 20:30Z paragraph archived verbatim:
-docs/experiments/HANDOFF_2026-09-14_ARCHIVE_pm.md sec 8.
+**State at 2026-09-15 02:45Z:** main is at 03b955e (the V5/V8 appNo ledger). main carries: rulings
++ three review passes (0f4d09e), STP-809 (4cd84d7), the runner stop-rule fix (ff15a4e), the tools52
+conversion (b4fcf58), V4b (16995b3), PauseSim (f13df1b) and route-shift (96fa396), all merged. GATE
+G-A RERUN DONE (a9b8c2c): VrfBridge.dll re-pinned at main 5881b7d, hash E3F40524... (997,376 B,
+2026-09-15T01:34:46Z) - ELEVEN consumers one hash, 19/19 offline suites, rulings-selftest 176/0,
+routeshift-selftest 61/0; the 99B7B235/165e04c pin is SUPERSEDED. LIVE PROOFS off the merged build:
+V2 (230706Z) ran the 42-task COA-STP1 chain, 41/42 dispatched, 40 timed TASKCMPLT, one ruled
+TASKABRT cascade; V13 (001159Z) held all five gates (Q4 refusal, C16 fire/silent, stop rule +184s
+of 900); B7 heading/speed PASSED off V2's capture. NAV THREAD CLOSED BY V7
+(PREREG_V7_AO20_2026-09-15.md, 21c1430, C1 CONFIRMED): 6/6 formation-slot moves and the leader's
+2.3 km V0 leg (30 points) planned on MojaveAO20, "not enough" 0 times in 846,600 trace lines -
+product rule cap 20x20 km / tile / ratio >= 0.9 adopted, MojaveCOA retired for navigation
+(mechanism in section 1's CLOSED list). V5 (PREREG_V5, 0e9884e): PAUSE HALF PASSES (2 TASK CLOCK
+HELD lines naming REPORTS PAUSED, T1 at 1828/1800 armed sim s with the 181.5 s pause costing
+nothing, PauseSim PAUSE_CONFIRMED/RESUME_CONFIRMED basis=state+clock both halves); KILL HALF NOT
+RUN (the seat's Stop-Process was refused by the permission classifier, window closed with the back
+end alive, STP-809's active-count path stays UNCONFIRMED LIVE - a re-run must anchor the kill on
+the DISPATCH, t-29 s of PushOrder's own 30 s argument, not stage-8b t=0, and needs the user's hand
+or a permission rule). V8 route-shift ON RUN 20260915T023743Z is COMPLETE, harvest IN PROGRESS -
+live read (PROVISIONAL): the chooser shifted the leg 125 m SOUTH (ratio 1.248 -> 0.661) against the
+PREDICTED +75 m NORTH; adjudication owed. OPEN USER RULINGS: none. OWED: V6 (live join gate for
+ResetVrf/SetSimRate/CreateTaskAgg plus PauseSim, needs 5-7 fresh appNos and the 5.2 launch env -
+gate 1's first attempt hung inside bridge.Start() without it, appNo 4367 burned), the V8 harvest
+verdict, the Q5 kill-half re-run, and the nav second mechanism / offline 20x20 km control. Prior
+01:00Z paragraph archived verbatim: docs/experiments/HANDOFF_2026-09-14_ARCHIVE_pm.md sec 8
+(append).
 
 ## 2. Where each lane stands (source: docs/PLAN_PARALLEL_LANES_2026-09-14.md - the live plan)
 
@@ -134,14 +138,11 @@ docs/experiments/HANDOFF_2026-09-14_ARCHIVE_pm.md sec 8.
 | L11 | 4-27 second read + offset-line scoring | - |
 | L12 | A2 detached run watchdog | STP-794 |
 
-Per-lane "State 2026-09-14 ~13:00Z" column dropped here (morning snapshot, duplicated by the live
-docs/PLAN_PARALLEL_LANES_2026-09-14.md and superseded within this file by section 1 where later);
-full table archived verbatim docs/experiments/HANDOFF_2026-09-14_ARCHIVE_pm.md sec 4.
+Per-lane "State 2026-09-14 ~13:00Z" column dropped here (superseded by section 1; duplicated by the live docs/PLAN_PARALLEL_LANES_2026-09-14.md); full table archived verbatim docs/experiments/HANDOFF_2026-09-14_ARCHIVE_pm.md sec 4.
 
-BRANCHES AND WHAT EACH NEEDS TO LAND section dropped here (2026-09-14 20:30Z, superseded -
-sim-clock, reporting, heading-speed and preflight-port are all in feat/integration @ 26efe0c
-per section 1's state paragraph; only feat/tasking-rulings remains to land); full text
-archived verbatim docs/experiments/HANDOFF_2026-09-14_ARCHIVE_pm.md sec 6.
+BRANCHES AND WHAT EACH NEEDS TO LAND section dropped here (2026-09-14 20:30Z, superseded - all
+four feature branches landed via feat/integration, then main); full text archived verbatim
+docs/experiments/HANDOFF_2026-09-14_ARCHIVE_pm.md sec 6.
 
 ## 3. Standing rules (breaking one of these is how this project has lost its days)
 
@@ -187,8 +188,7 @@ archived verbatim docs/experiments/HANDOFF_2026-09-14_ARCHIVE_pm.md sec 6.
 Next-steps items 1-2 (the G7 attempt-3 verdict and the sim-clock/reporting/heading-speed/
 preflight-port merge series) dropped here (2026-09-14 20:30Z, superseded - the nav-mesh
 question is CLOSED per section 1 and those four branches already landed via feat/integration);
-current owed next steps are in section 1's state paragraph (gate G-A, then N2b). Full text
-archived verbatim docs/experiments/HANDOFF_2026-09-14_ARCHIVE_pm.md sec 7.
+current owed next steps are in section 1's state paragraph (V6, the V8 harvest, the Q5 kill re-run). Full text archived verbatim docs/experiments/HANDOFF_2026-09-14_ARCHIVE_pm.md sec 7.
 1. WATCHDOG VALIDATION RUN (C16, STP-783): it is default OFF, so enable it explicitly for that run;
    it must fire on the known 1-35 freeze by sim ~500 and must NOT fire on the units that completed.
 2. REPORTING LIVE GATES (L2): one run whose bus capture shows TASKSTRT at dispatch, a TASKABRT for a
