@@ -268,6 +268,11 @@ struct VrfFacade::Impl {
     makVrf::DtUUIDNetworkManager* uuidMgr = nullptr;
     bool owns = true;                           // false after StartAdopting()
 
+    // STP-832. Vendor reason for the last Start() that failed; cleared at the top of every
+    // Start() and NOT cleared by Stop(), so a caller may read it after resigning. See
+    // VrfFacade::LastStartError() in the header.
+    std::string lastStartError;
+
     // backing storage so the char* passed to DtRemoteControlInitializer stay alive
     std::vector<std::string> argvStore;
     std::vector<char*> argvPtrs;
@@ -479,7 +484,32 @@ VrfFacade::VrfFacade() : p_(new Impl) { p_->owner = this; }
 
 VrfFacade::~VrfFacade() { Stop(); delete p_; p_ = nullptr; }
 
+// STP-832. DtExerciseConn::InitializationStatus as text. The two protocol builds of
+// DtExerciseConn declare DIFFERENT enumerators (vl/exerciseConnHLA.h:92-102 vs
+// vl/exerciseConnDIS.h:92-95, the same on VR-Link 5.8 and 5.10), so the mapping is per
+// protocol. Only ever reached on Start()'s failure path.
+static const char* connInitStatusName(DtExerciseConn::InitializationStatus s) {
+    switch (s) {
+    case DtExerciseConn::DtINIT_SUCCESS:                return "DtINIT_SUCCESS";
+#if DtHLA
+    case DtExerciseConn::DtCOULD_NOT_CREATE_RTIAMB:     return "DtCOULD_NOT_CREATE_RTIAMB";
+    case DtExerciseConn::DtCOULD_NOT_CREATE_FEDEX:      return "DtCOULD_NOT_CREATE_FEDEX";
+    case DtExerciseConn::DtCOULD_NOT_JOIN_FEDEX:        return "DtCOULD_NOT_JOIN_FEDEX";
+    case DtExerciseConn::DtCOULD_NOT_OPEN_FED:          return "DtCOULD_NOT_OPEN_FED";
+    case DtExerciseConn::DtCOULD_NOT_PARSE_FED:         return "DtCOULD_NOT_PARSE_FED";
+    case DtExerciseConn::DtCOULD_NOT_FIND_FOMMAPPER:    return "DtCOULD_NOT_FIND_FOMMAPPER";
+    case DtExerciseConn::DtERROR_OPENING_FOMMAPPER_LIB: return "DtERROR_OPENING_FOMMAPPER_LIB";
+    case DtExerciseConn::DtCOULD_NOT_CONNECT_RTIAMB:    return "DtCOULD_NOT_CONNECT_RTIAMB";
+#else
+    case DtExerciseConn::DtCOULD_NOT_CREATE_SOCKET:     return "DtCOULD_NOT_CREATE_SOCKET";
+#endif
+    default: break;
+    }
+    return "unrecognized-InitializationStatus";
+}
+
 bool VrfFacade::Start(const StartupConfig& cfg) {
+    p_->lastStartError.clear();   // STP-832: only the CURRENT call's failure may be reported
     // Build the synthetic command line the DtRemoteControlInitializer expects,
     // exactly as main.cxx did for each protocol.
     std::vector<std::string>& s = p_->argvStore;
@@ -547,7 +577,62 @@ bool VrfFacade::Start(const StartupConfig& cfg) {
     // (5.2d added a DtReflectedAerodromeList* to the BASE DtExerciseConn* overload;
     // this derived overload forwards to the DtCommunicationManager* overload, unchanged.)
     MyDtVrlinkVrfRemoteController* newController = new MyDtVrlinkVrfRemoteController();
-    p_->exConn = new DtExerciseConn(*p_->appInit);
+    // STP-832. Pass the vendor's InitializationStatus out-parameter. Two effects, both
+    // required (vl/exerciseConnHLA.h:84-91 and :900-913): (1) DtFatalError - and so DtAbort,
+    // which "exits the program" (vlutil/vlPrint.h:441-445) - is NOT called when the RTI
+    // refuses the create or the join; (2) we can SEE the failure instead of running on a
+    // connection the vendor documents as undefined. The vendor's own sample does exactly
+    // this and lets the failed connection's destructor run on the error return
+    // (vrlink5.10/examples/simple/listen.cxx:124-150; the f18 sample, :192-211, is the same
+    // shape with a heap connection). SUCCESS PATH UNCHANGED: on DtINIT_SUCCESS the block
+    // below is skipped and every statement that follows is the statement that was there
+    // before - the only difference is that the constructor was handed somewhere to write
+    // DtINIT_SUCCESS.
+    DtExerciseConn::InitializationStatus connStatus = DtExerciseConn::DtINIT_SUCCESS;
+    p_->exConn = new DtExerciseConn(*p_->appInit, &connStatus);
+    if (connStatus != DtExerciseConn::DtINIT_SUCCESS) {
+        std::string why = "VR-Link exercise connection init FAILED: ";
+        why += connInitStatusName(connStatus);
+        char code[24]; std::snprintf(code, sizeof(code), " (%d)", (int)connStatus);
+        why += code;
+        if (!cfg.federation.empty()) { why += ", federation '"; why += cfg.federation; why += "'"; }
+#if DtHLA
+        // rtiError() is a plain accessor over a DtString the connection filled while
+        // initializing - "used to store the exceptions thrown by RTI during the connection
+        // initialization stage" (exerciseConnHLA.h:410-412). Reading a member is not
+        // "using" the unusable connection, and it is the ONLY place the RTI's own words
+        // survive once DtFatalError is suppressed. Defensive catch: on the failure path a
+        // throw here must not replace a clean false with an exception.
+        try {
+            DtString rtiErr = p_->exConn->rtiError();
+            const char* txt = rtiErr.string();
+            if (txt && *txt) {
+                // rtiError() is MULTI-LINE (measured 2026-09-15: "... FOM Reader reports"
+                // then "Bad FDD File. Could not find Document Root in FDD File."). Flatten
+                // it so a consumer logs ONE line and a line-oriented reader gets all of it.
+                std::string flat(txt);
+                for (size_t i = 0; i < flat.size(); ++i)
+                    if (flat[i] == '\r' || flat[i] == '\n' || flat[i] == '\t') flat[i] = ' ';
+                while (!flat.empty() && flat[flat.size() - 1] == ' ') flat.erase(flat.size() - 1);
+                if (!flat.empty()) { why += ": "; why += flat; }
+            }
+        } catch (...) { why += ": (rtiError() unavailable)"; }
+#endif
+        p_->lastStartError = why;
+        // Release what THIS call allocated and leave the facade exactly as a never-started
+        // one, so the caller can simply call Start() again (RtiProbe's retry loop does).
+        // The controller is deleted too: its constructor opens a file-transporter receive
+        // port (vrlinkVrfRemoteController.h:52-57), so leaking one per retry would leak a
+        // socket per retry. Deletion order is newest-allocated first; the controller was
+        // never init()ed with this connection, so the two are independent.
+        delete newController;
+        delete p_->exConn;   p_->exConn = nullptr;
+        delete p_->appInit;  p_->appInit = nullptr;
+        p_->controller = nullptr;
+        p_->uuidMgr = nullptr;
+        p_->owns = true;
+        return false;
+    }
 #if VRF_API_52
     // 5.2: call the BASE init(DtExerciseConn*, rel, reel, ral, ael, marking,
     // disableRemoteDiscovery=false) - the overload the 5.2d sample uses
@@ -609,6 +694,11 @@ bool VrfFacade::Start(const StartupConfig& cfg) {
     }
 
     return p_->controller != nullptr;
+}
+
+// STP-832. See the header. Empty unless the LAST Start() on this facade returned false.
+std::string VrfFacade::LastStartError() const {
+    return p_ ? p_->lastStartError : std::string();
 }
 
 bool VrfFacade::StartAdopting(void* controllerPtr, void* exConnPtr, void* uuidMgrPtr) {

@@ -160,12 +160,22 @@ for (int attempt = 1; attempt <= maxAttempts; attempt++)
         // exercise connection was constructed (CreateOne/Program.cs:131-138 note).
         Console.WriteLine($"[..] attempt {attempt}/{maxAttempts}: bridge.Start() returned false "
                         + "(RTI not serviceable yet).");
+        // STP-832: the vendor's OWN reason for the refused create/join. Before the bridge
+        // carried it, a create rejected by rtiexec (STP-825 ErrorReadingFDD) killed this
+        // process at 0xC0000005 inside VrfFacade::Start and this loop never got to retry.
+        string whyFalse = bridge.LastStartError;
+        if (!string.IsNullOrWhiteSpace(whyFalse))
+            Console.WriteLine($"[..] reason: {whyFalse}");
         try { bridge.Stop(); } catch { /* best effort - never leave a joined federate */ }
     }
     catch (Exception ex)
     {
         Console.WriteLine($"[..] attempt {attempt}/{maxAttempts}: bridge.Start() threw "
                         + $"{ex.GetType().Name}: {ex.Message}");
+        // STP-832: a throw and a false return can carry the same vendor reason.
+        string whyThrew = bridge?.LastStartError;
+        if (!string.IsNullOrWhiteSpace(whyThrew))
+            Console.WriteLine($"[..] reason: {whyThrew}");
         try { bridge?.Stop(); } catch { /* best effort - never leave a joined federate */ }
 
         // A throw AFTER a successful join means the RTI DID service the create/join but the
