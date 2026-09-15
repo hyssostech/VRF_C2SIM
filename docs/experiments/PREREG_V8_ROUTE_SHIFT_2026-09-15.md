@@ -503,3 +503,211 @@ fixed). That the sim ratio ~5.9x is the fixed-frame speed-up and not something e
 reproduction and the C# port remain digit-identical beyond the values checked here (the self-test's
 fixture comparison is the standing guard). That +250 m north is drivable - it is scored clear by the
 same sampler and lies in a band measured clear, but NOTHING has driven it.
+
+---
+
+## PREREG V8z - the zero-offset control (written before the run)
+
+Tier STANDARD (one run, one variable, no code change, and the reading is a comparison against two
+runs that already exist or are in flight). Gate: PREREG - this section is committed BEFORE the run.
+Written 2026-09-15 by the V8 harvest executor. NOTHING BELOW HAS BEEN RUN.
+
+**WHY IT EXISTS.** V8's RESULTS R5 records a confound V8 created and cannot remove: inserting four
+waypoints inside the AO20 nav area turned leg 1 from ONE 6.6 km straight feature path into FIVE
+short **mesh-planned** hops (`Node Is destination in nav area?: success`, `Planned path has
+5 / 22 / 7 / 15 / 6 points`), and at the same time carried the path 125 m laterally. Five of six
+members then crossed a band that had stopped six runs. Two candidate causes changed together, and
+R8 item 5 named the control that separates them. This is that control.
+
+### 1. THE RUN
+
+| item | value |
+|---|---|
+| fixture / init / env | **identical to V8** (`R9_Mojave_Empty_52_NavAO20_AG_S2`, `data/COA-STP1_Initialization.xml`, same DeStack, gate, consoles, position reports, offline cache) |
+| order | **`data/PROBE_RIDGE_1-35_ZEROOFFSET_Order.xml`** (new; sec 2) |
+| THE ONE VARIABLE | `Vrf__PreflightRouteShift=**false**` - nothing may shift |
+| carried | `Vrf__PreflightWarnings=true`, `Vrf__PreflightOffline=true`, `Vrf__PreflightCacheDir=<repo>\tools\preflight\preflight_cache` |
+| window | `--run-secs 900`, `--stop-when-complete` (cannot fire at `DurationScale` 1.0 / PT2H) |
+| launch line | `scratchpad\validation\v8z_launch.sh` |
+
+### 2. THE FOUR POINTS AND HOW THEY WERE DERIVED
+
+`RouteShift.BuildDetour`'s own arithmetic, on the leg V8 actually scored (live anchor
+**34.65820208652259, -116.74009186651882** -> V1, 6,590.1 m, bearing 263.247, worst 40 m window
+s = 1,983.4-2,023.4), at the shipped defaults **pad 50 m, lead 110 m, corner 30 deg**, with the
+transit taken from the offset V8 chose (|-125| / tan 30 = **216.506 m**):
+
+    eIn  = 1983.4 - 50  = 1933.4      d1S = eIn  - 110 = 1823.4      Pin  = d1S - 216.506 = 1606.9
+    eOut = 2023.4 + 50  = 2073.4      d2S = eOut + 110 = 2183.4      Pout = d2S + 216.506 = 2399.9
+
+The four control vertices are those four stations taken **on the authored line** - lateral offset
+**zero**:
+
+| # | along-leg s | lat, lon | relation to V8 |
+|---|---|---|---|
+| **Z1** | 1,606.9 m | `34.656497731970752, -116.757536731645459` | **byte-identical to V8's `Pin`** (V8's transit points already lay on the line) |
+| **Z2** | 1,823.4 m | `34.656268090232025, -116.759887222131852` | V8's `D1` (34.655153,-116.759727) projected back onto the line |
+| **Z3** | 2,183.4 m | `34.655886261992272, -116.763795412559006` | V8's `D2` (34.654771,-116.763635) projected back onto the line |
+| **Z4** | 2,399.9 m | `34.655656620253545, -116.766145903045398` | **byte-identical to V8's `Pout`** |
+
+HOP LENGTHS, control vs V8 (m): `1606.8 / 216.5 / 360.0 / 216.5 / 4190.3` against V8's
+`1606.8 / 250.0 / 360.0 / 249.9 / 4190.3`. Same structure, same first and last hop to the metre; the
+two transit hops are 33 m shorter because a zero-offset transit is pure along-track. **The
+`Z2 -> Z3` hop is 360.0 m and runs straight through the flagged window (s 1,983-2,023) and within
+5 m of the P11/G3/G5/G6 freeze point** - which is the whole point of the control.
+
+OFFLINE SCORES of the dispatched route, same sampler, same committed cache, **0 tiles fetched**:
+
+| leg | control (zero offset) | V8 (shifted -125 m) |
+|---|---|---|
+| 1 live -> Z1/Pin (1,607 m) | 0.588 | 0.588 |
+| 2 transit (216 / 250 m) | 0.589 | 0.583 |
+| **3 Z2 -> Z3 / D1 -> D2 (360 m)** | **1.248 FLAGGED** | **0.661** |
+| 4 transit (216 / 250 m) | 0.630 | 0.581 |
+| 5 -> V1 (4,190 m) | 0.345 | 0.345 |
+| 6 V1 -> V2 (14,246 m) | 0.585 | 0.585 |
+| 7 V2 -> V3 (5,722 m) | 0.698 | 0.698 |
+
+The two routes differ in **two vertices and one leg score**. Everything else is identical, which is
+exactly what a control has to be.
+
+**HOW THE ORIGIN-VERTEX DROP INTERACTS.** `Vrf:DropOriginVertexMeters` is 100 and the order's first
+vertex V0 (34.67998,-116.72480) IS the unit's authored origin, so it is dropped exactly as in V8
+(`PreflightRoute.Build` / `ExecuteTaskOnTick`: the loop stops at the first vertex more than 100 m
+from the authored origin). The four Z vertices are **3,973 / 4,154 / 4,461 / 4,649 m** from V0, so
+the loop stops after V0 and drops nothing else. The dispatched route is therefore
+`[live position, Z1, Z2, Z3, Z4, V1, V2, V3]` = **8 vertices**, the same count V8 dispatched.
+`VrfC2SimApp --parse-order data/PROBE_RIDGE_1-35_ZEROOFFSET_Order.xml` confirms the authored order:
+`points: 8`, `34.67998..., 34.65649..., 34.65626..., 34.65588..., 34.65565..., 34.65121...,
+34.59635..., 34.57029...`, `action: MOVE`, `embedded shape: Route`, `duration: 7200000 ms`, exit 0.
+
+**THE ONE THING THAT CAN MOVE.** The Z vertices are AUTHORED (fixed lat/lon); V8's were computed
+from the live anchor at dispatch. If this run's de-stack puts the unit somewhere other than
+34.6582021/-116.7400919 the authored Z points will sit slightly off the dispatched line. Same init,
+same DeStack settings, so it should be identical - but it is a measurement, not an assumption:
+report the live anchor from the unit's first PositionReport and the cross-track of Z2 and Z3 from
+the dispatched leg. More than ~5 m and P-z2's tolerance is doing work it was not sized for.
+
+### 3. PREDICTIONS
+
+**P-z1 (HIGH - THE GATE: the control is a control).** In `vrfc2simapp.log`:
+
+- **NO line containing `ROUTE SHIFT`, of any kind** - not queued, not applied, not declined, not
+  skipped, not timed out. The feature is off.
+- `Task '...': terrain profile request <n> sent for 8 vertices` and
+  `CreateRoute '... ROUTE' (8 pts)`; one `MoveAlongRoute`; one TASKSTRT.
+- **exactly one** `ROUTE PRE-FLIGHT task '...' (1-35/2/1_A~PXY) leg 3:` warning, naming ~40 m of
+  **0.939** on **sand** at ~34.6561/-116.7614, limit **0.752** (max-slope 0.94 x soil 0.80) - i.e.
+  the authored line's own 1.248, now carried entirely by leg 3. With it, one ObservationReport.
+
+**MISS - each is a STOP, because nothing downstream is readable:** any `ROUTE SHIFT` line (the env
+did not take and the route is not the one this section registers); a route of other than 8 vertices;
+no leg-3 warning (the inserted geometry did not land on the face and the control does not control).
+
+**P-z2 (HIGH - THE CONTROL HOLDS).** 1-35's leader's cross-track at s = 1,970 +/- 3 m on the leg axis
+is **within +/- 15 m** of the authored line (V8 measured -166.0 m there). The tolerance is L8's
+measured leader wander (up to 34.6 m in READ_4-27 sec 2.2) deliberately TIGHTENED, because a control
+that drifts 30 m is not a zero-offset control; if the measured value lands between 15 and 35 m the
+run is reported as INCONCLUSIVE on P-z2 rather than scored either way.
+
+**MISS:** |cross-track| > 15 m at that station. Then the unit is not on the line six runs froze on
+and nothing below separates anything.
+
+**P-z3 (THE DISCRIMINATOR - and it has three endings, not two).**
+
+- **BRANCH A - the unit FREEZES like the six straight-line runs.** Closest approach of the leader's
+  last fix to 34.65608/-116.76142 **< 150 m** AND net along-track advance over the final 600 sim s
+  **< 20 m**. READING: **the LATERAL OFFSET is what carries units across in V8/V8b.** Waypoint
+  insertion and mesh-planned hops, on their own, do not. The route shift's central claim survives
+  its hardest available test.
+- **BRANCH B - the unit CROSSES like V8.** Max along-track s **> 3,000 m** (V8's leader reached
+  4,138 m). READING: **WAYPOINT INSERTION - the leg becoming short mesh-planned hops - is what
+  carries them, and the shift's lateral component is NOT demonstrated by V8 or V8b.** The remedy
+  would then be "insert waypoints", the lateral search would be unproven decoration, and
+  DESIGN_ROUTE_SHIFT sec 2.1 would need re-opening.
+- **NEITHER - and it must be reported as NEITHER, not forced into a branch.** A stop between
+  s = 2,100 and s = 3,000, or a stop inside 150 m of the P11 point that is still advancing more than
+  20 m per 600 sim s, or a crossing with a leader that never exceeds 3,000 m. Then the two causes
+  are partial and the honest answer is that one run cannot rank them.
+
+**P-z4 (RECORDED, not predicted).**
+(i) **M3 1's fate** - it is the member that froze in V8 (38.3 m from the P11 point, on its own +50
+slot line, on ground the sampler scored 0.836). Here its slot line sits +50 m north of the authored
+line, which is the ground the +25 m lateral row scores ~0.88.
+(ii) **The hop plan counts per object** (`plan_counts.py`: goals / planned / 0pts / parts), and
+specifically whether the `Z2 -> Z3` goal was MESH-PLANNED (`Node Is destination in nav area?:
+success` + `Planned path has N points`) as V8's `D1 -> D2` was with 15 points. If it was not, the two
+runs are not in the same planning regime (falsifier (c)).
+(iii) **The crawl**, binned per 200 sim s, against V8's `0:5.68 200:5.72 400:2.99 600:1.81 800:0.30
+... 5400:0.25` for the leader.
+(iv) The sim ratio (V8: ~5.9x), so wall-derived quantities are never compared
+(`lessons-wall-derived-speed`).
+
+### 4. FALSIFIERS
+
+- **(a) A `ROUTE SHIFT` line appears.** The control is VOID - `Vrf__PreflightRouteShift=false` did
+  not take. Nothing in the run may be compared to V8.
+- **(b) The leader's cross-track exceeds +/- 15 m at s ~ 1,970.** The unit is not on the authored
+  line; whatever it did, it did somewhere else.
+- **(c) The `Z2 -> Z3` goal is NOT mesh-planned while V8's `D1 -> D2` was.** The two runs differ in
+  planning regime as well as in lateral offset, and the comparison is broken in the direction that
+  would make Branch A look true for the wrong reason.
+- **(d) The live anchor differs from V8's 34.6582021/-116.7400919 by more than ~5 m.** The authored
+  Z points then sit off the dispatched line and the "zero offset" is only approximately zero;
+  measure and report it rather than assuming it.
+
+### 5. THE COMPARISON, AT EQUAL SIM TIME
+
+`lessons-compare-at-equal-sim-time` and `lessons-wall-derived-speed` govern this. Totals over the
+run, wall-windowed verdicts and displacement / total-sim-seconds are all FORBIDDEN here; two of them
+produced false headline claims on the nav-data run.
+
+- **ONE AXIS FOR ALL THREE RUNS:** start `34.658442, -116.740092` (the reference / formation-leader
+  anchor) -> V1 `34.651212159120796, -116.81163703922806`, north positive. That is
+  `n2b_harvest.py`'s axis and V8's RESULTS are already on it. Do not re-anchor per run.
+- **ONE CLOCK ORIGIN:** `sim0` = the sim time of the leader's FIRST `ground-vehicle-move-to` goal,
+  as `n2b_harvest.py` computes it (V8: sim 53.7 at wall 35.7).
+- **THE TABLE.** Leader along-track s at `sim0 + 300 / 600 / 900 / 1200 s`, against V8's measured
+  **1,732 / 2,362 / 2,602 / 2,722 m**, and against V8b's when it lands. Plus, per run: cross-track at
+  s = 1,970; closest approach to 34.65608/-116.76142; max s; net advance over the final 600 sim s;
+  and the same six rows for every member.
+- **THE READING IS A THREE-WAY, NOT A PAIR.** V8 (shift on, -125 m south), V8b (shift on, +250 m
+  north, the fixed chooser) and V8z (insertion only, zero offset) differ in ONE axis each. If V8z is
+  Branch A and V8b crosses, the lateral offset is established. If V8z is Branch B, V8 and V8b are
+  both explained without it.
+
+### 6. ADVERSARIAL REVIEW OF THIS PRE-REGISTRATION (before the run)
+
+**The strongest objection: this control is not clean either.** True, and it must be said. The
+control changes the route's SHAPE (5 hops instead of 1) exactly as V8 did, but it also changes the
+GROUND under the tasked line back to the flagged face - which is the intended variable - while
+leaving the *hop lengths* 33 m shorter on the two transits. A 33 m difference in a 216 m hop is not
+plausibly load-bearing for a mesh query, but it is a difference and it is recorded rather than
+waved away. The alternative - matching V8's hop lengths exactly by moving the stations - would
+change the along-track positions of the waypoints relative to the face, which is worse.
+
+**Second objection: "Branch B would not actually refute the lateral offset, because a zero-offset
+insertion still gives the planner four fresh goals ON ground the sampler flags."** Correct, and that
+is why Branch B is worded as "the shift's lateral component is NOT DEMONSTRATED" rather than
+"refuted". A crossing here would mean V8's evidence for the lateral mechanism is gone, not that the
+lateral mechanism is false. What would establish it positively is V8b crossing while V8z freezes.
+
+**Third: the members are not the leader.** V8's own reading was 5 of 6 crossing and one freezing, so
+a single-vehicle verdict here would be an artefact. Every prediction above is scored on the LEADER
+and every member is recorded; a split result (some cross, some freeze) is a legitimate outcome and is
+reported as such, against V8's split.
+
+**What this run cannot settle.** The ~0.30 m/s crawl past `Pout` that all five V8 movers fell into -
+it is unexplained, it will probably recur, and it is not evidence for either branch. Whether the
+AO20 mesh would plan the 6.6 km leg at all if the destination gate passed (it does not: V1 is 206 m
+outside the area, V7 P-D). And the false-alarm rate of the 0.92 threshold, which stays at nine legs
+of one order.
+
+**VERIFIED (computed this pass, offline, 0 tiles fetched).** The window s = 1,983.4-2,023.4 on the
+live-anchor leg; the four stations and their lat/lon; the hop lengths of both routes; the seven leg
+scores of both routes; the 3,973-4,649 m distances of the Z vertices from V0 (so only V0 is
+dropped); `--parse-order` reading 8 points in the authored order with `action: MOVE`,
+`embedded shape: Route`, `duration: 7200000 ms`, exit 0. **ASSUMED (not verified).** That this run's
+de-stack reproduces V8's live anchor to within a few metres (falsifier (d) measures it). That the
+`Z2 -> Z3` goal will be mesh-planned as V8's `D1 -> D2` was (falsifier (c) measures it). That
+`Vrf__PreflightRouteShift=false` reaches the process - P-z1's first bullet is the check.
