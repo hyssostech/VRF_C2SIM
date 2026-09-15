@@ -711,3 +711,224 @@ dropped); `--parse-order` reading 8 points in the authored order with `action: M
 de-stack reproduces V8's live anchor to within a few metres (falsifier (d) measures it). That the
 `Z2 -> Z3` goal will be mesh-planned as V8's `D1 -> D2` was (falsifier (c) measures it). That
 `Vrf__PreflightRouteShift=false` reaches the process - P-z1's first bullet is the check.
+
+---
+
+## RESULTS - run 20260915T033226Z (V8b, the fixed chooser)
+
+Harvested 2026-09-15 after teardown (`VR-Forces is down` in `scratchpad\validation\v8b_runner.log`).
+Read-only on `runs/`; no vendor sim log opened. Same fixture, init, order, env, gate, consoles and
+offline cache as V8 - **the only difference is the VrfC2SimApp binary** (main `c5f166d`, the two-phase
+chooser). The V8z zero-offset control is a separate run and is PENDING.
+
+### V1. VERDICT TABLE - every R8 item of the V8 RESULTS
+
+| R8 | required | measured | verdict |
+|---|---|---|---|
+| **1** | `ROUTE SHIFTED 250 m north - ratio 1.248 -> 0.761 (formation band max 0.862)` | **exactly that string**, leg 1 | **MET** |
+| **2** | `nan 0` on every candidate | **13 candidates, every one `nan 0`** | **MET** |
+| **3** | leader cross-track **>= +40 m NORTH** at s = 1,970 +/- 3, and past s = 2,100 | **+283.6 m NORTH** at the nearest fix (s = 2,026); max s **15,148 m** | **MET** |
+| **4** | M3 1's fate (it froze in V8 38.3 m from the P11 point) | **M3 1 CROSSED** - +314.4 m north at s = 2,030, max s **15,166 m**, closest approach to the P11 point **328 m** | **MET - the strongest single result** |
+| **5** | the zero-offset control | separate run; order + prereg committed `7490383`; **NOT YET RUN** | **PENDING** |
+| **6** | the crawl at equal sim time vs V8 | **NO CRAWL**: all six hold **9.7-10.1 m/s** from sim 800 to the end of the window; V8 held 0.26-0.42 m/s over the same span | **MET - refutes the crawl for this line** |
+| STOPs | no crash / `Tick phase FAILED` / `MissingMethodException` / double dispatch | **0 / 0 / 0 /** 1 `CreateRoute`, 1 `MoveAlongRoute`, 1 TASKSTRT | **CLEAN** |
+| report | the shift ObservationReport on the bus | REPORT #232, 03:34:58.442Z, quoted in V3 | **MET** |
+| warnings | `Vrf:PreflightWarnings` on the dispatched route | **no** `ROUTE PRE-FLIGHT ... leg N:` line and no error - nothing left flagged | as in V8 |
+| teardown | clean | `VrfC2SimApp exited with code 0 (clean resign)`, `VR-Forces is down (graceful; RTI infrastructure preserved)`, `no VR-Forces processes remain`, rtiexec 69856 / rtiForwarder 50520 preserved | **CLEAN** |
+| stop rule | `-StopWhenComplete` cannot fire at PT2H | did not fire; `observation window complete (903.6s used of 900s)`; 0 terminal reports | as predicted |
+
+**Every number V8's RESULTS pre-registered for this run came out exactly right, to three decimals
+and to the metre.** The live anchor was byte-identical to V8's
+(`34.65820208652259, -116.74009186651882`, the unit's own first PositionReport), so the leg, the
+base ratio and the candidate table are directly comparable.
+
+### V2. THE SHIFT LINES, VERBATIM (`vrfc2simapp.log` 1289 / 1317 / 1319 / 1321)
+
+    Task 'T1_AOA_SE_1-35_AR;_2/1_AD_P1': ROUTE SHIFT check queued for 1-35/2/1_A~PXY (4 vertices); dispatch deferred to the result (timeout 30 s -> the authored line).
+    Task 'T1_AOA_SE_1-35_AR;_2/1_AD_P1' (1-35/2/1_A~PXY) leg 1: ROUTE SHIFTED 250 m north - ratio 1.248 -> 0.761 (formation band max 0.862); inserted (34.658498,-116.760208) and (34.658116,-116.764116). STP's own vertices are unchanged and in order.
+    Task 'T1_AOA_SE_1-35_AR;_2/1_AD_P1' (1-35/2/1_A~PXY) leg 1: ROUTE SHIFT candidates - +25 m ratio 1.022 nan 0 ratio 1.022 > 0.820; -25 m ratio 1.280 nan 0 ratio 1.280 > 0.820; +50 m ratio 0.829 nan 0 ratio 0.829 > 0.820; -50 m ratio 1.050 nan 0 ratio 1.050 > 0.820; -75 m ratio 0.836 nan 0 ratio 0.836 > 0.820; +75 m ratio 0.735 band 1.022 nan 0 formation band max 1.022 >= 0.92; +100 m ratio 0.835 nan 0 ratio 0.835 > 0.820; +125 m ratio 0.841 nan 0 ratio 0.841 > 0.820; +150 m ratio 0.942 nan 0 ratio 0.942 > 0.820; +175 m ratio 0.938 nan 0 ratio 0.938 > 0.820; +200 m ratio 0.863 nan 0 ratio 0.863 > 0.820; +225 m ratio 0.816 band 0.935 nan 0 formation band max 0.935 >= 0.92; +250 m ratio 0.761 band 0.862 nan 0 ACCEPTED
+    Task 'T1_AOA_SE_1-35_AR;_2/1_AD_P1' (1-35/2/1_A~PXY): ROUTE SHIFT applied to 1 of 1 flagged leg(s); route 4 -> 8 vertices.
+
+**THE CANDIDATE TRACE IS THE FIX, VISIBLE.** The order `+25, -25, +50, -50, -75` then `+75` is the
+two-phase chooser at work: PHASE A walked the magnitudes on BOTH sides and stopped at 75 m, where
++75 cleared C1 at 0.735 and -75 did not (0.836 > 0.820) - so **NORTH won the side on C1 alone**.
+PHASE B then walked NORTH only, and C2 pushed the magnitude from 75 (band 1.022) past 225 (band
+0.935) to **250 (band 0.862)**. **No southward candidate was ever evaluated past 75 m.** In V8 the
+identical C1 table led to `-125 m SOUTH` because C2 was allowed to choose the side. Every candidate
+carries `nan 0`, which also closes R8 item 2 and re-confirms offline that the cache covers the band.
+
+The inserted points reproduce the offline geometry to 1e-6: predicted `D1 34.658498,-116.760209` /
+`D2 34.658116,-116.764117` against the logged `34.658498,-116.760208` / `34.658116,-116.764116`.
+Terrain profile 167 authored all 8 vertices (`#0 34.65820,-116.74009 #1 34.65673,-116.75519
+#2 34.65850,-116.76021 #3 34.65812,-116.76412 #4 34.65543,-116.76850 #5 V1 #6 V2 #7 V3`), then
+`CreateRoute '... ROUTE' (8 pts)` and one `MoveAlongRoute`.
+
+### V3. THE OBSERVATION REPORT (REPORT #232, 03:34:58.442Z)
+
+    <Latitude>34.658498</Latitude> <Longitude>-116.760208</Longitude> (AltitudeMSL 1613.5)
+    <Marking>ROUTE SHIFT: task T1_AOA_SE_1-35_AR;_2/1_AD_P1 (1-35/2/1_A~PXY) leg 1 - the authored
+    line scored 1.248 against this unit's own limit; the interface detoured it 250 m north of the
+    authored line around that window, scoring 0.761 (formation band max 0.862). STP's own vertices
+    are unchanged and in order; the detour lies between them.</Marking>
+
+### V4. THE SIX MEMBERS (same columns as V8's R5; leg axis = the reference axis, NORTH positive)
+
+| member | slot | cross-track at s ~ 2,006 | closest approach to the P11 freeze point | max s | advance over final 600 sim s | verdict |
+|---|---|---|---|---|---|---|
+| M1A2 1 (leader) | 0 | **+283.6 m** (fix at s = 2,026) | 279 m | **15,148 m** | +5,669.6 m | **CROSSED** |
+| M1A2 2 | -50 | +262.8 m (s = 1,998) | 234 m | 15,132 m | +5,670.3 m | CROSSED |
+| M577A2 1 | -25 | +278.5 m (s = 2,021) | 263 m | 15,077 m | +5,664.2 m | CROSSED |
+| HMMWV 1 | 0 | +265.4 m (s = 1,967) | 276 m | 15,112 m | +5,672.3 m | CROSSED |
+| HMMWV 2 | +25 | +286.1 m (s = 2,023) | 289 m | 15,105 m | +5,675.3 m | CROSSED |
+| **M3 1** | **+50** | **+314.4 m** (s = 2,030) | **328 m** | **15,166 m** | +5,668.7 m | **CROSSED** |
+
+**SIX OF SIX.** In V8, five crossed and M3 1 - the +50 slot, the lane nearest the authored line -
+froze 38.3 m from the P11 point. Here the whole formation is 234-328 m clear of that point and every
+member is still doing ~10 m/s when the window closes. **That is C2's stated purpose demonstrated:**
+the band condition exists so that no slot line sits on the face, and the slot that failed in V8 is
+the one the +250 m shift rescued.
+
+The detour was DRIVEN, not merely authored: the leader passed within **1 m of Pin, 1 m of D1, 1 m of
+D2 and 5 m of Pout**. Every member reached s ~ 15.1 km, i.e. past V1 (6,590 m) and 8.5 km along
+leg 2 toward V2 - the unit's own last PositionReport is `34.61688, -116.90009` at 9.5 m/s.
+
+**HOP PLAN COUNTS (leader).** Ten goals, **zero `not enough (0) points` refusals for any member**
+(`plan_counts.py`: 7-11 planned paths each, 0 zero-point):
+
+| # | goal | `Planned path has` |
+|---|---|---|
+| 1 | offset-route start (s = 26 m) | 5 points |
+| 2 | Pin (s = 1,392 m) | 21 points |
+| 3 | s = 146 m (RE-GOAL, see V6) | 5 points |
+| 4 | s = 204 m (RE-GOAL) | 8 points |
+| 5 | Pin again | 10 points |
+| 6 | D1 (s = 1,840 m) | 8 points |
+| 7 | D2 (s = 2,198 m) | 6 points |
+| 8 | Pout (s = 2,616 m) | 24 points |
+| 9 | **V1** | `fail in action Is destination in nav area?` -> `1 parts` (driven STRAIGHT) |
+| 10 | **V2** | `1 parts` (driven STRAIGHT) |
+
+Goals 1-8 are inside AO20 and were all MESH-PLANNED; V1 and V2 are outside it and were driven
+straight, exactly as V7 P-D and V8 measured. All six members logged
+`fail in action Is current point in nav area?` at wall 338.9-344.5 s - that is them leaving AO20 on
+the way to V2, expected and benign.
+
+### V5. EQUAL SIM TIME - V8 vs V8b (leader, leg s in metres; `sim0` = the leader's first goal)
+
+| since sim0 | V8 (shift -125 m south) | **V8b (shift +250 m north)** |
+|---|---|---|
+| 300 s | 1,732 | **695** |
+| 600 s | 2,362 | **2,191** |
+| 900 s | 2,602 | **4,251** |
+| 1,000 s | 2,639 | **5,253** |
+| 1,200 s | 2,722 | **7,111** |
+| end of track | 4,138 (sim 5,556) | **15,148 (sim 2,095)** |
+
+Leader speed per 200 sim s (m/s along path):
+
+    V8   0:5.68  200:5.72  400:2.99  600:1.81  800:0.30  1000:0.41 ... 5400:0.25
+    V8b  0:1.42  200:6.71  400:4.08  600:5.76  800:10.03 1000:9.41 1200:10.01 1400:9.95
+                 1600:9.99 1800:9.97 2000:9.80
+
+**THE CROSSOVER IS AT SIM ~700.** Before it V8 is ahead; after it V8 collapses to 0.3 m/s and never
+recovers while V8b settles at ~10 m/s and holds it for 1,300 sim s. The asymmetric track lengths are
+a WINDOW artefact, not a speed artefact: the sim ratio was **2.20x** in V8b (sim 41 -> 2,096 in
+931 wall s) against **5.92x** in V8 (sim 49 -> 5,557 in 930 wall s), so the same 900 s wall window
+bought V8b only 2,055 sim s. Comparisons above are therefore taken at equal SIM time only
+(`lessons-compare-at-equal-sim-time`, `lessons-wall-derived-speed`).
+
+### V6. THE SLOWER FIRST 300 SIM S - IT HOLDS, AND IT IS NOT LOAD
+
+The seat's provisional mid-window read is **confirmed in both halves**: ~10 m/s from sim 800 on, and
+a slower start (leg s 695 m at sim0+300 against V8's 1,732 m; the seat's "694 m" and "~14.8 km" are
+right to the metre and to 2 %). The mechanism is in the goal stream, on the sim clock:
+
+| sim | V8 leader leg s | V8b leader leg s |
+|---|---|---|
+| 100 | 31 m | 38 m |
+| 150 | 276 m | 91 m |
+| 200 | 819 m | 150 m |
+| 250 | 1,215 m | 207 m |
+| 300 | 1,613 m | 341 m |
+| 400 | 1,815 m | 1,307 m |
+| 600 | 2,227 m | 2,026 m |
+
+V8's leader was given the `Pin` goal at sim 75.6 (22-point plan) and drove it without interruption to
+the D1 goal at sim 305.7. **V8b's leader was given `Pin` at sim 67.5 (21-point plan) and was then
+RE-GOALED twice to points only 146 m and 204 m along the leg, at sim 188.5 (5-point plan) and
+sim 207.7 (8-point plan), before being re-issued `Pin` at sim 246.2 (10-point plan) and reaching the
+D1 goal at sim 412.2.** Between sim 100 and sim 250 it advanced 38 -> 207 m, about 1.1 m/s. That
+re-plan cycle IS the whole 1,037 m deficit at sim0+300, and V8b had made it up by sim 600.
+
+**WHY the re-goal is OPEN.** Two candidates and this capture cannot separate them: the
+maneuver-in-formation controller recomputing the leader's own `M1A2 1's Offset Route` after the
+route changed, or the boundaries of a multi-part path (the leader logged 2 `Planned path has N parts`
+rows). The standing limitation applies - the object console prints COMMANDS, never the vehicle's
+response (`lessons-vendor-diagnostics-first`). It did not cost the run anything: the deficit was
+closed by sim 600 and V8b ended 11 km ahead of V8.
+
+**IT IS NOT LOAD, and here is why that is decidable.** Every quantity above is binned on the SIM
+clock, so wall-clock contention cannot move it; what contention CAN move is the sim RATIO and hence
+how much sim time fits in a 900 s wall window. Recorded honestly: **this executor's own V8z work ran
+INSIDE V8b's observation window** (03:34:55-03:50:28Z) - python leg-scoring passes over the committed
+tile cache, one `VrfC2SimApp --parse-order`, and a git commit at 03:39:20Z - which is a violation of
+the standing "never run agents during a timed run" rule (`vrf-navigation-data-headless`, G3). Other
+executors' builds are not visible from this run's own evidence and are not claimed either way. The
+run's `--sample-threads` produced **no thread-sample rows** in either the runner log or the app log
+(an observability gap worth a row of its own); the manifest carries only `inputs/sampleSecs = 2` and
+`oracle/appThreads = 19`. The far larger and non-contentious driver of the ratio difference is
+intrinsic: `fixed-frame-run-to-complete` is load-bound by design
+(`vrf-frame-mode-not-multiplier`), and V8b's six vehicles drove 15 km with continuous mesh
+re-planning while V8's sat at 0.3 m/s.
+
+### V7. ADVERSARIAL REVIEW (HEAVY)
+
+**Strongest competing explanation for the crossing: WAYPOINT INSERTION, not the lateral offset.**
+Both V8 and V8b insert four waypoints inside the nav area and both turn leg 1 into short
+mesh-planned hops, so insertion alone cannot be what separates them - and that is the point worth
+being precise about. **The V8/V8b pair already isolates the LATERAL component** with insertion held
+approximately constant: same 8-vertex structure, same four-point shape, same mesh-planned regime,
+0 planning refusals in both, and the *only* substantive difference is where the two offset vertices
+sit (-125 m south at 0.661 vs +250 m north at 0.761). One froze a member and crawled at 0.3 m/s; the
+other put all six through at 10 m/s. What the pair does NOT establish is whether insertion is
+*necessary* at all - whether the authored line, cut into the same five hops at zero offset, would
+also cross. That is exactly and only what V8z answers. The honest statement today: **lateral
+position demonstrably matters; whether insertion is also required is untested.**
+Caveat on "approximately constant": the transits differ (216.5 m vs 433.0 m), so V8b's `Pin` is at
+s = 1,390 and its hops are `1390 / 500 / 360 / 500 / 3974` against V8's `1607 / 250 / 360 / 250 /
+4190`. Same shape, not identical lengths.
+
+**Second competing explanation, for the SPEED difference: load.** Answered above on its merits -
+every compared quantity is on the sim clock - but the exposure is real and is disclosed rather than
+argued away, including this executor's own concurrent work inside the window.
+
+**Third: "V8b simply had a luckier line."** The sampler scored +250 m north at 0.761 with a band max
+of 0.862 BEFORE the run, offline, on the committed cache, and the live chooser reproduced that to
+three decimals; the offset also sits inside the +50..+550 m corridor PREREG_RIDGE_AG 3.3 measured
+clear, where +250 scored 0.709. So the line was predicted clear by an instrument calibrated on nine
+legs, not found clear after the fact. That is not luck, but it is still ONE leg on ONE terrain, and
+L2's open false-alarm question is untouched.
+
+**What this run does NOT show.** No TASKCMPLT: the task's final point is V3 and the unit was still on
+leg 2 when the window closed, so V8c-style "arrival" is not demonstrated - only that it passed V1 and
+kept going. The crawl is refuted FOR THIS LINE; V8's own crawl past `Pout` is still unexplained as a
+mechanism, and if it is a property of that ground rather than of the vehicles then V8b simply never
+met it. The `Entity not embarked on same object as target` message seen once in V8 did not recur
+here (0 occurrences), which is consistent with it being incidental, not caused by insertion.
+
+**VERIFIED (measured this pass).** The four shift lines verbatim and the full candidate trace with
+`nan 0` on all 13. The live anchor identical to V8's. The inserted points against the offline
+geometry to 1e-6. The ObservationReport. The 8-vertex terrain profile, `CreateRoute (8 pts)`, one
+`MoveAlongRoute`, one TASKSTRT, 0 TASKCMPLT/TASKABRT. 0 `Tick phase FAILED`, 0
+`MissingMethodException`, 0 crash. The six tracks, cross-tracks, closest approaches, max s, final-600
+advance and speed bins. The leader's ten goals with their plan-point counts and the two out-of-area
+`1 parts` goals. The 0 zero-point refusals for all six. The early-progress table and the re-goal
+timeline on the sim clock. Sim ratios 2.20x / 5.92x. Clean teardown with RTI preserved and
+`-StopWhenComplete` not firing.
+
+**ASSUMED (not re-verified).** That `Vrf:PreflightWarnings`' worker ran and found nothing flagged -
+inferred from the absence of both a flagged-leg line and an error, because that path prints nothing
+when nothing is flagged. That the two candidate mechanisms for the sim-100-250 re-goal are the only
+plausible ones. That no other executor's work loaded the machine during the window - not claimed,
+simply not visible from this run's evidence. That +250 m north is representative of the northern
+corridor rather than a single fortunate line (one leg, one terrain).
