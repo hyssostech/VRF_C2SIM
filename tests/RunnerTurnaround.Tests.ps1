@@ -957,6 +957,41 @@ try {
     Remove-Item -LiteralPath $samplerTestDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
+# 8j. WS RUNAWAY TRIPWIRE (RUNBOOK 0.5.11 item 17, 2026-09-15): SampleThreads.ps1 -ReplayCsv
+# replays a captured thread-samples.csv through the SAME slope/cpu-gate/warmup logic
+# (Add-WsSlopeSample) the live sampler uses - this IS the offline proof, not a
+# reimplementation. Two real fixtures: runs\launch52\RunScenario-20260915T130626Z.threads.csv
+# is the confirmed back-end memory runaway (wsMB grew from 3,117 while procCpuCores stayed
+# under 1 core, starting at the 13:11:50Z order) and must alert; the same-day healthy run
+# RunScenario-20260915T133258Z.threads.csv has an ordinary CPU-busy startup/scenario-load ramp
+# to ~4,000 MB that plateaus and must NOT alert - a slope-only rule with no cpu gate false-
+# alarms on that exact ramp (procCpuCores 1.7-4.1 there versus under 1 during the real
+# runaway), which is why the tripwire gates on both. Both CSVs are untracked (runs\ is
+# gitignored), so this check SKIPS gracefully if they are not present on this machine.
+Write-Host '=== 8j. WS runaway tripwire: -ReplayCsv proof against the two 2026-09-15 fixtures ==='
+$wsRunawayCsv = Join-Path $RepoRoot 'runs\launch52\RunScenario-20260915T130626Z.threads.csv'
+$wsHealthyCsv = Join-Path $RepoRoot 'runs\launch52\RunScenario-20260915T133258Z.threads.csv'
+$wsPwsh = 'C:\Program Files\PowerShell\7\pwsh.exe'
+if (-not (Test-Path -LiteralPath $wsRunawayCsv) -or -not (Test-Path -LiteralPath $wsHealthyCsv) -or -not (Test-Path -LiteralPath $wsPwsh)) {
+    Check '8j SKIPPED (fixture CSVs or pinned pwsh not present on this machine)' $true
+} else {
+    $wsSampler = Join-Path $RepoRoot 'scripts\SampleThreads.ps1'
+    $wsRunawayOut = (& $wsPwsh -NoProfile -File $wsSampler -ReplayCsv $wsRunawayCsv 2>&1 | Out-String)
+    $wsHealthyOut = (& $wsPwsh -NoProfile -File $wsSampler -ReplayCsv $wsHealthyCsv 2>&1 | Out-String)
+    Check '8j runaway fixture (130626Z) DOES alert' (
+        $wsRunawayOut -match 'BACK-END WS RUNAWAY') ("output: " + $wsRunawayOut)
+    $wsFirstAlertTime = $null
+    if ($wsRunawayOut -match '(\S+) BACK-END WS RUNAWAY') {
+        $wsFirstAlertTime = [datetime]::Parse($Matches[1], [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+    }
+    $wsOnset = [datetime]::Parse('2026-09-15T13:11:50Z', [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+    Check '8j runaway fixture alerts within ~2 min of the documented 13:11:50Z onset' (
+        $wsFirstAlertTime -and [Math]::Abs(($wsFirstAlertTime - $wsOnset).TotalSeconds) -le 120) (
+        "first alert: " + $(if ($wsFirstAlertTime) { $wsFirstAlertTime.ToString('o') } else { '(none matched)' }))
+    Check '8j healthy fixture (133258Z) does NOT alert' (
+        $wsHealthyOut -notmatch 'BACK-END WS RUNAWAY' -and $wsHealthyOut -match '0 alerts') ("output: " + $wsHealthyOut)
+}
+
 # 9. Get-VrfUuidByName must parse BOTH app-log route-line forms. The app started
 # logging the route's own uuid on 2026-09-02 with the route-uuid fix ("Route '<r>'
 # (VRF_UUID:<route>) created; ..."); every run in the record before that logs the
