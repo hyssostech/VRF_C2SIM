@@ -118,7 +118,7 @@ or a permission rule). V8 (023743Z, de32dac): shift went SOUTH - C2 SIDED the ch
 V8b (033226Z, 79d3fe4): ALL R8 MET - +250 m north, SIX OF SIX crossed, no crawl. V8z zero-offset control
 (041036Z, 8d87391): BRANCH A - froze 19.7 m from P11; THE LATERAL OFFSET IS THE REMEDY, insertion inert. OPEN USER RULINGS: none. V6 RUN 03:10Z (scratch federation
 20260915T030650Z): the tools JOIN but see NO back end + placeholder uuids only, ResetVrf a false green
-(RUNBOOK sec 9; STP-820; cause OPEN, hardening MERGED 0abe9ce, eleven consumers rebuilt). OWED: V6b, V8z verdict
+(STP-820). V6b 11:40Z: BOTH defences + the runner-launched PauseSim FAILED; only late joiners fail - back-end STATUS messages never reach them (V6_LIVE_JOIN_GATE, d9dd06e); V6c prereg written. OWED: V6c
 verdict, the Q5 kill-half re-run, and the nav second mechanism / offline 20x20 km control. Prior
 01:00Z paragraph archived verbatim: docs/experiments/HANDOFF_2026-09-14_ARCHIVE_pm.md sec 8
 (append).
