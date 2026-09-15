@@ -1148,6 +1148,17 @@ on 2026-09-14; each is now closed by something this section names
     RunC2SimScenario.ps1 (excluding this pid/ancestors), then takes `runs\runner.lock`
     (FileMode.CreateNew; pid+UTC+run dir - a dead pid's lock is stale and removed, a live
     one refuses) - released in `finally` AFTER teardown. `-DryRun` reports only.
+    ADDENDUM, same day: Stage 2c's RtiProbe call passed FederationArg='' as a bare
+    positional BETWEEN appNumber and the retry counts - Start-Process -ArgumentList
+    silently DROPS an empty element (reproduced directly), so maxAttempts shifted into
+    the federation slot and the C1 gate joined a federation literally named "5", not
+    MAK-ONE-2025 (run 20260915T030650Z_run). RtiProbe has no named flags (confirmed live:
+    `RtiProbe.exe --help` -> "takes positional arguments only", exit 2), so FIXED by
+    building the argument list CONDITIONALLY: omit federation and the three retry counts
+    together when federation is empty (they equal RtiProbe's own defaults, so nothing
+    about a real run changes). Every OTHER $FederationArg caller (WatchVrf x2, PauseSim
+    x2) is unaffected - federation is their TRAILING positional, so a dropped empty one
+    shifts nothing.
 
 ---
 
