@@ -702,4 +702,64 @@ public class VrfSettings
     // (osgEarthCatalogs/coverage/layer.*.online.xml). The vehicle limits and the soil
     // acceleration-factors come from Vrf:VrfHome instead. Read-only, both of them.
     public string PreflightSharedDataDir { get; set; } = @"C:\MAK\SharedData\19\latest";
+
+    // ============== THE LATERAL ROUTE SHIFT (STP-804/806) ====================================
+    // docs/experiments/DESIGN_ROUTE_SHIFT_2026-09-15.md. When the pre-flight flags a leg BEFORE
+    // dispatch, insert two waypoints that carry the path laterally onto ground the same sampler
+    // scores as clear. STP's own vertices are never moved, dropped or reordered - only the path
+    // BETWEEN them detours - and every shift (and every flagged leg no offset could clear) is
+    // reported to the C2 side as an ObservationReport.
+    //
+    // WHY IT EXISTS: the freeze is a property of the LINE. N2d drove the same unit, order and
+    // vertices on a line 1.3 km north and completed two legs for the first time in any run
+    // (PREREG_N1_N2 sec 10.3); 4-27's leader froze in P11 and crossed in G3 on a line 15 m away
+    // (FINDING_EARLY_STOPS sec 7e).
+    //
+    // SHIPS OFF. This is the first thing in the pre-flight that changes the simulation, and it
+    // stays off until the confirming run of the design note's sec 9. The demo turns it on.
+    public bool PreflightRouteShift { get; set; } = false;
+
+    // The search band, +/- metres. PREREG_RIDGE_AG 3.3 measured the ridge leg clear at every
+    // offset from +50 to +550 m north and WORSE to the south; 600 is that band plus one step.
+    public double PreflightRouteShiftMaxMeters { get; set; } = 600.0;
+
+    // Search granularity: the vendor's own formation slot spacing (the followers' rightOffsets
+    // are {-50, -25, 0, +25, +50}).
+    public double PreflightRouteShiftStepMeters { get; set; } = 25.0;
+
+    // How far BELOW PreflightThreshold a shifted line must land before it is committed. The
+    // calibration margin is 0.097 (lowest frozen leg 0.966, best clean mover 0.870) and lateral
+    // sensitivity EXCEEDS it - 30 m of shift moves one measured leg from 0.902 to 1.130
+    // (READ_4-27_G3_AND_OFFSET_SCORING sec 2.3) - so a remedy that lands inside that gap has
+    // demonstrated nothing.
+    public double PreflightRouteShiftMarginRatio { get; set; } = 0.10;
+
+    // Also require every FORMATION SLOT LINE of the shifted route to clear PreflightThreshold.
+    // false = the route line alone decides the shift's size. It costs 25 m on the reference leg
+    // and stops the shift leaving a fifth of the formation on the face: at +50 m the inner slot
+    // still scores 1.097, at +75 m the whole band maxes at 0.883. This does NOT change the flag
+    // calibration - the band still flags nothing and decides no leg's verdict (the standing
+    // ruling, READ_4-27_G3_AND_OFFSET_SCORING sec 2.5); it only SIZES a shift already demanded.
+    public bool PreflightRouteShiftClearFormationBand { get; set; } = true;
+
+    // Pad each side of the flagged window before the detour is placed. MEASURED: the leaders
+    // freeze 31.5 m short of the window's near edge and 44.0 m short of its centre
+    // (PREREG_RIDGE_AG 3.2) - they stop at the TOE of the face, not in it.
+    public double PreflightRouteShiftPadMeters { get; set; } = 50.0;
+
+    // Settled parallel run before the padded window: formationLength 60 (the unit's own
+    // maneuver-in-formation rows) + the widest follower slot 50, so the whole formation is on
+    // the shifted line at full width before it reaches the ground that flagged. NOT a turning
+    // circle: the M1A2's turning-radius is 0.3 m (it pivots).
+    public double PreflightRouteShiftLeadMeters { get; set; } = 110.0;
+
+    // Feasibility cap on the transit angle off the leg axis. A window in the first few hundred
+    // metres of a leg gets NO detour and is reported instead - a unit cannot side-step a face it
+    // is already standing on. (On the reference leg the transit is 1.57 deg.)
+    public double PreflightRouteShiftMaxTurnDegrees { get; set; } = 30.0;
+
+    // How long the dispatch waits for the shift worker. On expiry the task is dispatched on the
+    // AUTHORED line: the feature can change WHICH line is driven, never WHETHER a unit is tasked.
+    // A cold tile cache is what costs time here; the demo posture pre-warms it (STP-802).
+    public double PreflightRouteShiftTimeoutSeconds { get; set; } = 30.0;
 }

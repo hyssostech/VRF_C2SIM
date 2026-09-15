@@ -766,6 +766,7 @@ public sealed class VrfC2SimService : BackgroundService
             // carries the wall clock too, and the gates wait on it whatever Vrf:TaskClock says.
             TickPhase("SampleTaskClock", true, SampleTaskClock);
             TickPhase("ExpireTerrainRequests", !_pendingTerrain.IsEmpty, ExpireTerrainRequests);
+            TickPhase("ExpireShiftRequests", !_pendingShift.IsEmpty, ExpireShiftRequests);
             TickPhase("ExpireCompositions", !_compositions.IsEmpty, ExpireCompositions);
             TickPhase("ReleaseReflected", !_awaitReflection.IsEmpty, ReleaseReflected);
             TickPhase("MaybeSendPositionReports", _vrf.PositionReportSeconds > 0, MaybeSendPositionReports);
@@ -2536,8 +2537,11 @@ public sealed class VrfC2SimService : BackgroundService
     /// (parity no-op) SetTarget, then MoveToLocation (single point) or CreateRoute +
     /// deferred MoveAlongRoute. terrainRoute: the TerrainProfile-mode re-entry passes the
     /// terrain-authored vertices here (null on the first pass and in every other mode).
+    /// shiftedRoute: the ROUTE SHIFT re-entry passes the route with its inserted waypoints here
+    /// (null on the first pass and whenever Vrf:PreflightRouteShift is off, which is the default).
     /// </summary>
-    private void ExecuteTaskOnTick(OrderTask task, CreatedUnit unit, List<Geodetic> terrainRoute = null)
+    private void ExecuteTaskOnTick(OrderTask task, CreatedUnit unit, List<Geodetic> terrainRoute = null,
+                                   List<Geodetic> shiftedRoute = null)
     {
         // Resolve the VRF uuid via the created object's name. Parity: executeTask drops
         // the task if the unit was not created (C2SIMinterface.cpp:2046-2050).
@@ -2835,6 +2839,41 @@ public sealed class VrfC2SimService : BackgroundService
                 LonDeg = p.Lon,
                 AltMeters = isGround ? groundWpAlt : (p.Elev ?? 0.0)
             });
+
+        // THE LATERAL ROUTE SHIFT (Vrf:PreflightRouteShift, DEFAULT OFF - STP-804/806;
+        // docs/experiments/DESIGN_ROUTE_SHIFT_2026-09-15.md). The route geometry is final here -
+        // the live start and the origin-vertex drop have both been applied - and the altitudes are
+        // NOT yet authored, which is exactly the moment to insert waypoints: the terrain profile
+        // below then authors the inserted vertices along with every other one.
+        //
+        // OFF THE TICK THREAD, LIKE EVERY OTHER PRE-FLIGHT READ: a cold leg fetches terrain tiles
+        // over HTTP and the search scores several candidate polylines, so this pass COPIES the
+        // vertices, hands them to a worker and RETURNS with nothing marked. The worker re-enters
+        // through _tickActions + DeferredDispatch.Run, the same shape the terrain-profile
+        // continuation uses, so a throw there ends the task properly instead of parking it (D1).
+        //
+        // IT NEVER REFUSES A TASK. Every way out of the worker - a shift, no shift, a throw, the
+        // timeout sweep - dispatches this task; the only question is which line it drives.
+        //
+        // NOT WHERE THE ROUTE IS ABOUT TO BE COLLAPSED. Both aggregate branches below
+        // (MoveIntoFormation and the R11 PlanAndMove probe) throw the intermediate vertices away
+        // and drive to routeGeo[^1]. Shifting there would cost the search, change nothing the
+        // unit drives, and REPORT a detour to the C2 side that never happened - the one thing
+        // this feature must never do.
+        bool routeWillBeCollapsed = unit.IsAggregate
+            && (!string.IsNullOrEmpty(_vrf.MoveIntoFormation) || _vrf.AggregatePlanAndMove);
+        if (shiftedRoute != null)
+            routeGeo = shiftedRoute;
+        else if (_vrf.PreflightRouteShift && isGround && terrainRoute == null && routeGeo.Count > 1
+                 && !routeWillBeCollapsed)
+        {
+            QueueRouteShift(task, unit, routeGeo);
+            return;
+        }
+        else if (_vrf.PreflightRouteShift && routeWillBeCollapsed)
+            _log.LogInformation("Task '{Task}' ({Unit}): ROUTE SHIFT skipped - this aggregate dispatch drives to the " +
+                                "route's FINAL point only, so there is no line between vertices to shift.",
+                                task.TaskName, unit.Name);
 
         // GroundWaypointAltitudeMode="TerrainProfile" (docs/DESIGN_TERRAIN_PROFILE_VERTICES_
         // 2026-09-01.md sec 3.3): ask the back end for the terrain height under each ground
@@ -3677,6 +3716,193 @@ public sealed class VrfC2SimService : BackgroundService
                               taskName, unitName, C2SIMSDK.GetRootException(e).Message);
             }
         });
+    }
+
+    // ============ THE LATERAL ROUTE SHIFT (Vrf:PreflightRouteShift; STP-804/806) ==============
+    // docs/experiments/DESIGN_ROUTE_SHIFT_2026-09-15.md. The dispatch is DEFERRED to a worker
+    // that scores the route and chooses the detour, then re-entered on the tick thread.
+    //
+    // THE ONE-SHOT LATCH IS THE WHOLE SAFETY PROPERTY HERE. Two independent things can continue a
+    // deferred dispatch - the worker finishing and the timeout sweep firing - and if both did, the
+    // task would be DISPATCHED TWICE (two routes, two MoveAlongRoute, two MarkDispatched). Claim
+    // decides it: exactly one caller ever gets true.
+    private sealed class PendingShift
+    {
+        private readonly Preflight.OneShotClaim _claim = new();
+        public PendingShift(DateTime deadline, OrderTask task, CreatedUnit unit, List<Geodetic> authored)
+        { Deadline = deadline; Task = task; Unit = unit; Authored = authored; }
+        public DateTime Deadline { get; }
+        public OrderTask Task { get; }
+        public CreatedUnit Unit { get; }
+        public List<Geodetic> Authored { get; }
+        public bool Claim() => _claim.Claim();
+    }
+
+    private readonly ConcurrentDictionary<long, PendingShift> _pendingShift = new();
+    private long _nextShiftId;
+
+    /// <summary>The chooser's settings, straight from configuration. The THRESHOLD is the
+    /// pre-flight's own - there is no second threshold anywhere in this feature.</summary>
+    private Preflight.RouteShiftOptions ShiftOptions() => new()
+    {
+        MaxMeters = _vrf.PreflightRouteShiftMaxMeters,
+        StepMeters = Math.Max(1.0, _vrf.PreflightRouteShiftStepMeters),
+        MarginRatio = _vrf.PreflightRouteShiftMarginRatio,
+        ClearFormationBand = _vrf.PreflightRouteShiftClearFormationBand,
+        PadMeters = _vrf.PreflightRouteShiftPadMeters,
+        LeadMeters = _vrf.PreflightRouteShiftLeadMeters,
+        MaxTurnDegrees = _vrf.PreflightRouteShiftMaxTurnDegrees,
+        Threshold = _vrf.PreflightThreshold,
+    };
+
+    /// <summary>
+    /// STP's vertices, in order, with the inserted points of each shifted leg spliced between
+    /// them. An inserted vertex takes the altitude of the authored vertex it follows; in the
+    /// default TerrainProfile mode every altitude here is replaced by the profile reply anyway,
+    /// and in the other modes all ground vertices share one value, so this is never an invented
+    /// height.
+    /// </summary>
+    internal static List<Geodetic> SpliceShift(IReadOnlyList<Geodetic> authored,
+                                               IReadOnlyList<Preflight.LegShift> shifts)
+    {
+        var byLeg = new Dictionary<int, Preflight.LegShift>();
+        if (shifts != null)
+            foreach (var s in shifts)
+                if (s.Shifted) byLeg[s.LegIndex] = s;
+        var outp = new List<Geodetic>(authored.Count + 4 * byLeg.Count);
+        for (int i = 0; i < authored.Count; i++)
+        {
+            outp.Add(authored[i]);
+            if (i + 1 >= authored.Count) break;
+            if (!byLeg.TryGetValue(i + 1, out var s)) continue;
+            double alt = authored[i].AltMeters;
+            foreach (var p in s.Inserted)
+                outp.Add(new Geodetic { LatDeg = p.Lat, LonDeg = p.Lon, AltMeters = alt });
+        }
+        return outp;
+    }
+
+    /// <summary>
+    /// Defer this dispatch, score the route on a worker and re-enter with the result. The caller
+    /// has already returned from the tick pass, so EVERY path out of here must end in a
+    /// continuation - which is why the catch continues with the authored route rather than
+    /// rethrowing, and why the timeout sweep exists for the case the worker never returns at all.
+    /// </summary>
+    private void QueueRouteShift(OrderTask task, CreatedUnit unit, List<Geodetic> routeGeo)
+    {
+        long id = Interlocked.Increment(ref _nextShiftId);
+        var authored = new List<Geodetic>(routeGeo);
+        var pending = new PendingShift(
+            DateTime.UtcNow.AddSeconds(Math.Max(1, _vrf.PreflightRouteShiftTimeoutSeconds)),
+            task, unit, authored);
+        _pendingShift[id] = pending;
+
+        var route = authored.Select(v => (Lat: v.LatDeg, Lon: v.LonDeg)).ToList();
+        string template = _templateByName.TryGetValue(unit.Name, out var t) ? t : "";
+        bool hostile = _hostilityByC2SimUuid.TryGetValue(task.TaskeeUuid ?? "", out var hc) && hc == "HO";
+        string taskName = task.TaskName, unitName = unit.Name, taskeeUuid = task.TaskeeUuid;
+        var opt = ShiftOptions();
+
+        _log.LogInformation("Task '{Task}': ROUTE SHIFT check queued for {Name} ({N} vertices); dispatch deferred " +
+                            "to the result (timeout {T:F0} s -> the authored line).",
+                            taskName, unitName, route.Count, _vrf.PreflightRouteShiftTimeoutSeconds);
+
+        _ = Task.Run(async () =>
+        {
+            List<Geodetic> shifted = null;
+            List<string> reports = null;
+            try
+            {
+                var svc = GetPreflight();
+                if (svc == null)
+                {
+                    _log.LogWarning("Task '{Task}': ROUTE SHIFT skipped - the pre-flight could not start; the " +
+                                    "authored line is dispatched.", taskName);
+                }
+                else
+                {
+                    var limit = svc.LimitFor(template, hostile);
+                    var outcome = svc.ShiftRoute(route, limit.LimitRaw, opt);
+                    foreach (var s in outcome.Shifts)
+                    {
+                        if (s.Shifted)
+                            _log.LogWarning("Task '{Task}' ({Unit}) leg {Leg}: ROUTE SHIFTED {D:F0} m {Side} - ratio " +
+                                            "{Base:F3} -> {New:F3}{Band}; inserted ({ILat:F6},{ILon:F6}) and " +
+                                            "({OLat:F6},{OLon:F6}). STP's own vertices are unchanged and in order.",
+                                            taskName, unitName, s.LegIndex, Math.Abs(s.OffsetMeters), s.SideWord,
+                                            s.BaseRatio, s.ShiftedRatio,
+                                            double.IsNaN(s.BandMax) ? "" : FormattableString.Invariant(
+                                                $" (formation band max {s.BandMax:F3})"),
+                                            s.In.Lat, s.In.Lon, s.Out.Lat, s.Out.Lon);
+                        else
+                            _log.LogWarning("Task '{Task}' ({Unit}) leg {Leg}: NO ROUTE SHIFT - {Note}. The task is " +
+                                            "dispatched on the line as authored.", taskName, unitName, s.LegIndex, s.Note);
+                    }
+                    if (outcome.Changed)
+                    {
+                        shifted = SpliceShift(authored, outcome.Shifts);
+                        _log.LogInformation("Task '{Task}' ({Unit}): ROUTE SHIFT applied to {N} of {F} flagged leg(s); " +
+                                            "route {Before} -> {After} vertices.", taskName, unitName,
+                                            outcome.ShiftedCount, outcome.Shifts.Count, authored.Count, shifted.Count);
+                    }
+                    else if (outcome.Shifts.Count == 0)
+                        _log.LogInformation("Task '{Task}' ({Unit}): ROUTE SHIFT - no leg flagged; the route is " +
+                                            "unchanged.", taskName, unitName);
+                    reports = Preflight.PreflightReports.BuildForShift(taskeeUuid, unitName, taskName,
+                                                                      outcome.Shifts, outcome.Legs,
+                                                                      IsoNow(), NewReportId);
+                }
+            }
+            catch (Exception e)
+            {
+                _log.LogError("Task '{Task}' ({Unit}): ROUTE SHIFT failed - the task is dispatched on the line as " +
+                              "authored: {Msg}", taskName, unitName, C2SIMSDK.GetRootException(e).Message);
+                shifted = null;
+            }
+            // CLAIM BEFORE ANYTHING IS SAID OR DISPATCHED. If the timeout sweep already continued
+            // this task on the authored line, a "route shifted" report would be a lie and a second
+            // continuation would dispatch it twice.
+            if (!ContinueShift(id, shifted)) return;
+            if (reports != null)
+                foreach (var xml in reports) await PushReportAsync(xml, ReportKind.Observation);
+        });
+    }
+
+    /// <summary>Claim the pending shift and re-enter the dispatch on the tick thread. Returns false
+    /// when someone else already continued it (the timeout sweep, or a second worker completion).</summary>
+    private bool ContinueShift(long id, List<Geodetic> shifted)
+    {
+        if (!_pendingShift.TryGetValue(id, out var pending) || !pending.Claim()) return false;
+        _pendingShift.TryRemove(id, out _);
+        var route = shifted ?? pending.Authored;
+        var task = pending.Task;
+        var unit = pending.Unit;
+        _tickActions.Enqueue(() => DeferredDispatch.Run(
+            () => ExecuteTaskOnTick(task, unit, null, route),
+            task.TaskUuid, task.TaskName, DeferredDispatch.RouteShiftContinuation, _sequencer,
+            reason => PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKABRT, reason),
+            ex => _log.LogError("Task '{Task}': THE ROUTE-SHIFT CONTINUATION THREW on the VR-Forces tick thread " +
+                                "({Type}: {Msg}) - that is the pass which dispatches this task, so it was NOT " +
+                                "dispatched. It is abandoned and reported TASKABRT so its STREND successors fail " +
+                                "fast instead of waiting out the chain backstop.",
+                                task.TaskName, ex.GetType().Name, ex.Message)));
+        return true;
+    }
+
+    /// <summary>Tick-loop sweep: a shift check past its deadline dispatches the AUTHORED line.
+    /// A pre-flight that is slow, wedged on a cold tile fetch or simply unlucky must never hold a
+    /// task; the worst this feature may cost is today's behaviour.</summary>
+    private void ExpireShiftRequests()
+    {
+        var now = DateTime.UtcNow;
+        foreach (var kv in _pendingShift)
+        {
+            if (kv.Value.Deadline > now) continue;
+            string name = kv.Value.Task?.TaskName;
+            if (ContinueShift(kv.Key, null))
+                _log.LogWarning("Task '{Task}': the ROUTE SHIFT check did not finish within {T:F0} s - dispatching " +
+                                "on the line as authored.", name, _vrf.PreflightRouteShiftTimeoutSeconds);
+        }
     }
 
     private void MaybeCheckArrivals()

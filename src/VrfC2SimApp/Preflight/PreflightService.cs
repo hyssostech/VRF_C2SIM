@@ -153,6 +153,72 @@ public sealed class PreflightService : IDisposable
     }
 
     /// <summary>
+    /// A route as the LATERAL ROUTE SHIFT left it: the vertices to drive, what each flagged leg
+    /// became, and the scores of the route as AUTHORED (so a report can say "1.098 -> 0.792").
+    /// <see cref="Shifts"/> carries a row per FLAGGED leg - shifted or not - and is empty when
+    /// nothing was flagged, in which case <see cref="Route"/> is the input, point for point.
+    /// </summary>
+    public sealed record RouteShiftOutcome(List<(double Lat, double Lon)> Route,
+                                           List<LegShift> Shifts,
+                                           List<LegMetrics> Legs,
+                                           int Degenerate)
+    {
+        public int ShiftedCount => Shifts.Count(s => s.Shifted);
+        public int UnshiftableCount => Shifts.Count(s => !s.Shifted);
+        public bool Changed => ShiftedCount > 0;
+    }
+
+    /// <summary>
+    /// Score a polyline and return its WORST leg ratio - the one number the pure chooser needs,
+    /// and the only way terrain reaches it.
+    ///
+    /// A polyline carrying ANY leg with no verdict returns +infinity, i.e. it can never be
+    /// accepted. Missing tiles are not evidence of good ground, and a shift onto unscored
+    /// terrain would be exactly the invention this feature exists to avoid.
+    /// </summary>
+    public Func<IReadOnlyList<(double Lat, double Lon)>, double> WorstRatioScorer(double limitRaw)
+        => poly =>
+        {
+            var (legs, _) = ScoreRoute(poly, limitRaw);
+            if (legs.Count == 0) return double.PositiveInfinity;
+            double worst = 0.0;
+            foreach (var l in legs)
+            {
+                if (l.NoVerdict) return double.PositiveInfinity;
+                if (l.Ratio > worst) worst = l.Ratio;
+            }
+            return worst;
+        };
+
+    /// <summary>
+    /// THE PRE-DISPATCH STAGE: score the route the interface is about to drive and, for every
+    /// FLAGGED leg, choose a lateral detour and splice its two waypoints in.
+    ///
+    /// *** NEVER FROM THE VR-FORCES TICK THREAD *** - the same rule as the rest of this class,
+    /// and more so: the search scores several candidate polylines.
+    ///
+    /// It never refuses and never reorders: an unflagged leg is untouched, a flagged leg that no
+    /// offset clears is left exactly as authored with its reason on the LegShift, and the
+    /// authored vertices are copied through in order either way.
+    /// </summary>
+    public RouteShiftOutcome ShiftRoute(IReadOnlyList<(double Lat, double Lon)> route,
+                                        double limitRaw, RouteShiftOptions shiftOptions)
+    {
+        var (legs, degenerate) = ScoreRoute(route, limitRaw);
+        var shifts = new List<LegShift>();
+        var scorer = WorstRatioScorer(limitRaw);
+        foreach (var leg in legs)
+        {
+            if (!leg.Flagged) continue;
+            int i = leg.Index - 1;
+            if (i < 0 || i + 1 >= route.Count) continue;
+            shifts.Add(RouteShift.ChooseForLeg(route[i], route[i + 1], leg, shiftOptions, scorer));
+        }
+        var applied = RouteShift.Apply(route, shifts);
+        return new RouteShiftOutcome(applied, shifts, legs, degenerate);
+    }
+
+    /// <summary>
     /// The whole-order walk, as tools/preflight/leg_check.py does it: a unit's SECOND and later
     /// tasks start at the end of its previous task's route, because the interface sequences a
     /// unit's tasks in declared order. Used by the self-test; the live path scores the ONE

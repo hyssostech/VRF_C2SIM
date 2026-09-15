@@ -21,7 +21,7 @@ property of the LINE, not of the unit, the terrain or the mesh: N2d drove the SA
 SAME order and the SAME vertices on the authored V0->V1 line 1.3 km north and completed V1
 and V2 for the first time in any run (PREREG_N1_N2 sec 10.3); 4-27's leader froze in P11 and
 crossed in G3 on a line 15 m away (FINDING sec 7e). The remedy is therefore a LINE remedy:
-score the leg before dispatch, and where it is flagged, insert two waypoints that carry the
+score the leg before dispatch, and where it is flagged, insert waypoints that carry the
 path laterally onto ground the same sampler scores as clear - keeping STP's own vertices, in
 STP's own order, and reporting the detour to the C2 side so nothing is done silently.
 
@@ -136,16 +136,22 @@ shift on can change WHICH line is driven; it can never stop a unit being tasked.
 
 ## 3. DESIGN QUESTION 2 - THE GEOMETRY
 
-### 3.1 The detour
+### 3.1 The detour  [REVISED 2026-09-15 after the build measured it - see 3.1a]
 
 For a flagged leg A -> B of length `legLen`, the scorer returns the worst 40 m window
-[s0, s1] in along-leg metres. Two waypoints are inserted:
+[s0, s1] in along-leg metres. FOUR points are inserted:
 
-    ein  = max(0, s0 - PAD)          the padded window's near edge
-    eout = min(legLen, s1 + PAD)     its far edge
-    sIn  = ein  - LEAD               D1 sits here, offset X metres laterally
-    sOut = eout + LEAD               D2 sits here, offset X metres laterally
-    route: A -> D1 -> D2 -> B
+    ein     = max(0, s0 - PAD)             the padded window's near edge
+    eout    = min(legLen, s1 + PAD)        its far edge
+    transit = |X| / tan(MAXTURN)           the run over which the path changes lane
+    D1   at (ein  - LEAD)  offset X        start of the parallel stretch
+    D2   at (eout + LEAD)  offset X        end of it
+    Pin  at (ein  - LEAD - transit)        ON the authored line
+    Pout at (eout + LEAD + transit)        ON the authored line
+    route: A -> Pin -> D1 -> D2 -> Pout -> B
+
+The approach A -> Pin and the run-out Pout -> B lie ON the authored line: they are the ground
+the interface has always driven there, unchanged.
 
 X is signed: positive = to the RIGHT of travel. On the 1-35 leg (bearing 263.02) right is
 NORTH, which is the cleared side (PREREG_RIDGE_AG 3.3).
@@ -154,6 +160,37 @@ The lateral offset is taken perpendicular to the LEG bearing in the local tangen
 the same construction `READ_4-27_G3_AND_OFFSET_SCORING` sec 2.1 used for its offset-line
 generator, so the numbers in that record and the numbers here are on one scale (reproduced:
 sec 6).
+
+### 3.1a WHY FOUR POINTS AND NOT TWO - a decision REVERSED BY ITS OWN MEASUREMENT
+
+This note first specified TWO inserted waypoints (D1 and D2 only), with the lateral transit
+absorbed into the whole approach A -> D1. That form was BUILT, MEASURED on the reference leg,
+and REJECTED. The measurement, on the same sampler and the same cache as everything else here:
+
+| along the leg | the AUTHORED line scores | the 2-point detour's approach scores |
+|---|---|---|
+| s 0 - 1,800 m (the approach) | 0.608 | 0.79 - 0.86, worst at s ~ 1,650 m |
+| s 1,800 - 2,300 m (the face) | 1.097 | removed by the detour |
+| s 2,300 - 6,593 m | 0.346 | unchanged |
+
+A 1.8 km diagonal does not stay beside the authored line - it drifts across the ridge's own
+shoulder and picks up 0.79-0.86 on ground the authored line crosses at 0.608. The consequence
+was not cosmetic: under C1 (sec 4.1) EVERY northward candidate then scored 0.82-0.88 and was
+refused, and the search ran on to a **150 m SOUTHWARD** shift, which scored 0.695 because its
+diagonals happened to dodge that shoulder too. South is the side the record says worsens
+(PREREG_RIDGE_AG 3.3: -50 m = 1.239) and the side the P11/G3 vehicles froze on; north is the
+side N2d actually drove. A remedy whose first live act contradicted the only successful run
+would have been worse than no remedy.
+
+With four points the approach stays on the authored line and only ~600 m of the leg is new.
+The same search then returns **+75 m north at 0.803** (formation band max 0.878) - what the
+record and this note's own premise predict. The two-waypoint form is kept in the self-test as
+a FAIL-FIRST break (B5), so the reason for four is CHECKED rather than remembered.
+
+The corner angle is now what `MaxTurnDegrees` MEANS - the transit length follows from it,
+|X| / tan - rather than a cap on something computed elsewhere. At the shipped 30 degrees a
+75 m shift transits over 130 m. A tank does not care about a 30 degree course change (its
+turning-radius is 0.3 m); the vendor's curve-speed constraint is what the angle is about.
 
 ### 3.2 PAD - why the window's edges are not the detour's edges
 
@@ -187,16 +224,17 @@ vehicles"). A tank pivots. What actually constrains the detour is the FORMATION:
 It is the length of SETTLED PARALLEL RUN before the padded window: the whole formation, at
 its full width, is established on the shifted line before it reaches the ground that flagged.
 
-The lateral TRANSIT is not a separate leg: it happens on A -> D1, over the whole approach.
-On the 1-35 leg that is 1,826 m for a 50 m shift - a 1.57 degree deviation, which no ground
-vehicle notices and the curve-speed constraint does not bite on.
+The lead is a run of its OWN, distinct from the transit (3.1a): transit, then LEAD metres of
+settled parallel run, then the padded window.
 
-`Vrf:PreflightRouteShiftMaxTurnDegrees` DEFAULT 30 is the FEASIBILITY test on that transit,
-not a length formula: a candidate is REFUSED if `atan(|X| / sIn)` or
-`atan(|X| / (legLen - sOut))` exceeds it, and refused outright if `sIn <= 0` or
-`sOut >= legLen` (no room for the lead-in or lead-out). A window in the first 160 m of a leg
-therefore gets no detour and is REPORTED instead - which is the honest outcome: a unit cannot
-side-step a face it is already standing on.
+`Vrf:PreflightRouteShiftMaxTurnDegrees` DEFAULT 30 SETS the transit length:
+`transit = |X| / tan(30 deg)`, so the corner where the path leaves the authored line and the
+corner where it rejoins are both exactly 30 degrees. The FEASIBILITY test is then simply
+whether the leg has room: a candidate is REFUSED when `ein - LEAD - transit <= 0` or
+`eout + LEAD + transit >= legLen`. A window in the first ~160 m of a leg therefore gets no
+detour and is REPORTED instead - the honest outcome: a unit cannot side-step a face it is
+already standing on. A larger offset needs a longer transit (600 m needs 1,039 m), so the same
+test bounds how far the search can usefully reach on a short leg.
 
 ### 3.4 When neither side clears - REPORT, DO NOT INVENT
 
@@ -237,8 +275,8 @@ the vendor's own rightOffsets {-50, -25, 0, +25, +50}, scores BELOW THE THRESHOL
 C2 IS AN ADDITION TO THE BRIEF'S RULE AND IS FLAGGED FOR THE SUPERVISOR. The brief specifies
 C1 alone. Here is the measurement that argues for C2, on the reference leg (sec 6 table):
 under C1 alone the chooser picks +50 m, whose INNER SLOT LINE (-50, i.e. the original line)
-still scores 1.097 - the very face the remedy exists to avoid, with a fifth of the formation
-on it. Under C1+C2 it picks +75 m, whose whole band maxes at 0.883. The remedy costs 25 m
+still scores 1.098 - the very face the remedy exists to avoid, with a fifth of the formation
+on it. Under C1+C2 it picks +75 m, whose whole band maxes at 0.878. The remedy costs 25 m
 more and stops leaving vehicles on the face. G3's 4-27 is the evidence that this matters:
 three of six vehicles stopped at the toe while the leader crossed, and FINDING sec 7e's
 ruling is that WHICH LANE stops is what reproduces.
@@ -264,10 +302,10 @@ wins; if both sides are accepted at that magnitude, the LOWER ratio wins. So the
 found rather than assumed: on the 1-35 leg -25 scores 1.278 and -50 1.256, and the search
 walks past them to +50/+75.
 
-Cost: a candidate is 3 segment scorings (plus 12 more under C2, on slot lines within 50 m of
-the route line - the SAME tiles). The reference leg is decided at the second magnitude: 4
-candidates under C1, 6 under C2. The whole measurement in sec 6 fetched ZERO tiles from a
-warm cache.
+Cost: a candidate is 5 segment scorings (plus 20 more under C2, on slot lines within 50 m of
+the route line - the SAME tiles). MEASURED on the shipped defaults: the reference leg is
+decided at the third magnitude, 6 candidates, 57 cache hits and ZERO network fetches, in
+under a second.
 
 ## 5. DESIGN QUESTION 4 - CONFIG AND LOGGING
 
@@ -321,25 +359,32 @@ The 1-35 leg (start 34.658442/-116.740092 = the DeStack start of every run, to V
 34.651212/-116.811637; 6,593.3 m; bearing 263.02; limit 0.94 x sand 0.80 = 0.752): base ratio
 **1.098**, worst 40 m window centred at s = 2,006.0 m.
 
-Detour candidates (PAD 50, LEAD 110, the 2-waypoint form of sec 3.1):
+Detour candidates (PAD 50, LEAD 110, the FOUR-point form of sec 3.1; transit = |X| / tan 30).
+These are the shipped code's own numbers, printed by `--routeshift-selftest`, and they agree
+with the pre-registration computed on leg_check.py before the code existed:
 
-| offset | transit in / out | polyline ratio | C1 (<= 0.82) |
-|---|---|---|---|
-| +25 | 0.78 / 0.32 deg | 0.883 | no |
-| -25 | 0.78 / 0.32 deg | 1.278 | no |
-| **+50** | 1.57 / 0.65 deg | **0.792** | **yes** |
-| -50 | 1.57 / 0.65 deg | 1.256 | no |
+| offset | transit | polyline ratio | C1 (<= 0.82) | formation band max | C2 (< 0.92) |
+|---|---|---|---|---|---|
+| +25 | 43 m | 0.878 | no | - | - |
+| -25 | 43 m | 1.276 | no | - | - |
+| +50 | 87 m | **0.728** | yes | **1.098** | no |
+| -50 | 87 m | 1.240 | no | - | - |
+| **+75** | 130 m | **0.803** | **yes** | **0.878** | **yes** |
+| -75 | 130 m | 0.978 | no | - | - |
 
-The formation band of each candidate shift (C2 reads the row max against 0.92):
+The formation band of each candidate shift (C2 reads the row max against 0.92; every vertex of
+the detour moved to the slot's own offset - a definition that reproduces READ_4-27 sec 2.3's
+published row for the UNSHIFTED leg to 0.001, which is the instrument check on it):
 
 | shift | -50 | -25 | 0 | +25 | +50 |
 |---|---|---|---|---|---|
-| +25 | 1.278 | 1.097 | 0.883 | 0.792 | 0.863 |
-| +50 | **1.097** | 0.883 | 0.792 | 0.863 | 0.836 |
-| **+75** | 0.883 | 0.792 | 0.863 | 0.836 | 0.843 |
-| +100 | 0.792 | 0.863 | 0.836 | 0.843 | 0.813 |
+| 0 (the authored leg) | 1.240 | 1.276 | 1.098 | 0.877 | 0.797 |
+| +25 | 1.276 | 1.098 | 0.878 | 0.731 | 0.800 |
+| +50 | **1.098** | 0.878 | 0.728 | 0.802 | 0.798 |
+| **+75** | 0.878 | 0.724 | 0.803 | 0.777 | 0.833 |
+| +100 | 0.723 | 0.803 | 0.793 | 0.922 | 0.913 |
 
-So: C1 alone -> **+50 m north, ratio 0.792**; C1 + C2 -> **+75 m north, band max 0.883**.
+So: C1 alone -> **+50 m north at 0.728**; C1 + C2 -> **+75 m north at 0.803, band max 0.878**.
 Both are NORTH and inside the +50..+550 band PREREG_RIDGE_AG 3.3 measured clear.
 
 Controls, same sampler, same settings:
@@ -349,7 +394,7 @@ Controls, same sampler, same settings:
 | 1-1/2/1_AD T23 leg 1 (34.662425/-116.746154 -> 34.650886/-116.812115) | 0.870 | not flagged -> UNTOUCHED |
 | 1-35 authored V0->V1 (34.67998/-116.72480 -> V1) - the line N2d drove | 0.524 | not flagged -> UNTOUCHED |
 | 1-35 T1 leg 2, T2, T3 | 0.585 / 0.893 / 0.394 | not flagged -> UNTOUCHED |
-| T4 / T26 PL BLUE leg 1 (42,892 m) | 0.988 | flagged, NO cleared line within +/-600 m -> reported, dispatched as authored |
+| T4 / T26 PL BLUE leg 1 (42,892 m) | 0.988 | flagged, NO cleared line within +/-600 m (best candidate -475 m at 0.887) -> reported, dispatched as authored |
 
 The 0.524 on 1-35's authored V0->V1 line is an independent offline confirmation of N2d: the
 one line on which this unit ever completed a leg is the one line in its record that this
@@ -361,13 +406,13 @@ A new offline suite, `VrfC2SimApp --routeshift-selftest`, on the committed tile 
 `Offline = true` (a live fetch is a failure, as in `--preflight-selftest`). It asserts:
 
 1. **GEOMETRY, pure.** Offsetting right of a 263.02 bearing goes NORTH; the offset distance
-   is the requested distance (round-trip to within 0.5 m); D1/D2 land at the requested
-   along-leg distances; the transit angles are as computed; a window with no room for the
-   lead-in is REFUSED, not clamped.
+   is the requested distance (round-trip to within 0.5 m); Pin and Pout have ZERO cross-track
+   (the approach is unchanged ground) while D1 and D2 are BOTH at the full offset; the transit
+   is |X| / tan(corner); a window with no room for transit+lead is REFUSED, not clamped.
 2. **THE REFERENCE LEG.** The 1-35 leg scores 1.098 and is flagged; the chooser returns a
    POSITIVE (north) offset inside +50..+550 m; the shifted polyline's worst ratio is below
-   the threshold and satisfies C1; under the shipped defaults the offset is +75 m and the
-   band max is < 0.92; with `ClearFormationBand=false` it is +50 m at 0.792.
+   the threshold and satisfies C1; under the shipped defaults the offset is +75 m at 0.803
+   with a band max of 0.878; with `ClearFormationBand=false` it is +50 m at 0.728.
 3. **THE UNTOUCHED CONTROLS.** 1-1's T23 leg 1 (0.870) and 1-35's authored V0->V1 (0.524) are
    not flagged and come back with the vertex list IDENTICAL to the input - not merely
    unshifted, byte-identical.
@@ -379,10 +424,11 @@ A new offline suite, `VrfC2SimApp --routeshift-selftest`, on the committed tile 
 6. **THE REPORTS.** One observation per shifted leg and one per unshiftable flagged leg;
    none for an untouched leg; the Marking carries the offset, both ratios and the band.
 
-FAIL-FIRST is part of the deliverable: each block is run once against a deliberately broken
-chooser (the margin removed, the sign flipped, the acceptance inverted) and the failing
-output is recorded in the commit message and the final report. A check that cannot fail is
-not a check (the n8 finding).
+FAIL-FIRST is part of the deliverable, and it is what caught the geometry of 3.1a. Five breaks
+are driven through the suite and each must trip checks: the margin removed (2 fail), the
+lateral sign flipped (8), acceptance inverted (4), the one-shot claim always winning (2), and
+the transit removed - the two-waypoint form (2). A check that cannot fail is not a check (the
+n8 finding).
 
 The existing 18 offline suites must stay green, `--preflight-selftest` included: the shift
 must not perturb the port's fixture comparison with the python tool.
@@ -407,7 +453,11 @@ must not perturb the port's fixture comparison with the python tool.
   every long goal (PREREG_N1_N2 10.3), which is why the remedy is worth building at all.
 - **L6 - a single-entity taskee has no formation**, so C2 is over-strict for one. It is
   conservative, and the feature ships off.
-- **L7 - the anchor.** The pre-flight scores from the unit's LIVE position, which is the line
+- **L7 - aggregate dispatches that collapse the route.** With `Vrf:MoveIntoFormation` or the
+  R11 `Vrf:AggregatePlanAndMove` probe set, an AGGREGATE drives to the route's final point and
+  the intermediate vertices are discarded. The shift is SKIPPED there (with a log line saying
+  why) rather than reporting a detour nothing drives.
+- **L8 - the anchor.** The pre-flight scores from the unit's LIVE position, which is the line
   the interface authors; the leader measurably drives up to 34.6 m off it
   (`READ_4-27` sec 2.2). Unchanged by this design and recorded as an assumption, not fixed.
 
@@ -423,7 +473,7 @@ not wait on the network at dispatch; this is the STP-802 scenario-prep posture).
 
 **P1 (HIGH - THE GATE).** The interface logs a shift for T1 leg 1 with a POSITIVE (north)
 offset in +50..+550 m, the before ratio 1.098 and an after ratio below 0.92, and the created
-route carries 6 vertices instead of 4. A miss - no shift, a southward shift, or a route still
+route carries 8 vertices instead of 4. A miss - no shift, a southward shift, or a route still
 of 4 vertices - is a STOP: the feature did not act and nothing downstream is readable.
 
 **P2 (THE MEASUREMENT).** 1-35's leader passes the P11/G3/G5 freeze band
