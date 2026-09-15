@@ -121,3 +121,37 @@ Kept verbatim as the record of what this doc said before that.)
 2. MERGES + REBUILD + DEPLOY: sim-clock, then reporting (after its cold review), then heading-speed,
    then preflight-port; rebuild and redeploy the native VrfBridge / VrfFacade after the sim-clock
    merge (section 2), then re-pin the deployed build.
+
+## sec 8 - State at 2026-09-14 20:30Z, superseded (was HANDOFF section 1, State paragraph)
+
+(Superseded 2026-09-15 01:00Z by the new State paragraph in HANDOFF section 1. Kept verbatim
+as the record of what this doc said before the 01:00Z refresh; nothing here is a new claim.)
+
+**State at 2026-09-14 20:30Z:** main is at 5047114 (ledger: appNo claims for the G7c and G7c-gate
+runs, 185945Z/190751Z). feat/integration sits at 26efe0c (tasking foundation V2/V3 merged, 10
+suites green, native rebuilt in the worktree, gate G-B PASS) and feat/tasking-rulings at 8db033e
+(fix pass 2 LANDED: A1 chain gate - COA-STP1 42 dispatches / 0 skips offline, deterministic; A2,
+B1, B4, B6, B7; Q4 and Q5 built; 18 suites, rulings suite 112 checks; pass-3 cold-start review
+RUNNING before merge; follow-up STP-809 filed - the facade must expose back-end status
+Paused/Playing/gone so a dead back end does not freeze task time under Q5). The day's 11 runs,
+one line each: G7 attempt 1 VOID (a blank line killed the STOMP pump, STP-795); attempt 2 VOID (a
+lone platform never enters the Lua planner); attempt 3 VOID (AtOrder tasked members ~175 s before
+the area was recognised); attempt 4 MEASURED 15:42Z (legs 1-2 mesh-planned 4/4, the 10-seam leg 3
+refused 4/4 - a length ceiling, AREA-dependent); appData validation (164906Z) CORRECTED (8
+current-point gate failures; loadAllNavigationDataOnTerrainLoad=1 is a NULL RESULT); G8 (165919Z)
+refused 4/4 at gamewareMemorySize=128 - memory is NOT the lever; G7b (170824Z) planned the 4,989
+m / 10-seam leg 8/8 with 0 refusals via the custom including SMS - THE FIX; G8b (172134Z) refused
+again at gamewareQueryTimeBudget=50ms - time budget is NOT the lever; G7c (185945Z) VOID (cache
+cold again within the hour, nav area never registered, 31/31 gate-failed); G7c-gate (190751Z)
+CONFIRMED the custom SMS single-variable (0 gate failures, 8/8 long legs planned, 32/32 mesh
+plans). MERGED 22:05Z: rulings 1ffb4ee (pass-3 fixes, suite 136/0) -> integration -> main 0f4d09e (46 src
+files). G-A 22:45Z (6f91feb) built+pinned; V2 LIVE 23:09Z proved the chain (PREREG_V2 RESULTS); runner stop rule FIXED+merged ff15a4e; STP-809 merged 4cd84d7 (pin STALE, G-A rerun owed); V13 00:15Z PASSED all five (Q4 refusal, TASKSTRT, C16 fires/silent, stop rule closed at +184 s); tools52 MERGED b4fcf58 (join gate owed); V4b MERGED 16995b3 (suite 176/0); lanes out: pausesim, route-shift, AG research; N2b (abstract-graph SMS +
+slope-avoidance-factor 2.0, fixture _AG_S2, 1-35 lane) is next on L1, replacing the paused ridge
+test (N1 dropped 20:40Z: propagation-box-extent is a dead parameter for vehicles)
+(NAVDOCS_ABSTRACT_GRAPHS_AND_SLOPE_2026-09-14.md). The user's rulings are ALL IN: task-vocabulary
+Q1-Q7 (20:00Z) alongside the earlier R1-R6, TASKABRT (row 19), pre-flight-as-warnings (row 20),
+and the C:\C2SIM homes (row 21). The MAK licence is RENEWED to 2026-10-31 (RUNBOOK 0.5.15;
+c8730e7). METHOD LESSON for memory: a docs-first relapse - L1 drifted back to probing (the paused
+ridge test) before the Gameware Navigation docs were read; the user's 2026-09-14 correction
+("drift back to probing") produced the 20:00Z docs pass that redirected L1 to N2b. The
+2026-09-15 lapse warning stays superseded (archived, section 4).

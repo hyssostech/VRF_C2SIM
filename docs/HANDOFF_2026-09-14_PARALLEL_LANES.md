@@ -53,6 +53,11 @@ Navigation mesh (PREREG_NAVDATA_G6_2026-09-13.md sec 5 = STOP; MESH_QUERY_VS_DIS
   - the documented lever is slope-avoidance-factor. 20:40Z HEADER READING (PREREG_N1_N2_CORRIDOR_SLOPE):
   propagation-box-extent is DEAD for ground vehicles (DtNavBot parameter; Ground_Vehicle.ope uses the
   dynamic-obstacle nav interface) -> N1 NOT RUN, AG SMS stays the fix. N2b RAN 21:05Z: P20a MISS -> STOP (AG query 0 points for EVERY goal of AtOrder members queried 5-10 s after the first area row; 5th freeze at the P11 point); N2c REFUSED identically (timing FALSIFIED); N2d (start +500 m): short goals plan, ALL long goals refused (regional AG), the unit drove the authored V0->V1->V2->V3 line 1.3 km north of the freeze - the freeze is a LINE property; remedy = pre-flight route shift - PREREG_N1_N2 sec 10.2/10.3.
+- WESTERN ABSTRACT-GRAPH REFUSALS = the oversized nav area (UG52 66.2's 20 x 20 km maximum) - not
+  load timing (N2c's +300 s start delay refused identically to N2b) and not a query flag; do not
+  re-probe query flags. RESEARCH_ABSTRACT_GRAPH_CONNECTIVITY_2026-09-15.md.
+- THE RIDGE FREEZE IS A LINE PROPERTY (N2d drove the authored line 1.3 km north of the six-run
+  freeze) - the remedy is a pre-flight route shift, not a planner flag.
 
 Harness (docs/experiments/RUNNER_EXIT127_2026-09-14.md; RUNBOOK 0.5.14; full recap archived docs/experiments/HANDOFF_2026-09-14_ARCHIVE_pm.md sec 3):
 - "runner exit: 127" does NOT mean "command not found" - on this MSYS bash it is a high-bit Windows code; the only SILENT one is 0xFFFFFFFF (TerminateProcess(-1) / Stop-Process / Process.Kill), so 127 + a silent log + no WER event = THE RUNNER WAS KILLED FROM OUTSIDE (killer unidentified, no process auditing here); the G6 capture was COMPLETE - "trace: (no samples)" was a separate tail-read defect, now fixed. NO Stop-Process / taskkill sweeps while a run window is open.
@@ -90,34 +95,29 @@ Method lessons (each one cost a false claim or a night):
   so it cannot test the mesh planner - G7 attempt 2. Measured there too: the sim's marking width is
   >= 11 characters, so reporting item B3 is about the 14-character name, not a 10-char limit.
 
-**State at 2026-09-14 20:30Z:** main is at 5047114 (ledger: appNo claims for the G7c and G7c-gate
-runs, 185945Z/190751Z). feat/integration sits at 26efe0c (tasking foundation V2/V3 merged, 10
-suites green, native rebuilt in the worktree, gate G-B PASS) and feat/tasking-rulings at 8db033e
-(fix pass 2 LANDED: A1 chain gate - COA-STP1 42 dispatches / 0 skips offline, deterministic; A2,
-B1, B4, B6, B7; Q4 and Q5 built; 18 suites, rulings suite 112 checks; pass-3 cold-start review
-RUNNING before merge; follow-up STP-809 filed - the facade must expose back-end status
-Paused/Playing/gone so a dead back end does not freeze task time under Q5). The day's 11 runs,
-one line each: G7 attempt 1 VOID (a blank line killed the STOMP pump, STP-795); attempt 2 VOID (a
-lone platform never enters the Lua planner); attempt 3 VOID (AtOrder tasked members ~175 s before
-the area was recognised); attempt 4 MEASURED 15:42Z (legs 1-2 mesh-planned 4/4, the 10-seam leg 3
-refused 4/4 - a length ceiling, AREA-dependent); appData validation (164906Z) CORRECTED (8
-current-point gate failures; loadAllNavigationDataOnTerrainLoad=1 is a NULL RESULT); G8 (165919Z)
-refused 4/4 at gamewareMemorySize=128 - memory is NOT the lever; G7b (170824Z) planned the 4,989
-m / 10-seam leg 8/8 with 0 refusals via the custom including SMS - THE FIX; G8b (172134Z) refused
-again at gamewareQueryTimeBudget=50ms - time budget is NOT the lever; G7c (185945Z) VOID (cache
-cold again within the hour, nav area never registered, 31/31 gate-failed); G7c-gate (190751Z)
-CONFIRMED the custom SMS single-variable (0 gate failures, 8/8 long legs planned, 32/32 mesh
-plans). MERGED 22:05Z: rulings 1ffb4ee (pass-3 fixes, suite 136/0) -> integration -> main 0f4d09e (46 src
-files). G-A 22:45Z (6f91feb) built+pinned; V2 LIVE 23:09Z proved the chain (PREREG_V2 RESULTS); runner stop rule FIXED+merged ff15a4e; STP-809 merged 4cd84d7 (pin STALE, G-A rerun owed); V13 00:15Z PASSED all five (Q4 refusal, TASKSTRT, C16 fires/silent, stop rule closed at +184 s); tools52 MERGED b4fcf58 (join gate owed); V4b MERGED 16995b3 (suite 176/0); lanes out: pausesim, route-shift, AG research; N2b (abstract-graph SMS +
-slope-avoidance-factor 2.0, fixture _AG_S2, 1-35 lane) is next on L1, replacing the paused ridge
-test (N1 dropped 20:40Z: propagation-box-extent is a dead parameter for vehicles)
-(NAVDOCS_ABSTRACT_GRAPHS_AND_SLOPE_2026-09-14.md). The user's rulings are ALL IN: task-vocabulary
-Q1-Q7 (20:00Z) alongside the earlier R1-R6, TASKABRT (row 19), pre-flight-as-warnings (row 20),
-and the C:\C2SIM homes (row 21). The MAK licence is RENEWED to 2026-10-31 (RUNBOOK 0.5.15;
-c8730e7). METHOD LESSON for memory: a docs-first relapse - L1 drifted back to probing (the paused
-ridge test) before the Gameware Navigation docs were read; the user's 2026-09-14 correction
-("drift back to probing") produced the 20:00Z docs pass that redirected L1 to N2b. The
-2026-09-15 lapse warning stays superseded (archived, section 4).
+**State at 2026-09-15 01:00Z:** main is at f54a616 (the abstract-graph connectivity research
+record). main carries: rulings + three review passes merged to main (0f4d09e); STP-809 back-end
+control state merged (4cd84d7); runner stop-rule fix merged (ff15a4e); the tools52 conversion
+merged (b4fcf58); V4b merged (16995b3). G-A's PIN (99B7B235..., main 165e04c) is STALE (predates
+STP-809/tools52/V4b); rerun owed after pausesim + route-shift. LIVE PROOFS tonight, off the merged
+build: V2 (230706Z) ran the 42-task COA-STP1 chain, 41/42 dispatched, 40 timed TASKCMPLT on the sim
+clock, one ruled TASKABRT cascade, 0 push failures; V13 (001159Z) held all five gates - Q4
+malformed-task refusal at receipt before any TASKSTRT, C16 fired on the frozen 1-35 and stayed
+silent on the moving 1-1, and the fixed stop rule closed the window at +184 s of 900; B7
+heading/speed PASSED off V2's capture (heading 0.1 deg median off course, speed tracking the sim
+ratio). NAV THREAD: N2b (205046Z) - the AG override alone is NOT sufficient, every AtOrder member's
+query refused at the destack start; N2c (215944Z) - a 300 s task-start delay refused identically,
+falsifying load timing; N2d (224505Z) - a 500 m start shift let short goals plan and drove the
+route 1.3 km north of the six-run freeze - a LINE property. RESEARCH (f54a616): MojaveCOA (54x41
+km) is 5.5x over VR-Forces' documented 20x20 km nav-area maximum (UG52 66.2); the generation log's
+per-sector connectivity ratio shows 254 of 8,856 COA sectors fragmented (<0.5), concentrated on
+1-35's lane (sector ratio 0.11 at the destack start); product rule = cap every generated area at
+20x20 km and tile the AO (STP-802/803). V7 (PREREG_V7_AO20_2026-09-15.md, staged) reruns N2d on
+MojaveAO20. DEMO REMEDY (the pre-flight route-shift lane, independent of the AG research) does not
+need V7. OPEN USER RULINGS: none (four-tools ruling, 00:40Z, was the last). OWED: V5 (Q5
+pause+kill, needs the pause tool), V6 (live join gate for the four converted tools, needs 5-7 fresh
+appNos), V7, V8 (route-shift run), then the G-A rerun. Prior 20:30Z paragraph archived verbatim:
+docs/experiments/HANDOFF_2026-09-14_ARCHIVE_pm.md sec 8.
 
 ## 2. Where each lane stands (source: docs/PLAN_PARALLEL_LANES_2026-09-14.md - the live plan)
 
