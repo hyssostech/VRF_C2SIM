@@ -23,6 +23,8 @@
          default is CWD-RELATIVE ("..\appData\settings\connections"), so a tool started
          from anywhere but the 5.2d bin64 silently joined with built-in defaults. -->
     <Compile Include="..\Shared\ConnectionConfig.cs" Link="ConnectionConfig.cs" />
+    <!-- The back-end settle cap as an option (V6c arm A1, 2026-09-15). Default unchanged. -->
+    <Compile Include="..\Shared\SettleCap.cs" Link="SettleCap.cs" />
   </ItemGroup>
   <ItemGroup>
     <!-- The C++/CLI bridge (native VR-Forces control). CopyLocal drops VrfBridge.dll

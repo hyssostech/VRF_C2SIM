@@ -2261,7 +2261,7 @@ try {
 # nothing), and the capability is treated as unsupported.
 function Invoke-CapabilityProbe {
     param([Parameter(Mandatory)][string]$Name, [Parameter(Mandatory)][string]$File, [string]$Cwd, [int]$TimeoutSec = 30)
-    $o = [ordered]@{ tool = $Name; exitCode = $null; outcome = 'not-run'; lines = @(); supportsStopFile = $false }
+    $o = [ordered]@{ tool = $Name; exitCode = $null; outcome = 'not-run'; lines = @(); supportsStopFile = $false; supportsReportBackends = $false }
     if (-not (Test-Path -LiteralPath $File -PathType Leaf)) { $o.outcome = 'binary-missing'; return $o }
     $psi = New-Object System.Diagnostics.ProcessStartInfo
     $psi.FileName = $File
@@ -2297,6 +2297,11 @@ function Invoke-CapabilityProbe {
     }
     $o.supportsStopFile  = Test-ToolCapability -ProbeLines $o.lines -ExitCode $o.exitCode -Capability 'stop-file'
     $o.supportsEndpoints = Test-ToolCapability -ProbeLines $o.lines -ExitCode $o.exitCode -Capability 'endpoints'
+    # V6c arm A0 (2026-09-15). Until today NO run in the record said when a VR-Forces back end's
+    # STATUS reaches an observer: this runner never passed --report-backends, so no trace carried
+    # a backends= column - and the one surviving explanation of the V6/V6b join-gate failure is
+    # exactly that cadence (docs/experiments/PREREG_V6C_LATE_JOINER_2026-09-15.md).
+    $o.supportsReportBackends = Test-ToolCapability -ProbeLines $o.lines -ExitCode $o.exitCode -Capability 'report-backends'
     return $o
 }
 Say-Head 'Stage 0b - observer capability probe (offline, read-only): can the deployed observers be told to stop?'
@@ -2322,6 +2327,11 @@ if ($ProbeListen.supportsEndpoints) {
     exit 2
 } else {
     Say-Warn 'ListenReports: endpoints NOT supported by the deployed binary; the historical 8080/61613 endpoints match this run, so it still hears the right server.'
+}
+if ($ProbeWatch.supportsReportBackends) {
+    Say-Ok 'WatchVrf: report-backends SUPPORTED -> every ''# t='' sample line will carry backends=<n>, the back-end status cadence instrument (V6c arm A0).'
+} else {
+    Say-Warn 'WatchVrf: report-backends NOT advertised by the deployed binary - the trace will carry NO backends= column, and the back-end status cadence stays UNMEASURED (V6c arm A0 cannot be read from this run). Rebuild/redeploy tools/WatchVrf.'
 }
 $TraceStopMode = if ($ProbeWatch.supportsStopFile -and $ProbeListen.supportsStopFile) { 'stop-file' }
                  elseif ($ProbeWatch.supportsStopFile -or $ProbeListen.supportsStopFile) { 'partial' }
@@ -3422,8 +3432,11 @@ try {
     Say '  is that the oracle can JOIN and DISCOVER. The real coordinate criterion is applied'
     Say '  post-init at stage 7, against the scoring trace.'
     $preSecs = $PreCheckSecs
+    # --report-backends: appended ONLY when stage 0b saw it advertised (an unprobed flag on the
+    # live path is exit 2 and a dead stage - the -ConsoleLogDir landmine). V6c arm A0.
+    $WatchBackendArgs = @(); if ($ProbeWatch.supportsReportBackends) { $WatchBackendArgs = @('--report-backends') }
     $r = Invoke-External -Name 'WatchVrf-precheck' -File $ExeWatchVrf `
-            -Arguments @([string]$AppNo['oraclePre'], [string]$preSecs, [string]$SampleSecs, $FederationArg) `
+            -Arguments (@([string]$AppNo['oraclePre'], [string]$preSecs, [string]$SampleSecs, $FederationArg) + $WatchBackendArgs) `
             -Cwd $Bin64 -StdOutFile $PathPreTrace -StdErrFile $PathPreTraceErr `
             -TimeoutSec ($preSecs + $StageTimeoutSec) `
             -Note 'ADVISORY. WatchVrf exit 2 = usage/arg error (the runner built bad args); exit 1 = operational. These args are generated, so treat a 2 as a runner bug. Exits on its OWN timer after seconds-to-watch.'
@@ -3486,7 +3499,7 @@ try {
         Stop-Runner 3 ('the observer stop file {0} appeared before the observers were started - the run directory is shared with another writer. Refusing to start the observers (they would refuse it themselves with exit 2).' -f $PathStopFile)
     }
     $WatchProc = Start-External -Name 'WatchVrf-trace' -File $ExeWatchVrf `
-            -Arguments (@([string]$AppNo['oracleTrace'], [string]$EffWatchSecs, [string]$SampleSecs, $FederationArg) + $WatchConsoleArgs + $WatchStopArgs) `
+            -Arguments (@([string]$AppNo['oracleTrace'], [string]$EffWatchSecs, [string]$SampleSecs, $FederationArg) + $WatchConsoleArgs + $WatchStopArgs + $WatchBackendArgs) `
             -Cwd $Bin64 -StdOutFile $PathTrace -StdErrFile $PathTraceErr `
             -Note $(if ($ProbeWatch.supportsStopFile) { 'THE MOVEMENT ORACLE and the scoring input. Started before PushInit (HEADLESS_RUN_PLAN sec 2). Duration is the CAP; teardown ends it via the stop file and it resigns cleanly; never killed.' }
                     else { 'THE MOVEMENT ORACLE and the scoring input. Started before PushInit (HEADLESS_RUN_PLAN sec 2). Resigns on its own timer (deployed binary has no --stop-file); never killed.' })
