@@ -682,3 +682,15 @@ PREDICTIONS (HIGH - the offline selftest ran this exact geometry; a miss is a ST
 - Units do not move (nothing was dispatched): 0 m displacement is the expected reading here.
 MISS = any dispatch to the back end, any back-end loss, or no refusal reported -> STOP and read the app log.
 ONE run. Harvest adjudicates.
+
+## AMENDMENT 7 RESULTS - V6i (2026-09-15 18:40Z run, `runs/20260915T184048Z_run`)
+
+VERDICT: PASS on all three predictions, MISS condition not triggered (harvest: V6_LIVE_JOIN_GATE_2026-09-15.md sec 14).
+
+- Clause 1 (refused before dispatch) PASS: PushOrder exit 0; app log names vertex 1, 8768.9 km, 100 km bound, verbatim;
+  ONE TASKABRT on the bus; ONE ObservationReport with the refusal Marking AND a LocationObservation at the vertex
+  (58.702956,16.509229); 0 `Starting job node` / move-to lines anywhere after the order.
+- Clause 2 (back end stays healthy) PASS: `backends=1` on 77/77 samples, 0 BACK END LOST, wsMB flat at the pre-order
+  value (3399 MB) through teardown; window closed EARLY at t+66.1s, a non-miss per this clause. The late tool fired
+  AFTER that close (appNo 4578, BackendCount=0 against an already-resigned federation) - VOID, not scored.
+- Clause 3 (no movement) PASS: all 6 units, 0.0 m displacement.

@@ -843,3 +843,34 @@ STP-822: 0 `BACK END LOST`, 0 loss ObservationReport, 0 TASKABRT, 66 position re
 window had closed at 17:16:03.9Z and rtiexec shows `Federate4 ("VR-Forces Sim Engine 5.2d") has resigned` before it joined -
 `BackendCount=0` is the right answer to an empty federation. 4566 burned; the driver's "V6f" text is stale. UNTESTED and said
 so: survival to the full 720 s - flat-and-serving is verified only to dispatch+127 s, past V6e/V6f's +112 s status loss.
+
+## 14. V6i RESULTS (2026-09-15 18:40Z run) - STP-833 LIVE
+
+`runs/20260915T184048Z_run`. AMENDMENT 7's recipe exactly (V6f fixture/init/consoles/nav-gate/window, order
+`PROBE_V6F_PLATOON_Order.xml` T_R5_PL1 on SWEDEN vertices), STP-833 route-extent check ON at defaults
+(MaxVertexFromTaskeeKm 100, MaxRouteLegKm 50), Stage 2h holder armed. **VERDICT (AMENDMENT 7 vocabulary):
+PASS on every clause** - STP-833 refuses the malformed geometry before it reaches the back end, which stays
+healthy throughout.
+
+- Refusal (vrfc2simapp.log, verbatim): `ROUTE EXTENT REFUSAL (STP-833, Vrf:RouteExtentCheck): task T_R5_PL1
+  (1222.MechPlt~PXY) - route vertex 1 at 58.70296,16.50923 is 8768.9 km from the taskee at 34.61296,-116.60049
+  (bound 100 km) - refused, not dispatched.` One matching `SENT TASK STATUS REPORT (TASKABRT)` line.
+- Bus capture (68 records): TaskStatusCode TASKABRT 1 / TASKCMPLT 0 / TASKSTRT 0. ONE ObservationReport after
+  the order (#8, 18:43:46.580Z) carries the refusal Marking plus a LocationObservation at 58.702956,16.509229
+  (the vertex, to 6 dp); 6 pre-order Proxy-marking reports + 60 PositionReports are unaffected.
+- Nothing dispatched: 0 `Starting job node` / `ground-vehicle-move-to` / `move-along` / `TASKSTRT` after the
+  order; 6 console lines run order-received -> the `fail:` refusal, no job/move line between. All 6 units:
+  0.0 m displacement.
+- Back end health: `backends=1` on 77/77 watchvrf-trace.csv samples, 0 `BACK END LOST`. wsMB steps 2916->3399
+  at 18:43:36-51 (the pre-order NavArea/placement gate, not the task) then flat 3399 MB to teardown. ONE
+  ws-tripwire alert - same creation-adjacent false positive as V6f/V6g (sec 12.2/13); manifest
+  `backendWsRunaway=true` again false.
+- Holder (STP-825): attempt 1/4, appNo 4586 pid 57928, joined 18:41:01.526Z (9s of 45s). Vendor copy:
+  `Joined federation` 1, `Could not create Federation` 0.
+- Late-tool arm VOID, not a MISS: SetSimRate fired at window+180s (18:47:18Z, appNo 4578) but the window had
+  already closed EARLY at 18:45:22.632Z (66.1s of 720s), ~116s earlier; `BackendCount=0` is the right answer
+  to an already-torn-down federation (V6g's pattern). 4578 burned.
+- COSMETIC DEFECT (no fix): the runner's own evidence line calls the terminal report "TASKCMPLT" although it
+  was TASKABRT (`v6f_runner.log`: "...first saw TASKCMPLT at 2026-09-15T18:44:21.516Z..."). Source:
+  `Test-ReportEvidence` (`scripts/RunnerLib.ps1:792`) hardcodes that label regardless of terminal code, fed
+  by `$completion.firstSeenUtc` (`RunC2SimScenario.ps1`); same text is in run-manifest.json.
