@@ -31,14 +31,37 @@
   thread-samples.csv -> thread-samples.alerts.txt) and printed to stdout; sampling continues - nothing
   is ever killed from here.
 
+  RE-ARMABLE WARM-UP (2026-09-15, V6f harvest defect 2): -WsSlopeWarmupSec above is relative to THIS
+  PROCESS'S OWN START, which protects the universal load ramp but nothing else - the V6f run
+  (runs/20260915T160411Z_run) put a legitimate object-creation-and-compose burst at t+175s, long past
+  the default 60s warmup, and the tripwire alerted on it (16:07:20Z) nine seconds after the order
+  reached the bus (16:07:10.545Z). -WarmupResetAtUtc <UTC datetime> tells the tripwire to treat THAT
+  instant as a second t=0 for the warmup test: a sample timestamped at or after the reset restarts the
+  -WsSlopeWarmupSec countdown from the reset instant instead of from process start; a sample before the
+  reset (or when no reset is given) is judged exactly as before. This is armed FOR REAL from the first
+  poll where it can be parsed - a value already known at start-up (typically -ReplayCsv, where the
+  dispatch instant is already on record) applies immediately, and via -WarmupResetFile <path> the LIVE
+  loop is a running process that cannot be handed a new command-line argument once started: it re-checks
+  that file (like -StopFile) once per sample until it exists and parses, then latches the value for the
+  rest of the run - the runner writes ONE line (the UTC dispatch instant, any format
+  [datetime]::Parse(..., RoundtripKind) accepts) to that path the moment the order reaches the bus. Only
+  the FIRST successful read is used; a later rewrite of the file is ignored (armed once, at dispatch, by
+  design). Neither option changes -WsSlopeWarmupSec's own default or its process-start behaviour when
+  no reset is ever supplied - a run that never sets one is byte-for-byte the pre-2026-09-15 tripwire.
+
   -ReplayCsv <path> replays a previously captured thread-samples.csv through the SAME tripwire function
   (Add-WsSlopeSample) offline, for proof/regression use - no process, no OutFile, no live sampling.
+  -WarmupResetAtUtc and -WarmupResetFile both work under -ReplayCsv too (the file is read ONCE, before
+  the first row, since there is no live wait to poll across).
 
 .EXAMPLE
   scripts\SampleThreads.ps1 -ProcessName vrfSimHLA1516e -MaxSec 1900 -IntervalSec 5 -OutFile x\threads.csv
 
 .EXAMPLE
   scripts\SampleThreads.ps1 -ReplayCsv runs\launch52\RunScenario-20260915T130626Z.threads.csv
+
+.EXAMPLE
+  scripts\SampleThreads.ps1 -ReplayCsv runs\20260915T160411Z_run\thread-samples.csv -WarmupResetAtUtc '2026-09-15T16:07:10.545Z'
 #>
 param(
     [string] $ProcessName,
@@ -52,6 +75,8 @@ param(
     [int]    $WsSlopeWindowSamples = 6,
     [double] $WsSlopeWarmupSec = 60,
     [double] $WsSlopeMaxAvgCpuCores = 1.0,
+    [string] $WarmupResetAtUtc = '',
+    [string] $WarmupResetFile = '',
     [string] $ReplayCsv = ''
 )
 Set-StrictMode -Version Latest
@@ -70,18 +95,37 @@ function Get-WsSlopeAlertLine {
         $TUtcText, $SlopeMBPerMin, $WindowSec, $WsNowMB, $ProcId)
 }
 
+# Parses a UTC datetime out of -WarmupResetAtUtc / a -WarmupResetFile's content. Returns $null on
+# anything unparseable or blank - a bad or not-yet-written reset value must never throw and must never
+# be mistaken for "warm-up re-armed"; it is simply treated as "no reset yet".
+function ConvertTo-WsResetUtc {
+    param([AllowNull()][AllowEmptyString()][string] $Text)
+    if ([string]::IsNullOrWhiteSpace($Text)) { return $null }
+    try {
+        return ([datetime]::Parse($Text.Trim(), [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)).ToUniversalTime()
+    } catch {
+        return $null
+    }
+}
+
 function New-WsSlopeTracker {
     param(
         [int]    $WindowSamples,
         [double] $SlopeMBPerMinAlert,
         [double] $WarmupSec,
-        [double] $MaxAvgCpuCores
+        [double] $MaxAvgCpuCores,
+        # RE-ARMABLE WARM-UP (see the .DESCRIPTION block above). $null = the historical
+        # process-start-relative warm-up, unchanged. Set directly at construction (a value already
+        # known, e.g. -ReplayCsv) or later by mutating the returned object's .ResetAtUtc property (the
+        # live loop's -WarmupResetFile poll) - a pscustomobject property is a plain mutable NoteProperty.
+        $ResetAtUtc = $null
     )
     [pscustomobject]@{
         WindowSamples      = $WindowSamples
         SlopeMBPerMinAlert = $SlopeMBPerMinAlert
         WarmupSec          = $WarmupSec
         MaxAvgCpuCores     = $MaxAvgCpuCores
+        ResetAtUtc         = $ResetAtUtc
         Buffer             = New-Object System.Collections.Generic.List[object]
         Consecutive        = 0
         Alerted            = $false
@@ -119,7 +163,15 @@ function Add-WsSlopeSample {
     $slope = 0.0
     if ($spanSec -gt 0) { $slope = (($newest.WsMB - $oldest.WsMB) / $spanSec) * 60.0 }
     $avgCpu = ($Tracker.Buffer | Measure-Object -Property CpuCores -Average).Average
-    $isOver = ($newest.TSec -ge $Tracker.WarmupSec) -and
+    # Re-armable warm-up: once a reset instant is set AND this sample is at or after it, the warm-up
+    # clock is elapsed-since-reset, not elapsed-since-process-start - see New-WsSlopeTracker/.DESCRIPTION.
+    # A sample still BEFORE the reset (or a run with no reset at all) uses the original TSec test,
+    # unchanged.
+    $warmupElapsedSec = $newest.TSec
+    if ($null -ne $Tracker.ResetAtUtc -and $newest.TUtc -ge $Tracker.ResetAtUtc) {
+        $warmupElapsedSec = ($newest.TUtc - $Tracker.ResetAtUtc).TotalSeconds
+    }
+    $isOver = ($warmupElapsedSec -ge $Tracker.WarmupSec) -and
               ($slope -ge $Tracker.SlopeMBPerMinAlert) -and
               ($avgCpu -le $Tracker.MaxAvgCpuCores)
     if ($isOver) {
@@ -144,7 +196,15 @@ function Get-WsSlopeAlertsPath {
 # ---- -ReplayCsv: replay a captured CSV through the SAME tripwire, offline, no process -----
 if ($ReplayCsv) {
     if (-not (Test-Path -LiteralPath $ReplayCsv)) { throw "SampleThreads -ReplayCsv: file not found: $ReplayCsv" }
-    $tracker = New-WsSlopeTracker -WindowSamples $WsSlopeWindowSamples -SlopeMBPerMinAlert $WsSlopeMBPerMinAlert -WarmupSec $WsSlopeWarmupSec -MaxAvgCpuCores $WsSlopeMaxAvgCpuCores
+    # RE-ARMABLE WARM-UP, resolved ONCE before the first row: -WarmupResetAtUtc wins if given; else
+    # -WarmupResetFile is read a single time (no live wait to poll across in a replay). Either way this
+    # is the SAME ConvertTo-WsResetUtc/-ResetAtUtc plumbing the live loop uses below.
+    $replayResetAtUtc = ConvertTo-WsResetUtc -Text $WarmupResetAtUtc
+    if ($null -eq $replayResetAtUtc -and $WarmupResetFile -and (Test-Path -LiteralPath $WarmupResetFile)) {
+        $replayResetAtUtc = ConvertTo-WsResetUtc -Text (Get-Content -LiteralPath $WarmupResetFile -Raw -ErrorAction SilentlyContinue)
+    }
+    $tracker = New-WsSlopeTracker -WindowSamples $WsSlopeWindowSamples -SlopeMBPerMinAlert $WsSlopeMBPerMinAlert -WarmupSec $WsSlopeWarmupSec -MaxAvgCpuCores $WsSlopeMaxAvgCpuCores -ResetAtUtc $replayResetAtUtc
+    if ($replayResetAtUtc) { "ReplayCsv: warm-up RE-ARMED at $($replayResetAtUtc.ToString('o'))" }
     $rows = @(Import-Csv -LiteralPath $ReplayCsv)
     $rowsUsed = 0
     $alerts = @()
@@ -195,11 +255,24 @@ $prevThreads = @{}
 foreach ($th in $proc.Threads) { $prevThreads[$th.Id] = $th.TotalProcessorTime }
 $prevWall = [DateTime]::UtcNow
 $tStart = $prevWall
-$wsTracker = New-WsSlopeTracker -WindowSamples $WsSlopeWindowSamples -SlopeMBPerMinAlert $WsSlopeMBPerMinAlert -WarmupSec $WsSlopeWarmupSec -MaxAvgCpuCores $WsSlopeMaxAvgCpuCores
+# RE-ARMABLE WARM-UP: -WarmupResetAtUtc, if already known at start-up, applies from sample 1. Otherwise
+# -WarmupResetFile is polled once per sample below (like -StopFile) until it exists and parses, because
+# a live process cannot be handed a new command-line argument after it has started - see .DESCRIPTION.
+$wsResetAtUtc = ConvertTo-WsResetUtc -Text $WarmupResetAtUtc
+$wsTracker = New-WsSlopeTracker -WindowSamples $WsSlopeWindowSamples -SlopeMBPerMinAlert $WsSlopeMBPerMinAlert -WarmupSec $WsSlopeWarmupSec -MaxAvgCpuCores $WsSlopeMaxAvgCpuCores -ResetAtUtc $wsResetAtUtc
+if ($wsResetAtUtc) { "SampleThreads: WS warm-up RE-ARMED at $($wsResetAtUtc.ToString('o')) (from -WarmupResetAtUtc)" }
+elseif ($WarmupResetFile) { "SampleThreads: WS warm-up will RE-ARM from $WarmupResetFile once it exists and parses" }
 
 while ($true) {
     Start-Sleep -Seconds $IntervalSec
     if ($StopFile -and (Test-Path $StopFile)) { break }
+    if ($WarmupResetFile -and -not $wsTracker.ResetAtUtc -and (Test-Path -LiteralPath $WarmupResetFile)) {
+        $wsFileReset = ConvertTo-WsResetUtc -Text (Get-Content -LiteralPath $WarmupResetFile -Raw -ErrorAction SilentlyContinue)
+        if ($wsFileReset) {
+            $wsTracker.ResetAtUtc = $wsFileReset
+            "SampleThreads: WS warm-up RE-ARMED at $($wsFileReset.ToString('o')) (from $WarmupResetFile)"
+        }
+    }
     $now = [DateTime]::UtcNow
     $tSec = ($now - $tStart).TotalSeconds
     if ($tSec -gt $MaxSec) { break }

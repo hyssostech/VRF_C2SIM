@@ -681,6 +681,40 @@ function Get-BusOrderUtc {
     return $t
 }
 
+# Stage 8b WS RUNAWAY ABORT (RUNBOOK 0.5.11 item 17 extension, 2026-09-15 - V6f harvest defects 1+2).
+# scripts\SampleThreads.ps1's tripwire only WARNS: it appends one line per confirmed episode to
+# <csv base>.alerts.txt and nothing reads that file while a run is live. This is the runner-side half:
+# given the WHOLE alerts file text and the instant the order reached the bus, return only the lines
+# timestamped AT OR AFTER that instant, in file order - an alert from before the order even existed
+# cannot be evidence THIS order caused a runaway. (Defect 2 - the object-creation-burst alert firing
+# shortly after a mid-run dispatch - is a SEPARATE fix, SampleThreads.ps1's own re-armable warm-up
+# -WarmupResetAtUtc/-WarmupResetFile; this filter does not touch that.)
+# A line whose leading timestamp fails to parse is CONSERVATIVELY KEPT, not dropped: the producer
+# (SampleThreads.ps1's Get-WsSlopeAlertLine) always writes a round-trip ISO-8601 UTC stamp first, so a
+# parse failure means something is already wrong, and silently discarding possible runaway evidence
+# would be the worse failure mode.
+function Get-WsRunawayAlertsSinceDispatch {
+    param(
+        [AllowNull()][AllowEmptyString()][string] $AlertsText,
+        [Parameter(Mandatory)][datetime] $DispatchUtc
+    )
+    $out = @()
+    if ([string]::IsNullOrWhiteSpace($AlertsText)) { return $out }
+    $dispatch = $DispatchUtc.ToUniversalTime()
+    foreach ($line in ($AlertsText -split "`r?`n")) {
+        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+        $ts = ($line -split '\s+', 2)[0]
+        $parsed = $null
+        try {
+            $parsed = ([datetime]::Parse($ts, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)).ToUniversalTime()
+        } catch {
+            $parsed = $null
+        }
+        if ($null -eq $parsed -or $parsed -ge $dispatch) { $out += $line }
+    }
+    return $out
+}
+
 # Condition (4). Returns AllSatisfied plus one record per taskee explaining why.
 #
 # THREE INDEPENDENT SATISFIERS, tried in this order; the FIRST that holds wins and names
