@@ -770,8 +770,20 @@ Check 'exactly TWO Copy-VendorSimLog call sites: the startup-crash path and the 
 Check 'the crash-path harvest runs BEFORE the corpse is closed' (
     $lv52Text.IndexOf("-Occasion 'STARTUP-CRASH'") -gt 0 -and
     $lv52Text.IndexOf("-Occasion 'STARTUP-CRASH'") -lt $lv52Text.IndexOf('Close-CrashedBackend -ProcessId $simProc.Id'))
+# The guard is a CONTAINMENT property, not a layout one: asserting that the harvest is
+# the very next line after the guard broke on 2026-09-04, when the SCENARIO-LOAD GATE put
+# ~24 lines between them and left the guard itself untouched. Ask the AST the real
+# question instead - exactly one `if (-not $simCrash.Crashed)` block contains a harvest,
+# and it is the READY/NOT-READY one, never the crash-path copy.
+$ifReadyHarvest = @($lv52Ast.FindAll({ param($a)
+    $a -is [System.Management.Automation.Language.IfStatementAst] -and
+    $a.Clauses[0].Item1.Extent.Text -eq '-not $simCrash.Crashed' -and
+    $a.Clauses[0].Item2.Extent.Text -match 'Copy-VendorSimLog' }, $true))
 Check 'the ready-path harvest is skipped when the launch crashed (the crash path already took it)' (
-    $lv52Text -match 'if \(-not \$simCrash\.Crashed\) \{\s*\r?\n\s*\$null = Copy-VendorSimLog')
+    $ifReadyHarvest.Count -eq 1 -and
+    $ifReadyHarvest[0].Clauses[0].Item2.Extent.Text -match '-Occasion \$\(if \(\$backendHealthy\)' -and
+    $ifReadyHarvest[0].Clauses[0].Item2.Extent.Text -notmatch 'STARTUP-CRASH') (
+    "matches=$($ifReadyHarvest.Count)")
 
 # The runner's 5.2 profile must carry all of it: no -LogFileName on the launch line, the
 # manifest field, and a marker parse that really matches the line the launcher prints.
@@ -838,7 +850,15 @@ try {
     Check 'probe anchor found in the runner (the test is wired to real code)' ($src.Contains($anchor))
     $patched = $src.Replace($anchor, "        throw 'SYNTHETIC TERMINATING ERROR (RunnerTurnaround.Tests.ps1)'" + [Environment]::NewLine + $anchor)
     [System.IO.File]::WriteAllText($probe, $patched, (New-Object System.Text.UTF8Encoding($false)))
-    $out  = & pwsh -NoProfile -File $probe -DryRun -SkipServerCheck 2>&1
+    # PINNED 64-BIT HOST + THE 5.2 PROFILE, for the two reasons 8h below spells out and
+    # this check originally missed. Bare "pwsh" on this machine is the 32-BIT build, which
+    # the runner's OWN bitness gate refuses at exit 2 BEFORE the injected error is reached;
+    # and the default profile aborts at Stage 0 tool-existence validation, because only
+    # Release-5.2 is built in this tree. Either one makes this a false RED (measured
+    # 2026-09-15: bare pwsh gave exit=2 and "this runner is hosted in a 32-BIT PowerShell",
+    # while the pinned host + profile gave exit=5 and DRY-RUN FAILED, as asserted below).
+    $probePwsh = 'C:\Program Files\PowerShell\7\pwsh.exe'
+    $out  = & $probePwsh -NoProfile -File $probe -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck 2>&1
     $code = $LASTEXITCODE
     $text = ($out | Out-String)
     Check 'a terminating error in -DryRun exits 5 (UNEXPECTED TERMINATING ERROR), not 0' ($code -eq 5) "exit=$code"
