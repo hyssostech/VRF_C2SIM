@@ -3124,7 +3124,24 @@ NOTE: numbers this runner allocates but does not consume (e.g. an abort before t
 join) are BURNED, not recycled. The run manifest records which were actually used.
 
 - 2026-09-15 V6i (STP-833 live: the Sweden order must be REFUSED) late tool SetSimRate at window+180 s, gate driver v6f_gates.ps1: appNo 4578 CLAIMED (seat).
-*** NEXT FREE: 4579 *** (authoritative - the ONLY such marker in this file. Update this
+
+CLAIMED 2026-09-15 18:40 by scripts/RunC2SimScenario.ps1 (run 20260915T184048Z_run). Ledgered BEFORE any join,
+per the never-reuse non-negotiable. Annotate with results from the run manifest.
+- 4579: CLAIMED - LaunchVrf52.ps1 back-end (vrfSimHLA1516e), 5.2d independent mode
+- 4580: CLAIMED - LaunchVrf52.ps1 front-end (vrfGui), 5.2d independent mode (allocated even with -NoGui, then BURNED)
+- 4581: CLAIMED - WatchVrf ADVISORY pre-init oracle pre-check (RUNBOOK 0.5.7)
+- 4582: CLAIMED - WatchVrf MAIN run trace - the movement oracle / scoring input
+- 4583: CLAIMED - VrfC2SimApp Vrf__ApplicationNumber (the interface federate)
+- 4584: CLAIMED - tools/RtiProbe - STAGE 2c PRE-LAUNCH RTI READINESS GATE (C1). Throwaway create-or-join against the federation with internal retry+backoff, then clean resign, BEFORE the back-end launches (RTI_LAUNCH_HARDENING_DESIGN.md A2-A7 - the RUN-2 fix). CONSUMED on EVERY run (the gate always runs pre-launch). One number covers all internal retries - RtiProbe reuses this single appNumber across attempts by design.
+- 4585: CLAIMED - tools/CreateOne - STAGE 7b FAILURE-PATH DIAGNOSTIC ONLY (RUNBOOK 0.5.7 STRONGER CHECK). CONSUMED ONLY IF THE ORACLE GATE FAILS; on a healthy run it is NEVER JOINED and this number goes UNCONSUMED. Unconsumed numbers are BURNED, never recycled - see the NOTE below. Allocated here rather than mid-run because every number must be ledgered BEFORE any join.
+- 4586: CLAIMED - tools/RtiProbe - STAGE 2h FEDERATION HOLDER attempt 1 of 4 (STP-825): create-or-join MAK-ONE-2025 and STAY JOINED for 900s so the SIM never has to CREATE the federation (rtiexec 5.0.1 rejects creator FOM distribution intermittently; joins have never failed). CONSUMED ONLY IF attempt 1 is reached; an earlier success leaves the rest UNCONSUMED and BURNED.
+- 4587: CLAIMED - tools/RtiProbe - STAGE 2h FEDERATION HOLDER attempt 2 of 4 (STP-825): create-or-join MAK-ONE-2025 and STAY JOINED for 900s so the SIM never has to CREATE the federation (rtiexec 5.0.1 rejects creator FOM distribution intermittently; joins have never failed). CONSUMED ONLY IF attempt 2 is reached; an earlier success leaves the rest UNCONSUMED and BURNED.
+- 4588: CLAIMED - tools/RtiProbe - STAGE 2h FEDERATION HOLDER attempt 3 of 4 (STP-825): create-or-join MAK-ONE-2025 and STAY JOINED for 900s so the SIM never has to CREATE the federation (rtiexec 5.0.1 rejects creator FOM distribution intermittently; joins have never failed). CONSUMED ONLY IF attempt 3 is reached; an earlier success leaves the rest UNCONSUMED and BURNED.
+- 4589: CLAIMED - tools/RtiProbe - STAGE 2h FEDERATION HOLDER attempt 4 of 4 (STP-825): create-or-join MAK-ONE-2025 and STAY JOINED for 900s so the SIM never has to CREATE the federation (rtiexec 5.0.1 rejects creator FOM distribution intermittently; joins have never failed). CONSUMED ONLY IF attempt 4 is reached; an earlier success leaves the rest UNCONSUMED and BURNED.
+NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
+join) are BURNED, not recycled. The run manifest records which were actually used.
+
+*** NEXT FREE: 4590 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
