@@ -118,7 +118,7 @@ or a permission rule). V8 (023743Z, de32dac): shift went SOUTH - C2 SIDED the ch
 V8b (033226Z, 79d3fe4): ALL R8 MET - +250 m north, SIX OF SIX crossed, no crawl. V8z zero-offset control
 (041036Z, 8d87391): BRANCH A - froze 19.7 m from P11; THE LATERAL OFFSET IS THE REMEDY, insertion inert. OPEN USER RULINGS: none. V6 RUN 03:10Z (scratch federation
 20260915T030650Z): the tools JOIN but see NO back end + placeholder uuids only, ResetVrf a false green
-(STP-820). V6b 11:40Z: BOTH defences + the runner-launched PauseSim FAILED; only late joiners fail - back-end STATUS messages never reach them (V6_LIVE_JOIN_GATE, d9dd06e); V6c prereg written. OWED: V6c
+(STP-820). V6b: every late joiner FAILED, the early app saw the back end (d9dd06e). V6c 12:22Z: A3 EARLY HIT (0.2 s); CreateOne LATE in the EMPTY sim also HIT; A1/A2 not run (QUERYINIT 'Submitter not specified', no init). OWED: V6c rerun (A5/A1/A2)
 verdict, the Q5 kill-half re-run, and the nav second mechanism / offline 20x20 km control. Prior
 01:00Z paragraph archived verbatim: docs/experiments/HANDOFF_2026-09-14_ARCHIVE_pm.md sec 8
 (append).
