@@ -2097,8 +2097,18 @@ bytes, no STP-809 members in the dll; it covered six of the TEN consumers that e
 The PRE state this rerun measured was exactly that partial deploy: six consumers at that hash
 and FIVE - the four converted tools plus the new `tools/PauseSim` - with no `bin\Release-5.2`
 tree at all. DO NOT USE THAT HASH.
-(SUPERSEDED 2026-09-15: the tools have joined live federations in V6-V6d; see the RESOLVED paragraph above.) The LIVE JOIN GATE for the four
-converted tools and for `tools/PauseSim` is still owed. ONE CHECKOUT, SEVERAL LANES: while this
+THE LIVE JOIN GATE, SETTLED 2026-09-15 (V6 -> A4; docs/experiments/V6_LIVE_JOIN_GATE_2026-09-15.md).
+All five tools JOIN, resolve and print their connection config, refuse instead of acting blind,
+and resign cleanly. What blocked the gate was never the tools: on a fixture with NO nav area,
+dispatching a ground `move-along` STOPS the back end, and every controller loses it 121 s
+later. **A4 (2026-09-15 13:39Z, run 20260915T133259Z, V5's nav-data fixture): `SetSimRate 1 4448
+--settle-secs 180` at window+180 s found the back end in 0.3 s and its multiplier was ACCEPTED**
+- so SetSimRate's live effect on a nav fixture is now trivially demonstrated and is no longer
+owed. STILL OWED: the DESTRUCTIVE RESET PAIR (`ResetVrf` --dry-run -> real -> --dry-run, exit
+3 -> 0 -> 0 with the oracle trace confirming removal) has never run on a NAV-DATA fixture; every
+attempt so far was on the plain fixture, where the back end was already stopped and the "reset"
+deleted nothing. Run it inside a V6e-style run, not on the plain fixture.
+ONE CHECKOUT, SEVERAL LANES: while this
 gate ran, a parallel lane held `docs/OPUS_EXECUTION_PLAN.md` and
 `docs/experiments/PREREG_V7_AO20_2026-09-15.md` modified (both left untouched here) and landed
 `21c1430` on main. `git diff --name-only 5881b7d 21c1430` is that ONE docs file - nothing under

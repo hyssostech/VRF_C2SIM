@@ -423,3 +423,83 @@ directory** - so the one reading that would separate "busy loop" from "idle and 
 never been taken. Before A4, confirm the sampler actually writes a file; if it does not, take a
 manual `Get-Process vrfSimHLA1516e | Select CPU,Threads` sample a few seconds before and after
 the arm. A back end pegged at 100% is a hang; one at idle is a deliberate silence.
+
+---
+
+## AMENDMENT 4 (2026-09-15, after A4): PREREG V6e - IS IT THE NAV DATA, OR THE SMS?
+
+**Nothing here has been run.** A4 HIT at 0.3 s exactly as AMENDMENT 3 predicted, and its
+`backends=` column never dropped in 347 samples (`V6_LIVE_JOIN_GATE_2026-09-15.md` sec 10). The
+nav-area account survives - but A4 changed **three** variables at once, not one.
+
+### The confound, stated plainly
+
+| | V6d (back end STOPS) | A4 (back end runs) |
+|---|---|---|
+| fixture | `R9_Mojave_Empty_52` | `R9_Mojave_Empty_52_NavAO20_AG_S2` |
+| nav data | **none** | **MojaveAO20 area** |
+| SMS | vendor `EntityLevel.sms` | **custom** `C:\C2SIM\vrf-sms\C2SIM_EntityLevel_AbstractGraphs_Slope2.sms` |
+| init | R9 lean, 6 units, `AtInit` | COA-STP1, 128 units, `AtOrder` |
+
+Any of the three could be what keeps the engine alive. The nav-area reading is the only one with
+a mechanism in the back end's own console output - `Is current point in nav area?` -> FALSE is
+literally the branch it fails on - but a custom SMS that replaces the movement model could be
+avoiding the same dead end by another route, and a different init could be doing it by accident.
+
+### V6e - the one-run discriminator
+
+```
+shell 1:  bash scratchpad/validation/v6e_launch.sh
+shell 2:  "C:\Program Files\PowerShell\7\pwsh.exe" -NoProfile -File scratchpad/validation/v6e_gates.ps1
+```
+
+**V6e is V6d with nav data added and NOTHING else changed.** The deployed fixture
+`R9_Mojave_Empty_52_Nav` is exactly that, and it was checked rather than assumed - its `.scn`,
+read out of the `.scnx`, gives:
+
+```
+(Terrain-Database "...\tools\navdata\out\MAK Earth (online) + MojaveAO20.mtf")   <- nav data
+(Simulation-Model-Set-Files "$(DATA_DIR)\simulationModelSets\EntityLevel.sms")   <- VENDOR SMS
+```
+
+versus A4's fixture, which names the custom `C2SIM_EntityLevel_AbstractGraphs_Slope2.sms`, and
+versus V6d's plain fixture, which names `$(SHARED_DATA_DIR)\...\MAK Earth (online).mtf` with no
+nav data at all. Same terrain + nav area as A4; vendor movement model as V6d.
+
+**And the area contains the units.** `NavArea-ground-platform MojaveAO20.navRuntimeConfig` gives
+extents +/-10.0 km E-W and +/-9.98 km N-S about an ECEF offset that converts to **34.6082 N,
+-116.7001 W** - i.e. lat 34.518..34.698, lon -116.809..-116.591. The R9 lean init's units sit at
+34.650-34.654 N, -116.689 to -116.693 W (measured from the V6d trace): **inside**. This is the
+check that would otherwise sink the run - a MISS for want of coverage would look exactly like a
+MISS for want of a mechanism.
+
+`--pre-order-gate nav-area` is passed because the nav data loads LAZILY (a 2.3 GB async stream
+from placement; 237 s cold, 9-12 s warm), and consoles are at 4 so the same
+`Is current point in nav area?` line is readable either way.
+
+### The arm
+
+| arm | appNo | fired at | command |
+|---|---|---|---|
+| **V6e late tool** | **4479** | window + 180 s | `SetSimRate.exe 1 4479 --settle-secs 15` |
+
+15 s, not 180: V6c's A1 already proved patience buys nothing, and A4 answered in 0.3 s.
+
+### PREDICTIONS
+
+| outcome | reading | what follows |
+|---|---|---|
+| **HIT** (and `backends=` never drops) | **nav data is the variable; the SMS and the init size are EXONERATED.** The quiet fixture's back end stops because there is no nav area, full stop. | Close the lane. STP-823 becomes a hard precondition and STP-822 an interface refusal + liveness timer. No further probe. |
+| **MISS** (back end gone, as V6d) | nav data alone is NOT enough: the **custom SMS or the init/creation policy** is doing the work in A4. | Next is a 2x2 on one axis at a time - A4's fixture with the R9 lean init, and V6e's fixture with the custom SMS. Do NOT change two things again. |
+| HIT but the column DROPS and recovers | a third behaviour neither hypothesis predicts | STOP AND ASK. |
+
+**High-confidence prediction, and its STOP:** V6e HITs. If it MISSES, the console's own
+`Is current point in nav area?` evidence is not the whole story and the lane's cause statement
+must be reopened rather than patched - stop and ask.
+
+### Carry the process sampler
+
+A4 measured a RUNNING back end (~312% of one core, 83 threads, 4 GB). No quiet run was ever
+sampled, so nobody knows whether a stopped one spins or idles. Run
+`scratchpad/validation/a4_simsampler.csv`'s sampler again for V6e; if V6e MISSES it finally
+answers hang-vs-idle, and if it HITs it costs nothing.

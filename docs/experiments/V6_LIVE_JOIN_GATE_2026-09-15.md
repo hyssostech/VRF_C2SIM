@@ -479,3 +479,116 @@ This also joins the ridge / early-stops thread rather than sitting beside it: th
 `Is current point in nav area?` condition and the same off-feature fallback are what the
 G-series was reading when nav queries returned 0 points. The new part is that on a fixture with
 NO nav area the engine does not merely plan badly - it stops.
+
+---
+
+## 10. A4 - THE BUSY CONTROL: PREDICTED HIT, AND IT HIT
+
+`runs/20260915T133259Z_run`, V5's fixture unchanged (`R9_Mojave_Empty_52_NavAO20_AG_S2` +
+COA-STP1 init + the `PROBE_RIDGE_1-35` order + the nav-area gate + `AtOrder` + DurationScale
+0.25). `SetSimRate 1 4448 --settle-secs 180` at **window + 180 s = 13:39:37Z**, three minutes
+after the ridge order dispatched:
+
+```
+    back-end settle cap = 180 s (--settle-secs)
+    [OK] joined (BackendCount=0 immediately after Start).
+    [OK] 1 backend(s) discovered after 0.3 s.
+    [OK] command issued ... RESULT: simulation time multiplier set to 1x     exit=0
+```
+
+**HIT in 0.3 s - exactly what AMENDMENT 3 registered as the predicted outcome.** (The driver's
+trailing verdict line still carries pre-V6d 'H2 / provoke-then-wait' text; the registered
+reading is AMENDMENT 3's, and it is the one scored here.)
+
+### 10.1 Scored against AMENDMENT 3
+
+| prediction | outcome |
+|---|---|
+| A4 HIT -> the nav-area account holds; the trigger is not tasking as such but tasking a ground move onto terrain with **no nav area** | **MET** |
+| "Confirm by checking that A4's `backends=` column never drops" | **MET - 347 samples, every one `backends=1`, zero at 0** |
+| the tasked units should drive, as in V8b | **MET - 7 objects moved 2.29-2.45 km** (1-35's members + its proxy); the other 128 COA context units are untasked and correctly static |
+
+### 10.2 The console and the process - what a RUNNING back end looks like
+
+* **162,787 CON rows** spanning t=39.1 .. 676.9 s, ~15,000 per minute, **continuous to the end**
+  of the run. Compare V6d: 2,525 rows, all inside one 157 s stretch, then nothing for 13 minutes.
+* **The process sampler** (`scratchpad/validation/a4_simsampler.csv`, 78 samples at 10 s):
+  `cpu_s` 2.2 -> 2406.0, i.e. **2,404 CPU-seconds over ~770 s wall = ~312% of one core**,
+  sustained (per-10 s deltas mean 31.2 s, max 43.9 s); **threads 8 -> 83**; working set
+  212 MB -> 4,040 MB. That is a healthy multi-threaded engine under load.
+* **8,297 reports** captured (vs 549 in V6d, 459 in the V6c rerun).
+
+**The quiet runs have no such sample.** The sampler was added for A4, so V6c/V6d's back end was
+never measured while it was stopped. A4 therefore establishes only the RUNNING baseline; it does
+not tell a spinning loop from an idle stall on the quiet fixture. Carry the sampler on V6e.
+
+### 10.3 The interface still did not notice - on a healthy run this time
+
+Same reading as V6d, and it is not a fixture property: `has not advanced past` = 0, 66 R1
+cycles, **8,169 position reports, 0 failed, 0 kinematics read failures**. Here the back end was
+alive, so nothing was missed - but the mechanism that would have told the interface either way
+still never ran. STP-822 stands.
+
+---
+
+## VERDICT - THE V6 LANE, CLOSED
+
+| run | fixture | nav data | SMS | state at join | back end found? |
+|---|---|---|---|---|---|
+| **V6** 030650Z | `R9_Mojave_Empty_52` | **none** | vendor | populated + tasked | **NO** (3 placeholder uuids, a false-green reset) |
+| **V6b** 114001Z | `R9_Mojave_Empty_52` | **none** | vendor | populated + tasked | **NO** - and the runner-launched PauseSim failed too |
+| **V6c** 122145Z | `R9_Mojave_Empty_52` | **none** | vendor | **empty** (init never dispatched) | **YES**, 0.2 s - twice, one of them 6 min late |
+| **V6c** 124231Z | `R9_Mojave_Empty_52` | **none** | vendor | populated + tasked | **NO** at 180 s; a blind broadcast provoked nothing |
+| **V6d** 130627Z | `R9_Mojave_Empty_52` | **none** | vendor | **populated, UNtasked** | **YES**, 0.1 s |
+| **V6d** 130627Z | `R9_Mojave_Empty_52` | **none** | vendor | populated **+ tasked** | **NO** at 15 s |
+| **A4** 133259Z | `R9_Mojave_Empty_52_NavAO20_AG_S2` | **AO20 area** | custom AG/Slope2 | populated **+ tasked** | **YES**, 0.3 s, and `backends=1` on all 347 samples |
+
+**The cause.** On a fixture with NO nav area, dispatching a ground `move-along` STOPS the back
+end. Its own level-4 console shows the last thing it does: every member walks the movement
+behaviour tree to `Is current point in nav area?` -> **FALSE** -> `fail in action` -> `Plan off
+feature path` -> `Starting job node Plan path` -> `Checking status of job for M1A2 10`, and then
+emits nothing ever again. No frames, so no status heartbeat (every controller drops it exactly
+121 s later, twice measured), no motion (22 units at identical coordinates for 11 minutes), no
+terminal reports. It does not crash - 0 assert / 0 deadlock / 0 ERROR / 0 FATAL in the vendor
+log, no dump, and `StopVrf` still exits 0. With a nav area present the same order on the same
+engine runs for the whole window at ~312% CPU, moves its units 2.4 km and answers a late joiner
+in 0.3 s.
+
+### The adversarial paragraph
+
+**The strongest residual confound is that A4 did not change one variable, it changed three.**
+V5's fixture brings nav data, a CUSTOM SMS (`C2SIM_EntityLevel_AbstractGraphs_Slope2.sms`, which
+turns on abstract graphs and a slope-avoidance factor) **and** a 128-unit init with `AtOrder`
+creation. Any of the three could be what keeps the engine alive. The nav-area account is the
+only one with a mechanism written in the back end's own words - the console names that exact
+condition as the branch it fails - but "the console named it" is not "the console proved the
+others irrelevant". A custom SMS that replaces the movement model could equally well be avoiding
+the same dead end by another route.
+
+That is decidable in ONE run, and it is written up as AMENDMENT 4 (**V6e**): the deployed
+`R9_Mojave_Empty_52_Nav` fixture is **MojaveAO20 nav data with the VENDOR SMS**
+(`$(DATA_DIR)\simulationModelSets\EntityLevel.sms`) - verified by reading the `.scn` out of the
+`.scnx` - and the AO20 area (centre 34.608 N, -116.700 W, +/-10 km) **contains the R9 lean
+init's units** (34.650-34.654 N, -116.689 to -116.693 W). So V6e = V6d with nav data added and
+nothing else changed. HIT exonerates the SMS and the init size; MISS puts them back in play.
+
+Two further things this lane did NOT establish, stated so nobody assumes them:
+
+1. **Whether the stopped back end is spinning or idle.** Never sampled on a quiet run.
+2. **Whether it is inside the `Plan path` job or stopped just after it.** The console's last
+   line is a status poll for that job; that is where it ends, not necessarily where it sits.
+
+### What follows for the product
+
+* **STP-823 - nav data is a PRECONDITION for ground tasking.** Not an optimisation, not a
+  quality setting: without a nav area a ground `move-along` stops the simulator. Every AO the
+  scenario-prep capability produces must carry a nav area covering the units it will task
+  (STP-802's tiling rule already exists; this makes it mandatory rather than advisable).
+* **STP-822 - the interface must (a) REFUSE a ground task when the taskee's position is not in a
+  nav area, and (b) read back-end liveness ON A TIMER.** Today it re-reads `BackendCount` only
+  in the task-clock stale branch, which needs a task held on an end time; an order without
+  Durations leaves it blind for the whole run. Both V6c and V6d show it happily reporting
+  positions off stale reflected data while the engine behind them was stopped.
+* **The runner passes `--report-backends` always** (arm A0, on main since `0ecc14a`). Every
+  finding in sections 8-10 rests on that column; before it existed, five runs could not tell a
+  joiner problem from a dead back end.
