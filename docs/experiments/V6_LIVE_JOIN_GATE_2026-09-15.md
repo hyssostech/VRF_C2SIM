@@ -342,3 +342,140 @@ and it produced no completion report, all from roughly the same moment. That is 
 three symptoms, not three faults, and the object console at notify level 4 is the instrument
 that would show it (lessons-vendor-diagnostics-first). V6d's consoles are at 1; raise them if
 A5/A6 do not separate creation from tasking.
+
+---
+
+## 9. V6d (2026-09-15) - TASKING IS THE TRIGGER, AND THE BACK END SAID WHY
+
+`runs/20260915T130627Z_run`, driver `scratchpad/validation/v6d_gates.ps1`, launcher
+`v6d_launch.sh` (= `v6c_launch.sh` + `--pre-order-settle 150`). **SEAT AMENDMENT, recorded:**
+this run was launched with `--object-console 4 --member-console 4`, so the taskees' own consoles
+are in `watchvrf-trace.csv` as CON rows. That decision is what turned a yes/no into a cause.
+
+### 9.1 The two arms
+
+| arm | appNo | fired | scenario state | result |
+|---|---|---|---|---|
+| **A5 POPULATED-QUIET** | 4456 | 13:09:59Z, inside the 150 s pre-order hold | 6 units exist, **nothing tasked** | **HIT** - `[OK] 1 backend(s) discovered after 0.1 s`, exit 0 |
+| **A6 TASKED** | 4464 | 13:14:21Z, window + 120 s | the same units, **tasked** | **MISS** - `[FAIL] no backend discovered after 15 s`, exit 1 |
+
+Driver verdict: **TASKING is the trigger.** Creation is not: A5 joined a federation with 6 units
+already in it and was answered in 0.1 s.
+
+### 9.2 The same 121 seconds, twice
+
+Both runs carry the `backends=` column, and they agree to within the 2 s sample interval:
+
+| | V6c rerun `124231Z` | V6d `130627Z` |
+|---|---|---|
+| 3x TASKSTRT on the bus | **12:44:58.950 / .957 / .960** | **13:11:51.150 / .156 / .158** |
+| last `backends=1` | t=150.1 s ~ 12:46:58Z | t=299.9 s ~ 13:13:50Z |
+| first `backends=0` | t=152.1 s ~ 12:47:00Z | t=301.9 s ~ 13:13:52Z |
+| **dispatch -> drop** | **121 +/- 2 s** | **121 +/- 2 s** |
+| samples with a back end / without | 73 / 323 | 146 / 324 |
+
+Two runs, dispatch stamps 27 minutes apart, **the same 121 s**. That is not a cadence and not a
+race: it is a fixed timeout. The back end goes silent AT DISPATCH, and each already-joined
+observer keeps its cached entry until `DtVrfBackendListener::doTimeouts()` deactivates it
+(`vrfBackendListener.h:157-163`). A5 fired at t~70 s - inside the `backends=1` window - and hit;
+A6 fired at t~331 s, after the drop, and missed. Every arm is consistent with one event.
+
+### 9.3 THE CONSOLE ACCOUNT - the back end's last words
+
+2,525 CON rows, spanning **t=23.1 s .. t=180.7 s and not one after**:
+
+```
+rows per 10 s:  t=20-29  30 | t=80-89  24 | t=140-149  23 | t=170-179  136 | t=180-189  2312
+                                                            ^ 2,432 rows in the FINAL SECOND
+```
+
+t=180.7 s is **13:11:51Z** - the TASKSTRT instant. The burst IS the dispatch, and the console
+then stops for the remaining 13 minutes of the run.
+
+What the burst contains, in order: the tasks are ACCEPTED and STARTED -
+`Move-Along Route: "T_R5_PL1 ROUTE"` / `T_R5_CO1 ROUTE` / `T_R5_TK1 ROUTE`,
+`Controller ... beginning to process move-along task`, `Task 0 starting subtask maneuver-along`,
+`maneuver-in-formation: unitRoute=...`, `Setting navigation preference to ignore-roads` (36x),
+`Task 0 starting subtask ground-vehicle-move-to` (15x) - and then every member walks the
+movement behaviour tree. The **last 20 rows**, at sim time 2322.81, are one member's tree:
+
+```
+Starting selector node Select off-road nav planning or feature planning
+  Starting sequence node Maybe plan off-road nav path
+    Starting condition node Is road following disabled?    -> Condition true.
+    Starting condition node Is current point in nav area?  -> Condition FALSE.
+    fail in action Is current point in nav area?
+  Starting sequence node Plan off feature path
+    Starting job node Plan path
+Not using roads for move planning.
+Checking status of job for M1A2 10
+<- and nothing, ever again>
+```
+
+**`Is current point in nav area?` is FALSE because this fixture has no nav area.**
+`R9_Mojave_Empty_52` is the plain variant - no nav data at all (the `_Nav*` / `_NavAO20_AG_S2`
+variants are the ones that carry it). So every member fails that condition, falls through to
+`Plan off feature path`, starts an asynchronous `Plan path` job, and the engine's last observable
+act is polling it: *Checking status of job for M1A2 10*.
+
+### 9.4 Liveness: it did not crash, it stopped
+
+* **Nothing moved.** 22 units with real coordinates; the three sampled are at identical
+  lat/lon/alt at t=23.5 s and t=960.2 s. 3 TASKSTRT, **0 terminal reports**, 0 TSK/RPT rows.
+* **No fault.** Count-only grep of the vendor sim log
+  (`vrfSimHLA1516e5.2d-20260915-090640-...log`, 13,883 lines): `assert` 0, `deadlock` 0,
+  `ERROR` 0, `FATAL` 0, `Exception` 0; no `.callstack.log` and no `.dmp` for the run. The same
+  for the V6c rerun's log. The back end never faulted.
+* **It still shut down cleanly.** `StopVrf: EXIT=0`, *VR-Forces is down (graceful)* - twelve
+  minutes after it stopped saying anything.
+
+### 9.5 The interface never noticed - and could not have
+
+Asked directly, because a product that drives a dead back end in silence is a defect:
+
+* the app logged `Backend discovered (BackendCount=1) after 0.1 s` at startup and **no warning
+  of any kind afterwards** (`has not advanced past`: 0 occurrences, both runs);
+* it kept working the whole time: 91 R1 cycles, **543 position reports delivered, 0 failed, 0
+  cycles with a kinematics read failure** - it was reading attributes off reflected objects,
+  which the RTI still held, so every read succeeded on stale data.
+
+It is not a stale cache. **The reading is never taken again.** `VrfC2SimService` re-reads
+`BackendCount` only inside the task-clock stale branch - `taskSimStale = heldOnSim && obs.Stale`
+(`VrfC2SimService.cs:4121-4127`) - and `heldOnSim` is only true while a task is waiting on an
+end time. The R5 order gives **no Duration** (the app says so per task: *"the order gives NO
+Duration, so this task has no end time"*), so nothing was ever held, the branch never ran, and
+the interface had no mechanism to discover that its back end was gone. **Product defect, and it
+is not confined to this fixture:** any order without Durations leaves the interface blind to a
+dead back end for the whole run.
+
+### 9.6 VERDICT
+
+**Dispatching the `move-along` tasks stops the back end.** Not "silences" - stops. In the same
+second it accepts the tasks it emits 2,432 console lines, drives every member into off-feature
+path planning because the point is not in a nav area, starts a `Plan path` job, polls it once -
+and then never emits another console line, never moves a unit, never completes a task and never
+sends another status message. 121 s later every remote controller has dropped it.
+
+**The strongest competing hypothesis, and why it loses.** *C2 - the back end deliberately stops
+publishing status while tasks run.* It explains the silence and nothing else: a deliberate
+silence would not freeze the units, would not suppress the object console, and would not
+withhold terminal reports for 13 minutes. C2 predicts 1 of 4 symptoms; **C1 - a hang or
+non-returning busy loop in the movement/path-planning machinery** - predicts all four (no
+frames, so no status, no motion, no console, no reports) and is what the console's last lines
+show the engine entering. C1 is ADOPTED as the working cause.
+
+**What is still ASSUMED, not verified:** that the engine is *in* the `Plan path` job rather than
+stopped just after it. Nobody has sampled the process. `--sample-threads` was passed on every
+V6 run and **no thread/CPU artifact reached any run directory** - so the one reading that would
+separate a spinning loop from an idle stall has never been taken. Take it on A4.
+
+**Why V5 did not do this** falls straight out: V5's fixture is
+`R9_Mojave_Empty_52_NavAO20_AG_S2` - it HAS a nav area. `Is current point in nav area?` is TRUE
+there, the members plan through the mesh instead of falling into off-feature planning, the
+engine keeps running, and a late joiner finds the back end in 0.3 s. That is now a prediction
+about A4, not a loose end - see AMENDMENT 3.
+
+This also joins the ridge / early-stops thread rather than sitting beside it: the same
+`Is current point in nav area?` condition and the same off-feature fallback are what the
+G-series was reading when nav queries returned 0 points. The new part is that on a fixture with
+NO nav area the engine does not merely plan badly - it stops.

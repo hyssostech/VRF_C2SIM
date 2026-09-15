@@ -354,3 +354,72 @@ After V6c, A4's two outcomes mean:
 
 Run A4 AFTER V6d: V6d costs one run and answers a two-way question, while A4 costs a run on the
 heavier fixture and only matters once creation and tasking are separated.
+
+---
+
+## AMENDMENT 3 (2026-09-15, after V6d): A4's PREDICTIONS, REGISTERED BEFORE IT RUNS
+
+**Nothing here has been run.** V6d answered its two-way question - **TASKING is the trigger**
+(A5 populated-untasked HIT in 0.1 s, A6 populated-and-tasked MISS at 15 s; full harvest in
+`V6_LIVE_JOIN_GATE_2026-09-15.md` sec 9). A4 is now the discriminator between the two readings
+of WHY, and its predictions go on record first.
+
+### What A4 is
+
+```
+shell 1:  bash scratchpad/validation/v6c_busy_launch.sh        # V5's fixture, unchanged
+shell 2:  "C:\Program Files\PowerShell\7\pwsh.exe" -NoProfile -File scratchpad/validation/v6c_busy_gates.ps1
+```
+
+`SetSimRate 1 4448 --settle-secs 180` at **window + 180 s**, on V5's fixture
+(`R9_Mojave_Empty_52_NavAO20_AG_S2` + COA-STP1 init + the `PROBE_RIDGE_1-35` order + the
+nav-area gate + `AtOrder` + DurationScale 0.25). Both files are already written and unchanged.
+
+### Why A4 is now the RIGHT next arm, and what makes it sharp
+
+V6d did not merely answer its question - it produced the back end's own account (sec 9.3). At
+the TASKSTRT instant every member walked the movement behaviour tree to:
+
+```
+Is current point in nav area?  -> Condition FALSE.
+fail in action Is current point in nav area?
+Starting sequence node Plan off feature path
+Starting job node Plan path
+Checking status of job for M1A2 10        <- the last line the back end ever emitted
+```
+
+The quiet fixture `R9_Mojave_Empty_52` is the PLAIN variant - no nav data at all -
+so that condition is false for every unit. V5's fixture carries the AO20 nav area. That is the
+sharpest difference between them, and A4 tests it directly. The full comparison:
+
+| | V6c / V6d (quiet fixture) | V5 (busy fixture) |
+|---|---|---|
+| taskees | `1222.MechPlt~PXY`, `114.MechCoy~PXY`, `1.BdeHQ~PXY` - **three `~PXY` PROXY objects** (platoon, company, brigade HQ) | `1-35`, a **composed battalion with real members** |
+| task | `move-along` x3 | `move-along` on a de-stacked unit |
+| creation | `AtInit` | `AtOrder` |
+| terrain / nav | plain `R9_Mojave_Empty_52`, no nav data | AO20 nav area + the custom SMS (`useAbstractGraphs=true`) |
+| outcome | back end silent; **nothing ever moved**; 0 terminal reports | back end answered a late joiner in 0.3 s |
+
+And the offsets match, which removes timing as an explanation: V5's `PauseSim` hit at
+**window + 120 s**; V6d's A6 missed at **window + 120 s**. Same offset, opposite result.
+
+### PREDICTIONS
+
+| outcome | reading | what follows |
+|---|---|---|
+| **A4 HIT** - **the PREDICTED outcome** | the nav-area account holds: V5's fixture HAS a nav area, so `Is current point in nav area?` is TRUE, the members plan through the mesh instead of falling into `Plan off feature path`, and the engine keeps running. The trigger is not tasking as such but **tasking a ground move onto terrain with no nav area**. | Then the answer is a product rule, not another probe: never dispatch a ground move on a fixture without nav data, and make the interface REFUSE or warn instead of dispatching happily and then driving a stopped back end. Confirm by checking that A4's `backends=` column never drops. |
+| **A4 MISS** | the nav-area account is WRONG or incomplete: tasking stops the back end even where a nav area exists, and **V5's 0.3 s success becomes the anomaly** - not the baseline everything since has been measured against. | Re-read V5 FIRST: its `PauseSim` fired at window+120 s, and 121 s is exactly how long a cached entry survives - V5 may have caught the back end one sample before its own drop. Then the question is what accepting a `move-along` does to the frame loop on ANY fixture, and the instruments are the level-4 console plus a CPU/thread sample of `vrfSimHLA1516e`. |
+
+**Either way, read the `backends=` column, not just the tool's verdict.** A4's tool gives one
+joiner's yes/no at one instant; the column gives the whole run, and in V6c it showed a federate
+that ALREADY had the back end losing it 121 s after dispatch. If A4 HITs at +180 s, check
+whether the column ever dropped at all - a back end that goes quiet and comes back is a third
+behaviour neither hypothesis predicts.
+
+### One measurement A4 should carry that V6c/V6d could not
+
+`--sample-threads` was passed on every V6 run and **no thread/CPU artifact reached the run
+directory** - so the one reading that would separate "busy loop" from "idle and silent" has
+never been taken. Before A4, confirm the sampler actually writes a file; if it does not, take a
+manual `Get-Process vrfSimHLA1516e | Select CPU,Threads` sample a few seconds before and after
+the arm. A back end pegged at 100% is a hang; one at idle is a deliberate silence.
