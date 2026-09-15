@@ -1987,6 +1987,9 @@ DEPLOY SET:
   read-only half of the before/after reset verification (sec 8); use `ResetVrf --help` for the
   no-join plan.
 
+  *** REOPENED 14:05Z: V6e (nav data present, vendor SMS, V6d's init + R5 order) ALSO stopped the back end - 'no nav data'
+  is NOT the variable (a coincident symptom on the plain fixture); the R5 order's COMPANY-level move on a composed
+  unit is the leading candidate, V6f (a single platoon move) decides. The paragraph below is the pre-V6e reading. ***
   LIVE JOIN GATE - RESOLVED 2026-09-15 13:30Z (V6 03:10Z, V6b 11:40Z, V6c 12:22Z/12:42Z, V6d 13:06Z; STP-820; cause
   STP-823; interface defect STP-822; docs/experiments/V6_LIVE_JOIN_GATE_2026-09-15.md secs 1-9, main cd599ea). THE
   TOOLS WORK. Every 'no back end' in V6/V6b was the BACK END STOPPED: on the plain R9_Mojave_Empty_52 fixture (no

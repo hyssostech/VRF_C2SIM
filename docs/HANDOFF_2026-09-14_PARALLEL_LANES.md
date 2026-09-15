@@ -118,7 +118,7 @@ or a permission rule). V8 (023743Z, de32dac): shift went SOUTH - C2 SIDED the ch
 V8b (033226Z, 79d3fe4): ALL R8 MET - +250 m north, SIX OF SIX crossed, no crawl. V8z zero-offset control
 (041036Z, 8d87391): BRANCH A - froze 19.7 m from P11; THE LATERAL OFFSET IS THE REMEDY, insertion inert. OPEN USER RULINGS: none. V6 RUN 03:10Z (scratch federation
 20260915T030650Z): the tools JOIN but see NO back end + placeholder uuids only, ResetVrf a false green
-(STP-820/823/822). CAUSE: a ground move on a fixture with NO NAV DATA STOPS the back end (V6d console; status ages out 121 s after dispatch); A4 on the nav-data fixture HIT 0.3 s at +180 s. The tools were fine. OWED: V6e (vendor SMS + nav data), the interface refusal + timed liveness read
+(STP-820/823/822). The R5 ORDER stops the back end 121 s after dispatch on BOTH the plain fixture (V6d) and the nav-data fixture (V6e MISS 14:02Z) - 'no nav data' REOPENED; A4 (ridge order) ran fine. Leading candidate: R5's COMPANY move on a composed unit. OWED: V6f (platoon only), STP-822 liveness lane
 verdict, the Q5 kill-half re-run, and the nav second mechanism / offline 20x20 km control. Prior
 01:00Z paragraph archived verbatim: docs/experiments/HANDOFF_2026-09-14_ARCHIVE_pm.md sec 8
 (append).
