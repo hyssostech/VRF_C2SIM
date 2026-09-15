@@ -2796,12 +2796,12 @@ needs no number - it never calls Start(). ONE NUMBER PER INVOCATION: each of the
 cycle, the rule the tools/SetSimRate entry in this appendix already states. Annotate each with CONSUMED or
 BURNED from what actually ran.
 - 4367: BURNED (2026-09-15 02:2x: JOIN hang, no 5.2 env, cut at 90 s, unscored) - tools/ResetVrf --dry-run, V6 GATE 1 (PART A): join a LOADED scenario, discover, issue NO deletes, resign. The read-only half of the before/after reset verification (RUNBOOK sec 8). This is the ONLY joining command of the V6 gate that may run inside V5's measured federation, between the resume at t+305 and the kill at t+400 (PREREG_V5 sec 2).
-- 4368: CLAIMED - tools/ResetVrf REAL RESET, V6 GATE 2 (PART B), DESTRUCTIVE: deletes every discovered object. A SCRATCH scenario only - NEVER inside V5's federation.
-- 4369: CLAIMED - tools/ResetVrf --dry-run, V6 GATE 2's AFTER half (PART B): re-discover and expect 0 deletable objects. The before/after PAIR is the evidence; one run's own log is not.
-- 4370: CLAIMED - tools/SetSimRate 10, V6 GATE 3 (PART B): changes the SIM CLOCK, which is the very thing V5 measures - a SCRATCH scenario only. The tool cannot read the rate back; the confirming instrument is external (tools/analysis/sim_ratio.py or WatchVrf).
-- 4371: CLAIMED - tools/SetSimRate 1, V6 GATE 3's restore (PART B). On a fixed-frame-run-to-complete fixture "1" is not guaranteed to restore the fixture's original behaviour (memory: frame mode, not multiplier).
-- 4372: CLAIMED - tools/CreateTaskAgg create, V6 GATE 4 (PART C, OPTIONAL): creates an aggregate at 10000 m MSL on R9's Mojave coordinates (the Cell C spike, not a general-purpose creator). Scratch scenario with the R9 terrain loaded.
-- 4373: CLAIMED - tools/CreateTaskAgg task, V6 GATE 4's move (PART C, OPTIONAL): creates the route and issues MoveAlongRoute on the uuid the create printed. A SEPARATE join, therefore a separate number.
+- 4368: CONSUMED 03:10Z (3 deletes issued to the placeholders; NO effect - a false green, fix owed) - tools/ResetVrf REAL RESET, V6 GATE 2 (PART B), DESTRUCTIVE: deletes every discovered object. A SCRATCH scenario only - NEVER inside V5's federation.
+- 4369: CONSUMED 03:10Z (still 3 placeholders after the 'reset') - tools/ResetVrf --dry-run, V6 GATE 2's AFTER half (PART B): re-discover and expect 0 deletable objects. The before/after PAIR is the evidence; one run's own log is not.
+- 4370: CONSUMED 03:11Z (REFUSED correctly: no backend discovered after 15 s) - tools/SetSimRate 10, V6 GATE 3 (PART B): changes the SIM CLOCK, which is the very thing V5 measures - a SCRATCH scenario only. The tool cannot read the rate back; the confirming instrument is external (tools/analysis/sim_ratio.py or WatchVrf).
+- 4371: CONSUMED 03:12Z (REFUSED correctly: no backend after 15 s) - tools/SetSimRate 1, V6 GATE 3's restore (PART B). On a fixed-frame-run-to-complete fixture "1" is not guaranteed to restore the fixture's original behaviour (memory: frame mode, not multiplier).
+- 4372: CONSUMED 03:12Z (REFUSED correctly: no backend after 15 s) - tools/CreateTaskAgg create, V6 GATE 4 (PART C, OPTIONAL): creates an aggregate at 10000 m MSL on R9's Mojave coordinates (the Cell C spike, not a general-purpose creator). Scratch scenario with the R9 terrain loaded.
+- 4373: BURNED (create refused, no uuid) - tools/CreateTaskAgg task, V6 GATE 4's move (PART C, OPTIONAL): creates the route and issues MoveAlongRoute on the uuid the create printed. A SEPARATE join, therefore a separate number.
 NOTE: gates 1-3 alone prove join + act + resign on 5.2; gate 4 is optional and its two numbers are
 BURNED if it is not run. Unconsumed numbers are BURNED, never recycled.
 
@@ -2835,12 +2835,29 @@ NOTE: numbers this runner allocates but does not consume (e.g. an abort before t
 join) are BURNED, not recycled. The run manifest records which were actually used.
 
 CLAIMED 2026-09-15 03:05 by the seat for V6 (the live join gate of the 5.2-converted tools), REDO of gate 1.
-- 4390: CLAIMED - tools/ResetVrf --dry-run, V6 GATE 1 REDO: the 4367 attempt hung inside bridge.Start() because the
+- 4390: CONSUMED 03:10Z (joined, BackendCount=0, discovered only 3 placeholder uuids 0:0:0-{control-object,entity,unit} - NOT the scenario) - tools/ResetVrf --dry-run, V6 GATE 1 REDO: the 4367 attempt hung inside bridge.Start() because the
   shell lacked the 5.2 launch env (RTI_ASSISTANT_DISABLE, rid-501-rtiexec-min.mtl, bin64 cwd) - a JOIN hang, not a
   discovery timeout; this one runs from scratchpad validation/v6_gates.ps1 with that env, inside the V6 scratch
   federation (R9_Mojave_Empty_52 + R9_Mojave_Lean init, 6 units at AtInit). Annotate CONSUMED/BURNED from the gate log.
 
-*** NEXT FREE: 4391 *** (authoritative - the ONLY such marker in this file. Update this
+
+CLAIMED 2026-09-15 03:06 by scripts/RunC2SimScenario.ps1 (run 20260915T030650Z_run). Ledgered BEFORE any join,
+per the never-reuse non-negotiable. Annotate with results from the run manifest.
+- 4391: CLAIMED - LaunchVrf52.ps1 back-end (vrfSimHLA1516e), 5.2d independent mode
+- 4392: CLAIMED - LaunchVrf52.ps1 front-end (vrfGui), 5.2d independent mode (allocated even with -NoGui, then BURNED)
+- 4393: CLAIMED - WatchVrf ADVISORY pre-init oracle pre-check (RUNBOOK 0.5.7)
+- 4394: CLAIMED - WatchVrf MAIN run trace - the movement oracle / scoring input
+- 4395: CLAIMED - VrfC2SimApp Vrf__ApplicationNumber (the interface federate)
+- 4396: CLAIMED - tools/RtiProbe - STAGE 2c PRE-LAUNCH RTI READINESS GATE (C1). Throwaway create-or-join against the federation with internal retry+backoff, then clean resign, BEFORE the back-end launches (RTI_LAUNCH_HARDENING_DESIGN.md A2-A7 - the RUN-2 fix). CONSUMED on EVERY run (the gate always runs pre-launch). One number covers all internal retries - RtiProbe reuses this single appNumber across attempts by design.
+- 4397: CLAIMED - tools/CreateOne - STAGE 7b FAILURE-PATH DIAGNOSTIC ONLY (RUNBOOK 0.5.7 STRONGER CHECK). CONSUMED ONLY IF THE ORACLE GATE FAILS; on a healthy run it is NEVER JOINED and this number goes UNCONSUMED. Unconsumed numbers are BURNED, never recycled - see the NOTE below. Allocated here rather than mid-run because every number must be ledgered BEFORE any join.
+NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
+join) are BURNED, not recycled. The run manifest records which were actually used.
+
+CLAIMED 2026-09-15 03:14 by the seat - V6 CONFIRMING PROBES inside the V6 scratch federation (run 20260915T030650Z):
+- 4398: CONSUMED 03:14Z (same failure: BackendCount=0, 3 placeholders - the env var is NOT the lever) - tools/ResetVrf --dry-run with MAK_VRFDIR64=C:/MAK/vrforces5.2d in the process env (the tools' default connection-config path hypothesis)
+- 4399: BURNED (not run; no decidable probe left in the window) - tools/SetSimRate 1 with the same env (a second tool, same hypothesis) - BURNED if not run
+
+*** NEXT FREE: 4400 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
