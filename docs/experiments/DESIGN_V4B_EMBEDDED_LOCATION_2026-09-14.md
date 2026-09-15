@@ -112,6 +112,14 @@ equals its last.
 Per-verb totals of the reading: NONE 9 (ATTACK 2, DEFEND 2, BREACH 1, MOVE 1, RETAIN 1, SCREEN 1,
 SECURE 1); POINT 22; ROUTE 11; OBJECTIVE AREA 0.
 
+Those seventeen verbs are the COMPLETE set in this order - ATTACK, SECURE, FIX, OCCUPY, BREACH,
+SCREEN, PENTRT, BLOCK, DESTRY, DISRPT, DEFEND, MOVE, ESCRT, GUARD, SEIZE, RETAIN, CLRLND. FOLSPT,
+FOLASS and NTRCOM are NOT among them even though the init draws their FM 3-90 Appendix B symbols
+(three FOLLOW AND SUPPORT `GFTPAS`, one FOLLOW AND ASSUME `GFTPA`, one NEUTRALIZE `GFTPN`): the
+exported TaskActionCode disagrees with the drawn task symbol in at least four places. That is the
+pass-1 doctrine finding, it is on the STP side, and it is still open there - recorded here because
+a verb that never arrives cannot be read, however good the reading is.
+
 ### 2.1 The three measurements that decide the rule
 
 **(a) The axes are not rings, and the arithmetic says so.** For the nine 4-point tasks the
