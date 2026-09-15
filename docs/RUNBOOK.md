@@ -1758,20 +1758,20 @@ DEPLOY SET:
   (`examples/remoteControl/commandLineRemoteController.cxx:1044-1050` and `:1095-1102`), neither
   address-scoped, so both apply to ALL back ends. Its csproj is `tools/RunSim`'s verbatim. TWO
   THINGS ABOUT IT BELONG IN THIS SECTION:
-  * IT IS NOT IN THE G-A PIN BELOW. Nothing recorded in that pin was measured with it.
-  * IT READS `BackendControlState` BY REFLECTION, ON PURPOSE. That STP-809 member is on `main` in
-    `src/VrfBridge/VrfBridge.cpp` but is NOT in the DEPLOYED `Release-5.2` `VrfBridge.dll` (the
-    2026-09-14 pin below - grep the dll: it carries `SimTimeSeconds`, `BackendCount` and
-    `TryGetEntityKinematics`, and not this). A direct call therefore does not COMPILE against the
-    deployed bridge, and the answer to that is the RE-PIN this section already owes, not a partial
-    redeploy driven by one tool. Absent, the tool reports `controlState=Unavailable` and its verdict
-    rests on the scenario clock alone - which it says on its own `[RESULT]` line rather than hiding.
-    Present, it is used. WHEN THE RE-PIN HAPPENS the tool starts reading the state with NO code
-    change, and the reflection can be collapsed into a direct call.
-    The same staleness is why `tools/PauseSim` cannot be built `-c Release` (5.0.2) at all: the
-    5.0.2 `VrfBridge.dll` of 2026-09-04 has no `SimTimeSeconds` either. That is equally true of
-    `src/VrfC2SimApp`, which calls it too, so it is a property of that stale 5.0.2 tree and not of
-    this tool.
+  * IT IS IN THE PIN BELOW as of the 2026-09-15 G-A RERUN - the first pin that covers it.
+  * IT READS `BackendControlState` BY REFLECTION, ON PURPOSE - and since that re-pin the read-back
+    SUCCEEDS: `PauseSim --help` prints `control-state read-back = AVAILABLE
+    (VrfBridge.BackendControlState, STP-809)`. The reflection exists because the member was on
+    `main` in `src/VrfBridge/VrfBridge.cpp` but NOT in the then-deployed `Release-5.2`
+    `VrfBridge.dll` (the 2026-09-14 pin), so a direct call did not COMPILE against it. THAT
+    STALENESS IS GONE - the pinned bridge now carries `BackendControlState` and
+    `ActiveBackendCount`. Absent, the tool reports `controlState=Unavailable` and rests its verdict
+    on the scenario clock alone - which it says on its own `[RESULT]` line rather than hiding;
+    present, it is used. The reflection may now be collapsed into a direct call, but need not be:
+    it costs nothing and keeps the tool runnable against an older bridge.
+    `tools/PauseSim` still cannot be built `-c Release` (5.0.2) at all: the 5.0.2 `VrfBridge.dll`
+    of 2026-09-04 has no `SimTimeSeconds` either. That is equally true of `src/VrfC2SimApp`, which
+    calls it too, so it is a property of that stale 5.0.2 tree and not of this tool.
 
   WHAT THE 2026-09-15 CONVERSION DID, and why it was not a one-line fix. Until then those four -
   `src/SmokeTest`, `tools/CreateTaskAgg`, `tools/ResetVrf`, `tools/SetSimRate` - hard-coded
@@ -1826,24 +1826,42 @@ that writes the exception to stderr before the CLR terminates. Those are DIAGNOS
 a repeating `Tick phase 'MaybeSendPositionReports' FAILED (MissingMethodException)` means exactly
 this, and the answer is steps 1-4 above.
 
-DEPLOYED BUILD PIN (gate G-A, 2026-09-14). main `165e04c` (merge `0f4d09e` = feat/integration,
-which brought the SimTimeSeconds/BackendCount readers and `TryGetEntityKinematics`).
-`VrfBridge.dll` SHA256 `99B7B2355B7C78AFBCA2170DFA088EE4E73F28BB4DB8647F8DA93358D3706C04`
-(996352 bytes), native `/t:Rebuild` of `Release-5.2|x64` at 2026-09-14T22:28:04Z, 0 errors.
-All TEN consumers rebuilt with `-t:Rebuild`, 0 errors; the SIX consumers that HAD the 5.2 axis at
-that date are at THAT ONE hash. THIS PIN PREDATES the 2026-09-15 conversion of the other four and
-is therefore STALE for them: re-pin with all ELEVEN after `feat/tools-52-conversion` (merged
-`b4fcf58`) and `feat/pausesim-tool`. `tools/PauseSim` did not exist on 2026-09-14 and is in NO pin.
-Offline suites 18/18 exit 0, `--rulings-selftest` 136 PASS / 0 FAIL; `--parse-order`
-COA-STP1 42 tasks and PROBE_RIDGE_1-35_DELAYED 1 task / simStartMs=300000; `--runtime-check`
-exit 0 reporting `native stack = 5.2|C:\MAK\vrforces5.2d\bin64\vrfcontrol.dll`. The PRE state
-it replaced was itself a partial deploy: four different bridge hashes across the six 5.2 bin
-trees (VrfC2SimApp on 2FF06047 of 2026-09-06, the other five on three 2026-09-04 builds).
-THE PIN NAMES 165e04c, NOT the tip: two commits from a parallel lane (`fe17e7b`, `0432b98`)
-landed on main WHILE this gate ran. Both are docs + one new `data/*.xml` only - `git diff
---name-only 165e04c 0432b98` touches nothing under `src/` or `tools/` and no csproj/vcxproj -
-so the binaries above are still the binaries of the current tip. One checkout, several lanes:
-check this before trusting any pin whose sha is not the tip.
+DEPLOYED BUILD PIN (gate G-A RERUN, 2026-09-15). Built from the tree at main `5881b7d`, which
+contains `f13df1b` (merge `feat/pausesim-tool`), `b4fcf58` (the four-tool 5.2 conversion), the
+STP-809 native additions, V4b, the route-shift feature and the runner stop-rule fix.
+`VrfBridge.dll` SHA256 `E3F405249C561284F464A37F9CC06D49A74208FA8AD88D1515F76877A0CA4702`
+(997376 bytes), native `/t:Rebuild` of `Release-5.2|x64` at 2026-09-15T01:34:46Z, 0 errors
+(2 STL4038 warnings raised inside the MSVC `<compare>` header - vendor noise, not our sources).
+ALL ELEVEN consumers rebuilt with `-p:BridgeConfig=Release-5.2 -t:Rebuild`, 0 errors (VrfC2SimApp
+6 pre-existing warnings: 4x CA2024 in the C2SIM SDK, 2x CS8632), and ALL ELEVEN
+`bin\Release-5.2\net10.0\win-x64\VrfBridge.dll` copies PLUS the build directory are at THAT ONE
+hash - verified by the OUTPUT TREE, not the exit code. Five of those trees (`src/SmokeTest`,
+`tools/CreateTaskAgg`, `tools/ResetVrf`, `tools/SetSimRate`, `tools/PauseSim`) exist for the
+FIRST TIME; this is the first pin that covers all eleven.
+THE NATIVE CHANGE IS PROVEN BY MEMBER PRESENCE, not by the new hash (a `/t:Rebuild` of unchanged
+source also changes the hash): `BackendControlState` and `ActiveBackendCount` are PRESENT in this
+dll and ABSENT in the backed-up 2026-09-14 one, which carries only `SimTimeSeconds`,
+`BackendCount`, `TryGetEntityKinematics` and `NativeStackInfo`.
+Offline suites 19/19 exit 0 (the 18 plus `--routeshift-selftest`); `--rulings-selftest` 176 PASS /
+0 FAIL; `--routeshift-selftest` 61 ok / 0 fail with 0 network fetches and 57 hits on the committed
+`tools/preflight/preflight_cache`; `--parse-order data\COA-STP1_Order.xml` 42 tasks (0 MapGraphicID,
+33 embedded Location, 9 no geometry, 1 non-zero start delay); `--parse-init
+data\COA-STP1_Initialization_N2d.xml` 128 units, 0 stacked groups; `--runtime-check` exit 0
+reporting `native stack = 5.2|C:\MAK\vrforces5.2d\bin64\vrfcontrol.dll`; `PauseSim --help` now
+prints `control-state read-back = AVAILABLE (VrfBridge.BackendControlState, STP-809)`; SmokeTest,
+CreateTaskAgg, ResetVrf and SetSimRate each report `stack=5.2` from their new 5.2 tree.
+SUPERSEDES the 2026-09-14 pin (main `165e04c`, `VrfBridge.dll` `99B7B2355B7C78AF...`, 996352
+bytes, no STP-809 members in the dll; it covered six of the TEN consumers that existed then).
+The PRE state this rerun measured was exactly that partial deploy: six consumers at that hash
+and FIVE - the four converted tools plus the new `tools/PauseSim` - with no `bin\Release-5.2`
+tree at all. DO NOT USE THAT HASH.
+STILL OUTSIDE EVERY PIN: nothing here joined a live federation. The LIVE JOIN GATE for the four
+converted tools and for `tools/PauseSim` is still owed. ONE CHECKOUT, SEVERAL LANES: while this
+gate ran, a parallel lane held `docs/OPUS_EXECUTION_PLAN.md` and
+`docs/experiments/PREREG_V7_AO20_2026-09-15.md` modified (both left untouched here) and landed
+`21c1430` on main. `git diff --name-only 5881b7d 21c1430` is that ONE docs file - nothing under
+`src/` or `tools/`, no csproj/vcxproj - so the binaries above are still the binaries of the tip.
+Check that before trusting any pin whose sha is not the tip.
 
 ---
 
