@@ -169,25 +169,31 @@ public sealed class PreflightService : IDisposable
     }
 
     /// <summary>
-    /// Score a polyline and return its WORST leg ratio - the one number the pure chooser needs,
-    /// and the only way terrain reaches it.
+    /// Score a polyline: its WORST leg ratio and its MISSING-TILE COUNT - the two numbers the pure
+    /// chooser needs, and the only way terrain reaches it.
     ///
-    /// A polyline carrying ANY leg with no verdict returns +infinity, i.e. it can never be
-    /// accepted. Missing tiles are not evidence of good ground, and a shift onto unscored
-    /// terrain would be exactly the invention this feature exists to avoid.
+    /// A polyline carrying any leg with NO VERDICT scores +infinity, i.e. it can never be accepted.
+    /// The NaN count is reported separately and in FULL because the chooser is stricter still: a
+    /// SHIFT refuses a candidate with a single unknown sample, while the FLAG keeps the calibrated
+    /// <see cref="LegScorer.MaxNanFraction"/> tolerance. Missing tiles are not evidence of good
+    /// ground, and a shift onto unscored terrain would be exactly the invention this feature exists
+    /// to avoid.
     /// </summary>
-    public Func<IReadOnlyList<(double Lat, double Lon)>, double> WorstRatioScorer(double limitRaw)
+    public Func<IReadOnlyList<(double Lat, double Lon)>, PolyScore> WorstRatioScorer(double limitRaw)
         => poly =>
         {
             var (legs, _) = ScoreRoute(poly, limitRaw);
-            if (legs.Count == 0) return double.PositiveInfinity;
+            if (legs.Count == 0) return new PolyScore(double.PositiveInfinity, 0);
             double worst = 0.0;
+            int nan = 0;
+            bool noVerdict = false;
             foreach (var l in legs)
             {
-                if (l.NoVerdict) return double.PositiveInfinity;
-                if (l.Ratio > worst) worst = l.Ratio;
+                nan += l.NanSamples;
+                if (l.NoVerdict) noVerdict = true;
+                else if (l.Ratio > worst) worst = l.Ratio;
             }
-            return worst;
+            return new PolyScore(noVerdict ? double.PositiveInfinity : worst, nan);
         };
 
     /// <summary>

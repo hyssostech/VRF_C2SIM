@@ -291,7 +291,7 @@ its straight slot line - is a CONSERVATIVE assumption in this direction: the act
 curve into gentler ground (0.41-0.43 vs 0.96-1.01), so a band test can over-shift, never
 under-shift.
 
-### 4.2 The search
+### 4.2 The search  [REVISED 2026-09-15 by the first live run - see 4.2a]
 
 Offsets are tried in increasing MAGNITUDE, both sides at each magnitude, from
 `Vrf:PreflightRouteShiftStepMeters` (default 25 m - the vendor's own slot granularity) to
@@ -306,6 +306,52 @@ Cost: a candidate is 5 segment scorings (plus 20 more under C2, on slot lines wi
 the route line - the SAME tiles). MEASURED on the shipped defaults: the reference leg is
 decided at the third magnitude, 6 candidates, 57 cache hits and ZERO network fetches, in
 under a second.
+
+### 4.2a C2 MAY SIZE A SHIFT; IT MAY NEVER SIDE ONE - a rule REVERSED BY THE FIRST LIVE RUN
+
+Run `20260915T023743Z` (PREREG_V8 RESULTS) is the measurement. The interface anchors the route on
+the UNIT object's live position; the calibration, the published lateral tables and the self-test are
+anchored on the unit's FORMATION LEADER (`leg_check.py:starts_from_run` takes the first member's
+first fix). In that run the two sat 26.7 m apart, which is enough to rotate a 6.59 km leg: the
+authored line scored **1.248**, not 1.098, and the cleared northern corridor moved one step outward.
+The single-phase search then did this, reproduced offline to the third decimal:
+
+| magnitude | north | C1 | band | south | C1 | band |
+|---|---|---|---|---|---|---|
+| 25 | 1.022 | no | - | 1.280 | no | - |
+| 50 | 0.829 | no | - | 1.050 | no | - |
+| 75 | **0.735** | **yes** | **1.022** (C2 refuses) | 0.836 | no | - |
+| 100 | 0.835 | no | - | 0.715 | yes | 1.050 (C2 refuses) |
+| 125 | 0.841 | no | - | **0.661** | **yes** | **0.836 -> TAKEN** |
+
+So C2 did not size the shift, it SIDED it: it walked the search past the north side N2d actually
+drove and onto the south side six runs froze on and sec 9 P1 named a STOP. Every candidate at every
+magnitude 25..600 on both sides had **0** missing-tile samples, so this was not a data gap - it is
+the rule.
+
+THE RULE IS NOW TWO PHASES (`RouteShift.ChooseForLeg`):
+
+- **PHASE A - the SIDE, from C1 ALONE.** Magnitudes in increasing order, both sides at each; the
+  first magnitude at which anything satisfies C1 decides the side (lower ratio on a tie).
+- **PHASE B - the MAGNITUDE, on that side only.** Outward from there, the first magnitude that
+  satisfies C1 and (when on) C2.
+- If nothing on that side ever clears C2, the chooser takes the smallest C1-clearing candidate on it
+  - exactly sec 4.1's brief rule - and says so in the note, the log (a WARNING) and the Marking.
+  Refusing would leave the WHOLE unit on the face to spare one slot line.
+
+On the reference (leader) anchor this changes NOTHING: +75 m north at 0.803, band 0.878. On the live
+anchor it returns **+250 m north at 0.761, band 0.862** instead of -125 m south. With
+`ClearFormationBand=false` the live anchor gives +75 m north at 0.735 - which is the proof that the
+southward choice was C2 and not the ground.
+
+### 4.2b UNKNOWN IS NEVER CLEAR
+
+A candidate polyline with ANY sample that had no elevation tile is UNSCORABLE and refused, rather
+than tolerated up to the flag's `LegScorer.MaxNanFraction` (1 %). A flag is a warning and must not be
+silenced by a tile gap; a shift is an ACTION and must not be taken over ground nothing was read on.
+The two rules are deliberately different and both are asserted. This was NOT the cause of the
+southward shift above - it is the hardening its investigation demanded, and it costs nothing on the
+committed cache (0 NaN samples everywhere in the band).
 
 ## 5. DESIGN QUESTION 4 - CONFIG AND LOGGING
 
@@ -423,6 +469,16 @@ A new offline suite, `VrfC2SimApp --routeshift-selftest`, on the committed tile 
    magnitude that clears - checked by asserting no smaller magnitude was acceptable.
 6. **THE REPORTS.** One observation per shifted leg and one per unshiftable flagged leg;
    none for an untouched leg; the Marking carries the offset, both ratios and the band.
+
+ADDED 2026-09-15 after the first live run (sec 4.2a): **the V8 LIVE ANCHOR is a fixture**
+(34.65820208652259, -116.74009186651882 - the unit's own first PositionReport in that run). The
+suite asserts that from it the chooser returns a NORTH offset, specifically +250 m at 0.761 with a
+band max of 0.862, that -125 m south is never returned, that no southward candidate is ever
+accepted on this leg, and that with `ClearFormationBand=false` the same anchor gives +75 m north at
+0.735 - so C2 can be seen to size and never to side. Plus sec 4.2b's unknown-ground checks: a 0.100
+candidate carrying ONE missing sample is refused (and the same ratio with none is taken at once),
+and a service on an EMPTY cache gets NO VERDICT, flags nothing, shifts nothing and returns the
+authored route point for point.
 
 FAIL-FIRST is part of the deliverable, and it is what caught the geometry of 3.1a. Five breaks
 are driven through the suite and each must trip checks: the margin removed (2 fail), the

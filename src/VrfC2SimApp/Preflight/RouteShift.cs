@@ -49,10 +49,22 @@ public sealed record RouteShiftOptions
     public double AcceptRatio => Threshold - MarginRatio;
 }
 
+/// <summary>
+/// What the terrain says about ONE candidate polyline: its worst leg ratio, and how many of its
+/// sampled points had NO elevation tile.
+///
+/// The NaN count is carried OUT of the scorer because the chooser's rule and the flag's rule are
+/// deliberately different. A FLAG is a warning and tolerates up to
+/// <see cref="LegScorer.MaxNanFraction"/> missing samples so a tile gap cannot silence it. A SHIFT
+/// is an ACTION - it changes where vehicles drive - and refuses any candidate with a single
+/// unknown sample: unknown is never clear.
+/// </summary>
+public readonly record struct PolyScore(double WorstRatio, int NanSamples);
+
 /// <summary>One offset the chooser tried, and what became of it. Kept so the log and the
 /// ObservationReport can say WHY an offset was picked or why none was.</summary>
 public sealed record ShiftCandidate(double OffsetMeters, double Ratio, double BandMax,
-                                    bool Accepted, string Refusal)
+                                    int NanSamples, bool Accepted, string Refusal)
 {
     public bool Refused => Refusal.Length > 0;
 }
@@ -84,6 +96,12 @@ public sealed record LegShift
     /// <summary>"north"/"south"/"east"/"west" for the chosen side, from the leg's own bearing -
     /// the operator reads a compass word, not a sign convention.</summary>
     public string SideWord { get; init; } = "";
+
+    /// <summary>TRUE when the shift was taken on the ROUTE-LINE rule alone because no offset on
+    /// the side C1 chose could also clear the formation band. The shift still happened - refusing
+    /// would leave the WHOLE unit on the face to spare one slot line - but some slot lines may sit
+    /// on flagged ground and every channel says so.</summary>
+    public bool BandNotCleared { get; init; }
 }
 
 /// <summary>
@@ -251,23 +269,45 @@ public static class RouteShift
     }
 
     /// <summary>
-    /// THE CHOOSER. Offsets are tried in increasing MAGNITUDE, both sides at each magnitude; the
-    /// first magnitude at which anything is accepted wins, and on a tie the LOWER ratio wins. So
-    /// the rule is "the smallest shift that clears, on the side that clears" - the asymmetry of a
-    /// face is FOUND, never assumed.
+    /// THE CHOOSER, in TWO PHASES.
+    ///
+    /// PHASE A picks the SIDE, from C1 ALONE: magnitudes in increasing order, both sides at each,
+    /// and the FIRST magnitude at which anything satisfies C1 decides the side (lower ratio on a
+    /// tie). PHASE B picks the MAGNITUDE on THAT SIDE ONLY: outward from there, the first
+    /// magnitude that satisfies C1 and - when it is on - C2.
+    ///
+    /// WHY THE SPLIT, and it is a MEASUREMENT not a preference (run 20260915T023743Z, the feature's
+    /// first live run; docs/experiments/PREREG_V8_ROUTE_SHIFT_2026-09-15.md RESULTS). The design note
+    /// sec 4.1 says C2 "is used here only to SIZE a shift that the route-line verdict has already
+    /// demanded". In that run it did not size the shift, it SIDED it: the unit's live anchor sat
+    /// 26.7 m from the anchor the calibration and this suite use, +75 m NORTH cleared C1 at 0.735,
+    /// its inner slot line scored 1.022, C2 refused it - and the old single-phase search walked past
+    /// the north side the record has actually driven (N2d) and took -125 m SOUTH, the side six runs
+    /// froze on and the side the pre-registration named as a STOP. C1 is the verdict; C2 may cost
+    /// distance on the verdict's own side and nothing else.
+    ///
+    /// UNKNOWN IS NEVER CLEAR. A candidate polyline with ANY sample that had no elevation tile is
+    /// UNSCORABLE and refused outright, rather than merely tolerated up to the flag's
+    /// <see cref="LegScorer.MaxNanFraction"/>. (This was NOT the cause of the V8 south shift - that
+    /// run had 0 NaN samples on every candidate at every magnitude - it is the hardening the
+    /// investigation of it demanded.)
     ///
     /// ACCEPTANCE (design note sec 4.1):
     ///   C1  the whole shifted polyline's worst ratio &lt;= Threshold - MarginRatio;
     ///   C2  (optional, default on) every formation slot line of it is below the THRESHOLD.
     /// C2 does not touch the calibration: the band still flags nothing and decides no leg's
-    /// verdict (the standing ruling, READ_4-27_G3_AND_OFFSET_SCORING sec 2.5). It only SIZES a
-    /// shift the route-line verdict has already demanded.
+    /// verdict (the standing ruling, READ_4-27_G3_AND_OFFSET_SCORING sec 2.5).
+    ///
+    /// If NO magnitude on the chosen side also clears C2, the chooser falls back to the SMALLEST
+    /// C1-clearing candidate on that side - exactly the brief's own rule - and says so in the note,
+    /// the log and the report. Refusing instead would leave the whole unit on the face to spare one
+    /// slot line.
     /// </summary>
-    /// <param name="worstRatio">Scores a polyline and returns its worst leg ratio. The ONLY way
-    /// terrain enters this class.</param>
+    /// <param name="score">Scores a polyline: its worst leg ratio and its missing-tile count. The
+    /// ONLY way terrain enters this class.</param>
     public static LegShift ChooseForLeg((double Lat, double Lon) a, (double Lat, double Lon) b,
                                         LegMetrics leg, RouteShiftOptions opt,
-                                        Func<IReadOnlyList<(double Lat, double Lon)>, double> worstRatio)
+                                        Func<IReadOnlyList<(double Lat, double Lon)>, PolyScore> score)
     {
         var tried = new List<ShiftCandidate>();
         double legLen = TileMath.DistanceMeters(a.Lat, a.Lon, b.Lat, b.Lon);
@@ -278,71 +318,184 @@ public static class RouteShift
         double windowEnd = TileMath.DistanceMeters(a.Lat, a.Lon, leg.WorstTo.Lat, leg.WorstTo.Lon);
         double bestRatio = double.NaN, bestOffset = double.NaN;
 
+        // ------------------------------------------------ PHASE A: the SIDE, from C1 alone
+        double sideSign = 0.0, sideMag = 0.0, sideRatio = double.NaN;
+        List<(double Lat, double Lon)> sidePoly = null;
         for (double mag = opt.StepMeters; mag <= opt.MaxMeters + 1e-9; mag += opt.StepMeters)
         {
-            var accepted = new List<(double Offset, double Ratio, double BandMax,
-                                     List<(double Lat, double Lon)> Poly)>();
+            var clearing = new List<(double Offset, double Ratio, List<(double Lat, double Lon)> Poly)>();
             foreach (double sign in new[] { 1.0, -1.0 })
             {
                 double offset = sign * mag;
                 var poly = BuildDetour(a, b, windowStart, windowEnd, offset, opt, out string refusal);
                 if (poly == null)
                 {
-                    tried.Add(new ShiftCandidate(offset, double.NaN, double.NaN, false, refusal));
+                    tried.Add(new ShiftCandidate(offset, double.NaN, double.NaN, 0, false, refusal));
                     continue;
                 }
-                double ratio = worstRatio(poly);
-                double bandMax = double.NaN;
-                bool ok = ratio <= opt.AcceptRatio;
-                if (ok && opt.ClearFormationBand)
+                var sc = score(poly);
+                if (sc.NanSamples > 0)
                 {
-                    bandMax = 0.0;
-                    foreach (double slot in opt.FormationSlots)
-                    {
-                        double r = slot == 0.0 ? ratio : worstRatio(SlotLine(poly, bearing, slot));
-                        if (r > bandMax) bandMax = r;
-                    }
-                    ok = bandMax < opt.Threshold;
+                    tried.Add(new ShiftCandidate(offset, double.NaN, double.NaN, sc.NanSamples, false,
+                                                 UnknownReason(sc.NanSamples)));
+                    continue;
                 }
-                tried.Add(new ShiftCandidate(offset, ratio, bandMax, ok,
-                                             ok ? "" : DeclineReason(ratio, bandMax, opt)));
-                if (double.IsNaN(bestRatio) || ratio < bestRatio) { bestRatio = ratio; bestOffset = offset; }
-                if (ok) accepted.Add((offset, ratio, bandMax, poly));
+                if (double.IsNaN(bestRatio) || sc.WorstRatio < bestRatio)
+                { bestRatio = sc.WorstRatio; bestOffset = offset; }
+                if (sc.WorstRatio <= opt.AcceptRatio) clearing.Add((offset, sc.WorstRatio, poly));
+                else tried.Add(new ShiftCandidate(offset, sc.WorstRatio, double.NaN, 0, false,
+                                                  FormattableString.Invariant(
+                                                      $"ratio {sc.WorstRatio:F3} > {opt.AcceptRatio:F3}")));
             }
-            if (accepted.Count == 0) continue;
-            // Same magnitude, both sides clear: the LOWER ratio wins.
-            var win = accepted.OrderBy(c => c.Ratio).First();
-            string bandNote = opt.ClearFormationBand
-                ? FormattableString.Invariant($", formation band max {win.BandMax:F3}") : "";
-            string side = SideWordFor(bearing, win.Offset);
-            return new LegShift
+            if (clearing.Count == 0) continue;
+            clearing.Sort((x, y) => x.Ratio.CompareTo(y.Ratio));
+            sideSign = Math.Sign(clearing[0].Offset);
+            sideMag = mag;
+            sideRatio = clearing[0].Ratio;
+            sidePoly = clearing[0].Poly;
+            string winSide = SideWordFor(bearing, clearing[0].Offset);
+            string notSide = FormattableString.Invariant(
+                                 $"C1 cleared, but {winSide} cleared at the same {mag:F0} m")
+                           + FormattableString.Invariant(
+                                 $" with a lower ratio ({clearing[0].Ratio:F3}) and so decides the side");
+            for (int i = 1; i < clearing.Count; i++)
+                tried.Add(new ShiftCandidate(clearing[i].Offset, clearing[i].Ratio, double.NaN, 0, false,
+                                             notSide));
+            break;
+        }
+        if (sideSign == 0.0)
+            return NoLine(leg, opt, tried, bestRatio, bestOffset, legLen, windowStart, windowEnd);
+
+        // ------------------------------------ PHASE B: the MAGNITUDE, on the chosen side only
+        string side = SideWordFor(bearing, sideSign);
+        double fbOffset = double.NaN, fbRatio = double.NaN;
+        List<(double Lat, double Lon)> fbPoly = null;
+        for (double mag = sideMag; mag <= opt.MaxMeters + 1e-9; mag += opt.StepMeters)
+        {
+            double offset = sideSign * mag;
+            List<(double Lat, double Lon)> poly;
+            double ratio;
+            if (mag == sideMag) { poly = sidePoly; ratio = sideRatio; }
+            else
             {
-                LegIndex = leg.Index,
-                Shifted = true,
-                OffsetMeters = win.Offset,
-                BaseRatio = leg.Ratio,
-                ShiftedRatio = win.Ratio,
-                BandMax = win.BandMax,
-                In = win.Poly[2],
-                Out = win.Poly[3],
-                Inserted = win.Poly.GetRange(1, win.Poly.Count - 2),
-                BestRatioTried = bestRatio,
-                BestOffsetTried = bestOffset,
-                BandSearchedMeters = Math.Abs(win.Offset),
-                SideWord = side,
-                Tried = tried,
-                Note = FormattableString.Invariant(
-                    $"shifted {Math.Abs(win.Offset):F0} m {side}: ratio {leg.Ratio:F3} -> {win.Ratio:F3}{bandNote}"),
-            };
+                poly = BuildDetour(a, b, windowStart, windowEnd, offset, opt, out string refusal);
+                if (poly == null)
+                {
+                    tried.Add(new ShiftCandidate(offset, double.NaN, double.NaN, 0, false, refusal));
+                    continue;
+                }
+                var sc = score(poly);
+                if (sc.NanSamples > 0)
+                {
+                    tried.Add(new ShiftCandidate(offset, double.NaN, double.NaN, sc.NanSamples, false,
+                                                 UnknownReason(sc.NanSamples)));
+                    continue;
+                }
+                ratio = sc.WorstRatio;
+                if (double.IsNaN(bestRatio) || ratio < bestRatio) { bestRatio = ratio; bestOffset = offset; }
+                if (ratio > opt.AcceptRatio)
+                {
+                    tried.Add(new ShiftCandidate(offset, ratio, double.NaN, 0, false,
+                                                 FormattableString.Invariant(
+                                                     $"ratio {ratio:F3} > {opt.AcceptRatio:F3}")));
+                    continue;
+                }
+            }
+            double bandMax = double.NaN;
+            bool ok = true;
+            if (opt.ClearFormationBand)
+            {
+                bandMax = 0.0;
+                foreach (double slot in opt.FormationSlots)
+                {
+                    double r;
+                    if (slot == 0.0) r = ratio;
+                    else
+                    {
+                        var ss = score(SlotLine(poly, bearing, slot));
+                        // A slot line over unknown ground is not a clear slot line.
+                        r = ss.NanSamples > 0 ? double.PositiveInfinity : ss.WorstRatio;
+                    }
+                    if (r > bandMax) bandMax = r;
+                }
+                ok = bandMax < opt.Threshold;
+            }
+            tried.Add(new ShiftCandidate(offset, ratio, bandMax, 0, ok,
+                                         ok ? "" : DeclineReason(ratio, bandMax, opt)));
+            if (double.IsNaN(fbOffset)) { fbOffset = offset; fbRatio = ratio; fbPoly = poly; }
+            if (ok)
+                return Shifted(leg, opt, bearing, offset, ratio, bandMax, poly, tried,
+                               bestRatio, bestOffset, "");
         }
 
+        // C2 could not be cleared ANYWHERE on the side C1 chose. Take the brief's own rule - the
+        // route line alone, on that side - and say loudly that the band is not clear. Walking to
+        // the other side instead is the defect this two-phase chooser exists to prevent.
+        if (fbPoly != null)
+        {
+            string bandNote = FormattableString.Invariant(
+                                  $" - NOTE: no offset on the {side} side cleared the formation band")
+                            + FormattableString.Invariant(
+                                  $" below {opt.Threshold:F2} within +/-{opt.MaxMeters:F0} m, so this is the ")
+                            + "ROUTE-LINE rule alone and some formation slots may sit on flagged ground";
+            return Shifted(leg, opt, bearing, fbOffset, fbRatio, double.NaN, fbPoly, tried,
+                           bestRatio, bestOffset, bandNote);
+        }
+        return NoLine(leg, opt, tried, bestRatio, bestOffset, legLen, windowStart, windowEnd);
+    }
+
+    /// <summary>The chosen detour, packaged. <paramref name="extra"/> is empty for an ordinary
+    /// accept and carries the band-not-cleared note for the fallback.</summary>
+    private static LegShift Shifted(LegMetrics leg, RouteShiftOptions opt, double bearing,
+                                    double offset, double ratio, double bandMax,
+                                    List<(double Lat, double Lon)> poly, List<ShiftCandidate> tried,
+                                    double bestRatio, double bestOffset, string extra)
+    {
+        string bandNote = opt.ClearFormationBand && !double.IsNaN(bandMax)
+            ? FormattableString.Invariant($", formation band max {bandMax:F3}") : "";
+        string side = SideWordFor(bearing, offset);
+        return new LegShift
+        {
+            LegIndex = leg.Index,
+            Shifted = true,
+            OffsetMeters = offset,
+            BaseRatio = leg.Ratio,
+            ShiftedRatio = ratio,
+            BandMax = bandMax,
+            In = poly[2],
+            Out = poly[3],
+            Inserted = poly.GetRange(1, poly.Count - 2),
+            BestRatioTried = bestRatio,
+            BestOffsetTried = bestOffset,
+            BandSearchedMeters = Math.Abs(offset),
+            SideWord = side,
+            Tried = tried,
+            BandNotCleared = extra.Length > 0,
+            Note = FormattableString.Invariant(
+                $"shifted {Math.Abs(offset):F0} m {side}: ratio {leg.Ratio:F3} -> {ratio:F3}{bandNote}") + extra,
+        };
+    }
+
+    /// <summary>The honest ending: a flagged leg nothing in the band could clear.</summary>
+    private static LegShift NoLine(LegMetrics leg, RouteShiftOptions opt, List<ShiftCandidate> tried,
+                                   double bestRatio, double bestOffset, double legLen,
+                                   double windowStart, double windowEnd)
+    {
         string bandClause = opt.ClearFormationBand
             ? FormattableString.Invariant($" with the formation band below {opt.Threshold:F2}") : "";
-        string note = double.IsNaN(bestRatio)
+        int unknown = tried.Count(c => c.NanSamples > 0);
+        string unknownClause = unknown > 0
             ? FormattableString.Invariant(
-                $"NO CLEARED LINE within +/-{opt.MaxMeters:F0} m: every candidate was refused on geometry (leg {legLen:F0} m, window at {windowStart:F0}-{windowEnd:F0} m)")
-            : FormattableString.Invariant(
-                $"NO CLEARED LINE within +/-{opt.MaxMeters:F0} m: the best candidate ({bestOffset:+0;-0} m) scored {bestRatio:F3}, and acceptance needs <= {opt.AcceptRatio:F3}{bandClause}");
+                $"; {unknown} candidate(s) were UNSCORABLE - part of the line had no elevation tile") : "";
+        string head = FormattableString.Invariant($"NO CLEARED LINE within +/-{opt.MaxMeters:F0} m: ");
+        string note = double.IsNaN(bestRatio)
+            ? head + "every candidate was refused on geometry or had no terrain data "
+                   + FormattableString.Invariant(
+                         $"(leg {legLen:F0} m, window at {windowStart:F0}-{windowEnd:F0} m){unknownClause}")
+            : head + FormattableString.Invariant(
+                         $"the best candidate ({bestOffset:+0;-0} m) scored {bestRatio:F3}, ")
+                   + FormattableString.Invariant(
+                         $"and acceptance needs <= {opt.AcceptRatio:F3}{bandClause}{unknownClause}");
         return new LegShift
         {
             LegIndex = leg.Index,
@@ -358,10 +511,29 @@ public static class RouteShift
         };
     }
 
+    private static string UnknownReason(int nan)
+        => FormattableString.Invariant(
+            $"UNSCORABLE: {nan} sample(s) had no elevation tile - unknown is never clear");
+
     private static string DeclineReason(double ratio, double bandMax, RouteShiftOptions opt)
         => ratio > opt.AcceptRatio
             ? FormattableString.Invariant($"ratio {ratio:F3} > {opt.AcceptRatio:F3}")
             : FormattableString.Invariant($"formation band max {bandMax:F3} >= {opt.Threshold:F2}");
+
+    /// <summary>Every candidate the chooser tried, one line, for the log: offset, ratio, band,
+    /// missing-tile count and the verdict. A feature that changes where units drive does not get
+    /// to keep its reasoning to itself.</summary>
+    public static string DescribeCandidates(LegShift s)
+        => string.Join("; ", (s.Tried ?? new List<ShiftCandidate>()).Select(DescribeCandidate));
+
+    private static string DescribeCandidate(ShiftCandidate c)
+    {
+        string ratio = double.IsNaN(c.Ratio) ? "-" : c.Ratio.ToString("F3", CultureInfo.InvariantCulture);
+        string band = double.IsNaN(c.BandMax)
+            ? "" : " band " + c.BandMax.ToString("F3", CultureInfo.InvariantCulture);
+        return FormattableString.Invariant($"{c.OffsetMeters:+0;-0} m ratio {ratio}{band} ")
+             + FormattableString.Invariant($"nan {c.NanSamples} {(c.Accepted ? "ACCEPTED" : c.Refusal)}");
+    }
 
     /// <summary>
     /// Splice the chosen detours into a route. The authored vertices are COPIED THROUGH

@@ -21,8 +21,19 @@ public static class RouteShiftSelfTest
 {
     // The 1-35 ridge leg: the DeStack start every run places it at, to route vertex V1.
     // PREREG_RIDGE_AG_2026-09-14 sec 3.2; the leg that froze six runs.
+    // NOTE WHOSE POSITION THIS IS. tools/preflight/leg_check.py's starts_from_run() takes the
+    // FORMATION LEADER's first fix, so the calibration, the published lateral tables and this suite
+    // are all anchored on M1A2 1. The LIVE interface anchors the route on the UNIT object's own
+    // position, which in run 20260915T023743Z was 26.7 m away - see RidgeALive.
     private static readonly (double Lat, double Lon) RidgeA = (34.658442, -116.740092);
     private static readonly (double Lat, double Lon) RidgeB = (34.651212159120796, -116.81163703922806);
+
+    // THE ANCHOR THE FIRST LIVE RUN ACTUALLY SCORED (run 20260915T023743Z): 1-35/2/1_A~PXY's own
+    // first PositionReport, 02:40:16.802Z, 26.7 m south of RidgeA. On this line the authored leg
+    // scores 1.248 rather than 1.098 and the good northern corridor sits one step further out - which
+    // is what let the OLD single-phase chooser walk past it onto a SOUTHWARD shift. It is a fixture
+    // here for exactly that reason: the regression this suite must never let back in.
+    private static readonly (double Lat, double Lon) RidgeALive = (34.65820208652259, -116.74009186651882);
 
     // 1-1/2/1_AD's T23 leg 1 - a clean mover that arrived, scored 0.870 (PREFLIGHT_CALIBRATION).
     private static readonly (double Lat, double Lon) ReconA = (34.662425, -116.746154);
@@ -192,6 +203,108 @@ public static class RouteShiftSelfTest
                   $"+50 m {north?.Ratio ?? double.NaN:F3}");
             Check(ref failures, south != null && south.Ratio > opt.Threshold,
                   "a southward shift would be WORSE than the authored line and is rejected");
+        }
+
+        // ------------------------------------------------- 3b. THE V8 LIVE ANCHOR (the regression)
+        // Run 20260915T023743Z, the feature's first live run and the reason for the two-phase
+        // chooser: 26.7 m of anchor moved the whole lateral profile, C2 refused +75 m NORTH on its
+        // inner slot line, and the old search walked on to -125 m SOUTH - the side six runs froze on
+        // and the side the pre-registration named as a STOP. These numbers were computed on
+        // leg_check.py's own sampler against the run's own log BEFORE the fix was written.
+        Console.WriteLine("-- 3b. the V8 live anchor: C1 picks the side, C2 may only size the shift");
+        {
+            var liveBase = svc.ScoreLeg(RidgeALive, RidgeB, TankLimitRaw);
+            Check(ref failures, Math.Abs(liveBase.Ratio - 1.248) < 0.005,
+                  $"the line the live run scored is 1.248, not the calibration's 1.098 (got {liveBase.Ratio:F3}) " +
+                  "- the pre-flight anchors on the UNIT, the calibration on its formation LEADER");
+            Check(ref failures, liveBase.Flagged, "the live line is FLAGGED");
+
+            var live = RouteShift.ChooseForLeg(RidgeALive, RidgeB, liveBase, opt,
+                                               svc.WorstRatioScorer(TankLimitRaw));
+            Console.WriteLine($"     chosen: {live.Note}");
+            Check(ref failures, live.Shifted, "a shift IS chosen from the live anchor");
+            Check(ref failures, live.OffsetMeters > 0 && live.SideWord == "north",
+                  $"THE REGRESSION: the side is NORTH, never the south side the run took " +
+                  $"(got {live.OffsetMeters:+0;-0} m {live.SideWord})");
+            Check(ref failures, Math.Abs(live.OffsetMeters + 125.0) > 1e-9,
+                  $"the -125 m SOUTH shift of run 20260915T023743Z is NOT chosen (got {live.OffsetMeters:+0;-0} m)");
+            Check(ref failures, Math.Abs(live.OffsetMeters) >= 50.0 && Math.Abs(live.OffsetMeters) <= 550.0,
+                  $"it stays inside the measured clear band +50..+550 m (got {Math.Abs(live.OffsetMeters):F0})");
+            Check(ref failures, live.ShiftedRatio <= opt.AcceptRatio,
+                  $"C1 still holds by the full margin (got {live.ShiftedRatio:F3} vs {opt.AcceptRatio:F3})");
+            Check(ref failures, !live.BandNotCleared && live.BandMax < opt.Threshold,
+                  $"C2 still holds on the chosen side (band max {live.BandMax:F3})");
+            Check(ref failures, Math.Abs(live.OffsetMeters - 250.0) < 1e-9
+                             && Math.Abs(live.ShiftedRatio - 0.761) < 0.005,
+                  $"the shipped defaults pick +250 m at 0.761 (pre-registered on leg_check.py; got " +
+                  $"{live.OffsetMeters:F0} m at {live.ShiftedRatio:F3})");
+
+            // THE DECISIVE CHECK. C1 alone puts the shift at +75 m NORTH from this same anchor, so
+            // the southward choice was C2's doing and nothing else's.
+            var liveLineOnly = RouteShift.ChooseForLeg(RidgeALive, RidgeB, liveBase, lineOnly,
+                                                       svc.WorstRatioScorer(TankLimitRaw));
+            Console.WriteLine($"     line-only: {liveLineOnly.Note}");
+            Check(ref failures, liveLineOnly.Shifted && liveLineOnly.OffsetMeters > 0
+                             && Math.Abs(liveLineOnly.OffsetMeters - 75.0) < 1e-9,
+                  $"C1 ALONE chooses +75 m north from the live anchor (got {liveLineOnly.OffsetMeters:+0;-0} m) " +
+                  "- so the run's southward shift was C2 siding the search, not C1 scoring the ground");
+            Check(ref failures, Math.Sign(live.OffsetMeters) == Math.Sign(liveLineOnly.OffsetMeters),
+                  "C2 never changes the SIDE C1 chose - it may only push the magnitude outward on it");
+            Check(ref failures, Math.Abs(live.OffsetMeters) >= Math.Abs(liveLineOnly.OffsetMeters),
+                  "...and outward is the only direction it may push");
+            var southTried = live.Tried.Where(c => c.OffsetMeters < 0).ToList();
+            Check(ref failures, southTried.All(c => !c.Accepted),
+                  $"no southward candidate is ever ACCEPTED on this leg ({southTried.Count} tried)");
+            Check(ref failures, live.Tried.All(c => Math.Abs(c.OffsetMeters) <= 250.0 + 1e-9),
+                  "the search stops at the winning magnitude - it does not keep scoring past it");
+        }
+
+        // ------------------------------------------------- 3c. UNKNOWN GROUND IS NEVER CLEAR
+        Console.WriteLine("-- 3c. a candidate over missing tiles is UNSCORABLE, not clear");
+        {
+            // The pure rule, driven against the production chooser with a synthetic scorer: a
+            // beautiful ratio plus ONE missing sample must still be refused. (The V8 run itself had
+            // 0 NaN samples on every candidate at every magnitude, so this is hardening, not the
+            // cause - and a rule that cannot be exercised by a real cache is exactly the rule that
+            // needs a fixture.)
+            var ridgeBase2 = svc.ScoreLeg(RidgeA, RidgeB, TankLimitRaw);
+            var unknown = RouteShift.ChooseForLeg(RidgeA, RidgeB, ridgeBase2, opt,
+                                                  _ => new PolyScore(0.100, 1));
+            Check(ref failures, !unknown.Shifted,
+                  $"a 0.100 candidate with ONE missing tile is refused, not taken ({unknown.Note})");
+            Check(ref failures, unknown.Note.Contains("UNSCORABLE"),
+                  $"...and the reason says so ({unknown.Note})");
+            Check(ref failures, unknown.Tried.Count > 0 && unknown.Tried.All(c => c.NanSamples > 0 || c.Refused),
+                  "every candidate carries its own missing-tile count");
+
+            // The control that makes the check falsifiable: the SAME ratio with no missing sample
+            // is taken at once.
+            var known = RouteShift.ChooseForLeg(RidgeA, RidgeB, ridgeBase2, opt,
+                                                _ => new PolyScore(0.100, 0));
+            Check(ref failures, known.Shifted && Math.Abs(known.OffsetMeters) <= opt.StepMeters + 1e-9,
+                  $"the same ratio with NO missing sample is accepted at the first step ({known.Note})");
+
+            // End to end: no tiles at all -> NO VERDICT -> not flagged -> the authored line, untouched.
+            string empty = Path.Combine(Path.GetTempPath(),
+                                        "routeshift-selftest-nocache-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                using var bare = new PreflightService(new PreflightOptions { CacheDir = empty, Offline = true });
+                var route = new List<(double Lat, double Lon)> { RidgeA, RidgeB };
+                var outcome = bare.ShiftRoute(route, TankLimitRaw, opt);
+                Check(ref failures, outcome.Legs.Count == 1 && outcome.Legs[0].NoVerdict,
+                      "with no tiles at all the leg gets NO VERDICT");
+                Check(ref failures, !outcome.Legs[0].Flagged && outcome.Shifts.Count == 0,
+                      "it is neither flagged nor shifted - the pre-flight reports, it does not guess");
+                Check(ref failures, !outcome.Changed && outcome.Route.Count == 2
+                      && outcome.Route[0] == RidgeA && outcome.Route[1] == RidgeB,
+                      "the route comes back as authored, point for point");
+                Check(ref failures, bare.Tiles.Fetched == 0, "and nothing was fetched trying");
+            }
+            finally
+            {
+                try { if (Directory.Exists(empty)) Directory.Delete(empty, true); } catch { }
+            }
         }
 
         // ---------------------------------------------------------------- 4. UNTOUCHED CONTROLS

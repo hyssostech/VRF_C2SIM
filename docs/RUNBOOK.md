@@ -2074,9 +2074,12 @@ vertices: two ON the authored line where the path leaves and rejoins it, and two
 line spanning the flagged window plus `...ShiftPadMeters` (50) plus `...ShiftLeadMeters` (110)
 each side. `...ShiftMaxTurnDegrees` (30) sets the corner and hence the transit length.
 
-WHAT IT NEVER DOES: move, drop or reorder one of STP's own vertices; refuse a task; or act
-silently. A flagged leg no offset clears is dispatched AS AUTHORED with an ObservationReport
-saying so.
+WHAT IT NEVER DOES: move, drop or reorder one of STP's own vertices; refuse a task; act
+silently; take a line any part of which had no elevation tile (unknown is never clear); or let the
+FORMATION BAND choose which SIDE of the leg to detour to. The side comes from the route-line
+verdict alone and the band may only push the detour further out on that same side - the fix for the
+southward shift of run 20260915T023743Z (DESIGN_ROUTE_SHIFT sec 4.2a). A flagged leg no offset
+clears is dispatched AS AUTHORED with an ObservationReport saying so.
 
 THE THREE THINGS TO LOOK FOR IN THE LOG:
 
@@ -2084,9 +2087,14 @@ THE THREE THINGS TO LOOK FOR IN THE LOG:
     ROUTE SHIFTED <d> m <side> - ratio <before> -> <after> ...                  (it acted)
     NO ROUTE SHIFT - NO CLEARED LINE within +/-<band> m ...                     (it declined)
 
-and one failure mode that must never be silent:
+plus, at INFO, every candidate it tried with that candidate's own missing-tile count:
+
+    ROUTE SHIFT candidates - +25 m ratio 1.022 nan 0 ratio 1.022 > 0.820; ... ACCEPTED
+
+and two failure modes that must never be silent:
 
     the ROUTE SHIFT check did not finish within <t> s - dispatching on the line as authored
+    the ROUTE SHIFT could NOT clear the formation band anywhere on the <side> side ...
 
 DISPATCH IS DEFERRED WHILE IT RUNS. The check runs OFF the tick thread (a cold leg fetches
 terrain tiles over HTTP) and the task is dispatched from the re-entry, exactly as the
