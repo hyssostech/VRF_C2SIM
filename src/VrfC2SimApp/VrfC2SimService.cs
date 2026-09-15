@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -203,6 +204,7 @@ public sealed class VrfC2SimService : BackgroundService
         new(false, false, false, -1.0, -1.0, StallPolicy.SimClockStep.Flat, false, 0.0);
     private bool _taskClockStaleWarned;                         // M4 stale warning for the TASK clock, once
     private DateTime _taskClockHoldLineUtc = DateTime.MinValue; // Q5: the HOLD line repeats, rate-limited
+    private DateTime _taskClockBackendReadWarnUtc = DateTime.MinValue; // STP-809: control-state read failed
     private DateTime _simRollbackLineUtc = DateTime.MinValue;   // rate limit for the rollback line
     private int _simRollbackLinesSuppressed;                    // rollbacks the rate limit did not print
     private const double TaskClockSampleSeconds = 1.0;
@@ -552,8 +554,10 @@ public sealed class VrfC2SimService : BackgroundService
                                     // still listed HOLDS task time; only an UNREADABLE reader falls back.
                                     ? " - falling back to WALL seconds only when DtVrfRemoteController::" +
                                       "simTime() cannot be READ at all, without restarting any wait. A clock " +
-                                      "that is readable but FLAT while a VR-Forces back end is still present " +
-                                      "is a PAUSE: task times are HELD and age by nothing (Q5)"
+                                      "that is readable but FLAT while a VR-Forces back end is still there " +
+                                      "and OPERATING - it reports PAUSED or RUNNING and at least one known " +
+                                      "back end is still simulatable (STP-809) - is a PAUSE: task times are " +
+                                      "HELD and age by nothing (Q5)"
                                     : "",
                                 _durationScale, _vrf.TaskPredecessorTimeoutSeconds,
                                 _predecessorEndMargin, _vrf.TaskChainBackstopSeconds);
@@ -3800,22 +3804,64 @@ public sealed class VrfC2SimService : BackgroundService
         // Q5 (USER RULING 2026-09-14): A PAUSED SCENARIO DOES NOT AGE A TASK. M4's cure for a
         // frozen reader was to serve WALL seconds after 60 s of flatness - which burned ten
         // minutes off every armed Duration for a ten-minute coffee break. The clock now HOLDS
-        // while a VR-Forces back end is still there and falls back to wall only when there is
-        // none. The back-end read happens ONLY in the stale branch, so the golden path keeps its
-        // single per-second bridge call.
+        // while a VR-Forces back end is still there and OPERATING, and falls back to wall only
+        // when none is. The back-end reads happen ONLY in the stale branch, so the golden path
+        // keeps its single per-second bridge call.
+        //
+        // STP-809: the three reads are BackendCount (the pre-STP-809 signal, kept as the
+        // fallback), BackendControlState (Paused vs Running, DtVrfRemoteController::
+        // backendsControlState) and ActiveBackendCount (how many known back ends the vendor
+        // still calls simulatable or in transition). BackendCount alone could not tell a PAUSED
+        // back end from one DEACTIVATED for missing its status timeout, because
+        // DtVrfBackendListener::doTimeouts() deactivates such an entry instead of removing it -
+        // so a back end that died IN PLACE froze task time for the rest of the run (pass-3
+        // review E2). Each read is guarded on its own: one that throws leaves its own signal at
+        // "no reading" and StallPolicy.TaskClockAction then decides on whatever is left, which
+        // with all three gone is exactly the pre-STP-809 rule.
         bool taskSimStale = heldOnSim && obs.Stale;
         bool backEndPresent = false;
+        int backendCount = 0;
+        var control = StallPolicy.BackendControl.Unreadable;
+        int activeBackends = -1;
         if (taskSimStale)
         {
-            try { backEndPresent = _bridge.BackendCount() > 0; }
+            try { backendCount = _bridge.BackendCount(); backEndPresent = backendCount > 0; }
             catch (Exception ex)
             {
                 // Unreadable = treat it as gone: that is the pre-Q5 behaviour, and serving wall
                 // seconds is the outcome that at least keeps moving.
                 _log.LogDebug(ex, "TASK CLOCK: BackendCount read failed; treating the back end as gone.");
             }
+            try { control = (StallPolicy.BackendControl)ReadBackendControlState(); }
+            catch (Exception ex)
+            {
+                // A bridge that predates STP-809 throws MissingMethodException here, which is a
+                // PARTIAL DEPLOY (RUNBOOK sec 9) - so it is said once a minute, not swallowed.
+                control = StallPolicy.BackendControl.Unreadable;
+                if ((now - _taskClockBackendReadWarnUtc).TotalSeconds >= StallPolicy.LogRateLimitSeconds)
+                {
+                    _taskClockBackendReadWarnUtc = now;
+                    _log.LogWarning(ex, "TASK CLOCK: the back-end CONTROL STATE could not be read " +
+                                        "(STP-809); falling back to the back-end COUNT. A " +
+                                        "MissingMethodException here means the deployed VrfBridge.dll " +
+                                        "predates STP-809 - see RUNBOOK sec 9.");
+                }
+            }
+            if (!Enum.IsDefined(typeof(StallPolicy.BackendControl), control))
+                control = StallPolicy.BackendControl.Other;   // a value this build does not know
+            try { activeBackends = ReadActiveBackendCount(); }
+            catch (Exception ex)
+            {
+                activeBackends = -1;
+                _log.LogDebug(ex, "TASK CLOCK: ActiveBackendCount read failed; no reading.");
+            }
         }
-        var action = StallPolicy.TaskClockAction(heldOnSim, taskSimStale, backEndPresent);
+        var action = StallPolicy.TaskClockAction(heldOnSim, taskSimStale, backEndPresent,
+                                                 control, activeBackends);
+        // The one sentence that says WHICH of the back-end states produced this outcome. Built
+        // once and interpolated into whichever line fires - one emit point per outcome, as before.
+        string why = taskSimStale
+            ? StallPolicy.BackendStateClause(control, activeBackends, backendCount) : "";
 
         // _taskClockHoldLineUtc doubles as "the last line said HOLD": it is set while holding and
         // cleared on every other outcome, so a HOLD that turns into a fall back to wall - the back
@@ -3823,22 +3869,27 @@ public sealed class VrfC2SimService : BackgroundService
         bool wasHolding = _taskClockHoldLineUtc != DateTime.MinValue;
         if (action == StallPolicy.TaskClockOnFlat.HoldOnSim)
         {
-            // REPEATED, not said once: BackendCount cannot tell a paused back end from one that
-            // has been DEACTIVATED for missing its status timeout (StallPolicy.TaskClockAction
-            // documents the limit), so the one thing this line must not be is quiet.
+            // REPEATED, not said once. Since STP-809 a PAUSED reading is a positive answer rather
+            // than an inference - but the hold can still rest on the BackendCount fallback (an
+            // Unknown or unreadable control state), and on that fallback a back end DEACTIVATED
+            // for missing its status timeout still looks exactly like a paused one. The clause
+            // says which case this is, and the line must not be quiet in either.
             if (!_taskClockStaleWarned
                 || (now - _taskClockHoldLineUtc).TotalSeconds >= StallPolicy.LogRateLimitSeconds)
             {
                 _taskClockStaleWarned = true;
                 _taskClockHoldLineUtc = now;
                 _log.LogWarning("TASK CLOCK: the simulation clock has not advanced past {T:F1} s for {S:F0} wall " +
-                                "seconds and a VR-Forces back end IS still present (BackendCount>0) - the " +
-                                "scenario is PAUSED. C2SIM task times are HELD: {N} task(s) waiting on an end " +
-                                "time age by NOTHING until the scenario runs again (Q5, user ruling " +
-                                "2026-09-14). CAVEAT: the back-end list KEEPS an entry that has missed its " +
-                                "status timeout, so if this line keeps repeating and nobody paused anything, " +
-                                "the back end has died and task time will stay frozen until it returns.",
-                                obs.SimSeconds, obs.FlatForWallSeconds, _timed.Count);
+                                "seconds and {Why} - the scenario is PAUSED, not gone. C2SIM task times are " +
+                                "HELD: {N} task(s) waiting on an end time age by NOTHING until the scenario " +
+                                "runs again (Q5, user ruling 2026-09-14).{Caveat}",
+                                obs.SimSeconds, obs.FlatForWallSeconds, why, _timed.Count,
+                                control == StallPolicy.BackendControl.Paused
+                                    ? ""
+                                    : " CAVEAT: this rests on the back-end COUNT, and the vendor's list KEEPS " +
+                                      "an entry that has missed its status timeout - so if this line keeps " +
+                                      "repeating and nobody paused anything, the back end has died and task " +
+                                      "time will stay frozen until it returns.");
             }
         }
         else if (taskSimStale && (!_taskClockStaleWarned || wasHolding))
@@ -3846,11 +3897,10 @@ public sealed class VrfC2SimService : BackgroundService
             _taskClockStaleWarned = true;
             _taskClockHoldLineUtc = DateTime.MinValue;   // no longer holding
             _log.LogWarning("TASK CLOCK: the simulation clock has not advanced past {T:F1} s for {S:F0} wall " +
-                            "seconds and NO VR-Forces back end is present (BackendCount=0) - the simulation " +
-                            "is GONE, not paused{Was}. C2SIM task times ({N} task(s) waiting on an end time) " +
-                            "are served on the WALL clock until a back end returns; no task is completed " +
-                            "early and no wait is restarted.",
-                            obs.SimSeconds, obs.FlatForWallSeconds,
+                            "seconds and {Why} - the simulation is GONE, not paused{Was}. C2SIM task times " +
+                            "({N} task(s) waiting on an end time) are served on the WALL clock until a back " +
+                            "end returns; no task is completed early and no wait is restarted.",
+                            obs.SimSeconds, obs.FlatForWallSeconds, why,
                             wasHolding ? " (task time was being HELD until now - the back end has gone away)" : "",
                             _timed.Count);
         }
@@ -3863,9 +3913,12 @@ public sealed class VrfC2SimService : BackgroundService
             // clock (the early return above only covers a single unreadable sample while the mode
             // still says readable). The one sentence here announced "readable and advancing again"
             // at the exact tick every task time moved onto the WALL clock - the inverse of what
-            // happened, on the branch Q5's own "gone" case actually travels (E2: the written-for-it
-            // branch above cannot be reached, because SimTimeSeconds and BackendCount read the same
-            // backends().count()). So the two are said apart.
+            // happened, on the branch Q5's own "gone" case actually travels. So the two are said
+            // apart. (When E1 was written the OTHER exit - the stale branch's fall back to wall -
+            // could not be reached at all, because SimTimeSeconds and BackendCount read the same
+            // backends().count(): E2. STP-809 made it reachable by deciding on the back end's
+            // CONTROL STATE and ACTIVE count instead, so BOTH exits now occur and both are
+            // exercised by the rulings suite. This branch is unchanged either way.)
             _taskClockStaleWarned = false;
             _taskClockHoldLineUtc = DateTime.MinValue;
             if (heldOnSim)
@@ -3887,6 +3940,20 @@ public sealed class VrfC2SimService : BackgroundService
         bool usingSim = action != StallPolicy.TaskClockOnFlat.FallBackToWall;
         _taskAxis.Advance(usingSim ? obs.SimSeconds : wallNow, usingSim);
     }
+
+    // STP-809's two bridge readers, each in its OWN method and NOT inlined. The CLR resolves a
+    // cross-assembly method token when it JITs the method that CALLS it, so a bridge that predates
+    // STP-809 would throw MissingMethodException while SampleTaskClock itself was being compiled -
+    // BEFORE its try/catch exists, on the vrf tick thread, on the FIRST tick, taking the whole task
+    // clock with it. Behind a NoInlining call the resolution happens when the helper is first
+    // invoked, INSIDE the guard, and a partial deploy degrades to the BackendCount rule with one
+    // WARNING a minute instead of a repeating `Tick phase FAILED`. Same reason as
+    // RuntimeCheck.ProbeBridge, and RUNBOOK sec 9 is the deploy procedure that prevents it.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private int ReadBackendControlState() => _bridge.BackendControlState();
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private int ReadActiveBackendCount() => _bridge.ActiveBackendCount();
 
     /// <summary>
     /// Wait <paramref name="seconds"/> OF THE TASK CLOCK. This is what puts the StartTime delay and

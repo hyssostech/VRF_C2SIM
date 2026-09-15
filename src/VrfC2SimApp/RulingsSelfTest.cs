@@ -421,9 +421,10 @@ public static class RulingsSelfTest
         // (e2b) Q5 (USER RULING 2026-09-14): A PAUSED SCENARIO DOES NOT AGE A TASK. The same frozen
         //       reader, but a back end is still present - which is what a PAUSE looks like from
         //       here. M4's wall fallback burned a coffee break off every armed Duration; the axis
-        //       must now hold instead. (The limit of the signal is documented on
-        //       StallPolicy.TaskClockAction: BackendCount cannot tell a paused back end from a
-        //       deactivated one, which is why the service repeats the hold line.)
+        //       must now hold instead. This drives the BackendCount-only rule - the three-argument
+        //       overload, which since STP-809 is the FALLBACK for a bridge or a reader that says
+        //       nothing. Its blindness (a deactivated back end counts exactly like a paused one) is
+        //       what (e2e) and (e2f) below measure and then fix.
         {
             var paused = WalkTaskClock(frozen, useConfirmedMode: true, honourStale: true, dur, 600,
                                        backEndPresent: true);
@@ -492,6 +493,144 @@ public static class RulingsSelfTest
                   "on heldOnSim and says which of the two happened");
         }
 
+        // (e2e) STP-809: THE BACK-END CONTROL STATE, AND THE ROW THAT USED TO BE DECIDED WRONG.
+        //       Q5's predicate had exactly one input - VrfFacade::BackendCount, which is
+        //       backends().count() - and the vendor's list KEEPS a back end that has missed its
+        //       status timeout (DtVrfBackendListener::doTimeouts() deactivates the entry instead of
+        //       removing it, vrfBackendListener.h:161-163). So a back end that died IN PLACE looked
+        //       exactly like a paused one and froze every armed Duration for the rest of the run,
+        //       with one WARNING a minute as the only symptom (pass-3 review E2). The facade now
+        //       exposes the two readers the vendor does have - backendsControlState() and an ACTIVE
+        //       count over backendList() - and the truth table below is decided on those.
+        {
+            const bool held = true, staleNow = true;
+            const StallPolicy.BackendControl paused = StallPolicy.BackendControl.Paused;
+            const StallPolicy.BackendControl running = StallPolicy.BackendControl.Running;
+            const StallPolicy.BackendControl none = StallPolicy.BackendControl.NoBackend;
+            const StallPolicy.BackendControl unknown = StallPolicy.BackendControl.Unknown;
+            const StallPolicy.BackendControl unreadable = StallPolicy.BackendControl.Unreadable;
+
+            // FAIL-FIRST, the row that was wrong: DEACTIVATED-ALL. The PRE-STP-809 rule is the
+            // three-argument overload, and it is still here - a back end in the list is a back end,
+            // so it HOLDS, whatever the vendor thinks of it.
+            Check(ref failures,
+                  StallPolicy.TaskClockAction(held, staleNow, backEndPresent: true)
+                      == StallPolicy.TaskClockOnFlat.HoldOnSim,
+                  "FAIL-FIRST (E2 / STP-809): on the BackendCount signal ALONE a back end that has been "
+                + "DEACTIVATED for missing its status timeout is indistinguishable from a paused one, so "
+                + "the task clock HOLDS - every armed Duration, every gate and every start delay frozen "
+                + "for the rest of the run");
+            // ... and the SAME row, decided on the vendor's own answers, falls back to the WALL clock:
+            // the control state still says Running (it is the last one a status message carried), but
+            // NOT ONE known back end is simulatable or in transition.
+            Check(ref failures,
+                  StallPolicy.TaskClockAction(held, staleNow, backEndPresent: true, running, activeBackends: 0)
+                      == StallPolicy.TaskClockOnFlat.FallBackToWall,
+                  "(STP-809) DEACTIVATED-ALL: a cached RUNNING control state with ZERO active back ends is "
+                + "a back end that has DIED, not a pause - the axis falls back to the WALL clock");
+
+            // RUNNING + FLAT is NOT a death: the status message and the simTime sample refresh on
+            // different cadences (C6's blind period), so the existing hysteresis - not a flat clock -
+            // is what takes a genuinely lost reader to the wall clock.
+            Check(ref failures,
+                  StallPolicy.TaskClockAction(held, staleNow, backEndPresent: true, running, activeBackends: 1)
+                      == StallPolicy.TaskClockOnFlat.HoldOnSim,
+                  "(STP-809) RUNNING + flat with an ACTIVE back end HOLDS - a flat clock alone is the C6 "
+                + "blind period, and only the hysteresis may switch clocks");
+
+            // PAUSED + FLAT is Q5's own case, now a positive reading rather than an inference.
+            Check(ref failures,
+                  StallPolicy.TaskClockAction(held, staleNow, backEndPresent: true, paused, activeBackends: 1)
+                      == StallPolicy.TaskClockOnFlat.HoldOnSim,
+                  "(STP-809) PAUSED + flat with an ACTIVE back end HOLDS - the back end SAYS it is paused "
+                + "(DtPauseControlType), which is Q5's ruling confirmed rather than assumed");
+
+            // NO BACK END: the vendor's DtUnknownControlType with an empty list. Same outcome as
+            // BackendCount = 0 always gave, and now reachable through the facade for real.
+            Check(ref failures,
+                  StallPolicy.TaskClockAction(held, staleNow, backEndPresent: false, none, activeBackends: 0)
+                      == StallPolicy.TaskClockOnFlat.FallBackToWall,
+                  "(STP-809) NO BACK END at all falls back to the WALL clock, as the count rule did");
+
+            // UNKNOWN / UNREADABLE: nothing was learned, so NOTHING CHANGES - the BackendCount rule
+            // decides, including its documented blindness. This is the check that says the new signal
+            // can only ever ADD information.
+            Check(ref failures,
+                  StallPolicy.TaskClockAction(held, staleNow, backEndPresent: true, unknown, activeBackends: -1)
+                      == StallPolicy.TaskClockOnFlat.HoldOnSim
+                  && StallPolicy.TaskClockAction(held, staleNow, backEndPresent: false, unknown, activeBackends: -1)
+                      == StallPolicy.TaskClockOnFlat.FallBackToWall
+                  && StallPolicy.TaskClockAction(held, staleNow, backEndPresent: true, unreadable, activeBackends: -1)
+                      == StallPolicy.TaskClockAction(held, staleNow, backEndPresent: true)
+                  && StallPolicy.TaskClockAction(held, staleNow, backEndPresent: false, unreadable, activeBackends: -1)
+                      == StallPolicy.TaskClockAction(held, staleNow, backEndPresent: false),
+                  "(STP-809) an UNKNOWN or UNREADABLE control state with no active-count reading is the "
+                + "pre-STP-809 rule EXACTLY - a bridge that predates this change, or a reader that throws, "
+                + "cannot change an outcome");
+
+            // PRECEDENCE, stated as a test because it is the one judgement call: a ZERO active count
+            // beats a Paused control state. That state is the last one a status message carried, and a
+            // live paused back end still heartbeats and still has objects created on it - so it is
+            // simulatable and never reaches this row.
+            Check(ref failures,
+                  StallPolicy.TaskClockAction(held, staleNow, backEndPresent: true, paused, activeBackends: 0)
+                      == StallPolicy.TaskClockOnFlat.FallBackToWall,
+                  "(STP-809) a ZERO ACTIVE COUNT beats a cached PAUSED state - a back end that died while "
+                + "paused is dead, and the control state it left behind cannot say otherwise");
+
+            // The new inputs may not reach past the two gates that come first.
+            Check(ref failures,
+                  StallPolicy.TaskClockAction(held, stale: false, backEndPresent: false, none, activeBackends: 0)
+                      == StallPolicy.TaskClockOnFlat.ServeSim
+                  && StallPolicy.TaskClockAction(heldOnSim: false, stale: true, backEndPresent: true, paused, 1)
+                      == StallPolicy.TaskClockOnFlat.FallBackToWall,
+                  "(STP-809) a clock that is NOT stale is still served, and Vrf:TaskClock=wall is still "
+                + "unaffected - the back-end state is read only inside the stale branch");
+
+            // THE OPERATOR-FACING SENTENCE. One clause per outcome, and the two that matter at a demo
+            // must not read alike: a confirmed pause and a back end that died in place.
+            string pausedClause = StallPolicy.BackendStateClause(paused, activeBackends: 1, backendCount: 1);
+            string deadClause = StallPolicy.BackendStateClause(running, activeBackends: 0, backendCount: 1);
+            string fallbackClause = StallPolicy.BackendStateClause(unreadable, activeBackends: -1, backendCount: 1);
+            Check(ref failures,
+                  pausedClause.Contains("REPORTS PAUSED") && pausedClause.Contains("active=1")
+                  && deadClause.Contains("DIED") && deadClause.Contains("active=0")
+                  && fallbackClause.Contains("back-end COUNT") && fallbackClause.Contains("active=unreadable"),
+                  "(STP-809) the TASK CLOCK line says WHICH state it decided on - a confirmed PAUSE, a back "
+                + "end that DIED in place, or a fallback to the count - and carries both numbers");
+        }
+
+        // (e2f) ... and the same row driven through the WHOLE walk, not just the predicate: the real
+        //       SimClockTracker, the real axis and the real TimedCompletionPolicy, on a frozen reader
+        //       with a back end that is still LISTED but no longer active. This is the case N4 said the
+        //       suite could not produce - (e2) had to fake it with backEndPresent:false, a state the
+        //       facade could not return - and STP-809 makes it real.
+        {
+            Func<int, double> frozenReader = _ => 5000.0;
+            var preFixDead = WalkTaskClock(frozenReader, useConfirmedMode: true, honourStale: true,
+                                           dur, 600, backEndPresent: true);
+            Check(ref failures,
+                  !preFixDead.Completed && preFixDead.AxisSeconds == 0.0 && preFixDead.Samples == 600,
+                  $"FAIL-FIRST (STP-809): with only the back-end COUNT to go on, a DEAD back end that is "
+                + $"still in the vendor's list ages a {dur:F0} s task by NOTHING across 600 wall seconds "
+                + $"(axis {preFixDead.AxisSeconds:F0} s) - indistinguishable from the pause of (e2b)");
+            var fixedDead = WalkTaskClock(frozenReader, useConfirmedMode: true, honourStale: true,
+                                          dur, 600, backEndPresent: true,
+                                          StallPolicy.BackendControl.Running, activeBackends: 0);
+            Check(ref failures, fixedDead.Completed && fixedDead.StaleTransitions == 1,
+                  $"(STP-809) ... and with the ACTIVE count reading zero the same walk detects it ONCE "
+                + $"({fixedDead.StaleTransitions} transition(s)) and completes the task on the WALL "
+                + $"fallback ({fixedDead.Samples} samples) - the run is no longer frozen");
+            // The pause must still hold, through the same walk, with the state the vendor gives for one.
+            var stillPaused = WalkTaskClock(frozenReader, useConfirmedMode: true, honourStale: true,
+                                            dur, 600, backEndPresent: true,
+                                            StallPolicy.BackendControl.Paused, activeBackends: 1);
+            Check(ref failures, !stillPaused.Completed && stillPaused.AxisSeconds == 0.0,
+                  $"(STP-809) ... while a back end that REPORTS PAUSED and is still active holds the same "
+                + $"task for the full 600 samples (axis {stillPaused.AxisSeconds:F0} s) - Q5 is unchanged "
+                + $"for the case the user ruled on");
+        }
+
         // (e3) The axis itself: it never invents time, whatever the reader does.
         {
             var axis = new TaskClockAxis();
@@ -556,9 +695,17 @@ public static class RulingsSelfTest
     /// </summary>
     /// <param name="backEndPresent">Q5: what VrfFacade::BackendCount would say. True = a back end
     /// is still there, so a flat clock is a PAUSE and the axis holds.</param>
+    /// <param name="control">STP-809: what VrfFacade::BackendControlState would say. The default,
+    /// Unreadable, together with activeBackends -1 is the PRE-STP-809 walk exactly - the
+    /// BackendCount rule and nothing else - so every check written before STP-809 still measures
+    /// what it was written to measure.</param>
+    /// <param name="activeBackends">STP-809: what VrfFacade::ActiveBackendCount would say; -1 is
+    /// no reading, 0 is "not one known back end is simulatable or in transition".</param>
     private static (bool Completed, int Samples, double AxisSeconds, int ModeFlips, int StaleTransitions)
         WalkTaskClock(Func<int, double> reader, bool useConfirmedMode, bool honourStale,
-                      double durationSeconds, int maxSamples, bool backEndPresent = false)
+                      double durationSeconds, int maxSamples, bool backEndPresent = false,
+                      StallPolicy.BackendControl control = StallPolicy.BackendControl.Unreadable,
+                      int activeBackends = -1)
     {
         var tracker = new SimClockTracker();
         var axis = new TaskClockAxis();
@@ -579,7 +726,8 @@ public static class RulingsSelfTest
             bool heldOnSim = useConfirmedMode ? obs.ReadableConfirmed : obs.Readable;
             if (heldOnSim && !obs.Readable) continue;      // nothing to read this sample
             // The SERVICE's own decision (Q5), not a copy of it: SampleTaskClock calls this.
-            var action = StallPolicy.TaskClockAction(heldOnSim, stale, backEndPresent);
+            var action = StallPolicy.TaskClockAction(heldOnSim, stale, backEndPresent,
+                                                     control, activeBackends);
             bool usingSim = action != StallPolicy.TaskClockOnFlat.FallBackToWall;
             axis.Advance(usingSim ? obs.SimSeconds : wall, usingSim);
             if (timed.Advance(axis.Seconds, usingSim: true).Count > 0) completed = true;

@@ -186,11 +186,15 @@ public static class StallPolicy
     {
         /// <summary>The clock is readable and not stale: serve it.</summary>
         ServeSim,
-        /// <summary>Stale, but a VR-Forces back end is still there: the scenario is PAUSED, so the
-        /// axis stays on the sim clock and adds NOTHING until it moves again.</summary>
+        /// <summary>Stale, but the back end is still THERE and operating - it reports PAUSED, or
+        /// it reports RUNNING and at least one known back end is still simulatable (STP-809),
+        /// or nothing could be read and the BackendCount fallback says one is present. The
+        /// scenario is PAUSED as far as this interface can tell, so the axis stays on the sim
+        /// clock and adds NOTHING until it moves again.</summary>
         HoldOnSim,
-        /// <summary>Stale with no back end at all, or the wall clock was asked for: serve WALL
-        /// seconds, keeping everything already served.</summary>
+        /// <summary>Stale with NO operating back end - none known at all, or not one of the
+        /// known ones is still simulatable or in transition (STP-809) - or the wall clock was
+        /// asked for: serve WALL seconds, keeping everything already served.</summary>
         FallBackToWall,
     }
 
@@ -205,25 +209,126 @@ public static class StallPolicy
     /// own rule says a paused scenario does not age a task. The user ruled: HOLD while the back end
     /// is still reporting, fall back to wall only when it is gone.
     ///
-    /// THE LIMIT OF THE SIGNAL, stated because it decides how much this rule is worth. The only
-    /// back-end liveness the facade exposes is VrfFacade::BackendCount ->
+    /// THE LIMIT OF THE BackendCount SIGNAL, and why STP-809 replaced it. The only back-end
+    /// liveness the facade used to expose was VrfFacade::BackendCount ->
     /// DtVrfRemoteController::backends().count(), and that list keeps a back end that has missed
     /// its status timeout: DtVrfBackendListener::doTimeouts() DEACTIVATES such an entry rather than
-    /// removing it (vrfBackendListener.h; only the explicit remove() takes one out). So a non-zero
-    /// count proves the back end was DISCOVERED and never removed - NOT that it is still answering.
-    /// The consequence is deliberate and must be read with the log: on this signal a DEAD back end
-    /// holds task time exactly as a paused one does, so the hold line repeats rather than being
-    /// said once. Serving WALL seconds against a dead back end was not better - it aged tasks
-    /// against a simulation that was not running - but it was at least noisy in a different way.
-    /// OWED (needs a C++ facade change, hence not done here): expose the vendor's real answer -
-    /// DtVrfBackendListener::lookupBackend(addr)-&gt;status() gives DtBackend::Paused vs Playing, and
-    /// getControlState(addr) gives DtPauseControlType vs DtRunControlType - and decide on THAT.
+    /// removing it (vrfBackendListener.h:161-163; only the explicit remove() at :153-155 takes one
+    /// out). So a non-zero count proves the back end was DISCOVERED and never removed - NOT that it
+    /// is still answering, and on that signal alone a DEAD back end held task time exactly as a
+    /// paused one did, for the rest of the run, with one WARNING a minute as the only symptom
+    /// (pass-3 review E2). STP-809 took the facade change: see <see cref="BackendControl"/> and the
+    /// five-argument overload below. BackendCount REMAINS the fallback - a reader that throws, or a
+    /// deployed bridge that predates STP-809 (the service reads both through NoInlining helpers so
+    /// that case is a caught MissingMethodException, not a JIT failure), leaves the new arguments
+    /// saying nothing and gives the pre-STP-809 behaviour exactly.
     /// </summary>
     public static TaskClockOnFlat TaskClockAction(bool heldOnSim, bool stale, bool backEndPresent)
-        => !heldOnSim ? TaskClockOnFlat.FallBackToWall
-         : !stale ? TaskClockOnFlat.ServeSim
-         : backEndPresent ? TaskClockOnFlat.HoldOnSim
-         : TaskClockOnFlat.FallBackToWall;
+        => TaskClockAction(heldOnSim, stale, backEndPresent,
+                           BackendControl.Unreadable, activeBackends: -1);
+
+    /// <summary>
+    /// The VR-Forces back end's CONTROL STATE as the facade reports it (STP-809). The mirror of
+    /// vrf::VrfFacade::BackendControl - the NON-NEGATIVE values are the vendor's own control-type
+    /// constants (DtUnknownControlType 0 / DtPauseControlType 1 / DtRunControlType 2,
+    /// vrfmsgs/messageTypes.h:430-432 on 5.2d, :420-422 on 5.0.2), the NEGATIVE ones are ours.
+    /// Keep the two enums in step: the bridge passes the raw int.
+    /// </summary>
+    public enum BackendControl
+    {
+        /// <summary>A vendor control type that is none of the three below (RunDuration, Rewind,
+        /// Step, ...). Treated exactly like <see cref="Unknown"/>: it says nothing about
+        /// liveness.</summary>
+        Other = -3,
+        /// <summary>The vendor says NO remote back end exists - DtUnknownControlType with
+        /// backends().count() == 0. The simulation is gone, not paused.</summary>
+        NoBackend = -2,
+        /// <summary>NO READING: no controller (before Start, after Stop), a bridge that predates
+        /// STP-809, or a reader that threw. Falls back to the BackendCount rule.</summary>
+        Unreadable = -1,
+        /// <summary>DtUnknownControlType with back ends still in the list: discovered, but nothing
+        /// has told us a control state. Falls back to the BackendCount rule.</summary>
+        Unknown = 0,
+        /// <summary>DtPauseControlType - the back end says it is PAUSED. Q5's case, now positively
+        /// identified rather than inferred from a flat clock.</summary>
+        Paused = 1,
+        /// <summary>DtRunControlType - the back end says it is RUNNING. A CACHED value: a back end
+        /// that dies while running keeps reporting this, which is why the active count decides
+        /// first.</summary>
+        Running = 2,
+    }
+
+    /// <summary>
+    /// Q5's decision on the REAL back-end state (STP-809). The same rule as the three-argument
+    /// overload wherever the new readers say nothing, so a missing signal can never change an
+    /// outcome; where they do speak, they answer the question BackendCount could not.
+    ///
+    /// THE ORDER OF THE TESTS IS THE DESIGN, and each step says why it beats the next:
+    ///   1. activeBackends == 0 - the vendor positively reports that NOT ONE known back end is
+    ///      simulatable OR in transition (VrfFacade::ActiveBackendCount:
+    ///      DtBackend::isInSimulatableState / isInTransitionStatus over backendList()). Nothing
+    ///      can be advancing the sim clock, so the axis falls back to WALL. This beats a Paused
+    ///      control state because that state is the LAST one a status message carried and a dead
+    ///      back end keeps reporting it, while a live paused back end still heartbeats its status
+    ///      and still has objects created on it - it is simulatable, and never reaches this test.
+    ///      -1 is "no reading" and falls through: only a positive zero decides.
+    ///   2. Paused - the back end SAYS it is paused, and by step 1 it is still there. Q5's ruling:
+    ///      HOLD. Task times age by NOTHING for as long as the pause lasts.
+    ///   3. NoBackend - the vendor says none exists. WALL, exactly as BackendCount = 0 always did.
+    ///   4. Running with a flat clock - NOT treated as a death. This is the C6 blind period: the
+    ///      status message that carries the control state and the simTime sample refresh on
+    ///      different cadences, so "running" plus "flat for 60 s" is the normal look of a back end
+    ///      whose status arrived first. The existing hysteresis (ModeSwitchConfirmations
+    ///      consecutive UNREADABLE samples) is what takes a genuinely lost reader to the wall
+    ///      clock; a flat clock alone must not, or Q5 is undone from the other side.
+    ///   5. Unknown / Other / Unreadable - nothing was learned: the pre-STP-809 BackendCount rule,
+    ///      unchanged, which holds and repeats the WARNING once a wall minute.
+    /// </summary>
+    /// <param name="heldOnSim">The hysteresis-confirmed mode says the sim clock is the one served.</param>
+    /// <param name="stale">That clock has been FLAT for the whole stale window.</param>
+    /// <param name="backEndPresent">VrfFacade::BackendCount() greater than 0 - the fallback signal.</param>
+    /// <param name="control">VrfFacade::BackendControlState().</param>
+    /// <param name="activeBackends">VrfFacade::ActiveBackendCount(); -1 = no reading.</param>
+    public static TaskClockOnFlat TaskClockAction(bool heldOnSim, bool stale, bool backEndPresent,
+                                                  BackendControl control, int activeBackends)
+    {
+        if (!heldOnSim) return TaskClockOnFlat.FallBackToWall;
+        if (!stale) return TaskClockOnFlat.ServeSim;
+        if (activeBackends == 0) return TaskClockOnFlat.FallBackToWall;                 // 1
+        if (control == BackendControl.Paused) return TaskClockOnFlat.HoldOnSim;         // 2
+        if (control == BackendControl.NoBackend) return TaskClockOnFlat.FallBackToWall; // 3
+        if (control == BackendControl.Running) return TaskClockOnFlat.HoldOnSim;        // 4
+        return backEndPresent ? TaskClockOnFlat.HoldOnSim                               // 5
+                              : TaskClockOnFlat.FallBackToWall;
+    }
+
+    /// <summary>
+    /// WHY A HOLD OR A FALL BACK HAPPENED, in one clause, for the operator-facing TASK CLOCK line
+    /// (STP-809). One emit point and one sentence per outcome: the service interpolates this into
+    /// the line it already had rather than growing a log branch per state. The two numbers are
+    /// always there, so a reader can tell a confirmed reading from a fallback.
+    /// </summary>
+    public static string BackendStateClause(BackendControl control, int activeBackends, int backendCount)
+    {
+        string counts = "BackendCount=" + backendCount + ", active="
+                      + (activeBackends < 0 ? "unreadable" : activeBackends.ToString());
+        if (control == BackendControl.Paused)
+            return "the back end REPORTS PAUSED (DtPauseControlType; " + counts + ")";
+        if (control == BackendControl.NoBackend)
+            return "the vendor reports NO back end at all (" + counts + ")";
+        if (activeBackends == 0)
+            return (control == BackendControl.Running
+                        ? "the back end's last status said RUNNING but NOT ONE known back end is "
+                          + "still simulatable or in transition - it has DIED, it was not paused ("
+                        : "NOT ONE known back end is still simulatable or in transition (")
+                   + counts + ")";
+        if (control == BackendControl.Running)
+            return "the back end REPORTS RUNNING while its clock stands still (" + counts + ")";
+        return (control == BackendControl.Unreadable
+                    ? "the control state could not be READ - falling back to the back-end COUNT ("
+                    : "the control state is UNKNOWN - falling back to the back-end COUNT (")
+               + counts + ")";
+    }
 
     /// <summary>
     /// THE COARSEST CHECK CADENCE THE WINDOW CAN CARRY. MinRingDepth entries span MinRingDepth - 1

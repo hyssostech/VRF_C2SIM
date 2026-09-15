@@ -60,6 +60,12 @@
 #include <vrfmsgs/ifIntersectionInformationResponse.h>
 #include <vrfmsgs/messageTypes.h>
 #include <vrfutil/scenario.h>
+// STP-809: the back-end CONTROL STATE and ACTIVE count (BackendControlState /
+// ActiveBackendCount). messageTypes.h above carries DtUnknownControlType /
+// DtPauseControlType / DtRunControlType; these two add the listener and the DtBackend
+// entries it holds. Neither is touched by the pre-existing command path.
+#include <vrfcontrol/vrfBackendListener.h>
+#include <vrfutil/backend.h>
 #include <matrix/geodeticCoord.h>
 #include <matrix/vlVector.h>
 // B7: geocentric -> topographic conversion for the kinematics read
@@ -669,6 +675,55 @@ void VrfFacade::Tick() {
 
 int VrfFacade::BackendCount() const {
     return p_->controller ? p_->controller->backends().count() : 0;
+}
+
+// STP-809. THE MAPPING IS THE POINT OF THIS FUNCTION - see VrfFacade.h for the vendor trail
+// and for what the answer does NOT say. Non-negative results are the vendor's own constants
+// verbatim; the negative ones are ours.
+int VrfFacade::BackendControlState() const {
+    if (!p_ || !p_->controller) return BackendControlUnreadable;
+    try {
+        const int state = p_->controller->backendsControlState();
+        if (state == DtPauseControlType) return BackendControlPaused;
+        if (state == DtRunControlType)   return BackendControlRunning;
+        if (state == DtUnknownControlType) {
+            // The vendor folds "no back end exists" and "no back end has said anything" into
+            // this one value (vrfRemoteController.h:320-323). Split them: that is the only
+            // information added here, and backends().count() is what BackendCount() reads.
+            return p_->controller->backends().count() <= 0
+                       ? BackendControlNoBackend : BackendControlUnknown;
+        }
+        return BackendControlOther;   // RunDuration / RunComplete / Rewind / Step, or newer
+    } catch (...) {
+        return BackendControlUnreadable;   // no exception crosses the facade boundary
+    }
+}
+
+// STP-809. -1 = no reading. 0 = the vendor positively reports that no KNOWN back end is
+// simulatable or in transition, which is the discriminator BackendCount() cannot give:
+// backends().count() keeps an entry doTimeouts() has deactivated.
+int VrfFacade::ActiveBackendCount() const {
+    if (!p_ || !p_->controller) return -1;
+    try {
+        DtVrfBackendListener* listener = p_->controller->backendListener();
+        if (!listener) return -1;
+        const DtList* list = listener->backendList();
+        if (!list) return -1;
+        int active = 0;
+        // vlutil/vlList.h:66-69 - the documented DtList walk. The envelope holds void*; the
+        // element type is the vendor's own ("a list of DtBackend objects for all known
+        // backends", vrfBackendListener.h:92-93).
+        for (DtListItem* item = list->first(); item; item = item->next()) {
+            const DtBackend* be = static_cast<const DtBackend*>(item->data());
+            if (!be) continue;
+            // Transition states count as OPERATING on purpose (VrfFacade.h): a back end that
+            // is loading or saving has a flat sim clock and is not dead.
+            if (be->isInSimulatableState() || be->isInTransitionStatus()) ++active;
+        }
+        return active;
+    } catch (...) {
+        return -1;
+    }
 }
 
 double VrfFacade::SimTimeSeconds() const {

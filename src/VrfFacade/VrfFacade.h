@@ -365,6 +365,78 @@ public:
     int  BackendCount() const;
     bool AllBackendsReady() const;
 
+    // -- back-end CONTROL STATE and ACTIVE count (STP-809) -------------------
+    // Why these exist: BackendCount() is backends().count(), and that list KEEPS a back end
+    // that has missed its status timeout - DtVrfBackendListener::doTimeouts()
+    // (vrfcontrol/vrfBackendListener.h:161-163 on 5.2d, :161-163 on 5.0.2) "deactivates any
+    // status objects which have not responded within the timeout interval", and only the
+    // explicit remove() (:153-155, "normally, this should not need to get called!") takes one
+    // out. So a non-zero count proves the back end was DISCOVERED and never removed - NOT that
+    // it is still answering. The task clock's Q5 hold (a paused scenario does not age a task)
+    // was deciding on that count alone, so a back end that died IN PLACE froze task time for
+    // the rest of the run. These two readers are the vendor's own better answers.
+    //
+    // Both are READ-ONLY - they send nothing on the wire and register no callback - and both
+    // read state the tick mutates, so call them between ticks like BackendCount and
+    // SimTimeSeconds. Neither throws.
+
+    // BackendControlState() values. The NON-NEGATIVE ones are the vendor's own control-type
+    // constants, kept numerically identical on purpose (vrfmsgs/messageTypes.h:430-432 on 5.2d,
+    // :420-422 on 5.0.2); the NEGATIVE ones are OURS and have no vendor meaning. The vendor
+    // block also defines RunDuration 3 / RunComplete 4 / Rewind 5 / Step 6, which is exactly
+    // why nothing of ours takes a positive value.
+    enum BackendControl {
+        BackendControlOther      = -3,  // OURS: a vendor value that is none of the three below
+        BackendControlNoBackend  = -2,  // OURS: DtUnknownControlType AND backends().count() == 0
+        BackendControlUnreadable = -1,  // OURS: no controller (before Start / after Stop), or the
+                                        //       vendor call threw. "No reading", not a state.
+        BackendControlUnknown    = 0,   // DtUnknownControlType with back ends still in the list
+        BackendControlPaused     = 1,   // DtPauseControlType
+        BackendControlRunning    = 2,   // DtRunControlType
+    };
+
+    // Wraps DtVrfRemoteController::backendsControlState() - "Get remote back ends' control
+    // state. Returns DtUnknownControlType if no remote backends exist. Returns either
+    // DtPauseControlType or DtRunControlType otherwise" (vrfRemoteController.h:320-323 on 5.2d,
+    // :316-319 on 5.0.2). Returns one of the BackendControl values above; never throws.
+    //
+    // THE MAPPING, and the one place it adds information the vendor does not: the vendor folds
+    // "no back end exists" and "no back end has told us anything" into the same
+    // DtUnknownControlType, so this splits them on backends().count() - zero gives NoBackend,
+    // non-zero gives Unknown. Everything else is passed through verbatim.
+    //
+    // WHAT IT DOES NOT SAY. (a) The vendor's single-back-end analogue documents itself as the
+    // FIRST back end's state and "an approximate guess" for the federation
+    // (vrfBackendListener.h:125-130); the controller's own wording does not say which back end
+    // it reads, so with several back ends this is not a federation-wide answer and there is no
+    // Mixed value to return. (b) It is a CACHED value - the last controlType a status message
+    // carried (DtBackend::setControlState, vrfutil/backend.h:132) - so a back end that dies
+    // while running keeps reporting Running here. That is what ActiveBackendCount() is for.
+    int BackendControlState() const;
+
+    // How many known back ends the vendor reports as OPERATING: DtBackend::isInSimulatableState()
+    // ("Returns true if the back-end is in a simulatable state", vrfutil/backend.h:109 on 5.2d,
+    // :109 on 5.0.2) OR DtBackend::isInTransitionStatus() ("Returns true if this is a
+    // transitional status (loading, saving, closing, etc)", :115), counted over
+    // DtVrfBackendListener::backendList() - "Returns a list of DtBackend objects for all known
+    // backends" (vrfBackendListener.h:92-93), walked the way vlutil/vlList.h:66-69 documents.
+    // Returns -1 for "no reading" (no controller, no listener, no list, or a throw), never
+    // throws, and 0 means the vendor positively reports that NO known back end is simulatable
+    // or in transition.
+    //
+    // The transition statuses are counted as operating ON PURPOSE: a back end that is loading,
+    // saving, closing or rolling back a scenario has a flat sim clock and is NOT dead, and
+    // aging C2SIM tasks in wall seconds through a save would be the very harm Q5 forbids.
+    //
+    // UNOBSERVED, and the live gate records it (assessment live gate 11): whether the
+    // deactivation doTimeouts() performs is visible HERE. DtBackend exposes no isActive(); the
+    // listener's class comment (vrfBackendListener.h:75) says its entries carry an isActive
+    // flag, but no accessor publishes it, so this uses the two predicates that ARE published.
+    // If deactivation does not move a back end out of those, this reader simply keeps returning
+    // the same number as BackendCount() and every caller behaves exactly as it did before
+    // STP-809 - the failure mode is a no-op, never a false "gone".
+    int ActiveBackendCount() const;
+
     // SIMULATION (SCENARIO) CLOCK in seconds, as reported by the VR-Forces BACK END:
     // DtVrfRemoteController::simTime() - "Returns the simulation time of the specified back
     // end. If no back end specified, returns the first back ends simulation time"

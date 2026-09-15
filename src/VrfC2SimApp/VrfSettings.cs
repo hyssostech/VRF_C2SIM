@@ -505,10 +505,13 @@ public class VrfSettings
     // a fall back to the wall clock mid-run does not restart anybody's wait.
     // A PAUSED SCENARIO DOES NOT AGE A TASK (Q5, USER RULING 2026-09-14): when the sim clock has
     // been flat for StallPolicy.StaleClockWarnSeconds the axis HOLDS while a VR-Forces back end is
-    // still present, and falls back to WALL seconds only when there is none. The signal is
-    // VrfFacade::BackendCount, which cannot tell a live back end from one DEACTIVATED for missing
-    // its status timeout - so the hold line repeats rather than being said once. See
-    // StallPolicy.TaskClockAction.
+    // still there and OPERATING, and falls back to WALL seconds only when none is. The signals are
+    // VrfFacade::BackendControlState (Paused vs Running) and VrfFacade::ActiveBackendCount (how
+    // many known back ends the vendor still calls simulatable or in transition), with
+    // VrfFacade::BackendCount as the fallback when neither can be read (STP-809; before it, the
+    // count was the ONLY signal and could not tell a live back end from one DEACTIVATED for
+    // missing its status timeout). The hold line repeats rather than being said once, and it names
+    // which of the two it rests on. See StallPolicy.TaskClockAction.
     // AFTER A ROLLBACK (Q7, USER RULING 2026-09-14, ACCEPTED as recorded): because the axis adds
     // forward movement ONLY, a rollbackToSnapshot adds nothing and the re-simulated stretch is
     // served TWICE - once before the rollback and once after - so a task ends LATER in scenario
