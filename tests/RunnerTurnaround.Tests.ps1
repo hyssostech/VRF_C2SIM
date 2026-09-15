@@ -848,6 +848,41 @@ try {
 } finally { Remove-Item -LiteralPath $probe -Force -ErrorAction SilentlyContinue }
 Check 'the probe copy was removed from scripts\' (-not (Test-Path -LiteralPath $probe))
 
+# 8h. THE $script: FLAG THAT WAS NEVER SET ON THE DRY-RUN PATH (found live, V6b's
+# first use of the launch lock, 2026-09-15, fixed on main 5cae9c5). Stage 1a sets
+# $script:RunnerLockTaken = $true only in the LIVE lock-taking branch; a -DryRun
+# never executes it, so under Set-StrictMode -Version Latest (RunnerLib.ps1, dot-
+# sourced) the outer finally's "if ($script:RunnerLockTaken -and ...)" threw
+# "the variable ... cannot be retrieved because it has not been set" on EVERY dry
+# run (and any abort before Stage 1a), turning exit 0/2 into exit 1. Fixed by
+# initialising $script:RunnerLockTaken = $false before Stage 1a runs. This is
+# ANOTHER check that runs the real runner (like 8d): a pure AST/text assertion
+# cannot tell a StrictMode runtime throw from a clean exit. Uses the PINNED
+# 64-bit pwsh (item 1 of this same RUNBOOK section) rather than bare "pwsh" -
+# bare "pwsh" on this machine is the 32-bit build and is refused by the runner's
+# OWN bitness gate before Stage 1a is ever reached, which would make this check
+# pass or fail for the wrong reason entirely. -VrfProfile 5.2 -NoGui: the only
+# profile actually built in this tree (src/VrfC2SimApp/bin has Release-5.2, not
+# Release) - the default profile would abort at Stage 0 tool-existence validation
+# before Stage 1a, for a reason that has nothing to do with the lock.
+Write-Host '=== 8h. -DryRun does not throw under StrictMode and reports the launch lock ==='
+$dryLockPwsh   = 'C:\Program Files\PowerShell\7\pwsh.exe'
+$dryLockScript = Join-Path $RepoRoot 'scripts\RunC2SimScenario.ps1'
+$dryLockOut  = (& $dryLockPwsh -NoProfile -File $dryLockScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck 2>&1 | Out-String)
+$dryLockCode = $LASTEXITCODE
+# THE ASSERTION THAT WOULD HAVE CAUGHT THE DEFECT, in the coordinator's own
+# words: a dry run must end "0/2", never 1 - 0 clean, 2 a legitimate validation/
+# process refusal (this machine may have a real leftover observer or another
+# runner live; that is environment noise Stage 1 owns, not this check - see 8d's
+# own history of the same fragility). Exit 1 was ONLY ever the StrictMode
+# "$script:RunnerLockTaken ... has not been set" throw.
+Check '-DryRun exits 0 or 2, never 1 (the StrictMode "variable ... has not been set" throw)' (
+    $dryLockCode -in @(0, 2)) "exit=$dryLockCode"
+Check '-DryRun prints the Stage 1a "would take the exclusive lock" plan line' (
+    $dryLockOut -match 'would take the exclusive lock')
+Check '-DryRun never reports the RunnerLockTaken StrictMode throw' (
+    $dryLockOut -notmatch "RunnerLockTaken.*cannot be retrieved")
+
 # 9. Get-VrfUuidByName must parse BOTH app-log route-line forms. The app started
 # logging the route's own uuid on 2026-09-02 with the route-uuid fix ("Route '<r>'
 # (VRF_UUID:<route>) created; ..."); every run in the record before that logs the

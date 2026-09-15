@@ -1173,6 +1173,12 @@ on 2026-09-14; each is now closed by something this section names
     path - releases the lock (verified: exit inside a nested try still unwinds
     through an enclosing finally in PowerShell). -DryRun is unaffected (never takes
     the lock).
+    ADDENDUM 3, 2026-09-15 (fixed on main 5cae9c5): the outer finally's own
+    $script:RunnerLockTaken was only ever ASSIGNED on the live lock-taking branch,
+    so under StrictMode every dry run (and any abort before Stage 1a) threw
+    "the variable ... cannot be retrieved because it has not been set" and exited
+    1 instead of 0/2 - RULE: every $script: flag a finally reads must be
+    initialised before the matching try, not only on the branch that sets it true.
 
 ---
 
