@@ -1,7 +1,9 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using VrfC2Sim;
+using VrfC2Sim.Tools;
 
 // tools/SetSimRate - set the VR-Forces simulation time multiplier by REMOTE CONTROL.
 //
@@ -18,16 +20,22 @@ using VrfC2Sim;
 // The GUI Time Scale toolbar is not an alternative above 15x (it is capped at 15 by
 // default: myTimescaleHigh=15 in default_GuiSettings.grsx).
 //
-// LAUNCH ENV (identical to the app - RUNBOOK sec 7): RTI 4.6.1 on PATH,
-// MAKLMGRD_LICENSE_FILE from Machine scope, cwd = C:\MAK\vrforces5.0.2\bin64, and a FRESH
-// ApplicationNumber each run (a lingering federate steals the slot). Example (PowerShell):
-//   $env:PATH = "C:\MAK\vrforces5.0.2\bin64;C:\MAK\vrlink5.8\bin64;C:\MAK\makRti4.6.1\bin;$env:PATH"
-//   $env:MAKLMGRD_LICENSE_FILE = [Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','Machine')
-//   Push-Location C:\MAK\vrforces5.0.2\bin64
-//   & <repo>\tools\SetSimRate\bin\Release\net10.0\win-x64\SetSimRate.exe 20 3457
-//   Pop-Location
+// STACK-AWARE (2026-09-15): the federation identity comes from tools/Shared/StackIdentity.cs,
+// which reads the bound stack from the loaded native DLLs - never from a build flag. On 5.2
+// the join is the CONFIG-FILE join (execName MAK-ONE-2025; empty Federation/FedFileName/
+// FomModules, because config FOM modules are ADDITIVE - MIGRATION_DIFF A2/A9); on 5.0.2 it is
+// CWIX-2024 + RPR_FOM_v2.0_1516-2010.xml + the 3 MAK modules.
 //
-// Args: <multiplier> <applicationNumber> [federation]
+// LAUNCH ENV, 5.2 (PREREG_52_LAUNCH_2026-09-03): PATH prefixed with
+// C:\MAK\vrforces5.2d\bin64;C:\MAK\vrlink5.10\bin64;C:\MAK\makRti5.0.1\bin,
+// RTI_RID_FILE = config\rid-501-rtiexec-min.mtl, RTI_ASSISTANT_DISABLE=1,
+// MAKLMGRD_LICENSE_FILE (User scope first, then Machine), cwd = C:\MAK\vrforces5.2d\bin64,
+// and a FRESH ApplicationNumber each run.
+//   & <repo>\tools\SetSimRate\bin\Release-5.2\net10.0\win-x64\SetSimRate.exe 20 <freshAppNo>
+// LAUNCH ENV, 5.0.2 (unchanged - RUNBOOK sec 7): RTI 4.6.1 on PATH, cwd =
+// C:\MAK\vrforces5.0.2\bin64, and bin\Release\ instead of bin\Release-5.2\.
+//
+// Args: <multiplier> <applicationNumber> [federation] [--dry-run] [--help]
 //   multiplier          REQUIRED. > 0 and a whole number (1, "1.0", 20). The bridge
 //                       signature is SetTimeMultiplier(int) - VrfFacade.h:219 - so a
 //                       fractional value cannot be represented and is REJECTED rather
@@ -36,30 +44,76 @@ using VrfC2Sim;
 //                       silent reuse of a burned appNo, which violates the never-reuse
 //                       rule (RUNBOOK sec 7) and steals a federate slot from a tool that
 //                       may be observing - e.g. WatchVrf. Missing => hard failure.
-//   federation          Optional, default CWIX-2024 (must match the running federation).
+//   federation          Optional, default stack-aware (tools/Shared/StackIdentity.cs).
+//   --dry-run           Validate the arguments, print the plan and the bound stack, and
+//                       EXIT - join nothing, send nothing.
+//   --help              Print the plan and the bound native stack; join nothing; exit 0.
 
-const string DefaultFederation = "CWIX-2024";
+// The bound native stack, read from the LOADED DLLs. Same probe as VrfC2SimApp
+// --runtime-check; NoInlining so the bridge assembly is resolved only when it is called.
+[MethodImpl(MethodImplOptions.NoInlining)]
+static string NativeStackLine()
+{
+    try { return "native stack = " + VrfBridge.NativeStackInfo(); }
+    catch (Exception e) { return "native stack = UNAVAILABLE (" + e.GetType().Name + ": " + e.Message + ")"; }
+}
+
+// Usage text goes to STDERR on an argument error (exit 2) and to STDOUT for --help
+// (exit 0), so a runner capturing stdout for data never ingests a failure block.
+static void PrintUsage(System.IO.TextWriter w)
+{
+    w.WriteLine("usage: SetSimRate.exe <multiplier> <applicationNumber> [federation] [--dry-run]");
+    w.WriteLine("       SetSimRate.exe --help");
+    w.WriteLine();
+    w.WriteLine("  multiplier         REQUIRED. Simulation time multiplier: > 0, whole number.");
+    w.WriteLine("                     1 = real time (use this to restore after a fast run).");
+    w.WriteLine("                     '1.0' is accepted and means 1. Fractional values are");
+    w.WriteLine("                     rejected: the bridge takes an int (VrfFacade.h:219).");
+    w.WriteLine("  applicationNumber  REQUIRED. NO DEFAULT - use a FRESH, ledgered appNo every");
+    w.WriteLine("                     run (RUNBOOK sec 7). Reusing one steals a federate slot.");
+    w.WriteLine("  federation         Optional. Default is stack-aware (5.0.2 -> CWIX-2024;");
+    w.WriteLine("                     5.2 -> connection-config identity; tools/Shared/StackIdentity.cs).");
+    w.WriteLine("  --dry-run          Print the plan and EXIT. Joins nothing, sends nothing.");
+    w.WriteLine();
+    w.WriteLine("examples:  SetSimRate.exe 20 3457      # go to 20x");
+    w.WriteLine("           SetSimRate.exe 1  3458      # back to real time");
+}
 
 static int Usage(string problem)
 {
     Console.Error.WriteLine($"[FAIL] {problem}");
     Console.Error.WriteLine();
-    Console.Error.WriteLine("usage: SetSimRate.exe <multiplier> <applicationNumber> [federation]");
-    Console.Error.WriteLine();
-    Console.Error.WriteLine("  multiplier         REQUIRED. Simulation time multiplier: > 0, whole number.");
-    Console.Error.WriteLine("                     1 = real time (use this to restore after a fast run).");
-    Console.Error.WriteLine("                     '1.0' is accepted and means 1. Fractional values are");
-    Console.Error.WriteLine("                     rejected: the bridge takes an int (VrfFacade.h:219).");
-    Console.Error.WriteLine("  applicationNumber  REQUIRED. NO DEFAULT - use a FRESH, ledgered appNo every");
-    Console.Error.WriteLine("                     run (RUNBOOK sec 7). Reusing one steals a federate slot.");
-    Console.Error.WriteLine("  federation         Optional. Default 'CWIX-2024'.");
-    Console.Error.WriteLine();
-    Console.Error.WriteLine("examples:  SetSimRate.exe 20 3457      # go to 20x");
-    Console.Error.WriteLine("           SetSimRate.exe 1  3458      # back to real time");
+    PrintUsage(Console.Error);
     return 2;
 }
 
+bool dryRun = args.Any(a => string.Equals(a, "--dry-run", StringComparison.OrdinalIgnoreCase));
+bool help = args.Any(a => string.Equals(a, "--help", StringComparison.OrdinalIgnoreCase)
+                       || string.Equals(a, "-h", StringComparison.OrdinalIgnoreCase));
+var unknownFlags = args.Where(a => a.StartsWith("--", StringComparison.Ordinal))
+                       .Where(a => !string.Equals(a, "--dry-run", StringComparison.OrdinalIgnoreCase)
+                                && !string.Equals(a, "--help", StringComparison.OrdinalIgnoreCase))
+                       .ToArray();
 var positional = args.Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToArray();
+
+// --help is the NO-JOIN plan printer (the runner's self-test convention).
+if (help)
+{
+    Console.WriteLine("=== SetSimRate - set the VR-Forces simulation time multiplier (remote control) ===");
+    Console.WriteLine("    " + NativeStackLine());
+    var planCfg = new StartupConfig { Protocol = VrfProtocol.Hla1516e, SiteId = 1, SessionId = 1 };
+    Console.WriteLine("    " + StackIdentity.Apply(planCfg, positional.Length >= 3 ? positional[2] : null));
+    Console.WriteLine();
+    Console.WriteLine("    PLAN: join -> tick until a backend is discovered (cap 15 s) ->");
+    Console.WriteLine("          SetTimeMultiplier(n) -> flush ~3 s -> resign cleanly.");
+    Console.WriteLine("    THIS INVOCATION JOINED NOTHING and changed nothing.");
+    Console.WriteLine();
+    PrintUsage(Console.Out);
+    return 0;
+}
+
+if (unknownFlags.Length > 0)
+    return Usage($"unknown option(s): {string.Join(" ", unknownFlags)}. SetSimRate accepts --dry-run and --help only.");
 
 // -- argument validation: fail LOUDLY and non-zero, never guess a default ---------
 
@@ -100,16 +154,16 @@ if (appNumber <= 0 || appNumber > 65535)
 
 string federation = positional.Length >= 3 && !string.IsNullOrWhiteSpace(positional[2])
     ? positional[2]
-    : DefaultFederation;
+    : null;   // null = stack default (5.0.2 CWIX-2024; 5.2 config-file identity)
 
 // Soft guard: a plausible-but-wrong big number is far more likely a typo (200 for 20) than
 // an intent. Warn loudly, but do not block - the operator may genuinely want it.
 if (multiplier > 100)
     Console.WriteLine($"[WARN] multiplier {multiplier} is unusually high - confirm this is not a typo.");
 
-// FED / FOM must match VR-Forces' running federation (appsettings.json Vrf, RUNBOOK sec 7).
-// These are environment constants, not app logic; if VR-Forces' command line differs, read
-// its --fedFileName / --fomModules and edit here. Kept identical to tools/ResetVrf.
+// Federation / FedFileName / FomModules are filled by the BOUND STACK, not by constants
+// here: on 5.2 the connection config owns them and our 5.0.2 list would be additive on top
+// of the shipped 17 modules (MIGRATION_DIFF A2/A9). Kept identical to tools/ResetVrf.
 var cfg = new StartupConfig
 {
     Protocol = VrfProtocol.Hla1516e,
@@ -117,18 +171,22 @@ var cfg = new StartupConfig
     SiteId = 1,
     SessionId = 1,
     HostInetAddr = "127.0.0.1",
-    Federation = federation,
-    FedFileName = "RPR_FOM_v2.0_1516-2010.xml",
 };
-cfg.FomModules.Add("MAK-VRFExt-6_evolved.xml");
-cfg.FomModules.Add("MAK-DIGuy-7_evolved.xml");
-cfg.FomModules.Add("MAK-LgrControl-2_evolved.xml");
+string fedDesc = StackIdentity.Apply(cfg, federation);
 
 Console.WriteLine("=== SetSimRate - set the VR-Forces simulation time multiplier (remote control) ===");
-Console.WriteLine($"    federation={federation}  appNumber={appNumber}  multiplier={multiplier}x");
+Console.WriteLine($"    {fedDesc}  appNumber={appNumber}  multiplier={multiplier}x");
+Console.WriteLine($"    {NativeStackLine()}");
 Console.WriteLine($"    started {DateTime.Now:yyyy-MM-dd HH:mm:ss} local / {DateTime.UtcNow:HH:mm:ss} UTC");
 Console.WriteLine($"    ACTION: set simulation clock to {multiplier}x real time on ALL backends.");
 Console.WriteLine("    This tool creates/deletes/tasks NOTHING. (use a FRESH appNumber each run)\n");
+
+if (dryRun)
+{
+    Console.WriteLine("[DRY-RUN] arguments validated; the plan above is what a real run would do.");
+    Console.WriteLine("[DRY-RUN] NOT joining, NOT sending SetTimeMultiplier. No appNumber was consumed.");
+    return 0;
+}
 
 VrfBridge bridge = null;
 try
@@ -140,8 +198,9 @@ try
     if (!bridge.Start(cfg))
     {
         Console.Error.WriteLine("[FAIL] bridge.Start() returned false - NOT joined, multiplier NOT set. " +
-                                "Check: RTI 4.6.1 on PATH, MAKLMGRD_LICENSE_FILE (Machine), FED/FOM, " +
-                                "cwd = VRF bin64, fresh appNumber, VR-Forces actually running.");
+                                "Check: the bound stack's RTI on PATH (5.0.2 -> makRti4.6.1, 5.2 -> " +
+                                "makRti5.0.1 + RTI_RID_FILE + RTI_ASSISTANT_DISABLE), MAKLMGRD_LICENSE_FILE, " +
+                                "FED/FOM, cwd = VRF bin64, fresh appNumber, VR-Forces actually running.");
         return 1;
     }
     Console.WriteLine($"[OK] joined (BackendCount={bridge.BackendCount()} immediately after Start).");
@@ -194,7 +253,7 @@ try
     Console.WriteLine("[..] bridge.Stop() - resigning from the federation...");
     bridge.Stop();
     Console.WriteLine($"[OK] resigned cleanly. RESULT: simulation time multiplier set to {multiplier}x " +
-                      $"(appNumber={appNumber}, federation={federation}) at " +
+                      $"(appNumber={appNumber}, {fedDesc}) at " +
                       $"{DateTime.Now:HH:mm:ss} local / {DateTime.UtcNow:HH:mm:ss} UTC.");
     Console.WriteLine("     VERIFY IN THE GUI: there is no getter on the remote controller " +
                       "(vrfRemoteController.h has no timeMultiplier() accessor), so this tool CANNOT " +

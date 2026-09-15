@@ -1655,32 +1655,47 @@ and the managed side binds by C++/CLI assembly reference, not P/Invoke. A manage
 SUCCEEDS against `src/VrfBridge/build/<config>/VrfBridge.dll` is therefore proof that every member
 it calls exists on the referenced assembly.
 
-THE TEN CONSUMERS - AND ONLY SIX OF THEM CAN BUILD A 5.2 TREE (corrected 2026-09-14 by gate G-A,
-which measured it). Ten csproj files reference the bridge by `<Reference Include="VrfBridge">` and
-each keeps its OWN copy in its `bin`. They are NOT alike, and the claim that stood here until now -
-that all ten point at `src/VrfBridge/build/$(BridgeConfig)/VrfBridge.dll` - was FALSE for four:
+THE TEN CONSUMERS - ALL TEN CAN NOW BUILD A 5.2 TREE (the four that could not were converted
+2026-09-15 on `feat/tools-52-conversion`, user ruling 00:15Z "Convert tools"). Ten csproj files
+reference the bridge by `<Reference Include="VrfBridge">` and each keeps its OWN copy in its `bin`.
+All ten now carry the BridgeConfig axis (a `BridgeConfig` property defaulting to `Release`, plus
+`OutputPath` / `IntermediateOutputPath` overrides and a HintPath onto `build/$(BridgeConfig)/`), so
+`-p:BridgeConfig=Release-5.2` gives each of them its own `bin\Release-5.2\` tree. THIS IS THE 5.2
+DEPLOY SET:
 
-  SIX carry the BridgeConfig axis (a `BridgeConfig` property plus `OutputPath` /
-  `IntermediateOutputPath` overrides, and a HintPath onto `build/$(BridgeConfig)/`), so
-  `-p:BridgeConfig=Release-5.2` gives them their own `bin\Release-5.2\` tree. THIS IS THE 5.2
-  DEPLOY SET:
+      src/VrfC2SimApp    tools/CreateOne        tools/RtiProbe    tools/RunSim
+      tools/SetAlt       tools/WatchVrf         src/SmokeTest     tools/CreateTaskAgg
+      tools/ResetVrf     tools/SetSimRate
 
-      src/VrfC2SimApp    tools/CreateOne    tools/RtiProbe
-      tools/RunSim       tools/SetAlt       tools/WatchVrf
+  (Plus `tools/PauseSim` if and when it exists - add it here when it lands, not before.)
 
-  FOUR hard-code `build/Release/VrfBridge.dll` and have NO BridgeConfig property at all, so
-  `-p:BridgeConfig=Release-5.2` is SILENTLY IGNORED: they build into `bin\Release\` against the
-  5.0.2 bridge, report Build succeeded / exit 0, and never produce a `bin\Release-5.2\` at all.
-  THEY ARE 5.0.2-ONLY TODAY:
+  WHAT THE 2026-09-15 CONVERSION DID, and why it was not a one-line fix. Until then those four -
+  `src/SmokeTest`, `tools/CreateTaskAgg`, `tools/ResetVrf`, `tools/SetSimRate` - hard-coded
+  `build/Release/VrfBridge.dll` and had NO BridgeConfig property, so `-p:BridgeConfig=Release-5.2`
+  was SILENTLY IGNORED: they built into `bin\Release\` against the 5.0.2 bridge, reported Build
+  succeeded / exit 0, and never produced a `bin\Release-5.2\` at all (measured by gate G-A,
+  2026-09-14; commit `529fe5c` had converted only five tools, and VrfC2SimApp already had the
+  axis). They also did not compile `tools/Shared/StackIdentity.cs`, which is what makes a tool read
+  the bound stack from `VrfBridge.NativeStackInfo()` and join the 5.2 way - so the csproj axis
+  ALONE would have emitted a "5.2" build that joined with the hard-coded 5.0.2 `CWIX-2024` /
+  `RPR_FOM_v2.0_1516-2010.xml` / 3-module identity, which is worse than having no 5.2 build. The
+  conversion therefore did BOTH: the csproj axis AND the stack-aware identity. `SmokeTest` never
+  calls `Start()`, so it had no federation identity to fix - it now REPORTS the bound stack instead.
+  `ResetVrf` additionally lost its baked-in default `applicationNumber 3299` (a default invites
+  silent reuse of a burned appNo): a missing appNo is now exit 2, as it already was for SetSimRate.
 
-      src/SmokeTest      tools/CreateTaskAgg    tools/ResetVrf    tools/SetSimRate
+  THE SELF-TEST (offline, joins nothing): every one of the four answers `--help` with the bound
+  stack, e.g. `native stack = 5.2|C:\MAK\vrforces5.2d\bin64\vrfcontrol.dll` and
+  `stack=5.2  federation=(from connection config; execName MAK-ONE-2025 expected)`. Built as
+  `-c Release` the SAME sources print `5.0.2` / `federation=CWIX-2024` - that contrast is the proof
+  the stack is read from the loaded DLLs and not from a build flag. `SetSimRate --dry-run` and
+  `CreateTaskAgg --dry-run` print the full plan and exit without joining. `ResetVrf --dry-run`
+  KEEPS its older meaning - it JOINS and discovers but issues no deletes - because that is the
+  read-only half of the before/after reset verification (sec 8); use `ResetVrf --help` for the
+  no-join plan.
 
-  WHY, AND WHY IT IS NOT A ONE-LINE FIX: commit `529fe5c` ("5.2 tool join gate PASSED") converted
-  five tools and VrfC2SimApp already had the axis; these four were never converted. They also do
-  not compile `tools/Shared/StackIdentity.cs`, which is what makes a tool read the bound stack from
-  `VrfBridge.NativeStackInfo()` and join the 5.2 way. Adding the csproj axis ALONE would therefore
-  emit a "5.2" build that joins with the hard-coded 5.0.2 CWIX-2024 federation identity - worse
-  than having no 5.2 build. Converting them is a code change plus a live join gate. OPEN.
+  LIVE JOIN GATE: STILL OWED. The conversion is proven offline (builds, one hash, stack reported,
+  argument paths). Nothing has joined a live 5.2 federation with these four yet.
 
   (`bridge-spikes/VrfBridgeSpike/SpikeRunner` is NOT one of them - it references
   `VrfBridge.Spike.dll`, a different artefact, and is not part of a deploy.)
@@ -1688,11 +1703,12 @@ that all ten point at `src/VrfBridge/build/$(BridgeConfig)/VrfBridge.dll` - was 
 THE PROCEDURE (native changes are pre-authorized; see the memory entry):
   1. BACK UP the existing `src/VrfBridge/build/<config>/VrfBridge.dll` first - none are committed.
   2. `/t:Rebuild` ALWAYS (never an incremental build of the C++/CLI project).
-  3. Rebuild every consumer that HAS the BridgeConfig axis so every `bin` copy of that bridge is
-     ONE hash (six for `Release-5.2`; all ten for `Release`). A PARTIAL redeploy is the trap: the
-     tools and the app then disagree about what the bridge can do. Building the other four with
-     `-p:BridgeConfig=Release-5.2` is a NO-OP that still exits 0 - check for the output tree, not
-     the exit code.
+  3. Rebuild ALL TEN consumers so every `bin` copy of that bridge is ONE hash (all ten for
+     `Release-5.2`, all ten for `Release`). A PARTIAL redeploy is the trap: the tools and the app
+     then disagree about what the bridge can do. CHECK FOR THE OUTPUT TREE, NOT THE EXIT CODE -
+     that rule outlived its original cause (a build that ignored `BridgeConfig` still exited 0) and
+     stays, because it is the only check that distinguishes "built what I asked for" from "built
+     something and succeeded".
   4. Confirm one hash, then RE-PIN the deployed build and record the pin.
 
 WHY A PARTIAL DEPLOY IS DANGEROUS, CONCRETELY (M1 of the same review): a managed-only refresh of a
@@ -1709,8 +1725,9 @@ DEPLOYED BUILD PIN (gate G-A, 2026-09-14). main `165e04c` (merge `0f4d09e` = fea
 which brought the SimTimeSeconds/BackendCount readers and `TryGetEntityKinematics`).
 `VrfBridge.dll` SHA256 `99B7B2355B7C78AFBCA2170DFA088EE4E73F28BB4DB8647F8DA93358D3706C04`
 (996352 bytes), native `/t:Rebuild` of `Release-5.2|x64` at 2026-09-14T22:28:04Z, 0 errors.
-All TEN consumers rebuilt with `-t:Rebuild`, 0 errors; the SIX 5.2 consumers are at THAT ONE
-hash (the four 5.0.2-only ones are above, and are the reason this line does not say "ten").
+All TEN consumers rebuilt with `-t:Rebuild`, 0 errors; the SIX consumers that HAD the 5.2 axis at
+that date are at THAT ONE hash. THIS PIN PREDATES the 2026-09-15 conversion of the other four and
+is therefore STALE for them: re-pin with all ten after `feat/tools-52-conversion` merges.
 Offline suites 18/18 exit 0, `--rulings-selftest` 136 PASS / 0 FAIL; `--parse-order`
 COA-STP1 42 tasks and PROBE_RIDGE_1-35_DELAYED 1 task / simStartMs=300000; `--runtime-check`
 exit 0 reporting `native stack = 5.2|C:\MAK\vrforces5.2d\bin64\vrfcontrol.dll`. The PRE state

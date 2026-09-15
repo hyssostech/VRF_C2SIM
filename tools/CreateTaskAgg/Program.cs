@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using VrfC2Sim;
+using VrfC2Sim.Tools;
 
 // tools/CreateTaskAgg - the CELL C spike tool (docs/experiments/PREREG_PLAN_ASSIGNMENT_SPIKE.md).
 //
@@ -23,14 +25,28 @@ using VrfC2Sim;
 // The created aggregate is BACKEND-owned (remote-control model, same as CreateOne), so it
 // persists after the create-phase federate resigns; the task-phase federate re-joins to task it.
 //
-// LAUNCH ENV (identical to CreateOne - RUNBOOK sec 7): RTI 4.6.1 on PATH,
-// MAKLMGRD_LICENSE_FILE from Machine scope, cwd = C:\MAK\vrforces5.0.2\bin64.
-//   $env:PATH = "C:\MAK\vrforces5.0.2\bin64;C:\MAK\vrlink5.8\bin64;C:\MAK\makRti4.6.1\bin;$env:PATH"
-//   $env:MAKLMGRD_LICENSE_FILE = [Environment]::GetEnvironmentVariable('MAKLMGRD_LICENSE_FILE','Machine')
-//   Push-Location C:\MAK\vrforces5.0.2\bin64
-//   & <repo>\tools\CreateTaskAgg\bin\Release\net10.0\win-x64\CreateTaskAgg.exe create <appNo>
-//   & <repo>\tools\CreateTaskAgg\bin\Release\net10.0\win-x64\CreateTaskAgg.exe task   <appNo> <aggUuid>
-//   Pop-Location
+// STACK-AWARE (2026-09-15): the federation identity is NOT hard-coded any more. It comes
+// from tools/Shared/StackIdentity.cs, which reads the bound stack from the loaded native
+// DLLs (VrfBridge.NativeStackInfo()) - never from a build flag. On 5.2 the join is the
+// CONFIG-FILE join (execName MAK-ONE-2025 from appData\settings\connections\
+// MAK-ONE-2025-Config.xml; empty Federation/FedFileName/FomModules, because config FOM
+// modules are ADDITIVE - MIGRATION_DIFF A2/A9); on 5.0.2 it is the old CWIX-2024 +
+// RPR_FOM_v2.0_1516-2010.xml + 3 MAK modules. An explicit federation argument overrides
+// execName on either stack.
+//
+// LAUNCH ENV, 5.2 (PREREG_52_LAUNCH_2026-09-03): PATH prefixed with
+// C:\MAK\vrforces5.2d\bin64;C:\MAK\vrlink5.10\bin64;C:\MAK\makRti5.0.1\bin,
+// RTI_RID_FILE = config\rid-501-rtiexec-min.mtl, RTI_ASSISTANT_DISABLE=1,
+// MAKLMGRD_LICENSE_FILE (User scope first, then Machine), cwd = C:\MAK\vrforces5.2d\bin64
+// so ..\appData resolves the connection config.
+//   & <repo>\tools\CreateTaskAgg\bin\Release-5.2\net10.0\win-x64\CreateTaskAgg.exe create <appNo>
+//   & <repo>\tools\CreateTaskAgg\bin\Release-5.2\net10.0\win-x64\CreateTaskAgg.exe task <appNo> <aggUuid>
+// LAUNCH ENV, 5.0.2 (unchanged - RUNBOOK sec 7): RTI 4.6.1 on PATH, cwd =
+// C:\MAK\vrforces5.0.2\bin64, bin\Release\ instead of bin\Release-5.2\.
+//
+// NOTE ON THE CELL C CONSTANTS BELOW: they reproduce the 5.0.2-era R9 measurement (type,
+// route, 10000 m MSL birth) and are deliberately UNCHANGED by the 5.2 conversion - only the
+// federation identity and the build axis moved. Do not treat them as 5.2 guidance.
 //
 // CORRECT TYPE (VERIFIED, offline): Tank Platoon (USA) is registered in the loaded model set
 // (C:\MAK\...\EntityLevel\vrfSim\Tank Platoon (USA).entity) as objectType 3:11:1:225:3:2:0:0,
@@ -62,25 +78,44 @@ using VrfC2Sim;
 //     settling ~east along the route. The tool only guarantees the route was CREATED (uuid echoed)
 //     and the move was ISSUED without error.
 
-static int Fail(string msg)
+static void PrintUsage()
 {
-    Console.WriteLine("[FAIL] " + msg);
-    Console.WriteLine();
     Console.WriteLine("usage:");
-    Console.WriteLine("  CreateTaskAgg.exe create <appNumber> [name] [lat] [lon] [alt] [headingDeg] [federation]");
-    Console.WriteLine("  CreateTaskAgg.exe task   <appNumber> <aggUuid> [routeAltMeters] [federation]");
+    Console.WriteLine("  CreateTaskAgg.exe create <appNumber> [name] [lat] [lon] [alt] [headingDeg] [federation] [--dry-run]");
+    Console.WriteLine("  CreateTaskAgg.exe task   <appNumber> <aggUuid> [routeAltMeters] [federation] [--dry-run]");
+    Console.WriteLine("  CreateTaskAgg.exe --help");
     Console.WriteLine();
     Console.WriteLine("  appNumber is MANDATORY and must be FRESH (Appendix B ledger; never reuse).");
     Console.WriteLine("  task's aggUuid is the uuid the create phase printed.");
+    Console.WriteLine("  federation is optional; the default is stack-aware (5.0.2 -> CWIX-2024;");
+    Console.WriteLine("    5.2 -> connection-config identity; tools/Shared/StackIdentity.cs).");
+    Console.WriteLine("  --dry-run prints the plan and EXITS: joins nothing, creates nothing, tasks nothing.");
     Console.WriteLine();
     Console.WriteLine("example:");
     Console.WriteLine("  CreateTaskAgg.exe create 3600");
     Console.WriteLine("  CreateTaskAgg.exe task   3601 5a3ca430-1234-5678-9abc-def012345678");
+}
+
+static int Fail(string msg)
+{
+    Console.WriteLine("[FAIL] " + msg);
+    Console.WriteLine();
+    PrintUsage();
     return 2;
 }
 
+// The bound native stack, read from the LOADED DLLs. Same probe as VrfC2SimApp
+// --runtime-check; NoInlining so the bridge assembly is resolved only when it is called.
+[MethodImpl(MethodImplOptions.NoInlining)]
+static string NativeStackLine()
+{
+    try { return "native stack = " + VrfBridge.NativeStackInfo(); }
+    catch (Exception e) { return "native stack = UNAVAILABLE (" + e.GetType().Name + ": " + e.Message + ")"; }
+}
+
 // ---- Cell C constants (verified; see the header) -----------------------------------------
-const string Federation = "CWIX-2024";
+// NO federation constant: the identity is the bound stack's (StackIdentity.Apply), and an
+// explicit federation argument still overrides it.
 const string DefaultAggName = "CELLC_TANKPLT";
 const string RouteName = "CELLC_ROUTE";
 
@@ -107,10 +142,36 @@ static EntityTypeSpec TankPlatoonUsaType() => new()
 // ------------------------------------------------------------------------------------------
 
 var positional = args.Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToArray();
-var flags = args.Where(a => a.StartsWith("--", StringComparison.Ordinal)).ToArray();
+bool dryRun = args.Any(a => string.Equals(a, "--dry-run", StringComparison.OrdinalIgnoreCase));
+bool help = args.Any(a => string.Equals(a, "--help", StringComparison.OrdinalIgnoreCase)
+                       || string.Equals(a, "-h", StringComparison.OrdinalIgnoreCase));
+var flags = args.Where(a => a.StartsWith("--", StringComparison.Ordinal))
+                .Where(a => !string.Equals(a, "--dry-run", StringComparison.OrdinalIgnoreCase)
+                         && !string.Equals(a, "--help", StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+
+// --help is the NO-JOIN plan printer (the runner's self-test convention). --dry-run does the
+// same after full argument validation. Neither joins: the 2026-09-15 conversion ADDED them -
+// the old header's "no --dry-run mode, every phase performs a real action" described a tool
+// that could not be probed at all, which is not safe inside an unattended runner.
+if (help)
+{
+    Console.WriteLine("=== CreateTaskAgg - Cell C spike: create + task a Tank Platoon (USA) aggregate ===");
+    Console.WriteLine("    " + NativeStackLine());
+    var planCfg = new StartupConfig { Protocol = VrfProtocol.Hla1516e, SiteId = 1, SessionId = 1 };
+    Console.WriteLine("    " + StackIdentity.Apply(planCfg, null));
+    Console.WriteLine("    PLAN (create): join -> wait for a backend -> CreateAggregate(Disaggregated,");
+    Console.WriteLine("                   createSubordinates) -> await ObjectCreated -> flush -> resign.");
+    Console.WriteLine("    PLAN (task):   join -> wait for a backend -> CreateRoute -> await ObjectCreated ->");
+    Console.WriteLine("                   MoveAlongRoute -> flush -> resign.");
+    Console.WriteLine("    THIS INVOCATION JOINED NOTHING, created nothing and tasked nothing.");
+    Console.WriteLine();
+    PrintUsage();
+    return 0;
+}
+
 if (flags.Length > 0)
-    return Fail($"unknown option(s): {string.Join(" ", flags)}. CreateTaskAgg takes positional "
-              + "arguments only and has NO --dry-run mode - every phase performs a real action.");
+    return Fail($"unknown option(s): {string.Join(" ", flags)}. CreateTaskAgg accepts --dry-run and --help only.");
 
 if (positional.Length < 1) return Fail("missing phase (create|task).");
 string phase = positional[0].ToLowerInvariant();
@@ -122,10 +183,11 @@ if (!int.TryParse(positional[1], NumberStyles.Integer, CultureInfo.InvariantCult
     || appNumber <= 0)
     return Fail($"appNumber '{positional[1]}' is not a positive integer.");
 
-static StartupConfig MakeConfig(int appNumber, string federation)
+// Federation / FedFileName / FomModules are filled by the BOUND STACK, not by constants
+// here - the same helper CreateOne / RunSim / SetAlt / WatchVrf use. fedDesc is the one-line
+// identity description for the banner. federation may be null = the stack default.
+static StartupConfig MakeConfig(int appNumber, string federation, out string fedDesc)
 {
-    // FED / FOM must match VR-Forces' running federation (RUNBOOK sec 7) - same constants
-    // CreateOne / WatchVrf use.
     var cfg = new StartupConfig
     {
         Protocol = VrfProtocol.Hla1516e,
@@ -133,12 +195,8 @@ static StartupConfig MakeConfig(int appNumber, string federation)
         SiteId = 1,
         SessionId = 1,
         HostInetAddr = "127.0.0.1",
-        Federation = federation,
-        FedFileName = "RPR_FOM_v2.0_1516-2010.xml",
     };
-    cfg.FomModules.Add("MAK-VRFExt-6_evolved.xml");
-    cfg.FomModules.Add("MAK-DIGuy-7_evolved.xml");
-    cfg.FomModules.Add("MAK-LgrControl-2_evolved.xml");
+    fedDesc = StackIdentity.Apply(cfg, federation);
     return cfg;
 }
 
@@ -149,8 +207,9 @@ static VrfBridge JoinAndWaitBackend(StartupConfig cfg)
     Console.WriteLine("[..] bridge.Start() - joining the federation...");
     if (!bridge.Start(cfg))
     {
-        Console.WriteLine("[FAIL] bridge.Start() returned false. Check: RTI 4.6.1 on PATH, " +
-                          "MAKLMGRD_LICENSE_FILE (Machine), FED/FOM, cwd = VRF bin64, fresh appNumber.");
+        Console.WriteLine("[FAIL] bridge.Start() returned false. Check: the bound stack's RTI on PATH " +
+                          "(5.0.2 -> makRti4.6.1, 5.2 -> makRti5.0.1 + RTI_RID_FILE + RTI_ASSISTANT_DISABLE), " +
+                          "MAKLMGRD_LICENSE_FILE, FED/FOM, cwd = VRF bin64, fresh appNumber.");
         try { bridge.Stop(); } catch { /* best effort */ }
         return null;
     }
@@ -182,7 +241,7 @@ int RunCreate()
 {
     string name = DefaultAggName;
     double lat = StartLat, lon = StartLon, alt = DefaultBirthAlt, headingDeg = 90.0;
-    string federation = Federation;
+    string federation = null;   // null = stack default (5.0.2 CWIX-2024; 5.2 config-file identity)
 
     if (positional.Length >= 3 && !string.IsNullOrWhiteSpace(positional[2])) name = positional[2];
     if (positional.Length >= 4 && !double.TryParse(positional[3], NumberStyles.Float, CultureInfo.InvariantCulture, out lat))
@@ -199,18 +258,28 @@ int RunCreate()
     if (!double.IsFinite(lon) || lon < -180 || lon > 180) return Fail($"lon {lon} out of range (-180..180).");
     if (!double.IsFinite(alt) || !double.IsFinite(headingDeg)) return Fail("alt/headingDeg must be finite.");
 
+    var cfg = MakeConfig(appNumber, federation, out string fedDesc);
+
     Console.WriteLine("=== CreateTaskAgg CREATE - remote-create a Tank Platoon (USA) with the CORRECT type ===");
-    Console.WriteLine($"    federation={federation}  appNumber={appNumber}  (use a FRESH appNumber each join)");
+    Console.WriteLine($"    {fedDesc}  appNumber={appNumber}  (use a FRESH appNumber each join)");
+    Console.WriteLine($"    {NativeStackLine()}");
     Console.WriteLine("    type=Tank Platoon (USA)  DIS 11.1.225.3.2.0.0  (class 3 aggregate; disaggregated + subordinates)");
     Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
         "    name='{0}'  pos=({1:F6}, {2:F6}) alt={3:F1} m MSL  heading={4:F1} deg", name, lat, lon, alt, headingDeg));
     Console.WriteLine();
 
+    if (dryRun)
+    {
+        Console.WriteLine("[DRY-RUN] arguments validated; the plan above is what a real create would do.");
+        Console.WriteLine("[DRY-RUN] NOT joining, NOT creating. No appNumber was consumed.");
+        return 0;
+    }
+
     VrfBridge bridge = null;
     string createdUuid = null, createdEntityId = null;
     try
     {
-        bridge = JoinAndWaitBackend(MakeConfig(appNumber, federation));
+        bridge = JoinAndWaitBackend(cfg);
         if (bridge == null) return 1;
 
         // Creation is ASYNC - the backend answers on ObjectCreated. Subscribe BEFORE issuing the
@@ -286,7 +355,7 @@ int RunTask()
         return Fail("task phase requires the aggregate uuid printed by the create phase.");
     string aggUuid = positional[2];
     double routeAlt = DefaultRouteAlt;
-    string federation = Federation;
+    string federation = null;   // null = stack default (5.0.2 CWIX-2024; 5.2 config-file identity)
     if (positional.Length >= 4 && !double.TryParse(positional[3], NumberStyles.Float, CultureInfo.InvariantCulture, out routeAlt))
         return Fail($"routeAltMeters '{positional[3]}' is not a number.");
     if (positional.Length >= 5 && !string.IsNullOrWhiteSpace(positional[4])) federation = positional[4];
@@ -302,18 +371,29 @@ int RunTask()
         new() { LatDeg = StartLat, LonDeg = Wp2Lon,   AltMeters = routeAlt },
     };
 
+    var cfg = MakeConfig(appNumber, federation, out string fedDesc);
+
     Console.WriteLine("=== CreateTaskAgg TASK - CreateRoute + MoveAlongRoute (R9's exact path) ===");
-    Console.WriteLine($"    federation={federation}  appNumber={appNumber}  aggUuid={aggUuid}");
+    Console.WriteLine($"    {fedDesc}  appNumber={appNumber}  aggUuid={aggUuid}");
+    Console.WriteLine($"    {NativeStackLine()}");
     Console.WriteLine(string.Format(CultureInfo.InvariantCulture,
         "    route '{0}' 3 pts @ {1:F1} m MSL: ({2:F6},{3:F6}) -> ({2:F6},{4:F6}) -> ({2:F6},{5:F6})",
         RouteName, routeAlt, StartLat, StartLon, Wp1Lon, Wp2Lon));
     Console.WriteLine();
 
+    if (dryRun)
+    {
+        Console.WriteLine("[DRY-RUN] arguments validated; the plan above is what a real task would do.");
+        Console.WriteLine("[DRY-RUN] NOT joining, NOT creating the route, NOT issuing MoveAlongRoute.");
+        Console.WriteLine("[DRY-RUN] No appNumber was consumed.");
+        return 0;
+    }
+
     VrfBridge bridge = null;
     string routeUuid = null;
     try
     {
-        bridge = JoinAndWaitBackend(MakeConfig(appNumber, federation));
+        bridge = JoinAndWaitBackend(cfg);
         if (bridge == null) return 1;
 
         // CreateRoute is ASYNC; the along-route move is deferred until the route's ObjectCreated
