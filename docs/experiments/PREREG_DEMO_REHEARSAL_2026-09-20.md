@@ -24,6 +24,27 @@ Predictions:
   dialog) that blocks an unattended start. Any modal = a finding for the runbook, and a STOP if it blocks READY.
 MISS = any startup failure, any task not terminal, any leftover process after teardown.
 
+### D1 RESULT (run 20260920T172141Z, harvest 2026-09-20)
+
+Verdicts (sec 0): 1 HIT (holder+back end+GUI joined, no FOM Reader error, READY; vrfLauncher
+clause NOT-MEASURABLE - LaunchVrf52 starts no vrfLauncher). 2 HIT (6 units, 3 TASKSTRT, 0
+STP-833 refusals). 3 HIT on the traversal guard - all three closed on ARRIVAL EVIDENCE
+(STP-837 margins +407/+648/+1040 m over 578/578/548 m thresholds); the 'vendor completions'
+half is MISSED (later, swallowed). 4 MISS - vrfGui pid 39652 survived teardown (exit 3).
+5 MISS, favourably - sim/wall ratio 1.00 (+/-0.02); terminal reports at wall 38.0 s / 153.4 s /
+284.0 s (order-to-last-completion 4 min 44 s). 6 NO SIGN of a startup modal (46.5 s to READY,
+inside the headless range 18.0-49.5 s, n=34). 7 HIT (TASKCMPLT label names the real code).
+
+Teardown cause (sec 8d): MOST PROBABLE CAUSE is the GUI's documented exit prompt (UG52
+4.6/4.6.1, myShowQuitDialogOnClose=1, ON in this run) going unanswered - StopVrf52.ps1 sends
+WM_CLOSE and drives no dialog by design. FIRST 5.2 GUI-on teardown ever (1 of 80 StopVrf52
+runs); the 8/8 and 79/79 clean record is headless-only. ASSUMED, not observed: which window
+is up (A-i); whether a scenario-modified save prompt is a second modal (A-ii); whether
+WM_CLOSE was even accepted, its return value discarded (A-iii).
+
+D1 = STOP on prediction 4; D2 NOT RUN; remedy lane fix/gui-quit-prompt-teardown; the
+confirming run is D1b, to be registered before it runs.
+
 ## D2 - reset between runs, the FULL CYCLE with the GUI (DEMO_RUNBOOK sec 6 item 1: 'run the one command again')
 
 Registered 2026-09-20 BEFORE D1 runs. D2 = D1's exact command a second time, started after D1's teardown inventory is
@@ -34,6 +55,8 @@ clean (observer process count 0; D1's holder may still be joined - EXPECTED, it 
 MISS = D2 startup failure, observers blind, or any task not terminal -> STOP; the reset story for the demo is then
 'restart from a clean desktop', and row 9 stays open. Sec 6 items 2-3 (GUI reload, ResetVrf) stay UNVERIFIED and
 out of the demo - not needed once the full cycle is proven with the GUI.
+
+NOT RUN 2026-09-20 - blocked by D1's STOP.
 
 ## D3 - Way B, hand-started and STP-driven, with the LaunchVrf52 holder (lane feat/demo-federation-holder).
 ## D4 - the audience scenario (COA-STP1's 11 taskees, GUI, real-time, route shift) - needs the user's rulings first.

@@ -197,4 +197,4 @@ current owed next steps are in section 1's state paragraph (V6, the V8 harvest, 
    sends them.
 3. B9 BUNDLE RUN (STP-786): the whole reporting set exercised together on one scenario.
 4. DEMO-READY residue (readiness rows 9, 13, 15, 18), then the STP TASK VOCABULARY (L8) - the user's
-   stated goal beyond MOVE - and then the aggregate-level profile (Y-15).
+   stated goal beyond MOVE - and then the aggregate-level profile (Y-15). D1 2026-09-20 GUI-on rehearsal STOPPED on teardown (vrfGui survives its exit prompt) - docs/experiments/PREREG_DEMO_REHEARSAL_2026-09-20.md D1 RESULT.

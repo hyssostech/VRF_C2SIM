@@ -142,8 +142,13 @@ engineer asks for them: they can write a gigabyte of log in a long run.
 WATCH IT from a SECOND window with `tail -f <the runner log path the command prints>`. Do NOT pipe
 the command, do not add `| tee`, and do not run any process-killing sweep while it is running.
 
-UNVERIFIED: this wrapper has been used live three times (2026-09-14), always WITHOUT the GUI. The
-`--gui` path through the wrapper has not been run. Rehearse it once before the demo.
+RUN 2026-09-20 (D1, GUI ON): the one-command wrapper reached READY unattended, pushed the init
+and the order, and all three tasks completed in real time (ratio 1.00, 4 min 44 s
+order-to-last-completion) - start, init, order and completion all worked. TEARDOWN DID NOT: the
+GUI was left open on its own documented exit prompt (UG52 sec 4.6/4.6.1) and StopVrf52.ps1
+exited 3 (still running - nothing was killed). UNTIL THE FIX LANDS: at the end of a `--gui` run,
+click the GUI's quit prompt by hand, and expect the leftover vrfGui to block the next launch
+until you close it (`pwsh -File scripts\StopVrf52.ps1` or the GUI itself).
 
 ---
 
@@ -326,7 +331,10 @@ initialization time, and pushing a second initialization into a live interface d
 
 ## 10. Still unverified at the time of writing (rehearse these)
 
-- The `--gui` run through the one-command wrapper (section 1).
+- The `--gui` run through the one-command wrapper (section 1): RUN 2026-09-20 - start, init,
+  order and all three completions worked, in real time; teardown left the GUI open on its exit
+  prompt (remedy in flight) - click it by hand until the fix lands, and expect a leftover vrfGui
+  to block the next launch.
 - The hand-started, STP-driven sequence end to end (section 2).
 - Reset without restarting VR-Forces (section 6, items 2 and 3).
 - Any demo whose ORBAT contains infantry or other dismounts: the simulator crashes on the first one
