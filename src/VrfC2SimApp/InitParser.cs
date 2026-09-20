@@ -160,13 +160,31 @@ public static class InitParser
             data.Areas.Add(area);
         }
 
-        // V3: LINE and POINT graphics, in document order. NBC_Event, TacticalArea (handled
-        // above) and TaskGraphic wrappers are skipped here - a TaskGraphic is STP's task arrow,
-        // not a control measure, and nothing in the build list consumes one yet.
+        // V3: LINE and POINT graphics, in document order. NBC_Event is still skipped (nothing
+        // reads one) and TacticalArea is handled above.
+        //
+        // TASKGRAPHIC IS NO LONGER SKIPPED (2026-09-20). The old note here said "a TaskGraphic is
+        // STP's task arrow, not a control measure, and nothing in the build list consumes one
+        // yet". The second half expired: R1 resolution consumes one the moment an order names it
+        // by MapGraphicID, and on the real STP export (STP-IRON-STORM-SYNTHETIC) 11 of 35
+        // references name a TaskGraphic and resolved to nothing, which silently dropped each of
+        // those tasks onto its embedded Location or - with no embedded Location - onto R2 in
+        // place. The FIRST half is still true and is why a TaskGraphic is registered for
+        // RESOLUTION but never CREATED as a VR-Forces object: it is a mission symbol, not a
+        // control measure. See InitTaskGraphic for what its points mean.
         foreach (var tg in graphics)
         {
             switch (tg?.Item)
             {
+                case S.TaskGraphicType tgr:
+                {
+                    var it = new InitTaskGraphic { Name = (tgr.Name ?? "").Trim(),
+                                                   Uuid = (tgr.UUID ?? "").Trim() };
+                    foreach (var g in AllGeodetics(tgr.CurrentState))
+                        it.Points.Add((g.Latitude, g.Longitude, ElevD(g)));
+                    data.TaskGraphics.Add(it);
+                    break;
+                }
                 case S.LineType line:
                 {
                     // LineType.Item: RouteType or BoundaryType. Both have Name/UUID/CurrentState,
@@ -212,7 +230,9 @@ public static class InitParser
                 g.AltitudeMSLSpecified ? g.AltitudeMSL : (double?)null);
     }
 
-    private static IEnumerable<S.GeodeticCoordinateType> AllGeodetics(S.EntityStateType state)
+    // INTERNAL for the same reason Walk is: OrderParser reads the geometry of an ORDER-borne
+    // graphic out of the identical CurrentState/PhysicalState/Location shape.
+    internal static IEnumerable<S.GeodeticCoordinateType> AllGeodetics(S.EntityStateType state)
     {
         var ps = state?.Item as S.PhysicalStateType;
         foreach (var loc in ps?.Location ?? Array.Empty<S.LocationType>())
@@ -224,7 +244,7 @@ public static class InitParser
         => g.AltitudeAGLSpecified ? Str(g.AltitudeAGL)
          : g.AltitudeMSLSpecified ? Str(g.AltitudeMSL) : "";
 
-    private static double ElevD(S.GeodeticCoordinateType g)
+    internal static double ElevD(S.GeodeticCoordinateType g)
         => g.AltitudeAGLSpecified ? g.AltitudeAGL : (g.AltitudeMSLSpecified ? g.AltitudeMSL : 0.0);
 
     // DIS fields are sbyte in the schema (country is a string that exceeds sbyte range).
@@ -237,7 +257,11 @@ public static class InitParser
 
     // Reflective depth-first walk of the deserialized C2SIM graph, visiting every node.
     // Robust to how the schema nests Units/ForceSides/TacticalAreas across versions.
-    private static void Walk(object node, HashSet<object> seen, Action<object> visit)
+    // INTERNAL since 2026-09-20: OrderParser walks an OrderBody for the very same
+    // TacticalGraphic wrappers (OrderBody/Entity/PhysicalEntity/MapGraphic/TacticalGraphic,
+    // xsd:2960-2977 -> :2814-2825 -> :4934), and two copies of a reflective walk is how two
+    // parsers start disagreeing about which nodes exist.
+    internal static void Walk(object node, HashSet<object> seen, Action<object> visit)
     {
         if (node == null) return;
         var t = node.GetType();

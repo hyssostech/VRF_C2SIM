@@ -66,6 +66,35 @@ public sealed record TaskGraphic(string Uuid, string Name, string Kind,
 /// MapGraphicID(s) when they are there, use the embedded Location when they are not, and SAY
 /// WHICH PATH WAS USED either way. No name heuristics (the withdrawn V4 matched task names
 /// against area names); no verb-typed interpretation of the points (that is V4b, separate).
+///
+/// ================== THE RULE WHEN A TASK CARRIES BOTH, STATED AND SOURCED ==================
+/// (Re-stated 2026-09-20 because the real STP export is the first message on disk where the case
+/// actually occurs: 18 of Iron Storm's 23 tasks carry a MapGraphicID AND an embedded Location.)
+///
+/// 1. THE SCHEMA IMPOSES NO PRECEDENCE, and says so deliberately. `Location` and `MapGraphicID`
+///    are both `minOccurs="0" maxOccurs="unbounded"` on the same ActionGroup sequence
+///    (C2SIM_SMX_LOX_CWIX2024.xsd:1384-1396), and the TaskType/TaskGroup annotation reads
+///    "WHERE is represented by hasLocation AND/OR hasMapGraphicID reference" (xsd:3787, :3808).
+///    Both may be present, either may repeat, and nothing in the XSD - no xs:key, no xs:keyref,
+///    no annotation - prefers one. Any tie-break is an APPLICATION convention and has to be
+///    written down somewhere; this is where.
+/// 2. THE CONVENTION IS MapGraphicID > EMBEDDED LOCATION, and it is the user's own
+///    (docs/experiments/TASK_VOCABULARY_ASSESSMENT_2026-09-14.md:1073-1079, R1 note of
+///    2026-09-14: "precedence MapGraphicID > embedded, consistency check when both").
+/// 3. WHY THAT WAY ROUND, in the data's own terms: the reference names a graphic that carries its
+///    own KIND (area / line / point / task symbol), while an embedded Location list is a bare
+///    sequence of coordinates with no shape attached - STP builds it by LINEARISING the first
+///    tactical graphic, dropping the kind and everything after the first graphic
+///    (docs/STP_TASK_VOCABULARY_2026-09-03.md:53-58). The reference is therefore strictly more
+///    information about the same objective, and the fallback is strictly lossy. Measured on Iron
+///    Storm: T04 names a task symbol, an axis of advance AND objective LANCASTER, and its embedded
+///    Location carries 3 points - one graphic's worth.
+/// 4. THE DROPPED HALF IS NEVER SILENT. The Location count and the separation between the two
+///    answers are logged on every such task, and a separation past
+///    <see cref="EmbeddedDisagreementMeters"/> is a WARNING: a few metres is one objective said
+///    twice, kilometres is an order that disagrees with itself (m7).
+/// 5. AN ID THAT DOES NOT RESOLVE IS ONE WARNING PER TASK naming every such id - not one line per
+///    id. On the export as it arrived that difference is 1 line against 35.
 /// </summary>
 public static class TaskGeometryResolver
 {
@@ -108,7 +137,9 @@ public static class TaskGeometryResolver
     /// the task and a map of graphics and returns points plus the lines the caller should log; it
     /// decides nothing about what the points MEAN (no verb-typed interpretation - V4b).
     /// </summary>
-    /// <param name="graphics">C2SIM uuid -> the graphic created at init under that uuid.</param>
+    /// <param name="graphics">C2SIM uuid -> the graphic published under that uuid, by the
+    /// INITIALIZATION or by the ORDER ITSELF (2026-09-20 - the schema allows either, xsd:2960-2977,
+    /// and the real STP export uses the second exclusively).</param>
     public static Resolution Resolve(OrderTask task, IReadOnlyDictionary<string, TaskGraphic> graphics)
     {
         var log = new List<string>();
@@ -139,9 +170,10 @@ public static class TaskGeometryResolver
 
         if (points.Count > 0)
         {
-            foreach (var id in unmatched)
-                warn.Add($"MapGraphicID {id} matched NO graphic in the initialization - ignored (the other " +
-                         "graphic(s) on this task resolved, so the task still has geometry)");
+            if (unmatched.Count > 0)
+                warn.Add($"{unmatched.Count} MapGraphicID(s) matched NO registered graphic and were ignored " +
+                         $"[{string.Join(", ", unmatched)}] - the other graphic(s) on this task resolved, so " +
+                         "the task still has geometry, but it is missing whatever those ids named");
             // m7 (cold-start review of 5c67d41): the embedded Location is DISCARDED here, and the
             // user's R1 note asked for "precedence MapGraphicID > embedded, consistency check when
             // both". Say what was dropped and how far apart the two answers were: a few metres is
@@ -164,10 +196,11 @@ public static class TaskGeometryResolver
         // Nothing resolved: the embedded Location. This is NOT a workaround - it is valid C2SIM
         // and the user ruled it stays supported alongside MapGraphicID - but it is also how the
         // STP-801 export gap shows up, so the line names it either way.
-        foreach (var id in unmatched)
-            warn.Add($"MapGraphicID {id} matched NO graphic in the initialization - the interface has no " +
-                     "geometry under that uuid (an init/order mismatch, or a graphic type the init parser " +
-                     "does not collect)");
+        if (unmatched.Count > 0)
+            warn.Add($"{unmatched.Count} MapGraphicID(s) matched NO registered graphic " +
+                     $"[{string.Join(", ", unmatched)}] - nothing in the initialization OR in this order " +
+                     "publishes a graphic under that uuid, so the id is DANGLING and the geometry it named " +
+                     "is lost");
         points.AddRange(task?.Points ?? new List<(double, double, double?)>());
         if (points.Count == 0)
         {

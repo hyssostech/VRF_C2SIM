@@ -35,6 +35,23 @@ public enum TaskIntent
     /// <summary>DtMoveIntoFormationTask - the proper aggregate-in-formation move. Orthogonal
     /// to the verb; the real fix for the stuck-aggregate finding (PORT.md sec 10).</summary>
     MoveInFormation,
+
+    /// <summary>
+    /// THE VERB ITSELF NAMES NO MOVEMENT, so no move is manufactured from it. The task is
+    /// executed at the performing unit's own position - R2's <c>ExecuteInPlace</c>, reached
+    /// through the VERB instead of through absent geometry - no vendor task is issued, the
+    /// dispatch is TASKSTRT plus R4's end time, and any geometry the task happens to carry is
+    /// NAMED in the log as not driven rather than quietly turned into a route.
+    ///
+    /// WHY THIS EXISTS RATHER THAN A MOVE ROW. The C2SIM schema carries no semantics on a
+    /// TaskActionCode at all (0 of 1,629 enumeration facets in
+    /// C2SIM_SMX_LOX_CWIX2024.xsd carry an annotation), so a verb's meaning comes from the
+    /// project's own record. Where that record says a code is a MARKER, mapping it to Move
+    /// would invent a movement the order never asked for - the "fake move" the vocabulary
+    /// work exists to stop. Bare Move is the fallback for a verb we have NOT ruled on; this
+    /// is the answer for one we HAVE.
+    /// </summary>
+    HoldInPlace,
 }
 
 /// <summary>
@@ -71,6 +88,7 @@ public static class VerbMapping
         TaskIntent.Breach => true,        // unit 2: DtBreachTask on the affected obstacle
         TaskIntent.Reconnoiter => true,   // DtPatrolRouteTask along the route (SCREEN/SCOUT)
         TaskIntent.Escort => true,        // DtFollowEntityTask on the escorted entity (ESCRT)
+        TaskIntent.HoldInPlace => true,   // R2's in-place dispatch, reached by the verb (no vendor task)
         // HoldObjective (DtHoldUntilTask + scan) and Clear (composite) stay bare-move fallbacks;
         // MoveInFormation is config-driven (aggregate moves), not verb-classified.
         _ => false,
@@ -99,6 +117,42 @@ public static class VerbMapping
             ["SCOUT"]  = (TaskIntent.Reconnoiter,     "DtPatrolRouteTask + spot reporting"),
             ["ESCRT"]  = (TaskIntent.Escort,          "DtFollowEntityTask / convoy"),
             ["CLRLND"] = (TaskIntent.Clear,           "composite move + engage sweep"),
+
+            // ---- THE TWO VERBS THE IRON STORM EXPORT ADDED (2026-09-20) ------------------------
+            // Both are valid TaskActionCodeType members (C2SIM_SMX_LOX_CWIX2024.xsd:3913 CRESRV,
+            // :3957 ExecutePlanPhase) and both were UNRECOGNISED here, so five of Iron Storm's 23
+            // tasks ran as bare movement with a coverage-gap warning. The schema annotates NO
+            // enumeration member, so the reading below is the project's own record, cited per row.
+            //
+            // ExecutePlanPhase IS A PLAN-PHASE MARKER, NOT A MOVE. The one sentence the schema
+            // spends on it is on the TRIGGER that consumes it:
+            //   "A trigger for the execution of a plan phase that is based on the start time of a
+            //    task. Typically this task will be defined in an order and will have a
+            //    TaskActionCode of ExecutePlanPhase."  (OnOrderTriggerType, xsd:4388-4396)
+            // i.e. the task exists so that OTHER tasks can be gated on ITS start time; the phase
+            // change is the payload, and the code says nothing about going anywhere. The project's
+            // own survey classifies it exactly so - "Not ours: ... ExecutePlanPhase (phase marker)"
+            // (docs/STP_TASK_VOCABULARY_2026-09-03.md:39) and "not ours - air / CSS / stability /
+            // marker" (docs/experiments/TASK_VOCABULARY_ASSESSMENT_2026-09-14.md:222-223).
+            // So: HoldInPlace. STP's own passage-of-lines code is CNFPSL
+            // (STP_TASK_VOCABULARY_2026-09-03.md:36-37); an export that means "move" should send
+            // that, and a marker is not this interface's to re-interpret as one.
+            ["EXECUTEPLANPHASE"] = (TaskIntent.HoldInPlace,
+                "phase marker (xsd:4388-4396 OnOrderTrigger): no vendor task; the task is executed " +
+                "at the unit's own position and ends at its C2SIM Duration"),
+
+            // CRESRV = "constitute reserve" (docs/STP_TASK_VOCABULARY_2026-09-03.md:37). It is a
+            // TERRAIN/POSTURE verb in the hold family: the unit occupies its reserve position and
+            // stays uncommitted. There is NO vendor task for it - "Not representable in any VRF
+            // task without authoring: ... CRESRV" (STP_TASK_VOCABULARY_2026-09-03.md:81-83, and
+            // TASK_VOCABULARY_ASSESSMENT_2026-09-14.md:692-694) - which is exactly what
+            // HoldObjective already records: Implemented=false, so the dispatch keeps the
+            // documented move-to fallback and the Layer-2 gap stays LOUD instead of the verb
+            // reading as unknown. Recognising it is the whole change: an unrecognised verb says
+            // "nobody has looked at this", and somebody now has.
+            // STILL OPEN (not built here): ASSESSMENT:692-694 also asks that the gap warning
+            // become a reported ObservationReport rather than a log line - that is the L2 lane.
+            ["CRESRV"] = (TaskIntent.HoldObjective,   "move-to + DtHoldUntilTask + scan"),
         };
 
     /// <summary>Classify a C2SIM TaskActionCode. Null/empty/unlisted -> bare Move fallback.</summary>

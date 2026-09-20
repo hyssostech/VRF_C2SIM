@@ -245,6 +245,7 @@ public static class PreflightSelfTest
 
         // ---- 6: AO INDEPENDENCE - the elevation cascade and the water finding -------------
         failures += CheckElevationCascade(svc, mine);
+        failures += CheckFetchFailureVsAbsence();
         failures += CheckWaterPolicy();
 
         Console.WriteLine();
@@ -399,6 +400,151 @@ public static class PreflightSelfTest
     /// WATER IS A FINDING, and it is reported even when the grade flag would not fire.
     /// Pure: synthetic legs, no tile, no bridge, no federation.
     /// </summary>
+    /// <summary>
+    /// F2 (cold-start review of f26d4ad): *** A FAILED FETCH IS NOT AN ABSENT TILE. ***
+    ///
+    /// The defect: a timeout, a connection failure and a 5xx were memoised exactly like a 404, and
+    /// nothing was ever invalidated - so ONE dropped L13 fetch sent the level cascade to L12,
+    /// `_levelByArea` remembered L12 for that ~2.4 km area for the process lifetime, and every
+    /// later verdict over the Mojave calibration terrain was scored on a DEM the 0.92 threshold
+    /// was never measured against. The only line that fired said "scored at ... COARSER than L13"
+    /// and could not tell the server's answer from our own lost packet.
+    ///
+    /// A STUBBED HttpClient, not the network: every check here is a statement about the decision,
+    /// and TileSource takes its HttpClient as a constructor argument for exactly this reason. Each
+    /// check FAILS on the pre-F2 code. The mirror of this section is
+    /// tools/preflight/leg_check.py --selftest, "F2: a failed fetch is NOT an absent tile".
+    /// </summary>
+    private static int CheckFetchFailureVsAbsence()
+    {
+        int failures = 0;
+        Console.WriteLine();
+        Console.WriteLine("--- F2: ABSENT vs FAILED (stubbed HttpClient, no network) ---");
+
+        string tmp = Path.Combine(Path.GetTempPath(), "vrfc2sim-f2-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            // A 404 is the SERVER'S ANSWER: absent, memoised, asked for once, and the cascade may
+            // act on it.
+            var s404 = new StubHandler(_ => new HttpResponseMessage(System.Net.HttpStatusCode.NotFound));
+            using (var t = new TileSource(tmp, http: new HttpClient(s404)))
+            {
+                int lvl = t.ResolveLevel(34.66, -116.60, out bool failed);
+                int firstCalls = s404.Calls;
+                int lvl2 = t.ResolveLevel(34.66, -116.60, out bool failed2);
+                Check(ref failures, lvl == 0 && !failed && lvl2 == 0 && !failed2
+                                    && s404.Calls == firstCalls && t.ExhaustedTiles == 0,
+                      $"a 404 at every level is ABSENCE, not failure, and the area answer is REMEMBERED " +
+                      $"({firstCalls} request(s) for 3 levels, {s404.Calls} after a second probe)");
+            }
+
+            // A body too short to be a tile is how this TMS says "no tile" with a 200. The one
+            // case the old code classified correctly.
+            var sShort = new StubHandler(_ => Body(new byte[] { 1, 2, 3 }));
+            using (var t = new TileSource(tmp, http: new HttpClient(sShort)))
+            {
+                int lvl = t.ResolveLevel(34.66, -116.60, out bool failed);
+                Check(ref failures, lvl == 0 && !failed,
+                      "a 200 with a body too short to be a tile is ABSENCE too (this TMS's 'no tile')");
+            }
+
+            // A TIMEOUT is not an answer. It must not be memoised, it must STOP the cascade rather
+            // than fall through to a coarser level, and it must be retried.
+            var sTimeout = new StubHandler(_ => throw new TaskCanceledException("timeout"));
+            using (var t = new TileSource(tmp, http: new HttpClient(sTimeout)))
+            {
+                int lvl = t.ResolveLevel(34.66, -116.60, out bool failed);
+                int after1 = sTimeout.Calls;
+                int lvl2 = t.ResolveLevel(34.66, -116.60, out bool failed2);
+                Check(ref failures, lvl == 0 && failed && after1 == 1,
+                      "a TIMEOUT at the START level STOPS the cascade (level 0, fetchFailed) - it is NOT " +
+                      $"rescored one level down ({after1} request, not 3)");
+                Check(ref failures, lvl2 == 0 && failed2 && sTimeout.Calls > after1,
+                      $"and it is NOT remembered as absence - the next probe RETRIES ({sTimeout.Calls} requests)");
+                // Bounded: a wedged network costs MaxFetchAttempts requests per tile, not one per sample.
+                for (int i = 0; i < 10; i++) t.ResolveLevel(34.66, -116.60, out _);
+                Check(ref failures, sTimeout.Calls == TileSource.MaxFetchAttempts && t.ExhaustedTiles == 1,
+                      $"retrying is BOUNDED at TileSource.MaxFetchAttempts={TileSource.MaxFetchAttempts} " +
+                      $"({sTimeout.Calls} requests after 12 probes)");
+            }
+
+            // A 5xx is a server that did not answer the question - same class as a timeout.
+            var s503 = new StubHandler(_ => new HttpResponseMessage(System.Net.HttpStatusCode.ServiceUnavailable));
+            using (var t = new TileSource(tmp, http: new HttpClient(s503)))
+            {
+                int lvl = t.ResolveLevel(34.66, -116.60, out bool failed);
+                Check(ref failures, lvl == 0 && failed,
+                      "a 503 is FAILED too - the server did not answer the question");
+            }
+
+            // THE WHOLE POINT, as one check: L13 fails, L12 would have served - and the reader must
+            // NOT hand back L12. A silently coarser score on calibration terrain is the defect.
+            int call = 0;
+            var sMixed = new StubHandler(_ =>
+            {
+                call++;
+                if (call == 1) throw new HttpRequestException("connection reset");
+                return Body(new byte[4000]);   // L12 would answer
+            });
+            using (var t = new TileSource(tmp, http: new HttpClient(sMixed)))
+            {
+                int lvl = t.ResolveLevel(34.66, -116.60, out bool failed);
+                Check(ref failures, lvl == 0 && failed,
+                      "a FAILED start level is NEVER rescored at the next level down, even when that level " +
+                      "would have served - the silent downgrade F2 names");
+            }
+
+            // THE LEG-LEVEL CONSEQUENCE, end to end: a route scored against a dead network gets
+            // NO VERDICT with the failures COUNTED - not a ratio, and not a level. Before F2 the
+            // same route came back with a level and a ratio off whatever tile answered next.
+            var sDead = new StubHandler(_ => throw new HttpRequestException("no route to host"));
+            using (var svc = new PreflightService(new PreflightOptions { CacheDir = tmp }, new HttpClient(sDead)))
+            {
+                var (legs, _) = svc.ScoreRoute(new[] { (34.66, -116.60), (34.665, -116.60) }, 0.94);
+                var leg = legs.Count == 1 ? legs[0] : null;
+                Check(ref failures, leg != null && leg.ElevationFetchFailures > 0 && leg.NoVerdict
+                                    && leg.ElevationLevel == 0,
+                      "a leg scored against a DEAD NETWORK is NO VERDICT with its fetch failures counted " +
+                      $"({leg?.ElevationFetchFailures} of {leg?.Samples} samples) and NO level recorded - " +
+                      "never a quiet ratio");
+            }
+
+            // OFFLINE IS ABSENCE, DELIBERATELY - or the fixture comparison and every offline run
+            // would become a route of no-verdict legs.
+            using (var t = new TileSource(tmp, offline: true))
+            {
+                int lvl = t.ResolveLevel(34.66, -116.60, out bool failed);
+                Check(ref failures, lvl == 0 && !failed,
+                      "Vrf:PreflightOffline treats a missing tile as ABSENCE, not failure - a cache miss is " +
+                      "not a network error, and the existing 'NO ELEVATION DATA AT ANY LEVEL' line covers it");
+            }
+        }
+        finally
+        {
+            try { Directory.Delete(tmp, true); } catch { /* temp */ }
+        }
+        return failures;
+    }
+
+    private static HttpResponseMessage Body(byte[] bytes)
+        => new(System.Net.HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) };
+
+    /// <summary>A scripted HttpMessageHandler: counts requests and returns (or throws) whatever the
+    /// check needs. No network, no ports, no timing.</summary>
+    private sealed class StubHandler : HttpMessageHandler
+    {
+        private readonly Func<HttpRequestMessage, HttpResponseMessage> _reply;
+        private int _calls;
+        public int Calls => Volatile.Read(ref _calls);
+        public StubHandler(Func<HttpRequestMessage, HttpResponseMessage> reply) => _reply = reply;
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,
+                                                               CancellationToken ct)
+        {
+            Interlocked.Increment(ref _calls);
+            return Task.FromResult(_reply(request));
+        }
+    }
+
     private static int CheckWaterPolicy()
     {
         int failures = 0;

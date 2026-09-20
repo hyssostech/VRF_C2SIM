@@ -44,6 +44,19 @@ public sealed record LegMetrics
     // and never asks for one. 0 is NOT a footnote: it means nothing about this leg was checked.
     public int ElevationLevel { get; init; }
 
+    // ---- F2: SAMPLES WHOSE ELEVATION WE NEVER GOT AN ANSWER FOR ---------------------------
+    // How many of this leg's samples could not be resolved because a tile FETCH FAILED - a
+    // timeout, a connection or DNS failure, a 5xx - as opposed to the server answering "no tile
+    // here". The two used to be indistinguishable, so one dropped packet at L13 permanently
+    // downgraded a ~2.4 km area to L12 and every later verdict over that ground was quietly
+    // scored on a DEM the threshold was never calibrated on.
+    //
+    // ANY non-zero value makes the leg NO VERDICT (set by PreflightService, which owns the
+    // tiles; the scorer is pure and never asks for one). It is NOT folded into NanSamples: the
+    // NaN-fraction rule has a calibrated tolerance (MaxNanFraction) for ordinary tile gaps, and
+    // a network failure is not a tile gap - it is the instrument not looking.
+    public int ElevationFetchFailures { get; init; }
+
     // ---- WATER (CLCplus class 100 / any catalogue row that resolves to a water soil) --------
     // A vehicle on deep water has acceleration-factor 0.000 in the vendor's own
     // ground-tracked.sysdef, i.e. a dead stop the back end reports as TaskRunning for ever.

@@ -31,7 +31,11 @@ public static class ReportBuilder
 {
     // The C++ hardcodes these sender/receiver uuids in every report (textIf.cxx:266-267,
     // 326-327). "TODO: determine who is sender" is noted there; reproduced verbatim.
-    private const string ZeroUuid = "00000000-0000-0000-0000-000000000000";
+    // PUBLIC since 2026-09-20: an INIT-TIME finding (the clientId mismatch) is about the whole
+    // message, not about a unit - there is no ActorReference to name, and "" is not a
+    // UUIDBaseType-shaped string (xsd:26-33). The nil uuid is what the schema's own
+    // FromSender/ToReceiver use for "not addressed to anyone in particular".
+    public const string ZeroUuid = "00000000-0000-0000-0000-000000000000";
 
     /// <summary>
     /// Task-status report for a taskee's current task, with the C2SIM status code as a

@@ -165,7 +165,41 @@ public sealed class TileSource : IDisposable
     private readonly HttpClient _http;
     private readonly ConcurrentDictionary<(int ds, int level, int x, int y), GeoTiffFloat.Raster> _elev = new();
     private readonly ConcurrentDictionary<(int ds, int level, int x, int y), PngImage.Image> _cover = new();
-    private readonly ConcurrentDictionary<(int ds, int level, int x, int y), bool> _failed = new();
+
+    // F2 (cold-start review of f26d4ad). *** ABSENT IS NOT FAILED. ***
+    //
+    // This used to be one `_failed` set that a 404, a DNS failure, a connection refusal, a 5xx and
+    // a 60 s timeout all landed in, and that nothing ever cleared. One dropped L13 fetch therefore
+    // memoised "this tile does not exist", the cascade fell to L12, `_levelByArea` remembered L12
+    // for that ~2.4 km area FOR THE PROCESS LIFETIME, and every later leg over that ground was
+    // scored on a DEM the 0.92 threshold was not calibrated on - silently, because the only line
+    // that fires says "scored at ... COARSER than L13" and cannot tell the server's answer from
+    // our own dropped packet.
+    //
+    // The two are now different facts with different consequences:
+    //   ABSENT  - the SERVER answered and has no tile here (404/410/204, or a body below minBytes,
+    //             which is how this TMS says "no tile" with a 200). A property of the ground. It IS
+    //             memoised, it IS allowed to drive the level cascade, and it costs one request.
+    //   FAILED  - we never got the server's answer (timeout, connect/DNS failure, 5xx, IO). A
+    //             property of the network. NOT memoised as absence, retried up to
+    //             MaxFetchAttempts per tile across the process, and if it still fails the caller
+    //             gets NO VERDICT and a loud WARN - never a quieter score one level down.
+    private readonly ConcurrentDictionary<(int ds, int level, int x, int y), bool> _absent = new();
+    private readonly ConcurrentDictionary<(int ds, int level, int x, int y), int> _failures = new();
+
+    /// <summary>
+    /// How many times ONE tile may be fetched before the process gives up on it for good. It is a
+    /// bound on a WEDGED network, not a retry policy with backoff: each attempt already carries the
+    /// HttpClient's own 60 s timeout, and the route-shift deadline (30 s) will have dispatched the
+    /// authored line long before three of them elapse - which is correct, and is now SAID rather
+    /// than absorbed into a coarser number. There is no sleep between attempts: they happen on
+    /// successive sample requests, not in a loop.
+    /// </summary>
+    public const int MaxFetchAttempts = 3;
+
+    /// <summary>Tiles this process has given up fetching (MaxFetchAttempts reached without an
+    /// answer). Read by the self-tests and by nothing that makes a verdict.</summary>
+    public int ExhaustedTiles => _failures.Count(kv => kv.Value >= MaxFetchAttempts);
 
     // m7 (cold-start review 02b51de): several pre-flight workers score routes concurrently and
     // both counters are written from Bytes(). Plain int++ is read-modify-write and UNDER-COUNTS, and
@@ -227,8 +261,20 @@ public sealed class TileSource : IDisposable
     private string FilePath(int ds, int level, int x, int y, string ext)
         => Path.Combine(_cacheDir, $"{ds}_{level}_{x}_{y}.{ext}");
 
-    /// <summary>Cached bytes, or a fetch, or null. minBytes rejects the server's "no tile" bodies.</summary>
-    private byte[] Bytes(int ds, int level, int x, int y, string ext, int minBytes)
+    /// <summary>Why a tile request produced no bytes - see the <c>_absent</c>/<c>_failures</c>
+    /// note. <c>Ok</c> carries the bytes; <c>Absent</c> and <c>Failed</c> carry null.</summary>
+    public enum TileOutcome { Ok, Absent, Failed }
+
+    /// <summary>
+    /// Cached bytes, or a fetch. minBytes rejects the server's "no tile" bodies, which this TMS
+    /// serves with a 200 and a few bytes rather than a 404 - so a SHORT BODY IS ABSENCE, not a
+    /// failure, and is the case the original code got right.
+    ///
+    /// The status code is read rather than left to <c>GetByteArrayAsync</c>'s throw-on-failure,
+    /// because that call collapses "the server says there is no such tile" and "the server never
+    /// answered" into one exception - which is the whole of F2.
+    /// </summary>
+    private byte[] Bytes(int ds, int level, int x, int y, string ext, int minBytes, out TileOutcome outcome)
     {
         string fn = FilePath(ds, level, x, y, ext);
         try
@@ -237,34 +283,102 @@ public sealed class TileSource : IDisposable
             if (fi.Exists && fi.Length >= minBytes)
             {
                 Interlocked.Increment(ref _cacheHits);
+                outcome = TileOutcome.Ok;
                 return File.ReadAllBytes(fn);
             }
         }
         catch { /* unreadable cache entry - fall through to the fetch */ }
 
-        if (_offline || _failed.ContainsKey((ds, level, x, y))) return null;
+        var key = (ds, level, x, y);
+        // OFFLINE IS ABSENCE, DELIBERATELY. Vrf:PreflightOffline means "score only what the cache
+        // holds"; a tile that is not in the cache is not coming, so the cascade may fall through to
+        // a level that IS cached and a leg with no cached tile at any level ends in the existing
+        // loud "NO ELEVATION DATA AT ANY LEVEL". Calling it FAILED would turn every offline run -
+        // including the fixture comparison - into a route of no-verdict legs.
+        if (_offline) { outcome = TileOutcome.Absent; return null; }
+        if (_absent.ContainsKey(key)) { outcome = TileOutcome.Absent; return null; }
+        if (_failures.TryGetValue(key, out int fails) && fails >= MaxFetchAttempts)
+        { outcome = TileOutcome.Failed; return null; }
 
         byte[] data;
         try
         {
-            data = _http.GetByteArrayAsync($"{TmsBase}/{ds}/{level}/{x}/{y}.{ext}")
-                        .GetAwaiter().GetResult();
+            using var resp = _http.GetAsync($"{TmsBase}/{ds}/{level}/{x}/{y}.{ext}").GetAwaiter().GetResult();
+            int code = (int)resp.StatusCode;
+            if (code == 404 || code == 410 || code == 204)
+            {
+                // The server's own answer: there is no tile here. Definitive, memoised, and the
+                // one outcome the level cascade is entitled to act on.
+                _absent[key] = true;
+                outcome = TileOutcome.Absent;
+                return null;
+            }
+            if (!resp.IsSuccessStatusCode)
+            {
+                // 5xx, 429, a proxy's 502 - the server did not answer the QUESTION. Transient by
+                // assumption, so it is counted and retried, never remembered as absence.
+                _failures.AddOrUpdate(key, 1, (_, n) => n + 1);
+                outcome = TileOutcome.Failed;
+                return null;
+            }
+            data = resp.Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
         }
-        catch { _failed[(ds, level, x, y)] = true; return null; }
+        catch
+        {
+            // Timeout (TaskCanceledException), DNS/connect failure, a truncated body: we never got
+            // the server's answer. Same treatment as a 5xx.
+            _failures.AddOrUpdate(key, 1, (_, n) => n + 1);
+            outcome = TileOutcome.Failed;
+            return null;
+        }
 
-        if (data == null || data.Length < minBytes) { _failed[(ds, level, x, y)] = true; return null; }
+        if (data == null || data.Length < minBytes)
+        {
+            // A 200 with a body too small to be a tile IS this TMS's "no tile" - the original
+            // reading, and the only one of the old four that was genuinely absence.
+            _absent[key] = true;
+            outcome = TileOutcome.Absent;
+            return null;
+        }
         try { File.WriteAllBytes(fn, data); } catch { /* cache is an optimisation, not a requirement */ }
         Interlocked.Increment(ref _fetched);
+        outcome = TileOutcome.Ok;
         return data;
     }
 
+    // MEMOISE THE DECODE ONLY WHEN THE ANSWER IS DEFINITIVE (F2, second half). The old code was
+    // `_elev.GetOrAdd(key, k => Decode(Bytes(...)))`, and ConcurrentDictionary.GetOrAdd STORES
+    // whatever the factory returns - including the null a failed fetch produced - and never
+    // re-invokes it. So even with the fetch made retryable, one dropped packet would have been
+    // frozen in the decode cache instead. A FAILED outcome is therefore not stored at all, which
+    // is what makes the retry in Bytes reachable on the next sample.
     private GeoTiffFloat.Raster ElevationTile(int level, int x, int y)
-        => _elev.GetOrAdd((TileMath.ElevationDataset, level, x, y),
-                          k => GeoTiffFloat.Decode(Bytes(k.ds, k.level, k.x, k.y, "tif", 1000)));
+        => ElevationTile(level, x, y, out _);
+
+    private GeoTiffFloat.Raster ElevationTile(int level, int x, int y, out TileOutcome outcome)
+    {
+        var key = (TileMath.ElevationDataset, level, x, y);
+        if (_elev.TryGetValue(key, out var known))
+        {
+            outcome = known != null ? TileOutcome.Ok : TileOutcome.Absent;
+            return known;
+        }
+        var raster = GeoTiffFloat.Decode(Bytes(key.ElevationDataset, level, x, y, "tif", 1000, out outcome));
+        // A body that arrived but would not DECODE is not a network failure - it is a tile this
+        // reader cannot use, which is indistinguishable from absence for every consumer.
+        if (outcome == TileOutcome.Ok && raster == null) outcome = TileOutcome.Absent;
+        if (outcome != TileOutcome.Failed) _elev[key] = raster;
+        return raster;
+    }
 
     private PngImage.Image CoverTile(int ds, int level, int x, int y)
-        => _cover.GetOrAdd((ds, level, x, y),
-                           k => PngImage.Decode(Bytes(k.ds, k.level, k.x, k.y, "png", 100)));
+    {
+        var key = (ds, level, x, y);
+        if (_cover.TryGetValue(key, out var known)) return known;
+        var img = PngImage.Decode(Bytes(ds, level, x, y, "png", 100, out var outcome));
+        if (outcome != TileOutcome.Failed) _cover[key] = img;
+        return img;
+    }
 
     /// <summary>
     /// One posting by GLOBAL sample index: gi = column (lon), gj = row from the SOUTH.
@@ -309,15 +423,34 @@ public sealed class TileSource : IDisposable
     /// <see cref="Posting"/> is a sampling detail and deliberately not part of the decision, so
     /// the level a leg is scored at is a property of the ground and not of which edge it clipped.
     /// </summary>
-    public int ResolveLevel(double latDeg, double lonDeg)
+    public int ResolveLevel(double latDeg, double lonDeg) => ResolveLevel(latDeg, lonDeg, out _);
+
+    /// <summary>
+    /// The cascade, with F2's distinction carried out to the caller.
+    ///
+    /// THE LOAD-BEARING RULE: a level that FAILED to fetch STOPS the cascade and is NOT memoised.
+    /// Falling through to the next level down on a failed fetch is exactly the silent downgrade
+    /// F2 names - it would score the ground one level coarser for a reason that has nothing to do
+    /// with the ground, on the very terrain the 0.92 threshold was calibrated on - and memoising
+    /// that conclusion would make one dropped packet permanent for the process. So:
+    ///   ABSENT at L  -> the server has no tile at L; try L-1. This is the cascade doing its job.
+    ///   FAILED  at L -> we do not KNOW whether the server has a tile at L, so we cannot conclude
+    ///                   anything about L-1 either. Stop, return 0 with failed=true, remember
+    ///                   nothing, and let the caller shout.
+    /// A retry costs one more request per sample until MaxFetchAttempts is reached per tile, which
+    /// is what bounds a wedged network.
+    /// </summary>
+    public int ResolveLevel(double latDeg, double lonDeg, out bool fetchFailed)
     {
+        fetchFailed = false;
         var key = AreaKey(latDeg, lonDeg);
         if (_levelByArea.TryGetValue(key, out int known)) return known;
         int found = 0;
         for (int level = _elevLevel; level >= _elevMinLevel; level--)
         {
             var (x, y) = TileIndex(level, latDeg, lonDeg);
-            if (ElevationTile(level, x, y) != null) { found = level; break; }
+            if (ElevationTile(level, x, y, out var outcome) != null) { found = level; break; }
+            if (outcome == TileOutcome.Failed) { fetchFailed = true; return 0; }
         }
         _levelByArea[key] = found;
         return found;
@@ -341,8 +474,13 @@ public sealed class TileSource : IDisposable
     /// the caller MUST say so out loud - a leg nothing could be sampled for is not a clear leg.
     /// </summary>
     public double Elevation(double latDeg, double lonDeg, out int levelUsed)
+        => Elevation(latDeg, lonDeg, out levelUsed, out _);
+
+    /// <summary>The form that carries F2's verdict: <paramref name="fetchFailed"/> true means the
+    /// NaN is OUR failure, not the server's answer, and the leg it belongs to gets NO VERDICT.</summary>
+    public double Elevation(double latDeg, double lonDeg, out int levelUsed, out bool fetchFailed)
     {
-        levelUsed = ResolveLevel(latDeg, lonDeg);
+        levelUsed = ResolveLevel(latDeg, lonDeg, out fetchFailed);
         return levelUsed == 0 ? double.NaN : ElevationAt(latDeg, lonDeg, levelUsed);
     }
 

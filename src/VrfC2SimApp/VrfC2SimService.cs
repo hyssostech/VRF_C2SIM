@@ -523,14 +523,35 @@ public sealed class VrfC2SimService : BackgroundService
         // Vrf:PreflightRouteShiftTimeoutSeconds and falls back to the authored line, so nothing is
         // refused - but a demo that has not pre-warmed its AO pays that wait on every ground move
         // and gets no shift out of it (unknown ground is never clear).
+        // 0c-iii. F3: WHERE THE TILE CACHE IS AND HOW MUCH IS IN IT - said ONCE, UP FRONT, and
+        // UNCONDITIONALLY. The route-shift banner below states it too, but only when the shift is
+        // ON; the post-dispatch warnings reader and every hand-run of the pre-flight use the same
+        // cache, and a run that cannot answer "was it warm?" from its own banner cannot say whether
+        // a dispatch was ever in a position to be scored. The fallback is named AS a fallback so
+        // the clean-rebuild hazard is visible before it bites rather than after.
+        {
+            string cacheDir = ResolvePreflightCacheDir(_vrf.PreflightCacheDir);
+            int tiles = CountCacheFiles(cacheDir);
+            bool shipped = string.IsNullOrWhiteSpace(_vrf.PreflightCacheDir);
+            _log.LogInformation("ROUTE PRE-FLIGHT TILE CACHE: {Cache} - {N}, {Source}. Vrf:PreflightOffline={Off}. " +
+                                "Every pre-flight reader (the lateral route shift, the post-dispatch warnings, and " +
+                                "any hand-run) reads this one directory, and the file naming is byte-for-byte " +
+                                "tools/preflight/leg_check.py's, so a warm copy can be dropped straight in.",
+                                cacheDir,
+                                tiles < 0 ? "UNREADABLE (treated as possibly warm, never as empty)"
+                                          : tiles + " file(s)",
+                                shipped
+                                    ? "the SHIPPED FALLBACK because Vrf:PreflightCacheDir is empty - it sits INSIDE " +
+                                      "THE BUILD OUTPUT and a clean rebuild DELETES it, so set Vrf:PreflightCacheDir " +
+                                      "to somewhere durable for anything that must stay warm (F3)"
+                                    : "set by Vrf:PreflightCacheDir",
+                                _vrf.PreflightOffline);
+        }
+
         if (_vrf.PreflightRouteShift)
         {
-            string shiftCache = string.IsNullOrWhiteSpace(_vrf.PreflightCacheDir)
-                ? Path.Combine(AppContext.BaseDirectory, "preflight-cache")
-                : _vrf.PreflightCacheDir;
-            int cachedTiles = 0;
-            try { if (Directory.Exists(shiftCache)) cachedTiles = Directory.GetFiles(shiftCache).Length; }
-            catch { cachedTiles = -1; }
+            string shiftCache = ResolvePreflightCacheDir(_vrf.PreflightCacheDir);
+            int cachedTiles = CountCacheFiles(shiftCache);
             _log.LogInformation("LATERAL ROUTE SHIFT ON (Vrf:PreflightRouteShift, the shipped default since the user " +
                                 "ruling of 2026-09-20; STP-804/806): before every GROUND move with more than one " +
                                 "vertex, each leg is scored against the streamed terrain and a FLAGGED leg is " +
@@ -1519,6 +1540,23 @@ public sealed class VrfC2SimService : BackgroundService
             pointsRegistered++;
         }
 
+        // TASK SYMBOLS (2026-09-20). Registered for R1 resolution and NEVER queued for creation:
+        // a TaskGraphic is a mission symbol, not a control measure, so there is no VR-Forces object
+        // class it belongs in - but an order that names one by MapGraphicID is naming real authored
+        // coordinates, and until now it got a warning and a silent fallback instead of them.
+        // KIND: >=2 anchors are contributed in order (the reading V4b already applies to the same
+        // points when STP linearises them into embedded Locations); exactly 1 is a point.
+        int taskGraphicsRegistered = 0;
+        foreach (var tg in init.TaskGraphics)
+        {
+            if (string.IsNullOrEmpty(tg.Uuid) || tg.Points.Count == 0) continue;
+            _graphicsByC2SimUuid[tg.Uuid] = new TaskGraphic(
+                tg.Uuid, tg.Name,
+                tg.Points.Count >= 2 ? TaskGraphic.KindLine : TaskGraphic.KindPoint,
+                tg.Points.Select(pt => (pt.Lat, pt.Lon, (double?)pt.Elev)).ToList());
+            taskGraphicsRegistered++;
+        }
+
         int linesQueued = 0, linesDegenerate = 0, pointsQueued = 0, pointsEmpty = 0;
         // MERGE NOTE (feat/tasking-foundation -> feat/integration, 2026-09-14). V3 was written
         // against a tree in which the name -> VRF-uuid map was a bare dictionary. It is now a
@@ -1606,11 +1644,13 @@ public sealed class VrfC2SimService : BackgroundService
                             "position skipped). Vrf:CreateInitLines={LinesOn} Vrf:CreateInitPoints={PointsOn}. " +
                             "R1 RESOLUTION (M5) is independent of those flags: {Registered} graphic(s) are now " +
                             "addressable by MapGraphicID ({RegAreas} area(s), {RegLines} line(s), {RegPoints} " +
-                            "point(s) from this delivery).",
+                            "point(s), {RegTask} task symbol(s) from this delivery; a task symbol is registered " +
+                            "for resolution and never created as an object).",
                             source, areasQueued, init.Lines.Count, linesQueued, linesDegenerate,
                             init.Points.Count, pointsQueued, pointsEmpty,
                             _vrf.CreateInitLines, _vrf.CreateInitPoints,
-                            _graphicsByC2SimUuid.Count, areasRegistered, linesRegistered, pointsRegistered);
+                            _graphicsByC2SimUuid.Count, areasRegistered, linesRegistered, pointsRegistered,
+                            taskGraphicsRegistered);
 
         if (duplicates > 0)
             _log.LogWarning("Init ({Source}): skipped {N} units/graphics ALREADY created " +
@@ -1622,11 +1662,21 @@ public sealed class VrfC2SimService : BackgroundService
         // warned individually and must not masquerade as a ClientId mismatch.
         if (matched == 0 && init.Units.Count > 0)
         {
-            var systemNames = string.Join(", ", init.Units
-                .Select(u => u.SystemName).Where(s => !string.IsNullOrEmpty(s)).Distinct());
-            _log.LogError("Init ({Source}): 0 of {N} units matched Vrf:ClientId='{Id}' - NOTHING will be " +
-                          "created or taskable. Init SystemName(s): [{Names}]. Set Vrf:ClientId to match " +
-                          "(RUNBOOK sec 2).", source, init.Units.Count, _vrf.ClientId, systemNames);
+            // MADE ACTIONABLE 2026-09-20 (ClientIdPolicy). The old line named the ClientId and a
+            // bare comma-joined list of SystemNames - no counts, no override to type, and nothing
+            // on the C2SIM bus, so the producer that pushed the init saw a healthy interface doing
+            // nothing. The filter itself is UNCHANGED and deliberately so; what changed is that the
+            // failure now says what to type and reaches the C2 side.
+            var counts = ClientIdPolicy.SystemNameCounts(init.Units);
+            string diagnostic = ClientIdPolicy.MismatchMessage(source, _vrf.ClientId, init.Units.Count, counts);
+            _log.LogError("{Diagnostic}", diagnostic);
+            // The SAME sentence out on the observation channel R-SURFACE-PROXY and R2 already use.
+            // STP discards ObservationReports today (Q3/STP-800, recorded not worked around), but
+            // an init-time finding that reaches the bus at all is the difference between a producer
+            // that can see the problem and one that cannot - and every other producer gets it now.
+            _ = PushReportAsync(ReportBuilder.BuildTypeSubstitutionReport(
+                    ReportBuilder.ZeroUuid, ClientIdPolicy.Marker, ClientIdPolicy.Marker, diagnostic,
+                    IsoNow(), NewReportId()), ReportKind.Observation);
         }
 
         if (unmapped > 0)
@@ -2362,6 +2412,61 @@ public sealed class VrfC2SimService : BackgroundService
         foreach (var w in order.Warnings)
             _log.LogWarning("Order parse: {Warning}", w);
 
+        // ---- THE ORDER'S OWN GRAPHICS, REGISTERED BEFORE ANY TASK IS TRANSLATED (2026-09-20) ----
+        //
+        // WHY HERE AND NOT AT INIT. `_graphicsByC2SimUuid` used to be filled ONLY inside
+        // ProcessInitializationLocked, on the assumption that an order references graphics the
+        // initialization created. The C2SIM schema never said that: `MapGraphicID` is a plain
+        // UUID-patterned string (xsd:408-415) with no xs:keyref behind it, and OrderBodyType
+        // carries its own `Entity` list BEFORE its `Task` list precisely so an order can define
+        // the objects its tasks are about (xsd:2960-2977; "This message may define tasks, or it
+        // may refer to tasks defined elsewhere", xsd:2963). Measured on the real STP export
+        // (STP-IRON-STORM-SYNTHETIC, 2026-09-20): 35 MapGraphicID references, 34 of them naming a
+        // graphic carried IN THE ORDER, ZERO naming an init graphic - so the init-only map
+        // resolved NOTHING and every task silently fell back to its embedded Location.
+        //
+        // BEFORE THE TASK LOOP, and synchronously, for the reason the init registration is done
+        // before its creates are enqueued: RunTaskAsync hands the task to a worker, and a
+        // resolution that raced the registration would be a different answer on different runs.
+        //
+        // AN INIT GRAPHIC WINS A UUID COLLISION. The init is the shared world every order is
+        // written against; an order redefining a uuid the init already published is a data defect,
+        // not an update, and silently taking the later one would make a task's geometry depend on
+        // message order. Reported, never guessed at.
+        if (order.Graphics.Count > 0)
+        {
+            int added = 0, collided = 0;
+            foreach (var g in order.Graphics)
+            {
+                if (_graphicsByC2SimUuid.TryGetValue(g.Uuid, out var existing))
+                {
+                    collided++;
+                    _log.LogWarning("Order graphic '{Name}' ({Element}) re-uses uuid {Uuid}, which the " +
+                                    "INITIALIZATION already published as '{Other}' ({Kind}). The " +
+                                    "initialization's graphic is KEPT - it is the shared world this order is " +
+                                    "written against - and this one is IGNORED. Two different graphics under " +
+                                    "one uuid is a data defect in the export.",
+                                    g.Name, g.Element, g.Uuid, existing.Name, existing.Kind);
+                    continue;
+                }
+                _graphicsByC2SimUuid[g.Uuid] = new TaskGraphic(
+                    g.Uuid, g.Name, g.Kind,
+                    g.Points.Select(pt => (pt.Lat, pt.Lon, (double?)pt.Elev)).ToList());
+                added++;
+            }
+            _log.LogInformation("ORDER GRAPHICS: {N} tactical graphic(s) carried by this order " +
+                                "([{Breakdown}]) - {Added} registered for MapGraphicID resolution, {Collided} " +
+                                "ignored as uuid collisions with the initialization. {Total} graphic(s) are now " +
+                                "addressable. They are REGISTERED ONLY: no VR-Forces object is created from an " +
+                                "order graphic (V4b still creates a task's objective area from its own geometry " +
+                                "when Vrf:CreateTaskObjectiveAreas is on).",
+                                order.Graphics.Count,
+                                string.Join(", ", order.Graphics.GroupBy(g => g.Element)
+                                                       .OrderByDescending(gr => gr.Count())
+                                                       .Select(gr => $"{gr.Key} x{gr.Count()}")),
+                                added, collided, _graphicsByC2SimUuid.Count);
+        }
+
         // Operator summary (DEMO_READINESS row 15): what this order asks for, before per-task lines.
         _log.LogInformation("ORDER: {Tasks} task(s) for {Taskees} taskee(s); verbs [{Verbs}].",
                             order.Tasks.Count,
@@ -2869,6 +2974,60 @@ public sealed class VrfC2SimService : BackgroundService
             PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKABRT,
                            $"REFUSED at dispatch: task '{task.TaskName}' has no performing unit to execute it - " +
                            $"{unit.Name}'s live location could not be read from the simulation");
+            return;
+        }
+
+        // LAYER 2 - A VERB THAT NAMES NO MOVEMENT (TaskIntent.HoldInPlace: ExecutePlanPhase).
+        // R2 ruled that a task WITHOUT GEOMETRY is executed at the performing unit's own position;
+        // this is the same ending reached through the VERB. It sits HERE - after the live position
+        // is in hand and before routeGeo is built - because the answer must not depend on whether
+        // the order also drew a line: a marker with a route is still a marker, and turning that
+        // route into a drive is the "fake move" the vocabulary work exists to stop.
+        //
+        // NOTHING IS HIDDEN. The geometry the task carries is COUNTED in the line below, so a run
+        // log says both that the unit stayed put and exactly how much authored geometry was not
+        // driven - which is what an operator needs to decide whether the ORDER should have used a
+        // movement code (for a forward passage of lines, STP's own code is CNFPSL).
+        if (verb.Intent == TaskIntent.HoldInPlace)
+        {
+            // Q4 (user ruling 2026-09-14) applies UNCHANGED: no vendor task is issued here, so the
+            // C2SIM Duration is the only thing that can ever end this task. Without one it would
+            // sit in flight for the rest of the run and its STREND successors would wait out the
+            // gate - the exact shape Q4 refuses. Same refusal, same emit point, same abandon.
+            if (task.DurationMs <= 0)
+            {
+                _log.LogError("Task '{Task}' is MALFORMED and will NOT be executed: its verb '{Code}' names no " +
+                              "movement, so no VR-Forces task is issued and NOTHING but its own Duration could " +
+                              "ever end it - and the order gives it no USABLE Duration. Either " +
+                              "ManeuverWarfareTask/Duration is absent, or it is present in a form the C2SIM 1.1 " +
+                              "schema does not allow (IsoTimeDuration must be P##Y##M##DT##H##M##S with every " +
+                              "field present, xsd:17-24; the short ISO form PT20M is NOT valid C2SIM) - the " +
+                              "order-parse warnings above say which. Left alone this task would sit in flight " +
+                              "for the run and its STREND successors would wait out the chain backstop. FIX THE " +
+                              "ORDER (Q4, user ruling 2026-09-14).", task.TaskName, verb.ActionCode);
+                _sequencer.NotifyAbandoned(task.TaskUuid);
+                PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKABRT,
+                               $"{TaskDispatchPolicy.NoMovementVerbNoDurationRefusal} - task " +
+                               $"'{task.TaskName}', verb '{verb.ActionCode}'");
+                return;
+            }
+            // Exactly the R2 ending, and for the same reason it is written that way there: NO
+            // destination is recorded (MarkDispatched dest: null), so the progress watchdog stays
+            // off a unit that is CORRECTLY standing still, and NOTHING is cleared - this dispatch
+            // issues no vendor task, so the previously running one keeps running.
+            MarkDispatched(task, unit, "hold-in-place");
+            _log.LogInformation("Task '{Task}': verb {Code} -> intent={Intent} ({Comp}). Executing IN PLACE at " +
+                                "{Name}'s own position ({Lat:F5},{Lon:F5}); NO VR-Forces task is issued and the " +
+                                "{N} geometry point(s) this task carries are NOT driven. The task ends at its " +
+                                "end time and its successors follow.",
+                                task.TaskName, verb.ActionCode, verb.Intent, verb.Composition,
+                                unit.Name, live.LatDeg, live.LonDeg, taskPoints.Count);
+            _ = PushReportAsync(ReportBuilder.BuildTypeSubstitutionReport(
+                    task.TaskeeUuid, unit.Name, unit.Name,
+                    $"task '{task.TaskName}': verb {verb.ActionCode} names no movement - " +
+                    $"executing at the performing unit's position, {taskPoints.Count} authored geometry " +
+                    "point(s) not driven",
+                    IsoNow(), NewReportId()), ReportKind.Observation);
             return;
         }
 
@@ -3944,9 +4103,7 @@ public sealed class VrfC2SimService : BackgroundService
             if (_preflight != null || _preflightDisabled) return _preflight;
             try
             {
-                string cache = string.IsNullOrWhiteSpace(_vrf.PreflightCacheDir)
-                    ? Path.Combine(AppContext.BaseDirectory, "preflight-cache")
-                    : _vrf.PreflightCacheDir;
+                string cache = ResolvePreflightCacheDir(_vrf.PreflightCacheDir);
                 var opt = new Preflight.PreflightOptions
                 {
                     CacheDir = cache,
@@ -4028,15 +4185,37 @@ public sealed class VrfC2SimService : BackgroundService
     /// Neither finding refuses or alters anything. Returns the number of legs with water so the
     /// caller can decide whether to build reports at all.
     /// </summary>
+    /// <param name="defer">F1: when non-null the lines are BUFFERED instead of written, so a
+    /// caller that has not yet claimed its dispatch cannot assert anything about the route. The
+    /// post-dispatch warnings reader passes null and writes immediately - it runs AFTER the
+    /// dispatch it describes, so it has nothing to earn.</param>
     private int ReportLegTerrainFindings(string taskName, string unitName,
                                          IReadOnlyList<Preflight.LegMetrics> legs,
-                                         Preflight.PreflightService svc)
+                                         Preflight.PreflightService svc,
+                                         DeferredLog defer = null)
     {
         int water = 0;
         if (legs == null) return 0;
-        foreach (var leg in legs)
+        void Say(Action write) { if (defer == null) write(); else defer.Add(write); }
+        foreach (var leg0 in legs)
         {
-            if (leg.ElevationLevel == 0)
+            var leg = leg0;   // captured per iteration - the closures may outlive the loop
+            if (leg.ElevationFetchFailures > 0)
+                Say(() =>
+                _log.LogWarning("ROUTE PRE-FLIGHT task '{Task}' ({Unit}) leg {Leg}: NO VERDICT - THE ELEVATION " +
+                                "SERVICE FAILED, it did not answer 'no data'. {N} of {Total} sample(s) on this leg " +
+                                "could not be resolved because a tile FETCH failed (timeout, connection or 5xx) even " +
+                                "after {Tries} attempt(s) per tile - a transient failure, NOT the server saying it " +
+                                "has no tile there. The leg is therefore scored at NO LEVEL and carries NO VERDICT: " +
+                                "it is NOT clear ground, no shift may be taken on it, and it is NOT quietly rescored " +
+                                "one level coarser, because a coarser DEM would change the verdict for a reason that " +
+                                "has nothing to do with the ground. Leg ({A:F5},{ALon:F5}) -> ({B:F5},{BLon:F5}). " +
+                                "Fix the network or pre-warm the cache; DISREGARD this run's ratios for this leg.",
+                                taskName, unitName, leg.Index, leg.ElevationFetchFailures, leg.Samples,
+                                Preflight.TileSource.MaxFetchAttempts,
+                                leg.Start.Lat, leg.Start.Lon, leg.End.Lat, leg.End.Lon));
+            else if (leg.ElevationLevel == 0)
+                Say(() =>
                 _log.LogWarning("ROUTE PRE-FLIGHT task '{Task}' ({Unit}) leg {Leg}: NO ELEVATION DATA AT ANY LEVEL - " +
                                 "dataset {Ds} returned no tile at L{From} down to L{To} anywhere along this leg " +
                                 "({A:F5},{ALon:F5}) -> ({B:F5},{BLon:F5}). NOTHING about this leg was checked: it is " +
@@ -4047,14 +4226,18 @@ public sealed class VrfC2SimService : BackgroundService
                                 svc.Tiles.ElevationLevel, svc.Tiles.ElevationMinLevel,
                                 leg.Start.Lat, leg.Start.Lon, leg.End.Lat, leg.End.Lon,
                                 svc.Options.Offline ? " - and Vrf:PreflightOffline is TRUE, so only the tile cache " +
-                                                      "'" + svc.Tiles.CacheDirectory + "' was consulted" : "");
+                                                      "'" + svc.Tiles.CacheDirectory + "' was consulted" : ""));
             else if (leg.ElevationLevel < Preflight.TileMath.DefaultElevationLevel)
-                _log.LogInformation("ROUTE PRE-FLIGHT task '{Task}' ({Unit}) leg {Leg}: scored at {Note}.",
+                Say(() =>
+                _log.LogInformation("ROUTE PRE-FLIGHT task '{Task}' ({Unit}) leg {Leg}: scored at {Note}. This is the " +
+                                    "SERVER'S answer - the finer level(s) returned 'no tile', not a failed fetch; a " +
+                                    "fetch failure gets NO VERDICT instead of a coarser score (F2).",
                                     taskName, unitName, leg.Index,
                                     Preflight.TileMath.CalibrationNote(leg.Start.Lat, leg.ElevationLevel,
-                                                                       svc.Options.WindowM, svc.Options.Threshold));
+                                                                       svc.Options.WindowM, svc.Options.Threshold)));
             if (leg.WaterSamples <= 0) continue;
             water++;
+            Say(() =>
             _log.LogWarning("ROUTE PRE-FLIGHT task '{Task}' ({Unit}) leg {Leg}: WATER ON THE LINE - {N} of {Total} " +
                             "sample(s) classify as {Soil} ({Src}), first at ({Lat:F5},{Lon:F5}), {Km:F2} km along. " +
                             "Deep water is acceleration-factor 0.000 in ground-tracked.sysdef, so a ground vehicle " +
@@ -4063,7 +4246,7 @@ public sealed class VrfC2SimService : BackgroundService
                             taskName, unitName, leg.Index, leg.WaterSamples, leg.Samples,
                             string.IsNullOrEmpty(leg.WaterSoil) ? "water" : leg.WaterSoil,
                             string.IsNullOrEmpty(leg.WaterSource) ? "land cover" : leg.WaterSource,
-                            leg.WaterFirst.Lat, leg.WaterFirst.Lon, leg.WaterFirstSM / 1000.0);
+                            leg.WaterFirst.Lat, leg.WaterFirst.Lon, leg.WaterFirstSM / 1000.0));
         }
         return water;
     }
@@ -4192,19 +4375,41 @@ public sealed class VrfC2SimService : BackgroundService
     internal static bool RouteShiftCanScore(bool offline, int cachedFiles)
         => !offline || cachedFiles != 0;
 
+    /// <summary>
+    /// F3 (cold-start review of f26d4ad): THE ONE PLACE THE TILE CACHE PATH IS RESOLVED. Three
+    /// copies of this expression existed - the start-up banner, the can-we-score gate and the
+    /// PreflightService construction - and three copies of a path is how a banner starts naming a
+    /// directory the pre-flight does not use.
+    ///
+    /// Vrf:PreflightCacheDir, else <see cref="ShippedCacheFallback"/>. The fallback is DELIBERATELY
+    /// today's behaviour: it lives under the build output and a clean rebuild deletes it, which is
+    /// the defect F3 names - but a durable location outside the repo is a decision about where this
+    /// process writes on someone's machine, so it is offered as a SETTING (appsettings.json
+    /// _PreflightCacheDir) rather than taken here.
+    /// </summary>
+    internal static string ResolvePreflightCacheDir(string configured)
+        => string.IsNullOrWhiteSpace(configured) ? ShippedCacheFallback() : configured;
+
+    /// <summary>The shipped default: "preflight-cache" beside the executable. Named so the
+    /// start-up banner can say WHICH of the two it is using without re-deriving the test.</summary>
+    internal static string ShippedCacheFallback()
+        => Path.Combine(AppContext.BaseDirectory, "preflight-cache");
+
+    /// <summary>How many files the cache holds, or -1 when the directory could not be read.
+    /// -1 is NOT zero: an unreadable directory is not evidence of emptiness (RouteShiftCanScore).</summary>
+    internal static int CountCacheFiles(string dir)
+    {
+        try { return Directory.Exists(dir) ? Directory.GetFiles(dir).Length : 0; }
+        catch { return -1; }
+    }
+
     private bool RouteShiftCanScore()
     {
         int known = Volatile.Read(ref _shiftCanScore);
         if (known != 0) return known == 1;
-        string dir = string.IsNullOrWhiteSpace(_vrf.PreflightCacheDir)
-            ? Path.Combine(AppContext.BaseDirectory, "preflight-cache")
-            : _vrf.PreflightCacheDir;
+        string dir = ResolvePreflightCacheDir(_vrf.PreflightCacheDir);
         int files = -1;
-        if (_vrf.PreflightOffline)
-        {
-            try { files = Directory.Exists(dir) ? Directory.GetFiles(dir).Length : 0; }
-            catch { files = -1; }      // unreadable: assume it may hold tiles and let it run
-        }
+        if (_vrf.PreflightOffline) files = CountCacheFiles(dir);   // -1 (unreadable) -> let it run
         bool can = RouteShiftCanScore(_vrf.PreflightOffline, files);
         if (!can)
             _log.LogWarning("LATERAL ROUTE SHIFT SKIPPED FOR THIS RUN: Vrf:PreflightOffline is TRUE and the tile " +
@@ -4265,6 +4470,30 @@ public sealed class VrfC2SimService : BackgroundService
     /// continuation - which is why the catch continues with the authored route rather than
     /// rethrowing, and why the timeout sweep exists for the case the worker never returns at all.
     /// </summary>
+    /// <summary>
+    /// F1 (cold-start review of f26d4ad): A LOG BUFFER FOR WORK THAT HAS NOT YET EARNED THE RIGHT
+    /// TO BE BELIEVED.
+    ///
+    /// The route-shift worker wrote every "ROUTE SHIFTED 50 m north, route 3 -&gt; 7 vertices" line
+    /// BEFORE it claimed the dispatch. State, reports and dispatch were always safe - the claim
+    /// gates all three - but a worker that lost the race to the 30 s timeout sweep had ALREADY
+    /// written a confident paragraph about a detour on a task that was dispatched on the AUTHORED
+    /// line, with no marker tying the two together and in either order relative to the sweep's own
+    /// warning. That is exactly the false-green shape this lane exists to remove, and it reaches
+    /// the harvest reader.
+    ///
+    /// So: buffer, claim, then flush - or, having lost, DISCARD and say so in ONE line. Nothing is
+    /// suppressed that was earned, and nothing is asserted that was not.
+    /// </summary>
+    private sealed class DeferredLog
+    {
+        private readonly List<Action> _lines = new();
+        public int Count => _lines.Count;
+        public void Add(Action write) => _lines.Add(write);
+        public void Flush() { foreach (var w in _lines) w(); _lines.Clear(); }
+        public void Discard() => _lines.Clear();
+    }
+
     private void QueueRouteShift(OrderTask task, CreatedUnit unit, List<Geodetic> routeGeo)
     {
         long id = Interlocked.Increment(ref _nextShiftId);
@@ -4288,13 +4517,19 @@ public sealed class VrfC2SimService : BackgroundService
         {
             List<Geodetic> shifted = null;
             List<string> reports = null;
+            // F1: EVERY line this worker would write goes in here, not to the logger. See
+            // DeferredLog. The queue line above is already out - it is true whoever wins - but
+            // nothing about the RESULT may be said until the claim is taken.
+            var pending = new DeferredLog();
+            bool threw = false;
             try
             {
                 var svc = GetPreflight();
                 if (svc == null)
                 {
-                    _log.LogWarning("Task '{Task}': ROUTE SHIFT skipped - the pre-flight could not start; the " +
-                                    "authored line is dispatched.", taskName);
+                    pending.Add(() =>
+                        _log.LogWarning("Task '{Task}': ROUTE SHIFT skipped - the pre-flight could not start; the " +
+                                        "authored line is dispatched.", taskName));
                 }
                 else
                 {
@@ -4304,45 +4539,53 @@ public sealed class VrfC2SimService : BackgroundService
                     // with Vrf:PreflightWarnings off (still the shipped default) this reader is
                     // the ONLY one that runs, and it used to say nothing at all about a leg it
                     // never flagged - including a leg nothing could be sampled for.
-                    int waterLegs = ReportLegTerrainFindings(taskName, unitName, outcome.Legs, svc);
-                    foreach (var s in outcome.Shifts)
+                    int waterLegs = ReportLegTerrainFindings(taskName, unitName, outcome.Legs, svc, pending);
+                    foreach (var s0 in outcome.Shifts)
                     {
+                        var s = s0;   // captured per iteration - the closures outlive the loop
                         if (s.Shifted)
-                            _log.LogWarning("Task '{Task}' ({Unit}) leg {Leg}: ROUTE SHIFTED {D:F0} m {Side} - ratio " +
+                            pending.Add(() =>
+                                _log.LogWarning("Task '{Task}' ({Unit}) leg {Leg}: ROUTE SHIFTED {D:F0} m {Side} - ratio " +
                                             "{Base:F3} -> {New:F3}{Band}; inserted ({ILat:F6},{ILon:F6}) and " +
                                             "({OLat:F6},{OLon:F6}). STP's own vertices are unchanged and in order.",
                                             taskName, unitName, s.LegIndex, Math.Abs(s.OffsetMeters), s.SideWord,
                                             s.BaseRatio, s.ShiftedRatio,
                                             double.IsNaN(s.BandMax) ? "" : FormattableString.Invariant(
                                                 $" (formation band max {s.BandMax:F3})"),
-                                            s.In.Lat, s.In.Lon, s.Out.Lat, s.Out.Lon);
+                                            s.In.Lat, s.In.Lon, s.Out.Lat, s.Out.Lon));
                         else
-                            _log.LogWarning("Task '{Task}' ({Unit}) leg {Leg}: NO ROUTE SHIFT - {Note}. The task is " +
-                                            "dispatched on the line as authored.", taskName, unitName, s.LegIndex, s.Note);
+                            pending.Add(() =>
+                                _log.LogWarning("Task '{Task}' ({Unit}) leg {Leg}: NO ROUTE SHIFT - {Note}. The task is " +
+                                            "dispatched on the line as authored.", taskName, unitName, s.LegIndex, s.Note));
                         // The FALLBACK ending of the two-phase chooser: C1 chose the side, nothing on it
                         // could also clear the formation band, and the route-line rule alone was taken.
                         // It is a WARNING because some of the formation is knowingly left on flagged ground.
                         if (s.BandNotCleared)
-                            _log.LogWarning("Task '{Task}' ({Unit}) leg {Leg}: the ROUTE SHIFT could NOT clear the " +
+                            pending.Add(() =>
+                                _log.LogWarning("Task '{Task}' ({Unit}) leg {Leg}: the ROUTE SHIFT could NOT clear the " +
                                             "formation band anywhere on the {Side} side within +/-{Band:F0} m; it was " +
                                             "taken on the ROUTE LINE alone, so some formation slots may sit on flagged " +
                                             "ground. The side is C1's and is never traded for a band.",
-                                            taskName, unitName, s.LegIndex, s.SideWord, opt.MaxMeters);
+                                            taskName, unitName, s.LegIndex, s.SideWord, opt.MaxMeters));
                         // Every candidate, with its missing-tile count: a feature that changes where
                         // units drive does not get to keep its reasoning to itself.
-                        _log.LogInformation("Task '{Task}' ({Unit}) leg {Leg}: ROUTE SHIFT candidates - {Trace}",
-                                            taskName, unitName, s.LegIndex, Preflight.RouteShift.DescribeCandidates(s));
+                        pending.Add(() =>
+                            _log.LogInformation("Task '{Task}' ({Unit}) leg {Leg}: ROUTE SHIFT candidates - {Trace}",
+                                            taskName, unitName, s.LegIndex, Preflight.RouteShift.DescribeCandidates(s)));
                     }
                     if (outcome.Changed)
                     {
                         shifted = SpliceShift(authored, outcome.Shifts);
-                        _log.LogInformation("Task '{Task}' ({Unit}): ROUTE SHIFT applied to {N} of {F} flagged leg(s); " +
+                        int after = shifted.Count;
+                        pending.Add(() =>
+                            _log.LogInformation("Task '{Task}' ({Unit}): ROUTE SHIFT applied to {N} of {F} flagged leg(s); " +
                                             "route {Before} -> {After} vertices.", taskName, unitName,
-                                            outcome.ShiftedCount, outcome.Shifts.Count, authored.Count, shifted.Count);
+                                            outcome.ShiftedCount, outcome.Shifts.Count, authored.Count, after));
                     }
                     else if (outcome.Shifts.Count == 0)
-                        _log.LogInformation("Task '{Task}' ({Unit}): ROUTE SHIFT - no leg flagged; the route is " +
-                                            "unchanged.", taskName, unitName);
+                        pending.Add(() =>
+                            _log.LogInformation("Task '{Task}' ({Unit}): ROUTE SHIFT - no leg flagged; the route is " +
+                                            "unchanged.", taskName, unitName));
                     reports = Preflight.PreflightReports.BuildForShift(taskeeUuid, unitName, taskName,
                                                                       outcome.Shifts, outcome.Legs,
                                                                       IsoNow(), NewReportId);
@@ -4357,14 +4600,38 @@ public sealed class VrfC2SimService : BackgroundService
             }
             catch (Exception e)
             {
-                _log.LogError("Task '{Task}' ({Unit}): ROUTE SHIFT failed - the task is dispatched on the line as " +
-                              "authored: {Msg}", taskName, unitName, C2SIMSDK.GetRootException(e).Message);
+                threw = true;
+                string msg = C2SIMSDK.GetRootException(e).Message;
+                pending.Add(() =>
+                    _log.LogError("Task '{Task}' ({Unit}): ROUTE SHIFT failed - the task is dispatched on the line as " +
+                                  "authored: {Msg}", taskName, unitName, msg));
                 shifted = null;
             }
             // CLAIM BEFORE ANYTHING IS SAID OR DISPATCHED. If the timeout sweep already continued
             // this task on the authored line, a "route shifted" report would be a lie and a second
             // continuation would dispatch it twice.
-            if (!ContinueShift(id, shifted)) return;
+            if (!ContinueShift(id, shifted))
+            {
+                // ORPHANED. The sweep (or a second completion) already dispatched this task, on the
+                // AUTHORED line. Everything this worker computed is now about a route nobody is
+                // driving, so it is DISCARDED - and said once, at WARNING, because a harvest that
+                // sees the timeout must also be able to see that the search finished afterwards and
+                // what it would have claimed. No leg rows, no "ROUTE SHIFTED" assertion, no reports.
+                int discarded = pending.Count;
+                pending.Discard();
+                _log.LogWarning("Task '{Task}' ({Unit}): the ROUTE SHIFT search finished AFTER the dispatch had " +
+                                "already been continued by someone else (the {T:F0} s timeout sweep, normally), so " +
+                                "its result IS DISCARDED: {N} log line(s) and {R} ObservationReport(s) suppressed, " +
+                                "and it {Would} have changed the route. The task was dispatched on the AUTHORED " +
+                                "line; nothing below or above this line describes the route it is driving.",
+                                taskName, unitName, _vrf.PreflightRouteShiftTimeoutSeconds, discarded,
+                                reports?.Count ?? 0,
+                                threw ? "could not say whether it would" : shifted != null ? "WOULD" : "would NOT");
+                return;
+            }
+            // The claim is ours: the route this worker computed IS the route being dispatched, so
+            // everything it found is now true of the run.
+            pending.Flush();
             if (reports != null)
                 foreach (var xml in reports) await PushReportAsync(xml, ReportKind.Observation);
         });

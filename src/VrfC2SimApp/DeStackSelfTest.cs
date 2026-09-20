@@ -152,8 +152,166 @@ public static class DeStackSelfTest
                   "rotation 45 moves every displaced unit");
         }
 
+        // 10. THE REAL INITS AT THE BASE PROFILE'S SPACING (2026-09-20).
+        //
+        // WHY: C14 (user ruling 2026-09-07) says co-located units are spread at init on 5.2, and
+        // appsettings.Demo.json has said so since. A RUNNER-LAUNCHED app never loads the Demo
+        // overlay - scripts\RunC2SimScenario.ps1 sets no DOTNET_ENVIRONMENT - so the base
+        // appsettings.json now carries DeStackCreates/700 too. That is a change to WHERE UNITS ARE
+        // on every runner run, so it owes a measurement on the actual fixtures rather than an
+        // argument. The numbers below are COUNTED FROM THE FILES, not assumed.
+        {
+            Console.WriteLine("  --- the shipped inits at the base profile's 700 m spacing (C14) ---");
+            const double Base = 700.0;   // appsettings.json DeStackSpacingMeters
+            // MEASURED, NOT ASSUMED - and the measurement CORRECTED a belief. The R9 inits look
+            // un-stacked in the raw XML (every unit with an authored position has a distinct one),
+            // but InitParser's SUPERIOR CASCADE gives a unit with no coordinates its superior's
+            // (C2SIMinterface.cpp:1421-1441), and that is what builds the piles: R9 lean ends with
+            // ONE stack of four (114.MechCoy and its three platoons), R9 full with ten. So "R9 is
+            // not co-located" is true of the file and false of the parse, and the de-stack DOES
+            // touch it. What matters for a run is the next check, not this count.
+            CheckInit(ref failures, "R9_Mojave_Lean_Initialization.xml", Base,
+                      expectGroups: 1, expectMoved: 3);
+            CheckInit(ref failures, "R9_Mojave_Initialization.xml", Base,
+                      expectGroups: 10, expectMoved: 38);
+            // COA-STP1 IS co-located, heavily - it is the pathology C14 was ruled against ("STP
+            // puts a whole COA on its assembly point"): 10 shared coordinates carrying 72 of its
+            // 128 units. The other 66 do not move at all and every group anchor keeps its exact
+            // coordinate. Anyone who expected this init to be untouched should read the ruling,
+            // not weaken the check.
+            CheckInit(ref failures, "COA-STP1_Initialization.xml", Base, expectGroups: 10, expectMoved: 62);
+            // The real STP export: 40 units, 36 placeable, and the superior cascade piles the 28ID
+            // subtree onto one coordinate (the characterisation counted 12 there).
+            CheckInit(ref failures, "STP-IRON-STORM-SYNTHETIC_Initialization.xml", Base,
+                      expectGroups: 2, expectMoved: 12);
+
+            // *** THE CHECK THAT DECIDES WHETHER A RUN MOVES: DO THE ORDER'S TASKEES SHIFT? ***
+            // A context unit spread onto a ring changes the picture but nothing that is measured;
+            // a TASKEE spread 700 m changes where its route starts, which changes the route the
+            // pre-flight scores, the arrival radius and the traversal bar. R9's three taskees
+            // (R9_Mojave_UnitMove_Order.xml) are the D3 control's whole population.
+            CheckTaskeesUnmoved(ref failures, "R9_Mojave_Lean_Initialization.xml",
+                                "R9_Mojave_UnitMove_Order.xml", Base);
+            CheckTaskeesUnmoved(ref failures, "R9_Mojave_Initialization.xml",
+                                "R9_Mojave_UnitMove_Order.xml", Base);
+        }
+
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
         return failures == 0 ? 0 : 1;
+    }
+
+    /// <summary>
+    /// Parse a real init, build one plan per unit that HAS a position (which is what
+    /// ProcessInitializationLocked plans), de-stack at the given spacing, and assert the group
+    /// count, how many units actually moved, and that every unmoved unit is byte-identical.
+    ///
+    /// "MOVED" is measured against the parsed coordinate, not inferred from the group sizes: a
+    /// group of n contributes n-1 moved units only if the anchor really stays put, and that is the
+    /// property worth locking.
+    /// </summary>
+    private static void CheckInit(ref int failures, string fixture, double spacing,
+                                  int expectGroups, int expectMoved)
+    {
+        string path = FindData(fixture);
+        if (path == null)
+        {
+            Check(ref failures, false, $"{fixture}: NOT FOUND under data/ - cannot measure");
+            return;
+        }
+        var init = InitParser.Parse(File.ReadAllText(path));
+        var plans = new List<CreationPlan>();
+        var authored = new List<(double Lat, double Lon)>();
+        foreach (var u in init.Units)
+        {
+            if (!double.TryParse(u.Latitude, System.Globalization.NumberStyles.Float,
+                                 System.Globalization.CultureInfo.InvariantCulture, out double la)
+                || !double.TryParse(u.Longitude, System.Globalization.NumberStyles.Float,
+                                    System.Globalization.CultureInfo.InvariantCulture, out double lo))
+                continue;
+            plans.Add(Plan(u.Uuid, la, lo));
+            authored.Add((la, lo));
+        }
+        var groups = DeStacker.Apply(plans, spacing);
+        int moved = 0;
+        for (int i = 0; i < plans.Count; i++)
+            if (plans[i].Pos.LatDeg != authored[i].Lat || plans[i].Pos.LonDeg != authored[i].Lon)
+                moved++;
+        bool anchorsKept = groups.All(g =>
+            plans.Any(p => p.Pos.LatDeg == g.LatDeg && p.Pos.LonDeg == g.LonDeg));
+        Check(ref failures,
+              groups.Count == expectGroups && moved == expectMoved && anchorsKept,
+              $"{fixture}: {plans.Count} placeable unit(s), {groups.Count} co-located group(s) " +
+              $"(expected {expectGroups}), {moved} unit(s) moved (expected {expectMoved}), " +
+              $"{plans.Count - moved} untouched, every group anchor kept: {anchorsKept}");
+    }
+
+    /// <summary>
+    /// Does de-stacking move any unit THIS ORDER ACTUALLY TASKS? That is the question a run cares
+    /// about: a spread context shell is invisible, a spread TASKEE changes where its route starts
+    /// and therefore what the pre-flight scores, what the arrival radius is and what the traversal
+    /// bar is. Reports the displacement per taskee so a non-zero answer is actionable rather than
+    /// just red.
+    /// </summary>
+    private static void CheckTaskeesUnmoved(ref int failures, string initFixture, string orderFixture,
+                                            double spacing)
+    {
+        string ip = FindData(initFixture), op = FindData(orderFixture);
+        if (ip == null || op == null)
+        {
+            Check(ref failures, false, $"{initFixture} + {orderFixture}: NOT FOUND under data/");
+            return;
+        }
+        var init = InitParser.Parse(File.ReadAllText(ip));
+        var order = OrderParser.Parse(File.ReadAllText(op));
+        var taskees = order.Tasks.Select(t => t.TaskeeUuid).Where(u => !string.IsNullOrEmpty(u))
+                           .ToHashSet(StringComparer.Ordinal);
+        var plans = new List<CreationPlan>();
+        var authored = new List<(string Uuid, string Name, double Lat, double Lon)>();
+        foreach (var u in init.Units)
+        {
+            if (!double.TryParse(u.Latitude, System.Globalization.NumberStyles.Float,
+                                 System.Globalization.CultureInfo.InvariantCulture, out double la)
+                || !double.TryParse(u.Longitude, System.Globalization.NumberStyles.Float,
+                                    System.Globalization.CultureInfo.InvariantCulture, out double lo))
+                continue;
+            plans.Add(Plan(u.Uuid, la, lo));
+            authored.Add((u.Uuid, u.Name, la, lo));
+        }
+        DeStacker.Apply(plans, spacing);
+        var moved = new List<string>();
+        int seen = 0;
+        for (int i = 0; i < plans.Count; i++)
+        {
+            if (!taskees.Contains(authored[i].Uuid)) continue;
+            seen++;
+            double d = DistMeters(new Geodetic { LatDeg = authored[i].Lat, LonDeg = authored[i].Lon },
+                                  plans[i].Pos);
+            if (d > 1e-6) moved.Add($"{authored[i].Name} {d:F0} m");
+        }
+        Check(ref failures, seen == taskees.Count && moved.Count == 0,
+              $"{initFixture} + {orderFixture}: {seen} of {taskees.Count} taskee(s) found in the init, " +
+              (moved.Count == 0
+                  ? "and NONE of them is moved by the 700 m de-stack - every taskee is the anchor of " +
+                    "its own coordinate, so the order's routes start exactly where they did"
+                  : "and " + moved.Count + " IS MOVED: [" + string.Join("; ", moved) + "] - the route " +
+                    "this taskee is given will start somewhere else"));
+    }
+
+    /// <summary>data/&lt;name&gt;, found by walking up from the exe and the working directory - the
+    /// same search InitGraphicsSelfTest uses, and for the same reason (the exe sits five or six
+    /// levels below the repo root depending on the configuration).</summary>
+    private static string FindData(string name)
+    {
+        foreach (var start in new[] { AppContext.BaseDirectory, Directory.GetCurrentDirectory() })
+        {
+            var dir = new DirectoryInfo(start);
+            for (int i = 0; dir != null && i < 10; i++, dir = dir.Parent)
+            {
+                string candidate = Path.Combine(dir.FullName, "data", name);
+                if (File.Exists(candidate)) return candidate;
+            }
+        }
+        return null;
     }
 
     private static CreationPlan Plan(string name, double lat, double lon)
