@@ -580,6 +580,12 @@ on close. StopVrf.ps1 answers only "Are You Sure?". On timeout it exits 3 and PR
 ACTUAL TITLES of every visible window still owned by those processes, rather than
 guessing at a cause - if a second modal is blocking, its title will be in that list.
 
+**2026-09-20 (D1, 5.2, STP-844):** on 5.2 the quit prompt's checkbox reads "Quit All Sim
+Engines" (5.0.2: "Quit All Back-Ends"); live enumeration confirmed a second modal, "Session
+Status" (same class/text as the 2026-07-19 datapoint above), stacks ON TOP of the still-open
+quit prompt when the back end is asked to close while the prompt is unanswered - our own
+teardown order (GUI close, then back end close ~20 s later) raises it.
+
 UNCHANGED NON-NEGOTIABLES: never force-kill a JOINED federate (sec 0) - that leaves a
 stale federate and the next start hangs at RTI join; StopVrf.ps1 never kills anything.
 Leave rtiAssistant / rtiexec / rtiForwarder RUNNING (0.5.2).

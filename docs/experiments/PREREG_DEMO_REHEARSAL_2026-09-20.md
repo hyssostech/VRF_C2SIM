@@ -38,9 +38,18 @@ inside the headless range 18.0-49.5 s, n=34). 7 HIT (TASKCMPLT label names the r
 Teardown cause (sec 8d): MOST PROBABLE CAUSE is the GUI's documented exit prompt (UG52
 4.6/4.6.1, myShowQuitDialogOnClose=1, ON in this run) going unanswered - StopVrf52.ps1 sends
 WM_CLOSE and drives no dialog by design. FIRST 5.2 GUI-on teardown ever (1 of 80 StopVrf52
-runs); the 8/8 and 79/79 clean record is headless-only. ASSUMED, not observed: which window
-is up (A-i); whether a scenario-modified save prompt is a second modal (A-ii); whether
-WM_CLOSE was even accepted, its return value discarded (A-iii).
+runs); the 8/8 and 79/79 clean record is headless-only. VERIFIED by window enumeration of pid
+39652 (sec 9): TWO modals, both class makVrf::DtNeverAskAgainMessageBox - "Are You Sure?" /
+"Quit VR-Forces GUI" with checkbox "Quit All Sim Engines" (underneath, disabled), and "Session
+Status" / "The current session has ended. Close current terrain?" with checkbox "Execute
+session changes without prompting." (on top, the only enabled window). WM_CLOSE was accepted
+(it opened modal 1); no save-scenario prompt exists anywhere. Modal 2 arises because
+StopVrf52 stops the back end ~20 s after closing the GUI while modal 1 is still open - our own
+teardown order manufactures the stack.
+
+Remedy direction (seat): both never-ask-again settings via documented configuration, no GUI
+automation; Jira STP-844. Unpredicted finding: four dismounts gave up on an obstructed
+destination - Jira STP-845.
 
 D1 = STOP on prediction 4; D2 NOT RUN; remedy lane fix/gui-quit-prompt-teardown; the
 confirming run is D1b, to be registered before it runs.
