@@ -466,3 +466,48 @@ base rate in a fresh instance is the 0.227-0.283 observed on 75168.
 why the rate sits at ~20-45 %. The sender's stream is byte-identical every time. A HIT here would
 identify the corrupting *content* without explaining the *selection*, and the prereg says so in
 advance so that nobody later reads a HIT as a complete diagnosis.
+
+---------------------------------------------------------------------------------------------------
+## RESULT (run 2026-09-20 22:27Z-22:48Z, executed by the seat; adjudicated by an independent Opus reader)
+
+Execution facts: `rti list` answered "RTI commands are not available when the RTI Assistant is
+disabled", so the UG 4.2.3 "Kill the rtiexec process" fallback was used, by pid, under the
+user's 2026-09-20 "restart as needed" authorisation; old rtiexec 75168 held 957 MB private.
+Four fresh instances left running: B1 -n 3 pid 56088, B2 -n 0 pid 11704, B3 -n 0 pid 88624, B4
+-n 3 pid 51560; ledger 4719-4778; persistent holder re-armed 22:50Z pid 12916 appNo 4779 on
+the first create.
+Block table: B1 3/15 (0.200), B2 0/15, B3 0/15, B4 2/15 (0.133). Pooled control (-n 3) 5/30
+(0.167) vs treatment (-n 0) 0/30; Fisher one-sided p=0.0260928 against the pre-registered
+alpha 0.005; drift |B1-B4|=1 (threshold 5, passes). Manipulation check: 32 "Fed File arrived"
+lines over 30 control creates, 0 over 30 treatment creates; both level-0 logs exist at exactly
+0 bytes.
+REGISTERED VERDICT: INCONCLUSIVE-UNDERPOWERED, by exclusion. The harness printed "MISS", but
+that is WRONG against the prereg's own sec 8 wording: MISS requires fN0>=5 (fN0=0, not met);
+HIT fails on p alone (0.0261 >= 0.005, every other HIT condition met); PARTIAL does not apply
+(fN0 not in [2,4]); INCONCLUSIVE's enumerated triggers (MC1 fail, fN3<5, drift>=5, a stop
+condition) do NOT fire either (fN3=5, one over the line) - the five branches were not an
+exhaustive partition of the outcome space, a prereg defect, recorded as such rather than
+papered over. Alpha stays 0.005 (not loosened after the fact); the remedy claim is NOT
+established; the sec 10 machine-left-in rule for a non-HIT binds: stay at -NotifyLevel 3,
+change nothing in the repo, keep the holder.
+What the data SUPPORT, separately from the registered label: 95% Clopper-Pearson upper bound
+on the level-0 rate from 0/30 is 0.1157; single-arm P(0/30) = 4.21e-03 at today's own control
+rate, 1.87e-03 pooled across all level-3 creates on the machine (41/217) - BUT two level-3
+instances have run 0/45 and 0/27 before with NO manipulation (per-instance rates 0/45, 0/27,
+3/18, 33/97, 3/15, 2/15; homogeneity chi-sq=31.63, 5 df): THE TRUE REPLICATE IS THE INSTANCE,
+not the create, and a 2-vs-2 instance design has a minimum attainable exact p of 0.167 - this
+design could never have reached alpha 0.005 under a clustering-aware analysis.
+New falsifier, not a footnote: 3 of today's 5 control refusals produced NO libxml2 diagnostic
+at all, after 36/36 prior refusals showed the tail-only "Extra content" shape - the "log text
+in the FDD" reading now covers a subset of refusals of unknown size.
+Memory growth is 9.36 MB/create at BOTH notify levels (Welch t=0.000) - the leak is not log
+buffers.
+Defects of the run itself: the harness has a `$N`/`$n` case-insensitivity collision (data
+intact - 60/60 recount agreement - but every block-end manipulation check never executed);
+B2's restart output was never captured to a file (it exists only in the seat's own session
+transcript: "NEW rtiexec pid 11704 rtiForwarder pid 80016 notifyLevel 0"); background load was
+never measured; the two treatment blocks ran adjacent in time (22:33-22:43), confounded with
+any mid-run transient.
+Next: a NEW prereg (16 alternating fresh instances, 192 creates, an instance-level permutation
+test) is being drafted, to be analysed ALONE - today's 60 creates are a pilot for it and
+contribute nothing to its test.

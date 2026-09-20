@@ -2389,10 +2389,47 @@ buffer?); (9) STP-832 kept OUT of the vendor package (client-side) but reopened 
 12 of 18 refusals in this experiment crashed VrfFacade.Start at 0xC0000005 on the post-merge
 build.
 
-NOTIFY-LEVEL FOLLOW-UP REGISTERED 2026-09-20 (docs/experiments/PREREG_STP825_NOTIFY_2026-09-20.md): ABBA over four fresh rtiexecs (-NotifyLevel 3 / 0 / 0 / 3), 15 creates each against
-STP825AB, scored from RtiProbe stdout (validated 62/62 against the rtiexec-log verdict), MC1 = zero "Fed File arrived" lines after the first level-0 create or the experiment is VOID;
-the documented shutdown order (rti list -> rti kill <handle>; vendor-listed fallback "Kill the rtiexec process", UG 4.2.3); from the first stop to the final re-arm there is NO holder
-and MAK-ONE-2025 does not exist - no demo launch in that window.
+NOTIFY-LEVEL FOLLOW-UP RUN 2026-09-20 22:27Z-22:48Z (RESULT block in
+docs/experiments/PREREG_STP825_NOTIFY_2026-09-20.md): ABBA over four fresh rtiexecs (B1 -n 3,
+B2 -n 0, B3 -n 0, B4 -n 3), 15 creates each against STP825AB: B1 3/15, B2 0/15, B3 0/15, B4
+2/15 - pooled control 5/30 (0.167) vs treatment 0/30, Fisher one-sided p=0.0261 against the
+registered alpha 0.005. **VERDICT: INCONCLUSIVE-UNDERPOWERED**, not the "MISS" the harness
+printed - the prereg's own HIT/PARTIAL/MISS/INCONCLUSIVE branches were not an exhaustive
+partition of this outcome (a prereg defect, recorded rather than papered over) and the honest
+reading is that the design's true replicate is the rtiexec INSTANCE, not the create: two
+level-3 instances on this machine have run 0/45 and 0/27 with NO manipulation at all (full
+per-instance record below), so a 2-vs-2 instance design has a minimum attainable exact p of
+0.167 and could never have reached alpha 0.005. **rtiexec stays at -NotifyLevel 3; no RID or
+notify change is adopted.** No RID transport setting and no notify-level setting is a proven
+lever; the holder posture is unchanged.
+
+Per-instance level-3 rate record (ANY short clean streak is uninformative - two of six
+instances ran 30+ creates with zero failures at level 3, unmanipulated):
+
+| rtiexec | creates | failures | rate |
+|---|---|---|---|
+| 15720 (2026-09-03) | 45 | 0 | 0.000 |
+| 69856 (2026-09-13) | 27 | 0 | 0.000 |
+| 36840 (2026-09-15) | 18 | 3 | 0.167 |
+| 75168 (2026-09-15..20) | 97 | 33 | 0.340 |
+| 56088 (B1, 2026-09-20) | 15 | 3 | 0.200 |
+| 51560 (B4, 2026-09-20) | 15 | 2 | 0.133 |
+
+The vendor `rti` command-line tool is UNUSABLE with the RTI Assistant disabled (`rti list`
+answers "RTI commands are not available when the RTI Assistant is disabled") - the only
+shutdown path on this posture is stopping the rtiexec/rtiForwarder process BY PID, the
+vendor's own documented fallback (UG 4.2.3, "Kill the rtiexec process"); this needs the user's
+standing authorisation to restart rtiexec, given 2026-09-20 ("as needed" for STP-825). Restart
+recipe used, four times: `scratchpad\validation\stp825_notify_restart.ps1` - stop by pid with
+a process-name assertion, verify nothing left and TCP 4001/5002 both free, start via
+`StartRtiExec52.ps1`, assert its output says `started=yes` and never `ALREADY UP`, then
+re-arm the persistent holder.
+
+CORRECTED LEAK FIGURE: rtiexec retains **9.4 MB private bytes per create, INDEPENDENT of the
+notify level** (9.36 MB/create at both -n 3 and -n 0, Welch t=0.000 - the earlier 7.5-9.9 MB
+estimate stands, and this confirms the leak is not log-buffer memory). Restarting rtiexec
+clears it; today's restart brought the working instance down from 957 MB private to a fresh
+process.
 
 ## 10. THE C16 PROGRESS WATCHDOG IS OFF BY DEFAULT - HOW TO TURN IT ON FOR THE VALIDATION RUN
 
