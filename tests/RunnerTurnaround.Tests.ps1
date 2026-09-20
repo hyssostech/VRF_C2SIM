@@ -1278,6 +1278,307 @@ Check '8m runner source: Stage 3 literally appends -FederationHoldSecs 0 to laun
 # line without it. Run 20260902T153837Z proved the cost of missing one: the report-
 # evidence gate reported "marking -> VRF_UUID unknown (no route line in the app log)"
 # for all three taskees against a healthy 3/3 app log and the window ran to its cap.
+# =============================================================================
+# 8n-8r. THE RUNNER MUST TELL THE TRUTH ABOUT WHAT IT LAUNCHED (2026-09-20).
+# Five items from the cold-start review of f26d4ad (F5, F6) and the D1b harvest
+# (findings A1, A2, A3). Each one is a place where the runner's own evidence said
+# something that was not so: a value silently taken from the environment, a
+# PREDICTION printed as an observation, a WARN about files that cannot exist, a
+# false STP-825 alarm, and an assumption ("the two configs are identical") that
+# nothing ever checked.
+# =============================================================================
+
+# 8n. F6: scenario, init and order must resolve IDENTICALLY - argument, then the environment,
+# then the built-in default - in BOTH entry points, and the run must SAY where each came from.
+# scripts\RunC2SimScenario.ps1 honoured $env:C2SIM_INIT and $env:C2SIM_ORDER but NOT
+# $env:C2SIM_SCENARIO (scripts\RunScenario.sh honoured all three), so an operator who exported
+# all three for a new AO and called the ps1 DIRECTLY - a documented usage, its own help says so -
+# got that AO's init and order on the OLD AO's scenario: the cross-AO mix that authors legs on
+# another continent and wedges the back end's path job (STP-823, memory
+# lessons-order-coordinates-vs-init).
+# THESE ARE BEHAVIOUR CHECKS against the REAL runner in -DryRun. The Stage 0 banner is printed
+# BEFORE the binaries are validated, so they are real assertions even in a checkout with nothing
+# built - unlike 8k/8l/8m, they never skip.
+Write-Host '=== 8n. F6: scenario/init/order provenance - argument > environment > built-in default ==='
+$provPwsh    = 'C:\Program Files\PowerShell\7\pwsh.exe'
+$provScript  = Join-Path $RepoRoot 'scripts\RunC2SimScenario.ps1'
+$provSaved   = @{ s = $env:C2SIM_SCENARIO; i = $env:C2SIM_INIT; o = $env:C2SIM_ORDER }
+$provEnvOut = ''; $provArgOut = ''; $provDefOut = ''
+try {
+    $env:C2SIM_SCENARIO = 'RunnerTurnaround_EnvScenario'
+    $env:C2SIM_INIT     = (Join-Path $RepoRoot 'data\COA-STP1_Initialization.xml')
+    $env:C2SIM_ORDER    = (Join-Path $RepoRoot 'data\COA-STP1_Order.xml')
+    $provEnvOut = (& $provPwsh -NoProfile -File $provScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck 2>&1 | Out-String)
+    # THE ARM THAT STOPS THIS PASSING BY THE ENVIRONMENT BEING IGNORED, and the one that stops
+    # it passing by the ARGUMENT being ignored: the same three variables are still exported here,
+    # and -Scenario/-Init/-Order must beat every one of them.
+    $provArgOut = (& $provPwsh -NoProfile -File $provScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck `
+                        -Scenario 'RunnerTurnaround_ArgScenario' `
+                        -Init  (Join-Path $RepoRoot 'data\R9_Mojave_Lean_Initialization.xml') `
+                        -Order (Join-Path $RepoRoot 'data\R9_Mojave_UnitMove_Order.xml') 2>&1 | Out-String)
+    $env:C2SIM_SCENARIO = $null
+    $env:C2SIM_INIT     = $null
+    $env:C2SIM_ORDER    = $null
+    $provDefOut = (& $provPwsh -NoProfile -File $provScript -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck 2>&1 | Out-String)
+} finally {
+    $env:C2SIM_SCENARIO = $provSaved.s
+    $env:C2SIM_INIT     = $provSaved.i
+    $env:C2SIM_ORDER    = $provSaved.o
+}
+# Whitespace is collapsed before matching for the reason 8m already gives: these banner lines
+# wrap across the console width when a dry run's output is captured through Out-String.
+$provEnvFlat = ($provEnvOut -replace '\s+', ' ')
+$provArgFlat = ($provArgOut -replace '\s+', ' ')
+$provDefFlat = ($provDefOut -replace '\s+', ' ')
+Check '8n THE F6 DEFECT: $env:C2SIM_SCENARIO is honoured by the ps1 (it was read only by RunScenario.sh)' (
+    $provEnvFlat -match 'scenario : RunnerTurnaround_EnvScenario') "banner did not carry the env scenario"
+Check '8n the banner names the SOURCE of all three, and says the environment for all three' (
+    $provEnvFlat -match 'scenario : RunnerTurnaround_EnvScenario <- env var C2SIM_SCENARIO' -and
+    $provEnvFlat -match 'init : \S*COA-STP1_Initialization\.xml <- env var C2SIM_INIT' -and
+    $provEnvFlat -match 'order : \S*COA-STP1_Order\.xml <- env var C2SIM_ORDER')
+Check '8n an env-sourced value is IMPOSSIBLE TO MISS: a warning that names the variables and the hazard' (
+    $provEnvFlat -match '3 of scenario/init/order came from the ENVIRONMENT' -and
+    $provEnvFlat -match 'An exported C2SIM_SCENARIO / C2SIM_INIT / C2SIM_ORDER outlives the shell that set it' -and
+    $provEnvFlat -match 'STP-823')
+Check '8n an ARGUMENT beats the environment for all three (so the env arm cannot be a false green)' (
+    $provArgFlat -match 'scenario : RunnerTurnaround_ArgScenario <- argument -Scenario' -and
+    $provArgFlat -match 'init : \S*R9_Mojave_Lean_Initialization\.xml <- argument -Init' -and
+    $provArgFlat -match 'order : \S*R9_Mojave_UnitMove_Order\.xml <- argument -Order')
+Check '8n with all three given as arguments the environment warning is NOT printed' (
+    $provArgFlat -notmatch 'came from the ENVIRONMENT')
+Check '8n with NOTHING exported all three report the built-in default, and 5.2 still gets its own scenario default' (
+    $provDefFlat -match 'scenario : Sample\\FirstExperience\\firstexperience <- built-in default' -and
+    $provDefFlat -match 'init : \S*R9_Mojave_Lean_Initialization\.xml <- built-in default' -and
+    $provDefFlat -match 'order : \S*R9_Mojave_UnitMove_Order\.xml <- built-in default' -and
+    $provDefFlat -notmatch 'came from the ENVIRONMENT')
+# The WRAPPER half of "identically in both entry points". scripts\RunScenario.sh already read all
+# three; what it did NOT do was say so, and it passed an env-sourced value to the runner as an
+# ARGUMENT, which would make the runner report 'argument' for a value nobody typed. It now prints
+# the source and passes the value through the ENVIRONMENT instead, so one resolver answers once.
+$provBash = 'C:\Program Files\Git\bin\bash.exe'
+if (-not (Test-Path -LiteralPath $provBash)) {
+    Check '8n wrapper leg SKIPPED (no bash.exe at the pinned Git path)' $true
+} else {
+    $provWrapperPosix = ($RepoRoot -replace '\\', '/')
+    if ($provWrapperPosix -match '^([A-Za-z]):(.*)$') { $provWrapperPosix = ('/' + $Matches[1].ToLower() + $Matches[2]) }
+    $provWrapperPosix = $provWrapperPosix + '/scripts/RunScenario.sh'
+    $provShDef = (& $provBash $provWrapperPosix '--help' 2>&1 | Out-String)
+    Check '8n the wrapper still documents all three environment variables in its help' (
+        $provShDef -match 'C2SIM_SCENARIO' -and $provShDef -match 'C2SIM_INIT' -and $provShDef -match 'C2SIM_ORDER')
+    $provShText = Get-Content -LiteralPath (Join-Path $RepoRoot 'scripts\RunScenario.sh') -Raw
+    Check '8n the wrapper records a SOURCE for each of the three' (
+        $provShText -match "SCENARIO_SRC='env var C2SIM_SCENARIO'" -and
+        $provShText -match "INIT_SRC='env var C2SIM_INIT'" -and
+        $provShText -match "ORDER_SRC='env var C2SIM_ORDER'" -and
+        $provShText -match "SCENARIO_SRC='argument --scenario'")
+    Check '8n the wrapper EXPORTS an env-sourced value instead of passing it as an argument (one resolver, one answer)' (
+        $provShText -match 'export C2SIM_SCENARIO="\$SCENARIO"' -and
+        $provShText -match 'export C2SIM_INIT="\$INIT"' -and
+        $provShText -match 'export C2SIM_ORDER="\$ORDER"')
+}
+
+# 8o. F5: the runner PREDICTS the route-shift state from its OWN environment, while a
+# hand-started interface (scripts\StartInterface52.ps1 -RouteShift on|off) resolves it in ITS
+# own process - so the manifest could state, as fact, a value the app never used. The shift
+# CHANGES WHERE UNITS DRIVE, so that is not a cosmetic field. The prediction stays, labelled as
+# one, and the app's OWN announcement is recorded beside it with an agreement verdict.
+# Get-RouteShiftAnnouncement is the pure parser; the fixture lines below are the app's real
+# message templates (src\VrfC2SimApp\VrfC2SimService.cs:534, :3970-3977, :4210) rendered.
+Write-Host '=== 8o. F5: the route shift - prediction vs the app''s own announcement ==='
+$rsBanner = @'
+info: VrfC2Sim[0]
+      LATERAL ROUTE SHIFT ON (Vrf:PreflightRouteShift, the shipped default since the user ruling of 2026-09-20; STP-804/806): before every GROUND move with more than one vertex, each leg is scored against the streamed terrain and a FLAGGED leg is detoured laterally - up to +/-600 m - onto ground the same sampler scores as clear. Tile cache: C:\x\preflight-cache (341 files).
+info: VrfC2Sim[0]
+      Connected to C2SIM.
+'@
+$rsPreflightOn = @'
+info: VrfC2Sim[0]
+      ROUTE PRE-FLIGHT enabled: threshold 0.92 on a 40 m sustained window, step 25 m, tiles cached in C:\x. Readers: warnings off, LATERAL ROUTE SHIFT ON (the shift CHANGES the line a unit drives; neither reader ever refuses a task).
+'@
+$rsPreflightOff = @'
+info: VrfC2Sim[0]
+      ROUTE PRE-FLIGHT enabled: threshold 0.92 on a 40 m sustained window, step 25 m, tiles cached in C:\x. Readers: warnings off, LATERAL ROUTE SHIFT off (the shift CHANGES the line a unit drives; neither reader ever refuses a task).
+'@
+$rsSilent = @'
+info: VrfC2Sim[0]
+      Connected to C2SIM.
+info: VrfC2Sim[0]
+      Init dispatched: 6 units + 0 areas queued for creation.
+'@
+$rsSkipped = $rsBanner + "info: VrfC2Sim[0]`r`n      LATERAL ROUTE SHIFT SKIPPED FOR THIS RUN: Vrf:PreflightOffline is TRUE and the tile cache is empty.`r`n"
+$annBanner = Get-RouteShiftAnnouncement -AppLogText $rsBanner
+$annOn     = Get-RouteShiftAnnouncement -AppLogText $rsPreflightOn
+$annOff    = Get-RouteShiftAnnouncement -AppLogText $rsPreflightOff
+$annSilent = Get-RouteShiftAnnouncement -AppLogText $rsSilent
+$annEmpty  = Get-RouteShiftAnnouncement -AppLogText ''
+$annSkip   = Get-RouteShiftAnnouncement -AppLogText $rsSkipped
+Check '8o the start-up banner announces ON, and the line is carried as evidence' (
+    $annBanner['Announced'] -eq $true -and $annBanner['Line'] -match 'LATERAL ROUTE SHIFT ON \(Vrf:PreflightRouteShift')
+Check '8o the ROUTE PRE-FLIGHT line announces ON' ($annOn['Announced'] -eq $true) "got [$($annOn['Announced'])]"
+Check '8o the ROUTE PRE-FLIGHT line announces off - the ONLY line that can (case-sensitive ON/off)' (
+    $annOff['Announced'] -eq $false) "got [$($annOff['Announced'])]"
+Check '8o SILENCE IS NOT EVIDENCE OF OFF: a log with neither line yields $null, never $false' (
+    $null -eq $annSilent['Announced'] -and $null -eq $annEmpty['Announced']) "silent=[$($annSilent['Announced'])] empty=[$($annEmpty['Announced'])]"
+Check '8o a SKIPPED-for-this-run log is still announced ON, and the skip is flagged separately' (
+    $annSkip['Announced'] -eq $true -and $annSkip['Skipped'] -eq $true -and $annBanner['Skipped'] -eq $false)
+# The runner side: the field is named for what it is, the prediction is never written into the
+# observation, and a disagreement is loud.
+Check '8o runner: the manifest field is `predicted`, with `announced` and `agreement` beside it' (
+    $runnerText -match 'predicted\s*=' -and $runnerText -match 'predictedSource\s*=' -and
+    $runnerText -match 'announced\s*=' -and $runnerText -match 'agreement\s*=' -and
+    $runnerText -notmatch "routeShift = \[ordered\]@\{\s*[\r\n]\s*effective")
+Check '8o runner: the app''s announcement is folded in at Stage 6c AND again at teardown' (
+    @([regex]::Matches($runnerText, 'Update-RouteShiftObservation -AppLogPath \$PathAppLog')).Count -ge 2)
+$rsFn = $runnerAst.FindAll({ param($a) $a -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $a.Name -eq 'Update-RouteShiftObservation' }, $true)
+Check '8o runner: Update-RouteShiftObservation exists and NEVER assigns the prediction into the observation' (
+    @($rsFn).Count -eq 1 -and
+    $rsFn[0].Extent.Text -notmatch '\$rs\.announced\s*=\s*\$rs\.predicted' -and
+    $rsFn[0].Extent.Text -match '\$rs\.announced\s*=\s*\[bool\]\$ann\[''Announced''\]' -and
+    $rsFn[0].Extent.Text -match 'MISMATCH')
+Check '8o runner: a MISMATCH is a validity flag, not a silently corrected field' (
+    $rsFn[0].Extent.Text -match "Add-Flag 'WARN' \('ROUTE SHIFT PREDICTION/REALITY MISMATCH")
+Check '8o the runner SAYS the value is a prediction, in the dry-run banner' (
+    $provDefFlat -match 'route shift is PREDICTED (ON|OFF) for this run' -and
+    $provDefFlat -match 'that is a PREDICTION from this shell, not an observation')
+
+# 8p. D1b harvest A1: the end-of-run vendor-log capture looked for the FLAT 5.0.2 names
+# (bin64\vrfSim.log, C:\MAK\logs\vrfGui.log) that VR-Forces 5.2 never writes, so every 5.2 run in
+# the record carries two "not found - nothing captured" WARNs about files that cannot exist,
+# while the real per-process logs sat un-captured beside them. Captured BY PID now, for the
+# processes THIS run launched, with LaunchVrf52's own filters.
+# THE HARD CONSTRAINT these checks exist to pin: those vendor logs carry the full process
+# environment in cleartext. The capture may COPY one. It may never open one.
+Write-Host '=== 8p. D1b A1: the vendor GUI/sim logs are captured BY PID, and never opened ==='
+$vlDir = Join-Path ([System.IO.Path]::GetTempPath()) ('vendorlog-test-' + [Guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $vlDir -Force | Out-Null
+$vlOut = Join-Path $vlDir 'out'
+New-Item -ItemType Directory -Path $vlOut -Force | Out-Null
+try {
+    # A throwaway C:\MAK\logs shaped like the real one. NOTHING here touches C:\MAK.
+    $vlSince = (Get-Date).AddMinutes(-5)
+    $vlWanted = Join-Path $vlDir 'vrfGui5.2d-20260920-145246-Legatus-282607-83276.log'
+    Set-Content -LiteralPath $vlWanted -Value 'MARKER-WANTED' -Encoding ascii
+    Set-Content -LiteralPath (Join-Path $vlDir 'vrfGui5.2d-20260920-145246-Legatus-282607-99999.log') -Value 'MARKER-OTHERPID' -Encoding ascii
+    Set-Content -LiteralPath (Join-Path $vlDir 'vrfGui5.2d-20260920-145246-Legatus-282607-83276.callstack.log') -Value 'MARKER-CALLSTACK' -Encoding ascii
+    $vlStale = Join-Path $vlDir 'vrfSimHLA1516e5.2d-20250101-000000-Legatus-282607-83276.log'
+    Set-Content -LiteralPath $vlStale -Value 'MARKER-STALE' -Encoding ascii
+    (Get-Item -LiteralPath $vlStale).LastWriteTime = (Get-Date).AddDays(-30)
+    $vlHit = Copy-VendorLogByPid -ProcessId 83276 -LogDir $vlDir -NamePrefix 'vrfGui' -Since $vlSince -Destination (Join-Path $vlOut 'vendor-vrfGui.log')
+    Check '8p the log for THIS pid is found and copied (5.2 versioned name, not the flat one)' (
+        $vlHit['Source'] -eq $vlWanted -and (Test-Path -LiteralPath (Join-Path $vlOut 'vendor-vrfGui.log')))    "source=$($vlHit['Source'])"
+    Check '8p the ORIGINAL is left in place - copied, never moved' (Test-Path -LiteralPath $vlWanted)
+    Check '8p the copy is the right file (another pid''s log was NOT taken)' (
+        (Get-Content -LiteralPath (Join-Path $vlOut 'vendor-vrfGui.log') -Raw) -match 'MARKER-WANTED')
+    $vlCs = Copy-VendorLogByPid -ProcessId 83276 -LogDir $vlDir -NamePrefix 'vrfGui' -Since $vlSince -Destination (Join-Path $vlOut 'x.log')
+    Check '8p the .callstack.log for the SAME pid is excluded (separate evidence, separate rules)' (
+        $vlCs['Source'] -notmatch 'callstack')
+    $vlOld = Copy-VendorLogByPid -ProcessId 83276 -LogDir $vlDir -NamePrefix 'vrfSim' -Since $vlSince -Destination (Join-Path $vlOut 'vendor-vrfSim.log')
+    Check '8p a file for a RECYCLED pid, written before this run, is refused by the mtime floor' (
+        $vlOld['Source'] -eq '' -and $vlOld['Error'] -eq '' -and -not (Test-Path -LiteralPath (Join-Path $vlOut 'vendor-vrfSim.log')))
+    $vlNone = Copy-VendorLogByPid -ProcessId 4242 -LogDir $vlDir -NamePrefix 'vrfGui' -Since $vlSince -Destination (Join-Path $vlOut 'none.log')
+    Check '8p an unknown pid yields "nothing found", not a throw and not a wrong file' (
+        $vlNone['Source'] -eq '' -and $vlNone['Error'] -eq '')
+    $vlBadDir = Copy-VendorLogByPid -ProcessId 83276 -LogDir (Join-Path $vlDir 'no-such-dir') -NamePrefix 'vrfGui' -Since $vlSince -Destination (Join-Path $vlOut 'nd.log')
+    Check '8p a missing log directory is survivable, never a throw' ($vlBadDir['Source'] -eq '')
+} finally {
+    Remove-Item -LiteralPath $vlDir -Recurse -Force -ErrorAction SilentlyContinue
+}
+# THE SECRECY POSTURE, as a structural fact rather than a promise: the helper copies and reads
+# nothing. A future edit that adds a Get-Content / Select-String / Read-LiveText inside it fails
+# here. (Get-ChildItem and its .Length are DIRECTORY-ENTRY reads, not content.)
+$libAst = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $RepoRoot 'scripts\RunnerLib.ps1'), [ref]$null, [ref]$null)
+$vlFn = $libAst.FindAll({ param($a) $a -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $a.Name -eq 'Copy-VendorLogByPid' }, $true)
+Check '8p Copy-VendorLogByPid lives in RunnerLib (so it can be tested offline at all)' (@($vlFn).Count -eq 1)
+if (@($vlFn).Count -eq 1) {
+    $vlCmds = @($vlFn[0].FindAll({ param($a) $a -is [System.Management.Automation.Language.CommandAst] }, $true) |
+                ForEach-Object { $_.GetCommandName() } | Where-Object { $_ })
+    Check '8p Copy-VendorLogByPid NEVER opens a vendor log (no Get-Content/Select-String/Read-LiveText/Get-FileHash)' (
+        @($vlCmds | Where-Object { $_ -in @('Get-Content','Select-String','Read-LiveText','Import-Csv','Get-FileHash','Out-String') }).Count -eq 0) (
+        "commands: " + ($vlCmds -join ','))
+    Check '8p Copy-VendorLogByPid copies (never moves) and excludes the callstack file' (
+        ($vlCmds -contains 'Copy-Item') -and ($vlCmds -notcontains 'Move-Item') -and
+        $vlFn[0].Extent.Text -match '\\\.callstack\\\.log\$')
+}
+Check '8p runner: the 5.2 teardown captures by pid for BOTH processes it launched' (
+    $runnerText -match "procId = \`$BackendPid"  -and $runnerText -match "procId = \`$FrontendPid" -and
+    $runnerText -match "Copy-VendorLogByPid -ProcessId")
+Check '8p runner: the front-end pid is parsed out of the launch output, like the back-end pid' (
+    $runnerText -match "front-end started \\\(pid \(\\d\+\)\\\)")
+Check '8p runner: the copy is announced WITH the secrets warning, and the manifest repeats it' (
+    $runnerText -match 'SECRETS: \{0\} holds the FULL PROCESS ENVIRONMENT IN CLEARTEXT' -and
+    $runnerText -match 'vendorLogs = \[ordered\]@\{')
+Check '8p runner: the 5.0.2 flat-name capture is untouched (that profile really does write them)' (
+    $runnerText -match "foreach \(\`$lg in @\('vrfSim\.log', 'vrfGui\.log'\)\)" -and
+    $runnerText -match "bin64-' \+ \`$lg")
+
+# 8q. D1b harvest A3: LaunchVrf52 shouts "-FederationHoldSecs 0 ... this launch's own back end
+# will be the federation CREATOR - the STP-825 failure mode" whenever it has no holder of its
+# own. That is true standalone and FALSE under the runner, which passes 0 precisely because its
+# Stage 2h holder is already joined - so every 5.2 run through the runner printed the alarm
+# twice, falsely. -FederationHeldByCaller makes the line say what is true. The STANDALONE
+# DEFAULT MUST NOT CHANGE, which is what 8m's own assertions keep pinning.
+Write-Host '=== 8q. D1b A3: -FederationHeldByCaller - the false STP-825 alarm under the runner ==='
+$hbcOut  = (& $holdPwsh -NoProfile -File $lv52Script -DryRun -NoGui -BackendAppNumber 9101 -FederationHoldSecs 0 -FederationHeldByCaller 2>&1 | Out-String)
+$hbcCode = $LASTEXITCODE
+$hbcFlat = ($hbcOut -replace '\s+', ' ')
+Check '8q the switch is ACCEPTED (exit 0 or 2, never a parameter-binding failure)' (
+    $hbcCode -in @(0, 2)) "exit=$hbcCode"
+Check '8q with the switch, the banner says the CALLER holds the federation' (
+    $hbcFlat -match 'Federation hold : OFF for this launch \(-FederationHoldSecs 0 -FederationHeldByCaller\): the CALLER already holds the federation')
+Check '8q with the switch, the false STP-825 CREATOR alarm is GONE' (
+    $hbcFlat -notmatch "this launch's own back end will be the federation CREATOR")
+Check '8q with the switch, the plan still says no holder is started HERE (nothing is hidden, only relabelled)' (
+    $hbcFlat -match 'NO holder is started BY THIS SCRIPT because the CALLER already holds the federation')
+Check '8q WITHOUT the switch the alarm is still printed - the standalone default is untouched' (
+    $lv52HoldOffFlat -match "this launch's own back end will be the federation CREATOR")
+$hbcBoth  = (& $holdPwsh -NoProfile -File $lv52Script -DryRun -NoGui -BackendAppNumber 9101 -FederationHoldSecs 900 -FederationHeldByCaller 2>&1 | Out-String)
+$hbcBothCode = $LASTEXITCODE
+Check '8q the switch with a POSITIVE hold is REFUSED (two holders would burn an appNumber for nothing)' (
+    $hbcBothCode -eq 2 -and $hbcBoth -match '-FederationHeldByCaller says the CALLER already holds the federation, but -FederationHoldSecs') (
+    "exit=$hbcBothCode")
+Check '8q LaunchVrf52 declares -FederationHeldByCaller as a SWITCH (declarative, starts nothing)' (
+    $lv52Text -match '\[switch\] \$FederationHeldByCaller')
+Check '8q runner: Stage 3 passes -FederationHeldByCaller ONLY when its own Stage 2h holder is armed' (
+    $runnerText -match "if \(\`$FederationHoldOn\) \{ \`$launchArgs \+= '-FederationHeldByCaller' \}")
+if ($holdOn -notmatch 'DRY RUN - the full planned sequence') {
+    Check '8q runner dry-run leg SKIPPED - the 8k dry run did not reach the planned sequence in this checkout' $true
+} else {
+    Check '8q runner Stage 3 command line carries -FederationHoldSecs 0 -FederationHeldByCaller with the holder ON' (
+        $holdOnFlat -match '-FederationHoldSecs 0 -FederationHeldByCaller')
+    Check '8q with the runner''s OWN holder OFF the switch is NOT passed - then nobody holds it and the alarm is TRUE' (
+        $holdOffFlat -notmatch '-FederationHeldByCaller')
+}
+
+# 8r. D1b harvest A2: the .NET tools (RtiProbe, WatchVrf, PauseSim) resolve their connection
+# config from the BOUND vrfcontrol.dll - the VENDOR tree - while the sim, the gui and the app
+# read the copy under -VrfAppDataDir (holder.1.stdout.log:5, "source=bound stack"). Harmless
+# today because the two files are byte-identical; "they are identical" was an ASSUMPTION nothing
+# checked. The runner now HASHES BOTH and says so either way. It does not re-plumb the tools.
+Write-Host '=== 8r. D1b A2: the two connection configs are VERIFIED identical, not assumed ==='
+Check '8r runner: the vendor copy is resolved as its own path, beside the (possibly relocated) one' (
+    $runnerText -match "\`$ConnConfigVendorFile = Join-Path \`$VrfRoot 'appData\\settings\\connections\\MAK-ONE-2025-Config\.xml'")
+Check '8r runner: BOTH files are hashed with SHA256' (
+    $runnerText -match "\`$ConnConfigSha\s+= \(Get-FileHash -LiteralPath \`$ConnConfigFile\s+-Algorithm SHA256\)\.Hash" -and
+    $runnerText -match "\`$ConnConfigVendorSha = \(Get-FileHash -LiteralPath \`$ConnConfigVendorFile -Algorithm SHA256\)\.Hash")
+Check '8r runner: a DIFFERENCE is a loud validity flag naming both paths and both hashes' (
+    $runnerText -match "Add-Flag 'WARN' \('CONNECTION CONFIG DIVERGENCE")
+Check '8r runner: an UNREADABLE copy is reported too, not silently treated as equal' (
+    $runnerText -match 'could not compare the two connection configs')
+Check '8r runner: the manifest carries both hashes and the verdict' (
+    $runnerText -match 'connectionConfigVendorFile\s+=' -and
+    $runnerText -match 'connectionConfigSha256\s+= \$ConnConfigSha' -and
+    $runnerText -match 'connectionConfigVendorSha256 = \$ConnConfigVendorSha' -and
+    $runnerText -match 'connectionConfigIdentical\s+= \$ConnConfigMatch')
+Check '8r runner: the tools are NOT re-plumbed - the check only REPORTS (no new tool argument was added)' (
+    $runnerText -notmatch '-ConnectionConfigFile \$ConnConfigVendorFile')
+if ($provDefFlat -notmatch 'VrfProfile 5\.2 - VR-Forces') {
+    Check '8r behaviour leg SKIPPED - the 5.2 banner is printed after Stage 0 validation, which aborts in a checkout with no Release-5.2 binaries' $true
+} else {
+    Check '8r a DEFAULT 5.2 run (appData not relocated) says the two are ONE FILE, and hashes it' (
+        $provDefFlat -match 'conn config : \S*MAK-ONE-2025-Config\.xml sha256' -and
+        $provDefFlat -match 'the sim, the gui, the app and the \.NET tools all read this one file')
+}
+
 Write-Host '=== 9. marking -> VRF_UUID mapping parses both app-log route-line forms ==='
 $logOld = @"
       Task 'T_R5_CO1': CreateRoute 'T_R5_CO1 ROUTE' (3 pts) for 114.MechCoy; move deferred to route-created.

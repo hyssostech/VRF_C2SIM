@@ -125,10 +125,24 @@
     HEADLESS_RUN_PLAN 4a.0: the LEAN file (6 units) supersedes sec 3's full file
     (158 unit/actor references); both contain all three taskee UUIDs, the lean one
     keeps 152 irrelevant units out of the trace.
+    Resolved as: -Init, else $env:C2SIM_INIT, else that default (see -Scenario).
 
 .PARAMETER Order
     C2SIM order XML. Default data/R9_Mojave_UnitMove_Order.xml. Three MOVE tasks
     against three taskees (4a.0), legs ~556-578 m.
+    Resolved as: -Order, else $env:C2SIM_ORDER, else that default (see -Scenario).
+
+.PARAMETER Scenario
+    The VR-Forces scenario to load. Default 'TropicTortoise' on the 5.0.2 profile and
+    'Sample\FirstExperience\firstexperience' on 5.2.
+    Resolved as: -Scenario, else $env:C2SIM_SCENARIO, else that default - the SAME
+    precedence as -Init and -Order, and the same as scripts\RunScenario.sh (review F6,
+    2026-09-20; before that this script read the other two variables but not this one,
+    so exporting all three and calling this script directly mixed one AO's init and
+    order with another AO's scenario). Where each of the three actually came from is
+    printed in the Stage 0 banner and recorded in the manifest as inputs.inputSources,
+    and a value taken from the environment is WARNED about there.
+    THE THREE MUST COME FROM ONE AO (STP-823).
 
 .PARAMETER VrfProfile
     WHICH VR-FORCES STACK the whole pipeline runs on: '5.0.2' (default, the historical
@@ -798,6 +812,15 @@ $LedgerDoc = Join-Path $DocsDir 'OPUS_EXECUTION_PLAN.md'
 $Is52 = ($VrfProfile -eq '5.2')
 # The BridgeConfig output tree the bridge-linked binaries were built into.
 $BridgeOut = if ($Is52) { 'Release-5.2' } else { 'Release' }
+# -Scenario RESOLUTION, half 1 of 2 (review F6, 2026-09-20). Half 2 is the AO-defaults block
+# further down, where scenario, init and order are resolved IDENTICALLY - argument, then the
+# environment, then the built-in default - and each one's PROVENANCE is recorded and printed.
+# This half exists only to answer "was -Scenario actually TYPED?", because the parameter's own
+# default is indistinguishable from a typed value once the param block has run, and a default
+# must NOT beat $env:C2SIM_SCENARIO. A whitespace-only -Scenario counts as NOT given, exactly
+# as an empty -Init / -Order already does.
+$ScenarioPassed  = ($PSBoundParameters.ContainsKey('Scenario') -and -not [string]::IsNullOrWhiteSpace($Scenario))
+$ScenarioBuiltin = 'TropicTortoise'
 if ($Is52) {
     if (-not $PSBoundParameters.ContainsKey('VrfRoot'))    { $VrfRoot    = 'C:\MAK\vrforces5.2d' }
     if (-not $PSBoundParameters.ContainsKey('VrLinkRoot')) { $VrLinkRoot = 'C:\MAK\vrlink5.10' }
@@ -809,7 +832,11 @@ if ($Is52) {
     # a Phase-2 deliverable, deployed with
     #   python tools\FixtureGen\build_fixture.py <site> --out-dir C:\MAK\vrforces5.2d\userData\scenarios
     # (the SANCTIONED fixture write; --out-dir already exists - do not invent another).
-    if (-not $PSBoundParameters.ContainsKey('Scenario'))   { $Scenario   = 'Sample\FirstExperience\firstexperience' }
+    # The 5.2 BUILT-IN DEFAULT. It is recorded here and APPLIED in the AO-defaults block below,
+    # so that $env:C2SIM_SCENARIO can sit between the argument and this default exactly as
+    # $env:C2SIM_INIT and $env:C2SIM_ORDER already do (review F6). A -Scenario that WAS typed
+    # still wins, so every recorded 5.2 command line resolves to what it resolved to before.
+    $ScenarioBuiltin = 'Sample\FirstExperience\firstexperience'
 }
 
 $LaunchVrf = Join-Path $PSScriptRoot $(if ($Is52) { 'LaunchVrf52.ps1' } else { 'LaunchVrf.ps1' })
@@ -880,12 +907,19 @@ $RidFile        = Join-Path $RepoRoot 'config\rid-501-rtiexec-min.mtl'
 # sim read two different files - benign only for as long as they stay byte-identical
 # (they are today; run 20260914T164906Z printed the vendor path while the sim ran on
 # C:\C2SIM\vrf-appdata). Follow the relocation instead of assuming the delta stays zero.
+$ConnConfigVendorFile = Join-Path $VrfRoot 'appData\settings\connections\MAK-ONE-2025-Config.xml'
 $ConnConfigFile = $(if ($Is52 -and -not [string]::IsNullOrWhiteSpace($VrfAppDataDir)) {
                         Join-Path $VrfAppDataDir 'settings\connections\MAK-ONE-2025-Config.xml'
                     } else {
-                        Join-Path $VrfRoot 'appData\settings\connections\MAK-ONE-2025-Config.xml'
+                        $ConnConfigVendorFile
                     })
 $ConnConfigFromAppDataDir = ($Is52 -and -not [string]::IsNullOrWhiteSpace($VrfAppDataDir))
+# Filled in by the 5.2 banner's identity check below and read by the manifest. Declared HERE so
+# the 5.0.2 path, which never runs that check, can still read them - Set-StrictMode -Version
+# Latest turns an unset variable into a terminating error.
+$ConnConfigSha       = $null
+$ConnConfigVendorSha = $null
+$ConnConfigMatch     = $null
 $TypeMapFile52  = $(if ($TypeMapFile) { $TypeMapFile } else { 'data/unit-type-map-52.json' })
 if ($TypeMapFile -and -not (Test-Path -LiteralPath $TypeMapFile -PathType Leaf)) { $bad += ('-TypeMapFile not found: {0}' -f $TypeMapFile) }
 # The VR-Forces-level interface address for this run (-DeviceAddress; see the param block).
@@ -909,16 +943,52 @@ if ($Is52) {
     $ProfileEnv['RTI_ASSISTANT_DISABLE']= '1'
 }
 
-# AO-SPECIFIC DEFAULTS (STP-802). Both name a MOJAVE pair, which was the only AO until the
+# AO-SPECIFIC DEFAULTS (STP-802). All three name a MOJAVE set, which was the only AO until the
 # 2026-09-20 ruling that the demo is Iron Storm over the Suwalki Gap. They stay the defaults so
-# every recorded run reproduces, but they are now explicit and overridable without editing this
-# file: -Init / -Order win, then $env:C2SIM_INIT / $env:C2SIM_ORDER, then these.
-# THE PAIR MUST COME FROM ONE AO. A Suwalki init with a Mojave order authors an 8,769 km leg and
+# every recorded run reproduces, but they are explicit and overridable without editing this file.
+# THE THREE MUST COME FROM ONE AO. A Suwalki init with a Mojave order authors an 8,769 km leg and
 # the back end's path job never returns (memory lessons-order-coordinates-vs-init, STP-823).
-if ([string]::IsNullOrWhiteSpace($Init))    { $Init    = $env:C2SIM_INIT }
-if ([string]::IsNullOrWhiteSpace($Order))   { $Order   = $env:C2SIM_ORDER }
-if ([string]::IsNullOrWhiteSpace($Init))    { $Init    = Join-Path $DataDir 'R9_Mojave_Lean_Initialization.xml' }
-if ([string]::IsNullOrWhiteSpace($Order))   { $Order   = Join-Path $DataDir 'R9_Mojave_UnitMove_Order.xml' }
+#
+# ONE PRECEDENCE FOR ALL THREE (review F6, 2026-09-20): argument > environment > built-in default,
+# the same order scripts\RunScenario.sh uses. Until this block was written the ps1 read
+# $env:C2SIM_INIT and $env:C2SIM_ORDER but NOT $env:C2SIM_SCENARIO, so an operator who exported
+# all three for a new AO and then called this script DIRECTLY - a documented usage, see the help
+# at the head of this file - got that AO's init and order on the OLD AO's scenario. That is
+# exactly the cross-AO mix the paragraph above warns about, produced by the runner itself.
+#
+# WHERE EACH VALUE CAME FROM IS EVIDENCE, not a debugging aid: it is printed in the Stage 0
+# banner, warned about when it is the environment, and recorded in the manifest. A value that
+# arrived from a variable nobody remembers exporting must be impossible to miss.
+$InputSource = [ordered]@{ scenario = ''; init = ''; order = '' }
+if ($ScenarioPassed) {
+    $InputSource['scenario'] = 'argument -Scenario'
+} elseif (-not [string]::IsNullOrWhiteSpace($env:C2SIM_SCENARIO)) {
+    $Scenario = $env:C2SIM_SCENARIO
+    $InputSource['scenario'] = 'env var C2SIM_SCENARIO'
+} else {
+    $Scenario = $ScenarioBuiltin
+    $InputSource['scenario'] = 'built-in default'
+}
+if (-not [string]::IsNullOrWhiteSpace($Init)) {
+    $InputSource['init'] = 'argument -Init'
+} elseif (-not [string]::IsNullOrWhiteSpace($env:C2SIM_INIT)) {
+    $Init = $env:C2SIM_INIT
+    $InputSource['init'] = 'env var C2SIM_INIT'
+} else {
+    $Init = Join-Path $DataDir 'R9_Mojave_Lean_Initialization.xml'
+    $InputSource['init'] = 'built-in default'
+}
+if (-not [string]::IsNullOrWhiteSpace($Order)) {
+    $InputSource['order'] = 'argument -Order'
+} elseif (-not [string]::IsNullOrWhiteSpace($env:C2SIM_ORDER)) {
+    $Order = $env:C2SIM_ORDER
+    $InputSource['order'] = 'env var C2SIM_ORDER'
+} else {
+    $Order = Join-Path $DataDir 'R9_Mojave_UnitMove_Order.xml'
+    $InputSource['order'] = 'built-in default'
+}
+# The ones that came from the environment, for the Stage 0 warning and the manifest.
+$InputsFromEnv = @(@('scenario','init','order') | Where-Object { $InputSource[$_] -like 'env var *' })
 if ([string]::IsNullOrWhiteSpace($RunRoot)) { $RunRoot = Join-Path $RepoRoot 'runs' }
 
 $ProcBackend  = 'vrfSimHLA1516e'
@@ -1399,6 +1469,48 @@ function Read-LiveText {
         return ''
     } finally {
         if ($sr) { $sr.Dispose() } elseif ($fs) { $fs.Dispose() }
+    }
+}
+
+# THE ROUTE SHIFT, AS THE APP ITSELF REPORTED IT (review F5). Stage 0 wrote a PREDICTION into
+# $Manifest.inputs.routeShift.predicted; this folds the app's OWN announcement in beside it and
+# renders a verdict. Called at Stage 6c (the first moment an app log exists) and again at
+# teardown, because the only form of the line that can say 'off' is printed at the FIRST GROUND
+# MOVE, not at start-up - a run whose shift is off says nothing at all until then.
+#
+# THE RULES THIS ENCODES, and they are the whole point of the item:
+#   - the prediction is NEVER copied into `announced`. No announcement = NOT OBSERVED.
+#   - an announcement, once read, is never overwritten (the app resolves the setting once).
+#   - a disagreement is a WARN flag with both values named, not a silently corrected field.
+function Update-RouteShiftObservation {
+    param([Parameter(Mandatory)][string]$AppLogPath, [string]$Stage = '')
+    $rs = $Manifest.inputs.routeShift
+    if ($null -ne $rs.announced) { return }
+    $txt = ''
+    try { $txt = Read-LiveText -Path $AppLogPath } catch { return }
+    $ann = Get-RouteShiftAnnouncement -AppLogText $txt
+    if ($ann['Skipped']) { $rs.shiftSkipped = $true }
+    if ($null -eq $ann['Announced']) {
+        $rs.agreement = ('NOT OBSERVED at {0} - the app log carries no "LATERAL ROUTE SHIFT" line yet. The prediction stands UNCONFIRMED, and an unconfirmed prediction is not an observation. The app prints NOTHING at start-up when the shift is OFF, so silence here is not evidence of OFF.' -f $(if ($Stage) { $Stage } else { 'this point' }))
+        return
+    }
+    $annText = $(if ($ann['Announced']) { 'ON' } else { 'off' })
+    $rs.announced        = [bool]$ann['Announced']
+    $rs.announcedLine    = $ann['Line']
+    $rs.announcedSource  = $ann['Source']
+    $rs.announcedAtStage = $Stage
+    if (($rs.predicted -is [bool]) -and ([bool]$rs.predicted -eq [bool]$ann['Announced'])) {
+        $rs.agreement = ('CONFIRMED at {0} - the app announced {1}, which is what this runner predicted from {2}. Evidence: {3}' -f `
+                         $Stage, $annText, $rs.predictedSource, $ann['Source'])
+        Say-Ok ('route shift CONFIRMED by the app itself ({0}): {1}' -f $ann['Source'], $annText)
+    } else {
+        $rs.agreement = ('MISMATCH at {0} - this runner PREDICTED [{1}] from {2}, and the app ANNOUNCED [{3}] ({4}). THE APP IS THE AUTHORITY ON THE APP: every route in this run was driven under the ANNOUNCED value. Usual cause: the interface was started by hand (scripts\StartInterface52.ps1 -RouteShift on|off sets Vrf__PreflightRouteShift in ITS OWN process, which this runner''s shell cannot see), or the deployed appsettings.json differs from the one Stage 0 read.' -f `
+                        $Stage, $rs.predicted, $rs.predictedSource, $annText, $ann['Source'])
+        Add-Flag 'WARN' ('ROUTE SHIFT PREDICTION/REALITY MISMATCH: the manifest predicted [{0}] from {1}; the app announced [{2}]. Score this run on the ANNOUNCED value - the shift CHANGES WHERE UNITS DRIVE. App line: {3}' -f `
+                         $rs.predicted, $rs.predictedSource, $annText, $ann['Line'])
+    }
+    if ($rs.shiftSkipped) {
+        Add-Flag 'WARN' 'the app also reported LATERAL ROUTE SHIFT SKIPPED FOR THIS RUN (Vrf:PreflightOffline with an empty tile cache): the setting is ON but NO leg can ever be shifted, so every ground move is dispatched on its authored line. Do not read this run as evidence about the shift.'
     }
 }
 
@@ -1963,8 +2075,24 @@ Say-Head ('RunC2SimScenario.ps1 v{0} ({1})' -f $ScriptVersion, $(if ($DryRun) { 
 Say ('  local clock : {0}' -f $nowLocal.ToString('yyyy-MM-dd HH:mm:ss zzz'))
 Say ('  UTC clock   : {0}   <- this machine stamps logs UTC' -f $nowUtc.ToString('yyyy-MM-dd HH:mm:ss'))
 Say ('  repo root   : {0}' -f $RepoRoot)
+# SCENARIO / INIT / ORDER, EACH WITH ITS PROVENANCE (review F6). The three must come from one
+# AO, and the commonest way they stop doing so is an environment variable left exported from an
+# earlier AO's run - a value nobody typed on the command line in front of them. Every line here
+# therefore names its own source, in the same words the manifest records.
+Say ('  scenario    : {0}' -f $Scenario)
+Say ('                <- {0}' -f $InputSource['scenario'])
 Say ('  init        : {0}' -f $Init)
+Say ('                <- {0}' -f $InputSource['init'])
 Say ('  order       : {0}' -f $Order)
+Say ('                <- {0}' -f $InputSource['order'])
+if ($InputsFromEnv.Count -gt 0) {
+    Say-Warn ('{0} of scenario/init/order came from the ENVIRONMENT, not from this command line: {1}.' -f `
+              $InputsFromEnv.Count, (($InputsFromEnv | ForEach-Object { '{0} <- {1}' -f $_, $InputSource[$_] }) -join '; '))
+    Say-Warn '  An exported C2SIM_SCENARIO / C2SIM_INIT / C2SIM_ORDER outlives the shell that set it. Check that all'
+    Say-Warn '  three belong to the SAME AO before this run is scored: a Suwalki init with a Mojave scenario authors'
+    Say-Warn '  legs on another continent and the back end''s path job never returns (STP-823). Unset them, or pass'
+    Say-Warn '  -Scenario / -Init / -Order explicitly - an argument always wins over the environment.'
+}
 Say ('  RunSecs     : {0}' -f $RunSecs)
 Say ''
 Say '  THIS SCRIPT DOES NOT SCORE. It collects evidence. HEADLESS_RUN_PLAN sec 4a'
@@ -2274,8 +2402,17 @@ if (-not $appClientId) { Say-Warn 'could not read Vrf:ClientId from the app apps
 #   Vrf__PreflightRouteShift in this shell (inherited by the child) beats the json file, the
 #   deployed appsettings.json beats the C# initialiser, and the initialiser is TRUE.
 # The runner sets nothing here: turning it off is the operator's env var, not a runner flag, so
-# there is exactly one switch to find. The app's own log line is the confirmation; this is the
-# PREDICTION, and the two disagreeing is itself a finding.
+# there is exactly one switch to find.
+#
+# THIS IS A PREDICTION AND IS LABELLED AS ONE (review F5, 2026-09-20). It is computed from THIS
+# process's environment and the appsettings.json this process can read - neither of which is the
+# app's own resolution. scripts\StartInterface52.ps1 -RouteShift on|off sets
+# Vrf__PreflightRouteShift in the INTERFACE's process, so a hand-started interface (the D3 lane)
+# can drive a line this manifest never predicted, and the disagreement there is EXPECTED, not a
+# finding. The manifest therefore carries `predicted` AND `announced` - the value the app itself
+# printed, parsed out of its log at Stage 6c and again at teardown - plus an `agreement` verdict.
+# A prediction is never written into the announced field, and a missing announcement is recorded
+# as NOT OBSERVED, never as agreement.
 $RouteShiftEnv = [Environment]::GetEnvironmentVariable('Vrf__PreflightRouteShift')
 $RouteShiftJson = $null
 if ($cfgApp -and ($cfgApp.PSObject.Properties.Name -contains 'Vrf') -and
@@ -2293,19 +2430,30 @@ elseif ($RouteShiftEnv)                  { $RouteShiftEff = $null;  $RouteShiftS
 elseif ($null -ne $RouteShiftJson)       { $RouteShiftEff = $RouteShiftJson; $RouteShiftSrc = 'appsettings.json Vrf:PreflightRouteShift' }
 else                                     { $RouteShiftEff = $true;  $RouteShiftSrc = 'VrfSettings.cs initialiser (the key is in NEITHER the environment NOR the deployed appsettings.json)' }
 $Manifest.inputs.routeShift = [ordered]@{
-    effective   = $(if ($null -eq $RouteShiftEff) { 'UNKNOWN - unparseable Vrf__PreflightRouteShift' } else { [bool]$RouteShiftEff })
-    source      = $RouteShiftSrc
-    envValue    = $(if ($RouteShiftEnv) { $RouteShiftEnv } else { '(unset)' })
-    appSettings = $(if ($null -ne $RouteShiftJson) { $RouteShiftJson } else { '(key absent)' })
-    note        = 'Vrf:PreflightRouteShift. ON detours a FLAGGED leg laterally before dispatch and defers that dispatch up to Vrf:PreflightRouteShiftTimeoutSeconds; it never refuses a task - on a timeout, a throw, an empty tile cache or no cleared line the AUTHORED line is dispatched. The route the unit was GIVEN (shifted or not) is what STP-837 measures its arrival bar from.'
+    predicted       = $(if ($null -eq $RouteShiftEff) { 'UNKNOWN - unparseable Vrf__PreflightRouteShift' } else { [bool]$RouteShiftEff })
+    predictedSource = $RouteShiftSrc
+    predictedFrom   = 'THE RUNNER''S OWN environment plus the appsettings.json this process read, resolved in the app''s precedence order (env > json > the C# initialiser). A PREDICTION, not an observation: an interface started by hand (scripts\StartInterface52.ps1 -RouteShift on|off) resolves the setting in ITS OWN process and this field cannot see that.'
+    envValue        = $(if ($RouteShiftEnv) { $RouteShiftEnv } else { '(unset)' })
+    appSettings     = $(if ($null -ne $RouteShiftJson) { $RouteShiftJson } else { '(key absent)' })
+    announced       = $null
+    announcedLine   = $null
+    announcedSource = $null
+    announcedAtStage= $null
+    shiftSkipped    = $null
+    agreement       = 'NOT OBSERVED - the app has not started yet'
+    appStartedByThisRunner = $true
+    note            = 'Vrf:PreflightRouteShift. ON detours a FLAGGED leg laterally before dispatch and defers that dispatch up to Vrf:PreflightRouteShiftTimeoutSeconds; it never refuses a task - on a timeout, a throw, an empty tile cache or no cleared line the AUTHORED line is dispatched. The route the unit was GIVEN (shifted or not) is what STP-837 measures its arrival bar from.'
 }
 if ($null -eq $RouteShiftEff) {
     Say-Warn ("Vrf__PreflightRouteShift='{0}' is NOT a value the .NET configuration binder accepts for a bool (only true/false, case-insensitive): the app will THROW binding its Vrf section and this run will have no interface at all. Set true or false, or unset it." -f $RouteShiftEnv)
 } elseif ($RouteShiftEff) {
-    Say-Ok ('route shift is ON for this run ({0}) - a flagged leg may be DETOURED before dispatch; the app logs every shift and every decline' -f $RouteShiftSrc)
+    Say-Ok ('route shift is PREDICTED ON for this run ({0}) - a flagged leg may be DETOURED before dispatch; the app logs every shift and every decline' -f $RouteShiftSrc)
 } else {
-    Say-Warn ('route shift is OFF for this run ({0}) - flagged legs are dispatched on the authored line' -f $RouteShiftSrc)
+    Say-Warn ('route shift is PREDICTED OFF for this run ({0}) - flagged legs are dispatched on the authored line' -f $RouteShiftSrc)
 }
+Say     '         that is a PREDICTION from this shell, not an observation. The app announces its OWN value'
+Say     '         ("LATERAL ROUTE SHIFT ON/off") and this run records THAT beside the prediction, with a loud'
+Say     '         MISMATCH if the two disagree (manifest inputs.routeShift.announced / .agreement).'
 
 # -PreOrderGate NavArea REQUIRES the object consoles open. The row it waits for is printed
 # at object-console level 3 and at no lower level, so with the console below 3 the gate can
@@ -2350,6 +2498,35 @@ if ($Is52) {
     Say     ('         binaries    : bin\{0}\ (bridge-linked tools + app); PushInit/PushOrder/ListenReports/StopIface are managed-only and shared with 5.0.2' -f $BridgeOut)
     Say     ('         launch/stop : {0} / {1}{2}' -f (Split-Path -Leaf $LaunchVrf), (Split-Path -Leaf $StopVrf), $(if ($NoGui) { '  (-NoGui: no vrfGui)' } else { '  (GUI ON - migration observability)' }))
     Say     ('         federation  : NO argument passed - identity from {0} (execName MAK-ONE-2025)' -f $ConnConfigFile)
+    # THE .NET TOOLS READ A DIFFERENT FILE FROM THE SIM WHEN appData IS RELOCATED (D1b harvest,
+    # finding A2). RtiProbe, WatchVrf and PauseSim resolve their connection config from the BOUND
+    # vrfcontrol.dll - i.e. from the VENDOR tree - while the sim, the gui and VrfC2SimApp read the
+    # relocated copy this runner points them at: holder.1.stdout.log:5 says exactly that, in its
+    # own words ("source=bound stack"). That is harmless ONLY while the two files are
+    # byte-identical, and "they are identical" was an ASSUMPTION no run ever checked. It is
+    # checked here now, every 5.2 run, and recorded either way. This does NOT re-plumb the tools;
+    # it removes the case where they diverge silently and the run's federates stop sharing a
+    # connection with nothing in the evidence to say so.
+    try { if (Test-Path -LiteralPath $ConnConfigFile -PathType Leaf)       { $ConnConfigSha       = (Get-FileHash -LiteralPath $ConnConfigFile       -Algorithm SHA256).Hash } } catch { }
+    try { if (Test-Path -LiteralPath $ConnConfigVendorFile -PathType Leaf) { $ConnConfigVendorSha = (Get-FileHash -LiteralPath $ConnConfigVendorFile -Algorithm SHA256).Hash } } catch { }
+    if (-not $ConnConfigFromAppDataDir) {
+        $ConnConfigMatch = 'n/a - appData is NOT relocated, so the tools and the sim read the SAME file'
+        Say ('         conn config : {0}  sha256 {1}' -f $ConnConfigFile, $(if ($ConnConfigSha) { $ConnConfigSha.Substring(0, 16) + '...' } else { 'UNREADABLE' }))
+        Say     ('                       the sim, the gui, the app and the .NET tools all read this one file.')
+    } elseif ($null -eq $ConnConfigSha -or $null -eq $ConnConfigVendorSha) {
+        $ConnConfigMatch = 'UNKNOWN - one of the two files could not be hashed'
+        Add-Flag 'WARN' ('could not compare the two connection configs: relocated {0} [{1}], vendor {2} [{3}]. The .NET tools (RtiProbe, WatchVrf, PauseSim) read the VENDOR one from the bound vrfcontrol.dll while the sim and the app read the relocated one, so an UNREADABLE vendor copy is a tool that may not join the federation this run uses.' -f `
+                         $ConnConfigFile, $(if ($ConnConfigSha) { 'hashed' } else { 'MISSING/UNREADABLE' }), $ConnConfigVendorFile, $(if ($ConnConfigVendorSha) { 'hashed' } else { 'MISSING/UNREADABLE' }))
+    } elseif ($ConnConfigSha -eq $ConnConfigVendorSha) {
+        $ConnConfigMatch = $true
+        Say-Ok ('connection configs VERIFIED IDENTICAL (sha256 {0}): the relocated copy the sim/gui/app read and the vendor copy the .NET tools read are the same bytes.' -f $ConnConfigSha.Substring(0, 16))
+        Say     ('                       relocated: {0}' -f $ConnConfigFile)
+        Say     ('                       vendor   : {0}  (what RtiProbe/WatchVrf/PauseSim bind, D1b harvest A2)' -f $ConnConfigVendorFile)
+    } else {
+        $ConnConfigMatch = $false
+        Add-Flag 'WARN' ('CONNECTION CONFIG DIVERGENCE: the relocated copy {0} (sha256 {1}) and the vendor copy {2} (sha256 {3}) are NOT the same file. The sim, the gui and VrfC2SimApp read the RELOCATED one; RtiProbe, WatchVrf and PauseSim resolve theirs from the BOUND vrfcontrol.dll, i.e. the VENDOR one (holder.1.stdout.log "source=bound stack", D1b harvest A2). This run''s federates may therefore NOT share a connection, and an observer that reflects 0 entities would look like an observation-channel failure instead of a configuration one. Reconcile the two files before scoring this run.' -f `
+                         $ConnConfigFile, $ConnConfigSha, $ConnConfigVendorFile, $ConnConfigVendorSha)
+    }
     Say     ('         RTI posture : RTIEXEC MODE on MAK RTI 5.0.1 - the DOCUMENTED posture and the only one offered')
     Say     ('                       (UG52 5.5.1 p190 "You cannot use the MAK RTI in lightweight mode with VR-Forces";')
     Say     ('                        PREREG_52_RTIEXEC_2026-09-04: rtiexec mode reflects 62 entities, lightweight 0)')
@@ -2389,6 +2566,22 @@ $Manifest.inputs.order         = (Resolve-Path -LiteralPath $Order).Path
 $Manifest.inputs.runSecs       = $RunSecs
 $Manifest.inputs.sampleSecs    = $SampleSecs
 $Manifest.inputs.scenario      = $Scenario
+# WHERE EACH OF THE THREE CAME FROM (review F6). A run whose init and order came from exported
+# variables and whose scenario came from a built-in default is a CROSS-AO run, and the paths
+# alone do not say so - three file names from two AOs look like six ordinary file names. This
+# field is what lets a later reader tell them apart without re-deriving the operator's shell.
+$Manifest.inputs.inputSources  = [ordered]@{
+    scenario    = $InputSource['scenario']
+    init        = $InputSource['init']
+    order       = $InputSource['order']
+    fromEnv     = @($InputsFromEnv)
+    envSeen     = [ordered]@{
+        C2SIM_SCENARIO = $(if ([string]::IsNullOrWhiteSpace($env:C2SIM_SCENARIO)) { '(unset)' } else { $env:C2SIM_SCENARIO })
+        C2SIM_INIT     = $(if ([string]::IsNullOrWhiteSpace($env:C2SIM_INIT))     { '(unset)' } else { $env:C2SIM_INIT })
+        C2SIM_ORDER    = $(if ([string]::IsNullOrWhiteSpace($env:C2SIM_ORDER))    { '(unset)' } else { $env:C2SIM_ORDER })
+    }
+    precedence  = 'argument > environment > built-in default, identically for all three and identically in scripts\RunScenario.sh (review F6, 2026-09-20). envSeen is what THIS process could see, whether or not the value was used.'
+}
 $Manifest.inputs.quietBackend  = [bool]$QuietBackend
 $Manifest.inputs.backendNotifyLevel = $BackendNotifyLevel
 $Manifest.inputs.vrfAppDataDir = $(if ($Is52 -and $VrfAppDataDir) { $VrfAppDataDir } elseif ($Is52) { '(not passed - vendor appData)' } else { $null })
@@ -2413,6 +2606,15 @@ $Manifest.inputs.vrfProfile = [ordered]@{
     noGui               = [bool]$NoGui
     federationArgument  = $(if ($Is52) { '(none - config-file identity)' } else { $Federation })
     connectionConfigFile= $(if ($Is52) { $ConnConfigFile } else { $null })
+    # THE TWO COPIES, HASHED rather than assumed equal (D1b harvest A2). connectionConfigFile is
+    # what the SIM, the GUI and VrfC2SimApp read; connectionConfigVendorFile is what RtiProbe,
+    # WatchVrf and PauseSim bind through vrfcontrol.dll. They are the same path unless
+    # -VrfAppDataDir relocated appData, and `identical` says whether they are the same BYTES.
+    connectionConfigVendorFile   = $(if ($Is52) { $ConnConfigVendorFile } else { $null })
+    connectionConfigSha256       = $ConnConfigSha
+    connectionConfigVendorSha256 = $ConnConfigVendorSha
+    connectionConfigIdentical    = $ConnConfigMatch
+    connectionConfigNote         = 'The .NET tools resolve their connection config from the BOUND vrfcontrol.dll (the VENDOR tree), not from -VrfAppDataDir: holder.1.stdout.log "source=bound stack". Harmless only while the two files are byte-identical, which this run VERIFIED rather than assumed.'
     ridFile             = $(if ($Is52) { $RidFile } else { $null })
     ridSha256           = $(if ($Is52 -and (Test-Path -LiteralPath $RidFile -PathType Leaf)) { (Get-FileHash -LiteralPath $RidFile -Algorithm SHA256).Hash } else { $null })
     rtiAssistantDisable = $(if ($Is52) { '1' } else { $null })
@@ -3176,6 +3378,14 @@ $ListenProc          = $null
 $AppProc             = $null
 $VrfLaunched         = $false
 $AppStarted          = $false
+# THE PIDS THIS RUN LAUNCHED (Stage 3 parses them out of the LaunchVrf52 output). Initialised
+# here, before the try, for the same reason the Stage 2h variables below are: the teardown
+# vendor-log capture reads them on EVERY exit path, including an abort that never reaches Stage
+# 3, and Set-StrictMode -Version Latest turns an unset variable into a terminating error.
+# 5.2 writes a per-process vendor log named ...-<pid>.log, so the pid is the ONLY thing that
+# ties a file in the shared C:\MAK\logs to THIS run (check 8f / the D1b harvest, finding A1).
+$BackendPid          = $null
+$FrontendPid         = $null
 $SavedPath           = $env:PATH
 $SavedLicense        = $env:MAKLMGRD_LICENSE_FILE
 $SavedVrfAppNumber   = $env:Vrf__ApplicationNumber
@@ -3695,6 +3905,15 @@ try {
         # BYTE-IDENTICAL to its pre-STP-825-demo-holder behaviour. Without this, a 5.2 run
         # would burn a SECOND appNumber on a second holder on top of Stage 2h's own.
         $launchArgs += @('-FederationHoldSecs', '0')
+        # ...AND SAY WHY IT IS 0 (D1b harvest finding A3, 2026-09-20). Bare -FederationHoldSecs 0
+        # means "nobody holds the federation", and LaunchVrf52 rightly shouts that its own back
+        # end will be the CREATOR - the STP-825 failure mode. Here it is 0 for the OPPOSITE
+        # reason: Stage 2h above is already joined and holding, so the sim's create returns
+        # "already exists". Without this switch every 5.2 run through the runner printed that
+        # alarm twice, falsely (launchvrf.stdout.log:12,49). Passed ONLY when Stage 2h really is
+        # armed - with the runner's own holder off (-FederationHoldSecs 0 to the RUNNER) nobody
+        # holds anything and the warning is true, so it must still be printed.
+        if ($FederationHoldOn) { $launchArgs += '-FederationHeldByCaller' }
     }
     # -q | --doNotUseConsole for the back end. Off by default; see the -QuietBackend
     # note in the param block. Recorded in the manifest as inputs.quietBackend either way.
@@ -3755,11 +3974,18 @@ try {
         # BACK-END PID for the mid-run liveness check (2026-09-06: COA-STP1 run 2's sim died in
         # the DI-Guy controller 3 min after READY and the runner waited the full 180 s oracle gate
         # before failing for the wrong reason). LaunchVrf52 prints "back-end started (pid N)".
-        $BackendPid = $null
         if (Test-Path -LiteralPath $PathLaunchOut -PathType Leaf) {
-            $pm = [regex]::Match((Get-Content -LiteralPath $PathLaunchOut -Raw), 'back-end started \(pid (\d+)\)')
+            $launchOutText = Get-Content -LiteralPath $PathLaunchOut -Raw
+            $pm = [regex]::Match($launchOutText, 'back-end started \(pid (\d+)\)')
             if ($pm.Success) { $BackendPid = [int]$pm.Groups[1].Value; Say-Ok ('back-end pid {0} (liveness is checked while the run waits)' -f $BackendPid) }
             else { Say-Warn 'back-end pid not found in the launch output - the mid-run liveness check is OFF for this run.' }
+            # THE FRONT-END PID, for the teardown vendor-log capture only (never for liveness -
+            # the GUI is optional and -NoGui runs have none). 5.2 names its logs
+            # vrfGui5.2d-<date>-<time>-<host>-<build>-<pid>.log in the SHARED C:\MAK\logs, so
+            # without this pid the capture cannot tell this run's GUI log from any other's.
+            $gm = [regex]::Match($launchOutText, 'front-end started \(pid (\d+)\)')
+            if ($gm.Success) { $FrontendPid = [int]$gm.Groups[1].Value; Say-Ok ('front-end pid {0} (its vendor log is captured by pid at teardown)' -f $FrontendPid) }
+            elseif (-not $NoGui) { Say-Warn 'front-end pid not found in the launch output - this run''s GUI vendor log cannot be captured by pid.' }
         }
         # THE HARVESTED BACK-END LOG (5.2 only). The launcher does not pass --logFileName - it
         # copies the vendor's own log for the back-end pid instead - and says so in one marker
@@ -4104,6 +4330,12 @@ try {
         } else {
             Add-Flag 'WARN' 'no "VrfBridge native stack" line in the app log yet - which MAK stack the interface bound is UNRECORDED for this run.'
         }
+        # THE ROUTE SHIFT, FROM THE APP'S OWN MOUTH (review F5). Same read, same moment as the
+        # native stack above, and for the same reason: the manifest holds a PREDICTION from this
+        # shell, and a prediction that is never checked against the app is how a run comes to
+        # claim a line its units never drove. Checked again at teardown - the app says nothing at
+        # start-up when the shift is OFF, so a null here is silence, not 'off'.
+        Update-RouteShiftObservation -AppLogPath $PathAppLog -Stage 'Stage 6c (interface joined)'
         if ($connected) { Say-Ok 'interface logged "Connected to C2SIM"' }
         else {
             # RUNBOOK sec 3: a redirected stdout can be block-buffered, so absence of
@@ -4855,6 +5087,18 @@ finally {
         Say-Plan 'would wait for VrfC2SimApp to exit on its own; would NEVER kill it'
     }
 
+    # 2b. THE ROUTE SHIFT, RE-READ FROM THE FINISHED APP LOG (review F5). Stage 6c already
+    #     looked, but at that moment only the ON banner can exist: the app prints NOTHING about
+    #     the shift at start-up when it is OFF, and the line that CAN say 'off' is printed at
+    #     the first ground move. This is the last chance to replace a prediction with the app's
+    #     own word before the manifest is written. Cheap, read-only, and it never overwrites an
+    #     answer Stage 6c already recorded.
+    if (-not $DryRun -and $AppStarted) {
+        Update-RouteShiftObservation -AppLogPath $PathAppLog -Stage 'teardown (app log complete)'
+    } elseif ($DryRun) {
+        Say-Plan ('would re-read {0} for the app''s own "LATERAL ROUTE SHIFT ON/off" line and record it beside the runner''s prediction (MISMATCH is a WARN flag)' -f $PathAppLog)
+    }
+
     # 3. End the observers WITH the window, not with their worst-case duration cap.
     #    Hold until StopIface + TrailSecs (so the trace still carries the trail and
     #    the interface's resign), then TOUCH THE STOP FILE. Each observer that was
@@ -4956,13 +5200,61 @@ finally {
     #     the decisive company-freeze lines and was never captured. Copied AFTER
     #     StopVrf so the files are complete. A copy failure must never affect
     #     teardown - report it as a WARN flag and move on.
-    if (-not $DryRun) {
+    #
+    #     5.2 DOES NOT WRITE THE FLAT NAMES AT ALL (D1b harvest, finding A1). It writes one
+    #     versioned, per-process file per launch -
+    #       C:\MAK\logs\vrfSimHLA1516e5.2d-<date>-<time>-<host>-<build>-<pid>.log
+    #       C:\MAK\logs\vrfGui5.2d-<date>-<time>-<host>-<build>-<pid>.log
+    #     - so the loop that looked for bin64\vrfSim.log and C:\MAK\logs\vrfGui.log could only
+    #     ever WARN, twice per run, about two files that cannot exist, while the real logs sat
+    #     un-captured beside them. Every 5.2 run in the record carries those two false alarms.
+    #     The 5.2 path now captures BY PID, for the two processes THIS run launched, reusing the
+    #     filters LaunchVrf52.ps1 already uses for the back-end log at READY (Copy-VendorLogByPid
+    #     above). The 5.0.2 path is untouched: that profile really does write the flat names.
+    #
+    #     SECRETS - HARD CONSTRAINT: these vendor logs carry the FULL PROCESS ENVIRONMENT IN
+    #     CLEARTEXT. They are COPIED and NEVER OPENED - nothing here reads, greps, parses or
+    #     prints their content, and the warning below is the same one LaunchVrf52 prints for the
+    #     copy it takes at READY.
+    if (-not $DryRun -and $Is52) {
+        # The mtime floor is this run's own start (LOCAL - the vendor stamps local time, our
+        # logs stamp UTC). A file for our pid written before this run began belongs to a
+        # RECYCLED pid and is not ours.
+        $vendorSince = $RunStartUtc.ToLocalTime()
+        $vendorCaptured = @()
+        foreach ($vl in @(
+            @{ what = 'back-end';  prefix = 'vrfSim'; procId = $BackendPid;  dst = 'vendor-vrfSim.log' },
+            @{ what = 'front-end'; prefix = 'vrfGui'; procId = $FrontendPid; dst = 'vendor-vrfGui.log' })) {
+            if (-not $vl.procId) {
+                if ($vl.what -eq 'front-end' -and $NoGui) {
+                    Say-Info 'no front-end was launched (-NoGui) - no GUI vendor log to capture.'
+                } else {
+                    Add-Flag 'WARN' ('no {0} pid was recorded for this run, so its vendor log in C:\MAK\logs could not be identified (the file name carries the pid and nothing else ties it to this run). Nothing captured.' -f $vl.what)
+                }
+                continue
+            }
+            $dstPath = Join-Path $RunDir $vl.dst
+            $cap = Copy-VendorLogByPid -ProcessId ([int]$vl.procId) -LogDir 'C:\MAK\logs' `
+                        -NamePrefix $vl.prefix -Since $vendorSince -Destination $dstPath
+            if ($cap['Source']) {
+                $vendorCaptured += [ordered]@{ what = $vl.what; processId = [int]$vl.procId; source = $cap['Source']; captured = $dstPath; sizeBytes = $cap['SizeBytes'] }
+                Say-Ok ('captured the {0} vendor log for pid {1} into the run directory ({2})' -f $vl.what, $vl.procId, $vl.dst)
+                Say-Warn ('         SECRETS: {0} holds the FULL PROCESS ENVIRONMENT IN CLEARTEXT (FORENSICS_52_STARTUP_CRASH_2026-09-04 sec 10). It was COPIED, never opened. NEVER attach it to a ticket, mail or issue - send the .callstack.log / .dmp instead. Not scrubbed, by decision.' -f $vl.dst)
+            } elseif ($cap['Error']) {
+                Add-Flag 'WARN' ('could not capture the {0} vendor log for pid {1} into the run directory: {2}. The original is untouched.' -f $vl.what, $vl.procId, $cap['Error'])
+            } else {
+                Add-Flag 'WARN' ('no {0} vendor log found in C:\MAK\logs for pid {1} written at or after {2:yyyy-MM-dd HH:mm:ss} (searched {3}*-{1}.log, .callstack.log excluded). Nothing captured; look in C:\MAK\logs by hand - the vendor stamps LOCAL time.' -f $vl.what, $vl.procId, $vendorSince, $vl.prefix)
+            }
+        }
+        $Manifest.artifacts.vendorLogs = [ordered]@{
+            capturedBy = 'PID, from C:\MAK\logs, for the processes THIS run launched (<prefix>*-<pid>.log, .callstack.log excluded, mtime >= this run''s start). The flat 5.0.2 names are never written by 5.2 - looking for them was the two-WARNs-per-run false alarm this replaces (D1b harvest A1).'
+            secrets    = 'These copies contain the FULL PROCESS ENVIRONMENT IN CLEARTEXT (DtPrintEnvironmentVariables at notifyLevel 3, FORENSICS_52_STARTUP_CRASH_2026-09-04 sec 10). The runner COPIED them and never opened them. NEVER attach one to a ticket, mail or issue - send the .callstack.log / .dmp instead. Not scrubbed, by decision.'
+            files      = @($vendorCaptured)
+        }
+    } elseif (-not $DryRun) {
+        # 5.0.2, byte-for-byte what it was: that profile DOES write the flat names into bin64.
         foreach ($lg in @('vrfSim.log', 'vrfGui.log')) {
-            # 5.2 writes these to C:\MAK\logs by default (DIFF row A5), so bin64 is
-            # searched FIRST (5.0.2, unchanged) and C:\MAK\logs only as a fallback -
-            # a READ, never a write into the vendor tree.
             $src = Join-Path $Bin64 $lg
-            if ($Is52 -and -not (Test-Path -LiteralPath $src)) { $src = Join-Path 'C:\MAK\logs' $lg }
             try {
                 if (Test-Path -LiteralPath $src) {
                     Copy-Item -LiteralPath $src -Destination (Join-Path $RunDir ('bin64-' + $lg)) -Force
@@ -4975,7 +5267,8 @@ finally {
             }
         }
     } elseif ($Is52) {
-        Say-Plan 'would copy vrfSim.log and vrfGui.log (bin64, else C:\MAK\logs - the 5.2 default location, DIFF row A5) into the run directory (bin64-*.log)'
+        Say-Plan 'would capture the vendor logs BY PID for the processes this run launched: C:\MAK\logs\vrfSim*-<back-end pid>.log -> vendor-vrfSim.log and C:\MAK\logs\vrfGui*-<front-end pid>.log -> vendor-vrfGui.log (.callstack.log excluded, mtime >= this run''s start)'
+        Say-Plan 'would COPY them and NEVER OPEN them: those vendor logs hold the full process environment in cleartext - never attached, never quoted, never parsed'
     } else {
         Say-Plan 'would copy bin64\vrfSim.log and bin64\vrfGui.log into the run directory (bin64-*.log)'
     }

@@ -214,6 +214,19 @@ param(
     # JOINS the federation (joins have never failed - only the CREATE is rejected
     # intermittently). Bounds match the runner's own Stage 2h validation (0..86400).
     [int]    $FederationHoldSecs      = 900,
+    # THE CALLER ALREADY HOLDS THE FEDERATION (2026-09-20, D1b harvest finding A3). Declarative
+    # only: it starts nothing, changes no command line and is REFUSED together with a positive
+    # -FederationHoldSecs, because two holders is exactly the double-burn the runner's Stage 3
+    # call site exists to avoid. What it changes is what this script SAYS. -FederationHoldSecs 0
+    # by itself means "no holder anywhere", and this script rightly shouts that its own back end
+    # will be the federation CREATOR - the STP-825 failure mode. The RUNNER passes 0 for the
+    # opposite reason: its Stage 2h holder is ALREADY JOINED, so the sim's create returns
+    # "already exists" and the failure mode is not in play at all. Every 5.2 run through the
+    # runner therefore printed that alarm twice, falsely (launchvrf.stdout.log:12,49). With this
+    # switch the line says what is true: the federation is held by the caller.
+    # THE STANDALONE DEFAULT IS UNTOUCHED - no switch, no -FederationHoldSecs, means this script
+    # starts its OWN holder for 900 s exactly as before.
+    [switch] $FederationHeldByCaller,
     # DEMO application-number block is 9101-9199 (DEMO_READINESS_2026-09-06 row 8;
     # appsettings.Demo.json _ApplicationNumber comment): the interface owns 9101, and the
     # DEMO_RUNBOOK.md Way B example back end/front end (9201/9202) sit OUTSIDE that block
@@ -269,6 +282,17 @@ $ErrorActionPreference = 'Stop'
 # Computed HERE (before the startup banner reads it), not inside the argument gate below -
 # a -FederationHoldSecs default of 900 must show as ON in the banner even before the gate runs.
 $FederationHoldOn = ($FederationHoldSecs -gt 0)
+# What "no holder of my own" MEANS for this launch (D1b harvest A3). Two different situations
+# wear the same -FederationHoldSecs 0: nobody holds the federation (the STP-825 failure mode,
+# and worth shouting about), or the CALLER holds it already (the runner's Stage 2h, where the
+# sim's own create returns "already exists" and there is nothing to warn about). One sentence,
+# resolved once, used by the banner, the dry-run plan and the live path alike - so the three
+# can never drift into saying different things about the same launch.
+$FederationHoldOffText = $(if ($FederationHeldByCaller) {
+        "OFF for this launch (-FederationHoldSecs 0 -FederationHeldByCaller): the CALLER already holds the federation, so this back end JOINS an existing one and its own create returns 'already exists'. NOT the STP-825 failure mode."
+    } else {
+        "OFF (-FederationHoldSecs 0) - this launch's own back end will be the federation CREATOR, the STP-825 failure mode"
+    })
 
 # ---- -AppDataDir NORMALISED HERE, BEFORE ANY READER (STP-844 review item 2) ----
 # A TRAILING BACKSLASH SILENTLY DISABLES THE RELOCATION. Both argument strings below are
@@ -597,7 +621,7 @@ Say ("  Back-end appNumber: {0}" -f $BackendAppNumber)
 Say ("  Front-end appNo   : {0}{1}" -f $FrontendAppNumber, $(if ($NoGui) { ' (-NoGui: not launched)' } else { '' }))
 Say ("  DeviceAddress     : {0}" -f $(if ([string]::IsNullOrWhiteSpace($DeviceAddress)) { '(empty - --deviceAddress/--hostAddressString NOT passed; VR-Forces picks the first device listed)' } else { $DeviceAddress }))
 Say ("  MakLogDir         : {0} (startup-crash callstacks AND the vendor's own sim log)" -f $MakLogDir)
-Say ("  Federation hold   : {0}" -f $(if ($FederationHoldOn) { ("STP-825 holder ON - appNumber {0} (retry {1}), hold {2}s" -f $FederationHoldAppNumber, ($FederationHoldAppNumber + 1), $FederationHoldSecs) } else { "OFF (-FederationHoldSecs 0) - this launch's own back end will be the federation CREATOR, the STP-825 failure mode" }))
+Say ("  Federation hold   : {0}" -f $(if ($FederationHoldOn) { ("STP-825 holder ON - appNumber {0} (retry {1}), hold {2}s" -f $FederationHoldAppNumber, ($FederationHoldAppNumber + 1), $FederationHoldSecs) } else { $FederationHoldOffText }))
 Say ("  --logFileName     : {0}" -f $(if ([string]::IsNullOrWhiteSpace($LogFileName)) {
         'NOT PASSED (the default). PREREG_52_CRASH_BISECT_2026-09-04 sec 5: passing it crashed the sim at startup 6 times in 18 launches (~1 in 3), omitting it 0 in 12, p = 0.031 - and a short vendor-default path crashed too, so it is the OPTION, not the path. Do not re-enable it casually.'
     } else { ('PASSED DELIBERATELY -> {0}. THAT IS A ~1-IN-3 STARTUP CRASH (PREREG_52_CRASH_BISECT_2026-09-04 sec 5); only a bisect repeat or a vendor bug report should be doing this.' -f $LogFileName) }))
@@ -636,6 +660,14 @@ if ((-not $NoGui) -and ($BackendAppNumber -gt 0) -and ($BackendAppNumber -eq $Fr
 # startup banner above can already report it correctly.
 if ($FederationHoldSecs -lt 0 -or $FederationHoldSecs -gt 86400) {
     Say-Fail ("-FederationHoldSecs must be 0..86400 (got {0}). 0 = no holder (pre-STP-825 behaviour; what the runner passes at its Stage 3 call site since its own Stage 2h already holds the federation)." -f $FederationHoldSecs)
+    $appNoFail = $true
+}
+# -FederationHeldByCaller is a DECLARATION, not a second way to disable the holder: with a
+# positive hold this script would start a holder of its own ON TOP of the caller's, burning an
+# appNumber for nothing, and the two arguments would be asserting opposite things about the same
+# federation. Refuse rather than silently pick one (D1b harvest A3).
+if ($FederationHeldByCaller -and $FederationHoldOn) {
+    Say-Fail ("-FederationHeldByCaller says the CALLER already holds the federation, but -FederationHoldSecs is {0} (positive), which would start a SECOND holder here and burn appNumber {1} for nothing. Pass -FederationHoldSecs 0 with -FederationHeldByCaller (what the runner's Stage 3 does), or drop the switch." -f $FederationHoldSecs, $FederationHoldAppNumber)
     $appNoFail = $true
 }
 if ($FederationHoldOn) {
@@ -974,7 +1006,11 @@ if ($DryRun) {
         Say-Plan ("wait up to 45s for its join in the serving rtiexec's log (rtiexec_*-<pid>.log under {0}), retrying ONCE on appNumber {1} if the create is refused." -f $RtiExecLogDir, ($FederationHoldAppNumber + 1))
         Say-Plan 'FAIL (exit 3, naming STP-825) and launch NOTHING if neither attempt joins. The holder OUTLIVES this script and is NEVER killed.'
     } else {
-        Say-Plan "-FederationHoldSecs 0: NO federation holder. This launch's own back end will be the federation CREATOR at RTI join time - the STP-825 failure mode."
+        Say-Plan $(if ($FederationHeldByCaller) {
+                "-FederationHoldSecs 0 -FederationHeldByCaller: NO holder is started BY THIS SCRIPT because the CALLER already holds the federation. This back end JOINS an existing federation and its own create returns 'already exists' - not the STP-825 failure mode."
+            } else {
+                "-FederationHoldSecs 0: NO federation holder. This launch's own back end will be the federation CREATOR at RTI join time - the STP-825 failure mode."
+            })
     }
     Say-Plan ("Start-Process '{0}' -WorkingDirectory '{1}' -ArgumentList '{2}'" -f $simExe, $bin64, $simArgString)
     if (-not $NoGui) { Say-Plan ("Start-Process '{0}' -WorkingDirectory '{1}' -ArgumentList '{2}'" -f $guiExe, $bin64, $guiArgString) }
@@ -1111,7 +1147,11 @@ if ($FederationHoldOn) {
     }
 } else {
     Say-Head 'Federation HOLDER (STP-825)'
-    Say-Warn "-FederationHoldSecs 0: no holder. This launch's own back end will be the federation CREATOR at RTI join time - the STP-825 failure mode (rtiexec 5.0.1 rejects a creator's FOM-module distribution intermittently)."
+    if ($FederationHeldByCaller) {
+        Say-Ok "-FederationHoldSecs 0 -FederationHeldByCaller: no holder is started HERE because the CALLER already holds the federation (the runner's Stage 2h). This back end JOINS an existing federation and its own create returns 'already exists' - the STP-825 failure mode is NOT in play, and starting a second holder would burn an appNumber for nothing."
+    } else {
+        Say-Warn "-FederationHoldSecs 0: no holder. This launch's own back end will be the federation CREATOR at RTI join time - the STP-825 failure mode (rtiexec 5.0.1 rejects a creator's FOM-module distribution intermittently)."
+    }
 }
 
 Say-Head 'Launch'

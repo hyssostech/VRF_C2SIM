@@ -45,9 +45,19 @@ NOGUI=1
 # C2SIM_SCENARIO / C2SIM_INIT / C2SIM_ORDER - the command line still wins over the environment.
 # Do NOT mix: a Suwalki scenario with a Mojave order authors legs on another continent (the V6c-
 # V6f defect, memory lessons-order-coordinates-vs-init).
-SCENARIO="${C2SIM_SCENARIO:-R9_Mojave_Empty_52_NavAO}"
-INIT="${C2SIM_INIT:-data/COA-STP1_Initialization.xml}"
-ORDER="${C2SIM_ORDER:-data/COA-STP1_Order.xml}"
+# Each of the three also records WHERE IT CAME FROM, and the runner does the same (review F6,
+# 2026-09-20): 'argument --x', 'env var C2SIM_X' or 'built-in default'. A value that came from
+# the environment is NOT passed on the runner's command line - the runner reads the same
+# variable itself and reports it as the environment, so the provenance printed at the end of
+# this script and the provenance in the run manifest are the SAME FACT, resolved once. A value
+# that was typed here, or that is this script's own default, IS passed, so a default run's
+# runner command line stays byte-identical to every run in the record.
+if [ -n "${C2SIM_SCENARIO:-}" ]; then SCENARIO="$C2SIM_SCENARIO"; SCENARIO_SRC='env var C2SIM_SCENARIO'
+else SCENARIO='R9_Mojave_Empty_52_NavAO';         SCENARIO_SRC='built-in default'; fi
+if [ -n "${C2SIM_INIT:-}" ];     then INIT="$C2SIM_INIT";         INIT_SRC='env var C2SIM_INIT'
+else INIT='data/COA-STP1_Initialization.xml';     INIT_SRC='built-in default'; fi
+if [ -n "${C2SIM_ORDER:-}" ];    then ORDER="$C2SIM_ORDER";       ORDER_SRC='env var C2SIM_ORDER'
+else ORDER='data/COA-STP1_Order.xml';             ORDER_SRC='built-in default'; fi
 CLIENT_ID='C2SIM'
 TYPEMAP=''
 RUN_SECS=900
@@ -135,9 +145,9 @@ while [ $# -gt 0 ]; do
         --profile)              PROFILE="$2"; shift 2 ;;
         --gui)                  NOGUI=0; shift ;;
         --no-gui)               NOGUI=1; shift ;;
-        --scenario)             SCENARIO="$2"; shift 2 ;;
-        --init)                 INIT="$2"; shift 2 ;;
-        --order)                ORDER="$2"; shift 2 ;;
+        --scenario)             SCENARIO="$2"; SCENARIO_SRC='argument --scenario'; shift 2 ;;
+        --init)                 INIT="$2";     INIT_SRC='argument --init';         shift 2 ;;
+        --order)                ORDER="$2";    ORDER_SRC='argument --order';       shift 2 ;;
         --client-id)            CLIENT_ID="$2"; shift 2 ;;
         --type-map)             TYPEMAP="$2"; shift 2 ;;
         --run-secs)             RUN_SECS="$2"; shift 2 ;;
@@ -314,7 +324,24 @@ fi
 ARGS=(-NoProfile -ExecutionPolicy Bypass -File scripts/RunC2SimScenario.ps1)
 ARGS+=(-VrfProfile "$PROFILE")
 [ "$NOGUI" -eq 1 ] && ARGS+=(-NoGui)
-ARGS+=(-Scenario "$SCENARIO" -Init "$INIT" -Order "$ORDER")
+# SCENARIO / INIT / ORDER (review F6). Passed ONLY when this script did NOT take the value from
+# the environment; an env-sourced value is EXPORTED instead and the runner resolves it itself,
+# with the same precedence (argument > environment > built-in default), so the runner's Stage 0
+# banner and its manifest can say "env var C2SIM_X" truthfully rather than calling it an
+# argument. The export matters: a bare shell VARIABLE (never exported) is visible to the test
+# above but would NOT reach the child, and the runner would then silently use ITS default.
+case "$SCENARIO_SRC" in
+    'env var'*) export C2SIM_SCENARIO="$SCENARIO" ;;
+    *)          ARGS+=(-Scenario "$SCENARIO") ;;
+esac
+case "$INIT_SRC" in
+    'env var'*) export C2SIM_INIT="$INIT" ;;
+    *)          ARGS+=(-Init "$INIT") ;;
+esac
+case "$ORDER_SRC" in
+    'env var'*) export C2SIM_ORDER="$ORDER" ;;
+    *)          ARGS+=(-Order "$ORDER") ;;
+esac
 [ -n "$CLIENT_ID" ] && ARGS+=(-ClientId "$CLIENT_ID")
 [ -n "$TYPEMAP" ] && ARGS+=(-TypeMapFile "$TYPEMAP")
 ARGS+=(-RunSecs "$RUN_SECS" -WatchSecs "$WATCH_SECS" -BackendNotifyLevel "$BACKEND_NOTIFY")
@@ -341,8 +368,22 @@ echo "=== RunScenario.sh $STAMP ==="
 echo "  repo        : $REPO"
 echo "  pwsh        : $PWSH64 (64-bit, pinned - bare 'pwsh' here is 32-bit)"
 echo "  licence file: ${LIC:-(none)} (expires $LIC_EXPIRY)"
-echo "  profile     : $PROFILE   scenario: $SCENARIO   gui: $([ "$NOGUI" -eq 1 ] && echo off || echo on)"
-echo "  init/order  : $INIT | $ORDER   clientId: $CLIENT_ID"
+echo "  profile     : $PROFILE   gui: $([ "$NOGUI" -eq 1 ] && echo off || echo on)   clientId: $CLIENT_ID"
+echo "  scenario    : $SCENARIO"
+echo "                <- $SCENARIO_SRC"
+echo "  init        : $INIT"
+echo "                <- $INIT_SRC"
+echo "  order       : $ORDER"
+echo "                <- $ORDER_SRC"
+case "$SCENARIO_SRC$INIT_SRC$ORDER_SRC" in
+    *'env var'*)
+        echo "  *** ONE OR MORE OF scenario/init/order CAME FROM THE ENVIRONMENT, not from this command line."
+        echo "      An exported C2SIM_SCENARIO / C2SIM_INIT / C2SIM_ORDER outlives the shell that set it. Check that"
+        echo "      all three belong to the SAME AO before this run is scored: a Suwalki init with a Mojave scenario"
+        echo "      authors legs on another continent and the back end's path job never returns (STP-823). Unset"
+        echo "      them, or pass --scenario/--init/--order explicitly - an argument always wins over the environment."
+        ;;
+esac
 echo "  type map    : ${TYPEMAP:-(repo default)}"
 echo "  windows     : RunSecs=$RUN_SECS backendNotify=$BACKEND_NOTIFY"
 echo "  observers   : $WATCH_NOTE"
