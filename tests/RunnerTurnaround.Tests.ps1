@@ -1149,6 +1149,77 @@ if ($wsDryLegacy -match 'DRY RUN - the full planned sequence') {
 Check '8l runner: a negative -WsRunawayAbortAfter is refused at validation' (
     $runnerText -match 'WsRunawayAbortAfter must be >= 0')
 
+# 8m. THE DEMO FEDERATION HOLDER (STP-825, 2026-09-15). Stage 2h (8k above) only protects the
+# TEST harness path - the STANDALONE DEMO path (docs/DEMO_RUNBOOK.md: StartRtiExec52 ->
+# LaunchVrf52 -> StartInterface52) has no runner in front of it, so LaunchVrf52.ps1 itself now
+# starts a holder before its own back end, in the same posture (tools/RtiProbe.exe <appNo>
+# <execName> 1 <holdSecs> 3, detached, never killed). The runner's OWN Stage 3 call site must
+# pin -FederationHoldSecs 0 explicitly, so a 5.2 run through the runner NEVER starts a second
+# holder on top of its own Stage 2h one (that would burn a second appNumber for nothing) - Stage
+# 3's command line must stay byte-identical to what it was before LaunchVrf52 grew this switch.
+# Like 8g/8k/8l this runs the REAL scripts in -DryRun (a command line and a default value, which
+# a static AST read alone cannot prove was actually PASSED), and SKIPS (as a PASS) exactly where
+# 8k does - a checkout with no Release-5.2 build tree never reaches the plan that would show it.
+Write-Host '=== 8m. LaunchVrf52 STP-825 federation holder: planned by default, omitted at 0; runner Stage 3 pins 0 ==='
+$lv52HoldOnOut  = (& $holdPwsh -NoProfile -File $lv52Script -DryRun -NoGui -BackendAppNumber 9101 2>&1 | Out-String)
+$lv52HoldOnCode = $LASTEXITCODE
+$lv52HoldOffOut = (& $holdPwsh -NoProfile -File $lv52Script -DryRun -NoGui -BackendAppNumber 9101 -FederationHoldSecs 0 2>&1 | Out-String)
+$lv52HoldOffCode = $LASTEXITCODE
+$lv52HoldOnFlat  = ($lv52HoldOnOut  -replace '\s+', ' ')
+$lv52HoldOffFlat = ($lv52HoldOffOut -replace '\s+', ' ')
+if ($lv52HoldOnOut -match 'STP-825 federation holder tool MISSING') {
+    Check '8m SKIPPED - tools\RtiProbe.exe is not built in this checkout (no Release-5.2 tree); LaunchVrf52 hard-precondition-refuses before ever printing the holder plan' $true
+} else {
+    Check '8m both LaunchVrf52 dry runs exit 0 or 2, never anything else' (
+        $lv52HoldOnCode -in @(0, 2) -and $lv52HoldOffCode -in @(0, 2)) "on=$lv52HoldOnCode off=$lv52HoldOffCode"
+    Check '8m the DEFAULT dry run plans the STP-825 holder: RtiProbe.exe appNumber 9190, DETACHED, and names the retry number 9191' (
+        $lv52HoldOnFlat -match 'would start the STP-825 federation HOLDER first: tools/RtiProbe\.exe 9190 \S+ 1 900 3, DETACHED' -and
+        $lv52HoldOnFlat -match 'retrying ONCE on appNumber 9191 if the create is refused')
+    Check '8m the default plan says it would refuse the launch (exit 3, naming STP-825) if neither attempt joins' (
+        $lv52HoldOnFlat -match 'FAIL \(exit 3, naming STP-825\) and launch NOTHING')
+    Check '8m the default startup banner reports the holder ON with its appNumber, retry number and hold' (
+        $lv52HoldOnFlat -match 'Federation hold\s*: STP-825 holder ON - appNumber 9190 \(retry 9191\), hold 900s')
+    Check '8m -FederationHoldSecs 0 OMITS the holder plan entirely (no RtiProbe start line, no appNumber 9190)' (
+        $lv52HoldOffOut -notmatch 'would start the STP-825 federation HOLDER' -and $lv52HoldOffOut -notmatch '9190')
+    Check '8m -FederationHoldSecs 0 says out loud that this launch''s OWN back end becomes the federation CREATOR (the STP-825 failure mode)' (
+        $lv52HoldOffFlat -match "this launch's own back end will be the federation CREATOR")
+}
+# Static, build-tree-independent half: the parameters and their defaults are declared in the
+# source, so this holds even in a checkout with nothing built at all.
+Check '8m LaunchVrf52 declares -FederationHoldSecs defaulting to 900 (ON by default)' (
+    $lv52Text -match '\[int\]\s+\$FederationHoldSecs\s+= 900')
+Check '8m LaunchVrf52 declares -FederationHoldAppNumber defaulting to 9190 (free in the documented 9101-9199 demo block)' (
+    $lv52Text -match '\[int\]\s+\$FederationHoldAppNumber = 9190')
+Check '8m LaunchVrf52 retries on AppNumber + 1, never a hardcoded second literal' (
+    $lv52Text -match '\[int\]\(\$FederationHoldAppNumber \+ 1\)')
+Check '8m LaunchVrf52 never Stop-Process against the holder - it is a joined federate (RUNBOOK sec 0)' (
+    -not ([regex]::IsMatch($lv52Text, 'holder[\s\S]{0,400}Stop-Process')) -and
+    -not ([regex]::IsMatch($lv52Text, 'Stop-Process[\s\S]{0,400}holder')))
+
+# Runner side: Stage 3's LaunchVrf52 call site must carry -FederationHoldSecs 0 EXPLICITLY,
+# regardless of the RUNNER's OWN -FederationHoldSecs value (its Stage 2h holder already covers
+# the sim before Stage 3 ever runs). Reuses $holdOn / $holdOff from 8k above (the SAME dry runs,
+# same "does not advance the ledger" guarantee) rather than paying for two more runner
+# invocations. Whitespace is collapsed before matching because Write-Host's long command-line
+# plan lines wrap across the console width when captured, and the anchor '-NotifyLevel <n>
+# -FederationHoldSecs 0' is specific to the Stage 3 command line - the runner's OWN Stage 2h
+# prose repeats the bare phrase '-FederationHoldSecs 0' on the OFF path, so an un-anchored
+# substring match would be a false green there.
+if ($holdOn -notmatch 'DRY RUN - the full planned sequence') {
+    Check '8m SKIPPED - the runner dry run above (8k) did not reach the planned sequence either' $true
+} else {
+    $holdOnFlat  = ($holdOn  -replace '\s+', ' ')
+    $holdOffFlat = ($holdOff -replace '\s+', ' ')
+    Check '8m runner Stage 3 pins LaunchVrf52 to -FederationHoldSecs 0 (runner''s own holder ON)' (
+        $holdOnFlat -match '-NotifyLevel \d+ -FederationHoldSecs 0')
+    Check '8m runner Stage 3 pins LaunchVrf52 to -FederationHoldSecs 0 even with the runner''s OWN holder OFF' (
+        $holdOffFlat -match '-NotifyLevel \d+ -FederationHoldSecs 0')
+}
+# Static half of the same claim, independent of any build tree: the literal append is in the
+# source, inside the 5.2-only branch (LaunchVrf.ps1, the 5.0.2 script, has no such switch).
+Check '8m runner source: Stage 3 literally appends -FederationHoldSecs 0 to launchArgs' (
+    $runnerText -match [regex]::Escape("`$launchArgs += @('-FederationHoldSecs', '0')"))
+
 # 9. Get-VrfUuidByName must parse BOTH app-log route-line forms. The app started
 # logging the route's own uuid on 2026-09-02 with the route-uuid fix ("Route '<r>'
 # (VRF_UUID:<route>) created; ..."); every run in the record before that logs the
