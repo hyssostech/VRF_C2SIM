@@ -2429,10 +2429,11 @@ public sealed class VrfC2SimService : BackgroundService
         // before its creates are enqueued: RunTaskAsync hands the task to a worker, and a
         // resolution that raced the registration would be a different answer on different runs.
         //
-        // AN INIT GRAPHIC WINS A UUID COLLISION. The init is the shared world every order is
-        // written against; an order redefining a uuid the init already published is a data defect,
-        // not an update, and silently taking the later one would make a task's geometry depend on
-        // message order. Reported, never guessed at.
+        // WHOEVER PUBLISHED THE UUID FIRST WINS. The init is the shared world every order is
+        // written against, and an EARLIER order's graphic may already be driving a task in flight;
+        // a later message redefining a uuid that is already published is a data defect, not an
+        // update, and silently taking the newer one would make a task's geometry depend on message
+        // order. Reported, never guessed at. (The map spans orders, like _taskByUuid.)
         if (order.Graphics.Count > 0)
         {
             int added = 0, collided = 0;
@@ -2441,11 +2442,12 @@ public sealed class VrfC2SimService : BackgroundService
                 if (_graphicsByC2SimUuid.TryGetValue(g.Uuid, out var existing))
                 {
                     collided++;
-                    _log.LogWarning("Order graphic '{Name}' ({Element}) re-uses uuid {Uuid}, which the " +
-                                    "INITIALIZATION already published as '{Other}' ({Kind}). The " +
-                                    "initialization's graphic is KEPT - it is the shared world this order is " +
-                                    "written against - and this one is IGNORED. Two different graphics under " +
-                                    "one uuid is a data defect in the export.",
+                    _log.LogWarning("Order graphic '{Name}' ({Element}) re-uses uuid {Uuid}, which is ALREADY " +
+                                    "PUBLISHED as '{Other}' ({Kind}) - by the initialization, or by an earlier " +
+                                    "order in this run. The graphic already under that uuid is KEPT and this " +
+                                    "one is IGNORED: tasks may already be driving it, so redefining it would " +
+                                    "make a task's geometry depend on message order. Two different graphics " +
+                                    "under one uuid is a data defect in the export.",
                                     g.Name, g.Element, g.Uuid, existing.Name, existing.Kind);
                     continue;
                 }
@@ -2456,7 +2458,7 @@ public sealed class VrfC2SimService : BackgroundService
             }
             _log.LogInformation("ORDER GRAPHICS: {N} tactical graphic(s) carried by this order " +
                                 "([{Breakdown}]) - {Added} registered for MapGraphicID resolution, {Collided} " +
-                                "ignored as uuid collisions with the initialization. {Total} graphic(s) are now " +
+                                "ignored as uuid collisions with an already-published graphic. {Total} graphic(s) are now " +
                                 "addressable. They are REGISTERED ONLY: no VR-Forces object is created from an " +
                                 "order graphic (V4b still creates a task's objective area from its own geometry " +
                                 "when Vrf:CreateTaskObjectiveAreas is on).",
