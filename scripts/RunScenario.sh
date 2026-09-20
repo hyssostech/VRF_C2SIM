@@ -52,12 +52,18 @@ NOGUI=1
 # this script and the provenance in the run manifest are the SAME FACT, resolved once. A value
 # that was typed here, or that is this script's own default, IS passed, so a default run's
 # runner command line stays byte-identical to every run in the record.
-if [ -n "${C2SIM_SCENARIO:-}" ]; then SCENARIO="$C2SIM_SCENARIO"; SCENARIO_SRC='env var C2SIM_SCENARIO'
-else SCENARIO='R9_Mojave_Empty_52_NavAO';         SCENARIO_SRC='built-in default'; fi
-if [ -n "${C2SIM_INIT:-}" ];     then INIT="$C2SIM_INIT";         INIT_SRC='env var C2SIM_INIT'
-else INIT='data/COA-STP1_Initialization.xml';     INIT_SRC='built-in default'; fi
-if [ -n "${C2SIM_ORDER:-}" ];    then ORDER="$C2SIM_ORDER";       ORDER_SRC='env var C2SIM_ORDER'
-else ORDER='data/COA-STP1_Order.xml';             ORDER_SRC='built-in default'; fi
+# "Set" means the SAME thing here as it does in the runner, which tests
+# [string]::IsNullOrWhiteSpace: a variable holding only spaces or tabs counts as UNSET in both.
+# Without this the two resolvers disagree on exactly that value - bash would call " " set and
+# export it, the runner would call it unset and fall back to ITS OWN default, which is a
+# DIFFERENT AO from this script's - the silent AO substitution this whole item exists to close.
+nonblank() { [ -n "$(printf '%s' "${1:-}" | tr -d '[:space:]')" ]; }
+if nonblank "${C2SIM_SCENARIO:-}"; then SCENARIO="$C2SIM_SCENARIO"; SCENARIO_SRC='env var C2SIM_SCENARIO'
+else SCENARIO='R9_Mojave_Empty_52_NavAO';           SCENARIO_SRC='built-in default'; fi
+if nonblank "${C2SIM_INIT:-}";     then INIT="$C2SIM_INIT";         INIT_SRC='env var C2SIM_INIT'
+else INIT='data/COA-STP1_Initialization.xml';       INIT_SRC='built-in default'; fi
+if nonblank "${C2SIM_ORDER:-}";    then ORDER="$C2SIM_ORDER";       ORDER_SRC='env var C2SIM_ORDER'
+else ORDER='data/COA-STP1_Order.xml';               ORDER_SRC='built-in default'; fi
 CLIENT_ID='C2SIM'
 TYPEMAP=''
 RUN_SECS=900

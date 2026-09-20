@@ -896,6 +896,46 @@ function Get-RouteShiftAnnouncement {
     return $out
 }
 
+# THE VERDICT on the runner's prediction against the app's announcement (review F5). Pure, so
+# the rule itself can be tested offline rather than asserted in prose.
+#   $Predicted  - whatever the manifest holds: a [bool], or the 'UNKNOWN - unparseable ...'
+#                 string the Stage 0 resolver writes when Vrf__PreflightRouteShift is garbage.
+#   $Announced  - $true / $false / $null, straight from Get-RouteShiftAnnouncement.
+# Returns @{ Observed; Mismatch; Agreement }.
+#
+# THE TWO RULES IT ENCODES:
+#   1. NO ANNOUNCEMENT MEANS NOT OBSERVED. The prediction is never promoted to an observation,
+#      and no MISMATCH is ever claimed on silence - the app prints nothing at start-up when the
+#      shift is off, so silence is not evidence of anything.
+#   2. A non-boolean prediction (the unparseable-env case) can never AGREE with an announcement;
+#      if the app somehow announced anything at all, that is a mismatch worth seeing.
+function Get-RouteShiftVerdict {
+    param($Predicted, [AllowNull()][AllowEmptyString()][string]$PredictedSource,
+          $Announced, [AllowNull()][AllowEmptyString()][string]$AnnouncedSource,
+          [AllowNull()][AllowEmptyString()][string]$Stage)
+    $where = $(if ([string]::IsNullOrWhiteSpace($Stage)) { 'this point' } else { $Stage })
+    if ($null -eq $Announced) {
+        return [ordered]@{
+            Observed  = $false
+            Mismatch  = $false
+            Agreement = ('NOT OBSERVED at {0} - the app log carries no "LATERAL ROUTE SHIFT" line yet. The prediction stands UNCONFIRMED, and an unconfirmed prediction is not an observation. The app prints NOTHING at start-up when the shift is OFF, so silence here is not evidence of OFF.' -f $where)
+        }
+    }
+    $annText = $(if ($Announced) { 'ON' } else { 'off' })
+    if (($Predicted -is [bool]) -and ([bool]$Predicted -eq [bool]$Announced)) {
+        return [ordered]@{
+            Observed  = $true
+            Mismatch  = $false
+            Agreement = ('CONFIRMED at {0} - the app announced {1}, which is what this runner predicted from {2}. Evidence: {3}' -f $where, $annText, $PredictedSource, $AnnouncedSource)
+        }
+    }
+    return [ordered]@{
+        Observed  = $true
+        Mismatch  = $true
+        Agreement = ('MISMATCH at {0} - this runner PREDICTED [{1}] from {2}, and the app ANNOUNCED [{3}] ({4}). THE APP IS THE AUTHORITY ON THE APP: every route in this run was driven under the ANNOUNCED value. Usual cause: the interface was started by hand (scripts\StartInterface52.ps1 -RouteShift on|off sets Vrf__PreflightRouteShift in ITS OWN process, which this runner''s shell cannot see), or the deployed appsettings.json differs from the one Stage 0 read.' -f $where, $Predicted, $PredictedSource, $annText, $AnnouncedSource)
+    }
+}
+
 # ---- THE VENDOR PER-PROCESS LOG FOR ONE PID (D1b harvest, finding A1) ---------
 # VR-Forces 5.2 writes
 #     <prefix><version>-<date>-<time>-<host>-<build>-<pid>.log

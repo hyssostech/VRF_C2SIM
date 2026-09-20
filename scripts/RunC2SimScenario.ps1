@@ -1490,22 +1490,20 @@ function Update-RouteShiftObservation {
     try { $txt = Read-LiveText -Path $AppLogPath } catch { return }
     $ann = Get-RouteShiftAnnouncement -AppLogText $txt
     if ($ann['Skipped']) { $rs.shiftSkipped = $true }
-    if ($null -eq $ann['Announced']) {
-        $rs.agreement = ('NOT OBSERVED at {0} - the app log carries no "LATERAL ROUTE SHIFT" line yet. The prediction stands UNCONFIRMED, and an unconfirmed prediction is not an observation. The app prints NOTHING at start-up when the shift is OFF, so silence here is not evidence of OFF.' -f $(if ($Stage) { $Stage } else { 'this point' }))
-        return
-    }
+    # The RULE lives in RunnerLib (Get-RouteShiftVerdict), pure and offline-testable; this
+    # function is only the I/O around it.
+    $v = Get-RouteShiftVerdict -Predicted $rs.predicted -PredictedSource $rs.predictedSource `
+                               -Announced $ann['Announced'] -AnnouncedSource $ann['Source'] -Stage $Stage
+    $rs.agreement = $v['Agreement']
+    if (-not $v['Observed']) { return }
     $annText = $(if ($ann['Announced']) { 'ON' } else { 'off' })
     $rs.announced        = [bool]$ann['Announced']
     $rs.announcedLine    = $ann['Line']
     $rs.announcedSource  = $ann['Source']
     $rs.announcedAtStage = $Stage
-    if (($rs.predicted -is [bool]) -and ([bool]$rs.predicted -eq [bool]$ann['Announced'])) {
-        $rs.agreement = ('CONFIRMED at {0} - the app announced {1}, which is what this runner predicted from {2}. Evidence: {3}' -f `
-                         $Stage, $annText, $rs.predictedSource, $ann['Source'])
+    if (-not $v['Mismatch']) {
         Say-Ok ('route shift CONFIRMED by the app itself ({0}): {1}' -f $ann['Source'], $annText)
     } else {
-        $rs.agreement = ('MISMATCH at {0} - this runner PREDICTED [{1}] from {2}, and the app ANNOUNCED [{3}] ({4}). THE APP IS THE AUTHORITY ON THE APP: every route in this run was driven under the ANNOUNCED value. Usual cause: the interface was started by hand (scripts\StartInterface52.ps1 -RouteShift on|off sets Vrf__PreflightRouteShift in ITS OWN process, which this runner''s shell cannot see), or the deployed appsettings.json differs from the one Stage 0 read.' -f `
-                        $Stage, $rs.predicted, $rs.predictedSource, $annText, $ann['Source'])
         Add-Flag 'WARN' ('ROUTE SHIFT PREDICTION/REALITY MISMATCH: the manifest predicted [{0}] from {1}; the app announced [{2}]. Score this run on the ANNOUNCED value - the shift CHANGES WHERE UNITS DRIVE. App line: {3}' -f `
                          $rs.predicted, $rs.predictedSource, $annText, $ann['Line'])
     }
@@ -5248,6 +5246,7 @@ finally {
         }
         $Manifest.artifacts.vendorLogs = [ordered]@{
             capturedBy = 'PID, from C:\MAK\logs, for the processes THIS run launched (<prefix>*-<pid>.log, .callstack.log excluded, mtime >= this run''s start). The flat 5.0.2 names are never written by 5.2 - looking for them was the two-WARNs-per-run false alarm this replaces (D1b harvest A1).'
+            relationToLaunchHarvest = 'The BACK-END log is captured TWICE on purpose and the two copies are different evidence: inputs.vrfProfile.vendorLog.harvestedTo is LaunchVrf52''s snapshot taken at READY (start-up only, in runs\launch52), and vendor-vrfSim.log here is the COMPLETE file taken after StopVrf. The GUI log has no launch-time harvest at all and exists only here.'
             secrets    = 'These copies contain the FULL PROCESS ENVIRONMENT IN CLEARTEXT (DtPrintEnvironmentVariables at notifyLevel 3, FORENSICS_52_STARTUP_CRASH_2026-09-04 sec 10). The runner COPIED them and never opened them. NEVER attach one to a ticket, mail or issue - send the .callstack.log / .dmp instead. Not scrubbed, by decision.'
             files      = @($vendorCaptured)
         }

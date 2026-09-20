@@ -1375,6 +1375,18 @@ if (-not (Test-Path -LiteralPath $provBash)) {
         $provShText -match 'export C2SIM_SCENARIO="\$SCENARIO"' -and
         $provShText -match 'export C2SIM_INIT="\$INIT"' -and
         $provShText -match 'export C2SIM_ORDER="\$ORDER"')
+    # BOTH resolvers must agree on what "set" MEANS. The runner tests IsNullOrWhiteSpace, so a
+    # variable holding only spaces is UNSET there; bash -n would call it set, export it, and the
+    # runner would then fall back to ITS OWN default - a DIFFERENT AO from the wrapper's. That is
+    # the silent AO substitution this item exists to close, so it is checked against the real
+    # script: a whitespace-only C2SIM_SCENARIO must land on the WRAPPER's default.
+    $provBlankOut = (& $provBash '-c' "export C2SIM_SCENARIO='   '; export C2SIM_INIT='  '; export C2SIM_ORDER=' '; '$provWrapperPosix' --dry-run" 2>&1 | Out-String)
+    $provBlankFlat = ($provBlankOut -replace '\s+', ' ')
+    Check '8n a WHITESPACE-ONLY C2SIM_SCENARIO/INIT/ORDER counts as unset in the wrapper too (same rule as the runner)' (
+        $provBlankFlat -match 'scenario : R9_Mojave_Empty_52_NavAO <- built-in default' -and
+        $provBlankFlat -match 'init : data/COA-STP1_Initialization\.xml <- built-in default' -and
+        $provBlankFlat -match 'order : data/COA-STP1_Order\.xml <- built-in default') (
+        "the wrapper banner did not fall back to its OWN defaults")
 }
 
 # 8o. F5: the runner PREDICTS the route-shift state from its OWN environment, while a
@@ -1421,6 +1433,26 @@ Check '8o SILENCE IS NOT EVIDENCE OF OFF: a log with neither line yields $null, 
     $null -eq $annSilent['Announced'] -and $null -eq $annEmpty['Announced']) "silent=[$($annSilent['Announced'])] empty=[$($annEmpty['Announced'])]"
 Check '8o a SKIPPED-for-this-run log is still announced ON, and the skip is flagged separately' (
     $annSkip['Announced'] -eq $true -and $annSkip['Skipped'] -eq $true -and $annBanner['Skipped'] -eq $false)
+# The VERDICT rule itself, pure (Get-RouteShiftVerdict). This is the half that decides whether a
+# run's evidence says CONFIRMED, MISMATCH or NOT OBSERVED, so it is checked rather than argued.
+$vAgree    = Get-RouteShiftVerdict -Predicted $true  -PredictedSource 'appsettings.json' -Announced $true  -AnnouncedSource 'banner' -Stage 'Stage 6c'
+$vMismatch = Get-RouteShiftVerdict -Predicted $true  -PredictedSource 'appsettings.json' -Announced $false -AnnouncedSource 'preflight line' -Stage 'teardown'
+$vMism2    = Get-RouteShiftVerdict -Predicted $false -PredictedSource 'env Vrf__PreflightRouteShift=false' -Announced $true -AnnouncedSource 'banner' -Stage 'Stage 6c'
+$vSilent   = Get-RouteShiftVerdict -Predicted $true  -PredictedSource 'appsettings.json' -Announced $null  -AnnouncedSource '' -Stage 'Stage 6c'
+$vUnparse  = Get-RouteShiftVerdict -Predicted 'UNKNOWN - unparseable Vrf__PreflightRouteShift' -PredictedSource 'env' -Announced $true -AnnouncedSource 'banner' -Stage 'Stage 6c'
+Check '8o verdict: prediction ON + announcement ON = CONFIRMED, no mismatch' (
+    $vAgree['Observed'] -eq $true -and $vAgree['Mismatch'] -eq $false -and $vAgree['Agreement'] -match '^CONFIRMED')
+Check '8o verdict: BOTH disagreement directions are a MISMATCH that names both values' (
+    $vMismatch['Mismatch'] -eq $true -and $vMismatch['Agreement'] -match 'PREDICTED \[True\]' -and $vMismatch['Agreement'] -match 'ANNOUNCED \[off\]' -and
+    $vMism2['Mismatch']    -eq $true -and $vMism2['Agreement']    -match 'PREDICTED \[False\]' -and $vMism2['Agreement'] -match 'ANNOUNCED \[ON\]')
+Check '8o verdict: NO announcement is NOT OBSERVED - never a mismatch, never a promotion of the prediction' (
+    $vSilent['Observed'] -eq $false -and $vSilent['Mismatch'] -eq $false -and
+    $vSilent['Agreement'] -match '^NOT OBSERVED' -and $vSilent['Agreement'] -notmatch '^CONFIRMED' -and
+    $vSilent['Agreement'] -match 'silence here is not evidence of OFF')
+Check '8o verdict: an UNPARSEABLE prediction can never be reported as agreeing with the app' (
+    $vUnparse['Mismatch'] -eq $true -and $vUnparse['Agreement'] -match 'UNKNOWN - unparseable')
+Check '8o verdict: the MISMATCH text names the hand-started interface as the usual cause (the F5 case)' (
+    $vMismatch['Agreement'] -match 'StartInterface52\.ps1 -RouteShift on\|off')
 # The runner side: the field is named for what it is, the prediction is never written into the
 # observation, and a disagreement is loud.
 Check '8o runner: the manifest field is `predicted`, with `announced` and `agreement` beside it' (
@@ -1430,11 +1462,12 @@ Check '8o runner: the manifest field is `predicted`, with `announced` and `agree
 Check '8o runner: the app''s announcement is folded in at Stage 6c AND again at teardown' (
     @([regex]::Matches($runnerText, 'Update-RouteShiftObservation -AppLogPath \$PathAppLog')).Count -ge 2)
 $rsFn = $runnerAst.FindAll({ param($a) $a -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $a.Name -eq 'Update-RouteShiftObservation' }, $true)
-Check '8o runner: Update-RouteShiftObservation exists and NEVER assigns the prediction into the observation' (
+Check '8o runner: Update-RouteShiftObservation exists, defers the RULE to the pure verdict, and NEVER assigns the prediction into the observation' (
     @($rsFn).Count -eq 1 -and
     $rsFn[0].Extent.Text -notmatch '\$rs\.announced\s*=\s*\$rs\.predicted' -and
     $rsFn[0].Extent.Text -match '\$rs\.announced\s*=\s*\[bool\]\$ann\[''Announced''\]' -and
-    $rsFn[0].Extent.Text -match 'MISMATCH')
+    $rsFn[0].Extent.Text -match 'Get-RouteShiftVerdict' -and
+    $rsFn[0].Extent.Text -match "if \(-not \`$v\['Observed'\]\) \{ return \}")
 Check '8o runner: a MISMATCH is a validity flag, not a silently corrected field' (
     $rsFn[0].Extent.Text -match "Add-Flag 'WARN' \('ROUTE SHIFT PREDICTION/REALITY MISMATCH")
 Check '8o the runner SAYS the value is a prediction, in the dry-run banner' (
