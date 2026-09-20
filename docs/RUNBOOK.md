@@ -2389,6 +2389,11 @@ buffer?); (9) STP-832 kept OUT of the vendor package (client-side) but reopened 
 12 of 18 refusals in this experiment crashed VrfFacade.Start at 0xC0000005 on the post-merge
 build.
 
+NOTIFY-LEVEL FOLLOW-UP REGISTERED 2026-09-20 (docs/experiments/PREREG_STP825_NOTIFY_2026-09-20.md): ABBA over four fresh rtiexecs (-NotifyLevel 3 / 0 / 0 / 3), 15 creates each against
+STP825AB, scored from RtiProbe stdout (validated 62/62 against the rtiexec-log verdict), MC1 = zero "Fed File arrived" lines after the first level-0 create or the experiment is VOID;
+the documented shutdown order (rti list -> rti kill <handle>; vendor-listed fallback "Kill the rtiexec process", UG 4.2.3); from the first stop to the final re-arm there is NO holder
+and MAK-ONE-2025 does not exist - no demo launch in that window.
+
 ## 10. THE C16 PROGRESS WATCHDOG IS OFF BY DEFAULT - HOW TO TURN IT ON FOR THE VALIDATION RUN
 
 Added 2026-09-14 (cold-start review sec 2.8). `Vrf:StallDetection` defaults FALSE, is absent from
