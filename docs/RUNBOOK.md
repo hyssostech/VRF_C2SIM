@@ -549,22 +549,53 @@ StopVrf logged "checkbox not found". BOTH succeeded, EXIT=0, both processes down
 because plain "Yes" in COMBINED mode already closes the GUI and the engine it started.
 Do NOT assume the checkbox is present, and do not treat its absence as a fault.
 
-VENDOR-DOCUMENTED ALTERNATIVE (not currently used; recorded because it is the vendor's
-own answer): Settings > Application > General Application Settings > clear "Show Quit
-Dialog On Close" (doc\help\Content\Introduction\Starting\vrf_disableQuitDialog.htm,
-"Disabling the Quit Prompt"), persisted as `myShowQuitDialogOnClose` under
-appData\settings\vrfGui. The docs state that with the prompt disabled, closing "acts as
-if you clicked Yes" - which in combined mode closes the GUI and the engine it started,
-but is NOT the same as the vendor's "Yes, and Quit All Back-Ends" option
-(ExitingVR-Forces.htm), which the shipped 5.0.2 dialog implements as a CHECKBOX beside
-"Yes" rather than as a second button. NOT ADOPTED because which settings file the GUI
-actually READS is unverified: `default_Application.apsx` (serializer version 9) and
-`backups\Application.backup` (version 14) both carry the key, and write path does not
-prove read path. A third copy exists at appData\settings\exampleCustom\, and
-vrfGui\applicationSettings.xml is version 14 but holds a DIFFERENT class
-(DtVrfGuiApplicationSettings) that does NOT contain the quit key - a plausible
-explanation for the 9-vs-14 split that has not been run down. Mutating vendor settings
-is also a wider blast radius than answering one dialog. There is also a remote
+ADOPTED 2026-09-20 (STP-844) - THE 5.2 GUI IS CONFIGURED NOT TO PROMPT ON A RUN WE LAUNCH.
+D1 (run 20260920T172141Z) was the first GUI-on 5.2 teardown: StopVrf52 sent WM_CLOSE, the
+GUI raised its exit prompt, nothing answered it, and a JOINED vrfGui was left behind after
+the full 121 s budget. A read-only enumeration found TWO stacked
+`makVrf::DtNeverAskAgainMessageBox` modals owned by the main window: "Are You Sure?" /
+"Quit VR-Forces GUI" [Yes][No] + checkbox "Quit All Sim Engines" (5.2's name for 5.0.2's
+"Quit All Back-Ends" - UG52 4.6 wording), and, ON TOP of it, "Session Status" / "The
+current session has ended. Close current terrain?" [Yes][No] + checkbox "Execute session
+changes without prompting.". There is no save-scenario prompt; the objects our run creates
+and deletes raise nothing. The second modal is OUR ORDERING: the back end is asked to
+close 20 s after the GUI, so the session ends while the exit prompt is still open.
+
+The remedy is vendor configuration, in a RUN-OWNED appData copy, never in C:\MAK:
+- `myShowQuitDialogOnClose` -> 0 in `settings\vrfGui\default_Application.apsx` (UG52 4.6.1
+  "Disabling the Quit Prompt"; `DtApplicationSettingsRecord.h:107,124`).
+- `mySessionOptions` bit `DtShowSessionDialogs` (0x10) cleared, 112885 -> 112869, in
+  `settings\vrfGui\default_SessionSettings.srsx` (UG52 4.3.1 "Show Session Terrain Change
+  Prompts"; `vrfGuiCore\vrfSessionSettingsRecord.h:35`). The edit is a MASK - the same word
+  also carries auto-join (0x1) and join-with-session-database (0x4), both of which survive.
+  CORRECTION (cold-start review item 7): of 112885, only the bits summing to 85 are named in
+  the 5.2 header (0x1/0x4/0x10/0x40); SEVEN set bits - 0x20, 0x80, 0x800, 0x1000, 0x2000,
+  0x8000, 0x10000, summing to 112800 - have NO name in that header. The mask clears 0x10
+  ONLY, so all seven un-named bits pass through unchanged either way; treat "112885
+  decomposes into the documented enum" as wrong, though it changes nothing about the code.
+
+Procedure: `pwsh -File scripts\NewVrfAppData52.ps1 -Dest C:\C2SIM\vrf-appdata-unattended`
+once, then always launch with `-AppDataDir C:\C2SIM\vrf-appdata-unattended\appData`.
+LaunchVrf52 WARNS (never refuses) when a GUI-on launch is about to use a tree whose prompts
+are still on. Restore = delete that tree; nothing under C:\MAK was changed. NOT the same
+tree as `C:\C2SIM\vrf-appdata`, whose one edit is `loadAllNavigationDataOnTerrainLoad 1`.
+
+ASSUMED, NOT VERIFIED: that "Execute session changes without prompting." is
+`DtShowSessionDialogs`. No MAK document ties the checkbox string to the flag, and the
+un-named bits above (or `applicationSettings.xml`'s own undocumented flag words, or session
+settings arriving from the session database on join) are untested alternative homes for it.
+If "Session Status" survives the change on a live teardown, the mapping - or the whole
+file-based lever for modal 2 - may be wrong; D1b's post-run settings-directory diff is the
+discriminating check (PREREG_DEMO_REHEARSAL_2026-09-20.md D1b).
+
+STILL NO GUI AUTOMATION. StopVrf52 answers nothing and must not learn to: it now prints, at
+a timeout and again after the grace, every titled top-level window with its visible AND
+ENABLED state plus every nested `ControlType=Window` with class, name and button names.
+`MainWindowTitle` alone is NOT a diagnostic - with a modal up it keeps reporting the main
+window, which is why D1's log named the scenario file and neither dialog.
+
+Also: the 8/8 clean teardown record is HEADLESS (79/79 StopVrf52 runs with no vrfGui) and
+says nothing about GUI-on teardown; D1 was 1 of 80. There is also a remote
 `DtVrfRemoteController::exit()` (include\vrfcontrol\vrfRemoteController.h:825;
 DtExitMessageType = 45 at include\vrfmsgs\messageTypes.h:125), but every vendor
 statement scopes the Remote Control API to the BACK-END ("control a VR-Forces
@@ -579,12 +610,6 @@ so the mechanism exists in the product - what is undocumented is whether either 
 on close. StopVrf.ps1 answers only "Are You Sure?". On timeout it exits 3 and PRINTS THE
 ACTUAL TITLES of every visible window still owned by those processes, rather than
 guessing at a cause - if a second modal is blocking, its title will be in that list.
-
-**2026-09-20 (D1, 5.2, STP-844):** on 5.2 the quit prompt's checkbox reads "Quit All Sim
-Engines" (5.0.2: "Quit All Back-Ends"); live enumeration confirmed a second modal, "Session
-Status" (same class/text as the 2026-07-19 datapoint above), stacks ON TOP of the still-open
-quit prompt when the back end is asked to close while the prompt is unanswered - our own
-teardown order (GUI close, then back end close ~20 s later) raises it.
 
 UNCHANGED NON-NEGOTIABLES: never force-kill a JOINED federate (sec 0) - that leaves a
 stale federate and the next start hangs at RTI join; StopVrf.ps1 never kills anything.
