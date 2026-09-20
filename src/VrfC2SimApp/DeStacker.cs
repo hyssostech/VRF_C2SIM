@@ -15,12 +15,38 @@ namespace VrfC2SimApp;
 /// bridge calls - offline-testable via --destack-selftest), and OPT-IN via
 /// Vrf:DeStackCreates (it moves units off their source-data positions, so it is
 /// deliberately parity-breaking; default off).
+///
+/// SCOPE, narrowed 2026-09-20 (cold-start review SF2): only units created as INDEPENDENT objects
+/// are spread. A unit Vrf:ComposeHierarchy attaches INTO a parent aggregate takes its place from
+/// the parent's formation and is never displaced - see <see cref="CompositionPlan"/> for the rule
+/// and its grounds. Before this, R9 lean's three declared platoons of taskee 114.MechCoy were
+/// composed into the company FROM 700 m AWAY, on a "co-location" that existed only because
+/// InitParser cascades a superior's coordinate onto a unit that has none.
 /// </summary>
 public static class DeStacker
 {
     public sealed record StackGroup(double LatDeg, double LonDeg, int Count);
 
     private const double MetersPerDegLat = 111_320.0;
+
+    /// <summary>
+    /// The plans a de-stack is ENTITLED to move: those created as INDEPENDENT VR-Forces objects.
+    ///
+    /// C14 spreads units so that no two units' default FORMATIONS overlap (700 m against the 630 m
+    /// longest shipped company formation, PREREG_ASSEMBLY_LAYOUT sec 1). That reasoning is about
+    /// SIBLINGS. A unit that Vrf:ComposeHierarchy attaches into a parent aggregate has no formation
+    /// of its own to keep clear - the PARENT lays it out (UG52 25.2.1) - and displacing it only
+    /// separates it from the aggregate whose members STP-837 arrival evidence and the C15/C16 stall
+    /// and progress checks sample. A coordinate a unit holds only because InitParser cascaded its
+    /// superior's onto it (InitParser.cs:144-153) is not an authored co-location at all.
+    ///
+    /// A composed child is therefore skipped ENTIRELY: it neither moves, nor anchors a group, nor
+    /// consumes a ring slot. <paramref name="composedChildIndices"/> is null (or empty) whenever
+    /// Vrf:ComposeHierarchy is off, and then every plan is independent - exactly the pre-2026-09-20
+    /// behaviour.
+    /// </summary>
+    private static bool Independent(int index, IReadOnlySet<int> composedChildIndices)
+        => composedChildIndices == null || !composedChildIndices.Contains(index);
 
     /// <summary>
     /// Grouping key: lat/lon rounded to 1e-6 deg (~0.11 m) - literal identity plus
@@ -32,11 +58,15 @@ public static class DeStacker
 
     /// <summary>
     /// De-stack <paramref name="plans"/> IN PLACE and return the groups that were
-    /// spread (2+ units at the same CoordKey). Entities and aggregates are treated
+    /// spread (2+ INDEPENDENT units at the same CoordKey). Entities and aggregates are treated
     /// alike (both pile up - the R5c entity control needed ~13 min to escape the
     /// stack). Altitude, name, type, force and heading are untouched.
     /// </summary>
-    public static List<StackGroup> Apply(IList<CreationPlan> plans, double spacingMeters, double rotationDeg = 0.0)
+    /// <param name="composedChildIndices">Indices of plans that Vrf:ComposeHierarchy will attach
+    /// INTO a parent aggregate (CompositionPlan.ComposedChildIndices). They are excluded from the
+    /// whole operation - see <see cref="Independent"/>. Null = every plan is independent.</param>
+    public static List<StackGroup> Apply(IList<CreationPlan> plans, double spacingMeters, double rotationDeg = 0.0,
+                                         IReadOnlySet<int> composedChildIndices = null)
     {
         var groups = new List<StackGroup>();
         if (plans.Count < 2 || spacingMeters <= 0)
@@ -45,6 +75,7 @@ public static class DeStacker
         var byCoord = new Dictionary<(double, double), List<int>>();
         for (int i = 0; i < plans.Count; i++)
         {
+            if (!Independent(i, composedChildIndices)) continue;   // its place is its parent's
             var key = CoordKey(plans[i].Pos.LatDeg, plans[i].Pos.LonDeg);
             if (!byCoord.TryGetValue(key, out var members))
                 byCoord[key] = members = new List<int>();

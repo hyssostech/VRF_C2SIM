@@ -546,6 +546,36 @@ public sealed class VrfC2SimService : BackgroundService
                                       "to somewhere durable for anything that must stay warm (F3)"
                                     : "set by Vrf:PreflightCacheDir",
                                 _vrf.PreflightOffline);
+            // SF3 (cold-start review of 9d67f97): ONE CACHE SCRUB, HERE, REPORTING ONLY. Before
+            // this commit a non-tile body above minBytes was written into the cache and read back
+            // as tile ABSENCE by both readers, permanently. The fetch path no longer does that, but
+            // a cache warmed by an older build - or by the older leg_check.py, or shared with any
+            // other tool - can still hold such a file, and its symptom (an area silently scored one
+            // level coarser) is invisible. It is NOT deleted: a directory this process did not
+            // write is not this process's to empty, and the file now produces a loud FAILED/NO
+            // VERDICT rather than a quiet wrong answer, so the operator can act on the name.
+            try
+            {
+                var scrub = Preflight.TileSource.ScrubCache(cacheDir);
+                if (scrub.UndecodableCount > 0)
+                    _log.LogWarning("ROUTE PRE-FLIGHT TILE CACHE SCRUB: {Bad} of {Checked} cached tile file(s) are " +
+                                    "NOT in the format their extension claims (no TIFF/PNG signature) - almost " +
+                                    "certainly an HTTP error or captive-portal page saved by an older build. Each " +
+                                    "one now makes its tile FAILED (the level cascade stops and the leg gets NO " +
+                                    "VERDICT), never a quiet fall-through to a coarser level. NOTHING WAS DELETED: " +
+                                    "remove them from {Cache} to let those tiles be re-fetched. Examples: [{Names}].",
+                                    scrub.UndecodableCount, scrub.Checked, cacheDir,
+                                    string.Join(", ", scrub.SampleNames));
+                else
+                    _log.LogInformation("ROUTE PRE-FLIGHT TILE CACHE SCRUB: {Checked} cached tile file(s) checked, " +
+                                        "all carry a valid TIFF/PNG signature (SF3).", scrub.Checked);
+            }
+            catch (Exception ex)
+            {
+                _log.LogWarning("ROUTE PRE-FLIGHT TILE CACHE SCRUB could not run ({Msg}) - the cache is used " +
+                                "unchanged; an undecodable entry would surface as a FAILED tile, not as absence.",
+                                ex.Message);
+            }
         }
 
         if (_vrf.PreflightRouteShift)
@@ -1369,8 +1399,14 @@ public sealed class VrfC2SimService : BackgroundService
         // register the compositions so OnVrfObjectCreated attaches each declared child once created
         // (vendor-sample recipe). Runs BEFORE de-stack/terrain/enqueue: it rewrites toCreate entries
         // in place and needs the full survivor set. Index-parallel with `hierarchy`.
+        // C14 SCOPE (cold-start review SF2, 2026-09-20): the indices of plans that will be COMPOSED
+        // INTO a parent aggregate, collected as the compositions are registered and handed to the
+        // de-stack below. A composed child's place is its parent's formation's, never a ring slot.
+        // Empty whenever Vrf:ComposeHierarchy is off, and then every plan is independent - the
+        // behaviour before this change.
+        var composedChildIndices = new HashSet<int>();
         if (_vrf.ComposeHierarchy && toCreate.Count > 0)
-            ApplyHierarchyComposition(toCreate, hierarchy, declaredByParent);
+            ApplyHierarchyComposition(toCreate, hierarchy, declaredByParent, composedChildIndices);
         if (_vrf.MaterializeAtOrder && toCreate.Count > 0)
         {
             // C13 (CreationPolicy=AtOrder): SHELLS ONLY at init. Every aggregate is created as an EMPTY
@@ -1390,17 +1426,30 @@ public sealed class VrfC2SimService : BackgroundService
         // Coarse ORBAT leaves (a company/battalion the ORBAT did NOT decompose): expand into their
         // doctrinal sub-units and compose, instead of the broken template higher-unit (G-A).
         else if (_vrf.ComposeHierarchy && toCreate.Count > 0)
-            ExpandCoarseLeaves(toCreate, placements, hierarchy);
+            ExpandCoarseLeaves(toCreate, placements, hierarchy, composedChildIndices);
 
         // R8 (opt-in, docs/UNIT_MOVEMENT_RESEARCH.md sec 4): spread units that share
         // identical init coordinates onto deterministic rings BEFORE creating them -
         // stacked spawns are the COA-STP1 pathology that blocks aggregate marching.
+        //
+        // SCOPE (C14 as ruled, narrowed 2026-09-20): INDEPENDENT objects only. See CompositionPlan.
         if (_vrf.DeStackCreates && toCreate.Count > 1)
         {
-            foreach (var g in DeStacker.Apply(toCreate, _vrf.DeStackSpacingMeters, _vrf.DeStackRotationDeg))
-                _log.LogInformation("DeStack (R8): {N} units at ({Lat},{Lon}) spread onto " +
+            foreach (var g in DeStacker.Apply(toCreate, _vrf.DeStackSpacingMeters, _vrf.DeStackRotationDeg,
+                                              composedChildIndices))
+                _log.LogInformation("DeStack (R8/C14): {N} INDEPENDENT units at ({Lat},{Lon}) spread onto " +
                                     "{Spacing} m rings rotated {Rot} deg (first unit kept in place).",
                                     g.Count, g.LatDeg, g.LonDeg, _vrf.DeStackSpacingMeters, _vrf.DeStackRotationDeg);
+            if (composedChildIndices.Count > 0)
+                _log.LogInformation("DeStack (C14 scope): {N} unit(s) were NOT considered because " +
+                                    "Vrf:ComposeHierarchy composes them INTO a parent aggregate - their place " +
+                                    "comes from the parent's formation (UG52 25.2.1), not from the init " +
+                                    "coordinate, and a coordinate held only through the superior cascade is not " +
+                                    "an authored co-location. Held with their parent: [{Names}].",
+                                    composedChildIndices.Count,
+                                    string.Join(", ", composedChildIndices.OrderBy(i => i)
+                                                                         .Take(20).Select(i => toCreate[i].Name))
+                                    + (composedChildIndices.Count > 20 ? ", ..." : ""));
             // Review fix: the stored order-time plans must carry the DE-STACKED position, else the
             // members would be born at the authored point, away from their shell. `hierarchy` is
             // index-parallel to toCreate here (no expansion has run in AtOrder mode).
@@ -1465,9 +1514,9 @@ public sealed class VrfC2SimService : BackgroundService
             // is the AUTHORED geometry either way (the create carries these very points).
             if (!string.IsNullOrEmpty(area.Uuid))
             {
-                _graphicsByC2SimUuid[area.Uuid] = new TaskGraphic(
+                RegisterInitGraphic(new TaskGraphic(
                     area.Uuid, area.Name, TaskGraphic.KindArea,
-                    area.Points.Select(pt => (pt.Lat, pt.Lon, (double?)pt.Elev)).ToList());
+                    area.Points.Select(pt => (pt.Lat, pt.Lon, (double?)pt.Elev)).ToList()), source);
                 areasRegistered++;
             }
             // V4b: ONE control-area factory, shared with the task path (EnqueueControlAreaCreate) -
@@ -1523,9 +1572,9 @@ public sealed class VrfC2SimService : BackgroundService
         foreach (var l in init.Lines)
         {
             if (string.IsNullOrEmpty(l.Uuid) || l.Points.Count == 0) continue;
-            _graphicsByC2SimUuid[l.Uuid] = new TaskGraphic(
+            RegisterInitGraphic(new TaskGraphic(
                 l.Uuid, l.Name, TaskGraphic.KindLine,
-                l.Points.Select(pt => (pt.Lat, pt.Lon, (double?)pt.Elev)).ToList());
+                l.Points.Select(pt => (pt.Lat, pt.Lon, (double?)pt.Elev)).ToList()), source);
             linesRegistered++;
         }
         foreach (var p in init.Points)
@@ -1534,9 +1583,9 @@ public sealed class VrfC2SimService : BackgroundService
             // kept by the parser rather than silently dropped, but a point graphic is ONE place.
             if (string.IsNullOrEmpty(p.Uuid) || !p.HasPosition) continue;
             var pos = p.Position;
-            _graphicsByC2SimUuid[p.Uuid] = new TaskGraphic(
+            RegisterInitGraphic(new TaskGraphic(
                 p.Uuid, p.Name, TaskGraphic.KindPoint,
-                new List<(double, double, double?)> { (pos.Lat, pos.Lon, (double?)pos.Elev) });
+                new List<(double, double, double?)> { (pos.Lat, pos.Lon, (double?)pos.Elev) }), source);
             pointsRegistered++;
         }
 
@@ -1550,10 +1599,10 @@ public sealed class VrfC2SimService : BackgroundService
         foreach (var tg in init.TaskGraphics)
         {
             if (string.IsNullOrEmpty(tg.Uuid) || tg.Points.Count == 0) continue;
-            _graphicsByC2SimUuid[tg.Uuid] = new TaskGraphic(
+            RegisterInitGraphic(new TaskGraphic(
                 tg.Uuid, tg.Name,
                 tg.Points.Count >= 2 ? TaskGraphic.KindLine : TaskGraphic.KindPoint,
-                tg.Points.Select(pt => (pt.Lat, pt.Lon, (double?)pt.Elev)).ToList());
+                tg.Points.Select(pt => (pt.Lat, pt.Lon, (double?)pt.Elev)).ToList()), source);
             taskGraphicsRegistered++;
         }
 
@@ -1660,23 +1709,40 @@ public sealed class VrfC2SimService : BackgroundService
         // appsettings ships ClientId=STP, but e.g. the COA-STP1 init needs C2SIM). `matched`
         // not `planned` - units that matched but were skipped for missing fields already
         // warned individually and must not masquerade as a ClientId mismatch.
-        if (matched == 0 && init.Units.Count > 0)
+        // MADE ACTIONABLE 2026-09-20 (ClientIdPolicy). The old line named the ClientId and a
+        // bare comma-joined list of SystemNames - no counts, no override to type, and nothing
+        // on the C2SIM bus, so the producer that pushed the init saw a healthy interface doing
+        // nothing. The filter itself is UNCHANGED and deliberately so; what changed is that the
+        // failure now says what to type and reaches the C2 side.
+        //
+        // SF6 (cold-start review of 9d67f97): AND IT IS NOW GATED, so it does not cry wolf. The
+        // trigger used to be "no unit matched", which is true of every foreign init on a shared
+        // server - each producing an ERROR and a bus report for a message that was never ours.
+        // ClientIdPolicy.Severity decides: LOUD only while this app holds NO units of its own
+        // (nothing created, nothing taskable, the run is dead), otherwise one INFO line and
+        // nothing on the bus. `_unitByC2SimUuid` spans every initialization of the run, so a
+        // first init that worked protects the later foreign ones from being shouted about.
+        var severity = ClientIdPolicy.Severity(matched, init.Units.Count, _unitByC2SimUuid.Count);
+        if (severity != ClientIdPolicy.MismatchSeverity.None)
         {
-            // MADE ACTIONABLE 2026-09-20 (ClientIdPolicy). The old line named the ClientId and a
-            // bare comma-joined list of SystemNames - no counts, no override to type, and nothing
-            // on the C2SIM bus, so the producer that pushed the init saw a healthy interface doing
-            // nothing. The filter itself is UNCHANGED and deliberately so; what changed is that the
-            // failure now says what to type and reaches the C2 side.
             var counts = ClientIdPolicy.SystemNameCounts(init.Units);
-            string diagnostic = ClientIdPolicy.MismatchMessage(source, _vrf.ClientId, init.Units.Count, counts);
-            _log.LogError("{Diagnostic}", diagnostic);
-            // The SAME sentence out on the observation channel R-SURFACE-PROXY and R2 already use.
-            // STP discards ObservationReports today (Q3/STP-800, recorded not worked around), but
-            // an init-time finding that reaches the bus at all is the difference between a producer
-            // that can see the problem and one that cannot - and every other producer gets it now.
-            _ = PushReportAsync(ReportBuilder.BuildTypeSubstitutionReport(
-                    ReportBuilder.ZeroUuid, ClientIdPolicy.Marker, ClientIdPolicy.Marker, diagnostic,
-                    IsoNow(), NewReportId()), ReportKind.Observation);
+            if (severity == ClientIdPolicy.MismatchSeverity.Foreign)
+            {
+                _log.LogInformation("{Diagnostic}", ClientIdPolicy.ForeignInitMessage(
+                    source, _vrf.ClientId, init.Units.Count, _unitByC2SimUuid.Count, counts));
+            }
+            else
+            {
+                string diagnostic = ClientIdPolicy.MismatchMessage(source, _vrf.ClientId, init.Units.Count, counts);
+                _log.LogError("{Diagnostic}", diagnostic);
+                // The SAME sentence out on the observation channel R-SURFACE-PROXY and R2 already use.
+                // STP discards ObservationReports today (Q3/STP-800, recorded not worked around), but
+                // an init-time finding that reaches the bus at all is the difference between a producer
+                // that can see the problem and one that cannot - and every other producer gets it now.
+                _ = PushReportAsync(ReportBuilder.BuildTypeSubstitutionReport(
+                        ReportBuilder.ZeroUuid, ClientIdPolicy.Marker, ClientIdPolicy.Marker, diagnostic,
+                        IsoNow(), NewReportId()), ReportKind.Observation);
+            }
         }
 
         if (unmapped > 0)
@@ -1691,6 +1757,32 @@ public sealed class VrfC2SimService : BackgroundService
         _log.LogInformation("Init dispatched: {Units} units + {Areas} areas + {Lines} lines + " +
                             "{Points} points queued for creation.",
                             planned, areasQueued, linesQueued, pointsQueued);
+    }
+
+    /// <summary>
+    /// SF5 (cold-start review of 9d67f97): the INIT is the one writer allowed to OVERWRITE a
+    /// published graphic, and it now SAYS SO when it does.
+    ///
+    /// The four init registration sites (areas, lines, points, task symbols) assign
+    /// unconditionally, which is the intended rule - the initialization is the shared world every
+    /// order is written against, so it wins over an order graphic that got in first, and over an
+    /// earlier init's graphic under the same uuid. What was wrong is that it happened in SILENCE:
+    /// a task in flight could be driving geometry that had just been replaced under it with no line
+    /// anywhere. An IDENTICAL re-registration (the duplicate init delivery a late-join QUERYINIT
+    /// plus a broadcast produces) stays silent, exactly as the order path does.
+    /// </summary>
+    private void RegisterInitGraphic(TaskGraphic g, string source)
+    {
+        _graphicsByC2SimUuid.TryGetValue(g.Uuid, out var existing);
+        if (TaskGraphic.Classify(existing, g) == TaskGraphic.Registration.Conflicting)
+            _log.LogWarning("Init ({Source}) graphic '{Name}' ({Kind}) REPLACES a graphic already published " +
+                            "under uuid {Uuid} - '{Other}' ({OtherKind}) with different content, from an order " +
+                            "or from an earlier initialization. The INITIALIZATION WINS (it is the shared world " +
+                            "every order is written against), so any task that resolves this id from now on " +
+                            "gets the NEW geometry; a task already dispatched keeps the route it was given. " +
+                            "One uuid naming two different graphics is a data defect in the export (SF5).",
+                            source, g.Name, g.Kind, g.Uuid, existing.Name, existing.Kind);
+        _graphicsByC2SimUuid[g.Uuid] = g;
     }
 
     /// <summary>
@@ -1766,7 +1858,8 @@ public sealed class VrfC2SimService : BackgroundService
     /// Mutates `plans` in place. Runs at init BEFORE any create is enqueued (happens-before arrivals).
     /// </summary>
     private void ApplyHierarchyComposition(List<CreationPlan> plans, List<(string Uuid, string SuperiorUuid)> hierarchy,
-                                           IReadOnlyDictionary<string, IReadOnlyList<string>> declaredByParent = null)
+                                           IReadOnlyDictionary<string, IReadOnlyList<string>> declaredByParent = null,
+                                           HashSet<int> composedChildIndices = null)
     {
         if (plans.Count != hierarchy.Count)
         {
@@ -1774,27 +1867,24 @@ public sealed class VrfC2SimService : BackgroundService
                           plans.Count, hierarchy.Count);
             return;
         }
-        var survivorUuids = new HashSet<string>(
-            hierarchy.Select(h => h.Uuid).Where(u => !string.IsNullOrEmpty(u)));
-        // A unit is a PARENT iff some SURVIVING unit names it as Superior.
-        var parentUuids = new HashSet<string>(
-            hierarchy.Where(h => !string.IsNullOrEmpty(h.SuperiorUuid) && survivorUuids.Contains(h.SuperiorUuid))
-                     .Select(h => h.SuperiorUuid));
+        // ONE definition of parent/child, shared with the create-time de-stack (CompositionPlan).
+        // Before 2026-09-20 this classification lived only here, and the de-stack - which must not
+        // displace a unit whose place comes from its parent's formation - had no way to ask it.
+        var comp = CompositionPlan.Classify(plans, hierarchy);
+        foreach (int i in comp.NonAggregateParentIndices)
+            _log.LogWarning("ComposeHierarchy: {Name} has declared children but is NOT an aggregate - " +
+                            "cannot compose; created as-is, its children become standalone.", plans[i].Name);
+        if (composedChildIndices != null)
+            foreach (int i in comp.ComposedChildIndices) composedChildIndices.Add(i);
+        var parentUuids = comp.ParentUuids;
         if (parentUuids.Count == 0) return;   // flat init - nothing to compose
 
         var parentName = new Dictionary<string, string>();   // parentUuid -> parent plan name (survivor aggregates only)
         for (int i = 0; i < plans.Count; i++)
         {
-            string uuid = hierarchy[i].Uuid, name = plans[i].Name;
-            if (!parentUuids.Contains(uuid)) continue;
-            if (!plans[i].IsAggregate)
-            {
-                _log.LogWarning("ComposeHierarchy: {Name} has declared children but is NOT an aggregate - " +
-                                "cannot compose; created as-is, its children become standalone.", name);
-                parentUuids.Remove(uuid);
-                continue;
-            }
-            parentName[uuid] = name;
+            string uuid = hierarchy[i].Uuid;
+            if (string.IsNullOrEmpty(uuid) || !parentUuids.Contains(uuid)) continue;
+            parentName[uuid] = plans[i].Name;
             plans[i] = plans[i] with { CreateSubordinates = false };   // EMPTY shell - no template phantom
         }
 
@@ -1976,7 +2066,8 @@ public sealed class VrfC2SimService : BackgroundService
     /// and registers the composition; runs AFTER ApplyHierarchyComposition, BEFORE de-stack/enqueue.
     /// </summary>
     private void ExpandCoarseLeaves(List<CreationPlan> toCreate, List<PlacementInput> placements,
-                                   List<(string Uuid, string SuperiorUuid)> hierarchy)
+                                   List<(string Uuid, string SuperiorUuid)> hierarchy,
+                                   HashSet<int> composedChildIndices = null)
     {
         var res = GetResolver();
         if (res == null) return;                 // no catalog -> leaves fall back to template (logged)
@@ -2036,6 +2127,13 @@ public sealed class VrfC2SimService : BackgroundService
                     Subcategory = ot[5], Specific = ot[6], Extra = ot[7] };
                 var childPlan = new CreationPlan(true, childType, plan.Force, plan.HeadingDeg,
                                                  childName, plan.Pos, null) { CreateSubordinates = true };
+                // A synthesized sub-unit is born ON ITS LEAF'S COORDINATE and is composed into it by
+                // AddToOrganization below, so it is a COMPOSED CHILD in exactly the sense the
+                // de-stack must not touch (CompositionPlan): its place is the leaf's formation's,
+                // and spreading it would put a company's own platoons 700 m off their shell. It
+                // carries no C2SIM uuid, so CompositionPlan.Classify cannot see it - the index is
+                // recorded here instead.
+                composedChildIndices?.Add(toCreate.Count);
                 toCreate.Add(childPlan);
                 placements.Add(new PlacementInput(ot[2], null, null));  // child DIS domain; placed on terrain
                 hierarchy.Add(("", ""));                                // synthetic - not a C2SIM unit
@@ -2434,31 +2532,61 @@ public sealed class VrfC2SimService : BackgroundService
         // a later message redefining a uuid that is already published is a data defect, not an
         // update, and silently taking the newer one would make a task's geometry depend on message
         // order. Reported, never guessed at. (The map spans orders, like _taskByUuid.)
+        // SF5 (cold-start review of 9d67f97): THE COLLISION CHECK READS THE CONTENT, NOT ONLY THE
+        // UUID. Re-pushing the SAME order into a live interface - which the demo posture does -
+        // used to emit one WARNING per graphic (33 on the Iron Storm export), each asserting "Two
+        // different graphics under one uuid is a data defect in the export", which is FALSE of an
+        // idempotent re-push and trains an operator to ignore the line that matters. Same id + same
+        // content is now a silent re-registration counted on the summary line; same id + DIFFERENT
+        // content is ONE warning per id, and keeps the published graphic exactly as before.
+        //
+        // LIFETIME, stated because it was not (and is asserted by --stpexport-selftest):
+        //   * `_graphicsByC2SimUuid` is NEVER cleared. It spans orders, like `_taskByUuid`.
+        //   * A NEW ORDER adds its graphics; any uuid already published KEEPS its existing graphic
+        //     (first publisher wins) whichever message published it. An order therefore cannot
+        //     redefine geometry an in-flight task may already be driving.
+        //   * A NEW INITIALIZATION is the one exception and the only writer that OVERWRITES: the
+        //     init registrations below assign unconditionally, so an init that arrives after an
+        //     order replaces an order graphic under the same uuid. "The init wins" is the intended
+        //     rule (the init is the shared world every order is written against) - it is now SAID,
+        //     with a line naming the replacement, instead of happening in silence.
         if (order.Graphics.Count > 0)
         {
-            int added = 0, collided = 0;
+            int added = 0, collided = 0, identical = 0;
             foreach (var g in order.Graphics)
             {
-                if (_graphicsByC2SimUuid.TryGetValue(g.Uuid, out var existing))
+                var incoming = new TaskGraphic(
+                    g.Uuid, g.Name, g.Kind,
+                    g.Points.Select(pt => (pt.Lat, pt.Lon, (double?)pt.Elev)).ToList());
+                _graphicsByC2SimUuid.TryGetValue(g.Uuid, out var existing);
+                var what = TaskGraphic.Classify(existing, incoming);
+                if (what != TaskGraphic.Registration.New)
                 {
+                    if (what == TaskGraphic.Registration.Identical) { identical++; continue; }
                     collided++;
                     _log.LogWarning("Order graphic '{Name}' ({Element}) re-uses uuid {Uuid}, which is ALREADY " +
-                                    "PUBLISHED as '{Other}' ({Kind}) - by the initialization, or by an earlier " +
-                                    "order in this run. The graphic already under that uuid is KEPT and this " +
-                                    "one is IGNORED: tasks may already be driving it, so redefining it would " +
-                                    "make a task's geometry depend on message order. Two different graphics " +
-                                    "under one uuid is a data defect in the export.",
+                                    "PUBLISHED as '{Other}' ({Kind}) with DIFFERENT CONTENT - by the " +
+                                    "initialization, or by an earlier order in this run. The graphic already " +
+                                    "under that uuid is KEPT and this one is IGNORED: tasks may already be " +
+                                    "driving it, so redefining it would make a task's geometry depend on " +
+                                    "message order. Two different graphics under one uuid is a data defect in " +
+                                    "the export. (An identical re-publication is NOT this case and is silent.)",
                                     g.Name, g.Element, g.Uuid, existing.Name, existing.Kind);
                     continue;
                 }
-                _graphicsByC2SimUuid[g.Uuid] = new TaskGraphic(
-                    g.Uuid, g.Name, g.Kind,
-                    g.Points.Select(pt => (pt.Lat, pt.Lon, (double?)pt.Elev)).ToList());
+                _graphicsByC2SimUuid[g.Uuid] = incoming;
                 added++;
             }
+            if (identical > 0)
+                _log.LogInformation("ORDER GRAPHICS: {N} graphic(s) in this order were ALREADY PUBLISHED WITH " +
+                                    "IDENTICAL CONTENT (same name, kind and vertices) and were re-registered as " +
+                                    "no-ops - the normal result of re-pushing the same order. Not a data defect " +
+                                    "and not warned about (SF5).", identical);
             _log.LogInformation("ORDER GRAPHICS: {N} tactical graphic(s) carried by this order " +
-                                "([{Breakdown}]) - {Added} registered for MapGraphicID resolution, {Collided} " +
-                                "ignored as uuid collisions with an already-published graphic. {Total} graphic(s) are now " +
+                                "([{Breakdown}]) - {Added} registered for MapGraphicID resolution, {Identical} " +
+                                "already published with IDENTICAL content (re-push, silent), {Collided} " +
+                                "ignored as CONFLICTING uuid collisions with an already-published graphic. " +
+                                "{Total} graphic(s) are now " +
                                 "addressable. They are REGISTERED ONLY: no VR-Forces object is created from an " +
                                 "order graphic (V4b still creates a task's objective area from its own geometry " +
                                 "when Vrf:CreateTaskObjectiveAreas is on).",
@@ -2466,7 +2594,7 @@ public sealed class VrfC2SimService : BackgroundService
                                 string.Join(", ", order.Graphics.GroupBy(g => g.Element)
                                                        .OrderByDescending(gr => gr.Count())
                                                        .Select(gr => $"{gr.Key} x{gr.Count()}")),
-                                added, collided, _graphicsByC2SimUuid.Count);
+                                added, identical, collided, _graphicsByC2SimUuid.Count);
         }
 
         // Operator summary (DEMO_READINESS row 15): what this order asks for, before per-task lines.
@@ -2809,7 +2937,16 @@ public sealed class VrfC2SimService : BackgroundService
         // was taken, on every task, so a run log answers the question without inference.
         // Logged on the FIRST pass only: the TerrainProfile reply re-enters this method with the
         // same task and would otherwise say it all twice.
-        var geometry = TaskGeometryResolver.Resolve(task, _graphicsByC2SimUuid);
+        // SF9: the taskee's AUTHORED position goes in, so the resolver can recognise a graphic whose
+        // leading vertex IS the unit's start and not splice routes that drive back through it. The
+        // authored coordinate (not the live one) on purpose - it is the value STP itself writes as a
+        // task's first vertex and the one Vrf:DropOriginVertexMeters is already measured against,
+        // and it is in hand here, before the live read. A unit with no recorded authored position
+        // (an order-time materialization that never ran through the init planner) passes null and
+        // gets the pre-SF9 behaviour for the origin drop only.
+        (double Lat, double Lon)? taskeeAuthored =
+            _authoredPosByName.TryGetValue(unit.Name, out var ap) ? ap : null;
+        var geometry = TaskGeometryResolver.Resolve(task, _graphicsByC2SimUuid, taskeeAuthored);
         // V4b - WHAT THOSE POINTS MEAN, PER VERB. The resolver says WHERE the geometry came from;
         // this says WHAT IT IS. C2SIM attaches no shape to a Location list (LocationType is a bare
         // choice of GeodeticCoordinate or RelativeLocation), so an objective ring, an axis of
@@ -3013,10 +3150,36 @@ public sealed class VrfC2SimService : BackgroundService
                                $"'{task.TaskName}', verb '{verb.ActionCode}'");
                 return;
             }
+            // SF4 (cold-start review of 9d67f97): A HOLD ON A BUSY UNIT IS REFUSED, NOT FAKED.
+            // See TaskDispatchPolicy.HoldInPlaceUnitBusyRefusal for the rule and its citations.
+            // Without this, MarkDispatched's supersede arm would TASKABRT a task VR-Forces is
+            // STILL RUNNING, log "VRF replaces the running task" when nothing replaced it, and
+            // then report the unit as standing still while it drove on.
+            bool busy = _inFlight.TryGetCurrent(unit.Name, out var running);
+            if (TaskDispatchPolicy.HoldInPlaceMustRefuse(busy, running.TaskUuid, task.TaskUuid))
+            {
+                _log.LogError("Task '{Task}' is REFUSED: its verb '{Code}' names no movement, so executing it " +
+                              "would mean STOPPING {Name} - and {Name} is already performing task '{Old}' " +
+                              "({OldUuid}), which VR-Forces is running. No vendor halt is exposed to this " +
+                              "interface (the facade offers tasks, not a per-unit stop; Pause is the whole " +
+                              "simulation), so the unit would KEEP DRIVING while this task's report claimed it " +
+                              "was in place. The running task is LEFT ALONE - it is not superseded and not " +
+                              "aborted - and this one is refused with its cause named (SF4; Q1's " +
+                              "supersede-abort applies only when the taskee is demonstrably not performing the " +
+                              "old task). The {N} geometry point(s) this task carries are not driven either.",
+                              task.TaskName, verb.ActionCode, unit.Name, running.TaskName,
+                              running.TaskUuid, taskPoints.Count);
+                _sequencer.NotifyAbandoned(task.TaskUuid);
+                PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKABRT,
+                               $"{TaskDispatchPolicy.HoldInPlaceUnitBusyRefusal} - task '{task.TaskName}', " +
+                               $"verb '{verb.ActionCode}'; {unit.Name} is performing '{running.TaskName}'");
+                return;
+            }
             // Exactly the R2 ending, and for the same reason it is written that way there: NO
             // destination is recorded (MarkDispatched dest: null), so the progress watchdog stays
             // off a unit that is CORRECTLY standing still, and NOTHING is cleared - this dispatch
-            // issues no vendor task, so the previously running one keeps running.
+            // issues no vendor task, so nothing was replaced (and by the guard above, nothing was
+            // running).
             MarkDispatched(task, unit, "hold-in-place");
             _log.LogInformation("Task '{Task}': verb {Code} -> intent={Intent} ({Comp}). Executing IN PLACE at " +
                                 "{Name}'s own position ({Lat:F5},{Lon:F5}); NO VR-Forces task is issued and the " +

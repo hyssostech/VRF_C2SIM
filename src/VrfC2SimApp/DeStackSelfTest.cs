@@ -152,7 +152,60 @@ public static class DeStackSelfTest
                   "rotation 45 moves every displaced unit");
         }
 
-        // 10. THE REAL INITS AT THE BASE PROFILE'S SPACING (2026-09-20).
+        // 10. COMPOSED CHILDREN ARE NOT CO-LOCATED UNITS (SF2, 2026-09-20). The RULE, on synthetic
+        //     plans, before the fixtures exercise it.
+        {
+            Console.WriteLine("  --- C14 scope: a composed child takes its place from its parent ---");
+            // A company at X with three declared platoons that the superior cascade also put at X,
+            // plus ONE unrelated independent unit at X. Only the company and the stranger are
+            // independent, so exactly ONE unit moves: the stranger.
+            var plans = new List<CreationPlan>
+            {
+                Agg("coy",  34.5, -116.5),   // 0 parent aggregate
+                Agg("plt1", 34.5, -116.5),   // 1 declared child
+                Agg("plt2", 34.5, -116.5),   // 2 declared child
+                Agg("plt3", 34.5, -116.5),   // 3 declared child
+                Agg("other",34.5, -116.5),   // 4 an INDEPENDENT unit on the same coordinate
+            };
+            var hier = new List<(string, string)>
+            { ("u0", ""), ("u1", "u0"), ("u2", "u0"), ("u3", "u0"), ("u4", "") };
+            var comp = CompositionPlan.Classify(plans, hier);
+            Check(ref failures, comp.ComposedChildIndices.Count == 3
+                             && comp.ComposedChildIndices.Contains(1)
+                             && comp.ComposedChildIndices.Contains(2)
+                             && comp.ComposedChildIndices.Contains(3),
+                  $"the three declared children of an aggregate parent are classified as COMPOSED " +
+                  $"(got {comp.ComposedChildIndices.Count})");
+            Check(ref failures, !comp.ComposedChildIndices.Contains(0) && !comp.ComposedChildIndices.Contains(4),
+                  "the parent shell and an unrelated unit are INDEPENDENT");
+            var groups = DeStacker.Apply(plans, Spacing, 0.0, comp.ComposedChildIndices);
+            Check(ref failures, groups.Count == 1 && groups[0].Count == 2,
+                  $"the group is the 2 INDEPENDENT units, not all 5 (got {groups.Count} group(s) of " +
+                  $"{(groups.Count > 0 ? groups[0].Count : 0)})");
+            Check(ref failures, plans[1].Pos.LatDeg == 34.5 && plans[2].Pos.LatDeg == 34.5
+                             && plans[3].Pos.LatDeg == 34.5 && plans[1].Pos.LonDeg == -116.5,
+                  "NO composed child is displaced - it is laid out by its parent's formation");
+            Check(ref failures, Math.Abs(DistMeters(plans[0].Pos, plans[4].Pos) - Spacing) < Spacing * 0.01,
+                  "the co-located INDEPENDENT unit IS still spread (C14 is not weakened)");
+
+            // A parent that is NOT an aggregate cannot compose: its children are created standalone
+            // and ARE therefore independent objects the de-stack owns. The arm that must not rot.
+            var flat = new List<CreationPlan> { Plat("veh", 34.5, -116.5), Agg("kid", 34.5, -116.5) };
+            var flatComp = CompositionPlan.Classify(flat, new List<(string, string)> { ("u0", ""), ("u1", "u0") });
+            Check(ref failures, flatComp.ComposedChildIndices.Count == 0
+                             && flatComp.NonAggregateParentIndices.Count == 1,
+                  "a NON-aggregate parent composes nothing - its child stays an independent object");
+            Check(ref failures, DeStacker.Apply(flat, Spacing, 0.0, flatComp.ComposedChildIndices).Count == 1,
+                  "and that child IS de-stacked");
+
+            // ComposeHierarchy OFF (null set) = the pre-2026-09-20 behaviour, unchanged.
+            var off = new List<CreationPlan>
+            { Agg("coy", 34.5, -116.5), Agg("plt1", 34.5, -116.5), Agg("plt2", 34.5, -116.5) };
+            Check(ref failures, DeStacker.Apply(off, Spacing, 0.0, null) is { Count: 1 } g0 && g0[0].Count == 3,
+                  "with ComposeHierarchy off every plan is independent (null exclusion set = old behaviour)");
+        }
+
+        // 11. THE REAL INITS AT THE BASE PROFILE'S SPACING (2026-09-20).
         //
         // WHY: C14 (user ruling 2026-09-07) says co-located units are spread at init on 5.2, and
         // appsettings.Demo.json has said so since. A RUNNER-LAUNCHED app never loads the Demo
@@ -160,30 +213,50 @@ public static class DeStackSelfTest
         // appsettings.json now carries DeStackCreates/700 too. That is a change to WHERE UNITS ARE
         // on every runner run, so it owes a measurement on the actual fixtures rather than an
         // argument. The numbers below are COUNTED FROM THE FILES, not assumed.
+        //
+        // EVERY COUNT IS MEASURED WITH Vrf:ComposeHierarchy ON (appsettings.json:34, the default),
+        // which is the configuration every runner run uses, and through the SAME CompositionPlan
+        // the service calls - not a second copy of the classification.
         {
             Console.WriteLine("  --- the shipped inits at the base profile's 700 m spacing (C14) ---");
             const double Base = 700.0;   // appsettings.json DeStackSpacingMeters
-            // MEASURED, NOT ASSUMED - and the measurement CORRECTED a belief. The R9 inits look
-            // un-stacked in the raw XML (every unit with an authored position has a distinct one),
-            // but InitParser's SUPERIOR CASCADE gives a unit with no coordinates its superior's
-            // (C2SIMinterface.cpp:1421-1441), and that is what builds the piles: R9 lean ends with
-            // ONE stack of four (114.MechCoy and its three platoons), R9 full with ten. So "R9 is
-            // not co-located" is true of the file and false of the parse, and the de-stack DOES
-            // touch it. What matters for a run is the next check, not this count.
+            // R9 LEAN: ZERO UNITS MOVE. The raw XML has no duplicate coordinates; InitParser's
+            // SUPERIOR CASCADE gives a unit with no coordinates its superior's
+            // (InitParser.cs:144-153, C++ parity), which used to build one "pile" of four -
+            // 114.MechCoy and its three DECLARED platoons. Those three are the company's own
+            // composed members (ComposeHierarchy on by default), so under C14 as ruled they are
+            // laid out by the company's formation and are never displaced. Nothing else in this
+            // init shares a coordinate, so the de-stack is a NO-OP on the R9 rehearsal - which is
+            // what makes the next run comparable to the D1/D1b/D3 controls that ran without it.
             CheckInit(ref failures, "R9_Mojave_Lean_Initialization.xml", Base,
-                      expectGroups: 1, expectMoved: 3);
+                      expectGroups: 0, expectMoved: 0);
             CheckInit(ref failures, "R9_Mojave_Initialization.xml", Base,
-                      expectGroups: 10, expectMoved: 38);
+                      expectGroups: 0, expectMoved: 0);
             // COA-STP1 IS co-located, heavily - it is the pathology C14 was ruled against ("STP
-            // puts a whole COA on its assembly point"): 10 shared coordinates carrying 72 of its
-            // 128 units. The other 66 do not move at all and every group anchor keeps its exact
-            // coordinate. Anyone who expected this init to be untouched should read the ruling,
-            // not weaken the check.
+            // puts a whole COA on its assembly point"). Anyone who expected this init to be
+            // untouched should read the ruling, not weaken the check. UNCHANGED by the SF2 scope
+            // rule in the RUNNER configuration, which is what makes PREREG_ASSEMBLY_LAYOUT's
+            // confirmed 2026-09-07 result still the result of this build.
             CheckInit(ref failures, "COA-STP1_Initialization.xml", Base, expectGroups: 10, expectMoved: 62);
-            // The real STP export: 40 units, 36 placeable, and the superior cascade piles the 28ID
-            // subtree onto one coordinate (the characterisation counted 12 there).
+            // The real STP export: 40 units, 36 placeable, the superior cascade piles the 28ID
+            // subtree onto one coordinate.
             CheckInit(ref failures, "STP-IRON-STORM-SYNTHETIC_Initialization.xml", Base,
                       expectGroups: 2, expectMoved: 12);
+
+            // THE SAME FOUR FIXTURES IN THE OTHER SHIPPED MODE. FidelityTable maps a brigade or a
+            // division to a REAL aggregate template where RealTemplates' 5.0.2 parity dispatch
+            // falls through to a single Tank (a PLATFORM, which can compose nothing), so WHICH
+            // units are composed children - and therefore which the de-stack may touch - is
+            // different. Both modes ship; both are measured rather than reasoned about.
+            Console.WriteLine("  --- the same fixtures under Vrf:TypeMappingMode=FidelityTable (Demo) ---");
+            CheckInit(ref failures, "R9_Mojave_Lean_Initialization.xml", Base,
+                      expectGroups: 0, expectMoved: 0, mode: TypeMapping.FidelityTable);
+            CheckInit(ref failures, "R9_Mojave_Initialization.xml", Base,
+                      expectGroups: 0, expectMoved: 0, mode: TypeMapping.FidelityTable);
+            CheckInit(ref failures, "COA-STP1_Initialization.xml", Base,
+                      expectGroups: 10, expectMoved: 62, mode: TypeMapping.FidelityTable);
+            CheckInit(ref failures, "STP-IRON-STORM-SYNTHETIC_Initialization.xml", Base,
+                      expectGroups: 2, expectMoved: 12, mode: TypeMapping.FidelityTable);
 
             // *** THE CHECK THAT DECIDES WHETHER A RUN MOVES: DO THE ORDER'S TASKEES SHIFT? ***
             // A context unit spread onto a ring changes the picture but nothing that is measured;
@@ -194,6 +267,17 @@ public static class DeStackSelfTest
                                 "R9_Mojave_UnitMove_Order.xml", Base);
             CheckTaskeesUnmoved(ref failures, "R9_Mojave_Initialization.xml",
                                 "R9_Mojave_UnitMove_Order.xml", Base);
+            // *** AND THE ARM THE COLD-START REVIEW ADDED: NO MEMBER OF A TASKEE MOVES EITHER. ***
+            // STP-837 arrival evidence and the C15/C16 stall/progress checks all sample MEMBER
+            // positions (VrfC2SimService.TryReadMemberPositions), so a taskee whose own members
+            // were spread 700 m away is a different experiment even though the taskee itself sat
+            // still. The taskee check above is necessary and was never sufficient.
+            CheckTaskeeMembersUnmoved(ref failures, "R9_Mojave_Lean_Initialization.xml",
+                                      "R9_Mojave_UnitMove_Order.xml", Base);
+            CheckTaskeeMembersUnmoved(ref failures, "R9_Mojave_Initialization.xml",
+                                      "R9_Mojave_UnitMove_Order.xml", Base);
+            CheckTaskeeMembersUnmoved(ref failures, "COA-STP1_Initialization.xml",
+                                      "COA-STP1_Order.xml", Base);
         }
 
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
@@ -201,16 +285,85 @@ public static class DeStackSelfTest
     }
 
     /// <summary>
-    /// Parse a real init, build one plan per unit that HAS a position (which is what
-    /// ProcessInitializationLocked plans), de-stack at the given spacing, and assert the group
-    /// count, how many units actually moved, and that every unmoved unit is byte-identical.
+    /// One real init, parsed and planned THE WAY ProcessInitializationLocked plans it: one
+    /// CreationPlan per unit that has a uuid, a hostility and a position, through the same
+    /// UnitTranslator.Plan (default TypeMapping.RealTemplates = appsettings.json's
+    /// Vrf:TypeMappingMode), with the index-parallel (uuid, superiorUuid) hierarchy and the SAME
+    /// CompositionPlan the service uses. Nothing is re-derived here, which is what stops the test
+    /// and the service drifting apart.
+    /// </summary>
+    private sealed record Fixture(List<CreationPlan> Plans,
+                                  List<(string Uuid, string SuperiorUuid)> Hierarchy,
+                                  List<(string Uuid, string Name, double Lat, double Lon)> Authored,
+                                  CompositionPlan Comp);
+
+    /// <summary>
+    /// WHICH TYPE-MAPPING MODE. Whether a unit is an AGGREGATE - and therefore whether it can take
+    /// composed children at all - is decided by UnitTranslator.Plan, which dispatches differently
+    /// in the two shipped modes. Both are live configurations and the de-stack scope must be
+    /// measured on both:
+    ///   RealTemplates - appsettings.json:28, and what a RUNNER-LAUNCHED app uses
+    ///     (scripts\RunC2SimScenario.ps1 sets Vrf__TypeMapFile but never Vrf__TypeMappingMode, and
+    ///     sets no DOTNET_ENVIRONMENT). This is the configuration the base-profile de-stack default
+    ///     was added for.
+    ///   FidelityTable - appsettings.Demo.json:9, i.e. scripts\StartInterface52.ps1 -Environment
+    ///     Demo. The table (data/unit-type-map-52.json) is read ONLY in this mode.
+    /// </summary>
+    private static UnitTypeMap _table;
+    private static bool _tableTried;
+
+    private static UnitTypeMap Table()
+    {
+        if (_tableTried) return _table;
+        _tableTried = true;
+        string p = FindData("unit-type-map-52.json");
+        if (p != null) { try { _table = UnitTypeMap.Load(p); } catch { _table = null; } }
+        return _table;
+    }
+
+    private static Fixture BuildFixture(string path, TypeMapping mode = TypeMapping.RealTemplates)
+    {
+        var init = InitParser.Parse(File.ReadAllText(path));
+        var map = mode == TypeMapping.FidelityTable ? Table() : null;
+        var nations = new NationRoles("USA", "RUS");   // appsettings.json:29-30
+        var plans = new List<CreationPlan>();
+        var hier = new List<(string, string)>();
+        var authored = new List<(string, string, double, double)>();
+        foreach (var u in init.Units)
+        {
+            if (string.IsNullOrEmpty(u.Uuid) || string.IsNullOrEmpty(u.HostilityCode)) continue;
+            if (!double.TryParse(u.Latitude, System.Globalization.NumberStyles.Float,
+                                 System.Globalization.CultureInfo.InvariantCulture, out double la)
+                || !double.TryParse(u.Longitude, System.Globalization.NumberStyles.Float,
+                                    System.Globalization.CultureInfo.InvariantCulture, out double lo))
+                continue;
+            var unit = string.IsNullOrEmpty(u.ElevationAgl) ? u with { ElevationAgl = "1000.0" } : u;
+            var plan = UnitTranslator.Plan(unit, mode, map, nations);
+            // The service does NOT create a unit whose type mapping failed (the TYPE MAP
+            // AuthoredPending/Failed branch), so such a unit is not a plan and cannot be de-stacked.
+            if (plan.Fidelity is TypeFidelity.AuthoredPending or TypeFidelity.Failed) continue;
+            plans.Add(plan);
+            hier.Add((u.Uuid, (u.SuperiorUuid ?? "").Trim()));
+            authored.Add((u.Uuid, u.Name, la, lo));
+        }
+        return new Fixture(plans, hier, authored, CompositionPlan.Classify(plans, hier));
+    }
+
+    /// <summary>
+    /// De-stack a real init at the given spacing and assert the group count, how many units
+    /// actually moved, and that every group anchor kept its exact coordinate.
     ///
     /// "MOVED" is measured against the parsed coordinate, not inferred from the group sizes: a
     /// group of n contributes n-1 moved units only if the anchor really stays put, and that is the
     /// property worth locking.
+    ///
+    /// The line ALSO reports what the SAME fixture would have done with the pre-2026-09-20 scope
+    /// (every plan independent), so the effect of the C14 scope rule is on the record in the test's
+    /// own output rather than in a report someone has to find.
     /// </summary>
     private static void CheckInit(ref int failures, string fixture, double spacing,
-                                  int expectGroups, int expectMoved)
+                                  int expectGroups, int expectMoved,
+                                  TypeMapping mode = TypeMapping.RealTemplates)
     {
         string path = FindData(fixture);
         if (path == null)
@@ -218,31 +371,41 @@ public static class DeStackSelfTest
             Check(ref failures, false, $"{fixture}: NOT FOUND under data/ - cannot measure");
             return;
         }
-        var init = InitParser.Parse(File.ReadAllText(path));
-        var plans = new List<CreationPlan>();
-        var authored = new List<(double Lat, double Lon)>();
-        foreach (var u in init.Units)
-        {
-            if (!double.TryParse(u.Latitude, System.Globalization.NumberStyles.Float,
-                                 System.Globalization.CultureInfo.InvariantCulture, out double la)
-                || !double.TryParse(u.Longitude, System.Globalization.NumberStyles.Float,
-                                    System.Globalization.CultureInfo.InvariantCulture, out double lo))
-                continue;
-            plans.Add(Plan(u.Uuid, la, lo));
-            authored.Add((la, lo));
-        }
-        var groups = DeStacker.Apply(plans, spacing);
+        var f = BuildFixture(path, mode);
+        // The OLD scope, on an independent copy, purely to print the contrast.
+        var oldPlans = f.Plans.ToList();
+        var oldGroups = DeStacker.Apply(oldPlans, spacing, 0.0, null);
+        int oldMoved = CountMoved(oldPlans, f.Authored);
+
+        var groups = DeStacker.Apply(f.Plans, spacing, 0.0, f.Comp.ComposedChildIndices);
+        int moved = CountMoved(f.Plans, f.Authored);
+        bool anchorsKept = groups.All(g =>
+            f.Plans.Any(p => p.Pos.LatDeg == g.LatDeg && p.Pos.LonDeg == g.LonDeg));
+        var movedNames = new List<string>();
+        for (int i = 0; i < f.Plans.Count && movedNames.Count < 12; i++)
+            if (f.Plans[i].Pos.LatDeg != f.Authored[i].Lat || f.Plans[i].Pos.LonDeg != f.Authored[i].Lon)
+                movedNames.Add(f.Authored[i].Name);
+        Check(ref failures,
+              groups.Count == expectGroups && moved == expectMoved && anchorsKept,
+              $"{fixture} [{mode}]: {f.Plans.Count} placeable unit(s), " +
+              $"{f.Comp.NonAggregateParentIndices.Count} declared parent(s) that are NOT aggregates " +
+              $"[{string.Join(", ", f.Comp.NonAggregateParentIndices.Select(i => f.Authored[i].Name))}] " +
+              $"(cannot compose - their children stand alone), {f.Comp.ComposedChildIndices.Count} " +
+              $"composed child(ren) held with their parent; {groups.Count} co-located group(s) of " +
+              $"INDEPENDENT units (expected {expectGroups}), {moved} unit(s) moved (expected " +
+              $"{expectMoved}) [{string.Join(", ", movedNames)}], every group anchor kept: " +
+              $"{anchorsKept}. Pre-SF2 scope on the same file: {oldGroups.Count} group(s), " +
+              $"{oldMoved} moved.");
+    }
+
+    private static int CountMoved(IReadOnlyList<CreationPlan> plans,
+                                  IReadOnlyList<(string Uuid, string Name, double Lat, double Lon)> authored)
+    {
         int moved = 0;
         for (int i = 0; i < plans.Count; i++)
             if (plans[i].Pos.LatDeg != authored[i].Lat || plans[i].Pos.LonDeg != authored[i].Lon)
                 moved++;
-        bool anchorsKept = groups.All(g =>
-            plans.Any(p => p.Pos.LatDeg == g.LatDeg && p.Pos.LonDeg == g.LonDeg));
-        Check(ref failures,
-              groups.Count == expectGroups && moved == expectMoved && anchorsKept,
-              $"{fixture}: {plans.Count} placeable unit(s), {groups.Count} co-located group(s) " +
-              $"(expected {expectGroups}), {moved} unit(s) moved (expected {expectMoved}), " +
-              $"{plans.Count - moved} untouched, every group anchor kept: {anchorsKept}");
+        return moved;
     }
 
     /// <summary>
@@ -261,32 +424,20 @@ public static class DeStackSelfTest
             Check(ref failures, false, $"{initFixture} + {orderFixture}: NOT FOUND under data/");
             return;
         }
-        var init = InitParser.Parse(File.ReadAllText(ip));
+        var f = BuildFixture(ip);
         var order = OrderParser.Parse(File.ReadAllText(op));
         var taskees = order.Tasks.Select(t => t.TaskeeUuid).Where(u => !string.IsNullOrEmpty(u))
                            .ToHashSet(StringComparer.Ordinal);
-        var plans = new List<CreationPlan>();
-        var authored = new List<(string Uuid, string Name, double Lat, double Lon)>();
-        foreach (var u in init.Units)
-        {
-            if (!double.TryParse(u.Latitude, System.Globalization.NumberStyles.Float,
-                                 System.Globalization.CultureInfo.InvariantCulture, out double la)
-                || !double.TryParse(u.Longitude, System.Globalization.NumberStyles.Float,
-                                    System.Globalization.CultureInfo.InvariantCulture, out double lo))
-                continue;
-            plans.Add(Plan(u.Uuid, la, lo));
-            authored.Add((u.Uuid, u.Name, la, lo));
-        }
-        DeStacker.Apply(plans, spacing);
+        DeStacker.Apply(f.Plans, spacing, 0.0, f.Comp.ComposedChildIndices);
         var moved = new List<string>();
         int seen = 0;
-        for (int i = 0; i < plans.Count; i++)
+        for (int i = 0; i < f.Plans.Count; i++)
         {
-            if (!taskees.Contains(authored[i].Uuid)) continue;
+            if (!taskees.Contains(f.Authored[i].Uuid)) continue;
             seen++;
-            double d = DistMeters(new Geodetic { LatDeg = authored[i].Lat, LonDeg = authored[i].Lon },
-                                  plans[i].Pos);
-            if (d > 1e-6) moved.Add($"{authored[i].Name} {d:F0} m");
+            double d = DistMeters(new Geodetic { LatDeg = f.Authored[i].Lat, LonDeg = f.Authored[i].Lon },
+                                  f.Plans[i].Pos);
+            if (d > 1e-6) moved.Add($"{f.Authored[i].Name} {d:F0} m");
         }
         Check(ref failures, seen == taskees.Count && moved.Count == 0,
               $"{initFixture} + {orderFixture}: {seen} of {taskees.Count} taskee(s) found in the init, " +
@@ -295,6 +446,48 @@ public static class DeStackSelfTest
                     "its own coordinate, so the order's routes start exactly where they did"
                   : "and " + moved.Count + " IS MOVED: [" + string.Join("; ", moved) + "] - the route " +
                     "this taskee is given will start somewhere else"));
+    }
+
+    /// <summary>
+    /// THE ARM THE COLD-START REVIEW OF 9d67f97 ADDED (SF2). The taskee check above is necessary
+    /// and is NOT sufficient: with Vrf:ComposeHierarchy on, a taskee's DECLARED SUBORDINATES become
+    /// the members of its aggregate, and members are exactly what STP-837 arrival evidence and the
+    /// C15/C16 stall and progress checks sample (VrfC2SimService.TryReadMemberPositions). A run in
+    /// which the taskee stood still while its three platoons were born 700 m out on a hex ring is a
+    /// different experiment from the D1/D1b/D3 controls, whatever the taskee's own coordinate did.
+    /// </summary>
+    private static void CheckTaskeeMembersUnmoved(ref int failures, string initFixture,
+                                                  string orderFixture, double spacing)
+    {
+        string ip = FindData(initFixture), op = FindData(orderFixture);
+        if (ip == null || op == null)
+        {
+            Check(ref failures, false, $"{initFixture} + {orderFixture}: NOT FOUND under data/");
+            return;
+        }
+        var f = BuildFixture(ip);
+        var order = OrderParser.Parse(File.ReadAllText(op));
+        var taskees = order.Tasks.Select(t => t.TaskeeUuid).Where(u => !string.IsNullOrEmpty(u))
+                           .ToHashSet(StringComparer.Ordinal);
+        DeStacker.Apply(f.Plans, spacing, 0.0, f.Comp.ComposedChildIndices);
+        var moved = new List<string>();
+        int members = 0;
+        for (int i = 0; i < f.Plans.Count; i++)
+        {
+            if (!taskees.Contains(f.Hierarchy[i].SuperiorUuid)) continue;   // a member of some taskee
+            members++;
+            double d = DistMeters(new Geodetic { LatDeg = f.Authored[i].Lat, LonDeg = f.Authored[i].Lon },
+                                  f.Plans[i].Pos);
+            if (d > 1e-6) moved.Add($"{f.Authored[i].Name} {d:F0} m");
+        }
+        Check(ref failures, moved.Count == 0,
+              $"{initFixture} + {orderFixture}: {members} declared subordinate(s) of a TASKEE, " +
+              (moved.Count == 0
+                  ? "and NONE is displaced - every member is created on its parent's coordinate and " +
+                    "laid out by the parent's formation, so the member positions STP-837 and C15/C16 " +
+                    "sample are the ones the previous runs sampled"
+                  : moved.Count + " MOVED: [" + string.Join("; ", moved) + "] - the arrival evidence " +
+                    "and stall checks of this run are not comparable with a run that had de-stack off"));
     }
 
     /// <summary>data/&lt;name&gt;, found by walking up from the exe and the working directory - the
@@ -317,6 +510,15 @@ public static class DeStackSelfTest
     private static CreationPlan Plan(string name, double lat, double lon)
         => new(false, new EntityTypeSpec { Kind = 1, Domain = 1, Country = 225, Category = 1, Subcategory = 1, Specific = 3, Extra = 0 },
                Force.Friendly, 90.0, name, new Geodetic { LatDeg = lat, LonDeg = lon, AltMeters = 0.0 }, null);
+
+    /// <summary>An AGGREGATE plan - only an aggregate can take composed children
+    /// (CompositionPlan.Classify / ApplyHierarchyComposition).</summary>
+    private static CreationPlan Agg(string name, double lat, double lon)
+        => new(true, new EntityTypeSpec { Kind = 11, Domain = 1, Country = 225, Category = 3, Subcategory = 2, Specific = 0, Extra = 0 },
+               Force.Friendly, 90.0, name, new Geodetic { LatDeg = lat, LonDeg = lon, AltMeters = 0.0 }, null);
+
+    /// <summary>A PLATFORM plan - declared children under one of these compose nothing.</summary>
+    private static CreationPlan Plat(string name, double lat, double lon) => Plan(name, lat, lon);
 
     // Local flat-earth ground distance - adequate at ring scale (tens of meters).
     private static double DistMeters(Geodetic a, Geodetic b)

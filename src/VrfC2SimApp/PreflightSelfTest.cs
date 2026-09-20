@@ -509,6 +509,69 @@ public static class PreflightSelfTest
                       "never a quiet ratio");
             }
 
+            // ---- SF3 (cold-start review of 9d67f97): A NON-TILE BODY NEVER REACHES THE CACHE ----
+            //
+            // The hole F2 left open, reached through the BODY instead of the status: a success
+            // carrying a captive-portal or proxy error page above minBytes used to be written to
+            // disk as `149_13_x_y.tif` and then read back - by this reader AND by the python, on
+            // every later process - as tile ABSENCE, silently downgrading that area's level for
+            // good. Three things are asserted: the outcome is FAILED, the disk is untouched, and a
+            // REAL tile still gets through.
+            {
+                string sf3 = Path.Combine(tmp, "sf3");
+                Directory.CreateDirectory(sf3);
+                var html = System.Text.Encoding.ASCII.GetBytes(
+                    "<html><head><title>403 Forbidden</title></head><body>"
+                    + new string('x', 4000) + "</body></html>");
+                var sHtml = new StubHandler(_ => Body(html));
+                using (var t = new TileSource(sf3, http: new HttpClient(sHtml)))
+                {
+                    int lvl = t.ResolveLevel(34.66, -116.60, out bool failed);
+                    int onDisk = Directory.GetFiles(sf3).Length;
+                    Check(ref failures, lvl == 0 && failed && onDisk == 0 && t.UndecodableBodies > 0,
+                          $"an HTML error page served with 200 is FAILED (not ABSENT), STOPS the cascade and is " +
+                          $"NEVER written to the cache ({onDisk} file(s) on disk, {t.UndecodableBodies} " +
+                          "undecodable bodies counted)");
+                }
+                // A TRUNCATED image - a body whose signature is right and whose content is not.
+                // The scrub's cheap signature test cannot see this one; the fetch path's full
+                // decode can, which is why the decision lives at the fetch.
+                var truncated = new byte[3000];
+                truncated[0] = 0x49; truncated[1] = 0x49; truncated[2] = 0x2A; truncated[3] = 0x00;
+                var sTrunc = new StubHandler(_ => Body(truncated));
+                string sf3b = Path.Combine(tmp, "sf3b");
+                Directory.CreateDirectory(sf3b);
+                using (var t = new TileSource(sf3b, http: new HttpClient(sTrunc)))
+                {
+                    int lvl = t.ResolveLevel(34.66, -116.60, out bool failed);
+                    Check(ref failures, lvl == 0 && failed && Directory.GetFiles(sf3b).Length == 0,
+                          "a TRUNCATED tile (valid TIFF signature, unusable content) is FAILED too and is not cached");
+                }
+                // THE POISONED CACHE THAT ALREADY EXISTS. A file an OLDER build wrote must read as
+                // FAILED - loud - not as ABSENT, which is how it used to vanish into a coarser level.
+                string sf3c = Path.Combine(tmp, "sf3c");
+                Directory.CreateDirectory(sf3c);
+                var (px, py) = TileSource.TileIndexOf(TileMath.DefaultElevationLevel, 34.66, -116.60);
+                string poisoned = Path.Combine(sf3c,
+                    $"{TileMath.ElevationDataset}_{TileMath.DefaultElevationLevel}_{px}_{py}.tif");
+                File.WriteAllBytes(poisoned, html);
+                var sNever = new StubHandler(_ => throw new InvalidOperationException("must not be fetched"));
+                using (var t = new TileSource(sf3c, http: new HttpClient(sNever)))
+                {
+                    int lvl = t.ResolveLevel(34.66, -116.60, out bool failed);
+                    Check(ref failures, lvl == 0 && failed,
+                          "a POISONED CACHE FILE written by an older build reads as FAILED, not as tile ABSENCE - " +
+                          "so it shouts instead of quietly downgrading the area's level");
+                }
+                // The SCRUB names it, and deletes nothing.
+                var scrub = TileSource.ScrubCache(sf3c);
+                Check(ref failures, scrub.UndecodableCount == 1 && scrub.Checked == 1 && File.Exists(poisoned),
+                      $"the start-up cache SCRUB reports it ({scrub.UndecodableCount} of {scrub.Checked} checked) " +
+                      "and DELETES NOTHING");
+                Check(ref failures, TileSource.ScrubCache(Path.Combine(tmp, "does-not-exist")).Files == 0,
+                      "the scrub on a missing cache directory is a no-op, not a throw");
+            }
+
             // OFFLINE IS ABSENCE, DELIBERATELY - or the fixture comparison and every offline run
             // would become a route of no-verdict legs.
             using (var t = new TileSource(tmp, offline: true))

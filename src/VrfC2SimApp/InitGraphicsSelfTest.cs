@@ -153,6 +153,58 @@ public static class InitGraphicsSelfTest
         Console.WriteLine("  line is created as a ROUTE (:1023-1039). Whether the vendor's line-taking");
         Console.WriteLine("  scripted tasks accept a route object is a LIVE question, not decided here.");
 
+        // ---- SF9: AN INIT'S OWN GRAPHICS ASSEMBLE BY KIND, NOT BY DOCUMENT ORDER ----
+        //
+        // The same rule the order-borne graphics go through (TaskGeometryResolver.AssembleRoute),
+        // exercised on graphics REGISTERED FROM THIS INIT - the path a MapGraphicID naming an init
+        // area or phase line takes. The registry does not care which message published a graphic,
+        // and neither must the test: a rule that held only for order graphics would be a second
+        // rule nobody wrote down.
+        if (data.Areas.Count > 0 && creatableLines > 0)
+        {
+            var area = data.Areas[0];
+            var line = data.Lines.First(l => l.Points.Count >= 2);
+            var map = new Dictionary<string, TaskGraphic>(StringComparer.Ordinal)
+            {
+                [area.Uuid] = new TaskGraphic(area.Uuid, area.Name, TaskGraphic.KindArea,
+                    area.Points.Select(p => (p.Lat, p.Lon, (double?)p.Elev)).ToList()),
+                [line.Uuid] = new TaskGraphic(line.Uuid, line.Name, TaskGraphic.KindLine,
+                    line.Points.Select(p => (p.Lat, p.Lon, (double?)p.Elev)).ToList()),
+            };
+            // The AREA is named FIRST. Before SF9 its centroid became route vertex 1 and the unit
+            // drove to the objective and then out along the phase line; now it is the DESTINATION.
+            var task = new OrderTask
+            {
+                TaskName = "SF9_InitGraphics",
+                MapGraphicUuids = new[] { area.Uuid, line.Uuid },
+                Points = new List<(double, double, double?)>(),
+            };
+            var taskee = (line.Points[0].Lat, line.Points[0].Lon);   // the unit sits on the line's head
+            var res = TaskGeometryResolver.Resolve(task, map, taskee);
+            var areaCentroid = TaskGeometryResolver.Centroid(map[area.Uuid].Points);
+            Check("SF9: an init AREA named before an init LINE is the route's DESTINATION, not its " +
+                  "first waypoint",
+                  res.Points.Count > 0
+                  && TaskGeometryResolver.DistMeters(res.Points[^1], areaCentroid) < 1.0,
+                  $"{res.Points.Count} vertices, last {(res.Points.Count > 0 ? res.Points[^1].Lat : 0):F5}," +
+                  $"{(res.Points.Count > 0 ? res.Points[^1].Lon : 0):F5} vs centroid " +
+                  $"{areaCentroid.Lat:F5},{areaCentroid.Lon:F5}");
+            Check("SF9: and the line vertex that IS the taskee's own position is dropped, so the route " +
+                  "never starts by driving to where the unit already stands",
+                  res.Points.All(p => TaskGeometryResolver.DistMeters(p, (taskee.Lat, taskee.Lon, null))
+                                      > TaskGeometryResolver.OriginCoincidenceMeters),
+                  $"{res.Points.Count(p => TaskGeometryResolver.DistMeters(p, (taskee.Lat, taskee.Lon, null)) <= TaskGeometryResolver.OriginCoincidenceMeters)} still coincident");
+            // Single-graphic resolution is UNCHANGED - which is every order in data/ but the STP
+            // export, all of which carry zero MapGraphicIDs.
+            var solo = new OrderTask { TaskName = "SF9_Solo", MapGraphicUuids = new[] { area.Uuid },
+                                       Points = new List<(double, double, double?)>() };
+            var soloRes = TaskGeometryResolver.Resolve(solo, map, taskee);
+            Check("SF9: a task naming ONE init area still resolves to exactly its centroid (the " +
+                  "single-graphic path is untouched)",
+                  soloRes.Points.Count == 1
+                  && TaskGeometryResolver.DistMeters(soloRes.Points[0], areaCentroid) < 1.0, "");
+        }
+
         // ---- a parse that finds nothing must not be mistaken for a clean parse ----
         Check("parsing an empty document yields no graphics and does not throw",
               InitParser.Parse("") is { Lines.Count: 0, Points.Count: 0, Areas.Count: 0 }, "");
