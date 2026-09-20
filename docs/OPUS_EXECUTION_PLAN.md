@@ -3230,7 +3230,24 @@ join) are BURNED, not recycled. The run manifest records which were actually use
 - 2026-09-20 STP-825 THREE-ARM RID EXPERIMENT (docs/experiments/PREREG_STP825_BUNDLING_2026-09-20.md): 4657..4718 = PILOT-0 (2, arm A) + 60 interleaved creates A,B,C x 20 by RtiProbe against the SEPARATE federation STP825AB (scratch validation/stp825_abc_harness.ps1; per-federate RID copies; no rtiexec restart; the persistent holder 4635 stays on MAK-ONE-2025). One create per number; numbers not reached are BURNED, never reused. CLAIMED.
 - 2026-09-20 STP-825 NOTIFY-LEVEL ABBA EXPERIMENT (docs/experiments/PREREG_STP825_NOTIFY_2026-09-20.md): 4719..4778 = four blocks of 15 creates, each on a FRESH rtiexec (B1 -NotifyLevel 3: 4719..4733; B2 -NotifyLevel 0: 4734..4748; B3 -NotifyLevel 0: 4749..4763; B4 -NotifyLevel 3: 4764..4778), RtiProbe against the scratch federation STP825AB (scratch validation/stp825_notify_harness.ps1). The user authorised rtiexec restarts 'as needed' 2026-09-20. Numbers not reached are BURNED, never reused. CLAIMED.
 - 2026-09-20 PERSISTENT HOLDER (STP-825; D3 run 20260920T202203Z lost all four Stage 2h creates; this rtiexec's lifetime record is 19 create successes / 14 errors, clustered): RtiProbe <appNo> MAK-ONE-2025 1 28800 3, one attempt per number 4779..4790 until a create succeeds (seat, scratch p7_holder_retry.ps1); numbers not reached are BURNED, never reused. CLAIMED.
-*** NEXT FREE: 4791 *** (authoritative - the ONLY such marker in this file. Update this
+
+CLAIMED 2026-09-20 23:33 by scripts/RunC2SimScenario.ps1 (run 20260920T233339Z_run). Ledgered BEFORE any join,
+per the never-reuse non-negotiable. Annotate with results from the run manifest.
+- 4791: CLAIMED - LaunchVrf52.ps1 back-end (vrfSimHLA1516e), 5.2d independent mode
+- 4792: CLAIMED - LaunchVrf52.ps1 front-end (vrfGui), 5.2d independent mode (allocated even with -NoGui, then BURNED)
+- 4793: CLAIMED - WatchVrf ADVISORY pre-init oracle pre-check (RUNBOOK 0.5.7)
+- 4794: CLAIMED - WatchVrf MAIN run trace - the movement oracle / scoring input
+- 4795: CLAIMED - VrfC2SimApp Vrf__ApplicationNumber (the interface federate)
+- 4796: CLAIMED - tools/RtiProbe - STAGE 2c PRE-LAUNCH RTI READINESS GATE (C1). Throwaway create-or-join against the federation with internal retry+backoff, then clean resign, BEFORE the back-end launches (RTI_LAUNCH_HARDENING_DESIGN.md A2-A7 - the RUN-2 fix). CONSUMED on EVERY run (the gate always runs pre-launch). One number covers all internal retries - RtiProbe reuses this single appNumber across attempts by design.
+- 4797: CLAIMED - tools/CreateOne - STAGE 7b FAILURE-PATH DIAGNOSTIC ONLY (RUNBOOK 0.5.7 STRONGER CHECK). CONSUMED ONLY IF THE ORACLE GATE FAILS; on a healthy run it is NEVER JOINED and this number goes UNCONSUMED. Unconsumed numbers are BURNED, never recycled - see the NOTE below. Allocated here rather than mid-run because every number must be ledgered BEFORE any join.
+- 4798: CLAIMED - tools/RtiProbe - STAGE 2h FEDERATION HOLDER attempt 1 of 4 (STP-825): create-or-join MAK-ONE-2025 and STAY JOINED for 900s so the SIM never has to CREATE the federation (rtiexec 5.0.1 rejects creator FOM distribution intermittently; joins have never failed). CONSUMED ONLY IF attempt 1 is reached; an earlier success leaves the rest UNCONSUMED and BURNED.
+- 4799: CLAIMED - tools/RtiProbe - STAGE 2h FEDERATION HOLDER attempt 2 of 4 (STP-825): create-or-join MAK-ONE-2025 and STAY JOINED for 900s so the SIM never has to CREATE the federation (rtiexec 5.0.1 rejects creator FOM distribution intermittently; joins have never failed). CONSUMED ONLY IF attempt 2 is reached; an earlier success leaves the rest UNCONSUMED and BURNED.
+- 4800: CLAIMED - tools/RtiProbe - STAGE 2h FEDERATION HOLDER attempt 3 of 4 (STP-825): create-or-join MAK-ONE-2025 and STAY JOINED for 900s so the SIM never has to CREATE the federation (rtiexec 5.0.1 rejects creator FOM distribution intermittently; joins have never failed). CONSUMED ONLY IF attempt 3 is reached; an earlier success leaves the rest UNCONSUMED and BURNED.
+- 4801: CLAIMED - tools/RtiProbe - STAGE 2h FEDERATION HOLDER attempt 4 of 4 (STP-825): create-or-join MAK-ONE-2025 and STAY JOINED for 900s so the SIM never has to CREATE the federation (rtiexec 5.0.1 rejects creator FOM distribution intermittently; joins have never failed). CONSUMED ONLY IF attempt 4 is reached; an earlier success leaves the rest UNCONSUMED and BURNED.
+NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
+join) are BURNED, not recycled. The run manifest records which were actually used.
+
+*** NEXT FREE: 4802 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
