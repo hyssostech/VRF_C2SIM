@@ -848,6 +848,140 @@ function Test-ReportEvidence {
     return [pscustomobject]@{ AllSatisfied = $all; PerTaskee = $per }
 }
 
+# ---- THE APP'S OWN ROUTE-SHIFT ANNOUNCEMENT (review F5) -----------------------
+# The runner PREDICTS the route-shift state from its own environment plus the deployed
+# appsettings.json, in the app's precedence order. A prediction is not an observation:
+# scripts\StartInterface52.ps1 -RouteShift on|off sets Vrf__PreflightRouteShift in the
+# INTERFACE's process, so a hand-started interface can run with a value the runner's own
+# shell never saw, and a deployed appsettings.json can change between the Stage 0 read and
+# the app's own read. The app states what it really resolved, in its own log, in two places:
+#
+#   start-up, ON only : "LATERAL ROUTE SHIFT ON (Vrf:PreflightRouteShift, the shipped
+#                        default since the user ruling of 2026-09-20; STP-804/806): ..."
+#   first ground move : "ROUTE PRE-FLIGHT enabled: ... LATERAL ROUTE SHIFT ON|off (the shift
+#                        CHANGES the line a unit drives; ...)"
+#
+# ABSENCE IS NOT EVIDENCE OF 'off'. The app prints NOTHING at start-up when the shift is off,
+# and the pre-flight line appears only once a ground move is dispatched, so a log carrying
+# neither line means NOT OBSERVED. That is why Announced is a THREE-valued $true/$false/$null
+# and never defaults to the prediction.
+#
+# Returns an ordered hashtable:
+#   Announced = $true | $false | $null   what the app said (null = it has not said yet)
+#   Line      = the matched log line, trimmed ('' when there is none)
+#   Source    = which of the two lines supplied the answer
+#   Skipped   = $true when the app ALSO said the shift is SKIPPED FOR THIS RUN (offline with
+#               an empty tile cache): configured ON, but no leg can ever be shifted.
+function Get-RouteShiftAnnouncement {
+    param([AllowNull()][AllowEmptyString()][string]$AppLogText)
+    $out = [ordered]@{ Announced = $null; Line = ''; Source = ''; Skipped = $false }
+    if ([string]::IsNullOrEmpty($AppLogText)) { return $out }
+    if ([regex]::IsMatch($AppLogText, 'LATERAL ROUTE SHIFT SKIPPED FOR THIS RUN')) { $out['Skipped'] = $true }
+    # The pre-flight line is read FIRST because it is the only one that can say "off". When
+    # both lines are present they agree by construction - one setting, read once at start-up.
+    # ON / off are matched case-SENSITIVELY, which is how the app writes them.
+    $m = [regex]::Match($AppLogText, '(?m)^.*LATERAL ROUTE SHIFT (?<v>ON|off) \(the shift CHANGES.*$')
+    if ($m.Success) {
+        $out['Announced'] = ($m.Groups['v'].Value -ceq 'ON')
+        $out['Line']      = $m.Value.Trim()
+        $out['Source']    = "the app's ROUTE PRE-FLIGHT enabled line"
+        return $out
+    }
+    $m = [regex]::Match($AppLogText, '(?m)^.*LATERAL ROUTE SHIFT ON \(Vrf:PreflightRouteShift.*$')
+    if ($m.Success) {
+        $out['Announced'] = $true
+        $out['Line']      = $m.Value.Trim()
+        $out['Source']    = "the app's start-up banner"
+    }
+    return $out
+}
+
+# THE VERDICT on the runner's prediction against the app's announcement (review F5). Pure, so
+# the rule itself can be tested offline rather than asserted in prose.
+#   $Predicted  - whatever the manifest holds: a [bool], or the 'UNKNOWN - unparseable ...'
+#                 string the Stage 0 resolver writes when Vrf__PreflightRouteShift is garbage.
+#   $Announced  - $true / $false / $null, straight from Get-RouteShiftAnnouncement.
+# Returns @{ Observed; Mismatch; Agreement }.
+#
+# THE TWO RULES IT ENCODES:
+#   1. NO ANNOUNCEMENT MEANS NOT OBSERVED. The prediction is never promoted to an observation,
+#      and no MISMATCH is ever claimed on silence - the app prints nothing at start-up when the
+#      shift is off, so silence is not evidence of anything.
+#   2. A non-boolean prediction (the unparseable-env case) can never AGREE with an announcement;
+#      if the app somehow announced anything at all, that is a mismatch worth seeing.
+function Get-RouteShiftVerdict {
+    param($Predicted, [AllowNull()][AllowEmptyString()][string]$PredictedSource,
+          $Announced, [AllowNull()][AllowEmptyString()][string]$AnnouncedSource,
+          [AllowNull()][AllowEmptyString()][string]$Stage)
+    $where = $(if ([string]::IsNullOrWhiteSpace($Stage)) { 'this point' } else { $Stage })
+    if ($null -eq $Announced) {
+        return [ordered]@{
+            Observed  = $false
+            Mismatch  = $false
+            Agreement = ('NOT OBSERVED at {0} - the app log carries no "LATERAL ROUTE SHIFT" line yet. The prediction stands UNCONFIRMED, and an unconfirmed prediction is not an observation. The app prints NOTHING at start-up when the shift is OFF, so silence here is not evidence of OFF.' -f $where)
+        }
+    }
+    $annText = $(if ($Announced) { 'ON' } else { 'off' })
+    if (($Predicted -is [bool]) -and ([bool]$Predicted -eq [bool]$Announced)) {
+        return [ordered]@{
+            Observed  = $true
+            Mismatch  = $false
+            Agreement = ('CONFIRMED at {0} - the app announced {1}, which is what this runner predicted from {2}. Evidence: {3}' -f $where, $annText, $PredictedSource, $AnnouncedSource)
+        }
+    }
+    return [ordered]@{
+        Observed  = $true
+        Mismatch  = $true
+        Agreement = ('MISMATCH at {0} - this runner PREDICTED [{1}] from {2}, and the app ANNOUNCED [{3}] ({4}). THE APP IS THE AUTHORITY ON THE APP: every route in this run was driven under the ANNOUNCED value. Usual cause: the interface was started by hand (scripts\StartInterface52.ps1 -RouteShift on|off sets Vrf__PreflightRouteShift in ITS OWN process, which this runner''s shell cannot see), or the deployed appsettings.json differs from the one Stage 0 read.' -f $where, $Predicted, $PredictedSource, $annText, $AnnouncedSource)
+    }
+}
+
+# ---- THE VENDOR PER-PROCESS LOG FOR ONE PID (D1b harvest, finding A1) ---------
+# VR-Forces 5.2 writes
+#     <prefix><version>-<date>-<time>-<host>-<build>-<pid>.log
+# into the SHARED C:\MAK\logs. It NEVER writes the flat 5.0.2 names (bin64\vrfSim.log,
+# C:\MAK\logs\vrfGui.log), which is why the runner's end-of-run capture WARNed twice per
+# 5.2 run, since forever, about two files that cannot exist - while the real logs sat
+# un-captured beside them. The pid is the ONLY field that ties a file in that shared
+# directory to one run, so the capture is BY PID.
+#
+# Three filters, the same three (and for the same reasons) as LaunchVrf52.ps1's
+# Get-VendorSimLogForPid, which already does exactly this for the back-end log at READY:
+#   - the pid is the LAST name field, hence the '<prefix>*-<pid>.log' filter;
+#   - C:\MAK\logs is shared by the whole MAK toolchain and keeps files across boots, and
+#     Windows recycles pids, hence the -Since mtime floor;
+#   - the .callstack.log for the same pid does NOT match that filter (its last field is
+#     'callstack') and is excluded explicitly anyway - it is separate evidence with a
+#     separate life: IT is the file that may be shared, and this one is not.
+#
+# SECRETS - A HARD CONSTRAINT, not a style note. These files carry the FULL PROCESS
+# ENVIRONMENT IN CLEARTEXT (DtPrintEnvironmentVariables at notifyLevel 3;
+# FORENSICS_52_STARTUP_CRASH_2026-09-04 sec 10). This function COPIES a file and NEVER
+# OPENS ONE: nothing here reads, greps, parses, hashes or prints a byte of its content,
+# and the caller repeats the warning LaunchVrf52 prints for the copy it takes. Length is
+# read from the directory entry, not from the file. Read-only, and it never throws: a
+# capture failure is a WARN for the caller and nothing else.
+#
+# Returns @{ Source = <the file copied, '' when none>; Error = <message, '' when none>;
+#            SizeBytes = <directory-entry length, $null when none> }
+function Copy-VendorLogByPid {
+    param([int]$ProcessId, [string]$LogDir, [string]$NamePrefix,
+          [datetime]$Since, [string]$Destination)
+    $out = [ordered]@{ Source = ''; Error = ''; SizeBytes = $null }
+    try {
+        $ls = @(Get-ChildItem -LiteralPath $LogDir -Filter ($NamePrefix + ('*-{0}.log' -f $ProcessId)) -File -ErrorAction SilentlyContinue |
+                Where-Object { ($_.Name -notmatch '\.callstack\.log$') -and ($_.LastWriteTime -ge $Since) } |
+                Sort-Object LastWriteTime -Descending)
+        if ($ls.Count -eq 0) { return $out }
+        $out['SizeBytes'] = $ls[0].Length
+        Copy-Item -LiteralPath $ls[0].FullName -Destination $Destination -Force -ErrorAction Stop
+        $out['Source'] = $ls[0].FullName
+    } catch {
+        $out['Error'] = $_.Exception.Message
+    }
+    return $out
+}
+
 # ---- line endings for files the runner rewrites -------------------------------
 # The repo checks out CRLF (core.autocrlf=true); a file the runner rewrites must
 # come back CRLF regardless of what it found (an LF working copy left by another
