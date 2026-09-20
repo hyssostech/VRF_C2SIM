@@ -6,11 +6,33 @@
 # "Session Status" box). On 5.2 the two executables are launched INDEPENDENTLY
 # (LaunchVrf52.ps1, UG52 4.1.2), so there is no "quit all back-ends" relationship to tick:
 # the front-end's quit does not own the back-end, and the back-end has to be asked
-# separately. Which modals a 5.2 vrfGui raises on close is NOT yet observed - the first
-# live 5.2 teardown records it (this script LOGS every window title it can see rather than
-# clicking anything it does not recognise, the RUNBOOK 0.5.9 "enumerate, never predict"
-# rule). Nothing here is copied from StopVrf.ps1's UIA machinery until that evidence
-# exists; guessing a button on an unknown modal can do something destructive.
+# separately.
+#
+# WHICH MODALS A 5.2 vrfGui RAISES ON CLOSE - ANSWERED 2026-09-20 (STP-844). Demo
+# rehearsal D1 (run 20260920T172141Z) was the first GUI-ON 5.2 teardown ever run. It timed
+# out at exit 3 and a READ-ONLY window enumeration of the surviving pid found TWO stacked
+# never-ask-again message boxes, both class makVrf::DtNeverAskAgainMessageBox, both owned
+# by the GUI main window:
+#   1. "Are You Sure?"  / "Quit VR-Forces GUI"   [Yes][No] + "Quit All Sim Engines"
+#      = the UG52 4.6 exit prompt, raised by the WM_CLOSE this script sends.
+#   2. "Session Status" / "The current session has ended. Close current terrain?"
+#      [Yes][No] + "Execute session changes without prompting."
+#      = raised by the SESSION ending while modal 1 is still open, i.e. by THIS SCRIPT's
+#        own ordering (front end first, back end -GraceSec later). We manufacture it.
+# THE FIX IS CONFIGURATION, NOT AUTOMATION, and it is not in this script: both boxes have
+# a persisted setting (UG52 4.6.1 and UG52 4.3.1), both are turned off in a run-owned
+# appData tree by scripts\NewVrfAppData52.ps1, and LaunchVrf52.ps1 -AppDataDir points the
+# GUI at it. With the exit prompt gone the GUI should close on WM_CLOSE inside the grace,
+# before the back end is asked - so modal 2 cannot arise either.
+# STILL NO CLICKING HERE, DELIBERATELY. This script LOGS every window it can see and
+# answers nothing (RUNBOOK 0.5.9 "enumerate, never predict"). The project goal is headless
+# operation; a UI Automation answerer is not built, and an unrecognised modal must never
+# be guessed at. What D1 exposed is that the LOGGING half had been lost in the 5.0.2 ->
+# 5.2 split: StopVrf.ps1 prints every visible window a stuck process owns, StopVrf52.ps1
+# printed only MainWindowTitle - which on a modal keeps reporting the MAIN window and so
+# named nothing. That read-only half is restored below (Get-VrfWindows /
+# Get-VrfNestedWindows / Get-DialogButtonNames, ported from StopVrf.ps1 with every
+# Invoke/click path left behind).
 #
 # THE MECHANISM (both halves are GRACEFUL REQUESTS, never a kill):
 #   1. CloseMainWindow() on vrfGui   - WM_CLOSE to its own main window.
@@ -83,6 +105,154 @@ function Describe-Proc {
     catch { return ('{0} pid={1} (exited during inspection)' -f $p.ProcessName, $p.Id) }
 }
 
+# ---- READ-ONLY window diagnostic (STP-844) ------------------------------------
+# The half of StopVrf.ps1 that D1 needed and 5.2 did not have. EVERYTHING here READS:
+# EnumWindows + GetWindowText + IsWindowVisible + IsWindowEnabled, and UIA PROPERTY reads.
+# There is no InvokePattern, no click, no SetForegroundWindow, no Stop-Process anywhere in
+# this file - and there must not be. Why the bare MainWindowTitle was not enough: when a
+# modal is up, .NET's MainWindowTitle keeps reporting the MAIN window's title, so D1's
+# teardown logged the scenario name and named neither dialog (harvest sec 8, A-i).
+# The UIA half is optional: if UIAutomationClient cannot be loaded (no desktop, a stripped
+# host), the top-level EnumWindows half still runs. A diagnostic that refuses to run at
+# all when one of its two halves is unavailable is worse than a partial one.
+$script:UiaOk = $false
+try {
+    Add-Type -AssemblyName UIAutomationClient
+    Add-Type -AssemblyName UIAutomationTypes
+    $script:UiaOk = $true
+} catch {
+    Say-Warn ('UI Automation types unavailable ({0}) - the timeout diagnostic will list TOP-LEVEL windows only, not nested dialogs or their buttons.' -f $_.Exception.Message)
+}
+Add-Type @'
+using System; using System.Runtime.InteropServices; using System.Text;
+public class StopVrf52Win {
+  [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc cb, IntPtr l);
+  public delegate bool EnumWindowsProc(IntPtr h, IntPtr l);
+  [DllImport("user32.dll")] public static extern int GetWindowText(IntPtr h, StringBuilder s, int m);
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool IsWindowEnabled(IntPtr h);
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint p);
+}
+'@
+
+# Every TOP-LEVEL window owned by the VR-Forces processes still running. The callback runs
+# in its own scope and can only WRITE to a script-scoped variable - a function-local would
+# come back permanently empty, which is the exact bug StopVrf.ps1 records having shipped.
+function Get-VrfWindows {
+    $vrfPids = @()
+    foreach ($n in @($procFrontend, $procBackend, $procLauncher)) {
+        $vrfPids += @(Get-Process -Name $n -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
+    }
+    $script:vrfWindows = @()
+    if ($vrfPids.Count -eq 0) { return @() }
+    $cb = [StopVrf52Win+EnumWindowsProc]{
+        param($h, $l)
+        $procId = 0
+        [void][StopVrf52Win]::GetWindowThreadProcessId($h, [ref]$procId)
+        if ($vrfPids -contains [int]$procId) {
+            $sb = New-Object System.Text.StringBuilder 512
+            [void][StopVrf52Win]::GetWindowText($h, $sb, 512)
+            $t = $sb.ToString()
+            if ($t) {
+                $script:vrfWindows += [pscustomobject]@{
+                    Handle  = $h
+                    Pid     = [int]$procId
+                    Title   = $t
+                    Visible = [StopVrf52Win]::IsWindowVisible($h)
+                    Enabled = [StopVrf52Win]::IsWindowEnabled($h)
+                }
+            }
+        }
+        return $true
+    }
+    [void][StopVrf52Win]::EnumWindows($cb, [IntPtr]::Zero)
+    return @($script:vrfWindows)
+}
+
+# Windows NESTED inside those top-level windows. Companion to Get-VrfWindows, not a
+# replacement: D1's two message boxes were BOTH reachable as top-level windows owned by
+# the main window, but the 5.0.2 record has a "Session Status" box that was a DESCENDANT
+# and invisible to EnumWindows. Deliberately NOT filtered to a known class or name
+# (RUNBOOK 0.5.9): everything of ControlType Window is returned and the caller logs all of
+# it, QDockWidgets included - their presence is what proves the scan really ran.
+function Get-VrfNestedWindows {
+    $found = @()
+    if (-not $script:UiaOk) { return @($found) }
+    $winCond = New-Object System.Windows.Automation.PropertyCondition(
+                   [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+                   [System.Windows.Automation.ControlType]::Window)
+    foreach ($w in @(Get-VrfWindows)) {
+        # Any of these can throw if the window dies mid-scan. This runs DURING a shutdown,
+        # so that is the normal case, not an exception: skip and move on.
+        try { $root = [System.Windows.Automation.AutomationElement]::FromHandle($w.Handle) } catch { continue }
+        if ($null -eq $root) { continue }
+        try { $kids = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $winCond) } catch { continue }
+        foreach ($k in $kids) {
+            try {
+                $found += [pscustomobject]@{
+                    Element  = $k
+                    Name     = $k.Current.Name
+                    Class    = $k.Current.ClassName
+                    Handle   = $k.Current.NativeWindowHandle
+                    OwnerPid = $w.Pid
+                }
+            } catch { continue }
+        }
+    }
+    return @($found)
+}
+
+# The buttons a dialog ACTUALLY exposes, as text. Two jobs: it is the evidence the next
+# unknown modal gets diagnosed from, and its emptiness separates a real prompt from a
+# QDockWidget - observed, not predicted. READ-ONLY: names and enabled state, no Invoke.
+function Get-DialogButtonNames {
+    param($element)
+    $names = @()
+    $btnCond = New-Object System.Windows.Automation.PropertyCondition(
+                   [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+                   [System.Windows.Automation.ControlType]::Button)
+    try { $btns = $element.FindAll([System.Windows.Automation.TreeScope]::Descendants, $btnCond) } catch { return @() }
+    foreach ($b in $btns) {
+        try {
+            if ($b.Current.IsEnabled) { $names += $b.Current.Name }
+            else                      { $names += ('{0} (disabled)' -f $b.Current.Name) }
+        } catch { continue }
+    }
+    return @($names)
+}
+
+# One report. $Why is printed first so the log says WHICH moment produced it (after the
+# grace, or at the final timeout). Nothing is clicked; every line is something read.
+function Write-WindowDiagnostic {
+    param([string]$Why, [scriptblock]$Emit)
+    & $Emit ('WINDOW DIAGNOSTIC ({0}) - read-only: EnumWindows + UIA property reads. NOTHING IS CLICKED.' -f $Why)
+    $tops = @(Get-VrfWindows)
+    if ($tops.Count -eq 0) {
+        & $Emit '  no titled top-level window is owned by any VR-Forces process.'
+    } else {
+        foreach ($w in $tops) {
+            & $Emit ('  top-level: "{0}" (pid {1}, hwnd {2}, visible={3}, enabled={4})' -f $w.Title, $w.Pid, $w.Handle, $w.Visible, $w.Enabled)
+        }
+        # ENABLED=True on exactly one window while the main window is False is the modal
+        # signature: that one is the box on top, and it is the one blocking the close.
+        $onTop = @($tops | Where-Object { $_.Visible -and $_.Enabled })
+        if ($onTop.Count -gt 0) {
+            & $Emit ('  ON TOP (visible AND enabled - this is what is waiting for an answer): {0}' -f (($onTop | ForEach-Object { '"' + $_.Title + '"' }) -join ', '))
+        }
+    }
+    if (-not $script:UiaOk) {
+        & $Emit '  nested-window scan SKIPPED: UI Automation types could not be loaded in this session.'
+        return
+    }
+    $nested = @(Get-VrfNestedWindows)
+    if ($nested.Count -eq 0) { & $Emit '  no nested ControlType=Window elements found.' }
+    foreach ($d in $nested) {
+        $btn = ((Get-DialogButtonNames -element $d.Element) -join ', ')
+        & $Emit ('  nested: class="{0}" name="{1}" hwnd={2} pid={3} buttons=[{4}]' -f $d.Class, $d.Name, $d.Handle, $d.OwnerPid, $btn)
+    }
+    & $Emit '  KNOWN (STP-844, D1): class makVrf::DtNeverAskAgainMessageBox named "Are You Sure?" is the UG52 4.6 exit prompt and "Session Status" is the session-ended / close-terrain prompt. Both are suppressed by CONFIGURATION (scripts\NewVrfAppData52.ps1 + LaunchVrf52 -AppDataDir), never by clicking them from here.'
+}
+
 Say ''
 Say '=== Inventory ==='
 $fe = @(Get-Procs $procFrontend)
@@ -104,6 +274,8 @@ if ($DryRun) {
     if ($fe.Count -eq 0 -and $la.Count -eq 0) { Say-Ok 'no front-end / launcher present, so no window would be closed' }
     foreach ($p in $be) { Say-Ok ('would wait {0}s, then run: taskkill /PID {1}   (NO /F - a graceful close request to a JOINED FEDERATE)' -f $GraceSec, $p.Id) }
     if ($be.Count -eq 0) { Say-Ok ('no {0} present, so no back-end close would be requested' -f $procBackend) }
+    Say-Ok 'would REPORT CloseMainWindow()''s return value (STP-844: D1 discarded it, so "the prompt opened" could not be told from "the window was already disabled").'
+    Say-Ok 'would run the READ-ONLY WINDOW DIAGNOSTIC after the grace and again at a timeout: every titled top-level window (title, visible, enabled) plus every nested ControlType=Window with its class, name and BUTTON NAMES.'
     Say-Ok 'any window this script does not recognise would be LOGGED, never clicked. RTI processes untouched.'
     exit 0
 }
@@ -113,8 +285,18 @@ Say ''
 Say '=== Close the front-end ==='
 foreach ($p in @($fe + $la)) {
     try {
-        $null = $p.CloseMainWindow()
-        Say-Ok ('CloseMainWindow sent to {0} pid={1}' -f $p.ProcessName, $p.Id)
+        # KEEP THE BOOLEAN (STP-844). D1 threw it away (`$null = ...`) and that one bit is
+        # the difference between "the close request landed and opened a prompt" and "the
+        # main window was already DISABLED by a modal, so WM_CLOSE was never posted" -
+        # .NET returns false in the second case and the log looked identical either way.
+        # On D1 it turned out to be TRUE (the enumeration found the exit prompt the close
+        # had opened), but that was established two hours later by hand, not from the log.
+        $sent = $p.CloseMainWindow()
+        if ($sent) {
+            Say-Ok ('CloseMainWindow sent to {0} pid={1} - returned TRUE (the close request was posted to its main window)' -f $p.ProcessName, $p.Id)
+        } else {
+            Say-Warn ('CloseMainWindow on {0} pid={1} returned FALSE - the main window did not accept it. The usual cause is that a MODAL IS ALREADY UP and has disabled the main window, so the close was never posted; the window diagnostic below names what is on screen.' -f $p.ProcessName, $p.Id)
+        }
     } catch {
         Say-Warn ('CloseMainWindow on {0} pid={1} failed: {2} (not fatal; the back-end is still asked below)' -f $p.ProcessName, $p.Id, $_.Exception.Message)
     }
@@ -126,12 +308,22 @@ while ((Get-Date) -lt $graceEnd) {
     if (@(Get-Procs $procFrontend).Count -eq 0 -and @(Get-Procs $procLauncher).Count -eq 0) { break }
     Start-Sleep -Seconds 2
 }
-foreach ($p in @(Get-Procs $procFrontend)) {
+$stillUpAfterGrace = @(Get-Procs $procFrontend)
+foreach ($p in $stillUpAfterGrace) {
     # ENUMERATE, NEVER PREDICT (RUNBOOK 0.5.9): a front-end still up after the grace is
-    # most likely sitting on a modal. Record what can be seen - an EMPTY title is itself a
-    # signature (a modal, or an elevated window this session cannot see) - and click NOTHING.
+    # most likely sitting on a modal. Record what can be seen and click NOTHING. Note
+    # MainWindowTitle is NOT sufficient on its own - with a modal up it keeps reporting
+    # the MAIN window's title, which on D1 was the scenario name and named no dialog.
     $t = try { $p.MainWindowTitle } catch { '(inaccessible)' }
-    Say-Warn ('{0} pid={1} still up after the {2}s grace - window title: "{3}". NOT clicked, NOT killed; record it (this is the evidence the first live 5.2 teardown owes).' -f $p.ProcessName, $p.Id, $GraceSec, $t)
+    Say-Warn ('{0} pid={1} still up after the {2}s grace - MainWindowTitle: "{3}". NOT clicked, NOT killed.' -f $p.ProcessName, $p.Id, $GraceSec, $t)
+}
+if ($stillUpAfterGrace.Count -gt 0) {
+    # Run the diagnostic HERE as well as at the timeout: at this moment the back end has
+    # not been asked to close yet, so whatever is on screen was raised by the GUI's own
+    # quit path alone. That distinction is exactly what D1 could not make afterwards -
+    # its second modal ("Session Status") was raised by the back end going away 20 s
+    # later, and only a report taken BEFORE that can separate the two.
+    Write-WindowDiagnostic -Why ('after the ' + $GraceSec + 's grace, BEFORE the back end is asked to close') -Emit ${function:Say-Warn}
 }
 
 # ---- 2. back-end: taskkill WITHOUT /F = a close REQUEST ------------------------
@@ -165,7 +357,13 @@ if ($left.Count -eq 0) {
     Say-Ok 'VR-Forces 5.2d is down (graceful; nothing was killed).'
     exit 0
 }
-Say-Fail ('still running after {0}s: {1}. NOTHING WAS FORCE-KILLED - a force-killed joined federate leaves a stale federate and the next join hangs (RUNBOOK sec 0). Inspect the screen for a modal before the next launch.' -f $TimeoutSec, ($left -join ', '))
+Say-Fail ('still running after {0}s: {1}. NOTHING WAS FORCE-KILLED - a force-killed joined federate leaves a stale federate and the next join hangs (RUNBOOK sec 0).' -f $TimeoutSec, ($left -join ', '))
+# THE DIAGNOSTIC D1 OWED AND DID NOT HAVE (STP-844). "Inspect the screen for a modal"
+# is not an artifact: on D1 it cost a separate, hand-run enumeration hours later to learn
+# which two dialogs were up. This produces that evidence in the run's own stopvrf log,
+# at the moment of failure, without touching anything.
+Write-WindowDiagnostic -Why ('TIMEOUT after ' + $TimeoutSec + 's') -Emit ${function:Say-Fail}
+Say-Fail 'If one of the windows above is a modal, THAT is what is blocking the shutdown. This script answers nothing by design. The supported remedy is configuration: seed a run-owned appData with scripts\NewVrfAppData52.ps1 and launch with LaunchVrf52.ps1 -AppDataDir <that tree> so the GUI raises no prompt at all (UG52 4.6.1, 4.3.1).'
 exit 3
 
 }

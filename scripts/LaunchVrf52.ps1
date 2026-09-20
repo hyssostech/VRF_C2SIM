@@ -750,6 +750,53 @@ if (-not [string]::IsNullOrWhiteSpace($AppDataDir)) {
     }
 } else { Say-Ok ('appData: vendor default (-AppDataDir not given; the sim uses ./appData = ' + (Join-Path $VrfRoot 'appData') + ')') }
 
+# THE GUI'S TWO TEARDOWN MODALS, CHECKED BEFORE THE LAUNCH, NOT AFTER IT (STP-844).
+# Only matters when a front end is actually started: a headless run raises no dialog and
+# 79/79 headless 5.2 teardowns were clean. GUI-on is the new variable - demo rehearsal D1
+# (run 20260920T172141Z) was the first ever, and its teardown timed out on two stacked
+# never-ask-again message boxes that nothing was there to answer. Both have a persisted
+# setting in the appData tree THIS launch is about to hand the GUI, so the one moment
+# where saying so is cheap is here, before anything starts. REPORT, NEVER REFUSE: a
+# GUI-on launch with the prompts ON is perfectly valid when a human is at the keyboard,
+# and this script cannot know which kind of run this is. The keys, the vendor citations
+# and the remedy live in RunnerLib.ps1's "THE TWO 5.2 GUI TEARDOWN MODALS" block.
+if (-not $NoGui) {
+    $effAppData = $(if ([string]::IsNullOrWhiteSpace($AppDataDir)) { Join-Path $VrfRoot 'appData' } else { $AppDataDir })
+    $guiAppFile  = Join-Path $effAppData 'settings\vrfGui\default_Application.apsx'
+    $guiSessFile = Join-Path $effAppData 'settings\vrfGui\default_SessionSettings.srsx'
+    $guiAppText  = ''
+    $guiSessText = ''
+    if (Test-Path -LiteralPath $guiAppFile  -PathType Leaf) { $guiAppText  = (Get-Content -LiteralPath $guiAppFile  -Raw) }
+    if (Test-Path -LiteralPath $guiSessFile -PathType Leaf) { $guiSessText = (Get-Content -LiteralPath $guiSessFile -Raw) }
+    # RunnerLib.ps1 is dot-sourced INSIDE A CHILD SCOPE (& { ... }) on purpose. It opens
+    # with Set-StrictMode -Version Latest, and this script - unlike the runner - has never
+    # run under StrictMode; dot-sourcing it at script scope would turn StrictMode on for
+    # the whole of a LIVE LAUNCH, where an unset variable anywhere downstream becomes a
+    # terminating error mid-flight. Set-StrictMode applies to the scope it is called in and
+    # its children, so inside & { } it dies with the block. The whole read is also wrapped
+    # in try/catch: an advisory line must never be able to fail a launch.
+    $guiPrompts = $null
+    try {
+        $guiPrompts = & {
+            param($libPath, $appXml, $sessXml)
+            . $libPath
+            Get-VrfGuiPromptSettings -ApplicationXml $appXml -SessionSettingsXml $sessXml
+        } (Join-Path $PSScriptRoot 'RunnerLib.ps1') $guiAppText $guiSessText
+    } catch {
+        Say-Warn ('could not read the vrfGui teardown-prompt settings under {0}: {1} (advisory only - the launch is not affected).' -f $effAppData, $_.Exception.Message)
+    }
+    if ($null -eq $guiPrompts) {
+        # nothing more to say; the catch above already reported it
+    } elseif ($guiPrompts.Unattended) {
+        Say-Ok ('vrfGui teardown prompts are OFF in {0} ({1}) - an unattended StopVrf52 can close this front end.' -f $effAppData, $guiPrompts.Summary)
+    } else {
+        Say-Warn ('vrfGui TEARDOWN PROMPTS ARE ON in {0}: {1}' -f $effAppData, $guiPrompts.Summary)
+        Say-Warn ('  STP-844: with myShowQuitDialogOnClose=1 the GUI raises the UG52 4.6 exit prompt ("Are You Sure?" / "Quit VR-Forces GUI") on the WM_CLOSE that StopVrf52.ps1 sends, and nothing answers it - the teardown then burns its whole budget and leaves a JOINED vrfGui behind (exit 3, runner exit 4). This is exactly what run 20260920T172141Z did.')
+        Say-Warn ('  FIX (vendor configuration, UG52 4.6.1 + 4.3.1, nothing under C:\MAK is touched):  pwsh -File scripts\NewVrfAppData52.ps1 -Dest C:\C2SIM\vrf-appdata-unattended   then relaunch with  -AppDataDir C:\C2SIM\vrf-appdata-unattended\appData')
+        Say-Warn '  NOT A REFUSAL: launching anyway is correct for an INTERACTIVE session, where a human answers the prompt. It is wrong for an unattended run.'
+    }
+}
+
 # Mixed-RTI environment report (Machine scope, informational - overridden per process)
 $mRti = [Environment]::GetEnvironmentVariable('MAK_RTIDIR','Machine')
 $mRid = [Environment]::GetEnvironmentVariable('RTI_RID_FILE','Machine')
