@@ -270,6 +270,22 @@ $ErrorActionPreference = 'Stop'
 # a -FederationHoldSecs default of 900 must show as ON in the banner even before the gate runs.
 $FederationHoldOn = ($FederationHoldSecs -gt 0)
 
+# ---- -AppDataDir NORMALISED HERE, BEFORE ANY READER (STP-844 review item 2) ----
+# A TRAILING BACKSLASH SILENTLY DISABLES THE RELOCATION. Both argument strings below are
+# built as ('"{0}"' -f $AppDataDir) and handed to Start-Process -ArgumentList, so
+# "...\appData\" renders as  --appDataDir "C:\...\appData\"  and the Microsoft C runtime
+# reads that final \" as an ESCAPED QUOTE: vrfGui receives a mangled, unterminated argument
+# and quietly falls back to the vendor ./appData. Tab completion in BOTH PowerShell and Git
+# Bash appends that backslash. What makes it a false green rather than a visible failure is
+# that every other consumer in this script - Test-Path, Join-Path, the STP-844 precheck -
+# handles a trailing separator perfectly, so the launch log prints "[OK] vrfGui teardown
+# prompts are OFF in <relocated path>" while the GUI is reading the vendor tree, the
+# prompts are on, and the teardown hangs exactly as it did on D1. Trimmed ONCE, here,
+# before $connDir, the -AppDataDir precondition, the precheck or the argument strings can
+# read it, so all five agree on one value. A bare drive root survives the trim as "C:" and
+# is refused in the argument gate below (it is drive-RELATIVE, not the root).
+if (-not [string]::IsNullOrWhiteSpace($AppDataDir)) { $AppDataDir = $AppDataDir.TrimEnd('\', '/') }
+
 function Say      { param([string]$m) Write-Host $m }
 function Say-Head { param([string]$m) Write-Host ''; Write-Host ('=== ' + $m + ' ===') }
 function Say-Ok   { param([string]$m) Write-Host ('  [OK]   ' + $m) }
@@ -631,6 +647,14 @@ if ($FederationHoldOn) {
         $appNoFail = $true
     }
 }
+# A BARE DRIVE ROOT survives the trim at the top of this script as "C:", which is a
+# DRIVE-RELATIVE path meaning "the current directory on C:", not "C:\". Refuse it rather
+# than let Join-Path and --appDataDir resolve it against whatever the cwd happens to be.
+# Judged HERE, with the other argument failures, and before the first reader ($connDir).
+if ((-not [string]::IsNullOrWhiteSpace($AppDataDir)) -and ($AppDataDir -match '^[A-Za-z]:$')) {
+    Say-Fail ("-AppDataDir is a bare drive root ('{0}:\'), which after normalisation is the DRIVE-RELATIVE path '{0}:'. Pass the appData DIRECTORY itself, e.g. C:\C2SIM\vrf-appdata-unattended\appData." -f $AppDataDir.Substring(0, 1))
+    $appNoFail = $true
+}
 if ($appNoFail) { Say-Head 'Result'; Say-Fail 'Aborting: argument gate failed. NOTHING was launched.'; exit 2 }
 
 # ---- licence gate (resolve from the registry, then REFUSE an expired one) ---
@@ -766,8 +790,12 @@ if (-not $NoGui) {
     $guiSessFile = Join-Path $effAppData 'settings\vrfGui\default_SessionSettings.srsx'
     $guiAppText  = ''
     $guiSessText = ''
-    if (Test-Path -LiteralPath $guiAppFile  -PathType Leaf) { $guiAppText  = (Get-Content -LiteralPath $guiAppFile  -Raw) }
-    if (Test-Path -LiteralPath $guiSessFile -PathType Leaf) { $guiSessText = (Get-Content -LiteralPath $guiSessFile -Raw) }
+    # THE READS ARE INSIDE THE try, NOT BEFORE IT (STP-844 review item 3). This script sets
+    # $ErrorActionPreference = 'Stop' and has NO outer try/catch, so a Get-Content failure
+    # at script scope - an ACL, a sharing violation, a delete between Test-Path and the
+    # read, a path that trips the provider - is a TERMINATING error that would abort a LIVE
+    # LAUNCH. That directly contradicts this block's own contract: an advisory line must
+    # never be able to fail a launch. Everything the precheck touches now lives in here.
     # RunnerLib.ps1 is dot-sourced INSIDE A CHILD SCOPE (& { ... }) on purpose. It opens
     # with Set-StrictMode -Version Latest, and this script - unlike the runner - has never
     # run under StrictMode; dot-sourcing it at script scope would turn StrictMode on for
@@ -777,6 +805,8 @@ if (-not $NoGui) {
     # in try/catch: an advisory line must never be able to fail a launch.
     $guiPrompts = $null
     try {
+        if (Test-Path -LiteralPath $guiAppFile  -PathType Leaf) { $guiAppText  = (Get-Content -LiteralPath $guiAppFile  -Raw) }
+        if (Test-Path -LiteralPath $guiSessFile -PathType Leaf) { $guiSessText = (Get-Content -LiteralPath $guiSessFile -Raw) }
         $guiPrompts = & {
             param($libPath, $appXml, $sessXml)
             . $libPath

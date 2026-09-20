@@ -54,10 +54,40 @@ destination - Jira STP-845.
 D1 = STOP on prediction 4; D2 NOT RUN; remedy lane fix/gui-quit-prompt-teardown; the
 confirming run is D1b, to be registered before it runs.
 
+## D1b - Way A with the GUI and the run-owned appData (STP-844 confirming run)
+
+Registered 2026-09-20 BEFORE the run. Command = D1's exact command (above) plus
+`--vrf-appdata-dir C:\C2SIM\vrf-appdata-unattended\appData` (NO trailing backslash - it
+makes the quoted argument's closing `\"` read as an escaped quote and vrfGui silently
+ignores the option). One-time setup: `scripts\NewVrfAppData52.ps1 -Dest
+C:\C2SIM\vrf-appdata-unattended`, run once by the seat, plus a post-seed copy of the
+settings directory kept in the scratchpad for a post-run diff.
+
+Predictions (guiquit_report.md sec 8, review-amended):
+- P1 (HIGH): LaunchVrf52's [OK] line names the RELOCATED path, not C:\MAK.
+- P2 (HIGH): "Are You Sure?" / "Quit VR-Forces GUI" never opens - CloseMainWindow TRUE, the
+  front end gone inside the 20 s grace, no post-grace window diagnostic runs.
+- P3 (MEDIUM-HIGH): "Session Status" / "The current session has ended. Close current
+  terrain?" never opens.
+- P4 (HIGH): StopVrf52 exit 0, runner exit 0, post-run VR-Forces inventory empty, nothing
+  force-killed.
+- P5 (HIGH): everything upstream of teardown repeats D1 (holder joins, READY unattended, 6
+  units, 3/3 terminal, real time). D1b changes TWO things vs D1, not one: -VrfAppDataDir
+  also relocates the connection-config file the runner reads (RunC2SimScenario.ps1:883-888),
+  and the seed captures POST-D1 vendor state, not D1's starting state.
+- P6 (LOW): default_Application.apsx and default_SessionSettings.srsx in the run-owned tree
+  still hold the patched values after the run.
+
+STOP rule: a P2 miss is a STOP. Falsification note for P3 (review item 8): a P3 miss WITH a
+P2 hit does not fail the remedy - three candidates besides the bit mapping: one of the seven
+unnamed set bits in mySessionOptions; the flag words in applicationSettings.xml; or session
+settings arriving from the session database because DtAlwaysJoinWithSessionDatabase (0x4) is
+set. The post-run settings-directory diff discriminates between them.
+
 ## D2 - reset between runs, the FULL CYCLE with the GUI (DEMO_RUNBOOK sec 6 item 1: 'run the one command again')
 
-Registered 2026-09-20 BEFORE D1 runs. D2 = D1's exact command a second time, started after D1's teardown inventory is
-clean (observer process count 0; D1's holder may still be joined - EXPECTED, it is why D2's sim joins).
+Registered 2026-09-20 BEFORE D1 runs. D2 = D1b's exact command a second time, started after D1b's teardown inventory is
+clean (observer process count 0; D1b's holder may still be joined - EXPECTED, it is why D2's sim joins).
 - HIGH: D2 reaches READY and completes 3/3 exactly as D1 did; no wedge (the 5.0.2-era teardown-relaunch wedge does
   not reproduce: the 5.2 runner teardown was 8/8 clean on 2026-09-14, headless; the GUI is the new variable).
 - HIGH: D2's Stage 2h holder JOINS (fresh ledgered appNo) whether or not D1's holder is still in the federation.

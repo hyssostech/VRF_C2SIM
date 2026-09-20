@@ -1517,6 +1517,232 @@ $lv52Code = (@(Get-Content -LiteralPath $lv52Script | Where-Object { $_.Trim() -
 Check '10e LaunchVrf52 still EXECUTES no Set-StrictMode of its own (the reason the child scope matters)' (
     $lv52Code -notmatch 'Set-StrictMode')
 
+# 10f. STP-844 COLD-START REVIEW FIXES (items 2-6 of scratchpad\validation\guiquit_review.md).
+# Five should-fixes, none of them a behaviour change to the remedy itself, all of them
+# things that could waste or wreck the confirming run:
+#   2. a TRAILING BACKSLASH on -AppDataDir renders as \" to the C runtime, so vrfGui
+#      silently ignores --appDataDir while the precheck prints [OK] - a false green of
+#      exactly the kind that costs a whole run.
+#   3. the precheck's two Get-Content calls sat OUTSIDE its try, under
+#      $ErrorActionPreference='Stop' in a script with no outer catch - an advisory read
+#      could abort a LIVE LAUNCH.
+#   4/5. the Add-Type and the window diagnostic were unguarded on the TEARDOWN path,
+#      BETWEEN the grace and the back-end close - a throw there exits 5 and leaves a JOINED
+#      back end running, which is worse than having no diagnostic.
+#   6. the C:\MAK guard's comment claimed junction/subst protection the code did not
+#      implement; \\?\C:\MAK\..., \\.\C:\MAK\... and \\localhost\C$\MAK\... all passed.
+Write-Host '=== 10f. STP-844 review item 2: a trailing backslash on -AppDataDir must not produce \" ==='
+Check '10f LaunchVrf52 trims trailing separators from -AppDataDir ONCE, before any reader' (
+    $lv52Text -match [regex]::Escape("`$AppDataDir = `$AppDataDir.TrimEnd('\', '/')"))
+Check '10f and refuses a bare drive root, which survives the trim as the DRIVE-RELATIVE "C:"' (
+    $lv52Text -match "\`$AppDataDir -match '\^\[A-Za-z\]:\`$'" -and $lv52Text -match 'bare drive root')
+# Behavioural half: run the real script and read the command lines it would use. A static
+# match cannot prove the trim reached BOTH argument strings, and it is the rendered
+# argument - not the variable - that the C runtime mis-parses.
+$gqTrimDir = Join-Path ([System.IO.Path]::GetTempPath()) ('stp844trim-' + [guid]::NewGuid().ToString('N'))
+try {
+    $null = New-Item -ItemType Directory -Path (Join-Path $gqTrimDir 'settings\vrfGui') -Force
+    $null = New-Item -ItemType Directory -Path (Join-Path $gqTrimDir 'settings\vrfSim') -Force
+    if (-not (Test-Path -LiteralPath $gqPwsh)) {
+        Check '10f SKIPPED - pwsh 7 not at the expected path' $true
+    } else {
+        # NOTE the deliberate trailing backslash - this is what tab completion produces.
+        $gqTrimOut = (& $gqPwsh -NoProfile -NonInteractive -File $lv52Script -DryRun -NoGui `
+                        -BackendAppNumber 9101 -AppDataDir ($gqTrimDir + '\') 2>&1 | Out-String)
+        if ($gqTrimOut -notmatch '--appDataDir') {
+            Check '10f SKIPPED - the dry run refused before it printed a command line' $true
+        } else {
+            Check '10f the rendered --appDataDir argument carries NO backslash-quote (the C runtime would read \" as an escaped quote)' (
+                $gqTrimOut -notmatch '--appDataDir "[^"]*\\"') 'a trailing \" survived into the argument string'
+            Check '10f the path still reaches the argument, i.e. the trim did not eat the directory' (
+                $gqTrimOut -match [regex]::Escape('--appDataDir "' + $gqTrimDir + '"'))
+        }
+        $gqRootOut  = (& $gqPwsh -NoProfile -NonInteractive -File $lv52Script -DryRun -NoGui `
+                        -BackendAppNumber 9101 -AppDataDir 'Q:\' 2>&1 | Out-String)
+        $gqRootCode = $LASTEXITCODE
+        Check '10f a bare drive root is refused at the argument gate (exit 2), not silently resolved against the cwd' (
+            $gqRootCode -eq 2 -and $gqRootOut -match 'bare drive root') "exit=$gqRootCode"
+    }
+} finally { Remove-Item -LiteralPath $gqTrimDir -Recurse -Force -ErrorAction SilentlyContinue }
+
+Write-Host '=== 10f2. STP-844 review item 3: the precheck cannot abort a live launch ==='
+# AST, not regex: find the two Get-Content calls that read the vrfGui settings files and
+# prove each one is INSIDE a try. A regex would only show they moved, not that they landed
+# somewhere protected.
+$lv52Ast  = [System.Management.Automation.Language.Parser]::ParseFile($lv52Script, [ref]$null, [ref]$null)
+function Test-InsideTry {
+    param($node)
+    $n = $node
+    while ($null -ne $n) {
+        if ($n -is [System.Management.Automation.Language.TryStatementAst]) { return $true }
+        $n = $n.Parent
+    }
+    return $false
+}
+$gqGuiReads = @($lv52Ast.FindAll({
+    param($n)
+    $n -is [System.Management.Automation.Language.CommandAst] -and
+    $n.GetCommandName() -eq 'Get-Content' -and
+    $n.Extent.Text -match 'guiAppFile|guiSessFile' }, $true))
+Check '10f2 both vrfGui settings reads are present and BOTH are inside a try (AST, not a grep)' (
+    $gqGuiReads.Count -eq 2 -and
+    @($gqGuiReads | Where-Object { Test-InsideTry $_ }).Count -eq 2) ("found " + $gqGuiReads.Count)
+
+Write-Host '=== 10f3. STP-844 review items 4+5: a failing diagnostic must not cost the back end its close ==='
+$sv52Ast = [System.Management.Automation.Language.Parser]::ParseFile($sv52Path, [ref]$null, [ref]$null)
+$gqDiagCalls = @($sv52Ast.FindAll({
+    param($n)
+    $n -is [System.Management.Automation.Language.CommandAst] -and
+    $n.GetCommandName() -eq 'Write-WindowDiagnostic' }, $true))
+Check '10f3 every Write-WindowDiagnostic call site is wrapped in its OWN try (AST)' (
+    $gqDiagCalls.Count -ge 2 -and
+    @($gqDiagCalls | Where-Object { Test-InsideTry $_ }).Count -eq $gqDiagCalls.Count) ("call sites: " + $gqDiagCalls.Count)
+# The post-grace call sits BETWEEN the grace loop and the taskkill. Prove the back-end stop
+# is REACHABLE past it: the taskkill call must not be inside the same try as the diagnostic,
+# or a throw would skip it even with the catch present.
+$gqTaskkill = @($sv52Ast.FindAll({
+    param($n)
+    $n -is [System.Management.Automation.Language.CommandAst] -and
+    $n.GetCommandName() -eq 'taskkill' }, $true))
+Check '10f3 the back-end taskkill exists and is NOT nested inside a diagnostic try block' (
+    $gqTaskkill.Count -eq 1 -and
+    ($gqTaskkill[0].Extent.StartOffset -gt $gqDiagCalls[0].Extent.StartOffset) -and
+    @($gqDiagCalls | Where-Object {
+        $gqTaskkill[0].Extent.StartOffset -gt $_.Extent.StartOffset -and
+        $gqTaskkill[0].Extent.EndOffset   -lt $_.Parent.Parent.Extent.EndOffset }).Count -eq 0) ("taskkill sites: " + $gqTaskkill.Count)
+# The Add-Type must be LAZY: nothing is compiled on a headless run, a -DryRun, or a run
+# with no VR-Forces process. On main it ran unconditionally on every invocation.
+$gqAddTypes = @($sv52Ast.FindAll({
+    param($n)
+    $n -is [System.Management.Automation.Language.CommandAst] -and
+    $n.GetCommandName() -eq 'Add-Type' }, $true))
+Check '10f3 every Add-Type lives inside the lazy Initialize-WindowDiagnostic function and inside a try' (
+    $gqAddTypes.Count -ge 1 -and
+    @($gqAddTypes | Where-Object { Test-InsideTry $_ }).Count -eq $gqAddTypes.Count -and
+    @($gqAddTypes | Where-Object {
+        $f = $_.Parent
+        while ($null -ne $f -and -not ($f -is [System.Management.Automation.Language.FunctionDefinitionAst])) { $f = $f.Parent }
+        $null -ne $f -and $f.Name -eq 'Initialize-WindowDiagnostic' }).Count -eq $gqAddTypes.Count) ("Add-Type sites: " + $gqAddTypes.Count)
+Check '10f3 Get-VrfWindows returns empty rather than throwing when the P/Invoke types never compiled' (
+    $sv52Code -match 'if \(-not \$script:WinApiOk\) \{ return @\(\) \}')
+Check '10f3 both PropertyCondition constructions sit inside a try, not just the element access (AST)' (
+    $(  $conds = @($sv52Ast.FindAll({
+            param($n)
+            $n -is [System.Management.Automation.Language.CommandAst] -and
+            $n.GetCommandName() -eq 'New-Object' -and
+            $n.Extent.Text -match 'PropertyCondition' }, $true))
+        $conds.Count -eq 2 -and @($conds | Where-Object { Test-InsideTry $_ }).Count -eq 2))
+# The real proof: inject a THROWING diagnostic and show the script still reaches the
+# back-end close. Done by rewriting the script's own text in a TEMP copy - the repo file is
+# not touched - and running it with no VR-Forces process required beyond the dry-run plan.
+$gqThrowCopy = Join-Path ([System.IO.Path]::GetTempPath()) ('stp844throw-' + [guid]::NewGuid().ToString('N') + '.ps1')
+try {
+    $gqThrowText = $sv52Text -replace 'function Write-WindowDiagnostic \{', "function Write-WindowDiagnostic {`r`n    throw 'INJECTED diagnostic failure (test 10f3)'"
+    Set-Content -LiteralPath $gqThrowCopy -Value $gqThrowText -Encoding ascii
+    $gqThrowParse = $null
+    $null = [System.Management.Automation.Language.Parser]::ParseFile($gqThrowCopy, [ref]$null, [ref]$gqThrowParse)
+    Check '10f3 the injected-throw copy still parses (the injection landed where it was meant to)' (
+        $gqThrowParse.Count -eq 0 -and $gqThrowText -match 'INJECTED diagnostic failure')
+    if (-not (Test-Path -LiteralPath $gqPwsh)) {
+        Check '10f3 SKIPPED - pwsh 7 not at the expected path' $true
+    } else {
+        $gqThrowOut  = (& $gqPwsh -NoProfile -NonInteractive -File $gqThrowCopy -DryRun 2>&1 | Out-String)
+        $gqThrowCode = $LASTEXITCODE
+        # -DryRun never reaches the diagnostic, so this asserts the weaker but still
+        # necessary thing: injecting a throwing diagnostic changes no exit code on the
+        # paths a test may safely run. Exit 5 here would mean the throw escaped at parse
+        # or definition time.
+        Check '10f3 a THROWING Write-WindowDiagnostic does not turn a clean run into exit 5' (
+            $gqThrowCode -ne 5 -and $gqThrowOut -notmatch 'unexpected terminating error') "exit=$gqThrowCode"
+    }
+} finally { Remove-Item -LiteralPath $gqThrowCopy -Force -ErrorAction SilentlyContinue }
+
+Write-Host '=== 10f4. STP-844 review item 6: the C:\MAK guard now resolves links instead of claiming to ==='
+$gqSeedText = Get-Content -LiteralPath (Join-Path $RepoRoot 'scripts\NewVrfAppData52.ps1') -Raw
+Check '10f4 the comment no longer claims a junction/subst protection GetFullPath cannot give' (
+    $gqSeedText -notmatch 'PREFIX test on the raw string as well as on the\r?\n# resolved path' -and
+    $gqSeedText -match 'PURE STRING NORMALISATION and')
+Check '10f4 C:\MAK is hard-coded into the forbidden set and -AlsoForbiddenRoot can only ADD to it' (
+    $gqSeedText -match [regex]::Escape("`$forbiddenRoots = @('C:\MAK') + @(`$AlsoForbiddenRoot") -and
+    $gqSeedText -match 'only ADDS')
+$gqSeedSrc = Join-Path ([System.IO.Path]::GetTempPath()) ('stp844g-src-'  + [guid]::NewGuid().ToString('N'))
+$gqFakeMak = Join-Path ([System.IO.Path]::GetTempPath()) ('stp844g-mak-'  + [guid]::NewGuid().ToString('N'))
+$gqLinkDir = Join-Path ([System.IO.Path]::GetTempPath()) ('stp844g-link-' + [guid]::NewGuid().ToString('N'))
+try {
+    $null = New-Item -ItemType Directory -Path (Join-Path $gqSeedSrc 'appData\settings\vrfGui') -Force
+    $null = New-Item -ItemType Directory -Path $gqFakeMak -Force
+    $null = New-Item -ItemType Directory -Path $gqLinkDir -Force
+    if (-not (Test-Path -LiteralPath $gqPwsh)) {
+        Check '10f4 SKIPPED - pwsh 7 not at the expected path' $true
+    } else {
+        # THE THREE MEASURED BYPASSES. Each must now be refused with exit 2 BEFORE anything
+        # is copied. They name the real C:\MAK deliberately - the guard must refuse them, so
+        # nothing is ever created there; the run is proved harmless by the exit code and by
+        # the refusal text, and no -Force or seeding path is reached.
+        foreach ($bad in @(('\\?\' + 'C:\MAK\x'), ('\\.\' + 'C:\MAK\x'), ('\\localhost\C$\MAK\x'))) {
+            $o = (& $gqPwsh -NoProfile -NonInteractive -File $gqExe -Dest $bad -VrfRoot $gqSeedSrc 2>&1 | Out-String)
+            Check ('10f4 bypass form refused: ' + $bad) (
+                $LASTEXITCODE -eq 2 -and $o -match 'UNC or device path') "exit=$LASTEXITCODE"
+        }
+        $o = (& $gqPwsh -NoProfile -NonInteractive -File $gqExe -Dest 'relative\path' -VrfRoot $gqSeedSrc 2>&1 | Out-String)
+        Check '10f4 a RELATIVE -Dest is refused (it would resolve against the .NET process dir, not the shell)' (
+            $LASTEXITCODE -eq 2 -and $o -match 'must be an ABSOLUTE path') "exit=$LASTEXITCODE"
+        # THE JUNCTION CASE, built entirely in TEMP and pointed at a TEMP stand-in for the
+        # vendor root via -AlsoForbiddenRoot. The real C:\MAK is never a junction target
+        # here; what is exercised is the ancestor walk and the link resolution.
+        $gqLink = Join-Path $gqLinkDir 'looks-innocent'
+        $gqJunctionMade = $false
+        try { $null = New-Item -ItemType Junction -Path $gqLink -Target $gqFakeMak; $gqJunctionMade = $true } catch { }
+        if (-not $gqJunctionMade) {
+            Check '10f4 SKIPPED - could not create a junction in TEMP on this machine' $true
+        } else {
+            $o = (& $gqPwsh -NoProfile -NonInteractive -File $gqExe -Dest (Join-Path $gqLink 'sub') `
+                    -VrfRoot $gqSeedSrc -AlsoForbiddenRoot $gqFakeMak 2>&1 | Out-String)
+            Check '10f4 a -Dest whose ANCESTOR is a junction into the forbidden root is refused (the old guard let this through)' (
+                $LASTEXITCODE -eq 2 -and $o -match 'resolves into .* through a Junction') "exit=$LASTEXITCODE"
+            $o = (& $gqPwsh -NoProfile -NonInteractive -File $gqExe -Dest $gqLink `
+                    -VrfRoot $gqSeedSrc -AlsoForbiddenRoot $gqFakeMak 2>&1 | Out-String)
+            Check '10f4 and so is -Dest being the junction ITSELF' (
+                $LASTEXITCODE -eq 2 -and $o -match 'resolves into .* through a Junction') "exit=$LASTEXITCODE"
+            # THE GUARD MUST NOT BE A BLANKET REFUSAL: an ordinary TEMP path with the same
+            # extra forbidden root still passes the guard and reaches the source check.
+            $o = (& $gqPwsh -NoProfile -NonInteractive -File $gqExe -Dest (Join-Path $gqLinkDir 'plain') `
+                    -VrfRoot $gqSeedSrc -AlsoForbiddenRoot $gqFakeMak -DryRun 2>&1 | Out-String)
+            Check '10f4 a plain non-link path under the same parent is NOT refused (the guard discriminates)' (
+                $LASTEXITCODE -eq 0 -and $o -match 'nothing is copied, linked or written') "exit=$LASTEXITCODE"
+        }
+    }
+} finally {
+    # Remove the junction itself first, so nothing recursive ever walks through it.
+    Remove-Item -LiteralPath (Join-Path $gqLinkDir 'looks-innocent') -Force -Recurse -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $gqLinkDir -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $gqFakeMak -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $gqSeedSrc -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+Write-Host '=== 10f5. STP-844 review item 7: the 112885 decomposition is recorded correctly ==='
+# 112885 has TWELVE set bits; the enum names only five of them (85). The record used to
+# present the word as if it decomposed into the enum alone. The mask must preserve the
+# seven unnamed bits, whose meaning nobody has read off a header.
+$gqUnnamed = @(0x20, 0x80, 0x800, 0x1000, 0x2000, 0x8000, 0x10000)
+Check '10f5 the seven unnamed bits are all SET in the shipped value and sum to 112800' (
+    @($gqUnnamed | Where-Object { (112885 -band $_) -ne 0 }).Count -eq 7 -and
+    ($gqUnnamed | Measure-Object -Sum).Sum -eq 112800)
+Check '10f5 the named bits account for only 85 of 112885' (
+    (112885 -band (0x1 -bor 0x2 -bor 0x4 -bor 0x8 -bor 0x10 -bor 0x40 -bor 0x40000)) -eq 85)
+Check '10f5 the MASK preserves every one of the seven unnamed bits' (
+    $(  $r = Set-VrfGuiPromptSettingsText -Kind 'SessionSettings' -Text '<mySessionOptions>112885</mySessionOptions>'
+        $v = [int]$r.After
+        @($gqUnnamed | Where-Object { ($v -band $_) -ne 0 }).Count -eq 7 -and $v -eq 112869))
+$gqLibText = Get-Content -LiteralPath (Join-Path $RepoRoot 'scripts\RunnerLib.ps1') -Raw
+Check '10f5 RunnerLib''s citation block SAYS the seven bits are unnamed instead of implying the enum is complete' (
+    $gqLibText -match 'NO NAME IN THE 5\.2 HEADER' -and
+    $gqLibText -match 'ONLY 85 OF 112885' -and
+    $gqLibText -match '0x20, 0x80, 0x800, 0x1000, 0x2000, 0x8000')
+Check '10f5 and it names the OTHER explanations for a session-prompt miss, not just "the mapping is wrong"' (
+    $gqLibText -match 'DtVrfExtendedApplicationSettingsDataFlags' -and
+    $gqLibText -match 'from the SESSION at join time')
+
 Write-Host ''
 Write-Host ('{0} passed, {1} failed' -f $script:Pass, $script:Fail)
 if ($script:Fail -gt 0) { exit 1 }

@@ -122,6 +122,10 @@ THE CACHE WARM-UP AND THE READY SIGNAL (the trap on a first run after a reboot)
 
 ## 1. Way A - the one command
 
+ONE-TIME SETUP (STP-844, before the first GUI-on demo run): `pwsh -NoProfile -File
+scripts\NewVrfAppData52.ps1 -Dest C:\C2SIM\vrf-appdata-unattended` (about 700 files / 33 MB;
+the terrain cache is junctioned, not copied; safe to re-run).
+
 From the repository root, in Git Bash:
 
     scripts/RunScenario.sh --gui \
@@ -129,7 +133,8 @@ From the repository root, in Git Bash:
       --init data/R9_Mojave_Lean_Initialization.xml \
       --order data/R9_Mojave_UnitMove_Order.xml \
       --client-id STP \
-      --object-console -1 --member-console -1
+      --object-console -1 --member-console -1 \
+      --vrf-appdata-dir C:\C2SIM\vrf-appdata-unattended\appData
 
 `scripts/RunScenario.sh --help` lists every option. What this one command does, in order: starts
 rtiexec if it is not already up, launches VR-Forces (with the GUI, because of `--gui`), starts the
@@ -139,6 +144,9 @@ everything down except rtiexec.
 The two console options above turn the per-unit diagnostic chatter OFF. Leave them out only if an
 engineer asks for them: they can write a gigabyte of log in a long run.
 
+`--vrf-appdata-dir` (STP-844) points the GUI and the sim at the run-owned appData seeded above,
+whose two teardown prompts are pre-disabled - UNVERIFIED until D1b confirms it live.
+
 WATCH IT from a SECOND window with `tail -f <the runner log path the command prints>`. Do NOT pipe
 the command, do not add `| tee`, and do not run any process-killing sweep while it is running.
 
@@ -146,9 +154,10 @@ RUN 2026-09-20 (D1, GUI ON): the one-command wrapper reached READY unattended, p
 and the order, and all three tasks completed in real time (ratio 1.00, 4 min 44 s
 order-to-last-completion) - start, init, order and completion all worked. TEARDOWN DID NOT: the
 GUI was left open on its own documented exit prompt (UG52 sec 4.6/4.6.1) and StopVrf52.ps1
-exited 3 (still running - nothing was killed). UNTIL THE FIX LANDS: at the end of a `--gui` run,
-click the GUI's quit prompt by hand, and expect the leftover vrfGui to block the next launch
-until you close it (`pwsh -File scripts\StopVrf52.ps1` or the GUI itself).
+exited 3 (still running - nothing was killed). UNTIL THE FIX LANDS, on a run WITHOUT
+`--vrf-appdata-dir`: at the end of a `--gui` run, click the GUI's quit prompt by hand, and expect
+the leftover vrfGui to block the next launch until you close it (`pwsh -File
+scripts\StopVrf52.ps1` or the GUI itself).
 
 ---
 
@@ -167,10 +176,13 @@ until you close it (`pwsh -File scripts\StopVrf52.ps1` or the GUI itself).
 
 2. VR-Forces WITH the GUI - this is the audience's window:
        pwsh -File scripts\LaunchVrf52.ps1 -Scenario R9_Mojave_Empty_52 `
-            -BackendAppNumber 9201 -FrontendAppNumber 9202
+            -BackendAppNumber 9201 -FrontendAppNumber 9202 `
+            -AppDataDir C:\C2SIM\vrf-appdata-unattended\appData
    EXPECT: a "Federation HOLDER (STP-825)" section (step 1b) first, then "READY" from the
    script, then the GUI showing an empty Mojave map with the simulation clock running.
    Terrain load takes a while the first time (it is streaming from the internet).
+   `-AppDataDir` (STP-844) is the same run-owned, pre-seeded tree as Way A's
+   `--vrf-appdata-dir` - UNVERIFIED until D1b confirms it live.
 
 3. The interface:
        pwsh -File scripts\StartInterface52.ps1 -ClientId STP

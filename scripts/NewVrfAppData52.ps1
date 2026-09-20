@@ -71,7 +71,12 @@ param(
     # Re-seed over an existing -Dest. Without it an existing tree is only RE-CHECKED and
     # re-edited, never re-copied - so running this twice is cheap and idempotent.
     [switch] $Force,
-    [switch] $DryRun
+    [switch] $DryRun,
+    # EXTRA forbidden roots, for tests. C:\MAK is ALWAYS forbidden and cannot be removed by
+    # this parameter - it only ADDS. That is deliberate: a guard an argument can switch off
+    # is not a guard. Tests use it to point the junction/symlink half at a TEMP stand-in for
+    # a vendor root, so the real C:\MAK is never involved in exercising it.
+    [string[]] $AlsoForbiddenRoot = @()
 )
 
 Set-StrictMode -Version Latest
@@ -98,15 +103,78 @@ if ([string]::IsNullOrWhiteSpace($Dest)) {
     Say-Fail '-Dest is MANDATORY: the parent directory that will hold appData\ (e.g. C:\C2SIM\vrf-appdata-unattended).'
     exit 2
 }
-# The C:\MAK guard is deliberately a PREFIX test on the raw string as well as on the
-# resolved path: a junction or a substituted drive could resolve into C:\MAK from a path
-# that does not look like it, and a path that LOOKS like it must be refused even if it
-# does not exist yet (Resolve-Path cannot be used on a directory we are about to create).
+# ---- THE C:\MAK GUARD, IN THREE PARTS (STP-844 review item 6) -----------------
+# The first version of this guard CLAIMED to defeat junctions and substituted drives and
+# did not: it used [System.IO.Path]::GetFullPath, which is PURE STRING NORMALISATION and
+# traverses nothing. Measured bypasses were \\?\C:\MAK\x and \\localhost\C$\MAK\x, plus any
+# -Dest that is itself a junction into the vendor tree. The comment has been rewritten to
+# describe what the code actually does, and the code now does three separate things.
+$forbiddenRoots = @('C:\MAK') + @($AlsoForbiddenRoot | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+
+# (1) DEVICE AND UNC FORMS ARE REFUSED OUTRIGHT. \\?\ and \\.\ skip Win32 path
+# canonicalisation entirely, so no prefix test on them means anything; \\host\share and
+# \\host\C$ reach the same files under a name the prefix test cannot see. None of these is
+# a plausible typo - all require a deliberately odd -Dest - so refusing the whole shape is
+# cheaper and safer than trying to canonicalise it.
+if ($Dest -match '^\\\\') {
+    Say-Fail ('-Dest is a UNC or device path ({0}) - REFUSED. \\?\ and \\.\ bypass path canonicalisation and \\host\share (e.g. \\localhost\C$\MAK\...) can reach the vendor tree under a name no prefix test can see. Pass a plain local path such as C:\C2SIM\vrf-appdata-unattended.' -f $Dest)
+    exit 2
+}
+# (2) IT MUST BE ROOTED. A relative -Dest is resolved by .NET against
+# [Environment]::CurrentDirectory, which PowerShell does NOT keep in step with
+# Set-Location - so the tree silently lands somewhere other than where the operator is
+# standing. Not a C:\MAK hazard (the guard and every write use the same resolved value),
+# but a silent wrong-location, and it makes the ancestor walk below well defined.
+if (-not [System.IO.Path]::IsPathRooted($Dest)) {
+    Say-Fail ('-Dest must be an ABSOLUTE path (got "{0}"). A relative path resolves against the .NET process directory, not your shell''s location, and would seed the tree somewhere unexpected.' -f $Dest)
+    exit 2
+}
 $destFull = $Dest
 try { $destFull = [System.IO.Path]::GetFullPath($Dest) } catch { }
-if ($destFull -like 'C:\MAK*' -or $Dest -like 'C:\MAK*') {
-    Say-Fail ('-Dest is under C:\MAK ({0}) - REFUSED. The whole point of this script is that the vendor tree is never written to; a reinstall reverts it and this project does not modify C:\MAK.' -f $destFull)
-    exit 2
+# (3) THE PREFIX TEST, on the normalised and the raw string - it catches the literal cases
+# (C:\MAK\x, c:\mak\x, C:/MAK/x) and nothing else, which is now all it claims to do.
+foreach ($fr in $forbiddenRoots) {
+    if ($destFull -like ($fr + '*') -or $Dest -like ($fr + '*')) {
+        Say-Fail ('-Dest is under {0} ({1}) - REFUSED. The whole point of this script is that the vendor tree is never written to; a reinstall reverts it and this project does not modify it.' -f $fr, $destFull)
+        exit 2
+    }
+}
+# (4) AND THE PART THE OLD COMMENT ONLY PROMISED: walk every EXISTING ancestor of the
+# destination and ask the filesystem, not the string, where it goes. A junction or symlink
+# anywhere on the path - including -Dest itself - is resolved through .LinkType/.Target and
+# the target is prefix-tested too. The walk stops at the first ancestor that exists,
+# upwards, because a path we are about to CREATE cannot be a reparse point yet; only its
+# existing parents can. Resolve-Path and GetFullPath both refuse to do this, which is why
+# it is done by hand.
+$probe = $destFull
+$seen  = 0
+while (-not [string]::IsNullOrWhiteSpace($probe) -and $seen -lt 64) {
+    $seen++
+    if (Test-Path -LiteralPath $probe) {
+        $item = $null
+        try { $item = Get-Item -LiteralPath $probe -Force } catch { $item = $null }
+        if ($null -ne $item) {
+            $linkType = ''
+            $target   = @()
+            try { if ($item.PSObject.Properties['LinkType'] -and $item.LinkType) { $linkType = [string]$item.LinkType } } catch { }
+            try { if ($item.PSObject.Properties['Target']   -and $item.Target)   { $target   = @($item.Target) }        } catch { }
+            if ($linkType -and $target.Count -gt 0) {
+                foreach ($t in $target) {
+                    $tFull = [string]$t
+                    try { $tFull = [System.IO.Path]::GetFullPath([string]$t) } catch { }
+                    foreach ($fr in $forbiddenRoots) {
+                        if ($tFull -like ($fr + '*')) {
+                            Say-Fail ('-Dest resolves into {0} through a {1} at "{2}" -> "{3}" - REFUSED. The path did not look like the vendor tree, but the filesystem says it is.' -f $fr, $linkType, $probe, $tFull)
+                            exit 2
+                        }
+                    }
+                }
+            }
+        }
+    }
+    $parent = [System.IO.Path]::GetDirectoryName($probe)
+    if ($parent -eq $probe -or [string]::IsNullOrWhiteSpace($parent)) { break }
+    $probe = $parent
 }
 $srcAppData = Join-Path $VrfRoot 'appData'
 $srcCache   = Join-Path $srcAppData 'cache'
