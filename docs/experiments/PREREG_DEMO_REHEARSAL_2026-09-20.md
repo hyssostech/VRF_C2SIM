@@ -184,5 +184,19 @@ Anomalies: E1 a backwards sim-clock step (74.1 -> 72.9 s) before any dispatch, u
 E3 BdeHQ's arrival margin still drifting (+407/+360/+308 m over three runs); E4 the manifest
 omits the persistent holder; E8 D2's 439 extra GUI log lines did not recur.
 
+## D6 - R9 regression on main 248143f (registered BEFORE the run)
+
+D4/D5 keep their reserved numbers; D6 is out of numeric order because it registers after them.
+Build: main 248143f, rebuilt 2026-09-20T22:52:15Z, bridge pin 90272BC9 unchanged on all eleven consumers, 23 selftests (22 exit 0 + fail-first arm), suite 397/0, tile cache intact (7 R9 tiles).
+First LIVE exercise of: runner-truth merge 35664ea (input-source provenance, route-shift PREDICTED vs ANNOUNCED + agreement flag, vendor logs captured BY PID never opened, LaunchVrf52 -FederationHeldByCaller, connection-config hash check) and intake merges 9d67f97+248143f (MapGraphicID resolution - R9 has 0 MapGraphicIDs, geometry UNCHANGED; de-stack ON but a NO-OP on R9 lean - 0 units move, 1141/1142/1143.MechPlt are composed children with no authored coordinates; tile decode-before-cache; claim-then-log in the shift worker; the one-line start-up cache banner).
+Known open defect, UNREACHABLE here: CA2017 at VrfC2SimService.cs:3161 (HoldInPlace path; R9 is MOVE x3) - fix lane in flight.
+Command: D3's exact command. Conditions RECORDED at launch as in D3: no subagent, no stray scan/build/generator process (vrfNavGenerator, dotnet, VBCSCompiler, MSBuild), >= 30 min since the last teardown, tile cache warm, baseline CPU noted; rtiexec pid 51560 (fresh, -n 3) with holder pid 12916 joined, so Stage 2h JOINS.
+P1 (HIGH): start/init/6 units/3 TASKSTRT/3-3 terminal/teardown clean (StopVrf ~10 s, 0/0, only RTI infra + holder left) - as D3.
+P2 (HIGH): completions within +/-10% of D3's 38.2/158.6/289.1 s, same close rule per task (arrival evidence), margins within +/-60 m of D3's, the same 4 STP-845 give-ups at comparable sim time, sim/wall 1.00; de-stack moves 0 units, placement lines say so.
+P3 (HIGH): runner truth - Stage 0 names scenario/init/order source; manifest routeShift predicted ON and announced ON, agreement true; vendor sim+GUI logs for this run's pids copied in; the two historical "vrfGui.log not found" WARNs GONE; the false "no holder" alarm GONE; connection-config hash VERIFIED IDENTICAL.
+P4 (HIGH): warm cache, L13, 0 fetches, no shift, new banner states cache path + tile count.
+P5 (MEDIUM): first-ground-task dispatch deferral stays ~4-5 s as in D3.
+MISS = any P1 failure; a completion outside +/-10% with no condition recorded to explain it; any member/taskee off D3's start; any runner-truth line absent or wrong. A P3 miss is a finding against the scripts merge, not a reason to patch mid-run.
+
 ## D4 - the audience scenario (COA-STP1's 11 taskees, GUI, real-time, route shift) - needs the user's rulings first.
 ## D5 - Way B, hand-started and STP-driven, with the LaunchVrf52 holder (lane feat/demo-federation-holder).
