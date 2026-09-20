@@ -256,6 +256,9 @@ class Tiles(object):
         # `failures` counts our own unanswered attempts per tile and bounds the retrying.
         self.absent = set()
         self.failures = {}
+        # SF3: success bodies refused because they are not a tile in the expected format. None of
+        # them reached the cache and none was counted as absence.
+        self.undecodable = 0
         if not os.path.isdir(cache):
             os.makedirs(cache)
         try:
@@ -268,14 +271,25 @@ class Tiles(object):
     def _file(self, ds, level, x, y, ext):
         return os.path.join(self.cache, "%d_%d_%d_%d.%s" % (ds, level, x, y, ext))
 
-    def _fetch(self, ds, level, x, y, ext, minbytes):
+    def _fetch(self, ds, level, x, y, ext, minbytes, validate=None):
         """-> (path_or_None, outcome). See the F2 note at MAX_FETCH_ATTEMPTS.
 
         The HTTP STATUS is read rather than inferred from the body, because `curl -s` prints a
         404's error page to stdout with exit 0 - which the old `len(data) < minbytes` test read as
         "no tile", correctly, but it read a TIMEOUT (exit 28, empty stdout) the same way, which is
         the defect. `-w %{http_code} -o <file>` puts the code on stdout and the body in the file,
-        so the transport result (returncode) and the server's answer (code) are separate."""
+        so the transport result (returncode) and the server's answer (code) are separate.
+
+        SF3 (cold-start review of 9d67f97), TWO FIXES, both to agree with the C# reader:
+        1. STATUS CLASSIFICATION. This used to call only returncode!=0, code==0, 5xx and 429
+           FAILED, so a 403 - the documented behaviour of this server on the wrong headers, the
+           reason curl's User-Agent is used at all - fell through and was CACHED AS A TILE and
+           counted as fetched, while TileSource.cs called the same 403 FAILED. Now: anything that
+           is not 2xx and not 404/410/204 is FAILED, exactly as the C# does.
+        2. DECODE BEFORE THE CACHE. `validate(bytes) -> bool` decides before the file is written.
+           A success body that is not a tile in this format is FAILED: never written to disk,
+           never memoised as absence. Write-then-decode let one proxy error page poison the shared
+           cache directory permanently, for this reader AND for the C# one."""
         key = (ds, level, x, y)
         fn = self._file(ds, level, x, y, ext)
         if os.path.exists(fn) and os.path.getsize(fn) >= minbytes:
@@ -313,21 +327,47 @@ class Tiles(object):
                 os.remove(part)
             except OSError:
                 pass
-        if r.returncode != 0 or code == 0 or 500 <= code < 600 or code == 429:
-            # Transport error (timeout 28, connect 7, DNS 6, ...) or a server that did not answer
-            # the question. Transient by assumption: counted and retried, never remembered as
-            # absence.
+        if r.returncode != 0 or code == 0:
+            # Transport error (timeout 28, connect 7, DNS 6, ...): we never got an answer at all.
+            # Transient by assumption: counted and retried, never remembered as absence.
             self.failures[key] = self.failures.get(key, 0) + 1
             return None, FETCH_FAILED
-        if code in (404, 410, 204) or len(data) < minbytes:
+        if code in (404, 410, 204):
             # The server's own answer: no tile here. Definitive and memoised - this is the one
-            # outcome the level cascade is entitled to act on.
+            # outcome the level cascade is entitled to act on. Checked BEFORE the 2xx test, as
+            # TileSource.Bytes does.
             self.absent.add(key)
             return None, FETCH_ABSENT
+        if not (200 <= code < 300):
+            # 403, 5xx, 429, a redirect we did not follow: the server did not answer the QUESTION.
+            # Same treatment as a transport error - and the same as the C# reader's
+            # `!resp.IsSuccessStatusCode`.
+            self.failures[key] = self.failures.get(key, 0) + 1
+            return None, FETCH_FAILED
+        if len(data) < minbytes:
+            # A 2xx with a body too small to be a tile IS this TMS's "no tile".
+            self.absent.add(key)
+            return None, FETCH_ABSENT
+        if validate is not None and not validate(data):
+            # SF3: a success body that is not a tile. Not absence, and never cached.
+            self.undecodable += 1
+            self.failures[key] = self.failures.get(key, 0) + 1
+            return None, FETCH_FAILED
         with open(fn, "wb") as fh:
             fh.write(data)
         self.fetched += 1
         return fn, FETCH_OK
+
+    def _decodes(self, data):
+        """SF3: do these bytes open as an image this reader can use? The same question the C#
+        DecodesAsElevation / DecodesAsCover ask, through the same decoder this reader will use."""
+        try:
+            import io
+            im = self.Image.open(io.BytesIO(data))
+            im.load()
+            return True
+        except Exception:
+            return False
 
     # ---- elevation ----
     def _elev_tile2(self, level, x, y):
@@ -336,13 +376,18 @@ class Tiles(object):
         F2, second half: the DECODE is memoised too, and a dict that has stored None for a FAILED
         fetch would freeze that failure exactly as the old `failed` set did - so a FAILED outcome
         is not stored at all, which is what makes the retry in _fetch reachable on the next
-        sample. A body that arrived but would not decode is not a network failure; it is a tile
-        this reader cannot use, which is absence for every consumer."""
+        sample.
+
+        SF3: a body that arrived but WILL NOT DECODE is FAILED, not absent. This line used to say
+        FETCH_ABSENT, which is how a poisoned cache file - written by an older build, by the older
+        C# reader, or by any tool sharing this directory - was read back as "the server has no tile
+        here" on every cache hit, permanently and silently. It is not an answer about the ground:
+        the cascade stops, nothing is memoised, and the leg gets NO VERDICT."""
         key = (ELEV_DS, level, x, y)
         if key in self.mem:
             data = self.mem[key]
             return data, (FETCH_OK if data is not None else FETCH_ABSENT)
-        fn, outcome = self._fetch(ELEV_DS, level, x, y, "tif", 1000)
+        fn, outcome = self._fetch(ELEV_DS, level, x, y, "tif", 1000, validate=self._decodes)
         data = None
         if fn:
             try:
@@ -352,7 +397,8 @@ class Tiles(object):
             except Exception:
                 data = None
             if data is None:
-                outcome = FETCH_ABSENT
+                self.undecodable += 1
+                outcome = FETCH_FAILED
         if outcome != FETCH_FAILED:
             self.mem[key] = data
         return data, outcome
@@ -497,7 +543,7 @@ class Tiles(object):
         if key in self.mem:
             im = self.mem[key]
         else:
-            fn, outcome = self._fetch(ds, level, x, y, "png", 100)
+            fn, outcome = self._fetch(ds, level, x, y, "png", 100, validate=self._decodes)
             im = None
             if fn:
                 try:
@@ -505,6 +551,11 @@ class Tiles(object):
                     im.load()
                 except Exception:
                     im = None
+                if im is None:
+                    # SF3: a cached body that will not decode is FAILED, not absent (as in
+                    # _elev_tile2) - so it is not memoised and the failure stays visible.
+                    self.undecodable += 1
+                    outcome = FETCH_FAILED
             # F2: do not memoise a FAILED fetch - an unanswered request is not evidence that this
             # tileset has no class here, and freezing it would silently move the land-cover cascade
             # on to a coarser source for the rest of the process.
@@ -1637,6 +1688,68 @@ def selftest(tiles, soil, sms):
     bad += _f2("retrying is BOUNDED: after MAX_FETCH_ATTEMPTS curl is not called again",
                [(28, 0, b"")], [FETCH_FAILED] * (MAX_FETCH_ATTEMPTS + 2),
                check=lambda t: _tile not in t.absent, calls=MAX_FETCH_ATTEMPTS)
+
+    # ---- SF3: a SUCCESS body that is not a tile is FAILED, never cached, never absent ----
+    print("--- SF3: a non-tile body is FAILED, never cached (stubbed curl, no network) ---")
+
+    def _png_bytes(w=4, h=4):
+        buf = io.BytesIO()
+        Tiles.__dict__  # keep the import of Image local to the instance below
+        from PIL import Image as _I
+        _I.new("L", (w, h), 7).save(buf, format="PNG")
+        return buf.getvalue()
+
+    def _sf3(label, script, ext, minbytes, want_outcomes, check=None):
+        tmp = tempfile.mkdtemp(prefix="sf3_")
+        t = Tiles(tmp, offline=False)
+        real, curl = subprocess.run, _Curl(script)
+        try:
+            subprocess.run = curl
+            got = [t._fetch(ELEV_DS, 13, 1, 1, ext, minbytes, validate=t._decodes)[1]
+                   for _ in want_outcomes]
+        finally:
+            subprocess.run = real
+        cached = os.listdir(tmp)
+        ok = (got == list(want_outcomes) and not cached
+              and (check is None or check(t)))
+        print("  %-62s %s" % (label, "OK" if ok else
+                              "MISMATCH (outcomes %s, cache %s)" % (got, cached)))
+        return 0 if ok else 1
+
+    # A captive-portal / proxy error page: a 200, comfortably above minBytes, pure HTML.
+    _html = b"<html><head><title>403 Forbidden</title></head><body>" + b"x" * 2000 + b"</body></html>"
+    bad += _sf3("an HTML error page served with 200 is FAILED, not ABSENT, and is NOT cached",
+                [(0, 200, _html)], "tif", 1000, [FETCH_FAILED],
+                check=lambda t: _tile not in t.absent and t.undecodable == 1
+                                and t.failures.get(_tile) == 1)
+    # A TRUNCATED image: a valid PNG signature, a body that will not load.
+    _trunc = _png_bytes(64, 64)[:40] + b"\x00" * 2000
+    bad += _sf3("a TRUNCATED image body is FAILED too (the signature is not the test)",
+                [(0, 200, _trunc)], "png", 100, [FETCH_FAILED],
+                check=lambda t: _tile not in t.absent and t.undecodable == 1)
+    # And the status alignment the two readers now share.
+    bad += _f2("a 403 is FAILED, exactly as TileSource.Bytes calls it (was: cached as a tile)",
+               [(0, 403, b"x" * 4000)], [FETCH_FAILED],
+               check=lambda t: _tile not in t.absent and t.failures.get(_tile) == 1)
+    bad += _f2("a 429 is FAILED", [(0, 429, b"x" * 4000)], [FETCH_FAILED],
+               check=lambda t: _tile not in t.absent)
+    bad += _f2("a 410 is ABSENT", [(0, 410, b"")], [FETCH_ABSENT],
+               check=lambda t: _tile in t.absent)
+    # A REAL tile still lands in the cache - the validator must not refuse everything.
+    def _good():
+        tmp = tempfile.mkdtemp(prefix="sf3ok_")
+        t = Tiles(tmp, offline=False)
+        real, curl = subprocess.run, _Curl([(0, 200, _png_bytes(64, 64))])
+        try:
+            subprocess.run = curl
+            fn, outcome = t._fetch(ELEV_DS, 13, 1, 1, "png", 100, validate=t._decodes)
+        finally:
+            subprocess.run = real
+        ok = outcome == FETCH_OK and fn and os.path.exists(fn) and t.undecodable == 0
+        print("  %-62s %s" % ("a REAL png IS accepted and IS cached (the validator is not a wall)",
+                              "OK" if ok else "MISMATCH (%s, %s)" % (outcome, fn)))
+        return 0 if ok else 1
+    bad += _good()
 
     # The cascade itself: ABSENT falls through, FAILED stops and is not remembered.
     def _cascade(label, script, want_level, want_failed, want_memo):

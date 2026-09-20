@@ -141,6 +141,61 @@ public static class TaskDispatchPolicy
         "nothing in the order could ever end it either";
 
     /// <summary>
+    /// SF4 (cold-start review of 9d67f97). A HOLD-IN-PLACE TASK CANNOT BE HONOURED ON A UNIT THAT
+    /// IS ALREADY PERFORMING ONE, AND IS REFUSED RATHER THAN FAKED.
+    ///
+    /// THE DEFECT. A HoldInPlace dispatch issues NO VR-Forces task at all (by design - the verb
+    /// names no movement, R2/Q3). It nevertheless went through MarkDispatched, whose supersede arm
+    /// logged "VRF replaces the running task; the old task will not complete" and TASKABRTed that
+    /// task, and then wrote an ObservationReport saying the unit was "Executing IN PLACE at its own
+    /// position". VR-Forces had replaced nothing: the unit kept driving the old route while both
+    /// the log and the C2SIM report asserted it was standing still, and the old task's successors
+    /// were abandoned on the strength of a replacement that never happened. Three false statements
+    /// from one dispatch.
+    ///
+    /// WHY REFUSE RATHER THAN STOP THE UNIT. There is no vendor halt to issue. The facade exposes
+    /// the task set and no per-object stop: VrfBridge.cpp:362-515 (Create*, MoveToLocation,
+    /// MoveAlongRoute, PlanAndMoveTo, MoveIntoFormation, Breach, PatrolRoute, FollowEntity,
+    /// FireAtTarget, SetTarget, RunScriptedTask, SendScriptedSet, ...) has no Halt/Stop/Cancel for
+    /// a unit's current task; VrfBridge.cpp:295 Stop() tears the FEDERATE down and :354 Pause() is
+    /// DtPauseControlType, the WHOLE SIMULATION (VrfFacade.h:382, :529). Synthesising a halt out of
+    /// a zero-length move or a scripted task would be an invention of exactly the kind the record
+    /// forbids (PREREG_ASSEMBLY_LAYOUT 3g, the withdrawn per-vertex split: "Not built; reopening
+    /// needs a vendor citation").
+    ///
+    /// WHY NOT SUPERSEDE. Q1 (USER RULING 2026-09-14) makes TASKABRT-at-the-supersede-point the
+    /// default for a reason it states out loud: "the taskee is demonstrably NOT PERFORMING IT".
+    /// That is true when a real VR-Forces command replaces the old one. It is false here - the old
+    /// command is still running - so Q1's own justification does not reach this case and the
+    /// abort would be a report the interface knows to be wrong.
+    ///
+    /// SO: refuse the HOLD, name the running task, and leave that task alone. Q4's shape exactly -
+    /// an ERROR naming the cause, a TASKABRT through the single emit point and a NotifyAbandoned,
+    /// so the hold's own successors fail fast instead of waiting out a gate ("a chain built on
+    /// [an invention] is worse than a chain that stops with a named cause", ASSESSMENT:1136-1139).
+    /// A hold dispatched onto an IDLE unit is completely unaffected: that is the only case any
+    /// fixture in data/ reaches today, and it behaves as before.
+    /// </summary>
+    /// <summary>
+    /// SF4's decision, as a function, so it is asserted rather than read out of the dispatch path:
+    /// a HoldInPlace task is refused exactly when the unit is ALREADY running a DIFFERENT task.
+    /// On an idle unit (or a re-entry with the same task uuid - the TerrainProfile second pass)
+    /// nothing changes, which is every case any fixture in data/ reaches today.
+    /// </summary>
+    public static bool HoldInPlaceMustRefuse(bool unitHasTaskInFlight, string inFlightTaskUuid,
+                                             string thisTaskUuid)
+        => unitHasTaskInFlight
+           && !string.Equals(inFlightTaskUuid ?? "", thisTaskUuid ?? "", StringComparison.Ordinal);
+
+    public const string HoldInPlaceUnitBusyRefusal =
+        "REFUSED: this task's verb names no movement, so honouring it would mean STOPPING the unit - " +
+        "and the unit is already performing another task that VR-Forces is running. This interface " +
+        "has no vendor halt to issue (the facade exposes tasks, not a per-unit stop; Pause is the " +
+        "whole simulation), so nothing would actually stop the unit. Rather than report a hold that " +
+        "is not happening - and abort a task that IS being performed - the hold is refused and the " +
+        "running task is left alone";
+
+    /// <summary>
     /// Q4 (USER RULING 2026-09-14, REPLACING the supervisor default): A TASK WITH NO DURATION AND
     /// NO GEOMETRY IS MALFORMED, AND IS REFUSED - the interface does not invent a hold for it.
     ///

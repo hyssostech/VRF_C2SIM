@@ -208,8 +208,17 @@ public sealed class TileSource : IDisposable
     // to callers. Volatile read is enough for a log/assert (no ordering is implied).
     private int _fetched;
     private int _cacheHits;
+    private int _undecodable;
     public int Fetched => Volatile.Read(ref _fetched);
     public int CacheHits => Volatile.Read(ref _cacheHits);
+
+    /// <summary>
+    /// SF3 (cold-start review of 9d67f97). How many SUCCESS bodies this process refused because
+    /// they are not a tile in the expected format - a captive-portal page, a proxy error page, a
+    /// truncated image. None of them was written to the cache and none was counted as absence.
+    /// Non-zero means the network is answering with something other than tiles.
+    /// </summary>
+    public int UndecodableBodies => Volatile.Read(ref _undecodable);
     public string CacheDirectory => _cacheDir;
 
     /// <summary>The level the cascade STARTS at (Vrf:PreflightElevationLevel).</summary>
@@ -273,8 +282,23 @@ public sealed class TileSource : IDisposable
     /// The status code is read rather than left to <c>GetByteArrayAsync</c>'s throw-on-failure,
     /// because that call collapses "the server says there is no such tile" and "the server never
     /// answered" into one exception - which is the whole of F2.
+    ///
+    /// SF3 (cold-start review of 9d67f97): <paramref name="validate"/> DECIDES BEFORE THE CACHE IS
+    /// WRITTEN. The old order was write-then-decode, so a 200 (or any other success) carrying a
+    /// NON-TILE body above minBytes - a captive-portal page, a proxy error page - was written to
+    /// disk as `149_13_x_y.tif` and then read back by every later process, and by BOTH readers, as
+    /// tile ABSENCE. One bad network episode could silently downgrade an area's level permanently,
+    /// which is exactly the failure F2 exists to close, reached through the body instead of the
+    /// status. A body that does not decode as the expected format is now FAILED: never cached,
+    /// never memoised as absence, and it stops the level cascade like any other unanswered
+    /// question. This server is known to 403 on the wrong headers (the reason for the curl
+    /// User-Agent above), which is the realistic trigger.
     /// </summary>
-    private byte[] Bytes(int ds, int level, int x, int y, string ext, int minBytes, out TileOutcome outcome)
+    /// <param name="validate">Returns true when the bytes really are a tile in
+    /// <paramref name="ext"/>'s format. Null = accept any body of at least minBytes (used by
+    /// nothing on the verdict path).</param>
+    private byte[] Bytes(int ds, int level, int x, int y, string ext, int minBytes, out TileOutcome outcome,
+                         Func<byte[], bool> validate = null)
     {
         string fn = FilePath(ds, level, x, y, ext);
         try
@@ -340,6 +364,16 @@ public sealed class TileSource : IDisposable
             outcome = TileOutcome.Absent;
             return null;
         }
+        // SF3: DECODE BEFORE THE CACHE. A success body that is not a tile is not the server's
+        // "no tile" answer and must never become one - nor may it reach the disk, where it would
+        // outlive the process and poison both readers.
+        if (validate != null && !validate(data))
+        {
+            Interlocked.Increment(ref _undecodable);
+            _failures.AddOrUpdate(key, 1, (_, n) => n + 1);
+            outcome = TileOutcome.Failed;
+            return null;
+        }
         try { File.WriteAllBytes(fn, data); } catch { /* cache is an optimisation, not a requirement */ }
         Interlocked.Increment(ref _fetched);
         outcome = TileOutcome.Ok;
@@ -363,10 +397,15 @@ public sealed class TileSource : IDisposable
             outcome = known != null ? TileOutcome.Ok : TileOutcome.Absent;
             return known;
         }
-        var raster = GeoTiffFloat.Decode(Bytes(key.ElevationDataset, level, x, y, "tif", 1000, out outcome));
-        // A body that arrived but would not DECODE is not a network failure - it is a tile this
-        // reader cannot use, which is indistinguishable from absence for every consumer.
-        if (outcome == TileOutcome.Ok && raster == null) outcome = TileOutcome.Absent;
+        var raster = GeoTiffFloat.Decode(
+            Bytes(key.ElevationDataset, level, x, y, "tif", 1000, out outcome, DecodesAsElevation));
+        // SF3, THE OTHER HALF OF THE SAME RULE. This line used to read `... = TileOutcome.Absent`,
+        // which is how a POISONED CACHE FILE - written by the pre-SF3 fetch, or by the pre-SF3
+        // python, or by any other tool sharing this directory - was read back as "the server has no
+        // tile here" on every cache hit, permanently and silently. A body that will not decode is
+        // not an answer about the ground: it is FAILED, so the cascade stops, nothing is memoised,
+        // and the leg gets NO VERDICT with a WARN instead of a quieter score one level down.
+        if (outcome == TileOutcome.Ok && raster == null) outcome = TileOutcome.Failed;
         if (outcome != TileOutcome.Failed) _elev[key] = raster;
         return raster;
     }
@@ -375,10 +414,82 @@ public sealed class TileSource : IDisposable
     {
         var key = (ds, level, x, y);
         if (_cover.TryGetValue(key, out var known)) return known;
-        var img = PngImage.Decode(Bytes(ds, level, x, y, "png", 100, out var outcome));
+        var img = PngImage.Decode(Bytes(ds, level, x, y, "png", 100, out var outcome, DecodesAsCover));
+        if (outcome == TileOutcome.Ok && img == null) outcome = TileOutcome.Failed;   // SF3, as above
         if (outcome != TileOutcome.Failed) _cover[key] = img;
         return img;
     }
+
+    /// <summary>SF3: is this body really a float GeoTIFF elevation tile?</summary>
+    private static bool DecodesAsElevation(byte[] data)
+    {
+        try { return GeoTiffFloat.Decode(data) != null; } catch { return false; }
+    }
+
+    /// <summary>SF3: is this body really a PNG land-cover tile?</summary>
+    private static bool DecodesAsCover(byte[] data)
+    {
+        try { return PngImage.Decode(data) != null; } catch { return false; }
+    }
+
+    /// <summary>What a cache scrub found. <see cref="UndecodableCount"/> is every file whose first
+    /// bytes are not the format its extension claims; <see cref="SampleNames"/> is a bounded sample
+    /// of their names for the log line.</summary>
+    public sealed record ScrubResult(int Files, int Checked, int UndecodableCount,
+                                     IReadOnlyList<string> SampleNames);
+
+    /// <summary>
+    /// SF3: A ONE-TIME REPORT ON WHAT IS ALREADY IN THE CACHE. It REPORTS, it never deletes - a
+    /// directory this process did not write is not this process's to empty, and the operator who
+    /// warmed the cache is entitled to decide. A file named here will produce a FAILED outcome and
+    /// a NO VERDICT leg every time it is read, which is loud by design; deleting it is a one-line
+    /// manual fix that the report spells out.
+    ///
+    /// The test is the FORMAT SIGNATURE, not a full decode: 8 bytes per file against a cache that
+    /// can hold tens of thousands of tiles, at start-up, on the path that must not delay a run.
+    /// That catches exactly the SF3 failure - an HTML/JSON/text body stored under a .tif or .png
+    /// name - and deliberately does NOT catch a truncated but well-signed image, which the fetch
+    /// path's full decode does catch and which the selftest exercises there.
+    /// </summary>
+    public static ScrubResult ScrubCache(string cacheDir, int maxNamesReported = 10)
+    {
+        var bad = new List<string>();
+        int files = 0, checkedCount = 0, badCount = 0;
+        if (string.IsNullOrEmpty(cacheDir) || !Directory.Exists(cacheDir))
+            return new ScrubResult(0, 0, 0, bad);
+        foreach (string path in Directory.EnumerateFiles(cacheDir))
+        {
+            files++;
+            string ext = Path.GetExtension(path);
+            bool tif = string.Equals(ext, ".tif", StringComparison.OrdinalIgnoreCase);
+            bool png = string.Equals(ext, ".png", StringComparison.OrdinalIgnoreCase);
+            if (!tif && !png) continue;
+            checkedCount++;
+            byte[] head = new byte[8];
+            int n;
+            try
+            {
+                using var fs = File.OpenRead(path);
+                n = fs.Read(head, 0, head.Length);
+            }
+            catch { continue; }   // unreadable now is not evidence about its content
+            bool ok = tif ? IsTiffSignature(head, n) : IsPngSignature(head, n);
+            if (ok) continue;
+            badCount++;
+            if (bad.Count < maxNamesReported) bad.Add(Path.GetFileName(path));
+        }
+        return new ScrubResult(files, checkedCount, badCount, bad);
+    }
+
+    // TIFF: "II*\0" (little-endian) or "MM\0*" (big-endian) - TIFF 6.0 sec 2.
+    private static bool IsTiffSignature(byte[] h, int n)
+        => n >= 4 && ((h[0] == 0x49 && h[1] == 0x49 && h[2] == 0x2A && h[3] == 0x00)
+                   || (h[0] == 0x4D && h[1] == 0x4D && h[2] == 0x00 && h[3] == 0x2A));
+
+    // PNG: the 8-byte signature of RFC 2083 sec 3.1.
+    private static bool IsPngSignature(byte[] h, int n)
+        => n >= 8 && h[0] == 0x89 && h[1] == 0x50 && h[2] == 0x4E && h[3] == 0x47
+                  && h[4] == 0x0D && h[5] == 0x0A && h[6] == 0x1A && h[7] == 0x0A;
 
     /// <summary>
     /// One posting by GLOBAL sample index: gi = column (lon), gj = row from the SOUTH.
@@ -460,6 +571,12 @@ public sealed class TileSource : IDisposable
     private (int x, int y) AreaKey(double latDeg, double lonDeg) => TileIndex(_elevLevel, latDeg, lonDeg);
 
     /// <summary>The (x, y) of the tile that OWNS a point at a level.</summary>
+    /// <summary>The (x, y) of the tile that OWNS a point at a level. Public since 2026-09-20 so the
+    /// SF3 selftest can plant a poisoned cache file under the EXACT name this reader will look for,
+    /// instead of recomputing the index and testing its own arithmetic.</summary>
+    public static (int x, int y) TileIndexOf(int level, double latDeg, double lonDeg)
+        => TileIndex(level, latDeg, lonDeg);
+
     private static (int x, int y) TileIndex(int level, double latDeg, double lonDeg)
     {
         double p = TileMath.Posting(level);

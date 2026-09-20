@@ -33,6 +33,61 @@ public static class ClientIdPolicy
     /// them without matching prose.</summary>
     public const string Marker = "CLIENTID MISMATCH";
 
+    /// <summary>How loudly an all-foreign initialization is reported.</summary>
+    public enum MismatchSeverity
+    {
+        /// <summary>Nothing to say: some unit matched, or the init is empty.</summary>
+        None,
+        /// <summary>An initialization this app has nothing to do with, arriving while it already
+        /// holds its OWN units. Normal on a shared server. One INFO line, NOTHING on the bus.</summary>
+        Foreign,
+        /// <summary>The case that matters: this app holds NO units of its own and an init just
+        /// matched none either, so the run will do nothing. ERROR + an ObservationReport.</summary>
+        Loud,
+    }
+
+    /// <summary>
+    /// SF6 (cold-start review of 9d67f97). THE LOUD DIAGNOSTIC MUST NOT CRY WOLF.
+    ///
+    /// The trigger was `matched == 0 &amp;&amp; init.Units.Count > 0` alone, which is true of ANY
+    /// all-foreign initialization - and on a shared C2SIM server another system publishing its own
+    /// ORBAT is the normal case, not a fault. Every one of those produced an ERROR *and* an
+    /// ObservationReport pushed onto the bus, which is how a real diagnostic gets trained out of an
+    /// operator's attention.
+    ///
+    /// The discriminator is whether THIS APP HAS ANY UNITS AT ALL. If it does, an init that matches
+    /// none of them is somebody else's message and the filter did its job (C13: the init is the
+    /// whole ORBAT context; only this client's units are simulated). If it does not, then nothing
+    /// has ever been created, nothing is taskable, and the run is dead - which is exactly the
+    /// failure that has cost live-run time, and is worth an ERROR on every delivery until it is
+    /// fixed, including on the first and only initialization the app ever sees.
+    ///
+    /// PURE, so both arms are decidable offline and are locked by --stpexport-selftest.
+    /// </summary>
+    /// <param name="matched">Units in THIS init whose SystemName equalled Vrf:ClientId.</param>
+    /// <param name="initUnitCount">Units in this init, of any SystemName.</param>
+    /// <param name="unitsAlreadyHeld">Units of OUR OWN system this app has planned or created so
+    /// far, across every initialization in this run.</param>
+    public static MismatchSeverity Severity(int matched, int initUnitCount, int unitsAlreadyHeld)
+    {
+        if (matched > 0 || initUnitCount <= 0) return MismatchSeverity.None;
+        return unitsAlreadyHeld > 0 ? MismatchSeverity.Foreign : MismatchSeverity.Loud;
+    }
+
+    /// <summary>
+    /// The quiet arm's sentence: one INFO line, no bus report. It still names the counts, because
+    /// "which systems are on this bus" is the first thing anyone asks when a run looks idle.
+    /// </summary>
+    public static string ForeignInitMessage(string source, string clientId, int totalUnits,
+                                            int unitsAlreadyHeld,
+                                            IReadOnlyList<(string Name, int Count)> counts)
+        => $"Init ({source}): {totalUnits} unit(s), none with SystemName \"{clientId}\" - " +
+           $"SystemName(s): [{DescribeSystemNames(counts)}]. This initialization belongs to another " +
+           $"system on the bus and is IGNORED, which is normal on a shared C2SIM server. Not an " +
+           $"error here: this interface already holds {unitsAlreadyHeld} unit(s) of its own, so it " +
+           $"is not idle. (C13 / RUNBOOK sec 2 - the init is the whole ORBAT context and only this " +
+           $"client's units are simulated. Nothing is pushed to the bus for this.)";
+
     /// <summary>
     /// The distinct SystemName values in an init, with how many units carry each, most common
     /// first and then alphabetically so the line is stable across runs of the same init.

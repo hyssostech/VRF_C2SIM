@@ -61,11 +61,113 @@ public static class StpExportSelfTest
         failures += CheckGraphics(init, order);
         failures += CheckVerbs(order);
         failures += CheckDurations(order);
+        failures += CheckIntakeReviewFixes(order);
 
         Console.WriteLine();
         Console.WriteLine(failures == 0 ? "stpexport-selftest: ALL CHECKS PASSED"
                                         : $"stpexport-selftest: {failures} CHECK(S) FAILED");
         return failures == 0 ? 0 : 1;
+    }
+
+    // -------------------------------------------- 6. the cold-start review's SF4 / SF5 / SF6
+
+    /// <summary>
+    /// The three review findings whose rules are PURE, asserted here rather than in a run log.
+    /// Each names the false statement it removes, so a future edit that restores it fails loudly.
+    /// </summary>
+    private static int CheckIntakeReviewFixes(OrderData order)
+    {
+        int f = 0;
+        Console.WriteLine();
+        Console.WriteLine("--- 6. cold-start review fixes: SF4 (a hold that lied), SF5 (false collisions), " +
+                          "SF6 (crying wolf) ---");
+
+        // ---- SF4: a HoldInPlace on a BUSY unit is refused, and the running task is left alone ----
+        Check(ref f, TaskDispatchPolicy.HoldInPlaceMustRefuse(true, "task-A", "task-B"),
+              "SF4: a hold-in-place dispatched onto a unit already running ANOTHER task is REFUSED - it " +
+              "issues no VR-Forces command, so it would have superseded and TASKABRTed a task that is " +
+              "still being performed while reporting the unit as standing still");
+        Check(ref f, !TaskDispatchPolicy.HoldInPlaceMustRefuse(false, null, "task-B"),
+              "SF4: on an IDLE unit nothing changes - which is every case any fixture in data/ reaches");
+        Check(ref f, !TaskDispatchPolicy.HoldInPlaceMustRefuse(true, "task-B", "task-B"),
+              "SF4: and a re-entry with the SAME task uuid (the TerrainProfile second pass) is not a " +
+              "supersede either");
+        string r4 = TaskDispatchPolicy.HoldInPlaceUnitBusyRefusal;
+        Check(ref f, r4.Contains("REFUSED", StringComparison.Ordinal)
+                     && r4.Contains("no vendor halt", StringComparison.Ordinal)
+                     && r4.Contains("running task is left alone", StringComparison.Ordinal),
+              "SF4: the refusal sentence says it is refused, WHY (no vendor halt is exposed) and that the " +
+              "running task is untouched - never that the unit is holding when it is not");
+
+        // ---- SF5: same id + same content is a no-op; same id + different content is ONE warning ----
+        var g1 = new TaskGraphic("u1", "OBJ_LANCASTER", TaskGraphic.KindArea,
+            new List<(double, double, double?)> { (54.0, 23.0, null), (54.1, 23.1, 12.0) });
+        var same = new TaskGraphic("u1", "OBJ_LANCASTER", TaskGraphic.KindArea,
+            new List<(double, double, double?)> { (54.0, 23.0, null), (54.1, 23.1, 12.0) });
+        Check(ref f, g1.SameContentAs(same),
+              "SF5: an IDENTICAL re-publication of a graphic under the same uuid compares EQUAL - " +
+              "re-pushing the same order is a no-op, not 33 'data defect' warnings");
+        Check(ref f, !g1.SameContentAs(g1 with { Name = "OBJ_OTHER" })
+                     && !g1.SameContentAs(g1 with { Kind = TaskGraphic.KindLine }),
+              "SF5: a different NAME or KIND under one uuid is NOT the same graphic");
+        Check(ref f, !g1.SameContentAs(new TaskGraphic("u1", "OBJ_LANCASTER", TaskGraphic.KindArea,
+                  new List<(double, double, double?)> { (54.0, 23.0, null) }))
+                     && !g1.SameContentAs(new TaskGraphic("u1", "OBJ_LANCASTER", TaskGraphic.KindArea,
+                  new List<(double, double, double?)> { (54.1, 23.1, 12.0), (54.0, 23.0, null) })),
+              "SF5: a different vertex COUNT or a different vertex ORDER is NOT the same graphic - a " +
+              "re-ordered list is a different route");
+        Check(ref f, !g1.SameContentAs(new TaskGraphic("u1", "OBJ_LANCASTER", TaskGraphic.KindArea,
+                  new List<(double, double, double?)> { (54.0, 23.0, null), (54.1, 23.1, null) })),
+              "SF5: and a graphic that gains or loses ELEVATIONS is not the graphic that had none");
+        // THE MEASUREMENT THAT MATTERS, on the real export: re-pushing it publishes nothing new and
+        // conflicts with nothing. 33 false warnings before this fix; 0 now.
+        {
+            var published = new Dictionary<string, TaskGraphic>(StringComparer.Ordinal);
+            foreach (var g in order.Graphics)
+                published[g.Uuid] = new TaskGraphic(g.Uuid, g.Name, g.Kind, Pts(g.Points));
+            int identical = 0, conflicting = 0;
+            foreach (var g in order.Graphics)
+            {
+                var incoming = new TaskGraphic(g.Uuid, g.Name, g.Kind, Pts(g.Points));
+                if (!published.TryGetValue(g.Uuid, out var ex)) continue;
+                if (ex.SameContentAs(incoming)) identical++; else conflicting++;
+            }
+            Check(ref f, identical == order.Graphics.Count && conflicting == 0,
+                  $"SF5 on the REAL export: re-pushing this order finds all {identical} of its " +
+                  $"{order.Graphics.Count} graphics already published with IDENTICAL content and " +
+                  $"{conflicting} conflicting - so 0 warnings, where the uuid-only check emitted " +
+                  $"{order.Graphics.Count}");
+        }
+        // LIFETIME, through the ONE function both registration paths call.
+        Check(ref f, TaskGraphic.Classify(null, g1) == TaskGraphic.Registration.New
+                     && TaskGraphic.Classify(g1, same) == TaskGraphic.Registration.Identical
+                     && TaskGraphic.Classify(g1, g1 with { Name = "X" }) == TaskGraphic.Registration.Conflicting,
+              "SF5 lifetime: one classifier serves BOTH registration paths - New / Identical / " +
+              "Conflicting - so the order path and the init path cannot drift apart. The registry is " +
+              "never cleared and spans every order and init of a run; an ORDER keeps the published " +
+              "graphic on a Conflicting (a task may already be driving it), an INITIALIZATION replaces " +
+              "it and now logs that it did; Identical is silent on both (a re-pushed order, a duplicate " +
+              "init delivery)");
+
+        // ---- SF6: the loud ClientId diagnostic only when this app holds nothing of its own ----
+        Check(ref f, ClientIdPolicy.Severity(0, 40, 0) == ClientIdPolicy.MismatchSeverity.Loud,
+              "SF6: no unit matched AND this app holds none of its own -> ERROR + ObservationReport " +
+              "(nothing is created, nothing is taskable, the run is dead - the case that matters)");
+        Check(ref f, ClientIdPolicy.Severity(0, 40, 12) == ClientIdPolicy.MismatchSeverity.Foreign,
+              "SF6: an entirely FOREIGN init while this app already holds its own units -> one INFO " +
+              "line and NOTHING on the bus (normal on a shared server; this used to be an ERROR plus a " +
+              "bus report every time)");
+        Check(ref f, ClientIdPolicy.Severity(7, 40, 0) == ClientIdPolicy.MismatchSeverity.None
+                     && ClientIdPolicy.Severity(0, 0, 0) == ClientIdPolicy.MismatchSeverity.None,
+              "SF6: a partial match says nothing, and an EMPTY init is still excluded (it was before)");
+        string quiet = ClientIdPolicy.ForeignInitMessage("broadcast", "STP", 40, 12,
+                           ClientIdPolicy.SystemNameCounts(new List<InitUnit> { new() { SystemName = "OTHER" } }));
+        Check(ref f, !quiet.Contains(ClientIdPolicy.Marker, StringComparison.Ordinal)
+                     && quiet.Contains("another system", StringComparison.Ordinal)
+                     && quiet.Contains("12 unit(s) of its own", StringComparison.Ordinal),
+              "SF6: the quiet line does NOT carry the CLIENTID MISMATCH marker a harvest counts, and it " +
+              "says why it is not an error");
+        return f;
     }
 
     // ---------------------------------------------------------------- 1. what arrived
@@ -216,13 +318,18 @@ public static class StpExportSelfTest
               $"no uuid collision between the init's graphics and the order's (got {collisions}) - the " +
               "two sets are disjoint on this export, so nothing is being shadowed");
 
+        // SF9: the TASKEE'S OWN POSITION goes into the resolver, exactly as the service passes it
+        // (VrfC2SimService: _authoredPosByName). Without it the test would exercise a code path no
+        // run takes - and the origin-vertex drop, which is half the SF9 rule, would never fire.
+        var taskeePos = TaskeePositions(init);
+
         // Resolve every task and count what happened.
         int refs = 0, resolvedRefs = 0, dangling = 0, fromGraphic = 0, fromEmbedded = 0, none = 0;
         int tasksWithRefs = 0, danglingWarns = 0, disagreementWarns = 0, bothPresent = 0;
         var rows = new List<string>();
         foreach (var task in order.Tasks)
         {
-            var res = TaskGeometryResolver.Resolve(task, map);
+            var res = TaskGeometryResolver.Resolve(task, map, Pos(taskeePos, task));
             int ids = task.MapGraphicUuids.Count;
             refs += ids;
             if (ids > 0) tasksWithRefs++;
@@ -264,13 +371,22 @@ public static class StpExportSelfTest
         Check(ref f, fromGraphic == TasksFromGraphic,
               $"{fromGraphic} task(s) now take their geometry from a MapGraphic (was 0; the 16th, T22, " +
               "has only the dangling id and falls back to its embedded Location)");
-        // A FINDING ABOUT THE EXPORT that could not be seen while nothing resolved: on 7 tasks the
+        // A FINDING ABOUT THE EXPORT that could not be seen while nothing resolved: on 8 tasks the
         // graphic the order NAMES and the coordinates it EMBEDS are more than a kilometre apart.
         // The MapGraphic wins (R1) and the separation is reported; it is the producer's to explain.
-        Check(ref f, disagreementWarns == 7,
-              $"{disagreementWarns} task(s) name a graphic whose geometry is MORE THAN 1 km from the " +
-              "embedded Location on the same task - the order disagreeing with itself, invisible until " +
-              "the references resolved, reported rather than guessed at (m7)");
+        //
+        // WHY 8 AND NOT THE 7 THIS CHECK USED TO EXPECT, and why that is a CORRECTION rather than a
+        // drift: m7 compared the two answers' FIRST points. Since SF9 the resolved route no longer
+        // begins where the first named graphic begins - the vertices that are the taskee's own
+        // position are dropped and the objective is placed LAST - while STP's embedded Location is
+        // still the first tactical graphic linearised, usually starting at the unit. First-against-
+        // first therefore compared a start with an objective, and fired on 13 tasks. The comparison
+        // is now DESTINATION against DESTINATION, which is the question m7 asks ("the order and the
+        // initialization disagree about WHERE THIS TASK IS"), and it finds 8.
+        Check(ref f, disagreementWarns == 8,
+              $"{disagreementWarns} task(s) name a graphic whose DESTINATION is MORE THAN 1 km from the " +
+              "embedded Location's on the same task - the order disagreeing with itself, invisible until " +
+              "the references resolved, reported rather than guessed at (m7, destination-based since SF9)");
         Check(ref f, fromGraphic + fromEmbedded + none == Tasks,
               $"every task has a source: {fromGraphic} MapGraphic + {fromEmbedded} EmbeddedLocation + " +
               $"{none} None = {Tasks}");
@@ -286,14 +402,14 @@ public static class StpExportSelfTest
         {
             var both = order.Tasks.First(t => t.MapGraphicUuids.Count > 0 && t.Points.Count > 0
                                               && t.MapGraphicUuids.All(map.ContainsKey));
-            var res = TaskGeometryResolver.Resolve(both, map);
+            var res = TaskGeometryResolver.Resolve(both, map, Pos(taskeePos, both));
             Check(ref f, res.Source == GeometrySource.MapGraphic,
                   "when both are present the MapGraphic wins (R1, user ruling 2026-09-14)");
             Check(ref f, res.Log.Any(l => l.Contains("embedded Location point(s) ignored", StringComparison.Ordinal)),
                   "and the embedded half is NOT dropped in silence - the count and the separation between " +
                   "the two answers are logged (m7's consistency check)");
             var stripped = both with { MapGraphicUuids = Array.Empty<string>(), MapGraphicUuid = "" };
-            var fallback = TaskGeometryResolver.Resolve(stripped, map);
+            var fallback = TaskGeometryResolver.Resolve(stripped, map, Pos(taskeePos, both));
             Check(ref f, fallback.Source == GeometrySource.EmbeddedLocation && fallback.Points.Count > 0,
                   "and with the reference removed the SAME task falls back to its embedded Location - the " +
                   "fallback is precedence, not a workaround being removed");
@@ -301,8 +417,256 @@ public static class StpExportSelfTest
 
         Console.WriteLine("  [--] per-task geometry source (verb, #MapGraphicID, #Location -> source, vertices):");
         foreach (var r in rows) Console.WriteLine(r);
+
+        f += CheckMultiGraphicRoutes(order, map, taskeePos);
         return f;
     }
+
+    /// <summary>
+    /// SF9: SEVERAL MapGraphicIDs ON ONE TASK MUST NOT BECOME A ROUTE THAT DOUBLES BACK.
+    ///
+    /// The pre-SF9 resolver appended every resolving graphic's vertices in MapGraphicID DOCUMENT
+    /// ORDER, whatever kind each graphic was. On this export that gave T12 - one of only TWO tasks
+    /// the order dispatches - a 147.2 km route for a ~50 km advance, out and back through its own
+    /// start and out again, and the same shape on seven more tasks. The rule that replaces it is
+    /// stated with its schema and doctrine citations in TaskGeometryResolver.AssembleRoute.
+    ///
+    /// This section measures BOTH rules on the real file, task by task, and asserts the properties
+    /// that matter: no route returns through its taskee's start, and the total driven length falls.
+    /// The "before" numbers are produced by <see cref="ConcatenateInDocumentOrder"/>, which is the
+    /// OLD rule kept here ONLY as a measuring stick - nothing in the app calls it.
+    /// </summary>
+    private static int CheckMultiGraphicRoutes(OrderData order, Dictionary<string, TaskGraphic> map,
+                                               Dictionary<string, (double Lat, double Lon)> taskeePos)
+    {
+        int f = 0;
+        Console.WriteLine();
+        Console.WriteLine("--- 3b. SF9: several MapGraphicIDs -> ONE route, by KIND and CONTINUITY ---");
+
+        int beforeDoubles = 0, afterDoubles = 0;
+        double beforeTotalKm = 0, afterTotalKm = 0;
+        var rows = new List<string>();
+        foreach (var task in order.Tasks)
+        {
+            // Only tasks whose geometry actually COMES from MapGraphicIDs - the rest fall back to
+            // their embedded Location and are untouched by SF9 either way.
+            var tp = Pos(taskeePos, task);
+            var after = TaskGeometryResolver.Resolve(task, map, tp).Points;
+            if (task.MapGraphicUuids.Count == 0
+                || TaskGeometryResolver.Resolve(task, map, tp).Source != GeometrySource.MapGraphic)
+                continue;
+            var before = ConcatenateInDocumentOrder(task, map);
+            // MEASURED AS THE UNIT DRIVES IT: ExecuteTaskOnTick builds the route as
+            // [the unit's own position, then the task's points], so the taskee is vertex 0 and the
+            // approach leg is part of the distance. A table that left it out would call a 2.5 km
+            // move "0.0 km" and would not see a route that returns to its start.
+            double bKm = LenKm(before, tp), aKm = LenKm(after, tp);
+            bool bBack = DoublesBack(before, tp), aBack = DoublesBack(after, tp);
+            if (bBack) beforeDoubles++;
+            if (aBack) afterDoubles++;
+            beforeTotalKm += bKm; afterTotalKm += aKm;
+            string shortName = task.TaskName.Length > 30 ? task.TaskName[..30] : task.TaskName;
+            rows.Add($"    {shortName,-30} refs={task.MapGraphicUuids.Count} | BEFORE {before.Count,2}v " +
+                     $"{bKm,7:F1} km maxleg {MaxLegKm(before, tp),6:F1} back={(bBack ? "YES" : "no ")} | " +
+                     $"AFTER {after.Count,2}v {aKm,7:F1} km maxleg {MaxLegKm(after, tp),6:F1} " +
+                     $"back={(aBack ? "YES" : "no ")}" +
+                     $" | STP-833 {Stp833(before, tp),-8} -> {Stp833(after, tp)}");
+        }
+        foreach (var r in rows) Console.WriteLine(r);
+
+        Check(ref f, beforeDoubles > 0,
+              $"FAIL-FIRST: the pre-SF9 document-order concatenation makes {beforeDoubles} task(s) drive back " +
+              "through the taskee's own start - the defect is reproduced here before it is asserted away");
+        Check(ref f, afterDoubles == 0,
+              $"*** NO task's assembled route returns through its taskee's start any more (got {afterDoubles}) ***");
+        Check(ref f, afterTotalKm < beforeTotalKm,
+              $"and the total driven distance over the referencing tasks FALLS: {beforeTotalKm:F1} km -> " +
+              $"{afterTotalKm:F1} km");
+
+        // T12 BY NAME: the task the re-derivation singled out, and one of only two this export
+        // dispatches. Its numbers are pinned so a future change to the rule cannot quietly undo it.
+        var t12 = order.Tasks.FirstOrDefault(t => t.TaskName.StartsWith("T12_", StringComparison.Ordinal));
+        if (t12 == null)
+            Check(ref f, false, "T12 (DESTRY, 2 refs) NOT FOUND in the export - the fixture changed");
+        else
+        {
+            var tp = Pos(taskeePos, t12);
+            var oldPts = ConcatenateInDocumentOrder(t12, map);
+            var newPts = TaskGeometryResolver.Resolve(t12, map, tp).Points;
+            double oldKm = LenKm(oldPts, tp), newKm = LenKm(newPts, tp);
+            Check(ref f, DoublesBack(oldPts, tp) && oldKm > 100,
+                  $"T12 BEFORE: {oldKm:F1} km driven and it RETURNS to its own start - the zig-zag the " +
+                  "re-derivation found, on one of only two tasks this export dispatches");
+            Check(ref f, !DoublesBack(newPts, tp),
+                  $"T12 AFTER: {newKm:F1} km, {newPts.Count} vertex(es), and it does NOT double back");
+            Check(ref f, newKm < oldKm * 0.75,
+                  $"T12 AFTER is materially shorter: {newKm:F1} km vs {oldKm:F1} km");
+            Check(ref f, newPts.Count >= 2 && newKm > 40,
+                  $"and T12 STILL MAKES ITS ~50 km ADVANCE ({newKm:F1} km over {newPts.Count} authored " +
+                  "vertex(es)) - the doubling back is removed, the objective is NOT");
+        }
+
+        // THE RULE ITSELF, on constructed graphics, so each clause has its own named check rather
+        // than only being visible through the export.
+        {
+            var taskee = (Lat: 54.0, Lon: 23.0);
+            var line = new TaskGraphic("L", "AXIS", TaskGraphic.KindLine,
+                new List<(double, double, double?)> { (54.0, 23.0, null), (54.1, 23.2, null), (54.2, 23.4, null) });
+            var area = new TaskGraphic("A", "OBJ", TaskGraphic.KindArea,
+                new List<(double, double, double?)> { (54.3, 23.5, null), (54.3, 23.6, null), (54.4, 23.55, null) });
+            var pt = new TaskGraphic("P", "CP", TaskGraphic.KindPoint,
+                new List<(double, double, double?)> { (54.25, 23.45, null) });
+            var m = new Dictionary<string, TaskGraphic>(StringComparer.Ordinal)
+                { ["L"] = line, ["A"] = area, ["P"] = pt };
+
+            // (a) the AREA is named FIRST but is a DESTINATION, so it lands LAST - not as waypoint 1.
+            var t = new OrderTask { TaskName = "t_a", MapGraphicUuids = new[] { "A", "L" },
+                                    Points = new List<(double, double, double?)>() };
+            var r = TaskGeometryResolver.Resolve(t, m, taskee);
+            Check(ref f, r.Points.Count == 3
+                         && Math.Abs(r.Points[0].Lat - 54.1) < 1e-9
+                         && Math.Abs(r.Points[^1].Lat - 54.3333333) < 1e-6,
+                  $"an AREA named BEFORE a line is the route's DESTINATION, not its first waypoint " +
+                  $"({r.Points.Count} vertices, first {r.Points[0].Lat:F4}, last {r.Points[^1].Lat:F4})");
+            // (b) the line's leading vertex IS the taskee's start, and is dropped.
+            Check(ref f, r.Points.All(p => TaskGeometryResolver.DistMeters(p, (taskee.Lat, taskee.Lon, null))
+                                           > TaskGeometryResolver.OriginCoincidenceMeters),
+                  "the line's leading vertex - the taskee's own position - is DROPPED (SF9 clause 2)");
+            // (c) a POINT and an AREA with no line: ONE destination, the rest warned.
+            var t2 = new OrderTask { TaskName = "t_c", MapGraphicUuids = new[] { "P", "A" },
+                                     Points = new List<(double, double, double?)>() };
+            var r2 = TaskGeometryResolver.Resolve(t2, m, taskee);
+            Check(ref f, r2.Points.Count == 1 && Math.Abs(r2.Points[0].Lat - 54.25) < 1e-9
+                         && r2.Warnings.Any(w => w.Contains("ONE place", StringComparison.Ordinal)),
+                  $"two DESTINATION graphics and no path: the FIRST is used ({r2.Points.Count} vertex) and ONE " +
+                  "warning names the rest - a task is in one place");
+            // (d) a line too far to be a continuation is NOT chained, and is named once.
+            var far = new TaskGraphic("F", "FAR_LINE", TaskGraphic.KindLine,
+                new List<(double, double, double?)> { (55.5, 25.0, null), (55.6, 25.2, null) });
+            m["F"] = far;
+            var t3 = new OrderTask { TaskName = "t_d", MapGraphicUuids = new[] { "L", "F" },
+                                     Points = new List<(double, double, double?)>() };
+            var r3 = TaskGeometryResolver.Resolve(t3, m, taskee);
+            Check(ref f, r3.Points.Count == 2
+                         && r3.Warnings.Any(w => w.Contains("NOT continuous", StringComparison.Ordinal)),
+                  $"a line {TaskGeometryResolver.ChainGapMeters / 1000:F0}+ km from the route's end is NOT " +
+                  $"chained into it and IS named in one warning ({r3.Points.Count} vertices kept)");
+            // (e) ONE graphic is untouched - every order in data/ but this export takes this path.
+            var t4 = new OrderTask { TaskName = "t_e", MapGraphicUuids = new[] { "A" },
+                                     Points = new List<(double, double, double?)>() };
+            var r4 = TaskGeometryResolver.Resolve(t4, m, taskee);
+            Check(ref f, r4.Points.Count == 1 && r4.Source == GeometrySource.MapGraphic,
+                  "a task naming ONE area still resolves to exactly its centroid - the single-graphic path is " +
+                  "unchanged, which is every other order in data/ (all carry 0 MapGraphicIDs)");
+            // (f) a line whose FAR end is nearer is REVERSED rather than driven backwards.
+            var rev = new TaskGraphic("R", "REVERSED", TaskGraphic.KindLine,
+                new List<(double, double, double?)> { (54.25, 23.45, null), (54.02, 23.03, null) });
+            var t5 = new OrderTask { TaskName = "t_f", MapGraphicUuids = new[] { "R" },
+                                     Points = new List<(double, double, double?)>() };
+            var r5 = TaskGeometryResolver.Resolve(t5, new Dictionary<string, TaskGraphic>(StringComparer.Ordinal)
+                                                       { ["R"] = rev }, taskee);
+            Check(ref f, r5.Points.Count == 2 && Math.Abs(r5.Points[0].Lat - 54.02) < 1e-9,
+                  $"a line authored AWAY from the taskee is REVERSED so the route leaves from the near end " +
+                  $"(first vertex {r5.Points[0].Lat:F4})");
+        }
+        return f;
+    }
+
+    /// <summary>THE PRE-SF9 RULE, kept ONLY as a measuring stick for the table above. Nothing in the
+    /// app calls it: every resolving graphic's vertices appended in MapGraphicID document order,
+    /// areas contributing their centroid.</summary>
+    private static List<(double Lat, double Lon, double? Elev)> ConcatenateInDocumentOrder(
+        OrderTask task, IReadOnlyDictionary<string, TaskGraphic> map)
+    {
+        var pts = new List<(double Lat, double Lon, double? Elev)>();
+        foreach (var id in task.MapGraphicUuids)
+        {
+            if (!map.TryGetValue(id, out var g) || g.Points is not { Count: > 0 }) continue;
+            if (string.Equals(g.Kind, TaskGraphic.KindArea, StringComparison.OrdinalIgnoreCase))
+                pts.Add(TaskGeometryResolver.Centroid(g.Points));
+            else pts.AddRange(g.Points);
+        }
+        return pts;
+    }
+
+    /// <summary>Does this route LEAVE the taskee's position and then come back to it? The exact
+    /// symptom SF9 exists to remove.</summary>
+    /// <summary>The route AS DRIVEN: the taskee's own position, then the task's points - the list
+    /// ExecuteTaskOnTick builds.</summary>
+    private static List<(double Lat, double Lon)> Driven(
+        IReadOnlyList<(double Lat, double Lon, double? Elev)> pts, (double Lat, double Lon)? taskee)
+    {
+        var v = new List<(double Lat, double Lon)>();
+        if (taskee is { } t) v.Add((t.Lat, t.Lon));
+        foreach (var p in pts ?? Array.Empty<(double, double, double?)>()) v.Add((p.Lat, p.Lon));
+        return v;
+    }
+
+    private static bool DoublesBack(IReadOnlyList<(double Lat, double Lon, double? Elev)> pts,
+                                    (double Lat, double Lon)? taskee)
+    {
+        if (taskee is not { } t) return false;
+        var origin = (t.Lat, t.Lon, (double?)null);
+        bool left = false;
+        foreach (var p in pts ?? Array.Empty<(double, double, double?)>())
+        {
+            double d = TaskGeometryResolver.DistMeters(p, origin);
+            if (!left) { if (d > TaskGeometryResolver.OriginCoincidenceMeters) left = true; continue; }
+            if (d <= TaskGeometryResolver.OriginCoincidenceMeters) return true;
+        }
+        return false;
+    }
+
+    private static double LenKm(IReadOnlyList<(double Lat, double Lon, double? Elev)> pts,
+                                (double Lat, double Lon)? taskee)
+    {
+        var v = Driven(pts, taskee);
+        return v.Count < 2 ? 0.0 : RouteExtentPolicy.PathLengthMeters(v) / 1000.0;
+    }
+
+    private static double MaxLegKm(IReadOnlyList<(double Lat, double Lon, double? Elev)> pts,
+                                   (double Lat, double Lon)? taskee)
+    {
+        var v = Driven(pts, taskee);
+        double max = 0;
+        for (int i = 1; i < v.Count; i++)
+            max = Math.Max(max, RouteExtentPolicy.GreatCircleMeters(v[i - 1].Lat, v[i - 1].Lon,
+                                                                    v[i].Lat, v[i].Lon));
+        return max / 1000.0;
+    }
+
+    /// <summary>STP-833's verdict on the driven route at the SHIPPED limits (appsettings.json:55-56,
+    /// MaxRouteLegKm 50 / MaxVertexFromTaskeeKm 100), through the production policy.</summary>
+    private static string Stp833(IReadOnlyList<(double Lat, double Lon, double? Elev)> pts,
+                                 (double Lat, double Lon)? taskee)
+    {
+        if (taskee is not { } t) return "n/a";
+        var v = Driven(pts, taskee);
+        if (v.Count < 2) return "OK";
+        var verdict = RouteExtentPolicy.Check(true, t.Lat, t.Lon, v,
+                                              maxVertexFromTaskeeKm: 100.0, maxLegKm: 50.0, extent: null);
+        return verdict.Kind == RouteExtentPolicy.Violation.None ? "OK" : "REFUSED";
+    }
+
+    /// <summary>Taskee C2SIM uuid -> its authored init position, which is what the service hands the
+    /// resolver (_authoredPosByName).</summary>
+    private static Dictionary<string, (double Lat, double Lon)> TaskeePositions(InitData init)
+    {
+        var d = new Dictionary<string, (double, double)>(StringComparer.Ordinal);
+        foreach (var u in init.Units)
+        {
+            if (string.IsNullOrEmpty(u.Uuid)) continue;
+            if (double.TryParse(u.Latitude, System.Globalization.NumberStyles.Float,
+                                System.Globalization.CultureInfo.InvariantCulture, out double la)
+                && double.TryParse(u.Longitude, System.Globalization.NumberStyles.Float,
+                                   System.Globalization.CultureInfo.InvariantCulture, out double lo))
+                d[u.Uuid] = (la, lo);
+        }
+        return d;
+    }
+
+    private static (double Lat, double Lon)? Pos(Dictionary<string, (double Lat, double Lon)> d, OrderTask t)
+        => t?.TaskeeUuid != null && d.TryGetValue(t.TaskeeUuid, out var p) ? p : null;
 
     // ---------------------------------------------------------------- 4. the verbs
 

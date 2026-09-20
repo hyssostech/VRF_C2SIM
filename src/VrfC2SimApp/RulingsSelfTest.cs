@@ -1179,25 +1179,41 @@ public static class RulingsSelfTest
             Check(ref failures, r.Source == GeometrySource.MapGraphic && centroid,
                   $"a MapGraphicID matching an init AREA resolves to its centroid " +
                   $"(source {r.Source}, {r.Points.Count} point(s))");
-            Check(ref failures, r.Log.Any(l => l.Contains("geometry from MapGraphicID")
-                                            && l.Contains(objMadison) && l.Contains("OBJ_MADISON")),
-                  "... and logs \"geometry from MapGraphicID <uuid> -> <name>\"");
+            // The line still names the id and the graphic. SF9 re-worded it: an AREA is now
+            // labelled what it IS - the route's DESTINATION - instead of an anonymous "geometry
+            // from". The assertion is TIGHTER than before (it pins the role as well as the names).
+            Check(ref failures, r.Log.Any(l => l.Contains("destination from MapGraphicID")
+                                            && l.Contains(objMadison) && l.Contains("OBJ_MADISON")
+                                            && l.Contains("area")),
+                  "... and logs which id supplied it and in what ROLE (\"destination from MapGraphicID " +
+                  "<uuid> -> <name> (area, ...)\")");
         }
 
-        // (e2) Several MapGraphicIDs become the sequence of their geometries - a LINE contributes
-        //      its vertices, in order. No verb-typed interpretation of the points (V4b, separate).
+        // (e2) SEVERAL MapGraphicIDs ON ONE TASK - SF9 (cold-start review of 9d67f97).
+        //
+        //      THIS CHECK USED TO ASSERT THE DEFECT. It pinned "the sequence of their geometries"
+        //      in MapGraphicID DOCUMENT ORDER, which on the real STP export produced routes that
+        //      drive out, back through the taskee's own start, and out again - T12 at 147.2 km for
+        //      a ~50 km advance. The rule that replaces it, with its schema and doctrine citations,
+        //      is TaskGeometryResolver.AssembleRoute: LINES supply the path, POINTS and AREAS
+        //      supply the destination and go LAST, and lines are chained by continuity, never by
+        //      document order. The assertion below is correspondingly STRONGER - it pins the ROLES
+        //      and the resulting order, not just a vertex count.
         {
             var task = new OrderTask
             {
                 TaskName = "T_Multi",
-                MapGraphicUuids = new[] { objMadison, plBlue },
+                MapGraphicUuids = new[] { objMadison, plBlue },   // an AREA named BEFORE a LINE
                 Points = new List<(double, double, double?)>(),
             };
             var r = TaskGeometryResolver.Resolve(task, graphics);
             Check(ref failures, r.Source == GeometrySource.MapGraphic && r.Points.Count == 3
-                             && Math.Abs(r.Points[1].Lat - 35.0) < 1e-9
-                             && Math.Abs(r.Points[2].Lat - 35.1) < 1e-9,
-                  $"several MapGraphicIDs resolve to route vertices in order (got {r.Points.Count})");
+                             && Math.Abs(r.Points[0].Lat - 35.0) < 1e-9
+                             && Math.Abs(r.Points[1].Lat - 35.1) < 1e-9
+                             && Math.Abs(r.Points[2].Lat - 34.5) < 1e-9,
+                  $"several MapGraphicIDs resolve BY KIND, not by document order: the LINE's vertices are the " +
+                  $"path and the AREA - named FIRST in the order - is the DESTINATION and lands LAST " +
+                  $"(got {r.Points.Count} vertices, last at {(r.Points.Count > 0 ? r.Points[^1].Lat : 0):F2})");
         }
 
         // (e3) NO MapGraphicID - every COA-STP1 task today - uses the embedded Location, which is

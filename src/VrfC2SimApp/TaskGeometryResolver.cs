@@ -35,6 +35,74 @@ public enum GeometrySource
 public sealed record TaskGraphic(string Uuid, string Name, string Kind,
                                  IReadOnlyList<(double Lat, double Lon, double? Elev)> Points)
 {
+    /// <summary>
+    /// SF5 (cold-start review of 9d67f97): IS THIS THE SAME GRAPHIC, OR A DIFFERENT ONE UNDER THE
+    /// SAME UUID? The order-graphic registration used to compare only the uuid, so pushing THE SAME
+    /// ORDER TWICE - which the demo posture does - emitted one "Two different graphics under one
+    /// uuid is a data defect in the export" WARNING per graphic (33 of them on the Iron Storm
+    /// export), every one of them false. The two cases are genuinely different and now read
+    /// differently: an identical re-publication is a no-op worth one counted line, a CONFLICTING
+    /// one is the data defect the sentence describes.
+    ///
+    /// Name and Kind are compared ORDINALLY (both sides are already trimmed by their parsers); the
+    /// vertices must match in ORDER and exactly, because a reordered or nudged vertex list IS a
+    /// different geometry and the whole point of the check is that a task's route must not depend
+    /// on which message arrived first. Elevation is part of the comparison: a graphic that gains
+    /// elevations is not the graphic that had none.
+    /// </summary>
+    public bool SameContentAs(TaskGraphic other)
+    {
+        if (other is null) return false;
+        if (!string.Equals(Name ?? "", other.Name ?? "", StringComparison.Ordinal)) return false;
+        if (!string.Equals(Kind ?? "", other.Kind ?? "", StringComparison.Ordinal)) return false;
+        var a = Points ?? Array.Empty<(double, double, double?)>();
+        var b = other.Points ?? Array.Empty<(double, double, double?)>();
+        if (a.Count != b.Count) return false;
+        for (int i = 0; i < a.Count; i++)
+        {
+            if (a[i].Lat != b[i].Lat || a[i].Lon != b[i].Lon) return false;
+            if (a[i].Elev is double ea)
+            {
+                if (b[i].Elev is not double eb || ea != eb) return false;
+            }
+            else if (b[i].Elev is not null) return false;
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// SF5: WHAT HAPPENS WHEN A UUID IS PUBLISHED TWICE. One function, so the order path and the
+    /// init path cannot disagree about it and the three cases are asserted rather than read out of
+    /// a log.
+    ///
+    /// THE LIFETIME this encodes, in full:
+    ///   * The graphic registry is NEVER cleared. It spans every order and every initialization of
+    ///     a run, like _taskByUuid.
+    ///   * An ORDER never replaces a published uuid: <see cref="Registration.Conflicting"/> keeps
+    ///     the existing graphic, because a task already in flight may be driving it and taking the
+    ///     newer one would make a route depend on message order.
+    ///   * An INITIALIZATION does replace it - the init is the shared world every order is written
+    ///     against - and since SF5 it says so on the same <see cref="Registration.Conflicting"/>.
+    ///   * <see cref="Registration.Identical"/> is silent on BOTH paths: re-pushing an order (the
+    ///     demo posture) and a duplicate init delivery (late-join QUERYINIT plus a broadcast) are
+    ///     normal, not data defects.
+    /// </summary>
+    public enum Registration
+    {
+        /// <summary>Nothing was published under this uuid yet.</summary>
+        New,
+        /// <summary>The same graphic again, vertex for vertex. A no-op, counted, never warned.</summary>
+        Identical,
+        /// <summary>A DIFFERENT graphic under a published uuid - a data defect in the export.</summary>
+        Conflicting,
+    }
+
+    /// <summary>Classify an incoming registration against whatever is already published.</summary>
+    public static Registration Classify(TaskGraphic existing, TaskGraphic incoming)
+        => existing is null ? Registration.New
+           : existing.SameContentAs(incoming) ? Registration.Identical
+           : Registration.Conflicting;
+
     /// <summary>Area graphics (the 35 tactical areas) reduce to ONE point, their centroid: an
     /// area is a place to go to, not a path to follow. Everything else contributes its vertices
     /// in order (a line is a route, a point is a point).</summary>
@@ -140,33 +208,27 @@ public static class TaskGeometryResolver
     /// <param name="graphics">C2SIM uuid -> the graphic published under that uuid, by the
     /// INITIALIZATION or by the ORDER ITSELF (2026-09-20 - the schema allows either, xsd:2960-2977,
     /// and the real STP export uses the second exclusively).</param>
-    public static Resolution Resolve(OrderTask task, IReadOnlyDictionary<string, TaskGraphic> graphics)
+    /// <param name="taskeePos">The performing unit's own position (its AUTHORED init coordinate -
+    /// the same one Vrf:DropOriginVertexMeters is measured against, and the one STP writes as a
+    /// task's leading vertex). Used ONLY by the SF9 assembly rule, to recognise a graphic whose
+    /// first vertex IS the unit's start. Null = no origin is known and none is dropped.</param>
+    public static Resolution Resolve(OrderTask task, IReadOnlyDictionary<string, TaskGraphic> graphics,
+                                     (double Lat, double Lon)? taskeePos = null)
     {
         var log = new List<string>();
         var warn = new List<string>();
-        var points = new List<(double Lat, double Lon, double? Elev)>();
         var ids = task?.MapGraphicUuids ?? Array.Empty<string>();
         var unmatched = new List<string>();
+        var resolved = new List<TaskGraphic>();
 
         foreach (var id in ids)
         {
             if (graphics != null && graphics.TryGetValue(id, out var g) && g.Points is { Count: > 0 })
-            {
-                if (string.Equals(g.Kind, TaskGraphic.KindArea, StringComparison.OrdinalIgnoreCase))
-                {
-                    var c = Centroid(g.Points);
-                    points.Add(c);
-                    log.Add($"geometry from MapGraphicID {id} -> {g.Name} (area, {g.Points.Count} vertices, " +
-                            $"centroid {c.Lat:F6},{c.Lon:F6})");
-                }
-                else
-                {
-                    points.AddRange(g.Points);
-                    log.Add($"geometry from MapGraphicID {id} -> {g.Name} ({g.Kind}, {g.Points.Count} vertices)");
-                }
-            }
+                resolved.Add(g);
             else unmatched.Add(id);
         }
+
+        var points = AssembleRoute(resolved, taskeePos, log, warn);
 
         if (points.Count > 0)
         {
@@ -182,11 +244,21 @@ public static class TaskGeometryResolver
             var dropped = task?.Points;
             if (dropped is { Count: > 0 })
             {
-                double sep = DistMeters(points[0], dropped[0]);
-                log.Add($"{dropped.Count} embedded Location point(s) ignored (MapGraphicID wins) - the first " +
-                        $"embedded point is {sep:F0} m from the first resolved one");
+                // m7's QUESTION is "do the order's two answers disagree about WHERE THIS TASK IS",
+                // and since SF9 that has to be asked of the DESTINATIONS. It used to compare the
+                // two FIRST points, which was a fair comparison while the resolved route began
+                // wherever the first named graphic began. It is not one now: the SF9 assembly drops
+                // the vertices that are the taskee's own position and puts the objective LAST,
+                // while STP's embedded Location is the first tactical graphic linearised - usually
+                // starting AT the unit. First-against-first therefore compares a start with an
+                // objective and fired on 13 of this export's tasks instead of the 7 that really
+                // disagree. Last-against-last compares the two answers to the same question.
+                double sepStart = DistMeters(points[0], dropped[0]);
+                double sep = DistMeters(points[^1], dropped[^1]);
+                log.Add($"{dropped.Count} embedded Location point(s) ignored (MapGraphicID wins) - the two " +
+                        $"answers' DESTINATIONS are {sep:F0} m apart (their first points {sepStart:F0} m)");
                 if (sep > EmbeddedDisagreementMeters)
-                    warn.Add($"the MapGraphicID geometry and the embedded Location on this task are {sep:F0} m " +
+                    warn.Add($"the MapGraphicID geometry and the embedded Location on this task END {sep:F0} m " +
                              $"apart (more than {EmbeddedDisagreementMeters:F0} m): the order and the " +
                              "initialization disagree about where this task is, and the MapGraphicID was used");
             }
@@ -214,6 +286,243 @@ public static class TaskGeometryResolver
             ? $"geometry from embedded Location (no MapGraphicID - {Stp801})"
             : $"geometry from embedded Location ({unmatched.Count} MapGraphicID(s) matched nothing - {Stp801})");
         return new Resolution(points, GeometrySource.EmbeddedLocation, log, warn);
+    }
+
+    /// <summary>How near two authored vertices must be to count as THE SAME PLACE - for dropping a
+    /// graphic's leading vertex that is the taskee's own start, for recognising a destination the
+    /// route already ends at, and for the doubles-back guard. 100 m is Vrf:DropOriginVertexMeters'
+    /// shipped default, measured against the same question (PREREG_ASSEMBLY_LAYOUT_2026-09-07 sec
+    /// 3f: "a task's leading route point that coincides with the unit's AUTHORED initialization
+    /// position ... is dropped").</summary>
+    public const double OriginCoincidenceMeters = 100.0;
+
+    /// <summary>How far the start of the next LINE graphic may sit from the end of the route so far
+    /// and still be read as a CONTINUATION of one path. Beyond it the graphics are not one path and
+    /// the far one is not chained - it is reported instead. 5 km: an order's control measures for
+    /// ONE task are drawn on one objective (Iron Storm's own lines join within 3 km where they join
+    /// at all), while the disagreements this rule exists to stop are 17-105 km
+    /// (stp_export_intake_review.md sec 1c).</summary>
+    public const double ChainGapMeters = 5000.0;
+
+    /// <summary>
+    /// SF9 - HOW SEVERAL MapGraphicIDs ON ONE TASK BECOME ONE ROUTE.
+    ///
+    /// ============================ THE DEFECT THIS REPLACES ============================
+    /// Every resolving graphic's vertices were appended in MapGraphicID DOCUMENT ORDER, whatever
+    /// kind of graphic it was. On the real STP export that produces routes that DOUBLE BACK THROUGH
+    /// THE TASKEE'S OWN START: Iron Storm T12 drove
+    ///   54.280,23.320 -> 54.402,24.043 -> 54.390,23.969 -> 54.280,23.320 -> 54.371,23.994
+    ///   -> 54.402,24.043
+    /// - out 48.8 km, back to where it started, out again: 147.2 km for a ~50 km advance, on one of
+    /// only two tasks the export dispatches at all. The same shape on T01/T03/T04/T08/T13/T15/T16/
+    /// T23. The cause is that the task names a mission task SYMBOL, an AXIS of advance whose first
+    /// vertex IS the unit's position, AND an objective AREA, and all three were spliced end to end.
+    ///
+    /// ============================ WHAT THE SCHEMA ACTUALLY SAYS ============================
+    /// `MapGraphicID` is `minOccurs="0" maxOccurs="unbounded"` on the ActionGroup sequence
+    /// (C2SIM_SMX_LOX_CWIX2024.xsd:1384-1396) and the TaskType/TaskGroup annotation reads "WHERE is
+    /// represented by hasLocation and/or hasMapGraphicID reference" (xsd:3787, :3808). So a task MAY
+    /// name several graphics, and what they jointly describe is WHERE THE TASK IS. The schema
+    /// carries no xs:key, no xs:keyref, no ordering annotation and nothing that makes the list a
+    /// waypoint sequence. CONCATENATION IN DOCUMENT ORDER WAS AN APPLICATION INVENTION WITH NO
+    /// SOURCE - which is precisely what the record forbids ("You must have pointers to sources for
+    /// every decision", PREREG_ASSEMBLY_LAYOUT 3g, where a per-vertex task split was withdrawn on
+    /// exactly this ground).
+    ///
+    /// ============================ WHAT THE KINDS MEAN (already settled) ============================
+    /// The graphic's own KIND is the information the embedded-Location fallback throws away, and
+    /// this file already states what each kind is:
+    ///   AREA  - "an area is a place to go to, NOT A PATH TO FOLLOW" (TaskGraphic.KindArea); it
+    ///           already reduces to one reference point, its centroid.
+    ///   LINE  - "a phase line, an axis of advance, a boundary, a breach lane. Its vertices are
+    ///           contributed IN ORDER - the line IS a path" (TaskGraphic.KindLine).
+    ///   POINT - "ONE vertex, its authored position" (TaskGraphic.KindPoint).
+    /// A mission task SYMBOL with two or more anchors is classified as a line by OrderParser /
+    /// InitParser, and is read as a path, because V4b settled that reading for the same coordinates
+    /// when STP linearises them (docs/experiments/DESIGN_V4B_EMBEDDED_LOCATION_2026-09-14.md
+    /// :141-151). That ruling is NOT reopened here.
+    ///
+    /// ============================ THE RULE ============================
+    ///  1. LINES SUPPLY THE PATH. Points and areas supply the DESTINATION - never an intermediate
+    ///     waypoint, because that is what forces a route back through somewhere it has been.
+    ///  2. ANY vertex of a line within OriginCoincidenceMeters of the taskee's own position is
+    ///     DROPPED - leading OR interior. The unit is already there. On this export one axis
+    ///     carries the taskee's position as its THIRD of four vertices, which is by itself a 45 km
+    ///     out-and-back. (The same reading Vrf:DropOriginVertexMeters applies to a route's leading
+    ///     vertex; here it applies per graphic, to every vertex, before they are joined.)
+    ///  3. LINES ARE CHAINED BY CONTINUITY, NEVER BY DOCUMENT ORDER. The first line is the one
+    ///     whose nearer end is closest to the taskee; it is reversed if its far end is the nearer.
+    ///     Each next line is the unused one whose nearer end is closest to the current route END,
+    ///     reversed on the same test.
+    ///  4. A line whose nearer end is more than ChainGapMeters from the route end is NOT one path
+    ///     with it. It is dropped from the route and named in ONE warning - the interface does not
+    ///     invent a leg to reach it.
+    ///  5. A line that adds no ground (every vertex already within OriginCoincidenceMeters of the
+    ///     route) is dropped silently: two graphics drawing one advance are one advance.
+    ///  6. DESTINATIONS are appended after the path, in document order, skipping any that the route
+    ///     already ends at. Several UNRELATED destinations and no line means the task claims to be
+    ///     in two places: the FIRST is used and ONE warning names them all.
+    ///  7. BACKSTOP: if the assembled route still returns within OriginCoincidenceMeters of the
+    ///     taskee after leaving it, it is TRUNCATED at the return and warned. A route the interface
+    ///     cannot explain is not one it drives.
+    /// Everything the rule did is REPORTED PER GRAPHIC (which id supplied path or destination, and
+    /// what was dropped), because a route assembled by a rule nobody can see is the same defect in
+    /// a different place.
+    ///
+    /// PURE. A single graphic on a task takes exactly the path it took before (one line = its own
+    /// vertices with at most a coincident origin dropped; one area = its centroid; one point = its
+    /// vertex), so every order in data/ other than the Iron Storm export - all of which carry ZERO
+    /// MapGraphicIDs - is bit-for-bit unaffected.
+    /// </summary>
+    private static List<(double Lat, double Lon, double? Elev)> AssembleRoute(
+        IReadOnlyList<TaskGraphic> resolved, (double Lat, double Lon)? taskeePos,
+        List<string> log, List<string> warn)
+    {
+        var route = new List<(double Lat, double Lon, double? Elev)>();
+        if (resolved == null || resolved.Count == 0) return route;
+
+        // 1. Partition by kind, and reduce each to what it contributes.
+        var lines = new List<(TaskGraphic G, List<(double Lat, double Lon, double? Elev)> Pts)>();
+        var destinations = new List<(TaskGraphic G, (double Lat, double Lon, double? Elev) Pt, string What)>();
+        foreach (var g in resolved)
+        {
+            if (string.Equals(g.Kind, TaskGraphic.KindArea, StringComparison.OrdinalIgnoreCase))
+            {
+                var c = Centroid(g.Points);
+                destinations.Add((g, c, $"area, {g.Points.Count} vertices, centroid {c.Lat:F6},{c.Lon:F6}"));
+            }
+            else if (g.Points.Count == 1
+                     || string.Equals(g.Kind, TaskGraphic.KindPoint, StringComparison.OrdinalIgnoreCase))
+            {
+                destinations.Add((g, g.Points[0], $"{g.Kind}, 1 vertex"));
+            }
+            else
+            {
+                var pts = new List<(double Lat, double Lon, double? Elev)>(g.Points);
+                // 2. Drop EVERY vertex that IS the taskee's own start - leading or interior.
+                //
+                //    MEASURED, and the reason this clause is not just about the leading vertex:
+                //    Iron Storm's axis GroundAttackAxi_116_ABCT_SLOT2 (T12) is authored
+                //      (54.40219,24.04281) (54.38968,23.96870) (54.28,23.32) (54.37061,23.99426)
+                //    and 54.28,23.32 IS 116 ABCT's own position - the THIRD of four vertices. So
+                //    the 147 km zig-zag is not only graphics spliced end to end; ONE graphic sends
+                //    the unit 45 km out, back to where it started, and out again. A vertex that is
+                //    the unit's own position is not a place to drive to, wherever it sits in the
+                //    list - which is the reading Vrf:DropOriginVertexMeters already applies to a
+                //    route's leading vertex (PREREG_ASSEMBLY_LAYOUT_2026-09-07 sec 3f, where the
+                //    same coordinate appears because "the order's FIRST route vertex is the STP
+                //    assembly point itself"). SF9 extends it to interior vertices, on the same
+                //    grounds and with a line per task saying it happened.
+                int dropped = 0;
+                if (taskeePos is { } tp)
+                {
+                    var origin = (tp.Lat, tp.Lon, (double?)null);
+                    for (int i = pts.Count - 1; i >= 0 && pts.Count > 1; i--)
+                        if (DistMeters(pts[i], origin) <= OriginCoincidenceMeters) { pts.RemoveAt(i); dropped++; }
+                }
+                if (dropped > 0)
+                    log.Add($"MapGraphicID {g.Uuid} -> {g.Name} ({g.Kind}): {dropped} vertex(es) dropped - " +
+                            "they ARE the taskee's own position, so driving to them is a return to where the " +
+                            "unit already is (SF9; the reading Vrf:DropOriginVertexMeters applies to a " +
+                            "route's leading vertex, extended to interior ones)");
+                lines.Add((g, pts));
+            }
+        }
+
+        // 3/4/5. Chain the lines by continuity from the taskee outwards.
+        var unused = lines.ToList();
+        var unchained = new List<TaskGraphic>();
+        var anchor = taskeePos is { } t0 ? (t0.Lat, t0.Lon, (double?)null) : (double.NaN, double.NaN, (double?)null);
+        bool haveAnchor = taskeePos.HasValue;
+        while (unused.Count > 0)
+        {
+            var from = route.Count > 0 ? route[^1] : anchor;
+            int best = 0; bool bestReverse = false; double bestD = double.MaxValue;
+            for (int i = 0; i < unused.Count; i++)
+            {
+                var p = unused[i].Pts;
+                double dHead = haveAnchor || route.Count > 0 ? DistMeters(from, p[0]) : 0.0;
+                double dTail = haveAnchor || route.Count > 0 ? DistMeters(from, p[^1]) : double.MaxValue;
+                double d = Math.Min(dHead, dTail);
+                if (d < bestD) { bestD = d; best = i; bestReverse = dTail < dHead; }
+            }
+            var chosen = unused[best];
+            unused.RemoveAt(best);
+            var take = chosen.Pts;
+            if (bestReverse) { take = take.ToList(); take.Reverse(); }
+
+            if (route.Count > 0 && bestD > ChainGapMeters)
+            {
+                unchained.Add(chosen.G);
+                continue;
+            }
+            int added = 0;
+            foreach (var p in take)
+            {
+                // 5. A vertex the route already covers adds no ground.
+                if (route.Count > 0 && DistMeters(route[^1], p) <= OriginCoincidenceMeters) continue;
+                route.Add(p);
+                added++;
+            }
+            log.Add($"path from MapGraphicID {chosen.G.Uuid} -> {chosen.G.Name} ({chosen.G.Kind}, " +
+                    $"{chosen.Pts.Count} vertices{(bestReverse ? ", REVERSED for continuity" : "")}): " +
+                    $"{added} vertex(es) joined" +
+                    (route.Count > added ? $" {bestD:F0} m after the previous graphic's end" : ""));
+        }
+        if (unchained.Count > 0)
+            warn.Add($"{unchained.Count} MapGraphicID(s) on this task are NOT continuous with the route its " +
+                     $"other graphic(s) describe (their nearest end is more than {ChainGapMeters:F0} m from " +
+                     $"it) and were NOT chained into it: " +
+                     string.Join("; ", unchained.Select(g => $"{g.Uuid} '{g.Name}' ({g.Kind})")) +
+                     " - the interface does not invent a leg to reach a graphic the order did not join " +
+                     "up, and appending them in document order is what made routes double back (SF9)");
+
+        // 6. ONE destination, last, never a waypoint. "The task is at THIS area / THIS point" does
+        //    not become "drive to each of them in turn" - that is the shape that doubles back.
+        var extraDest = new List<TaskGraphic>();
+        bool destTaken = false;
+        foreach (var d in destinations)
+        {
+            if (route.Count > 0 && DistMeters(route[^1], d.Pt) <= OriginCoincidenceMeters)
+            {
+                destTaken = true;   // the path already ends at this objective
+                log.Add($"destination from MapGraphicID {d.G.Uuid} -> {d.G.Name} ({d.What}): the route already " +
+                        "ends there, not repeated (SF9)");
+                continue;
+            }
+            if (destTaken) { extraDest.Add(d.G); continue; }
+            route.Add(d.Pt);
+            destTaken = true;
+            log.Add($"destination from MapGraphicID {d.G.Uuid} -> {d.G.Name} ({d.What}): appended as the route's " +
+                    "DESTINATION, never as an intermediate waypoint (SF9)");
+        }
+        if (extraDest.Count > 0)
+            warn.Add($"this task names {extraDest.Count + 1} destination graphic(s) (areas/points). A task is in " +
+                     "ONE place: the first is used as the route's destination and the rest are IGNORED - " +
+                     string.Join("; ", extraDest.Select(g => $"{g.Uuid} '{g.Name}' ({g.Kind})")) +
+                     " (SF9; driving to each in turn is a route the order never described)");
+
+        // 7. Backstop: a route must not come back through the unit's own start.
+        if (taskeePos is { } tp2)
+        {
+            var origin = (tp2.Lat, tp2.Lon, (double?)null);
+            bool left = false;
+            for (int i = 0; i < route.Count; i++)
+            {
+                double d = DistMeters(route[i], origin);
+                if (!left) { if (d > OriginCoincidenceMeters) left = true; continue; }
+                if (d <= OriginCoincidenceMeters)
+                {
+                    warn.Add($"the route assembled from this task's MapGraphicID(s) RETURNS to the taskee's own " +
+                             $"start at vertex {i + 1} of {route.Count} after leaving it - it is TRUNCATED there. " +
+                             "A route that doubles back through its origin is not something the order asked for " +
+                             "and is not something this interface drives (SF9 backstop).");
+                    route.RemoveRange(i, route.Count - i);
+                    break;
+                }
+            }
+        }
+        return route;
     }
 
     /// <summary>The centroid of a graphic's vertices - the plain arithmetic mean, which is what an
