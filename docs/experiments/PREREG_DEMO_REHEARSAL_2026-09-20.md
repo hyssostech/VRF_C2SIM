@@ -161,5 +161,28 @@ without a control, STOP and read.
 Any leg scored COARSER than L13 makes that run's ratios unquotable (review F2); a 30 s
 timeout line for a task means disregard that task's shift rows (review F1).
 
+### D3 RESULT (first launch 20260920T202203Z - never reached VR-Forces; adjudicated launch 20260920T202549Z)
+
+FIRST LAUNCH: all four Stage 2h creates refused by STP-825 (appNos 4630-4633, four modules,
+one probe exit 0xC0000005); nothing reached VR-Forces, runner exit 3. Seat hand-started a
+PERSISTENT holder (appNo 4634 refused + 0xC0000005, appNo 4635 JOINED, 28800 s hold); the
+second launch's Stage 2h holder then joined normally. SAME registered run re-launched, not a
+second sample; no prediction covered the holder failing (D1's prereg had it HIGH, D3's did not).
+P1-P5 all HIT (sec 0). The "EMPTY"/"NO VERDICT" strings flagged are C13 ComposeHierarchy
+shell-creation lines and the start-up banner's own prose, not preflight warnings; the real
+empty-cache WARN never appears. Cache: app resolved exactly the pre-warmed 7-file directory;
+0 fetches and L13-for-every-leg are INFERRED from cache-file forensics (no coarser tile
+written), not logged - the service logs neither the resolved level nor fetch/hit counts
+(instrumentation gap). Speed: fleet median 4.54-4.98 m/s (D1b's band), NOT D2's 2.8-3.7;
+completions +0.7% / 0.0% / +1.7% vs D1b. Default-ON cost = ~4.5 s one-off dispatch deferral
+on the first ground task only (vendor-table load, once per process).
+P5 interpretation (registered rule): D2's 0.60x belongs to D2's conditions. D3 cannot
+separate "back-to-back cycle" from "the two I/O-heavy jobs" - it removed both at once. The
+separating run = the same command 30-60 s after a teardown with nothing else live (NOT yet
+registered).
+Anomalies: E1 a backwards sim-clock step (74.1 -> 72.9 s) before any dispatch, unexplained;
+E3 BdeHQ's arrival margin still drifting (+407/+360/+308 m over three runs); E4 the manifest
+omits the persistent holder; E8 D2's 439 extra GUI log lines did not recur.
+
 ## D4 - the audience scenario (COA-STP1's 11 taskees, GUI, real-time, route shift) - needs the user's rulings first.
 ## D5 - Way B, hand-started and STP-driven, with the LaunchVrf52 holder (lane feat/demo-federation-holder).

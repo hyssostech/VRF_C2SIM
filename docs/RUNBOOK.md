@@ -2324,6 +2324,33 @@ gate is demo rehearsal D3 (PREREG_DEMO_REHEARSAL_2026-09-20).
 
 Since the STP-832 fix a refused create is a clean Start()==false with the vendor reason; Stage 2c's RtiProbe retries on the same appNumber (live: 4 rejections absorbed, serviceable on attempt 4/5 and 2/5).
 
+**2026-09-20 (D3, d3_harvest_report.md sec 7/9c): THE REFUSAL RATE IS WORSE THAN RECORDED,
+FOR THIS RTIEXEC.** This rtiexec (pid 75168, up since 2026-09-15) has a lifetime record of
+19 create successes / 14 refusals as of 20:22Z today (~42% refused), then D3's own session
+added 5 more refusals and 1 success (appNos 4630-4635). Any "about 1 create in 4-7 refused"
+figure quoted elsewhere for this rtiexec is STRUCK as superseded - refusals run far more
+often than that on this instance, and they CLUSTER: four in a row on 2026-09-15, and four in
+a row again (then one more) at 20:22Z today. **Stage 2h's four attempts are therefore NOT
+demo-grade on their own** against a cluster this size.
+
+THE DEMO POSTURE IS A PERSISTENT HOLDER, started ONCE and retried until it joins:
+`scratchpad\validation\p7_holder_retry.ps1` with `-SettleSecs 28800` and a block of ledgered
+appNos (numbers not reached on a given try are burned, never reused) - so every subsequent
+launch in the demo window only ever JOINS.
+
+NEW VERIFIED FACTS (sec 7.2-7.4): the FOM Reader's "Extra content at the end of the document"
+line is reported at each rejected file's OWN last line + 1 - i.e. the receiver's reassembled
+buffer holds bytes past the parsed document's end, not a mid-document corruption - across
+rejected modules spanning 5.8 KB to 1.08 MB; the transferred byte count equals the file's own
+byte count after CRLF->LF normalisation IDENTICALLY in every failure AND in the success, so
+the sender's stream is byte-perfect throughout. The probe can also die with 0xC0000005 in its
+own POST-REFUSAL CLEANUP path (managed callstack in
+`runs\20260920T202203Z_run\holder.3.stderr.log`) - a separate .NET interface defect, not a
+MAK crash (no vendor `.callstack.log`/`.dmp` from 2026-09-20 exists; the newest is 2026-09-06).
+
+A root-cause experiment (a RID bundling parameter, one user-authorised rtiexec restart) is
+being pre-registered - pointer only, not run here.
+
 ## 10. THE C16 PROGRESS WATCHDOG IS OFF BY DEFAULT - HOW TO TURN IT ON FOR THE VALIDATION RUN
 
 Added 2026-09-14 (cold-start review sec 2.8). `Vrf:StallDetection` defaults FALSE, is absent from

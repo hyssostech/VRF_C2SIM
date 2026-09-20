@@ -28,6 +28,14 @@ ONCE PER MACHINE
   load. There is no offline fallback terrain configured today (UNVERIFIED - never tested).
 
 ONCE PER DAY / BEFORE EACH DEMO
+- STEP ZERO - START THE PERSISTENT FEDERATION HOLDER. rtiexec's federation CREATE can be
+  refused by its FOM Reader (STP-825) - measured on the live rtiexec at roughly 42% of
+  creates, and refusals CLUSTER (several in a row), so Stage 2h's four automatic attempts per
+  launch are not demo-grade on their own. Once per demo day, before the first launch, run
+  `pwsh -File scratchpad\validation\p7_holder_retry.ps1 -SettleSecs 28800` - it retries a
+  block of ledgered application numbers until one JOINS and then holds the federation open
+  for the rest of the day. Every launch after that only JOINS, never creates. A live
+  `RtiProbe.exe` afterwards is EXPECTED - never kill it.
 - Nothing of ours may still be running: `Get-Process vrfSim*,vrfGui*,VrfC2SimApp` must come back
   empty. rtiexec / rtiForwarder / rtiAssistant MAY stay up between sessions and must NEVER be
   killed - they are shared infrastructure, not part of your run.
@@ -342,6 +350,14 @@ initialization time, and pushing a second initialization into a live interface d
    still listed after that, run `pwsh -File scripts\StopVrf52.ps1` yourself. Also: a line reading
    `runner exit: 127` does NOT mean "command not found" - it means something outside killed the run.
    Never run process-killing sweeps while a run is open; that is the shape that caused it.
+
+4. STP-825: "the federation HOLDER could not join ... after 4 attempt(s)".
+   Remedy: this is the rtiexec FOM-module-distribution refusal, and refusals cluster (several
+   in a row) - four ledgered attempts is not always enough. Start a PERSISTENT holder by hand
+   (`pwsh -File scratchpad\validation\p7_holder_retry.ps1 -SettleSecs 28800`, section 0's step
+   zero) and re-launch once it reports JOINED; every launch after that only joins the held
+   federation. Never restart rtiexec / rtiForwarder yourself - that is the user's call, not
+   the operator's.
 
 ---
 
