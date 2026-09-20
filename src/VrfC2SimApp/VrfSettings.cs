@@ -826,9 +826,27 @@ public class VrfSettings
     // (PREREG_N1_N2 sec 10.3); 4-27's leader froze in P11 and crossed in G3 on a line 15 m away
     // (FINDING_EARLY_STOPS sec 7e).
     //
-    // SHIPS OFF. This is the first thing in the pre-flight that changes the simulation, and it
-    // stays off until the confirming run of the design note's sec 9. The demo turns it on.
-    public bool PreflightRouteShift { get; set; } = false;
+    // SHIPS ON (USER RULING 2026-09-20: "Route shift: ON. Use as default for any run."). It was
+    // built OFF and stayed off until its confirming run; that run is in: V8b (2026-09-15) met every
+    // pre-registered criterion with the shift and the ZERO-OFFSET control V8z froze on the same
+    // line, so the LATERAL OFFSET is the remedy and not the re-dispatch around it.
+    //
+    // TURN IT OFF with the config key or the environment - "Vrf": { "PreflightRouteShift": false }
+    // in appsettings (or an overlay), or Vrf__PreflightRouteShift=false in the interface's own
+    // shell; scripts\StartInterface52.ps1 -RouteShift off sets that variable for you.
+    //
+    // WHAT ON COSTS A RUN THAT NEVER NEEDED IT (read before raising it as a surprise):
+    //   - DISPATCH IS DEFERRED for every GROUND move with more than one vertex, bounded by
+    //     PreflightRouteShiftTimeoutSeconds below; on expiry the AUTHORED line is dispatched.
+    //     The feature can change WHICH line is driven, never WHETHER a unit is tasked - it has no
+    //     refusal path at all (VrfC2SimService.QueueRouteShift/ContinueShift/ExpireShiftRequests).
+    //   - UNKNOWN GROUND IS NEVER CLEAR, and that cuts the safe way: a candidate line with a single
+    //     unscored sample is refused, so a cold or empty tile cache yields NO shift and the
+    //     authored line, never a refusal and never an invented detour.
+    //   - THE ARRIVAL BAR IS COMPUTED FROM THE DRIVEN ROUTE (MarkDispatched -> STP-837), and a
+    //     shifted route is LONGER than the authored one, so a shifted task's traversal bar and
+    //     effective radius both move. See docs RUNBOOK sec 11d.
+    public bool PreflightRouteShift { get; set; } = true;
 
     // The search band, +/- metres. PREREG_RIDGE_AG 3.3 measured the ridge leg clear at every
     // offset from +50 to +550 m north and WORSE to the south; 600 is that band plus one step.

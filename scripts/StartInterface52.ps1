@@ -27,6 +27,12 @@
   ledger); two interfaces on one network must differ. Default 9101.
 .PARAMETER PositionReportSeconds
   Period of the C2SIM position reports (0 = off). Default 10.
+.PARAMETER RouteShift
+  THE LATERAL ROUTE SHIFT (Vrf:PreflightRouteShift; STP-804/806, RUNBOOK sec 12), which is ON by
+  default since the user ruling of 2026-09-20 ("Route shift: ON. Use as default for any run.").
+  'config' (the default) sets nothing and lets appsettings decide; 'off' and 'on' set
+  Vrf__PreflightRouteShift for this process only. This is the off-switch, and it is the SAME
+  variable the runner reads for its manifest - there is one switch, not two.
 .PARAMETER WhatIf
   Print the environment and command line, start nothing.
 #>
@@ -40,6 +46,8 @@ param(
     [string] $RtiDir     = 'C:\MAK\makRti5.0.1',
     [string] $RidFile    = '',
     [string] $Environment = 'Demo',
+    [ValidateSet('config','on','off')]
+    [string] $RouteShift = 'config',
     [switch] $WhatIf
 )
 $ErrorActionPreference = 'Stop'
@@ -143,6 +151,11 @@ $envVars = [ordered]@{
     Vrf__ApplicationNumber     = [string]$AppNumber
     Vrf__PositionReportSeconds = [string]$PositionReportSeconds
 }
+# The route shift is ON by default (user ruling 2026-09-20) and that default lives in
+# appsettings.json / appsettings.Demo.json, so 'config' sets NOTHING here - adding a third place
+# that states the default is how the three drift apart. 'on'/'off' override it for this process
+# only, and the value is printed with the rest of the environment below.
+if ($RouteShift -ne 'config') { $envVars['Vrf__PreflightRouteShift'] = $(if ($RouteShift -eq 'on') { 'true' } else { 'false' }) }
 Write-Host ('StartInterface52: {0}' -f $Exe)
 Write-Host ('  PATH prefix : {0}' -f $pathPrefix)
 foreach ($k in $envVars.Keys) { Write-Host ('  {0,-27}= {1}' -f $k, $envVars[$k]) }

@@ -1,4 +1,5 @@
 using System.Globalization;
+using Microsoft.Extensions.Configuration;
 using VrfC2Sim;
 using VrfC2SimApp.Preflight;
 
@@ -62,12 +63,18 @@ public static class RouteShiftSelfTest
         Console.WriteLine("=== ROUTE SHIFT (STP-804/806) - offline, on the committed tile cache ===");
         Console.WriteLine($"tiles     : {cache} (offline)");
 
+        // ------------------------------------------------- 0. THE DEFAULT (no tiles, no network)
+        // Deliberately FIRST and before the tile-cache gate: the shipped default is now a user
+        // ruling, and a checkout with no tile cache must still fail loudly if someone flips it.
+        Defaults(ref failures, repo);
+
         using var svc = new PreflightService(new PreflightOptions { CacheDir = cache, Offline = true });
         if (!Directory.Exists(cache) || Directory.GetFiles(cache).Length == 0)
         {
             Console.Error.WriteLine($"ROUTESHIFT SELFTEST: the tile cache {cache} is empty - nothing can be scored. " +
                                     "It is gitignored; copy it from a checkout that has it.");
-            return 2;
+            // A real failure in section 0 outranks "could not run": 2 must never hide a FAIL.
+            return failures > 0 ? failures : 2;
         }
         var opt = new RouteShiftOptions();
         Console.WriteLine($"defaults  : band +/-{opt.MaxMeters:F0} m step {opt.StepMeters:F0} m, accept <= " +
@@ -448,6 +455,80 @@ public static class RouteShiftSelfTest
     {
         Console.WriteLine($"  [{(ok ? "ok" : "FAIL")}] {what}");
         if (!ok) failures++;
+    }
+
+    /// <summary>
+    /// SECTION 0 - THE SHIPPED DEFAULT IS ON (user ruling 2026-09-20: "Route shift: ON. Use as
+    /// default for any run."), AND AN EXPLICIT false STILL TURNS IT OFF.
+    ///
+    /// Three places can state the default and all three are checked, because a default that
+    /// changes WHERE UNITS DRIVE must not be true in one of them and false in another:
+    ///   the C# property initialiser (what a run with no configuration file gets),
+    ///   src/VrfC2SimApp/appsettings.json (the shipped file),
+    ///   src/VrfC2SimApp/appsettings.Demo.json (the demo overlay).
+    /// The off-switch is exercised through the REAL configuration stack - the json files as the
+    /// Host layers them, then the environment - rather than by setting the property directly, so
+    /// this asserts the documented escape hatch and not a C# assignment.
+    ///
+    /// No tile, no network, no bridge: it runs in a checkout with no preflight cache at all.
+    /// </summary>
+    private static void Defaults(ref int failures, string repo)
+    {
+        Console.WriteLine("-- 0. the shipped default (user ruling 2026-09-20: route shift ON)");
+        string appSettings = Path.Combine(repo, "src", "VrfC2SimApp", "appsettings.json");
+        string demoSettings = Path.Combine(repo, "src", "VrfC2SimApp", "appsettings.Demo.json");
+
+        Check(ref failures, new VrfSettings().PreflightRouteShift,
+              "VrfSettings.PreflightRouteShift initialises to TRUE - a run with no configuration " +
+              "file at all still shifts");
+        Check(ref failures, File.Exists(appSettings) && File.Exists(demoSettings),
+              $"both shipped settings files are on disk ({appSettings}, {demoSettings})");
+        if (!File.Exists(appSettings) || !File.Exists(demoSettings)) return;
+
+        // The json files as the Host reads them, in the Host's own order.
+        var shipped = new ConfigurationBuilder().AddJsonFile(appSettings, optional: false).Build()
+                          .GetSection("Vrf").Get<VrfSettings>() ?? new VrfSettings();
+        Check(ref failures, shipped.PreflightRouteShift,
+              "appsettings.json SAYS true - the default is written down, not only compiled in");
+        var demo = new ConfigurationBuilder()
+                       .AddJsonFile(appSettings, optional: false)
+                       .AddJsonFile(demoSettings, optional: false).Build()
+                       .GetSection("Vrf").Get<VrfSettings>() ?? new VrfSettings();
+        Check(ref failures, demo.PreflightRouteShift,
+              "the DEMO overlay keeps it true (appsettings.json + appsettings.Demo.json)");
+
+        // THE OFF SWITCH, twice: the config key and the environment override the RUNBOOK names.
+        var offByKey = new ConfigurationBuilder()
+                           .AddJsonFile(appSettings, optional: false)
+                           .AddInMemoryCollection(new Dictionary<string, string>
+                               { ["Vrf:PreflightRouteShift"] = "false" }).Build()
+                           .GetSection("Vrf").Get<VrfSettings>();
+        Check(ref failures, offByKey != null && !offByKey.PreflightRouteShift,
+              "an explicit \"PreflightRouteShift\": false in a later settings file TURNS IT OFF");
+
+        const string EnvKey = "Vrf__PreflightRouteShift";
+        string savedEnv = Environment.GetEnvironmentVariable(EnvKey);
+        try
+        {
+            Environment.SetEnvironmentVariable(EnvKey, "false");
+            var offByEnv = new ConfigurationBuilder()
+                               .AddJsonFile(appSettings, optional: false)
+                               .AddJsonFile(demoSettings, optional: false)
+                               .AddEnvironmentVariables().Build()
+                               .GetSection("Vrf").Get<VrfSettings>();
+            Check(ref failures, offByEnv != null && !offByEnv.PreflightRouteShift,
+                  $"{EnvKey}=false TURNS IT OFF over BOTH json files - the escape hatch the RUNBOOK " +
+                  "and StartInterface52.ps1 -RouteShift off name");
+            Environment.SetEnvironmentVariable(EnvKey, "true");
+            var onByEnv = new ConfigurationBuilder()
+                              .AddJsonFile(appSettings, optional: false)
+                              .AddEnvironmentVariables().Build()
+                              .GetSection("Vrf").Get<VrfSettings>();
+            Check(ref failures, onByEnv != null && onByEnv.PreflightRouteShift,
+                  $"{EnvKey}=true leaves it on (the override is read at all - a check that cannot " +
+                  "pass by the key being ignored)");
+        }
+        finally { Environment.SetEnvironmentVariable(EnvKey, savedEnv); }
     }
 
     /// <summary>Walk up from the executable until data/COA-STP1_Order.xml appears.</summary>

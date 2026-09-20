@@ -512,6 +512,50 @@ public sealed class VrfC2SimService : BackgroundService
                                     : "");
         }
 
+        // 0c-ii. THE LATERAL ROUTE SHIFT SAYS SO AT START-UP (user ruling 2026-09-20: "Route
+        // shift: ON. Use as default for any run."). It is the only shipped-ON feature that changes
+        // WHERE A UNIT DRIVES, and until now the first thing any log said about it was a per-task
+        // line at the first ground move. A run must be able to answer "was the shift on?" from its
+        // banner, because the answer changes how every track in it is read.
+        //
+        // THE COLD-CACHE WARNING IS THE LOAD-BEARING HALF. With no pre-warmed tiles the search
+        // fetches them over HTTP at dispatch time; the dispatch is bounded by
+        // Vrf:PreflightRouteShiftTimeoutSeconds and falls back to the authored line, so nothing is
+        // refused - but a demo that has not pre-warmed its AO pays that wait on every ground move
+        // and gets no shift out of it (unknown ground is never clear).
+        if (_vrf.PreflightRouteShift)
+        {
+            string shiftCache = string.IsNullOrWhiteSpace(_vrf.PreflightCacheDir)
+                ? Path.Combine(AppContext.BaseDirectory, "preflight-cache")
+                : _vrf.PreflightCacheDir;
+            int cachedTiles = 0;
+            try { if (Directory.Exists(shiftCache)) cachedTiles = Directory.GetFiles(shiftCache).Length; }
+            catch { cachedTiles = -1; }
+            _log.LogInformation("LATERAL ROUTE SHIFT ON (Vrf:PreflightRouteShift, the shipped default since the user " +
+                                "ruling of 2026-09-20; STP-804/806): before every GROUND move with more than one " +
+                                "vertex, each leg is scored against the streamed terrain and a FLAGGED leg is " +
+                                "detoured laterally - up to +/-{Band:F0} m - onto ground the same sampler scores as " +
+                                "clear. STP's own vertices are never moved, dropped or reordered, and NO TASK IS " +
+                                "EVER REFUSED: a timeout ({T:F0} s), a throw, a cache with no tiles or no cleared " +
+                                "line all dispatch the AUTHORED line. Turn it off with Vrf:PreflightRouteShift=false " +
+                                "(env Vrf__PreflightRouteShift=false). Tile cache: {Cache} ({N} files{Off}).",
+                                _vrf.PreflightRouteShiftMaxMeters, _vrf.PreflightRouteShiftTimeoutSeconds,
+                                shiftCache, cachedTiles < 0 ? 0 : cachedTiles,
+                                _vrf.PreflightOffline ? ", offline" : "");
+            if (cachedTiles == 0)
+                _log.LogWarning("LATERAL ROUTE SHIFT: the tile cache {Cache} is EMPTY. {What} Pre-warm the AO's tiles " +
+                                "and point Vrf:PreflightCacheDir at them (the STP-802 demo posture also sets " +
+                                "Vrf:PreflightOffline=true) - otherwise every ground move's dispatch waits on the " +
+                                "network for up to {T:F0} s and, where a tile never arrives, the leg is scored " +
+                                "UNKNOWN and no shift is taken (unknown ground is never clear).",
+                                shiftCache,
+                                _vrf.PreflightOffline
+                                    ? "Vrf:PreflightOffline is TRUE, so NOTHING can be scored and NO leg will ever be " +
+                                      "shifted - the feature is on in name only."
+                                    : "Every leg will fetch its tiles over HTTP at dispatch time.",
+                                _vrf.PreflightRouteShiftTimeoutSeconds);
+        }
+
         // 0d-i. Vrf:DurationScale (m8 of the cold-start review of 5c67d41). ONE scale, TWO
         // opposite readings: a 0, negative or NaN scale collapsed the Duration to "no end time
         // armed" while collapsing the start delay to "dispatch now", so a run at scale 0
@@ -2627,7 +2671,10 @@ public sealed class VrfC2SimService : BackgroundService
     /// deferred MoveAlongRoute. terrainRoute: the TerrainProfile-mode re-entry passes the
     /// terrain-authored vertices here (null on the first pass and in every other mode).
     /// shiftedRoute: the ROUTE SHIFT re-entry passes the route with its inserted waypoints here
-    /// (null on the first pass and whenever Vrf:PreflightRouteShift is off, which is the default).
+    /// (null on the first pass, and on every pass when Vrf:PreflightRouteShift is turned off - it
+    /// is ON by default since the user ruling of 2026-09-20). NOT NULL DOES NOT MEAN SHIFTED: the
+    /// worker and the timeout sweep both re-enter here, and both pass a route - the authored one
+    /// when nothing was shifted - which is what stops the re-entry queueing a second check.
     /// </summary>
     private void ExecuteTaskOnTick(OrderTask task, CreatedUnit unit, List<Geodetic> terrainRoute = null,
                                    List<Geodetic> shiftedRoute = null)
@@ -3017,7 +3064,8 @@ public sealed class VrfC2SimService : BackgroundService
             }
         }
 
-        // THE LATERAL ROUTE SHIFT (Vrf:PreflightRouteShift, DEFAULT OFF - STP-804/806;
+        // THE LATERAL ROUTE SHIFT (Vrf:PreflightRouteShift, DEFAULT ON since the user ruling of
+        // 2026-09-20 - STP-804/806;
         // docs/experiments/DESIGN_ROUTE_SHIFT_2026-09-15.md). The route geometry is final here -
         // the live start and the origin-vertex drop have both been applied - and the altitudes are
         // NOT yet authored, which is exactly the moment to insert waypoints: the terrain profile
@@ -3876,8 +3924,12 @@ public sealed class VrfC2SimService : BackgroundService
     private DateTime _nextArrivalCheck = DateTime.MinValue;
 
     // ============ ROUTE PRE-FLIGHT (Vrf:PreflightWarnings; DEMO_READINESS row 20) ============
-    // Built on FIRST USE, never at start-up: when the feature is off - which is the shipped
-    // default - nothing here reads a vendor file, opens a socket or creates a directory.
+    // Built on FIRST USE, never at start-up: with BOTH readers off nothing here reads a vendor
+    // file, opens a socket or creates a directory. SINCE 2026-09-20 THAT IS NO LONGER THE SHIPPED
+    // CASE - Vrf:PreflightRouteShift is ON by default, so the first GROUND move task of a run
+    // builds this service, reads the vendor SMS and the MAK land-cover catalogues, and creates
+    // the tile-cache directory. Vrf:PreflightWarnings still ships OFF, so the post-dispatch
+    // scoring is still the operator's choice; this construction is now the route shift's.
     // volatile: the fast path reads this OUTSIDE the lock, and several task workers can race it.
     private volatile Preflight.PreflightService _preflight;
     private readonly object _preflightLock = new();
@@ -3909,10 +3961,17 @@ public sealed class VrfC2SimService : BackgroundService
                 };
                 if (!string.IsNullOrWhiteSpace(_vrf.VrfHome)) opt = opt with { VrfHome = _vrf.VrfHome };
                 _preflight = new Preflight.PreflightService(opt);
+                // The old wording here was "Warnings only - no task is ever refused or altered",
+                // which stopped being true the moment the route shift shipped ON (2026-09-20):
+                // the shift ALTERS the line a unit drives. Refusal is still never on the table.
                 _log.LogInformation("ROUTE PRE-FLIGHT enabled: threshold {T:F2} on a {W:F0} m sustained window, " +
-                                    "step {S:F0} m, tiles cached in {Cache}{Off}. Warnings only - no task is ever " +
-                                    "refused or altered.", opt.Threshold, opt.WindowM, opt.StepM, cache,
-                                    opt.Offline ? " (offline)" : "");
+                                    "step {S:F0} m, tiles cached in {Cache}{Off}. Readers: warnings {Warn}, " +
+                                    "LATERAL ROUTE SHIFT {Shift} (the shift CHANGES the line a unit drives; " +
+                                    "neither reader ever refuses a task).",
+                                    opt.Threshold, opt.WindowM, opt.StepM, cache,
+                                    opt.Offline ? " (offline)" : "",
+                                    _vrf.PreflightWarnings ? "ON" : "off",
+                                    _vrf.PreflightRouteShift ? "ON" : "off");
                 foreach (var s in _preflight.Soil.Sources) _log.LogInformation("ROUTE PRE-FLIGHT vendor data: {Source}", s);
                 if (!_preflight.Sms.Ok)
                     _log.LogWarning("ROUTE PRE-FLIGHT: vendor SMS not found at {Dir} - every unit falls back to " +

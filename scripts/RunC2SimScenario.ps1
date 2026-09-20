@@ -2259,6 +2259,44 @@ if ($appClientId -and $initSystemNames.Count -gt 0 -and ($initSystemNames -notco
 }
 if (-not $appClientId) { Say-Warn 'could not read Vrf:ClientId from the app appsettings.json - the SystemName match is UNVERIFIED.' }
 
+# THE LATERAL ROUTE SHIFT, IN THE EVIDENCE (user ruling 2026-09-20: "Route shift: ON. Use as
+# default for any run."; STP-804/806, RUNBOOK sec 12). It CHANGES WHERE UNITS DRIVE, so a run
+# that cannot say which line it drove is not evidence of anything - the manifest records the
+# value the app will really use, resolved the way the app resolves it:
+#   Vrf__PreflightRouteShift in this shell (inherited by the child) beats the json file, the
+#   deployed appsettings.json beats the C# initialiser, and the initialiser is TRUE.
+# The runner sets nothing here: turning it off is the operator's env var, not a runner flag, so
+# there is exactly one switch to find. The app's own log line is the confirmation; this is the
+# PREDICTION, and the two disagreeing is itself a finding.
+$RouteShiftEnv = [Environment]::GetEnvironmentVariable('Vrf__PreflightRouteShift')
+$RouteShiftJson = $null
+if ($cfgApp -and ($cfgApp.PSObject.Properties.Name -contains 'Vrf') -and
+    ($cfgApp.Vrf.PSObject.Properties.Name -contains 'PreflightRouteShift')) {
+    $RouteShiftJson = [bool]$cfgApp.Vrf.PreflightRouteShift
+}
+# The .NET configuration binder accepts ONLY true/false for a bool (case-insensitive) and
+# THROWS on anything else, so '1' and 'yes' are not off-switches and must not be reported as
+# though they were - an unparseable value is called out here rather than guessed at.
+if ($RouteShiftEnv -and ($RouteShiftEnv -notmatch '^(true|false)$')) {
+    Say-Warn ("Vrf__PreflightRouteShift='{0}' is NOT a value the .NET configuration binder accepts for a bool (only true/false). The app will FAIL TO BIND its Vrf section. Set true or false, or unset it." -f $RouteShiftEnv)
+}
+if     ($RouteShiftEnv -match '^true$')  { $RouteShiftEff = $true;  $RouteShiftSrc = 'env Vrf__PreflightRouteShift=true' }
+elseif ($RouteShiftEnv -match '^false$') { $RouteShiftEff = $false; $RouteShiftSrc = 'env Vrf__PreflightRouteShift=false' }
+elseif ($null -ne $RouteShiftJson)       { $RouteShiftEff = $RouteShiftJson; $RouteShiftSrc = 'appsettings.json Vrf:PreflightRouteShift' }
+else                                     { $RouteShiftEff = $true;  $RouteShiftSrc = 'VrfSettings.cs initialiser (the key is in NEITHER the environment NOR the deployed appsettings.json)' }
+$Manifest.inputs.routeShift = [ordered]@{
+    effective   = [bool]$RouteShiftEff
+    source      = $RouteShiftSrc
+    envValue    = $(if ($RouteShiftEnv) { $RouteShiftEnv } else { '(unset)' })
+    appSettings = $(if ($null -ne $RouteShiftJson) { $RouteShiftJson } else { '(key absent)' })
+    note        = 'Vrf:PreflightRouteShift. ON detours a FLAGGED leg laterally before dispatch and defers that dispatch up to Vrf:PreflightRouteShiftTimeoutSeconds; it never refuses a task - on a timeout, a throw, an empty tile cache or no cleared line the AUTHORED line is dispatched. The route the unit was GIVEN (shifted or not) is what STP-837 measures its arrival bar from.'
+}
+if ($RouteShiftEff) {
+    Say-Ok ('route shift is ON for this run ({0}) - a flagged leg may be DETOURED before dispatch; the app logs every shift and every decline' -f $RouteShiftSrc)
+} else {
+    Say-Warn ('route shift is OFF for this run ({0}) - flagged legs are dispatched on the authored line' -f $RouteShiftSrc)
+}
+
 # -PreOrderGate NavArea REQUIRES the object consoles open. The row it waits for is printed
 # at object-console level 3 and at no lower level, so with the console below 3 the gate can
 # only ever time out - after burning its whole timeout with VR-Forces up. That is a stage-0
