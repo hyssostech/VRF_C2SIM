@@ -3227,7 +3227,8 @@ per the never-reuse non-negotiable. Annotate with results from the run manifest.
 NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
 join) are BURNED, not recycled. The run manifest records which were actually used.
 
-*** NEXT FREE: 4657 *** (authoritative - the ONLY such marker in this file. Update this
+- 2026-09-20 STP-825 THREE-ARM RID EXPERIMENT (docs/experiments/PREREG_STP825_BUNDLING_2026-09-20.md): 4657..4718 = PILOT-0 (2, arm A) + 60 interleaved creates A,B,C x 20 by RtiProbe against the SEPARATE federation STP825AB (scratch validation/stp825_abc_harness.ps1; per-federate RID copies; no rtiexec restart; the persistent holder 4635 stays on MAK-ONE-2025). One create per number; numbers not reached are BURNED, never reused. CLAIMED.
+*** NEXT FREE: 4719 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
