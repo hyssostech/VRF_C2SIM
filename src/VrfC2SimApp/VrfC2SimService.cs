@@ -3159,7 +3159,7 @@ public sealed class VrfC2SimService : BackgroundService
             if (TaskDispatchPolicy.HoldInPlaceMustRefuse(busy, running.TaskUuid, task.TaskUuid))
             {
                 _log.LogError("Task '{Task}' is REFUSED: its verb '{Code}' names no movement, so executing it " +
-                              "would mean STOPPING {Name} - and {Name} is already performing task '{Old}' " +
+                              "would mean STOPPING {Name}, which is already performing task '{Old}' " +
                               "({OldUuid}), which VR-Forces is running. No vendor halt is exposed to this " +
                               "interface (the facade offers tasks, not a per-unit stop; Pause is the whole " +
                               "simulation), so the unit would KEEP DRIVING while this task's report claimed it " +

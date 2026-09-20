@@ -377,6 +377,17 @@ public static class DeStackSelfTest
         var oldGroups = DeStacker.Apply(oldPlans, spacing, 0.0, null);
         int oldMoved = CountMoved(oldPlans, f.Authored);
 
+        // THE PARSE-INIT DIAGNOSTIC MUST AGREE WITH THE RUNTIME DE-STACK (cold-start review,
+        // 2026-09-20): `--parse-init` now calls InitParseCheck.ComputeStackedGroups, the SAME
+        // CompositionPlan/DeStacker.CoordKey classification DeStacker.Apply uses below, on a
+        // PRE-destack copy of the same plans/hierarchy - so the two can never again print
+        // different answers for the same file (the defect this replaces: the diagnostic used
+        // to group by raw coordinate and call a company's own composed platoons "affected"
+        // while the runtime de-stack held them with their parent and moved nothing).
+        var preDestack = f.Plans.ToList();
+        var (parseGroups, parseAffected, parseComposedChildren) =
+            InitParseCheck.ComputeStackedGroups(preDestack, f.Hierarchy);
+
         var groups = DeStacker.Apply(f.Plans, spacing, 0.0, f.Comp.ComposedChildIndices);
         int moved = CountMoved(f.Plans, f.Authored);
         bool anchorsKept = groups.All(g =>
@@ -396,6 +407,19 @@ public static class DeStackSelfTest
               $"{expectMoved}) [{string.Join(", ", movedNames)}], every group anchor kept: " +
               $"{anchorsKept}. Pre-SF2 scope on the same file: {oldGroups.Count} group(s), " +
               $"{oldMoved} moved.");
+
+        // The affected-unit count from ComputeStackedGroups counts every member of a stacked
+        // group (anchors included); DeStacker.Apply's "moved" excludes the one anchor per group
+        // that keeps its position - so the two agree exactly when parseAffected == moved +
+        // groups.Count. R9 lean/full must both come out (0 groups, 0 affected) here too.
+        Check(ref failures,
+              parseGroups == groups.Count && parseAffected == moved + groups.Count &&
+              parseComposedChildren.Count == f.Comp.ComposedChildIndices.Count,
+              $"{fixture} [{mode}]: --parse-init's ComputeStackedGroups agrees with the runtime " +
+              $"de-stack - {parseGroups} group(s) (destack: {groups.Count}), {parseAffected} " +
+              $"unit(s) affected (destack anchors {groups.Count} + moved {moved} = " +
+              $"{groups.Count + moved}), {parseComposedChildren.Count} composed child(ren) held " +
+              $"(destack: {f.Comp.ComposedChildIndices.Count})");
     }
 
     private static int CountMoved(IReadOnlyList<CreationPlan> plans,

@@ -18,6 +18,15 @@
          5.0.2 deployment under bin\Release\ is never overwritten. -->
     <OutputPath Condition="'$(BridgeConfig)'!='Release'">bin\$(BridgeConfig)\</OutputPath>
     <IntermediateOutputPath Condition="'$(BridgeConfig)'!='Release'">obj\$(BridgeConfig)\</IntermediateOutputPath>
+    <!-- CA2017 (logging template placeholder count/name must match the supplied arguments) is an
+         ERROR, not a warning: a repeated named placeholder shifts every argument after it
+         positionally (Microsoft.Extensions.Logging binds by position, not by name) and the SF4
+         hold-refusal defect (VrfC2SimService.cs:3161, fixed alongside this change) proved that a
+         mismatch here does not just garble a log line - it THROWS at the call site and can abort
+         a dispatch before it completes. This is the second time this defect class has appeared
+         this week; the compiler enforces it going forward. Only CA2017 is promoted - the six
+         pre-existing documented warnings (4x CA2024, 2x CS8632) stay warnings. -->
+    <WarningsAsErrors>$(WarningsAsErrors);CA2017</WarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>
