@@ -512,6 +512,51 @@ public sealed class VrfC2SimService : BackgroundService
                                     : "");
         }
 
+        // 0c-ii. THE LATERAL ROUTE SHIFT SAYS SO AT START-UP (user ruling 2026-09-20: "Route
+        // shift: ON. Use as default for any run."). It is the only shipped-ON feature that changes
+        // WHERE A UNIT DRIVES, and until now the first thing any log said about it was a per-task
+        // line at the first ground move. A run must be able to answer "was the shift on?" from its
+        // banner, because the answer changes how every track in it is read.
+        //
+        // THE COLD-CACHE WARNING IS THE LOAD-BEARING HALF. With no pre-warmed tiles the search
+        // fetches them over HTTP at dispatch time; the dispatch is bounded by
+        // Vrf:PreflightRouteShiftTimeoutSeconds and falls back to the authored line, so nothing is
+        // refused - but a demo that has not pre-warmed its AO pays that wait on every ground move
+        // and gets no shift out of it (unknown ground is never clear).
+        if (_vrf.PreflightRouteShift)
+        {
+            string shiftCache = string.IsNullOrWhiteSpace(_vrf.PreflightCacheDir)
+                ? Path.Combine(AppContext.BaseDirectory, "preflight-cache")
+                : _vrf.PreflightCacheDir;
+            int cachedTiles = 0;
+            try { if (Directory.Exists(shiftCache)) cachedTiles = Directory.GetFiles(shiftCache).Length; }
+            catch { cachedTiles = -1; }
+            _log.LogInformation("LATERAL ROUTE SHIFT ON (Vrf:PreflightRouteShift, the shipped default since the user " +
+                                "ruling of 2026-09-20; STP-804/806): before every GROUND move with more than one " +
+                                "vertex, each leg is scored against the streamed terrain and a FLAGGED leg is " +
+                                "detoured laterally - up to +/-{Band:F0} m - onto ground the same sampler scores as " +
+                                "clear. STP's own vertices are never moved, dropped or reordered, and NO TASK IS " +
+                                "EVER REFUSED: a timeout ({T:F0} s), a throw, a cache with no tiles or no cleared " +
+                                "line all dispatch the AUTHORED line. Turn it off with Vrf:PreflightRouteShift=false " +
+                                "(env Vrf__PreflightRouteShift=false). Tile cache: {Cache} ({N} files{Off}).",
+                                _vrf.PreflightRouteShiftMaxMeters, _vrf.PreflightRouteShiftTimeoutSeconds,
+                                shiftCache, cachedTiles < 0 ? 0 : cachedTiles,
+                                _vrf.PreflightOffline ? ", offline" : "");
+            if (cachedTiles == 0)
+                _log.LogWarning("LATERAL ROUTE SHIFT: the tile cache {Cache} is EMPTY. {What} Pre-warm the AO's tiles " +
+                                "and point Vrf:PreflightCacheDir at them (the STP-802 demo posture also sets " +
+                                "Vrf:PreflightOffline=true) - otherwise every ground move's dispatch waits on the " +
+                                "network for up to {T:F0} s and, where a tile never arrives, the leg is scored " +
+                                "UNKNOWN and no shift is taken (unknown ground is never clear).",
+                                shiftCache,
+                                _vrf.PreflightOffline
+                                    ? "Vrf:PreflightOffline is TRUE, so NOTHING can be scored and NO leg could ever be " +
+                                      "shifted; the shift is therefore SKIPPED for this run and every ground move is " +
+                                      "dispatched on its authored line at once, with no deferral and no wait."
+                                    : "Every leg will fetch its tiles over HTTP at dispatch time.",
+                                _vrf.PreflightRouteShiftTimeoutSeconds);
+        }
+
         // 0d-i. Vrf:DurationScale (m8 of the cold-start review of 5c67d41). ONE scale, TWO
         // opposite readings: a 0, negative or NaN scale collapsed the Duration to "no end time
         // armed" while collapsing the start delay to "dispatch now", so a run at scale 0
@@ -2627,7 +2672,10 @@ public sealed class VrfC2SimService : BackgroundService
     /// deferred MoveAlongRoute. terrainRoute: the TerrainProfile-mode re-entry passes the
     /// terrain-authored vertices here (null on the first pass and in every other mode).
     /// shiftedRoute: the ROUTE SHIFT re-entry passes the route with its inserted waypoints here
-    /// (null on the first pass and whenever Vrf:PreflightRouteShift is off, which is the default).
+    /// (null on the first pass, and on every pass when Vrf:PreflightRouteShift is turned off - it
+    /// is ON by default since the user ruling of 2026-09-20). NOT NULL DOES NOT MEAN SHIFTED: the
+    /// worker and the timeout sweep both re-enter here, and both pass a route - the authored one
+    /// when nothing was shifted - which is what stops the re-entry queueing a second check.
     /// </summary>
     private void ExecuteTaskOnTick(OrderTask task, CreatedUnit unit, List<Geodetic> terrainRoute = null,
                                    List<Geodetic> shiftedRoute = null)
@@ -3017,7 +3065,8 @@ public sealed class VrfC2SimService : BackgroundService
             }
         }
 
-        // THE LATERAL ROUTE SHIFT (Vrf:PreflightRouteShift, DEFAULT OFF - STP-804/806;
+        // THE LATERAL ROUTE SHIFT (Vrf:PreflightRouteShift, DEFAULT ON since the user ruling of
+        // 2026-09-20 - STP-804/806;
         // docs/experiments/DESIGN_ROUTE_SHIFT_2026-09-15.md). The route geometry is final here -
         // the live start and the origin-vertex drop have both been applied - and the altitudes are
         // NOT yet authored, which is exactly the moment to insert waypoints: the terrain profile
@@ -3042,7 +3091,7 @@ public sealed class VrfC2SimService : BackgroundService
         if (shiftedRoute != null)
             routeGeo = shiftedRoute;
         else if (_vrf.PreflightRouteShift && isGround && terrainRoute == null && routeGeo.Count > 1
-                 && !routeWillBeCollapsed)
+                 && !routeWillBeCollapsed && RouteShiftCanScore())
         {
             QueueRouteShift(task, unit, routeGeo);
             return;
@@ -3876,8 +3925,12 @@ public sealed class VrfC2SimService : BackgroundService
     private DateTime _nextArrivalCheck = DateTime.MinValue;
 
     // ============ ROUTE PRE-FLIGHT (Vrf:PreflightWarnings; DEMO_READINESS row 20) ============
-    // Built on FIRST USE, never at start-up: when the feature is off - which is the shipped
-    // default - nothing here reads a vendor file, opens a socket or creates a directory.
+    // Built on FIRST USE, never at start-up: with BOTH readers off nothing here reads a vendor
+    // file, opens a socket or creates a directory. SINCE 2026-09-20 THAT IS NO LONGER THE SHIPPED
+    // CASE - Vrf:PreflightRouteShift is ON by default, so the first GROUND move task of a run
+    // builds this service, reads the vendor SMS and the MAK land-cover catalogues, and creates
+    // the tile-cache directory. Vrf:PreflightWarnings still ships OFF, so the post-dispatch
+    // scoring is still the operator's choice; this construction is now the route shift's.
     // volatile: the fast path reads this OUTSIDE the lock, and several task workers can race it.
     private volatile Preflight.PreflightService _preflight;
     private readonly object _preflightLock = new();
@@ -3904,15 +3957,46 @@ public sealed class VrfC2SimService : BackgroundService
                     Threshold = _vrf.PreflightThreshold,
                     DropOriginMeters = _vrf.DropOriginVertexMeters,
                     Offline = _vrf.PreflightOffline,
+                    ElevationLevel = _vrf.PreflightElevationLevel,
+                    ElevationMinLevel = _vrf.PreflightElevationMinLevel,
                     FriendlyNation = _nations.Friendly,
                     OpposingNation = _nations.Opposing,
                 };
                 if (!string.IsNullOrWhiteSpace(_vrf.VrfHome)) opt = opt with { VrfHome = _vrf.VrfHome };
                 _preflight = new Preflight.PreflightService(opt);
+                // The old wording here was "Warnings only - no task is ever refused or altered",
+                // which stopped being true the moment the route shift shipped ON (2026-09-20):
+                // the shift ALTERS the line a unit drives. Refusal is still never on the table.
                 _log.LogInformation("ROUTE PRE-FLIGHT enabled: threshold {T:F2} on a {W:F0} m sustained window, " +
-                                    "step {S:F0} m, tiles cached in {Cache}{Off}. Warnings only - no task is ever " +
-                                    "refused or altered.", opt.Threshold, opt.WindowM, opt.StepM, cache,
-                                    opt.Offline ? " (offline)" : "");
+                                    "step {S:F0} m, tiles cached in {Cache}{Off}. Readers: warnings {Warn}, " +
+                                    "LATERAL ROUTE SHIFT {Shift} (the shift CHANGES the line a unit drives; " +
+                                    "neither reader ever refuses a task).",
+                                    opt.Threshold, opt.WindowM, opt.StepM, cache,
+                                    opt.Offline ? " (offline)" : "",
+                                    _vrf.PreflightWarnings ? "ON" : "off",
+                                    _vrf.PreflightRouteShift ? "ON" : "off");
+                // WHICH ELEVATION LEVEL IS IN USE, said once and up front. The level is an AO
+                // property, not a constant, and the threshold above was calibrated at L13 only -
+                // a run that quotes a ratio without saying which DEM produced it is quoting an
+                // un-anchored number. The actual level per area is probed lazily and appears
+                // again on every verdict.
+                // NOTE the placeholders are POSITIONAL here (Microsoft.Extensions.Logging binds
+                // by order, not by name), so a repeated {L} would silently consume the next
+                // argument and shift every value after it. Each name appears exactly once.
+                _log.LogInformation("ROUTE PRE-FLIGHT elevation: dataset {Ds}, start level L{Level} " +
+                                    "(Vrf:PreflightElevationLevel), falling back one level at a time to L{Min} " +
+                                    "(Vrf:PreflightElevationMinLevel) wherever the server has NO DATA at the level " +
+                                    "above. The Mojave AO is served at L13; the Suwalki AO at L12 only, so the " +
+                                    "fallback is what stops every leg there reading 'NO VERDICT - tiles missing'. " +
+                                    "A leg that resolves at NO level is reported as a WARNING, never as clear.",
+                                    Preflight.TileMath.ElevationDataset, _preflight.Tiles.ElevationLevel,
+                                    _preflight.Tiles.ElevationMinLevel);
+                // The CALIBRATION REFERENCE, stated as what it is: the threshold's own anchor, at
+                // the Mojave latitude and level it was measured on. A leg scored at a coarser
+                // level prints its OWN note beside its verdict, so the two can be compared.
+                _log.LogInformation("ROUTE PRE-FLIGHT calibration reference: {Note}",
+                                    Preflight.TileMath.CalibrationNote(34.66, Preflight.TileMath.DefaultElevationLevel,
+                                                                       opt.WindowM, opt.Threshold));
                 foreach (var s in _preflight.Soil.Sources) _log.LogInformation("ROUTE PRE-FLIGHT vendor data: {Source}", s);
                 if (!_preflight.Sms.Ok)
                     _log.LogWarning("ROUTE PRE-FLIGHT: vendor SMS not found at {Dir} - every unit falls back to " +
@@ -3926,6 +4010,62 @@ public sealed class VrfC2SimService : BackgroundService
             }
             return _preflight;
         }
+    }
+
+    /// <summary>
+    /// THE TWO FINDINGS EVERY READER OWES, whichever of them scored the route (STP-802).
+    ///
+    /// 1. NO ELEVATION AT ANY LEVEL. The old code pinned the level at 13, so an AO the server
+    ///    serves one level coarser produced a NaN per sample, "NO VERDICT - tiles missing" per
+    ///    leg, nothing flagged and - with the shift ON by default - no shift, silently. That is a
+    ///    false green, so a leg whose cascade found NOTHING is a WARNING naming the leg and the
+    ///    levels tried. It is never counted as clear ground.
+    /// 2. WATER ON THE LINE. Deep water is acceleration-factor 0.000 in the vendor's own soil
+    ///    table: a dead stop reported as TaskRunning for ever. A WARNING per leg, and the caller
+    ///    pushes the matching ObservationReports - this method does the log half only, because
+    ///    the two readers push on different schedules.
+    ///
+    /// Neither finding refuses or alters anything. Returns the number of legs with water so the
+    /// caller can decide whether to build reports at all.
+    /// </summary>
+    private int ReportLegTerrainFindings(string taskName, string unitName,
+                                         IReadOnlyList<Preflight.LegMetrics> legs,
+                                         Preflight.PreflightService svc)
+    {
+        int water = 0;
+        if (legs == null) return 0;
+        foreach (var leg in legs)
+        {
+            if (leg.ElevationLevel == 0)
+                _log.LogWarning("ROUTE PRE-FLIGHT task '{Task}' ({Unit}) leg {Leg}: NO ELEVATION DATA AT ANY LEVEL - " +
+                                "dataset {Ds} returned no tile at L{From} down to L{To} anywhere along this leg " +
+                                "({A:F5},{ALon:F5}) -> ({B:F5},{BLon:F5}). NOTHING about this leg was checked: it is " +
+                                "NOT clear ground, and no shift can be taken on it (unknown ground is never clear). " +
+                                "Either the AO is outside the elevation service or Vrf:PreflightElevationMinLevel " +
+                                "is not deep enough for it{Off}.",
+                                taskName, unitName, leg.Index, Preflight.TileMath.ElevationDataset,
+                                svc.Tiles.ElevationLevel, svc.Tiles.ElevationMinLevel,
+                                leg.Start.Lat, leg.Start.Lon, leg.End.Lat, leg.End.Lon,
+                                svc.Options.Offline ? " - and Vrf:PreflightOffline is TRUE, so only the tile cache " +
+                                                      "'" + svc.Tiles.CacheDirectory + "' was consulted" : "");
+            else if (leg.ElevationLevel < Preflight.TileMath.DefaultElevationLevel)
+                _log.LogInformation("ROUTE PRE-FLIGHT task '{Task}' ({Unit}) leg {Leg}: scored at {Note}.",
+                                    taskName, unitName, leg.Index,
+                                    Preflight.TileMath.CalibrationNote(leg.Start.Lat, leg.ElevationLevel,
+                                                                       svc.Options.WindowM, svc.Options.Threshold));
+            if (leg.WaterSamples <= 0) continue;
+            water++;
+            _log.LogWarning("ROUTE PRE-FLIGHT task '{Task}' ({Unit}) leg {Leg}: WATER ON THE LINE - {N} of {Total} " +
+                            "sample(s) classify as {Soil} ({Src}), first at ({Lat:F5},{Lon:F5}), {Km:F2} km along. " +
+                            "Deep water is acceleration-factor 0.000 in ground-tracked.sysdef, so a ground vehicle " +
+                            "driven onto it STOPS and the task stays TaskRunning. This is an estimate off land-cover " +
+                            "tiles: nothing is refused or altered, and the leg is dispatched.",
+                            taskName, unitName, leg.Index, leg.WaterSamples, leg.Samples,
+                            string.IsNullOrEmpty(leg.WaterSoil) ? "water" : leg.WaterSoil,
+                            string.IsNullOrEmpty(leg.WaterSource) ? "land cover" : leg.WaterSource,
+                            leg.WaterFirst.Lat, leg.WaterFirst.Lon, leg.WaterFirstSM / 1000.0);
+        }
+        return water;
     }
 
     /// <summary>
@@ -3984,7 +4124,10 @@ public sealed class VrfC2SimService : BackgroundService
                 else if (noVerdict > 0)
                     _log.LogInformation("ROUTE PRE-FLIGHT task '{Task}' ({Unit}): {N} leg(s) got NO VERDICT - tiles " +
                                         "missing; they are neither flagged nor passed.", taskName, unitName, noVerdict);
+                ReportLegTerrainFindings(taskName, unitName, legs, svc);
 
+                // BuildForTask already emits the water finding in place of the grade flag on a
+                // water leg, so this reader needs no second pass.
                 var reports = Preflight.PreflightReports.BuildForTask(scored, svc.Options.Threshold,
                                                                      IsoNow(), NewReportId);
                 // m6: these are ObservationReports, so a push failure must say so (the default
@@ -4025,6 +4168,55 @@ public sealed class VrfC2SimService : BackgroundService
 
     private readonly ConcurrentDictionary<long, PendingShift> _pendingShift = new();
     private long _nextShiftId;
+
+    // THE COLD-CACHE GUARD (proposal 1 of the route-shift default-ON review, applied here).
+    // With Vrf:PreflightOffline TRUE and a tile cache that holds no files, NOTHING can ever be
+    // scored: every sample is NaN, every candidate polyline is +infinity, no leg is ever shifted.
+    // The feature is then on in name only while still deferring EVERY ground move's dispatch
+    // through a worker and a 30 s timeout. That buys nothing and costs a wait, so the dispatch
+    // takes the ordinary path instead - the same route, the same line, sooner.
+    //
+    // THE TEST IS THE CONJUNCTION, deliberately. An empty cache with fetching ALLOWED is the
+    // normal cold start: the tiles arrive over HTTP and legs really are scored, so it must still
+    // run (it is only warned about, at start-up). Offline is what makes emptiness permanent.
+    // Evaluated ONCE - with fetching off, nothing can populate the directory mid-run - and the
+    // reason is logged once, because a silently skipped shift is the false green this lane exists
+    // to remove.
+    private int _shiftCanScore;            // 0 = not decided, 1 = yes, 2 = no
+
+    /// <summary>
+    /// THE RULE, pure and testable: the shift can only be SKIPPED when fetching is off AND the
+    /// cache is known to be empty. A cache count of -1 means "could not be read", which is not
+    /// evidence of emptiness, so it runs. (Selftest: RouteShiftSelfTest section 0.)
+    /// </summary>
+    internal static bool RouteShiftCanScore(bool offline, int cachedFiles)
+        => !offline || cachedFiles != 0;
+
+    private bool RouteShiftCanScore()
+    {
+        int known = Volatile.Read(ref _shiftCanScore);
+        if (known != 0) return known == 1;
+        string dir = string.IsNullOrWhiteSpace(_vrf.PreflightCacheDir)
+            ? Path.Combine(AppContext.BaseDirectory, "preflight-cache")
+            : _vrf.PreflightCacheDir;
+        int files = -1;
+        if (_vrf.PreflightOffline)
+        {
+            try { files = Directory.Exists(dir) ? Directory.GetFiles(dir).Length : 0; }
+            catch { files = -1; }      // unreadable: assume it may hold tiles and let it run
+        }
+        bool can = RouteShiftCanScore(_vrf.PreflightOffline, files);
+        if (!can)
+            _log.LogWarning("LATERAL ROUTE SHIFT SKIPPED FOR THIS RUN: Vrf:PreflightOffline is TRUE and the tile " +
+                            "cache {Cache} holds no files, so no leg can ever be scored and no route can ever be " +
+                            "shifted. Every ground move is dispatched on its AUTHORED line immediately instead of " +
+                            "waiting {T:F0} s per task for a search that cannot succeed. Pre-warm the AO's tiles " +
+                            "(e.g. a deployed copy of tools/preflight/preflight_cache) and point " +
+                            "Vrf:PreflightCacheDir at them, or set Vrf:PreflightOffline=false to fetch them.",
+                            dir, _vrf.PreflightRouteShiftTimeoutSeconds);
+        Volatile.Write(ref _shiftCanScore, can ? 1 : 2);
+        return can;
+    }
 
     /// <summary>The chooser's settings, straight from configuration. The THRESHOLD is the
     /// pre-flight's own - there is no second threshold anywhere in this feature.</summary>
@@ -4108,6 +4300,11 @@ public sealed class VrfC2SimService : BackgroundService
                 {
                     var limit = svc.LimitFor(template, hostile);
                     var outcome = svc.ShiftRoute(route, limit.LimitRaw, opt);
+                    // BEFORE the shift rows, and for EVERY leg rather than only the flagged ones:
+                    // with Vrf:PreflightWarnings off (still the shipped default) this reader is
+                    // the ONLY one that runs, and it used to say nothing at all about a leg it
+                    // never flagged - including a leg nothing could be sampled for.
+                    int waterLegs = ReportLegTerrainFindings(taskName, unitName, outcome.Legs, svc);
                     foreach (var s in outcome.Shifts)
                     {
                         if (s.Shifted)
@@ -4149,6 +4346,13 @@ public sealed class VrfC2SimService : BackgroundService
                     reports = Preflight.PreflightReports.BuildForShift(taskeeUuid, unitName, taskName,
                                                                       outcome.Shifts, outcome.Legs,
                                                                       IsoNow(), NewReportId);
+                    // The shift's own rows are per FLAGGED leg, so water on a leg it never
+                    // flagged would reach the C2 side nowhere. Appended, not merged: a flagged
+                    // water leg gets both its shift row and its water row, and both are true.
+                    if (waterLegs > 0)
+                        reports.AddRange(Preflight.PreflightReports.BuildWaterFindings(
+                                             taskeeUuid, unitName, taskName, outcome.Legs,
+                                             IsoNow(), NewReportId));
                 }
             }
             catch (Exception e)

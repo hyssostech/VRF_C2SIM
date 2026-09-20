@@ -464,8 +464,13 @@ def check_empty_52(path, donor=None, frame_mode="fixed-frame-run-to-complete",
         inside = (aoi["lat_min"] <= lat <= aoi["lat_max"]
                   and aoi["lon_min"] <= lon <= aoi["lon_max"])
         _cx, _cy, _cz, want_r = bf.aoi_extent_ecef(aoi)
-        ok = _say(ok, "extent centre inside the R9 AOI",
-                  "%.4f, %.4f, %.0f m" % (lat, lon, h), inside)
+        # THE EXPECTED BOX IS AO-SPECIFIC and defaults to R9 Mojave, exactly as the builder's
+        # does (STP-802). Validating a fixture built with build_fixture.py --aoi <box> needs
+        # the SAME --aoi here, or this check reads a correct Suwalki extent as a failure.
+        ok = _say(ok, "extent centre inside the expected AOI",
+                  "%.4f, %.4f, %.0f m (AOI %.4f..%.4f N, %.4f..%.4f E)"
+                  % (lat, lon, h, aoi["lat_min"], aoi["lat_max"],
+                     aoi["lon_min"], aoi["lon_max"]), inside)
         ok = _say(ok, "extent radius covers the AOI box",
                   "%.1f m (need >= %.1f)" % (r, want_r), r >= want_r - 1.0)
 
@@ -509,7 +514,14 @@ if __name__ == "__main__":
                          "'vendor' for a fixture deliberately built on the shipped "
                          "SMS, or the path of another derived SMS."
                          % bf.SMS_52_CUSTOM)
+    ap.add_argument("--aoi", default=None, metavar="BOX",
+                    help="--empty-52: the playbox the fixture's ScenarioExtentInformation "
+                         "is expected to name, in build_fixture.py's own --aoi syntax "
+                         "(lat_min,lat_max,lon_min,lon_max[,h] or a named box: %s). DEFAULT: "
+                         "the R9 MOJAVE box, so a fixture built with --aoi must be validated "
+                         "with the same --aoi." % ", ".join(sorted(bf.NAMED_AOI)))
     args = ap.parse_args()
+    aoi = bf.parse_aoi(args.aoi)
 
     results = []
     if args.empty_52 is None and args.legacy is None:
@@ -521,7 +533,7 @@ if __name__ == "__main__":
         for p in (args.empty_52 if args.empty_52 is not None else []):
             results.append(check_empty_52(p, donor=args.donor,
                                           frame_mode=args.frame_mode,
-                                          frame_time=args.frame_time,
+                                          frame_time=args.frame_time, aoi=aoi,
                                           terrain=args.terrain, sms=args.sms))
 
     if args.expect_fail:

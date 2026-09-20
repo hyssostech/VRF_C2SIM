@@ -15,6 +15,14 @@ public sealed record PreflightOptions
     public double DropOriginMeters { get; init; } = 100.0;
     public bool Offline { get; init; }
     public bool Nearest { get; init; }
+
+    /// <summary>
+    /// Where the elevation cascade STARTS and STOPS (Vrf:PreflightElevationLevel /
+    /// Vrf:PreflightElevationMinLevel). The defaults reproduce the Mojave calibration exactly;
+    /// the fallback is what makes the pre-flight AO-independent (Suwalki serves L12, not L13).
+    /// </summary>
+    public int ElevationLevel { get; init; } = TileMath.DefaultElevationLevel;
+    public int ElevationMinLevel { get; init; } = TileMath.DefaultMinElevationLevel;
     public bool AllowLifeforms { get; init; }
     public string FriendlyNation { get; init; } = "USA";
     public string OpposingNation { get; init; } = "RUS";
@@ -70,7 +78,8 @@ public sealed class PreflightService : IDisposable
     public PreflightService(PreflightOptions opt)
     {
         _opt = opt;
-        _tiles = new TileSource(opt.CacheDir, opt.Offline, opt.Nearest);
+        _tiles = new TileSource(opt.CacheDir, opt.Offline, opt.Nearest, null,
+                                opt.ElevationLevel, opt.ElevationMinLevel);
         _soil = new SoilChain(opt.SharedData, opt.VrfHome);
         _sms = new VendorSms(Path.Combine(opt.VrfHome, "data", "simulationModelSets",
                                           "EntityLevel", "vrfSim"));
@@ -115,21 +124,36 @@ public sealed class PreflightService : IDisposable
                              veh.Select(x => x.Label).Distinct().OrderBy(x => x, StringComparer.Ordinal).ToList(), note);
     }
 
-    /// <summary>Sample one leg's straight line and score it. I/O per sample; PURE arithmetic after.</summary>
+    /// <summary>
+    /// Sample one leg's straight line and score it. I/O per sample; PURE arithmetic after.
+    ///
+    /// THE ELEVATION LEVEL IS RECORDED, NOT ASSUMED. Each sample is taken at the deepest level
+    /// of the cascade that serves its area; the leg carries out the COARSEST level any of its
+    /// samples used, and 0 when NO level served any of them - which is the case the caller has
+    /// to shout about, because a leg nothing could be sampled for is not a clear leg.
+    /// </summary>
     public LegMetrics ScoreLeg((double Lat, double Lon) a, (double Lat, double Lon) b, double limitRaw)
     {
         double length = TileMath.DistanceMeters(a.Lat, a.Lon, b.Lat, b.Lon);
         int n = LegScorer.SampleCount(length, _opt.StepM);
         var samples = new List<LegSample>(n);
+        int coarsest = 0, served = 0;
         for (int i = 0; i < n; i++)
         {
             double s = LegScorer.SampleDistance(length, i, n);
             double f = length == 0 ? 0.0 : s / length;
             var (la, lo) = TileMath.Interpolate(a.Lat, a.Lon, b.Lat, b.Lon, f);
-            samples.Add(new LegSample(s, la, lo, _tiles.Elevation(la, lo), _soil.Classify(_tiles, la, lo)));
+            double z = _tiles.Elevation(la, lo, out int level);
+            if (level > 0)
+            {
+                served++;
+                if (coarsest == 0 || level < coarsest) coarsest = level;
+            }
+            samples.Add(new LegSample(s, la, lo, z, _soil.Classify(_tiles, la, lo)));
         }
         return LegScorer.Score(a, b, samples, length, limitRaw, _opt.StepM, _opt.WindowM,
-                               _opt.ShortWindowM, _opt.Threshold);
+                               _opt.ShortWindowM, _opt.Threshold)
+               with { ElevationLevel = served == 0 ? 0 : coarsest };
     }
 
     /// <summary>

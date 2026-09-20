@@ -105,12 +105,122 @@ public static class PreflightReports
         return C2SIMSDK.FromC2SIMObject(body);
     }
 
+    // ================= WATER (STP-802 / the Suwalki AO) ======================================
+    // A vehicle on deep water has acceleration-factor 0.000000 and stopping-factor 0.000000
+    // (ground-tracked.sysdef's soil-list), i.e. a dead stop the vendor reports as TaskRunning
+    // for ever - the silent-freeze shape a demo cannot afford. Before CLCplus was in the source
+    // list the pre-flight was BLIND to it at Suwalki: 154/165 serve nothing there and
+    // Copernicus's water class 80 is commented out of the vendor catalogue, so water resolved to
+    // no soil and no verdict while the SIM, which composes CLCplus, stopped the vehicle anyway.
+    //
+    // THIS IS A FINDING, NOT A REFUSAL. Nothing in the pre-flight refuses a task and nothing
+    // here starts: the leg is reported and dispatched. It does not size or side a shift either -
+    // water reaches the chooser only the way any other ground does, through the SAME sampler
+    // (a water sample's zero factor makes a candidate polyline score +infinity, so the search
+    // simply never accepts one). "Unknown ground is never clear" and "C2 may size a shift, never
+    // side one" both still hold.
+
+    /// <summary>The Marking of a leg that crosses water.</summary>
+    public static string WaterMarking(string taskName, string unitName, LegMetrics leg)
+        => $"ROUTE PRE-FLIGHT - WATER ON THE LINE: task {taskName} ({unitName}) leg {leg.Index} - " +
+           $"{leg.WaterSamples} of {leg.Samples} sample(s) along this leg classify as {leg.WaterSoil}" +
+           (string.IsNullOrEmpty(leg.WaterSource) ? "" : $" ({leg.WaterSource}" +
+                (string.IsNullOrEmpty(leg.WaterDesc) ? "" : $": {leg.WaterDesc}") + ")") +
+           $", first at {F(leg.WaterFirstSM / 1000.0, 2)} km along. The vendor's own soil table gives " +
+           "deep water acceleration-factor 0.000, so a ground vehicle driven onto it STOPS and the task " +
+           "stays TaskRunning. This is an ESTIMATE off land-cover tiles, not a vendor verdict, and NOTHING " +
+           "was refused or altered by it - the leg is reported and dispatched.";
+
     /// <summary>
-    /// THE EMISSION POLICY, in one pure function: one ReportBody per FLAGGED leg, and
-    /// nothing at all for a leg that passed or that got NO VERDICT. A leg without a verdict
-    /// is silent on purpose - missing tiles are not evidence of good ground, and inventing a
-    /// warning from them would be exactly the false alarm DEMO_READINESS row 20 is guarding
-    /// against.
+    /// One leg with water -> one bare ReportBody, the same Location + Name pair as every other
+    /// pre-flight finding. The location is the FIRST water sample - where the line enters it.
+    /// AltitudeMSL is NOT set: the elevation under a water class is not a claim worth making.
+    /// </summary>
+    public static string BuildWaterFindingReport(string unitUuid, string unitName, string taskName,
+                                                 LegMetrics leg, string isoDateTime, string reportId)
+    {
+        string actor = unitUuid ?? "";
+        var body = new S.ReportBodyType
+        {
+            FromSender = ZeroUuid,
+            ToReceiver = ZeroUuid,
+            ReportContent = new[]
+            {
+                new S.ReportContentType
+                {
+                    Item = new S.ObservationReportContentType
+                    {
+                        TimeOfObservation = new S.TimeInstantType
+                        {
+                            Item = new S.DateTimeType { IsoDateTime = isoDateTime }
+                        },
+                        Observation = new[]
+                        {
+                            new S.ObservationType
+                            {
+                                Item = new S.LocationObservationType
+                                {
+                                    ActorReference = actor,
+                                    Location = new S.LocationType
+                                    {
+                                        Item = new S.GeodeticCoordinateType
+                                        {
+                                            Latitude = Round(leg.WaterFirst.Lat, 6),
+                                            Longitude = Round(leg.WaterFirst.Lon, 6),
+                                        }
+                                    }
+                                }
+                            },
+                            new S.ObservationType
+                            {
+                                Item = new S.NameObservationType
+                                {
+                                    ActorReference = actor,
+                                    Marking = WaterMarking(taskName, unitName, leg),
+                                    Name = unitName ?? "",
+                                }
+                            },
+                        }
+                    }
+                }
+            },
+            ReportID = reportId,
+            ReportingEntity = actor,
+        };
+        return C2SIMSDK.FromC2SIMObject(body);
+    }
+
+    /// <summary>
+    /// THE WATER EMISSION POLICY, pure and on its own so BOTH readers can use it: one
+    /// ReportBody per leg that carries a water sample, in leg order, and nothing for a leg that
+    /// does not. Separate from <see cref="BuildForTask"/> because the lateral shift's reader
+    /// emits per FLAGGED leg and would otherwise stay silent about water it never flagged.
+    /// </summary>
+    public static List<string> BuildWaterFindings(string unitUuid, string unitName, string taskName,
+                                                  IReadOnlyList<LegMetrics> legs,
+                                                  string isoDateTime, Func<string> newReportId)
+    {
+        var outp = new List<string>();
+        if (legs == null) return outp;
+        foreach (var leg in legs)
+            if (leg.WaterSamples > 0)
+                outp.Add(BuildWaterFindingReport(unitUuid, unitName, taskName, leg,
+                                                 isoDateTime, newReportId()));
+        return outp;
+    }
+
+    /// <summary>
+    /// THE EMISSION POLICY, in one pure function: at most ONE ReportBody per leg, and nothing
+    /// at all for a leg that passed or that got NO VERDICT. A leg without a verdict is silent on
+    /// purpose - missing tiles are not evidence of good ground, and inventing a warning from them
+    /// would be exactly the false alarm DEMO_READINESS row 20 is guarding against.
+    ///
+    /// WATER OUTRANKS THE GRADE FLAG on the same leg. A water sample inside the worst window
+    /// derates the limit to zero, so the ratio is +infinity and the grade sentence would read
+    /// "sustained 0.03 vs limit 0.000" - true arithmetic, useless English. The water sentence is
+    /// the one that names what is actually there, so it REPLACES the flag report rather than
+    /// joining it, and it is also emitted for a leg whose water lies outside the worst window and
+    /// which is therefore not flagged at all.
     ///
     /// Kept separate from the service so the policy can be tested without a bridge, a tile or
     /// a federation: N flagged legs -> N reports, no flagged legs -> none.
@@ -122,10 +232,13 @@ public static class PreflightReports
         if (task?.Legs == null) return outp;
         foreach (var leg in task.Legs)
         {
-            if (!leg.Flagged) continue;
-            outp.Add(BuildLegWarningReport(task.UnitUuid, task.UnitName, task.TaskName,
-                                           task.Template, leg, threshold,
-                                           isoDateTime, newReportId()));
+            if (leg.WaterSamples > 0)
+                outp.Add(BuildWaterFindingReport(task.UnitUuid, task.UnitName, task.TaskName,
+                                                 leg, isoDateTime, newReportId()));
+            else if (leg.Flagged)
+                outp.Add(BuildLegWarningReport(task.UnitUuid, task.UnitName, task.TaskName,
+                                               task.Template, leg, threshold,
+                                               isoDateTime, newReportId()));
         }
         return outp;
     }

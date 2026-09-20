@@ -814,6 +814,30 @@ public class VrfSettings
     // acceleration-factors come from Vrf:VrfHome instead. Read-only, both of them.
     public string PreflightSharedDataDir { get; set; } = @"C:\MAK\SharedData\19\latest";
 
+    // ---- THE ELEVATION LEVEL IS AN AO PROPERTY, NOT A CONSTANT (STP-802) -------------------
+    // The TMS level elevation dataset 149 is sampled at. 13 is the DEEPEST level served over the
+    // MOJAVE AO and remains the default, so every published Mojave number reproduces exactly.
+    // IT IS NOT UNIVERSAL: measured 2026-09-20, dataset 149 returns NO DATA at L13 anywhere over
+    // the Suwalki Gap (0 of 25 grid samples over the SuwalkiN20 box) and serves it at L12. With
+    // the level pinned at 13 every Suwalki leg was NaN -> "NO VERDICT - tiles missing" -> nothing
+    // flagged -> the default-ON lateral route shift silently never fired. That is a FALSE GREEN:
+    // the instrument reporting no problem because it is not looking.
+    public int PreflightElevationLevel { get; set; } = 13;
+
+    // The FLOOR of the automatic fallback: on "no data at L" the tile source tries L-1, down to
+    // this, and REMEMBERS the level that worked for that area. The level in force is logged at
+    // start-up and carried on every leg's verdict; a leg that resolves at NO level is reported
+    // LOUDLY (a WARN naming the leg and the levels tried), never silently as clear.
+    //
+    // WHAT A COARSER LEVEL COSTS (read this before quoting a Suwalki ratio): the 0.92 threshold
+    // on a 40 m sustained window was calibrated at L13 postings (7.9 x 9.6 m at 34.66 N), where
+    // the window spans 4.2 postings north-south. At L12 (11.2 x 19.1 m at 54.1 N) the same window
+    // spans 2.1. A coarser DEM can only AVERAGE relief away, never invent it, so the bias is
+    // one-sided: a real face reads LOWER and a flag can be MISSED, never manufactured. The
+    // threshold is therefore CONSERVATIVE at L12, not transferred. Measure it per AO with
+    // `python tools/preflight/leg_check.py --level-sensitivity`.
+    public int PreflightElevationMinLevel { get; set; } = 11;
+
     // ============== THE LATERAL ROUTE SHIFT (STP-804/806) ====================================
     // docs/experiments/DESIGN_ROUTE_SHIFT_2026-09-15.md. When the pre-flight flags a leg BEFORE
     // dispatch, insert two waypoints that carry the path laterally onto ground the same sampler
@@ -826,9 +850,27 @@ public class VrfSettings
     // (PREREG_N1_N2 sec 10.3); 4-27's leader froze in P11 and crossed in G3 on a line 15 m away
     // (FINDING_EARLY_STOPS sec 7e).
     //
-    // SHIPS OFF. This is the first thing in the pre-flight that changes the simulation, and it
-    // stays off until the confirming run of the design note's sec 9. The demo turns it on.
-    public bool PreflightRouteShift { get; set; } = false;
+    // SHIPS ON (USER RULING 2026-09-20: "Route shift: ON. Use as default for any run."). It was
+    // built OFF and stayed off until its confirming run; that run is in: V8b (2026-09-15) met every
+    // pre-registered criterion with the shift and the ZERO-OFFSET control V8z froze on the same
+    // line, so the LATERAL OFFSET is the remedy and not the re-dispatch around it.
+    //
+    // TURN IT OFF with the config key or the environment - "Vrf": { "PreflightRouteShift": false }
+    // in appsettings (or an overlay), or Vrf__PreflightRouteShift=false in the interface's own
+    // shell; scripts\StartInterface52.ps1 -RouteShift off sets that variable for you.
+    //
+    // WHAT ON COSTS A RUN THAT NEVER NEEDED IT (read before raising it as a surprise):
+    //   - DISPATCH IS DEFERRED for every GROUND move with more than one vertex, bounded by
+    //     PreflightRouteShiftTimeoutSeconds below; on expiry the AUTHORED line is dispatched.
+    //     The feature can change WHICH line is driven, never WHETHER a unit is tasked - it has no
+    //     refusal path at all (VrfC2SimService.QueueRouteShift/ContinueShift/ExpireShiftRequests).
+    //   - UNKNOWN GROUND IS NEVER CLEAR, and that cuts the safe way: a candidate line with a single
+    //     unscored sample is refused, so a cold or empty tile cache yields NO shift and the
+    //     authored line, never a refusal and never an invented detour.
+    //   - THE ARRIVAL BAR IS COMPUTED FROM THE DRIVEN ROUTE (MarkDispatched -> STP-837), and a
+    //     shifted route is LONGER than the authored one, so a shifted task's traversal bar and
+    //     effective radius both move. See docs RUNBOOK sec 11d.
+    public bool PreflightRouteShift { get; set; } = true;
 
     // The search band, +/- metres. PREREG_RIDGE_AG 3.3 measured the ridge leg clear at every
     // offset from +50 to +550 m north and WORSE to the south; 600 is that band plus one step.

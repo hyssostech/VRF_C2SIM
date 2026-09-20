@@ -53,13 +53,31 @@ sitting on the task's own first vertex, nine of them across COA-STP1 - and is sk
 counted. A leg with more than 1 % of its elevation samples on a missing tile prints
 `NO VERDICT - tiles missing` and is neither flagged nor passed.
 
+Two findings are NOT verdicts about grade and are reported whatever the ratio says:
+
+- **NO ELEVATION AT ANY LEVEL.** A leg whose whole cascade (`--elev-level` down to
+  `--elev-min-level`) found no tile is printed in full and counted separately. It used to be
+  invisible: with the level pinned at 13, every leg over an AO served at 12 was NaN, read as
+  "tiles missing", flagged nothing, and let the default-ON lateral route shift do nothing at all
+  while reporting no problem.
+- **WATER ON THE LINE.** Deep water is acceleration-factor 0.000 in `ground-tracked.sysdef` - a
+  dead stop the vendor reports as `TaskRunning` for ever. Any sample on a water soil is a finding
+  and an ObservationReport, even when the water lies outside the worst window and the leg is
+  therefore not flagged. Nothing is refused or altered by it.
+
+`--level-sensitivity` scores the same legs at each level of the cascade and prints the table.
+The 0.92 threshold was calibrated at L13; a coarser DEM can only AVERAGE relief away, so the bias
+is one-sided - a real face reads LOWER and a flag can be MISSED, never invented. Measured on the
+26 COA-STP1 first legs, L13 -> L12 moved every ratio DOWN (mean -0.018, worst -0.055) and changed
+no flag, but it ate most of the calibration margin on the marginal legs (0.966 -> 0.927).
+
 ## Data sources
 
 | what | where |
 |---|---|
-| elevation | VR-TheWorld TMS dataset **149**, level **13**, 257x257 float32 GeoTIFF, EPSG:4326, bilinear. This is the MAK Earth elevation layer the sim streams (`elevation.worldwide.online.xml:24-35`); posting 7.86 m E-W x 9.55 m N-S at 34.66 N. FINDING sec 7 validated it against the sim's own reported altitudes: median residual +0.03 m over 129 samples. |
-| land cover | VR-TheWorld TMS **154** (CA FVEG 15 m, L12), **165** (NLCD 30 m, L12), **188** (Copernicus 100 m, L10) - highest-resolution-with-data wins; class value 0 or a missing tile means "no data here". The levels are the deepest the server actually serves (probed 2026-09-13). |
-| class -> soiltype | `<SharedData>/TerrainData/TerrainConfiguration/osgEarthCatalogs/coverage/layer.*.online.xml` (+ `presets.xml`). Commented-out rows are ignored, which is why water resolves to no soil: the vendor catalogues map no water class at all. |
+| elevation | VR-TheWorld TMS dataset **149**, 257x257 float32 GeoTIFF, EPSG:4326, bilinear. This is the MAK Earth elevation layer the sim streams (`elevation.worldwide.online.xml:24-35`). The LEVEL IS NOT A CONSTANT (STP-802): `--elev-level` starts at **13** - the deepest level served over the Mojave AO, posting 7.86 m E-W x 9.55 m N-S at 34.66 N - and falls back one level at a time to `--elev-min-level` (**11**) wherever the server has no tile, remembering what worked per area. FINDING sec 7 validated L13 against the sim's own reported altitudes: median residual +0.03 m over 129 samples. |
+| land cover | VR-TheWorld TMS **59** (CLCplus 10 m, L14 - EUROPE only), **154** (CA FVEG 15 m, L12), **165** (NLCD 30 m, L12), **188** (Copernicus 100 m, L10) - highest-resolution-with-data wins; class value 0 or a missing tile means "no data here". The levels are the deepest the server actually serves (probed 2026-09-13; CLCplus 2026-09-20). |
+| class -> soiltype | `<SharedData>/TerrainData/TerrainConfiguration/osgEarthCatalogs/coverage/layer.*.online.xml` (+ `presets.xml`). Commented-out rows are ignored, which is why Copernicus water resolves to no soil: its class 80 row is commented out. CLCplus class 100 (`preset="Water"`) is live, so over Europe water DOES resolve - to `deep-water`, acceleration-factor 0.000. |
 | soiltype -> surface characteristic | `<VRF>/appData/settings/vrfSim/landCoverDataSurfChar.map` |
 | soil -> acceleration-factor | `<VRF>/data/simulationModelSets/EntityLevel/vrfSim/systems/movement/ground-tracked.sysdef`, `soil-factors/soil-list` (sand 0.80, rocks 0.80, hard-packed 0.98, paved-road 1.00, muck 0.40, ...) |
 | unit -> VRF template | `data/unit-type-map-52.json`, looked up exactly as `UnitTypeMap.Lookup` does (functionId = SIDC 5-10 trailing `-` trimmed; SIDC echelon char; then EchelonCode; then the echelon-only and catch-all rows). `--calibrate` defaults instead to `data/unit-type-map-52-nolifeform.json`, the probe map every COA-STP1 run since 2026-09-06 actually used; `--typemap FILE` overrides either way |
@@ -73,7 +91,11 @@ counted. A leg with more than 1 % of its elevation samples on a missing tile pri
 The interface SPREADS co-located units onto 700 m rings at init (DeStack), so a unit's authored
 position is NOT where it starts, and the first leg is the one that matters. `--starts FILE`
 takes a `unit,lat,lon` CSV of real start positions; `starts_P11.csv` ships with the tool and is
-the default. It was derived with
+the default. **It is an AO-SPECIFIC default: ten MOJAVE positions.** A start further than
+`--starts-max-km` (100, the interface's own `Vrf:MaxVertexFromTaskeeKm`) from every vertex of its
+own unit's tasks is REFUSED by name, and the authored initialization position is used instead; if
+that refuses every row of the DEFAULT file the tool STOPS rather than guess (pass `--no-starts`,
+your own `--starts`, or `--starts-from-run`). It was derived with
 
     python tools/preflight/leg_check.py --starts-from-run runs/20260907T150643Z_run \
         --write-starts tools/preflight/starts_P11.csv

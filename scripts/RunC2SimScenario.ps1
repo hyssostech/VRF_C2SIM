@@ -909,6 +909,14 @@ if ($Is52) {
     $ProfileEnv['RTI_ASSISTANT_DISABLE']= '1'
 }
 
+# AO-SPECIFIC DEFAULTS (STP-802). Both name a MOJAVE pair, which was the only AO until the
+# 2026-09-20 ruling that the demo is Iron Storm over the Suwalki Gap. They stay the defaults so
+# every recorded run reproduces, but they are now explicit and overridable without editing this
+# file: -Init / -Order win, then $env:C2SIM_INIT / $env:C2SIM_ORDER, then these.
+# THE PAIR MUST COME FROM ONE AO. A Suwalki init with a Mojave order authors an 8,769 km leg and
+# the back end's path job never returns (memory lessons-order-coordinates-vs-init, STP-823).
+if ([string]::IsNullOrWhiteSpace($Init))    { $Init    = $env:C2SIM_INIT }
+if ([string]::IsNullOrWhiteSpace($Order))   { $Order   = $env:C2SIM_ORDER }
 if ([string]::IsNullOrWhiteSpace($Init))    { $Init    = Join-Path $DataDir 'R9_Mojave_Lean_Initialization.xml' }
 if ([string]::IsNullOrWhiteSpace($Order))   { $Order   = Join-Path $DataDir 'R9_Mojave_UnitMove_Order.xml' }
 if ([string]::IsNullOrWhiteSpace($RunRoot)) { $RunRoot = Join-Path $RepoRoot 'runs' }
@@ -2258,6 +2266,46 @@ if ($appClientId -and $initSystemNames.Count -gt 0 -and ($initSystemNames -notco
     $bad += ("clientId MISMATCH: appsettings Vrf:ClientId='{0}' but the init declares SystemName [{1}]. RUNBOOK sec 2: they MUST match or the interface creates 0 UNITS. Fix appsettings.json (or the init) before running." -f $appClientId, ($initSystemNames -join ','))
 }
 if (-not $appClientId) { Say-Warn 'could not read Vrf:ClientId from the app appsettings.json - the SystemName match is UNVERIFIED.' }
+
+# THE LATERAL ROUTE SHIFT, IN THE EVIDENCE (user ruling 2026-09-20: "Route shift: ON. Use as
+# default for any run."; STP-804/806, RUNBOOK sec 12). It CHANGES WHERE UNITS DRIVE, so a run
+# that cannot say which line it drove is not evidence of anything - the manifest records the
+# value the app will really use, resolved the way the app resolves it:
+#   Vrf__PreflightRouteShift in this shell (inherited by the child) beats the json file, the
+#   deployed appsettings.json beats the C# initialiser, and the initialiser is TRUE.
+# The runner sets nothing here: turning it off is the operator's env var, not a runner flag, so
+# there is exactly one switch to find. The app's own log line is the confirmation; this is the
+# PREDICTION, and the two disagreeing is itself a finding.
+$RouteShiftEnv = [Environment]::GetEnvironmentVariable('Vrf__PreflightRouteShift')
+$RouteShiftJson = $null
+if ($cfgApp -and ($cfgApp.PSObject.Properties.Name -contains 'Vrf') -and
+    ($cfgApp.Vrf.PSObject.Properties.Name -contains 'PreflightRouteShift')) {
+    $RouteShiftJson = [bool]$cfgApp.Vrf.PreflightRouteShift
+}
+# The .NET configuration binder accepts ONLY true/false for a bool (case-insensitive) and
+# THROWS on anything else, so '1' and 'yes' are not off-switches and must not be reported as
+# though they were - an unparseable value is called out here rather than guessed at.
+# An UNPARSEABLE env value is not "fall back to the file": the binder throws and the app never
+# starts, so the manifest says THAT rather than naming a value the run will never reach.
+if     ($RouteShiftEnv -match '^true$')  { $RouteShiftEff = $true;  $RouteShiftSrc = 'env Vrf__PreflightRouteShift=true' }
+elseif ($RouteShiftEnv -match '^false$') { $RouteShiftEff = $false; $RouteShiftSrc = 'env Vrf__PreflightRouteShift=false' }
+elseif ($RouteShiftEnv)                  { $RouteShiftEff = $null;  $RouteShiftSrc = ("env Vrf__PreflightRouteShift='{0}' is UNPARSEABLE - the app will not start" -f $RouteShiftEnv) }
+elseif ($null -ne $RouteShiftJson)       { $RouteShiftEff = $RouteShiftJson; $RouteShiftSrc = 'appsettings.json Vrf:PreflightRouteShift' }
+else                                     { $RouteShiftEff = $true;  $RouteShiftSrc = 'VrfSettings.cs initialiser (the key is in NEITHER the environment NOR the deployed appsettings.json)' }
+$Manifest.inputs.routeShift = [ordered]@{
+    effective   = $(if ($null -eq $RouteShiftEff) { 'UNKNOWN - unparseable Vrf__PreflightRouteShift' } else { [bool]$RouteShiftEff })
+    source      = $RouteShiftSrc
+    envValue    = $(if ($RouteShiftEnv) { $RouteShiftEnv } else { '(unset)' })
+    appSettings = $(if ($null -ne $RouteShiftJson) { $RouteShiftJson } else { '(key absent)' })
+    note        = 'Vrf:PreflightRouteShift. ON detours a FLAGGED leg laterally before dispatch and defers that dispatch up to Vrf:PreflightRouteShiftTimeoutSeconds; it never refuses a task - on a timeout, a throw, an empty tile cache or no cleared line the AUTHORED line is dispatched. The route the unit was GIVEN (shifted or not) is what STP-837 measures its arrival bar from.'
+}
+if ($null -eq $RouteShiftEff) {
+    Say-Warn ("Vrf__PreflightRouteShift='{0}' is NOT a value the .NET configuration binder accepts for a bool (only true/false, case-insensitive): the app will THROW binding its Vrf section and this run will have no interface at all. Set true or false, or unset it." -f $RouteShiftEnv)
+} elseif ($RouteShiftEff) {
+    Say-Ok ('route shift is ON for this run ({0}) - a flagged leg may be DETOURED before dispatch; the app logs every shift and every decline' -f $RouteShiftSrc)
+} else {
+    Say-Warn ('route shift is OFF for this run ({0}) - flagged legs are dispatched on the authored line' -f $RouteShiftSrc)
+}
 
 # -PreOrderGate NavArea REQUIRES the object consoles open. The row it waits for is printed
 # at object-console level 3 and at no lower level, so with the console below 3 the gate can

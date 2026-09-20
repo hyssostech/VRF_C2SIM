@@ -67,20 +67,52 @@ DEF_TYPEMAP_NOLIFEFORM = os.path.join(REPO, "data", "unit-type-map-52-nolifeform
 DEF_VRF = os.environ.get("VRF_HOME", r"C:\MAK\vrforces5.2d")
 DEF_SHARED = os.environ.get("MAK_SHARED_DATA", r"C:\MAK\SharedData\19\latest")
 DEF_CACHE = os.environ.get("PREFLIGHT_CACHE", os.path.join(HERE, "preflight_cache"))
+# AN AO-SPECIFIC DEFAULT, and marked as one. starts_P11.csv holds ten MOJAVE positions from the
+# P11 run; paired with another AO's order it silently scores legs thousands of km long that
+# nobody drives. check_starts_distance() refuses a start further than DEF_STARTS_MAX_KM from
+# every vertex of its own unit's tasks, and an all-refused DEFAULT file stops the tool.
+DEF_STARTS = os.path.join(HERE, "starts_P11.csv")
+DEF_STARTS_MAX_KM = 100.0     # the interface's own Vrf:MaxVertexFromTaskeeKm (appsettings.json)
 
 C2SIM_NS = "http://www.sisostds.org/schemas/C2SIM/1.1"
 NS = {"c": C2SIM_NS}
 TMS_BASE = "http://vr-theworld.com/vr-theworld/tiles/1.0.0"
 
 ELEV_DS = 149
-ELEV_LEVEL = 13          # the best DataExtent over the Mojave AO (FINDING sec 7)
+# THE LEVEL IS AN AO PROPERTY, NOT A CONSTANT (STP-802). 13 is the deepest DataExtent the
+# server serves over the MOJAVE AO (FINDING sec 7) and stays the default, so every published
+# Mojave number reproduces exactly. It is NOT universal: measured 2026-09-20, dataset 149
+# returns NO DATA at L13 anywhere over the Suwalki Gap (0 of 25 grid samples over the
+# SuwalkiN20 box) and serves that ground at L12. With the level pinned every Suwalki leg came
+# back "NO VERDICT - tiles missing" and nothing was ever flagged - a false green. Tiles now
+# falls back one level at a time, down to ELEV_MIN_LEVEL, and REMEMBERS what worked per area.
+# Override with --elev-level / --elev-min-level; the C# port reads the same pair as
+# Vrf:PreflightElevationLevel / Vrf:PreflightElevationMinLevel.
+ELEV_LEVEL = 13
+ELEV_MIN_LEVEL = 11
 TILEPX = 257
 SEG = TILEPX - 1
 
 # (tileset, level, label) in descending ground resolution; the first with data wins. The
 # levels are the DEEPEST the server actually serves (probed 2026-09-13: 154 and 165 return
 # "no tile" at L13, 188 at L11) - one oversample level above each catalogue's data level.
-LC_SOURCES = [(154, 12, "CA FVEG 15m"), (165, 12, "NLCD 30m"), (188, 10, "Copernicus 100m")]
+#
+# CLCplus (59, L14) is the EUROPEAN layer the vendor's own terrain composes
+# (biomes.landcover.coverage.online.xml:50) and is FIRST because it is the finest: 10 m against
+# Copernicus's 100 m. Europe only - probed 2026-09-20 it answers over the Suwalki AO (21
+# woodland, 51 grassland) and returns NO TILE over North America, so at Mojave the cascade
+# falls through to exactly the three sources it used before and no Mojave verdict changes.
+# It also closes the WATER blind spot: CLCplus class 100 is live (preset="Water" -> deep-water,
+# acceleration-factor 0.000) while Copernicus's class 80 is COMMENTED OUT of the vendor
+# catalogue and resolves to no soil at all.
+LC_SOURCES = [(59, 14, "CLCplus 10m"), (154, 12, "CA FVEG 15m"), (165, 12, "NLCD 30m"),
+              (188, 10, "Copernicus 100m")]
+
+# The soils of ground-tracked.sysdef's soil-list that are WATER. deep-water is
+# acceleration-factor 0.000000 / stopping-factor 0.000000 - a dead stop the vendor reports as
+# TaskRunning for ever. A NAME test, not a factor test: a zero factor can also come from a
+# catalogue that would not load, and those two must never be confused.
+WATER_SOILS = ("deep-water", "shallow-water")
 
 # DEFAULT WINDOW AND THRESHOLD - CHOSEN FROM THE CALIBRATION TABLE (--calibrate --verify-run;
 # README "Calibration"). A leg is flagged when its worst sustained (40 m) climb reaches
@@ -184,10 +216,20 @@ class Tiles(object):
     """VR-TheWorld TMS reader with an on-disk cache. curl does the fetch: python urllib
     gets 403 from vr-theworld.com."""
 
-    def __init__(self, cache, offline=False, nearest=False):
+    def __init__(self, cache, offline=False, nearest=False,
+                 elev_level=ELEV_LEVEL, elev_min_level=ELEV_MIN_LEVEL):
         self.cache = cache
         self.offline = offline
         self.nearest = nearest       # sample the nearest posting instead of bilinear
+        # A level below the floor, or a floor above the level, would silently disable the
+        # cascade; clamp both and keep the pair ordered.
+        self.elev_level = max(1, min(20, int(elev_level)))
+        self.elev_min_level = max(1, min(self.elev_level, int(elev_min_level)))
+        # AREA -> the level that returned data, or 0 for "no data at any level". An area is one
+        # tile at the COARSEST level the cascade may use: the largest cell whose answer is
+        # uniform for every level above it. Memoised so a blind AO costs ONE probe, not one per
+        # sample, and so the loud report is emitted per leg rather than per sample.
+        self.level_by_area = {}
         self.mem = {}
         self.fetched = 0
         self.failed = set()
@@ -255,7 +297,39 @@ class Tiles(object):
             return float("nan")
         return d[(SEG - j) * TILEPX + i]          # PIL row 0 = the tile's north edge
 
-    def elev(self, lat, lon, level=ELEV_LEVEL):
+    @staticmethod
+    def _tile_index(level, lat, lon):
+        """The (x, y) of the tile that OWNS a point at a level."""
+        p = (180.0 / (2 ** level)) / SEG
+        return (int(math.floor((lon + 180.0) / p)) // SEG,
+                int(math.floor((lat + 90.0) / p)) // SEG)
+
+    def resolve_level(self, lat, lon):
+        """The level this AREA is served at, or 0 when no level of the cascade has a tile.
+
+        The AREA is one tile AT THE START LEVEL - the finest cell whose coverage the probe
+        actually establishes. A coarser cell would let one tile's presence decide for its
+        neighbours, so an AO where the start level is PARTIAL would keep scoring the holes as
+        NaN instead of falling back - the very failure this cascade exists to remove.
+
+        The probe asks only whether the tile that OWNS the point decodes; the neighbour-tile
+        fallback in _elev_sample is a sampling detail and deliberately not part of the
+        decision, so the level a leg is scored at is a property of the ground and not of
+        which tile edge it happened to clip."""
+        key = self._tile_index(self.elev_level, lat, lon)
+        if key in self.level_by_area:
+            return self.level_by_area[key]
+        found = 0
+        for level in range(self.elev_level, self.elev_min_level - 1, -1):
+            x, y = self._tile_index(level, lat, lon)
+            if self._elev_tile(level, x, y) is not None:
+                found = level
+                break
+        self.level_by_area[key] = found
+        return found
+
+    def elev_at(self, lat, lon, level):
+        """Terrain height at ONE GIVEN level - no cascade. NaN where the tile is missing."""
         p = (180.0 / (2 ** level)) / SEG          # posting, degrees
         gi = (lon + 180.0) / p
         gj = (lat + 90.0) / p
@@ -271,10 +345,45 @@ class Tiles(object):
         return (z00 * (1 - fi) * (1 - fj) + z10 * fi * (1 - fj)
                 + z01 * (1 - fi) * fj + z11 * fi * fj)
 
+    def elev2(self, lat, lon):
+        """-> (height, level used). level 0 = NO data at any level, height NaN with it."""
+        level = self.resolve_level(lat, lon)
+        if level == 0:
+            return float("nan"), 0
+        return self.elev_at(lat, lon, level), level
+
+    def elev(self, lat, lon, level=None):
+        """The cascade form. Pass an explicit level to pin one (the --level-sensitivity grid)."""
+        if level is not None:
+            return self.elev_at(lat, lon, level)
+        return self.elev2(lat, lon)[0]
+
     @staticmethod
     def posting_m(lat, level=ELEV_LEVEL):
         p = (180.0 / (2 ** level)) / SEG
         return p * 111320.0 * math.cos(math.radians(lat)), p * 111320.0
+
+    @staticmethod
+    def window_postings(lat, level, window_m):
+        """How many native postings the sustained window spans - the one number that says what
+        a coarser DEM does to a verdict. The window is a sliding mean UPHILL grade, so relief
+        shorter than a posting is AVERAGED AWAY before the scorer sees it."""
+        ew, ns = Tiles.posting_m(lat, level)
+        return (window_m / ew if ew > 0 else 0.0, window_m / ns if ns > 0 else 0.0)
+
+    @staticmethod
+    def calibration_note(lat, level, window_m, threshold):
+        ew, ns = Tiles.posting_m(lat, level)
+        pew, pns = Tiles.window_postings(lat, level, window_m)
+        if level >= ELEV_LEVEL:
+            caveat = "the level the %.2f threshold was calibrated on" % threshold
+        else:
+            caveat = ("COARSER than the L%d the %.2f threshold was calibrated on - the sustained "
+                      "window is averaged over fewer postings, so a real face reads LOWER and a "
+                      "flag can be MISSED (never invented)" % (ELEV_LEVEL, threshold))
+        return ("elevation L%d at %.2f N: posting %.1f m E-W x %.1f m N-S, so the %.0f m "
+                "sustained window spans %.1f x %.1f postings - %s"
+                % (level, lat, ew, ns, window_m, pew, pns, caveat))
 
     # ---- land cover ----
     def landcover_value(self, ds, level, lat, lon):
@@ -809,11 +918,18 @@ def analyse_leg(tiles, soil, a, b, limit_raw, step, window, short):
     n = max(2, int(math.ceil(length / step)) + 1)
     s = [length * i / (n - 1) for i in range(n)]
     samples = []
+    coarsest, served = 0, 0
     for i in range(n):
         f = 0.0 if length == 0 else s[i] / length
         la, lo = interp(a[0], a[1], b[0], b[1], f)
-        samples.append(dict(s=s[i], lat=la, lon=lo, z=tiles.elev(la, lo),
+        z, level = tiles.elev2(la, lo)
+        if level:
+            served += 1
+            if coarsest == 0 or level < coarsest:
+                coarsest = level
+        samples.append(dict(s=s[i], lat=la, lon=lo, z=z,
                             soil=soil.classify(tiles, la, lo)))
+    elev_level = coarsest if served else 0
     zs = [p["z"] for p in samples]
     ok = [z == z for z in zs]                      # False where the tile was missing (NaN)
     nan_n = ok.count(False)
@@ -847,6 +963,11 @@ def analyse_leg(tiles, soil, a, b, limit_raw, step, window, short):
     # The governing limit over the window is the WORST (lowest) derated limit inside it.
     gov = min(win_samples, key=lambda p: limit_raw * p["soil"]["factor"])
     limit = limit_raw * gov["soil"]["factor"]
+    # WATER, counted over the WHOLE leg and not just the worst window. Water inside the window
+    # already derates the limit to zero and flags the leg through the ratio; water anywhere else
+    # on the line was invisible, and it is the same dead stop wherever it sits.
+    wet = [p for p in samples if p["soil"]["soil"] in WATER_SOILS]
+    w0 = wet[0] if wet else None
     return dict(
         length_m=length, n_samples=n,
         sustained=g55, sustained_window_m=(s[i1] - s[i0]) if n > 1 else 0.0,
@@ -863,6 +984,14 @@ def analyse_leg(tiles, soil, a, b, limit_raw, step, window, short):
         climb_m=climb, descend_m=descend,
         nan_samples=nan_n, nan_fraction=(float(nan_n) / n if n else 0.0),
         no_verdict=bool(n and float(nan_n) / n > DEF_MAX_NAN),
+        elev_level=elev_level,
+        water_samples=len(wet),
+        water_fraction=(float(len(wet)) / n if n else 0.0),
+        water_soil=(w0["soil"]["soil"] if w0 else ""),
+        water_source=(w0["soil"]["source"] if w0 else ""),
+        water_desc=(w0["soil"]["desc"] if w0 else ""),
+        water_first=([w0["lat"], w0["lon"]] if w0 else None),
+        water_first_s_m=(w0["s"] if w0 else 0.0),
         start=[a[0], a[1]], end=[b[0], b[1]])
 
 
@@ -977,12 +1106,36 @@ def xesc(s):
 def emit_text(results, args, out=sys.stdout):
     flagged = 0
     noverdict = 0
+    blind = 0
+    wet = 0
     for r in results:
         if not r["legs"]:
             out.write("%-34s %-14s  %s\n"
                       % (r["task"][:34], r["unit"], r.get("note", "no legs")))
             continue
         for lg in r["legs"]:
+            # LOUD, and BEFORE the verdict line: a leg the cascade found no elevation for at
+            # ANY level was never checked, and must never read as clear ground.
+            if lg.get("elev_level", ELEV_LEVEL) == 0:
+                blind += 1
+                out.write("%s leg %d (%s): *** NO ELEVATION DATA AT ANY LEVEL *** dataset %d "
+                          "returned no tile from L%d down to L%d anywhere on this leg "
+                          "(%.5f,%.5f) -> (%.5f,%.5f). NOTHING about it was checked; it is not "
+                          "clear ground.\n"
+                          % (r["task"], lg["index"], r["unit"], ELEV_DS, args.elev_level,
+                             args.elev_min_level, lg["start"][0], lg["start"][1],
+                             lg["end"][0], lg["end"][1]))
+            if lg.get("water_samples"):
+                wet += 1
+                out.write("%s leg %d (%s): WATER ON THE LINE - %d of %d sample(s) classify as "
+                          "%s (%s%s), first at %.2f km along (%.5f,%.5f). deep-water is "
+                          "acceleration-factor 0.000, so a ground vehicle driven onto it STOPS "
+                          "and the task stays TaskRunning. Nothing is refused or altered.\n"
+                          % (r["task"], lg["index"], r["unit"], lg["water_samples"],
+                             lg["n_samples"], lg["water_soil"], lg["water_source"],
+                             (": " + lg["water_desc"]) if lg["water_desc"] else "",
+                             lg["water_first_s_m"] / 1000.0,
+                             lg["water_first"][0], lg["water_first"][1]))
             if lg.get("no_verdict"):
                 noverdict += 1
                 out.write("%s leg %d (%s): NO VERDICT - tiles missing (%d of %d elevation "
@@ -1010,9 +1163,20 @@ def emit_text(results, args, out=sys.stdout):
     out.write("\n%d leg(s) flagged of %d checked across %d task(s); threshold %.2f x the "
               "derated limit on the %.0f m sustained window. %d leg(s) under %.0f m skipped "
               "(a chained start on the task's own first vertex); %d leg(s) got NO VERDICT for "
-              "missing tiles.\n"
+              "missing tiles; %d leg(s) had NO ELEVATION AT ANY LEVEL; %d leg(s) cross water.\n"
               % (flagged, sum(len(r["legs"]) for r in results), len(results),
-                 args.threshold, args.window, degen, DEF_MIN_LEG, noverdict))
+                 args.threshold, args.window, degen, DEF_MIN_LEG, noverdict, blind, wet))
+    # Which DEM produced these numbers. A ratio quoted without its level is un-anchored, and
+    # the posting arithmetic is latitude-dependent - so take the AO's OWN latitude from the
+    # first task that actually has a route, not from whichever task happens to be first.
+    levels = sorted({lg.get("elev_level", 0) for r in results for lg in r["legs"]} - {0})
+    routed = [r for r in results if r.get("route")]
+    lat = routed[0]["route"][0][0] if routed else 34.66
+    out.write("elevation: dataset %d, cascade L%d -> L%d; level(s) actually used: %s\n"
+              % (ELEV_DS, args.elev_level, args.elev_min_level,
+                 ", ".join("L%d" % v for v in levels) if levels else "NONE"))
+    for v in levels:
+        out.write("  %s\n" % Tiles.calibration_note(lat, v, args.window, args.threshold))
     return flagged
 
 
@@ -1024,9 +1188,12 @@ def emit_json(results, args, path):
                         drop_origin_meters=args.drop_origin_meters,
                         min_leg_m=DEF_MIN_LEG, max_nan_fraction=DEF_MAX_NAN,
                         typemap=os.path.basename(args.typemap),
-                        elevation="TMS %d L%d %s" % (ELEV_DS, ELEV_LEVEL,
-                                                     "nearest" if args.elev_nearest
-                                                     else "bilinear"),
+                        elevation="TMS %d L%d..L%d %s" % (ELEV_DS, args.elev_level,
+                                                          args.elev_min_level,
+                                                          "nearest" if args.elev_nearest
+                                                          else "bilinear"),
+                        elev_level=args.elev_level,
+                        elev_min_level=args.elev_min_level,
                         landcover=["TMS %d L%d %s" % s for s in LC_SOURCES]),
         tasks=results)
     with open(path, "w", encoding="ascii", newline="\r\n") as fh:
@@ -1068,17 +1235,42 @@ def emit_c2sim(results, args, path):
         fh.write("<PreflightObservationReports>\n")
         for r in results:
             for lg in r["legs"]:
-                if not lg["flagged"]:
+                # AT MOST ONE BODY PER LEG, and WATER OUTRANKS THE GRADE FLAG (the same policy
+                # as PreflightReports.BuildForTask). A water sample inside the worst window
+                # derates the limit to zero, so the flag sentence would read "sustained 0.03 vs
+                # limit 0.000" - true arithmetic, useless English - and water OUTSIDE that
+                # window does not flag the leg at all while being the same dead stop.
+                if lg.get("water_samples"):
+                    marking = ("ROUTE PRE-FLIGHT - WATER ON THE LINE: task %s (%s) leg %d - %d "
+                               "of %d sample(s) along this leg classify as %s (%s%s), first at "
+                               "%.2f km along. The vendor's own soil table gives deep water "
+                               "acceleration-factor 0.000, so a ground vehicle driven onto it "
+                               "STOPS and the task stays TaskRunning. This is an ESTIMATE off "
+                               "land-cover tiles, not a vendor verdict, and NOTHING was refused "
+                               "or altered by it - the leg is reported and dispatched."
+                               % (r["task"], r["unit"], lg["index"], lg["water_samples"],
+                                  lg["n_samples"], lg["water_soil"], lg["water_source"],
+                                  (": " + lg["water_desc"]) if lg["water_desc"] else "",
+                                  lg["water_first_s_m"] / 1000.0))
+                    lat, lon, alt = lg["water_first"][0], lg["water_first"][1], None
+                elif lg["flagged"]:
+                    marking = ("ROUTE PRE-FLIGHT: task %s leg %d - %.0f m of sustained %.3f "
+                               "rise-over-run on %s, %.2f km along the leg; %s limit %.3f "
+                               "(max-slope %.2f x soil %.2f). PREDICTED IMPASSABLE (pre-flight "
+                               "estimate, ratio %.2f vs threshold %.2f)."
+                               % (r["task"], lg["index"], lg["sustained_window_m"],
+                                  lg["sustained"], lg["soil"], lg["worst_s_m"] / 1000.0,
+                                  r["template"] or "unit", lg["limit"], lg["limit_raw"],
+                                  lg["factor"], lg["ratio"], args.threshold))
+                    lat, lon, alt = lg["worst_lat"], lg["worst_lon"], lg["worst_z_m"]
+                else:
                     continue
                 n += 1
-                marking = ("ROUTE PRE-FLIGHT: task %s leg %d - %.0f m of sustained %.3f "
-                           "rise-over-run on %s, %.2f km along the leg; %s limit %.3f "
-                           "(max-slope %.2f x soil %.2f). PREDICTED IMPASSABLE (pre-flight "
-                           "estimate, ratio %.2f vs threshold %.2f)."
-                           % (r["task"], lg["index"], lg["sustained_window_m"],
-                              lg["sustained"], lg["soil"], lg["worst_s_m"] / 1000.0,
-                              r["template"] or "unit", lg["limit"], lg["limit_raw"],
-                              lg["factor"], lg["ratio"], args.threshold))
+                geo = ""
+                if alt is not None:
+                    geo += '                <AltitudeMSL>%.1f</AltitudeMSL>\n' % alt
+                geo += ('                <Latitude>%.6f</Latitude>\n'
+                        '                <Longitude>%.6f</Longitude>\n' % (lat, lon))
                 fh.write(
                     '  <ReportBody xmlns="%s">\n'
                     '    <FromSender>%s</FromSender>\n'
@@ -1095,9 +1287,7 @@ def emit_c2sim(results, args, path):
                     '            <ActorReference>%s</ActorReference>\n'
                     '            <Location>\n'
                     '              <GeodeticCoordinate>\n'
-                    '                <AltitudeMSL>%.1f</AltitudeMSL>\n'
-                    '                <Latitude>%.6f</Latitude>\n'
-                    '                <Longitude>%.6f</Longitude>\n'
+                    '%s'
                     '              </GeodeticCoordinate>\n'
                     '            </Location>\n'
                     '          </LocationObservation>\n'
@@ -1114,8 +1304,8 @@ def emit_c2sim(results, args, path):
                     '    <ReportID>%s</ReportID>\n'
                     '    <ReportingEntity>%s</ReportingEntity>\n'
                     '  </ReportBody>\n'
-                    % (C2SIM_NS, zero, zero, now, r["unit_uuid"], lg["worst_z_m"],
-                       lg["worst_lat"], lg["worst_lon"], r["unit_uuid"], xesc(marking),
+                    % (C2SIM_NS, zero, zero, now, r["unit_uuid"], geo,
+                       r["unit_uuid"], xesc(marking),
                        xesc(r["unit"]), str(uuid.uuid4()), r["unit_uuid"]))
         fh.write("</PreflightObservationReports>\n")
     return n
@@ -1154,12 +1344,28 @@ def emit_overlay(results, args, path):
 # TMS y-origin - independently of the soil chain. Note the vendor catalogues map no water
 # class at all (every water row in layer.*.online.xml is commented out), so Lake Tahoe and
 # the open Pacific legitimately resolve to no soil: water is carried by the water layers.
+#
+# CLCplus (59) is EUROPE ONLY: None at all three North-American controls, which is exactly the
+# property that keeps Mojave verdicts unchanged now that it heads the cascade.
 SELFTEST_LC = [
-    ("Pacific Ocean off SF", 37.0, -125.0, {154: 0, 165: 0, 188: 200}),
-    ("Downtown Los Angeles", 34.0522, -118.2437, {154: 12, 165: 24, 188: 50}),
-    ("Lake Tahoe", 39.0968, -120.0324, {154: 18, 165: 11, 188: 80}),
+    ("Pacific Ocean off SF", 37.0, -125.0, {59: None, 154: 0, 165: 0, 188: 200}),
+    ("Downtown Los Angeles", 34.0522, -118.2437, {59: None, 154: 12, 165: 24, 188: 50}),
+    ("Lake Tahoe", 39.0968, -120.0324, {59: None, 154: 18, 165: 11, 188: 80}),
 ]
 SELFTEST_ELEV = (34.65607, -116.76144, 1585.6, 0.5)
+
+# THE EUROPEAN CONTROLS (STP-802, measured 2026-09-20 against the same public tiles).
+# They are the positive half of the CLCplus row above - "returns None over America" proves
+# nothing on its own, since a source that was never queried also returns None - and the proof
+# that the elevation cascade does what it says: dataset 149 has NO L13 tile anywhere over this
+# AO and answers at L12, which is the whole reason the level stopped being a constant.
+# (lat, lon, CLCplus class, Copernicus class, elevation level, height, tolerance)
+SELFTEST_EU = [
+    ("Suwalki 56th SBCT", 54.21702, 23.76443, 21, 126, 12, 149.07, 0.5),
+    ("Suwalki 278th ACR", 54.19044, 23.58498, 51, 30, 12, 160.46, 0.5),
+    ("Suwalki 1-112 IN", 54.04269, 23.30823, 51, 40, 12, 130.11, 0.5),
+]
+
 SELFTEST_SLOPES = {"Tank Headquarters Section (USA)": 0.94, "Tank Company (USA)": 0.94,
                    "Tank Platoon (USA)": 0.94, "M1A2_Abrams_MBT": 0.94,
                    "M577A2_Command_Post": 1.0}
@@ -1184,15 +1390,61 @@ def selftest(tiles, soil, sms):
           % ("1-35 freeze point", got["source"], got["value"], got["desc"][:20], got["soil"],
              got["factor"], "OK" if ok else "MISMATCH (expected CA FVEG 15m 30 Sagebrush)"))
     la, lo, want, tol = SELFTEST_ELEV
-    z = tiles.elev(la, lo)
-    ok = abs(z - want) <= tol
+    z, lvl = tiles.elev2(la, lo)
+    ok = abs(z - want) <= tol and lvl == ELEV_LEVEL
     bad += 0 if ok else 1
     print("--- tile math: elevation ---")
-    print("  %.5f/%.5f  L%d bilinear = %.2f m (expected %.1f +/- %.1f)  %s"
-          % (la, lo, ELEV_LEVEL, z, want, tol, "OK" if ok else "MISMATCH"))
+    print("  %.5f/%.5f  L%d bilinear = %.2f m (expected %.1f +/- %.1f at L%d)  %s"
+          % (la, lo, lvl, z, want, tol, ELEV_LEVEL, "OK" if ok else "MISMATCH"))
     ew, ns = tiles.posting_m(la)
     print("  posting at this latitude: %.2f m E-W x %.2f m N-S (FINDING sec 7: 7.86 x 9.56)"
           % (ew, ns))
+
+    # ---- the AO-independence controls (STP-802) --------------------------------------------
+    print("--- CLCplus + the elevation cascade over EUROPE (STP-802; needs network or a warm "
+          "cache) ---")
+    if tiles.offline:
+        print("  SKIPPED - --offline, and the committed Mojave cache carries no European tile.")
+    else:
+        for name, la, lo, clc, cop, want_lvl, want_z, tol in SELFTEST_EU:
+            v59 = tiles.landcover_value(59, 14, la, lo)
+            v188 = tiles.landcover_value(188, 10, la, lo)
+            z2, lvl2 = tiles.elev2(la, lo)
+            s = soil.classify(tiles, la, lo)
+            good = (v59 == clc and v188 == cop and lvl2 == want_lvl
+                    and z2 == z2 and abs(z2 - want_z) <= tol
+                    and s["source"] == "CLCplus 10m")
+            bad += 0 if good else 1
+            print("  %-19s CLCplus=%-5s (want %s)  Copernicus=%-5s (want %s)  elev L%-3s "
+                  "(want L%d) = %-8s (want %.2f)  soil source %-13s %s"
+                  % (name, v59, clc, v188, cop, lvl2, want_lvl,
+                     ("%.2f" % z2) if z2 == z2 else "NaN", want_z, s["source"],
+                     "OK" if good else "MISMATCH"))
+        # THE POINT OF THE WHOLE CHANGE, stated as a check: with the level pinned at 13 the
+        # same ground is NaN, so every leg over it used to read "NO VERDICT - tiles missing"
+        # and nothing was ever flagged or shifted. Pinned here so the defect cannot come back.
+        la, lo = SELFTEST_EU[0][1], SELFTEST_EU[0][2]
+        z13 = tiles.elev_at(la, lo, ELEV_LEVEL)
+        ok13 = z13 != z13        # NaN
+        bad += 0 if ok13 else 1
+        print("  %-19s L%d (the OLD pinned level) = %-8s %s"
+              % ("same point", ELEV_LEVEL, ("%.2f" % z13) if z13 == z13 else "NO DATA (NaN)",
+                 "OK - the fallback is what makes this AO scorable" if ok13
+                 else "MISMATCH: L%d answered here, so this control proves nothing" % ELEV_LEVEL))
+        for lvl3 in (ELEV_LEVEL, 12):
+            print("  %s" % Tiles.calibration_note(SELFTEST_EU[0][1], lvl3, DEF_WINDOW,
+                                                  DEF_THRESHOLD))
+
+    # ---- water (the finding CLCplus made possible) -------------------------------------------
+    print("--- water detection (deep-water acceleration-factor 0.000 = a dead stop) ---")
+    for name, la, lo, _w in SELFTEST_LC:
+        s = soil.classify(tiles, la, lo)
+        print("  %-22s -> %-13s factor %.2f  water=%s"
+              % (name, s["soil"], s["factor"], s["soil"] in WATER_SOILS))
+    ok = all(soil.classify(tiles, la, lo)["soil"] in WATER_SOILS
+             for name, la, lo, _w in SELFTEST_LC if name.startswith("Pacific"))
+    bad += 0 if ok else 1
+    print("  the open Pacific classifies as water: %s" % ("OK" if ok else "MISMATCH"))
     print("--- soil chain sources ---")
     for s in soil.sources:
         print("  " + s)
@@ -1207,6 +1459,44 @@ def selftest(tiles, soil, sms):
         print("  %-32s min max-slope %-6s over %2d vehicle(s): %-46s %s"
               % (tpl, lim, len(veh), ", ".join(sorted({v[0] for v in veh}))[:46],
                  "OK" if ok else "MISMATCH (expected %s)" % want_slope))
+    # ---- the AO guard on the DEFAULT starts file (pure: no tile, no network) ----------------
+    print("--- the starts file must belong to the same AO as the vertices ---")
+    import io
+    mojave = {"U1": (34.658442, -116.740092)}
+    units = {"p1": dict(name="U1")}
+    suwalki_task = [dict(performer="p1", points=[(54.19044, 23.58498), (54.17694, 23.54506)])]
+    mojave_task = [dict(performer="p1", points=[(34.651212, -116.811637)])]
+    buf = io.StringIO()
+    kept, dropped = check_starts_distance(dict(mojave), mojave_task, units,
+                                          DEF_STARTS_MAX_KM, "starts_P11.csv", True, buf)
+    ok = (kept == mojave and dropped == 0 and buf.getvalue() == "")
+    bad += 0 if ok else 1
+    print("  a Mojave start with Mojave vertices is KEPT, silently: %s"
+          % ("OK" if ok else "MISMATCH"))
+    buf = io.StringIO()
+    kept, dropped = check_starts_distance(dict(mojave), suwalki_task, units,
+                                          DEF_STARTS_MAX_KM, "starts_P11.csv", True, buf)
+    ok = (kept == {} and dropped == 1 and "REFUSED" in buf.getvalue())
+    bad += 0 if ok else 1
+    print("  the same start with SUWALKI vertices is REFUSED and said out loud: %s"
+          % ("OK" if ok else "MISMATCH"))
+    try:
+        check_starts_distance(dict(mojave), suwalki_task, units, DEF_STARTS_MAX_KM,
+                              "starts_P11.csv", False, io.StringIO())
+        ok = False
+    except SystemExit as e:
+        ok = (e.code == 2)
+    bad += 0 if ok else 1
+    print("  and an all-refused DEFAULT starts file is FATAL (exit 2): %s"
+          % ("OK" if ok else "MISMATCH"))
+    buf = io.StringIO()
+    kept, dropped = check_starts_distance({"other": (0.0, 0.0)}, suwalki_task, units,
+                                          DEF_STARTS_MAX_KM, "x.csv", True, buf)
+    ok = (kept == {"other": (0.0, 0.0)} and dropped == 0)
+    bad += 0 if ok else 1
+    print("  a start for a unit this order never tasks is left alone: %s"
+          % ("OK" if ok else "MISMATCH"))
+
     assumed = sorted(k for k, (_s, a) in SOIL_BRIDGE.items() if a)
     print("--- ASSUMED rows of the DtSoilType -> DtRoughnessSoilType bridge (%d of %d) ---"
           % (len(assumed), len(SOIL_BRIDGE)))
@@ -1290,6 +1580,125 @@ def sensitivity(args, soil, sms, tmap, units, sides, tasks, starts, wanted):
     if worst:
         print("\nworst cell: %+.3f (%s, step %.0f m, window %.0f m) - the window is an "
               "OPERATING POINT,\nnot a constant." % (worst[0], worst[1], worst[2], worst[3]))
+
+
+def level_sensitivity(args, soil, sms, tmap, units, sides, tasks, starts, out=sys.stdout):
+    """THE PER-LEVEL TABLE: the same legs scored at each elevation level, side by side.
+
+    This is the honest answer to "what does a one-level-coarser DEM do to the verdict", and it
+    is a MEASUREMENT rather than an argument: the 0.92 threshold was calibrated at L13 over the
+    Mojave AO, the Suwalki AO is only served at L12, and the two are not the same instrument.
+
+    Needs no run directory and no ground truth - it reports how the METRIC moves with the DEM,
+    which is the part a threshold has to survive. Pair it with --calibrate --verify-run
+    --sensitivity (the window/step/interpolation grid) when labels exist for the AO.
+    """
+    levels = ([int(x) for x in args.levels.split(",")] if args.levels
+              else list(range(args.elev_level, args.elev_min_level - 1, -1)))
+    per = {}
+    for lvl in levels:
+        a2 = argparse.Namespace(**vars(args))
+        a2.elev_level = a2.elev_min_level = lvl
+        t2 = Tiles(args.cache, offline=args.offline, nearest=args.elev_nearest,
+                   elev_level=lvl, elev_min_level=lvl)
+        per[lvl] = run_preflight(a2, t2, soil, sms, tmap, units, sides, tasks, starts,
+                                 only_first=args.first_leg_only,
+                                 unit_filter=(set(args.units.split(",")) if args.units else None),
+                                 progress=True)
+    base = levels[0]
+    routed = [r for r in per[base] if r.get("route")]
+    lat = routed[0]["route"][0][0] if routed else 34.66
+    out.write("\nELEVATION-LEVEL SENSITIVITY - the SAME legs scored at each level of dataset %d.\n"
+              % ELEV_DS)
+    out.write("The %.2f threshold on a %.0f m window was calibrated at L%d; a coarser DEM can only\n"
+              "AVERAGE relief away, never invent it, so the bias is ONE-SIDED - a real face reads\n"
+              "LOWER and a flag can be MISSED, never manufactured.\n\n"
+              % (args.threshold, args.window, ELEV_LEVEL))
+    for lvl in levels:
+        out.write("  %s\n" % Tiles.calibration_note(lat, lvl, args.window, args.threshold))
+    out.write("\n%-30s %-13s %8s" % ("task", "unit", "len m"))
+    for lvl in levels:
+        out.write(" %17s" % ("L%d sust/ratio" % lvl))
+    out.write("\n" + "-" * (53 + 18 * len(levels)) + "\n")
+    worst_drop = None
+    for ti, r in enumerate(per[base]):
+        for li, _lg in enumerate(r["legs"]):
+            out.write("%-30s %-13s %8.0f" % (r["task"][:30], r["unit"][:13], _lg["length_m"]))
+            ref = None
+            for lvl in levels:
+                rr = per[lvl][ti]
+                lg = rr["legs"][li] if li < len(rr["legs"]) else None
+                if lg is None or lg.get("elev_level", 0) == 0:
+                    out.write(" %17s" % "NO DATA")
+                    continue
+                mark = "F" if lg["flagged"] else ("?" if lg["no_verdict"] else " ")
+                out.write(" %16s%s" % ("%.3f/%.3f" % (lg["sustained"], lg["ratio"]), mark))
+                if ref is None:
+                    ref = lg["ratio"]
+                elif ref == ref and lg["ratio"] == lg["ratio"]:
+                    d = lg["ratio"] - ref
+                    if worst_drop is None or d < worst_drop[0]:
+                        worst_drop = (d, r["task"], lg["index"], lvl)
+            out.write("\n")
+    out.write("\n")
+    for lvl in levels:
+        legs = [lg for r in per[lvl] for lg in r["legs"]]
+        out.write("L%-3d %3d leg(s): %2d flagged, %2d no-verdict, %2d with NO elevation at this "
+                  "level, %2d crossing water\n"
+                  % (lvl, len(legs), sum(1 for lg in legs if lg["flagged"]),
+                     sum(1 for lg in legs if lg["no_verdict"]),
+                     sum(1 for lg in legs if lg.get("elev_level", 0) == 0),
+                     sum(1 for lg in legs if lg.get("water_samples"))))
+    if worst_drop:
+        out.write("\nlargest ratio move against L%d: %+0.3f (%s leg %d at L%d).\n"
+                  % (base, worst_drop[0], worst_drop[1], worst_drop[2], worst_drop[3]))
+    out.write("READ IT AS: the threshold is CONSERVATIVE at the coarser level, not transferred.\n")
+    return per
+
+
+def check_starts_distance(starts, tasks, units, max_km, label, explicit, out=sys.stderr):
+    """REFUSE TO PAIR ONE AO'S START POSITIONS WITH ANOTHER AO'S VERTICES.
+
+    tools/preflight/starts_P11.csv is the DEFAULT --starts file and it holds ten MOJAVE
+    positions. Run the pre-flight on a Suwalki order without saying otherwise and every unit
+    was silently scored from a start 8,000 km from its own route - a leg length no bound in
+    this tool ever sees, because the bound lives in the interface and not here.
+
+    -> ({kept starts}, n_dropped). A start further than max_km from EVERY vertex of its unit's
+    tasks is DROPPED (the authored initialization position is then used, which is correct) and
+    said out loud. The caller decides whether an all-dropped DEFAULT file is fatal.
+    """
+    if not starts:
+        return starts, 0
+    by_unit = {}
+    for t in tasks:
+        u = units.get(t["performer"])
+        if not u:
+            continue
+        by_unit.setdefault(u["name"], []).extend(t.get("points") or [])
+    kept, dropped = {}, 0
+    for name, (la, lo) in starts.items():
+        pts = by_unit.get(name)
+        if not pts:
+            kept[name] = (la, lo)          # not in this order: nothing to contradict
+            continue
+        near = min(dist_m(la, lo, p[0], p[1]) for p in pts)
+        if near <= max_km * 1000.0:
+            kept[name] = (la, lo)
+            continue
+        dropped += 1
+        out.write("START POSITION REFUSED: '%s' in %s is %.0f km from the nearest vertex of its "
+                  "own task(s) - more than the %.0f km bound. It belongs to a DIFFERENT AREA OF "
+                  "OPERATIONS and pairing it with these vertices would score legs nobody drives. "
+                  "The authored initialization position is used instead.\n"
+                  % (name, label, near / 1000.0, max_km))
+    if dropped and kept == {} and not explicit:
+        out.write("\nFATAL: EVERY start position in the DEFAULT file %s was refused. That file is "
+                  "the Mojave P11 trace and this order is somewhere else. Pass --no-starts (use "
+                  "the authored positions), or --starts <your AO's csv>, or "
+                  "--starts-from-run <RUNDIR>. Refusing to guess.\n" % label)
+        raise SystemExit(2)
+    return kept, dropped
 
 
 def calibrate(args, tiles, soil, sms, tmap, units, sides, tasks, starts):
@@ -1399,8 +1808,16 @@ def main(argv=None):
     ap.add_argument("--shared-data", default=DEF_SHARED)
     ap.add_argument("--cache", default=DEF_CACHE)
     ap.add_argument("--offline", action="store_true", help="cache only; never fetch a tile")
-    ap.add_argument("--starts", default=os.path.join(HERE, "starts_P11.csv"),
-                    help="CSV unit,lat,lon of ACTUAL start positions (DeStack spreads units)")
+    ap.add_argument("--starts", default=None,
+                    help="CSV unit,lat,lon of ACTUAL start positions (DeStack spreads units). "
+                         "DEFAULT: %s - which holds MOJAVE positions from the P11 run. A start "
+                         "further than --starts-max-km from every vertex of its own task(s) is "
+                         "REFUSED, and an all-refused default file is fatal: pass --no-starts, "
+                         "your own --starts, or --starts-from-run." % DEF_STARTS)
+    ap.add_argument("--starts-max-km", type=float, default=DEF_STARTS_MAX_KM,
+                    help="how far a paired start may sit from its unit's own vertices before it "
+                         "is refused as another AO's (default %.0f, the interface's own "
+                         "Vrf:MaxVertexFromTaskeeKm)" % DEF_STARTS_MAX_KM)
     ap.add_argument("--starts-from-run", default=None,
                     help="derive the start positions from a run directory instead")
     ap.add_argument("--no-starts", action="store_true",
@@ -1423,6 +1840,19 @@ def main(argv=None):
     ap.add_argument("--vrf-overlay", default=None)
     ap.add_argument("--elev-nearest", action="store_true",
                     help="sample the nearest elevation posting instead of bilinear")
+    ap.add_argument("--elev-level", type=int, default=ELEV_LEVEL,
+                    help="deepest elevation level to TRY (default %d - the deepest the server "
+                         "serves over the Mojave AO; Suwalki is served at 12)" % ELEV_LEVEL)
+    ap.add_argument("--elev-min-level", type=int, default=ELEV_MIN_LEVEL,
+                    help="floor of the 'no data at L -> try L-1' fallback (default %d). A leg "
+                         "that resolves at NO level is reported LOUDLY, never as clear."
+                         % ELEV_MIN_LEVEL)
+    ap.add_argument("--level-sensitivity", action="store_true",
+                    help="score the SAME legs at each elevation level and print the table - the "
+                         "measurement behind 'the 0.92 threshold was calibrated at L13'")
+    ap.add_argument("--levels", default=None,
+                    help="with --level-sensitivity: comma-separated levels (default: the whole "
+                         "cascade, --elev-level down to --elev-min-level)")
     ap.add_argument("--selftest", action="store_true")
     ap.add_argument("--calibrate", action="store_true")
     ap.add_argument("--verify-run", default=None,
@@ -1438,8 +1868,14 @@ def main(argv=None):
         args.typemap = (DEF_TYPEMAP_NOLIFEFORM
                         if (args.calibrate and os.path.exists(DEF_TYPEMAP_NOLIFEFORM))
                         else DEF_TYPEMAP)
+    # The default starts file is an AO-SPECIFIC default and is now marked as one: an explicit
+    # --starts is the user's own choice and is only warned about, the default can be fatal.
+    starts_explicit = args.starts is not None
+    if args.starts is None:
+        args.starts = DEF_STARTS
 
-    tiles = Tiles(args.cache, offline=args.offline, nearest=args.elev_nearest)
+    tiles = Tiles(args.cache, offline=args.offline, nearest=args.elev_nearest,
+                  elev_level=args.elev_level, elev_min_level=args.elev_min_level)
     soil = SoilChain(args.shared_data, args.vrf_home)
     sms = VendorSms(os.path.join(args.vrf_home, "data", "simulationModelSets", "EntityLevel",
                                  "vrfSim"))
@@ -1469,6 +1905,12 @@ def main(argv=None):
     tmap = TypeMap(args.typemap, args.friendly_nation, args.opposing_nation)
     units, sides = parse_init(args.init)
     tasks = parse_order(args.order)
+    starts, _dropped = check_starts_distance(starts, tasks, units, args.starts_max_km,
+                                             os.path.basename(args.starts), starts_explicit)
+
+    if args.level_sensitivity:
+        level_sensitivity(args, soil, sms, tmap, units, sides, tasks, starts)
+        return 0
 
     if args.calibrate:
         results = calibrate(args, tiles, soil, sms, tmap, units, sides, tasks, starts)
