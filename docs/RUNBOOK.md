@@ -2261,6 +2261,17 @@ scripts\RunC2SimScenario.ps1 Stage 2h starts the holder before Stage 2c on every
 900; -FederationHoldAttempts 4, one ledgered appNo each). The seat scripts scratchpad validation\p3_holder.ps1 /
 p7_holder_retry.ps1 are superseded for runner-driven runs; keep them for probing without the runner.
 
+STP-825 ON THE DEMO PATH (2026-09-20, LaunchVrf52 d1885c0, merged d6c9c2f; 0.5.14 item 18 addendum): Stage 2h only
+protects runs launched through scripts\RunC2SimScenario.ps1. The standalone demo path (docs/DEMO_RUNBOOK.md Way B:
+StartRtiExec52 -> LaunchVrf52 -> StartInterface52) has no runner in front of it, so LaunchVrf52.ps1 now starts its OWN
+holder before its own back end (-FederationHoldSecs, default 900; -FederationHoldAppNumber, default 9190, retries once
+on 9191 - both inside the 9101-9199 demo block). The runner's Stage 3 call site passes -FederationHoldSecs 0, so a
+runner-driven run never starts a second holder. A live RtiProbe.exe after a demo launch is EXPECTED - never kill it.
+KNOWN LIMIT: the two numbers are FIXED, so a THIRD hand launch inside one 900 s hold has no free holder number - pass
+-FederationHoldAppNumber explicitly then (or -FederationHoldSecs 0 while an earlier holder is still joined: the sim
+joins the federation that holder keeps alive). Offline-proven (RunnerTurnaround sec 8m, 271/0 on d6c9c2f); the LIVE
+gate is demo rehearsal D3 (PREREG_DEMO_REHEARSAL_2026-09-20).
+
 Since the STP-832 fix a refused create is a clean Start()==false with the vendor reason; Stage 2c's RtiProbe retries on the same appNumber (live: 4 rejections absorbed, serviceable on attempt 4/5 and 2/5).
 
 ## 10. THE C16 PROGRESS WATCHDOG IS OFF BY DEFAULT - HOW TO TURN IT ON FOR THE VALIDATION RUN

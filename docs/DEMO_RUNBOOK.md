@@ -330,5 +330,6 @@ initialization time, and pushing a second initialization into a live interface d
 - The hand-started, STP-driven sequence end to end (section 2).
 - Reset without restarting VR-Forces (section 6, items 2 and 3).
 - Any demo whose ORBAT contains infantry or other dismounts: the simulator crashes on the first one
-  until a 6.33 GB vendor character-data package is installed (still owed).
-- Any demo after 2026-09-15 without a renewed licence.
+  until a 6.33 GB vendor character-data package is installed. 2026-09-20: the package is on disk
+  (6.9 GB); a run that creates a dismount has NOT been rehearsed since - rehearse before relying on it.
+- Any demo after 2026-10-31 without a renewed licence (renewed 2026-09-14; lapses 2026-10-31).
