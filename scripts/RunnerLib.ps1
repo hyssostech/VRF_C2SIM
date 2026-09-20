@@ -1094,3 +1094,160 @@ function Format-OtherRunnerRefusal {
     return ('another runner is live: pid {0} started {1}, run dir {2}' -f $OtherPid, $Utc, $RunDir)
 }
 
+# ---- THE TWO 5.2 GUI TEARDOWN MODALS, AS PERSISTED SETTINGS (STP-844) -------
+# D1 (run 20260920T172141Z) was the FIRST 5.2 GUI-ON teardown ever. StopVrf52 sent
+# WM_CLOSE, the GUI raised its exit prompt, nothing answered it, the whole 121 s budget
+# was spent waiting and vrfGui was left running (StopVrf52 exit 3, runner exit 4). A
+# READ-ONLY window enumeration of that pid found TWO STACKED modals, both of class
+# makVrf::DtNeverAskAgainMessageBox, both owned by the GUI main window:
+#   1. "Are You Sure?"   / "Quit VR-Forces GUI"
+#         [Yes] [No] + checkbox "Quit All Sim Engines"          (underneath, disabled)
+#   2. "Session Status"  / "The current session has ended. Close current terrain?"
+#         [Yes] [No] + checkbox "Execute session changes without prompting."  (on top)
+#
+# MODAL 1 IS DOCUMENTED. UG52 4.6 "Exiting VR-Forces" states that exiting the GUI opens
+# an exit prompt, explicitly including independent mode - which is how LaunchVrf52 starts
+# 5.2 (UG52 4.1.2). UG52 4.6.1 "Disabling the Quit Prompt" is the vendor's own off
+# switch: Settings > Application > General Application Settings > clear "Show Quit Dialog
+# On Close" ("exiting acts as if you clicked Yes on the exit prompt"). It is a PERSISTED
+# SETTING, not a command-line option - all 85 vrfGui options in UG52 Table 10 were read
+# and none suppresses it; the only relevant one is --appDataDir, which decides WHICH
+# settings tree is read.
+#
+# MODAL 2 IS OUR OWN ORDERING, not a save-scenario prompt (there is none: the objects our
+# run creates and deletes raise nothing). StopVrf52 closes the front end first and asks
+# the back end to close -GraceSec later, so the session ends while modal 1 is still open
+# and the GUI stacks the session-ended prompt on top of it. Its documented switch is
+# UG52 4.3.1 "Configuring Session Messages and Join at Startup": Settings > Application >
+# Session Settings page > "Show Session Terrain Change Prompts" - "Enable if you want to
+# be prompted when the terrain in a session changes". Clearing it is exactly what the
+# dialog's own never-ask-again checkbox does from inside the dialog. With modal 1
+# suppressed the GUI should exit on WM_CLOSE BEFORE the back end is asked to close, so
+# modal 2 should never arise; clearing it too is belt-and-braces for the case where the
+# GUI outlives the grace for some other reason.
+#
+# WHERE THE TWO VALUES LIVE - appData\settings\vrfGui\, under whatever --appDataDir the
+# GUI was given (vendor default C:\MAK\vrforces5.2d\appData, which is exactly the tree
+# D1 ran against, launchvrf.stdout.log:44):
+#   default_Application.apsx      <myShowQuitDialogOnClose>1</...>
+#       the boost NVP of makArchives::DtApplicationSettingsRecord::myShowQuitDialogOnClose
+#       (include\makArchives\DtApplicationSettingsRecord.h:107 serialize, :124 member;
+#       setter/getter at :61/:64). 0 = no exit prompt.
+#   default_SessionSettings.srsx  <mySessionOptions>112885</...>
+#       the boost NVP of makVrf::DtVrfSessionSettingsRecord::mySessionOptions
+#       (include\vrfGuiCore\vrfSessionSettingsRecord.h:85 serialize, :103 member), and it
+#       is a FLAG WORD, not a boolean - the enum at :29-38 gives
+#       DtAutoJoinSession 0x1, DtAskToJoin 0x2, DtAlwaysJoinWithSessionDatabase 0x4,
+#       DtAlwaysJoinWithOpenDatabase 0x8, DtShowSessionDialogs 0x10,
+#       DtAllowScenarioChanges 0x40, DtAutomaticallyOpenSessionDatabaseWithoutJoining
+#       0x40000. The shipped 112885 (0x1B8F5) has 0x10 SET; clearing ONLY that bit gives
+#       112869. The edit is MASKED, never a rewritten literal, because the same word also
+#       carries 0x1 and 0x4 (set) and 0x2 (clear) - which is why D1's GUI auto-joined its
+#       session at startup with no join prompt, and that must not change.
+#
+# DERIVED, NOT VERIFIED: that modal 2's checkbox "Execute session changes without
+# prompting." is the same setting as the Session Settings page's "Show Session Terrain
+# Change Prompts" / DtShowSessionDialogs. The vendor documents the page option, and the
+# SDK header names the flag and its accessor (setDisplaySessionDialogs, :69), but no MAK
+# document ties that checkbox STRING to that flag, and the string is not in any bin64 DLL
+# as plain ASCII or UTF-16. The falsifier is one live GUI-on teardown: if "Session
+# Status" still appears with the bit cleared, the mapping is wrong and the bit must be
+# put back. myShowQuitDialogOnClose, by contrast, is named by the vendor's own help page
+# (doc\help\Content\Introduction\Starting\vrf_disableQuitDialog.htm) and by UG52 4.6.1.
+#
+# These two helpers are PURE (string in, string out) so the whole remedy is exercised
+# offline with no VR-Forces on the machine; the file I/O and the tree seeding live in
+# scripts\NewVrfAppData52.ps1, which never writes under C:\MAK.
+
+# makVrf::DtVrfSessionSettingsRecord::DtShowSessionDialogs (vrfSessionSettingsRecord.h:35)
+$script:VrfShowSessionDialogsFlag = 16
+
+# Read the two prompt settings out of the TEXT of the two vrfGui settings files. Either
+# may be empty or missing the key (a tree seeded from a different VR-Forces version, a
+# truncated copy): that is reported as ABSENT, never guessed at as a default, because
+# "the key is not there" and "the key is 0" have opposite consequences for a teardown.
+function Get-VrfGuiPromptSettings {
+    param(
+        [AllowEmptyString()][string]$ApplicationXml = '',
+        [AllowEmptyString()][string]$SessionSettingsXml = ''
+    )
+    $quit = $null
+    $mq = [regex]::Match($ApplicationXml, '<myShowQuitDialogOnClose>\s*([0-9]+)\s*</myShowQuitDialogOnClose>')
+    if ($mq.Success) { $quit = [int]$mq.Groups[1].Value }
+
+    $opts = $null
+    $mo = [regex]::Match($SessionSettingsXml, '<mySessionOptions>\s*(-?[0-9]+)\s*</mySessionOptions>')
+    if ($mo.Success) { $opts = [int]$mo.Groups[1].Value }
+
+    $sessionDialogs = $null
+    if ($null -ne $opts) { $sessionDialogs = ((($opts -band $script:VrfShowSessionDialogsFlag)) -ne 0) }
+
+    $quitOff    = (($null -ne $quit) -and ($quit -eq 0))
+    $sessionOff = (($null -ne $sessionDialogs) -and (-not $sessionDialogs))
+
+    $quitText = 'ABSENT'
+    if ($null -ne $quit) { $quitText = [string]$quit }
+    $optText = 'ABSENT'
+    if ($null -ne $opts) { $optText = [string]$opts }
+    $sessText = 'ABSENT'
+    if ($null -ne $sessionDialogs) {
+        if ($sessionDialogs) { $sessText = 'SET - session prompts ON' } else { $sessText = 'CLEAR - session prompts OFF' }
+    }
+
+    return [pscustomobject]@{
+        ShowQuitDialogOnClose = $quit
+        SessionOptions        = $opts
+        ShowSessionDialogs    = $sessionDialogs
+        QuitPromptOff         = $quitOff
+        SessionPromptOff      = $sessionOff
+        Unattended            = ($quitOff -and $sessionOff)
+        Summary               = ('myShowQuitDialogOnClose={0}; mySessionOptions={1}, DtShowSessionDialogs 0x10 {2}' -f $quitText, $optText, $sessText)
+    }
+}
+
+# Return the SETTINGS TEXT with one prompt turned off, plus what changed. Nothing is
+# written here. The Application edit pins the value to 0; the SessionSettings edit is a
+# MASK (-band -bnot 0x10) so every other flag in the word survives untouched. Both
+# replace AT MOST ONE occurrence: these files carry the key once, and a second occurrence
+# would mean a file shape nobody has seen - rewriting it blind is how a settings tree
+# gets silently corrupted.
+function Set-VrfGuiPromptSettingsText {
+    param(
+        [Parameter(Mandatory)][ValidateSet('Application', 'SessionSettings')][string]$Kind,
+        [Parameter(Mandatory)][AllowEmptyString()][string]$Text
+    )
+    $out     = $Text
+    $changed = $false
+    $found   = $false
+    $before  = ''
+    $after   = ''
+    if ($Kind -eq 'Application') {
+        $rx = [regex]'(?<open><myShowQuitDialogOnClose>\s*)(?<val>[0-9]+)(?<close>\s*</myShowQuitDialogOnClose>)'
+        $m  = $rx.Match($Text)
+        if ($m.Success) {
+            $found  = $true
+            $before = $m.Groups['val'].Value
+            $after  = '0'
+            if ($before -ne '0') { $out = $rx.Replace($Text, '${open}0${close}', 1); $changed = $true }
+        }
+    } else {
+        $rx = [regex]'(?<open><mySessionOptions>\s*)(?<val>-?[0-9]+)(?<close>\s*</mySessionOptions>)'
+        $m  = $rx.Match($Text)
+        if ($m.Success) {
+            $found = $true
+            $v     = [int]$m.Groups['val'].Value
+            $nv    = ($v -band (-bnot $script:VrfShowSessionDialogsFlag))
+            $before = [string]$v
+            $after  = [string]$nv
+            if ($nv -ne $v) { $out = $rx.Replace($Text, ('${open}' + $nv + '${close}'), 1); $changed = $true }
+        }
+    }
+    return [pscustomobject]@{
+        Text     = $out
+        Changed  = $changed
+        KeyFound = $found
+        Before   = $before
+        After    = $after
+    }
+}
+

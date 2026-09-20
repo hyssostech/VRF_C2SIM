@@ -1306,6 +1306,217 @@ Check 'the app log of run 20260902T153837Z maps all three taskees (the live regr
         @('114.MechCoy','1222.MechPlt','1.BdeHQ' | Where-Object { $m.Contains($_) }).Count -eq 3
     } else { $true }))
 
+# 10. STP-844 - THE TWO 5.2 GUI TEARDOWN MODALS, SUPPRESSED BY VENDOR CONFIGURATION.
+# Demo rehearsal D1 (run 20260920T172141Z) was the first GUI-ON 5.2 teardown ever run: the
+# GUI raised UG52 4.6's exit prompt on StopVrf52's WM_CLOSE, nothing answered it, the
+# teardown spent its full 121 s budget and left a JOINED vrfGui behind. A read-only window
+# enumeration afterwards found TWO stacked makVrf::DtNeverAskAgainMessageBox modals ("Are
+# You Sure?" and, on top of it, "Session Status" - the latter raised by our own ordering,
+# the back end being asked to close 20 s after the GUI). The remedy is the vendor's own
+# configuration, not a UIA answerer: myShowQuitDialogOnClose (UG52 4.6.1) and the
+# DtShowSessionDialogs 0x10 bit of mySessionOptions (UG52 4.3.1), both set in a RUN-OWNED
+# appData copy that LaunchVrf52 selects with --appDataDir. Nothing under C:\MAK is written.
+# Everything below is OFFLINE: the parsers are pure, and the seeding script runs against a
+# throwaway TEMP tree built here, never against the real vendor tree.
+Write-Host '=== 10. STP-844 GUI quit/session prompts: pure parsers (RunnerLib) ==='
+# The exact shape of the shipped vendor files, cut down to the lines that matter:
+# C:\MAK\vrforces5.2d\appData\settings\vrfGui\default_Application.apsx (boost archive
+# version 9, Application class version 6) and default_SessionSettings.srsx (SessionSettings
+# class version 14). 112885 = 0x1B8F5, which HAS bit 0x10 set.
+$appOn  = "<Application class_id=`"0`" tracking_level=`"0`" version=`"6`">`r`n`t<myMouseHideTime>3</myMouseHideTime>`r`n`t<myShowQuitDialogOnClose>1</myShowQuitDialogOnClose>`r`n</Application>"
+$appOff = $appOn -replace '<myShowQuitDialogOnClose>1<', '<myShowQuitDialogOnClose>0<'
+$sesOn  = "<SessionSettings class_id=`"0`" tracking_level=`"0`" version=`"14`">`r`n`t<mySessionOptions>112885</mySessionOptions>`r`n</SessionSettings>"
+$sesOff = $sesOn -replace '112885', '112869'
+
+$stOn = Get-VrfGuiPromptSettings -ApplicationXml $appOn -SessionSettingsXml $sesOn
+Check '10 the SHIPPED vendor values read as both prompts ON (this is what D1 launched against)' (
+    $stOn.ShowQuitDialogOnClose -eq 1 -and $stOn.SessionOptions -eq 112885 -and
+    $stOn.ShowSessionDialogs -eq $true -and (-not $stOn.Unattended)) $stOn.Summary
+$stOff = Get-VrfGuiPromptSettings -ApplicationXml $appOff -SessionSettingsXml $sesOff
+Check '10 the patched values read as Unattended (quit prompt off AND session dialogs off)' (
+    $stOff.ShowQuitDialogOnClose -eq 0 -and $stOff.SessionOptions -eq 112869 -and
+    $stOff.ShowSessionDialogs -eq $false -and $stOff.Unattended) $stOff.Summary
+# HALF-DONE MUST NOT READ AS DONE: either prompt alone still hangs a teardown.
+Check '10 quit prompt off but session dialogs still ON is NOT Unattended' (
+    -not (Get-VrfGuiPromptSettings -ApplicationXml $appOff -SessionSettingsXml $sesOn).Unattended)
+Check '10 session dialogs off but quit prompt still ON is NOT Unattended' (
+    -not (Get-VrfGuiPromptSettings -ApplicationXml $appOn -SessionSettingsXml $sesOff).Unattended)
+# An ABSENT key is reported as absent, never defaulted: "not there" and "0" have opposite
+# consequences and a launch precheck that guessed would be a false green.
+$stNone = Get-VrfGuiPromptSettings -ApplicationXml '' -SessionSettingsXml ''
+Check '10 missing keys read as ABSENT (null), not as 0, and never as Unattended' (
+    $null -eq $stNone.ShowQuitDialogOnClose -and $null -eq $stNone.SessionOptions -and
+    $null -eq $stNone.ShowSessionDialogs -and (-not $stNone.Unattended) -and
+    $stNone.Summary -match 'ABSENT') $stNone.Summary
+
+Write-Host '=== 10b. STP-844 the two edits: pinned value, MASKED flag, idempotent ==='
+$edApp = Set-VrfGuiPromptSettingsText -Kind 'Application' -Text $appOn
+Check '10b Application 1 -> 0, one byte, everything else untouched' (
+    $edApp.Changed -and $edApp.KeyFound -and $edApp.Before -eq '1' -and $edApp.After -eq '0' -and
+    $edApp.Text -eq $appOff) 'text differs from the expected patched form'
+Check '10b Application edit is idempotent (already 0 -> Changed false, KeyFound true)' (
+    $($r = Set-VrfGuiPromptSettingsText -Kind 'Application' -Text $appOff; (-not $r.Changed) -and $r.KeyFound))
+Check '10b Application: key absent -> KeyFound false and the text is returned UNCHANGED (never invented)' (
+    $($r = Set-VrfGuiPromptSettingsText -Kind 'Application' -Text '<Application/>'; (-not $r.KeyFound) -and (-not $r.Changed) -and $r.Text -eq '<Application/>'))
+$edSes = Set-VrfGuiPromptSettingsText -Kind 'SessionSettings' -Text $sesOn
+Check '10b SessionSettings 112885 -> 112869 (0x10 cleared)' (
+    $edSes.Changed -and $edSes.Before -eq '112885' -and $edSes.After -eq '112869' -and $edSes.Text -eq $sesOff) $edSes.After
+# THE EDIT IS A MASK, NOT A LITERAL. The same word carries DtAutoJoinSession 0x1 and
+# DtAlwaysJoinWithSessionDatabase 0x4 (both SET in the shipped value, which is why D1's GUI
+# auto-joined with no join prompt) and DtAskToJoin 0x2 (CLEAR). Rewriting the word to a
+# constant would silently change how the GUI joins its session.
+$after = [int]$edSes.After
+Check '10b the MASK preserves every other flag: 0x1 and 0x4 still SET, 0x2 still CLEAR, 0x40 still SET' (
+    ($after -band 0x1) -ne 0 -and ($after -band 0x4) -ne 0 -and ($after -band 0x2) -eq 0 -and ($after -band 0x40) -ne 0) ("got $after")
+Check '10b a word WITHOUT 0x10 is left alone (Changed false), and 0x7B -> 0x6B' (
+    $(  $noBit = Set-VrfGuiPromptSettingsText -Kind 'SessionSettings' -Text '<mySessionOptions>5</mySessionOptions>'
+        $withBit = Set-VrfGuiPromptSettingsText -Kind 'SessionSettings' -Text '<mySessionOptions>123</mySessionOptions>'
+        (-not $noBit.Changed) -and $noBit.KeyFound -and $withBit.Changed -and $withBit.After -eq '107'))
+
+Write-Host '=== 10c. STP-844 NewVrfAppData52.ps1 against a THROWAWAY temp tree (never the vendor tree) ==='
+$gqSrc  = Join-Path ([System.IO.Path]::GetTempPath()) ('stp844src-'  + [guid]::NewGuid().ToString('N'))
+$gqDst  = Join-Path ([System.IO.Path]::GetTempPath()) ('stp844dst-'  + [guid]::NewGuid().ToString('N'))
+$gqExe  = Join-Path $RepoRoot 'scripts\NewVrfAppData52.ps1'
+$gqPwsh = 'C:\Program Files\PowerShell\7\pwsh.exe'
+try {
+    $gqGui = Join-Path $gqSrc 'appData\settings\vrfGui'
+    $null = New-Item -ItemType Directory -Path (Join-Path $gqGui 'backups') -Force
+    $null = New-Item -ItemType Directory -Path (Join-Path $gqSrc 'appData\cache') -Force
+    $null = New-Item -ItemType Directory -Path (Join-Path $gqSrc 'data') -Force
+    $null = New-Item -ItemType Directory -Path (Join-Path $gqSrc 'userData') -Force
+    # Written as BYTES with a no-BOM UTF-8 encoding, exactly as the vendor ships them
+    # (CRLF, ASCII, no BOM): the point of the round trip is that the seeding script's edit
+    # changes ONE byte and leaves the encoding and the line endings alone.
+    $gqEnc = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllBytes((Join-Path $gqGui 'default_Application.apsx'),     $gqEnc.GetBytes($appOn  + "`r`n"))
+    [System.IO.File]::WriteAllBytes((Join-Path $gqGui 'default_SessionSettings.srsx'), $gqEnc.GetBytes($sesOn  + "`r`n"))
+    [System.IO.File]::WriteAllBytes((Join-Path $gqGui 'backups\Application.backup'),   $gqEnc.GetBytes($appOn  + "`r`n"))
+    $gqSrcBytes = [System.IO.File]::ReadAllBytes((Join-Path $gqGui 'default_Application.apsx'))
+
+    if (-not (Test-Path -LiteralPath $gqPwsh)) {
+        Check '10c SKIPPED - pwsh 7 not at the expected path, so the seeding script cannot be run here' $true
+    } else {
+        $gqDry = (& $gqPwsh -NoProfile -NonInteractive -File $gqExe -Dest $gqDst -VrfRoot $gqSrc -DryRun 2>&1 | Out-String)
+        $gqDryCode = $LASTEXITCODE
+        Check '10c the DRY RUN exits 0, copies nothing, and says so' (
+            $gqDryCode -eq 0 -and (-not (Test-Path -LiteralPath $gqDst)) -and
+            $gqDry -match 'nothing is copied, linked or written') "exit=$gqDryCode"
+        Check '10c the dry-run plan names BOTH edits by their vendor citation' (
+            $gqDry -match 'myShowQuitDialogOnClose -> 0 \(UG52 4\.6\.1\)' -and
+            $gqDry -match 'clear DtShowSessionDialogs \(UG52 4\.3\.1\)')
+
+        $gqOut  = (& $gqPwsh -NoProfile -NonInteractive -File $gqExe -Dest $gqDst -VrfRoot $gqSrc 2>&1 | Out-String)
+        $gqCode = $LASTEXITCODE
+        $gqAppOut  = Join-Path $gqDst 'appData\settings\vrfGui\default_Application.apsx'
+        $gqSesOut  = Join-Path $gqDst 'appData\settings\vrfGui\default_SessionSettings.srsx'
+        Check '10c the real seed exits 0 and produces the two settings files' (
+            $gqCode -eq 0 -and (Test-Path -LiteralPath $gqAppOut) -and (Test-Path -LiteralPath $gqSesOut)) "exit=$gqCode"
+        $gqState = Get-VrfGuiPromptSettings `
+            -ApplicationXml     $(if (Test-Path -LiteralPath $gqAppOut) { Get-Content -LiteralPath $gqAppOut -Raw } else { '' }) `
+            -SessionSettingsXml $(if (Test-Path -LiteralPath $gqSesOut) { Get-Content -LiteralPath $gqSesOut -Raw } else { '' })
+        Check '10c BOTH keys land in the RIGHT FILES of the seeded tree (read back from disk)' (
+            $gqState.Unattended -and $gqState.ShowQuitDialogOnClose -eq 0 -and $gqState.SessionOptions -eq 112869) $gqState.Summary
+        # THE SOURCE MUST BE UNTOUCHED. The whole (a)-over-(b) argument is that the tree
+        # the GUI reads by default is never written to; if seeding mutated its source this
+        # script would be doing exactly what it claims not to do.
+        Check '10c the SOURCE tree is byte-identical afterwards (the vendor tree is only ever read)' (
+            $(@(Compare-Object $gqSrcBytes ([System.IO.File]::ReadAllBytes((Join-Path $gqGui 'default_Application.apsx')))).Count -eq 0))
+        if (Test-Path -LiteralPath $gqAppOut) {
+            $gqOutBytes = [System.IO.File]::ReadAllBytes($gqAppOut)
+            $gqDiff = 0
+            for ($i = 0; $i -lt [Math]::Min($gqSrcBytes.Length, $gqOutBytes.Length); $i++) {
+                if ($gqSrcBytes[$i] -ne $gqOutBytes[$i]) { $gqDiff++ }
+            }
+            Check '10c the edit changes EXACTLY ONE BYTE and keeps the length, the CRLFs and the absence of a BOM' (
+                $gqOutBytes.Length -eq $gqSrcBytes.Length -and $gqDiff -eq 1 -and $gqOutBytes[0] -eq 60) "diff=$gqDiff len=$($gqOutBytes.Length)/$($gqSrcBytes.Length)"
+        }
+        Check '10c the missing backups\SessionSettings.backup is tolerated, not an error' (
+            $gqOut -match 'not present \(fine, the GUI rewrites it at startup\)')
+        Check '10c the README records the RESTORE PATH (delete the copy; nothing in C:\MAK to put back)' (
+            $(  $rp = Join-Path $gqDst 'README-C2SIM-UNATTENDED.txt'
+                (Test-Path -LiteralPath $rp) -and ((Get-Content -LiteralPath $rp -Raw) -match 'RESTORE PATH')))
+        # Re-running must be cheap and must not re-copy: the demo script may call it every time.
+        $gqAgain = (& $gqPwsh -NoProfile -NonInteractive -File $gqExe -Dest $gqDst -VrfRoot $gqSrc 2>&1 | Out-String)
+        Check '10c a second run is idempotent: no re-copy, both keys already correct, exit 0' (
+            $LASTEXITCODE -eq 0 -and $gqAgain -match 'skipping the copy' -and
+            $gqAgain -match 'already 0 - unchanged' -and $gqAgain -match 'already 112869 - unchanged')
+        # THE HARD CONSTRAINT, exercised rather than asserted about: a -Dest inside the
+        # vendor tree is refused with exit 2 before anything is copied.
+        $gqMak = (& $gqPwsh -NoProfile -NonInteractive -File $gqExe -Dest ('C' + ':\MAK\vrforces5.2d\appData-test') -VrfRoot $gqSrc 2>&1 | Out-String)
+        Check '10c a -Dest under the vendor tree is REFUSED (exit 2) and names why' (
+            $LASTEXITCODE -eq 2 -and $gqMak -match 'REFUSED') "exit=$LASTEXITCODE"
+    }
+} finally {
+    Remove-Item -LiteralPath $gqDst -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $gqSrc -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+Write-Host '=== 10d. STP-844 StopVrf52: the lost diagnostic is back, and still nothing is clicked ==='
+$sv52Path = Join-Path $RepoRoot 'scripts\StopVrf52.ps1'
+$sv52Text = Get-Content -LiteralPath $sv52Path -Raw
+# Assert against CODE, not comments: the header legitimately discusses Stop-Process, /F and
+# clicking in order to say they are never used, and a naive whole-file match would flag it.
+$sv52Code = (@(Get-Content -LiteralPath $sv52Path | Where-Object { $_.Trim() -notmatch '^#' }) -join "`n")
+Check '10d StopVrf52 restores the three READ-ONLY enumerators StopVrf.ps1 has' (
+    $sv52Code -match 'function Get-VrfWindows' -and
+    $sv52Code -match 'function Get-VrfNestedWindows' -and
+    $sv52Code -match 'function Get-DialogButtonNames')
+Check '10d the diagnostic runs on the TIMEOUT path (the artifact D1 owed and did not have)' (
+    $sv52Code -match 'Write-WindowDiagnostic -Why \(.TIMEOUT after')
+Check '10d and after the grace, BEFORE the back end is asked (so the two modals can be told apart)' (
+    $sv52Code -match 'Write-WindowDiagnostic -Why \(.after the . \+ \$GraceSec')
+Check '10d it reports both ENABLED state and BUTTON NAMES - MainWindowTitle alone named neither D1 dialog' (
+    $sv52Code -match 'IsWindowEnabled' -and $sv52Code -match 'Get-DialogButtonNames -element')
+Check '10d CloseMainWindow''s return value is CAPTURED and reported, not discarded' (
+    $sv52Code -match '\$sent\s*=\s*\$p\.CloseMainWindow\(\)' -and
+    $sv52Code -notmatch '\$null\s*=\s*\$p\.CloseMainWindow\(\)' -and
+    $sv52Code -match 'returned FALSE')
+# STILL NO GUI AUTOMATION. The project goal is headless; an answerer is out of scope and
+# must not creep in with the diagnostic that was only ever meant to LOG.
+Check '10d NO click path exists in the code: no InvokePattern, no Invoke(), no SetForegroundWindow, no Toggle' (
+    $sv52Code -notmatch 'InvokePattern' -and $sv52Code -notmatch 'TogglePattern' -and
+    $sv52Code -notmatch 'SetForegroundWindow' -and $sv52Code -notmatch '\.Invoke\(\)')
+Check '10d NO Stop-Process anywhere in the code (RUNBOOK sec 0)' (
+    $sv52Code -notmatch 'Stop-Process')
+# taskkill appears twice in the code: the one INVOCATION and the log line that echoes what
+# was run. Only the invocation may be asserted on - the log line legitimately contains the
+# string "/F" in "(no /F)". So: find the call sites, insist there is exactly one, and
+# insist IT carries no /F. A whole-file '/F' match would flag the log line and a whole-file
+# 'no /F' match would pass even if the call site grew one.
+$sv52TaskkillCalls = @(Get-Content -LiteralPath $sv52Path |
+    Where-Object { $_.Trim() -notmatch '^#' -and $_ -match '&\s+taskkill' })
+Check '10d exactly ONE taskkill call site, and it carries no /F (a force-killed joined federate hangs the next join)' (
+    $sv52TaskkillCalls.Count -eq 1 -and $sv52TaskkillCalls[0] -notmatch '/F') ("call sites: " + $sv52TaskkillCalls.Count)
+Check '10d the UIA half degrades instead of failing the teardown when the types cannot be loaded' (
+    $sv52Code -match '\$script:UiaOk\s*=\s*\$false' -and $sv52Code -match 'if \(-not \$script:UiaOk\)')
+$sv52Dry = (& $gqPwsh -NoProfile -NonInteractive -File $sv52Path -DryRun 2>&1 | Out-String)
+if ($sv52Dry -notmatch 'Dry run - what WOULD happen') {
+    Check '10d SKIPPED - no VR-Forces process is running, so StopVrf52 -DryRun exits at "nothing to do" before the plan' $true
+} else {
+    Check '10d the dry-run plan names the window diagnostic and the CloseMainWindow return value' (
+        $sv52Dry -match 'READ-ONLY WINDOW DIAGNOSTIC' -and $sv52Dry -match "would REPORT CloseMainWindow")
+}
+
+Write-Host '=== 10e. STP-844 LaunchVrf52 precheck: GUI-on only, advisory only, no StrictMode leak ==='
+Check '10e the precheck is gated on a front end actually being launched (-NoGui raises no dialog)' (
+    $lv52Text -match 'if \(-not \$NoGui\) \{[\s\S]{0,4000}vrfGui TEARDOWN PROMPTS ARE ON')
+Check '10e it reads the EFFECTIVE appData - the relocated tree when -AppDataDir is given, the vendor default otherwise' (
+    $lv52Text -match '\$effAppData = \$\(if \(\[string\]::IsNullOrWhiteSpace\(\$AppDataDir\)\)')
+Check '10e it WARNS and never refuses (a GUI-on interactive launch with the prompt on is valid)' (
+    $lv52Text -match 'NOT A REFUSAL' -and
+    -not ([regex]::IsMatch($lv52Text, 'TEARDOWN PROMPTS ARE ON[\s\S]{0,1500}\$hardFail = \$true')))
+Check '10e it names STP-844, the run that proved it, and the remedy script' (
+    $lv52Text -match 'STP-844' -and $lv52Text -match '20260920T172141Z' -and $lv52Text -match 'NewVrfAppData52\.ps1')
+# RunnerLib.ps1 opens with Set-StrictMode -Version Latest and LaunchVrf52 has never run
+# under it. Dot-sourcing at script scope would turn StrictMode on for a LIVE LAUNCH, where
+# an unset variable anywhere downstream becomes a terminating error mid-flight.
+Check '10e RunnerLib is dot-sourced inside a CHILD SCOPE, never at LaunchVrf52 script scope' (
+    $lv52Text -match '& \{\s*\r?\n\s*param\(\$libPath, \$appXml, \$sessXml\)\s*\r?\n\s*\. \$libPath' -and
+    -not ([regex]::IsMatch($lv52Text, '(?m)^\s*\.\s+\(Join-Path \$PSScriptRoot ''RunnerLib\.ps1''\)')))
+$lv52Code = (@(Get-Content -LiteralPath $lv52Script | Where-Object { $_.Trim() -notmatch '^#' }) -join "`n")
+Check '10e LaunchVrf52 still EXECUTES no Set-StrictMode of its own (the reason the child scope matters)' (
+    $lv52Code -notmatch 'Set-StrictMode')
+
 Write-Host ''
 Write-Host ('{0} passed, {1} failed' -f $script:Pass, $script:Fail)
 if ($script:Fail -gt 0) { exit 1 }
