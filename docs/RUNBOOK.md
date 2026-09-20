@@ -595,7 +595,26 @@ ENABLED state plus every nested `ControlType=Window` with class, name and button
 window, which is why D1's log named the scenario file and neither dialog.
 
 Also: the 8/8 clean teardown record is HEADLESS (79/79 StopVrf52 runs with no vrfGui) and
-says nothing about GUI-on teardown; D1 was 1 of 80. There is also a remote
+says nothing about GUI-on teardown; D1 was 1 of 80.
+
+**2026-09-20 (D1b, D2 - STP-844):** the quit-prompt key is CONFIRMED LIVE (teardown 9.87 s /
+9.77 s, CloseMainWindow TRUE, no window diagnostic ran); the session-dialog bit remains
+UNVERIFIED - modal 2 never had the chance to fire (the back end was only asked to close
+after the GUI was already gone), so the 0x10-clear is a VACUOUS hit, not a proof.
+
+KNOWN ISSUES surfaced by D1b (none are appData-relocation defects; all pre-exist it):
+- vrfGui and the sim log to `C:\MAK\logs\vrfGui5.2d-<stamp>-...log` /
+  `vrfSimHLA1516e5.2d-...log` regardless of `--appDataDir`; the runner's end-of-run capture
+  still searches for the flat 5.0.2 names (`vrfGui.log`, `vrfSim.log`) and WARNs twice per
+  run - present since D1, not caused by the relocation.
+- The .NET tools (RtiProbe, WatchVrf) resolve the connection config from the bound
+  vrfcontrol.dll's VENDOR tree, not the relocated `--appDataDir` copy - harmless only while
+  the two files are byte-identical.
+- LaunchVrf52 prints an alarming "this launch's own back end will be the federation
+  CREATOR" WARN even when the runner's own Stage 2h holder is already holding the
+  federation - a false alarm in that configuration.
+
+There is also a remote
 `DtVrfRemoteController::exit()` (include\vrfcontrol\vrfRemoteController.h:825;
 DtExitMessageType = 45 at include\vrfmsgs\messageTypes.h:125), but every vendor
 statement scopes the Remote Control API to the BACK-END ("control a VR-Forces

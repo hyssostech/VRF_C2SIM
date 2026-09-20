@@ -145,19 +145,23 @@ The two console options above turn the per-unit diagnostic chatter OFF. Leave th
 engineer asks for them: they can write a gigabyte of log in a long run.
 
 `--vrf-appdata-dir` (STP-844) points the GUI and the sim at the run-owned appData seeded above,
-whose two teardown prompts are pre-disabled - UNVERIFIED until D1b confirms it live.
+whose two teardown prompts are pre-disabled. REQUIRED for a GUI run - proven live in D1b and D2
+(teardown clean in under 10 s both times, nothing left running; see below).
 
 WATCH IT from a SECOND window with `tail -f <the runner log path the command prints>`. Do NOT pipe
 the command, do not add `| tee`, and do not run any process-killing sweep while it is running.
 
-RUN 2026-09-20 (D1, GUI ON): the one-command wrapper reached READY unattended, pushed the init
-and the order, and all three tasks completed in real time (ratio 1.00, 4 min 44 s
-order-to-last-completion) - start, init, order and completion all worked. TEARDOWN DID NOT: the
-GUI was left open on its own documented exit prompt (UG52 sec 4.6/4.6.1) and StopVrf52.ps1
-exited 3 (still running - nothing was killed). UNTIL THE FIX LANDS, on a run WITHOUT
-`--vrf-appdata-dir`: at the end of a `--gui` run, click the GUI's quit prompt by hand, and expect
-the leftover vrfGui to block the next launch until you close it (`pwsh -File
-scripts\StopVrf52.ps1` or the GUI itself).
+RUN 2026-09-20 (D1, GUI ON, no `--vrf-appdata-dir`): the one-command wrapper reached READY
+unattended, pushed the init and the order, and all three tasks completed in real time (ratio
+1.00, 4 min 44 s order-to-last-completion) - start, init, order and completion all worked.
+TEARDOWN DID NOT: the GUI was left open on its own documented exit prompt (UG52 sec 4.6/4.6.1)
+and StopVrf52.ps1 exited 3 (still running - nothing was killed).
+
+FIXED, CONFIRMED LIVE (D1b, D2 - STP-844): with `--vrf-appdata-dir` given, teardown is clean in
+under 10 s both times (9.87 s, 9.77 s), CloseMainWindow returns TRUE, and nothing is left
+running. On a run WITHOUT `--vrf-appdata-dir`, the fallback still applies: click the GUI's quit
+prompt by hand at the end, and expect the leftover vrfGui to block the next launch until you
+close it (`pwsh -File scripts\StopVrf52.ps1` or the GUI itself).
 
 ---
 
@@ -182,7 +186,7 @@ scripts\StopVrf52.ps1` or the GUI itself).
    script, then the GUI showing an empty Mojave map with the simulation clock running.
    Terrain load takes a while the first time (it is streaming from the internet).
    `-AppDataDir` (STP-844) is the same run-owned, pre-seeded tree as Way A's
-   `--vrf-appdata-dir` - UNVERIFIED until D1b confirms it live.
+   `--vrf-appdata-dir`. REQUIRED for a GUI run - proven live in D1b and D2 (section 1).
 
 3. The interface:
        pwsh -File scripts\StartInterface52.ps1 -ClientId STP
@@ -282,7 +286,16 @@ What the record actually supports on 5.2, in order of preference:
 1. FULL CYCLE (this is the verified one). Stop the interface, stop VR-Forces gracefully, launch
    again, start the interface again, push the initialization again. rtiexec stays up and untouched.
    Two such cycles ran back to back on 2026-09-14 with no trouble. In Way A this is simply: run the
-   one command again.
+   one command again. REHEARSED WITH THE GUI 2026-09-20 (D1b then D2, back to back): functional
+   reset VERIFIED - one command, no wedge, no blind observers, a fresh holder appNo each time.
+   Operator timing (n=1 each): previous runner exit -> next READY 80.1 s; READY -> order on the
+   bus ~114 s; order -> all three tasks terminal 290 s on a rested machine, 387 s on the
+   back-to-back second cycle; teardown ~10 s both times. HONEST REASON for the spread: the second
+   cycle's entities moved at a constant ~0.60x ground speed (sim clock still held real time) for a
+   cause that is NOT YET DIAGNOSED (candidate: no settle time between cycles, confounded here by a
+   concurrent I/O-heavy harvest process; discriminating run D3 is registered but not yet run).
+   Guidance until D3 decides it: leave a few minutes between demo runs, or rehearse the demo on the
+   SECOND cycle's timings rather than the first's.
 2. Reloading the scenario in the GUI and restarting only the interface: plausible but UNVERIFIED on
    5.2 (DEMO_READINESS row 9). Rehearse it before relying on it in front of an audience.
 3. `tools\ResetVrf`: BUILDS for 5.2 since 2026-09-15 (it was 5.0.2-only before; RUNBOOK sec 9), and
@@ -343,10 +356,6 @@ initialization time, and pushing a second initialization into a live interface d
 
 ## 10. Still unverified at the time of writing (rehearse these)
 
-- The `--gui` run through the one-command wrapper (section 1): RUN 2026-09-20 - start, init,
-  order and all three completions worked, in real time; teardown left the GUI open on its exit
-  prompt (remedy in flight) - click it by hand until the fix lands, and expect a leftover vrfGui
-  to block the next launch.
 - The hand-started, STP-driven sequence end to end (section 2).
 - Reset without restarting VR-Forces (section 6, items 2 and 3).
 - Dismounts were created and moved in D1 on 2026-09-20 with the character-data package installed

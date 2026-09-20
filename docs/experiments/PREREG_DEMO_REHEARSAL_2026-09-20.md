@@ -84,6 +84,22 @@ unnamed set bits in mySessionOptions; the flag words in applicationSettings.xml;
 settings arriving from the session database because DtAlwaysJoinWithSessionDatabase (0x4) is
 set. The post-run settings-directory diff discriminates between them.
 
+### D1b RESULT (run 20260920T185227Z)
+
+P1-P6 all HIT (sec 0). StopVrf 9.87 s clean (D1: 121.3 s, exit 3); CloseMainWindow TRUE, no
+post-grace window diagnostic ran. Upstream identical to D1 (READY 45.7 s, 6 units, 3
+TASKSTRT/TASKCMPLT, ratio ~1.00, STP-845 recurred unchanged, 0 STP-833 refusals).
+Settings diff: 344 vs 344 files, 0 added, 0 removed; of 4 changed, only
+`layout_UILastSavedLayout.uisx` is D1b's - the other three carry D2 mtimes (D2 launched 49 s
+later, contaminating the shared tree). Vendor `default_Application.apsx` still reads 1,
+mtime unmoved; zero of 344 vendor settings files were written.
+H2 (unnamed mySessionOptions bit) and H3 (applicationSettings.xml flags) RULED OUT; H4
+(session-database supply) NOT SUPPORTED; H1 (DtShowSessionDialogs) CONSISTENT, not proven.
+ADVERSARIAL: P3's hit is VACUOUS - modal 2 only ever arose because modal 1 was still open
+when the back end was asked to close; modal 1 never opened here, so the condition that
+raises modal 2 never occurred, and the 0x10 lever remains UNVERIFIED belt-and-braces.
+D1's STOP is CLEARED.
+
 ## D2 - reset between runs, the FULL CYCLE with the GUI (DEMO_RUNBOOK sec 6 item 1: 'run the one command again')
 
 Registered 2026-09-20 BEFORE D1 runs. D2 = D1b's exact command a second time, started after D1b's teardown inventory is
@@ -95,7 +111,24 @@ MISS = D2 startup failure, observers blind, or any task not terminal -> STOP; th
 'restart from a clean desktop', and row 9 stays open. Sec 6 items 2-3 (GUI reload, ResetVrf) stay UNVERIFIED and
 out of the demo - not needed once the full cycle is proven with the GUI.
 
-NOT RUN 2026-09-20 - blocked by D1's STOP.
+### D2 RESULT (run 20260920T190230Z)
+
+P2 HIT - holder appNo 4619 (pid 89116) joined in 3 s alongside D1b's still-joined 58520. P1
+SPLIT: functional HIT (READY, 6 units, 3/3 TASKCMPLT, clean teardown, no wedge), but "exactly
+as D1" is a MISS. Teardown 9.77 s clean (D1b 9.87 s).
+The +97 s = a constant fleet-wide 0.57-0.63x entity speed, sim/wall 1.00 in both runs;
+identical 1155 m BdeHQ path and identical MechPlt end geometry (12/16, 47 m, 1226 m) - later,
+not different. STP-845 give-ups recurred at order+375.6 s vs D1b's +239.6 s (ratio 0.64, same
+scaling); the company's close rule FLIPPED arrival evidence (D1b) -> vendor completion (D2).
+REFUTED: (a) sim clock slow; (a') harvest load (0.57x predates the diff script); (b)
+different path/members (geometry identical); (c) D1b's holder still joined (no recovery after
+its 19:07:37.8Z resign). SURVIVING, not a finding: "second cycle, no settle time" -
+confounded by an I/O-heavy harvest agent live in D2's window (launched the same moment,
+incl. one OutOfMemory scan). Cause NOT DIAGNOSED; discriminator = D3 (same command, no
+agents live, after a settle gap), to be registered before it runs.
+Verdict: FUNCTIONAL reset VERIFIED; performance-neutral reset NOT VERIFIED. Operator
+figures (n=1): READY->order 114 s; all-terminal 290 s rested / 387 s back to back; teardown
+~10 s; previous exit -> next READY 80.1 s.
 
 ## D3 - Way B, hand-started and STP-driven, with the LaunchVrf52 holder (lane feat/demo-federation-holder).
 ## D4 - the audience scenario (COA-STP1's 11 taskees, GUI, real-time, route shift) - needs the user's rulings first.
