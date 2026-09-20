@@ -1136,23 +1136,44 @@ function Format-OtherRunnerRefusal {
 #   default_SessionSettings.srsx  <mySessionOptions>112885</...>
 #       the boost NVP of makVrf::DtVrfSessionSettingsRecord::mySessionOptions
 #       (include\vrfGuiCore\vrfSessionSettingsRecord.h:85 serialize, :103 member), and it
-#       is a FLAG WORD, not a boolean - the enum at :29-38 gives
-#       DtAutoJoinSession 0x1, DtAskToJoin 0x2, DtAlwaysJoinWithSessionDatabase 0x4,
-#       DtAlwaysJoinWithOpenDatabase 0x8, DtShowSessionDialogs 0x10,
-#       DtAllowScenarioChanges 0x40, DtAutomaticallyOpenSessionDatabaseWithoutJoining
-#       0x40000. The shipped 112885 (0x1B8F5) has 0x10 SET; clearing ONLY that bit gives
-#       112869. The edit is MASKED, never a rewritten literal, because the same word also
-#       carries 0x1 and 0x4 (set) and 0x2 (clear) - which is why D1's GUI auto-joined its
-#       session at startup with no join prompt, and that must not change.
+#       is a FLAG WORD, not a boolean. The enum at :29-38 names SEVEN bits:
+#         0x00001 DtAutoJoinSession                        SET in the shipped value
+#         0x00002 DtAskToJoin                              clear
+#         0x00004 DtAlwaysJoinWithSessionDatabase          SET
+#         0x00008 DtAlwaysJoinWithOpenDatabase             clear
+#         0x00010 DtShowSessionDialogs                     SET  <- the only bit we clear
+#         0x00040 DtAllowScenarioChanges                   SET
+#         0x40000 DtAutomaticallyOpenSessionDatabaseWithoutJoiningSession   clear
+#       The shipped value is 112885 = 0x1B8F5, and CLEARING 0x10 GIVES 112869.
+#       *** THE NAMED BITS ACCOUNT FOR ONLY 85 OF 112885. The other 112800 is SEVEN SET
+#       BITS WITH NO NAME IN THE 5.2 HEADER: 0x20, 0x80, 0x800, 0x1000, 0x2000, 0x8000,
+#       0x10000. Do not present this word as if it decomposed into the enum alone - it
+#       does not, which means this build's VrfSessionSettingsOptions is WIDER than the
+#       shipped vrfGuiCore header, and one of those seven unnamed bits could be the real
+#       never-ask-again store. That weakens the DERIVED claim below and it is the first
+#       alternative to check if the remedy does not take. ***
+#       THE EDIT IS THEREFORE A MASK (-band -bnot 0x10), never a rewritten literal: it
+#       preserves 0x1 and 0x4 (set) and 0x2 (clear) - which is why D1's GUI auto-joined its
+#       session at startup with no join prompt, and that must not change - AND it preserves
+#       all seven unnamed bits, whose meaning we do not know and must not silently drop.
 #
 # DERIVED, NOT VERIFIED: that modal 2's checkbox "Execute session changes without
 # prompting." is the same setting as the Session Settings page's "Show Session Terrain
 # Change Prompts" / DtShowSessionDialogs. The vendor documents the page option, and the
 # SDK header names the flag and its accessor (setDisplaySessionDialogs, :69), but no MAK
 # document ties that checkbox STRING to that flag, and the string is not in any bin64 DLL
-# as plain ASCII or UTF-16. The falsifier is one live GUI-on teardown: if "Session
-# Status" still appears with the bit cleared, the mapping is wrong and the bit must be
-# put back. myShowQuitDialogOnClose, by contrast, is named by the vendor's own help page
+# as plain ASCII or UTF-16. If "Session Status" still appears with the bit cleared, the
+# mapping is wrong - but note that "put the bit back" is only ONE of the responses, and
+# probably not the first: the same observation is also explained by (i) the checkbox
+# living in one of the seven UNNAMED bits above, or in one of the two undocumented flag
+# words in settings\vrfGui\applicationSettings.xml
+# (DtVrfExtendedApplicationSettingsDataFlags, DtVrfExtendedEntitySettingsDataFlags), in
+# which case 0x10 is the right FILE and the wrong BIT; or (ii) session settings arriving
+# from the SESSION at join time rather than from the local file - the GUI joins with
+# DtAlwaysJoinWithSessionDatabase (0x4) SET - in which case no local edit can suppress
+# that modal at all. Distinguish them by diffing the run-owned settings directory against
+# a copy taken right after seeding, rather than by guessing.
+# myShowQuitDialogOnClose, by contrast, is named by the vendor's own help page
 # (doc\help\Content\Introduction\Starting\vrf_disableQuitDialog.htm) and by UG52 4.6.1.
 #
 # These two helpers are PURE (string in, string out) so the whole remedy is exercised
