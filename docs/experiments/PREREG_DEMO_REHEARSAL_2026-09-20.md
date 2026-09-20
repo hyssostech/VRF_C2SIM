@@ -24,6 +24,16 @@ Predictions:
   dialog) that blocks an unattended start. Any modal = a finding for the runbook, and a STOP if it blocks READY.
 MISS = any startup failure, any task not terminal, any leftover process after teardown.
 
-## D2 - reset between runs without restarting VR-Forces (DEMO_RUNBOOK sec 6) - registered after D1's harvest.
+## D2 - reset between runs, the FULL CYCLE with the GUI (DEMO_RUNBOOK sec 6 item 1: 'run the one command again')
+
+Registered 2026-09-20 BEFORE D1 runs. D2 = D1's exact command a second time, started after D1's teardown inventory is
+clean (observer process count 0; D1's holder may still be joined - EXPECTED, it is why D2's sim joins).
+- HIGH: D2 reaches READY and completes 3/3 exactly as D1 did; no wedge (the 5.0.2-era teardown-relaunch wedge does
+  not reproduce: the 5.2 runner teardown was 8/8 clean on 2026-09-14, headless; the GUI is the new variable).
+- HIGH: D2's Stage 2h holder JOINS (fresh ledgered appNo) whether or not D1's holder is still in the federation.
+MISS = D2 startup failure, observers blind, or any task not terminal -> STOP; the reset story for the demo is then
+'restart from a clean desktop', and row 9 stays open. Sec 6 items 2-3 (GUI reload, ResetVrf) stay UNVERIFIED and
+out of the demo - not needed once the full cycle is proven with the GUI.
+
 ## D3 - Way B, hand-started and STP-driven, with the LaunchVrf52 holder (lane feat/demo-federation-holder).
 ## D4 - the audience scenario (COA-STP1's 11 taskees, GUI, real-time, route shift) - needs the user's rulings first.
