@@ -2277,21 +2277,23 @@ if ($cfgApp -and ($cfgApp.PSObject.Properties.Name -contains 'Vrf') -and
 # The .NET configuration binder accepts ONLY true/false for a bool (case-insensitive) and
 # THROWS on anything else, so '1' and 'yes' are not off-switches and must not be reported as
 # though they were - an unparseable value is called out here rather than guessed at.
-if ($RouteShiftEnv -and ($RouteShiftEnv -notmatch '^(true|false)$')) {
-    Say-Warn ("Vrf__PreflightRouteShift='{0}' is NOT a value the .NET configuration binder accepts for a bool (only true/false). The app will FAIL TO BIND its Vrf section. Set true or false, or unset it." -f $RouteShiftEnv)
-}
+# An UNPARSEABLE env value is not "fall back to the file": the binder throws and the app never
+# starts, so the manifest says THAT rather than naming a value the run will never reach.
 if     ($RouteShiftEnv -match '^true$')  { $RouteShiftEff = $true;  $RouteShiftSrc = 'env Vrf__PreflightRouteShift=true' }
 elseif ($RouteShiftEnv -match '^false$') { $RouteShiftEff = $false; $RouteShiftSrc = 'env Vrf__PreflightRouteShift=false' }
+elseif ($RouteShiftEnv)                  { $RouteShiftEff = $null;  $RouteShiftSrc = ("env Vrf__PreflightRouteShift='{0}' is UNPARSEABLE - the app will not start" -f $RouteShiftEnv) }
 elseif ($null -ne $RouteShiftJson)       { $RouteShiftEff = $RouteShiftJson; $RouteShiftSrc = 'appsettings.json Vrf:PreflightRouteShift' }
 else                                     { $RouteShiftEff = $true;  $RouteShiftSrc = 'VrfSettings.cs initialiser (the key is in NEITHER the environment NOR the deployed appsettings.json)' }
 $Manifest.inputs.routeShift = [ordered]@{
-    effective   = [bool]$RouteShiftEff
+    effective   = $(if ($null -eq $RouteShiftEff) { 'UNKNOWN - unparseable Vrf__PreflightRouteShift' } else { [bool]$RouteShiftEff })
     source      = $RouteShiftSrc
     envValue    = $(if ($RouteShiftEnv) { $RouteShiftEnv } else { '(unset)' })
     appSettings = $(if ($null -ne $RouteShiftJson) { $RouteShiftJson } else { '(key absent)' })
     note        = 'Vrf:PreflightRouteShift. ON detours a FLAGGED leg laterally before dispatch and defers that dispatch up to Vrf:PreflightRouteShiftTimeoutSeconds; it never refuses a task - on a timeout, a throw, an empty tile cache or no cleared line the AUTHORED line is dispatched. The route the unit was GIVEN (shifted or not) is what STP-837 measures its arrival bar from.'
 }
-if ($RouteShiftEff) {
+if ($null -eq $RouteShiftEff) {
+    Say-Warn ("Vrf__PreflightRouteShift='{0}' is NOT a value the .NET configuration binder accepts for a bool (only true/false, case-insensitive): the app will THROW binding its Vrf section and this run will have no interface at all. Set true or false, or unset it." -f $RouteShiftEnv)
+} elseif ($RouteShiftEff) {
     Say-Ok ('route shift is ON for this run ({0}) - a flagged leg may be DETOURED before dispatch; the app logs every shift and every decline' -f $RouteShiftSrc)
 } else {
     Say-Warn ('route shift is OFF for this run ({0}) - flagged legs are dispatched on the authored line' -f $RouteShiftSrc)
