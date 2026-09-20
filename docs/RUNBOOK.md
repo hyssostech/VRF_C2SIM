@@ -2431,6 +2431,10 @@ estimate stands, and this confirms the leak is not log-buffer memory). Restartin
 clears it; today's restart brought the working instance down from 957 MB private to a fresh
 process.
 
+NOTIFY2 REGISTERED 2026-09-20 (docs/experiments/PREREG_STP825_NOTIFY2_2026-09-20.md): 16 fresh instances in a frozen pair-blocked order, 12 creates each, exact permutation test
+over instance-level counts, alpha 0.005; verdict function exhaustive by construction; unattended orchestrator scratch validation\stp825_notify2_orchestrator.ps1 launched
+detached via stp825_notify2_launch.ps1; ~70 min, no holder during the session.
+
 ## 10. THE C16 PROGRESS WATCHDOG IS OFF BY DEFAULT - HOW TO TURN IT ON FOR THE VALIDATION RUN
 
 Added 2026-09-14 (cold-start review sec 2.8). `Vrf:StallDetection` defaults FALSE, is absent from
