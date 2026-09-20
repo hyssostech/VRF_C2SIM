@@ -4640,7 +4640,7 @@ try {
                     $evidence  = Test-ReportEvidence -Taskees $OrderTaskees -TaskeeNames $TaskeeNames -NameToVrfUuid $nameToVrf `
                                      -TraceText (Read-LiveText -Path $PathTrace) -ToleranceMeters $ReportToleranceMeters `
                                      -CaptureEvidence $capEv -AppLogPositionEvidence $appPosEv `
-                                     -CompletionUtcByTaskee $completion.firstSeenUtc
+                                     -CompletionUtcByTaskee $completion.firstSeenUtc -CodeByTaskee $completion.firstSeenCode
                     $evidenceOk = [bool]$evidence.AllSatisfied
                     foreach ($k in @($evidence.PerTaskee.Keys)) { $EarlyExit.reportEvidence[$k] = $evidence.PerTaskee[$k] }
                     if ($evidenceOk -and $null -eq $EarlyExit.evidenceSatisfiedUtc) {

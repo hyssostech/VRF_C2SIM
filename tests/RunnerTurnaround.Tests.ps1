@@ -22,6 +22,8 @@
 #      company at t=213.3, 11.8 m) -> not satisfied; later + agreeing -> satisfied;
 #      hold < 60 blocks even with evidence; evidence missing blocks even past the
 #      hold; name/uuid mapping parsers; degenerate POS ignored
+#   4b2. the report-evidence label names the REAL terminal code (TASKCMPLT/TASKABRT),
+#      never a hardcoded TASKCMPLT (V6i cosmetic defect, run 20260915T184048Z)
 #   4c. ConvertTo-CrlfText (ledger rewrite ending)
 #   5. the trace stop-file timing (StopIface + trail, never negative)
 #   6. the --capabilities probe parse (exit 0 AND token present)
@@ -268,6 +270,56 @@ Check 'hold 60 of 60 AND evidence in -> closes' ($v.ShouldClose)
 $threw = $false
 try { $null = Test-EarlyExit -State $s -Taskees $taskees -SettleHoldSecs 60 -NowUtc $t0 } catch { $threw = $true }
 Check '-ReportEvidence is mandatory (a caller can not forget condition 4)' $threw
+
+Write-Host '=== 4b2. report-evidence label names the REAL terminal code, not a hardcoded TASKCMPLT (V6i cosmetic defect) ==='
+# Real V6i line shape (runs\20260915T184048Z_run\vrfc2simapp.log:154). The runner's own
+# evidence line used to read "...first saw TASKCMPLT at 2026-09-15T18:44:21.516Z..." for
+# this taskee even though its ONLY terminal report was TASKABRT
+# (docs\experiments\V6_LIVE_JOIN_GATE_2026-09-15.md sec "COSMETIC DEFECT").
+$v6iAbrtLine = 'SENT TASK STATUS REPORT (TASKABRT) taskee=001aa71b-4c26-a1ea-28b2-f7dfe8e76342 task=a5000000-0000-0000-0000-000000000001 - MALFORMED: this task''s geometry is not plausible ground for its taskee - a route vertex or a leg breaks the configured extent bounds (Vrf:MaxVertexFromTaskeeKm / Vrf:MaxRouteLegKm), so no VR-Forces task is issued and nothing is sent to the back end - task ''T_R5_PL1'': route vertex 1 at 58.70296,16.50923 is 8768.9 km from the taskee at 34.61296,-116.60049 (bound 100 km) - refused, not dispatched.'
+$abrtDone = @(Get-TerminalTaskReports -AppLogText $v6iAbrtLine)
+Check 'V6i TASKABRT line parses to one Code=TASKABRT record' ($abrtDone.Count -eq 1 -and $abrtDone[0].Code -eq 'TASKABRT' -and $abrtDone[0].Taskee -eq '001aa71b-4c26-a1ea-28b2-f7dfe8e76342') ("got Count=$($abrtDone.Count) Code=$($abrtDone[0].Code)")
+$uAbrt = '001aa71b-4c26-a1ea-28b2-f7dfe8e76342'
+$sAbrt = New-CompletionState
+$sAbrt = Update-CompletionState -State $sAbrt -Taskees @($uAbrt) -TaskCount 1 -Completions $abrtDone -NowUtc $t0
+Check 'Update-CompletionState.firstSeenCode carries TASKABRT for this taskee (not a default TASKCMPLT guess)' ($sAbrt.firstSeenCode[$uAbrt] -eq 'TASKABRT') ("got $($sAbrt.firstSeenCode[$uAbrt])")
+# Pre-existing behaviour is unchanged for a plain TASKCMPLT record (no Code property at all -
+# the pre-2026-09-14 caller shape codeCounts already defaults, and firstSeenCode must match).
+$cmpltNoCode = @([pscustomobject]@{ Taskee = '139aa71b-75df-4888-4a5a-6056bae66242'; Task = 'a5000000-0000-0000-0000-000000000002' })
+$sCmplt = New-CompletionState
+$sCmplt = Update-CompletionState -State $sCmplt -Taskees @('139aa71b-75df-4888-4a5a-6056bae66242') -TaskCount 1 -Completions $cmpltNoCode -NowUtc $t0
+Check 'firstSeenCode defaults to TASKCMPLT for a Code-less record (pre-2026-09-14 caller shape)' ($sCmplt.firstSeenCode['139aa71b-75df-4888-4a5a-6056bae66242'] -eq 'TASKCMPLT')
+
+# Test-ReportEvidence: force the 'runner poll' fallback anchor (no CaptureEvidence.cmplt
+# entry, no trace/name evidence) so ONLY the C2SIM-capture branch under test can satisfy,
+# and check the printed reason names the REAL code instead of a hardcoded TASKCMPLT.
+$anchorUtc = [datetime]::new(2026, 9, 15, 18, 44, 21, 516, [System.DateTimeKind]::Utc)
+$posUtc    = $anchorUtc.AddSeconds(5)
+$capEvAbrt = @{ pos = @{ $uAbrt = $posUtc }; posN = @{ $uAbrt = 7 }; cmplt = @{} }
+$eAbrt = Test-ReportEvidence -Taskees @($uAbrt) -TaskeeNames @{} -NameToVrfUuid @{} -TraceText '' -ToleranceMeters 2.0 `
+             -CaptureEvidence $capEvAbrt -CompletionUtcByTaskee @{ $uAbrt = $anchorUtc } -CodeByTaskee @{ $uAbrt = 'TASKABRT' }
+Check 'TASKABRT case: report-evidence reason says "first saw TASKABRT at", never TASKCMPLT' (
+    $eAbrt.PerTaskee[$uAbrt].satisfied -and $eAbrt.PerTaskee[$uAbrt].via -eq 'C2SIM-capture' -and
+    $eAbrt.PerTaskee[$uAbrt].reason -match 'first saw TASKABRT at 2026-09-15T18:44:21\.516Z' -and
+    $eAbrt.PerTaskee[$uAbrt].reason -notmatch 'TASKCMPLT') ($eAbrt.PerTaskee[$uAbrt].reason)
+
+# Same wiring for an ordinary completion: the label must still say TASKCMPLT (this was
+# already correct; -CodeByTaskee must not turn a real TASKCMPLT into something else).
+$uCmplt = '139aa71b-75df-4888-4a5a-6056bae66242'
+$capEvCmplt = @{ pos = @{ $uCmplt = $posUtc }; posN = @{ $uCmplt = 3 }; cmplt = @{} }
+$eCmplt = Test-ReportEvidence -Taskees @($uCmplt) -TaskeeNames @{} -NameToVrfUuid @{} -TraceText '' -ToleranceMeters 2.0 `
+             -CaptureEvidence $capEvCmplt -CompletionUtcByTaskee @{ $uCmplt = $anchorUtc } -CodeByTaskee @{ $uCmplt = 'TASKCMPLT' }
+Check 'TASKCMPLT case: report-evidence reason still says "first saw TASKCMPLT at"' (
+    $eCmplt.PerTaskee[$uCmplt].satisfied -and $eCmplt.PerTaskee[$uCmplt].reason -match 'first saw TASKCMPLT at') (
+    $eCmplt.PerTaskee[$uCmplt].reason)
+
+# Backward compatibility: an older caller that never passes -CodeByTaskee gets the honest
+# 'TERMINAL' label, not a guessed TASKCMPLT (the guess is exactly the 2026-09-15 defect).
+$eNoCode = Test-ReportEvidence -Taskees @($uAbrt) -TaskeeNames @{} -NameToVrfUuid @{} -TraceText '' -ToleranceMeters 2.0 `
+             -CaptureEvidence $capEvAbrt -CompletionUtcByTaskee @{ $uAbrt = $anchorUtc }
+Check '-CodeByTaskee omitted -> label says TERMINAL, not a guessed TASKCMPLT' (
+    $eNoCode.PerTaskee[$uAbrt].reason -match 'first saw TERMINAL at' -and $eNoCode.PerTaskee[$uAbrt].reason -notmatch 'TASKCMPLT') (
+    $eNoCode.PerTaskee[$uAbrt].reason)
 
 Write-Host '=== 4c. ledger line endings (ConvertTo-CrlfText) ==='
 Check 'LF -> CRLF' ((ConvertTo-CrlfText -Text "a`nb`n") -eq "a`r`nb`r`n")
