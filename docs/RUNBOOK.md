@@ -2348,8 +2348,10 @@ own POST-REFUSAL CLEANUP path (managed callstack in
 `runs\20260920T202203Z_run\holder.3.stderr.log`) - a separate .NET interface defect, not a
 MAK crash (no vendor `.callstack.log`/`.dmp` from 2026-09-20 exists; the newest is 2026-09-06).
 
-A root-cause experiment (a RID bundling parameter, one user-authorised rtiexec restart) is
-being pre-registered - pointer only, not run here.
+ROOT-CAUSE EXPERIMENT REGISTERED 2026-09-20 (docs/experiments/PREREG_STP825_BUNDLING_2026-09-20.md): three interleaved arms (control / bundling off / bundle
+size 100000) via per-federate RID copies, separate federation STP825AB, no restart, 62 creates. Motivated by the census: 35 real creates, 42.9% refused,
+lag-1 clustering P(fail|prev fail) 0.67 vs 0.21, no size threshold - 8 of 15 rejected payloads under 50,000 bytes, the error line always the module's own
+last line + 1; our RID is the vendor default on every transport parameter; nothing newer than RTI 5.0.1 is published.
 
 ## 10. THE C16 PROGRESS WATCHDOG IS OFF BY DEFAULT - HOW TO TURN IT ON FOR THE VALIDATION RUN
 
