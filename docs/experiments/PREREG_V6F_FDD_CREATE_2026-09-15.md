@@ -141,6 +141,19 @@ transport/receive path (LRC -> forwarder -> rtiexec) that appeared during the af
 Next for the cause: wire capture (relay on a spare port via a per-process rid copy) and the vendor
 (tcpPacketBundlingSize 50000 vs 65 KB FOM blocks) - with the user. Operational: JOIN path via a retrying holder.
 
+### 4.6 WIRE CAPTURE (16:27-16:33Z, executor lane; scratchpad wirecap/wirecap_report.md) - SENDER-CORRECT
+Relay 127.0.0.1:4002 -> 4001 with a per-process rid copy (RTI_tcpPort 4002 only); RtiProbe x8 (appNos
+4558-4565): 1 join (stale federation), 6 good creates, 1 REJECTED (MAK-METOC-3_evolved.xml, line 506 =
+505 + 1). In the rejected stream every frame tiles ([u32 len][body]), all 58 FomModuleDistExec messages
+satisfy 42 + nameLen + fedLen + CurBlockSize == length, every module reassembles byte-for-byte to the
+disk file (CRLF->LF), the rejected module is ONE block of exactly 30,178 bytes ending at its own close
+tag, and the whole stream differs from a good create's by 65 header bytes (connection id / appNumber),
+zero payload bytes. Payload = plain XML (no compression). Verdict: the sender is correct; the "extra
+content" arises in the forwarder/rtiexec receive or parse path. Falsifiers (a differing module, junk
+inside a declared block, a framing mismatch, a never-sent module named) were not met. Vendor question:
+RTI_tcpPacketBundlingSize 50000 < the 65,082-byte module messages. H-send CLOSED; H-recv narrowed to
+"receive path, timing-sensitive"; onset 14:23Z and the ~1/4 rate remain unexplained.
+
 ## 5. Records owed after the outcome
 Jira ticket (new, this failure, verified facts only); RUNBOOK sec 9 addendum; handoff V6 line;
 this prereg + results committed under docs/experiments.
