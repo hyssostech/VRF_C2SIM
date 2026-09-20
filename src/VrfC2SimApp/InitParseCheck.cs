@@ -97,18 +97,66 @@ public static class InitParseCheck
         // R8 view (docs/UNIT_MOVEMENT_RESEARCH.md sec 4): stacked-coordinate groups among
         // the creatable units - identical spawn coordinates are the COA-STP1 pathology
         // that blocks aggregate marching. Same grouping key as the runtime DeStacker.
+        //
+        // SCOPE (cold-start review, 2026-09-20): this must use the SAME CompositionPlan
+        // classification ProcessInitializationLocked/DeStacker.Apply use, not a raw coordinate
+        // grouping. Before this fix the diagnostic reported every coordinate-sharing unit
+        // (including a company's own declared platoons, whose "shared" coordinate is only the
+        // InitParser superior cascade - InitParser.cs:144-153) as something DeStackCreates
+        // would move, while the real de-stack (SF2) excludes composed children entirely. That
+        // let this tool disagree with the app it describes (R9 lean: this used to print "4
+        // units affected" while the runtime moves 0). Goes through ComputeStackedGroups below,
+        // the SAME function --destack-selftest cross-checks against DeStacker.Apply, so the two
+        // cannot drift apart again. Assumes Vrf:ComposeHierarchy=true, the default
+        // (appsettings.json) and what every runner run uses.
+        var planList = plans.Select(p => p.Plan).ToList();
+        var hierarchy = plans.Select(p => (p.Unit.Uuid, SuperiorUuid: (p.Unit.SuperiorUuid ?? "").Trim())).ToList();
+        var (groupCount, unitsAffected, composedChildIndices) = ComputeStackedGroups(planList, hierarchy);
+        // Recomputed here only for the per-group example listing below (Console output, not a
+        // count) - the counts themselves come from ComputeStackedGroups, not from this.
+        var comp = CompositionPlan.Classify(planList, hierarchy);
         var stacks = plans
+            .Where((p, i) => comp.IsIndependent(i))
             .GroupBy(p => DeStacker.CoordKey(p.Plan.Pos.LatDeg, p.Plan.Pos.LonDeg))
             .Where(g => g.Count() > 1)
             .OrderByDescending(g => g.Count())
             .ToList();
-        Console.WriteLine($"Stacked-coordinate groups (2+ creatable units at identical lat/lon): {stacks.Count}" +
-                          (stacks.Count > 0 ? $"  ({stacks.Sum(g => g.Count())} units affected; Vrf:DeStackCreates would spread them)" : ""));
+        Console.WriteLine($"Stacked-coordinate groups (2+ INDEPENDENT creatable units at identical lat/lon; " +
+                          $"composed children excluded per CompositionPlan, ComposeHierarchy=true assumed): " +
+                          $"{groupCount}" +
+                          (groupCount > 0 ? $"  ({unitsAffected} units affected; Vrf:DeStackCreates would spread them)" : ""));
+        if (composedChildIndices.Count > 0)
+            Console.WriteLine($"  {composedChildIndices.Count} composed child(ren) held with their " +
+                              "parent's formation, not counted here: " +
+                              string.Join(", ", composedChildIndices.OrderBy(i => i).Take(12)
+                                                    .Select(i => plans[i].Unit.Name)) +
+                              (composedChildIndices.Count > 12 ? ", ..." : ""));
         foreach (var g in stacks.Take(5))
             Console.WriteLine($"  {g.Count()} units at {g.Key.Lat},{g.Key.Lon}: " +
                               string.Join(", ", g.Take(4).Select(p => p.Unit.Name)) + (g.Count() > 4 ? ", ..." : ""));
 
         return 0;
+    }
+
+    /// <summary>
+    /// THE STACK COUNT AND AFFECTED-UNIT COUNT, computed ONCE so `--parse-init` and
+    /// `--destack-selftest` can never print two different answers for the same file again (the
+    /// defect this replaces: this diagnostic used to group by raw coordinate and ignore
+    /// CompositionPlan, so it called a company's own composed platoons "affected" when the real
+    /// de-stack - SF2, 2026-09-20 - holds them with their parent and moves nothing). Uses the
+    /// SAME CompositionPlan.Classify and DeStacker.CoordKey the runtime de-stack uses; a
+    /// composed child neither anchors nor joins a group, matching DeStacker.Apply exactly.
+    /// </summary>
+    public static (int Groups, int UnitsAffected, IReadOnlySet<int> ComposedChildIndices) ComputeStackedGroups(
+        IReadOnlyList<CreationPlan> plans, IReadOnlyList<(string Uuid, string SuperiorUuid)> hierarchy)
+    {
+        var comp = CompositionPlan.Classify(plans, hierarchy);
+        var stacks = Enumerable.Range(0, plans.Count)
+            .Where(i => comp.IsIndependent(i))
+            .GroupBy(i => DeStacker.CoordKey(plans[i].Pos.LatDeg, plans[i].Pos.LonDeg))
+            .Where(g => g.Count() > 1)
+            .ToList();
+        return (stacks.Count, stacks.Sum(g => g.Count()), comp.ComposedChildIndices);
     }
 
     private static string TypeStr(VrfC2Sim.EntityTypeSpec t)
