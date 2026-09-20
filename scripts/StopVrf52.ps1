@@ -115,15 +115,29 @@ function Describe-Proc {
 # The UIA half is optional: if UIAutomationClient cannot be loaded (no desktop, a stripped
 # host), the top-level EnumWindows half still runs. A diagnostic that refuses to run at
 # all when one of its two halves is unavailable is worse than a partial one.
-$script:UiaOk = $false
-try {
-    Add-Type -AssemblyName UIAutomationClient
-    Add-Type -AssemblyName UIAutomationTypes
-    $script:UiaOk = $true
-} catch {
-    Say-Warn ('UI Automation types unavailable ({0}) - the timeout diagnostic will list TOP-LEVEL windows only, not nested dialogs or their buttons.' -f $_.Exception.Message)
-}
-Add-Type @'
+#
+# NOTHING HERE MAY COST THE BACK END ITS CLOSE REQUEST (STP-844 review items 4+5). The
+# whole script body runs inside ONE try whose catch exits 5, and Write-WindowDiagnostic is
+# called BETWEEN the front-end grace and the back-end taskkill. So a throw anywhere in the
+# diagnostic - a failed Add-Type on a host without a C# compiler, a UIA type that will not
+# load, a PropertyCondition constructor that fails - would skip the back-end close
+# entirely and leave a JOINED vrfSimHLA1516e behind. That is strictly worse than having no
+# diagnostic at all. Therefore: the type loads are LAZY (nothing is compiled on a headless
+# run, a -DryRun, or a run with no VR-Forces process), they are guarded, and every call
+# site is wrapped so ANY failure degrades to one Say-Warn line and the teardown carries on
+# unchanged.
+$script:UiaOk    = $false
+$script:WinApiOk = $false
+$script:DiagInit = $false
+
+# Load the two type surfaces on FIRST USE, once. Either half may fail on its own: without
+# the P/Invoke class there is no window list at all, without UIA there are no nested
+# windows or button names but the top-level list still works.
+function Initialize-WindowDiagnostic {
+    if ($script:DiagInit) { return }
+    $script:DiagInit = $true
+    try {
+        Add-Type @'
 using System; using System.Runtime.InteropServices; using System.Text;
 public class StopVrf52Win {
   [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc cb, IntPtr l);
@@ -134,6 +148,18 @@ public class StopVrf52Win {
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint p);
 }
 '@
+        $script:WinApiOk = $true
+    } catch {
+        Say-Warn ('window-enumeration types could not be compiled ({0}) - the teardown continues; only the process-level lines are available.' -f $_.Exception.Message)
+    }
+    try {
+        Add-Type -AssemblyName UIAutomationClient
+        Add-Type -AssemblyName UIAutomationTypes
+        $script:UiaOk = $true
+    } catch {
+        Say-Warn ('UI Automation types unavailable ({0}) - the diagnostic will list TOP-LEVEL windows only, not nested dialogs or their buttons.' -f $_.Exception.Message)
+    }
+}
 
 # Every TOP-LEVEL window owned by the VR-Forces processes still running. The callback runs
 # in its own scope and can only WRITE to a script-scoped variable - a function-local would
@@ -144,6 +170,7 @@ function Get-VrfWindows {
         $vrfPids += @(Get-Process -Name $n -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
     }
     $script:vrfWindows = @()
+    if (-not $script:WinApiOk) { return @() }
     if ($vrfPids.Count -eq 0) { return @() }
     $cb = [StopVrf52Win+EnumWindowsProc]{
         param($h, $l)
@@ -178,9 +205,15 @@ function Get-VrfWindows {
 function Get-VrfNestedWindows {
     $found = @()
     if (-not $script:UiaOk) { return @($found) }
-    $winCond = New-Object System.Windows.Automation.PropertyCondition(
-                   [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
-                   [System.Windows.Automation.ControlType]::Window)
+    # The CONSTRUCTOR and the two STATIC TYPE READS are guarded too, not just the per-element
+    # access below: on review, these were the one unprotected throw left on the teardown path
+    # (STP-844 review item 5). $script:UiaOk only says the assemblies loaded.
+    $winCond = $null
+    try {
+        $winCond = New-Object System.Windows.Automation.PropertyCondition(
+                       [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+                       [System.Windows.Automation.ControlType]::Window)
+    } catch { return @($found) }
     foreach ($w in @(Get-VrfWindows)) {
         # Any of these can throw if the window dies mid-scan. This runs DURING a shutdown,
         # so that is the normal case, not an exception: skip and move on.
@@ -208,9 +241,12 @@ function Get-VrfNestedWindows {
 function Get-DialogButtonNames {
     param($element)
     $names = @()
-    $btnCond = New-Object System.Windows.Automation.PropertyCondition(
-                   [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
-                   [System.Windows.Automation.ControlType]::Button)
+    $btnCond = $null
+    try {
+        $btnCond = New-Object System.Windows.Automation.PropertyCondition(
+                       [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+                       [System.Windows.Automation.ControlType]::Button)
+    } catch { return @() }
     try { $btns = $element.FindAll([System.Windows.Automation.TreeScope]::Descendants, $btnCond) } catch { return @() }
     foreach ($b in $btns) {
         try {
@@ -225,6 +261,11 @@ function Get-DialogButtonNames {
 # grace, or at the final timeout). Nothing is clicked; every line is something read.
 function Write-WindowDiagnostic {
     param([string]$Why, [scriptblock]$Emit)
+    Initialize-WindowDiagnostic
+    if (-not $script:WinApiOk) {
+        & $Emit ('WINDOW DIAGNOSTIC ({0}) SKIPPED - the window-enumeration types are not available in this session. The teardown is unaffected.' -f $Why)
+        return
+    }
     & $Emit ('WINDOW DIAGNOSTIC ({0}) - read-only: EnumWindows + UIA property reads. NOTHING IS CLICKED.' -f $Why)
     $tops = @(Get-VrfWindows)
     if ($tops.Count -eq 0) {
@@ -323,7 +364,15 @@ if ($stillUpAfterGrace.Count -gt 0) {
     # quit path alone. That distinction is exactly what D1 could not make afterwards -
     # its second modal ("Session Status") was raised by the back end going away 20 s
     # later, and only a report taken BEFORE that can separate the two.
-    Write-WindowDiagnostic -Why ('after the ' + $GraceSec + 's grace, BEFORE the back end is asked to close') -Emit ${function:Say-Warn}
+    # THE BACK-END CLOSE MUST NOT DEPEND ON THIS (STP-844 review item 4). The next section
+    # is the only thing that asks a JOINED vrfSimHLA1516e to close; an exception escaping
+    # here would reach the outer catch, exit 5, and leave that federate running. A missing
+    # diagnostic costs a future investigation; a skipped back-end close costs the next run.
+    try {
+        Write-WindowDiagnostic -Why ('after the ' + $GraceSec + 's grace, BEFORE the back end is asked to close') -Emit ${function:Say-Warn}
+    } catch {
+        Say-Warn ('the window diagnostic failed ({0}) - IGNORED, the teardown continues to the back-end close.' -f $_.Exception.Message)
+    }
 }
 
 # ---- 2. back-end: taskkill WITHOUT /F = a close REQUEST ------------------------
@@ -362,7 +411,14 @@ Say-Fail ('still running after {0}s: {1}. NOTHING WAS FORCE-KILLED - a force-kil
 # is not an artifact: on D1 it cost a separate, hand-run enumeration hours later to learn
 # which two dialogs were up. This produces that evidence in the run's own stopvrf log,
 # at the moment of failure, without touching anything.
-Write-WindowDiagnostic -Why ('TIMEOUT after ' + $TimeoutSec + 's') -Emit ${function:Say-Fail}
+# Guarded for the same reason as the post-grace call, and for one more: a throw HERE would
+# turn this script's documented exit 3 ("still running, nothing was killed") into exit 5
+# ("unexpected terminating error"), and the runner's teardown branch reads that code.
+try {
+    Write-WindowDiagnostic -Why ('TIMEOUT after ' + $TimeoutSec + 's') -Emit ${function:Say-Fail}
+} catch {
+    Say-Fail ('the window diagnostic failed ({0}) - IGNORED; the verdict below is unaffected.' -f $_.Exception.Message)
+}
 Say-Fail 'If one of the windows above is a modal, THAT is what is blocking the shutdown. This script answers nothing by design. The supported remedy is configuration: seed a run-owned appData with scripts\NewVrfAppData52.ps1 and launch with LaunchVrf52.ps1 -AppDataDir <that tree> so the GUI raises no prompt at all (UG52 4.6.1, 4.3.1).'
 exit 3
 
