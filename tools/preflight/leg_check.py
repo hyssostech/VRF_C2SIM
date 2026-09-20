@@ -93,6 +93,24 @@ ELEV_MIN_LEVEL = 11
 TILEPX = 257
 SEG = TILEPX - 1
 
+# F2 (cold-start review of f26d4ad, 2026-09-20). *** ABSENT IS NOT FAILED. ***
+# This reader and the C# port used to memoise "no tile" for any fetch that produced no usable
+# bytes - a 404, a DNS failure, a 5xx and a 60 s timeout alike - and nothing ever cleared it. One
+# dropped packet at L13 therefore sent the level cascade to L12 and REMEMBERED L12 for that area,
+# so every later verdict over that ground was scored on a DEM the 0.92 threshold was never
+# calibrated on, and the only line that fired ("scored at ... COARSER than L13") could not tell the
+# server's answer from our own lost packet.
+#   ABSENT - the server answered and has no tile (404/410/204, or a 200 with a body too short to be
+#            a tile, which is how this TMS says it). A property of the ground: memoised, and the
+#            only outcome allowed to drive the cascade.
+#   FAILED - we never got the server's answer (curl transport error, timeout, 5xx). A property of
+#            the network: counted, retried up to MAX_FETCH_ATTEMPTS per tile, and if it still fails
+#            the leg gets NO VERDICT and a loud line - never a quieter score one level down.
+# The C# TileSource makes exactly the same distinction with the same attempt bound, so the two
+# readers stay equivalent (TileSource.cs, TileOutcome / MaxFetchAttempts).
+MAX_FETCH_ATTEMPTS = 3
+FETCH_OK, FETCH_ABSENT, FETCH_FAILED = "ok", "absent", "failed"
+
 # (tileset, level, label) in descending ground resolution; the first with data wins. The
 # levels are the DEEPEST the server actually serves (probed 2026-09-13: 154 and 165 return
 # "no tile" at L13, 188 at L11) - one oversample level above each catalogue's data level.
@@ -226,13 +244,18 @@ class Tiles(object):
         self.elev_level = max(1, min(20, int(elev_level)))
         self.elev_min_level = max(1, min(self.elev_level, int(elev_min_level)))
         # AREA -> the level that returned data, or 0 for "no data at any level". An area is one
-        # tile at the COARSEST level the cascade may use: the largest cell whose answer is
-        # uniform for every level above it. Memoised so a blind AO costs ONE probe, not one per
-        # sample, and so the loud report is emitted per leg rather than per sample.
+        # tile AT THE START LEVEL - the finest cell whose coverage the probe actually establishes
+        # (see resolve_level; the older comment here said "coarsest" and was stale). Memoised so a
+        # blind AO costs ONE probe, not one per sample, and so the loud report is emitted per leg
+        # rather than per sample. NOT written when the cascade ended in a FETCH FAILURE (F2): a
+        # level we could not establish must not be remembered as one we did.
         self.level_by_area = {}
         self.mem = {}
         self.fetched = 0
-        self.failed = set()
+        # F2: two different facts, kept apart. `absent` is the server's answer and is permanent;
+        # `failures` counts our own unanswered attempts per tile and bounds the retrying.
+        self.absent = set()
+        self.failures = {}
         if not os.path.isdir(cache):
             os.makedirs(cache)
         try:
@@ -246,31 +269,80 @@ class Tiles(object):
         return os.path.join(self.cache, "%d_%d_%d_%d.%s" % (ds, level, x, y, ext))
 
     def _fetch(self, ds, level, x, y, ext, minbytes):
+        """-> (path_or_None, outcome). See the F2 note at MAX_FETCH_ATTEMPTS.
+
+        The HTTP STATUS is read rather than inferred from the body, because `curl -s` prints a
+        404's error page to stdout with exit 0 - which the old `len(data) < minbytes` test read as
+        "no tile", correctly, but it read a TIMEOUT (exit 28, empty stdout) the same way, which is
+        the defect. `-w %{http_code} -o <file>` puts the code on stdout and the body in the file,
+        so the transport result (returncode) and the server's answer (code) are separate."""
+        key = (ds, level, x, y)
         fn = self._file(ds, level, x, y, ext)
         if os.path.exists(fn) and os.path.getsize(fn) >= minbytes:
-            return fn
-        if self.offline or (ds, level, x, y) in self.failed:
-            return None
+            return fn, FETCH_OK
+        # OFFLINE IS ABSENCE, DELIBERATELY: --offline means "score only what the cache holds", so a
+        # tile that is not cached is not coming and the cascade may fall through to a level that
+        # IS. Calling it FAILED would turn every offline run into a route of no-verdict legs.
+        if self.offline or key in self.absent:
+            return None, FETCH_ABSENT
+        if self.failures.get(key, 0) >= MAX_FETCH_ATTEMPTS:
+            return None, FETCH_FAILED
         url = "%s/%d/%d/%d/%d.%s" % (TMS_BASE, ds, level, x, y, ext)
+        part = fn + ".part"
         try:
-            data = subprocess.run(["curl", "-s", "-m", "60", url],
-                                  capture_output=True).stdout
+            r = subprocess.run(["curl", "-s", "-m", "60", "-w", "%{http_code}", "-o", part, url],
+                               capture_output=True)
         except OSError:
-            return None
-        if len(data) < minbytes:
-            self.failed.add((ds, level, x, y))
-            return None
+            # curl itself is missing or unrunnable. Every call will fail the same way, so counting
+            # it is what stops the retry loop being infinite.
+            self.failures[key] = self.failures.get(key, 0) + 1
+            return None, FETCH_FAILED
+        code = 0
+        try:
+            code = int((r.stdout or b"").decode("ascii", "ignore").strip() or 0)
+        except ValueError:
+            code = 0
+        data = b""
+        if os.path.exists(part):
+            try:
+                with open(part, "rb") as fh:
+                    data = fh.read()
+            except OSError:
+                data = b""
+            try:
+                os.remove(part)
+            except OSError:
+                pass
+        if r.returncode != 0 or code == 0 or 500 <= code < 600 or code == 429:
+            # Transport error (timeout 28, connect 7, DNS 6, ...) or a server that did not answer
+            # the question. Transient by assumption: counted and retried, never remembered as
+            # absence.
+            self.failures[key] = self.failures.get(key, 0) + 1
+            return None, FETCH_FAILED
+        if code in (404, 410, 204) or len(data) < minbytes:
+            # The server's own answer: no tile here. Definitive and memoised - this is the one
+            # outcome the level cascade is entitled to act on.
+            self.absent.add(key)
+            return None, FETCH_ABSENT
         with open(fn, "wb") as fh:
             fh.write(data)
         self.fetched += 1
-        return fn
+        return fn, FETCH_OK
 
     # ---- elevation ----
-    def _elev_tile(self, level, x, y):
+    def _elev_tile2(self, level, x, y):
+        """-> (decoded_tile_or_None, outcome).
+
+        F2, second half: the DECODE is memoised too, and a dict that has stored None for a FAILED
+        fetch would freeze that failure exactly as the old `failed` set did - so a FAILED outcome
+        is not stored at all, which is what makes the retry in _fetch reachable on the next
+        sample. A body that arrived but would not decode is not a network failure; it is a tile
+        this reader cannot use, which is absence for every consumer."""
         key = (ELEV_DS, level, x, y)
         if key in self.mem:
-            return self.mem[key]
-        fn = self._fetch(ELEV_DS, level, x, y, "tif", 1000)
+            data = self.mem[key]
+            return data, (FETCH_OK if data is not None else FETCH_ABSENT)
+        fn, outcome = self._fetch(ELEV_DS, level, x, y, "tif", 1000)
         data = None
         if fn:
             try:
@@ -279,8 +351,14 @@ class Tiles(object):
                             else im.getdata())
             except Exception:
                 data = None
-        self.mem[key] = data
-        return data
+            if data is None:
+                outcome = FETCH_ABSENT
+        if outcome != FETCH_FAILED:
+            self.mem[key] = data
+        return data, outcome
+
+    def _elev_tile(self, level, x, y):
+        return self._elev_tile2(level, x, y)[0]
 
     def _elev_sample(self, level, gi, gj):
         """gi = global sample column (lon index); gj = global sample row from the SOUTH."""
@@ -305,7 +383,9 @@ class Tiles(object):
                 int(math.floor((lat + 90.0) / p)) // SEG)
 
     def resolve_level(self, lat, lon):
-        """The level this AREA is served at, or 0 when no level of the cascade has a tile.
+        """-> (level, fetch_failed). The level this AREA is served at, or 0 when no level of the
+        cascade has a tile (fetch_failed False) or when a fetch never got an answer at all
+        (fetch_failed True).
 
         The AREA is one tile AT THE START LEVEL - the finest cell whose coverage the probe
         actually establishes. A coarser cell would let one tile's presence decide for its
@@ -315,18 +395,29 @@ class Tiles(object):
         The probe asks only whether the tile that OWNS the point decodes; the neighbour-tile
         fallback in _elev_sample is a sampling detail and deliberately not part of the
         decision, so the level a leg is scored at is a property of the ground and not of
-        which tile edge it happened to clip."""
+        which tile edge it happened to clip.
+
+        F2: a level that FAILED to fetch STOPS the cascade and is NOT memoised. Falling through to
+        the next level down on a failed fetch is the silent downgrade F2 names - it would score the
+        ground one level coarser for a reason that has nothing to do with the ground - and
+        remembering that conclusion would make one dropped packet permanent for the process. So
+        ABSENT at L means "try L-1", while FAILED at L means we do not know whether the server has
+        a tile at L and therefore cannot conclude anything about L-1 either: return 0 with
+        fetch_failed set, remember nothing, and let the caller shout."""
         key = self._tile_index(self.elev_level, lat, lon)
         if key in self.level_by_area:
-            return self.level_by_area[key]
+            return self.level_by_area[key], False
         found = 0
         for level in range(self.elev_level, self.elev_min_level - 1, -1):
             x, y = self._tile_index(level, lat, lon)
-            if self._elev_tile(level, x, y) is not None:
+            tile, outcome = self._elev_tile2(level, x, y)
+            if tile is not None:
                 found = level
                 break
+            if outcome == FETCH_FAILED:
+                return 0, True
         self.level_by_area[key] = found
-        return found
+        return found, False
 
     def elev_at(self, lat, lon, level):
         """Terrain height at ONE GIVEN level - no cascade. NaN where the tile is missing."""
@@ -345,12 +436,20 @@ class Tiles(object):
         return (z00 * (1 - fi) * (1 - fj) + z10 * fi * (1 - fj)
                 + z01 * (1 - fi) * fj + z11 * fi * fj)
 
-    def elev2(self, lat, lon):
-        """-> (height, level used). level 0 = NO data at any level, height NaN with it."""
-        level = self.resolve_level(lat, lon)
+    def elev3(self, lat, lon):
+        """-> (height, level used, fetch_failed). level 0 = no usable data, height NaN with it;
+        fetch_failed True means the NaN is OUR failure and not the server's answer (F2), and the
+        leg it belongs to gets NO VERDICT rather than a quieter score one level coarser."""
+        level, failed = self.resolve_level(lat, lon)
         if level == 0:
-            return float("nan"), 0
-        return self.elev_at(lat, lon, level), level
+            return float("nan"), 0, failed
+        return self.elev_at(lat, lon, level), level, False
+
+    def elev2(self, lat, lon):
+        """-> (height, level used). The F2-unaware form, kept for the probe/sensitivity paths
+        that only want a number."""
+        z, level, _ = self.elev3(lat, lon)
+        return z, level
 
     def elev(self, lat, lon, level=None):
         """The cascade form. Pass an explicit level to pin one (the --level-sensitivity grid)."""
@@ -398,7 +497,7 @@ class Tiles(object):
         if key in self.mem:
             im = self.mem[key]
         else:
-            fn = self._fetch(ds, level, x, y, "png", 100)
+            fn, outcome = self._fetch(ds, level, x, y, "png", 100)
             im = None
             if fn:
                 try:
@@ -406,7 +505,11 @@ class Tiles(object):
                     im.load()
                 except Exception:
                     im = None
-            self.mem[key] = im
+            # F2: do not memoise a FAILED fetch - an unanswered request is not evidence that this
+            # tileset has no class here, and freezing it would silently move the land-cover cascade
+            # on to a coarser source for the rest of the process.
+            if outcome != FETCH_FAILED:
+                self.mem[key] = im
         if im is None:
             return None
         try:
@@ -918,18 +1021,25 @@ def analyse_leg(tiles, soil, a, b, limit_raw, step, window, short):
     n = max(2, int(math.ceil(length / step)) + 1)
     s = [length * i / (n - 1) for i in range(n)]
     samples = []
-    coarsest, served = 0, 0
+    coarsest, served, fetch_failures = 0, 0, 0
     for i in range(n):
         f = 0.0 if length == 0 else s[i] / length
         la, lo = interp(a[0], a[1], b[0], b[1], f)
-        z, level = tiles.elev2(la, lo)
+        z, level, failed = tiles.elev3(la, lo)
+        if failed:
+            fetch_failures += 1
         if level:
             served += 1
             if coarsest == 0 or level < coarsest:
                 coarsest = level
         samples.append(dict(s=s[i], lat=la, lon=lo, z=z,
                             soil=soil.classify(tiles, la, lo)))
-    elev_level = coarsest if served else 0
+    # F2: a leg that lost even ONE sample to a FETCH FAILURE has NO VERDICT, whatever the
+    # nan-fraction tolerance says and whatever level its other samples resolved at, and its
+    # recorded level is 0 - "the coarsest level some samples used" is not a description of a leg
+    # nothing could be established for. Same rule and same field in the C# port
+    # (PreflightService.ScoreLeg / LegMetrics.ElevationFetchFailures).
+    elev_level = 0 if fetch_failures else (coarsest if served else 0)
     zs = [p["z"] for p in samples]
     ok = [z == z for z in zs]                      # False where the tile was missing (NaN)
     nan_n = ok.count(False)
@@ -983,8 +1093,8 @@ def analyse_leg(tiles, soil, a, b, limit_raw, step, window, short):
         ratio=(g55 / limit) if limit > 0 else float("inf"),
         climb_m=climb, descend_m=descend,
         nan_samples=nan_n, nan_fraction=(float(nan_n) / n if n else 0.0),
-        no_verdict=bool(n and float(nan_n) / n > DEF_MAX_NAN),
-        elev_level=elev_level,
+        no_verdict=bool(fetch_failures) or bool(n and float(nan_n) / n > DEF_MAX_NAN),
+        elev_level=elev_level, elev_fetch_failures=fetch_failures,
         water_samples=len(wet),
         water_fraction=(float(len(wet)) / n if n else 0.0),
         water_soil=(w0["soil"]["soil"] if w0 else ""),
@@ -1136,7 +1246,19 @@ def emit_text(results, args, out=sys.stdout):
                              (": " + lg["water_desc"]) if lg["water_desc"] else "",
                              lg["water_first_s_m"] / 1000.0,
                              lg["water_first"][0], lg["water_first"][1]))
-            if lg.get("no_verdict"):
+            if lg.get("elev_fetch_failures"):
+                # F2: distinct from "tiles missing" on purpose. The server never answered, so
+                # nothing here is a statement about the ground, and the run's ratios for this leg
+                # are not quotable. It is NOT rescored one level coarser.
+                noverdict += 1
+                out.write("%s leg %d (%s): NO VERDICT - THE ELEVATION SERVICE FAILED, it did not "
+                          "say 'no data' (%d of %d samples unresolved after %d attempt(s) per "
+                          "tile: timeout, connection or 5xx). Not clear ground, not rescored "
+                          "coarser, and no shift may be taken on it. Fix the network or pre-warm "
+                          "the cache; DISREGARD this leg's ratio.\n"
+                          % (r["task"], lg["index"], r["unit"], lg["elev_fetch_failures"],
+                             lg["n_samples"], MAX_FETCH_ATTEMPTS))
+            elif lg.get("no_verdict"):
                 noverdict += 1
                 out.write("%s leg %d (%s): NO VERDICT - tiles missing (%d of %d elevation "
                           "samples NaN, %.1f%%)\n"
@@ -1459,9 +1581,91 @@ def selftest(tiles, soil, sms):
         print("  %-32s min max-slope %-6s over %2d vehicle(s): %-46s %s"
               % (tpl, lim, len(veh), ", ".join(sorted({v[0] for v in veh}))[:46],
                  "OK" if ok else "MISMATCH (expected %s)" % want_slope))
+    # ---- F2: ABSENT vs FAILED (pure: a stubbed curl, no tile, no network) -------------------
+    # The defect this locks: a transient HTTP failure used to be memoised exactly like a real
+    # "no tile", which permanently downgraded that area's elevation level for the process and
+    # silently changed verdicts on the terrain the 0.92 threshold was calibrated on. Every check
+    # below fails on the pre-F2 code.
+    print("--- F2: a failed fetch is NOT an absent tile (stubbed curl, no network) ---")
+    import io
+    import tempfile
+
+    class _Curl(object):
+        """A stand-in for subprocess.run: hands back a queued (returncode, http_code, body)."""
+        def __init__(self, script):
+            self.script = list(script)
+            self.calls = 0
+
+        def __call__(self, argv, **kw):
+            self.calls += 1
+            rc, code, body = self.script[min(self.calls - 1, len(self.script) - 1)]
+            out = argv[argv.index("-o") + 1] if "-o" in argv else None
+            if out and body:
+                with open(out, "wb") as fh:
+                    fh.write(body)
+            return subprocess.CompletedProcess(argv, rc, stdout=str(code).encode(), stderr=b"")
+
+    def _f2(label, script, want_outcomes, check=None, calls=None):
+        tmp = tempfile.mkdtemp(prefix="f2_")
+        t = Tiles(tmp, offline=False)
+        real, curl = subprocess.run, _Curl(script)
+        try:
+            subprocess.run = curl
+            got = [t._fetch(ELEV_DS, 13, 1, 1, "tif", 1000)[1] for _ in want_outcomes]
+        finally:
+            subprocess.run = real
+        ok = (got == list(want_outcomes)
+              and (calls is None or curl.calls == calls)
+              and (check is None or check(t)))
+        print("  %-62s %s" % (label, "OK" if ok else
+                              "MISMATCH (outcomes %s, curl calls %d)" % (got, curl.calls)))
+        return 0 if ok else 1
+
+    _tile = (ELEV_DS, 13, 1, 1)
+    bad += _f2("a 404 is ABSENT, memoised, and asked for exactly once",
+               [(0, 404, b"")], [FETCH_ABSENT, FETCH_ABSENT],
+               check=lambda t: _tile in t.absent and not t.failures, calls=1)
+    bad += _f2("a 200 with a body too short to be a tile is ABSENT (this TMS's 'no tile')",
+               [(0, 200, b"tiny")], [FETCH_ABSENT],
+               check=lambda t: _tile in t.absent)
+    bad += _f2("a curl TIMEOUT is FAILED, never memoised as absent, and IS retried",
+               [(28, 0, b"")], [FETCH_FAILED, FETCH_FAILED],
+               check=lambda t: _tile not in t.absent and t.failures.get(_tile) == 2, calls=2)
+    bad += _f2("a 503 is FAILED too - the server did not answer the question",
+               [(0, 503, b"")], [FETCH_FAILED],
+               check=lambda t: _tile not in t.absent)
+    bad += _f2("retrying is BOUNDED: after MAX_FETCH_ATTEMPTS curl is not called again",
+               [(28, 0, b"")], [FETCH_FAILED] * (MAX_FETCH_ATTEMPTS + 2),
+               check=lambda t: _tile not in t.absent, calls=MAX_FETCH_ATTEMPTS)
+
+    # The cascade itself: ABSENT falls through, FAILED stops and is not remembered.
+    def _cascade(label, script, want_level, want_failed, want_memo):
+        tmp = tempfile.mkdtemp(prefix="f2c_")
+        t = Tiles(tmp, offline=False)
+        real, curl = subprocess.run, _Curl(script)
+        try:
+            subprocess.run = curl
+            lvl, failed = t.resolve_level(34.66, -116.6)
+        finally:
+            subprocess.run = real
+        memo = bool(t.level_by_area)
+        ok = (lvl == want_level and failed == want_failed and memo == want_memo)
+        print("  %-62s %s" % (label, "OK" if ok else
+                              "MISMATCH (level %s, failed %s, memoised %s)" % (lvl, failed, memo)))
+        return 0 if ok else 1
+
+    bad += _cascade("ABSENT at every level -> level 0, not a failure, and REMEMBERED",
+                    [(0, 404, b"")], 0, False, True)
+    bad += _cascade("a FAILED fetch STOPS the cascade: level 0, failed, and NOT remembered",
+                    [(28, 0, b"")], 0, True, False)
+    # The whole point: a failure at the START level must not silently hand back a coarser level.
+    bad += _cascade("a FAILED start level is never rescored at the next level down",
+                    [(28, 0, b""), (0, 200, b"x" * 4000)], 0, True, False)
+    print("  the C# port makes the same distinction with the same bound "
+          "(TileSource.TileOutcome, MaxFetchAttempts=%d)" % MAX_FETCH_ATTEMPTS)
+
     # ---- the AO guard on the DEFAULT starts file (pure: no tile, no network) ----------------
     print("--- the starts file must belong to the same AO as the vertices ---")
-    import io
     mojave = {"U1": (34.658442, -116.740092)}
     units = {"p1": dict(name="U1")}
     suwalki_task = [dict(performer="p1", points=[(54.19044, 23.58498), (54.17694, 23.54506)])]

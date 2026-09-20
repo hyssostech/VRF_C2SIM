@@ -32,6 +32,11 @@ public static class InitGraphicsSelfTest
     private const int ExpectedLineRoutes = 37;      // LineType.Item = RouteType
     private const int ExpectedLineBoundaries = 4;   // LineType.Item = BoundaryType
     private const int ExpectedPoints = 317;
+    // The TaskGraphic wrappers the parser used to SKIP (2026-09-20). Same census, same file: 409
+    // TacticalGraphic = 317 Point + 41 Line + 35 TacticalArea + 16 TaskGraphic, and the 16 are
+    // named __FRIEN_04..__FRIEN_21 with 1-3 points each (assessment sec 1.5). Before the change
+    // this count was 0 and every MapGraphicID naming one resolved to nothing.
+    private const int ExpectedTaskGraphics = 16;
     // Of the 41 lines, 10 carry a single vertex; those are NOT creatable as a VR-Forces route.
     private const int ExpectedCreatableLines = 31;
 
@@ -61,6 +66,26 @@ public static class InitGraphicsSelfTest
               ExpectedLineRoutes, isCoaStp1);
         Count("lines whose C2SIM Line wraps a Boundary", data.Lines.Count(l => l.Kind == "Boundary"),
               ExpectedLineBoundaries, isCoaStp1);
+        Count("TASK SYMBOLS parsed (TaskGraphic - was 0 before 2026-09-20)",
+              data.TaskGraphics.Count, ExpectedTaskGraphics, isCoaStp1);
+        Check("every task symbol carries a non-empty uuid (it is what a MapGraphicID names)",
+              data.TaskGraphics.All(t => t.Uuid.Length > 0),
+              $"{data.TaskGraphics.Count(t => t.Uuid.Length == 0)} without");
+        Check("every task symbol carries at least one anchor point",
+              data.TaskGraphics.All(t => t.Points.Count > 0),
+              $"{data.TaskGraphics.Count(t => t.Points.Count == 0)} empty");
+        Check("no task-symbol anchor sits at 0,0 (an unparsed coordinate would)",
+              data.TaskGraphics.All(t => t.Points.All(v => Math.Abs(v.Lat) > 1e-9 || Math.Abs(v.Lon) > 1e-9)),
+              "");
+        // The area/line/point counts above are UNCHANGED by the TaskGraphic case, which is the
+        // point: a TaskGraphic is a separate branch of the TacticalGraphic choice
+        // (C2SIM_SMX_LOX_CWIX2024.xsd:4934-4947), not a wrapper around the others, so nothing it
+        // adds can have been double-counted as a line or a point.
+        Check("task symbols do NOT leak into the line or point collections",
+              !data.Lines.Select(l => l.Uuid).Intersect(data.TaskGraphics.Select(t => t.Uuid)).Any()
+              && !data.Points.Select(p => p.Uuid).Intersect(data.TaskGraphics.Select(t => t.Uuid)).Any()
+              && !data.Areas.Select(a => a.Uuid).Intersect(data.TaskGraphics.Select(t => t.Uuid)).Any(),
+              "");
 
         // ---- uuids: the whole point of V3 is that each graphic keeps its C2SIM uuid, because
         // that uuid becomes the VRF uuid and is how a task will name the object later. ----
@@ -76,8 +101,9 @@ public static class InitGraphicsSelfTest
 
         var allUuids = data.Areas.Select(a => a.Uuid)
             .Concat(data.Lines.Select(l => l.Uuid))
-            .Concat(data.Points.Select(p => p.Uuid)).ToList();
-        Check("all graphic uuids are DISTINCT across areas + lines + points",
+            .Concat(data.Points.Select(p => p.Uuid))
+            .Concat(data.TaskGraphics.Select(t => t.Uuid)).ToList();
+        Check("all graphic uuids are DISTINCT across areas + lines + points + task symbols",
               allUuids.Count == allUuids.Distinct().Count(),
               $"{allUuids.Count} total, {allUuids.Distinct().Count()} distinct");
         var unitUuids = data.Units.Select(u => u.Uuid).ToHashSet();

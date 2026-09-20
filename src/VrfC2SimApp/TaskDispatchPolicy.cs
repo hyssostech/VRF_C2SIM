@@ -128,6 +128,19 @@ public static class TaskDispatchPolicy
         "could ever evidence it";
 
     /// <summary>
+    /// The same refusal as <see cref="MalformedZeroGeometryRefusal"/>, for the OTHER dispatch kind
+    /// that issues no VR-Forces task: a verb that names no movement
+    /// (<see cref="TaskIntent.HoldInPlace"/>, e.g. ExecutePlanPhase). Q4's reasoning transfers
+    /// exactly - nothing in the simulation can evidence a task nothing was issued for, so the
+    /// Duration is the only possible ending - but the SENTENCE must not say "no geometry", because
+    /// such a task may well carry some; it simply is not driven.
+    /// </summary>
+    public const string NoMovementVerbNoDurationRefusal =
+        "MALFORMED: this task's verb names no movement, so no VR-Forces task is issued for it and " +
+        "nothing in the simulation could ever evidence it - and the order gives it no Duration, so " +
+        "nothing in the order could ever end it either";
+
+    /// <summary>
     /// Q4 (USER RULING 2026-09-14, REPLACING the supervisor default): A TASK WITH NO DURATION AND
     /// NO GEOMETRY IS MALFORMED, AND IS REFUSED - the interface does not invent a hold for it.
     ///

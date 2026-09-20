@@ -1,3 +1,4 @@
+using System.Collections;   // ReferenceEqualityComparer, for the shared graph walk
 using C2SIM;
 using S = C2SIM.Schema102; // SISO-STD-C2SIM 1.0.2 (CWIX2024) generated types; XML ns C2SIM/1.1
 
@@ -58,6 +59,7 @@ public static class OrderParser
         if (order == null) return data;
 
         data.OrderId = (order.OrderID ?? "").Trim();
+        CollectGraphics(order, data);
 
         foreach (var t in order.Task ?? Array.Empty<S.TaskType>())
         {
@@ -84,9 +86,23 @@ public static class OrderParser
             };
             // R4: a Duration that is PRESENT but unreadable must not pass as "no duration" - the
             // task would then have no end time at all and (for a hold-type verb) never complete.
+            // THE FORM IS THE SCHEMA'S, NOT THIS PARSER'S PREFERENCE (2026-09-20). IsoTimeDurationBaseType
+            // is an xs:string restricted by the pattern
+            //   [P]{1}[0-9]{2}[Y]{1}[0-9]{2}[M]{1}[0-9]{2}[D]{1}T{1}[0-9]{2}[H]{1}[0-9]{2}[M]{1}[0-9]{2}[S]{1}
+            // (C2SIM_SMX_LOX_CWIX2024.xsd:17-24), i.e. EVERY field two digits, all of them present. The
+            // canonical ISO-8601 short form "PT20M" is NOT valid C2SIM 1.1 - and it is what the real STP
+            // export writes on all 23 of its tasks (measured on data/STP-IRON-STORM-SYNTHETIC_Order.xml).
+            // The decoder is therefore RIGHT to refuse it and is deliberately NOT loosened: accepting the
+            // short form here would hide a schema violation in the producer and make this interface the
+            // only thing in the federation that could read the order. The warning names the pattern so the
+            // fix is on the right side of the wire.
             if (m.Duration != null && durationMs < 0)
-                data.Warnings.Add($"task '{task.TaskName}' Duration '{m.Duration.IsoTimeDuration}' is not the " +
-                                  "P00Y00M00DT00H00M00S form findTotalIsoMs decodes; the task has NO end time");
+                data.Warnings.Add($"task '{task.TaskName}' Duration '{m.Duration.IsoTimeDuration}' VIOLATES THE " +
+                                  "C2SIM 1.1 SCHEMA: IsoTimeDuration must match P##Y##M##DT##H##M##S with every " +
+                                  "field present and two digits wide (xsd:17-24), e.g. P00Y00M00DT00H20M00S for " +
+                                  "20 minutes. The short ISO-8601 form (PT20M) is not valid C2SIM. This task " +
+                                  "therefore has NO END TIME: R4 cannot close it on its Duration, and its STREND " +
+                                  "successors will wait out the gate. FIX THE PRODUCER'S EXPORT");
             // LocationType (schema :3610-3625) is a CHOICE of GeodeticCoordinate or
             // RelativeLocation. Only the geodetic branch is supported (user ruling 2026-09-14:
             // RelativeLocation is unsupported and STP does not emit it) - but V4b reads the SHAPE of
@@ -120,6 +136,75 @@ public static class OrderParser
             data.Tasks.Add(task);
         }
         return data;
+    }
+
+    /// <summary>
+    /// THE ORDER'S OWN TACTICAL GRAPHICS (2026-09-20). Collected exactly the way InitParser
+    /// collects the init's: walk the deserialized graph for TacticalGraphic WRAPPERS - never for
+    /// Route/Point/TacticalArea loose in the graph - so a RouteType that turns up somewhere else
+    /// in a future message cannot be mistaken for a graphic. Same walker, same geodetic reader.
+    ///
+    /// ALL FIVE BRANCHES OF THE CHOICE ARE HANDLED except NBC_Event (nothing reads one):
+    /// Line/{Route,Boundary} and TaskGraphic contribute their vertices IN ORDER (a line is a path,
+    /// a task symbol's anchors are read as one - see InitTaskGraphic); Point contributes its
+    /// position; TacticalArea is registered as an AREA and the resolver reduces it to its centroid,
+    /// which is the same reading the init path gives an area.
+    ///
+    /// A ONE-VERTEX Line or TaskGraphic is registered as a POINT rather than as a degenerate path:
+    /// it is still a place the task can be about, and inventing a second vertex to make it a line
+    /// would be manufacturing geometry. A graphic with NO vertices at all is dropped and counted by
+    /// the caller - there is nothing to resolve to.
+    /// </summary>
+    private static void CollectGraphics(S.OrderBodyType order, OrderData data)
+    {
+        var wrappers = new List<S.TacticalGraphicType>();
+        InitParser.Walk(order, new HashSet<object>(ReferenceEqualityComparer.Instance), node =>
+        {
+            if (node is S.TacticalGraphicType g) wrappers.Add(g);
+        });
+
+        foreach (var tg in wrappers)
+        {
+            string name = "", uuid = "", element = "";
+            S.EntityStateType state = null;
+            bool isArea = false;
+            switch (tg?.Item)
+            {
+                case S.LineType line when line.Item is S.RouteType rt:
+                    name = rt.Name; uuid = rt.UUID; state = rt.CurrentState; element = "Route"; break;
+                case S.LineType line2 when line2.Item is S.BoundaryType bt:
+                    name = bt.Name; uuid = bt.UUID; state = bt.CurrentState; element = "Boundary"; break;
+                case S.PointType pt:
+                    name = pt.Name; uuid = pt.UUID; state = pt.CurrentState; element = "Point"; break;
+                case S.TacticalAreaType ar:
+                    name = ar.Name; uuid = ar.UUID; state = ar.CurrentState; element = "TacticalArea";
+                    isArea = true; break;
+                case S.TaskGraphicType tgr:
+                    name = tgr.Name; uuid = tgr.UUID; state = tgr.CurrentState; element = "TaskGraphic"; break;
+                default:
+                    continue;   // an unmodelled branch (NBC_Event, or a Line flavour we do not read)
+            }
+            uuid = (uuid ?? "").Trim();
+            if (uuid.Length == 0) continue;   // nothing can reference it; not registrable
+            var g = new OrderGraphic
+            {
+                Name = (name ?? "").Trim(),
+                Uuid = uuid,
+                Element = element,
+                Kind = isArea ? TaskGraphic.KindArea : TaskGraphic.KindLine,
+            };
+            foreach (var geo in InitParser.AllGeodetics(state))
+                g.Points.Add((geo.Latitude, geo.Longitude, InitParser.ElevD(geo)));
+            if (g.Points.Count == 0)
+            {
+                data.Warnings.Add($"order graphic '{g.Name}' ({element}, uuid {uuid}) carries NO " +
+                                  "GeodeticCoordinate - it is not registered, and any task naming it by " +
+                                  "MapGraphicID will fall back to its embedded Location");
+                continue;
+            }
+            if (!isArea && g.Points.Count == 1) g = g with { Kind = TaskGraphic.KindPoint };
+            data.Graphics.Add(g);
+        }
     }
 
     // ---- typed navigation helpers -----------------------------------------

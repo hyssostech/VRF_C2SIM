@@ -1229,10 +1229,16 @@ public static class RulingsSelfTest
             var r = TaskGeometryResolver.Resolve(task, graphics);
             Check(ref failures, r.Source == GeometrySource.EmbeddedLocation && r.Points.Count == 2,
                   $"an unmatched MapGraphicID falls back to the embedded Location (source {r.Source})");
-            Check(ref failures, r.Warnings.Any(l => l.Contains("matched NO graphic in the initialization"))
+            // The wording changed 2026-09-20 with the map: it is no longer "in the initialization",
+            // because the ORDER may publish the graphic too (and the real STP export publishes ALL
+            // of them there). One warning naming every unresolved id, not one line per id.
+            Check(ref failures, r.Warnings.Count == 1
+                             && r.Warnings[0].Contains("matched NO registered graphic")
+                             && r.Warnings[0].Contains("DANGLING")
                              && r.Log.Any(l => l.Contains("geometry from embedded Location")
                                             && l.Contains("STP-801")),
-                  "... and WARNS that the id matched nothing (M5), with the STP-801 marker on the fallback");
+                  $"... and WARNS ONCE that the id matched nothing (M5), naming it, with the STP-801 " +
+                  $"marker on the fallback ({r.Warnings.Count} warning(s))");
         }
 
         // (e7) M5 - A MapGraphicID NAMING A LINE resolves to that line's vertices, in order, with
@@ -1283,7 +1289,7 @@ public static class RulingsSelfTest
             };
             var r = TaskGeometryResolver.Resolve(task, graphics);
             Check(ref failures, r.Source == GeometrySource.None
-                             && r.Warnings.Any(l => l.Contains("matched NO graphic"))
+                             && r.Warnings.Any(l => l.Contains("matched NO registered graphic"))
                              && r.Warnings.Any(l => l.Contains("executed IN PLACE")),
                   $"an unmatched MapGraphicID with no embedded Location WARNS that the task will be " +
                   $"executed in place ({r.Warnings.Count} warning(s))");

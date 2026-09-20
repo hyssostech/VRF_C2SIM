@@ -125,6 +125,12 @@ if (args.Length > 0 && args[0] == "--scripted-task-selftest")
 if (args.Length > 0 && args[0] == "--initgraphics-selftest")
     return InitGraphicsSelfTest.Run(args.Length >= 2 ? args[1] : null);
 
+// THE REAL STP EXPORT through the offline intake path (2026-09-20): the ClientId diagnostic, the
+// order-borne + task-symbol graphics resolution, the precedence rule when a task carries both, and
+// the two verbs the export added. Pure managed - no bridge, no MAK, no network, no server.
+if (args.Length > 0 && args[0] == "--stpexport-selftest")
+    return StpExportSelfTest.Run();
+
 // AN UNKNOWN "--..." SWITCH MUST NEVER START THE HOST (2026-09-07: an older build given a flag it
 // did not know fell through to here, joined the federation beside a running experiment for five
 // minutes and had to be killed). Only a bare start (no args) or host-builder args reach the host.
@@ -137,7 +143,8 @@ if (args.Length > 0 && args[0].StartsWith("--") && args[0] != "--runtime-check" 
                             "--placement/--compose/--arrival/--stall/--parse/--name/--preflight/--routeshift/--rulings/" +
                             "--routeextent-selftest, " +
                             "--liveness-selftest [--disabled], " +
-                            "--scripted-task/--initgraphics-selftest, --parse-init <file> [clientId], " +
+                            "--scripted-task/--initgraphics/--stpexport-selftest, " +
+                            "--parse-init <file> [clientId], " +
                             "--parse-order <file>, --runtime-check, host switches --Key=Value; " +
                             "no arguments = run the interface.");
     return 2;

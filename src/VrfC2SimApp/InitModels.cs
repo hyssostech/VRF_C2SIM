@@ -79,6 +79,31 @@ public record InitPoint
     public (double Lat, double Lon, double Elev) Position => Points.Count > 0 ? Points[0] : (0, 0, 0);
 }
 
+/// <summary>
+/// A TASKGRAPHIC: the FM 3-90 Appendix B tactical-mission-task symbol STP draws for a task
+/// (a breach's two arms, a clear's limit-of-advance bar, a screen's front, a follow-and-support
+/// arrow). Schema-wise it is a plain sibling of Line / Point / TacticalArea inside the
+/// TacticalGraphic choice (C2SIM_SMX_LOX_CWIX2024.xsd:4934-4959) with the same three groups and
+/// the same geometry slot - CurrentState/PhysicalState/Location, 1..n - so there is nothing
+/// exotic to parse; it was simply skipped.
+///
+/// WHAT ITS POINTS MEAN, AND WHY THEY ARE STILL READ AS A PATH. The points are the SYMBOL's
+/// anchors, not a route and not a polygon (docs/experiments/DESIGN_V4B_EMBEDDED_LOCATION_2026-09-14.md
+/// :141-151, quoting FM 3-90 B-8 for BREACH and B-17 for CLEAR). But the interface ALREADY drives
+/// exactly these coordinates whenever STP linearises the same symbol into embedded Locations - V4b
+/// settled that reading and measured the cost as "a 629 m drive around the symbol" - so
+/// registering the graphic makes the MapGraphicID path agree with the embedded path instead of
+/// disagreeing with it. Binding the arms to the vendor parameters they really are
+/// (company_breach lane1/lane2, co_clear limit of advance) stays V5/V6 work, and the resolver's
+/// log says "task symbol" so that work does not have to re-derive this from the XML.
+/// </summary>
+public record InitTaskGraphic
+{
+    public string Name { get; init; } = "";
+    public string Uuid { get; init; } = "";
+    public List<(double Lat, double Lon, double Elev)> Points { get; init; } = new();
+}
+
 /// <summary>The parsed contents of a C2SIM Initialization message.</summary>
 public class InitData
 {
@@ -92,4 +117,10 @@ public class InitData
     // are on - parsing them is unconditional and free.
     public List<InitLine> Lines { get; set; } = new();
     public List<InitPoint> Points { get; set; } = new();
+    // The TaskGraphic wrappers the parser used to skip on the grounds that "nothing in the build
+    // list consumes one yet". Something does now: 11 of Iron Storm's 35 MapGraphicID references
+    // name one, and every one of them resolved to NOTHING. Parsed unconditionally and free, like
+    // the lines and points; NEVER created as a VR-Forces object (a mission symbol is not a control
+    // measure), only registered so a MapGraphicID naming one can resolve.
+    public List<InitTaskGraphic> TaskGraphics { get; set; } = new();
 }

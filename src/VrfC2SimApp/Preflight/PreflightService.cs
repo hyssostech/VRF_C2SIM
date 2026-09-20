@@ -75,10 +75,17 @@ public sealed class PreflightService : IDisposable
     public const string FriendlyLifeformProxy = "Tank Platoon (USA)";
     public const string HostileLifeformProxy = "Tank Platoon (RUS)";
 
-    public PreflightService(PreflightOptions opt)
+    public PreflightService(PreflightOptions opt) : this(opt, null) { }
+
+    /// <summary>
+    /// The form that takes an HttpClient, so a self-test can put a SCRIPTED server behind the
+    /// tile source and assert what a timeout or a 5xx does to a leg's verdict (F2) without a
+    /// network, a port or a wall-clock wait. null = the ordinary curl-like client.
+    /// </summary>
+    internal PreflightService(PreflightOptions opt, HttpClient http)
     {
         _opt = opt;
-        _tiles = new TileSource(opt.CacheDir, opt.Offline, opt.Nearest, null,
+        _tiles = new TileSource(opt.CacheDir, opt.Offline, opt.Nearest, http,
                                 opt.ElevationLevel, opt.ElevationMinLevel);
         _soil = new SoilChain(opt.SharedData, opt.VrfHome);
         _sms = new VendorSms(Path.Combine(opt.VrfHome, "data", "simulationModelSets",
@@ -137,13 +144,14 @@ public sealed class PreflightService : IDisposable
         double length = TileMath.DistanceMeters(a.Lat, a.Lon, b.Lat, b.Lon);
         int n = LegScorer.SampleCount(length, _opt.StepM);
         var samples = new List<LegSample>(n);
-        int coarsest = 0, served = 0;
+        int coarsest = 0, served = 0, fetchFailures = 0;
         for (int i = 0; i < n; i++)
         {
             double s = LegScorer.SampleDistance(length, i, n);
             double f = length == 0 ? 0.0 : s / length;
             var (la, lo) = TileMath.Interpolate(a.Lat, a.Lon, b.Lat, b.Lon, f);
-            double z = _tiles.Elevation(la, lo, out int level);
+            double z = _tiles.Elevation(la, lo, out int level, out bool fetchFailed);
+            if (fetchFailed) fetchFailures++;
             if (level > 0)
             {
                 served++;
@@ -151,9 +159,20 @@ public sealed class PreflightService : IDisposable
             }
             samples.Add(new LegSample(s, la, lo, z, _soil.Classify(_tiles, la, lo)));
         }
-        return LegScorer.Score(a, b, samples, length, limitRaw, _opt.StepM, _opt.WindowM,
-                               _opt.ShortWindowM, _opt.Threshold)
-               with { ElevationLevel = served == 0 ? 0 : coarsest };
+        var scored = LegScorer.Score(a, b, samples, length, limitRaw, _opt.StepM, _opt.WindowM,
+                                     _opt.ShortWindowM, _opt.Threshold);
+        // F2: a leg that lost even ONE sample to a FETCH FAILURE has NO VERDICT, whatever the
+        // NaN-fraction tolerance says and whatever level its other samples resolved at. The
+        // alternative is a ratio computed off a partially-unknown line, or - worse, and what used
+        // to happen - a ratio computed one level coarser because the failure was read as absence.
+        // The ELEVATION LEVEL is forced to 0 with it: "the coarsest level some samples used" is
+        // not a description of a leg nothing could be established for.
+        return scored with
+        {
+            ElevationLevel = fetchFailures > 0 ? 0 : (served == 0 ? 0 : coarsest),
+            ElevationFetchFailures = fetchFailures,
+            NoVerdict = scored.NoVerdict || fetchFailures > 0,
+        };
     }
 
     /// <summary>
