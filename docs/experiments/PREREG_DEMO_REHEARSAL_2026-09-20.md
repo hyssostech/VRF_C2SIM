@@ -130,5 +130,36 @@ Verdict: FUNCTIONAL reset VERIFIED; performance-neutral reset NOT VERIFIED. Oper
 figures (n=1): READY->order 114 s; all-terminal 290 s rested / 387 s back to back; teardown
 ~10 s; previous exit -> next READY 80.1 s.
 
-## D3 - Way B, hand-started and STP-driven, with the LaunchVrf52 holder (lane feat/demo-federation-holder).
+## D3 - Way A on the route-shift-default-ON build, clean conditions (registered BEFORE the run)
+
+Build: main f26d4ad (route shift default ON, user ruling 2026-09-20; AO-independent
+preflight); app rebuilt 2026-09-20T20:00:51Z; bridge pin 90272BC9 unchanged on all eleven
+consumers; runner suite 341/0; 21/22 selftests green (22nd = fail-first liveness arm);
+cold-start review NO BLOCKER - F1/F2/F3/F5/F6 deferred to a lane AFTER D3.
+Command: D1b's exact command (with `--vrf-appdata-dir`). CONDITIONS (recorded because D2 was
+contaminated): no subagent live, no stray scan process (seat lists pwsh/powershell/python/rg
+first); >= 30 min since the previous teardown; the app's tile cache PRE-WARMED via
+`tools\preflight\leg_check.py` for the R9 order - 4 L13/ds149 elevation tiles + 3 ds154
+land-cover tiles, no CLCplus tiles (none served over Mojave); tool verdict 0 of 6 legs
+flagged at L13.
+PURPOSE, honestly: on this order NO leg is steep, so D3 does not test the shift FIRING (V8b
+did); it tests default-ON is HARMLESS on the proven order and is the clean-conditions control
+for D2's 0.60x.
+P1 (HIGH): start-up banner says LATERAL ROUTE SHIFT ON, agrees with manifest
+inputs.routeShift.effective=True; no EMPTY-cache WARN.
+P2 (HIGH): each ground move preflighted at L13 from cache (0 HTTP fetches expected, a
+handful tolerated), NO "did not finish within 30 s" line, NO ROUTE SHIFTED row, all three
+dispatched on the AUTHORED line within ~5 s of the order.
+P3 (HIGH): 3/3 terminal, closes by arrival evidence with D1-like margins, no STP-833
+refusal, no BACK END LOST, no WS alerts. P4 (HIGH): teardown clean as D1b (StopVrf ~10 s,
+exit 0/0, nothing left but rtiexec/rtiForwarder/holder).
+P5 (MEDIUM, the 0.60x control): completions within +/-15% of D1/D1b (38/153-159/284 s after
+the order), fleet speed ~4.6-5.9 m/s, NOT D2's 2.8-3.7. Rule: P5 HIT = D2's slowdown belongs
+to D2's conditions (back-to-back cycle and/or the two I/O-heavy jobs, needing its own run);
+P5 MISS (again ~0.60x) = the slowdown is NOT load - do not attribute it to the route shift
+without a control, STOP and read.
+Any leg scored COARSER than L13 makes that run's ratios unquotable (review F2); a 30 s
+timeout line for a task means disregard that task's shift rows (review F1).
+
 ## D4 - the audience scenario (COA-STP1's 11 taskees, GUI, real-time, route shift) - needs the user's rulings first.
+## D5 - Way B, hand-started and STP-driven, with the LaunchVrf52 holder (lane feat/demo-federation-holder).

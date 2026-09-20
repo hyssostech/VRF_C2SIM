@@ -2593,25 +2593,46 @@ moves (COA-STP1's 24-33 km legs keep the 500 m radius); on routes under ~2.5 km 
 Vrf:ArrivalRadiusMeters only when a run shows it. WATCH: a degenerate out-and-back task with NO Duration now waits out
 Vrf:TaskChainBackstopSeconds instead of closing early-but-wrongly. Offline proof: --arrival-selftest (38 checks on
 V6g's measured geometry; the superseded proximity-only rule runs as the fail-first arm). No kill switch by design.
+CORRECTION (sec 12, route shift default ON since f26d4ad): "the route's authored length" above
+is the DRIVEN length once the shift is on - `MarkDispatched` measures the vertex list the unit
+was actually GIVEN, and a shifted route is longer than the authored one by
+`2 x |offset| x tan(MaxTurnDegrees/2)` per shifted leg (40 m for a reference +75 m shift, 322 m
+at the 600 m band edge). The last vertex and the dispatch position are unchanged - the splice
+only inserts BETWEEN authored vertices - so the traversal bar rises and the effective radius
+`min(500, 0.25 x length)` grows, making `ClosableByArrival` slightly STRICTER on short routes:
+a 1,600 m authored route with a last vertex 420 m from the start is closable; the same task
+with a 600 m shift is not, and waits for the vendor completion or its Duration.
 
-## 12. THE ROUTE PRE-FLIGHT AND ITS LATERAL SHIFT - BOTH OFF BY DEFAULT (STP-804/806)
+## 12. THE ROUTE PRE-FLIGHT (OFF) AND ITS LATERAL SHIFT (ON BY DEFAULT) (STP-804/806)
 
 Design: `docs/experiments/DESIGN_ROUTE_SHIFT_2026-09-15.md`. Evidence: FINDING_EARLY_STOPS
 sec 7/7e, PREREG_RIDGE_AG sec 3.2-3.3, PREREG_N1_N2 sec 10.3 (N2d),
-READ_4-27_G3_AND_OFFSET_SCORING sec 2.3/2.5. NOTHING BELOW HAS BEEN RUN LIVE.
+READ_4-27_G3_AND_OFFSET_SCORING sec 2.3/2.5.
+THE SHIFT HAS BEEN RUN LIVE: V8b (2026-09-15) met every pre-registered criterion with it and
+the ZERO-OFFSET control V8z froze on the same line, which is what makes the LATERAL OFFSET
+the remedy rather than the re-dispatch around it. USER RULING 2026-09-20: "Route shift: ON.
+Use as default for any run." (merged main f26d4ad). Default-ON live rehearsal = D3
+(docs/experiments/PREREG_DEMO_REHEARSAL_2026-09-20.md), PENDING.
 
 Two separate features, two separate keys:
 
 | key | default | what it does |
 |---|---|---|
 | `Vrf:PreflightWarnings` | false | AFTER dispatch, score the route that was driven and push one ObservationReport per flagged leg. Never alters a task. |
-| `Vrf:PreflightRouteShift` | false | BEFORE dispatch, score the route and detour each FLAGGED leg laterally onto ground the same sampler scores as clear. CHANGES WHERE UNITS DRIVE. |
+| `Vrf:PreflightRouteShift` | **true** (since f26d4ad, 2026-09-20) | BEFORE dispatch, score the route and detour each FLAGGED leg laterally onto ground the same sampler scores as clear. CHANGES WHERE UNITS DRIVE. Turn it OFF with `"PreflightRouteShift": false`, `Vrf__PreflightRouteShift=false`, or `scripts\StartInterface52.ps1 -RouteShift off`. |
 
-Turn them on with environment overrides in the interface's own shell (double underscore = the
-`:` of the key), as with the C16 watchdog in sec 10:
+`RunC2SimScenario.ps1` resolves the EFFECTIVE value the way the app does (env beats the
+deployed appsettings.json beats the C# initialiser) and records it as `inputs.routeShift` in
+the manifest (effective/source/envValue/appSettings), with one console line. An env value
+that is not `true`/`false` is refused loudly - the .NET binder throws and the app never
+starts, rather than silently falling back to the file.
+
+To turn WARNINGS on (route shift stays at its default) or to turn the shift OFF for one run,
+use environment overrides in the interface's own shell (double underscore = the `:` of the
+key), as with the C16 watchdog in sec 10:
 
 ```powershell
-$env:Vrf__PreflightRouteShift  = "true"
+$env:Vrf__PreflightRouteShift  = "false"    # the off switch; ON is the default since f26d4ad
 $env:Vrf__PreflightWarnings    = "true"     # so the route that IS driven is reported too
 $env:Vrf__PreflightOffline     = "true"     # the AO tile cache must be pre-warmed
 $env:Vrf__PreflightCacheDir    = "C:\C2SIM\preflight-cache"
@@ -2655,6 +2676,48 @@ TerrainProfile continuation works. `Vrf:PreflightRouteShiftTimeoutSeconds` (30) 
 expiry the AUTHORED line is dispatched. PRE-WARM THE CACHE for the AO and set
 `Vrf:PreflightOffline=true` (the STP-802 scenario-prep posture) so a demo never waits on the
 network at dispatch.
+
+PRE-WARM THE CACHE OR PAY FOR IT. `Vrf:PreflightCacheDir` is empty by default, which resolves
+to `AppContext.BaseDirectory\preflight-cache` - i.e. a `preflight-cache` folder BESIDE the
+deployed exe, empty on a fresh deploy and WIPED by a clean rebuild (re-warm it after one). So
+with the shift ON by default, every ground move's dispatch fetches its tiles over HTTP before
+it is issued unless that folder is pre-warmed (bounded by
+`Vrf:PreflightRouteShiftTimeoutSeconds`, then the authored line). The interface says so at
+START-UP: one INFO line naming the band, the timeout and the cache, and a WARNING when the
+cache is empty. Pre-warm it with the python tool over the order (it populates the cache as a
+side effect; needs Python 3, Pillow and `curl` on PATH):
+
+    python tools\preflight\leg_check.py --order data\<order>.xml --init data\<init>.xml `
+        --typemap data\unit-type-map-52-nolifeform.json --text `
+        --cache <exe dir>\preflight-cache
+
+THE SHIFT IS SKIPPED OUTRIGHT, not deferred, when `Vrf:PreflightOffline` is TRUE and the tile
+cache holds no files: nothing could be scored in that posture, so the run says so once,
+loudly, and dispatches on the ordinary path with no 30 s-bounded wait. An empty cache with
+FETCHING ALLOWED (the shipped default, `PreflightOffline=false`) is the ordinary cold start
+and still runs, paying the HTTP cost per leg.
+
+THE ELEVATION LEVEL IS AN AO PROPERTY (STP-802). `Vrf:PreflightElevationLevel` (13) is the
+level dataset 149 is sampled at and `Vrf:PreflightElevationMinLevel` (11) is the floor of an
+automatic fallback: where the server has no tile at L, L-1 is tried, and the level that
+worked is remembered per START-LEVEL tile (~2.4 km). 13 is the deepest level served over the
+MOJAVE AO and is what the 0.92 threshold was calibrated on. CALIBRATION HONESTY: L13 -> L12
+is a ONE-SIDED bias (a coarser DEM can only average relief away, never invent it) - measured
+over 26 COA-STP1 legs, every ratio moved DOWN (mean -0.018, worst -0.055) and no flag changed,
+but the frozen-vs-mover margin narrowed from 0.096 to 0.070. Read 0.92 as CONSERVATIVE at
+L12, NOT as re-calibrated there; re-measure any new AO with
+`python tools/preflight/leg_check.py --level-sensitivity`. A leg scored below L13 says so in
+the log (`scored at ... COARSER than the L13 the 0.92 threshold was calibrated on`); a leg
+that resolves at NO level is a loud WARNING naming the leg and the levels tried.
+
+CLCplus AND WATER ARE FINDINGS, NEVER A REFUSAL. The land-cover cascade leads with CLCplus
+(dataset 59, L14, Europe only - no Mojave verdict changes) ahead of the three previous
+sources. Any sample on a water soil (deep/shallow water, acceleration-factor 0.000 - a dead
+stop the vendor reports as TaskRunning forever) produces a WARNING and an ObservationReport
+from whichever reader is on, even when the water lies outside the worst window and the leg is
+not flagged. Nothing is refused or altered; water reaches the shift chooser only through the
+ordinary sampler (a zero-factor sample scores a candidate +infinity), so it can only make the
+chooser prefer NOT to shift there - it never sides or sizes a shift itself.
 
 OFFLINE PROOF, no bridge and no network: `VrfC2SimApp --routeshift-selftest` (it asserts that
 zero tiles were fetched). On the 1-35 ridge leg it reproduces the record: the authored line
