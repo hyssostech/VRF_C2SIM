@@ -520,3 +520,43 @@ a legal `RTI_tcpPacketBundlingSize` (no maximum is documented; it is below the 5
 **UNEXPLAINED, and it is a falsifier not a footnote:** nothing in this design explains WHY a given
 create fails or which module is chosen. The sender's stream is identical every time. Until that is
 explained, a clean A/B arm is evidence about a lever, not a diagnosis.
+
+---------------------------------------------------------------------------------------------------
+## RESULT (run 2026-09-20 21:22Z-21:37Z; adjudicated by an Opus reader, read-only)
+
+Conditions as recorded: no build/sim process, only an idle compiler server; baseline CPU 15%;
+containers up (c2sim-server-vrf, c2sim_server4.8.4.9, unrelated c2sim-stp615); no subagent
+live; ledger 4657-4718 (62 creates); holder 68304 undisturbed; NO rtiexec restart used - the
+user's authorisation remains unspent.
+PILOT-0 PASSED (2 appNos): 1 refused+crashed (0xC0000005), 1 success, 58 blocks each,
+MAK-ONE-2025 untouched.
+Result (3x2): A control 4/20 (0.200); B bundling-OFF 9/20 (0.450); C bundle-100000 4/20
+(0.200). Pre-registered Fisher one-sided (A worse): B vs A p=0.979629, C vs A p=0.652618 -
+neither significant. Reader's own treatment-worse check: one-sided 0.0880, two-sided 0.1760 -
+also not significant.
+VERDICTS: REMEDY REFUTED for BOTH arms (neither fB nor fC is 0/<=1 - no HIT criterion met);
+H-BUNDLE-BIG FALSIFIED (its falsifier "failures persist at bundle >65,093" met at fC=4);
+H-COALESCE FALSIFIED (its falsifier "failures unchanged with bundling OFF, or extra content
+printable" met twice - fB=9 and the content IS printable, finding A). RATE INCONCLUSIVE
+(fA=4<7, the prereg's own power bar governs over MISS). Extension does NOT fire (no clean
+treatment arm) and is NOT recommended (no arm to rescue; remedy question already settled).
+Instrument SOUND: harness console, CSV and an independent rtiexec-log scan agree row for row
+- 62 creates/62 destroys, handles 36-97, every child loaded its own rid. ONE limitation:
+nothing proves a child APPLIED the modified parameter (RTI_ridConsistencyChecking=0 warns of
+nothing). Arm and rotation position are perfectly confounded.
+THREE findings: (A) the extra content past every tail-only rejection is rtiexec's OWN LOG
+TEXT, 32/32 across this run and the re-read 09-15 census - the "NUL/u32 length-prefix"
+reading above is RETRACTED. (B) create #61: rtiexec log strings written INSIDE the XML via
+length-preserving substitutions, libxml2's semantic errors naming the corrupted tokens ->
+surviving reading H-FDD-UNTERMINATED (FDD buffer not terminated at its accumulated length,
+aliasing rtiexec's log-formatting memory); H-RACE survives; H-FORWARDER-REFRAME disfavoured.
+(C) census clustering does NOT reproduce under fixed 5 s spacing (runs z=-0.118, p=0.91;
+lag-1 0.294 vs 0.286) - today's earlier z=-2.85 is CORRECTED, not confirmed.
+Also: no size relation (4,729-1,058,783 B); victim module ~uniform (14 of 18 distinct);
+clean-vs-crash is a TIME-BAND, not an arm effect; all 12 crashes die in VrfFacade.Start before
+the destroy call (STP-832 stays OPEN); rtiexec memory grows ~7.5-9.9 MB per cycle (957 MB
+private after 97 lifetime creates). Still unexplained, as a falsifier: WHY a given create is
+hit, and WHICH module.
+Proposed next manipulation (NOT registered; needs the user's word for the restart):
+`-NotifyLevel 0`, 20 arm-A creates; 0-1 failures = strong support, >=5 = refuted, 2-4 =
+inconclusive; fresh-rtiexec confound declared.

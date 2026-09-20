@@ -2329,14 +2329,20 @@ FOR THIS RTIEXEC.** This rtiexec (pid 75168, up since 2026-09-15) has a lifetime
 19 create successes / 14 refusals as of 20:22Z today (~42% refused), then D3's own session
 added 5 more refusals and 1 success (appNos 4630-4635). Any "about 1 create in 4-7 refused"
 figure quoted elsewhere for this rtiexec is STRUCK as superseded - refusals run far more
-often than that on this instance, and they CLUSTER: four in a row on 2026-09-15, and four in
-a row again (then one more) at 20:22Z today. **Stage 2h's four attempts are therefore NOT
-demo-grade on their own** against a cluster this size.
+often than that on this instance. Refusals ran four in a row on 2026-09-15 and four in a row
+(then one more) at 20:22Z today - but "refusals CLUSTER" is NOT a settled property of the
+defect: the controlled A/B/C experiment below (60 creates, fixed 5 s spacing, one create per
+process) found NO clustering (runs test z=-0.118, p=0.91; lag-1 P(fail|prev fail)=0.294 vs
+P(fail|prev succeeded)=0.286), against the census' z=-2.85, p=0.0043 - both numbers are on the
+record. The census clustering was an artefact of how those creates were issued (retry bursts,
+uncontrolled spacing), not a property of the underlying defect. **Stage 2h's four attempts are
+still not demo-grade on their own** given the raw ~42% rate, cluster or no cluster.
 
 THE DEMO POSTURE IS A PERSISTENT HOLDER, started ONCE and retried until it joins:
 `scratchpad\validation\p7_holder_retry.ps1` with `-SettleSecs 28800` and a block of ledgered
 appNos (numbers not reached on a given try are burned, never reused) - so every subsequent
-launch in the demo window only ever JOINS.
+launch in the demo window only ever JOINS. A JOIN never exercises the FOM-module receive path
+a CREATE does (RM 13.3), so the persistent holder AVOIDS the defect rather than reducing it.
 
 NEW VERIFIED FACTS (sec 7.2-7.4): the FOM Reader's "Extra content at the end of the document"
 line is reported at each rejected file's OWN last line + 1 - i.e. the receiver's reassembled
@@ -2348,10 +2354,40 @@ own POST-REFUSAL CLEANUP path (managed callstack in
 `runs\20260920T202203Z_run\holder.3.stderr.log`) - a separate .NET interface defect, not a
 MAK crash (no vendor `.callstack.log`/`.dmp` from 2026-09-20 exists; the newest is 2026-09-06).
 
-ROOT-CAUSE EXPERIMENT REGISTERED 2026-09-20 (docs/experiments/PREREG_STP825_BUNDLING_2026-09-20.md): three interleaved arms (control / bundling off / bundle
-size 100000) via per-federate RID copies, separate federation STP825AB, no restart, 62 creates. Motivated by the census: 35 real creates, 42.9% refused,
-lag-1 clustering P(fail|prev fail) 0.67 vs 0.21, no size threshold - 8 of 15 rejected payloads under 50,000 bytes, the error line always the module's own
-last line + 1; our RID is the vendor default on every transport parameter; nothing newer than RTI 5.0.1 is published.
+ROOT-CAUSE EXPERIMENT RUN AND ADJUDICATED 2026-09-20 (RESULT block in
+docs/experiments/PREREG_STP825_BUNDLING_2026-09-20.md): three interleaved arms - control 4/20,
+bundling-OFF 9/20, bundle-100000 4/20; neither treatment significant (Fisher one-sided A-worse
+p=0.98 / p=0.65). BOTH bundling remedies REFUTED (H-BUNDLE-BIG and H-COALESCE FALSIFIED); the
+rate comparison is INCONCLUSIVE (underpowered by the prereg's own bar); the extension does NOT
+fire and is not recommended. **CORRECTION AND RETRACTION:** the bytes past every tail-only
+rejection are rtiexec's OWN LOG TEXT ("DtFedExec: Fed File arrived at FedEx." / a progress-bar
+line), 32 of 32 across this run and the re-read 2026-09-15 census - the "byte-perfect / not a
+mid-document corruption" framing two paragraphs above is right about POSITION but the earlier
+"NUL / u32 length-prefix" reading of WHAT the extra bytes are is explicitly RETRACTED.
+Surviving hypothesis: H-FDD-UNTERMINATED (the FDD buffer is not terminated at its accumulated
+length and aliases rtiexec's own log-formatting memory); create #61 shows rtiexec log strings
+written INSIDE the XML with length-preserving substitutions, with libxml2's own semantic
+errors naming the corrupted tokens. **No RID transport setting is a lever - do NOT edit
+`config\rid-501-rtiexec-min.mtl`** on the strength of this experiment.
+
+RTIEXEC MEMORY GROWTH (new finding): ~7.5-9.9 MB of private bytes retained per create/destroy
+cycle, never released even though every federation is destroyed cleanly - this rtiexec was at
+957 MB private after 97 lifetime creates over 5 days. Practical consequence: a long-lived
+rtiexec that has served many creates is carrying roughly a gigabyte it will not give back;
+restarting it to reclaim that is the USER's call, not a routine maintenance step.
+
+MAK SUPPORT PACKAGE (scratchpad\wirecap) - add, in order of value: (1) the log-text finding
+above, stated as an explicit RETRACTION of our earlier NUL/length-prefix reading; (2) create
+#61 verbatim, the strongest single artefact; (3) the end+1 rule, now 32/32; (4) the A/B/C
+table with both p-values and the caveat that no output proves a child applied the modified
+parameter; (5) the vendor-default comparison table (our rid matches the shipped rid.mtl on
+every transport parameter except the forwarder port); (6) the 35-create census WITH THE
+CORRECTED clustering reading (z=-0.118, not the original z=-2.85); (7) the rtiexec memory
+growth above; (8) the sharpened question for MAK (does the FOM Reader terminate its
+per-module buffer at the accumulated CurBlockSize, and can that buffer alias the logging
+buffer?); (9) STP-832 kept OUT of the vendor package (client-side) but reopened internally -
+12 of 18 refusals in this experiment crashed VrfFacade.Start at 0xC0000005 on the post-merge
+build.
 
 ## 10. THE C16 PROGRESS WATCHDOG IS OFF BY DEFAULT - HOW TO TURN IT ON FOR THE VALIDATION RUN
 
