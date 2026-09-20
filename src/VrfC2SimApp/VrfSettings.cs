@@ -814,6 +814,30 @@ public class VrfSettings
     // acceleration-factors come from Vrf:VrfHome instead. Read-only, both of them.
     public string PreflightSharedDataDir { get; set; } = @"C:\MAK\SharedData\19\latest";
 
+    // ---- THE ELEVATION LEVEL IS AN AO PROPERTY, NOT A CONSTANT (STP-802) -------------------
+    // The TMS level elevation dataset 149 is sampled at. 13 is the DEEPEST level served over the
+    // MOJAVE AO and remains the default, so every published Mojave number reproduces exactly.
+    // IT IS NOT UNIVERSAL: measured 2026-09-20, dataset 149 returns NO DATA at L13 anywhere over
+    // the Suwalki Gap (0 of 25 grid samples over the SuwalkiN20 box) and serves it at L12. With
+    // the level pinned at 13 every Suwalki leg was NaN -> "NO VERDICT - tiles missing" -> nothing
+    // flagged -> the default-ON lateral route shift silently never fired. That is a FALSE GREEN:
+    // the instrument reporting no problem because it is not looking.
+    public int PreflightElevationLevel { get; set; } = 13;
+
+    // The FLOOR of the automatic fallback: on "no data at L" the tile source tries L-1, down to
+    // this, and REMEMBERS the level that worked for that area. The level in force is logged at
+    // start-up and carried on every leg's verdict; a leg that resolves at NO level is reported
+    // LOUDLY (a WARN naming the leg and the levels tried), never silently as clear.
+    //
+    // WHAT A COARSER LEVEL COSTS (read this before quoting a Suwalki ratio): the 0.92 threshold
+    // on a 40 m sustained window was calibrated at L13 postings (7.9 x 9.6 m at 34.66 N), where
+    // the window spans 4.2 postings north-south. At L12 (11.2 x 19.1 m at 54.1 N) the same window
+    // spans 2.1. A coarser DEM can only AVERAGE relief away, never invent it, so the bias is
+    // one-sided: a real face reads LOWER and a flag can be MISSED, never manufactured. The
+    // threshold is therefore CONSERVATIVE at L12, not transferred. Measure it per AO with
+    // `python tools/preflight/leg_check.py --level-sensitivity`.
+    public int PreflightElevationMinLevel { get; set; } = 11;
+
     // ============== THE LATERAL ROUTE SHIFT (STP-804/806) ====================================
     // docs/experiments/DESIGN_ROUTE_SHIFT_2026-09-15.md. When the pre-flight flags a leg BEFORE
     // dispatch, insert two waypoints that carry the path laterally onto ground the same sampler

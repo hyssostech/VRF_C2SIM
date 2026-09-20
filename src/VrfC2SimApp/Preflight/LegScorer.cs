@@ -37,6 +37,28 @@ public sealed record LegMetrics
     public bool Flagged { get; init; }
     public (double Lat, double Lon) Start { get; init; }
     public (double Lat, double Lon) End { get; init; }
+
+    // ---- WHICH ELEVATION LEVEL THIS LEG WAS SCORED AT (AO-independent pre-flight) ----------
+    // The COARSEST level any sample on this leg resolved to, or 0 for "no elevation data at any
+    // level of the cascade". Set by PreflightService, which owns the tiles; the scorer is pure
+    // and never asks for one. 0 is NOT a footnote: it means nothing about this leg was checked.
+    public int ElevationLevel { get; init; }
+
+    // ---- WATER (CLCplus class 100 / any catalogue row that resolves to a water soil) --------
+    // A vehicle on deep water has acceleration-factor 0.000 in the vendor's own
+    // ground-tracked.sysdef, i.e. a dead stop the back end reports as TaskRunning for ever.
+    // Water inside the worst window already drives the ratio to +infinity and flags the leg, but
+    // water ANYWHERE ELSE on the leg was invisible - hence an explicit count.
+    public int WaterSamples { get; init; }
+    public double WaterFraction { get; init; }
+    public string WaterSoil { get; init; } = "";
+    public string WaterSource { get; init; } = "";
+    public string WaterDesc { get; init; } = "";
+    public (double Lat, double Lon) WaterFirst { get; init; }
+    public double WaterFirstSM { get; init; }
+
+    /// <summary>True when any sample of this leg sits on ground the vendor calls water.</summary>
+    public bool Water => WaterSamples > 0;
 }
 
 /// <summary>
@@ -75,6 +97,16 @@ public static class LegScorer
 
     /// <summary>Above this fraction of missing elevation samples a leg gets NO VERDICT.</summary>
     public const double MaxNanFraction = 0.01;
+
+    /// <summary>
+    /// The soils of <c>ground-tracked.sysdef</c>'s soil-list that are WATER: deep-water
+    /// (acceleration-factor 0.000000, stopping-factor 0.000000) and shallow-water (0.700).
+    /// PURE, and deliberately a name test rather than a factor test - a factor of zero can also
+    /// come from a catalogue the chain could not read, and those two must never be confused.
+    /// </summary>
+    public static bool IsWaterSoil(string soil)
+        => string.Equals(soil, "deep-water", StringComparison.Ordinal)
+        || string.Equals(soil, "shallow-water", StringComparison.Ordinal);
 
     /// <summary>How many samples a leg of this length gets: the count, so the caller can place them.</summary>
     public static int SampleCount(double lengthM, double stepM)
@@ -131,6 +163,18 @@ public static class LegScorer
         bool noVerdict = n > 0 && nanFraction > MaxNanFraction;
         double ratio = limit > 0 ? sustained / limit : double.PositiveInfinity;
 
+        // WATER, counted over the WHOLE leg and not just the worst window. A sample on water is
+        // not a grade problem the ratio can express - it is a soil whose acceleration-factor is
+        // zero - so it is carried out of here as its own fact and reported as its own finding.
+        int waterN = 0;
+        var water = default(LegSample);
+        for (int i = 0; i < n; i++)
+        {
+            if (!IsWaterSoil(samples[i].Soil?.Soil)) continue;
+            waterN++;
+            water ??= samples[i];
+        }
+
         return new LegMetrics
         {
             LengthM = lengthM,
@@ -163,6 +207,13 @@ public static class LegScorer
             Flagged = ratio >= threshold && lengthM > windowM && !noVerdict,
             Start = a,
             End = b,
+            WaterSamples = waterN,
+            WaterFraction = n > 0 ? (double)waterN / n : 0.0,
+            WaterSoil = water?.Soil?.Soil ?? "",
+            WaterSource = water?.Soil?.Source ?? "",
+            WaterDesc = water?.Soil?.Description ?? "",
+            WaterFirst = water != null ? (water.Lat, water.Lon) : (0.0, 0.0),
+            WaterFirstSM = water?.S ?? 0.0,
         };
     }
 

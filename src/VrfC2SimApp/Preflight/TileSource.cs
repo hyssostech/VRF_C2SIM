@@ -13,8 +13,25 @@ public static class TileMath
     /// <summary>The elevation dataset VR-Forces itself streams (elevation.worldwide.online.xml:24-35).</summary>
     public const int ElevationDataset = 149;
 
-    /// <summary>The best DataExtent over the Mojave AO (FINDING_EARLY_STOPS_2026-09-13 sec 7).</summary>
-    public const int ElevationLevel = 13;
+    /// <summary>
+    /// THE LEVEL IS AN AO PROPERTY, NOT A CONSTANT. 13 is the deepest DataExtent the server
+    /// serves over the MOJAVE AO (FINDING_EARLY_STOPS_2026-09-13 sec 7) and it stays the
+    /// default, so every Mojave number ever published is reproduced byte for byte. It is NOT
+    /// universal: dataset 149 returns NO DATA at L13 over the Suwalki Gap (measured 2026-09-20,
+    /// 0 of 25 grid samples over the SuwalkiN20 box) and serves that ground at L12 instead.
+    /// Configure with Vrf:PreflightElevationLevel; <see cref="DefaultMinElevationLevel"/> is the
+    /// floor of the automatic fallback that finds L12 without being told.
+    /// </summary>
+    public const int DefaultElevationLevel = 13;
+
+    /// <summary>
+    /// The FLOOR of the "no data at L -> try L-1" cascade (Vrf:PreflightElevationMinLevel).
+    /// 11 is two levels of fallback: deep enough to reach any ground MAK Earth serves at all
+    /// (Suwalki answers at 12, and 11/10 are its parents), shallow enough that a genuinely
+    /// unserved AO ends in a LOUD "no data at any level" rather than silently scoring a
+    /// continent-sized posting as terrain.
+    /// </summary>
+    public const int DefaultMinElevationLevel = 11;
 
     /// <summary>Elevation tiles are 257x257 postings; 256 of them are the tile's own span.</summary>
     public const int TilePixels = 257;
@@ -28,9 +45,19 @@ public static class TileMath
     /// The levels are the DEEPEST the server actually serves (probed 2026-09-13: 154 and 165
     /// return "no tile" at L13, 188 at L11). An L13 request falls through SILENTLY, which is
     /// why these are pinned rather than derived.
+    ///
+    /// CLCplus (59, L14) IS THE EUROPEAN LAYER THE VENDOR'S OWN TERRAIN COMPOSES
+    /// (biomes.landcover.coverage.online.xml:50) and it is FIRST because it is the finest:
+    /// 10 m against Copernicus's 100 m. It covers Europe only - probed 2026-09-20 it returns a
+    /// class at the Suwalki AO (21 woodland / 51 grassland) and NO TILE over North America - so
+    /// at Mojave the cascade falls through to exactly the three sources it used before and every
+    /// Mojave verdict is unchanged. It also closes the WATER blind spot: CLCplus class 100 is
+    /// live (preset="Water" -> deep-water, acceleration-factor 0.000) whereas Copernicus's water
+    /// class 80 is COMMENTED OUT in the vendor catalogue and resolves to no soil at all.
     /// </summary>
     public static readonly (int Dataset, int Level, string Label)[] LandCoverSources =
     {
+        (59, 14, "CLCplus 10m"),
         (154, 12, "CA FVEG 15m"),
         (165, 12, "NLCD 30m"),
         (188, 10, "Copernicus 100m"),
@@ -40,10 +67,47 @@ public static class TileMath
     public static double Posting(int level) => (180.0 / Math.Pow(2, level)) / Seg;
 
     /// <summary>Posting size in metres (east-west, north-south) at a latitude.</summary>
-    public static (double EastWest, double NorthSouth) PostingMeters(double latDeg, int level = ElevationLevel)
+    public static (double EastWest, double NorthSouth) PostingMeters(double latDeg,
+                                                                     int level = DefaultElevationLevel)
     {
         double p = Posting(level);
         return (p * 111320.0 * Math.Cos(latDeg * Math.PI / 180.0), p * 111320.0);
+    }
+
+    /// <summary>
+    /// HOW MANY NATIVE POSTINGS THE SUSTAINED WINDOW SPANS at a level and latitude - the one
+    /// number that says what a coarser DEM does to a verdict. The window is a sliding mean
+    /// UPHILL grade (<see cref="LegScorer"/>), so relief shorter than a posting is AVERAGED
+    /// AWAY before the scorer ever sees it: the fewer postings under the window, the more a real
+    /// face reads as a gentle one.
+    ///
+    /// The 0.92 threshold was calibrated at L13 over the Mojave AO, where the 40 m window spans
+    /// 4.2 postings north-south (9.55 m at 34.66 N). At L12 over Suwalki the posting is 19.1 m
+    /// north-south at 54.1 N and the SAME window spans 2.1 - about half. A one-level-coarser DEM
+    /// can therefore only SMOOTH a face, never sharpen it, so the error is one-sided: the ratio
+    /// is biased LOW and a flag can be MISSED, never invented. Read that as the calibration
+    /// being CONSERVATIVE at L12, not as it transferring.
+    /// </summary>
+    public static (double EastWest, double NorthSouth) WindowPostings(double latDeg, int level,
+                                                                      double windowM)
+    {
+        var (ew, ns) = PostingMeters(latDeg, level);
+        return (ew > 0 ? windowM / ew : 0.0, ns > 0 ? windowM / ns : 0.0);
+    }
+
+    /// <summary>One line an operator can read: the posting and the window span at a level.</summary>
+    public static string CalibrationNote(double latDeg, int level, double windowM, double threshold)
+    {
+        var (ew, ns) = PostingMeters(latDeg, level);
+        var (pew, pns) = WindowPostings(latDeg, level, windowM);
+        string caveat = level >= DefaultElevationLevel
+            ? FormattableString.Invariant($"the level the {threshold:F2} threshold was calibrated on")
+            : FormattableString.Invariant(
+                  $"COARSER than the L{DefaultElevationLevel} the {threshold:F2} threshold was calibrated on - the ")
+              + "sustained window is averaged over fewer postings, so a real face reads LOWER and a flag can be "
+              + "MISSED (never invented)";
+        return FormattableString.Invariant(
+            $"elevation L{level} at {latDeg:F2} N: posting {ew:F1} m E-W x {ns:F1} m N-S, so the {windowM:F0} m sustained window spans {pew:F1} x {pns:F1} postings - {caveat}");
     }
 
     /// <summary>Python's floor division - NOT C#'s truncating '/' - for a global sample index.</summary>
@@ -96,6 +160,8 @@ public sealed class TileSource : IDisposable
     private readonly string _cacheDir;
     private readonly bool _offline;
     private readonly bool _nearest;
+    private readonly int _elevLevel;
+    private readonly int _elevMinLevel;
     private readonly HttpClient _http;
     private readonly ConcurrentDictionary<(int ds, int level, int x, int y), GeoTiffFloat.Raster> _elev = new();
     private readonly ConcurrentDictionary<(int ds, int level, int x, int y), PngImage.Image> _cover = new();
@@ -112,11 +178,39 @@ public sealed class TileSource : IDisposable
     public int CacheHits => Volatile.Read(ref _cacheHits);
     public string CacheDirectory => _cacheDir;
 
-    public TileSource(string cacheDir, bool offline = false, bool nearest = false, HttpClient http = null)
+    /// <summary>The level the cascade STARTS at (Vrf:PreflightElevationLevel).</summary>
+    public int ElevationLevel => _elevLevel;
+
+    /// <summary>The level the cascade STOPS at (Vrf:PreflightElevationMinLevel).</summary>
+    public int ElevationMinLevel => _elevMinLevel;
+
+    // THE RESOLVED LEVEL PER AREA. An "area" is one tile AT THE START LEVEL - the finest cell
+    // whose coverage the probe actually establishes. A COARSER cell (say the floor level's tile)
+    // would be cheaper but wrong: it would let one tile's presence decide for its neighbours, so
+    // an AO where the start level is PARTIAL would keep scoring the holes as NaN instead of
+    // falling back, which is the very failure this cascade exists to remove. Coverage is patchy
+    // at this scale in practice - measured 2026-09-20, dataset 149 serves the Mojave AO at L13
+    // and Lake Tahoe, 200 km away, only at L12.
+    //
+    // The extra cost is bounded and paid once: the probe reads the tile the sample needs anyway,
+    // and a tile the server does not have is remembered in _failed, so an AO served one level
+    // down costs one 404 per start-level tile and nothing thereafter. Value: the level that
+    // returned data, or 0 for "no data at any level" - so a blind area costs ONE probe, not one
+    // per sample, and the loud report is emitted per leg rather than 5,000 times.
+    private readonly ConcurrentDictionary<(int x, int y), int> _levelByArea = new();
+
+    public TileSource(string cacheDir, bool offline = false, bool nearest = false,
+                      HttpClient http = null,
+                      int elevationLevel = TileMath.DefaultElevationLevel,
+                      int elevationMinLevel = TileMath.DefaultMinElevationLevel)
     {
         _cacheDir = cacheDir;
         _offline = offline;
         _nearest = nearest;
+        // A level below the floor, or a floor above the level, would silently disable the
+        // cascade; clamp both and keep the pair ordered rather than throwing inside a worker.
+        _elevLevel = Math.Clamp(elevationLevel, 1, 20);
+        _elevMinLevel = Math.Clamp(Math.Min(elevationMinLevel, _elevLevel), 1, _elevLevel);
         Directory.CreateDirectory(_cacheDir);
         _http = http ?? NewCurlLikeClient();
     }
@@ -209,12 +303,59 @@ public sealed class TileSource : IDisposable
     }
 
     /// <summary>
-    /// Terrain height at a point, bilinear (or nearest with the constructor flag) over the
-    /// streamed postings. NaN when the tile is missing - and the NaN is allowed to propagate
-    /// through the bilinear arithmetic exactly as it does in python, so a leg that clips a
-    /// data hole ends up with NaN samples and NO VERDICT rather than a fabricated number.
+    /// THE LEVEL THIS AREA IS SERVED AT, or 0 when NO level in the cascade has a tile here.
+    /// Probed once per area and remembered (see <see cref="_levelByArea"/>). The probe asks only
+    /// whether the tile that OWNS the point decodes - the neighbour-tile fallback in
+    /// <see cref="Posting"/> is a sampling detail and deliberately not part of the decision, so
+    /// the level a leg is scored at is a property of the ground and not of which edge it clipped.
     /// </summary>
-    public double Elevation(double latDeg, double lonDeg, int level = TileMath.ElevationLevel)
+    public int ResolveLevel(double latDeg, double lonDeg)
+    {
+        var key = AreaKey(latDeg, lonDeg);
+        if (_levelByArea.TryGetValue(key, out int known)) return known;
+        int found = 0;
+        for (int level = _elevLevel; level >= _elevMinLevel; level--)
+        {
+            var (x, y) = TileIndex(level, latDeg, lonDeg);
+            if (ElevationTile(level, x, y) != null) { found = level; break; }
+        }
+        _levelByArea[key] = found;
+        return found;
+    }
+
+    /// <summary>The area cell a point belongs to: one tile at the START level of the cascade.</summary>
+    private (int x, int y) AreaKey(double latDeg, double lonDeg) => TileIndex(_elevLevel, latDeg, lonDeg);
+
+    /// <summary>The (x, y) of the tile that OWNS a point at a level.</summary>
+    private static (int x, int y) TileIndex(int level, double latDeg, double lonDeg)
+    {
+        double p = TileMath.Posting(level);
+        var (x, _) = TileMath.SplitIndex((int)Math.Floor((lonDeg + 180.0) / p));
+        var (y, _) = TileMath.SplitIndex((int)Math.Floor((latDeg + 90.0) / p));
+        return (x, y);
+    }
+
+    /// <summary>
+    /// Terrain height at a point, at the deepest level of the cascade that serves this area.
+    /// <paramref name="levelUsed"/> is 0 when no level did, in which case the value is NaN and
+    /// the caller MUST say so out loud - a leg nothing could be sampled for is not a clear leg.
+    /// </summary>
+    public double Elevation(double latDeg, double lonDeg, out int levelUsed)
+    {
+        levelUsed = ResolveLevel(latDeg, lonDeg);
+        return levelUsed == 0 ? double.NaN : ElevationAt(latDeg, lonDeg, levelUsed);
+    }
+
+    /// <summary>The cascade form without the level - what most callers want.</summary>
+    public double Elevation(double latDeg, double lonDeg) => Elevation(latDeg, lonDeg, out _);
+
+    /// <summary>
+    /// Terrain height at ONE GIVEN LEVEL, bilinear (or nearest with the constructor flag) over
+    /// the streamed postings - no cascade. NaN when the tile is missing, and the NaN is allowed
+    /// to propagate through the bilinear arithmetic exactly as it does in python, so a leg that
+    /// clips a data hole ends up with NaN samples and NO VERDICT rather than a fabricated number.
+    /// </summary>
+    public double ElevationAt(double latDeg, double lonDeg, int level)
     {
         double p = TileMath.Posting(level);
         double gi = (lonDeg + 180.0) / p;

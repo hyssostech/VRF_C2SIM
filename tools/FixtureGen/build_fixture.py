@@ -657,8 +657,99 @@ def resolve_sms_52(sms, verbose=True):
 
 
 # R9 Mojave AOI - data\R9_Mojave_Initialization.xml (58 pts) + _UnitMove_Order.xml (6).
+# AN AO-SPECIFIC DEFAULT, and marked as one since STP-802. It is the .scn's
+# ScenarioExtentInformation - the playbox the front end frames and the scenario claims as its
+# own ground - so a fixture built for another AO with this left in place names CALIFORNIA.
+# Override with --aoi lat_min,lat_max,lon_min,lon_max[,h]; the default is unchanged, which is
+# what keeps every existing fixture byte-identical (the README's reproducibility property).
 R9_AOI = dict(lat_min=34.5605, lat_max=34.6696,
               lon_min=-116.7127, lon_max=-116.3867, h=1041.0)
+
+# Named boxes, so a fixture can be built without retyping six decimals. The Suwalki values
+# cover BOTH nav tiles of scratchpad/validation/suwalki_nav_plan.md sec 1.3 (SuwalkiN20 +
+# SuwalkiS20), and h is that plan's measured 120-165 m terrain rounded to its own corner
+# height. Adding a name here changes NOTHING unless it is asked for by --aoi.
+NAMED_AOI = {
+    "r9-mojave": R9_AOI,
+    "suwalki": dict(lat_min=54.0000, lat_max=54.2353,
+                    lon_min=23.1808, lon_max=23.7954, h=150.0),
+}
+
+
+def parse_aoi(spec):
+    """'lat_min,lat_max,lon_min,lon_max[,h]' or a NAMED_AOI key -> the aoi dict.
+
+    Validated rather than trusted: a transposed pair or a swapped lat/lon is the whole failure
+    mode this option exists to prevent, and it would otherwise show up as a plausible-looking
+    extent on the other side of the planet.
+    """
+    if spec is None:
+        return None
+    key = spec.strip().lower()
+    if key in NAMED_AOI:
+        return dict(NAMED_AOI[key])
+    parts = [p.strip() for p in spec.split(",")]
+    if len(parts) not in (4, 5):
+        raise SystemExit("--aoi wants lat_min,lat_max,lon_min,lon_max[,h] or one of %s; got %r"
+                         % (", ".join(sorted(NAMED_AOI)), spec))
+    try:
+        v = [float(p) for p in parts]
+    except ValueError:
+        raise SystemExit("--aoi values must be numbers; got %r" % spec)
+    aoi = dict(lat_min=v[0], lat_max=v[1], lon_min=v[2], lon_max=v[3],
+               h=(v[4] if len(v) == 5 else 0.0))
+    if not (-90.0 <= aoi["lat_min"] < aoi["lat_max"] <= 90.0):
+        raise SystemExit("--aoi latitudes must satisfy -90 <= lat_min < lat_max <= 90; got "
+                         "%r..%r" % (aoi["lat_min"], aoi["lat_max"]))
+    if not (-180.0 <= aoi["lon_min"] < aoi["lon_max"] <= 180.0):
+        raise SystemExit("--aoi longitudes must satisfy -180 <= lon_min < lon_max <= 180; got "
+                         "%r..%r" % (aoi["lon_min"], aoi["lon_max"]))
+    if not (-500.0 <= aoi["h"] <= 9000.0):
+        raise SystemExit("--aoi h must be a WGS84 height in metres (-500..9000); got %r"
+                         % aoi["h"])
+    return aoi
+
+
+def aoi_selftest():
+    """OFFLINE gate for --aoi: writes nothing, reads nothing, launches nothing."""
+    bad = 0
+
+    def check(ok, what):
+        nonlocal bad
+        print("  [%s] %s" % ("PASS" if ok else "FAIL", what))
+        if not ok:
+            bad += 1
+
+    print("--- --aoi parsing and the extent arithmetic (STP-802) ---")
+    check(parse_aoi(None) is None, "no --aoi means the default is used, untouched")
+    check(parse_aoi("r9-mojave") == R9_AOI, "the named default round-trips to R9_AOI")
+    ref = aoi_extent_ecef(R9_AOI)
+    check(aoi_extent_ecef(parse_aoi("r9-mojave")) == ref,
+          "and produces the SAME ScenarioExtentInformation - existing fixtures are unchanged")
+    check(aoi_extent_ecef(parse_aoi(
+              "34.5605,34.6696,-116.7127,-116.3867,1041.0")) == ref,
+          "so does spelling the Mojave box out by hand")
+    suw = parse_aoi("suwalki")
+    check(suw["lat_min"] == 54.0 and suw["lat_max"] == 54.2353
+          and suw["lon_min"] == 23.1808 and suw["lon_max"] == 23.7954 and suw["h"] == 150.0,
+          "the suwalki box covers both nav tiles (54.0000..54.2353 N, 23.1808..23.7954 E, h 150)")
+    sx, sy, sz, sr = aoi_extent_ecef(suw)
+    check(sx > 0 and sy > 0 and sz > 0 and 20000.0 < sr < 40000.0,
+          "its extent is a positive-octant ECEF centre with a %.0f m radius (Poland, not "
+          "California)" % sr)
+    check(ref[3] > 0 and (sx - ref[0]) ** 2 > 1e12,
+          "and it is nowhere near the Mojave centre")
+    for bogus in ("34.6696,34.5605,-116.7127,-116.3867",     # latitudes transposed
+                  "34.5605,34.6696,-116.3867,-116.7127",     # longitudes transposed
+                  "91,92,0,1", "0,1,-181,-179", "0,1,2,3,99999",
+                  "1,2,3", "a,b,c,d", "nope"):
+        try:
+            parse_aoi(bogus)
+            check(False, "REFUSED %r" % bogus)
+        except SystemExit:
+            check(True, "REFUSED %r" % bogus)
+    print("AOI SELFTEST %s (%d problem(s))" % ("PASS" if bad == 0 else "FAIL", bad))
+    return 0 if bad == 0 else 1
 
 # The two GLOBAL singletons a scenario keeps when every simulation object is
 # stripped. Matched on the FIRST SIX object-type fields, because the 7th differs
@@ -879,6 +970,10 @@ def build_empty_52(out_name, donor="GroundMovement", frame_mode=None,
 
     Returns (scnx_path, report_dict). The donor .scnx is only READ.
     """
+    # THE DEFAULT IS AO-SPECIFIC. Left unset it is the Mojave playbox, which is correct for
+    # every fixture built before STP-802 and wrong for every fixture built for another AO -
+    # so the chosen box is PRINTED below rather than left to be discovered in the .scn.
+    aoi_default = aoi is None
     aoi = aoi or R9_AOI
     terrain = terrain or TERRAIN_52
     if terrain != TERRAIN_52 and not os.path.isfile(terrain):
@@ -967,7 +1062,8 @@ def build_empty_52(out_name, donor="GroundMovement", frame_mode=None,
                members=[m for m, _ in members], donor_members=order,
                kept=kept_names, n_dropped=len(dropped_uuids),
                omp_before=len(omp_before), omp_after=len(kept_uuids),
-               terrain=terrain, sms=sms, extent=extent,
+               terrain=terrain, sms=sms, extent=extent, aoi=dict(aoi),
+               aoi_is_default=aoi_default,
                frame_mode=frame_mode, frame_time=frame_time, new_52_keys=new_keys)
     if verbose:
         print("BUILT %s" % scnx_path)
@@ -990,7 +1086,11 @@ def build_empty_52(out_name, donor="GroundMovement", frame_mode=None,
         print("  frame-mode    = %s" % (frame_mode if frame_mode else "(unchanged)"))
         print("  frame-time    = %s" % (("%.6f" % float(frame_time))
                                         if frame_time is not None else "(unchanged)"))
-        print("  extent (R9)   = %s" % extent)
+        print("  aoi           = %.4f..%.4f N, %.4f..%.4f E, h %.1f m%s"
+              % (aoi["lat_min"], aoi["lat_max"], aoi["lon_min"], aoi["lon_max"], aoi["h"],
+                 "  (DEFAULT - the R9 MOJAVE playbox; pass --aoi for another AO)"
+                 if aoi_default else "  (--aoi)"))
+        print("  extent        = %s" % extent)
         print("  5.2 .scn keys = %s" % (", ".join(new_keys) or "(none)"))
     return scnx_path, rep
 
@@ -1101,7 +1201,17 @@ if __name__ == "__main__":
                     help="--empty donor: %s, or a path to a .scnx. Default "
                          "GroundMovement." % ", ".join(sorted(DONORS_52)))
     ap.add_argument("--out-name", default="R9_Mojave_Empty_52",
-                    help="--empty output base name (default R9_Mojave_Empty_52).")
+                    help="--empty output base NAME STEM (default R9_Mojave_Empty_52 - an "
+                         "AO-specific default). Pair it with --aoi for another AO, e.g. "
+                         "--aoi suwalki --out-name Suwalki_Empty_52_Nav_AG.")
+    ap.add_argument("--aoi", default=None, metavar="BOX",
+                    help="--empty only: the .scn ScenarioExtentInformation playbox, as "
+                         "lat_min,lat_max,lon_min,lon_max[,h] or a named box (%s). DEFAULT: the "
+                         "R9 MOJAVE box - so a fixture for another AO built without this option "
+                         "claims California as its ground. Omitting it keeps every existing "
+                         "fixture byte-identical." % ", ".join(sorted(NAMED_AOI)))
+    ap.add_argument("--aoi-selftest", action="store_true",
+                    help="offline gate for --aoi: parse + extent arithmetic, writes nothing.")
     ap.add_argument("--negative-controls", default=None, metavar="DIR",
                     help="--empty only: also write two DELIBERATELY BROKEN copies "
                          "(missing frame-time; a stray simulation object) into DIR, "
@@ -1126,6 +1236,13 @@ if __name__ == "__main__":
                          "legs beyond ~2 km are then refused on a sectorised area.")
     args = ap.parse_args()
 
+    if args.aoi_selftest:
+        sys.exit(aoi_selftest())
+
+    if args.aoi and not args.empty:
+        raise SystemExit("--aoi is a --profile 5.2 --empty option (the 5.0.2 path takes its "
+                         "extent from the base scenario)")
+
     if (args.sms or args.no_custom_sms) and not args.empty:
         raise SystemExit("--sms / --no-custom-sms are --profile 5.2 --empty options "
                          "(the 5.0.2 path takes its SMS from the base scenario)")
@@ -1146,7 +1263,7 @@ if __name__ == "__main__":
         build_empty_52(args.out_name, donor=args.donor,
                        frame_mode=args.frame_mode, frame_time=args.frame_time,
                        out_dir=args.out_dir, scenario_name=args.scenario_name,
-                       terrain=args.terrain, sms=sms_arg)
+                       terrain=args.terrain, sms=sms_arg, aoi=parse_aoi(args.aoi))
         if args.negative_controls:
             print("=" * 70)
             build_empty_52_negative_controls(

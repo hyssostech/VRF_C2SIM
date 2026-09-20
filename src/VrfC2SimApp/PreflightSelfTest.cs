@@ -243,6 +243,10 @@ public static class PreflightSelfTest
         // ---- 5: the EMISSION POLICY, independent of any tile ------------------------------
         failures += CheckEmissionPolicy(mine, threshold);
 
+        // ---- 6: AO INDEPENDENCE - the elevation cascade and the water finding -------------
+        failures += CheckElevationCascade(svc, mine);
+        failures += CheckWaterPolicy();
+
         Console.WriteLine();
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
         return failures == 0 ? 0 : 1;
@@ -319,6 +323,150 @@ public static class PreflightSelfTest
               "the reports name legs 1 and 3, in leg order");
         Check(ref failures, got.Count > 0 && got.All(x => x.Contains("PREDICTED IMPASSABLE (pre-flight estimate,", StringComparison.Ordinal)),
               "every report carries the PREDICTED IMPASSABLE (pre-flight estimate, ...) wording");
+        return failures;
+    }
+
+    /// <summary>
+    /// THE ELEVATION LEVEL IS A SETTING WITH A FALLBACK, and the Mojave AO must not notice.
+    ///
+    /// Offline on the committed cache, which holds 149_13 tiles and nothing else, so every
+    /// assertion here is about behaviour and not about which tiles happen to be warm:
+    ///   - the defaults are 13 and 11, and the options carry them into the tile source;
+    ///   - every scored leg of the reference order resolved at L13 - the cascade never fired,
+    ///     which is exactly why section 3 above compared byte-identical;
+    ///   - a cascade told to start BELOW the cache's only level resolves NOTHING and says so
+    ///     with level 0 and NaN, rather than fabricating a height from a parent tile;
+    ///   - the posting arithmetic behind the calibration caveat is the measured one.
+    /// </summary>
+    private static int CheckElevationCascade(PreflightService svc, List<TaskPreflight> mine)
+    {
+        int failures = 0;
+        Console.WriteLine();
+        Console.WriteLine("--- elevation level + fallback (Vrf:PreflightElevationLevel) ---");
+        Check(ref failures, TileMath.DefaultElevationLevel == 13 && TileMath.DefaultMinElevationLevel == 11,
+              $"the shipped cascade is L{TileMath.DefaultElevationLevel} down to L{TileMath.DefaultMinElevationLevel}");
+        Check(ref failures, svc.Tiles.ElevationLevel == TileMath.DefaultElevationLevel
+                            && svc.Tiles.ElevationMinLevel == TileMath.DefaultMinElevationLevel,
+              $"the options reach the tile source (L{svc.Tiles.ElevationLevel} -> L{svc.Tiles.ElevationMinLevel})");
+
+        var levels = mine.SelectMany(t => t.Legs).Select(l => l.ElevationLevel).Distinct().OrderBy(x => x).ToList();
+        Check(ref failures, levels.Count == 1 && levels[0] == TileMath.DefaultElevationLevel,
+              $"every leg of the reference order resolved at L{TileMath.DefaultElevationLevel} - the fallback " +
+              $"never fires on the Mojave AO (levels seen: {string.Join(",", levels)})");
+
+        // The Mojave calibration point, at the level the calibration was made on and one below.
+        var (ew13, ns13) = TileMath.PostingMeters(34.66, 13);
+        var (ew12, ns12) = TileMath.PostingMeters(34.66, 12);
+        Check(ref failures, Math.Abs(ew13 - 7.86) < 0.02 && Math.Abs(ns13 - 9.55) < 0.02,
+              $"L13 posting at 34.66 N is 7.86 x 9.55 m (FINDING sec 7; got {ew13:F2} x {ns13:F2})");
+        Check(ref failures, Math.Abs(ew12 / ew13 - 2.0) < 1e-9 && Math.Abs(ns12 / ns13 - 2.0) < 1e-9,
+              "one level coarser doubles the posting in both axes - the smoothing is a factor of two");
+        var (_, pns13) = TileMath.WindowPostings(34.66, 13, 40.0);
+        var (_, pns12) = TileMath.WindowPostings(34.66, 12, 40.0);
+        Check(ref failures, Math.Abs(pns13 - 4.19) < 0.02 && Math.Abs(pns12 - 2.09) < 0.02,
+              $"the 40 m window spans {pns13:F2} postings N-S at L13 and {pns12:F2} at L12 - HALF the " +
+              "evidence for the same verdict");
+        Check(ref failures, TileMath.CalibrationNote(54.1, 12, 40.0, 0.92).Contains("MISSED", StringComparison.Ordinal)
+                            && !TileMath.CalibrationNote(34.66, 13, 40.0, 0.92).Contains("MISSED", StringComparison.Ordinal),
+              "the calibration note carries the one-sided-bias caveat at a coarser level, and not at L13");
+
+        // A cascade that cannot reach the cache's only level must resolve NOTHING.
+        using (var blind = new TileSource(svc.Tiles.CacheDirectory, offline: true, nearest: false,
+                                          http: null, elevationLevel: 12, elevationMinLevel: 11))
+        {
+            double z = blind.Elevation(34.65607, -116.76144, out int used);
+            Check(ref failures, used == 0 && double.IsNaN(z),
+                  "with the cascade pinned below the cached level, the sample is level 0 / NaN - no height is " +
+                  $"invented from a parent tile (got L{used} / {z})");
+        }
+        using (var deep = new TileSource(svc.Tiles.CacheDirectory, offline: true, nearest: false,
+                                         http: null, elevationLevel: 14, elevationMinLevel: 11))
+        {
+            double z = deep.Elevation(34.65607, -116.76144, out int used);
+            Check(ref failures, used == 13 && Math.Abs(z - 1585.6) < 0.5,
+                  $"starting ABOVE the served level falls back to L13 and returns the calibration height " +
+                  $"(got L{used} / {z:F2} m)");
+        }
+        // The clamp: a floor above the start must not silently disable the cascade.
+        using (var odd = new TileSource(svc.Tiles.CacheDirectory, offline: true, nearest: false,
+                                        http: null, elevationLevel: 12, elevationMinLevel: 15))
+            Check(ref failures, odd.ElevationLevel == 12 && odd.ElevationMinLevel == 12,
+                  $"a floor above the start level is clamped to it (L{odd.ElevationLevel} -> L{odd.ElevationMinLevel})");
+        return failures;
+    }
+
+    /// <summary>
+    /// WATER IS A FINDING, and it is reported even when the grade flag would not fire.
+    /// Pure: synthetic legs, no tile, no bridge, no federation.
+    /// </summary>
+    private static int CheckWaterPolicy()
+    {
+        int failures = 0;
+        Console.WriteLine();
+        Console.WriteLine("--- water findings (PreflightReports.BuildForTask / BuildWaterFindings) ---");
+        const string iso = "2026-09-20T00:00:00Z";
+        int seq = 0;
+        Func<string> ids = () => $"00000000-0000-0000-0000-{(++seq):D12}";
+
+        Check(ref failures, LegScorer.IsWaterSoil("deep-water") && LegScorer.IsWaterSoil("shallow-water")
+                            && !LegScorer.IsWaterSoil("sand") && !LegScorer.IsWaterSoil("hard-packed")
+                            && !LegScorer.IsWaterSoil(null),
+              "deep-water and shallow-water are water; sand, hard-packed and 'no soil' are not");
+
+        // A leg the grade flag would NOT catch: water off the worst window, ratio well clear.
+        var wetLeg = new LegMetrics
+        {
+            Index = 2, Flagged = false, Ratio = 0.30, Samples = 100, Soil = "hard-packed",
+            WaterSamples = 7, WaterFraction = 0.07, WaterSoil = "deep-water",
+            WaterSource = "CLCplus 10m", WaterDesc = "Water", WaterFirst = (54.12, 23.50),
+            WaterFirstSM = 1234.0, ElevationLevel = 12,
+        };
+        var dryLeg = new LegMetrics { Index = 1, Flagged = false, Ratio = 0.20, Samples = 100, ElevationLevel = 12 };
+        var task = new TaskPreflight
+        {
+            TaskName = "T_WET", UnitName = "278th ACR", UnitUuid = "u-w", Template = "Tank Platoon (USA)",
+            Legs = new List<LegMetrics> { dryLeg, wetLeg },
+        };
+        var got = PreflightReports.BuildForTask(task, 0.92, iso, ids);
+        Check(ref failures, got.Count == 1, $"an unflagged leg that crosses water still emits one report (got {got.Count})");
+        Check(ref failures, got.Count == 1 && got[0].Contains("WATER ON THE LINE", StringComparison.Ordinal),
+              "and that report is the WATER finding");
+        Check(ref failures, got.Count == 1 && got[0].Contains("NOTHING was refused or altered", StringComparison.Ordinal),
+              "the water finding says outright that nothing was refused or altered");
+        Check(ref failures, got.Count == 1 && Occurrences(got[0], "<LocationObservation>") == 1
+                            && Occurrences(got[0], "<NameObservation>") == 1,
+              "it carries the same Location + Name pair as every other pre-flight finding");
+        Check(ref failures, got.Count == 1 && !got[0].Contains("<AltitudeMSL>", StringComparison.Ordinal),
+              "and NO AltitudeMSL - the height under a water class is not a claim worth making");
+
+        // A leg that is BOTH flagged and wet emits the water sentence, not the grade sentence:
+        // a water sample inside the window derates the limit to zero and the ratio to infinity.
+        var bothLeg = wetLeg with { Index = 3, Flagged = true, Ratio = double.PositiveInfinity, Limit = 0.0 };
+        var both = PreflightReports.BuildForTask(
+            task with { TaskName = "T_BOTH", Legs = new List<LegMetrics> { bothLeg } }, 0.92, iso, ids);
+        Check(ref failures, both.Count == 1 && both[0].Contains("WATER ON THE LINE", StringComparison.Ordinal)
+                            && !both[0].Contains("PREDICTED IMPASSABLE", StringComparison.Ordinal),
+              "a leg that is flagged AND wet emits the water sentence instead of the grade sentence - one " +
+              "report per leg, and the true one");
+
+        // The shift reader's separate emitter: per wet leg, and silent otherwise.
+        var shiftSide = PreflightReports.BuildWaterFindings("u-w", "278th ACR", "T_WET",
+                                                            new List<LegMetrics> { dryLeg, wetLeg, bothLeg },
+                                                            iso, ids);
+        Check(ref failures, shiftSide.Count == 2,
+              $"BuildWaterFindings emits one per WET leg and nothing for a dry one (got {shiftSide.Count} of 3 legs)");
+        Check(ref failures, PreflightReports.BuildWaterFindings("u", "unit", "T", new List<LegMetrics> { dryLeg },
+                                                               iso, ids).Count == 0,
+              "a route with no water is silent");
+
+        // And the cold-cache guard's rule, the one proposal applied from the route-shift review.
+        Check(ref failures, VrfC2SimService.RouteShiftCanScore(offline: false, cachedFiles: 0)
+                            && VrfC2SimService.RouteShiftCanScore(offline: true, cachedFiles: 1)
+                            && VrfC2SimService.RouteShiftCanScore(offline: false, cachedFiles: 900)
+                            && !VrfC2SimService.RouteShiftCanScore(offline: true, cachedFiles: 0)
+                            && VrfC2SimService.RouteShiftCanScore(offline: true, cachedFiles: -1),
+              "the route shift is skipped ONLY when offline AND the cache is known empty - an empty cache " +
+              "with fetching allowed still runs, and an unreadable cache is not evidence of emptiness");
         return failures;
     }
 

@@ -909,6 +909,14 @@ if ($Is52) {
     $ProfileEnv['RTI_ASSISTANT_DISABLE']= '1'
 }
 
+# AO-SPECIFIC DEFAULTS (STP-802). Both name a MOJAVE pair, which was the only AO until the
+# 2026-09-20 ruling that the demo is Iron Storm over the Suwalki Gap. They stay the defaults so
+# every recorded run reproduces, but they are now explicit and overridable without editing this
+# file: -Init / -Order win, then $env:C2SIM_INIT / $env:C2SIM_ORDER, then these.
+# THE PAIR MUST COME FROM ONE AO. A Suwalki init with a Mojave order authors an 8,769 km leg and
+# the back end's path job never returns (memory lessons-order-coordinates-vs-init, STP-823).
+if ([string]::IsNullOrWhiteSpace($Init))    { $Init    = $env:C2SIM_INIT }
+if ([string]::IsNullOrWhiteSpace($Order))   { $Order   = $env:C2SIM_ORDER }
 if ([string]::IsNullOrWhiteSpace($Init))    { $Init    = Join-Path $DataDir 'R9_Mojave_Lean_Initialization.xml' }
 if ([string]::IsNullOrWhiteSpace($Order))   { $Order   = Join-Path $DataDir 'R9_Mojave_UnitMove_Order.xml' }
 if ([string]::IsNullOrWhiteSpace($RunRoot)) { $RunRoot = Join-Path $RepoRoot 'runs' }

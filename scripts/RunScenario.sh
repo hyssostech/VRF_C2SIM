@@ -39,9 +39,15 @@ PWSH64='/c/Program Files/PowerShell/7/pwsh.exe'
 # ---- defaults (the G6 configuration) ----------------------------------------
 PROFILE='5.2'
 NOGUI=1
-SCENARIO='R9_Mojave_Empty_52_NavAO'
-INIT='data/COA-STP1_Initialization.xml'
-ORDER='data/COA-STP1_Order.xml'
+# THE NEXT THREE ARE AO-SPECIFIC DEFAULTS (STP-802), and they are marked as such because the
+# demo AO is no longer the Mojave: the scenario names a MOJAVE fixture and the init/order are
+# the MOJAVE COA-STP1 pair. Run another AO by passing --scenario/--init/--order, or by exporting
+# C2SIM_SCENARIO / C2SIM_INIT / C2SIM_ORDER - the command line still wins over the environment.
+# Do NOT mix: a Suwalki scenario with a Mojave order authors legs on another continent (the V6c-
+# V6f defect, memory lessons-order-coordinates-vs-init).
+SCENARIO="${C2SIM_SCENARIO:-R9_Mojave_Empty_52_NavAO}"
+INIT="${C2SIM_INIT:-data/COA-STP1_Initialization.xml}"
+ORDER="${C2SIM_ORDER:-data/COA-STP1_Order.xml}"
 CLIENT_ID='C2SIM'
 TYPEMAP=''
 RUN_SECS=900
@@ -71,9 +77,12 @@ usage: scripts/RunScenario.sh [options] [-- <extra runner arguments>]
 
   --profile 5.2|5.0.2       VR-Forces profile                 (default 5.2)
   --gui | --no-gui          front end on/off (5.2 only)       (default --no-gui)
-  --scenario NAME           scenario name                     (default R9_Mojave_Empty_52_NavAO)
-  --init PATH               C2SIM initialization xml          (default data/COA-STP1_Initialization.xml)
-  --order PATH              C2SIM order xml                   (default data/COA-STP1_Order.xml)
+  --scenario NAME           scenario name                     (default R9_Mojave_Empty_52_NavAO,
+                            a MOJAVE fixture; or export C2SIM_SCENARIO)
+  --init PATH               C2SIM initialization xml          (default data/COA-STP1_Initialization.xml,
+                            a MOJAVE init; or export C2SIM_INIT)
+  --order PATH              C2SIM order xml                   (default data/COA-STP1_Order.xml,
+                            a MOJAVE order; or export C2SIM_ORDER)
   --client-id ID            must equal the init's SystemName  (default C2SIM)
   --type-map PATH           Vrf__TypeMapFile (WINDOWS path)   (default: the repo map)
   --run-secs N              observation window cap            (default 900)
