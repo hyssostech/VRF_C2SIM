@@ -3640,6 +3640,13 @@ try {
         if ($VrfAppDataDir) { $launchArgs += @('-AppDataDir', $VrfAppDataDir) }
         if ($NoGui) { $launchArgs += '-NoGui' }
         $launchArgs += @('-NotifyLevel', [string]$BackendNotifyLevel)
+        # STP-825 (2026-09-15): LaunchVrf52.ps1 now defaults to starting ITS OWN federation
+        # holder (-FederationHoldSecs 900) for the STANDALONE DEMO path, which has no runner
+        # in front of it. THIS runner already holds the federation at Stage 2h above, before
+        # Stage 2c ever runs - so Stage 3 passes 0 EXPLICITLY here to keep this call site
+        # BYTE-IDENTICAL to its pre-STP-825-demo-holder behaviour. Without this, a 5.2 run
+        # would burn a SECOND appNumber on a second holder on top of Stage 2h's own.
+        $launchArgs += @('-FederationHoldSecs', '0')
     }
     # -q | --doNotUseConsole for the back end. Off by default; see the -QuietBackend
     # note in the param block. Recorded in the manifest as inputs.quietBackend either way.

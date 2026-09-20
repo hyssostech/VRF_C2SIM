@@ -153,11 +153,19 @@ UNVERIFIED: this wrapper has been used live three times (2026-09-14), always WIT
        pwsh -File scripts\StartRtiExec52.ps1
    EXPECT: "RTIEXEC READY ... tcp=...:4001", or "ALREADY UP ... NOTHING was started". Exit code 0.
 
+1b. THE FEDERATION HOLDER (STP-825, automatic - nothing to type). rtiexec 5.0.1 rejects a
+    federation CREATOR's FOM-module distribution intermittently, so without a holder
+    VR-Forces itself would be the creator and could die at startup on a rejected create.
+    Step 2 below starts a small holder (`RtiProbe.exe`) first and waits for it to join, so
+    VR-Forces only ever JOINS. EXPECT a live `RtiProbe.exe` process after the demo - it is
+    the holder, not a leftover, and resigns on its own after 900 seconds; do not stop it.
+
 2. VR-Forces WITH the GUI - this is the audience's window:
        pwsh -File scripts\LaunchVrf52.ps1 -Scenario R9_Mojave_Empty_52 `
             -BackendAppNumber 9201 -FrontendAppNumber 9202
-   EXPECT: "READY" from the script, then the GUI showing an empty Mojave map with the simulation
-   clock running. Terrain load takes a while the first time (it is streaming from the internet).
+   EXPECT: a "Federation HOLDER (STP-825)" section (step 1b) first, then "READY" from the
+   script, then the GUI showing an empty Mojave map with the simulation clock running.
+   Terrain load takes a while the first time (it is streaming from the internet).
 
 3. The interface:
        pwsh -File scripts\StartInterface52.ps1 -ClientId STP
@@ -291,6 +299,8 @@ initialization time, and pushing a second initialization into a live interface d
 1. A LEFTOVER VR-FORCES BACK END FROM AN EARLIER RUN BLOCKS THE LAUNCH.
    Remedy: close it (`pwsh -File scripts\StopVrf52.ps1`) and launch again - never "force it through"
    with an allow-existing switch, which reports READY against somebody else's simulation.
+   NOTE: a live `RtiProbe.exe` is NOT this problem - it is the STP-825 federation holder
+   (step 1b), expected to still be running after a demo, and is never VR-Forces itself.
 
 2. THE MAK RTI CONNECTION DIALOG APPEARS ON THE FIRST START AFTER A REBOOT.
    Remedy: it is once per reboot - pick the rtiexec connection and continue. Reboot the machine well
