@@ -135,6 +135,13 @@ function Get-CompletedTasks {
 # State is a hashtable the caller owns across polls:
 #   firstSeenUtc    : ordered map taskee -> UTC of the poll that FIRST saw a terminal
 #                     report for it
+#   firstSeenCode   : ordered map taskee -> the Code (TASKCMPLT/TASKABRT) of that SAME
+#                     first terminal report. Added 2026-09-20 (V6i cosmetic defect):
+#                     Test-ReportEvidence used to print "TASKCMPLT" unconditionally for
+#                     this anchor even when the terminal report was TASKABRT - the
+#                     tracking here was always code-agnostic, only the printed label
+#                     assumed TASKCMPLT. Defaults to 'TASKCMPLT' when the record has no
+#                     Code (pre-2026-09-14 callers), same convention as codeCounts below.
 #   lineCount       : RUNNING TOTAL of terminal report lines for order taskees across all
 #                     polls. It was "lines seen at the latest poll" until 2026-09-14,
 #                     when the runner's observation loop stopped re-reading the whole
@@ -161,6 +168,7 @@ function Get-CompletedTasks {
 function New-CompletionState {
     return @{
         firstSeenUtc   = [ordered]@{}
+        firstSeenCode  = [ordered]@{}
         lineCount      = 0
         terminalByTask = [ordered]@{}
         codeCounts     = [ordered]@{}
@@ -256,8 +264,21 @@ function Update-CompletionState {
     }
     $inOrder   = @($Completions | Where-Object { $Taskees -contains $_.Taskee })
     $completed = @($inOrder | ForEach-Object { $_.Taskee } | Select-Object -Unique)
+    # First record IN LOG ORDER for each taskee this poll, so a newly-first-seen taskee's
+    # firstSeenCode names the SAME report that set its firstSeenUtc (not some later one,
+    # if this poll's delta happens to carry more than one terminal line for it).
+    $firstRecByTaskee = @{}
+    foreach ($c in $inOrder) {
+        if (-not $firstRecByTaskee.ContainsKey($c.Taskee)) { $firstRecByTaskee[$c.Taskee] = $c }
+    }
     foreach ($u in $completed) {
-        if (-not $State.firstSeenUtc.Contains($u)) { $State.firstSeenUtc[$u] = $NowUtc }
+        if (-not $State.firstSeenUtc.Contains($u)) {
+            $State.firstSeenUtc[$u] = $NowUtc
+            $code0 = 'TASKCMPLT'
+            $c0 = $firstRecByTaskee[$u]
+            if ($null -ne $c0 -and $null -ne $c0.PSObject.Properties['Code'] -and -not [string]::IsNullOrWhiteSpace([string]$c0.Code)) { $code0 = [string]$c0.Code }
+            $State.firstSeenCode[$u] = $code0
+        }
     }
     $State.lineCount += $inOrder.Count
     foreach ($c in $inOrder) {
@@ -742,9 +763,19 @@ function Test-ReportEvidence {
         [Parameter(Mandatory)][double]$ToleranceMeters,
         [AllowNull()]$CaptureEvidence = $null,        # Get-ReportCaptureEvidence output
         [AllowNull()]$AppLogPositionEvidence = $null, # Get-AppLogPositionEvidence output
-        [AllowNull()]$CompletionUtcByTaskee = $null   # taskee uuid -> UTC of the poll that
-                                                      # first saw its TASKCMPLT; the anchor
-                                                      # of last resort for 'C2SIM-capture'
+        [AllowNull()]$CompletionUtcByTaskee = $null,  # taskee uuid -> UTC of the poll that
+                                                      # first saw its TERMINAL report; the
+                                                      # anchor of last resort for 'C2SIM-capture'
+        [AllowNull()]$CodeByTaskee = $null            # taskee uuid -> the Code
+                                                      # (TASKCMPLT/TASKABRT) of that SAME
+                                                      # first terminal report
+                                                      # (Update-CompletionState.firstSeenCode).
+                                                      # Optional and printing-only: unset or
+                                                      # missing prints 'TERMINAL' rather than
+                                                      # guessing a code (2026-09-20, V6i
+                                                      # cosmetic defect - this label used to
+                                                      # hardcode 'TASKCMPLT' regardless of the
+                                                      # actual terminal code).
     )
     $ev = Get-TraceEvidence -TraceText $TraceText
     $per = [ordered]@{}
@@ -789,7 +820,9 @@ function Test-ReportEvidence {
             if ($CaptureEvidence.cmplt.ContainsKey($u)) {
                 $anchor = [datetime]$CaptureEvidence.cmplt[$u]; $anchorSrc = 'the capture own TASKCMPLT'
             } elseif ($null -ne $CompletionUtcByTaskee -and $CompletionUtcByTaskee.Contains($u)) {
-                $anchor = ([datetime]$CompletionUtcByTaskee[$u]); $anchorSrc = 'the runner poll that first saw TASKCMPLT'
+                $anchorCode = 'TERMINAL'
+                if ($null -ne $CodeByTaskee -and $CodeByTaskee.Contains($u) -and -not [string]::IsNullOrWhiteSpace([string]$CodeByTaskee[$u])) { $anchorCode = [string]$CodeByTaskee[$u] }
+                $anchor = ([datetime]$CompletionUtcByTaskee[$u]); $anchorSrc = ('the runner poll that first saw {0}' -f $anchorCode)
             }
             if ($null -ne $anchor) {
                 $rec.capCompletionUtc = $anchor.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
