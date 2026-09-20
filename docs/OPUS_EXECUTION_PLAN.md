@@ -3228,7 +3228,8 @@ NOTE: numbers this runner allocates but does not consume (e.g. an abort before t
 join) are BURNED, not recycled. The run manifest records which were actually used.
 
 - 2026-09-20 STP-825 THREE-ARM RID EXPERIMENT (docs/experiments/PREREG_STP825_BUNDLING_2026-09-20.md): 4657..4718 = PILOT-0 (2, arm A) + 60 interleaved creates A,B,C x 20 by RtiProbe against the SEPARATE federation STP825AB (scratch validation/stp825_abc_harness.ps1; per-federate RID copies; no rtiexec restart; the persistent holder 4635 stays on MAK-ONE-2025). One create per number; numbers not reached are BURNED, never reused. CLAIMED.
-*** NEXT FREE: 4719 *** (authoritative - the ONLY such marker in this file. Update this
+- 2026-09-20 STP-825 NOTIFY-LEVEL ABBA EXPERIMENT (docs/experiments/PREREG_STP825_NOTIFY_2026-09-20.md): 4719..4778 = four blocks of 15 creates, each on a FRESH rtiexec (B1 -NotifyLevel 3: 4719..4733; B2 -NotifyLevel 0: 4734..4748; B3 -NotifyLevel 0: 4749..4763; B4 -NotifyLevel 3: 4764..4778), RtiProbe against the scratch federation STP825AB (scratch validation/stp825_notify_harness.ps1). The user authorised rtiexec restarts 'as needed' 2026-09-20. Numbers not reached are BURNED, never reused. CLAIMED.
+*** NEXT FREE: 4779 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
