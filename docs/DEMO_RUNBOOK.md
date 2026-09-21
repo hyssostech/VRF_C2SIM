@@ -257,7 +257,7 @@ close it (`pwsh -File scripts\StopVrf52.ps1` or the GUI itself).
 
 Then STP pushes the initialization, then the order (section 4).
 
-VERIFIED LIVE as far as start-up (D5b, 2026-09-21, DEMO_READINESS row 7): steps 1-3 above
+UNVERIFIED as a single sequence. VERIFIED LIVE only as far as start-up (D5b, 2026-09-21, row 7): steps 1-3 above
 (rtiexec, LaunchVrf52 with its own standalone federation holder, StartInterface52) ran end to end
 exactly as written and reached READY; the stop order below (StopIface, then StopVrf52) also ran
 and closed a live back end cleanly. NOT YET VERIFIED: a completed tasking. In the one rehearsal
