@@ -590,6 +590,53 @@ function Read-LiveText {
     }
 }
 
+# Test-HolderJoinedInLog / Get-HolderPidLogLines: reused verbatim from RunnerLib.ps1, NOT
+# dot-sourced from it. RunnerLib.ps1 opens with Set-StrictMode -Version Latest, and (as the
+# vrfGui-prompt precheck above explains) this script has never run under StrictMode - dot-
+# sourcing it at script scope would turn StrictMode on for the whole of a LIVE LAUNCH. The
+# precheck gets away with the child-scope `. $libPath` trick because it calls in ONCE before
+# anything starts; this pair is polled up to 45 TIMES PER ATTEMPT inside the join-wait loop
+# below, where re-dot-sourcing a ~1500-line module every second would be wasteful and is not
+# the same tradeoff. Duplicated instead, like Read-TextFromOffset/Read-LiveText just above.
+# CHANGE ONE, CHANGE BOTH (RunnerLib.ps1's copy and this one).
+#
+# Some MAK rtiexec 5.0.1 instances write this log through an UNSERIALISED sink that DOUBLES
+# and INTERLEAVES text token-by-token WITHIN A LINE (the garbling never crosses a line), so
+# the clean line this script documents below (`Federate remoteControl <pid> ("remoteControl"
+# 2) has joined federation "<name>".`) never appears contiguously (STP-825 D8, 2026-09-21).
+function Test-HolderJoinedInLog {
+    param(
+        [AllowNull()][AllowEmptyString()][string]$LogDelta,
+        [Parameter(Mandatory)][int]$ProcessId,
+        [Parameter(Mandatory)][string]$FederationName
+    )
+    if ([string]::IsNullOrEmpty($LogDelta)) { return $false }
+    $lineRe = ('remoteControl\s+{0}\b.*has joined federation.*{1}' -f `
+                [regex]::Escape([string]$ProcessId), [regex]::Escape($FederationName))
+    foreach ($line in ($LogDelta -split "`r?`n")) {
+        if ([string]::IsNullOrEmpty($line)) { continue }
+        if ($line -match $lineRe) { return $true }
+    }
+    return $false
+}
+
+function Get-HolderPidLogLines {
+    param(
+        [AllowNull()][AllowEmptyString()][string]$LogDelta,
+        [Parameter(Mandatory)][int]$ProcessId,
+        [int]$MaxLines = 5
+    )
+    $out = @()
+    if ([string]::IsNullOrEmpty($LogDelta)) { return $out }
+    $pidRe = ('remoteControl\s+{0}\b' -f [regex]::Escape([string]$ProcessId))
+    foreach ($line in ($LogDelta -split "`r?`n")) {
+        if ([string]::IsNullOrEmpty($line)) { continue }
+        if ($line -match $pidRe) { $out += $line }
+    }
+    if ($out.Count -gt $MaxLines) { $out = @($out[($out.Count - $MaxLines)..($out.Count - 1)]) }
+    return $out
+}
+
 # Federation identity the holder must create-or-join: the connection config's own execName
 # (tools/Shared/StackIdentity.cs reads it from there when the tools are given no federation
 # argument - the same reasoning as the runner's Stage 2h). Falls back to the literal
@@ -1119,23 +1166,39 @@ if ($FederationHoldOn) {
             Say-Warn ('attempt {0}: the holder could not be started: {1}' -f ($hi + 1), $_.Exception.Message)
             continue
         }
-        $hJoinRe = ('remoteControl\s+{0}\b.*has joined federation "{1}"' -f $hProc.Id, [regex]::Escape($fedName.Name))
         $hStart  = Get-Date
         while (((Get-Date) - $hStart).TotalSeconds -lt 45) {
             Start-Sleep -Seconds 1
             if ($holderLog) {
-                if ((Read-TextFromOffset -Path $holderLog -Offset $hOffset) -match $hJoinRe) { $holderJoined = $true; break }
+                if (Test-HolderJoinedInLog -LogDelta (Read-TextFromOffset -Path $holderLog -Offset $hOffset) -ProcessId $hProc.Id -FederationName $fedName.Name) { $holderJoined = $true; break }
             } elseif ((Read-LiveText -Path $hOut) -match 'created/joined') {
                 $holderJoined = $true; break
             }
             if ($hProc.HasExited) { break }
+        }
+        $hExited = $hProc.HasExited
+        # Garbled-sink fallback (STP-825 D8, 2026-09-21): the strict matcher above found
+        # nothing, but the holder is STILL ALIVE - an exited holder (a refused create) is
+        # never rescued here, that stays a failure. Show the pid's own log lines at once
+        # instead of a bare timeout; if one still says "joined" (looser than the strict
+        # pid+phrase+federation match), accept it as joined, but say so.
+        if (-not $holderJoined -and -not $hExited -and $holderLog) {
+            $hPidLines = @(Get-HolderPidLogLines -LogDelta (Read-TextFromOffset -Path $holderLog -Offset $hOffset) -ProcessId $hProc.Id -MaxLines 5)
+            if ($hPidLines.Count -gt 0) {
+                Say-Warn ('attempt {0}: holder pid {1} did not join on the strict match, but the rtiexec log DOES mention this pid - last {2} line(s):' -f ($hi + 1), $hProc.Id, $hPidLines.Count)
+                foreach ($pl in $hPidLines) { Say-Warn ('    {0}' -f $pl) }
+                $hLoose = @($hPidLines | Where-Object { $_ -match 'joined' })
+                if ($hLoose.Count -gt 0) {
+                    $holderJoined = $true
+                    Say-Warn ('attempt {0}: holder pid {1} join accepted on a LOOSE match only (pid + "joined" on a garbled line, not the strict pid+phrase+federation match): {2}' -f ($hi + 1), $hProc.Id, $hLoose[-1])
+                }
+            }
         }
         if ($holderJoined) {
             $holderPidOut  = $hProc.Id
             $holderAppUsed = $hAppNo
             Say-Ok ('federation HELD: holder pid {0} (appNumber {1}) joined {2} within 45s on attempt {3}/{4}. It stays joined for {5}s and is NEVER killed.' -f $holderPidOut, $holderAppUsed, $fedName.Name, ($hi + 1), $holderAttempts.Count, $FederationHoldSecs)
         } else {
-            $hExited = $hProc.HasExited
             Say-Warn ('attempt {0}/{1} FAILED: holder pid {2} on appNumber {3} did not join within 45s (exited={4}).' -f ($hi + 1), $holderAttempts.Count, $hProc.Id, $hAppNo, $hExited)
             if (-not $hExited) { Say-Warn ('  pid {0} is NOT killed (RUNBOOK sec 0) - it may be a joined federate this script simply could not see.' -f $hProc.Id) }
         }

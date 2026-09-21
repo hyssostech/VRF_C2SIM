@@ -3945,14 +3945,13 @@ try {
                     continue
                 }
                 $script:FederationHolderPids += $hProc.Id
-                $hJoinRe = ('remoteControl\s+{0}\b.*has joined federation "{1}"' -f $hProc.Id, [regex]::Escape($FederationHoldName))
                 Say-Info ('Stage 2h attempt {0}/{1}: holder pid {2} on appNumber {3}; waiting up to {4}s for its join.' -f $a, $FederationHoldAttempts, $hProc.Id, $hAppNo, $FederationHoldJoinWaitSec)
 
                 $hStart = Get-Date
                 while (((Get-Date) - $hStart).TotalSeconds -lt $FederationHoldJoinWaitSec) {
                     Start-Sleep -Seconds 1
                     if ($holderLog) {
-                        if ((Read-TextFromOffset -Path $holderLog -Offset $hOffset) -match $hJoinRe) {
+                        if (Test-HolderJoinedInLog -LogDelta (Read-TextFromOffset -Path $holderLog -Offset $hOffset) -ProcessId $hProc.Id -FederationName $FederationHoldName) {
                             $holderJoined   = $true
                             $holderEvidence = ('rtiexec log: remoteControl {0} has joined federation "{1}"' -f $hProc.Id, $FederationHoldName)
                             break
@@ -3978,6 +3977,25 @@ try {
                 if ($holderLog) {
                     $hFomM = [regex]::Matches((Read-TextFromOffset -Path $holderLog -Offset $hOffset), 'Failed to process FOM file (\S+)')
                     if ($hFomM.Count -gt 0) { $hFom = $hFomM[$hFomM.Count - 1].Groups[1].Value }
+                }
+                # Garbled-sink fallback (STP-825 D8, 2026-09-21): the strict matcher above found
+                # nothing, but the holder is STILL ALIVE - a refused create (exited) is never
+                # rescued here, that stays a failure. Show the operator this pid's own log lines
+                # at once instead of a bare timeout; if one of them still says "joined" (looser
+                # than the strict pid+phrase+federation match), the join is real and only the
+                # confirmation text was too mangled to parse strictly - accept it, but say so.
+                if (-not $holderJoined -and -not $hExited -and $holderLog) {
+                    $hPidLines = @(Get-HolderPidLogLines -LogDelta (Read-TextFromOffset -Path $holderLog -Offset $hOffset) -ProcessId $hProc.Id -MaxLines 5)
+                    if ($hPidLines.Count -gt 0) {
+                        Say-Warn ('Stage 2h attempt {0}: holder pid {1} did not join on the strict match, but the rtiexec log DOES mention this pid - last {2} line(s):' -f $a, $hProc.Id, $hPidLines.Count)
+                        foreach ($pl in $hPidLines) { Say-Warn ('    {0}' -f $pl) }
+                        $hLoose = @($hPidLines | Where-Object { $_ -match 'joined' })
+                        if ($hLoose.Count -gt 0) {
+                            $holderJoined  = $true
+                            $holderEvidence = ('rtiexec log (GARBLED, loose pid+"joined" match - strict pid+phrase+federation match failed): {0}' -f $hLoose[-1])
+                            Add-Flag 'WARN' ('Stage 2h attempt {0}: holder pid {1} join accepted on a LOOSE match only: {2}' -f $a, $hProc.Id, $hLoose[-1])
+                        }
+                    }
                 }
                 $holderAttemptLog += [ordered]@{
                     attempt   = $a

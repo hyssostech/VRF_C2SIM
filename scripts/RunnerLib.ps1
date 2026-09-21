@@ -1491,3 +1491,62 @@ function Set-VrfGuiPromptSettingsText {
     }
 }
 
+# ---- STP-825 holder join detection: robust to the garbled rtiexec log sink -------------
+# Some MAK rtiexec 5.0.1 instances write this log through an UNSERIALISED sink that DOUBLES
+# and INTERLEAVES text token-by-token WITHIN A LINE (the garbling never crosses a line).
+# Observed verbatim (runs\launch52\rtiexec_20260921T032248Z5.0.1-...-47636.log line 10685,
+# holder pid 87404, federation MAK-ONE-2025):
+#   Federate Federate remoteControl 87404 ("remoteControl" 3)remoteControl 87404
+#   ("remoteControl" 3) has joined federation " has joined federation "MAK-ONE-2025MAK-ONE-2025".
+# so the clean line the vendor documents (RunC2SimScenario.ps1's Stage 2h header)
+#   Federate remoteControl <pid> ("remoteControl" 2) has joined federation "<name>".
+# never appears contiguously, and a detector that requires it verbatim reports a real join
+# as a timeout (STP-825 D8, 2026-09-21 - all four holders joined and were refused anyway).
+# The three conditions below are checked IN ORDER on the SAME line, each anchored past the
+# previous one's match, so a doubled/truncated repeat of the federation name still satisfies
+# the third without requiring a closing quote, while a line for a DIFFERENT pid or a
+# DIFFERENT federation still fails:
+#   1) "remoteControl" followed by ProcessId as a whole number (\b keeps 8740 from matching
+#      inside 87404 - the boundary before the number is automatic after \s+).
+#   2) the phrase "has joined federation" somewhere after that.
+#   3) FederationName somewhere after THAT (a repeated or truncated copy, e.g.
+#      "MAK-ONE-2025MAK-ONE-2025" or "MAK-ONE-2025MAK-", still contains it once).
+function Test-HolderJoinedInLog {
+    param(
+        [AllowNull()][AllowEmptyString()][string]$LogDelta,
+        [Parameter(Mandatory)][int]$ProcessId,
+        [Parameter(Mandatory)][string]$FederationName
+    )
+    if ([string]::IsNullOrEmpty($LogDelta)) { return $false }
+    $lineRe = ('remoteControl\s+{0}\b.*has joined federation.*{1}' -f `
+                [regex]::Escape([string]$ProcessId), [regex]::Escape($FederationName))
+    foreach ($line in ($LogDelta -split "`r?`n")) {
+        if ([string]::IsNullOrEmpty($line)) { continue }
+        if ($line -match $lineRe) { return $true }
+    }
+    return $false
+}
+
+# The last -MaxLines lines (file order) that mention ProcessId at all, whether or not they
+# parse as a join - the operator-visible half of the fallback below: when the strict matcher
+# above finds nothing but the holder is still alive, showing these at once beats a bare
+# "did not join within 45s" (the pid may well be joined, just too garbled to confirm
+# strictly). Always returns an array (never $null), per this file's Set-StrictMode -Version
+# Latest and the @(...) call-site convention used throughout (see Get-OtherRunnerProcessInfo).
+function Get-HolderPidLogLines {
+    param(
+        [AllowNull()][AllowEmptyString()][string]$LogDelta,
+        [Parameter(Mandatory)][int]$ProcessId,
+        [int]$MaxLines = 5
+    )
+    $out = @()
+    if ([string]::IsNullOrEmpty($LogDelta)) { return $out }
+    $pidRe = ('remoteControl\s+{0}\b' -f [regex]::Escape([string]$ProcessId))
+    foreach ($line in ($LogDelta -split "`r?`n")) {
+        if ([string]::IsNullOrEmpty($line)) { continue }
+        if ($line -match $pidRe) { $out += $line }
+    }
+    if ($out.Count -gt $MaxLines) { $out = @($out[($out.Count - $MaxLines)..($out.Count - 1)]) }
+    return $out
+}
+
