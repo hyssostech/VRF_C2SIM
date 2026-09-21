@@ -601,3 +601,33 @@ impossible in 2 s on a due-north route); that the four give-up rows reached the 
 (inferred from the settings and the code's own >= 0 guards, not a live instrumented check); that the other session's
 dotnet workers had no effect on any limb (a timing argument - they all start after the last completion - not a
 measurement).
+
+---
+
+## 16. D5d - REGISTERED 2026-09-21 BEFORE THE RUN: Way B re-check on binary 51d59c0 (the route-origin build, STP-855)
+
+Same orchestrator and path as D5c (runbook steps as typed, -Server private, 9102/9103, observer on the runner's RTI
+environment with the P-RID gate, the order pushed ~0.3 s behind the init - declared deviation D-5). Binary
+1.0.0+git.51d59c0.Release-5.2 (build report scratch validation/388cb71_build_report.md, GO). Way A on the same binary:
+D10 (run 20260921T113151Z). Why this run: (1) it re-confirms STP-852 on the new binary; (2) Way B's ordering - the
+route request can go out BEFORE the order-time re-creates (D5c) - is the only way to exercise the route-origin policy's
+OTHER provenance branch. Persistent holder RtiProbe 87616 (appNo 5065) is joined; no rtiAssistant on the box.
+
+Limbs inherited UNCHANGED from sec 14 + A1 (D5c): P-STEP1/2, P-SERVER, P-STEP3, P-TILES, P-RID, P-HOLD, P-OVERLAP,
+P-FAULT, P-STOP, with these corrections from what D5c actually showed: P-READY expects '(5 empty shell(s))' in the
+barrier line AND '5 unit(s) created as EMPTY shells ... 1 platform(s) created in full' in the C13 line, the barrier
+quoting the applied 20 s cap and the configured 60 s; P-CONSOLE's prose is dropped (D5c showed 'Giving up' lines with
+consoles at -1) - only its MISS clause (CON rows > 100 or an app log over 500 KB) stands.
+P-ORIGIN (HIGH, new): T_R5_CO1's route is 1,110-1,116 m / bar ~556 / radius ~278 with terrain-profile reply #0 =
+34.64763,-116.69339; EXACTLY ONE 'ROUTE ORIGIN for composed parent 114.MechCoy~PXY: the CENTROID OF ITS 3 DECLARED
+CHILD UNIT(S) (3 of 3 reflected)' line with a three-entry Children roster; ZERO 'FALLING BACK' lines. BOTH provenance
+endings are registered as admissible: 'Every child was read at the uuid whose reflection released it ...' OR 'N of them
+were read at the uuid the name registry currently resolves, not at a reflection-proven one' - the deciding observable
+(REPORTED) is whether the ROUTE ORIGIN line falls before or after the four 'reflected at WALL' lines. Either way the
+origin must sit on the authored coordinate: if the children read are still the OLD shells they occupy the same ring
+slots, so the centroid is unchanged (the builder's claim - this run tests it). All three gap wordings are admissible.
+P-OUTCOME (HIGH on completion): 3/3 TASKCMPLT, 0 TASKABRT. SIM-clock completions REPORTED against D5c's 94.7 / 488.6 /
+663.3 (not scored: N14, and T_R5_CO1's geometry is as D5c's here).
+MISS = any race abort, a hold reaching its bound, READY TO TASK NOT REACHED, an order-driven delete inside the init's
+creations, P-RID failing, a FALLING BACK line, a T_R5_CO1 origin more than ~5 m off the authored coordinate, any task
+not TASKCMPLT, a survivor at teardown. A back-end fault is NEW EVIDENCE for STP-854. A missed HIGH limb is a STOP.

@@ -3339,7 +3339,8 @@ per the never-reuse non-negotiable. Annotate with results from the run manifest.
 NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
 join) are BURNED, not recycled. The run manifest records which were actually used.
 
-*** NEXT FREE: 5080 *** (authoritative - the ONLY such marker in this file. Update this
+- 2026-09-21 D5d WAY B RE-CHECK (docs/experiments/PREREG_D5_WAYB_2026-09-21.md sec 16, binary 51d59c0): 5080 = tools/WatchVrf, the one ledgered federate of the run; every other federate sits in the 9101-9199 demo block. D5D-CLAIMED.
+*** NEXT FREE: 5081 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
