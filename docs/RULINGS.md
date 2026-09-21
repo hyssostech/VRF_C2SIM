@@ -41,23 +41,24 @@ RL-20260921-05 | 2026-09-21 | status VERBATIM
     is a STUCK unit (RL-20260914-01).
 
 RL-20260921-06 | 2026-09-21 | status VERBATIM - OPEN, THE KEEP/REMOVE DECISION IS WITH THE OWNER
-  Q (as put, S344): the seat described the placement re-clamp's three parts - the placing works per one run, the self-check never
-    succeeds, the refuse-to-task gate harms legitimate tasks on cold terrain - and asked what its default should be.
-  A (owner, S304): "Looks like this "re-clamp thing" is useless, or actually harmful. Does not improve the situation it is
-    meant to help with, and messes up with legitimate tasks. Is that it? If so it should be removed, not switched off. But
-    I may have misread what you said."
-  A (owner, S344, asked again): "Confirm first that my interpretation of what you described is correct"
+  Q (as put, S304): "The re-clamp feature merged today (re-measure units after creation, put them on the ground, refuse to task units
+    found off the terrain) is broken on not-yet-streamed terrain [...] What should its default be until it is rebuilt?"
+  A (owner, S304): "Looks like this "re-clamp thing" is useless, or actually harmful. Does not improve the situation it is meant to
+    help with, and messes up with legitimate tasks. Is that it? If so it should be removed, not switched off. But I may have misread
+    what you said."
+  Q (as put, S344, the same question re-put with the three parts spelled out - the placing works per one run, the self-check never
+    succeeds, the refuse-to-task gate harms legitimate tasks on cold terrain).
+  A (owner, S344): "Confirm first that my interpretation of what you described is correct"
   A (owner, S441, typed, after the seat confirmed on half the evidence): "Reclamp: how can you say that harvest verified it
     works and in the next sentence that placement verification never succeeds? This smells of instrument error (not to
     mention the bizarre logic)"
   The seat checked and RETRACTED that confirmation. STATUS: OPEN - remove it all / keep the placing and drop the gate and
     its tally / leave it until a re-cut. No file may record a keep-or-remove decision until he gives one.
-  MEASUREMENT, n = 1, seat-verified in runs\20260921T143243Z_run (our own files only): vrfc2simapp.log :626 "Terrain profile reply 43:
-    32 sample(s)"; :628-:690 thirty-two lines "MEASURED OFF THE TERRAIN - live -0.0 m vs terrain <h> m ... Issuing setLocation"; :20461
-    "0 RE-CLAMPED AND VERIFIED ... 32 NEVER MEASURED"; :772/:784 T1 and T13 HELD; :20307/:20345 ABANDONED at 60.0 s; :20311/:20347
-    follow-on tasks SKIPPED. watchvrf-trace.csv POS rows: the 32 corrected objects sit at exactly those terrain heights from their
-    first valid sample to the end (min = max), while 4/278_ACR (VRF_UUID 6e3c0605..., created on the fallback and not enrolled) stays
-    at -0.0 m for 1,196 samples.
+  MEASUREMENT, n = 1, seat-verified in runs\20260921T143243Z_run (our own files only): vrfc2simapp.log :626 "Terrain profile reply 43: 32
+    sample(s)"; :628-:690 thirty-two "MEASURED OFF THE TERRAIN - live -0.0 m vs terrain <h> m ... Issuing setLocation"; :20461 "0
+    RE-CLAMPED AND VERIFIED ... 32 NEVER MEASURED"; :772/:784 T1 and T13 HELD; :20307/:20345 ABANDONED at 60.0 s; :20311/:20347 follow-on
+    tasks SKIPPED. watchvrf-trace.csv POS rows: the 32 corrected objects sit at exactly those terrain heights for every sample (min =
+    max), while 4/278_ACR (6e3c0605..., created on the fallback, not enrolled) stays at -0.0 m for 1,196 samples.
   SEPARATELY, as implications and not as cause: the feature's tally disagrees with the feature's own log; the gate ended two tasks on
     units an independent trace shows on the terrain. NOT ESTABLISHED: there is no observer sample of the 32 from BEFORE the correction;
     the setLocation lines carry no timestamp; why the read-back never landed is undiagnosed.
@@ -90,8 +91,7 @@ RL-20260921-08 | 2026-09-21 | status VERBATIM - COMPLETION SEMANTICS ARE UNDER H
     could recall. There may be way more related to this are than what I said. Are you even reading the materials?"
   supervisor reading: "Seems to me" is tentative; nothing in this entry is a rule. Two standing instructions do follow from
     the S260 answer: use PLAIN WORDS in anything put to him (codes only in parentheses), and read the record before asking.
-  pointer: RL-20260921-09 (the temporary position he gave the same day); docs\experiments\TASK_COMPLETION_RESEARCH_2026-09-21.md, the
-    per-verb completion table that carries the doctrine and vendor-documentation research he asked for. It recommends nothing.
+  pointer: RL-20260921-09; docs\experiments\TASK_COMPLETION_RESEARCH_2026-09-21.md, the per-verb table carrying the research he asked for.
 
 RL-20260921-09 | 2026-09-21 | status VERBATIM - TEMPORARY, BY HIS OWN WORD
   Q (as put): none - volunteered after the seat said completion rules were under his review pending doctrine and vendor
