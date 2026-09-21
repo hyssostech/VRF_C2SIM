@@ -1127,21 +1127,56 @@ R5 and R6 remain open. Citations below are to that doctrine record unless noted.
   abortion - what happens is that follow on tasks are delayed by the slow progress on a
   leg."*
 
-  SO THE RULING'S SCOPE IS TASKS THAT DO NOT INCLUDE MOVEMENT. The clause above,
-  *"evaluable tasks (SEIZE/OCCUPY arrival, BREACH, MOVE) may still complete EARLIER on
-  their own evidence"*, reads the end time as a CEILING for a MOVE as well. That reading
-  is not in the question as put and not in the answer; it is a supervisor generalisation.
+  **REVISION, the same day: the owner corrected the first draft of this block, which had
+  turned his words into a rule of its own.** Do NOT read the quote above as establishing
+  that "time-based completion is for non-movement tasks" or that "a MOVE completes on
+  arrival". He regards that split as unsettled. Owner, 2026-09-21, session c3b364bd,
+  typed answer: *"The notion of a hold-off or movement tasks seems to be rather fuzzy as
+  described. Some verbs imply that the unit stays in place (e.g. to DEFEND). There are
+  plenty of tasks where there is movement preceding the desired effect, like in 'ATTACK
+  TO SECURE'. How are these distinguished? Seems to me that the time applies to the full
+  task, including the movement and the achievement of the desired effect, at which point
+  the unit might be tasked to perform a 'follow on' task (not a 'follower')."*
+
+  WHAT IS ESTABLISHED ABOUT THE CLAUSE ABOVE, narrowly. The clause *"evaluable tasks
+  (SEIZE/OCCUPY arrival, BREACH, MOVE) may still complete EARLIER on their own evidence"*
+  reads the end time as a CEILING for a MOVE as well. That reading is not in the question
+  as put and not in the answer. The owner has since said the clause rests on an
+  assumption he does not accept and that settling it needs research - owner, 2026-09-21,
+  session c3b364bd, typed answer: *"And I hear you about the 'eralier' - this assumed that
+  all a unit had to do was complete the movement, but your point is valid, that theres
+  action required after that - requires a doctrinal research, and as well as of vendor
+  documentation - is the sim able to determine when some of the desired effect has been
+  achieved, for example DESTROY (no enemy unit operational in the target area or something
+  like that?)."* So: the clause is NOT authority, and its replacement is UNDER REVIEW.
+
+  IN PLAIN WORDS, so nobody has to decode the code: "R4" means row 4 of the 2026-09-14
+  question table - "when is a SECURE / OCCUPY / DEFEND complete: on arrival, after its
+  Duration, or only when a later order supersedes it?" A MOVE task whose timer expires was
+  not the question asked, so R4's answer is not authority for that case.
 
   AS A SEPARATE STATEMENT ABOUT THE CODE: `TimedCompletionPolicy` arms one timer per
   dispatched task with a Duration, moves included (746c091, 2026-09-14; see "R4 BUILT"
-  later in this section). That is a CODE DEFECT tracked as unit U3. It is not a ruling,
-  and "R4" is not authority for completing a MOVE.
+  later in this section). That is a CODE DEFECT. Its fix is gated on the owner's review of
+  completion semantics (U1) and a PLAN gate - it is not a free-standing licence to change
+  completion behaviour.
 
   WHAT IS NOT RULED EITHER WAY, and must not be written as settled by this block:
   movement-then-hold (SECURE/OCCUPY/DEFEND naming a location), patrol, follow/escort, the
-  successors of a stalled move, any bound on waiting for a late mover, and whether the
-  stall watchdog ships ON. Those are unit U1's questions to the user. STP-857
-  (zero-displacement armed-end abort) was REJECTED by him on 2026-09-21; branch
+  successors of a stalled move, any bound on waiting for a late mover, whether the stall
+  watchdog ships ON, and - added by the 2026-09-21 revision - how a task that combines
+  movement with a desired effect is judged complete at all. Those are unit U1's questions.
+
+  STP-857 (zero-displacement armed-end abort): its "USER RULING" label is WITHDRAWN, but
+  the SYMPTOM is real and the owner agrees with it - *"a unit that is meanto to move to an
+  objective and perform some action, but instead gets stuck in the middle of the way
+  certainly did not complete ... My caveat was that you should not expect every task to
+  require a movement, and abort in case the unit stays put."* (owner, 2026-09-21, session
+  c3b364bd, typed answer). What is NOT approved is the patch AS SCOPED - zero-displacement
+  only - which would still report complete for a unit that moved part of the way and
+  stuck; his unanswered question on that point is at transcript line 45418: *"Is this
+  creating a special class of errors for no movement from the get go as opposed to
+  movement that falls short of the objective?"* Branch
   `fix/reclamp-verify-and-movement-only` @ 3d58819 stays parked and unmerged. See
   `docs/CORRECTIONS_LOG.md` entry F-1.
 
@@ -1270,11 +1305,14 @@ STP-809 - 136 at the end of pass 3 - the count 7.1b quotes, and the one the suit
 all 18 self-tests stay green (typemap 783, scripted-task, initgraphics, preflight
 included). NOTHING here has been run against VR-Forces yet.
 
-- **R4 BUILT** - *(SCOPE CORRECTION 2026-09-21, U2 lane A: "one timer per task at dispatch"
-  arms MOVE tasks too, and the ruling it cites covers tasks that do not include movement.
-  See the SCOPE CORRECTION block at "R4 RULED" above for the verbatim question and answer.
-  Timer-on-moves is a code defect tracked as unit U3, not a ruling. Nothing in this
-  paragraph's account of what was BUILT is disputed; only its authority is.)*
+- **R4 BUILT** - *(SCOPE CORRECTION 2026-09-21, U2 lane A, revised the same day: "one timer
+  per task at dispatch" arms MOVE tasks too, and the R4 answer it cites was given to a
+  question about when a SECURE / OCCUPY / DEFEND ends, not about a MOVE. See the SCOPE
+  CORRECTION block at "R4 RULED" above for the verbatim question, the answer, and the
+  owner's 2026-09-21 words. Timer-on-every-task is a code defect whose fix is gated on his
+  review of completion semantics (U1) and a PLAN gate; how a task combining movement with a
+  desired effect completes is UNDER REVIEW, so write no replacement rule here. Nothing in
+  this paragraph's account of what was BUILT is disputed; only its authority is.)*
   `OrderParser` lifts Duration (and the absolute StartTime form);
   `TimedCompletionPolicy` arms one timer per task at dispatch and measures ELAPSED clock,
   not a deadline stamp, so a paused scenario does not age a task and a

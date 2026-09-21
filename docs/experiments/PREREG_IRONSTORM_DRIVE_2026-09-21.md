@@ -535,15 +535,24 @@ sec 5 for the standing rule and the CORRECTIONS_LOG.md entry for the generator o
   stalled - for a unit that moved 0 m of a 5,341 m leg, the bus carries only a success. This needs a RULING on
   completion semantics (do not let a timer beat and silence a stall verdict); options are in the ticket.
 
-  **CORRECTION POINTER 2026-09-21 (U2 lane A), for this finding and for the "STP-857 recurrences" limb in the
-  R2 registered text below.** The finding as measured STANDS and is left unstruck. What did NOT happen is the
-  ruling it asked for: STP-857 was recommended to the user on a premise - that timer-completing a MOVE was
-  already his 2026-09-14 ruling - that is false, and he rejected it the same day ("If I agreed with that, I was
-  tricked", session a7f6a276 transcript line 45457, a type=user record). Branch
-  `fix/reclamp-verify-and-movement-only` @ 3d58819 stays parked and unmerged; completion semantics are OPEN as
-  unit U1 and the timer-on-moves behaviour is a code defect tracked as unit U3. Separately, as a condition of
-  this run rather than a finding: `Vrf:DurationScale` 0.25 put the 300 s armed end inside the 360 sim-s stall
-  window. See `docs/CORRECTIONS_LOG.md` entry F-1.
+  **CORRECTION POINTER 2026-09-21 (U2 lane A; REVISED the same day after the owner corrected the first draft),
+  for this finding and for the "STP-857 recurrences" limb in the R2 registered text below.** The finding as
+  measured STANDS and is left unstruck, and so does the judgement in it: the owner agrees that a unit which
+  does not reach its objective has not completed (owner, 2026-09-21, session c3b364bd, typed answer: *"a unit
+  that is meanto to move to an objective and perform some action, but instead gets stuck in the middle of the
+  way certainly did not complete"*). What did NOT happen is the RULING this paragraph asked for. STP-857 was
+  recommended to him on a premise - that timer-completing a MOVE was already his 2026-09-14 ruling - that the
+  2026-09-14 record does not support, and he later wrote *"If I agreed with that, I was tricked"* (session
+  a7f6a276 transcript line 45457, a type=user record). What is NOT approved is the patch AS SCOPED
+  (zero-displacement only), which would still report complete for a unit that moved part of the way and stuck;
+  his unanswered question on that point is at line 45418: *"Is this creating a special class of errors for no
+  movement from the get go as opposed to movement that falls short of the objective?"* Branch
+  `fix/reclamp-verify-and-movement-only` @ 3d58819 stays parked and unmerged. How a task that combines movement
+  with a desired effect completes is UNDER THE OWNER'S REVIEW pending doctrinal and vendor-documentation
+  research; do not read P6 or P13 here as settling it either way. The timer-on-every-task behaviour is a code
+  defect whose fix is gated on that review (U1) and a PLAN gate. Separately, as a condition of this run rather
+  than a finding: `Vrf:DurationScale` 0.25 put the 300 s armed end inside the 360 sim-s stall window. See
+  `docs/CORRECTIONS_LOG.md` entry F-1.
 - **P11, driven path vs authored.** T10: +1.9% aggregate (2,666 m of 2,617 m), +4.0% to +10.6% per member; no
   detour observed. T02 and T14: 0 m of 5,341 m and 2,426 m respectively.
 - **P12, cruise speed on Baltic terrain.** The registered 10 m/s is right only for T10's opening burst (13.31 m/s

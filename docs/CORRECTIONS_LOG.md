@@ -156,11 +156,19 @@ Each entry: the claim, why it was wrong, and the evidence that settled it.
 
 ## F-1: "STP-857 is a user ruling", and its premise "a MOVE timer-completes by R4" (2026-09-21)
 
+*** THIS ENTRY WAS ITSELF OVER-READ ON ITS FIRST WRITING AND WAS REVISED THE SAME DAY. The
+first draft said the ticket had been turned down by the owner outright, and that its premise
+was false, without qualification. Both were over-reads, and the owner corrected them: the
+SYMPTOM the ticket reports is real and he AGREES with it. What is withdrawn is only the "USER
+RULING" label, and what is not approved is the patch AS SCOPED. See "WHAT THE OWNER SAID WHEN HE CORRECTED THIS ENTRY" below before quoting anything
+from it. ***
+
 - CLAIMED (2026-09-21, records pass 24, commit 2f52622): that the user RULED on 2026-09-21,
   as STP-857, that "a MOVE task that reaches its armed end with NO displacement reports
   TASKABRT, not TASKCMPLT", NARROWING a rule whose wider form - every dispatched task with a
   Duration is timer-completed, moves included - "WAS the ruled behaviour ... meeting R4".
-  BOTH HALVES ARE WRONG. There is no such ruling, and the premise it narrows was never ruled.
+  THE "USER RULING" LABEL IS WITHDRAWN, and the 2026-09-14 record does not support the wider
+  form as a ruling. Neither point makes the ticket's underlying complaint wrong.
 - WHAT THE PRIMARY SOURCE SAYS. Citations are physical line numbers in the session a7f6a276
   transcript (`~\.claude\projects\...c2simVRFinterfacev2-36\a7f6a276-...jsonl`), each read
   with `rg -n` and the record's `type` checked; the user's own words are `type=user` records
@@ -174,7 +182,8 @@ Each entry: the claim, why it was wrong, and the evidence that settled it.
     bus say when a move task's timer expires on a unit that never moved? The options are in
     the ticket. My recommendation is option 1: report an abort, 'armed end reached with no
     movement', where the current build reports complete." The clause "where the current build
-    reports complete" is the false premise, stated as settled.
+    reports complete" presents timer-completion of a MOVE as already settled; the 2026-09-14
+    record does not establish it.
   * HIS ANSWER, 2026-09-21 (line 45180, type=user): "857 as recommended - just make sure the
     task does involve movement. Not all do."
   * HIS UNPROMPTED MESSAGE THE SAME DAY (line 45457, type=user): "The rulling based on time is
@@ -190,18 +199,49 @@ Each entry: the claim, why it was wrong, and the evidence that settled it.
     second answer in the same exchange was not an endorsement but a question back: "This
     sounds odd. Tasks should include the expected final location if they are indeed moves,
     shouldn't they?"
+- WHAT THE OWNER SAID WHEN HE CORRECTED THIS ENTRY. Source: the owner, 2026-09-21, typed
+  answers in the fresh-start supervisor session c3b364bd (NOT in transcript a7f6a276); quoted
+  with his spelling. Cite it as "owner, 2026-09-21, session c3b364bd, typed answer".
+  * ON THE SYMPTOM: "As for 857, a unit that is meanto to move to an objective and perform
+    some action, but instead gets stuck in the middle of the way certainly did not complete,
+    so not sure why you say the 'premisse was false'. My caveat was that you should not expect
+    every task to require a movement, and abort in case the unit stays put."
+  * ON THE MOVEMENT / NON-MOVEMENT SPLIT: "The notion of a hold-off or movement tasks seems to
+    be rather fuzzy as described. Some verbs imply that the unit stays in place (e.g. to
+    DEFEND). There are plenty of tasks where there is movement preceding the desired effect,
+    like in 'ATTACK TO SECURE'. How are these distinguished? Seems to me that the time applies
+    to the full task, including the movement and the achievement of the desired effect, at
+    which point the unit might be tasked to perform a 'follow on' task (not a 'follower')."
+  * ON THE LEDGER'S "EARLIER" CLAUSE: "And I hear you about the 'eralier' - this assumed that
+    all a unit had to do was complete the movement, but your point is valid, that theres
+    action required after that - requires a doctrinal research, and as well as of vendor
+    documentation - is the sim able to determine when some of the desired effect has been
+    achieved, for example DESTROY (no enemy unit operational in the target area or something
+    like that?)."
 - SO, SEPARATELY AND IN ORDER. MEASUREMENT: on run 20260921T114910Z two platforms displaced
   0.0 m and both C16 stall TASKABRTs were suppressed by an already-fired timed TASKCMPLT.
-  RULING SCOPE: time-based completion is for tasks that do not include movement. DESIGN
-  IMPLICATION: arming the Duration timer on MOVE tasks (746c091, 2026-09-14) is a supervisor
-  generalisation and a code defect, tracked as unit U3 - it is not a ruling, and "R4" is never
-  authority for completing a MOVE. RUN CONDITION, not a finding: that run set
-  `Vrf:DurationScale` 0.25, putting the 300 s armed end inside the 360 sim-s stall window.
-  STATUS: STP-857 is REJECTED; branch `fix/reclamp-verify-and-movement-only` @ 3d58819 stays
-  PARKED and unmerged. The completion semantics are OPEN and go to the user as unit U1.
+  WHAT THE OWNER AGREES WITH: a unit that does not reach its objective has not completed, and
+  not every task requires a movement, so a unit must not be aborted merely for staying put.
+  WHAT IS WITHDRAWN: the "USER RULING" label on STP-857, and any reading of R4 as authority
+  for what a MOVE task's expiring timer should report - R4 is row 4 of the 2026-09-14 question
+  table ("when is a SECURE / OCCUPY / DEFEND complete: on arrival, after its Duration, or only
+  when a later order supersedes it?"), and a MOVE was not the question asked. WHAT IS NOT
+  APPROVED: the patch AS SCOPED - zero-displacement only, completion semantics for units that
+  DID move left unchanged - because it would still report complete for a unit that moved part
+  of the way and stuck; his own unanswered question at line 45418 is exactly that point.
+  WHAT IS UNDER THE OWNER'S REVIEW: how completion is determined for a task that combines
+  movement with a desired effect, pending doctrinal and vendor-documentation research. Until
+  he rules, write NEITHER "a MOVE completes on arrival" NOR "time-based completion is for
+  non-movement tasks" as a settled rule anywhere. DESIGN IMPLICATION, in its own sentence:
+  arming the Duration timer on every task with a Duration (746c091, 2026-09-14) is a code
+  defect; its fix is gated on that review (U1) and a PLAN gate. RUN CONDITION, not a finding:
+  that run set `Vrf:DurationScale` 0.25, putting the 300 s armed end inside the 360 sim-s
+  stall window. STATUS: branch `fix/reclamp-verify-and-movement-only` @ 3d58819 stays PARKED
+  and unmerged.
 - STILL NOT RULED, either way - do not write any of these as settled: movement-then-hold
   (SECURE/OCCUPY/DEFEND naming a location), patrol, follow/escort, the successors of a stalled
-  move, any bound on waiting for a late mover, whether the stall watchdog ships ON.
+  move, any bound on waiting for a late mover, whether the stall watchdog ships ON, and how a
+  task that combines movement with a desired effect is judged complete at all.
 - WHERE IT WAS WRITTEN, and corrected the same day at every site (dated CORRECTION blocks; no
   body rewritten away):
   * `docs/DEMO_READINESS_2026-09-06.md` row 19 - the "2026-09-21 STP-857 USER RULING"
@@ -209,7 +249,8 @@ Each entry: the claim, why it was wrong, and the evidence that settled it.
   * `docs/RUNBOOK.md` sec 11h - both the "RULED 2026-09-21 (STP-857)" sentence and the
     "meeting R4" premise struck; CORRECTION block appended after the paragraph.
   * `docs/HANDOFF_2026-09-14_PARALLEL_LANES.md` :200 - status corrected in the line ("needs a
-    ruling" -> REJECTED, branch parked, semantics open as U1).
+    ruling" -> label withdrawn, symptom agreed, patch-as-scoped not approved, branch parked,
+    semantics under the owner's review).
   * `docs/experiments/TASK_VOCABULARY_ASSESSMENT_2026-09-14.md` - SCOPE CORRECTION block under
     "R4 RULED", and a scope pointer at "R4 BUILT".
   * `docs/experiments/PREREG_IRONSTORM_DRIVE_2026-09-21.md` - CORRECTION POINTER at the P10
@@ -227,6 +268,13 @@ Each entry: the claim, why it was wrong, and the evidence that settled it.
   reading is labelled "supervisor reading:" and kept in its own sentence.
 
 ## F-2: shipped comments naming setAltitude as the placement correction, and fusing burial with a stationary vehicle (2026-09-21)
+
+*** 2026-09-21, OWNER DECISION: the placement re-clamp feature itself is being REMOVED, not
+switched off - "it should be removed, not switched off" - so commit 8aeb127 is reverted by a
+separate lane. The comment corrections below are therefore TRANSITIONAL: they make the shipped
+text true for as long as the feature exists, and they go away with it. The two record defects
+they document - naming setAltitude for a setLocation, and fusing burial with a stationary
+vehicle - are the lasting content of this entry and outlive the feature. ***
 
 - CLAIMED (2026-09-21, commit 8aeb127, in files that SHIP): that a fallback-created object is
   "corrected with the documented setAltitude(0 m AGL)". WRONG about the code. The re-clamp

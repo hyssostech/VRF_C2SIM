@@ -3557,22 +3557,54 @@ TASKABRT, not TASKCMPLT - implementation is a later lane, not built here.~~ What
 remove is the CAUSE of the instance recorded above: a unit measured 145 m off the terrain is no
 longer tasked, so no armed end is ever set for it.
 
-**CORRECTION 2026-09-21 (U2 lane A, the same day) - BOTH STRUCK CLAIMS ARE WITHDRAWN.** (i) "STP-857
-RULED 2026-09-21" is not a ruling. The recommendation the user answered (session a7f6a276 transcript
-line 44947) presupposed that timer-completing a MOVE was already his ruling; he answered *"857 as
-recommended - just make sure the task does involve movement. Not all do."* (line 45180, type=user)
-and then wrote, the same day and unprompted (line 45457, type=user, his spelling): *"The rulling
-based on time is for tasks that do not include movement, such as defend in place and similar ones -
-units that are not expected to reach any other location. That's what you asked. ... If I agreed with
-that, I was tricked. ... The notion that geting stuck midway is a complete is completelly
-illogical."* STP-857 is REJECTED; branch `fix/reclamp-verify-and-movement-only` @ 3d58819 stays
-parked and unmerged. (ii) "meeting R4" for a MOVE is the false premise itself. R4 as PUT on
-2026-09-14 was *"R4, when a hold ends. SECURE, OCCUPY and DEFEND have no natural completion in
-VR-Forces"* (line 28092); the answer was *"4 given by the end time"* (line 28191, type=user). Never
-cite R4 as authority for completing a MOVE. Arming the Duration timer on MOVE tasks (746c091) is a
-supervisor generalisation and a code defect tracked as unit U3 - that sentence is a design
-statement, separate from the measurement in the paragraph above, which stands unchanged. Completion
-semantics are OPEN and go to the user as unit U1. See `docs/CORRECTIONS_LOG.md` entry F-1.
+**CORRECTION 2026-09-21 (U2 lane A, the same day; REVISED the same day after the owner corrected the
+first draft) - BOTH STRUCK CLAIMS ARE WITHDRAWN, AND THE FIRST DRAFT OF THIS BLOCK OVERSTATED THE
+WITHDRAWAL.**
+
+(i) THE "RULED 2026-09-21 (STP-857)" LABEL IS WITHDRAWN. The recommendation the user answered
+(session a7f6a276 transcript line 44947) presented timer-completion of a MOVE as already his ruling;
+he answered *"857 as recommended - just make sure the task does involve movement. Not all do."*
+(line 45180, type=user) and wrote the same day, unprompted (line 45457, type=user, his spelling):
+*"... If I agreed with that, I was tricked. ... The notion that geting stuck midway is a complete is
+completelly illogical."*
+
+BUT THE SYMPTOM THE TICKET REPORTS IS REAL, AND THE OWNER AGREES WITH IT. Owner, 2026-09-21, session
+c3b364bd, typed answer, his spelling: *"As for 857, a unit that is meanto to move to an objective and
+perform some action, but instead gets stuck in the middle of the way certainly did not complete, so
+not sure why you say the 'premisse was false'. My caveat was that you should not expect every task
+to require a movement, and abort in case the unit stays put."* His caveat stands as he gave it.
+
+WHAT IS NOT APPROVED IS THE PATCH AS SCOPED - zero-displacement only, with completion semantics for
+units that DID move left unchanged - because it would still report complete for a unit that moved
+part of the way and stuck. His own question on exactly that point (line 45418, type=user) was never
+answered: *"Is this creating a special class of errors for no movement from the get go as opposed to
+movement that falls short of the objective?"* Branch `fix/reclamp-verify-and-movement-only` @
+3d58819 stays parked and unmerged.
+
+(ii) "meeting R4" for a MOVE is not supported by the answer it cites. R4 is row 4 of the 2026-09-14
+question table - in plain words, "when is a SECURE / OCCUPY / DEFEND complete: on arrival, after its
+Duration, or only when a later order supersedes it?" (line 28092) - and the answer was *"4 given by
+the end time"* (line 28191, type=user). A MOVE task whose timer expires was not the question asked,
+so do not cite R4 as authority for that case.
+
+HOW COMPLETION IS DETERMINED FOR A TASK THAT COMBINES MOVEMENT AND A DESIRED EFFECT IS UNDER THE
+OWNER'S REVIEW, pending doctrinal and vendor-documentation research. Owner, 2026-09-21, session
+c3b364bd, typed answer: *"The notion of a hold-off or movement tasks seems to be rather fuzzy as
+described. Some verbs imply that the unit stays in place (e.g. to DEFEND). There are plenty of tasks
+where there is movement preceding the desired effect, like in 'ATTACK TO SECURE'. How are these
+distinguished? Seems to me that the time applies to the full task, including the movement and the
+achievement of the desired effect, at which point the unit might be tasked to perform a 'follow on'
+task (not a 'follower')."* And on the ledger's "earlier" clause: *"this assumed that all a unit had
+to do was complete the movement, but your point is valid, that theres action required after that -
+requires a doctrinal research, and as well as of vendor documentation - is the sim able to determine
+when some of the desired effect has been achieved, for example DESTROY (no enemy unit operational in
+the target area or something like that?)."* So do NOT write "a MOVE completes on arrival", or
+"time-based completion is for non-movement tasks", as a settled rule anywhere in this file.
+
+AS A SEPARATE STATEMENT ABOUT THE CODE: arming the Duration timer on every task with a Duration
+(746c091) is a code defect; the fix is gated on the owner's review of completion semantics (U1) and
+a PLAN gate. That is a design statement, separate from the measurement in the paragraph above, which
+stands unchanged. See `docs/CORRECTIONS_LOG.md` entry F-1.
 
 ## 12. THE ROUTE PRE-FLIGHT (OFF) AND ITS LATERAL SHIFT (ON BY DEFAULT) (STP-804/806)
 
