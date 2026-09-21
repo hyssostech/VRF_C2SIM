@@ -353,3 +353,100 @@ Predictions: sections 1-7 stand UNCHANGED, limb by limb, with these notes.
 - The persistent holder RtiProbe 74612 is expected joined (expires ~11:23Z), so step 2's own holder JOINS.
 - The ledger claim is a NEW number from the marker (5051 is burned); named in the RESULT block.
 - Conditions gate and R-1 / R-2 hash gates as section 10. MISS clauses as registered in sections 2-5.
+
+---
+
+## 13. D5b RESULT (run 20260921T072530Z_wayb, launched 07:25:30Z) - Way B ran end to end for the first time; the back end crashed 1.3 s after the init/order overlap; 3 TASKABRT, 0 TASKCMPLT
+
+- Conditions at launch: CPU 6 percent, no dotnet/MSBuild, no vrfSim/vrfGui/VrfC2SimApp, no rtiAssistant, persistent holder
+  RtiProbe 74612 joined (07:25:21Z). Exe hash 51798C0C...9A535A (1.0.0+git.1d0fb69.Release-5.2), identical before and
+  after; both connection configs F445629E... identical; both rid copies 649c7c87... identical. Scripts main 1553e48+.
+- P-STEP1 HIT: ALREADY-UP branch, exit 0, W-STEP1 2.02 s.
+- P-STEP2 HIT - FIRST LIVE EXECUTION of the standalone holder block that killed D5: holder pid 86900 (appNo 9190) joined
+  MAK-ONE-2025 on attempt 1/2 within 45 s (the garble-tolerant regex matched a doubled rtiexec line again); back end
+  Federate15 JOINED 07:25:39Z; no federation create or destroy anywhere in the rtiexec log; W-STEP2 24.62 s.
+- P-SERVER HIT: 18080/61614 named and pushed against.
+- P-STEP3 HIT: READY, N=1, FidelityTable, compose=on, 10s, clientId=STP; W-STEP3 5.06 s.
+- P-CONSOLE HIT on the numbers, HALF VOID as evidence: app log 41,064 B (genuine, under the 500 KB limit);
+  watchvrf-trace.csv 996 B / 0 CON rows - but that is because the observer never joined the federation (H4 below), not
+  because the console is off. The trace limb proves nothing either way.
+- P-TILES HIT: 7 tiles before and after; 5 cache HIT(s), 0 HTTP FETCH(es); L13 x2 elevation.
+- P-DISPATCH MISS: one DISPATCHED line only (T_R5_CO1, +11.647 s against the 5.5 s limit); the other two never dispatched.
+- P-SIM MISS (not measurable): zero completions.
+- P-RATIO VOID as a measurement, MISS as written: no movement window exists; the one 1.000 ratio window lies entirely
+  after the back end died - it is crash evidence, not a rate.
+- P-REPORTS MISS: 67 bodies / 0 failed - 1 TASKSTRT, 3 TASKABRT, 0 TASKCMPLT; the "any TASKABRT" clause fires three times.
+- P-TERMINAL MET ON THE LETTER, HOLLOW: 3 of 3 terminal at +40.9 s into a 900 s cap - all three are TASKABRT, not
+  completions.
+- P-STOP MISS: WatchVrf 57756 survived past the stop-file grace (the registered "any survivor" clause fires); nothing
+  was killed automatically, which is correct under the standing rule. StopVrf52 closed the crashed back end gracefully
+  (CloseMainWindow TRUE on the GUI; `taskkill /PID` with no `/F` on the back end) at 08:00:57-08:01:07Z, 34 minutes
+  after the crash - WatchVrf 57756 itself was left running past that and was stopped by the seat, by pid, at about
+  08:12Z, under the standing narrow permission for a federate that failed its own join. rtiAssistant 48392 (sec H4) is
+  left running - the no-kill rule makes that the user's call.
+- Seat gates PASS: R-1 exe hash identical before/after; R-2 both connection configs and both rid copies identical.
+
+H1 FALSIFIED IN ITS MECHANISM: the back end was alive and serving terrain (reply 1 back in under a second, six correct
+Mojave elevations) when the order arrived - it was not slow, it was alive then dead. Its quantitative half is also
+wrong: Way A's protective interval measured 3.75 s (Stage 7's evidence-based oracle gate, not a fixed sleep), not the
+~180 s H1 assumed; Way B's gap was 0.31 s with no gate at all.
+H2 DEAD for the crash: the D5b and D8 back-end command lines are IDENTICAL but for `--appNumber` (9102 vs 5040); both
+connection configs and both rid copies are byte-identical. The only things left standing are the rtiAssistant
+(H4-indirect, below) and the 0.31 s init/order gap (H3/H5).
+H3 CONFIRMED, VERIFIED, and it alone explains T_R5_TK1: 1.BdeHQ~PXY's task was DROPPED because the unit "was not
+created" - then the unit WAS created one log line later. Init creation on a platform-typed (AtOrder, shell-less)
+taskee is deferred on the terrain-profile reply and has no gate the way `MaterializeUnit`'s composition path does; the
+order arrived inside that window this run (terrain requests 10 and 11 also timed out this run, widening the window to
+10 s where it happens). Filed as **STP-852**: an order arriving while the init is still materializing is ABORTED
+instead of deferred, and there is no READY TO TASK signal telling an operator when it is safe to push the order (fix
+lane `fix/defer-dispatch-until-init-bound`).
+H4 FALSIFIED IN ITS FEDERATION FORM: WatchVrf (pid 57756, appNo 5052) never appears in the 113,188-line rtiexec log and
+is absent from the 4-federate roster printed at join time; no federation was ever created or destroyed - it could not
+have killed the back end through the federation. A WEAKER FORM SURVIVES, UNEXCLUDED: WatchVrf was started with no RTI
+environment (a harness defect), inherited the machine-scope rid, and spawned an rtiAssistant (pid 48392) at 07:26:06Z -
+23 s before the crash - which is now the only environmental oddity left standing; a residual, not a diagnosis.
+H5 SURVIVES, UNDIAGNOSED, n=1: the back end crashed 1.3 s after the order hit the bus and about 1 s after the init's six
+objects were created (callstack created 07:26:29Z; three independent instruments agree - terrain replies 10/11 timing
+out, the SIM/WALL ratio collapsing to exactly 1.000, and the back end sitting on a Windows error dialog 34 minutes
+later). NOT the known `--logFileName` startup crash (not passed; the process ran 51 s and reached "Successfully loaded
+scenario" cleanly). Candidate mechanism: concurrent create-and-delete of the same objects during the init/order
+overlap - the control performs the same churn without dying, so churn alone is not the answer. Not claimed as
+diagnosed. Filed as **STP-854**: the D5b back-end crash, n=1, undiagnosed.
+
+A1 (new, its own ticket, **STP-853**): the interface reported a dead simulation as healthy for 2 min 38 s - 60 position
+reports at 4 units' byte-identical frozen coordinates, none marked stale, and it DISPATCHED T_R5_CO1 into a back end
+already dead for 10 s. Detection chain: crash -> ~118 s VR-Forces back-end ageing timeout -> +40 s STP-822 rule -> loss
+declared, 158 s total. The most demo-relevant finding in the run: an audience would have seen a healthy-looking
+scenario for over two minutes after the simulator died.
+
+Harness defects (scratch orchestrator, fixed in UPDATE 4 after this run): no RTI environment given to the observers
+(the direct cause of the H4 weak form and the P-CONSOLE VOID); manifest `orderPushedUtc` off by 60 s (it records
+PushOrder's exit, not the push - the order actually reached the bus 07:26:28.200Z); the FAIL text called WatchVrf 57756
+"a joined federate" when it never joined, which is what seeded H4; one undeclared deviation D-5 (the orchestrator
+pushes the order 0.31 s after PushInit returns, with no gate an operator could type) - DECLARED here because it is what
+exposed H3, not scrubbed from the record.
+
+The seat's own misses, plainly recorded: the brief said "start the observers as Way A does" without naming the env
+contract; the conditions inventory used an anchored regex that could not see vrfSimHLA1516e, so a crashed back end
+sitting on an error dialog went unlisted for 34 minutes; the first D5b launch wrapper was piped and hung the shell.
+
+What Way B PROVED: steps 1-3 of the runbook work as typed on main 1553e48 (after D5 found LaunchVrf52.ps1:1158's
+undefined `Say-Info`, fixed in that merge), and the server gate works. D5b does NOT close DEMO_READINESS rows 5, 7 or 13.
+
+VERIFIED vs ASSUMED (from the harvest sec 8, in its sense). VERIFIED: WatchVrf's absence from the rtiexec log and
+roster; the full federate join order and times; the crash artefact timestamps (callstack, dmp, back-end log last
+write); the back end alive on an error dialog at 08:00:57Z; terrain replies 1/8/9 answered and 10/11/14 timed out; the
+0.31 s init-order gap; the log-ordering reversal against the D8 control; 1.BdeHQ~PXY's actual creation and reporting;
+the report/code counts; both exe and config hashes; rtiAssistant 48392's start time and absence from the pre-run
+inventory; the full teardown sequence; that all four federate-starting scripts set `RTI_RID_FILE`; the D5b-vs-D8
+back-end command-line comparison (identical but for `--appNumber`). ASSUMED / INFERRED, flagged as such: that the
+callstack's creation timestamp is the fault time (standard, corroborated three ways, not read from the file itself);
+that rtiAssistant 48392 was spawned by WatchVrf (inferred from timing and WatchVrf's own trace, no process-tree
+evidence survives); that the ~118 s ageing gap is a VR-Forces back-end timeout (fits, not read from vendor docs this
+session); the causal link between the init/order overlap and the crash itself (coincident to the second, every named
+alternative excluded, but n=1 and undiagnosed).
+
+NEXT: C2 = the same rehearsal after the defer/READY-TO-TASK fix is merged, rebuilt and deployed, with the observer
+given the runner's env (the new P-RID gate) or run with `-NoObserver`. C1 (same 0.31 s gap, fixed observer environment,
+OLD binary) is registered only if the crash itself still needs isolating from the harness defect - it separates "the
+harness caused it" from "the overlap caused it" in one run, and is not needed if C2 alone is run next.

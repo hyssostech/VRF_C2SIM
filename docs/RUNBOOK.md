@@ -194,6 +194,19 @@ entities; the 5.2 rid is now `config\rid-501-rtiexec-min.mtl` (0.5.13). NEVER ed
 rid.mtl, and every federate in a run must point at the SAME rid file or they do not share a
 connection (RefMan: they must also agree on `RTI_useRtiExec`).
 
+A FEDERATE STARTED WITHOUT THIS PROJECT'S ENVIRONMENT TAKES THE MACHINE'S VENDOR RID, NOT OURS
+(D5b, 2026-09-21): every repo script that starts a federate (`StartInterface52.ps1`,
+`LaunchVrf52.ps1`, `StartFederationHolder52.ps1`, `StartRtiExec52.ps1`) sets `RTI_RID_FILE` +
+`RTI_ASSISTANT_DISABLE=1` before launch; a federate (e.g. `WatchVrf.exe`) started by hand or by
+a script that skips that step falls back to the machine-scope `rid.mtl`, which DOES consult the
+Assistant. Symptoms, in order: it spawns `rtiAssistant.exe` and blocks on the "Choose RTI
+Connection" modal (0.5.4); it never joins the federation (absent from the rtiexec log and
+roster); and it is silently a NO-OP observer - zero CON/POS rows is then a configuration defect,
+not a finding. THE CHECK: read the tool's OWN trace file's first line - `Loading Config File:
+...\config\rid-501-rtiexec-min.mtl` is correct; `Loading Config File: C:\MAK\makRti5.0.1\rid.mtl`
+(or any path under the vendor tree, not this repo's `config\`) means the environment was never
+set, and everything that federate reports is void until it is relaunched correctly.
+
 ### 0.5.6 IS THE BACK-END ACTUALLY UP? - HEALTH ORACLE
 
 PROCESS PRESENCE IS NOT HEALTH. A blocked back-end sits at 2-4 threads,
@@ -772,6 +785,21 @@ HOW IT WORKS AND WHAT DOES NOT - so nobody relearns this (cost: most of a sessio
   and OK on the second (screenshot-verified). That is the script's mechanism.
 - To SEE a hidden dialog: move it with SetWindowPos(SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE)
   and screenshot its rect with System.Drawing CopyFromScreen (scratchpad only).
+
+A DIFFERENT 5.2d CRASH, OPEN, NOT THIS ONE (D5b, 2026-09-21, STP-854): the Way B rehearsal's
+back end (vrfSimHLA1516e pid 29280) crashed onto a Windows "Error vrfSimHLA1516e.exe" modal, NOT
+the MAK dump prompt above - a different dialog, not handled by AnswerCrashDumpDialog.ps1's title
+match. Stamps (from artefact listings only; the vendor log itself was never opened):
+`.callstack.log` created 07:26:29Z, last written 07:26:34Z; `.dmp` created/last written
+07:26:34/35Z; the back-end vendor log's own last write 07:26:34Z. The crash is coincident to the
+second with the interface's init/order overlap (order on the bus 07:26:28.200Z, 0.31 s after
+PushInit returned, no gate) and every other named cause is excluded (not the known
+`--logFileName` startup crash - not passed; not a Way B configuration difference reaching the
+back end - the D5b and D8 command lines are identical but for `--appNumber`; not the harness
+observer - it never joined the federation). WHAT IT IS NOT: diagnosed. n=1, no callstack was read
+here, and the process sat on the error dialog for 34 minutes (thread count 42 -> 68) before
+StopVrf52 closed it. Confirming run C1 (same 0.31 s gap, fixed observer environment, unchanged
+binary) would separate a harness cause from an init/order-overlap cause in one run.
 
 THE testhost FIREWALL PROMPT (`dotnet test` copies testhost.exe into every test bin, and
 each NEW PATH prompts once): a NUISANCE, not a blocker - vstest talks over loopback,

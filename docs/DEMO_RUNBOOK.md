@@ -257,8 +257,13 @@ close it (`pwsh -File scripts\StopVrf52.ps1` or the GUI itself).
 
 Then STP pushes the initialization, then the order (section 4).
 
-UNVERIFIED as a single sequence: each script is in daily use, but the full hand-started, STP-driven
-run has not been done end to end (DEMO_READINESS row 7).
+VERIFIED LIVE as far as start-up (D5b, 2026-09-21, DEMO_READINESS row 7): steps 1-3 above
+(rtiexec, LaunchVrf52 with its own standalone federation holder, StartInterface52) ran end to end
+exactly as written and reached READY; the stop order below (StopIface, then StopVrf52) also ran
+and closed a live back end cleanly. NOT YET VERIFIED: a completed tasking. In the one rehearsal
+run so far the back end crashed 1.3 s after the order was pushed and 0 of 3 tasks completed
+(STP-854, undiagnosed) - do not treat this sequence as proven past StartInterface52 until a
+confirming run finishes with completions.
 
 ---
 
