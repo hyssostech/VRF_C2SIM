@@ -1329,6 +1329,87 @@ Check '8m2 Get-HolderPidLogLines (wrapped in @()) is an empty array for a pid ab
 Check '8m2 Get-HolderPidLogLines (wrapped in @()) against a null log delta is an empty array, no throw' (
     (@(Get-HolderPidLogLines -LogDelta $null -ProcessId 87404)).Count -eq 0)
 
+# ===========================================================================================
+# 8m3. N9 (D8 harvest, 2026-09-21): THE JOIN EVIDENCE MUST BE QUOTED, NOT CONSTRUCTED.
+#
+# Stage 2h announced the join as `rtiexec log: remoteControl <pid> has joined federation
+# "<name>"` - a sentence the runner BUILT from the two values it had searched for. On the D8
+# host the real line is the doubled, interleaved $garbledJoin87404 above, so the runner's own
+# permanent record made a garbled log read clean; overturning that reading cost the harvest a
+# whole section. The runner now quotes the line that matched.
+#
+# Three properties, and all three can fail:
+#   1. the quoted line IS the matched line, byte for byte apart from the control-character and
+#      truncation rules - so a garbled log LOOKS garbled in the record;
+#   2. the predicate and the evidence share one matcher, so "joined" can never be reported
+#      beside a line that did not match;
+#   3. the runner no longer builds the sentence.
+Write-Host '=== 8m3. N9: the Stage 2h join evidence QUOTES the matched rtiexec line ==='
+Check '8m3 Get-HolderJoinLine returns the CLEAN line verbatim' (
+    (Get-HolderJoinLine -LogDelta $cleanJoinLine -ProcessId 87404 -FederationName 'MAK-ONE-2025') -eq $cleanJoinLine)
+Check '8m3 ...and the GARBLED line verbatim - doubling, interleaving and all (this is the D8 line)' (
+    (Get-HolderJoinLine -LogDelta $garbledJoin87404 -ProcessId 87404 -FederationName 'MAK-ONE-2025') -eq $garbledJoin87404)
+Check '8m3 the quoted evidence is NOT the clean sentence the runner used to construct' (
+    (Get-HolderJoinLine -LogDelta $garbledJoin87404 -ProcessId 87404 -FederationName 'MAK-ONE-2025') -ne
+    ('rtiexec log: remoteControl 87404 has joined federation "MAK-ONE-2025"'))
+Check '8m3 a non-match returns the EMPTY string, never a manufactured line' (
+    (Get-HolderJoinLine -LogDelta $resignedLine -ProcessId 87404 -FederationName 'MAK-ONE-2025') -eq '' -and
+    (Get-HolderJoinLine -LogDelta $garbledJoin74612 -ProcessId 87404 -FederationName 'MAK-ONE-2025') -eq '' -and
+    (Get-HolderJoinLine -LogDelta $null -ProcessId 87404 -FederationName 'MAK-ONE-2025') -eq '')
+# THE TWO MUST AGREE BY CONSTRUCTION. A predicate with its own copy of the regex is how a run
+# comes to say "joined" and quote something else; Test-HolderJoinedInLog is now defined in
+# terms of Get-HolderJoinLine, and this is the assertion that keeps it that way.
+$n9Cases = @(
+    @{ D = $cleanJoinLine;    P = 87404; F = 'MAK-ONE-2025' },
+    @{ D = $garbledJoin87404; P = 87404; F = 'MAK-ONE-2025' },
+    @{ D = $garbledTruncated; P = 87404; F = 'MAK-ONE-2025' },
+    @{ D = $garbledJoin74612; P = 87404; F = 'MAK-ONE-2025' },
+    @{ D = $resignedLine;     P = 87404; F = 'MAK-ONE-2025' },
+    @{ D = $garbledJoin87404; P = 8740;  F = 'MAK-ONE-2025' },
+    @{ D = $garbledJoin87404; P = 87404; F = 'STP825AB' },
+    @{ D = '';                P = 87404; F = 'MAK-ONE-2025' })
+$n9Agree = $true
+foreach ($c in $n9Cases) {
+    $said  = [bool](Test-HolderJoinedInLog -LogDelta $c.D -ProcessId $c.P -FederationName $c.F)
+    $shown = [bool](Get-HolderJoinLine    -LogDelta $c.D -ProcessId $c.P -FederationName $c.F)
+    if ($said -ne $shown) { $n9Agree = $false }
+}
+Check '8m3 the predicate and the quoted evidence agree on all 8 cases - one matcher, not two' $n9Agree
+# ConvertTo-QuotableLogLine: safe to print, still recognisably the same line.
+$n9Ctrl = "Federate remoteControl 87404 has joined" + [string][char]7 + [string][char]27 + " federation ""MAK-ONE-2025""."
+$n9Quoted = ConvertTo-QuotableLogLine -Line $n9Ctrl
+Check '8m3 control characters become spaces (a raw BEL/ESC from a garbled sink must not reach the console or the manifest)' (
+    $n9Quoted -notmatch "[\x00-\x1f\x7f]" -and $n9Quoted -match 'has joined' -and $n9Quoted -match 'MAK-ONE-2025')
+Check '8m3 a normal line is returned UNCHANGED - the sanitiser must not launder evidence' (
+    (ConvertTo-QuotableLogLine -Line $cleanJoinLine) -eq $cleanJoinLine -and
+    (ConvertTo-QuotableLogLine -Line $garbledJoin87404) -eq $garbledJoin87404)
+$n9Long = ('x' * 500)
+$n9Trunc = ConvertTo-QuotableLogLine -Line $n9Long -MaxChars 200
+Check '8m3 an over-long line is truncated at 200 chars and SAYS SO with the true length' (
+    $n9Trunc.StartsWith(('x' * 200)) -and $n9Trunc -match 'TRUNCATED, 500 chars total')
+Check '8m3 null/empty in, empty out, no throw under StrictMode' (
+    (ConvertTo-QuotableLogLine -Line $null) -eq '' -and (ConvertTo-QuotableLogLine -Line '') -eq '')
+# ...and the two scripts really use it. LaunchVrf52 duplicates the pair deliberately
+# ("CHANGE ONE, CHANGE BOTH"), so both copies are checked.
+Check '8m3 the runner no longer BUILDS the sentence, and quotes the matched line instead' (
+    $runnerText -notmatch "rtiexec log: remoteControl \{0\} has joined federation" -and
+    $runnerText -match 'Get-HolderJoinLine -LogDelta' -and
+    $runnerText -match 'rtiexec log line \(VERBATIM\)' -and
+    $runnerText -match 'ConvertTo-QuotableLogLine -Line \$hJoinLine')
+Check '8m3 the loose-match fallback and the pid-line dump are quoted through the same sanitiser' (
+    $runnerText -match 'ConvertTo-QuotableLogLine -Line \$pl' -and
+    $runnerText -match '\$hLooseQuoted\s*=\s*ConvertTo-QuotableLogLine')
+$n9Launch = Get-Content -LiteralPath (Join-Path $RepoRoot 'scripts\LaunchVrf52.ps1') -Raw
+$n9LibText = Get-Content -LiteralPath (Join-Path $RepoRoot 'scripts\RunnerLib.ps1') -Raw
+Check '8m3 LaunchVrf52.ps1 carries the SAME pair (CHANGE ONE, CHANGE BOTH) and quotes the line in its own HELD message' (
+    $n9Launch -match 'function Get-HolderJoinLine' -and
+    $n9Launch -match 'function ConvertTo-QuotableLogLine' -and
+    $n9Launch -match 'rtiexec log line \(VERBATIM\)' -and
+    $n9Launch -match 'federation HELD.*\{6\}')
+Check '8m3 both copies of Test-HolderJoinedInLog are defined in terms of Get-HolderJoinLine, not a second regex' (
+    ([regex]::Matches($n9LibText + $n9Launch,
+        'Get-HolderJoinLine -LogDelta \$LogDelta -ProcessId \$ProcessId -FederationName \$FederationName')).Count -eq 2)
+
 # 9. Get-VrfUuidByName must parse BOTH app-log route-line forms. The app started
 # logging the route's own uuid on 2026-09-02 with the route-uuid fix ("Route '<r>'
 # (VRF_UUID:<route>) created; ..."); every run in the record before that logs the

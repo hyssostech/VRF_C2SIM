@@ -3971,9 +3971,19 @@ try {
                 while (((Get-Date) - $hStart).TotalSeconds -lt $FederationHoldJoinWaitSec) {
                     Start-Sleep -Seconds 1
                     if ($holderLog) {
-                        if (Test-HolderJoinedInLog -LogDelta (Read-TextFromOffset -Path $holderLog -Offset $hOffset) -ProcessId $hProc.Id -FederationName $FederationHoldName) {
+                        # N9 (D8 harvest, 2026-09-21): QUOTE THE LINE THAT MATCHED. This used to
+                        # build a clean sentence out of the pid and the federation name and label
+                        # it "rtiexec log:", so a garbled sink - which is what this host has -
+                        # left a tidy record of a mangled log, and the harvest had to overturn
+                        # that reading from the raw file. Get-HolderJoinLine returns the same
+                        # match the predicate found (they share one regex by construction);
+                        # ConvertTo-QuotableLogLine makes control characters visible and
+                        # truncates loudly, and changes nothing else - the doubling IS the
+                        # evidence.
+                        $hJoinLine = Get-HolderJoinLine -LogDelta (Read-TextFromOffset -Path $holderLog -Offset $hOffset) -ProcessId $hProc.Id -FederationName $FederationHoldName
+                        if ($hJoinLine) {
                             $holderJoined   = $true
-                            $holderEvidence = ('rtiexec log: remoteControl {0} has joined federation "{1}"' -f $hProc.Id, $FederationHoldName)
+                            $holderEvidence = ('rtiexec log line (VERBATIM): {0}' -f (ConvertTo-QuotableLogLine -Line $hJoinLine))
                             break
                         }
                     } elseif ((Read-LiveText -Path $hOut) -match 'created/joined') {
@@ -4007,13 +4017,17 @@ try {
                 if (-not $holderJoined -and -not $hExited -and $holderLog) {
                     $hPidLines = @(Get-HolderPidLogLines -LogDelta (Read-TextFromOffset -Path $holderLog -Offset $hOffset) -ProcessId $hProc.Id -MaxLines 5)
                     if ($hPidLines.Count -gt 0) {
-                        Say-Warn ('Stage 2h attempt {0}: holder pid {1} did not join on the strict match, but the rtiexec log DOES mention this pid - last {2} line(s):' -f $a, $hProc.Id, $hPidLines.Count)
-                        foreach ($pl in $hPidLines) { Say-Warn ('    {0}' -f $pl) }
+                        Say-Warn ('Stage 2h attempt {0}: holder pid {1} did not join on the strict match, but the rtiexec log DOES mention this pid - last {2} line(s), VERBATIM:' -f $a, $hProc.Id, $hPidLines.Count)
+                        # N9: the same quoting rule as the strict path. These lines come from the
+                        # sink that produced the garble, so they are the ones most likely to carry
+                        # a control character into the console or the manifest.
+                        foreach ($pl in $hPidLines) { Say-Warn ('    {0}' -f (ConvertTo-QuotableLogLine -Line $pl)) }
                         $hLoose = @($hPidLines | Where-Object { $_ -match 'joined' })
                         if ($hLoose.Count -gt 0) {
+                            $hLooseQuoted  = ConvertTo-QuotableLogLine -Line $hLoose[-1]
                             $holderJoined  = $true
-                            $holderEvidence = ('rtiexec log (GARBLED, loose pid+"joined" match - strict pid+phrase+federation match failed): {0}' -f $hLoose[-1])
-                            Add-Flag 'WARN' ('Stage 2h attempt {0}: holder pid {1} join accepted on a LOOSE match only: {2}' -f $a, $hProc.Id, $hLoose[-1])
+                            $holderEvidence = ('rtiexec log line (VERBATIM; GARBLED - loose pid+"joined" match, the strict pid+phrase+federation match failed): {0}' -f $hLooseQuoted)
+                            Add-Flag 'WARN' ('Stage 2h attempt {0}: holder pid {1} join accepted on a LOOSE match only: {2}' -f $a, $hProc.Id, $hLooseQuoted)
                         }
                     }
                 }
