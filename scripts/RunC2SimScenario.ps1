@@ -2470,6 +2470,26 @@ if ($DurationScaleOn) {
     Say ('         order clock: -DurationScale not given, so this runner sets nothing and the app uses its own Vrf:DurationScale (appsettings.json). Inherited Vrf__DurationScale in this shell: {0}' -f `
          $(if ($DurationScaleEnvBefore) { $DurationScaleEnvBefore } else { '(unset)' }))
 }
+# SF-D (cold-start review of 1d0fb69, 2026-09-21). THE ORDER-CLOCK RESTORE IS ONE MECHANISM,
+# AND IT IS THIS try/finally - the OUTERMOST one in the file, opened on the very next line
+# after the export above and closed by the "finally" at the end of the file.
+#
+# WHY: the restore used to live in the TEARDOWN finally (Stage 9), which only runs for code
+# paths that reach the launch try. The export is HERE, ~180 lines before the first
+# "exit 2" of Stage 0 validation and ~700 before Stage 1/2's, so any of the ~ten early
+# aborts left Vrf__DurationScale SET IN THE INVOKING PROCESS. Through scripts\RunScenario.sh
+# that is a throwaway child pwsh and the leak dies with it; started directly in the
+# operator's own shell it does not, and the NEXT run is silently clock-compressed while its
+# own manifest says "-DurationScale not given, so this runner sets nothing" - a run whose
+# meaning is changed by the previous run's failure. Same class as the launch lock the
+# finally at the end of the file releases (V6b, 2026-09-15): a thing exported before an
+# exit path must be put back on EVERY exit path, not on the tidy one.
+#
+# PowerShell runs `finally` blocks while `exit` unwinds, so one try/finally spanning every
+# statement after the export covers all of them - the Stage 0 validation abort, Stage 0b/1/2,
+# Stage 1a's lock refusals, Stop-Runner, the generic catch, -DryRun's own exit and the live
+# path's "exit $RunnerExit" alike. Nothing else restores this variable.
+try {
 $Manifest.inputs.durationScale = [ordered]@{
     switch          = $DurationScale
     exported        = [bool]$DurationScaleOn
@@ -5575,9 +5595,10 @@ finally {
         $env:Vrf__ApplicationNumber= $SavedVrfAppNumber
         $env:C2SIM__RestUrl        = $SavedC2SimRestUrl
         $env:C2SIM__StompUrl       = $SavedC2SimStompUrl
-        # -DurationScale exported one too, so it is put back like every other one: a runner that
-        # leaves a clock scale behind in the shell would silently compress the NEXT run as well.
-        if ($DurationScaleOn) { $env:Vrf__DurationScale = $DurationScaleEnvBefore }
+        # -DurationScale is NOT restored here any more (SF-D, 2026-09-21). It is exported ~3,100
+        # lines above this block, before ten "exit 2" paths that never reach this finally, so its
+        # restore lives in the OUTERMOST try/finally at the end of the file - the only one that
+        # covers every exit path. One variable, one restore point; see the comment on that try.
         # ...and the profile's own variables, back to whatever they were (no-op on 5.0.2).
         foreach ($k in $ProfileEnv.Keys) { Set-Item -Path ('Env:' + $k) -Value ([string]$SavedProfileEnv[$k]) }
         foreach ($k in $AppEnv52.Keys)   { Set-Item -Path ('Env:' + $k) -Value ([string]$SavedAppEnv52[$k]) }
@@ -5683,4 +5704,15 @@ finally {
             Say-Warn ('could not remove the launch lock {0}: {1}. The next runner will find pid {2} already gone and report it stale.' -f $script:RunnerLockPath, $_.Exception.Message, $PID)
         }
     }
+}
+} # closes the OUTERMOST try, opened immediately after the -DurationScale export (see there)
+finally {
+    # SF-D: THE ONE RESTORE OF Vrf__DurationScale. Reached on every exit path after the
+    # export - validation aborts, Stage 0b/1/2 refusals, the lock refusals, Stop-Runner,
+    # the generic catch, -DryRun's exit and the live "exit $RunnerExit" - because
+    # PowerShell runs finally blocks while `exit` unwinds. $DurationScaleEnvBefore is
+    # $null when the shell had nothing, and assigning $null to an $env: entry REMOVES it,
+    # which is the correct restore of "it was unset". Silent: putting an environment
+    # variable back must never turn a finished run into a reported failure.
+    if ($DurationScaleOn) { $env:Vrf__DurationScale = $DurationScaleEnvBefore }
 }

@@ -1623,6 +1623,56 @@ Check '8v the Stage 0 banner ECHOES it either way, so a compressed run can never
 Check '8v the note says what it scales AND what it does not (the order''s clock, never movement)' (
     $runnerText -match 'the Duration that ends a task and the StartTime delay that holds one back\) and NOT movement')
 
+# -------------------------------------------------------------------------------------------
+# 8v2. SF-D (cold-start review of 1d0fb69, 2026-09-21): THE RESTORE HAD A HOLE, AND IT IS A
+# BEHAVIOURAL ONE. Vrf__DurationScale is exported at Stage 0 (~:2466) but used to be restored
+# only in the TEARDOWN finally (Stage 9), which no early abort reaches: the Stage 0 validation
+# "exit 2" is ~180 lines below the export, and Stage 0b/1/2 add nine more. A run that failed
+# any of them left the ORDER CLOCK SCALED IN THE INVOKING PROCESS - harmless through
+# scripts\RunScenario.sh (a throwaway child pwsh) and NOT harmless in the operator's own
+# shell, where the next run is silently compressed while its manifest says this runner set
+# nothing. The fix is one try/finally spanning everything after the export.
+#
+# WHY THIS RUNS THE RUNNER (like 8d and 8h): the leak is in the CALLER's environment, and no
+# text assertion can tell a restore that runs from one that is skipped. `exit` inside a script
+# invoked with `&` returns to the caller, so a throwaway wrapper sees exactly what an operator
+# would see. -RunSecs 1 is out of the documented 30..86400 band, so the runner aborts at the
+# Stage 0 validation "exit 2" with NOTHING launched and NO run directory - the cheapest of the
+# ten bypassing paths, and the first one an operator meets. Measured against the pre-fix
+# script: exit 2 and Vrf__DurationScale left at 7.
+Write-Host '=== 8v2. SF-D: -DurationScale is restored on an EARLY ABORT, not only after teardown ==='
+$dsLeakPwsh   = 'C:\Program Files\PowerShell\7\pwsh.exe'
+$dsLeakRunner = Join-Path $RepoRoot 'scripts\RunC2SimScenario.ps1'
+$dsLeakProbe  = Join-Path ([System.IO.Path]::GetTempPath()) ('_DurationScaleLeakProbe.{0}.ps1' -f [Guid]::NewGuid().ToString('N'))
+$dsLeakSrc = @'
+param([string]$Runner, [string]$Before)
+if ($Before -eq '(unset)') { $env:Vrf__DurationScale = $null } else { $env:Vrf__DurationScale = $Before }
+$null = & $Runner -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck -RunSecs 1 -DurationScale 7 2>&1
+Write-Output ('EXITCODE=' + $LASTEXITCODE)
+Write-Output ('AFTER=[' + $env:Vrf__DurationScale + ']')
+'@
+try {
+    [System.IO.File]::WriteAllText($dsLeakProbe, $dsLeakSrc, (New-Object System.Text.UTF8Encoding($false)))
+    # Arm (a): the shell had NOTHING. After a failed run it must still have nothing.
+    $dsUnsetOut = (& $dsLeakPwsh -NoProfile -File $dsLeakProbe -Runner $dsLeakRunner -Before '(unset)' 2>&1 | Out-String)
+    Check '8v2 (a) the probe really reached the Stage 0 validation abort (exit 2)' (
+        $dsUnsetOut -match 'EXITCODE=2') $dsUnsetOut
+    Check '8v2 (a) an aborted run leaves NO Vrf__DurationScale behind when the shell had none' (
+        $dsUnsetOut -match 'AFTER=\[\]') $dsUnsetOut
+    # Arm (b): the shell had its OWN value. A restore must put THAT back, not merely clear it.
+    $dsSetOut = (& $dsLeakPwsh -NoProfile -File $dsLeakProbe -Runner $dsLeakRunner -Before '3' 2>&1 | Out-String)
+    Check '8v2 (b) the probe really reached the Stage 0 validation abort (exit 2)' (
+        $dsSetOut -match 'EXITCODE=2') $dsSetOut
+    Check '8v2 (b) an aborted run puts the shell''s OWN value back, not the runner''s 7' (
+        $dsSetOut -match 'AFTER=\[3\]') $dsSetOut
+} finally { Remove-Item -LiteralPath $dsLeakProbe -Force -ErrorAction SilentlyContinue }
+# And the structural half: ONE restore, in the OUTERMOST finally, not in the teardown one.
+Check '8v2 the restore appears exactly ONCE in the runner (one mechanism, not ten patches)' (
+    ([regex]::Matches($runnerText, 'if \(\$DurationScaleOn\) \{ \$env:Vrf__DurationScale = \$DurationScaleEnvBefore \}')).Count -eq 1)
+Check '8v2 the outermost try is opened right after the export and closed at the end of the file' (
+    $runnerText -match '# SF-D \(cold-start review of 1d0fb69' -and
+    $runnerText -match 'closes the OUTERMOST try, opened immediately after the -DurationScale export')
+
 # ===========================================================================================
 # 8w. E4 / N3 (D6 and D7 harvests, both RECURRING): what the manifest could not say
 # ===========================================================================================
