@@ -2812,7 +2812,9 @@ shows at least d0 - R of displacement, and d0 - R >= 0.5 d0 exactly when d0 >= 2
 "actually drove there" satisfies it for every member starting two radii out. WHAT IT DOES NOT
 CHANGE: the radius, the quorum, what is sampled, and - critically - ClosableByArrival. A route
 whose last vertex lies inside the arrival radius of the dispatch position is still refused
-before any member is sampled; --arrival-selftest (57 checks) replays V6g's measured geometry
+before any member is sampled; --arrival-selftest (74 checks as of 2026-09-21; it was 38 when
+this section was first written and 57 at the amendment, so a quoted count here is a DATE, not a
+gate - run it) replays V6g's measured geometry
 and shows the refusal holding at approach fractions 0, 0.5 and 1.0, and replays D3's twenty
 members both ways. WATCH: the ARRIVAL EVIDENCE line now prints the route bar AND the lowest
 member bar applied - if they are equal, no member's own approach was shorter than the route.
@@ -2835,10 +2837,26 @@ for that shape), but the silence needs reading correctly. Measured over all 23 I
 export tasks: 6 APPLIED, 8 REFUSED (T1/T3/T6/T8/T9/T13/T16/T22), 9 with no resolved route; T16
 is a closed loop (ratio 0.000) that the ungated rule would have closed after one arrival
 radius. R9 (D7/D8) and Iron Storm cut A (T02/T10/T14, ratio 1.000) are not exposed - none of
-those routes has the shape that triggers it. IRON STORM BRANCH NOTE: the cut-A data files
-(`IRONSTORM_CUTA_Initialization.xml`, `_Order.xml`) live only on `feat/ironstorm-cut-a`, which
-predates this build - they must be brought onto main (cherry-pick or merge) and
-`derive_ironstorm_cuta.py --check` re-run before any Iron Storm cut-A run on 1d0fb69 or later.
+those routes has the shape that triggers it. IRON STORM BRANCH NOTE - **CLOSED 2026-09-21**:
+the cut-A data files (`IRONSTORM_CUTA_Initialization.xml`, `_Order.xml`) were on
+`feat/ironstorm-cut-a` only and are now on main (6014d11, review SF-E), with
+`derive_ironstorm_cuta.py --check` reproducing both hashes on this build. Cut-A is still NOT
+runnable as a demo - the nav gate passes only T14 at precision 0.2 - but the files are no
+longer the blocker, and nothing needs cherry-picking before a cut-A run.
+
+NOTE-G (cold-start review of 1d0fb69) - TWO DIFFERENT ANCHORS, BOTH CORRECT, one line so the
+next reader does not try to reconcile them. `TaskGeometryResolver` drops a graphic vertex that
+IS the taskee's own position by measuring against the unit's **AUTHORED initialization
+coordinate** (`Vrf:DropOriginVertexMeters`' own question: "did the order's route start by
+naming the assembly point?"). The STP-837 rules above measure against the taskee's **position
+at DISPATCH** - where the unit actually stood when the task was issued, which is not the
+authored coordinate once the de-stack has spread it, and which is the only anchor that can
+answer "has this member actually driven anywhere?". They are answers to different questions and
+must not be made to agree: the first is about the ORDER'S TEXT, the second about the RUN.
+Neither number is derivable from the other, and a change that unified them would silently break
+whichever question it stopped answering. `--preflight-selftest` section 7 pins the first against
+`leg_check.py` on the Iron Storm export; `--arrival-selftest` pins the second on V6g's and D3's
+measured geometry.
 
 ### 11e. DE-STACK - INDEPENDENT UNITS AT 700 m, COMPOSED SIBLINGS AT THEIR OWN ECHELON
 (user ruling 2026-09-21, option C of the D6 harvest; supersedes the 2026-09-20 warning)
@@ -2918,10 +2936,19 @@ leading "from here" vertex dragging it back to the authored point.
 
 FALLBACK: a group whose echelon the table cannot size (company and above, and the synthesized
 sub-units of `ExpandCoarseLeaves`, which carry no C2SIM echelon) is NOT spread, and the
-start-up line says so. `Vrf:DeStackEchelonFallbackMeters` (default 0) turns that into a real
-spacing; `Vrf:DeStackEchelonSpacingMeters` ("PLT=400") overrides a row. NEITHER KEY IS IN
-appsettings.json TODAY - they exist only as C# defaults; an operator reading the shipped
-profile cannot discover them from the file alone.
+start-up line says so.
+
+THE TWO KEYS THAT CHANGE THIS TABLE, neither of which is in `appsettings.json` today - they
+exist only as C# defaults, so an operator reading the shipped profile cannot discover them
+from the file alone (NOTE-5 / SF-A; set them as environment overrides, `Vrf__<Key>`):
+
+| key | type / default | what it does | how to see its effect BEFORE a run |
+|---|---|---|---|
+| `Vrf:DeStackEchelonFallbackMeters` | double, **0.0** = do not spread | The spacing used for a group whose echelon has NO table row (company and above; `ExpandCoarseLeaves` sub-units). 0 leaves those groups stacked on their parent's coordinate. Any positive value spreads them on a ring of `r = value / (2 sin(pi/N))`. | `--parse-init <init>` lists each SKIPPED group with its N and the radius it would take at 700 m |
+| `Vrf:DeStackEchelonSpacingMeters` | string, **""** = the measured table | Per-row override, `"PLT=400,SECT=250"`. Unknown keys and unparsable values are IGNORED and NAMED in the start-up line, so a typo is visible rather than silently ineffective (`EchelonSpacing.WithOverrides`). | the app's own start-up line names the applied and the ignored entries |
+
+Both are read once at init. Neither affects the INDEPENDENT lane, which stays on
+`Vrf:DeStackSpacingMeters`.
 
 COMPARABILITY: runs before 248143f (D1-D3) had the 700 m spread on composed children; D6
 (248143f) had none; runs from adca180 onward spread them at their echelon's scale (350 m for
@@ -2929,9 +2956,11 @@ platoons). The three are NOT comparable for any company-level completion timing 
 geometry. To reproduce a D1-D6 run, set `Vrf__DeStackComposedSiblings=false` (and
 `Vrf__ArrivalApproachFraction=0` for the 11d amendment above).
 
-Offline proof: `--destack-selftest` (88 checks; both type-mapping modes on all four shipped
-inits, the per-fixture group/moved counts, "no parent moves", and which taskees the sibling
-pass moves).
+Offline proof: `--destack-selftest` (139 checks as of 2026-09-21, 88 when this line was
+written: both type-mapping modes on all four shipped inits, the per-fixture group/moved counts,
+"no parent moves", which taskees the sibling pass moves, the SIZES of the groups it SKIPS and
+the rings they would take (SF-A), the ring-radius/spacing labelling (SF-D4) and the
+cross-group overlap detection with each shipped init's pair count (SF-B)).
 
 N4 (D7, 2026-09-21): a composed parent's PUBLISHED position is its members' CENTROID, not the
 parent's own coordinate; the ASYMMETRIC hex ring (D7's 0/60/120 deg, company-level) moved that
@@ -2947,15 +2976,35 @@ co-located reference - PASSES. Console level 3 is cheap on R9 scale (8.9 MB trac
 log for the whole run), so the instrument can stay ON for R9-scale rehearsals.
 
 KNOWN LIMITS (cold-start review of the ring fix, 1d0fb69):
-- No cross-group overlap check between neighbouring rings: two independent parents 700 m apart
-  each ringing 3-child platoon groups (r=202.1 m) leave only 295.8 m between the nearest
-  cross-group children, under the 350 m the ruling asks for; at N>=6 the rings interpenetrate.
-  Latent - no shipped fixture has both lanes active - but it is exactly the shape the next STP
-  export has.
+- Rings are sized WITHIN a group and nothing places them relative to each other: two parents
+  700 m apart each ringing 3-child platoon groups (r=202.1 m) leave 295.9 m between the two
+  rings, under the 350 m the ruling asks for; at N>=6 the radius equals the spacing and the
+  rings touch or interpenetrate.
+  **DETECTED since 2026-09-21 (SF-B), not fixed.** The placement is unchanged - a cross-group
+  solve is a new ruling and would move every shipped fixture - but the condition is now found
+  and said out loud: `DeStacker.FindRingOverlaps` runs after the sibling pass, the app logs one
+  **WARN** per offending pair naming both parents, the anchor separation, both radii and the
+  clearance, and `--parse-init` prints the same rows BEFORE a run (and says so when it finds
+  none).
+  **AND IT IS NOT LATENT.** The first review called it "latent - no shipped fixture has both
+  lanes active"; measured on the files, **R9 full has it today**: InitParser's superior cascade
+  puts 113.MechCoy and 114.MechCoy on the SAME 11.MechBn coordinate (their own group - the 6
+  companies under 11.MechBn - is skipped for want of a company echelon row), so each company
+  rings its own platoons about that one point. Two CONCENTRIC rings, 202.1 m and 175.0 m:
+  clearance -377.1 m, children of different parents 27 m apart radially. R9 lean, COA-STP1 and
+  Iron Storm are clean (0 pairs each), and `--destack-selftest` now asserts all four counts, so
+  a fixture cannot acquire the condition unnoticed. R9 full remains off every current
+  runbook/demo path; if it is ever put on one, this is the first thing to settle.
 - R9 full has composed sibling groups of N=4, 5, 6 and 7 (under Z1.InfCoy, 14.MechBn,
   11.MechBn, 13.MechBn) that are skipped only because COMPANY-and-above have no echelon table
-  row; one undocumented setting, `Vrf:DeStackEchelonFallbackMeters=700`, would immediately give
-  them 700-807 m rings. R9 full remains off every current runbook/demo path.
+  row; one setting, `Vrf:DeStackEchelonFallbackMeters=700`, would immediately spread them.
+  MEASURED 2026-09-21 (SF-A; `--destack-selftest` now asserts both the sizes and the radii
+  against the shipped file, and `--parse-init` prints them per skipped group): the four rings
+  would be **495.0 m (N=4), 595.5 m (N=5), 700.0 m (N=6) and 806.7 m (N=7)** - a 495-807 m
+  span, NOT "700-807 m" as this note first said and NOT the 700 m spacing itself. The radius is
+  derived from the spacing (`r = spacing / (2 sin(pi/N))`), so only N=6 makes the two equal.
+  The largest child displacement on any shipped fixture would go from 202.1 m to 806.7 m.
+  R9 full remains off every current runbook/demo path.
 - A missing sibling changes the RADIUS and every BEARING, not just slot labels (dropping one of
   three children moves the radius 202.1 -> 175.0 m and the bearings 0/120/240 -> 0/180). No
   prediction may be pinned to a named slot, bearing or radius across fixtures.

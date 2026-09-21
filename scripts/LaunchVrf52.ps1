@@ -612,14 +612,48 @@ function Test-HolderJoinedInLog {
         [Parameter(Mandatory)][int]$ProcessId,
         [Parameter(Mandatory)][string]$FederationName
     )
-    if ([string]::IsNullOrEmpty($LogDelta)) { return $false }
+    return -not [string]::IsNullOrEmpty(
+        (Get-HolderJoinLine -LogDelta $LogDelta -ProcessId $ProcessId -FederationName $FederationName))
+}
+
+# N9 (D8 harvest, 2026-09-21): the MATCHED line, verbatim, so this script's "federation HELD"
+# can quote the log instead of paraphrasing it. The predicate above is defined in terms of this
+# function, so a "joined" verdict and the line it shows can never disagree.
+function Get-HolderJoinLine {
+    param(
+        [AllowNull()][AllowEmptyString()][string]$LogDelta,
+        [Parameter(Mandatory)][int]$ProcessId,
+        [Parameter(Mandatory)][string]$FederationName
+    )
+    if ([string]::IsNullOrEmpty($LogDelta)) { return '' }
     $lineRe = ('remoteControl\s+{0}\b.*has joined federation.*{1}' -f `
                 [regex]::Escape([string]$ProcessId), [regex]::Escape($FederationName))
+    $hit = ''
     foreach ($line in ($LogDelta -split "`r?`n")) {
         if ([string]::IsNullOrEmpty($line)) { continue }
-        if ($line -match $lineRe) { return $true }
+        if ($line -match $lineRe) { $hit = $line }
     }
-    return $false
+    return $hit
+}
+
+# N9: control characters made visible, explicit loud truncation, nothing else normalised - a
+# garbled line must stay recognisably garbled wherever it is quoted.
+function ConvertTo-QuotableLogLine {
+    param(
+        [AllowNull()][AllowEmptyString()][string]$Line,
+        [int]$MaxChars = 200
+    )
+    if ([string]::IsNullOrEmpty($Line)) { return '' }
+    $sb = [System.Text.StringBuilder]::new()
+    foreach ($ch in $Line.ToCharArray()) {
+        $code = [int][char]$ch
+        if ($code -lt 32 -or $code -eq 127) { [void]$sb.Append(' ') } else { [void]$sb.Append($ch) }
+    }
+    $s = $sb.ToString().Trim()
+    if ($MaxChars -gt 0 -and $s.Length -gt $MaxChars) {
+        $s = $s.Substring(0, $MaxChars) + ('...[TRUNCATED, {0} chars total]' -f $s.Length)
+    }
+    return $s
 }
 
 function Get-HolderPidLogLines {
@@ -1169,12 +1203,18 @@ if ($FederationHoldOn) {
             continue
         }
         $hStart  = Get-Date
+        $holderEvidenceLine = ''
         while (((Get-Date) - $hStart).TotalSeconds -lt 45) {
             Start-Sleep -Seconds 1
             if ($holderLog) {
-                if (Test-HolderJoinedInLog -LogDelta (Read-TextFromOffset -Path $holderLog -Offset $hOffset) -ProcessId $hProc.Id -FederationName $fedName.Name) { $holderJoined = $true; break }
+                # N9: keep the line that matched so the "federation HELD" line below can QUOTE
+                # the rtiexec log rather than describe it.
+                $hJoinLine = Get-HolderJoinLine -LogDelta (Read-TextFromOffset -Path $holderLog -Offset $hOffset) -ProcessId $hProc.Id -FederationName $fedName.Name
+                if ($hJoinLine) { $holderJoined = $true; $holderEvidenceLine = ('rtiexec log line (VERBATIM): ' + (ConvertTo-QuotableLogLine -Line $hJoinLine)); break }
             } elseif ((Read-LiveText -Path $hOut) -match 'created/joined') {
-                $holderJoined = $true; break
+                $holderJoined = $true
+                $holderEvidenceLine = ('holder stdout: "created/joined" in ' + $hOut + ' (rtiexec log path unknown)')
+                break
             }
             if ($hProc.HasExited) { break }
         }
@@ -1187,19 +1227,21 @@ if ($FederationHoldOn) {
         if (-not $holderJoined -and -not $hExited -and $holderLog) {
             $hPidLines = @(Get-HolderPidLogLines -LogDelta (Read-TextFromOffset -Path $holderLog -Offset $hOffset) -ProcessId $hProc.Id -MaxLines 5)
             if ($hPidLines.Count -gt 0) {
-                Say-Warn ('attempt {0}: holder pid {1} did not join on the strict match, but the rtiexec log DOES mention this pid - last {2} line(s):' -f ($hi + 1), $hProc.Id, $hPidLines.Count)
-                foreach ($pl in $hPidLines) { Say-Warn ('    {0}' -f $pl) }
+                Say-Warn ('attempt {0}: holder pid {1} did not join on the strict match, but the rtiexec log DOES mention this pid - last {2} line(s), VERBATIM:' -f ($hi + 1), $hProc.Id, $hPidLines.Count)
+                foreach ($pl in $hPidLines) { Say-Warn ('    {0}' -f (ConvertTo-QuotableLogLine -Line $pl)) }
                 $hLoose = @($hPidLines | Where-Object { $_ -match 'joined' })
                 if ($hLoose.Count -gt 0) {
+                    $hLooseQuoted = ConvertTo-QuotableLogLine -Line $hLoose[-1]
                     $holderJoined = $true
-                    Say-Warn ('attempt {0}: holder pid {1} join accepted on a LOOSE match only (pid + "joined" on a garbled line, not the strict pid+phrase+federation match): {2}' -f ($hi + 1), $hProc.Id, $hLoose[-1])
+                    $holderEvidenceLine = ('rtiexec log line (VERBATIM; GARBLED - loose pid+"joined" match, the strict pid+phrase+federation match failed): ' + $hLooseQuoted)
+                    Say-Warn ('attempt {0}: holder pid {1} join accepted on a LOOSE match only (pid + "joined" on a garbled line, not the strict pid+phrase+federation match): {2}' -f ($hi + 1), $hProc.Id, $hLooseQuoted)
                 }
             }
         }
         if ($holderJoined) {
             $holderPidOut  = $hProc.Id
             $holderAppUsed = $hAppNo
-            Say-Ok ('federation HELD: holder pid {0} (appNumber {1}) joined {2} within 45s on attempt {3}/{4}. It stays joined for {5}s and is NEVER killed.' -f $holderPidOut, $holderAppUsed, $fedName.Name, ($hi + 1), $holderAttempts.Count, $FederationHoldSecs)
+            Say-Ok ('federation HELD: holder pid {0} (appNumber {1}) joined {2} within 45s on attempt {3}/{4}. It stays joined for {5}s and is NEVER killed. {6}' -f $holderPidOut, $holderAppUsed, $fedName.Name, ($hi + 1), $holderAttempts.Count, $FederationHoldSecs, $holderEvidenceLine)
         } else {
             Say-Warn ('attempt {0}/{1} FAILED: holder pid {2} on appNumber {3} did not join within 45s (exited={4}).' -f ($hi + 1), $holderAttempts.Count, $hProc.Id, $hAppNo, $hExited)
             if (-not $hExited) { Say-Warn ('  pid {0} is NOT killed (RUNBOOK sec 0) - it may be a joined federate this script simply could not see.' -f $hProc.Id) }

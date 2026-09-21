@@ -234,6 +234,27 @@ def dist_m(lat1, lon1, lat2, lon2):
     return 2.0 * R_EARTH * math.asin(math.sqrt(min(1.0, a)))
 
 
+def dist_m_flat(lat1, lon1, lat2, lon2):
+    """SF-F: THE PRODUCT'S OWN METRIC, byte for byte -
+    TaskGeometryResolver.DistMeters (src/VrfC2SimApp/TaskGeometryResolver.cs:193-200).
+
+    Equirectangular with a fixed 111,320 m per degree of latitude and cos(a.Lat) - NOT the
+    haversine dist_m above. The two disagree by ~0.1-0.3% at Iron Storm's latitude, and the
+    assembly rules compare against two HARD edges (ORIGIN_COINCIDENCE_M, CHAIN_GAP_M), so a
+    vertex at 99.9 m or a graphic at 4,995 m could in principle classify differently in the
+    two tools. It is exported so the resolver pin (--dump-resolved) can run the WHOLE assembly
+    under both metrics and show they agree, instead of arguing from the percentage.
+
+    Note the asymmetry the product has: cos is taken at a's latitude only, so
+    dist(a,b) != dist(b,a) in general. Reproduced deliberately - a pin that "fixed" it here
+    would stop pinning the thing it is pinning.
+    """
+    meters_per_deg_lat = 111320.0
+    d_lat = (lat1 - lat2) * meters_per_deg_lat
+    d_lon = (lon1 - lon2) * meters_per_deg_lat * math.cos(math.radians(lat1))
+    return math.sqrt(d_lat * d_lat + d_lon * d_lon)
+
+
 def interp(lat1, lon1, lat2, lon2, f):
     """Linear in lat/lon - exact enough over a few km, and it is the straight line the
     vendor's ground-vehicle-move-to actually drives when no nav mesh covers the leg."""
@@ -954,8 +975,29 @@ def centroid(pts):
     return (sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts))
 
 
-def assemble_route_from_graphics(resolved, taskee_pos):
+def probe(probes, threshold, d, what):
+    """SF-F instrumentation: record one comparison the assembly made against a HARD edge.
+
+    Doing nothing when `probes` is None is deliberate - run_preflight and every other caller
+    pay nothing for this; only --dump-resolved passes a list. What it collects is the quantity
+    the SF-F question is actually about: not "how far apart are the two metrics in percent",
+    but "how close did any real decision on this fixture come to flipping".
+    """
+    if probes is not None:
+        probes.append((what, float(threshold), float(d), abs(float(d) - float(threshold))))
+
+
+def assemble_route_from_graphics(resolved, taskee_pos, distfn=dist_m, probes=None):
     """Mirror TaskGeometryResolver.AssembleRoute (src/VrfC2SimApp/TaskGeometryResolver.cs:377).
+
+    distfn: SF-F. The product measures with TaskGeometryResolver.DistMeters (flat earth,
+    111,320 m/deg, cos at the FIRST argument's latitude); this tool's own dist_m is haversine.
+    Passing dist_m_flat re-runs the WHOLE assembly under the product's metric, which is how
+    --dump-resolved shows that the ~0.1-0.3% difference changes no classification on the one
+    fixture that exercises these rules. Every call site below therefore goes through distfn,
+    and the ARGUMENT ORDER of each one matches the C# call it mirrors (the product's metric is
+    not symmetric - cos is taken at the first argument's latitude - so the order is load-bearing
+    for the pin, not a style choice).
 
     THE ROLES, which is the whole point of resolving by reference rather than by document order:
       * an AREA is ONE destination - its centroid. An area is a place to go to, not a path.
@@ -988,14 +1030,20 @@ def assemble_route_from_graphics(resolved, taskee_pos):
             pts = list(g["points"])
             dropped = 0
             if taskee_pos:
-                keep = []
-                for p in pts:
-                    if (len(pts) - dropped) > 1 and dist_m(p[0], p[1],
-                                                           taskee_pos[0], taskee_pos[1]) <= ORIGIN_COINCIDENCE_M:
+                # SF-G: REMOVED FROM THE TAIL DOWN, exactly as TaskGeometryResolver.cs:420-421
+                # does it ("for i = pts.Count-1; i >= 0 && pts.Count > 1; i--"). The head-first
+                # loop that stood here agreed with the product on every mixed case and NOT on
+                # the degenerate one: when EVERY vertex of a line is the taskee's own position
+                # the product keeps pts[0] and this kept pts[-1]. Latent on today's fixtures and
+                # still drift in the exact rule this function exists to mirror.
+                for i in range(len(pts) - 1, -1, -1):
+                    if len(pts) <= 1:
+                        break
+                    dv = distfn(pts[i][0], pts[i][1], taskee_pos[0], taskee_pos[1])
+                    probe(probes, ORIGIN_COINCIDENCE_M, dv, "vertex-is-the-taskee")
+                    if dv <= ORIGIN_COINCIDENCE_M:
+                        del pts[i]
                         dropped += 1
-                        continue
-                    keep.append(p)
-                pts = keep or pts[-1:]
             if dropped:
                 notes.append("%s '%s': %d vertex(es) dropped - they ARE the taskee's own position"
                              % (g["element"], g["name"], dropped))
@@ -1010,19 +1058,24 @@ def assemble_route_from_graphics(resolved, taskee_pos):
             if frm is None:
                 best, best_rev, best_d = 0, False, 0.0
                 break
-            d_head = dist_m(frm[0], frm[1], pts[0][0], pts[0][1])
-            d_tail = dist_m(frm[0], frm[1], pts[-1][0], pts[-1][1])
+            d_head = distfn(frm[0], frm[1], pts[0][0], pts[0][1])
+            d_tail = distfn(frm[0], frm[1], pts[-1][0], pts[-1][1])
             d = min(d_head, d_tail)
             if d < best_d:
                 best, best_rev, best_d = i, d_tail < d_head, d
         g, pts = unused.pop(best)
         take = list(reversed(pts)) if best_rev else pts
+        if route:
+            probe(probes, CHAIN_GAP_M, best_d, "chain-gap")
         if route and best_d > CHAIN_GAP_M:
             unchained.append(g)
             continue
         added = 0
         for p in take:
-            if route and dist_m(route[-1][0], route[-1][1], p[0], p[1]) <= ORIGIN_COINCIDENCE_M:
+            if route:
+                probe(probes, ORIGIN_COINCIDENCE_M,
+                      distfn(route[-1][0], route[-1][1], p[0], p[1]), "vertex-already-covered")
+            if route and distfn(route[-1][0], route[-1][1], p[0], p[1]) <= ORIGIN_COINCIDENCE_M:
                 continue
             route.append(p)
             added += 1
@@ -1035,7 +1088,10 @@ def assemble_route_from_graphics(resolved, taskee_pos):
 
     dest_taken = False
     for g, pt, what in destinations:
-        if route and dist_m(route[-1][0], route[-1][1], pt[0], pt[1]) <= ORIGIN_COINCIDENCE_M:
+        if route:
+            probe(probes, ORIGIN_COINCIDENCE_M,
+                  distfn(route[-1][0], route[-1][1], pt[0], pt[1]), "route-already-ends-there")
+        if route and distfn(route[-1][0], route[-1][1], pt[0], pt[1]) <= ORIGIN_COINCIDENCE_M:
             dest_taken = True
             notes.append("destination '%s' (%s): the route already ends there, not repeated" % (g["name"], what))
             continue
@@ -1049,7 +1105,8 @@ def assemble_route_from_graphics(resolved, taskee_pos):
     if taskee_pos and route:
         left = False
         for i, p in enumerate(route):
-            d = dist_m(p[0], p[1], taskee_pos[0], taskee_pos[1])
+            d = distfn(p[0], p[1], taskee_pos[0], taskee_pos[1])
+            probe(probes, ORIGIN_COINCIDENCE_M, d, "doubles-back")
             if not left:
                 if d > ORIGIN_COINCIDENCE_M:
                     left = True
@@ -1060,6 +1117,115 @@ def assemble_route_from_graphics(resolved, taskee_pos):
                 del route[i:]
                 break
     return route, notes
+
+
+def resolve_task_geometry(task, units, graphics, distfn=dist_m, probes=None):
+    """The PRECEDENCE this tool shares with TaskGeometryResolver.Resolve, isolated so the pin
+    and run_preflight cannot drift apart: MapGraphicID(s) that resolve are the geometry, else
+    the task's embedded Location, else nothing.
+
+    -> (points, source, resolved_ids, unmatched_ids). source is one of
+    'map_graphic' / 'embedded_location' / 'none' - the three GeometrySource values.
+    """
+    unit = units.get(task["performer"])
+    taskee_pos = (unit["lat"], unit["lon"]) if unit and unit["lat"] is not None else None
+    gids = task.get("graphic_ids") or []
+    resolved_ids = [g for g in gids if graphics and g in graphics and graphics[g]["points"]]
+    unmatched = [g for g in gids if g not in resolved_ids]
+    if resolved_ids:
+        pts, _notes = assemble_route_from_graphics([graphics[g] for g in resolved_ids],
+                                                   taskee_pos, distfn=distfn, probes=probes)
+        if pts:
+            return pts, "map_graphic", resolved_ids, unmatched
+    pts = list(task["points"])
+    if not pts:
+        return [], "none", resolved_ids, unmatched
+    return pts, "embedded_location", resolved_ids, unmatched
+
+
+def dump_resolved(path, order_path, init_path, units, tasks, graphics, out=sys.stdout):
+    """SF-G: WRITE THE RESOLVED GEOMETRY OF EVERY TASK, for the C# port to be pinned against.
+
+    THE GAP THIS CLOSES. tools/preflight/leg_check.py is a RE-IMPLEMENTATION of
+    TaskGeometryResolver and can drift from it. The existing --preflight-selftest comparison
+    runs on COA-STP1 and R9, which carry ZERO MapGraphicIDs - the code asserts that itself - so
+    it exercises none of the assembly rules. The one shipped fixture that does exercise them is
+    the Iron Storm export, and nothing compared the two implementations on it. This writes the
+    Python side's answer; `VrfC2SimApp --preflight-selftest` reads it back and compares the C#
+    resolver's answer task by task, field by field.
+
+    NO TERRAIN, NO TILES, NO NETWORK: resolution is pure geometry over the order and the init.
+
+    SF-F IS MEASURED HERE, not argued. The whole assembly is run TWICE - once with this tool's
+    haversine dist_m, once with dist_m_flat, which is the product's own equirectangular metric -
+    and the two results are compared vertex for vertex. Disagreement is FATAL (exit 3): it would
+    mean a task classifies differently in the two tools at one of the assembly's two hard edges
+    (ORIGIN_COINCIDENCE_M = 100 m, CHAIN_GAP_M = 5,000 m), and the pin would be pinning the
+    wrong thing. The margin - the smallest distance from either threshold over every comparison
+    the two metrics make - is written into the reference so the next reader can see how much
+    room there actually is.
+    """
+    rows, fatal = [], []
+    probes = []
+    for i, task in enumerate(tasks):
+        unit = units.get(task["performer"])
+        pts_h, src_h, res_h, unm_h = resolve_task_geometry(task, units, graphics, dist_m, probes)
+        pts_f, src_f, _res_f, _unm_f = resolve_task_geometry(task, units, graphics, dist_m_flat,
+                                                             probes)
+        if src_h != src_f or len(pts_h) != len(pts_f) or any(
+                a[0] != b[0] or a[1] != b[1] for a, b in zip(pts_h, pts_f)):
+            fatal.append("task[%d] '%s': haversine and flat-earth resolution DISAGREE "
+                         "(%s/%d vertices vs %s/%d)"
+                         % (i, task["name"], src_h, len(pts_h), src_f, len(pts_f)))
+        rows.append(dict(
+            index=i,
+            task=task["name"],
+            task_uuid=task["uuid"],
+            unit=(unit["name"] if unit else ""),
+            unit_uuid=task["performer"],
+            source=src_h,
+            graphic_ids=list(task.get("graphic_ids") or []),
+            resolved_ids=res_h,
+            unmatched_ids=unm_h,
+            embedded_points=len(task["points"]),
+            points=[[p[0], p[1]] for p in pts_h]))
+    if fatal:
+        for f in fatal:
+            sys.stderr.write("FATAL: %s\n" % f)
+        sys.stderr.write("FATAL: the resolver reference was NOT written. SF-F is no longer a "
+                         "margin question on this fixture - align leg_check.py's dist_m to "
+                         "TaskGeometryResolver.DistMeters (the C# side is the product).\n")
+        return 3
+    # THE MARGIN, at the two hard edges, over every comparison both metrics made.
+    margin = {}
+    for what, threshold, _d, slack in probes:
+        key = "%.0f" % threshold
+        if key not in margin or slack < margin[key][0]:
+            margin[key] = (slack, what)
+    doc = dict(
+        generated=iso_now(),
+        tool="tools/preflight/leg_check.py --dump-resolved",
+        order=os.path.basename(order_path),
+        init=os.path.basename(init_path),
+        origin_coincidence_m=ORIGIN_COINCIDENCE_M,
+        chain_gap_m=CHAIN_GAP_M,
+        metric_agreement=dict(
+            haversine_vs_flat_earth="identical resolution on every task",
+            comparisons_probed=len(probes),
+            closest_to_a_threshold_m=dict(
+                (k, dict(margin_m=round(v[0], 3), rule=v[1])) for k, v in sorted(margin.items()))),
+        tasks=rows)
+    text = json.dumps(doc, indent=2, sort_keys=True, ensure_ascii=True)
+    with open(path, "w", encoding="ascii", newline="\r\n") as fh:
+        fh.write(text)
+        fh.write("\n")
+    out.write("wrote %d resolved task(s) to %s\n" % (len(rows), path))
+    out.write("  haversine and flat-earth (TaskGeometryResolver.DistMeters) agree on EVERY task\n")
+    out.write("  %d threshold comparison(s) probed under both metrics; closest approach to an edge:\n"
+              % len(probes))
+    for k in sorted(margin, key=float):
+        out.write("    %s m edge: %.1f m of margin (%s)\n" % (k, margin[k][0], margin[k][1]))
+    return 0
 
 
 # --------------------------------------------------------------------------- start positions
@@ -2083,6 +2249,17 @@ def selftest(tiles, soil, sms):
     bad += _chk("the axis vertex that IS the taskee's own position (3rd of 4) is DROPPED",
                 len(pts) == 3 and (54.28000, 23.32000) not in pts
                 and any("taskee's own position" in n for n in notes))
+    # (f2) SF-G: THE DEGENERATE CASE, where this tool used to disagree with the product.
+    # When EVERY vertex of a line is the taskee's own position the rule can only keep one, and
+    # which one it keeps is not a matter of taste: TaskGeometryResolver.cs:420-421 removes from
+    # the TAIL DOWN while pts.Count > 1, so pts[0] survives. This tool dropped from the head and
+    # kept pts[-1]. No shipped fixture reaches it - which is exactly why it went unnoticed, and
+    # why it is pinned here rather than left to the next export to discover.
+    allmine = _g("am", "line", [(54.28000, 23.32000), (54.28010, 23.32010),
+                                (54.28020, 23.32020)], name="every vertex is the unit")
+    pts, notes = assemble_route_from_graphics([allmine], taskee)
+    bad += _chk("all-coincident line: ONE vertex survives and it is the FIRST (the C# survivor)",
+                len(pts) == 1 and pts[0] == (54.28000, 23.32000))
     # (g) a graphic more than CHAIN_GAP_M from the route is not spliced onto it.
     far = _g("f1", "line", [(50.0, 20.0), (50.1, 20.1)], name="somewhere else")
     pts, notes = assemble_route_from_graphics([line, far], taskee)
@@ -2491,6 +2668,12 @@ def main(argv=None):
     ap.add_argument("--levels", default=None,
                     help="with --level-sensitivity: comma-separated levels (default: the whole "
                          "cascade, --elev-level down to --elev-min-level)")
+    ap.add_argument("--dump-resolved", default=None,
+                    help="SF-G: write the RESOLVED geometry of every task (MapGraphicID "
+                         "assembly, else the embedded Location) to this json and exit. No "
+                         "terrain, no tiles, no network. It is the reference "
+                         "`VrfC2SimApp --preflight-selftest` pins the C# TaskGeometryResolver "
+                         "against on the ONE fixture with MapGraphicIDs.")
     ap.add_argument("--selftest", action="store_true")
     ap.add_argument("--calibrate", action="store_true")
     ap.add_argument("--verify-run", default=None,
@@ -2547,6 +2730,12 @@ def main(argv=None):
     # every order is written against, so an init graphic wins a uuid collision. The real STP
     # export carries 34 of its 35 referenced graphics in the ORDER and none in the init.
     graphics = parse_graphics(args.order, args.init)
+
+    # SF-G: pure geometry, so it runs BEFORE the start-position check (which is AO-specific and
+    # would warn about a fixture it has no CSV for) and touches neither terrain nor the network.
+    if args.dump_resolved:
+        return dump_resolved(args.dump_resolved, args.order, args.init, units, tasks, graphics)
+
     starts, _dropped = check_starts_distance(starts, tasks, units, args.starts_max_km,
                                              os.path.basename(args.starts), starts_explicit)
 

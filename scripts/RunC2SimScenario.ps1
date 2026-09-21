@@ -2452,11 +2452,39 @@ if (Test-Path -LiteralPath $appSettings -PathType Leaf) {
             $cfg.Vrf.PSObject.Properties.Name -contains 'ClientId') { $appClientId = [string]$cfg.Vrf.ClientId }
     } catch { Say-Warn ('could not parse {0}: {1}' -f $appSettings, $_.Exception.Message) }
 }
+# SF-R4 (cold-start review of 2df59ba). Vrf__ClientId HAD THE SAME HOLE AS THE ORDER CLOCK, AND
+# A WORSE ONE: it was exported below and restored NOWHERE in this file, so it leaked out of a
+# fully SUCCESSFUL run, not only an aborted one - and this runner's own banner then printed
+# "clientId : <x> (appsettings.json)" while the app was reading the leaked environment value.
+# That is the silent mislabel SF-D exists to stop, one echelon worse, and the first review's
+# stated reason for deferring it ("it cannot change what a run MEANS") is wrong: ClientId IS the
+# C2SIM SystemName the interface filters on, so a leaked value changes which units get created.
+# Three parts, and the first two use the mechanism SF-D already built:
+#   1. the shell's own value is SAVED here and RESTORED by the outermost finally at the end of
+#      the file - the same one line of mechanism, not a second one;
+#   2. the THREE sources are kept apart, so nothing downstream has to guess which won;
+#   3. the EFFECTIVE value is what the SystemName cross-check and the banner use, because the
+#      app resolves env-over-appsettings and a check against the losing source checks nothing.
+$appSettingsClientId  = $appClientId              # what the deployed appsettings.json says
+$ClientIdEnvBefore    = [Environment]::GetEnvironmentVariable('Vrf__ClientId')
+$ClientIdSource       = ''
 if ($ClientId) {
     # -ClientId wins over appsettings: the app reads Vrf__ClientId from its environment (the standard
     # env-override mechanism every other Vrf__ setting uses). Exported here so the app inherits it.
-    $appClientId = $ClientId
+    $appClientId    = $ClientId
+    $ClientIdSource = '-ClientId -> Vrf__ClientId (beats appsettings.json)'
     $env:Vrf__ClientId = $ClientId
+} elseif ($ClientIdEnvBefore) {
+    # NOT passed, but the shell already carries one. The app reads it and it BEATS
+    # appsettings.json, so this is the value the run will really use - and saying
+    # "(appsettings.json)" here is exactly the mislabel this block exists to remove.
+    $appClientId    = $ClientIdEnvBefore
+    $ClientIdSource = ('INHERITED Vrf__ClientId in this shell - it BEATS appsettings.json, which says {0}' -f `
+                       $(if ($appSettingsClientId) { "'" + $appSettingsClientId + "'" } else { '(key absent)' }))
+    Say-Warn ('clientId: this shell already carries Vrf__ClientId={0} and the app READS IT, so appsettings.json''s {1} is NOT what this run uses. The runner did not set it. Clear it (Remove-Item Env:Vrf__ClientId) or pass -ClientId to make the choice explicit.' -f `
+              $ClientIdEnvBefore, $(if ($appSettingsClientId) { "'" + $appSettingsClientId + "'" } else { '(key absent)' }))
+} else {
+    $ClientIdSource = 'appsettings.json'
 }
 # -DurationScale takes exactly the same path (env Vrf__<Key> beats appsettings.json), which is
 # what the seat had been doing by hand around the runner. Doing it HERE is what puts it in the
@@ -2470,6 +2498,26 @@ if ($DurationScaleOn) {
     Say ('         order clock: -DurationScale not given, so this runner sets nothing and the app uses its own Vrf:DurationScale (appsettings.json). Inherited Vrf__DurationScale in this shell: {0}' -f `
          $(if ($DurationScaleEnvBefore) { $DurationScaleEnvBefore } else { '(unset)' }))
 }
+# SF-D (cold-start review of 1d0fb69, 2026-09-21). THE ORDER-CLOCK RESTORE IS ONE MECHANISM,
+# AND IT IS THIS try/finally - the OUTERMOST one in the file, opened on the very next line
+# after the export above and closed by the "finally" at the end of the file.
+#
+# WHY: the restore used to live in the TEARDOWN finally (Stage 9), which only runs for code
+# paths that reach the launch try. The export is HERE, ~180 lines before the first
+# "exit 2" of Stage 0 validation and ~700 before Stage 1/2's, so any of the ~ten early
+# aborts left Vrf__DurationScale SET IN THE INVOKING PROCESS. Through scripts\RunScenario.sh
+# that is a throwaway child pwsh and the leak dies with it; started directly in the
+# operator's own shell it does not, and the NEXT run is silently clock-compressed while its
+# own manifest says "-DurationScale not given, so this runner sets nothing" - a run whose
+# meaning is changed by the previous run's failure. Same class as the launch lock the
+# finally at the end of the file releases (V6b, 2026-09-15): a thing exported before an
+# exit path must be put back on EVERY exit path, not on the tidy one.
+#
+# PowerShell runs `finally` blocks while `exit` unwinds, so one try/finally spanning every
+# statement after the export covers all of them - the Stage 0 validation abort, Stage 0b/1/2,
+# Stage 1a's lock refusals, Stop-Runner, the generic catch, -DryRun's own exit and the live
+# path's "exit $RunnerExit" alike. Nothing else restores this variable.
+try {
 $Manifest.inputs.durationScale = [ordered]@{
     switch          = $DurationScale
     exported        = [bool]$DurationScaleOn
@@ -2479,10 +2527,15 @@ $Manifest.inputs.durationScale = [ordered]@{
                             $cfgApp.Vrf.PSObject.Properties.Name -contains 'DurationScale') { $cfgApp.Vrf.DurationScale } else { '(key absent)' })
     note            = 'Vrf:DurationScale. -DurationScale 0 (the default) exports NOTHING and the app keeps its own value. Anything positive is exported as Vrf__DurationScale, which beats appsettings.json. It scales BOTH halves of the order clock (the Duration that ends a task and the StartTime delay that holds one back) and NOT movement, so a scaled run''s wall-clock length changes but its kinematics do not. The app REFUSES a non-positive scale and falls back to 1.0; this runner refuses one before anything is launched.'
 }
+# SF-R4: THE CHECK IS AGAINST THE VALUE THE APP WILL ACTUALLY USE. $appClientId is now the
+# EFFECTIVE clientId (-ClientId, else an inherited Vrf__ClientId, else appsettings.json) and the
+# message names WHICH of the three it came from. Checking the losing source checks nothing: a
+# shell carrying a stale Vrf__ClientId that disagrees with the init creates 0 UNITS, and that is
+# precisely the failure this gate exists to refuse before anything is launched.
 if ($appClientId -and $initSystemNames.Count -gt 0 -and ($initSystemNames -notcontains $appClientId)) {
-    $bad += ("clientId MISMATCH: appsettings Vrf:ClientId='{0}' but the init declares SystemName [{1}]. RUNBOOK sec 2: they MUST match or the interface creates 0 UNITS. Fix appsettings.json (or the init) before running." -f $appClientId, ($initSystemNames -join ','))
+    $bad += ("clientId MISMATCH: the EFFECTIVE Vrf:ClientId is '{0}' (source: {1}) but the init declares SystemName [{2}]. RUNBOOK sec 2: they MUST match or the interface creates 0 UNITS. Fix the source named here (or the init) before running." -f $appClientId, $ClientIdSource, ($initSystemNames -join ','))
 }
-if (-not $appClientId) { Say-Warn 'could not read Vrf:ClientId from the app appsettings.json - the SystemName match is UNVERIFIED.' }
+if (-not $appClientId) { Say-Warn 'could not read Vrf:ClientId from the app appsettings.json, and neither -ClientId nor an inherited Vrf__ClientId supplies one - the SystemName match is UNVERIFIED.' }
 
 # THE LATERAL ROUTE SHIFT, IN THE EVIDENCE (user ruling 2026-09-20: "Route shift: ON. Use as
 # default for any run."; STP-804/806, RUNBOOK sec 12). It CHANGES WHERE UNITS DRIVE, so a run
@@ -2741,7 +2794,10 @@ $Manifest.inputs.inputSources  = [ordered]@{
 $Manifest.inputs.quietBackend  = [bool]$QuietBackend
 $Manifest.inputs.backendNotifyLevel = $BackendNotifyLevel
 $Manifest.inputs.vrfAppDataDir = $(if ($Is52 -and $VrfAppDataDir) { $VrfAppDataDir } elseif ($Is52) { '(not passed - vendor appData)' } else { $null })
-$Manifest.inputs.clientId      = $(if ($ClientId) { $ClientId } else { ('(appsettings) {0}' -f $appClientId) })
+# SF-R4: the clientId fields are written ONCE, further down, from the EFFECTIVE value and its
+# source. A write here would be dead - the later one overwrote it - and it said something
+# different ("(appsettings) X" for a run whose value came from the environment), which is the
+# mislabel this review item is about.
 $Manifest.inputs.typeMapFile   = $(if ($Is52) { $TypeMapFile52 } else { '(5.0.2 profile: appsettings)' })
 $Manifest.inputs.typeMapIsRepoMap = [bool](-not $TypeMapFile)
 $Manifest.inputs.federation    = $Federation
@@ -2814,7 +2870,18 @@ $Manifest.inputs.vrfProfile = [ordered]@{
 }
 $Manifest.inputs.restUrl       = $RestUrl
 $Manifest.inputs.stompUrl      = $StompUrl
+# SF-R4: the EFFECTIVE clientId and WHICH of the three sources produced it, plus what this shell
+# carried before the runner touched anything. A manifest that records a value without its source
+# cannot tell a deliberate -ClientId from a leak left by the previous run.
 $Manifest.inputs.clientId      = $appClientId
+$Manifest.inputs.clientIdSource = $ClientIdSource
+$Manifest.inputs.clientIdDetail = [ordered]@{
+    switch          = $(if ($ClientId) { $ClientId } else { '(not passed)' })
+    appSettings     = $(if ($appSettingsClientId) { $appSettingsClientId } else { '(key absent)' })
+    envValueBefore  = $(if ($ClientIdEnvBefore) { $ClientIdEnvBefore } else { '(unset)' })
+    exported        = [bool]$ClientId
+    note            = 'The app resolves Vrf__ClientId (environment) OVER Vrf:ClientId (appsettings.json), like every other Vrf__ setting. effective = -ClientId, else an inherited Vrf__ClientId, else appsettings.json - and that is the value the SystemName cross-check uses. When this runner exports one it puts envValueBefore back on EVERY exit path (SF-R4, the mechanism SF-D built); before 2026-09-21 it restored nothing, so a -ClientId run left its value in the operator''s shell and the NEXT run silently inherited it while the banner credited appsettings.json.'
+}
 $Manifest.inputs.initSystemName= ($initSystemNames -join ',')
 
 # ---- tool identities --------------------------------------------------------
@@ -3580,7 +3647,11 @@ Say ('  pre-order   : {0}' -f $(
         ('stage 7d holds {0}s between the oracle gate and PushOrder (the nav area loads LAZILY after placement); it IS in the derived cap, and {1}' -f $PreOrderSettleSecs, $(if ($WatchSecs -gt 0) { 'the EXPLICIT -WatchSecs above overrides that derivation - see the flag' } else { 'the derived cap is the one in force' }))
     } else { 'no hold and no gate (-PreOrderSettleSecs 0, -PreOrderGate off)' }))
 Say ('  window      : {0}s{1}' -f $RunSecs, $(if ($StopWhenComplete) { (' CAP; -StopWhenComplete closes it once all {0} taskee(s) and all {1} task(s) have a TERMINAL report (TASKCMPLT or TASKABRT), {2}s have passed AND every taskee has post-completion position evidence (RPT | C2SIM-capture | R1-applog)' -f $OrderTaskees.Count, $OrderTasks.Count, $SettleHoldSecs) } else { ' fixed (-StopWhenComplete not set)' }))
-Say ('  clientId    : {0}' -f $(if ($ClientId) { ('{0} (-ClientId -> Vrf__ClientId)' -f $ClientId) } else { ('{0} (appsettings.json)' -f $appClientId) }))
+# SF-R4: the banner names the TRUE source. It used to print "(appsettings.json)" whenever
+# -ClientId was absent, which is a lie in the one case that matters - a Vrf__ClientId already in
+# the shell, which the app reads and which beats appsettings.json. $ClientIdSource is decided at
+# the one place the three sources are compared, so this line cannot disagree with the check.
+Say ('  clientId    : {0} ({1})' -f $appClientId, $ClientIdSource)
 Say ('  HLA PATH    : {0};<inherited>' -f $PathPrefix)
 Say ('  licence     : {0}' -f $(if ($LicInfo.Exists) { ('{0} (expires {1})' -f $LicInfo.Path, $LicInfo.ExpiryText) } else { '(UNRESOLVED - checkout may hang; RUNBOOK 0.5.15)' }))
 Say ('  HLA cwd     : {0}' -f $Bin64)
@@ -3951,9 +4022,19 @@ try {
                 while (((Get-Date) - $hStart).TotalSeconds -lt $FederationHoldJoinWaitSec) {
                     Start-Sleep -Seconds 1
                     if ($holderLog) {
-                        if (Test-HolderJoinedInLog -LogDelta (Read-TextFromOffset -Path $holderLog -Offset $hOffset) -ProcessId $hProc.Id -FederationName $FederationHoldName) {
+                        # N9 (D8 harvest, 2026-09-21): QUOTE THE LINE THAT MATCHED. This used to
+                        # build a clean sentence out of the pid and the federation name and label
+                        # it "rtiexec log:", so a garbled sink - which is what this host has -
+                        # left a tidy record of a mangled log, and the harvest had to overturn
+                        # that reading from the raw file. Get-HolderJoinLine returns the same
+                        # match the predicate found (they share one regex by construction);
+                        # ConvertTo-QuotableLogLine makes control characters visible and
+                        # truncates loudly, and changes nothing else - the doubling IS the
+                        # evidence.
+                        $hJoinLine = Get-HolderJoinLine -LogDelta (Read-TextFromOffset -Path $holderLog -Offset $hOffset) -ProcessId $hProc.Id -FederationName $FederationHoldName
+                        if ($hJoinLine) {
                             $holderJoined   = $true
-                            $holderEvidence = ('rtiexec log: remoteControl {0} has joined federation "{1}"' -f $hProc.Id, $FederationHoldName)
+                            $holderEvidence = ('rtiexec log line (VERBATIM): {0}' -f (ConvertTo-QuotableLogLine -Line $hJoinLine))
                             break
                         }
                     } elseif ((Read-LiveText -Path $hOut) -match 'created/joined') {
@@ -3987,13 +4068,17 @@ try {
                 if (-not $holderJoined -and -not $hExited -and $holderLog) {
                     $hPidLines = @(Get-HolderPidLogLines -LogDelta (Read-TextFromOffset -Path $holderLog -Offset $hOffset) -ProcessId $hProc.Id -MaxLines 5)
                     if ($hPidLines.Count -gt 0) {
-                        Say-Warn ('Stage 2h attempt {0}: holder pid {1} did not join on the strict match, but the rtiexec log DOES mention this pid - last {2} line(s):' -f $a, $hProc.Id, $hPidLines.Count)
-                        foreach ($pl in $hPidLines) { Say-Warn ('    {0}' -f $pl) }
+                        Say-Warn ('Stage 2h attempt {0}: holder pid {1} did not join on the strict match, but the rtiexec log DOES mention this pid - last {2} line(s), VERBATIM:' -f $a, $hProc.Id, $hPidLines.Count)
+                        # N9: the same quoting rule as the strict path. These lines come from the
+                        # sink that produced the garble, so they are the ones most likely to carry
+                        # a control character into the console or the manifest.
+                        foreach ($pl in $hPidLines) { Say-Warn ('    {0}' -f (ConvertTo-QuotableLogLine -Line $pl)) }
                         $hLoose = @($hPidLines | Where-Object { $_ -match 'joined' })
                         if ($hLoose.Count -gt 0) {
+                            $hLooseQuoted  = ConvertTo-QuotableLogLine -Line $hLoose[-1]
                             $holderJoined  = $true
-                            $holderEvidence = ('rtiexec log (GARBLED, loose pid+"joined" match - strict pid+phrase+federation match failed): {0}' -f $hLoose[-1])
-                            Add-Flag 'WARN' ('Stage 2h attempt {0}: holder pid {1} join accepted on a LOOSE match only: {2}' -f $a, $hProc.Id, $hLoose[-1])
+                            $holderEvidence = ('rtiexec log line (VERBATIM; GARBLED - loose pid+"joined" match, the strict pid+phrase+federation match failed): {0}' -f $hLooseQuoted)
+                            Add-Flag 'WARN' ('Stage 2h attempt {0}: holder pid {1} join accepted on a LOOSE match only: {2}' -f $a, $hProc.Id, $hLooseQuoted)
                         }
                     }
                 }
@@ -5482,13 +5567,18 @@ finally {
                 }
                 continue
             }
-            $dstPath = Join-Path $RunDir $vl.dst
+            # THE COPY GOES INTO runs\<run>\vendor\ (2026-09-21), never flat beside our own logs:
+            # a flat vendor-*.log is read by the ordinary `runs\<run>\*.log` glob, and these files
+            # hold the full process environment in cleartext. Get-VendorLogDir is the one name;
+            # Copy-VendorLogByPid creates the directory.
+            $dstRel  = Join-Path $script:VendorLogSubdir $vl.dst
+            $dstPath = Join-Path (Get-VendorLogDir -RunDir $RunDir) $vl.dst
             $cap = Copy-VendorLogByPid -ProcessId ([int]$vl.procId) -LogDir 'C:\MAK\logs' `
                         -NamePrefix $vl.prefix -Since $vendorSince -Destination $dstPath
             if ($cap['Source']) {
                 $vendorCaptured += [ordered]@{ what = $vl.what; processId = [int]$vl.procId; source = $cap['Source']; captured = $dstPath; sizeBytes = $cap['SizeBytes'] }
-                Say-Ok ('captured the {0} vendor log for pid {1} into the run directory ({2})' -f $vl.what, $vl.procId, $vl.dst)
-                Say-Warn ('         SECRETS: {0} holds the FULL PROCESS ENVIRONMENT IN CLEARTEXT (FORENSICS_52_STARTUP_CRASH_2026-09-04 sec 10). It was COPIED, never opened. NEVER attach it to a ticket, mail or issue - send the .callstack.log / .dmp instead. Not scrubbed, by decision.' -f $vl.dst)
+                Say-Ok ('captured the {0} vendor log for pid {1} into the run directory ({2})' -f $vl.what, $vl.procId, $dstRel)
+                Say-Warn ('         SECRETS: {0} holds the FULL PROCESS ENVIRONMENT IN CLEARTEXT (FORENSICS_52_STARTUP_CRASH_2026-09-04 sec 10). It was COPIED, never opened. It is in the vendor\ SUBDIRECTORY so a runs\<run>\*.log glob does not read it - never glob that directory, name our own files. NEVER attach it to a ticket, mail or issue - send the .callstack.log / .dmp instead. Not scrubbed, by decision.' -f $dstRel)
             } elseif ($cap['Error']) {
                 Add-Flag 'WARN' ('could not capture the {0} vendor log for pid {1} into the run directory: {2}. The original is untouched.' -f $vl.what, $vl.procId, $cap['Error'])
             } else {
@@ -5497,7 +5587,10 @@ finally {
         }
         $Manifest.artifacts.vendorLogs = [ordered]@{
             capturedBy = 'PID, from C:\MAK\logs, for the processes THIS run launched (<prefix>*-<pid>.log, .callstack.log excluded, mtime >= this run''s start). The flat 5.0.2 names are never written by 5.2 - looking for them was the two-WARNs-per-run false alarm this replaces (D1b harvest A1).'
-            relationToLaunchHarvest = 'The BACK-END log is captured TWICE on purpose and the two copies are different evidence: inputs.vrfProfile.vendorLog.harvestedTo is LaunchVrf52''s snapshot taken at READY (start-up only, in runs\launch52), and vendor-vrfSim.log here is the COMPLETE file taken after StopVrf. The GUI log has no launch-time harvest at all and exists only here.'
+            directory  = (Get-VendorLogDir -RunDir $RunDir)
+            subdirectory = $script:VendorLogSubdir
+            whySubdirectory = 'They used to be copied FLAT into the run directory, so the ordinary runs\<run>\*.log glob read them - and on 2026-09-21 one did, printing two vendor-log lines. They are in vendor\ so that glob cannot reach them. THE RULE: never glob runs\...\*.log; name our own files explicitly.'
+            relationToLaunchHarvest = 'The BACK-END log is captured TWICE on purpose and the two copies are different evidence: inputs.vrfProfile.vendorLog.harvestedTo is LaunchVrf52''s snapshot taken at READY (start-up only, in runs\launch52), and vendor\vendor-vrfSim.log here is the COMPLETE file taken after StopVrf. The GUI log has no launch-time harvest at all and exists only here.'
             secrets    = 'These copies contain the FULL PROCESS ENVIRONMENT IN CLEARTEXT (DtPrintEnvironmentVariables at notifyLevel 3, FORENSICS_52_STARTUP_CRASH_2026-09-04 sec 10). The runner COPIED them and never opened them. NEVER attach one to a ticket, mail or issue - send the .callstack.log / .dmp instead. Not scrubbed, by decision.'
             files      = @($vendorCaptured)
         }
@@ -5507,8 +5600,15 @@ finally {
             $src = Join-Path $Bin64 $lg
             try {
                 if (Test-Path -LiteralPath $src) {
-                    Copy-Item -LiteralPath $src -Destination (Join-Path $RunDir ('bin64-' + $lg)) -Force
-                    Say-Ok ('captured {0} into the run directory (bin64-{0})' -f $lg)
+                    # Same secrets rule as the 5.2 path (2026-09-21): a vendor log copied FLAT into
+                    # the run directory is read by a runs\<run>\*.log glob. The SOURCE paths and the
+                    # file names are byte-for-byte what they were; only the destination directory
+                    # moved. tools\analysis\run_census.py looks in vendor\ first and falls back to
+                    # the old flat path, so run directories already on disk still read.
+                    $b64Dir = Get-VendorLogDir -RunDir $RunDir
+                    if (-not (Test-Path -LiteralPath $b64Dir)) { New-Item -ItemType Directory -Path $b64Dir -Force | Out-Null }
+                    Copy-Item -LiteralPath $src -Destination (Join-Path $b64Dir ('bin64-' + $lg)) -Force
+                    Say-Ok ('captured {0} into the run directory ({1}\bin64-{0}) - NEVER opened, NEVER attached; it holds the full process environment in cleartext' -f $lg, $script:VendorLogSubdir)
                 } else {
                     Add-Flag 'WARN' ('simulator log {0} not found at {1} - nothing captured.' -f $lg, $src)
                 }
@@ -5517,10 +5617,11 @@ finally {
             }
         }
     } elseif ($Is52) {
-        Say-Plan 'would capture the vendor logs BY PID for the processes this run launched: C:\MAK\logs\vrfSim*-<back-end pid>.log -> vendor-vrfSim.log and C:\MAK\logs\vrfGui*-<front-end pid>.log -> vendor-vrfGui.log (.callstack.log excluded, mtime >= this run''s start)'
+        Say-Plan 'would capture the vendor logs BY PID for the processes this run launched: C:\MAK\logs\vrfSim*-<back-end pid>.log -> vendor\vendor-vrfSim.log and C:\MAK\logs\vrfGui*-<front-end pid>.log -> vendor\vendor-vrfGui.log (.callstack.log excluded, mtime >= this run''s start)'
         Say-Plan 'would COPY them and NEVER OPEN them: those vendor logs hold the full process environment in cleartext - never attached, never quoted, never parsed'
+        Say-Plan 'would put them in the run directory''s vendor\ SUBDIRECTORY, not flat beside our own logs, so a runs\<run>\*.log glob cannot read them. Never glob that directory - name our own files.'
     } else {
-        Say-Plan 'would copy bin64\vrfSim.log and bin64\vrfGui.log into the run directory (bin64-*.log)'
+        Say-Plan 'would copy bin64\vrfSim.log and bin64\vrfGui.log into the run directory''s vendor\ subdirectory (vendor\bin64-*.log), out of reach of a runs\<run>\*.log glob'
     }
 
     # 5. Post-teardown inventory: what is left, and confirm RTI survived.
@@ -5575,9 +5676,10 @@ finally {
         $env:Vrf__ApplicationNumber= $SavedVrfAppNumber
         $env:C2SIM__RestUrl        = $SavedC2SimRestUrl
         $env:C2SIM__StompUrl       = $SavedC2SimStompUrl
-        # -DurationScale exported one too, so it is put back like every other one: a runner that
-        # leaves a clock scale behind in the shell would silently compress the NEXT run as well.
-        if ($DurationScaleOn) { $env:Vrf__DurationScale = $DurationScaleEnvBefore }
+        # -DurationScale is NOT restored here any more (SF-D, 2026-09-21). It is exported ~3,100
+        # lines above this block, before ten "exit 2" paths that never reach this finally, so its
+        # restore lives in the OUTERMOST try/finally at the end of the file - the only one that
+        # covers every exit path. One variable, one restore point; see the comment on that try.
         # ...and the profile's own variables, back to whatever they were (no-op on 5.0.2).
         foreach ($k in $ProfileEnv.Keys) { Set-Item -Path ('Env:' + $k) -Value ([string]$SavedProfileEnv[$k]) }
         foreach ($k in $AppEnv52.Keys)   { Set-Item -Path ('Env:' + $k) -Value ([string]$SavedAppEnv52[$k]) }
@@ -5683,4 +5785,22 @@ finally {
             Say-Warn ('could not remove the launch lock {0}: {1}. The next runner will find pid {2} already gone and report it stale.' -f $script:RunnerLockPath, $_.Exception.Message, $PID)
         }
     }
+}
+} # closes the OUTERMOST try, opened immediately after the -DurationScale export (see there)
+finally {
+    # SF-D: THE ONE RESTORE OF Vrf__DurationScale. Reached on every exit path after the
+    # export - validation aborts, Stage 0b/1/2 refusals, the lock refusals, Stop-Runner,
+    # the generic catch, -DryRun's exit and the live "exit $RunnerExit" - because
+    # PowerShell runs finally blocks while `exit` unwinds. $DurationScaleEnvBefore is
+    # $null when the shell had nothing, and assigning $null to an $env: entry REMOVES it,
+    # which is the correct restore of "it was unset". Silent: putting an environment
+    # variable back must never turn a finished run into a reported failure.
+    if ($DurationScaleOn) { $env:Vrf__DurationScale = $DurationScaleEnvBefore }
+    # SF-R4: Vrf__ClientId, SAME MECHANISM, SAME LINE SHAPE, one line lower. It was exported
+    # ~3,300 lines above and restored NOWHERE - so it leaked out of SUCCESSFUL runs too, and
+    # the next run in that shell silently used the previous run's SystemName while the banner
+    # credited appsettings.json. Guarded on $ClientId for the same reason the line above is
+    # guarded on $DurationScaleOn: a runner that exported nothing must put nothing back, or it
+    # would clear an operator's own value.
+    if ($ClientId) { $env:Vrf__ClientId = $ClientIdEnvBefore }
 }

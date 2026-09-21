@@ -956,6 +956,9 @@ public sealed class VrfC2SimService : BackgroundService
 
         _log.LogInformation("Reports this run: {Sent} delivered, {Failed} FAILED (a failed report is lost - " +
                             "it is never re-sent).", Interlocked.Read(ref _reportsSent), Interlocked.Read(ref _reportsFailed));
+        // N8: the FINAL tile figure, beside the other end-of-run totals. Best-effort - a logging
+        // line must never turn a clean shutdown into a failure.
+        try { ReportRunTileTotal(); } catch { /* best effort */ }
         _stopTick = true;
         tickThread.Join(TimeSpan.FromSeconds(5));
         try { await _sdk.Disconnect(); } catch { /* best effort */ }
@@ -1606,6 +1609,15 @@ public sealed class VrfC2SimService : BackgroundService
                 foreach (var s in skippedGroups)
                     _log.LogInformation("DeStack (C14 echelon scope): {N} composed sibling(s) of {Parent} were " +
                                         "NOT spread - {Reason}.", s.Count, s.ParentName, s.Reason);
+                // SF-B (cold-start review of 1d0fb69): the pass sizes each ring WITHIN its group
+                // and never looks ACROSS groups. Two parents 700 m apart with 3-child platoon
+                // rings leave 295.8 m between the rings, under the ruled 350 m; at N >= 6 they
+                // interpenetrate. DETECTION ONLY - nothing is moved, because a cross-group solve
+                // is a ruling and would change every shipped fixture. WARN, because the whole
+                // value of this line is that somebody sees it: Information is where the last
+                // silent geometry defect lived for a week.
+                foreach (var p in DeStacker.FindRingOverlaps(spreadGroups))
+                    _log.LogWarning("DeStack: {Detail}", DeStacker.DescribeRingProximity(p));
             }
             else if (composedChildIndices.Count > 0)
                 _log.LogInformation("DeStack (C14 scope): {N} unit(s) were NOT considered because " +
@@ -4760,21 +4772,72 @@ public sealed class VrfC2SimService : BackgroundService
     /// </summary>
     private void ReportTileCensus(long generation)
     {
-        if (!_tileCensus.Leave(generation)) return;
+        if (!_tileCensus.Leave(generation, out int batch)) return;
         var svc = _preflight;
         if (svc == null) return;
         int hits = svc.Tiles.CacheHits - _tileHitsAtOrder;
         int fetches = svc.Tiles.Fetched - _tileFetchesAtOrder;
-        _log.LogInformation("ROUTE PRE-FLIGHT TILE CENSUS for this order (E6): {Hits} cache HIT(s), {Fetches} HTTP " +
-                            "FETCH(es){Off}. Cumulative for the run: {CumHits} hits, {CumFetches} fetches, " +
-                            "{Exhausted} tile(s) given up on after {Tries} attempts, {Undecodable} undecodable " +
-                            "body(ies). Cache: {Cache}. A non-zero FETCH count means this order's dispatches " +
-                            "waited on the network - pre-warm the AO's tiles to remove that wait.",
-                            hits, fetches, svc.Options.Offline ? " (Vrf:PreflightOffline is TRUE, so a fetch " +
-                                                                 "count above zero would be a defect)" : "",
+        // N8: RE-BASELINE FOR THE NEXT BATCH. The counters are monotonic, so "since the previous
+        // census line" is the delta the next line must report; without this, batch 2 of a chained
+        // order would re-report batch 1's reads. MarkTileCensusStart's per-generation guard has
+        // already fired by now, so it cannot clobber this.
+        _tileHitsAtOrder = svc.Tiles.CacheHits;
+        _tileFetchesAtOrder = svc.Tiles.Fetched;
+        _log.LogInformation("ROUTE PRE-FLIGHT TILE CENSUS, batch {Batch} of this order (E6/N8): {Hits} cache " +
+                            "HIT(s), {Fetches} HTTP FETCH(es){Off} since the previous census line. RUNNING " +
+                            "TOTAL SO FAR (not the run total - the final one is printed at shutdown): " +
+                            "{CumHits} hits, {CumFetches} fetches, {Exhausted} tile(s) given up on after " +
+                            "{Tries} attempts, {Undecodable} undecodable body(ies). Cache: {Cache}. A " +
+                            "non-zero FETCH count means this order's dispatches waited on the network - " +
+                            "pre-warm the AO's tiles to remove that wait. One line per BATCH of scoring " +
+                            "work: a chained order scores one task per batch, so batch N is task N.",
+                            batch, hits, fetches,
+                            svc.Options.Offline ? " (Vrf:PreflightOffline is TRUE, so a fetch " +
+                                                  "count above zero would be a defect)" : "",
                             svc.Tiles.CacheHits, svc.Tiles.Fetched, svc.Tiles.ExhaustedTiles,
                             Preflight.TileSource.MaxFetchAttempts, svc.Tiles.UndecodableBodies,
                             svc.Tiles.CacheDirectory);
+    }
+
+    /// <summary>
+    /// N8 (D8 harvest): THE TILE TOTAL AT SHUTDOWN - the number the per-batch lines above could
+    /// never be. Each of those reports a delta and a running total AS OF THAT LINE; whether any of
+    /// them is the last is not knowable while the run is going.
+    ///
+    /// *** SF-R2 (cold-start review of 2df59ba): THIS LINE USED TO SAY "FINAL - every scoring
+    /// worker has finished", AND NOTHING ESTABLISHED THAT. *** It is written before _stopTick and
+    /// the tick thread's Join, and the scoring workers are unjoined Task.Run bodies that nothing
+    /// awaits or drains - a route-shift worker still scoring at shutdown increments the counters
+    /// AFTER this line. That is the N9 defect (a permanent record asserting what the code did not
+    /// check) reappearing inside the N8 fix, which is the one place it had no excuse to.
+    ///
+    /// The fix is to OBSERVE rather than assert. The latch already knows how many workers are
+    /// out; the line reads that number and says it, through
+    /// <see cref="Preflight.TileCensusLatch.DescribeRunTotalScope"/> - a pure function of the one
+    /// thing observed, so the sentence and the number cannot drift and both branches are
+    /// assertable offline. Draining the workers instead would mean a shutdown that waits on a
+    /// worker whose whole design is that nothing waits on it; saying what was seen is the cheaper
+    /// truth and the honest one.
+    ///
+    /// Silent when no pre-flight service was ever built (the feature off, or a run that dispatched
+    /// nothing) - there is no total to report.
+    /// </summary>
+    private void ReportRunTileTotal()
+    {
+        var svc = _preflight;
+        if (svc == null) return;
+        int outstanding = _tileCensus.OutstandingWorkers;
+        _log.LogInformation("ROUTE PRE-FLIGHT TILE TOTAL for this RUN (E6/N8, at shutdown; {Scope}): " +
+                            "{CumHits} cache HIT(s), {CumFetches} HTTP FETCH(es){Off}, {Exhausted} " +
+                            "tile(s) given up on after {Tries} attempts, {Undecodable} undecodable " +
+                            "body(ies). Cache: {Cache}. The per-batch CENSUS lines above are deltas and " +
+                            "running totals as of each line.",
+                            Preflight.TileCensusLatch.DescribeRunTotalScope(outstanding),
+                            svc.Tiles.CacheHits, svc.Tiles.Fetched,
+                            svc.Options.Offline ? " (Vrf:PreflightOffline is TRUE, so a fetch count above " +
+                                                  "zero would be a defect)" : "",
+                            svc.Tiles.ExhaustedTiles, Preflight.TileSource.MaxFetchAttempts,
+                            svc.Tiles.UndecodableBodies, svc.Tiles.CacheDirectory);
     }
 
     // ============ THE LATERAL ROUTE SHIFT (Vrf:PreflightRouteShift; STP-804/806) ==============

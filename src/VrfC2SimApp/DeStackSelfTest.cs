@@ -239,6 +239,37 @@ public static class DeStackSelfTest
                   $"every one of the 3 children sits on ONE ring of the derived radius " +
                   $"{pltRadius:F1} m = {pltSpacing:F0} / (2 sin 60 deg) - none is left stacked on the " +
                   "parent, and the radius is derived from the spacing rather than equal to it (N4)");
+            // SF-D4: THE LINE `--parse-init` PRINTS, asserted as text. It used to say "350 m
+            // rings" - the SPACING, not the radius - so an operator was told 350 m and measured
+            // 202.1 m. Both numbers are now named, and this arm is what stops the label drifting
+            // back onto the wrong quantity. The FIRST assertion is the one that fails on the old
+            // line; the second is the one that fails if the radius is dropped for brevity.
+            string desc3 = DeStacker.DescribeSiblingGroup(sib[0]);
+            Console.WriteLine($"    --parse-init would print: {desc3}");
+            Check(ref failures,
+                  desc3.Contains($"ring RADIUS {pltRadius:F1} m", StringComparison.Ordinal)
+                  && desc3.Contains($"min sibling SEPARATION {pltSpacing:F0} m", StringComparison.Ordinal)
+                  && !desc3.Contains($"{pltSpacing:F0} m rings", StringComparison.Ordinal),
+                  $"SF-D4: the --parse-init sibling line names BOTH numbers - ring RADIUS " +
+                  $"{pltRadius:F1} m AND min sibling SEPARATION {pltSpacing:F0} m - and never calls " +
+                  $"the spacing a ring (got: {desc3})");
+            Check(ref failures,
+                  sib[0].Moved.All(m => desc3.Contains($"{m.Name} {m.Meters:F1} m", StringComparison.Ordinal))
+                  && sib[0].Moved.All(m => Math.Abs(m.Meters - pltRadius) < 0.05),
+                  "SF-D4: and each child's printed displacement is the one the pass APPLIED, which " +
+                  "is the radius, not a third derivation of it");
+            // N = 2 is the case where reading the spacing as a radius is most wrong (175.0 m
+            // against 350 m), so the formatter is exercised there too rather than at N = 3 alone.
+            var twoMoved = new List<(string Name, double Meters)> { ("A", 175.0), ("B", 175.0) };
+            var g2 = new DeStacker.SiblingGroup("P", 1.0, 2.0, 2, pltSpacing,
+                                                EchelonSpacing.Platoon, twoMoved,
+                                                DeStacker.CentroidPreservingRadius(2, pltSpacing));
+            string desc2 = DeStacker.DescribeSiblingGroup(g2);
+            Check(ref failures,
+                  desc2.Contains("ring RADIUS 175.0 m", StringComparison.Ordinal)
+                  && desc2.Contains("min sibling SEPARATION 350 m", StringComparison.Ordinal),
+                  $"SF-D4: at N = 2 the line reads 175.0 m radius against a 350 m separation - the " +
+                  $"two numbers are half an order apart and must not share a label (got: {desc2})");
             bool pairsClear = true;
             for (int a = 1; a <= 3; a++)
                 for (int b = a + 1; b <= 3; b++)
@@ -544,6 +575,130 @@ public static class DeStackSelfTest
             // subtree onto one coordinate.
             CheckInit(ref failures, "STP-IRON-STORM-SYNTHETIC_Initialization.xml", Base,
                       expectGroups: 2, expectMoved: 12, expectSiblingGroups: 0, expectSiblingMoved: 0);
+
+            // SF-A (cold-start review of 1d0fb69): THE GROUPS NOBODY MEASURED BECAUSE THEY ARE
+            // SKIPPED. DeStacker's own remarks said "No shipped fixture has more than 3 composed
+            // siblings in one group (R9 full's largest is 3)". R9 full carries groups of 4, 5, 6
+            // and 7, invisible to every existing assertion because COMPANY-and-above have no
+            // echelon table row and the pass skips them - and one un-shipped key,
+            // Vrf:DeStackEchelonFallbackMeters, would spread every one of them tomorrow. A remark
+            // about a fixture that no test reads is a remark that rots; this reads the fixture.
+            CheckSkippedSiblingSizes(ref failures, "R9_Mojave_Initialization.xml",
+                                     new[] { 4, 5, 6, 7 });
+            CheckSkippedSiblingSizes(ref failures, "R9_Mojave_Lean_Initialization.xml",
+                                     Array.Empty<int>());
+
+            // SF-B (cold-start review of 1d0fb69): CROSS-GROUP RING OVERLAP IS DETECTED, not
+            // fixed. ApplyComposedSiblings sizes each ring WITHIN its group; nothing looked
+            // across groups. Two parents at the ruled 700 m, each ringing three platoon children
+            // at r = 202.1 m, leave 700 - 202.1 - 202.1 = 295.9 m between the rings - under the
+            // 350 m the 2026-09-07 ruling asks for. The 700 m pair below is BUILT, because no
+            // shipped fixture has two INDEPENDENT parents at that separation both ringing
+            // children; the condition itself is NOT hypothetical - R9 full carries a concentric
+            // pair today, which CheckRingOverlap asserts a few lines down.
+            Console.WriteLine("  --- SF-B: cross-group ring overlap DETECTION (nothing is moved) ---");
+            {
+                double plt = EchelonSpacing.TableMeters[EchelonSpacing.Platoon];
+                double r3 = DeStacker.CentroidPreservingRadius(3, plt);
+                // 700 m apart in LATITUDE, so the separation is exact arithmetic on
+                // MetersPerDegLat and the expected clearance is not a function of the cosine.
+                const double lat0 = 34.5, lon0 = -116.5;
+                double lat1 = lat0 + 700.0 / 111_320.0;
+                var moved3 = new List<(string Name, double Meters)>
+                    { ("a1", r3), ("a2", r3), ("a3", r3) };
+                var gA = new DeStacker.SiblingGroup("A.MechCoy", lat0, lon0, 3, plt,
+                                                    EchelonSpacing.Platoon, moved3, r3);
+                var gB = new DeStacker.SiblingGroup("B.MechCoy", lat1, lon0, 3, plt,
+                                                    EchelonSpacing.Platoon, moved3, r3);
+                var hits = DeStacker.FindRingOverlaps(new[] { gA, gB });
+                Check(ref failures,
+                      hits.Count == 1
+                      && Math.Abs(hits[0].AnchorSeparationMeters - 700.0) < 0.5
+                      && Math.Abs(hits[0].Clearance - 295.8) < 0.1
+                      && Math.Abs(hits[0].Required - plt) < 1e-9
+                      && !hits[0].Interpenetrating,
+                      $"two parents 700 m apart with 3-child platoon rings (r={r3:F1} m) are FLAGGED: " +
+                      $"{hits.Count} pair(s), clearance " +
+                      $"{(hits.Count > 0 ? hits[0].Clearance : double.NaN):F1} m against the " +
+                      $"{plt:F0} m the ruling asks for (expected 295.8 m, not interpenetrating)");
+                if (hits.Count == 1)
+                {
+                    string line = DeStacker.DescribeRingProximity(hits[0]);
+                    Console.WriteLine($"    the WARN reads: {line}");
+                    Check(ref failures,
+                          line.Contains("A.MechCoy", StringComparison.Ordinal)
+                          && line.Contains("B.MechCoy", StringComparison.Ordinal)
+                          && line.Contains($"within {hits[0].Clearance:F1} m", StringComparison.Ordinal),
+                          "the WARN names BOTH parents and the nearest-approach distance - a warning " +
+                          "that does not say which two groups is not actionable");
+                    // SF-R3: THE HEADLINE MUST NOT SAY OVERLAP WHEN NOTHING OVERLAPS. This pair is
+                    // 295.9 m CLEAR; it violates a separation rule, which is a different fact from
+                    // two rings intersecting, and an operator scanning headlines must see which.
+                    Check(ref failures,
+                          line.StartsWith("CROSS-GROUP RINGS CLOSER THAN THE ECHELON SPACING:",
+                                          StringComparison.Ordinal)
+                          && !line.Contains("INTERPENETRATE", StringComparison.Ordinal)
+                          && line.Contains("they do NOT overlap", StringComparison.Ordinal),
+                          $"a POSITIVE clearance is headlined as a separation shortfall, never as an " +
+                          $"overlap (got: {line.Substring(0, Math.Min(60, line.Length))}...)");
+                }
+                // N >= 6 at the platoon spacing puts r = 350 m on each ring, so two rings 700 m
+                // apart TOUCH and any more children make them interpenetrate.
+                double r6 = DeStacker.CentroidPreservingRadius(6, plt);
+                var moved6 = Enumerable.Range(1, 6).Select(i => ($"x{i}", r6)).ToList();
+                var hA = new DeStacker.SiblingGroup("A.MechCoy", lat0, lon0, 6, plt,
+                                                    EchelonSpacing.Platoon, moved6, r6);
+                var hB = new DeStacker.SiblingGroup("B.MechCoy", lat1, lon0, 6, plt,
+                                                    EchelonSpacing.Platoon, moved6, r6);
+                var hits6 = DeStacker.FindRingOverlaps(new[] { hA, hB });
+                Check(ref failures,
+                      Math.Abs(r6 - plt) < 1e-9 && hits6.Count == 1
+                      && Math.Abs(hits6[0].Clearance) < 0.5,
+                      $"at N = 6 the radius EQUALS the spacing ({r6:F1} m), so the same two rings " +
+                      $"close to {(hits6.Count > 0 ? hits6[0].Clearance : double.NaN):F1} m - the " +
+                      "review's 'at N >= 6 the rings interpenetrate', measured");
+                // SF-R3, the OTHER headline: a pair whose rings genuinely intersect. 100 m apart
+                // with 202.1 m rings is a clearance of -304.1 m, and THAT is an overlap.
+                double latNear = lat0 + 100.0 / 111_320.0;
+                var gNear = new DeStacker.SiblingGroup("E.MechCoy", latNear, lon0, 3, plt,
+                                                       EchelonSpacing.Platoon, moved3, r3);
+                var hitsNear = DeStacker.FindRingOverlaps(new[] { gA, gNear });
+                string nearLine = hitsNear.Count == 1 ? DeStacker.DescribeRingProximity(hitsNear[0]) : "";
+                Check(ref failures,
+                      hitsNear.Count == 1 && hitsNear[0].Interpenetrating
+                      && Math.Abs(hitsNear[0].Clearance + 304.1) < 0.2
+                      && nearLine.StartsWith("CROSS-GROUP RINGS INTERPENETRATE:", StringComparison.Ordinal),
+                      $"a NEGATIVE clearance ({(hitsNear.Count > 0 ? hitsNear[0].Clearance : double.NaN):F1} m, " +
+                      "two parents 100 m apart with 202.1 m rings) IS headlined as an overlap - the two " +
+                      "headlines are decided by the sign of the clearance and by nothing else");
+                // AND THE CLEAN CASE MUST BE CLEAN, or the check is a permanent alarm: far enough
+                // apart, nothing is reported.
+                double latFar = lat0 + 2000.0 / 111_320.0;
+                var gFar = new DeStacker.SiblingGroup("C.MechCoy", latFar, lon0, 3, plt,
+                                                      EchelonSpacing.Platoon, moved3, r3);
+                Check(ref failures, DeStacker.FindRingOverlaps(new[] { gA, gFar }).Count == 0,
+                      "two groups 2,000 m apart are NOT flagged - the detection is silent when the " +
+                      "geometry is fine, which is what makes the WARN worth reading");
+                // A lone child (N = 1, radius 0) was never moved, so it has no ring to overlap.
+                var gLone = new DeStacker.SiblingGroup("D.MechCoy", lat0, lon0, 1, plt,
+                                                       EchelonSpacing.Platoon,
+                                                       new List<(string, double)>(), 0.0);
+                Check(ref failures, DeStacker.FindRingOverlaps(new[] { gA, gLone }).Count == 0,
+                      "a group with no ring (N = 1, radius 0 - nothing was moved) is not a party to " +
+                      "an overlap");
+            }
+            // *** AND THE SHIPPED FILES, WHICH REFUTE THE REVIEW'S OWN "LATENT". *** SF-B says
+            // "no shipped fixture has both lanes active". R9 FULL DOES: the superior cascade puts
+            // 113.MechCoy and 114.MechCoy on the same battalion coordinate (their own group of 6
+            // companies is skipped for want of a company echelon row), so each rings its own
+            // platoons about the SAME point - concentric rings at 202.1 m and 175.0 m. That is
+            // the condition, present today, on a file that is off every demo path. Measured, not
+            // argued, and asserted so it cannot quietly become true of another fixture.
+            CheckRingOverlap(ref failures, "R9_Mojave_Lean_Initialization.xml", expectedPairs: 0);
+            CheckRingOverlap(ref failures, "R9_Mojave_Initialization.xml", expectedPairs: 1);
+            CheckRingOverlap(ref failures, "COA-STP1_Initialization.xml", expectedPairs: 0);
+            CheckRingOverlap(ref failures, "STP-IRON-STORM-SYNTHETIC_Initialization.xml",
+                             expectedPairs: 0);
 
             // THE SAME FOUR FIXTURES IN THE OTHER SHIPPED MODE. FidelityTable maps a brigade or a
             // division to a REAL aggregate template where RealTemplates' 5.0.2 parity dispatch
@@ -901,6 +1056,87 @@ public static class DeStackSelfTest
               string.Join("; ", sib.Take(6).Select(g =>
                   $"{g.ParentName} x{g.Count} @ {g.SpacingMeters:F0} m ({g.EchelonKey})")) +
               (sib.Count > 6 ? "; ..." : "") + "]");
+    }
+
+    /// <summary>
+    /// SF-A: THE SIZES OF THE COMPOSED-SIBLING GROUPS THE PASS SKIPS, and the ring each would
+    /// take if <c>Vrf:DeStackEchelonFallbackMeters</c> were turned on at the ruled company
+    /// spacing. Skipped groups move nothing, so no existing assertion looked at them, and a false
+    /// remark about their size ("R9 full's largest is 3") could sit in DeStacker.cs unchallenged.
+    /// The radii are asserted too, because the number that matters to an operator considering
+    /// that key is how far the children would go - and it is NOT the spacing (N=4 gives 495.0 m
+    /// at a 700 m spacing, N=7 gives 806.7 m).
+    /// </summary>
+    private static void CheckSkippedSiblingSizes(ref int failures, string fixture,
+                                                 IReadOnlyList<int> expectedSizes)
+    {
+        string path = FindData(fixture);
+        if (path == null)
+        {
+            Check(ref failures, false, $"{fixture}: NOT FOUND under data/ - cannot measure");
+            return;
+        }
+        var f = BuildFixture(path, TypeMapping.RealTemplates);
+        var preDestack = f.Plans.ToList();
+        DeStacker.Apply(f.Plans, InitParseCheck.DeStackFallbackIllustrationMeters, 0.0,
+                        f.Comp.ComposedChildIndices);
+        DeStacker.ApplyComposedSiblings(f.Plans, f.Comp.ComposedGroups, f.Echelons,
+                                        k => EchelonSpacing.SpacingFor(k, 0.0), 0.0,
+                                        out var skipped, preDestack.Select(x => x.Pos).ToList());
+        var sizes = skipped.Select(s => s.Count).OrderBy(n => n).ToList();
+        double fb = InitParseCheck.DeStackFallbackIllustrationMeters;
+        Check(ref failures, sizes.SequenceEqual(expectedSizes.OrderBy(n => n)),
+              $"{fixture}: composed-sibling groups SKIPPED for want of an echelon row have sizes " +
+              $"[{string.Join(", ", sizes)}] (expected [{string.Join(", ", expectedSizes.OrderBy(n => n))}])" +
+              (skipped.Count == 0 ? "" :
+               " - parents [" + string.Join(", ", skipped.Select(s => $"{s.ParentName} x{s.Count}")) + "]"));
+        if (skipped.Count == 0) return;
+        Check(ref failures, skipped.All(s => s.Count > 3),
+              $"{fixture}: every skipped group is LARGER than 3 - so 'no shipped fixture has more " +
+              "than 3 composed siblings in one group' was false, and is what this arm exists to stop");
+        var radii = skipped.Select(s => DeStacker.CentroidPreservingRadius(s.Count, fb))
+                           .OrderBy(r => r).ToList();
+        Check(ref failures,
+              radii.Count > 0 && Math.Abs(radii[0] - 494.97) < 0.05
+              && Math.Abs(radii[^1] - 806.67) < 0.05,
+              $"{fixture}: at Vrf:DeStackEchelonFallbackMeters={fb:F0} those groups would take rings " +
+              $"of [{string.Join(", ", radii.Select(r => $"{r:F1}"))}] m - a 495-807 m span, NOT the " +
+              "700 m spacing itself (the radius is derived from the spacing, N4)");
+    }
+
+    /// <summary>
+    /// SF-B: WHAT EACH SHIPPED INIT ACTUALLY DOES. The review called cross-group ring overlap
+    /// "latent - no shipped fixture has both lanes active". MEASURED, that is FALSE for R9 full:
+    /// InitParser's superior cascade puts 113.MechCoy and 114.MechCoy on the SAME battalion
+    /// coordinate (their own group, 6 companies under 11.MechBn, is skipped for want of a
+    /// company echelon row), so each rings its own platoons about the SAME point - two concentric
+    /// rings at 202.1 m and 175.0 m, children of different parents 27 m apart radially. A claim
+    /// about shipped files is worth exactly what the files say, so this asserts the COUNT and,
+    /// where there is one, the pair.
+    /// </summary>
+    private static void CheckRingOverlap(ref int failures, string fixture, int expectedPairs)
+    {
+        string path = FindData(fixture);
+        if (path == null)
+        {
+            Check(ref failures, false, $"{fixture}: NOT FOUND under data/ - cannot measure");
+            return;
+        }
+        var f = BuildFixture(path, TypeMapping.RealTemplates);
+        var preDestack = f.Plans.ToList();
+        DeStacker.Apply(f.Plans, InitParseCheck.DeStackFallbackIllustrationMeters, 0.0,
+                        f.Comp.ComposedChildIndices);
+        var sib = DeStacker.ApplyComposedSiblings(f.Plans, f.Comp.ComposedGroups, f.Echelons,
+                                                  k => EchelonSpacing.SpacingFor(k, 0.0), 0.0,
+                                                  out _, preDestack.Select(x => x.Pos).ToList());
+        var hits = DeStacker.FindRingOverlaps(sib);
+        Check(ref failures, hits.Count == expectedPairs,
+              $"{fixture}: {sib.Count} spread group(s), {hits.Count} cross-group ring overlap " +
+              $"pair(s) (expected {expectedPairs})" +
+              (hits.Count == 0 ? "" : " - " + string.Join(" | ",
+                  hits.Select(h => $"{h.ParentA}/{h.ParentB} sep {h.AnchorSeparationMeters:F1} m, " +
+                                   $"radii {h.RadiusAMeters:F1}/{h.RadiusBMeters:F1} m, clearance " +
+                                   $"{h.Clearance:F1} m vs required {h.Required:F0} m"))));
     }
 
     private static int CountMoved(IReadOnlyList<CreationPlan> plans,

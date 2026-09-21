@@ -1049,6 +1049,15 @@ function Get-SettingVerdict {
 #
 # Returns @{ Source = <the file copied, '' when none>; Error = <message, '' when none>;
 #            SizeBytes = <directory-entry length, $null when none> }
+#
+# *** WHERE THE COPY LANDS IS PART OF THE SECRETS CONSTRAINT (2026-09-21). *** These copies used
+# to go FLAT into the run directory, beside vrfc2simapp.log and the runner's own logs, so the
+# ordinary `runs\<run>\*.log` glob an operator or an executor reaches for reads them - and one
+# did, printing two vendor-log lines that day. The caller now hands a path inside a `vendor\`
+# SUBDIRECTORY of the run directory; this function CREATES the destination's parent if it is
+# missing, so the rule is enforceable at the one place the copy happens rather than remembered at
+# every call site. The file NAMES are unchanged, so nothing that already knows a name loses it.
+# THE RULE THAT FOLLOWS FROM IT: never glob runs\...\*.log - name our own files explicitly.
 function Copy-VendorLogByPid {
     param([int]$ProcessId, [string]$LogDir, [string]$NamePrefix,
           [datetime]$Since, [string]$Destination)
@@ -1059,12 +1068,26 @@ function Copy-VendorLogByPid {
                 Sort-Object LastWriteTime -Descending)
         if ($ls.Count -eq 0) { return $out }
         $out['SizeBytes'] = $ls[0].Length
+        $dstDir = Split-Path -Parent $Destination
+        if ($dstDir -and -not (Test-Path -LiteralPath $dstDir)) {
+            New-Item -ItemType Directory -Path $dstDir -Force -ErrorAction Stop | Out-Null
+        }
         Copy-Item -LiteralPath $ls[0].FullName -Destination $Destination -Force -ErrorAction Stop
         $out['Source'] = $ls[0].FullName
     } catch {
         $out['Error'] = $_.Exception.Message
     }
     return $out
+}
+
+# ---- the run directory's vendor-log subdirectory (2026-09-21) -----------------
+# ONE NAME, ONE PLACE. The runner, its dry-run plan, its manifest and the tests all need the
+# same answer to "where do the vendor copies go?", and three string literals would be three
+# chances to disagree. See Copy-VendorLogByPid above for WHY there is a subdirectory at all.
+$script:VendorLogSubdir = 'vendor'
+function Get-VendorLogDir {
+    param([Parameter(Mandatory)][string]$RunDir)
+    return (Join-Path $RunDir $script:VendorLogSubdir)
 }
 
 # ---- line endings for files the runner rewrites -------------------------------
@@ -1517,14 +1540,65 @@ function Test-HolderJoinedInLog {
         [Parameter(Mandatory)][int]$ProcessId,
         [Parameter(Mandatory)][string]$FederationName
     )
-    if ([string]::IsNullOrEmpty($LogDelta)) { return $false }
+    # ONE MATCHER, not two. This used to carry its own copy of the regex beside
+    # Get-HolderJoinLine's; a predicate and the evidence it produces must agree by
+    # construction, or a run can report "joined" and quote a line that did not match.
+    return -not [string]::IsNullOrEmpty(
+        (Get-HolderJoinLine -LogDelta $LogDelta -ProcessId $ProcessId -FederationName $FederationName))
+}
+
+# N9 (D8 harvest, 2026-09-21): THE LINE THAT MATCHED, VERBATIM - not a sentence about it.
+#
+# THE DEFECT. Stage 2h announced the join as
+#     rtiexec log: remoteControl <pid> has joined federation "<name>"
+# which the runner CONSTRUCTED from the pid and the federation name it had asked about. It
+# never read like that on the D8 host: the real line is doubled and interleaved token by token
+# by an unserialised rtiexec sink (see Test-HolderJoinedInLog's own history). So the runner's
+# permanent record made a garbled log look clean - the exact mis-read the D8 harvest had to
+# spend a section overturning. Evidence must be quoted, not paraphrased.
+#
+# Returns the LAST matching line (a holder may join, resign and re-join within one delta; the
+# most recent is the one the caller just detected), or '' when nothing matched. Same regex as
+# the predicate above, because it IS the predicate above.
+function Get-HolderJoinLine {
+    param(
+        [AllowNull()][AllowEmptyString()][string]$LogDelta,
+        [Parameter(Mandatory)][int]$ProcessId,
+        [Parameter(Mandatory)][string]$FederationName
+    )
+    if ([string]::IsNullOrEmpty($LogDelta)) { return '' }
     $lineRe = ('remoteControl\s+{0}\b.*has joined federation.*{1}' -f `
                 [regex]::Escape([string]$ProcessId), [regex]::Escape($FederationName))
+    $hit = ''
     foreach ($line in ($LogDelta -split "`r?`n")) {
         if ([string]::IsNullOrEmpty($line)) { continue }
-        if ($line -match $lineRe) { return $true }
+        if ($line -match $lineRe) { $hit = $line }
     }
-    return $false
+    return $hit
+}
+
+# N9: make a vendor log line SAFE TO QUOTE into the runner's console, its manifest and its
+# ledger, WITHOUT laundering it. Control characters become visible spaces (a garbled sink emits
+# them, and a raw one can break a console, a JSON string or a downstream grep); the text itself
+# is never normalised, de-duplicated or re-cased - the doubling IS the evidence. Truncation is
+# explicit and says so, so nobody reads a cut line as a complete one.
+# An over-long line is a symptom in its own right, which is why the marker names the length.
+function ConvertTo-QuotableLogLine {
+    param(
+        [AllowNull()][AllowEmptyString()][string]$Line,
+        [int]$MaxChars = 200
+    )
+    if ([string]::IsNullOrEmpty($Line)) { return '' }
+    $sb = [System.Text.StringBuilder]::new()
+    foreach ($ch in $Line.ToCharArray()) {
+        $code = [int][char]$ch
+        if ($code -lt 32 -or $code -eq 127) { [void]$sb.Append(' ') } else { [void]$sb.Append($ch) }
+    }
+    $s = $sb.ToString().Trim()
+    if ($MaxChars -gt 0 -and $s.Length -gt $MaxChars) {
+        $s = $s.Substring(0, $MaxChars) + ('...[TRUNCATED, {0} chars total]' -f $s.Length)
+    }
+    return $s
 }
 
 # The last -MaxLines lines (file order) that mention ProcessId at all, whether or not they

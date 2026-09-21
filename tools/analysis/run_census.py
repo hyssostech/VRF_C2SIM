@@ -188,7 +188,14 @@ def census(repo, run):
     # Vendor log: 5.0.2 runs keep bin64-vrfSim.log in the run dir; the 5.2 profile HARVESTS the
     # vendor's own log to runs/launch52/vrfSim_<appNo>_<stamp>.log and records the path in the
     # manifest (inputs.vrfProfile.vendorLog.harvestedTo). Prefer the run-dir file; fall back.
-    vendor_log = os.path.join(rd, "bin64-vrfSim.log")
+    #
+    # SINCE 2026-09-21 the runner copies vendor logs into a vendor/ SUBDIRECTORY of the run
+    # directory, because a flat copy is read by an ordinary runs/<run>/*.log glob and these files
+    # hold the full process environment in cleartext. The OLD flat path is still tried, so run
+    # directories already on disk read exactly as before; the new one is tried FIRST.
+    vendor_log = os.path.join(rd, "vendor", "bin64-vrfSim.log")
+    if not os.path.exists(vendor_log):
+        vendor_log = os.path.join(rd, "bin64-vrfSim.log")
     if not os.path.exists(vendor_log):
         harvested = (((man.get("inputs") or {}).get("vrfProfile") or {}).get("vendorLog") or {}).get("harvestedTo")
         if harvested and os.path.exists(harvested):

@@ -8,6 +8,13 @@ namespace VrfC2SimApp;
 /// </summary>
 public static class InitParseCheck
 {
+    /// <summary>SF-A: the spacing the SKIPPED-group line illustrates with. It is the RULED
+    /// company number (Vrf:DeStackSpacingMeters' 700 m, C14 2026-09-07), which is the value an
+    /// operator turning Vrf:DeStackEchelonFallbackMeters on would reach for first - the two keys
+    /// are about the same echelons. It is an ILLUSTRATION, not a default: the fallback ships at 0
+    /// and this diagnostic changes nothing.</summary>
+    public const double DeStackFallbackIllustrationMeters = 700.0;
+
     public static int Run(string path, string clientId = "STP")
     {
         if (!File.Exists(path)) { Console.WriteLine($"file not found: {path}"); return 1; }
@@ -147,11 +154,43 @@ public static class InitParseCheck
                               ? $"  ({siblingSkipped.Count} group(s) have no echelon the table covers " +
                                 "and would NOT be spread)"
                               : ""));
+        // SF-D4 (cold-start review of 1d0fb69, 2026-09-21): PRINT BOTH NUMBERS, NAMED. This line
+        // used to read "350 m rings", which is the SPACING - the minimum separation the ruling
+        // asks for - and NOT the radius any child is moved by. Since N4 the two are different
+        // numbers (r = spacing / (2 sin(pi/N)): 175.0 m at N=2, 202.1 m at N=3, 350.0 m only at
+        // N=6), so an operator reading "350 m rings" and then measuring 202 m on the map has been
+        // told the wrong thing by the diagnostic that exists to tell him what will happen. Both
+        // are printed, each labelled with what it is, and the displacement is the one the runtime
+        // actually applied (g.Moved), not a third derivation of it.
         foreach (var g in sibling.Take(5))
-            Console.WriteLine($"  {g.Count} child(ren) of {g.ParentName} at {g.LatDeg},{g.LonDeg} -> " +
-                              $"{g.SpacingMeters:F0} m rings ({g.EchelonKey}): " +
-                              string.Join(", ", g.Moved.Take(4).Select(m => m.Name)) +
-                              (g.Moved.Count > 4 ? ", ..." : ""));
+            Console.WriteLine("  " + DeStacker.DescribeSiblingGroup(g));
+        // SF-A (cold-start review of 1d0fb69, 2026-09-21): THE SKIPPED GROUPS, SIZED, AND WHAT
+        // THE ONE SETTING WOULD DO TO THEM. Until now this diagnostic said only how MANY groups
+        // were skipped, so "no shipped fixture has more than 3 composed siblings in one group"
+        // could stand in the code as a remark for a week while R9 full carried larger ones -
+        // skipped, invisible, and one un-shipped key (Vrf:DeStackEchelonFallbackMeters, default
+        // 0) away from being spread. An operator considering that key needs the radius it would
+        // produce BEFORE the run, not after.
+        // SF-B: the same cross-group detection the runtime WARNs on, BEFORE a run rather than
+        // after one. R9 full reports a pair; R9 lean, COA-STP1 and Iron Storm are silent.
+        // SF-R3: the headline distinguishes rings that INTERPENETRATE from rings that merely
+        // close inside the echelon spacing - those are different facts and the counts say which.
+        var overlaps = DeStacker.FindRingOverlaps(sibling);
+        foreach (var p in overlaps)
+            Console.WriteLine("  WARN: " + DeStacker.DescribeRingProximity(p));
+        if (overlaps.Count > 0)
+            Console.WriteLine($"  {overlaps.Count} cross-group ring pair(s) flagged: " +
+                              $"{overlaps.Count(o => o.Interpenetrating)} INTERPENETRATING, " +
+                              $"{overlaps.Count(o => !o.Interpenetrating)} merely closer than the echelon " +
+                              "spacing. Nothing is moved (SF-B): this is a report, not a repair.");
+        else if (sibling.Count > 1)
+            Console.WriteLine($"  no cross-group ring pair among the {sibling.Count} spread group(s) comes " +
+                              "closer than its echelon spacing (SF-B check ran and found nothing)");
+        foreach (var s in siblingSkipped.Take(5))
+            Console.WriteLine($"  SKIPPED: {s.Count} child(ren) of {s.ParentName} - {s.Reason}. " +
+                              $"With Vrf:DeStackEchelonFallbackMeters={DeStackFallbackIllustrationMeters:F0} " +
+                              $"they would take a ring of radius " +
+                              $"{DeStacker.CentroidPreservingRadius(s.Count, DeStackFallbackIllustrationMeters):F1} m.");
         foreach (var g in stacks.Take(5))
             Console.WriteLine($"  {g.Count()} units at {g.Key.Lat},{g.Key.Lon}: " +
                               string.Join(", ", g.Take(4).Select(p => p.Unit.Name)) + (g.Count() > 4 ? ", ..." : ""));

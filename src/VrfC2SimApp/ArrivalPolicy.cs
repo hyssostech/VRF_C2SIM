@@ -751,21 +751,100 @@ public static class ArrivalSelfTest
               && d7New.LowestMemberBarMeters < d7New.RequiredTravelMeters - 1.0
               && Math.Abs(d7New.LowestMemberBarMeters - 350.0) < 0.01);
 
-        Console.WriteLine("  -- SF-1 (d): the guard is one-directional and never harder than the old rule");
-        bool guardNeverHarder = true;
+        Console.WriteLine("  -- SF-1 (d): the guard is one-directional - an arm that CAN fail (NOTE-F)");
+        // NOTE-F (cold-start review of 1d0fb69, 2026-09-21). THE ARM THAT STOOD HERE COULD NOT
+        // FAIL. It asserted, over ~1,300 sampled pairs,
+        //     withF.LowestMemberBarMeters <= noF.RequiredTravelMeters
+        // and NO INPUT COULD EVER VIOLATE IT: DecideWithTraversal initialises lowestBar to the
+        // route bar and only ever lowers it (:248, :260), so the left-hand side is capped by the
+        // right-hand side BEFORE RequiredTravelForMember is consulted at all. A rule that
+        // returned twice the route bar for every member would have passed it unchanged. It
+        // bought real test time and proved an identity.
+        //
+        // Replaced by three arms, none of which is capped by its own instrument:
+        //   (d1) the per-member bar read off RequiredTravelForMember ITSELF, over the same grid,
+        //        WITH A DELIBERATELY BROKEN BAR RULE that must violate the same property on the
+        //        same grid - the SampleBroken idiom of check (d) above: a guard is only shown to
+        //        have teeth by something it actually bites.
+        //   (d2) the property SF-1 really claims, stated on the DECISION rather than on a bar:
+        //        every task the pre-2026-09-21 rule closed must still close. This is the
+        //        regression the one-directionality argument exists to exclude, and it is
+        //        sensitive to RequiredTravelForMember, to the guard, and to the counting loop.
+        //   (d3) non-vacuity: the grid must contain cases where the relaxation CHANGES the
+        //        outcome. A grid on which it never applies would prove (d2) for free - which is
+        //        the same criticism NOTE-F makes of the arm being replaced.
+        //
+        // WHAT (d2) CANNOT SEE, stated rather than assumed: it compares DecideWithTraversal to
+        // ITSELF at approachFraction 0, so a defect on the path BOTH calls share (the route bar,
+        // the radius, the counting loop) cancels and is invisible to it. (d1) is the arm that
+        // watches that path. MEASURED both ways, 2026-09-21: making the refusal branch of
+        // RequiredTravelForMember return the full route length fails (d1) and NOT (d2) - and the
+        // arm NOTE-F removed passed that break unchanged; scaling the relaxation branch by 1.5
+        // fails BOTH. Neither break is detectable by the removed arm.
+        //
+        // THE BROKEN CONTROL: the guard read as a PUNISHMENT instead of a refusal. A route that
+        // cannot be shown to go anywhere is made to demand its FULL authored length, rather than
+        // falling back to the route bar the pre-2026-09-21 rule used. It is the plausible
+        // mis-reading of "the relaxation is refused" (T22 and the out-and-back arms above both
+        // land in that branch), and it is EXACTLY the direction SF-1 promises is impossible - so
+        // a grid that cannot catch it cannot be said to have checked the promise either.
+        static double BrokenMemberBar(double routeLen, double minTravel, double memberDist, double f)
+            => f <= 0.0 || double.IsNaN(f) || double.IsNaN(memberDist) || memberDist <= 0.0
+               ? routeLen
+               : Math.Max(Math.Min(ArrivalPolicy.RequiredTravelFor(routeLen, minTravel), f * memberDist),
+                          minTravel);
+
+        bool realBarNeverAbove = true, brokenBarAboveSomewhere = false;
+        bool brokenFlipsAMemberTheOldRuleCounted = false;
+        bool closedStaysClosed = true, relaxationEverChangesOutcome = false;
+        int gridPoints = 0;
         for (double L = 200; L <= 20000; L += 137)
             for (double away = 0; away <= L; away += L / 17.0)
             {
-                var one = new[] { new ArrivalPolicy.MemberSample(1.0, 1e9, 400.0) };
-                var withF = ArrivalPolicy.DecideWithTraversal(one, 1, CfgRadius, 0.5, L, MinTravel, F, away);
-                var noF = ArrivalPolicy.DecideWithTraversal(one, 1, CfgRadius, 0.5, L, MinTravel, 0.0, away);
-                // The bar under the guarded rule is never ABOVE the pure route bar, at any geometry.
-                if (withF.LowestMemberBarMeters > noF.RequiredTravelMeters + 1e-9) guardNeverHarder = false;
+                gridPoints++;
+                double routeBar = ArrivalPolicy.RequiredTravelFor(L, MinTravel);
+                double effF = ArrivalPolicy.RouteGoesSomewhere(away, L) ? F : 0.0;
+                // (d1) measured on the rule, not on a Decision field the loop has already capped.
+                if (ArrivalPolicy.RequiredTravelForMember(L, MinTravel, away, effF) > routeBar + 1e-9)
+                    realBarNeverAbove = false;
+                double brokenBar = BrokenMemberBar(L, MinTravel, away, effF);
+                if (brokenBar > routeBar + 1e-9)
+                {
+                    brokenBarAboveSomewhere = true;
+                    // ...and a bar above the route bar is not a cosmetic difference: a member
+                    // that travelled EXACTLY the route bar is counted by the pre-2026-09-21 rule
+                    // and would stop being counted here. That is the (d2) regression, in one line.
+                    if (routeBar < brokenBar) brokenFlipsAMemberTheOldRuleCounted = true;
+                }
+                // (d2)/(d3) on the decision. The member's TRAVEL is what makes this falsifiable:
+                // it is swept across both bars, so a guard that raised the bar by any amount
+                // would flip a member that the pre-2026-09-21 rule counted. Distance to the last
+                // vertex is inside the effective radius throughout - this arm is about traversal.
+                double memberBar = ArrivalPolicy.RequiredTravelForMember(L, MinTravel, away, effF);
+                foreach (double travel in new[] { 0.0, MinTravel, memberBar, 0.5 * (memberBar + routeBar),
+                                                  routeBar, routeBar + 1.0, 1e9 })
+                {
+                    var one = new[] { new ArrivalPolicy.MemberSample(1.0, travel, away) };
+                    var withF = ArrivalPolicy.DecideWithTraversal(one, 1, CfgRadius, 0.5, L, MinTravel, F, away);
+                    var noF = ArrivalPolicy.DecideWithTraversal(one, 1, CfgRadius, 0.5, L, MinTravel, 0.0, away);
+                    if (noF.Arrived && !withF.Arrived) closedStaysClosed = false;
+                    if (withF.Arrived && !noF.Arrived) relaxationEverChangesOutcome = true;
+                }
             }
-        Check("over every (route length, last-vertex separation) pair sampled, the guarded per-member " +
-              "bar is NEVER above the route bar - SF-1 can only withdraw a relaxation, never impose a " +
-              "new demand, so no task that closed under the pre-2026-09-21 rule stops closing",
-              guardNeverHarder);
+        Check($"(d1) over all {gridPoints} (route length, last-vertex separation) pairs the REAL " +
+              "per-member bar is never above the route bar, read off RequiredTravelForMember itself",
+              realBarNeverAbove);
+        Check("(d1) ... and the BROKEN bar rule (the guard read as a punishment: a route that goes " +
+              "nowhere made to demand its full length) IS above it on that same grid, so the arm " +
+              "has teeth - the old arm could not have told the two apart",
+              brokenBarAboveSomewhere && brokenFlipsAMemberTheOldRuleCounted);
+        Check("(d2) over that grid crossed with seven member travels straddling both bars, every " +
+              "task the PRE-2026-09-21 rule closed still closes under SF-1 - the guard can withdraw " +
+              "a relaxation, never impose a new demand",
+              closedStaysClosed);
+        Check("(d3) ... and the grid is NOT VACUOUS: the relaxation really does close tasks the " +
+              "route bar alone would not, so (d2) is a property and not an accident of the sample",
+              relaxationEverChangesOutcome);
         Check("an UNKNOWN taskee separation (NaN) refuses the relaxation - 'we cannot show this route " +
               "goes anywhere' is not a licence to lower the bar",
               !ArrivalPolicy.RouteGoesSomewhere(double.NaN, 1000.0)

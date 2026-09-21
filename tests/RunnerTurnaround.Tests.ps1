@@ -1329,6 +1329,87 @@ Check '8m2 Get-HolderPidLogLines (wrapped in @()) is an empty array for a pid ab
 Check '8m2 Get-HolderPidLogLines (wrapped in @()) against a null log delta is an empty array, no throw' (
     (@(Get-HolderPidLogLines -LogDelta $null -ProcessId 87404)).Count -eq 0)
 
+# ===========================================================================================
+# 8m3. N9 (D8 harvest, 2026-09-21): THE JOIN EVIDENCE MUST BE QUOTED, NOT CONSTRUCTED.
+#
+# Stage 2h announced the join as `rtiexec log: remoteControl <pid> has joined federation
+# "<name>"` - a sentence the runner BUILT from the two values it had searched for. On the D8
+# host the real line is the doubled, interleaved $garbledJoin87404 above, so the runner's own
+# permanent record made a garbled log read clean; overturning that reading cost the harvest a
+# whole section. The runner now quotes the line that matched.
+#
+# Three properties, and all three can fail:
+#   1. the quoted line IS the matched line, byte for byte apart from the control-character and
+#      truncation rules - so a garbled log LOOKS garbled in the record;
+#   2. the predicate and the evidence share one matcher, so "joined" can never be reported
+#      beside a line that did not match;
+#   3. the runner no longer builds the sentence.
+Write-Host '=== 8m3. N9: the Stage 2h join evidence QUOTES the matched rtiexec line ==='
+Check '8m3 Get-HolderJoinLine returns the CLEAN line verbatim' (
+    (Get-HolderJoinLine -LogDelta $cleanJoinLine -ProcessId 87404 -FederationName 'MAK-ONE-2025') -eq $cleanJoinLine)
+Check '8m3 ...and the GARBLED line verbatim - doubling, interleaving and all (this is the D8 line)' (
+    (Get-HolderJoinLine -LogDelta $garbledJoin87404 -ProcessId 87404 -FederationName 'MAK-ONE-2025') -eq $garbledJoin87404)
+Check '8m3 the quoted evidence is NOT the clean sentence the runner used to construct' (
+    (Get-HolderJoinLine -LogDelta $garbledJoin87404 -ProcessId 87404 -FederationName 'MAK-ONE-2025') -ne
+    ('rtiexec log: remoteControl 87404 has joined federation "MAK-ONE-2025"'))
+Check '8m3 a non-match returns the EMPTY string, never a manufactured line' (
+    (Get-HolderJoinLine -LogDelta $resignedLine -ProcessId 87404 -FederationName 'MAK-ONE-2025') -eq '' -and
+    (Get-HolderJoinLine -LogDelta $garbledJoin74612 -ProcessId 87404 -FederationName 'MAK-ONE-2025') -eq '' -and
+    (Get-HolderJoinLine -LogDelta $null -ProcessId 87404 -FederationName 'MAK-ONE-2025') -eq '')
+# THE TWO MUST AGREE BY CONSTRUCTION. A predicate with its own copy of the regex is how a run
+# comes to say "joined" and quote something else; Test-HolderJoinedInLog is now defined in
+# terms of Get-HolderJoinLine, and this is the assertion that keeps it that way.
+$n9Cases = @(
+    @{ D = $cleanJoinLine;    P = 87404; F = 'MAK-ONE-2025' },
+    @{ D = $garbledJoin87404; P = 87404; F = 'MAK-ONE-2025' },
+    @{ D = $garbledTruncated; P = 87404; F = 'MAK-ONE-2025' },
+    @{ D = $garbledJoin74612; P = 87404; F = 'MAK-ONE-2025' },
+    @{ D = $resignedLine;     P = 87404; F = 'MAK-ONE-2025' },
+    @{ D = $garbledJoin87404; P = 8740;  F = 'MAK-ONE-2025' },
+    @{ D = $garbledJoin87404; P = 87404; F = 'STP825AB' },
+    @{ D = '';                P = 87404; F = 'MAK-ONE-2025' })
+$n9Agree = $true
+foreach ($c in $n9Cases) {
+    $said  = [bool](Test-HolderJoinedInLog -LogDelta $c.D -ProcessId $c.P -FederationName $c.F)
+    $shown = [bool](Get-HolderJoinLine    -LogDelta $c.D -ProcessId $c.P -FederationName $c.F)
+    if ($said -ne $shown) { $n9Agree = $false }
+}
+Check '8m3 the predicate and the quoted evidence agree on all 8 cases - one matcher, not two' $n9Agree
+# ConvertTo-QuotableLogLine: safe to print, still recognisably the same line.
+$n9Ctrl = "Federate remoteControl 87404 has joined" + [string][char]7 + [string][char]27 + " federation ""MAK-ONE-2025""."
+$n9Quoted = ConvertTo-QuotableLogLine -Line $n9Ctrl
+Check '8m3 control characters become spaces (a raw BEL/ESC from a garbled sink must not reach the console or the manifest)' (
+    $n9Quoted -notmatch "[\x00-\x1f\x7f]" -and $n9Quoted -match 'has joined' -and $n9Quoted -match 'MAK-ONE-2025')
+Check '8m3 a normal line is returned UNCHANGED - the sanitiser must not launder evidence' (
+    (ConvertTo-QuotableLogLine -Line $cleanJoinLine) -eq $cleanJoinLine -and
+    (ConvertTo-QuotableLogLine -Line $garbledJoin87404) -eq $garbledJoin87404)
+$n9Long = ('x' * 500)
+$n9Trunc = ConvertTo-QuotableLogLine -Line $n9Long -MaxChars 200
+Check '8m3 an over-long line is truncated at 200 chars and SAYS SO with the true length' (
+    $n9Trunc.StartsWith(('x' * 200)) -and $n9Trunc -match 'TRUNCATED, 500 chars total')
+Check '8m3 null/empty in, empty out, no throw under StrictMode' (
+    (ConvertTo-QuotableLogLine -Line $null) -eq '' -and (ConvertTo-QuotableLogLine -Line '') -eq '')
+# ...and the two scripts really use it. LaunchVrf52 duplicates the pair deliberately
+# ("CHANGE ONE, CHANGE BOTH"), so both copies are checked.
+Check '8m3 the runner no longer BUILDS the sentence, and quotes the matched line instead' (
+    $runnerText -notmatch "rtiexec log: remoteControl \{0\} has joined federation" -and
+    $runnerText -match 'Get-HolderJoinLine -LogDelta' -and
+    $runnerText -match 'rtiexec log line \(VERBATIM\)' -and
+    $runnerText -match 'ConvertTo-QuotableLogLine -Line \$hJoinLine')
+Check '8m3 the loose-match fallback and the pid-line dump are quoted through the same sanitiser' (
+    $runnerText -match 'ConvertTo-QuotableLogLine -Line \$pl' -and
+    $runnerText -match '\$hLooseQuoted\s*=\s*ConvertTo-QuotableLogLine')
+$n9Launch = Get-Content -LiteralPath (Join-Path $RepoRoot 'scripts\LaunchVrf52.ps1') -Raw
+$n9LibText = Get-Content -LiteralPath (Join-Path $RepoRoot 'scripts\RunnerLib.ps1') -Raw
+Check '8m3 LaunchVrf52.ps1 carries the SAME pair (CHANGE ONE, CHANGE BOTH) and quotes the line in its own HELD message' (
+    $n9Launch -match 'function Get-HolderJoinLine' -and
+    $n9Launch -match 'function ConvertTo-QuotableLogLine' -and
+    $n9Launch -match 'rtiexec log line \(VERBATIM\)' -and
+    $n9Launch -match 'federation HELD.*\{6\}')
+Check '8m3 both copies of Test-HolderJoinedInLog are defined in terms of Get-HolderJoinLine, not a second regex' (
+    ([regex]::Matches($n9LibText + $n9Launch,
+        'Get-HolderJoinLine -LogDelta \$LogDelta -ProcessId \$ProcessId -FederationName \$FederationName')).Count -eq 2)
+
 # 9. Get-VrfUuidByName must parse BOTH app-log route-line forms. The app started
 # logging the route's own uuid on 2026-09-02 with the route-uuid fix ("Route '<r>'
 # (VRF_UUID:<route>) created; ..."); every run in the record before that logs the
@@ -1623,6 +1704,148 @@ Check '8v the Stage 0 banner ECHOES it either way, so a compressed run can never
 Check '8v the note says what it scales AND what it does not (the order''s clock, never movement)' (
     $runnerText -match 'the Duration that ends a task and the StartTime delay that holds one back\) and NOT movement')
 
+# -------------------------------------------------------------------------------------------
+# 8v2. SF-D (cold-start review of 1d0fb69, 2026-09-21): THE RESTORE HAD A HOLE, AND IT IS A
+# BEHAVIOURAL ONE. Vrf__DurationScale is exported at Stage 0 (~:2466) but used to be restored
+# only in the TEARDOWN finally (Stage 9), which no early abort reaches: the Stage 0 validation
+# "exit 2" is ~180 lines below the export, and Stage 0b/1/2 add nine more. A run that failed
+# any of them left the ORDER CLOCK SCALED IN THE INVOKING PROCESS - harmless through
+# scripts\RunScenario.sh (a throwaway child pwsh) and NOT harmless in the operator's own
+# shell, where the next run is silently compressed while its manifest says this runner set
+# nothing. The fix is one try/finally spanning everything after the export.
+#
+# WHY THIS RUNS THE RUNNER (like 8d and 8h): the leak is in the CALLER's environment, and no
+# text assertion can tell a restore that runs from one that is skipped. `exit` inside a script
+# invoked with `&` returns to the caller, so a throwaway wrapper sees exactly what an operator
+# would see. -RunSecs 1 is out of the documented 30..86400 band, so the runner aborts at the
+# Stage 0 validation "exit 2" with NOTHING launched and NO run directory - the cheapest of the
+# ten bypassing paths, and the first one an operator meets. Measured against the pre-fix
+# script: exit 2 and Vrf__DurationScale left at 7.
+Write-Host '=== 8v2. SF-D: -DurationScale is restored on an EARLY ABORT, not only after teardown ==='
+$dsLeakPwsh   = 'C:\Program Files\PowerShell\7\pwsh.exe'
+$dsLeakRunner = Join-Path $RepoRoot 'scripts\RunC2SimScenario.ps1'
+$dsLeakProbe  = Join-Path ([System.IO.Path]::GetTempPath()) ('_DurationScaleLeakProbe.{0}.ps1' -f [Guid]::NewGuid().ToString('N'))
+$dsLeakSrc = @'
+param([string]$Runner, [string]$Before)
+if ($Before -eq '(unset)') { $env:Vrf__DurationScale = $null } else { $env:Vrf__DurationScale = $Before }
+$null = & $Runner -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck -RunSecs 1 -DurationScale 7 2>&1
+Write-Output ('EXITCODE=' + $LASTEXITCODE)
+Write-Output ('AFTER=[' + $env:Vrf__DurationScale + ']')
+'@
+try {
+    [System.IO.File]::WriteAllText($dsLeakProbe, $dsLeakSrc, (New-Object System.Text.UTF8Encoding($false)))
+    # Arm (a): the shell had NOTHING. After a failed run it must still have nothing.
+    $dsUnsetOut = (& $dsLeakPwsh -NoProfile -File $dsLeakProbe -Runner $dsLeakRunner -Before '(unset)' 2>&1 | Out-String)
+    Check '8v2 (a) the probe really reached the Stage 0 validation abort (exit 2)' (
+        $dsUnsetOut -match 'EXITCODE=2') $dsUnsetOut
+    Check '8v2 (a) an aborted run leaves NO Vrf__DurationScale behind when the shell had none' (
+        $dsUnsetOut -match 'AFTER=\[\]') $dsUnsetOut
+    # Arm (b): the shell had its OWN value. A restore must put THAT back, not merely clear it.
+    $dsSetOut = (& $dsLeakPwsh -NoProfile -File $dsLeakProbe -Runner $dsLeakRunner -Before '3' 2>&1 | Out-String)
+    Check '8v2 (b) the probe really reached the Stage 0 validation abort (exit 2)' (
+        $dsSetOut -match 'EXITCODE=2') $dsSetOut
+    Check '8v2 (b) an aborted run puts the shell''s OWN value back, not the runner''s 7' (
+        $dsSetOut -match 'AFTER=\[3\]') $dsSetOut
+} finally { Remove-Item -LiteralPath $dsLeakProbe -Force -ErrorAction SilentlyContinue }
+# And the structural half: ONE restore, in the OUTERMOST finally, not in the teardown one.
+Check '8v2 the restore appears exactly ONCE in the runner (one mechanism, not ten patches)' (
+    ([regex]::Matches($runnerText, 'if \(\$DurationScaleOn\) \{ \$env:Vrf__DurationScale = \$DurationScaleEnvBefore \}')).Count -eq 1)
+Check '8v2 the outermost try is opened right after the export and closed at the end of the file' (
+    $runnerText -match '# SF-D \(cold-start review of 1d0fb69' -and
+    $runnerText -match 'closes the OUTERMOST try, opened immediately after the -DurationScale export')
+
+# ===========================================================================================
+# 8v3. SF-R4 (cold-start review of 2df59ba): Vrf__ClientId HAD THE SAME HOLE, AND A WORSE ONE.
+#
+# It was exported at ~:2459 and restored NOWHERE in the file - the teardown finally puts back
+# ApplicationNumber, the two C2SIM urls, the profile env and AppEnv52, and never ClientId; the
+# outermost finally covered only DurationScale. So a -ClientId run left its value in the
+# operator's shell even when it SUCCEEDED, and the next run inherited it while this runner's own
+# banner printed "clientId : <x> (appsettings.json)". ClientId is the C2SIM SystemName the
+# interface filters on, so the inherited value decides WHICH UNITS GET CREATED: the first
+# review's reason for deferring it ("cannot change what a run MEANS") is factually wrong.
+#
+# Fixed with the SAME mechanism as -DurationScale, one line lower in the SAME finally, and the
+# banner, the validation gate and the manifest now name the EFFECTIVE source of the three.
+Write-Host '=== 8v3. SF-R4: Vrf__ClientId is restored, and the banner names its TRUE source ==='
+$ciProbe = Join-Path ([System.IO.Path]::GetTempPath()) ('_ClientIdLeakProbe.{0}.ps1' -f [Guid]::NewGuid().ToString('N'))
+# The probe runs a REAL dry run (nothing launched, no run directory - see 8h) and reports the
+# shell afterwards plus the two lines that carry the claim: the Stage 0 banner and, when it
+# fires, the SystemName gate. 'STP' is the SystemName the shipped inits declare, so the
+# banner-reading arms must use it - a mismatching id aborts at validation BEFORE the banner,
+# which is itself asserted as arm (d).
+$ciSrc = @'
+param([string]$Runner, [string]$Before, [string]$Pass)
+if ($Before -eq '(unset)') { $env:Vrf__ClientId = $null } else { $env:Vrf__ClientId = $Before }
+if ($Pass -eq '(none)') {
+    $out = & $Runner -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck 2>&1
+} else {
+    $out = & $Runner -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck -ClientId $Pass 2>&1
+}
+Write-Output ('EXITCODE=' + $LASTEXITCODE)
+Write-Output ('AFTER=[' + $env:Vrf__ClientId + ']')
+foreach ($ln in (($out | Out-String) -split "`r?`n")) {
+    if ($ln -match 'clientId\s+:' -or $ln -match 'clientId MISMATCH') { Write-Output ('LINE>' + $ln.Trim()) }
+}
+'@
+try {
+    [System.IO.File]::WriteAllText($ciProbe, $ciSrc, (New-Object System.Text.UTF8Encoding($false)))
+    # (a) -ClientId on a shell that had nothing: the run must give the shell back nothing.
+    $ciA = (& $dsLeakPwsh -NoProfile -File $ciProbe -Runner $dsLeakRunner -Before '(unset)' -Pass 'STP' 2>&1 | Out-String)
+    Check '8v3 (a) -ClientId leaves NOTHING behind when the shell had nothing' (
+        $ciA -match 'AFTER=\[\]') $ciA
+    Check '8v3 (a) and the banner credits the SWITCH, not appsettings.json' (
+        $ciA -match 'clientId\s+:\s+STP \(-ClientId -> Vrf__ClientId') $ciA
+    # (b) -ClientId on a shell that had its OWN value: that value comes back, not the runner's.
+    $ciB = (& $dsLeakPwsh -NoProfile -File $ciProbe -Runner $dsLeakRunner -Before 'MINE' -Pass 'STP' 2>&1 | Out-String)
+    Check '8v3 (b) -ClientId puts the shell''s OWN value back, not the runner''s' (
+        $ciB -match 'AFTER=\[MINE\]') $ciB
+    # (c) THE MISLABEL ITSELF: no -ClientId, but the shell carries one. The app reads it and it
+    #     beats appsettings.json, so the banner must say so - it used to say "(appsettings.json)".
+    $ciC = (& $dsLeakPwsh -NoProfile -File $ciProbe -Runner $dsLeakRunner -Before 'STP' -Pass '(none)' 2>&1 | Out-String)
+    Check '8v3 (c) an INHERITED Vrf__ClientId is named as INHERITED, never credited to appsettings.json' (
+        $ciC -match 'clientId\s+:\s+STP \(INHERITED Vrf__ClientId in this shell' -and
+        $ciC -notmatch 'clientId\s+:\s+STP \(appsettings\.json\)') $ciC
+    Check '8v3 (c) the runner did not set it, so it is left exactly as the shell had it' (
+        $ciC -match 'AFTER=\[STP\]') $ciC
+    # (d) AND THE GATE NOW BITES ON IT. A leaked id that disagrees with the init's SystemName is
+    #     a run that creates 0 UNITS; the check used to compare appsettings.json, which is the
+    #     value the app would NOT have used, so it could not see this at all.
+    $ciD = (& $dsLeakPwsh -NoProfile -File $ciProbe -Runner $dsLeakRunner -Before 'WRONGID' -Pass '(none)' 2>&1 | Out-String)
+    Check '8v3 (d) an inherited id that disagrees with the init is REFUSED at validation (exit 2)' (
+        $ciD -match 'EXITCODE=2') $ciD
+    Check '8v3 (d) and the refusal names the EFFECTIVE value and the source it came from' (
+        $ciD -match "clientId MISMATCH: the EFFECTIVE Vrf:ClientId is 'WRONGID' \(source: INHERITED Vrf__ClientId") $ciD
+    Check '8v3 (d) a refused run still hands the shell back its own value untouched' (
+        $ciD -match 'AFTER=\[WRONGID\]') $ciD
+} finally { Remove-Item -LiteralPath $ciProbe -Force -ErrorAction SilentlyContinue }
+# The structural half: ONE mechanism, and it is the one SF-D built.
+Check '8v3 the restore is one line in the SAME outermost finally as the DurationScale one' (
+    ([regex]::Matches($runnerText, 'if \(\$ClientId\) \{ \$env:Vrf__ClientId = \$ClientIdEnvBefore \}')).Count -eq 1 -and
+    $runnerText -match '\$ClientIdEnvBefore\s+= \[Environment\]::GetEnvironmentVariable\(''Vrf__ClientId''\)')
+Check '8v3 the SystemName gate checks the EFFECTIVE value and names which source produced it' (
+    $runnerText -match 'the EFFECTIVE Vrf:ClientId is ''\{0\}'' \(source: \{1\}\)' -and
+    $runnerText -notmatch "clientId MISMATCH: appsettings Vrf:ClientId='\{0\}'")
+Check '8v3 the manifest records the effective value, its SOURCE and what the shell had before' (
+    $runnerText -match '\$Manifest\.inputs\.clientIdSource = \$ClientIdSource' -and
+    $runnerText -match '\$Manifest\.inputs\.clientIdDetail = \[ordered\]@\{' -and
+    $runnerText -match 'appSettings     = \$\(if \(\$appSettingsClientId\)')
+Check '8v3 the dead earlier manifest write - which said "(appsettings)" for an env-sourced run - is gone' (
+    $runnerText -notmatch "\`$Manifest\.inputs\.clientId      = \`$\(if \(\`$ClientId\) \{ \`$ClientId \} else \{ \('\(appsettings\) \{0\}'")
+# AND THE INVENTORY THE REVIEW ASKED FOR: every Vrf__ / C2SIM__ the runner exports, and where
+# each is put back. If a new export appears without a restore, this count moves.
+$ciExports = @([regex]::Matches($runnerText, '\$env:(Vrf__|C2SIM__)[A-Za-z0-9_]+\s*=') |
+                ForEach-Object { $_.Value -replace '^\$env:' -replace '\s*=$' } | Sort-Object -Unique)
+Check '8v3 the Vrf__/C2SIM__ export inventory is the known four + the two app-launch urls' (
+    (@($ciExports) -join ',') -eq 'C2SIM__RestUrl,C2SIM__StompUrl,Vrf__ApplicationNumber,Vrf__ClientId,Vrf__DurationScale') (
+    'found: ' + (@($ciExports) -join ','))
+Check '8v3 every one of them has a restore: ApplicationNumber/RestUrl/StompUrl in the teardown finally (and immediately after the app launch), ClientId and DurationScale in the outermost one' (
+    $runnerText -match '\$env:Vrf__ApplicationNumber= \$SavedVrfAppNumber' -and
+    $runnerText -match '\$env:C2SIM__RestUrl        = \$SavedC2SimRestUrl' -and
+    $runnerText -match '\$env:C2SIM__StompUrl       = \$SavedC2SimStompUrl' -and
+    $runnerText -match 'if \(\$ClientId\) \{ \$env:Vrf__ClientId = \$ClientIdEnvBefore \}' -and
+    $runnerText -match 'if \(\$DurationScaleOn\) \{ \$env:Vrf__DurationScale = \$DurationScaleEnvBefore \}')
+
 # ===========================================================================================
 # 8w. E4 / N3 (D6 and D7 harvests, both RECURRING): what the manifest could not say
 # ===========================================================================================
@@ -1691,6 +1914,21 @@ try {
         $vlNone['Source'] -eq '' -and $vlNone['Error'] -eq '')
     $vlBadDir = Copy-VendorLogByPid -ProcessId 83276 -LogDir (Join-Path $vlDir 'no-such-dir') -NamePrefix 'vrfGui' -Since $vlSince -Destination (Join-Path $vlOut 'nd.log')
     Check '8p a missing log directory is survivable, never a throw' ($vlBadDir['Source'] -eq '')
+    # 2026-09-21: THE DESTINATION DIRECTORY IS CREATED. These copies used to land FLAT in the run
+    # directory, where an ordinary `runs\<run>\*.log` glob reads them - and one did, printing two
+    # vendor-log lines from files that hold the full process environment in cleartext. The copy
+    # now goes into a vendor\ SUBDIRECTORY, and the helper makes it, so the rule is enforced where
+    # the copy happens rather than remembered at each call site.
+    $vlSub = Join-Path (Join-Path $vlOut 'run') 'vendor'
+    Check '8p the vendor\ subdirectory does not exist before the copy (the control for the next check)' (
+        -not (Test-Path -LiteralPath $vlSub))
+    $vlDeep = Copy-VendorLogByPid -ProcessId 83276 -LogDir $vlDir -NamePrefix 'vrfGui' -Since $vlSince -Destination (Join-Path $vlSub 'vendor-vrfGui.log')
+    Check '8p the copy CREATES its destination directory, so vendor\ needs no separate mkdir' (
+        $vlDeep['Source'] -eq $vlWanted -and (Test-Path -LiteralPath (Join-Path $vlSub 'vendor-vrfGui.log'))) "error=$($vlDeep['Error'])"
+    Check '8p and nothing matching *.log is left at the run-directory level by that copy' (
+        @(Get-ChildItem -LiteralPath (Join-Path $vlOut 'run') -Filter '*.log' -File -ErrorAction SilentlyContinue).Count -eq 0)
+    Check '8p Get-VendorLogDir is the one name for it (runner, manifest and tests cannot disagree)' (
+        (Get-VendorLogDir -RunDir 'C:\x\runs\20260921T000000Z_run') -eq 'C:\x\runs\20260921T000000Z_run\vendor')
 } finally {
     Remove-Item -LiteralPath $vlDir -Recurse -Force -ErrorAction SilentlyContinue
 }
@@ -1718,9 +1956,32 @@ Check '8p runner: the front-end pid is parsed out of the launch output, like the
 Check '8p runner: the copy is announced WITH the secrets warning, and the manifest repeats it' (
     $runnerText -match 'SECRETS: \{0\} holds the FULL PROCESS ENVIRONMENT IN CLEARTEXT' -and
     $runnerText -match 'vendorLogs = \[ordered\]@\{')
-Check '8p runner: the 5.0.2 flat-name capture is untouched (that profile really does write them)' (
+Check '8p runner: the 5.0.2 capture still reads the SAME flat sources (that profile writes them)' (
     $runnerText -match "foreach \(\`$lg in @\('vrfSim\.log', 'vrfGui\.log'\)\)" -and
     $runnerText -match "bin64-' \+ \`$lg")
+# 2026-09-21: BOTH profiles' copies land under vendor\, and NEITHER call site builds the path
+# from a literal. The run directory itself must stay free of vendor *.log files, because that is
+# what the `runs\<run>\*.log` glob reads.
+Check '8p runner: the 5.2 destination is Get-VendorLogDir, not a path built beside our own logs' (
+    $runnerText -match 'Get-VendorLogDir -RunDir \$RunDir' -and
+    $runnerText -notmatch '\$dstPath = Join-Path \$RunDir \$vl\.dst')
+Check '8p runner: the 5.0.2 bin64-*.log copy goes under vendor\ too' (
+    $runnerText -match "Join-Path \`$b64Dir \('bin64-' \+ \`$lg\)" -and
+    $runnerText -notmatch "Join-Path \`$RunDir \('bin64-' \+ \`$lg\)")
+Check '8p runner: the dry-run plan and the secrets WARN both name the vendor\ subdirectory and the glob rule' (
+    $provDefFlat -match 'vendor\\vendor-vrfSim\.log' -and
+    $runnerText -match 'runs\\<run>\\\*\.log glob' -and
+    $runnerText -match 'never glob')
+Check '8p runner: the manifest records WHERE the copies are and WHY' (
+    $runnerText -match 'directory  = \(Get-VendorLogDir -RunDir \$RunDir\)' -and
+    $runnerText -match 'whySubdirectory\s*=')
+Check '8p RunnerLib: Copy-VendorLogByPid creates the destination directory itself' (
+    $libAst.Extent.Text -match 'New-Item -ItemType Directory -Path \$dstDir')
+Check '8p tools\analysis\run_census.py reads vendor\ FIRST and still falls back to the old flat path' (
+    ((Get-Content -LiteralPath (Join-Path $RepoRoot 'tools\analysis\run_census.py') -Raw) -match
+     'os\.path\.join\(rd, "vendor", "bin64-vrfSim\.log"\)') -and
+    ((Get-Content -LiteralPath (Join-Path $RepoRoot 'tools\analysis\run_census.py') -Raw) -match
+     'os\.path\.join\(rd, "bin64-vrfSim\.log"\)'))
 
 # 8q. D1b harvest A3: LaunchVrf52 shouts "-FederationHoldSecs 0 ... this launch's own back end
 # will be the federation CREATOR - the STP-825 failure mode" whenever it has no holder of its

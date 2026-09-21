@@ -73,6 +73,132 @@ public static class DeStacker
     /// or the siblings do not share a coordinate at all.</summary>
     public sealed record SiblingGroupSkipped(string ParentName, int Count, string Reason);
 
+    /// <summary>
+    /// SF-B: TWO SPREAD GROUPS WHOSE RINGS COME TOO CLOSE TO EACH OTHER. <paramref name="Clearance"/>
+    /// is the NEAREST APPROACH THE TWO RINGS CAN HAVE - the anchor separation minus both radii - so
+    /// it is a LOWER BOUND on the distance between any child of one group and any child of the
+    /// other, whatever the rotation. Negative means the rings interpenetrate: some rotation puts
+    /// two children on top of each other. <paramref name="Required"/> is the larger of the two
+    /// groups' echelon spacings, which is the separation the 2026-09-07 ruling asks for between
+    /// units whose formations must not overlap.
+    /// </summary>
+    public sealed record RingProximity(string ParentA, string ParentB, double AnchorSeparationMeters,
+                                       double RadiusAMeters, double RadiusBMeters,
+                                       double Clearance, double Required)
+    {
+        public bool Interpenetrating => Clearance < 0.0;
+    }
+
+    /// <summary>
+    /// SF-B (cold-start review of 1d0fb69, 2026-09-21): DETECT - AND ONLY DETECT - CROSS-GROUP
+    /// RING OVERLAP.
+    ///
+    /// THE GAP. <see cref="ApplyComposedSiblings"/> sizes each ring so that the minimum separation
+    /// WITHIN a group is exactly that group's echelon spacing. Nothing looks ACROSS groups. Two
+    /// independent parents 700 m apart, each ringing three platoon children at r = 202.1 m, leave
+    /// 700 - 202.1 - 202.1 = 295.8 m between the two rings - under the 350 m the ruling asks for -
+    /// and at N &gt;= 6 (r = 350 m at the platoon spacing) the two rings touch or interpenetrate.
+    ///
+    /// *** NOT LATENT. R9 FULL HAS IT TODAY. *** The first review of this called it "latent - no
+    /// shipped fixture has both lanes active on the same init"; measured on the files, that is
+    /// false. InitParser's superior cascade puts 113.MechCoy and 114.MechCoy on the SAME
+    /// 11.MechBn coordinate - their own group, the 6 companies under 11.MechBn, is skipped for
+    /// want of a company echelon row - so each company rings its own platoons about that one
+    /// point: two CONCENTRIC rings at 202.1 m and 175.0 m, clearance -377.1 m, children of
+    /// different parents 27 m apart radially. R9 lean, COA-STP1 and Iron Storm are clean.
+    /// DeStackSelfTest.CheckRingOverlap asserts all four counts (0/1/0/0), so this paragraph is
+    /// held by a test rather than by memory. R9 full is off every current runbook/demo path, so
+    /// nothing running today is affected; if it is ever put on one, this is the first thing to
+    /// settle.
+    ///
+    /// THIS DOES NOT MOVE ANYTHING. Placement is not redesigned here - a cross-group solve is a
+    /// ruling, not a patch, and it would change every shipped fixture's geometry. What it does is
+    /// make the condition VISIBLE: a loud WARN naming both parents and the number, at init, and
+    /// the same rows in `--parse-init` so it can be seen BEFORE a run rather than derived from one
+    /// afterwards.
+    ///
+    /// PURE. O(n^2) over SPREAD GROUPS - four on the largest shipped init, so the pairs are free.
+    /// Groups with a non-positive radius (N &lt;= 1, or a skipped group that never made it here)
+    /// are ignored: nothing was moved, so there is no ring.
+    /// </summary>
+    public static List<RingProximity> FindRingOverlaps(IReadOnlyList<SiblingGroup> groups)
+    {
+        var hits = new List<RingProximity>();
+        if (groups == null) return hits;
+        var real = groups.Where(g => g != null && g.RadiusMeters > 0.0).ToList();
+        for (int i = 0; i < real.Count; i++)
+            for (int j = i + 1; j < real.Count; j++)
+            {
+                var a = real[i];
+                var b = real[j];
+                double dLat = (a.LatDeg - b.LatDeg) * MetersPerDegLat;
+                double dLon = (a.LonDeg - b.LonDeg) * MetersPerDegLat
+                              * Math.Max(Math.Cos(a.LatDeg * Math.PI / 180.0), 0.01);
+                double sep = Math.Sqrt(dLat * dLat + dLon * dLon);
+                double clearance = sep - a.RadiusMeters - b.RadiusMeters;
+                double required = Math.Max(a.SpacingMeters, b.SpacingMeters);
+                if (clearance < required)
+                    hits.Add(new RingProximity(a.ParentName, b.ParentName, sep,
+                                               a.RadiusMeters, b.RadiusMeters, clearance, required));
+            }
+        return hits;
+    }
+
+    /// <summary>
+    /// SF-B: the one loud line per offending pair, shared by the service's WARN and `--parse-init`
+    /// so the two can never word it differently.
+    ///
+    /// *** SF-R3 (cold-start review of 2df59ba): TWO HEADLINES, BECAUSE THERE ARE TWO FACTS. ***
+    /// This always opened with "CROSS-GROUP RING OVERLAP", including for the 295.9 m clearance of
+    /// the branch's own worked example - where nothing overlaps at all. The check is a SEPARATION
+    /// rule (clearance below the echelon spacing), not an overlap test, and an operator scanning
+    /// WARN headlines at a demo must be able to tell the two apart without reading the body:
+    ///   clearance &lt;= 0  -&gt; CROSS-GROUP RINGS INTERPENETRATE (children can land on each other)
+    ///   0 &lt; clearance   -&gt; CROSS-GROUP RINGS CLOSER THAN THE ECHELON SPACING (a margin, not a hit)
+    /// The threshold and the WARN level are unchanged; only the headline stops overstating.
+    /// </summary>
+    public static string DescribeRingProximity(RingProximity p)
+        => p == null ? "" :
+           (p.Interpenetrating
+                ? "CROSS-GROUP RINGS INTERPENETRATE: "
+                : "CROSS-GROUP RINGS CLOSER THAN THE ECHELON SPACING: ") +
+           $"{p.ParentA} and {p.ParentB} are {p.AnchorSeparationMeters:F1} m " +
+           $"apart and ring their children at {p.RadiusAMeters:F1} m and {p.RadiusBMeters:F1} m, so the " +
+           $"two rings come within {p.Clearance:F1} m of each other - " +
+           (p.Interpenetrating
+                ? "a NEGATIVE clearance, so two children of different parents can land on top of " +
+                  "one another"
+                : $"a positive clearance, but under the {p.Required:F0} m separation the 2026-09-07 " +
+                  "ruling asks for at this echelon - they do NOT overlap") +
+           ". The sibling pass sizes each ring WITHIN its own group and does not look across groups " +
+           "(SF-B). Nothing is moved to fix this; it is reported so it is not discovered from a run.";
+
+    /// <summary>
+    /// SF-D4 (cold-start review of 1d0fb69, 2026-09-21): THE OPERATOR-FACING DESCRIPTION OF ONE
+    /// SPREAD GROUP, with BOTH numbers, each named.
+    ///
+    /// `--parse-init` used to print "350 m rings". 350 m is the SPACING - the minimum separation
+    /// C14 rules on - and it is NOT the distance any child moves. Since N4 the two are different
+    /// numbers, <c>r = spacing / (2 sin(pi/N))</c>: 175.0 m at N=2, 202.1 m at N=3, and 350.0 m
+    /// only at N=6. An operator who read "350 m rings", ran the file and then measured 202 m was
+    /// misled by the one diagnostic whose job is to say what will happen.
+    ///
+    /// PURE, and factored out of the Console.WriteLine it came from, so the line an operator reads
+    /// can be asserted by --destack-selftest without a bridge, a MAK PATH or a federation - the
+    /// text itself is what was wrong, so the text is what a test has to be able to see.
+    /// </summary>
+    public static string DescribeSiblingGroup(SiblingGroup g, int maxNames = 4)
+    {
+        if (g == null) return "";
+        var names = g.Moved ?? Array.Empty<(string Name, double Meters)>();
+        string listed = string.Join(", ", names.Take(Math.Max(0, maxNames))
+                                               .Select(m => $"{m.Name} {m.Meters:F1} m"));
+        return $"{g.Count} child(ren) of {g.ParentName} at {g.LatDeg},{g.LonDeg} -> " +
+               $"ring RADIUS {g.RadiusMeters:F1} m (each child moves that far), " +
+               $"min sibling SEPARATION {g.SpacingMeters:F0} m ({g.EchelonKey} spacing): " +
+               listed + (names.Count > maxNames ? ", ..." : "");
+    }
+
     private const double MetersPerDegLat = 111_320.0;
 
     /// <summary>
@@ -330,8 +456,22 @@ public static class DeStacker
     /// consequences a future session must weigh rather than rediscover: the group's footprint
     /// grows linearly with N, and each child is displaced by r - which is the "phantom travel" a
     /// member materialized after dispatch is credited with (review NOTE-1) and the amount by which
-    /// the taskee's own position diverges from its members' (review NOTE-2). No shipped fixture
-    /// has more than 3 composed siblings in one group (R9 full's largest is 3).
+    /// the taskee's own position diverges from its members' (review NOTE-2).
+    ///
+    /// *** SF-A (cold-start review of 1d0fb69, 2026-09-21). THE REMARK THAT STOOD HERE - "No
+    /// shipped fixture has more than 3 composed siblings in one group (R9 full's largest is 3)" -
+    /// WAS FALSE, and false in the direction that makes this paragraph's "the footprint grows
+    /// linearly with N" sound theoretical. *** MEASURED on the shipped file by
+    /// --destack-selftest: R9 full has composed-sibling groups of 4 (Z1.InfCoy), 5 (14.MechBn),
+    /// 6 (11.MechBn) and 7 (13.MechBn). They are invisible today only because they are SKIPPED -
+    /// COMPANY-and-above have no <see cref="EchelonSpacing"/> row and Vrf:DeStackEchelonFallbackMeters
+    /// ships at 0 - not because they are small. ONE key turns them on, and at the ruled 700 m
+    /// company spacing those four groups would take rings of 495.0, 595.5, 700.0 and 806.7 m:
+    /// the largest child displacement on any shipped fixture would go from 202.1 m to 806.7 m,
+    /// and the "phantom travel" and taskee-vs-member divergence above with it. The sizes and the
+    /// radii are now ASSERTED against the file (DeStackSelfTest.CheckSkippedSiblingSizes), so
+    /// this paragraph cannot go stale again the way it just did; RUNBOOK 11e carries the same
+    /// numbers for the operator.
     ///
     /// N &lt;= 1 returns 0: a lone child is not a stack and must not be displaced (and its own
     /// centroid IS the anchor already). A non-positive spacing returns 0 for the same reason
