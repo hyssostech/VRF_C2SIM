@@ -2320,6 +2320,28 @@ if (-not (Test-Path -LiteralPath $wbPwsh)) {
     $wbBadUrl = (& $wbPwsh -NoProfile -NonInteractive -File $wbIface -WhatIf -StompUrl 'not-a-url' 2>&1 | Out-String)
     Check '11b a -StompUrl that is not an absolute http/https URL is refused by name' (
         $wbBadUrl -match '\[FAIL\] -StompUrl is not an absolute http/https URL: not-a-url')
+    # FOUND BY THE ADVERSARIAL PASS ON THIS BRANCH, not by a live run. With -Server standard the
+    # script sets no override - so an override ALREADY IN THE CONSOLE (the runner sets and
+    # restores these; a rehearsal script sets them for a child; an operator may export one) is
+    # what the app would actually hear. Naming appsettings' 8080 there would be the DR-1 lie in
+    # a new place. The child below is given one in its environment and must say so.
+    $wbInheritEnv = @{ C2SIM__RestUrl = 'http://127.0.0.1:18080/C2SIMServer' }
+    $wbInherit = (& {
+        $saved = $env:C2SIM__RestUrl
+        try {
+            $env:C2SIM__RestUrl = $wbInheritEnv['C2SIM__RestUrl']
+            & $wbPwsh -NoProfile -NonInteractive -File $wbIface -WhatIf 2>&1 | Out-String
+        } finally {
+            if ($null -eq $saved) { Remove-Item -Path 'Env:C2SIM__RestUrl' -ErrorAction SilentlyContinue }
+            else { $env:C2SIM__RestUrl = $saved }
+        }
+    })
+    Check '11b an INHERITED C2SIM__RestUrl is reported as the real source, not appsettings 8080' (
+        $wbInherit -match 'rest=http://127\.0\.0\.1:18080/C2SIMServer' -and
+        $wbInherit -match 'INHERITED from this console''s environment \(C2SIM__RestUrl\)' -and
+        $wbInherit -match 'it WINS' -and
+        $wbInherit -notmatch 'rest=http://127\.0\.0\.1:8080/C2SIMServer')
+    Check '11b and the test put the console variable back' ($null -eq $env:C2SIM__RestUrl)
 }
 # The env must not leak into an operator's own console: every variable this script sets is
 # restored in a finally, INCLUDING the two endpoint overrides, which would otherwise silently

@@ -70,6 +70,12 @@
 .NOTES
   Exit 0 = a holder is joined and holding. 1 = every application number was tried and none
   joined (do NOT keep launching blindly; RUNBOOK sec 9c). 2 = a precondition refused the run.
+
+  KNOWN LIMIT, carried over from the scratchpad script this replaces: the holder is started
+  with -NoNewWindow, so it SHARES this console. It outlives this script (it is its own
+  process), but closing the window it was started from may take it with it. Leave that window
+  open for the demo day, or check with `Get-Process RtiProbe` before each launch. Changing it
+  to a detached console is a behaviour change this promotion deliberately did not make.
 #>
 [CmdletBinding()]
 param(

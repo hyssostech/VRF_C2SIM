@@ -263,6 +263,28 @@ if ($EffRestUrl)  { $envVars['C2SIM__RestUrl']  = $EffRestUrl }
 if ($EffStompUrl) { $envVars['C2SIM__StompUrl'] = $EffStompUrl }
 
 $ConfigEndpoints = Get-C2SimEndpointsFromConfig -ContentRootDir $ContentRoot -EnvName $Environment -RepoRootDir $RepoRoot
+
+# AN INHERITED OVERRIDE BEATS appsettings, so the loud line must not report appsettings' value
+# when one is present. This console may already carry C2SIM__RestUrl / C2SIM__StompUrl - the
+# runner sets and restores them, a rehearsal script sets them for a child, an operator may have
+# exported one by hand - and with -Server standard this script sets nothing, so that inherited
+# value is what the app would actually hear. Naming appsettings' value in that case would be
+# the DR-1 lie in a new place, so the inherited values are read here and named as the source.
+$InheritedRest  = [Environment]::GetEnvironmentVariable('C2SIM__RestUrl',  'Process')
+$InheritedStomp = [Environment]::GetEnvironmentVariable('C2SIM__StompUrl', 'Process')
+$InheritedNote  = ''
+if (-not $EffRestUrl -and -not [string]::IsNullOrWhiteSpace($InheritedRest)) {
+    $ConfigEndpoints.Rest = $InheritedRest
+    $InheritedNote = 'C2SIM__RestUrl'
+}
+if (-not $EffStompUrl -and -not [string]::IsNullOrWhiteSpace($InheritedStomp)) {
+    $ConfigEndpoints.Stomp = $InheritedStomp
+    $InheritedNote = $(if ($InheritedNote) { $InheritedNote + ' + C2SIM__StompUrl' } else { 'C2SIM__StompUrl' })
+}
+if ($InheritedNote) {
+    $ConfigEndpoints.Source = ('INHERITED from this console''s environment ({0}), which OVERRIDES appsettings - this script set no override' -f $InheritedNote)
+}
+
 $SayRest  = $(if ($EffRestUrl)  { $EffRestUrl }  elseif ($ConfigEndpoints.Rest)  { $ConfigEndpoints.Rest }  else { 'UNKNOWN' })
 $SayStomp = $(if ($EffStompUrl) { $EffStompUrl } elseif ($ConfigEndpoints.Stomp) { $ConfigEndpoints.Stomp } else { 'UNKNOWN' })
 $SayHow = if ($EffRestUrl -and $EffStompUrl) {
@@ -270,6 +292,8 @@ $SayHow = if ($EffRestUrl -and $EffStompUrl) {
 } elseif ($EffRestUrl -or $EffStompUrl) {
     ('PART override: only {0} is exported; the other endpoint still comes from appsettings - {1}' -f `
         $(if ($EffRestUrl) { 'C2SIM__RestUrl' } else { 'C2SIM__StompUrl' }), $ConfigEndpoints.Source)
+} elseif ($InheritedNote) {
+    ('-Server standard: this script set NO override, but one is ALREADY in this console''s environment and it WINS - {0}' -f $ConfigEndpoints.Source)
 } else {
     ('-Server standard: NO env override is set; these values are appsettings'' own - {0}' -f $ConfigEndpoints.Source)
 }
