@@ -308,3 +308,29 @@ and what LaunchVrf52 itself reports about the holder step 2 starts as typed (sec
   owed to a session with the user at the box.
 - The run script is scratch validation/d5_wayb_orchestrator.ps1 (UPDATE 2, parse-clean, dry-run verified);
   the ledger claim for the WatchVrf observer is made BEFORE the launch and named in the RESULT block.
+
+---
+
+## 11. D5 RESULT (run 20260921T070926Z_wayb, launched 07:09:26Z) - STOPPED AT STEP 2: P-STEP2 MISS (HIGH)
+
+- Conditions at launch: clean (no subagent, build servers shut down with `dotnet build-server shutdown`, CPU 4 percent);
+  exe 1.0.0+git.1d0fb69.Release-5.2 sha256 51798C0C...9A535A; both connection configs F445629E... identical; 7 tiles;
+  persistent holder RtiProbe 74612 joined. Scripts at main 8709b2a + the ledger commit (ef2b640's Way B scripts).
+- P-STEP1 HIT: ALREADY UP branch, nothing started, exit 0.
+- P-STEP2 MISS: LaunchVrf52 exited 1 one second after start, BEFORE any holder, back end or GUI process existed:
+  `scripts/LaunchVrf52.ps1:1158` calls `Say-Info`, a function the script never defines (it defines Say-Head / Ok / Warn /
+  Fail / Plan). VERIFIED by the seat: the call was introduced by d1885c0 (2026-09-20, 'give the standalone demo path its
+  own STP-825 federation holder'); the runner always passes -FederationHeldByCaller, so this path had NEVER executed -
+  every 'standalone start' on the record went through the runner. Way B as typed has been dead at step 2 since d1885c0.
+  The registered MISS clause named a holder that could not join or a startup crash; the actual miss is more basic than
+  either. Competing explanation checked and excluded: an environment/PATH problem would not name an undefined command
+  at a fixed script line, and the stderr does exactly that.
+- Everything after step 2 (P-SERVER, P-STEP3, P-DISPATCH, P-SIM, P-RATIO, P-REPORTS, P-TERMINAL, P-STOP): NOT REACHED.
+  The orchestrator's gates behaved as designed: no retry, STOP section ran, post-run inventory CLEAN, rtiexec /
+  rtiForwarder / holder 74612 untouched. One ORCHESTRATOR defect on its failure path ('Argument types do not match' after
+  the inventory; no manifest written) - scratch, being fixed with a simulated-failure dry run.
+- appNo 5051 (WatchVrf) was claimed and never joined: BURNED.
+- Per the rule a missed HIGH limb is a STOP: no patch-and-continue under this registration. The defect is fixed on its
+  own branch with a static test (every Say-* a script calls must be defined) and the rehearsal is re-registered as D5b.
+- What D5 already bought: the rehearsal found in one second what eight Way A runs could not - the demo's real path had
+  an unexecuted branch. DEMO_READINESS rows 5 / 7 / 13 stay open.
