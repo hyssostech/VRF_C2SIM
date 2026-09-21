@@ -1,0 +1,310 @@
+# PREREG D5 - the Way B rehearsal: hand-started, three-window, STP-driven
+
+REGISTERED by the seat 2026-09-21, BEFORE the run. Drafted by an Opus executor from the docs and scripts
+(nothing was launched to write it); the seat's additions are section 10. A missed HIGH-confidence limb
+(conf >= 0.80) is a STOP, never a patch; limbs below 0.80 are recorded as findings.
+
+**REVISED against main ef2b640** (`fix/wayb-as-typed`, merged 2026-09-21), which fixed the
+defects this prereg's first draft was written around - DR-1 (no endpoint control), DR-2/DR-8
+(9201/9202), DR-3..DR-7 and R-3 (the working directory). **D5 now rehearses the runbook AS
+TYPED**: `-Server private` on step 3, `9102/9103` on step 2, `StopIface` as sec 7's own stop.
+Superseded text is deleted, not left standing beside the correction.
+
+Run script: `scratchpad\validation\d5_wayb_orchestrator.ps1` (parse-clean, 7538 tokens; its
+own `-DryRun` printed every command line and started nothing).
+Control: D8 `runs\20260921T052350Z_run`, harvest `scratchpad\validation\v6harvest\d8_harvest_report.md`.
+Target rows: DEMO_READINESS_2026-09-06 rows 5, 7, 13 (all "the STP-driven sequence end to end").
+
+---
+
+## 0. WHAT IS BEING TESTED, AND WHAT IS NOT
+
+TESTED: that an operator following `docs\DEMO_RUNBOOK.md` sec 2 -> 3 -> 4 -> 7, typing the
+three commands as written, reaches a running demo and a clean stop, with PushInit/PushOrder
+standing in for STP.
+
+NOT TESTED: Way A (proven D1-D8); STP itself; the GUI's appearance (no human is watching);
+anything the runbook does not tell an operator to type.
+
+THE COMPARISON IS NOT LIKE-FOR-LIKE BY CONSTRUCTION. D8 ran through the runner, which sets
+NO `DOTNET_ENVIRONMENT` (appsettings.json:37 says so in as many words) and injects its
+settings as `Vrf__*` environment variables from `scripts\RunScenario.sh`. Way B sets
+`DOTNET_ENVIRONMENT=Demo` (StartInterface52.ps1:15,149) and takes them from
+`appsettings.Demo.json`. Section 3 lists every effective difference; section 4 predicts only
+what those differences permit.
+
+---
+
+## 1. THE WINDOWS. Every ratio and every duration below names one.
+
+- **W-STEP(n)**: from the moment the orchestrator starts step n's process to that step's
+  documented EXPECT text appearing in its own captured stdout.
+- **W-MOVE**: from the app's FIRST `DISPATCHED <unit> task ... at WALL <stamp>, SIMULATION
+  clock <s> s.` line to the app's LAST completion line. This is D8's own movement window
+  (d8_harvest_report sec 0b) and the only window any ratio here is quoted over.
+- **W-RUN**: order on the bus -> the orchestrator's verdict line.
+- **W-STOP**: StopIface start -> post-run inventory.
+
+RATIOS ARE READ, NEVER COMPUTED FROM TWO WALL FIGURES (RUNBOOK 11f: that is exactly how D6
+came to record "sim/wall 1.00" for a scenario D7 measured at 3x). The instruments are the
+app's own `SIM/WALL RATIO` lines and its `<N> WALL s after dispatch = <M> SIMULATION s`
+completion lines, which since main 1d0fb69 are emitted UNCONDITIONALLY.
+
+---
+
+## 2. THE EXPECT TEXTS, PER STEP (the gates the orchestrator stops on)
+
+| # | Command (DEMO_RUNBOOK) | EXPECT | Source |
+|---|---|---|---|
+| 1 | `pwsh -File scripts\StartRtiExec52.ps1` | `ALREADY UP - an rtiexec from ... is running and TCP 4001 is listening. NOTHING was started` + `RTIEXEC READY rtiexec=47636 forwarder=7696 tcp=127.0.0.1:4001 started=no`, exit 0 | DEMO_RUNBOOK:183; StartRtiExec52.ps1:222-231 |
+| 2 | `pwsh -File scripts\LaunchVrf52.ps1 -Scenario R9_Mojave_Empty_52 -BackendAppNumber 9102 -FrontendAppNumber 9103 -AppDataDir C:\C2SIM\vrf-appdata-unattended\appData` | `=== Federation HOLDER (STP-825) - before the back end ===` then `federation HELD: holder pid <p> (appNumber 9190) joined MAK-ONE-2025 within 45s on attempt 1/2`, then `back-end started (pid ...)`, `front-end started (pid ...)`, `scenario LOAD CONFIRMED in the vendor log`, `READY: 5.2d back-end HEALTHY by thread count, front-end with a real main window`, exit 0 | DEMO_RUNBOOK:196-198; LaunchVrf52.ps1:1133,1200,1226,1337,1361 |
+| 3 | `pwsh -File scripts\StartInterface52.ps1 -ClientId STP -Server private` **[ef2b640]** | FIRST `*** C2SIM SERVER THE INTERFACE WILL LISTEN TO: rest=http://127.0.0.1:18080/C2SIMServer  stomp=http://127.0.0.1:61614/topic/C2SIM ***`, THEN `READY - joined the federation, 1 VR-Forces back-end(s), type mapping = FidelityTable, compose = on, position reports every 10s. Waiting for the C2SIM initialization (clientId=STP)` | DEMO_RUNBOOK sec 2 step 3 ("For a REHEARSAL without STP, use `-Server private`") and sec 3 |
+| 4 | `PushInit.exe <init> http://127.0.0.1:18080/C2SIMServer http://127.0.0.1:61614/topic/C2SIM` | exit 0 and a `QUERYINIT : 6 Units` line | DEMO_RUNBOOK:241-242; D8 manifest (6 of 6 init units) |
+| 4 | `PushOrder.exe <order> 60 <rest> <stomp>` | exit 0 | DEMO_RUNBOOK:243-244 |
+
+**P-STEP1** (conf 0.95). Step 1 takes the ALREADY-UP branch; NOTHING is started.
+Basis: rtiexec pid 47636 and rtiForwarder pid 7696 are up now (the orchestrator's own
+dry-run inventory, 06:14Z) and TCP 4001 is the listener test.
+MISS: any other branch, or exit != 0, inside W-STEP(1) (cap 180 s).
+
+**P-STEP2** (conf 0.80). Step 2 prints the HOLDER section, its holder JOINS on attempt 1 on
+appNumber 9190, the back end JOINS (never creates), and the script exits 0.
+Basis: RUNBOOK 9c - "a JOIN never exercises the FOM-module receive path a CREATE does (RM
+13.3), so the persistent holder AVOIDS the defect"; the seat's persistent holder RtiProbe
+74612 is joined to MAK-ONE-2025 until ~11:23Z, so LaunchVrf52's own holder also only joins.
+D8's Stage 2h holder joined on attempt 1 in 3 s.
+SECONDARY: after step 2 there are **2** live `RtiProbe.exe` (the day's persistent one plus
+this launch's own 9190 holder). Neither is ever stopped, and the orchestrator starts neither -
+step 2's holder is started by the runbook's own command. **Timing limb:** the seat's
+persistent holder expires about **11:23Z**. If D5 starts after that, the inventory will show
+NO RtiProbe and step 2's own holder is the only thing keeping the launch off the STP-825
+create path - still the documented sec 2 step 1b behaviour, but it removes one layer, so
+P-STEP2's confidence drops to 0.7 and a create refusal becomes the expected failure mode.
+The orchestrator records both facts (`holder.persistentHolderSeen`, `holder.atStepTwo`,
+`holder.launchHolderSection`) so the run can be read either way. If the seat wants the
+demo-day posture instead, `scripts\StartFederationHolder52.ps1` is now a repo script - but
+starting it is the SEAT's action, not this script's.
+MISS: exit 3 with `the federation HOLDER could not join` or `CRASHED AT STARTUP`, or the
+absence of the HOLDER section, inside W-STEP(2) (cap 900 s).
+
+**P-SERVER** (conf 0.90) **[ef2b640, NEW]**. Before the READY line, the interface prints
+`*** C2SIM SERVER THE INTERFACE WILL LISTEN TO: rest=http://127.0.0.1:18080/C2SIMServer
+stomp=http://127.0.0.1:61614/topic/C2SIM ***`, naming the SAME pair the pushes use. The
+orchestrator asserts it and REFUSES TO PUSH on a mismatch, which is the unattended reading of
+sec 2 step 3's "READ THAT LINE" and sec 4's "A MISMATCHED PAIR IS SILENT".
+Basis: StartInterface52.ps1:208 maps `-Server private` to those two constants (:96-97) and
+:315 prints the line unconditionally; the script now scopes and restores `C2SIM__RestUrl` /
+`C2SIM__StompUrl` itself, and the orchestrator sets NO endpoint environment, so the inherited-
+override case that lane's own review found cannot arise here.
+**This limb is the live falsifier for DR-1**: if the line reads 8080/61613 with
+`-Server private`, the fix is wrong and the run stops before touching the operator's server.
+MISS: no such line within 120 s of step 3, or a pair that differs from the push pair.
+
+**P-STEP3** (conf 0.85). The READY line appears with **N = 1**, `FidelityTable`, `compose =
+on`, `position reports every 10s`, `clientId=STP`.
+Basis: appsettings.Demo.json sets TypeMappingMode FidelityTable (:9), ComposeHierarchy true
+(:24), PositionReportSeconds 10 (:65), ClientId STP (:22); StartInterface52 passes
+`-ClientId STP` through as `Vrf__ClientId` (:150).
+MISS: no READY line within 300 s, or N != 1, or a clientId other than STP. Any of these is
+a STOP before anything is pushed (DEMO_RUNBOOK:222-223).
+
+---
+
+## 3. WHAT WAY B GETS THAT WAY A (D8) DID NOT - EVERY EFFECTIVE DIFFERENCE
+
+Way A (D8) = appsettings.json + `RunScenario.sh` exports (:302-311) + the runner's AppEnv52
+(RunC2SimScenario.ps1:3637-3648). Way B = appsettings.json + appsettings.Demo.json +
+StartInterface52.ps1's env (:143-158). Read both files; this is the whole list.
+
+| key | D8 (Way A) | Way B | same? | consequence |
+|---|---|---|---|---|
+| `DOTNET_ENVIRONMENT` | unset -> NO Demo overlay | `Demo` | **NO** | the mechanism under every row below |
+| ObjectConsoleNotifyLevel | **3** | **-1** | **NO** | see P-CONSOLE |
+| ObjectConsoleMemberNotifyLevel | **3** | **-1** | **NO** | see P-CONSOLE |
+| ApplicationNumber | ledgered (env) | **9101** (Demo :19) | **NO** | demo-block exemption, appsettings.Demo.json:18 |
+| ConnectionConfigFile | the **relocated** tree's copy (runner derives it from `--vrf-appdata-dir`) | the **VENDOR** copy, hard-coded (Demo :7) | **NO** | RISK R-2 |
+| C2SIM RestUrl/StompUrl | injected 18080/61614 | 18080/61614, from `-Server private` **[ef2b640]** | yes | was DEFECT DR-1; fixed at main ef2b640 and gated by P-SERVER |
+| Vrf VrfHome/VrLinkHome/RtiHome/RidFile/RtiAssistantDisable | absent -> MakRuntime leaves the env alone | present (Demo :11-16) -> the app prepares its own process | **NO** | expect a `MakRuntime: PATH prefixed with ...` line that D8 does not have |
+| TypeMappingMode | FidelityTable (sh :302) | FidelityTable (Demo :9) | yes | - |
+| TypeMapFile | unit-type-map-52.json (AppEnv52) | unit-type-map-52.json (Demo :10) | yes | - |
+| CreationPolicy | AtOrder (sh :303) | AtOrder (Demo :26) | yes | - |
+| DeStackCreates / SpacingMeters | true / 700 (sh :304-305) | true / 700 (Demo :28-29) | yes | - |
+| DeStackRotationDeg | 0 (sh :306) | not set -> C# default 0.0 (VrfSettings.cs:523) | yes | ring orientation identical |
+| DeStackComposedSiblings | true (appsettings.json:42) | true (Demo :31) | yes | the D8 symmetric ring is reproduced |
+| ArrivalApproachFraction | 0.5 (appsettings.json:77) | 0.5 (Demo :33) | yes | the D8 traversal bar is reproduced |
+| DropOriginVertexMeters | 100 (sh :307) | not set -> C# default 100.0 (VrfSettings.cs:533) | yes | - |
+| PreflightRouteShift | true | true (Demo :56) | yes | - |
+| PreflightCacheDir / Offline | empty / false | empty / false | yes | SAME directory (the build output); see P-TILES |
+| PreflightElevationLevel / MinLevel | 13 / 11 | 13 / 11 (Demo :59-60) | yes | expect L13 again |
+| PreflightWarnings | not set -> off | false (Demo :63) | yes | - |
+| PositionReportSeconds | 10 (sh :311, POS_REPORT default 10) | 10 (Demo :65) | yes | - |
+| TaskClock / TimedCompletion / DurationScale | sim / true / 1.0 | sim / true / 1.0 | yes | - |
+| TaskPredecessorTimeoutSeconds | 7200 (sh :308) | 7200 (Demo :35) | yes | - |
+| RouteExtentCheck (STP-833) | true | true (base) | yes | - |
+
+**P-CONSOLE** (conf 0.90). The object consoles are OFF in Way B, so:
+- `vrfc2simapp.log` (here: `step3_interface.stdout.log`) is of the order of **40 KB**, not
+  D8's 3,639,680 B; the WatchVrf trace carries ~**0 CON rows**, not 22,880, and is of the
+  order of 1.8 MB, not 9.6 MB (d8_harvest_report sec 5a, against the D3/D6 console-off runs).
+- **No `Giving up on movement task` lines, no `BlockedByVehicle` rows, no `New Primary nav
+  area` row.** Way B therefore CANNOT reproduce D8's P2 (jam instrument) or P6 (give-ups)
+  at all. Stated up front so their absence is not read as a change in behaviour.
+MISS: CON rows > 100, or an app log over 500 KB - either means the overlay did not load.
+
+**P-TILES** (conf 0.80, CONDITIONAL on R-1). The banner reads `ROUTE PRE-FLIGHT TILE CACHE:
+...\bin\Release-5.2\net10.0\win-x64\preflight-cache - 7 file(s)` and the run ends with
+`TILE CENSUS ... cache HIT(s) > 0, 0 HTTP FETCH(es)` at `ELEVATION LEVEL ACTUALLY USED - L13`.
+Basis: the directory holds 7 tiles now, is the SAME one D8 used, and D8 reported 2 hits / 0
+fetches (d8_harvest_report sec 5).
+CONDITION: **a clean rebuild of `Release-5.2` DELETES this cache** (appsettings.json:64,
+"it sits INSIDE THE BUILD OUTPUT"). An Opus code lane is live in
+`.claude\worktrees\shouldfix-d8`.
+MISS: FETCHES > 0 (then the run needed the internet on a dispatch path, and the dispatch
+deferral limb below is void).
+
+---
+
+## 4. THE RUN ITSELF
+
+**P-DISPATCH** (conf 0.75). Three tasks dispatch; the first-task dispatch deferral (order on
+the bus -> first `DISPATCHED` line) is <= 5.5 s. Basis: D8 +4.749 / +5.082 / +5.203 s against
+a registered 5.5 s limit (d8_harvest sec 0g). Window: W-RUN. MISS: any deferral > 5.5 s.
+
+**P-SIM** (conf 0.70). Measured on the app's own SIMULATION clock over W-MOVE, the three
+completions land within **+/-12%** of D8:
+T_R5_TK1 **81.1**, T_R5_PL1 **485.5**, T_R5_CO1 **660.5** SIMULATION s after dispatch
+(d8_harvest sec 0f). Justification for predicting equality at all: every setting that moves
+a unit - route shift, de-stack spacing and rotation, composed-sibling spread, drop-origin,
+creation policy, arrival fraction, elevation level, task clock, duration scale - is IDENTICAL
+between the two configurations (section 3), and the fixture, init, order and build are the
+same. MISS: any of the three outside +/-12% on the SIM clock.
+
+**P-RATIO** (direction only, conf 0.60). The W-MOVE sim/wall ratio is **>= D8's 3.362** and
+the three WALL figures are correspondingly **<=** D8's 30.9 / 145.9 / 196.3 s.
+Justification: N11 - the ratio is load-dependent and monotone with load (2.63x at peak load
+to ~4.7x idle); Way B removes the level-3 console traffic that cost D8 ~10 MB of I/O, so the
+load is LOWER. **No magnitude is predicted and none may be read into the result**; this limb
+exists so that a faster wall clock is not later mistaken for a behaviour change.
+MISS: a W-MOVE ratio BELOW 3.362, which would falsify the load account and needs explaining.
+
+**P-REPORTS** (conf 0.70). `reports-captured.log` holds **> 100** bodies with **0 failed**,
+including exactly **3 TASKSTRT + 3 TASKCMPLT**. Basis: D8 164 captured / 0 failed / 6
+task-status. Count, not rate: the wall duration differs (P-RATIO). MISS: any failed push,
+any TASKABRT, or fewer than 6 task-status bodies.
+
+**P-TERMINAL** (conf 0.80). All three order tasks reach a terminal report inside the 900 s
+cap, by the same RunnerLib criterion Way A uses (one terminal report per (taskee, task) pair).
+MISS: the cap is reached with an open task.
+
+---
+
+## 5. TEARDOWN
+
+**P-STOP** (conf 0.75). In W-STOP: StopIface exit 0; the interface exits by itself; both
+observers exit within the 90 s grace; StopVrf52 exit 0 with `CloseMainWindow ... TRUE` on the
+GUI and a `taskkill` WITHOUT `/F` on the back end; post-run inventory shows **no** vrfSim /
+vrfGui / VrfC2SimApp / WatchVrf / ListenReports, and DOES show rtiexec 47636, rtiForwarder
+7696 and at least one RtiProbe.
+Basis: STP-844 is fixed and confirmed twice (D1b 9.87 s, D2 9.77 s) precisely BECAUSE of the
+run-owned appData, which Way B passes with the same `-AppDataDir`; D8 tore down at exit 0.
+MISS: any survivor, or StopVrf52 exit 3 or 5. Nothing is killed either way - a survivor is
+reported and the verdict fails.
+
+---
+
+## 6. WHAT WAY B CANNOT SHOW THAT WAY A SHOWS, AND WHAT REPLACES IT
+
+| Way A evidence (D8 sec 5) | available in Way B? | replacement |
+|---|---|---|
+| runner truth 7/7: input sources with provenance | NO | the orchestrator's manifest records inputs, pids, exit codes, UTC stamps; the app's own start-up banner announces route shift, de-stack, arrival fraction, tile cache and elevation level |
+| predicted-vs-announced CONFIRMED lines (route shift, DeStackComposedSiblings, ArrivalApproachFraction) | NO - nobody predicts | the app's announce lines are still in the log; the PREDICTION side is this document |
+| `host.deployedAppBuild` read from the binary (1d0fb69, dirty=False) | NO | the seat records `Get-FileHash` + ProductVersion of `VrfC2SimApp.exe` BEFORE the run - mandatory, because the shouldfix-d8 lane can redeploy under us (R-1) |
+| connection-config sha256 comparison, `connectionConfigIdentical` | NO | the seat compares the two copies by hash before the run (R-2) |
+| vendor logs by pid | YES | the orchestrator calls RunnerLib `Copy-VendorLogByPid` - a copy, never a read |
+| holders-at-launch inventory | YES | the conditions block, by process NAME |
+| the nav-area READY gate / pre-order settle | NO (needs console >= 3) | none. R9's legs are ~0.6-1.1 km and the terrain cache is warm; this is a stated residual risk, not a covered one |
+| early-exit / task-coverage criterion | YES | the same RunnerLib functions, dot-sourced |
+| oracle validity flags, QUERYINIT unit count | PARTLY | QUERYINIT is parsed from PushInit stdout; there is no validity-flag machinery |
+| the jam instrument and give-up rows (P2/P6) | NO (console -1) | nothing. Stated, not worked around |
+
+---
+
+## 7. RISKS THAT ARE NOT PREDICTIONS
+
+- **R-1 the live code lane.** `.claude\worktrees\shouldfix-d8` may rebuild/redeploy
+  `Release-5.2` mid-rehearsal. That would change the binary under the run AND wipe the
+  preflight tile cache. GATE: record the exe hash before and after; if they differ the run is
+  VOID, not "a result".
+- **R-2 two connection configs.** The interface reads the VENDOR
+  `MAK-ONE-2025-Config.xml` (Demo :7) while the sim and GUI read the RELOCATED tree's copy
+  (`-AppDataDir`). D8 found the two byte-identical (sha256 F445629EEE...). If they ever
+  diverge the federates may not share a connection and an observer reflecting 0 entities
+  would look like an observation failure instead of a configuration one (D1b harvest A2).
+  GATE: hash both before the run.
+- **R-3 the interface's working directory - CLOSED at main ef2b640.** StartInterface52 now
+  starts the app the way the proven runner path does: `cwd = VR-Forces bin64` plus
+  `--contentRoot=<exe dir>` (:81-89, :339). The risk this prereg registered (the script's own
+  exe-directory cwd, never exercised live) no longer exists. Kept as a line, not deleted,
+  because if step 3 still dies with a Legion FATAL the hypothesis it names is the one to
+  re-open.
+- **R-4 the third-holder limit.** LaunchVrf52's holder numbers are FIXED at 9190/9191
+  (RUNBOOK 9c KNOWN LIMIT). A second Way B launch inside one 900 s hold has one number left;
+  a third has none. `-HolderAppNumber` exists on the orchestrator for that case.
+- **R-5 n = 1.** One run, one fixture, one order, one host. Nothing here generalises to
+  COA-STP1, whose measured ratio has been as low as 0.27x.
+
+---
+
+## 8. APPLICATION NUMBERS **[ef2b640 - ONE CLAIM, NOT THREE]**
+
+Every federate the rehearsal is responsible for now sits in the documented 9101-9199 demo
+block, which `appsettings.Demo.json:18` puts outside the engineering ledger: back end
+**9102** and front end **9103** (DEMO_RUNBOOK sec 2 step 2 since ef2b640 - they used to read
+9201/9202, which were exempt from nothing), the interface **9101**, and LaunchVrf52's holder
+**9190/9191** (RUNBOOK:2338-2339).
+
+**THE ONE LEDGER CLAIM IS THE ADDED OBSERVER.** WatchVrf joins the federation and is named in
+the ledger rule itself (`docs\OPUS_EXECUTION_PLAN.md:926-927`: "app / ResetVrf / **WatchVrf** /
+SetSimRate / LaunchVrf back-end + front-end each take one"), so one number is taken from the
+`*** NEXT FREE: <n> ***` marker (:3304, currently 5051) and recorded as consumed.
+Checked, not assumed: **ListenReports joins no federation** - it is a C2SIM-bus listener whose
+positionals are `<seconds> <captureFile>` with optional `--rest-url` / `--stomp-url`, it takes
+no application number and does not appear in the ledger rule. Nothing else this orchestrator
+starts joins with a non-demo-block number: `StopIface`, `PushInit` and `PushOrder` are C2SIM
+REST/STOMP clients, and `StopVrf52` starts no federate.
+
+## 9. WHAT IS STILL NOT THE TYPED RUNBOOK **[ef2b640]**
+
+Two things, both named in the script's own header and in its manifest:
+
+- **D-3 the observers.** WatchVrf / ListenReports are harness federates Way B does not
+  mention. They are the price of a scoreable rehearsal and the only reason a ledger number is
+  spent at all. They start before the init (Way A's Stage 5 ordering) and stop by their
+  stop-file before StopVrf52.
+- **D-4 nobody is reading the screen.** Sec 2 step 3 instructs the OPERATOR to read the loud
+  server line and match it against sec 4's pushes; the script asserts it instead (P-SERVER).
+  Stricter than the instruction, not a departure from it.
+
+RETIRED, because the typed command now does them: the C2SIM endpoint override (`-Server
+private`), the application numbers (9102/9103 inside the block), `StopIface` as the stop
+(sec 7 item 1 types it, and says it "is also the only stop a script can perform"), and
+PushInit/PushOrder standing in for STP (sec 4's own sanctioned rehearsal path).
+The orchestrator **starts and stops no federation holder**: it records what it finds at start
+and what LaunchVrf52 itself reports about the holder step 2 starts as typed (sec 2 step 1b).
+
+---
+
+## 10. THE SEAT'S ADDITIONS AT REGISTRATION
+
+- CONDITIONS GATE: no subagent live, no dotnet / MSBuild / VBCSCompiler / vrfNavGenerator, no vrfSim / vrfGui /
+  VrfC2SimApp at launch; CPU recorded. A run started under any other condition is VOID (the D2 lesson).
+- R-1 / R-2 GATES are the seat's, recorded in the RESULT block: sha256 + ProductVersion of the deployed
+  VrfC2SimApp.exe before and after (expected 1d0fb69, unchanged), and the sha256 of the vendor and relocated
+  MAK-ONE-2025-Config.xml copies before the run (expected identical).
+- THE SERVER is OURS (c2sim-server-vrf, 18080/61614). The operator's 8080/61613 carries a live STP session with
+  Iron Storm loaded and is not touched by D5; the orchestrator refuses -Server standard.
+- WHAT D5 CAN CLOSE: DEMO_READINESS rows 5, 7 and the Way B half of 13, and DEMO_RUNBOOK's 'UNVERIFIED as a single
+  sequence' note - only on a run with every HIGH limb met. STP itself pushing (rather than the stand-in) stays
+  owed to a session with the user at the box.
+- The run script is scratch validation/d5_wayb_orchestrator.ps1 (UPDATE 2, parse-clean, dry-run verified);
+  the ledger claim for the WatchVrf observer is made BEFORE the launch and named in the RESULT block.

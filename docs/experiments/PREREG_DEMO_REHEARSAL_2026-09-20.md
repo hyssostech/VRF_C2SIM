@@ -285,3 +285,6 @@ UNEXPLAINED (from the harvest's closing paragraph): (i) the dispatch deferral gr
 
 ## D4 - the audience scenario (COA-STP1's 11 taskees, GUI, real-time, route shift) - needs the user's rulings first.
 ## D5 - Way B, hand-started and STP-driven, with the LaunchVrf52 holder (lane feat/demo-federation-holder).
+REGISTERED 2026-09-21 as its own file: docs/experiments/PREREG_D5_WAYB_2026-09-21.md (the runbook AS TYPED on main
+ef2b640: -Server private, demo-block 9102/9103, StopIface; PushInit/PushOrder stand in for STP on OUR 18080/61614
+server; observers attached so the run is scoreable). The RESULT block goes in that file.
