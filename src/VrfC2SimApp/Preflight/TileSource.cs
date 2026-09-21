@@ -658,24 +658,41 @@ public sealed class TileSource : IDisposable
 /// workers are asynchronous and an order's last one finishes long after OnOrder has returned.
 ///
 /// THE RULE, pure and therefore testable offline (--preflight-selftest): each order opens a
-/// GENERATION; every scoring worker Enters it and Leaves it; the census is due EXACTLY ONCE per
-/// generation, at the moment the last worker of that generation leaves. A worker of an older
-/// generation leaving after a new order has arrived can never re-trigger the older one (its
+/// GENERATION; every scoring worker Enters it and Leaves it; a census is due at the moment the
+/// number of workers outstanding in the CURRENT generation falls back to zero. A worker of an
+/// older generation leaving after a new order has arrived can never re-trigger the older one (its
 /// generation is closed) and never triggers the newer one (it was never in it). An order with no
 /// scoring work at all reports nothing, which is correct - there is nothing to report.
+///
+/// *** N8 (D8 harvest, 2026-09-21). THE LATCH USED TO FIRE ONCE PER GENERATION AND THEN STAY
+/// SHUT, AND THAT WAS NOT "ONCE PER ORDER" - IT WAS "ONCE PER ORDER'S FIRST BATCH". *** R9's three
+/// tasks are CHAINED: task 2 is dispatched, and therefore scored, only after task 1 has finished.
+/// So the order's first worker was also its last-outstanding worker, the census printed after
+/// task 1's preflight, `_due` went false, and tasks 2 and 3 were scored with nothing counting
+/// their tile reads - while the line called its figure "cumulative for the run" (D8 run
+/// 20260921T052350Z: one census line at :223, the other two preflights at :311 and :319).
+/// The latch now RE-ARMS: every batch of scoring work reports, and <see cref="Leave"/> hands back
+/// which batch it was, so the lines are readable in order and a reader can tell "batch 3 of this
+/// order" from "the only batch". E6's original point is untouched - a census is still per BATCH
+/// OF WORKERS and never per leg, because one worker scores one whole task.
+///
+/// "NEVER TWICE FOR ONE WORKER" IS PRESERVED, and it is preserved by the transition rather than by
+/// a flag: a census fires only when a Leave actually DECREMENTS a positive outstanding count to
+/// zero. A duplicate Leave finds nothing outstanding and reports nothing, which is the property
+/// the selftest has always asserted and the one re-arming could most easily have broken.
 /// </summary>
 public sealed class TileCensusLatch
 {
     private readonly object _gate = new();
     private long _generation;
     private int _outstanding;
-    private bool _due;
+    private int _batch;
 
     /// <summary>A new order. Returns its generation id. Any worker still running from the previous
     /// order is abandoned by this: its generation is closed and can no longer report.</summary>
     public long BeginOrder()
     {
-        lock (_gate) { _generation++; _outstanding = 0; _due = true; return _generation; }
+        lock (_gate) { _generation++; _outstanding = 0; _batch = 0; return _generation; }
     }
 
     /// <summary>A scoring worker starts. Returns the generation it belongs to (0 = no order has
@@ -685,16 +702,24 @@ public sealed class TileCensusLatch
         lock (_gate) { if (_generation > 0) _outstanding++; return _generation; }
     }
 
-    /// <summary>A scoring worker finishes. True EXACTLY ONCE per generation - for the worker that
-    /// leaves last - and only for a worker of the CURRENT generation.</summary>
-    public bool Leave(long generation)
+    /// <summary>A scoring worker finishes. True when this worker was the last one outstanding in
+    /// the CURRENT generation - once per BATCH of concurrent scoring work, never twice for the
+    /// same worker, and never for a worker of a closed generation.</summary>
+    public bool Leave(long generation) => Leave(generation, out _);
+
+    /// <summary>As <see cref="Leave(long)"/>, and reports WHICH batch of this order the census
+    /// covers (1-based; 0 when nothing is due). N8: an order whose tasks are chained produces one
+    /// batch per task, and the number is what tells those lines apart in a log.</summary>
+    public bool Leave(long generation, out int batch)
     {
         lock (_gate)
         {
+            batch = 0;
             if (generation != _generation || generation == 0) return false;
-            if (_outstanding > 0) _outstanding--;
-            if (_outstanding > 0 || !_due) return false;
-            _due = false;
+            if (_outstanding <= 0) return false;   // a duplicate Leave: nothing was outstanding
+            _outstanding--;
+            if (_outstanding > 0) return false;
+            batch = ++_batch;
             return true;
         }
     }

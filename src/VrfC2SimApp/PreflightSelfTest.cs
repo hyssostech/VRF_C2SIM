@@ -933,7 +933,48 @@ public static class PreflightSelfTest
             }
             Check(ref failures, censuses == 2,
                   $"two successive orders with two scoring workers each produce exactly {censuses} " +
-                  "census line(s) - one per order, which is what 'once per order' means");
+                  "census line(s) - one per BATCH, and each of those orders had exactly one batch");
+        }
+        // ===== N8 (D8 harvest): THE LATCH MUST RE-ARM WITHIN AN ORDER =====
+        // R9's three tasks are CHAINED: task 2 is scored only after task 1 has finished. So the
+        // order's first worker was also its last-outstanding worker, the old latch fired once and
+        // stayed shut, and tasks 2 and 3 were scored with nothing counting their tile reads - while
+        // the line called its figure "cumulative for the run" (D8 run 20260921T052350Z: one census
+        // at :223, the other two preflights at :311 and :319). Both halves are asserted: the
+        // re-arming, and the "never twice for one worker" property it could most easily break.
+        Console.WriteLine("--- N8: the census re-arms per BATCH within one order (chained tasks) ---");
+        {
+            var latch = new TileCensusLatch();
+            long g = latch.BeginOrder();
+            var batches = new List<int>();
+            for (int chained = 0; chained < 3; chained++)   // three chained tasks, one worker at a time
+            {
+                long w = latch.Enter();
+                if (latch.Leave(w, out int b)) batches.Add(b);
+            }
+            Check(ref failures, batches.Count == 3 && batches[0] == 1 && batches[1] == 2 && batches[2] == 3,
+                  $"three CHAINED tasks of ONE order produce 3 census line(s), numbered 1,2,3 " +
+                  $"(got [{string.Join(",", batches)}]) - the old latch produced exactly 1 and the " +
+                  "other two tasks' tile reads were never counted (N8)");
+            Check(ref failures, g > 0 && !latch.Leave(g),
+                  "...and a Leave with nothing outstanding still reports NOTHING - re-arming must not " +
+                  "turn a duplicate Leave into an extra census");
+        }
+        {
+            // Mixed shape: a 2-worker batch, then a 1-worker batch, in one order.
+            var latch = new TileCensusLatch();
+            long g = latch.BeginOrder();
+            long a = latch.Enter(), b = latch.Enter();
+            bool firstEarly = latch.Leave(a);
+            bool firstDue = latch.Leave(b, out int b1);
+            long c = latch.Enter();
+            bool secondDue = latch.Leave(c, out int b2);
+            Check(ref failures, !firstEarly && firstDue && b1 == 1 && secondDue && b2 == 2,
+                  $"a 2-worker batch then a 1-worker batch in ONE order report as batch 1 and batch 2 " +
+                  $"(got due={firstDue}/{secondDue}, batches {b1}/{b2}), and the first batch's early " +
+                  "worker still reports nothing");
+            Check(ref failures, latch.BeginOrder() > g,
+                  "a new order opens a new generation, and its batch numbering starts again at 1");
         }
         return failures;
     }

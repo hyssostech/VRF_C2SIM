@@ -956,6 +956,9 @@ public sealed class VrfC2SimService : BackgroundService
 
         _log.LogInformation("Reports this run: {Sent} delivered, {Failed} FAILED (a failed report is lost - " +
                             "it is never re-sent).", Interlocked.Read(ref _reportsSent), Interlocked.Read(ref _reportsFailed));
+        // N8: the FINAL tile figure, beside the other end-of-run totals. Best-effort - a logging
+        // line must never turn a clean shutdown into a failure.
+        try { ReportRunTileTotal(); } catch { /* best effort */ }
         _stopTick = true;
         tickThread.Join(TimeSpan.FromSeconds(5));
         try { await _sdk.Disconnect(); } catch { /* best effort */ }
@@ -4769,21 +4772,57 @@ public sealed class VrfC2SimService : BackgroundService
     /// </summary>
     private void ReportTileCensus(long generation)
     {
-        if (!_tileCensus.Leave(generation)) return;
+        if (!_tileCensus.Leave(generation, out int batch)) return;
         var svc = _preflight;
         if (svc == null) return;
         int hits = svc.Tiles.CacheHits - _tileHitsAtOrder;
         int fetches = svc.Tiles.Fetched - _tileFetchesAtOrder;
-        _log.LogInformation("ROUTE PRE-FLIGHT TILE CENSUS for this order (E6): {Hits} cache HIT(s), {Fetches} HTTP " +
-                            "FETCH(es){Off}. Cumulative for the run: {CumHits} hits, {CumFetches} fetches, " +
-                            "{Exhausted} tile(s) given up on after {Tries} attempts, {Undecodable} undecodable " +
-                            "body(ies). Cache: {Cache}. A non-zero FETCH count means this order's dispatches " +
-                            "waited on the network - pre-warm the AO's tiles to remove that wait.",
-                            hits, fetches, svc.Options.Offline ? " (Vrf:PreflightOffline is TRUE, so a fetch " +
-                                                                 "count above zero would be a defect)" : "",
+        // N8: RE-BASELINE FOR THE NEXT BATCH. The counters are monotonic, so "since the previous
+        // census line" is the delta the next line must report; without this, batch 2 of a chained
+        // order would re-report batch 1's reads. MarkTileCensusStart's per-generation guard has
+        // already fired by now, so it cannot clobber this.
+        _tileHitsAtOrder = svc.Tiles.CacheHits;
+        _tileFetchesAtOrder = svc.Tiles.Fetched;
+        _log.LogInformation("ROUTE PRE-FLIGHT TILE CENSUS, batch {Batch} of this order (E6/N8): {Hits} cache " +
+                            "HIT(s), {Fetches} HTTP FETCH(es){Off} since the previous census line. RUNNING " +
+                            "TOTAL SO FAR (not the run total - the final one is printed at shutdown): " +
+                            "{CumHits} hits, {CumFetches} fetches, {Exhausted} tile(s) given up on after " +
+                            "{Tries} attempts, {Undecodable} undecodable body(ies). Cache: {Cache}. A " +
+                            "non-zero FETCH count means this order's dispatches waited on the network - " +
+                            "pre-warm the AO's tiles to remove that wait. One line per BATCH of scoring " +
+                            "work: a chained order scores one task per batch, so batch N is task N.",
+                            batch, hits, fetches,
+                            svc.Options.Offline ? " (Vrf:PreflightOffline is TRUE, so a fetch " +
+                                                  "count above zero would be a defect)" : "",
                             svc.Tiles.CacheHits, svc.Tiles.Fetched, svc.Tiles.ExhaustedTiles,
                             Preflight.TileSource.MaxFetchAttempts, svc.Tiles.UndecodableBodies,
                             svc.Tiles.CacheDirectory);
+    }
+
+    /// <summary>
+    /// N8 (D8 harvest): THE RUN TOTAL, once, at shutdown - the number the per-batch lines above
+    /// could never be. Each of those reports a delta and a running total AS OF THAT LINE; whether
+    /// any of them is the last is not knowable while the run is going. This one is, because the
+    /// service is stopping: every scoring worker that will ever run has run.
+    ///
+    /// It reads the same counters and says the same things, so a harvest can parse either; what it
+    /// adds is the guarantee that this figure is final. Silent when no pre-flight service was ever
+    /// built (the feature off, or a run that dispatched nothing) - there is no total to report.
+    /// </summary>
+    private void ReportRunTileTotal()
+    {
+        var svc = _preflight;
+        if (svc == null) return;
+        _log.LogInformation("ROUTE PRE-FLIGHT TILE TOTAL for this RUN (E6/N8, FINAL - every scoring worker " +
+                            "has finished): {CumHits} cache HIT(s), {CumFetches} HTTP FETCH(es){Off}, " +
+                            "{Exhausted} tile(s) given up on after {Tries} attempts, {Undecodable} " +
+                            "undecodable body(ies). Cache: {Cache}. The per-batch CENSUS lines above are " +
+                            "deltas and running totals as of each line; THIS is the run total.",
+                            svc.Tiles.CacheHits, svc.Tiles.Fetched,
+                            svc.Options.Offline ? " (Vrf:PreflightOffline is TRUE, so a fetch count above " +
+                                                  "zero would be a defect)" : "",
+                            svc.Tiles.ExhaustedTiles, Preflight.TileSource.MaxFetchAttempts,
+                            svc.Tiles.UndecodableBodies, svc.Tiles.CacheDirectory);
     }
 
     // ============ THE LATERAL ROUTE SHIFT (Vrf:PreflightRouteShift; STP-804/806) ==============
