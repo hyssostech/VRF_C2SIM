@@ -2486,10 +2486,31 @@ MAK support package MAY claim (adjudication sec 6.ii): the instance-level rate t
 p-values and their assumptions; the tail-only signature with file-verified line-count arithmetic;
 the SILENT shape as a headline finding, asked as an open question to MAK; the B01
 duplicated-emission log as evidence of an unserialised sink; the instance-heterogeneity table;
-the ~9.4 MB/create memory retention. MAK support package MAY NOT claim: that -n 0 is a proven
-remedy; that "corrupting content is rtiexec's own log text" describes anything beyond the 4
-TAIL-ONLY refusals; any single stable refusal rate (0/45 to 33/97 on an identical config); or
-anything about the sim-as-creator posture, never exercised.
+the ~9.4 MB/create memory retention; **rtiexec's log sink is unserialised: it doubles and
+interleaves lines** (re-confirmed D8, 2026-09-21 - every one of six holder join lines on rtiexec
+47636 is doubled/token-interleaved, e.g. "Federate Federate remoteControl 57200 ... has joined
+federation \" has joined federation \"MAK-ONE-2025MAK-..."; not an isolated occurrence). MAK
+support package MAY NOT claim: that -n 0 is a proven remedy; that "corrupting content is
+rtiexec's own log text" describes anything beyond the 4 TAIL-ONLY refusals; any single stable
+refusal rate (0/45 to 33/97 on an identical config); or anything about the sim-as-creator
+posture, never exercised.
+
+D8 FIRST-LAUNCH INCIDENT (2026-09-21, the join-detector against the same garbled sink): the
+first D8 launch (run 20260921T045700Z) was refused at Stage 2h after FOUR holders (appNos
+5036-5039) that had ALL actually joined went unrecognised, because the join detector's
+exact-quote regex could not match rtiexec 47636's doubled/interleaved log lines (app binaries
+unchanged by this - the regex bug pre-dates 1d0fb69). Fixed in scripts only: merge 9711f46
+(`9711f46`) introduces a shared pure matcher, `Test-HolderJoinedInLog`
+(`RunnerLib.ps1:1514-1528`), tolerant of the doubled/interleaved text; runner suite 437/0. The
+re-launch (run 20260921T052350Z) reused the SAME rtiexec instance, so the fix was exercised
+against the very garble it was written for, not merely against a clean log: replayed over all
+six holder-join lines this rtiexec instance ever wrote, the OLD regex matches 0 of 6 and the
+NEW matcher matches 6 of 6. One residual defect found in the same incident, NOT yet fixed:
+the runner's Stage 2h "HELD" log line quotes `rtiexec log: remoteControl <pid> has joined
+federation "<fed>"` as if read from the log, but it is a CONSTRUCTED string
+(`RunC2SimScenario.ps1:3956`), not the matched text - on a garbled instance it prints a
+clean-looking sentence that hides the very garble the fix has to see through. Worth a ticket
+alongside 9711f46: quote the matched text verbatim (truncated) instead of reconstructing it.
 
 ## 10. THE C16 PROGRESS WATCHDOG IS OFF BY DEFAULT - HOW TO TURN IT ON FOR THE VALIDATION RUN
 
@@ -2959,6 +2980,17 @@ how run D6 came to record "sim/wall 1.00" for a scenario D7 later measured at 3.
 The 2026-09-20 D1/D1b/D3 "real time, ratio 1.00" readings in
 docs/experiments/PREREG_DEMO_REHEARSAL_2026-09-20.md are WITHDRAWN on this evidence (D7 RESULT
 N7) - D8 is the first run to measure the ratio with the app's own clock rather than infer it.
+
+THE RATIO IS NOT A CONSTANT - IT IS LOAD-DEPENDENT AND MONOTONE (D8 RESULT N11, 2026-09-21):
+across D8's own four `SIM/WALL RATIO` windows the value ranged 2.625x (peak load, three tasks
+moving) through ~3.0-3.06x (the first movement minute) to 3.4-3.5x (as tasks close, fewer
+objects moving) to ~4.7x (post-completion idle, near-empty scenario). Do not quote "3.00x" or
+any other single number as THE ratio for a scenario - name the phase it was measured in. FOR AN
+OPERATOR: R9's wall-clock times are NOT a prediction for another scenario's wall-clock times -
+`fixed-frame-run-to-complete` runs as fast as the load allows, so a larger or busier scenario
+runs the clock SLOWER (COA-STP1 at scale was once measured at 0.27x, i.e. slower than real
+time, against R9's several-x). The app's own per-minute `SIM/WALL RATIO` line is the
+instrument for any given run - read it, never assume it.
 
 ## 12. THE ROUTE PRE-FLIGHT (OFF) AND ITS LATERAL SHIFT (ON BY DEFAULT) (STP-804/806)
 
