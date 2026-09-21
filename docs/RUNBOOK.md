@@ -418,6 +418,10 @@ reading the vendor's own procedure. Order of resort:
   One run at level 4 closed a week-old movement question (DESIGN_ORBAT C1b/C11). Volume:
   ~170k rows per 7-minute run at level 4 - fine for a diagnostic run, not a default.
   `-BackendNotifyLevel 4` (runner) raises the SIM-WIDE log instead; it did not help there.
+  TRAP (2026-09-21): `scripts/RunScenario.sh` DEFAULTS `--object-console`/`--member-console`
+  to **4/4**, NOT off - omitting the flags gives the highest-volume setting, not silence. Pass
+  `-1 -1` explicitly for a demo (D1-D6 did); pass `3 3` only for a deliberate diagnostic run
+  (D7) and expect the ~100-300 MB this section's arithmetic predicts.
 - VR-Forces help (HTML, offline): C:\MAK\vrforces5.0.2\doc\help\Content
   Startup/connections/sessions: Introduction\Starting\ and Introduction\Concepts\
   CLI options: Introduction\CLI\vrf_vrfSimCommandLine.htm and
@@ -2714,12 +2718,103 @@ only inserts BETWEEN authored vertices - so the traversal bar rises and the effe
 a 1,600 m authored route with a last vertex 420 m from the start is closable; the same task
 with a 600 m shift is not, and waits for the vendor completion or its Duration.
 
-### 11e. DE-STACK / COMPOSED-CHILD PLACEMENT - WARNING (2026-09-20, D6/PART 2)
+AMENDMENT (user ruling 2026-09-21, option A of the D6 harvest): THE TRAVERSAL BAR IS PER
+MEMBER. `Vrf:ArrivalApproachFraction` (0.5; 0 disables). A counted member must now be past
+max(min(0.5 x route, ArrivalApproachFraction x ITS OWN straight-line distance to the last
+vertex at dispatch), ArrivalMinTravelMeters) - never more than the route bar above, so nothing
+that closes today stops closing. WHY: the route bar is a statement about the TASKEE's journey
+and was applied to every member whatever journey it had, so a member that legitimately starts
+closer than half the route to the destination could never be counted however completely it
+arrived. Measured in D3: twenty of 48 MechCoy members sat inside the 274 m radius and below
+the 548 m bar at EVERY sampled instant, and at the moment D6 closed the same task 42 of 57 D3
+members were physically at the destination while the rule could count 23 - an 80 s late
+completion from the bar alone. WHY 0.5: a member starting d0 out and finishing inside radius R
+shows at least d0 - R of displacement, and d0 - R >= 0.5 d0 exactly when d0 >= 2R, so
+"actually drove there" satisfies it for every member starting two radii out. WHAT IT DOES NOT
+CHANGE: the radius, the quorum, what is sampled, and - critically - ClosableByArrival. A route
+whose last vertex lies inside the arrival radius of the dispatch position is still refused
+before any member is sampled; --arrival-selftest (57 checks) replays V6g's measured geometry
+and shows the refusal holding at approach fractions 0, 0.5 and 1.0, and replays D3's twenty
+members both ways. WATCH: the ARRIVAL EVIDENCE line now prints the route bar AND the lowest
+member bar applied - if they are equal, no member's own approach was shorter than the route.
 
-**Since commit 2746a0d (merged 248143f), composed children are EXEMPT from the 700 m de-stack** (`DeStack (C14 scope)`, UG52 25.2.1). Measured on R9: three sibling platoons that were
-three disjoint 700 m rings before 2746a0d are now ONE 126 m blob. This NARROWS the 2026-09-07 spread-at-startup ruling (PREREG_ASSEMBLY_LAYOUT) and is UNDER REVIEW by the user (options
-A/C/D, docs/experiments/PREREG_DEMO_REHEARSAL_2026-09-20.md D6 RESULT). Runs before 248143f (D1-D3) had the 700 m spread; runs after it do not - the two are NOT COMPARABLE for any
-company-level completion timing. There is currently NO SWITCH to restore the old spread-composed-children behaviour - do not invent one.
+KNOWN WEAKNESS (cold-start review, not yet fixed): the per-member cap is
+max(0.5 x the member's OWN distance-to-last-vertex at dispatch, 100 m), regardless of the
+ROUTE's length, so a long route whose last vertex lies just outside the taskee's own arrival
+radius (an out-and-back or a closed loop) can close on very little of the route's own motion.
+Worked case: Iron Storm T22, a 4-leg ~14.1 km loop, would close at roughly 12% of the route by
+this rule alone - today it is stopped only because the closed ring is classified as an
+ObjectiveArea and by `ClosableByArrival`, not by any gate inside the arrival rule itself. Fix
+lane queued: relax the per-member cap only when the TASKEE's own last-vertex distance from its
+OWN start is >= 0.5 x the route length. R9 (D7) and Iron Storm cut A (T02/T10/T14) are not
+exposed to this - none of those routes has the shape that triggers it.
+
+### 11e. DE-STACK - INDEPENDENT UNITS AT 700 m, COMPOSED SIBLINGS AT THEIR OWN ECHELON
+(user ruling 2026-09-21, option C of the D6 harvest; supersedes the 2026-09-20 warning)
+
+`Vrf:DeStackCreates` is still the master switch. Two lanes now run under it, in this order.
+INDEPENDENT objects that share a coordinate are spread onto `Vrf:DeStackSpacingMeters` (700 m)
+rings, first unit kept in place - the 2026-09-07 ruling, unchanged, and the only lane
+COA-STP1 and Iron Storm exercise (10 groups / 62 moved and 2 / 12, both identical to before).
+Then COMPOSED SIBLINGS - two or more children of one parent aggregate sharing a coordinate,
+including one they hold only through the InitParser superior cascade - are spread onto rings
+around their SHARED coordinate (not the parent's post-de-stack position; identical on every
+shipped fixture today, since the parent never moves, but latent otherwise) at THEIR echelon's
+spacing:
+
+| echelon key | spacing | longest shipped GROUND formation for that echelon | file | via template |
+|---|---|---|---|---|
+| TEAM | 100 m | 24.6 m | Formation-Wedge-US-Army-LtInf-FT.frm | Infantry Fire Team (USA) |
+| SQUAD | 150 m | 110.0 m | Formation-Column-US-Army-LtInf-SQD.frm | Rifle Squad (USA Army) |
+| SECTION | 300 m | 255.0 m | Ar_Plt_US_Column.frm | Mortar Section (US Army M1064) |
+| PLATOON | 350 m | 320.9 m | Formation-Column-US-Army-Mech-Plt-w-IFV.frm | Mechanized Platoon (USA) IFV (Deprecated) |
+| company and above | fallback = `Vrf:DeStackSpacingMeters` (700 m, RULED) | 660 m | Formation-Column-Armor-Co(US).frm | Tank Company (USA) |
+
+This table is the GROUND subset of the vendor's shipped formations only - air sections and
+squadrons resolve to formations spanning thousands of metres and are not represented here or
+spread by this lane. Spacing = the next 50 m step strictly above the span, floored at 100 m
+(`EchelonSpacing.StepAbove`, re-derived from each span by `--destack-selftest` sec 12 so the
+constants cannot drift from their own arithmetic). Applying the rule to the company span
+itself returns exactly the ruled 700 m (660 -> 700) - the table's own consistency check.
+
+CORRECTION TO THE RULING'S OWN NUMBER (added here; PREREG_ASSEMBLY_LAYOUT_2026-09-07 is left
+as written, not silently edited): that prereg's sec 1 cites 630 m for the longest shipped
+company formation, read from `Formation-Column-Armor-Co(US).frm`'s RAW per-entry offsets
+(0, +200, -430, -230). Each offset is relative to the PREVIOUS entry, so the formation's true
+extent is the RESOLVED chain - 0, +200, -230, -460 - a span of 660 m, not 630 m. The ruled
+700 m still clears 660, so C14's conclusion stands; the 30 m difference is recorded here.
+
+THE PARENT NEVER MOVES - it takes the centre slot - so a taskee that is a parent keeps the
+position its route is built from. WHY: the 2026-09-20 exemption (2746a0d) assumed the parent's
+formation would lay its children out; D6 measured three platoon aggregates 24-56 m apart at
+every sample with 3 of 3 footprints overlapping and 3.1x more sub-7 m contacts than D3, i.e.
+the parent's formation STACKS composed sub-aggregates. Why not 700 m for them: 700 m against a
+1,097 m route is 700 > 0.5 x 1097, which is exactly what put a whole platoon permanently under
+the STP-837 traversal bar in D3.
+
+KNOWN CONSEQUENCE: a taskee that is ITSELF a composed child DOES move one echelon ring (R9
+FULL: 1222.MechPlt, 350 m - but R9 FULL is on NO current demo path: neither RUNBOOK.md nor
+DEMO_RUNBOOK.md references it, the runner's default init is the LEAN file, and
+RESUME_PROMPT.md explicitly says not to use it). The de-stack runs at init and cannot know
+what an order will task. `Vrf:DropOriginVertexMeters` (100 m) is what stops the order's
+leading "from here" vertex dragging it back to the authored point.
+
+FALLBACK: a group whose echelon the table cannot size (company and above, and the synthesized
+sub-units of `ExpandCoarseLeaves`, which carry no C2SIM echelon) is NOT spread, and the
+start-up line says so. `Vrf:DeStackEchelonFallbackMeters` (default 0) turns that into a real
+spacing; `Vrf:DeStackEchelonSpacingMeters` ("PLT=400") overrides a row. NEITHER KEY IS IN
+appsettings.json TODAY - they exist only as C# defaults; an operator reading the shipped
+profile cannot discover them from the file alone.
+
+COMPARABILITY: runs before 248143f (D1-D3) had the 700 m spread on composed children; D6
+(248143f) had none; runs from adca180 onward spread them at their echelon's scale (350 m for
+platoons). The three are NOT comparable for any company-level completion timing or member
+geometry. To reproduce a D1-D6 run, set `Vrf__DeStackComposedSiblings=false` (and
+`Vrf__ArrivalApproachFraction=0` for the 11d amendment above).
+
+Offline proof: `--destack-selftest` (88 checks; both type-mapping modes on all four shipped
+inits, the per-fixture group/moved counts, "no parent moves", and which taskees the sibling
+pass moves).
 
 ## 12. THE ROUTE PRE-FLIGHT (OFF) AND ITS LATERAL SHIFT (ON BY DEFAULT) (STP-804/806)
 
