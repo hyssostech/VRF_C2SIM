@@ -334,3 +334,22 @@ and what LaunchVrf52 itself reports about the holder step 2 starts as typed (sec
   own branch with a static test (every Say-* a script calls must be defined) and the rehearsal is re-registered as D5b.
 - What D5 already bought: the rehearsal found in one second what eight Way A runs could not - the demo's real path had
   an unexecuted branch. DEMO_READINESS rows 5 / 7 / 13 stay open.
+
+---
+
+## 12. D5b - REGISTERED 2026-09-21 BEFORE THE RUN: the same rehearsal on main 1553e48
+
+What changed since D5: LaunchVrf52 defines Say-Info (merge 1553e48; static checks 12/12b now resolve every Say-* and
+Verb-Noun call in scripts/*.ps1 - Say-Info was the only hole); the should-fix lane is merged (4a4d1fa: vendor log
+copies go to <run>/vendor/, the HELD line quotes the MATCHED rtiexec text, runner env restoration - the last does not
+touch Way B). The APP BINARY IS UNCHANGED: 1.0.0+git.1d0fb69.Release-5.2 (the merged C# changes are NOT deployed; the
+rebuild follows D5b so that D5b differs from D8 by the PATH only). The orchestrator (scratch, UPDATE 3) had its
+failure path fixed and exercised by simulated-failure dry runs for steps 1-3 and the server gate.
+
+Predictions: sections 1-7 stand UNCHANGED, limb by limb, with these notes.
+- P-STEP2 stays at conf 0.80 but the seat flags it as the limb most likely to miss AGAIN: LaunchVrf52's standalone
+  holder block (~:1170-1260) has STILL never run to completion live; its success lines in the orchestrator are
+  predictions from source. A second miss there is a STOP like the first.
+- The persistent holder RtiProbe 74612 is expected joined (expires ~11:23Z), so step 2's own holder JOINS.
+- The ledger claim is a NEW number from the marker (5051 is burned); named in the RESULT block.
+- Conditions gate and R-1 / R-2 hash gates as section 10. MISS clauses as registered in sections 2-5.

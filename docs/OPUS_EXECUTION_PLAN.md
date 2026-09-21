@@ -3302,7 +3302,8 @@ NOTE: numbers this runner allocates but does not consume (e.g. an abort before t
 join) are BURNED, not recycled. The run manifest records which were actually used.
 
 - 2026-09-21 D5 WAY B REHEARSAL (docs/experiments/PREREG_D5_WAYB_2026-09-21.md): 5051 = tools/WatchVrf, the ONE ledgered federate of the run (the observer the rehearsal adds so it is scoreable); back end 9102, front end 9103, interface 9101 and LaunchVrf52's holder 9190/9191 are demo-block numbers (appsettings.Demo.json:18), outside this ledger; ListenReports / PushInit / PushOrder / StopIface join no federation. Run by scratch validation/d5_wayb_orchestrator.ps1. CLAIMED. -> BURNED 2026-09-21 07:09Z: D5 stopped at step 2 (LaunchVrf52.ps1:1158 undefined Say-Info) before WatchVrf was started; never joined, never reused.
-*** NEXT FREE: 5052 *** (authoritative - the ONLY such marker in this file. Update this
+- 2026-09-21 D5b WAY B RE-RUN (docs/experiments/PREREG_D5_WAYB_2026-09-21.md sec 12, main 1553e48): 5052 = tools/WatchVrf, the one ledgered federate of the run; every other federate sits in the 9101-9199 demo block. D5B-CLAIMED.
+*** NEXT FREE: 5053 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
