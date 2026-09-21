@@ -1344,6 +1344,49 @@ Check '8m2 Get-HolderPidLogLines (wrapped in @()) against a null log delta is an
 #   2. the predicate and the evidence share one matcher, so "joined" can never be reported
 #      beside a line that did not match;
 #   3. the runner no longer builds the sentence.
+# ============================================================================
+# 8x. Get-PlacementRows against the interface's REAL placement lines (BL-3).
+#
+# WHY THIS EXISTS, and it is a gap that existed for the whole life of the
+# function: until 2026-09-21 NO test fed Get-PlacementRows a single line. It is
+# the input half of the Stage-7d warm/cold cache-state indicator (the delta
+# between the first placement line and the first nav-area row: ~10 s warm,
+# ~240 s cold), and that indicator is the discriminator for STP-856 - units
+# created under a cold-streamed terrain.
+#
+# The buried-units lane added a WALL stamp to those lines. A first version wrote
+# 'PLACEMENT at WALL <stamp>:', which deletes the substring 'PLACEMENT:' that
+# RunnerLib.ps1:1227 rejects on - so the function returned EMPTY, the indicator
+# degraded to 'UNKNOWN for this run', and the offline suite said nothing because
+# nothing exercised it. The lines below are REAL, copied from the shipped format
+# strings (VrfC2SimService.cs FinalizePlacement), not paraphrases.
+Write-Host '=== 8x. Get-PlacementRows parses the interface''s REAL placement lines, stamp and all (BL-3) ==='
+$placeReal = @(
+  '      PLACEMENT: PLATFORM 28ID__FRIENDLY_INFANTRY_DIVISION domain=1 created at authored lat/lon; create alt 0 m from the FALLBACK (terrain height under the create point: UNKNOWN); post-create SetAltitude: 0 m ABOVE GROUND LEVEL - create alt = 0 (FALLBACK - no terrain height for this point; the create clamp is then the only thing placing it, ifCreateVrfObject.h:210-212); C2SIM gave no altitude -> on the ground: setAltitude(0, aboveGroundLevel=TRUE) (WALL 2026-09-21T11:51:46.311Z).',
+  '      PLACEMENT: UNIT 1-112_IN/28ID__FRIENDLY_INFANTRY_BATTALION_TASK_FORCE domain=1 created at authored lat/lon; create alt 131.11627508402665 m from the TERRAIN QUERY (terrain height under the create point: 130.1 m); post-create SetAltitude: 0 m ABOVE GROUND LEVEL - create alt = terrain 130.1 m + CreateClearanceMeters 1 m (created AT the surface - UG52 14.3.3 + MAK''s own sample); C2SIM gave no altitude -> on the ground: setAltitude(0, aboveGroundLevel=TRUE) (WALL 2026-09-21T11:52:18.902Z).',
+  '      PLACEMENT summary: 1 of 1 create altitude(s) came from the TERRAIN QUERY, 0 from the FALLBACK (WALL 2026-09-21T11:52:18.903Z).',
+  '      PLACEMENT RE-CLAMP: 32 of 36 object(s) - LAND PLATFORMS ONLY - were created at the FALLBACK altitude because the init''s terrain-profile query was not answered.'
+) -join "`r`n"
+$placeRows = @(Get-PlacementRows -AppLogText $placeReal)
+Check '8x Get-PlacementRows finds BOTH object rows in the stamped format (this is the BL-3 regression)' (
+    $placeRows.Count -eq 2)
+Check '8x the PLATFORM row keeps its kind and its marking' (
+    $placeRows.Count -eq 2 -and $placeRows[0].kind -eq 'PLATFORM' -and
+    $placeRows[0].name -eq '28ID__FRIENDLY_INFANTRY_DIVISION')
+Check '8x the UNIT row keeps its kind and its marking' (
+    $placeRows.Count -eq 2 -and $placeRows[1].kind -eq 'UNIT' -and
+    $placeRows[1].name -eq '1-112_IN/28ID__FRIENDLY_INFANTRY_BATTALION_TASK_FORCE')
+Check '8x neither the SUMMARY line nor a RE-CLAMP line is mistaken for an object row' (
+    (@($placeRows | Where-Object { $_.name -like '*summary*' -or $_.kind -notin @('UNIT','PLATFORM') })).Count -eq 0)
+Check '8x the WALL stamp is PRESENT in the captured line (the queued item is delivered, not dropped)' (
+    $placeRows.Count -eq 2 -and $placeRows[0].line -match 'WALL 2026-09-21T11:51:46\.311Z')
+# The fail-first half: the format the lane first shipped, which this test would have caught.
+$placeBroken = '      PLACEMENT at WALL 2026-09-21T11:51:46.311Z: PLATFORM 28ID__FRIENDLY_INFANTRY_DIVISION domain=1 created at authored lat/lon; create alt 0 m from the FALLBACK.'
+Check '8x REGRESSION GUARD: a stamp placed BEFORE the colon breaks the parser - proving the test can fail' (
+    (@(Get-PlacementRows -AppLogText $placeBroken)).Count -eq 0)
+Check '8x empty and null input are handled without throwing' (
+    (@(Get-PlacementRows -AppLogText '')).Count -eq 0 -and (@(Get-PlacementRows -AppLogText $null)).Count -eq 0)
+
 Write-Host '=== 8m3. N9: the Stage 2h join evidence QUOTES the matched rtiexec line ==='
 Check '8m3 Get-HolderJoinLine returns the CLEAN line verbatim' (
     (Get-HolderJoinLine -LogDelta $cleanJoinLine -ProcessId 87404 -FederationName 'MAK-ONE-2025') -eq $cleanJoinLine)

@@ -131,6 +131,30 @@ virtual void setAltitude(const DtUUID& uuid, double altitude,
   was ALREADY on the surface so a global re-clamp or terrain re-page would leave it unchanged
   and look identical; and no capture of the SetAlt run itself was retained. To VERIFY: two
   buried entities, set ONE, capture the tool output, and sample within ~1 s. ***
+  *** 2026-09-21, THE BURIED-UNITS LANE (STP-856): THE HEADER WINS, AND OUR STANDING PLACEMENT
+  LINE HAS BEEN CLAIMING SOMETHING THE VENDOR SAYS DOES NOT HAPPEN. *** Both headers read by named
+  path that day from C:\MAK\vrforces5.2d\include:
+    vrftasks/setAltitudeRequest.h:23-25 - "DtSetAltitudeRequest is used to set the altitude for an
+      entity. It is IGNORED IF THE VEHICLE IS NOT AN AIR-GOING VEHICLE." (the altitude "is the
+      height above the terrain in local coordinates")
+    vrftasks/setLocationRequest.h:26-32 - "Z IS IGNORED FOR NON-AIR VEHICLES ... parameters:
+      location - The new location for the entity, in geocentric (meters). GROUND VEHICLES WILL BE
+      CLAMPED TO THE TERRAIN SURFACE."
+  So for a LAND object the documented lever is setLocation, not setAltitude - and setLocation has
+  been wired the whole time too (VrfBridge.cpp:429 -> VrfFacade.cpp:986-987
+  controller->setLocation(DtUUID(uuid), toGeocentric(pos)); declared VrfFacade.h:590). The
+  buried-units re-clamp therefore corrects a buried GROUND PLATFORM with setLocation at its OWN
+  lat/lon and verifies by reading the altitude back (RUNBOOK 11h).
+  THE CONSEQUENCE FOR THE NORMAL PATH, STATED AND NOT ACTED ON: the PLACEMENT step's post-create
+  "SetAltitude: 0 m ABOVE GROUND LEVEL" clause (Vrf:PlacementAglSet, PlacementPolicy.cs:99-103) is
+  issued for LAND objects, which is exactly the class the header says the request is ignored for.
+  That clause announces an effect the vendor says does not occur. It is NOT changed here - the
+  CREATE is what places an object (sec 1a / UG52 14.3.3) and an inert belt-and-braces set costs
+  nothing - but it must not be read as evidence that anything was done. Retiring or re-aiming it
+  needs its own prereg and confirming run; sec 6 Q3 is the standing rule about why a design verdict
+  must not ride in on a defect fix. The one observation on the other side (sec 8a below) remains
+  ONE UNCONTROLLED RUN whose "VERIFIED END TO END" was withdrawn, and an uncontrolled observation
+  is not evidence against a header.
   Also withdrawn: "2 m AGL on a TANK settles at the surface BECAUSE VR-Forces holds ground
   vehicles on the surface continuously" - NO VENDOR SOURCE SAYS THAT. The Glossary defines
   ground clamping as a 3D VISUALIZATION behaviour, and the sim-side note in CORRECTIONS_LOG

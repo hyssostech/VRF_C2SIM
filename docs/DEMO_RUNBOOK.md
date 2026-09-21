@@ -90,6 +90,40 @@ WHICH SCENARIO AND WHICH DATA
 
 ---
 
+## 0.4 MANDATORY: PRE-WARM A TERRAIN AREA YOU HAVE NEVER RUN BEFORE
+
+**If the demo uses an area this machine has not run before - a new AO, a new fixture, MAK Earth
+streaming anywhere new - you must warm the terrain BEFORE the demo initialization. This is not an
+optimisation. Skipping it is how run `20260921T114910Z` put two vehicles ~150 m under the ground and
+then showed them standing still for forty minutes.**
+
+WHY. On a streaming terrain the interface's terrain query at initialization goes unanswered until
+the pages arrive, every object is then created at a FALLBACK altitude, and nothing has placed it:
+the vendor's create clamp needs a terrain polygon and there is none yet. Full mechanism: RUNBOOK
+sec 11h.
+
+HOW. Run the fixture once and throw the run away - one ordinary launch, let it reach the
+initialization, then stop it. The pages and tiles it pulls are what the real run reuses. (The route
+pre-flight's own tile cache is a separate thing with its own warming step - see RUNBOOK sec 12,
+`Vrf:PreflightCacheDir`.)
+
+HOW YOU KNOW IT WORKED - one line, and it is the gate for pushing the order:
+
+    PLACEMENT summary: N of N create altitude(s) came from the TERRAIN QUERY, 0 from the FALLBACK
+
+**N of N and zero FALLBACK.** Anything else means the terrain was still cold. If you see
+
+    PLACEMENT RE-CLAMP: ... were created at the FALLBACK altitude ...
+
+the run is repairing itself - it will correct what it can and REFUSE to task anything it cannot -
+but you are no longer demonstrating what you rehearsed. Stop, warm the area, start again.
+
+**AND KNOW THAT `READY TO TASK` DOES NOT COVER THIS.** On a cold area the initialization's creates
+are delayed by the terrain wait, so the barrier can expire first and print
+`READY TO TASK - NOT REACHED within 20 s`. Sec 3 and sec 4 below tell you to wait for the READY TO
+TASK line; **on a cold area that instrument is not reliable and the PLACEMENT summary above is the
+one to trust.** On a warmed area both agree, which is the other reason to warm it.
+
 ## 0.5 Navigation - what lets the units plan long routes
 
 Three things outside the interface decide whether a tasked unit can plan a multi-kilometre

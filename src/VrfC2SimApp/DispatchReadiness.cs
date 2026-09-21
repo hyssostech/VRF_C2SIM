@@ -43,6 +43,17 @@ public enum TaskeeReadiness
     /// the task. Transient by construction: the barrier always settles or expires.
     /// </summary>
     MaterializationParked = 5,
+
+    /// <summary>
+    /// 2026-09-21 (the buried-units lane, run 20260921T114910Z). Bound and readable, AND YET NOT
+    /// TASKABLE: the app has MEASURED this unit further than
+    /// Vrf:PlacementReclampToleranceMeters from the terrain under it - the state the two Iron Storm
+    /// platforms were in when the interface read "live -0.0 m vs terrain 145.4 m" and dispatched
+    /// anyway. Transient by construction: PlacementReclampPolicy issues the documented correction
+    /// (setAltitude 0 m AGL) and re-reads the altitude, so the state resolves or the bound expires.
+    /// It is set ONLY by a measurement; an unmeasured object is never in it.
+    /// </summary>
+    NotOnTheGround = 6,
 }
 
 /// <summary>
@@ -103,12 +114,31 @@ public static class DispatchReadiness
     public static TaskeeReadiness Classify(bool plannedAtInit, bool createRequested,
                                            bool nameBound, bool locationReadable,
                                            bool materializationParked)
+        => Classify(plannedAtInit, createRequested, nameBound, locationReadable,
+                    materializationParked, false);
+
+    /// <summary>
+    /// THE SAME RULE PLUS GROUND CONTACT (2026-09-21, the buried-units lane). A unit the app has
+    /// MEASURED further than Vrf:PlacementReclampToleranceMeters from the terrain under it is not
+    /// taskable, however bound and readable it is: run 20260921T114910Z measured two platforms at
+    /// live -0.0 m against terrain of 145.4 m and 155.8 m and tasked them anyway.
+    ///
+    /// <paramref name="notOnTheGround"/> is a MEASUREMENT, never a default: an object nobody has
+    /// measured is false here and classifies exactly as it does today (PlacementReclampPolicy.
+    /// Contact.Unknown). It is consulted LAST, after the parked flag, because a parked unit's shell
+    /// is about to be deleted and re-created - the altitude of an object that is going away is not
+    /// the more useful thing to say about it.
+    /// </summary>
+    public static TaskeeReadiness Classify(bool plannedAtInit, bool createRequested,
+                                           bool nameBound, bool locationReadable,
+                                           bool materializationParked, bool notOnTheGround)
     {
         if (!plannedAtInit) return TaskeeReadiness.Unknown;
         if (!nameBound)
             return createRequested ? TaskeeReadiness.RequestedNotBound : TaskeeReadiness.PlannedNotRequested;
         if (!locationReadable) return TaskeeReadiness.BoundNotReadable;
-        return materializationParked ? TaskeeReadiness.MaterializationParked : TaskeeReadiness.Ready;
+        if (materializationParked) return TaskeeReadiness.MaterializationParked;
+        return notOnTheGround ? TaskeeReadiness.NotOnTheGround : TaskeeReadiness.Ready;
     }
 
     /// <summary>Can waiting change this state? Every state between "planned" and "ready".</summary>
@@ -116,7 +146,8 @@ public static class DispatchReadiness
         => state == TaskeeReadiness.PlannedNotRequested
         || state == TaskeeReadiness.RequestedNotBound
         || state == TaskeeReadiness.BoundNotReadable
-        || state == TaskeeReadiness.MaterializationParked;
+        || state == TaskeeReadiness.MaterializationParked
+        || state == TaskeeReadiness.NotOnTheGround;
 
     /// <summary>A state that must be refused at once, however generous the bound.</summary>
     public static bool MustRefusePromptly(TaskeeReadiness state) => state == TaskeeReadiness.Unknown;
@@ -138,6 +169,7 @@ public static class DispatchReadiness
         TaskeeReadiness.RequestedNotBound   => "REQUESTED-BUT-NOT-BOUND",
         TaskeeReadiness.BoundNotReadable    => "BOUND-BUT-NOT-READABLE",
         TaskeeReadiness.MaterializationParked => "MATERIALIZATION-PARKED",
+        TaskeeReadiness.NotOnTheGround      => PlacementReclampPolicy.NotOnGroundToken,
         TaskeeReadiness.Ready               => "READY",
         _                                   => "UNSPECIFIED",
     };
@@ -162,6 +194,13 @@ public static class DispatchReadiness
           + "initialization created: this unit's order-time materialization is PARKED behind the "
           + "initialization barrier, so its members do not exist yet and the parked work will "
           + "delete and re-create this very object when the barrier settles (B1)",
+        TaskeeReadiness.NotOnTheGround =>
+            "is bound and readable, but the interface has MEASURED it further than "
+          + "Vrf:PlacementReclampToleranceMeters from the terrain under it - it was created at the "
+          + "FALLBACK altitude because the terrain had not streamed, so neither the create clamp "
+          + "nor the post-create AGL set had a terrain page to resolve against. The documented "
+          + "correction (setAltitude 0 m above ground level) has been issued and the wait is for "
+          + "the altitude to READ BACK on the terrain",
         TaskeeReadiness.Ready =>
             "is bound and its live location reads",
         _ => "is in an unspecified state",

@@ -854,6 +854,93 @@ public class VrfSettings
     // the Fixed100 parity branch and any air-unit set are unaffected (they do not read this).
     public bool PlacementAglSet { get; set; } = true;
 
+    // ===== PLACEMENT RE-CLAMP (2026-09-21, run 20260921T114910Z - Iron Storm cut A) ==============
+    // WHAT IT FIXES. On a STREAMING terrain (MAK Earth) over a cold AO the init's terrain-profile
+    // query goes unanswered, every object takes the FALLBACK arm of PlacementPolicy (create
+    // altitude 0, absolute) and NOTHING places it: the create clamp needs a polygon
+    // (ifCreateVrfObject.h:210-212) and the post-create setAltitude(0, aboveGroundLevel=TRUE) needs
+    // a ground height (vrfRemoteController.h:1372-1374) - and both resolve against the same page
+    // that is not loaded, which the back end reports as terrain height 0.0
+    // (terrainDatabase.h:398-399). In that run 36 of 36 objects were created at the fallback
+    // (`app:383`) and two init-created platforms read live -0.0 m against terrain of 145.4 m and
+    // 155.8 m at dispatch (`app:1135`, `app:1939`) - measured by the app, and tasked anyway.
+    //
+    // *** THIS IS NOT A FREEZE FIX AND MUST NOT BE WRITTEN UP AS ONE. *** docs/VRF_ALTITUDE_FRAMES
+    // .md sec 5 + sec 7: "BIRTH ALTITUDE IS NOT THE FREEZE DISCRIMINATOR ... A statement of the
+    // form 'born buried, therefore never moves' is ROT. It has re-entered this project at least
+    // twice after being falsified." The justification here is the PLACEMENT CONTRACT (UG52 14.3.3:
+    // ground entities are placed on the ground) and the reporting duty not to task a unit the app
+    // has itself measured off the terrain - both independent of what burial does to movement.
+    //
+    // THE CORRECTION IS A setLocation, NOT A setAltitude, AND THE VENDOR HEADERS DECIDE THAT:
+    // setAltitudeRequest.h:23-25 "It is ignored if the vehicle is not an air-going vehicle";
+    // setLocationRequest.h:26-32 "Z is ignored for non-air vehicles ... Ground vehicles will be
+    // clamped to the terrain surface". Already exposed (VrfBridge.cpp:429 -> VrfFacade.cpp:986),
+    // so no native change. See PlacementReclampPolicy.CorrectionLocation.
+    //
+    // *** AND THAT READING ALSO INDICTS A STANDING LINE OF OURS, which is recorded rather than
+    // silently changed: the PLACEMENT step's post-create "SetAltitude: 0 m ABOVE GROUND LEVEL"
+    // (PlacementAglSet below, PlacementPolicy.cs:99-103) is issued for LAND objects, and the header
+    // above says that request is ignored for exactly those. So that clause has been announcing an
+    // effect the vendor says does not happen. The healthy placement path is NOT changed by this
+    // lane - the create itself is what places an object (UG52 14.3.3) and the set is belt-and-
+    // braces that costs nothing if it is inert - but the claim is now flagged at its point of use,
+    // in RUNBOOK 11h and in docs/VRF_ALTITUDE_FRAMES.md sec 1b. Retiring or re-aiming that set is
+    // its own lane with its own confirming run; changing placement behaviour inside a defect fix is
+    // how VRF_ALTITUDE_FRAMES sec 6 Q3 says this project manufactures false results. ***
+    //
+    // WHY IT RUNS AFTER THE CREATES AND NEVER DELAYS THEM. MAK's own sample says creating is what
+    // pages a streaming terrain in (simpleCGF/main.cxx:120-133), and in that run the first terrain
+    // answer came to an INIT-PATH query on the same code path ~32 s later, AFTER all 36 creates had
+    // bound (`app:756`, `app:784`). Waiting longer BEFORE creating may therefore wait on something
+    // only creating can produce - and it would also drive DispatchReadiness.BarrierSeconds
+    // (= 30 - TerrainProfileTimeoutSeconds) to its 1 s floor and re-open the D5b/B1 overlap. So
+    // TerrainProfileTimeoutSeconds is deliberately NOT raised by this feature and the B1 inequality
+    // is numerically unchanged.
+    //
+    // COST ON A HEALTHY RUN: NONE. The re-clamp arms only when at least one LAND object was placed
+    // on the FALLBACK; when the terrain answers (the D10/R9 shape, "N of N ... from the TERRAIN
+    // QUERY") the list is empty, the tick phase is skipped by its own guard, and no query, no
+    // native read and no line is added. The dispatch gate fires only on a measured gap.
+    // false = the pre-2026-09-21 behaviour exactly, and the fail-first arm of
+    // `VrfC2SimApp --placement-reclamp-selftest --disabled`.
+    public bool PlacementReclamp { get; set; } = true;
+
+    // How long the re-clamp keeps re-asking, in WALL seconds. 60 covers the ~32 s the Iron Storm
+    // terrain took to become sampleable with about 1.9x margin. It is spent on ITS OWN budget: it
+    // holds up no create, borrows nothing from the init barrier and appears in no other inequality.
+    // IT IS 60 s PER WINDOW, NOT 60 s FROM THE FALLBACK CREATES (corrected 2026-09-21, delta review
+    // DS-2). The first window opens when the fallback creates are enqueued; a NEW window opens
+    // whenever a task asks about a unit still judged off the terrain (BL-2's re-measure), because a
+    // verdict formed against a terrain that has since streamed must not outlive it. So a unit that
+    // keeps being tasked keeps being looked at, and the bound is on each look, not on the run.
+    public double PlacementReclampSeconds { get; set; } = 60.0;
+
+    // Minimum WALL seconds between two terrain queries for the same fallback set. The sweep runs on
+    // every 50 ms tick and the query is a back-end round trip; one query is in flight at a time.
+    // HOW MANY ATTEMPTS THAT ACTUALLY BUYS (corrected 2026-09-21, cold-start review SF-4): an
+    // UNANSWERED query holds the in-flight flag for Vrf:TerrainProfileTimeoutSeconds (10 s) before
+    // it expires, and MayQuery requires !queryInFlight - so on the cold AO this exists for, the
+    // cadence is retry+timeout = 15 s and the 60 s bound gives about FOUR attempts, not the ~12 a
+    // first version of this comment claimed from 60/5. Answered queries return in milliseconds, so
+    // once the terrain is sampleable the cadence is the retry interval alone.
+    public double PlacementReclampRetrySeconds { get; set; } = 5.0;
+
+    // N - THE GAP AT WHICH A UNIT IS NOT TASKED, in metres, between the live altitude and the back
+    // end's own terrain height under the same point (both MAK-convention MSL = the WGS-84
+    // ellipsoid, docs/VRF_ALTITUDE_FRAMES.md "UNITS"). DERIVED, not picked: the two refusals in the
+    // motivating run would be 145 m and 156 m; a healthy create sits at terrain + CreateClearance-
+    // Meters = 1.0 m (`app:786`). Two legitimate effects widen the honest tolerance above "metres":
+    // an AGGREGATE's published Z is a derived bounding-box quantity whose rule is NOT DOCUMENTED
+    // (VRF_ALTITUDE_FRAMES sec 1a - "verifying 'on the ground' means reading the MEMBERS, never the
+    // aggregate's Z"), and real relief exists between a unit and its own footprint. 50 m sits 2.9x
+    // below every observed burial, above any plausible published-Z artefact, and is the same number
+    // C16 already calls "no movement worth the name".
+    // *** THIS IS NOT the vertex-0 NOTE threshold. *** TerrainVertexAuthoring.DefaultVertex0Note-
+    // ThresholdMeters stays at 100 m so the diagnostic line a harvest greps does not move; this is
+    // the separate, lower bar at which the interface REFUSES to task.
+    public double PlacementReclampToleranceMeters { get; set; } = 50.0;
+
     // B2 (2026-09-14): a TaskStatus report is emitted ONCE per task per outcome and nothing
     // re-sends it, so a push that fails is information lost for the whole run - 129 pushes failed
     // in G6 with "The response ended prematurely" and the run log said nothing. TASK-STATUS pushes

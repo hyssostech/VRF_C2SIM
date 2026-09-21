@@ -407,8 +407,11 @@ public static class RouteOriginPolicy
             : (declared - proven).ToString(CultureInfo.InvariantCulture) + " of them were read at the "
               + "uuid the name registry currently resolves, not at a reflection-proven one (a child "
               + "that was never re-created has no window to be wrong in; one released by the "
-              + "reflection timeout has its own warning above). A shell and its replacement share one "
-              + "de-stacked placement, so the centroid is the same point either way.";
+              + "reflection timeout has its own warning above; or - D5d, run 20260921T072530Z_wayb "
+              + "- ITS REPLACEMENT HAS NOT BEEN ISSUED YET, so the registry still points at the "
+              + "deleted shell, which is the case this class was built for). A shell and its "
+              + "replacement share one de-stacked placement, so the centroid is the same point "
+              + "either way.";
     }
 
     /// <summary>The roster the centroid can be re-derived from, in the app's own log (SF-3).</summary>
