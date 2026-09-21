@@ -497,3 +497,15 @@ creations, any task not TASKCMPLT, P-RID failing, a survivor at teardown. A miss
 is recorded as NEW EVIDENCE for STP-854, not as a repeat.
 WHAT A PASS CLOSES: DEMO_READINESS rows 5 / 7 and the Way B half of 13, and DEMO_RUNBOOK's 'UNVERIFIED as a single
 sequence' note (check 11j is then updated in the same commit). STP itself pushing stays owed to a session with the user.
+
+D5c AMENDMENT A1 (2026-09-21 ~10:00Z, registered BEFORE the run; supersedes the KNOWN CONDITION paragraph above):
+- By user ruling ('1. Close.') the leftover rtiAssistant pid 48392 was closed at 09:58Z (by pid, name and start time
+  asserted). D5c therefore starts with NO rtiAssistant on the box - the precondition the D5b harvest asked of its run C1.
+  P-RID's 'no NEW rtiAssistant is spawned' now reads: NO rtiAssistant process exists at any point of the run.
+- By user ruling ('4. Read.') the D5b crash callstack was read: access violation 0xC0000005 in
+  makVrf::DtStateDataWrapper::isDestroyed <- DtDisaggregatedDamageActuator::tick <- DtLocalObject::tick on a
+  DtVrfCallbackQueue worker thread - a use-after-destroy race inside VR-Forces' object life cycle; nothing on the stack
+  is RTI or connection code (STP-854 comment). This RAISES the seat's confidence that the trigger was the order-time
+  delete-and-recreate landing ~1 s after the init's create, and P-FAULT moves from conf 0.7 to 0.8 (HIGH): with the init
+  creation barrier in, no back-end fault is expected. It remains n=1, and the vendor race itself is not removed - a
+  fault in D5c would say the barrier does not open a wide enough gap, not that the diagnosis class is wrong.
