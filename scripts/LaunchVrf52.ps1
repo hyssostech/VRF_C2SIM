@@ -315,6 +315,7 @@ if (-not [string]::IsNullOrWhiteSpace($AppDataDir)) { $AppDataDir = $AppDataDir.
 function Say      { param([string]$m) Write-Host $m }
 function Say-Head { param([string]$m) Write-Host ''; Write-Host ('=== ' + $m + ' ===') }
 function Say-Ok   { param([string]$m) Write-Host ('  [OK]   ' + $m) }
+function Say-Info { param([string]$m) Write-Host ('  [..]   ' + $m) }
 function Say-Warn { param([string]$m) Write-Host ('  [WARN] ' + $m) }
 function Say-Fail { param([string]$m) Write-Host ('  [FAIL] ' + $m) }
 function Say-Plan { param([string]$m) Write-Host ('  [DRY-RUN] would ' + $m) }

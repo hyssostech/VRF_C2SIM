@@ -2740,6 +2740,58 @@ foreach ($wbF in @('scripts\StartInterface52.ps1', 'scripts\StartFederationHolde
     Check ('11k parses with zero errors: ' + $wbF) ($wbErr.Count -eq 0) ("errors: " + $wbErr.Count)
 }
 
+# === 12. every Say-* call in scripts\*.ps1 resolves to a defined function ===
+# STP: LaunchVrf52.ps1:1158 called Say-Info from the standalone federation-holder path
+# (commit d1885c0), but only Say / Say-Head / Say-Ok / Say-Warn / Say-Fail / Say-Plan were
+# defined. The runner always passes -FederationHeldByCaller so that path never ran until
+# the Way B rehearsal (D5), where LaunchVrf52 died 1s in with "The term 'Say-Info' is not
+# recognized", exit 1, before any holder or VR-Forces process started. A static AST check
+# catches this on every never-run branch, not just the one that finally executed.
+Write-Host '=== 12. every Say-* call resolves to a defined function (LaunchVrf52 Say-Info, STP) ==='
+$sayScripts = Get-ChildItem -LiteralPath (Join-Path $RepoRoot 'scripts') -Filter '*.ps1' -File
+$runnerLibPath12 = Join-Path $RepoRoot 'scripts\RunnerLib.ps1'
+$runnerLibAst12 = [System.Management.Automation.Language.Parser]::ParseFile($runnerLibPath12, [ref]$null, [ref]$null)
+$runnerLibFuncs12 = @($runnerLibAst12.FindAll({ param($a) $a -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true) | ForEach-Object { $_.Name })
+
+# 12b widens the same walk to ANY Verb-Noun call name: undefined-locally, not dot-sourced
+# from RunnerLib.ps1, and not resolvable by Get-Command in this process (this test itself
+# runs under pwsh -NoProfile -NonInteractive, so a hit here is a genuine unresolved name,
+# not a profile-loaded convenience function). On this tree it finds exactly the Say-Info
+# defect and nothing else - no noise - so it stays alongside the narrower 12 check.
+$unresolvedSay12 = New-Object System.Collections.Generic.List[string]
+$unresolvedAny12 = New-Object System.Collections.Generic.List[string]
+foreach ($f12 in $sayScripts) {
+    $text12 = Get-Content -LiteralPath $f12.FullName -Raw
+    $ast12 = [System.Management.Automation.Language.Parser]::ParseFile($f12.FullName, [ref]$null, [ref]$null)
+    $ownFuncs12 = @($ast12.FindAll({ param($a) $a -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true) | ForEach-Object { $_.Name })
+    $dotSourced12 = @($ast12.FindAll({ param($a) $a -is [System.Management.Automation.Language.CommandAst] -and $a.InvocationOperator -eq [System.Management.Automation.Language.TokenKind]::Dot }, $true))
+    # Dot-sourcing resolution is intentionally narrow: only "does this file dot-source
+    # RunnerLib.ps1 at all" (LaunchVrf52.ps1 does it inside a child scope with a $libPath
+    # variable, not the plain '. (Join-Path $PSScriptRoot ...)' form, so this checks for
+    # the dot-source OPERATOR plus the literal filename anywhere in the file rather than
+    # tracing the argument expression).
+    $dotSourcesRunnerLib12 = ($dotSourced12.Count -gt 0) -and ($text12 -match 'RunnerLib\.ps1')
+
+    $allCommandNames12 = @($ast12.FindAll({ param($a) $a -is [System.Management.Automation.Language.CommandAst] }, $true) | ForEach-Object {
+            $n = $null
+            try { $n = $_.GetCommandName() } catch { $n = $null }
+            $n
+        } | Where-Object { $_ } | Sort-Object -Unique)
+
+    foreach ($callName12 in @($allCommandNames12 | Where-Object { $_ -match '^Say-[A-Za-z]+$' })) {
+        $defined12 = ($ownFuncs12 -contains $callName12) -or ($dotSourcesRunnerLib12 -and ($runnerLibFuncs12 -contains $callName12))
+        if (-not $defined12) { $unresolvedSay12.Add("$($f12.Name): $callName12") }
+    }
+    foreach ($callName12 in @($allCommandNames12 | Where-Object { $_ -match '^[A-Za-z][A-Za-z0-9]*-[A-Za-z][A-Za-z0-9]*$' })) {
+        if ($ownFuncs12 -contains $callName12) { continue }
+        if ($dotSourcesRunnerLib12 -and ($runnerLibFuncs12 -contains $callName12)) { continue }
+        if (Get-Command $callName12 -ErrorAction SilentlyContinue) { continue }
+        $unresolvedAny12.Add("$($f12.Name): $callName12")
+    }
+}
+Check '12 no undefined Say-* calls in scripts\*.ps1' ($unresolvedSay12.Count -eq 0) ($unresolvedSay12 -join '; ')
+Check '12b no unresolved Verb-Noun calls in scripts\*.ps1 (own file / dot-sourced RunnerLib / Get-Command)' ($unresolvedAny12.Count -eq 0) ($unresolvedAny12 -join '; ')
+
 Write-Host ''
 Write-Host ('{0} passed, {1} failed' -f $script:Pass, $script:Fail)
 if ($script:Fail -gt 0) { exit 1 }
