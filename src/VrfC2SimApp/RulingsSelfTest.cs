@@ -928,6 +928,86 @@ public static class RulingsSelfTest
             Check(ref failures, flat.Stale && flat.Step == StallPolicy.SimClockStep.Flat,
                   "... and the stale clock is only what stays FLAT for the whole stale window");
         }
+
+        // ===== N7 (D7 harvest): THE SIM/WALL RATIO, MEASURED INSTEAD OF ASSUMED =====
+        // D6's report recorded "sim/wall 1.00" by comparing the app's own
+        // (DateTime.UtcNow - DispatchedUtc) against wall capture stamps - the SAME CLOCK on both
+        // sides, so the check was circular. D7 then regressed the level-3 console rows against the
+        // observer's trace clock and measured 3.0053. The interface can simply state the number;
+        // SimWallRatio is that rule, and these arms are it.
+        Console.WriteLine("  -- N7: SimWallRatio (the number D6 recorded without measuring)");
+        {
+            // A scenario running at exactly D7's measured 3.00x, sampled once a WALL second.
+            var meter = new SimWallRatio();
+            double wall = 1.7e9, sim = 100.0;
+            var reported = new List<double>();
+            for (int i = 0; i < 180; i++)
+            {
+                double r = meter.Observe(sim, wall);
+                if (!double.IsNaN(r)) reported.Add(r);
+                wall += 1.0; sim += 3.0;
+            }
+            Check(ref failures, reported.Count == 2 && reported.All(r => Math.Abs(r - 3.0) < 1e-9),
+                  $"a scenario at 3.00x over 180 WALL s reports the ratio {reported.Count} time(s) " +
+                  $"(one per {SimWallRatio.MinWindowWallSeconds:F0} s window) and every one of them is " +
+                  $"3.000 - D7's measured figure, stated by the app instead of regressed out of a trace");
+            Check(ref failures, double.IsNaN(new SimWallRatio().Observe(100.0, 1.7e9)),
+                  "the first sample reports NOTHING - it only anchors the window");
+        }
+        {
+            // REAL TIME is 1.000, and a PAUSED scenario is 0.000 - not "no reading". An operator
+            // needs to be able to tell a paused scenario from an unreadable clock.
+            var real = new SimWallRatio();
+            var paused = new SimWallRatio();
+            double w = 1.7e9, s = 0.0;
+            double realOut = double.NaN, pausedOut = double.NaN;
+            for (int i = 0; i <= 61; i++)
+            {
+                double a = real.Observe(s, w);
+                double b = paused.Observe(500.0, w);
+                if (!double.IsNaN(a)) realOut = a;
+                if (!double.IsNaN(b)) pausedOut = b;
+                w += 1.0; s += 1.0;
+            }
+            Check(ref failures, Math.Abs(realOut - 1.0) < 1e-9 && Math.Abs(pausedOut) < 1e-12,
+                  $"real time reports 1.000 (got {realOut:F3}) and a PAUSED scenario reports 0.000 " +
+                  $"(got {pausedOut:F3}) - a flat clock has a ratio and it is zero, which is exactly " +
+                  "what an operator must be able to see");
+        }
+        {
+            // An UNREADABLE stretch has no ratio at all, and a ROLLBACK must not manufacture a
+            // negative one: both abandon the window rather than price it.
+            var meter = new SimWallRatio();
+            double w = 1.7e9;
+            bool reportedAcrossGap = false;
+            for (int i = 0; i < 30; i++) { if (!double.IsNaN(meter.Observe(100.0 + i, w))) reportedAcrossGap = true; w += 1.0; }
+            for (int i = 0; i < 5; i++) { if (!double.IsNaN(meter.Observe(double.NaN, w))) reportedAcrossGap = true; w += 1.0; }
+            for (int i = 0; i < 40; i++) { if (!double.IsNaN(meter.Observe(200.0 + i, w))) reportedAcrossGap = true; w += 1.0; }
+            Check(ref failures, !reportedAcrossGap,
+                  "a window broken by an UNREADABLE stretch is abandoned, not priced - 35 s of readings " +
+                  "either side of a 5 s gap report nothing, because the sim seconds across the gap are " +
+                  "not evidence of a rate");
+            var rb = new SimWallRatio();
+            double w2 = 1.7e9;
+            bool reportedAcrossRollback = false;
+            for (int i = 0; i < 40; i++) { if (!double.IsNaN(rb.Observe(1000.0 + i, w2))) reportedAcrossRollback = true; w2 += 1.0; }
+            for (int i = 0; i < 40; i++) { if (!double.IsNaN(rb.Observe(500.0 + i, w2))) reportedAcrossRollback = true; w2 += 1.0; }
+            Check(ref failures, !reportedAcrossRollback,
+                  "and a ROLLBACK (1000 s -> 500 s, DtVrfRemoteController::rollbackToSnapshot) abandons " +
+                  "the window too - a negative ratio would be an artefact of a new timeline, not a rate");
+        }
+        {
+            // The windows are DISJOINT, so a rate CHANGE shows up instead of being averaged away.
+            var meter = new SimWallRatio();
+            double w = 1.7e9, s = 0.0;
+            var seen = new List<double>();
+            for (int i = 0; i < 61; i++) { double r = meter.Observe(s, w); if (!double.IsNaN(r)) seen.Add(r); w += 1.0; s += 6.0; }
+            for (int i = 0; i < 61; i++) { double r = meter.Observe(s, w); if (!double.IsNaN(r)) seen.Add(r); w += 1.0; s += 1.0; }
+            Check(ref failures, seen.Count == 2 && Math.Abs(seen[0] - 6.0) < 0.2 && Math.Abs(seen[1] - 1.0) < 0.2,
+                  $"the windows are DISJOINT: a run at 6x for a minute then 1x for a minute reports " +
+                  $"[{string.Join(", ", seen.Select(x => x.ToString("F2")))}] and not one averaged " +
+                  "figure - a running average would hide exactly the change worth seeing");
+        }
     }
 
     /// <summary>

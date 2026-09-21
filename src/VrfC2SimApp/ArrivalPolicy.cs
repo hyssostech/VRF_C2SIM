@@ -82,6 +82,35 @@ namespace VrfC2SimApp;
 /// The RADIUS, the QUORUM and WHAT IS SAMPLED are unchanged: min(configured, 0.25 x route),
 /// "more than ArrivalMemberFraction of ALL members", the same member positions the C15/C16 checks
 /// read. Only the traversal half of the test is per member; nothing forced a wider change.
+///
+/// *** SF-1 (cold-start review of 35a13f2): THE RELAXATION IS GATED ON THE TASKEE'S OWN JOURNEY.
+/// *** The per-member cap above is a function of d0 and NOT of the route, so on a route the unit
+/// does not really travel AWAY along - a loop, an out-and-back, any line that ends near where it
+/// began - the whole unit can be reported ARRIVED after each member shows about one arrival radius
+/// of displacement, on a route of ANY length. <see cref="ClosableByArrival"/> refuses only
+/// `lastFromStart &lt;= R`; one metre above that line the required displacement collapses from
+/// 0.5 x L to max(0.5 x d0, floor) &lt;= R. The worked case is Iron Storm T22 (169 FAB), a closed
+/// 4-leg 14.1 km loop whose first vertex is 2,118.9 m from the taskee: the unit comes within
+/// 500 m of the last vertex at 12% of the route, having driven none of the loop, and under the
+/// pre-2026-09-21 rule the bar was 7,053 m of displacement, which that loop never reaches at all.
+/// Today it is stopped only by V4b reading the ring as an ObjectiveArea and by that area's
+/// centroid happening to land on the taskee - a shape classifier and a coincidence, not a rule.
+///
+/// THE GUARD: the per-member relaxation applies ONLY WHEN THE ROUTE IS GENUINELY GOING SOMEWHERE -
+///   the TASKEE's own straight-line distance from its dispatch position to the last vertex is at
+///   least 0.5 x the route's authored length (<see cref="RouteGoesSomewhere"/>).
+/// Otherwise every member keeps the ROUTE bar, exactly as before 2026-09-21.
+/// WHY THIS TEST AND NOT ANOTHER. The defect A repairs is "a member legitimately begins closer to
+/// the destination than half the route" - a statement about how the MEMBERS are distributed around
+/// a taskee that is itself going the distance. When the TASKEE is not going the distance, the
+/// premise is absent: every member's short d0 is then a property of the route's shape, not of the
+/// member's position in the formation, and relaxing on it is precisely STP-837's "proximity is not
+/// arrival" re-admitted. The bar 0.5 is the same fraction the route rule uses, so the guard needs
+/// no new constant and no new setting; a straight out-and-away route has lastFromStart = L and
+/// clears it by a factor of two. It is a REFUSAL TO RELAX, never a refusal to close: a task that
+/// closed under the pre-2026-09-21 route bar still closes, because the route bar is what it falls
+/// back to. UNKNOWN inputs (NaN) do NOT relax - the conservative direction, and the same direction
+/// <see cref="RequiredTravelForMember"/> already takes for an unknown member distance.
 /// </summary>
 public static class ArrivalPolicy
 {
@@ -95,11 +124,17 @@ public static class ArrivalPolicy
     /// applied (2026-09-21). It equals RequiredTravelMeters when no member's own approach was
     /// shorter than the route bar, and it is what tells an operator that the per-member rule is
     /// what let a member count.</param>
+    /// <param name="ApproachRelaxationApplied">SF-1: whether the per-member relaxation was allowed
+    /// to run at all on this task, i.e. whether <see cref="RouteGoesSomewhere"/> held. False means
+    /// every member was judged on the ROUTE bar however short its own approach was, and the log
+    /// says so - otherwise "lowest member bar == route bar" is ambiguous between "no member needed
+    /// relief" and "the guard refused it".</param>
     public readonly record struct Decision(bool Arrived, int Within, int Total, double NearestMeters,
                                            double RadiusMeters = double.NaN,
                                            double RequiredTravelMeters = double.NaN,
                                            double FarthestTravelMeters = double.NaN,
-                                           double LowestMemberBarMeters = double.NaN);
+                                           double LowestMemberBarMeters = double.NaN,
+                                           bool ApproachRelaxationApplied = false);
 
     /// <summary>One member's measurements against the task: how far it is from the route's last
     /// vertex, how far it has come from where it stood when the task was dispatched, and - since
@@ -165,22 +200,50 @@ public static class ArrivalPolicy
         => double.IsNaN(lastVertexFromDispatchMeters) || lastVertexFromDispatchMeters > radiusMeters;
 
     /// <summary>
+    /// SF-1: IS THIS ROUTE GENUINELY GOING SOMEWHERE? True when the TASKEE's own straight-line
+    /// distance from its dispatch position to the last vertex is at least half the route's
+    /// authored length - the same fraction the route bar uses. Only then may the per-member
+    /// approach relaxation run (see the class remarks for the Iron Storm T22 worked case).
+    /// Every unknown (NaN route length, NaN separation, a non-positive length) answers FALSE:
+    /// "we cannot show that this route goes anywhere" is not a licence to lower the bar. Note
+    /// that a NaN route length already collapses the route bar to the ArrivalMinTravelMeters
+    /// floor, so refusing there costs nothing and keeps the rule one-directional.
+    /// </summary>
+    public static bool RouteGoesSomewhere(double lastVertexFromDispatchMeters, double routeLengthMeters)
+        => !double.IsNaN(lastVertexFromDispatchMeters) && !double.IsNaN(routeLengthMeters)
+           && routeLengthMeters > 0.0
+           && lastVertexFromDispatchMeters >= 0.5 * routeLengthMeters;
+
+    /// <summary>
     /// THE DECISION (STP-837). A member counts only if it is BOTH inside the effective radius
     /// and past the required travel; the majority rule over <paramref name="totalMembers"/> is
     /// unchanged, so every property the old rule had against a straggler still holds.
     /// The caller must have asked <see cref="ClosableByArrival"/> first - this function cannot
     /// see the dispatch position and will happily count members on a degenerate route.
     /// </summary>
+    /// <param name="lastVertexFromDispatchMeters">SF-1: the TASKEE's own straight-line distance
+    /// from its dispatch position to the last vertex - the quantity <see cref="ClosableByArrival"/>
+    /// is asked about, passed on so the per-member relaxation can be gated on
+    /// <see cref="RouteGoesSomewhere"/>. The default is NaN, which REFUSES the relaxation: a
+    /// caller that does not supply it gets the pre-2026-09-21 route bar, which is the safe
+    /// direction and is the answer for every call in this file that predates the rule.</param>
     public static Decision DecideWithTraversal(IReadOnlyList<MemberSample> samples, int totalMembers,
                                                double configuredRadiusMeters, double fraction,
                                                double routeLengthMeters, double minTravelMeters,
-                                               double approachFraction = 0.0)
+                                               double approachFraction = 0.0,
+                                               double lastVertexFromDispatchMeters = double.NaN)
     {
         double radius = RadiusFor(configuredRadiusMeters, routeLengthMeters);
         double required = RequiredTravelFor(routeLengthMeters, minTravelMeters);
+        // SF-1: the guard, applied ONCE for the whole decision. Zeroing the fraction is exactly
+        // "every member keeps the route bar" - RequiredTravelForMember's own documented meaning
+        // for approachFraction <= 0 - so the refusal reuses the rule instead of duplicating it.
+        bool relax = approachFraction > 0.0 && !double.IsNaN(approachFraction)
+                     && RouteGoesSomewhere(lastVertexFromDispatchMeters, routeLengthMeters);
+        double effectiveApproachFraction = relax ? approachFraction : 0.0;
         if (samples == null || samples.Count == 0 || totalMembers <= 0)
             return new Decision(false, 0, Math.Max(0, totalMembers), double.NaN,
-                                radius, required, double.NaN, required);
+                                radius, required, double.NaN, required, relax);
         int within = 0;
         double nearest = double.NaN, farthest = double.NaN, lowestBar = required;
         foreach (var s in samples)
@@ -193,13 +256,14 @@ public static class ArrivalPolicy
             // and floored by minTravelMeters. approachFraction <= 0 reproduces the route bar for
             // every member, which is the pre-2026-09-21 rule exactly.
             double bar = RequiredTravelForMember(routeLengthMeters, minTravelMeters,
-                                                 s.DistanceAtDispatchMeters, approachFraction);
+                                                 s.DistanceAtDispatchMeters, effectiveApproachFraction);
             if (bar < lowestBar) lowestBar = bar;
             // NaN fails both comparisons, which is the intended answer for an unknown baseline.
             if (s.DistanceToLastVertexMeters <= radius && s.TravelledMeters >= bar) within++;
         }
         bool arrived = fraction >= 1.0 ? within >= totalMembers : within > fraction * totalMembers;
-        return new Decision(arrived, within, totalMembers, nearest, radius, required, farthest, lowestBar);
+        return new Decision(arrived, within, totalMembers, nearest, radius, required, farthest,
+                            lowestBar, relax);
     }
 
     /// <summary>
@@ -500,18 +564,27 @@ public static class ArrivalSelfTest
             v6gPerMember.Add(new ArrivalPolicy.MemberSample(v6gPlatoonDistances[i], v6gPlatoonTravel[i],
                                                             v6gOwnApproach[i]));
         var v6gNew = ArrivalPolicy.DecideWithTraversal(v6gPerMember, 4, CfgRadius, 0.5,
-                                                       PlatoonRouteM, MinTravel, F);
+                                                       PlatoonRouteM, MinTravel, F, PlatoonLastFromStartM);
         Check($"... and even with the gate removed the per-member rule counts {v6gNew.Within} of 4 - " +
               "M1A2 1 moved 20 m against its 100 m floor, and the 133 m mover is 300 m out, past the " +
               "288.9 m radius -> NOT arrived. The two that drove the leg are not a majority",
               !v6gNew.Arrived && v6gNew.Within == 2);
+        // SF-1 ADDS A SECOND, INDEPENDENT REASON V6g CANNOT COME BACK. Its last vertex is 0.005 m
+        // from the dispatch position, so the route does not "go somewhere" either - the relaxation
+        // is refused before any member is weighed, and every member keeps the 577.8 m route bar.
+        Check("SF-1: V6g's route does not GO ANYWHERE (last vertex 0.005 m from the dispatch " +
+              "position, route 1,155.5 m), so the per-member relaxation is REFUSED and the decision " +
+              "says so - a second lock on the same door",
+              !ArrivalPolicy.RouteGoesSomewhere(PlatoonLastFromStartM, PlatoonRouteM)
+              && !v6gNew.ApproachRelaxationApplied
+              && Math.Abs(v6gNew.LowestMemberBarMeters - v6gNew.RequiredTravelMeters) < 1e-9);
         Check("a route that ends where it began stays not-closable-by-arrival at ANY approach " +
               "fraction (0, 0.5, 1.0) - the refusal is geometric, not a tuning choice",
               !ArrivalPolicy.ClosableByArrival(PlatoonLastFromStartM, platoonRadius)
               && !ArrivalPolicy.DecideWithTraversal(v6gPerMember, 4, CfgRadius, 0.5, PlatoonRouteM,
-                                                    MinTravel, 1.0).Arrived
+                                                    MinTravel, 1.0, PlatoonLastFromStartM).Arrived
               && !ArrivalPolicy.DecideWithTraversal(v6gPerMember, 4, CfgRadius, 0.5, PlatoonRouteM,
-                                                    MinTravel, 0.0).Arrived);
+                                                    MinTravel, 0.0, PlatoonLastFromStartM).Arrived);
 
         Console.WriteLine("  -- 2026-09-21 (c): D3's twenty permanently un-countable members");
         // RUN D3 (20260920T202549Z), 114.MechCoy~PXY, from d6_harvest_report.md sec 1.2/1.4 and
@@ -520,17 +593,23 @@ public static class ArrivalSelfTest
         // them ~339 m and they sat INSIDE the radius and BELOW the bar at every sampled instant -
         // the flat "20" column. At order +208.67 s (the instant D6 closed the same task) the app's
         // own reconstruction has 40 of 48 inside the radius and only 20 of them countable.
-        const double D3RouteM = 1097.0;
+        // D3's route runs straight out and away (114.MechCoy's two vertices are due north of it),
+        // so the taskee's own last-vertex separation IS the route length - the SF-1 guard is
+        // satisfied with a factor of two to spare, which is the point: the guard was written not
+        // to touch this case.
+        const double D3RouteM = 1097.0, D3LastFromStartM = 1097.0;
         var d3 = new List<ArrivalPolicy.MemberSample>();
         for (int i = 0; i < 20; i++) d3.Add(new ArrivalPolicy.MemberSample(74.0, 339.0, 413.0));   // the stuck platoon
         for (int i = 0; i < 20; i++) d3.Add(new ArrivalPolicy.MemberSample(74.0, 924.0, 998.0));   // the middle ring
         for (int i = 0; i < 8; i++) d3.Add(new ArrivalPolicy.MemberSample(700.0, 900.0, 1605.0));  // still coming
-        var d3Old = ArrivalPolicy.DecideWithTraversal(d3, 48, CfgRadius, 0.5, D3RouteM, MinTravel, 0.0);
+        var d3Old = ArrivalPolicy.DecideWithTraversal(d3, 48, CfgRadius, 0.5, D3RouteM, MinTravel, 0.0,
+                                                            D3LastFromStartM);
         Check($"OLD RULE at D6's close instant: only {d3Old.Within} of 48 count - the 20 members that " +
               "are 74 m from the last vertex but show 339 m of displacement are BELOW the 548 m route " +
               "bar and can never be counted -> NOT arrived, the task waits (this is the 80 s gap)",
               !d3Old.Arrived && d3Old.Within == 20);
-        var d3New = ArrivalPolicy.DecideWithTraversal(d3, 48, CfgRadius, 0.5, D3RouteM, MinTravel, F);
+        var d3New = ArrivalPolicy.DecideWithTraversal(d3, 48, CfgRadius, 0.5, D3RouteM, MinTravel, F,
+                                                            D3LastFromStartM);
         Check($"NEW RULE, same instant, same positions: {d3New.Within} of 48 count - the 20 have " +
               $"travelled 339 m against their own {ArrivalPolicy.RequiredTravelForMember(D3RouteM, MinTravel, 413.0, F):F0} m " +
               "share of their own 413 m approach -> ARRIVED. Nothing about where they are changed; " +
@@ -549,32 +628,158 @@ public static class ArrivalSelfTest
         Check("but 20 members that show only 150 m of their own 413 m approach are NOT counted " +
               "(150 < 206.5) -> still NOT arrived. 'Became countable' means 'travelled its own " +
               "share', not 'was let through'",
-              !ArrivalPolicy.DecideWithTraversal(d3Lazy, 48, CfgRadius, 0.5, D3RouteM, MinTravel, F).Arrived);
+              !ArrivalPolicy.DecideWithTraversal(d3Lazy, 48, CfgRadius, 0.5, D3RouteM, MinTravel, F,
+                                                   D3LastFromStartM).Arrived);
 
         Console.WriteLine("  -- 2026-09-21 (d): the 2026-09-07 properties are unchanged");
         var longRouteOwn = new List<ArrivalPolicy.MemberSample>();
         for (int i = 0; i < 5; i++) longRouteOwn.Add(new ArrivalPolicy.MemberSample(10.0 + i * 10, 29900.0, 30000.0));
         longRouteOwn.Add(new ArrivalPolicy.MemberSample(7000.0, 23000.0, 30000.0));
         Check("5 of 6 at the end of a 30 km leg, one M3 7 km back -> ARRIVED, as before",
-              ArrivalPolicy.DecideWithTraversal(longRouteOwn, 6, CfgRadius, 0.5, LongRouteM, MinTravel, F).Arrived);
+              ArrivalPolicy.DecideWithTraversal(longRouteOwn, 6, CfgRadius, 0.5, LongRouteM, MinTravel, F,
+                                                LongRouteM).Arrived);
         var leaderAloneOwn = new List<ArrivalPolicy.MemberSample> { new(10.0, 30000.0, 30000.0) };
         for (int i = 0; i < 5; i++) leaderAloneOwn.Add(new ArrivalPolicy.MemberSample(30000.0, 5.0, 30000.0));
         Check("leader alone at the end, five followers 30 km back -> NOT arrived, as before (the " +
               "QUORUM is untouched: more than ArrivalMemberFraction of ALL members)",
-              !ArrivalPolicy.DecideWithTraversal(leaderAloneOwn, 6, CfgRadius, 0.5, LongRouteM, MinTravel, F).Arrived);
+              !ArrivalPolicy.DecideWithTraversal(leaderAloneOwn, 6, CfgRadius, 0.5, LongRouteM, MinTravel, F,
+                                                 LongRouteM).Arrived);
         Check("the RADIUS is untouched: 1,200 m travelled but 400 m out on a 1,155 m route is still " +
               "outside the 288.9 m effective radius, at any approach fraction",
               !ArrivalPolicy.DecideWithTraversal(new[] { new ArrivalPolicy.MemberSample(400.0, 1200.0, 1500.0) },
-                                                 1, CfgRadius, 0.5, BdeRouteM, MinTravel, F).Arrived);
+                                                 1, CfgRadius, 0.5, BdeRouteM, MinTravel, F,
+                                                 BdeLastFromStartM).Arrived);
         Check("fraction 1.0 (ALL members) still means all of them under the per-member bar",
               !ArrivalPolicy.DecideWithTraversal(
                   new[] { new ArrivalPolicy.MemberSample(10.0, 900.0, 1000.0),
                           new ArrivalPolicy.MemberSample(10.0, 10.0, 1000.0) },
-                  2, CfgRadius, 1.0, BdeRouteM, MinTravel, F).Arrived);
+                  2, CfgRadius, 1.0, BdeRouteM, MinTravel, F, BdeLastFromStartM).Arrived);
         Check("an unreadable dispatch baseline (NaN travel AND NaN approach) is still never counted",
               !ArrivalPolicy.DecideWithTraversal(
                   new[] { new ArrivalPolicy.MemberSample(10.0, double.NaN, double.NaN) },
-                  1, CfgRadius, 0.5, BdeRouteM, MinTravel, F).Arrived);
+                  1, CfgRadius, 0.5, BdeRouteM, MinTravel, F, BdeLastFromStartM).Arrived);
+
+        // ===== SF-1: THE RELAXATION IS GATED ON THE TASKEE'S OWN JOURNEY (2026-09-21, D7 lane) =====
+        // The review's worked case, a plain out-and-back, and the two live geometries the guard
+        // must NOT disturb. The FAIL-FIRST arm of each pair is RequiredTravelForMember called
+        // directly - the ungated per-member rule, which is what shipped before this change - so
+        // the defect is RUN, not described.
+        Console.WriteLine("  -- SF-1 (a): Iron Storm T22 - a 14.1 km loop must NOT close at 12% of the route");
+        // STP-IRON-STORM-SYNTHETIC_Order.xml T22 (169 FAB), measured in destack_ac_review.md sec
+        // 1.4: a closed 4-leg ring, legs 2,996 m, first vertex 2,118.9 m from the taskee, last
+        // vertex == first vertex. As a ROUTE that is L = 14,105 m with lastFromStart = 2,118.9 m,
+        // so ClosableByArrival PASSES (2,119 > 500) and only the traversal test stands between it
+        // and a completion on reaching the loop's start.
+        const double T22RouteM = 14105.0, T22LastFromStartM = 2118.9;
+        double t22Radius = ArrivalPolicy.RadiusFor(CfgRadius, T22RouteM);
+        double t22RouteBar = ArrivalPolicy.RequiredTravelFor(T22RouteM, MinTravel);
+        Check($"T22 IS closable by arrival - its last vertex is {T22LastFromStartM:F0} m from the taskee, " +
+              $"outside the {t22Radius:F0} m radius. The closability gate does not stop this one",
+              ArrivalPolicy.ClosableByArrival(T22LastFromStartM, t22Radius));
+        Check("DISABLED ARM (the ungated per-member rule, as it shipped): a member 2,118.9 m from the " +
+              $"last vertex is asked for only " +
+              $"{ArrivalPolicy.RequiredTravelForMember(T22RouteM, MinTravel, T22LastFromStartM, F):F0} m " +
+              $"of the {t22RouteBar:F0} m route bar - 7.5% of the loop",
+              Math.Abs(ArrivalPolicy.RequiredTravelForMember(T22RouteM, MinTravel, T22LastFromStartM, F)
+                       - 1059.45) < 0.01);
+        // Six members that have driven to the loop's START (1,640 m of displacement, 400 m from the
+        // last vertex - which IS the first vertex) and not one metre of the loop itself.
+        var t22 = new List<ArrivalPolicy.MemberSample>();
+        for (int i = 0; i < 6; i++) t22.Add(new ArrivalPolicy.MemberSample(400.0, 1640.0, T22LastFromStartM));
+        var t22Ungated = ArrivalPolicy.DecideWithTraversal(t22, 6, CfgRadius, 0.5, T22RouteM, MinTravel,
+                                                           F, T22RouteM);   // pretend it goes somewhere
+        Check("DISABLED ARM: with the guard satisfied the six count 6 of 6 and the task would be " +
+              "reported COMPLETE at 12% of a 14.1 km loop, having driven none of it",
+              t22Ungated.Arrived && t22Ungated.Within == 6);
+        var t22Gated = ArrivalPolicy.DecideWithTraversal(t22, 6, CfgRadius, 0.5, T22RouteM, MinTravel,
+                                                         F, T22LastFromStartM);
+        Check($"ENABLED (SF-1): the route does NOT go somewhere ({T22LastFromStartM:F0} m against half " +
+              $"of {T22RouteM:F0} m), so the relaxation is REFUSED, every member keeps the " +
+              $"{t22RouteBar:F0} m route bar and {t22Gated.Within} of 6 count -> NOT arrived. The task " +
+              "waits for the vendor or its Duration, which is what a loop deserves",
+              !t22Gated.Arrived && t22Gated.Within == 0 && !t22Gated.ApproachRelaxationApplied
+              && !ArrivalPolicy.RouteGoesSomewhere(T22LastFromStartM, T22RouteM));
+
+        Console.WriteLine("  -- SF-1 (b): a plain out-and-back, returning just OUTSIDE the arrival radius");
+        // The general case the review says is one step beside V6g: 3 km out, 3 km back, landing
+        // 501 m from the start - one metre past ClosableByArrival's 500 m refusal.
+        const double OabRouteM = 6000.0, OabLastFromStartM = 501.0;
+        double oabRadius = ArrivalPolicy.RadiusFor(CfgRadius, OabRouteM);
+        var oab = new List<ArrivalPolicy.MemberSample>();
+        for (int i = 0; i < 4; i++) oab.Add(new ArrivalPolicy.MemberSample(50.0, 501.0, OabLastFromStartM));
+        Check($"it passes the closability gate by ONE metre ({OabLastFromStartM:F0} m against a " +
+              $"{oabRadius:F0} m radius) - so the gate is not what protects this case",
+              ArrivalPolicy.ClosableByArrival(OabLastFromStartM, oabRadius));
+        Check("DISABLED ARM: the ungated per-member bar is " +
+              $"{ArrivalPolicy.RequiredTravelForMember(OabRouteM, MinTravel, OabLastFromStartM, F):F1} m, " +
+              "so 501 m of displacement closes a 6 km route - STP-837's own defect, one radius further out",
+              ArrivalPolicy.DecideWithTraversal(oab, 4, CfgRadius, 0.5, OabRouteM, MinTravel, F,
+                                                OabRouteM).Arrived);
+        Check("ENABLED (SF-1): the relaxation is REFUSED, the 3,000 m route bar stands and 501 m of " +
+              "displacement counts nobody -> NOT arrived",
+              !ArrivalPolicy.DecideWithTraversal(oab, 4, CfgRadius, 0.5, OabRouteM, MinTravel, F,
+                                                 OabLastFromStartM).Arrived);
+
+        Console.WriteLine("  -- SF-1 (c): RUN D7 - the guard must change nothing there (A was already 0.0 s)");
+        // D7 (20260921T013902Z) as measured: L = 1,039.3 m -> radius 259.8 m, route bar 519.7 m;
+        // the taskee's last vertex 1,016 m away, so the route plainly goes somewhere. The member
+        // set is the harvest's measured d0 SPREAD (16 of 1143.MechPlt at 637-805 m, the other 32 at
+        // 1,040-1,374 m), at the close instant: 32 of 48 inside the radius. The harvest's finding
+        // was that rule A moved the close by 0.0 s on this run; this arm is that finding, run.
+        const double D7RouteM = 1039.3, D7LastFromStartM = 1016.5;
+        var d7 = new List<ArrivalPolicy.MemberSample>();
+        for (int i = 0; i < 16; i++) d7.Add(new ArrivalPolicy.MemberSample(100.0, 600.0, 700.0));    // 1143
+        for (int i = 0; i < 16; i++) d7.Add(new ArrivalPolicy.MemberSample(100.0, 940.0, 1040.0));   // 1141
+        for (int i = 0; i < 16; i++) d7.Add(new ArrivalPolicy.MemberSample(700.0, 674.0, 1374.0));   // 1142, still coming
+        Check($"D7's route GOES SOMEWHERE ({D7LastFromStartM:F0} m against half of {D7RouteM:F0} m), so " +
+              "the guard does not engage and the run is scored exactly as it was",
+              ArrivalPolicy.RouteGoesSomewhere(D7LastFromStartM, D7RouteM));
+        var d7Old = ArrivalPolicy.DecideWithTraversal(d7, 48, CfgRadius, 0.5, D7RouteM, MinTravel,
+                                                      0.0, D7LastFromStartM);
+        var d7New = ArrivalPolicy.DecideWithTraversal(d7, 48, CfgRadius, 0.5, D7RouteM, MinTravel,
+                                                      F, D7LastFromStartM);
+        Check($"rule A CHANGES NO VERDICT on D7's geometry: f=0 counts {d7Old.Within} of 48, f=0.5 counts " +
+              $"{d7New.Within} - identical, both ARRIVED. (The harvest's 'A moved the close instant by " +
+              "0.0 s on this run', as a test rather than a claim.)",
+              d7Old.Within == d7New.Within && d7Old.Arrived && d7New.Arrived && d7New.Within == 32);
+        Check($"...and A is nevertheless LIVE there - the lowest member bar is " +
+              $"{d7New.LowestMemberBarMeters:F0} m against the {d7New.RequiredTravelMeters:F0} m route " +
+              "bar, i.e. 16 members are given relief that no verdict needed. Real relief, no effect: " +
+              "a member that starts d0 out and drives inside the 260 m radius shows at least d0 - 260 m, " +
+              "and only members starting under 780 m are below the route bar at all",
+              d7New.ApproachRelaxationApplied
+              && d7New.LowestMemberBarMeters < d7New.RequiredTravelMeters - 1.0
+              && Math.Abs(d7New.LowestMemberBarMeters - 350.0) < 0.01);
+
+        Console.WriteLine("  -- SF-1 (d): the guard is one-directional and never harder than the old rule");
+        bool guardNeverHarder = true;
+        for (double L = 200; L <= 20000; L += 137)
+            for (double away = 0; away <= L; away += L / 17.0)
+            {
+                var one = new[] { new ArrivalPolicy.MemberSample(1.0, 1e9, 400.0) };
+                var withF = ArrivalPolicy.DecideWithTraversal(one, 1, CfgRadius, 0.5, L, MinTravel, F, away);
+                var noF = ArrivalPolicy.DecideWithTraversal(one, 1, CfgRadius, 0.5, L, MinTravel, 0.0, away);
+                // The bar under the guarded rule is never ABOVE the pure route bar, at any geometry.
+                if (withF.LowestMemberBarMeters > noF.RequiredTravelMeters + 1e-9) guardNeverHarder = false;
+            }
+        Check("over every (route length, last-vertex separation) pair sampled, the guarded per-member " +
+              "bar is NEVER above the route bar - SF-1 can only withdraw a relaxation, never impose a " +
+              "new demand, so no task that closed under the pre-2026-09-21 rule stops closing",
+              guardNeverHarder);
+        Check("an UNKNOWN taskee separation (NaN) refuses the relaxation - 'we cannot show this route " +
+              "goes anywhere' is not a licence to lower the bar",
+              !ArrivalPolicy.RouteGoesSomewhere(double.NaN, 1000.0)
+              && !ArrivalPolicy.RouteGoesSomewhere(1000.0, double.NaN)
+              && !ArrivalPolicy.RouteGoesSomewhere(1000.0, 0.0)
+              && !ArrivalPolicy.DecideWithTraversal(
+                     new[] { new ArrivalPolicy.MemberSample(74.0, 339.0, 413.0) }, 1, CfgRadius, 0.5,
+                     D3RouteM, MinTravel, F).ApproachRelaxationApplied);
+        Check("a straight out-and-away route clears the guard by a factor of two (separation == length), " +
+              "and a route that turns back exactly half way is the boundary case: 0.5 L PASSES, one " +
+              "metre under it does not",
+              ArrivalPolicy.RouteGoesSomewhere(1000.0, 1000.0)
+              && ArrivalPolicy.RouteGoesSomewhere(500.0, 1000.0)
+              && !ArrivalPolicy.RouteGoesSomewhere(499.0, 1000.0));
 
         Console.WriteLine(fails == 0 ? "arrival-selftest: ALL CHECKS PASSED" : $"arrival-selftest: {fails} FAILED");
         return fails == 0 ? 0 : 1;

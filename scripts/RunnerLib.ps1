@@ -936,6 +936,91 @@ function Get-RouteShiftVerdict {
     }
 }
 
+# =============================================================================
+# THE SAME AGREEMENT MACHINERY FOR THE OTHER TWO SETTINGS THAT CHANGE A RUN'S MEANING
+# (adca180 build report FINDING 2, D7 lane)
+# =============================================================================
+# The route shift got a prediction, an announcement and an agreement verdict because it CHANGES
+# WHERE UNITS DRIVE. Two more settings change what a run means just as much and had nothing:
+#   Vrf:DeStackComposedSiblings  - changes WHERE UNITS START (prereg D7 P1)
+#   Vrf:ArrivalApproachFraction  - changes WHEN A TASK IS REPORTED COMPLETE (prereg D7 P5)
+# Both are scored off the app's log; until the app announced them unconditionally there was
+# nothing to read at Stage 6c. These are the pure halves - a parser and a rule - in the same
+# shape as Get-RouteShiftAnnouncement / Get-RouteShiftVerdict, which are left exactly as they
+# were so their own tests keep their meaning.
+
+# THE APP'S OWN START-UP ANNOUNCEMENT of the composed-sibling de-stack, written unconditionally
+# (VrfC2SimService 0c-iv). ON / off are matched case-SENSITIVELY, as the app writes them.
+# Returns @{ Announced = $true/$false/$null; Line; Source }.
+function Get-DeStackSiblingAnnouncement {
+    param([AllowNull()][AllowEmptyString()][string]$AppLogText)
+    $out = [ordered]@{ Announced = $null; Line = ''; Source = '' }
+    if ([string]::IsNullOrEmpty($AppLogText)) { return $out }
+    $m = [regex]::Match($AppLogText, '(?m)^.*COMPOSED-SIBLING DE-STACK (?<v>ON|off) \(Vrf:DeStackComposedSiblings.*$')
+    if ($m.Success) {
+        $out['Announced'] = ($m.Groups['v'].Value -ceq 'ON')
+        $out['Line']      = $m.Value.Trim()
+        $out['Source']    = "the app's COMPOSED-SIBLING DE-STACK start-up line"
+    }
+    return $out
+}
+
+# ...and of the arrival approach fraction. The announced value is a NUMBER, not a flag, so it is
+# returned as a [double] and compared with a tolerance by the verdict below - 0.50 and 0.5 are
+# the same setting and must not read as a mismatch.
+function Get-ArrivalApproachAnnouncement {
+    param([AllowNull()][AllowEmptyString()][string]$AppLogText)
+    $out = [ordered]@{ Announced = $null; Line = ''; Source = '' }
+    if ([string]::IsNullOrEmpty($AppLogText)) { return $out }
+    $m = [regex]::Match($AppLogText, '(?m)^.*ARRIVAL APPROACH FRACTION (?<v>[0-9]+(?:\.[0-9]+)?) \(Vrf:ArrivalApproachFraction.*$')
+    if ($m.Success) {
+        $out['Announced'] = [double]$m.Groups['v'].Value
+        $out['Line']      = $m.Value.Trim()
+        $out['Source']    = "the app's ARRIVAL APPROACH FRACTION start-up line"
+    }
+    return $out
+}
+
+# THE VERDICT RULE, generalised from Get-RouteShiftVerdict so the three settings cannot drift
+# apart. Same two rules it encodes:
+#   1. NO ANNOUNCEMENT MEANS NOT OBSERVED. A prediction is never promoted to an observation.
+#   2. A prediction that is not a value at all (the unparseable-env case) can never AGREE.
+# Numbers are compared with a tolerance; anything else ordinally after trimming.
+function Get-SettingVerdict {
+    param([Parameter(Mandatory)][string]$Name,
+          $Predicted, [AllowNull()][AllowEmptyString()][string]$PredictedSource,
+          $Announced, [AllowNull()][AllowEmptyString()][string]$AnnouncedSource,
+          [AllowNull()][AllowEmptyString()][string]$Stage,
+          [double]$Tolerance = 1e-9)
+    $where = $(if ([string]::IsNullOrWhiteSpace($Stage)) { 'this point' } else { $Stage })
+    if ($null -eq $Announced) {
+        return [ordered]@{
+            Observed  = $false
+            Mismatch  = $false
+            Agreement = ('NOT OBSERVED at {0} - the app log carries no {1} announcement yet. The prediction stands UNCONFIRMED, and an unconfirmed prediction is not an observation.' -f $where, $Name)
+        }
+    }
+    $agree = $false
+    if (($Predicted -is [bool]) -and ($Announced -is [bool])) {
+        $agree = ([bool]$Predicted -eq [bool]$Announced)
+    } elseif (($Predicted -is [double] -or $Predicted -is [int] -or $Predicted -is [decimal]) -and
+              ($Announced -is [double] -or $Announced -is [int] -or $Announced -is [decimal])) {
+        $agree = ([math]::Abs([double]$Predicted - [double]$Announced) -le $Tolerance)
+    }
+    if ($agree) {
+        return [ordered]@{
+            Observed  = $true
+            Mismatch  = $false
+            Agreement = ('CONFIRMED at {0} - the app announced {1} = [{2}], which is what this runner predicted from {3}. Evidence: {4}' -f $where, $Name, $Announced, $PredictedSource, $AnnouncedSource)
+        }
+    }
+    return [ordered]@{
+        Observed  = $true
+        Mismatch  = $true
+        Agreement = ('MISMATCH at {0} - this runner PREDICTED {1} = [{2}] from {3}, and the app ANNOUNCED [{4}] ({5}). THE APP IS THE AUTHORITY ON THE APP: score this run on the ANNOUNCED value. Usual cause: the interface was started by hand with its own environment, or the deployed appsettings.json differs from the one Stage 0 read.' -f $where, $Name, $Predicted, $PredictedSource, $Announced, $AnnouncedSource)
+    }
+}
+
 # ---- THE VENDOR PER-PROCESS LOG FOR ONE PID (D1b harvest, finding A1) ---------
 # VR-Forces 5.2 writes
 #     <prefix><version>-<date>-<time>-<host>-<build>-<pid>.log

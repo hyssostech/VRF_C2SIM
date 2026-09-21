@@ -223,11 +223,22 @@ public static class DeStackSelfTest
                              && plans[0].Pos.LonDeg == parentBefore.LonDeg,
                   "THE PARENT DID NOT MOVE - it keeps the centre slot, so a taskee's route still " +
                   "starts where the init put it");
+            // *** N4 (D7 harvest). THIS BLOCK REPLACES THE ASSERTION THAT USED TO STAND HERE,
+            // "every one of the 3 children is exactly one platoon spacing (350 m) from the parent".
+            // That assertion pinned the HEX geometry, and D7 refuted the premise behind it: the
+            // ring radius was never the quantity C14 rules on - the SEPARATION is - and putting
+            // three children on hex bearings 0/60/120 moved the parent's PUBLISHED position (its
+            // members' centroid) 233 m, costing R9 lean 74 m of route. What is pinned instead is
+            // strictly stronger: the separations are still exactly one spacing, AND the centroid
+            // stays on the parent. The radius is now 202.1 m, and that is a derived number, not
+            // a ruled one. ***
+            double pltRadius = DeStacker.CentroidPreservingRadius(3, pltSpacing);
             bool allOnRing = Enumerable.Range(1, 3).All(i =>
-                Math.Abs(DistMeters(parentBefore, plans[i].Pos) - pltSpacing) < pltSpacing * 0.01);
+                Math.Abs(DistMeters(parentBefore, plans[i].Pos) - pltRadius) < pltRadius * 0.01);
             Check(ref failures, allOnRing,
-                  $"every one of the 3 children is exactly one platoon spacing ({pltSpacing:F0} m) from " +
-                  "the parent - none is left stacked on it");
+                  $"every one of the 3 children sits on ONE ring of the derived radius " +
+                  $"{pltRadius:F1} m = {pltSpacing:F0} / (2 sin 60 deg) - none is left stacked on the " +
+                  "parent, and the radius is derived from the spacing rather than equal to it (N4)");
             bool pairsClear = true;
             for (int a = 1; a <= 3; a++)
                 for (int b = a + 1; b <= 3; b++)
@@ -235,7 +246,18 @@ public static class DeStackSelfTest
             Check(ref failures, pairsClear,
                   $"and every sibling PAIR is at least {pltSpacing:F0} m apart - which is what C14's " +
                   $"criterion asks for at this echelon (longest shipped platoon formation " +
-                  $"{EchelonSpacing.SpanMeters[EchelonSpacing.Platoon]:F1} m)");
+                  $"{EchelonSpacing.SpanMeters[EchelonSpacing.Platoon]:F1} m). THE SEPARATION IS THE " +
+                  "RULED QUANTITY; the radius is derived from it");
+            // THE N4 PROPERTY ITSELF: the children's CENTROID - which is what VR-Forces publishes
+            // for the composed aggregate - is the parent's own coordinate.
+            var centroid = Centroid(plans.Skip(1).Take(3).Select(p => p.Pos));
+            double centroidOff = DistMeters(parentBefore, centroid);
+            Check(ref failures, centroidOff < 1.0,
+                  $"*** N4: the three children's CENTROID is {centroidOff:F3} m from the parent's own " +
+                  "coordinate. VR-Forces publishes a composed aggregate AT its members' centroid, so " +
+                  "this is the position the taskee's route, arrival radius and traversal bar are all " +
+                  "built from. The hex layout this replaces put it 233 m away (run D7 measured 262 m " +
+                  "live and a route 74 m short) ***");
             Check(ref failures, Math.Abs(DistMeters(plans[0].Pos, plans[4].Pos) - Spacing) < Spacing * 0.01,
                   "the INDEPENDENT unit's 700 m-lane position is untouched by the sibling pass");
 
@@ -306,6 +328,182 @@ public static class DeStackSelfTest
             { Agg("coy", 34.5, -116.5), Agg("plt1", 34.5, -116.5), Agg("plt2", 34.5, -116.5) };
             Check(ref failures, DeStacker.Apply(off, Spacing, 0.0, null) is { Count: 1 } g0 && g0[0].Count == 3,
                   "with ComposeHierarchy off every plan is independent (null exclusion set = old behaviour)");
+        }
+
+        // 10b. THE N4 RING GEOMETRY, AS ARITHMETIC (user ruling 2026-09-21 + the D7 harvest).
+        {
+            Console.WriteLine("  --- N4: the centroid-preserving ring, N = 1..8 ---");
+            const double S = 350.0;   // the PLATOON spacing, the one that matters live
+            // THE TABLE THE REPORT CARRIES. r = spacing / (2 sin(pi/N)), so the CHORD between
+            // adjacent slots is exactly the spacing at every N. Re-derived here from the function,
+            // never copied from the comment.
+            var expected = new (int N, double Ratio)[]
+            {
+                (2, 0.5), (3, 0.5773502692), (4, 0.7071067812), (5, 0.8506508084),
+                (6, 1.0), (7, 1.1523824354), (8, 1.3065629649),
+            };
+            foreach (var (n, ratio) in expected)
+            {
+                double r = DeStacker.CentroidPreservingRadius(n, S);
+                Check(ref failures, Math.Abs(r - ratio * S) < 0.01,
+                      $"N = {n}: radius {r:F1} m = {ratio:F6} x the {S:F0} m spacing " +
+                      $"(expected {ratio * S:F1} m)");
+            }
+            Check(ref failures, DeStacker.CentroidPreservingRadius(1, S) == 0.0
+                             && DeStacker.CentroidPreservingRadius(0, S) == 0.0
+                             && DeStacker.CentroidPreservingRadius(3, 0.0) == 0.0,
+                  "N = 1 (and N = 0, and a non-positive spacing) gives radius 0 - a lone child is not " +
+                  "a stack and MUST NOT be displaced; its own centroid already is the anchor");
+            // The two properties that matter, checked for every N from 2 to 12 at once:
+            //   (i)  the centroid of the N slots is the anchor, to floating-point noise;
+            //   (ii) the MINIMUM pairwise separation is exactly the spacing.
+            bool centroidHolds = true, minSepHolds = true;
+            var sepAtN = new List<string>();
+            for (int n = 2; n <= 12; n++)
+            {
+                double r = DeStacker.CentroidPreservingRadius(n, S);
+                double sumN = 0, sumE = 0, minSep = double.MaxValue;
+                var pts = new List<(double N, double E)>();
+                for (int i = 0; i < n; i++)
+                {
+                    var (north, east) = DeStacker.EqualBearingOffset(i, n, r, 0.0);
+                    pts.Add((north, east));
+                    sumN += north; sumE += east;
+                }
+                if (Math.Sqrt(sumN * sumN + sumE * sumE) / n > 1e-9) centroidHolds = false;
+                for (int a = 0; a < n; a++)
+                    for (int b = a + 1; b < n; b++)
+                        minSep = Math.Min(minSep, Math.Sqrt(Math.Pow(pts[a].N - pts[b].N, 2)
+                                                            + Math.Pow(pts[a].E - pts[b].E, 2)));
+                if (Math.Abs(minSep - S) > 1e-6) minSepHolds = false;
+                sepAtN.Add($"N={n}: r {r:F1} m");
+            }
+            Check(ref failures, centroidHolds,
+                  "for EVERY N from 2 to 12 the N slots' centroid is the anchor to under 1e-9 m - the " +
+                  "N-th roots of unity sum to zero, which is the whole reason the bearings are equal");
+            Check(ref failures, minSepHolds,
+                  $"...and the MINIMUM pairwise separation is exactly the {S:F0} m spacing at every one " +
+                  $"of them. Radii: [{string.Join(", ", sepAtN)}] - ONE ring, growing with N " +
+                  "(asymptotically spacing x N / 2 pi); there is deliberately no second ring, because " +
+                  "two unequally-filled rings have no centroid at the centre");
+            // Rotation is the START BEARING, exactly as Vrf:DeStackRotationDeg documents.
+            var (n0, e0) = DeStacker.EqualBearingOffset(0, 3, 100.0, 0.0);
+            var (n90, e90) = DeStacker.EqualBearingOffset(0, 3, 100.0, 90.0);
+            Check(ref failures, Math.Abs(n0 - 100.0) < 1e-9 && Math.Abs(e0) < 1e-9
+                             && Math.Abs(n90) < 1e-9 && Math.Abs(e90 - 100.0) < 1e-9,
+                  "slot 0 at rotation 0 is due north and at rotation 90 due east - Vrf:DeStackRotationDeg " +
+                  "is the START BEARING of the ring, the same meaning it has in the independent lane");
+            // N = 2 is opposite, by construction rather than by luck.
+            {
+                var two = new List<CreationPlan>
+                { Agg("coy", 34.5, -116.5), Agg("p1", 34.5, -116.5), Agg("p2", 34.5, -116.5) };
+                var hier2 = new List<(string, string)> { ("u0", ""), ("u1", "u0"), ("u2", "u0") };
+                var c = CompositionPlan.Classify(two, hier2);
+                var before2 = two[0].Pos;
+                DeStacker.ApplyComposedSiblings(two, c.ComposedGroups,
+                    new List<string> { "", EchelonSpacing.Platoon, EchelonSpacing.Platoon },
+                    k => EchelonSpacing.SpacingFor(k, 0.0), 0.0, out _);
+                double sep = DistMeters(two[1].Pos, two[2].Pos);
+                double off = DistMeters(before2, Centroid(new[] { two[1].Pos, two[2].Pos }));
+                Check(ref failures, Math.Abs(sep - S) < S * 0.01 && off < 1.0
+                                 && two[0].Pos.LatDeg == before2.LatDeg,
+                      $"N = 2: the two children sit DIAMETRICALLY OPPOSITE, {sep:F1} m apart (one " +
+                      $"spacing) with their centroid {off:F3} m from the parent, which has not moved");
+            }
+        }
+
+        // 10c. SF-4: WHICH POINT THE RING IS BUILT ABOUT, when the independent pass moved the parent.
+        {
+            Console.WriteLine("  --- SF-4: a parent the INDEPENDENT pass displaced ---");
+            // The latent case no shipped fixture reaches: a parent aggregate co-located with
+            // another INDEPENDENT unit, and not first in that group - so the independent pass moves
+            // the PARENT. Its children must then ring where the parent ENDED, which is what the
+            // call site's comment has always claimed and what the code did not do (it anchored on
+            // the children's shared CoordKey and never read plans[parentIndex]).
+            var plans = new List<CreationPlan>
+            {
+                Agg("stranger", 34.5, -116.5),   // 0 independent, FIRST in the group -> keeps its spot
+                Agg("coy",      34.5, -116.5),   // 1 the parent, independent, SECOND -> is displaced
+                Agg("plt1",     34.5, -116.5),   // 2..4 its composed children, on the same coordinate
+                Agg("plt2",     34.5, -116.5),
+                Agg("plt3",     34.5, -116.5),
+            };
+            var hier = new List<(string, string)>
+            { ("u0", ""), ("u1", ""), ("u2", "u1"), ("u3", "u1"), ("u4", "u1") };
+            var comp = CompositionPlan.Classify(plans, hier);
+            var ech = new List<string> { "", "", EchelonSpacing.Platoon, EchelonSpacing.Platoon,
+                                         EchelonSpacing.Platoon };
+            var snapshot = plans.Select(p => p.Pos).ToList();     // BEFORE the independent pass
+            DeStacker.Apply(plans, 700.0, 0.0, comp.ComposedChildIndices);
+            var parentAfter = plans[1].Pos;
+            Check(ref failures, DistMeters(snapshot[1], parentAfter) > 690.0,
+                  $"the independent pass DID move the parent ({DistMeters(snapshot[1], parentAfter):F0} m) - " +
+                  "without that this arm would prove nothing");
+            var sib = DeStacker.ApplyComposedSiblings(plans, comp.ComposedGroups, ech,
+                                                      k => EchelonSpacing.SpacingFor(k, 0.0), 0.0,
+                                                      out _, snapshot);
+            var kids = Centroid(plans.Skip(2).Take(3).Select(p => p.Pos));
+            Check(ref failures, sib.Count == 1 && sib[0].AnchoredOnParent
+                             && DistMeters(parentAfter, kids) < 1.0,
+                  $"SF-4 FIXED: the children ring the parent's POST-de-stack position - their centroid is " +
+                  $"{DistMeters(parentAfter, kids):F3} m from it and {DistMeters(snapshot[1], kids):F0} m " +
+                  "from the coordinate the init authored. Before this the comment said one thing and the " +
+                  "code did the other, which N4 turned from cosmetic into a shell published 700 m from " +
+                  "its own members' centroid");
+            // ...and the OTHER reading is preserved: siblings authored on a common point that is NOT
+            // their parent's keep ringing THAT point. Moving them onto a parent they were never
+            // co-located with is a different change, and no evidence asks for it.
+            var apart = new List<CreationPlan>
+            {
+                Agg("coy",  34.5,   -116.5),     // 0 the parent, somewhere else entirely
+                Agg("plt1", 34.60,  -116.5),     // 1..3 the children, on a common point of their own
+                Agg("plt2", 34.60,  -116.5),
+                Agg("plt3", 34.60,  -116.5),
+            };
+            var hierA = new List<(string, string)> { ("u0", ""), ("u1", "u0"), ("u2", "u0"), ("u3", "u0") };
+            var compA = CompositionPlan.Classify(apart, hierA);
+            var snapA = apart.Select(p => p.Pos).ToList();
+            var sharedA = snapA[1];
+            var sibA = DeStacker.ApplyComposedSiblings(apart, compA.ComposedGroups, ech.Take(4).Select(
+                                                           (_, i) => i == 0 ? "" : EchelonSpacing.Platoon).ToList(),
+                                                       k => EchelonSpacing.SpacingFor(k, 0.0), 0.0,
+                                                       out _, snapA);
+            var kidsA = Centroid(apart.Skip(1).Take(3).Select(p => p.Pos));
+            Check(ref failures, sibA.Count == 1 && !sibA[0].AnchoredOnParent
+                             && DistMeters(sharedA, kidsA) < 1.0
+                             && apart[0].Pos.LatDeg == 34.5,
+                  "and siblings authored on a COMMON POINT AWAY FROM THEIR PARENT still ring that point " +
+                  $"(centroid {DistMeters(sharedA, kidsA):F3} m from it), not the parent - the group " +
+                  "reports AnchoredOnParent=false and the log says which it was");
+        }
+
+        // 10d. THE REVIEW NOTE (NOTE-3 / the N4 brief): can a parent's OWN formation overlap its
+        //      child ring? ANSWERED FROM THE CODE, not invented.
+        {
+            Console.WriteLine("  --- the review note: a parent with ORGANIC members AND composed children ---");
+            // ApplyHierarchyComposition (VrfC2SimService.cs:1930) flips EVERY parent that takes
+            // composed children to CreateSubordinates = false - an EMPTY SHELL - and C13
+            // (MaterializeAtOrder) does the same to every aggregate. So under the only
+            // configuration in which composed groups exist at all, a composed parent HAS NO ORGANIC
+            // MEMBERS: its members ARE its children, and there is no second formation to overlap
+            // the ring. The case in the review note is unreachable by construction, and this arm is
+            // what would notice if that ever changed.
+            var plans = new List<CreationPlan>
+            { Agg("coy", 34.5, -116.5), Agg("plt1", 34.5, -116.5), Agg("plt2", 34.5, -116.5) };
+            var hier = new List<(string, string)> { ("u0", ""), ("u1", "u0"), ("u2", "u0") };
+            var comp = CompositionPlan.Classify(plans, hier);
+            Check(ref failures, comp.ComposedGroups.Count == 1 && plans[0].CreateSubordinates,
+                  "the CLASSIFIER itself does not flip the shell - that is the service's job " +
+                  "(ApplyHierarchyComposition), and this arm only records where the property lives");
+            // The property as the service establishes it, applied here the same way.
+            for (int i = 0; i < plans.Count; i++)
+                if (comp.ComposedGroups.Any(g => g.ParentIndex == i))
+                    plans[i] = plans[i] with { CreateSubordinates = false };
+            Check(ref failures, !plans[0].CreateSubordinates,
+                  "EVERY parent of a composed group is created as an EMPTY SHELL (CreateSubordinates " +
+                  "= false), so it has NO organic members of its own and no formation that could " +
+                  "overlap its children's ring. The review's 'a parent with organic members plus " +
+                  "composed children' is UNREACHABLE in this configuration - reported, not designed for");
         }
 
         // 11. THE REAL INITS AT THE BASE PROFILE'S SPACING (2026-09-20).
@@ -395,6 +593,35 @@ public static class DeStackSelfTest
                                       "R9_Mojave_UnitMove_Order.xml", Base);
             CheckTaskeeMembersUnmoved(ref failures, "COA-STP1_Initialization.xml",
                                       "COA-STP1_Order.xml", Base);
+            // *** SF-5 (cold-start review of 35a13f2): IRON STORM HAD NO TASKEE CHECK AT ALL. ***
+            // It was the only shipped fixture with neither arm, while the build report claimed
+            // "0 taskees move" for it and PREREG_IRONSTORM_CUTA_DRAFT.md:106 claimed the opposite
+            // ("de-stack can move 28ID's own taskee instance by up to 700 m, so every distance
+            // below is +/- 700 m"). The two cannot both be right and the run at stake was the Iron
+            // Storm one. The order used is the FULL EXPORT that ships on main; the derived cut-A
+            // order lives on feat/ironstorm-cut-a and no selftest reads a fixture off another
+            // branch. 28ID sorts FIRST by uuid ordinal in its co-location group, so it is that
+            // group's ANCHOR and keeps its coordinate - measured here rather than argued.
+            CheckTaskeesUnmoved(ref failures, "STP-IRON-STORM-SYNTHETIC_Initialization.xml",
+                                "STP-IRON-STORM-SYNTHETIC_Order.xml", Base);
+            CheckTaskeesAfterSiblingSpread(ref failures, "STP-IRON-STORM-SYNTHETIC_Initialization.xml",
+                                           "STP-IRON-STORM-SYNTHETIC_Order.xml", Base,
+                                           expectMovedTaskees: 0);
+            CheckTaskeeMembersUnmoved(ref failures, "STP-IRON-STORM-SYNTHETIC_Initialization.xml",
+                                      "STP-IRON-STORM-SYNTHETIC_Order.xml", Base);
+
+            // *** N4: THE INDEPENDENT LANE IS UNTOUCHED, PROVED PER FIXTURE. ***
+            // COA-STP1 (10 groups / 62 moved) and Iron Storm (2 / 12) have NO composed sibling
+            // groups at all, so the whole N4 change must be a literal no-op on them: every plan
+            // position after BOTH passes is bit-for-bit the position the INDEPENDENT pass left.
+            // That is a stronger statement than "the group counts did not change" and it is the
+            // one the ruling's confirmed 2026-09-07 result depends on.
+            CheckSiblingPassIsNoOp(ref failures, "COA-STP1_Initialization.xml", Base);
+            CheckSiblingPassIsNoOp(ref failures, "STP-IRON-STORM-SYNTHETIC_Initialization.xml", Base);
+
+            // *** N4: R9 LEAN, THE NEXT LIVE RUN'S FIXTURE - THE CENTROID AND THE ROUTE LENGTH. ***
+            CheckComposedCentroidAndRoute(ref failures, "R9_Mojave_Lean_Initialization.xml",
+                                          "R9_Mojave_UnitMove_Order.xml", Base);
         }
 
         // 12. THE ECHELON TABLE (user ruling 2026-09-21, option C). The ruling's own arithmetic is
@@ -456,6 +683,50 @@ public static class DeStackSelfTest
             Check(ref failures, bad[EchelonSpacing.Platoon] == 350.0 && badNote.Contains("IGNORED"),
                   $"an override the table cannot take is IGNORED AND NAMED, never silently applied " +
                   $"({badNote})");
+
+            // *** SF-3 (cold-start review of 35a13f2): THE TABLE IS THE GROUND SUBSET, AND KeyOf
+            // MUST NOT HAND AN AIR UNIT A GROUND ROW IN SILENCE. *** The builder's own
+            // frm_by_template.py returns SECTION 3,000 m (Air Section) and SQUAD 12,649 m (Fighter
+            // Squadron) when the ground restriction is lifted, so the shipped rows are an order of
+            // magnitude too small for an air echelon - and before this the SIDC echelon character
+            // alone decided, whatever the battle dimension said.
+            Console.WriteLine("  --- SF-3: the GROUND subset, the domain gate and the provenance ---");
+            Check(ref failures, EchelonSpacing.BattleDimensionOf("SFGPUCIZ--ED---") == 'G'
+                             && EchelonSpacing.BattleDimensionOf("SFAPMFQM--ED---") == 'A'
+                             && EchelonSpacing.BattleDimensionOf("SFSPCLCV--ED---") == 'S'
+                             && EchelonSpacing.BattleDimensionOf("SF") == '\0',
+                  "the SIDC BATTLE DIMENSION is position 3 (index 2) - G ground, A air, S sea surface - " +
+                  "and a too-short symbol id has none. (The ECHELON is position 12; two different fields)");
+            string airKey = EchelonSpacing.KeyOf("PLT", "SFAPMFQM--ED---", out string airWhy);
+            Check(ref failures, airKey.Length == 0 && airWhy.Contains("BATTLE DIMENSION")
+                             && airWhy.Contains("GROUND subset"),
+                  $"an AIR platoon gets NO ROW and the provenance says why: \"{airWhy}\". Before SF-3 it " +
+                  "took the 350 m ground PLATOON row in silence");
+            string seaKey = EchelonSpacing.KeyOf("SECT", "SFSPCLCV--EC---", out _);
+            string subKey = EchelonSpacing.KeyOf("", "SFUPSCF---EC---", out _);
+            string spaceKey = EchelonSpacing.KeyOf("SQUAD", "SFPPT-----EB---", out _);
+            Check(ref failures, seaKey.Length == 0 && subKey.Length == 0 && spaceKey.Length == 0,
+                  "sea surface (S), subsurface (U) and space (P) are refused the same way - only the " +
+                  "GROUND rows exist and only ground units may take them");
+            string groundKey = EchelonSpacing.KeyOf("PLT", "SFGPUCIZ--ED---", out string groundWhy);
+            Check(ref failures, groundKey == EchelonSpacing.Platoon && groundWhy.Contains("GROUND PLATOON row")
+                             && groundWhy.Contains("350 m") && groundWhy.Contains("is ground"),
+                  $"a GROUND platoon takes the 350 m row and says so: \"{groundWhy}\"");
+            string sofKey = EchelonSpacing.KeyOf("PLT", "SFFPN-----ED---", out _);
+            Check(ref failures, sofKey == EchelonSpacing.Platoon,
+                  "SOF (F) takes the ground row - the SOF templates in this catalogue ARE ground");
+            string noSidcKey = EchelonSpacing.KeyOf("PLT", "", out string noSidcWhy);
+            Check(ref failures, noSidcKey == EchelonSpacing.Platoon && noSidcWhy.Contains("ground is assumed"),
+                  $"NO SIDC at all keeps the pre-SF-3 answer - the ground row, with the assumption " +
+                  $"STATED rather than hidden: \"{noSidcWhy}\". Every shipped fixture is ground, so " +
+                  "this is the path they all take and none of their counts move");
+            string coyKey = EchelonSpacing.KeyOf("COY", "SFGPUCA---EE---", out string coyWhy);
+            Check(ref failures, coyKey.Length == 0 && coyWhy.Contains("NO ROW"),
+                  $"company and above still get NO ROW, for the old reason, and say which field decided: " +
+                  $"\"{coyWhy}\"");
+            Check(ref failures, EchelonSpacing.KeyOf("PLT", "SFGPUCIZ--ED---")
+                                == EchelonSpacing.KeyOf("PLT", "SFGPUCIZ--ED---", out _),
+                  "the two-argument overload is the three-argument one - one rule, not two copies");
         }
 
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
@@ -609,7 +880,7 @@ public static class DeStackSelfTest
         var beforeSiblings = f.Plans.ToList();
         var sib = DeStacker.ApplyComposedSiblings(f.Plans, f.Comp.ComposedGroups, f.Echelons,
                                                   k => EchelonSpacing.SpacingFor(k, 0.0), 0.0,
-                                                  out var skipped);
+                                                  out var skipped, preDestack.Select(x => x.Pos).ToList());
         int sibMoved = 0;
         var parentsMoved = new List<string>();
         for (int i = 0; i < f.Plans.Count; i++)
@@ -696,8 +967,10 @@ public static class DeStackSelfTest
     ///     122.MechCoy, one platoon ring (350 m). Its route then starts 350 m from the authored
     ///     point; Vrf:DropOriginVertexMeters (default 100 m) is what keeps the order's leading
     ///     "from here" vertex from dragging it back (PREREG_ASSEMBLY_LAYOUT 3f).
-    /// A moved taskee must always be exactly a whole number of ITS OWN echelon's rings - a taskee
-    /// displaced by anything else would be a defect, and this check would say so.
+    /// A moved taskee must sit exactly on ITS OWN GROUP'S ring - and since N4 that radius is
+    /// DERIVED from the echelon spacing (spacing / (2 sin(pi/N)) for a group of N), not equal to
+    /// it. The check reads the radius off the group the pass itself reports, so the test cannot
+    /// drift from the geometry; a taskee displaced by anything else is a defect and this says so.
     /// </summary>
     private static void CheckTaskeesAfterSiblingSpread(ref int failures, string initFixture,
                                                        string orderFixture, double spacing,
@@ -713,10 +986,13 @@ public static class DeStackSelfTest
         var order = OrderParser.Parse(File.ReadAllText(op));
         var taskees = order.Tasks.Select(t => t.TaskeeUuid).Where(u => !string.IsNullOrEmpty(u))
                            .ToHashSet(StringComparer.Ordinal);
+        var snapshot = f.Plans.Select(p0 => p0.Pos).ToList();
         DeStacker.Apply(f.Plans, spacing, 0.0, f.Comp.ComposedChildIndices);
         var beforeSiblings = f.Plans.ToList();
-        DeStacker.ApplyComposedSiblings(f.Plans, f.Comp.ComposedGroups, f.Echelons,
-                                        k => EchelonSpacing.SpacingFor(k, 0.0), 0.0, out _);
+        var spread = DeStacker.ApplyComposedSiblings(f.Plans, f.Comp.ComposedGroups, f.Echelons,
+                                                     k => EchelonSpacing.SpacingFor(k, 0.0), 0.0,
+                                                     out _, snapshot);
+        var radiusByName = RadiusByName(spread);
         var moved = new List<string>();
         var offRing = new List<string>();
         for (int i = 0; i < f.Plans.Count; i++)
@@ -725,16 +1001,23 @@ public static class DeStackSelfTest
             double d = DistMeters(beforeSiblings[i].Pos, f.Plans[i].Pos);
             if (d <= 1e-6) continue;
             moved.Add($"{f.Authored[i].Name} {d:F0} m ({f.Echelons[i]})");
+            // N4: THE EXPECTED DISPLACEMENT IS ITS GROUP'S DERIVED RADIUS, NOT THE SPACING. This
+            // REPLACES the pre-N4 assertion "a whole number of its own echelon's rings", which
+            // pinned the superseded hex geometry (displacement = k x spacing). What it pins now is
+            // stronger, because the radius is a function of the group's SIZE as well as its
+            // echelon and the test reads it from the pass's own report rather than re-deriving it.
             double own = EchelonSpacing.SpacingFor(f.Echelons[i], 0.0);
-            if (!(own > 0 && Math.Abs(d / own - Math.Round(d / own)) < 0.02 && d >= own * 0.98))
-                offRing.Add($"{f.Authored[i].Name} {d:F0} m vs {own:F0} m rings");
+            if (!radiusByName.TryGetValue(f.Authored[i].Name, out double r) || !(Math.Abs(d - r) < 1.0))
+                offRing.Add($"{f.Authored[i].Name} {d:F1} m vs its group's {r:F1} m ring " +
+                            $"(echelon spacing {own:F0} m)");
         }
         Check(ref failures, moved.Count == expectMovedTaskees && offRing.Count == 0,
               $"{initFixture} + {orderFixture}: the SIBLING pass moves {moved.Count} taskee(s) " +
               $"(expected {expectMovedTaskees}) [{string.Join("; ", moved)}]" +
               (offRing.Count == 0
-                  ? " - each of them a composed child displaced exactly one echelon ring, and every " +
-                    "taskee that is a PARENT keeps its position (the centre slot)"
+                  ? " - each of them a composed child displaced exactly its GROUP'S derived ring " +
+                    "radius (N4: spacing / (2 sin(pi/N)), not the spacing), and every taskee that is " +
+                    "a PARENT keeps its position, centroid included"
                   : " - OFF-RING: [" + string.Join("; ", offRing) + "]"));
     }
 
@@ -768,9 +1051,12 @@ public static class DeStackSelfTest
         var order = OrderParser.Parse(File.ReadAllText(op));
         var taskees = order.Tasks.Select(t => t.TaskeeUuid).Where(u => !string.IsNullOrEmpty(u))
                            .ToHashSet(StringComparer.Ordinal);
+        var snapshot = f.Plans.Select(p0 => p0.Pos).ToList();
         DeStacker.Apply(f.Plans, spacing, 0.0, f.Comp.ComposedChildIndices);
-        DeStacker.ApplyComposedSiblings(f.Plans, f.Comp.ComposedGroups, f.Echelons,
-                                        k => EchelonSpacing.SpacingFor(k, 0.0), 0.0, out _);
+        var spread = DeStacker.ApplyComposedSiblings(f.Plans, f.Comp.ComposedGroups, f.Echelons,
+                                                     k => EchelonSpacing.SpacingFor(k, 0.0), 0.0,
+                                                     out _, snapshot);
+        var radiusByName = RadiusByName(spread);
         var moved = new List<string>();
         var offRing = new List<string>();
         int members = 0;
@@ -783,20 +1069,198 @@ public static class DeStackSelfTest
             if (d <= 1e-6) continue;
             moved.Add($"{f.Authored[i].Name} {d:F0} m ({f.Echelons[i]})");
             double own = EchelonSpacing.SpacingFor(f.Echelons[i], 0.0);
-            // A whole number of rings at ITS echelon's spacing (ring k sits at k x spacing).
-            bool onRing = own > 0 && Math.Abs(d / own - Math.Round(d / own)) < 0.02 && d >= own * 0.98;
-            if (!onRing) offRing.Add($"{f.Authored[i].Name} {d:F0} m vs {own:F0} m rings");
+            // N4: ON ITS GROUP'S DERIVED RING. This REPLACES "a whole number of ITS OWN ECHELON's
+            // rings", which pinned the superseded hex geometry. The radius comes from the pass's
+            // own report of the group this unit is in, so the assertion tracks the rule.
+            bool onRing = radiusByName.TryGetValue(f.Authored[i].Name, out double r) && Math.Abs(d - r) < 1.0;
+            if (!onRing)
+                offRing.Add($"{f.Authored[i].Name} {d:F1} m vs its group's {r:F1} m ring " +
+                            $"(echelon spacing {own:F0} m)");
         }
         Check(ref failures, offRing.Count == 0,
               $"{initFixture} + {orderFixture}: {members} declared subordinate(s) of a TASKEE, " +
               $"{moved.Count} displaced by the 2026-09-21 sibling spread [" +
               string.Join("; ", moved.Take(8)) + (moved.Count > 8 ? "; ..." : "") + "] - " +
               (offRing.Count == 0
-                  ? "and EVERY one of them is a whole number of ITS OWN ECHELON's rings from where it " +
-                    "was, never the 700 m company spacing. (The pre-2026-09-21 assertion here was " +
-                    "'NONE is displaced'; the ruling replaced it, and Vrf:DeStackComposedSiblings=false " +
-                    "restores it for a comparability run.)"
-                  : offRing.Count + " is NOT on its echelon's ring: [" + string.Join("; ", offRing) + "]"));
+                  ? "and EVERY one of them sits on ITS OWN GROUP'S derived ring radius, never the 700 m " +
+                    "company spacing and (since N4) never the echelon spacing either: the radius is " +
+                    "spacing / (2 sin(pi/N)), chosen so the SEPARATION is the spacing and the group's " +
+                    "CENTROID stays on the parent. (The pre-2026-09-21 assertion here was 'NONE is " +
+                    "displaced' and the pre-N4 one was 'a whole number of echelon rings'; " +
+                    "Vrf:DeStackComposedSiblings=false restores the original for a comparability run.)"
+                  : offRing.Count + " is NOT on its group's ring: [" + string.Join("; ", offRing) + "]"));
+    }
+
+    /// <summary>
+    /// N4: IS THE SIBLING PASS A LITERAL NO-OP ON THIS FIXTURE? For a fixture with no composed
+    /// sibling groups - COA-STP1 and Iron Storm, the two the C14 confirmation of 2026-09-07 rests
+    /// on - the whole 2026-09-21 lane, N4 included, must leave every coordinate exactly as the
+    /// INDEPENDENT pass left it. Compared as doubles, bit for bit, not to a tolerance: the claim
+    /// is "byte-identical", and a tolerance would not test it.
+    /// </summary>
+    private static void CheckSiblingPassIsNoOp(ref int failures, string fixture, double spacing)
+    {
+        string path = FindData(fixture);
+        if (path == null) { Check(ref failures, false, $"{fixture}: NOT FOUND under data/"); return; }
+        var f = BuildFixture(path);
+        var snapshot = f.Plans.Select(p => p.Pos).ToList();
+        DeStacker.Apply(f.Plans, spacing, 0.0, f.Comp.ComposedChildIndices);
+        var afterIndependent = f.Plans.ToList();
+        var sib = DeStacker.ApplyComposedSiblings(f.Plans, f.Comp.ComposedGroups, f.Echelons,
+                                                  k => EchelonSpacing.SpacingFor(k, 0.0), 0.0,
+                                                  out var skipped, snapshot);
+        int differing = 0;
+        for (int i = 0; i < f.Plans.Count; i++)
+            if (f.Plans[i].Pos.LatDeg != afterIndependent[i].Pos.LatDeg
+                || f.Plans[i].Pos.LonDeg != afterIndependent[i].Pos.LonDeg) differing++;
+        Check(ref failures, sib.Count == 0 && skipped.Count == 0 && differing == 0
+                         && f.Plans.SequenceEqual(afterIndependent),
+              $"{fixture}: the 2026-09-21 sibling pass (N4 geometry included) is a LITERAL NO-OP - " +
+              $"{f.Comp.ComposedGroups.Count} composed group(s), {sib.Count} spread, {skipped.Count} " +
+              $"skipped, {differing} of {f.Plans.Count} plan(s) differ from what the INDEPENDENT pass " +
+              "left. The independent lane's own result (the 2026-09-07 confirmation) is therefore " +
+              "byte-identical to what it was before N4");
+    }
+
+    /// <summary>
+    /// *** THE N4 PROPERTY ON THE REAL FIXTURE, AND WHAT IT IS WORTH IN METRES OF ROUTE. ***
+    ///
+    /// VR-Forces publishes a composed aggregate at its MEMBERS' CENTROID (run D7 measured
+    /// 114.MechCoy~PXY's published position 262 m from the coordinate its shell was created at),
+    /// and the taskee's route is built from the position it is PUBLISHED at - so the centroid, not
+    /// the shell, is what sets the route length, the arrival radius and the traversal bar. This
+    /// check therefore asks the question the live run asks:
+    ///   1. is the children's centroid the parent's own coordinate?
+    ///   2. is the route measured FROM THAT CENTROID the same length as the route from the parent?
+    ///   3. is that length back at D3/D6's 1,112-1,113 m, and not D7's 1,039 m?
+    /// The route is the great-circle path from the taskee's position through the task's authored
+    /// vertices - the same construction ExecuteTaskOnTick uses when the first authored vertex is
+    /// more than Vrf:DropOriginVertexMeters from the unit (R9 lean's first vertex is 557 m out, so
+    /// nothing is dropped and the route is start -&gt; v1 -&gt; v2).
+    /// </summary>
+    private static void CheckComposedCentroidAndRoute(ref int failures, string initFixture,
+                                                      string orderFixture, double spacing)
+    {
+        string ip = FindData(initFixture), op = FindData(orderFixture);
+        if (ip == null || op == null)
+        {
+            Check(ref failures, false, $"{initFixture} + {orderFixture}: NOT FOUND under data/");
+            return;
+        }
+        var f = BuildFixture(ip);
+        var order = OrderParser.Parse(File.ReadAllText(op));
+        var snapshot = f.Plans.Select(p => p.Pos).ToList();
+        DeStacker.Apply(f.Plans, spacing, 0.0, f.Comp.ComposedChildIndices);
+        var beforeSiblings = f.Plans.ToList();
+        var sib = DeStacker.ApplyComposedSiblings(f.Plans, f.Comp.ComposedGroups, f.Echelons,
+                                                  k => EchelonSpacing.SpacingFor(k, 0.0), 0.0,
+                                                  out _, snapshot);
+        Check(ref failures, sib.Count > 0,
+              $"{initFixture}: {sib.Count} composed sibling group(s) spread - the fixture this check " +
+              "is about");
+        foreach (var (parentIndex, childIndices) in f.Comp.ComposedGroups)
+        {
+            if (parentIndex < 0 || parentIndex >= f.Plans.Count) continue;
+            var kids = childIndices.Where(i => i >= 0 && i < f.Plans.Count && i != parentIndex).ToList();
+            if (kids.Count < 2) continue;
+            var parentPos = f.Plans[parentIndex].Pos;
+            string parentName = f.Authored[parentIndex].Name;
+            // (1) the parent's shell did not move, and (2) neither did its published position.
+            double shellMoved = DistMeters(beforeSiblings[parentIndex].Pos, parentPos);
+            var centroid = Centroid(kids.Select(i => f.Plans[i].Pos));
+            double centroidOff = DistMeters(parentPos, centroid);
+            double minSep = double.MaxValue;
+            for (int a = 0; a < kids.Count; a++)
+                for (int b = a + 1; b < kids.Count; b++)
+                    minSep = Math.Min(minSep, DistMeters(f.Plans[kids[a]].Pos, f.Plans[kids[b]].Pos));
+            double own = EchelonSpacing.SpacingFor(f.Echelons[kids[0]], 0.0);
+            Check(ref failures, shellMoved == 0.0 && centroidOff < 1.0 && minSep >= own * 0.99,
+                  $"{initFixture}: {parentName}'s {kids.Count} composed children - the PARENT'S SHELL " +
+                  $"moved {shellMoved:F3} m, their CENTROID (= the position VR-Forces publishes for the " +
+                  $"aggregate) is {centroidOff:F3} m from it, and the tightest sibling pair is " +
+                  $"{minSep:F1} m apart against the {own:F0} m echelon spacing. Positions: [" +
+                  string.Join("; ", kids.Select(i =>
+                      $"{f.Authored[i].Name} {DistMeters(parentPos, f.Plans[i].Pos):F1} m at " +
+                      $"{BearingDeg(parentPos, f.Plans[i].Pos):F1} deg")) + "]");
+            // (3) the route the taskee is given, measured from the CENTROID and from the SHELL.
+            var task = order.Tasks.FirstOrDefault(t => t.TaskeeUuid == f.Authored[parentIndex].Uuid
+                                                       && t.Points is { Count: > 0 });
+            if (task == null) continue;
+            double fromShell = PathMeters(parentPos, task.Points);
+            double fromCentroid = PathMeters(centroid, task.Points);
+            Check(ref failures, Math.Abs(fromShell - fromCentroid) < 1.0
+                             && fromCentroid >= 1110.0 && fromCentroid <= 1116.0,
+                  $"{initFixture} + {orderFixture}: {parentName}'s task '{task.TaskName}' is " +
+                  $"{fromCentroid:F1} m long measured from the PUBLISHED (centroid) position and " +
+                  $"{fromShell:F1} m from the shell - the same route, and back in D3/D6's " +
+                  "1,112-1,113 m band. Run D7 measured 1,039.3 m from a centroid the hex layout had " +
+                  "moved 262 m, with the arrival radius at 260 m instead of 278 and the traversal bar " +
+                  "at 520 m instead of 556 (N4). Radius now " +
+                  $"{ArrivalPolicy.RadiusFor(500.0, fromCentroid):F1} m, route bar " +
+                  $"{ArrivalPolicy.RequiredTravelFor(fromCentroid, 100.0):F1} m");
+            // ...and what the SUPERSEDED hex layout would have produced on the same fixture, so the
+            // 74 m is a measured contrast in the test's own output rather than a claim in a report.
+            double hexRadius = own;
+            double sumN = 0, sumE = 0;
+            for (int n = 1; n <= kids.Count; n++)
+            {
+                var (north, east) = DeStacker.RingOffset(n, hexRadius, 0.0);
+                sumN += north; sumE += east;
+            }
+            var hexCentroid = Offset(parentPos, sumN / kids.Count, sumE / kids.Count);
+            double hexRoute = PathMeters(hexCentroid, task.Points);
+            Check(ref failures, DistMeters(parentPos, hexCentroid) > 200.0 && hexRoute < fromCentroid - 50.0,
+                  $"CONTRAST (the superseded hex layout, re-derived here): its centroid would sit " +
+                  $"{DistMeters(parentPos, hexCentroid):F0} m from the parent and the same task would " +
+                  $"measure {hexRoute:F1} m - {fromCentroid - hexRoute:F1} m short. That is the D7 " +
+                  "defect, reproduced offline");
+        }
+    }
+
+    /// <summary>Unit name -> the ring radius the sibling pass reports for the group it is in (N4).
+    /// Taken from the pass's own SiblingGroup records, so the assertion cannot drift from the
+    /// geometry by re-deriving it from a formula the test keeps its own copy of.</summary>
+    private static Dictionary<string, double> RadiusByName(IReadOnlyList<DeStacker.SiblingGroup> spread)
+    {
+        var map = new Dictionary<string, double>(StringComparer.Ordinal);
+        foreach (var g in spread)
+            foreach (var (name, _) in g.Moved)
+                map[name] = g.RadiusMeters;
+        return map;
+    }
+
+    /// <summary>Flat-earth centroid of a set of positions - adequate at ring scale.</summary>
+    private static Geodetic Centroid(IEnumerable<Geodetic> points)
+    {
+        double lat = 0, lon = 0; int n = 0;
+        foreach (var p in points) { lat += p.LatDeg; lon += p.LonDeg; n++; }
+        return n == 0 ? new Geodetic() : new Geodetic { LatDeg = lat / n, LonDeg = lon / n, AltMeters = 0.0 };
+    }
+
+    private static Geodetic Offset(Geodetic from, double northM, double eastM)
+        => new()
+        {
+            LatDeg = from.LatDeg + northM / 111_320.0,
+            LonDeg = from.LonDeg + eastM / (111_320.0 * Math.Cos(from.LatDeg * Math.PI / 180.0)),
+            AltMeters = from.AltMeters,
+        };
+
+    private static double BearingDeg(Geodetic from, Geodetic to)
+    {
+        double north = (to.LatDeg - from.LatDeg) * 111_320.0;
+        double east = (to.LonDeg - from.LonDeg) * 111_320.0 * Math.Cos(from.LatDeg * Math.PI / 180.0);
+        double deg = Math.Atan2(east, north) * 180.0 / Math.PI;
+        return deg < 0 ? deg + 360.0 : deg;
+    }
+
+    /// <summary>Great-circle path length from a start position through the task's authored
+    /// vertices - RouteExtentPolicy's own measure, so the number is the one the service records
+    /// in InFlight.RouteLengthMeters.</summary>
+    private static double PathMeters(Geodetic start, IReadOnlyList<(double Lat, double Lon, double? Elev)> pts)
+    {
+        var path = new List<(double Lat, double Lon)> { (start.LatDeg, start.LonDeg) };
+        foreach (var p in pts) path.Add((p.Lat, p.Lon));
+        return RouteExtentPolicy.PathLengthMeters(path);
     }
 
     /// <summary>data/&lt;name&gt;, found by walking up from the exe and the working directory - the

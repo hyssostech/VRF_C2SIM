@@ -63,4 +63,60 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0" />
   </ItemGroup>
+
+  <!-- ===================================================================================
+       N3 (D7 harvest): WHICH COMMIT IS THIS BINARY?
+
+       The runner manifest records `host.gitCommit` = the WORKING TREE's HEAD at run time,
+       which is not the same question. Run D7's manifest said 9baddf9 while the deployed
+       binaries were adca180: harmless that day (two doc commits apart, checked by hand
+       afterwards) and exactly the field a harvest cannot check by itself. The build is the
+       only thing that knows what it was built from, so it stamps it, the start-up banner
+       prints it, and the runner reads it off the deployed file instead of off git.
+
+       ROBUSTNESS, deliberately: git is not a build dependency. ContinueOnError + an exit-code
+       test means a tree with no git, no repository or no HEAD builds exactly as before and
+       stamps "unknown". The DIRTY flag is the load-bearing half - a binary built from an
+       edited tree is NOT its commit, and saying "adca180" of it would be a false claim.
+       IgnoreStandardErrorWarningFormat keeps git's stderr from being read as MSBuild warnings.
+       ==================================================================================== -->
+  <Target Name="StampGitIdentity" BeforeTargets="GetAssemblyAttributes">
+    <Exec Command="git -C &quot;$(MSBuildProjectDirectory)&quot; rev-parse --short=7 HEAD"
+          ConsoleToMSBuild="true" ContinueOnError="true" StandardOutputImportance="low"
+          StandardErrorImportance="low" IgnoreStandardErrorWarningFormat="true">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_GitHeadOut" />
+      <Output TaskParameter="ExitCode" PropertyName="_GitHeadExit" />
+    </Exec>
+    <Exec Command="git -C &quot;$(MSBuildProjectDirectory)&quot; status --porcelain --untracked-files=no"
+          ConsoleToMSBuild="true" ContinueOnError="true" StandardOutputImportance="low"
+          StandardErrorImportance="low" IgnoreStandardErrorWarningFormat="true">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_GitDirtyOut" />
+      <Output TaskParameter="ExitCode" PropertyName="_GitDirtyExit" />
+    </Exec>
+    <PropertyGroup>
+      <BuildGitCommit Condition="'$(_GitHeadExit)'=='0' and '$(_GitHeadOut)'!=''">$(_GitHeadOut.Trim())</BuildGitCommit>
+      <BuildGitCommit Condition="'$(BuildGitCommit)'==''">unknown (git did not answer)</BuildGitCommit>
+      <BuildGitCommit Condition="'$(_GitDirtyExit)'=='0' and '$(_GitDirtyOut)'!=''">$(BuildGitCommit)+DIRTY</BuildGitCommit>
+      <BuildStampUtc>$([System.DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"))</BuildStampUtc>
+    </PropertyGroup>
+    <ItemGroup>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>BuildGitCommit</_Parameter1>
+        <_Parameter2>$(BuildGitCommit)</_Parameter2>
+      </AssemblyAttribute>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>BuildStampUtc</_Parameter1>
+        <_Parameter2>$(BuildStampUtc)</_Parameter2>
+      </AssemblyAttribute>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>BuildBridgeConfig</_Parameter1>
+        <_Parameter2>$(BridgeConfig)</_Parameter2>
+      </AssemblyAttribute>
+    </ItemGroup>
+    <!-- ProductVersion on the deployed .exe/.dll, so the runner (and anyone with a file
+         explorer) can read the commit WITHOUT starting the app. -->
+    <PropertyGroup>
+      <InformationalVersion>$(Version)+git.$(BuildGitCommit).$(BridgeConfig)</InformationalVersion>
+    </PropertyGroup>
+  </Target>
 </Project>

@@ -676,6 +676,60 @@ public static class PreflightSelfTest
                             && VrfC2SimService.RouteShiftCanScore(offline: true, cachedFiles: -1),
               "the route shift is skipped ONLY when offline AND the cache is known empty - an empty cache " +
               "with fetching allowed still runs, and an unreadable cache is not evidence of emptiness");
+
+        // ===== E6 (D7 harvest): THE ONCE-PER-ORDER TILE CENSUS LATCH =====
+        // TileSource has counted CacheHits and Fetched since it was written and nothing ever
+        // printed them - "no fetch count, no resolved elevation level logged: STILL UNFIXED", D7
+        // sec 7. The counters are cumulative, so the useful figure is the per-order DELTA, and
+        // that needs a latch because the scoring workers are asynchronous and the last one of an
+        // order finishes long after OnOrder has returned. The rule is pure; here it is, run.
+        Console.WriteLine("--- E6: the once-per-order tile census latch ---");
+        {
+            var latch = new TileCensusLatch();
+            long g = latch.BeginOrder();
+            long a = latch.Enter(), b = latch.Enter(), c = latch.Enter();
+            Check(ref failures, a == g && b == g && c == g,
+                  "every worker of one order shares that order's generation");
+            Check(ref failures, !latch.Leave(a) && !latch.Leave(b),
+                  "the first two workers to finish report NOTHING - the order is not done");
+            Check(ref failures, latch.Leave(c),
+                  "the LAST worker of the order reports the census - exactly once, at the moment the " +
+                  "order's scoring is actually finished");
+            Check(ref failures, !latch.Leave(c),
+                  "...and never twice, however many times it is called");
+        }
+        {
+            var latch = new TileCensusLatch();
+            long g1 = latch.BeginOrder();
+            long w1 = latch.Enter();                 // a worker of order 1, still running
+            long g2 = latch.BeginOrder();            // order 2 arrives before it finishes
+            long w2 = latch.Enter();
+            Check(ref failures, g2 != g1 && !latch.Leave(w1),
+                  "a STRAGGLER from the previous order cannot report - its generation is closed, so it " +
+                  "can neither re-trigger the old census nor be counted into the new order's");
+            Check(ref failures, latch.Leave(w2),
+                  "...and the new order's own last worker reports normally");
+        }
+        {
+            var latch = new TileCensusLatch();
+            Check(ref failures, latch.Enter() == 0 && !latch.Leave(0),
+                  "a scoring worker with no order behind it (generation 0) can never trigger a census - " +
+                  "the route shift runs before any order on no path, but the rule must not depend on that");
+        }
+        {
+            // Two successive orders, each with its own work: one census each, never a shared one.
+            var latch = new TileCensusLatch();
+            int censuses = 0;
+            for (int order = 0; order < 2; order++)
+            {
+                latch.BeginOrder();
+                var workers = new List<long> { latch.Enter(), latch.Enter() };
+                foreach (long w in workers) if (latch.Leave(w)) censuses++;
+            }
+            Check(ref failures, censuses == 2,
+                  $"two successive orders with two scoring workers each produce exactly {censuses} " +
+                  "census line(s) - one per order, which is what 'once per order' means");
+        }
         return failures;
     }
 

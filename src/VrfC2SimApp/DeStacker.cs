@@ -33,17 +33,40 @@ namespace VrfC2SimApp;
 /// ruling's plain words and <see cref="ApplyComposedSiblings"/> spreads them - around their parent,
 /// which never moves, at THEIR echelon's spacing (<see cref="EchelonSpacing"/>), not the company's
 /// 700 m. Switchable at Vrf:DeStackComposedSiblings for run-to-run comparability.
+///
+/// *** N4 (D7 harvest, 2026-09-21): THE CHILDREN'S CENTROID IS THE PARENT'S PUBLISHED POSITION. ***
+/// The first cut of the sibling pass reused the HEX <see cref="RingOffset"/> of the independent
+/// lane, which puts N children on the FIRST N hex slots - bearings 0/60/120 deg for N = 3. Those
+/// three bearings do not sum to zero, so their centroid sits 2/3 x spacing x |sum of unit vectors|
+/// off the shared coordinate: 233 m for three platoons on a 350 m ring. VR-Forces publishes a
+/// COMPOSED AGGREGATE AT ITS MEMBERS' CENTROID, so run D7 measured 114.MechCoy~PXY's published
+/// position 262 m from the coordinate its own shell was created at, its route 1,039.3 m instead of
+/// 1,112 m, its arrival radius 260 m instead of 278 and its traversal bar 520 m instead of 556.
+/// The parent's SHELL never moved - the object the federation sees did.
+/// THE FIX IS THE GEOMETRY, not the anchor: N siblings go on ONE ring at EQUAL bearings 360/N
+/// apart (<see cref="EqualBearingOffset"/>), whose unit vectors sum to zero for every N >= 2, so
+/// the centroid coincides with the shared coordinate to floating-point noise. The RADIUS is then
+/// derived from the echelon spacing rather than equal to it - see
+/// <see cref="CentroidPreservingRadius"/>. The INDEPENDENT lane (<see cref="Apply"/>) is UNTOUCHED:
+/// there the anchor is a real unit that keeps the centre, nothing is published at a centroid, and
+/// the hex packing is what keeps the radius bounded as a group grows.
 /// </summary>
 public static class DeStacker
 {
     public sealed record StackGroup(double LatDeg, double LonDeg, int Count);
 
     /// <summary>One composed-sibling group that was spread: whose children they are, where the
-    /// shared coordinate was, how many moved, at which echelon's spacing, and - for the start-up
-    /// line the ruling asks for - each child's name and how far it went.</summary>
+    /// shared coordinate was, how many moved, at which echelon's spacing, the RING RADIUS that
+    /// spacing produced (N4: the two are no longer the same number) and - for the start-up line
+    /// the ruling asks for - each child's name and how far it went.
+    /// <para><paramref name="AnchoredOnParent"/> is true when the anchor is the PARENT's own
+    /// current position rather than the children's shared coordinate - the SF-4 case, see
+    /// <see cref="ApplyComposedSiblings"/>.</para></summary>
     public sealed record SiblingGroup(string ParentName, double LatDeg, double LonDeg, int Count,
                                       double SpacingMeters, string EchelonKey,
-                                      IReadOnlyList<(string Name, double Meters)> Moved);
+                                      IReadOnlyList<(string Name, double Meters)> Moved,
+                                      double RadiusMeters = 0.0,
+                                      bool AnchoredOnParent = false);
 
     /// <summary>A composed-sibling group that was NOT spread, and why - so "nothing happened" is
     /// never silent. Reason is one of: the echelon is not in the table and there is no fallback,
@@ -143,33 +166,61 @@ public static class DeStacker
     /// co-location by C14's plain words, whether that coordinate was authored or cascaded onto
     /// them from their superior, and it is spread onto hex rings about that shared coordinate.
     ///
-    /// THREE PROPERTIES THIS GUARANTEES, each of them load-bearing:
+    /// FOUR PROPERTIES THIS GUARANTEES, each of them load-bearing:
     ///  1. THE PARENT NEVER MOVES. It is not in its own child list, and no slot is taken from it:
-    ///     the children occupy ring slots 1..N and the shared coordinate - which for the superior
+    ///     the children occupy the ring and the shared coordinate - which for the superior
     ///     cascade IS the parent's position - is left to the parent. Every taskee that is a parent
     ///     therefore keeps the position its route is built from (the property --destack-selftest
     ///     asserts on the real fixtures).
-    ///  2. EVERY child of a spread group moves, so no child is left stacked on the parent's own
+    ///  2. *** AND NEITHER DOES ITS PUBLISHED POSITION (N4, D7 harvest). *** The children sit at
+    ///     EQUAL bearings 360/N apart, so their CENTROID - which is what VR-Forces publishes for
+    ///     the composed aggregate, and therefore what the taskee's route, arrival radius and
+    ///     traversal bar are computed from - coincides with the shared coordinate. The hex layout
+    ///     this replaces moved it 233 m for three platoons on a 350 m ring and cost R9 lean 74 m
+    ///     of route. N = 1 does not move at all (a lone child is not a stack); N = 2 puts the two
+    ///     children diametrically opposite.
+    ///  3. EVERY child of a spread group moves, so no child is left stacked on the parent's own
     ///     coordinate. That is the difference from <see cref="Apply"/>, where the first unit of a
     ///     group is the anchor and keeps its spot.
-    ///  3. DETERMINISTIC: groups in parent-index order, children in plan-index order, the same hex
-    ///     <see cref="RingOffset"/> geometry as the independent lane.
+    ///  4. DETERMINISTIC: groups in parent-index order, children in plan-index order, one pure
+    ///     function of (N, spacing, rotation) for the geometry.
     ///
     /// SPACING is <paramref name="spacingForEchelon"/> applied to the group's children; when they
     /// disagree (a mixed group), the LARGEST of their spacings wins - the conservative direction,
     /// since the criterion is that no two footprints overlap. A group whose echelon the table
     /// cannot size returns a non-positive spacing and is SKIPPED, reported in
-    /// <paramref name="skipped"/> rather than silently spread at a number nobody derived.
+    /// <paramref name="skipped"/> rather than silently spread at a number nobody derived. The
+    /// spacing is the required MINIMUM SIBLING SEPARATION, and the ring RADIUS is derived from it
+    /// by <see cref="CentroidPreservingRadius"/>.
+    ///
+    /// *** SF-4 (cold-start review of 35a13f2): WHICH POINT THE RING IS BUILT ABOUT. *** The pass
+    /// runs AFTER the independent pass so that a parent the independent pass displaced is ringed
+    /// at the position it ENDED at - which is what the call site's comment has always claimed and
+    /// what the code did NOT do: it anchored on the children's shared CoordKey and never read the
+    /// parent's plan at all. With N4 that stopped being cosmetic: the anchor IS the aggregate's
+    /// published position, so anchoring away from the parent's shell puts the shell and the
+    /// published object in different places. <paramref name="positionsBeforeIndependentPass"/>
+    /// closes it WITHOUT changing any shipped fixture: the parent's current position is taken as
+    /// the anchor ONLY when the parent SHARED the group's coordinate before the independent pass
+    /// ran (the superior-cascade case this feature exists for). Siblings authored on a common
+    /// point away from their parent keep ringing THAT point - moving them onto a parent they were
+    /// never co-located with is a different change, with no evidence behind it. Null (the
+    /// selftest's synthetic calls, and any caller that took no snapshot) = the shared coordinate,
+    /// exactly as before.
     /// </summary>
     /// <param name="echelonKeys">Index-parallel with <paramref name="plans"/>:
     /// EchelonSpacing.KeyOf for each planned unit, "" where the init says nothing.</param>
+    /// <param name="positionsBeforeIndependentPass">Index-parallel snapshot of
+    /// <paramref name="plans"/>' positions taken BEFORE <see cref="Apply"/> ran, or null. See the
+    /// SF-4 paragraph above.</param>
     public static List<SiblingGroup> ApplyComposedSiblings(
         IList<CreationPlan> plans,
         IReadOnlyList<(int ParentIndex, IReadOnlyList<int> ChildIndices)> composedGroups,
         IReadOnlyList<string> echelonKeys,
         Func<string, double> spacingForEchelon,
         double rotationDeg,
-        out List<SiblingGroupSkipped> skipped)
+        out List<SiblingGroupSkipped> skipped,
+        IReadOnlyList<Geodetic> positionsBeforeIndependentPass = null)
     {
         var spread = new List<SiblingGroup>();
         skipped = new List<SiblingGroupSkipped>();
@@ -208,12 +259,25 @@ public static class DeStacker
                     continue;
                 }
                 double anchorLat = kv.Key.Item1, anchorLon = kv.Key.Item2;
+                // SF-4: the parent's CURRENT position is the anchor when the parent shared this
+                // group's coordinate before the independent pass ran. See the remarks.
+                bool anchoredOnParent = false;
+                if (positionsBeforeIndependentPass != null
+                    && parentIndex < positionsBeforeIndependentPass.Count
+                    && CoordKey(positionsBeforeIndependentPass[parentIndex].LatDeg,
+                                positionsBeforeIndependentPass[parentIndex].LonDeg) == kv.Key)
+                {
+                    anchorLat = plans[parentIndex].Pos.LatDeg;
+                    anchorLon = plans[parentIndex].Pos.LonDeg;
+                    anchoredOnParent = true;
+                }
                 double latRad = anchorLat * Math.PI / 180.0;
                 double metersPerDegLon = MetersPerDegLat * Math.Max(Math.Cos(latRad), 0.01);
+                double radius = CentroidPreservingRadius(members.Count, spacing);
                 var moved = new List<(string, double)>(members.Count);
                 for (int n = 0; n < members.Count; n++)
                 {
-                    var (north, east) = RingOffset(n + 1, spacing, rotationDeg);   // slot 0 is the parent's
+                    var (north, east) = EqualBearingOffset(n, members.Count, radius, rotationDeg);
                     int idx = members[n];
                     var p = plans[idx];
                     plans[idx] = p with
@@ -228,16 +292,81 @@ public static class DeStacker
                     moved.Add((p.Name, Math.Sqrt(north * north + east * east)));
                 }
                 spread.Add(new SiblingGroup(parentName, anchorLat, anchorLon, members.Count,
-                                            spacing, echelon, moved));
+                                            spacing, echelon, moved, radius, anchoredOnParent));
             }
         }
         return spread;
     }
 
     /// <summary>
+    /// *** THE RING RADIUS THAT KEEPS THE CENTROID ON THE ANCHOR (N4, D7 harvest). ***
+    ///
+    /// N points at equal bearings 360/N apart on a circle of radius r have their centroid EXACTLY
+    /// at the centre (the unit vectors are the N-th roots of unity and sum to zero for every
+    /// N &gt;= 2), and their nearest-neighbour separation is the chord
+    /// <c>2 r sin(pi / N)</c>. The ruling's quantity is the SEPARATION - "no two units' default
+    /// formations overlap" - so the radius is derived from it rather than set equal to it:
+    ///
+    ///     r = spacing / (2 sin(pi / N))          minimum sibling separation = spacing, exactly
+    ///
+    /// | N | r / spacing | r at the 350 m PLATOON spacing | min separation |
+    /// |---|-------------|--------------------------------|----------------|
+    /// | 1 | -           | not spread at all              | -              |
+    /// | 2 | 0.500000    | 175.0 m (opposite each other)  | 350 m          |
+    /// | 3 | 0.577350    | 202.1 m                        | 350 m          |
+    /// | 4 | 0.707107    | 247.5 m                        | 350 m          |
+    /// | 5 | 0.850651    | 297.7 m                        | 350 m          |
+    /// | 6 | 1.000000    | 350.0 m                        | 350 m          |
+    /// | 7 | 1.152382    | 403.3 m                        | 350 m          |
+    /// | 8 | 1.306563    | 457.3 m                        | 350 m          |
+    ///
+    /// BEYOND ONE RING THERE IS NO SECOND RING, and that is the deliberate difference from the hex
+    /// <see cref="RingOffset"/> of the independent lane. A second ring would re-introduce exactly
+    /// the defect N4 is about: ring 1 and ring 2 populated to different counts do not have a
+    /// centroid at the centre except by coincidence. So every sibling of a group stays on ONE
+    /// circle whose radius grows with N - asymptotically <c>r -&gt; spacing x N / (2 pi)</c>, i.e.
+    /// about 0.159 x spacing per extra child (a 12-child group is 671 m out at the platoon
+    /// spacing, a 20-child group 1,118 m). THE COST IS PAID IN RADIUS, NOT IN OVERLAP. Two
+    /// consequences a future session must weigh rather than rediscover: the group's footprint
+    /// grows linearly with N, and each child is displaced by r - which is the "phantom travel" a
+    /// member materialized after dispatch is credited with (review NOTE-1) and the amount by which
+    /// the taskee's own position diverges from its members' (review NOTE-2). No shipped fixture
+    /// has more than 3 composed siblings in one group (R9 full's largest is 3).
+    ///
+    /// N &lt;= 1 returns 0: a lone child is not a stack and must not be displaced (and its own
+    /// centroid IS the anchor already). A non-positive spacing returns 0 for the same reason
+    /// <see cref="Apply"/> no-ops on one.
+    /// </summary>
+    public static double CentroidPreservingRadius(int count, double spacingMeters)
+        => count <= 1 || !(spacingMeters > 0.0)
+           ? 0.0
+           : spacingMeters / (2.0 * Math.Sin(Math.PI / count));
+
+    /// <summary>
+    /// Slot <paramref name="slot"/> of <paramref name="count"/> on ONE ring of radius
+    /// <paramref name="radiusMeters"/>, at bearing <c>rotationDeg + 360 x slot / count</c>
+    /// clockwise from north (so slot 0 at rotation 0 is due north, matching
+    /// <see cref="RingOffset"/>'s first slot and Vrf:DeStackRotationDeg's documented meaning).
+    /// Returns (north, east) metres. Pure; the centroid property of
+    /// <see cref="CentroidPreservingRadius"/> is a property OF THIS FUNCTION and is asserted
+    /// directly by --destack-selftest.
+    /// </summary>
+    public static (double NorthMeters, double EastMeters) EqualBearingOffset(
+        int slot, int count, double radiusMeters, double rotationDeg = 0.0)
+    {
+        if (count <= 0 || !(radiusMeters > 0.0)) return (0.0, 0.0);
+        double angle = 2.0 * Math.PI * slot / count + rotationDeg * Math.PI / 180.0;
+        return (radiusMeters * Math.Cos(angle), radiusMeters * Math.Sin(angle));
+    }
+
+    /// <summary>
     /// Slot for the n-th DISPLACED unit of a group (n is 1-based; n=0 is the anchor
     /// and never moves). Hex ring k = 1, 2, ... holds 6k slots at radius k*spacing;
     /// cumulative capacity of rings 1..k is 3k(k+1).
+    ///
+    /// THE INDEPENDENT LANE ONLY since 2026-09-21 (N4). It is correct there and wrong for composed
+    /// siblings: the anchor of an independent group is a REAL UNIT that keeps the centre slot and
+    /// nothing publishes a centroid over the group, so hex packing's bounded radius is pure gain.
     /// </summary>
     /// <param name="rotationDeg">Rotates the whole hex pattern about the anchor (clockwise from
     /// north, degrees; default 0). Every displaced unit then lands on DIFFERENT ground with the

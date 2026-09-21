@@ -23,12 +23,19 @@ public sealed class InFlightTracker
     /// dispatched from. ArrivalPolicy needs both - the length sets the arrival radius and the
     /// traversal bar, and the start is what says whether the last vertex is far enough from it
     /// for arriving there to mean anything at all. NaN/null = "not a move, or not recorded",
-    /// which degrades to the pre-STP-837 tolerances rather than to a stricter unasked-for rule.</summary>
+    /// which degrades to the pre-STP-837 tolerances rather than to a stricter unasked-for rule.
+    /// <para>DispatchedSimSeconds (N7, D7 harvest) is the SIMULATION clock's reading at the same
+    /// instant as DispatchedUtc - VrfBridge.SimTimeSeconds(), the reader the progress watchdog and
+    /// the task clock already share. NaN = the clock was not readable at dispatch, which is what
+    /// every line that quotes it must say rather than print a zero. It exists so that "N s after
+    /// dispatch" can be stated on BOTH clocks: every such figure this interface printed before
+    /// N7 was wall-minus-wall, and one harvest read it as a sim figure.</para></summary>
     public readonly record struct InFlight(string TaskUuid, string TaskName, string ExpectedKind,
                                            DateTime DispatchedUtc, double? DestLat = null, double? DestLon = null,
                                            string TaskeeUuid = "",
                                            double RouteLengthMeters = double.NaN,
-                                           double? StartLat = null, double? StartLon = null);
+                                           double? StartLat = null, double? StartLon = null,
+                                           double DispatchedSimSeconds = double.NaN);
 
     private readonly ConcurrentDictionary<string, InFlight> _byUnitName = new();
 

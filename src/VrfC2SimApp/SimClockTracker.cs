@@ -128,6 +128,63 @@ public sealed class SimClockTracker
 }
 
 /// <summary>
+/// HOW FAST THE SCENARIO IS RUNNING AGAINST THE WALL (N7, D7 harvest 2026-09-21). Pure: fed two
+/// readings, keeps two marks, answers a ratio - no clock of its own, so the rule is decidable
+/// offline (`--rulings-selftest`).
+///
+/// WHY IT EXISTS. Every elapsed figure this interface printed was wall-minus-wall and none of them
+/// said so. The D6 harvest recorded "sim/wall 1.00" by comparing one of them against wall capture
+/// stamps - the same clock on both sides, so the check was circular - and D7 then had to REGRESS
+/// the level-3 behaviour-tree console rows against the observer's trace clock to discover the
+/// scenario was running at 3.00x. The ratio is a number the interface can simply state: it holds
+/// the sim reading (VrfBridge.SimTimeSeconds() -&gt; DtVrfRemoteController::simTime()) and the wall
+/// reading at the same instant, once a second, and nothing else is needed.
+///
+/// THE RULE: the ratio is (sim now - sim at the window's start) / (wall now - wall at the window's
+/// start) over a window of at least <see cref="MinWindowWallSeconds"/> WALL seconds. It is
+/// reported when the window is full, and the window then RE-ANCHORS on the reading just reported,
+/// so each line describes a DISJOINT stretch of the run rather than a running average that hides a
+/// change. A window is ABANDONED (re-anchored, nothing reported) whenever the sim reading is
+/// unreadable or went BACKWARDS - an unreadable stretch has no ratio, and a rollback would
+/// manufacture a negative one. A FLAT sim clock is NOT abandoned: 0.00 is the true ratio of a
+/// paused scenario and is exactly what an operator needs to see.
+/// </summary>
+public sealed class SimWallRatio
+{
+    /// <summary>The window, in WALL seconds. One minute: long enough that a 1 Hz sampler's
+    /// quantisation is under 2% and short enough to show a rate change inside a demo.</summary>
+    public const double MinWindowWallSeconds = 60.0;
+
+    private double _simAnchor = double.NaN;
+    private double _wallAnchor = double.NaN;
+    private double _lastSim = double.NaN;
+
+    /// <summary>
+    /// Fold in one pair of readings. <paramref name="simSeconds"/> is NaN (or negative) when the
+    /// sim clock is not readable. Returns the ratio to report, or NaN for "nothing to report yet".
+    /// </summary>
+    public double Observe(double simSeconds, double wallSeconds)
+    {
+        bool readable = double.IsFinite(simSeconds) && simSeconds >= 0.0;
+        if (!readable || (double.IsFinite(_lastSim) && simSeconds < _lastSim))
+        {
+            // No reading, or a rollback: this window cannot be priced. Start a new one.
+            _simAnchor = _wallAnchor = _lastSim = double.NaN;
+            if (readable) { _simAnchor = _lastSim = simSeconds; _wallAnchor = wallSeconds; }
+            return double.NaN;
+        }
+        _lastSim = simSeconds;
+        if (double.IsNaN(_simAnchor)) { _simAnchor = simSeconds; _wallAnchor = wallSeconds; return double.NaN; }
+        double wallSpan = wallSeconds - _wallAnchor;
+        if (wallSpan < MinWindowWallSeconds || wallSpan <= 0.0) return double.NaN;
+        double ratio = (simSeconds - _simAnchor) / wallSpan;
+        _simAnchor = simSeconds;
+        _wallAnchor = wallSeconds;
+        return ratio;
+    }
+}
+
+/// <summary>
 /// THE TASK-CLOCK AXIS (M2 of the cold-start review of 5c67d41): one monotone seconds axis on
 /// which every C2SIM task time is served - the Duration that ends a task (R4), the StartTime delay
 /// that holds one back, and the STREND predecessor gate. Pure: it is fed readings, it reads no
