@@ -252,11 +252,17 @@ public class VrfSettings
     // also take the instrument away. A trace comparison against 1d0fb69 will therefore differ by
     // those lines and by nothing else.
     //
-    // IT ALSO BOUNDS NOTHING LONGER THAN THE COMPOSITION BACKSTOP. The init barrier is capped at
-    // Vrf:CompositionTimeoutSeconds + 30 - 5 (40 s at the shipped 15) whatever is set here, because
-    // a barrier that outlives RunTaskAsync's composition await let a task be dispatched onto an
-    // empty shell that the barrier then deleted underneath it (B1). Raising this value raises the
-    // DISPATCH hold only; raise Vrf:CompositionTimeoutSeconds to move the barrier.
+    // IT ALSO BOUNDS NOTHING LONGER THAN THE COMPOSITION BACKSTOP. The init barrier is CAPPED,
+    // whatever is set here, because a barrier that outlives RunTaskAsync's composition await let a
+    // task be dispatched onto an empty shell that the barrier then deleted underneath it (B1). The
+    // cap leaves room for the work the drain releases: a case-3 re-create goes through the terrain
+    // query (Vrf:TerrainProfileTimeoutSeconds) and is then released on reflection
+    // (Vrf:CompositionTimeoutSeconds), so the margin is those two summed - and the composition term
+    // CANCELS against the backstop's own, leaving
+    //     barrier = min(this, 30 - Vrf:TerrainProfileTimeoutSeconds)   = 20 s at the shipped 10.
+    // So RAISING THIS VALUE RAISES THE DISPATCH HOLD ONLY; the barrier moves with
+    // Vrf:TerrainProfileTimeoutSeconds (lower it to lengthen the barrier), and it can never exceed
+    // 30 s. The INIT CREATION BARRIER line prints the value in force, so a run never has to guess.
     //
     // A taskee the initialization never planned is NOT covered by this and is still refused at
     // once (VrfC2SimService.cs, "taskee ... is not in the C2SIM initialization"), and a hold ends

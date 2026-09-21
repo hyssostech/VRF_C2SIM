@@ -240,7 +240,16 @@ public static class DispatchReadinessSelfTest
         private readonly bool _deleteGuard;      // MaterializeUnit refuses to delete under a dispatch
         private readonly double _barrier;
         private readonly double _composeBackstop;
+        // D2 (delta review of 27960f6): THE RE-CREATE'S ROUND TRIP, which the first version of this
+        // fixture modelled as 0.3/0.5 s and the gate as instantaneous - optimistic by up to 25 s
+        // against the shipped timeouts, which is exactly why it could not see D2. The re-created
+        // object binds after the terrain-profile leg (Vrf:TerrainProfileTimeoutSeconds in the worst
+        // case, because case 3 re-creates through StartPlacementTerrainQuery) and its GATE is
+        // completed by ReleaseReflected when it reflects - so the gate opens when it is READABLE,
+        // bounded by Vrf:CompositionTimeoutSeconds after the bind.
+        private readonly double _recreateBind, _recreateReadable;
         private double _boundAt, _readableAt;    // the init shell; moved by a re-create
+        private double _materializedAt = double.NaN;
 
         public readonly List<string> Lines = new();
         public double DispatchedAt = double.NaN;
@@ -251,11 +260,13 @@ public static class DispatchReadinessSelfTest
         public TaskeeReadiness HoldState = TaskeeReadiness.Ready;
 
         public B1Fixture(bool parkedCheck, bool deleteGuard, double barrier, double composeBackstop,
-                         double boundAt, double readableAt)
+                         double boundAt, double readableAt,
+                         double recreateBind = 0.30, double recreateReadable = 0.50)
         {
             _parkedCheck = parkedCheck; _deleteGuard = deleteGuard;
             _barrier = barrier; _composeBackstop = composeBackstop;
             _boundAt = boundAt; _readableAt = readableAt;
+            _recreateBind = recreateBind; _recreateReadable = recreateReadable;
         }
 
         /// <summary>One init-planned name NEVER binds, so the barrier can only ever EXPIRE. The
@@ -282,14 +293,19 @@ public static class DispatchReadinessSelfTest
                     else
                     {
                         DeletedAt = t;
-                        _boundAt = t + 0.30;        // ExpectRebind + the re-created object's ObjectCreated
-                        _readableAt = t + 0.50;     // ... and ReleaseReflected
+                        _materializedAt = t;
+                        _boundAt = t + _recreateBind;       // ExpectRebind + the re-created ObjectCreated
+                        _readableAt = t + _recreateReadable; // ... and ReleaseReflected
                     }
                 }
                 // --- RunTaskAsync's composition await -------------------------------------------
+                // D2: the gate is completed by ReleaseReflected, i.e. when the RE-CREATED object
+                // reflects - NOT at the instant the drain ran. Modelling it as instantaneous is
+                // what hid D2 from this arm.
                 if (double.IsNaN(gateOpened))
                 {
-                    if (!parked) gateOpened = t;                     // the materialization ran: gate released
+                    if (!double.IsNaN(_materializedAt) && t >= _readableAt) gateOpened = t;
+                    else if (RefusedDelete) gateOpened = t;          // the guard released both gates
                     else if (t >= orderAt + _composeBackstop)
                     {
                         gateOpened = t;
@@ -477,7 +493,7 @@ public static class DispatchReadinessSelfTest
             var names = new[] { "1222.MechPlt", "114.MechCoy~PXY", "1143.MechPlt", "1.BdeHQ~PXY",
                                 "1141.MechPlt", "1142.MechPlt" };
             var bindAt = new[] { 1.20, 1.25, 1.30, 1.35, 1.40, 2.60 };   // the last one lags
-            var fx = new BarrierFixture(featureEnabled, DispatchReadiness.BarrierSeconds(timeout, 15.0),
+            var fx = new BarrierFixture(featureEnabled, DispatchReadiness.BarrierSeconds(timeout, 15.0, 10.0),
                                         names, bindAt, createsIssuedAt: 1.00);
             fx.Materialize(1.26, "114.MechCoy~PXY");     // the order arrived at 0.31 and this shell just bound
             fx.Run(10.0);
@@ -511,10 +527,10 @@ public static class DispatchReadinessSelfTest
         {
             var names = new[] { "A", "B", "C" };
             var bindAt = new[] { 1.0, 1.1, Never };
-            var fx = new BarrierFixture(featureEnabled, DispatchReadiness.BarrierSeconds(timeout, 15.0),
+            var fx = new BarrierFixture(featureEnabled, DispatchReadiness.BarrierSeconds(timeout, 15.0, 10.0),
                                         names, bindAt, createsIssuedAt: 0.5);
             fx.Materialize(1.2, "B");
-            fx.Run(DispatchReadiness.BarrierSeconds(timeout, 15.0) + 5.0);
+            fx.Run(DispatchReadiness.BarrierSeconds(timeout, 15.0, 10.0) + 5.0);
 
             Check("NO WEDGE: the barrier EXPIRES and the held materialization runs anyway",
                   fx.Settled && fx.Issued.Any(x => x.Kind == "DELETE" && x.Name == "B"));
@@ -531,10 +547,12 @@ public static class DispatchReadinessSelfTest
         // Vrf:CompositionTimeoutSeconds = 15 -> composition backstop 45 s; the barrier wants 60 s
         // and is CAPPED to 40 s. One init-planned name never binds, so the barrier can only expire;
         // the order arrives at +1 s, which is the demo-day Way B posture.
-        const double ComposeBackstop = 15.0 + 30.0;
+        const double CompTimeout = 15.0;         // Vrf:CompositionTimeoutSeconds, shipped
+        const double TerrainTimeout = 10.0;      // Vrf:TerrainProfileTimeoutSeconds, shipped
+        const double ComposeBackstop = CompTimeout + 30.0;
         {
             double barrier = featureEnabled
-                ? DispatchReadiness.BarrierSeconds(Timeout, 15.0)     // 40 s, capped
+                ? DispatchReadiness.BarrierSeconds(Timeout, CompTimeout, TerrainTimeout)  // 20 s, capped
                 : Timeout;                                            // 945e054: 60 s, uncapped
             var fx = new B1Fixture(parkedCheck: featureEnabled, deleteGuard: featureEnabled,
                                    barrier: barrier, composeBackstop: ComposeBackstop,
@@ -550,19 +568,52 @@ public static class DispatchReadinessSelfTest
             Check("B1: the CAP is what keeps the composition backstop out of it entirely - the "
                   + "\"dispatching anyway (move may drive an incomplete unit)\" line never appears",
                   !fx.ComposeBackstopFired);
-            Check("B1: the cap is derived, not a magic number - min(bound, "
-                  + "Vrf:CompositionTimeoutSeconds + 30 - margin), 40 s at the shipped 15",
-                  Math.Abs(DispatchReadiness.BarrierSeconds(60.0, 15.0) - 40.0) < 1e-9
-                  && DispatchReadiness.BarrierSeconds(60.0, 15.0) < ComposeBackstop
-                  && Math.Abs(DispatchReadiness.BarrierSeconds(10.0, 15.0) - 10.0) < 1e-9
-                  && DispatchReadiness.BarrierSeconds(60.0, 0.0) >= 1.0);
+            Check("B1/D2: the cap is DERIVED from the two settings that spend the slack, not picked "
+                  + "- 20 s at the shipped 15/10, i.e. 30 - Vrf:TerrainProfileTimeoutSeconds",
+                  Math.Abs(DispatchReadiness.BarrierSeconds(60.0, CompTimeout, TerrainTimeout) - 20.0) < 1e-9
+                  && DispatchReadiness.BarrierSeconds(60.0, CompTimeout, TerrainTimeout) < ComposeBackstop
+                  // the composition term cancels: the cap depends on the terrain timeout alone
+                  && Math.Abs(DispatchReadiness.BarrierSeconds(60.0, 99.0, TerrainTimeout) - 20.0) < 1e-9
+                  // a smaller configured bound still wins, and the floor holds against a hostile one
+                  && Math.Abs(DispatchReadiness.BarrierSeconds(10.0, CompTimeout, TerrainTimeout) - 10.0) < 1e-9
+                  && DispatchReadiness.BarrierSeconds(60.0, CompTimeout, 1000.0) >= 1.0
+                  && Math.Abs(DispatchReadiness.BarrierBackstopMarginSeconds(CompTimeout, TerrainTimeout) - 25.0) < 1e-9);
+        }
+        {
+            // D2 (delta review of 27960f6), THE ARM THE FIRST VERSION COULD NOT SEE. The drained
+            // materialization's gate is not free: case 3 re-creates through
+            // StartPlacementTerrainQuery, so the create waits up to Vrf:TerrainProfileTimeoutSeconds
+            // for the terrain reply, and the re-created object is released by ReleaseReflected up to
+            // Vrf:CompositionTimeoutSeconds after that. WORST CASE 25 s of round trip, modelled here
+            // instead of 0.5 s. At the old 5 s margin (cap 40) the backstop fires at 46 s while the
+            // gate is not due until 65 s; at the derived margin (cap 20) the gate is due at 45 s,
+            // before the backstop. The order arrives at +1 s, which is the slack the inequality
+            // relies on (T_order > T_init, always, because the park only exists if it is).
+            double barrier = featureEnabled
+                ? DispatchReadiness.BarrierSeconds(Timeout, CompTimeout, TerrainTimeout)   // 20 s
+                : 40.0;                                    // 27960f6's cap at the 5 s margin
+            var fx = new B1Fixture(parkedCheck: featureEnabled, deleteGuard: featureEnabled,
+                                   barrier: barrier, composeBackstop: ComposeBackstop,
+                                   boundAt: 0.5, readableAt: 0.8,
+                                   recreateBind: TerrainTimeout,
+                                   recreateReadable: TerrainTimeout + CompTimeout);
+            fx.Run("T_R5_CO1", "114.MechCoy~PXY", orderAt: 1.0, horizon: 140.0);
+
+            Check("B1/D2: with the WORST-CASE re-create round trip (terrain 10 s + reflection 15 s) "
+                  + "the composition backstop still never fires - which is what the margin is FOR",
+                  !fx.ComposeBackstopFired);
+            Check("B1/D2: and the task dispatches onto the RE-CREATED object, after the "
+                  + "materialization, not onto the deleted shell",
+                  !double.IsNaN(fx.DispatchedAt) && !double.IsNaN(fx.DeletedAt)
+                  && fx.DispatchedAt >= fx.DeletedAt + TerrainTimeout + CompTimeout
+                  && !fx.DeletedUnderADispatchedTask);
         }
         {
             // DEFENCE 2 ON ITS OWN. The backstop is made SHORT so it fires while the
             // materialization is still parked - the exact fall-through the review traced. The
             // parked classification must HOLD the task; nothing may be dispatched onto the shell.
             var fx = new B1Fixture(parkedCheck: featureEnabled, deleteGuard: featureEnabled,
-                                   barrier: DispatchReadiness.BarrierSeconds(Timeout, 15.0),
+                                   barrier: DispatchReadiness.BarrierSeconds(Timeout, CompTimeout, TerrainTimeout),
                                    composeBackstop: 5.0, boundAt: 0.5, readableAt: 0.8);
             fx.Run("T_R5_CO1", "114.MechCoy~PXY", orderAt: 1.0, horizon: 90.0);
 
@@ -582,7 +633,7 @@ public static class DispatchReadinessSelfTest
             // guard is: the task IS dispatched onto the shell at the fall-through, and the guard
             // must then refuse to delete it and say so.
             var fx = new B1Fixture(parkedCheck: false, deleteGuard: featureEnabled,
-                                   barrier: DispatchReadiness.BarrierSeconds(Timeout, 15.0),
+                                   barrier: DispatchReadiness.BarrierSeconds(Timeout, CompTimeout, TerrainTimeout),
                                    composeBackstop: 5.0, boundAt: 0.5, readableAt: 0.8);
             fx.Run("T_R5_CO1", "114.MechCoy~PXY", orderAt: 1.0, horizon: 90.0);
 
@@ -642,10 +693,21 @@ public static class DispatchReadinessSelfTest
               && !DispatchReadiness.ShouldHold(TaskeeReadiness.BoundNotReadable, -1.0, false)
               && DispatchReadiness.ShouldHold(TaskeeReadiness.PlannedNotRequested, 0.001, false));
 
-        Check("THE OBSERVATION STILL RUNS WITH THE FEATURE OFF: the READY TO TASK line has a window "
-              + "of its own, because the operator is told to wait for it",
-              Math.Abs(DispatchReadiness.BarrierSeconds(0.0, 1000.0) - DispatchReadiness.ObservationWindowSeconds) < 1e-9
-              && Math.Abs(DispatchReadiness.BarrierSeconds(90.0, 1000.0) - 90.0) < 1e-9);
+        Check("THE OBSERVATION STILL RUNS WITH THE FEATURE OFF: at 0 the barrier/observation window "
+              + "is a real, positive window - the same one the feature-on barrier uses, because the "
+              + "operator is told to wait for the READY TO TASK line either way",
+              DispatchReadiness.BarrierSeconds(0.0, CompTimeout, TerrainTimeout) > 0.0
+              && Math.Abs(DispatchReadiness.BarrierSeconds(0.0, CompTimeout, TerrainTimeout)
+                          - DispatchReadiness.BarrierSeconds(DispatchReadiness.ObservationWindowSeconds,
+                                                             CompTimeout, TerrainTimeout)) < 1e-9);
+
+        Check("D2: THE CAP BINDS THE BARRIER, NOT Vrf:DispatchReadinessTimeoutSeconds - after the "
+              + "margin is derived the composition term cancels, so the barrier is 30 - "
+              + "Vrf:TerrainProfileTimeoutSeconds and can never exceed 30 s however high the "
+              + "dispatch bound is set. Raising the dispatch bound raises the HOLD only",
+              Math.Abs(DispatchReadiness.BarrierSeconds(86400.0, CompTimeout, TerrainTimeout) - 20.0) < 1e-9
+              && Math.Abs(DispatchReadiness.BarrierSeconds(86400.0, 0.0, 0.0) - 30.0) < 1e-9
+              && Math.Abs(DispatchReadiness.BarrierSeconds(86400.0, 99.0, 5.0) - 25.0) < 1e-9);
 
         Check("EVERY STATE HAS A DISTINCT NAME AND A DISTINCT DESCRIPTION - a log line that cannot "
               + "tell two states apart is the defect this fixes",

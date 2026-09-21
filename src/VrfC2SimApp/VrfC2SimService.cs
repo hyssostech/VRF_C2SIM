@@ -2499,14 +2499,29 @@ public sealed class VrfC2SimService : BackgroundService
         }
         else
         {
-            // B1 (cold-start review of 945e054) - THE ONE PLACE AN OBJECT IS DELETED, AND THE ONE
-            // PLACE THE INVARIANT CAN BE ENFORCED STRUCTURALLY. If a task has ALREADY been
-            // dispatched onto this unit, deleting its object now would pull the ground out from
-            // under a live move. That ordering should be impossible (the barrier is capped below
-            // the composition backstop, and a parked unit never classifies READY), so reaching it
-            // means a defence failed - which is exactly when a guard has to exist. Do NOT delete;
-            // say so as loudly as the log allows; leave the task on what it has; and RELEASE the
-            // composition gate, because nothing else will now complete it.
+            // B1 (cold-start review of 945e054) - A LAST-RESORT GUARD. NOT a structural guarantee,
+            // and the delta review of 27960f6 was right to say so: what actually closes B1 is the
+            // CAP in DispatchReadiness.BarrierSeconds, which makes the drain precede every task's
+            // composition backstop by an inequality. This is the net under it, and the net has
+            // THREE HOLES, named here so nobody mistakes it for the fix:
+            //   (i)   _inFlight is written LATE - RecordDispatch runs at the final send (see
+            //         MarkDispatched below), after the route-shift check, the terrain-profile query
+            //         and the CreateRoute/route-created hop. A task that has passed
+            //         TryDispatchOrHold but is still inside that pipeline is INVISIBLE here, and
+            //         deleting its unit then is worse than deleting it mid-move: the pipeline is
+            //         holding a uuid that no longer exists.
+            //   (ii)  it is keyed on the unit being DELETED. For a COMPOSED PARENT the in-flight
+            //         task is on the parent and the deletes are on its declared children, through
+            //         the case-1 recursion above - so this guard would NOT have caught the original
+            //         B1 on D5b's own fixture (task on 114.MechCoy~PXY, deletes on 114x.MechPlt).
+            //   (iii) when it DOES refuse, only the first task is named. Every other task on this
+            //         unit then classifies Ready (unparked, bound, readable) and drives the same
+            //         empty shell with no line of its own.
+            // Widening it (an "entered ExecuteTaskOnTick" set, ancestor lookup, a per-task repeat)
+            // is a real change to the dispatch path and belongs in its own lane, not in the fix for
+            // an ordering defect the cap already closes.
+            // So: do NOT delete; say so as loudly as the log allows; leave the task on what it has;
+            // and RELEASE the composition gate, because nothing else will now complete it.
             if (_inFlight.TryGetCurrent(name, out var dispatched))
             {
                 _log.LogError("{Line}", DispatchReadiness.RefusedDeleteUnderDispatchedTask(name, dispatched.TaskName));
@@ -2626,7 +2641,9 @@ public sealed class VrfC2SimService : BackgroundService
                             "does not delete/re-create anything - both bounded by {Key} ({T:F0} s). The " +
                             "{Ready} line says when the wait is over.",
                             _initPlannedNames.Count, shells, DispatchReadiness.TimeoutSettingKey,
-                            DispatchReadiness.BarrierSeconds(_vrf.DispatchReadinessTimeoutSeconds, _vrf.CompositionTimeoutSeconds),
+                            DispatchReadiness.BarrierSeconds(_vrf.DispatchReadinessTimeoutSeconds,
+                                             _vrf.CompositionTimeoutSeconds,
+                                             _vrf.TerrainProfileTimeoutSeconds),
                             DispatchReadiness.ReadyToTaskPrefix);
     }
 
@@ -2661,10 +2678,20 @@ public sealed class VrfC2SimService : BackgroundService
     {
         bool bound = _names.TryGetUuid(unitName, out var vrfUuid);
         bool readable = bound && _bridge.TryGetEntityGeodetic(vrfUuid, out _);
-        // B1 (cold-start review of 945e054): THE STRUCTURAL HALF. A unit whose order-time
-        // materialization is parked behind the init barrier is never READY, however bound and
-        // readable its init shell is - the object that answers is the empty shell, and the parked
-        // work would delete it once the barrier settles.
+        // B1 (cold-start review of 945e054): a unit whose order-time materialization is parked
+        // behind the init barrier is never READY, however bound and readable its init shell is -
+        // the object that answers is the empty shell, and the parked work would delete it once the
+        // barrier settles.
+        //
+        // WHERE THIS ACTUALLY EARNS ITS PLACE (delta review of 27960f6), which is NOT the ordering
+        // the cap already closes: the park uses _compositionReady.GetOrAdd, so if that name already
+        // carries a COMPLETED gate from an earlier materialization, GetOrAdd hands back the stale
+        // completed TCS, RunTaskAsync's gate loop sees IsCompleted and skips it, and the task
+        // arrives here with the unit still parked. This catches exactly that, and the cross-order
+        // case (a second order parks a unit while a first order's task on it is being classified).
+        // It does NOT cover the AffectedEntity: TryDispatchOrHold classifies only the TASKEE, and an
+        // affected entity's park is held off by the cap alone (its gate is in RunTaskAsync's `gates`
+        // list, so the same inequality covers it).
         bool parked = _materializeOnInitSettled.ContainsKey(unitName);
         return DispatchReadiness.Classify(plannedAtInit, _names.IsRequested(unitName), bound,
                                           readable, parked);
@@ -2711,7 +2738,9 @@ public sealed class VrfC2SimService : BackgroundService
                 { anyRead = true; break; }
         double waited = (DateTime.UtcNow - _initPlannedUtc).TotalSeconds;
         bool settled = planned > 0 && bound == planned && anyRead;
-        bool expired = waited >= DispatchReadiness.BarrierSeconds(_vrf.DispatchReadinessTimeoutSeconds, _vrf.CompositionTimeoutSeconds);
+        bool expired = waited >= DispatchReadiness.BarrierSeconds(_vrf.DispatchReadinessTimeoutSeconds,
+                                             _vrf.CompositionTimeoutSeconds,
+                                             _vrf.TerrainProfileTimeoutSeconds);
         if (!settled && !expired) return;
 
         // SET FIRST, THEN SAY IT, THEN DRAIN: the held materializations re-enter MaterializeUnit,

@@ -82,6 +82,12 @@ public static class DispatchReadiness
     /// "Not planned by the init" wins over everything: an object bound under a name we never planned
     /// is not this taskee.
     /// </summary>
+    /// <remarks>
+    /// TRAP, named rather than removed (delta review of 27960f6): this 4-argument form forwards
+    /// materializationParked = false, so a caller that forgets the fifth observation silently gets
+    /// the PRE-B1 semantics. It is kept only because the selftest asserts the two forms agree; the
+    /// service always calls the 5-argument one, through ClassifyTaskee.
+    /// </remarks>
     public static TaskeeReadiness Classify(bool plannedAtInit, bool createRequested,
                                            bool nameBound, bool locationReadable)
         => Classify(plannedAtInit, createRequested, nameBound, locationReadable, false);
@@ -234,39 +240,66 @@ public static class DispatchReadiness
     // order-time materialization (the overlap, brief item 2).
 
     /// <summary>
-    /// The window the READY TO TASK OBSERVATION uses when the feature is turned off. The
-    /// observation holds nothing up - it only reports what the initialization achieved - so it
-    /// still runs at Vrf:DispatchReadinessTimeoutSeconds = 0, on this default window, rather than
-    /// never printing a line for the operator the runbook tells to wait for one.
+    /// The window the READY TO TASK OBSERVATION ASKS FOR when the feature is turned off, BEFORE the
+    /// cap in <see cref="BarrierSeconds"/> applies. The observation holds nothing up - it only
+    /// reports what the initialization achieved - so it still runs at
+    /// Vrf:DispatchReadinessTimeoutSeconds = 0, rather than never printing a line for the operator
+    /// the runbook tells to wait for one. In practice the cap always binds first (20 s at the
+    /// shipped settings), so this value is the wish and not the answer; ask BarrierSeconds.
     /// </summary>
     public const double ObservationWindowSeconds = 60.0;
 
     /// <summary>
-    /// B1: the slack between the barrier's expiry and the composition backstop it must not outlive.
-    /// It has to cover one tick (50 ms) plus the delete/re-create round trip the drain then issues,
-    /// so the composition gate that the drained materialization installs is completed before the
-    /// backstop gives up on it. Five seconds is two orders of magnitude of slack on the tick and
-    /// the same order as the re-create itself.
+    /// D2 (delta review of 27960f6): THE SLACK THE BARRIER MUST LEAVE, DERIVED FROM THE TWO
+    /// SETTINGS THAT SPEND IT rather than picked.
+    ///
+    /// What an awaiting task needs is not that the DRAIN happens before the composition backstop -
+    /// it is that the drained materialization's GATE is COMPLETE before it. Case 3 completes that
+    /// gate only after two bounded waits, both of which the drain starts:
+    ///   (i)  the re-create goes through StartPlacementTerrainQuery ("ORDER MATERIALIZATION"), so
+    ///        the create is deferred to the terrain reply - up to Vrf:TerrainProfileTimeoutSeconds
+    ///        (10 s) when that reply never comes;
+    ///   (ii) the re-created object is released on REFLECTION by ReleaseReflected, whose deadline is
+    ///        Vrf:CompositionTimeoutSeconds (15 s) after its ObjectCreated.
+    /// Worst case delete -> gate is therefore terrain + composition = 25 s at the shipped values,
+    /// against the 5 s this used to allow. The margin is now exactly that sum.
     /// </summary>
-    public const double BarrierBackstopMarginSeconds = 5.0;
+    public static double BarrierBackstopMarginSeconds(double compositionTimeoutSeconds,
+                                                      double terrainProfileTimeoutSeconds)
+        => terrainProfileTimeoutSeconds + compositionTimeoutSeconds;
 
     /// <summary>
-    /// How long the init barrier waits before reporting what it HAS - CAPPED so it can never
-    /// outlive RunTaskAsync's composition backstop (Vrf:CompositionTimeoutSeconds + 30).
+    /// How long the init barrier waits before reporting what it HAS - CAPPED so that the work it
+    /// releases has FINISHED before RunTaskAsync's composition backstop
+    /// (Vrf:CompositionTimeoutSeconds + 30) gives up on it.
     ///
     /// B1, the cold-start review of 945e054. Uncapped, the 60 s barrier outlived the 45 s backstop:
     /// the composition await expired, logged "dispatching anyway" and FELL THROUGH; the init shell
     /// was bound and readable, so the task drove the EMPTY SHELL; and 15 s later the barrier
     /// expired, drained, and MaterializeUnit case 3 DELETED that object out from under the
-    /// dispatched task. The cap makes the ordering impossible rather than merely unlikely - and
-    /// <see cref="TaskeeReadiness.MaterializationParked"/> plus the no-delete-after-dispatch guard
-    /// in the service make the INVARIANT structural, so the cap is the first of two defences, not
-    /// the only one. At the shipped Vrf:CompositionTimeoutSeconds = 15 this returns 40 s.
+    /// dispatched task.
+    ///
+    /// THIS CAP IS WHAT CLOSES B1, and it closes it by an inequality rather than by a race. A
+    /// task's composition await starts at T_gate, which is at or after the order, which is strictly
+    /// after the init armed the barrier (the park only exists if it was), and expires at
+    /// T_gate + composition + 30. The drain runs at T_init + cap and its gate completes by
+    /// T_init + cap + terrain + composition. With cap = composition + 30 - (terrain + composition)
+    /// = 30 - terrain, that is T_init + 30 + composition, which is at or before
+    /// T_gate + composition + 30 for every T_gate >= T_init. Note what cancels: the composition
+    /// term appears on both sides, because the backstop's own "+ CompositionTimeoutSeconds" is
+    /// already the budget for the reflection half of the round trip. **20 s at the shipped
+    /// Vrf:TerrainProfileTimeoutSeconds = 10.**
+    ///
+    /// The floor of 1 s keeps a hostile configuration (a huge terrain timeout) from producing a
+    /// zero or negative barrier, which would disable the overlap fix silently; a configuration that
+    /// hits the floor has a terrain timeout near 30 s and its own problems.
     /// </summary>
-    public static double BarrierSeconds(double timeoutSeconds, double compositionTimeoutSeconds)
+    public static double BarrierSeconds(double timeoutSeconds, double compositionTimeoutSeconds,
+                                        double terrainProfileTimeoutSeconds)
     {
         double want = timeoutSeconds > 0.0 ? timeoutSeconds : ObservationWindowSeconds;
-        double backstop = compositionTimeoutSeconds + 30.0 - BarrierBackstopMarginSeconds;
+        double backstop = compositionTimeoutSeconds + 30.0
+                        - BarrierBackstopMarginSeconds(compositionTimeoutSeconds, terrainProfileTimeoutSeconds);
         return Math.Max(1.0, Math.Min(want, backstop));
     }
 
