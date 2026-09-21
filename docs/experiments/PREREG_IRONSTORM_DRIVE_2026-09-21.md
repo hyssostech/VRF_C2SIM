@@ -578,3 +578,58 @@ Also recorded: the persistent holder was re-armed at 11:26Z (RtiProbe 87616, app
 `scripts\StartFederationHolder52.ps1` while another RtiProbe exists - queued as a follow-up, an explicit switch so
 a re-arm can JOIN instead of attempting a CREATE; the fixture deploy manifest (one file under C:\MAK, sha256
 d379dd68...aa4bb) matches the prep report exactly.
+
+---
+
+## RE-RUN (R2) - REGISTERED 2026-09-21 BEFORE THE RUN, under the user's word 'Go on 856'
+
+WHY: the first drive was valid but did not answer its question - the two single-platform taskees (28ID / T02, 48 IBCT /
+T14, the control) never moved because they had been created ~150 m under a cold streamed terrain (STP-856); sec 8's own
+rule is 'fix and re-register'. WHAT CHANGED: the binary only - 1.0.0+git.8aeb127.Release-5.2 = the STP-856 fix (merge
+8aeb127, cold-start reviewed over four passes) on top of 51d59c0. SAME fixture (already deployed, sha256 d379dd68...),
+same init / order / command (sec 5, incl. --no-stop-when-complete, --duration-scale 0.25, consoles 3/3, 2400 s), same
+holder posture. Sections 0-10 stand; the scored limbs of sec 6a stand EXCEPT as amended here.
+
+THE TERRAIN MAY BE WARM OR COLD THIS TIME (the first run streamed and cached this area) - BOTH WORLDS ARE REGISTERED,
+and the run's first job is to say which one it was, from the LAST 'PLACEMENT summary' line in the app log. (The runner's
+Stage 7d warm/cold indicator prints NOTHING on this command: it only runs under --pre-order-gate, which is deliberately
+NOT added - on a gate timeout it would stop the run, and the command must stay the registered one. Build report
+scratch validation/8aeb127_build_report.md finding 1.) The interface's 27-file HTTP tile cache now holds 20 Suwalki
+tiles: that is the ROUTE-SCORING cache, NOT MAK Earth's terrain paging - it says nothing about which world this is.
+R2-WARM (the last PLACEMENT summary reads '36 of 36 ... from the TERRAIN QUERY, 0 from the FALLBACK'): 'READY TO TASK -
+36 of 36' is printed; one 'PLACEMENT RE-CLAMP gate: <unit> is ON the terrain ... Dispatching.' line per ground dispatch;
+ZERO 'PLACEMENT RE-CLAMP:' sweep lines, ZERO 'not terrain-clamped', ZERO 'BOUND-BUT-NOT-ON-THE-GROUND'. The STP-856 fix
+is then NOT exercised live - say so; the run still delivers the drive.
+R2-COLD (fallback creates again): a 'PLACEMENT RE-CLAMP: N of 36 ... LAND PLATFORMS ONLY' line (any such line naming an
+AGGREGATE is a MISS); per buried platform ONE of the three RUNBOOK 11h sequences - (1) EXPECTED from the vendor header
+(setLocationRequest.h: ground vehicles are clamped): 'MEASURED OFF THE TERRAIN ... Issuing setLocation at its OWN
+lat/lon' -> 'RE-CLAMPED AND VERIFIED' -> any held task 'RELEASED' -> gate 'ON the terrain' -> TASKSTRT within seconds
+and NO TASKABRT; (2) FALSIFIER of the header reading: 'STILL OFF THE TERRAIN AFTER A CORRECTION' NOT followed by
+'CLEARED' (score the PAIR - one too-early read-back may print a spurious STILL OFF that self-heals), then a TASKABRT at
+the 60 s DispatchReadiness timeout carrying the token BOUND-BUT-NOT-ON-THE-GROUND; (3) terrain never answers: ~4 timeout
+WARNs, 'NEVER MEASURED', task released and dispatched. The interface's read-back is its OWN reflected read: a verified
+re-clamp must be CONFIRMED on the WatchVrf trace's altitude for that uuid. 'READY TO TASK' may still read NOT REACHED on
+a cold area (known, DEMO_RUNBOOK 0.4) - reported, not scored. N-4 (CONFIRMED by the build executor, ADMISSIBLE): T01 /
+T13 are hold-in-place on exactly the two platforms; a hold-in-place never reaches the ground gate, and WHILE it is in
+flight both the sweep and the gate WITHHOLD the correction and print 'NO CORRECTION IS ISSUED' - that line is NOT a
+miss. The protection is T02 / T14's own route gate, reached after the 300 s holds release: that is where a buried
+platform must be measured, corrected, held, verified and released. KNOWN STALE TEXT (not scored; queued): the hold line
+and both timeout-abort reasons still say the correction was 'setAltitude 0 m above ground level'
+(DispatchReadiness.cs:202) although the call is setLocation; and the vertex-0 NOTE still ends 'authoring from terrain
+anyway' one statement before the gate that now refuses. Score the BEHAVIOUR and the token, not those sentences.
+
+SCORED, both worlds (HIGH): R2-P1 NO platform is tasked while the interface's own last measurement puts it > 50 m off
+the terrain (zero 'not terrain-clamped ... gap' lines followed by a DISPATCHED for the same unit). R2-P2 NO unit is
+relocated in plan: every corrective setLocation is <= 1 m horizontally from the unit's live position, none is issued to
+a unit with a task in flight, and the trace shows no position jump for any corrected uuid. R2-P3 T14 THE CONTROL MOVES:
+48 IBCT's track leaves its start by > 50 m (it moved 0.0 m in the first run). R2-P4 T02 MOVES likewise. P1-P5, P7, P8 of
+sec 6a as registered. P6 (T14 completes on ARRIVAL evidence) is now MEDIUM and REPORTED: the first run showed the armed
+end can precede arrival at --duration-scale 0.25.
+REPORTED, NOT SCORED: THE HEADLINE (P13) - do T02 and T14 cross their sectors, where do they stop, in which sector; does
+T10 crawl again (first run: 13.3 m/s for ~900 m, then 0.28 m/s) and do the single platforms crawl too; the ratio by
+phase (first run ~7.1x moving, 8.4-11.4x idle); stall-watchdog lines; STP-857 recurrences (a TASKCMPLT on the timer for
+a unit that has not arrived - now distinguishable because the units should be moving).
+MISS = R2-P1..P4 or an inherited HIGH limb failing; a back-end fault; 'T14 also fails' again = NO conclusion about
+connectivity AND the STP-856 diagnosis is wrong or incomplete - STOP, do not patch. ONE run.
+CONDITIONS as the seat's additions above, plus: exe AND dll sha256 before and after; internet up; the persistent
+holder RtiProbe 87616 (appNo 5065) joined; another session's dotnet processes RECORDED, never touched.
