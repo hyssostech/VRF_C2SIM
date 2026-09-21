@@ -2668,17 +2668,22 @@ public sealed class VrfC2SimService : BackgroundService
         if (_initSettled || _initPlannedUtc == DateTime.MinValue) return;
         int planned = _initPlannedNames.Count;
         int bound = 0;
-        bool anyRead = false;
         var missing = new List<string>();
         foreach (var name in _initPlannedNames.Keys)
         {
-            if (_names.TryGetUuid(name, out var uuid))
-            {
-                bound++;
-                if (!anyRead && _bridge.TryGetEntityGeodetic(uuid, out _)) anyRead = true;
-            }
+            if (_names.TryGetUuid(name, out _)) bound++;
             else if (missing.Count < 8) missing.Add(name);
         }
+        // THE LOCATION READ IS TAKEN ONLY ONCE EVERYTHING IS BOUND, and it stops at the first
+        // success. Settling needs both conditions, so probing before the names are all bound buys
+        // nothing and would cost one native read per bound object per 50 ms tick AND per
+        // ObjectCreated - which on a 128-unit initialization is exactly the kind of cost a
+        // bookkeeping sweep must not add to the tick thread.
+        bool anyRead = false;
+        if (planned > 0 && bound == planned)
+            foreach (var name in _initPlannedNames.Keys)
+                if (_names.TryGetUuid(name, out var uuid) && _bridge.TryGetEntityGeodetic(uuid, out _))
+                { anyRead = true; break; }
         double waited = (DateTime.UtcNow - _initPlannedUtc).TotalSeconds;
         bool settled = planned > 0 && bound == planned && anyRead;
         bool expired = waited >= DispatchReadiness.BarrierSeconds(_vrf.DispatchReadinessTimeoutSeconds);

@@ -197,7 +197,9 @@ public static class DispatchReadinessSelfTest
                 Settled = true; SettledAt = t;
                 Lines.Add(settled
                     ? DispatchReadiness.ReadyToTaskLine(bound, _names.Length, 4, t)
-                    : DispatchReadiness.NotReadyToTaskLine(bound, _names.Length, "1143.MechPlt", t));
+                    : DispatchReadiness.NotReadyToTaskLine(
+                          bound, _names.Length,
+                          string.Join(", ", _names.Where((n, i) => t < _bindAt[i])), t));
                 foreach (var kv in _heldSince) RunMaterialize(t, kv.Key);
                 if (_heldSince.Count > 0) _heldSince.Clear();
             }
@@ -405,7 +407,7 @@ public static class DispatchReadinessSelfTest
                   + "missing and what that means for an order pushed now",
                   fx.Lines.Any(l => l.Contains("NOT REACHED", StringComparison.Ordinal)
                                     && l.Contains("only 2 of 3", StringComparison.Ordinal)
-                                    && l.Contains("1143.MechPlt", StringComparison.Ordinal)
+                                    && l.Contains("Missing: [C]", StringComparison.Ordinal)
                                     && l.Contains("may still be dropped", StringComparison.Ordinal)));
         }
 
