@@ -8,11 +8,6 @@
 # A selected AskUserQuestion label is the SEAT's wording, recorded as a selection, never as the owner's words.
 # Cap 120 lines / 160 chars. Overflow -> RULINGS_ARCHIVE.md, same format, no cap. Index of ids at the archive head.
 
-RL-20260907-01 | 2026-09-07 | status VERBATIM
-  Q (as put, L22515): "[...] the interface should report completion on its own evidence [...] rather than wait for the vendor's report."
-  A (owner, L22586): "report a unit's completion from the unit's own arrival evidence is fine"
-  pointer: DESIGN_ORBAT_TO_VRF C15 (:139-148); RUNBOOK 11d; src ArrivalPolicy.cs. Re-affirmed inside RL-20260921-05.
-
 RL-20260914-02 | 2026-09-14 | status VERBATIM
   Q (as put, L28092): "4. R4, when a hold ends. SECURE, OCCUPY and DEFEND have no natural completion in VR-Forces. Decide
     whether they complete on arrival, after a duration, or only when a later order supersedes them." Items 1-3 of the same
@@ -38,8 +33,12 @@ RL-20260921-05 | 2026-09-21 | status VERBATIM
   supervisor reading: read WITH RL-20260921-08 (he calls the movement / non-movement split fuzzy) and, above all, with RL-20260921-09,
     the TEMPORARY position that now governs completion until the doctrine and vendor research is done. What this entry on its own
     settles is narrow: a unit stuck midway has not completed, and arriving late is not an abort.
-  pointer: the HANDOFF CLOSED list TASK COMPLETION line; docs\CORRECTIONS_LOG.md F-1; RL-20260921-04 (archive) for the one question
-    he asked back inside the STP-857 exchange, which nobody has answered.
+  pointer: the HANDOFF CLOSED list TASK COMPLETION line; docs\CORRECTIONS_LOG.md F-1; RL-20260921-07 and -08; RL-20260921-04 (archive) for
+    the one question he asked back inside the STP-857 exchange, which nobody has answered.
+  Lane B's pointer, kept as written and not deleted: "NOT RULED here and not to be written as settled either way: movement-then-hold,
+    patrol, follow/escort, successors of a stalled move, any bound on a late mover, watchdog default." SUPERSEDED IN PART 2026-09-21 by
+    RL-20260921-09 (temporary position): patrol, follow/escort and every no-destination task end at their Duration; a never-arriving unit
+    is a STUCK unit (RL-20260914-01).
 
 RL-20260921-06 | 2026-09-21 | status VERBATIM - OPEN, THE KEEP/REMOVE DECISION IS WITH THE OWNER
   Q (as put, S344): the seat described the placement re-clamp's three parts - the placing works per one run, the self-check never
@@ -91,7 +90,8 @@ RL-20260921-08 | 2026-09-21 | status VERBATIM - COMPLETION SEMANTICS ARE UNDER H
     could recall. There may be way more related to this are than what I said. Are you even reading the materials?"
   supervisor reading: "Seems to me" is tentative; nothing in this entry is a rule. Two standing instructions do follow from
     the S260 answer: use PLAIN WORDS in anything put to him (codes only in parentheses), and read the record before asking.
-  pointer: RL-20260921-09 (the temporary position he gave the same day); the per-verb completion table, still to be written.
+  pointer: RL-20260921-09 (the temporary position he gave the same day); docs\experiments\TASK_COMPLETION_RESEARCH_2026-09-21.md, the
+    per-verb completion table that carries the doctrine and vendor-documentation research he asked for. It recommends nothing.
 
 RL-20260921-09 | 2026-09-21 | status VERBATIM - TEMPORARY, BY HIS OWN WORD
   Q (as put): none - volunteered after the seat said completion rules were under his review pending doctrine and vendor
@@ -115,6 +115,6 @@ RL-20260921-09 | 2026-09-21 | status VERBATIM - TEMPORARY, BY HIS OWN WORD
     its actual start. The research is the seat's job.
   IMPLEMENTATION FACT: stall detection ships OFF by default on main (DEMO_READINESS row 19), so the stuck-unit ruling only takes
     effect once it is switched on.
-  pointer: the per-verb completion table (to be landed in docs\experiments by a later unit); the code defect noted in the HANDOFF
-    CLOSED list - main ends a task on the Duration timer even when the unit has not arrived, and then suppresses the real arrival
-    (since 746c091). Fixing that is the next code unit and is PLAN-gated with the owner.
+  pointer: docs\experiments\TASK_COMPLETION_RESEARCH_2026-09-21.md (the per-verb completion table; research only, no recommendation); the
+    code defect noted in the HANDOFF CLOSED list - main ends a task on the Duration timer even when the unit has not arrived, and then
+    suppresses the real arrival (since 746c091). Fixing that is the next code unit and is PLAN-gated with the owner.

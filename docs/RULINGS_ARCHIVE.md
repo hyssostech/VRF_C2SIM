@@ -4,7 +4,8 @@
 # Ids: RL-20260902-01, RL-20260903-01, RL-20260906-01, RL-20260906-02, RL-20260907-02, RL-20260913-01,
 #      RL-20260913-02, RL-20260913-03, RL-20260914-01, RL-20260914-03, RL-20260914-04, RL-20260914-05,
 #      RL-20260914-06, RL-20260915-01, RL-20260920-01, RL-20260920-02, RL-20260921-01, RL-20260921-02,
-#      RL-20260921-03, RL-20260921-04, RL-UNVERIFIED-DIGUY01, RL-UNVERIFIED-MAK01, RL-UNVERIFIED-NAV09.
+#      RL-20260921-03, RL-20260921-04, RL-UNVERIFIED-DIGUY01, RL-UNVERIFIED-MAK01, RL-UNVERIFIED-NAV09,
+#      RL-20260907-01.
 # Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl, the 1-based physical line `rg -n` prints.
 
 RL-20260902-01 | 2026-09-02 | status VERBATIM
@@ -36,6 +37,12 @@ RL-20260906-02 | 2026-09-06 | status VERBATIM
     need to be simulated. You are confusing the ORBAT for the whole Corps, likely, with the specific elements that are
     part of the COA proper."
   pointer: memory coa-is-not-the-orbat; DESIGN_ORBAT_TO_VRF.
+
+RL-20260907-01 | 2026-09-07 | status VERBATIM
+  Q (as put, L22515): "[...] the interface should report completion on its own evidence [...] rather than wait for the vendor's report."
+  A (owner, L22586): "report a unit's completion from the unit's own arrival evidence is fine"
+  pointer: DESIGN_ORBAT_TO_VRF C15 (:139-148); RUNBOOK 11d; src ArrivalPolicy.cs; HANDOFF CLOSED list C15. Re-affirmed inside
+    RL-20260921-05, and it is the mechanism the temporary position RL-20260921-09 relies on for a unit that arrives late.
 
 RL-20260907-02 | 2026-09-07 | status VERBATIM
   Q (as put): not located in the 60 assistant records before it; the preceding thread is the triangular-position evidence.
