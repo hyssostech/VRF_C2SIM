@@ -248,9 +248,214 @@ public static class PreflightSelfTest
         failures += CheckFetchFailureVsAbsence();
         failures += CheckWaterPolicy();
 
+        // ---- 7: SF-G - the RESOLVER, pinned on the one fixture with MapGraphicIDs ---------
+        failures += CheckResolverPin(repo);
+
         Console.WriteLine();
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
         return failures == 0 ? 0 : 1;
+    }
+
+    /// <summary>
+    /// SF-G (cold-start review of 1d0fb69, 2026-09-21): PIN TaskGeometryResolver AGAINST
+    /// tools/preflight/leg_check.py ON THE ONE FIXTURE THAT EXERCISES IT.
+    ///
+    /// THE GAP. The Python tool is a RE-IMPLEMENTATION of this resolver and can drift from it.
+    /// Everything above compares the two on COA-STP1, which carries ZERO MapGraphicIDs - the
+    /// comparison asserts that itself - so it exercises none of the assembly rules: the
+    /// role split (area/point = ONE destination, line = a path), the vertex-is-the-taskee drop,
+    /// the nearest-end chaining with reversal, the 5 km chain gap, the one-destination-last rule
+    /// and the doubles-back truncation. The STP Iron Storm export is the only shipped fixture
+    /// with MapGraphicIDs (35 references across 23 tasks), and nothing compared the two
+    /// implementations on it. "0 field differences" measured where the code cannot run is not
+    /// evidence about the code.
+    ///
+    /// WHAT IS COMPARED: per task, in order - the geometry SOURCE (MapGraphic / embedded
+    /// Location / none), the vertex COUNT, and every vertex's latitude and longitude. Pure
+    /// geometry: no terrain, no tile, no network, no bridge.
+    ///
+    /// SF-F, THE HAVERSINE-VS-FLAT-EARTH GAP, IS SETTLED BY MEASUREMENT, NOT BY ARGUMENT. This
+    /// resolver's DistMeters is equirectangular (111,320 m/deg, cos at the first argument's
+    /// latitude); the tool's own dist_m is haversine on R = 6,371 km. They differ by ~0.1-0.3%
+    /// here, and the assembly compares against two HARD edges (100 m, 5 km). The tool's
+    /// --dump-resolved therefore runs the WHOLE assembly TWICE, once under each metric, refuses
+    /// to write the reference if any task resolves differently, and records how close any real
+    /// decision on this fixture came to an edge. MEASURED 2026-09-21, 310 threshold comparisons:
+    /// 79.8 m of margin at the 100 m edge and 1,722.6 m at the 5,000 m edge, against metric
+    /// differences of ~0.3 m and ~15 m at those magnitudes. Nothing on this fixture is close.
+    /// The margins are re-measured on every regeneration and re-read here, so the day a new
+    /// export does come close, the reference says so rather than the comment aging into a claim.
+    /// </summary>
+    private static int CheckResolverPin(string repo)
+    {
+        int failures = 0;
+        Console.WriteLine();
+        Console.WriteLine("--- SF-G: TaskGeometryResolver vs leg_check.py on the Iron Storm export ---");
+        string referencePath = Path.Combine(repo, "tools", "preflight",
+                                            "resolver-reference-ironstorm.json");
+        if (!File.Exists(referencePath))
+        {
+            Console.WriteLine($"  FAIL: {referencePath} not found. Produce it with\n" +
+                              "    python tools/preflight/leg_check.py \\\n" +
+                              "      --order data/STP-IRON-STORM-SYNTHETIC_Order.xml \\\n" +
+                              "      --init  data/STP-IRON-STORM-SYNTHETIC_Initialization.xml \\\n" +
+                              "      --offline --no-starts \\\n" +
+                              "      --dump-resolved tools/preflight/resolver-reference-ironstorm.json");
+            return 1;
+        }
+
+        using var doc = JsonDocument.Parse(Sanitize(File.ReadAllText(referencePath)));
+        var root = doc.RootElement;
+        string orderName = Str(root, "order");
+        string initName = Str(root, "init");
+        string orderPath = Path.Combine(repo, "data", orderName);
+        string initPath = Path.Combine(repo, "data", initName);
+        Console.WriteLine($"  reference : {referencePath} (generated {Str(root, "generated")})");
+        Console.WriteLine($"  fixture   : {orderName} + {initName}");
+        if (!File.Exists(orderPath) || !File.Exists(initPath))
+        {
+            Console.WriteLine($"  FAIL: the reference names {orderName}/{initName} and they are not in data/");
+            return 1;
+        }
+
+        // The two constants must be the SAME NUMBER on both sides, or the comparison below could
+        // pass while the rules differ on any fixture but this one.
+        Check(ref failures, Near(D(root, "origin_coincidence_m", double.NaN),
+                                 TaskGeometryResolver.OriginCoincidenceMeters, 1e-9),
+              $"the tool's ORIGIN_COINCIDENCE_M == OriginCoincidenceMeters " +
+              $"({TaskGeometryResolver.OriginCoincidenceMeters:F0} m)");
+        Check(ref failures, Near(D(root, "chain_gap_m", double.NaN),
+                                 TaskGeometryResolver.ChainGapMeters, 1e-9),
+              $"the tool's CHAIN_GAP_M == ChainGapMeters ({TaskGeometryResolver.ChainGapMeters:F0} m)");
+
+        // SF-F: the metric agreement the reference had to satisfy before it could be written.
+        if (root.TryGetProperty("metric_agreement", out var ma))
+        {
+            int probed = ma.TryGetProperty("comparisons_probed", out var cp) ? cp.GetInt32() : 0;
+            Check(ref failures, probed > 0,
+                  $"SF-F: the reference records {probed} threshold comparison(s) run under BOTH " +
+                  "metrics (haversine and this resolver's flat earth), all agreeing");
+            if (ma.TryGetProperty("closest_to_a_threshold_m", out var edges))
+                foreach (var e in edges.EnumerateObject())
+                {
+                    double margin = D(e.Value, "margin_m", double.NaN);
+                    Console.WriteLine($"    SF-F margin at the {e.Name} m edge: {margin:F1} m " +
+                                      $"({Str(e.Value, "rule")})");
+                    // A decision within 1 m of an edge is inside the two metrics' disagreement at
+                    // that scale, and the pin would then be pinning a coin toss.
+                    Check(ref failures, margin > 1.0,
+                          $"SF-F: no decision on this fixture comes within 1 m of the {e.Name} m edge");
+                }
+        }
+        else
+        {
+            Console.WriteLine("  FAIL: the reference carries no metric_agreement block - regenerate it");
+            failures++;
+        }
+
+        // Build the registry the service builds: the ORDER's own graphics first, then the
+        // INITIALIZATION's, which replace on a uuid collision ("the init is the shared world
+        // every order is written against" - TaskGraphic.Registration). The tool does the same by
+        // being passed the order first and the init second.
+        var init = InitParser.Parse(File.ReadAllText(initPath));
+        var order = OrderParser.Parse(File.ReadAllText(orderPath));
+        var graphics = new Dictionary<string, TaskGraphic>(StringComparer.Ordinal);
+        foreach (var g in order.Graphics)
+            graphics[g.Uuid] = new TaskGraphic(g.Uuid, g.Name, g.Kind,
+                g.Points.Select(p => (p.Lat, p.Lon, (double?)p.Elev)).ToList());
+        foreach (var a in init.Areas)
+            graphics[a.Uuid] = new TaskGraphic(a.Uuid, a.Name, TaskGraphic.KindArea,
+                a.Points.Select(p => (p.Lat, p.Lon, (double?)p.Elev)).ToList());
+        foreach (var l in init.Lines)
+            graphics[l.Uuid] = new TaskGraphic(l.Uuid, l.Name,
+                l.Points.Count == 1 ? TaskGraphic.KindPoint : TaskGraphic.KindLine,
+                l.Points.Select(p => (p.Lat, p.Lon, (double?)p.Elev)).ToList());
+        foreach (var p0 in init.Points)
+            graphics[p0.Uuid] = new TaskGraphic(p0.Uuid, p0.Name, TaskGraphic.KindPoint,
+                p0.Points.Select(p => (p.Lat, p.Lon, (double?)p.Elev)).ToList());
+        foreach (var tg in init.TaskGraphics)
+            graphics[tg.Uuid] = new TaskGraphic(tg.Uuid, tg.Name,
+                tg.Points.Count == 1 ? TaskGraphic.KindPoint : TaskGraphic.KindLine,
+                tg.Points.Select(p => (p.Lat, p.Lon, (double?)p.Elev)).ToList());
+        var unitPos = new Dictionary<string, (double Lat, double Lon)>(StringComparer.Ordinal);
+        foreach (var u in init.Units)
+            if (double.TryParse(u.Latitude, NumberStyles.Float, CultureInfo.InvariantCulture, out double la)
+                && double.TryParse(u.Longitude, NumberStyles.Float, CultureInfo.InvariantCulture, out double lo))
+                unitPos[u.Uuid] = (la, lo);
+
+        var refTasks = root.GetProperty("tasks").EnumerateArray().ToList();
+        Console.WriteLine($"  inputs    : {init.Units.Count} unit(s), {order.Tasks.Count} task(s), " +
+                          $"{graphics.Count} graphic(s) registered ({order.Graphics.Count} from the order)");
+        Check(ref failures, refTasks.Count == order.Tasks.Count,
+              $"task count {order.Tasks.Count} == reference {refTasks.Count}");
+
+        int mapGraphicTasks = 0, verticesCompared = 0, sourceMismatch = 0, vertexMismatch = 0;
+        double worstVertexDeltaDeg = 0;
+        string worstWhere = "(none)";
+        for (int i = 0; i < Math.Min(refTasks.Count, order.Tasks.Count); i++)
+        {
+            var r = refTasks[i];
+            var task = order.Tasks[i];
+            string name = Str(r, "task");
+            if (!string.Equals(name, task.TaskName, StringComparison.Ordinal))
+            {
+                Console.WriteLine($"  FAIL: task[{i}] name '{task.TaskName}' != reference '{name}'");
+                failures++;
+                continue;
+            }
+            (double Lat, double Lon)? taskee = unitPos.TryGetValue(task.TaskeeUuid, out var up) ? up : null;
+            var res = TaskGeometryResolver.Resolve(task, graphics, taskee);
+            string mineSource = res.Source switch
+            {
+                GeometrySource.MapGraphic => "map_graphic",
+                GeometrySource.EmbeddedLocation => "embedded_location",
+                _ => "none",
+            };
+            string refSource = Str(r, "source");
+            if (mineSource != refSource)
+            {
+                Console.WriteLine($"  FAIL: task[{i}] '{name}': source '{mineSource}' != reference '{refSource}'");
+                sourceMismatch++; failures++;
+            }
+            if (refSource == "map_graphic") mapGraphicTasks++;
+            var refPts = r.GetProperty("points").EnumerateArray()
+                          .Select(p => (Lat: p[0].GetDouble(), Lon: p[1].GetDouble())).ToList();
+            if (refPts.Count != res.Points.Count)
+            {
+                Console.WriteLine($"  FAIL: task[{i}] '{name}': {res.Points.Count} vertex(es), " +
+                                  $"reference {refPts.Count}");
+                vertexMismatch++; failures++;
+                continue;
+            }
+            for (int v = 0; v < refPts.Count; v++)
+            {
+                double dLat = Math.Abs(refPts[v].Lat - res.Points[v].Lat);
+                double dLon = Math.Abs(refPts[v].Lon - res.Points[v].Lon);
+                double d = Math.Max(dLat, dLon);
+                if (d > worstVertexDeltaDeg) { worstVertexDeltaDeg = d; worstWhere = $"task[{i}] vertex {v + 1}"; }
+                if (d > 1e-9)
+                {
+                    Console.WriteLine($"  FAIL: task[{i}] '{name}' vertex {v + 1}: " +
+                                      $"({res.Points[v].Lat:F9},{res.Points[v].Lon:F9}) != reference " +
+                                      $"({refPts[v].Lat:F9},{refPts[v].Lon:F9})");
+                    vertexMismatch++; failures++;
+                }
+                verticesCompared++;
+            }
+        }
+
+        Console.WriteLine($"  compared  : {refTasks.Count} task(s), {verticesCompared} vertex(es); " +
+                          $"worst vertex delta {worstVertexDeltaDeg:E2} deg at {worstWhere}");
+        Check(ref failures, sourceMismatch == 0, "every task resolves from the SAME SOURCE in both tools");
+        Check(ref failures, vertexMismatch == 0, "every resolved vertex agrees to 1e-9 deg (~0.1 mm)");
+        // THE ARM THAT KEEPS THIS HONEST. Without it the whole section would pass on a fixture
+        // whose tasks all fall back to their embedded Location - which is exactly how the COA-STP1
+        // comparison came to be read as evidence about code it never ran.
+        Check(ref failures, mapGraphicTasks > 0,
+              $"{mapGraphicTasks} task(s) resolve THROUGH the MapGraphicID assembly - the rules " +
+              "this pin exists for are actually exercised");
+        Check(ref failures, verticesCompared > 0, $"{verticesCompared} vertex(es) were compared, not zero");
+        return failures;
     }
 
     /// <summary>

@@ -1,0 +1,645 @@
+{
+  "chain_gap_m": 5000.0,
+  "generated": "2026-09-21T05:54:25Z",
+  "init": "STP-IRON-STORM-SYNTHETIC_Initialization.xml",
+  "metric_agreement": {
+    "closest_to_a_threshold_m": {
+      "100": {
+        "margin_m": 79.796,
+        "rule": "vertex-already-covered"
+      },
+      "5000": {
+        "margin_m": 1722.606,
+        "rule": "chain-gap"
+      }
+    },
+    "comparisons_probed": 310,
+    "haversine_vs_flat_earth": "identical resolution on every task"
+  },
+  "order": "STP-IRON-STORM-SYNTHETIC_Order.xml",
+  "origin_coincidence_m": 100.0,
+  "tasks": [
+    {
+      "embedded_points": 1,
+      "graphic_ids": [
+        "c8cde9b6-17f7-f253-800e-4de0cae84db3",
+        "e70c30ff-d81a-d650-8c37-17ccc88dd593",
+        "acfe90eb-46ac-d55f-9f53-fbbcd384db8b",
+        "297c6022-ae5b-3052-bdfb-37fb71e7744f"
+      ],
+      "index": 0,
+      "points": [
+        [
+          54.076208115536524,
+          23.13687226436118
+        ],
+        [
+          53.981539659760024,
+          23.39192905800885
+        ],
+        [
+          54.028873887648274,
+          23.264400661185014
+        ]
+      ],
+      "resolved_ids": [
+        "c8cde9b6-17f7-f253-800e-4de0cae84db3",
+        "e70c30ff-d81a-d650-8c37-17ccc88dd593",
+        "acfe90eb-46ac-d55f-9f53-fbbcd384db8b",
+        "297c6022-ae5b-3052-bdfb-37fb71e7744f"
+      ],
+      "source": "map_graphic",
+      "task": "T1_28IdControlsTheDivisionForwardPassageOfLinesBetweenPlGolfAndPlHotelUsingAssignedForcesAndEstablishesRelatedControlMeasures.",
+      "task_uuid": "f7b52ba4-c889-4a28-9f3a-e9715cd8a65f",
+      "unit": "28ID__FRIENDLY_INFANTRY_DIVISION",
+      "unit_uuid": "200d3a3f-8f36-4951-9459-c748527896ba",
+      "unmatched_ids": []
+    },
+    {
+      "embedded_points": 0,
+      "graphic_ids": [],
+      "index": 1,
+      "points": [],
+      "resolved_ids": [],
+      "source": "none",
+      "task": "T2_28IdHqTransitionsFromOffensiveOperationsToConsolidationAndSecurity,Re-EstablishesAoBoundaries,AndCoordinatesWith29IdAndFollow-OnForcesForHandoverOfStabilityTasksAndPotentialUrbanOperationsInKaunas.",
+      "task_uuid": "696fbb33-3dce-4854-8935-55fed398c247",
+      "unit": "28ID__FRIENDLY_INFANTRY_DIVISION",
+      "unit_uuid": "200d3a3f-8f36-4951-9459-c748527896ba",
+      "unmatched_ids": []
+    },
+    {
+      "embedded_points": 1,
+      "graphic_ids": [
+        "ce490044-08dc-ca51-8cd1-9630f9a5365d",
+        "42769e4a-62c7-915f-a605-3a266ba93cea",
+        "3d2ed004-3685-c15b-82e0-673f88077599",
+        "88618af9-26a8-6754-83a2-5c567d28587f"
+      ],
+      "index": 2,
+      "points": [
+        [
+          54.264352493178,
+          23.63631924068598
+        ],
+        [
+          54.1696840374015,
+          23.892536662157173
+        ]
+      ],
+      "resolved_ids": [
+        "ce490044-08dc-ca51-8cd1-9630f9a5365d",
+        "42769e4a-62c7-915f-a605-3a266ba93cea",
+        "3d2ed004-3685-c15b-82e0-673f88077599",
+        "88618af9-26a8-6754-83a2-5c567d28587f"
+      ],
+      "source": "map_graphic",
+      "task": "T3_56SbctCompletesForwardPassageOfLinesThroughPassageLanes1?5AndOccupiesInitialAttackPositionsOrientedOnAosAtlantaAndBuffalo,PreparingToReceiveControlMeasuresAndAttackOrders.",
+      "task_uuid": "4edbc258-07f9-4be4-991c-b3093b11e142",
+      "unit": "56_SBCT/28ID__FRIENDLY_WHEELED_ARMORED_BRIGADE_TASK_FORCE",
+      "unit_uuid": "f207793d-4814-7258-9b8e-a8e1af8efb70",
+      "unmatched_ids": []
+    },
+    {
+      "embedded_points": 3,
+      "graphic_ids": [
+        "f460c9d9-f088-8250-9cdc-8bc5ce0cc3a6",
+        "97dccee6-aba8-3859-9b79-4867567b0f81",
+        "14e4f031-25ea-3952-9c0e-8bc2dda458cd"
+      ],
+      "index": 3,
+      "points": [
+        [
+          54.360366832552536,
+          24.031091048111172
+        ],
+        [
+          54.36842166586085,
+          23.991928714958128
+        ],
+        [
+          54.40218934584897,
+          24.042808547862126
+        ],
+        [
+          54.383549586495526,
+          24.014722880099118
+        ],
+        [
+          54.40218934584897,
+          24.042808547862126
+        ]
+      ],
+      "resolved_ids": [
+        "f460c9d9-f088-8250-9cdc-8bc5ce0cc3a6",
+        "97dccee6-aba8-3859-9b79-4867567b0f81",
+        "14e4f031-25ea-3952-9c0e-8bc2dda458cd"
+      ],
+      "source": "map_graphic",
+      "task": "T4_GroundAttackAxis_56_SBCT_SLOT2",
+      "task_uuid": "0c0bb2cf-eab8-45ce-87e0-23a7a68444dc",
+      "unit": "56_SBCT/28ID__FRIENDLY_WHEELED_ARMORED_BRIGADE_TASK_FORCE",
+      "unit_uuid": "f207793d-4814-7258-9b8e-a8e1af8efb70",
+      "unmatched_ids": []
+    },
+    {
+      "embedded_points": 0,
+      "graphic_ids": [],
+      "index": 4,
+      "points": [],
+      "resolved_ids": [],
+      "source": "none",
+      "task": "T5_56SbctEstablishesHastyDefensesAlongAssignedKeyGlocs,ClearsRemaining51MilBdeElements,AndSupportsMinimumEssentialStabilityTasks.",
+      "task_uuid": "f8b65950-5b7b-436e-a968-56da92ffbf5c",
+      "unit": "56_SBCT/28ID__FRIENDLY_WHEELED_ARMORED_BRIGADE_TASK_FORCE",
+      "unit_uuid": "f207793d-4814-7258-9b8e-a8e1af8efb70",
+      "unmatched_ids": []
+    },
+    {
+      "embedded_points": 7,
+      "graphic_ids": [
+        "1c115c3b-eb79-8959-9902-98768851fb80",
+        "e33df790-2bb5-185d-ae42-a728563ee5ed"
+      ],
+      "index": 5,
+      "points": [
+        [
+          54.265352768326316,
+          23.748941975552352
+        ],
+        [
+          54.22283922710453,
+          23.902258730396007
+        ],
+        [
+          54.36244699779121,
+          23.715225025351373
+        ]
+      ],
+      "resolved_ids": [
+        "1c115c3b-eb79-8959-9902-98768851fb80",
+        "e33df790-2bb5-185d-ae42-a728563ee5ed"
+      ],
+      "source": "map_graphic",
+      "task": "T6_TANGO",
+      "task_uuid": "a4ffa19d-8775-4d5b-a767-7576d5b24b22",
+      "unit": "278_ACR/28ID__FRIENDLY_ARMORED_CAVALRY_RECON_REGIMENT",
+      "unit_uuid": "4c7f7a5d-2cdf-b15d-b2cf-69f48b9d1dd7",
+      "unmatched_ids": []
+    },
+    {
+      "embedded_points": 0,
+      "graphic_ids": [],
+      "index": 6,
+      "points": [],
+      "resolved_ids": [],
+      "source": "none",
+      "task": "T7_278AcrConductsDeepReconnaissanceToTheNeman,Confirms15MoiAnd1TkRgtDispositions,IdentifiesCbrnIndicatorsAtWet-GapCrossings,AndScreensAgainst12CorReserveApproaches.",
+      "task_uuid": "31226602-7845-47e0-8b7c-b1af21ad0f6d",
+      "unit": "278_ACR/28ID__FRIENDLY_ARMORED_CAVALRY_RECON_REGIMENT",
+      "unit_uuid": "4c7f7a5d-2cdf-b15d-b2cf-69f48b9d1dd7",
+      "unmatched_ids": []
+    },
+    {
+      "embedded_points": 3,
+      "graphic_ids": [
+        "76b09138-4e68-5350-8d26-4e0cfbe8f027",
+        "4013e852-1b7f-f75d-8337-47bedb2eeb4c"
+      ],
+      "index": 7,
+      "points": [
+        [
+          54.306360133808546,
+          23.746520975555867
+        ],
+        [
+          54.30986670831361,
+          23.713893494051472
+        ],
+        [
+          54.340258447386674,
+          23.746776540202895
+        ]
+      ],
+      "resolved_ids": [
+        "76b09138-4e68-5350-8d26-4e0cfbe8f027",
+        "4013e852-1b7f-f75d-8337-47bedb2eeb4c"
+      ],
+      "source": "map_graphic",
+      "task": "T8_GroundAttackAxis_278_ACR_SLOT3",
+      "task_uuid": "7eed7fc0-15c7-4fa3-a3a8-d8e9347dfaf2",
+      "unit": "278_ACR/28ID__FRIENDLY_ARMORED_CAVALRY_RECON_REGIMENT",
+      "unit_uuid": "4c7f7a5d-2cdf-b15d-b2cf-69f48b9d1dd7",
+      "unmatched_ids": []
+    },
+    {
+      "embedded_points": 3,
+      "graphic_ids": [
+        "b935435d-b068-f254-8961-deff12f7dc9a"
+      ],
+      "index": 8,
+      "points": [
+        [
+          54.3028047933315,
+          23.706179090680642
+        ],
+        [
+          54.292924219498424,
+          23.87526899885407
+        ],
+        [
+          54.387592675274924,
+          23.618284081551717
+        ]
+      ],
+      "resolved_ids": [
+        "b935435d-b068-f254-8961-deff12f7dc9a"
+      ],
+      "source": "map_graphic",
+      "task": "T9_278AcrScreensForwardTowardsTheKaliningradAoBoundary,ProvidingEarlyWarningOfResidualOrNewThreats,MonitoringFor12CorRemnants,AndSupportingHandoverToFollow-OnSecurityForces.",
+      "task_uuid": "6507ecde-1531-4d86-b3ec-d31729d5df0b",
+      "unit": "278_ACR/28ID__FRIENDLY_ARMORED_CAVALRY_RECON_REGIMENT",
+      "unit_uuid": "4c7f7a5d-2cdf-b15d-b2cf-69f48b9d1dd7",
+      "unmatched_ids": []
+    },
+    {
+      "embedded_points": 0,
+      "graphic_ids": [],
+      "index": 9,
+      "points": [],
+      "resolved_ids": [],
+      "source": "none",
+      "task": "T10_1-112InServesAsDivisionReserveOrientedOnCountering12CorReservePenetrationFromTheNortheastOrExploiting1MoiCollapse,PreparedForRapidAirOrGroundMovement.",
+      "task_uuid": "9aab7fe6-c7fb-4e74-b586-e11a00fc3eb9",
+      "unit": "1-112_IN/28ID__FRIENDLY_INFANTRY_BATTALION_TASK_FORCE",
+      "unit_uuid": "8d5b2ba6-73c1-6c55-812c-7c8078ea8c97",
+      "unmatched_ids": []
+    },
+    {
+      "embedded_points": 0,
+      "graphic_ids": [],
+      "index": 10,
+      "points": [],
+      "resolved_ids": [],
+      "source": "none",
+      "task": "T11_1-112InServesAsMobileReserveReadyForCounter-InfiltrationOrRapidResponseToAnyRenewedThreatAlongGlocsOrInKaunas.",
+      "task_uuid": "89ba4d53-212e-4839-93da-d9e0a16bc4c4",
+      "unit": "1-112_IN/28ID__FRIENDLY_INFANTRY_BATTALION_TASK_FORCE",
+      "unit_uuid": "8d5b2ba6-73c1-6c55-812c-7c8078ea8c97",
+      "unmatched_ids": []
+    },
+    {
+      "embedded_points": 3,
+      "graphic_ids": [
+        "4005ecca-ce0b-0058-8633-e3f5146e3ad0",
+        "14e4f031-25ea-3952-9c0e-8bc2dda458cd"
+      ],
+      "index": 11,
+      "points": [
+        [
+          54.370612621589466,
+          23.994263716637874
+        ],
+        [
+          54.38967994620174,
+          23.968699272203086
+        ],
+        [
+          54.40218934584897,
+          24.042808547862126
+        ]
+      ],
+      "resolved_ids": [
+        "4005ecca-ce0b-0058-8633-e3f5146e3ad0",
+        "14e4f031-25ea-3952-9c0e-8bc2dda458cd"
+      ],
+      "source": "map_graphic",
+      "task": "T12_GroundAttackAxi_116_ABCT_SLOT2",
+      "task_uuid": "c6913c98-1713-4865-aaf5-415994cae4cf",
+      "unit": "116_ABCT/28ID__FRIENDLY_AIRBORNE_TRACKED_ARMORED_BRIGADE",
+      "unit_uuid": "884518d7-5b82-a455-98de-64aae833d633",
+      "unmatched_ids": []
+    },
+    {
+      "embedded_points": 1,
+      "graphic_ids": [
+        "cc23071f-aa60-9f52-884c-11505051cc99",
+        "a3227dbd-4d26-a552-8109-36d16d43fdcb",
+        "82803b45-3eb1-b559-892a-2aefb737ac14",
+        "863a6dd8-698b-db50-9415-77e9df336e2b"
+      ],
+      "index": 12,
+      "points": [
+        [
+          54.066722962352024,
+          23.18640225238096
+        ],
+        [
+          53.972054506575525,
+          23.441400884909225
+        ]
+      ],
+      "resolved_ids": [
+        "cc23071f-aa60-9f52-884c-11505051cc99",
+        "a3227dbd-4d26-a552-8109-36d16d43fdcb",
+        "82803b45-3eb1-b559-892a-2aefb737ac14",
+        "863a6dd8-698b-db50-9415-77e9df336e2b"
+      ],
+      "source": "map_graphic",
+      "task": "T13_48IbctCompletesForwardPassageOfLinesThroughPassageLanes1?5AndOccupiesInitialAttackPositionsOrientedOnAosAtlantaAndBuffalo,PreparingToReceiveControlMeasuresAndAttackOrders.",
+      "task_uuid": "37677c40-c595-4b4c-9039-e9865abb4eb3",
+      "unit": "48_IBCT/28ID__FRIENDLY_INFANTRY_BRIGADE_TASK_FORCE",
+      "unit_uuid": "dd3d21b2-c5e0-d45a-9fba-b4b8bb879e6a",
+      "unmatched_ids": []
+    },
+    {
+      "embedded_points": 2,
+      "graphic_ids": [
+        "7351f662-f857-e05a-b533-f9a46e0fb095"
+      ],
+      "index": 13,
+      "points": [
+        [
+          54.04034819271516,
+          23.336444730300467
+        ]
+      ],
+      "resolved_ids": [
+        "7351f662-f857-e05a-b533-f9a46e0fb095"
+      ],
+      "source": "map_graphic",
+      "task": "T14_48IbctFollowsAndSupports116AbctInAtlanta,ClearingBypassed183SecBdePocketsAndProtectingSesupeCrossingsAndGlocsFromSpf/CommandoAction.",
+      "task_uuid": "1075b583-a7b8-45e5-b22b-d09988c9443e",
+      "unit": "48_IBCT/28ID__FRIENDLY_INFANTRY_BRIGADE_TASK_FORCE",
+      "unit_uuid": "dd3d21b2-c5e0-d45a-9fba-b4b8bb879e6a",
+      "unmatched_ids": []
+    },
+    {
+      "embedded_points": 3,
+      "graphic_ids": [
+        "d067cdec-6ba6-255d-8b5b-20091f219029",
+        "339723b6-05b5-3950-a5db-9eec3fb6f215",
+        "4640b7f0-bd2c-6359-b519-f7085f015811"
+      ],
+      "index": 14,
+      "points": [
+        [
+          54.91939587420154,
+          23.106323980767677
+        ],
+        [
+          54.90535384631712,
+          23.07268795200373
+        ],
+        [
+          54.94971731457731,
+          23.060463068058866
+        ],
+        [
+          54.95058107754997,
+          23.058082895938746
+        ],
+        [
+          54.94885355160466,
+          23.062843240178985
+        ],
+        [
+          54.94819851325475,
+          23.058791912179107
+        ],
+        [
+          54.94971731457731,
+          23.060463068058862
+        ]
+      ],
+      "resolved_ids": [
+        "d067cdec-6ba6-255d-8b5b-20091f219029",
+        "339723b6-05b5-3950-a5db-9eec3fb6f215",
+        "4640b7f0-bd2c-6359-b519-f7085f015811"
+      ],
+      "source": "map_graphic",
+      "task": "T15_GroundAttackAxis_48_IBCT_SLOT2",
+      "task_uuid": "71fbb065-dc1d-4e59-b3b4-37e0886841c5",
+      "unit": "48_IBCT/28ID__FRIENDLY_INFANTRY_BRIGADE_TASK_FORCE",
+      "unit_uuid": "dd3d21b2-c5e0-d45a-9fba-b4b8bb879e6a",
+      "unmatched_ids": []
+    },
+    {
+      "embedded_points": 3,
+      "graphic_ids": [
+        "4dcb0727-2994-c558-b81f-01aa8c909864",
+        "8ac5c963-ab80-ff5b-aa1f-7196d2114c6f",
+        "4640b7f0-bd2c-6359-b519-f7085f015811"
+      ],
+      "index": 15,
+      "points": [
+        [
+          54.91939587420154,
+          23.106323980767677
+        ],
+        [
+          54.90535384631712,
+          23.07268795200373
+        ],
+        [
+          54.94971731457731,
+          23.060463068058866
+        ],
+        [
+          54.93896643965348,
+          23.069758516850822
+        ],
+        [
+          54.94971731457731,
+          23.060463068058866
+        ],
+        [
+          54.927091945764616,
+          23.066697758870745
+        ],
+        [
+          54.94971731457731,
+          23.060463068058862
+        ]
+      ],
+      "resolved_ids": [
+        "4dcb0727-2994-c558-b81f-01aa8c909864",
+        "8ac5c963-ab80-ff5b-aa1f-7196d2114c6f",
+        "4640b7f0-bd2c-6359-b519-f7085f015811"
+      ],
+      "source": "map_graphic",
+      "task": "T16_GroundAttackAxis_48_IBCT_SLOT3",
+      "task_uuid": "e84f2cc6-88a3-4630-8991-ca90b14a7969",
+      "unit": "48_IBCT/28ID__FRIENDLY_INFANTRY_BRIGADE_TASK_FORCE",
+      "unit_uuid": "dd3d21b2-c5e0-d45a-9fba-b4b8bb879e6a",
+      "unmatched_ids": []
+    },
+    {
+      "embedded_points": 0,
+      "graphic_ids": [],
+      "index": 16,
+      "points": [],
+      "resolved_ids": [],
+      "source": "none",
+      "task": "T17_48IbctEstablishesHastyDefensesAlongAssignedKeyGlocs,ClearsRemaining51MilBdeElements,AndSupportsMinimumEssentialStabilityTasks.",
+      "task_uuid": "09145166-899f-4851-b271-43be741c2f52",
+      "unit": "48_IBCT/28ID__FRIENDLY_INFANTRY_BRIGADE_TASK_FORCE",
+      "unit_uuid": "dd3d21b2-c5e0-d45a-9fba-b4b8bb879e6a",
+      "unmatched_ids": []
+    },
+    {
+      "embedded_points": 0,
+      "graphic_ids": [],
+      "index": 17,
+      "points": [],
+      "resolved_ids": [],
+      "source": "none",
+      "task": "T18_55MebEstablishesAndMaintainsADivisionRearAreaSecurityFrameworkInTheSuwaiki?PlBorderAreaToProtectLocsAndKeyNodesFromSpf/CommandoAttacks.",
+      "task_uuid": "260e60ea-e624-4175-af30-52ce43c2675c",
+      "unit": "55_MEB/28ID__FRIENDLY_ENGINEER_BRIGADE",
+      "unit_uuid": "d88d2a34-a041-3950-8dca-251b7441d777",
+      "unmatched_ids": []
+    },
+    {
+      "embedded_points": 1,
+      "graphic_ids": [
+        "7f7c875e-663f-e752-9c10-a22657acbac3"
+      ],
+      "index": 18,
+      "points": [
+        [
+          54.06898501653205,
+          22.970434570782228
+        ]
+      ],
+      "resolved_ids": [
+        "7f7c875e-663f-e752-9c10-a22657acbac3"
+      ],
+      "source": "map_graphic",
+      "task": "T19_55MebAssumesSecurityOfSesupeCrossingsAndDivisionMsrs,IntegratingRouteClearanceAndCbrnReconnaissanceAndBuildingLayeredAdaAndCounter-UasProtectionForAssemblyAreasAndCrossings.",
+      "task_uuid": "1d9f4ce2-2f3a-41ff-b5ab-577deaa01dcc",
+      "unit": "55_MEB/28ID__FRIENDLY_ENGINEER_BRIGADE",
+      "unit_uuid": "d88d2a34-a041-3950-8dca-251b7441d777",
+      "unmatched_ids": []
+    },
+    {
+      "embedded_points": 1,
+      "graphic_ids": [
+        "e58ffbcf-670f-3d57-b120-64d62232f06e"
+      ],
+      "index": 19,
+      "points": [
+        [
+          54.06898501653205,
+          22.970434570782228
+        ]
+      ],
+      "resolved_ids": [
+        "e58ffbcf-670f-3d57-b120-64d62232f06e"
+      ],
+      "source": "map_graphic",
+      "task": "T20_55MebEmplacesAndSecuresBridgingAssets,ManagesMovementControlAtNemanCrossings,ConductsRouteClearanceAndCbrnMonitoringOnBothBanks,AndIntegratesAdaToProtectBridgingSitesAndHigh-ValueSustainmentNodesFromIfcAndAirThreats.",
+      "task_uuid": "acbac606-dc82-4101-ad9c-394b352e291c",
+      "unit": "55_MEB/28ID__FRIENDLY_ENGINEER_BRIGADE",
+      "unit_uuid": "d88d2a34-a041-3950-8dca-251b7441d777",
+      "unmatched_ids": []
+    },
+    {
+      "embedded_points": 1,
+      "graphic_ids": [
+        "b5fa1ab7-b7eb-215f-94c0-c163c6d96ea3"
+      ],
+      "index": 20,
+      "points": [
+        [
+          54.06898501653205,
+          22.970434570782228
+        ]
+      ],
+      "resolved_ids": [
+        "b5fa1ab7-b7eb-215f-94c0-c163c6d96ea3"
+      ],
+      "source": "map_graphic",
+      "task": "T21_55MebAssumesPrimaryResponsibilityForRearAreaAndGlocSecurity,CbrnHazardManagement,AndInfrastructureProtection.",
+      "task_uuid": "d691bea4-96e4-40bd-8e3d-999413d80197",
+      "unit": "55_MEB/28ID__FRIENDLY_ENGINEER_BRIGADE",
+      "unit_uuid": "d88d2a34-a041-3950-8dca-251b7441d777",
+      "unmatched_ids": []
+    },
+    {
+      "embedded_points": 5,
+      "graphic_ids": [
+        "7843ad57-e8d9-fc50-8211-3b3a1dc357c9"
+      ],
+      "index": 21,
+      "points": [
+        [
+          54.16858903469139,
+          23.09284064535709
+        ],
+        [
+          54.15419298514707,
+          23.131740034165887
+        ],
+        [
+          54.13141096530861,
+          23.107159354642913
+        ],
+        [
+          54.14580701485293,
+          23.068259965834116
+        ],
+        [
+          54.16858903469139,
+          23.09284064535709
+        ]
+      ],
+      "resolved_ids": [],
+      "source": "embedded_location",
+      "task": "T22_169FabEmplacesInitialFiringUnitsInPositionAreasToProvideCounterfireCoverageToPlTangoAndSesupeCuedOn99ArtyBdeAnd12CorIfc.",
+      "task_uuid": "7c962730-9929-4a0c-ba3c-55c1b5213b75",
+      "unit": "169_FAB/28ID__FRIENDLY_FIELD_ARTILLERY_BRIGADE",
+      "unit_uuid": "a4777af0-364e-eb57-9e69-39e5737236d1",
+      "unmatched_ids": [
+        "7843ad57-e8d9-fc50-8211-3b3a1dc357c9"
+      ]
+    },
+    {
+      "embedded_points": 3,
+      "graphic_ids": [
+        "e32aeef5-1d9b-8f54-a6a8-b7e38b00807b",
+        "14e4f031-25ea-3952-9c0e-8bc2dda458cd"
+      ],
+      "index": 22,
+      "points": [
+        [
+          54.38972200122945,
+          24.076703209385883
+        ],
+        [
+          54.41465669046848,
+          24.00891388633837
+        ],
+        [
+          54.436362375606656,
+          24.079905910516974
+        ],
+        [
+          54.40218934584897,
+          24.042808547862126
+        ]
+      ],
+      "resolved_ids": [
+        "e32aeef5-1d9b-8f54-a6a8-b7e38b00807b",
+        "14e4f031-25ea-3952-9c0e-8bc2dda458cd"
+      ],
+      "source": "map_graphic",
+      "task": "T23_11CabConductsAttack/ReconAviationToStripEnemyIsr,Engage99ArtyBdeFiringUnitsWhenTargetable,AndSupportBreachingOperationsSouthOfPlFoxhoundWhileKeepingABattalion-PlusOnStripAlertForCounter-ReserveAttacks.",
+      "task_uuid": "8645f7db-dd9d-4ae4-b035-0e2f61abf4b9",
+      "unit": "11_CAB/28ID__FRIENDLY_ATTACK_HELICOPTER_BRIGADE",
+      "unit_uuid": "0683b30b-8681-d957-9e2f-e241a50fa2e4",
+      "unmatched_ids": []
+    }
+  ],
+  "tool": "tools/preflight/leg_check.py --dump-resolved"
+}

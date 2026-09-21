@@ -202,6 +202,26 @@ sec 5).
 - `--vrf-overlay FILE` - EMITTER SKELETON. `{label, color, points}` entries for a later C#
   consumer to draw through the remote controller's overlay-object API: the worst window in red,
   the whole leg in amber.
+- `--dump-resolved FILE` - SF-G, THE RESOLVER PIN. Per task: the geometry SOURCE
+  (`map_graphic` / `embedded_location` / `none`) and every resolved vertex, with no terrain, no
+  tile and no network. `VrfC2SimApp --preflight-selftest` reads it back and compares the C#
+  `TaskGeometryResolver` against it field by field. It exists because this tool is a
+  RE-IMPLEMENTATION of that resolver and the rest of the comparison runs on COA-STP1, which
+  carries ZERO MapGraphicIDs - so it exercises none of the assembly rules. Regenerate it
+  whenever either side of the assembly changes:
+
+      python tools/preflight/leg_check.py \
+        --order data/STP-IRON-STORM-SYNTHETIC_Order.xml \
+        --init  data/STP-IRON-STORM-SYNTHETIC_Initialization.xml \
+        --offline --no-starts \
+        --dump-resolved tools/preflight/resolver-reference-ironstorm.json
+
+  SF-F is settled inside it: the whole assembly is run TWICE, once with this tool's haversine
+  `dist_m` and once with `dist_m_flat` (`TaskGeometryResolver.DistMeters`, equirectangular),
+  and the reference is REFUSED (exit 3) if any task resolves differently. The margins it
+  records are how close any real decision came to one of the two hard edges - measured
+  2026-09-21 over 310 comparisons: 79.8 m at the 100 m edge, 1,722.6 m at the 5,000 m edge,
+  against metric differences of roughly 0.3 m and 15 m at those magnitudes.
 
 ## Assumptions, marked
 
