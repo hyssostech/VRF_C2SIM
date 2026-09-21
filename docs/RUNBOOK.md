@@ -2998,6 +2998,53 @@ puts N points' unit vectors (the N-th roots of unity) at a sum of zero for every
 the centroid is the shared coordinate exactly - offline re-derivation on the real R9 lean init
 gives a 0.000 m centroid offset and restores the route to 1,111.9 m (D3/D6's band); D8
 (registered) is the first live confirmation.
+
+N13 (D9 + D5c, 2026-09-21) - **THE ROUTE ORIGIN IS NO LONGER THE PARENT'S PUBLISHED POSITION.**
+The equal-bearing ring is right AT REST and N4 stays fixed, but it says nothing about the few
+seconds AFTER an order materializes a composed parent's children. In that window the parent's
+own VR-Forces object is never deleted while its CHILDREN are deleted and re-created, so the
+centroid VR-Forces publishes for it is taken over a MIXTURE - a slot missing, or a slot counted
+twice - and the published position sweeps away from the truth: D9 measured R/2 at 300 deg then
+**R/4 at 120 deg (50.4 m)** against the 202.1 m ring, D5c measured the same R/4 signature
+(48.2 m at 118.4 deg) and a cross-track decay of 42.5 -> 15.4 m by +12 s -> 8.8 m by +25 s,
+asymptoting at 7-8 m and never observably returning to 0 once the unit is under way. Reading the
+origin there cost D9 a **1,139 m route instead of 1,112 m, a 569 m traversal bar instead of 556
+and a 285 m arrival radius instead of 278.** Three runs, three different outcomes of the same
+unarbitrated race: D8 won it by 0.5 s, D5c by 0.39 s, D9 lost it by 0.6 s.
+
+**WHAT THE ORIGIN IS NOW** (`RouteOriginPolicy.cs`; `--routeorigin-selftest`, whose fixture is
+D9's own trace). For a taskee that is a COMPOSED PARENT with two or more declared children, the
+route origin is the **CENTROID OF THOSE CHILDREN'S OWN REFLECTED POSITIONS**, not the parent's
+published position. It is what the back end itself publishes once it settles (D8/N10: 5.9-18.5 m
+agreement from +20 s on), it is exact at rest by the ring's own construction, it needs no wait
+because the composition gate has already proved every child readable, and it follows the unit
+when it MOVES - which is why the authored coordinate was not used instead. The app prints ONE
+line per composed dispatch naming the origin used, the child count and the distance to the
+published position, and calls a gap above 10 m by its name (the re-compose transient).
+
+**WHAT AN OPERATOR SEES.** On a healthy composed dispatch: `ROUTE ORIGIN for composed parent
+<name>: the CENTROID OF ITS N DECLARED CHILD UNIT(S) (N of N reflected), <lat>,<lon>. ...` If any
+declared child cannot be read, the line instead says `FALLING BACK to the parent's OWN PUBLISHED
+position` and states the exposure. **No partial centroid is ever computed** - a partial
+membership is exactly what the transient is.
+
+KNOWN LIMITS of the N13 fix:
+- **R1 POSITION REPORTS ARE STILL EXPOSED.** The periodic PositionReport for a composed parent
+  reports what VR-Forces publishes, so for a few seconds after an order-time re-compose it
+  carries the transient value (up to the ring radius out). Unchanged deliberately: R1's contract
+  is to report the simulation's own answer, the error is transient and self-correcting, and
+  synthesising a centroid there changes what EVERY aggregate reports for the whole run. That is a
+  ruling, not a bug fix.
+- The FALLBACK arm's exposure is the full ring radius (202.1 m on R9 lean; 806.7 m on R9 full at
+  N=7 if `Vrf:DeStackEchelonFallbackMeters` is ever set). It is reached only when a child never
+  reflected, which already logs its own warning.
+- A parent with ONE declared child is not covered (a lone child is not spread, so there is no
+  ring to average).
+- Untested at scale and untested on Iron Storm.
+- The instrument that goes with it: the case-3 MATERIALIZE lines now carry WALL stamps and print
+  the **delete-issued -> readable round trip** in seconds, so the next harvest measures it instead
+  of bounding it from a 2 s trace sample (D9 sec 4.3(b), D5c sec 8).
+
 Measured jam-instrument result (D7, the 2026-09-07 ruling's instrument, scoreable live for
 the first time): BlockedByVehicle 3 rows / 2 objects against the ruling's 4,828-in-300 s
 co-located reference - PASSES. Console level 3 is cheap on R9 scale (8.9 MB trace, 3.4 MB app

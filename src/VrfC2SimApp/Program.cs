@@ -123,6 +123,17 @@ if (args.Length > 0 && args[0] == "--liveness-selftest")
 if (args.Length > 0 && args[0] == "--dispatch-readiness-selftest")
     return DispatchReadinessSelfTest.Run(featureEnabled: !(args.Length >= 2 && args[1] == "--disabled"));
 
+// Offline ROUTE-ORIGIN check (N13 + N15, D9 2026-09-21): the route origin of a COMPOSED PARENT,
+// replayed on run D9's own transient samples - the children's centroid lands on the authored
+// coordinate within 1 m where the parent's published position was 50.4 m out and lengthened the
+// route from 1,112 m to 1,139 m; a MOVED unit does not snap back; an unreflected child takes the
+// documented fallback; independent taskees are bit-for-bit unchanged. Also the N15 creation census.
+// No server, no network, no clock. Its N15 section builds CreationPlan values, so - like
+// --destack-selftest and --typemap-selftest - it loads the bridge assembly and the MAK bin dirs
+// must be on PATH.
+if (args.Length > 0 && args[0] == "--routeorigin-selftest")
+    return RouteOriginSelfTest.Run();
+
 // Offline scripted-task variable check (V2): every ScriptVar kind -> the vendor's DtRw* binding and
 // back (VrfBridge.DescribeScriptVars; builds a real DtScriptedTaskTask, sends nothing). Loads the
 // bridge assembly, so the MAK bin dirs must be on PATH - like --typemap-selftest.
@@ -151,7 +162,7 @@ if (args.Length > 0 && args[0].StartsWith("--") && args[0] != "--runtime-check" 
     Console.Error.WriteLine("VrfC2SimApp: unknown switch '" + args[0] + "' - NOT starting the host. Known: " +
                             "--translator/--report/--sequencer/--verb/--destack/--fanout/--typemap/--terrain/" +
                             "--placement/--compose/--arrival/--stall/--parse/--name/--preflight/--routeshift/--rulings/" +
-                            "--routeextent-selftest, " +
+                            "--routeextent/--routeorigin-selftest, " +
                             "--liveness-selftest [--disabled], " +
                             "--dispatch-readiness-selftest [--disabled], " +
                             "--scripted-task/--initgraphics/--stpexport-selftest, " +
