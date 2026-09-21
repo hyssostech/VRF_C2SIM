@@ -3325,8 +3325,13 @@ public sealed class VrfC2SimService : BackgroundService
         // REACHABLE, not theoretical: an enrolled platform is UNMEASURED until a reply lands, and
         // Contact.Unknown is permissive, so it is taskable and can be driving while this window is
         // open - in run 20260921T114910Z the first TASKSTRTs land ~32 s into what would be a 60 s
-        // window. The two buried platforms happened not to move; that is the only reason it did not
-        // bite.
+        // window. MEASUREMENT: in that run the two platforms measured off the terrain displaced
+        // 0.0 m, so no correction of theirs could have yanked a moving unit; that is the only
+        // reason the window did not bite. WHY they did not move is NOT established and is not
+        // claimed here (CORRECTION 2026-09-21: this comment read "the two buried platforms happened
+        // not to move" - docs/VRF_ALTITUDE_FRAMES.md sec 5 falsifies "born buried, therefore never
+        // moves" and sec 7's first tripwire fires on that word pairing). Nothing in this guard
+        // rests on the reason; it rests on the 0.0 m.
         var pending = new List<ReclampEntry>();
         var points = new List<Geodetic>();
         foreach (var e in _reclamp.Values)

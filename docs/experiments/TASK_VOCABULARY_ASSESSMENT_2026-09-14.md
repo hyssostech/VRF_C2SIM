@@ -1105,6 +1105,46 @@ R5 and R6 remain open. Citations below are to that doctrine record unless noted.
   time; evaluable tasks (SEIZE/OCCUPY arrival, BREACH, MOVE) may still complete earlier
   on their own evidence.
 
+  **SCOPE CORRECTION 2026-09-21 (U2 lane A). THE LEDGER TEXT ABOVE IS BROADER THAN THE
+  RULING IT RECORDS. The original text is left in place; this block is what a reader must
+  carry away.** Citations are physical line numbers in session a7f6a276's transcript,
+  each verified with `rg -n` by this lane.
+
+  THE QUESTION AS PUT, 2026-09-14 (line 28092, the seat's own message, item 4 of six):
+  *"R4, when a hold ends. SECURE, OCCUPY and DEFEND have no natural completion in
+  VR-Forces. Decide whether they complete on arrival, after a duration, or only when a
+  later order supersedes them."*
+
+  THE USER'S ANSWER, 2026-09-14 (line 28191, a type=user record; his item 4 in full):
+  *"4 given by the end time"*.
+
+  WHAT HE WROTE ON 2026-09-21 (line 45457, a type=user record, quoted with his spelling):
+  *"The rulling based on time is for tasks that do not include movement, such as defend in
+  place and similar ones - units that are not expected to reach any other location. That's
+  what you asked. 'A unit that moved 60 m of a 5 km leg gets a complete' is a new
+  interpretation. If I agreed with that, I was tricked. ... The notion that geting stuck
+  midway is a complete is completelly illogical. ... Arriving late does _not_ imply an
+  abortion - what happens is that follow on tasks are delayed by the slow progress on a
+  leg."*
+
+  SO THE RULING'S SCOPE IS TASKS THAT DO NOT INCLUDE MOVEMENT. The clause above,
+  *"evaluable tasks (SEIZE/OCCUPY arrival, BREACH, MOVE) may still complete EARLIER on
+  their own evidence"*, reads the end time as a CEILING for a MOVE as well. That reading
+  is not in the question as put and not in the answer; it is a supervisor generalisation.
+
+  AS A SEPARATE STATEMENT ABOUT THE CODE: `TimedCompletionPolicy` arms one timer per
+  dispatched task with a Duration, moves included (746c091, 2026-09-14; see "R4 BUILT"
+  later in this section). That is a CODE DEFECT tracked as unit U3. It is not a ruling,
+  and "R4" is not authority for completing a MOVE.
+
+  WHAT IS NOT RULED EITHER WAY, and must not be written as settled by this block:
+  movement-then-hold (SECURE/OCCUPY/DEFEND naming a location), patrol, follow/escort, the
+  successors of a stalled move, any bound on waiting for a late mover, and whether the
+  stall watchdog ships ON. Those are unit U1's questions to the user. STP-857
+  (zero-displacement armed-end abort) was REJECTED by him on 2026-09-21; branch
+  `fix/reclamp-verify-and-movement-only` @ 3d58819 stays parked and unmerged. See
+  `docs/CORRECTIONS_LOG.md` entry F-1.
+
   **R4's CLOCK IS THE SIMULATION CLOCK** (Q2, **RULED 2026-09-14 (user)**: the
   supervisor default stands). `Vrf:TaskClock`, default
   `"sim"`, with an automatic WALL fallback whenever `DtVrfRemoteController::simTime()`
@@ -1230,7 +1270,12 @@ STP-809 - 136 at the end of pass 3 - the count 7.1b quotes, and the one the suit
 all 18 self-tests stay green (typemap 783, scripted-task, initgraphics, preflight
 included). NOTHING here has been run against VR-Forces yet.
 
-- **R4 BUILT** - `OrderParser` lifts Duration (and the absolute StartTime form);
+- **R4 BUILT** - *(SCOPE CORRECTION 2026-09-21, U2 lane A: "one timer per task at dispatch"
+  arms MOVE tasks too, and the ruling it cites covers tasks that do not include movement.
+  See the SCOPE CORRECTION block at "R4 RULED" above for the verbatim question and answer.
+  Timer-on-moves is a code defect tracked as unit U3, not a ruling. Nothing in this
+  paragraph's account of what was BUILT is disputed; only its authority is.)*
+  `OrderParser` lifts Duration (and the absolute StartTime form);
   `TimedCompletionPolicy` arms one timer per task at dispatch and measures ELAPSED clock,
   not a deadline stamp, so a paused scenario does not age a task and a
   `rollbackToSnapshot` does not complete one early; the service walks it on the tick

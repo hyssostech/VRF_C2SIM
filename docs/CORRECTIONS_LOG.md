@@ -154,6 +154,118 @@ Each entry: the claim, why it was wrong, and the evidence that settled it.
   separate sentences, and check docs/VRF_ALTITUDE_FRAMES.md sec 5 and 7 before writing anything
   that puts "buried"/"underground" near "freeze"/"never moves".
 
+## F-1: "STP-857 is a user ruling", and its premise "a MOVE timer-completes by R4" (2026-09-21)
+
+- CLAIMED (2026-09-21, records pass 24, commit 2f52622): that the user RULED on 2026-09-21,
+  as STP-857, that "a MOVE task that reaches its armed end with NO displacement reports
+  TASKABRT, not TASKCMPLT", NARROWING a rule whose wider form - every dispatched task with a
+  Duration is timer-completed, moves included - "WAS the ruled behaviour ... meeting R4".
+  BOTH HALVES ARE WRONG. There is no such ruling, and the premise it narrows was never ruled.
+- WHAT THE PRIMARY SOURCE SAYS. Citations are physical line numbers in the session a7f6a276
+  transcript (`~\.claude\projects\...c2simVRFinterfacev2-36\a7f6a276-...jsonl`), each read
+  with `rg -n` and the record's `type` checked; the user's own words are `type=user` records
+  and are quoted with his spelling.
+  * THE QUESTION AS PUT, 2026-09-14 (line 28092, the seat's message, item 4 of six):
+    "R4, when a hold ends. SECURE, OCCUPY and DEFEND have no natural completion in
+    VR-Forces. Decide whether they complete on arrival, after a duration, or only when a
+    later order supersedes them."
+  * HIS ANSWER, 2026-09-14 (line 28191, type=user, item 4 in full): "4 given by the end time".
+  * THE STP-857 RECOMMENDATION, 2026-09-21 (line 44947, the seat's message): "What should the
+    bus say when a move task's timer expires on a unit that never moved? The options are in
+    the ticket. My recommendation is option 1: report an abort, 'armed end reached with no
+    movement', where the current build reports complete." The clause "where the current build
+    reports complete" is the false premise, stated as settled.
+  * HIS ANSWER, 2026-09-21 (line 45180, type=user): "857 as recommended - just make sure the
+    task does involve movement. Not all do."
+  * HIS UNPROMPTED MESSAGE THE SAME DAY (line 45457, type=user): "The rulling based on time is
+    for tasks that do not include movement, such as defend in place and similar ones - units
+    that are not expected to reach any other location. That's what you asked. 'A unit that
+    moved 60 m of a 5 km leg gets a complete' is a new interpretation. If I agreed with that,
+    I was tricked. ... The notion that geting stuck midway is a complete is completelly
+    illogical. ... Arriving late does _not_ imply an abortion - what happens is that follow on
+    tasks are delayed by the slow progress on a leg."
+  * The 2026-09-21 AskUserQuestion answer "Abandon them" is at line 45418 (a `type=user`
+    record carrying the tool result; the question itself is the assistant's tool_use at line
+    45417). It was given INSIDE the STP-857 frame and is not a free-standing ruling. His
+    second answer in the same exchange was not an endorsement but a question back: "This
+    sounds odd. Tasks should include the expected final location if they are indeed moves,
+    shouldn't they?"
+- SO, SEPARATELY AND IN ORDER. MEASUREMENT: on run 20260921T114910Z two platforms displaced
+  0.0 m and both C16 stall TASKABRTs were suppressed by an already-fired timed TASKCMPLT.
+  RULING SCOPE: time-based completion is for tasks that do not include movement. DESIGN
+  IMPLICATION: arming the Duration timer on MOVE tasks (746c091, 2026-09-14) is a supervisor
+  generalisation and a code defect, tracked as unit U3 - it is not a ruling, and "R4" is never
+  authority for completing a MOVE. RUN CONDITION, not a finding: that run set
+  `Vrf:DurationScale` 0.25, putting the 300 s armed end inside the 360 sim-s stall window.
+  STATUS: STP-857 is REJECTED; branch `fix/reclamp-verify-and-movement-only` @ 3d58819 stays
+  PARKED and unmerged. The completion semantics are OPEN and go to the user as unit U1.
+- STILL NOT RULED, either way - do not write any of these as settled: movement-then-hold
+  (SECURE/OCCUPY/DEFEND naming a location), patrol, follow/escort, the successors of a stalled
+  move, any bound on waiting for a late mover, whether the stall watchdog ships ON.
+- WHERE IT WAS WRITTEN, and corrected the same day at every site (dated CORRECTION blocks; no
+  body rewritten away):
+  * `docs/DEMO_READINESS_2026-09-06.md` row 19 - the "2026-09-21 STP-857 USER RULING"
+    paragraph struck, CORRECTION block with the verbatim quotes appended.
+  * `docs/RUNBOOK.md` sec 11h - both the "RULED 2026-09-21 (STP-857)" sentence and the
+    "meeting R4" premise struck; CORRECTION block appended after the paragraph.
+  * `docs/HANDOFF_2026-09-14_PARALLEL_LANES.md` :200 - status corrected in the line ("needs a
+    ruling" -> REJECTED, branch parked, semantics open as U1).
+  * `docs/experiments/TASK_VOCABULARY_ASSESSMENT_2026-09-14.md` - SCOPE CORRECTION block under
+    "R4 RULED", and a scope pointer at "R4 BUILT".
+  * `docs/experiments/PREREG_IRONSTORM_DRIVE_2026-09-21.md` - CORRECTION POINTER at the P10
+    "NEW FINDING, filed as STP-857" paragraph, covering the R2 text's "STP-857 recurrences"
+    limb as well; the registered text itself left unstruck as history.
+  * `src/VrfC2SimApp/appsettings.Demo.json` `_TimedCompletion` - the comment opened "R4 (user
+    ruling 2026-09-14)" over every dispatched task; a SCOPE CORRECTION now leads it. The
+    setting VALUE is unchanged.
+  Not this lane's, listed so the gap is visible: the memory file
+  `project-demo-rulings-2026-09-21` item 6, the Jira STP-857 text, and `docs/RULINGS.md`.
+- GENERATOR (the same shape this file keeps recording): a supervisor's paraphrase was stored as
+  the ruling, a later question was built on the paraphrase, and the answer to that question was
+  then written up as a ruling of its own. The standing fix: a ruling is recorded as the
+  QUESTION AS PUT plus the user's VERBATIM words with a locatable citation, and a supervisor's
+  reading is labelled "supervisor reading:" and kept in its own sentence.
+
+## F-2: shipped comments naming setAltitude as the placement correction, and fusing burial with a stationary vehicle (2026-09-21)
+
+- CLAIMED (2026-09-21, commit 8aeb127, in files that SHIP): that a fallback-created object is
+  "corrected with the documented setAltitude(0 m AGL)". WRONG about the code. The re-clamp
+  calls `_bridge.SetLocation` - `src/VrfC2SimApp/VrfC2SimService.cs:3433` (the sweep) and
+  `:3559` (the route-terrain path), both verified by reading the lines. The vendor headers are
+  why: `setAltitudeRequest.h:23-25` "It is ignored if the vehicle is not an air-going vehicle";
+  `setLocationRequest.h:26-32` "Z is ignored for non-air vehicles ... Ground vehicles will be
+  clamped to the terrain surface". `src/VrfC2SimApp/VrfSettings.cs:875` and
+  `PlacementReclampPolicy.cs:163` already said "THE CORRECTION IS A setLocation, NOT A
+  setAltitude" in the same commit - the two settings comments simply did not get the message.
+  CORRECTED IN PLACE: `src/VrfC2SimApp/appsettings.json` `_PlacementReclamp` and
+  `src/VrfC2SimApp/appsettings.Demo.json` `_PlacementReclamp`. Not corrected by this lane,
+  reported instead: `src/VrfC2SimApp/DispatchReadiness.cs:202` emits the same wording in an
+  OPERATOR-FACING log string ("The documented correction (setAltitude 0 m above ground level)
+  has been issued"); it is a code string, not a comment, so changing it is a behaviour change
+  and belongs to the lane that re-cuts the re-clamp.
+- CLAIMED (same commit, `appsettings.Demo.json` `_PlacementReclamp`): the setting "IS THE
+  DIFFERENCE BETWEEN A DEMO AND A STATIONARY VEHICLE", and without it a unit is "shown to an
+  audience sitting still under the ground". This is the falsified burial-to-no-movement fusion
+  in a shipped file - the third re-entry of the form this log's "Birth altitude" section and
+  `docs/VRF_ALTITUDE_FRAMES.md` sec 5 falsified, and exactly what sec 7's first tripwire
+  forbids. The same commit's own `appsettings.json` text says "THIS IS NOT A FREEZE FIX", so
+  the two shipped profiles contradicted each other. Records pass 24 named the Demo line as a
+  candidate and left `src/` untouched. CORRECTED IN PLACE 2026-09-21 (U2 lane A): the fusion is
+  gone, the measurement (0.0 m displacement, -0.0 m against 145.4 m and 155.8 m of terrain) is
+  kept, and the justification is stated separately as the placement contract (UG52 14.3.3) plus
+  the duty not to task a unit the interface has itself measured off the ground.
+- ALSO CORRECTED: `src/VrfC2SimApp/VrfC2SimService.cs:3328` read "The two buried platforms
+  happened not to move; that is the only reason it did not bite." Now states the measurement
+  (0.0 m displacement) and says explicitly that WHY they did not move is not established and
+  that the guard rests on the 0.0 m, not on any reason.
+- LEFT ALONE DELIBERATELY, with the reason, so the next sweep does not re-litigate them:
+  `docs/START_HERE.md`:145 ("3 movers ran 49-135 km away and terminated underground/offshore,
+  rest never moved") describes two disjoint groups and makes no causal claim;
+  `docs/VRF_GROUND_TRUTH.md`:881 is an OPEN QUESTION to MAK about a stationary entity created
+  below terrain, not an assertion; every other hit of the word pair is inside a falsification
+  or CORRECTION site (this file, `VRF_ALTITUDE_FRAMES.md`, `CLAUDE.md`, `DEMO_RUNBOOK.md`:100,
+  `HANDOFF`, `DEMO_READINESS` row 16, `PREREG_IRONSTORM_DRIVE`:505, `VrfSettings.cs`).
+
 ## Process
 
 - The single-auditor repair loop (rounds 1-7) did not converge: like-for-like orchestrated

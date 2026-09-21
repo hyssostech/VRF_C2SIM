@@ -3549,13 +3549,30 @@ repair is to split the barrier's two jobs (the DRAIN, which B1's inequality boun
 stay at `T_init + 20 s`, and the READY TO TASK OBSERVATION, which holds nothing up and could watch
 to the configured 60 s), and it belongs in the STP-852 lane, not here. (b) **The suppressed stall.**
 In that run both C16 TASKABRTs were suppressed because TIMED COMPLETION had already pushed TASKCMPLT
-(`app:35521`, `app:38591`) - which WAS the ruled behaviour (DEMO_READINESS row 19: *"a TASKCMPLT
+(`app:35521`, `app:38591`). ~~which WAS the ruled behaviour (DEMO_READINESS row 19: *"a TASKCMPLT
 does suppress any later TASKABRT for that task"*, user 2026-09-14) meeting R4 (*"completion is given
 by the end time"*). **RULED 2026-09-21 (STP-857), NARROWING that rule for MOVE tasks only**
 (DEMO_READINESS row 19): a MOVE task that reaches its armed end with NO displacement reports
-TASKABRT, not TASKCMPLT - implementation is a later lane, not built here. What this section does
+TASKABRT, not TASKCMPLT - implementation is a later lane, not built here.~~ What this section does
 remove is the CAUSE of the instance recorded above: a unit measured 145 m off the terrain is no
 longer tasked, so no armed end is ever set for it.
+
+**CORRECTION 2026-09-21 (U2 lane A, the same day) - BOTH STRUCK CLAIMS ARE WITHDRAWN.** (i) "STP-857
+RULED 2026-09-21" is not a ruling. The recommendation the user answered (session a7f6a276 transcript
+line 44947) presupposed that timer-completing a MOVE was already his ruling; he answered *"857 as
+recommended - just make sure the task does involve movement. Not all do."* (line 45180, type=user)
+and then wrote, the same day and unprompted (line 45457, type=user, his spelling): *"The rulling
+based on time is for tasks that do not include movement, such as defend in place and similar ones -
+units that are not expected to reach any other location. That's what you asked. ... If I agreed with
+that, I was tricked. ... The notion that geting stuck midway is a complete is completelly
+illogical."* STP-857 is REJECTED; branch `fix/reclamp-verify-and-movement-only` @ 3d58819 stays
+parked and unmerged. (ii) "meeting R4" for a MOVE is the false premise itself. R4 as PUT on
+2026-09-14 was *"R4, when a hold ends. SECURE, OCCUPY and DEFEND have no natural completion in
+VR-Forces"* (line 28092); the answer was *"4 given by the end time"* (line 28191, type=user). Never
+cite R4 as authority for completing a MOVE. Arming the Duration timer on MOVE tasks (746c091) is a
+supervisor generalisation and a code defect tracked as unit U3 - that sentence is a design
+statement, separate from the measurement in the paragraph above, which stands unchanged. Completion
+semantics are OPEN and go to the user as unit U1. See `docs/CORRECTIONS_LOG.md` entry F-1.
 
 ## 12. THE ROUTE PRE-FLIGHT (OFF) AND ITS LATERAL SHIFT (ON BY DEFAULT) (STP-804/806)
 

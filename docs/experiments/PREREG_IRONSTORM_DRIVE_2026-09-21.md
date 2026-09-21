@@ -534,6 +534,16 @@ sec 5 for the standing rule and the CORRECTIONS_LOG.md entry for the generator o
   first. The C2SIM bus therefore told STP that both units COMPLETED their tasks and was never told they had
   stalled - for a unit that moved 0 m of a 5,341 m leg, the bus carries only a success. This needs a RULING on
   completion semantics (do not let a timer beat and silence a stall verdict); options are in the ticket.
+
+  **CORRECTION POINTER 2026-09-21 (U2 lane A), for this finding and for the "STP-857 recurrences" limb in the
+  R2 registered text below.** The finding as measured STANDS and is left unstruck. What did NOT happen is the
+  ruling it asked for: STP-857 was recommended to the user on a premise - that timer-completing a MOVE was
+  already his 2026-09-14 ruling - that is false, and he rejected it the same day ("If I agreed with that, I was
+  tricked", session a7f6a276 transcript line 45457, a type=user record). Branch
+  `fix/reclamp-verify-and-movement-only` @ 3d58819 stays parked and unmerged; completion semantics are OPEN as
+  unit U1 and the timer-on-moves behaviour is a code defect tracked as unit U3. Separately, as a condition of
+  this run rather than a finding: `Vrf:DurationScale` 0.25 put the 300 s armed end inside the 360 sim-s stall
+  window. See `docs/CORRECTIONS_LOG.md` entry F-1.
 - **P11, driven path vs authored.** T10: +1.9% aggregate (2,666 m of 2,617 m), +4.0% to +10.6% per member; no
   detour observed. T02 and T14: 0 m of 5,341 m and 2,426 m respectively.
 - **P12, cruise speed on Baltic terrain.** The registered 10 m/s is right only for T10's opening burst (13.31 m/s
