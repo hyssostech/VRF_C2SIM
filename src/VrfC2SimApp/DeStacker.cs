@@ -356,8 +356,22 @@ public static class DeStacker
     /// consequences a future session must weigh rather than rediscover: the group's footprint
     /// grows linearly with N, and each child is displaced by r - which is the "phantom travel" a
     /// member materialized after dispatch is credited with (review NOTE-1) and the amount by which
-    /// the taskee's own position diverges from its members' (review NOTE-2). No shipped fixture
-    /// has more than 3 composed siblings in one group (R9 full's largest is 3).
+    /// the taskee's own position diverges from its members' (review NOTE-2).
+    ///
+    /// *** SF-A (cold-start review of 1d0fb69, 2026-09-21). THE REMARK THAT STOOD HERE - "No
+    /// shipped fixture has more than 3 composed siblings in one group (R9 full's largest is 3)" -
+    /// WAS FALSE, and false in the direction that makes this paragraph's "the footprint grows
+    /// linearly with N" sound theoretical. *** MEASURED on the shipped file by
+    /// --destack-selftest: R9 full has composed-sibling groups of 4 (Z1.InfCoy), 5 (14.MechBn),
+    /// 6 (11.MechBn) and 7 (13.MechBn). They are invisible today only because they are SKIPPED -
+    /// COMPANY-and-above have no <see cref="EchelonSpacing"/> row and Vrf:DeStackEchelonFallbackMeters
+    /// ships at 0 - not because they are small. ONE key turns them on, and at the ruled 700 m
+    /// company spacing those four groups would take rings of 495.0, 595.5, 700.0 and 806.7 m:
+    /// the largest child displacement on any shipped fixture would go from 202.1 m to 806.7 m,
+    /// and the "phantom travel" and taskee-vs-member divergence above with it. The sizes and the
+    /// radii are now ASSERTED against the file (DeStackSelfTest.CheckSkippedSiblingSizes), so
+    /// this paragraph cannot go stale again the way it just did; RUNBOOK 11e carries the same
+    /// numbers for the operator.
     ///
     /// N &lt;= 1 returns 0: a lone child is not a stack and must not be displaced (and its own
     /// centroid IS the anchor already). A non-positive spacing returns 0 for the same reason

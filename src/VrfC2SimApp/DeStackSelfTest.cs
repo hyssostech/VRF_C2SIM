@@ -576,6 +576,18 @@ public static class DeStackSelfTest
             CheckInit(ref failures, "STP-IRON-STORM-SYNTHETIC_Initialization.xml", Base,
                       expectGroups: 2, expectMoved: 12, expectSiblingGroups: 0, expectSiblingMoved: 0);
 
+            // SF-A (cold-start review of 1d0fb69): THE GROUPS NOBODY MEASURED BECAUSE THEY ARE
+            // SKIPPED. DeStacker's own remarks said "No shipped fixture has more than 3 composed
+            // siblings in one group (R9 full's largest is 3)". R9 full carries groups of 4, 5, 6
+            // and 7, invisible to every existing assertion because COMPANY-and-above have no
+            // echelon table row and the pass skips them - and one un-shipped key,
+            // Vrf:DeStackEchelonFallbackMeters, would spread every one of them tomorrow. A remark
+            // about a fixture that no test reads is a remark that rots; this reads the fixture.
+            CheckSkippedSiblingSizes(ref failures, "R9_Mojave_Initialization.xml",
+                                     new[] { 4, 5, 6, 7 });
+            CheckSkippedSiblingSizes(ref failures, "R9_Mojave_Lean_Initialization.xml",
+                                     Array.Empty<int>());
+
             // THE SAME FOUR FIXTURES IN THE OTHER SHIPPED MODE. FidelityTable maps a brigade or a
             // division to a REAL aggregate template where RealTemplates' 5.0.2 parity dispatch
             // falls through to a single Tank (a PLATFORM, which can compose nothing), so WHICH
@@ -932,6 +944,52 @@ public static class DeStackSelfTest
               string.Join("; ", sib.Take(6).Select(g =>
                   $"{g.ParentName} x{g.Count} @ {g.SpacingMeters:F0} m ({g.EchelonKey})")) +
               (sib.Count > 6 ? "; ..." : "") + "]");
+    }
+
+    /// <summary>
+    /// SF-A: THE SIZES OF THE COMPOSED-SIBLING GROUPS THE PASS SKIPS, and the ring each would
+    /// take if <c>Vrf:DeStackEchelonFallbackMeters</c> were turned on at the ruled company
+    /// spacing. Skipped groups move nothing, so no existing assertion looked at them, and a false
+    /// remark about their size ("R9 full's largest is 3") could sit in DeStacker.cs unchallenged.
+    /// The radii are asserted too, because the number that matters to an operator considering
+    /// that key is how far the children would go - and it is NOT the spacing (N=4 gives 495.0 m
+    /// at a 700 m spacing, N=7 gives 806.7 m).
+    /// </summary>
+    private static void CheckSkippedSiblingSizes(ref int failures, string fixture,
+                                                 IReadOnlyList<int> expectedSizes)
+    {
+        string path = FindData(fixture);
+        if (path == null)
+        {
+            Check(ref failures, false, $"{fixture}: NOT FOUND under data/ - cannot measure");
+            return;
+        }
+        var f = BuildFixture(path, TypeMapping.RealTemplates);
+        var preDestack = f.Plans.ToList();
+        DeStacker.Apply(f.Plans, InitParseCheck.DeStackFallbackIllustrationMeters, 0.0,
+                        f.Comp.ComposedChildIndices);
+        DeStacker.ApplyComposedSiblings(f.Plans, f.Comp.ComposedGroups, f.Echelons,
+                                        k => EchelonSpacing.SpacingFor(k, 0.0), 0.0,
+                                        out var skipped, preDestack.Select(x => x.Pos).ToList());
+        var sizes = skipped.Select(s => s.Count).OrderBy(n => n).ToList();
+        double fb = InitParseCheck.DeStackFallbackIllustrationMeters;
+        Check(ref failures, sizes.SequenceEqual(expectedSizes.OrderBy(n => n)),
+              $"{fixture}: composed-sibling groups SKIPPED for want of an echelon row have sizes " +
+              $"[{string.Join(", ", sizes)}] (expected [{string.Join(", ", expectedSizes.OrderBy(n => n))}])" +
+              (skipped.Count == 0 ? "" :
+               " - parents [" + string.Join(", ", skipped.Select(s => $"{s.ParentName} x{s.Count}")) + "]"));
+        if (skipped.Count == 0) return;
+        Check(ref failures, skipped.All(s => s.Count > 3),
+              $"{fixture}: every skipped group is LARGER than 3 - so 'no shipped fixture has more " +
+              "than 3 composed siblings in one group' was false, and is what this arm exists to stop");
+        var radii = skipped.Select(s => DeStacker.CentroidPreservingRadius(s.Count, fb))
+                           .OrderBy(r => r).ToList();
+        Check(ref failures,
+              radii.Count > 0 && Math.Abs(radii[0] - 494.97) < 0.05
+              && Math.Abs(radii[^1] - 806.67) < 0.05,
+              $"{fixture}: at Vrf:DeStackEchelonFallbackMeters={fb:F0} those groups would take rings " +
+              $"of [{string.Join(", ", radii.Select(r => $"{r:F1}"))}] m - a 495-807 m span, NOT the " +
+              "700 m spacing itself (the radius is derived from the spacing, N4)");
     }
 
     private static int CountMoved(IReadOnlyList<CreationPlan> plans,

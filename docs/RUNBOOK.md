@@ -2891,10 +2891,19 @@ leading "from here" vertex dragging it back to the authored point.
 
 FALLBACK: a group whose echelon the table cannot size (company and above, and the synthesized
 sub-units of `ExpandCoarseLeaves`, which carry no C2SIM echelon) is NOT spread, and the
-start-up line says so. `Vrf:DeStackEchelonFallbackMeters` (default 0) turns that into a real
-spacing; `Vrf:DeStackEchelonSpacingMeters` ("PLT=400") overrides a row. NEITHER KEY IS IN
-appsettings.json TODAY - they exist only as C# defaults; an operator reading the shipped
-profile cannot discover them from the file alone.
+start-up line says so.
+
+THE TWO KEYS THAT CHANGE THIS TABLE, neither of which is in `appsettings.json` today - they
+exist only as C# defaults, so an operator reading the shipped profile cannot discover them
+from the file alone (NOTE-5 / SF-A; set them as environment overrides, `Vrf__<Key>`):
+
+| key | type / default | what it does | how to see its effect BEFORE a run |
+|---|---|---|---|
+| `Vrf:DeStackEchelonFallbackMeters` | double, **0.0** = do not spread | The spacing used for a group whose echelon has NO table row (company and above; `ExpandCoarseLeaves` sub-units). 0 leaves those groups stacked on their parent's coordinate. Any positive value spreads them on a ring of `r = value / (2 sin(pi/N))`. | `--parse-init <init>` lists each SKIPPED group with its N and the radius it would take at 700 m |
+| `Vrf:DeStackEchelonSpacingMeters` | string, **""** = the measured table | Per-row override, `"PLT=400,SECT=250"`. Unknown keys and unparsable values are IGNORED and NAMED in the start-up line, so a typo is visible rather than silently ineffective (`EchelonSpacing.WithOverrides`). | the app's own start-up line names the applied and the ignored entries |
+
+Both are read once at init. Neither affects the INDEPENDENT lane, which stays on
+`Vrf:DeStackSpacingMeters`.
 
 COMPARABILITY: runs before 248143f (D1-D3) had the 700 m spread on composed children; D6
 (248143f) had none; runs from adca180 onward spread them at their echelon's scale (350 m for
@@ -2927,8 +2936,14 @@ KNOWN LIMITS (cold-start review of the ring fix, 1d0fb69):
   export has.
 - R9 full has composed sibling groups of N=4, 5, 6 and 7 (under Z1.InfCoy, 14.MechBn,
   11.MechBn, 13.MechBn) that are skipped only because COMPANY-and-above have no echelon table
-  row; one undocumented setting, `Vrf:DeStackEchelonFallbackMeters=700`, would immediately give
-  them 700-807 m rings. R9 full remains off every current runbook/demo path.
+  row; one setting, `Vrf:DeStackEchelonFallbackMeters=700`, would immediately spread them.
+  MEASURED 2026-09-21 (SF-A; `--destack-selftest` now asserts both the sizes and the radii
+  against the shipped file, and `--parse-init` prints them per skipped group): the four rings
+  would be **495.0 m (N=4), 595.5 m (N=5), 700.0 m (N=6) and 806.7 m (N=7)** - a 495-807 m
+  span, NOT "700-807 m" as this note first said and NOT the 700 m spacing itself. The radius is
+  derived from the spacing (`r = spacing / (2 sin(pi/N))`), so only N=6 makes the two equal.
+  The largest child displacement on any shipped fixture would go from 202.1 m to 806.7 m.
+  R9 full remains off every current runbook/demo path.
 - A missing sibling changes the RADIUS and every BEARING, not just slot labels (dropping one of
   three children moves the radius 202.1 -> 175.0 m and the bearings 0/120/240 -> 0/180). No
   prediction may be pinned to a named slot, bearing or radius across fixtures.

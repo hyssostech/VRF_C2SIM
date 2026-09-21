@@ -8,6 +8,13 @@ namespace VrfC2SimApp;
 /// </summary>
 public static class InitParseCheck
 {
+    /// <summary>SF-A: the spacing the SKIPPED-group line illustrates with. It is the RULED
+    /// company number (Vrf:DeStackSpacingMeters' 700 m, C14 2026-09-07), which is the value an
+    /// operator turning Vrf:DeStackEchelonFallbackMeters on would reach for first - the two keys
+    /// are about the same echelons. It is an ILLUSTRATION, not a default: the fallback ships at 0
+    /// and this diagnostic changes nothing.</summary>
+    public const double DeStackFallbackIllustrationMeters = 700.0;
+
     public static int Run(string path, string clientId = "STP")
     {
         if (!File.Exists(path)) { Console.WriteLine($"file not found: {path}"); return 1; }
@@ -157,6 +164,18 @@ public static class InitParseCheck
         // actually applied (g.Moved), not a third derivation of it.
         foreach (var g in sibling.Take(5))
             Console.WriteLine("  " + DeStacker.DescribeSiblingGroup(g));
+        // SF-A (cold-start review of 1d0fb69, 2026-09-21): THE SKIPPED GROUPS, SIZED, AND WHAT
+        // THE ONE SETTING WOULD DO TO THEM. Until now this diagnostic said only how MANY groups
+        // were skipped, so "no shipped fixture has more than 3 composed siblings in one group"
+        // could stand in the code as a remark for a week while R9 full carried larger ones -
+        // skipped, invisible, and one un-shipped key (Vrf:DeStackEchelonFallbackMeters, default
+        // 0) away from being spread. An operator considering that key needs the radius it would
+        // produce BEFORE the run, not after.
+        foreach (var s in siblingSkipped.Take(5))
+            Console.WriteLine($"  SKIPPED: {s.Count} child(ren) of {s.ParentName} - {s.Reason}. " +
+                              $"With Vrf:DeStackEchelonFallbackMeters={DeStackFallbackIllustrationMeters:F0} " +
+                              $"they would take a ring of radius " +
+                              $"{DeStacker.CentroidPreservingRadius(s.Count, DeStackFallbackIllustrationMeters):F1} m.");
         foreach (var g in stacks.Take(5))
             Console.WriteLine($"  {g.Count()} units at {g.Key.Lat},{g.Key.Lon}: " +
                               string.Join(", ", g.Take(4).Select(p => p.Unit.Name)) + (g.Count() > 4 ? ", ..." : ""));
