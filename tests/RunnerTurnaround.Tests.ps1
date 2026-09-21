@@ -2892,9 +2892,9 @@ Check '12b no unresolved Verb-Noun calls in scripts\*.ps1 (own file / dot-source
 Write-Host '=== 13. record checks: doc caps, tripwire phrases, ruling ids, prereg lint (U2) ==='
 
 $RecordCheckStaging = [ordered]@{
-    HandoffLineLength = 'pending'   # flip when a lane reflows HANDOFF to <= 160 chars/line
-    RulingsLedger     = 'pending'   # flip when docs\RULINGS.md exists (lane B / U1)
-    LiveDocRulingIds  = 'pending'   # flip when lane B has put RL-ids on the live docs
+    HandoffLineLength = 'enforced'  # flipped 2026-09-21 (U2 lane D): HANDOFF reflowed to 199 lines, longest 158
+    RulingsLedger     = 'enforced'  # flipped 2026-09-21 (U2 lane D): docs\RULINGS.md exists, 120 lines, longest 147
+    LiveDocRulingIds  = 'enforced'  # flipped 2026-09-21 (U2 lane D): every ruling claim in the four live docs carries a ledger id
 }
 $script:PendingCount = 0
 $script:PendingKeys  = New-Object System.Collections.Generic.List[string]
@@ -2967,8 +2967,8 @@ Check '13b DIRTY control: both tripwire rules flag their line' (
 ) ("hits=" + (@($twDirtyHits | ForEach-Object { $_.RuleId + '@' + $_.LineNumber }) -join ','))
 # DIRTY control, CROSS-LINE: the SHAPE of RUNBOOK.md:3553, where the pair straddles a
 # newline. A per-line scan sees nothing here - that is why the scan is text-scoped.
-# The real site is not caught: its gap is 98 characters against T2's briefed window of
-# 80 (measured; see the KNOWN MISSES block in tests\RecordChecks.ps1).
+# Since 2026-09-21 the real site IS caught: T2's window is 120 and the measured gap
+# there is 98 (see the KNOWN MISSES block in tests\RecordChecks.ps1, now all closed).
 $twCrossText = "was the ruled behaviour meeting R4 (completion is given`r`n" +
                "by the end time), NARROWING that rule for MOVE tasks only.`r`n"
 $twCross = @(Find-TripwireHits -Text $twCrossText -RelPath '(cross-line control)')
@@ -3040,6 +3040,22 @@ Check '13c DIRTY control: an id that is not in the ledger does NOT satisfy it' (
     $rcUnk.Count -eq 1 -and -not (Test-RulingClaimSound -Claim $rcUnk[0] -LedgerIds $rcLedger).Sound -and
     (Test-RulingClaimSound -Claim $rcUnk[0] -LedgerIds $rcLedger).Why -like '*not found in the ruling ledger*')
 Check '13c CLEAN control: prose that claims no ruling yields no claim' (@(Find-RulingClaims -Text $rcNoneText).Count -eq 0)
+# The WIDENED pattern (lane B's, landed 2026-09-21): five forms the briefed pattern missed.
+$rcWideText = "user 2026-09-13: he asked for something that survives reinstalls.`r`n`r`n" +
+              "the user's rulings Q1-Q7 are in the ledger.`r`n`r`n" +
+              "the user RULED 2026-09-21 to use the fast clock.`r`n`r`n" +
+              "user decision owed on the watchdog.`r`n`r`n" +
+              "OFFSET-LINE RULING 2026-09-14 kept the route line as the verdict.`r`n"
+Check '13c the widened pattern catches the five forms the briefed one missed' (
+    @(Find-RulingClaims -Text $rcWideText).Count -eq 5) ('claims=' + @(Find-RulingClaims -Text $rcWideText).Count)
+# An UNVERIFIED id is a real id: a site relabelled "supervisor statement (no owner
+# words on file - RL-UNVERIFIED-MAK01)" must satisfy the check, or the relabelling
+# would itself read as a violation.
+$rcUnvText = "That is not an owner ruling - RL-UNVERIFIED-MAK01, no owner words on file.`r`n"
+$rcUnv = @(Find-RulingClaims -Text $rcUnvText)
+Check '13c CLEAN control: an RL-UNVERIFIED-* id counts as an id and can satisfy the claim' (
+    $rcUnv.Count -eq 1 -and (Test-RulingClaimSound -Claim $rcUnv[0] -LedgerIds @('RL-UNVERIFIED-MAK01')).Sound
+) ('ids=' + (@($rcUnv | ForEach-Object { $_.Ids }) -join ','))
 
 $rcLedgerIds = @(Get-RulingLedgerIds -RepoRoot $RepoRoot)
 foreach ($rel in $script:LiveDocRelPaths) {
@@ -3054,6 +3070,31 @@ foreach ($rel in $script:LiveDocRelPaths) {
         'claims=' + $claims.Count + ', without a ledger id=' + $unsound.Count +
         $(if ($unsound.Count -gt 0) { ' (first at line ' + $unsound[0].LineNumber + ')' } else { '' }))
 }
+# RATCHET DIRTY CONTROL (closes lane C's defect D4, 2026-09-21): an id that matches
+# the id REGEX but exists in NEITHER ledger file must count as unidentified. Before
+# this the ratchet counted only the absence of an id, so RL-20260921-99 slipped past.
+$rcTmp = Join-Path ([System.IO.Path]::GetTempPath()) ('u2ratchet_' + [guid]::NewGuid().ToString('N'))
+try {
+    $null = New-Item -ItemType Directory -Path (Join-Path $rcTmp 'docs') -Force
+    [System.IO.File]::WriteAllText(
+        (Join-Path $rcTmp 'docs\FAKE_BAD_ID.md'),
+        "USER RULING 2026-09-21: the demo clock is fast (RL-20260921-99).`r`n")
+    [System.IO.File]::WriteAllText(
+        (Join-Path $rcTmp 'docs\FAKE_GOOD_ID.md'),
+        "USER RULING 2026-09-21: the demo clock is fast (RL-20260921-01).`r`n")
+    $rcCtl = @(Get-RulingClaimCounts -RepoRoot $rcTmp -ExcludeRelPaths @() -LedgerIds @('RL-20260921-01'))
+    $rcBad  = @($rcCtl | Where-Object { $_.RelPath -like '*FAKE_BAD_ID.md' })
+    $rcGood = @($rcCtl | Where-Object { $_.RelPath -like '*FAKE_GOOD_ID.md' })
+    Check '13c ratchet DIRTY control: an id in NEITHER ledger file counts as unidentified' (
+        $rcBad.Count -eq 1 -and $rcBad[0].Total -eq 1 -and $rcBad[0].Unidentified -eq 1
+    ) ('rows=' + $rcCtl.Count + ', bad.Unidentified=' + $(if ($rcBad.Count -eq 1) { $rcBad[0].Unidentified } else { 'n/a' }))
+    Check '13c ratchet CLEAN control: an id that IS in the ledger does not count' (
+        $rcGood.Count -eq 1 -and $rcGood[0].Total -eq 1 -and $rcGood[0].Unidentified -eq 0
+    ) ('good.Unidentified=' + $(if ($rcGood.Count -eq 1) { $rcGood[0].Unidentified } else { 'n/a' }))
+} finally {
+    if (Test-Path -LiteralPath $rcTmp) { Remove-Item -LiteralPath $rcTmp -Recurse -Force -ErrorAction SilentlyContinue }
+}
+
 # RATCHET for every other docs\ file: the count of un-id'd claims may fall, never rise.
 $rcBaselinePath = Join-Path $RepoRoot 'tests\ruling_claims_baseline.txt'
 $rcBaseline     = Read-RulingClaimsBaseline -Path $rcBaselinePath

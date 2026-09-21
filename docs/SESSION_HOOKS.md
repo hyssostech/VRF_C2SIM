@@ -9,8 +9,9 @@ Vendor contract retrieved 2026-09-21: https://code.claude.com/docs/en/hooks-guid
 1. `PreToolUse-AskUserQuestion.ps1` - handoff sec 4 rule 2. A question put to the owner must carry
    `RULING ON FILE: "<text occurring verbatim in docs\RULINGS.md or docs\RULINGS_ARCHIVE.md>"` or
    `NO RULING FOUND - searched: <at least one file name>`, in the question text or in an option label or description.
-   Compared ordinal, whitespace-normalised. With no ledger on disk only the first form is blocked: nothing can be
-   quoted from a ledger that does not exist.
+   Compared ordinal, whitespace-normalised. BOTH LEDGER FILES ARE SEARCHED - the ledger is two files and an archived
+   id is as real as a live one (test 2c pins a quote that exists ONLY in docs\RULINGS_ARCHIVE.md). With no ledger on
+   disk only the first form is blocked: nothing can be quoted from a ledger that does not exist.
 2. `PreToolUse-Agent.ps1` - handoff sec 4 rule 3 and AUDIT S7. A brief must carry a `RECORD CITATIONS:` block naming a
    file path AND a section (`sec` / `section` / `:<line>`) within 15 lines, or point at an existing `.md` brief that
    does; and if it names exactly one run id as its origin, the literal `n = 1`. `LANE KIND: read-only lookup` exempts

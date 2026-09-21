@@ -28,27 +28,49 @@ Set-StrictMode -Version Latest
 # Handoff sec 4 rule 7 / AUDIT S3: "tripwire phrases are scanned, not remembered".
 # Both rules are proximity rules on ONE physical line: the record has 1,800-character
 # lines, so "near" has to mean character distance, not line distance.
+# WIDENED 2026-09-21 (U2 lane D, on lane C's MEASURED brief defects D1-D3, which are
+# recorded in the KNOWN MISSES block further down as CLOSED):
+#   T1 first phrase gains "under the ground" (appsettings.Demo.json:40 said "sitting
+#     still under the ground" and "under the ground" is not "underground");
+#   T1 second phrase gains "not to move" (VrfC2SimService.cs:3328 said "happened not
+#     to move", which is not "did not move"); "sitting still" was already there;
+#   T2 window 80 -> 120, because the site the audit named (RUNBOOK sec 11h, "meeting
+#     R4 ... NARROWING that rule for MOVE tasks only") has a MEASURED gap of 98. The
+#     next T2 pair anywhere in the tree sits at 183, so 120 adds no other hit.
+#   T2's first phrase is now CASE-SENSITIVE "R4": with a 120 window the lower-case
+#     "r4.log" in G7_ATTEMPT4_RESULTS_2026-09-14.md would otherwise start matching.
 $script:TripwireRules = @(
     [pscustomobject]@{
         Id     = 'T1'
-        Name   = 'buried/underground within 80 chars of never-moves/stationary/freeze'
-        First  = 'buried|underground'
-        Second = 'never mov|stationary|did not move|sitting still|freeze|froze'
+        Name   = 'buried/underground/under the ground within 80 chars of never-moves/stationary/not-to-move/sitting-still/freeze'
+        First  = 'buried|underground|under the ground'
+        Second = 'never mov|stationary|did not move|not to move|sitting still|freeze|froze'
         Window = 80
+        FirstIgnoreCase = $true
     },
     [pscustomobject]@{
         Id     = 'T2'
-        Name   = '"R4" within 80 chars of move-along/MOVE task/a move/mover'
+        Name   = '"R4" (case-sensitive) within 120 chars of move-along/MOVE task/a move/mover'
         First  = 'R4'
         Second = 'move-along|MOVE task|a move|mover'
-        Window = 80
+        Window = 120
+        FirstIgnoreCase = $false
     }
 )
 
 # Handoff sec 4 rule 1 [CHECK]. Lane B may hand the seat a wider pattern; it is one
 # variable on purpose so widening it is a one-line change.
-$script:RulingClaimPattern = 'USER RULING|RULED[^|]{0,40}\(user|owner ruling|user ruling'
-$script:RulingIdPattern    = 'RL-\d{8}-\d{2}'
+# REPLACED 2026-09-21 (U2 lane D) with lane B's FINAL measured pattern: the old one
+# found 21 lines / 23 occurrences over the four live docs and MISSED "user 2026-09-13",
+# "the user's rulings", "the user RULED", "user decision" and "ruling 2026"; this one
+# finds 26 lines / 30 occurrences.
+$script:RulingClaimPattern = 'USER RULING|user ruling|owner ruling|USER DECISION|user decision|ruled by the user|' +
+                             '(user|owner).{0,3}s ruling|user-ruled|user ruled|RULED[^|]{0,60}\((user|owner)|' +
+                             '(user|owner) 2026-[0-9]{2}-[0-9]{2}|per the user|your ruling|you ruled|ruling 2026'
+# The id form must also cover the UNVERIFIED entries: a site whose "ruling" has no
+# owner words behind it is relabelled in place and carries RL-UNVERIFIED-<NAME>, and
+# that label has to satisfy the check or the relabelling would read as a violation.
+$script:RulingIdPattern    = 'RL-(?:\d{8}-\d{2}|UNVERIFIED-[A-Z0-9]+)'
 
 # AUDIT sec 3 DOC CHANGES item 7: the 200-line cap was met with 1,868-character
 # lines, so a cap is a PAIR (lines, max line length).
@@ -201,19 +223,17 @@ function Get-RecordOffsetLine {
 # main ac1ec58: text-scoped finds 40 hits, per-line finds 29. A newline counts as
 # one character.
 #
-# KNOWN MISSES, measured on main ac1ec58 and REPORTED to the seat rather than fixed
-# here - the phrases and the 80-character window are the fresh-start handoff sec 4
-# rule 7 contract, and a check does not widen its own contract:
-#   - RUNBOOK.md:3553 "... meeting R4 ... NARROWING that rule for MOVE tasks only":
-#     the gap is 98 characters, outside T2's 80. A window of 120 reaches it; the
-#     next T2 pair anywhere in the tree sits at 183, so 120 adds no other hit.
+# KNOWN MISSES as measured by lane C on main ac1ec58 - ALL THREE CLOSED 2026-09-21
+# (U2 lane D) by the widening recorded at $script:TripwireRules above, which the seat
+# authorised because each miss was an audit-named site:
+#   - RUNBOOK sec 11h "... meeting R4 ... NARROWING that rule for MOVE tasks only":
+#     measured gap 98, outside the old 80. T2's window is now 120.
 #   - appsettings.Demo.json:40 "sitting still under the ground": "under the ground"
-#     is not "underground", so T1's FIRST phrase never matches.
+#     is not "underground". T1's first phrase now carries it.
 #   - VrfC2SimService.cs:3328 "The two buried platforms happened not to move":
-#     "happened not to move" is not "did not move", so T1's SECOND phrase never
-#     matches.
-# All three are audit-named sites. Window and phrases are data on
-# $script:TripwireRules above; each change is one line.
+#     "happened not to move" is not "did not move". T1's second phrase now carries
+#     "not to move".
+# Window and phrases are data on $script:TripwireRules above; each change is one line.
 #
 # The fingerprint is taken over the MATCHED SPAN (first phrase to second phrase), not
 # over the physical line: re-wrapping a paragraph then does NOT invalidate a reviewed
@@ -233,7 +253,9 @@ function Find-TripwireHits {
     $lines = @(Get-RecordTextLines -Text $norm)
     $hits = New-Object System.Collections.Generic.List[psobject]
     foreach ($rule in $script:TripwireRules) {
-        $aM = [regex]::Matches($norm, $rule.First, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+        $firstOpts = if ($rule.FirstIgnoreCase) { [System.Text.RegularExpressions.RegexOptions]::IgnoreCase }
+                     else { [System.Text.RegularExpressions.RegexOptions]::None }
+        $aM = [regex]::Matches($norm, $rule.First, $firstOpts)
         if ($aM.Count -eq 0) { continue }
         $bM = [regex]::Matches($norm, $rule.Second, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
         if ($bM.Count -eq 0) { continue }
@@ -445,9 +467,18 @@ function Test-RulingClaimSound {
 # ledger itself. (The ledger is excluded on purpose: it does not exist yet, and the
 # moment lane B creates it every row would count as a "new file with un-id'd
 # claims" - a false red produced by another lane doing its job correctly.)
+# CLOSED 2026-09-21 (U2 lane D), lane C's defect D4: this used to count only the
+# ABSENCE of an id, so a file could gain a claim carrying RL-20260921-99 - an id that
+# exists in neither ledger file - and the ratchet would not move. A claim now counts
+# as unidentified unless at least one of its ids is really in the ledger, which is the
+# same test the live-doc half applies. $LedgerIds is a parameter so the controls can
+# pass a known ledger, and an EMPTY ledger (before RULINGS.md exists) degrades to the
+# old id-presence-only behaviour rather than turning every docs file red.
 function Get-RulingClaimCounts {
-    param([string]$RepoRoot, [string[]]$ExcludeRelPaths = $null)
+    param([string]$RepoRoot, [string[]]$ExcludeRelPaths = $null, [string[]]$LedgerIds = $null)
     if ($null -eq $ExcludeRelPaths) { $ExcludeRelPaths = @($script:LiveDocRelPaths + $script:RulingLedgerRelPaths) }
+    if ($null -eq $LedgerIds) { $LedgerIds = @(Get-RulingLedgerIds -RepoRoot $RepoRoot) }
+    $haveLedger = (@($LedgerIds).Count -gt 0)
     $excl = @{}
     foreach ($x in @($ExcludeRelPaths)) { $excl[$x.ToLowerInvariant()] = $true }
     $rows = New-Object System.Collections.Generic.List[psobject]
@@ -455,7 +486,11 @@ function Get-RulingClaimCounts {
         if ($f.RelPath -notlike '*.md') { continue }
         if ($excl.ContainsKey($f.RelPath.ToLowerInvariant())) { continue }
         $claims = @(Find-RulingClaims -Text ([System.IO.File]::ReadAllText($f.FullName)) -RelPath $f.RelPath)
-        $un = @($claims | Where-Object { @($_.Ids).Count -eq 0 })
+        if ($haveLedger) {
+            $un = @($claims | Where-Object { -not (Test-RulingClaimSound -Claim $_ -LedgerIds $LedgerIds).Sound })
+        } else {
+            $un = @($claims | Where-Object { @($_.Ids).Count -eq 0 })
+        }
         $rows.Add([pscustomobject]@{ RelPath = $f.RelPath; Total = $claims.Count; Unidentified = $un.Count })
     }
     return @($rows | Sort-Object RelPath)

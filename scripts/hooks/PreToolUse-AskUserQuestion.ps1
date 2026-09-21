@@ -2,7 +2,7 @@
 #
 # Claude Code PreToolUse hook for the AskUserQuestion tool. It enforces handoff
 # sec 4 rule 2: "A question to the owner contains 'RULING ON FILE:' + a quote that
-# exists in RULINGS.md, or 'NO RULING FOUND - searched: <files>'."
+# exists in RULINGS.md or RULINGS_ARCHIVE.md, or 'NO RULING FOUND - searched: <files>'."
 # Motivating case: the 2026-09-21 question (transcript line 44946) presupposed a
 # ruling that did not exist. It could not have quoted one, so it would be blocked.
 #
@@ -47,7 +47,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $script:Marker = 'PreToolUse-AskUserQuestion'
-$script:RuleQuote = "A question to the owner contains 'RULING ON FILE:' + a quote that exists in RULINGS.md, or 'NO RULING FOUND - searched: <files>'."
+$script:RuleQuote = "A question to the owner contains 'RULING ON FILE:' + a quote that exists in RULINGS.md or RULINGS_ARCHIVE.md, or 'NO RULING FOUND - searched: <files>'."
 
 function Get-Prop {
     param($Object, [string]$Name)

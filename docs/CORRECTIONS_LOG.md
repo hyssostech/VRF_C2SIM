@@ -155,6 +155,8 @@ Each entry: the claim, why it was wrong, and the evidence that settled it.
   that puts "buried"/"underground" near "freeze"/"never moves".
 
 ## F-1: "STP-857 is a user ruling", and its premise "a MOVE timer-completes by R4" (2026-09-21)
+  (Ledger: RL-20260921-03 is the STP-857 exchange, RL-20260921-05 the owner's correction of it,
+  RL-20260921-07 the symptom he agrees with, and RL-20260921-09 the temporary position now in force.)
 
 *** THIS ENTRY WAS ITSELF OVER-READ ON ITS FIRST WRITING AND WAS REVISED THE SAME DAY. The
 first draft said the ticket had been turned down by the owner outright, and that its premise
@@ -266,6 +268,11 @@ from it. ***
   then written up as a ruling of its own. The standing fix: a ruling is recorded as the
   QUESTION AS PUT plus the user's VERBATIM words with a locatable citation, and a supervisor's
   reading is labelled "supervisor reading:" and kept in its own sentence.
+  (Ledger: RL-20260921-03, and RL-20260921-07 for the symptom he does agree with.)
+  (Ledger: RL-20260914-02 is the 2026-09-14 record this paragraph says does not support the wider reading.)
+  (Ledger: RL-20260921-03 for the withdrawn label; RL-20260914-02 for what R4 actually was.)
+  (Ledger: RL-20260921-03. That row now carries the id too.)
+  (Ledger: RL-20260914-02 for the 2026-09-14 answer this comment cited.)
 
 ## F-2: shipped comments naming setAltitude as the placement correction, and fusing burial with a stationary vehicle (2026-09-21)
 

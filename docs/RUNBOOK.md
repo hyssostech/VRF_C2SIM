@@ -799,7 +799,7 @@ back end - the D5b and D8 command lines are identical but for `--appNumber`; not
 observer - it never joined the federation). WHAT IT IS NOT: diagnosed. n=1, and the process sat
 on the error dialog for 34 minutes (thread count 42 -> 68) before StopVrf52 closed it.
 
-CALLSTACK READ, USER RULING 2026-09-21 ('4. Read.'): access violation 0xC0000005 in
+CALLSTACK READ, USER RULING 2026-09-21 (RL-20260921-02, archive; '4. Read.'): access violation 0xC0000005 in
 `makVrf::DtStateDataWrapper::isDestroyed <- DtDisaggregatedDamageActuator::tick <-
 DtLocalObject::tick` on a `DtVrfCallbackQueue` worker thread - a vendor use-after-destroy race
 inside VR-Forces' own object life cycle; nothing on the stack is RTI or connection code. This
@@ -2134,7 +2134,7 @@ SUCCEEDS against `src/VrfBridge/build/<config>/VrfBridge.dll` is therefore proof
 it calls exists on the referenced assembly.
 
 THE ELEVEN CONSUMERS - ALL ELEVEN CAN BUILD A 5.2 TREE (the four that could not were converted
-2026-09-15 on `feat/tools-52-conversion`, user ruling 00:15Z "Convert tools"; `tools/PauseSim`
+2026-09-15 on `feat/tools-52-conversion`, user ruling (RL-20260915-01, archive; the record stamps it 00:12:54Z, not the 00:15Z used here) "Convert tools"; `tools/PauseSim`
 landed 2026-09-15 on `feat/pausesim-tool` and was BORN with the axis). Eleven csproj files
 reference the bridge by `<Reference Include="VrfBridge">` and each keeps its OWN copy in its `bin`.
 All eleven carry the BridgeConfig axis (a `BridgeConfig` property defaulting to `Release`, plus
@@ -2564,7 +2564,7 @@ federation "<fed>"` as if read from the log, but it is a CONSTRUCTED string
 clean-looking sentence that hides the very garble the fix has to see through. Worth a ticket
 alongside 9711f46: quote the matched text verbatim (truncated) instead of reconstructing it.
 
-MAK SUPPORT CASE - USER RULING 2026-09-21 ('5. Open the case.'): OPEN. The seat prepares the
+MAK SUPPORT CASE - USER RULING 2026-09-21 (RL-20260921-02, archive): OPEN. CORRECTION 2026-09-21: this line quoted him as '5. Open the case.' He typed '5. Open.' - three words were added inside quotation marks. The seat prepares the
 support package and a draft; the user sends it. Package in preparation under
 `scratchpad\validation\mak_case\` - the log-sink duplication/interleaving evidence above, the
 SILENT-shape material from NOTIFY2, and the D5b callstack (0.5.12, next crash-forensics note)
@@ -2607,7 +2607,7 @@ you want a short window, write the number you want - do not write 0 and expect o
 ## 11. THE CLOCK C2SIM TASK TIMES RUN ON, AND THE R4 TASKING KEYS
 
 Added 2026-09-14 (the two cold-start reviews of `5c67d41` and `0c96f50`, items M1/M2/A1 and
-the user's rulings Q1-Q7). **All seven are now IN `appsettings.json` at their defaults, and
+the user's rulings Q1-Q7, RL-20260914-05, archive). **All seven are now IN `appsettings.json` at their defaults, and
 the six that change what a demo does are in `appsettings.Demo.json` with a `_Key` line each
 saying why** - a standalone deployment's behaviour has to be readable from its settings, not
 from C# source. Every one can still be overridden per process (double underscore = the `:`),
@@ -2633,7 +2633,7 @@ no Duration and no geometry is malformed and is refused, not held (below).
   onto the sim clock silently changed when every task in the order completed. Both read the
   SAME sim-clock sample through the same hysteresis, so they can never disagree about whether
   the scenario is running - only about which clock they prefer.
-- **A PAUSED SCENARIO DOES NOT AGE A TASK: task time HOLDS** (Q5, USER RULING 2026-09-14,
+- **A PAUSED SCENARIO DOES NOT AGE A TASK: task time HOLDS** (Q5, USER RULING 2026-09-14, RL-20260914-05, archive,
   built in `f2794d7`). When `DtVrfRemoteController::simTime()` is READABLE but has not advanced
   for 60 wall seconds and a VR-Forces back end is still listed, the task-clock axis adds
   NOTHING. All three task times ride that one axis, so all three freeze TOGETHER: the armed
@@ -2731,7 +2731,7 @@ no Duration and no geometry is malformed and is refused, not held (below).
   the 86,400 s backstop - 5.1x of headroom. If the lead ever meets or exceeds the backstop a
   WARNING says so at receipt, naming what to raise, instead of the operator learning it hours
   later as a burst of `never dispatched within 86400s` lines that look like a wedge.
-- **A task with NO Duration AND NO geometry is REFUSED, not held** (Q4, USER RULING 2026-09-14).
+- **A task with NO Duration AND NO geometry is REFUSED, not held** (Q4, USER RULING 2026-09-14, RL-20260914-05, archive - Q4 is the item he OVERRODE).
   There is no knob: `Vrf:DefaultHoldSeconds` is DELETED. Such a task gets an ERROR naming both
   missing elements, a TASKABRT, and an abandon so its STREND successors fail fast. If you see
   that line, the ORDER is at fault - give the task a Duration, a geometry, or both. None of
@@ -2856,7 +2856,7 @@ only inserts BETWEEN authored vertices - so the traversal bar rises and the effe
 a 1,600 m authored route with a last vertex 420 m from the start is closable; the same task
 with a 600 m shift is not, and waits for the vendor completion or its Duration.
 
-AMENDMENT (user ruling 2026-09-21, option A of the D6 harvest): THE TRAVERSAL BAR IS PER
+AMENDMENT (user ruling 2026-09-21, RL-20260921-01, archive; option A of the D6 harvest): THE TRAVERSAL BAR IS PER
 MEMBER. `Vrf:ArrivalApproachFraction` (0.5; 0 disables). A counted member must now be past
 max(min(0.5 x route, ArrivalApproachFraction x ITS OWN straight-line distance to the last
 vertex at dispatch), ArrivalMinTravelMeters) - never more than the route bar above, so nothing
@@ -2918,7 +2918,7 @@ whichever question it stopped answering. `--preflight-selftest` section 7 pins t
 measured geometry.
 
 ### 11e. DE-STACK - INDEPENDENT UNITS AT 700 m, COMPOSED SIBLINGS AT THEIR OWN ECHELON
-(user ruling 2026-09-21, option C of the D6 harvest; supersedes the 2026-09-20 warning)
+(user ruling 2026-09-21, RL-20260921-01, archive; option C of the D6 harvest; OPEN, flagged 2026-09-21: the recommendation he approved said about 300 m for platoons and this records 350 m - see RL-20260921-01; supersedes the 2026-09-20 warning)
 
 `Vrf:DeStackCreates` is still the master switch. Two lanes now run under it, in this order.
 INDEPENDENT objects that share a coordinate are spread onto `Vrf:DeStackSpacingMeters` (700 m)
@@ -3204,7 +3204,7 @@ runs the clock SLOWER (COA-STP1 at scale was once measured at 0.27x, i.e. slower
 time, against R9's several-x). The app's own per-minute `SIM/WALL RATIO` line is the
 instrument for any given run - read it, never assume it.
 
-**USER RULING 2026-09-21 ('3. Fast.'):** the demo accepts this load-dependent fast clock as-is;
+**USER RULING 2026-09-21 (RL-20260921-02, archive; '3. Fast.'):** the demo accepts this load-dependent fast clock as-is;
 the never-deployed real-time (variable-frame) fixture is NOT built into the demo path.
 
 SECOND MEASURED PROFILE (Iron Storm cut-A diagnostic drive, 2026-09-21, 36 mostly-idle objects,
@@ -3555,7 +3555,10 @@ by the end time"*). **RULED 2026-09-21 (STP-857), NARROWING that rule for MOVE t
 (DEMO_READINESS row 19): a MOVE task that reaches its armed end with NO displacement reports
 TASKABRT, not TASKCMPLT - implementation is a later lane, not built here.~~ What this section does
 remove is the CAUSE of the instance recorded above: a unit measured 145 m off the terrain is no
-longer tasked, so no armed end is ever set for it.
+longer tasked, so no armed end is ever set for it. Ledger ids for the struck claims, added 2026-09-21
+(U2 lane D): RL-20260914-01 and RL-20260914-02 (both archive) for the two 2026-09-14 answers the
+struck text leaned on, and RL-20260921-03 (archive) for the withdrawn STP-857 label. The correction
+block below is the live text; the struck sentences are kept only so the refutation has its subject.
 
 **CORRECTION 2026-09-21 (U2 lane A, the same day; REVISED the same day after the owner corrected the
 first draft) - BOTH STRUCK CLAIMS ARE WITHDRAWN, AND THE FIRST DRAFT OF THIS BLOCK OVERSTATED THE
@@ -3613,8 +3616,11 @@ sec 7/7e, PREREG_RIDGE_AG sec 3.2-3.3, PREREG_N1_N2 sec 10.3 (N2d),
 READ_4-27_G3_AND_OFFSET_SCORING sec 2.3/2.5.
 THE SHIFT HAS BEEN RUN LIVE: V8b (2026-09-15) met every pre-registered criterion with it and
 the ZERO-OFFSET control V8z froze on the same line, which is what makes the LATERAL OFFSET
-the remedy rather than the re-dispatch around it. USER RULING 2026-09-20: "Route shift: ON.
-Use as default for any run." (merged main f26d4ad). Default-ON live rehearsal = D3
+the remedy rather than the re-dispatch around it. USER RULING 2026-09-20 (RL-20260920-01, archive). CORRECTION 2026-09-21: this
+read `USER RULING 2026-09-20: "Route shift: ON. Use as default for any run."` The first sentence is the
+SEAT's own question label, not his words; he typed "3. On. Use as default for any run." His answer is
+also BROADER than the question put to him, which asked only about appsettings.Demo.json.
+(merged main f26d4ad). Default-ON live rehearsal = D3
 (docs/experiments/PREREG_DEMO_REHEARSAL_2026-09-20.md), PENDING.
 
 Two separate features, two separate keys:

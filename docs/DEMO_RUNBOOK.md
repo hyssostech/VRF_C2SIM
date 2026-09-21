@@ -50,7 +50,7 @@ ONCE PER DAY / BEFORE EACH DEMO
 - WHICH C2SIM SERVER. There are two on this machine and they are NOT interchangeable:
     STANDARD  REST http://127.0.0.1:8080/C2SIMServer   STOMP http://127.0.0.1:61613/topic/C2SIM
               - the operator's own server. THIS IS WHERE STP LIVES, so this is the one a REAL
-                demo with a live STP operator uses (user ruling 2026-09-20). Never reset or
+                demo with a live STP operator uses (user ruling 2026-09-20, RL-20260920-01, archive). Never reset or
                 restart it: it is not ours.
     PRIVATE   REST http://127.0.0.1:18080/C2SIMServer  STOMP http://127.0.0.1:61614/topic/C2SIM
               - the harness's own server (docker container c2sim-server-vrf). Use it for a
@@ -81,7 +81,7 @@ WHICH SCENARIO AND WHICH DATA
   and do not read R9's wall-clock times as a prediction for any other scenario: a busier one
   runs the clock SLOWER (COA-STP1 at scale was once measured at 0.27x - slower than real time).
   The instrument for the run in front of you is the interface's own per-minute `SIM/WALL RATIO`
-  line. A real-time fixture was built (`R9_Mojave_Empty_52_RT`) but the user RULED 2026-09-21 to
+  line. A real-time fixture was built (`R9_Mojave_Empty_52_RT`) but the user RULED 2026-09-21 (RL-20260921-02, archive) to
   accept the fast, load-dependent clock instead - it will NOT be deployed or rehearsed; do not
   plan on it and do not tell an audience the demo runs in real time.
 - Fixtures whose name ends in `_AG` are the same scenarios carrying the navigation fix of
