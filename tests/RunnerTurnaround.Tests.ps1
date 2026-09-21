@@ -1755,6 +1755,98 @@ Check '8v2 the outermost try is opened right after the export and closed at the 
     $runnerText -match 'closes the OUTERMOST try, opened immediately after the -DurationScale export')
 
 # ===========================================================================================
+# 8v3. SF-R4 (cold-start review of 2df59ba): Vrf__ClientId HAD THE SAME HOLE, AND A WORSE ONE.
+#
+# It was exported at ~:2459 and restored NOWHERE in the file - the teardown finally puts back
+# ApplicationNumber, the two C2SIM urls, the profile env and AppEnv52, and never ClientId; the
+# outermost finally covered only DurationScale. So a -ClientId run left its value in the
+# operator's shell even when it SUCCEEDED, and the next run inherited it while this runner's own
+# banner printed "clientId : <x> (appsettings.json)". ClientId is the C2SIM SystemName the
+# interface filters on, so the inherited value decides WHICH UNITS GET CREATED: the first
+# review's reason for deferring it ("cannot change what a run MEANS") is factually wrong.
+#
+# Fixed with the SAME mechanism as -DurationScale, one line lower in the SAME finally, and the
+# banner, the validation gate and the manifest now name the EFFECTIVE source of the three.
+Write-Host '=== 8v3. SF-R4: Vrf__ClientId is restored, and the banner names its TRUE source ==='
+$ciProbe = Join-Path ([System.IO.Path]::GetTempPath()) ('_ClientIdLeakProbe.{0}.ps1' -f [Guid]::NewGuid().ToString('N'))
+# The probe runs a REAL dry run (nothing launched, no run directory - see 8h) and reports the
+# shell afterwards plus the two lines that carry the claim: the Stage 0 banner and, when it
+# fires, the SystemName gate. 'STP' is the SystemName the shipped inits declare, so the
+# banner-reading arms must use it - a mismatching id aborts at validation BEFORE the banner,
+# which is itself asserted as arm (d).
+$ciSrc = @'
+param([string]$Runner, [string]$Before, [string]$Pass)
+if ($Before -eq '(unset)') { $env:Vrf__ClientId = $null } else { $env:Vrf__ClientId = $Before }
+if ($Pass -eq '(none)') {
+    $out = & $Runner -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck 2>&1
+} else {
+    $out = & $Runner -VrfProfile 5.2 -NoGui -DryRun -SkipServerCheck -ClientId $Pass 2>&1
+}
+Write-Output ('EXITCODE=' + $LASTEXITCODE)
+Write-Output ('AFTER=[' + $env:Vrf__ClientId + ']')
+foreach ($ln in (($out | Out-String) -split "`r?`n")) {
+    if ($ln -match 'clientId\s+:' -or $ln -match 'clientId MISMATCH') { Write-Output ('LINE>' + $ln.Trim()) }
+}
+'@
+try {
+    [System.IO.File]::WriteAllText($ciProbe, $ciSrc, (New-Object System.Text.UTF8Encoding($false)))
+    # (a) -ClientId on a shell that had nothing: the run must give the shell back nothing.
+    $ciA = (& $dsLeakPwsh -NoProfile -File $ciProbe -Runner $dsLeakRunner -Before '(unset)' -Pass 'STP' 2>&1 | Out-String)
+    Check '8v3 (a) -ClientId leaves NOTHING behind when the shell had nothing' (
+        $ciA -match 'AFTER=\[\]') $ciA
+    Check '8v3 (a) and the banner credits the SWITCH, not appsettings.json' (
+        $ciA -match 'clientId\s+:\s+STP \(-ClientId -> Vrf__ClientId') $ciA
+    # (b) -ClientId on a shell that had its OWN value: that value comes back, not the runner's.
+    $ciB = (& $dsLeakPwsh -NoProfile -File $ciProbe -Runner $dsLeakRunner -Before 'MINE' -Pass 'STP' 2>&1 | Out-String)
+    Check '8v3 (b) -ClientId puts the shell''s OWN value back, not the runner''s' (
+        $ciB -match 'AFTER=\[MINE\]') $ciB
+    # (c) THE MISLABEL ITSELF: no -ClientId, but the shell carries one. The app reads it and it
+    #     beats appsettings.json, so the banner must say so - it used to say "(appsettings.json)".
+    $ciC = (& $dsLeakPwsh -NoProfile -File $ciProbe -Runner $dsLeakRunner -Before 'STP' -Pass '(none)' 2>&1 | Out-String)
+    Check '8v3 (c) an INHERITED Vrf__ClientId is named as INHERITED, never credited to appsettings.json' (
+        $ciC -match 'clientId\s+:\s+STP \(INHERITED Vrf__ClientId in this shell' -and
+        $ciC -notmatch 'clientId\s+:\s+STP \(appsettings\.json\)') $ciC
+    Check '8v3 (c) the runner did not set it, so it is left exactly as the shell had it' (
+        $ciC -match 'AFTER=\[STP\]') $ciC
+    # (d) AND THE GATE NOW BITES ON IT. A leaked id that disagrees with the init's SystemName is
+    #     a run that creates 0 UNITS; the check used to compare appsettings.json, which is the
+    #     value the app would NOT have used, so it could not see this at all.
+    $ciD = (& $dsLeakPwsh -NoProfile -File $ciProbe -Runner $dsLeakRunner -Before 'WRONGID' -Pass '(none)' 2>&1 | Out-String)
+    Check '8v3 (d) an inherited id that disagrees with the init is REFUSED at validation (exit 2)' (
+        $ciD -match 'EXITCODE=2') $ciD
+    Check '8v3 (d) and the refusal names the EFFECTIVE value and the source it came from' (
+        $ciD -match "clientId MISMATCH: the EFFECTIVE Vrf:ClientId is 'WRONGID' \(source: INHERITED Vrf__ClientId") $ciD
+    Check '8v3 (d) a refused run still hands the shell back its own value untouched' (
+        $ciD -match 'AFTER=\[WRONGID\]') $ciD
+} finally { Remove-Item -LiteralPath $ciProbe -Force -ErrorAction SilentlyContinue }
+# The structural half: ONE mechanism, and it is the one SF-D built.
+Check '8v3 the restore is one line in the SAME outermost finally as the DurationScale one' (
+    ([regex]::Matches($runnerText, 'if \(\$ClientId\) \{ \$env:Vrf__ClientId = \$ClientIdEnvBefore \}')).Count -eq 1 -and
+    $runnerText -match '\$ClientIdEnvBefore\s+= \[Environment\]::GetEnvironmentVariable\(''Vrf__ClientId''\)')
+Check '8v3 the SystemName gate checks the EFFECTIVE value and names which source produced it' (
+    $runnerText -match 'the EFFECTIVE Vrf:ClientId is ''\{0\}'' \(source: \{1\}\)' -and
+    $runnerText -notmatch "clientId MISMATCH: appsettings Vrf:ClientId='\{0\}'")
+Check '8v3 the manifest records the effective value, its SOURCE and what the shell had before' (
+    $runnerText -match '\$Manifest\.inputs\.clientIdSource = \$ClientIdSource' -and
+    $runnerText -match '\$Manifest\.inputs\.clientIdDetail = \[ordered\]@\{' -and
+    $runnerText -match 'appSettings     = \$\(if \(\$appSettingsClientId\)')
+Check '8v3 the dead earlier manifest write - which said "(appsettings)" for an env-sourced run - is gone' (
+    $runnerText -notmatch "\`$Manifest\.inputs\.clientId      = \`$\(if \(\`$ClientId\) \{ \`$ClientId \} else \{ \('\(appsettings\) \{0\}'")
+# AND THE INVENTORY THE REVIEW ASKED FOR: every Vrf__ / C2SIM__ the runner exports, and where
+# each is put back. If a new export appears without a restore, this count moves.
+$ciExports = @([regex]::Matches($runnerText, '\$env:(Vrf__|C2SIM__)[A-Za-z0-9_]+\s*=') |
+                ForEach-Object { $_.Value -replace '^\$env:' -replace '\s*=$' } | Sort-Object -Unique)
+Check '8v3 the Vrf__/C2SIM__ export inventory is the known four + the two app-launch urls' (
+    (@($ciExports) -join ',') -eq 'C2SIM__RestUrl,C2SIM__StompUrl,Vrf__ApplicationNumber,Vrf__ClientId,Vrf__DurationScale') (
+    'found: ' + (@($ciExports) -join ','))
+Check '8v3 every one of them has a restore: ApplicationNumber/RestUrl/StompUrl in the teardown finally (and immediately after the app launch), ClientId and DurationScale in the outermost one' (
+    $runnerText -match '\$env:Vrf__ApplicationNumber= \$SavedVrfAppNumber' -and
+    $runnerText -match '\$env:C2SIM__RestUrl        = \$SavedC2SimRestUrl' -and
+    $runnerText -match '\$env:C2SIM__StompUrl       = \$SavedC2SimStompUrl' -and
+    $runnerText -match 'if \(\$ClientId\) \{ \$env:Vrf__ClientId = \$ClientIdEnvBefore \}' -and
+    $runnerText -match 'if \(\$DurationScaleOn\) \{ \$env:Vrf__DurationScale = \$DurationScaleEnvBefore \}')
+
+# ===========================================================================================
 # 8w. E4 / N3 (D6 and D7 harvests, both RECURRING): what the manifest could not say
 # ===========================================================================================
 Write-Host '=== 8w. E4: the persistent holders alive at launch; N3: the DEPLOYED build identity ==='

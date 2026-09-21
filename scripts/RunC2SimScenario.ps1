@@ -2452,11 +2452,39 @@ if (Test-Path -LiteralPath $appSettings -PathType Leaf) {
             $cfg.Vrf.PSObject.Properties.Name -contains 'ClientId') { $appClientId = [string]$cfg.Vrf.ClientId }
     } catch { Say-Warn ('could not parse {0}: {1}' -f $appSettings, $_.Exception.Message) }
 }
+# SF-R4 (cold-start review of 2df59ba). Vrf__ClientId HAD THE SAME HOLE AS THE ORDER CLOCK, AND
+# A WORSE ONE: it was exported below and restored NOWHERE in this file, so it leaked out of a
+# fully SUCCESSFUL run, not only an aborted one - and this runner's own banner then printed
+# "clientId : <x> (appsettings.json)" while the app was reading the leaked environment value.
+# That is the silent mislabel SF-D exists to stop, one echelon worse, and the first review's
+# stated reason for deferring it ("it cannot change what a run MEANS") is wrong: ClientId IS the
+# C2SIM SystemName the interface filters on, so a leaked value changes which units get created.
+# Three parts, and the first two use the mechanism SF-D already built:
+#   1. the shell's own value is SAVED here and RESTORED by the outermost finally at the end of
+#      the file - the same one line of mechanism, not a second one;
+#   2. the THREE sources are kept apart, so nothing downstream has to guess which won;
+#   3. the EFFECTIVE value is what the SystemName cross-check and the banner use, because the
+#      app resolves env-over-appsettings and a check against the losing source checks nothing.
+$appSettingsClientId  = $appClientId              # what the deployed appsettings.json says
+$ClientIdEnvBefore    = [Environment]::GetEnvironmentVariable('Vrf__ClientId')
+$ClientIdSource       = ''
 if ($ClientId) {
     # -ClientId wins over appsettings: the app reads Vrf__ClientId from its environment (the standard
     # env-override mechanism every other Vrf__ setting uses). Exported here so the app inherits it.
-    $appClientId = $ClientId
+    $appClientId    = $ClientId
+    $ClientIdSource = '-ClientId -> Vrf__ClientId (beats appsettings.json)'
     $env:Vrf__ClientId = $ClientId
+} elseif ($ClientIdEnvBefore) {
+    # NOT passed, but the shell already carries one. The app reads it and it BEATS
+    # appsettings.json, so this is the value the run will really use - and saying
+    # "(appsettings.json)" here is exactly the mislabel this block exists to remove.
+    $appClientId    = $ClientIdEnvBefore
+    $ClientIdSource = ('INHERITED Vrf__ClientId in this shell - it BEATS appsettings.json, which says {0}' -f `
+                       $(if ($appSettingsClientId) { "'" + $appSettingsClientId + "'" } else { '(key absent)' }))
+    Say-Warn ('clientId: this shell already carries Vrf__ClientId={0} and the app READS IT, so appsettings.json''s {1} is NOT what this run uses. The runner did not set it. Clear it (Remove-Item Env:Vrf__ClientId) or pass -ClientId to make the choice explicit.' -f `
+              $ClientIdEnvBefore, $(if ($appSettingsClientId) { "'" + $appSettingsClientId + "'" } else { '(key absent)' }))
+} else {
+    $ClientIdSource = 'appsettings.json'
 }
 # -DurationScale takes exactly the same path (env Vrf__<Key> beats appsettings.json), which is
 # what the seat had been doing by hand around the runner. Doing it HERE is what puts it in the
@@ -2499,10 +2527,15 @@ $Manifest.inputs.durationScale = [ordered]@{
                             $cfgApp.Vrf.PSObject.Properties.Name -contains 'DurationScale') { $cfgApp.Vrf.DurationScale } else { '(key absent)' })
     note            = 'Vrf:DurationScale. -DurationScale 0 (the default) exports NOTHING and the app keeps its own value. Anything positive is exported as Vrf__DurationScale, which beats appsettings.json. It scales BOTH halves of the order clock (the Duration that ends a task and the StartTime delay that holds one back) and NOT movement, so a scaled run''s wall-clock length changes but its kinematics do not. The app REFUSES a non-positive scale and falls back to 1.0; this runner refuses one before anything is launched.'
 }
+# SF-R4: THE CHECK IS AGAINST THE VALUE THE APP WILL ACTUALLY USE. $appClientId is now the
+# EFFECTIVE clientId (-ClientId, else an inherited Vrf__ClientId, else appsettings.json) and the
+# message names WHICH of the three it came from. Checking the losing source checks nothing: a
+# shell carrying a stale Vrf__ClientId that disagrees with the init creates 0 UNITS, and that is
+# precisely the failure this gate exists to refuse before anything is launched.
 if ($appClientId -and $initSystemNames.Count -gt 0 -and ($initSystemNames -notcontains $appClientId)) {
-    $bad += ("clientId MISMATCH: appsettings Vrf:ClientId='{0}' but the init declares SystemName [{1}]. RUNBOOK sec 2: they MUST match or the interface creates 0 UNITS. Fix appsettings.json (or the init) before running." -f $appClientId, ($initSystemNames -join ','))
+    $bad += ("clientId MISMATCH: the EFFECTIVE Vrf:ClientId is '{0}' (source: {1}) but the init declares SystemName [{2}]. RUNBOOK sec 2: they MUST match or the interface creates 0 UNITS. Fix the source named here (or the init) before running." -f $appClientId, $ClientIdSource, ($initSystemNames -join ','))
 }
-if (-not $appClientId) { Say-Warn 'could not read Vrf:ClientId from the app appsettings.json - the SystemName match is UNVERIFIED.' }
+if (-not $appClientId) { Say-Warn 'could not read Vrf:ClientId from the app appsettings.json, and neither -ClientId nor an inherited Vrf__ClientId supplies one - the SystemName match is UNVERIFIED.' }
 
 # THE LATERAL ROUTE SHIFT, IN THE EVIDENCE (user ruling 2026-09-20: "Route shift: ON. Use as
 # default for any run."; STP-804/806, RUNBOOK sec 12). It CHANGES WHERE UNITS DRIVE, so a run
@@ -2761,7 +2794,10 @@ $Manifest.inputs.inputSources  = [ordered]@{
 $Manifest.inputs.quietBackend  = [bool]$QuietBackend
 $Manifest.inputs.backendNotifyLevel = $BackendNotifyLevel
 $Manifest.inputs.vrfAppDataDir = $(if ($Is52 -and $VrfAppDataDir) { $VrfAppDataDir } elseif ($Is52) { '(not passed - vendor appData)' } else { $null })
-$Manifest.inputs.clientId      = $(if ($ClientId) { $ClientId } else { ('(appsettings) {0}' -f $appClientId) })
+# SF-R4: the clientId fields are written ONCE, further down, from the EFFECTIVE value and its
+# source. A write here would be dead - the later one overwrote it - and it said something
+# different ("(appsettings) X" for a run whose value came from the environment), which is the
+# mislabel this review item is about.
 $Manifest.inputs.typeMapFile   = $(if ($Is52) { $TypeMapFile52 } else { '(5.0.2 profile: appsettings)' })
 $Manifest.inputs.typeMapIsRepoMap = [bool](-not $TypeMapFile)
 $Manifest.inputs.federation    = $Federation
@@ -2834,7 +2870,18 @@ $Manifest.inputs.vrfProfile = [ordered]@{
 }
 $Manifest.inputs.restUrl       = $RestUrl
 $Manifest.inputs.stompUrl      = $StompUrl
+# SF-R4: the EFFECTIVE clientId and WHICH of the three sources produced it, plus what this shell
+# carried before the runner touched anything. A manifest that records a value without its source
+# cannot tell a deliberate -ClientId from a leak left by the previous run.
 $Manifest.inputs.clientId      = $appClientId
+$Manifest.inputs.clientIdSource = $ClientIdSource
+$Manifest.inputs.clientIdDetail = [ordered]@{
+    switch          = $(if ($ClientId) { $ClientId } else { '(not passed)' })
+    appSettings     = $(if ($appSettingsClientId) { $appSettingsClientId } else { '(key absent)' })
+    envValueBefore  = $(if ($ClientIdEnvBefore) { $ClientIdEnvBefore } else { '(unset)' })
+    exported        = [bool]$ClientId
+    note            = 'The app resolves Vrf__ClientId (environment) OVER Vrf:ClientId (appsettings.json), like every other Vrf__ setting. effective = -ClientId, else an inherited Vrf__ClientId, else appsettings.json - and that is the value the SystemName cross-check uses. When this runner exports one it puts envValueBefore back on EVERY exit path (SF-R4, the mechanism SF-D built); before 2026-09-21 it restored nothing, so a -ClientId run left its value in the operator''s shell and the NEXT run silently inherited it while the banner credited appsettings.json.'
+}
 $Manifest.inputs.initSystemName= ($initSystemNames -join ',')
 
 # ---- tool identities --------------------------------------------------------
@@ -3600,7 +3647,11 @@ Say ('  pre-order   : {0}' -f $(
         ('stage 7d holds {0}s between the oracle gate and PushOrder (the nav area loads LAZILY after placement); it IS in the derived cap, and {1}' -f $PreOrderSettleSecs, $(if ($WatchSecs -gt 0) { 'the EXPLICIT -WatchSecs above overrides that derivation - see the flag' } else { 'the derived cap is the one in force' }))
     } else { 'no hold and no gate (-PreOrderSettleSecs 0, -PreOrderGate off)' }))
 Say ('  window      : {0}s{1}' -f $RunSecs, $(if ($StopWhenComplete) { (' CAP; -StopWhenComplete closes it once all {0} taskee(s) and all {1} task(s) have a TERMINAL report (TASKCMPLT or TASKABRT), {2}s have passed AND every taskee has post-completion position evidence (RPT | C2SIM-capture | R1-applog)' -f $OrderTaskees.Count, $OrderTasks.Count, $SettleHoldSecs) } else { ' fixed (-StopWhenComplete not set)' }))
-Say ('  clientId    : {0}' -f $(if ($ClientId) { ('{0} (-ClientId -> Vrf__ClientId)' -f $ClientId) } else { ('{0} (appsettings.json)' -f $appClientId) }))
+# SF-R4: the banner names the TRUE source. It used to print "(appsettings.json)" whenever
+# -ClientId was absent, which is a lie in the one case that matters - a Vrf__ClientId already in
+# the shell, which the app reads and which beats appsettings.json. $ClientIdSource is decided at
+# the one place the three sources are compared, so this line cannot disagree with the check.
+Say ('  clientId    : {0} ({1})' -f $appClientId, $ClientIdSource)
 Say ('  HLA PATH    : {0};<inherited>' -f $PathPrefix)
 Say ('  licence     : {0}' -f $(if ($LicInfo.Exists) { ('{0} (expires {1})' -f $LicInfo.Path, $LicInfo.ExpiryText) } else { '(UNRESOLVED - checkout may hang; RUNBOOK 0.5.15)' }))
 Say ('  HLA cwd     : {0}' -f $Bin64)
@@ -5745,4 +5796,11 @@ finally {
     # which is the correct restore of "it was unset". Silent: putting an environment
     # variable back must never turn a finished run into a reported failure.
     if ($DurationScaleOn) { $env:Vrf__DurationScale = $DurationScaleEnvBefore }
+    # SF-R4: Vrf__ClientId, SAME MECHANISM, SAME LINE SHAPE, one line lower. It was exported
+    # ~3,300 lines above and restored NOWHERE - so it leaked out of SUCCESSFUL runs too, and
+    # the next run in that shell silently used the previous run's SystemName while the banner
+    # credited appsettings.json. Guarded on $ClientId for the same reason the line above is
+    # guarded on $DurationScaleOn: a runner that exported nothing must put nothing back, or it
+    # would clear an operator's own value.
+    if ($ClientId) { $env:Vrf__ClientId = $ClientIdEnvBefore }
 }
