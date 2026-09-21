@@ -3368,54 +3368,123 @@ while the init's own creates are outstanding, and the D5b overlap comes back. **
 on its own budget, after the creates, and changes no input to the barrier - which is still 20 s at
 the shipped 15/10.**
 
+**THE CORRECTION IS A `setLocation`, AND THE VENDOR HEADERS DECIDE THAT.** They disagree with each
+other about which call moves a ground vehicle, and only one of them is on our side:
+
+| header | what it says | so for a LAND object |
+|---|---|---|
+| `vrftasks\setAltitudeRequest.h:23-25` | *"It is **ignored if the vehicle is not an air-going vehicle**"* (altitude is "the height above the terrain in local coordinates") | **a no-op** |
+| `vrftasks\setLocationRequest.h:26-32` | *"Z is ignored for non-air vehicles ... location - The new location for the entity, in geocentric (meters). **Ground vehicles will be clamped to the terrain surface.**"* | **the lever** |
+
+`SetLocation` is **already exposed** - `VrfBridge.cpp:429` -> `VrfFacade.cpp:986-987`
+`controller->setLocation(DtUUID(uuid), toGeocentric(pos))` - so there is **no native change**. The
+call takes a geodetic lat/lon in DEGREES plus an altitude in METRES (MAK-convention MSL); the
+correction sends the object's **own** lat/lon (a correction, not a teleport) with
+`terrain + Vrf:CreateClearanceMeters` - what the create would have used had the terrain answered -
+although the header says that Z is discarded for a ground vehicle.
+
+> **AND THAT READING INDICTS A STANDING LINE OF OURS.** The PLACEMENT step's post-create
+> `SetAltitude: 0 m ABOVE GROUND LEVEL` (`Vrf:PlacementAglSet`, `PlacementPolicy.cs:99-103`) is
+> issued for LAND objects, and `setAltitudeRequest.h:23-25` says that request is ignored for exactly
+> those - so that clause has been announcing an effect the vendor says does not happen.
+> **RECORDED, NOT SILENTLY CHANGED.** The healthy placement path is unchanged by this section: the
+> CREATE is what places an object (UG52 14.3.3) and the set is belt-and-braces that costs nothing if
+> it is inert. Retiring or re-aiming it is its own lane with its own confirming run - changing
+> placement behaviour inside a defect fix is how `VRF_ALTITUDE_FRAMES.md` sec 6 Q3 says this project
+> manufactures false results. See `VRF_ALTITUDE_FRAMES.md` sec 1b.
+
 **WHAT IT DOES.**
-1. `FinalizePlacement` enrols every **LAND** object it placed on the FALLBACK (air/surface/
-   subsurface are excluded - the vendor rule for them is not "at the terrain").
+1. `FinalizePlacement` enrols every **LAND PLATFORM** it placed on the FALLBACK. Air/surface/
+   subsurface are excluded (the vendor rule for them is not "at the terrain"), and so are
+   **AGGREGATES**: the only altitude a sweep can read for a unit is its **published Z**, which
+   `VRF_ALTITUDE_FRAMES.md` sec 1a forbids reading as ground contact - *"Verifying 'on the ground'
+   means reading the MEMBERS, never the aggregate's Z"*. What covers an aggregate instead is the
+   DISPATCH GATE, which measures it on its **members' centroid** (`RouteOriginPolicy`) - the right
+   quantity, at the right time. **An aggregate's MEMBERS are never re-clamped**: they are created by
+   VR-Forces as part of the template at order time and are not in the interface's plan list, so what
+   places them is the vendor's own create clamp at that instant. On 2026-09-21 that happened to work
+   (the materialization at `11:52:18Z` got terrain 130.1 m and the six members drove) **because the
+   terrain had paged in by then - it is not guaranteed**, and an order pushed early on a cold AO can
+   still materialize members into an unpaged terrain. The dispatch gate is their only protection.
 2. A tick sweep re-asks the terrain for those points, no faster than
    `Vrf:PlacementReclampRetrySeconds`, one query in flight, for up to `Vrf:PlacementReclampSeconds`.
+   (An **unanswered** query holds the in-flight flag for `Vrf:TerrainProfileTimeoutSeconds`, so the
+   cold-AO cadence is retry + timeout = 15 s: about **four** attempts in 60 s, not twelve.)
 3. On an answer it reads the object's live altitude and compares. Further than the tolerance ->
-   **one** `setAltitude(0 m above ground level)` - the call the bridge already exposes
-   (`VrfBridge.cpp:426` -> `VrfFacade.cpp:739`, `aboveGroundLevel=TRUE`), **no new native API** -
-   and then **the altitude is READ BACK**. A correction that was issued is never recorded as a
-   correction that worked: `VRF_ALTITUDE_FRAMES.md` sec 1b had the one prior "VERIFIED END TO END"
-   on this call **withdrawn** for exactly that reason.
+   **one** `setLocation` as above, and then **the altitude is READ BACK**. A correction that was
+   issued is never recorded as a correction that worked: `VRF_ALTITUDE_FRAMES.md` sec 1b had the one
+   prior "VERIFIED END TO END" on the altitude call **withdrawn** for exactly that reason.
 4. **THE DISPATCH GROUND GATE.** The route's own terrain reply carries the height under vertex 0 and
    the taskee's live altitude - the measurement above. A gap over the tolerance now issues the
    correction and **HOLDS** the task as `BOUND-BUT-NOT-ON-THE-GROUND`, a sixth `TaskeeReadiness`
    state that is TRANSIENT, so the sec 11g hold machinery owns the wait and the existing timeout
-   TASKABRT names the state. Each task is deferred here **at most once**: a correction that does not
-   take costs one extra terrain round trip and then a TASKABRT naming the measurement, never a loop.
+   TASKABRT names the state. When the gate PASSES it prints **one short line naming the measured
+   gap** - the only evidence any run carries for the 50-100 m band between the refusal bar and the
+   vertex-0 NOTE threshold.
+5. **A VERDICT IS A MEASUREMENT, NOT A LABEL.** Every new task on a unit judged off the terrain
+   **re-opens its measurement** before the task is held (`ReMeasureGroundContactIfStale`), and a
+   unit later found ON the terrain is `CLEARED` with one line. No second correction is issued and
+   the give-up ERROR is printed once. Without this, one failed correction made a unit untaskable for
+   the life of the process - every later task held its full `Vrf:DispatchReadinessTimeoutSeconds`
+   and then aborted, with the terrain possibly long since streamed and nothing ever looking again.
 
 **PERMISSIVE WHEN IT KNOWS NOTHING.** Only a MEASUREMENT holds a task. No reply, no usable sample
 for vertex 0, or the feature off, and every task dispatches exactly as it does today - so this can
 never wedge a run whose terrain query is simply never answered.
 
-**COST ON A HEALTHY RUN: NONE.** It arms only when a LAND object was placed on the fallback. On the
-D10/R9 shape (`PLACEMENT summary: N of N ... from the TERRAIN QUERY`, `READY TO TASK` in 0.8 s,
-dispatch deferral 2.1-2.4 s) the enrolment list is empty, the tick phase is skipped by its own
-guard, and **no query, no native read and no line is added**. The one universal change is that the
-`PLACEMENT` lines and the `PLACEMENT summary` line now carry a **WALL stamp**, so a harvest can line
-placement up against when the terrain became sampleable.
+**COST ON A HEALTHY RUN: ONE LINE PER GROUND DISPATCH, AND NOTHING ELSE.** The sweep arms only when
+a LAND PLATFORM was placed on the fallback; on the D10/R9 shape
+(`PLACEMENT summary: N of N ... from the TERRAIN QUERY`, `READY TO TASK` in 0.8 s, dispatch deferral
+2.1-2.4 s) the enrolment list is empty, the tick phase is skipped by its own guard, and **no query,
+no native read and no re-clamp line is added**. Two changes are universal and deliberate: the gate's
+one-line `is ON the terrain` note per ground dispatch (3 lines on Iron Storm, 1 on D10 - accepted in
+exchange for having any evidence at all about the 50-100 m band), and the **WALL stamp** appended to
+the `PLACEMENT` / `PLACEMENT summary` lines so a harvest can line placement up against when the
+terrain became sampleable. **The stamp goes at the END**: `Get-PlacementRows`
+(`scripts\RunnerLib.ps1:1227`) rejects on the literal `PLACEMENT:`, so moving that prefix silently
+empties the Stage-7d warm/cold cache-state indicator - test 8x in
+`tests\RunnerTurnaround.Tests.ps1` now guards both halves.
 
 **THE LINES TO LOOK FOR:**
 
-    PLACEMENT RE-CLAMP: N of M object(s) were created at the FALLBACK altitude ...   (it armed)
-    PLACEMENT RE-CLAMP <unit>: MEASURED OFF THE TERRAIN - live ... Issuing setAltitude(0 m ...
+    PLACEMENT RE-CLAMP: N of M object(s) - LAND PLATFORMS ONLY - were created at the FALLBACK ...   (armed)
+    PLACEMENT RE-CLAMP <unit>: MEASURED OFF THE TERRAIN - live ... Issuing setLocation at its OWN lat/lon ...
     PLACEMENT RE-CLAMP <unit>: RE-CLAMPED AND VERIFIED - live altitude read back at ...
     PLACEMENT RE-CLAMP <unit>: STILL OFF THE TERRAIN AFTER A CORRECTION - ...
+    PLACEMENT RE-CLAMP <unit>: CLEARED - re-measured ON the terrain ...
     PLACEMENT RE-CLAMP summary: A ON the terrain, B RE-CLAMPED AND VERIFIED, C STILL OFF, D NEVER MEASURED
+    PLACEMENT RE-CLAMP gate: <unit> is ON the terrain - live ... (gap <g> m, tolerance 50 m). Dispatching.
     PLACEMENT RE-CLAMP: task '<T>' is NOT DISPATCHED YET - ... HELD as [BOUND-BUT-NOT-ON-THE-GROUND]
     REFUSED [BOUND-BUT-NOT-ON-THE-GROUND]: task '<T>' is not dispatched because unit <U> is STILL ...
+
+**WHICH SUMMARY A PREREG SCORES: THE LAST ONE.** A re-measure opens a new window and each window
+closes with its own census of the whole map, so an early match is a mid-run state, not the verdict.
+
+**WHAT THE DOCS PREDICT FOR THE CORRECTION, SO THE PREREG CANNOT SCORE A SURPRISE AS A SUCCESS.**
+`setLocationRequest.h:26-32` says a ground vehicle IS clamped to the terrain surface, so the
+expected line is `RE-CLAMPED AND VERIFIED`. That prediction rests on a header, not on a run: this
+call has **never been exercised by this interface**, and the read-back is the app's own
+(`TryGetEntityGeodetic` reads reflected state - it would still lie if the back end published the
+commanded position without relocating the entity). Confirm it on an **independent channel**
+(a WatchVrf POS sample for that uuid), not on the app's read alone. `STILL OFF THE TERRAIN AFTER A
+CORRECTION` is the falsifier and it is a real possibility; it is not, however, the *expected* result
+the way it would have been for `setAltitude`.
 
 **THE DEMO-DAY MITIGATION THAT COSTS NOTHING:** pre-warm the AO - load the scenario and let MAK
 Earth stream before the init is pushed - and gate the push on `PLACEMENT summary: N of N ... from
 the TERRAIN QUERY`. Then the re-clamp never arms and none of the above appears.
 
-**OFFLINE PROOF, no bridge and no network:** `VrfC2SimApp --placement-reclamp-selftest` (28 checks -
-the Iron Storm replay, the gate held-then-tasked, the gate when the correction does not take, the
-healthy init unchanged, the unmeasured-is-never-held invariant, the B1 inequality, the state names
-and the tripwire on the sentences) and `--placement-reclamp-selftest --disabled`, which runs the
-SAME assertions at `Vrf:PlacementReclamp = false` - the 33f1894 build - and **FAILS 12 of them**.
+**OFFLINE PROOF, no network and nothing that joins an RTI:** `VrfC2SimApp
+--placement-reclamp-selftest` (the Iron Storm replay, the `setLocation`-not-`setAltitude` assertion,
+the gate held-then-tasked, the gate when the correction does not take, the BL-2 re-measure
+end-to-end - give up, the terrain pages in, a second task dispatches - the healthy init unchanged,
+the unmeasured-is-never-held invariant, the B1 inequality, the state names and the tripwire on the
+sentences) and `--placement-reclamp-selftest --disabled`, which runs the SAME assertions at
+`Vrf:PlacementReclamp = false` - the pre-lane behaviour - and **fails the ones that matter**. It
+needs the MAK runtime PATH prefix (RUNBOOK sec 7 item 3) because it constructs a `Geodetic`, like
+`--terrain/--placement/--routeshift-selftest`. Runner-side: **test 8x** in
+`tests\RunnerTurnaround.Tests.ps1` feeds `Get-PlacementRows` the REAL stamped lines plus the broken
+format as a regression guard - before 2026-09-21 no test fed that function anything at all.
 
 **WHAT IS NOT CHANGED HERE, DELIBERATELY.** (a) `READY TO TASK` at Iron Storm scale. `app:387` read
 `NOT REACHED within 20 s: only 0 of 36 init unit(s) are bound` because the barrier's 20 s clock

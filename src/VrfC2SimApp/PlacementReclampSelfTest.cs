@@ -1,4 +1,5 @@
 using S = C2SIM.Schema102;
+using VrfC2Sim;
 
 namespace VrfC2SimApp;
 
@@ -84,52 +85,95 @@ public static class PlacementReclampSelfTest
                 return;
             }
             Lines.Add(PlacementReclampPolicy.ArmedLine(1, 36, boundSeconds, retrySeconds, tolerance));
+            RunWindow(boundSeconds, retrySeconds, tolerance);
+            Lines.Add(Summary(boundSeconds));
+        }
+
+        /// <summary>
+        /// BL-2 (cold-start review of 3151fec): a NEW TASK on a unit judged off the terrain
+        /// RE-OPENS the window - no new correction, no repeat ERROR, just a fresh measurement. This
+        /// is `ReMeasureGroundContactIfStale` + `ReopenPlacementReclampWindow`.
+        /// </summary>
+        public void NewTaskArrives(double boundSeconds = Bound, double retrySeconds = Retry,
+                                   double tolerance = Tolerance)
+        {
+            if (!_enabled) return;
+            if (Contact != PlacementReclampPolicy.Contact.OffGround) return;
+            if (Outcome != PlacementReclampPolicy.Outcome.StillOffGround
+                && Outcome != PlacementReclampPolicy.Outcome.Pending) return;
+            Reopened++;
+            RunWindow(boundSeconds, retrySeconds, tolerance);
+            Lines.Add(Summary(boundSeconds));
+        }
+
+        /// <summary>One sweep window. StillOffGround entries ARE measured again (the pending filter
+        /// in SweepPlacementReclamp); only a settled ON-the-ground outcome stops being measured.</summary>
+        private void RunWindow(double boundSeconds, double retrySeconds, double tolerance)
+        {
             double lastQuery = double.NegativeInfinity;
-            PlacementReclampPolicy.Measurement last = default;
             for (double t = 0.0; !PlacementReclampPolicy.Expired(t, boundSeconds); t += 0.05)
             {
-                if (Outcome != PlacementReclampPolicy.Outcome.Pending) break;
+                if (Outcome != PlacementReclampPolicy.Outcome.Pending
+                    && Outcome != PlacementReclampPolicy.Outcome.StillOffGround) break;
                 if (t < _w.BoundAt) continue;                       // not bound: nothing to read
                 if (!PlacementReclampPolicy.MayQuery(false, t - lastQuery, retrySeconds)) continue;
                 lastQuery = t;
                 TerrainQueries++;
                 if (t < _w.TerrainAnswersAt) continue;              // asked, not answered - retry later
                 var m = PlacementReclampPolicy.Measure(_w.LiveAltMeters, _w.TerrainMeters, tolerance);
+                bool wasOff = Outcome == PlacementReclampPolicy.Outcome.StillOffGround;
                 Contact = m.Contact;
                 switch (PlacementReclampPolicy.Decide(m.Contact, Corrections))
                 {
                     case PlacementReclampPolicy.Action.Correct:
                         Corrections++;
-                        Lines.Add(PlacementReclampPolicy.CorrectionLine(N, m, tolerance));
-                        // The one call the bridge already exposes, AGL by construction
-                        // (VrfBridge.cpp:426 -> VrfFacade.cpp:739).
+                        var fix = PlacementReclampPolicy.CorrectionLocation(
+                            Lat, Lon, _w.TerrainMeters, CreateClearance);
+                        Lines.Add(PlacementReclampPolicy.CorrectionLine(
+                            N, m, tolerance, fix.LatDeg, fix.LonDeg, fix.AltMeters));
+                        SentLocations.Add(fix);
+                        // setLocation, not setAltitude: setLocationRequest.h:26-32 is the call the
+                        // vendor documents as clamping a GROUND vehicle to the surface.
                         if (_w.CorrectionWorks) _w.LiveAltMeters = _w.TerrainMeters;
-                        last = m;
+                        _last = m;
                         break;
                     case PlacementReclampPolicy.Action.GiveUp:
                         Outcome = PlacementReclampPolicy.Outcome.StillOffGround;
                         SettledAt = t;
-                        Lines.Add(PlacementReclampPolicy.GaveUpLine(N, m));
+                        // Said ONCE, however many windows re-measure it.
+                        if (!_gaveUpLogged) { _gaveUpLogged = true; Lines.Add(PlacementReclampPolicy.GaveUpLine(N, m)); }
                         break;
                     default:
                         Outcome = PlacementReclampPolicy.Conclude(m.Contact, Corrections);
                         SettledAt = t;
-                        if (Outcome == PlacementReclampPolicy.Outcome.Reclamped)
-                            Lines.Add(PlacementReclampPolicy.VerifiedLine(N, last, m));
+                        if (wasOff) Lines.Add(PlacementReclampPolicy.ClearedLine(N, m));
+                        else if (Outcome == PlacementReclampPolicy.Outcome.Reclamped)
+                            Lines.Add(PlacementReclampPolicy.VerifiedLine(N, _last, m));
                         break;
                 }
+                // A give-up ends THIS window (it does not hold the summary open) but leaves the
+                // object measurable by the next one.
+                if (Outcome == PlacementReclampPolicy.Outcome.StillOffGround) break;
             }
             if (Outcome == PlacementReclampPolicy.Outcome.Pending)
                 Outcome = PlacementReclampPolicy.Outcome.NeverMeasured;
-            Lines.Add(PlacementReclampPolicy.SummaryLine(
+        }
+
+        private string Summary(double boundSeconds)
+            => PlacementReclampPolicy.SummaryLine(
                 Outcome == PlacementReclampPolicy.Outcome.AlreadyOnGround ? 1 : 0,
                 Outcome == PlacementReclampPolicy.Outcome.Reclamped ? 1 : 0,
                 Outcome == PlacementReclampPolicy.Outcome.StillOffGround ? 1 : 0,
                 Outcome == PlacementReclampPolicy.Outcome.NeverMeasured ? 1 : 0,
-                double.IsNaN(SettledAt) ? boundSeconds : SettledAt));
-        }
+                double.IsNaN(SettledAt) ? boundSeconds : SettledAt);
 
+        public int Reopened;
+        public readonly List<Geodetic> SentLocations = new();
+        private PlacementReclampPolicy.Measurement _last;
+        private bool _gaveUpLogged;
         private const string N = "28ID__FRIENDLY_INFANTRY_DIVISION";
+        public const double Lat = 53.99238486824088, Lon = 23.211255470526073;
+        public const double CreateClearance = 1.0;   // Vrf:CreateClearanceMeters
     }
 
     /// <summary>
@@ -150,35 +194,79 @@ public static class PlacementReclampSelfTest
 
         public GateFixture(bool enabled, World w) { _enabled = enabled; _w = w; }
 
-        /// <summary>One trip through the terrain continuation. Returns true when the task is
-        /// dispatched. <paramref name="reclampVerifies"/> models what the sweep does between the
-        /// first visit and the second.</summary>
+        /// <summary>
+        /// One trip through the terrain continuation, then - and ONLY then - the re-entry the real
+        /// system takes. SF-1 of the cold-start review: a first version looped the gate directly,
+        /// which is an ending the real code never reaches. The real re-entry happens when
+        /// `SweepDispatchReadiness` finds the taskee `Ready`, i.e. when the ground contact is no
+        /// longer OffGround; if the sweep never clears it, the task ends at the
+        /// `Vrf:DispatchReadinessTimeoutSeconds` hold timeout with the state named - NOT at the
+        /// gate's second visit.
+        /// </summary>
+        /// <param name="reclampVerifies">whether the re-clamp sweep clears the verdict while the
+        /// task is held</param>
         public void Dispatch(string task, string unit, bool reclampVerifies)
         {
-            for (int pass = 0; pass < 4; pass++)
+            Visits++;
+            var m = PlacementReclampPolicy.Measure(_w.LiveAltMeters, _w.TerrainMeters, Tolerance);
+            bool gateStops = _enabled && m.Contact == PlacementReclampPolicy.Contact.OffGround;
+            if (!gateStops)
             {
-                Visits++;
-                double terrain = _w.TerrainMeters;
-                var m = PlacementReclampPolicy.Measure(_w.LiveAltMeters, terrain, Tolerance);
-                bool gateStops = _enabled && m.Contact == PlacementReclampPolicy.Contact.OffGround;
-                if (!gateStops) { Dispatched = true; return; }
-                if (!_deferred.Add(task))
-                {
-                    string why = PlacementReclampPolicy.DispatchGateRefusalReason(
-                        task, unit, m.LiveAltMeters, m.TerrainMeters, m.GapMeters, Tolerance);
-                    Lines.Add(why);
-                    Statuses.Add((S.TaskStatusCodeType.TASKABRT, why));
-                    return;
-                }
-                Lines.Add(PlacementReclampPolicy.DispatchGateHeldLine(
-                    task, unit, m.LiveAltMeters, m.TerrainMeters, m.GapMeters, Tolerance));
-                Corrections++;
-                HeldAs = DispatchReadiness.Classify(true, true, true, true, false, true);
-                // The correction is issued and the sweep verifies it (or does not) before the hold
-                // releases and the task re-enters the pipeline.
-                if (reclampVerifies) _w.LiveAltMeters = _w.TerrainMeters;
+                Dispatched = true;
+                if (_enabled) Lines.Add(PlacementReclampPolicy.GatePassedLine(unit, m, Tolerance));
+                return;
             }
+            _deferred.Add(task);
+            Lines.Add(PlacementReclampPolicy.DispatchGateHeldLine(
+                task, unit, m.LiveAltMeters, m.TerrainMeters, m.GapMeters, Tolerance));
+            Corrections++;
+            SentLocation = PlacementReclampPolicy.CorrectionLocation(
+                Lat, Lon, _w.TerrainMeters, ReclampFixture.CreateClearance);
+            HeldAs = DispatchReadiness.Classify(true, true, true, true, false, true);
+            if (reclampVerifies) _w.LiveAltMeters = _w.TerrainMeters;
+
+            // THE HOLD. It is released ONLY when the classifier goes Ready.
+            var after = PlacementReclampPolicy.Measure(_w.LiveAltMeters, _w.TerrainMeters, Tolerance);
+            if (after.Contact == PlacementReclampPolicy.Contact.OffGround)
+            {
+                // Never released: the hold expires and DispatchReadiness produces the abort, with
+                // the state it was still in named. This is the REAL terminal line in this world.
+                HoldTimedOut = true;
+                string why = DispatchReadiness.TimeoutAbortReason(
+                    task, unit, TaskeeReadiness.NotOnTheGround, 60.0);
+                Lines.Add(why);
+                Statuses.Add((S.TaskStatusCodeType.TASKABRT, why));
+                return;
+            }
+            // Released: the task re-enters ExecuteTaskOnTick and passes the gate this time.
+            Visits++;
+            Dispatched = true;
+            Lines.Add(PlacementReclampPolicy.GatePassedLine(unit, after, Tolerance));
         }
+
+        public bool HoldTimedOut;
+        public Geodetic SentLocation;
+        public const double Lat = 54.01939, Lon = 23.31390;
+    }
+
+    /// <summary>Every sentence this policy can print, for the ASCII and tripwire sweeps.</summary>
+    private static string[] AllSentences()
+    {
+        var off = PlacementReclampPolicy.Measure(-0.0, 145.4, Tolerance);
+        var on = PlacementReclampPolicy.Measure(146.0, 145.4, Tolerance);
+        var fix = PlacementReclampPolicy.CorrectionLocation(53.9923, 23.2112, 145.4, 1.0);
+        return new[] {
+            PlacementReclampPolicy.ArmedLine(36, 36, Bound, Retry, Tolerance),
+            PlacementReclampPolicy.CorrectionLine("U", off, Tolerance, fix.LatDeg, fix.LonDeg, fix.AltMeters),
+            PlacementReclampPolicy.VerifiedLine("U", off, on),
+            PlacementReclampPolicy.ClearedLine("U", on),
+            PlacementReclampPolicy.GaveUpLine("U", off),
+            PlacementReclampPolicy.GatePassedLine("U", on, Tolerance),
+            PlacementReclampPolicy.SummaryLine(1, 1, 1, 1, 12.0),
+            PlacementReclampPolicy.DispatchGateHeldLine("T", "U", -0.0, 145.4, 145.0, Tolerance),
+            PlacementReclampPolicy.DispatchGateRefusalReason("T", "U", -0.0, 145.4, 145.0, Tolerance),
+            DispatchReadiness.Describe(TaskeeReadiness.NotOnTheGround),
+        };
     }
 
     public static int Run(bool featureEnabled)
@@ -205,9 +293,26 @@ public static class PlacementReclampSelfTest
               fx.Contact == PlacementReclampPolicy.Contact.OffGround
               || fx.Outcome == PlacementReclampPolicy.Outcome.Reclamped);
 
-        Check("IRON STORM: the documented correction is issued EXACTLY ONCE - setAltitude(0 m above "
-              + "ground level), the call the bridge already exposes; no new native API",
-              fx.Corrections == PlacementReclampPolicy.MaxCorrections);
+        Check("IRON STORM: the documented correction is issued EXACTLY ONCE - and it is setLOCATION, "
+              + "the call the vendor documents as clamping a GROUND vehicle to the surface "
+              + "(setLocationRequest.h:26-32), NOT setAltitude, which the same vendor says is "
+              + "'ignored if the vehicle is not an air-going vehicle' (setAltitudeRequest.h:23-25). "
+              + "Already exposed at VrfBridge.cpp:429 - no new native API",
+              fx.Corrections == PlacementReclampPolicy.MaxCorrections
+              && fx.SentLocations.Count == PlacementReclampPolicy.MaxCorrections
+              && fx.Lines.Any(l => l.Contains("Issuing setLocation at its OWN lat/lon", StringComparison.Ordinal)
+                                   && l.Contains("setLocationRequest.h:26-32", StringComparison.Ordinal))
+              && !fx.Lines.Any(l => l.Contains("Issuing setAltitude", StringComparison.Ordinal)));
+
+        Check("IRON STORM: the correction is sent AT THE OBJECT'S OWN LAT/LON (a correction, not a "
+              + "teleport) with altitude = terrain + Vrf:CreateClearanceMeters - what the create "
+              + "would have used - although the header says Z is discarded for a ground vehicle",
+              featureEnabled
+                  ? fx.SentLocations.Count == 1
+                    && Math.Abs(fx.SentLocations[0].LatDeg - ReclampFixture.Lat) < 1e-12
+                    && Math.Abs(fx.SentLocations[0].LonDeg - ReclampFixture.Lon) < 1e-12
+                    && Math.Abs(fx.SentLocations[0].AltMeters - (145.4 + ReclampFixture.CreateClearance)) < 1e-9
+                  : false);
 
         Check("IRON STORM: the correction is CONFIRMED BY A READ-BACK, not assumed (sec 1b of "
               + "VRF_ALTITUDE_FRAMES had the one prior 'VERIFIED END TO END' WITHDRAWN for exactly "
@@ -255,27 +360,96 @@ public static class PlacementReclampSelfTest
         Check("STUCK: a unit still measured off the terrain after a correction is NEVER DISPATCHED",
               featureEnabled ? !stuck.Dispatched : false);
 
-        Check("STUCK: it ends in ONE TASKABRT whose reason NAMES the state and the measurement, so "
-              + "the C2SIM bus carries a refusal instead of a silent success",
+        Check("STUCK: it ends in ONE TASKABRT whose reason NAMES the state, so the C2SIM bus carries "
+              + "a refusal instead of a silent success. SF-1: the terminal line in THIS world is the "
+              + "DispatchReadiness HOLD TIMEOUT, not the gate's second visit - the gate is only "
+              + "re-entered when the classifier goes Ready, which here it never does",
               stuck.Statuses.Count == 1
               && stuck.Statuses[0].Code == S.TaskStatusCodeType.TASKABRT
               && stuck.Statuses[0].Why.Contains(PlacementReclampPolicy.NotOnGroundToken, StringComparison.Ordinal)
-              && stuck.Statuses[0].Why.Contains("156 m", StringComparison.Ordinal));
+              && (!featureEnabled || stuck.HoldTimedOut));
 
-        Check("STUCK: BOUNDED - the gate defers a task AT MOST ONCE, so a correction that does not "
-              + "take costs one extra terrain round trip and then a refusal, never a cycle",
-              stuck.Visits == 2);
+        Check("STUCK: BOUNDED - the task is measured once, held once and ended once; the gate is "
+              + "never re-entered while the verdict stands, so there is no cycle",
+              featureEnabled ? stuck.Visits == 1 && stuck.Corrections == 1 : stuck.Visits == 1);
 
         var stuckSweep = new ReclampFixture(featureEnabled, new World { CorrectionWorks = false });
         stuckSweep.Run();
-        Check("STUCK: the sweep gives up loudly after ONE correction and says the vendor may be "
-              + "behaving as documented, naming setLocation as the untried lever",
+        Check("STUCK: the sweep gives up loudly after ONE correction, and because that correction "
+              + "was the vendor's OWN documented lever for this class the line does NOT excuse "
+              + "itself with the setAltitude no-op - it says the result needs explaining and lists "
+              + "the candidates",
               featureEnabled
                   ? stuckSweep.Outcome == PlacementReclampPolicy.Outcome.StillOffGround
                     && stuckSweep.Corrections == 1
-                    && stuckSweep.Lines.Any(l => l.Contains("setAltitudeRequest.h:24-25", StringComparison.Ordinal)
-                                                 && l.Contains("setLocationRequest.h", StringComparison.Ordinal))
+                    && stuckSweep.Lines.Any(l => l.Contains("setLocationRequest.h:26-32", StringComparison.Ordinal)
+                                                 && l.Contains("NOT the known setAltitude no-op", StringComparison.Ordinal)
+                                                 && l.Contains("NO FURTHER REQUEST IS ISSUED", StringComparison.Ordinal))
                   : false);
+
+        // ============ 3b. BL-2: THE VERDICT IS RE-MEASURABLE, NOT STICKY ===========
+        // The cold-start review's BL-2: after a give-up the verdict used to stand for the life of
+        // the process, every later task on that unit was held to its full bound and abandoned, and
+        // the only thing that could clear it lived behind the gate the verdict closed.
+        var lateWorld = new World { LiveAltMeters = -0.0, TerrainMeters = 155.8, CorrectionWorks = false };
+        var late = new ReclampFixture(featureEnabled, lateWorld);
+        late.Run();                                  // window 1: correct, read back, give up
+        // The terrain finishes streaming and the back end re-places the object on its own.
+        lateWorld.LiveAltMeters = lateWorld.TerrainMeters;
+        late.NewTaskArrives();                       // a SECOND task arrives on that unit
+
+        Check("BL-2: a unit that gave up IS RE-MEASURED when a new task asks about it - the verdict "
+              + "is a measurement with a timestamp, not a property of the unit",
+              featureEnabled ? late.Reopened == 1 : false);
+
+        Check("BL-2: the re-measure CLEARS the verdict with one line, and the unit is taskable "
+              + "again - without this, one failed correction cost every later task its full "
+              + "Vrf:DispatchReadinessTimeoutSeconds and ended it in a TASKABRT forever",
+              late.Contact == PlacementReclampPolicy.Contact.OnGround
+              && late.Lines.Any(l => l.Contains("CLEARED - re-measured ON the terrain", StringComparison.Ordinal))
+              && DispatchReadiness.Classify(true, true, true, true, false,
+                     late.Contact == PlacementReclampPolicy.Contact.OffGround) == TaskeeReadiness.Ready);
+
+        Check("BL-2: the re-measure issues NO second correction and repeats NO ERROR - one "
+              + "correction and one give-up line per object, however many windows measure it",
+              featureEnabled
+                  ? late.Corrections == PlacementReclampPolicy.MaxCorrections
+                    && late.Lines.Count(l => l.Contains("STILL OFF THE TERRAIN", StringComparison.Ordinal)) == 1
+                  : false);
+
+        Check("BL-2 END TO END: give up, the terrain pages in, a SECOND task dispatches",
+              featureEnabled
+                  ? new Func<bool>(() =>
+                    {
+                        var g = new GateFixture(featureEnabled, lateWorld);
+                        g.Dispatch("T02_second_task", "28ID__FRIENDLY_INFANTRY_DIVISION", false);
+                        return g.Dispatched && !g.HoldTimedOut && g.Corrections == 0;
+                    })()
+                  : false);
+
+        // ============ 3c. A LYING READ-BACK (untested world, SF-1) ==================
+        // The read-back would lie if the back end published the commanded altitude without
+        // relocating the entity. Offline this is indistinguishable from a real correction - which
+        // is the point: SAY SO, and name the independent channel that settles it.
+        var liar = new ReclampFixture(featureEnabled, new World { CorrectionWorks = true });
+        liar.Run();
+        Check("LYING READ-BACK IS INDISTINGUISHABLE OFFLINE, and this asserts the limit rather than "
+              + "hiding it: a back end that published the commanded altitude without moving the "
+              + "entity produces EXACTLY the RE-CLAMPED AND VERIFIED path. Only an INDEPENDENT "
+              + "channel (WatchVrf POS) settles it on the confirming run",
+              liar.Outcome == PlacementReclampPolicy.Outcome.Reclamped || !featureEnabled);
+
+        // ============ 3d. BL-1: AGGREGATES ARE NOT ENROLLED =========================
+        // The sweep can only read a unit's PUBLISHED Z, which VRF_ALTITUDE_FRAMES sec 1a forbids
+        // reading as ground contact. The enrolment filter in FinalizePlacement now excludes them;
+        // the DISPATCH GATE covers them instead, on the members' centroid.
+        Check("BL-1: the ARMED line states that only LAND PLATFORMS are enrolled and that an "
+              + "aggregate is measured at dispatch on its MEMBERS' centroid instead - the quantity "
+              + "VRF_ALTITUDE_FRAMES sec 1a says to use",
+              PlacementReclampPolicy.ArmedLine(2, 36, Bound, Retry, Tolerance)
+                  .Contains("AGGREGATES ARE NOT ENROLLED", StringComparison.Ordinal)
+              && PlacementReclampPolicy.ArmedLine(2, 36, Bound, Retry, Tolerance)
+                  .Contains("MEMBERS' centroid", StringComparison.Ordinal));
 
         // ============ 4. A HEALTHY INIT IS UNCHANGED - LINES AND TIMING =============
         // The D10/R9 shape: the terrain answers at once, so PlacementPolicy takes its TERRAIN QUERY
@@ -292,13 +466,18 @@ public static class PlacementReclampSelfTest
               + "altitude and prints no line - 0 added lines and 0 added seconds on an R9/D10 run",
               healthyFx.Lines.Count == 0 && healthyFx.TerrainQueries == 0 && healthyFx.Corrections == 0);
 
-        Check("HEALTHY INIT: a taskee measured ON the terrain passes the gate on its FIRST visit - "
-              + "the dispatch deferral D10 measured at 2.1-2.4 s gains nothing",
+        Check("HEALTHY INIT: a taskee measured ON the terrain passes the gate on its FIRST visit "
+              + "with no correction and no hold - the dispatch deferral D10 measured at 2.1-2.4 s "
+              + "gains nothing. SF-2, ACCEPTED AND STATED: it does gain ONE short INFO line naming "
+              + "the measured gap, which is the only evidence any run will ever carry for the "
+              + "50-100 m band between the refusal bar and the vertex-0 NOTE threshold",
               new Func<bool>(() =>
               {
                   var g = new GateFixture(featureEnabled, new World { LiveAltMeters = 131.1, TerrainMeters = 130.1 });
                   g.Dispatch("T10_1-112In...", "1-112_IN", true);
-                  return g.Dispatched && g.Visits == 1 && g.Corrections == 0 && g.Lines.Count == 0;
+                  return g.Dispatched && g.Visits == 1 && g.Corrections == 0
+                         && g.Lines.Count == (featureEnabled ? 1 : 0)
+                         && (!featureEnabled || g.Lines[0].Contains("is ON the terrain", StringComparison.Ordinal));
               })());
 
         // ============ 5. PERMISSIVE WHEN NOTHING IS MEASURED ========================
@@ -374,26 +553,20 @@ public static class PlacementReclampSelfTest
 
         Check("NO SENTENCE IN THIS POLICY SAYS 'BURIED THEREFORE FROZEN' - VRF_ALTITUDE_FRAMES sec 5 "
               + "falsified that and sec 7 makes it a tripwire",
-              new[] {
-                  PlacementReclampPolicy.ArmedLine(36, 36, Bound, Retry, Tolerance),
-                  PlacementReclampPolicy.SummaryLine(1, 1, 1, 1, 12.0),
-                  PlacementReclampPolicy.DispatchGateRefusalReason("T", "U", -0.0, 145.4, 145.0, Tolerance),
-                  DispatchReadiness.Describe(TaskeeReadiness.NotOnTheGround),
-              }.All(s => !s.Contains("freez", StringComparison.OrdinalIgnoreCase)
+              AllSentences().All(s => !s.Contains("freez", StringComparison.OrdinalIgnoreCase)
                          && !s.Contains("never moves", StringComparison.OrdinalIgnoreCase)
                          && !s.Contains("will not move", StringComparison.OrdinalIgnoreCase)));
 
         Check("ASCII ONLY, every sentence (the tree is ASCII-only by standing rule)",
-              new[] {
-                  PlacementReclampPolicy.ArmedLine(36, 36, Bound, Retry, Tolerance),
-                  PlacementReclampPolicy.CorrectionLine("U", PlacementReclampPolicy.Measure(-0.0, 145.4, Tolerance), Tolerance),
-                  PlacementReclampPolicy.VerifiedLine("U", default, PlacementReclampPolicy.Measure(146.0, 145.4, Tolerance)),
-                  PlacementReclampPolicy.GaveUpLine("U", PlacementReclampPolicy.Measure(-0.0, 145.4, Tolerance)),
-                  PlacementReclampPolicy.SummaryLine(1, 1, 1, 1, 12.0),
-                  PlacementReclampPolicy.DispatchGateHeldLine("T", "U", -0.0, 145.4, 145.0, Tolerance),
-                  PlacementReclampPolicy.DispatchGateRefusalReason("T", "U", -0.0, 145.4, 145.0, Tolerance),
-                  DispatchReadiness.Describe(TaskeeReadiness.NotOnTheGround),
-              }.All(s => s.All(c => c <= '~' && c >= ' ')));
+              AllSentences().All(s => s.All(c => c <= '~' && c >= ' ')));
+
+        Check("THE GIVE-UP LINE NO LONGER EXCUSES ITSELF WITH THE setAltitude NO-OP: the correction "
+              + "is now the call the vendor documents FOR this class, so a read-back that still "
+              + "disagrees needs explaining, and the line says so and lists the candidates",
+              PlacementReclampPolicy.GaveUpLine("U", PlacementReclampPolicy.Measure(-0.0, 145.4, Tolerance))
+                  .Contains("NOT the known setAltitude no-op", StringComparison.Ordinal)
+              && PlacementReclampPolicy.GaveUpLine("U", PlacementReclampPolicy.Measure(-0.0, 145.4, Tolerance))
+                  .Contains("RE-MEASURED whenever a new task", StringComparison.Ordinal));
 
         // ============ 8. THE D5d PROVENANCE THIRD CLAUSE ============================
         Check("STP-855: the provenance sentence now carries the D5d case - the replacement has not "

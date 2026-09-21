@@ -872,6 +872,23 @@ public class VrfSettings
     // ground entities are placed on the ground) and the reporting duty not to task a unit the app
     // has itself measured off the terrain - both independent of what burial does to movement.
     //
+    // THE CORRECTION IS A setLocation, NOT A setAltitude, AND THE VENDOR HEADERS DECIDE THAT:
+    // setAltitudeRequest.h:23-25 "It is ignored if the vehicle is not an air-going vehicle";
+    // setLocationRequest.h:26-32 "Z is ignored for non-air vehicles ... Ground vehicles will be
+    // clamped to the terrain surface". Already exposed (VrfBridge.cpp:429 -> VrfFacade.cpp:986),
+    // so no native change. See PlacementReclampPolicy.CorrectionLocation.
+    //
+    // *** AND THAT READING ALSO INDICTS A STANDING LINE OF OURS, which is recorded rather than
+    // silently changed: the PLACEMENT step's post-create "SetAltitude: 0 m ABOVE GROUND LEVEL"
+    // (PlacementAglSet below, PlacementPolicy.cs:99-103) is issued for LAND objects, and the header
+    // above says that request is ignored for exactly those. So that clause has been announcing an
+    // effect the vendor says does not happen. The healthy placement path is NOT changed by this
+    // lane - the create itself is what places an object (UG52 14.3.3) and the set is belt-and-
+    // braces that costs nothing if it is inert - but the claim is now flagged at its point of use,
+    // in RUNBOOK 11h and in docs/VRF_ALTITUDE_FRAMES.md sec 1b. Retiring or re-aiming that set is
+    // its own lane with its own confirming run; changing placement behaviour inside a defect fix is
+    // how VRF_ALTITUDE_FRAMES sec 6 Q3 says this project manufactures false results. ***
+    //
     // WHY IT RUNS AFTER THE CREATES AND NEVER DELAYS THEM. MAK's own sample says creating is what
     // pages a streaming terrain in (simpleCGF/main.cxx:120-133), and in that run the first terrain
     // answer came to an INIT-PATH query on the same code path ~32 s later, AFTER all 36 creates had
@@ -896,8 +913,13 @@ public class VrfSettings
     public double PlacementReclampSeconds { get; set; } = 60.0;
 
     // Minimum WALL seconds between two terrain queries for the same fallback set. The sweep runs on
-    // every 50 ms tick and the query is a back-end round trip; 5 s gives ~12 attempts inside the
-    // bound without making the re-clamp itself a load source. One query is in flight at a time.
+    // every 50 ms tick and the query is a back-end round trip; one query is in flight at a time.
+    // HOW MANY ATTEMPTS THAT ACTUALLY BUYS (corrected 2026-09-21, cold-start review SF-4): an
+    // UNANSWERED query holds the in-flight flag for Vrf:TerrainProfileTimeoutSeconds (10 s) before
+    // it expires, and MayQuery requires !queryInFlight - so on the cold AO this exists for, the
+    // cadence is retry+timeout = 15 s and the 60 s bound gives about FOUR attempts, not the ~12 a
+    // first version of this comment claimed from 60/5. Answered queries return in milliseconds, so
+    // once the terrain is sampleable the cadence is the retry interval alone.
     public double PlacementReclampRetrySeconds { get; set; } = 5.0;
 
     // N - THE GAP AT WHICH A UNIT IS NOT TASKED, in metres, between the live altitude and the back

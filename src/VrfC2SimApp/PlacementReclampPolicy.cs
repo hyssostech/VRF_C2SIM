@@ -1,4 +1,5 @@
 using System.Globalization;
+using VrfC2Sim;
 
 namespace VrfC2SimApp;
 
@@ -150,19 +151,62 @@ public static class PlacementReclampPolicy
          : Action.GiveUp;
 
     /// <summary>
-    /// How many corrections one object gets. ONE. The call is documented to be ignored for a
-    /// non-air vehicle and was observed once, uncontrolled, to work on a ground M1A2
-    /// (docs/VRF_ALTITUDE_FRAMES.md sec 1b) - so a second identical set adds no information and a
-    /// loop of them would be the "false green" shape this project already has a memory note about.
+    /// How many corrections one object gets. ONE. A second identical request adds no information,
+    /// and a loop of them would be the "false green" shape this project already has a memory note
+    /// about. The bound is on the REQUEST, not on the MEASUREMENT: an object that has spent its
+    /// correction is still re-measured whenever a new task asks about it (see the service's
+    /// re-arm), because a terrain page that arrives late can make the verdict wrong.
     /// </summary>
     public const int MaxCorrections = 1;
 
-    /// <summary>The altitude the correction asks for: 0 m ABOVE GROUND LEVEL. Not a number anyone
-    /// picked - it is the same value PlacementPolicy already computes for a land object whose C2SIM
-    /// init gives no altitude ("C2SIM gave no altitude -> on the ground: setAltitude(0,
-    /// aboveGroundLevel=TRUE)", PlacementPolicy.cs:99-103), delivered through the one call the
-    /// bridge already exposes (VrfBridge.cpp:426 -> VrfFacade.cpp:739, aboveGroundLevel=TRUE).</summary>
-    public const double CorrectionAglMeters = 0.0;
+    /// <summary>
+    /// *** THE CORRECTION IS A setLocation, NOT A setAltitude. THE VENDOR HEADERS DECIDE THIS, AND
+    /// THEY DISAGREE WITH EACH OTHER ABOUT WHICH CALL MOVES A GROUND VEHICLE. *** Both read by
+    /// named path 2026-09-21 from C:\MAK\vrforces5.2d\include:
+    ///
+    ///   vrftasks/setAltitudeRequest.h:23-25 - "DtSetAltitudeRequest is used to set the altitude
+    ///   for an entity. It is IGNORED IF THE VEHICLE IS NOT AN AIR-GOING VEHICLE." (and the
+    ///   altitude "is the height above the terrain in local coordinates").
+    ///
+    ///   vrftasks/setLocationRequest.h:26-32 - "DtSetLocationRequest is used to force a location
+    ///   for (sometimes called teleporting) an entity ... Z IS IGNORED FOR NON-AIR VEHICLES ...
+    ///   parameters: location - The new location for the entity, in geocentric (meters).
+    ///   GROUND VEHICLES WILL BE CLAMPED TO THE TERRAIN SURFACE."
+    ///
+    /// So for the exact class this policy enrols - DIS domain 1, LAND - the vendor documents
+    /// setAltitude as a NO-OP and setLocation as the thing that clamps it to the surface. A first
+    /// version of this class used setAltitude; that was choosing the one documented not to work.
+    /// (docs/VRF_ALTITUDE_FRAMES.md sec 1b's single prior observation of a ground M1A2 apparently
+    /// lifted by an AGL set is ONE UNCONTROLLED RUN whose "VERIFIED END TO END" was WITHDRAWN by
+    /// audit - it is not evidence against a header, and it is not what this builds on.)
+    ///
+    /// NO NATIVE CHANGE: SetLocation is already exposed, VrfBridge.cpp:429 ->
+    /// VrfFacade.cpp:986-987 `controller->setLocation(DtUUID(uuid), toGeocentric(pos))`.
+    ///
+    /// WHAT THE CALL WANTS AND IN WHICH FRAME. A geodetic lat/lon in DEGREES plus an altitude in
+    /// METRES, which VrfFacade::toGeocentric (VrfFacade.cpp:133-138) turns into the geocentric
+    /// vector the request carries. The altitude is MAK-convention MSL - height above the WGS-84
+    /// ellipsoid (docs/VRF_ALTITUDE_FRAMES.md "UNITS") - the same frame the create position uses.
+    /// Per the header that Z IS IGNORED for a ground vehicle, so its value cannot be the thing that
+    /// places the object; <see cref="CorrectionAltitude"/> nevertheless sends the altitude the
+    /// CREATE would have used had the terrain answered, so the request is right in both readings
+    /// and nothing rests on a number the vendor says it discards.
+    ///
+    /// THE LAT/LON IS THE OBJECT'S OWN. Not a new position - this is a correction, not a move. The
+    /// enrolled entry carries the create point; the dispatch gate uses the taskee's own live
+    /// position. Sending anything else would teleport a unit to fix its altitude.
+    /// </summary>
+    public static Geodetic CorrectionLocation(double latDeg, double lonDeg, double terrainMeters,
+                                              double createClearanceMeters)
+        => new Geodetic { LatDeg = latDeg, LonDeg = lonDeg,
+                          AltMeters = CorrectionAltitude(terrainMeters, createClearanceMeters) };
+
+    /// <summary>The altitude that goes in the correction: terrain + Vrf:CreateClearanceMeters, i.e.
+    /// exactly what PlacementPolicy.Decide's terrain arm would have produced for this LAND object
+    /// had the init query been answered (PlacementPolicy.cs:137-144). Documented as IGNORED for a
+    /// ground vehicle (setLocationRequest.h:26-32); sent correct anyway.</summary>
+    public static double CorrectionAltitude(double terrainMeters, double createClearanceMeters)
+        => terrainMeters + createClearanceMeters;
 
     /// <summary>Has the whole re-clamp run out of time? Wall seconds since the arm.</summary>
     public static bool Expired(double elapsedSeconds, double boundSeconds)
@@ -192,26 +236,54 @@ public static class PlacementReclampPolicy
     public static string ArmedLine(int objects, int planned, double boundSeconds, double retrySeconds,
                                    double toleranceMeters)
         => string.Format(CultureInfo.InvariantCulture,
-               "{0}: {1} of {2} object(s) were created at the FALLBACK altitude because the init's "
-             + "terrain-profile query was not answered, so nothing has placed them on the terrain - "
-             + "neither the create clamp (ifCreateVrfObject.h:210-212) nor the post-create AGL set "
-             + "(vrfRemoteController.h:1372-1374) can resolve against a terrain page that is not "
-             + "loaded. The terrain is re-asked every {3:F0} s for up to {4:F0} s ({5}) once each "
-             + "object is bound; anything further than {6:F0} m ({7}) from the terrain under it is "
-             + "corrected with setAltitude(0, aboveGroundLevel=TRUE) and CONFIRMED BY READING THE "
-             + "ALTITUDE BACK. Creates were NOT delayed for this: MAK's own sample says creating is "
-             + "what pages a streaming terrain in (simpleCGF/main.cxx:120-133).",
+               "{0}: {1} of {2} object(s) - LAND PLATFORMS ONLY - were created at the FALLBACK "
+             + "altitude because the init's terrain-profile query was not answered, so nothing has "
+             + "placed them on the terrain: the create clamp needs a polygon "
+             + "(ifCreateVrfObject.h:210-212) and a terrain page that is not loaded has none. The "
+             + "terrain is re-asked every {3:F0} s for up to {4:F0} s ({5}) once each object is "
+             + "bound; anything further than {6:F0} m ({7}) from the terrain under it is corrected "
+             + "with setLocation at its own lat/lon - \"Ground vehicles will be clamped to the "
+             + "terrain surface\", setLocationRequest.h:26-32 - and CONFIRMED BY READING THE "
+             + "ALTITUDE BACK. AGGREGATES ARE NOT ENROLLED: a unit's published Z is a derived "
+             + "bounding-box quantity whose rule is NOT DOCUMENTED, so it is not a ground-contact "
+             + "measurement (VRF_ALTITUDE_FRAMES sec 1a); an aggregate taskee is measured at "
+             + "dispatch on its MEMBERS' centroid instead. Creates were NOT delayed for this: MAK's "
+             + "own sample says creating is what pages a streaming terrain in "
+             + "(simpleCGF/main.cxx:120-133).",
                Prefix, objects, planned, retrySeconds, boundSeconds, BoundSettingKey,
                toleranceMeters, ToleranceSettingKey);
     /// <summary>One line per object when a correction is ISSUED. It is not a claim that it worked.</summary>
-    public static string CorrectionLine(string name, Measurement m, double toleranceMeters)
+    public static string CorrectionLine(string name, Measurement m, double toleranceMeters,
+                                        double latDeg, double lonDeg, double sentAltMeters)
         => string.Format(CultureInfo.InvariantCulture,
                "{0} {1}: MEASURED OFF THE TERRAIN - live {2:F1} m vs terrain {3:F1} m under its "
-             + "create point (gap {4:F0} m, tolerance {5:F0} m); both are MAK-convention MSL "
-             + "(WGS-84 ellipsoid, docs/VRF_ALTITUDE_FRAMES.md 'UNITS'). Issuing setAltitude(0 m "
-             + "ABOVE GROUND LEVEL). THIS IS NOT YET A FIX: the next sweep reads the altitude back "
-             + "and only a read-back within tolerance is recorded as a correction.",
-               Prefix, name, m.LiveAltMeters, m.TerrainMeters, m.GapMeters, toleranceMeters);
+             + "own point (gap {4:F0} m, tolerance {5:F0} m); both are MAK-convention MSL (WGS-84 "
+             + "ellipsoid, docs/VRF_ALTITUDE_FRAMES.md 'UNITS'). Issuing setLocation at its OWN "
+             + "lat/lon {6:F6},{7:F8} with altitude {8:F1} m (terrain + Vrf:CreateClearanceMeters). "
+             + "setLocation AND NOT setAltitude, by the vendor's own headers: "
+             + "setAltitudeRequest.h:23-25 says the altitude request \"is ignored if the vehicle is "
+             + "not an air-going vehicle\", while setLocationRequest.h:26-32 says \"Z is ignored for "
+             + "non-air vehicles\" and \"Ground vehicles will be clamped to the terrain surface\" - "
+             + "so for a LAND object the clamp is what places it and the altitude sent is expected "
+             + "to be discarded. THIS IS NOT YET A FIX: the next sweep reads the altitude back and "
+             + "only a read-back within tolerance is recorded as a correction.",
+               Prefix, name, m.LiveAltMeters, m.TerrainMeters, m.GapMeters, toleranceMeters,
+               latDeg, lonDeg, sentAltMeters);
+
+    /// <summary>
+    /// BL-2 (cold-start review of 3151fec). One line when a unit that had been judged OFF the
+    /// terrain is later MEASURED ON it - a late terrain page, or the back end re-placing the object
+    /// on its own. Without this the first bad verdict would stand for the life of the process and
+    /// every later task on that unit would be held to its bound and abandoned, with nothing in the
+    /// app ever looking again.
+    /// </summary>
+    public static string ClearedLine(string name, Measurement m)
+        => string.Format(CultureInfo.InvariantCulture,
+               "{0} {1}: CLEARED - re-measured ON the terrain, live {2:F1} m vs terrain {3:F1} m "
+             + "(gap {4:F0} m). The earlier off-the-terrain verdict is withdrawn and this unit is "
+             + "taskable again; a verdict is a measurement and it expires when a newer measurement "
+             + "disagrees with it.",
+               Prefix, name, m.LiveAltMeters, m.TerrainMeters, m.GapMeters);
 
     /// <summary>One line per object when the read-back CONFIRMS the correction.</summary>
     public static string VerifiedLine(string name, Measurement before, Measurement after)
@@ -226,14 +298,29 @@ public static class PlacementReclampPolicy
     public static string GaveUpLine(string name, Measurement m)
         => string.Format(CultureInfo.InvariantCulture,
                "{0} {1}: STILL OFF THE TERRAIN AFTER A CORRECTION - live {2:F1} m vs terrain "
-             + "{3:F1} m (gap {4:F0} m). setAltitude is documented as \"ignored if the vehicle is "
-             + "not an air-going vehicle\" (vrftasks/setAltitudeRequest.h:24-25), so this may be the "
-             + "vendor behaving as written rather than a failure. No further set is issued. A task "
-             + "on this unit is HELD as [{5}] and abandoned rather than driven from under the "
-             + "ground; the documented unit-level lever that has NOT been tried is setLocation, "
-             + "whose formation controller clamps ground vehicles to the surface "
-             + "(vrftasks/setLocationRequest.h:27,31-32).",
+             + "{3:F1} m (gap {4:F0} m). The correction issued was the one the vendor documents for "
+             + "this class - setLocation, \"Ground vehicles will be clamped to the terrain surface\" "
+             + "(vrftasks/setLocationRequest.h:26-32) - so a read-back that still disagrees is NOT "
+             + "the known setAltitude no-op and needs explaining rather than excusing. Candidates, "
+             + "none adjudicated here: the clamp needs a terrain page this point still lacks; the "
+             + "read is of a reflected state that has not caught up; or the request was rejected. "
+             + "NO FURTHER REQUEST IS ISSUED for this object - one correction, then the "
+             + "measurement speaks. A task on this unit is HELD as [{5}] and abandoned rather than "
+             + "driven from under the ground, and the verdict is RE-MEASURED whenever a new task "
+             + "asks about this unit, so a late terrain page clears it.",
                Prefix, name, m.LiveAltMeters, m.TerrainMeters, m.GapMeters, NotOnGroundToken);
+
+    /// <summary>
+    /// SF-2 (cold-start review). ONE short line per ground dispatch that the gate PASSES, so a
+    /// healthy run produces the distribution of measured gaps instead of only ever proving the
+    /// refusal path. Without it the 50-100 m band - between this policy's refusal bar and the
+    /// vertex-0 NOTE threshold - has no evidence in any log.
+    /// </summary>
+    public static string GatePassedLine(string unitName, Measurement m, double toleranceMeters)
+        => string.Format(CultureInfo.InvariantCulture,
+               "{0} gate: {1} is ON the terrain - live {2:F1} m vs terrain {3:F1} m under vertex 0 "
+             + "(gap {4:F1} m, tolerance {5:F0} m). Dispatching.",
+               Prefix, unitName, m.LiveAltMeters, m.TerrainMeters, m.GapMeters, toleranceMeters);
 
     /// <summary>THE LINE A PREREG SCORES. One per run, when the re-clamp finishes or expires.</summary>
     public static string SummaryLine(int alreadyOnGround, int reclamped, int stillOff, int neverMeasured,
