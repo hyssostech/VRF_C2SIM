@@ -2570,6 +2570,13 @@ support package and a draft; the user sends it. Package in preparation under
 SILENT-shape material from NOTIFY2, and the D5b callstack (0.5.12, next crash-forensics note)
 are its leading candidates.
 
+HOLDER RE-ARM (2026-09-21, D10/Iron Storm drive): the persistent federation holder was re-armed
+mid-morning while still joined - `RtiProbe pid 87616` (appNo 5065) joined on attempt 1, 5066-5068
+burned by the ledger before it. `scripts\StartFederationHolder52.ps1` currently REFUSES an
+overlapping re-arm attempt by name while another RtiProbe process already exists, even though the
+correct outcome is a JOIN, not a CREATE, and joins never fail. Queued fix: an explicit switch so a
+re-arm can proceed and JOIN the existing federation instead of being refused outright.
+
 ## 10. THE C16 PROGRESS WATCHDOG IS OFF BY DEFAULT - HOW TO TURN IT ON FOR THE VALIDATION RUN
 
 Added 2026-09-14 (cold-start review sec 2.8). `Vrf:StallDetection` defaults FALSE, is absent from
@@ -3155,6 +3162,9 @@ KNOWN LIMITS (cold-start review of the ring fix, 1d0fb69):
 - A missing sibling changes the RADIUS and every BEARING, not just slot labels (dropping one of
   three children moves the radius 202.1 -> 175.0 m and the bearings 0/120/240 -> 0/180). No
   prediction may be pinned to a named slot, bearing or radius across fixtures.
+- STP-855 (the composed-parent route-origin fix) is CONFIRMED LIVE on both branches, 2026-09-21:
+  D10 (Way A) landed inside the re-compose transient itself and D5d (Way B) exercised the other,
+  name-registry provenance branch, and both produced the correct route on binary 51d59c0.
 
 ### 11f. THE SIM CLOCK (N7, main 1d0fb69, 2026-09-21)
 
@@ -3196,6 +3206,16 @@ instrument for any given run - read it, never assume it.
 
 **USER RULING 2026-09-21 ('3. Fast.'):** the demo accepts this load-dependent fast clock as-is;
 the never-deployed real-time (variable-frame) fixture is NOT built into the demo path.
+
+SECOND MEASURED PROFILE (Iron Storm cut-A diagnostic drive, 2026-09-21, 36 mostly-idle objects,
+3 driven legs): creation phase 8.58x; MOVEMENT phase (three tasks moving) 6.61-8.58x, median
+~7.14x; idle tail (all tasks done) 8.42-11.41x, median ~10.8x. The registered pre-run assumption
+of 0.5-3.0x for this scenario was low by a factor of 2.4-3.8: a mostly-idle 36-object scenario
+runs FASTER than R9 (2.6-4.7x), not slower - "busier scenario, slower clock" is not a universal
+rule, only a correlation seen so far. Both profiles agree on the shape: fast, variable,
+load-dependent, monotone with load; neither pins the other's numbers. Convert any Iron Storm sim
+duration at the phase it was measured in, never at a single borrowed number - the seat's own
+live "~11x" read for this drive was the idle tail, not the movement phase.
 
 ### 11g. DEFER, DO NOT ABORT - AN ORDER THAT RACES THE INITIALIZATION (D5b, 2026-09-21)
 

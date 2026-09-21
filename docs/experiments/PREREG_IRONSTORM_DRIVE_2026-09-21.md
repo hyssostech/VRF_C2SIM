@@ -411,3 +411,170 @@ drive, this run says NOTHING about the 0.82-0.90 band and the report must say so
   a finding about the instrument; the freeze reading then falls back to frozen position reports against an advancing
   sim clock, exactly as sec 7 already allows.
 - One run. The harvest reader's verdict goes to the records; the seat's live reads are provisional.
+
+---
+
+## RESULT (run 20260921T114910Z_run, launch 11:49:09Z, RUN COMPLETE 12:33:31Z) - NOT SPOILED, BUT DID NOT ANSWER THE BAND QUESTION
+
+Headline: the run is not spoiled by any sec 7 environment hypothesis - nav data loaded, the back end lived and ran fast
+throughout, tiles fetched clean - but it did not measure what it was for. Two of the three driven legs, T02 (28ID) and
+T14 (48 IBCT, the control), accepted their move-along tasks and then never moved a single metre in 40 minutes. The
+cause is settled and it is NOT connectivity: all 36 init objects were created at FALLBACK altitude 0 because the
+terrain-profile query went unanswered (MAK Earth had not streamed), leaving both platforms ~150 m under the ground,
+and the vendor's movement controller silently declines to plan from there. The one unit that drove, T10 (1-112 IN), is
+the only one deleted and re-created at order time, by which point the terrain had answered.
+
+### Scored table (sec 6a)
+
+| # | prediction | verdict | evidence |
+|---|---|---|---|
+| P1 | 36 created of 40, 4 empty shells, 32 platforms, only 1-112 IN grows members | **HIT** | C13 "4 unit(s) created as EMPTY shells ... 32 platform(s) created in full"; barrier "36 object(s) planned ... (4 empty shell(s))"; 6 members on 1-112 IN only; peak 42 objects |
+| P2 | all 5 tasks dispatch, 0 dispatch-time TASKABRT | **HIT** | 5 DISPATCHED lines, 5 TASKSTRT, zero TASKABRT at dispatch (the barrier timed out instead - anomaly, sec below) |
+| P3 | T01/T13 issue no VR-Forces task, `is idle again` for both | **HIT** | verb EXECUTEPLANPHASE -> HoldInPlace, "NO VR-Forces task is issued" and "is idle again" for both |
+| P4 | no route shift fires on any of the 3 driven legs | **HIT** | `LATERAL ROUTE SHIFT ON`, then three declines, "ROUTE SHIFT - no leg flagged" |
+| P5 | no weapon fires, no move to contact | **HIT** | zero `FireAtTarget`/`DtFireAtTargetTask` strings; "THE TARGET IS THE OBJECTIVE ... No fire ... is issued" x2 |
+| P6 | T14 (the control) completes on arrival evidence, not its timer | **MISS** | T14 never moved; its only terminal report is TIMED COMPLETION at 326 s of a 300 s Duration - no arrival evidence exists |
+| P7 | T02/T14 route origin within 50 m of authored; zero ROUTE ORIGIN lines | **HIT** | zero ROUTE ORIGIN lines anywhere; T02/T14/T10 origins all 0 m off authored |
+| P8 | no taskee displaced at init | **HIT** | 28ID is the de-stack anchor kept in place (proven to 1e-14 by its own route origin); all three taskees start on their authored coordinates |
+
+7 HIT / 1 MISS. The single MISS is the control leg, and under sec 7 an unexplained symptom is a falsifier, not a
+footnote - the cause chain below explains it.
+
+### The headline per leg
+
+- **T02 (28ID, M1A2, authored 5,341 m): 0 m driven.** Dispatched, route built, origin 0 m off authored, but position
+  identical across all 243 reports, speed 0.0 throughout. TIMED COMPLETION at sim ~663 s. Never reached any of its
+  three sub-0.9 sectors. This leg tells us nothing about the band.
+- **T14 (48 IBCT, M577A2, authored 2,426 m, THE CONTROL): 0 m driven.** Same shape as T02 - 0 m, speed 0.0, TIMED
+  COMPLETION, STALL. The control failed; under the prereg's own sec 2 rule that is a stop, not a finding about
+  connectivity - and its sectors were all >= 0.9107 anyway, so its failure is unrelated to the band by construction.
+- **T10 (1-112 IN, 6-member Tank HQ Section, authored 2,617 m): THE ONLY DRIVE.** Aggregate track 2,666 m for 2,615 m
+  net displacement (+1.9% over the authored line, no detour); arrived 2.9 m from the last vertex, 32/48-style arrival
+  evidence closing at 3,207.7 SIM s after dispatch (vendor completion at 3,831 SIM s). 54.7% of the 2,617 m leg lies
+  inside four sub-0.9 sectors (0.8182-0.8868) and the unit crossed every one of them without freezing - the first
+  drive in this project's record anywhere between 0.5 and 1.00 connectivity. IT CRAWLED: 13.31 m/s peak on the
+  opening cruise, then 48 consecutive reports at a sustained 0.22-0.30 m/s (median 0.28), task average 0.83 m/s - a
+  factor of 2.0 above the C16 stall threshold (0.139 m/s). Cause of the crawl NOT adjudicated: 31 `BlockedByVehicle`
+  rows across the six-vehicle column is the simplest candidate; one `Global Replan` event near the end is a second;
+  aggregate size alone is refuted by D10's own comparators (a 48-member company on Bogaland ran faster, 1.83 m/s,
+  than this 6-member section's 0.83 m/s).
+
+### The cause chain for T02 and T14 - CAUSE SETTLED, STP-856
+
+Condition VERIFIED, vendor-internal mechanism ASSUMED. The chain, every link read rather than inferred: the init's
+terrain-profile request for all 36 create positions got no reply within 10 s, so every object was created at the
+FALLBACK altitude with no terrain height available; the PLACEMENT summary confirms 0 of 36 create altitudes came
+from the terrain query; READY TO TASK was NOT REACHED (0 of 36 bound when the 20 s cap expired), and the order was
+pushed anyway. At dispatch the app measures the consequence itself: T14's live altitude reads -0.0 m against 145.4 m
+of terrain (a 145 m gap); T02's reads -0.0 m against 155.8 m (a 156 m gap) - both platforms sit roughly 150 m under
+the ground. The vendor accepts the move-along task, logs six lines of setup, and then emits total silence for the
+rest of the run - no plan-path node, no BlockedBy, no Giving-up, nothing. The contrast inside the same run: T10 (the
+one order-referenced aggregate) is deleted and re-created at order time, by when the terrain answered, so it was
+placed at 131.1 m from the terrain query and its six members drove normally.
+
+Four alternatives were checked against a direct discriminator and each is FALSIFIED: (a) that a move-along on a
+single platform proxy is rejected on this fixture/build - refuted twice, once by D10's own single-platform taskee
+driving and arriving on the same binary the same morning, and once inside this very run by the same two vehicle
+templates (M577A2, M1A2) driving as members of T10; (b) that the platforms' start points sit in a disconnected mesh
+island - both received "New Primary nav area" after their move-along was issued, so they are inside the nav area;
+(c) that the origin-vertex drop left a degenerate route - both routes measure to their authored lengths, 0 m off
+authored, zero ROUTE ORIGIN lines; (d) that they did move but their reports are frozen - three independent channels
+(WatchVrf trace, C2SIM position reports, the C16 watchdog) all read exactly zero while the same channels show T10
+moving 2.6 km at up to 13.31 m/s. Back-end death and a paused scenario are also excluded (no 1.000 ratio, no LOST,
+no dmp/callstack; the sim clock ran continuously 0 -> 24,028 s). **Filed as STP-856**: units created under the
+terrain on a cold streamed area, then tasked anyway, silently never move; fix lane fix/terrain-readiness-and-reclamp
+in progress. The symptom that remains genuinely unexplained: the vendor emits no diagnostic at all for a buried
+platform - no refusal, no "no path". The condition is verified; the internal mechanism by which VR-Forces silently
+declines to plan from such a point is assumed, not evidenced by any vendor line in this run.
+
+**OPERATIONAL WARNING:** the registered fallback in sec 9 (the T14-only cut, one platform driving 2,426 m) is ALSO
+BROKEN by STP-856, because 48 IBCT is precisely one of the two init-created platforms that never moved. A T14-only
+cut on today's launch path would show the audience a stationary vehicle.
+
+### P9-P14 (sec 6b, reported without bands)
+
+- **P9, the clock, needs a correction to the seat's mid-run read.** Movement phase (dispatch to last mover stopping):
+  ratio 6.61-8.58x, median ~7.14x. Creation phase: 8.58x. Idle tail (after all tasks end): 8.42-11.41x, median ~10.8x.
+  The seat's live "~11x" was the idle tail, not the drive - every sim-clock duration in the movement phase converts
+  at ~7.1x, not 10.9x. The registered assumption of 0.5-3.0x was low by a factor of 2.4 to 3.8: 36 mostly-idle
+  objects run FASTER than R9. Record this as the SECOND measured clock profile in RUNBOOK 11f (fast, variable,
+  load-dependent, same family as R9's - the user has ruled FAST for the demo clock generally).
+- **P10, settled: C16 DOES judge a single memberless platform.** Both T02 and T14 got their own STALL verdict
+  ("no member moved more than 50 m in the last 360 SIM s, max 0.0 m") - there is no "NO UNIT IS BEING JUDGED" line.
+  `Vrf:StallClock=sim` worked correctly on its first live outing, measured on the simulation clock as designed.
+  **NEW FINDING, filed as STP-857:** both stall TASKABRTs were SUPPRESSED by the emission rules ("already reported
+  for this task, or the task has already completed") because the armed-end timer had already pushed TASKCMPLT
+  first. The C2SIM bus therefore told STP that both units COMPLETED their tasks and was never told they had
+  stalled - for a unit that moved 0 m of a 5,341 m leg, the bus carries only a success. This needs a RULING on
+  completion semantics (do not let a timer beat and silence a stall verdict); options are in the ticket.
+- **P11, driven path vs authored.** T10: +1.9% aggregate (2,666 m of 2,617 m), +4.0% to +10.6% per member; no
+  detour observed. T02 and T14: 0 m of 5,341 m and 2,426 m respectively.
+- **P12, cruise speed on Baltic terrain.** The registered 10 m/s is right only for T10's opening burst (13.31 m/s
+  peak, even higher). Sustained speed on the crawl: 0.28 m/s; task average 0.83 m/s. For T02 and T14: undefined,
+  they never moved - the prereg's sec 4 arithmetic is void for this ground.
+- **P13, the headline (deliberately unscored): does T02/T10 cross their sub-0.9 sectors?** T10 crossed all four of
+  its sub-0.9 sectors (0.8182-0.8868) end to end without freezing. T02 never reached any of its three sub-0.9
+  sectors, so it says nothing either way.
+- **P14, the AtOrder member-creation transient on T10.** Members reflected 28.3 wall s before dispatch; route
+  origin offset 0 m, no ROUTE ORIGIN line printed - the STP-855-family transient the prereg worried about did NOT
+  bite here, and this same order-time materialization is what incidentally saved T10's leg from STP-856 (it got a
+  real terrain altitude precisely because it was re-created at order time, unlike the two init-created platforms).
+
+### Outcome row (sec 9)
+
+This run lands in **"T14 also fails -> the fixture, the build, the nav load or the environment is at fault; no
+conclusion about connectivity; re-register after the cause is found."** The cause is now found: the environment/
+placement path (STP-856), not the nav data and not the build. The 0.9 bar is NOT reopened by this run.
+
+### CAN claim
+
+A 6-vehicle aggregate drove a 2,617 m leg, 54.7% of it inside sectors of connectivity 0.8182-0.8868, entered and
+exited all four, took no detour (+1.9% path) and arrived within 2.9 m of its destination. The 0.82-0.89 band did
+not stop it - the first drive in this project's record anywhere between 0.5 and 1.00 connectivity.
+
+### CANNOT claim
+
+Anything about T02's three sub-0.9 sectors (it never reached them); anything about single platforms on sub-0.9
+ground (neither single platform moved); anything at all from the control, which is what the design relied on. The
+band question remains OPEN.
+
+### NEXT
+
+Worth its cost, one run one variable: make the init creates get terrain altitudes (pre-warm MAK Earth for the AO
+before the init is pushed, gated on the app's own "PLACEMENT summary: N of N ... from the TERRAIN QUERY" line
+reading 36 of 36; or raise the init terrain-profile timeout above 10 s; or hold the order until READY TO TASK
+reports units bound). Pre-register one scored limb: "PLACEMENT summary: 36 of 36 ... from the TERRAIN QUERY" and
+"READY TO TASK - 36 of 36 bound". If met and T02/T14 still do not move, STP-856's hypothesis is falsified and the
+vendor case changes shape; if met and they DO move, the run simultaneously delivers T02's leg (5,341 m with 840 m
+of sub-0.9 including the 0.8800 sector) and the single-platform control the prereg was built around - two
+registered questions for one run. A WASTE: re-running cut A unchanged (it would reproduce this exactly);
+regenerating the nav data (the mesh worked, 22-33 point paths planned); re-tiling; anything aimed at the 0.9 bar.
+
+### VERIFIED vs ASSUMED (the harvest's closing section, in sense)
+
+VERIFIED: nav data loaded for 19 objects including both non-movers, with the abstract-graph planner producing
+22-33 point paths for the movers; the back end alive end to end with no 1.000 ratio, no LOST, no fault artefact;
+the clock by phase (8.58x creation, 6.61-8.58x movement, 8.42-11.41x idle tail); 0 tile hits / 20 fetches / 0 given
+up; P1-P5/P7/P8 HIT, P6 MISS, exact creation census; T02 and T14 moved exactly 0 m on three independent channels;
+both created at fallback altitude 0 of 36, both reading -0.0 m against 145.4 m and 155.8 m of terrain at dispatch;
+T10 re-created at order time at 131.1 m from the terrain query and driving normally; all four competing hypotheses
+for T02/T14 falsified by a direct discriminator, one of them twice; C16 judging single platforms with
+`StallClock=sim` correct on its first outing, and both stall TASKABRTs suppressed by the already-completed timer;
+T10 crossing its four sub-0.9 sectors end to end, +1.9% path, arriving within 2.9 m, one stop over 30 SIM s,
+sustained speed 0.28 m/s, task average 0.83 m/s; 31 BlockedByVehicle rows and one Global Replan event on the
+movers; clean teardown, hashes unchanged, the foreign build load outside the movement window.
+
+ASSUMED, not evidenced by this run: the internal mechanism by which VR-Forces silently declines to plan a path for
+an entity ~150 m below the terrain surface - the condition is verified, the vendor names no such line, and it is
+possible some other correlated property of an init-created object is the real blocker; only the NEXT run separates
+them. That the T10 crawl is caused by inter-vehicle blocking rather than the sub-0.9 ground or aggregate handling -
+three candidates listed, none adjudicated. The exact sector identity of the crawl's onset (reported as a distance
+and coordinate, not a sector name, because the prep report's grid could not be reproduced from the published
+lat/lon box). D10's single-platform/platoon/company speed comparators bound the order of magnitude on different
+terrain and a different fixture; they are not an exact expectation for this ground.
+
+Also recorded: the persistent holder was re-armed at 11:26Z (RtiProbe 87616, appNo 5065, joined on attempt 1;
+5066-5068 burned); an overlapping re-arm attempt is currently REFUSED by name by
+`scripts\StartFederationHolder52.ps1` while another RtiProbe exists - queued as a follow-up, an explicit switch so
+a re-arm can JOIN instead of attempting a CREATE; the fixture deploy manifest (one file under C:\MAK, sha256
+d379dd68...aa4bb) matches the prep report exactly.

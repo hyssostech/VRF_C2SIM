@@ -631,3 +631,70 @@ P-OUTCOME (HIGH on completion): 3/3 TASKCMPLT, 0 TASKABRT. SIM-clock completions
 MISS = any race abort, a hold reaching its bound, READY TO TASK NOT REACHED, an order-driven delete inside the init's
 creations, P-RID failing, a FALLING BACK line, a T_R5_CO1 origin more than ~5 m off the authored coordinate, any task
 not TASKCMPLT, a survivor at teardown. A back-end fault is NEW EVIDENCE for STP-854. A missed HIGH limb is a STOP.
+
+---
+
+## 17. D5d RESULT (run 20260921T114110_wayb, launched 11:41:10.741Z) - NO MISS; the OTHER provenance branch, exercised for the first time
+
+- P-STEP1/P-STEP2/P-SERVER/P-STEP3/P-TILES inherited, all HIT (W-STEP1 2.06 s; holder pid 16912 appNo 9190 joined
+  attempt 1/2, back end 82116 42 threads; server gate at 11:42:08.904Z; tile run total 7 HITs/0 FETCHes).
+- P-CONSOLE HIT on its MISS clause (app log 58,892 B, trace 16 CON rows, both under limit); the give-up count
+  quadrupled to 16 rows against D10's and D5c's 4 each, same binary, same routes, byte-identical geometry -
+  UNEXPLAINED, recorded as an open observation (candidates: the lower movement-window ratio, ordinary vendor
+  pathing non-determinism; neither tested).
+- P-RID HIT: zero "assistant" anywhere (trace, the whole 337,236-line rtiexec log, manifest, both gate files);
+  WatchVrf (pid 41076) both joined and resigned, exiting 2.0 s inside the stop-file grace.
+- P-READY HIT: barrier once, "(5 empty shell(s))", quoting both the 20 s applied cap and the 60 s configured value;
+  C13 line agrees at 1 platform (N15 fixed, as D10 found); READY TO TASK once, 0.8 s, not NOT-REACHED.
+- P-HOLD HIT: 1 task held (T_R5_TK1, [PLANNED-BUT-NOT-REQUESTED], 0.51 s) == 1 released - fewer holds than D5c's two
+  (T_R5_CO1 went straight through this time), still consistent with the registered rule since held == released.
+- P-OVERLAP HIT: first order-driven delete follows the last init PLACEMENT, the summary, ComposeHierarchy AND READY
+  TO TASK, certain from log ordering alone.
+- P-ORIGIN HIT, and it is the OTHER branch: exactly one ROUTE ORIGIN line, centroid arm, three-entry roster, zero
+  FALLING BACK; the parent's own published position differed by 0.0 m (inside the 10 m threshold), so the
+  RE-COMPOSE TRANSIENT clause did not print - instead the NAME-REGISTRY provenance ending printed, exactly the
+  "Way B variant" the build report predicted offline. T_R5_CO1 geometry 1,112 m / bar 556 / radius 278, identical
+  to D10 and D8, not D9's defective figures; re-derived centroid 0.043 m from the authored coordinate.
+- P-OUTCOME (completion) HIT: 3/3 TASKCMPLT, 0 TASKABRT, 176 bodies / 0 failed.
+- P-OUTCOME (numbers) REPORTED: 90.8 / 478.1 / 662.0 SIM s, all within a few percent of D5c (-4.1% / -2.1% / -0.2%)
+  and of D10; movement-window ratio 3.048, the lowest of the five runs so far, nowhere near the 1.0 dead-back-end
+  signature.
+- P-FAULT HIT: no .dmp/.callstack.log for this run's back-end pid 82116; the only such pair anywhere is D5b's,
+  hours earlier; 0 BACK END LOST; no frozen position reports.
+- P-STOP HIT: clean teardown, RTI preserved, verdict PASS.
+- Seat R-1 (exe hash) PASS, identical pre/post. R-2 (connection config) NOT RE-CHECKED POST-RUN: the post-gate file
+  is truncated (ends after exe mtime, no config-hash or tile-count lines) - an instrument gap, not a finding; the
+  interface's own log names the same config file and the run total tile census is in the app log regardless.
+
+THE PROVENANCE ANSWER: the three children read at `app:196` were the OLD, DELETED SHELLS, verified three independent
+ways - the four replacement uuids are not printed until AFTER the ROUTE ORIGIN line; the code path
+(`VrfC2SimService.cs:2706-2707`/`:2656`) only populates the reflection-proven registry on the "reflected at WALL"
+line, which comes later; and the WALL stamps bracket the read squarely inside the ~1.5 s shell window. The centroid
+was unaffected exactly as designed: a shell and its replacement share one de-stacked ring slot, so the centroid is
+the same point either way - re-derived at 0.043 m from authored. ONE DEFECT IN THE PRINTED RATIONALE (new): the
+line's two stated excuses for a name-registry read ("never re-created" / "released by a reflection timeout") do
+NOT apply here - the true case (the replacement is issued but not yet reflected) is the one the class was built for
+and the one wording the line cannot yet print; the load-bearing sentence that follows ("a shell and its replacement
+share one de-stacked placement") is what actually carries the correctness. Recommend a third clause naming this case.
+
+D10 + D5d TOGETHER: both provenance branches were entered on the same binary within ten minutes and both produced a
+centroid within 5 cm of the authored coordinate and byte-identical route geometry (1,112/556/278) - the policy
+removed the dependence on ordering in the only two orderings observed. NOT PROVEN by either run alone or together:
+a PARTIAL read (some children proven, some registry); either fallback arm (ChildrenUnreadable, ChildOutlier); a read
+landing between re-create issue and first reflection; or anything on a fixture other than R9 lean's symmetric
+3-child ring, where the centroid is exact by construction - an asymmetric or larger membership (R9 full at N=7) is
+not algebraically forced onto the authored point and neither run says anything about that case. D5d does not stress
+the fix the way D10 did (the parent was already correct at the read here); D10 is the run that stressed it, D5d is
+the run that shows the other branch does not break it - the pair carries the claim, not either alone.
+
+=> STP-852 (the dispatch-readiness barrier) and STP-855 (the route-origin fix) are CONFIRMED LIVE on both Way A and
+Way B, on opposite sides of the provenance race. STP-854 stays open, unchanged: a second clean Way B run with the
+barrier in is not a rate, and the vendor use-after-destroy race is not removed by anything in this code; the run
+sec 15 named as the one worth its cost - D5b's configuration on this binary with the barrier DISABLED - remains
+unrun and remains the only cheap discriminator.
+
+RESIDUE, unchanged from D5c: manifest.timestamps.orderPushedUtc is 60.21 s late (PushOrder's exit, not the push);
+D-5 (the order pushed 0.324 s after PushInit returns) is declared in this prereg but still missing from the
+manifest's own deviations list; the PLACEMENT line still carries no WALL stamp, so per-shell create-to-delete gaps
+remain BOUNDS (0.01-0.53 s here, 1.669 s mean round trip vs D10's 1.712 s, agreeing to 2.5%) - confirming again that
+STP-852 bought ordering, not wall-clock separation.
