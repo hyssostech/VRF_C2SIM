@@ -3022,6 +3022,101 @@ puts N points' unit vectors (the N-th roots of unity) at a sum of zero for every
 the centroid is the shared coordinate exactly - offline re-derivation on the real R9 lean init
 gives a 0.000 m centroid offset and restores the route to 1,111.9 m (D3/D6's band); D8
 (registered) is the first live confirmation.
+
+N13 (D9 + D5c, 2026-09-21) - **THE ROUTE ORIGIN IS NO LONGER THE PARENT'S PUBLISHED POSITION.**
+The equal-bearing ring is right AT REST and N4 stays fixed, but it says nothing about the few
+seconds AFTER an order materializes a composed parent's children. In that window the parent's
+own VR-Forces object is never deleted while its CHILDREN are deleted and re-created, so the
+centroid VR-Forces publishes for it is taken over a MIXTURE - a slot missing, or a slot counted
+twice - and the published position sweeps away from the truth: D9 measured R/2 at 300 deg then
+**R/4 at 120 deg (50.4 m)** against the 202.1 m ring, D5c measured the same R/4 signature
+(48.2 m at 118.4 deg) and a cross-track decay of 42.5 -> 15.4 m by +12 s -> 8.8 m by +25 s,
+asymptoting at 7-8 m and never observably returning to 0 once the unit is under way. Reading the
+origin there cost D9 a **1,139 m route instead of 1,112 m, a 569 m traversal bar instead of 556
+and a 285 m arrival radius instead of 278.** Three runs, three different outcomes of the same
+unarbitrated race: D8 won it by 0.5 s, D5c by 0.39 s, D9 lost it by 0.6 s.
+
+**WHAT THE ORIGIN IS NOW** (`RouteOriginPolicy.cs`; `--routeorigin-selftest`, whose fixture is
+D9's own trace). For a taskee that is a COMPOSED PARENT with two or more declared children, the
+route origin is the **CENTROID OF THOSE CHILDREN'S OWN REFLECTED POSITIONS**, not the parent's
+published position. It is what the back end itself publishes once it settles (D8/N10: 5.9-18.5 m
+agreement from +20 s on), it is exact at rest by the ring's own construction, it needs no wait
+because the composition gate has already proved every child readable, and it follows the unit
+when it MOVES - which is why the authored coordinate was not used instead.
+
+**WHAT AN OPERATOR SEES.** ONE line per composed dispatch, carrying the origin used, the child
+count, the MEASURED distance to the parent's published position, the full child roster (name,
+lat/lon to 6 dp, and which uuid each was read at) so the centroid can be re-derived from
+`vrfc2simapp.log` alone, and which uuid provenance each child had. Healthy:
+`ROUTE ORIGIN for composed parent <name>: the CENTROID OF ITS N DECLARED CHILD UNIT(S) (N of N
+reflected), <lat>,<lon>. ... Children: [...]`
+
+**THE LINE NEVER DIAGNOSES WITHOUT EVIDENCE.** It always prints the measured gap; it calls that
+gap a RE-COMPOSE TRANSIENT only when this parent's children were re-created within 30 s (the
+app's own stamps). Outside that window it says `NO TRANSIENT IS CLAIMED` and notes that a gap of
+that size is consistent with a unit under way - D8 measured 16-25 m between a MOVING company's
+published position and its direct children's centroid with no re-compose at all. The 30 s window
+comes from D5c's decay (48 m at +2 s, 15 m at +12 s, 9 m at +25 s, asymptote 7-8 m): past about
+25 s the transient is no longer separable from motion.
+
+**TWO LOUD FALLBACKS, both WARN, both self-sufficient** (they do not refer to a warning that may
+not exist - a dispatch can precede the re-creates entirely, D5c, and the readiness check gates on
+the PARENT, not on its children):
+- `FALLING BACK ... only M of N declared child unit(s) can be read with a usable position` -
+  **no partial centroid is ever computed**, because a partial membership is exactly what the
+  transient is.
+- `FALLING BACK ... declared child <name> is N m out, past the <B> m plausibility bound` - the
+  absolute net is 4,000 m from the parent's published position (every N); for three or more
+  children there is also a relative net, max(4 x the median child radius about the children's own
+  median, 1,000 m). It catches a child created but never positioned, and the realistic case of a
+  child TASKED INDEPENDENTLY and driven away, which would otherwise drag both the route origin
+  and the STP-833 extent anchor measured from it.
+
+KNOWN LIMITS of the N13 fix:
+- **R1 POSITION REPORTS ARE STILL EXPOSED.** The periodic PositionReport for a composed parent
+  reports what VR-Forces publishes, so for a few seconds after an order-time re-compose it
+  carries the transient value (up to the ring radius out). Unchanged deliberately: R1's contract
+  is to report the simulation's own answer, the error is transient and self-correcting, and
+  synthesising a centroid there changes what EVERY aggregate reports for the whole run. That is a
+  ruling, not a bug fix. Consequence to state once in any prereg: during the transient the
+  arrival rule's d0 comes from the children while R1 reports the parent, and the two differ by up
+  to R/2 for a few seconds. No consumer compares them.
+- **THE UNWEIGHTED CENTROID IS EVIDENCED ONLY FOR EQUAL CHILDREN.** D8 settled "the vendor
+  publishes the direct children's centroid" on THREE IDENTICAL mech platoons, where weighted and
+  unweighted are indistinguishable, and even there the residual is 5.9-18.5 m, not 0. For a
+  parent with children of unequal size the claim that this is what the back end converges to is
+  UNVERIFIED. The origin is still defensible - it is the fleet's own centre - but the
+  justification is broader than the evidence. Open question, not a settled mechanism.
+- **NESTED COMPOSITION IS ONLY PARTIALLY COVERED.** For battalion -> company -> platoon, the
+  order-time materialization re-creates the GRANDCHILDREN while the companies' own objects
+  survive, so the battalion's DIRECT children are each themselves publishing a mixture-centroid
+  during their own transient. The battalion's origin then averages three transient values instead
+  of reading one: better than before, not exact. The general answer is to recurse to the nearest
+  non-composed descendants. Neither R9 lean (one 2-level parent) nor Iron Storm reaches this.
+- **A PARENT WITH ONE DECLARED CHILD IS EXCLUDED, SILENTLY.** It takes the unchanged path: the
+  parent's own published position, and NO line at all. For N=1 the vendor publishes the parent at
+  its single child's position and during that child's re-create the membership is EMPTY - the
+  worst mixture there is - so this is the one shape where the fix would help most and does
+  nothing. No shipped fixture has one.
+- **N=2 HAS NO RELATIVE OUTLIER TEST** - an outlier needs a majority to define "normal", and with
+  two children there is no way to say which is the stray. The 4,000 m absolute net is the whole
+  guard there.
+- **IRON STORM CUT A EXERCISES NONE OF THIS.** Its only two declared parents (28ID, III Corps)
+  map to PLATFORMS, which compose nothing, so no `_declaredChildNamesByParent` entry is written
+  and all three taskees take the unchanged path. The fallback frequency on the demo scenario is
+  zero - and so is the coverage. **Only R9 lean exercises N13.**
+- **THE OFFLINE SUITE COVERS THE PURE POLICY ONLY** (`--routeorigin-selftest`). These service
+  facts are live-run-only and are NOT asserted anywhere offline: that the reflection-proven uuid
+  is preferred over the name registry; that both N13 maps are cleared when a new init arms the
+  barrier; that the line is emitted exactly ONCE per task across the three `ExecuteTaskOnTick`
+  re-entries; that the policy's origin (not the published read) is what actually reaches
+  `routeGeo[0]`, `MarkDispatched`, the extent anchor and the terrain `entityAlt`; and the emitted
+  text of the new C13 / barrier / MATERIALIZE lines.
+- Untested at scale.
+- The instrument that goes with it: the case-3 MATERIALIZE lines now carry WALL stamps and print
+  the **delete-issued -> readable round trip** in seconds, so the next harvest measures it instead
+  of bounding it from a 2 s trace sample (D9 sec 4.3(b), D5c sec 8).
+
 Measured jam-instrument result (D7, the 2026-09-07 ruling's instrument, scoreable live for
 the first time): BlockedByVehicle 3 rows / 2 objects against the ruling's 4,828-in-300 s
 co-located reference - PASSES. Console level 3 is cheap on R9 scale (8.9 MB trace, 3.4 MB app

@@ -385,6 +385,19 @@ public sealed class VrfC2SimService : BackgroundService
     // restore the DECLARED subordinate order (leader = declared first, UG52 18.1.1) instead of
     // appending the re-created child last.
     private readonly ConcurrentDictionary<string, List<string>> _declaredChildNamesByParent = new();
+    // N13: unit name -> the uuid whose READABILITY released that unit for tasking (ReleaseReflected's
+    // success arm). ReadDeclaredChildPositions prefers it over the name registry, which can still
+    // resolve a name to its DELETED SHELL in the window before the replacement's ObjectCreated binds.
+    private readonly ConcurrentDictionary<string, string> _reflectedUuidByName = new(StringComparer.Ordinal);
+    // N13 / STP-854: unit name -> WALL time the case-3 delete was enqueued, so ReleaseReflected can
+    // print the delete -> readable round trip instead of leaving it to be inferred from a trace.
+    // RETAINED after the round trip is printed (cold-start review SF-1): it is also the evidence
+    // that licenses the words "re-compose transient" on the ROUTE ORIGIN line.
+    private readonly ConcurrentDictionary<string, DateTime> _recreateIssuedUtc = new(StringComparer.Ordinal);
+    // N13/SF-1: unit name -> WALL time its re-created object first became readable. With the issue
+    // stamp above, these two bound the window in which a composed parent's published position is
+    // sweeping; outside it, a gap is NOT diagnosed as a transient.
+    private readonly ConcurrentDictionary<string, DateTime> _recreateReleasedUtc = new(StringComparer.Ordinal);
     // Serialises the two init deliveries (late-join QUERYINIT on the ExecuteAsync thread, a broadcast
     // on the STOMP pump): the duplicate guard is check-then-set and the per-superior child lists are
     // plain List<string>.
@@ -1555,14 +1568,27 @@ public sealed class VrfC2SimService : BackgroundService
             // organization tree (ApplyHierarchyComposition above attaches declared child shells to
             // parent shells). Members follow when an order references the unit (MaterializeUnit).
             // Expansion is NOT run here; it runs per referenced unit. Platforms are created as-is.
-            int shells = 0;
+            int flipped = 0;
             for (int i = 0; i < toCreate.Count; i++)
                 if (toCreate[i].IsAggregate && toCreate[i].CreateSubordinates)
-                { toCreate[i] = toCreate[i] with { CreateSubordinates = false }; shells++; }
+                { toCreate[i] = toCreate[i] with { CreateSubordinates = false }; flipped++; }
             if (_vrf.ComposeHierarchy) GetResolver();   // load the catalog here (init thread); order thread only reads
+            // N15 (D9, 2026-09-21). THIS LINE USED TO COUNT TWO DIFFERENT THINGS AND CALL ONE OF
+            // THEM BY THE WRONG NAME. It printed `flipped` as the shell count and
+            // `toCreate.Count - flipped` as "platform(s) created in full" - so a COMPOSED PARENT,
+            // which ApplyHierarchyComposition had ALREADY set to CreateSubordinates=false and which
+            // this loop therefore does not flip, was counted as a PLATFORM. On R9 lean that printed
+            // "4 ... EMPTY shells ... 2 platform(s) created in full" for an init with five
+            // aggregates and ONE platform, while the INIT CREATION BARRIER line below correctly
+            // said 5 - and the D9 prereg registered the wrong 4 and scored a correct run a MISS.
+            // Both lines now take their numbers from CreationCensus over this same final list.
+            var census = CreationCensus.Of(toCreate);
             _log.LogInformation("CreationPolicy=AtOrder (C13): {Shells} unit(s) created as EMPTY shells at their " +
-                                "authored positions; members are created when an order first references a unit. " +
-                                "{Platforms} platform(s) created in full.", shells, toCreate.Count - shells);
+                                "authored positions ({Flipped} flipped to empty here, {Composed} already an empty " +
+                                "COMPOSED PARENT shell); members are created when an order first references a " +
+                                "unit. {Platforms} platform(s) created in full. The INIT CREATION BARRIER line " +
+                                "counts the same shells over the same plan list (N15).",
+                                census.EmptyShells, flipped, census.EmptyShells - flipped, census.Platforms);
         }
         // Coarse ORBAT leaves (a company/battalion the ORBAT did NOT decompose): expand into their
         // doctrinal sub-units and compose, instead of the broken template higher-unit (G-A).
@@ -2548,9 +2574,15 @@ public sealed class VrfC2SimService : BackgroundService
             }
             var shellToDelete = shellUuid;
             _tickActions.Enqueue(() => _bridge.DeleteObject(shellToDelete));
-            _log.LogInformation("MATERIALIZE {Name} ({Why}): shell {Uuid} deleted; re-creating as the TEMPLATE " +
-                                "{Tmpl} with its members{Re}.", name, why, shellUuid, plan.TemplateName,
-                                reattach ? " and re-attaching under its superior" : "");
+            // N13 / STP-854 instrument: the app log carries no per-line stamps, so the D9 and D5c
+            // harvests could only BOUND the delete -> reflected round trip from the 2 s observer
+            // sample. Stamp it here and measure it in ReleaseReflected.
+            var issuedUtc = DateTime.UtcNow;
+            _recreateIssuedUtc[name] = issuedUtc;
+            _log.LogInformation("MATERIALIZE {Name} ({Why}): shell {Uuid} deleted at WALL " +
+                                "{Wall:yyyy-MM-ddTHH:mm:ss.fffZ}; re-creating as the TEMPLATE " +
+                                "{Tmpl} with its members{Re}.", name, why, shellUuid, issuedUtc,
+                                plan.TemplateName, reattach ? " and re-attaching under its superior" : "");
         }
         if (preGate != null && _compositionReady.TryGetValue(name, out var newGate) && !ReferenceEquals(preGate, newGate))
             _ = newGate.Task.ContinueWith(_ => preGate.TrySetResult(), TaskScheduler.Default);
@@ -2600,14 +2632,122 @@ public sealed class VrfC2SimService : BackgroundService
             bool reflected = _bridge.TryGetEntityGeodetic(kv.Value.Uuid, out _);
             if (!reflected && now < kv.Value.Deadline) continue;
             if (!_awaitReflection.TryRemove(kv.Key, out _)) continue;
+            // N13: the round trip, MEASURED rather than inferred from a 2 s observer sample (D9 sec
+            // 4.3(b) asked for exactly this, and the D5c harvest had to bound every create-to-delete
+            // gap at 0.05-0.6 s for want of it). _recreateIssuedUtc is stamped where the delete is
+            // enqueued; this is where the replacement became readable.
+            _recreateReleasedUtc[kv.Key] = now;
+            string roundTrip = _recreateIssuedUtc.TryGetValue(kv.Key, out var issuedUtc)
+                ? " Re-create round trip (delete issued -> readable): "
+                  + (now - issuedUtc).TotalSeconds.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)
+                  + " s."
+                : "";
             if (!reflected)
                 _log.LogWarning("MATERIALIZE {Name}: re-created object {Uuid} not reflected within {T}s - releasing " +
-                                "its task anyway.", kv.Key, kv.Value.Uuid, _vrf.CompositionTimeoutSeconds);
+                                "its task anyway, at WALL {Wall:yyyy-MM-ddTHH:mm:ss.fffZ}.{Trip}",
+                                kv.Key, kv.Value.Uuid, _vrf.CompositionTimeoutSeconds, now, roundTrip);
             else
-                _log.LogInformation("MATERIALIZE {Name}: re-created object {Uuid} reflected; ready for tasking.",
-                                    kv.Key, kv.Value.Uuid);
+            {
+                // N13: remember the uuid whose readability RELEASED this unit. ReadDeclaredChildPositions
+                // prefers it over _names.TryGetUuid, which between the delete and the replacement's
+                // ObjectCreated still resolves the name to the DELETED SHELL's uuid (NameRegistry's
+                // one-shot ExpectRebind is consumed by that later bind) - and the RTI keeps a deleted
+                // object's last reflected attributes readable, so that lookup can SUCCEED on a shell.
+                _reflectedUuidByName[kv.Key] = kv.Value.Uuid;
+                _log.LogInformation("MATERIALIZE {Name}: re-created object {Uuid} reflected at WALL " +
+                                    "{Wall:yyyy-MM-ddTHH:mm:ss.fffZ}; ready for tasking.{Trip}",
+                                    kv.Key, kv.Value.Uuid, now, roundTrip);
+            }
             if (_compositionReady.TryGetValue(kv.Key, out var tcs)) tcs.TrySetResult();
         }
+    }
+
+    /// <summary>
+    /// N13: the DECLARED CHILDREN of a composed parent, with their own reflected positions, for
+    /// <see cref="RouteOriginPolicy"/>. Tick thread only (same thread and same two steps that
+    /// <see cref="ReleaseReflected"/> used to release them for tasking, so it cannot see a view of
+    /// the unit that the release never saw).
+    ///
+    /// RETURNS NULL for every taskee that is not a composed parent: <c>_declaredChildNamesByParent</c>
+    /// is written ONLY by <c>ApplyHierarchyComposition</c>, so a platform, an independent aggregate
+    /// and every taskee at all when Vrf:ComposeHierarchy is off get a null here and the policy's
+    /// NotComposed arm returns the published read untouched.
+    ///
+    /// WHICH UUID "THE CHILD" MEANS, and why it is not simply the name registry's (the STP-852 delta
+    /// review's point, restated by the D5c harvest). Between the case-3 DELETE being enqueued and the
+    /// replacement's ObjectCreated arriving, <c>_names.TryGetUuid</c> still resolves that name to the
+    /// DELETED SHELL's uuid - NameRegistry's one-shot <c>ExpectRebind</c> is consumed by that later
+    /// bind, not by the delete - and the RTI keeps a deleted object's last reflected attributes
+    /// readable (the STP-822 note on this same call), so the lookup can SUCCEED on a shell. This
+    /// method therefore prefers <c>_reflectedUuidByName</c>, the uuid whose readability actually
+    /// RELEASED the child for tasking in <see cref="ReleaseReflected"/>, and falls back to the name
+    /// registry only for a child that was never re-created (nothing was deleted, so there is no
+    /// window). Either way the geometry agrees: a shell and its replacement are created at the SAME
+    /// de-stacked placement (the stored order-time plan carries the de-stacked Pos), which is why
+    /// D5c's route origin was exact even though its dispatch preceded the re-creates.
+    ///
+    /// THE DEFECT'S OWN MECHANISM CANNOT OCCUR HERE. What puts the vendor's published centroid on
+    /// R/2 or R/4 is a membership with a slot MISSING or a slot counted TWICE. This enumerates the
+    /// DECLARED CHILD NAMES, each exactly once, and the policy refuses to average unless every one
+    /// of them is readable - so neither a short sum nor a double count is representable.
+    ///
+    /// A child released by the reflection TIMEOUT (which logs its own warning) has no recorded
+    /// reflected uuid; if the registry lookup also fails it is simply not readable here and the
+    /// policy falls back rather than averaging a partial membership.
+    /// </summary>
+    private List<RouteOriginPolicy.Child> ReadDeclaredChildPositions(CreatedUnit unit)
+    {
+        if (!unit.IsAggregate || string.IsNullOrEmpty(unit.Name)) return null;
+        if (!_declaredChildNamesByParent.TryGetValue(unit.Name, out var childNames)
+            || childNames == null || childNames.Count == 0) return null;
+        var children = new List<RouteOriginPolicy.Child>(childNames.Count);
+        foreach (var childName in childNames)
+        {
+            bool proven = _reflectedUuidByName.TryGetValue(childName, out var childUuid);
+            if (!proven && !_names.TryGetUuid(childName, out childUuid)) childUuid = null;
+            if (!string.IsNullOrEmpty(childUuid) && _bridge.TryGetEntityGeodetic(childUuid, out var g))
+                children.Add(new RouteOriginPolicy.Child(childName, true, g.LatDeg, g.LonDeg, g.AltMeters,
+                                                         proven));
+            else
+                children.Add(new RouteOriginPolicy.Child(childName, false, 0.0, 0.0, 0.0, proven));
+        }
+        return children;
+    }
+
+    /// <summary>
+    /// N13 / SF-1 (cold-start review of a34c35b): HOW LONG AGO this composed parent's declared
+    /// children were last delete/re-created, in WALL seconds, or NaN when no such stamp exists.
+    /// This is the ONLY evidence that licenses the ROUTE ORIGIN line to call a gap between the
+    /// parent's published position and its children's centroid a RE-COMPOSE TRANSIENT.
+    ///
+    /// WHY IT IS NEEDED. <see cref="RouteOriginPolicy"/> is pure and cannot tell a transient from a
+    /// unit under way, and D8 measured 16-25 m between a MOVING company's published position and its
+    /// direct children's centroid with NO re-compose in flight at all (d8_harvest_report.md:278-290).
+    /// Without this, every second task on a composed parent would have printed a diagnosis of a
+    /// re-compose that did not happen, and a harvest greps that string as fact.
+    ///
+    /// THE MOST RECENT of the RELEASE stamps (the re-created object became readable) and, for a
+    /// child whose re-create is still outstanding, the ISSUE stamp (the delete was enqueued) - a
+    /// re-create still in flight is the most transient state there is, and D5c showed a dispatch
+    /// can reach here before any release. Tick thread; the maps are concurrent and are cleared when
+    /// a new initialization arms the barrier.
+    /// </summary>
+    private double SecondsSinceChildRecompose(IReadOnlyList<string> childNames)
+    {
+        if (childNames == null || childNames.Count == 0) return double.NaN;
+        var now = DateTime.UtcNow;
+        double best = double.NaN;
+        foreach (var childName in childNames)
+        {
+            DateTime? when = null;
+            if (_recreateReleasedUtc.TryGetValue(childName, out var released)) when = released;
+            if (_recreateIssuedUtc.TryGetValue(childName, out var issued)
+                && (when == null || issued > when.Value)) when = issued;
+            if (when == null) continue;
+            double age = (now - when.Value).TotalSeconds;
+            if (double.IsNaN(best) || age < best) best = age;
+        }
+        return best;
     }
 
     // ================= DEFER, DO NOT ABORT (D5b, 2026-09-21) =================
@@ -2625,25 +2765,45 @@ public sealed class VrfC2SimService : BackgroundService
         // OBJECTS, which is what this method's own contract says. Accumulating both inits' names
         // made READY TO TASK report a cumulative denominator that belonged to no single init.
         _initPlannedNames.Clear();
-        int shells = 0;
+        // N13: a genuinely NEW initialization re-plans and re-creates everything, so a uuid proved
+        // readable for the PREVIOUS init's object of the same name is dead. Drop both N13 maps with
+        // the barrier, for the same reason _initPlannedNames is dropped: they describe ONE init.
+        _reflectedUuidByName.Clear();
+        _recreateIssuedUtc.Clear();
+        _recreateReleasedUtc.Clear();
         foreach (var p in plans)
         {
             if (string.IsNullOrEmpty(p.Name)) continue;
             _initPlannedNames[p.Name] = 0;
-            if (p.IsAggregate && !p.CreateSubordinates) shells++;
         }
+        // N15: ONE census, shared with the C13 line above, so the two can never print different
+        // shell counts for the same initialization again.
+        int shells = CreationCensus.Of(plans).EmptyShells;
         _initShellCount = shells;
         _initSettled = false;
         _initPlannedUtc = DateTime.UtcNow;
+        // TWO NUMBERS, ONE SETTING, AND THEY ARE NOT THE SAME NUMBER (D5c harvest, 2026-09-21): this
+        // line used to quote "Vrf:DispatchReadinessTimeoutSeconds (20 s)" while the hold lines quote
+        // the same key with its CONFIGURED 60 s. Both were right - 20 s is the B1 CAP this barrier
+        // runs under, 60 s is the setting it is capped FROM - and nothing said so, which is a defect
+        // in the line and not in either number. Both are now printed, labelled.
         _log.LogInformation("INIT CREATION BARRIER: {N} object(s) planned by this initialization " +
-                            "({Shells} empty shell(s)). Until they are bound, a task whose taskee is not " +
-                            "taskable yet is HELD rather than dropped and an order-time materialization " +
-                            "does not delete/re-create anything - both bounded by {Key} ({T:F0} s). The " +
-                            "{Ready} line says when the wait is over.",
-                            _initPlannedNames.Count, shells, DispatchReadiness.TimeoutSettingKey,
+                            "({Shells} empty shell(s)), armed at WALL {Wall:yyyy-MM-ddTHH:mm:ss.fffZ}. " +
+                            "Until they are bound, a task whose taskee is not taskable yet is HELD rather " +
+                            "than dropped and an order-time materialization does not delete/re-create " +
+                            "anything. THE BOUND THAT APPLIES HERE IS {T:F0} s: it is {Key} (configured " +
+                            "{Cfg:F0} s) CAPPED so the work this barrier releases finishes before a task's " +
+                            "own composition backstop gives up on it (B1). A HOLD LINE NAMING THE SAME " +
+                            "SETTING MEANS THE CONFIGURED VALUE, NOT THIS CAPPED ONE - two different " +
+                            "numbers, one setting, both correct. The {Ready} line says when the wait is over.",
+                            _initPlannedNames.Count, shells, _initPlannedUtc,
                             DispatchReadiness.BarrierSeconds(_vrf.DispatchReadinessTimeoutSeconds,
                                              _vrf.CompositionTimeoutSeconds,
                                              _vrf.TerrainProfileTimeoutSeconds),
+                            DispatchReadiness.TimeoutSettingKey,
+                            _vrf.DispatchReadinessTimeoutSeconds > 0.0
+                                ? _vrf.DispatchReadinessTimeoutSeconds
+                                : DispatchReadiness.ObservationWindowSeconds,
                             DispatchReadiness.ReadyToTaskPrefix);
     }
 
@@ -3723,6 +3883,46 @@ public sealed class VrfC2SimService : BackgroundService
             return;
         }
 
+        // THE ROUTE ORIGIN OF A COMPOSED PARENT (N13, run D9 2026-09-21; RouteOriginPolicy.cs).
+        // `live` above is the parent's OWN published position, and for a COMPOSED parent that is
+        // the one quantity on this path that is NOT trustworthy at this instant: its children have
+        // just been deleted and re-created, the composition gate waited for THE CHILDREN to reflect
+        // (ReleaseReflected), and VR-Forces publishes a composed aggregate at its DIRECT CHILDREN's
+        // centroid - so while the membership is a mixture the parent is published on a transient
+        // sweep (D9: R/2 at 300 deg, then R/4 at 120 deg against the 202.1 m ring). The children's
+        // own positions are the settled answer and they are readable NOW, by the same two steps that
+        // released them: NameRegistry -> TryGetEntityGeodetic, on this same tick thread.
+        // EVERY OTHER TASKEE IS BYTE-FOR-BYTE UNCHANGED: _declaredChildNamesByParent is written only
+        // by ApplyHierarchyComposition, so a platform, an independent aggregate (whose own object is
+        // re-created whole, with its members, and therefore has no mixture) and every taskee at all
+        // when Vrf:ComposeHierarchy is off take the NotComposed arm, which returns `live` untouched.
+        var originChildren = ReadDeclaredChildPositions(unit);
+        var originDecision = RouteOriginPolicy.Decide(live.LatDeg, live.LonDeg, live.AltMeters, originChildren);
+        // Once per task. ExecuteTaskOnTick is re-entered by the route-shift worker and by the
+        // terrain-profile reply, and only the FIRST pass's origin survives (pass 2 replaces routeGeo
+        // with the shifted route built from it, pass 3 with the terrain-authored one).
+        if (terrainRoute == null && shiftedRoute == null)
+        {
+            // SF-1: the line may only DIAGNOSE a re-compose transient on this evidence. Nothing in
+            // the pure policy can tell one from a moving company (D8: 16-25 m with no re-compose).
+            _declaredChildNamesByParent.TryGetValue(unit.Name, out var originChildNames);
+            string originLine = RouteOriginPolicy.Line(unit.Name, originDecision, originChildren,
+                                                       SecondsSinceChildRecompose(originChildNames));
+            if (originLine != null)
+            {
+                if (originDecision.From == RouteOriginPolicy.Source.ChildrenCentroid)
+                    _log.LogInformation("{Line}", originLine);
+                else
+                    _log.LogWarning("{Line}", originLine);   // both fallback arms are WARN
+            }
+        }
+        var origin = new Geodetic
+        {
+            LatDeg = originDecision.LatDeg,
+            LonDeg = originDecision.LonDeg,
+            AltMeters = originDecision.AltMeters,
+        };
+
         // LAYER 2 - A VERB THAT NAMES NO MOVEMENT (TaskIntent.HoldInPlace: ExecutePlanPhase).
         // R2 ruled that a task WITHOUT GEOMETRY is executed at the performing unit's own position;
         // this is the same ending reached through the VERB. It sits HERE - after the live position
@@ -3793,7 +3993,7 @@ public sealed class VrfC2SimService : BackgroundService
                                 "{N} geometry point(s) this task carries are NOT driven. The task ends at its " +
                                 "end time and its successors follow.",
                                 task.TaskName, verb.ActionCode, verb.Intent, verb.Composition,
-                                unit.Name, live.LatDeg, live.LonDeg, taskPoints.Count);
+                                unit.Name, origin.LatDeg, origin.LonDeg, taskPoints.Count);
             _ = PushReportAsync(ReportBuilder.BuildTypeSubstitutionReport(
                     task.TaskeeUuid, unit.Name, unit.Name,
                     $"task '{task.TaskName}': verb {verb.ActionCode} names no movement - " +
@@ -3808,12 +4008,12 @@ public sealed class VrfC2SimService : BackgroundService
         // altitude so VRF's offset-route ground clamp succeeds at high-elevation regions (the
         // Mojave freeze). See docs/experiments/MOJAVE_ROOTCAUSE_INVESTIGATION_2026-07-14.md.
         double groundWpAlt = IsLiveLikeAltitudeMode()
-            ? live.AltMeters + _vrf.GroundWaypointLiveClearanceMeters
+            ? origin.AltMeters + _vrf.GroundWaypointLiveClearanceMeters
             : 100.0;
 
         var routeGeo = new List<Geodetic>
         {
-            new() { LatDeg = live.LatDeg, LonDeg = live.LonDeg, AltMeters = isGround ? groundWpAlt : live.AltMeters }
+            new() { LatDeg = origin.LatDeg, LonDeg = origin.LonDeg, AltMeters = isGround ? groundWpAlt : origin.AltMeters }
         };
 
         // NO GEOMETRY (R2, user ruling 2026-09-14: "a task without geometry uses the geometry of
@@ -3893,7 +4093,7 @@ public sealed class VrfC2SimService : BackgroundService
                 _log.LogInformation("Task '{Task}' carries NO geometry: executing IN PLACE at {Name}'s own " +
                                     "position ({Lat:F5},{Lon:F5}) - R2 (user ruling 2026-09-14). No move is " +
                                     "issued; the task ends at its end time and its successors follow.",
-                                    task.TaskName, unit.Name, live.LatDeg, live.LonDeg);
+                                    task.TaskName, unit.Name, origin.LatDeg, origin.LonDeg);
                 _ = PushReportAsync(ReportBuilder.BuildTypeSubstitutionReport(
                         task.TaskeeUuid, unit.Name, unit.Name,
                         $"task '{task.TaskName}': {TaskDispatchPolicy.ZeroGeometryObservation}",
@@ -3926,7 +4126,7 @@ public sealed class VrfC2SimService : BackgroundService
         int skip = 0;
         if (_vrf.DropOriginVertexMeters > 0 && taskPoints.Count > 1
             && _authoredPosByName.TryGetValue(unit.Name, out var authored)
-            && TerrainVertexAuthoring.DistMeters(live.LatDeg, live.LonDeg, authored.Lat, authored.Lon) > _vrf.DropOriginVertexMeters)
+            && TerrainVertexAuthoring.DistMeters(origin.LatDeg, origin.LonDeg, authored.Lat, authored.Lon) > _vrf.DropOriginVertexMeters)
         {
             while (skip < taskPoints.Count - 1
                    && TerrainVertexAuthoring.DistMeters(taskPoints[skip].Lat, taskPoints[skip].Lon, authored.Lat, authored.Lon) <= _vrf.DropOriginVertexMeters)
@@ -3935,7 +4135,7 @@ public sealed class VrfC2SimService : BackgroundService
                 _log.LogInformation("Task '{Task}': dropped {N} leading route point(s) on {Name}'s authored origin " +
                                     "({Lat:F5},{Lon:F5}) - the unit was spread {D:F0} m from it; the route starts at its live position.",
                                     task.TaskName, skip, unit.Name, authored.Lat, authored.Lon,
-                                    TerrainVertexAuthoring.DistMeters(live.LatDeg, live.LonDeg, authored.Lat, authored.Lon));
+                                    TerrainVertexAuthoring.DistMeters(origin.LatDeg, origin.LonDeg, authored.Lat, authored.Lon));
         }
         foreach (var p in taskPoints.Skip(skip))
             routeGeo.Add(new Geodetic
@@ -3977,7 +4177,7 @@ public sealed class VrfC2SimService : BackgroundService
             // The setting is passed THROUGH to the policy (it is also the `if` above, which is what
             // makes a disabled check cost nothing): the OFF arm of --routeextent-selftest then
             // exercises the same call this line makes, not a separate imitation of it.
-            var extentVerdict = RouteExtentPolicy.Check(_vrf.RouteExtentCheck, live.LatDeg, live.LonDeg,
+            var extentVerdict = RouteExtentPolicy.Check(_vrf.RouteExtentCheck, origin.LatDeg, origin.LonDeg,
                                                         extentVertices, _vrf.MaxVertexFromTaskeeKm,
                                                         _vrf.MaxRouteLegKm, extent);
             if (extentVerdict.Violated)
@@ -4042,7 +4242,7 @@ public sealed class VrfC2SimService : BackgroundService
         else if (isGround && IsTerrainProfileMode())
         {
             var liveVertices = routeGeo;
-            double entityAlt = live.AltMeters;
+            double entityAlt = origin.AltMeters;
             uint requestId = _bridge.RequestTerrainProfile(liveVertices);
             if (requestId == 0)
                 _log.LogWarning("Task '{Task}': terrain profile request not sent - falling back to Live vertices.",
