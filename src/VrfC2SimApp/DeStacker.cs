@@ -73,6 +73,32 @@ public static class DeStacker
     /// or the siblings do not share a coordinate at all.</summary>
     public sealed record SiblingGroupSkipped(string ParentName, int Count, string Reason);
 
+    /// <summary>
+    /// SF-D4 (cold-start review of 1d0fb69, 2026-09-21): THE OPERATOR-FACING DESCRIPTION OF ONE
+    /// SPREAD GROUP, with BOTH numbers, each named.
+    ///
+    /// `--parse-init` used to print "350 m rings". 350 m is the SPACING - the minimum separation
+    /// C14 rules on - and it is NOT the distance any child moves. Since N4 the two are different
+    /// numbers, <c>r = spacing / (2 sin(pi/N))</c>: 175.0 m at N=2, 202.1 m at N=3, and 350.0 m
+    /// only at N=6. An operator who read "350 m rings", ran the file and then measured 202 m was
+    /// misled by the one diagnostic whose job is to say what will happen.
+    ///
+    /// PURE, and factored out of the Console.WriteLine it came from, so the line an operator reads
+    /// can be asserted by --destack-selftest without a bridge, a MAK PATH or a federation - the
+    /// text itself is what was wrong, so the text is what a test has to be able to see.
+    /// </summary>
+    public static string DescribeSiblingGroup(SiblingGroup g, int maxNames = 4)
+    {
+        if (g == null) return "";
+        var names = g.Moved ?? Array.Empty<(string Name, double Meters)>();
+        string listed = string.Join(", ", names.Take(Math.Max(0, maxNames))
+                                               .Select(m => $"{m.Name} {m.Meters:F1} m"));
+        return $"{g.Count} child(ren) of {g.ParentName} at {g.LatDeg},{g.LonDeg} -> " +
+               $"ring RADIUS {g.RadiusMeters:F1} m (each child moves that far), " +
+               $"min sibling SEPARATION {g.SpacingMeters:F0} m ({g.EchelonKey} spacing): " +
+               listed + (names.Count > maxNames ? ", ..." : "");
+    }
+
     private const double MetersPerDegLat = 111_320.0;
 
     /// <summary>

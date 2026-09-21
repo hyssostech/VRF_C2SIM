@@ -147,11 +147,16 @@ public static class InitParseCheck
                               ? $"  ({siblingSkipped.Count} group(s) have no echelon the table covers " +
                                 "and would NOT be spread)"
                               : ""));
+        // SF-D4 (cold-start review of 1d0fb69, 2026-09-21): PRINT BOTH NUMBERS, NAMED. This line
+        // used to read "350 m rings", which is the SPACING - the minimum separation the ruling
+        // asks for - and NOT the radius any child is moved by. Since N4 the two are different
+        // numbers (r = spacing / (2 sin(pi/N)): 175.0 m at N=2, 202.1 m at N=3, 350.0 m only at
+        // N=6), so an operator reading "350 m rings" and then measuring 202 m on the map has been
+        // told the wrong thing by the diagnostic that exists to tell him what will happen. Both
+        // are printed, each labelled with what it is, and the displacement is the one the runtime
+        // actually applied (g.Moved), not a third derivation of it.
         foreach (var g in sibling.Take(5))
-            Console.WriteLine($"  {g.Count} child(ren) of {g.ParentName} at {g.LatDeg},{g.LonDeg} -> " +
-                              $"{g.SpacingMeters:F0} m rings ({g.EchelonKey}): " +
-                              string.Join(", ", g.Moved.Take(4).Select(m => m.Name)) +
-                              (g.Moved.Count > 4 ? ", ..." : ""));
+            Console.WriteLine("  " + DeStacker.DescribeSiblingGroup(g));
         foreach (var g in stacks.Take(5))
             Console.WriteLine($"  {g.Count()} units at {g.Key.Lat},{g.Key.Lon}: " +
                               string.Join(", ", g.Take(4).Select(p => p.Unit.Name)) + (g.Count() > 4 ? ", ..." : ""));

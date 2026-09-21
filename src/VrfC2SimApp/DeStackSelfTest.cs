@@ -239,6 +239,37 @@ public static class DeStackSelfTest
                   $"every one of the 3 children sits on ONE ring of the derived radius " +
                   $"{pltRadius:F1} m = {pltSpacing:F0} / (2 sin 60 deg) - none is left stacked on the " +
                   "parent, and the radius is derived from the spacing rather than equal to it (N4)");
+            // SF-D4: THE LINE `--parse-init` PRINTS, asserted as text. It used to say "350 m
+            // rings" - the SPACING, not the radius - so an operator was told 350 m and measured
+            // 202.1 m. Both numbers are now named, and this arm is what stops the label drifting
+            // back onto the wrong quantity. The FIRST assertion is the one that fails on the old
+            // line; the second is the one that fails if the radius is dropped for brevity.
+            string desc3 = DeStacker.DescribeSiblingGroup(sib[0]);
+            Console.WriteLine($"    --parse-init would print: {desc3}");
+            Check(ref failures,
+                  desc3.Contains($"ring RADIUS {pltRadius:F1} m", StringComparison.Ordinal)
+                  && desc3.Contains($"min sibling SEPARATION {pltSpacing:F0} m", StringComparison.Ordinal)
+                  && !desc3.Contains($"{pltSpacing:F0} m rings", StringComparison.Ordinal),
+                  $"SF-D4: the --parse-init sibling line names BOTH numbers - ring RADIUS " +
+                  $"{pltRadius:F1} m AND min sibling SEPARATION {pltSpacing:F0} m - and never calls " +
+                  $"the spacing a ring (got: {desc3})");
+            Check(ref failures,
+                  sib[0].Moved.All(m => desc3.Contains($"{m.Name} {m.Meters:F1} m", StringComparison.Ordinal))
+                  && sib[0].Moved.All(m => Math.Abs(m.Meters - pltRadius) < 0.05),
+                  "SF-D4: and each child's printed displacement is the one the pass APPLIED, which " +
+                  "is the radius, not a third derivation of it");
+            // N = 2 is the case where reading the spacing as a radius is most wrong (175.0 m
+            // against 350 m), so the formatter is exercised there too rather than at N = 3 alone.
+            var twoMoved = new List<(string Name, double Meters)> { ("A", 175.0), ("B", 175.0) };
+            var g2 = new DeStacker.SiblingGroup("P", 1.0, 2.0, 2, pltSpacing,
+                                                EchelonSpacing.Platoon, twoMoved,
+                                                DeStacker.CentroidPreservingRadius(2, pltSpacing));
+            string desc2 = DeStacker.DescribeSiblingGroup(g2);
+            Check(ref failures,
+                  desc2.Contains("ring RADIUS 175.0 m", StringComparison.Ordinal)
+                  && desc2.Contains("min sibling SEPARATION 350 m", StringComparison.Ordinal),
+                  $"SF-D4: at N = 2 the line reads 175.0 m radius against a 350 m separation - the " +
+                  $"two numbers are half an order apart and must not share a label (got: {desc2})");
             bool pairsClear = true;
             for (int a = 1; a <= 3; a++)
                 for (int b = a + 1; b <= 3; b++)
