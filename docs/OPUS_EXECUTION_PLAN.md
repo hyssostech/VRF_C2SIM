@@ -3247,7 +3247,8 @@ per the never-reuse non-negotiable. Annotate with results from the run manifest.
 NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
 join) are BURNED, not recycled. The run manifest records which were actually used.
 
-*** NEXT FREE: 4802 *** (authoritative - the ONLY such marker in this file. Update this
+- 2026-09-21 STP-825 NOTIFY2 REPLICATION (docs/experiments/PREREG_STP825_NOTIFY2_2026-09-20.md): 4802..4993 = sixteen blocks of 12 creates, each on a FRESH rtiexec, in the frozen pair-blocked order N3,N0,N3,N0,N0,N3,N0,N3,N0,N3,N0,N3,N0,N3,N3,N0 (seed 825), RtiProbe against the scratch federation STP825AB, run unattended by scratch validation/stp825_notify2_orchestrator.ps1. The prereg fixed 4791-4982; the marker had moved (D6), so per its own clause the blocks take these next 192 numbers in order, 12 each. Numbers not reached are BURNED. CLAIMED.
+*** NEXT FREE: 4994 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
