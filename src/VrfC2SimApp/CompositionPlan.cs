@@ -42,11 +42,13 @@ namespace VrfC2SimApp;
 public sealed class CompositionPlan
 {
     private CompositionPlan(HashSet<string> parentUuids, List<int> nonAggregateParentIndices,
-                            HashSet<int> composedChildIndices)
+                            HashSet<int> composedChildIndices,
+                            List<(int ParentIndex, IReadOnlyList<int> ChildIndices)> composedGroups)
     {
         ParentUuids = parentUuids;
         NonAggregateParentIndices = nonAggregateParentIndices;
         ComposedChildIndices = composedChildIndices;
+        ComposedGroups = composedGroups;
     }
 
     /// <summary>The uuids of SURVIVING AGGREGATE units that some other surviving unit names as its
@@ -60,9 +62,23 @@ public sealed class CompositionPlan
     /// de-stack treats them as such.</summary>
     public IReadOnlyList<int> NonAggregateParentIndices { get; }
 
-    /// <summary>Indices of plans that will be ATTACHED INTO a parent aggregate. These take their
-    /// place from the parent's formation and are never de-stacked.</summary>
+    /// <summary>Indices of plans that will be ATTACHED INTO a parent aggregate. These are never
+    /// spread by the INDEPENDENT-object de-stack (their place is inside their parent's
+    /// organization, not at an authored coordinate of their own).</summary>
     public IReadOnlySet<int> ComposedChildIndices { get; }
+
+    /// <summary>
+    /// THE SAME CHILDREN, GROUPED BY THEIR PARENT - (parent plan index, its child plan indices),
+    /// ordered by parent index and then by child index so the answer is identical run to run.
+    ///
+    /// This is what the COMPOSED-SIBLING de-stack acts on (user ruling 2026-09-21, option C):
+    /// siblings that share a coordinate are co-located units by C14's plain words - the parent's
+    /// formation does NOT separate them (D6 measured the three MechPlt aggregates 24-56 m apart
+    /// at every sample, 3 of 3 footprints overlapping) - so they are spread around the PARENT,
+    /// which stays where it is, at a spacing taken from THEIR echelon (<see cref="EchelonSpacing"/>).
+    /// One classifier, two lanes: nothing outside this class decides who is a composed child of whom.
+    /// </summary>
+    public IReadOnlyList<(int ParentIndex, IReadOnlyList<int> ChildIndices)> ComposedGroups { get; }
 
     /// <summary>True when this plan index is created as an INDEPENDENT VR-Forces object - the set
     /// the de-stack acts on.</summary>
@@ -79,7 +95,8 @@ public sealed class CompositionPlan
                                            IReadOnlyList<(string Uuid, string SuperiorUuid)> hierarchy)
     {
         var empty = new CompositionPlan(new HashSet<string>(StringComparer.Ordinal),
-                                        new List<int>(), new HashSet<int>());
+                                        new List<int>(), new HashSet<int>(),
+                                        new List<(int, IReadOnlyList<int>)>());
         if (plans == null || hierarchy == null || plans.Count != hierarchy.Count || plans.Count == 0)
             return empty;
 
@@ -104,12 +121,30 @@ public sealed class CompositionPlan
             parentUuids.Remove(uuid);
         }
 
+        // The index of every surviving PARENT aggregate, so a child can be grouped under the plan
+        // it will be attached to (not merely under its superior's uuid).
+        var parentIndexByUuid = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (int i = 0; i < plans.Count; i++)
+        {
+            string uuid = hierarchy[i].Uuid;
+            if (!string.IsNullOrEmpty(uuid) && parentUuids.Contains(uuid) && !parentIndexByUuid.ContainsKey(uuid))
+                parentIndexByUuid[uuid] = i;
+        }
+
         var children = new HashSet<int>();
+        var byParent = new Dictionary<int, List<int>>();
         for (int i = 0; i < plans.Count; i++)
         {
             string sup = hierarchy[i].SuperiorUuid;
-            if (!string.IsNullOrEmpty(sup) && parentUuids.Contains(sup)) children.Add(i);
+            if (string.IsNullOrEmpty(sup) || !parentUuids.Contains(sup)) continue;
+            children.Add(i);
+            if (!parentIndexByUuid.TryGetValue(sup, out int pi)) continue;
+            if (!byParent.TryGetValue(pi, out var list)) byParent[pi] = list = new List<int>();
+            list.Add(i);
         }
-        return new CompositionPlan(parentUuids, nonAggregate, children);
+        var groups = byParent.OrderBy(kv => kv.Key)
+                             .Select(kv => (kv.Key, (IReadOnlyList<int>)kv.Value.OrderBy(i => i).ToList()))
+                             .ToList();
+        return new CompositionPlan(parentUuids, nonAggregate, children, groups);
     }
 }

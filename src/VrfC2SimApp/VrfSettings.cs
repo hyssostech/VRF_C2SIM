@@ -256,6 +256,23 @@ public class VrfSettings
     // wander a parked vehicle's published position can show. 100 m is two M1A2 lengths beyond the
     // de-stacking ring (10 m offsets) and the formation jitter seen on the V6g consoles.
     public double ArrivalMinTravelMeters { get; set; } = 100.0;
+    // *** THE TRAVERSAL BAR IS PER MEMBER (user ruling 2026-09-21, option A of the D6 harvest). ***
+    // The route-length bar above asks EVERY member for half the ROUTE, which a member that
+    // legitimately starts closer than that to the destination can never show however completely it
+    // arrives: in run D3 twenty of 48 MechCoy members sat INSIDE the arrival radius and BELOW the
+    // bar for the entire run, and at the instant D6 closed the same task, 42 of 57 D3 members were
+    // physically at the destination while the rule could count 23. So a member is now asked for
+    //   max( min(0.5 x route, ArrivalApproachFraction x ITS OWN straight-line distance to the last
+    //            vertex at dispatch), ArrivalMinTravelMeters )
+    // - its own share of its own approach, never more than today's bar. 0.5 is chosen, not tuned:
+    // a member that starts d0 away and finishes inside radius R shows at least d0 - R of
+    // displacement, so the fraction is satisfiable by actually arriving whenever d0 >= 2R, and it
+    // is the same "half the journey" shape STP-837 gave the route. V6g is NOT re-opened by it: a
+    // route whose last vertex sits inside the arrival radius of the dispatch position is refused
+    // by ClosableByArrival before any member is counted, and that gate is untouched.
+    // Set to 0 (or less) to disable the per-member rule and restore the pure route-length bar -
+    // the comparability switch for a run that must reproduce a pre-2026-09-21 result.
+    public double ArrivalApproachFraction { get; set; } = 0.5;
 
     // PROGRESS WATCHDOG (C16, report-only; StallPolicy.cs). VR-Forces 5.2 NEVER reports a unit
     // that stops making progress while its move task runs: the base give-up test "always returns
@@ -470,6 +487,34 @@ public class VrfSettings
     // this far apart). "A few tens of meters" per the R8 plan; tune via env
     // (Vrf__DeStackSpacingMeters) if 50 proves too tight for member footprints.
     public double DeStackSpacingMeters { get; set; } = 50.0;
+
+    // COMPOSED SIBLINGS (user ruling 2026-09-21, option C of the D6 harvest). The MASTER switch is
+    // still DeStackCreates; this one decides whether the de-stack also spreads the units that
+    // Vrf:ComposeHierarchy attaches INTO a parent aggregate when two or more of them share a
+    // coordinate. ON (default) they are spread onto rings AROUND THE PARENT - which never moves -
+    // at their OWN echelon's spacing (EchelonSpacing: platoon 350 m, section 300, squad 150, team
+    // 100), not at DeStackSpacingMeters, which is a company-sized number (700 m > the 660 m
+    // Formation-Column-Armor-Co(US) span). OFF restores the 2026-09-20 SF2 behaviour exactly - the
+    // children stay on the parent's coordinate - which is what a run comparable with D6 needs
+    // (RUNBOOK 11e). Why it is ON: D6 measured the three R9 platoon aggregates 24-56 m apart at
+    // every sample with 3 of 3 footprints overlapping and 3.1x more sub-7 m member pairs than D3 -
+    // the vendor's parent formation does NOT separate composed sub-aggregates, so "held with the
+    // parent" is "stacked on the parent" and C14's criterion is violated.
+    public bool DeStackComposedSiblings { get; set; } = true;
+
+    // What to do with a composed-sibling group whose echelon the table cannot size (a synthesized
+    // sub-unit from ExpandCoarseLeaves carries no C2SIM echelon, and company and above are
+    // deliberately not in the table). 0 (default) = DO NOT SPREAD IT - the pre-2026-09-21
+    // behaviour, and the conservative direction: the alternative would spread a company's own
+    // platoons at the 700 m company spacing, which is the D3 defect the echelon table exists to
+    // remove (700 m > 0.5 x a 1,097 m route put a whole platoon permanently under the STP-837
+    // traversal bar). Set it to a positive number to spread unknown-echelon groups at that spacing.
+    public double DeStackEchelonFallbackMeters { get; set; } = 0.0;
+
+    // Operator override for the derived echelon table, e.g. "PLT=400,SECT=250". Empty (default)
+    // uses the measured table. A key the table does not cover, or a non-positive value, is IGNORED
+    // and named in the start-up DeStack line (EchelonSpacing.WithOverrides).
+    public string DeStackEchelonSpacingMeters { get; set; } = "";
 
     // Rotation of the hex-ring layout about the anchor, degrees clockwise from north (default 0).
     // Same neighbours and spacing, different ground under every displaced unit - the terrain
