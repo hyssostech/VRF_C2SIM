@@ -450,3 +450,50 @@ NEXT: C2 = the same rehearsal after the defer/READY-TO-TASK fix is merged, rebui
 given the runner's env (the new P-RID gate) or run with `-NoObserver`. C1 (same 0.31 s gap, fixed observer environment,
 OLD binary) is registered only if the crash itself still needs isolating from the harness defect - it separates "the
 harness caused it" from "the overlap caused it" in one run, and is not needed if C2 alone is run next.
+
+---
+
+## 14. D5c - REGISTERED 2026-09-21 BEFORE THE RUN: the Way B confirming run on the STP-852 build (binary 4f1f149)
+
+Same orchestrator path as D5b (runbook steps as typed, -Server private, 9102/9103, the order pushed immediately after
+PushInit returns - DECLARED deviation D-5, about 0.3 s: it is what exposed STP-852 and no operator can type it), with
+the orchestrator's UPDATE 4: the WatchVrf observer gets the runner's per-process RTI environment and a new live gate
+P-RID stops the run before step 3 if the observer loads any rid but config/rid-501-rtiexec-min.mtl or mentions an RTI
+Assistant. Binary 1.0.0+git.4f1f149.Release-5.2 (build report scratch validation/4f1f149_build_report.md, GO). Way A
+control on the same binary: D9 (run 20260921T094051Z, 3/3 TASKCMPLT). Expected strings: build report sec 8; must-show
+list: scratch validation/defer_not_abort_review.md (Run 1 + the DELTA additions).
+KNOWN CONDITION: rtiAssistant pid 48392 (left by D5b's harness) is STILL RUNNING - the never-kill rule makes its removal
+the user's call. It was present through D9 with no observed effect. Consequence for inference, stated up front: a CLEAN
+D5c is consistent with 'the init/order overlap caused the D5b crash' but cannot exclude the assistant's appearance as a
+factor (in D5b it APPEARED mid-run; here it pre-exists); a SECOND back-end fault with the overlap removed would point
+away from the overlap. STP-854 stays open either way (n is still small).
+
+P-STEP1 / P-STEP2 / P-SERVER / P-STEP3 / P-TILES / P-CONSOLE / P-STOP: as sections 2-5, unchanged (P-STEP2's holder
+block has now run live once, D5b: conf 0.85).
+P-RID (HIGH, new): the observer's first lines name OUR rid; no 'RTI Assistant' text; no NEW rtiAssistant process is
+spawned (48392 remains the only one); WatchVrf appears in the rtiexec log as a joined federate and exits on its stop-file
+within the grace period.
+P-READY (HIGH): the interface prints 'INIT CREATION BARRIER: 6 object(s) planned ...' quoting 20 s (the empty-shell
+count as D9's own log printed it, 5 - the build report's offline '4' was wrong or differently counted; D9's harvest
+settles which) and 'READY TO TASK - 6 of 6 ...' exactly once, NOT the 'NOT REACHED' variant.
+P-HOLD (HIGH): ZERO 'has no VR-Forces object bound to its name', ZERO 'live location could not be read'. T_R5_TK1
+(1.BdeHQ~PXY, a platform that never parks) is HELD - 'WAITING FOR THE BACK END: task ... held' naming
+[PLANNED-BUT-NOT-REQUESTED] or [REQUESTED-BUT-NOT-BOUND] - and RELEASED; held-count == released-count; every hold lasts
+seconds (< 10 s), none reaches its bound. T_R5_PL1 / T_R5_CO1 wait on their composition gate and may print no hold line;
+'MATERIALIZE ... HELD' appears for the aggregates only (expected TWO lines, MEDIUM on the count). An 'ORDER BEFORE READY
+TO TASK' warning is EXPECTED here (the order does arrive early) - MEDIUM: RUNBOOK 11g says it cannot fire when every
+name is already bound.
+P-OVERLAP (HIGH): no order-driven delete / MATERIALIZE-deleted line between the first and the last init PLACEMENT
+line; the first order-driven delete follows READY TO TASK. ZERO 'not signalled within', ZERO 'REFUSING TO MATERIALIZE',
+ZERO 'MATERIALIZATION-PARKED' timeouts.
+P-OUTCOME (HIGH on completion, MEDIUM on the numbers): 3/3 TASKCMPLT, 0 TASKABRT; completions on the app's SIM clock
+within +/-12 percent of D9's (D8: 81.1 / 485.5 / 660.5 SIM s after dispatch) - window: each task's own DISPATCHED line
+to its completion line; movement-window sim/wall ratio reported against D9's, a value near 1.0 is the dead-back-end
+signature and a MISS.
+P-FAULT (MEDIUM, conf 0.7): no back-end fault - no new .dmp / .callstack for this run's back end (names + mtimes only),
+no BACK END LOST, position reports not frozen.
+MISS = any race abort, a hold that runs to its bound, READY TO TASK NOT REACHED, an order-driven delete inside the init's
+creations, any task not TASKCMPLT, P-RID failing, a survivor at teardown. A missed HIGH limb is a STOP. A back-end fault
+is recorded as NEW EVIDENCE for STP-854, not as a repeat.
+WHAT A PASS CLOSES: DEMO_READINESS rows 5 / 7 and the Way B half of 13, and DEMO_RUNBOOK's 'UNVERIFIED as a single
+sequence' note (check 11j is then updated in the same commit). STP itself pushing stays owed to a session with the user.
