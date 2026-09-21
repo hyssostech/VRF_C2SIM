@@ -3047,6 +3047,63 @@ runs the clock SLOWER (COA-STP1 at scale was once measured at 0.27x, i.e. slower
 time, against R9's several-x). The app's own per-minute `SIM/WALL RATIO` line is the
 instrument for any given run - read it, never assume it.
 
+### 11g. DEFER, DO NOT ABORT - AN ORDER THAT RACES THE INITIALIZATION (D5b, 2026-09-21)
+
+`Vrf:DispatchReadinessTimeoutSeconds` (60, WALL seconds; 0 = the pre-2026-09-21 behaviour).
+
+WHAT IT FIXES. Run `20260921T072530Z_wayb` pushed the order **0.31 s** after the initialization.
+The interface DROPPED `T_R5_TK1` because `1.BdeHQ~PXY` "was not created" (`:150`) and created that
+unit TWO LOG LINES LATER (`:162`), and REFUSED `T_R5_PL1` because a live location "could not be
+read". The Way A control (`20260921T052350Z_run`) is the same build, init, order and terrain
+samples and differs in nothing but the order of two messages - what protects Way A is its runner's
+Stage 7 evidence gate, not a sleep. The window is as wide as the init's terrain-profile round trip:
+about 0.3 s when the query is answered, **up to `Vrf:TerrainProfileTimeoutSeconds` (10 s) when it
+is not**, and requests did time out in that run. Under `CreationPolicy=AtOrder` a platform created
+"in full" at init registers NO composition gate, which is why the existing wait machinery did not
+cover it (the four shell-backed taskees in that run deferred correctly and survived).
+
+THE FIVE STATES (`DispatchReadiness.cs`), and what each does now:
+
+| state | log token | today |
+|---|---|---|
+| not in the initialization | `NOT-IN-THE-INITIALIZATION` | **refused at once** - unchanged, and deliberately so |
+| planned, create not yet requested | `PLANNED-BUT-NOT-REQUESTED` | HELD |
+| requested, no object bound to the name | `REQUESTED-BUT-NOT-BOUND` | HELD |
+| bound, live location not readable yet | `BOUND-BUT-NOT-READABLE` | HELD |
+| bound and readable | `READY` | dispatched, with nothing logged and nothing waited for |
+
+WHAT AN OPERATOR SEES. One `WAITING FOR THE BACK END: task '<T>' held - unit <U> <state>` when a
+hold starts and one `... RELEASED` when it ends, reporting the wait in WALL seconds AND in task-
+clock seconds, each labelled. On expiry: the same TASKABRT the task would have got, with the state
+it was still in named and the wait reported. A hold ends EARLY, with the cause named, when STP-822
+declares the back end LOST - a stopped simulator produces `BOUND-BUT-NOT-READABLE` for as long as
+anyone cares to wait.
+
+THE INITIALIZATION BARRIER, AND `READY TO TASK`. The same setting holds an ORDER-TIME
+MATERIALIZATION until the init's own creates have bound, so the init's creations and the order's
+`DeleteObject` + re-create no longer land on the back end together (in D5b they were about a second
+apart, and the back end faulted 1.3 s after the order - UNDIAGNOSED, n=1; this removes the overlap,
+it does not explain the crash). When the last init object binds and one live location reads, the
+interface prints **`READY TO TASK - N of N init unit(s) bound ...`** - the line DEMO_RUNBOOK sec 4
+tells the operator to wait for, and the line a scripted Way B should poll. It is the Way B
+equivalent of Way A's Stage 7 oracle gate. If it is not reached in time the interface says
+`READY TO TASK - NOT REACHED within N s`, names what is missing, and releases the held work anyway:
+the barrier cannot wedge a run. An order that arrives before the line gets one WARNING saying so.
+
+OFFLINE PROOF, no bridge and no network: `VrfC2SimApp --dispatch-readiness-selftest` (38 checks -
+both D5b cases, the prompt refusal, the timeout, the liveness exit, the never-held invariant, the
+overlap and the barrier) and `--dispatch-readiness-selftest --disabled`, which runs the SAME
+assertions at `Vrf:DispatchReadinessTimeoutSeconds = 0` - the 1d0fb69 build - and FAILS 17 of them.
+
+KNOWN LIMIT, stated rather than designed around: an object whose name could not be attributed (a
+`NAME REBIND REFUSED` or an AMBIGUOUS truncation) is indistinguishable from a create that has not
+round-tripped, so it is held for the bound before reaching the abort it reaches today. Its own
+ERROR line is already printed at the instant it happens. Second limit: the composition gate's own
+backstop is `Vrf:CompositionTimeoutSeconds + 30` = 45 s, which is SHORTER than this default 60 s -
+so an init create that never binds for 45 s lets that backstop fire first, with its existing
+"dispatching anyway (move may drive an incomplete unit)" warning. That needs an init already
+broken enough to print `READY TO TASK - NOT REACHED`.
+
 ## 12. THE ROUTE PRE-FLIGHT (OFF) AND ITS LATERAL SHIFT (ON BY DEFAULT) (STP-804/806)
 
 Design: `docs/experiments/DESIGN_ROUTE_SHIFT_2026-09-15.md`. Evidence: FINDING_EARLY_STOPS

@@ -54,6 +54,11 @@ public static class DeferredDispatch
     /// inserted waypoints back into the dispatch (Vrf:PreflightRouteShift; STP-804/806).</summary>
     public const string RouteShiftContinuation = "the route-shift continuation";
 
+    /// <summary>Where a dispatch runs after its READINESS HOLD released it (D5b, 2026-09-21;
+    /// VrfC2SimService.HoldThenDispatchAsync) - the pass that would have been the first one had the
+    /// taskee been taskable when the task was ready.</summary>
+    public const string ReadinessRelease = "the dispatch released by the taskee-readiness hold";
+
     /// <summary>
     /// The sentence a dispatch that threw on the tick thread reports to C2SIM. The exception TYPE
     /// is in it as well as the message: a MissingMethodException from a stale native deploy (the

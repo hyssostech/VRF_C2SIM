@@ -113,6 +113,16 @@ if (args.Length > 0 && args[0] == "--routeshift-selftest")
 if (args.Length > 0 && args[0] == "--liveness-selftest")
     return LivenessSelfTest.Run(featureEnabled: !(args.Length >= 2 && args[1] == "--disabled"));
 
+// Offline DISPATCH-READINESS check (D5b, 2026-09-21): an order that races the initialization.
+// The two dispatch-time aborts run D5b hit - DROPPED for a unit created one second later, and
+// REFUSED for a location not yet reflected - now DEFER; an unknown taskee still aborts promptly;
+// the timeout names the state; a never-held task is unchanged; and the order-time materialization
+// no longer overlaps the init's own creates. `--disabled` re-runs the SAME assertions with
+// Vrf:DispatchReadinessTimeoutSeconds = 0 - the 1d0fb69 build - and MUST fail.
+// No bridge, no server, no network.
+if (args.Length > 0 && args[0] == "--dispatch-readiness-selftest")
+    return DispatchReadinessSelfTest.Run(featureEnabled: !(args.Length >= 2 && args[1] == "--disabled"));
+
 // Offline scripted-task variable check (V2): every ScriptVar kind -> the vendor's DtRw* binding and
 // back (VrfBridge.DescribeScriptVars; builds a real DtScriptedTaskTask, sends nothing). Loads the
 // bridge assembly, so the MAK bin dirs must be on PATH - like --typemap-selftest.
@@ -143,6 +153,7 @@ if (args.Length > 0 && args[0].StartsWith("--") && args[0] != "--runtime-check" 
                             "--placement/--compose/--arrival/--stall/--parse/--name/--preflight/--routeshift/--rulings/" +
                             "--routeextent-selftest, " +
                             "--liveness-selftest [--disabled], " +
+                            "--dispatch-readiness-selftest [--disabled], " +
                             "--scripted-task/--initgraphics/--stpexport-selftest, " +
                             "--parse-init <file> [clientId], " +
                             "--parse-order <file>, --runtime-check, host switches --Key=Value; " +
