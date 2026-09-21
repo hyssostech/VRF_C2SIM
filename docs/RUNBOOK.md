@@ -3018,15 +3018,35 @@ route origin is the **CENTROID OF THOSE CHILDREN'S OWN REFLECTED POSITIONS**, no
 published position. It is what the back end itself publishes once it settles (D8/N10: 5.9-18.5 m
 agreement from +20 s on), it is exact at rest by the ring's own construction, it needs no wait
 because the composition gate has already proved every child readable, and it follows the unit
-when it MOVES - which is why the authored coordinate was not used instead. The app prints ONE
-line per composed dispatch naming the origin used, the child count and the distance to the
-published position, and calls a gap above 10 m by its name (the re-compose transient).
+when it MOVES - which is why the authored coordinate was not used instead.
 
-**WHAT AN OPERATOR SEES.** On a healthy composed dispatch: `ROUTE ORIGIN for composed parent
-<name>: the CENTROID OF ITS N DECLARED CHILD UNIT(S) (N of N reflected), <lat>,<lon>. ...` If any
-declared child cannot be read, the line instead says `FALLING BACK to the parent's OWN PUBLISHED
-position` and states the exposure. **No partial centroid is ever computed** - a partial
-membership is exactly what the transient is.
+**WHAT AN OPERATOR SEES.** ONE line per composed dispatch, carrying the origin used, the child
+count, the MEASURED distance to the parent's published position, the full child roster (name,
+lat/lon to 6 dp, and which uuid each was read at) so the centroid can be re-derived from
+`vrfc2simapp.log` alone, and which uuid provenance each child had. Healthy:
+`ROUTE ORIGIN for composed parent <name>: the CENTROID OF ITS N DECLARED CHILD UNIT(S) (N of N
+reflected), <lat>,<lon>. ... Children: [...]`
+
+**THE LINE NEVER DIAGNOSES WITHOUT EVIDENCE.** It always prints the measured gap; it calls that
+gap a RE-COMPOSE TRANSIENT only when this parent's children were re-created within 30 s (the
+app's own stamps). Outside that window it says `NO TRANSIENT IS CLAIMED` and notes that a gap of
+that size is consistent with a unit under way - D8 measured 16-25 m between a MOVING company's
+published position and its direct children's centroid with no re-compose at all. The 30 s window
+comes from D5c's decay (48 m at +2 s, 15 m at +12 s, 9 m at +25 s, asymptote 7-8 m): past about
+25 s the transient is no longer separable from motion.
+
+**TWO LOUD FALLBACKS, both WARN, both self-sufficient** (they do not refer to a warning that may
+not exist - a dispatch can precede the re-creates entirely, D5c, and the readiness check gates on
+the PARENT, not on its children):
+- `FALLING BACK ... only M of N declared child unit(s) can be read with a usable position` -
+  **no partial centroid is ever computed**, because a partial membership is exactly what the
+  transient is.
+- `FALLING BACK ... declared child <name> is N m out, past the <B> m plausibility bound` - the
+  absolute net is 4,000 m from the parent's published position (every N); for three or more
+  children there is also a relative net, max(4 x the median child radius about the children's own
+  median, 1,000 m). It catches a child created but never positioned, and the realistic case of a
+  child TASKED INDEPENDENTLY and driven away, which would otherwise drag both the route origin
+  and the STP-833 extent anchor measured from it.
 
 KNOWN LIMITS of the N13 fix:
 - **R1 POSITION REPORTS ARE STILL EXPOSED.** The periodic PositionReport for a composed parent
@@ -3034,13 +3054,41 @@ KNOWN LIMITS of the N13 fix:
   carries the transient value (up to the ring radius out). Unchanged deliberately: R1's contract
   is to report the simulation's own answer, the error is transient and self-correcting, and
   synthesising a centroid there changes what EVERY aggregate reports for the whole run. That is a
-  ruling, not a bug fix.
-- The FALLBACK arm's exposure is the full ring radius (202.1 m on R9 lean; 806.7 m on R9 full at
-  N=7 if `Vrf:DeStackEchelonFallbackMeters` is ever set). It is reached only when a child never
-  reflected, which already logs its own warning.
-- A parent with ONE declared child is not covered (a lone child is not spread, so there is no
-  ring to average).
-- Untested at scale and untested on Iron Storm.
+  ruling, not a bug fix. Consequence to state once in any prereg: during the transient the
+  arrival rule's d0 comes from the children while R1 reports the parent, and the two differ by up
+  to R/2 for a few seconds. No consumer compares them.
+- **THE UNWEIGHTED CENTROID IS EVIDENCED ONLY FOR EQUAL CHILDREN.** D8 settled "the vendor
+  publishes the direct children's centroid" on THREE IDENTICAL mech platoons, where weighted and
+  unweighted are indistinguishable, and even there the residual is 5.9-18.5 m, not 0. For a
+  parent with children of unequal size the claim that this is what the back end converges to is
+  UNVERIFIED. The origin is still defensible - it is the fleet's own centre - but the
+  justification is broader than the evidence. Open question, not a settled mechanism.
+- **NESTED COMPOSITION IS ONLY PARTIALLY COVERED.** For battalion -> company -> platoon, the
+  order-time materialization re-creates the GRANDCHILDREN while the companies' own objects
+  survive, so the battalion's DIRECT children are each themselves publishing a mixture-centroid
+  during their own transient. The battalion's origin then averages three transient values instead
+  of reading one: better than before, not exact. The general answer is to recurse to the nearest
+  non-composed descendants. Neither R9 lean (one 2-level parent) nor Iron Storm reaches this.
+- **A PARENT WITH ONE DECLARED CHILD IS EXCLUDED, SILENTLY.** It takes the unchanged path: the
+  parent's own published position, and NO line at all. For N=1 the vendor publishes the parent at
+  its single child's position and during that child's re-create the membership is EMPTY - the
+  worst mixture there is - so this is the one shape where the fix would help most and does
+  nothing. No shipped fixture has one.
+- **N=2 HAS NO RELATIVE OUTLIER TEST** - an outlier needs a majority to define "normal", and with
+  two children there is no way to say which is the stray. The 4,000 m absolute net is the whole
+  guard there.
+- **IRON STORM CUT A EXERCISES NONE OF THIS.** Its only two declared parents (28ID, III Corps)
+  map to PLATFORMS, which compose nothing, so no `_declaredChildNamesByParent` entry is written
+  and all three taskees take the unchanged path. The fallback frequency on the demo scenario is
+  zero - and so is the coverage. **Only R9 lean exercises N13.**
+- **THE OFFLINE SUITE COVERS THE PURE POLICY ONLY** (`--routeorigin-selftest`). These service
+  facts are live-run-only and are NOT asserted anywhere offline: that the reflection-proven uuid
+  is preferred over the name registry; that both N13 maps are cleared when a new init arms the
+  barrier; that the line is emitted exactly ONCE per task across the three `ExecuteTaskOnTick`
+  re-entries; that the policy's origin (not the published read) is what actually reaches
+  `routeGeo[0]`, `MarkDispatched`, the extent anchor and the terrain `entityAlt`; and the emitted
+  text of the new C13 / barrier / MATERIALIZE lines.
+- Untested at scale.
 - The instrument that goes with it: the case-3 MATERIALIZE lines now carry WALL stamps and print
   the **delete-issued -> readable round trip** in seconds, so the next harvest measures it instead
   of bounding it from a 2 s trace sample (D9 sec 4.3(b), D5c sec 8).

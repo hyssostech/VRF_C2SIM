@@ -391,7 +391,13 @@ public sealed class VrfC2SimService : BackgroundService
     private readonly ConcurrentDictionary<string, string> _reflectedUuidByName = new(StringComparer.Ordinal);
     // N13 / STP-854: unit name -> WALL time the case-3 delete was enqueued, so ReleaseReflected can
     // print the delete -> readable round trip instead of leaving it to be inferred from a trace.
+    // RETAINED after the round trip is printed (cold-start review SF-1): it is also the evidence
+    // that licenses the words "re-compose transient" on the ROUTE ORIGIN line.
     private readonly ConcurrentDictionary<string, DateTime> _recreateIssuedUtc = new(StringComparer.Ordinal);
+    // N13/SF-1: unit name -> WALL time its re-created object first became readable. With the issue
+    // stamp above, these two bound the window in which a composed parent's published position is
+    // sweeping; outside it, a gap is NOT diagnosed as a transient.
+    private readonly ConcurrentDictionary<string, DateTime> _recreateReleasedUtc = new(StringComparer.Ordinal);
     // Serialises the two init deliveries (late-join QUERYINIT on the ExecuteAsync thread, a broadcast
     // on the STOMP pump): the duplicate guard is check-then-set and the per-superior child lists are
     // plain List<string>.
@@ -2630,7 +2636,8 @@ public sealed class VrfC2SimService : BackgroundService
             // 4.3(b) asked for exactly this, and the D5c harvest had to bound every create-to-delete
             // gap at 0.05-0.6 s for want of it). _recreateIssuedUtc is stamped where the delete is
             // enqueued; this is where the replacement became readable.
-            string roundTrip = _recreateIssuedUtc.TryRemove(kv.Key, out var issuedUtc)
+            _recreateReleasedUtc[kv.Key] = now;
+            string roundTrip = _recreateIssuedUtc.TryGetValue(kv.Key, out var issuedUtc)
                 ? " Re-create round trip (delete issued -> readable): "
                   + (now - issuedUtc).TotalSeconds.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)
                   + " s."
@@ -2707,6 +2714,42 @@ public sealed class VrfC2SimService : BackgroundService
         return children;
     }
 
+    /// <summary>
+    /// N13 / SF-1 (cold-start review of a34c35b): HOW LONG AGO this composed parent's declared
+    /// children were last delete/re-created, in WALL seconds, or NaN when no such stamp exists.
+    /// This is the ONLY evidence that licenses the ROUTE ORIGIN line to call a gap between the
+    /// parent's published position and its children's centroid a RE-COMPOSE TRANSIENT.
+    ///
+    /// WHY IT IS NEEDED. <see cref="RouteOriginPolicy"/> is pure and cannot tell a transient from a
+    /// unit under way, and D8 measured 16-25 m between a MOVING company's published position and its
+    /// direct children's centroid with NO re-compose in flight at all (d8_harvest_report.md:278-290).
+    /// Without this, every second task on a composed parent would have printed a diagnosis of a
+    /// re-compose that did not happen, and a harvest greps that string as fact.
+    ///
+    /// THE MOST RECENT of the RELEASE stamps (the re-created object became readable) and, for a
+    /// child whose re-create is still outstanding, the ISSUE stamp (the delete was enqueued) - a
+    /// re-create still in flight is the most transient state there is, and D5c showed a dispatch
+    /// can reach here before any release. Tick thread; the maps are concurrent and are cleared when
+    /// a new initialization arms the barrier.
+    /// </summary>
+    private double SecondsSinceChildRecompose(IReadOnlyList<string> childNames)
+    {
+        if (childNames == null || childNames.Count == 0) return double.NaN;
+        var now = DateTime.UtcNow;
+        double best = double.NaN;
+        foreach (var childName in childNames)
+        {
+            DateTime? when = null;
+            if (_recreateReleasedUtc.TryGetValue(childName, out var released)) when = released;
+            if (_recreateIssuedUtc.TryGetValue(childName, out var issued)
+                && (when == null || issued > when.Value)) when = issued;
+            if (when == null) continue;
+            double age = (now - when.Value).TotalSeconds;
+            if (double.IsNaN(best) || age < best) best = age;
+        }
+        return best;
+    }
+
     // ================= DEFER, DO NOT ABORT (D5b, 2026-09-21) =================
 
     /// <summary>
@@ -2727,6 +2770,7 @@ public sealed class VrfC2SimService : BackgroundService
         // the barrier, for the same reason _initPlannedNames is dropped: they describe ONE init.
         _reflectedUuidByName.Clear();
         _recreateIssuedUtc.Clear();
+        _recreateReleasedUtc.Clear();
         foreach (var p in plans)
         {
             if (string.IsNullOrEmpty(p.Name)) continue;
@@ -3859,13 +3903,17 @@ public sealed class VrfC2SimService : BackgroundService
         // with the shifted route built from it, pass 3 with the terrain-authored one).
         if (terrainRoute == null && shiftedRoute == null)
         {
-            string originLine = RouteOriginPolicy.Line(unit.Name, originDecision, originChildren);
+            // SF-1: the line may only DIAGNOSE a re-compose transient on this evidence. Nothing in
+            // the pure policy can tell one from a moving company (D8: 16-25 m with no re-compose).
+            _declaredChildNamesByParent.TryGetValue(unit.Name, out var originChildNames);
+            string originLine = RouteOriginPolicy.Line(unit.Name, originDecision, originChildren,
+                                                       SecondsSinceChildRecompose(originChildNames));
             if (originLine != null)
             {
-                if (originDecision.From == RouteOriginPolicy.Source.ChildrenUnreadable)
-                    _log.LogWarning("{Line}", originLine);
-                else
+                if (originDecision.From == RouteOriginPolicy.Source.ChildrenCentroid)
                     _log.LogInformation("{Line}", originLine);
+                else
+                    _log.LogWarning("{Line}", originLine);   // both fallback arms are WARN
             }
         }
         var origin = new Geodetic

@@ -120,7 +120,8 @@ public static class RouteOriginSelfTest
               $"traversal bar {F(Math.Max(0.5 * goodLen, 100.0), 0)} m (D8's 556)",
               Math.Abs(ArrivalPolicy.RadiusFor(500.0, goodLen) - 278.0) < 1.5
               && Math.Abs(Math.Max(0.5 * goodLen, 100.0) - 556.0) < 2.0);
-        string line = P.Line("114.MechCoy~PXY", o, children);
+        // 2.0 s since the re-create: D9's own dispatch was order+2.40 s, inside the window.
+        string line = P.Line("114.MechCoy~PXY", o, children, 2.0);
         Console.WriteLine("        line: " + line);
         Check("the line names the unit, says CENTROID, gives the count and calls the gap by its name",
               line != null
@@ -129,13 +130,63 @@ public static class RouteOriginSelfTest
               && line.Contains("RE-COMPOSE TRANSIENT", StringComparison.Ordinal)
               && line.Contains("50.4 m", StringComparison.Ordinal));
 
+        Console.WriteLine("--- 3-SF1. THE TRANSIENT IS A DIAGNOSIS AND IT NEEDS EVIDENCE");
+        // D8 sec 2.4 measured 16-25 m between a MOVING company's published position and its direct
+        // children's centroid with NO re-compose in flight. The old line called any gap over 10 m a
+        // re-compose transient, so a second task would have printed a diagnosis of something that
+        // did not happen - and a harvest greps that string as fact.
+        Check("re-create 2.0 s ago (inside the 30 s window) -> the transient IS claimed, with the age",
+              line.Contains("re-created 2.0 s ago", StringComparison.Ordinal)
+              && line.Contains("RE-COMPOSE TRANSIENT", StringComparison.Ordinal));
+        string moving = P.Line("114.MechCoy~PXY", o, children, 120.0);
+        Console.WriteLine("        line (no recent re-create): " + moving);
+        Check("THE SAME 50.4 m GAP, re-created 120 s ago -> NO TRANSIENT IS CLAIMED, and the line says " +
+              "what such a gap IS consistent with (D8's 16-25 m on a moving company)",
+              !moving.Contains("RE-COMPOSE TRANSIENT", StringComparison.Ordinal)
+              && moving.Contains("NO TRANSIENT IS CLAIMED", StringComparison.Ordinal)
+              && moving.Contains("consistent with a unit under way", StringComparison.Ordinal)
+              && moving.Contains("16-25 m", StringComparison.Ordinal));
+        // NOTE the trap this check was written to avoid: the transient arm's prose CITES D9's
+        // "50.4 m of origin error", so asserting the literal "50.4 m" would pass on the citation
+        // and say nothing about the MEASURED value. Assert the measured number, formatted as the
+        // line formats it (50.5 m here - the reconstructed ring is 0.07 m off D9's printed 50.4).
+        Check($"... and it still prints the MEASURED gap ({F(o.PublishedOffsetMeters, 1)} m), which is the " +
+              "fact, not the diagnosis",
+              moving.Contains("differs by " + F(o.PublishedOffsetMeters, 1) + " m", StringComparison.Ordinal)
+              && line.Contains("differs by " + F(o.PublishedOffsetMeters, 1) + " m", StringComparison.Ordinal));
+        string noStamp = P.Line("114.MechCoy~PXY", o, children, double.NaN);
+        Check("no re-create on record at all -> also no transient, and it says there is no record",
+              !noStamp.Contains("RE-COMPOSE TRANSIENT", StringComparison.Ordinal)
+              && noStamp.Contains("no re-creation of this parent's declared children is on record",
+                                  StringComparison.Ordinal));
+        Check($"the window is {F(P.RecomposeRecentSeconds, 0)} s, and it is a boundary not a cliff: 29.9 s " +
+              "claims the transient, 30.1 s does not",
+              P.Line("x", o, children, 29.9).Contains("RE-COMPOSE TRANSIENT", StringComparison.Ordinal)
+              && !P.Line("x", o, children, 30.1).Contains("RE-COMPOSE TRANSIENT", StringComparison.Ordinal));
+        Check("the ORIGIN is identical on all three wordings - evidence changes the sentence, never the " +
+              "answer", o.LatDeg == P.Decide(TransientLat, TransientLon, 1275.0, children).LatDeg);
+
+        Console.WriteLine("--- 3-SF3. THE CHILD ROSTER IS IN THE LINE, SO THE CENTROID IS RE-DERIVABLE FROM IT");
+        foreach (var c in children)
+            Check($"{c.Name} appears with its coordinate to 6 dp and its uuid provenance",
+                  line.Contains(c.Name + " " + c.LatDeg.ToString("F6", CultureInfo.InvariantCulture) + ","
+                                + c.LonDeg.ToString("F6", CultureInfo.InvariantCulture)
+                                + " (reflection-proven uuid)", StringComparison.Ordinal));
+        Check("the roster is labelled and bracketed so a parser can find it",
+              line.Contains("Children: [", StringComparison.Ordinal));
+
         Console.WriteLine("--- 3a. WHICH UUID 'THE CHILD' MEANS IS SAID, NOT ASSUMED (the rebind window)");
         Check("all three read at a reflection-proven uuid -> the line says none can be a deleted shell",
               line.Contains("none of them can be a deleted shell", StringComparison.Ordinal));
         var viaRegistry = new List<P.Child>(children);
         viaRegistry[2] = viaRegistry[2] with { ReflectionProven = false };
         var oReg = P.Decide(TransientLat, TransientLon, 1275.0, viaRegistry);
-        string regLine = P.Line("114.MechCoy~PXY", oReg, viaRegistry);
+        string regLine = P.Line("114.MechCoy~PXY", oReg, viaRegistry, 2.0);
+        Check("... and the roster marks THAT child 'name-registry uuid' while the others stay " +
+              "'reflection-proven uuid'",
+              regLine.Contains("1143.MechPlt 34.649443,-116.693388 (name-registry uuid)", StringComparison.Ordinal)
+              && regLine.Contains("1141.MechPlt 34.646723,-116.691479 (reflection-proven uuid)",
+                                  StringComparison.Ordinal));
         Check("one read through the NAME REGISTRY instead -> the line counts it and says why it is still " +
               "the same point (one de-stacked placement for a shell and its replacement)",
               regLine.Contains("1 of them were read at the uuid the name registry currently resolves",
@@ -157,9 +208,10 @@ public static class RouteOriginSelfTest
         var oRest = P.Decide(AuthoredLat, AuthoredLon, 1275.0, children);
         Check($"published offset {F(oRest.PublishedOffsetMeters, 3)} m - under the {F(P.TransientCallMeters, 0)} m " +
               "threshold, so no transient is claimed", oRest.PublishedOffsetMeters < P.TransientCallMeters);
-        string restLine = P.Line("114.MechCoy~PXY", oRest, children);
-        Check("the at-rest line says AGREES and does NOT claim a transient",
-              restLine.Contains("agrees to", StringComparison.Ordinal)
+        string restLine = P.Line("114.MechCoy~PXY", oRest, children, 2.0);
+        Check("the at-rest line reports the measured gap and does NOT claim a transient - even with a " +
+              "re-create 2.0 s ago, because there is nothing to diagnose",
+              restLine.Contains("differs by 0.0 m", StringComparison.Ordinal)
               && !restLine.Contains("RE-COMPOSE TRANSIENT", StringComparison.Ordinal));
 
         Console.WriteLine("--- 4. A MOVED UNIT MUST NOT SNAP BACK TO ITS AUTHORED COORDINATE");
@@ -189,13 +241,25 @@ public static class RouteOriginSelfTest
               oPart.From == P.Source.ChildrenUnreadable && oPart.Readable == 2 && oPart.Declared == 3);
         Check("the origin is the published position BIT-FOR-BIT (no arithmetic touched it)",
               oPart.LatDeg == TransientLat && oPart.LonDeg == TransientLon && oPart.AltMeters == 1275.0);
-        string partLine = P.Line("114.MechCoy~PXY", oPart, partial);
+        string partLine = P.Line("114.MechCoy~PXY", oPart, partial, 2.0);
         Console.WriteLine("        line: " + partLine);
         Check("the fallback line names the unreadable child, says NO PARTIAL CENTROID, and states the exposure",
               partLine.Contains("FALLING BACK", StringComparison.Ordinal)
-              && partLine.Contains("1141.MechPlt", StringComparison.Ordinal)
+              && partLine.Contains("not usable: [1141.MechPlt]", StringComparison.Ordinal)
               && partLine.Contains("NO PARTIAL CENTROID IS COMPUTED", StringComparison.Ordinal)
               && partLine.Contains("ring radius", StringComparison.Ordinal));
+        // SF-2: the old line said "a child that never reflected has already been reported above".
+        // D5c proved a dispatch can precede the re-creates entirely, and the readiness classification
+        // gates on the PARENT, so that warning may not exist. The line must stand on its own.
+        Check("SF-2: the line does NOT point at a warning that may not exist, and says why",
+              !partLine.Contains("already been reported above", StringComparison.Ordinal)
+              && partLine.Contains("THIS LINE IS THE REPORT", StringComparison.Ordinal)
+              && partLine.Contains("gates on the PARENT", StringComparison.Ordinal));
+        Check("SF-2/SF-3: it carries the full per-child roster, so the state of every child is in the " +
+              "line itself",
+              partLine.Contains("1141.MechPlt NOT READABLE", StringComparison.Ordinal)
+              && partLine.Contains("1142.MechPlt 34.646723,-116.695296", StringComparison.Ordinal)
+              && partLine.Contains("1143.MechPlt 34.649443,-116.693388", StringComparison.Ordinal));
         // The point of refusing a partial centroid, in numbers: averaging the two readable children
         // would land on the R/2 transient state itself.
         var twoOnly = new List<P.Child> { children[1], children[2] };
@@ -204,6 +268,104 @@ public static class RouteOriginSelfTest
               $"{F(Gc(AuthoredLat, AuthoredLon, oTwo.LatDeg, oTwo.LonDeg), 1)} m out - i.e. R/2, which is " +
               "EXACTLY the transient state D9 saw at order-0.20 s",
               Math.Abs(Gc(AuthoredLat, AuthoredLon, oTwo.LatDeg, oTwo.LonDeg) - RingRadiusM / 2.0) < 2.0);
+
+        Console.WriteLine("--- 5b. SF-4: AN IMPLAUSIBLE CHILD IS REFUSED, NOT AVERAGED");
+        // FAIL-FIRST, stated as the measurement the guard exists to prevent: without it, ONE child
+        // driven away drags the origin by (its displacement / N) - and the STP-833 extent check is
+        // anchored on that same poisoned point, so it cannot catch it either.
+        var strayPos = AtBearing(AuthoredLat, AuthoredLon, 9000.0, 90.0);
+        var stray = new List<P.Child>(children);
+        stray[1] = stray[1] with { LatDeg = strayPos.Lat, LonDeg = strayPos.Lon };
+        double unguarded;
+        {
+            // what an UNGUARDED mean would have produced, computed here so the cost is a number
+            double n = 0.0, e = 0.0;
+            double mLon = P.MetersPerDegLat * Math.Cos(AuthoredLat * Math.PI / 180.0);
+            foreach (var c in stray)
+            {
+                n += (c.LatDeg - AuthoredLat) * P.MetersPerDegLat;
+                e += (c.LonDeg - AuthoredLon) * mLon;
+            }
+            unguarded = Math.Sqrt(n * n + e * e) / 3.0;
+        }
+        Check($"THE DEFECT THIS PREVENTS: one child 9,000 m away would move the origin {F(unguarded, 0)} m " +
+              "(displacement / N) and poison the STP-833 anchor with it", unguarded > 2500.0);
+        var oStray = P.Decide(TransientLat, TransientLon, 1275.0, stray);
+        Check("source = ChildOutlier; the origin is the published position BIT-FOR-BIT",
+              oStray.From == P.Source.ChildOutlier
+              && oStray.LatDeg == TransientLat && oStray.LonDeg == TransientLon
+              && oStray.AltMeters == 1275.0);
+        Check($"the outlier is NAMED ({oStray.OutlierName}) with its distance {F(oStray.OutlierMeters, 0)} m " +
+              $"against the {F(oStray.BoundMeters, 0)} m bound - the ABSOLUTE net fires first here",
+              oStray.OutlierName == "1142.MechPlt" && oStray.OutlierMeters > 8000.0
+              && Math.Abs(oStray.BoundMeters - P.MaxChildFromPublishedMeters) < 1e-9);
+        string strayLine = P.Line("114.MechCoy~PXY", oStray, stray, 2.0);
+        Console.WriteLine("        line: " + strayLine);
+        Check("the line falls back LOUDLY, names the outlier and its distance, and names the realistic cause",
+              strayLine.Contains("FALLING BACK", StringComparison.Ordinal)
+              && strayLine.Contains("declared child 1142.MechPlt is", StringComparison.Ordinal)
+              && strayLine.Contains("plausibility bound", StringComparison.Ordinal)
+              && strayLine.Contains("TASKED", StringComparison.Ordinal)
+              && strayLine.Contains("Children: [", StringComparison.Ordinal));
+        // A child at 0,0 - created but never positioned.
+        var atNull = new List<P.Child>(children);
+        atNull[0] = atNull[0] with { LatDeg = 0.0, LonDeg = 0.0 };
+        var oNull = P.Decide(TransientLat, TransientLon, 1275.0, atNull);
+        Check("a child at 0,0 (created but never positioned) is refused too",
+              oNull.From == P.Source.ChildOutlier && oNull.OutlierName == "1141.MechPlt");
+        // A non-finite coordinate is not even arithmetic - it is treated as unreadable.
+        var nan = new List<P.Child>(children);
+        nan[2] = nan[2] with { LatDeg = double.NaN };
+        Check("a NON-FINITE coordinate is classified UNREADABLE, never averaged and never NaN-propagated",
+              P.Decide(TransientLat, TransientLon, 1275.0, nan).From == P.Source.ChildrenUnreadable
+              && !P.IsUsableCoordinate(nan[2]));
+        // THE GUARD MUST NOT FIRE ON ANYTHING LEGITIMATE.
+        Check("the healthy D9 ring PASSES the bound (it must not fire on the fixture it was built for)",
+              o.From == P.Source.ChildrenCentroid);
+        Check("the MOVED fleet passes", oMoved.From == P.Source.ChildrenCentroid);
+        // D8 sec 2.5's worst observed mid-move stretch: separations 35-486 m against 348-349 m at
+        // rest, i.e. about 280 m from the centre on a 202 m ring. Reproduce that spread and require
+        // the guard to stay silent.
+        var stretched = new List<P.Child>
+        {
+            children[0] with { LatDeg = AtBearing(AuthoredLat, AuthoredLon, 280.0, 120.0).Lat,
+                               LonDeg = AtBearing(AuthoredLat, AuthoredLon, 280.0, 120.0).Lon },
+            children[1] with { LatDeg = AtBearing(AuthoredLat, AuthoredLon, 280.0, 240.0).Lat,
+                               LonDeg = AtBearing(AuthoredLat, AuthoredLon, 280.0, 240.0).Lon },
+            children[2] with { LatDeg = AtBearing(AuthoredLat, AuthoredLon, 280.0, 0.0).Lat,
+                               LonDeg = AtBearing(AuthoredLat, AuthoredLon, 280.0, 0.0).Lon },
+        };
+        Check("D8's WORST observed mid-move stretch (486 m separations, ~280 m radius) passes - the " +
+              "guard cannot fire on a legitimately spread formation",
+              P.Decide(TransientLat, TransientLon, 1275.0, stretched).From == P.Source.ChildrenCentroid);
+        Check($"the floor is {F(P.OutlierFloorMeters, 0)} m, above the longest shipped GROUND formation " +
+              "span (660 m, RUNBOOK 11e), so a unit's own members can never trip it",
+              P.OutlierFloorMeters > 660.0);
+        Check($"K = {F(P.OutlierFactor, 0)}: on the 202.1 m ring the bound is the floor, and on a ring big " +
+              "enough for K to bind (806.7 m, R9 full at N=7) it is " +
+              $"{F(P.OutlierFactor * 806.7, 0)} m - about 3x D8's worst stretch",
+              Math.Max(P.OutlierFactor * RingRadiusM, P.OutlierFloorMeters) == P.OutlierFloorMeters
+              && P.OutlierFactor * 806.7 > 3.0 * 280.0);
+        // TWO CHILDREN: the RELATIVE net cannot run (no majority to say which of two is the stray),
+        // so the absolute net is the whole guard. This is a declared limit, asserted so it cannot
+        // change silently.
+        var twoFar = new List<P.Child>
+        {
+            children[0] with { LatDeg = AtBearing(AuthoredLat, AuthoredLon, 1500.0, 0.0).Lat,
+                               LonDeg = AtBearing(AuthoredLat, AuthoredLon, 1500.0, 0.0).Lon },
+            children[1] with { LatDeg = AtBearing(AuthoredLat, AuthoredLon, 1500.0, 180.0).Lat,
+                               LonDeg = AtBearing(AuthoredLat, AuthoredLon, 1500.0, 180.0).Lon },
+        };
+        Check("N=2: a 3,000 m-separated pair is ACCEPTED - the relative net needs a majority and does " +
+              "not run, and both children are inside the absolute net",
+              P.Decide(AuthoredLat, AuthoredLon, 1275.0, twoFar).From == P.Source.ChildrenCentroid);
+        var twoStray = new List<P.Child>
+        {
+            children[0],
+            children[1] with { LatDeg = strayPos.Lat, LonDeg = strayPos.Lon },
+        };
+        Check("N=2: but a child 9,000 m out is still caught, by the absolute net",
+              P.Decide(TransientLat, TransientLon, 1275.0, twoStray).From == P.Source.ChildOutlier);
 
         Console.WriteLine("--- 6. INDEPENDENT TASKEES AND PLATFORMS ARE BYTE-FOR-BYTE UNCHANGED");
         foreach (var (what, kids) in new (string, IReadOnlyList<P.Child>)[]
