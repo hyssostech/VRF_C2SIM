@@ -509,3 +509,95 @@ D5c AMENDMENT A1 (2026-09-21 ~10:00Z, registered BEFORE the run; supersedes the 
   delete-and-recreate landing ~1 s after the init's create, and P-FAULT moves from conf 0.7 to 0.8 (HIGH): with the init
   creation barrier in, no back-end fault is expected. It remains n=1, and the vendor race itself is not removed - a
   fault in D5c would say the barrier does not open a wide enough gap, not that the diagnosis class is wrong.
+
+---
+
+## 15. D5c RESULT (run 20260921T100024Z_wayb, launched 10:00:24Z) - EVERY HIGH LIMB MET; the first completed tasking on the hand-started path
+
+- P-STEP1/P-STEP2/P-SERVER/P-STEP3/P-TILES HIT as sections 2-5 predicted; W-STEP1 2.06 s, W-STEP2 24.6 s (holder pid
+  34748, appNo 9190, joined attempt 1/2; zero federation create/destroy in 196,874 rtiexec log lines), W-STEP3 10.09 s.
+- P-RID HIT: the observer's only `Loading Config File` line names `config\rid-501-rtiexec-min.mtl`; zero occurrences of
+  "assistant" anywhere in the trace; no rtiAssistant process at any point (pre-run, manifest conditions, post-run
+  inventory, post-gates); WatchVrf (pid 75684) appears in the rtiexec log with BOTH a join and a resign line and exits
+  0 on its stop-file, 4.03 s inside the 90 s grace - the first time the observer has worked on Way B at all.
+- P-READY HIT: `INIT CREATION BARRIER: 6 object(s) ... (5 empty shell(s)) ... (20 s)` once, before `Init dispatched`;
+  `READY TO TASK - 6 of 6 ... after 0.9 s` once, not the NOT-REACHED variant. 5 is right (D9 already settled this; the
+  build report's offline 4 was wrong); the C13 line still separately mislabels a platform count (N15, unfixed here).
+- P-HOLD HIT: 0 `has no VR-Forces object bound`, 0 `live location could not be read`; exactly 2 held == 2 released
+  (0.56 s and 0.10 s of WALL, both far under the printed 60 s bound - one setting, reported as two different numbers
+  in two lines, a reporting defect not a behavioural one); `MATERIALIZE ... HELD` fires exactly twice as predicted;
+  `ORDER BEFORE READY TO TASK` fired with 0 of 6 bound, consistent with RUNBOOK 11g.
+- P-OVERLAP HIT: the first order-driven delete follows the last init PLACEMENT, the PLACEMENT summary AND READY TO
+  TASK - certain from log ordering alone, independent of any derived timestamp.
+- P-OUTCOME (completion) HIT: 3/3 TASKCMPLT, 0 TASKABRT, 170 captured bodies, 0 failed.
+- P-OUTCOME (numbers): HIT against the REGISTERED comparator (D9) - T_R5_TK1 -8.3%, T_R5_PL1 +1.2%, T_R5_CO1 +0.4%, all
+  inside +/-12%; against D8's parenthesised figures T_R5_TK1 is +16.8% and would MISS, but that reading is not the
+  registered one and both are recorded. T_R5_TK1's band is not a meaningful signal either way - one 5 WALL s arrival-
+  check quantum is 17.3% of its own SIM value at this run's ratio (D9's N14, reconfirmed): D9/D5c/D8 close at three
+  different check slots (160/230/273 m short) on essentially the same drive. The two LONG tasks agree to within 1.2%
+  across all three runs.
+- P-OUTCOME (ratio) HIT: movement-window ratio 3.273 (D9 3.195, D8 3.362) - nowhere near the 1.0 dead-back-end signature.
+- P-FAULT HIT: no `.dmp`/`.callstack.log` for this run's back-end pid 44564; the only such pair in `C:\MAK\logs` is
+  D5b's pid 29280, hours earlier; 0 `BACK END LOST`; no frozen position reports (every unit's first repeated coordinate
+  falls AFTER that unit's own completion).
+- P-STOP HIT: StopIface, the interface's own clean exit (9 deletes dispatched before resign), WatchVrf/ListenReports
+  exit on the stop-file, StopVrf52 clean, RTI preserved, verdict PASS.
+- Seat gates PASS: R-1 exe hash identical pre/post; R-2 both connection configs identical.
+
+THE RACE, TO THE MILLISECOND: STP-852 bought ORDERING, not wall-clock separation. Every one of the four delete/re-create
+gaps this run is bounded at 0.05-0.6 s (derived from the two printed hold durations, corroborated independently by
+none of the four shell uuids ever appearing in the observer trace) - NO WIDER than D5b's ~1.3 s unordered burst. The
+delete now provably follows a CONFIRMED completion of all six init creates; the wall gap it opened did not grow.
+
+N13/STP-855 is NOT FIXED - D5c AVOIDED IT BY TIMING, exactly as N13/D9 predicted. The route-geometry request for
+T_R5_CO1 went out BEFORE the re-creates were issued, so `Terrain profile reply 17` read the authored coordinate at
+0.0 m offset and the route came back at D8's exact 1,112/556/278 (not D9's 1,139/569/285). The transient itself IS
+present here too - the first post-materialization sample is 48.2 m at bearing 118.4 deg (the same R/4-at-120 signature
+D9 measured at 50.4 m/119.9 deg), decaying under 15 m by about +12 s and under 10 m by about +24 s. D5c won this race
+by 0.39 s (D8 by 0.5 s; D9 lost it by 0.6 s). The code still reads the parent immediately once the children reflect;
+nothing arbitrates the race. D9's recommended fix - build the origin from the children's own positions - remains the
+one to build; a convergence gate on the parent's own position would cost 10-25 s on the dispatch path.
+
+WHAT THIS RUN CANNOT CLAIM ABOUT STP-854: n=1 clean after n=1 crash is not a rate, and the vendor race itself is not
+removed by anything in this code. AT LEAST THREE THINGS CHANGED BETWEEN D5b AND D5c BESIDES THE BARRIER, and D5c
+removes them all at once - the binary (1d0fb69 -> 4f1f149), no rtiAssistant existing at any point (A1's ruling), and
+the observer joining properly on our rid (P-RID). The clean result CANNOT be attributed to the barrier alone on this
+run. The one further run worth its cost, NOT a D5c repeat: D5b's exact configuration on the NEW binary with the
+barrier DISABLED - if the back end faults, the barrier is what saved D5c and MAK gets a reproducible case; if it
+survives, D5b's crash belonged to the harness (the machine-rid observer and the rtiAssistant it spawned) and STP-852
+never had to prevent a crash at all. STP-854 stays open either way, as sec 14 registered it would.
+
+P-CONSOLE's registered PROSE IS FALSIFIED, though the limb still scores HIT: four `Giving up on movement task` lines
+appear at `:442-448` for four company members even though `appsettings.Demo.json` sets both console notify levels to
+-1 - some level-1 vendor console traffic reaches the app unbidden regardless of the setting. Way B is NOT blind to
+the give-up instrument the way sec 3's "cannot reproduce D8's P2/P6 at all" claimed; that registered blind spot is
+narrower than stated and should be corrected rather than carried forward unexamined.
+
+ORCHESTRATOR RESIDUE, not fixed by UPDATE 4: `manifest.timestamps.orderPushedUtc` is still ~60 s late (it records
+PushOrder's exit, the same D5b defect); D-5 (the order pushed 0.349 s after PushInit returns) is declared in this
+prereg but still missing from the manifest's own `deviations` list.
+
+READINESS: this run VERIFIES Way B live, as typed, for the first time - `docs\DEMO_RUNBOOK.md` sec 2 -> 3 -> 4 -> 7,
+steps 1-3, the loud server line, init + order, 3/3 TASKCMPLT, a joined observer on our own rid with no rtiAssistant
+anywhere, no back-end fault, no survivors, verdict PASS. Per sec 14's own "WHAT A PASS CLOSES": this CLOSES
+DEMO_READINESS rows 5 and 7 and the Way B half of row 13, with the standing deviations D-3 (the two harness
+observers), D-4 (the orchestrator asserts the server line instead of a human reading it) and D-5 (the 0.349 s
+init-order gap) named rather than hidden. STILL OWED, and none of it closed by this run: STP itself pushing (a
+session with the user at the keyboard); a human reading the READY/READY-TO-TASK/server lines or the GUI; the standard
+8080/61613 server (this ran on the private 18080/61614 pair); Iron Storm (this is R9_Mojave_Empty_52, not the demo
+scenario); STP-853 (untested here - nothing died); N13/STP-855 (unfixed, avoided by timing).
+
+VERIFIED vs ASSUMED (from the harvest sec 10, in its sense). VERIFIED: every step exit code and UTC stamp; the RID and
+SERVER gate texts; the observer's join and resign lines and the absence of any federation create/destroy in the whole
+rtiexec log; the absence of rtiAssistant everywhere it was checked; the barrier/READY-TO-TASK/hold/release/MATERIALIZE
+line texts and their ORDER; every registered negative-string zero count; the three DISPATCHED stamps and ARRIVAL
+EVIDENCE figures; the four SIM/WALL ratio lines; the report capture stamps; the tile census; both hash gates; the
+`C:\MAK\logs` listing showing no fault artefact for this run's back end; the trace's row counts and the absence of all
+four shell uuids; the teardown sequence; the manifest's 60.12 s `orderPushedUtc` error. ASSUMED/DERIVED, flagged as
+such: the trace's t0 anchor (+/-0.5 s) and everything timed from it; the per-shell create-to-delete gaps as BOUNDS,
+not point values (the app log has no per-line timestamps); that the 48.2 m sample is the re-compose transient rather
+than real movement (inferred from the exact R/4 match with D9 and from the displacement being kinematically
+impossible in 2 s on a due-north route); that the four give-up rows reached the app without a console being opened
+(inferred from the settings and the code's own >= 0 guards, not a live instrumented check); that the other session's
+dotnet workers had no effect on any limb (a timing argument - they all start after the last completion - not a
+measurement).

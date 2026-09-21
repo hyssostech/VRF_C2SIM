@@ -81,8 +81,9 @@ WHICH SCENARIO AND WHICH DATA
   and do not read R9's wall-clock times as a prediction for any other scenario: a busier one
   runs the clock SLOWER (COA-STP1 at scale was once measured at 0.27x - slower than real time).
   The instrument for the run in front of you is the interface's own per-minute `SIM/WALL RATIO`
-  line. A real-time fixture was built (`R9_Mojave_Empty_52_RT`) but is NOT deployed -
-  UNVERIFIED, do not plan on it.
+  line. A real-time fixture was built (`R9_Mojave_Empty_52_RT`) but the user RULED 2026-09-21 to
+  accept the fast, load-dependent clock instead - it will NOT be deployed or rehearsed; do not
+  plan on it and do not tell an audience the demo runs in real time.
 - Fixtures whose name ends in `_AG` are the same scenarios carrying the navigation fix of
   section 0.5, and are deployed alongside the ones above. WHICH fixture the demo names is an
   engineering decision - confirm it before the demo rather than substituting one yourself.
@@ -257,13 +258,17 @@ close it (`pwsh -File scripts\StopVrf52.ps1` or the GUI itself).
 
 Then STP pushes the initialization, then the order (section 4).
 
-UNVERIFIED as a single sequence. VERIFIED LIVE only as far as start-up (D5b, 2026-09-21, row 7): steps 1-3 above
-(rtiexec, LaunchVrf52 with its own standalone federation holder, StartInterface52) ran end to end
-exactly as written and reached READY; the stop order below (StopIface, then StopVrf52) also ran
-and closed a live back end cleanly. NOT YET VERIFIED: a completed tasking. In the one rehearsal
-run so far the back end crashed 1.3 s after the order was pushed and 0 of 3 tasks completed
-(STP-854, undiagnosed) - do not treat this sequence as proven past StartInterface52 until a
-confirming run finishes with completions.
+VERIFIED LIVE AS A SINGLE SEQUENCE (D5c, 2026-09-21, DEMO_READINESS rows 5/7/13): steps 1-4 above
+(rtiexec, LaunchVrf52 with its own standalone federation holder, StartInterface52, then the
+initialization and the order) ran end to end exactly as written on binary 4f1f149 and completed
+3/3 TASKCMPLT with a clean teardown (StopIface, then StopVrf52) - PushInit/PushOrder stood in
+for STP, as this section already sanctions. STILL OWED, not closed by D5c: STP ITSELF PUSHING
+(not a stand-in), a human at the keyboard reading the READY / READY TO TASK / server lines, the
+standard 8080/61613 server (D5c ran on the private 18080/61614 pair), and the Iron Storm demo
+scenario (D5c used R9_Mojave_Empty_52). One earlier rehearsal on an older binary (D5b) crashed
+the back end 1.3 s after the order was pushed (STP-854, still open, n=1) - the fix that D5c
+exercises is real but the underlying vendor race is not removed, so do not treat a repeat as
+guaranteed clean.
 
 ---
 

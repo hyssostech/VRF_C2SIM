@@ -2724,9 +2724,10 @@ Check '11i and the silent-failure mode is stated where the operator will read it
 Check '11i Way B step 3 carries the server choice' (
     $wbDemoText -match 'StartInterface52\.ps1 -ClientId STP -Server standard')
 
-# --- 11j. the honesty note D5 owns stays put: this lane did NOT rehearse the sequence ---
-Check '11j the "UNVERIFIED as a single sequence" note is still in section 2 (D5 removes it, not this lane)' (
-    $wbDemoText -match 'UNVERIFIED as a single sequence')
+# --- 11j. the honesty note tracks reality: D5c verified the sequence live, STP itself pushing stays owed ---
+Check '11j section 2 names D5c as the run that verified the sequence live, and still names STP itself pushing as owed' (
+    $wbDemoText -match [regex]::Escape('VERIFIED LIVE AS A SINGLE SEQUENCE (D5c') -and
+    $wbDemoText -match 'STP ITSELF PUSHING')
 
 # --- 11k. both touched scripts parse ---
 foreach ($wbF in @('scripts\StartInterface52.ps1', 'scripts\StartFederationHolder52.ps1', 'scripts\LaunchVrf52.ps1')) {

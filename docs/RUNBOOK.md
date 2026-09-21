@@ -796,10 +796,28 @@ second with the interface's init/order overlap (order on the bus 07:26:28.200Z, 
 PushInit returned, no gate) and every other named cause is excluded (not the known
 `--logFileName` startup crash - not passed; not a Way B configuration difference reaching the
 back end - the D5b and D8 command lines are identical but for `--appNumber`; not the harness
-observer - it never joined the federation). WHAT IT IS NOT: diagnosed. n=1, no callstack was read
-here, and the process sat on the error dialog for 34 minutes (thread count 42 -> 68) before
-StopVrf52 closed it. Confirming run C1 (same 0.31 s gap, fixed observer environment, unchanged
-binary) would separate a harness cause from an init/order-overlap cause in one run.
+observer - it never joined the federation). WHAT IT IS NOT: diagnosed. n=1, and the process sat
+on the error dialog for 34 minutes (thread count 42 -> 68) before StopVrf52 closed it.
+
+CALLSTACK READ, USER RULING 2026-09-21 ('4. Read.'): access violation 0xC0000005 in
+`makVrf::DtStateDataWrapper::isDestroyed <- DtDisaggregatedDamageActuator::tick <-
+DtLocalObject::tick` on a `DtVrfCallbackQueue` worker thread - a vendor use-after-destroy race
+inside VR-Forces' own object life cycle; nothing on the stack is RTI or connection code. This
+raises confidence that the trigger is the order-time delete-and-recreate landing close behind
+the init's own creates, but the race itself is NOT removed by anything in our code.
+
+D5c RESULT (2026-09-21, binary 4f1f149, STP-852's init-creation barrier in): one confirming run
+with the SAME 0.349 s init-to-order gap that preceded D5b's crash completed 3/3 TASKCMPLT with
+NO back-end fault. What the barrier demonstrably bought is ORDERING, not wall-clock separation -
+every per-shell create-to-delete gap measured 0.05-0.6 s, no wider than D5b's ~1.3 s unordered
+burst; the delete now provably follows a CONFIRMED completion of all six init creates. **STP-854
+STAYS OPEN**: at least three things changed between D5b and D5c besides the barrier (the binary,
+no rtiAssistant present at any point, and the observer joining correctly on our own rid), so the
+clean result cannot be attributed to the barrier alone from this one run. THE ONE RUN THAT WOULD
+SEPARATE IT (not a D5c repeat): D5b's exact configuration on binary 4f1f149 WITH THE BARRIER
+DISABLED (no rtiAssistant, observer on our rid, everything D5c fixed except the barrier itself).
+If the back end faults, the barrier is what saved D5c and MAK gets a reproducible case; if it
+survives, D5b's crash belonged to the harness, not the overlap.
 
 THE testhost FIREWALL PROMPT (`dotnet test` copies testhost.exe into every test bin, and
 each NEW PATH prompts once): a NUISANCE, not a blocker - vstest talks over loopback,
@@ -2546,6 +2564,12 @@ federation "<fed>"` as if read from the log, but it is a CONSTRUCTED string
 clean-looking sentence that hides the very garble the fix has to see through. Worth a ticket
 alongside 9711f46: quote the matched text verbatim (truncated) instead of reconstructing it.
 
+MAK SUPPORT CASE - USER RULING 2026-09-21 ('5. Open the case.'): OPEN. The seat prepares the
+support package and a draft; the user sends it. Package in preparation under
+`scratchpad\validation\mak_case\` - the log-sink duplication/interleaving evidence above, the
+SILENT-shape material from NOTIFY2, and the D5b callstack (0.5.12, next crash-forensics note)
+are its leading candidates.
+
 ## 10. THE C16 PROGRESS WATCHDOG IS OFF BY DEFAULT - HOW TO TURN IT ON FOR THE VALIDATION RUN
 
 Added 2026-09-14 (cold-start review sec 2.8). `Vrf:StallDetection` defaults FALSE, is absent from
@@ -3074,6 +3098,9 @@ OPERATOR: R9's wall-clock times are NOT a prediction for another scenario's wall
 runs the clock SLOWER (COA-STP1 at scale was once measured at 0.27x, i.e. slower than real
 time, against R9's several-x). The app's own per-minute `SIM/WALL RATIO` line is the
 instrument for any given run - read it, never assume it.
+
+**USER RULING 2026-09-21 ('3. Fast.'):** the demo accepts this load-dependent fast clock as-is;
+the never-deployed real-time (variable-frame) fixture is NOT built into the demo path.
 
 ### 11g. DEFER, DO NOT ABORT - AN ORDER THAT RACES THE INITIALIZATION (D5b, 2026-09-21)
 
