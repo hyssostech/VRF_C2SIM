@@ -3266,7 +3266,8 @@ per the never-reuse non-negotiable. Annotate with results from the run manifest.
 NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
 join) are BURNED, not recycled. The run manifest records which were actually used.
 
-*** NEXT FREE: 5017 *** (authoritative - the ONLY such marker in this file. Update this
+- 2026-09-20 PERSISTENT HOLDER (STP-825; D3 run 20260920T202203Z lost all four Stage 2h creates; this rtiexec's lifetime record is 19 create successes / 14 errors, clustered): RtiProbe <appNo> MAK-ONE-2025 1 28800 3, one attempt per number 5017..5028 until a create succeeds (seat, scratch p7_holder_retry.ps1); numbers not reached are BURNED, never reused. CLAIMED.
+*** NEXT FREE: 5029 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
