@@ -149,6 +149,19 @@ DEF_MIN_LEG = 1.0        # m, legs shorter than this are not legs (a chained sta
 DEF_MAX_NAN = 0.01       # fraction of elevation samples that may be NaN before the leg gets
                          # NO VERDICT instead of a pass/flag
 
+# MapGraphicID resolution, mirroring TaskGeometryResolver's own constants (:297, :305).
+ORIGIN_COINCIDENCE_M = 100.0   # a vertex this close to the taskee IS the taskee's position
+CHAIN_GAP_M = 5000.0           # a graphic further than this from the route end is not chained
+
+# VERBS THAT ISSUE NO VENDOR TASK AND MOVE NOTHING (VerbMapping: TaskIntent.HoldInPlace).
+# ExecutePlanPhase is a phase MARKER - "no vendor task; the task is executed at the unit's own
+# position and ends at its C2SIM Duration" (VerbMapping.cs:140-142). Chaining a unit's next task
+# onto the "end" of one of these is wrong twice over: the unit never went anywhere, and the hold
+# carries the phase graphic's coordinates, so the successor was scored from a line the unit was
+# never on (ironstorm_cuta_prep_report.md STEP 2, gap 2: T01/T13 are holds and T02/T14 start
+# where their taskee stands).
+NON_MOVING_ACTIONS = frozenset(["EXECUTEPLANPHASE"])
+
 R_EARTH = 6371000.0
 
 # DtSoilType (geometry/surface.h:19-44; the right-hand column of landCoverDataSurfChar.map)
@@ -865,7 +878,14 @@ def parse_init(path):
 
 
 def parse_order(path):
-    """-> [dict(name, uuid, performer, affected, action, points)] in file order."""
+    """-> [dict(name, uuid, performer, affected, action, points, graphic_ids)] in file order.
+
+    graphic_ids is EVERY MapGraphicID the task carries, in order (schema :4080 allows a list).
+    The interface PREFERS them over the embedded Location (TaskGeometryResolver, user ruling
+    of 2026-09-14 "precedence MapGraphicID > embedded"); before this the tool had no
+    MapGraphicID handling at all - zero occurrences in the file - so on the Iron Storm export
+    it reported "no route points in the order" for tasks that do have geometry and scored the
+    WRONG line for the rest (ironstorm_cuta_prep_report.md STEP 2)."""
     root = ET.parse(path).getroot()
     tasks = []
     for t in root.iter("{%s}ManeuverWarfareTask" % C2SIM_NS):
@@ -875,14 +895,171 @@ def parse_order(path):
             lo = loc.findtext(".//c:Longitude", namespaces=NS)
             if la and lo:
                 pts.append((float(la), float(lo)))
+        gids = [(e.text or "").strip() for e in t.findall("c:MapGraphicID", NS)]
         tasks.append(dict(
             name=t.findtext("c:Name", default="", namespaces=NS),
             uuid=t.findtext("c:UUID", default="", namespaces=NS),
             performer=t.findtext("c:PerformingEntity", default="", namespaces=NS),
             affected=t.findtext("c:AffectedEntity", default="", namespaces=NS),
             action=t.findtext("c:TaskActionCode", default="", namespaces=NS),
+            graphic_ids=[g for g in gids if g],
             points=pts))
     return tasks
+
+
+# The five C2SIM elements that carry a referenceable tactical graphic, and the KIND each one
+# contributes (OrderParser.CollectGraphics). TacticalArea is an AREA - a place to go to, reduced
+# to its centroid; everything else is a LINE - a path - unless it resolves to a single vertex, in
+# which case it is a POINT. Graphics live in the ORDER as well as the initialization: the schema
+# gives OrderBodyType its own Entity list before its Task list (xsd:2960-2977), and the real STP
+# export uses that exclusively (34 of Iron Storm's 35 references name a graphic carried in the
+# order; ZERO name an init graphic).
+GRAPHIC_ELEMENTS = ("Route", "Boundary", "Point", "TacticalArea", "TaskGraphic")
+
+
+def parse_graphics(*paths):
+    """-> {uuid: dict(uuid, name, element, kind, points)} over every file given.
+
+    FIRST PUBLISHER WINS, like the interface's own registry, except that an INITIALIZATION
+    overwrites an order graphic under the same uuid ("the init is the shared world every order
+    is written against"). Pass the order first and the init second to reproduce that.
+    """
+    graphics = {}
+    for path in paths:
+        if not path or not os.path.exists(path):
+            continue
+        root = ET.parse(path).getroot()
+        for element in GRAPHIC_ELEMENTS:
+            for g in root.iter("{%s}%s" % (C2SIM_NS, element)):
+                uuid = (g.findtext("c:UUID", default="", namespaces=NS) or "").strip()
+                if not uuid:
+                    continue
+                pts = []
+                for geo in g.iter("{%s}GeodeticCoordinate" % C2SIM_NS):
+                    la = geo.findtext("c:Latitude", namespaces=NS)
+                    lo = geo.findtext("c:Longitude", namespaces=NS)
+                    if la and lo:
+                        pts.append((float(la), float(lo)))
+                if not pts:
+                    continue          # nothing to resolve to; the task falls back to its Location
+                kind = ("area" if element == "TacticalArea"
+                        else "point" if len(pts) == 1 else "line")
+                graphics[uuid] = dict(uuid=uuid, name=g.findtext("c:Name", default="",
+                                                                 namespaces=NS),
+                                      element=element, kind=kind, points=pts)
+    return graphics
+
+
+def centroid(pts):
+    return (sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts))
+
+
+def assemble_route_from_graphics(resolved, taskee_pos):
+    """Mirror TaskGeometryResolver.AssembleRoute (src/VrfC2SimApp/TaskGeometryResolver.cs:377).
+
+    THE ROLES, which is the whole point of resolving by reference rather than by document order:
+      * an AREA is ONE destination - its centroid. An area is a place to go to, not a path.
+      * a POINT is ONE destination - its own vertex.
+      * a LINE is a PATH and contributes its vertices in order.
+    Then, in order:
+      1. every vertex of a line that IS the taskee's own position is DROPPED, leading or
+         interior (SF9: Iron Storm's GroundAttackAxi_116_ABCT_SLOT2 has the unit's own
+         coordinate as its THIRD of four vertices, so the graphic alone sends it 45 km out,
+         back, and out again);
+      2. the lines are chained from the taskee outwards by nearest end, reversed when the tail
+         is nearer than the head, and a line whose nearer end is more than CHAIN_GAP_M from the
+         route is NOT chained (the interface does not invent a leg the order did not describe);
+      3. at most ONE destination is appended, LAST, never as a waypoint;
+      4. a route that returns within ORIGIN_COINCIDENCE_M of the start after leaving it is
+         TRUNCATED there.
+    -> (points, notes).
+    """
+    route, notes = [], []
+    if not resolved:
+        return route, notes
+    lines, destinations = [], []
+    for g in resolved:
+        if g["kind"] == "area":
+            destinations.append((g, centroid(g["points"]),
+                                 "area, %d vertices" % len(g["points"])))
+        elif g["kind"] == "point" or len(g["points"]) == 1:
+            destinations.append((g, g["points"][0], "%s, 1 vertex" % g["kind"]))
+        else:
+            pts = list(g["points"])
+            dropped = 0
+            if taskee_pos:
+                keep = []
+                for p in pts:
+                    if (len(pts) - dropped) > 1 and dist_m(p[0], p[1],
+                                                           taskee_pos[0], taskee_pos[1]) <= ORIGIN_COINCIDENCE_M:
+                        dropped += 1
+                        continue
+                    keep.append(p)
+                pts = keep or pts[-1:]
+            if dropped:
+                notes.append("%s '%s': %d vertex(es) dropped - they ARE the taskee's own position"
+                             % (g["element"], g["name"], dropped))
+            lines.append((g, pts))
+
+    unused = list(lines)
+    unchained = []
+    while unused:
+        frm = route[-1] if route else taskee_pos
+        best, best_rev, best_d = 0, False, float("inf")
+        for i, (_, pts) in enumerate(unused):
+            if frm is None:
+                best, best_rev, best_d = 0, False, 0.0
+                break
+            d_head = dist_m(frm[0], frm[1], pts[0][0], pts[0][1])
+            d_tail = dist_m(frm[0], frm[1], pts[-1][0], pts[-1][1])
+            d = min(d_head, d_tail)
+            if d < best_d:
+                best, best_rev, best_d = i, d_tail < d_head, d
+        g, pts = unused.pop(best)
+        take = list(reversed(pts)) if best_rev else pts
+        if route and best_d > CHAIN_GAP_M:
+            unchained.append(g)
+            continue
+        added = 0
+        for p in take:
+            if route and dist_m(route[-1][0], route[-1][1], p[0], p[1]) <= ORIGIN_COINCIDENCE_M:
+                continue
+            route.append(p)
+            added += 1
+        notes.append("path from %s '%s' (%d vertices%s): %d vertex(es) joined"
+                     % (g["element"], g["name"], len(pts),
+                        ", REVERSED for continuity" if best_rev else "", added))
+    for g in unchained:
+        notes.append("%s '%s' is NOT continuous with the rest of the route (more than %.0f m away) "
+                     "and was NOT chained in" % (g["element"], g["name"], CHAIN_GAP_M))
+
+    dest_taken = False
+    for g, pt, what in destinations:
+        if route and dist_m(route[-1][0], route[-1][1], pt[0], pt[1]) <= ORIGIN_COINCIDENCE_M:
+            dest_taken = True
+            notes.append("destination '%s' (%s): the route already ends there, not repeated" % (g["name"], what))
+            continue
+        if dest_taken:
+            notes.append("destination '%s' (%s) IGNORED - a task is in ONE place" % (g["name"], what))
+            continue
+        route.append(pt)
+        dest_taken = True
+        notes.append("destination '%s' (%s): appended LAST, never as a waypoint" % (g["name"], what))
+
+    if taskee_pos and route:
+        left = False
+        for i, p in enumerate(route):
+            d = dist_m(p[0], p[1], taskee_pos[0], taskee_pos[1])
+            if not left:
+                if d > ORIGIN_COINCIDENCE_M:
+                    left = True
+                continue
+            if d <= ORIGIN_COINCIDENCE_M:
+                notes.append("the assembled route RETURNS to the taskee's own start at vertex %d of %d "
+                             "and is TRUNCATED there" % (i + 1, len(route)))
+                del route[i:]
+                break
+    return route, notes
 
 
 # --------------------------------------------------------------------------- start positions
@@ -1160,10 +1337,19 @@ def analyse_leg(tiles, soil, a, b, limit_raw, step, window, short):
 
 
 def run_preflight(args, tiles, soil, sms, tmap, units, sides, tasks, starts,
-                  only_first=False, unit_filter=None, progress=True, chain=True):
+                  only_first=False, unit_filter=None, progress=True, chain=True,
+                  graphics=None):
     """chain: a unit's SECOND and later tasks start at the end of its previous task's route
     (the interface sequences a unit's tasks in declared order, dispatching the next one only
-    after the previous has finished), not at its initial position."""
+    after the previous has finished), not at its initial position.
+
+    *** A NON-MOVING TASK DOES NOT ADVANCE THE CHAIN *** (NON_MOVING_ACTIONS). A HoldInPlace
+    verb issues no vendor task, so the unit is exactly where it was when the next task is
+    dispatched; chaining through it scored the successor from a line nobody drove.
+
+    graphics: {uuid: graphic} from parse_graphics. When a task names MapGraphicID(s) that
+    resolve, THEY are the geometry and the embedded Location is ignored - the interface's own
+    precedence (TaskGeometryResolver, user ruling 2026-09-14)."""
     chain_pos = {}
     friendly_side = None
     for su, nm in sides.items():
@@ -1176,9 +1362,33 @@ def run_preflight(args, tiles, soil, sms, tmap, units, sides, tasks, starts,
         uname = unit["name"] if unit else ("uuid:" + task["performer"][:8])
         if unit_filter and uname not in unit_filter:
             continue
-        if not task["points"]:
+        # THE TASKEE'S OWN AUTHORED POSITION - what the MapGraphicID assembly measures
+        # "is this vertex the unit itself?" against, exactly as the interface does.
+        taskee_pos = (unit["lat"], unit["lon"]) if unit and unit["lat"] is not None else None
+        # PRECEDENCE: MapGraphicID(s) that resolve, else the embedded Location.
+        geom_pts, geom_src, geom_notes = list(task["points"]), "embedded Location", []
+        gids = task.get("graphic_ids") or []
+        if gids and graphics:
+            resolved = [graphics[g] for g in gids if g in graphics]
+            unmatched = [g for g in gids if g not in graphics]
+            if resolved:
+                geom_pts, geom_notes = assemble_route_from_graphics(resolved, taskee_pos)
+                geom_src = ("%d MapGraphicID(s) resolved by ROLE (lines = path, areas/points = "
+                            "ONE destination)" % len(resolved))
+                if unmatched:
+                    geom_notes.append("%d MapGraphicID(s) matched NO registered graphic and were "
+                                      "ignored: %s" % (len(unmatched), ", ".join(unmatched)))
+                if task["points"]:
+                    geom_notes.append("%d embedded Location point(s) IGNORED - MapGraphicID wins "
+                                      "(user ruling 2026-09-14)" % len(task["points"]))
+            elif gids:
+                geom_notes.append("%d MapGraphicID(s) resolved to NOTHING - falling back to the "
+                                  "embedded Location: %s" % (len(gids), ", ".join(gids)))
+        task = dict(task, points=geom_pts)
+        if not geom_pts:
             results.append(dict(task=task["name"], task_uuid=task["uuid"], unit=uname,
                                 unit_uuid=task["performer"], legs=[],
+                                geometry_source=geom_src, geometry_notes=geom_notes,
                                 note="no route points in the order"))
             continue
         hostile = bool(unit and friendly_side and unit["side"] != friendly_side)
@@ -1215,8 +1425,17 @@ def run_preflight(args, tiles, soil, sms, tmap, units, sides, tasks, starts,
                 start = task["points"][0]
                 start_src = "first route vertex"
         route, skipped, drop_note = build_route(task, unit, start, args.drop_origin_meters)
+        # A NON-MOVING TASK LEAVES THE UNIT WHERE IT WAS. Chaining the next task onto this
+        # route's end would score it from a line the unit never drove.
+        moving = (task.get("action") or "").strip().upper() not in NON_MOVING_ACTIONS
         if chain:
-            chain_pos[uname] = route[-1]
+            if moving:
+                chain_pos[uname] = route[-1]
+            else:
+                chain_pos[uname] = start
+                geom_notes.append("this task's verb '%s' issues NO vendor task and moves nothing, "
+                                  "so the unit's NEXT task starts where this one did, not at this "
+                                  "route's end" % task.get("action", ""))
         legs = []
         degenerate = 0
         for li in range(len(route) - 1):
@@ -1245,6 +1464,7 @@ def run_preflight(args, tiles, soil, sms, tmap, units, sides, tasks, starts,
             typemap_rule=how, vehicles=sorted({v[0] for v in veh}), limit_raw=limit_raw,
             vehicle_note=veh_note, start=[start[0], start[1]], start_source=start_src,
             dropped_vertices=skipped, drop_note=drop_note, degenerate_legs=degenerate,
+            geometry_source=geom_src, geometry_notes=geom_notes, moves_the_unit=moving,
             route=[[p[0], p[1]] for p in route], legs=legs))
     if progress:
         sys.stderr.write("\r" + " " * 78 + "\r")
@@ -1814,6 +2034,102 @@ def selftest(tiles, soil, sms):
     print("  a start for a unit this order never tasks is left alone: %s"
           % ("OK" if ok else "MISMATCH"))
 
+    # ---- MapGraphicID RESOLUTION BY ROLE (pure: no tile, no network) ------------------------
+    # The first of the two gaps ironstorm_cuta_prep_report.md STEP 2 found: this file had ZERO
+    # occurrences of MapGraphicID, so on the real STP export - where 34 of 35 references name a
+    # graphic carried in the ORDER - it reported "no route points in the order" for the tasks
+    # whose geometry is a reference, and scored the embedded (lossy, linearised) line for the
+    # rest. Every check below fails on the pre-fix code.
+    print("--- MapGraphicID resolution by ROLE (lines = path, areas/points = ONE destination) ---")
+
+    def _g(uuid_, kind, pts, name="g", element="Route"):
+        return dict(uuid=uuid_, name=name, element=element, kind=kind, points=pts)
+
+    def _chk(label, cond):
+        print("  %-74s %s" % (label[:74], "OK" if cond else "MISMATCH"))
+        return 0 if cond else 1
+
+    taskee = (54.28000, 23.32000)
+    # (a) a LINE is a path: its vertices come through in order.
+    line = _g("l1", "line", [(54.30, 23.34), (54.32, 23.36), (54.34, 23.38)])
+    pts, _ = assemble_route_from_graphics([line], taskee)
+    bad += _chk("a LINE contributes its 3 vertices IN ORDER", pts == line["points"])
+    # (b) an AREA is ONE destination - its centroid - and never a path.
+    area = _g("a1", "area", [(54.40, 23.40), (54.42, 23.40), (54.42, 23.44), (54.40, 23.44)],
+              name="OBJ LANCASTER", element="TacticalArea")
+    pts, _ = assemble_route_from_graphics([area], taskee)
+    bad += _chk("an AREA reduces to ONE vertex, its centroid",
+                len(pts) == 1 and abs(pts[0][0] - 54.41) < 1e-9 and abs(pts[0][1] - 23.42) < 1e-9)
+    # (c) a POINT is ONE destination.
+    point = _g("p1", "point", [(54.5, 23.5)], element="Point")
+    pts, _ = assemble_route_from_graphics([point], taskee)
+    bad += _chk("a POINT contributes its own single vertex", pts == [(54.5, 23.5)])
+    # (d) line + area: the path first, the destination LAST - never a waypoint in the middle.
+    pts, _ = assemble_route_from_graphics([area, line], taskee)
+    bad += _chk("line + area: the 3 line vertices come first and the area's centroid is LAST",
+                len(pts) == 4 and pts[:3] == line["points"] and abs(pts[3][0] - 54.41) < 1e-9)
+    # (e) TWO destinations: a task is in ONE place; the second is ignored, not driven to.
+    area2 = _g("a2", "area", [(54.60, 23.60), (54.62, 23.62)], name="OBJ OTHER",
+               element="TacticalArea")
+    pts, notes = assemble_route_from_graphics([area, area2], taskee)
+    bad += _chk("TWO destination graphics -> ONE destination, the other IGNORED and said so",
+                len(pts) == 1 and any("IGNORED" in n for n in notes))
+    # (f) SF9: a vertex that IS the taskee's own position is dropped, INTERIOR ones included.
+    # This is Iron Storm's GroundAttackAxi_116_ABCT_SLOT2, verbatim.
+    axis = _g("ax", "line", [(54.40219, 24.04281), (54.38968, 23.96870),
+                             (54.28000, 23.32000), (54.37061, 23.99426)],
+              name="GroundAttackAxi_116_ABCT_SLOT2")
+    pts, notes = assemble_route_from_graphics([axis], taskee)
+    bad += _chk("the axis vertex that IS the taskee's own position (3rd of 4) is DROPPED",
+                len(pts) == 3 and (54.28000, 23.32000) not in pts
+                and any("taskee's own position" in n for n in notes))
+    # (g) a graphic more than CHAIN_GAP_M from the route is not spliced onto it.
+    far = _g("f1", "line", [(50.0, 20.0), (50.1, 20.1)], name="somewhere else")
+    pts, notes = assemble_route_from_graphics([line, far], taskee)
+    bad += _chk("a graphic %.0f km away is NOT chained in, and the tool says so"
+                % (CHAIN_GAP_M / 1000.0),
+                pts == line["points"] and any("NOT chained" in n for n in notes))
+    # (h) a line whose TAIL is nearer the taskee is reversed for continuity.
+    rev = _g("r1", "line", [(54.34, 23.38), (54.32, 23.36), (54.30, 23.34)])
+    pts, notes = assemble_route_from_graphics([rev], taskee)
+    bad += _chk("a line whose TAIL is nearer the taskee is REVERSED for continuity",
+                pts == list(reversed(rev["points"])) and any("REVERSED" in n for n in notes))
+    # (i) the backstop: a route that comes back through the start is truncated there.
+    loop = _g("lp", "line", [(54.30, 23.34), (54.32, 23.36), (54.28000, 23.32000)])
+    pts, notes = assemble_route_from_graphics([loop], taskee)
+    bad += _chk("a route that RETURNS to the taskee's own start is truncated there",
+                all(dist_m(p[0], p[1], taskee[0], taskee[1]) > ORIGIN_COINCIDENCE_M for p in pts))
+    # (j) the parser finds a graphic carried by the ORDER, with the right kind.
+    gs = parse_graphics(os.path.join(REPO, "data", "STP-IRON-STORM-SYNTHETIC_Order.xml"),
+                        os.path.join(REPO, "data", "STP-IRON-STORM-SYNTHETIC_Initialization.xml"))
+    kinds = {}
+    for g in gs.values():
+        kinds[g["kind"]] = kinds.get(g["kind"], 0) + 1
+    ts = parse_order(os.path.join(REPO, "data", "STP-IRON-STORM-SYNTHETIC_Order.xml"))
+    refs = [gid for t in ts for gid in t["graphic_ids"]]
+    bad += _chk("the Iron Storm export: %d graphic(s) parsed %s, %d MapGraphicID reference(s), "
+                "%d of them resolve"
+                % (len(gs), sorted(kinds.items()), len(refs),
+                   sum(1 for r in refs if r in gs)),
+                len(gs) > 0 and len(refs) > 0 and sum(1 for r in refs if r in gs) > 0)
+    bad += _chk("COA-STP1 carries NO MapGraphicID, so the reference fixture is untouched by all "
+                "of the above",
+                not any(t["graphic_ids"] for t in parse_order(DEF_ORDER)))
+
+    # ---- THE CHAIN MUST NOT RUN THROUGH A NON-MOVING PREDECESSOR ---------------------------
+    print("--- a HoldInPlace predecessor does not move the unit (the chain rule) ---")
+    bad += _chk("ExecutePlanPhase is classified as a verb that moves NOTHING",
+                "EXECUTEPLANPHASE" in NON_MOVING_ACTIONS)
+    bad += _chk("MOVE, ATTACK and SECURE all DO move the unit",
+                not any(v in NON_MOVING_ACTIONS for v in ("MOVE", "ATTACK", "SECURE")))
+    holds = [t for t in ts if (t["action"] or "").upper() in NON_MOVING_ACTIONS]
+    bad += _chk("the Iron Storm export carries %d such task(s), which is why this matters there"
+                % len(holds), len(holds) > 0)
+    bad += _chk("COA-STP1 carries NONE, so the reference fixture is untouched by the chain rule "
+                "too",
+                not any((t["action"] or "").upper() in NON_MOVING_ACTIONS
+                        for t in parse_order(DEF_ORDER)))
+
     assumed = sorted(k for k, (_s, a) in SOIL_BRIDGE.items() if a)
     print("--- ASSUMED rows of the DtSoilType -> DtRoughnessSoilType bridge (%d of %d) ---"
           % (len(assumed), len(SOIL_BRIDGE)))
@@ -2150,6 +2466,11 @@ def main(argv=None):
     ap.add_argument("--drop-origin-meters", type=float, default=DEF_DROP_ORIGIN)
     ap.add_argument("--units", default=None, help="comma-separated unit names to check")
     ap.add_argument("--first-leg-only", action="store_true")
+    ap.add_argument("--no-chain", action="store_true",
+                    help="score every task from the unit's INITIAL position instead of chaining "
+                         "a unit's later tasks onto the end of its previous task's route. "
+                         "(Chaining is still the default and is what the interface does; a task "
+                         "whose verb moves nothing never advances the chain either way.)")
     ap.add_argument("--text", action="store_true")
     ap.add_argument("--verbose", action="store_true", help="--text prints passing legs too")
     ap.add_argument("--json", default=None)
@@ -2222,6 +2543,10 @@ def main(argv=None):
     tmap = TypeMap(args.typemap, args.friendly_nation, args.opposing_nation)
     units, sides = parse_init(args.init)
     tasks = parse_order(args.order)
+    # The ORDER's own graphics first, then the INITIALIZATION's - the init is the shared world
+    # every order is written against, so an init graphic wins a uuid collision. The real STP
+    # export carries 34 of its 35 referenced graphics in the ORDER and none in the init.
+    graphics = parse_graphics(args.order, args.init)
     starts, _dropped = check_starts_distance(starts, tasks, units, args.starts_max_km,
                                              os.path.basename(args.starts), starts_explicit)
 
@@ -2234,7 +2559,7 @@ def main(argv=None):
     else:
         results = run_preflight(
             args, tiles, soil, sms, tmap, units, sides, tasks, starts,
-            only_first=args.first_leg_only,
+            only_first=args.first_leg_only, chain=not args.no_chain, graphics=graphics,
             unit_filter=(set(args.units.split(",")) if args.units else None))
         if args.text or not (args.json or args.c2sim_observations or args.vrf_overlay):
             emit_text(results, args)

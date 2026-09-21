@@ -202,6 +202,15 @@ public sealed class VrfC2SimService : BackgroundService
     private readonly SimClockTracker _simClock = new();
     private SimClockTracker.Observation _simClockLast =
         new(false, false, false, -1.0, -1.0, StallPolicy.SimClockStep.Flat, false, 0.0);
+    // N7 (D7 harvest, 2026-09-21): the SIMULATION clock beside the wall clock on every line that
+    // states an elapsed time, and the RATIO once a minute. The D7 harvest had to REGRESS the
+    // level-3 behaviour-tree console rows against the trace clock to discover the scenario was
+    // running at 3.00x, and D6's recorded "sim/wall 1.00" turned out to be a wall figure compared
+    // with a wall figure. NO NATIVE WORK WAS NEEDED: VrfBridge.SimTimeSeconds() ->
+    // VrfFacade::SimTimeSeconds() -> DtVrfRemoteController::simTime() has been the watchdog's and
+    // the task clock's reader all along (VrfFacade.h:463-482), and _simClockLast is that reading,
+    // already sampled once per second on the tick thread. All this adds is the stamping.
+    private readonly SimWallRatio _simWallRatio = new();
     private bool _taskClockStaleWarned;                         // M4 stale warning for the TASK clock, once
     private DateTime _taskClockHoldLineUtc = DateTime.MinValue; // Q5: the HOLD line repeats, rate-limited
     private DateTime _taskClockBackendReadWarnUtc = DateTime.MinValue; // STP-809: control-state read failed
@@ -397,9 +406,45 @@ public sealed class VrfC2SimService : BackgroundService
         _bridge.ObjectConsoleMessage += OnVrfObjectConsoleMessage;
     }
 
+    /// <summary>
+    /// N3 (D7 harvest): WHICH BUILD IS RUNNING, from the binary itself.
+    ///
+    /// The runner manifest's `host.gitCommit` is the WORKING TREE's HEAD at run time, not the
+    /// commit the deployed binary was built from - D7 recorded 9baddf9 for binaries built at
+    /// adca180 and the discrepancy could only be settled afterwards, by hand, with git. The
+    /// csproj's StampGitIdentity target writes the commit (and a +DIRTY marker for a build from
+    /// an edited tree), the UTC build stamp and the bridge configuration into assembly metadata;
+    /// this reads them back. "unknown" is a real answer and is printed as one.
+    /// </summary>
+    internal static string BuildIdentity()
+    {
+        var asm = System.Reflection.Assembly.GetEntryAssembly()
+                  ?? typeof(VrfC2SimService).Assembly;
+        string Meta(string key) =>
+            asm.GetCustomAttributes(typeof(System.Reflection.AssemblyMetadataAttribute), false)
+               .Cast<System.Reflection.AssemblyMetadataAttribute>()
+               .FirstOrDefault(a => string.Equals(a.Key, key, StringComparison.Ordinal))?.Value
+            ?? "(not stamped - this binary predates N3)";
+        string loc = "";
+        try { loc = asm.Location; } catch { }
+        string mtime = "";
+        try { if (loc.Length > 0 && File.Exists(loc)) mtime = File.GetLastWriteTimeUtc(loc).ToString("u"); }
+        catch { }
+        return $"git {Meta("BuildGitCommit")}, built {Meta("BuildStampUtc")}, bridge "
+             + $"{Meta("BuildBridgeConfig")}, assembly '{loc}'"
+             + (mtime.Length > 0 ? $" last written {mtime}" : "");
+    }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _stoppingToken = stoppingToken;
+
+        // N3: THE FIRST LINE OF EVERY RUN SAYS WHICH BUILD IT IS. Before this, the only build
+        // identity in a run directory was the runner's record of the working tree's HEAD, which
+        // is a statement about the CHECKOUT and not about the deployed binary.
+        _log.LogInformation("BUILD IDENTITY: {Identity}. The runner manifest's host.gitCommit is the " +
+                            "working tree's HEAD, which is a different question - THIS line is what the " +
+                            "binary was built from (N3, D7 harvest).", BuildIdentity());
 
         // 0. FidelityTable pre-flight (JC-2, PROVISIONAL 2026-09-02). A missing/invalid table, or an
         // OpposingNation with no usable unit template, REFUSES TO START - it must not degrade into
@@ -607,6 +652,43 @@ public sealed class VrfC2SimService : BackgroundService
                                     : "Every leg will fetch its tiles over HTTP at dispatch time.",
                                 _vrf.PreflightRouteShiftTimeoutSeconds);
         }
+
+        // 0c-iv. THE OTHER TWO SETTINGS THAT CHANGE WHAT A RUN MEANS, ANNOUNCED THE SAME WAY
+        // (adca180 build report, FINDING 2). The route shift gets a banner, a runner PREDICTION
+        // and a Stage 6c/teardown agreement check precisely because it changes where units drive.
+        // Vrf:DeStackComposedSiblings changes WHERE UNITS START and Vrf:ArrivalApproachFraction
+        // changes WHEN A TASK IS REPORTED COMPLETE - prereg P1 and P5 of the D7 run were both
+        // scored off the app's log by hand because neither had an announcement to read. Now they
+        // do, UNCONDITIONALLY (the de-stack's own per-group lines only appear when a fixture has
+        // composed groups, so silence there is not evidence of OFF).
+        _log.LogInformation("COMPOSED-SIBLING DE-STACK {State} (Vrf:DeStackComposedSiblings, user ruling " +
+                            "2026-09-21 + N4). ON spreads composed siblings that share a coordinate onto ONE " +
+                            "ring about it at EQUAL bearings, at their own echelon's spacing (table: {Table}), " +
+                            "so their CENTROID - the position VR-Forces publishes for the parent aggregate - " +
+                            "stays on that coordinate and the parent's route keeps its length. OFF reproduces " +
+                            "the pre-2026-09-21 behaviour exactly (children held on the parent), which is what " +
+                            "runs D1-D6 measured. Rotation {Rot} deg, echelon fallback {Fallback} m " +
+                            "(0 = do not spread an echelon the table cannot size), overrides '{Override}'.",
+                            _vrf.DeStackComposedSiblings ? "ON" : "off",
+                            string.Join(", ", EchelonSpacing.TableMeters.OrderBy(kv => kv.Value)
+                                                            .Select(kv => $"{kv.Key} {kv.Value:F0} m")),
+                            _vrf.DeStackRotationDeg, _vrf.DeStackEchelonFallbackMeters,
+                            _vrf.DeStackEchelonSpacingMeters ?? "");
+        // The fraction is formatted INVARIANTLY, not with {F:F2}: the runner's agreement check
+        // parses this number out of the log, and a machine whose culture writes "0,50" would make
+        // a correct run read as a MISMATCH (and, worse, a wrong one read as agreement).
+        _log.LogInformation("ARRIVAL APPROACH FRACTION {F} (Vrf:ArrivalApproachFraction, user ruling " +
+                            "2026-09-21). Above 0 a member's traversal bar is capped at this share of ITS OWN " +
+                            "distance to the last vertex at dispatch, instead of half the whole route - and " +
+                            "since SF-1 that relaxation applies ONLY when the route genuinely goes somewhere " +
+                            "(the taskee's own last-vertex separation is at least half the route's length). " +
+                            "0 restores the pre-2026-09-21 route bar for every member, which is the " +
+                            "comparability setting for runs D1-D6. Radius {R:F0} m, member fraction {Q:F2}, " +
+                            "minimum travel {M:F0} m, checked every {C} s from {S} s after dispatch.",
+                            _vrf.ArrivalApproachFraction.ToString("F2", System.Globalization.CultureInfo.InvariantCulture),
+                            _vrf.ArrivalRadiusMeters,
+                            _vrf.ArrivalMemberFraction, _vrf.ArrivalMinTravelMeters,
+                            _vrf.ArrivalCheckSeconds, _vrf.ArrivalMinSecondsSinceDispatch);
 
         // 0d-i. Vrf:DurationScale (m8 of the cold-start review of 5c67d41). ONE scale, TWO
         // opposite readings: a 0, negative or NaN scale collapsed the Duration to "no end time
@@ -1210,6 +1292,9 @@ public sealed class VrfC2SimService : BackgroundService
         // from (user ruling 2026-09-21; EchelonSpacing.KeyOf of the init's own EchelonCode/SIDC).
         // "" = an echelon the table does not cover, which is a FALLBACK, not a spacing.
         var echelons = new List<string>();
+        // SF-3: index-parallel (unit name, resolved key, WHY that key) - logged once per init so
+        // "which row sized this ring" is in the record rather than in a reader's head.
+        var echelonProvenance = new List<(string Name, string Key, string Why)>();
         // parent C2SIM uuid -> its AUTHORED <Subordinate> uuid order (N2: the attach order = the
         // declared order, so the declared first child becomes the leader, UG52 18.1.1).
         var declaredByParent = new Dictionary<string, IReadOnlyList<string>>();
@@ -1384,7 +1469,12 @@ public sealed class VrfC2SimService : BackgroundService
             toCreate.Add(plan);
             placements.Add(new PlacementInput(domain, unit.AltitudeAgl, unit.AltitudeMsl));
             hierarchy.Add((unit.Uuid, (unit.SuperiorUuid ?? "").Trim()));
-            echelons.Add(EchelonSpacing.KeyOf(unit.EchelonCode, unit.SymbolId));
+            // SF-3: WHICH ROW, AND WHY. The echelon spacing table is the GROUND subset, so a unit
+            // whose SIDC battle dimension is air/space/naval must NOT be handed a ground row - and
+            // whichever way it goes, the reason is recorded here and printed once per init below,
+            // instead of being an unwritten property of a pure function.
+            echelons.Add(EchelonSpacing.KeyOf(unit.EchelonCode, unit.SymbolId, out string echProv));
+            echelonProvenance.Add((plan.Name, echelons[^1], echProv));
             if (unit.DeclaredSubordinates is { Count: > 0 }) declaredByParent[unit.Uuid] = unit.DeclaredSubordinates;
             if (_vrf.MaterializeAtOrder)
             {
@@ -1441,6 +1531,12 @@ public sealed class VrfC2SimService : BackgroundService
         // SCOPE (C14 as ruled, narrowed 2026-09-20): INDEPENDENT objects only. See CompositionPlan.
         if (_vrf.DeStackCreates && toCreate.Count > 1)
         {
+            // SF-4: the positions as the init authored them (after the cascade, before EITHER
+            // pass). ApplyComposedSiblings needs them to tell "these children share their PARENT's
+            // coordinate" (ring the parent wherever the independent pass left it) from "these
+            // children share some OTHER point" (ring that point) - a distinction that cannot be
+            // made after Apply has rewritten the list. Cheap: one struct per plan, once per init.
+            var posBeforeIndependent = toCreate.Select(p => p.Pos).ToList();
             foreach (var g in DeStacker.Apply(toCreate, _vrf.DeStackSpacingMeters, _vrf.DeStackRotationDeg,
                                               composedChildIndices))
                 _log.LogInformation("DeStack (R8/C14): {N} INDEPENDENT units at ({Lat},{Lon}) spread onto " +
@@ -1449,25 +1545,60 @@ public sealed class VrfC2SimService : BackgroundService
             // COMPOSED SIBLINGS AT THEIR OWN ECHELON'S SCALE (user ruling 2026-09-21, option C).
             // RUNS AFTER the independent pass on purpose: if a parent was itself spread as an
             // independent unit, its children must ring the position it ENDED at, not the one the
-            // init authored. The parent is never a candidate here - it keeps its coordinate, which
-            // is what makes every taskee's route start where it started before.
+            // init authored - and since SF-4 the code DOES that (it used to anchor on the
+            // children's shared coordinate and never read the parent's plan). The parent is never
+            // a candidate here - it keeps its coordinate, which is what makes every taskee's route
+            // start where it started before; N4 makes the children's CENTROID keep it too, which
+            // is what makes the route the same LENGTH as before.
             while (echelons.Count < toCreate.Count) echelons.Add("");   // synthesized children: no C2SIM echelon
             if (_vrf.DeStackComposedSiblings && composedGroups.Count > 0)
             {
+                // SF-3: WHICH ECHELON ROW EVERY UNIT RESOLVED TO, AND WHY - the whole init on one
+                // line, grouped, with the air/naval refusals named individually because THAT is the
+                // case the silence used to hide. The table is the GROUND subset (EchelonSpacing).
+                var refusedDomain = echelonProvenance.Where(e => e.Why.Contains("BATTLE DIMENSION")).ToList();
+                _log.LogInformation("ECHELON ROWS (SF-3, the de-stack's GROUND spacing table): {Dist} over {N} " +
+                                    "planned unit(s). {Refused}{Sample}",
+                                    string.Join(", ", echelonProvenance
+                                        .GroupBy(e => e.Key.Length == 0 ? "(no row - fallback)" : e.Key)
+                                        .OrderByDescending(g => g.Count())
+                                        .Select(g => $"{g.Key} x{g.Count()}")),
+                                    echelonProvenance.Count,
+                                    refusedDomain.Count == 0
+                                        ? "No unit was refused a row for its battle dimension. "
+                                        : refusedDomain.Count + " unit(s) were REFUSED a ground row because their "
+                                          + "SIDC battle dimension is air/space/naval - they fall back to "
+                                          + "Vrf:DeStackEchelonFallbackMeters (" + _vrf.DeStackEchelonFallbackMeters
+                                          + " m; 0 = not spread): ["
+                                          + string.Join("; ", refusedDomain.Take(10).Select(e => e.Name + ": " + e.Why))
+                                          + (refusedDomain.Count > 10 ? "; ..." : "") + "]. ",
+                                    "Provenance of the first few: ["
+                                    + string.Join("; ", echelonProvenance.Take(4).Select(e => e.Name + ": " + e.Why))
+                                    + (echelonProvenance.Count > 4 ? "; ..." : "") + "]");
                 var table = EchelonSpacing.WithOverrides(_vrf.DeStackEchelonSpacingMeters, out string tableNote);
                 double SpacingFor(string key) =>
                     !string.IsNullOrEmpty(key) && table.TryGetValue(key, out double m)
                         ? m : _vrf.DeStackEchelonFallbackMeters;
                 var spreadGroups = DeStacker.ApplyComposedSiblings(
                     toCreate, composedGroups, echelons, SpacingFor, _vrf.DeStackRotationDeg,
-                    out var skippedGroups);
+                    out var skippedGroups, posBeforeIndependent);
                 foreach (var g in spreadGroups)
-                    _log.LogInformation("DeStack (C14 echelon scope, user ruling 2026-09-21): {N} COMPOSED " +
-                                        "sibling(s) of {Parent} shared ({Lat},{Lon}) and were spread onto " +
-                                        "{Spacing} m rings around it at the {Echelon} echelon's own scale " +
-                                        "(longest shipped formation for that echelon {Span:F1} m; the parent " +
-                                        "keeps its position and takes the centre slot). Moved: [{Moved}].{Note}",
-                                        g.Count, g.ParentName, g.LatDeg, g.LonDeg, g.SpacingMeters, g.EchelonKey,
+                    _log.LogInformation("DeStack (C14 echelon scope, user rulings 2026-09-21 + N4): {N} COMPOSED " +
+                                        "sibling(s) of {Parent} shared ({Lat},{Lon}) and were spread onto ONE ring " +
+                                        "of radius {Radius:F1} m about {Anchor} at EQUAL bearings {Bearing:F1} deg " +
+                                        "apart (start {Rot} deg), which holds their CENTROID - the position " +
+                                        "VR-Forces publishes for the composed aggregate - on that same coordinate " +
+                                        "(D7/N4: hex slots moved it 262 m and shortened the taskee's route by " +
+                                        "74 m). The radius is derived from the {Echelon} echelon's {Spacing} m " +
+                                        "spacing (longest shipped formation for that echelon {Span:F1} m) so the " +
+                                        "MINIMUM sibling separation is exactly that spacing. The parent keeps its " +
+                                        "position and the centre is left empty. Moved: [{Moved}].{Note}",
+                                        g.Count, g.ParentName, g.LatDeg, g.LonDeg, g.RadiusMeters,
+                                        g.AnchoredOnParent
+                                            ? "THE PARENT'S OWN current position"
+                                            : "the children's shared coordinate (the parent is elsewhere)",
+                                        g.Count > 0 ? 360.0 / g.Count : 0.0, _vrf.DeStackRotationDeg,
+                                        g.EchelonKey, g.SpacingMeters,
                                         EchelonSpacing.SpanMeters.TryGetValue(g.EchelonKey, out double sp) ? sp : 0.0,
                                         string.Join(", ", g.Moved.Take(20).Select(m => $"{m.Name} {m.Meters:F0} m"))
                                         + (g.Moved.Count > 20 ? ", ..." : ""),
@@ -2548,6 +2679,9 @@ public sealed class VrfC2SimService : BackgroundService
     private void OnOrder(object sender, C2SIMSDK.C2SIMNotificationEventParams e)
     {
         _log.LogInformation("C2SIM Order received ({Len} bytes).", e.Body?.Length ?? 0);
+        // E6: open this order's tile-census generation. The census itself is printed by whichever
+        // scoring worker of this generation finishes last (ReportTileCensus).
+        _tileCensus.BeginOrder();
 
         // Bare-movement parity port of executeTask (C2SIMinterface.cpp:2028). Parse the
         // order's tasks; for each, resolve the taskee (PerformingEntity, a C2SIM uuid) to
@@ -3055,9 +3189,20 @@ public sealed class VrfC2SimService : BackgroundService
             var consoleMembers = _bridge.GetAggregateMembers(vrfUuid);
             if (consoleMembers is { Count: > 0 })
             {
-                foreach (var m in consoleMembers)
+                // N5 (D7 harvest): DE-DUPLICATE BEFORE REQUESTING, AND SAY HOW MANY ARE DISTINCT.
+                // VrfFacade::collectMembers recurses to depth 3 WITHOUT de-duplicating, so a member
+                // published under two sub-aggregates appears TWICE - run D7 asked for "64 members
+                // of 114.MechCoy~PXY" and listed 64 entries of which 16 were exact uuid duplicates
+                // (48 distinct). Nothing was harmed (SetObjectNotifyLevel is idempotent and the
+                // ARRIVAL EVIDENCE path already de-duplicates - the C16 fix), but the line taught a
+                // harvest a member count that is not the unit's. Same de-duplication as C16: keyed
+                // on the uuid, ordinal, first occurrence kept.
+                var seenUuids = new HashSet<string>(StringComparer.Ordinal);
+                var distinctMembers = consoleMembers.Where(m => !string.IsNullOrEmpty(m.Uuid)
+                                                                && seenUuids.Add(m.Uuid)).ToList();
+                int blankUuids = consoleMembers.Count(m => string.IsNullOrEmpty(m.Uuid));
+                foreach (var m in distinctMembers)
                 {
-                    if (string.IsNullOrEmpty(m.Uuid)) continue;
                     _names.TryAddName(m.Uuid, m.Name ?? "");
                     _bridge.SetObjectNotifyLevel(m.Uuid, _vrf.ObjectConsoleMemberNotifyLevel);
                     _navEvidence.ConsoleOpened(m.Uuid, _vrf.ObjectConsoleMemberNotifyLevel);
@@ -3065,9 +3210,13 @@ public sealed class VrfC2SimService : BackgroundService
                 // Members are named WITH their uuids (2026-09-06): the console rows the observer captures
                 // are uuid-keyed, and without this line's uuids a member's account could not be attributed
                 // to its unit offline (PREREG_ORDER_TIME_MATERIALIZATION sec 3.3, instrument gap).
-                _log.LogInformation("VRF console level {Level} requested for {N} members of {Name}: {Members}.",
-                                    _vrf.ObjectConsoleMemberNotifyLevel, consoleMembers.Count, unit.Name,
-                                    string.Join(", ", consoleMembers.Select(m => $"{m.Name} [{m.Uuid}]")));
+                _log.LogInformation("VRF console level {Level} requested for {N} DISTINCT member(s) of {Name} " +
+                                    "({Raw} published, {Dup} duplicate uuid(s) from VrfFacade::collectMembers' " +
+                                    "un-deduplicated depth-3 recursion, {Blank} with no uuid - N5): {Members}.",
+                                    _vrf.ObjectConsoleMemberNotifyLevel, distinctMembers.Count, unit.Name,
+                                    consoleMembers.Count,
+                                    consoleMembers.Count - distinctMembers.Count - blankUuids, blankUuids,
+                                    string.Join(", ", distinctMembers.Select(m => $"{m.Name} [{m.Uuid}]")));
             }
             else
                 _log.LogInformation("VRF console: {Name} ({Vrf}) publishes NO members at task time - " +
@@ -3862,10 +4011,26 @@ public sealed class VrfC2SimService : BackgroundService
             foreach (var g in route) routeLatLon.Add((g.LatDeg, g.LonDeg));
             routeLengthM = RouteExtentPolicy.PathLengthMeters(routeLatLon);
         }
+        // N7: the SIM clock's mark at dispatch, so every later "N s after dispatch" can be stated
+        // on both clocks. _simClockLast is the tick thread's own 1 Hz observation, already taken;
+        // reading the field costs nothing and calls no bridge.
+        var simObsAtDispatch = _simClockLast;
+        double simAtDispatch = simObsAtDispatch.ReadableConfirmed
+                               && double.IsFinite(simObsAtDispatch.SimSeconds)
+                               && simObsAtDispatch.SimSeconds >= 0.0
+                                   ? simObsAtDispatch.SimSeconds : double.NaN;
+        var dispatchedUtc = DateTime.UtcNow;
         var superseded = _inFlight.RecordDispatch(unit.Name,
-            new InFlightTracker.InFlight(task.TaskUuid, task.TaskName, kind, DateTime.UtcNow,
+            new InFlightTracker.InFlight(task.TaskUuid, task.TaskName, kind, dispatchedUtc,
                                          dest?.LatDeg, dest?.LonDeg, task.TaskeeUuid ?? "",
-                                         routeLengthM, startLat, startLon));
+                                         routeLengthM, startLat, startLon, simAtDispatch));
+        _log.LogInformation("DISPATCHED {Name} task '{Task}' ({Kind}) at WALL {Wall:yyyy-MM-ddTHH:mm:ss.fffZ}, " +
+                            "SIMULATION clock {Sim}. Every elapsed figure this run prints for this task is " +
+                            "labelled WALL or SIMULATION (N7); neither is the other.",
+                            unit.Name, task.TaskName, kind, dispatchedUtc,
+                            double.IsNaN(simAtDispatch)
+                                ? "NOT READABLE (DtVrfRemoteController::simTime() reports no back end)"
+                                : FormattableString.Invariant($"{simAtDispatch:F1} s"));
         if (superseded is InFlightTracker.InFlight old && old.TaskUuid != task.TaskUuid)
         {
             _log.LogWarning("Unit {Name}: task '{New}' SUPERSEDES in-flight task '{Old}' ({OldUuid}) - VRF " +
@@ -4310,6 +4475,11 @@ public sealed class VrfC2SimService : BackgroundService
     private volatile Preflight.PreflightService _preflight;
     private readonly object _preflightLock = new();
     private bool _preflightDisabled;          // one construction failure retires it for the run
+    // E6: the once-per-order tile census (see Preflight.TileCensusLatch). The two counter marks
+    // are the cumulative readings when the order's first scoring worker started; the census is the
+    // DELTA. Written under the latch's own generation discipline, so no extra lock is needed here.
+    private readonly Preflight.TileCensusLatch _tileCensus = new();
+    private int _tileHitsAtOrder, _tileFetchesAtOrder;
 
     private Preflight.PreflightService GetPreflight()
     {
@@ -4413,6 +4583,23 @@ public sealed class VrfC2SimService : BackgroundService
         int water = 0;
         if (legs == null) return 0;
         void Say(Action write) { if (defer == null) write(); else defer.Add(write); }
+        // E6 (D7 harvest): WHICH ELEVATION LEVEL ACTUALLY SERVED THIS TASK. Until now the level
+        // appeared only when it was COARSER than the L13 the threshold was calibrated at, so a run
+        // scored at L13 and a run that resolved nothing at all were equally silent on the point,
+        // and the D7 harvest had to record "the resolved elevation level is not logged". It is now
+        // stated for every task, whatever it is, because a ratio without its DEM is un-anchored.
+        Say(() =>
+        _log.LogInformation("ROUTE PRE-FLIGHT task '{Task}' ({Unit}): ELEVATION LEVEL ACTUALLY USED - {Dist} over " +
+                            "{N} leg(s) (cascade start L{From}, floor L{To}, dataset {Ds}; the threshold " +
+                            "{Thr:F2} was calibrated at L{Cal}). L0 means NO level served that leg and NOTHING " +
+                            "about it was checked (E6).",
+                            taskName, unitName,
+                            string.Join(", ", legs.GroupBy(l => l.ElevationLevel)
+                                                  .OrderByDescending(g => g.Key)
+                                                  .Select(g => $"L{g.Key} x{g.Count()}")),
+                            legs.Count, svc.Tiles.ElevationLevel, svc.Tiles.ElevationMinLevel,
+                            Preflight.TileMath.ElevationDataset, svc.Options.Threshold,
+                            Preflight.TileMath.DefaultElevationLevel));
         foreach (var leg0 in legs)
         {
             var leg = leg0;   // captured per iteration - the closures may outlive the loop
@@ -4486,12 +4673,14 @@ public sealed class VrfC2SimService : BackgroundService
         // but reading it off the same map the creates used keeps a red unit's proxy red.
         bool hostile = _hostilityByC2SimUuid.TryGetValue(taskeeUuid ?? "", out var hc) && hc == "HO";
 
+        long censusGen = _tileCensus.Enter();       // E6
         _ = Task.Run(async () =>
         {
             try
             {
                 var svc = GetPreflight();
                 if (svc == null) return;
+                MarkTileCensusStart(svc, censusGen);
                 var limit = svc.LimitFor(template, hostile);
                 var (legs, degenerate) = svc.ScoreRoute(route, limit.LimitRaw);
                 var scored = new Preflight.TaskPreflight
@@ -4505,12 +4694,14 @@ public sealed class VrfC2SimService : BackgroundService
                 foreach (var leg in legs.Where(l => l.Flagged))
                     _log.LogWarning("ROUTE PRE-FLIGHT task '{Task}' ({Unit}) leg {Leg}: {Win:F0} m of {Grade:F3} on " +
                                     "{Soil} at {Lat:F4}/{Lon:F4}, {Km:F1} km along the leg; {Tmpl} limit {Limit:F3} " +
-                                    "(max-slope {Raw:F2} x soil {Factor:F2}); {Verdict}.",
+                                    "(max-slope {Raw:F2} x soil {Factor:F2}); {Verdict}. Scored at elevation " +
+                                    "L{Level} (E6).",
                                     taskName, unitName, leg.Index, leg.SustainedWindowM, leg.Sustained, leg.Soil,
                                     leg.WorstLat, leg.WorstLon, leg.WorstSM / 1000.0,
                                     string.IsNullOrEmpty(limit.Template) ? "unit" : limit.Template,
                                     leg.Limit, leg.LimitRaw, leg.Factor,
-                                    Preflight.PreflightReports.Verdict(leg.Ratio, svc.Options.Threshold));
+                                    Preflight.PreflightReports.Verdict(leg.Ratio, svc.Options.Threshold),
+                                    leg.ElevationLevel);
                 // m3: a few no-verdict legs is ordinary (a tile gap). EVERY leg with no verdict
                 // means the pre-flight checked NOTHING for this task - the shipped PreflightCacheDir
                 // default is empty on a fresh deploy - and that must not read as an Info footnote.
@@ -4542,7 +4733,48 @@ public sealed class VrfC2SimService : BackgroundService
                 _log.LogError("ROUTE PRE-FLIGHT task '{Task}' ({Unit}) failed - the task itself is unaffected: {Msg}",
                               taskName, unitName, C2SIMSDK.GetRootException(e).Message);
             }
+            finally { ReportTileCensus(censusGen); }   // E6 - the last worker of this order prints it
         });
+    }
+
+    /// <summary>
+    /// E6: record the tile counters as this order's FIRST scoring worker found them, so the census
+    /// below can report the DELTA. Called by every worker; only the first of a generation has any
+    /// effect, and it is the only one that can (the latch's outstanding count was 1 when it ran).
+    /// </summary>
+    private void MarkTileCensusStart(Preflight.PreflightService svc, long generation)
+    {
+        if (generation == 0 || svc == null) return;
+        if (Interlocked.Exchange(ref _tileCensusMarkedGen, generation) == generation) return;
+        _tileHitsAtOrder = svc.Tiles.CacheHits;
+        _tileFetchesAtOrder = svc.Tiles.Fetched;
+    }
+    private long _tileCensusMarkedGen;
+
+    /// <summary>
+    /// E6 (D7 harvest: "no fetch count, no resolved elevation level logged - STILL UNFIXED").
+    /// ONE line per order, written by whichever scoring worker of that order finishes last, saying
+    /// how many tile reads came out of the cache and how many went over HTTP. Nothing inferred:
+    /// the two numbers are <see cref="Preflight.TileSource"/>'s own counters, and the figure that
+    /// matters - was this run's dispatch paying for tiles? - is the FETCH delta.
+    /// </summary>
+    private void ReportTileCensus(long generation)
+    {
+        if (!_tileCensus.Leave(generation)) return;
+        var svc = _preflight;
+        if (svc == null) return;
+        int hits = svc.Tiles.CacheHits - _tileHitsAtOrder;
+        int fetches = svc.Tiles.Fetched - _tileFetchesAtOrder;
+        _log.LogInformation("ROUTE PRE-FLIGHT TILE CENSUS for this order (E6): {Hits} cache HIT(s), {Fetches} HTTP " +
+                            "FETCH(es){Off}. Cumulative for the run: {CumHits} hits, {CumFetches} fetches, " +
+                            "{Exhausted} tile(s) given up on after {Tries} attempts, {Undecodable} undecodable " +
+                            "body(ies). Cache: {Cache}. A non-zero FETCH count means this order's dispatches " +
+                            "waited on the network - pre-warm the AO's tiles to remove that wait.",
+                            hits, fetches, svc.Options.Offline ? " (Vrf:PreflightOffline is TRUE, so a fetch " +
+                                                                 "count above zero would be a defect)" : "",
+                            svc.Tiles.CacheHits, svc.Tiles.Fetched, svc.Tiles.ExhaustedTiles,
+                            Preflight.TileSource.MaxFetchAttempts, svc.Tiles.UndecodableBodies,
+                            svc.Tiles.CacheDirectory);
     }
 
     // ============ THE LATERAL ROUTE SHIFT (Vrf:PreflightRouteShift; STP-804/806) ==============
@@ -4729,6 +4961,7 @@ public sealed class VrfC2SimService : BackgroundService
                             "to the result (timeout {T:F0} s -> the authored line).",
                             taskName, unitName, route.Count, _vrf.PreflightRouteShiftTimeoutSeconds);
 
+        long censusGen = _tileCensus.Enter();       // E6
         _ = Task.Run(async () =>
         {
             List<Geodetic> shifted = null;
@@ -4749,6 +4982,7 @@ public sealed class VrfC2SimService : BackgroundService
                 }
                 else
                 {
+                    MarkTileCensusStart(svc, censusGen);   // E6
                     var limit = svc.LimitFor(template, hostile);
                     var outcome = svc.ShiftRoute(route, limit.LimitRaw, opt);
                     // BEFORE the shift rows, and for EVERY leg rather than only the flagged ones:
@@ -4843,6 +5077,7 @@ public sealed class VrfC2SimService : BackgroundService
                                 taskName, unitName, _vrf.PreflightRouteShiftTimeoutSeconds, discarded,
                                 reports?.Count ?? 0,
                                 threw ? "could not say whether it would" : shifted != null ? "WOULD" : "would NOT");
+                ReportTileCensus(censusGen);   // E6 - the latch must drain on EVERY exit
                 return;
             }
             // The claim is ours: the route this worker computed IS the route being dispatched, so
@@ -4850,6 +5085,7 @@ public sealed class VrfC2SimService : BackgroundService
             pending.Flush();
             if (reports != null)
                 foreach (var xml in reports) await PushReportAsync(xml, ReportKind.Observation);
+            ReportTileCensus(censusGen);   // E6 - the last worker of this order prints it
         });
     }
 
@@ -4964,19 +5200,38 @@ public sealed class VrfC2SimService : BackgroundService
             var d = ArrivalPolicy.DecideWithTraversal(samples, total, _vrf.ArrivalRadiusMeters,
                                                       _vrf.ArrivalMemberFraction, rec.RouteLengthMeters,
                                                       _vrf.ArrivalMinTravelMeters,
-                                                      _vrf.ArrivalApproachFraction);
+                                                      _vrf.ArrivalApproachFraction,
+                                                      lastFromStart);
+            // N7 (D7 harvest): EVERY CHECK, not only the one that closes, is stamped on BOTH
+            // clocks. The old line said "{T:F0}s after dispatch" of a figure that is
+            // DateTime.UtcNow - DispatchedUtc, i.e. WALL minus WALL, and D6's report read it as a
+            // sim figure and recorded a "sim/wall 1.00" that was never measured.
+            if (!d.Arrived)
+                _log.LogDebug("ARRIVAL CHECK {Name} task '{Task}': {Within}/{Total} within {R:F0} m (nearest " +
+                              "{Near:F0} m), route bar {Req:F0} m, lowest member bar {Low:F0} m, relaxation {Relax}; " +
+                              "{Stamp}.",
+                              name, rec.TaskName, d.Within, d.Total, d.RadiusMeters, d.NearestMeters,
+                              d.RequiredTravelMeters, d.LowestMemberBarMeters,
+                              d.ApproachRelaxationApplied ? "APPLIED" : "REFUSED (SF-1)",
+                              ClockStamp(rec.DispatchedUtc, now, rec.DispatchedSimSeconds));
             if (!d.Arrived) continue;
             _arrivalReported[name] = rec.TaskUuid ?? "";
             _log.LogInformation("ARRIVAL EVIDENCE: {Name} task '{Task}' - {Within}/{Total} member(s) within {R:F0} m of the " +
                                 "last vertex (nearest {Near:F0} m) AND past their OWN traversal bar (route bar {Req:F0} m, " +
-                                "lowest member bar {Low:F0} m at approach fraction {F:F2}; farthest travel {Far:F0} m of a " +
-                                "{Len:F0} m route) {T:F0}s after dispatch - reporting completion from the unit's own " +
+                                "lowest member bar {Low:F0} m at approach fraction {F:F2}, per-member relaxation {Relax}; " +
+                                "farthest travel {Far:F0} m of a {Len:F0} m route whose last vertex is {Away:F0} m from " +
+                                "the dispatch position) {Stamp} - reporting completion from the unit's own " +
                                 "evidence (user rulings 2026-09-07 and 2026-09-21; traversal required, STP-837); a later " +
                                 "vendor completion is swallowed.",
                                 name, rec.TaskName, d.Within, d.Total, d.RadiusMeters, d.NearestMeters,
                                 d.RequiredTravelMeters, d.LowestMemberBarMeters, _vrf.ArrivalApproachFraction,
-                                d.FarthestTravelMeters, rec.RouteLengthMeters,
-                                (now - rec.DispatchedUtc).TotalSeconds);
+                                d.ApproachRelaxationApplied
+                                    ? "APPLIED (the route goes somewhere: the last vertex is at least half the "
+                                      + "route's length from where the taskee was dispatched)"
+                                    : "REFUSED (SF-1: the last vertex is less than half the route's length from "
+                                      + "where the taskee was dispatched, so every member kept the ROUTE bar)",
+                                d.FarthestTravelMeters, rec.RouteLengthMeters, lastFromStart,
+                                ClockStamp(rec.DispatchedUtc, now, rec.DispatchedSimSeconds));
             // R10 fan-out (opt-in): mark the unit's fan-out synthesized under THIS task uuid so the
             // later member completions and the straggler timer are swallowed by the tracker's own
             // Synthesized state instead of emitting a second, empty-uuid TASKCMPLT.
@@ -4986,6 +5241,40 @@ public sealed class VrfC2SimService : BackgroundService
             // provenance is the ARRIVAL EVIDENCE line above.
             SynthesizeUnitCompletion(name, "");
         }
+    }
+
+    /// <summary>
+    /// N7: ONE ELAPSED-TIME STAMP, ON BOTH CLOCKS, WITH THE UNIT SPELLED OUT.
+    ///
+    /// Every "N s after dispatch" this interface has ever printed was
+    /// <c>DateTime.UtcNow - DispatchedUtc</c> - WALL seconds - and nothing said so, which is how
+    /// the D6 harvest came to record a "sim/wall 1.00" it had never measured (it compared that
+    /// figure against wall capture stamps: the same clock on both sides). D7 then measured ~3.00
+    /// off the level-3 console rows. So the word WALL is now in the line, and the SIMULATION
+    /// clock - VrfBridge.SimTimeSeconds(), the reader the watchdog and the task clock already
+    /// share - is printed beside it whenever it is readable.
+    ///
+    /// The sim elapsed figure needs a sim-clock mark at dispatch, which only exists for tasks
+    /// dispatched since <see cref="MarkDispatched"/> started recording one; when it does not, the
+    /// absolute sim time is still printed, because "the scenario clock stood at S" is evidence
+    /// even without a baseline. An unreadable clock says so in words - never "0", never a blank.
+    /// </summary>
+    private string ClockStamp(DateTime dispatchedUtc, DateTime nowUtc, double simAtDispatch = double.NaN)
+    {
+        double wall = (nowUtc - dispatchedUtc).TotalSeconds;
+        var obs = _simClockLast;
+        if (!obs.ReadableConfirmed || !double.IsFinite(obs.SimSeconds) || obs.SimSeconds < 0.0)
+            return FormattableString.Invariant($"{wall:F1} WALL s after dispatch")
+                 + " (the SIMULATION clock is not readable - DtVrfRemoteController::simTime() reports"
+                 + " no back end, so there is no sim figure for this line and the wall figure must"
+                 + " not be read as one)";
+        if (double.IsNaN(simAtDispatch))
+            return FormattableString.Invariant(
+                       $"{wall:F1} WALL s after dispatch; the SIMULATION clock stands at {obs.SimSeconds:F1} s")
+                 + " (no sim mark was taken at this task's dispatch, so no sim elapsed figure)";
+        return FormattableString.Invariant(
+                   $"{wall:F1} WALL s after dispatch = {obs.SimSeconds - simAtDispatch:F1} SIMULATION s ")
+             + FormattableString.Invariant($"(sim clock {simAtDispatch:F1} -> {obs.SimSeconds:F1} s)");
     }
 
     /// <summary>
@@ -5033,7 +5322,12 @@ public sealed class VrfC2SimService : BackgroundService
         bool stallPrefersSim = _vrf.StallDetection
                                && StallPolicy.ParseClockPreference(_vrf.StallClock, out _);
         double simSeconds = -1.0;
-        if (preferSim || stallPrefersSim)
+        // N7 (D7 harvest): READ IT UNCONDITIONALLY. Until now the clock was read only when the
+        // task clock or the watchdog asked for it - and BOTH ship off on the base profile, so a
+        // default run had no sim reading at all and every elapsed figure it printed was wall
+        // seconds with nothing saying so. The read is documented read-only, sends nothing on the
+        // wire and registers no callback (VrfFacade.h:478-482); it costs one call per second on a
+        // thread that is already ticking, and it is what lets every line below name its clock.
         {
             try { simSeconds = _bridge.SimTimeSeconds(); }
             catch (Exception ex)
@@ -5043,6 +5337,18 @@ public sealed class VrfC2SimService : BackgroundService
         var obs = _simClock.Observe(simSeconds, wallNow, StallPolicy.ModeSwitchConfirmations,
                                     StallPolicy.StaleClockWarnSeconds);
         _simClockLast = obs;
+
+        // N7: HOW FAST IS THE SCENARIO RUNNING? Once a minute, on a disjoint window, in the app's
+        // own log - so nobody has to regress console rows against a trace to find out, and nobody
+        // can record a 1.00 that was never measured.
+        double ratio = _simWallRatio.Observe(obs.ReadableConfirmed ? obs.SimSeconds : double.NaN, wallNow);
+        if (!double.IsNaN(ratio))
+            _log.LogInformation("SIM/WALL RATIO {Ratio:F3} over the last {W:F0} WALL s (simulation clock now " +
+                                "{Sim:F1} s; reader DtVrfRemoteController::simTime()). 1.000 = real time; above " +
+                                "it the scenario is running fast (fixed-frame-run-to-complete); 0.000 = paused. " +
+                                "EVERY 'after dispatch' figure in this log is WALL seconds unless the line says " +
+                                "SIMULATION - the two are not interchangeable at this ratio.",
+                                ratio, SimWallRatio.MinWindowWallSeconds, obs.SimSeconds);
 
         // A BACKWARDS STEP IS A FACT ABOUT THE CLOCK, not about any one consumer, so it is reported
         // here once rather than by each of them (rate-limited, and it says how many it did not

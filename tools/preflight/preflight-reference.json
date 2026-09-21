@@ -1,6 +1,6 @@
 {
  "tool": "tools/preflight/leg_check.py",
- "generated": "2026-09-14T13:27:26Z",
+ "generated": "2026-09-21T04:00:01Z",
  "parameters": {
   "step_m": 8.0,
   "sustained_window_m": 40.0,
@@ -10,8 +10,11 @@
   "min_leg_m": 1.0,
   "max_nan_fraction": 0.01,
   "typemap": "unit-type-map-52-nolifeform.json",
-  "elevation": "TMS 149 L13 bilinear",
+  "elevation": "TMS 149 L13..L11 bilinear",
+  "elev_level": 13,
+  "elev_min_level": 11,
   "landcover": [
+   "TMS 59 L14 CLCplus 10m",
    "TMS 154 L12 CA FVEG 15m",
    "TMS 165 L12 NLCD 30m",
    "TMS 188 L10 Copernicus 100m"
@@ -42,6 +45,9 @@
    "dropped_vertices": 1,
    "drop_note": "dropped 1 leading vertex(es) on the authored origin (34.67998,-116.72480); the unit was spread 2774 m from it",
    "degenerate_legs": 0,
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
+   "moves_the_unit": true,
    "route": [
     [
      34.658442,
@@ -97,6 +103,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.658442,
       -116.740092
@@ -144,6 +159,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.651212159120796,
       -116.81163703922806
@@ -191,6 +215,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.59635066271489,
       -116.95232918947032
@@ -228,6 +261,9 @@
    "dropped_vertices": 0,
    "drop_note": "",
    "degenerate_legs": 1,
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
+   "moves_the_unit": true,
    "route": [
     [
      34.570294428586486,
@@ -279,6 +315,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.570294428586486,
       -117.00622314755442
@@ -316,6 +361,9 @@
    "dropped_vertices": 0,
    "drop_note": "",
    "degenerate_legs": 1,
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
+   "moves_the_unit": true,
    "route": [
     [
      34.48840762654256,
@@ -367,6 +415,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.48840762654256,
       -116.61492221031979
@@ -404,6 +461,9 @@
    "dropped_vertices": 0,
    "drop_note": "",
    "degenerate_legs": 0,
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
+   "moves_the_unit": true,
    "route": [
     [
      34.32941147391077,
@@ -451,6 +511,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.32941147391077,
       -116.50651992054665
@@ -488,6 +557,9 @@
    "dropped_vertices": 0,
    "drop_note": "",
    "degenerate_legs": 0,
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
+   "moves_the_unit": true,
    "route": [
     [
      34.667649,
@@ -535,6 +607,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.667649,
       -116.724799
@@ -572,6 +653,9 @@
    "dropped_vertices": 0,
    "drop_note": "",
    "degenerate_legs": 0,
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
+   "moves_the_unit": true,
    "route": [
     [
      34.3993811486055,
@@ -619,6 +703,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.3993811486055,
       -116.85915007933568
@@ -656,6 +749,9 @@
    "dropped_vertices": 0,
    "drop_note": "",
    "degenerate_legs": 1,
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
+   "moves_the_unit": true,
    "route": [
     [
      34.5751313894884,
@@ -674,6 +770,8 @@
    "unit": "4-27/2/1_A",
    "unit_uuid": "3ac081eb-6adc-7e58-b0b5-9b506b4eae0f",
    "legs": [],
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
    "note": "no route points in the order"
   },
   {
@@ -682,6 +780,8 @@
    "unit": "A/6-56/HHC",
    "unit_uuid": "5cd92a83-c6bd-875e-96ae-5650b790a1b6",
    "legs": [],
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
    "note": "no route points in the order"
   },
   {
@@ -690,6 +790,8 @@
    "unit": "A/6-56/HHC",
    "unit_uuid": "5cd92a83-c6bd-875e-96ae-5650b790a1b6",
    "legs": [],
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
    "note": "no route points in the order"
   },
   {
@@ -713,6 +815,9 @@
    "dropped_vertices": 0,
    "drop_note": "",
    "degenerate_legs": 0,
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
+   "moves_the_unit": true,
    "route": [
     [
      34.683261,
@@ -760,6 +865,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.683261,
       -116.701934
@@ -794,6 +908,9 @@
    "dropped_vertices": 0,
    "drop_note": "",
    "degenerate_legs": 1,
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
+   "moves_the_unit": true,
    "route": [
     [
      34.3270745574951,
@@ -832,6 +949,9 @@
    "dropped_vertices": 0,
    "drop_note": "",
    "degenerate_legs": 0,
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
+   "moves_the_unit": true,
    "route": [
     [
      34.67998497486787,
@@ -887,6 +1007,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.67998497486787,
       -116.72479854165415
@@ -934,6 +1063,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.43194755162373,
       -116.97279105342841
@@ -981,6 +1119,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.4338954604207,
       -116.96965569672
@@ -1020,6 +1167,9 @@
    "dropped_vertices": 0,
    "drop_note": "",
    "degenerate_legs": 0,
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
+   "moves_the_unit": true,
    "route": [
     [
      34.43148483010902,
@@ -1067,6 +1217,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.43148483010902,
       -116.96991137034888
@@ -1104,6 +1263,9 @@
    "dropped_vertices": 1,
    "drop_note": "dropped 1 leading vertex(es) on the authored origin (34.67998,-116.72480); the unit was spread 2073 m from it",
    "degenerate_legs": 0,
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
+   "moves_the_unit": true,
    "route": [
     [
      34.662498,
@@ -1159,6 +1321,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.662498,
       -116.732644
@@ -1206,6 +1377,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.60904665152399,
       -116.8033219547244
@@ -1253,6 +1433,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.48593335503527,
       -116.9268849112078
@@ -1272,6 +1461,8 @@
    "unit": "1-6/2/1_AD",
    "unit_uuid": "74bdb03b-c85e-5e54-8f04-180c44ddc9c3",
    "legs": [],
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
    "note": "no route points in the order"
   },
   {
@@ -1298,6 +1489,9 @@
    "dropped_vertices": 1,
    "drop_note": "dropped 1 leading vertex(es) on the authored origin (34.67998,-116.72480); the unit was spread 35524 m from it",
    "degenerate_legs": 0,
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
+   "moves_the_unit": true,
    "route": [
     [
      34.43378352084772,
@@ -1353,6 +1547,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.43378352084772,
       -116.97201062879192
@@ -1400,6 +1603,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.57668675055838,
       -116.66519417549965
@@ -1447,6 +1659,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.40792830652674,
       -116.55813048661592
@@ -1484,6 +1705,9 @@
    "dropped_vertices": 0,
    "drop_note": "",
    "degenerate_legs": 0,
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
+   "moves_the_unit": true,
    "route": [
     [
      34.34248700979808,
@@ -1531,6 +1755,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.34248700979808,
       -116.51060294857699
@@ -1568,6 +1801,9 @@
    "dropped_vertices": 1,
    "drop_note": "dropped 1 leading vertex(es) on the authored origin (34.67998,-116.72480); the unit was spread 2077 m from it",
    "degenerate_legs": 0,
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
+   "moves_the_unit": true,
    "route": [
     [
      34.665774,
@@ -1623,6 +1859,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.665774,
       -116.710053
@@ -1670,6 +1915,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.6509867718674,
       -116.81152342747846
@@ -1717,6 +1971,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.59576020177361,
       -116.9519993552593
@@ -1754,6 +2017,9 @@
    "dropped_vertices": 0,
    "drop_note": "",
    "degenerate_legs": 0,
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
+   "moves_the_unit": true,
    "route": [
     [
      34.56956418233244,
@@ -1801,6 +2067,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.56956418233244,
       -117.00579093595098
@@ -1820,6 +2095,8 @@
    "unit": "40/2/1_AD",
    "unit_uuid": "6977b035-d84c-da5f-9cc0-497b9f334eb7",
    "legs": [],
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
    "note": "no route points in the order"
   },
   {
@@ -1846,6 +2123,9 @@
    "dropped_vertices": 0,
    "drop_note": "",
    "degenerate_legs": 0,
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
+   "moves_the_unit": true,
    "route": [
     [
      34.43378352084772,
@@ -1893,6 +2173,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.43378352084772,
       -116.97201062879192
@@ -1927,6 +2216,9 @@
    "dropped_vertices": 1,
    "drop_note": "dropped 1 leading vertex(es) on the authored origin (34.67998,-116.72480); the unit was spread 2762 m from it",
    "degenerate_legs": 0,
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
+   "moves_the_unit": true,
    "route": [
     [
      34.662425,
@@ -1982,6 +2274,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.662425,
       -116.746154
@@ -2029,6 +2330,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.6508861485138,
       -116.81211493934713
@@ -2076,6 +2386,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.59548510469796,
       -116.95358781065376
@@ -2095,6 +2414,8 @@
    "unit": "1-1/2/1_AD",
    "unit_uuid": "de16a337-b2a6-c029-07b5-869191631621",
    "legs": [],
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
    "note": "no route points in the order"
   },
   {
@@ -2118,6 +2439,9 @@
    "dropped_vertices": 0,
    "drop_note": "",
    "degenerate_legs": 0,
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
+   "moves_the_unit": true,
    "route": [
     [
      34.56921569602198,
@@ -2165,6 +2489,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.56921569602198,
       -117.00778520596653
@@ -2199,6 +2532,9 @@
    "dropped_vertices": 0,
    "drop_note": "",
    "degenerate_legs": 0,
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
+   "moves_the_unit": true,
    "route": [
     [
      34.32941147391077,
@@ -2246,6 +2582,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.32941147391077,
       -116.50651992054665
@@ -2280,6 +2625,9 @@
    "dropped_vertices": 0,
    "drop_note": "",
    "degenerate_legs": 0,
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
+   "moves_the_unit": true,
    "route": [
     [
      34.662483,
@@ -2327,6 +2675,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.662483,
       -116.71668
@@ -2361,6 +2718,9 @@
    "dropped_vertices": 0,
    "drop_note": "",
    "degenerate_legs": 1,
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
+   "moves_the_unit": true,
    "route": [
     [
      34.644968647111035,
@@ -2394,6 +2754,9 @@
    "dropped_vertices": 0,
    "drop_note": "",
    "degenerate_legs": 0,
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
+   "moves_the_unit": true,
    "route": [
     [
      34.644968647111035,
@@ -2441,6 +2804,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.644968647111035,
       -116.98471411872667
@@ -2475,6 +2847,9 @@
    "dropped_vertices": 0,
    "drop_note": "",
    "degenerate_legs": 0,
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
+   "moves_the_unit": true,
    "route": [
     [
      34.43378352084772,
@@ -2522,6 +2897,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.43378352084772,
       -116.97201062879192
@@ -2559,6 +2943,9 @@
    "dropped_vertices": 1,
    "drop_note": "dropped 1 leading vertex(es) on the authored origin (34.67998,-116.72480); the unit was spread 2123 m from it",
    "degenerate_legs": 0,
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
+   "moves_the_unit": true,
    "route": [
     [
      34.697952,
@@ -2614,6 +3001,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.697952,
       -116.716953
@@ -2661,6 +3057,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.6508861485138,
       -116.81211493934713
@@ -2708,6 +3113,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.59548510469796,
       -116.95358781065376
@@ -2745,6 +3159,9 @@
    "dropped_vertices": 1,
    "drop_note": "dropped 1 leading vertex(es) on the authored origin (34.67998,-116.72480); the unit was spread 28674 m from it",
    "degenerate_legs": 0,
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
+   "moves_the_unit": true,
    "route": [
     [
      34.56921569602198,
@@ -2800,6 +3217,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.56921569602198,
       -117.00778520596653
@@ -2847,6 +3273,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.620599839889636,
       -116.69672213742032
@@ -2894,6 +3329,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.524808687010314,
       -116.64179103385925
@@ -2931,6 +3375,9 @@
    "dropped_vertices": 0,
    "drop_note": "",
    "degenerate_legs": 1,
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
+   "moves_the_unit": true,
    "route": [
     [
      34.48840762654256,
@@ -2949,6 +3396,8 @@
    "unit": "5-20/2/1_A",
    "unit_uuid": "50828a9b-0357-e75e-8873-5404000a90e6",
    "legs": [],
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
    "note": "no route points in the order"
   },
   {
@@ -2972,6 +3421,9 @@
    "dropped_vertices": 1,
    "drop_note": "dropped 1 leading vertex(es) on the authored origin (34.67998,-116.72480); the unit was spread 1424 m from it",
    "degenerate_legs": 0,
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
+   "moves_the_unit": true,
    "route": [
     [
      34.692787,
@@ -3027,6 +3479,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.692787,
       -116.724526
@@ -3074,6 +3535,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.6508861485138,
       -116.81211493934713
@@ -3121,6 +3591,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.59548510469796,
       -116.95358781065376
@@ -3155,6 +3634,9 @@
    "dropped_vertices": 0,
    "drop_note": "",
    "degenerate_legs": 0,
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
+   "moves_the_unit": true,
    "route": [
     [
      34.56921569602198,
@@ -3210,6 +3692,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.56921569602198,
       -117.00778520596653
@@ -3257,6 +3748,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.582990923293785,
       -116.6401677051075
@@ -3304,6 +3804,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.57975774771338,
       -116.64037223356547
@@ -3323,6 +3832,8 @@
    "unit": "B/5-20",
    "unit_uuid": "1375ca0a-d212-d86a-e275-5555aef42fd8",
    "legs": [],
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
    "note": "no route points in the order"
   },
   {
@@ -3331,6 +3842,8 @@
    "unit": "B/5-20",
    "unit_uuid": "1375ca0a-d212-d86a-e275-5555aef42fd8",
    "legs": [],
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
    "note": "no route points in the order"
   },
   {
@@ -3357,6 +3870,9 @@
    "dropped_vertices": 1,
    "drop_note": "dropped 1 leading vertex(es) on the authored origin (34.67998,-116.72480); the unit was spread 2774 m from it",
    "degenerate_legs": 0,
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
+   "moves_the_unit": true,
    "route": [
     [
      34.658442,
@@ -3412,6 +3928,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.658442,
       -116.709505
@@ -3459,6 +3984,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.594444533432686,
       -116.6436788075636
@@ -3506,6 +4040,15 @@
      "nan_samples": 0,
      "nan_fraction": 0.0,
      "no_verdict": false,
+     "elev_level": 13,
+     "elev_fetch_failures": 0,
+     "water_samples": 0,
+     "water_fraction": 0.0,
+     "water_soil": "",
+     "water_source": "",
+     "water_desc": "",
+     "water_first": null,
+     "water_first_s_m": 0.0,
      "start": [
       34.456599198492206,
       -116.50191177555976
@@ -3543,6 +4086,9 @@
    "dropped_vertices": 0,
    "drop_note": "",
    "degenerate_legs": 1,
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
+   "moves_the_unit": true,
    "route": [
     [
      34.40432742184594,
@@ -3579,6 +4125,9 @@
    "dropped_vertices": 0,
    "drop_note": "",
    "degenerate_legs": 1,
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
+   "moves_the_unit": true,
    "route": [
     [
      34.40432742184594,
@@ -3615,6 +4164,9 @@
    "dropped_vertices": 0,
    "drop_note": "",
    "degenerate_legs": 1,
+   "geometry_source": "embedded Location",
+   "geometry_notes": [],
+   "moves_the_unit": true,
    "route": [
     [
      34.40432742184594,

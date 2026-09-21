@@ -458,10 +458,16 @@ Check 'runner: the manifest records what the BRIDGE federates ended up using eit
 # and StartRtiExec52 would exit 2 on every run.
 Check 'runner: Stage 2r does NOT derive the rtiexec interface from -DeviceAddress' (
     $runnerText -notmatch "'-InterfaceAddress', \`$DeviceAddress")
+# TIGHTENED (D7 lane): the two positions are taken from the INVOKE-EXTERNAL call sites, not from
+# any occurrence of "-Name '<tool>'" in the file. The loose form matched a Get-Process -Name
+# 'RtiProbe' in the Stage 1 inventory - a read-only process listing that launches nothing - and
+# reported a stage-order violation that did not exist. Same property, measured on the thing that
+# actually runs the stage.
 Check 'runner: Stage 2r invokes StartRtiExec52 BEFORE the Stage 2c RtiProbe gate' (
     $runnerText.IndexOf("Stage 2r") -gt 0 -and
-    $runnerText.IndexOf("-Name 'StartRtiExec52'") -gt 0 -and
-    $runnerText.IndexOf("-Name 'StartRtiExec52'") -lt $runnerText.IndexOf("-Name 'RtiProbe'"))
+    $runnerText.IndexOf("Invoke-External -Name 'StartRtiExec52'") -gt 0 -and
+    $runnerText.IndexOf("Invoke-External -Name 'RtiProbe'") -gt 0 -and
+    $runnerText.IndexOf("Invoke-External -Name 'StartRtiExec52'") -lt $runnerText.IndexOf("Invoke-External -Name 'RtiProbe'"))
 foreach ($rel in @('scripts\StartRtiExec52.ps1', 'scripts\LaunchVrf52.ps1')) {
     $t = Get-Content -LiteralPath (Join-Path $RepoRoot $rel) -Raw
     Check ('{0}: defaults to makRti5.0.1' -f $rel) ($t -match "\`$RtiDir\s+=\s+'C:\\MAK\\makRti5\.0\.1'")
@@ -1473,6 +1479,127 @@ Check '8o runner: a MISMATCH is a validity flag, not a silently corrected field'
 Check '8o the runner SAYS the value is a prediction, in the dry-run banner' (
     $provDefFlat -match 'route shift is PREDICTED (ON|OFF) for this run' -and
     $provDefFlat -match 'that is a PREDICTION from this shell, not an observation')
+
+# ===========================================================================================
+# 8u. THE SAME AGREEMENT DISCIPLINE FOR THE OTHER TWO SETTINGS THAT CHANGE A RUN'S MEANING
+#     (adca180 build report FINDING 2; D7 prereg P1 and P5 had to be scored by hand)
+# ===========================================================================================
+Write-Host '=== 8u. DeStackComposedSiblings / ArrivalApproachFraction: predicted, announced, agreed ==='
+# The app's own start-up lines, verbatim in the shape it writes them (VrfC2SimService 0c-iv).
+$dsOn  = 'info: VrfC2SimApp.VrfC2SimService[0]' + "`r`n" +
+         '      COMPOSED-SIBLING DE-STACK ON (Vrf:DeStackComposedSiblings, user ruling 2026-09-21 + N4). ON spreads composed siblings that share a coordinate onto ONE ring about it at EQUAL bearings.'
+$dsOff = '      COMPOSED-SIBLING DE-STACK off (Vrf:DeStackComposedSiblings, user ruling 2026-09-21 + N4). ON spreads composed siblings ...'
+$afTxt = '      ARRIVAL APPROACH FRACTION 0.50 (Vrf:ArrivalApproachFraction, user ruling 2026-09-21). Above 0 a member''s traversal bar is capped at this share of ITS OWN distance.'
+$afZero= '      ARRIVAL APPROACH FRACTION 0.00 (Vrf:ArrivalApproachFraction, user ruling 2026-09-21). Above 0 ...'
+Check '8u the de-stack announcement parses ON and off case-SENSITIVELY, and silence is $null' (
+    (Get-DeStackSiblingAnnouncement -AppLogText $dsOn)['Announced'] -eq $true -and
+    (Get-DeStackSiblingAnnouncement -AppLogText $dsOff)['Announced'] -eq $false -and
+    $null -eq (Get-DeStackSiblingAnnouncement -AppLogText 'nothing relevant here')['Announced'] -and
+    $null -eq (Get-DeStackSiblingAnnouncement -AppLogText '')['Announced'])
+Check '8u the de-stack announcement carries the LINE it read, for the evidence' (
+    (Get-DeStackSiblingAnnouncement -AppLogText $dsOn)['Line'] -match 'COMPOSED-SIBLING DE-STACK ON')
+Check '8u the approach-fraction announcement parses a NUMBER, including 0' (
+    [double](Get-ArrivalApproachAnnouncement -AppLogText $afTxt)['Announced'] -eq 0.5 -and
+    [double](Get-ArrivalApproachAnnouncement -AppLogText $afZero)['Announced'] -eq 0.0 -and
+    $null -eq (Get-ArrivalApproachAnnouncement -AppLogText 'nothing relevant')['Announced'])
+# The VERDICT rule, pure - the half that decides CONFIRMED / MISMATCH / NOT OBSERVED.
+$sAgree   = Get-SettingVerdict -Name 'Vrf:DeStackComposedSiblings' -Predicted $true -PredictedSource 'appsettings.json' -Announced $true -AnnouncedSource 'banner' -Stage 'Stage 6c'
+$sMis     = Get-SettingVerdict -Name 'Vrf:DeStackComposedSiblings' -Predicted $true -PredictedSource 'appsettings.json' -Announced $false -AnnouncedSource 'banner' -Stage 'Stage 6c'
+$sSilent  = Get-SettingVerdict -Name 'Vrf:DeStackComposedSiblings' -Predicted $true -PredictedSource 'appsettings.json' -Announced $null -AnnouncedSource '' -Stage 'Stage 6c'
+$sNumOk   = Get-SettingVerdict -Name 'Vrf:ArrivalApproachFraction' -Predicted 0.5 -PredictedSource 'appsettings.json' -Announced 0.5 -AnnouncedSource 'banner' -Stage 'Stage 6c'
+$sNumMis  = Get-SettingVerdict -Name 'Vrf:ArrivalApproachFraction' -Predicted 0.5 -PredictedSource 'appsettings.json' -Announced 0.0 -AnnouncedSource 'banner' -Stage 'Stage 6c'
+$sUnparse = Get-SettingVerdict -Name 'Vrf:ArrivalApproachFraction' -Predicted 'UNKNOWN - unparseable Vrf__ArrivalApproachFraction' -PredictedSource 'env' -Announced 0.5 -AnnouncedSource 'banner' -Stage 'Stage 6c'
+Check '8u verdict: prediction and announcement agreeing = CONFIRMED, no mismatch' (
+    $sAgree['Observed'] -eq $true -and $sAgree['Mismatch'] -eq $false -and $sAgree['Agreement'] -match '^CONFIRMED')
+Check '8u verdict: a disagreement is a MISMATCH that names BOTH values and the setting' (
+    $sMis['Mismatch'] -eq $true -and $sMis['Agreement'] -match 'PREDICTED Vrf:DeStackComposedSiblings = \[True\]' -and
+    $sMis['Agreement'] -match 'ANNOUNCED \[False\]')
+Check '8u verdict: NO announcement is NOT OBSERVED - never a mismatch, never a promotion' (
+    $sSilent['Observed'] -eq $false -and $sSilent['Mismatch'] -eq $false -and $sSilent['Agreement'] -match '^NOT OBSERVED')
+Check '8u verdict: NUMBERS compare with a tolerance (0.50 and 0.5 agree) and a real change does not' (
+    $sNumOk['Mismatch'] -eq $false -and $sNumMis['Mismatch'] -eq $true -and
+    (Get-SettingVerdict -Name 'x' -Predicted 0.5 -PredictedSource 's' -Announced 0.50 -AnnouncedSource 'b' -Stage 't')['Mismatch'] -eq $false)
+Check '8u verdict: an UNPARSEABLE prediction can never be reported as agreeing with the app' (
+    $sUnparse['Mismatch'] -eq $true -and $sUnparse['Agreement'] -match 'UNKNOWN - unparseable')
+# The runner side.
+Check '8u runner: both settings are RESOLVED in the app''s own precedence order (env > json > C# initialiser)' (
+    $runnerText -match 'function Resolve-AppSetting' -and
+    $runnerText -match "Resolve-AppSetting -Key 'DeStackComposedSiblings' -Type 'bool'" -and
+    $runnerText -match "Resolve-AppSetting -Key 'ArrivalApproachFraction' -Type 'double'")
+Check '8u runner: the manifest carries predicted/announced/agreement for each, under inputs.appSettings' (
+    $runnerText -match '\$Manifest\.inputs\.appSettings = \[ordered\]@\{' -and
+    $runnerText -match 'deStackComposedSiblings\s*=' -and $runnerText -match 'arrivalApproachFraction\s*=')
+Check '8u runner: the app''s announcements are folded in at Stage 6c AND again at teardown' (
+    @([regex]::Matches($runnerText, 'Update-AppSettingObservations -AppLogPath \$PathAppLog')).Count -ge 2)
+$asFn = $runnerAst.FindAll({ param($a) $a -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $a.Name -eq 'Update-AppSettingObservations' }, $true)
+Check '8u runner: Update-AppSettingObservations defers the RULE to the pure verdict and never writes the prediction into the observation' (
+    @($asFn).Count -eq 1 -and
+    $asFn[0].Extent.Text -match 'Get-SettingVerdict' -and
+    $asFn[0].Extent.Text -notmatch '\$slot\.announced\s*=\s*\$slot\.predicted' -and
+    $asFn[0].Extent.Text -match "\`$slot\.announced\s*=\s*\`$ann\['Announced'\]" -and
+    $asFn[0].Extent.Text -match "if \(-not \`$v\['Observed'\]\) \{ continue \}")
+Check '8u runner: a MISMATCH on either is a validity flag, not a silently corrected field' (
+    $asFn[0].Extent.Text -match "Add-Flag 'WARN' \('\{0\} PREDICTION/REALITY MISMATCH")
+Check '8u the runner SAYS both values are predictions, in the dry-run banner' (
+    $provDefFlat -match 'Vrf:DeStackComposedSiblings is PREDICTED' -and
+    $provDefFlat -match 'Vrf:ArrivalApproachFraction is PREDICTED' -and
+    $provDefFlat -match 'both are PREDICTIONS from this shell')
+
+# ===========================================================================================
+# 8v. -DurationScale: the order's clock got a switch (ironstorm_cuta_prep_report STEP 4)
+# ===========================================================================================
+Write-Host '=== 8v. -DurationScale: a switch, validated, exported, echoed and in the manifest ==='
+Check '8v the parameter exists, is a [double] and DEFAULTS TO 0 (= this runner sets nothing)' (
+    $params.ContainsKey('DurationScale') -and
+    "$($params['DurationScale'].StaticType)" -match 'Double' -and
+    "$($params['DurationScale'].DefaultValue)" -eq '0')
+Check '8v it is VALIDATED before anything is launched, with a finite positive range' (
+    $runnerText -match '\$DurationScaleOn = \(\$DurationScale -ne 0\)' -and
+    $runnerText -match '\[double\]::IsFinite\(\$DurationScale\)' -and
+    $runnerText -match '-DurationScale must be 0')
+Check '8v it is EXPORTED as Vrf__DurationScale, with the invariant culture (never a comma decimal)' (
+    $runnerText -match "\`$env:Vrf__DurationScale = \[string\]::Format\(\[System\.Globalization\.CultureInfo\]::InvariantCulture" -and
+    $runnerText -match "Resolve-AppSetting|Vrf__DurationScale")
+Check '8v the shell''s own value is SAVED and RESTORED - a runner must not leave a clock scale behind' (
+    $runnerText -match '\$DurationScaleEnvBefore = \[Environment\]::GetEnvironmentVariable\(''Vrf__DurationScale''\)' -and
+    $runnerText -match 'if \(\$DurationScaleOn\) \{ \$env:Vrf__DurationScale = \$DurationScaleEnvBefore \}')
+Check '8v the MANIFEST records the switch, whether it was exported, and what was in the shell before' (
+    $runnerText -match '\$Manifest\.inputs\.durationScale = \[ordered\]@\{' -and
+    $runnerText -match 'envValueBefore\s*=' -and $runnerText -match 'exported\s*=')
+Check '8v the Stage 0 banner ECHOES it either way, so a compressed run can never be read as a full-length one' (
+    $provDefFlat -match 'order clock: -DurationScale not given' -or
+    $provDefFlat -match 'order clock SCALED')
+Check '8v the note says what it scales AND what it does not (the order''s clock, never movement)' (
+    $runnerText -match 'the Duration that ends a task and the StartTime delay that holds one back\) and NOT movement')
+
+# ===========================================================================================
+# 8w. E4 / N3 (D6 and D7 harvests, both RECURRING): what the manifest could not say
+# ===========================================================================================
+Write-Host '=== 8w. E4: the persistent holders alive at launch; N3: the DEPLOYED build identity ==='
+Check '8w E4: Stage 1 records the RtiProbe holders that were ALREADY running, as their own field' (
+    $runnerText -match '\$Manifest\.preflight\.existingFederationHolders\s*=' -and
+    $runnerText -match '\$HolderProcName\s+=\s+''RtiProbe''' -and
+    $runnerText -match 'Get-Process -Name \$HolderProcName')
+Check '8w E4: the field is DISTINGUISHED from postRunFederationHolder, which is this run''s own holder' (
+    $runnerText -match 'existingFederationHoldersNote\s*=' -and
+    $runnerText -match 'postRunFederationHolder lists only THIS run''''s holder and is a different question')
+Check '8w E4: a pre-existing holder is NEVER touched and never refused on (RUNBOOK sec 0)' (
+    $runnerText -match 'Never touched, never waited for, never refused on \(STP-825, RUNBOOK sec 0\)')
+Check '8w N3: the manifest records the DEPLOYED app''s build identity, read off the binary' (
+    $runnerText -match '\$Manifest\.host\.deployedAppBuild\s*=' -and
+    $runnerText -match 'FileVersionInfo\]::GetVersionInfo\(\$probe\)\.ProductVersion' -and
+    $runnerText -match "\\\+git\\\.\(\?<c>\[0-9a-fA-F\]\+\)")
+Check '8w N3: a binary built from a DIRTY tree is a WARN flag, not a silently recorded commit' (
+    $runnerText -match 'was built from a DIRTY working tree at commit' -and
+    $runnerText -match "Add-Flag 'WARN' \('the DEPLOYED VrfC2SimApp")
+Check '8w N3: host.gitCommit is annotated as the WORKING TREE''s HEAD, which is a different question' (
+    $runnerText -match '\$Manifest\.host\.gitCommitNote\s*=' -and
+    $runnerText -match 'a statement about the CHECKOUT, not about the deployed binary')
+Check '8w N3: the csproj STAMPS the commit (and a DIRTY marker) into the assembly' (
+    (Get-Content -LiteralPath (Join-Path $RepoRoot 'src\VrfC2SimApp\VrfC2SimApp.csproj') -Raw) -match 'StampGitIdentity' -and
+    (Get-Content -LiteralPath (Join-Path $RepoRoot 'src\VrfC2SimApp\VrfC2SimApp.csproj') -Raw) -match 'BuildGitCommit' -and
+    (Get-Content -LiteralPath (Join-Path $RepoRoot 'src\VrfC2SimApp\VrfC2SimApp.csproj') -Raw) -match '\+DIRTY' -and
+    (Get-Content -LiteralPath (Join-Path $RepoRoot 'src\VrfC2SimApp\VrfC2SimApp.csproj') -Raw) -match 'ContinueOnError="true"')
 
 # 8p. D1b harvest A1: the end-of-run vendor-log capture looked for the FLAT 5.0.2 names
 # (bin64\vrfSim.log, C:\MAK\logs\vrfGui.log) that VR-Forces 5.2 never writes, so every 5.2 run in

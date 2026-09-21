@@ -20,9 +20,23 @@ namespace VrfC2SimApp;
 /// RELATIVE TO THAT ENTRY'S LEADER - so a formation's true extent is the resolved chain, not the
 /// largest single offset. SPAN below is the maximum pairwise distance between resolved slots,
 /// which is the figure the ruling's "whatever their heading" clause asks for (heading rotates the
-/// whole pattern, so only the diameter matters). Measured over the formations that the shipped
-/// EntityLevel .entity templates OF THAT ECHELON actually reference (scratchpad frm_spans.py /
-/// frm_by_template.py, 2026-09-21):
+/// whole pattern, so only the diameter matters).
+///
+/// *** THE TABLE IS THE GROUND SUBSET, AND SAYING SO IS THE POINT (SF-3, cold-start review of
+/// 35a13f2). *** It is measured over the formations that the shipped EntityLevel .entity templates
+/// OF THAT ECHELON actually reference, RESTRICTED TO GROUND templates (scratchpad frm_spans.py /
+/// frm_by_template.py, 2026-09-21). Re-run WITHOUT that restriction the same script returns
+/// SECTION = 3,000 m (Air Section) and SQUAD = 12,649 m (Fighter Squadron - the name classifier
+/// matches "Squadron"): the air rows are an order of magnitude bigger and are NOT in this table.
+/// <see cref="KeyOf"/> therefore refuses to hand a unit whose SIDC battle dimension is AIR, SPACE,
+/// SEA SURFACE or SUBSURFACE a ground row - it returns "", the documented fallback
+/// (Vrf:DeStackEchelonFallbackMeters, default 0 = "do not spread") - and every call reports WHICH
+/// ROW IT USED AND WHY through <see cref="KeyOf(string,string,out string)"/>, which the de-stack
+/// logs per init. Before SF-3 an air section took the 300 m ground SECTION row in silence. No
+/// shipped fixture contains an air or naval aggregate, so this changes nothing measured; it closes
+/// the surface the next STP export can walk into.
+///
+/// The rows:
 ///
 ///   echelon    span    longest shipped formation for it        via template
 ///   TEAM        24.6 m Formation-Wedge-US-Army-LtInf-FT.frm    Infantry Fire Team (USA)
@@ -94,34 +108,92 @@ public static class EchelonSpacing
     }
 
     /// <summary>
+    /// THE SIDC BATTLE DIMENSION, APP6C/2525B position 3 (index 2) of the 15-character symbol id:
+    /// P space, A air, G ground, S sea surface, U sea subsurface, F SOF, X other, Z unknown.
+    /// '\0' when the string is absent or too short. (Position 12 / index 11 is the ECHELON, which
+    /// <see cref="UnitTypeMap.EchelonCharOf"/> reads - a different field entirely.)
+    /// </summary>
+    public static char BattleDimensionOf(string sidc)
+        => string.IsNullOrEmpty(sidc) || sidc.Length < 3 ? '\0' : char.ToUpperInvariant(sidc[2]);
+
+    /// <summary>
+    /// Is this unit one the GROUND-measured table may size at all (SF-3)? Ground 'G' and SOF 'F'
+    /// yes - SOF units in this catalogue are ground templates. Air 'A', space 'P', sea surface 'S'
+    /// and subsurface 'U' NO: their shipped formations are 3,000-12,649 m and the table does not
+    /// carry them. Anything else - 'X' other, 'Z' unknown, a missing or short SIDC - is UNKNOWN
+    /// DOMAIN and is treated as ground, which is what every shipped fixture is and what the
+    /// pre-SF-3 code did for all of them; the provenance string says which of the two it was, so
+    /// "we assumed ground" is never silent.
+    /// </summary>
+    public static bool TableCoversDomain(char battleDimension)
+        => battleDimension is not ('A' or 'P' or 'S' or 'U');
+
+    /// <summary>
     /// THE ECHELON KEY for one C2SIM unit, from the init's own fields: the explicit
     /// Unit/EchelonCode first (mandatory in the schema and present in every fixture we ship), the
     /// SIDC echelon character (APP6C position 12) as the cross-check when the code says nothing.
     /// Returns "" for every echelon the table does not cover - company and above, air and naval
-    /// echelons (FLIGHT, WING, SQDRNA/SQDRNM, FLEET), and the schema's own "not specified" values
-    /// (NOS, NKN). "" means FALLBACK, and the fallback is the caller's to apply.
+    /// echelons (FLIGHT, WING, SQDRNA/SQDRNM, FLEET), the schema's own "not specified" values
+    /// (NOS, NKN), and - since SF-3 - EVERY unit whose SIDC battle dimension is air, space or
+    /// naval, whatever its echelon code says. "" means FALLBACK, and the fallback is the caller's
+    /// to apply.
     /// </summary>
-    public static string KeyOf(string echelonCode, string sidc)
+    public static string KeyOf(string echelonCode, string sidc) => KeyOf(echelonCode, sidc, out _);
+
+    /// <summary>
+    /// The same answer, plus WHICH ROW WAS USED AND WHY, for the caller to log (SF-3). The
+    /// provenance is a short human sentence, never parsed.
+    /// </summary>
+    public static string KeyOf(string echelonCode, string sidc, out string provenance)
     {
         string code = (echelonCode ?? "").Trim().ToUpperInvariant();
-        switch (code)
+        char dim = BattleDimensionOf(sidc);
+        string key = code switch
         {
-            case "TEAM": return Team;
-            case "SQUAD": return Squad;
-            case "SECT": return Section;
-            case "PLT": return Platoon;
-        }
-        // SIDC position 12 (index 11): A crew/team, B squad, C section, D platoon/detachment.
-        // E and above are company/battalion/regiment/brigade/... - not in the table.
-        char e = UnitTypeMap.EchelonCharOf(sidc ?? "");
-        return e switch
-        {
-            'A' => Team,
-            'B' => Squad,
-            'C' => Section,
-            'D' => Platoon,
-            _ => "",
+            "TEAM" => Team,
+            "SQUAD" => Squad,
+            "SECT" => Section,
+            "PLT" => Platoon,
+            // SIDC position 12 (index 11): A crew/team, B squad, C section, D platoon/detachment.
+            // E and above are company/battalion/regiment/brigade/... - not in the table.
+            _ => UnitTypeMap.EchelonCharOf(sidc ?? "") switch
+            {
+                'A' => Team,
+                'B' => Squad,
+                'C' => Section,
+                'D' => Platoon,
+                _ => "",
+            },
         };
+        string from = code.Length > 0 && key.Length > 0
+                      && code is "TEAM" or "SQUAD" or "SECT" or "PLT"
+                          ? "EchelonCode '" + code + "'"
+                          : key.Length > 0
+                              ? "SIDC echelon character '" + UnitTypeMap.EchelonCharOf(sidc ?? "") + "'"
+                              : "EchelonCode '" + code + "' / SIDC echelon character '"
+                                + UnitTypeMap.EchelonCharOf(sidc ?? "") + "'";
+        if (key.Length == 0)
+        {
+            provenance = from + " -> NO ROW (company and above, an air/naval echelon, or 'not "
+                       + "specified') - the caller's fallback applies";
+            return "";
+        }
+        if (!TableCoversDomain(dim))
+        {
+            provenance = from + " -> " + key + ", but the SIDC BATTLE DIMENSION is '" + dim
+                       + "' (air/space/naval) and this table is the GROUND subset (the unrestricted "
+                       + "max is SECTION 3,000 m / SQUAD 12,649 m) - NO ROW IS USED, the caller's "
+                       + "fallback applies";
+            return "";
+        }
+        provenance = from + " -> the GROUND " + key + " row ("
+                   + (TableMeters.TryGetValue(key, out double m)
+                      ? m.ToString("F0", System.Globalization.CultureInfo.InvariantCulture) + " m"
+                      : "no spacing")
+                   + "); battle dimension '"
+                   + (dim == '\0' ? "(none in the SIDC)" : dim.ToString())
+                   + (dim is 'G' or 'F' ? "' is ground" : "' is not stated as air/naval, so ground is assumed");
+        return key;
     }
 
     /// <summary>

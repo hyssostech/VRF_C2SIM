@@ -648,3 +648,54 @@ public sealed class TileSource : IDisposable
 
     public void Dispose() => _http?.Dispose();
 }
+
+/// <summary>
+/// E6 (D7 harvest): ONE TILE CENSUS PER ORDER, AND NOT ONE PER LEG. <see cref="TileSource"/> has
+/// counted <see cref="TileSource.CacheHits"/> and <see cref="TileSource.Fetched"/> since it was
+/// written, and until now nothing ever printed them - so every harvest that wanted to know whether
+/// a run had paid for its tiles over HTTP had to infer it from dispatch deferrals. The numbers are
+/// CUMULATIVE, so the useful figure is the DELTA over one order, which needs a latch: the scoring
+/// workers are asynchronous and an order's last one finishes long after OnOrder has returned.
+///
+/// THE RULE, pure and therefore testable offline (--preflight-selftest): each order opens a
+/// GENERATION; every scoring worker Enters it and Leaves it; the census is due EXACTLY ONCE per
+/// generation, at the moment the last worker of that generation leaves. A worker of an older
+/// generation leaving after a new order has arrived can never re-trigger the older one (its
+/// generation is closed) and never triggers the newer one (it was never in it). An order with no
+/// scoring work at all reports nothing, which is correct - there is nothing to report.
+/// </summary>
+public sealed class TileCensusLatch
+{
+    private readonly object _gate = new();
+    private long _generation;
+    private int _outstanding;
+    private bool _due;
+
+    /// <summary>A new order. Returns its generation id. Any worker still running from the previous
+    /// order is abandoned by this: its generation is closed and can no longer report.</summary>
+    public long BeginOrder()
+    {
+        lock (_gate) { _generation++; _outstanding = 0; _due = true; return _generation; }
+    }
+
+    /// <summary>A scoring worker starts. Returns the generation it belongs to (0 = no order has
+    /// been seen, and that worker can never trigger a census).</summary>
+    public long Enter()
+    {
+        lock (_gate) { if (_generation > 0) _outstanding++; return _generation; }
+    }
+
+    /// <summary>A scoring worker finishes. True EXACTLY ONCE per generation - for the worker that
+    /// leaves last - and only for a worker of the CURRENT generation.</summary>
+    public bool Leave(long generation)
+    {
+        lock (_gate)
+        {
+            if (generation != _generation || generation == 0) return false;
+            if (_outstanding > 0) _outstanding--;
+            if (_outstanding > 0 || !_due) return false;
+            _due = false;
+            return true;
+        }
+    }
+}

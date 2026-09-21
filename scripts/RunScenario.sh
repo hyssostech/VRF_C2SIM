@@ -66,6 +66,13 @@ if nonblank "${C2SIM_ORDER:-}";    then ORDER="$C2SIM_ORDER";       ORDER_SRC='e
 else ORDER='data/COA-STP1_Order.xml';               ORDER_SRC='built-in default'; fi
 CLIENT_ID='C2SIM'
 TYPEMAP=''
+# THE ORDER'S CLOCK SCALE. 0 = do not set it; the app keeps its own Vrf:DurationScale (1.0).
+# Anything positive is passed through as -DurationScale, which the runner validates, exports as
+# Vrf__DurationScale, echoes in its Stage 0 banner and records in the manifest. Until now there
+# was NO switch at either layer and the only way to compress a demo's dead air was to export the
+# environment variable by hand around the runner, with no echo and no manifest record
+# (ironstorm_cuta_prep_report.md STEP 4, "the mechanism, because there is NO switch").
+DURATION_SCALE=0
 RUN_SECS=900
 WATCH_SECS=0          # 0 = DERIVE (the runner's own formula; see EFF_WATCH below)
 BACKEND_NOTIFY=3
@@ -101,6 +108,12 @@ usage: scripts/RunScenario.sh [options] [-- <extra runner arguments>]
                             a MOJAVE order; or export C2SIM_ORDER)
   --client-id ID            must equal the init's SystemName  (default C2SIM)
   --type-map PATH           Vrf__TypeMapFile (WINDOWS path)   (default: the repo map)
+  --duration-scale N        Vrf:DurationScale - scales BOTH halves of the ORDER'S CLOCK (the
+                            Duration that ends a task and the StartTime delay that holds one
+                            back) and NOT movement. 0 (default) = leave the app's own value
+                            alone. 0.25 turns a 28.9 min Iron Storm timeline into 13.9 min.
+                            The runner validates it, exports Vrf__DurationScale, echoes it in
+                            its Stage 0 banner and records it in the manifest.
   --run-secs N              observation window cap            (default 900)
   --watch-secs N            observer duration cap; 0 = DERIVE (default 0)
   --backend-notify N        sim-wide --notifyLevel 0..4       (default 3)
@@ -156,6 +169,7 @@ while [ $# -gt 0 ]; do
         --order)                ORDER="$2";    ORDER_SRC='argument --order';       shift 2 ;;
         --client-id)            CLIENT_ID="$2"; shift 2 ;;
         --type-map)             TYPEMAP="$2"; shift 2 ;;
+        --duration-scale)       DURATION_SCALE="$2"; shift 2 ;;
         --run-secs)             RUN_SECS="$2"; shift 2 ;;
         --watch-secs)           WATCH_SECS="$2"; shift 2 ;;
         --backend-notify)       BACKEND_NOTIFY="$2"; shift 2 ;;
@@ -350,6 +364,9 @@ case "$ORDER_SRC" in
 esac
 [ -n "$CLIENT_ID" ] && ARGS+=(-ClientId "$CLIENT_ID")
 [ -n "$TYPEMAP" ] && ARGS+=(-TypeMapFile "$TYPEMAP")
+# Passed through ONLY when asked for, so a run that does not use it is byte-identical to what it
+# was: -DurationScale 0 is the runner's own "set nothing" default.
+[ "$DURATION_SCALE" != "0" ] && ARGS+=(-DurationScale "$DURATION_SCALE")
 ARGS+=(-RunSecs "$RUN_SECS" -WatchSecs "$WATCH_SECS" -BackendNotifyLevel "$BACKEND_NOTIFY")
 ARGS+=(-RestUrl "$REST_URL" -StompUrl "$STOMP_URL")
 # Stage 7d. Always passed, never compared here: the runner validates the range (0..3600) and
@@ -391,6 +408,11 @@ case "$SCENARIO_SRC$INIT_SRC$ORDER_SRC" in
         ;;
 esac
 echo "  type map    : ${TYPEMAP:-(repo default)}"
+if [ "$DURATION_SCALE" != "0" ]; then
+    echo "  order clock : -DurationScale $DURATION_SCALE  (Vrf__DurationScale; scales the Duration that ENDS each task and the StartTime delay that HOLDS one back - NOT movement)"
+else
+    echo "  order clock : the app's own Vrf:DurationScale (appsettings.json); pass --duration-scale N to compress the order's clock"
+fi
 echo "  windows     : RunSecs=$RUN_SECS backendNotify=$BACKEND_NOTIFY"
 echo "  observers   : $WATCH_NOTE"
 if [ -n "$PRE_ORDER_GATE_ARG" ]; then

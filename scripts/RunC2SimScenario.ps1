@@ -434,6 +434,24 @@ param(
     # Vrf__TypeMapFile for the app from this value - an inherited env var is overwritten.
     [string] $TypeMapFile = '',
 
+    # THE ORDER'S CLOCK SCALE (Vrf:DurationScale). 0 (the default) = DO NOT SET IT: the app uses
+    # whatever the deployed appsettings.json pins (1.0, the order as written). Anything positive
+    # is exported as Vrf__DurationScale and scales BOTH halves of the order's clock - the Duration
+    # that ends a task and the StartTime delay that holds one back - and NOT movement.
+    #
+    # WHY IT IS A SWITCH NOW: it had none. The Iron Storm cut-A preparation found that
+    # scripts/RunScenario.sh has no --duration-scale and RunC2SimScenario.ps1 contained ZERO
+    # occurrences of DurationScale, so the only way to compress a demo's 20 minutes of dead air
+    # was to export the environment variable by hand around the runner - and the runner did not
+    # echo the effective value either, so the ONLY confirmation was the app's own start-up line
+    # (ironstorm_cuta_prep_report.md, "Vrf__DurationScale - the mechanism, because there is NO
+    # switch"). A lever that changes when every task starts and ends belongs in the manifest.
+    #
+    # NEGATIVE OR NaN IS REFUSED HERE, before anything is launched. The app already refuses a
+    # non-positive scale at start-up and falls back to 1.0 (TaskDispatchPolicy.IsUsableDurationScale),
+    # which is the right thing for it to do and the wrong thing to discover after a launch.
+    [double] $DurationScale = 0,
+
     # C2SIM endpoints. DEFAULT = THE PRIVATE TEST SERVER (2026-09-02): docker container
     # c2sim-server-vrf on 18080 / 61614, a second instance of the same image with its
     # own bind mount (RUNBOOK sec 1). The operator's own server stays on 8080 / 61613;
@@ -1512,6 +1530,45 @@ function Update-RouteShiftObservation {
     }
 }
 
+# THE SAME FOR THE OTHER TWO (adca180 build report FINDING 2). Vrf:DeStackComposedSiblings
+# decides WHERE UNITS START and Vrf:ArrivalApproachFraction decides WHEN A TASK IS REPORTED
+# COMPLETE - prereg D7's P1 and P5 - and until now neither had a prediction, an announcement or
+# an agreement line, so both had to be scored by reading the app's log by hand. Both of the app's
+# announcements are UNCONDITIONAL start-up lines, so unlike the route shift a single Stage 6c
+# read is enough; it is still called twice, for the same reason and at no cost.
+# The RULES are RunnerLib's (Get-SettingVerdict), pure and offline-testable.
+function Update-AppSettingObservations {
+    param([Parameter(Mandatory)][string]$AppLogPath, [string]$Stage = '')
+    $txt = ''
+    try { $txt = Read-LiveText -Path $AppLogPath } catch { return }
+    foreach ($item in @(
+        @{ Key = 'deStackComposedSiblings'; Name = 'Vrf:DeStackComposedSiblings'
+           Ann = (Get-DeStackSiblingAnnouncement -AppLogText $txt)
+           What = 'it decides WHERE COMPOSED SIBLING UNITS START, and therefore the route length, arrival radius and traversal bar of every parent taskee' },
+        @{ Key = 'arrivalApproachFraction'; Name = 'Vrf:ArrivalApproachFraction'
+           Ann = (Get-ArrivalApproachAnnouncement -AppLogText $txt)
+           What = 'it decides WHEN A TASK IS REPORTED COMPLETE from the unit''s own arrival evidence' })) {
+        $slot = $Manifest.inputs.appSettings[$item.Key]
+        if ($null -eq $slot -or $null -ne $slot.announced) { continue }
+        $ann = $item.Ann
+        $v = Get-SettingVerdict -Name $item.Name -Predicted $slot.predicted `
+                                -PredictedSource $slot.predictedSource `
+                                -Announced $ann['Announced'] -AnnouncedSource $ann['Source'] -Stage $Stage
+        $slot.agreement = $v['Agreement']
+        if (-not $v['Observed']) { continue }
+        $slot.announced        = $ann['Announced']
+        $slot.announcedLine    = $ann['Line']
+        $slot.announcedSource  = $ann['Source']
+        $slot.announcedAtStage = $Stage
+        if (-not $v['Mismatch']) {
+            Say-Ok ('{0} CONFIRMED by the app itself ({1}): {2}' -f $item.Name, $ann['Source'], $ann['Announced'])
+        } else {
+            Add-Flag 'WARN' ('{0} PREDICTION/REALITY MISMATCH: the manifest predicted [{1}] from {2}; the app announced [{3}]. Score this run on the ANNOUNCED value - {4}. App line: {5}' -f `
+                             $item.Name, $slot.predicted, $slot.predictedSource, $ann['Announced'], $item.What, $ann['Line'])
+        }
+    }
+}
+
 # ---- incremental reading of a live, growing log (added 2026-09-14) ----------
 # Read-LiveText above reads the WHOLE file. The observation loop called it on the app
 # log every 5 s; by t+127 s of the G6 run that log was ~40 MB, i.e. an ~80 MB UTF-16
@@ -2174,6 +2231,19 @@ if ($ResumeAtSec -lt 0 -or $ResumeAtSec -gt 86400) {
 if ($PauseAtSec -gt 0 -and $ResumeAtSec -gt 0 -and $ResumeAtSec -le $PauseAtSec) {
     $bad += ('-ResumeAtSec ({0}) must be GREATER than -PauseAtSec ({1}). Both are offsets from the same instant (PushOrder returning), so a resume at or before the pause would run in the wrong order and leave the scenario PAUSED for the rest of the window.' -f $ResumeAtSec, $PauseAtSec)
 }
+# -DurationScale (the order's clock). 0 = not set by this runner; anything positive is exported
+# as Vrf__DurationScale. NEGATIVE, ZERO-ish-but-not-zero and non-finite are refused HERE, before
+# anything is launched: the app's own guard (TaskDispatchPolicy.IsUsableDurationScale) falls back
+# to 1.0 and logs an ERROR, which is correct behaviour and a terrible way to find out - the run
+# would then be a full-length run wearing a compressed run's manifest. The upper bound is
+# deliberately generous (a demo at 0.01 is 100x compression) but finite, because a scale of 1e9
+# is a typo, not a setting.
+$DurationScaleOn = ($DurationScale -ne 0)
+if ($DurationScaleOn) {
+    if (-not [double]::IsFinite($DurationScale) -or $DurationScale -lt 0.001 -or $DurationScale -gt 1000) {
+        $bad += ('-DurationScale must be 0 (leave the app''s own value alone) or a finite number in 0.001..1000 (got {0}). It scales BOTH halves of the order''s clock - the Duration that ends a task and the StartTime delay that holds one back - and NOT movement. A non-positive scale is not an instruction to complete everything at once: the app refuses it, logs an ERROR and uses 1.0, so a run given one would be a FULL-LENGTH run carrying a compressed run''s manifest.' -f $DurationScale)
+    }
+}
 # Stage 8b WS runaway abort (RUNBOOK 0.5.11 item 17 extension). 0 = off; anything positive is a
 # COUNT of confirmed SampleThreads.ps1 alerts, so there is no upper window to bound it against.
 $WsRunawayOn = ($WsRunawayAbortAfter -gt 0)
@@ -2388,6 +2458,27 @@ if ($ClientId) {
     $appClientId = $ClientId
     $env:Vrf__ClientId = $ClientId
 }
+# -DurationScale takes exactly the same path (env Vrf__<Key> beats appsettings.json), which is
+# what the seat had been doing by hand around the runner. Doing it HERE is what puts it in the
+# banner and in the manifest, so a compressed demo run can never be read as a full-length one.
+$DurationScaleEnvBefore = [Environment]::GetEnvironmentVariable('Vrf__DurationScale')
+if ($DurationScaleOn) {
+    $env:Vrf__DurationScale = [string]::Format([System.Globalization.CultureInfo]::InvariantCulture,
+                                               '{0}', $DurationScale)
+    Say-Ok ('order clock SCALED: Vrf__DurationScale={0} exported to the app. It scales the Duration that ENDS each task and the StartTime delay that HOLDS one back - NOT movement. Confirm on the app''s own start-up line; if it says 1, the variable did not arrive.' -f $env:Vrf__DurationScale)
+} else {
+    Say ('         order clock: -DurationScale not given, so this runner sets nothing and the app uses its own Vrf:DurationScale (appsettings.json). Inherited Vrf__DurationScale in this shell: {0}' -f `
+         $(if ($DurationScaleEnvBefore) { $DurationScaleEnvBefore } else { '(unset)' }))
+}
+$Manifest.inputs.durationScale = [ordered]@{
+    switch          = $DurationScale
+    exported        = [bool]$DurationScaleOn
+    envValueBefore  = $(if ($DurationScaleEnvBefore) { $DurationScaleEnvBefore } else { '(unset)' })
+    envValueUsed    = $(if ($DurationScaleOn) { $env:Vrf__DurationScale } else { $(if ($DurationScaleEnvBefore) { $DurationScaleEnvBefore } else { '(unset)' }) })
+    appSettings     = $(if ($null -ne $cfgApp -and $cfgApp.PSObject.Properties.Name -contains 'Vrf' -and
+                            $cfgApp.Vrf.PSObject.Properties.Name -contains 'DurationScale') { $cfgApp.Vrf.DurationScale } else { '(key absent)' })
+    note            = 'Vrf:DurationScale. -DurationScale 0 (the default) exports NOTHING and the app keeps its own value. Anything positive is exported as Vrf__DurationScale, which beats appsettings.json. It scales BOTH halves of the order clock (the Duration that ends a task and the StartTime delay that holds one back) and NOT movement, so a scaled run''s wall-clock length changes but its kinematics do not. The app REFUSES a non-positive scale and falls back to 1.0; this runner refuses one before anything is launched.'
+}
 if ($appClientId -and $initSystemNames.Count -gt 0 -and ($initSystemNames -notcontains $appClientId)) {
     $bad += ("clientId MISMATCH: appsettings Vrf:ClientId='{0}' but the init declares SystemName [{1}]. RUNBOOK sec 2: they MUST match or the interface creates 0 UNITS. Fix appsettings.json (or the init) before running." -f $appClientId, ($initSystemNames -join ','))
 }
@@ -2452,6 +2543,73 @@ if ($null -eq $RouteShiftEff) {
 Say     '         that is a PREDICTION from this shell, not an observation. The app announces its OWN value'
 Say     '         ("LATERAL ROUTE SHIFT ON/off") and this run records THAT beside the prediction, with a loud'
 Say     '         MISMATCH if the two disagree (manifest inputs.routeShift.announced / .agreement).'
+
+# ---- THE OTHER TWO SETTINGS THAT CHANGE WHAT A RUN MEANS (adca180 FINDING 2, D7 lane) -------
+# Same machinery, same precedence (env Vrf__<Key> > the deployed appsettings.json > the C#
+# initialiser), same PREDICTION-then-AGREEMENT discipline. Vrf:DeStackComposedSiblings decides
+# WHERE UNITS START; Vrf:ArrivalApproachFraction decides WHEN A TASK IS REPORTED COMPLETE. Run
+# D7's prereg P1 and P5 were both about these two and both had to be scored by reading the app's
+# log by hand, because nothing here predicted them and nothing checked the app against it.
+function Resolve-AppSetting {
+    param([Parameter(Mandatory)][string]$Key,          # 'PreflightRouteShift'
+          [Parameter(Mandatory)][string]$Type,         # 'bool' | 'double'
+          [Parameter(Mandatory)]$Fallback,             # the C# initialiser's value
+          [string]$FallbackSource = 'VrfSettings.cs initialiser (the key is in NEITHER the environment NOR the deployed appsettings.json)')
+    $envName = 'Vrf__' + $Key
+    $envVal  = [Environment]::GetEnvironmentVariable($envName)
+    $jsonVal = $null
+    if ($null -ne $cfgApp -and $cfgApp.PSObject.Properties.Name -contains 'Vrf' -and
+        $cfgApp.Vrf.PSObject.Properties.Name -contains $Key) { $jsonVal = $cfgApp.Vrf.$Key }
+    $eff, $src = $null, ''
+    if ($envVal) {
+        if ($Type -eq 'bool') {
+            if     ($envVal -match '^true$')  { $eff = $true;  $src = ('env {0}=true' -f $envName) }
+            elseif ($envVal -match '^false$') { $eff = $false; $src = ('env {0}=false' -f $envName) }
+            else { $eff = $null; $src = ("env {0}='{1}' is UNPARSEABLE - the app will not start" -f $envName, $envVal) }
+        } else {
+            $d = 0.0
+            if ([double]::TryParse($envVal.Trim(), [System.Globalization.NumberStyles]::Float,
+                                   [System.Globalization.CultureInfo]::InvariantCulture, [ref]$d)) {
+                $eff = $d; $src = ('env {0}={1}' -f $envName, $envVal)
+            } else { $eff = $null; $src = ("env {0}='{1}' is UNPARSEABLE - the app will not start" -f $envName, $envVal) }
+        }
+    } elseif ($null -ne $jsonVal) {
+        $eff = $(if ($Type -eq 'bool') { [bool]$jsonVal } else { [double]$jsonVal })
+        $src = ('appsettings.json Vrf:{0}' -f $Key)
+    } else {
+        $eff = $Fallback; $src = $FallbackSource
+    }
+    return [ordered]@{
+        predicted       = $(if ($null -eq $eff) { ('UNKNOWN - unparseable {0}' -f $envName) } else { $eff })
+        predictedSource = $src
+        predictedFrom   = 'THE RUNNER''S OWN environment plus the appsettings.json this process read, resolved in the app''s precedence order (env > json > the C# initialiser). A PREDICTION, not an observation.'
+        envValue        = $(if ($envVal) { $envVal } else { '(unset)' })
+        appSettings     = $(if ($null -ne $jsonVal) { $jsonVal } else { '(key absent)' })
+        announced       = $null
+        announcedLine   = $null
+        announcedSource = $null
+        announcedAtStage= $null
+        agreement       = 'NOT OBSERVED - the app has not started yet'
+    }
+}
+$Manifest.inputs.appSettings = [ordered]@{
+    deStackComposedSiblings = (Resolve-AppSetting -Key 'DeStackComposedSiblings' -Type 'bool'  -Fallback $true)
+    arrivalApproachFraction = (Resolve-AppSetting -Key 'ArrivalApproachFraction' -Type 'double' -Fallback 0.5)
+}
+$Manifest.inputs.appSettings.deStackComposedSiblings.note =
+    'Vrf:DeStackComposedSiblings (user ruling 2026-09-21 + N4). ON spreads composed siblings that share a coordinate onto ONE ring about it at EQUAL bearings at their own echelon''s spacing, so their CENTROID - the position VR-Forces publishes for the parent aggregate - stays on that coordinate. OFF reproduces the pre-2026-09-21 behaviour (children held on the parent), which is what runs D1-D6 measured. A run with it ON is NOT comparable member-for-member with those.'
+$Manifest.inputs.appSettings.arrivalApproachFraction.note =
+    'Vrf:ArrivalApproachFraction (user ruling 2026-09-21, SF-1 guard). Above 0, a member''s traversal bar is capped at this share of ITS OWN distance to the last vertex at dispatch instead of half the whole route - and only when the route genuinely goes somewhere (the taskee''s own last-vertex separation is at least half the route length). 0 restores the pre-2026-09-21 route bar for every member, the comparability setting for D1-D6.'
+Say-Ok ('Vrf:DeStackComposedSiblings is PREDICTED [{0}] for this run ({1}) - it decides WHERE COMPOSED SIBLING UNITS START' -f `
+        $Manifest.inputs.appSettings.deStackComposedSiblings.predicted,
+        $Manifest.inputs.appSettings.deStackComposedSiblings.predictedSource)
+Say-Ok ('Vrf:ArrivalApproachFraction is PREDICTED [{0}] for this run ({1}) - it decides WHEN A TASK IS REPORTED COMPLETE' -f `
+        $Manifest.inputs.appSettings.arrivalApproachFraction.predicted,
+        $Manifest.inputs.appSettings.arrivalApproachFraction.predictedSource)
+Say     '         both are PREDICTIONS from this shell. The app announces its OWN values at start-up'
+Say     '         ("COMPOSED-SIBLING DE-STACK ON/off", "ARRIVAL APPROACH FRACTION n.nn") and this run records'
+Say     '         THOSE beside the predictions, with a loud MISMATCH if they disagree'
+Say     '         (manifest inputs.appSettings.*.announced / .agreement).'
 
 # -PreOrderGate NavArea REQUIRES the object consoles open. The row it waits for is printed
 # at object-console level 3 and at no lower level, so with the console below 3 the gate can
@@ -2696,6 +2854,50 @@ try {
     $Manifest.host.gitCommit = ("$gitHead").Trim()
     $Manifest.host.gitBranch = ("$gitBranch").Trim()
 } catch { $Manifest.host.gitCommit = '(unavailable)' }
+$Manifest.host.gitCommitNote =
+    'N3: this is the WORKING TREE''s HEAD at run time - a statement about the CHECKOUT, not about the deployed binary. Run D7 recorded 9baddf9 here while the binaries were adca180. host.deployedAppBuild below is the binary''s own answer.'
+
+# N3 (D6 and D7 harvests, RECURS): THE BUILD IDENTITY OF THE DEPLOYED APP, FROM THE FILE.
+# The csproj stamps the commit it was built from - plus a +DIRTY marker when the tree was
+# edited - into assembly metadata AND into the assembly's informational version, which surfaces
+# as the file's ProductVersion. So this needs no git, no app start-up and no log parsing: it is
+# read off the very .dll that is about to run. The app prints the same identity in its own
+# start-up banner ("BUILD IDENTITY: ..."), and the two agreeing is the check worth having.
+$deployedApp = [ordered]@{
+    path = $ExeApp; exists = $false; gitCommit = '(unknown)'; dirty = $null
+    note = 'N3: read from the DEPLOYED binary (its ProductVersion, stamped by VrfC2SimApp.csproj''s StampGitIdentity target), not from git and not from the working tree. "(not stamped)" means the deployed binary predates N3 - it is an older build than this checkout, whatever host.gitCommit says.'
+}
+$appDll = [System.IO.Path]::ChangeExtension($ExeApp, '.dll')
+foreach ($probe in @($appDll, $ExeApp)) {
+    if (-not (Test-Path -LiteralPath $probe -PathType Leaf)) { continue }
+    $fi = Get-Item -LiteralPath $probe
+    $deployedApp.exists       = $true
+    $deployedApp.file         = $probe
+    $deployedApp.sizeBytes    = $fi.Length
+    $deployedApp.lastWriteUtc = $fi.LastWriteTimeUtc.ToString('yyyy-MM-ddTHH:mm:ssZ')
+    try { $deployedApp.sha256 = (Get-FileHash -LiteralPath $probe -Algorithm SHA256).Hash } catch { }
+    $pv = ''
+    try { $pv = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($probe).ProductVersion } catch { }
+    $deployedApp.productVersion = $pv
+    $m = [regex]::Match(("$pv"), '\+git\.(?<c>[0-9a-fA-F]+)(?<d>\+DIRTY)?')
+    if ($m.Success) {
+        $deployedApp.gitCommit = $m.Groups['c'].Value
+        $deployedApp.dirty     = [bool]$m.Groups['d'].Success
+    } else {
+        $deployedApp.gitCommit = '(not stamped - this binary predates N3)'
+    }
+    break
+}
+$Manifest.host.deployedAppBuild = $deployedApp
+if (-not $deployedApp.exists) {
+    Say-Warn 'could not read the deployed VrfC2SimApp build identity - the binary is not where this runner expects it (validation below will say so).'
+} elseif ($deployedApp.dirty -eq $true) {
+    Add-Flag 'WARN' ('the DEPLOYED VrfC2SimApp was built from a DIRTY working tree at commit {0} (ProductVersion {1}, written {2}). It is NOT that commit: uncommitted edits are in this binary, so the run cannot be reproduced from {0} alone. Commit or record the diff before treating this run as evidence about a commit.' -f `
+                     $deployedApp.gitCommit, $deployedApp.productVersion, $deployedApp.lastWriteUtc)
+} else {
+    Say-Ok ('deployed VrfC2SimApp BUILD IDENTITY: git {0}, written {1} (ProductVersion {2}). The app prints the same line at start-up; host.gitCommit is the WORKING TREE''s HEAD and is a different question (N3).' -f `
+            $deployedApp.gitCommit, $deployedApp.lastWriteUtc, $deployedApp.productVersion)
+}
 
 # =============================================================================
 # STAGE 0b - OBSERVER CAPABILITY PROBE (offline, read-only; runs in -DryRun too)
@@ -2986,6 +3188,31 @@ foreach ($n in $RtiNames) {
 $Manifest.preflight.existingVrf       = $existing
 $Manifest.preflight.existingObservers = $existingObservers
 $Manifest.preflight.rtiInfra          = $infra
+
+# E4 (D6 and D7 harvests, RECURS): THE PERSISTENT HOLDER(S) ALIVE AT LAUNCH.
+# postRunFederationHolder lists only the holder THIS RUN started at Stage 2h, so run D7's
+# manifest named RtiProbe-holder(pid 88256) and never mentioned the seat's own persistent holder
+# (pid 25484) - which is the federate that makes the run's joins possible at all. A manifest that
+# cannot say whether the federation was already held cannot say why the sim joined instead of
+# creating, which is the whole STP-825 posture. Recorded here, BEFORE Stage 2h exists, so
+# everything in this list is by definition someone else's: never touched, never refused on.
+# NOTE the process name is a VARIABLE, not a literal: the turnaround suite asserts the STAGE
+# ORDER by finding the first "-Name '<tool>'" in this file, and a literal here would sit above
+# Stage 2r and make a true ordering check read false.
+$HolderProcName  = 'RtiProbe'
+$existingHolders = @()
+foreach ($p in @(Get-Process -Name $HolderProcName -ErrorAction SilentlyContinue)) {
+    $started = ''
+    try { $started = $p.StartTime.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ') } catch { }
+    $existingHolders += [ordered]@{ name = $p.Name; processId = $p.Id; startedUtc = $started }
+    Say-Ok ('{0} pid={1} started={2} is ALREADY RUNNING - a PERSISTENT FEDERATION HOLDER from outside this run (the seat''s own, or an earlier run''s Stage 2h holder still inside its wall-clock hold). It is why this run''s creates become JOINS. Never touched, never waited for, never refused on (STP-825, RUNBOOK sec 0).' -f $p.Name, $p.Id, $started)
+}
+$Manifest.preflight.existingFederationHolders = $existingHolders
+$Manifest.preflight.existingFederationHoldersNote =
+    'E4: RtiProbe processes alive at Stage 1, i.e. BEFORE this run''s own Stage 2h holder exists - so every entry is a holder someone else started. preflight.postRunFederationHolder lists only THIS run''s holder and is a different question.'
+if ($existingHolders.Count -eq 0) {
+    Say ('         no pre-existing RtiProbe holder: if -FederationHoldSecs is positive this run''s own Stage 2h holder is the only one, and if it is 0 the SIM will have to CREATE the federation (the operation STP-825 is about).')
+}
 
 if ($existingObservers.Count -gt 0) {
     Say-Head 'Result'
@@ -4334,6 +4561,10 @@ try {
         # claim a line its units never drove. Checked again at teardown - the app says nothing at
         # start-up when the shift is OFF, so a null here is silence, not 'off'.
         Update-RouteShiftObservation -AppLogPath $PathAppLog -Stage 'Stage 6c (interface joined)'
+        # ...and the other two settings that change what a run MEANS (adca180 FINDING 2). Both of
+        # the app's announcements are UNCONDITIONAL start-up lines, so this one read is normally
+        # enough; teardown re-reads anyway, at no cost.
+        Update-AppSettingObservations -AppLogPath $PathAppLog -Stage 'Stage 6c (interface joined)'
         if ($connected) { Say-Ok 'interface logged "Connected to C2SIM"' }
         else {
             # RUNBOOK sec 3: a redirected stdout can be block-buffered, so absence of
@@ -5093,8 +5324,10 @@ finally {
     #     answer Stage 6c already recorded.
     if (-not $DryRun -and $AppStarted) {
         Update-RouteShiftObservation -AppLogPath $PathAppLog -Stage 'teardown (app log complete)'
+        Update-AppSettingObservations -AppLogPath $PathAppLog -Stage 'teardown (app log complete)'
     } elseif ($DryRun) {
         Say-Plan ('would re-read {0} for the app''s own "LATERAL ROUTE SHIFT ON/off" line and record it beside the runner''s prediction (MISMATCH is a WARN flag)' -f $PathAppLog)
+        Say-Plan ('would do the same for the app''s "COMPOSED-SIBLING DE-STACK ON/off" and "ARRIVAL APPROACH FRACTION n.nn" start-up lines (manifest inputs.appSettings.*; adca180 FINDING 2)')
     }
 
     # 3. End the observers WITH the window, not with their worst-case duration cap.
@@ -5324,6 +5557,9 @@ finally {
         $env:Vrf__ApplicationNumber= $SavedVrfAppNumber
         $env:C2SIM__RestUrl        = $SavedC2SimRestUrl
         $env:C2SIM__StompUrl       = $SavedC2SimStompUrl
+        # -DurationScale exported one too, so it is put back like every other one: a runner that
+        # leaves a clock scale behind in the shell would silently compress the NEXT run as well.
+        if ($DurationScaleOn) { $env:Vrf__DurationScale = $DurationScaleEnvBefore }
         # ...and the profile's own variables, back to whatever they were (no-op on 5.0.2).
         foreach ($k in $ProfileEnv.Keys) { Set-Item -Path ('Env:' + $k) -Value ([string]$SavedProfileEnv[$k]) }
         foreach ($k in $AppEnv52.Keys)   { Set-Item -Path ('Env:' + $k) -Value ([string]$SavedAppEnv52[$k]) }
