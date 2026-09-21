@@ -1,0 +1,52 @@
+# tests/tripwire_allowlist.txt - the reviewed exceptions to the tripwire scan
+# (check 13b of tests\RunnerTurnaround.Tests.ps1; handoff sec 4 rule 7).
+#
+# FORMAT: <relative path> | <rule id> | <sha1 of the whitespace-normalised line> | <reason>
+# A hit that is not listed here FAILS the suite. An entry that matches nothing
+# is reported as a WARN, not a failure. Editing an allowed line changes its
+# fingerprint, so the edit comes back for review - that is the point.
+#
+# REGENERATE (never automatic):
+#   pwsh -NoProfile -File tests\RunnerTurnaround.Tests.ps1 -UpdateTripwireAllowlist
+# then READ the diff: a reason that still says REVIEW has not been reviewed.
+# Generated 2026-09-21.
+docs\CORRECTIONS_LOG.md | T1 | 5c0581a0e289439deea87eab38c468c4b4a23834 | falsification site - heading of the entry that kills the underground-birth freeze hypothesis
+docs\CORRECTIONS_LOG.md | T1 | 547fd4fd87f24a7ba4c134a4cc17e250cf98eadc | falsification site - the measurement that refuted it (they froze anyway)
+docs\CORRECTIONS_LOG.md | T1 | 0c7ee545aa63b2200358f54adedecb343e2b0bb0 | falsification site - quotes the refuted form in order to name it
+docs\CORRECTIONS_LOG.md | T1 | 28353adc9584865742fa1142441f2dd47be24df5 | tripwire text - states the phrase pair that must not be written
+docs\CORRECTIONS_LOG.md | T1 | f9b1a0bf3b4eb059070901b04f67f08be0dc7e05 | tripwire text - states the phrase pair that must not be written
+docs\DEMO_READINESS_2026-09-06.md | T1 | 0c7ee545aa63b2200358f54adedecb343e2b0bb0 | falsification site - row 16 cites VRF_ALTITUDE_FRAMES sec 5 falsifying the form it quotes
+docs\DEMO_RUNBOOK.md | T1 | 0c7ee545aa63b2200358f54adedecb343e2b0bb0 | falsification site - cites VRF_ALTITUDE_FRAMES sec 5 as falsified
+docs\DEMO_RUNBOOK.md | T1 | 43834f299888ee821eb512376d1f90ca00368fa1 | falsification site - cites VRF_ALTITUDE_FRAMES sec 5 as falsified
+docs\experiments\FREEZE_ROOTCAUSE_AGGREGATE_2026-07-21.md | T1 | a24e7593f495a545b250b248777f9cd06dfb4f12 | historical record 2026-07-21 - records the hypothesis as falsified
+docs\experiments\MOJAVE_ROOTCAUSE_INVESTIGATION_2026-07-14.md | T1 | 0966ca79ab3d9384ebac8f3c88a4723e41fbe96a | historical investigation record 2026-07-14
+docs\experiments\MOJAVE_ROOTCAUSE_INVESTIGATION_2026-07-14.md | T1 | d5a3bd9099af2505a18199208573c11164d11493 | historical investigation record 2026-07-14
+docs\experiments\MOJAVE_ROOTCAUSE_INVESTIGATION_2026-07-14.md | T1 | ceb46e741d3447b850f666f8a94552a96f506c81 | historical record - records the buried-birth latch as FALSIFIED
+docs\experiments\MOJAVE_ROOTCAUSE_INVESTIGATION_2026-07-14.md | T1 | cfdb3c0c242ba057aca7ff930cbdc2e2d4ef8728 | historical record - the 2026-07 entity freeze recorded as fixed
+docs\experiments\PREREG_IRONSTORM_DRIVE_2026-09-21.md | T1 | 0c7ee545aa63b2200358f54adedecb343e2b0bb0 | prereg quotes the ROT statement in order to forbid it
+docs\experiments\PREREG_IRONSTORM_DRIVE_2026-09-21.md | T1 | 0c7ee545aa63b2200358f54adedecb343e2b0bb0 | prereg quotes the ROT statement in order to forbid it
+docs\experiments\PREREG_IRONSTORM_DRIVE_2026-09-21.md | T1 | f82e75327e8f5681bfeb39811cf9c0b179154b1a | prereg quotes sec 7 tripwire in order to forbid it
+docs\experiments\PREREG_P1_FIXED100_ENTITY_2026-09-01.md | T1 | cf7f6d8c2cd39f21789bbf63d0cf34c132be661e | historical prereg result - records the underground-vertex mechanism as refuted
+docs\experiments\PREREG_TYPEFIX_CONFIRMING_RUN.md | T1 | be44a3a264b9f54f16abbd938f7a93753c72d807 | REVIEW - 2026-07 prereg caveat that reads as live guidance fusing burial with freezing; no falsification pointer beside it
+docs\HANDOFF_2026-07-21_SESSION_JUMP.md | T1 | 2ccdc7e15d01f60cb6951257c295a176518118f2 | historical handoff - records it as falsified
+docs\HANDOFF_2026-09-14_PARALLEL_LANES.md | T1 | 6b98fbcebc1b59be55d63b5da1d5e39f40f48558 | tripwire text - the live CLOSED-list reminder
+docs\RUNBOOK.md | T1 | f5e97251eaa4a88596fb21d3a4cba3225c68ec3a | tripwire citation - quotes VRF_ALTITUDE_FRAMES sec 7 forbidden pair
+docs\START_HERE.md | T1 | f4c8b33ebaed16ab4652c288da760762150d2794 | REVIEW - LIVE entry doc; states underground/offshore beside "rest never moved" with no falsification pointer
+docs\SUPERVISED_RECOVERY_PLAN.md | T1 | 98d05dbc22e552d2ac76913d63ad6183524d6908 | REVIEW - plan doc; reports UNDERGROUND beside frozen units with no falsification pointer
+docs\SUPERVISED_RECOVERY_PLAN.md | T1 | 7f3ab5cd339117b4f54521c751dd8621741c02dc | REVIEW - plan doc; separates burial from freeze but is not a dated CORRECTION block
+docs\VRF_ALTITUDE_FRAMES.md | T1 | 0c7ee545aa63b2200358f54adedecb343e2b0bb0 | canonical falsification site - sec 5 names the ROT form
+docs\VRF_ALTITUDE_FRAMES.md | T1 | 5c536b11d6a8949b91f8d616e52be99ad749bf66 | canonical falsification site - the narrow measured statement inside sec 5
+docs\VRF_ALTITUDE_FRAMES.md | T1 | 6b98fbcebc1b59be55d63b5da1d5e39f40f48558 | canonical falsification site - names the sites that repeated the claim
+docs\VRF_ALTITUDE_FRAMES.md | T1 | 63ddf952f9166ca33897cd292c7f234004fd57d1 | canonical tripwire - sec 7 states the forbidden pair
+docs\VRF_ALTITUDE_FRAMES.md | T1 | f9b1a0bf3b4eb059070901b04f67f08be0dc7e05 | canonical tripwire - sec 7 states the forbidden pair
+docs\VRF_GROUND_TRUTH.md | T1 | 21cb83291ebd26c3724ad077806cbc76d35cc2c7 | dated CORRECTION block 2026-09-04
+docs\VRF_GROUND_TRUTH.md | T1 | 613360f1423b527af4510c12222e9e2fb9629056 | dated CORRECTION block 2026-09-04
+docs\VRF_GROUND_TRUTH.md | T1 | b6d92b20bd36f5353165a98458bfd46073ceb32f | REVIEW - research question text; no falsification pointer beside it
+docs\VRF_GROUND_TRUTH.md | T1 | a6ef4f14becf928c1a61586e3fbf6b7842277d2d | REVIEW - research question text; no falsification pointer beside it
+docs\VRF_GROUND_TRUTH.md | T1 | 35c5b253835c0a74fb8fa06e0d8ddb5ee3a64409 | REVIEW - describes the old freeze symptom as burial with no dated correction beside it
+docs\VRF_GROUNDWORK_PLAN.md | T1 | 824bb7998ed8da4b650c892d7b34e8bc170f004c | pointer to the CORRECTIONS_LOG entry that falsified it
+src\VrfC2SimApp\appsettings.json | T1 | 6b98fbcebc1b59be55d63b5da1d5e39f40f48558 | REVIEW - SHIPPED settings file; audit sec 3 DOC CHANGES items 3/4 list this site for lane A. Do not settle this reason until lane A has corrected the text
+src\VrfC2SimApp\PlacementReclampPolicy.cs | T1 | d6f6aeeaad888fa3fa5bea237c54daed5238cd59 | code comment quoting the ROT statement in order to forbid it
+src\VrfC2SimApp\PlacementReclampSelfTest.cs | T1 | 04119073e1fc8ff553301dd385a686c23afb045d | self-test guard asserting the policy says no such thing
+src\VrfC2SimApp\VrfSettings.cs | T1 | b506b4bb0439149b1b532f386a6131ffa994d455 | code tripwire - do not restore the claim here
+src\VrfC2SimApp\VrfSettings.cs | T1 | 0c7ee545aa63b2200358f54adedecb343e2b0bb0 | code comment quoting the ROT statement in order to forbid it
