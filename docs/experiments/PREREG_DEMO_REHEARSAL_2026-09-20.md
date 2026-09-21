@@ -283,6 +283,41 @@ N9 (new): the runner's Stage 2h "rtiexec log:" quote in the HELD line is a CONST
 N12 (new, a HYPOTHESIS, not a claim): D7's unexplained "untouched units ran 8-9% faster than D6" may be a SIM/WALL RATIO difference between RUNS on the same host (D6/D3 ~3.1x vs D7/D8 ~3.4x) rather than a units effect - on the sim clock D8 and D6 are indistinguishable. NOT VERIFIED (D3/D6 have no sim clock to check this against); falsifier: a D6-equivalent run on 1d0fb69 with the clock logged - a movement-window ratio of 3.4 kills the hypothesis.
 UNEXPLAINED (from the harvest's closing paragraph): (i) the dispatch deferral grew 1.6-1.7 s over D7, back to D3's level - inside the registered 5.5 s limit but not diagnosed, candidates (the new unconditional 1 Hz sim read, the per-task terrain-profile round trip, host state) not separated; (ii) N6's 500 mismatch rows, still no control run; (iii) why the pre-order idle phase (3.5x) runs SLOWER than the post-completion idle phase (4.7x) when both have nothing moving - plausible (init work, terrain queries, 57 object creations) but untested.
 
+
+## D9 - Way A R9 REGRESSION on main 4f1f149 (STP-852 dispatch-readiness build), registered BEFORE the run
+
+Same command, fixture, init, order and consoles (3/3) as D8; control = D8 (run 20260921T052350Z, binary 1d0fb69). Deployed
+binary 1.0.0+git.4f1f149.Release-5.2 (build report scratch validation/4f1f149_build_report.md: incremental build, tile
+cache 7/7 kept, selftests 2,033, dispatch-readiness 52/52, suite 528/0, GO). Changes that can reach this run: STP-852
+(first dispatch pass enters TryDispatchOrHold on the tick; init creation barrier; READY TO TASK), the should-fix lane
+(tile census run total, ring-overlap detection, runner: vendor logs under <run>/vendor/, HELD line quotes the matched
+rtiexec text, env restoration). KNOWN CONDITION: an rtiAssistant (pid 48392, left by D5b's mis-configured harness
+observer) is running; launched processes ignore it (LaunchVrf52.ps1:1016-1021); it was absent in D8 - recorded, not judged.
+The source of every expected string is the build report sec 8 (file:line there); the must-show list is the cold-start
+review's (scratch validation/defer_not_abort_review.md).
+
+P1 (HIGH) THE NEVER-HELD PATH: exactly two new app-log lines vs D8 - 'INIT CREATION BARRIER: 6 object(s) planned ...
+(4 empty shell(s)) ... (20 s)' BEFORE 'Init dispatched', and 'READY TO TASK - 6 of 6 init unit(s) bound ...' exactly once,
+AFTER 'Init dispatched' and BEFORE 'C2SIM Order received'. ZERO 'WAITING FOR THE BACK END', ZERO 'ORDER BEFORE READY
+TO TASK', ZERO 'MATERIALIZE ... HELD', ZERO 'REFUSING TO MATERIALIZE', ZERO 'READY TO TASK - NOT REACHED'. The
+MATERIALIZE sequence at order receipt has D8's shape (four deletes + '3 declared child unit(s) materialized').
+P2 (HIGH) OUTCOME: 3/3 TASKCMPLT by arrival evidence, 'relaxation APPLIED' on all three; completions on the app's SIM
+clock within +/-12 percent of D8's 81.1 / 485.5 / 660.5 SIM s after dispatch (window: each task's own dispatch-to-
+completion line). Geometry unchanged: T_R5_CO1 route 1,110-1,116 m, children ~202 m from the parent.
+P3 (MEDIUM) DISPATCH DEFERRAL: every task's order-to-DISPATCHED deferral <= 5.5 s (the limit registered since D7; D8
+4.749 / 5.082 / 5.203 s, D7 3.13-3.46 s - run-to-run spread is ~1.6 s, so NO tighter band is registered; the cold-start
+reviewer's 'above ~5.0 s' is reported as an observation, not scored). A rise above D8 on all three is a FINDING about the
+tick-thread classification cost, to be separated from run-to-run rate with the 1222.MechPlt control as D7/D8 did.
+P4 (MEDIUM) CLOCK: sim/wall over the MOVEMENT window (first DISPATCHED line to last completion line), read from the
+app's SIM/WALL RATIO and completion lines only: inside the D8 load profile 2.6-4.7; a value near 1.0 is a MISS (the
+D5b dead-back-end signature). Per-60-s window lines are REPORTED, not scored.
+P5 (HIGH) RUNNER TRUTH: manifest deployed build 4f1f149 not dirty; vendor log copies under <run>/vendor/ (none flat in
+the run directory); the Stage 2h HELD line quotes the MATCHED rtiexec text; the tile census prints a run total (hits > 0,
+FETCHES 0, L13) and says whether any scoring worker was outstanding; jam instrument PASS (BlockedByVehicle < 500, Loop to
+stall 0, Global Replan 0); clean teardown, no BACK END LOST, no back-end fault artefact.
+MISS = any hold / early-order / HELD / NOT REACHED line (P1), any task not TASKCMPLT, a SIM completion outside +/-12
+percent, a movement-window ratio near 1.0, flat vendor-log copies, a back-end fault. A missed HIGH limb is a STOP.
+
 ## D4 - the audience scenario (COA-STP1's 11 taskees, GUI, real-time, route shift) - needs the user's rulings first.
 ## D5 - Way B, hand-started and STP-driven, with the LaunchVrf52 holder (lane feat/demo-federation-holder).
 REGISTERED 2026-09-21 as its own file: docs/experiments/PREREG_D5_WAYB_2026-09-21.md (the runbook AS TYPED on main
