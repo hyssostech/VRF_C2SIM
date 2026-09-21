@@ -708,6 +708,23 @@ and the before/after wall-time budget are in docs/RUNNER_TURNAROUND_2026-09-01.m
    its own cap - wait it out). A pre-existing `<runDir>\observers.stop` is refused
    with exit 2 before anything is created (run-directory collision; never deleted).
 
+4. `--duration-scale N` / `-DurationScale` (main 1d0fb69, 2026-09-21): scales the ORDER's
+   clock - the Duration that ends a task and the StartTime delay that holds one back - and NOT
+   movement. `0` (the default) is a documented NO-OP SENTINEL meaning "leave the app's own
+   `Vrf:DurationScale` value alone"; the switch is omitted entirely at 0, not exported as 1.
+   Any other value is validated BEFORE anything is launched: finite and in 0.001..1000, or the
+   runner refuses with exit 2 (verified at -1, 2000 and 0.0001). Exported as
+   `Vrf__DurationScale` with the INVARIANT culture, echoed in the Stage 0 banner, recorded in
+   `inputs.durationScale` (switch / exported / envValueBefore / envValueUsed), and restored at
+   teardown. WORDING WRINKLE: passing `0` EXPLICITLY still prints "-DurationScale not given" -
+   an operator meaning "no durations" reads a line telling them they never passed the switch.
+   COLD-START REVIEW CAVEAT (SF-D, not yet fixed): the environment variable is exported before
+   TEN early-`exit 2` paths that bypass the teardown `finally` that restores it, so a run that
+   fails validation or an early stage, started in the OPERATOR's OWN pwsh session (not via
+   `RunScenario.sh`, whose child process takes the leak with it), can leave
+   `Vrf__DurationScale` set for the next run in that same shell while its manifest still says
+   "not given". Fix queued.
+
 Offline gate: `pwsh -NoProfile -File tests\RunnerTurnaround.Tests.ps1` (96 checks,
 no sim). What the confirming live run must show is listed in the design note sec 4;
 `# STOP requested via stop-file` in the WatchVrf trace followed by a clean resign is
@@ -2773,16 +2790,28 @@ and shows the refusal holding at approach fractions 0, 0.5 and 1.0, and replays 
 members both ways. WATCH: the ARRIVAL EVIDENCE line now prints the route bar AND the lowest
 member bar applied - if they are equal, no member's own approach was shorter than the route.
 
-KNOWN WEAKNESS (cold-start review, not yet fixed): the per-member cap is
-max(0.5 x the member's OWN distance-to-last-vertex at dispatch, 100 m), regardless of the
-ROUTE's length, so a long route whose last vertex lies just outside the taskee's own arrival
-radius (an out-and-back or a closed loop) can close on very little of the route's own motion.
-Worked case: Iron Storm T22, a 4-leg ~14.1 km loop, would close at roughly 12% of the route by
-this rule alone - today it is stopped only because the closed ring is classified as an
-ObjectiveArea and by `ClosableByArrival`, not by any gate inside the arrival rule itself. Fix
-lane queued: relax the per-member cap only when the TASKEE's own last-vertex distance from its
-OWN start is >= 0.5 x the route length. R9 (D7) and Iron Storm cut A (T02/T10/T14) are not
-exposed to this - none of those routes has the shape that triggers it.
+FIXED (main 1d0fb69, 2026-09-21, the loop guard): the per-member relaxation is now GATED - it
+applies only when the route genuinely goes somewhere, i.e. the taskee's own straight-line
+distance from its dispatch position to the last vertex is at least half the route's authored
+length (`RouteGoesSomewhere`, `ArrivalPolicy.cs:212`). On a loop or an out-and-back the route
+bar applies to every member, as it did before 2026-09-21. Without the gate, Iron Storm's T22
+(a 14.1 km ring whose first vertex is 2.1 km from the taskee) would be reported COMPLETE after
+12% of the route. The ARRIVAL EVIDENCE line says APPLIED or REFUSED, so "lowest member bar ==
+route bar" is never ambiguous. `Vrf:ArrivalApproachFraction=0` restores the route bar for every
+member. It is a refusal to relax, never a refusal to close: the fallback is the pre-2026-09-21
+route bar, so nothing that closed before stops closing.
+KNOWN LIMIT (cold-start review): the guard's 0.5 threshold is ALSO the tortuosity above which
+the fallback route bar itself becomes unsatisfiable - max displacement = chord < 0.5 x L for
+any route bending more than 2:1 - so such a route can never close on arrival evidence at all;
+it waits for the vendor completion or its Duration. Not a regression (pre-2026-09-21 behaviour
+for that shape), but the silence needs reading correctly. Measured over all 23 Iron Storm
+export tasks: 6 APPLIED, 8 REFUSED (T1/T3/T6/T8/T9/T13/T16/T22), 9 with no resolved route; T16
+is a closed loop (ratio 0.000) that the ungated rule would have closed after one arrival
+radius. R9 (D7/D8) and Iron Storm cut A (T02/T10/T14, ratio 1.000) are not exposed - none of
+those routes has the shape that triggers it. IRON STORM BRANCH NOTE: the cut-A data files
+(`IRONSTORM_CUTA_Initialization.xml`, `_Order.xml`) live only on `feat/ironstorm-cut-a`, which
+predates this build - they must be brought onto main (cherry-pick or merge) and
+`derive_ironstorm_cuta.py --check` re-run before any Iron Storm cut-A run on 1d0fb69 or later.
 
 ### 11e. DE-STACK - INDEPENDENT UNITS AT 700 m, COMPOSED SIBLINGS AT THEIR OWN ECHELON
 (user ruling 2026-09-21, option C of the D6 harvest; supersedes the 2026-09-20 warning)
@@ -2792,10 +2821,36 @@ INDEPENDENT objects that share a coordinate are spread onto `Vrf:DeStackSpacingM
 rings, first unit kept in place - the 2026-09-07 ruling, unchanged, and the only lane
 COA-STP1 and Iron Storm exercise (10 groups / 62 moved and 2 / 12, both identical to before).
 Then COMPOSED SIBLINGS - two or more children of one parent aggregate sharing a coordinate,
-including one they hold only through the InitParser superior cascade - are spread onto rings
-around their SHARED coordinate (not the parent's post-de-stack position; identical on every
-shipped fixture today, since the parent never moves, but latent otherwise) at THEIR echelon's
-spacing:
+including one they hold only through the InitParser superior cascade - are spread onto ONE
+RING at EQUAL bearings 360/N apart, starting at `Vrf:DeStackRotationDeg`, around their SHARED
+coordinate (not the parent's post-de-stack position; identical on every shipped fixture today,
+since the parent never moves, but latent otherwise). THE RING RADIUS is derived from the
+echelon spacing below, not equal to it: `r = spacing / (2 sin(pi/N))`, chosen so the MINIMUM
+sibling separation is exactly the spacing (350 m at PLATOON gives a 202.1 m radius for three
+platoons at 0/120/240 deg). WHY EQUAL BEARINGS: VR-Forces publishes a composed aggregate at
+its members' CENTROID, and equal bearings put that centroid exactly on the shared coordinate -
+so the parent's route keeps its length, its arrival radius and its traversal bar. The hex
+layout this replaced moved the published position 262 m on R9 lean and shortened T_R5_CO1's
+route by 74 m (run D7, finding N4). THERE IS NO SECOND RING: the radius grows with N (about
+0.159 x spacing per extra child, asymptotically `r -> spacing x N / (2 pi)`), because two
+unequally filled rings have no centroid at the centre. `Vrf:DeStackComposedSiblings=false`
+restores the pre-2026-09-21 behaviour for a comparability run, and the app now announces the
+value at start-up (the runner predicts it and flags a MISMATCH). Every composed parent is an
+EMPTY SHELL (`ApplyHierarchyComposition` sets `CreateSubordinates=false`), so nothing sits AT
+the parent's coordinate for the ring to overlap.
+
+| N | r / spacing | r at the 350 m PLATOON spacing | min separation |
+|---|---|---|---|
+| 1 | - | not spread at all (a lone child's centroid IS the anchor) | - |
+| 2 | 0.500000 | 175.0 m | 350 m |
+| 3 | 0.577350 | 202.1 m (R9 lean, 0/120/240 deg) | 350 m |
+| 4 | 0.707107 | 247.5 m | 350 m |
+| 5 | 0.850651 | 297.7 m | 350 m |
+| 6 | 1.000000 | 350.0 m (radius == spacing, the hex coincidence) | 350 m |
+| 7 | 1.152382 | 403.3 m | 350 m |
+| 8 | 1.306563 | 457.3 m | 350 m |
+
+The echelon spacing this radius formula is derived from:
 
 | echelon key | spacing | longest shipped GROUND formation for that echelon | file | via template |
 |---|---|---|---|---|
@@ -2851,16 +2906,59 @@ Offline proof: `--destack-selftest` (88 checks; both type-mapping modes on all f
 inits, the per-fixture group/moved counts, "no parent moves", and which taskees the sibling
 pass moves).
 
-N4 (D7, 2026-09-21, worth a ticket): a composed parent's PUBLISHED position is its members'
-CENTROID, not the parent's own coordinate; an ASYMMETRIC sibling ring (D7's 0/60/120 deg,
-company-level) moves that centroid 233 m by construction and shortened D7's route by 74 m vs
-the offline model, which wrongly assumed the parent stays put. Fix lane queued: place N
-siblings at EQUAL bearings 360/N so the centroid stays on the parent (a symmetric ring, e.g.
-0/120/240 for N=3, cancels the offset; D7's ring did not).
+N4 (D7, 2026-09-21): a composed parent's PUBLISHED position is its members' CENTROID, not the
+parent's own coordinate; the ASYMMETRIC hex ring (D7's 0/60/120 deg, company-level) moved that
+centroid 233 m by construction and shortened D7's route by 74 m vs the offline model, which
+wrongly assumed the parent stays put. **FIXED in main 1d0fb69**: the equal-bearing ring above
+puts N points' unit vectors (the N-th roots of unity) at a sum of zero for every N >= 2, so
+the centroid is the shared coordinate exactly - offline re-derivation on the real R9 lean init
+gives a 0.000 m centroid offset and restores the route to 1,111.9 m (D3/D6's band); D8
+(registered) is the first live confirmation.
 Measured jam-instrument result (D7, the 2026-09-07 ruling's instrument, scoreable live for
 the first time): BlockedByVehicle 3 rows / 2 objects against the ruling's 4,828-in-300 s
 co-located reference - PASSES. Console level 3 is cheap on R9 scale (8.9 MB trace, 3.4 MB app
 log for the whole run), so the instrument can stay ON for R9-scale rehearsals.
+
+KNOWN LIMITS (cold-start review of the ring fix, 1d0fb69):
+- No cross-group overlap check between neighbouring rings: two independent parents 700 m apart
+  each ringing 3-child platoon groups (r=202.1 m) leave only 295.8 m between the nearest
+  cross-group children, under the 350 m the ruling asks for; at N>=6 the rings interpenetrate.
+  Latent - no shipped fixture has both lanes active - but it is exactly the shape the next STP
+  export has.
+- R9 full has composed sibling groups of N=4, 5, 6 and 7 (under Z1.InfCoy, 14.MechBn,
+  11.MechBn, 13.MechBn) that are skipped only because COMPANY-and-above have no echelon table
+  row; one undocumented setting, `Vrf:DeStackEchelonFallbackMeters=700`, would immediately give
+  them 700-807 m rings. R9 full remains off every current runbook/demo path.
+- A missing sibling changes the RADIUS and every BEARING, not just slot labels (dropping one of
+  three children moves the radius 202.1 -> 175.0 m and the bearings 0/120/240 -> 0/180). No
+  prediction may be pinned to a named slot, bearing or radius across fixtures.
+
+### 11f. THE SIM CLOCK (N7, main 1d0fb69, 2026-09-21)
+
+Every "N s after dispatch" figure the app has ever logged is WALL seconds, and every one now
+SAYS SO. The SIMULATION (SCENARIO) clock - `DtVrfRemoteController::simTime()` via
+`VrfBridge.SimTimeSeconds()`, the back end's own advancing clock, seconds, absolute, -1.0 with
+no back end discovered or before Start()/after Stop() - is printed BESIDE wall time on
+dispatch and on the completion line, and the app logs `SIM/WALL RATIO` once a minute over a
+disjoint 60 s window (1.000 = real time, 0.000 = paused, above 1.000 = fixed-frame-run-to-
+complete running fast). This is a cached, non-blocking, read-only sample already taken once a
+second on the tick thread; it cannot throw (`VrfFacade.h`, "Neither throws") and cannot divide
+by a zero or negative window. It is now read UNCONDITIONALLY (previously gated on
+`Vrf:TaskClock`/`Vrf:StallDetection`, both off by default, so a default run had no sim reading
+at all before this build) - if dispatch deferrals grow after this change, bisect the
+unconditional read first; the tripwire string is `Tick phase 'SampleTaskClock' FAILED`.
+
+A HARVEST MUST READ, never compute sim/wall by dividing one wall figure by another - that is
+how run D6 came to record "sim/wall 1.00" for a scenario D7 later measured at 3.00x:
+- `SIM/WALL RATIO` - the primary instrument, grep it directly.
+- `DISPATCHED <unit> task '<t>' (<kind>) at WALL <stamp>, SIMULATION clock <s> s.` - the
+  dispatch mark.
+- the completion line's stamp, `<N> WALL s after dispatch = <M> SIMULATION s (sim clock
+  <a> -> <b> s)` - grep `WALL s after dispatch`; an unreadable clock says so in words, never a
+  zero or a blank.
+The 2026-09-20 D1/D1b/D3 "real time, ratio 1.00" readings in
+docs/experiments/PREREG_DEMO_REHEARSAL_2026-09-20.md are WITHDRAWN on this evidence (D7 RESULT
+N7) - D8 is the first run to measure the ratio with the app's own clock rather than infer it.
 
 ## 12. THE ROUTE PRE-FLIGHT (OFF) AND ITS LATERAL SHIFT (ON BY DEFAULT) (STP-804/806)
 
