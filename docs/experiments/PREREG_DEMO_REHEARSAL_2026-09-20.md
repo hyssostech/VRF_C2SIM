@@ -254,5 +254,16 @@ P5 (HIGH) runner truth 7/7 plus the NEW lines: holders-at-launch names the persi
 P6 (MEDIUM) give-ups: report count/roles/time; D3 and D7 had 4 TERMINAL at the destination, D6 5 transient at the start - no prediction of which, stated as such.
 MISS = route length outside 1,110-1,116 m, overlapping sibling footprints, a sustained jam, any task not terminal, T_R5_CO1 outside [165, 230] s, no SIM/WALL line, or a ratio outside [2.5, 3.5] (the last is a finding about N7, not about the build).
 
+
+D8 ADDENDUM (2026-09-21 05:25Z, registered BEFORE the re-launch): the first D8 launch (run 20260921T045700Z, 04:57Z)
+never reached VR-Forces - Stage 2h refused it after four holders (appNos 5036-5039) that had ALL JOINED went
+unrecognised: rtiexec 47636 writes its log through a doubled / token-interleaved sink ('Federate Federate
+remoteControl 87404 ... has joined federation " has joined federation "MAK-ONE-2025MAK-...'), which the join
+detector's exact-quote regex could not match (the regex was unchanged by 1d0fb69 - verified). Fixed in scripts only
+(merge 9711f46: shared matcher Test-HolderJoinedInLog, suite 437/0); the APP BINARIES ARE UNCHANGED (1d0fb69, built
+04:31:12Z). The re-launch is the same registered run, on the SAME rtiexec instance so the fix is exercised against
+the log that broke it; P1-P6 unchanged. Added expectation (HIGH): Stage 2h recognises its holder's join on
+attempt 1 from a garbled line.
+
 ## D4 - the audience scenario (COA-STP1's 11 taskees, GUI, real-time, route shift) - needs the user's rulings first.
 ## D5 - Way B, hand-started and STP-driven, with the LaunchVrf52 holder (lane feat/demo-federation-holder).
