@@ -2785,7 +2785,9 @@ shows at least d0 - R of displacement, and d0 - R >= 0.5 d0 exactly when d0 >= 2
 "actually drove there" satisfies it for every member starting two radii out. WHAT IT DOES NOT
 CHANGE: the radius, the quorum, what is sampled, and - critically - ClosableByArrival. A route
 whose last vertex lies inside the arrival radius of the dispatch position is still refused
-before any member is sampled; --arrival-selftest (57 checks) replays V6g's measured geometry
+before any member is sampled; --arrival-selftest (74 checks as of 2026-09-21; it was 38 when
+this section was first written and 57 at the amendment, so a quoted count here is a DATE, not a
+gate - run it) replays V6g's measured geometry
 and shows the refusal holding at approach fractions 0, 0.5 and 1.0, and replays D3's twenty
 members both ways. WATCH: the ARRIVAL EVIDENCE line now prints the route bar AND the lowest
 member bar applied - if they are equal, no member's own approach was shorter than the route.
@@ -2808,10 +2810,26 @@ for that shape), but the silence needs reading correctly. Measured over all 23 I
 export tasks: 6 APPLIED, 8 REFUSED (T1/T3/T6/T8/T9/T13/T16/T22), 9 with no resolved route; T16
 is a closed loop (ratio 0.000) that the ungated rule would have closed after one arrival
 radius. R9 (D7/D8) and Iron Storm cut A (T02/T10/T14, ratio 1.000) are not exposed - none of
-those routes has the shape that triggers it. IRON STORM BRANCH NOTE: the cut-A data files
-(`IRONSTORM_CUTA_Initialization.xml`, `_Order.xml`) live only on `feat/ironstorm-cut-a`, which
-predates this build - they must be brought onto main (cherry-pick or merge) and
-`derive_ironstorm_cuta.py --check` re-run before any Iron Storm cut-A run on 1d0fb69 or later.
+those routes has the shape that triggers it. IRON STORM BRANCH NOTE - **CLOSED 2026-09-21**:
+the cut-A data files (`IRONSTORM_CUTA_Initialization.xml`, `_Order.xml`) were on
+`feat/ironstorm-cut-a` only and are now on main (6014d11, review SF-E), with
+`derive_ironstorm_cuta.py --check` reproducing both hashes on this build. Cut-A is still NOT
+runnable as a demo - the nav gate passes only T14 at precision 0.2 - but the files are no
+longer the blocker, and nothing needs cherry-picking before a cut-A run.
+
+NOTE-G (cold-start review of 1d0fb69) - TWO DIFFERENT ANCHORS, BOTH CORRECT, one line so the
+next reader does not try to reconcile them. `TaskGeometryResolver` drops a graphic vertex that
+IS the taskee's own position by measuring against the unit's **AUTHORED initialization
+coordinate** (`Vrf:DropOriginVertexMeters`' own question: "did the order's route start by
+naming the assembly point?"). The STP-837 rules above measure against the taskee's **position
+at DISPATCH** - where the unit actually stood when the task was issued, which is not the
+authored coordinate once the de-stack has spread it, and which is the only anchor that can
+answer "has this member actually driven anywhere?". They are answers to different questions and
+must not be made to agree: the first is about the ORDER'S TEXT, the second about the RUN.
+Neither number is derivable from the other, and a change that unified them would silently break
+whichever question it stopped answering. `--preflight-selftest` section 7 pins the first against
+`leg_check.py` on the Iron Storm export; `--arrival-selftest` pins the second on V6g's and D3's
+measured geometry.
 
 ### 11e. DE-STACK - INDEPENDENT UNITS AT 700 m, COMPOSED SIBLINGS AT THEIR OWN ECHELON
 (user ruling 2026-09-21, option C of the D6 harvest; supersedes the 2026-09-20 warning)
@@ -2911,9 +2929,11 @@ platoons). The three are NOT comparable for any company-level completion timing 
 geometry. To reproduce a D1-D6 run, set `Vrf__DeStackComposedSiblings=false` (and
 `Vrf__ArrivalApproachFraction=0` for the 11d amendment above).
 
-Offline proof: `--destack-selftest` (88 checks; both type-mapping modes on all four shipped
-inits, the per-fixture group/moved counts, "no parent moves", and which taskees the sibling
-pass moves).
+Offline proof: `--destack-selftest` (139 checks as of 2026-09-21, 88 when this line was
+written: both type-mapping modes on all four shipped inits, the per-fixture group/moved counts,
+"no parent moves", which taskees the sibling pass moves, the SIZES of the groups it SKIPS and
+the rings they would take (SF-A), the ring-radius/spacing labelling (SF-D4) and the
+cross-group overlap detection with each shipped init's pair count (SF-B)).
 
 N4 (D7, 2026-09-21): a composed parent's PUBLISHED position is its members' CENTROID, not the
 parent's own coordinate; the ASYMMETRIC hex ring (D7's 0/60/120 deg, company-level) moved that
