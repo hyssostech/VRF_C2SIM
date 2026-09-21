@@ -22,11 +22,13 @@ namespace VrfC2SimApp;
 /// unknown taskee refused promptly, and a task that was never held unchanged in its lines and its
 /// timing.
 ///
-/// Offline: no bridge, no federation, no server, no clock. The fixtures are the DECISIONS -
-/// VrfC2SimService.TryDispatchOrHold / HoldThenDispatchAsync, and the init barrier that gates an
-/// order-time materialization - over a scripted timeline of observations, using the REAL
-/// <see cref="DispatchReadiness"/> rules and the REAL sentences, so it can only pass if those
-/// agree.
+/// Offline: no bridge, no federation, no server, no clock. WHAT THESE FIXTURES ARE, stated exactly
+/// (cold-start review of 945e054): they are a MODEL of the service's decision sequence -
+/// TryDispatchOrHold / HoldThenDispatchAsync, the composition await's backstop, and the init
+/// barrier that gates an order-time materialization - driving the REAL <see cref="DispatchReadiness"/>
+/// rules and the REAL sentences. What they PROVE is that those rules and sentences are right, and
+/// that the sequence built on them has the properties claimed. They do NOT execute
+/// VrfC2SimService's own methods; the report lists what is therefore left to the confirming run.
 /// </summary>
 public static class DispatchReadinessSelfTest
 {
@@ -217,6 +219,111 @@ public static class DispatchReadinessSelfTest
         }
     }
 
+    /// <summary>
+    /// B1 (cold-start review of 945e054): the 45-vs-60 interaction, modelled end to end because it
+    /// is an ORDERING defect and nothing smaller than the ordering can show it.
+    ///
+    /// The chain the review found: MaterializeUnit parks the materialization and registers
+    /// _compositionReady[name]; RunTaskAsync's composition await expires at
+    /// Vrf:CompositionTimeoutSeconds + 30 = 45 s, logs "dispatching anyway" and FALLS THROUGH; the
+    /// init shell is bound and readable so the task drives the EMPTY SHELL; and at 60 s the barrier
+    /// expires, drains, and MaterializeUnit case 3 DELETES that object underneath the live task.
+    ///
+    /// TWO DEFENCES, and this fixture can switch them on independently, so each is shown to carry
+    /// its own weight: the CAP (DispatchReadiness.BarrierSeconds) and the STRUCTURAL pair
+    /// (TaskeeReadiness.MaterializationParked, and the refusal to delete an object a dispatched
+    /// task is steering).
+    /// </summary>
+    private sealed class B1Fixture
+    {
+        private readonly bool _parkedCheck;      // TaskeeReadiness.MaterializationParked exists
+        private readonly bool _deleteGuard;      // MaterializeUnit refuses to delete under a dispatch
+        private readonly double _barrier;
+        private readonly double _composeBackstop;
+        private double _boundAt, _readableAt;    // the init shell; moved by a re-create
+
+        public readonly List<string> Lines = new();
+        public double DispatchedAt = double.NaN;
+        public double DeletedAt = double.NaN;
+        public bool RefusedDelete;
+        public bool ComposeBackstopFired;
+        public int HoldLines;
+        public TaskeeReadiness HoldState = TaskeeReadiness.Ready;
+
+        public B1Fixture(bool parkedCheck, bool deleteGuard, double barrier, double composeBackstop,
+                         double boundAt, double readableAt)
+        {
+            _parkedCheck = parkedCheck; _deleteGuard = deleteGuard;
+            _barrier = barrier; _composeBackstop = composeBackstop;
+            _boundAt = boundAt; _readableAt = readableAt;
+        }
+
+        /// <summary>One init-planned name NEVER binds, so the barrier can only ever EXPIRE. The
+        /// order arrives at <paramref name="orderAt"/> and its taskee's materialization is parked.</summary>
+        public void Run(string taskName, string unitName, double orderAt, double horizon)
+        {
+            bool parked = true;
+            bool dispatched = false;
+            double gateOpened = double.NaN;
+            Lines.Add(DispatchReadiness.MaterializeHeldLine(unitName, "task performer", 1, 6));
+            for (double t = orderAt; t <= horizon; t += Tick)
+            {
+                // --- SweepDispatchReadiness: the barrier expires (it can never settle here) ------
+                if (parked && t >= _barrier)
+                {
+                    parked = false;
+                    Lines.Add(DispatchReadiness.NotReadyToTaskLine(5, 6, "1143.MechPlt", t));
+                    // DrainHeldMaterializations -> MaterializeUnit -> case 3
+                    if (_deleteGuard && dispatched)
+                    {
+                        RefusedDelete = true;
+                        Lines.Add(DispatchReadiness.RefusedDeleteUnderDispatchedTask(unitName, taskName));
+                    }
+                    else
+                    {
+                        DeletedAt = t;
+                        _boundAt = t + 0.30;        // ExpectRebind + the re-created object's ObjectCreated
+                        _readableAt = t + 0.50;     // ... and ReleaseReflected
+                    }
+                }
+                // --- RunTaskAsync's composition await -------------------------------------------
+                if (double.IsNaN(gateOpened))
+                {
+                    if (!parked) gateOpened = t;                     // the materialization ran: gate released
+                    else if (t >= orderAt + _composeBackstop)
+                    {
+                        gateOpened = t;
+                        ComposeBackstopFired = true;
+                        Lines.Add("Task '" + taskName + "': composition of " + unitName
+                                  + " not signalled within " + _composeBackstop.ToString("F0")
+                                  + "s - dispatching anyway (move may drive an incomplete unit).");
+                    }
+                    else continue;
+                }
+                // --- TryDispatchOrHold ----------------------------------------------------------
+                if (dispatched) continue;
+                var state = DispatchReadiness.Classify(true, true, t >= _boundAt, t >= _readableAt,
+                                                       _parkedCheck && parked);
+                if (DispatchReadiness.ShouldHold(state, Timeout, false))
+                {
+                    if (HoldLines == 0)
+                    {
+                        HoldLines++; HoldState = state;
+                        Lines.Add(DispatchReadiness.HoldLine(taskName, unitName, state, Timeout));
+                    }
+                    continue;
+                }
+                if (state != TaskeeReadiness.Ready) continue;
+                DispatchedAt = t; dispatched = true;
+            }
+        }
+
+        /// <summary>THE DEFECT, in one number: was the object deleted AFTER a task was dispatched
+        /// onto it?</summary>
+        public bool DeletedUnderADispatchedTask
+            => !double.IsNaN(DeletedAt) && !double.IsNaN(DispatchedAt) && DeletedAt > DispatchedAt;
+    }
+
     public static int Run(bool featureEnabled = true)
     {
         int fails = 0;
@@ -285,17 +392,25 @@ public static class DispatchReadinessSelfTest
         }
 
         // ============ 3. AN UNKNOWN TASKEE IS STILL REFUSED PROMPTLY ===========================
-        // Holds in BOTH arms: a data error must not become a silent 60 s wait. This is the
-        // invariant the deferral is allowed to cost nothing.
+        // Holds in BOTH arms: a data error must not become a silent 60 s wait.
+        //
+        // HONEST LABEL (cold-start review of 945e054): the service refuses an unknown taskee in
+        // OnOrder, BEFORE RunTaskAsync is ever started ("taskee {Uuid} is not in the C2SIM
+        // INITIALIZATION - CANNOT EXECUTE TASK"), so TaskeeReadiness.Unknown is UNREACHABLE from
+        // TryDispatchOrHold - plannedAtInit is always true by the time it runs. That is a stronger
+        // guarantee than a rule that has to fire, not a weaker one. This arm therefore pins two
+        // things and claims no more: the modelled refusal happens at the instant the task arrives
+        // with no hold, and the rule would refuse to hold the state even if it could see it.
         {
             var tl = new Timeline { PlannedAtInit = false, RequestedAt = Never, BoundAt = Never, ReadableAt = Never };
             var fx = new DispatchFixture(timeout, tl);
             fx.Dispatch("T_GHOST", "NotInTheInit", 0.31);
 
-            Check("UNKNOWN TASKEE: refused AT ONCE - no hold line, and the refusal is recorded at "
-                  + "the instant the task arrived",
+            Check("UNKNOWN TASKEE (refused in OnOrder, before orchestration): refused AT ONCE - no "
+                  + "hold line, and the refusal is recorded at the instant the task arrived",
                   fx.HoldLines == 0 && fx.Statuses.Count == 1 && fx.Abandoned.Count == 1);
-            Check("UNKNOWN TASKEE: the rule itself refuses to hold it, whatever the bound",
+            Check("UNKNOWN TASKEE: the rule refuses to hold it at any bound - the BACKSTOP behind "
+                  + "the structural refusal, not the mechanism that delivers it",
                   DispatchReadiness.MustRefusePromptly(TaskeeReadiness.Unknown)
                   && !DispatchReadiness.ShouldHold(TaskeeReadiness.Unknown, 60.0, false)
                   && !DispatchReadiness.ShouldHold(TaskeeReadiness.Unknown, 86400.0, false));
@@ -362,7 +477,7 @@ public static class DispatchReadinessSelfTest
             var names = new[] { "1222.MechPlt", "114.MechCoy~PXY", "1143.MechPlt", "1.BdeHQ~PXY",
                                 "1141.MechPlt", "1142.MechPlt" };
             var bindAt = new[] { 1.20, 1.25, 1.30, 1.35, 1.40, 2.60 };   // the last one lags
-            var fx = new BarrierFixture(featureEnabled, DispatchReadiness.BarrierSeconds(timeout),
+            var fx = new BarrierFixture(featureEnabled, DispatchReadiness.BarrierSeconds(timeout, 15.0),
                                         names, bindAt, createsIssuedAt: 1.00);
             fx.Materialize(1.26, "114.MechCoy~PXY");     // the order arrived at 0.31 and this shell just bound
             fx.Run(10.0);
@@ -396,10 +511,10 @@ public static class DispatchReadinessSelfTest
         {
             var names = new[] { "A", "B", "C" };
             var bindAt = new[] { 1.0, 1.1, Never };
-            var fx = new BarrierFixture(featureEnabled, DispatchReadiness.BarrierSeconds(timeout),
+            var fx = new BarrierFixture(featureEnabled, DispatchReadiness.BarrierSeconds(timeout, 15.0),
                                         names, bindAt, createsIssuedAt: 0.5);
             fx.Materialize(1.2, "B");
-            fx.Run(DispatchReadiness.BarrierSeconds(timeout) + 5.0);
+            fx.Run(DispatchReadiness.BarrierSeconds(timeout, 15.0) + 5.0);
 
             Check("NO WEDGE: the barrier EXPIRES and the held materialization runs anyway",
                   fx.Settled && fx.Issued.Any(x => x.Kind == "DELETE" && x.Name == "B"));
@@ -409,6 +524,76 @@ public static class DispatchReadinessSelfTest
                                     && l.Contains("only 2 of 3", StringComparison.Ordinal)
                                     && l.Contains("Missing: [C]", StringComparison.Ordinal)
                                     && l.Contains("may still be dropped", StringComparison.Ordinal)));
+        }
+
+        // ============ 8b. B1 - THE BARRIER MUST NOT OUTLIVE THE COMPOSITION BACKSTOP ===========
+        // The cold-start review's blocker, modelled end to end. Shipped numbers:
+        // Vrf:CompositionTimeoutSeconds = 15 -> composition backstop 45 s; the barrier wants 60 s
+        // and is CAPPED to 40 s. One init-planned name never binds, so the barrier can only expire;
+        // the order arrives at +1 s, which is the demo-day Way B posture.
+        const double ComposeBackstop = 15.0 + 30.0;
+        {
+            double barrier = featureEnabled
+                ? DispatchReadiness.BarrierSeconds(Timeout, 15.0)     // 40 s, capped
+                : Timeout;                                            // 945e054: 60 s, uncapped
+            var fx = new B1Fixture(parkedCheck: featureEnabled, deleteGuard: featureEnabled,
+                                   barrier: barrier, composeBackstop: ComposeBackstop,
+                                   boundAt: 0.5, readableAt: 0.8);
+            fx.Run("T_R5_CO1", "114.MechCoy~PXY", orderAt: 1.0, horizon: 90.0);
+
+            Check("B1: the object a task was dispatched onto is NEVER deleted underneath it",
+                  !fx.DeletedUnderADispatchedTask);
+            Check("B1: and the task is not sacrificed to get that - it still dispatches, after the "
+                  + "materialization has run",
+                  !double.IsNaN(fx.DispatchedAt) && !double.IsNaN(fx.DeletedAt)
+                  && fx.DispatchedAt > fx.DeletedAt);
+            Check("B1: the CAP is what keeps the composition backstop out of it entirely - the "
+                  + "\"dispatching anyway (move may drive an incomplete unit)\" line never appears",
+                  !fx.ComposeBackstopFired);
+            Check("B1: the cap is derived, not a magic number - min(bound, "
+                  + "Vrf:CompositionTimeoutSeconds + 30 - margin), 40 s at the shipped 15",
+                  Math.Abs(DispatchReadiness.BarrierSeconds(60.0, 15.0) - 40.0) < 1e-9
+                  && DispatchReadiness.BarrierSeconds(60.0, 15.0) < ComposeBackstop
+                  && Math.Abs(DispatchReadiness.BarrierSeconds(10.0, 15.0) - 10.0) < 1e-9
+                  && DispatchReadiness.BarrierSeconds(60.0, 0.0) >= 1.0);
+        }
+        {
+            // DEFENCE 2 ON ITS OWN. The backstop is made SHORT so it fires while the
+            // materialization is still parked - the exact fall-through the review traced. The
+            // parked classification must HOLD the task; nothing may be dispatched onto the shell.
+            var fx = new B1Fixture(parkedCheck: featureEnabled, deleteGuard: featureEnabled,
+                                   barrier: DispatchReadiness.BarrierSeconds(Timeout, 15.0),
+                                   composeBackstop: 5.0, boundAt: 0.5, readableAt: 0.8);
+            fx.Run("T_R5_CO1", "114.MechCoy~PXY", orderAt: 1.0, horizon: 90.0);
+
+            Check("B1/PARKED: when the composition backstop DOES fall through, the parked "
+                  + "materialization still holds the task - a bound, readable EMPTY SHELL is not READY",
+                  fx.ComposeBackstopFired && fx.HoldLines == 1
+                  && fx.HoldState == TaskeeReadiness.MaterializationParked);
+            Check("B1/PARKED: nothing is dispatched before the materialization has run",
+                  !double.IsNaN(fx.DispatchedAt) && !double.IsNaN(fx.DeletedAt)
+                  && fx.DispatchedAt > fx.DeletedAt && !fx.DeletedUnderADispatchedTask);
+            Check("B1/PARKED: the hold line names the state, so the log says WHY the task waited",
+                  fx.Lines.Any(l => l.Contains("[MATERIALIZATION-PARKED]", StringComparison.Ordinal)
+                                    && l.Contains("EMPTY SHELL", StringComparison.Ordinal)));
+        }
+        {
+            // DEFENCE 3 ON ITS OWN. Suppose the parked check is not there (945e054) but the delete
+            // guard is: the task IS dispatched onto the shell at the fall-through, and the guard
+            // must then refuse to delete it and say so.
+            var fx = new B1Fixture(parkedCheck: false, deleteGuard: featureEnabled,
+                                   barrier: DispatchReadiness.BarrierSeconds(Timeout, 15.0),
+                                   composeBackstop: 5.0, boundAt: 0.5, readableAt: 0.8);
+            fx.Run("T_R5_CO1", "114.MechCoy~PXY", orderAt: 1.0, horizon: 90.0);
+
+            Check("B1/GUARD: with the task already dispatched, the materialization REFUSES to "
+                  + "delete its object - nothing is deleted at all",
+                  fx.RefusedDelete && double.IsNaN(fx.DeletedAt) && !fx.DeletedUnderADispatchedTask);
+            Check("B1/GUARD: and it is LOUD and honest - it says the task keeps an EMPTY SHELL and "
+                  + "that reaching this line means a defence failed",
+                  fx.Lines.Any(l => l.Contains("REFUSING TO MATERIALIZE", StringComparison.Ordinal)
+                                    && l.Contains("EMPTY SHELL", StringComparison.Ordinal)
+                                    && l.Contains("should be unreachable", StringComparison.Ordinal)));
         }
 
         // ============ 9. THE RULE ITSELF =======================================================
@@ -424,12 +609,32 @@ public static class DispatchReadinessSelfTest
               // a bound name whose create we never recorded requesting is still bound
               && DispatchReadiness.Classify(true, false, true, true) == TaskeeReadiness.Ready);
 
-        Check("TRANSIENCE: exactly the three states between planned and ready are transient",
+        Check("CLASSIFY/B1: PARKED beats READY and nothing else - a not-yet-bound unit still "
+              + "reports the more proximate truth about itself, and both hold the task anyway",
+              DispatchReadiness.Classify(true, true, true, true, true) == TaskeeReadiness.MaterializationParked
+              && DispatchReadiness.Classify(true, true, true, false, true) == TaskeeReadiness.BoundNotReadable
+              && DispatchReadiness.Classify(true, true, false, false, true) == TaskeeReadiness.RequestedNotBound
+              && DispatchReadiness.Classify(false, true, true, true, true) == TaskeeReadiness.Unknown
+              // the 4-argument overload is the 5-argument one with parked=false
+              && DispatchReadiness.Classify(true, true, true, true)
+                 == DispatchReadiness.Classify(true, true, true, true, false));
+
+        Check("TRANSIENCE: every state between planned and ready is transient, PARKED included",
               DispatchReadiness.IsTransient(TaskeeReadiness.PlannedNotRequested)
               && DispatchReadiness.IsTransient(TaskeeReadiness.RequestedNotBound)
               && DispatchReadiness.IsTransient(TaskeeReadiness.BoundNotReadable)
+              && DispatchReadiness.IsTransient(TaskeeReadiness.MaterializationParked)
               && !DispatchReadiness.IsTransient(TaskeeReadiness.Unknown)
               && !DispatchReadiness.IsTransient(TaskeeReadiness.Ready));
+
+        Check("S2: the timeout TASKABRT does not blame the data when the simulator may simply be "
+              + "gone - it names STP-853 and tells the reader to check the back end",
+              DispatchReadiness.TimeoutAbortReason("T", "U", TaskeeReadiness.RequestedNotBound, 60.0)
+                  .Contains("CHECK THAT THE BACK END IS STILL RUNNING", StringComparison.Ordinal)
+              && DispatchReadiness.TimeoutAbortReason("T", "U", TaskeeReadiness.RequestedNotBound, 60.0)
+                  .Contains("STP-853", StringComparison.Ordinal)
+              && DispatchReadiness.TimeoutAbortReason("T", "U", TaskeeReadiness.RequestedNotBound, 60.0)
+                  .Contains("WITHOUT RESIGNING", StringComparison.Ordinal));
 
         Check("ZERO IS TODAY'S BEHAVIOUR: at Vrf:DispatchReadinessTimeoutSeconds = 0 (or negative) "
               + "NOTHING is ever held",
@@ -439,8 +644,8 @@ public static class DispatchReadinessSelfTest
 
         Check("THE OBSERVATION STILL RUNS WITH THE FEATURE OFF: the READY TO TASK line has a window "
               + "of its own, because the operator is told to wait for it",
-              Math.Abs(DispatchReadiness.BarrierSeconds(0.0) - DispatchReadiness.ObservationWindowSeconds) < 1e-9
-              && Math.Abs(DispatchReadiness.BarrierSeconds(90.0) - 90.0) < 1e-9);
+              Math.Abs(DispatchReadiness.BarrierSeconds(0.0, 1000.0) - DispatchReadiness.ObservationWindowSeconds) < 1e-9
+              && Math.Abs(DispatchReadiness.BarrierSeconds(90.0, 1000.0) - 90.0) < 1e-9);
 
         Check("EVERY STATE HAS A DISTINCT NAME AND A DISTINCT DESCRIPTION - a log line that cannot "
               + "tell two states apart is the defect this fixes",

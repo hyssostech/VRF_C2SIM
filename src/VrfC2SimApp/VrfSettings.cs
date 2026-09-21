@@ -241,9 +241,22 @@ public class VrfSettings
     // the init's own creations to settle before running anyway - so one knob governs both halves of
     // the same race and neither can wedge a run.
     //
-    // 0 (or negative) = THE PRE-2026-09-21 BEHAVIOUR EXACTLY: nothing is held, an unbound taskee is
-    // DROPPED and an unreadable one is REFUSED at dispatch, and no materialization is deferred for
-    // the init. That is the fail-first arm of --dispatch-readiness-selftest --disabled.
+    // 0 (or negative) = THE PRE-2026-09-21 BEHAVIOUR ON EVERY PATH THAT DECIDES ANYTHING: nothing
+    // is held, an unbound taskee is DROPPED and an unreadable one is REFUSED at dispatch, and no
+    // materialization is deferred for the init. That is the fail-first arm of
+    // --dispatch-readiness-selftest --disabled. It is NOT log-identical to 1d0fb69, and the
+    // difference is deliberate (S3, cold-start review 2026-09-21): the READY TO TASK OBSERVATION
+    // still runs at 0 - INIT CREATION BARRIER, the tick sweep, READY TO TASK or its NOT REACHED
+    // variant, and the ORDER BEFORE READY TO TASK warning all still print - because the operator is
+    // told to wait for that line (DEMO_RUNBOOK sec 4) and a switch that decides dispatch must not
+    // also take the instrument away. A trace comparison against 1d0fb69 will therefore differ by
+    // those lines and by nothing else.
+    //
+    // IT ALSO BOUNDS NOTHING LONGER THAN THE COMPOSITION BACKSTOP. The init barrier is capped at
+    // Vrf:CompositionTimeoutSeconds + 30 - 5 (40 s at the shipped 15) whatever is set here, because
+    // a barrier that outlives RunTaskAsync's composition await let a task be dispatched onto an
+    // empty shell that the barrier then deleted underneath it (B1). Raising this value raises the
+    // DISPATCH hold only; raise Vrf:CompositionTimeoutSeconds to move the barrier.
     //
     // A taskee the initialization never planned is NOT covered by this and is still refused at
     // once (VrfC2SimService.cs, "taskee ... is not in the C2SIM initialization"), and a hold ends

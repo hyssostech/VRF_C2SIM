@@ -2499,6 +2499,21 @@ public sealed class VrfC2SimService : BackgroundService
         }
         else
         {
+            // B1 (cold-start review of 945e054) - THE ONE PLACE AN OBJECT IS DELETED, AND THE ONE
+            // PLACE THE INVARIANT CAN BE ENFORCED STRUCTURALLY. If a task has ALREADY been
+            // dispatched onto this unit, deleting its object now would pull the ground out from
+            // under a live move. That ordering should be impossible (the barrier is capped below
+            // the composition backstop, and a parked unit never classifies READY), so reaching it
+            // means a defence failed - which is exactly when a guard has to exist. Do NOT delete;
+            // say so as loudly as the log allows; leave the task on what it has; and RELEASE the
+            // composition gate, because nothing else will now complete it.
+            if (_inFlight.TryGetCurrent(name, out var dispatched))
+            {
+                _log.LogError("{Line}", DispatchReadiness.RefusedDeleteUnderDispatchedTask(name, dispatched.TaskName));
+                if (_compositionReady.TryGetValue(name, out var strandedGate)) strandedGate.TrySetResult();
+                if (preGate != null) preGate.TrySetResult();
+                return;
+            }
             // Case 3: template with platforms -> delete the shell, re-create as the template.
             _compositionReady[name] = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             _recreatePending[name] = 0;
@@ -2591,6 +2606,10 @@ public sealed class VrfC2SimService : BackgroundService
     private void RecordInitCreationBarrier(List<CreationPlan> plans)
     {
         if (plans == null || plans.Count == 0) return;
+        // Review note (945e054): a genuinely NEW initialization re-arms the barrier FOR ITS OWN
+        // OBJECTS, which is what this method's own contract says. Accumulating both inits' names
+        // made READY TO TASK report a cumulative denominator that belonged to no single init.
+        _initPlannedNames.Clear();
         int shells = 0;
         foreach (var p in plans)
         {
@@ -2598,7 +2617,7 @@ public sealed class VrfC2SimService : BackgroundService
             _initPlannedNames[p.Name] = 0;
             if (p.IsAggregate && !p.CreateSubordinates) shells++;
         }
-        _initShellCount += shells;
+        _initShellCount = shells;
         _initSettled = false;
         _initPlannedUtc = DateTime.UtcNow;
         _log.LogInformation("INIT CREATION BARRIER: {N} object(s) planned by this initialization " +
@@ -2607,7 +2626,7 @@ public sealed class VrfC2SimService : BackgroundService
                             "does not delete/re-create anything - both bounded by {Key} ({T:F0} s). The " +
                             "{Ready} line says when the wait is over.",
                             _initPlannedNames.Count, shells, DispatchReadiness.TimeoutSettingKey,
-                            DispatchReadiness.BarrierSeconds(_vrf.DispatchReadinessTimeoutSeconds),
+                            DispatchReadiness.BarrierSeconds(_vrf.DispatchReadinessTimeoutSeconds, _vrf.CompositionTimeoutSeconds),
                             DispatchReadiness.ReadyToTaskPrefix);
     }
 
@@ -2642,7 +2661,13 @@ public sealed class VrfC2SimService : BackgroundService
     {
         bool bound = _names.TryGetUuid(unitName, out var vrfUuid);
         bool readable = bound && _bridge.TryGetEntityGeodetic(vrfUuid, out _);
-        return DispatchReadiness.Classify(plannedAtInit, _names.IsRequested(unitName), bound, readable);
+        // B1 (cold-start review of 945e054): THE STRUCTURAL HALF. A unit whose order-time
+        // materialization is parked behind the init barrier is never READY, however bound and
+        // readable its init shell is - the object that answers is the empty shell, and the parked
+        // work would delete it once the barrier settles.
+        bool parked = _materializeOnInitSettled.ContainsKey(unitName);
+        return DispatchReadiness.Classify(plannedAtInit, _names.IsRequested(unitName), bound,
+                                          readable, parked);
     }
 
     /// <summary>
@@ -2686,7 +2711,7 @@ public sealed class VrfC2SimService : BackgroundService
                 { anyRead = true; break; }
         double waited = (DateTime.UtcNow - _initPlannedUtc).TotalSeconds;
         bool settled = planned > 0 && bound == planned && anyRead;
-        bool expired = waited >= DispatchReadiness.BarrierSeconds(_vrf.DispatchReadinessTimeoutSeconds);
+        bool expired = waited >= DispatchReadiness.BarrierSeconds(_vrf.DispatchReadinessTimeoutSeconds, _vrf.CompositionTimeoutSeconds);
         if (!settled && !expired) return;
 
         // SET FIRST, THEN SAY IT, THEN DRAIN: the held materializations re-enter MaterializeUnit,
@@ -3121,11 +3146,19 @@ public sealed class VrfC2SimService : BackgroundService
         // The runbook's only "we are live" signal is the READY line, which fires before the init is
         // even pushed; the line an operator should wait for is READY TO TASK. Said once per run,
         // and it is a WARNING because it names a race the operator can simply not run.
-        if (!_initSettled && _initPlannedUtc != DateTime.MinValue && !_orderBeforeReadySaid)
+        // S1 (cold-start review of 945e054): gate on the OUTSTANDING CREATIONS, which is what the
+        // sentence describes - NOT on _initSettled, which also requires one live location read. HLA
+        // discovery after ObjectCreated is unbounded, so a cleanly-gated Way A run whose names were
+        // all bound before the order could otherwise be WARNED about a race that did not happen.
+        if (!_orderBeforeReadySaid && _initPlannedUtc != DateTime.MinValue)
         {
-            _orderBeforeReadySaid = true;
-            _log.LogWarning("{Line}", DispatchReadiness.OrderBeforeReadyLine(
-                BoundInitNameCount(), _initPlannedNames.Count));
+            int boundNow = BoundInitNameCount();
+            if (boundNow < _initPlannedNames.Count)
+            {
+                _orderBeforeReadySaid = true;
+                _log.LogWarning("{Line}", DispatchReadiness.OrderBeforeReadyLine(
+                    boundNow, _initPlannedNames.Count));
+            }
         }
 
         // M1: record the WHOLE order before orchestrating any of it. A gated task derives its

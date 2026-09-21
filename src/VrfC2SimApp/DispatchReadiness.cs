@@ -33,6 +33,16 @@ public enum TaskeeReadiness
 
     /// <summary>Bound AND readable. Dispatch, with nothing logged and nothing waited for.</summary>
     Ready = 4,
+
+    /// <summary>
+    /// B1 (cold-start review of 945e054). Bound and readable, AND YET NOT TASKABLE: this unit's
+    /// order-time materialization is PARKED behind the initialization barrier, so the object that
+    /// is bound and readable is the EMPTY SHELL the init created, and the members the order needs
+    /// have not been created. Dispatching here drives an empty shell - and worse, the parked
+    /// materialization will later DELETE that very object (MaterializeUnit case 3) out from under
+    /// the task. Transient by construction: the barrier always settles or expires.
+    /// </summary>
+    MaterializationParked = 5,
 }
 
 /// <summary>
@@ -74,17 +84,33 @@ public static class DispatchReadiness
     /// </summary>
     public static TaskeeReadiness Classify(bool plannedAtInit, bool createRequested,
                                            bool nameBound, bool locationReadable)
+        => Classify(plannedAtInit, createRequested, nameBound, locationReadable, false);
+
+    /// <summary>
+    /// B1: the same rule plus the STRUCTURAL INVARIANT. A unit whose order-time materialization is
+    /// PARKED behind the initialization barrier is NEVER <see cref="TaskeeReadiness.Ready"/>,
+    /// however bound and however readable its init-created shell is - dispatching onto it drives an
+    /// empty shell, and the parked work would then delete that object underneath the task. The
+    /// parked flag is consulted LAST, so a unit that is not even bound still reports the more
+    /// proximate truth about itself; both states hold the task, so the ordering costs nothing.
+    /// </summary>
+    public static TaskeeReadiness Classify(bool plannedAtInit, bool createRequested,
+                                           bool nameBound, bool locationReadable,
+                                           bool materializationParked)
     {
         if (!plannedAtInit) return TaskeeReadiness.Unknown;
-        if (nameBound) return locationReadable ? TaskeeReadiness.Ready : TaskeeReadiness.BoundNotReadable;
-        return createRequested ? TaskeeReadiness.RequestedNotBound : TaskeeReadiness.PlannedNotRequested;
+        if (!nameBound)
+            return createRequested ? TaskeeReadiness.RequestedNotBound : TaskeeReadiness.PlannedNotRequested;
+        if (!locationReadable) return TaskeeReadiness.BoundNotReadable;
+        return materializationParked ? TaskeeReadiness.MaterializationParked : TaskeeReadiness.Ready;
     }
 
-    /// <summary>Can waiting change this state? The three states between "planned" and "ready".</summary>
+    /// <summary>Can waiting change this state? Every state between "planned" and "ready".</summary>
     public static bool IsTransient(TaskeeReadiness state)
         => state == TaskeeReadiness.PlannedNotRequested
         || state == TaskeeReadiness.RequestedNotBound
-        || state == TaskeeReadiness.BoundNotReadable;
+        || state == TaskeeReadiness.BoundNotReadable
+        || state == TaskeeReadiness.MaterializationParked;
 
     /// <summary>A state that must be refused at once, however generous the bound.</summary>
     public static bool MustRefusePromptly(TaskeeReadiness state) => state == TaskeeReadiness.Unknown;
@@ -105,6 +131,7 @@ public static class DispatchReadiness
         TaskeeReadiness.PlannedNotRequested => "PLANNED-BUT-NOT-REQUESTED",
         TaskeeReadiness.RequestedNotBound   => "REQUESTED-BUT-NOT-BOUND",
         TaskeeReadiness.BoundNotReadable    => "BOUND-BUT-NOT-READABLE",
+        TaskeeReadiness.MaterializationParked => "MATERIALIZATION-PARKED",
         TaskeeReadiness.Ready               => "READY",
         _                                   => "UNSPECIFIED",
     };
@@ -124,6 +151,11 @@ public static class DispatchReadiness
         TaskeeReadiness.BoundNotReadable =>
             "is bound to a VR-Forces object whose live location cannot be read yet (the "
           + "ObjectCreated control message precedes HLA discovery by an unbounded interval)",
+        TaskeeReadiness.MaterializationParked =>
+            "is bound and readable, but the object that answers is the EMPTY SHELL the "
+          + "initialization created: this unit's order-time materialization is PARKED behind the "
+          + "initialization barrier, so its members do not exist yet and the parked work will "
+          + "delete and re-create this very object when the barrier settles (B1)",
         TaskeeReadiness.Ready =>
             "is bound and its live location reads",
         _ => "is in an unspecified state",
@@ -149,13 +181,42 @@ public static class DispatchReadiness
                HoldPrefix, taskName, unitName, wallSeconds, taskClockSeconds, taskClockMode,
                StateName(startState));
 
-    /// <summary>The TASKABRT reason when the bound expires. The state is IN it, by rule.</summary>
+    /// <summary>
+    /// The TASKABRT reason when the bound expires. The state is IN it, by rule - and so is the one
+    /// thing the state CANNOT tell the operator (S2, cold-start review of 945e054): STP-822 cannot
+    /// see a back end that dies WITHOUT RESIGNING (STP-853), so a silent simulator leaves
+    /// _backendLost false and this branch, not the liveness branch, is what fires. Saying "the unit
+    /// is still not bound" and stopping there would send the reader to the data when the simulator
+    /// may simply be gone.
+    /// </summary>
     public static string TimeoutAbortReason(string taskName, string unitName, TaskeeReadiness state,
                                             double wallSeconds)
         => string.Format(CultureInfo.InvariantCulture,
                "ABANDONED after waiting {0:F1} s for the back end: task '{1}' could not be "
-             + "dispatched because unit {2} {3} [{4}]. {5} bounds this wait.",
+             + "dispatched because unit {2} {3} [{4}]. {5} bounds this wait. CHECK THAT THE BACK "
+             + "END IS STILL RUNNING before reading this as a data problem: STP-853 - a back end "
+             + "that dies WITHOUT RESIGNING is not detected by the STP-822 liveness rule, so this "
+             + "timeout, not a 'back end lost' line, is what a silent simulator produces here.",
                wallSeconds, taskName, unitName, Describe(state), StateName(state), TimeoutSettingKey);
+
+    /// <summary>
+    /// B1, the second defence, and the one that is structural. If a parked materialization is ever
+    /// reached for a unit a task has ALREADY been dispatched onto, the shell is NOT deleted: the
+    /// task keeps what it has (an empty shell, driving), and this says so as loudly as it can. The
+    /// alternative - deleting the object a live task is steering - is the failure the review found.
+    /// </summary>
+    public static string RefusedDeleteUnderDispatchedTask(string unitName, string taskName)
+        => string.Format(CultureInfo.InvariantCulture,
+               "MATERIALIZE {0}: REFUSING TO MATERIALIZE - task '{1}' has ALREADY BEEN DISPATCHED "
+             + "onto this unit, and materializing it now would DELETE the very VR-Forces object "
+             + "that task is steering (B1). The unit is LEFT AS IT IS: it keeps driving the object "
+             + "it was given, which under CreationPolicy=AtOrder is the EMPTY SHELL the "
+             + "initialization created, so the move is real but the unit has no members. This "
+             + "state should be unreachable - the barrier is capped below the composition backstop "
+             + "and a parked unit is never classified READY - so if you are reading this line, one "
+             + "of those two defences did not hold: capture the log and the init, and check "
+             + "whether any initialization object failed to bind (the {2} line above).",
+               unitName, taskName, ReadyToTaskPrefix);
 
     /// <summary>The TASKABRT reason when STP-822 has declared the back end LOST during a hold.</summary>
     public static string BackendLostAbortReason(string taskName, string unitName, TaskeeReadiness state,
@@ -180,9 +241,34 @@ public static class DispatchReadiness
     /// </summary>
     public const double ObservationWindowSeconds = 60.0;
 
-    /// <summary>How long the init barrier waits before reporting what it HAS.</summary>
-    public static double BarrierSeconds(double timeoutSeconds)
-        => timeoutSeconds > 0.0 ? timeoutSeconds : ObservationWindowSeconds;
+    /// <summary>
+    /// B1: the slack between the barrier's expiry and the composition backstop it must not outlive.
+    /// It has to cover one tick (50 ms) plus the delete/re-create round trip the drain then issues,
+    /// so the composition gate that the drained materialization installs is completed before the
+    /// backstop gives up on it. Five seconds is two orders of magnitude of slack on the tick and
+    /// the same order as the re-create itself.
+    /// </summary>
+    public const double BarrierBackstopMarginSeconds = 5.0;
+
+    /// <summary>
+    /// How long the init barrier waits before reporting what it HAS - CAPPED so it can never
+    /// outlive RunTaskAsync's composition backstop (Vrf:CompositionTimeoutSeconds + 30).
+    ///
+    /// B1, the cold-start review of 945e054. Uncapped, the 60 s barrier outlived the 45 s backstop:
+    /// the composition await expired, logged "dispatching anyway" and FELL THROUGH; the init shell
+    /// was bound and readable, so the task drove the EMPTY SHELL; and 15 s later the barrier
+    /// expired, drained, and MaterializeUnit case 3 DELETED that object out from under the
+    /// dispatched task. The cap makes the ordering impossible rather than merely unlikely - and
+    /// <see cref="TaskeeReadiness.MaterializationParked"/> plus the no-delete-after-dispatch guard
+    /// in the service make the INVARIANT structural, so the cap is the first of two defences, not
+    /// the only one. At the shipped Vrf:CompositionTimeoutSeconds = 15 this returns 40 s.
+    /// </summary>
+    public static double BarrierSeconds(double timeoutSeconds, double compositionTimeoutSeconds)
+    {
+        double want = timeoutSeconds > 0.0 ? timeoutSeconds : ObservationWindowSeconds;
+        double backstop = compositionTimeoutSeconds + 30.0 - BarrierBackstopMarginSeconds;
+        return Math.Max(1.0, Math.Min(want, backstop));
+    }
 
     /// <summary>
     /// THE LINE THE DEMO RUNBOOK TELLS THE OPERATOR TO WAIT FOR. Printed once, when every name the

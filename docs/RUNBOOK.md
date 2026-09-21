@@ -3070,6 +3070,7 @@ THE FIVE STATES (`DispatchReadiness.cs`), and what each does now:
 | planned, create not yet requested | `PLANNED-BUT-NOT-REQUESTED` | HELD |
 | requested, no object bound to the name | `REQUESTED-BUT-NOT-BOUND` | HELD |
 | bound, live location not readable yet | `BOUND-BUT-NOT-READABLE` | HELD |
+| bound and readable, but its materialization is parked behind the init barrier | `MATERIALIZATION-PARKED` | HELD (B1) |
 | bound and readable | `READY` | dispatched, with nothing logged and nothing waited for |
 
 WHAT AN OPERATOR SEES. One `WAITING FOR THE BACK END: task '<T>' held - unit <U> <state>` when a
@@ -3090,19 +3091,49 @@ equivalent of Way A's Stage 7 oracle gate. If it is not reached in time the inte
 `READY TO TASK - NOT REACHED within N s`, names what is missing, and releases the held work anyway:
 the barrier cannot wedge a run. An order that arrives before the line gets one WARNING saying so.
 
-OFFLINE PROOF, no bridge and no network: `VrfC2SimApp --dispatch-readiness-selftest` (38 checks -
+OFFLINE PROOF, no bridge and no network: `VrfC2SimApp --dispatch-readiness-selftest` (49 checks -
 both D5b cases, the prompt refusal, the timeout, the liveness exit, the never-held invariant, the
-overlap and the barrier) and `--dispatch-readiness-selftest --disabled`, which runs the SAME
-assertions at `Vrf:DispatchReadinessTimeoutSeconds = 0` - the 1d0fb69 build - and FAILS 17 of them.
+overlap, the barrier and the three B1 arms) and `--dispatch-readiness-selftest --disabled`, which
+runs the SAME assertions at `Vrf:DispatchReadinessTimeoutSeconds = 0` - the 1d0fb69 build - and
+FAILS 25 of them.
+
+**THE BARRIER IS CAPPED BELOW THE COMPOSITION BACKSTOP, AND THE INVARIANT BEHIND THE CAP IS
+STRUCTURAL (B1, cold-start review 2026-09-21).** `RunTaskAsync`'s composition await gives up after
+`Vrf:CompositionTimeoutSeconds + 30` (45 s at the shipped 15), logs `dispatching anyway (move may
+drive an incomplete unit)` and FALLS THROUGH. With an uncapped 60 s barrier that produced a real
+failure: the task fell through at 45 s onto the init's EMPTY SHELL (bound and readable, so it
+classified READY), and at 60 s the barrier expired, drained, and `MaterializeUnit` case 3 DELETED
+that object out from under the live task. Three defences now, each independently asserted:
+
+1. **The cap.** `DispatchReadiness.BarrierSeconds` returns
+   `min(bound, Vrf:CompositionTimeoutSeconds + 30 - 5)` = **40 s** at the shipped 15, so the
+   barrier always settles or expires BEFORE the composition backstop can fire. A
+   `composition of <name> not signalled within 45s` line from this cause means the cap is wrong.
+2. **`MATERIALIZATION-PARKED`.** A unit whose order-time materialization is parked behind the
+   barrier is NEVER classified READY, however bound and readable its shell is - it is a transient
+   state like the other three, and the task is held with `[MATERIALIZATION-PARKED]` named.
+3. **No delete under a dispatched task.** If that state is ever reached anyway, `MaterializeUnit`
+   REFUSES to delete the object: one ERROR (`REFUSING TO MATERIALIZE ... should be unreachable`),
+   the composition gate released so nothing waits forever, and the task LEFT ON WHAT IT HAS - an
+   empty shell that drives, which is bad, but is not an object deleted under a live move.
+
+Trigger, for the record: an order within ~15 s of the init (the demo-day Way B posture) PLUS one
+init-planned name that never binds - a create the back end drops, an AMBIGUOUS marking truncation,
+or a `NAME REBIND REFUSED`. A type-map miss cannot do it: an unmapped unit never enters the
+barrier's denominator.
 
 KNOWN LIMIT, stated rather than designed around: an object whose name could not be attributed (a
 `NAME REBIND REFUSED` or an AMBIGUOUS truncation) is indistinguishable from a create that has not
 round-tripped, so it is held for the bound before reaching the abort it reaches today. Its own
-ERROR line is already printed at the instant it happens. Second limit: the composition gate's own
-backstop is `Vrf:CompositionTimeoutSeconds + 30` = 45 s, which is SHORTER than this default 60 s -
-so an init create that never binds for 45 s lets that backstop fire first, with its existing
-"dispatching anyway (move may drive an incomplete unit)" warning. That needs an init already
-broken enough to print `READY TO TASK - NOT REACHED`.
+ERROR line is already printed at the instant it happens. Second, `TaskeeReadiness.Unknown` is
+UNREACHABLE from the dispatch path: a taskee that is not in the initialization is refused in
+`OnOrder` before any orchestration starts, so the prompt refusal is a structural guarantee rather
+than a rule that has to fire. Third, **a back end that dies WITHOUT RESIGNING is not seen by the
+STP-822 liveness rule (STP-853)**, so the fast exit does NOT cover the D5b crash class: the RTI
+keeps reflecting the dead sim's attributes, the state reads READY, and a hold RELEASES into a dead
+simulator - or, if the unit was not yet bound, times out naming a transient state. The timeout
+TASKABRT therefore says so in words and tells the reader to check the back end before reading it
+as a data problem.
 
 ## 12. THE ROUTE PRE-FLIGHT (OFF) AND ITS LATERAL SHIFT (ON BY DEFAULT) (STP-804/806)
 
