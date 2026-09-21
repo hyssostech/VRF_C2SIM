@@ -702,6 +702,27 @@ public sealed class TileCensusLatch
         lock (_gate) { if (_generation > 0) _outstanding++; return _generation; }
     }
 
+    /// <summary>
+    /// SF-R2 (cold-start review of 2df59ba): HOW MANY SCORING WORKERS ARE STILL OUT, right now.
+    /// The scoring workers are unjoined <c>Task.Run</c> bodies - nothing awaits or drains them -
+    /// so a shutdown-time total CANNOT assert that they have all finished. It can OBSERVE this
+    /// number and say it. That is the difference the N9 fix is about, applied to the line the N8
+    /// fix added: a record must report what it saw, not what it hoped.
+    /// </summary>
+    public int OutstandingWorkers { get { lock (_gate) { return _outstanding; } } }
+
+    /// <summary>
+    /// SF-R2: THE SCOPE CLAUSE OF THE RUN-TOTAL LINE, as a pure function of the one thing that
+    /// was actually observed. Kept here, beside the counter it reads, so the sentence and the
+    /// number can never drift apart, and so both branches are assertable offline.
+    /// </summary>
+    public static string DescribeRunTotalScope(int outstandingWorkers)
+        => outstandingWorkers <= 0
+           ? "no scoring worker was outstanding when this line was written, so it is the run total"
+           : $"{outstandingWorkers} scoring worker(s) were STILL OUTSTANDING when this line was " +
+             "written - tile reads after this point are NOT in it, so this is a lower bound and " +
+             "not the run total";
+
     /// <summary>A scoring worker finishes. True when this worker was the last one outstanding in
     /// the CURRENT generation - once per BATCH of concurrent scoring work, never twice for the
     /// same worker, and never for a worker of a closed generation.</summary>

@@ -4800,24 +4800,39 @@ public sealed class VrfC2SimService : BackgroundService
     }
 
     /// <summary>
-    /// N8 (D8 harvest): THE RUN TOTAL, once, at shutdown - the number the per-batch lines above
-    /// could never be. Each of those reports a delta and a running total AS OF THAT LINE; whether
-    /// any of them is the last is not knowable while the run is going. This one is, because the
-    /// service is stopping: every scoring worker that will ever run has run.
+    /// N8 (D8 harvest): THE TILE TOTAL AT SHUTDOWN - the number the per-batch lines above could
+    /// never be. Each of those reports a delta and a running total AS OF THAT LINE; whether any of
+    /// them is the last is not knowable while the run is going.
     ///
-    /// It reads the same counters and says the same things, so a harvest can parse either; what it
-    /// adds is the guarantee that this figure is final. Silent when no pre-flight service was ever
-    /// built (the feature off, or a run that dispatched nothing) - there is no total to report.
+    /// *** SF-R2 (cold-start review of 2df59ba): THIS LINE USED TO SAY "FINAL - every scoring
+    /// worker has finished", AND NOTHING ESTABLISHED THAT. *** It is written before _stopTick and
+    /// the tick thread's Join, and the scoring workers are unjoined Task.Run bodies that nothing
+    /// awaits or drains - a route-shift worker still scoring at shutdown increments the counters
+    /// AFTER this line. That is the N9 defect (a permanent record asserting what the code did not
+    /// check) reappearing inside the N8 fix, which is the one place it had no excuse to.
+    ///
+    /// The fix is to OBSERVE rather than assert. The latch already knows how many workers are
+    /// out; the line reads that number and says it, through
+    /// <see cref="Preflight.TileCensusLatch.DescribeRunTotalScope"/> - a pure function of the one
+    /// thing observed, so the sentence and the number cannot drift and both branches are
+    /// assertable offline. Draining the workers instead would mean a shutdown that waits on a
+    /// worker whose whole design is that nothing waits on it; saying what was seen is the cheaper
+    /// truth and the honest one.
+    ///
+    /// Silent when no pre-flight service was ever built (the feature off, or a run that dispatched
+    /// nothing) - there is no total to report.
     /// </summary>
     private void ReportRunTileTotal()
     {
         var svc = _preflight;
         if (svc == null) return;
-        _log.LogInformation("ROUTE PRE-FLIGHT TILE TOTAL for this RUN (E6/N8, FINAL - every scoring worker " +
-                            "has finished): {CumHits} cache HIT(s), {CumFetches} HTTP FETCH(es){Off}, " +
-                            "{Exhausted} tile(s) given up on after {Tries} attempts, {Undecodable} " +
-                            "undecodable body(ies). Cache: {Cache}. The per-batch CENSUS lines above are " +
-                            "deltas and running totals as of each line; THIS is the run total.",
+        int outstanding = _tileCensus.OutstandingWorkers;
+        _log.LogInformation("ROUTE PRE-FLIGHT TILE TOTAL for this RUN (E6/N8, at shutdown; {Scope}): " +
+                            "{CumHits} cache HIT(s), {CumFetches} HTTP FETCH(es){Off}, {Exhausted} " +
+                            "tile(s) given up on after {Tries} attempts, {Undecodable} undecodable " +
+                            "body(ies). Cache: {Cache}. The per-batch CENSUS lines above are deltas and " +
+                            "running totals as of each line.",
+                            Preflight.TileCensusLatch.DescribeRunTotalScope(outstanding),
                             svc.Tiles.CacheHits, svc.Tiles.Fetched,
                             svc.Options.Offline ? " (Vrf:PreflightOffline is TRUE, so a fetch count above " +
                                                   "zero would be a defect)" : "",

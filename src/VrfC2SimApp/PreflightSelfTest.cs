@@ -976,6 +976,41 @@ public static class PreflightSelfTest
             Check(ref failures, latch.BeginOrder() > g,
                   "a new order opens a new generation, and its batch numbering starts again at 1");
         }
+        // ===== SF-R2: THE RUN-TOTAL LINE REPORTS WHAT IT OBSERVED, NOT WHAT IT HOPED =====
+        // It used to say "FINAL - every scoring worker has finished" and nothing established
+        // that: it is written before _stopTick and the tick thread's Join, and the scoring
+        // workers are unjoined Task.Run bodies. The line now reads the latch's outstanding count
+        // and says it. Both branches are assertable because the sentence is a pure function of
+        // the number - which is the whole point: a record must not claim what it did not see.
+        Console.WriteLine("--- SF-R2: the shutdown tile total states the OBSERVED outstanding count ---");
+        {
+            var latch = new TileCensusLatch();
+            Check(ref failures, latch.OutstandingWorkers == 0,
+                  "a latch with no order behind it reports 0 workers outstanding");
+            latch.BeginOrder();
+            long w1 = latch.Enter(), w2 = latch.Enter();
+            Check(ref failures, latch.OutstandingWorkers == 2,
+                  $"two scoring workers in flight -> OutstandingWorkers == 2 (got {latch.OutstandingWorkers})");
+            latch.Leave(w1);
+            Check(ref failures, latch.OutstandingWorkers == 1,
+                  $"one leaves -> 1 outstanding (got {latch.OutstandingWorkers})");
+            string busy = TileCensusLatch.DescribeRunTotalScope(latch.OutstandingWorkers);
+            Check(ref failures,
+                  busy.Contains("1 scoring worker(s) were STILL OUTSTANDING", StringComparison.Ordinal)
+                  && busy.Contains("not the run total", StringComparison.Ordinal),
+                  $"with work still out the line says SO, and refuses the words 'run total' (got: {busy})");
+            latch.Leave(w2);
+            string quiet = TileCensusLatch.DescribeRunTotalScope(latch.OutstandingWorkers);
+            Check(ref failures, latch.OutstandingWorkers == 0
+                  && quiet.Contains("no scoring worker was outstanding", StringComparison.Ordinal)
+                  && quiet.Contains("it is the run total", StringComparison.Ordinal),
+                  $"and only when nothing is outstanding does it call itself the run total (got: {quiet})");
+            Check(ref failures,
+                  !TileCensusLatch.DescribeRunTotalScope(0).Contains("FINAL", StringComparison.Ordinal)
+                  && !TileCensusLatch.DescribeRunTotalScope(3).Contains("FINAL", StringComparison.Ordinal),
+                  "neither branch says FINAL - nothing in this service can establish that a Task.Run " +
+                  "scoring worker will never run again, so the word is gone");
+        }
         return failures;
     }
 
