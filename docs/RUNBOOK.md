@@ -2330,7 +2330,9 @@ forwarder -D in manual mode - federates never connect to it). Moved to 5002 in c
 STAGE 2h (2026-09-15, runner a06653b; 0.5.14 item 18): the JOIN-path workaround is no longer a hand-run holder script -
 scripts\RunC2SimScenario.ps1 Stage 2h starts the holder before Stage 2c on every 5.2 run (-FederationHoldSecs, default
 900; -FederationHoldAttempts 4, one ledgered appNo each). The seat scripts scratchpad validation\p3_holder.ps1 /
-p7_holder_retry.ps1 are superseded for runner-driven runs; keep them for probing without the runner.
+p7_holder_retry.ps1 are superseded for runner-driven runs; keep them for probing without the runner. (p7's
+retry-until-joined behaviour now also lives in the repo as scripts\StartFederationHolder52.ps1 for the DEMO path -
+see THE DEMO POSTURE below.)
 
 STP-825 ON THE DEMO PATH (2026-09-20, LaunchVrf52 d1885c0, merged d6c9c2f; 0.5.14 item 18 addendum): Stage 2h only
 protects runs launched through scripts\RunC2SimScenario.ps1. The standalone demo path (docs/DEMO_RUNBOOK.md Way B:
@@ -2360,10 +2362,14 @@ uncontrolled spacing), not a property of the underlying defect. **Stage 2h's fou
 still not demo-grade on their own** given the raw ~42% rate, cluster or no cluster.
 
 THE DEMO POSTURE IS A PERSISTENT HOLDER, started ONCE and retried until it joins:
-`scratchpad\validation\p7_holder_retry.ps1` with `-SettleSecs 28800` and a block of ledgered
-appNos (numbers not reached on a given try are burned, never reused) - so every subsequent
-launch in the demo window only ever JOINS. A JOIN never exercises the FOM-module receive path
-a CREATE does (RM 13.3), so the persistent holder AVOIDS the defect rather than reducing it.
+**`scripts\StartFederationHolder52.ps1 -AppNumbers <ledgered numbers> -SettleSecs 28800`**
+(promoted into the repo 2026-09-21, defect DR-6; it IS the scratchpad `p7_holder_retry.ps1`,
+behaviour unchanged, with parameters, preconditions and a `-WhatIf`. The scratchpad path it
+replaces was session-specific and no operator could follow it). `-AppNumbers` is MANDATORY and
+the script invents none - numbers not reached on a given try are burned, never reused - so
+every subsequent launch in the demo window only ever JOINS. A JOIN never exercises the
+FOM-module receive path a CREATE does (RM 13.3), so the persistent holder AVOIDS the defect
+rather than reducing it. Operator-facing copy: docs/DEMO_RUNBOOK.md section 0, step zero.
 
 NEW VERIFIED FACTS (sec 7.2-7.4): the FOM Reader's "Extra content at the end of the document"
 line is reported at each rejected file's OWN last line + 1 - i.e. the receiver's reassembled

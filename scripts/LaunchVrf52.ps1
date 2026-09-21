@@ -228,12 +228,14 @@ param(
     # starts its OWN holder for 900 s exactly as before.
     [switch] $FederationHeldByCaller,
     # DEMO application-number block is 9101-9199 (DEMO_READINESS_2026-09-06 row 8;
-    # appsettings.Demo.json _ApplicationNumber comment): the interface owns 9101, and the
-    # DEMO_RUNBOOK.md Way B example back end/front end (9201/9202) sit OUTSIDE that block
-    # entirely. 9190 is FREE in the documented range - nothing in the repo's docs or
-    # appsettings names 9102-9199 except 9101 itself - and is placed near the top of the
+    # appsettings.Demo.json _ApplicationNumber comment): the interface owns 9101. 9190 was
+    # FREE in the documented range when this default was chosen - nothing in the repo's docs
+    # or appsettings named 9102-9199 except 9101 itself - and is placed near the top of the
     # block, away from 9101, so an operator's own back end/front end numbers chosen inside
-    # 9101-9199 are unlikely to collide with it by coincidence. On a refused create the
+    # 9101-9199 are unlikely to collide with it by coincidence. UPDATED 2026-09-21 (DR-2/DR-8):
+    # DEMO_RUNBOOK.md Way B used to type 9201/9202 for its back end / front end, which sit
+    # OUTSIDE the block entirely and were therefore exempt from nothing; that example now uses
+    # 9102/9103, inside the block and well clear of 9190/9191. On a refused create the
     # holder retries ONCE on -FederationHoldAppNumber + 1 (9191 by default) - a NEW
     # appNumber, never a reused one (RUNBOOK sec 0).
     [int]    $FederationHoldAppNumber = 9190,

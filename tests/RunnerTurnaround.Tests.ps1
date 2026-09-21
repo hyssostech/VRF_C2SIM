@@ -2255,6 +2255,230 @@ Check '10f5 and it names the OTHER explanations for a session-prompt miss, not j
     $gqLibText -match 'DtVrfExtendedApplicationSettingsDataFlags' -and
     $gqLibText -match 'from the SESSION at join time')
 
+Write-Host '=== 11. WAY B AS TYPED (fix/wayb-as-typed, 2026-09-21) ==='
+# The hand-started demo path of docs\DEMO_RUNBOOK.md section 2 had never been run end to end,
+# and reading it against the runner turned up two defects that would have made the rehearsal
+# fail silently - R-3 (the interface started with the WRONG working directory) and DR-1 (no
+# endpoint control at all, so the interface listened to one C2SIM server while the documented
+# stand-in pushes went to another) - plus operator-facing defects DR-2..DR-8 in the runbook
+# itself. These checks pin the fixes. Everything here is -WhatIf or text: nothing is started.
+$wbPwsh      = 'C:\Program Files\PowerShell\7\pwsh.exe'
+$wbIface     = Join-Path $RepoRoot 'scripts\StartInterface52.ps1'
+$wbHolder    = Join-Path $RepoRoot 'scripts\StartFederationHolder52.ps1'
+$wbIfaceText = Get-Content -LiteralPath $wbIface -Raw
+$wbDemoText  = Get-Content -LiteralPath (Join-Path $RepoRoot 'docs\DEMO_RUNBOOK.md') -Raw
+$wbBookText  = Get-Content -LiteralPath (Join-Path $RepoRoot 'docs\RUNBOOK.md') -Raw
+
+# --- 11a. R-3: cwd = VR-Forces bin64 + --contentRoot=<exe dir>, exactly as the runner does ---
+$wbIfaceAst = [System.Management.Automation.Language.Parser]::ParseFile($wbIface, [ref]$null, [ref]$null)
+$wbSetLoc = @($wbIfaceAst.FindAll({
+    param($n)
+    $n -is [System.Management.Automation.Language.CommandAst] -and
+    $n.GetCommandName() -eq 'Set-Location' }, $true))
+Check '11a StartInterface52 has exactly ONE Set-Location and it targets $Bin64, not the exe directory' (
+    $wbSetLoc.Count -eq 1 -and $wbSetLoc[0].Extent.Text -match '\$Bin64' -and
+    $wbIfaceText -notmatch 'Set-Location \(Split-Path -Parent \$Exe\)') ("Set-Location sites: " + $wbSetLoc.Count)
+Check '11a $Bin64 is derived from the SAME $VrfRoot the PATH prefix uses (one VrfHome resolution)' (
+    $wbIfaceText -match '\$Bin64\s+= Join-Path \$VrfRoot ''bin64''' -and
+    $wbIfaceText -match '\$pathPrefix = \(''\{0\};\{1\};\{2\};'' -f \$Bin64,')
+Check '11a the exe is invoked with the --contentRoot argument array, and the reason is cited' (
+    $wbIfaceText -match '\$AppArgs\s+= @\(''--contentRoot='' \+ \$ContentRoot\)' -and
+    $wbIfaceText -match '& \$Exe @AppArgs' -and
+    $wbIfaceText -match 'RUNBOOK sec 7 item 3')
+if (-not (Test-Path -LiteralPath $wbPwsh)) {
+    Check '11a SKIPPED - pwsh 7 not at the expected path' $true
+} else {
+    # -WhatIf starts nothing. It prints the plan even when a precondition fails (a worktree has
+    # no built exe), which is what makes the plan readable from any tree; the exit code is
+    # unchanged and is deliberately NOT asserted here.
+    $wbDefault = (& $wbPwsh -NoProfile -NonInteractive -File $wbIface -WhatIf 2>&1 | Out-String)
+    Check '11a -WhatIf names cwd = the VR-Forces bin64' (
+        $wbDefault -match 'cwd\s+:\s*C:\\MAK\\vrforces5\.2d\\bin64') 'cwd line missing'
+    Check '11a -WhatIf names the --contentRoot argument, pointing at the exe directory' (
+        $wbDefault -match 'arguments\s+:\s*--contentRoot=.*win-x64') 'arguments line missing'
+    Check '11a -WhatIf still says it started nothing' ($wbDefault -match '\(WhatIf: nothing started\)')
+
+    # --- 11b. DR-1: the C2SIM endpoint control, and the loud line that names the server ---
+    Check '11b the DEFAULT (-Server standard) names appsettings own 8080/61613 and sets NO env override' (
+        $wbDefault -match '\*\*\* C2SIM SERVER THE INTERFACE WILL LISTEN TO: rest=http://127\.0\.0\.1:8080/C2SIMServer\s+stomp=http://127\.0\.0\.1:61613/topic/C2SIM \*\*\*' -and
+        $wbDefault -match 'NO env override is set' -and
+        $wbDefault -notmatch 'C2SIM__RestUrl\s+=')
+    $wbPrivate = (& $wbPwsh -NoProfile -NonInteractive -File $wbIface -WhatIf -Server private 2>&1 | Out-String)
+    Check '11b -Server private exports C2SIM__RestUrl / C2SIM__StompUrl for 18080 / 61614' (
+        $wbPrivate -match 'C2SIM__RestUrl\s+= http://127\.0\.0\.1:18080/C2SIMServer' -and
+        $wbPrivate -match 'C2SIM__StompUrl\s+= http://127\.0\.0\.1:61614/topic/C2SIM')
+    Check '11b -Server private says so in the loud line too' (
+        $wbPrivate -match '\*\*\* C2SIM SERVER THE INTERFACE WILL LISTEN TO: rest=http://127\.0\.0\.1:18080/C2SIMServer\s+stomp=http://127\.0\.0\.1:61614/topic/C2SIM \*\*\*')
+    Check '11b the loud line is printed in BOTH cases and tells the operator the pushes must match' (
+        $wbDefault -match 'THE PUSHES MUST NAME THIS SAME PAIR' -and
+        $wbPrivate -match 'THE PUSHES MUST NAME THIS SAME PAIR')
+    $wbExplicit = (& $wbPwsh -NoProfile -NonInteractive -File $wbIface -WhatIf -Server private `
+                        -RestUrl 'http://10.0.0.5:9999/C2SIMServer' 2>&1 | Out-String)
+    Check '11b an explicit -RestUrl WINS over -Server, and the partial override is called out' (
+        $wbExplicit -match 'C2SIM__RestUrl\s+= http://10\.0\.0\.5:9999/C2SIMServer' -and
+        $wbExplicit -match 'C2SIM__StompUrl\s+= http://127\.0\.0\.1:61614/topic/C2SIM')
+    $wbBadUrl = (& $wbPwsh -NoProfile -NonInteractive -File $wbIface -WhatIf -StompUrl 'not-a-url' 2>&1 | Out-String)
+    Check '11b a -StompUrl that is not an absolute http/https URL is refused by name' (
+        $wbBadUrl -match '\[FAIL\] -StompUrl is not an absolute http/https URL: not-a-url')
+    # FOUND BY THE ADVERSARIAL PASS ON THIS BRANCH, not by a live run. With -Server standard the
+    # script sets no override - so an override ALREADY IN THE CONSOLE (the runner sets and
+    # restores these; a rehearsal script sets them for a child; an operator may export one) is
+    # what the app would actually hear. Naming appsettings' 8080 there would be the DR-1 lie in
+    # a new place. The child below is given one in its environment and must say so.
+    $wbInheritEnv = @{ C2SIM__RestUrl = 'http://127.0.0.1:18080/C2SIMServer' }
+    $wbInherit = (& {
+        $saved = $env:C2SIM__RestUrl
+        try {
+            $env:C2SIM__RestUrl = $wbInheritEnv['C2SIM__RestUrl']
+            & $wbPwsh -NoProfile -NonInteractive -File $wbIface -WhatIf 2>&1 | Out-String
+        } finally {
+            if ($null -eq $saved) { Remove-Item -Path 'Env:C2SIM__RestUrl' -ErrorAction SilentlyContinue }
+            else { $env:C2SIM__RestUrl = $saved }
+        }
+    })
+    Check '11b an INHERITED C2SIM__RestUrl is reported as the real source, not appsettings 8080' (
+        $wbInherit -match 'rest=http://127\.0\.0\.1:18080/C2SIMServer' -and
+        $wbInherit -match 'INHERITED from this console''s environment \(C2SIM__RestUrl\)' -and
+        $wbInherit -match 'it WINS' -and
+        $wbInherit -notmatch 'rest=http://127\.0\.0\.1:8080/C2SIMServer')
+    Check '11b and the test put the console variable back' ($null -eq $env:C2SIM__RestUrl)
+}
+# The env must not leak into an operator's own console: every variable this script sets is
+# restored in a finally, INCLUDING the two endpoint overrides, which would otherwise silently
+# redirect the operator's next tool at the rehearsal server.
+$wbAppCall = @($wbIfaceAst.FindAll({
+    param($n)
+    $n -is [System.Management.Automation.Language.CommandAst] -and
+    $n.Extent.Text -match '^& \$Exe @AppArgs' }, $true))
+Check '11b the app is started INSIDE a try whose finally restores the environment (AST)' (
+    $wbAppCall.Count -eq 1 -and (Test-InsideTry $wbAppCall[0]) -and
+    $wbIfaceText -match 'Pop-Location' -and
+    $wbIfaceText -match 'Remove-Item -Path \(''Env:'' \+ \$k\)' -and
+    $wbIfaceText -match '\$env:PATH = \$SavedPath') ('& $Exe @AppArgs sites: ' + $wbAppCall.Count)
+Check '11b C2SIM__RestUrl / C2SIM__StompUrl are added to the SAME $envVars map that is saved and restored' (
+    $wbIfaceText -match '\$envVars\[''C2SIM__RestUrl''\]\s+= \$EffRestUrl' -and
+    $wbIfaceText -match '\$envVars\[''C2SIM__StompUrl''\] = \$EffStompUrl' -and
+    $wbIfaceText -match 'foreach \(\$k in \$envVars\.Keys\) \{ \$SavedEnv\[\$k\] =')
+
+# --- 11c. DR-2 / DR-8: the Way B application numbers are inside the documented demo block ---
+Check '11c no TYPED command in DEMO_RUNBOOK still passes 9201 / 9202 (the note recording the change may name them)' (
+    $wbDemoText -notmatch '-BackendAppNumber 9201' -and $wbDemoText -notmatch '-FrontendAppNumber 9202')
+Check '11c the Way B launch command uses 9102 / 9103, inside the 9101-9199 demo block' (
+    $wbDemoText -match '-BackendAppNumber 9102 -FrontendAppNumber 9103')
+Check '11c and those two collide with neither the interface (9101) nor LaunchVrf52 holder (9190/9191)' (
+    @(9102, 9103 | Where-Object { $_ -in @(9101, 9190, 9191) }).Count -eq 0 -and
+    @(9102, 9103 | Where-Object { $_ -lt 9101 -or $_ -gt 9199 }).Count -eq 0)
+Check '11c the runbook SAYS why the block covers the back end and front end, not only interfaces' (
+    $wbDemoText -match 'federation holder already sits in\s+that block at 9190/9191' -and
+    $wbDemoText -match 'the block is not reserved to interfaces' -and
+    $wbDemoText -match 'sit outside the\s+block\s+entirely and were therefore exempt from nothing')
+Check '11c LaunchVrf52 stops claiming the runbook example sits outside the block' (
+    (Get-Content -LiteralPath (Join-Path $RepoRoot 'scripts\LaunchVrf52.ps1') -Raw) -match 'that example now uses\s*\r?\n?\s*# 9102/9103')
+
+# --- 11d. DR-3: the licence text no longer reads as a stop-work ---
+Check '11d DEMO_RUNBOOK does not claim the licence lapsed on 2026-09-15' (
+    $wbDemoText -notmatch 'LAPSES 2026-09-15')
+Check '11d it gives the renewed date and points at the licence line the scripts print' (
+    $wbDemoText -match 'RENEWED on 2026-09-14 and now LAPSES 2026-10-31' -and
+    $wbDemoText -match 'expires 31-oct-2026')
+
+# --- 11e. DR-4: one clock statement, and it is the measured load-dependent one ---
+Check '11e the withdrawn single-number clock readings are gone from DEMO_RUNBOOK' (
+    $wbDemoText -notmatch '1\.5-2\.8x' -and
+    $wbDemoText -notmatch 'sim clock still held real time' -and
+    $wbDemoText -notmatch 'completed in real time \(ratio')
+Check '11e what remains is RUNBOOK 11f: load-dependent, a range, and "do not quote a single number"' (
+    $wbDemoText -match 'LOAD-DEPENDENT' -and $wbDemoText -match '2\.6x' -and $wbDemoText -match '4\.7x' -and
+    $wbDemoText -match 'RUNBOOK sec 11f' -and $wbDemoText -match 'SIM/WALL RATIO')
+Check '11e the D1 entry keeps its withdrawal beside the number it withdrew' (
+    $wbDemoText -match 'is WITHDRAWN: it compared wall clock against wall')
+
+# --- 11f. DR-5: the stop order names the real stop tool beside Ctrl+C ---
+Check '11f the Way B clean stop names tools\StopIface with its endpoints and --yes' (
+    $wbDemoText -match 'StopIface\\bin\\Release\\net10\.0\\StopIface\.exe' -and
+    $wbDemoText -match 'RUNBOOK sec 4' -and $wbDemoText -match '--yes')
+Check '11f Ctrl+C is still offered as the by-hand equivalent, not removed' (
+    $wbDemoText -match 'Ctrl\+C in the interface''s own window does the same thing')
+
+# --- 11g. DR-6: the persistent holder is a repo script an operator can actually run ---
+$wbHolderPresent = Test-Path -LiteralPath $wbHolder -PathType Leaf
+Check '11g scripts\StartFederationHolder52.ps1 exists' $wbHolderPresent
+# A missing file must FAIL these checks, not abort the suite with a throw and lose the summary.
+$wbHolderText = ''
+if ($wbHolderPresent) {
+    $wbHolderErr = $null
+    $null = [System.Management.Automation.Language.Parser]::ParseFile($wbHolder, [ref]$null, [ref]$wbHolderErr)
+    Check '11g it parses with zero errors' ($wbHolderErr.Count -eq 0) ("errors: " + $wbHolderErr.Count)
+    $wbHolderText = Get-Content -LiteralPath $wbHolder -Raw
+} else {
+    Check '11g it parses with zero errors' $false 'the file does not exist'
+}
+Check '11g -AppNumbers is MANDATORY with no default (the ledger supplies them; the script invents none)' (
+    $wbHolderText -match '\[Parameter\(Mandatory\)\]\[string\[\]\] \$AppNumbers,' -and
+    $wbHolderText -notmatch '\$AppNumbers\s*=' -and
+    $wbHolderText -match 'never invented')
+Check '11g it has a -WhatIf that starts nothing, and it never kills anything' (
+    $wbHolderText -match '\[switch\] \$WhatIf' -and
+    $wbHolderText -match 'no application number was spent' -and
+    $wbHolderText -notmatch 'Stop-Process' -and $wbHolderText -notmatch 'taskkill')
+Check '11g DEMO_RUNBOOK points at the repo script and no longer at the seat scratchpad path' (
+    $wbDemoText -match 'scripts\\StartFederationHolder52\.ps1' -and
+    $wbDemoText -notmatch 'p7_holder_retry')
+Check '11g RUNBOOK 9c THE DEMO POSTURE names the repo script' (
+    $wbBookText -match 'THE DEMO POSTURE IS A PERSISTENT HOLDER[\s\S]{0,200}scripts\\StartFederationHolder52\.ps1')
+if (-not (Test-Path -LiteralPath $wbPwsh) -or -not $wbHolderPresent) {
+    Check '11g SKIPPED - pwsh 7 or the holder script is not present' $true
+} else {
+    # THE DEFECT THIS CATCHES, measured while writing the script: `pwsh -File ... -AppNumbers
+    # 4651,4652` hands PowerShell ONE string, and an [int[]] parameter turned it into the single
+    # bogus number 46514652 without a word. The strings are split and parsed instead.
+    $wbHold = (& $wbPwsh -NoProfile -NonInteractive -File $wbHolder -AppNumbers 4651,4652 `
+                    -SettleSecs 28800 -WhatIf 2>&1 | Out-String)
+    Check '11g -AppNumbers 4651,4652 via -File is TWO attempts, not the concatenated number 46514652' (
+        $wbHold -match 'would start[^\r\n]*RtiProbe\.exe" 4651 MAK-ONE-2025 1 28800 3' -and
+        $wbHold -match 'would start[^\r\n]*RtiProbe\.exe" 4652 MAK-ONE-2025 1 28800 3' -and
+        $wbHold -notmatch '46514652')
+    Check '11g the -WhatIf plan says nothing was started and no number was spent' (
+        $wbHold -match 'nothing was started, no application number was spent')
+    $wbHoldBad = (& $wbPwsh -NoProfile -NonInteractive -File $wbHolder -AppNumbers 4651,4651 -WhatIf 2>&1 | Out-String)
+    Check '11g a DUPLICATE application number is refused by name (a reused appNo is a stale-federate hang)' (
+        $wbHoldBad -match '\[FAIL\] -AppNumbers contains a DUPLICATE')
+}
+
+# --- 11h. DR-7: ONE appData tree is named, and it is the one with the teardown fix ---
+Check '11h the navigation section names the unattended tree as THE one, with the STP-844 reason' (
+    $wbDemoText -match 'ONE TREE, AND IT IS `C:\\C2SIM\\vrf-appdata-unattended\\appData`' -and
+    $wbDemoText -match 'TEARDOWN PROMPTS ARE PRE-DISABLED \(STP-844\)')
+Check '11h the "How to pass it" line no longer hands the operator the old tree' (
+    $wbDemoText -notmatch '--vrf-appdata-dir C:\\C2SIM\\vrf-appdata\\appData')
+
+# --- 11i. section 4: the push endpoints are a MATCHED PAIR per server ---
+Check '11i both server blocks are given, each with its own PushInit AND PushOrder' (
+    $wbDemoText -match 'PRIVATE server - use with `StartInterface52\.ps1 -Server private`' -and
+    $wbDemoText -match 'STANDARD server - use with `StartInterface52\.ps1 -Server standard`' -and
+    @([regex]::Matches($wbDemoText, 'PushInit\.exe')).Count -ge 2 -and
+    @([regex]::Matches($wbDemoText, 'PushOrder\.exe')).Count -ge 2)
+Check '11i and the silent-failure mode is stated where the operator will read it' (
+    $wbDemoText -match 'A MISMATCHED PAIR IS SILENT')
+Check '11i Way B step 3 carries the server choice' (
+    $wbDemoText -match 'StartInterface52\.ps1 -ClientId STP -Server standard')
+
+# --- 11j. the honesty note D5 owns stays put: this lane did NOT rehearse the sequence ---
+Check '11j the "UNVERIFIED as a single sequence" note is still in section 2 (D5 removes it, not this lane)' (
+    $wbDemoText -match 'UNVERIFIED as a single sequence')
+
+# --- 11k. both touched scripts parse ---
+foreach ($wbF in @('scripts\StartInterface52.ps1', 'scripts\StartFederationHolder52.ps1', 'scripts\LaunchVrf52.ps1')) {
+    $wbPath = Join-Path $RepoRoot $wbF
+    if (-not (Test-Path -LiteralPath $wbPath -PathType Leaf)) {
+        Check ('11k parses with zero errors: ' + $wbF) $false 'the file does not exist'
+        continue
+    }
+    $wbErr = $null
+    $null = [System.Management.Automation.Language.Parser]::ParseFile($wbPath, [ref]$null, [ref]$wbErr)
+    Check ('11k parses with zero errors: ' + $wbF) ($wbErr.Count -eq 0) ("errors: " + $wbErr.Count)
+}
+
 Write-Host ''
 Write-Host ('{0} passed, {1} failed' -f $script:Pass, $script:Fail)
 if ($script:Fail -gt 0) { exit 1 }

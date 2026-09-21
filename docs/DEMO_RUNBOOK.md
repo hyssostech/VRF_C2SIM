@@ -32,18 +32,37 @@ ONCE PER DAY / BEFORE EACH DEMO
   refused by its FOM Reader (STP-825) - measured on the live rtiexec at roughly 42% of
   creates, and refusals CLUSTER (several in a row), so Stage 2h's four automatic attempts per
   launch are not demo-grade on their own. Once per demo day, before the first launch, run
-  `pwsh -File scratchpad\validation\p7_holder_retry.ps1 -SettleSecs 28800` - it retries a
-  block of ledgered application numbers until one JOINS and then holds the federation open
-  for the rest of the day. Every launch after that only JOINS, never creates. A live
-  `RtiProbe.exe` afterwards is EXPECTED - never kill it.
+
+      pwsh -NoProfile -File scripts\StartFederationHolder52.ps1 `
+           -AppNumbers 4651,4652,4653,4654 -SettleSecs 28800
+
+  - it retries the application numbers YOU give it until one JOINS and then holds the
+  federation open for the rest of the day. Every launch after that only JOINS, never creates.
+  EXPECT: "HOLDER JOINED: pid ... appNo ...", exit code 0. A live `RtiProbe.exe` afterwards is
+  EXPECTED - never kill it. Add `-WhatIf` to see exactly what it would do and start nothing.
+  THE APPLICATION NUMBERS ARE NOT OPTIONAL AND THE SCRIPT INVENTS NONE - an engineer takes
+  them from the ledger marker in `docs\OPUS_EXECUTION_PLAN.md` ("*** NEXT FREE: ... ***") and
+  records them as consumed; the four above are an EXAMPLE of the shape, not numbers to reuse.
+  A number the script tried and did not join on is burned, never used again.
 - Nothing of ours may still be running: `Get-Process vrfSim*,vrfGui*,VrfC2SimApp` must come back
   empty. rtiexec / rtiForwarder / rtiAssistant MAY stay up between sessions and must NEVER be
   killed - they are shared infrastructure, not part of your run.
-- The C2SIM server the demo uses is the PRIVATE one: REST http://127.0.0.1:18080/C2SIMServer,
-  STOMP http://127.0.0.1:61614/topic/C2SIM (docker container c2sim-server-vrf). The operator's own
-  server on 8080 / 61613 is a DIFFERENT server - never push to it, reset it or restart it.
-- LICENCE: the node-locked DEMO licence LAPSES 2026-09-15. After that date nothing in the toolchain
-  starts until it is renewed (MAK Sales). Check before you promise a demo.
+- WHICH C2SIM SERVER. There are two on this machine and they are NOT interchangeable:
+    STANDARD  REST http://127.0.0.1:8080/C2SIMServer   STOMP http://127.0.0.1:61613/topic/C2SIM
+              - the operator's own server. THIS IS WHERE STP LIVES, so this is the one a REAL
+                demo with a live STP operator uses (user ruling 2026-09-20). Never reset or
+                restart it: it is not ours.
+    PRIVATE   REST http://127.0.0.1:18080/C2SIMServer  STOMP http://127.0.0.1:61614/topic/C2SIM
+              - the harness's own server (docker container c2sim-server-vrf). Use it for a
+                REHEARSAL, where nothing may touch the operator's server.
+  THE INTERFACE AND THE PUSHES MUST NAME THE SAME PAIR. Listening on one while pushing to the
+  other creates nothing and looks healthy doing it. Way B step 3 (section 2) selects the pair
+  and prints it; section 4 gives the push commands as a MATCHED PAIR per server.
+- LICENCE: the node-locked DEMO licence was RENEWED on 2026-09-14 and now LAPSES 2026-10-31.
+  Until then the toolchain starts normally. After that date nothing in it starts until it is
+  renewed again (MAK Sales). Do not trust this line on its own - every entry script prints the
+  licence file and its expiry as it starts ("licence file: ... (expires 31-oct-2026)"); read
+  that, and check before you promise a demo.
 
 WHICH SCENARIO AND WHICH DATA
 - Scenario (the VR-Forces fixture): `R9_Mojave_Empty_52`, already deployed under
@@ -55,8 +74,15 @@ WHICH SCENARIO AND WHICH DATA
   `data\COA-STP1_Order.xml`, clientId `C2SIM`. Eleven units are tasked on 24-33 km legs. BE WARNED
   (section 5): several of them stop part-way and never arrive - this is a known open defect, not
   something you can fix in the room.
-- The fixture runs FASTER than real time (roughly 1.5-2.8x at the eleven-unit size). A real-time
-  fixture was built (`R9_Mojave_Empty_52_RT`) but is NOT deployed - UNVERIFIED, do not plan on it.
+- THE CLOCK. The fixture runs FASTER than real time, but NOT by a fixed amount: the sim/wall
+  ratio is LOAD-DEPENDENT and it moves within a single run - measured 2.6x at peak load (three
+  tasks moving) through ~3.0-3.5x to ~4.7x once the tasks close and the scenario is idle
+  (2026-09-21; RUNBOOK sec 11f, D8 RESULT N11). Do NOT quote a single number to an audience,
+  and do not read R9's wall-clock times as a prediction for any other scenario: a busier one
+  runs the clock SLOWER (COA-STP1 at scale was once measured at 0.27x - slower than real time).
+  The instrument for the run in front of you is the interface's own per-minute `SIM/WALL RATIO`
+  line. A real-time fixture was built (`R9_Mojave_Empty_52_RT`) but is NOT deployed -
+  UNVERIFIED, do not plan on it.
 - Fixtures whose name ends in `_AG` are the same scenarios carrying the navigation fix of
   section 0.5, and are deployed alongside the ones above. WHICH fixture the demo names is an
   engineering decision - confirm it before the demo rather than substituting one yourself.
@@ -88,7 +114,15 @@ THE CUSTOM SIMULATION MODEL SET (the `_AG` fixtures)
   rehearsed as a full demo run. Ask an engineer which fixture to name before the demo.
 
 THE RELOCATED appData (navigation data loaded WITH the terrain)
-- `C:\C2SIM\vrf-appdata\appData` is a copy of the vendor `appData` tree whose ONE change is
+- *** ONE TREE, AND IT IS `C:\C2SIM\vrf-appdata-unattended\appData`. *** That is the only
+  appData directory this runbook ever names on a command line (sections 1 and 2), because it
+  is the only one whose TWO GUI TEARDOWN PROMPTS ARE PRE-DISABLED (STP-844) - and without that,
+  a GUI run ends with VR-Forces sitting on its own exit prompt and blocking the next launch.
+  Seed it once per machine with `scripts\NewVrfAppData52.ps1 -Dest C:\C2SIM\vrf-appdata-unattended`
+  (section 1). An older tree `C:\C2SIM\vrf-appdata\appData` exists on this machine and appears
+  in records from before 2026-09-20; it carries the navigation setting below but NOT the
+  teardown fix, so do not use it for a demo.
+- The relocated tree is a copy of the vendor `appData` whose ONE navigation change is
   `loadAllNavigationDataOnTerrainLoad 1`: navigation data is loaded when the scenario loads
   instead of lazily when the first entity is placed.
 - VALIDATED 2026-09-14 (G7B_G8_RESULTS sec 3, 3.1) as a NULL RESULT, not a fix. The relocated
@@ -98,9 +132,11 @@ THE RELOCATED appData (navigation data loaded WITH the terrain)
   with it ON still fail the first 7-8 goals' current-point gate exactly like runs without it.
   Keep it - free, documented, reversible - but do not rely on it to close the early-goal-
   failure window below; that needs the ready signal instead.
-- How to pass it: `scripts/RunScenario.sh --vrf-appdata-dir C:\C2SIM\vrf-appdata\appData`,
-  or `RunC2SimScenario.ps1 -VrfAppDataDir ...`, or `LaunchVrf52.ps1 -AppDataDir ...`. Leave
-  it out and VR-Forces uses its own `appData` exactly as before.
+- How to pass it - always the unattended tree named above:
+  `scripts/RunScenario.sh --vrf-appdata-dir C:\C2SIM\vrf-appdata-unattended\appData`, or
+  `RunC2SimScenario.ps1 -VrfAppDataDir ...`, or `LaunchVrf52.ps1 -AppDataDir ...`. Leave it out
+  and VR-Forces uses its own `appData` exactly as before - which for a GUI run means the
+  teardown prompts are back.
 
 THE CACHE WARM-UP AND THE READY SIGNAL (the trap on a first run after a reboot)
 - On the lazy path the navigation area starts streaming when the FIRST ENTITY IS PLACED (init
@@ -160,13 +196,13 @@ WATCH IT from a SECOND window with `tail -f <the runner log path the command pri
 the command, do not add `| tee`, and do not run any process-killing sweep while it is running.
 
 RUN 2026-09-20 (D1, GUI ON, no `--vrf-appdata-dir`): the one-command wrapper reached READY
-unattended, pushed the init and the order, and all three tasks completed in real time (ratio
-1.00, 4 min 44 s order-to-last-completion) - start, init, order and completion all worked.
-TEARDOWN DID NOT: the GUI was left open on its own documented exit prompt (UG52 sec 4.6/4.6.1)
-and StopVrf52.ps1 exited 3 (still running - nothing was killed).
-2026-09-21 CORRECTION: the "real time (ratio 1.00 ...)" reading above is WITHDRAWN - D7's
-harvest measured this run-to-complete frame mode at ~3.00x the wall clock, not 1.00x; see
-docs/experiments/PREREG_DEMO_REHEARSAL_2026-09-20.md D7 RESULT N7.
+unattended, pushed the init and the order, and all three tasks completed, 4 min 44 s from order
+to last completion - start, init, order and completion all worked. (The "real time, ratio 1.00"
+reading originally recorded for this run is WITHDRAWN: it compared wall clock against wall
+clock. The sim clock was never measured until D7/D8 - see THE CLOCK in section 0 and RUNBOOK
+sec 11f. Do not quote a ratio from this run.)
+TEARDOWN DID NOT WORK: the GUI was left open on its own documented exit prompt (UG52 sec
+4.6/4.6.1) and StopVrf52.ps1 exited 3 (still running - nothing was killed).
 
 FIXED, CONFIRMED LIVE (D1b, D2 - STP-844): with `--vrf-appdata-dir` given, teardown is clean in
 under 10 s both times (9.87 s, 9.77 s), CloseMainWindow returns TRUE, and nothing is left
@@ -191,18 +227,33 @@ close it (`pwsh -File scripts\StopVrf52.ps1` or the GUI itself).
 
 2. VR-Forces WITH the GUI - this is the audience's window:
        pwsh -File scripts\LaunchVrf52.ps1 -Scenario R9_Mojave_Empty_52 `
-            -BackendAppNumber 9201 -FrontendAppNumber 9202 `
+            -BackendAppNumber 9102 -FrontendAppNumber 9103 `
             -AppDataDir C:\C2SIM\vrf-appdata-unattended\appData
    EXPECT: a "Federation HOLDER (STP-825)" section (step 1b) first, then "READY" from the
    script, then the GUI showing an empty Mojave map with the simulation clock running.
    Terrain load takes a while the first time (it is streaming from the internet).
    `-AppDataDir` (STP-844) is the same run-owned, pre-seeded tree as Way A's
    `--vrf-appdata-dir`. REQUIRED for a GUI run - proven live in D1b and D2 (section 1).
+   THE TWO NUMBERS come from the demo application block 9101-9199, which
+   `appsettings.Demo.json` puts OUTSIDE the engineering ledger precisely so a demo federate
+   never collides with a test one - and LaunchVrf52's own federation holder already sits in
+   that block at 9190/9191, so the block is not reserved to interfaces. Inside it, 9101 is the
+   interface, 9190/9191 are the holder, and 9102/9103 are free; nothing else in the repository
+   claims a number in the range. (This example used to read 9201/9202, which sit outside the
+   block entirely and were therefore exempt from nothing - corrected 2026-09-21.)
 
-3. The interface:
-       pwsh -File scripts\StartInterface52.ps1 -ClientId STP
+3. The interface - AND THE SERVER IT LISTENS TO:
+       pwsh -File scripts\StartInterface52.ps1 -ClientId STP -Server standard
    `-ClientId` MUST equal the SystemName inside the initialization STP is going to push. If they
    differ the interface creates NOTHING and looks healthy while doing it.
+   `-Server standard` (also the default) is the operator's server on 8080 / 61613 - WHERE STP
+   LIVES, so it is what a real STP-driven demo wants. For a REHEARSAL without STP, use
+   `-Server private` and the interface listens on 18080 / 61614 instead; `-RestUrl` /
+   `-StompUrl` set either endpoint explicitly. WHICHEVER you choose, the script prints one
+   loud line naming it:
+       *** C2SIM SERVER THE INTERFACE WILL LISTEN TO: rest=...  stomp=... ***
+   READ THAT LINE and make sure section 4's push commands name the SAME pair. Add `-WhatIf` to
+   print it (and the cwd, arguments and environment) without starting anything.
 
 Then STP pushes the initialization, then the order (section 4).
 
@@ -236,12 +287,26 @@ push a second initialization into a running interface: duplicates are ignored by
 like nothing happened - that is a guard, not a reset (section 6).
 
 If you need to stand in for STP by hand (rehearsal, or STP is not in the room), the endpoints are
-NOT optional - the tools default to the OTHER server:
+NOT optional and they MUST MATCH the pair the interface printed in step 3 of section 2. Pick the
+block for the server you started the interface against, and use BOTH of its lines - never one
+line from one block and one from the other:
 
+  PRIVATE server - use with `StartInterface52.ps1 -Server private` (rehearsal):
     tools\PushInit\bin\Release\net10.0\PushInit.exe  data\R9_Mojave_Lean_Initialization.xml ^
         http://127.0.0.1:18080/C2SIMServer http://127.0.0.1:61614/topic/C2SIM
     tools\PushOrder\bin\Release\net10.0\PushOrder.exe data\R9_Mojave_UnitMove_Order.xml 60 ^
         http://127.0.0.1:18080/C2SIMServer http://127.0.0.1:61614/topic/C2SIM
+
+  STANDARD server - use with `StartInterface52.ps1 -Server standard` (the real demo; this is
+  the operator's own server, so push here only when the demo is meant to run on it):
+    tools\PushInit\bin\Release\net10.0\PushInit.exe  data\R9_Mojave_Lean_Initialization.xml ^
+        http://127.0.0.1:8080/C2SIMServer http://127.0.0.1:61613/topic/C2SIM
+    tools\PushOrder\bin\Release\net10.0\PushOrder.exe data\R9_Mojave_UnitMove_Order.xml 60 ^
+        http://127.0.0.1:8080/C2SIMServer http://127.0.0.1:61613/topic/C2SIM
+
+A MISMATCHED PAIR IS SILENT: the interface sits on one server waiting, the push succeeds on the
+other, nothing is ever created, and every console looks healthy. If the units do not appear,
+check this first.
 
 Never hand-edit an initialization or order in the room. A BLANK LINE inside an XML comment silently
 kills the message channel (it happened on 2026-09-14); if a file must change, an engineer changes it
@@ -302,9 +367,11 @@ What the record actually supports on 5.2, in order of preference:
    Operator timing (n=1 each): previous runner exit -> next READY 80.1 s; READY -> order on the
    bus ~114 s; order -> all three tasks terminal 290 s on a rested machine, 387 s on the
    back-to-back second cycle; teardown ~10 s both times. HONEST REASON for the spread: the second
-   cycle's entities moved at a constant ~0.60x ground speed (sim clock still held real time) for a
-   cause that is NOT YET DIAGNOSED (candidate: no settle time between cycles, confounded here by a
-   concurrent I/O-heavy harvest process; discriminating run D3 is registered but not yet run).
+   cycle's entities moved at a constant ~0.60x ground speed for a cause that is NOT YET DIAGNOSED
+   (candidate: no settle time between cycles, confounded here by a concurrent I/O-heavy harvest
+   process; discriminating run D3 is registered but not yet run). The reading originally recorded
+   alongside it - that the sim clock held real time through that cycle - is WITHDRAWN: no sim
+   clock was measured on any D1-D3 run. See THE CLOCK in section 0.
    Guidance until D3 decides it: leave a few minutes between demo runs, or rehearse the demo on the
    SECOND cycle's timings rather than the first's.
 2. Reloading the scenario in the GUI and restarting only the interface: plausible but UNVERIFIED on
@@ -328,8 +395,18 @@ initialization time, and pushing a second initialization into a live interface d
 ## 7. Clean stop
 
 - Way A: the command tears its own run down and prints what, if anything, is still up.
-- Way B: Ctrl+C the interface first (it resigns from the federation cleanly), then close VR-Forces
-  (File > Exit, or `pwsh -File scripts\StopVrf52.ps1`). LEAVE rtiexec / rtiForwarder RUNNING.
+- Way B, in this order - THE INTERFACE FIRST, so it resigns from the federation cleanly:
+  1. Stop the interface. The CORRECT stop is `tools\StopIface` (RUNBOOK sec 4): it drives the
+     C2SIM server to UNINITIALIZED, which the interface catches and resigns on. It is also the
+     only stop a script can perform. Give it the SAME endpoint pair the interface is listening
+     to (section 4):
+         tools\StopIface\bin\Release\net10.0\StopIface.exe ^
+             http://127.0.0.1:8080/C2SIMServer http://127.0.0.1:61613/topic/C2SIM --yes
+     (substitute 18080 / 61614 for a `-Server private` rehearsal). Exit 0 = the server reached
+     UNINITIALIZED. Ctrl+C in the interface's own window does the same thing by hand and is
+     fine when you are sitting in front of it; `--yes` is what makes StopIface non-interactive.
+  2. Then close VR-Forces (File > Exit, or `pwsh -File scripts\StopVrf52.ps1`).
+  LEAVE rtiexec / rtiForwarder RUNNING, and leave the day's `RtiProbe.exe` holder alone.
 - Then confirm: `Get-Process vrfSim*,vrfGui*,VrfC2SimApp` comes back empty. If it does not, see
   section 8, item 3.
 
@@ -357,17 +434,22 @@ initialization time, and pushing a second initialization into a live interface d
 4. STP-825: "the federation HOLDER could not join ... after 4 attempt(s)".
    Remedy: this is the rtiexec FOM-module-distribution refusal, and refusals cluster (several
    in a row) - four ledgered attempts is not always enough. Start a PERSISTENT holder by hand
-   (`pwsh -File scratchpad\validation\p7_holder_retry.ps1 -SettleSecs 28800`, section 0's step
-   zero) and re-launch once it reports JOINED; every launch after that only joins the held
-   federation. Never restart rtiexec / rtiForwarder yourself - that is the user's call, not
-   the operator's.
+   (`pwsh -NoProfile -File scripts\StartFederationHolder52.ps1 -AppNumbers <ledgered numbers>
+   -SettleSecs 28800`, section 0's step zero) and re-launch once it reports JOINED; every launch
+   after that only joins the held federation. If the holder itself exhausts its numbers without
+   joining, stop - do not keep launching blindly - and ask an engineer. Never restart rtiexec /
+   rtiForwarder yourself: that is the user's call, not the operator's.
 
 ---
 
 ## 9. Smaller traps worth knowing
 
 - clientId vs SystemName must match exactly, or the interface creates nothing and says nothing.
-- Two interfaces on one network need different application numbers (demo block 9101-9199).
+- The interface and the pushes must name the SAME C2SIM server (sections 0, 2 step 3, 4).
+- Two federates on one network need different application numbers. The demo block is
+  9101-9199: 9101 the interface, 9102/9103 the Way B back end / front end, 9190/9191
+  LaunchVrf52's own federation holder. Numbers outside the block belong to the engineering
+  ledger and must be claimed there.
 - Turning the per-unit consoles on is a diagnostic setting, never a demo one (gigabytes of log).
 - Do not send a VR-Forces simulation log to anyone: those logs print the machine's entire
   environment, secrets included. Engineers want the .callstack.log / .dmp instead.
