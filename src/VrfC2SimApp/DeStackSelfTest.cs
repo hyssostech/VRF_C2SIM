@@ -152,10 +152,12 @@ public static class DeStackSelfTest
                   "rotation 45 moves every displaced unit");
         }
 
-        // 10. COMPOSED CHILDREN ARE NOT CO-LOCATED UNITS (SF2, 2026-09-20). The RULE, on synthetic
-        //     plans, before the fixtures exercise it.
+        // 10. COMPOSED CHILDREN TAKE NO 700 m RING SLOT (SF2, 2026-09-20) - AND, SINCE THE USER
+        //     RULING OF 2026-09-21, SIBLINGS THAT SHARE A COORDINATE ARE SPREAD AT THEIR OWN
+        //     ECHELON'S SCALE AROUND THE PARENT (option C of the D6 harvest). The RULE, on
+        //     synthetic plans, before the fixtures exercise it.
         {
-            Console.WriteLine("  --- C14 scope: a composed child takes its place from its parent ---");
+            Console.WriteLine("  --- C14 scope: a composed child takes no INDEPENDENT ring slot ---");
             // A company at X with three declared platoons that the superior cascade also put at X,
             // plus ONE unrelated independent unit at X. Only the company and the stranger are
             // independent, so exactly ONE unit moves: the stranger.
@@ -178,15 +180,116 @@ public static class DeStackSelfTest
                   $"(got {comp.ComposedChildIndices.Count})");
             Check(ref failures, !comp.ComposedChildIndices.Contains(0) && !comp.ComposedChildIndices.Contains(4),
                   "the parent shell and an unrelated unit are INDEPENDENT");
+            Check(ref failures, comp.ComposedGroups.Count == 1
+                             && comp.ComposedGroups[0].ParentIndex == 0
+                             && comp.ComposedGroups[0].ChildIndices.Count == 3,
+                  $"the SAME classifier groups them by parent: {comp.ComposedGroups.Count} group(s), " +
+                  $"parent index {(comp.ComposedGroups.Count > 0 ? comp.ComposedGroups[0].ParentIndex : -1)}, " +
+                  $"{(comp.ComposedGroups.Count > 0 ? comp.ComposedGroups[0].ChildIndices.Count : 0)} child(ren)");
             var groups = DeStacker.Apply(plans, Spacing, 0.0, comp.ComposedChildIndices);
             Check(ref failures, groups.Count == 1 && groups[0].Count == 2,
-                  $"the group is the 2 INDEPENDENT units, not all 5 (got {groups.Count} group(s) of " +
+                  $"the INDEPENDENT group is the 2 independent units, not all 5 (got {groups.Count} group(s) of " +
                   $"{(groups.Count > 0 ? groups[0].Count : 0)})");
             Check(ref failures, plans[1].Pos.LatDeg == 34.5 && plans[2].Pos.LatDeg == 34.5
                              && plans[3].Pos.LatDeg == 34.5 && plans[1].Pos.LonDeg == -116.5,
-                  "NO composed child is displaced - it is laid out by its parent's formation");
+                  "no composed child took a 700 m INDEPENDENT ring slot (the SF2 rule, unchanged: the " +
+                  "independent pass does not see them at all)");
             Check(ref failures, Math.Abs(DistMeters(plans[0].Pos, plans[4].Pos) - Spacing) < Spacing * 0.01,
                   "the co-located INDEPENDENT unit IS still spread (C14 is not weakened)");
+
+            // *** THE 2026-09-21 RULING. This block REPLACES the assertion that used to stand here,
+            // "NO composed child is displaced - it is laid out by its parent's formation". That
+            // assertion encoded SF2's reading of C14 and D6 refuted its premise: the parent's
+            // formation does NOT separate composed sub-aggregates (three platoon aggregates 24-56 m
+            // apart at every sample, 3 of 3 footprints overlapping, 137 sub-7 m member pairs vs
+            // D3's 44). The children are now spread AT THEIR OWN ECHELON'S SPACING, around a parent
+            // that does not move. ***
+            Console.WriteLine("  --- C14 echelon scope (user ruling 2026-09-21): siblings spread around the parent ---");
+            var ech = new List<string> { "", EchelonSpacing.Platoon, EchelonSpacing.Platoon,
+                                         EchelonSpacing.Platoon, "" };
+            var parentBefore = plans[0].Pos;
+            double pltSpacing = EchelonSpacing.TableMeters[EchelonSpacing.Platoon];
+            var sib = DeStacker.ApplyComposedSiblings(plans, comp.ComposedGroups, ech,
+                                                      k => EchelonSpacing.SpacingFor(k, 0.0), 0.0,
+                                                      out var skipped);
+            Check(ref failures, sib.Count == 1 && sib[0].Count == 3
+                             && Math.Abs(sib[0].SpacingMeters - pltSpacing) < 1e-9
+                             && sib[0].EchelonKey == EchelonSpacing.Platoon && skipped.Count == 0,
+                  $"3 composed siblings at one coordinate -> ONE group spread at the PLATOON spacing " +
+                  $"{pltSpacing:F0} m (got {sib.Count} group(s), spacing " +
+                  $"{(sib.Count > 0 ? sib[0].SpacingMeters : 0):F0} m, echelon " +
+                  $"'{(sib.Count > 0 ? sib[0].EchelonKey : "")}', {skipped.Count} skipped)");
+            Check(ref failures, plans[0].Pos.LatDeg == parentBefore.LatDeg
+                             && plans[0].Pos.LonDeg == parentBefore.LonDeg,
+                  "THE PARENT DID NOT MOVE - it keeps the centre slot, so a taskee's route still " +
+                  "starts where the init put it");
+            bool allOnRing = Enumerable.Range(1, 3).All(i =>
+                Math.Abs(DistMeters(parentBefore, plans[i].Pos) - pltSpacing) < pltSpacing * 0.01);
+            Check(ref failures, allOnRing,
+                  $"every one of the 3 children is exactly one platoon spacing ({pltSpacing:F0} m) from " +
+                  "the parent - none is left stacked on it");
+            bool pairsClear = true;
+            for (int a = 1; a <= 3; a++)
+                for (int b = a + 1; b <= 3; b++)
+                    if (DistMeters(plans[a].Pos, plans[b].Pos) < pltSpacing * 0.99) pairsClear = false;
+            Check(ref failures, pairsClear,
+                  $"and every sibling PAIR is at least {pltSpacing:F0} m apart - which is what C14's " +
+                  $"criterion asks for at this echelon (longest shipped platoon formation " +
+                  $"{EchelonSpacing.SpanMeters[EchelonSpacing.Platoon]:F1} m)");
+            Check(ref failures, Math.Abs(DistMeters(plans[0].Pos, plans[4].Pos) - Spacing) < Spacing * 0.01,
+                  "the INDEPENDENT unit's 700 m-lane position is untouched by the sibling pass");
+
+            // Deterministic, and the OFF switch is the old behaviour byte for byte.
+            {
+                var again = new List<CreationPlan>
+                {
+                    Agg("coy", 34.5, -116.5), Agg("plt1", 34.5, -116.5),
+                    Agg("plt2", 34.5, -116.5), Agg("plt3", 34.5, -116.5), Agg("other", 34.5, -116.5),
+                };
+                var c2 = CompositionPlan.Classify(again, hier);
+                DeStacker.Apply(again, Spacing, 0.0, c2.ComposedChildIndices);
+                DeStacker.ApplyComposedSiblings(again, c2.ComposedGroups, ech,
+                                                k => EchelonSpacing.SpacingFor(k, 0.0), 0.0, out _);
+                Check(ref failures, again.SequenceEqual(plans),
+                      "the sibling spread is DETERMINISTIC - same input, identical output");
+
+                var held = new List<CreationPlan>
+                {
+                    Agg("coy", 34.5, -116.5), Agg("plt1", 34.5, -116.5),
+                    Agg("plt2", 34.5, -116.5), Agg("plt3", 34.5, -116.5), Agg("other", 34.5, -116.5),
+                };
+                var c3 = CompositionPlan.Classify(held, hier);
+                DeStacker.Apply(held, Spacing, 0.0, c3.ComposedChildIndices);
+                Check(ref failures, held[1].Pos.LatDeg == 34.5 && held[2].Pos.LatDeg == 34.5
+                                 && held[3].Pos.LatDeg == 34.5,
+                      "Vrf:DeStackComposedSiblings OFF (the sibling pass simply not called) reproduces " +
+                      "the 2026-09-20 SF2 behaviour exactly - the children stay on the parent");
+
+                // THE DOCUMENTED FALLBACK: an echelon the table cannot size is NOT spread at a
+                // number nobody derived. This is the ExpandCoarseLeaves case (synthesized sub-units
+                // carry no C2SIM echelon at all).
+                var unknown = new List<CreationPlan>
+                {
+                    Agg("coy", 34.5, -116.5), Agg("k1", 34.5, -116.5), Agg("k2", 34.5, -116.5),
+                    Agg("k3", 34.5, -116.5), Agg("other", 34.5, -116.5),
+                };
+                var c4 = CompositionPlan.Classify(unknown, hier);
+                var noEch = new List<string> { "", "", "", "", "" };
+                var none = DeStacker.ApplyComposedSiblings(unknown, c4.ComposedGroups, noEch,
+                                                           k => EchelonSpacing.SpacingFor(k, 0.0), 0.0,
+                                                           out var skipped2);
+                Check(ref failures, none.Count == 0 && skipped2.Count == 1 && skipped2[0].Count == 3
+                                 && unknown[1].Pos.LatDeg == 34.5,
+                      "FALLBACK 0 (the default): siblings whose echelon the table cannot size are NOT " +
+                      "moved, and the skip is REPORTED so the log says why nothing happened");
+                var withFallback = DeStacker.ApplyComposedSiblings(unknown, c4.ComposedGroups, noEch,
+                                                                   k => EchelonSpacing.SpacingFor(k, 500.0),
+                                                                   0.0, out _);
+                Check(ref failures, withFallback.Count == 1
+                                 && Math.Abs(withFallback[0].SpacingMeters - 500.0) < 1e-9,
+                      "Vrf:DeStackEchelonFallbackMeters=500 spreads that same group at 500 m - the " +
+                      "fallback is a documented lever, not a hidden default");
+            }
 
             // A parent that is NOT an aggregate cannot compose: its children are created standalone
             // and ARE therefore independent objects the de-stack owns. The arm that must not rot.
@@ -229,19 +332,20 @@ public static class DeStackSelfTest
             // init shares a coordinate, so the de-stack is a NO-OP on the R9 rehearsal - which is
             // what makes the next run comparable to the D1/D1b/D3 controls that ran without it.
             CheckInit(ref failures, "R9_Mojave_Lean_Initialization.xml", Base,
-                      expectGroups: 0, expectMoved: 0);
+                      expectGroups: 0, expectMoved: 0, expectSiblingGroups: 1, expectSiblingMoved: 3);
             CheckInit(ref failures, "R9_Mojave_Initialization.xml", Base,
-                      expectGroups: 0, expectMoved: 0);
+                      expectGroups: 0, expectMoved: 0, expectSiblingGroups: 4, expectSiblingMoved: 11);
             // COA-STP1 IS co-located, heavily - it is the pathology C14 was ruled against ("STP
             // puts a whole COA on its assembly point"). Anyone who expected this init to be
             // untouched should read the ruling, not weaken the check. UNCHANGED by the SF2 scope
             // rule in the RUNNER configuration, which is what makes PREREG_ASSEMBLY_LAYOUT's
             // confirmed 2026-09-07 result still the result of this build.
-            CheckInit(ref failures, "COA-STP1_Initialization.xml", Base, expectGroups: 10, expectMoved: 62);
+            CheckInit(ref failures, "COA-STP1_Initialization.xml", Base, expectGroups: 10, expectMoved: 62,
+                      expectSiblingGroups: 0, expectSiblingMoved: 0);
             // The real STP export: 40 units, 36 placeable, the superior cascade piles the 28ID
             // subtree onto one coordinate.
             CheckInit(ref failures, "STP-IRON-STORM-SYNTHETIC_Initialization.xml", Base,
-                      expectGroups: 2, expectMoved: 12);
+                      expectGroups: 2, expectMoved: 12, expectSiblingGroups: 0, expectSiblingMoved: 0);
 
             // THE SAME FOUR FIXTURES IN THE OTHER SHIPPED MODE. FidelityTable maps a brigade or a
             // division to a REAL aggregate template where RealTemplates' 5.0.2 parity dispatch
@@ -250,13 +354,17 @@ public static class DeStackSelfTest
             // different. Both modes ship; both are measured rather than reasoned about.
             Console.WriteLine("  --- the same fixtures under Vrf:TypeMappingMode=FidelityTable (Demo) ---");
             CheckInit(ref failures, "R9_Mojave_Lean_Initialization.xml", Base,
-                      expectGroups: 0, expectMoved: 0, mode: TypeMapping.FidelityTable);
+                      expectGroups: 0, expectMoved: 0, expectSiblingGroups: 1, expectSiblingMoved: 3,
+                      mode: TypeMapping.FidelityTable);
             CheckInit(ref failures, "R9_Mojave_Initialization.xml", Base,
-                      expectGroups: 0, expectMoved: 0, mode: TypeMapping.FidelityTable);
+                      expectGroups: 0, expectMoved: 0, expectSiblingGroups: 4, expectSiblingMoved: 11,
+                      mode: TypeMapping.FidelityTable);
             CheckInit(ref failures, "COA-STP1_Initialization.xml", Base,
-                      expectGroups: 10, expectMoved: 62, mode: TypeMapping.FidelityTable);
+                      expectGroups: 10, expectMoved: 62, expectSiblingGroups: 0, expectSiblingMoved: 0,
+                      mode: TypeMapping.FidelityTable);
             CheckInit(ref failures, "STP-IRON-STORM-SYNTHETIC_Initialization.xml", Base,
-                      expectGroups: 2, expectMoved: 12, mode: TypeMapping.FidelityTable);
+                      expectGroups: 2, expectMoved: 12, expectSiblingGroups: 0, expectSiblingMoved: 0,
+                      mode: TypeMapping.FidelityTable);
 
             // *** THE CHECK THAT DECIDES WHETHER A RUN MOVES: DO THE ORDER'S TASKEES SHIFT? ***
             // A context unit spread onto a ring changes the picture but nothing that is measured;
@@ -267,6 +375,15 @@ public static class DeStackSelfTest
                                 "R9_Mojave_UnitMove_Order.xml", Base);
             CheckTaskeesUnmoved(ref failures, "R9_Mojave_Initialization.xml",
                                 "R9_Mojave_UnitMove_Order.xml", Base);
+            // ... and what the 2026-09-21 SIBLING pass does to the same taskees. R9 LEAN - the
+            // fixture of the D6 control and of the confirming run - moves NONE. R9 FULL moves ONE,
+            // 1222.MechPlt, because in that file it is a declared child of 122.MechCoy.
+            CheckTaskeesAfterSiblingSpread(ref failures, "R9_Mojave_Lean_Initialization.xml",
+                                           "R9_Mojave_UnitMove_Order.xml", Base, expectMovedTaskees: 0);
+            CheckTaskeesAfterSiblingSpread(ref failures, "R9_Mojave_Initialization.xml",
+                                           "R9_Mojave_UnitMove_Order.xml", Base, expectMovedTaskees: 1);
+            CheckTaskeesAfterSiblingSpread(ref failures, "COA-STP1_Initialization.xml",
+                                           "COA-STP1_Order.xml", Base, expectMovedTaskees: 0);
             // *** AND THE ARM THE COLD-START REVIEW ADDED: NO MEMBER OF A TASKEE MOVES EITHER. ***
             // STP-837 arrival evidence and the C15/C16 stall/progress checks all sample MEMBER
             // positions (VrfC2SimService.TryReadMemberPositions), so a taskee whose own members
@@ -278,6 +395,67 @@ public static class DeStackSelfTest
                                       "R9_Mojave_UnitMove_Order.xml", Base);
             CheckTaskeeMembersUnmoved(ref failures, "COA-STP1_Initialization.xml",
                                       "COA-STP1_Order.xml", Base);
+        }
+
+        // 12. THE ECHELON TABLE (user ruling 2026-09-21, option C). The ruling's own arithmetic is
+        //     "spacing > the longest shipped formation span for that echelon"; these checks re-run
+        //     that arithmetic on the constants instead of trusting them, and pin the echelon
+        //     vocabulary the C2SIM inits actually use.
+        {
+            Console.WriteLine("  --- the echelon spacing table and its arithmetic ---");
+            foreach (var kv in EchelonSpacing.SpanMeters)
+            {
+                double table = EchelonSpacing.TableMeters[kv.Key];
+                Check(ref failures, table > kv.Value && Math.Abs(table - EchelonSpacing.StepAbove(kv.Value)) < 1e-9,
+                      $"{kv.Key}: the table's {table:F0} m is the next 50 m step strictly above the " +
+                      $"longest shipped {kv.Key.ToLowerInvariant()} formation span {kv.Value:F1} m " +
+                      $"(re-derived here, not copied: StepAbove = {EchelonSpacing.StepAbove(kv.Value):F0} m)");
+            }
+            Check(ref failures, EchelonSpacing.TableMeters[EchelonSpacing.Platoon] == 350.0,
+                  "PLATOON is 350 m - the D6 harvest's '~300 m, VERIFY it' resolved against the vendor " +
+                  "data: Formation-Column-US-Army-Mech-Plt-w-IFV.frm spans 320.9 m with its leader " +
+                  "chain resolved, so 300 m would NOT clear it and 350 m does");
+            Check(ref failures, EchelonSpacing.StepAbove(660.0) == 700.0,
+                  "the same rule applied to the longest shipped COMPANY formation " +
+                  "(Formation-Column-Armor-Co(US), 660 m resolved - the ruling's 630 m read the raw " +
+                  "offsets, not the chain) returns exactly the 700 m the user ruled on 2026-09-07");
+            Check(ref failures, EchelonSpacing.StepAbove(250.0) == 300.0 && EchelonSpacing.StepAbove(1.0) == 100.0,
+                  "an exact 50 m multiple is still CLEARED (250 -> 300, never 250) and the floor is 100 m");
+            // The echelon vocabulary of the shipped inits: EchelonCode first, SIDC as the fallback.
+            Check(ref failures, EchelonSpacing.KeyOf("PLT", "") == EchelonSpacing.Platoon
+                             && EchelonSpacing.KeyOf("SECT", "") == EchelonSpacing.Section
+                             && EchelonSpacing.KeyOf("SQUAD", "") == EchelonSpacing.Squad
+                             && EchelonSpacing.KeyOf("TEAM", "") == EchelonSpacing.Team,
+                  "the C2SIM EchelonCode values PLT/SECT/SQUAD/TEAM map to their table rows");
+            Check(ref failures, EchelonSpacing.KeyOf("COY", "").Length == 0
+                             && EchelonSpacing.KeyOf("BN", "").Length == 0
+                             && EchelonSpacing.KeyOf("BDE", "").Length == 0
+                             && EchelonSpacing.KeyOf("NOS", "").Length == 0
+                             && EchelonSpacing.KeyOf("", "").Length == 0,
+                  "COY/BN/BDE/NOS and a missing code are NOT in the table - company and above keep the " +
+                  "RULED Vrf:DeStackSpacingMeters, and this lane does not re-rule it");
+            // SIDC position 12 (0-based 11) is the echelon character - the same index
+            // UnitTypeMap.EchelonCharOf reads (TypeMapSelfTest: "SFGPUCIZ--EH---" is echelon H).
+            Check(ref failures, EchelonSpacing.KeyOf("", "SFGPUCIZ--ED---") == EchelonSpacing.Platoon
+                             && EchelonSpacing.KeyOf("", "SFGPUCIZ--EE---").Length == 0
+                             && EchelonSpacing.KeyOf("", "SFGPUCIZ--EH---").Length == 0,
+                  "with no EchelonCode the SIDC echelon character decides: D = platoon (in the table), " +
+                  "E = company and H = brigade (not)");
+            Check(ref failures, EchelonSpacing.SpacingFor("", 0.0) == 0.0
+                             && EchelonSpacing.SpacingFor("", 777.0) == 777.0
+                             && EchelonSpacing.SpacingFor(EchelonSpacing.Platoon, 777.0) == 350.0,
+                  "SpacingFor: an uncovered echelon returns the caller's FALLBACK (0 = do not spread), " +
+                  "a covered one ignores it");
+            var over = EchelonSpacing.WithOverrides("PLT=400, SECT=250", out string note);
+            Check(ref failures, over[EchelonSpacing.Platoon] == 400.0 && over[EchelonSpacing.Section] == 250.0
+                             && EchelonSpacing.TableMeters[EchelonSpacing.Platoon] == 350.0
+                             && note.Contains("PLATOON=400"),
+                  $"Vrf:DeStackEchelonSpacingMeters overrides a row without mutating the derived table " +
+                  $"({note})");
+            var bad = EchelonSpacing.WithOverrides("COY=900,PLT=nonsense,=5", out string badNote);
+            Check(ref failures, bad[EchelonSpacing.Platoon] == 350.0 && badNote.Contains("IGNORED"),
+                  $"an override the table cannot take is IGNORED AND NAMED, never silently applied " +
+                  $"({badNote})");
         }
 
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
@@ -295,6 +473,7 @@ public static class DeStackSelfTest
     private sealed record Fixture(List<CreationPlan> Plans,
                                   List<(string Uuid, string SuperiorUuid)> Hierarchy,
                                   List<(string Uuid, string Name, double Lat, double Lon)> Authored,
+                                  List<string> Echelons,
                                   CompositionPlan Comp);
 
     /// <summary>
@@ -329,6 +508,7 @@ public static class DeStackSelfTest
         var plans = new List<CreationPlan>();
         var hier = new List<(string, string)>();
         var authored = new List<(string, string, double, double)>();
+        var echelons = new List<string>();
         foreach (var u in init.Units)
         {
             if (string.IsNullOrEmpty(u.Uuid) || string.IsNullOrEmpty(u.HostilityCode)) continue;
@@ -345,8 +525,9 @@ public static class DeStackSelfTest
             plans.Add(plan);
             hier.Add((u.Uuid, (u.SuperiorUuid ?? "").Trim()));
             authored.Add((u.Uuid, u.Name, la, lo));
+            echelons.Add(EchelonSpacing.KeyOf(u.EchelonCode, u.SymbolId));
         }
-        return new Fixture(plans, hier, authored, CompositionPlan.Classify(plans, hier));
+        return new Fixture(plans, hier, authored, echelons, CompositionPlan.Classify(plans, hier));
     }
 
     /// <summary>
@@ -363,6 +544,7 @@ public static class DeStackSelfTest
     /// </summary>
     private static void CheckInit(ref int failures, string fixture, double spacing,
                                   int expectGroups, int expectMoved,
+                                  int expectSiblingGroups, int expectSiblingMoved,
                                   TypeMapping mode = TypeMapping.RealTemplates)
     {
         string path = FindData(fixture);
@@ -420,6 +602,34 @@ public static class DeStackSelfTest
               $"unit(s) affected (destack anchors {groups.Count} + moved {moved} = " +
               $"{groups.Count + moved}), {parseComposedChildren.Count} composed child(ren) held " +
               $"(destack: {f.Comp.ComposedChildIndices.Count})");
+
+        // *** THE SECOND PASS (user ruling 2026-09-21): composed siblings at their echelon's own
+        // scale, around a parent that does not move. Run on the SAME plans the independent pass
+        // just rewrote, which is the order the service uses. ***
+        var beforeSiblings = f.Plans.ToList();
+        var sib = DeStacker.ApplyComposedSiblings(f.Plans, f.Comp.ComposedGroups, f.Echelons,
+                                                  k => EchelonSpacing.SpacingFor(k, 0.0), 0.0,
+                                                  out var skipped);
+        int sibMoved = 0;
+        var parentsMoved = new List<string>();
+        for (int i = 0; i < f.Plans.Count; i++)
+            if (f.Plans[i].Pos.LatDeg != beforeSiblings[i].Pos.LatDeg
+                || f.Plans[i].Pos.LonDeg != beforeSiblings[i].Pos.LonDeg) sibMoved++;
+        foreach (var (pi, _) in f.Comp.ComposedGroups)
+            if (pi >= 0 && pi < f.Plans.Count
+                && (f.Plans[pi].Pos.LatDeg != beforeSiblings[pi].Pos.LatDeg
+                    || f.Plans[pi].Pos.LonDeg != beforeSiblings[pi].Pos.LonDeg))
+                parentsMoved.Add(f.Authored[pi].Name);
+        Check(ref failures,
+              sib.Count == expectSiblingGroups && sibMoved == expectSiblingMoved && parentsMoved.Count == 0,
+              $"{fixture} [{mode}]: COMPOSED SIBLINGS - {f.Comp.ComposedGroups.Count} parent(s) with " +
+              $"composed children; {sib.Count} co-located sibling group(s) spread (expected " +
+              $"{expectSiblingGroups}), {sibMoved} child(ren) moved (expected {expectSiblingMoved}), " +
+              $"{skipped.Count} group(s) skipped for want of an echelon; NO PARENT MOVED " +
+              $"(moved: [{string.Join(", ", parentsMoved)}]). Spread: [" +
+              string.Join("; ", sib.Take(6).Select(g =>
+                  $"{g.ParentName} x{g.Count} @ {g.SpacingMeters:F0} m ({g.EchelonKey})")) +
+              (sib.Count > 6 ? "; ..." : "") + "]");
     }
 
     private static int CountMoved(IReadOnlyList<CreationPlan> plans,
@@ -473,12 +683,77 @@ public static class DeStackSelfTest
     }
 
     /// <summary>
-    /// THE ARM THE COLD-START REVIEW OF 9d67f97 ADDED (SF2). The taskee check above is necessary
-    /// and is NOT sufficient: with Vrf:ComposeHierarchy on, a taskee's DECLARED SUBORDINATES become
-    /// the members of its aggregate, and members are exactly what STP-837 arrival evidence and the
-    /// C15/C16 stall and progress checks sample (VrfC2SimService.TryReadMemberPositions). A run in
-    /// which the taskee stood still while its three platoons were born 700 m out on a hex ring is a
-    /// different experiment from the D1/D1b/D3 controls, whatever the taskee's own coordinate did.
+    /// AND THE SAME QUESTION OF THE 2026-09-21 SIBLING PASS, WHICH IS NOT THE SAME ANSWER.
+    ///
+    /// The parent of a composed group never moves, so a taskee that is a PARENT keeps its route
+    /// start. A taskee that is itself a COMPOSED CHILD does move - that is what the ruling asks
+    /// for, and no init-time rule can avoid it, because the de-stack runs before any order exists
+    /// and cannot know which units will be tasked. So the property is MEASURED per fixture and
+    /// pinned by name rather than asserted away:
+    ///   R9 LEAN (the D6 / confirming-run fixture): 0 taskees move. 1222.MechPlt's Superior is not
+    ///     in that file, so it is an INDEPENDENT unit, and 114.MechCoy is a parent.
+    ///   R9 FULL: 1 taskee moves - 1222.MechPlt, which in the full init IS a declared child of
+    ///     122.MechCoy, one platoon ring (350 m). Its route then starts 350 m from the authored
+    ///     point; Vrf:DropOriginVertexMeters (default 100 m) is what keeps the order's leading
+    ///     "from here" vertex from dragging it back (PREREG_ASSEMBLY_LAYOUT 3f).
+    /// A moved taskee must always be exactly a whole number of ITS OWN echelon's rings - a taskee
+    /// displaced by anything else would be a defect, and this check would say so.
+    /// </summary>
+    private static void CheckTaskeesAfterSiblingSpread(ref int failures, string initFixture,
+                                                       string orderFixture, double spacing,
+                                                       int expectMovedTaskees)
+    {
+        string ip = FindData(initFixture), op = FindData(orderFixture);
+        if (ip == null || op == null)
+        {
+            Check(ref failures, false, $"{initFixture} + {orderFixture}: NOT FOUND under data/");
+            return;
+        }
+        var f = BuildFixture(ip);
+        var order = OrderParser.Parse(File.ReadAllText(op));
+        var taskees = order.Tasks.Select(t => t.TaskeeUuid).Where(u => !string.IsNullOrEmpty(u))
+                           .ToHashSet(StringComparer.Ordinal);
+        DeStacker.Apply(f.Plans, spacing, 0.0, f.Comp.ComposedChildIndices);
+        var beforeSiblings = f.Plans.ToList();
+        DeStacker.ApplyComposedSiblings(f.Plans, f.Comp.ComposedGroups, f.Echelons,
+                                        k => EchelonSpacing.SpacingFor(k, 0.0), 0.0, out _);
+        var moved = new List<string>();
+        var offRing = new List<string>();
+        for (int i = 0; i < f.Plans.Count; i++)
+        {
+            if (!taskees.Contains(f.Authored[i].Uuid)) continue;
+            double d = DistMeters(beforeSiblings[i].Pos, f.Plans[i].Pos);
+            if (d <= 1e-6) continue;
+            moved.Add($"{f.Authored[i].Name} {d:F0} m ({f.Echelons[i]})");
+            double own = EchelonSpacing.SpacingFor(f.Echelons[i], 0.0);
+            if (!(own > 0 && Math.Abs(d / own - Math.Round(d / own)) < 0.02 && d >= own * 0.98))
+                offRing.Add($"{f.Authored[i].Name} {d:F0} m vs {own:F0} m rings");
+        }
+        Check(ref failures, moved.Count == expectMovedTaskees && offRing.Count == 0,
+              $"{initFixture} + {orderFixture}: the SIBLING pass moves {moved.Count} taskee(s) " +
+              $"(expected {expectMovedTaskees}) [{string.Join("; ", moved)}]" +
+              (offRing.Count == 0
+                  ? " - each of them a composed child displaced exactly one echelon ring, and every " +
+                    "taskee that is a PARENT keeps its position (the centre slot)"
+                  : " - OFF-RING: [" + string.Join("; ", offRing) + "]"));
+    }
+
+    /// <summary>
+    /// A TASKEE'S OWN DECLARED SUBORDINATES: HOW FAR DO THEY MOVE, AND IS IT THEIR ECHELON'S RING?
+    ///
+    /// THIS CHECK REPLACES THE 2026-09-20 ASSERTION "NONE is displaced" (the SF2 arm the cold-start
+    /// review of 9d67f97 added). That assertion pinned the behaviour the user ruling of 2026-09-21
+    /// SUPERSEDES: D6 measured what "held with the parent" actually produced - three platoon
+    /// aggregates 24-56 m apart at every sample, 3 of 3 footprints overlapping, 137 member pairs
+    /// under 7 m against D3's 44 - so the children ARE spread now. What the check pins instead is
+    /// the property the ruling actually asks for, which is stronger than "nothing moved":
+    ///   - the TASKEE itself does not move (its route still starts where it started);
+    ///   - every displaced member sits on ITS OWN ECHELON's ring, at the spacing the table derives
+    ///     from the shipped formations - not at the 700 m company spacing, which is what put a
+    ///     whole platoon under the STP-837 traversal bar in D3;
+    ///   - the displacement is a whole number of rings, so the geometry is the tested one.
+    /// The COMPARABILITY consequence is real and is the reason Vrf:DeStackComposedSiblings exists:
+    /// a run with it ON is NOT comparable member-for-member with D1/D1b/D3/D6 (RUNBOOK 11e).
     /// </summary>
     private static void CheckTaskeeMembersUnmoved(ref int failures, string initFixture,
                                                   string orderFixture, double spacing)
@@ -494,7 +769,10 @@ public static class DeStackSelfTest
         var taskees = order.Tasks.Select(t => t.TaskeeUuid).Where(u => !string.IsNullOrEmpty(u))
                            .ToHashSet(StringComparer.Ordinal);
         DeStacker.Apply(f.Plans, spacing, 0.0, f.Comp.ComposedChildIndices);
+        DeStacker.ApplyComposedSiblings(f.Plans, f.Comp.ComposedGroups, f.Echelons,
+                                        k => EchelonSpacing.SpacingFor(k, 0.0), 0.0, out _);
         var moved = new List<string>();
+        var offRing = new List<string>();
         int members = 0;
         for (int i = 0; i < f.Plans.Count; i++)
         {
@@ -502,16 +780,23 @@ public static class DeStackSelfTest
             members++;
             double d = DistMeters(new Geodetic { LatDeg = f.Authored[i].Lat, LonDeg = f.Authored[i].Lon },
                                   f.Plans[i].Pos);
-            if (d > 1e-6) moved.Add($"{f.Authored[i].Name} {d:F0} m");
+            if (d <= 1e-6) continue;
+            moved.Add($"{f.Authored[i].Name} {d:F0} m ({f.Echelons[i]})");
+            double own = EchelonSpacing.SpacingFor(f.Echelons[i], 0.0);
+            // A whole number of rings at ITS echelon's spacing (ring k sits at k x spacing).
+            bool onRing = own > 0 && Math.Abs(d / own - Math.Round(d / own)) < 0.02 && d >= own * 0.98;
+            if (!onRing) offRing.Add($"{f.Authored[i].Name} {d:F0} m vs {own:F0} m rings");
         }
-        Check(ref failures, moved.Count == 0,
+        Check(ref failures, offRing.Count == 0,
               $"{initFixture} + {orderFixture}: {members} declared subordinate(s) of a TASKEE, " +
-              (moved.Count == 0
-                  ? "and NONE is displaced - every member is created on its parent's coordinate and " +
-                    "laid out by the parent's formation, so the member positions STP-837 and C15/C16 " +
-                    "sample are the ones the previous runs sampled"
-                  : moved.Count + " MOVED: [" + string.Join("; ", moved) + "] - the arrival evidence " +
-                    "and stall checks of this run are not comparable with a run that had de-stack off"));
+              $"{moved.Count} displaced by the 2026-09-21 sibling spread [" +
+              string.Join("; ", moved.Take(8)) + (moved.Count > 8 ? "; ..." : "") + "] - " +
+              (offRing.Count == 0
+                  ? "and EVERY one of them is a whole number of ITS OWN ECHELON's rings from where it " +
+                    "was, never the 700 m company spacing. (The pre-2026-09-21 assertion here was " +
+                    "'NONE is displaced'; the ruling replaced it, and Vrf:DeStackComposedSiblings=false " +
+                    "restores it for a comparability run.)"
+                  : offRing.Count + " is NOT on its echelon's ring: [" + string.Join("; ", offRing) + "]"));
     }
 
     /// <summary>data/&lt;name&gt;, found by walking up from the exe and the working directory - the

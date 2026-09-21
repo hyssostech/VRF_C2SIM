@@ -126,11 +126,32 @@ public static class InitParseCheck
                           $"{groupCount}" +
                           (groupCount > 0 ? $"  ({unitsAffected} units affected; Vrf:DeStackCreates would spread them)" : ""));
         if (composedChildIndices.Count > 0)
-            Console.WriteLine($"  {composedChildIndices.Count} composed child(ren) held with their " +
-                              "parent's formation, not counted here: " +
+            Console.WriteLine($"  {composedChildIndices.Count} composed child(ren), not counted in the " +
+                              "INDEPENDENT groups above (they take no 700 m ring slot): " +
                               string.Join(", ", composedChildIndices.OrderBy(i => i).Take(12)
                                                     .Select(i => plans[i].Unit.Name)) +
                               (composedChildIndices.Count > 12 ? ", ..." : ""));
+        // THE SECOND LANE (user ruling 2026-09-21): composed SIBLINGS that share a coordinate are
+        // spread around their parent at their OWN echelon's spacing. Reported here with the same
+        // classifier and the same spacing table the runtime uses, so this diagnostic keeps telling
+        // the truth about what Vrf:DeStackCreates would do to the file.
+        var echelons = plans.Select(p => EchelonSpacing.KeyOf(p.Unit.EchelonCode, p.Unit.SymbolId)).ToList();
+        var siblingPlans = planList.ToList();
+        var sibling = DeStacker.ApplyComposedSiblings(siblingPlans, comp.ComposedGroups, echelons,
+                                                      k => EchelonSpacing.SpacingFor(k, 0.0), 0.0,
+                                                      out var siblingSkipped);
+        Console.WriteLine($"Composed-sibling groups (2+ children of one parent at identical lat/lon; " +
+                          $"Vrf:DeStackComposedSiblings would spread them around the parent at their " +
+                          $"own echelon's spacing): {sibling.Count}" +
+                          (siblingSkipped.Count > 0
+                              ? $"  ({siblingSkipped.Count} group(s) have no echelon the table covers " +
+                                "and would NOT be spread)"
+                              : ""));
+        foreach (var g in sibling.Take(5))
+            Console.WriteLine($"  {g.Count} child(ren) of {g.ParentName} at {g.LatDeg},{g.LonDeg} -> " +
+                              $"{g.SpacingMeters:F0} m rings ({g.EchelonKey}): " +
+                              string.Join(", ", g.Moved.Take(4).Select(m => m.Name)) +
+                              (g.Moved.Count > 4 ? ", ..." : ""));
         foreach (var g in stacks.Take(5))
             Console.WriteLine($"  {g.Count()} units at {g.Key.Lat},{g.Key.Lon}: " +
                               string.Join(", ", g.Take(4).Select(p => p.Unit.Name)) + (g.Count() > 4 ? ", ..." : ""));

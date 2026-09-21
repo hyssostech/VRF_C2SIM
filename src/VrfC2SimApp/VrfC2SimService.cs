@@ -1206,6 +1206,10 @@ public sealed class VrfC2SimService : BackgroundService
         // Index-parallel to toCreate: (this unit's C2SIM uuid, its declared Superior uuid) - the raw
         // material for Vrf:ComposeHierarchy parent/child classification (ApplyHierarchyComposition).
         var hierarchy = new List<(string Uuid, string SuperiorUuid)>();
+        // Index-parallel to toCreate: the ECHELON KEY the composed-sibling de-stack sizes its rings
+        // from (user ruling 2026-09-21; EchelonSpacing.KeyOf of the init's own EchelonCode/SIDC).
+        // "" = an echelon the table does not cover, which is a FALLBACK, not a spacing.
+        var echelons = new List<string>();
         // parent C2SIM uuid -> its AUTHORED <Subordinate> uuid order (N2: the attach order = the
         // declared order, so the declared first child becomes the leader, UG52 18.1.1).
         var declaredByParent = new Dictionary<string, IReadOnlyList<string>>();
@@ -1380,6 +1384,7 @@ public sealed class VrfC2SimService : BackgroundService
             toCreate.Add(plan);
             placements.Add(new PlacementInput(domain, unit.AltitudeAgl, unit.AltitudeMsl));
             hierarchy.Add((unit.Uuid, (unit.SuperiorUuid ?? "").Trim()));
+            echelons.Add(EchelonSpacing.KeyOf(unit.EchelonCode, unit.SymbolId));
             if (unit.DeclaredSubordinates is { Count: > 0 }) declaredByParent[unit.Uuid] = unit.DeclaredSubordinates;
             if (_vrf.MaterializeAtOrder)
             {
@@ -1405,8 +1410,9 @@ public sealed class VrfC2SimService : BackgroundService
         // Empty whenever Vrf:ComposeHierarchy is off, and then every plan is independent - the
         // behaviour before this change.
         var composedChildIndices = new HashSet<int>();
+        var composedGroups = new List<(int ParentIndex, IReadOnlyList<int> ChildIndices)>();
         if (_vrf.ComposeHierarchy && toCreate.Count > 0)
-            ApplyHierarchyComposition(toCreate, hierarchy, declaredByParent, composedChildIndices);
+            ApplyHierarchyComposition(toCreate, hierarchy, declaredByParent, composedChildIndices, composedGroups);
         if (_vrf.MaterializeAtOrder && toCreate.Count > 0)
         {
             // C13 (CreationPolicy=AtOrder): SHELLS ONLY at init. Every aggregate is created as an EMPTY
@@ -1426,7 +1432,7 @@ public sealed class VrfC2SimService : BackgroundService
         // Coarse ORBAT leaves (a company/battalion the ORBAT did NOT decompose): expand into their
         // doctrinal sub-units and compose, instead of the broken template higher-unit (G-A).
         else if (_vrf.ComposeHierarchy && toCreate.Count > 0)
-            ExpandCoarseLeaves(toCreate, placements, hierarchy, composedChildIndices);
+            ExpandCoarseLeaves(toCreate, placements, hierarchy, composedChildIndices, composedGroups);
 
         // R8 (opt-in, docs/UNIT_MOVEMENT_RESEARCH.md sec 4): spread units that share
         // identical init coordinates onto deterministic rings BEFORE creating them -
@@ -1440,12 +1446,43 @@ public sealed class VrfC2SimService : BackgroundService
                 _log.LogInformation("DeStack (R8/C14): {N} INDEPENDENT units at ({Lat},{Lon}) spread onto " +
                                     "{Spacing} m rings rotated {Rot} deg (first unit kept in place).",
                                     g.Count, g.LatDeg, g.LonDeg, _vrf.DeStackSpacingMeters, _vrf.DeStackRotationDeg);
-            if (composedChildIndices.Count > 0)
+            // COMPOSED SIBLINGS AT THEIR OWN ECHELON'S SCALE (user ruling 2026-09-21, option C).
+            // RUNS AFTER the independent pass on purpose: if a parent was itself spread as an
+            // independent unit, its children must ring the position it ENDED at, not the one the
+            // init authored. The parent is never a candidate here - it keeps its coordinate, which
+            // is what makes every taskee's route start where it started before.
+            while (echelons.Count < toCreate.Count) echelons.Add("");   // synthesized children: no C2SIM echelon
+            if (_vrf.DeStackComposedSiblings && composedGroups.Count > 0)
+            {
+                var table = EchelonSpacing.WithOverrides(_vrf.DeStackEchelonSpacingMeters, out string tableNote);
+                double SpacingFor(string key) =>
+                    !string.IsNullOrEmpty(key) && table.TryGetValue(key, out double m)
+                        ? m : _vrf.DeStackEchelonFallbackMeters;
+                var spreadGroups = DeStacker.ApplyComposedSiblings(
+                    toCreate, composedGroups, echelons, SpacingFor, _vrf.DeStackRotationDeg,
+                    out var skippedGroups);
+                foreach (var g in spreadGroups)
+                    _log.LogInformation("DeStack (C14 echelon scope, user ruling 2026-09-21): {N} COMPOSED " +
+                                        "sibling(s) of {Parent} shared ({Lat},{Lon}) and were spread onto " +
+                                        "{Spacing} m rings around it at the {Echelon} echelon's own scale " +
+                                        "(longest shipped formation for that echelon {Span:F1} m; the parent " +
+                                        "keeps its position and takes the centre slot). Moved: [{Moved}].{Note}",
+                                        g.Count, g.ParentName, g.LatDeg, g.LonDeg, g.SpacingMeters, g.EchelonKey,
+                                        EchelonSpacing.SpanMeters.TryGetValue(g.EchelonKey, out double sp) ? sp : 0.0,
+                                        string.Join(", ", g.Moved.Take(20).Select(m => $"{m.Name} {m.Meters:F0} m"))
+                                        + (g.Moved.Count > 20 ? ", ..." : ""),
+                                        tableNote.Length > 0 ? " " + tableNote : "");
+                foreach (var s in skippedGroups)
+                    _log.LogInformation("DeStack (C14 echelon scope): {N} composed sibling(s) of {Parent} were " +
+                                        "NOT spread - {Reason}.", s.Count, s.ParentName, s.Reason);
+            }
+            else if (composedChildIndices.Count > 0)
                 _log.LogInformation("DeStack (C14 scope): {N} unit(s) were NOT considered because " +
-                                    "Vrf:ComposeHierarchy composes them INTO a parent aggregate - their place " +
-                                    "comes from the parent's formation (UG52 25.2.1), not from the init " +
-                                    "coordinate, and a coordinate held only through the superior cascade is not " +
-                                    "an authored co-location. Held with their parent: [{Names}].",
+                                    "Vrf:ComposeHierarchy composes them INTO a parent aggregate and " +
+                                    "Vrf:DeStackComposedSiblings is OFF - their place comes from the parent's " +
+                                    "formation (UG52 25.2.1), not from the init coordinate. This is the " +
+                                    "pre-2026-09-21 behaviour, kept for comparability with runs D1-D6. Held " +
+                                    "with their parent: [{Names}].",
                                     composedChildIndices.Count,
                                     string.Join(", ", composedChildIndices.OrderBy(i => i)
                                                                          .Take(20).Select(i => toCreate[i].Name))
@@ -1859,7 +1896,8 @@ public sealed class VrfC2SimService : BackgroundService
     /// </summary>
     private void ApplyHierarchyComposition(List<CreationPlan> plans, List<(string Uuid, string SuperiorUuid)> hierarchy,
                                            IReadOnlyDictionary<string, IReadOnlyList<string>> declaredByParent = null,
-                                           HashSet<int> composedChildIndices = null)
+                                           HashSet<int> composedChildIndices = null,
+                                           List<(int ParentIndex, IReadOnlyList<int> ChildIndices)> composedGroups = null)
     {
         if (plans.Count != hierarchy.Count)
         {
@@ -1876,6 +1914,10 @@ public sealed class VrfC2SimService : BackgroundService
                             "cannot compose; created as-is, its children become standalone.", plans[i].Name);
         if (composedChildIndices != null)
             foreach (int i in comp.ComposedChildIndices) composedChildIndices.Add(i);
+        // The same children GROUPED BY PARENT, for the composed-sibling de-stack (user ruling
+        // 2026-09-21). Taken from the ONE classifier, never re-derived at the call site.
+        if (composedGroups != null)
+            foreach (var g in comp.ComposedGroups) composedGroups.Add(g);
         var parentUuids = comp.ParentUuids;
         if (parentUuids.Count == 0) return;   // flat init - nothing to compose
 
@@ -2067,7 +2109,8 @@ public sealed class VrfC2SimService : BackgroundService
     /// </summary>
     private void ExpandCoarseLeaves(List<CreationPlan> toCreate, List<PlacementInput> placements,
                                    List<(string Uuid, string SuperiorUuid)> hierarchy,
-                                   HashSet<int> composedChildIndices = null)
+                                   HashSet<int> composedChildIndices = null,
+                                   List<(int ParentIndex, IReadOnlyList<int> ChildIndices)> composedGroups = null)
     {
         var res = GetResolver();
         if (res == null) return;                 // no catalog -> leaves fall back to template (logged)
@@ -2115,6 +2158,7 @@ public sealed class VrfC2SimService : BackgroundService
             }
 
             var childNames = new List<string>();
+            var childIndices = new List<int>();
             int n = 0;
             foreach (var s in unitSubs)          // DECLARED order - no reordering (vendor composition)
             {
@@ -2134,6 +2178,7 @@ public sealed class VrfC2SimService : BackgroundService
                 // carries no C2SIM uuid, so CompositionPlan.Classify cannot see it - the index is
                 // recorded here instead.
                 composedChildIndices?.Add(toCreate.Count);
+                childIndices.Add(toCreate.Count);
                 toCreate.Add(childPlan);
                 placements.Add(new PlacementInput(ot[2], null, null));  // child DIS domain; placed on terrain
                 hierarchy.Add(("", ""));                                // synthetic - not a C2SIM unit
@@ -2142,6 +2187,12 @@ public sealed class VrfC2SimService : BackgroundService
             }
 
             toCreate[i] = plan with { CreateSubordinates = false };     // empty shell
+            // These synthesized sub-units are composed siblings too, so the 2026-09-21 de-stack is
+            // told about them - it will find no C2SIM echelon for them (they carry no uuid, let
+            // alone an EchelonCode) and report them as not spread rather than move them at a
+            // spacing nobody derived.
+            if (composedGroups != null && childIndices.Count > 0)
+                composedGroups.Add((i, childIndices));
             var expandReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             _compositions[plan.Name] = new PendingComposition {
                 ParentName = plan.Name, ExpectedChildNames = childNames,
@@ -4902,20 +4953,29 @@ public sealed class VrfC2SimService : BackgroundService
                 double travel = double.IsNaN(fromLat)
                     ? double.NaN
                     : TerrainVertexAuthoring.DistMeters(fromLat, fromLon, p.Value.Lat, p.Value.Lon);
-                samples.Add(new ArrivalPolicy.MemberSample(dist, travel));
+                // THE MEMBER'S OWN JOURNEY (user ruling 2026-09-21): how far THIS member was from
+                // the last vertex when the task was dispatched. Same baseline as the travel above,
+                // so a member with no baseline has neither figure and keeps the route-length bar.
+                double ownApproach = double.IsNaN(fromLat)
+                    ? double.NaN
+                    : TerrainVertexAuthoring.DistMeters(fromLat, fromLon, dlat, dlon);
+                samples.Add(new ArrivalPolicy.MemberSample(dist, travel, ownApproach));
             }
             var d = ArrivalPolicy.DecideWithTraversal(samples, total, _vrf.ArrivalRadiusMeters,
                                                       _vrf.ArrivalMemberFraction, rec.RouteLengthMeters,
-                                                      _vrf.ArrivalMinTravelMeters);
+                                                      _vrf.ArrivalMinTravelMeters,
+                                                      _vrf.ArrivalApproachFraction);
             if (!d.Arrived) continue;
             _arrivalReported[name] = rec.TaskUuid ?? "";
             _log.LogInformation("ARRIVAL EVIDENCE: {Name} task '{Task}' - {Within}/{Total} member(s) within {R:F0} m of the " +
-                                "last vertex (nearest {Near:F0} m) AND past {Req:F0} m of travel since dispatch (farthest " +
-                                "{Far:F0} m of a {Len:F0} m route) {T:F0}s after dispatch - reporting completion from the " +
-                                "unit's own evidence (user ruling 2026-09-07; traversal required, STP-837); a later vendor " +
-                                "completion is swallowed.",
+                                "last vertex (nearest {Near:F0} m) AND past their OWN traversal bar (route bar {Req:F0} m, " +
+                                "lowest member bar {Low:F0} m at approach fraction {F:F2}; farthest travel {Far:F0} m of a " +
+                                "{Len:F0} m route) {T:F0}s after dispatch - reporting completion from the unit's own " +
+                                "evidence (user rulings 2026-09-07 and 2026-09-21; traversal required, STP-837); a later " +
+                                "vendor completion is swallowed.",
                                 name, rec.TaskName, d.Within, d.Total, d.RadiusMeters, d.NearestMeters,
-                                d.RequiredTravelMeters, d.FarthestTravelMeters, rec.RouteLengthMeters,
+                                d.RequiredTravelMeters, d.LowestMemberBarMeters, _vrf.ArrivalApproachFraction,
+                                d.FarthestTravelMeters, rec.RouteLengthMeters,
                                 (now - rec.DispatchedUtc).TotalSeconds);
             // R10 fan-out (opt-in): mark the unit's fan-out synthesized under THIS task uuid so the
             // later member completions and the straggler timer are swallowed by the tracker's own

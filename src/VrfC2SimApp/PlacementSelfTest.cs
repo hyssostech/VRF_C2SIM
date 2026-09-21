@@ -123,12 +123,70 @@ public static class PlacementSelfTest
             Check("no 10000 in ANY domain/altitude/terrain combination (5x4x3x3 = 180 rows)", !sawTenThousand);
         }
 
+        // ---- THE DE-STACK ORDERING CONTRACT (extended 2026-09-21 for the sibling pass) ----
+        // PLACEMENT MUST RUN AFTER EVERY DE-STACK PASS. A terrain height queried at a coordinate a
+        // unit has since been moved off is the WRONG POINT'S ANSWER, and in the R9 Mojave AOI that
+        // is not a rounding error: run D3's own PLACEMENT lines (d6_harvest_report.md sec 1.3)
+        // record 1260.1 m under 114.MechCoy's coordinate and 1370.2 / 1267.0 / 1317.3 m under the
+        // three 700 m ring slots its platoons were spread onto - up to 110.1 m of terrain between
+        // the anchor and a displaced child. Since the user ruling of 2026-09-21 there are TWO
+        // passes (independent, then composed siblings), so the query has to follow BOTH.
+        {
+            Console.WriteLine("  -- de-stack ordering: the terrain query belongs AFTER both passes --");
+            const double AnchorTerrain = 1260.1, RingTerrain = 1370.2;   // measured, run D3
+            Case("a spread child's create uses ITS OWN terrain height (1370.2 -> 1371.2), not the anchor's",
+                 PlacementPolicy.DomainLand, null, null, RingTerrain,
+                 createAlt: RingTerrain + Clearance, setAgl: 0.0, fromTerrain: true);
+            var atAnchor = Decide(PlacementPolicy.DomainLand, null, null, AnchorTerrain);
+            var atRing = Decide(PlacementPolicy.DomainLand, null, null, RingTerrain);
+            Check($"and the two differ by {Math.Abs(atRing.CreateAltMeters - atAnchor.CreateAltMeters):F1} m - " +
+                  "a child created at the anchor's height would be born that far off the surface, which " +
+                  "is why the placement query runs after the de-stack",
+                  Math.Abs((atRing.CreateAltMeters - atAnchor.CreateAltMeters) - (RingTerrain - AnchorTerrain)) < 1e-9
+                  && Math.Abs(RingTerrain - AnchorTerrain) > 100.0);
+
+            // DATA-LEVEL LOCK: the list the placement stage is handed is the SAME list both passes
+            // rewrote in place, so the coordinates it queries are the final ones. A snapshot taken
+            // before the sibling pass is the negative control - it is NOT what may be queried.
+            var plans = new List<CreationPlan>
+            {
+                Agg("coy", 34.647628996814, -116.693387536163),
+                Agg("plt1", 34.647628996814, -116.693387536163),
+                Agg("plt2", 34.647628996814, -116.693387536163),
+                Agg("plt3", 34.647628996814, -116.693387536163),
+            };
+            var hier = new List<(string, string)> { ("u0", ""), ("u1", "u0"), ("u2", "u0"), ("u3", "u0") };
+            var comp = CompositionPlan.Classify(plans, hier);
+            DeStacker.Apply(plans, 700.0, 0.0, comp.ComposedChildIndices);
+            var beforeSiblings = plans.ToList();                       // the negative control
+            var ech = new List<string> { "", EchelonSpacing.Platoon, EchelonSpacing.Platoon, EchelonSpacing.Platoon };
+            DeStacker.ApplyComposedSiblings(plans, comp.ComposedGroups, ech,
+                                            k => EchelonSpacing.SpacingFor(k, 0.0), 0.0, out _);
+            bool childrenMoved = Enumerable.Range(1, 3).All(i =>
+                plans[i].Pos.LatDeg != beforeSiblings[i].Pos.LatDeg
+                || plans[i].Pos.LonDeg != beforeSiblings[i].Pos.LonDeg);
+            Check("the plan list the placement query is given carries the SIBLING-SPREAD coordinates " +
+                  "(both passes rewrite it in place, and the query is issued after them)", childrenMoved);
+            Check("the parent's coordinate in that same list is unchanged, so ITS terrain query is the " +
+                  "one the previous runs made",
+                  plans[0].Pos.LatDeg == beforeSiblings[0].Pos.LatDeg
+                  && plans[0].Pos.LonDeg == beforeSiblings[0].Pos.LonDeg);
+        }
+
         Console.WriteLine(_fail == 0 ? "PlacementPolicy self-test PASSED" : $"PlacementPolicy self-test FAILED ({_fail})");
         return _fail == 0 ? 0 : 1;
     }
 
     private static PlacementPolicy.Decision Decide(int domain, double? agl, double? msl, double? terrain)
         => PlacementPolicy.Decide(domain, agl, msl, AirDefault, terrain, Clearance);
+
+    /// <summary>An AGGREGATE plan for the de-stack ordering block (only an aggregate can take
+    /// composed children - CompositionPlan.Classify).</summary>
+    private static CreationPlan Agg(string name, double lat, double lon)
+        => new(true, new VrfC2Sim.EntityTypeSpec { Kind = 11, Domain = 1, Country = 225, Category = 3,
+                                                   Subcategory = 2, Specific = 0, Extra = 0 },
+               VrfC2Sim.Force.Friendly, 90.0, name,
+               new VrfC2Sim.Geodetic { LatDeg = lat, LonDeg = lon, AltMeters = 0.0 }, null);
 
     private static void Case(string label, int domain, double? agl, double? msl, double? terrain,
                              double createAlt, double? setAgl, bool fromTerrain)

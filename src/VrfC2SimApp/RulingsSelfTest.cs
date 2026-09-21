@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using S = C2SIM.Schema102;
 
 namespace VrfC2SimApp;
@@ -40,6 +41,8 @@ public static class RulingsSelfTest
         TaskClockChecks(ref failures);
         Console.WriteLine("=== The STREND CHAIN: a gate is a GRAPH, and its predecessor has a lead time ===");
         ChainTopology(ref failures);
+        Console.WriteLine("=== C14 + STP-837 as amended by the user ruling of 2026-09-21 (the SHIPPED defaults) ===");
+        EchelonAndTraversalRulings(ref failures);
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
         return failures == 0 ? 0 : 1;
     }
@@ -2124,5 +2127,118 @@ public static class RulingsSelfTest
     {
         Console.WriteLine($"  [{(ok ? "PASS" : "FAIL")}] {label}");
         if (!ok) failures++;
+    }
+
+    // ------------------------------------------------- C14 / STP-837, 2026-09-21 ----
+    /// <summary>
+    /// THE TWO RULINGS THIS BUILD CHANGES, CHECKED WHERE THE OTHER SELF-TESTS DO NOT LOOK: at the
+    /// SHIPPED DEFAULTS. --destack-selftest and --arrival-selftest prove the rules; this proves
+    /// that a run started with no configuration at all, and a run started from the shipped json,
+    /// get the rules the user ruled on - and that each has the comparability switch the RUNBOOK
+    /// names, because the D1-D6 series has to remain reproducible.
+    ///
+    ///   C14 (2026-09-07, amended 2026-09-21 option C): co-located units are spread at init;
+    ///     INDEPENDENT ones at the ruled 700 m, COMPOSED SIBLINGS at their own echelon's scale
+    ///     around a parent that does not move.
+    ///   STP-837 (2026-09-15, amended 2026-09-21 option A): arrival needs traversal, and the
+    ///     traversal each member owes is its own share of its own approach.
+    /// </summary>
+    private static void EchelonAndTraversalRulings(ref int failures)
+    {
+        var d = new VrfSettings();
+        Check(ref failures, d.DeStackComposedSiblings,
+              "Vrf:DeStackComposedSiblings initialises to TRUE - a run with no configuration file " +
+              "spreads composed siblings (user ruling 2026-09-21, option C)");
+        Check(ref failures, d.DeStackEchelonFallbackMeters == 0.0,
+              "Vrf:DeStackEchelonFallbackMeters initialises to 0 - a group whose echelon the table " +
+              "cannot size is NOT spread at a number nobody derived; the documented fallback is to " +
+              "leave it with its parent");
+        Check(ref failures, d.DeStackEchelonSpacingMeters.Length == 0,
+              "Vrf:DeStackEchelonSpacingMeters is empty by default - the shipped table is the " +
+              "MEASURED one, and an override has to be asked for");
+        Check(ref failures, d.DeStackSpacingMeters == 50.0 && d.ArrivalRadiusMeters == 500.0
+                         && d.ArrivalMemberFraction == 0.5 && d.ArrivalMinTravelMeters == 100.0,
+              "nothing else moved: DeStackSpacingMeters, ArrivalRadiusMeters, ArrivalMemberFraction " +
+              "and ArrivalMinTravelMeters keep the values they had before this change");
+        Check(ref failures, d.ArrivalApproachFraction == 0.5,
+              "Vrf:ArrivalApproachFraction initialises to 0.5 - the per-member traversal bar is ON " +
+              "by default (user ruling 2026-09-21, option A)");
+
+        // The INDEPENDENT lane still spreads at the RULED 700 m, and the echelon table never
+        // reaches it: the table covers platoon and below, the ruling covers company and above.
+        Check(ref failures, EchelonSpacing.SpacingFor("", 700.0) == 700.0
+                         && !EchelonSpacing.TableMeters.ContainsKey("COMPANY"),
+              "the echelon table does not cover company and above, so the independent lane keeps " +
+              "the 700 m the user ruled on 2026-09-07 - this lane re-sizes only what had no " +
+              "spacing at all");
+
+        // THE COMPARABILITY SWITCHES, through the real configuration stack (both json files as the
+        // Host layers them, then the environment), because that is how a run turns them off.
+        string repo = FindRulingsRepoRoot();
+        string appSettings = repo == null ? null : Path.Combine(repo, "src", "VrfC2SimApp", "appsettings.json");
+        string demoSettings = repo == null ? null : Path.Combine(repo, "src", "VrfC2SimApp", "appsettings.Demo.json");
+        Check(ref failures, appSettings != null && File.Exists(appSettings) && File.Exists(demoSettings),
+              $"both shipped settings files are on disk ({appSettings})");
+        if (appSettings == null || !File.Exists(appSettings) || !File.Exists(demoSettings)) return;
+
+        var shipped = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
+                          .AddJsonFile(appSettings, optional: false)
+                          .Build().GetSection("Vrf").Get<VrfSettings>() ?? new VrfSettings();
+        Check(ref failures, shipped.DeStackCreates && shipped.DeStackSpacingMeters == 700.0
+                         && shipped.DeStackComposedSiblings && shipped.ArrivalApproachFraction == 0.5,
+              "appsettings.json SAYS it: de-stack on at 700 m for independent units, composed " +
+              "siblings on, approach fraction 0.5 - the defaults are written down, not only compiled in");
+        var demo = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
+                       .AddJsonFile(appSettings, optional: false)
+                       .AddJsonFile(demoSettings, optional: false)
+                       .Build().GetSection("Vrf").Get<VrfSettings>() ?? new VrfSettings();
+        Check(ref failures, demo.DeStackComposedSiblings && demo.ArrivalApproachFraction == 0.5,
+              "the DEMO overlay keeps both - the audience's run and the runner's run behave alike");
+
+        var off = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
+                      .AddJsonFile(appSettings, optional: false)
+                      .AddInMemoryCollection(new Dictionary<string, string>
+                      {
+                          ["Vrf:DeStackComposedSiblings"] = "false",
+                          ["Vrf:ArrivalApproachFraction"] = "0",
+                      }).Build().GetSection("Vrf").Get<VrfSettings>();
+        Check(ref failures, off != null && !off.DeStackComposedSiblings && off.ArrivalApproachFraction == 0.0,
+              "and BOTH turn off by key - Vrf:DeStackComposedSiblings=false + " +
+              "Vrf:ArrivalApproachFraction=0 is the configuration that reproduces a D1-D6 run " +
+              "(RUNBOOK 11e comparability warning)");
+
+        const string EnvKey = "Vrf__DeStackComposedSiblings";
+        string saved = Environment.GetEnvironmentVariable(EnvKey);
+        try
+        {
+            Environment.SetEnvironmentVariable(EnvKey, "false");
+            var offByEnv = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
+                               .AddJsonFile(appSettings, optional: false)
+                               .AddJsonFile(demoSettings, optional: false)
+                               .AddEnvironmentVariables()
+                               .Build().GetSection("Vrf").Get<VrfSettings>();
+            Check(ref failures, offByEnv != null && !offByEnv.DeStackComposedSiblings,
+                  $"{EnvKey}=false turns it off over BOTH json files - the runner's escape hatch");
+            Environment.SetEnvironmentVariable(EnvKey, "true");
+            var onByEnv = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
+                              .AddJsonFile(appSettings, optional: false)
+                              .AddEnvironmentVariables()
+                              .Build().GetSection("Vrf").Get<VrfSettings>();
+            Check(ref failures, onByEnv != null && onByEnv.DeStackComposedSiblings,
+                  $"{EnvKey}=true leaves it on (proof the key is read at all, not passing by being ignored)");
+        }
+        finally { Environment.SetEnvironmentVariable(EnvKey, saved); }
+    }
+
+    /// <summary>Walk up from the executable until data/COA-STP1_Order.xml appears.</summary>
+    private static string FindRulingsRepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "data", "COA-STP1_Order.xml"))) return dir.FullName;
+            dir = dir.Parent;
+        }
+        return null;
     }
 }
