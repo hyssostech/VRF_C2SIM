@@ -1278,6 +1278,57 @@ if ($holdOn -notmatch 'DRY RUN - the full planned sequence') {
 Check '8m runner source: Stage 3 literally appends -FederationHoldSecs 0 to launchArgs' (
     $runnerText -match [regex]::Escape("`$launchArgs += @('-FederationHoldSecs', '0')"))
 
+# 8m2. STP-825 D8, 2026-09-21 (run 20260921T045700Z): all four Stage 2h holders JOINED (every
+# pid has a join line in the rtiexec log, all four processes stayed alive) but the runner
+# reported "did not join within 45s" four times and refused the launch. Cause: some MAK
+# rtiexec 5.0.1 instances write this log through an UNSERIALISED sink that DOUBLES and
+# INTERLEAVES text token-by-token WITHIN a line, so the exact quoted phrase the old detector
+# required never appears contiguously. Test-HolderJoinedInLog/Get-HolderPidLogLines
+# (RunnerLib.ps1, reused verbatim - not dot-sourced, see LaunchVrf52.ps1's comment - in
+# LaunchVrf52.ps1) are the pure functions both scripts now share/duplicate for this.
+# $garbledJoin87404 and $garbledJoin74612 are copied VERBATIM out of the real sink: runs\
+# launch52\rtiexec_20260921T032248Z5.0.1-20260920-232249-Legatus-281993-47636.log, lines
+# 10685 (holder pid 87404) and 4051 (holder pid 74612) - both joins to federation MAK-ONE-2025.
+Write-Host '=== 8m2. STP-825 holder join detection survives the garbled rtiexec log sink (Test-HolderJoinedInLog / Get-HolderPidLogLines) ==='
+$cleanJoinLine    = 'Federate remoteControl 87404 ("remoteControl" 3) has joined federation "MAK-ONE-2025".'
+$garbledJoin87404 = 'Federate Federate remoteControl 87404 ("remoteControl" 3)remoteControl 87404 ("remoteControl" 3) has joined federation " has joined federation "MAK-ONE-2025MAK-ONE-2025".'
+$garbledJoin74612 = 'Federate Federate remoteControl 74612 ("remoteControl" 2)remoteControl 74612 ("remoteControl" 2) has joined federation " has joined federation "MAK-ONE-2025MAK-ONE-2025".'
+$garbledTruncated = 'Federate Federate remoteControl 87404 ("remoteControl" 3)remoteControl 87404 ("remoteControl" 3) has joined federation " has joined federation "MAK-ONE-2025MAK-'
+$resignedLine     = 'Federate remoteControl 87404 ("remoteControl" 3) has resigned from federation "MAK-ONE-2025".'
+
+Check '8m2 the clean vendor line matches (pid 87404, MAK-ONE-2025)' (
+    Test-HolderJoinedInLog -LogDelta $cleanJoinLine -ProcessId 87404 -FederationName 'MAK-ONE-2025')
+Check '8m2 the verbatim garbled line (rtiexec log line 10685) matches for pid 87404 / MAK-ONE-2025' (
+    Test-HolderJoinedInLog -LogDelta $garbledJoin87404 -ProcessId 87404 -FederationName 'MAK-ONE-2025')
+Check '8m2 a truncated mid-doubling repeat ("...MAK-ONE-2025MAK-", no closing quote) still matches' (
+    Test-HolderJoinedInLog -LogDelta $garbledTruncated -ProcessId 87404 -FederationName 'MAK-ONE-2025')
+Check '8m2 pid 8740 (a whole-number PREFIX of 87404) does NOT match the garbled 87404 line' (
+    -not (Test-HolderJoinedInLog -LogDelta $garbledJoin87404 -ProcessId 8740 -FederationName 'MAK-ONE-2025'))
+Check '8m2 a different federation name (STP825AB) does NOT match the garbled 87404/MAK-ONE-2025 line' (
+    -not (Test-HolderJoinedInLog -LogDelta $garbledJoin87404 -ProcessId 87404 -FederationName 'STP825AB'))
+Check '8m2 a garbled line for a DIFFERENT pid (rtiexec log line 4051, pid 74612) does not match a query for 87404' (
+    -not (Test-HolderJoinedInLog -LogDelta $garbledJoin74612 -ProcessId 87404 -FederationName 'MAK-ONE-2025'))
+Check '8m2 a "has resigned" line does not match (the join phrase is required, not just pid+federation)' (
+    -not (Test-HolderJoinedInLog -LogDelta $resignedLine -ProcessId 87404 -FederationName 'MAK-ONE-2025'))
+Check '8m2 a null log delta returns false without throwing under Set-StrictMode -Version Latest' (
+    -not (Test-HolderJoinedInLog -LogDelta $null -ProcessId 87404 -FederationName 'MAK-ONE-2025'))
+Check '8m2 an empty-string log delta returns false without throwing' (
+    -not (Test-HolderJoinedInLog -LogDelta '' -ProcessId 87404 -FederationName 'MAK-ONE-2025'))
+
+# Get-HolderPidLogLines: the operator-visible half of the fallback (a still-alive holder whose
+# join the strict matcher could not confirm). The function body returns @() (never $null) when
+# nothing matched, but PowerShell unrolls a zero-element array on the return pipeline, so a
+# BARE '$r = Get-HolderPidLogLines ...' assignment still lands $null when the count is 0 - the
+# same pipeline behaviour Get-OtherRunnerProcessInfo's own note (above) is about. The @(...)
+# call-site convention used throughout this file exists for exactly this: wrap every call and
+# .Count never throws under Set-StrictMode -Version Latest, whatever the function found.
+Check '8m2 Get-HolderPidLogLines finds the garbled line for its own pid' (
+    (@(Get-HolderPidLogLines -LogDelta $garbledJoin87404 -ProcessId 87404)).Count -eq 1)
+Check '8m2 Get-HolderPidLogLines (wrapped in @()) is an empty array for a pid absent from the delta' (
+    (@(Get-HolderPidLogLines -LogDelta $garbledJoin87404 -ProcessId 99999)).Count -eq 0)
+Check '8m2 Get-HolderPidLogLines (wrapped in @()) against a null log delta is an empty array, no throw' (
+    (@(Get-HolderPidLogLines -LogDelta $null -ProcessId 87404)).Count -eq 0)
+
 # 9. Get-VrfUuidByName must parse BOTH app-log route-line forms. The app started
 # logging the route's own uuid on 2026-09-02 with the route-uuid fix ("Route '<r>'
 # (VRF_UUID:<route>) created; ..."); every run in the record before that logs the
