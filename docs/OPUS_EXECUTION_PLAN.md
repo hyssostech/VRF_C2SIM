@@ -3321,7 +3321,8 @@ NOTE: numbers this runner allocates but does not consume (e.g. an abort before t
 join) are BURNED, not recycled. The run manifest records which were actually used.
 
 - 2026-09-21 D5c WAY B CONFIRMING RUN (docs/experiments/PREREG_D5_WAYB_2026-09-21.md sec 14, binary 4f1f149): 5064 = tools/WatchVrf, the one ledgered federate of the run (started with the runner's RTI environment this time); every other federate sits in the 9101-9199 demo block. D5C-CLAIMED.
-*** NEXT FREE: 5065 *** (authoritative - the ONLY such marker in this file. Update this
+- 2026-09-21 PERSISTENT HOLDER RE-ARM (STP-825 demo posture, RUNBOOK 9c): scripts/StartFederationHolder52.ps1 -AppNumbers 5065..5068 -SettleSecs 28800, started ~11:10Z WHILE the previous holder (RtiProbe pid 74612) is still joined, so this one JOINS an existing federation and no create is exercised; one attempt per number until one joins; numbers not reached are BURNED, never reused. For D10 / the Way B re-check / the Iron Storm drive. REARM-CLAIMED.
+*** NEXT FREE: 5069 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
