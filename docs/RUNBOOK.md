@@ -3329,6 +3329,108 @@ simulator - or, if the unit was not yet bound, times out naming a transient stat
 TASKABRT therefore says so in words and tells the reader to check the back end before reading it
 as a data problem.
 
+### 11h. PLACEMENT ON A STREAMING TERRAIN - THE RE-CLAMP AND THE DISPATCH GROUND GATE (2026-09-21)
+
+`Vrf:PlacementReclamp` (true), `Vrf:PlacementReclampSeconds` (60, WALL),
+`Vrf:PlacementReclampRetrySeconds` (5), `Vrf:PlacementReclampToleranceMeters` (**50 - N, the gap at
+which a unit is not tasked**).
+
+**WHAT IT FIXES.** Run `20260921T114910Z_run`, Iron Storm cut A, MAK Earth streaming a cold Suwalki
+AO. The init's one terrain-profile query for all 36 create points went unanswered
+(`app:225` sent, `app:309` `got no reply within 10 s`), so every object took `PlacementPolicy`'s
+FALLBACK arm and `app:383` said so: **`PLACEMENT summary: 0 of 36 create altitude(s) came from the
+TERRAIN QUERY, 36 from the FALLBACK`**. Neither of the two things that place an object could place
+it, because **both resolve against the same terrain the back end had not paged in** - the create
+clamp needs a polygon (`ifCreateVrfObject.h:210-212`) and the post-create
+`setAltitude(0, aboveGroundLevel=TRUE)` needs a ground height (`vrfRemoteController.h:1372-1374`),
+sent from the ObjectCreated callback and therefore inside the same cold window; the back end returns
+terrain height 0.0 when it finds no intersection (`terrainDatabase.h:398-399`). At dispatch the app
+**measured the consequence itself** - `app:1135` *"taskee altitude not terrain-clamped: live -0.0 m
+vs terrain 145.4 m under vertex 0 (gap 145 m) - authoring from terrain anyway"*, `app:1939` the same
+at 155.8 m - **and tasked both platforms anyway.**
+
+> *** THIS IS NOT A FREEZE FIX AND MUST NOT BE WRITTEN UP AS ONE. *** `docs/VRF_ALTITUDE_FRAMES.md`
+> sec 5: **birth altitude is NOT the freeze discriminator**, and sec 7 makes "buried" near
+> "never moves" a tripwire. The two justifications here are independent of that question: the
+> PLACEMENT CONTRACT (UG52 14.3.3 - ground entities are placed on the ground) and the duty not to
+> task a unit the interface has itself measured off the ground.
+
+**WHY THE CREATES ARE NOT DELAYED, AND WHY `Vrf:TerrainProfileTimeoutSeconds` WAS NOT RAISED.** Two
+reasons, both structural. (1) MAK's own sample says creating is what makes a paging terrain page -
+*"creating [entities] before the sim starts will insure that when using a paging terrain, the
+necessary pages will immediately get paged in"* (`simpleCGF/main.cxx:120-133`) - and in that run the
+first terrain answer went to an INIT-PATH query on the **same** code path, same frame check
+(`Init (ORDER MATERIALIZATION)`, `app:756`; reply `app:784`) **~32 s later and AFTER all 36 creates
+had bound**. A wait placed before the creates may be waiting on what only creating can produce.
+(2) The STP-852/B1 barrier cap is `30 - Vrf:TerrainProfileTimeoutSeconds` (sec 11g): raising that
+setting to 30 drives the cap to its **1 s floor**, the barrier expires instantly, the drain fires
+while the init's own creates are outstanding, and the D5b overlap comes back. **So the re-clamp runs
+on its own budget, after the creates, and changes no input to the barrier - which is still 20 s at
+the shipped 15/10.**
+
+**WHAT IT DOES.**
+1. `FinalizePlacement` enrols every **LAND** object it placed on the FALLBACK (air/surface/
+   subsurface are excluded - the vendor rule for them is not "at the terrain").
+2. A tick sweep re-asks the terrain for those points, no faster than
+   `Vrf:PlacementReclampRetrySeconds`, one query in flight, for up to `Vrf:PlacementReclampSeconds`.
+3. On an answer it reads the object's live altitude and compares. Further than the tolerance ->
+   **one** `setAltitude(0 m above ground level)` - the call the bridge already exposes
+   (`VrfBridge.cpp:426` -> `VrfFacade.cpp:739`, `aboveGroundLevel=TRUE`), **no new native API** -
+   and then **the altitude is READ BACK**. A correction that was issued is never recorded as a
+   correction that worked: `VRF_ALTITUDE_FRAMES.md` sec 1b had the one prior "VERIFIED END TO END"
+   on this call **withdrawn** for exactly that reason.
+4. **THE DISPATCH GROUND GATE.** The route's own terrain reply carries the height under vertex 0 and
+   the taskee's live altitude - the measurement above. A gap over the tolerance now issues the
+   correction and **HOLDS** the task as `BOUND-BUT-NOT-ON-THE-GROUND`, a sixth `TaskeeReadiness`
+   state that is TRANSIENT, so the sec 11g hold machinery owns the wait and the existing timeout
+   TASKABRT names the state. Each task is deferred here **at most once**: a correction that does not
+   take costs one extra terrain round trip and then a TASKABRT naming the measurement, never a loop.
+
+**PERMISSIVE WHEN IT KNOWS NOTHING.** Only a MEASUREMENT holds a task. No reply, no usable sample
+for vertex 0, or the feature off, and every task dispatches exactly as it does today - so this can
+never wedge a run whose terrain query is simply never answered.
+
+**COST ON A HEALTHY RUN: NONE.** It arms only when a LAND object was placed on the fallback. On the
+D10/R9 shape (`PLACEMENT summary: N of N ... from the TERRAIN QUERY`, `READY TO TASK` in 0.8 s,
+dispatch deferral 2.1-2.4 s) the enrolment list is empty, the tick phase is skipped by its own
+guard, and **no query, no native read and no line is added**. The one universal change is that the
+`PLACEMENT` lines and the `PLACEMENT summary` line now carry a **WALL stamp**, so a harvest can line
+placement up against when the terrain became sampleable.
+
+**THE LINES TO LOOK FOR:**
+
+    PLACEMENT RE-CLAMP: N of M object(s) were created at the FALLBACK altitude ...   (it armed)
+    PLACEMENT RE-CLAMP <unit>: MEASURED OFF THE TERRAIN - live ... Issuing setAltitude(0 m ...
+    PLACEMENT RE-CLAMP <unit>: RE-CLAMPED AND VERIFIED - live altitude read back at ...
+    PLACEMENT RE-CLAMP <unit>: STILL OFF THE TERRAIN AFTER A CORRECTION - ...
+    PLACEMENT RE-CLAMP summary: A ON the terrain, B RE-CLAMPED AND VERIFIED, C STILL OFF, D NEVER MEASURED
+    PLACEMENT RE-CLAMP: task '<T>' is NOT DISPATCHED YET - ... HELD as [BOUND-BUT-NOT-ON-THE-GROUND]
+    REFUSED [BOUND-BUT-NOT-ON-THE-GROUND]: task '<T>' is not dispatched because unit <U> is STILL ...
+
+**THE DEMO-DAY MITIGATION THAT COSTS NOTHING:** pre-warm the AO - load the scenario and let MAK
+Earth stream before the init is pushed - and gate the push on `PLACEMENT summary: N of N ... from
+the TERRAIN QUERY`. Then the re-clamp never arms and none of the above appears.
+
+**OFFLINE PROOF, no bridge and no network:** `VrfC2SimApp --placement-reclamp-selftest` (28 checks -
+the Iron Storm replay, the gate held-then-tasked, the gate when the correction does not take, the
+healthy init unchanged, the unmeasured-is-never-held invariant, the B1 inequality, the state names
+and the tripwire on the sentences) and `--placement-reclamp-selftest --disabled`, which runs the
+SAME assertions at `Vrf:PlacementReclamp = false` - the 33f1894 build - and **FAILS 12 of them**.
+
+**WHAT IS NOT CHANGED HERE, DELIBERATELY.** (a) `READY TO TASK` at Iron Storm scale. `app:387` read
+`NOT REACHED within 20 s: only 0 of 36 init unit(s) are bound` because the barrier's 20 s clock
+starts when the init is PLANNED while the creates are not ISSUED until the terrain query resolves -
+so the init terrain leg spent 10 of the 20 s and 36 create round trips had the rest. The clean
+repair is to split the barrier's two jobs (the DRAIN, which B1's inequality bounds and which must
+stay at `T_init + 20 s`, and the READY TO TASK OBSERVATION, which holds nothing up and could watch
+to the configured 60 s), and it belongs in the STP-852 lane, not here. (b) **The suppressed stall.**
+In that run both C16 TASKABRTs were suppressed because TIMED COMPLETION had already pushed TASKCMPLT
+(`app:35521`, `app:38591`) - which is the **ruled** behaviour (DEMO_READINESS row 19: *"a TASKCMPLT
+does suppress any later TASKABRT for that task"*, user 2026-09-14) meeting R4 (*"completion is given
+by the end time"*). Changing either needs a USER RULING, not a fix. What this section does remove is
+the CAUSE of that instance: a unit measured 145 m off the terrain is no longer tasked, so no armed
+end is ever set for it.
+
 ## 12. THE ROUTE PRE-FLIGHT (OFF) AND ITS LATERAL SHIFT (ON BY DEFAULT) (STP-804/806)
 
 Design: `docs/experiments/DESIGN_ROUTE_SHIFT_2026-09-15.md`. Evidence: FINDING_EARLY_STOPS

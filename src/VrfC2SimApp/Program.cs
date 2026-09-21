@@ -67,6 +67,15 @@ if (args.Length > 0 && args[0] == "--terrain-selftest")
 if (args.Length > 0 && args[0] == "--placement-selftest")
     return PlacementSelfTest.Run();
 
+// Offline placement RE-CLAMP check (2026-09-21, run 20260921T114910Z): an object created on the
+// FALLBACK altitude because the streaming terrain had not paged in is re-measured, corrected with
+// the documented setAltitude(0 m AGL) and CONFIRMED BY A READ-BACK, and a taskee the app has
+// measured off the terrain is held [BOUND-BUT-NOT-ON-THE-GROUND] rather than tasked. `--disabled`
+// runs the same assertions with Vrf:PlacementReclamp = false and MUST fail them - that arm is the
+// 33f1894 behaviour the run hit. No bridge, no network.
+if (args.Length > 0 && args[0] == "--placement-reclamp-selftest")
+    return PlacementReclampSelfTest.Run(featureEnabled: !args.Contains("--disabled"));
+
 // Offline compose-order check: declared <Subordinate> order -> attach order (leader = first) (no bridge).
 if (args.Length > 0 && args[0] == "--compose-selftest")
     return ComposeOrderSelfTest.Run();
@@ -165,6 +174,7 @@ if (args.Length > 0 && args[0].StartsWith("--") && args[0] != "--runtime-check" 
                             "--routeextent/--routeorigin-selftest, " +
                             "--liveness-selftest [--disabled], " +
                             "--dispatch-readiness-selftest [--disabled], " +
+                            "--placement-reclamp-selftest [--disabled], " +
                             "--scripted-task/--initgraphics/--stpexport-selftest, " +
                             "--parse-init <file> [clientId], " +
                             "--parse-order <file>, --runtime-check, host switches --Key=Value; " +
