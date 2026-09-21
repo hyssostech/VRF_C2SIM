@@ -517,3 +517,46 @@ produced NO libxml2 diagnostic at all after 36/36 prior refusals did - until tha
 size, and sec 9.1 is the first attempt to size it; (ii) which create is hit and which module, still
 unexplained, with a byte-identical sender stream every time; (iii) the ~9.4 MB retained per create,
 identical at both levels, still unaccounted for.
+
+---------------------------------------------------------------------------------------------------
+## RESULT (session 2026-09-21 02:11:21Z-03:22:54Z, unattended; adjudicated by the independent Opus reader who adjudicated the pilot)
+
+Execution: third launch after A1/A2; 16 fresh rtiexec instances, 192 creates, appNos 4802-4993; all block-end checks ran and passed; session stderr empty; all 17 rtiexec command lines verified at OS level against the frozen order (8/8, max run 2); eight level-0 logs exist at exactly 0 bytes, 0 arrival lines across 96 creates; load control 9.6% vs treatment 10.6% CPU (1.0 pp gap), 0 vs 0 dirty instances; machine left at -n 3 on rtiexec 47636, persistent holder re-armed 03:23:38Z pid 74612 appNo 5017.
+
+    block cond FAIL shape(T/C/S) arrivals
+    B01   N3    0    -              24
+    B02   N0    0    -               0
+    B03   N3    2    0/0/2          12
+    B04   N0    0    -               0
+    B05   N0    0    -               0
+    B06   N3    0    -              12
+    B07   N0    0    -               0
+    B08   N3    2    2/0/0          14
+    B09   N0    0    -               0
+    B10   N3    4    0/0/4          12
+    B11   N0    0    -               0
+    B12   N3    0    -              12
+    B13   N0    0    -               0
+    B14   N3    0    -              12
+    B15   N3    6    0/0/6          12
+    B16   N0    0    -               0
+
+Control 14/96 in FOUR of eight instances (2, 2, 4, 6) vs treatment 0/96 in 0 of 8. PRIMARY p_lo = p_min = 495/12870 = 0.0384615. SECONDARY create-level Fisher 3.66e-05 - an INDEPENDENCE ARTEFACT, never to be quoted alone. Cluster-aware: design effect 3.39, ICC 0.218, corrected p 0.0558 - the honest answer is ~0.04-0.06.
+
+REGISTERED VERDICT = VOID-INSTRUMENT, correct by the prereg's own words. Sec 8.1, quoted: "G3 elif any row is OTHER or DURATION-OUT-OF-BAND -> VOID-INSTRUMENT." Sec 4, quoted: "The only positive evidence that a treatment create actually distributed 58 modules and exercised the FOM Reader is its wall duration ... any create whose wall duration falls outside 9.0-18.0 s is flagged DURATION-OUT-OF-BAND and counted at sec 8.1 G3." This is a DEFECT OF THE PREREG, not a script divergence: the duration band was written knowing level-3 failures run ~6 s, so it flags every refusal (the 14 OUT-OF-BAND rows are exactly the 14 FAIL rows, 4.75-8.01 s; all 178 successes are in band).
+
+With the band scoped to its stated purpose (non-FAIL creates only) the function returns INDETERMINATE-BY-DESIGN (p_min 0.0385 >= alpha 0.005); sec 8.4, quoted: "VOID-*, CONFOUNDED-BY-LOAD, INDETERMINATE-BY-DESIGN: nothing is read from the run about H-LOGSILENCE. Fix the cause and re-register" - both verdicts fall in that class; nothing is loosened, no alpha moved.
+
+The adjudicator's own admission: the 16-instance design it recommended was UNDER-POWERED - it quoted the attainable floor 7.8e-05 as if it were power, but under the measured instance mixture power was 0.468 at q = 2/3 and 0.145 at the realised q = 0.5; 80% power needs 12 per arm at q = 2/3 or 18 per arm at q = 0.5.
+
+Evidence that level-0 creates really parsed: rtiexec grew 9.42 MB/create at level 0 vs 9.48 MB/create at level 3 (an "already exists" short-circuit cannot retain that); durations 12.73 s vs 12.34 s (level 0 is 0.39 s SLOWER, no speed-up); fresh instance + sole-federate destroy on resign.
+
+B01 explained: double log volume (118,286 lines = 2 x 59,143), 24 create lines for 12 unique handles, an interleaved RID dump ("notifyLevelnotifyLevel: : 33") - rtiexec's log sink is UNSERIALISED; B01 had double the log and ZERO refusals.
+
+SILENT SHAPE: 12 of 14 refusals SILENT (no libxml2 diagnostic), 2 TAIL-ONLY (both file-verified: NETN-Physical.xml 1169 lines -> error at 1170, NETN-MRM.xml 861 -> 862, echoed content = rtiexec's own log text); combined recent refusals 4 of 19 tail-only = 79% SILENT, after 36/36 earlier refusals had a diagnostic; two readings the artefacts cannot separate (a different corruption, or the diagnostic LOST in the same unserialised sink - in which case the 36/36 census is a census of what printed); refusals CLUMP within an instance (Stouffer z = -3.246, p 5.85e-04) but are EPISODIC not monotone; a new crash code appeared once, 0xC0000374 heap corruption.
+
+Threats checked: no time trend (Spearman position/failures +0.126 all 16 blocks); B16 (level 0, 12/12 clean) started 3.9 min after the 6-failure B15 - the strongest single datum; Spearman(block CPU, failures) = -0.600, the wrong way for a load story.
+
+Post hoc pooling, labelled as such: creates 19/126 vs 0/126; instances 6/10 dirty vs 0/10, p 0.005418 - still above alpha, and the prereg forbids pooling as a test.
+
+RECOMMENDATIONS recorded as options, not decisions: keep -n 3 + the persistent holder (the demo JOINS; joins have never failed); -n 0 is NOT a proven remedy; stop the rate question (closing it needs ~14 instances per arm, ~2 h 20 min, and would explain no mechanism); the ONE suggested next experiment is this prereg's own sec 9 federation-name-length probe at -n 3 (60 creates, no restart), with one amendment to register first (an assignment-free extension of a further 60 creates if fewer than 6 classifiable refusals appear); future preregs in this family must carry a power calculation under the measured instance mixture, not the attainable floor.

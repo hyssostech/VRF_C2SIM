@@ -2368,6 +2368,9 @@ rejection are rtiexec's OWN LOG TEXT ("DtFedExec: Fed File arrived at FedEx." / 
 line), 32 of 32 across this run and the re-read 2026-09-15 census - the "byte-perfect / not a
 mid-document corruption" framing two paragraphs above is right about POSITION but the earlier
 "NUL / u32 length-prefix" reading of WHAT the extra bytes are is explicitly RETRACTED.
+**2026-09-21 CORRECTION (NOTIFY2 RESULT):** "rtiexec's own log text" is true of the TAIL-ONLY
+shape only, which is now 4 of the 19 most recent refusals (79% are SILENT, no diagnostic at
+all) - see the NOTIFY2 RESULT below; the 32/32 census above was a census of what printed.
 Surviving hypothesis: H-FDD-UNTERMINATED (the FDD buffer is not terminated at its accumulated
 length and aliases rtiexec's own log-formatting memory); create #61 shows rtiexec log strings
 written INSIDE the XML with length-preserving substitutions, with libxml2's own semantic
@@ -2418,6 +2421,14 @@ instances ran 30+ creates with zero failures at level 3, unmanipulated):
 | 75168 (2026-09-15..20) | 97 | 33 | 0.340 |
 | 56088 (B1, 2026-09-20) | 15 | 3 | 0.200 |
 | 51560 (B4, 2026-09-20) | 15 | 2 | 0.133 |
+| 58128 (B01, NOTIFY2 2026-09-21) | 12 | 0 | 0.000 |
+| 58464 (B03, NOTIFY2 2026-09-21) | 12 | 2 | 0.167 |
+| 10244 (B06, NOTIFY2 2026-09-21) | 12 | 0 | 0.000 |
+| 88264 (B08, NOTIFY2 2026-09-21) | 12 | 2 | 0.167 |
+| 90848 (B10, NOTIFY2 2026-09-21) | 12 | 4 | 0.333 |
+| 83140 (B12, NOTIFY2 2026-09-21) | 12 | 0 | 0.000 |
+| 44296 (B14, NOTIFY2 2026-09-21) | 12 | 0 | 0.000 |
+| 85160 (B15, NOTIFY2 2026-09-21) | 12 | 6 | 0.500 |
 
 The vendor `rti` command-line tool is UNUSABLE with the RTI Assistant disabled (`rti list`
 answers "RTI commands are not available when the RTI Assistant is disabled") - the only
@@ -2435,9 +2446,33 @@ estimate stands, and this confirms the leak is not log-buffer memory). Restartin
 clears it; today's restart brought the working instance down from 957 MB private to a fresh
 process.
 
-NOTIFY2 REGISTERED 2026-09-20 (docs/experiments/PREREG_STP825_NOTIFY2_2026-09-20.md): 16 fresh instances in a frozen pair-blocked order, 12 creates each, exact permutation test
-over instance-level counts, alpha 0.005; verdict function exhaustive by construction; unattended orchestrator scratch validation\stp825_notify2_orchestrator.ps1 launched
-detached via stp825_notify2_launch.ps1; ~70 min, no holder during the session.
+NOTIFY2 RUN 2026-09-21, RESULT ADJUDICATED (docs/experiments/PREREG_STP825_NOTIFY2_2026-09-20.md
+RESULT block): 16 fresh instances in a frozen pair-blocked order, 12 creates each, exact
+permutation test over instance-level counts, alpha 0.005; control 14/96 in 4 of 8 instances vs
+treatment 0/96 in 0 of 8, p_min 0.0384615, cluster-corrected create-level p 0.0558. **REGISTERED
+VERDICT: VOID-INSTRUMENT** (the prereg's own duration-band gate flags every refusal - a prereg
+defect, not a script divergence); with the band corrected to its stated scope the function
+returns INDETERMINATE-BY-DESIGN - either way nothing is read about H-LOGSILENCE, and no alpha is
+moved. **POSTURE UNCHANGED: -NotifyLevel 3 stays, with the persistent holder in front of it; -n 0
+is NOT adopted (not a proven remedy) and the rate question is CLOSED for engineering purposes -
+the holder removes the exposure regardless of the rate's true value.**
+SILENT shape (new, majority): 12 of 14 NOTIFY2 refusals carried NO libxml2 diagnostic at all
+(only 2 were the familiar TAIL-ONLY shape) - combined with the pilot, 15 of 19 recent refusals
+(79%) are now SILENT, up from 0/36 historically. Unserialised log-sink evidence: instance B01
+duplicated its ENTIRE rtiexec log (118,286 lines = exactly 2 x 59,143, every notification line
+twice, `has joined`/`has resigned` not doubled, a character-interleaved RID dump) while producing
+ZERO refusals - direct proof the log sink is written by more than one thread without
+serialisation, which is why the SILENT shape cannot yet be told apart from "TAIL-ONLY with its
+diagnostic lost in the same sink." New crash code: 0xC0000374 (STATUS_HEAP_CORRUPTION), once,
+distinct from the familiar 0xC0000005 - an STP-832 note.
+MAK support package MAY claim (adjudication sec 6.ii): the instance-level rate table with BOTH
+p-values and their assumptions; the tail-only signature with file-verified line-count arithmetic;
+the SILENT shape as a headline finding, asked as an open question to MAK; the B01
+duplicated-emission log as evidence of an unserialised sink; the instance-heterogeneity table;
+the ~9.4 MB/create memory retention. MAK support package MAY NOT claim: that -n 0 is a proven
+remedy; that "corrupting content is rtiexec's own log text" describes anything beyond the 4
+TAIL-ONLY refusals; any single stable refusal rate (0/45 to 33/97 on an identical config); or
+anything about the sim-as-creator posture, never exercised.
 
 ## 10. THE C16 PROGRESS WATCHDOG IS OFF BY DEFAULT - HOW TO TURN IT ON FOR THE VALIDATION RUN
 
