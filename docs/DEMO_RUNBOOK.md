@@ -94,8 +94,11 @@ WHICH SCENARIO AND WHICH DATA
 
 **If the demo uses an area this machine has not run before - a new AO, a new fixture, MAK Earth
 streaming anywhere new - you must warm the terrain BEFORE the demo initialization. This is not an
-optimisation. Skipping it is how run `20260921T114910Z` put two vehicles ~150 m under the ground and
-then showed them standing still for forty minutes.**
+optimisation. Skipping it is how run `20260921T114910Z` created two vehicles ~150 m under the
+terrain (the FALLBACK-altitude path, RUNBOOK sec 11h) - a real defect in its own right - and they
+also stood still for forty minutes; the record does NOT show burial caused the standing still
+(docs/VRF_ALTITUDE_FRAMES.md sec 5: "born buried, therefore never moves" is falsified), so warm the
+terrain to avoid the buried-create defect on its own merits, not as a promised movement fix.**
 
 WHY. On a streaming terrain the interface's terrain query at initialization goes unanswered until
 the pages arrive, every object is then created at a FALLBACK altitude, and nothing has placed it:

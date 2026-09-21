@@ -125,6 +125,34 @@ Each entry: the claim, why it was wrong, and the evidence that settled it.
   - a separate latent defect; (c) the exact config knob file was not confirmed (a reader cited
   VrfSettings.cs CreateAltitudeSafeMslMeters=10000.0; grep did not find it at that path) - the
   runtime log confirms the behaviour regardless.
+- RE-ENTERED A THIRD TIME (2026-09-21, the Iron Storm cut-A diagnostic drive, run
+  20260921T114910Z, STP-856): CLAIMED, by the seat and repeated independently in two harvest
+  reports (v6harvest/ironstorm_drive_harvest_report.md and the seat's records pass 23): "CAUSE
+  SETTLED - the two platforms (28ID, 48 IBCT) never moved BECAUSE they were created ~150 m
+  under the terrain." WRONG for the same reason established above: this is exactly the "born
+  buried, therefore never moves" form this section falsified in 2026-07-21, re-stated as VRF_
+  ALTITUDE_FRAMES.md sec 5's own falsification and sec 7's first tripwire. WHERE IT WAS
+  WRITTEN, and withdrawn the same day at every site: docs/experiments/PREREG_IRONSTORM_
+  DRIVE_2026-09-21.md ("## RESULT" cause chain and "## RE-RUN (R2)" WHY clause, both now
+  carrying dated CORRECTION blocks, the registered R2 text itself left unstruck as history);
+  docs/DEMO_READINESS_2026-09-06.md row 16 (reworded to the measurement + the scoped defect);
+  docs/HANDOFF_2026-09-14_PARALLEL_LANES.md's extended line (reworded, plus a new CLOSED-list
+  tripwire); docs/DEMO_RUNBOOK.md sec 0.4 (reworded); docs/RUNBOOK.md sec 11h (a scope pointer
+  added, the section's own mechanism text was already careful and needed no change).
+  WHAT STANDS, as a MEASUREMENT: the init terrain query timed out, 36 of 36 creates took the
+  FALLBACK altitude, and the two platforms reflected -0.0 m against 145.4 m and 155.8 m of
+  terrain on the independent WatchVrf trace for the whole 40-minute run, displacing 0.0 m.
+  WHAT IS KEPT, RE-SCOPED: the fallback-altitude create defect itself is real and is what
+  STP-856 now names precisely (a hole in the 2026-09-05 birth-altitude cure), separated from
+  any claim about why the platforms did not move.
+  GENERATOR (Q2/Q3 of VRF_ALTITUDE_FRAMES.md sec 6, the actual regression each time): the seat
+  briefed and merged code-lane work in a domain this file and VRF_ALTITUDE_FRAMES.md sec 5 had
+  already settled, without reading the canonical record first - the same failure mode Q2
+  describes (a refutation written in one place, a stale claim repeated at the point of use) and
+  Q3 names (a true narrow finding fused to a causal/design conclusion at the moment it is
+  written up). The standing fix, restated: keep the measurement and any causal implication in
+  separate sentences, and check docs/VRF_ALTITUDE_FRAMES.md sec 5 and 7 before writing anything
+  that puts "buried"/"underground" near "freeze"/"never moves".
 
 ## Process
 

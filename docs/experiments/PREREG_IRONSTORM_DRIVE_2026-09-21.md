@@ -1,5 +1,12 @@
 # PREREG - IRON STORM CUT A: THE 0.82-0.90 CONNECTIVITY DIAGNOSTIC DRIVE
 
+**READ FIRST: CORRECTION 2026-09-21.** This file's "## RESULT" and "## RE-RUN (R2)" sections
+originally wrote "the two platforms never moved BECAUSE they were created under the terrain."
+That causal claim is WITHDRAWN - it is exactly the falsified form docs/VRF_ALTITUDE_FRAMES.md
+sec 5 names ("born buried, therefore never moves" is ROT) and sec 7's tripwire forbids. See the
+dated "CORRECTION 2026-09-21" block under each affected section below for what is withdrawn and
+what stands (the measurement stands; the causal wording does not).
+
 REGISTERED by the seat 2026-09-21, BEFORE the run, under the user's ruling of 2026-09-21 ('2. A.': ONE pre-registered
 diagnostic drive across the never-driven 0.82-0.90 nav-connectivity band; deploying the fixture with its KNOWN gate FAIL
 is authorised for it; the 0.9 bar itself stays; fallback = the T14-only cut; the demo clock is FAST). Drafted by an Opus
@@ -491,6 +498,26 @@ declines to plan from such a point is assumed, not evidenced by any vendor line 
 BROKEN by STP-856, because 48 IBCT is precisely one of the two init-created platforms that never moved. A T14-only
 cut on today's launch path would show the audience a stationary vehicle.
 
+**CORRECTION 2026-09-21 (the user caught this the same day).** The subsection header above and its
+lead sentence say "CAUSE SETTLED" for the platforms' non-movement and name burial as the reason -
+that causal claim is WITHDRAWN. docs/VRF_ALTITUDE_FRAMES.md sec 5 falsifies exactly this claim
+shape ("BIRTH ALTITUDE IS NOT THE FREEZE DISCRIMINATOR ... A statement of the form 'born buried,
+therefore never moves' is ROT") and sec 7's first tripwire fires on writing "buried" near "never
+moves"; this is the third time the project has produced that form. WHAT STANDS, as a MEASUREMENT
+only: the init terrain query timed out; 36 of 36 creates took the FALLBACK altitude; the two
+platforms reflected -0.0 m against 145.4 m and 155.8 m of terrain for the whole 40-minute run,
+on the independent WatchVrf trace, displacing 0.0 m; the unit re-created at order time got a real
+terrain altitude and drove. WHAT IS WITHDRAWN: that burial IS WHY they did not move. No run has
+shown that an on-terrain platform of this type moves on this fixture, so there is no basis to
+credit burial with the freeze - units at correct birth altitudes have split mover/frozen before
+(sec 5's own July record). WHAT IS TRUE AND KEPT, SEPARATELY: a terrain-query timeout sending a
+create down the fallback path at altitude 0, which the create-time clamp then reflects as -0.0,
+IS a real defect in its own right (a hole in the 2026-09-05 birth-altitude cure) - that is the
+correct scope of STP-856, and it is retitled accordingly. The four falsified alternatives above
+remain correctly falsified as accounts of "why 0 m of displacement, for non-burial reasons"; only
+the causal WHY-clause connecting burial to the freeze is retracted. See VRF_ALTITUDE_FRAMES.md
+sec 5 for the standing rule and the CORRECTIONS_LOG.md entry for the generator of this mistake.
+
 ### P9-P14 (sec 6b, reported without bands)
 
 - **P9, the clock, needs a correction to the seat's mid-run read.** Movement phase (dispatch to last mover stopping):
@@ -582,6 +609,22 @@ d379dd68...aa4bb) matches the prep report exactly.
 ---
 
 ## RE-RUN (R2) - REGISTERED 2026-09-21 BEFORE THE RUN, under the user's word 'Go on 856'
+
+**CORRECTION 2026-09-21 (registered text below is UNCHANGED, this block is what a reader must see
+first).** The WHY sentence immediately below states the platforms "never moved because they had
+been created ... under a cold streamed terrain" - that causal wording is WITHDRAWN, same basis as
+the correction after sec "## RESULT" above (docs/VRF_ALTITUDE_FRAMES.md sec 5/7). It is NOT struck
+from the registered text, which is history and stands as written; the corrected reading is: the
+platforms measured 0 m of displacement AND were also created off the terrain after a timeout -
+the two facts are not shown to be causally linked, only co-present. This does NOT invalidate the
+registered predictions below: R2-P3 and R2-P4 ("T14/T02 MOVES") remain sound tests of whether the
+STP-856 fallback-altitude defect is fixed, but a MOVE in R2 would show the defect no longer
+confounds this run, not that burial caused the freeze in run 1 - and a MISS ("T14 also fails
+again") would show the fix is incomplete or a different mechanism still blocks movement, not that
+"the STP-856 diagnosis is wrong or incomplete" as the MISS clause below states (that clause treats
+STP-856 as a diagnosis OF THE FREEZE, which it never was once correctly scoped - STP-856 is a
+diagnosis of the FALLBACK-ALTITUDE DEFECT only). Score the MISS clause literally as registered;
+read its stated INTERPRETATION through this correction.
 
 WHY: the first drive was valid but did not answer its question - the two single-platform taskees (28ID / T02, 48 IBCT /
 T14, the control) never moved because they had been created ~150 m under a cold streamed terrain (STP-856); sec 8's own

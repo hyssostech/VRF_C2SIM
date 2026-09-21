@@ -3374,6 +3374,10 @@ at 155.8 m - **and tasked both platforms anyway.**
 > "never moves" a tripwire. The two justifications here are independent of that question: the
 > PLACEMENT CONTRACT (UG52 14.3.3 - ground entities are placed on the ground) and the duty not to
 > task a unit the interface has itself measured off the ground.
+> SCOPE, restated 2026-09-21 after the claim re-entered a third time in this project's records:
+> burial is CURED HERE (a create off the terrain is measured and corrected before a task is
+> dispatched); freezing is a DIFFERENT QUESTION, unresolved by this section, per
+> `docs/VRF_ALTITUDE_FRAMES.md` sec 5.
 
 **WHY THE CREATES ARE NOT DELAYED, AND WHY `Vrf:TerrainProfileTimeoutSeconds` WAS NOT RAISED.** Two
 reasons, both structural. (1) MAK's own sample says creating is what makes a paging terrain page -
@@ -3545,11 +3549,13 @@ repair is to split the barrier's two jobs (the DRAIN, which B1's inequality boun
 stay at `T_init + 20 s`, and the READY TO TASK OBSERVATION, which holds nothing up and could watch
 to the configured 60 s), and it belongs in the STP-852 lane, not here. (b) **The suppressed stall.**
 In that run both C16 TASKABRTs were suppressed because TIMED COMPLETION had already pushed TASKCMPLT
-(`app:35521`, `app:38591`) - which is the **ruled** behaviour (DEMO_READINESS row 19: *"a TASKCMPLT
+(`app:35521`, `app:38591`) - which WAS the ruled behaviour (DEMO_READINESS row 19: *"a TASKCMPLT
 does suppress any later TASKABRT for that task"*, user 2026-09-14) meeting R4 (*"completion is given
-by the end time"*). Changing either needs a USER RULING, not a fix. What this section does remove is
-the CAUSE of that instance: a unit measured 145 m off the terrain is no longer tasked, so no armed
-end is ever set for it.
+by the end time"*). **RULED 2026-09-21 (STP-857), NARROWING that rule for MOVE tasks only**
+(DEMO_READINESS row 19): a MOVE task that reaches its armed end with NO displacement reports
+TASKABRT, not TASKCMPLT - implementation is a later lane, not built here. What this section does
+remove is the CAUSE of the instance recorded above: a unit measured 145 m off the terrain is no
+longer tasked, so no armed end is ever set for it.
 
 ## 12. THE ROUTE PRE-FLIGHT (OFF) AND ITS LATERAL SHIFT (ON BY DEFAULT) (STP-804/806)
 

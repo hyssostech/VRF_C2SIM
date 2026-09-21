@@ -131,30 +131,29 @@ virtual void setAltitude(const DtUUID& uuid, double altitude,
   was ALREADY on the surface so a global re-clamp or terrain re-page would leave it unchanged
   and look identical; and no capture of the SetAlt run itself was retained. To VERIFY: two
   buried entities, set ONE, capture the tool output, and sample within ~1 s. ***
-  *** 2026-09-21, THE BURIED-UNITS LANE (STP-856): THE HEADER WINS, AND OUR STANDING PLACEMENT
-  LINE HAS BEEN CLAIMING SOMETHING THE VENDOR SAYS DOES NOT HAPPEN. *** Both headers read by named
-  path that day from C:\MAK\vrforces5.2d\include:
-    vrftasks/setAltitudeRequest.h:23-25 - "DtSetAltitudeRequest is used to set the altitude for an
-      entity. It is IGNORED IF THE VEHICLE IS NOT AN AIR-GOING VEHICLE." (the altitude "is the
-      height above the terrain in local coordinates")
-    vrftasks/setLocationRequest.h:26-32 - "Z IS IGNORED FOR NON-AIR VEHICLES ... parameters:
-      location - The new location for the entity, in geocentric (meters). GROUND VEHICLES WILL BE
-      CLAMPED TO THE TERRAIN SURFACE."
-  So for a LAND object the documented lever is setLocation, not setAltitude - and setLocation has
-  been wired the whole time too (VrfBridge.cpp:429 -> VrfFacade.cpp:986-987
-  controller->setLocation(DtUUID(uuid), toGeocentric(pos)); declared VrfFacade.h:590). The
-  buried-units re-clamp therefore corrects a buried GROUND PLATFORM with setLocation at its OWN
-  lat/lon and verifies by reading the altitude back (RUNBOOK 11h).
-  THE CONSEQUENCE FOR THE NORMAL PATH, STATED AND NOT ACTED ON: the PLACEMENT step's post-create
-  "SetAltitude: 0 m ABOVE GROUND LEVEL" clause (Vrf:PlacementAglSet, PlacementPolicy.cs:99-103) is
-  issued for LAND objects, which is exactly the class the header says the request is ignored for.
-  That clause announces an effect the vendor says does not occur. It is NOT changed here - the
-  CREATE is what places an object (sec 1a / UG52 14.3.3) and an inert belt-and-braces set costs
-  nothing - but it must not be read as evidence that anything was done. Retiring or re-aiming it
-  needs its own prereg and confirming run; sec 6 Q3 is the standing rule about why a design verdict
-  must not ride in on a defect fix. The one observation on the other side (sec 8a below) remains
-  ONE UNCONTROLLED RUN whose "VERIFIED END TO END" was withdrawn, and an uncontrolled observation
-  is not evidence against a header.
+  *** 2026-09-21, THE BURIED-UNITS LANE (STP-856). *** For a LAND object the documented lever is
+  setLocation, not setAltitude, exactly as sec 1a already establishes for a unit's members and as
+  the entity-level headers confirm the same day (`vrftasks/setAltitudeRequest.h:23-25`,
+  `vrftasks/setLocationRequest.h:26-32`) - see sec 1a, not repeated here. The buried-units re-clamp
+  corrects a buried GROUND PLATFORM with setLocation at its OWN lat/lon and verifies by reading the
+  altitude back (RUNBOOK 11h). THE CONSEQUENCE FOR THE NORMAL PATH, STATED AND NOT ACTED ON: the
+  PLACEMENT step's post-create "SetAltitude: 0 m ABOVE GROUND LEVEL" clause (Vrf:PlacementAglSet,
+  PlacementPolicy.cs:99-103) is issued for LAND objects, which is exactly the class the header says
+  the request is ignored for - that clause announces an effect the vendor says does not occur. It
+  is NOT changed here - the CREATE is what places an object (sec 1a / UG52 14.3.3) and an inert
+  belt-and-braces set costs nothing - but it must not be read as evidence that anything was done.
+  Retiring or re-aiming it needs its own prereg and confirming run; sec 6 Q3 is the standing rule
+  about why a design verdict must not ride in on a defect fix.
+  WHAT IS NEW HERE, not said before 2026-09-21: a terrain-query TIMEOUT on the init's one profile
+  request sends EVERY create down the FALLBACK path at altitude 0 (not a birth-altitude choice, an
+  unanswered query), which the sec 2 create-time clamp then reflects as -0.0 - measured live, run
+  20260921T114910Z, 36 of 36 creates. This is a HOLE IN THE 2026-09-05 BURIAL CURE, not a new
+  freeze theory: the cure assumed the terrain answers the init's query, and on a cold streaming AO
+  it may not. setLocation was then exercised LIVE for the first time, run 20260921T143243Z (binary
+  8aeb127): the trace shows 48 IBCT reflecting 145.4 m, the terrain height from its own first POS
+  row - PROVISIONAL, pending the full harvest of that run. The one observation on the other side
+  (sec 8a below) remains ONE UNCONTROLLED RUN whose "VERIFIED END TO END" was withdrawn, and an
+  uncontrolled observation is not evidence against a header.
   Also withdrawn: "2 m AGL on a TANK settles at the surface BECAUSE VR-Forces holds ground
   vehicles on the surface continuously" - NO VENDOR SOURCE SAYS THAT. The Glossary defines
   ground clamping as a 3D VISUALIZATION behaviour, and the sim-side note in CORRECTIONS_LOG
@@ -211,6 +210,11 @@ WAYPOINT ALTITUDE (the below-terrain fixture variant moved -
 `docs/HANDOFF_2026-07-22_PLAN_ASSIGNMENT.md:27`) and REGION.
 A statement of the form "born buried, therefore never moves" is ROT. It has re-entered this
 project at least twice after being falsified.
+RE-ENTERED A THIRD TIME 2026-09-21 (the Iron Storm cut-A diagnostic drive, run 20260921T114910Z,
+STP-856): the seat and two harvests wrote "CAUSE SETTLED - the two platforms never moved BECAUSE
+they were created ~150 m under the terrain." Withdrawn the same day at every site it was written -
+see docs/experiments/PREREG_IRONSTORM_DRIVE_2026-09-21.md's CORRECTION blocks and
+docs/CORRECTIONS_LOG.md for the dated entry.
 
 ## 6. TWO SEPARATE QUESTIONS - keep them apart (they were conflated on 2026-09-04)
 
@@ -283,3 +287,4 @@ says what the world will look like; it does not say what should then be built.
 - About to put an AGL/above-terrain altitude on a ROUTE VERTEX? STOP - sec 3, no such frame;
   query terrain and send absolute.
 - About to state ANY altitude behaviour? Cite a header line or a help page, or mark it OPEN.
+- A harvest that says "cause settled" about non-movement and mentions altitude? STOP - sec 5.
