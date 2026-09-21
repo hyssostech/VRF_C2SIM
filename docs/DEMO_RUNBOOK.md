@@ -164,6 +164,9 @@ unattended, pushed the init and the order, and all three tasks completed in real
 1.00, 4 min 44 s order-to-last-completion) - start, init, order and completion all worked.
 TEARDOWN DID NOT: the GUI was left open on its own documented exit prompt (UG52 sec 4.6/4.6.1)
 and StopVrf52.ps1 exited 3 (still running - nothing was killed).
+2026-09-21 CORRECTION: the "real time (ratio 1.00 ...)" reading above is WITHDRAWN - D7's
+harvest measured this run-to-complete frame mode at ~3.00x the wall clock, not 1.00x; see
+docs/experiments/PREREG_DEMO_REHEARSAL_2026-09-20.md D7 RESULT N7.
 
 FIXED, CONFIRMED LIVE (D1b, D2 - STP-844): with `--vrf-appdata-dir` given, teardown is clean in
 under 10 s both times (9.87 s, 9.77 s), CloseMainWindow returns TRUE, and nothing is left

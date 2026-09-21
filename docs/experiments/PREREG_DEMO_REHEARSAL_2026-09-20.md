@@ -53,6 +53,7 @@ destination - Jira STP-845.
 
 D1 = STOP on prediction 4; D2 NOT RUN; remedy lane fix/gui-quit-prompt-teardown; the
 confirming run is D1b, to be registered before it runs.
+2026-09-21: the "real time / ratio 1.00" reading here is WITHDRAWN - see D7 RESULT N7.
 
 ## D1b - Way A with the GUI and the run-owned appData (STP-844 confirming run)
 
@@ -99,6 +100,7 @@ ADVERSARIAL: P3's hit is VACUOUS - modal 2 only ever arose because modal 1 was s
 when the back end was asked to close; modal 1 never opened here, so the condition that
 raises modal 2 never occurred, and the 0x10 lever remains UNVERIFIED belt-and-braces.
 D1's STOP is CLEARED.
+2026-09-21: the "real time / ratio 1.00" reading here is WITHDRAWN - see D7 RESULT N7.
 
 ## D2 - reset between runs, the FULL CYCLE with the GUI (DEMO_RUNBOOK sec 6 item 1: 'run the one command again')
 
@@ -183,6 +185,7 @@ registered).
 Anomalies: E1 a backwards sim-clock step (74.1 -> 72.9 s) before any dispatch, unexplained;
 E3 BdeHQ's arrival margin still drifting (+407/+360/+308 m over three runs); E4 the manifest
 omits the persistent holder; E8 D2's 439 extra GUI log lines did not recur.
+2026-09-21: the "real time / ratio 1.00" reading here is WITHDRAWN - see D7 RESULT N7.
 
 ## D6 - R9 regression on main 248143f (registered BEFORE the run)
 
@@ -220,6 +223,20 @@ P4 (MEDIUM): FEWER give-ups than D6's 5-at-materialization (0-3) and NONE termin
 P5 (HIGH): runner truth 7/7 as D6; clean teardown; no BACK END LOST; no WS alerts; console volume does not break the run (trace size recorded).
 LIMIT REGISTERED IN ADVANCE: on R9 lean, A and C are CONFOUNDED in any completion-time number (C alone removes the collision; A only lowers two platoons' thresholds by ~38 s and ~14 s of travel) - one LIVE run cannot separate them; the control is Vrf__ArrivalApproachFraction=0, NOT run unless the seat registers it. They CAN be separated OFFLINE: replay D7's own WatchVrf trace through the arrival rule at ArrivalApproachFraction 0 and 0.5 (the reconstruction's calibration error cancels in the difference) - this replay is part of D7's harvest. Runner gap: no prediction/announce line exists for DeStackComposedSiblings or ArrivalApproachFraction, so P1/P3 are scored from the app's own log.
 MISS = a taskee starting elsewhere; overlapping sibling footprints; a sustained jam; any task not terminal; or T_R5_CO1's completion outside [187.8 s, 318.0 s].
+
+### D7 RESULT (run 20260921T013902Z)
+
+Conditions at launch: no subagent live; one idle VBCSCompiler; baseline CPU ~10%; 92 GB free; ~2 h since the previous teardown; rtiexec 46960 fresh at -NotifyLevel 3 with persistent holder 25484 joined.
+Instrument ON: 21,269 CON rows (19,682 at level 3) vs D6's 5; 77 of 82 objects acknowledged level 3; trace 8.9 MB / app log 3.4 MB - the prereg's 100-200 MB estimate was 11-23x too high; no cost (deferrals +3.13/3.46/3.46 s, the fastest of the three runs).
+P1 MISS on ONE limb, HIT on the rest: siblings at 354.0 m @ 1.4 deg / 312.3 m @ 64.0 deg / 347.4 m @ 121.4 deg, pair separations 318/348/607 m (all inside +/-40 m), 3 of 3 footprints DISJOINT (D6: 3 of 3 overlapping), crowding NN median 3.6 m and 50 pairs < 7 m (D3 4.3 m/44; D6 1.3 m/137) - C restores D3's separation at less than half the spacing. THE MISS = N4: the company TASKEE's PUBLISHED position moved 262 m because VR-Forces publishes a composed aggregate at its members' CENTROID, and a 0/60/120 deg ring moves that centroid 233 m by construction, so the route origin moved: L 1,112 -> 1,039.3 m, radius 278 -> 260 m, route bar 556 -> 520 m (the build report's offline model assumed the parent stays put - wrong by 74 m of route).
+P2 HIT - the 2026-09-07 ruling's jam instrument is scoreable for the first time and it PASSES: BlockedByVehicle 3 rows / 2 objects against the ruling's 4,828-in-300 s co-located reference, Loop to stall 0, Global Replan 0; the 2,324 "Skirt" rows are BT node-entry traces (+0.7..+54.9 s), volume not a jam signal; kinematics: first 10 m within 4-8 s for all 57 objects, 0 under 5 m displacement at any checkpoint.
+P3 MISS: T_R5_CO1 closed at order +168.669 s, 19.1 s below the registered [187.8 s, 318.0 s] floor - STATED PLAINLY as a PREDICTION-CONSTRUCTION ERROR BY THE SEAT (the interval was built from the baselines D6-10% .. D3+10% and EXCLUDED the design's own point prediction ~171 s, which was HIT to 1.4%), not a finding against adca180; T_R5_TK1 -11.7% vs D6.
+The registered A-vs-C split (offline replay validated to -0.2 s on D7, -4.6 s D6, -3.9 s D3): on D7's own trace rule A moves the close by 0.0 s (only 8 of 48 members have d0-radius < route bar, against a quorum of 25); on D3's trace A alone = -90 s; splitting the raw -39.4 s vs D6: A 0.0 s, run-to-run rate ~-18 s (control = 1222.MechPlt reaching an identical evidence state at 145.1 s vs 159.3 s, factor 0.911), C ~-21 s (range -15..-27 s) - NEVER QUOTE THE -40 s RAW. Caution: half of C's gain here is one platoon starting 354 m nearer because the route runs due north and ring slot 1 points north - on the opposite orientation it is a handicap of the same size, untested.
+P4 MISS on both limbs: 4 give-ups, all TERMINAL at the destination, D3's exact roles.
+P5 HIT 7/7.
+NEW N7 (a correction): "sim/wall 1.00" was NEVER measured - the app's "Ns after dispatch" is wall minus wall (VrfC2SimService.cs:4979); D7's level-3 BT rows carry a sim clock advancing 3.00x the wall clock (stable 2.99-3.09), the unit INFERRED not documented - so D1-D7 most likely ran at ~3x, not real time. Corroboration: D1's brigade-HQ M577 proxy "averaged 96 km/h" is 32 km/h at 3x. Every earlier "real time / ratio 1.00" statement in this file is therefore UNVERIFIED and must be read as such.
+NEW N5: the console request lists 64 members including 16 duplicate uuids; arrival de-duplicates to 48 - a log defect only. NEW N6: "Mismatch in subs and formation slots; unit index -1, form size 7" x441 on the company aggregate, not attributed, no control run exists. N3/E4/E6 recur.
+UNEXPLAINED: the untouched units ran 8-9% faster than in D6, concentrated in the first ~200 m; N6's cause.
 
 ## D4 - the audience scenario (COA-STP1's 11 taskees, GUI, real-time, route shift) - needs the user's rulings first.
 ## D5 - Way B, hand-started and STP-driven, with the LaunchVrf52 holder (lane feat/demo-federation-holder).

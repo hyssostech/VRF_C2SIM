@@ -2816,6 +2816,17 @@ Offline proof: `--destack-selftest` (88 checks; both type-mapping modes on all f
 inits, the per-fixture group/moved counts, "no parent moves", and which taskees the sibling
 pass moves).
 
+N4 (D7, 2026-09-21, worth a ticket): a composed parent's PUBLISHED position is its members'
+CENTROID, not the parent's own coordinate; an ASYMMETRIC sibling ring (D7's 0/60/120 deg,
+company-level) moves that centroid 233 m by construction and shortened D7's route by 74 m vs
+the offline model, which wrongly assumed the parent stays put. Fix lane queued: place N
+siblings at EQUAL bearings 360/N so the centroid stays on the parent (a symmetric ring, e.g.
+0/120/240 for N=3, cancels the offset; D7's ring did not).
+Measured jam-instrument result (D7, the 2026-09-07 ruling's instrument, scoreable live for
+the first time): BlockedByVehicle 3 rows / 2 objects against the ruling's 4,828-in-300 s
+co-located reference - PASSES. Console level 3 is cheap on R9 scale (8.9 MB trace, 3.4 MB app
+log for the whole run), so the instrument can stay ON for R9-scale rehearsals.
+
 ## 12. THE ROUTE PRE-FLIGHT (OFF) AND ITS LATERAL SHIFT (ON BY DEFAULT) (STP-804/806)
 
 Design: `docs/experiments/DESIGN_ROUTE_SHIFT_2026-09-15.md`. Evidence: FINDING_EARLY_STOPS
