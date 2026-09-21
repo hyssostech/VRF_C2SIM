@@ -331,6 +331,51 @@ N15 (new): the app's own C13 log line prints "2 platform(s) created in full" whe
 UNEXPLAINED: why the back end ran about 1.7x faster before the order than in D8 (scenario clock 58 s further along at dispatch, 101.3 s vs 42.8 s, with identical runner stage timings) - not diagnosed, and it is the load-bearing term behind P3's unattributed drop; N6 recurs at 494 rows (D7 441, D8 500), still unattributed, still no control run.
 STOP RULE: the HIGH miss on N13/STP-855 REOPENS the build - there is no demo-ready claim for 4f1f149 until the composed-parent route-origin fix is merged, reviewed, rebuilt and confirmed; the never-held dispatch path itself (P1's behavioural limbs, P3, P4, P5) is otherwise clean.
 
+
+## D10 - Way A R9 CONFIRMING RUN for the route-origin fix (STP-855 / N13), registered BEFORE the run
+
+Control: D9 (run 20260921T094051Z, binary 4f1f149) - the run that exposed the defect. Same command, fixture, init, order,
+consoles 3/3. Binary 1.0.0+git.51d59c0.Release-5.2 = main 388cb71 (the route-origin merge) plus ONE ledger-only commit
+(docs/OPUS_EXECUTION_PLAN.md; verified by the build executor: empty -uno status, one-file docs diff). Build report scratch
+validation/388cb71_build_report.md: incremental, tile cache 7/7 kept, selftests 2,103 (routeorigin 70/70, dispatch-
+readiness 52/52), suite exit 0 528/0, GO. Every expected string below is quoted with file:line in that report sec 8; the
+seat's draft was corrected against it on seven points before registration (build label, re-worded MATERIALIZE and barrier
+lines, the barrier carries no platform count, no offline census exists, the name-registry arm is reachable on Way A, the
+origin altitude).
+
+P1 (HIGH) THE HEADLINE FALSIFIER: T_R5_CO1 route 1,110-1,116 m, bar ~556 m, radius ~278 m, terrain-profile reply #0 =
+34.64763,-116.69339 (the authored parent coordinate) to 5 dp. A 1,139 m route, or an origin more than ~5 m off, means THE
+FIX DID NOT TAKE.
+P2 (HIGH) EXACTLY ONE 'ROUTE ORIGIN for composed parent 114.MechCoy~PXY: the CENTROID OF ITS 3 DECLARED CHILD UNIT(S)
+(3 of 3 reflected)' line, with a 'Children: [' roster of three entries (lat, lon to 6 dp, provenance) and the measured gap
+to the published position stated as a NUMBER; ZERO 'FALLING BACK' lines. Gap wording: the RE-COMPOSE TRANSIENT clause
+(a re-create within 30 s) is EXPECTED, the 'agrees to N m' clause is admissible, the 'no recent re-create' clause is a
+MISS on this run (the children were re-created seconds earlier). Provenance: EXPECTED ending 'Every child was read at the
+uuid whose reflection released it for tasking, so none of them can be a deleted shell.'; the name-registry variant is
+admissible ONLY together with a 'not reflected within 15s' timeout release for that child, and is then a FINDING.
+P3 (HIGH) THE CONTROLS: T_R5_TK1 and T_R5_PL1 keep route 1,156 m / bar 578 / radius 289 and get NO ROUTE ORIGIN line;
+INIT CREATION BARRIER (now quoting the applied 20 s cap AND the configured 60 s, each labelled) before 'Init dispatched';
+READY TO TASK once, before 'C2SIM Order received'; ZERO hold / ORDER BEFORE READY / MATERIALIZE-HELD / NOT REACHED /
+REFUSING lines; the order-time materialization keeps its COUNTS (four delete-and-re-create cycles + the parent's '3
+declared child unit(s) materialized') - the lines' WORDING changed (WALL stamps), so counts are registered, not text.
+P4 (HIGH) ONE CENSUS: the barrier line says '(5 empty shell(s))' and the C13 line says '5 unit(s) created as EMPTY
+shells ... 1 platform(s) created in full' - the same census in both places (N15 fixed). REGISTERED AS 5, NOT 4.
+P5 (MEDIUM) OUTCOME: 3/3 TASKCMPLT by arrival evidence, 'relaxation APPLIED' x3. SIM-clock completions: T_R5_PL1 within
++/-12 percent of D9's 482.8 SIM s; T_R5_TK1 (D9 103.3, D5c 94.7, D8 81.1) and T_R5_CO1 (its bar and radius change BY
+DESIGN with the corrected route; D8 660.5 on the 1,112 m route is the nearer comparator) are REPORTED, not scored (N14).
+P6 (REPORTED, NOT SCORED): the four delete-issued -> readable round-trip figures; the dispatch deferral per task (D9 2.06 /
+2.40 / 2.40 s, D8 4.75 / 5.08 / 5.20 s - the drop is unexplained, this is a third sample); whether ROUTE ORIGIN falls
+before or after the four 'reflected at WALL' lines; the origin ALTITUDE (now the children's mean) vs D8's entityAlt; the
+movement-window sim/wall ratio (D9 3.195, D8 3.362, D5c 3.273; window = first DISPATCHED to last completion, app lines
+only; near 1.0 = the dead-back-end signature and a MISS); jam instrument; give-ups; N6.
+MISS = P1, P2, P3 or P4 failing; any task not TASKCMPLT; a back-end fault. A missed HIGH limb is a STOP, never a patch.
+CONDITIONS: no subagent live; no vrfSim* / vrfGui / VrfC2SimApp / observer / rtiAssistant; exe sha256 + ProductVersion
+before and after (identical, reading 51d59c0); configs identical; tile cache counted. Another session on this machine
+builds an unrelated project: its dotnet / MSBuild processes are RECORDED, never touched. The persistent holder is
+re-armed before the launch (ledger 5065-5068); if it cannot be, Stage 2h's own holder is the documented fallback.
+AFTER D10: a Way B run (D5d) on this binary is REQUIRED - it re-confirms STP-852 and is the run whose dispatch-before-
+re-create ordering exercises the name-registry provenance branch; registered separately in PREREG_D5_WAYB.
+
 ## D4 - the audience scenario (COA-STP1's 11 taskees, GUI, real-time, route shift) - needs the user's rulings first.
 ## D5 - Way B, hand-started and STP-driven, with the LaunchVrf52 holder (lane feat/demo-federation-holder).
 REGISTERED 2026-09-21 as its own file: docs/experiments/PREREG_D5_WAYB_2026-09-21.md (the runbook AS TYPED on main
