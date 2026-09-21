@@ -2714,6 +2714,13 @@ only inserts BETWEEN authored vertices - so the traversal bar rises and the effe
 a 1,600 m authored route with a last vertex 420 m from the start is closable; the same task
 with a 600 m shift is not, and waits for the vendor completion or its Duration.
 
+### 11e. DE-STACK / COMPOSED-CHILD PLACEMENT - WARNING (2026-09-20, D6/PART 2)
+
+**Since commit 2746a0d (merged 248143f), composed children are EXEMPT from the 700 m de-stack** (`DeStack (C14 scope)`, UG52 25.2.1). Measured on R9: three sibling platoons that were
+three disjoint 700 m rings before 2746a0d are now ONE 126 m blob. This NARROWS the 2026-09-07 spread-at-startup ruling (PREREG_ASSEMBLY_LAYOUT) and is UNDER REVIEW by the user (options
+A/C/D, docs/experiments/PREREG_DEMO_REHEARSAL_2026-09-20.md D6 RESULT). Runs before 248143f (D1-D3) had the 700 m spread; runs after it do not - the two are NOT COMPARABLE for any
+company-level completion timing. There is currently NO SWITCH to restore the old spread-composed-children behaviour - do not invent one.
+
 ## 12. THE ROUTE PRE-FLIGHT (OFF) AND ITS LATERAL SHIFT (ON BY DEFAULT) (STP-804/806)
 
 Design: `docs/experiments/DESIGN_ROUTE_SHIFT_2026-09-15.md`. Evidence: FINDING_EARLY_STOPS
