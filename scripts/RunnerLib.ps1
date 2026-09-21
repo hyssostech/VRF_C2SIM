@@ -1049,6 +1049,15 @@ function Get-SettingVerdict {
 #
 # Returns @{ Source = <the file copied, '' when none>; Error = <message, '' when none>;
 #            SizeBytes = <directory-entry length, $null when none> }
+#
+# *** WHERE THE COPY LANDS IS PART OF THE SECRETS CONSTRAINT (2026-09-21). *** These copies used
+# to go FLAT into the run directory, beside vrfc2simapp.log and the runner's own logs, so the
+# ordinary `runs\<run>\*.log` glob an operator or an executor reaches for reads them - and one
+# did, printing two vendor-log lines that day. The caller now hands a path inside a `vendor\`
+# SUBDIRECTORY of the run directory; this function CREATES the destination's parent if it is
+# missing, so the rule is enforceable at the one place the copy happens rather than remembered at
+# every call site. The file NAMES are unchanged, so nothing that already knows a name loses it.
+# THE RULE THAT FOLLOWS FROM IT: never glob runs\...\*.log - name our own files explicitly.
 function Copy-VendorLogByPid {
     param([int]$ProcessId, [string]$LogDir, [string]$NamePrefix,
           [datetime]$Since, [string]$Destination)
@@ -1059,12 +1068,26 @@ function Copy-VendorLogByPid {
                 Sort-Object LastWriteTime -Descending)
         if ($ls.Count -eq 0) { return $out }
         $out['SizeBytes'] = $ls[0].Length
+        $dstDir = Split-Path -Parent $Destination
+        if ($dstDir -and -not (Test-Path -LiteralPath $dstDir)) {
+            New-Item -ItemType Directory -Path $dstDir -Force -ErrorAction Stop | Out-Null
+        }
         Copy-Item -LiteralPath $ls[0].FullName -Destination $Destination -Force -ErrorAction Stop
         $out['Source'] = $ls[0].FullName
     } catch {
         $out['Error'] = $_.Exception.Message
     }
     return $out
+}
+
+# ---- the run directory's vendor-log subdirectory (2026-09-21) -----------------
+# ONE NAME, ONE PLACE. The runner, its dry-run plan, its manifest and the tests all need the
+# same answer to "where do the vendor copies go?", and three string literals would be three
+# chances to disagree. See Copy-VendorLogByPid above for WHY there is a subdirectory at all.
+$script:VendorLogSubdir = 'vendor'
+function Get-VendorLogDir {
+    param([Parameter(Mandatory)][string]$RunDir)
+    return (Join-Path $RunDir $script:VendorLogSubdir)
 }
 
 # ---- line endings for files the runner rewrites -------------------------------

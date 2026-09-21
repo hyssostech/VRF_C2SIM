@@ -5516,13 +5516,18 @@ finally {
                 }
                 continue
             }
-            $dstPath = Join-Path $RunDir $vl.dst
+            # THE COPY GOES INTO runs\<run>\vendor\ (2026-09-21), never flat beside our own logs:
+            # a flat vendor-*.log is read by the ordinary `runs\<run>\*.log` glob, and these files
+            # hold the full process environment in cleartext. Get-VendorLogDir is the one name;
+            # Copy-VendorLogByPid creates the directory.
+            $dstRel  = Join-Path $script:VendorLogSubdir $vl.dst
+            $dstPath = Join-Path (Get-VendorLogDir -RunDir $RunDir) $vl.dst
             $cap = Copy-VendorLogByPid -ProcessId ([int]$vl.procId) -LogDir 'C:\MAK\logs' `
                         -NamePrefix $vl.prefix -Since $vendorSince -Destination $dstPath
             if ($cap['Source']) {
                 $vendorCaptured += [ordered]@{ what = $vl.what; processId = [int]$vl.procId; source = $cap['Source']; captured = $dstPath; sizeBytes = $cap['SizeBytes'] }
-                Say-Ok ('captured the {0} vendor log for pid {1} into the run directory ({2})' -f $vl.what, $vl.procId, $vl.dst)
-                Say-Warn ('         SECRETS: {0} holds the FULL PROCESS ENVIRONMENT IN CLEARTEXT (FORENSICS_52_STARTUP_CRASH_2026-09-04 sec 10). It was COPIED, never opened. NEVER attach it to a ticket, mail or issue - send the .callstack.log / .dmp instead. Not scrubbed, by decision.' -f $vl.dst)
+                Say-Ok ('captured the {0} vendor log for pid {1} into the run directory ({2})' -f $vl.what, $vl.procId, $dstRel)
+                Say-Warn ('         SECRETS: {0} holds the FULL PROCESS ENVIRONMENT IN CLEARTEXT (FORENSICS_52_STARTUP_CRASH_2026-09-04 sec 10). It was COPIED, never opened. It is in the vendor\ SUBDIRECTORY so a runs\<run>\*.log glob does not read it - never glob that directory, name our own files. NEVER attach it to a ticket, mail or issue - send the .callstack.log / .dmp instead. Not scrubbed, by decision.' -f $dstRel)
             } elseif ($cap['Error']) {
                 Add-Flag 'WARN' ('could not capture the {0} vendor log for pid {1} into the run directory: {2}. The original is untouched.' -f $vl.what, $vl.procId, $cap['Error'])
             } else {
@@ -5531,7 +5536,10 @@ finally {
         }
         $Manifest.artifacts.vendorLogs = [ordered]@{
             capturedBy = 'PID, from C:\MAK\logs, for the processes THIS run launched (<prefix>*-<pid>.log, .callstack.log excluded, mtime >= this run''s start). The flat 5.0.2 names are never written by 5.2 - looking for them was the two-WARNs-per-run false alarm this replaces (D1b harvest A1).'
-            relationToLaunchHarvest = 'The BACK-END log is captured TWICE on purpose and the two copies are different evidence: inputs.vrfProfile.vendorLog.harvestedTo is LaunchVrf52''s snapshot taken at READY (start-up only, in runs\launch52), and vendor-vrfSim.log here is the COMPLETE file taken after StopVrf. The GUI log has no launch-time harvest at all and exists only here.'
+            directory  = (Get-VendorLogDir -RunDir $RunDir)
+            subdirectory = $script:VendorLogSubdir
+            whySubdirectory = 'They used to be copied FLAT into the run directory, so the ordinary runs\<run>\*.log glob read them - and on 2026-09-21 one did, printing two vendor-log lines. They are in vendor\ so that glob cannot reach them. THE RULE: never glob runs\...\*.log; name our own files explicitly.'
+            relationToLaunchHarvest = 'The BACK-END log is captured TWICE on purpose and the two copies are different evidence: inputs.vrfProfile.vendorLog.harvestedTo is LaunchVrf52''s snapshot taken at READY (start-up only, in runs\launch52), and vendor\vendor-vrfSim.log here is the COMPLETE file taken after StopVrf. The GUI log has no launch-time harvest at all and exists only here.'
             secrets    = 'These copies contain the FULL PROCESS ENVIRONMENT IN CLEARTEXT (DtPrintEnvironmentVariables at notifyLevel 3, FORENSICS_52_STARTUP_CRASH_2026-09-04 sec 10). The runner COPIED them and never opened them. NEVER attach one to a ticket, mail or issue - send the .callstack.log / .dmp instead. Not scrubbed, by decision.'
             files      = @($vendorCaptured)
         }
@@ -5541,8 +5549,15 @@ finally {
             $src = Join-Path $Bin64 $lg
             try {
                 if (Test-Path -LiteralPath $src) {
-                    Copy-Item -LiteralPath $src -Destination (Join-Path $RunDir ('bin64-' + $lg)) -Force
-                    Say-Ok ('captured {0} into the run directory (bin64-{0})' -f $lg)
+                    # Same secrets rule as the 5.2 path (2026-09-21): a vendor log copied FLAT into
+                    # the run directory is read by a runs\<run>\*.log glob. The SOURCE paths and the
+                    # file names are byte-for-byte what they were; only the destination directory
+                    # moved. tools\analysis\run_census.py looks in vendor\ first and falls back to
+                    # the old flat path, so run directories already on disk still read.
+                    $b64Dir = Get-VendorLogDir -RunDir $RunDir
+                    if (-not (Test-Path -LiteralPath $b64Dir)) { New-Item -ItemType Directory -Path $b64Dir -Force | Out-Null }
+                    Copy-Item -LiteralPath $src -Destination (Join-Path $b64Dir ('bin64-' + $lg)) -Force
+                    Say-Ok ('captured {0} into the run directory ({1}\bin64-{0}) - NEVER opened, NEVER attached; it holds the full process environment in cleartext' -f $lg, $script:VendorLogSubdir)
                 } else {
                     Add-Flag 'WARN' ('simulator log {0} not found at {1} - nothing captured.' -f $lg, $src)
                 }
@@ -5551,10 +5566,11 @@ finally {
             }
         }
     } elseif ($Is52) {
-        Say-Plan 'would capture the vendor logs BY PID for the processes this run launched: C:\MAK\logs\vrfSim*-<back-end pid>.log -> vendor-vrfSim.log and C:\MAK\logs\vrfGui*-<front-end pid>.log -> vendor-vrfGui.log (.callstack.log excluded, mtime >= this run''s start)'
+        Say-Plan 'would capture the vendor logs BY PID for the processes this run launched: C:\MAK\logs\vrfSim*-<back-end pid>.log -> vendor\vendor-vrfSim.log and C:\MAK\logs\vrfGui*-<front-end pid>.log -> vendor\vendor-vrfGui.log (.callstack.log excluded, mtime >= this run''s start)'
         Say-Plan 'would COPY them and NEVER OPEN them: those vendor logs hold the full process environment in cleartext - never attached, never quoted, never parsed'
+        Say-Plan 'would put them in the run directory''s vendor\ SUBDIRECTORY, not flat beside our own logs, so a runs\<run>\*.log glob cannot read them. Never glob that directory - name our own files.'
     } else {
-        Say-Plan 'would copy bin64\vrfSim.log and bin64\vrfGui.log into the run directory (bin64-*.log)'
+        Say-Plan 'would copy bin64\vrfSim.log and bin64\vrfGui.log into the run directory''s vendor\ subdirectory (vendor\bin64-*.log), out of reach of a runs\<run>\*.log glob'
     }
 
     # 5. Post-teardown inventory: what is left, and confirm RTI survived.

@@ -1822,6 +1822,21 @@ try {
         $vlNone['Source'] -eq '' -and $vlNone['Error'] -eq '')
     $vlBadDir = Copy-VendorLogByPid -ProcessId 83276 -LogDir (Join-Path $vlDir 'no-such-dir') -NamePrefix 'vrfGui' -Since $vlSince -Destination (Join-Path $vlOut 'nd.log')
     Check '8p a missing log directory is survivable, never a throw' ($vlBadDir['Source'] -eq '')
+    # 2026-09-21: THE DESTINATION DIRECTORY IS CREATED. These copies used to land FLAT in the run
+    # directory, where an ordinary `runs\<run>\*.log` glob reads them - and one did, printing two
+    # vendor-log lines from files that hold the full process environment in cleartext. The copy
+    # now goes into a vendor\ SUBDIRECTORY, and the helper makes it, so the rule is enforced where
+    # the copy happens rather than remembered at each call site.
+    $vlSub = Join-Path (Join-Path $vlOut 'run') 'vendor'
+    Check '8p the vendor\ subdirectory does not exist before the copy (the control for the next check)' (
+        -not (Test-Path -LiteralPath $vlSub))
+    $vlDeep = Copy-VendorLogByPid -ProcessId 83276 -LogDir $vlDir -NamePrefix 'vrfGui' -Since $vlSince -Destination (Join-Path $vlSub 'vendor-vrfGui.log')
+    Check '8p the copy CREATES its destination directory, so vendor\ needs no separate mkdir' (
+        $vlDeep['Source'] -eq $vlWanted -and (Test-Path -LiteralPath (Join-Path $vlSub 'vendor-vrfGui.log'))) "error=$($vlDeep['Error'])"
+    Check '8p and nothing matching *.log is left at the run-directory level by that copy' (
+        @(Get-ChildItem -LiteralPath (Join-Path $vlOut 'run') -Filter '*.log' -File -ErrorAction SilentlyContinue).Count -eq 0)
+    Check '8p Get-VendorLogDir is the one name for it (runner, manifest and tests cannot disagree)' (
+        (Get-VendorLogDir -RunDir 'C:\x\runs\20260921T000000Z_run') -eq 'C:\x\runs\20260921T000000Z_run\vendor')
 } finally {
     Remove-Item -LiteralPath $vlDir -Recurse -Force -ErrorAction SilentlyContinue
 }
@@ -1849,9 +1864,32 @@ Check '8p runner: the front-end pid is parsed out of the launch output, like the
 Check '8p runner: the copy is announced WITH the secrets warning, and the manifest repeats it' (
     $runnerText -match 'SECRETS: \{0\} holds the FULL PROCESS ENVIRONMENT IN CLEARTEXT' -and
     $runnerText -match 'vendorLogs = \[ordered\]@\{')
-Check '8p runner: the 5.0.2 flat-name capture is untouched (that profile really does write them)' (
+Check '8p runner: the 5.0.2 capture still reads the SAME flat sources (that profile writes them)' (
     $runnerText -match "foreach \(\`$lg in @\('vrfSim\.log', 'vrfGui\.log'\)\)" -and
     $runnerText -match "bin64-' \+ \`$lg")
+# 2026-09-21: BOTH profiles' copies land under vendor\, and NEITHER call site builds the path
+# from a literal. The run directory itself must stay free of vendor *.log files, because that is
+# what the `runs\<run>\*.log` glob reads.
+Check '8p runner: the 5.2 destination is Get-VendorLogDir, not a path built beside our own logs' (
+    $runnerText -match 'Get-VendorLogDir -RunDir \$RunDir' -and
+    $runnerText -notmatch '\$dstPath = Join-Path \$RunDir \$vl\.dst')
+Check '8p runner: the 5.0.2 bin64-*.log copy goes under vendor\ too' (
+    $runnerText -match "Join-Path \`$b64Dir \('bin64-' \+ \`$lg\)" -and
+    $runnerText -notmatch "Join-Path \`$RunDir \('bin64-' \+ \`$lg\)")
+Check '8p runner: the dry-run plan and the secrets WARN both name the vendor\ subdirectory and the glob rule' (
+    $provDefFlat -match 'vendor\\vendor-vrfSim\.log' -and
+    $runnerText -match 'runs\\<run>\\\*\.log glob' -and
+    $runnerText -match 'never glob')
+Check '8p runner: the manifest records WHERE the copies are and WHY' (
+    $runnerText -match 'directory  = \(Get-VendorLogDir -RunDir \$RunDir\)' -and
+    $runnerText -match 'whySubdirectory\s*=')
+Check '8p RunnerLib: Copy-VendorLogByPid creates the destination directory itself' (
+    $libAst.Extent.Text -match 'New-Item -ItemType Directory -Path \$dstDir')
+Check '8p tools\analysis\run_census.py reads vendor\ FIRST and still falls back to the old flat path' (
+    ((Get-Content -LiteralPath (Join-Path $RepoRoot 'tools\analysis\run_census.py') -Raw) -match
+     'os\.path\.join\(rd, "vendor", "bin64-vrfSim\.log"\)') -and
+    ((Get-Content -LiteralPath (Join-Path $RepoRoot 'tools\analysis\run_census.py') -Raw) -match
+     'os\.path\.join\(rd, "bin64-vrfSim\.log"\)'))
 
 # 8q. D1b harvest A3: LaunchVrf52 shouts "-FederationHoldSecs 0 ... this launch's own back end
 # will be the federation CREATOR - the STP-825 failure mode" whenever it has no holder of its
