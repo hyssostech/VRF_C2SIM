@@ -16,6 +16,13 @@ Entry records read in full: `scratchpad\validation\stp825_notify_adjudication.md
 `scratchpad\validation\stp825_abc_adjudication.md`. Harness: `stp825_notify2_orchestrator.ps1`
 (written, parse-checked, self-tested, NOT run).
 
+## AMENDMENT A1 (2026-09-21 00:30Z, registered BEFORE any create of this experiment)
+
+The first launch (2026-09-21 00:13:12Z, orchestrator pid 90556) ABORTED at the quiescence gate before block B01: 600 s timeout, CPU 11%, "interfering" = seven Docker Desktop / docker-agent processes. NO create was issued, no block ran, no CSV row exists, no appNumber was consumed (4802-4993 stay claimed for this experiment).
+Defect: sec 7.5's interfering-process pattern includes "docker", but Docker Desktop is a CONSTANT background on this host (it hosts c2sim-server-vrf and c2sim_server4.8.4.9; it ran during every earlier STP-825 run and every demo rehearsal), so it cannot differ between conditions and can never be quiet - the gate was unsatisfiable.
+AMENDMENT: "docker" is REMOVED from the interfering-process pattern, which drives the quiescence gate, the per-create "interfering" column and the dirty-instance count alike (one function, verified in the orchestrator). Keeping it would mark all sixteen instances dirty in both arms - it could not fire R-L1 (8 vs 8) but would leave R-L2's clean-instance sensitivity analysis with zero instances. As a constant it is instead recorded ONCE, in the session conditions file the seat captures at launch (docker ps + the Docker process list: scratch validation\stp825_notify2_conditions.txt), and total CPU % is still sampled before and after every create, so any Docker-driven load still reaches the analysis through the CPU columns and R-L1's CPU-gap test. Nothing else in the design changes: same frozen order (seed 825), same N, same tests, same alpha, same verdict function.
+Side effect of the abort, recorded: the orchestrator had already stopped the seed rtiexec 51560 / rtiForwarder 71500 before the gate timed out, so the host had NO rtiexec between 00:13Z and the amended launch; the seat's persistent holder 12916 had been stopped by the seat beforehand as the procedure requires.
+
 ---------------------------------------------------------------------------------------------------
 ## 1. WHAT THE PILOT ESTABLISHED, AND THE FIVE DEFECTS THIS DESIGN FIXES
 
@@ -332,7 +339,8 @@ behaviours are exercised in the orchestrator's `-SelfTest` and its scorer smoke 
 An rtiexec the orchestrator started exits mid-block; `StartRtiExec52.ps1` reports `ALREADY UP`; a
 refusal whose stdout names no module; three consecutive probe launch failures; the quiescence gate
 times out; a name assertion fails when stopping a pid. On any of these the orchestrator stops, leaves
-the CURRENT rtiexec running, prints full state, and exits non-zero. The session is then VOID-INCOMPLETE.
+the CURRENT rtiexec running (except an abort before block 1, which leaves NONE - observed
+2026-09-21), prints full state, and exits non-zero. The session is then VOID-INCOMPLETE.
 
 ---------------------------------------------------------------------------------------------------
 ## 9. SEPARATE PROBE (own hypothesis, own criteria, no restart): FEDERATION-NAME LENGTH AT -n 3
