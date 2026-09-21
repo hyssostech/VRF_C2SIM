@@ -346,6 +346,41 @@ public sealed class VrfC2SimService : BackgroundService
     // Case 3 releases the task on REFLECTION of the re-created object (TryGetEntityGeodetic), not on
     // the ObjectCreated control message: HLA discovery is a separate path with its own latency.
     private readonly ConcurrentDictionary<string, (string Uuid, DateTime Deadline)> _awaitReflection = new();
+
+    // ============ DEFER, DO NOT ABORT (D5b, 2026-09-21; DispatchReadiness.cs) ============
+    // Run 20260921T072530Z_wayb pushed an order 0.31 s after the initialization. The interface
+    // DROPPED T_R5_TK1 because 1.BdeHQ~PXY "was not created" and created that unit two log lines
+    // later (:150 vs :162), and REFUSED T_R5_PL1 because a live location could not be read. Both
+    // are TRANSIENT states of a healthy system reported as permanent failures of it. The state
+    // machine and every sentence are in DispatchReadiness; what lives here is the waiting.
+    //
+    // ONE GATE PER UNIT NAME - several tasks on the same taskee share it. Registered and completed
+    // on the TICK THREAD only (classification reads the bridge), awaited off it.
+    private sealed class DispatchWait
+    {
+        public readonly TaskCompletionSource Ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public readonly bool PlannedAtInit;
+        public volatile int LastStateCode;     // (int)TaskeeReadiness, refreshed by the tick sweep
+        public DispatchWait(bool plannedAtInit, TaskeeReadiness state)
+        { PlannedAtInit = plannedAtInit; LastStateCode = (int)state; }
+    }
+    private readonly ConcurrentDictionary<string, DispatchWait> _dispatchWaits = new(StringComparer.Ordinal);
+
+    // THE INITIALIZATION'S OWN CREATION BARRIER. Every name the init asked VR-Forces to create,
+    // recorded when the init's plan is FINAL and BEFORE the terrain-profile query - so a unit whose
+    // create is still waiting on that reply counts as outstanding, which is exactly the D5b state.
+    // It is the denominator of the READY TO TASK line and the membership test that keeps an
+    // order-time materialization from deleting and re-creating objects while the init's own creates
+    // are still landing on the back end (the overlap).
+    private readonly ConcurrentDictionary<string, byte> _initPlannedNames = new(StringComparer.Ordinal);
+    private int _initShellCount;                              // of those, AtOrder shells (members come later)
+    private DateTime _initPlannedUtc = DateTime.MinValue;     // barrier start; MinValue = no init yet
+    private volatile bool _initSettled;                       // tick thread writes; said once
+    private bool _orderBeforeReadySaid;                       // order thread only
+    // Order-time materializations HELD by that barrier. Same shape as _materializeOnCreated, drained
+    // on the tick thread the moment the barrier settles or expires.
+    private readonly ConcurrentDictionary<string, (string Uuid, string Why)> _materializeOnInitSettled =
+        new(StringComparer.Ordinal);
     // Declared child names per composed parent (ApplyHierarchyComposition) so a case-3 re-attach can
     // restore the DECLARED subordinate order (leader = declared first, UG52 18.1.1) instead of
     // appending the re-created child last.
@@ -1019,6 +1054,13 @@ public sealed class VrfC2SimService : BackgroundService
             TickPhase("ExpireShiftRequests", !_pendingShift.IsEmpty, ExpireShiftRequests);
             TickPhase("ExpireCompositions", !_compositions.IsEmpty, ExpireCompositions);
             TickPhase("ReleaseReflected", !_awaitReflection.IsEmpty, ReleaseReflected);
+            // DEFER, DO NOT ABORT (D5b): "bound" is an event (ObjectCreated), but "its location
+            // reads now" is only ever a poll, and the init barrier has to expire even when nothing
+            // else happens - so the sweep runs here as well as on every ObjectCreated. It costs
+            // nothing once the init has settled and no task is held.
+            TickPhase("SweepDispatchReadiness",
+                      !_dispatchWaits.IsEmpty || (!_initSettled && _initPlannedUtc != DateTime.MinValue),
+                      SweepDispatchReadiness);
             // STP-822: BEFORE the R1 poll, so a loss confirmed on this tick suppresses THIS
             // tick's position reports rather than the next one's.
             TickPhase("MaybeCheckBackendLiveness", _vrf.BackendLivenessSeconds > 0, MaybeCheckBackendLiveness);
@@ -1649,6 +1691,10 @@ public sealed class VrfC2SimService : BackgroundService
         // the two - a DtIfCreateVrfObject for a TacticalArea neither reads nor is read by a unit
         // create - but it IS a departure from the golden command order, so a trace comparison must
         // expect areas first. Fixed100, the golden-parity mode, keeps the original order.
+        // DEFER, DO NOT ABORT (D5b): record the init's OWN creation set here - the plan is final and
+        // nothing has been issued yet, so a unit whose create is about to be deferred to a terrain
+        // reply is counted as outstanding. That is precisely the state that dropped T_R5_TK1.
+        RecordInitCreationBarrier(toCreate);
         if (toCreate.Count > 0 && IsLiveLikeAltitudeMode())
             StartPlacementTerrainQuery(toCreate, placements, source);
         else
@@ -2370,6 +2416,23 @@ public sealed class VrfC2SimService : BackgroundService
         if (!plan.IsAggregate) { _materialized.TryAdd(c2simUuid, 0); return; }   // platforms were created in full at init
         string name = plan.Name;
 
+        // DEFER, DO NOT ABORT (D5b) - THE OVERLAP. Do not create, delete or re-create anything for
+        // this unit while the INITIALIZATION's own creates are still outstanding. In run
+        // 20260921T072530Z_wayb the init's six creates (:156-166) and four order-driven
+        // delete-and-re-create pairs (:172-194) landed on the back end about a second apart, and
+        // the back end faulted 1.3 s after the order (UNDIAGNOSED, n=1 - this removes the overlap,
+        // it does not explain the crash). The gate is pre-registered FIRST, by the same mechanism
+        // as the shell-not-reflected deferral below, so RunTaskAsync's existing composition await
+        // holds the task and nothing dispatches into a shell that has not been given its members.
+        if (!InitCreationsSettled(out int initOutstanding))
+        {
+            _compositionReady.GetOrAdd(name, _ => new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
+            _materializeOnInitSettled[name] = (c2simUuid, why);
+            _log.LogInformation("{Line}", DispatchReadiness.MaterializeHeldLine(
+                name, why, initOutstanding, _initPlannedNames.Count));
+            return;
+        }
+
         // Case 1: declared children (iterated in the DECLARED order, N2: the declared first child is the leader).
         if (_childUuidsBySuperior.TryGetValue(c2simUuid, out var childUuids) && childUuids.Count > 0)
         {
@@ -2388,7 +2451,15 @@ public sealed class VrfC2SimService : BackgroundService
                     childReady.Add(ct.Task);
             }
             var parentTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            // D5b: a gate pre-registered by a DEFERRAL - the init-barrier hold above, or any earlier
+            // reference - is already being awaited by RunTaskAsync, and this line REPLACES it in the
+            // map. Chain it, exactly as the case-2/case-3 path does at the bottom of this method.
+            // Before the barrier hold existed this could not happen (the only pre-registration site
+            // was BELOW this case), so the chaining had never been needed here.
+            _compositionReady.TryGetValue(name, out var preGateForChildren);
             _compositionReady[name] = parentTcs;
+            if (preGateForChildren != null && !ReferenceEquals(preGateForChildren, parentTcs))
+                _ = parentTcs.Task.ContinueWith(_ => preGateForChildren.TrySetResult(), TaskScheduler.Default);
             _ = Task.WhenAll(childReady).ContinueWith(_ => parentTcs.TrySetResult(), TaskScheduler.Default);
             _log.LogInformation("MATERIALIZE {Name} ({Why}): {N} declared child unit(s) materialized; the unit is " +
                                 "ready when they are.", name, why, childUuids.Count);
@@ -2428,6 +2499,36 @@ public sealed class VrfC2SimService : BackgroundService
         }
         else
         {
+            // B1 (cold-start review of 945e054) - A LAST-RESORT GUARD. NOT a structural guarantee,
+            // and the delta review of 27960f6 was right to say so: what actually closes B1 is the
+            // CAP in DispatchReadiness.BarrierSeconds, which makes the drain precede every task's
+            // composition backstop by an inequality. This is the net under it, and the net has
+            // THREE HOLES, named here so nobody mistakes it for the fix:
+            //   (i)   _inFlight is written LATE - RecordDispatch runs at the final send (see
+            //         MarkDispatched below), after the route-shift check, the terrain-profile query
+            //         and the CreateRoute/route-created hop. A task that has passed
+            //         TryDispatchOrHold but is still inside that pipeline is INVISIBLE here, and
+            //         deleting its unit then is worse than deleting it mid-move: the pipeline is
+            //         holding a uuid that no longer exists.
+            //   (ii)  it is keyed on the unit being DELETED. For a COMPOSED PARENT the in-flight
+            //         task is on the parent and the deletes are on its declared children, through
+            //         the case-1 recursion above - so this guard would NOT have caught the original
+            //         B1 on D5b's own fixture (task on 114.MechCoy~PXY, deletes on 114x.MechPlt).
+            //   (iii) when it DOES refuse, only the first task is named. Every other task on this
+            //         unit then classifies Ready (unparked, bound, readable) and drives the same
+            //         empty shell with no line of its own.
+            // Widening it (an "entered ExecuteTaskOnTick" set, ancestor lookup, a per-task repeat)
+            // is a real change to the dispatch path and belongs in its own lane, not in the fix for
+            // an ordering defect the cap already closes.
+            // So: do NOT delete; say so as loudly as the log allows; leave the task on what it has;
+            // and RELEASE the composition gate, because nothing else will now complete it.
+            if (_inFlight.TryGetCurrent(name, out var dispatched))
+            {
+                _log.LogError("{Line}", DispatchReadiness.RefusedDeleteUnderDispatchedTask(name, dispatched.TaskName));
+                if (_compositionReady.TryGetValue(name, out var strandedGate)) strandedGate.TrySetResult();
+                if (preGate != null) preGate.TrySetResult();
+                return;
+            }
             // Case 3: template with platforms -> delete the shell, re-create as the template.
             _compositionReady[name] = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             _recreatePending[name] = 0;
@@ -2506,6 +2607,274 @@ public sealed class VrfC2SimService : BackgroundService
                 _log.LogInformation("MATERIALIZE {Name}: re-created object {Uuid} reflected; ready for tasking.",
                                     kv.Key, kv.Value.Uuid);
             if (_compositionReady.TryGetValue(kv.Key, out var tcs)) tcs.TrySetResult();
+        }
+    }
+
+    // ================= DEFER, DO NOT ABORT (D5b, 2026-09-21) =================
+
+    /// <summary>
+    /// Record the INITIALIZATION's own creation set (init thread, before anything is issued). Runs
+    /// once per distinct init delivery - the duplicate guard upstream means a re-pushed init does
+    /// not re-arm it - and a genuinely NEW initialization re-arms the barrier for its own objects,
+    /// which is what it should do.
+    /// </summary>
+    private void RecordInitCreationBarrier(List<CreationPlan> plans)
+    {
+        if (plans == null || plans.Count == 0) return;
+        // Review note (945e054): a genuinely NEW initialization re-arms the barrier FOR ITS OWN
+        // OBJECTS, which is what this method's own contract says. Accumulating both inits' names
+        // made READY TO TASK report a cumulative denominator that belonged to no single init.
+        _initPlannedNames.Clear();
+        int shells = 0;
+        foreach (var p in plans)
+        {
+            if (string.IsNullOrEmpty(p.Name)) continue;
+            _initPlannedNames[p.Name] = 0;
+            if (p.IsAggregate && !p.CreateSubordinates) shells++;
+        }
+        _initShellCount = shells;
+        _initSettled = false;
+        _initPlannedUtc = DateTime.UtcNow;
+        _log.LogInformation("INIT CREATION BARRIER: {N} object(s) planned by this initialization " +
+                            "({Shells} empty shell(s)). Until they are bound, a task whose taskee is not " +
+                            "taskable yet is HELD rather than dropped and an order-time materialization " +
+                            "does not delete/re-create anything - both bounded by {Key} ({T:F0} s). The " +
+                            "{Ready} line says when the wait is over.",
+                            _initPlannedNames.Count, shells, DispatchReadiness.TimeoutSettingKey,
+                            DispatchReadiness.BarrierSeconds(_vrf.DispatchReadinessTimeoutSeconds,
+                                             _vrf.CompositionTimeoutSeconds,
+                                             _vrf.TerrainProfileTimeoutSeconds),
+                            DispatchReadiness.ReadyToTaskPrefix);
+    }
+
+    /// <summary>How many of the init's planned names are bound to a VR-Forces object. Managed maps
+    /// only - safe from any thread (the order thread reads it for the ORDER BEFORE READY line).</summary>
+    private int BoundInitNameCount()
+    {
+        int n = 0;
+        foreach (var name in _initPlannedNames.Keys) if (_names.TryGetUuid(name, out _)) n++;
+        return n;
+    }
+
+    /// <summary>
+    /// Have the INITIALIZATION's own creates all bound? True when there is no init to wait for,
+    /// when the barrier has already settled or expired, and when the feature is turned off
+    /// (Vrf:DispatchReadinessTimeoutSeconds = 0 is the pre-2026-09-21 behaviour, in which an
+    /// order-time materialization fires the instant the order names the unit).
+    /// </summary>
+    private bool InitCreationsSettled(out int outstanding)
+    {
+        outstanding = 0;
+        if (_vrf.DispatchReadinessTimeoutSeconds <= 0.0) return true;
+        if (_initSettled || _initPlannedUtc == DateTime.MinValue) return true;
+        foreach (var name in _initPlannedNames.Keys)
+            if (!_names.TryGetUuid(name, out _)) outstanding++;
+        return outstanding == 0;
+    }
+
+    /// <summary>TICK THREAD ONLY - it reads the bridge. The taskee's state, from the managed maps
+    /// plus one live-location read, through the shared rule in DispatchReadiness.</summary>
+    private TaskeeReadiness ClassifyTaskee(string unitName, bool plannedAtInit)
+    {
+        bool bound = _names.TryGetUuid(unitName, out var vrfUuid);
+        bool readable = bound && _bridge.TryGetEntityGeodetic(vrfUuid, out _);
+        // B1 (cold-start review of 945e054): a unit whose order-time materialization is parked
+        // behind the init barrier is never READY, however bound and readable its init shell is -
+        // the object that answers is the empty shell, and the parked work would delete it once the
+        // barrier settles.
+        //
+        // WHERE THIS ACTUALLY EARNS ITS PLACE (delta review of 27960f6), which is NOT the ordering
+        // the cap already closes: the park uses _compositionReady.GetOrAdd, so if that name already
+        // carries a COMPLETED gate from an earlier materialization, GetOrAdd hands back the stale
+        // completed TCS, RunTaskAsync's gate loop sees IsCompleted and skips it, and the task
+        // arrives here with the unit still parked. This catches exactly that, and the cross-order
+        // case (a second order parks a unit while a first order's task on it is being classified).
+        // It does NOT cover the AffectedEntity: TryDispatchOrHold classifies only the TASKEE, and an
+        // affected entity's park is held off by the cap alone (its gate is in RunTaskAsync's `gates`
+        // list, so the same inequality covers it).
+        bool parked = _materializeOnInitSettled.ContainsKey(unitName);
+        return DispatchReadiness.Classify(plannedAtInit, _names.IsRequested(unitName), bound,
+                                          readable, parked);
+    }
+
+    /// <summary>
+    /// TICK THREAD. ONE re-evaluation point for every wait this feature owns:
+    ///   - each HELD TASK's gate is completed the moment its taskee is bound AND readable;
+    ///   - the INIT BARRIER settles when every init-planned name is bound and one live location has
+    ///     been read (the READY TO TASK line, once), or EXPIRES at
+    ///     Vrf:DispatchReadinessTimeoutSeconds with the honest line - and either way the
+    ///     order-time materializations it held are released, so nothing can wedge on it.
+    /// Called from the tick loop AND from OnVrfObjectCreated: binding is an event, but "its location
+    /// reads now" is only ever a poll, and the barrier has to expire even if nothing else happens.
+    /// </summary>
+    private void SweepDispatchReadiness()
+    {
+        foreach (var kv in _dispatchWaits)
+        {
+            if (kv.Value.Ready.Task.IsCompleted) continue;
+            var s = ClassifyTaskee(kv.Key, kv.Value.PlannedAtInit);
+            kv.Value.LastStateCode = (int)s;
+            if (s == TaskeeReadiness.Ready) kv.Value.Ready.TrySetResult();
+        }
+
+        if (_initSettled || _initPlannedUtc == DateTime.MinValue) return;
+        int planned = _initPlannedNames.Count;
+        int bound = 0;
+        var missing = new List<string>();
+        foreach (var name in _initPlannedNames.Keys)
+        {
+            if (_names.TryGetUuid(name, out _)) bound++;
+            else if (missing.Count < 8) missing.Add(name);
+        }
+        // THE LOCATION READ IS TAKEN ONLY ONCE EVERYTHING IS BOUND, and it stops at the first
+        // success. Settling needs both conditions, so probing before the names are all bound buys
+        // nothing and would cost one native read per bound object per 50 ms tick AND per
+        // ObjectCreated - which on a 128-unit initialization is exactly the kind of cost a
+        // bookkeeping sweep must not add to the tick thread.
+        bool anyRead = false;
+        if (planned > 0 && bound == planned)
+            foreach (var name in _initPlannedNames.Keys)
+                if (_names.TryGetUuid(name, out var uuid) && _bridge.TryGetEntityGeodetic(uuid, out _))
+                { anyRead = true; break; }
+        double waited = (DateTime.UtcNow - _initPlannedUtc).TotalSeconds;
+        bool settled = planned > 0 && bound == planned && anyRead;
+        bool expired = waited >= DispatchReadiness.BarrierSeconds(_vrf.DispatchReadinessTimeoutSeconds,
+                                             _vrf.CompositionTimeoutSeconds,
+                                             _vrf.TerrainProfileTimeoutSeconds);
+        if (!settled && !expired) return;
+
+        // SET FIRST, THEN SAY IT, THEN DRAIN: the held materializations re-enter MaterializeUnit,
+        // which asks InitCreationsSettled again - it must already be true or they would re-queue.
+        _initSettled = true;
+        if (settled)
+            _log.LogInformation("{Line}", DispatchReadiness.ReadyToTaskLine(
+                bound, planned, _vrf.MaterializeAtOrder ? _initShellCount : 0, waited));
+        else
+            _log.LogWarning("{Line}", DispatchReadiness.NotReadyToTaskLine(
+                bound, planned, string.Join(", ", missing) + (bound + missing.Count < planned ? ", ..." : ""),
+                waited));
+        DrainHeldMaterializations();
+    }
+
+    /// <summary>Tick thread: run every order-time materialization the init barrier held, in one
+    /// pass, now that the init's own creates are done with the back end.</summary>
+    private void DrainHeldMaterializations()
+    {
+        if (_materializeOnInitSettled.IsEmpty) return;
+        int n = 0;
+        foreach (var name in _materializeOnInitSettled.Keys.ToList())
+        {
+            if (!_materializeOnInitSettled.TryRemove(name, out var held)) continue;
+            n++;
+            MaterializeUnit(held.Uuid, held.Why + " (held for the initialization; released)");
+        }
+        if (n > 0)
+            _log.LogInformation("MATERIALIZE: {N} order-time materialization(s) held for the " +
+                                "initialization were released together - the init's creates and these " +
+                                "delete/re-creates no longer overlap on the back end.", n);
+    }
+
+    /// <summary>
+    /// TICK THREAD, and the ONE entry point a task's first dispatch pass now takes.
+    ///
+    /// A taskee that is READY falls straight through to ExecuteTaskOnTick in this same tick action,
+    /// on this same thread, having logged nothing and waited for nothing - so a run in which
+    /// nothing races is byte-for-byte the run it is today. A taskee in a TRANSIENT state is HELD
+    /// (one loud line) and dispatched from HoldThenDispatchAsync when it becomes taskable. Anything
+    /// that must be refused promptly - a taskee the init never planned, a back end STP-822 has
+    /// declared LOST, or the feature turned off - falls through to ExecuteTaskOnTick and reaches
+    /// exactly the abort it reaches today.
+    /// </summary>
+    private void TryDispatchOrHold(OrderTask task, CreatedUnit unit)
+    {
+        bool plannedAtInit = _unitByC2SimUuid.ContainsKey(task.TaskeeUuid ?? "");
+        var state = ClassifyTaskee(unit.Name, plannedAtInit);
+        if (!DispatchReadiness.ShouldHold(state, _vrf.DispatchReadinessTimeoutSeconds, _backendLost))
+        {
+            ExecuteTaskOnTick(task, unit);
+            return;
+        }
+        // A gate that has already been completed is STALE - an order-time re-create can take a unit
+        // back out of the taskable state - so it is replaced rather than re-used.
+        var wait = _dispatchWaits.AddOrUpdate(unit.Name,
+            _ => new DispatchWait(plannedAtInit, state),
+            (_, old) => old.Ready.Task.IsCompleted ? new DispatchWait(plannedAtInit, state) : old);
+        _log.LogWarning("{Line}", DispatchReadiness.HoldLine(task.TaskName, unit.Name, state,
+                                                             _vrf.DispatchReadinessTimeoutSeconds));
+        _ = HoldThenDispatchAsync(task, unit, state, wait, DateTime.UtcNow, TaskClockSeconds);
+    }
+
+    /// <summary>
+    /// OFF the tick thread: wait out the hold, then dispatch or abandon.
+    ///
+    /// The wait ends on the GATE (completed by SweepDispatchReadiness, which runs on the tick and
+    /// on every ObjectCreated), on the BOUND, or on a back-end LOSS - and a loss ends it at once,
+    /// because a stopped simulator produces BOUND-BUT-NOT-READABLE for as long as anyone cares to
+    /// wait and STP-822 already knows it is gone.
+    ///
+    /// The ending on failure is the one every other dispatch dead end in this file uses:
+    /// NotifyAbandoned so the STREND successors fail FAST, and ONE TASKABRT through the single emit
+    /// point with the state it was still in NAMED.
+    /// </summary>
+    private async Task HoldThenDispatchAsync(OrderTask task, CreatedUnit unit, TaskeeReadiness startState,
+                                             DispatchWait wait, DateTime startedUtc, double startClock)
+    {
+        try
+        {
+            double bound = Math.Max(0.1, _vrf.DispatchReadinessTimeoutSeconds);
+            var deadline = startedUtc.AddSeconds(bound);
+            bool released = false;
+            while (!released)
+            {
+                // The service is going away: leave silently, like RunTaskAsync's own
+                // OperationCanceledException arm. Without this the linked token makes every
+                // Task.Delay complete instantly and the loop spins out the whole bound.
+                if (_stoppingToken.IsCancellationRequested) return;
+                var remaining = deadline - DateTime.UtcNow;
+                if (remaining <= TimeSpan.Zero) break;
+                // One second at a time so a back-end LOSS declared mid-hold is acted on within a
+                // second instead of at the bound - the liveness signal is not an event we can await.
+                var slice = remaining > TimeSpan.FromSeconds(1) ? TimeSpan.FromSeconds(1) : remaining;
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(_stoppingToken);
+                var done = await Task.WhenAny(wait.Ready.Task, Task.Delay(slice, cts.Token));
+                if (done == wait.Ready.Task) { cts.Cancel(); released = true; break; }
+                if (_backendLost) break;
+            }
+            _dispatchWaits.TryRemove(new KeyValuePair<string, DispatchWait>(unit.Name, wait));
+            double wall = (DateTime.UtcNow - startedUtc).TotalSeconds;
+            if (released)
+            {
+                _log.LogInformation("{Line}", DispatchReadiness.ReleasedLine(
+                    task.TaskName, unit.Name, startState, wall, TaskClockSeconds - startClock,
+                    _vrf.TaskClock));
+                _tickActions.Enqueue(() => DeferredDispatch.Run(
+                    () => ExecuteTaskOnTick(task, unit), task.TaskUuid, task.TaskName,
+                    DeferredDispatch.ReadinessRelease, _sequencer,
+                    reason => PushTaskStatus(task.TaskeeUuid, task.TaskUuid,
+                                             S.TaskStatusCodeType.TASKABRT, reason),
+                    ex => _log.LogError("Task '{Task}' DISPATCH FAILED on the VR-Forces tick thread after " +
+                                        "its readiness hold ({Type}: {Msg}) - it is abandoned and reported " +
+                                        "TASKABRT so its STREND successors fail fast.",
+                                        task.TaskName, ex.GetType().Name, ex.Message)));
+                return;
+            }
+            var last = (TaskeeReadiness)wait.LastStateCode;
+            string reason = _backendLost
+                ? DispatchReadiness.BackendLostAbortReason(task.TaskName, unit.Name, last, wall)
+                : DispatchReadiness.TimeoutAbortReason(task.TaskName, unit.Name, last, wall);
+            _log.LogError("{Reason}", reason);
+            _sequencer.NotifyAbandoned(task.TaskUuid);
+            PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKABRT, reason);
+        }
+        catch (OperationCanceledException) { /* service stopping */ }
+        catch (Exception e)
+        {
+            // The hold itself died, so nothing will ever dispatch this task: the same ending.
+            _log.LogError("Task '{Task}' readiness hold failed ({Type}: {Msg}) - abandoned.",
+                          task.TaskName, e.GetType().Name, e.Message);
+            _sequencer.NotifyAbandoned(task.TaskUuid);
+            PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKABRT,
+                           $"ABANDONED: the readiness hold for task '{task.TaskName}' failed ({e.Message})");
         }
     }
 
@@ -2802,6 +3171,25 @@ public sealed class VrfC2SimService : BackgroundService
                                                     .OrderByDescending(g => g.Count())
                                                     .Select(g => g.Count() > 1 ? $"{g.Key} x{g.Count()}" : g.Key)));
 
+        // DEFER, DO NOT ABORT (D5b): SAY SO when the order beat the initialization's own creations.
+        // The runbook's only "we are live" signal is the READY line, which fires before the init is
+        // even pushed; the line an operator should wait for is READY TO TASK. Said once per run,
+        // and it is a WARNING because it names a race the operator can simply not run.
+        // S1 (cold-start review of 945e054): gate on the OUTSTANDING CREATIONS, which is what the
+        // sentence describes - NOT on _initSettled, which also requires one live location read. HLA
+        // discovery after ObjectCreated is unbounded, so a cleanly-gated Way A run whose names were
+        // all bound before the order could otherwise be WARNED about a race that did not happen.
+        if (!_orderBeforeReadySaid && _initPlannedUtc != DateTime.MinValue)
+        {
+            int boundNow = BoundInitNameCount();
+            if (boundNow < _initPlannedNames.Count)
+            {
+                _orderBeforeReadySaid = true;
+                _log.LogWarning("{Line}", DispatchReadiness.OrderBeforeReadyLine(
+                    boundNow, _initPlannedNames.Count));
+            }
+        }
+
         // M1: record the WHOLE order before orchestrating any of it. A gated task derives its
         // predecessor window from the predecessor's Duration, and STREND predecessors are not
         // guaranteed to come first in document order.
@@ -3072,8 +3460,15 @@ public sealed class VrfC2SimService : BackgroundService
             // D1 (pass-3 review): the ending is DeferredDispatch.Run, shared with the terrain-profile
             // re-entry (RunTerrainContinuation) - which is where the DEFAULT ground move is really
             // dispatched, and which this guard did not cover when it was written inline here.
+            // DEFER, DO NOT ABORT (D5b): the first pass now enters through TryDispatchOrHold, which
+            // classifies the taskee ON THIS THREAD (the classification reads the bridge) and either
+            // calls ExecuteTaskOnTick in this same tick action - the unchanged path, for a taskee
+            // that is ready, and for every state that must be refused promptly - or HOLDS the task.
+            // Under CreationPolicy=AtOrder a platform "created in full" at init registers no
+            // composition gate at all, so an order that beat the init's creates fell straight
+            // through the gate above and was DROPPED at :3117 for a unit created a second later.
             _tickActions.Enqueue(() => DeferredDispatch.Run(
-                () => ExecuteTaskOnTick(task, unit), task.TaskUuid, task.TaskName,
+                () => TryDispatchOrHold(task, unit), task.TaskUuid, task.TaskName,
                 DeferredDispatch.FirstPass, _sequencer,
                 reason => PushTaskStatus(task.TaskeeUuid, task.TaskUuid,
                                          S.TaskStatusCodeType.TASKABRT, reason),
@@ -4434,6 +4829,13 @@ public sealed class VrfC2SimService : BackgroundService
                                     name, e.Uuid, pending.TaskeeVrfUuid);
             }
         }
+
+        // DEFER, DO NOT ABORT (D5b): THIS is the event that can end a hold and settle the init
+        // barrier, so re-evaluate both here rather than waiting up to a tick for the sweep. Guarded
+        // like a tick phase - this callback is the tick thread and must outlive any one phase.
+        TickPhase("SweepDispatchReadiness(ObjectCreated)",
+                  !_dispatchWaits.IsEmpty || (!_initSettled && _initPlannedUtc != DateTime.MinValue),
+                  SweepDispatchReadiness);
     }
 
     /// <summary>

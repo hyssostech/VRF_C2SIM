@@ -226,6 +226,50 @@ public class VrfSettings
     // never round-trips hanging the parent (and its tasks) forever.
     public double CompositionTimeoutSeconds { get; set; } = 15.0;
 
+    // DEFER, DO NOT ABORT (D5b, 2026-09-21; DispatchReadiness.cs). How long a task whose taskee is
+    // in a TRANSIENT pre-taskable state is HELD before it is abandoned. Run 20260921T072530Z_wayb
+    // pushed an order 0.31 s after the initialization: the interface DROPPED a task because its
+    // unit "was not created", and created that unit two log lines later. The window is as wide as
+    // the init's terrain-profile round trip - about 0.3 s when the query is answered and up to
+    // Vrf:TerrainProfileTimeoutSeconds (10 s) when it is not - and the Way A control differs in
+    // nothing but the order of two messages.
+    //
+    // WALL seconds, not task clock: this bounds a wait on the FEDERATION coming up, which has
+    // nothing to do with the scenario's clock or Vrf:DurationScale.
+    //
+    // It also bounds the INITIALIZATION barrier - how long an order-time materialization waits for
+    // the init's own creations to settle before running anyway - so one knob governs both halves of
+    // the same race and neither can wedge a run.
+    //
+    // 0 (or negative) = THE PRE-2026-09-21 BEHAVIOUR ON EVERY PATH THAT DECIDES ANYTHING: nothing
+    // is held, an unbound taskee is DROPPED and an unreadable one is REFUSED at dispatch, and no
+    // materialization is deferred for the init. That is the fail-first arm of
+    // --dispatch-readiness-selftest --disabled. It is NOT log-identical to 1d0fb69, and the
+    // difference is deliberate (S3, cold-start review 2026-09-21): the READY TO TASK OBSERVATION
+    // still runs at 0 - INIT CREATION BARRIER, the tick sweep, READY TO TASK or its NOT REACHED
+    // variant, and the ORDER BEFORE READY TO TASK warning all still print - because the operator is
+    // told to wait for that line (DEMO_RUNBOOK sec 4) and a switch that decides dispatch must not
+    // also take the instrument away. A trace comparison against 1d0fb69 will therefore differ by
+    // those lines and by nothing else.
+    //
+    // IT ALSO BOUNDS NOTHING LONGER THAN THE COMPOSITION BACKSTOP. The init barrier is CAPPED,
+    // whatever is set here, because a barrier that outlives RunTaskAsync's composition await let a
+    // task be dispatched onto an empty shell that the barrier then deleted underneath it (B1). The
+    // cap leaves room for the work the drain releases: a case-3 re-create goes through the terrain
+    // query (Vrf:TerrainProfileTimeoutSeconds) and is then released on reflection
+    // (Vrf:CompositionTimeoutSeconds), so the margin is those two summed - and the composition term
+    // CANCELS against the backstop's own, leaving
+    //     barrier = min(this, 30 - Vrf:TerrainProfileTimeoutSeconds)   = 20 s at the shipped 10.
+    // So RAISING THIS VALUE RAISES THE DISPATCH HOLD ONLY; the barrier moves with
+    // Vrf:TerrainProfileTimeoutSeconds (lower it to lengthen the barrier), and it can never exceed
+    // 30 s. The INIT CREATION BARRIER line prints the value in force, so a run never has to guess.
+    //
+    // A taskee the initialization never planned is NOT covered by this and is still refused at
+    // once (VrfC2SimService.cs, "taskee ... is not in the C2SIM initialization"), and a hold ends
+    // early with the cause named when STP-822 declares the back end LOST: a data error and a dead
+    // simulator must not become a silent 60 s wait.
+    public double DispatchReadinessTimeoutSeconds { get; set; } = 60.0;
+
     // ARRIVAL-EVIDENCE COMPLETION (user ruling 2026-09-07; ArrivalPolicy.cs). A move task is
     // reported complete (TASKCMPLT) when MORE THAN ArrivalMemberFraction of the unit's members (or
     // the entity itself) are within ArrivalRadiusMeters of the task's last vertex, checked every

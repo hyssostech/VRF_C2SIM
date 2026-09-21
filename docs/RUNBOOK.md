@@ -3075,6 +3075,138 @@ runs the clock SLOWER (COA-STP1 at scale was once measured at 0.27x, i.e. slower
 time, against R9's several-x). The app's own per-minute `SIM/WALL RATIO` line is the
 instrument for any given run - read it, never assume it.
 
+### 11g. DEFER, DO NOT ABORT - AN ORDER THAT RACES THE INITIALIZATION (D5b, 2026-09-21)
+
+`Vrf:DispatchReadinessTimeoutSeconds` (60, WALL seconds; 0 = the pre-2026-09-21 behaviour).
+
+WHAT IT FIXES. Run `20260921T072530Z_wayb` pushed the order **0.31 s** after the initialization.
+The interface DROPPED `T_R5_TK1` because `1.BdeHQ~PXY` "was not created" (`:150`) and created that
+unit TWO LOG LINES LATER (`:162`), and REFUSED `T_R5_PL1` because a live location "could not be
+read". The Way A control (`20260921T052350Z_run`) is the same build, init, order and terrain
+samples and differs in nothing but the order of two messages - what protects Way A is its runner's
+Stage 7 evidence gate, not a sleep. The window is as wide as the init's terrain-profile round trip:
+about 0.3 s when the query is answered, **up to `Vrf:TerrainProfileTimeoutSeconds` (10 s) when it
+is not**, and requests did time out in that run. Under `CreationPolicy=AtOrder` a platform created
+"in full" at init registers NO composition gate, which is why the existing wait machinery did not
+cover it (the four shell-backed taskees in that run deferred correctly and survived).
+
+THE FIVE STATES (`DispatchReadiness.cs`), and what each does now:
+
+| state | log token | today |
+|---|---|---|
+| not in the initialization | `NOT-IN-THE-INITIALIZATION` | **refused at once** - unchanged, and deliberately so |
+| planned, create not yet requested | `PLANNED-BUT-NOT-REQUESTED` | HELD |
+| requested, no object bound to the name | `REQUESTED-BUT-NOT-BOUND` | HELD |
+| bound, live location not readable yet | `BOUND-BUT-NOT-READABLE` | HELD |
+| bound and readable, but its materialization is parked behind the init barrier | `MATERIALIZATION-PARKED` | HELD (B1) |
+| bound and readable | `READY` | dispatched, with nothing logged and nothing waited for |
+
+WHAT AN OPERATOR SEES. One `WAITING FOR THE BACK END: task '<T>' held - unit <U> <state>` when a
+hold starts and one `... RELEASED` when it ends, reporting the wait in WALL seconds AND in task-
+clock seconds, each labelled. On expiry: the same TASKABRT the task would have got, with the state
+it was still in named and the wait reported. A hold ends EARLY, with the cause named, when STP-822
+declares the back end LOST - a stopped simulator produces `BOUND-BUT-NOT-READABLE` for as long as
+anyone cares to wait.
+
+THE INITIALIZATION BARRIER, AND `READY TO TASK`. An ORDER-TIME MATERIALIZATION is held until the
+init's own creates have bound, so the init's creations and the order's `DeleteObject` + re-create no
+longer land on the back end together (in D5b they were about a second apart, and the back end
+faulted 1.3 s after the order - UNDIAGNOSED, n=1; this removes the overlap, it does not explain the
+crash). When the last init object binds and one live location reads, the interface prints
+**`READY TO TASK - N of N init unit(s) bound ...`** - the line DEMO_RUNBOOK sec 4 tells the operator
+to wait for, and the line a scripted Way B should poll. It is the Way B equivalent of Way A's
+Stage 7 oracle gate. If it is not reached in time the interface says
+`READY TO TASK - NOT REACHED within N s`, names what is missing, and releases the held work anyway:
+the barrier cannot wedge a run.
+
+An order that arrives before the line gets one WARNING - but **only when a name is still unbound**.
+The predicate is "creations outstanding", deliberately, so a cleanly-gated Way A run is never
+accused of a race it did not run (HLA discovery after `ObjectCreated` is unbounded, so "bound" and
+"readable" are not the same instant). The consequence, stated: **the warning cannot fire on D5b's
+OTHER half** - every name bound but nothing readable yet, which is what REFUSED `T_R5_PL1`. In that
+case the only signal is the per-task `WAITING FOR THE BACK END ... [BOUND-BUT-NOT-READABLE]` line,
+which is enough to diagnose it but does not tell the operator they pushed early. An order pushed
+before ANY initialization is a different case and already fails the taskee lookup with its own
+message.
+
+OFFLINE PROOF, no bridge and no network: `VrfC2SimApp --dispatch-readiness-selftest` (52 checks -
+both D5b cases, the prompt refusal, the timeout, the liveness exit, the never-held invariant, the
+overlap, the barrier and the four B1/D2 arms) and `--dispatch-readiness-selftest --disabled`, which
+runs the SAME assertions at `Vrf:DispatchReadinessTimeoutSeconds = 0` - the 1d0fb69 build - and
+FAILS 26 of them.
+
+**THE CAP IS WHAT CLOSES B1 (cold-start + delta review, 2026-09-21).** `RunTaskAsync`'s composition
+await gives up after `Vrf:CompositionTimeoutSeconds + 30` (45 s at the shipped 15), logs
+`dispatching anyway (move may drive an incomplete unit)` and FALLS THROUGH. With an uncapped 60 s
+barrier that produced a real failure: the task fell through at 45 s onto the init's EMPTY SHELL
+(bound and readable, so it classified READY), and at 60 s the barrier expired, drained, and
+`MaterializeUnit` case 3 DELETED that object out from under the live task.
+
+**Defence 1 - THE CAP, and it closes B1 by an inequality rather than by a race.**
+`DispatchReadiness.BarrierSeconds` = `max(1, min(bound, 30 - Vrf:TerrainProfileTimeoutSeconds))` =
+**20 s** at the shipped 10. The derivation: a task's composition await starts at `T_gate >= T_order
+> T_init` (the park only exists if the order arrived after the barrier armed) and expires at
+`T_gate + composition + 30`; the drain runs at `T_init + cap` and its gate is complete by
+`T_init + cap + terrain + composition`, because a case-3 re-create waits for the terrain reply
+(`Vrf:TerrainProfileTimeoutSeconds`) and is then released on reflection
+(`Vrf:CompositionTimeoutSeconds`). With `cap = 30 - terrain` the drain's gate always lands at or
+before the backstop, for every `T_gate >= T_init`. **The composition term cancels** - the
+backstop's own `+ CompositionTimeoutSeconds` already budgets the reflection half - which is why the
+barrier moves with `Vrf:TerrainProfileTimeoutSeconds` and NOT with `Vrf:CompositionTimeoutSeconds`,
+and why it can never exceed 30 s however high `Vrf:DispatchReadinessTimeoutSeconds` is set. That
+setting raises the per-task HOLD only. `INIT CREATION BARRIER` prints the value in force (20 s at
+the shipped settings), so a run never has to guess; a `composition of <name> not signalled within
+45s` line from this cause means the cap is wrong. (D2: the margin used to be a flat 5 s, which was
+smaller than the 25 s round trip it had to cover.)
+
+**Defence 2 - `MATERIALIZATION-PARKED`, a real but narrow catch.** A unit whose order-time
+materialization is parked behind the barrier is never classified READY, however bound and readable
+its shell is, and the task is held with `[MATERIALIZATION-PARKED]` named. Where it genuinely earns
+its place is not the ordering the cap already closes: the park uses `_compositionReady.GetOrAdd`,
+so a name that already carries a COMPLETED gate from an earlier materialization hands the task a
+stale completed gate, `RunTaskAsync` skips it, and the task arrives at the dispatch with the unit
+still parked. It also covers the cross-order case (a second order parks a unit while a first
+order's task on it is being classified). **It does NOT cover the AffectedEntity** - only the taskee
+is classified - and an affected entity's park is held off by defence 1 alone, which is sufficient
+because its gate is in the same `gates` list the inequality covers.
+
+**Defence 3 - a LAST-RESORT GUARD, not a structural guarantee.** If the state is reached anyway,
+`MaterializeUnit` refuses to delete the object: one ERROR (`REFUSING TO MATERIALIZE ... should be
+unreachable`), the composition gate released so nothing waits forever, and the task left on what it
+has. Its three holes are named rather than papered over, because a guard mistaken for a guarantee
+is how B1 got written in the first place:
+- `_inFlight` is written LATE, at `MarkDispatched`/`RecordDispatch` - the final send, after the
+  route-shift check, the terrain query and the CreateRoute/route-created hop. A task that has
+  passed `TryDispatchOrHold` but is still inside that pipeline is INVISIBLE to the guard, and
+  deleting its unit then is worse than deleting it mid-move (the pipeline holds a dead uuid).
+- It is keyed on the unit being DELETED. For a COMPOSED PARENT the in-flight task is on the parent
+  and the deletes are on its declared children through the case-1 recursion - so **this guard would
+  not have caught the original B1 on D5b's own fixture** (task on `114.MechCoy~PXY`, deletes on
+  `114x.MechPlt`).
+- When it DOES refuse, only the first task is named. Every other task on that unit then classifies
+  READY and drives the same empty shell with no line of its own.
+Widening it (an "entered `ExecuteTaskOnTick`" set, ancestor lookup, a per-task repeat) is a real
+change to the dispatch path and belongs in its own lane, not in the fix for an ordering defect the
+cap already closes.
+
+Trigger, for the record: an order within ~15 s of the init (the demo-day Way B posture) PLUS one
+init-planned name that never binds - a create the back end drops, an AMBIGUOUS marking truncation,
+or a `NAME REBIND REFUSED`. A type-map miss cannot do it: an unmapped unit never enters the
+barrier's denominator.
+
+KNOWN LIMIT, stated rather than designed around: an object whose name could not be attributed (a
+`NAME REBIND REFUSED` or an AMBIGUOUS truncation) is indistinguishable from a create that has not
+round-tripped, so it is held for the bound before reaching the abort it reaches today. Its own
+ERROR line is already printed at the instant it happens. Second, `TaskeeReadiness.Unknown` is
+UNREACHABLE from the dispatch path: a taskee that is not in the initialization is refused in
+`OnOrder` before any orchestration starts, so the prompt refusal is a structural guarantee rather
+than a rule that has to fire. Third, **a back end that dies WITHOUT RESIGNING is not seen by the
+STP-822 liveness rule (STP-853)**, so the fast exit does NOT cover the D5b crash class: the RTI
+keeps reflecting the dead sim's attributes, the state reads READY, and a hold RELEASES into a dead
+simulator - or, if the unit was not yet bound, times out naming a transient state. The timeout
+TASKABRT therefore says so in words and tells the reader to check the back end before reading it
+as a data problem.
+
 ## 12. THE ROUTE PRE-FLIGHT (OFF) AND ITS LATERAL SHIFT (ON BY DEFAULT) (STP-804/806)
 
 Design: `docs/experiments/DESIGN_ROUTE_SHIFT_2026-09-15.md`. Evidence: FINDING_EARLY_STOPS

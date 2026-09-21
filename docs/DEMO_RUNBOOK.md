@@ -287,7 +287,11 @@ line is in the interface log it names.
 
 IN WAY A you push nothing - the command does it.
 
-IN WAY B the STP operator pushes, in this order: the Initialization first, then the Order(s). Never
+IN WAY B the STP operator pushes, in this order: the Initialization first, then the Order(s) - and
+between the two, WAIT FOR THE INTERFACE'S `READY TO TASK - N of N init unit(s) bound` LINE, which is
+what says the units exist and can be tasked (the section 3 READY line is a JOIN signal and fires
+before the initialization is even pushed; an order that beats this one is held rather than dropped,
+but it is a race with nothing to gain - RUNBOOK sec 11g). Never
 push a second initialization into a running interface: duplicates are ignored by design, so it looks
 like nothing happened - that is a guard, not a reset (section 6).
 
