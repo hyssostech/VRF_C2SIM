@@ -269,12 +269,19 @@ from it. ***
 
 ## F-2: shipped comments naming setAltitude as the placement correction, and fusing burial with a stationary vehicle (2026-09-21)
 
-*** 2026-09-21, OWNER DECISION: the placement re-clamp feature itself is being REMOVED, not
-switched off - "it should be removed, not switched off" - so commit 8aeb127 is reverted by a
-separate lane. The comment corrections below are therefore TRANSITIONAL: they make the shipped
-text true for as long as the feature exists, and they go away with it. The two record defects
-they document - naming setAltitude for a setLocation, and fusing burial with a stationary
-vehicle - are the lasting content of this entry and outlive the feature. ***
+*** CORRECTION 2026-09-21 (U2 lane D, the same day). An earlier version of this banner said the
+placement re-clamp "is being REMOVED, not switched off" as an OWNER DECISION. That was an
+over-read of a half-answer. THE KEEP/REMOVE DECISION IS OPEN AND IS WITH THE OWNER. He wrote "If
+so it should be removed, not switched off" and, in the same answer, "But I may have misread what
+you said"; asked again he replied "Confirm first that my interpretation of what you described is
+correct"; the seat confirmed on half the evidence and he then wrote "This smells of instrument
+error". The seat retracted the confirmation. The three live options are: remove it all; keep the
+placing and drop the refuse-to-task gate and its tally; leave it until a re-cut. Nobody may
+record a keep-or-remove decision, or revert 8aeb127, until he gives one. His words in full, the
+measurement behind them and what is NOT established: docs/RULINGS.md RL-20260921-06.
+The comment corrections below stand on their own. The two record defects they document - naming
+setAltitude for a setLocation, and fusing burial with a stationary vehicle - are the lasting
+content of this entry whatever happens to the feature. ***
 
 - CLAIMED (2026-09-21, commit 8aeb127, in files that SHIP): that a fallback-created object is
   "corrected with the documented setAltitude(0 m AGL)". WRONG about the code. The re-clamp
