@@ -1606,6 +1606,15 @@ public sealed class VrfC2SimService : BackgroundService
                 foreach (var s in skippedGroups)
                     _log.LogInformation("DeStack (C14 echelon scope): {N} composed sibling(s) of {Parent} were " +
                                         "NOT spread - {Reason}.", s.Count, s.ParentName, s.Reason);
+                // SF-B (cold-start review of 1d0fb69): the pass sizes each ring WITHIN its group
+                // and never looks ACROSS groups. Two parents 700 m apart with 3-child platoon
+                // rings leave 295.8 m between the rings, under the ruled 350 m; at N >= 6 they
+                // interpenetrate. DETECTION ONLY - nothing is moved, because a cross-group solve
+                // is a ruling and would change every shipped fixture. WARN, because the whole
+                // value of this line is that somebody sees it: Information is where the last
+                // silent geometry defect lived for a week.
+                foreach (var p in DeStacker.FindRingOverlaps(spreadGroups))
+                    _log.LogWarning("DeStack: {Detail}", DeStacker.DescribeRingProximity(p));
             }
             else if (composedChildIndices.Count > 0)
                 _log.LogInformation("DeStack (C14 scope): {N} unit(s) were NOT considered because " +

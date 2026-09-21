@@ -171,6 +171,14 @@ public static class InitParseCheck
         // skipped, invisible, and one un-shipped key (Vrf:DeStackEchelonFallbackMeters, default
         // 0) away from being spread. An operator considering that key needs the radius it would
         // produce BEFORE the run, not after.
+        // SF-B: the same cross-group detection the runtime WARNs on, BEFORE a run rather than
+        // after one. Silence here is the answer on every shipped fixture today.
+        var overlaps = DeStacker.FindRingOverlaps(sibling);
+        foreach (var p in overlaps)
+            Console.WriteLine("  WARN: " + DeStacker.DescribeRingProximity(p));
+        if (overlaps.Count == 0 && sibling.Count > 1)
+            Console.WriteLine($"  no cross-group ring overlap among the {sibling.Count} spread group(s) " +
+                              "(SF-B check ran and found nothing)");
         foreach (var s in siblingSkipped.Take(5))
             Console.WriteLine($"  SKIPPED: {s.Count} child(ren) of {s.ParentName} - {s.Reason}. " +
                               $"With Vrf:DeStackEchelonFallbackMeters={DeStackFallbackIllustrationMeters:F0} " +

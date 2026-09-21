@@ -74,6 +74,81 @@ public static class DeStacker
     public sealed record SiblingGroupSkipped(string ParentName, int Count, string Reason);
 
     /// <summary>
+    /// SF-B: TWO SPREAD GROUPS WHOSE RINGS COME TOO CLOSE TO EACH OTHER. <paramref name="Clearance"/>
+    /// is the NEAREST APPROACH THE TWO RINGS CAN HAVE - the anchor separation minus both radii - so
+    /// it is a LOWER BOUND on the distance between any child of one group and any child of the
+    /// other, whatever the rotation. Negative means the rings interpenetrate: some rotation puts
+    /// two children on top of each other. <paramref name="Required"/> is the larger of the two
+    /// groups' echelon spacings, which is the separation the 2026-09-07 ruling asks for between
+    /// units whose formations must not overlap.
+    /// </summary>
+    public sealed record RingProximity(string ParentA, string ParentB, double AnchorSeparationMeters,
+                                       double RadiusAMeters, double RadiusBMeters,
+                                       double Clearance, double Required)
+    {
+        public bool Interpenetrating => Clearance < 0.0;
+    }
+
+    /// <summary>
+    /// SF-B (cold-start review of 1d0fb69, 2026-09-21): DETECT - AND ONLY DETECT - CROSS-GROUP
+    /// RING OVERLAP.
+    ///
+    /// THE GAP. <see cref="ApplyComposedSiblings"/> sizes each ring so that the minimum separation
+    /// WITHIN a group is exactly that group's echelon spacing. Nothing looks ACROSS groups. Two
+    /// independent parents 700 m apart, each ringing three platoon children at r = 202.1 m, leave
+    /// 700 - 202.1 - 202.1 = 295.8 m between the two rings - under the 350 m the ruling asks for -
+    /// and at N &gt;= 6 (r = 350 m at the platoon spacing) the two rings touch or interpenetrate.
+    /// Latent today: no shipped fixture has both lanes active on the same init. The next STP
+    /// export is exactly that shape.
+    ///
+    /// THIS DOES NOT MOVE ANYTHING. Placement is not redesigned here - a cross-group solve is a
+    /// ruling, not a patch, and it would change every shipped fixture's geometry. What it does is
+    /// make the condition VISIBLE: a loud WARN naming both parents and the number, at init, and
+    /// the same rows in `--parse-init` so it can be seen BEFORE a run rather than derived from one
+    /// afterwards.
+    ///
+    /// PURE. O(n^2) over SPREAD GROUPS - four on the largest shipped init, so the pairs are free.
+    /// Groups with a non-positive radius (N &lt;= 1, or a skipped group that never made it here)
+    /// are ignored: nothing was moved, so there is no ring.
+    /// </summary>
+    public static List<RingProximity> FindRingOverlaps(IReadOnlyList<SiblingGroup> groups)
+    {
+        var hits = new List<RingProximity>();
+        if (groups == null) return hits;
+        var real = groups.Where(g => g != null && g.RadiusMeters > 0.0).ToList();
+        for (int i = 0; i < real.Count; i++)
+            for (int j = i + 1; j < real.Count; j++)
+            {
+                var a = real[i];
+                var b = real[j];
+                double dLat = (a.LatDeg - b.LatDeg) * MetersPerDegLat;
+                double dLon = (a.LonDeg - b.LonDeg) * MetersPerDegLat
+                              * Math.Max(Math.Cos(a.LatDeg * Math.PI / 180.0), 0.01);
+                double sep = Math.Sqrt(dLat * dLat + dLon * dLon);
+                double clearance = sep - a.RadiusMeters - b.RadiusMeters;
+                double required = Math.Max(a.SpacingMeters, b.SpacingMeters);
+                if (clearance < required)
+                    hits.Add(new RingProximity(a.ParentName, b.ParentName, sep,
+                                               a.RadiusMeters, b.RadiusMeters, clearance, required));
+            }
+        return hits;
+    }
+
+    /// <summary>SF-B: the one loud line per offending pair, shared by the service's WARN and
+    /// `--parse-init` so the two can never word it differently.</summary>
+    public static string DescribeRingProximity(RingProximity p)
+        => p == null ? "" :
+           $"CROSS-GROUP RING OVERLAP: {p.ParentA} and {p.ParentB} are {p.AnchorSeparationMeters:F1} m " +
+           $"apart and ring their children at {p.RadiusAMeters:F1} m and {p.RadiusBMeters:F1} m, so the " +
+           $"two rings come within {p.Clearance:F1} m of each other - " +
+           (p.Interpenetrating
+                ? "THE RINGS INTERPENETRATE, so two children of different parents can land on top of " +
+                  "one another"
+                : $"under the {p.Required:F0} m separation the 2026-09-07 ruling asks for at this echelon") +
+           ". The sibling pass sizes each ring WITHIN its own group and does not look across groups " +
+           "(SF-B). Nothing is moved to fix this; it is reported so it is not discovered from a run.";
+
+    /// <summary>
     /// SF-D4 (cold-start review of 1d0fb69, 2026-09-21): THE OPERATOR-FACING DESCRIPTION OF ONE
     /// SPREAD GROUP, with BOTH numbers, each named.
     ///

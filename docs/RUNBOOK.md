@@ -2929,11 +2929,25 @@ co-located reference - PASSES. Console level 3 is cheap on R9 scale (8.9 MB trac
 log for the whole run), so the instrument can stay ON for R9-scale rehearsals.
 
 KNOWN LIMITS (cold-start review of the ring fix, 1d0fb69):
-- No cross-group overlap check between neighbouring rings: two independent parents 700 m apart
-  each ringing 3-child platoon groups (r=202.1 m) leave only 295.8 m between the nearest
-  cross-group children, under the 350 m the ruling asks for; at N>=6 the rings interpenetrate.
-  Latent - no shipped fixture has both lanes active - but it is exactly the shape the next STP
-  export has.
+- Rings are sized WITHIN a group and nothing places them relative to each other: two parents
+  700 m apart each ringing 3-child platoon groups (r=202.1 m) leave 295.9 m between the two
+  rings, under the 350 m the ruling asks for; at N>=6 the radius equals the spacing and the
+  rings touch or interpenetrate.
+  **DETECTED since 2026-09-21 (SF-B), not fixed.** The placement is unchanged - a cross-group
+  solve is a new ruling and would move every shipped fixture - but the condition is now found
+  and said out loud: `DeStacker.FindRingOverlaps` runs after the sibling pass, the app logs one
+  **WARN** per offending pair naming both parents, the anchor separation, both radii and the
+  clearance, and `--parse-init` prints the same rows BEFORE a run (and says so when it finds
+  none).
+  **AND IT IS NOT LATENT.** The first review called it "latent - no shipped fixture has both
+  lanes active"; measured on the files, **R9 full has it today**: InitParser's superior cascade
+  puts 113.MechCoy and 114.MechCoy on the SAME 11.MechBn coordinate (their own group - the 6
+  companies under 11.MechBn - is skipped for want of a company echelon row), so each company
+  rings its own platoons about that one point. Two CONCENTRIC rings, 202.1 m and 175.0 m:
+  clearance -377.1 m, children of different parents 27 m apart radially. R9 lean, COA-STP1 and
+  Iron Storm are clean (0 pairs each), and `--destack-selftest` now asserts all four counts, so
+  a fixture cannot acquire the condition unnoticed. R9 full remains off every current
+  runbook/demo path; if it is ever put on one, this is the first thing to settle.
 - R9 full has composed sibling groups of N=4, 5, 6 and 7 (under Z1.InfCoy, 14.MechBn,
   11.MechBn, 13.MechBn) that are skipped only because COMPANY-and-above have no echelon table
   row; one setting, `Vrf:DeStackEchelonFallbackMeters=700`, would immediately spread them.
