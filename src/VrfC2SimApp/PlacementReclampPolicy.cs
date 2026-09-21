@@ -208,6 +208,78 @@ public static class PlacementReclampPolicy
     public static double CorrectionAltitude(double terrainMeters, double createClearanceMeters)
         => terrainMeters + createClearanceMeters;
 
+    /// <summary>
+    /// *** THE HARD GUARD: THIS REQUEST MAY CHANGE AN ALTITUDE. IT MAY NEVER MOVE A UNIT IN PLAN.
+    /// *** (DL-1, delta review of b3f9c38.) setLocationRequest.h:26 calls the request "force a
+    /// location for (sometimes called TELEPORTING) an entity" - so the moment the correction became
+    /// a setLocation, sending anything but the unit's own CURRENT lat/lon stopped being a
+    /// correction and became a teleport. A first version of the init sweep sent the enrolled CREATE
+    /// point: harmless for the stationary object it was written against, and a yank back to its
+    /// birth coordinate for a unit that had begun driving.
+    ///
+    /// THE BOUND IS 1 METRE, and it is chosen to be unreachable by anything except a defect. The
+    /// caller reads the live position and builds the correction from THAT SAME READ, so the only
+    /// horizontal difference possible is numerical: 1e-7 degrees is about 1.1 cm of latitude, five
+    /// orders below this bound. It is also far below any real displacement - the slowest movement
+    /// this project has ever recorded is 0.28 m/s (the Iron Storm T10 crawl), so 1 m is ~3.5 s of
+    /// the slowest motion on record. A correction that fails this test is not "slightly off": it is
+    /// code about to move a unit somewhere it did not drive, and it is refused.
+    /// </summary>
+    public const double MaxCorrectionHorizontalMeters = 1.0;
+
+    /// <summary>
+    /// TRUE when the correction would displace the unit horizontally - i.e. when it must NOT be
+    /// sent. Pure, so <c>--placement-reclamp-selftest</c> asserts the invariant rather than a
+    /// comment claiming it.
+    /// </summary>
+    public static bool WouldMoveHorizontally(double liveLatDeg, double liveLonDeg,
+                                             double fixLatDeg, double fixLonDeg,
+                                             double maxMeters = MaxCorrectionHorizontalMeters)
+        => TerrainVertexAuthoring.DistMeters(liveLatDeg, liveLonDeg, fixLatDeg, fixLonDeg) > maxMeters;
+
+    /// <summary>
+    /// The ERROR when the guard above fires. It should be unreachable - the caller builds the fix
+    /// from the live read - so if it is ever printed, something between the read and the send is
+    /// wrong and the unit is left where it is rather than moved.
+    /// </summary>
+    public static string RefusedToMoveLine(string name, double liveLatDeg, double liveLonDeg,
+                                           double fixLatDeg, double fixLonDeg)
+        => string.Format(CultureInfo.InvariantCulture,
+               "{0} {1}: CORRECTION REFUSED - it would have moved the unit {2:F1} m horizontally, "
+             + "from its live {3:F6},{4:F6} to {5:F6},{6:F6}. setLocation is a TELEPORT "
+             + "(setLocationRequest.h:26) and this path may only change an altitude, never a "
+             + "position. Nothing was sent; the unit keeps its place and its altitude verdict "
+             + "stands. THIS LINE SHOULD BE UNREACHABLE - the correction is built from the same "
+             + "live read it is checked against, so seeing it means that invariant broke.",
+               Prefix, name, TerrainVertexAuthoring.DistMeters(liveLatDeg, liveLonDeg, fixLatDeg, fixLonDeg),
+               liveLatDeg, liveLonDeg, fixLatDeg, fixLonDeg);
+
+    /// <summary>
+    /// The line when a correction is withheld because the unit IS UNDER A TASK. Also DL-1: a
+    /// teleport into a running move is worse than a wrong altitude - the vendor's movement
+    /// controller is mid-plan and the C2 side has been told the task started.
+    /// </summary>
+    public static string SkippedTaskInFlightLine(string name, string taskName, Measurement m)
+        => string.Format(CultureInfo.InvariantCulture,
+               "{0} {1}: measured off the terrain (live {2:F1} m vs terrain {3:F1} m, gap {4:F0} m) "
+             + "but NO CORRECTION IS ISSUED - task '{5}' is in flight on this unit, and setLocation "
+             + "is a teleport (setLocationRequest.h:26) that would yank a moving unit out of its "
+             + "own route. The measurement stands and is re-taken when a later task asks about this "
+             + "unit; a unit is corrected before it is tasked, never during.",
+               Prefix, name, m.LiveAltMeters, m.TerrainMeters, m.GapMeters, taskName);
+
+    /// <summary>
+    /// DL-1: the unit moved between the terrain query and its reply, so the answer is about ground
+    /// it no longer stands on. Not an error - just a measurement that does not apply. Reuses the
+    /// repo's existing calibrated notion of "this sample answers this point",
+    /// TerrainVertexAuthoring.DefaultMaxHorizontalMismatchMeters (50 m), rather than inventing a
+    /// second number for the same idea.
+    /// </summary>
+    public static bool DriftedSinceQuery(double queriedLatDeg, double queriedLonDeg,
+                                         double liveLatDeg, double liveLonDeg)
+        => TerrainVertexAuthoring.DistMeters(queriedLatDeg, queriedLonDeg, liveLatDeg, liveLonDeg)
+           > TerrainVertexAuthoring.DefaultMaxHorizontalMismatchMeters;
+
     /// <summary>Has the whole re-clamp run out of time? Wall seconds since the arm.</summary>
     public static bool Expired(double elapsedSeconds, double boundSeconds)
         => elapsedSeconds >= Math.Max(0.0, boundSeconds);

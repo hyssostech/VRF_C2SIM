@@ -53,11 +53,28 @@ public static class PlacementReclampSelfTest
         public double BoundAt = 20.0;
         /// <summary>The object's live altitude. -0.0 is what all three channels read in the run.</summary>
         public double LiveAltMeters = -0.0;
-        /// <summary>Does setAltitude(0, aboveGroundLevel=TRUE) actually move this object? The header
-        /// says it "is ignored if the vehicle is not an air-going vehicle"
-        /// (setAltitudeRequest.h:24-25); one uncontrolled run says it lifted a ground M1A2
-        /// (VRF_ALTITUDE_FRAMES sec 1b). BOTH worlds are fixtures here.</summary>
+        /// <summary>Does the correction actually move this object onto the surface? The chosen call
+        /// is setLocation, which setLocationRequest.h:26-32 says clamps a ground vehicle to the
+        /// terrain surface - but that is a header, not a run. BOTH worlds are fixtures here.</summary>
         public bool CorrectionWorks = true;
+
+        // ===== DL-1: A UNIT THAT HAS DRIVEN ====================================================
+        // The blind spot the delta review found: the old World had ONE position, so "the object's
+        // own lat/lon" and "the create point" were the same number and a teleport was undetectable.
+        /// <summary>Where the object was BORN - the enrolled create point.</summary>
+        public double BirthLatDeg = 53.99238486824088, BirthLonDeg = 23.211255470526073;
+        /// <summary>Where it IS. Defaults to its birth place; a moving fixture sets it.</summary>
+        public double LiveLatDeg = 53.99238486824088, LiveLonDeg = 23.211255470526073;
+        /// <summary>The terrain under the BIRTH point - what the old code sampled.</summary>
+        public double BirthTerrainMeters = 145.4;
+
+        /// <summary>The terrain under wherever the sweep ASKS about. The whole of DL-1 is which
+        /// point that is: ask at the live position and a healthy moving unit measures ON the
+        /// terrain; ask at the birth position and it measures ~120 m off.</summary>
+        public double TerrainAt(double latDeg, double lonDeg)
+            => TerrainVertexAuthoring.DistMeters(latDeg, lonDeg, BirthLatDeg, BirthLonDeg) < 1.0
+                   ? BirthTerrainMeters
+                   : TerrainMeters;
     }
 
     /// <summary>The re-clamp sweep, modelled. Ticks at 50 ms like TickLoop.</summary>
@@ -120,21 +137,53 @@ public static class PlacementReclampSelfTest
                 lastQuery = t;
                 TerrainQueries++;
                 if (t < _w.TerrainAnswersAt) continue;              // asked, not answered - retry later
-                var m = PlacementReclampPolicy.Measure(_w.LiveAltMeters, _w.TerrainMeters, tolerance);
+                // DL-1: the sweep asks about WHERE THE UNIT IS, and QueriedLat/Lon is what the
+                // service stores in ReclampEntry.QueriedAt. Ask at the birth point instead - the
+                // b3f9c38 behaviour - and a healthy moving unit measures off the terrain.
+                QueriedLatDeg = AskAtBirthPoint ? _w.BirthLatDeg : _w.LiveLatDeg;
+                QueriedLonDeg = AskAtBirthPoint ? _w.BirthLonDeg : _w.LiveLonDeg;
+                double th = _w.TerrainAt(QueriedLatDeg, QueriedLonDeg);
+                var m = PlacementReclampPolicy.Measure(_w.LiveAltMeters, th, tolerance);
                 bool wasOff = Outcome == PlacementReclampPolicy.Outcome.StillOffGround;
                 Contact = m.Contact;
                 switch (PlacementReclampPolicy.Decide(m.Contact, Corrections))
                 {
                     case PlacementReclampPolicy.Action.Correct:
-                        Corrections++;
+                        // GUARD 1 (DL-1): a unit under a task is never teleported.
+                        if (TaskInFlight != null)
+                        {
+                            Lines.Add(PlacementReclampPolicy.SkippedTaskInFlightLine(N, TaskInFlight, m));
+                            break;
+                        }
+                        // The fix is built from the LIVE read (b3f9c38 built it from the create
+                        // point - that is DL-1); AskAtBirthPoint reproduces the old behaviour.
                         var fix = PlacementReclampPolicy.CorrectionLocation(
-                            Lat, Lon, _w.TerrainMeters, CreateClearance);
+                            AskAtBirthPoint ? _w.BirthLatDeg : _w.LiveLatDeg,
+                            AskAtBirthPoint ? _w.BirthLonDeg : _w.LiveLonDeg,
+                            th, CreateClearance);
+                        // GUARD 2 (DL-1): the request may change an altitude, never a position.
+                        if (PlacementReclampPolicy.WouldMoveHorizontally(
+                                _w.LiveLatDeg, _w.LiveLonDeg, fix.LatDeg, fix.LonDeg))
+                        {
+                            RefusedToMove = true;
+                            Lines.Add(PlacementReclampPolicy.RefusedToMoveLine(
+                                N, _w.LiveLatDeg, _w.LiveLonDeg, fix.LatDeg, fix.LonDeg));
+                            break;
+                        }
+                        Corrections++;
                         Lines.Add(PlacementReclampPolicy.CorrectionLine(
                             N, m, tolerance, fix.LatDeg, fix.LonDeg, fix.AltMeters));
                         SentLocations.Add(fix);
                         // setLocation, not setAltitude: setLocationRequest.h:26-32 is the call the
-                        // vendor documents as clamping a GROUND vehicle to the surface.
-                        if (_w.CorrectionWorks) _w.LiveAltMeters = _w.TerrainMeters;
+                        // vendor documents as clamping a GROUND vehicle to the surface. In the
+                        // fixture a working correction also MOVES the object to where it was sent -
+                        // which is how a teleport becomes visible.
+                        if (_w.CorrectionWorks)
+                        {
+                            _w.LiveAltMeters = th;
+                            _w.LiveLatDeg = fix.LatDeg;
+                            _w.LiveLonDeg = fix.LonDeg;
+                        }
                         _last = m;
                         break;
                     case PlacementReclampPolicy.Action.GiveUp:
@@ -168,11 +217,16 @@ public static class PlacementReclampSelfTest
                 double.IsNaN(SettledAt) ? boundSeconds : SettledAt);
 
         public int Reopened;
+        /// <summary>DL-1 arm: ask (and correct) at the CREATE point - the b3f9c38 behaviour.</summary>
+        public bool AskAtBirthPoint;
+        /// <summary>DL-1 arm: a task is running on this unit, so no correction may be sent.</summary>
+        public string TaskInFlight;
+        public bool RefusedToMove;
+        public double QueriedLatDeg, QueriedLonDeg;
         public readonly List<Geodetic> SentLocations = new();
         private PlacementReclampPolicy.Measurement _last;
         private bool _gaveUpLogged;
         private const string N = "28ID__FRIENDLY_INFANTRY_DIVISION";
-        public const double Lat = 53.99238486824088, Lon = 23.211255470526073;
         public const double CreateClearance = 1.0;   // Vrf:CreateClearanceMeters
     }
 
@@ -221,7 +275,7 @@ public static class PlacementReclampSelfTest
                 task, unit, m.LiveAltMeters, m.TerrainMeters, m.GapMeters, Tolerance));
             Corrections++;
             SentLocation = PlacementReclampPolicy.CorrectionLocation(
-                Lat, Lon, _w.TerrainMeters, ReclampFixture.CreateClearance);
+                _w.LiveLatDeg, _w.LiveLonDeg, _w.TerrainMeters, ReclampFixture.CreateClearance);
             HeldAs = DispatchReadiness.Classify(true, true, true, true, false, true);
             if (reclampVerifies) _w.LiveAltMeters = _w.TerrainMeters;
 
@@ -304,13 +358,15 @@ public static class PlacementReclampSelfTest
                                    && l.Contains("setLocationRequest.h:26-32", StringComparison.Ordinal))
               && !fx.Lines.Any(l => l.Contains("Issuing setAltitude", StringComparison.Ordinal)));
 
-        Check("IRON STORM: the correction is sent AT THE OBJECT'S OWN LAT/LON (a correction, not a "
-              + "teleport) with altitude = terrain + Vrf:CreateClearanceMeters - what the create "
-              + "would have used - although the header says Z is discarded for a ground vehicle",
+        Check("IRON STORM: the correction is sent AT THE OBJECT'S OWN CURRENT LAT/LON (a correction, "
+              + "not a teleport) with altitude = terrain + Vrf:CreateClearanceMeters - what the "
+              + "create would have used - although the header says Z is discarded for a ground "
+              + "vehicle. This unit never moved, so its live point IS its create point",
               featureEnabled
                   ? fx.SentLocations.Count == 1
-                    && Math.Abs(fx.SentLocations[0].LatDeg - ReclampFixture.Lat) < 1e-12
-                    && Math.Abs(fx.SentLocations[0].LonDeg - ReclampFixture.Lon) < 1e-12
+                    && !PlacementReclampPolicy.WouldMoveHorizontally(
+                           ironStorm.BirthLatDeg, ironStorm.BirthLonDeg,
+                           fx.SentLocations[0].LatDeg, fx.SentLocations[0].LonDeg)
                     && Math.Abs(fx.SentLocations[0].AltMeters - (145.4 + ReclampFixture.CreateClearance)) < 1e-9
                   : false);
 
@@ -426,6 +482,89 @@ public static class PlacementReclampSelfTest
                         return g.Dispatched && !g.HoldTimedOut && g.Corrections == 0;
                     })()
                   : false);
+
+        // ============ 3b2. DL-1: A UNIT THAT HAS DRIVEN IS NEITHER MISJUDGED NOR MOVED =====
+        // The delta review's blocker. Until now every fixture object stood still, so "its own
+        // lat/lon" and "its create point" were the same number and a teleport was invisible.
+        // This unit has driven 500 m and climbed 120 m before the sweep first visits it - the
+        // ordinary state of an enrolled platform, which is UNMEASURED and therefore taskable while
+        // the window is open (in the Iron Storm run the first TASKSTRTs land ~32 s into it).
+        const double MovedLat = 53.99238486824088 + 0.0044936;          // +500 m north
+        const double MovedLon = 23.211255470526073;
+        var movedWorld = new World {
+            LiveLatDeg = MovedLat, LiveLonDeg = MovedLon,
+            LiveAltMeters = 266.4,            // 120 m higher than where it was born
+            BirthTerrainMeters = 145.4,       // the terrain under its BIRTH point
+            TerrainMeters = 265.4,            // the terrain under where it IS - it is ON the ground
+            TerrainAnswersAt = 0.0, BoundAt = 0.0,
+        };
+
+        Check("DL-1: the travelled distance the fixture models is real - 500 m, far over the 50 m "
+              + "bar, on 120 m of relief (D10's authored route alts span 1,127-1,370 m)",
+              Math.Abs(TerrainVertexAuthoring.DistMeters(
+                  movedWorld.BirthLatDeg, movedWorld.BirthLonDeg, MovedLat, MovedLon) - 500.0) < 5.0);
+
+        var movedOk = new ReclampFixture(featureEnabled, movedWorld);
+        movedOk.Run();
+        Check("DL-1: a HEALTHY unit that has driven is asked about WHERE IT IS, so it measures ON "
+              + "the terrain and is NOT flagged - asking at its birth point would compare an "
+              + "altitude read here against a terrain height sampled 500 m away",
+              featureEnabled
+                  ? movedOk.Contact == PlacementReclampPolicy.Contact.OnGround
+                    && movedOk.Corrections == 0 && movedOk.SentLocations.Count == 0
+                  : true);
+
+        Check("DL-1: and it is NOT RELOCATED - its live position is untouched",
+              Math.Abs(movedWorld.LiveLatDeg - MovedLat) < 1e-12
+              && Math.Abs(movedWorld.LiveLonDeg - MovedLon) < 1e-12);
+
+        // THE FAIL-FIRST HALF: the b3f9c38 behaviour, asking and correcting at the CREATE point.
+        var movedBirth = new World {
+            LiveLatDeg = MovedLat, LiveLonDeg = MovedLon, LiveAltMeters = 266.4,
+            BirthTerrainMeters = 145.4, TerrainMeters = 265.4,
+            TerrainAnswersAt = 0.0, BoundAt = 0.0,
+        };
+        var movedBad = new ReclampFixture(featureEnabled, movedBirth) { AskAtBirthPoint = true };
+        movedBad.Run();
+        Check("DL-1 FAIL-FIRST: asking at the CREATE point (the b3f9c38 code) DOES misjudge that "
+              + "same healthy unit as off the terrain - 266.4 m live against 145.4 m of birth "
+              + "terrain, a 121 m phantom gap over the 50 m bar. This is the defect, reproduced",
+              featureEnabled ? movedBad.Contact == PlacementReclampPolicy.Contact.OffGround : true);
+
+        Check("DL-1 FAIL-FIRST: and the correction it would then send is REFUSED BY THE GUARD "
+              + "instead of teleporting the unit 500 m back to its birth coordinate - the guard is "
+              + "what makes this class of defect unable to move a unit even when it recurs",
+              featureEnabled
+                  ? movedBad.RefusedToMove && movedBad.SentLocations.Count == 0
+                    && Math.Abs(movedBirth.LiveLatDeg - MovedLat) < 1e-12
+                  : true);
+
+        Check("DL-1: the guard's bound is 1 m and it is the right shape - 0.5 m passes, 2 m does "
+              + "not; the correction is built from the same live read it is checked against, so "
+              + "only a defect can reach it",
+              !PlacementReclampPolicy.WouldMoveHorizontally(MovedLat, MovedLon, MovedLat + 0.0000045, MovedLon)
+              && PlacementReclampPolicy.WouldMoveHorizontally(MovedLat, MovedLon, MovedLat + 0.000018, MovedLon)
+              && Math.Abs(PlacementReclampPolicy.MaxCorrectionHorizontalMeters - 1.0) < 1e-9);
+
+        Check("DL-1: a reply for a unit that DRIFTED more than the frame-check distance since the "
+              + "query is not applied to it - the answer is about ground it no longer stands on",
+              PlacementReclampPolicy.DriftedSinceQuery(MovedLat, MovedLon, MovedLat + 0.0009, MovedLon)
+              && !PlacementReclampPolicy.DriftedSinceQuery(MovedLat, MovedLon, MovedLat + 0.00009, MovedLon));
+
+        // DL-1 guard 1: a unit UNDER A TASK is never teleported, whatever the measurement says.
+        var busyWorld = new World { LiveAltMeters = -0.0, TerrainMeters = 145.4,
+                                    TerrainAnswersAt = 0.0, BoundAt = 0.0 };
+        var busy = new ReclampFixture(featureEnabled, busyWorld) { TaskInFlight = "T14_48Ibct..." };
+        busy.Run();
+        Check("DL-1: a unit with a TASK IN FLIGHT is measured but NEVER corrected - setLocation is "
+              + "a teleport and would pull a moving unit out of its own route after the C2 side was "
+              + "told the task started; the measurement stands and is re-taken later",
+              featureEnabled
+                  ? busy.Contact == PlacementReclampPolicy.Contact.OffGround
+                    && busy.Corrections == 0 && busy.SentLocations.Count == 0
+                    && busy.Lines.Any(l => l.Contains("NO CORRECTION IS ISSUED", StringComparison.Ordinal)
+                                           && l.Contains("is in flight on this unit", StringComparison.Ordinal))
+                  : true);
 
         // ============ 3c. A LYING READ-BACK (untested world, SF-1) ==================
         // The read-back would lie if the back end published the commanded altitude without

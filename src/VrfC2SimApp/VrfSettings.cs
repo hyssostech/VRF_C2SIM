@@ -906,10 +906,14 @@ public class VrfSettings
     // `VrfC2SimApp --placement-reclamp-selftest --disabled`.
     public bool PlacementReclamp { get; set; } = true;
 
-    // How long the re-clamp keeps re-asking, in WALL seconds from the moment the fallback creates
-    // are enqueued. 60 covers the ~32 s the Iron Storm terrain took to become sampleable with about
-    // 1.9x margin. It is spent on ITS OWN budget: it holds up no create, borrows nothing from the
-    // init barrier and appears in no other inequality.
+    // How long the re-clamp keeps re-asking, in WALL seconds. 60 covers the ~32 s the Iron Storm
+    // terrain took to become sampleable with about 1.9x margin. It is spent on ITS OWN budget: it
+    // holds up no create, borrows nothing from the init barrier and appears in no other inequality.
+    // IT IS 60 s PER WINDOW, NOT 60 s FROM THE FALLBACK CREATES (corrected 2026-09-21, delta review
+    // DS-2). The first window opens when the fallback creates are enqueued; a NEW window opens
+    // whenever a task asks about a unit still judged off the terrain (BL-2's re-measure), because a
+    // verdict formed against a terrain that has since streamed must not outlive it. So a unit that
+    // keeps being tasked keeps being looked at, and the bound is on each look, not on the run.
     public double PlacementReclampSeconds { get; set; } = 60.0;
 
     // Minimum WALL seconds between two terrain queries for the same fallback set. The sweep runs on

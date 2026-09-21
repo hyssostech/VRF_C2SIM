@@ -294,7 +294,14 @@ public sealed class VrfC2SimService : BackgroundService
     private sealed class ReclampEntry
     {
         public string Name;
-        public Geodetic Point;                 // the create position, i.e. what to ask the terrain about
+        // The create position. KEPT FOR THE RECORD ONLY - it is NOT what the sweep asks the terrain
+        // about and NOT where a correction is sent (DL-1): a unit that has driven is no longer
+        // there, and setLocation is a teleport.
+        public Geodetic Point;
+        // DL-1: the LIVE position this entry's outstanding terrain query was issued for. The reply
+        // is only applied if the unit is still within
+        // TerrainVertexAuthoring.DefaultMaxHorizontalMismatchMeters of it.
+        public Geodetic QueriedAt;
         public int CorrectionsIssued;
         public PlacementReclampPolicy.Measurement Last;
         public PlacementReclampPolicy.Outcome Outcome = PlacementReclampPolicy.Outcome.Pending;
@@ -3304,15 +3311,36 @@ public sealed class VrfC2SimService : BackgroundService
         // can change underneath it. What is NOT repeated is the correction (CorrectionsIssued has
         // reached MaxCorrections, so Decide returns GiveUp and issues nothing) or its ERROR line
         // (GaveUpLogged). Only a settled ON-the-ground outcome stops being measured.
+        //
+        // *** THE TERRAIN IS ASKED ABOUT WHERE THE UNIT IS NOW, NOT WHERE IT WAS BORN. *** DL-1
+        // (delta review of b3f9c38). A first version queried and corrected at the enrolled CREATE
+        // point. That was survivable while the correction was an altitude-only setAltitude; the
+        // moment it became a setLocation - "force a location for (sometimes called TELEPORTING) an
+        // entity", setLocationRequest.h:26 - it became a yank back to the birth coordinate for any
+        // unit that had begun driving. And the MEASUREMENT was already wrong on its own terms: it
+        // compared an altitude read at the unit's CURRENT position against a terrain height sampled
+        // at its BIRTH position, which on D10's relief (route altitudes 1,127-1,370 m) is hundreds
+        // of metres of disagreement for a perfectly healthy moving unit.
+        //
+        // REACHABLE, not theoretical: an enrolled platform is UNMEASURED until a reply lands, and
+        // Contact.Unknown is permissive, so it is taskable and can be driving while this window is
+        // open - in run 20260921T114910Z the first TASKSTRTs land ~32 s into what would be a 60 s
+        // window. The two buried platforms happened not to move; that is the only reason it did not
+        // bite.
         var pending = new List<ReclampEntry>();
+        var points = new List<Geodetic>();
         foreach (var e in _reclamp.Values)
-            if ((e.Outcome == PlacementReclampPolicy.Outcome.Pending
-                 || e.Outcome == PlacementReclampPolicy.Outcome.StillOffGround)
-                && _names.TryGetUuid(e.Name, out _))
-                pending.Add(e);
+        {
+            if (e.Outcome != PlacementReclampPolicy.Outcome.Pending
+                && e.Outcome != PlacementReclampPolicy.Outcome.StillOffGround) continue;
+            if (!_names.TryGetUuid(e.Name, out var uuid)) continue;
+            // No live read, no measurement: an object we cannot locate is one we cannot judge.
+            if (!_bridge.TryGetEntityGeodetic(uuid, out var live)) continue;
+            e.QueriedAt = live;
+            pending.Add(e);
+            points.Add(live);
+        }
         if (pending.Count == 0) return;
-
-        var points = pending.Select(e => e.Point).ToList();
         uint requestId;
         try { requestId = _bridge.RequestTerrainProfile(points); }
         catch (Exception ex)
@@ -3348,6 +3376,15 @@ public sealed class VrfC2SimService : BackgroundService
             if (!terrain.TryGetValue(i, out double th)) continue;          // no answer for this one yet
             if (!_names.TryGetUuid(e.Name, out var uuid)) continue;
             if (!_bridge.TryGetEntityGeodetic(uuid, out var live)) continue;
+            // DL-1: the unit may have driven between the query and its reply, and then this terrain
+            // height is about ground it no longer stands on. Not an error - just an answer that
+            // does not apply. Skip it; the next sweep asks again about where it is by then. The
+            // bound is the repo's existing calibrated "this sample answers this point" distance
+            // (TerrainVertexAuthoring.DefaultMaxHorizontalMismatchMeters), not a second number for
+            // the same idea.
+            if (PlacementReclampPolicy.DriftedSinceQuery(e.QueriedAt.LatDeg, e.QueriedAt.LonDeg,
+                                                         live.LatDeg, live.LonDeg))
+                continue;
             var m = PlacementReclampPolicy.Measure(live.AltMeters, th, _vrf.PlacementReclampToleranceMeters);
             var before = e.Last;
             e.Last = m;
@@ -3356,17 +3393,40 @@ public sealed class VrfC2SimService : BackgroundService
             switch (PlacementReclampPolicy.Decide(m.Contact, e.CorrectionsIssued))
             {
                 case PlacementReclampPolicy.Action.Correct:
-                    e.CorrectionsIssued++;
+                    // GUARD 1 (DL-1): NEVER TELEPORT A UNIT THAT IS UNDER A TASK. A wrong altitude
+                    // on an idle unit is a placement defect; a setLocation into a running move
+                    // pulls the vendor's movement controller out of its own plan after the C2 side
+                    // has been told the task started. The measurement still stands and is re-taken
+                    // when a later task asks about this unit (BL-2), so nothing is lost by waiting:
+                    // a unit is corrected BEFORE it is tasked, never during.
+                    if (_inFlight.TryGetCurrent(e.Name, out var busy))
+                    {
+                        _log.LogWarning("{Line}", PlacementReclampPolicy.SkippedTaskInFlightLine(
+                            e.Name, busy.TaskName, m));
+                        break;
+                    }
                     // THE VENDOR'S OWN LEVER FOR THIS CLASS. setLocation, not setAltitude:
                     // setAltitudeRequest.h:23-25 says the altitude request "is ignored if the
                     // vehicle is not an air-going vehicle", while setLocationRequest.h:26-32 says
                     // "Ground vehicles will be clamped to the terrain surface". Already exposed -
-                    // VrfBridge.cpp:429 -> VrfFacade.cpp:986 - so no native change. The lat/lon is
-                    // the object's OWN (this is a correction, not a move); the altitude is what the
-                    // create would have used had the terrain answered, and the header says it is
-                    // discarded for a ground vehicle, so nothing rests on it.
+                    // VrfBridge.cpp:429 -> VrfFacade.cpp:986 - so no native change.
+                    //
+                    // THE LAT/LON IS THE LIVE READ TAKEN THREE LINES ABOVE, not the create point
+                    // (DL-1). The altitude is what the create would have used had the terrain
+                    // answered; the header says it is discarded for a ground vehicle, so nothing
+                    // rests on it. Built from the live read so that the request is, by
+                    // construction, an ALTITUDE change and not a move.
                     var fix = PlacementReclampPolicy.CorrectionLocation(
-                        e.Point.LatDeg, e.Point.LonDeg, th, _vrf.CreateClearanceMeters);
+                        live.LatDeg, live.LonDeg, th, _vrf.CreateClearanceMeters);
+                    // GUARD 2 (DL-1): the invariant, asserted rather than asserted in a comment.
+                    if (PlacementReclampPolicy.WouldMoveHorizontally(live.LatDeg, live.LonDeg,
+                                                                     fix.LatDeg, fix.LonDeg))
+                    {
+                        _log.LogError("{Line}", PlacementReclampPolicy.RefusedToMoveLine(
+                            e.Name, live.LatDeg, live.LonDeg, fix.LatDeg, fix.LonDeg));
+                        break;
+                    }
+                    e.CorrectionsIssued++;
                     _log.LogWarning("{Line}", PlacementReclampPolicy.CorrectionLine(
                         e.Name, m, _vrf.PlacementReclampToleranceMeters,
                         fix.LatDeg, fix.LonDeg, fix.AltMeters));
@@ -3439,7 +3499,9 @@ public sealed class VrfC2SimService : BackgroundService
             // the ONLY source of evidence for the 50-100 m band - between this policy's refusal bar
             // and TerrainVertexAuthoring's 100 m NOTE threshold - which no log in the record covers.
             // ACCEPTED COST, stated rather than hidden: a healthy R9/D10 run gains exactly one
-            // INFO line per GROUND dispatch (3 on Iron Storm, 1 on D10) and no extra native call -
+            // INFO line per GROUND dispatch - THREE on Iron Storm (route terrain replies 45/47/49)
+            // and THREE on D10 (ids 16/18/19), corrected from "1 on D10" by the delta review's own
+            // count of distinct task terrain replies - and no extra native call -
             // the measurement is already in hand from the route's own terrain reply.
             _log.LogInformation("{Line}", PlacementReclampPolicy.GatePassedLine(
                 unit.Name, m, _vrf.PlacementReclampToleranceMeters));
@@ -3475,11 +3537,27 @@ public sealed class VrfC2SimService : BackgroundService
         // formation controller turns it into a DtSetLocationRequest per subordinate and "Ground
         // vehicles will be clamped to the terrain surface" (setLocationRequest.h:27,31-32;
         // PlacementPolicy.cs:50-53 calls this the documented unit-level lever).
+        //
+        // DL-1: the fix is built from a FRESH live read, not from liveVertices[0] - that vertex was
+        // captured when the route terrain request was ISSUED, and the taskee may have moved since.
+        // The same two guards the sweep applies hold here: never correct a unit with a task already
+        // in flight, and never send a request that would displace it horizontally.
         if (_names.TryGetUuid(unit.Name, out var uuid))
         {
-            var fix = PlacementReclampPolicy.CorrectionLocation(
-                liveVertices[0].LatDeg, liveVertices[0].LonDeg, th, _vrf.CreateClearanceMeters);
-            _bridge.SetLocation(uuid, fix);
+            if (_inFlight.TryGetCurrent(unit.Name, out var busy))
+                _log.LogWarning("{Line}", PlacementReclampPolicy.SkippedTaskInFlightLine(
+                    unit.Name, busy.TaskName, m));
+            else if (_bridge.TryGetEntityGeodetic(uuid, out var liveNow))
+            {
+                var fix = PlacementReclampPolicy.CorrectionLocation(
+                    liveNow.LatDeg, liveNow.LonDeg, th, _vrf.CreateClearanceMeters);
+                if (PlacementReclampPolicy.WouldMoveHorizontally(liveNow.LatDeg, liveNow.LonDeg,
+                                                                 fix.LatDeg, fix.LonDeg))
+                    _log.LogError("{Line}", PlacementReclampPolicy.RefusedToMoveLine(
+                        unit.Name, liveNow.LatDeg, liveNow.LonDeg, fix.LatDeg, fix.LonDeg));
+                else
+                    _bridge.SetLocation(uuid, fix);
+            }
             ReArmPlacementReclampFor(unit.Name, liveVertices[0], m);
         }
         // The ordinary hold: NotOnTheGround is transient, SweepDispatchReadiness completes the gate
@@ -3504,12 +3582,27 @@ public sealed class VrfC2SimService : BackgroundService
         ReopenPlacementReclampWindow();
     }
 
-    /// <summary>TICK THREAD. Re-open the sweep's window so the tick phase runs again.</summary>
+    /// <summary>
+    /// TICK THREAD. Re-open the sweep's window so the tick phase runs again.
+    ///
+    /// *** IT DOES NOT TOUCH _reclampQueryInFlight. *** DS-2 (delta review of b3f9c38): clearing it
+    /// here while a query is genuinely outstanding lets the next sweep issue a SECOND one, and two
+    /// replies then run ApplyPlacementReclamp over overlapping entry lists built from different
+    /// points. MaxCorrections still caps requests at one per object, so it is not a double
+    /// teleport - but a STALE reply landing after a newer one overwrites _groundContact and can
+    /// re-assert OffGround immediately after CLEARED was printed, re-holding a unit the app had
+    /// just released. Resetting _reclampLastQueryUtc is all a re-open needs: it makes the NEXT
+    /// query legal as soon as the in-flight one has landed.
+    ///
+    /// THE WINDOW RESTARTS, AND THAT IS THE INTENT, NOT A LEAK. _reclampArmedUtc is re-anchored, so
+    /// Vrf:PlacementReclampSeconds is "60 s PER WINDOW" and not "60 s from the fallback creates" -
+    /// a unit that keeps being asked about keeps being looked at. The settings comment and RUNBOOK
+    /// 11h say this in those words.
+    /// </summary>
     private void ReopenPlacementReclampWindow()
     {
         _reclampArmedUtc = DateTime.UtcNow;
         _reclampLastQueryUtc = DateTime.MinValue;
-        _reclampQueryInFlight = false;
         _reclampConcluded = false;
     }
 

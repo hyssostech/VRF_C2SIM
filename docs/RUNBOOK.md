@@ -3437,7 +3437,8 @@ a LAND PLATFORM was placed on the fallback; on the D10/R9 shape
 (`PLACEMENT summary: N of N ... from the TERRAIN QUERY`, `READY TO TASK` in 0.8 s, dispatch deferral
 2.1-2.4 s) the enrolment list is empty, the tick phase is skipped by its own guard, and **no query,
 no native read and no re-clamp line is added**. Two changes are universal and deliberate: the gate's
-one-line `is ON the terrain` note per ground dispatch (3 lines on Iron Storm, 1 on D10 - accepted in
+one-line `is ON the terrain` note per ground dispatch (**3 lines on Iron Storm and 3 on D10** - one
+per distinct task terrain reply, ids 45/47/49 and 16/18/19 - accepted in
 exchange for having any evidence at all about the 50-100 m band), and the **WALL stamp** appended to
 the `PLACEMENT` / `PLACEMENT summary` lines so a harvest can line placement up against when the
 terrain became sampleable. **The stamp goes at the END**: `Get-PlacementRows`
@@ -3459,6 +3460,36 @@ empties the Stage-7d warm/cold cache-state indicator - test 8x in
 
 **WHICH SUMMARY A PREREG SCORES: THE LAST ONE.** A re-measure opens a new window and each window
 closes with its own census of the whole map, so an early match is a mid-run state, not the verdict.
+
+**A CORRECTION MAY CHANGE AN ALTITUDE. IT MAY NEVER MOVE A UNIT IN PLAN.** `setLocation` is
+documented as *"force a location for (sometimes called **teleporting**) an entity"*
+(`setLocationRequest.h:26`), so the moment the correction became a `setLocation` the point it is
+sent to stopped being a detail. Three rules enforce it:
+- the sweep asks the terrain about the unit's **LIVE** lat/lon and corrects **there** (a first
+  version asked and corrected at the enrolled CREATE point - which also made the MEASUREMENT
+  meaningless for a unit that had moved, comparing an altitude read here against a terrain height
+  sampled hundreds of metres away; on D10's relief, route altitudes span 1,127-1,370 m, so a healthy
+  moving unit would have been "measured off the terrain" and then yanked back to its birth
+  coordinate);
+- a reply for a unit that has **drifted** more than `TerrainVertexAuthoring.
+  DefaultMaxHorizontalMismatchMeters` (50 m) since its query was issued is **not applied** - the
+  answer is about ground it no longer stands on - and the next sweep asks again;
+- **a unit with a TASK IN FLIGHT is never corrected** (`PLACEMENT RE-CLAMP <unit>: ... NO CORRECTION
+  IS ISSUED - task '<T>' is in flight`), and a request that would displace the unit by more than
+  **1 m** horizontally is refused with an ERROR that says it should be unreachable. A unit is
+  corrected **before** it is tasked, never during.
+
+**THE THREE SEQUENCES AN OPERATOR CAN SEE, WITH THEIR BOUNDS.** A held task does **not** always end
+in a TASKABRT - two of these three end in a dispatch:
+
+| # | world | what is printed, in order | bound | ends in |
+|---|---|---|---|---|
+| 1 | **the correction takes** | `task '<T>' is NOT DISPATCHED YET ... HELD as [BOUND-BUT-NOT-ON-THE-GROUND]` -> `WAITING FOR THE BACK END ... [BOUND-BUT-NOT-ON-THE-GROUND]` -> `RE-CLAMPED AND VERIFIED - live altitude read back at <terrain> m` -> `PLACEMENT RE-CLAMP summary: 0 / 1 RE-CLAMPED AND VERIFIED / 0 / 0` -> `WAITING FOR THE BACK END ... RELEASED` -> `PLACEMENT RE-CLAMP gate: <unit> is ON the terrain ... Dispatching.` | one sweep round trip + one route round trip, **~1-2 s** on a sampleable terrain | **TASKSTRT and movement. NO TASKABRT - a TASKABRT here is a FAIL** |
+| 2 | **the correction does not take** | same first two lines -> `STILL OFF THE TERRAIN AFTER A CORRECTION` (ERROR, once) -> `summary: 0 / 0 / 1 STILL OFF / 0` | the hold never releases; **exactly `Vrf:DispatchReadinessTimeoutSeconds` (60 s)** | **TASKABRT from `DispatchReadiness.TimeoutAbortReason`** naming `BOUND-BUT-NOT-ON-THE-GROUND`. The gate's own `REFUSED [...]` line is **NOT** emitted - it needs a hold that released. Every later task repeats the 60 s, re-measuring each time |
+| 3 | **the terrain never answers** | `Terrain profile request <id> for task 'PLACEMENT RE-CLAMP' got no reply within 10 s` x ~4 -> `summary: 0 / 0 / 0 / N NEVER MEASURED` | ~4 attempts at retry+timeout = 15 s inside `Vrf:PlacementReclampSeconds` | the contact is **removed**, so the unit classifies `Ready`, any held task **releases and dispatches**, and **no `gate:` line is printed** (it lives inside the measured branch) - permissive and silent, by design |
+
+**So grep the TOKEN `BOUND-BUT-NOT-ON-THE-GROUND`, not either refusal sentence**: the two TASKABRT
+paths produce different text and only one of them is the gate's.
 
 **WHAT THE DOCS PREDICT FOR THE CORRECTION, SO THE PREREG CANNOT SCORE A SURPRISE AS A SUCCESS.**
 `setLocationRequest.h:26-32` says a ground vehicle IS clamped to the terrain surface, so the
