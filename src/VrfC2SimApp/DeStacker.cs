@@ -98,8 +98,18 @@ public static class DeStacker
     /// independent parents 700 m apart, each ringing three platoon children at r = 202.1 m, leave
     /// 700 - 202.1 - 202.1 = 295.8 m between the two rings - under the 350 m the ruling asks for -
     /// and at N &gt;= 6 (r = 350 m at the platoon spacing) the two rings touch or interpenetrate.
-    /// Latent today: no shipped fixture has both lanes active on the same init. The next STP
-    /// export is exactly that shape.
+    ///
+    /// *** NOT LATENT. R9 FULL HAS IT TODAY. *** The first review of this called it "latent - no
+    /// shipped fixture has both lanes active on the same init"; measured on the files, that is
+    /// false. InitParser's superior cascade puts 113.MechCoy and 114.MechCoy on the SAME
+    /// 11.MechBn coordinate - their own group, the 6 companies under 11.MechBn, is skipped for
+    /// want of a company echelon row - so each company rings its own platoons about that one
+    /// point: two CONCENTRIC rings at 202.1 m and 175.0 m, clearance -377.1 m, children of
+    /// different parents 27 m apart radially. R9 lean, COA-STP1 and Iron Storm are clean.
+    /// DeStackSelfTest.CheckRingOverlap asserts all four counts (0/1/0/0), so this paragraph is
+    /// held by a test rather than by memory. R9 full is off every current runbook/demo path, so
+    /// nothing running today is affected; if it is ever put on one, this is the first thing to
+    /// settle.
     ///
     /// THIS DOES NOT MOVE ANYTHING. Placement is not redesigned here - a cross-group solve is a
     /// ruling, not a patch, and it would change every shipped fixture's geometry. What it does is
@@ -134,17 +144,32 @@ public static class DeStacker
         return hits;
     }
 
-    /// <summary>SF-B: the one loud line per offending pair, shared by the service's WARN and
-    /// `--parse-init` so the two can never word it differently.</summary>
+    /// <summary>
+    /// SF-B: the one loud line per offending pair, shared by the service's WARN and `--parse-init`
+    /// so the two can never word it differently.
+    ///
+    /// *** SF-R3 (cold-start review of 2df59ba): TWO HEADLINES, BECAUSE THERE ARE TWO FACTS. ***
+    /// This always opened with "CROSS-GROUP RING OVERLAP", including for the 295.9 m clearance of
+    /// the branch's own worked example - where nothing overlaps at all. The check is a SEPARATION
+    /// rule (clearance below the echelon spacing), not an overlap test, and an operator scanning
+    /// WARN headlines at a demo must be able to tell the two apart without reading the body:
+    ///   clearance &lt;= 0  -&gt; CROSS-GROUP RINGS INTERPENETRATE (children can land on each other)
+    ///   0 &lt; clearance   -&gt; CROSS-GROUP RINGS CLOSER THAN THE ECHELON SPACING (a margin, not a hit)
+    /// The threshold and the WARN level are unchanged; only the headline stops overstating.
+    /// </summary>
     public static string DescribeRingProximity(RingProximity p)
         => p == null ? "" :
-           $"CROSS-GROUP RING OVERLAP: {p.ParentA} and {p.ParentB} are {p.AnchorSeparationMeters:F1} m " +
+           (p.Interpenetrating
+                ? "CROSS-GROUP RINGS INTERPENETRATE: "
+                : "CROSS-GROUP RINGS CLOSER THAN THE ECHELON SPACING: ") +
+           $"{p.ParentA} and {p.ParentB} are {p.AnchorSeparationMeters:F1} m " +
            $"apart and ring their children at {p.RadiusAMeters:F1} m and {p.RadiusBMeters:F1} m, so the " +
            $"two rings come within {p.Clearance:F1} m of each other - " +
            (p.Interpenetrating
-                ? "THE RINGS INTERPENETRATE, so two children of different parents can land on top of " +
+                ? "a NEGATIVE clearance, so two children of different parents can land on top of " +
                   "one another"
-                : $"under the {p.Required:F0} m separation the 2026-09-07 ruling asks for at this echelon") +
+                : $"a positive clearance, but under the {p.Required:F0} m separation the 2026-09-07 " +
+                  "ruling asks for at this echelon - they do NOT overlap") +
            ". The sibling pass sizes each ring WITHIN its own group and does not look across groups " +
            "(SF-B). Nothing is moved to fix this; it is reported so it is not discovered from a run.";
 

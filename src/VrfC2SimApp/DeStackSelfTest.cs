@@ -591,9 +591,11 @@ public static class DeStackSelfTest
             // SF-B (cold-start review of 1d0fb69): CROSS-GROUP RING OVERLAP IS DETECTED, not
             // fixed. ApplyComposedSiblings sizes each ring WITHIN its group; nothing looked
             // across groups. Two parents at the ruled 700 m, each ringing three platoon children
-            // at r = 202.1 m, leave 700 - 202.1 - 202.1 = 295.8 m between the rings - under the
-            // 350 m the 2026-09-07 ruling asks for. No shipped fixture has both lanes active on
-            // one init, so this is built rather than found; the next STP export is the shape.
+            // at r = 202.1 m, leave 700 - 202.1 - 202.1 = 295.9 m between the rings - under the
+            // 350 m the 2026-09-07 ruling asks for. The 700 m pair below is BUILT, because no
+            // shipped fixture has two INDEPENDENT parents at that separation both ringing
+            // children; the condition itself is NOT hypothetical - R9 full carries a concentric
+            // pair today, which CheckRingOverlap asserts a few lines down.
             Console.WriteLine("  --- SF-B: cross-group ring overlap DETECTION (nothing is moved) ---");
             {
                 double plt = EchelonSpacing.TableMeters[EchelonSpacing.Platoon];
@@ -629,6 +631,16 @@ public static class DeStackSelfTest
                           && line.Contains($"within {hits[0].Clearance:F1} m", StringComparison.Ordinal),
                           "the WARN names BOTH parents and the nearest-approach distance - a warning " +
                           "that does not say which two groups is not actionable");
+                    // SF-R3: THE HEADLINE MUST NOT SAY OVERLAP WHEN NOTHING OVERLAPS. This pair is
+                    // 295.9 m CLEAR; it violates a separation rule, which is a different fact from
+                    // two rings intersecting, and an operator scanning headlines must see which.
+                    Check(ref failures,
+                          line.StartsWith("CROSS-GROUP RINGS CLOSER THAN THE ECHELON SPACING:",
+                                          StringComparison.Ordinal)
+                          && !line.Contains("INTERPENETRATE", StringComparison.Ordinal)
+                          && line.Contains("they do NOT overlap", StringComparison.Ordinal),
+                          $"a POSITIVE clearance is headlined as a separation shortfall, never as an " +
+                          $"overlap (got: {line.Substring(0, Math.Min(60, line.Length))}...)");
                 }
                 // N >= 6 at the platoon spacing puts r = 350 m on each ring, so two rings 700 m
                 // apart TOUCH and any more children make them interpenetrate.
@@ -645,6 +657,20 @@ public static class DeStackSelfTest
                       $"at N = 6 the radius EQUALS the spacing ({r6:F1} m), so the same two rings " +
                       $"close to {(hits6.Count > 0 ? hits6[0].Clearance : double.NaN):F1} m - the " +
                       "review's 'at N >= 6 the rings interpenetrate', measured");
+                // SF-R3, the OTHER headline: a pair whose rings genuinely intersect. 100 m apart
+                // with 202.1 m rings is a clearance of -304.1 m, and THAT is an overlap.
+                double latNear = lat0 + 100.0 / 111_320.0;
+                var gNear = new DeStacker.SiblingGroup("E.MechCoy", latNear, lon0, 3, plt,
+                                                       EchelonSpacing.Platoon, moved3, r3);
+                var hitsNear = DeStacker.FindRingOverlaps(new[] { gA, gNear });
+                string nearLine = hitsNear.Count == 1 ? DeStacker.DescribeRingProximity(hitsNear[0]) : "";
+                Check(ref failures,
+                      hitsNear.Count == 1 && hitsNear[0].Interpenetrating
+                      && Math.Abs(hitsNear[0].Clearance + 304.1) < 0.2
+                      && nearLine.StartsWith("CROSS-GROUP RINGS INTERPENETRATE:", StringComparison.Ordinal),
+                      $"a NEGATIVE clearance ({(hitsNear.Count > 0 ? hitsNear[0].Clearance : double.NaN):F1} m, " +
+                      "two parents 100 m apart with 202.1 m rings) IS headlined as an overlap - the two " +
+                      "headlines are decided by the sign of the clearance and by nothing else");
                 // AND THE CLEAN CASE MUST BE CLEAN, or the check is a permanent alarm: far enough
                 // apart, nothing is reported.
                 double latFar = lat0 + 2000.0 / 111_320.0;

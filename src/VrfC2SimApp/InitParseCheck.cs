@@ -172,13 +172,20 @@ public static class InitParseCheck
         // 0) away from being spread. An operator considering that key needs the radius it would
         // produce BEFORE the run, not after.
         // SF-B: the same cross-group detection the runtime WARNs on, BEFORE a run rather than
-        // after one. Silence here is the answer on every shipped fixture today.
+        // after one. R9 full reports a pair; R9 lean, COA-STP1 and Iron Storm are silent.
+        // SF-R3: the headline distinguishes rings that INTERPENETRATE from rings that merely
+        // close inside the echelon spacing - those are different facts and the counts say which.
         var overlaps = DeStacker.FindRingOverlaps(sibling);
         foreach (var p in overlaps)
             Console.WriteLine("  WARN: " + DeStacker.DescribeRingProximity(p));
-        if (overlaps.Count == 0 && sibling.Count > 1)
-            Console.WriteLine($"  no cross-group ring overlap among the {sibling.Count} spread group(s) " +
-                              "(SF-B check ran and found nothing)");
+        if (overlaps.Count > 0)
+            Console.WriteLine($"  {overlaps.Count} cross-group ring pair(s) flagged: " +
+                              $"{overlaps.Count(o => o.Interpenetrating)} INTERPENETRATING, " +
+                              $"{overlaps.Count(o => !o.Interpenetrating)} merely closer than the echelon " +
+                              "spacing. Nothing is moved (SF-B): this is a report, not a repair.");
+        else if (sibling.Count > 1)
+            Console.WriteLine($"  no cross-group ring pair among the {sibling.Count} spread group(s) comes " +
+                              "closer than its echelon spacing (SF-B check ran and found nothing)");
         foreach (var s in siblingSkipped.Take(5))
             Console.WriteLine($"  SKIPPED: {s.Count} child(ren) of {s.ParentName} - {s.Reason}. " +
                               $"With Vrf:DeStackEchelonFallbackMeters={DeStackFallbackIllustrationMeters:F0} " +
