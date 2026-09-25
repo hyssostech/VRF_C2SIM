@@ -41,6 +41,7 @@ docs\experiments\TASK_VOCABULARY_ASSESSMENT_2026-09-14.md | T2 | faaa0f38aa80d7d
 docs\HANDOFF_2026-07-21_SESSION_JUMP.md | T1 | 2ccdc7e15d01f60cb6951257c295a176518118f2 | historical handoff - records it as falsified
 docs\HANDOFF_2026-09-14_PARALLEL_LANES.md | T1 | 6b98fbcebc1b59be55d63b5da1d5e39f40f48558 | tripwire text - the live CLOSED-list reminder
 docs\RULINGS.md | T2 | 6e3d6cfbf8f36a54ba890747d56332cc8c961c87 | ledger site - RL-20260914-02's own scope note: item 4 answered a HOLD question and the message contains no word about MOVE. This IS the tripwire text
+docs\RULINGS.md | T2 | baa70549d7f96a9366bed65e1709f1abdc9319b9 | ledger site - RL-20260921-08 quotes the seat's S291 question verbatim ("(no 'R4')" then "(b) a move ends on arrival"); the words are the seat's as put, not guidance (U3 lane I, 2026-09-25)
 docs\RUNBOOK.md | T1 | f5e97251eaa4a88596fb21d3a4cba3225c68ec3a | tripwire citation - quotes VRF_ALTITUDE_FRAMES sec 7 forbidden pair
 docs\RUNBOOK.md | T2 | 5e4a59c1dd8a648ddca1d7fe29f5f13834ca298e | correction site - the STRUCK sentence in sec 11h, kept only as the subject of the dated CORRECTION block below it
 docs\RUNBOOK.md | T2 | 1c989a0814f5ecb2e37608ed2717feeed24a44ea | correction site - sec 11h CORRECTION (ii): 'meeting R4' for a MOVE is not supported by the answer it cites
