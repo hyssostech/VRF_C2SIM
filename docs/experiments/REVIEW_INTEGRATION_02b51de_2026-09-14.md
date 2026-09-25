@@ -88,6 +88,7 @@ Traced every path into `CodeForCompletion`:
   `TryComplete` before the abort was pushed. The reverse order is swallowed at `:3488`
   (`_arrivalReported.TryRemove`). And `TaskStatusPolicy` is the backstop: a TASKCMPLT suppresses a
   later TASKABRT, a TASKABRT never suppresses a later TASKCMPLT (row 19, abort-then-complete).
+  CORRECTION 2026-09-25: this is a SUPERVISOR reading (2026-09-13), not an owner ruling - RL-20260914-01 covers only the TASKABRT code; see its scope note. The current TEMPORARY completion position is RL-20260921-09.
   **STP never sees two terminal codes for one task.**
 - **`taskContinues` (advance-then-engage).** `CodeForCompletion(true, true)` = TASKINPRG, which
   `ShouldEmit` always allows and which consumes no slot; the engage's later completion still gets

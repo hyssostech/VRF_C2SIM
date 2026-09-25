@@ -199,6 +199,7 @@ the cost the fix removes, which is the evidence available offline.
   `PushTaskStatus`, and a later arrival or vendor completion can still produce a TASKCMPLT, which is
   the C16 shape (TASKABRT does not suppress a later TASKCMPLT). Worth an operator note if it is ever
   seen live.
+  CORRECTION 2026-09-25: this is a SUPERVISOR reading (2026-09-13), not an owner ruling - RL-20260914-01 covers only the TASKABRT code; see its scope note. The current TEMPORARY completion position is RL-20260921-09.
 - The `CHAIN DEPTH:` and cycle-refusal LOG LINES are verified by reading; their arithmetic and their
   decisions are under test, the sentences are not.
 - E3 uses `_taskByUuid`, which spans orders (N2, recorded debt). A cross-order cycle is detected,
