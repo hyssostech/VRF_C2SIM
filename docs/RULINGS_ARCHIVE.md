@@ -152,8 +152,8 @@ RL-20260920-02 | 2026-09-20 | status VERBATIM
   pointer: memory project-demo-rulings-2026-09-20; DEMO_READINESS row 16; plan-aggregate-level-profile.
 
 RL-20260921-01 | 2026-09-21 | status VERBATIM
-  Q (as put, L41754 and L41880, both still open at 00:31Z): (a) T14 crosses a lake - "(1) I apply the 800 m-west
-    destination nudge [...] I recommend the first option"; (b) de-stack A/C/D - "My recommendation is A plus C." L41754
+  Q (as put, L41754 and L41880, both still open at 00:31Z): (a) T14 crosses a lake - "I recommend the first option. [...] (1) I
+    apply the 800 m-west destination nudge"; (b) de-stack A/C/D - "My recommendation is A plus C." L41754
     also says of the 0.9 nav bar: "Reopening that ruling is your call. I'm proceeding under it: FAIL."
   A (owner, L42017): "As recommended"
   supervisor reading: two words, answering the recommendations open at 00:31Z; they do NOT make the 0.9 nav bar an owner
@@ -198,8 +198,9 @@ RL-20260921-06 | 2026-09-21 | status VERBATIM - ANSWERED S555
   A (owner, S304): "Looks like this "re-clamp thing" is useless, or actually harmful. Does not improve the situation it is meant to
     help with, and messes up with legitimate tasks. Is that it? If so it should be removed, not switched off. But I may have misread
     what you said."
-  Q (as put, S344, the same question re-put with the three parts spelled out - the placing works per one run, the self-check never
-    succeeds, the refuse-to-task gate harms legitimate tasks on cold terrain).
+  Q (as put, S339 AskUserQuestion; echoed in the S344 tool_result, type=user): "Re-clamp, given the three parts above (placing works
+    per one run; self-check never succeeds; the refuse-to-task gate harms legitimate tasks on cold terrain). [...] Your earlier answer:
+    "If so it should be removed, not switched off." Which?" Options (the seat's labels): Remove it (revert) / Switch it off / Not now.
   A (owner, S344): "Confirm first that my interpretation of what you described is correct"
   A (owner, S441, typed, after the seat confirmed on half the evidence): "Reclamp: how can you say that harvest verified it
     works and in the next sentence that placement verification never succeeds? This smells of instrument error (not to

@@ -2893,7 +2893,7 @@ Write-Host '=== 13. record checks: doc caps, tripwire phrases, ruling ids, prere
 
 $RecordCheckStaging = [ordered]@{
     HandoffLineLength = 'enforced'  # flipped 2026-09-21 (U2 lane D): HANDOFF reflowed to 199 lines, longest 158
-    RulingsLedger     = 'enforced'  # flipped 2026-09-21 (U2 lane D): docs\RULINGS.md exists, 120 lines, longest 147
+    RulingsLedger     = 'enforced'  # flipped 2026-09-21 (U2 lane D): docs\RULINGS.md exists; cap 120 x 160, file 96 lines x 147 (2026-09-25)
     LiveDocRulingIds  = 'enforced'  # flipped 2026-09-21 (U2 lane D): every ruling claim in the four live docs carries a ledger id
 }
 $script:PendingCount = 0

@@ -421,9 +421,10 @@ Fields: 1 counts and shape / 2 movement first? / 3 doctrinal end state / 4 can V
 6. OWNER: nothing on file naming BREACH.
 7. OPEN QUESTION FOR THE OWNER: none. Recorded instead: the vendor's own "has it been breached"
    test exists only in the aggregate-level profile, which this build does not run - a consequence
-   of the 2026-09-14 model-set answer (RL-20260914-03, R5: "R5 proceed as recommended"; that the
-   recommendation was EntityLevel first is recorded at TASK_VOCABULARY_ASSESSMENT R5, not in the ledger
-   quote), not a new question.
+   of the 2026-09-14 model-set answer (RL-20260914-03: "R5 proceed as recommended. But we will need to
+   offer users the option to use entity or aggregate, with the understanding of the limitations of each
+   mode"; that the recommendation was EntityLevel first is recorded at TASK_VOCABULARY_ASSESSMENT R5,
+   not in the ledger quote), not a new question.
 8. TEMPORARY POSITION (RL-20260921-09): the instances that travel end at start time plus Duration,
    or on arrival if they are still travelling then; the instances with no destination end at their
    Duration. A unit that gets stuck is an abort under the stall ruling already on file. Whether the
