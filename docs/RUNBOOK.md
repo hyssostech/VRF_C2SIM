@@ -1642,6 +1642,7 @@ Diagnostic tool improvement made alongside this: `tools/PushInit` gained a `--ve
   missing (same image, second instance):
   `docker run -d --name c2sim-server-vrf -p 18080:8080 -p 61614:61613 -v C:\C2SIM\docker\c2simFiles-vrf:/opt/c2simFiles -e TZ=America/Los_Angeles -e LANG=en_US.UTF-8 -e LC_ALL=en_US.UTF-8 -e LANGUAGE=en_US.UTF-8 c2sim-server:4.8.4.9-rev1`
   (~30 s to Apollo+Tomcat ready; verify REST `http://127.0.0.1:18080/C2SIMServer` -> HTTP 200).
+  2026-09-25: recreated after the rebuild from image 8e6e6280, bind mount seeded from c2simFiles-v3.tar.gz (layout: one top dir `c2simFiles/` plus a stray `._c2simFiles`; extracted with `tar -xzf ... --strip-components=1` inside `C:\C2SIM\docker\c2simFiles-vrf`, so its contents sit directly at /opt/c2simFiles - no doubled folder); REST 18080 -> 200, TCP 61614 connects.
   `docker restart c2sim-server-vrf` if STOMP has degraded across many runs.
 - The operator's server `c2sim_server4.8.4.9` (REST 8080, STOMP 61613) is NOT ours to
   reset, push to, or restart. The historical notes below that say 8080/61613 describe it.
