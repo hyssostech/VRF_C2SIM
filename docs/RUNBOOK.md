@@ -856,6 +856,12 @@ for-two cap (RTI UG 8.2) is unexercised on 5.2; the first FOUR-federate run must
 `HaveRtiLicense()=1` on EVERY federate (`WatchVrf --diag` prints it). MANIFEST: profile, rid +
 sha256, connection mode, the device address used, rtiexec/forwarder pids and the app's
 `VrfBridge native stack` line - the RUNTIME stack, which is what a trace compares against.
+CUSTOM SMS (the `_AG` / `_C2K` fixtures name `C:\C2SIM\vrf-sms\*.sms` by absolute path): build or
+rebuild the four trees BEFORE any fixture build or deploy with
+`& "C:\Program Files\PowerShell\7\pwsh.exe" -NoProfile -File tools\sms\Deploy-C2SimSms.ps1`
+(`-WhatIf` first; writes only under `C:\C2SIM\vrf-sms`, never `C:\MAK`; tools/sms/README.md).
+Without it a FixtureGen build with no `--sms` falls back to the shipped SMS with only a stdout
+NOTE (build_fixture.py resolve_sms_52), and the fixtures that name the SMS cannot load it.
 
 ### 0.5.14 LAUNCHING A RUN - the wrapper, the markers, exit 127, the 64-bit rule (2026-09-14)
 
