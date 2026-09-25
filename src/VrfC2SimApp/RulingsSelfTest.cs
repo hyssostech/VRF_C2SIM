@@ -29,6 +29,8 @@ public static class RulingsSelfTest
         int failures = 0;
         Console.WriteLine("=== R4: completion is given by the end time ===");
         R4(ref failures);
+        Console.WriteLine("=== RL-20260921-09: completion on the temporary position (start time + Duration) ===");
+        TemporaryPosition(ref failures);
         Console.WriteLine("=== R2: a task without geometry uses the performing unit's position ===");
         R2(ref failures);
         Console.WriteLine("=== R3: the target IS the objective ===");
@@ -307,26 +309,42 @@ public static class RulingsSelfTest
                   "the timer is consumed - no second completion, ever");
         }
 
-        // (b2) An EARLIER arrival-evidence completion cancels the timer.
+        // (b2) REWRITTEN 2026-09-25 for RL-20260921-09 (the owner's temporary position: completion
+        //      is start time + Duration). It used to assert that an EARLIER arrival cancels the
+        //      timer and completes the task at once; under the temporary position an early finish
+        //      is HELD to the end time. What still cancels: the TASKCMPLT a LATE arrival sends,
+        //      which removes the overdue entry so it can never fire a second one.
         {
             var p = new TimedCompletionPolicy();
-            p.Register("T2", "taskee-2", "T2_Move", "1-35 AR", dur);
+            p.Register("T2", "taskee-2", "T2_Move", "1-35 AR", dur, hasDestination: true);
             p.Advance(0.0, usingSim: false);
             p.Advance(100.0, usingSim: false);
+            Check(ref failures, p.MarkFinished("T2") == TimedCompletionPolicy.FinishVerdict.Hold && p.Count == 1,
+                  "an EARLIER arrival is HELD to the end time - the timer stays armed (RL-20260921-09)");
+            Check(ref failures, p.Advance(dur - 1.0, usingSim: false).Count == 0,
+                  "... nothing is due before the end time");
+            var dueB2 = p.Advance(dur, usingSim: false);
+            Check(ref failures, dueB2.Count == 1 && dueB2[0].Kind == TimedCompletionPolicy.DueKind.CompleteNow,
+                  "... and at the end time it completes, exactly once");
             Check(ref failures, TimedCompletionPolicy.CancelsTimer(S.TaskStatusCodeType.TASKCMPLT),
-                  "a TASKCMPLT cancels the timed end (arrival evidence wins)");
-            Check(ref failures, p.Cancel("T2"), "the arrival completion removes the pending timer");
+                  "a TASKCMPLT still cancels the timed end (the late arrival's report removes the overdue entry)");
             Check(ref failures, p.Advance(100.0 + dur * 2, usingSim: false).Count == 0,
-                  "a cancelled timer never fires a second TASKCMPLT");
+                  "a consumed timer never fires a second TASKCMPLT");
         }
 
-        // (b3) A TASKABRT (stall watchdog, refusal, skipped successor) also cancels it.
+        // (b3) A TERMINAL TASKABRT (refusal, skipped successor, supersede, vendor failure, back-end
+        //      loss) cancels it. The progress watchdog's REPORT-ONLY stall abort does NOT (the
+        //      completion unit's scope, approved 2026-09-25, RL-20260925-01): a stuck unit that recovers and arrives must not complete
+        //      early, and one that arrives late still reports complete.
         {
             var p = new TimedCompletionPolicy();
             p.Register("T3", "taskee-3", "T3_Attack", "1-6 IN", dur);
             p.Advance(0.0, usingSim: false);
             Check(ref failures, TimedCompletionPolicy.CancelsTimer(S.TaskStatusCodeType.TASKABRT),
                   "a TASKABRT cancels the timed end (the task is not going to run)");
+            Check(ref failures, !TimedCompletionPolicy.CancelsTimer(S.TaskStatusCodeType.TASKABRT, reportOnlyAbort: true)
+                             && TimedCompletionPolicy.CancelsTimer(S.TaskStatusCodeType.TASKABRT, reportOnlyAbort: false),
+                  "the stall watchdog's REPORT-ONLY TASKABRT does NOT cancel it; a terminal one does");
             Check(ref failures, !TimedCompletionPolicy.CancelsTimer(S.TaskStatusCodeType.TASKSTRT)
                              && !TimedCompletionPolicy.CancelsTimer(S.TaskStatusCodeType.TASKINPRG),
                   "TASKSTRT / TASKINPRG do NOT cancel it (a start and a progress note are not an end)");
@@ -555,6 +573,311 @@ public static class RulingsSelfTest
             Check(ref failures, noStart.Tasks[0].AbsoluteStartUtc is null,
                   "... and a task with no StartTime has none (it dispatches when its gate opens)");
         }
+    }
+
+    // ------------------------------------------------ RL-20260921-09 ----
+    /// <summary>
+    /// THE OWNER'S TEMPORARY POSITION ON COMPLETION (RL-20260921-09), as scoped for the completion
+    /// unit and approved on 2026-09-25 (RL-20260925-01): every task with a Duration ends at its
+    /// dispatch time plus that Duration; an early finish is HELD until then; a unit still
+    /// travelling at that moment is reported complete when it ARRIVES; a stuck unit is the stall
+    /// abort (RL-20260914-01), which the timer no longer hides; each follow-on gets its full
+    /// Duration from its own start. One check per clause.
+    ///
+    /// <see cref="CompletionFlow"/> is the service's decision sequence (SynthesizeUnitCompletion,
+    /// MaybeCompleteTimedTasks, PushTaskStatus, MaybeCheckStalls, the back-end-loss branch) over the
+    /// REAL TimedCompletionPolicy, TaskStatusPolicy and TaskSequencer, and the codes it sends come
+    /// from the same static helpers the service calls - so the rule cannot change on one side only.
+    /// </summary>
+    private static void TemporaryPosition(ref int failures)
+    {
+        const double D = 100.0;
+
+        // (t1) A task with NO destination (hold, defend, fire ...) whose sim task ends early is
+        //      still reported complete at its end time, once.
+        {
+            var f = new CompletionFlow();
+            f.Dispatch("NODEST", D, hasDestination: false);
+            f.Tick(50.0);
+            f.Finish("NODEST");                                   // e.g. a fire task's vendor completion
+            Check(ref failures, f.Count("NODEST", S.TaskStatusCodeType.TASKCMPLT) == 0,
+                  "(t1) a no-destination task whose sim task ends EARLY is not reported complete early");
+            f.Tick(D - 1.0);
+            Check(ref failures, f.Count("NODEST", S.TaskStatusCodeType.TASKCMPLT) == 0,
+                  "(t1) ... nor one second before its end time");
+            f.Tick(D);
+            f.Tick(D * 3);
+            Check(ref failures, f.Count("NODEST", S.TaskStatusCodeType.TASKCMPLT) == 1,
+                  "(t1) ... and exactly ONE TASKCMPLT at its end time");
+        }
+
+        // (t2) A destination task that ARRIVES EARLY emits nothing until its end time, then exactly
+        //      one TASKCMPLT, and its follow-on is released only then.
+        {
+            var f = new CompletionFlow();
+            f.Dispatch("EARLY", D, hasDestination: true);
+            var next = f.Seq.WaitForStartAsync("EARLY", 0, 0, D + 60.0, f.Clock.AsTaskClock(),
+                                               CancellationToken.None, double.NaN, 86400.0);
+            f.Tick(30.0);
+            f.Finish("EARLY");                                    // arrival evidence at 30 s
+            f.Tick(D - 1.0);
+            Thread.Sleep(FakeClock.PollMs * 3);
+            Check(ref failures, f.Count("EARLY", S.TaskStatusCodeType.TASKCMPLT) == 0 && !next.IsCompleted,
+                  "(t2) an EARLY arrival sends no TASKCMPLT and does not release the follow-on before the end time");
+            f.Tick(D);
+            bool rel = next.Wait(TimeSpan.FromSeconds(3));
+            Check(ref failures, f.Count("EARLY", S.TaskStatusCodeType.TASKCMPLT) == 1
+                             && rel && next.Result == GateResult.Proceed,
+                  "(t2) ... at the end time exactly ONE TASKCMPLT, and the follow-on is released then");
+        }
+
+        // (t3) A destination task NOT FINISHED at its end time emits nothing and does NOT release its
+        //      follow-on, whose gate does NOT time out at end + margin; the late arrival emits one
+        //      TASKCMPLT at once and releases it. Real TaskSequencer on a fake clock, like (b8).
+        {
+            var f = new CompletionFlow();
+            f.Dispatch("LATE", D, hasDestination: true);
+            var next = f.Seq.WaitForStartAsync("LATE", 0, 0, D + 60.0, f.Clock.AsTaskClock(),
+                                               CancellationToken.None, double.NaN, 86400.0);
+            f.Tick(D);                                            // end time, unit still travelling
+            Check(ref failures, f.Count("LATE", S.TaskStatusCodeType.TASKCMPLT) == 0
+                             && f.OverdueLines.Contains("LATE") && f.Timed.Count == 1,
+                  "(t3) a unit still travelling at its end time is NOT reported complete - one OVERDUE line, " +
+                  "the timer entry stays");
+            f.Tick(D + 60.0 + 240.0);                             // well past end + margin
+            Thread.Sleep(FakeClock.PollMs * 5);
+            Check(ref failures, !next.IsCompleted,
+                  "(t3) ... and its follow-on's gate does NOT time out at end + margin while it waits");
+            f.Tick(D + 400.0);
+            f.Finish("LATE");                                     // arrives 400 s late
+            bool rel = next.Wait(TimeSpan.FromSeconds(3));
+            Check(ref failures, f.Count("LATE", S.TaskStatusCodeType.TASKCMPLT) == 1
+                             && rel && next.Result == GateResult.Proceed && f.Timed.Count == 0,
+                  "(t3) ... the LATE arrival sends exactly ONE TASKCMPLT at once and releases the follow-on");
+            f.Tick(D * 20);
+            Check(ref failures, f.Count("LATE", S.TaskStatusCodeType.TASKCMPLT) == 1,
+                  "(t3) ... and nothing fires again afterwards");
+        }
+
+        // (t4) A STALL abort on an overdue task is SENT, not suppressed, and a later arrival still
+        //      sends TASKCMPLT (abort-then-complete - a supervisor position, RL-20260914-01 covers the
+        //      stalled-unit CODE only).
+        {
+            var f = new CompletionFlow();
+            f.Dispatch("STUCK", D, hasDestination: true);
+            f.Tick(D);                                            // overdue
+            f.Tick(D + 360.0);
+            f.Stall("STUCK");
+            Check(ref failures, f.Count("STUCK", S.TaskStatusCodeType.TASKABRT) == 1
+                             && f.Count("STUCK", S.TaskStatusCodeType.TASKCMPLT) == 0,
+                  "(t4) the stall TASKABRT on an overdue task is SENT - no timed TASKCMPLT got there first");
+            f.Tick(D + 900.0);
+            f.Finish("STUCK");
+            Check(ref failures, f.Count("STUCK", S.TaskStatusCodeType.TASKCMPLT) == 1,
+                  "(t4) ... and the unit that later arrives still reports TASKCMPLT (abort-then-complete)");
+        }
+
+        // (t5) A stall abort does NOT cancel the timer: a unit that stalls, recovers and arrives
+        //      BEFORE its end time completes AT the end time, not early.
+        {
+            var f = new CompletionFlow();
+            f.Dispatch("RECOVER", D, hasDestination: true);
+            f.Tick(40.0);
+            f.Stall("RECOVER");
+            f.Tick(70.0);
+            f.Finish("RECOVER");
+            Check(ref failures, f.Count("RECOVER", S.TaskStatusCodeType.TASKCMPLT) == 0 && f.Timed.Count == 1,
+                  "(t5) a stall abort leaves the timer armed: the recovered unit's early arrival is HELD");
+            f.Tick(D);
+            Check(ref failures, f.Count("RECOVER", S.TaskStatusCodeType.TASKCMPLT) == 1,
+                  "(t5) ... and it completes AT its end time, once");
+        }
+
+        // (t6) D2 (RL-20260925-01): the stall abort ABANDONS the stuck unit's follow-ons, each with
+        //      its own abort, as every other abort does.
+        {
+            var f = new CompletionFlow();
+            f.Dispatch("STALLPRED", D, hasDestination: true);
+            var next = f.Seq.WaitForStartAsync("STALLPRED", 0, 0, D + 60.0, f.Clock.AsTaskClock(),
+                                               CancellationToken.None, double.NaN, 86400.0);
+            f.Tick(D);
+            f.Stall("STALLPRED");
+            bool done = next.Wait(TimeSpan.FromSeconds(3));
+            Check(ref failures, done && next.Result == GateResult.PredecessorAbandoned,
+                  "(t6) the follow-on of a unit reported STUCK is ABANDONED at once (it then sends its own TASKABRT)");
+        }
+
+        // (t7) The follow-on's timer is armed with its FULL Duration from its own (late) dispatch.
+        {
+            var p = new TimedCompletionPolicy();
+            p.Register("FOLLOW", "taskee-f", "T_Follow", "1-35 AR", D, hasDestination: false);
+            p.Advance(500.0, usingSim: true);                     // dispatched at 500, after a late predecessor
+            Check(ref failures, p.Advance(500.0 + D - 1.0, usingSim: true).Count == 0
+                             && p.Advance(500.0 + D, usingSim: true).Count == 1,
+                  "(t7) a follow-on dispatched late still serves its FULL Duration from its own dispatch");
+        }
+
+        // (t8) A VENDOR FAILURE is still an immediate TASKABRT, its follow-ons abandoned, and no
+        //      TASKCMPLT at the end time.
+        {
+            var f = new CompletionFlow();
+            f.Dispatch("FAILED", D, hasDestination: true);
+            var next = f.Seq.WaitForStartAsync("FAILED", 0, 0, D + 60.0, f.Clock.AsTaskClock(),
+                                               CancellationToken.None, double.NaN, 86400.0);
+            f.Tick(20.0);
+            f.Finish("FAILED", success: false);
+            bool done = next.Wait(TimeSpan.FromSeconds(3));
+            f.Tick(D * 3);
+            Check(ref failures, f.Count("FAILED", S.TaskStatusCodeType.TASKABRT) == 1
+                             && f.Count("FAILED", S.TaskStatusCodeType.TASKCMPLT) == 0
+                             && done && next.Result == GateResult.PredecessorAbandoned && f.Timed.Count == 0,
+                  "(t8) a vendor failure is an immediate TASKABRT, the follow-on is abandoned, no timed TASKCMPLT follows");
+        }
+
+        // (t9) BACK-END LOSS cancels the timers of tasks HELD after an early finish (they are no
+        //      longer in flight, so the in-flight snapshot misses them): each gets its TASKABRT and
+        //      no TASKCMPLT arrives at the Duration from a dead back end.
+        {
+            var f = new CompletionFlow();
+            f.Dispatch("HELD", D, hasDestination: true);
+            f.Tick(10.0);
+            f.Finish("HELD");                                     // arrived early, held
+            f.BackendLost();
+            f.Tick(D * 2);
+            Check(ref failures, f.Count("HELD", S.TaskStatusCodeType.TASKABRT) == 1
+                             && f.Count("HELD", S.TaskStatusCodeType.TASKCMPLT) == 0 && f.Timed.Count == 0,
+                  "(t9) back-end loss aborts a task HELD after an early finish and cancels its timer");
+        }
+
+        // (t10) D4 (RL-20260925-01): an ATTACK/BREACH whose move arrives AFTER its Duration still
+        //       gets its parked engage, and the task is reported complete on that arrival.
+        {
+            var v = TimedCompletionPolicy.FinishVerdict.EmitNow;
+            Check(ref failures,
+                  TimedCompletionPolicy.CompletionCode(true, taskContinues: true, v) == S.TaskStatusCodeType.TASKCMPLT
+                  && TimedCompletionPolicy.ReleasesSuccessorsNow(true, v),
+                  "(t10) a LATE move half of an attack reports TASKCMPLT (the engage is still issued) and releases the follow-on");
+            var h = TimedCompletionPolicy.FinishVerdict.Hold;
+            Check(ref failures,
+                  TimedCompletionPolicy.CompletionCode(true, taskContinues: true, h) == S.TaskStatusCodeType.TASKINPRG
+                  && TimedCompletionPolicy.CompletionCode(true, taskContinues: false, h) is null
+                  && !TimedCompletionPolicy.ReleasesSuccessorsNow(true, h),
+                  "(t10) an EARLY move half still reports TASKINPRG; an early plain finish reports nothing and releases nothing");
+            var n = TimedCompletionPolicy.FinishVerdict.NotTimed;
+            Check(ref failures,
+                  TimedCompletionPolicy.CompletionCode(true, taskContinues: false, n) == S.TaskStatusCodeType.TASKCMPLT
+                  && TimedCompletionPolicy.CompletionCode(true, taskContinues: true, n) == S.TaskStatusCodeType.TASKINPRG
+                  && TimedCompletionPolicy.CompletionCode(false, taskContinues: false, n) == S.TaskStatusCodeType.TASKABRT
+                  && TimedCompletionPolicy.ReleasesSuccessorsNow(true, n) && !TimedCompletionPolicy.ReleasesSuccessorsNow(false, n),
+                  "(t10) a task with NO armed timer keeps today's evidence-only codes (no Duration, or TimedCompletion off)");
+        }
+
+        // (t11) FAIL-FIRST CONTROL for (t3)'s gate: a caller that passes NO overdue backstop gets the
+        //       pre-2026-09-25 behaviour - the follow-on of a late unit times out at end + margin.
+        {
+            var f = new CompletionFlow();
+            f.Dispatch("LATE2", D, hasDestination: true);
+            var next = f.Seq.WaitForStartAsync("LATE2", 0, 0, D + 60.0, f.Clock.AsTaskClock(),
+                                               CancellationToken.None);
+            f.Tick(D);
+            for (double t = D + 20.0; t <= D + 300.0 && !next.IsCompleted; t += 20.0)
+            {
+                f.Tick(t);
+                Thread.Sleep(FakeClock.PollMs * 2);
+            }
+            bool done = next.Wait(TimeSpan.FromSeconds(3));
+            Check(ref failures, done && next.Result == GateResult.PredecessorTimeout,
+                  "(t11) CONTROL: with no overdue backstop the late unit's follow-on is skipped at end + margin " +
+                  "(what the service did before this unit)");
+        }
+    }
+
+    /// <summary>
+    /// The service's completion decision sequence, one method per service site, over the REAL
+    /// policies and sequencer (see <see cref="TemporaryPosition"/>). Each method names the service
+    /// method it mirrors; the codes and the release decision come from the static helpers the
+    /// service itself calls.
+    /// </summary>
+    private sealed class CompletionFlow
+    {
+        public readonly FakeClock Clock = new();
+        public readonly TimedCompletionPolicy Timed = new();
+        public readonly TaskStatusPolicy Status = new();
+        public readonly TaskSequencer Seq = new();
+        public readonly List<(string Task, S.TaskStatusCodeType Code)> Sent = new();
+        public readonly List<string> OverdueLines = new();
+        private readonly HashSet<string> _inFlight = new(StringComparer.Ordinal);
+
+        /// <summary>MarkDispatched: record in flight, TASKSTRT, arm the end time (anchored now).</summary>
+        public void Dispatch(string task, double durationSeconds, bool hasDestination)
+        {
+            _inFlight.Add(task);
+            Seq.NotifyDispatched(task, Clock.Now);
+            Push(task, S.TaskStatusCodeType.TASKSTRT);
+            Timed.Register(task, "taskee-" + task, task, "unit-" + task, durationSeconds, hasDestination);
+            Timed.Advance(Clock.Now, usingSim: true);
+        }
+
+        /// <summary>PushTaskStatus: the timer cancel, then the emission rules.</summary>
+        public void Push(string task, S.TaskStatusCodeType code, bool reportOnlyAbort = false)
+        {
+            if (TimedCompletionPolicy.CancelsTimer(code, reportOnlyAbort)) Timed.Cancel(task);
+            if (Status.ShouldEmit(code, task)) Sent.Add((task, code));
+        }
+
+        /// <summary>SynthesizeUnitCompletion: every successful or failed completion.</summary>
+        public void Finish(string task, bool success = true, bool taskContinues = false)
+        {
+            _inFlight.Remove(task);
+            var verdict = success ? Timed.MarkFinished(task) : TimedCompletionPolicy.FinishVerdict.NotTimed;
+            if (TimedCompletionPolicy.ReleasesSuccessorsNow(success, verdict)) Seq.CompleteTask(task);
+            else if (!success) Seq.NotifyAbandoned(task);
+            var code = TimedCompletionPolicy.CompletionCode(success, taskContinues, verdict);
+            if (code is S.TaskStatusCodeType c) Push(task, c);
+        }
+
+        /// <summary>MaybeCompleteTimedTasks at this task-clock reading.</summary>
+        public void Tick(double clock)
+        {
+            double step = clock - Clock.Now;
+            if (step > 0) Clock.Advance(step);
+            foreach (var p in Timed.Advance(Clock.Now, usingSim: true))
+            {
+                if (p.Kind == TimedCompletionPolicy.DueKind.OverdueAwaitingArrival)
+                {
+                    OverdueLines.Add(p.TaskUuid);
+                    Seq.NotifyOverdue(p.TaskUuid);
+                    continue;
+                }
+                Push(p.TaskUuid, S.TaskStatusCodeType.TASKCMPLT);
+                Seq.CompleteTask(p.TaskUuid);
+            }
+        }
+
+        /// <summary>MaybeCheckStalls: the report-only abort, then (D2) the follow-ons abandoned.</summary>
+        public void Stall(string task)
+        {
+            Push(task, S.TaskStatusCodeType.TASKABRT, reportOnlyAbort: true);
+            Seq.NotifyAbandoned(task);
+        }
+
+        /// <summary>The back-end-loss branch: in-flight tasks AND tasks held after an early finish.</summary>
+        public void BackendLost()
+        {
+            foreach (var t in _inFlight.ToList())
+            {
+                Push(t, S.TaskStatusCodeType.TASKABRT);
+                Seq.NotifyAbandoned(t);
+            }
+            foreach (var h in Timed.HeldAfterFinish())
+            {
+                Push(h.TaskUuid, S.TaskStatusCodeType.TASKABRT);
+                Seq.NotifyAbandoned(h.TaskUuid);
+            }
+        }
+
+        public int Count(string task, S.TaskStatusCodeType code)
+            => Sent.Count(s => s.Task == task && s.Code == code);
     }
 
     /// <summary>A minimal, schema-shaped order carrying a Duration and, optionally, an ABSOLUTE
