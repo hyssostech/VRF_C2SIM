@@ -3195,9 +3195,23 @@ Check '13e DIRTY control: a stray CR is flagged' (
     (@(Test-AsciiCrlfBytes -Bytes ([byte[]](65, 13, 66))) -join ';') -like '*stray CR*')
 Check '13e CLEAN control: ASCII text with CRLF endings and a tab is clean' (
     @(Test-AsciiCrlfBytes -Bytes ([System.Text.Encoding]::ASCII.GetBytes("a`tb`r`nc`r`n"))).Count -eq 0)
-foreach ($rel in @('tests\RunnerTurnaround.Tests.ps1', 'tests\RecordChecks.ps1',
-                   'tests\tripwire_allowlist.txt', 'tests\ruling_claims_baseline.txt',
-                   'docs\experiments\PREREG_TEMPLATE.md')) {
+# WIDENED 2026-09-25 (U3 lane J, gap G3 from lane G's F7): the record files the other
+# checks read (the ledger, the live docs, the corrections log) and EVERY tests\*.ps1 -
+# enumerated, not listed, so a new test file is covered the day it lands. An absent
+# listed file fails ('ABSENT'), it is never skipped.
+$asciiRel = New-Object System.Collections.Generic.List[string]
+foreach ($rel in @('tests\tripwire_allowlist.txt', 'tests\ruling_claims_baseline.txt',
+                   'docs\experiments\PREREG_TEMPLATE.md',
+                   'docs\RULINGS.md', 'docs\RULINGS_ARCHIVE.md', 'docs\HANDOFF_2026-09-14_PARALLEL_LANES.md',
+                   'docs\DEMO_READINESS_2026-09-06.md', 'docs\RUNBOOK.md', 'docs\DEMO_RUNBOOK.md',
+                   'docs\CORRECTIONS_LOG.md')) { $asciiRel.Add($rel) }
+foreach ($f in @(Get-ChildItem -LiteralPath (Join-Path $RepoRoot 'tests') -File -Filter '*.ps1' | Sort-Object Name)) {
+    $asciiRel.Add('tests\' + $f.Name)
+}
+Check '13e the enumerated tests\*.ps1 set includes this suite and its helpers (the glob is live)' (
+    $asciiRel.Contains('tests\RunnerTurnaround.Tests.ps1') -and $asciiRel.Contains('tests\RecordChecks.ps1') -and
+    $asciiRel.Contains('tests\Hooks.Tests.ps1')) ($asciiRel -join ', ')
+foreach ($rel in $asciiRel) {
     $probs = @(Test-AsciiCrlfFile -Path (Join-Path $RepoRoot $rel))
     Check ('13e ' + $rel + ' is ASCII + CRLF') ($probs.Count -eq 0) ($probs -join '; ')
 }
