@@ -276,6 +276,13 @@ from it. ***
 
 ## F-2: shipped comments naming setAltitude as the placement correction, and fusing burial with a stationary vehicle (2026-09-21)
 
+*** CORRECTION 2026-09-25 (U2 lane F). The banner below says the keep/remove decision is OPEN.
+That is stale: the owner answered on 2026-09-21 at 19:08Z (session c3b364bd line 555, typed),
+after the banner was written, and the seat's reply that the placement stays drew no objection.
+Supervisor reading, binding nobody: the placement stays; the dispatch gate and the false tally
+are the defect, to be fixed in a PLAN-gated code unit; no revert of 8aeb127. His words and the
+reading: RL-20260921-06, now in docs/RULINGS_ARCHIVE.md. The banner below is kept as history. ***
+
 *** CORRECTION 2026-09-21 (U2 lane D, the same day). An earlier version of this banner said the
 placement re-clamp "is being REMOVED, not switched off" as an OWNER DECISION. That was an
 over-read of a half-answer. THE KEEP/REMOVE DECISION IS OPEN AND IS WITH THE OWNER. He wrote "If

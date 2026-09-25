@@ -5,8 +5,9 @@
 #      RL-20260913-02, RL-20260913-03, RL-20260914-01, RL-20260914-03, RL-20260914-04, RL-20260914-05,
 #      RL-20260914-06, RL-20260915-01, RL-20260920-01, RL-20260920-02, RL-20260921-01, RL-20260921-02,
 #      RL-20260921-03, RL-20260921-04, RL-UNVERIFIED-DIGUY01, RL-UNVERIFIED-MAK01, RL-UNVERIFIED-NAV09,
-#      RL-20260907-01.
+#      RL-20260907-01, RL-20260921-06.
 # Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl, the 1-based physical line `rg -n` prints.
+#   S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl, same line rule (RL-20260921-06; moved here from RULINGS.md 2026-09-25).
 
 RL-20260902-01 | 2026-09-02 | status VERBATIM
   Q (as put, L4035): "Item 5 is a type-mapping question: what VR-Forces unit an echelon-F (battalion) C2SIM unit becomes
@@ -190,6 +191,35 @@ RL-20260921-04 | 2026-09-21 | status VERBATIM (one SELECTION + one typed note), 
   supervisor reading: the typed half is a QUESTION BACK from the owner and is STILL UNANSWERED; no movement bar was ever
     chosen. It belongs on the list of things to put to him, beside the audit's Q-A..Q-F.
   pointer: RL-20260921-03; RL-20260921-05; Jira STP-857.
+
+RL-20260921-06 | 2026-09-21 | status VERBATIM - ANSWERED S555
+  Q (as put, S304): "The re-clamp feature merged today (re-measure units after creation, put them on the ground, refuse to task units
+    found off the terrain) is broken on not-yet-streamed terrain [...] What should its default be until it is rebuilt?"
+  A (owner, S304): "Looks like this "re-clamp thing" is useless, or actually harmful. Does not improve the situation it is meant to
+    help with, and messes up with legitimate tasks. Is that it? If so it should be removed, not switched off. But I may have misread
+    what you said."
+  Q (as put, S344, the same question re-put with the three parts spelled out - the placing works per one run, the self-check never
+    succeeds, the refuse-to-task gate harms legitimate tasks on cold terrain).
+  A (owner, S344): "Confirm first that my interpretation of what you described is correct"
+  A (owner, S441, typed, after the seat confirmed on half the evidence): "Reclamp: how can you say that harvest verified it
+    works and in the next sentence that placement verification never succeeds? This smells of instrument error (not to
+    mention the bizarre logic)"
+  The seat checked and RETRACTED that confirmation. The three options then open were: remove it all / keep the placing and drop the
+    gate and its tally / leave it until a re-cut.
+  A (owner, S555, typed, 2026-09-21 19:08Z): "Not sure why you are still dancing around reclamping: it works, right? Then there is
+    nothing to argue about it, or is there?"
+  supervisor reading: his question was rhetorical; the seat's answer (S566) "it stays" drew no objection, and no later owner message
+    in that session touches the re-clamp. The placement stays; the dispatch gate (it holds tasks on an unconfirmed read-back) and the
+    false "32 NEVER MEASURED" tally are the defect, to be fixed in a PLAN-gated code unit; no revert of 8aeb127.
+  MEASUREMENT, n = 1, seat-verified in runs\20260921T143243Z_run (our own files only): vrfc2simapp.log :626 "Terrain profile reply 43: 32
+    sample(s)"; :628-:690 thirty-two "MEASURED OFF THE TERRAIN - live -0.0 m vs terrain <h> m ... Issuing setLocation"; :20461 "0
+    RE-CLAMPED AND VERIFIED ... 32 NEVER MEASURED"; :772/:784 T1 and T13 HELD; :20307/:20345 ABANDONED at 60.0 s; :20311/:20347 follow-on
+    tasks SKIPPED. watchvrf-trace.csv POS rows: the 32 corrected objects sit at exactly those terrain heights for every sample (min =
+    max), while 4/278_ACR (6e3c0605..., created on the fallback, not enrolled) stays at -0.0 m for 1,196 samples.
+  SEPARATELY, as implications and not as cause: the feature's tally disagrees with the feature's own log; the gate ended two tasks on
+    units an independent trace shows on the terrain. NOT ESTABLISHED: there is no observer sample of the 32 from BEFORE the correction;
+    the setLocation lines carry no timestamp; why the read-back never landed is undiagnosed.
+  pointer: docs\CORRECTIONS_LOG.md F-2 (and its 2026-09-25 correction); commit 8aeb127; the HANDOFF CLOSED list re-clamp line.
 
 RL-UNVERIFIED-DIGUY01 | (claimed, undated) | status UNVERIFIED - no owner words found
   Q (as put): none located. A (owner): NOT FOUND. Searched all 276 genuine owner messages for /fidelity/i (1 hit, which is

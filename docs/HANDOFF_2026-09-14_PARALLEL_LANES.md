@@ -18,9 +18,9 @@ RULINGS - read this before you write the word "ruling" anywhere:
   detection ships OFF by default on main (DEMO_READINESS row 19), so the ruling for a unit that gets stuck only takes effect once it is switched on. "R4" is
   row 4 of the 2026-09-14 question table ("When is SECURE / OCCUPY / DEFEND complete - on arrival, after its Duration, or never?") and it was never put about
   a MOVE: RL-20260914-02, with RL-20260907-01, RL-20260921-05, -07 and -08.
-- The placement re-clamp and its dispatch ground gate (8aeb127): KEEP OR REMOVE IS OPEN WITH THE OWNER (RL-20260921-06). On a cold streamed terrain its gate
-  abandons tasks on units the independent trace shows ON the terrain, and its own tally disagrees with its own log. Until he decides, PRE-WARM the area and
-  gate the push - the record's own remedy. Do not revert 8aeb127 and do not record a decision.
+- The placement re-clamp (8aeb127): ANSWERED 2026-09-21, RL-20260921-06 (S555). The placement STAYS; do not revert 8aeb127. The defect is its dispatch
+  ground gate (it holds tasks on an unconfirmed read-back; on cold streamed terrain it abandons tasks on units the independent trace shows ON the terrain)
+  and its false "32 NEVER MEASURED" tally; a PLAN-gated code unit fixes both (sec 6). Until it lands, PRE-WARM the area and gate the push.
 
 ORBAT / movement (docs/DESIGN_ORBAT_TO_VRF_2026-09-06.md CLOSED list C1-C15 - canonical, read there):
 - C1-C10 are CLOSED and their text as this doc used to carry it is archived verbatim HANDOFF_2026-09-21_ARCHIVE.md sec 4. The live imperatives: C1 the company
@@ -116,7 +116,7 @@ Method lessons (each one cost a false claim or a night):
 - The WS runaway tripwire aborts a run at 3 alerts since dispatch (f5c38d2, exit 6); the warm-up reset is built but unwired.
 - STILL OPEN from that series: the vendor create rejection STP-825 (working posture = a persistent HOLDER federate so the sim JOINS; the MAK case is OPEN,
   RL-20260921-02), and the surviving reading "path LENGTH, not membership" - one run, V6h, still owed.
-- OPEN WITH THE OWNER: the placement re-clamp keep/remove decision (RL-20260921-06). Nothing else is waiting on him.
+- Nothing is waiting on the owner except the items in sec 6. The re-clamp keep/remove question is ANSWERED (RL-20260921-06, S555).
 
 ## 2. Where each lane stands (source: docs/PLAN_PARALLEL_LANES_2026-09-14.md - the live plan)
 
@@ -190,10 +190,10 @@ D-series and Iron Storm, the live carry-over. The full run-by-run narrative is a
 
 - LANDED on this branch: docs/RULINGS.md + docs/RULINGS_ARCHIVE.md (the ledger); lane A's dated corrections at every STP-857 and setAltitude/burial site; the
   offline record checks (tests/RunnerTurnaround.Tests.ps1 section 13 + tests/RecordChecks.ps1), enforced.
-- OPEN WITH THE OWNER: the re-clamp keep/remove decision (RL-20260921-06); the Jira STP-857 correction text, drafted and NOT posted.
+- OPEN WITH THE OWNER: the Jira STP-857 correction text, drafted and NOT posted. The re-clamp decision is ANSWERED (RL-20260921-06, S555).
 - RESEARCH BACKBONE, and it is the seat's work and not his: docs/experiments/TASK_COMPLETION_RESEARCH_2026-09-21.md, the per-verb completion table. It
   recommends nothing. Two headline MEASUREMENTS from it: no shipped VR-Forces tactical task evaluates a desired effect (file:line evidence in the research
   doc); the sim can be asked through plan trigger conditions (DtCeEntDestroyed, DtCeEntInArea), which this repo does not use.
 - BUILT BUT NOT INSTALLED: the two PreToolUse hooks (docs/SESSION_HOOKS.md). Installing them edits a settings.json and is his call.
-- NEXT CODE UNIT: bring completion to the TEMPORARY position RL-20260921-09 - PLAN gate with the owner first. After it, the units listed in the cold-start
-  handoff, re-scoped by RL-20260921-08.
+- NEXT CODE UNITS, each PLAN-gated with the owner: bring completion to the TEMPORARY position RL-20260921-09; fix the re-clamp dispatch gate and
+  its tally (RL-20260921-06). After them, the units listed in the cold-start handoff, re-scoped by RL-20260921-08.
