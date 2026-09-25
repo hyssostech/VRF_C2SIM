@@ -28,10 +28,9 @@ internal error. A hook that wedges every question on a parse error is its own ha
 unactionable: no citation the model could add would clear it. A pass prints NOTHING; a JSON `permissionDecision:
 "allow"` would silently bypass the owner's own permission prompt.
 
-## Install (owner only). User level is the one that matters here
-A session rooted in another repo does not load THIS repo's `.claude\settings.json`, so put the block in
-`C:\Users\<you>\.claude\settings.json` under `"hooks"`, in the same invocation style as the `UserPromptSubmit` hook
-already on this box:
+## Install (owner only). PROJECT level is the recommended one
+Put the block in THIS repo's `.claude\settings.json` under `"hooks"`, with `${CLAUDE_PROJECT_DIR}` in place of `<REPO>`,
+in the same invocation style as the `UserPromptSubmit` hook already on this box:
 
     "PreToolUse": [
       { "matcher": "AskUserQuestion",
@@ -44,8 +43,12 @@ already on this box:
             "<REPO>\\scripts\\hooks\\PreToolUse-Agent.ps1"], "timeout": 10 } ] }
     ]
 
-Project level is the same block in `<REPO>\.claude\settings.json` with `${CLAUDE_PROJECT_DIR}` in place of `<REPO>`, but
-it fires only for sessions STARTED in this repo, so it misses the cross-repo case above. It is the weaker of the two.
+Project level fires only for sessions STARTED in this repo, so it misses the cross-repo case above. The user-level file
+(`C:\Users\<you>\.claude\settings.json`) catches that case but fires for EVERY repo on the box - see KNOWN LIMITS.
+.gitignore ignores `.claude/`, so the project-level settings.json stays local and untracked.
+
+KNOWN LIMITS (lane G, 2026-09-25): at user level both hooks fire in unrelated repos - an unrelated agent brief and an
+ordinary question were both blocked (exit 2). The question hook's first form accepts ANY 4+ character string found in the ledger.
 
 EDITION: give the FULL path to the x64 pwsh 7, `C:\Program Files\PowerShell\7\pwsh.exe`. A bare `pwsh` resolves to the
 32-bit build on this box and nearly doubles the cost. Measured 2026-09-21, 10 calls per figure: pwsh 7 x64 448-462

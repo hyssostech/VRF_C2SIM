@@ -42,8 +42,7 @@ ORBAT / movement (docs/DESIGN_ORBAT_TO_VRF_2026-09-06.md CLOSED list C1-C15 - ca
   was 5.0.2). C15 a unit's TASKCMPLT may be reported from the unit's OWN ARRIVAL EVIDENCE (a MAJORITY of members within 500 m of the last vertex); the
   vendor's later completion is swallowed once (RL-20260907-01).
 
-Early stops (docs/experiments/FINDING_EARLY_STOPS_2026-09-13.md secs 6-7d canonical; full recap archived HANDOFF_2026-09-14_ARCHIVE_pm.md
-sec 1):
+Early stops (docs/experiments/FINDING_EARLY_STOPS_2026-09-13.md secs 6-7d canonical; full recap archived HANDOFF_2026-09-14_ARCHIVE_pm.md sec 1):
 - sec 6 VENDOR PASS: a vehicle that stops while its task still runs is UNDETECTED BY DESIGN in 5.2 (the base give-up test always returns false).
 - sec 7 CAUSE SUPPORTED for the units that freeze ON a scored face (1-35, 4-27): seven consecutive 8 m postings at 0.70-0.95 over 55 m on sand ahead of the
   freeze; sampler matches sim altitude to ~3 cm. sec 7b SCOPE: that is a claim about those units only, NOT about "the early stops" generally - a SECOND
@@ -84,8 +83,9 @@ User rulings, 2026-09-13/14 (docs/DEMO_READINESS_2026-09-06.md rows 19-23 carry 
 and docs/RULINGS_ARCHIVE.md - RL-20260913-01, RL-20260913-02, RL-20260913-03, RL-20260914-01, RL-20260914-02, RL-20260914-05):
 - row 19: TASKABRT IS the TaskStatus code STP sees for a stalled unit (RL-20260914-01). That entry covers the CODE only: a later TASKCMPLT never being
   suppressed is a supervisor's reading of it, not part of his answer - see the entry's own scope note.
-- row 20: pre-flight findings are delivered as WARNINGS (an STP ObservationReport plus the VR-Forces overlay) FIRST; TASKABRT at order time only after
-  calibration shows zero false alarms. The wording stays predictive ("PREDICTED IMPASSABLE"), never "this is why your unit will stop" (RL-20260913-01).
+- row 20: his answer (RL-20260913-01) welcomes the pre-flight idea and asks how it would be delivered. The delivery order is SUPERVISOR design, no
+  owner words on file: WARNINGS (an STP ObservationReport plus the VR-Forces overlay) FIRST; TASKABRT at order time only after calibration shows zero
+  false alarms. The wording stays predictive ("PREDICTED IMPASSABLE"), never "this is why your unit will stop".
 - row 21: the nav data's home is C:\C2SIM\vrf-nav (realized; C:\MAK holds zero nav entries) and the custom including SMS's home is C:\C2SIM\vrf-sms. If the
   SMS cannot live outside C:\MAK its placement there is SANCTIONED, as is relocating appData via --appDataDir for the G8 variable (RL-20260914-01 item 3,
   RL-20260913-02).
@@ -108,15 +108,19 @@ Method lessons (each one cost a false claim or a night):
   name, not a 10-char limit.
 
 **State - the live carry-over.** The run-by-run narrative to 2026-09-15 02:45Z is archived verbatim: HANDOFF_2026-09-21_ARCHIVE.md sec 1.
-- BUILD PIN: VrfBridge.dll at main 5881b7d, hash E3F40524 (997,376 B, 2026-09-15T01:34:46Z). ELEVEN 5.2 consumers must carry ONE hash; the 99B7B235 / 165e04c
-  pin is SUPERSEDED. Always -p:BridgeConfig=Release-5.2 and check the OUTPUT TREE, not the exit code.
+- BUILD PIN (RUNBOOK :2331, NEW PIN 2026-09-15 16:52Z, STP-832 merge 13e8c73): VrfBridge.dll 90272BC95297E330 (1,001,472 B, mtime 16:52:06Z). ELEVEN
+  5.2 consumers must carry ONE hash; E3F40524 (997,376 B) and 99B7B235 / 165e04c are SUPERSEDED. Always -p:BridgeConfig=Release-5.2 and check the
+  OUTPUT TREE, not the exit code.
 - NAV PRODUCT RULE (adopted after V7, 21c1430): area cap 20 x 20 km, one tile, connectivity ratio >= 0.9. MojaveCOA is RETIRED for navigation; MojaveAO20 is
   the fixture. The 0.9 bar is a SUPERVISOR's gate and NOT an owner ruling - RL-UNVERIFIED-NAV09 - and it is not reopened here; it stands or falls on its own
   engineering merits.
 - The WS runaway tripwire aborts a run at 3 alerts since dispatch (f5c38d2, exit 6); the warm-up reset is built but unwired.
 - STILL OPEN from that series: the vendor create rejection STP-825 (working posture = a persistent HOLDER federate so the sim JOINS; the MAK case is OPEN,
   RL-20260921-02), and the surviving reading "path LENGTH, not membership" - one run, V6h, still owed.
-- Nothing is waiting on the owner except the items in sec 6. The re-clamp keep/remove question is ANSWERED (RL-20260921-06, S555).
+- OPEN: the Q5 kill-half re-run - STILL unconfirmed (RUNBOOK :2692-2697; anchor the kill on the DISPATCH instant); authorised, RL-20260920-01 (item 9).
+- OPEN: STP-853, the interface reported a dead sim as healthy and dispatched a task into it (DEMO_READINESS row 10).
+- Waiting on the owner: sec 6 items; his own unanswered question RL-20260921-04; the 300 m vs 350 m readiness row (RL-20260921-01); the watchdog
+  default (unruled, see RL-20260913-03). The re-clamp keep/remove question is ANSWERED (RL-20260921-06, S555).
 
 ## 2. Where each lane stands (source: docs/PLAN_PARALLEL_LANES_2026-09-14.md - the live plan)
 
@@ -125,9 +129,7 @@ sec 7: L1 mesh-query refusal (STP-788 epic; STP-790/791/792/793); L2 reporting (
 (STP-783); L4 runner robustness (STP-789 epic; STP-794); L5/L10 records; L6 user-owned; L8 task vocabulary beyond MOVE (epic created
 2026-09-14); L9 STP-side strict parse check (STP-615); L11 4-27 second read + offset-line scoring; L12 A2 detached run watchdog (STP-794).
 
-Two sections were dropped from here on 2026-09-14 20:30Z and are archived verbatim in HANDOFF_2026-09-14_ARCHIVE_pm.md: the per-lane
-"State ~13:00Z" column (sec 4; superseded by section 1 and duplicated by the live plan) and BRANCHES AND WHAT EACH NEEDS TO LAND (sec 6;
-all four feature branches landed via feat/integration, then main).
+Archived verbatim 2026-09-14 20:30Z, HANDOFF_2026-09-14_ARCHIVE_pm.md: the per-lane "State ~13:00Z" column (sec 4) and BRANCHES (sec 6; all landed).
 
 ## 3. Standing rules (breaking one of these is how this project has lost its days)
 
@@ -165,9 +167,7 @@ all four feature branches landed via feat/integration, then main).
 
 ## 5. Next steps, in order
 
-Next-steps items 1-2 as written on 2026-09-14 (the G7 attempt-3 verdict and the sim-clock / reporting / heading-speed / preflight-port
-merge series) dropped here, superseded - the nav-mesh question is CLOSED per section 1 and those four branches already landed via
-feat/integration; full text archived verbatim HANDOFF_2026-09-14_ARCHIVE_pm.md sec 7.
+Old items 1-2 of 2026-09-14 (G7 attempt-3 verdict; the four-branch merge series) are superseded; verbatim in HANDOFF_2026-09-14_ARCHIVE_pm.md sec 7.
 1. WATCHDOG VALIDATION RUN (C16, STP-783): it is default OFF, so enable it explicitly for that run; it must fire on the known 1-35 freeze by sim ~500 and must
   NOT fire on the units that completed.
 2. REPORTING LIVE GATES (L2): one run whose bus capture shows TASKSTRT at dispatch, a TASKABRT for a refused or stalled task, a position report for the
@@ -192,8 +192,9 @@ D-series and Iron Storm, the live carry-over. The full run-by-run narrative is a
   offline record checks (tests/RunnerTurnaround.Tests.ps1 section 13 + tests/RecordChecks.ps1), enforced.
 - OPEN WITH THE OWNER: the Jira STP-857 correction text, drafted and NOT posted. The re-clamp decision is ANSWERED (RL-20260921-06, S555).
 - RESEARCH BACKBONE, and it is the seat's work and not his: docs/experiments/TASK_COMPLETION_RESEARCH_2026-09-21.md, the per-verb completion table. It
-  recommends nothing. Two headline MEASUREMENTS from it: no shipped VR-Forces tactical task evaluates a desired effect (file:line evidence in the research
-  doc); the sim can be asked through plan trigger conditions (DtCeEntDestroyed, DtCeEntInArea), which this repo does not use.
+  recommends nothing. Two headline MEASUREMENTS from it: of the four vendor task scripts examined, none evaluates a desired effect; plt_attack_by_fire
+  ends on 'no more enemy contacts detected' plus a give-up timeout (file:line evidence in the research doc); the sim can be asked through plan trigger
+  conditions (DtCeEntDestroyed, DtCeEntInArea), which this repo does not use.
 - BUILT BUT NOT INSTALLED: the two PreToolUse hooks (docs/SESSION_HOOKS.md). Installing them edits a settings.json and is his call.
 - NEXT CODE UNITS, each PLAN-gated with the owner: bring completion to the TEMPORARY position RL-20260921-09; fix the re-clamp dispatch gate and
   its tally (RL-20260921-06). After them, the units listed in the cold-start handoff, re-scoped by RL-20260921-08.

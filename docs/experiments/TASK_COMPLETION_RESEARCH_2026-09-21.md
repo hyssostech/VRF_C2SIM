@@ -26,7 +26,7 @@ HOW TO READ IT
 
 ## 0. THE OWNER'S OWN WORDS, VERBATIM - the frame for everything below
 
-Quoted, never paraphrased. Typos are his. Ledger ids are lane B's (RULINGS_draft.md) unless marked new.
+Quoted, never paraphrased. Typos are his. Ledger ids: docs/RULINGS.md and docs/RULINGS_ARCHIVE.md, unless marked new.
 
 W-TEMP (2026-09-21, this session; the seat's new id RL-20260921-09) - THE TEMPORARY POSITION:
   "And the doctrinal and vendor doc research is on you buddy - not me. For now, pending this research,
@@ -421,7 +421,9 @@ Fields: 1 counts and shape / 2 movement first? / 3 doctrinal end state / 4 can V
 6. OWNER: nothing on file naming BREACH.
 7. OPEN QUESTION FOR THE OWNER: none. Recorded instead: the vendor's own "has it been breached"
    test exists only in the aggregate-level profile, which this build does not run - a consequence
-   of the 2026-09-14 entity-level-first ruling, not a new question.
+   of the 2026-09-14 model-set answer (RL-20260914-03, R5: "R5 proceed as recommended"; that the
+   recommendation was EntityLevel first is recorded at TASK_VOCABULARY_ASSESSMENT R5, not in the ledger
+   quote), not a new question.
 8. TEMPORARY POSITION (RL-20260921-09): the instances that travel end at start time plus Duration,
    or on arrival if they are still travelling then; the instances with no destination end at their
    Duration. A unit that gets stuck is an abort under the stall ruling already on file. Whether the
@@ -789,9 +791,10 @@ Q-B. WHAT IS REPORTED IF THE END TIME ARRIVES AND THE UNIT HAS NOT REACHED THE O
   late unit completes WHEN IT ARRIVES; the code completes it when the clock runs out. On the case of a
   unit that never arrives at all, his words of 2026-09-21 are: ""a unit that never arrives" - isn't
   there ruling already for units that get stuck? That's the only way a unit can "never arrive"."
-  (W-TEMP2), and the stall ruling he points at is W-STALL. So the answer for that case is an abort, and
-  the code's suppression of that abort by an earlier timed completion is the gap - a code defect, not an
-  undecided question.
+  (W-TEMP2), and the stall ruling he points at is W-STALL (RL-20260914-01: abort is the code STP sees for
+  a stalled unit). Whether an earlier timed completion may suppress that abort, and whether a later
+  arrival still reports complete, are NOT in his answer - they are supervisor positions (that entry's
+  scope note). This doc settles neither; it records only that the code on main does suppress the abort.
 
 Q-C. DO A STUCK UNIT'S FOLLOW-ON TASKS WAIT, AND FOR HOW LONG?
   On file: "Arriving late does _not_ imply an abortion - what happens is that follow on tasks are delayed

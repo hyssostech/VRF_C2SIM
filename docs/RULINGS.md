@@ -85,10 +85,10 @@ RL-20260921-09 | 2026-09-21 | status VERBATIM - TEMPORARY, BY HIS OWN WORD
     whether there is a way to ascertain the effect - that is the thrust of the research. For this temporary ruling, we ignore that
     part and complete based on time. Again it is bizarre that you bring this up given the discussion. [...]"
   supervisor reading: every task ends at start time + Duration; a unit still travelling at that moment is reported complete when it
-    arrives; a unit that gets stuck is already ruled (RL-20260914-01, archive: abort is the code STP sees; a later arrival still
-    reports complete); tasks with no destination end when their Duration elapses (RL-20260914-02); whether an effect was achieved is
-    IGNORED under the temporary position - that is the research question, not a gap; each follow-on task gets its full Duration from
-    its actual start. The research is the seat's job.
+    arrives; a unit that gets stuck is already ruled (RL-20260914-01, archive: abort is the code STP sees; that a later arrival still
+    reports complete is a supervisor position, see that entry's scope note); tasks with no destination end when their Duration elapses
+    (RL-20260914-02); whether an effect was achieved is IGNORED under the temporary position - that is the research question, not a gap;
+    each follow-on task gets its full Duration from its actual start. The research is the seat's job.
   IMPLEMENTATION FACT: stall detection ships OFF by default on main (DEMO_READINESS row 19), so the stuck-unit ruling only takes
     effect once it is switched on.
   pointer: docs\experiments\TASK_COMPLETION_RESEARCH_2026-09-21.md (the per-verb completion table; research only, no recommendation); the
