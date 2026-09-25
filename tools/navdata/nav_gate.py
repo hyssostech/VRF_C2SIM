@@ -17,15 +17,21 @@ Exit codes: 0 = every measured sector >= 0.9; 1 = at least one sector < 0.9 (lis
 2 = instrument failure (no report block parsed at all, or the log is unreadable). A log
 that yields nothing must never pass.
 
-LOG FORMAT STATUS [A]: the record never quoted a whole report block verbatim (the old logs
-were lost with the machine rebuild, gap G7). The parser keys on the fragments the record
-DOES quote: "Sector (i,j): xMin ... yMax" rows (RESEARCH :246), the header "ABSTRACT GRAPH
-POST PROCESS REPORT", the field names "Average Node Count" / "Average Neighbor Node Count"
-(RESEARCH :30), "AbstractGraph Count : 4" (RESEARCH :176), "Generated N distinct nav tags."
-(WEST20 :654), "^Generated: ground-platform" and "Generation time:" (WEST20 :204-205).
+LOG FORMAT: first written from the fragments the record quotes (no verbatim block survived,
+gap G7), then CHECKED AGAINST THE FIRST REAL LOG (vrfNavGenerator 5.2d, MojaveAO20
+regeneration 2026-09-25). Per sector the real log prints, in this order:
+    Sector (0,0): xMin: -233 yMin: -232 xMax: -223 yMax: -222
+    Generated 1 distinct nav tags.
+    ======== ABSTRACT GRAPH POST PROCESS REPORT      (printed twice: opens and closes the block)
+    AbstractGraph Count :               4
+    Average Node Count :                38
+    Average Neighbor Node Count :       37
+    ^Generated: ground-platform                        (the caret is LITERAL text)
+Two regexes were corrected against that log: the caret of "^Generated:" is literal, and
+"Generation time:" must be anchored at line start and case-sensitive (the log also prints
+"Total Generation time:", "Generation Time:" and "Transition point generation time:").
 A report block is attributed to the most recent "Sector (i,j)" row. The synthetic controls
-written by --write-control follow the same assumptions, so passing them is
-self-consistency, not validation against a real log.
+written by --write-control mirror the real layout; passing them is self-consistency.
 
 Companion tripwires (WEST20 :666-669): output byte size of the area folder (--area-dir;
 166 MB on 2026-09-07 vs 268.7 MB on 2026-09-15 for the same box) and the per-sector
@@ -50,8 +56,8 @@ NODES_RE = re.compile(r"Average\s+Node\s+Count\s*[:=]\s*([-+]?\d+(?:\.\d+)?)", r
 NBRS_RE = re.compile(r"Average\s+Neighbou?r\s+Node\s+Count\s*[:=]\s*([-+]?\d+(?:\.\d+)?)",
                      re.I)
 TAGS_RE = re.compile(r"Generated\s+(\d+)\s+distinct\s+nav\s+tags?", re.I)
-GENERATED_RE = re.compile(r"^\s*Generated:\s*ground-platform", re.I)
-GENTIME_RE = re.compile(r"Generation\s+time:\s*([-+]?\d+(?:\.\d+)?)", re.I)
+GENERATED_RE = re.compile(r"^\s*\^?Generated:\s*ground-platform")
+GENTIME_RE = re.compile(r"^\s*Generation time:\s*([-+]?\d+(?:\.\d+)?)")
 
 
 def parse_log(text):
@@ -234,19 +240,37 @@ def print_text(res, max_list=50):
     print("nav_gate: GATE %s (threshold %.1f, any sector)" % (res["verdict"], GATE))
 
 
-# ---- synthetic controls (format [A], see module docstring) ----
+# ---- synthetic controls (layout mirrors the first real log, see module docstring) ----
 
 def _sector_block(i, j, nodes, nbrs, tags=1, report=True):
-    lines = ["Sector (%d,%d): xMin %d yMin %d xMax %d yMax %d"
-             % (i, j, i * 473, j * 473, (i + 1) * 473, (j + 1) * 473),
+    # Includes the real log's decoy lines ("Processing triangles for sector: i, j", the
+    # three other "...time:" spellings, the doubled report header) so the parser is
+    # exercised against them.
+    lines = ["Processing triangles for sector: %d, %d" % (i, j),
+             "Triangles found: 98575",
+             "Sector (%d,%d): xMin: %d yMin: %d xMax: %d yMax: %d"
+             % (i, j, i * 11 - 233, j * 11 - 232, i * 11 - 223, j * 11 - 222),
+             "Sector ground-platform_%d_%d_uLxq has 98575 triangles." % (i, j),
              "Generated %d distinct nav tags." % tags,
-             "GENERATED NAVDATA: REGULAR"]
+             "  ======== GENERATION REPORT",
+             "  Total Generation time:         0.96 seconds",
+             "    GENERATED NAVDATA: REGULAR",
+             "        Generation Time: 0.81 seconds",
+             "        NavData Size   : 55.24 kilobytes"]
     if report:
-        lines += ["ABSTRACT GRAPH POST PROCESS REPORT",
-                  "AbstractGraph Count : 4",
-                  "Average Node Count : %.2f" % nodes,
-                  "Average Neighbor Node Count : %.2f" % nbrs]
-    lines.append("Generated: ground-platform")
+        lines += ["  ==============================================================",
+                  "  ======== ABSTRACT GRAPH POST PROCESS REPORT",
+                  "  ---- Average Abstract Graph Generation",
+                  "  Total Generation time:              0.02 seconds",
+                  "  AbstractGraph Count :               4",
+                  "  Average Node Count :                %g" % nodes,
+                  "  Average Neighbor Node Count :       %g" % nbrs,
+                  "  ---- Average Abstract Graph Generation",
+                  "  ======== ABSTRACT GRAPH POST PROCESS REPORT",
+                  "  =============================================================="]
+    lines += ["Primary generation time: 0.971766",
+              "Transition point generation time: 0.0014129",
+              "^Generated: ground-platform"]
     return lines
 
 
@@ -277,7 +301,7 @@ def make_control(kind):
     else:
         raise ValueError("unknown control kind: %s" % kind)
     lines.append("Generation time: 1429.81")
-    return "\r\n".join(lines) + "\r\n"
+    return "\n".join(lines) + "\n"  # the real log is LF-only
 
 
 def main(argv=None):
