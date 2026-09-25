@@ -18,15 +18,21 @@ namespace VrfC2SimApp;
 ///     :1939  taskee altitude not terrain-clamped: live -0.0 m vs terrain 155.8 m ... anyway
 /// Two platforms measured ~150 m under the terrain were tasked, and the bus was told nothing.
 ///
+/// 2026-09-25 (RL-20260921-06; scope approved as RL-20260925-01): the DISPATCH GATE no longer holds
+/// or refuses a task, and the tally counts a correction with no read-back as exactly that. Sections
+/// 2, 3 and 7 were rewritten for it (they used to assert the hold, the TASKABRT and the
+/// BOUND-BUT-NOT-ON-THE-GROUND state); section 3e is new. The gate assertions now hold in BOTH arms
+/// (the task is dispatched either way), so the --disabled arm fails fewer checks than it did.
+///
 /// FAIL-FIRST BY CONSTRUCTION. `--placement-reclamp-selftest --disabled` runs the SAME fixtures and
 /// the SAME assertions with Vrf:PlacementReclamp = false - the 33f1894 behaviour - and every
-/// assertion about correcting, verifying and refusing MUST fail: that arm reproduces the run above.
+/// assertion about correcting and verifying MUST fail: that arm reproduces the run above.
 /// The assertions that hold in BOTH arms are the invariants this must not break - a HEALTHY init
 /// unchanged in its lines and its timing, an UNMEASURED object still taskable, and the STP-852/B1
 /// barrier inequality still true at the shipped numbers.
 ///
 /// WHAT THESE FIXTURES ARE, stated exactly. A MODEL of the service's decision sequence
-/// (SweepPlacementReclamp / ApplyPlacementReclamp / GroundGateAllowsDispatch) driving the REAL
+/// (SweepPlacementReclamp / ApplyPlacementReclamp / LogGroundContactAtDispatch) driving the REAL
 /// <see cref="PlacementReclampPolicy"/> rules, the REAL <see cref="DispatchReadiness"/> classifier
 /// and the REAL sentences. They do NOT execute VrfC2SimService's own methods; no bridge, no
 /// federation, no clock, nothing that joins an RTI.
@@ -204,17 +210,14 @@ public static class PlacementReclampSelfTest
                 // object measurable by the next one.
                 if (Outcome == PlacementReclampPolicy.Outcome.StillOffGround) break;
             }
-            if (Outcome == PlacementReclampPolicy.Outcome.Pending)
-                Outcome = PlacementReclampPolicy.Outcome.NeverMeasured;
+            // The service's ConcludePlacementReclamp: a still-Pending entry is concluded by the
+            // policy's own rule (a correction with no read-back is NOT "never measured").
+            Outcome = PlacementReclampPolicy.ConcludeAtBound(Outcome, Corrections, Contact);
         }
 
         private string Summary(double boundSeconds)
-            => PlacementReclampPolicy.SummaryLine(
-                Outcome == PlacementReclampPolicy.Outcome.AlreadyOnGround ? 1 : 0,
-                Outcome == PlacementReclampPolicy.Outcome.Reclamped ? 1 : 0,
-                Outcome == PlacementReclampPolicy.Outcome.StillOffGround ? 1 : 0,
-                Outcome == PlacementReclampPolicy.Outcome.NeverMeasured ? 1 : 0,
-                double.IsNaN(SettledAt) ? boundSeconds : SettledAt);
+            => PlacementReclampPolicy.SummaryLine(PlacementReclampPolicy.Tally(new[] { Outcome }),
+                                                  double.IsNaN(SettledAt) ? boundSeconds : SettledAt);
 
         public int Reopened;
         /// <summary>DL-1 arm: ask (and correct) at the CREATE point - the b3f9c38 behaviour.</summary>
@@ -232,75 +235,36 @@ public static class PlacementReclampSelfTest
 
     /// <summary>
     /// The DISPATCH GROUND GATE, modelled: the route's terrain reply carries the height under
-    /// vertex 0, the caller carries the taskee's live altitude, and the gate decides. Mirrors
-    /// GroundGateAllowsDispatch including its ONE-DEFERRAL bound.
+    /// vertex 0, the caller carries the taskee's live altitude, and the gate MEASURES AND LOGS.
+    /// Mirrors LogGroundContactAtDispatch (until 2026-09-25 GroundGateAllowsDispatch), rewritten 2026-09-25 (RL-20260921-06, the completion
+    /// unit's scope approved as RL-20260925-01): it no longer holds, refuses or abandons a task on
+    /// an unconfirmed read-back, and it sends no setLocation at dispatch - the task follows at once,
+    /// and a correction into a running move is exactly the case the sweep's own in-flight guard
+    /// (SkippedTaskInFlightLine) exists to prevent. The placement correction itself stays in the
+    /// init-time sweep (<see cref="ReclampFixture"/>).
     /// </summary>
     private sealed class GateFixture
     {
         private readonly bool _enabled;
         private readonly World _w;
-        private readonly HashSet<string> _deferred = new(StringComparer.Ordinal);
         public readonly List<string> Lines = new();
         public readonly List<(S.TaskStatusCodeType Code, string Why)> Statuses = new();
         public bool Dispatched;
-        public int Visits, Corrections;
-        public TaskeeReadiness HeldAs = TaskeeReadiness.Ready;
+        public int Visits;
 
         public GateFixture(bool enabled, World w) { _enabled = enabled; _w = w; }
 
-        /// <summary>
-        /// One trip through the terrain continuation, then - and ONLY then - the re-entry the real
-        /// system takes. SF-1 of the cold-start review: a first version looped the gate directly,
-        /// which is an ending the real code never reaches. The real re-entry happens when
-        /// `SweepDispatchReadiness` finds the taskee `Ready`, i.e. when the ground contact is no
-        /// longer OffGround; if the sweep never clears it, the task ends at the
-        /// `Vrf:DispatchReadinessTimeoutSeconds` hold timeout with the state named - NOT at the
-        /// gate's second visit.
-        /// </summary>
-        /// <param name="reclampVerifies">whether the re-clamp sweep clears the verdict while the
-        /// task is held</param>
-        public void Dispatch(string task, string unit, bool reclampVerifies)
+        /// <summary>One trip through the terrain continuation. It always ends in the dispatch.</summary>
+        public void Dispatch(string task, string unit)
         {
             Visits++;
             var m = PlacementReclampPolicy.Measure(_w.LiveAltMeters, _w.TerrainMeters, Tolerance);
-            bool gateStops = _enabled && m.Contact == PlacementReclampPolicy.Contact.OffGround;
-            if (!gateStops)
-            {
-                Dispatched = true;
-                if (_enabled) Lines.Add(PlacementReclampPolicy.GatePassedLine(unit, m, Tolerance));
-                return;
-            }
-            _deferred.Add(task);
-            Lines.Add(PlacementReclampPolicy.DispatchGateHeldLine(
-                task, unit, m.LiveAltMeters, m.TerrainMeters, m.GapMeters, Tolerance));
-            Corrections++;
-            SentLocation = PlacementReclampPolicy.CorrectionLocation(
-                _w.LiveLatDeg, _w.LiveLonDeg, _w.TerrainMeters, ReclampFixture.CreateClearance);
-            HeldAs = DispatchReadiness.Classify(true, true, true, true, false, true);
-            if (reclampVerifies) _w.LiveAltMeters = _w.TerrainMeters;
-
-            // THE HOLD. It is released ONLY when the classifier goes Ready.
-            var after = PlacementReclampPolicy.Measure(_w.LiveAltMeters, _w.TerrainMeters, Tolerance);
-            if (after.Contact == PlacementReclampPolicy.Contact.OffGround)
-            {
-                // Never released: the hold expires and DispatchReadiness produces the abort, with
-                // the state it was still in named. This is the REAL terminal line in this world.
-                HoldTimedOut = true;
-                string why = DispatchReadiness.TimeoutAbortReason(
-                    task, unit, TaskeeReadiness.NotOnTheGround, 60.0);
-                Lines.Add(why);
-                Statuses.Add((S.TaskStatusCodeType.TASKABRT, why));
-                return;
-            }
-            // Released: the task re-enters ExecuteTaskOnTick and passes the gate this time.
-            Visits++;
+            if (_enabled)
+                Lines.Add(m.Contact == PlacementReclampPolicy.Contact.OffGround
+                    ? PlacementReclampPolicy.DispatchGateOffTerrainLine(task, unit, m, Tolerance)
+                    : PlacementReclampPolicy.GatePassedLine(unit, m, Tolerance));
             Dispatched = true;
-            Lines.Add(PlacementReclampPolicy.GatePassedLine(unit, after, Tolerance));
         }
-
-        public bool HoldTimedOut;
-        public Geodetic SentLocation;
-        public const double Lat = 54.01939, Lon = 23.31390;
     }
 
     /// <summary>Every sentence this policy can print, for the ASCII and tripwire sweeps.</summary>
@@ -316,10 +280,8 @@ public static class PlacementReclampSelfTest
             PlacementReclampPolicy.ClearedLine("U", on),
             PlacementReclampPolicy.GaveUpLine("U", off),
             PlacementReclampPolicy.GatePassedLine("U", on, Tolerance),
-            PlacementReclampPolicy.SummaryLine(1, 1, 1, 1, 12.0),
-            PlacementReclampPolicy.DispatchGateHeldLine("T", "U", -0.0, 145.4, 145.0, Tolerance),
-            PlacementReclampPolicy.DispatchGateRefusalReason("T", "U", -0.0, 145.4, 145.0, Tolerance),
-            DispatchReadiness.Describe(TaskeeReadiness.NotOnTheGround),
+            PlacementReclampPolicy.SummaryLine(new PlacementReclampPolicy.Counts(1, 1, 1, 1, 1), 12.0),
+            PlacementReclampPolicy.DispatchGateOffTerrainLine("T", "U", off, Tolerance),
         };
     }
 
@@ -385,49 +347,46 @@ public static class PlacementReclampSelfTest
                                 && l.Contains("1 RE-CLAMPED AND VERIFIED", StringComparison.Ordinal)
                                 && l.Contains("0 STILL OFF", StringComparison.Ordinal)));
 
-        // ============ 2. THE DISPATCH GATE - HELD, THEN TASKED ======================
+        // ============ 2. THE DISPATCH GATE - MEASURES AND LOGS, NEVER HOLDS ==========
+        // REWRITTEN 2026-09-25 (RL-20260921-06; scope RL-20260925-01). These checks used to assert
+        // that the gate HELD a taskee measured off the terrain as BOUND-BUT-NOT-ON-THE-GROUND,
+        // issued a setLocation and dispatched only after a read-back - and, when none came, ended
+        // the task with a TASKABRT. Run 20260921T143243Z: the read-back never landed, and the gate
+        // ended two tasks on units an independent trace shows on the terrain. The gate now
+        // measures and logs; the task is dispatched on the pass that measures it.
         var gateWorld = new World { LiveAltMeters = -0.0, TerrainMeters = 145.4 };
         var gate = new GateFixture(featureEnabled, gateWorld);
-        gate.Dispatch("T14_48Ibct...", "48_IBCT/28ID__FRIENDLY_INFANTRY_BRIGADE_TASK_FORCE", true);
+        gate.Dispatch("T14_48Ibct...", "48_IBCT/28ID__FRIENDLY_INFANTRY_BRIGADE_TASK_FORCE");
 
-        Check("DISPATCH GATE: a taskee measured 145 m off the terrain is NOT dispatched on the pass "
-              + "that measures it - the exact step `app:1135` took ('authoring from terrain anyway')",
-              featureEnabled ? gate.Visits > 1 : false);
+        Check("DISPATCH GATE: a taskee measured 145 m off the terrain IS DISPATCHED on the pass that "
+              + "measures it - no hold, no refusal, no TASKABRT",
+              gate.Dispatched && gate.Visits == 1 && gate.Statuses.Count == 0);
 
-        Check("DISPATCH GATE: the hold names the brief's state, BOUND-BUT-NOT-ON-THE-GROUND, and it "
-              + "is TRANSIENT so the existing DispatchReadiness machinery owns the wait and the "
-              + "timeout abort",
-              gate.HeldAs == TaskeeReadiness.NotOnTheGround
-              && DispatchReadiness.IsTransient(TaskeeReadiness.NotOnTheGround)
-              && DispatchReadiness.StateName(TaskeeReadiness.NotOnTheGround)
-                     == PlacementReclampPolicy.NotOnGroundToken);
+        Check("DISPATCH GATE: the measurement is LOGGED - one line naming the gap and saying the task "
+              + "is dispatching, and no NOT DISPATCHED / HELD wording",
+              featureEnabled
+                  ? gate.Lines.Count == 1
+                    && gate.Lines[0].Contains("measured OFF the terrain at dispatch", StringComparison.Ordinal)
+                    && gate.Lines[0].Contains("dispatching", StringComparison.Ordinal)
+                    && !gate.Lines[0].Contains("NOT DISPATCHED", StringComparison.Ordinal)
+                    && !gate.Lines[0].Contains("HELD", StringComparison.Ordinal)
+                  : gate.Lines.Count == 0);
 
-        Check("DISPATCH GATE: once the read-back agrees, the task IS dispatched - the gate delays a "
-              + "healthy unit by nothing and refuses nothing it can fix",
-              gate.Dispatched && gate.Corrections == 1);
 
-        // ============ 3. THE GATE WHEN THE CORRECTION DOES NOT TAKE =================
-        // setAltitudeRequest.h:24-25 says the set is ignored for a non-air vehicle. If that is what
-        // happens, the unit must still never be tasked from under the ground.
+        // ============ 3. THE GATE WHEN THE CORRECTION DID NOT TAKE ==================
         var stuckWorld = new World { LiveAltMeters = -0.0, TerrainMeters = 155.8, CorrectionWorks = false };
         var stuck = new GateFixture(featureEnabled, stuckWorld);
-        stuck.Dispatch("T02_28IdHq...", "28ID__FRIENDLY_INFANTRY_DIVISION", false);
+        stuck.Dispatch("T02_28IdHq...", "28ID__FRIENDLY_INFANTRY_DIVISION");
 
-        Check("STUCK: a unit still measured off the terrain after a correction is NEVER DISPATCHED",
-              featureEnabled ? !stuck.Dispatched : false);
+        Check("STUCK: a unit still measured off the terrain after a correction is STILL DISPATCHED, "
+              + "once, with no TASKABRT - an unconfirmed read-back no longer ends a legitimate task",
+              stuck.Dispatched && stuck.Visits == 1 && stuck.Statuses.Count == 0);
 
-        Check("STUCK: it ends in ONE TASKABRT whose reason NAMES the state, so the C2SIM bus carries "
-              + "a refusal instead of a silent success. SF-1: the terminal line in THIS world is the "
-              + "DispatchReadiness HOLD TIMEOUT, not the gate's second visit - the gate is only "
-              + "re-entered when the classifier goes Ready, which here it never does",
-              stuck.Statuses.Count == 1
-              && stuck.Statuses[0].Code == S.TaskStatusCodeType.TASKABRT
-              && stuck.Statuses[0].Why.Contains(PlacementReclampPolicy.NotOnGroundToken, StringComparison.Ordinal)
-              && (!featureEnabled || stuck.HoldTimedOut));
-
-        Check("STUCK: BOUNDED - the task is measured once, held once and ended once; the gate is "
-              + "never re-entered while the verdict stands, so there is no cycle",
-              featureEnabled ? stuck.Visits == 1 && stuck.Corrections == 1 : stuck.Visits == 1);
+        Check("NO BOUND-BUT-NOT-ON-THE-GROUND STATE IS PRODUCED: the readiness classifier has no "
+              + "ground-contact state any more, so no task can be held for one",
+              !Enum.GetNames(typeof(TaskeeReadiness)).Contains("NotOnTheGround")
+              && Enum.GetValues<TaskeeReadiness>().All(s => !DispatchReadiness.StateName(s)
+                     .Contains("NOT-ON-THE-GROUND", StringComparison.Ordinal)));
 
         var stuckSweep = new ReclampFixture(featureEnabled, new World { CorrectionWorks = false });
         stuckSweep.Run();
@@ -442,6 +401,52 @@ public static class PlacementReclampSelfTest
                                                  && l.Contains("NOT the known setAltitude no-op", StringComparison.Ordinal)
                                                  && l.Contains("NO FURTHER REQUEST IS ISSUED", StringComparison.Ordinal))
                   : false);
+
+        Check("STUCK: the give-up line no longer says a task on the unit is HELD and abandoned - "
+              + "nothing holds a task on a ground-contact verdict any more (RL-20260921-06)",
+              !PlacementReclampPolicy.GaveUpLine("U", PlacementReclampPolicy.Measure(-0.0, 155.8, Tolerance))
+                  .Contains("HELD", StringComparison.Ordinal)
+              && !PlacementReclampPolicy.GaveUpLine("U", PlacementReclampPolicy.Measure(-0.0, 155.8, Tolerance))
+                  .Contains("abandoned", StringComparison.Ordinal));
+
+        // ============ 3e. THE TALLY (RL-20260921-06 measurement: "0 RE-CLAMPED AND VERIFIED ...
+        // 32 NEVER MEASURED" beside thirty-two "MEASURED OFF THE TERRAIN ... Issuing setLocation"
+        // lines, run 20260921T143243Z). An object that was measured and corrected, and whose
+        // read-back never landed, is NOT "never measured".
+        Check("TALLY: an object CORRECTED whose read-back never landed concludes as 'corrected, "
+              + "read-back not received', not NEVER MEASURED",
+              PlacementReclampPolicy.ConcludeAtBound(PlacementReclampPolicy.Outcome.Pending, 1,
+                  PlacementReclampPolicy.Contact.OffGround) == PlacementReclampPolicy.Outcome.CorrectedNotVerified);
+        Check("TALLY: an object MEASURED off the terrain but never corrected (a task was in flight) "
+              + "concludes as STILL OFF, not NEVER MEASURED",
+              PlacementReclampPolicy.ConcludeAtBound(PlacementReclampPolicy.Outcome.Pending, 0,
+                  PlacementReclampPolicy.Contact.OffGround) == PlacementReclampPolicy.Outcome.StillOffGround);
+        Check("TALLY: an object with NO terrain answer is still NEVER MEASURED, and a settled outcome "
+              + "is left as it is",
+              PlacementReclampPolicy.ConcludeAtBound(PlacementReclampPolicy.Outcome.Pending, 0,
+                  PlacementReclampPolicy.Contact.Unknown) == PlacementReclampPolicy.Outcome.NeverMeasured
+              && PlacementReclampPolicy.ConcludeAtBound(PlacementReclampPolicy.Outcome.Reclamped, 1,
+                  PlacementReclampPolicy.Contact.OnGround) == PlacementReclampPolicy.Outcome.Reclamped);
+        {
+            // The measured run's census: 32 corrected with no read-back, 4 enrolled and unanswered.
+            var census = Enumerable.Repeat(PlacementReclampPolicy.Outcome.CorrectedNotVerified, 32)
+                .Concat(Enumerable.Repeat(PlacementReclampPolicy.Outcome.NeverMeasured, 4)).ToList();
+            var c = PlacementReclampPolicy.Tally(census);
+            string line = PlacementReclampPolicy.SummaryLine(c, 60.0);
+            Check("TALLY: 32 corrected objects with no read-back are COUNTED as such - the summary says "
+                  + "'32 CORRECTED, READ-BACK NOT RECEIVED' and '4 NEVER MEASURED', not 36 never measured",
+                  c.CorrectedNotVerified == 32 && c.NeverMeasured == 4
+                  && line.Contains("32 CORRECTED, READ-BACK NOT RECEIVED", StringComparison.Ordinal)
+                  && line.Contains("4 NEVER MEASURED", StringComparison.Ordinal));
+            Check("TALLY: the FIVE counts sum to the enrolled count, and the summary no longer says the "
+                  + "third count is held and abandoned",
+                  c.Total == census.Count
+                  && PlacementReclampPolicy.Tally(new[] {
+                         PlacementReclampPolicy.Outcome.AlreadyOnGround, PlacementReclampPolicy.Outcome.Reclamped,
+                         PlacementReclampPolicy.Outcome.CorrectedNotVerified, PlacementReclampPolicy.Outcome.StillOffGround,
+                         PlacementReclampPolicy.Outcome.NeverMeasured }) == new PlacementReclampPolicy.Counts(1, 1, 1, 1, 1)
+                  && !line.Contains("held and abandoned", StringComparison.Ordinal));
+        }
 
         // ============ 3b. BL-2: THE VERDICT IS RE-MEASURABLE, NOT STICKY ===========
         // The cold-start review's BL-2: after a give-up the verdict used to stand for the life of
@@ -458,13 +463,10 @@ public static class PlacementReclampSelfTest
               + "is a measurement with a timestamp, not a property of the unit",
               featureEnabled ? late.Reopened == 1 : false);
 
-        Check("BL-2: the re-measure CLEARS the verdict with one line, and the unit is taskable "
-              + "again - without this, one failed correction cost every later task its full "
-              + "Vrf:DispatchReadinessTimeoutSeconds and ended it in a TASKABRT forever",
+        Check("BL-2: the re-measure CLEARS the verdict with one line (the placement record is "
+              + "corrected; since 2026-09-25 no verdict holds a task either way)",
               late.Contact == PlacementReclampPolicy.Contact.OnGround
-              && late.Lines.Any(l => l.Contains("CLEARED - re-measured ON the terrain", StringComparison.Ordinal))
-              && DispatchReadiness.Classify(true, true, true, true, false,
-                     late.Contact == PlacementReclampPolicy.Contact.OffGround) == TaskeeReadiness.Ready);
+              && late.Lines.Any(l => l.Contains("CLEARED - re-measured ON the terrain", StringComparison.Ordinal)));
 
         Check("BL-2: the re-measure issues NO second correction and repeats NO ERROR - one "
               + "correction and one give-up line per object, however many windows measure it",
@@ -478,8 +480,9 @@ public static class PlacementReclampSelfTest
                   ? new Func<bool>(() =>
                     {
                         var g = new GateFixture(featureEnabled, lateWorld);
-                        g.Dispatch("T02_second_task", "28ID__FRIENDLY_INFANTRY_DIVISION", false);
-                        return g.Dispatched && !g.HoldTimedOut && g.Corrections == 0;
+                        g.Dispatch("T02_second_task", "28ID__FRIENDLY_INFANTRY_DIVISION");
+                        return g.Dispatched && g.Statuses.Count == 0
+                               && g.Lines.Count == 1 && g.Lines[0].Contains("is ON the terrain", StringComparison.Ordinal);
                     })()
                   : false);
 
@@ -581,7 +584,8 @@ public static class PlacementReclampSelfTest
         // ============ 3d. BL-1: AGGREGATES ARE NOT ENROLLED =========================
         // The sweep can only read a unit's PUBLISHED Z, which VRF_ALTITUDE_FRAMES sec 1a forbids
         // reading as ground contact. The enrolment filter in FinalizePlacement now excludes them;
-        // the DISPATCH GATE covers them instead, on the members' centroid.
+        // the dispatch-time measurement covers them instead, on the members' centroid (logged only,
+        // since 2026-09-25).
         Check("BL-1: the ARMED line states that only LAND PLATFORMS are enrolled and that an "
               + "aggregate is measured at dispatch on its MEMBERS' centroid instead - the quantity "
               + "VRF_ALTITUDE_FRAMES sec 1a says to use",
@@ -613,22 +617,22 @@ public static class PlacementReclampSelfTest
               new Func<bool>(() =>
               {
                   var g = new GateFixture(featureEnabled, new World { LiveAltMeters = 131.1, TerrainMeters = 130.1 });
-                  g.Dispatch("T10_1-112In...", "1-112_IN", true);
-                  return g.Dispatched && g.Visits == 1 && g.Corrections == 0
+                  g.Dispatch("T10_1-112In...", "1-112_IN");
+                  return g.Dispatched && g.Visits == 1
                          && g.Lines.Count == (featureEnabled ? 1 : 0)
                          && (!featureEnabled || g.Lines[0].Contains("is ON the terrain", StringComparison.Ordinal));
               })());
 
         // ============ 5. PERMISSIVE WHEN NOTHING IS MEASURED ========================
-        Check("UNMEASURED IS NEVER HELD: a null terrain answer yields Contact.Unknown, which "
-              + "classifies READY exactly as it does today - this lane can never wedge a run whose "
+        Check("UNMEASURED IS NEVER HELD: a null terrain answer yields Contact.Unknown, and a bound, "
+              + "readable, unparked taskee classifies READY - this lane can never wedge a run whose "
               + "terrain query is simply never answered",
               PlacementReclampPolicy.Measure(-0.0, null, Tolerance).Contact
                   == PlacementReclampPolicy.Contact.Unknown
-              && DispatchReadiness.Classify(true, true, true, true, false, false) == TaskeeReadiness.Ready);
+              && DispatchReadiness.Classify(true, true, true, true, false) == TaskeeReadiness.Ready);
 
-        Check("THE TOLERANCE IS THE ONLY THING THAT HOLDS A TASK: 49 m is on the ground, 51 m is "
-              + "not, at the shipped 50",
+        Check("THE TOLERANCE DECIDES THE MEASUREMENT (it no longer holds any task): 49 m is on the "
+              + "ground, 51 m is not, at the shipped 50",
               PlacementReclampPolicy.Measure(96.0, 145.0, Tolerance).Contact
                   == PlacementReclampPolicy.Contact.OnGround
               && PlacementReclampPolicy.Measure(94.0, 145.0, Tolerance).Contact
@@ -660,28 +664,22 @@ public static class PlacementReclampSelfTest
               && DispatchReadiness.BarrierSeconds(60.0, CompTimeout, 20.0) < 20.0);
 
         // ============ 7. THE STATES AND THE SENTENCES ===============================
-        Check("EVERY STATE STILL HAS A DISTINCT NAME AND DESCRIPTION, with the new one included",
-              new[] { TaskeeReadiness.Unknown, TaskeeReadiness.PlannedNotRequested,
-                      TaskeeReadiness.RequestedNotBound, TaskeeReadiness.BoundNotReadable,
-                      TaskeeReadiness.MaterializationParked, TaskeeReadiness.NotOnTheGround,
-                      TaskeeReadiness.Ready }
-                  .Select(DispatchReadiness.StateName).Distinct(StringComparer.Ordinal).Count() == 7
-              && new[] { TaskeeReadiness.Unknown, TaskeeReadiness.PlannedNotRequested,
-                         TaskeeReadiness.RequestedNotBound, TaskeeReadiness.BoundNotReadable,
-                         TaskeeReadiness.MaterializationParked, TaskeeReadiness.NotOnTheGround,
-                         TaskeeReadiness.Ready }
-                  .Select(DispatchReadiness.Describe).Distinct(StringComparer.Ordinal).Count() == 7);
+        Check("EVERY STATE STILL HAS A DISTINCT NAME AND DESCRIPTION (six states: the ground-contact "
+              + "state is retired, 2026-09-25)",
+              Enum.GetValues<TaskeeReadiness>().Length == 6
+              && Enum.GetValues<TaskeeReadiness>()
+                  .Select(DispatchReadiness.StateName).Distinct(StringComparer.Ordinal).Count() == 6
+              && Enum.GetValues<TaskeeReadiness>()
+                  .Select(DispatchReadiness.Describe).Distinct(StringComparer.Ordinal).Count() == 6);
 
-        Check("THE PARKED STATE STILL WINS OVER THE GROUND STATE: an object about to be deleted and "
-              + "re-created is reported as parked, not as buried (B1 is the more useful truth)",
-              DispatchReadiness.Classify(true, true, true, true, true, true)
+        Check("THE PARKED STATE STILL WINS OVER READY: an object about to be deleted and re-created "
+              + "is reported as parked (B1)",
+              DispatchReadiness.Classify(true, true, true, true, true)
                   == TaskeeReadiness.MaterializationParked);
 
-        Check("THE FIVE-ARGUMENT FORM IS UNCHANGED FOR EVERY EXISTING CALLER: it forwards "
-              + "notOnTheGround = false, so nothing that does not measure ground contact behaves "
-              + "differently",
-              DispatchReadiness.Classify(true, true, true, true, false)
-                  == DispatchReadiness.Classify(true, true, true, true, false, false)
+        Check("THE FOUR-ARGUMENT FORM FORWARDS materializationParked = false, as before",
+              DispatchReadiness.Classify(true, true, true, true)
+                  == DispatchReadiness.Classify(true, true, true, true, false)
               && DispatchReadiness.Classify(true, false, false, false)
                   == TaskeeReadiness.PlannedNotRequested);
 
