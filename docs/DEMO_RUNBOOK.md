@@ -118,7 +118,8 @@ HOW YOU KNOW IT WORKED - one line, and it is the gate for pushing the order:
 
     PLACEMENT RE-CLAMP: ... were created at the FALLBACK altitude ...
 
-the run is repairing itself - it will correct what it can and REFUSE to task anything it cannot -
+the run is repairing itself - it will correct what it can, and a unit it measures off the terrain at
+dispatch is LOGGED and still tasked (since 2026-09-25 it no longer refuses one; RUNBOOK sec 11h) -
 but you are no longer demonstrating what you rehearsed. Stop, warm the area, start again.
 
 **AND KNOW THAT `READY TO TASK` DOES NOT COVER THIS.** On a cold area the initialization's creates

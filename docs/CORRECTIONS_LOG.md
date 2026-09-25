@@ -311,7 +311,8 @@ content of this entry whatever happens to the feature. ***
   reported instead: `src/VrfC2SimApp/DispatchReadiness.cs:202` emits the same wording in an
   OPERATOR-FACING log string ("The documented correction (setAltitude 0 m above ground level)
   has been issued"); it is a code string, not a comment, so changing it is a behaviour change
-  and belongs to the lane that re-cuts the re-clamp.
+  and belongs to the lane that re-cuts the re-clamp. (2026-09-25: GONE - the state and its sentence were
+  retired by the completion unit; see F-3.)
 - CLAIMED (same commit, `appsettings.Demo.json` `_PlacementReclamp`): the setting "IS THE
   DIFFERENCE BETWEEN A DEMO AND A STATIONARY VEHICLE", and without it a unit is "shown to an
   audience sitting still under the ground". This is the falsified burial-to-no-movement fusion
@@ -352,6 +353,41 @@ content of this entry whatever happens to the feature. ***
 - OWED to the next code unit (src comments still say "C16 ruling" - RL-20260914-01 does not cover
   it): `src/VrfC2SimApp/TaskStatusPolicy.cs`:28, `src/VrfC2SimApp/VrfC2SimService.cs`:164 and
   :7491, `src/VrfC2SimApp/ReportSelfTest.cs`:97.
+
+## F-3: "a task completes at its Duration even if its unit has not arrived" and "a taskee measured off the terrain is HELD" - true of main until 2026-09-25, no longer (2026-09-25)
+  (Ledger: RL-20260921-09 is the temporary position built here; RL-20260921-06 the re-clamp answer; RL-20260925-01 the
+  owner's approval of this unit's scope and his four decisions, being added to the ledger by another lane.)
+
+This is not a refuted MEASUREMENT: both statements were accurate descriptions of main. They became false when
+the completion unit landed (branch `feat/completion-temporary-position`, commits 60e45a6, 2338e16, 02e604d;
+docs in the commit that adds this entry). LIVE CONFIRMATION IS OWED (a pre-registered run, the seat's step).
+- WHAT CHANGED, completion (the owner's TEMPORARY position, RL-20260921-09): an early finish is HELD to start time
+  + Duration; a task WITH a destination whose unit is still travelling at that time is logged OVERDUE, reports
+  nothing, releases nothing, and is reported TASKCMPLT the moment the unit arrives (its follow-ons wait, up to
+  `Vrf:TaskChainBackstopSeconds` from its dispatch); a task with NO destination ends at its Duration as before.
+  The stall watchdog's TASKABRT is REPORT-ONLY for the task (it no longer cancels the end time) and now ABANDONS
+  the stuck unit's follow-ons (the owner's decision D2); a late ATTACK/BREACH move still gets its parked engage
+  and reports TASKCMPLT on arrival (D4); stall detection is ON in `appsettings.Demo.json` and OFF by default (D3).
+  Back-end loss also aborts tasks held after an early finish.
+- WHAT CHANGED, re-clamp (RL-20260921-06; D1, including dropping the dispatch-time setLocation): the dispatch gate
+  measures and LOGS only - no hold, no refusal, no setLocation at dispatch; `TaskeeReadiness.NotOnTheGround`
+  (BOUND-BUT-NOT-ON-THE-GROUND) is retired, and with it F-2's open item, the "setAltitude 0 m above ground
+  level" sentence at `DispatchReadiness.cs:202`; the summary has five counts, and a correction whose read-back
+  never landed is "CORRECTED, READ-BACK NOT RECEIVED", not NEVER MEASURED (the "32 NEVER MEASURED" of run
+  20260921T143243Z). Why the read-back never landed stays UNDIAGNOSED.
+- WHERE THE OLD DESCRIPTIONS WERE, corrected at every site in the same commit series: HANDOFF sec 1 (TASK
+  COMPLETION + re-clamp lines) and sec 1/6 status lines; DEMO_READINESS row 19 (UPDATE block) and new row 26;
+  RUNBOOK sec 11 (a TimedCompletion bullet) and sec 11h (UPDATE block + the gate, tolerance, lines-to-look-for,
+  sequences and offline-proof sites); TASK_COMPLETION_RESEARCH_2026-09-21 (banner, summary-table note, and an
+  UPDATE line in each "code today" cell whose statement changed); in src: the TimedCompletionPolicy header, the
+  VrfSettings TimedCompletion / StallDetection / re-clamp comments, the appsettings.json and appsettings.Demo.json
+  `_TimedCompletion` / `_PlacementReclamp` / `_PlacementReclampToleranceMeters` texts, PlacementReclampPolicy,
+  DispatchReadiness, Program.cs, and the four "C16 ruling" comment sites, relabelled "supervisor position
+  (RL-20260914-01 covers the code only)".
+- NOT CHANGED, and stated so nobody assumes it: the runner scores a task by its FIRST terminal code
+  (`scripts/RunnerLib.ps1` terminalByTask), so a stall-then-arrive task is scored TASKABRT; with stall detection
+  OFF a stuck unit never goes terminal and a `-StopWhenComplete` window runs to its cap; tasks with no Duration
+  keep evidence-only completion; whether a desired effect was achieved is ignored (the research question).
 
 ## Process
 

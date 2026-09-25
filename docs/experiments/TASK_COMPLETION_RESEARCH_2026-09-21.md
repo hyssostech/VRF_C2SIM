@@ -4,6 +4,15 @@
 # TEMPORARY position of 2026-09-21 (docs/RULINGS.md RL-20260921-09) applies to each verb.
 # It RECOMMENDS NOTHING and settles nothing. Produced 2026-09-21 by a read-only executor; nothing was
 # run (n/a live); the evidence is the citations on each line. Cited from RL-20260921-08 and -09.
+# UPDATE 2026-09-25 - THE "CODE TODAY" CELLS DESCRIBE main AT ac1ec58 / cad4ce9. From the completion unit
+# (2026-09-25, scope approved as RL-20260925-01; commits 60e45a6, 2338e16, 02e604d on branch
+# feat/completion-temporary-position; live confirmation owed) the code does this instead: every task with
+# a Duration ends at dispatch + Duration; an EARLIER finish is held until then; a task WITH a destination
+# whose unit is still travelling at that time is reported complete when it ARRIVES (one OVERDUE line, its
+# follow-ons wait); a task with NO destination (in place, patrol, follow) ends at its Duration as before;
+# the stall abort is no longer hidden by a timed completion, does not cancel the end time, and abandons the
+# stuck unit's follow-ons; a late ATTACK/BREACH move still gets its engage. Cells whose statement changed
+# carry an "UPDATE 2026-09-25" line. docs/CORRECTIONS_LOG.md F-3.
 
 # WHEN IS A TASK FINISHED? ONE PAGE PER VERB
 
@@ -202,6 +211,9 @@ in field 1 of each verb where it differs, because cut A is a five-task slice of 
 | ExecutePlanPhase |  0 | 2 | no              | not applicable - a marker             | in place              |
 | CRESRV reserve   |  0 | 1 | no              | no                                    | bare move             |
 
+UPDATE 2026-09-25: "code today" above is main before the completion unit - see the banner at the top; the
+kind of dispatch per verb is unchanged, WHEN a task with a destination completes is not.
+
 ---
 
 ## 3. PER-VERB ENTRIES
@@ -243,6 +255,9 @@ Fields: 1 counts and shape / 2 movement first? / 3 doctrinal end state / 4 can V
    not "complete", so the one completion is left for the engage (TaskStatusPolicy.cs:114-115). The task
    also has a timer armed at dispatch for its Duration, and whichever lands first wins
    (TimedCompletionPolicy.cs:76-89, :135-136). [V]
+   UPDATE 2026-09-25: with a destination this task no longer completes on the timer while its unit is
+   travelling - an earlier finish is held to start time + Duration, a late unit completes on arrival
+   (banner at the top).
 6. OWNER: W-FUZZY names this verb family directly - "There are plenty of tasks where there is movement
    preceding the desired effect, like in "ATTACK TO SECURE". How are these distinguished?" and "the
    time applies to the full task, including the movement and the achievement of the desired effect".
@@ -297,6 +312,9 @@ Fields: 1 counts and shape / 2 movement first? / 3 doctrinal end state / 4 can V
    falls through to a bare drive along its four points, and the log says so ("Layer-2 not yet wired -
    executing bare movement", VrfC2SimService.cs:4315-4318). It can end on arrival evidence (C15) or on
    its Duration timer, whichever is first. [V]
+   UPDATE 2026-09-25: with a destination this task no longer completes on the timer while its unit is
+   travelling - an earlier finish is held to start time + Duration, a late unit completes on arrival
+   (banner at the top).
 6. OWNER: nothing on file naming SEIZE. W-ENDTIME answered a question that named SECURE, OCCUPY and
    DEFEND, not SEIZE.
 7. OPEN QUESTION FOR THE OWNER: none. One item is undecidable from the documentation and is a run
@@ -344,6 +362,9 @@ Fields: 1 counts and shape / 2 movement first? / 3 doctrinal end state / 4 can V
    grepped the whole application source for DesiredEffect: zero hits. [V] So destroy, defeat and
    neutralise are indistinguishable to the code, and the task runs as move-then-fire, ending on its
    Duration timer or the engage's completion.
+   UPDATE 2026-09-25: with a destination this task no longer completes on the timer while its unit is
+   travelling - an earlier finish is held to start time + Duration, a late unit completes on arrival
+   (banner at the top).
 6. OWNER: W-FUZZY, his example verbatim - "is the sim able to determine when some of the desired effect
    has been achieved, for example DESTROY (no enemy unit operational in the target area or something
    like that?)". Nothing else on file.
@@ -373,6 +394,9 @@ Fields: 1 counts and shape / 2 movement first? / 3 doctrinal end state / 4 can V
    named enemy entities over time, and the order names no enemy. [V]
 5. CODE TODAY: classified Attack (VerbMapping.cs:106) - move, then fire at the (self) target, i.e. the
    geometry. Ends on the Duration timer. [V]
+   UPDATE 2026-09-25: with a destination this task no longer completes on the timer while its unit is
+   travelling - an earlier finish is held to start time + Duration, a late unit completes on arrival
+   (banner at the top).
 6. OWNER: nothing on file naming FIX. W-TIME's "tasks that do not include movement" fits the 1-point
    cases and not the 4-point one.
 7. OPEN QUESTION FOR THE OWNER: none.
@@ -392,6 +416,9 @@ Fields: 1 counts and shape / 2 movement first? / 3 doctrinal end state / 4 can V
 4. CAN VR-FORCES TELL? (iv) NOT OBSERVABLE. Nothing in the condition vocabulary (VENDOR-3) expresses
    formation or tempo. There is no disrupt task. [V]
 5. CODE TODAY: classified Attack (VerbMapping.cs:107); move-then-fire; ends on the Duration timer. [V]
+   UPDATE 2026-09-25: with a destination this task no longer completes on the timer while its unit is
+   travelling - an earlier finish is held to start time + Duration, a late unit completes on arrival
+   (banner at the top).
 6. OWNER: nothing on file.
 7. OPEN QUESTION FOR THE OWNER: none.
 8. TEMPORARY POSITION (RL-20260921-09): this task has no destination, so it ends at start time plus
@@ -418,6 +445,9 @@ Fields: 1 counts and shape / 2 movement first? / 3 doctrinal end state / 4 can V
    against the resolved obstacle (VrfC2SimService.cs:4547, :5321), with only the target set and never
    the vendor's start and end points [A - assessment :313-314]. Ends on the Duration timer or the
    vendor completion. [V for the code lines]
+   UPDATE 2026-09-25: with a destination this task no longer completes on the timer while its unit is
+   travelling - an earlier finish is held to start time + Duration, a late unit completes on arrival
+   (banner at the top).
 6. OWNER: nothing on file naming BREACH.
 7. OPEN QUESTION FOR THE OWNER: none. Recorded instead: the vendor's own "has it been breached"
    test exists only in the aggregate-level profile, which this build does not run - a consequence
@@ -451,6 +481,9 @@ Fields: 1 counts and shape / 2 movement first? / 3 doctrinal end state / 4 can V
    DESTRY needs (INTERFACE-1). [V]
 5. CODE TODAY: classified Clear, NOT WIRED (VerbMapping.cs:119, :92-94) - the task drives its three
    points as a bare route. Ends on arrival evidence or the Duration timer. [V]
+   UPDATE 2026-09-25: with a destination this task no longer completes on the timer while its unit is
+   travelling - an earlier finish is held to start time + Duration, a late unit completes on arrival
+   (banner at the top).
 6. OWNER: nothing on file naming CLEAR.
 7. OPEN QUESTION FOR THE OWNER: none.
 8. TEMPORARY POSITION (RL-20260921-09): ends at start time plus Duration; if the unit is still
@@ -478,6 +511,9 @@ Fields: 1 counts and shape / 2 movement first? / 3 doctrinal end state / 4 can V
 5. CODE TODAY: classified HoldObjective, NOT WIRED (VerbMapping.cs:109, :92-94) - a bare move to the
    single point, then nothing. The only thing that ends it is the Duration timer (or arrival evidence
    for the ones with a route). [V]
+   UPDATE 2026-09-25: with a destination this task no longer completes on the timer while its unit is
+   travelling - an earlier finish is held to start time + Duration, a late unit completes on arrival
+   (banner at the top).
 6. OWNER: W-ENDTIME is the ruling most directly about this verb - the question as put named "SECURE,
    OCCUPY and DEFEND" and his answer was "4 given by the end time" (ledger RL-20260914-02). W-TIME then
    narrowed it: "The rulling based on time is for tasks that do not include movement, such as defend in
@@ -506,6 +542,9 @@ Fields: 1 counts and shape / 2 movement first? / 3 doctrinal end state / 4 can V
    vendor's occupy-firing-positions behaviour, is a posture, not an area test [A - assessment :448].
 5. CODE TODAY: classified HoldObjective, NOT WIRED (VerbMapping.cs:110) - bare move to the point, ends
    on the Duration timer. [V]
+   UPDATE 2026-09-25: with a destination this task no longer completes on the timer while its unit is
+   travelling - an earlier finish is held to start time + Duration, a late unit completes on arrival
+   (banner at the top).
 6. OWNER: W-ENDTIME names OCCUPY explicitly in the question as put ("SECURE, OCCUPY and DEFEND have no
    natural completion in VR-Forces"), answered "4 given by the end time".
 7. OPEN QUESTION FOR THE OWNER: none.
@@ -548,6 +587,9 @@ Fields: 1 counts and shape / 2 movement first? / 3 doctrinal end state / 4 can V
    absence of an event over entities the order does not name. [V]
 5. CODE TODAY: classified HoldObjective, NOT WIRED (VerbMapping.cs:113) - bare move to the point, ends
    on the Duration timer. [V]
+   UPDATE 2026-09-25: with a destination this task no longer completes on the timer while its unit is
+   travelling - an earlier finish is held to start time + Duration, a late unit completes on arrival
+   (banner at the top).
 6. OWNER: nothing naming BLOCK.
 7. OPEN QUESTION FOR THE OWNER: none.
 8. TEMPORARY POSITION (RL-20260921-09): this task has no destination, so it ends at start time plus
@@ -607,6 +649,9 @@ Fields: 1 counts and shape / 2 movement first? / 3 doctrinal end state / 4 can V
    models, and nothing in the condition vocabulary expresses them (VENDOR-3). [V]
 5. CODE TODAY: classified HoldObjective, NOT WIRED (VerbMapping.cs:115) - bare move to the point, ends
    on the Duration timer. [V]
+   UPDATE 2026-09-25: with a destination this task no longer completes on the timer while its unit is
+   travelling - an earlier finish is held to start time + Duration, a late unit completes on arrival
+   (banner at the top).
 6. OWNER: nothing naming GUARD.
 7. OPEN QUESTION FOR THE OWNER: none.
 8. TEMPORARY POSITION (RL-20260921-09): this task has no destination, so it ends at start time plus
@@ -694,6 +739,9 @@ Fields: 1 counts and shape / 2 movement first? / 3 doctrinal end state / 4 can V
    unit that has not arrived when its Duration runs out is reported
    COMPLETE, and because a completion suppresses any later abort (TaskStatusPolicy.cs:84-94) the stall
    watchdog's verdict on that unit can no longer be reported. [V]
+   UPDATE 2026-09-25: THAT DIFFERENCE IS REMOVED by the completion unit (banner at the top). The timer is
+   still armed for every task with a Duration, but a MOVE (it has a destination) whose unit has not arrived
+   is OVERDUE, not complete: TASKCMPLT is sent on arrival, and the stall TASKABRT is sent, not suppressed.
 6. OWNER: W-ARRIVAL ("report a unit's completion from the unit's own arrival evidence is fine", ledger
    RL-20260907-01); W-TIME ("The notion that geting stuck midway is a complete is completelly illogical"
    and "Arriving late does _not_ imply an abortion - what happens is that follow on tasks are delayed by
