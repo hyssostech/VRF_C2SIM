@@ -918,6 +918,34 @@ Check 'the marker parse survives spaces in both paths' (
 # static; only running the shipped launcher in -DryRun proves what would reach vrfSimHLA1516e.
 # NOTHING is launched: -DryRun starts no process and the argument line is printed by the Plan
 # section before any precondition can abort, so this holds on a machine without 5.2 installed.
+# The HARVEST plan is NOT: it is printed by the -DryRun Result block, which LaunchVrf52 only
+# reaches when every hard precondition passed (the hard-fail exit 2 comes first). See the
+# missing-RTI guard just below.
+#
+# MISSING-RTI GUARD (U3 lane J, gap G4, 2026-09-25). With C:\MAK\makRti5.0.1 absent, LaunchVrf52
+# prints "RTI bin dir MISSING: <path>" in its precondition loop, sets the hard-fail flag and
+# exits 2 BEFORE its -DryRun plan lines, so every assertion that reads a plan line failed there
+# (579/4 on every branch while the RTI was uninstalled, 2026-09-25) - or, for a NEGATIVE
+# assertion ("the plan does NOT say X"), passed for the wrong reason. CheckLv52Plan wraps
+# exactly those assertions: when the dry-run output it reads carries the MISSING line, it
+# records one SKIPPED check in the assertion's place, naming the cause and the assertion - and
+# that SKIPPED check is a PASS only if the path the launcher named really is absent. When the
+# RTI is present the line is never printed and the ORIGINAL assertion runs, unchanged. One
+# check in, one check out, so the suite's count is the same with and without the RTI.
+# Same style as the 8m guard for an unbuilt RtiProbe.exe below.
+function Get-Lv52RtiMissingPath {
+    param([string]$Out)
+    $m = [regex]::Match([string]$Out, '(?m)RTI bin dir MISSING: (.+?)\s*$')
+    if (-not $m.Success) { return $null }
+    return $m.Groups[1].Value
+}
+function CheckLv52Plan {
+    param([string]$Out, [string]$Name, [scriptblock]$Assert, [string]$Detail = '')
+    $missing = Get-Lv52RtiMissingPath -Out $Out
+    if ($null -eq $missing) { Check $Name ([bool](& $Assert)) $Detail; return }
+    Check ('SKIPPED (RTI bin dir MISSING: ' + $missing + ' - LaunchVrf52 -DryRun exits 2 before its plan lines): ' + $Name) (
+        -not (Test-Path -LiteralPath $missing)) ('the launcher says MISSING but ' + $missing + ' exists - a false skip')
+}
 Write-Host '=== 8g. the sim command line: no --logFileName by default, present when asked for ==='
 $lv52Script = Join-Path $RepoRoot 'scripts\LaunchVrf52.ps1'
 $dryDefault = (& pwsh -NoProfile -File $lv52Script -DryRun -NoGui -BackendAppNumber 9101 2>&1 | Out-String)
@@ -934,8 +962,8 @@ Check 'the default dry run still says the option is NOT passed, and cites the bi
     $dryDefault -match 'NOT PASSED' -and $dryDefault -match 'PREREG_52_CRASH_BISECT_2026-09-04')
 Check 'the opt-in dry run WARNS that it is a ~1-in-3 startup crash' (
     $dryOptIn -match 'PASSED DELIBERATELY' -and $dryOptIn -match '1-IN-3 STARTUP CRASH')
-Check 'the dry run plans the harvest and repeats the secrets warning' (
-    $dryDefault -match 'would HARVEST' -and $dryDefault -match 'SECRETS' -and $dryDefault -match 'never be attached to a ticket or mail')
+CheckLv52Plan $dryDefault 'the dry run plans the harvest and repeats the secrets warning' {
+    $dryDefault -match 'would HARVEST' -and $dryDefault -match 'SECRETS' -and $dryDefault -match 'never be attached to a ticket or mail' }
 
 # 8d. THE DRY-RUN FALSE GREEN (found 2026-09-04 while wiring Stage 2r). The -DryRun Result
 # branch used to `exit 0` unconditionally, so a dry run that hit the runner's generic catch
@@ -1269,15 +1297,17 @@ if ($lv52HoldOnOut -match 'STP-825 federation holder tool MISSING') {
 } else {
     Check '8m both LaunchVrf52 dry runs exit 0 or 2, never anything else' (
         $lv52HoldOnCode -in @(0, 2) -and $lv52HoldOffCode -in @(0, 2)) "on=$lv52HoldOnCode off=$lv52HoldOffCode"
-    Check '8m the DEFAULT dry run plans the STP-825 holder: RtiProbe.exe appNumber 9190, DETACHED, and names the retry number 9191' (
+    # The two holder-plan lines and the OMITS negative read the -DryRun Result block: guarded
+    # (CheckLv52Plan, 8g). The banner lines are printed before the preconditions: not guarded.
+    CheckLv52Plan $lv52HoldOnOut '8m the DEFAULT dry run plans the STP-825 holder: RtiProbe.exe appNumber 9190, DETACHED, and names the retry number 9191' {
         $lv52HoldOnFlat -match 'would start the STP-825 federation HOLDER first: tools/RtiProbe\.exe 9190 \S+ 1 900 3, DETACHED' -and
-        $lv52HoldOnFlat -match 'retrying ONCE on appNumber 9191 if the create is refused')
-    Check '8m the default plan says it would refuse the launch (exit 3, naming STP-825) if neither attempt joins' (
-        $lv52HoldOnFlat -match 'FAIL \(exit 3, naming STP-825\) and launch NOTHING')
+        $lv52HoldOnFlat -match 'retrying ONCE on appNumber 9191 if the create is refused' }
+    CheckLv52Plan $lv52HoldOnOut '8m the default plan says it would refuse the launch (exit 3, naming STP-825) if neither attempt joins' {
+        $lv52HoldOnFlat -match 'FAIL \(exit 3, naming STP-825\) and launch NOTHING' }
     Check '8m the default startup banner reports the holder ON with its appNumber, retry number and hold' (
         $lv52HoldOnFlat -match 'Federation hold\s*: STP-825 holder ON - appNumber 9190 \(retry 9191\), hold 900s')
-    Check '8m -FederationHoldSecs 0 OMITS the holder plan entirely (no RtiProbe start line, no appNumber 9190)' (
-        $lv52HoldOffOut -notmatch 'would start the STP-825 federation HOLDER' -and $lv52HoldOffOut -notmatch '9190')
+    CheckLv52Plan $lv52HoldOffOut '8m -FederationHoldSecs 0 OMITS the holder plan entirely (no RtiProbe start line, no appNumber 9190)' {
+        $lv52HoldOffOut -notmatch 'would start the STP-825 federation HOLDER' -and $lv52HoldOffOut -notmatch '9190' }
     Check '8m -FederationHoldSecs 0 says out loud that this launch''s OWN back end becomes the federation CREATOR (the STP-825 failure mode)' (
         $lv52HoldOffFlat -match "this launch's own back end will be the federation CREATOR")
 }
@@ -2079,10 +2109,11 @@ Check '8q the switch is ACCEPTED (exit 0 or 2, never a parameter-binding failure
     $hbcCode -in @(0, 2)) "exit=$hbcCode"
 Check '8q with the switch, the banner says the CALLER holds the federation' (
     $hbcFlat -match 'Federation hold : OFF for this launch \(-FederationHoldSecs 0 -FederationHeldByCaller\): the CALLER already holds the federation')
-Check '8q with the switch, the false STP-825 CREATOR alarm is GONE' (
-    $hbcFlat -notmatch "this launch's own back end will be the federation CREATOR")
-Check '8q with the switch, the plan still says no holder is started HERE (nothing is hidden, only relabelled)' (
-    $hbcFlat -match 'NO holder is started BY THIS SCRIPT because the CALLER already holds the federation')
+# The GONE negative and the plan line read the -DryRun Result block: guarded (CheckLv52Plan, 8g).
+CheckLv52Plan $hbcOut '8q with the switch, the false STP-825 CREATOR alarm is GONE' {
+    $hbcFlat -notmatch "this launch's own back end will be the federation CREATOR" }
+CheckLv52Plan $hbcOut '8q with the switch, the plan still says no holder is started HERE (nothing is hidden, only relabelled)' {
+    $hbcFlat -match 'NO holder is started BY THIS SCRIPT because the CALLER already holds the federation' }
 Check '8q WITHOUT the switch the alarm is still printed - the standalone default is untouched' (
     $lv52HoldOffFlat -match "this launch's own back end will be the federation CREATOR")
 $hbcBoth  = (& $holdPwsh -NoProfile -File $lv52Script -DryRun -NoGui -BackendAppNumber 9101 -FederationHoldSecs 900 -FederationHeldByCaller 2>&1 | Out-String)
