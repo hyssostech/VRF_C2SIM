@@ -14,8 +14,9 @@ namespace VrfC2SimApp;
 ///   - a task the interface REFUSES at dispatch ("NO LOCATION GIVEN - CAN'T EXECUTE TASK");
 ///   - a successor SKIPPED because its predecessor was abandoned ("policy=skip ... NOT dispatched");
 ///   - a task the SIM reports as failed (DtTaskCompleteReport::success()==false - see the service).
-/// Supervisor ruling 2026-09-14: the user ruled TASKABRT for stalled units, and a task that is
-/// refused or skipped is likewise not going to be executed. The user may override.
+/// The owner answered "Ok" to TASKABRT as the code STP sees for a stalled unit (RL-20260914-01, which
+/// covers that code only); that a refused or skipped task is likewise TASKABRT is a supervisor
+/// position of 2026-09-14. The owner may override.
 ///
 /// THE RULES, and why each exists:
 ///   - ONE TASKSTRT PER DISPATCH. A dispatch that is merely RE-ENTERED (the TerrainProfile path
@@ -25,9 +26,11 @@ namespace VrfC2SimApp;
 ///   - ONE TASKCMPLT PER TASK. The completion paths (vendor callback, R10 fan-out quorum,
 ///     straggler timer, arrival evidence) each have their own de-duplication; this is the backstop
 ///     that makes the guarantee a property of the REPORT stream rather than of four call sites.
-///   - A TASKABRT NEVER SUPPRESSES A LATER TASKCMPLT (C16 ruling: a unit that reported a stall and
-///     then arrives still reports completion) - but A TASKCMPLT DOES SUPPRESS A LATER TASKABRT,
-///     because a task that is finished cannot subsequently fail.
+///   - A TASKABRT NEVER SUPPRESSES A LATER TASKCMPLT (supervisor position (RL-20260914-01 covers the
+///     code only): a unit that reported a stall and then arrives still reports completion) - but A
+///     TASKCMPLT DOES SUPPRESS A LATER TASKABRT, because a task that is finished cannot subsequently
+///     fail. Since 2026-09-25 a unit still travelling at its end time is no longer reported complete
+///     by the Duration timer (RL-20260921-09), so a stall abort is no longer pre-empted that way.
 ///   - A COMPLETION THAT IS NOT THE END OF THE TASK REPORTS TASKINPRG, not TASKCMPLT (review
 ///     finding 4, 2026-09-14): one C2SIM ATTACK/BREACH task runs as a move followed by a parked
 ///     engage, and the move's completion is progress. TASKINPRG consumes no slot.

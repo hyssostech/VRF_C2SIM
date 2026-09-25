@@ -90,11 +90,11 @@ public static class ReportSelfTest
         Check(ref failures, !pol.ShouldEmitAbort(tA), "a TASKCMPLT SUPPRESSES a later TASKABRT");
         Check(ref failures, pol.ShouldEmitStart(tA), "a RE-TASK after completion re-arms and emits TASKSTRT");
 
-        const string tB = "task-B";                       // the stalled / failed task (C16 rule)
+        const string tB = "task-B";                       // the stalled / failed task (supervisor position (RL-20260914-01 covers the code only))
         Check(ref failures, pol.ShouldEmitStart(tB), "dispatch of B emits TASKSTRT");
         Check(ref failures, pol.ShouldEmitAbort(tB), "the watchdog emits ONE TASKABRT");
         Check(ref failures, !pol.ShouldEmitAbort(tB), "a second stall of the same task emits nothing");
-        Check(ref failures, pol.ShouldEmitComplete(tB), "a TASKABRT does NOT suppress a later TASKCMPLT (C16)");
+        Check(ref failures, pol.ShouldEmitComplete(tB), "a TASKABRT does NOT suppress a later TASKCMPLT (supervisor position (RL-20260914-01 covers the code only))");
 
         const string tC = "task-C";                       // refused at dispatch / skipped successor
         Check(ref failures, pol.ShouldEmitAbort(tC), "a REFUSED (never dispatched) task emits ONE TASKABRT");

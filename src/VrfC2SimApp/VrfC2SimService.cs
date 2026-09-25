@@ -160,14 +160,17 @@ public sealed class VrfC2SimService : BackgroundService
     private readonly SubstitutionAnnouncer _substitutions = new();
 
     // B1: which TaskStatus code a task may still emit, and how often (TASKSTRT at dispatch,
-    // ONE TASKCMPLT per task, TASKABRT for a refused / skipped / stalled / failed task, and the
-    // abort-then-complete rule). Every TaskStatus report in this file goes through PushTaskStatus,
+    // ONE TASKCMPLT per task, TASKABRT for a refused / skipped / stalled / failed task, and
+    // abort-then-complete - a supervisor position (RL-20260914-01 covers the code only)). Every
+    // TaskStatus report in this file goes through PushTaskStatus,
     // which consults it - so the guarantees are properties of the report STREAM, not of call sites.
     private readonly TaskStatusPolicy _taskStatus = new();
 
-    // R4 (user ruling 2026-09-14): the tasks whose END TIME has not arrived yet. Armed at dispatch
-    // (MarkDispatched), walked forward on the tick thread (MaybeCompleteTimedTasks) and cancelled
-    // by any real end (PushTaskStatus). See TimedCompletionPolicy for the rule.
+    // The tasks whose END TIME (start time + Duration, the owner's temporary position RL-20260921-09)
+    // has not arrived yet, and the OVERDUE ones still waiting for their unit. Armed at dispatch
+    // (MarkDispatched), walked forward on the tick thread (MaybeCompleteTimedTasks), held or closed
+    // by a successful completion (SynthesizeUnitCompletion -> MarkFinished) and cancelled by any
+    // terminal end (PushTaskStatus). See TimedCompletionPolicy for the rule.
     private readonly TimedCompletionPolicy _timed = new();
     private DateTime _nextTimedCheck = DateTime.MinValue;
     private bool _timedClockLineLogged;
@@ -4063,7 +4066,11 @@ public sealed class VrfC2SimService : BackgroundService
             var gate = await _sequencer.WaitForStartAsync(task.StartAfterTaskUuid, scaledStartMs,
                                                           scaledRelativeMs, timeoutSeconds,
                                                           _taskClockAxis, _stoppingToken,
-                                                          dispatchTimeoutSeconds);
+                                                          dispatchTimeoutSeconds,
+                                                          // RL-20260921-09: a predecessor whose unit is
+                                                          // OVERDUE is waited for up to the chain backstop
+                                                          // from its dispatch, not skipped at end + margin.
+                                                          _vrf.TaskChainBackstopSeconds);
             if (gate != GateResult.Proceed)
             {
                 // P0.2 (DEFECT B): the predecessor never completed. The OLD behavior always
@@ -5229,9 +5236,13 @@ public sealed class VrfC2SimService : BackgroundService
         PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKSTRT,
                        $"dispatched to {unit.Name} as '{kind}'");
 
-        // R4: ARM THE END TIME HERE, for the same reason TASKSTRT is pushed here - this is the one
-        // point every dispatch path reaches. endTime = dispatch + Duration x Vrf:DurationScale.
-        // Register is first-dispatch-wins, so the TerrainProfile re-entry does not restart it.
+        // ARM THE END TIME HERE, for the same reason TASKSTRT is pushed here - this is the one point
+        // every dispatch path reaches. endTime = dispatch + Duration x Vrf:DurationScale (the
+        // owner's temporary position, RL-20260921-09). Register is first-dispatch-wins, so the
+        // TerrainProfile re-entry does not restart it. The DESTINATION flag is what decides whether
+        // the task can be OVERDUE: kinds with no journey (fire, breach, hold-in-place, follow,
+        // patrol) are dispatched with dest = null and end at their end time; a task WITH one that
+        // has not arrived by then is completed when it arrives (TimedCompletionPolicy).
         if (_vrf.TimedCompletion)
         {
             double seconds = ScaleOrderMs(task.DurationMs) / 1000.0;
@@ -5248,10 +5259,17 @@ public sealed class VrfC2SimService : BackgroundService
                 _log.LogWarning("Task '{Task}': Vrf:DurationScale={Scale} collapses its {D:F0} s Duration to " +
                                 "zero - NO end time is armed.",
                                 task.TaskName, _durationScale, task.DurationMs / 1000.0);
-            else if (_timed.Register(task.TaskUuid, task.TaskeeUuid, task.TaskName, unit.Name, seconds))
+            else if (_timed.Register(task.TaskUuid, task.TaskeeUuid, task.TaskName, unit.Name, seconds,
+                                     hasDestination: dest is not null))
                 _log.LogInformation("Task '{Task}': end time armed at {S:F0} s from dispatch " +
-                                    "(C2SIM Duration {D:F0} s x Vrf:DurationScale {Scale}) - R4.",
-                                    task.TaskName, seconds, task.DurationMs / 1000.0, _durationScale);
+                                    "(C2SIM Duration {D:F0} s x Vrf:DurationScale {Scale}) - {Rule} " +
+                                    "(temporary position on completion, RL-20260921-09).",
+                                    task.TaskName, seconds, task.DurationMs / 1000.0, _durationScale,
+                                    dest is not null
+                                        ? "it has a destination: an earlier arrival is held to this end " +
+                                          "time, and if the unit is still travelling then it completes " +
+                                          "when it arrives"
+                                        : "it has no destination: it completes at this end time");
         }
     }
 
@@ -6334,7 +6352,8 @@ public sealed class VrfC2SimService : BackgroundService
                                     "arrival radius of a {Len:F0} m route - standing there is not evidence of having " +
                                     "driven it (STP-837; V6g reported 4/4 'within 500 m of the last vertex, nearest " +
                                     "26 m' while one M1A2 had moved 20 m). This task closes only on a VR-Forces " +
-                                    "completion or on its C2SIM Duration.",
+                                    "completion: its C2SIM Duration alone no longer closes a task with a " +
+                                    "destination - once overdue it waits for that completion (RL-20260921-09).",
                                     name, rec.TaskName, lastFromStart, radius, rec.RouteLengthMeters);
                 continue;
             }
@@ -6771,11 +6790,32 @@ public sealed class VrfC2SimService : BackgroundService
 
         foreach (var p in _timed.Advance(clockNow, usingSim: true))
         {
+            if (p.Kind == TimedCompletionPolicy.DueKind.OverdueAwaitingArrival)
+            {
+                // RL-20260921-09 (temporary position): a unit still travelling at its end time has
+                // NOT completed. Nothing is reported and nothing is released here; the TASKCMPLT is
+                // sent when it arrives (SynthesizeUnitCompletion -> MarkFinished -> EmitNow), and a
+                // unit that is stuck instead is the stall watchdog's TASKABRT (RL-20260914-01) -
+                // which this timer no longer hides. The follow-on's gate is told to keep waiting.
+                _log.LogWarning("TIMED COMPLETION: task '{Task}' on {Unit} reached its END TIME - {Served:F0} s " +
+                                "of a {Dur:F0} s Duration served on the {Clock} clock - but the unit has NOT " +
+                                "ARRIVED: OVERDUE. No TASKCMPLT is sent now; it is sent the moment the unit " +
+                                "arrives, and its follow-on tasks keep waiting until then (temporary position " +
+                                "on completion, RL-20260921-09). A unit that is stuck is reported by the " +
+                                "progress watchdog (Vrf:StallDetection={Stall}).",
+                                p.TaskName, p.UnitName, p.Elapsed, p.DurationSeconds,
+                                usingSim ? "simulation" : "wall", _vrf.StallDetection);
+                _sequencer.NotifyOverdue(p.TaskUuid);
+                continue;
+            }
             _log.LogInformation("TIMED COMPLETION: task '{Task}' on {Unit} reached its END TIME - " +
                                 "{Served:F0} s of a {Dur:F0} s Duration served on the {Clock} clock " +
-                                "(C2SIM Duration x Vrf:DurationScale {Scale}). R4: completion is given by " +
-                                "the end time.", p.TaskName, p.UnitName, p.Elapsed, p.DurationSeconds,
-                                usingSim ? "simulation" : "wall", _durationScale);
+                                "(C2SIM Duration x Vrf:DurationScale {Scale}). Completion is given by start " +
+                                "time + Duration (temporary position, RL-20260921-09){Why}.",
+                                p.TaskName, p.UnitName, p.Elapsed, p.DurationSeconds,
+                                usingSim ? "simulation" : "wall", _durationScale,
+                                p.HasDestination ? " - the unit had already arrived; its completion was held " +
+                                                   "until now" : "");
             // m9 (cold-start review of 5c67d41): AN IN-PLACE TASK MUST RELEASE ITS UNIT. Only the
             // "hold-in-place" kind - the one that issues no vendor task, so no vendor completion
             // will ever pop the record - and only while it is STILL the unit's current task, so a
@@ -6791,7 +6831,7 @@ public sealed class VrfC2SimService : BackgroundService
             PushTaskStatus(p.TaskeeUuid, p.TaskUuid, S.TaskStatusCodeType.TASKCMPLT,
                            $"task '{p.TaskName}' reached the end time given by its C2SIM Duration " +
                            $"({p.DurationSeconds:F0} s after dispatch)");
-            // The chain does not care HOW the task ended (R4): release the successors' gate.
+            // The task is over: release its follow-ons' gate.
             _sequencer.CompleteTask(p.TaskUuid);
         }
     }
@@ -6982,6 +7022,17 @@ public sealed class VrfC2SimService : BackgroundService
                 // Q1's rule, applied to a death instead of a supersede: a successor waiting on a
                 // task we have just declared dead must fail NOW, not at the end of its window.
                 _sequencer.NotifyAbandoned(rec.TaskUuid);
+            }
+            // 2026-09-25 (completion unit): a task whose unit FINISHED EARLY is no longer in flight -
+            // its TASKCMPLT is held for its end time (RL-20260921-09) - so the snapshot above misses
+            // it, and a dead back end would still get a TASKCMPLT at that end time. It is treated
+            // like the in-flight set: TASKABRT (which cancels the held timer) and its follow-ons
+            // abandoned.
+            foreach (var held in _timed.HeldAfterFinish())
+            {
+                PushTaskStatus(held.TaskeeUuid, held.TaskUuid, S.TaskStatusCodeType.TASKABRT,
+                               why + " (its unit had finished early and the task was waiting for its end time)");
+                _sequencer.NotifyAbandoned(held.TaskUuid);
             }
             // NOTHING IS MEASURED ACROSS THE OUTAGE. C16's rings are stamped with positions from
             // before the loss; judged after it they would call every unit stalled - for a reason
@@ -7298,9 +7349,18 @@ public sealed class VrfC2SimService : BackgroundService
                 _log.LogWarning("STALL for '{Name}' but no C2SIM uuid known - no TASKABRT report sent.", name);
                 continue;
             }
+            // REPORT-ONLY for the task itself: it stays in flight, its armed end time is NOT cancelled
+            // (reportOnlyAbort), and a unit that later arrives still reports TASKCMPLT. Before the
+            // completion unit of 2026-09-25 this abort was usually SUPPRESSED - the Duration timer had
+            // already reported TASKCMPLT for the unarrived unit - and it released nothing.
             PushTaskStatus(taskeeUuid, rec.TaskUuid ?? "", S.TaskStatusCodeType.TASKABRT,
                            "STALLED (C16 progress watchdog) - report only: the task stays in flight, no " +
-                           "VR-Forces command is issued and nothing is re-tasked");
+                           "VR-Forces command is issued and nothing is re-tasked; its follow-on tasks are " +
+                           "abandoned", reportOnlyAbort: true);
+            // D2 (the owner, 2026-09-25, RL-20260925-01): the follow-ons of a unit reported STUCK are
+            // ABANDONED, each with its own TASKABRT, as every other abort does (supersede, back-end
+            // loss, vendor failure). Its chain is closed; its own task may still complete later.
+            _sequencer.NotifyAbandoned(rec.TaskUuid);
         }
         // SILENT DORMANCY, SAID OUT LOUD - ON THE CONDITION, NOT ON ONE CAUSE (pass-2 review F4b,
         // re-armed by pass-3 review P4). 08146a2 armed this line only when the cadence was already
@@ -7488,7 +7548,8 @@ public sealed class VrfC2SimService : BackgroundService
         // its progress window and its one-report flag under the UNIT's name. The R10 paths never
         // clear otherwise: OnVrfTaskCompleted keys its clear by e.UnitMarking, which under fan-out
         // is the MEMBER entity name. NOTE this is deliberately NOT a suppressor: a unit that has
-        // already reported TASKABRT and then arrives still sends TASKCMPLT (C16 ruling).
+        // already reported TASKABRT and then arrives still sends TASKCMPLT (abort-then-complete - a
+        // supervisor position (RL-20260914-01 covers the code only)).
         ClearStallState(name);
 
         if (!_c2SimUuidByName.TryGetValue(name, out var taskeeUuid))
@@ -7511,11 +7572,29 @@ public sealed class VrfC2SimService : BackgroundService
             _log.LogWarning("Task-complete for '{Name}' with NO in-flight task recorded - unattributed " +
                             "(report sent with empty task uuid).", name);
 
+        // THE TEMPORARY POSITION ON COMPLETION (RL-20260921-09): a SUCCESS on a task whose end time
+        // is armed is HELD until that end time (the timer then reports it and releases the
+        // follow-ons), or - if the task was already OVERDUE - reported complete NOW. A failure is
+        // never marked: it is an immediate TASKABRT whatever the timer says. With no armed timer
+        // (no Duration, Vrf:TimedCompletion off, or the task already ended) the verdict is
+        // NotTimed and everything below is exactly the evidence-only completion it was before.
+        var verdict = success && taskUuid != null
+                    ? _timed.MarkFinished(taskUuid) : TimedCompletionPolicy.FinishVerdict.NotTimed;
+        if (verdict == TimedCompletionPolicy.FinishVerdict.Hold)
+            _log.LogInformation("Unit {Name}: task '{Task}' FINISHED BEFORE ITS END TIME - the TASKCMPLT and the " +
+                                "release of its follow-on tasks are HELD until start time + Duration " +
+                                "(temporary position on completion, RL-20260921-09).",
+                                name, fin.TaskName ?? taskUuid);
+        else if (verdict == TimedCompletionPolicy.FinishVerdict.EmitNow)
+            _log.LogInformation("Unit {Name}: task '{Task}' was OVERDUE and the unit has now ARRIVED - reported " +
+                                "complete now, and its follow-on tasks are released (RL-20260921-09).",
+                                name, fin.TaskName ?? taskUuid);
+
         // Release any task gated on this one (parity: setTaskIsComplete unblocked the C++
         // busy-wait on getTaskIsComplete; here it completes the successor's await). Only
         // the ATTRIBUTED task's gate releases - a superseded task's gate stays closed.
-        if (success) _sequencer.CompleteTask(taskUuid);
-        else _sequencer.NotifyAbandoned(taskUuid);   // a FAILED task never completes: successors fail fast
+        if (TimedCompletionPolicy.ReleasesSuccessorsNow(success, verdict)) _sequencer.CompleteTask(taskUuid);
+        else if (!success) _sequencer.NotifyAbandoned(taskUuid);   // a FAILED task never completes: successors fail fast
 
         // P0.3: the move completed - issue the engage that was parked on it (advance the
         // axis / approach the obstacle, THEN engage/breach - now for real, not same-tick).
@@ -7537,12 +7616,23 @@ public sealed class VrfC2SimService : BackgroundService
             taskContinues = true;
         }
 
-        var code = TaskStatusPolicy.CodeForCompletion(success, taskContinues);
+        // THE CODE, from the same helper the offline flow uses (--rulings-selftest t10). Held: the
+        // move half of an advance-then-engage task still says TASKINPRG, anything else says nothing
+        // until the end time. Overdue and now arrived: TASKCMPLT - and for an ATTACK / BREACH the
+        // parked engage above has STILL been issued (the owner's decision of 2026-09-25,
+        // RL-20260925-01).
+        var maybeCode = TimedCompletionPolicy.CompletionCode(success, taskContinues, verdict);
+        if (maybeCode is not S.TaskStatusCodeType code) return;
         PushTaskStatus(taskeeUuid, taskUuid ?? "", code,
                        !success ? $"unit {name}: VR-Forces reported the task FAILED (success=false) - it is no " +
                                   "longer being processed"
+                       : verdict == TimedCompletionPolicy.FinishVerdict.EmitNow
+                           ? $"unit {name} arrived after its task's end time (start time + Duration) - complete on " +
+                             "arrival" + (taskContinues ? "; the deferred engage has been issued" : "")
                        : taskContinues ? $"unit {name} completed the MOVE half of its task; the deferred engage " +
-                                         "is now in flight under the same task - TASKCMPLT follows when it ends"
+                                         "is now in flight under the same task - TASKCMPLT follows " +
+                                         (verdict == TimedCompletionPolicy.FinishVerdict.Hold
+                                              ? "at the task's end time (start time + Duration)" : "when it ends")
                        : $"unit {name} completed its task");
     }
 
@@ -7897,16 +7987,21 @@ public sealed class VrfC2SimService : BackgroundService
     /// that task's TASKCMPLT - logs what it sent (or why it did not), and pushes. Callable from
     /// any thread: the policy is thread-safe and the push is fire-and-forget.
     /// </summary>
-    private void PushTaskStatus(string taskeeUuid, string taskUuid, S.TaskStatusCodeType code, string why)
+    /// <param name="reportOnlyAbort">TRUE only for the progress watchdog's stall TASKABRT, which
+    /// leaves the task in flight in VR-Forces: it does NOT cancel the armed end time
+    /// (TimedCompletionPolicy.CancelsTimer), so a recovered unit is still held to its end time and
+    /// a late one still completes on arrival.</param>
+    private void PushTaskStatus(string taskeeUuid, string taskUuid, S.TaskStatusCodeType code, string why,
+                                bool reportOnlyAbort = false)
     {
-        // R4: any REAL end cancels the task's timed end, BEFORE anything else - a completion that
+        // Any TERMINAL end cancels the task's timed end, BEFORE anything else - a completion that
         // cannot be SENT has still happened, and a completion that is suppressed as a duplicate has
         // still happened; leaving the timer armed behind either would fire a second, later
         // TASKCMPLT for a task that is already over. (m5 of the cold-start review of 5c67d41: this
         // used to sit BELOW the taskee guard, which inverted its own argument - a status with no
         // taskee uuid left the timer running.) The timed completion itself arrives here with its
         // entry already removed; Cancel then returns false and says nothing.
-        if (TimedCompletionPolicy.CancelsTimer(code) && _timed.Cancel(taskUuid))
+        if (TimedCompletionPolicy.CancelsTimer(code, reportOnlyAbort) && _timed.Cancel(taskUuid))
             _log.LogInformation("TIMED COMPLETION: the end time armed for task {Task} is cancelled - " +
                                 "{Code} reached the reporting point first ({Why}).", taskUuid, code, why);
         if (string.IsNullOrEmpty(taskeeUuid))

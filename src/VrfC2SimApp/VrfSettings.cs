@@ -402,6 +402,12 @@ public class VrfSettings
     // Math.Max(1, StallWindowSeconds), so 0 meant a ONE-SECOND window. StallDetection ships OFF
     // and no deployed appsettings sets either, so the blast radius is nil, but a config file
     // carrying an explicit 0 behaves completely differently here than it did.
+    // SHIPPED DEFAULT: OFF here and in appsettings.json; ON in the DEMO profile
+    // (appsettings.Demo.json), the owner's decision of 2026-09-25 (RL-20260925-01). Since the
+    // completion unit of that date the Duration timer no longer ends a task whose unit has not
+    // arrived (RL-20260921-09), so with this OFF a STUCK unit gets no terminal report at all and its
+    // follow-on tasks wait until Vrf:TaskChainBackstopSeconds; with it ON the stall TASKABRT is sent
+    // (RL-20260914-01) and the stuck unit's follow-ons are abandoned with their own aborts.
     public bool StallDetection { get; set; } = false;
     // NOTE (M2 of the cold-start review of 5c67d41): StallClock governs THE PROGRESS WATCHDOG AND
     // NOTHING ELSE. It used to pick the clock the R4 timed completion served its Durations on too,
@@ -667,12 +673,19 @@ public class VrfSettings
     // Golden orders carry no temporal deps, so this never fires there (parity-neutral).
     public string PredecessorTimeoutPolicy { get; set; } = "skip";
 
-    // R4 (user ruling 2026-09-14): "completion is given by the end time". A dispatched task whose
-    // C2SIM Duration has elapsed is reported TASKCMPLT, once, through the single emit point, and
-    // its STREND successors dispatch (TimedCompletionPolicy). ON by default: without it the
-    // hold-type half of a real order - SECURE/OCCUPY/DEFEND/RETAIN/BLOCK/FIX/SCREEN/GUARD, fires
-    // and air defence - has no completion at all and every successor chain dies at the
-    // predecessor timeout (run G6: 9 of 42 tasks dispatched, 0 completed).
+    // COMPLETION ON START TIME + DURATION - the owner's TEMPORARY position (RL-20260921-09),
+    // implemented 2026-09-25 (scope approved as RL-20260925-01; TimedCompletionPolicy has the
+    // rule). A task with a C2SIM Duration ends at dispatch + Duration x Vrf:DurationScale: an
+    // EARLIER finish is held until then; a task WITH a destination whose unit is still travelling
+    // then is reported TASKCMPLT the moment it arrives (not at the end time), and its follow-ons
+    // wait for it; a task with NO destination ends at its end time. A stuck unit is the stall
+    // watchdog's TASKABRT (Vrf:StallDetection). Each reports once, through the single emit point.
+    // (Until 2026-09-25 every task was reported TASKCMPLT at its end time whether or not its unit
+    // had arrived - read from the 2026-09-14 answer "4 given by the end time", which was about
+    // SECURE / OCCUPY / DEFEND; docs/CORRECTIONS_LOG.md F-1 withdrew that reading.)
+    // ON by default: without it the hold-type half of a real order - SECURE/OCCUPY/DEFEND/RETAIN/
+    // BLOCK/FIX/SCREEN/GUARD, fires and air defence - has no completion at all and every successor
+    // chain dies at the predecessor timeout (run G6: 9 of 42 tasks dispatched, 0 completed).
     // Set false to go back to evidence-only completion (arrival / the vendor's own report).
     public bool TimedCompletion { get; set; } = true;
 
