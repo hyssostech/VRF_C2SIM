@@ -402,13 +402,14 @@ C16 PROGRESS WATCHDOG (REPORT-ONLY) - user approval 2026-09-13 ("2 as recommende
     OnVrfTaskCompleted's own clear keys on e.UnitMarking, which under R10 fan-out is a MEMBER
     name and clears nothing. The per-unit window and the one-report flag are both pruned for
     units that have left the in-flight set, so neither map grows across a run.
-    ABORT-THEN-COMPLETE IS INTENDED (supervisor ruling 2026-09-13; the user may override). A unit
+    ABORT-THEN-COMPLETE IS INTENDED (supervisor position 2026-09-13; the user may override). A unit
     that has already reported TASKABRT and then moves and ARRIVES still sends TASKCMPLT for the
     SAME task uuid: the abort was the interface's judgement at the time, the arrival is evidence,
     and STP sees the truthful sequence. TASKABRT NEVER suppresses a later TASKCMPLT. The converse
     DOES hold - a TASKCMPLT suppresses any later TASKABRT for that task - because completing pops
     the in-flight record and the watchdog only ever looks at in-flight move tasks (and the C15
     arrival gate skips the unit besides).
+    CORRECTION 2026-09-25: this is a SUPERVISOR reading (2026-09-13), not an owner ruling - RL-20260914-01 covers only the TASKABRT code; see its scope note. The current TEMPORARY completion position is RL-20260921-09.
     SILENCE IS NOT STALLING: a unit whose members stop being REFLECTED has no data, not a stall -
     Decide() returns "not stalled" whenever fewer than StallMinMembersWithData members had a
     readable position at both ends of the window, so a reflection gap is never reported as a unit
