@@ -3064,9 +3064,32 @@ Check '13c DIRTY control: an id in the NEXT paragraph does NOT satisfy it' (
     $rcSplit.Count -eq 1 -and -not (Test-RulingClaimSound -Claim $rcSplit[0] -LedgerIds $rcLedger).Sound
 ) ("ids=" + (@($rcSplit | ForEach-Object { $_.Ids }) -join ','))
 Check '13c CLEAN control: an id in the SAME table row satisfies the claim' (
-    $rcRowOk.Count -eq 1 -and $rcRowOk[0].UnitKind -eq 'table-row' -and (Test-RulingClaimSound -Claim $rcRowOk[0] -LedgerIds $rcLedger).Sound)
+    $rcRowOk.Count -eq 1 -and $rcRowOk[0].UnitKind -eq 'table-sentence' -and (Test-RulingClaimSound -Claim $rcRowOk[0] -LedgerIds $rcLedger).Sound)
 Check '13c DIRTY control: an id in the ADJACENT table row does NOT satisfy it' (
-    $rcRowBad.Count -eq 1 -and $rcRowBad[0].UnitKind -eq 'table-row' -and -not (Test-RulingClaimSound -Claim $rcRowBad[0] -LedgerIds $rcLedger).Sound)
+    $rcRowBad.Count -eq 1 -and $rcRowBad[0].UnitKind -eq 'table-sentence' -and -not (Test-RulingClaimSound -Claim $rcRowBad[0] -LedgerIds $rcLedger).Sound)
+# G2 (U3 lane J, 2026-09-25): inside a table row the unit is the SENTENCE (cut at ". ").
+# DIRTY: one row, the id in sentence 1, a second claim in sentence 2 - that second claim
+# must NOT borrow the id. Before G2 the whole row was one unit and this read clean.
+$rcSenText = "| 1 | USER RULING: the demo clock is fast (RL-20260921-01). A later note says user ruling: the clock is slow. | x |`r`n"
+$rcSen = @(Find-RulingClaims -Text $rcSenText)
+Check '13c G2 DIRTY control: a claim in ANOTHER SENTENCE of the same row does NOT borrow the row''s id' (
+    $rcSen.Count -eq 2 -and (Test-RulingClaimSound -Claim $rcSen[0] -LedgerIds $rcLedger).Sound -and
+    -not (Test-RulingClaimSound -Claim $rcSen[1] -LedgerIds $rcLedger).Sound
+) ('claims=' + $rcSen.Count + ' ids=' + (@($rcSen | ForEach-Object { '[' + (@($_.Ids) -join ',') + ']' }) -join ''))
+# CLEAN: same sentence, id in the NEXT CELL (a cell bar is not a cut); two claims in one sentence are one claim.
+$rcSenOkText = "| 1 | USER RULING, user decision: the demo clock is fast | RL-20260921-01 |`r`n"
+$rcSenOk = @(Find-RulingClaims -Text $rcSenOkText)
+Check '13c G2 CLEAN control: an id in the next CELL of the same sentence counts; two claims in one sentence are one claim' (
+    $rcSenOk.Count -eq 1 -and (Test-RulingClaimSound -Claim $rcSenOk[0] -LedgerIds $rcLedger).Sound) ('claims=' + $rcSenOk.Count)
+# G1 (U3 lane J, 2026-09-25): the forms lane G's review found the pattern missed.
+$rcG1Text = "2026-09-21 RULED ('3. Fast.') for the clock.`r`n`r`n" +
+            "MAK support case: ruled OPEN ('5. Open.').`r`n`r`n" +
+            "- User? RULED (R1).`r`n`r`n" +
+            "R5 ruled (entity first).`r`n"
+Check '13c G1 DIRTY control: RULED (''...''), ruled OPEN, RULED ( and ruled ( are all claims' (
+    @(Find-RulingClaims -Text $rcG1Text).Count -eq 4) ('claims=' + @(Find-RulingClaims -Text $rcG1Text).Count)
+Check '13c G1 CLEAN control: "UNRULED (audit Q-E)" is not a claim (word boundary)' (
+    @(Find-RulingClaims -Text "the watchdog's default is UNRULED (audit Q-E).`r`n").Count -eq 0)
 Check '13c DIRTY control: an id that is not in the ledger does NOT satisfy it' (
     $rcUnk.Count -eq 1 -and -not (Test-RulingClaimSound -Claim $rcUnk[0] -LedgerIds $rcLedger).Sound -and
     (Test-RulingClaimSound -Claim $rcUnk[0] -LedgerIds $rcLedger).Why -like '*not found in the ruling ledger*')
