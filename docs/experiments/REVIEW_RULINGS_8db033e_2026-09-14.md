@@ -265,6 +265,8 @@ the dead-back-end case. Correct, and the right decision.
 
 ### 2.5 Double or missing terminal codes
 
+CORRECTION 2026-09-25: this is a SUPERVISOR reading (2026-09-13), not an owner ruling - RL-20260914-01 covers only the TASKABRT code; see its scope note. The current TEMPORARY completion position is RL-20260921-09.
+
 **`ReportBuilder.BuildTaskStatusReport` still has exactly ONE call site** -
 `VrfC2SimService.cs:4794`, inside `PushTaskStatus`. Nothing bypasses it (grepped over all sources).
 `TaskStatusPolicy` gives one TASKSTRT per execution, one TASKCMPLT per task, one TASKABRT per task

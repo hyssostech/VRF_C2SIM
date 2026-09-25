@@ -7,6 +7,7 @@ successors cascade), sec 2.5 (one code per outcome; stall = TASKABRT and a later
 ruling), REPORTING_ASSESSMENT_2026-09-14 (B1-B10), STP_PARSE_CHECK sec 3.6 (STP consumes PositionReportContent only - the
 bus CAPTURE is the witness), vrf-stall-detection-by-design memory (the interface's own progress watchdog; the 1-35 freeze at
 the P11 point is the known stall, six runs), V2 RESULTS (the vendor-failure cascade already seen).
+CORRECTION 2026-09-25: this is a SUPERVISOR reading (2026-09-13), not an owner ruling - RL-20260914-01 covers only the TASKABRT code; see its scope note. The current TEMPORARY completion position is RL-20260921-09.
 
 ## The run
 scratchpad validation/v13_launch.sh = n2b's line with: --order data/PROBE_V13_REPORTING_WATCHDOG_Order.xml (3 tasks:
@@ -37,6 +38,7 @@ live use). Two taskees (1-35, 1-1), three tasks.
 ## STOP conditions
 Any HIGH miss; a TASKSTRT for the malformed task; two terminal codes for one task other than the deliberate stall-TASKABRT +
 later-arrival-TASKCMPLT pair; a crash; Tick-phase / MissingMethod lines.
+CORRECTION 2026-09-25: this is a SUPERVISOR reading (2026-09-13), not an owner ruling - RL-20260914-01 covers only the TASKABRT code; see its scope note. The current TEMPORARY completion position is RL-20260921-09.
 
 ## Harvest
 validation/v2_harvest.py works unchanged for the codes and counts (the order file argument must point at the V13 order:

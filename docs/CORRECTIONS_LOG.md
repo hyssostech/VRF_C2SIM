@@ -335,6 +335,24 @@ content of this entry whatever happens to the feature. ***
   or CORRECTION site (this file, `VRF_ALTITUDE_FRAMES.md`, `CLAUDE.md`, `DEMO_RUNBOOK.md`:100,
   `HANDOFF`, `DEMO_READINESS` row 16, `PREREG_IRONSTORM_DRIVE`:505, `VrfSettings.cs`).
 
+## F-3: abort-then-complete recorded as a ruling at the 2026-09-14 experiment sites (2026-09-25)
+  (Ledger: RL-20260914-01 and its scope note; RL-20260921-09 the temporary completion position now in force.)
+
+- CLAIMED (2026-09-14 experiment records): abort-then-complete / "a later TASKCMPLT is never
+  suppressed" recorded as a ruling ("the C16 ruling") - it is a SUPERVISOR reading (RL-20260914-01
+  scope note: that entry covers only the TASKABRT code). Dated corrections added in place at:
+  `docs/experiments/FIXPASS3_RULINGS_1ffb4ee_2026-09-14.md`:202;
+  `docs/experiments/PREREG_V13_REPORTING_WATCHDOG_2026-09-14.md`:10 and :41;
+  `docs/experiments/REPORTING_ASSESSMENT_2026-09-14.md`:288;
+  `docs/experiments/REVIEW2_RULINGS_0c96f50_2026-09-14.md`:270 (head of sec 2.3, table row :281);
+  `docs/experiments/REVIEW_INTEGRATION_02b51de_2026-09-14.md`:91;
+  `docs/experiments/REVIEW_RULINGS_8db033e_2026-09-14.md`:268 (head of sec 2.5, table row :281).
+  Also `docs/DESIGN_ORBAT_TO_VRF_2026-09-06.md`:405 "supervisor ruling 2026-09-13" now reads
+  "supervisor position 2026-09-13", with the same dated correction at :412.
+- OWED to the next code unit (src comments still say "C16 ruling" - RL-20260914-01 does not cover
+  it): `src/VrfC2SimApp/TaskStatusPolicy.cs`:28, `src/VrfC2SimApp/VrfC2SimService.cs`:164 and
+  :7491, `src/VrfC2SimApp/ReportSelfTest.cs`:97.
+
 ## Process
 
 - The single-auditor repair loop (rounds 1-7) did not converge: like-for-like orchestrated

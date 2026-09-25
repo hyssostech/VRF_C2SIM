@@ -267,6 +267,8 @@ NaN, +/-Inf).
 
 ### 2.3 Double or missing terminal codes
 
+CORRECTION 2026-09-25: this is a SUPERVISOR reading (2026-09-13), not an owner ruling - RL-20260914-01 covers only the TASKABRT code; see its scope note. The current TEMPORARY completion position is RL-20260921-09.
+
 **No double terminal code found.** `ReportBuilder.BuildTaskStatusReport` has exactly ONE call site in
 the service (`:4682`, inside `PushTaskStatus`) - **nothing bypasses the emit point**, verified by
 grep over all sources. The pairings:
