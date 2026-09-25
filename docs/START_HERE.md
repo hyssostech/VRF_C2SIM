@@ -148,6 +148,12 @@ Three locations are in play:
 > names, pile-size-as-sufficient, template quality, echelon, entity-immunity, duration.
 > Evidence: investigation doc parts 7/7b/8/9 + the run matrix (23 runs).
 
+> POINTER ADDED 2026-09-21 (U2 lane D) to the 2026-07 block above: it reports TWO DISJOINT GROUPS -
+> three movers that ran far off and ended underground or offshore, and a remainder that never moved.
+> It asserts no link between the two, and none should be read into it. "Born buried, therefore never
+> moves" is FALSIFIED and has re-entered this record three times: docs/VRF_ALTITUDE_FRAMES.md sec 5
+> and the sec 7 tripwires, read them before writing anything about burial and movement.
+
 > REALITY CHECK (do not oversell): the end-to-end product goal - a coa-gpt scenario at MOJAVE with
 > correct aggregate movement - does NOT work. Mojave aggregates FREEZE; root cause UNSOLVED (nav data
 > was FALSIFIED as the cause). The "SUCCESS/COMPLETE" bullets below are component / control-region

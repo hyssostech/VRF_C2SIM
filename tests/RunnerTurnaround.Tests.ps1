@@ -28,11 +28,50 @@
 #   5. the trace stop-file timing (StopIface + trail, never negative)
 #   6. the --capabilities probe parse (exit 0 AND token present)
 #   7. both PowerShell files parse with zero errors
+#   13. the U2 RECORD CHECKS (fresh-start handoff sec 4 rules 1/5/6/7; audit S3, S8):
+#      doc caps as a PAIR (line count AND max line length); a tripwire phrase scan with a
+#      reviewed allowlist; ruling-id presence in the four live docs plus a ratchet over the
+#      rest of docs\; a prereg lint whose CLEAN control is docs\experiments\PREREG_TEMPLATE.md;
+#      ASCII+CRLF on the files it adds. Helpers: tests\RecordChecks.ps1. Three checks are
+#      STAGED behind $RecordCheckStaging until the other U2 lanes land - see section 13.
+#      Generators (never automatic): -UpdateTripwireAllowlist, -UpdateRulingClaimsBaseline.
+[CmdletBinding()]
+param(
+    # Regenerate tests\tripwire_allowlist.txt from the tree, then EXIT without
+    # running a single check. Regeneration is NEVER part of a normal run: a check
+    # that silently re-baselines itself is a false green.
+    [switch]$UpdateTripwireAllowlist,
+    # Same, for tests\ruling_claims_baseline.txt.
+    [switch]$UpdateRulingClaimsBaseline
+)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path $RepoRoot 'scripts\RunnerLib.ps1')
+. (Join-Path $PSScriptRoot 'RecordChecks.ps1')
+
+# The record-check GENERATORS (section 13). Reached only when asked for by name;
+# they write one tracked file and exit before any check runs.
+if ($UpdateTripwireAllowlist -or $UpdateRulingClaimsBaseline) {
+    $stamp = (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd')
+    if ($UpdateTripwireAllowlist) {
+        $twPath = Join-Path $RepoRoot 'tests\tripwire_allowlist.txt'
+        $twNow  = @(Get-TripwireTreeHits -RepoRoot $RepoRoot)
+        $twOld  = @(Read-TripwireAllowlist -Path $twPath)
+        Write-RecordCheckFile -Path $twPath -Content (New-TripwireAllowlistContent -Hits $twNow -ExistingEntries $twOld -Stamp $stamp)
+        Write-Host ('REGENERATED ' + $twPath + ' - ' + $twNow.Count + ' hit(s) in the tree, ' + $twOld.Count + ' previous entr(ies).')
+        Write-Host 'READ THE DIFF. A reason that still says REVIEW has been classified by nobody.'
+    }
+    if ($UpdateRulingClaimsBaseline) {
+        $rcPath  = Join-Path $RepoRoot 'tests\ruling_claims_baseline.txt'
+        $rcNow   = @(Get-RulingClaimCounts -RepoRoot $RepoRoot)
+        Write-RecordCheckFile -Path $rcPath -Content (New-RulingClaimsBaselineContent -Counts $rcNow -Stamp $stamp)
+        Write-Host ('REGENERATED ' + $rcPath + ' - ' + @($rcNow | Where-Object { $_.Unidentified -gt 0 }).Count + ' file(s) carry un-id''d ruling claims.')
+        Write-Host 'READ THE DIFF. Baselining away a RISEN count is exactly the silent re-baseline this guards.'
+    }
+    exit 0
+}
 
 $script:Pass = 0
 $script:Fail = 0
@@ -2836,7 +2875,313 @@ foreach ($f12 in $sayScripts) {
 Check '12 no undefined Say-* calls in scripts\*.ps1' ($unresolvedSay12.Count -eq 0) ($unresolvedSay12 -join '; ')
 Check '12b no unresolved Verb-Noun calls in scripts\*.ps1 (own file / dot-sourced RunnerLib / Get-Command)' ($unresolvedAny12.Count -eq 0) ($unresolvedAny12 -join '; ')
 
+# 13. THE U2 RECORD CHECKS. Provenance: fresh-start handoff sec 4 rules 1, 5, 6, 7
+# (the [CHECK] ones) and sec 3 U2 ("land the checks of sec 4 ... each proven on a
+# dirty control first"); cold-start audit sec 6 S3 and S8; audit sec 3 DOC CHANGES
+# item 7 (the 200-line cap was met with 1,868-character lines - a cap satisfied in
+# letter and defeated in purpose, which is why every cap here is a PAIR).
+#
+# House pattern: every check below runs a DIRTY control that must be FLAGGED and a
+# CLEAN control that must PASS, through the SAME functions (tests\RecordChecks.ps1)
+# as the real tree. A checker whose dirty control was never run proves nothing.
+#
+# STAGING: three of these cannot be green until other U2 lanes land. They are NOT
+# weakened - they are staged. 'pending' prints a loud PENDING line carrying the
+# measured value and does not fail; 'enforced' fails. The seat flips a switch here
+# as its dependency merges; nothing else needs editing.
+Write-Host '=== 13. record checks: doc caps, tripwire phrases, ruling ids, prereg lint (U2) ==='
+
+$RecordCheckStaging = [ordered]@{
+    HandoffLineLength = 'enforced'  # flipped 2026-09-21 (U2 lane D): HANDOFF reflowed to 199 lines, longest 158
+    RulingsLedger     = 'enforced'  # flipped 2026-09-21 (U2 lane D): docs\RULINGS.md exists; cap 120 x 160, file 96 lines x 147 (2026-09-25)
+    LiveDocRulingIds  = 'enforced'  # flipped 2026-09-21 (U2 lane D): every ruling claim in the four live docs carries a ledger id
+}
+$script:PendingCount = 0
+$script:PendingKeys  = New-Object System.Collections.Generic.List[string]
+
+function CheckStaged {
+    param([string]$Key, [string]$Name, [bool]$Condition, [string]$Detail = '')
+    if (-not $RecordCheckStaging.Contains($Key)) {
+        # A typo in a staging key must never silently disable a check.
+        Check ($Name + ' [staging key ' + $Key + ' is not in $RecordCheckStaging]') $false 'unknown staging key'
+        return
+    }
+    $state = [string]$RecordCheckStaging[$Key]
+    if ($state -eq 'enforced') { Check $Name $Condition $Detail; return }
+    if ($state -ne 'pending') {
+        Check ($Name + ' [staging key ' + $Key + ' = ' + $state + ']') $false "staging must be 'pending' or 'enforced'"
+        return
+    }
+    $script:PendingCount++
+    $script:PendingKeys.Add($Key)
+    $verdict = if ($Condition) { 'would PASS today' } else { 'would FAIL today' }
+    Write-Host ('  [PENDING (not enforced): ' + $Key + '] ' + $Name + ' -- ' + $verdict + ' -- ' + $Detail)
+}
+
+Write-Host '--- 13a. C-1 doc caps: LINE COUNT and MAX LINE LENGTH (audit sec 3 item 7) ---'
+# DIRTY control: 3 lines, one of them 200 characters, against a 2 x 160 cap.
+$capDirtyText = "first line`r`n" + ('x' * 200) + "`r`nthird line`r`n"
+$capDirty = Get-DocCapFromText -Text $capDirtyText -MaxLineLength 160
+Check '13a DIRTY control: the 200-character line is flagged over the 160 cap' (
+    @($capDirty.OverLines).Count -eq 1 -and $capDirty.MaxLineLength -eq 200 -and $capDirty.MaxLineNumber -eq 2
+) ("maxlen=$($capDirty.MaxLineLength) at line $($capDirty.MaxLineNumber), over=$(@($capDirty.OverLines).Count)")
+Check '13a DIRTY control: 3 lines is flagged over a 2-line cap' ($capDirty.LineCount -gt 2) "lines=$($capDirty.LineCount)"
+# CLEAN control: 2 lines, longest 80 characters - and a trailing newline must not
+# invent a third line (that off-by-one is how a cap gets quietly exceeded).
+$capCleanText = "first line`r`n" + ('y' * 80) + "`r`n"
+$capClean = Get-DocCapFromText -Text $capCleanText -MaxLineLength 160
+Check '13a CLEAN control: 2 lines, longest 80, nothing flagged' (
+    $capClean.LineCount -eq 2 -and $capClean.MaxLineLength -eq 80 -and @($capClean.OverLines).Count -eq 0
+) ("lines=$($capClean.LineCount), maxlen=$($capClean.MaxLineLength)")
+Check '13a CLEAN control: an absent file reports Exists=$false, it does not throw' (
+    -not (Get-DocCapMeasurement -Path (Join-Path $RepoRoot 'docs\THIS_FILE_DOES_NOT_EXIST.md')).Exists)
+
+# The real tree. Table-driven: <relative path> | max lines | max line length.
+$docCapTable = @(
+    [pscustomobject]@{ RelPath = 'docs\HANDOFF_2026-09-14_PARALLEL_LANES.md'; MaxLines = 200; MaxLen = 160; LenStagingKey = 'HandoffLineLength'; ExistStagingKey = '' },
+    [pscustomobject]@{ RelPath = 'docs\RULINGS.md';                           MaxLines = 120; MaxLen = 160; LenStagingKey = 'RulingsLedger';     ExistStagingKey = 'RulingsLedger' }
+)
+foreach ($row in $docCapTable) {
+    $meas = Get-DocCapMeasurement -Path (Join-Path $RepoRoot $row.RelPath) -MaxLineLength $row.MaxLen
+    $detail = Format-DocCapDetail -Measurement $meas -MaxLines $row.MaxLines -MaxLineLength $row.MaxLen
+    if ($row.ExistStagingKey) {
+        CheckStaged $row.ExistStagingKey ('13a ' + $row.RelPath + ' exists and is within ' + $row.MaxLines + ' lines') (
+            $meas.Exists -and $meas.LineCount -le $row.MaxLines) $detail
+    } else {
+        Check ('13a ' + $row.RelPath + ' is within its ' + $row.MaxLines + '-line cap') (
+            $meas.Exists -and $meas.LineCount -le $row.MaxLines) $detail
+    }
+    CheckStaged $row.LenStagingKey ('13a ' + $row.RelPath + ' has no line over ' + $row.MaxLen + ' characters') (
+        $meas.Exists -and $meas.MaxLineLength -le $row.MaxLen) $detail
+}
+
+Write-Host '--- 13b. C-2 tripwire phrase scan over docs\, src\*.cs, src\appsettings*.json ---'
+# DIRTY control: one line per rule, each a phrase pair inside the 80-character window.
+$twDirtyText = "The two platforms were born buried and therefore never moved all run.`r`n" +
+               "R4 is why a move-along task completes at its armed end.`r`n"
+$twDirtyHits = @(Find-TripwireHits -Text $twDirtyText -RelPath '(dirty control)')
+Check '13b DIRTY control: both tripwire rules flag their line' (
+    $twDirtyHits.Count -eq 2 -and
+    @($twDirtyHits | Where-Object { $_.RuleId -eq 'T1' -and $_.LineNumber -eq 1 }).Count -eq 1 -and
+    @($twDirtyHits | Where-Object { $_.RuleId -eq 'T2' -and $_.LineNumber -eq 2 }).Count -eq 1
+) ("hits=" + (@($twDirtyHits | ForEach-Object { $_.RuleId + '@' + $_.LineNumber }) -join ','))
+# DIRTY control, CROSS-LINE: the SHAPE of RUNBOOK.md:3553, where the pair straddles a
+# newline. A per-line scan sees nothing here - that is why the scan is text-scoped.
+# Since 2026-09-21 the real site IS caught: T2's window is 120 and the measured gap
+# there is 98 (see the KNOWN MISSES block in tests\RecordChecks.ps1, now all closed).
+$twCrossText = "was the ruled behaviour meeting R4 (completion is given`r`n" +
+               "by the end time), NARROWING that rule for MOVE tasks only.`r`n"
+$twCross = @(Find-TripwireHits -Text $twCrossText -RelPath '(cross-line control)')
+Check '13b DIRTY control: an R4/MOVE pair straddling a newline IS flagged, on the R4 line' (
+    $twCross.Count -eq 1 -and $twCross[0].RuleId -eq 'T2' -and $twCross[0].LineNumber -eq 1
+) ("hits=" + $twCross.Count + $(if ($twCross.Count -gt 0) { ' rule=' + $twCross[0].RuleId + ' line=' + $twCross[0].LineNumber + ' gap=' + $twCross[0].Gap } else { '' }))
+# CLEAN control: the very same phrases, more than 80 characters apart.
+$twCleanText = "The member was born buried by the create clamp.`r`n" +
+               "Terrain follows the mesh. Terrain follows the mesh. Terrain follows it.`r`n" +
+               "Terrain follows the mesh. Terrain follows the mesh. Terrain follows it.`r`n" +
+               "The company never moved off the ridge, and rule R4 is in the ledger.`r`n"
+Check '13b CLEAN control: the same phrases more than 80 characters apart are not flagged' (
+    @(Find-TripwireHits -Text $twCleanText -RelPath '(clean control)').Count -eq 0) (
+    'hits=' + @(Find-TripwireHits -Text $twCleanText).Count)
+# The 80-character WINDOW itself, both sides of the boundary, same code.
+$twNear = 'buried' + (' ' * 70) + 'never moves'
+$twFar  = 'buried' + (' ' * 90) + 'never moves'
+Check '13b window control: gap 70 on one line IS flagged' (@(Find-TripwireHits -Text $twNear).Count -eq 1)
+Check '13b window control: gap 90 on one line is NOT flagged' (@(Find-TripwireHits -Text $twFar).Count -eq 0)
+# The fingerprint must survive re-wrapping whitespace and must change when the words change.
+Check '13b fingerprint ignores whitespace, not words' (
+    (Get-RecordLineFingerprint -Line '  a   b ') -eq (Get-RecordLineFingerprint -Line 'a b') -and
+    (Get-RecordLineFingerprint -Line 'a b') -ne (Get-RecordLineFingerprint -Line 'a c'))
+
+$twAllowPath = Join-Path $RepoRoot 'tests\tripwire_allowlist.txt'
+$twEntries   = @(Read-TripwireAllowlist -Path $twAllowPath)
+$twHits      = @(Get-TripwireTreeHits -RepoRoot $RepoRoot)
+$twCmp       = Compare-TripwireHits -Hits $twHits -Entries $twEntries
+foreach ($u in @($twCmp.Unallowed)) { Write-Host ('         UNALLOWED: ' + (Format-TripwireHit -Hit $u)) }
+Check ('13b every tripwire hit in the tree is on the reviewed allowlist (' + $twHits.Count + ' hits, ' + @($twEntries).Count + ' entries)') (
+    @($twCmp.Unallowed).Count -eq 0
+) ("unallowed=" + @($twCmp.Unallowed).Count + " - regenerate with: pwsh -NoProfile -File tests\RunnerTurnaround.Tests.ps1 -UpdateTripwireAllowlist, then READ the diff")
+Check '13b the allowlist has no malformed lines' (@($twCmp.Malformed).Count -eq 0) (
+    "malformed at line(s) " + ((@($twCmp.Malformed) | ForEach-Object { $_.SourceLine }) -join ','))
+foreach ($s in @($twCmp.Stale)) {
+    Write-Host ('  [WARN] 13b stale allowlist entry matches nothing: ' + $s.RelPath + ' | ' + $s.RuleId + ' | ' + $s.Fingerprint)
+}
+$twReview = @($twEntries | Where-Object { -not $_.Malformed -and $_.Reason -like 'REVIEW*' })
+if ($twReview.Count -gt 0) {
+    Write-Host ('  [WARN] 13b ' + $twReview.Count + ' allowlist entr(ies) still carry a REVIEW reason - nobody has classified them yet')
+}
+
+Write-Host '--- 13c. C-3 ruling ids (handoff sec 4 rule 1) ---'
+# "Same paragraph / table row" is the whole content of this check, so the controls
+# test the DEFINITION, with a ledger of exactly one known id.
+$rcLedger = @('RL-20260921-01')
+$rcOkText      = "USER RULING 2026-09-21: the demo clock is fast.`r`nRecorded as RL-20260921-01 in the ledger.`r`n"
+$rcSplitText   = "USER RULING 2026-09-21: the demo clock is fast.`r`n`r`nRL-20260921-01 is the entry for it.`r`n"
+$rcRowOkText   = "| # | claim | note |`r`n|---|---|---|`r`n| 1 | USER RULING: the demo clock is fast (RL-20260921-01) | ok |`r`n"
+$rcRowBadText  = "| # | claim | note |`r`n|---|---|---|`r`n| 1 | USER RULING: the demo clock is fast | no id here |`r`n| 2 | RL-20260921-01 | one row away |`r`n"
+$rcUnknownText = "USER RULING 2026-09-21: the demo clock is fast (RL-20260921-99).`r`n"
+$rcNoneText    = "supervisor reading: the clock is fast; nothing on file settles it.`r`n"
+
+$rcOk     = @(Find-RulingClaims -Text $rcOkText)
+$rcSplit  = @(Find-RulingClaims -Text $rcSplitText)
+$rcRowOk  = @(Find-RulingClaims -Text $rcRowOkText)
+$rcRowBad = @(Find-RulingClaims -Text $rcRowBadText)
+$rcUnk    = @(Find-RulingClaims -Text $rcUnknownText)
+Check '13c CLEAN control: an id in the same PARAGRAPH satisfies the claim' (
+    $rcOk.Count -eq 1 -and $rcOk[0].UnitKind -eq 'paragraph' -and (Test-RulingClaimSound -Claim $rcOk[0] -LedgerIds $rcLedger).Sound)
+Check '13c DIRTY control: an id in the NEXT paragraph does NOT satisfy it' (
+    $rcSplit.Count -eq 1 -and -not (Test-RulingClaimSound -Claim $rcSplit[0] -LedgerIds $rcLedger).Sound
+) ("ids=" + (@($rcSplit | ForEach-Object { $_.Ids }) -join ','))
+Check '13c CLEAN control: an id in the SAME table row satisfies the claim' (
+    $rcRowOk.Count -eq 1 -and $rcRowOk[0].UnitKind -eq 'table-row' -and (Test-RulingClaimSound -Claim $rcRowOk[0] -LedgerIds $rcLedger).Sound)
+Check '13c DIRTY control: an id in the ADJACENT table row does NOT satisfy it' (
+    $rcRowBad.Count -eq 1 -and $rcRowBad[0].UnitKind -eq 'table-row' -and -not (Test-RulingClaimSound -Claim $rcRowBad[0] -LedgerIds $rcLedger).Sound)
+Check '13c DIRTY control: an id that is not in the ledger does NOT satisfy it' (
+    $rcUnk.Count -eq 1 -and -not (Test-RulingClaimSound -Claim $rcUnk[0] -LedgerIds $rcLedger).Sound -and
+    (Test-RulingClaimSound -Claim $rcUnk[0] -LedgerIds $rcLedger).Why -like '*not found in the ruling ledger*')
+Check '13c CLEAN control: prose that claims no ruling yields no claim' (@(Find-RulingClaims -Text $rcNoneText).Count -eq 0)
+# The WIDENED pattern (lane B's, landed 2026-09-21): five forms the briefed pattern missed.
+$rcWideText = "user 2026-09-13: he asked for something that survives reinstalls.`r`n`r`n" +
+              "the user's rulings Q1-Q7 are in the ledger.`r`n`r`n" +
+              "the user RULED 2026-09-21 to use the fast clock.`r`n`r`n" +
+              "user decision owed on the watchdog.`r`n`r`n" +
+              "OFFSET-LINE RULING 2026-09-14 kept the route line as the verdict.`r`n"
+Check '13c the widened pattern catches the five forms the briefed one missed' (
+    @(Find-RulingClaims -Text $rcWideText).Count -eq 5) ('claims=' + @(Find-RulingClaims -Text $rcWideText).Count)
+# An UNVERIFIED id is a real id: a site relabelled "supervisor statement (no owner
+# words on file - RL-UNVERIFIED-MAK01)" must satisfy the check, or the relabelling
+# would itself read as a violation.
+$rcUnvText = "That is not an owner ruling - RL-UNVERIFIED-MAK01, no owner words on file.`r`n"
+$rcUnv = @(Find-RulingClaims -Text $rcUnvText)
+Check '13c CLEAN control: an RL-UNVERIFIED-* id counts as an id and can satisfy the claim' (
+    $rcUnv.Count -eq 1 -and (Test-RulingClaimSound -Claim $rcUnv[0] -LedgerIds @('RL-UNVERIFIED-MAK01')).Sound
+) ('ids=' + (@($rcUnv | ForEach-Object { $_.Ids }) -join ','))
+
+$rcLedgerIds = @(Get-RulingLedgerIds -RepoRoot $RepoRoot)
+foreach ($rel in $script:LiveDocRelPaths) {
+    $p = Join-Path $RepoRoot $rel
+    if (-not (Test-Path -LiteralPath $p -PathType Leaf)) {
+        CheckStaged 'LiveDocRulingIds' ('13c ' + $rel + ' - every ruling claim carries a ledger id') $false 'FILE ABSENT'
+        continue
+    }
+    $claims  = @(Find-RulingClaims -Text ([System.IO.File]::ReadAllText($p)) -RelPath $rel)
+    $unsound = @($claims | Where-Object { -not (Test-RulingClaimSound -Claim $_ -LedgerIds $rcLedgerIds).Sound })
+    CheckStaged 'LiveDocRulingIds' ('13c ' + $rel + ' - every ruling claim carries a ledger id') ($unsound.Count -eq 0) (
+        'claims=' + $claims.Count + ', without a ledger id=' + $unsound.Count +
+        $(if ($unsound.Count -gt 0) { ' (first at line ' + $unsound[0].LineNumber + ')' } else { '' }))
+}
+# RATCHET DIRTY CONTROL (closes lane C's defect D4, 2026-09-21): an id that matches
+# the id REGEX but exists in NEITHER ledger file must count as unidentified. Before
+# this the ratchet counted only the absence of an id, so RL-20260921-99 slipped past.
+$rcTmp = Join-Path ([System.IO.Path]::GetTempPath()) ('u2ratchet_' + [guid]::NewGuid().ToString('N'))
+try {
+    $null = New-Item -ItemType Directory -Path (Join-Path $rcTmp 'docs') -Force
+    [System.IO.File]::WriteAllText(
+        (Join-Path $rcTmp 'docs\FAKE_BAD_ID.md'),
+        "USER RULING 2026-09-21: the demo clock is fast (RL-20260921-99).`r`n")
+    [System.IO.File]::WriteAllText(
+        (Join-Path $rcTmp 'docs\FAKE_GOOD_ID.md'),
+        "USER RULING 2026-09-21: the demo clock is fast (RL-20260921-01).`r`n")
+    $rcCtl = @(Get-RulingClaimCounts -RepoRoot $rcTmp -ExcludeRelPaths @() -LedgerIds @('RL-20260921-01'))
+    $rcBad  = @($rcCtl | Where-Object { $_.RelPath -like '*FAKE_BAD_ID.md' })
+    $rcGood = @($rcCtl | Where-Object { $_.RelPath -like '*FAKE_GOOD_ID.md' })
+    Check '13c ratchet DIRTY control: an id in NEITHER ledger file counts as unidentified' (
+        $rcBad.Count -eq 1 -and $rcBad[0].Total -eq 1 -and $rcBad[0].Unidentified -eq 1
+    ) ('rows=' + $rcCtl.Count + ', bad.Unidentified=' + $(if ($rcBad.Count -eq 1) { $rcBad[0].Unidentified } else { 'n/a' }))
+    Check '13c ratchet CLEAN control: an id that IS in the ledger does not count' (
+        $rcGood.Count -eq 1 -and $rcGood[0].Total -eq 1 -and $rcGood[0].Unidentified -eq 0
+    ) ('good.Unidentified=' + $(if ($rcGood.Count -eq 1) { $rcGood[0].Unidentified } else { 'n/a' }))
+} finally {
+    if (Test-Path -LiteralPath $rcTmp) { Remove-Item -LiteralPath $rcTmp -Recurse -Force -ErrorAction SilentlyContinue }
+}
+
+# RATCHET for every other docs\ file: the count of un-id'd claims may fall, never rise.
+$rcBaselinePath = Join-Path $RepoRoot 'tests\ruling_claims_baseline.txt'
+$rcBaseline     = Read-RulingClaimsBaseline -Path $rcBaselinePath
+$rcCounts       = @(Get-RulingClaimCounts -RepoRoot $RepoRoot)
+$rcCmp          = Compare-RulingClaimCounts -Counts $rcCounts -Baseline $rcBaseline
+foreach ($r in @($rcCmp.Risen)) {
+    Write-Host ('         RISEN: ' + $r.RelPath + ' baseline=' + $r.Baseline + ' now=' + $r.Now + $(if ($r.New) { ' (not in the baseline at all)' } else { '' }))
+}
+Check ('13c ratchet: no docs\ file gained an un-id''d ruling claim (' + $rcCounts.Count + ' files scanned, ' + $rcBaseline.Count + ' baselined)') (
+    @($rcCmp.Risen).Count -eq 0
+) ("risen=" + @($rcCmp.Risen).Count + " - after a deliberate change regenerate with: pwsh -NoProfile -File tests\RunnerTurnaround.Tests.ps1 -UpdateRulingClaimsBaseline")
+foreach ($r in @($rcCmp.Improved)) {
+    Write-Host ('  [WARN] 13c ratchet improved (baseline is stale, regenerate when convenient): ' + $r.RelPath + ' ' + $r.Baseline + ' -> ' + $r.Now)
+}
+
+Write-Host '--- 13d. C-4 prereg lint (handoff sec 4 rule 5; audit S8) ---'
+# The CLEAN control IS docs\experiments\PREREG_TEMPLATE.md, so the template and the
+# rule cannot drift: break one and this check goes red.
+$tplPath = Join-Path $RepoRoot 'docs\experiments\PREREG_TEMPLATE.md'
+Check '13d docs\experiments\PREREG_TEMPLATE.md exists' (Test-Path -LiteralPath $tplPath -PathType Leaf)
+$tplText = ''
+if (Test-Path -LiteralPath $tplPath -PathType Leaf) { $tplText = [System.IO.File]::ReadAllText($tplPath) }
+$tplProblems = @(Test-PreregText -Text $tplText -Name 'PREREG_TEMPLATE.md')
+Check '13d CLEAN control: the template passes the lint it defines' ($tplProblems.Count -eq 0) ($tplProblems -join '; ')
+# DIRTY controls: the template with exactly one marker broken, one control per rule.
+$d1 = $tplText -replace 'VENDOR CITATION:', 'VENDOR NOTE:'
+$d2 = $tplText -replace 'OWN-RECORD CITATION:', 'OWN RECORD SAYS:'
+$d3 = $tplText -replace 'RUN KIND: movement', 'RUN KIND: whatever'
+$d4 = ($tplText -replace '--pre-order-gate', 'no-gate') -replace 'CONSOLE LEVEL: 4', 'CONSOLE LEVEL: 1'
+$d5 = $d4 + "`r`nDEVIATION FROM RECORD: departing from `"gate PushOrder on the first New Primary nav area row`" - the AO is pre-warmed by the runner.`r`n"
+$d6 = ($tplText -replace 'DurationScale: 1\.0', 'DurationScale: 0.25') -replace 'ARMED ENDS VS STALL WINDOW:', 'ARMED ENDS:'
+Check '13d DIRTY control: no VENDOR CITATION is flagged'      (@(Test-PreregText -Text $d1) -join ';' -like '*VENDOR CITATION*')
+Check '13d DIRTY control: no OWN-RECORD CITATION is flagged'  (@(Test-PreregText -Text $d2) -join ';' -like '*OWN-RECORD CITATION*')
+Check '13d DIRTY control: an unknown RUN KIND is flagged'     (@(Test-PreregText -Text $d3) -join ';' -like '*not one of movement*')
+$d4p = @(Test-PreregText -Text $d4)
+Check '13d DIRTY control: a movement run without --pre-order-gate AND without console level 4 is flagged twice' (
+    $d4p.Count -eq 2 -and ($d4p -join ';') -like '*pre-order-gate*' -and ($d4p -join ';') -like '*CONSOLE LEVEL: 4*') ($d4p -join '; ')
+Check '13d CLEAN control: the same run with a QUOTING "DEVIATION FROM RECORD:" line passes' (
+    @(Test-PreregText -Text $d5).Count -eq 0) (@(Test-PreregText -Text $d5) -join '; ')
+Check '13d DIRTY control: DurationScale 0.25 with no "ARMED ENDS VS STALL WINDOW:" line is flagged (audit S8)' (
+    @(Test-PreregText -Text $d6) -join ';' -like '*ARMED ENDS VS STALL WINDOW*') (@(Test-PreregText -Text $d6) -join '; ')
+# Subject set: only a PREREG_*.md whose FILE-NAME date is after the cut.
+Check '13d subject rule: a 2026-09-20 prereg is not subject, a 2026-09-22 one is' (
+    -not (Test-PreregSubject -Name 'PREREG_DEMO_REHEARSAL_2026-09-20.md') -and
+    (Test-PreregSubject -Name 'PREREG_SOMETHING_2026-09-22.md') -and
+    -not (Test-PreregSubject -Name 'PREREG_TEMPLATE.md'))
+$preregDir = Join-Path $RepoRoot 'docs\experiments'
+$preregSubjects = @()
+if (Test-Path -LiteralPath $preregDir -PathType Container) {
+    $preregSubjects = @(Get-ChildItem -LiteralPath $preregDir -File -Filter 'PREREG_*.md' | Where-Object { Test-PreregSubject -Name $_.Name })
+}
+$preregBad = New-Object System.Collections.Generic.List[string]
+foreach ($f in $preregSubjects) {
+    $probs = @(Test-PreregText -Text ([System.IO.File]::ReadAllText($f.FullName)) -Name $f.Name)
+    if ($probs.Count -gt 0) { $preregBad.Add($f.Name + ': ' + ($probs -join '; ')) }
+}
+Write-Host ('         ' + $preregSubjects.Count + ' prereg(s) dated after 2026-09-21 are subject to the lint')
+Check ('13d every prereg dated after 2026-09-21 passes the lint (' + $preregSubjects.Count + ' subject)') (
+    $preregBad.Count -eq 0) ($preregBad -join ' | ')
+
+Write-Host '--- 13e. C-5 ASCII + CRLF on the files this section adds (REPO CLAUDE.md sec 5) ---'
+Check '13e DIRTY control: a non-ASCII byte is flagged' (
+    (@(Test-AsciiCrlfBytes -Bytes ([byte[]](65, 13, 10, 0xE2, 13, 10))) -join ';') -like '*0xe2*')
+Check '13e DIRTY control: a bare LF is flagged' (
+    (@(Test-AsciiCrlfBytes -Bytes ([byte[]](65, 10, 66))) -join ';') -like '*bare LF*')
+Check '13e DIRTY control: a stray CR is flagged' (
+    (@(Test-AsciiCrlfBytes -Bytes ([byte[]](65, 13, 66))) -join ';') -like '*stray CR*')
+Check '13e CLEAN control: ASCII text with CRLF endings and a tab is clean' (
+    @(Test-AsciiCrlfBytes -Bytes ([System.Text.Encoding]::ASCII.GetBytes("a`tb`r`nc`r`n"))).Count -eq 0)
+foreach ($rel in @('tests\RunnerTurnaround.Tests.ps1', 'tests\RecordChecks.ps1',
+                   'tests\tripwire_allowlist.txt', 'tests\ruling_claims_baseline.txt',
+                   'docs\experiments\PREREG_TEMPLATE.md')) {
+    $probs = @(Test-AsciiCrlfFile -Path (Join-Path $RepoRoot $rel))
+    Check ('13e ' + $rel + ' is ASCII + CRLF') ($probs.Count -eq 0) ($probs -join '; ')
+}
+
+Write-Host ''
+if ($script:PendingCount -gt 0) {
+    Write-Host ('  ' + $script:PendingCount + ' record check(s) PENDING, not enforced. Keys: ' +
+                ((@($script:PendingKeys) | Sort-Object -Unique) -join ', ') +
+                '. Flip a key to ''enforced'' in $RecordCheckStaging (section 13) when its dependency lands.')
+} else {
+    Write-Host '  0 record checks are PENDING - every staged check is enforced.'
+}
+
 Write-Host ''
 Write-Host ('{0} passed, {1} failed' -f $script:Pass, $script:Fail)
+if ($script:PendingCount -gt 0) { Write-Host ('{0} record check(s) PENDING, not enforced - flip a key in $RecordCheckStaging (section 13) as its dependency lands' -f $script:PendingCount) }
 if ($script:Fail -gt 0) { exit 1 }
 exit 0

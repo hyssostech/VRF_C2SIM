@@ -567,7 +567,11 @@ have an "Is Gravity Aligned" option
 
 Documented behavior above/below terrain: create-time above-sea-level below the
 surface = underground (a); the movement model re-clamps moving ground vehicles
-to the surface (c). The Guide does NOT state what happens to a STATIONARY entity
+to the surface (c). READ BEFORE REUSING THE QUESTION BELOW (pointer added 2026-09-21,
+U2 lane D): docs/VRF_ALTITUDE_FRAMES.md sec 5 and sec 7. "Born buried, therefore never
+moves" is FALSIFIED and has re-entered the record three times, so whatever the answer
+to this question turns out to be, do not carry a buried-to-frozen link into it.
+The Guide does NOT state what happens to a STATIONARY entity
 created underground before it is tasked (does it get pulled to the surface at
 sim start, or stay buried until it moves?), nor whether ground-clamp applies over
 un-paged terrain. See NOT-COVERED.
@@ -880,7 +884,10 @@ To uses nav data if present; road tasks use the road vector network.
    which is our lever for a truthful-arrival radius.) (Section 3b.)
 3. What happens to a STATIONARY entity created below terrain (buried-birth)
    before it is tasked: does sim start pull it to the surface, or does it stay
-   buried until it moves and the movement-model clamp (5c) engages? Display
+   buried until it moves and the movement-model clamp (5c) engages? (Pointer
+   added 2026-09-21, U2 lane D: read docs/VRF_ALTITUDE_FRAMES.md sec 5 + sec 7
+   first. "Born buried, therefore never moves" is FALSIFIED; this question is
+   about where an object sits, not about whether it can move.) Display
    clamp (5b) hides it visually either way. (Section 5.) Directly relevant to the
    fixed buried-birth bug's residue.
 4. Exact warp/runaway mechanism at 20x. The Guide gives only "quality may
@@ -1150,7 +1157,12 @@ they apply to the whole aggregate):
   scenario-wide `run()`/`pause()` (section 6); the appearance frozen bit via
   `setAppearance` (readable back as `frozen()`, section 5); `wait`/`waitDuration` tasks
   (section 4); or `restore()` to reset to start state. (The "entity-freeze" symptom in the
-  groundwork plan refers to buried-birth entities that fail to move, not to this API.)
+  groundwork plan is a separate matter from this API. CORRECTION 2026-09-21 (U2 lane D): this
+  parenthesis used to describe that symptom as "buried-birth entities that fail to move". That
+  fuses being off the terrain with not moving, and "born buried, therefore never moves" is
+  FALSIFIED - docs/VRF_ALTITUDE_FRAMES.md sec 5, and the sec 7 tripwire fires on that pairing.
+  What the groundwork plan recorded is entities that did not move; why they did not move is a
+  separate question with its own record.)
 
 Generic set-data mechanism (the extensible path underneath the convenience setters):
 - `sendSetDataMsg(recipient, DtSetDataRequest* msg, addr)` :1577. `DtSetDataRequest` is an

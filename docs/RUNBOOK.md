@@ -799,7 +799,7 @@ back end - the D5b and D8 command lines are identical but for `--appNumber`; not
 observer - it never joined the federation). WHAT IT IS NOT: diagnosed. n=1, and the process sat
 on the error dialog for 34 minutes (thread count 42 -> 68) before StopVrf52 closed it.
 
-CALLSTACK READ, USER RULING 2026-09-21 ('4. Read.'): access violation 0xC0000005 in
+CALLSTACK READ, USER RULING 2026-09-21 (RL-20260921-02, archive; '4. Read.'): access violation 0xC0000005 in
 `makVrf::DtStateDataWrapper::isDestroyed <- DtDisaggregatedDamageActuator::tick <-
 DtLocalObject::tick` on a `DtVrfCallbackQueue` worker thread - a vendor use-after-destroy race
 inside VR-Forces' own object life cycle; nothing on the stack is RTI or connection code. This
@@ -2134,7 +2134,7 @@ SUCCEEDS against `src/VrfBridge/build/<config>/VrfBridge.dll` is therefore proof
 it calls exists on the referenced assembly.
 
 THE ELEVEN CONSUMERS - ALL ELEVEN CAN BUILD A 5.2 TREE (the four that could not were converted
-2026-09-15 on `feat/tools-52-conversion`, user ruling 00:15Z "Convert tools"; `tools/PauseSim`
+2026-09-15 on `feat/tools-52-conversion`, user ruling (RL-20260915-01, archive; the record stamps it 00:12:54Z, not the 00:15Z used here) "Convert tools"; `tools/PauseSim`
 landed 2026-09-15 on `feat/pausesim-tool` and was BORN with the axis). Eleven csproj files
 reference the bridge by `<Reference Include="VrfBridge">` and each keeps its OWN copy in its `bin`.
 All eleven carry the BridgeConfig axis (a `BridgeConfig` property defaulting to `Release`, plus
@@ -2564,7 +2564,7 @@ federation "<fed>"` as if read from the log, but it is a CONSTRUCTED string
 clean-looking sentence that hides the very garble the fix has to see through. Worth a ticket
 alongside 9711f46: quote the matched text verbatim (truncated) instead of reconstructing it.
 
-MAK SUPPORT CASE - USER RULING 2026-09-21 ('5. Open the case.'): OPEN. The seat prepares the
+MAK SUPPORT CASE - USER RULING 2026-09-21 (RL-20260921-02, archive): OPEN. CORRECTION 2026-09-21: this line quoted him as '5. Open the case.' He typed '5. Open.' - three words were added inside quotation marks. The seat prepares the
 support package and a draft; the user sends it. Package in preparation under
 `scratchpad\validation\mak_case\` - the log-sink duplication/interleaving evidence above, the
 SILENT-shape material from NOTIFY2, and the D5b callstack (0.5.12, next crash-forensics note)
@@ -2607,7 +2607,7 @@ you want a short window, write the number you want - do not write 0 and expect o
 ## 11. THE CLOCK C2SIM TASK TIMES RUN ON, AND THE R4 TASKING KEYS
 
 Added 2026-09-14 (the two cold-start reviews of `5c67d41` and `0c96f50`, items M1/M2/A1 and
-the user's rulings Q1-Q7). **All seven are now IN `appsettings.json` at their defaults, and
+the user's rulings Q1-Q7, RL-20260914-05, archive). **All seven are now IN `appsettings.json` at their defaults, and
 the six that change what a demo does are in `appsettings.Demo.json` with a `_Key` line each
 saying why** - a standalone deployment's behaviour has to be readable from its settings, not
 from C# source. Every one can still be overridden per process (double underscore = the `:`),
@@ -2633,7 +2633,7 @@ no Duration and no geometry is malformed and is refused, not held (below).
   onto the sim clock silently changed when every task in the order completed. Both read the
   SAME sim-clock sample through the same hysteresis, so they can never disagree about whether
   the scenario is running - only about which clock they prefer.
-- **A PAUSED SCENARIO DOES NOT AGE A TASK: task time HOLDS** (Q5, USER RULING 2026-09-14,
+- **A PAUSED SCENARIO DOES NOT AGE A TASK: task time HOLDS** (Q5, USER RULING 2026-09-14, RL-20260914-05, archive,
   built in `f2794d7`). When `DtVrfRemoteController::simTime()` is READABLE but has not advanced
   for 60 wall seconds and a VR-Forces back end is still listed, the task-clock axis adds
   NOTHING. All three task times ride that one axis, so all three freeze TOGETHER: the armed
@@ -2731,7 +2731,7 @@ no Duration and no geometry is malformed and is refused, not held (below).
   the 86,400 s backstop - 5.1x of headroom. If the lead ever meets or exceeds the backstop a
   WARNING says so at receipt, naming what to raise, instead of the operator learning it hours
   later as a burst of `never dispatched within 86400s` lines that look like a wedge.
-- **A task with NO Duration AND NO geometry is REFUSED, not held** (Q4, USER RULING 2026-09-14).
+- **A task with NO Duration AND NO geometry is REFUSED, not held** (Q4, USER RULING 2026-09-14, RL-20260914-05, archive - Q4 is the item he OVERRODE).
   There is no knob: `Vrf:DefaultHoldSeconds` is DELETED. Such a task gets an ERROR naming both
   missing elements, a TASKABRT, and an abandon so its STREND successors fail fast. If you see
   that line, the ORDER is at fault - give the task a Duration, a geometry, or both. None of
@@ -2856,7 +2856,7 @@ only inserts BETWEEN authored vertices - so the traversal bar rises and the effe
 a 1,600 m authored route with a last vertex 420 m from the start is closable; the same task
 with a 600 m shift is not, and waits for the vendor completion or its Duration.
 
-AMENDMENT (user ruling 2026-09-21, option A of the D6 harvest): THE TRAVERSAL BAR IS PER
+AMENDMENT (user ruling 2026-09-21, RL-20260921-01, archive; option A of the D6 harvest): THE TRAVERSAL BAR IS PER
 MEMBER. `Vrf:ArrivalApproachFraction` (0.5; 0 disables). A counted member must now be past
 max(min(0.5 x route, ArrivalApproachFraction x ITS OWN straight-line distance to the last
 vertex at dispatch), ArrivalMinTravelMeters) - never more than the route bar above, so nothing
@@ -2918,7 +2918,7 @@ whichever question it stopped answering. `--preflight-selftest` section 7 pins t
 measured geometry.
 
 ### 11e. DE-STACK - INDEPENDENT UNITS AT 700 m, COMPOSED SIBLINGS AT THEIR OWN ECHELON
-(user ruling 2026-09-21, option C of the D6 harvest; supersedes the 2026-09-20 warning)
+(user ruling 2026-09-21, RL-20260921-01, archive; option C of the D6 harvest; OPEN, flagged 2026-09-21: the recommendation he approved said about 300 m for platoons and this records 350 m - see RL-20260921-01; supersedes the 2026-09-20 warning)
 
 `Vrf:DeStackCreates` is still the master switch. Two lanes now run under it, in this order.
 INDEPENDENT objects that share a coordinate are spread onto `Vrf:DeStackSpacingMeters` (700 m)
@@ -3204,7 +3204,7 @@ runs the clock SLOWER (COA-STP1 at scale was once measured at 0.27x, i.e. slower
 time, against R9's several-x). The app's own per-minute `SIM/WALL RATIO` line is the
 instrument for any given run - read it, never assume it.
 
-**USER RULING 2026-09-21 ('3. Fast.'):** the demo accepts this load-dependent fast clock as-is;
+**USER RULING 2026-09-21 (RL-20260921-02, archive; '3. Fast.'):** the demo accepts this load-dependent fast clock as-is;
 the never-deployed real-time (variable-frame) fixture is NOT built into the demo path.
 
 SECOND MEASURED PROFILE (Iron Storm cut-A diagnostic drive, 2026-09-21, 36 mostly-idle objects,
@@ -3549,13 +3549,65 @@ repair is to split the barrier's two jobs (the DRAIN, which B1's inequality boun
 stay at `T_init + 20 s`, and the READY TO TASK OBSERVATION, which holds nothing up and could watch
 to the configured 60 s), and it belongs in the STP-852 lane, not here. (b) **The suppressed stall.**
 In that run both C16 TASKABRTs were suppressed because TIMED COMPLETION had already pushed TASKCMPLT
-(`app:35521`, `app:38591`) - which WAS the ruled behaviour (DEMO_READINESS row 19: *"a TASKCMPLT
+(`app:35521`, `app:38591`). ~~which WAS the ruled behaviour (DEMO_READINESS row 19: *"a TASKCMPLT
 does suppress any later TASKABRT for that task"*, user 2026-09-14) meeting R4 (*"completion is given
 by the end time"*). **RULED 2026-09-21 (STP-857), NARROWING that rule for MOVE tasks only**
 (DEMO_READINESS row 19): a MOVE task that reaches its armed end with NO displacement reports
-TASKABRT, not TASKCMPLT - implementation is a later lane, not built here. What this section does
+TASKABRT, not TASKCMPLT - implementation is a later lane, not built here.~~ What this section does
 remove is the CAUSE of the instance recorded above: a unit measured 145 m off the terrain is no
-longer tasked, so no armed end is ever set for it.
+longer tasked, so no armed end is ever set for it. Ledger ids for the struck claims, added 2026-09-21
+(U2 lane D): RL-20260914-01 and RL-20260914-02 (both archive) for the two 2026-09-14 answers the
+struck text leaned on, and RL-20260921-03 (archive) for the withdrawn STP-857 label. The correction
+block below is the live text; the struck sentences are kept only so the refutation has its subject.
+
+**CORRECTION 2026-09-21 (U2 lane A, the same day; REVISED the same day after the owner corrected the
+first draft) - BOTH STRUCK CLAIMS ARE WITHDRAWN, AND THE FIRST DRAFT OF THIS BLOCK OVERSTATED THE
+WITHDRAWAL.**
+
+(i) THE "RULED 2026-09-21 (STP-857)" LABEL IS WITHDRAWN. The recommendation the user answered
+(session a7f6a276 transcript line 44947) presented timer-completion of a MOVE as already his ruling;
+he answered *"857 as recommended - just make sure the task does involve movement. Not all do."*
+(line 45180, type=user) and wrote the same day, unprompted (line 45457, type=user, his spelling):
+*"... If I agreed with that, I was tricked. ... The notion that geting stuck midway is a complete is
+completelly illogical."*
+
+BUT THE SYMPTOM THE TICKET REPORTS IS REAL, AND THE OWNER AGREES WITH IT. Owner, 2026-09-21, session
+c3b364bd, typed answer, his spelling: *"As for 857, a unit that is meanto to move to an objective and
+perform some action, but instead gets stuck in the middle of the way certainly did not complete, so
+not sure why you say the 'premisse was false'. My caveat was that you should not expect every task
+to require a movement, and abort in case the unit stays put."* His caveat stands as he gave it.
+
+WHAT IS NOT APPROVED IS THE PATCH AS SCOPED - zero-displacement only, with completion semantics for
+units that DID move left unchanged - because it would still report complete for a unit that moved
+part of the way and stuck. His own question on exactly that point (line 45418, type=user) was never
+answered: *"Is this creating a special class of errors for no movement from the get go as opposed to
+movement that falls short of the objective?"* Branch `fix/reclamp-verify-and-movement-only` @
+3d58819 stays parked and unmerged.
+
+(ii) "meeting R4" for a MOVE is not supported by the answer it cites. R4 is row 4 of the 2026-09-14
+question table - in plain words, "when is a SECURE / OCCUPY / DEFEND complete: on arrival, after its
+Duration, or only when a later order supersedes it?" (line 28092) - and the answer was *"4 given by
+the end time"* (line 28191, type=user). A MOVE task whose timer expires was not the question asked,
+so do not cite R4 as authority for that case.
+
+HOW COMPLETION IS DETERMINED FOR A TASK THAT COMBINES MOVEMENT AND A DESIRED EFFECT IS UNDER THE
+OWNER'S REVIEW, pending doctrinal and vendor-documentation research. Owner, 2026-09-21, session
+c3b364bd, typed answer: *"The notion of a hold-off or movement tasks seems to be rather fuzzy as
+described. Some verbs imply that the unit stays in place (e.g. to DEFEND). There are plenty of tasks
+where there is movement preceding the desired effect, like in 'ATTACK TO SECURE'. How are these
+distinguished? Seems to me that the time applies to the full task, including the movement and the
+achievement of the desired effect, at which point the unit might be tasked to perform a 'follow on'
+task (not a 'follower')."* And on the ledger's "earlier" clause: *"this assumed that all a unit had
+to do was complete the movement, but your point is valid, that theres action required after that -
+requires a doctrinal research, and as well as of vendor documentation - is the sim able to determine
+when some of the desired effect has been achieved, for example DESTROY (no enemy unit operational in
+the target area or something like that?)."* So do NOT write "a MOVE completes on arrival", or
+"time-based completion is for non-movement tasks", as a settled rule anywhere in this file.
+
+AS A SEPARATE STATEMENT ABOUT THE CODE: arming the Duration timer on every task with a Duration
+(746c091) is a code defect; the fix is gated on the owner's review of completion semantics (U1) and
+a PLAN gate. That is a design statement, separate from the measurement in the paragraph above, which
+stands unchanged. See `docs/CORRECTIONS_LOG.md` entry F-1.
 
 ## 12. THE ROUTE PRE-FLIGHT (OFF) AND ITS LATERAL SHIFT (ON BY DEFAULT) (STP-804/806)
 
@@ -3564,8 +3616,11 @@ sec 7/7e, PREREG_RIDGE_AG sec 3.2-3.3, PREREG_N1_N2 sec 10.3 (N2d),
 READ_4-27_G3_AND_OFFSET_SCORING sec 2.3/2.5.
 THE SHIFT HAS BEEN RUN LIVE: V8b (2026-09-15) met every pre-registered criterion with it and
 the ZERO-OFFSET control V8z froze on the same line, which is what makes the LATERAL OFFSET
-the remedy rather than the re-dispatch around it. USER RULING 2026-09-20: "Route shift: ON.
-Use as default for any run." (merged main f26d4ad). Default-ON live rehearsal = D3
+the remedy rather than the re-dispatch around it. USER RULING 2026-09-20 (RL-20260920-01, archive). CORRECTION 2026-09-21: this
+read `USER RULING 2026-09-20: "Route shift: ON. Use as default for any run."` The first sentence is the
+SEAT's own question label, not his words; he typed "3. On. Use as default for any run." His answer is
+also BROADER than the question put to him, which asked only about appsettings.Demo.json.
+(merged main f26d4ad). Default-ON live rehearsal = D3
 (docs/experiments/PREREG_DEMO_REHEARSAL_2026-09-20.md), PENDING.
 
 Two separate features, two separate keys:
