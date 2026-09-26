@@ -18,6 +18,13 @@ here. NOTHING in the recovery path requires a human or a GUI. ***
 Stop the interface CLEANLY instead (sec 4) - it resigns, leaves no stale federate,
 and needs no reload. Force-kill + reload was the old clunky path (pre- and
 post-compaction); the clean stop replaces it.
+ONE EXCEPTION (2026-09-26, lane A2; the owner's standing "initiative" direction, under which
+the seat force-stopped the run's own back end twice that day): `scripts/StopVrf52.ps1` may
+`Stop-Process -Id -Force` the RUN'S OWN VR-Forces back end - matched by pid AND start time as
+the runner recorded them at launch - only after its graceful close was refused within the
+budget; it logs "FORCED - graceful close refused (see diagnostics)" and exits 6. Never the
+interface, never rtiexec / rtiForwarder / rtiAssistant / RtiProbe (the holder), never vrfGui.
+The stale-federate risk above still applies to that back end: the next launch's join is the check.
 
 ## 0.5 BRINGING VR-FORCES UP FOR LIVE WORK - THE WORKING PROCEDURE
 
@@ -610,6 +617,20 @@ a timeout and again after the grace, every titled top-level window with its visi
 ENABLED state plus every nested `ControlType=Window` with class, name and button names.
 `MainWindowTitle` alone is NOT a diagnostic - with a modal up it keeps reporting the main
 window, which is why D1's log named the scenario file and neither dialog.
+
+**2026-09-26 (lane A2, A3):** both live runs that day ended at StopVrf52 exit 3 - `taskkill`
+(no /F) said SUCCESS and the back end ran on. The discriminator in the record: every close on
+record shows the back end's `window="...vrfSimHLA1516e.exe"` (a console window); both refusals
+show `window=""`. StopVrf52 now (a) logs TEARDOWN DIAGNOSTICS before the close request -
+MainWindowTitle, MainWindowHandle, the Win32_Process parent and any conhost / OpenConsole /
+WindowsTerminal parent or child; (b) says why the vendor's console exit ("press Q and then
+Enter", UG52 4.6 p146) is NOT deliverable here - LaunchVrf52 starts the back end with a plain
+Start-Process, so its console input is not ours; (c) given `-ForceOwnBackendPid` +
+`-ForceOwnBackendStartUtc` (the runner passes both; the watchdog passes neither), force-stops a
+refused back end that matches both, exit 6 - see sec 0's exception. Exit codes: 0 down, 2 bad
+args, 3 still running (nothing forced), 5 unexpected error, 6 FORCED. Offline stand-in
+exercise (a renamed PING.EXE with no window): pair matched -> FORCED, exit 6; start time off by
+1 h (a reused pid) -> "NOT forced", exit 3.
 
 Also: the 8/8 clean teardown record is HEADLESS (79/79 StopVrf52 runs with no vrfGui) and
 says nothing about GUI-on teardown; D1 was 1 of 80.

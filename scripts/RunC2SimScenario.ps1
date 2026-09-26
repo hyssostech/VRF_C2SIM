@@ -3681,6 +3681,9 @@ $AppStarted          = $false
 # 5.2 writes a per-process vendor log named ...-<pid>.log, so the pid is the ONLY thing that
 # ties a file in the shared C:\MAK\logs to THIS run (check 8f / the D1b harvest, finding A1).
 $BackendPid          = $null
+# A3 (lane A2): the back end's START TIME, read once right after its pid - with the pid it is the
+# identity StopVrf52 must match before it may force a back end whose graceful close was refused.
+$BackendStartUtc     = $null
 $FrontendPid         = $null
 $SavedPath           = $env:PATH
 $SavedLicense        = $env:MAKLMGRD_LICENSE_FILE
@@ -4305,7 +4308,16 @@ try {
         if (Test-Path -LiteralPath $PathLaunchOut -PathType Leaf) {
             $launchOutText = Get-Content -LiteralPath $PathLaunchOut -Raw
             $pm = [regex]::Match($launchOutText, 'back-end started \(pid (\d+)\)')
-            if ($pm.Success) { $BackendPid = [int]$pm.Groups[1].Value; Say-Ok ('back-end pid {0} (liveness is checked while the run waits)' -f $BackendPid) }
+            if ($pm.Success) {
+                $BackendPid = [int]$pm.Groups[1].Value; Say-Ok ('back-end pid {0} (liveness is checked while the run waits)' -f $BackendPid)
+                try {
+                    $BackendStartUtc = (Get-Process -Id $BackendPid -ErrorAction Stop).StartTime.ToUniversalTime()
+                    Say-Ok ('back-end start time {0:o} recorded (pid + start time = the identity StopVrf52 may force if its graceful close is refused)' -f $BackendStartUtc)
+                } catch {
+                    $BackendStartUtc = $null
+                    Say-Warn ('back-end start time not readable ({0}) - StopVrf52 will force NOTHING at teardown (a refused close stays exit 3).' -f $_.Exception.Message)
+                }
+            }
             else { Say-Warn 'back-end pid not found in the launch output - the mid-run liveness check is OFF for this run.' }
             # THE FRONT-END PID, for the teardown vendor-log capture only (never for liveness -
             # the GUI is optional and -NoGui runs have none). 5.2 names its logs
@@ -5505,15 +5517,22 @@ finally {
         # $PSHOME\pwsh.exe, never a bare 'pwsh' (RUNBOOK 0.5.14 item 1: bare pwsh on this
         # machine is the 32-BIT build). Harmless for StopVrf itself, but the rule is the rule
         # and the watchdog already obeys it (review of 374ea49, finding F8).
+        $stopVrfArgs = @('-NoProfile','-File', $StopVrf, '-TimeoutSec', [string]$StopVrfTimeoutSec)
+        # A3: hand StopVrf52 THIS run's back end (pid + start time) so a refused graceful close can
+        # end in a force of that process and nothing else. No pair, no force (exit 3 as before).
+        if ($Is52 -and $BackendPid -and $null -ne $BackendStartUtc) {
+            $stopVrfArgs += @('-ForceOwnBackendPid', [string]$BackendPid, '-ForceOwnBackendStartUtc', $BackendStartUtc.ToString('o'))
+        }
         $r = Invoke-External -Name 'StopVrf' -File (Join-Path $PSHOME 'pwsh.exe') `
-                -Arguments @('-NoProfile','-File', $StopVrf, '-TimeoutSec', [string]$StopVrfTimeoutSec) `
+                -Arguments $stopVrfArgs `
                 -Cwd $RepoRoot -StdOutFile $PathStopVrfOut -StdErrFile $PathStopVrfErr `
                 -TimeoutSec ($StopVrfTimeoutSec + $StageTimeoutSec) `
-                -Note $(if ($Is52) { 'StopVrf52.ps1 (5.2 profile): CloseMainWindow on vrfGui, then a NO-/F taskkill (a graceful close request) on vrfSimHLA1516e after the grace. exit 0 down/already down; 2 bad args; 3 timed out (NOTHING killed); 5 unexpected error - VR-FORCES MAY STILL BE RUNNING. rtiAssistant/rtiexec/rtiForwarder are never touched.' }
+                -Note $(if ($Is52) { 'StopVrf52.ps1 (5.2 profile): teardown diagnostics, CloseMainWindow on vrfGui, then a NO-/F taskkill (a graceful close request) on vrfSimHLA1516e after the grace; if refused, a FORCE of THIS run''s back end only (pid + start time matched). exit 0 down/already down; 2 bad args; 3 timed out (NOTHING killed); 5 unexpected error - VR-FORCES MAY STILL BE RUNNING; 6 FORCED (graceful close refused, own back end force-stopped). rtiAssistant/rtiexec/rtiForwarder/RtiProbe are never touched.' }
                         else { 'exit 0 down/already down; 2 bad args; 3 timed out (NOT killed); 4 confirm dialog not drivable via UIA; 5 unexpected error - VR-FORCES MAY STILL BE RUNNING. An unattended runner must branch on 5 as well as 3 (RUNBOOK 0.5.9). NOTE: this stage MASKED the -Wait defect, because StopVrf makes its own descendants exit; see the Invoke-External header.' })
         if (-not $DryRun) {
             switch ($r.ExitCode) {
                 0 { Say-Ok 'VR-Forces is down (graceful; RTI infrastructure preserved)' }
+                6 { Add-Flag 'WARN' ('StopVrf exited 6: FORCED - the graceful close was REFUSED and this run''s own back end (pid {0}, started {1:o}) was force-stopped; VR-Forces is down, RTI infrastructure preserved. A force-stopped joined federate may leave a STALE FEDERATE (RUNBOOK sec 0): the next launch''s join is the check. Score it as a refused close.' -f $BackendPid, $BackendStartUtc) }
                 default {
                     $teardownOk = $false
                     if (-not (Test-StageProduced -Result $r)) {
