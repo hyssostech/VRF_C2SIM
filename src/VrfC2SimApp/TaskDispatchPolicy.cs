@@ -58,7 +58,11 @@ public enum EngageDecision
     /// there. No engagement task and the order's rules of engagement unchanged; STP does not carry
     /// the supported unit (AffectedEntity = the performer), so nothing is followed.</summary>
     AdvanceAndHold,
-    /// <summary>TESTS-FIRST STUB.</summary>
+    /// <summary>CNFPSL (forward passage of lines), any performer: HELD IN PLACE for now - the
+    /// ExecutePlanPhase dispatch exactly (no vendor task, completion by time). The owner's answer of
+    /// 2026-09-26 (RL-20260926-01 A6, "Hold for 1st run plus jira item for coa renderer"): the order
+    /// lists the start point, passage point, lane and release point out of doctrinal order, so driving
+    /// them as listed is a 30-40 km zig-zag, and route-by-graphic-role is not built (STP-866).</summary>
     HoldInPlaceNotRouted,
 }
 
@@ -114,26 +118,32 @@ public static class TaskDispatchPolicy
     ///   ATTACK by a PLATFORM otherwise (STP names the performer itself) -> advance only, unchanged.
     ///   BREACH, any performer, any target -> advance + the not-simulated observation.
     ///   FOLSPT / FOLASS, any performer, any target -> advance along the graphic and hold; nothing else.
-    ///   CNFPSL, any performer, any target -> the same advance-and-hold (through the passage lanes).
+    ///   CNFPSL, any performer, any target -> HELD IN PLACE for now (owner, RL-20260926-01 A6; STP-866).
     /// SCOPE OF THE OWNER'S WORDS: he was asked about "a unit ATTACK" (RL-20260926-01 A1, A4). Fire at
     /// will on ATTMN/ATTSPT/DESTRY/FIX/DISRPT/PENTRT is the seat's extension (they share the ATTACK path;
-    /// not asked - see the ledger's scope line). FOLSPT/FOLASS and CNFPSL are the coordinator's direction.
+    /// not asked - see the ledger's scope line). FOLSPT/FOLASS are the coordinator's direction; CNFPSL's
+    /// hold is the owner's answer (A6).
     /// </summary>
     /// <param name="performerIsUnit">The taskee was created as a unit (CreatedUnit.IsAggregate).</param>
     public static EngageDecision ForEngage(TaskIntent intent, bool performerIsUnit, TargetResolution target)
     {
         if (intent == TaskIntent.Breach) return EngageDecision.AdvanceBreachNotSimulated;
-        if (intent == TaskIntent.FollowAndSupport || intent == TaskIntent.PassageOfLines)
-            return EngageDecision.AdvanceAndHold;
+        if (intent == TaskIntent.FollowAndSupport) return EngageDecision.AdvanceAndHold;
+        if (intent == TaskIntent.PassageOfLines) return EngageDecision.HoldInPlaceNotRouted;
         if (intent != TaskIntent.Attack) return EngageDecision.NotEngageVerb;
         if (performerIsUnit) return EngageDecision.AdvanceFireAtWill;
         return target == TargetResolution.DistinctEntity ? EngageDecision.AdvanceThenFireAt
                                                          : EngageDecision.AdvanceOnly;
     }
 
-    /// <summary>TESTS-FIRST STUB.</summary>
-    public static bool HoldsInPlace(EngageDecision d) => false;
-    public const string PassageOfLinesHeldLine = "";
+    /// <summary>Does the decision take the hold-in-place dispatch (no vendor task, no move, ends at its
+    /// Duration - the ExecutePlanPhase path)? Only CNFPSL's, for now (RL-20260926-01 A6).</summary>
+    public static bool HoldsInPlace(EngageDecision d) => d == EngageDecision.HoldInPlaceNotRouted;
+
+    /// <summary>The one plain line a CNFPSL dispatch logs and reports (coordinator's wording).</summary>
+    public const string PassageOfLinesHeldLine =
+        "CNFPSL (forward passage of lines): held in place for now - route by graphic role (start point -> " +
+        "passage point -> lane -> release point) is not implemented; see STP-866";
 
     /// <summary>Does the decision name a target to VR-Forces (DtFireAtTargetTask)? Only a platform
     /// with a distinct target.</summary>

@@ -4384,7 +4384,8 @@ public sealed class VrfC2SimService : BackgroundService
         // log says both that the unit stayed put and exactly how much authored geometry was not
         // driven - which is what an operator needs to decide whether the ORDER should have used a
         // movement code (for a forward passage of lines, STP's own code is CNFPSL).
-        if (verb.Intent == TaskIntent.HoldInPlace)
+        // CNFPSL takes this same dispatch for now (TaskDispatchPolicy.HoldsInPlace; RL-20260926-01 A6).
+        if (verb.Intent == TaskIntent.HoldInPlace || TaskDispatchPolicy.HoldsInPlace(engage))
         {
             // Q4 (user ruling 2026-09-14) applies UNCHANGED: no vendor task is issued here, so the
             // C2SIM Duration is the only thing that can ever end this task. Without one it would
@@ -4441,6 +4442,9 @@ public sealed class VrfC2SimService : BackgroundService
             // Lane E2 (review S2): the order's own ROE, so a unit that ATTACKed before does not keep
             // fire at will through a hold its order says is hold-fire. One ROE call per dispatch.
             _bridge.SetRulesOfEngagement(vrfUuid, ToRoe(TaskDispatchPolicy.RoeFor(engage, task.RuleOfEngagementCode)));
+            if (TaskDispatchPolicy.HoldsInPlace(engage))
+                _log.LogInformation("Task '{Task}' ({Name}): {Line}.", task.TaskName, unit.Name,
+                                    TaskDispatchPolicy.PassageOfLinesHeldLine);
             _log.LogInformation("Task '{Task}': verb {Code} -> intent={Intent} ({Comp}). Executing IN PLACE at " +
                                 "{Name}'s own position ({Lat:F5},{Lon:F5}); NO VR-Forces task is issued and the " +
                                 "{N} geometry point(s) this task carries are NOT driven. The task ends at its " +
@@ -4449,9 +4453,12 @@ public sealed class VrfC2SimService : BackgroundService
                                 unit.Name, origin.LatDeg, origin.LonDeg, taskPoints.Count);
             _ = PushReportAsync(ReportBuilder.BuildTypeSubstitutionReport(
                     task.TaskeeUuid, unit.Name, unit.Name,
-                    $"task '{task.TaskName}': verb {verb.ActionCode} names no movement - " +
-                    $"executing at the performing unit's position, {taskPoints.Count} authored geometry " +
-                    "point(s) not driven",
+                    TaskDispatchPolicy.HoldsInPlace(engage)
+                        ? $"task '{task.TaskName}': {TaskDispatchPolicy.PassageOfLinesHeldLine}; " +
+                          $"{taskPoints.Count} authored geometry point(s) not driven"
+                        : $"task '{task.TaskName}': verb {verb.ActionCode} names no movement - " +
+                          $"executing at the performing unit's position, {taskPoints.Count} authored geometry " +
+                          "point(s) not driven",
                     IsoNow(), NewReportId()), ReportKind.Observation);
             return;
         }
@@ -4819,14 +4826,11 @@ public sealed class VrfC2SimService : BackgroundService
         if (TaskDispatchPolicy.SetsFireAtWill(engage)) LogAttackFireAtWill(task, unit);
         if (engage == EngageDecision.AdvanceBreachNotSimulated) ReportBreachNotSimulated(task, unit);
         if (engage == EngageDecision.AdvanceAndHold)
-            _log.LogInformation("Task '{Task}' (verb {Code}, {Name}): advancing along the task's {What} to its end " +
-                                "and holding there - no engagement task, rules of engagement as ordered ('{Roe}').{Note}",
-                                task.TaskName, task.ActionCode, unit.Name,
-                                verb.Intent == TaskIntent.PassageOfLines ? "route through the passage lanes" : "graphic",
-                                string.IsNullOrEmpty(task.RuleOfEngagementCode) ? "none" : task.RuleOfEngagementCode,
-                                verb.Intent == TaskIntent.PassageOfLines ? ""
-                                    : " The supported unit is not in the order (STP sends the performer as the affected " +
-                                      "entity), so nothing is followed.");
+            _log.LogInformation("Task '{Task}' (verb {Code}, {Name}): advancing along the task's graphic to its end " +
+                                "and holding there - no engagement task, rules of engagement as ordered ('{Roe}'). " +
+                                "The supported unit is not in the order (STP sends the performer as the affected " +
+                                "entity), so nothing is followed.", task.TaskName, task.ActionCode, unit.Name,
+                                string.IsNullOrEmpty(task.RuleOfEngagementCode) ? "none" : task.RuleOfEngagementCode);
 
         // SetTarget - PARITY of the known bug (PORT.md sec 6, C2SIMinterface.cpp:2385):
         // the C++ passes the C2SIM taskee uuid where VRF expects a VRF uuid, plus the
