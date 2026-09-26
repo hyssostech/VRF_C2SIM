@@ -157,3 +157,39 @@ NULL ratios (this box): (39,33) 0.9388, (39,34) 0.8571, (39,35) 0.8462, (39,36) 
 
 FALSIFIER: any of the four (39,34/35/36/38) below 0.9 -> the edge column / triangle load is the cause, not the tree;
 STOP, no Part 2.
+
+## Result of REGISTRATION 2 - the EDITED arm (written after the arm)
+
+EDITED arm: 2026-09-26 14:22:23Z -> 14:23:01Z (38.7 s wall; "Generation time: 23.9075"), EXIT CODE 0 (held handle,
+u3\n9_arm.ps1; busy-check clear). Log C:\C2SIM\vrf-nav\work\log\gen-AO20-edge_jst-2026-09-26.log (26,162 B, sha256
+b2c61fd3...05ab); gate output beside it (nav_gate-AO20-edge_jst-2026-09-26.txt: GATE PASS). The log loads
+C:\C2SIM\vrf-nav\shadow_jst\...\MAK Earth (online).earth; grid identical to the NULL arm (extent +/-817 x +/-1419, same
+six sector rows; area offset at AO20 cells 215.000 / 164.000).
+
+| AO20 sector | NULL ratio / NavData kB / input triangles | EDITED ratio / NavData kB / input triangles |
+|---|---|---|
+| (39,33) | 0.9388 / 323.2 / 349,958 | 1.0000 / 239.0 / 347,169 |
+| (39,34) | 0.8571 / 548.7 / 356,952 | 1.0000 / 256.6 / 349,743 |
+| (39,35) | 0.8462 / 731.9 / 371,169 | 1.0000 / 334.2 / 359,795 |
+| (39,36) | 0.8438 / 722.9 / 360,650 | 1.0000 / 270.1 / 351,843 |
+| (39,37) | 0.8966 / 383.7 / 351,997 | 1.0000 / 215.1 / 347,506 |
+| (39,38) | 0.8723 / 348.9 / 381,334 | 1.0000 / 213.3 / 378,685 |
+
+| # | Verdict | Measured |
+|---|---|---|
+| R1 HIGH | HIT | all five named sectors 1.0000 (node counts 47-63, not degenerate) |
+| R2 HIGH | HIT | 0 "YuccaPalm" lines (NULL: 5) |
+| R3 MED | HIT | every sector >= its NULL ratio (all six 1.0000) |
+
+Falsifier did not fire. Distinct tags per sector unchanged (3,3,4,4,3,3). Input triangles fell 0.7-3.1 % in every
+sector (the N7 signature: fewer tree-crown triangles); NavData fell 26-63 %.
+
+What this measures: on AO20 column 39's exact cells, changing the JST biome's YuccaPalm line to
+HoneyMesquiteShortSpring (DSS already changed in both arms) takes all six sectors from 0.84-0.94 to 1.000 and removes
+every "YuccaPalm not found" line. Verified: the one-line difference between the two arms' terrain and the result.
+Assumed [A]: that the mechanism is the same as N6/N7's (sim-less YuccaPalm geometry fragmenting the mesh) - consistent
+with the triangle drop, not isolated further.
+
+Side effects: 9 new files in the vendor tile cache C:\MAK\vrforces5.2d\appData\cache\vrfsim\Biomes-ccf789e273a44b78
+(a new, content-keyed folder for the shadow_jst biome configuration; the NULL arm wrote none); the arm's NavDataDebug
+intermediates (6 files, 122,579,808 B) deleted. Nothing else new under C:\MAK. -> Part 2.
