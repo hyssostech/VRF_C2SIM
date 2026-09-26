@@ -1,8 +1,9 @@
 # RULINGS - the ONLY place a ruling lives. Every other file points to an id and never restates the ruling.
 # Format: RL-YYYYMMDD-NN | date the owner answered | status. Q = the question AS PUT. A = the OWNER'S OWN WORDS.
 # status VERBATIM = Q and A both located, A inside a genuine owner-typed record. UNVERIFIED = searched, not found.
-# Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl; S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl (entries -08, -09);
-#   P<n> = session 5fc25950-1a10-4ade-9a7b-68cb5c1daf05.jsonl (entry RL-20260925-01).
+# Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl; S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl (entry -09);
+#   P<n> = session 5fc25950-1a10-4ade-9a7b-68cb5c1daf05.jsonl (entries RL-20260925-01, RL-20260926-01). RL-20260921-08 moved to the
+#   archive 2026-09-26 to make room (cap).
 #   All are the 1-based PHYSICAL line `rg -n` prints; the record shape is named where it is not a plain type=user record.
 # Owner text is EXACTLY as typed, misspellings included. Only transliteration: U+2019 -> ' and U+00EA -> [e^].
 # "[...]" elides; the operative clause is never cut. A "supervisor reading:" line is scope only and binds nobody.
@@ -40,36 +41,6 @@ RL-20260921-05 | 2026-09-21 | status VERBATIM
     patrol, follow/escort, successors of a stalled move, any bound on a late mover, watchdog default." SUPERSEDED IN PART 2026-09-21 by
     RL-20260921-09 (temporary position): patrol, follow/escort and every no-destination task end at their Duration; a never-arriving unit
     is a STUCK unit (RL-20260914-01).
-
-RL-20260921-08 | 2026-09-21 | status VERBATIM - COMPLETION SEMANTICS ARE UNDER HIS REVIEW, NOTHING HERE IS A RULE
-  Q (as put, S291 AskUserQuestion; echoed in the S304 tool_result, type=user): "Completion tripwires for the entry doc, rewritten in
-    plain words (no 'R4'): (a) a task ends at start time + Duration only if it involves no movement; (b) a move ends on arrival - the
-    sim's completion or the unit's own arrival evidence; (c) stuck is not complete: stalled = abort, a later arrival still reports
-    complete; (d) late is not an abort: follow-on tasks wait; (e) the code on main ends moves on the Duration timer - that is a defect
-    to fix, never a ruling; plus an explicit NOT SETTLED list (move-then-hold, patrol, follow, how long followers wait, watchdog
-    on/off). RULING ON FILE: "report a unit's completion from the unit's own arrival evidence is fine" (2026-09-07) and your
-    2026-09-21 message quoted earlier. OK to write these?" Options (the seat's labels): Yes, write them / Edit first / Not yet.
-  A (owner, S304): "The notion of a hold-off or movement tasks seems to be rather fuzzy as described. Some verbs imply that
-    the unit stays in place (e.g. to DEFEND). There are plenty of tasks where there is movement preceding the desired
-    effect, like in "ATTACK TO SECURE". How are these distinguished? Seems to me that the time applies to the full task,
-    including the movement and the achievement of the desired effect, at which point the unit might be tasked to perform a
-    "follow on" task (not a "follower"). SPeaking of which what do you mean by "late delays followers" - I meant to say
-    "follow ons" - the tasks for the same unti that may be set to start after it has completed a preceding task. And I hear
-    you about the "eralier" - this assumed that all a unit had to do was complete the movement, but your point is valid,
-    that theres action required after that - requires a doctrinal research, and as well as of vendor documentation - is the
-    sim able to determine when some of the desired effect has been achieved, for example DESTROY (no enemy unit operational
-    in the target area or something like that?)."
-  Q (as put, S257 AskUserQuestion; echoed in the S260 tool_result, type=user; the list it points to is in S256): "Completion
-    tripwires (a)-(e) as listed in my message above, for the HANDOFF CLOSED list. RULING ON FILE: "The rulling based on time is for
-    tasks that do not include movement, such as defend in place and similar ones - units that are not expected to reach any other
-    location." (your message, transcript line 45457). Do (a)-(e) state your semantics correctly?" Options (the seat's labels): Yes,
-    as written / Needs edits / Hold - not yet.
-  A (owner, S260, the same hour, on an earlier version of the same list): "SOunds ok, except for the cryptic "R$"
-    reference. DOn't know what your little codes mean. But more importantly, what does the record say? I mentioned what I
-    could recall. There may be way more related to this are than what I said. Are you even reading the materials?"
-  supervisor reading: "Seems to me" is tentative; nothing in this entry is a rule. Two standing instructions do follow from
-    the S260 answer: use PLAIN WORDS in anything put to him (codes only in parentheses), and read the record before asking.
-  pointer: RL-20260921-09; docs\experiments\TASK_COMPLETION_RESEARCH_2026-09-21.md, the per-verb table carrying the research he asked for.
 
 RL-20260921-09 | 2026-09-21 | status VERBATIM - TEMPORARY, BY HIS OWN WORD
   Q (as put): none - volunteered after the seat said completion rules were under his review pending doctrine and vendor
@@ -118,3 +89,26 @@ RL-20260925-01 | 2026-09-25 | status VERBATIM - four SELECTIONS of the seat's la
   A (owner SELECTION of the seat's label, 2026-09-25): "Issue it (Recommended)"
   supervisor reading: these settle the four open implementation questions of the next code unit under RL-20260921-09; nothing here alters -09.
   pointer: scratchpad u3\laneP_next_unit_scope.md (session scratch); the code unit: branch feat/completion-temporary-position (F-4).
+
+RL-20260926-01 | 2026-09-26 | status VERBATIM - one P3272 record (20:24:51Z): two SELECTIONS of the seat's labels and one TYPED answer
+  Q1 (as put, P3271 AskUserQuestion; echoed in the P3272 tool_result, type=user): "ATTACK: an attack is an operation ending on the objective, not a
+    single fire task; STP always sends the performer as target plus the objective graphic ('the target is the objective' - your ruling). VR-Forces
+    has no entity-level attack task, and a unit cannot take Fire At. What should a unit ATTACK do beyond advancing to the objective?"
+    Options (the seat's labels): Advance + rules of engagement 'fire at will' (Recommended) / Advance only, as today / Suppressive Fire at a
+    named target when one exists.
+  A1 (owner SELECTION of the seat's label, 2026-09-26): "Advance + rules of engagement 'fire at will' (Recommended)"
+  Q2 (as put, P3271): "Doctrine answer: BREACH is a combined-arms task against an OBSTACLE, normally at task-force level, needing engineers/plows
+    [...] The failing 'BREACH on a unit' only exists in our own synthetic test order (enemy company as target); STP never sends a target other than
+    the performer, and for that case the interface already just advances. [...] For STP's under-specified BREACH, what should the interface do?"
+    Options (the seat's labels): Advance, report 'breach not simulated', complete by time (Recommended) / Refuse with a clear status.
+  A2 (owner, P3272, TYPED in place of a selection): "As recommended, but open a Jira item on the STP project to fix the breach task according to
+    doctrine. But look into your synthetic order as well. I don't think it is doctrinal to latch on a unit as you are doing. Tasks are usually
+    against objectives, or reference other tgs instead of specific enemy units as far as I know. Why aren't you using the orders from iron Storm
+    narrative 1, generated by stps coa renderer?"
+  Q3 (as put, P3271): the STP export defect (unmapped tasks exported as ATTACK; follow and support probably one). A3 (owner SELECTION of the seat's
+    label): "Draft the Jira issue for me to review (Recommended)"
+  supervisor reading: a unit ATTACK advances with fire at will and never takes a Fire At; a BREACH advances, reports that the breach is not
+    simulated and completes by time (RL-20260921-09); test orders that aim a task at a unit are retired. The seat opened STP-865 for the BREACH
+    export. "enemy company" in Q2 was the seat's: 114.MechCoy is on the performer's own side in both inits that carry it. FOLSPT/FOLASS
+    advance-and-hold was added to the same code unit at the coordinator's direction; no owner record of it was located - it is not part of A1-A3.
+  pointer: code unit feat/engage-doctrine (TaskDispatchPolicy.ForEngage); docs\SEMANTIC_MAPPING.md sec 3; RUNBOOK sec 11; Jira STP-865.

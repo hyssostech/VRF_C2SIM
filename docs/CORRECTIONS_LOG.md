@@ -418,6 +418,25 @@ LIVE CONFIRMATION IS OWED (a pre-registered run, the seat's step).
   OFF a stuck unit never goes terminal and a `-StopWhenComplete` window runs to its cap; tasks with no Duration
   keep evidence-only completion; whether a desired effect was achieved is ignored (the research question).
 
+## F-5: "Unit 2 BREACH -> DtBreachTask is BEHAVIOR-VERIFIED live" (2026-07-14) - not evidence; withdrawn 2026-09-26
+  (Ledger: RL-20260926-01, the owner's ATTACK / BREACH decisions and the retirement of unit-targeted test orders.)
+
+- CLAIMED (2026-07-14, run 1 of the semantic units at Sweden, apps 3368-3372): the BREACH of 14.MechBn on
+  114.MechCoy was behaviour-verified, on the strength of "VRF task complete: 14.MechBn / breach-task" -> TASKCMPLT.
+- WHY IT IS NOT EVIDENCE: the interface did not read the vendor's success flag
+  (DtTaskCompleteReport::success(), taskCompleteReport.h:84-90) until 02b51de (2026-09-14), so a task VR-Forces
+  reported as FAILED was also sent as TASKCMPLT. The movement half (5318 m to the route end, WatchVrf) stands;
+  whether the breach task was accepted was never observed. On 5.2 the entity-level model set has no breach
+  controller (DtBreachTask is aggregate-level, UG52 35.3.1 p719; research lane 2026-09-26), so acceptance is
+  unlikely there [A, not seen live]. The order is also not doctrinal: it aims the breach at a unit - on the
+  performer's own side in both inits that carry it - not at an obstacle.
+- WHAT CHANGED: since RL-20260926-01 no DtBreachTask is issued; BREACH advances and reports that the breach is not
+  simulated (STP-865). The order `docs/golden-trace/orders/synthetic_semantic_sweden.xml` carries a dated
+  "NOT DOCTRINAL - retired" header, as does `data/NAV_STALL_FALLBACK_Order.xml` (an ATTACK on enemy AD/7154).
+- CORRECTED IN PLACE: `docs/SEMANTIC_MAPPING.md` (Unit 2 paragraph, Run 1 record, the task (c) summary);
+  `docs/experiments/semantic_units245_run1_2026-07-14.txt` (SEM_BREACH line and the verdict);
+  `docs/OPUS_EXECUTION_PLAN.md` (appNo 3368-3372 line); `docs/START_HERE.md` (the Run 1 summary).
+
 ## Process
 
 - The single-auditor repair loop (rounds 1-7) did not converge: like-for-like orchestrated
