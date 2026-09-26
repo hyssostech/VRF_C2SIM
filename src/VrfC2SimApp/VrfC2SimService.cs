@@ -4261,7 +4261,7 @@ public sealed class VrfC2SimService : BackgroundService
         // we did not create is a scope/data gap), because the platform Fire At needs it.
         var engage = EngageDecision.NotEngageVerb;
         string attackTargetVrf = null;
-        if (verb.Intent == TaskIntent.FollowAndSupport)
+        if (verb.Intent == TaskIntent.FollowAndSupport || verb.Intent == TaskIntent.PassageOfLines)
             engage = TaskDispatchPolicy.ForEngage(verb.Intent, unit.IsAggregate, TargetResolution.NoTarget);
         if (verb.Intent == TaskIntent.Attack || verb.Intent == TaskIntent.Breach)
         {
@@ -4438,6 +4438,9 @@ public sealed class VrfC2SimService : BackgroundService
             // issues no vendor task, so nothing was replaced (and by the guard above, nothing was
             // running).
             MarkDispatched(task, unit, "hold-in-place");
+            // Lane E2 (review S2): the order's own ROE, so a unit that ATTACKed before does not keep
+            // fire at will through a hold its order says is hold-fire. One ROE call per dispatch.
+            _bridge.SetRulesOfEngagement(vrfUuid, ToRoe(TaskDispatchPolicy.RoeFor(engage, task.RuleOfEngagementCode)));
             _log.LogInformation("Task '{Task}': verb {Code} -> intent={Intent} ({Comp}). Executing IN PLACE at " +
                                 "{Name}'s own position ({Lat:F5},{Lon:F5}); NO VR-Forces task is issued and the " +
                                 "{N} geometry point(s) this task carries are NOT driven. The task ends at its " +
@@ -4538,13 +4541,12 @@ public sealed class VrfC2SimService : BackgroundService
                         task.TaskeeUuid, unit.Name, unit.Name,
                         $"task '{task.TaskName}': {TaskDispatchPolicy.ZeroGeometryObservation}",
                         IsoNow(), NewReportId()), ReportKind.Observation);
-                // RL-20260926-01: a unit ATTACK still gets fire at will; a BREACH still says it is
-                // not simulated. Nothing else changes for them in place.
-                if (TaskDispatchPolicy.SetsFireAtWill(engage))
-                {
-                    _bridge.SetRulesOfEngagement(vrfUuid, Roe.FireAtWill);
-                    LogAttackFireAtWill(task, unit);
-                }
+                // ONE ROE CALL PER DISPATCH (lane E2, review S2): a unit ATTACK gets fire at will
+                // (RL-20260926-01); every other in-place task gets the ORDER'S OWN ROE - before, this
+                // path set none, so an in-place follow-on kept a previous ATTACK's fire at will. A
+                // BREACH still says it is not simulated.
+                _bridge.SetRulesOfEngagement(vrfUuid, ToRoe(TaskDispatchPolicy.RoeFor(engage, task.RuleOfEngagementCode)));
+                if (TaskDispatchPolicy.SetsFireAtWill(engage)) LogAttackFireAtWill(task, unit);
                 if (engage == EngageDecision.AdvanceBreachNotSimulated)
                     ReportBreachNotSimulated(task, unit);
                 return;
@@ -4813,19 +4815,18 @@ public sealed class VrfC2SimService : BackgroundService
         // disaggregatedSetController.h:107-110). That the members pick it up is NOT yet seen live.
         // This is the committed dispatch point - every deferral (route shift, terrain profile) has
         // already returned and re-entered by now - so the BREACH observation below goes out once.
-        Roe roe = TaskDispatchPolicy.SetsFireAtWill(engage) ? Roe.FireAtWill
-                : task.RuleOfEngagementCode == "ROEFree" ? Roe.FireAtWill
-                : task.RuleOfEngagementCode == "ROEHold" ? Roe.HoldFire
-                : Roe.FireWhenFiredUpon;
-        _bridge.SetRulesOfEngagement(vrfUuid, roe);
+        _bridge.SetRulesOfEngagement(vrfUuid, ToRoe(TaskDispatchPolicy.RoeFor(engage, task.RuleOfEngagementCode)));
         if (TaskDispatchPolicy.SetsFireAtWill(engage)) LogAttackFireAtWill(task, unit);
         if (engage == EngageDecision.AdvanceBreachNotSimulated) ReportBreachNotSimulated(task, unit);
         if (engage == EngageDecision.AdvanceAndHold)
-            _log.LogInformation("Task '{Task}' (verb {Code}, {Name}): advancing along the task's graphic to its end " +
-                                "and holding there - no engagement task, rules of engagement as ordered ('{Roe}'). " +
-                                "The supported unit is not in the order (STP sends the performer as the affected " +
-                                "entity), so nothing is followed.", task.TaskName, task.ActionCode, unit.Name,
-                                string.IsNullOrEmpty(task.RuleOfEngagementCode) ? "none" : task.RuleOfEngagementCode);
+            _log.LogInformation("Task '{Task}' (verb {Code}, {Name}): advancing along the task's {What} to its end " +
+                                "and holding there - no engagement task, rules of engagement as ordered ('{Roe}').{Note}",
+                                task.TaskName, task.ActionCode, unit.Name,
+                                verb.Intent == TaskIntent.PassageOfLines ? "route through the passage lanes" : "graphic",
+                                string.IsNullOrEmpty(task.RuleOfEngagementCode) ? "none" : task.RuleOfEngagementCode,
+                                verb.Intent == TaskIntent.PassageOfLines ? ""
+                                    : " The supported unit is not in the order (STP sends the performer as the affected " +
+                                      "entity), so nothing is followed.");
 
         // SetTarget - PARITY of the known bug (PORT.md sec 6, C2SIMinterface.cpp:2385):
         // the C++ passes the C2SIM taskee uuid where VRF expects a VRF uuid, plus the
@@ -5452,6 +5453,14 @@ public sealed class VrfC2SimService : BackgroundService
         _log.LogInformation("ATTACK: FireAtTarget {Vrf} -> {Tgt} issued (task '{Task}'; platform).",
                             eng.TaskeeVrf, eng.TargetVrf, eng.TaskName);
     }
+
+    /// <summary>The bridge's Roe for the policy's bridge-free <see cref="RoeChoice"/>.</summary>
+    private static Roe ToRoe(RoeChoice r) => r switch
+    {
+        RoeChoice.FireAtWill => Roe.FireAtWill,
+        RoeChoice.HoldFire => Roe.HoldFire,
+        _ => Roe.FireWhenFiredUpon,
+    };
 
     /// <summary>RL-20260926-01: the unit ATTACK dispatch line, once per dispatch.</summary>
     private void LogAttackFireAtWill(OrderTask task, CreatedUnit unit)

@@ -77,10 +77,11 @@ public static class VerbMappingSelfTest
                             && VerbMapping.Classify("ExecutePlanPhase").Intent != TaskIntent.Breach
                             && VerbMapping.Classify("CRESRV").Intent != TaskIntent.Breach,
               "neither new verb touches the fire/attack or breach families");
+        // CNFPSL was this check's example until lane E2 (2026-09-26) mapped it (PassageOfLines,
+        // coordinator's direction); BYPASS is still unmapped and takes its place.
         Check(ref failures, !VerbMapping.Classify("HoldInPlace").Recognized
-                            && !VerbMapping.Classify("CNFPSL").Recognized,
-              "verbs nobody has ruled on are still UNRECOGNISED (CNFPSL, STP's own passage-of-lines " +
-              "code, is the one an export that MEANS 'move' should send)");
+                            && !VerbMapping.Classify("BYPASS").Recognized,
+              "verbs nobody has mapped are still UNRECOGNISED (BYPASS; CNFPSL is mapped since lane E2)");
 
         // Layer-2 wiring status. Move/Attack/Breach/Reconnoiter/Escort are wired to real vrftasks;
         // HoldObjective (DtHoldUntilTask + scan) and Clear (composite) stay bare-move fallbacks.

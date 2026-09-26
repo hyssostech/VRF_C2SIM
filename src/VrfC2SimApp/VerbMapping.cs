@@ -62,12 +62,18 @@ public enum TaskIntent
     /// of engagement unchanged, completion by the time rules (RL-20260921-09). Doctrinally the task
     /// names the unit it supports or may assume from; STP does not carry that unit (AffectedEntity
     /// is the performer itself), so there is nothing to follow - only the graphic. Added to the
-    /// RL-20260926-01 unit at the coordinator's direction (owner discussion 2026-09-26); STP today
+    /// RL-20260926-01 unit at the coordinator's direction - NOT an owner ruling; STP today
     /// exports follow-and-support as ATTACK (an STP defect, ticket being drafted).
     /// </summary>
     FollowAndSupport,
 
-    /// <summary>CNFPSL. TESTS-FIRST STUB: declared, not yet mapped.</summary>
+    /// <summary>
+    /// CNFPSL (conduct forward passage of lines; xsd:3899; STP's passage-of-lines code,
+    /// docs/STP_TASK_VOCABULARY_2026-09-03.md:36): move along the task's route / graphic through the
+    /// passage lanes to its end, then hold - the ordinary route move, no engagement task, the order's
+    /// ROE, completion by the time rules. The COORDINATOR'S DIRECTION (lane E2, 2026-09-26); the repo
+    /// holds no doctrine record for passage of lines (FM 3-90 was not cited from the record).
+    /// </summary>
     PassageOfLines,
 }
 
@@ -107,6 +113,7 @@ public static class VerbMapping
         TaskIntent.Escort => true,        // DtFollowEntityTask on the escorted entity (ESCRT)
         TaskIntent.HoldInPlace => true,   // R2's in-place dispatch, reached by the verb (no vendor task)
         TaskIntent.FollowAndSupport => true, // FOLSPT/FOLASS: the route move itself, then hold (no engagement)
+        TaskIntent.PassageOfLines => true,   // CNFPSL: the route move through the lanes, then hold (no engagement)
         // HoldObjective (DtHoldUntilTask + scan) and Clear (composite) stay bare-move fallbacks;
         // MoveInFormation is config-driven (aggregate moves), not verb-classified.
         _ => false,
@@ -114,6 +121,8 @@ public static class VerbMapping
 
     private const string AttackComposition =
         "advance to the objective + ROE fire at will (unit); Fire At only for a platform with a distinct target";
+    private const string PassageComposition =
+        "move along the task's route through the passage lanes to its end and hold there; no engagement; ROE as ordered";
     private const string FollowComposition =
         "advance along the task's graphic to its end and hold there; no engagement; ROE as ordered";
     private const string BreachComposition =
@@ -151,6 +160,8 @@ public static class VerbMapping
             // STP's order, so nothing is followed - the unit drives the graphic and holds at its end.
             ["FOLSPT"] = (TaskIntent.FollowAndSupport, FollowComposition),
             ["FOLASS"] = (TaskIntent.FollowAndSupport, FollowComposition),
+            // Conduct forward passage of lines (xsd:3899). Coordinator's direction, lane E2.
+            ["CNFPSL"] = (TaskIntent.PassageOfLines, PassageComposition),
             ["CLRLND"] = (TaskIntent.Clear,           "composite move + engage sweep"),
 
             // ---- THE TWO VERBS THE IRON STORM EXPORT ADDED (2026-09-20) ------------------------

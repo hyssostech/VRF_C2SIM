@@ -60,7 +60,8 @@ public enum EngageDecision
     AdvanceAndHold,
 }
 
-/// <summary>TESTS-FIRST STUB (lane E2): the ROE a dispatch sets.</summary>
+/// <summary>The rules of engagement a dispatch sets (the bridge's Roe, kept bridge-free here so the
+/// decision is checkable offline). See <see cref="TaskDispatchPolicy.RoeFor"/>.</summary>
 public enum RoeChoice { FireAtWill, HoldFire, FireWhenFiredUpon }
 
 /// <summary>
@@ -111,12 +112,17 @@ public static class TaskDispatchPolicy
     ///   ATTACK by a PLATFORM otherwise (STP names the performer itself) -> advance only, unchanged.
     ///   BREACH, any performer, any target -> advance + the not-simulated observation.
     ///   FOLSPT / FOLASS, any performer, any target -> advance along the graphic and hold; nothing else.
+    ///   CNFPSL, any performer, any target -> the same advance-and-hold (through the passage lanes).
+    /// SCOPE OF THE OWNER'S WORDS: he was asked about "a unit ATTACK" (RL-20260926-01 A1, A4). Fire at
+    /// will on ATTMN/ATTSPT/DESTRY/FIX/DISRPT/PENTRT is the seat's extension (they share the ATTACK path;
+    /// not asked - see the ledger's scope line). FOLSPT/FOLASS and CNFPSL are the coordinator's direction.
     /// </summary>
     /// <param name="performerIsUnit">The taskee was created as a unit (CreatedUnit.IsAggregate).</param>
     public static EngageDecision ForEngage(TaskIntent intent, bool performerIsUnit, TargetResolution target)
     {
         if (intent == TaskIntent.Breach) return EngageDecision.AdvanceBreachNotSimulated;
-        if (intent == TaskIntent.FollowAndSupport) return EngageDecision.AdvanceAndHold;
+        if (intent == TaskIntent.FollowAndSupport || intent == TaskIntent.PassageOfLines)
+            return EngageDecision.AdvanceAndHold;
         if (intent != TaskIntent.Attack) return EngageDecision.NotEngageVerb;
         if (performerIsUnit) return EngageDecision.AdvanceFireAtWill;
         return target == TargetResolution.DistinctEntity ? EngageDecision.AdvanceThenFireAt
@@ -128,11 +134,23 @@ public static class TaskDispatchPolicy
     public static bool IssuesFireAt(EngageDecision d) => d == EngageDecision.AdvanceThenFireAt;
 
     /// <summary>Does the decision override the order's rules of engagement with fire at will?
-    /// Only a unit ATTACK. Every other task keeps the ROE the order carries.</summary>
+    /// Only a unit ATTACK. Every other dispatch gets the order's own ROE through <see cref="RoeFor"/>.</summary>
     public static bool SetsFireAtWill(EngageDecision d) => d == EngageDecision.AdvanceFireAtWill;
 
-    /// <summary>TESTS-FIRST STUB (lane E2).</summary>
-    public static RoeChoice RoeFor(EngageDecision d, string orderRoeCode) => RoeChoice.FireWhenFiredUpon;
+    /// <summary>
+    /// THE ROE A DISPATCH SETS, one call per dispatch (lane E2, review S2). A unit ATTACK is fire at will
+    /// whatever the order says (RL-20260926-01 A4); every other decision - NotEngageVerb included - gets
+    /// the order's own ROE: ROEFree -> fire at will, ROEHold -> hold fire, anything else (ROETight, none)
+    /// -> fire when fired upon (the C++ oracle's mapping, C2SIMinterface.cpp:2374-2379). The service calls
+    /// this on the committed dispatch, the no-geometry in-place dispatch AND the hold-in-place dispatch:
+    /// the last two set no ROE before, so a unit's in-place follow-on after an ATTACK kept fire at will
+    /// against its own hold-fire. (A platform's in-place Fire At and ESCRT keep their own paths.)
+    /// </summary>
+    public static RoeChoice RoeFor(EngageDecision d, string orderRoeCode)
+        => SetsFireAtWill(d) ? RoeChoice.FireAtWill
+         : orderRoeCode == "ROEFree" ? RoeChoice.FireAtWill
+         : orderRoeCode == "ROEHold" ? RoeChoice.HoldFire
+         : RoeChoice.FireWhenFiredUpon;
 
     /// <summary>The unit ATTACK dispatch line, in the ruled plain words.</summary>
     public const string AttackFireAtWillLine =
