@@ -1038,6 +1038,37 @@ public static class RulingsSelfTest
                   "exactly once, and one TASKCMPLT at the end time - the fallback's action finds nothing to do");
         }
 
+        // (t25) A1 of run NAV_STALL_FALLBACK-2026-09-26-1 (runs\20260926T181639Z_run): the engage
+        //       fallback issued the fire, VR-Forces REFUSED it at once ("No controller ... unable to
+        //       carry out task ... Fire Weapon Task", app log L479763; "fire-at-target (success=False)",
+        //       L479765) and the task was aborted (TASKABRT, L479769) - which removes the unit's in-flight
+        //       record. The MOVE the fire never replaced ran on and completed 2,143 SIM s later
+        //       (L1786309); with no in-flight record that completion was reported as a TASKCMPLT with NO
+        //       task uuid (L1786313 "task=(none)"; on the bus as REPORT #9842, <CurrentTask />). A
+        //       terminal report that names no task tells STP nothing it can attribute and contradicts the
+        //       TASKABRT it already has: an UNATTRIBUTED completion sends NOTHING.
+        {
+            var f = new CompletionFlow();
+            f.Dispatch("FIREREFUSED", D * 18, hasDestination: true);
+            f.ParkEngage("FIREREFUSED");
+            f.Tick(30.0);
+            f.EngageFallback("FIREREFUSED");                      // the fire is issued (replaces nothing)
+            f.Finish("FIREREFUSED", success: false);              // the fire's vendor failure
+            f.Tick(D * 5);
+            f.Finish("FIREREFUSED", success: true);               // the un-replaced move's vendor completion
+            f.Tick(D * 30);
+            Check(ref failures, f.Count("FIREREFUSED", S.TaskStatusCodeType.TASKABRT) == 1
+                             && f.Count("FIREREFUSED", S.TaskStatusCodeType.TASKCMPLT) == 0
+                             && f.Sent.Count(s => s.Task == "") == 0,
+                  "(t25) a refused engage aborts the task ONCE, and the surviving move's later completion - which no " +
+                  "in-flight record attributes - sends NOTHING (no TASKCMPLT with an empty task uuid)");
+            var g = new CompletionFlow();
+            g.Finish("NEVERDISPATCHED", success: false);          // an unattributed FAILURE
+            g.Finish("NEVERDISPATCHED", success: true);           // and an unattributed success
+            Check(ref failures, g.Sent.Count == 0,
+                  "(t25) an unattributed vendor completion sends no TaskStatus, success or failure");
+        }
+
         // (t15) The two policy calls t12-t14 rest on, called directly (no mirror).
         {
             var p = new TimedCompletionPolicy();
@@ -1119,15 +1150,18 @@ public static class RulingsSelfTest
             if (Status.ShouldEmit(code, task)) Sent.Add((task, code));
         }
 
-        /// <summary>SynthesizeUnitCompletion: every successful or failed completion.</summary>
+        /// <summary>SynthesizeUnitCompletion: every successful or failed completion. The completion is
+        /// ATTRIBUTED only when the unit has an in-flight record (the service's _inFlight.TryComplete);
+        /// a vendor completion that arrives after that record is gone carries NO task uuid, and the
+        /// service's report for it goes out with an empty task (the "" entry in Sent).</summary>
         public void Finish(string task, bool success = true, bool taskContinues = false)
         {
-            _inFlight.Remove(task);
-            var verdict = success ? Timed.MarkFinished(task) : TimedCompletionPolicy.FinishVerdict.NotTimed;
-            if (TimedCompletionPolicy.ReleasesSuccessorsNow(success, verdict)) Seq.CompleteTask(task);
-            else if (!success) Seq.NotifyAbandoned(task);
+            string uuid = _inFlight.Remove(task) ? task : null;
+            var verdict = success && uuid != null ? Timed.MarkFinished(uuid) : TimedCompletionPolicy.FinishVerdict.NotTimed;
+            if (TimedCompletionPolicy.ReleasesSuccessorsNow(success, verdict)) Seq.CompleteTask(uuid);
+            else if (!success) Seq.NotifyAbandoned(uuid);
             var code = TimedCompletionPolicy.CompletionCode(success, taskContinues, verdict);
-            if (code is S.TaskStatusCodeType c) Push(task, c);
+            if (code is S.TaskStatusCodeType c) Push(uuid ?? "", c);
         }
 
         /// <summary>MaybeCompleteTimedTasks at this task-clock reading.</summary>
