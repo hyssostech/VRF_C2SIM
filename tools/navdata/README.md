@@ -1,6 +1,7 @@
 # tools/navdata - generating, gating and registering navigation areas
 
 - `nav_gate.py` - the connectivity gate. Run it on every generation log before anything uses the area.
+- `corridor_gate.py` - the CORRIDOR gate: the same metric on only the sectors a route's legs cross.
 - `make_nav_terrain.py` - registers a `.navRuntimeConfig` on a COPY of the terrain (`out/`, git-ignored).
 - `osm_sector_map.py` - maps OSM highway ways onto a generated area's sectors (diagnostic).
 - `landcover_sector_map.py` - land-cover class and soil per sector against the tag count (diagnostic).
@@ -52,6 +53,24 @@ Rules, each from a recorded failure:
 Exit 0 = every sector's ratio (Average Neighbor Node Count / (Average Node Count - 1)) >= 0.9. Exit 1 = at least one
 sector fails; the failing sectors are listed. Exit 2 = nothing parsed. Record the byte size, the manifest sha256 and
 the nav-tag histogram alongside the result.
+- Some logs name sectors ONLY as "Sector ground-platform_<i>_<j>_<tag> has N triangles." (IRONSTORM-CENTRE,
+  2026-09-20 and 2026-09-26: no "Sector (i,j): xMin.." row). Before 2026-09-26 nav_gate read such a log as 0 sectors,
+  exit 2; it now keys on either row (tests\NavGate.Tests.ps1 F).
+- Counting convention: a sector with <= 1 abstract node is "degenerate" here and is NOT in the < 0.5 / < 0.9 counts.
+  The 2026-09-20 scratch parser counted it as ratio 0.0, so its "33 < 0.5, 313 < 0.9" = nav_gate's "33 degenerate,
+  0 < 0.5, 280 < 0.9" on the same log. Quote which convention a number uses.
+
+Corridor gate (the area gate fails on any lake district, so the ROUTE decides):
+
+    python tools\navdata\corridor_gate.py <gen.log> --preset ironstorm-cuta [--leg LABEL LAT,LON LAT,LON]
+           [--runtime-config "<navDataDir>\<AREA>.navRuntimeConfig"] [--json]
+
+Exit 0 = every sector a leg crosses (sampled every 2 m) reads >= 0.9 with a graph; 1 = any corridor sector below, or
+graph-less / degenerate (these FAIL here); 2 = instrument failure. Grid: 43 m cells, fixed stride of
+floor(cells / sectors) cells per sector, re-checked against every "Sector (i,j)" row when the log has them. Frame: the
+runtime config's offset, else fitted from the log (Adjusted-corner centroid + east shift to the extent) [A]. Selftest
+on a real excerpt of the 2026-09-20 log (tests\data\navgen_ironstorm_gen1_corridor_excerpt.txt) reproduces that day's
+corridor table: 29 sectors, 7 below 0.9 (T02 (14,13) (16,14) (17,15); T10 (27,22) (27,23) (28,21) (28,22)).
 
 ## Registering
 

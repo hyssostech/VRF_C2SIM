@@ -1,0 +1,251 @@
+vrfNavGenerator log EXCERPT - IRONSTORM-CENTRE generation 1, 2026-09-20 (old session a7f6a276 scratch
+ironstorm\cuta\gen_nav_console.txt, 3,850,237 B). Kept: the Adjusted corners and extent lines, and for the 30
+sectors of the cut-A corridor plus (39,39) their name row, tag row and abstract-graph report rows. Everything else
+dropped. Test data for tools\navdata\corridor_gate.py --selftest-gen1; not a whole log.
+Adjusted - 
+ne: {3437987.795733, 1488863.663522, 5144676.597388} 
+nw: {3445952.218481, 1470335.958341, 5144676.652087} 
+se: {3452886.718009, 1495268.162652, 5132906.892637} 
+sw: {3460851.140915, 1476740.457538, 5132906.947573}
+^Calculating Transition Points
+CalculateTransitionPointLocations extent = (-10062,-10019,134.237,10105,10019,134.373)
+Sector ground-platform_14_12_iiSc has 146684 triangles.
+Generated 3 distinct nav tags.
+        NavData Size   : 165.37 kilobytes
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+  AbstractGraph Count :               4
+  Average Node Count :                56
+  Average Neighbor Node Count :       55
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+Sector ground-platform_14_13_iiSc has 147469 triangles.
+Generated 3 distinct nav tags.
+        NavData Size   : 191.18 kilobytes
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+  AbstractGraph Count :               4
+  Average Node Count :                58
+  Average Neighbor Node Count :       51
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+Sector ground-platform_15_13_iiSc has 146716 triangles.
+Generated 3 distinct nav tags.
+        NavData Size   : 173.67 kilobytes
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+  AbstractGraph Count :               4
+  Average Node Count :                54
+  Average Neighbor Node Count :       50
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+Sector ground-platform_15_14_iiSc has 145499 triangles.
+Generated 3 distinct nav tags.
+        NavData Size   : 164.43 kilobytes
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+  AbstractGraph Count :               4
+  Average Node Count :                53
+  Average Neighbor Node Count :       50
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+Sector ground-platform_16_14_iiSc has 147947 triangles.
+Generated 2 distinct nav tags.
+        NavData Size   : 193.91 kilobytes
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+  AbstractGraph Count :               4
+  Average Node Count :                54
+  Average Neighbor Node Count :       47
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+Sector ground-platform_16_15_iiSc has 144164 triangles.
+Generated 4 distinct nav tags.
+        NavData Size   : 134.39 kilobytes
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+  AbstractGraph Count :               4
+  Average Node Count :                56
+  Average Neighbor Node Count :       53
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+Sector ground-platform_17_15_iiSc has 142178 triangles.
+Generated 6 distinct nav tags.
+        NavData Size   : 106.58 kilobytes
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+  AbstractGraph Count :               4
+  Average Node Count :                51
+  Average Neighbor Node Count :       44
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+Sector ground-platform_17_16_iiSc has 142787 triangles.
+Generated 5 distinct nav tags.
+        NavData Size   : 131.24 kilobytes
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+  AbstractGraph Count :               4
+  Average Node Count :                50
+  Average Neighbor Node Count :       48
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+Sector ground-platform_18_16_iiSc has 146277 triangles.
+Generated 3 distinct nav tags.
+        NavData Size   : 165.04 kilobytes
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+  AbstractGraph Count :               4
+  Average Node Count :                52
+  Average Neighbor Node Count :       46
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+Sector ground-platform_18_17_iiSc has 145693 triangles.
+Generated 3 distinct nav tags.
+        NavData Size   : 146.88 kilobytes
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+  AbstractGraph Count :               4
+  Average Node Count :                51
+  Average Neighbor Node Count :       49
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+Sector ground-platform_19_17_iiSc has 148077 triangles.
+Generated 2 distinct nav tags.
+        NavData Size   : 177.90 kilobytes
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+  AbstractGraph Count :               4
+  Average Node Count :                51
+  Average Neighbor Node Count :       48
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+Sector ground-platform_19_18_iiSc has 147336 triangles.
+Generated 2 distinct nav tags.
+        NavData Size   : 177.10 kilobytes
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+  AbstractGraph Count :               4
+  Average Node Count :                52
+  Average Neighbor Node Count :       49
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+Sector ground-platform_20_18_iiSc has 146940 triangles.
+Generated 3 distinct nav tags.
+        NavData Size   : 171.73 kilobytes
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+  AbstractGraph Count :               4
+  Average Node Count :                52
+  Average Neighbor Node Count :       50
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+Sector ground-platform_20_19_iiSc has 144538 triangles.
+Generated 3 distinct nav tags.
+        NavData Size   : 147.02 kilobytes
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+  AbstractGraph Count :               4
+  Average Node Count :                50
+  Average Neighbor Node Count :       46
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+Sector ground-platform_20_20_iiSc has 139554 triangles.
+Generated 4 distinct nav tags.
+        NavData Size   : 76.14 kilobytes
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+  AbstractGraph Count :               4
+  Average Node Count :                46
+  Average Neighbor Node Count :       45
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+Sector ground-platform_21_20_iiSc has 138258 triangles.
+Generated 2 distinct nav tags.
+        NavData Size   : 63.93 kilobytes
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+  AbstractGraph Count :               4
+  Average Node Count :                48
+  Average Neighbor Node Count :       47
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+Sector ground-platform_27_22_iiSc has 144018 triangles.
+Generated 4 distinct nav tags.
+        NavData Size   : 145.48 kilobytes
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+  AbstractGraph Count :               4
+  Average Node Count :                60
+  Average Neighbor Node Count :       50
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+Sector ground-platform_27_23_iiSc has 146136 triangles.
+Generated 5 distinct nav tags.
+        NavData Size   : 158.50 kilobytes
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+  AbstractGraph Count :               4
+  Average Node Count :                54
+  Average Neighbor Node Count :       47
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+Sector ground-platform_27_24_iiSc has 139686 triangles.
+Generated 5 distinct nav tags.
+        NavData Size   : 94.37 kilobytes
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+  AbstractGraph Count :               4
+  Average Node Count :                48
+  Average Neighbor Node Count :       44
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+Sector ground-platform_28_18_iiSc has 145886 triangles.
+Generated 3 distinct nav tags.
+        NavData Size   : 170.46 kilobytes
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+  AbstractGraph Count :               4
+  Average Node Count :                57
+  Average Neighbor Node Count :       51
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+Sector ground-platform_28_19_iiSc has 141737 triangles.
+Generated 5 distinct nav tags.
+        NavData Size   : 124.45 kilobytes
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+  AbstractGraph Count :               4
+  Average Node Count :                48
+  Average Neighbor Node Count :       43
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+Sector ground-platform_28_20_iiSc has 138443 triangles.
+Generated 4 distinct nav tags.
+        NavData Size   : 82.38 kilobytes
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+  AbstractGraph Count :               4
+  Average Node Count :                51
+  Average Neighbor Node Count :       46
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+Sector ground-platform_28_21_iiSc has 139967 triangles.
+Generated 5 distinct nav tags.
+        NavData Size   : 73.16 kilobytes
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+  AbstractGraph Count :               4
+  Average Node Count :                34
+  Average Neighbor Node Count :       27
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+Sector ground-platform_28_22_iiSc has 139434 triangles.
+Generated 5 distinct nav tags.
+        NavData Size   : 69.01 kilobytes
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+  AbstractGraph Count :               4
+  Average Node Count :                36
+  Average Neighbor Node Count :       30
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+Sector ground-platform_29_20_iiSc has 140175 triangles.
+Generated 5 distinct nav tags.
+        NavData Size   : 72.93 kilobytes
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+  AbstractGraph Count :               4
+  Average Node Count :                27
+  Average Neighbor Node Count :       25
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+Sector ground-platform_29_21_iiSc has 141260 triangles.
+Generated 4 distinct nav tags.
+        NavData Size   : 128.45 kilobytes
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+  AbstractGraph Count :               4
+  Average Node Count :                53
+  Average Neighbor Node Count :       49
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+Sector ground-platform_29_22_iiSc has 141009 triangles.
+Generated 5 distinct nav tags.
+        NavData Size   : 96.46 kilobytes
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+  AbstractGraph Count :               4
+  Average Node Count :                42
+  Average Neighbor Node Count :       40
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+Sector ground-platform_29_23_iiSc has 141466 triangles.
+Generated 4 distinct nav tags.
+        NavData Size   : 103.02 kilobytes
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+  AbstractGraph Count :               4
+  Average Node Count :                46
+  Average Neighbor Node Count :       45
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+Sector ground-platform_30_23_iiSc has 141258 triangles.
+Generated 5 distinct nav tags.
+        NavData Size   : 107.18 kilobytes
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+  AbstractGraph Count :               4
+  Average Node Count :                49
+  Average Neighbor Node Count :       47
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+Sector ground-platform_39_39_iiSc has 1741175 triangles.
+Generated 6 distinct nav tags.
+        NavData Size   : 921.74 kilobytes
+  ======== ABSTRACT GRAPH POST PROCESS REPORT
+  AbstractGraph Count :               16
+  Average Node Count :                75
+  Average Neighbor Node Count :       70
+  ======== ABSTRACT GRAPH POST PROCESS REPORT

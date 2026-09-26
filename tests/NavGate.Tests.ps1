@@ -14,6 +14,8 @@
 #   B. dirty (one sector 0.40 at (7,3)) -> exit 1, names (7,3), 1 sector < 0.9, 1 < 0.5
 #   C. WEST20-shaped (published 234 / 1,598 < 0.5, 409 < 0.9; WEST20 :300) -> exit 1, numbers reproduced
 #   D. clean (1,600 sectors at 1.00) -> exit 0
+#   F. name-only log (no "Sector (i,j)" rows, the IRONSTORM-CENTRE layout) -> exit 1, names (7,3)
+#   G. corridor_gate.py reproduces the IRONSTORM-CENTRE gen-1 corridor table from a real excerpt
 
 param(
     [string]$Python = ''
@@ -94,6 +96,27 @@ try {
     $out = & $Python $Gate (Join-Path $tmp 'clean.log') --area-dir $area --area-hash --json
     $j = ($out -join "`n") | ConvertFrom-Json
     Check 'E area-dir -> 2 files, 5 bytes, manifest hash present' (($j.area_files -eq 2) -and ($j.area_bytes -eq 5) -and ($j.area_manifest_sha256 -match '^[0-9a-f]{64}$')) "$($j.area_files)/$($j.area_bytes)"
+
+    # F. NAME-ONLY log (IRONSTORM-CENTRE 2026-09-20 layout: no "Sector (i,j): xMin" rows).
+    #    Before the name key existed this read as 0 sectors / exit 2.
+    & $Python $Gate --write-control named-dirty (Join-Path $tmp 'named.log') | Out-Null
+    Check 'F named-dirty control written' ($LASTEXITCODE -eq 0) "exit=$LASTEXITCODE"
+    Check 'F named-dirty control has no coordinate rows' (-not (Select-String -Path (Join-Path $tmp 'named.log') -Pattern 'Sector \(' -Quiet)) ''
+    $r = Run-Gate (Join-Path $tmp 'named.log')
+    Check 'F named-dirty -> exit 1, 1,600 measured' (($r.Code -eq 1) -and ($r.Json.sectors_measured -eq 1600)) "exit=$($r.Code) measured=$($r.Json.sectors_measured)"
+    $f = @($r.Json.failing_sectors)
+    Check 'F named-dirty -> names sector (7,3) at 0.4' (($f.Count -eq 1) -and ($f[0].i -eq 7) -and ($f[0].j -eq 3) -and ([math]::Abs($f[0].ratio - 0.4) -lt 1e-6)) ($f | ConvertTo-Json -Compress)
+
+    # G. corridor_gate.py on a REAL log excerpt: the 2026-09-20 IRONSTORM-CENTRE generation 1
+    #    (tests\data\navgen_ironstorm_gen1_corridor_excerpt.txt). Must reproduce the recorded
+    #    corridor table: 29 sectors, 7 below 0.9 (T02 3, T10 4, T14 0), ratios and route metres.
+    $Corr = Join-Path $RepoRoot 'tools\navdata\corridor_gate.py'
+    $excerpt = Join-Path $RepoRoot 'tests\data\navgen_ironstorm_gen1_corridor_excerpt.txt'
+    $out = & $Python $Corr --selftest-gen1 $excerpt
+    $code = $LASTEXITCODE
+    Check 'G corridor_gate --selftest-gen1 -> exit 0, 18 passed, 0 failed' (($code -eq 0) -and (($out -join "`n") -match 'selftest: 18 passed, 0 failed')) (($out | Select-Object -Last 1) + " exit=$code")
+    $out = & $Python $Corr $empty --preset ironstorm-cuta
+    Check 'G corridor_gate on an empty log -> exit 2' ($LASTEXITCODE -eq 2) "exit=$LASTEXITCODE"
 }
 finally {
     Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
