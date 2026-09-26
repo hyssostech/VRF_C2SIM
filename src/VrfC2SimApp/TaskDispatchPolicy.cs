@@ -58,6 +58,8 @@ public enum EngageDecision
     /// there. No engagement task and the order's rules of engagement unchanged; STP does not carry
     /// the supported unit (AffectedEntity = the performer), so nothing is followed.</summary>
     AdvanceAndHold,
+    /// <summary>TESTS-FIRST STUB.</summary>
+    HoldInPlaceNotRouted,
 }
 
 /// <summary>The rules of engagement a dispatch sets (the bridge's Roe, kept bridge-free here so the
@@ -128,6 +130,10 @@ public static class TaskDispatchPolicy
         return target == TargetResolution.DistinctEntity ? EngageDecision.AdvanceThenFireAt
                                                          : EngageDecision.AdvanceOnly;
     }
+
+    /// <summary>TESTS-FIRST STUB.</summary>
+    public static bool HoldsInPlace(EngageDecision d) => false;
+    public const string PassageOfLinesHeldLine = "";
 
     /// <summary>Does the decision name a target to VR-Forces (DtFireAtTargetTask)? Only a platform
     /// with a distinct target.</summary>

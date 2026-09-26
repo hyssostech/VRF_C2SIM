@@ -115,25 +115,38 @@ public static class EngageDoctrineSelfTest
             }
 
         // (e12) CNFPSL - conduct forward passage of lines (xsd:3899; STP's own passage-of-lines code,
-        //       docs/STP_TASK_VOCABULARY_2026-09-03.md:36). Coordinator's direction 2026-09-26 (lane E2):
-        //       move along the task's route/graphic through the passage lanes to its end, then hold; no
-        //       engagement; ROE as ordered; completion by the time rules.
+        //       docs/STP_TASK_VOCABULARY_2026-09-03.md:36). OWNER 2026-09-26 (RL-20260926-01 A6): "Hold for
+        //       1st run plus jira item for coa renderer" - the order lists its four graphics out of doctrinal
+        //       order, so driving them as listed is a 30-40 km zig-zag. So: HELD IN PLACE, exactly the
+        //       ExecutePlanPhase dispatch (no vendor task, completion by time), never a move, never an engage.
         {
             var v = VerbMapping.Classify("CNFPSL");
             Check(ref failures, v.Recognized && v.Implemented && v.Intent == TaskIntent.PassageOfLines,
                   $"(e12) CNFPSL classifies as a recognised, implemented PassageOfLines (got {v.Intent}, " +
                   $"recognised={v.Recognized}, implemented={v.Implemented})");
-            Check(ref failures, v.Composition.Contains("hold") && v.Composition.Contains("no engagement"),
-                  $"(e12) CNFPSL's composition says advance-and-hold with no engagement ('{v.Composition}')");
+            Check(ref failures, v.Composition.Contains("held in place") && v.Composition.Contains("STP-866"),
+                  $"(e12) CNFPSL's composition says held in place and cites STP-866 ('{v.Composition}')");
             foreach (bool unit in new[] { true, false })
                 foreach (var t in targets)
                 {
                     var d = TaskDispatchPolicy.ForEngage(TaskIntent.PassageOfLines, unit, t);
-                    Check(ref failures, d == EngageDecision.AdvanceAndHold && !TaskDispatchPolicy.IssuesFireAt(d)
-                                        && !TaskDispatchPolicy.SetsFireAtWill(d),
-                          $"(e12) CNFPSL, performer {(unit ? "unit" : "platform")}, target {t} -> advance and hold, " +
-                          $"never an engage, ROE as ordered (got {d})");
+                    Check(ref failures, d == EngageDecision.HoldInPlaceNotRouted && TaskDispatchPolicy.HoldsInPlace(d)
+                                        && !TaskDispatchPolicy.IssuesFireAt(d) && !TaskDispatchPolicy.SetsFireAtWill(d),
+                          $"(e12) CNFPSL, performer {(unit ? "unit" : "platform")}, target {t} -> held in place, " +
+                          $"never a move and never an engage (got {d})");
                 }
+            Check(ref failures,
+                  Enum.GetValues<EngageDecision>().Count(TaskDispatchPolicy.HoldsInPlace) == 1,
+                  "(e12) only the CNFPSL decision holds in place; every other decision moves as before");
+            Check(ref failures,
+                  TaskDispatchPolicy.PassageOfLinesHeldLine ==
+                  "CNFPSL (forward passage of lines): held in place for now - route by graphic role (start point -> " +
+                  "passage point -> lane -> release point) is not implemented; see STP-866",
+                  "(e12) the CNFPSL line is the coordinator's plain sentence with the Jira key");
+            if (service != null && File.Exists(service))
+                Check(ref failures,
+                      File.ReadAllText(service).Contains("TaskDispatchPolicy.HoldsInPlace(engage)"),
+                      "(e12) the service's hold-in-place dispatch is reached through TaskDispatchPolicy.HoldsInPlace");
         }
 
         // (e13) ONE ROE PER DISPATCH, FROM ONE FUNCTION (lane E2 S2). Only a unit ATTACK overrides the
