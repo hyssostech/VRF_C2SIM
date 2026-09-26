@@ -54,6 +54,9 @@ public enum TaskIntent
     /// is the answer for one we HAVE.
     /// </summary>
     HoldInPlace,
+
+    /// <summary>FOLSPT / FOLASS. TESTS-FIRST STUB: declared, not yet mapped.</summary>
+    FollowAndSupport,
 }
 
 /// <summary>

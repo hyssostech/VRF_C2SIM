@@ -70,7 +70,8 @@ public static class EngageDoctrineSelfTest
             }
 
         // (e4) Every other intent is outside this decision.
-        foreach (var i in Enum.GetValues<TaskIntent>().Where(i => i != TaskIntent.Attack && i != TaskIntent.Breach))
+        foreach (var i in Enum.GetValues<TaskIntent>().Where(i => i != TaskIntent.Attack && i != TaskIntent.Breach
+                                                                  && i != TaskIntent.FollowAndSupport))
             Check(ref failures,
                   TaskDispatchPolicy.ForEngage(i, true, TargetResolution.DistinctEntity) == EngageDecision.NotEngageVerb
                   && TaskDispatchPolicy.ForEngage(i, false, TargetResolution.DistinctEntity) == EngageDecision.NotEngageVerb,
@@ -84,6 +85,31 @@ public static class EngageDoctrineSelfTest
             Check(ref failures, v.Recognized && v.Intent == TaskIntent.Attack,
                   $"(e5) {code} classifies as a recognised ATTACK (got {v.Intent}, recognised={v.Recognized})");
         }
+
+        // (e11) FOLLOW AND SUPPORT / FOLLOW AND ASSUME (FOLSPT, FOLASS; xsd:3963-3964; STP emits them,
+        //       docs/STP_TASK_VOCABULARY_2026-09-03.md:36). Coordinator addition to RL-20260926-01's unit:
+        //       advance along the task's graphic to its end and HOLD there; no engagement; the order's
+        //       ROE unchanged; completion by the time rules. STP does not carry the supported unit
+        //       (AffectedEntity = the performer), so there is nothing to follow - only the graphic.
+        foreach (var code in new[] { "FOLSPT", "FOLASS" })
+        {
+            var v = VerbMapping.Classify(code);
+            Check(ref failures, v.Recognized && v.Implemented && v.Intent == TaskIntent.FollowAndSupport,
+                  $"(e11) {code} classifies as a recognised, implemented FollowAndSupport (got {v.Intent}, " +
+                  $"recognised={v.Recognized}, implemented={v.Implemented})");
+            Check(ref failures, v.Composition.Contains("hold") && v.Composition.Contains("no engagement"),
+                  $"(e11) {code}'s composition says advance-and-hold with no engagement ('{v.Composition}')");
+        }
+        foreach (bool unit in new[] { true, false })
+            foreach (var t in targets)
+            {
+                var d = TaskDispatchPolicy.ForEngage(TaskIntent.FollowAndSupport, unit, t);
+                Check(ref failures,
+                      d == EngageDecision.AdvanceAndHold && !TaskDispatchPolicy.IssuesFireAt(d)
+                      && !TaskDispatchPolicy.SetsFireAtWill(d),
+                      $"(e11) FOLSPT/FOLASS, performer {(unit ? "unit" : "platform")}, target {t} -> advance and " +
+                      $"hold, never an engage, ROE left as ordered (got {d})");
+            }
 
         // (e6) THE WORDS. The log line and the STP-facing observation are part of the contract.
         Check(ref failures,

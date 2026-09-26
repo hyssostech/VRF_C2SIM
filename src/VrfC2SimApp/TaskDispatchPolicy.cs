@@ -54,6 +54,8 @@ public enum EngageDecision
     /// the breach itself is not simulated (STP-865). No DtBreachTask: it is an aggregate-level task
     /// and the entity-level model set has no breach controller.</summary>
     AdvanceBreachNotSimulated,
+    /// <summary>TESTS-FIRST STUB: declared, not yet decided.</summary>
+    AdvanceAndHold,
 }
 
 /// <summary>

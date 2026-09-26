@@ -33,6 +33,9 @@ public static class VerbMappingSelfTest
         // STP's main / supporting attack (C2SimTask.cs :618-632; xsd:3863, :3865) - RL-20260926-01.
         CheckIntent(ref failures, "ATTMN",  TaskIntent.Attack);
         CheckIntent(ref failures, "ATTSPT", TaskIntent.Attack);
+        // Follow and support / follow and assume (xsd:3963-3964): advance along the graphic and hold.
+        CheckIntent(ref failures, "FOLSPT", TaskIntent.FollowAndSupport);
+        CheckIntent(ref failures, "FOLASS", TaskIntent.FollowAndSupport);
         Check(ref failures, VerbMapping.Classify("ATTMN").Recognized && VerbMapping.Classify("ATTSPT").Recognized,
               "ATTMN and ATTSPT are RECOGNISED attack verbs, not the bare-move fallback");
 
