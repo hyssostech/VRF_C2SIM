@@ -169,3 +169,39 @@ box is a test, not an area.
 
 Side effects: 13 new files (32 KB) in the vendor tile cache under C:\MAK\vrforces5.2d\appData\cache (pre-registered as
 possible); 25 ClientInput intermediates (158,307,124 B) in C:\C2SIM\vrf-nav\userdata\NavDataDebug.
+
+---
+
+## PREREG N7 - the NULL arm (written and committed BEFORE the null run)
+
+Why: the edited run above cannot be read without the same box on the UNEDITED terrain. The first prereg listed the
+box size as a known difference but registered no null; this block adds it. Same brief lineage (N7), same citations
+as above.
+
+ONE VARIABLE (null vs the edited run): the .earth. The null terrain is
+tools\navdata\out\MAK Earth (online) + MojaveAO20_null5x5.mtf, a BYTE COPY of the vendor MAK Earth (online).mtf
+(sha256 d445e109...9a23), i.e. the _trees5x5 copy with its one changed line restored - it names the vendor
+$(SHARED_DATA_DIR)/.../MAK Earth (online).earth. Chosen over the vendor .mtf itself so the terrain file PATH is of
+the same kind (a copy under tools\navdata\out) in both arms; the .surfChar.map beside it is the same byte copy
+(253c042e...bce0). Config: NavArea-ground-platform MojaveAO20_null5x5.navGenConfig, a byte copy of the _trees5x5
+config (sha256 d317db2e...4dfd), renamed only so the .navRuntimeConfig gets the null area's name. Same generator,
+cwd, environment, --userDataDir C:\C2SIM\vrf-nav\userdata, pre-created --navDataDir, no --appDataDir; output area
+"NavArea-ground-platform MojaveAO20_null5x5"; log gen-AO20-null5x5-2026-09-26.log. Exit code captured through the
+process handle (-PassThru, handle held, WaitForExit, ExitCode). Started only with no vrfSim* / vrfGui* /
+VrfC2SimApp* / WatchVrf* process.
+
+| # | Prediction | Confidence | What counts as a MISS | Measured |
+|---|---|---|---|---|
+| N0 | the run completes with exit code 0; the generator widens to the same 57 x 57-cell box (extent +/-1204) with the same offset as the edited run, so the two arms share every sector box exactly | HIGH | exit != 0, or a different extent/offset |
+| N1 | the fragmentation reappears: >= 18 of the 24 class-64 sectors below 0.5 (the full-area value on 2026-09-25 was 21 of 24) | HIGH | fewer than 18 |
+| N2 | "Sim model config: YuccaPalm not found." lines are present | HIGH | none |
+| N3 | the 64-only NavData median is back in the 400-550 kB range | MEDIUM | outside it |
+| N4 | the two P2 anomalies are checked in the null: if (13,36) reads 3 and (12,35) reads 2 in the null too, they are a box/offset artefact, not the tree swap | RECORDED | - |
+
+FALSIFIER: FEWER THAN 10 class-64 sectors below 0.5 in the null -> box size (or the half-cell offset) alone removes
+the fragmentation, and the tree swap is NOT shown to be the lever. Between 10 and 17: a partial; the swap's effect is
+then measured as the difference between the arms, sector for sector, and said so.
+
+## RESULT N7 (written after the null run)
+
+(to be written after the null run)
