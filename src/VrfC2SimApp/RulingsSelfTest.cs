@@ -45,6 +45,8 @@ public static class RulingsSelfTest
         ChainTopology(ref failures);
         Console.WriteLine("=== C14 + STP-837 as amended by the user ruling of 2026-09-21 (the SHIPPED defaults) ===");
         EchelonAndTraversalRulings(ref failures);
+        Console.WriteLine("=== RL-20260926-01: ATTACK advances with fire at will; BREACH is not simulated; no Fire At to a unit ===");
+        failures += EngageDoctrineSelfTest.Run();
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
         return failures == 0 ? 0 : 1;
     }

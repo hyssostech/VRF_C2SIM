@@ -29,6 +29,20 @@ public enum TargetResolution
     NoTarget,
 }
 
+/// <summary>What an ATTACK-family or BREACH task does (RL-20260926-01). TESTS-FIRST STUB: the
+/// values and <see cref="TaskDispatchPolicy.ForEngage"/> below encode the behaviour on main
+/// 8cdca96, so `--rulings-selftest` shows what the ruling changes before it is built.</summary>
+public enum EngageDecision
+{
+    NotEngageVerb,
+    AdvanceFireAtWill,
+    AdvanceThenFireAt,
+    AdvanceOnly,
+    AdvanceBreachNotSimulated,
+    /// <summary>main 8cdca96: approach move, then DtBreachTask at the distinct target.</summary>
+    AdvanceThenBreach,
+}
+
 /// <summary>
 /// THE DISPATCH DECISIONS THE 2026-09-14 RULINGS CHANGED, as pure functions so they are decidable
 /// offline (`--rulings-selftest`) instead of only inside a live run.
@@ -66,6 +80,22 @@ public static class TaskDispatchPolicy
         if (hasBreachTarget) return ZeroGeometryAction.BreachInPlace;
         return ZeroGeometryAction.ExecuteInPlace;
     }
+
+    /// <summary>TESTS-FIRST STUB (main 8cdca96): a Fire At or a breach whenever the target is
+    /// distinct, whoever the performer is.</summary>
+    public static EngageDecision ForEngage(TaskIntent intent, bool performerIsUnit, TargetResolution target)
+        => intent == TaskIntent.Attack
+               ? (target == TargetResolution.DistinctEntity ? EngageDecision.AdvanceThenFireAt : EngageDecision.AdvanceOnly)
+         : intent == TaskIntent.Breach
+               ? (target == TargetResolution.DistinctEntity ? EngageDecision.AdvanceThenBreach : EngageDecision.AdvanceOnly)
+         : EngageDecision.NotEngageVerb;
+
+    public static bool IssuesFireAt(EngageDecision d) => d == EngageDecision.AdvanceThenFireAt;
+    public static bool SetsFireAtWill(EngageDecision d) => false;
+    public const string AttackFireAtWillLine = "";
+    public static string BreachNotSimulatedObservation(string unitName) => "";
+    public static ZeroGeometryAction ForZeroGeometry(bool performerResolved, bool hasAttackTarget)
+        => ForZeroGeometry(performerResolved, hasAttackTarget, hasBreachTarget: false);
 
     /// <summary>Does this action mean the task will never run - i.e. must its successors be told
     /// to stop waiting (TaskSequencer.NotifyAbandoned) and STP told TASKABRT?</summary>

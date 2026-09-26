@@ -30,6 +30,11 @@ public static class VerbMappingSelfTest
         CheckIntent(ref failures, "SCOUT",  TaskIntent.Reconnoiter);
         CheckIntent(ref failures, "ESCRT",  TaskIntent.Escort);
         CheckIntent(ref failures, "CLRLND", TaskIntent.Clear);
+        // STP's main / supporting attack (C2SimTask.cs :618-632; xsd:3863, :3865) - RL-20260926-01.
+        CheckIntent(ref failures, "ATTMN",  TaskIntent.Attack);
+        CheckIntent(ref failures, "ATTSPT", TaskIntent.Attack);
+        Check(ref failures, VerbMapping.Classify("ATTMN").Recognized && VerbMapping.Classify("ATTSPT").Recognized,
+              "ATTMN and ATTSPT are RECOGNISED attack verbs, not the bare-move fallback");
 
         // ---- The two verbs the real STP export added (2026-09-20) -----------------------------
         // Both are valid TaskActionCodeType members and both used to classify as UNRECOGNISED, so
