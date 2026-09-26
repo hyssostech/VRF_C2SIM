@@ -40,6 +40,8 @@ tools/navdata/out/
 
 # vendor PDFs (see docs/vendor/README.txt for source URLs)
 docs/vendor/**/*.pdf
+# derived text extracts of those PDFs (pypdf; regenerable, large)
+docs/vendor/**/txt/
 
 # Claude Code session state and, crucially, the per-lane git worktrees that live at
 # .claude/worktrees/ - a `git add -A` in the main checkout would otherwise sweep every
