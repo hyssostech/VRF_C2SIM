@@ -193,3 +193,39 @@ with the triangle drop, not isolated further.
 Side effects: 9 new files in the vendor tile cache C:\MAK\vrforces5.2d\appData\cache\vrfsim\Biomes-ccf789e273a44b78
 (a new, content-keyed folder for the shadow_jst biome configuration; the NULL arm wrote none); the arm's NavDataDebug
 intermediates (6 files, 122,579,808 B) deleted. Nothing else new under C:\MAK. -> Part 2.
+
+## PART 2 REGISTRATION (2026-09-26, after the EDITED arm passed, BEFORE the full run)
+
+Brief N9 Part 2 (restated by the coordinator for N10): one full AO20 generation on shadow_jst; register only on a
+full pass, into a new terrain copy naming the shadow_jst .earth; README; no fixtures.
+
+RUN KIND: offline. TIER AND GATE: HEAVY / PREREG. Generator, environment, traps and runner as in Part 1
+(u3\n9_arm.ps1 -Arm jst: held handle, exit code to u3\n9_jst_status.txt, refuses to start if a sim / GUI / interface /
+test suite / generator is running).
+
+ONE VARIABLE against gen-AO20-meso-2026-09-26 (N8): the JST biome's asset line 521 (YuccaPalm ->
+HoneyMesquiteShortSpring), on top of N8's DSS line 541.
+- Terrain: tools\navdata\out\MAK Earth (online) + MojaveAO20_jst.mtf, a byte copy of the _edge_jst copy (sha256
+  78dbdcc5...0c9b; its one changed line names C:/C2SIM/vrf-nav/shadow_jst/TerrainData/TerrainConfiguration/MAK Earth
+  (online).earth). shadow_jst TerrainConfiguration re-verified before the run: 541 files, sha256-identical to the vendor
+  folder except biome.definitions.CA-fveg.xml (ae5ddb26...647b: lines 521 JST and 541 DSS).
+- Config: C:\C2SIM\vrf-nav\work\cfg\NavArea-ground-platform MojaveAO20_jst.navGenConfig, byte copy of the N8 _meso
+  config (sha256 d89bc8eb...08b7: 40 x 40, cell 43, raster 0.2). Area "NavArea-ground-platform MojaveAO20_jst".
+- Log C:\C2SIM\vrf-nav\work\log\gen-AO20-jst-2026-09-26.log. C: has 683 GB free (N8's intermediates were 10.7 GB).
+
+| # | Prediction | Confidence | What counts as a MISS |
+|---|---|---|---|
+| Q0 | exit 0; 1,600 sectors; the log loads the shadow_jst .earth; runtime config written; extent (-10019,-9976)..(10062,9976) | HIGH | any limb |
+| Q1 | 0 "Sim model config: YuccaPalm not found." lines (N8: 4) | HIGH | any such line |
+| Q2 | 0 of 1,600 sectors below 0.5 AND every sector >= 0.9 (row 21 gate PASS) | HIGH | any sector below 0.9 |
+| Q3 | the 1,600 - k sectors holding no class 62 are identical to N8 in ratio, NavData size and input triangles, except up to 30 (N8 had 24 unexplained non-64 changes) | MEDIUM | more than 30 such sectors differ |
+| Q4 | area folder below N8's 176.9 MB | MEDIUM | >= 176.9 MB |
+
+FALSIFIER: any sector below 0.9 -> the JST edit does not close the gate at full scale; STOP, register nothing, report
+the sector(s) and their classes.
+
+Registration (ONLY on a full Q2 pass): make_nav_terrain.py --terrain <the _jst copy> --runtime-config
+<...MojaveAO20_jst.navRuntimeConfig> --out <the same _jst copy>; verify the copy still names the shadow_jst .earth;
+sha256 + bytes of the copy, the runtime config and the area folder; tools/navdata/README.md updated. Side-effect
+sentence to carry: on that copy both the Desert Succulent Shrub and the Joshua Tree biomes place mesquite, not
+Joshua trees / yucca palms, for rendering and simulation alike. No fixture is built or deployed. Intermediates deleted.
