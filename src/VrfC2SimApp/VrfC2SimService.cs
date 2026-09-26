@@ -7724,8 +7724,14 @@ public sealed class VrfC2SimService : BackgroundService
                                 name, vrfTaskTypeForLog, fin.ExpectedKind, fin.TaskName);
         }
         else
-            _log.LogWarning("Task-complete for '{Name}' with NO in-flight task recorded - unattributed " +
-                            "(report sent with empty task uuid).", name);
+            // A1 (run NAV_STALL_FALLBACK-2026-09-26-1, L1786311/L1786313): this used to send a
+            // TASKCMPLT/TASKABRT with an EMPTY task uuid. It is a VR-Forces task the interface no
+            // longer tracks (there: the approach move a refused engage never replaced, completing
+            // after its C2SIM task had already been aborted), so it reports NOTHING -
+            // TimedCompletionPolicy.CompletionCode returns null for an unattributed completion.
+            _log.LogWarning("Task-complete for '{Name}' ({VrfType}, success={Ok}) with NO in-flight task recorded - " +
+                            "unattributed, NOT reported (a TaskStatus with no task uuid names nothing STP can " +
+                            "attribute).", name, vrfTaskTypeForLog, success);
 
         // THE TEMPORARY POSITION ON COMPLETION (RL-20260921-09): a SUCCESS on a task whose end time
         // is armed is HELD until that end time (the timer then reports it and releases the
@@ -7776,7 +7782,7 @@ public sealed class VrfC2SimService : BackgroundService
         // until the end time. Overdue and now arrived: TASKCMPLT - and for an ATTACK / BREACH the
         // parked engage above has STILL been issued (the owner's decision of 2026-09-25,
         // RL-20260925-01).
-        var maybeCode = TimedCompletionPolicy.CompletionCode(success, taskContinues, verdict);
+        var maybeCode = TimedCompletionPolicy.CompletionCode(taskUuid != null, success, taskContinues, verdict);
         if (maybeCode is not S.TaskStatusCodeType code) return;
         PushTaskStatus(taskeeUuid, taskUuid ?? "", code,
                        !success ? $"unit {name}: VR-Forces reported the task FAILED (success=false) - it is no " +

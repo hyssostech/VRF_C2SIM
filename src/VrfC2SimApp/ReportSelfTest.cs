@@ -112,7 +112,8 @@ public static class ReportSelfTest
         Check(ref failures, pol.ShouldEmitComplete(tD),
               "... and no TASKCMPLT was consumed by it (the completion slot is untouched)");
 
-        const string unattributed = "";                   // an unattributed completion carries no uuid
+        const string unattributed = "";                   // an empty uuid (the service no longer sends one for an
+                                                          // unattributed completion - rulings t25 - but the policy stays neutral)
         Check(ref failures, pol.ShouldEmitComplete(unattributed) && pol.ShouldEmitComplete(unattributed),
               "an EMPTY task uuid is never suppressed (two unattributed completions = two reports)");
 

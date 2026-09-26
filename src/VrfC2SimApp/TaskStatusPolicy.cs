@@ -34,8 +34,10 @@ namespace VrfC2SimApp;
 ///   - A COMPLETION THAT IS NOT THE END OF THE TASK REPORTS TASKINPRG, not TASKCMPLT (review
 ///     finding 4, 2026-09-14): one C2SIM ATTACK/BREACH task runs as a move followed by a parked
 ///     engage, and the move's completion is progress. TASKINPRG consumes no slot.
-///   - An EMPTY task uuid is never recorded and never suppressed: the interface emits those for
-///     unattributed completions, and collapsing two of them would lose a report.
+///   - An EMPTY task uuid is never recorded and never suppressed (collapsing two would lose a
+///     report). Since A1 (lane A, run NAV_STALL_FALLBACK-2026-09-26-1) an UNATTRIBUTED vendor
+///     completion no longer reaches this policy at all: TimedCompletionPolicy.CompletionCode gives
+///     it no code, so no TaskStatus with an empty task uuid is sent for it.
 /// </summary>
 public sealed class TaskStatusPolicy
 {

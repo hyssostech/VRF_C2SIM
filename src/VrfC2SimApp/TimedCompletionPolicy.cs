@@ -286,10 +286,18 @@ public sealed class TimedCompletionPolicy
     ///   - EmitNow: TASKCMPLT, INCLUDING for the late move half of an ATTACK / BREACH - its parked
     ///     engage is still issued, and the task is reported complete on that arrival (the owner's
     ///     answer of 2026-09-25, RL-20260925-01);
-    ///   - NotTimed: today's evidence-only codes (TaskStatusPolicy.CodeForCompletion).
+    ///   - NotTimed: today's evidence-only codes (TaskStatusPolicy.CodeForCompletion);
+    ///   - NOT ATTRIBUTED (the unit has no in-flight record, so the completion names no task): nothing,
+    ///     success or failure. Such a completion belongs to a VR-Forces task the interface no longer
+    ///     tracks - in run NAV_STALL_FALLBACK-2026-09-26-1 the approach move that a REFUSED engage
+    ///     never replaced, completing after its C2SIM task had already been aborted - and a TASKCMPLT
+    ///     or TASKABRT with an empty task uuid tells STP nothing it can attribute (A1, lane A report;
+    ///     --rulings-selftest t25).
     /// </summary>
-    public static S.TaskStatusCodeType? CompletionCode(bool success, bool taskContinues, FinishVerdict verdict)
-        => !success ? S.TaskStatusCodeType.TASKABRT
+    public static S.TaskStatusCodeType? CompletionCode(bool attributed, bool success, bool taskContinues,
+                                                       FinishVerdict verdict)
+        => !attributed ? null
+         : !success ? S.TaskStatusCodeType.TASKABRT
          : verdict == FinishVerdict.Hold
              ? (taskContinues ? S.TaskStatusCodeType.TASKINPRG : (S.TaskStatusCodeType?)null)
          : verdict == FinishVerdict.EmitNow ? S.TaskStatusCodeType.TASKCMPLT

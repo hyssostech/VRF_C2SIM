@@ -754,20 +754,20 @@ public static class RulingsSelfTest
         {
             var v = TimedCompletionPolicy.FinishVerdict.EmitNow;
             Check(ref failures,
-                  TimedCompletionPolicy.CompletionCode(true, taskContinues: true, v) == S.TaskStatusCodeType.TASKCMPLT
+                  TimedCompletionPolicy.CompletionCode(attributed: true, true, taskContinues: true, v) == S.TaskStatusCodeType.TASKCMPLT
                   && TimedCompletionPolicy.ReleasesSuccessorsNow(true, v),
                   "(t10) a LATE move half of an attack reports TASKCMPLT (the engage is still issued) and releases the follow-on");
             var h = TimedCompletionPolicy.FinishVerdict.Hold;
             Check(ref failures,
-                  TimedCompletionPolicy.CompletionCode(true, taskContinues: true, h) == S.TaskStatusCodeType.TASKINPRG
-                  && TimedCompletionPolicy.CompletionCode(true, taskContinues: false, h) is null
+                  TimedCompletionPolicy.CompletionCode(attributed: true, true, taskContinues: true, h) == S.TaskStatusCodeType.TASKINPRG
+                  && TimedCompletionPolicy.CompletionCode(attributed: true, true, taskContinues: false, h) is null
                   && !TimedCompletionPolicy.ReleasesSuccessorsNow(true, h),
                   "(t10) an EARLY move half still reports TASKINPRG; an early plain finish reports nothing and releases nothing");
             var n = TimedCompletionPolicy.FinishVerdict.NotTimed;
             Check(ref failures,
-                  TimedCompletionPolicy.CompletionCode(true, taskContinues: false, n) == S.TaskStatusCodeType.TASKCMPLT
-                  && TimedCompletionPolicy.CompletionCode(true, taskContinues: true, n) == S.TaskStatusCodeType.TASKINPRG
-                  && TimedCompletionPolicy.CompletionCode(false, taskContinues: false, n) == S.TaskStatusCodeType.TASKABRT
+                  TimedCompletionPolicy.CompletionCode(attributed: true, true, taskContinues: false, n) == S.TaskStatusCodeType.TASKCMPLT
+                  && TimedCompletionPolicy.CompletionCode(attributed: true, true, taskContinues: true, n) == S.TaskStatusCodeType.TASKINPRG
+                  && TimedCompletionPolicy.CompletionCode(attributed: true, false, taskContinues: false, n) == S.TaskStatusCodeType.TASKABRT
                   && TimedCompletionPolicy.ReleasesSuccessorsNow(true, n) && !TimedCompletionPolicy.ReleasesSuccessorsNow(false, n),
                   "(t10) a task with NO armed timer keeps today's evidence-only codes (no Duration, or TimedCompletion off)");
         }
@@ -1160,7 +1160,7 @@ public static class RulingsSelfTest
             var verdict = success && uuid != null ? Timed.MarkFinished(uuid) : TimedCompletionPolicy.FinishVerdict.NotTimed;
             if (TimedCompletionPolicy.ReleasesSuccessorsNow(success, verdict)) Seq.CompleteTask(uuid);
             else if (!success) Seq.NotifyAbandoned(uuid);
-            var code = TimedCompletionPolicy.CompletionCode(success, taskContinues, verdict);
+            var code = TimedCompletionPolicy.CompletionCode(uuid != null, success, taskContinues, verdict);
             if (code is S.TaskStatusCodeType c) Push(uuid ?? "", c);
         }
 
