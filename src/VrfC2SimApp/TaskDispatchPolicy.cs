@@ -60,6 +60,9 @@ public enum EngageDecision
     AdvanceAndHold,
 }
 
+/// <summary>TESTS-FIRST STUB (lane E2): the ROE a dispatch sets.</summary>
+public enum RoeChoice { FireAtWill, HoldFire, FireWhenFiredUpon }
+
 /// <summary>
 /// THE DISPATCH DECISIONS THE 2026-09-14 RULINGS CHANGED, as pure functions so they are decidable
 /// offline (`--rulings-selftest`) instead of only inside a live run.
@@ -127,6 +130,9 @@ public static class TaskDispatchPolicy
     /// <summary>Does the decision override the order's rules of engagement with fire at will?
     /// Only a unit ATTACK. Every other task keeps the ROE the order carries.</summary>
     public static bool SetsFireAtWill(EngageDecision d) => d == EngageDecision.AdvanceFireAtWill;
+
+    /// <summary>TESTS-FIRST STUB (lane E2).</summary>
+    public static RoeChoice RoeFor(EngageDecision d, string orderRoeCode) => RoeChoice.FireWhenFiredUpon;
 
     /// <summary>The unit ATTACK dispatch line, in the ruled plain words.</summary>
     public const string AttackFireAtWillLine =

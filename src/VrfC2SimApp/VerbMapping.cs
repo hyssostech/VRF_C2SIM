@@ -66,6 +66,9 @@ public enum TaskIntent
     /// exports follow-and-support as ATTACK (an STP defect, ticket being drafted).
     /// </summary>
     FollowAndSupport,
+
+    /// <summary>CNFPSL. TESTS-FIRST STUB: declared, not yet mapped.</summary>
+    PassageOfLines,
 }
 
 /// <summary>

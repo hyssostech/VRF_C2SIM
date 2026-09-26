@@ -36,6 +36,7 @@ public static class VerbMappingSelfTest
         // Follow and support / follow and assume (xsd:3963-3964): advance along the graphic and hold.
         CheckIntent(ref failures, "FOLSPT", TaskIntent.FollowAndSupport);
         CheckIntent(ref failures, "FOLASS", TaskIntent.FollowAndSupport);
+        CheckIntent(ref failures, "CNFPSL", TaskIntent.PassageOfLines);
         Check(ref failures, VerbMapping.Classify("ATTMN").Recognized && VerbMapping.Classify("ATTSPT").Recognized,
               "ATTMN and ATTSPT are RECOGNISED attack verbs, not the bare-move fallback");
 

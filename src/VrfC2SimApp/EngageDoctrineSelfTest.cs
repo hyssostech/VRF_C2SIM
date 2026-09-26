@@ -24,6 +24,8 @@ public static class EngageDoctrineSelfTest
     {
         int failures = 0;
         var targets = Enum.GetValues<TargetResolution>();
+        string repo = FindRepoRoot();
+        string service = repo == null ? null : Path.Combine(repo, "src", "VrfC2SimApp", "VrfC2SimService.cs");
 
         // (e1) ATTACK ON A UNIT: advance + fire at will, whatever the order names as the target.
         //      STP names the performer itself (SelfIsObjective) on every task; a distinct target
@@ -71,7 +73,8 @@ public static class EngageDoctrineSelfTest
 
         // (e4) Every other intent is outside this decision.
         foreach (var i in Enum.GetValues<TaskIntent>().Where(i => i != TaskIntent.Attack && i != TaskIntent.Breach
-                                                                  && i != TaskIntent.FollowAndSupport))
+                                                                  && i != TaskIntent.FollowAndSupport
+                                                                  && i != TaskIntent.PassageOfLines))
             Check(ref failures,
                   TaskDispatchPolicy.ForEngage(i, true, TargetResolution.DistinctEntity) == EngageDecision.NotEngageVerb
                   && TaskDispatchPolicy.ForEngage(i, false, TargetResolution.DistinctEntity) == EngageDecision.NotEngageVerb,
@@ -110,6 +113,54 @@ public static class EngageDoctrineSelfTest
                       $"(e11) FOLSPT/FOLASS, performer {(unit ? "unit" : "platform")}, target {t} -> advance and " +
                       $"hold, never an engage, ROE left as ordered (got {d})");
             }
+
+        // (e12) CNFPSL - conduct forward passage of lines (xsd:3899; STP's own passage-of-lines code,
+        //       docs/STP_TASK_VOCABULARY_2026-09-03.md:36). Coordinator's direction 2026-09-26 (lane E2):
+        //       move along the task's route/graphic through the passage lanes to its end, then hold; no
+        //       engagement; ROE as ordered; completion by the time rules.
+        {
+            var v = VerbMapping.Classify("CNFPSL");
+            Check(ref failures, v.Recognized && v.Implemented && v.Intent == TaskIntent.PassageOfLines,
+                  $"(e12) CNFPSL classifies as a recognised, implemented PassageOfLines (got {v.Intent}, " +
+                  $"recognised={v.Recognized}, implemented={v.Implemented})");
+            Check(ref failures, v.Composition.Contains("hold") && v.Composition.Contains("no engagement"),
+                  $"(e12) CNFPSL's composition says advance-and-hold with no engagement ('{v.Composition}')");
+            foreach (bool unit in new[] { true, false })
+                foreach (var t in targets)
+                {
+                    var d = TaskDispatchPolicy.ForEngage(TaskIntent.PassageOfLines, unit, t);
+                    Check(ref failures, d == EngageDecision.AdvanceAndHold && !TaskDispatchPolicy.IssuesFireAt(d)
+                                        && !TaskDispatchPolicy.SetsFireAtWill(d),
+                          $"(e12) CNFPSL, performer {(unit ? "unit" : "platform")}, target {t} -> advance and hold, " +
+                          $"never an engage, ROE as ordered (got {d})");
+                }
+        }
+
+        // (e13) ONE ROE PER DISPATCH, FROM ONE FUNCTION (lane E2 S2). Only a unit ATTACK overrides the
+        //       order; every other dispatch - including the in-place and hold-in-place ones, which set no
+        //       ROE before - gets the order's own ROE, so a unit's in-place follow-on after an ATTACK does
+        //       not keep fire at will against its own hold-fire.
+        Check(ref failures,
+              TaskDispatchPolicy.RoeFor(EngageDecision.AdvanceFireAtWill, "ROEHold") == RoeChoice.FireAtWill
+              && TaskDispatchPolicy.RoeFor(EngageDecision.AdvanceFireAtWill, "") == RoeChoice.FireAtWill,
+              "(e13) a unit ATTACK is fire at will whatever the order's ROE (RL-20260926-01 A4)");
+        foreach (var d in Enum.GetValues<EngageDecision>().Where(x => x != EngageDecision.AdvanceFireAtWill))
+            Check(ref failures,
+                  TaskDispatchPolicy.RoeFor(d, "ROEHold") == RoeChoice.HoldFire
+                  && TaskDispatchPolicy.RoeFor(d, "ROEFree") == RoeChoice.FireAtWill
+                  && TaskDispatchPolicy.RoeFor(d, "ROETight") == RoeChoice.FireWhenFiredUpon
+                  && TaskDispatchPolicy.RoeFor(d, "") == RoeChoice.FireWhenFiredUpon,
+                  $"(e13) {d}: the order's ROE as sent (ROEHold -> hold fire, ROEFree -> fire at will, else " +
+                  "fire when fired upon)");
+        if (service != null && File.Exists(service))
+        {
+            string src = File.ReadAllText(service);
+            int roeCalls = CountOf(src, "_bridge.SetRulesOfEngagement(");
+            int viaPolicy = CountOf(src, "SetRulesOfEngagement(vrfUuid, ToRoe(TaskDispatchPolicy.RoeFor(");
+            Check(ref failures, viaPolicy == 3 && roeCalls == 4,
+                  $"(e13) the service sets ROE through RoeFor on the in-place, hold-in-place and committed dispatch " +
+                  $"paths ({viaPolicy} of 3) and nowhere else but ESCRT ({roeCalls} calls, expected 4)");
+        }
 
         // (e6) THE WORDS. The log line and the STP-facing observation are part of the contract.
         Check(ref failures,
@@ -152,8 +203,6 @@ public static class EngageDoctrineSelfTest
         // (e8) THE SERVICE ISSUES NO BREACH TASK. A source tripwire: no call to the bridge's Breach
         //      is left in the dispatch code (the entity-level SMS has no breach controller -
         //      research_attack_engage: DtBreachTask is aggregate-level, UG52 35.3.1 p719).
-        string repo = FindRepoRoot();
-        string service = repo == null ? null : Path.Combine(repo, "src", "VrfC2SimApp", "VrfC2SimService.cs");
         Check(ref failures, service != null && File.Exists(service), $"(e8) the service source is on disk ({service})");
         if (service != null && File.Exists(service))
         {
