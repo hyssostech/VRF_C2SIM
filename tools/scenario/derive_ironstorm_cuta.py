@@ -16,9 +16,10 @@ OUTPUTS (tracked)
     data/IRONSTORM_CUTA_Order.xml
 
 THE COMPLETE CHANGE LIST - nothing else is touched. Exactly ONE coordinate pair moves
-(change (e), a user ruling); no unit is renamed, no TaskActionCode is altered, no graphic
-is added or removed, no comment is rewritten, and the root element + namespace + CRLF line
-endings are preserved byte for byte. See data/IRONSTORM_CUTA_CHANGES.md for the rationale
+(change (e), a user ruling); no unit is renamed, exactly THREE TaskActionCodes are altered
+and ONE AffectedEntity added (changes (f) and (g), owner directions), no graphic is added or
+removed, no comment is rewritten, and the root element + namespace + CRLF line endings are
+preserved byte for byte. See data/IRONSTORM_CUTA_CHANGES.md for the rationale
 and the consequences.
 
   (a) DURATION FORMAT (connector bug STP-848). Every IsoTimeDuration value is rewritten
@@ -63,6 +64,35 @@ and the consequences.
       actually drives AND to T14's mirrored embedded Location - see apply_water_nudge.
       NO OTHER COORDINATE MOVES.
 
+  (f) T14's TaskActionCode ATTACK -> FOLSPT, plus a second AffectedEntity = 116 ABCT.
+      OWNER DIRECTION 2026-09-26 ("hack the xml you are using to have the correct codes
+      while stp itself is patched"). STP defect (STP-846 family): the STP source
+      STP-IRON-STORM-SYNTHETIC_Narrative1.op gives T14 what: 'FOLLOW_AND_SUPPORT' and
+      supported: 116 ABCT (884518d7); the connector's C2SimTask.MWTaskCode switches on
+      What.ToLower() = "follow_and_support" but its case label is "follow and support"
+      (STP HEAD BridgingAgents/C2SimBridge/C2SimBridge/C2SimTask.cs:297-299), so it falls
+      through to "return TaskActionCodeType.ATTACK" (:670). FOLSPT is in the C2SIM order
+      schema's TaskActionCodeType (C2SIM_SMX_LOX_ASX_v1.0.1_Order_flat.xsd:1854) and in the
+      SDK enum. The supported unit goes in as a SECOND AffectedEntity (AffectedEntity is
+      maxOccurs unbounded, xsd:2759) after the exported self-reference, which stays first;
+      116 ABCT is asserted present in the init. No TaskFunctionalRelation is added. The
+      interface reads only the FIRST AffectedEntity (OrderParser.cs FirstOrEmpty), so the
+      second one is carried for data fidelity only. NOT PATCHED, on purpose: T02 (what
+      'RECEIVE' - STP has no mapping, `//case "RECEIVE,` is commented out at :545, and the
+      schema has no receive code, so there is no agreed code to restore; it stays ATTACK).
+
+  (g) T01's and T13's TaskActionCode ExecutePlanPhase -> CNFPSL. OWNER DECISION 2026-09-26
+      ("Patch + Jira"). STP defect, same class as (f): both STP source tasks
+      ('ConductFwdPassageOfLines', 28ID and 48 IBCT) have what 'NOT_SPECIFIED' and how
+      'PASSAGE_OF_LINES'; the connector then switches on How.ToLower() (STP HEAD
+      C2SimTask.cs:609) but the case label is the UPPER-case "PASSAGE_OF_LINES" (:645-646,
+      which returns CNFPSL), so it never matches and falls to "return
+      TaskActionCodeType.ExecutePlanPhase" (:668). CNFPSL is in the C2SIM order schema's
+      TaskActionCodeType (C2SIM_SMX_LOX_ASX_v1.0.1_Order_flat.xsd:1789) and in the SDK
+      enum. Only the code changes - no AffectedEntity, Duration or relation is touched.
+      CONSEQUENCE: until the interface maps a CNFPSL verb, T01 and T13 are unmapped verbs,
+      and the T01->T02 / T13->T14 STREND chains depend on how the interface treats them.
+
 USAGE
     python tools/scenario/derive_ironstorm_cuta.py                 # write the pair
     python tools/scenario/derive_ironstorm_cuta.py --check         # verify, write nothing
@@ -95,11 +125,11 @@ Q = '{%s}' % NS
 # written out in; nothing is resequenced.
 # ---------------------------------------------------------------------------
 KEEP = {
-    'f7b52ba4-c889-4a28-9f3a-e9715cd8a65f': 'T01',  # 28ID     ExecutePlanPhase (root)
+    'f7b52ba4-c889-4a28-9f3a-e9715cd8a65f': 'T01',  # 28ID     ExecutePlanPhase->CNFPSL (g) (root)
     '696fbb33-3dce-4854-8935-55fed398c247': 'T02',  # 28ID     ATTACK, STREND on T01
     '9aab7fe6-c7fb-4e74-b586-e11a00fc3eb9': 'T10',  # 1-112 IN CRESRV (root)
-    '37677c40-c595-4b4c-9039-e9865abb4eb3': 'T13',  # 48 IBCT  ExecutePlanPhase (root)
-    '1075b583-a7b8-45e5-b22b-d09988c9443e': 'T14',  # 48 IBCT  ATTACK, STREND on T13
+    '37677c40-c595-4b4c-9039-e9865abb4eb3': 'T13',  # 48 IBCT  ExecutePlanPhase->CNFPSL (g) (root)
+    '1075b583-a7b8-45e5-b22b-d09988c9443e': 'T14',  # 48 IBCT  ATTACK->FOLSPT (f), STREND on T13
 }
 
 # ---------------------------------------------------------------------------
@@ -119,6 +149,41 @@ ADD_GRAPHIC = {
 
 EOL = '\r\n'
 INDENT = ' ' * 10          # the export's indent for ManeuverWarfareTask children
+
+# ---------------------------------------------------------------------------
+# (f) and (g) THE CODE REPAIRS (owner directions 2026-09-26; see the docstring). task
+# uuid -> (change letter, exported code, restored code, supported unit uuid or None, its
+# comment label or None, the STP C2SimTask.cs lines of the defect).
+# ---------------------------------------------------------------------------
+CODE_FIX = {
+    'f7b52ba4-c889-4a28-9f3a-e9715cd8a65f': (
+        'g', 'ExecutePlanPhase', 'CNFPSL', None, None, ':609/:645-646/:668'),
+    '37677c40-c595-4b4c-9039-e9865abb4eb3': (
+        'g', 'ExecutePlanPhase', 'CNFPSL', None, None, ':609/:645-646/:668'),
+    '1075b583-a7b8-45e5-b22b-d09988c9443e': (
+        'f', 'ATTACK', 'FOLSPT', '884518d7-5b82-a455-98de-64aae833d633', '116_ABCT/28ID',
+        ':131/:297-299/:670'),
+}
+
+
+def apply_code_fix(block, old_code, new_code, affected_uuid=None, affected_label=None):
+    """(f)/(g) Replace the ONE TaskActionCode and, when affected_uuid is given, add ONE
+    AffectedEntity line right after the exported (first) AffectedEntity. Raises unless
+    each anchor occurs exactly once."""
+    old = '<TaskActionCode>%s</TaskActionCode>' % old_code
+    if block.count(old) != 1 or block.count('<TaskActionCode>') != 1:
+        raise AssertionError('(f) expected exactly one %s in the task block' % old)
+    if affected_uuid is None:
+        return block.replace(old, '<TaskActionCode>%s</TaskActionCode>' % new_code)
+    if affected_uuid in block:
+        raise AssertionError('(f) the task already names %s' % affected_uuid)
+    first = re.search(r'[ \t]*<AffectedEntity>[^<]*</AffectedEntity>[^\r\n]*\r\n', block)
+    if not first or len(re.findall(r'<AffectedEntity>', block)) != 1:
+        raise AssertionError('(f) expected exactly one exported AffectedEntity')
+    line = ('%s<AffectedEntity>%s</AffectedEntity><!--%s ADDED BY CUT A (f)-->%s'
+            % (INDENT, affected_uuid, affected_label, EOL))
+    block = block[:first.end()] + line + block[first.end():]
+    return block.replace(old, '<TaskActionCode>%s</TaskActionCode>' % new_code)
 
 # ---------------------------------------------------------------------------
 # (e) THE WATER NUDGE on T14's destination. USER RULING 2026-09-21 ("as recommended"):
@@ -329,8 +394,8 @@ def write(path, text):
 
 
 # ---------------------------------------------------------------------------
-def derive_order(src_text, log):
-    """Apply (a), (b) and (c) to the order text. Returns the derived text."""
+def derive_order(src_text, log, init_text=None):
+    """Apply (a), (b), (c), (e), (f) and (g) to the order text. Returns the derived text."""
     blocks = TASK_BLOCK.findall(src_text)
     log('order carries %d <Task> blocks' % len(blocks))
     if len(blocks) != src_text.count('<Task>'):
@@ -400,6 +465,17 @@ def derive_order(src_text, log):
         if u in ADD_GRAPHIC:
             g_uuid, _g_name, short = ADD_GRAPHIC[u]
             block = insert_map_graphic(block, g_uuid, short)
+        if u in CODE_FIX:
+            letter, old_c, new_c, aff, label, stp_lines = CODE_FIX[u]
+            if aff is not None and (init_text is None
+                                    or ('<UUID>%s</UUID>' % aff) not in init_text):
+                raise AssertionError('(f) %s (%s) is not a unit of the init - not inventing it'
+                                     % (label, aff))
+            block = apply_code_fix(block, old_c, new_c, aff, label)
+            extra = '; AffectedEntity + %s %s' % (aff, label) if aff else ''
+            log('  (%s) %s TaskActionCode %s -> %s%s (owner direction 2026-09-26; STP '
+                'C2SimTask.cs%s case mismatch)' % (letter, KEEP[u], old_c, new_c, extra,
+                                                    stp_lines))
         out.append(block)
         kept += 1
     out.append(src_text[pos:])
@@ -467,6 +543,27 @@ def selftest():
         except ValueError:
             print('  ok       refused %r' % bad)
 
+    print('apply_code_fix (f):')
+    blk = (INDENT + '<UUID>u</UUID>' + EOL + INDENT + '<AffectedEntity>self</AffectedEntity><!--x-->'
+           + EOL + INDENT + '<TaskActionCode>ATTACK</TaskActionCode>' + EOL)
+    fixed = apply_code_fix(blk, 'ATTACK', 'FOLSPT', 'sup', 'S')
+    check('code replaced', '<TaskActionCode>FOLSPT</TaskActionCode>' in fixed
+          and 'ATTACK' not in fixed, True)
+    check('second AffectedEntity after the first', fixed.index('>self<') < fixed.index('>sup<'), True)
+    plain = apply_code_fix(blk.replace('ATTACK', 'ExecutePlanPhase'), 'ExecutePlanPhase',
+                           'CNFPSL')
+    check('(g) code only, no AffectedEntity added',
+          '<TaskActionCode>CNFPSL</TaskActionCode>' in plain
+          and plain.count('<AffectedEntity>') == 1, True)
+    for label, bad in (('no ATTACK to replace', blk.replace('ATTACK', 'MOVE')),
+                       ('already names the unit', blk.replace('self', 'sup'))):
+        try:
+            apply_code_fix(bad, 'ATTACK', 'FOLSPT', 'sup', 'S')
+            ok = False
+            print('  MISMATCH %-46s accepted a block it must refuse' % label)
+        except AssertionError:
+            print('  ok       refused: %s' % label)
+
     print('gate (proven on a DIRTY control first, per the ASCII rule):')
     good = ('<?xml version="1.0" encoding="utf-8"?>\r\n<MessageBody xmlns="%s">\r\n'
             '  <A>x</A>\r\n</MessageBody>' % NS)
@@ -515,7 +612,7 @@ def main(argv=None):
     log('INPUT  %s  sha256 %s' % (os.path.basename(SRC_INIT), sha(src_init)))
     log('INPUT  %s  sha256 %s' % (os.path.basename(SRC_ORDER), sha(src_order)))
     log('')
-    out_order = derive_order(src_order, log)
+    out_order = derive_order(src_order, log, src_init)
     out_init = derive_init(src_init, log)
     log('')
 

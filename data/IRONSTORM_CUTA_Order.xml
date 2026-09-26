@@ -1499,7 +1499,7 @@
               </DelayTimeAmount>
             </SimulationTime>
           </StartTime>
-          <TaskActionCode>ExecutePlanPhase</TaskActionCode>
+          <TaskActionCode>CNFPSL</TaskActionCode>
           <RuleOfEngagement>
             <MipWeaponUseROE>
               <WeaponROECode>
@@ -1598,7 +1598,7 @@
               </DelayTimeAmount>
             </SimulationTime>
           </StartTime>
-          <TaskActionCode>ExecutePlanPhase</TaskActionCode>
+          <TaskActionCode>CNFPSL</TaskActionCode>
           <RuleOfEngagement>
             <MipWeaponUseROE>
               <WeaponROECode>
@@ -1630,6 +1630,7 @@
           <Name>T14_48IbctFollowsAndSupports116AbctInAtlanta,ClearingBypassed183SecBdePocketsAndProtectingSesupeCrossingsAndGlocsFromSpf/CommandoAction.</Name>
           <UUID>1075b583-a7b8-45e5-b22b-d09988c9443e</UUID>
           <AffectedEntity>dd3d21b2-c5e0-d45a-9fba-b4b8bb879e6a</AffectedEntity><!--48_IBCT/28ID-->
+          <AffectedEntity>884518d7-5b82-a455-98de-64aae833d633</AffectedEntity><!--116_ABCT/28ID ADDED BY CUT A (f)-->
           <DesiredEffectCode>TaskSuccess</DesiredEffectCode>
           <Duration>
             <IsoTimeDuration>P00Y00M00DT00H20M00S</IsoTimeDuration>
@@ -1644,7 +1645,7 @@
               <TimeReferenceCode>IntervalEndTime</TimeReferenceCode>
             </RelativeTime>
           </StartTime>
-          <TaskActionCode>ATTACK</TaskActionCode>
+          <TaskActionCode>FOLSPT</TaskActionCode>
           <RuleOfEngagement>
             <MipWeaponUseROE>
               <WeaponROECode>
