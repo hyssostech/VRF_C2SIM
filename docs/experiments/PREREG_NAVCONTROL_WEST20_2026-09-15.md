@@ -8,7 +8,7 @@
 
 Tier: HEAVY (the result feeds a cause claim - C1 of docs/experiments/RESEARCH_ABSTRACT_GRAPH_CONNECTIVITY_2026-09-15.md).
 Gate: PREREG (this document). Nothing was launched, no fixture was deployed, no .mtf was edited, nothing was written under
-C:\MAK, and no vendor sim log was opened.
+C:\MAK, and no vendor sim log was opened. [CORRECTION 2026-09-25: the generator writes appData\cache\vrfsim (tile cache) and userData\NavDataDebug (intermediates) under C:\MAK on its own; the 'nothing under C:\MAK' claim was never checked against those paths (measured 2026-09-25: 144 MB + 10.8 GB).]
 
 ## 0. THE CLAIM UNDER TEST AND THE HOLE IN ITS EVIDENCE
 
@@ -124,7 +124,7 @@ at the same directory - the MAX_PATH trap of gen3):
 
 The config and the log live OUTSIDE --outputPath on purpose (gen1 lost both to the tool's own emptying of that
 directory). --navDataDir is passed so no .navRuntimeConfig is written under C:\MAK (gen1). Nothing under C:\MAK is
-written by this run; the only writes are under C:\C2SIM\vrf-nav\control-west20-2026-09-15.
+written by this run; the only writes are under C:\C2SIM\vrf-nav\control-west20-2026-09-15. [CORRECTION 2026-09-25: the generator writes appData\cache\vrfsim (tile cache) and userData\NavDataDebug (intermediates) under C:\MAK on its own; the 'nothing under C:\MAK' claim was never checked against those paths (measured 2026-09-25: 144 MB + 10.8 GB).]
 
 Scheduling: the generator is CPU-heavy and a concurrent load already produced one false headline in this project (the
 2026-09-13 G2 "engine collapse" was my own agent load, not the mesh). The generator is therefore held behind the live
@@ -285,7 +285,7 @@ not a valued option. Attempt 1 (11:11:28Z) passed `--verbose 1`, was refused in 
 and gen-COA.log is the generator's own RENDERING of its parsed options, not the literal argv - reading it as a command
 line was the error. Attempt 2 (11:12:02Z, pid 41584) passed a bare `--verbose`, and its log header prints `--verbose 1`
 just the same, which verifies the diagnosis rather than assuming it. Nothing was written under C:\MAK; the only writes
-are under C:\C2SIM\vrf-nav\control-west20-2026-09-15 (4,802 files, 283.9 MB, plus the 5.4 MB generation log).
+are under C:\C2SIM\vrf-nav\control-west20-2026-09-15 (4,802 files, 283.9 MB, plus the 5.4 MB generation log). [CORRECTION 2026-09-25: the generator writes appData\cache\vrfsim (tile cache) and userData\NavDataDebug (intermediates) under C:\MAK on its own; the 'nothing under C:\MAK' claim was never checked against those paths (measured 2026-09-25: 144 MB + 10.8 GB).]
 Windows had rebooted at 04:31:22Z (confound 6): fresh process tree, cold in-memory tile cache, no VR-Forces back end
 running at the start.
 

@@ -53,7 +53,7 @@ control.
 
 GENERATED 2026-09-07 16:42-17:06Z (before any run): 4,803 files, 166 MB, 1,600 sectors
 ("Generated: ground-platform", no error), 1,436 s wall (the 3x3 km test area took 47 s -
-roughly linear in area, ~3.6 s per km2 at cell-size 43 / raster 0.2). Nothing under C:\MAK.
+roughly linear in area, ~3.6 s per km2 at cell-size 43 / raster 0.2). Nothing under C:\MAK. [CORRECTION 2026-09-25: the generator writes appData\cache\vrfsim (tile cache) and userData\NavDataDebug (intermediates) under C:\MAK on its own; the 'nothing under C:\MAK' claim was never checked against those paths (measured 2026-09-25: 144 MB + 10.8 GB).]
 The .navRuntimeConfig (offset ECEF, extent +/-10 km, nav-data-path absolute via the
 junction, original-terrain = the C:\MAK .mtf) is the record registered on the terrain copy.
 

@@ -447,7 +447,7 @@ profile ground-platform), terrain = MAK Earth (online).mtf:
   the area folder (extent +/-1505 m, offset ECEF, nav-data-path absolute, original-terrain =
   the C:\MAK .mtf, profile-entry ground-platform). NO licence error - the DEMO licence's
   vrf_pathgen_rt (or the toolchain licence) covers CREATION, not only regeneration. Nothing
-  under C:\MAK.
+  under C:\MAK. [CORRECTION 2026-09-25: the generator writes appData\cache\vrfsim (tile cache) and userData\NavDataDebug (intermediates) under C:\MAK on its own; the 'nothing under C:\MAK' claim was never checked against those paths (measured 2026-09-25: 144 MB + 10.8 GB).]
 HOW THE SIM LOADS AN AREA (docs read, not inferred): UG52 66.5 "Import Navigation Area" =
 select the .navRuntimeConfig, "the navigation area is added to the terrain", "Save the
 terrain"; 66.3.3 reopen the scenario; the shipped terrain carries 9 `<Type>navData</Type>`
