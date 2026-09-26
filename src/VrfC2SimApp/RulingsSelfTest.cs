@@ -924,6 +924,90 @@ public static class RulingsSelfTest
               "(t19) the fallback plan: already reported stuck -> keep it stuck; judged stalled now -> report stuck; " +
               "judged moving or no verdict -> engage and drop the destination");
 
+        // (t20) M3-1 of the lane M3 re-review: A SUPERSEDE BETWEEN THE FALLBACK TIMER AND THE TICK.
+        //       The pending engage is removed on the pool thread and the decision waits for the next
+        //       tick; a newer task dispatched in between (the default Vrf:SupersededTaskCode=TASKABRT
+        //       aborts the old one) must not get the OLD engage fired over it, and the old task must
+        //       get no destination drop and no TASKCMPLT.
+        {
+            const double LongD = 1000.0;
+            var f = new CompletionFlow();
+            f.Dispatch("OLDATK", LongD, hasDestination: true);
+            f.Tick(300.0);
+            f.Push("OLDATK", S.TaskStatusCodeType.TASKABRT);      // superseded by a newer task
+            f.Seq.NotifyAbandoned("OLDATK");
+            f.EngageFallback("OLDATK", TimedCompletionPolicy.StallAtFallback.Unknown, moveIsCurrent: false);
+            f.Tick(LongD * 3);
+            Check(ref failures, !f.EngagesIssued.Contains("OLDATK")
+                             && f.Count("OLDATK", S.TaskStatusCodeType.TASKCMPLT) == 0,
+                  "(t20) a supersede between the fallback timer and the tick: the OLD engage is NOT issued over the newer " +
+                  "task, no destination is dropped and no TASKCMPLT follows for the old task");
+        }
+
+        // (t21) M3-2: STALL DETECTION OFF (no watchdog verdict possible) and the unit STAYED PUT since
+        //       dispatch (no member moved Vrf:StallMoveMeters): the owner's caveat, "abort in case the
+        //       unit stays put" (RL-20260921-07) -> the stuck path, not a completion.
+        {
+            const double LongD = 1000.0;
+            var f = new CompletionFlow();
+            f.Dispatch("PUTATK", LongD, hasDestination: true);
+            var next = f.Seq.WaitForStartAsync("PUTATK", 0, 0, LongD + 60.0, f.Clock.AsTaskClock(),
+                                               CancellationToken.None, double.NaN, 86400.0);
+            f.Tick(300.0);
+            var put = TimedCompletionPolicy.StaysPutVerdict(new[] { 0.0, 3.5, 12.0 }, 4, 50.0, 1);
+            f.EngageFallback("PUTATK", TimedCompletionPolicy.StallAtFallback.Unknown, staysPut: put);
+            f.Tick(LongD);
+            f.Tick(LongD * 3);
+            bool done = next.Wait(TimeSpan.FromSeconds(3));
+            Check(ref failures, f.Count("PUTATK", S.TaskStatusCodeType.TASKABRT) == 1
+                             && f.Count("PUTATK", S.TaskStatusCodeType.TASKCMPLT) == 0
+                             && !f.EngagesIssued.Contains("PUTATK")
+                             && done && next.Result == GateResult.PredecessorAbandoned,
+                  "(t21) detection OFF, stayed put since dispatch: TASKABRT, follow-on abandoned, no engage, no TASKCMPLT " +
+                  "(RL-20260921-07: abort in case the unit stays put)");
+        }
+
+        // (t22) M3-2: detection OFF and the unit DID move since dispatch: the interface stops a
+        //       travelling unit - engage issued, completes at its end time.
+        {
+            const double LongD = 1000.0;
+            var f = new CompletionFlow();
+            f.Dispatch("MOVEDATK", LongD, hasDestination: true);
+            f.Tick(300.0);
+            var moved = TimedCompletionPolicy.StaysPutVerdict(new[] { 20.0, 140.0, 95.0 }, 4, 50.0, 1);
+            f.EngageFallback("MOVEDATK", TimedCompletionPolicy.StallAtFallback.Unknown, staysPut: moved);
+            f.Tick(LongD);
+            Check(ref failures, f.EngagesIssued.Contains("MOVEDATK")
+                             && f.Count("MOVEDATK", S.TaskStatusCodeType.TASKCMPLT) == 1
+                             && f.Count("MOVEDATK", S.TaskStatusCodeType.TASKABRT) == 0,
+                  "(t22) detection OFF, moved since dispatch: engage issued, one TASKCMPLT at the end time");
+        }
+
+        // (t23) The pure pieces t20-t22 rest on, called directly.
+        Check(ref failures,
+              TimedCompletionPolicy.PlanEngageFallback(false, false, TimedCompletionPolicy.StallAtFallback.Moving)
+                  == TimedCompletionPolicy.EngageFallbackPlan.Superseded
+              && TimedCompletionPolicy.PlanEngageFallback(false, true, TimedCompletionPolicy.StallAtFallback.Stalled)
+                  == TimedCompletionPolicy.EngageFallbackPlan.Superseded
+              && TimedCompletionPolicy.PlanEngageFallback(true, false, TimedCompletionPolicy.StallAtFallback.Moving)
+                  == TimedCompletionPolicy.EngageFallbackPlan.DropAndEngage,
+              "(t23) a move that is no longer the unit's current task gets NO fallback action at all");
+        Check(ref failures,
+              TimedCompletionPolicy.StaysPutVerdict(new[] { 0.0, 49.9 }, 2, 50.0, 1) == TimedCompletionPolicy.StallAtFallback.Stalled
+              && TimedCompletionPolicy.StaysPutVerdict(new[] { 0.0, 50.0 }, 2, 50.0, 1) == TimedCompletionPolicy.StallAtFallback.Moving
+              && TimedCompletionPolicy.StaysPutVerdict(Array.Empty<double>(), 2, 50.0, 1) == TimedCompletionPolicy.StallAtFallback.Unknown
+              && TimedCompletionPolicy.StaysPutVerdict(new[] { 0.0 }, 4, 50.0, 2) == TimedCompletionPolicy.StallAtFallback.Unknown,
+              "(t23) the stays-put test is StallPolicy.Decide on displacement SINCE DISPATCH at Vrf:StallMoveMeters: below it " +
+              "on every readable member = stayed put; at it = moved; no or too few readable members = no verdict");
+        Check(ref failures,
+              TimedCompletionPolicy.CombineWithStaysPut(TimedCompletionPolicy.StallAtFallback.Moving,
+                                                        TimedCompletionPolicy.StallAtFallback.Stalled)
+                  == TimedCompletionPolicy.StallAtFallback.Moving
+              && TimedCompletionPolicy.CombineWithStaysPut(TimedCompletionPolicy.StallAtFallback.Unknown,
+                                                           TimedCompletionPolicy.StallAtFallback.Stalled)
+                  == TimedCompletionPolicy.StallAtFallback.Stalled,
+              "(t23) the stays-put test is consulted ONLY when the watchdog has no verdict");
+
         // (t15) The two policy calls t12-t14 rest on, called directly (no mirror).
         {
             var p = new TimedCompletionPolicy();
@@ -1049,9 +1133,13 @@ public static class RulingsSelfTest
         /// calls) decides between keeping a stuck unit aborted, reporting it stuck now, or - for a
         /// unit judged moving or not judgeable - issuing the engage and dropping the destination.</summary>
         public void EngageFallback(string task,
-            TimedCompletionPolicy.StallAtFallback verdict = TimedCompletionPolicy.StallAtFallback.Moving)
+            TimedCompletionPolicy.StallAtFallback verdict = TimedCompletionPolicy.StallAtFallback.Moving,
+            bool moveIsCurrent = true,
+            TimedCompletionPolicy.StallAtFallback staysPut = TimedCompletionPolicy.StallAtFallback.Unknown)
         {
-            var plan = TimedCompletionPolicy.PlanEngageFallback(StallReported.Contains(task), verdict);
+            var combined = TimedCompletionPolicy.CombineWithStaysPut(verdict, staysPut);
+            var plan = TimedCompletionPolicy.PlanEngageFallback(moveIsCurrent, StallReported.Contains(task), combined);
+            if (plan == TimedCompletionPolicy.EngageFallbackPlan.Superseded) return;
             if (plan == TimedCompletionPolicy.EngageFallbackPlan.KeepStuck) return;
             if (plan == TimedCompletionPolicy.EngageFallbackPlan.ReportStuckNow) { Stall(task); return; }
             EngagesIssued.Add(task);

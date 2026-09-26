@@ -2646,10 +2646,13 @@ no Duration and no geometry is malformed and is refused, not held (below).
   RL-20260925-01) and OFF by default; its TASKABRT no longer cancels the end time and it abandons the
   stuck unit's follow-ons. At the ATTACK/BREACH engage fallback (`Vrf:EngageFallbackSeconds`) the
   watchdog is asked for its verdict: a unit already reported stuck, or judged stuck then, stays ABORTED
-  (no engage, no TASKCMPLT unless it really arrives); a unit judged moving - or one no verdict can be had
-  on - gets the engage and completes at its end time (at once if already overdue), with a WARNING naming
-  the verdict. RESIDUAL: a unit that stopped less than one watchdog window before the fallback reads as
-  moving; the live run measures displacement at each fallback to count these (F-4).
+  (no engage, no TASKCMPLT unless it really arrives). With NO watchdog verdict (detection off - the shipped
+  default outside the Demo overlay - window not full, clock unusable) a STAYS-PUT test decides: no member
+  moved `Vrf:StallMoveMeters` since dispatch -> the same stuck path ("abort in case the unit stays put",
+  RL-20260921-07). A unit judged moving gets the engage and completes at its end time (at once if already
+  overdue), with a WARNING naming the verdict. A fallback for a move that a newer task has replaced does
+  nothing. RESIDUAL: a unit that MOVED after dispatch and stopped less than one watchdog window before the
+  fallback reads as moving; the live run measures displacement at each fallback to count these (F-4).
 
 - **`Vrf:TaskClock` is NOT `Vrf:StallClock`.** TaskClock carries ALL THREE C2SIM task times -
   the Duration that ends a task (R4), the StartTime/DelayTimeAmount delay that holds one back,

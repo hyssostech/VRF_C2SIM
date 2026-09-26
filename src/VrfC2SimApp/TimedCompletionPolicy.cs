@@ -313,7 +313,42 @@ public sealed class TimedCompletionPolicy
         /// <summary>Judged moving, or no verdict possible: the interface stops a travelling unit -
         /// issue the engage (D4) and drop the destination (<see cref="DropDestination"/>).</summary>
         DropAndEngage,
+        /// <summary>M3-1 (2026-09-25): the move is no longer the unit's current in-flight task - a
+        /// newer task superseded it between the fallback timer and the tick that decides. Its engage
+        /// is dead: nothing is issued, nothing is dropped, nothing is reported.</summary>
+        Superseded,
     }
+
+    /// <summary>The plan, with the M3-1 guard first: a move that is no longer the unit's current
+    /// task gets no fallback action at all.</summary>
+    public static EngageFallbackPlan PlanEngageFallback(bool moveIsCurrent, bool stallReportedForThisMove,
+                                                        StallAtFallback verdict)
+        => !moveIsCurrent ? EngageFallbackPlan.Superseded
+         : PlanEngageFallback(stallReportedForThisMove, verdict);
+
+    /// <summary>
+    /// M3-2 (2026-09-25): THE STAYS-PUT TEST, for when the watchdog can give no verdict (Vrf:
+    /// StallDetection off - the shipped default outside the demo profile - its window not yet full,
+    /// or its clock unusable). The owner's caveat on STP-857: "you should not expect every task to
+    /// require a movement, and abort in case the unit stays put" (RL-20260921-07). The criterion is
+    /// the watchdog's own - StallPolicy.Decide at Vrf:StallMoveMeters and
+    /// Vrf:StallMinMembersWithData, no new threshold - applied to each member's displacement SINCE
+    /// DISPATCH instead of over the watchdog's window: no readable member moved that far = STAYED
+    /// PUT (Stalled); any did = Moving; no or too few readable members = Unknown.
+    /// </summary>
+    public static StallAtFallback StaysPutVerdict(IReadOnlyList<double> displacementsSinceDispatch, int totalMembers,
+                                                  double moveMeters, int minMembersWithData)
+    {
+        int withData = displacementsSinceDispatch?.Count ?? 0;
+        if (withData == 0 || totalMembers <= 0 || withData < Math.Max(1, minMembersWithData))
+            return StallAtFallback.Unknown;
+        return StallPolicy.Decide(displacementsSinceDispatch, totalMembers, moveMeters, minMembersWithData).Stalled
+            ? StallAtFallback.Stalled : StallAtFallback.Moving;
+    }
+
+    /// <summary>The watchdog's verdict wins; the stays-put test is consulted only when it has none.</summary>
+    public static StallAtFallback CombineWithStaysPut(StallAtFallback watchdog, StallAtFallback staysPut)
+        => watchdog != StallAtFallback.Unknown ? watchdog : staysPut;
 
     /// <summary>
     /// NEW-1 of the 2026-09-25 re-review. A STUCK unit is never completed through the engage

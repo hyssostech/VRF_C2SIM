@@ -5253,40 +5253,77 @@ public sealed class VrfC2SimService : BackgroundService
     ///     ABORTED (stall TASKABRT, follow-ons abandoned, D2), keeps its destination, and the engage is
     ///     NOT issued from wherever it is stuck; the engage is parked again, so a unit that does arrive
     ///     later still gets it (D4) and reports TASKCMPLT on that real arrival.
-    /// Which one it is: (1) the watchdog has ALREADY reported this move stuck -> stuck; otherwise
+    /// Which one it is: (0) the move must still be the unit's CURRENT task - M3-1: the decision waits
+    /// for the next tick, and a newer task that superseded the move in between must not have the old
+    /// engage fired over it; (1) the watchdog has ALREADY reported this move stuck -> stuck; otherwise
     /// (2) the watchdog is asked for its verdict NOW, on the same ring and criterion
-    /// (JudgeStallAtFallback).
-    /// RESIDUAL, stated rather than hidden: a unit that stopped LESS THAN ONE WATCHDOG WINDOW before the
-    /// fallback (240 wall s / 360 sim s by default) still shows movement inside that window, is judged
-    /// MOVING, and completes at its end time; and with no verdict possible (Vrf:StallDetection off, the
-    /// window not yet full, the clock unusable) the unit is treated as moving too. The live run counts
-    /// these by measuring each unit's displacement at every fallback from the WatchVrf trace.
+    /// (JudgeStallAtFallback); and (3) when the watchdog can give NO verdict (Vrf:StallDetection off -
+    /// the shipped default outside the demo profile - its window not yet full, or its clock unusable),
+    /// the STAYS-PUT TEST: did any member move Vrf:StallMoveMeters SINCE DISPATCH? If not, the unit
+    /// stayed put and is treated as stuck - the owner's caveat, "abort in case the unit stays put"
+    /// (RL-20260921-07). Same criterion (StallPolicy.Decide), same setting, no new threshold.
+    /// RESIDUAL, stated rather than hidden: a unit that MOVED after dispatch and then stopped LESS THAN
+    /// ONE WATCHDOG WINDOW before the fallback (240 wall s / 360 sim s by default) - or, with the
+    /// watchdog off, that moved at all after dispatch before stopping - is judged MOVING and completes
+    /// at its end time. So is a unit on which even the stays-put test has no data (no dispatch-time
+    /// member positions, or none readable now). The live run counts these by measuring each unit's
+    /// displacement at every fallback from the WatchVrf trace.
     /// </summary>
     private void EngageFallbackOnTick(string unitName, PendingEngage eng)
     {
+        // M3-1: is the move still this unit's current task? If not it was superseded while this
+        // decision waited for the tick; its engage is dead and nothing is done for it.
+        bool moveIsCurrent = _inFlight.TryGetCurrent(unitName, out var current)
+                             && string.Equals(current.TaskUuid ?? "", eng.MoveTaskUuid ?? "", StringComparison.Ordinal);
         // Read BEFORE anything below can clear it (IssueEngage queues a ClearStallState).
         bool stallReported = _stallReported.TryGetValue(unitName, out var reportedFor)
                              && reportedFor == (eng.MoveTaskUuid ?? "");
         var verdict = TimedCompletionPolicy.StallAtFallback.Unknown;
         StallPolicy.Decision d = default;
         double window = 0.0;
-        if (!stallReported) verdict = JudgeStallAtFallback(unitName, eng.MoveTaskUuid, out d, out window);
-        var plan = TimedCompletionPolicy.PlanEngageFallback(stallReported, verdict);
+        bool fromStaysPut = false;
+        if (moveIsCurrent && !stallReported)
+        {
+            verdict = JudgeStallAtFallback(unitName, eng.MoveTaskUuid, out d, out window);
+            if (verdict == TimedCompletionPolicy.StallAtFallback.Unknown)
+            {
+                var put = StaysPutAtFallback(unitName, current, out var dPut, out double sinceDispatch);
+                verdict = TimedCompletionPolicy.CombineWithStaysPut(verdict, put);
+                if (put != TimedCompletionPolicy.StallAtFallback.Unknown)
+                {
+                    d = dPut;
+                    window = sinceDispatch;
+                    fromStaysPut = true;
+                }
+            }
+        }
+        var plan = TimedCompletionPolicy.PlanEngageFallback(moveIsCurrent, stallReported, verdict);
+
+        if (plan == TimedCompletionPolicy.EngageFallbackPlan.Superseded)
+        {
+            _log.LogWarning("Unit {Name}: the engage fallback for task '{Task}' is DROPPED - that move is no longer the " +
+                            "unit's current task (a newer task replaced it), so the {Kind} is not issued and nothing is " +
+                            "reported for the old task here.", unitName, eng.TaskName, eng.Kind);
+            return;
+        }
 
         if (plan != TimedCompletionPolicy.EngageFallbackPlan.DropAndEngage)
         {
             if (plan == TimedCompletionPolicy.EngageFallbackPlan.ReportStuckNow
                 && _inFlight.TryGetCurrent(unitName, out var rec))
-                ReportStall(unitName, rec, window, d);
+                ReportStall(unitName, rec, window, d,
+                            fromStaysPut ? "wall (since dispatch; stays-put test, RL-20260921-07)" : null);
             // Parked again: a stuck unit that does reach the objective later still gets its engage
             // (D4) from the ordinary move-completion path; no second fallback timer is started.
             _pendingEngage.TryAdd(unitName, eng);
             _log.LogWarning("Unit {Name}: move for task '{Task}' did not complete within {S}s and the unit is STUCK " +
                             "({Why}) - the {Kind} is NOT issued, the task keeps its destination and stays ABORTED; it " +
-                            "completes only if the unit really arrives (RL-20260921-05, RL-20260914-01).",
+                            "completes only if the unit really arrives (RL-20260921-05, RL-20260921-07, RL-20260914-01).",
                             unitName, eng.TaskName, _vrf.EngageFallbackSeconds,
                             stallReported ? "already reported by the progress watchdog"
-                                          : FormattableString.Invariant($"judged now: max {d.MaxMeters:F1} m in {window:F0} s"),
+                            : fromStaysPut ? FormattableString.Invariant(
+                                  $"no watchdog verdict; it STAYED PUT: max {d.MaxMeters:F1} m since dispatch {window:F0} wall s ago")
+                            : FormattableString.Invariant($"judged now: max {d.MaxMeters:F1} m in {window:F0} s"),
                             eng.Kind);
             return;
         }
@@ -5300,14 +5337,16 @@ public sealed class VrfC2SimService : BackgroundService
             _log.LogWarning("Unit {Name}: task '{Task}' - the interface replaced its move with the {Kind}, so the unit " +
                             "is no longer travelling and arrival evidence and the progress watchdog no longer watch it: " +
                             "it completes {When} (start time + Duration, RL-20260921-09), not on an arrival. Watchdog " +
-                            "verdict at the fallback: {Verdict} (a unit that stopped less than one window ago reads " +
-                            "as moving - the stated residual).",
+                            "verdict at the fallback: {Verdict} (a unit that moved and then stopped less than one window " +
+                            "ago reads as moving - the stated residual).",
                             unitName, eng.TaskName, eng.Kind,
                             fallbackVerdict == TimedCompletionPolicy.FinishVerdict.EmitNow
                                 ? "NOW - its end time has already passed" : "at its end time",
-                            verdict == TimedCompletionPolicy.StallAtFallback.Moving
-                                ? FormattableString.Invariant($"MOVING (max {d.MaxMeters:F1} m in {window:F0} s)")
-                                : "NONE POSSIBLE (watchdog off, window not full, or clock unusable)");
+                            verdict != TimedCompletionPolicy.StallAtFallback.Moving
+                                ? "NONE POSSIBLE (no watchdog verdict and no dispatch-time member positions to test)"
+                                : fromStaysPut
+                                    ? FormattableString.Invariant($"MOVED since dispatch (max {d.MaxMeters:F1} m; watchdog had no verdict)")
+                                    : FormattableString.Invariant($"MOVING (max {d.MaxMeters:F1} m in {window:F0} s)"));
         if (fallbackVerdict == TimedCompletionPolicy.FinishVerdict.EmitNow)
         {
             _sequencer.CompleteTask(eng.MoveTaskUuid);
@@ -7131,13 +7170,14 @@ public sealed class VrfC2SimService : BackgroundService
 
     /// <summary>TICK THREAD. The stall report for one unit-task: one TASKABRT (report-only) and its
     /// follow-ons abandoned (D2). Shared by MaybeCheckStalls and the engage fallback.</summary>
-    private void ReportStall(string name, InFlightTracker.InFlight rec, double window, StallPolicy.Decision d)
+    private void ReportStall(string name, InFlightTracker.InFlight rec, double window, StallPolicy.Decision d,
+                             string clockLabel = null)
     {
         _stallReported[name] = rec.TaskUuid ?? "";
         _log.LogInformation("STALL: unit {Name} task {Task}: no member moved more than {M:F0} m in the last {W} " +
                             "{Clock} s (max {Max:F1} m); TASKABRT reported.",
                             name, rec.TaskName, _vrf.StallMoveMeters, (int)window,
-                            _stallClockMode == 1 ? "SIM" : "wall", d.MaxMeters);
+                            clockLabel ?? (_stallClockMode == 1 ? "SIM" : "wall"), d.MaxMeters);
         if (!_c2SimUuidByName.TryGetValue(name, out var taskeeUuid))
         {
             _log.LogWarning("STALL for '{Name}' but no C2SIM uuid known - no TASKABRT report sent.", name);
@@ -7187,6 +7227,37 @@ public sealed class VrfC2SimService : BackgroundService
         if (SampleAndJudgeStall(name, rec, positions, total, clockNow, window, usingSim, now, out _, out d) < 2)
             return TimedCompletionPolicy.StallAtFallback.Unknown;
         return d.Stalled ? TimedCompletionPolicy.StallAtFallback.Stalled : TimedCompletionPolicy.StallAtFallback.Moving;
+    }
+
+    /// <summary>
+    /// TICK THREAD. M3-2 (2026-09-25): THE STAYS-PUT TEST at the engage fallback, used only when the
+    /// watchdog has no verdict. Each member's displacement SINCE DISPATCH, from the dispatch baseline
+    /// MarkDispatched records for this very task (STP-837, the same baseline arrival evidence uses),
+    /// judged by TimedCompletionPolicy.StaysPutVerdict (StallPolicy.Decide at Vrf:StallMoveMeters).
+    /// Unknown when the back end is lost, the baseline is not this task's or has no member positions,
+    /// or no member position is readable now. RL-20260921-07: "abort in case the unit stays put".
+    /// </summary>
+    private TimedCompletionPolicy.StallAtFallback StaysPutAtFallback(string name, InFlightTracker.InFlight rec,
+                                                                      out StallPolicy.Decision d,
+                                                                      out double sinceDispatchSeconds)
+    {
+        d = default;
+        sinceDispatchSeconds = (DateTime.UtcNow - rec.DispatchedUtc).TotalSeconds;
+        if (_backendLost) return TimedCompletionPolicy.StallAtFallback.Unknown;
+        if (!_dispatchPositions.TryGetValue(name, out var baseline) || baseline.ByUuid is null
+            || !string.Equals(baseline.TaskUuid ?? "", rec.TaskUuid ?? "", StringComparison.Ordinal))
+            return TimedCompletionPolicy.StallAtFallback.Unknown;
+        if (!TryReadMemberPositions(name, out var positions, out int total))
+            return TimedCompletionPolicy.StallAtFallback.Unknown;
+        var displacements = new List<double>();
+        foreach (var cur in positions)
+            if (baseline.ByUuid.TryGetValue(cur.Key, out var was))
+                displacements.Add(TerrainVertexAuthoring.DistMeters(was.Lat, was.Lon, cur.Value.Lat, cur.Value.Lon));
+        var v = TimedCompletionPolicy.StaysPutVerdict(displacements, total, _vrf.StallMoveMeters,
+                                                      _vrf.StallMinMembersWithData);
+        if (v != TimedCompletionPolicy.StallAtFallback.Unknown)
+            d = StallPolicy.Decide(displacements, total, _vrf.StallMoveMeters, _vrf.StallMinMembersWithData);
+        return v;
     }
 
     private void MaybeCheckStalls()

@@ -384,10 +384,16 @@ LIVE CONFIRMATION IS OWED (a pre-registered run, the seat's step).
   still moving: if the watchdog has already reported the move stuck, or judges it stuck at the fallback on the
   same ring and criterion, the task stays ABORTED (stall TASKABRT, follow-ons abandoned, D2), keeps its
   destination, the engage is NOT issued (it is parked again, so a real late arrival still gets it) and no
-  TASKCMPLT follows unless the unit really arrives (t16, t17, t19). RESIDUAL: a unit that stopped less than one
-  watchdog window before the fallback, or one no verdict can be had on (watchdog off, window not full), is
-  treated as moving and completes at its end time; the live run measures displacement at every fallback from the
-  WatchVrf trace to count these.
+  TASKCMPLT follows unless the unit really arrives (t16, t17, t19). L4 follow-up (lane M3 review): (M3-1) the
+  fallback acts only if the move is still the unit's CURRENT task - a newer task that superseded it while the
+  decision waited for the tick no longer gets the old engage fired over it (t20, t23); (M3-2) when the watchdog
+  has NO verdict (Vrf:StallDetection off - the shipped default outside the demo profile - window not full, clock
+  unusable), a STAYS-PUT test decides: no member moved Vrf:StallMoveMeters since dispatch -> treated as stuck, the
+  same path (the owner's caveat "abort in case the unit stays put", RL-20260921-07; t21-t23). The stall line then
+  says "since dispatch; stays-put test". RESIDUAL, the only one left: a unit that MOVED after dispatch and stopped
+  less than one watchdog window before the fallback (with the watchdog off: that moved at all after dispatch)
+  is judged moving and completes at its end time - as is one with no dispatch-time member positions to test.
+  The live run measures displacement at every fallback from the WatchVrf trace to count these.
 - WHAT CHANGED, re-clamp (RL-20260921-06; D1, including dropping the dispatch-time setLocation): the dispatch gate
   measures and LOGS only - no hold, no refusal, no setLocation at dispatch; `TaskeeReadiness.NotOnTheGround`
   (BOUND-BUT-NOT-ON-THE-GROUND) is retired, and with it F-2's open item, the "setAltitude 0 m above ground
