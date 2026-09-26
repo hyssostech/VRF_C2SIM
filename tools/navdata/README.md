@@ -98,3 +98,6 @@ C:\C2SIM\vrf-nav\shadow and junctions every other SharedData\19\latest entry to 
 one --swap BIOME:OLD=NEW asset edit; `terrain` writes a .mtf copy whose .earth <myFilename> names the shadow copy;
 `box` writes a .navGenConfig for sectors i0..i0+n-1 / j0..j0+n-1 of the AO20 grid (tile-count n keeps 11 cells
 per sector). Record: docs/experiments/PREREG_NAVTREES_YUCCA_2026-09-26.md.
+The generator does NOT keep a sub-box on the parent grid: it widened 55 x 55 cells to 57 x 57, centred on its own
+offset, half a cell off AO20's (2026-09-26). Compare sub-box sectors with the parent's as ~91 % shared ground, or
+generate the unedited control on the SAME sub-box config - that is the like-for-like comparison.

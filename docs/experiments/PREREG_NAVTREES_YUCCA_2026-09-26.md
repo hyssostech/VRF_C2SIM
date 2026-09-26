@@ -118,4 +118,54 @@ both follow the asset, so the tag-rule reading changes. P1 misses (falsifier) ->
 
 ## Result (written after the harvest, never from a live read)
 
-(to be written after the run)
+RUN: waited out lane R's live run (u3\n6_wait_quiet.ps1: busy from 12:28Z, two clear polls at 13:14 / 13:15Z); started
+2026-09-26 13:15:34Z, finished 13:16:40Z (66 s wall; the generator's own "Generation time: 29.3659"). Stdout ends in the
+normal shutdown sequence; stderr empty. EXIT CODE NOT CAPTURED although the prereg promised it: the Start-Process
+object returned an empty ExitCode after WaitForExit - an instrument failure of mine, not a measurement. Log
+C:\C2SIM\vrf-nav\work\log\gen-AO20-trees5x5-2026-09-26.log (90,016 B, sha256 07e166fe...6386); gate output beside it
+(nav_gate-AO20-trees5x5-2026-09-26.txt / .json).
+
+Feasibility (no STOP): the log reads "Loading features from c:\C2SIM\vrf-nav\shadow\TerrainData\TerrainConfiguration\MAK
+Earth (online).earth"; its feature-layer and elevation-layer lines are identical to gen-AO20-2026-09-25.log; tag
+volumes MAK_WATERWAY 0 / MAK_VEGETATION 0 / MAK_ROAD 15 (box-sized). The edited biome definitions were used: the run
+created a NEW Biomes cache folder, appData\cache\vrfsim\Biomes-9f1dab2ed573d922 (13 files, 32,289 B - the only writes
+under C:\MAK; the 2026-09-25 folder is Biomes-255fe9580a63069a), and printed no "Sim model config" line.
+
+The grid. The generator did NOT keep the 55 x 55 cells: it widened the box to 57 x 57 (extent -1204..1204 m, rows
+"Sector (i,j)" with cells -28..28, 11-cell sectors plus a 13-cell last row and column) and centred it on its own
+offset. Mapped into the AO20 frame the new grid sits exactly half a cell (21.5 m) west and south of AO20's: new
+sector (a,b) covers AO20 sector (11+a, 34+b) shifted by 21.5 m in x and y (about 91 % shared ground; the last row
+and column are 13 cells wide).
+
+| # | Verdict | Measured |
+|---|---|---|
+| P0 HIGH | HIT on every observed limb; the exit-code limb UNVERIFIED | 25 sectors, "Generation time: 29.3659", the shadow .earth loaded with the same layer list, "NavArea-ground-platform MojaveAO20_trees5x5.navRuntimeConfig" written (extent +/-1204, offset -2362930.560903 -4690053.796939 3608567.968444) |
+| P0b MED | HIT | 0 "Sim model config: YuccaPalm not found." lines (2026-09-25: 5) |
+| P0c MED | MISS | per-sector input triangles differ from the AO20 sector by 2.8-13.6 % (38.5 % in the 13 x 13-cell corner sector) - the half-cell offset above |
+| P1 HIGH | HIT | every one of the 24 class-64 sectors reads ratio 1.000 (AO20: 21 of them below 0.5, down to 0.019 at (13,36)); the clean sector 1.000 as before. nav_gate: 25 measured, 0 below 0.9, GATE PASS |
+| P2 HIGH | MISS | the histogram is identical (1: 1, 2: 11, 3: 13, as the same 25 AO20 sectors) but 2 sectors changed: new (2,2) <- (13,36) 2 -> 3 and new (1,1) <- (12,35) 3 -> 2 |
+| P3 MED | MISS (fell further than predicted) | 64-only NavData median 97.6 kB, range 90.5-107.9 (AO20 410-541; the band was 100-250) |
+
+The P2 miss, tested rather than explained away: the laneQ3 tag rule (distinct soils + 1 if a tree-bearing class is
+present), evaluated on the NEW sector boxes with the 2026-09-26 CA-FVEG tiles, predicts 23 of 25 exactly - and the two
+it misses are exactly these two ((2,2): only class 64 inside, predicted 2, actual 3; (1,1): class 64 plus a 6-sample
+sliver of 60, predicted 3, actual 2). So the half-cell offset does not account for them. Unexplained. The rule's error
+rate over the 1,600 AO20 sectors is 22 of 1,600 (laneQ3), so 2 of 25 is higher than that but on 25 sectors; the
+prereg reading "reached beyond DSS" is neither shown nor excluded.
+
+What this measures. With Desert Succulent Shrub's single asset changed from YuccaPalm to HoneyMesquiteShortSpring and
+nothing else in the terrain changed, every class-64 sector of this box has a fully connected abstract graph and about
+a fifth of its former NavData, while the distinct-tag count is unchanged in 23 of 25 sectors.
+
+What it does NOT yet exclude - the strongest competing reading: the box SIZE. This is a 2.45 km box; the AO20 numbers
+came from the 20 km area. The unedited 5 x 5 control (the same config on the vendor terrain, about one minute) was not
+run - one generation was authorised. Until it is, "small boxes do not fragment" and "YuccaPalm fragments" are not
+separated. The prereg listed the box size as a known difference; it is the next measurement.
+
+Design implication, stated separately: if the unedited 5 x 5 control fragments, the lever is the one asset line in
+the DSS biome (delivered without writing under C:\MAK through the shadow terrain), and a full AO20 regeneration on the
+shadow terrain is the candidate for a passing area - a new prereg, not enacted here. Nothing was registered: a 5 x 5
+box is a test, not an area.
+
+Side effects: 13 new files (32 KB) in the vendor tile cache under C:\MAK\vrforces5.2d\appData\cache (pre-registered as
+possible); 25 ClientInput intermediates (158,307,124 B) in C:\C2SIM\vrf-nav\userdata\NavDataDebug.
