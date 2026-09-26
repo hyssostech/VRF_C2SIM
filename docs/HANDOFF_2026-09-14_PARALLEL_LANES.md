@@ -12,15 +12,15 @@ RULINGS - read this before you write the word "ruling" anywhere:
 - A ruling is only what docs/RULINGS.md or docs/RULINGS_ARCHIVE.md quotes: the question as it was PUT and the owner's OWN words, with the transcript line. A
   selected option label is the seat's wording, not his words. Anything else is a supervisor statement and must say so.
 - TASK COMPLETION: a TEMPORARY position is in force (owner 2026-09-21, RL-20260921-09, quoted there in full) until the doctrine and vendor research is done;
-  the longer-term rule awaits that research (RL-20260921-08). Quote the ledger; never paraphrase it into a rule. What main does today differs from the
-  temporary position in one way that matters: it reports a task complete when its Duration runs out even if the unit has not arrived, and then suppresses the
-  real arrival (since 746c091). That is a known defect; fixing it is the next code unit and is PLAN-gated with the owner. One implementation fact: stall
-  detection ships OFF by default on main (DEMO_READINESS row 19), so the ruling for a unit that gets stuck only takes effect once it is switched on. "R4" is
+  the longer-term rule awaits that research (RL-20260921-08). Quote the ledger; never paraphrase it into a rule. The completion unit (2026-09-25, scope
+  approved RL-20260925-01, branch feat/completion-temporary-position; LIVE CONFIRMATION OWED) builds it: an early finish is held to start time + Duration; a
+  unit still travelling then completes when it arrives (one OVERDUE line; its follow-ons wait); no-destination tasks end at their Duration; the stall
+  TASKABRT is no longer hidden and abandons the stuck unit's follow-ons. Stall detection: shipped OFF, ON in the DEMO profile. The 746c091 behaviour
+  (complete at the Duration though not arrived) is gone - CORRECTIONS_LOG F-4. "R4" is
   row 4 of the 2026-09-14 question table ("When is SECURE / OCCUPY / DEFEND complete - on arrival, after its Duration, or never?") and it was never put about
   a MOVE: RL-20260914-02, with RL-20260907-01, RL-20260921-05, -07 and -08.
-- The placement re-clamp (8aeb127): ANSWERED 2026-09-21, RL-20260921-06 (S555). The placement STAYS; do not revert 8aeb127. The defect is its dispatch
-  ground gate (it holds tasks on an unconfirmed read-back; on cold streamed terrain it abandons tasks on units the independent trace shows ON the terrain)
-  and its false "32 NEVER MEASURED" tally; a PLAN-gated code unit fixes both (sec 6). Until it lands, PRE-WARM the area and gate the push.
+- The placement re-clamp (8aeb127): ANSWERED 2026-09-21, RL-20260921-06 (S555). The placement STAYS; do not revert 8aeb127. The same unit made the dispatch
+  gate measure-and-log only (no hold, no BOUND-BUT-NOT-ON-THE-GROUND, no refusal) and fixed the "NEVER MEASURED" tally. Still PRE-WARM the area.
 
 ORBAT / movement (docs/DESIGN_ORBAT_TO_VRF_2026-09-06.md CLOSED list C1-C15 - canonical, read there):
 - C1-C10 are CLOSED and their text as this doc used to carry it is archived verbatim HANDOFF_2026-09-21_ARCHIVE.md sec 4. The live imperatives: C1 the company
@@ -119,8 +119,8 @@ Method lessons (each one cost a false claim or a night):
   RL-20260921-02), and the surviving reading "path LENGTH, not membership" - one run, V6h, still owed.
 - OPEN: the Q5 kill-half re-run - STILL unconfirmed (RUNBOOK :2692-2697; anchor the kill on the DISPATCH instant); authorised, RL-20260920-01 (item 9).
 - OPEN: STP-853, the interface reported a dead sim as healthy and dispatched a task into it (DEMO_READINESS row 10).
-- Waiting on the owner: sec 6 items; his own unanswered question RL-20260921-04; the 300 m vs 350 m readiness row (RL-20260921-01); the watchdog
-  default (unruled, see RL-20260913-03). The re-clamp keep/remove question is ANSWERED (RL-20260921-06, S555).
+- Waiting on the owner: sec 6 items; his own unanswered question RL-20260921-04; the 300 m vs 350 m readiness row (RL-20260921-01). The watchdog
+  default is decided for the demo profile (ON, 2026-09-25, RL-20260925-01). The re-clamp keep/remove question is ANSWERED (RL-20260921-06, S555).
 
 ## 2. Where each lane stands (source: docs/PLAN_PARALLEL_LANES_2026-09-14.md - the live plan)
 
@@ -196,5 +196,5 @@ D-series and Iron Storm, the live carry-over. The full run-by-run narrative is a
   ends on 'no more enemy contacts detected' plus a give-up timeout (file:line evidence in the research doc); the sim can be asked through plan trigger
   conditions (DtCeEntDestroyed, DtCeEntInArea), which this repo does not use.
 - BUILT BUT NOT INSTALLED: the two PreToolUse hooks (docs/SESSION_HOOKS.md). Installing them edits a settings.json and is his call.
-- NEXT CODE UNITS, each PLAN-gated with the owner: bring completion to the TEMPORARY position RL-20260921-09; fix the re-clamp dispatch gate and
-  its tally (RL-20260921-06). After them, the units listed in the cold-start handoff, re-scoped by RL-20260921-08.
+- CODE UNIT BUILT 2026-09-25, NOT MERGED: completion on the TEMPORARY position RL-20260921-09 + the re-clamp gate and tally (RL-20260921-06);
+  next is its pre-registered live confirmation run. Then the units listed in the cold-start handoff, re-scoped by RL-20260921-08.

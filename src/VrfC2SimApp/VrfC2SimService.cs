@@ -160,14 +160,17 @@ public sealed class VrfC2SimService : BackgroundService
     private readonly SubstitutionAnnouncer _substitutions = new();
 
     // B1: which TaskStatus code a task may still emit, and how often (TASKSTRT at dispatch,
-    // ONE TASKCMPLT per task, TASKABRT for a refused / skipped / stalled / failed task, and the
-    // abort-then-complete rule). Every TaskStatus report in this file goes through PushTaskStatus,
+    // ONE TASKCMPLT per task, TASKABRT for a refused / skipped / stalled / failed task, and
+    // abort-then-complete - a supervisor position (RL-20260914-01 covers the code only)). Every
+    // TaskStatus report in this file goes through PushTaskStatus,
     // which consults it - so the guarantees are properties of the report STREAM, not of call sites.
     private readonly TaskStatusPolicy _taskStatus = new();
 
-    // R4 (user ruling 2026-09-14): the tasks whose END TIME has not arrived yet. Armed at dispatch
-    // (MarkDispatched), walked forward on the tick thread (MaybeCompleteTimedTasks) and cancelled
-    // by any real end (PushTaskStatus). See TimedCompletionPolicy for the rule.
+    // The tasks whose END TIME (start time + Duration, the owner's temporary position RL-20260921-09)
+    // has not arrived yet, and the OVERDUE ones still waiting for their unit. Armed at dispatch
+    // (MarkDispatched), walked forward on the tick thread (MaybeCompleteTimedTasks), held or closed
+    // by a successful completion (SynthesizeUnitCompletion -> MarkFinished) and cancelled by any
+    // terminal end (PushTaskStatus). See TimedCompletionPolicy for the rule.
     private readonly TimedCompletionPolicy _timed = new();
     private DateTime _nextTimedCheck = DateTime.MinValue;
     private bool _timedClockLineLogged;
@@ -289,8 +292,10 @@ public sealed class VrfC2SimService : BackgroundService
     // height, because the streaming terrain had not paged in. Armed by FinalizePlacement ONLY when
     // that happened - on a run whose terrain answers (the D10/R9 shape) this map stays empty, the
     // tick phase is skipped by its own guard, and the feature costs exactly nothing.
-    // TICK THREAD ONLY for the mutable counters; the dictionaries are concurrent because
-    // ClassifyTaskee reads _groundContact from the order thread's classification path too.
+    // TICK THREAD ONLY for the mutable counters; the dictionaries are concurrent because they are
+    // read off the tick thread for the record. Since 2026-09-25 (RL-20260921-06, scope
+    // RL-20260925-01) no ground-contact verdict holds, refuses or abandons a task: the sweep places
+    // and verifies, and the dispatch-time measurement is only logged.
     private sealed class ReclampEntry
     {
         public string Name;
@@ -317,10 +322,6 @@ public sealed class VrfC2SimService : BackgroundService
     private DateTime _reclampLastQueryUtc = DateTime.MinValue;
     private bool _reclampQueryInFlight;
     private bool _reclampConcluded;
-    // THE LOOP BOUND on the dispatch gate: a task is deferred by the ground gate AT MOST ONCE, so a
-    // correction that does not take costs one extra terrain round trip and then a TASKABRT, never a
-    // cycle. Keyed by task uuid (task names are not unique across orders).
-    private readonly ConcurrentDictionary<string, byte> _groundGateDeferred = new();
 
     // The PlacementPolicy inputs for one planned create, kept parallel to the toCreate list so the
     // terrain reply can re-decide the create altitude without re-parsing the init. DeStacker.Apply
@@ -2899,15 +2900,14 @@ public sealed class VrfC2SimService : BackgroundService
         // affected entity's park is held off by the cap alone (its gate is in RunTaskAsync's `gates`
         // list, so the same inequality covers it).
         bool parked = _materializeOnInitSettled.ContainsKey(unitName);
-        // GROUND CONTACT (2026-09-21). A MEASUREMENT, never a default: absent from the map means
-        // nobody has measured this object, which classifies exactly as it did before this lane.
-        // Only Contact.OffGround - a live altitude read more than Vrf:PlacementReclampTolerance-
-        // Meters from the back end's own terrain height under the same point - holds a task.
-        bool notOnGround = _vrf.PlacementReclamp
-                           && _groundContact.TryGetValue(unitName, out var contact)
-                           && contact == PlacementReclampPolicy.Contact.OffGround;
+        // GROUND CONTACT IS NOT A READINESS STATE (2026-09-25, RL-20260921-06; scope RL-20260925-01).
+        // From 8aeb127 (2026-09-21) until then a unit measured off the terrain was held here as
+        // BOUND-BUT-NOT-ON-THE-GROUND until a read-back confirmed its correction - and run
+        // 20260921T143243Z showed the read-back never landing and two legitimate tasks ended on
+        // units an independent trace shows on the terrain. The placement correction stays (the
+        // init sweep); nothing holds a task on it.
         return DispatchReadiness.Classify(plannedAtInit, _names.IsRequested(unitName), bound,
-                                          readable, parked, notOnGround);
+                                          readable, parked);
     }
 
     /// <summary>
@@ -3001,17 +3001,12 @@ public sealed class VrfC2SimService : BackgroundService
     private void TryDispatchOrHold(OrderTask task, CreatedUnit unit)
     {
         bool plannedAtInit = _unitByC2SimUuid.ContainsKey(task.TaskeeUuid ?? "");
-        // BL-2 (cold-start review of 3151fec). BEFORE classifying, re-open the measurement for a
-        // unit that carries an off-the-terrain verdict. Without this the verdict is STICKY: the
-        // only thing that could clear it is the dispatch gate, which lives inside ExecuteTaskOnTick,
-        // which this hold never reaches - so one failed correction made a unit untaskable for the
-        // life of the process, at Vrf:DispatchReadinessTimeoutSeconds per task, with the terrain
-        // possibly long since streamed and nothing in the app ever looking again.
-        //
-        // This does not delay anything: the task is still held on the CURRENT verdict, and the
-        // re-armed sweep runs concurrently on the tick thread. If it finds the unit on the terrain
-        // it prints CLEARED, flips the contact, and SweepDispatchReadiness releases the hold - well
-        // inside the bound instead of at it.
+        // BL-2 (cold-start review of 3151fec). Re-open the measurement for a unit that carries an
+        // off-the-terrain verdict, so the verdict is re-taken against the terrain as it is NOW (a
+        // late terrain page makes it wrong). Since 2026-09-25 the verdict holds nothing - the task
+        // is classified exactly as if it had never been measured (RL-20260921-06) - so this only
+        // keeps the placement record honest: the re-armed sweep runs concurrently on the tick
+        // thread and prints CLEARED if it finds the unit on the terrain. It delays nothing.
         ReMeasureGroundContactIfStale(unit.Name);
         var state = ClassifyTaskee(unit.Name, plannedAtInit);
         if (!DispatchReadiness.ShouldHold(state, _vrf.DispatchReadinessTimeoutSeconds, _backendLost))
@@ -3245,9 +3240,10 @@ public sealed class VrfC2SimService : BackgroundService
             // version enrolled them, and the consequence was not cosmetic: it would measure the
             // wrong quantity, "correct" it, read it back, disagree, and mark the unit off the
             // ground - on D10's composition (9 UNIT / 1 PLATFORM) that is nine taskees in ten.
-            // WHAT PROTECTS AN AGGREGATE INSTEAD: the DISPATCH GATE, which measures it on its
-            // MEMBERS' CENTROID (RouteOriginPolicy, the origin this method's caller passes as
-            // entityAlt) - the right quantity, taken at the right time.
+            // WHAT COVERS AN AGGREGATE INSTEAD: the dispatch-time measurement
+            // (LogGroundContactAtDispatch), which measures it on its MEMBERS' CENTROID
+            // (RouteOriginPolicy, the origin this method's caller passes as entityAlt) - the right
+            // quantity, taken at the right time. Since 2026-09-25 it is logged, not acted on.
             if (_vrf.PlacementReclamp && !d.CreateAltFromTerrain && !p.IsAggregate
                 && input.Domain == PlacementPolicy.DomainLand && !string.IsNullOrEmpty(p.Name))
                 _reclamp[p.Name] = new ReclampEntry { Name = p.Name, Point = p.Pos };
@@ -3286,9 +3282,9 @@ public sealed class VrfC2SimService : BackgroundService
     /// Vrf:PlacementReclampSeconds; one query in flight at a time; no faster than
     /// Vrf:PlacementReclampRetrySeconds.
     ///
-    /// It never blocks a create, never touches the init barrier and never delays a dispatch: a task
-    /// that arrives while an object is measured OFF the ground is held by the ordinary
-    /// DispatchReadiness machinery through TaskeeReadiness.NotOnTheGround.
+    /// It never blocks a create, never touches the init barrier and never delays or refuses a
+    /// dispatch (2026-09-25, RL-20260921-06): a unit with a task in flight is not corrected
+    /// (SkippedTaskInFlightLine), and no ground-contact verdict holds a task.
     /// </summary>
     private void SweepPlacementReclamp()
     {
@@ -3468,123 +3464,49 @@ public sealed class VrfC2SimService : BackgroundService
     }
 
     /// <summary>
-    /// TICK THREAD, from the ROUTE terrain reply. THE ONE PLACE THIS RUN'S DEFECT WAS VISIBLE AND
-    /// IGNORED: the reply carries the terrain height under vertex 0 and the caller carries the
-    /// taskee's live altitude, which is exactly what produced `app:1135` / `app:1939`
-    /// ("live -0.0 m vs terrain 145.4 m ... authoring from terrain anyway") before two platforms
-    /// measured 145 m and 156 m under the ground were tasked.
+    /// TICK THREAD, from the ROUTE terrain reply. The reply carries the terrain height under vertex 0
+    /// and the caller carries the taskee's live altitude - the measurement run 20260921T114910Z made
+    /// (`app:1135` / `app:1939`, "live -0.0 m vs terrain 145.4 m ... authoring from terrain anyway").
     ///
-    /// Returns TRUE to dispatch. Returns FALSE having taken responsibility for the task - either it
-    /// is now HELD through the ordinary DispatchReadiness machinery (state NotOnTheGround, bounded
-    /// by Vrf:DispatchReadinessTimeoutSeconds), or it has been abandoned with one TASKABRT.
+    /// MEASURE AND LOG, NEVER HOLD (2026-09-25, RL-20260921-06; scope approved as RL-20260925-01).
+    /// From 8aeb127 until then this was a GATE: a taskee measured off the terrain was HELD as
+    /// BOUND-BUT-NOT-ON-THE-GROUND, sent a setLocation, and dispatched only once a read-back agreed -
+    /// or REFUSED with a TASKABRT and its follow-ons abandoned. In run 20260921T143243Z that read-back
+    /// never landed (why is undiagnosed) and the gate ended two tasks on units an independent trace
+    /// shows on the terrain. Now the task is ALWAYS dispatched: the measurement updates the ground-
+    /// contact record and is logged, one line either way. NO setLocation is sent here any more: the
+    /// move follows immediately, and a setLocation into a running move is exactly the case the
+    /// sweep's own in-flight guard refuses (SkippedTaskInFlightLine) - whether a setLocation issued
+    /// just before a movement task is applied before that task starts is not citable from the vendor
+    /// docs. The placement correction itself stays in the init-time sweep (SweepPlacementReclamp).
     ///
-    /// PERMISSIVE WHEN IT KNOWS NOTHING, by construction: no reply, no usable sample for vertex 0,
-    /// or the feature off, and the task dispatches exactly as it does today. Only a MEASUREMENT can
-    /// stop a dispatch. BOUNDED: each task is deferred here AT MOST ONCE (_groundGateDeferred), so
-    /// a correction that does not take costs one extra terrain round trip and then a refusal, never
-    /// a cycle.
+    /// SILENT WHEN IT KNOWS NOTHING: no reply, no usable sample for vertex 0, or the feature off,
+    /// and it logs nothing.
     /// </summary>
-    private bool GroundGateAllowsDispatch(OrderTask task, CreatedUnit unit, List<Geodetic> liveVertices,
-                                          double entityAltMeters, List<TerrainHeightSample> samples)
+    private void LogGroundContactAtDispatch(OrderTask task, CreatedUnit unit, List<Geodetic> liveVertices,
+                                            double entityAltMeters, List<TerrainHeightSample> samples)
     {
         if (!_vrf.PlacementReclamp || samples == null || liveVertices == null || liveVertices.Count == 0)
-            return true;
+            return;
         // Same frame check and same echo/no-data guard the placement path uses, so a reply in the
         // wrong frame or a "terrain 0.0 = no intersection" answer (terrainDatabase.h:398-399) can
-        // never manufacture a refusal.
+        // never manufacture a measurement.
         var terrain = ResolvePlacementTerrain(liveVertices, samples);
-        if (!terrain.TryGetValue(0, out double th)) return true;
+        if (!terrain.TryGetValue(0, out double th)) return;
         var m = PlacementReclampPolicy.Measure(entityAltMeters, th, _vrf.PlacementReclampToleranceMeters);
-        if (m.Contact != PlacementReclampPolicy.Contact.OffGround)
-        {
-            // This read is newer than anything the init sweep has, and it is taken under the
-            // taskee's OWN position - so it also clears a stale OffGround verdict.
-            _groundContact[unit.Name] = m.Contact;
-            // SF-2 (cold-start review): ONE short line per ground dispatch the gate PASSES. It is
-            // the ONLY source of evidence for the 50-100 m band - between this policy's refusal bar
-            // and TerrainVertexAuthoring's 100 m NOTE threshold - which no log in the record covers.
-            // ACCEPTED COST, stated rather than hidden: a healthy R9/D10 run gains exactly one
-            // INFO line per GROUND dispatch - THREE on Iron Storm (route terrain replies 45/47/49)
-            // and THREE on D10 (ids 16/18/19), corrected from "1 on D10" by the delta review's own
-            // count of distinct task terrain replies - and no extra native call -
-            // the measurement is already in hand from the route's own terrain reply.
+        // This read is newer than anything the init sweep has, and it is taken under the taskee's
+        // OWN position, so it replaces the record either way.
+        _groundContact[unit.Name] = m.Contact;
+        if (m.Contact == PlacementReclampPolicy.Contact.OffGround)
+            _log.LogWarning("{Line}", PlacementReclampPolicy.DispatchGateOffTerrainLine(
+                task.TaskName, unit.Name, m, _vrf.PlacementReclampToleranceMeters));
+        else
+            // SF-2 (cold-start review): ONE short line per ground dispatch measured ON the terrain -
+            // the only evidence for the 50-100 m band between the tolerance and
+            // TerrainVertexAuthoring's 100 m NOTE threshold. No extra native call: the measurement
+            // is already in hand from the route's own terrain reply.
             _log.LogInformation("{Line}", PlacementReclampPolicy.GatePassedLine(
                 unit.Name, m, _vrf.PlacementReclampToleranceMeters));
-            return true;
-        }
-        _groundContact[unit.Name] = PlacementReclampPolicy.Contact.OffGround;
-        if (!_groundGateDeferred.TryAdd(task.TaskUuid ?? task.TaskName ?? unit.Name, 0))
-        {
-            string reason = PlacementReclampPolicy.DispatchGateRefusalReason(
-                task.TaskName, unit.Name, m.LiveAltMeters, m.TerrainMeters, m.GapMeters,
-                _vrf.PlacementReclampToleranceMeters);
-            _log.LogError("{Reason}", reason);
-            _sequencer.NotifyAbandoned(task.TaskUuid);
-            PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKABRT, reason);
-            return false;
-        }
-        _log.LogWarning("{Line}", PlacementReclampPolicy.DispatchGateHeldLine(
-            task.TaskName, unit.Name, m.LiveAltMeters, m.TerrainMeters, m.GapMeters,
-            _vrf.PlacementReclampToleranceMeters));
-        // Issue the documented correction NOW and hand the verification to the sweep, which is the
-        // only thing in this file that reads an altitude back. Nothing here claims it worked.
-        //
-        // setLocation, not setAltitude: "Ground vehicles will be clamped to the terrain surface"
-        // (setLocationRequest.h:26-32) against "ignored if the vehicle is not an air-going vehicle"
-        // (setAltitudeRequest.h:23-25). The point is the taskee's OWN live position (vertex 0 IS
-        // the live start, RouteOriginPolicy) with the altitude the create would have used - which
-        // the header says is discarded for a ground vehicle.
-        //
-        // AGGREGATES: vertex 0 here is the MEMBERS' CENTROID, which is the quantity
-        // VRF_ALTITUDE_FRAMES sec 1a says to verify ground contact on - so unlike the init sweep
-        // (which does not enrol units at all) this gate is correct for them. The correction it
-        // sends to a unit is a setLocation, which the docs DO define for an aggregate: the
-        // formation controller turns it into a DtSetLocationRequest per subordinate and "Ground
-        // vehicles will be clamped to the terrain surface" (setLocationRequest.h:27,31-32;
-        // PlacementPolicy.cs:50-53 calls this the documented unit-level lever).
-        //
-        // DL-1: the fix is built from a FRESH live read, not from liveVertices[0] - that vertex was
-        // captured when the route terrain request was ISSUED, and the taskee may have moved since.
-        // The same two guards the sweep applies hold here: never correct a unit with a task already
-        // in flight, and never send a request that would displace it horizontally.
-        if (_names.TryGetUuid(unit.Name, out var uuid))
-        {
-            if (_inFlight.TryGetCurrent(unit.Name, out var busy))
-                _log.LogWarning("{Line}", PlacementReclampPolicy.SkippedTaskInFlightLine(
-                    unit.Name, busy.TaskName, m));
-            else if (_bridge.TryGetEntityGeodetic(uuid, out var liveNow))
-            {
-                var fix = PlacementReclampPolicy.CorrectionLocation(
-                    liveNow.LatDeg, liveNow.LonDeg, th, _vrf.CreateClearanceMeters);
-                if (PlacementReclampPolicy.WouldMoveHorizontally(liveNow.LatDeg, liveNow.LonDeg,
-                                                                 fix.LatDeg, fix.LonDeg))
-                    _log.LogError("{Line}", PlacementReclampPolicy.RefusedToMoveLine(
-                        unit.Name, liveNow.LatDeg, liveNow.LonDeg, fix.LatDeg, fix.LonDeg));
-                else
-                    _bridge.SetLocation(uuid, fix);
-            }
-            ReArmPlacementReclampFor(unit.Name, liveVertices[0], m);
-        }
-        // The ordinary hold: NotOnTheGround is transient, SweepDispatchReadiness completes the gate
-        // when the read-back agrees, and the existing timeout TASKABRT names the state on expiry.
-        TryDispatchOrHold(task, unit);
-        return false;
-    }
-
-    /// <summary>
-    /// TICK THREAD. Put ONE unit back into the re-clamp sweep - with its correction already counted,
-    /// so the sweep's next measurement is a READ-BACK and not a second set - and re-open the sweep's
-    /// window for it. A second window prints a second summary line; **the prereg scores the LAST
-    /// one**, which is the run's final census (SF-7 of the cold-start review - said here so nobody
-    /// has to guess which match to read).
-    /// </summary>
-    private void ReArmPlacementReclampFor(string name, Geodetic point, PlacementReclampPolicy.Measurement m)
-    {
-        _reclamp[name] = new ReclampEntry
-        {
-            Name = name, Point = point, CorrectionsIssued = PlacementReclampPolicy.MaxCorrections, Last = m,
-        };
-        ReopenPlacementReclampWindow();
     }
 
     /// <summary>
@@ -3595,8 +3517,8 @@ public sealed class VrfC2SimService : BackgroundService
     /// replies then run ApplyPlacementReclamp over overlapping entry lists built from different
     /// points. MaxCorrections still caps requests at one per object, so it is not a double
     /// teleport - but a STALE reply landing after a newer one overwrites _groundContact and can
-    /// re-assert OffGround immediately after CLEARED was printed, re-holding a unit the app had
-    /// just released. Resetting _reclampLastQueryUtc is all a re-open needs: it makes the NEXT
+    /// re-assert OffGround immediately after CLEARED was printed (until 2026-09-25 that re-held a
+    /// unit the app had just released; today it only mis-states the record). Resetting _reclampLastQueryUtc is all a re-open needs: it makes the NEXT
     /// query legal as soon as the in-flight one has landed.
     ///
     /// THE WINDOW RESTARTS, AND THAT IS THE INTENT, NOT A LEAK. _reclampArmedUtc is re-anchored, so
@@ -3638,33 +3560,31 @@ public sealed class VrfC2SimService : BackgroundService
         ReopenPlacementReclampWindow();
     }
 
-    /// <summary>TICK THREAD. One summary, once per window. Anything still Pending was never
-    /// measured, and nothing is claimed about it - it stays taskable exactly as it is today.</summary>
+    /// <summary>TICK THREAD. One summary, once per window. A still-Pending entry is concluded by
+    /// PlacementReclampPolicy.ConcludeAtBound: CORRECTED with no read-back, measured off the terrain
+    /// and not corrected (a task was in flight), or - only when nothing was measured at all - NEVER
+    /// MEASURED. The false "32 NEVER MEASURED" of run 20260921T143243Z was the first case counted
+    /// as the third (RL-20260921-06 measurement).</summary>
     private void ConcludePlacementReclamp(double wallSeconds)
     {
         if (_reclampConcluded) return;
         _reclampConcluded = true;
-        // A CENSUS OF THE MAP, not running counters (caught in this lane's own review): the gate can
-        // re-arm the sweep for one unit, and a summary that mixed cumulative totals with a
+        // A CENSUS OF THE MAP, not running counters (caught in this lane's own review): a new task can
+        // re-open the window for one unit (BL-2), and a summary that mixed cumulative totals with a
         // per-window count would be two different questions answered in one sentence.
-        int onGround = 0, reclamped = 0, stillOff = 0, never = 0;
+        var outcomes = new List<PlacementReclampPolicy.Outcome>();
         foreach (var e in _reclamp.Values)
         {
             if (e.Outcome == PlacementReclampPolicy.Outcome.Pending)
             {
-                e.Outcome = PlacementReclampPolicy.Outcome.NeverMeasured;
-                _groundContact.TryRemove(e.Name, out _);   // Unknown, and Unknown holds nothing
+                e.Outcome = PlacementReclampPolicy.ConcludeAtBound(e.Outcome, e.CorrectionsIssued, e.Last.Contact);
+                if (e.Outcome == PlacementReclampPolicy.Outcome.NeverMeasured)
+                    _groundContact.TryRemove(e.Name, out _);   // nothing was measured: Unknown
             }
-            switch (e.Outcome)
-            {
-                case PlacementReclampPolicy.Outcome.AlreadyOnGround: onGround++; break;
-                case PlacementReclampPolicy.Outcome.Reclamped: reclamped++; break;
-                case PlacementReclampPolicy.Outcome.StillOffGround: stillOff++; break;
-                default: never++; break;
-            }
+            outcomes.Add(e.Outcome);
         }
         _log.LogWarning("{Line}", PlacementReclampPolicy.SummaryLine(
-            onGround, reclamped, stillOff, never, wallSeconds));
+            PlacementReclampPolicy.Tally(outcomes), wallSeconds));
     }
 
     /// <summary>
@@ -4063,7 +3983,11 @@ public sealed class VrfC2SimService : BackgroundService
             var gate = await _sequencer.WaitForStartAsync(task.StartAfterTaskUuid, scaledStartMs,
                                                           scaledRelativeMs, timeoutSeconds,
                                                           _taskClockAxis, _stoppingToken,
-                                                          dispatchTimeoutSeconds);
+                                                          dispatchTimeoutSeconds,
+                                                          // RL-20260921-09: a predecessor whose unit is
+                                                          // OVERDUE is waited for up to the chain backstop
+                                                          // from its dispatch, not skipped at end + margin.
+                                                          _vrf.TaskChainBackstopSeconds);
             if (gate != GateResult.Proceed)
             {
                 // P0.2 (DEFECT B): the predecessor never completed. The OLD behavior always
@@ -4770,12 +4694,11 @@ public sealed class VrfC2SimService : BackgroundService
                                         "keep the Live altitude.", requestId, task.TaskName, r.Mode, r.Reason, r.KeptLive.Count);
                     if (r.Note != null)
                         _log.LogInformation("Terrain profile {Id} for task '{Task}': {Note}.", requestId, task.TaskName, r.Note);
-                    // THE DISPATCH GROUND GATE (2026-09-21). This reply carries the terrain height
-                    // under vertex 0 AND the taskee's live altitude, which is the measurement the
-                    // interface made in run 20260921T114910Z (`app:1135`, `app:1939`) and then
-                    // ignored - "authoring from terrain anyway" - tasking two platforms 145 m and
-                    // 156 m under the ground. It does not ignore it any more.
-                    if (!GroundGateAllowsDispatch(task, unit, liveVertices, entityAlt, samples)) return;
+                    // GROUND CONTACT AT DISPATCH (2026-09-21; since 2026-09-25 measure-and-log only,
+                    // RL-20260921-06). This reply carries the terrain height under vertex 0 AND the
+                    // taskee's live altitude, the measurement run 20260921T114910Z made (`app:1135`,
+                    // `app:1939`). It is logged and recorded; it no longer holds or refuses the task.
+                    LogGroundContactAtDispatch(task, unit, liveVertices, entityAlt, samples);
                     ExecuteTaskOnTick(task, unit, r.Vertices);
                 },
                 // D1: THIS continuation is the dispatch (nothing above it has been marked), so it
@@ -5165,11 +5088,28 @@ public sealed class VrfC2SimService : BackgroundService
             // cancels the armed end time for any terminal code, so one call does both.
             string supersededCode = (_vrf.SupersededTaskCode ?? "TASKABRT").Trim();
             if (!TaskDispatchPolicy.SupersedeAbandonsSuccessors(supersededCode))
+            {
+                // 2026-09-25 (completion unit): under RL-20260921-09 a task WITH a destination whose
+                // unit has not arrived is not completed by its end time - it waits for the arrival,
+                // and a superseded task's unit will never arrive for it. So this non-default setting
+                // marks the old task FINISHED here: it still reports TASKCMPLT at its end time, as
+                // configured, or at once if that end time has already passed.
+                var supersededVerdict = _timed.MarkFinished(old.TaskUuid);
                 _log.LogInformation("Unit {Name}: task '{Old}' keeps its armed end time " +
                                     "(Vrf:SupersededTaskCode=TASKCMPLT) - it will report TASKCMPLT when the " +
                                     "order says it ends, even though VR-Forces is no longer running it, and its " +
-                                    "STREND successors keep waiting for that completion.",
-                                    unit.Name, old.TaskName);
+                                    "STREND successors keep waiting for that completion{Now}.",
+                                    unit.Name, old.TaskName,
+                                    supersededVerdict == TimedCompletionPolicy.FinishVerdict.EmitNow
+                                        ? " (its end time has already passed: reported now)" : "");
+                if (supersededVerdict == TimedCompletionPolicy.FinishVerdict.EmitNow)
+                {
+                    _sequencer.CompleteTask(old.TaskUuid);
+                    PushTaskStatus(old.TaskeeUuid, old.TaskUuid, S.TaskStatusCodeType.TASKCMPLT,
+                                   $"SUPERSEDED by task '{task.TaskName}' on {unit.Name} after its end time " +
+                                   "(Vrf:SupersededTaskCode=TASKCMPLT)");
+                }
+            }
             else
             {
                 PushTaskStatus(old.TaskeeUuid, old.TaskUuid, S.TaskStatusCodeType.TASKABRT,
@@ -5229,9 +5169,13 @@ public sealed class VrfC2SimService : BackgroundService
         PushTaskStatus(task.TaskeeUuid, task.TaskUuid, S.TaskStatusCodeType.TASKSTRT,
                        $"dispatched to {unit.Name} as '{kind}'");
 
-        // R4: ARM THE END TIME HERE, for the same reason TASKSTRT is pushed here - this is the one
-        // point every dispatch path reaches. endTime = dispatch + Duration x Vrf:DurationScale.
-        // Register is first-dispatch-wins, so the TerrainProfile re-entry does not restart it.
+        // ARM THE END TIME HERE, for the same reason TASKSTRT is pushed here - this is the one point
+        // every dispatch path reaches. endTime = dispatch + Duration x Vrf:DurationScale (the
+        // owner's temporary position, RL-20260921-09). Register is first-dispatch-wins, so the
+        // TerrainProfile re-entry does not restart it. The DESTINATION flag is what decides whether
+        // the task can be OVERDUE: kinds with no journey (fire, breach, hold-in-place, follow,
+        // patrol) are dispatched with dest = null and end at their end time; a task WITH one that
+        // has not arrived by then is completed when it arrives (TimedCompletionPolicy).
         if (_vrf.TimedCompletion)
         {
             double seconds = ScaleOrderMs(task.DurationMs) / 1000.0;
@@ -5248,10 +5192,17 @@ public sealed class VrfC2SimService : BackgroundService
                 _log.LogWarning("Task '{Task}': Vrf:DurationScale={Scale} collapses its {D:F0} s Duration to " +
                                 "zero - NO end time is armed.",
                                 task.TaskName, _durationScale, task.DurationMs / 1000.0);
-            else if (_timed.Register(task.TaskUuid, task.TaskeeUuid, task.TaskName, unit.Name, seconds))
+            else if (_timed.Register(task.TaskUuid, task.TaskeeUuid, task.TaskName, unit.Name, seconds,
+                                     hasDestination: dest is not null))
                 _log.LogInformation("Task '{Task}': end time armed at {S:F0} s from dispatch " +
-                                    "(C2SIM Duration {D:F0} s x Vrf:DurationScale {Scale}) - R4.",
-                                    task.TaskName, seconds, task.DurationMs / 1000.0, _durationScale);
+                                    "(C2SIM Duration {D:F0} s x Vrf:DurationScale {Scale}) - {Rule} " +
+                                    "(temporary position on completion, RL-20260921-09).",
+                                    task.TaskName, seconds, task.DurationMs / 1000.0, _durationScale,
+                                    dest is not null
+                                        ? "it has a destination: an earlier arrival is held to this end " +
+                                          "time, and if the unit is still travelling then it completes " +
+                                          "when it arrives"
+                                        : "it has no destination: it completes at this end time");
         }
     }
 
@@ -5276,14 +5227,146 @@ public sealed class VrfC2SimService : BackgroundService
     {
         try { await Task.Delay(TimeSpan.FromSeconds(_vrf.EngageFallbackSeconds), _stoppingToken); }
         catch (OperationCanceledException) { return; }
-        // Remove-if-still-this-engage: if the completion (or a supersede) already consumed
-        // it, this exact KeyValuePair no longer exists and TryRemove fails - no double fire.
-        if (_pendingEngage.TryRemove(new KeyValuePair<string, PendingEngage>(unitName, eng)))
+        // ONLY ENQUEUE (M4-1, 2026-09-25). The engage is taken off the pending list INSIDE the tick
+        // action, not here: the move's completion (SynthesizeUnitCompletion, run from the tick thread
+        // for vendor completions and arrival evidence) and a supersede (MarkDispatched) take it on
+        // that same thread, so exactly one of them - whichever runs first - wins it. Taking it here,
+        // on the pool thread, left a window of about one tick in which a unit that really ARRIVED
+        // found no engage and never got its action at the objective (D4 of RL-20260925-01), and the
+        // fallback then dropped it. The decision itself also reads the watchdog's state and sample
+        // ring, which live on the tick thread, BEFORE IssueEngage (whose queued ClearStallState would
+        // wipe the stall record this decision has to read).
+        _tickActions.Enqueue(() => EngageFallbackOnTick(unitName, eng));
+    }
+
+    /// <summary>
+    /// TICK THREAD. THE ENGAGE FALLBACK'S DECISION (2026-09-25; lane M review S1, re-review NEW-1).
+    /// After Vrf:EngageFallbackSeconds the approach move of an ATTACK / BREACH has not completed.
+    /// Two very different units reach this point, and the owner's words treat them differently:
+    ///   - A unit still MOVING: the interface replaces its move with the engage and so STOPS it. Under
+    ///     the temporary position (RL-20260921-09) a task ends at start time + Duration unless its unit
+    ///     is still travelling, and this unit no longer is - we stopped it. The engage is issued (D4 of
+    ///     RL-20260925-01) and the task is told it has no destination: it completes AT its end time, or
+    ///     NOW if that has passed. Without this it sat OVERDUE until an engage completion VR-Forces may
+    ///     never send.
+    ///   - A STUCK unit: being stuck is NOT a completion - "The notion that geting stuck midway is a
+    ///     complete is completelly illogical" (RL-20260921-05); a unit that never arrives is a stuck
+    ///     unit, covered by the stall ruling (RL-20260921-09 S569, RL-20260914-01). The effect of a task
+    ///     is what the temporary position ignores; getting stuck is not the effect. So a stuck unit is
+    ///     ABORTED (stall TASKABRT, follow-ons abandoned, D2), keeps its destination, and the engage is
+    ///     NOT issued from wherever it is stuck; the engage is parked again, so a unit that does arrive
+    ///     later still gets it (D4) and reports TASKCMPLT on that real arrival.
+    /// Which one it is: (0) the move must still be the unit's CURRENT task - M3-1: the decision waits
+    /// for the next tick, and a newer task that superseded the move in between must not have the old
+    /// engage fired over it; (1) the watchdog has ALREADY reported this move stuck -> stuck; otherwise
+    /// (2) the watchdog is asked for its verdict NOW, on the same ring and criterion
+    /// (JudgeStallAtFallback); and (3) when the watchdog can give NO verdict (Vrf:StallDetection off -
+    /// the shipped default outside the demo profile - its window not yet full, or its clock unusable),
+    /// the STAYS-PUT TEST: did any member move Vrf:StallMoveMeters SINCE DISPATCH? If not, the unit
+    /// stayed put and is treated as stuck - the owner's caveat, "abort in case the unit stays put"
+    /// (RL-20260921-07). Same criterion (StallPolicy.Decide), same setting, no new threshold.
+    /// RESIDUAL, stated rather than hidden: a unit that MOVED after dispatch and then stopped LESS THAN
+    /// ONE WATCHDOG WINDOW before the fallback (240 wall s / 360 sim s by default) - or, with the
+    /// watchdog off, that moved at all after dispatch before stopping - is judged MOVING and completes
+    /// at its end time. So is a unit on which even the stays-put test has no data (no dispatch-time
+    /// member positions, or none readable now). The live run counts these by measuring each unit's
+    /// displacement at every fallback from the WatchVrf trace.
+    /// </summary>
+    private void EngageFallbackOnTick(string unitName, PendingEngage eng)
+    {
+        // M4-1: take THIS engage off the pending list here, on the tick thread. Remove-if-still-this-
+        // engage: if the move's completion already issued it, or a supersede cancelled it, this exact
+        // KeyValuePair is gone and there is nothing to do - no double fire, no stale action.
+        if (!_pendingEngage.TryRemove(new KeyValuePair<string, PendingEngage>(unitName, eng)))
         {
-            _log.LogWarning("Unit {Name}: move for task '{Task}' did not complete within {S}s; " +
-                            "issuing the {Kind} via fallback (it will replace the still-running move).",
-                            unitName, eng.TaskName, _vrf.EngageFallbackSeconds, eng.Kind);
-            IssueEngage(unitName, eng);
+            _log.LogInformation("Unit {Name}: the engage fallback for task '{Task}' finds nothing to do - its {Kind} was " +
+                                "already taken (the move completed and issued it, or a newer task cancelled it).",
+                                unitName, eng.TaskName, eng.Kind);
+            return;
+        }
+        // M3-1, now a backstop behind the TryRemove above: is the move still this unit's current
+        // task? If not, its engage is dead and nothing is done for it.
+        bool moveIsCurrent = _inFlight.TryGetCurrent(unitName, out var current)
+                             && string.Equals(current.TaskUuid ?? "", eng.MoveTaskUuid ?? "", StringComparison.Ordinal);
+        // Read BEFORE anything below can clear it (IssueEngage queues a ClearStallState).
+        bool stallReported = _stallReported.TryGetValue(unitName, out var reportedFor)
+                             && reportedFor == (eng.MoveTaskUuid ?? "");
+        var verdict = TimedCompletionPolicy.StallAtFallback.Unknown;
+        StallPolicy.Decision d = default;
+        double window = 0.0;
+        bool fromStaysPut = false;
+        if (moveIsCurrent && !stallReported)
+        {
+            verdict = JudgeStallAtFallback(unitName, eng.MoveTaskUuid, out d, out window);
+            if (verdict == TimedCompletionPolicy.StallAtFallback.Unknown)
+            {
+                var put = StaysPutAtFallback(unitName, current, out var dPut, out double sinceDispatch);
+                verdict = TimedCompletionPolicy.CombineWithStaysPut(verdict, put);
+                if (put != TimedCompletionPolicy.StallAtFallback.Unknown)
+                {
+                    d = dPut;
+                    window = sinceDispatch;
+                    fromStaysPut = true;
+                }
+            }
+        }
+        var plan = TimedCompletionPolicy.PlanEngageFallback(moveIsCurrent, stallReported, verdict);
+
+        if (plan == TimedCompletionPolicy.EngageFallbackPlan.Superseded)
+        {
+            _log.LogWarning("Unit {Name}: the engage fallback for task '{Task}' is DROPPED - that move is no longer the " +
+                            "unit's current task (a newer task replaced it), so the {Kind} is not issued and nothing is " +
+                            "reported for the old task here.", unitName, eng.TaskName, eng.Kind);
+            return;
+        }
+
+        if (plan != TimedCompletionPolicy.EngageFallbackPlan.DropAndEngage)
+        {
+            if (plan == TimedCompletionPolicy.EngageFallbackPlan.ReportStuckNow
+                && _inFlight.TryGetCurrent(unitName, out var rec))
+                ReportStall(unitName, rec, window, d,
+                            fromStaysPut ? "wall (since dispatch; stays-put test, RL-20260921-07)" : null);
+            // Parked again: a stuck unit that does reach the objective later still gets its engage
+            // (D4) from the ordinary move-completion path; no second fallback timer is started.
+            _pendingEngage.TryAdd(unitName, eng);
+            _log.LogWarning("Unit {Name}: move for task '{Task}' did not complete within {S}s and the unit is STUCK " +
+                            "({Why}) - the {Kind} is NOT issued, the task keeps its destination and stays ABORTED; it " +
+                            "completes only if the unit really arrives (RL-20260921-05, RL-20260921-07, RL-20260914-01).",
+                            unitName, eng.TaskName, _vrf.EngageFallbackSeconds,
+                            stallReported ? "already reported by the progress watchdog"
+                            : fromStaysPut ? FormattableString.Invariant(
+                                  $"no watchdog verdict; it STAYED PUT: max {d.MaxMeters:F1} m since dispatch {window:F0} wall s ago")
+                            : FormattableString.Invariant($"judged now: max {d.MaxMeters:F1} m in {window:F0} s"),
+                            eng.Kind);
+            return;
+        }
+
+        _log.LogWarning("Unit {Name}: move for task '{Task}' did not complete within {S}s; " +
+                        "issuing the {Kind} via fallback (it will replace the still-running move).",
+                        unitName, eng.TaskName, _vrf.EngageFallbackSeconds, eng.Kind);
+        IssueEngage(unitName, eng);
+        var fallbackVerdict = _timed.DropDestination(eng.MoveTaskUuid);
+        if (fallbackVerdict != TimedCompletionPolicy.FinishVerdict.NotTimed)
+            _log.LogWarning("Unit {Name}: task '{Task}' - the interface replaced its move with the {Kind}, so the unit " +
+                            "is no longer travelling and arrival evidence and the progress watchdog no longer watch it: " +
+                            "it completes {When} (start time + Duration, RL-20260921-09), not on an arrival. Watchdog " +
+                            "verdict at the fallback: {Verdict} (a unit that moved and then stopped less than one window " +
+                            "ago reads as moving - the stated residual).",
+                            unitName, eng.TaskName, eng.Kind,
+                            fallbackVerdict == TimedCompletionPolicy.FinishVerdict.EmitNow
+                                ? "NOW - its end time has already passed" : "at its end time",
+                            verdict != TimedCompletionPolicy.StallAtFallback.Moving
+                                ? "NONE POSSIBLE (no watchdog verdict and no dispatch-time member positions to test)"
+                                : fromStaysPut
+                                    ? FormattableString.Invariant($"MOVED since dispatch (max {d.MaxMeters:F1} m; watchdog had no verdict)")
+                                    : FormattableString.Invariant($"MOVING (max {d.MaxMeters:F1} m in {window:F0} s)"));
+        if (fallbackVerdict == TimedCompletionPolicy.FinishVerdict.EmitNow)
+        {
+            _sequencer.CompleteTask(eng.MoveTaskUuid);
+            PushTaskStatus(_c2SimUuidByName.TryGetValue(unitName, out var fbTaskee) ? fbTaskee : "",
+                           eng.MoveTaskUuid ?? "", S.TaskStatusCodeType.TASKCMPLT,
+                           $"unit {unitName}: its end time (start time + Duration) has passed and the interface " +
+                           $"replaced its move with the {eng.Kind} (engage fallback) - the unit is no longer travelling");
         }
     }
 
@@ -6334,7 +6417,8 @@ public sealed class VrfC2SimService : BackgroundService
                                     "arrival radius of a {Len:F0} m route - standing there is not evidence of having " +
                                     "driven it (STP-837; V6g reported 4/4 'within 500 m of the last vertex, nearest " +
                                     "26 m' while one M1A2 had moved 20 m). This task closes only on a VR-Forces " +
-                                    "completion or on its C2SIM Duration.",
+                                    "completion: its C2SIM Duration alone no longer closes a task with a " +
+                                    "destination - once overdue it waits for that completion (RL-20260921-09).",
                                     name, rec.TaskName, lastFromStart, radius, rec.RouteLengthMeters);
                 continue;
             }
@@ -6760,7 +6844,7 @@ public sealed class VrfC2SimService : BackgroundService
         {
             _timedClockLineLogged = true;
             _timedUsingSim = usingSim;
-            _log.LogInformation("TIMED COMPLETION (R4): {N} task(s) are timing out against the {Clock} clock" +
+            _log.LogInformation("TIMED COMPLETION: {N} task(s) are timing out against the {Clock} clock" +
                                 "{Why}; Vrf:DurationScale={Scale}.", _timed.Count,
                                 usingSim ? "SIMULATION" : "WALL",
                                 usingSim ? "" : (preferSim
@@ -6771,11 +6855,32 @@ public sealed class VrfC2SimService : BackgroundService
 
         foreach (var p in _timed.Advance(clockNow, usingSim: true))
         {
+            if (p.Kind == TimedCompletionPolicy.DueKind.OverdueAwaitingArrival)
+            {
+                // RL-20260921-09 (temporary position): a unit still travelling at its end time has
+                // NOT completed. Nothing is reported and nothing is released here; the TASKCMPLT is
+                // sent when it arrives (SynthesizeUnitCompletion -> MarkFinished -> EmitNow), and a
+                // unit that is stuck instead is the stall watchdog's TASKABRT (RL-20260914-01) -
+                // which this timer no longer hides. The follow-on's gate is told to keep waiting.
+                _log.LogWarning("TIMED COMPLETION: task '{Task}' on {Unit} reached its END TIME - {Served:F0} s " +
+                                "of a {Dur:F0} s Duration served on the {Clock} clock - but the unit has NOT " +
+                                "ARRIVED: OVERDUE. No TASKCMPLT is sent now; it is sent the moment the unit " +
+                                "arrives, and its follow-on tasks keep waiting until then (temporary position " +
+                                "on completion, RL-20260921-09). A unit that is stuck is reported by the " +
+                                "progress watchdog (Vrf:StallDetection={Stall}).",
+                                p.TaskName, p.UnitName, p.Elapsed, p.DurationSeconds,
+                                usingSim ? "simulation" : "wall", _vrf.StallDetection);
+                _sequencer.NotifyOverdue(p.TaskUuid);
+                continue;
+            }
             _log.LogInformation("TIMED COMPLETION: task '{Task}' on {Unit} reached its END TIME - " +
                                 "{Served:F0} s of a {Dur:F0} s Duration served on the {Clock} clock " +
-                                "(C2SIM Duration x Vrf:DurationScale {Scale}). R4: completion is given by " +
-                                "the end time.", p.TaskName, p.UnitName, p.Elapsed, p.DurationSeconds,
-                                usingSim ? "simulation" : "wall", _durationScale);
+                                "(C2SIM Duration x Vrf:DurationScale {Scale}). Completion is given by start " +
+                                "time + Duration (temporary position, RL-20260921-09){Why}.",
+                                p.TaskName, p.UnitName, p.Elapsed, p.DurationSeconds,
+                                usingSim ? "simulation" : "wall", _durationScale,
+                                p.HasDestination ? " - the unit had already arrived; its completion was held " +
+                                                   "until now" : "");
             // m9 (cold-start review of 5c67d41): AN IN-PLACE TASK MUST RELEASE ITS UNIT. Only the
             // "hold-in-place" kind - the one that issues no vendor task, so no vendor completion
             // will ever pop the record - and only while it is STILL the unit's current task, so a
@@ -6791,7 +6896,7 @@ public sealed class VrfC2SimService : BackgroundService
             PushTaskStatus(p.TaskeeUuid, p.TaskUuid, S.TaskStatusCodeType.TASKCMPLT,
                            $"task '{p.TaskName}' reached the end time given by its C2SIM Duration " +
                            $"({p.DurationSeconds:F0} s after dispatch)");
-            // The chain does not care HOW the task ended (R4): release the successors' gate.
+            // The task is over: release its follow-ons' gate.
             _sequencer.CompleteTask(p.TaskUuid);
         }
     }
@@ -6983,6 +7088,17 @@ public sealed class VrfC2SimService : BackgroundService
                 // task we have just declared dead must fail NOW, not at the end of its window.
                 _sequencer.NotifyAbandoned(rec.TaskUuid);
             }
+            // 2026-09-25 (completion unit): a task whose unit FINISHED EARLY is no longer in flight -
+            // its TASKCMPLT is held for its end time (RL-20260921-09) - so the snapshot above misses
+            // it, and a dead back end would still get a TASKCMPLT at that end time. It is treated
+            // like the in-flight set: TASKABRT (which cancels the held timer) and its follow-ons
+            // abandoned.
+            foreach (var held in _timed.HeldAfterFinish())
+            {
+                PushTaskStatus(held.TaskeeUuid, held.TaskUuid, S.TaskStatusCodeType.TASKABRT,
+                               why + " (its unit had finished early and the task was waiting for its end time)");
+                _sequencer.NotifyAbandoned(held.TaskUuid);
+            }
             // NOTHING IS MEASURED ACROSS THE OUTAGE. C16's rings are stamped with positions from
             // before the loss; judged after it they would call every unit stalled - for a reason
             // that is not the taskee's.
@@ -7007,6 +7123,154 @@ public sealed class VrfC2SimService : BackgroundService
         _ = PushReportAsync(BackendLivenessPolicy.BuildStateChangeReport(
                 BackendLivenessPolicy.RecoveryMarking(lostFor, activeBackends),
                 IsoNow(), NewReportId()), ReportKind.Observation);
+    }
+
+    /// <summary>
+    /// TICK THREAD. ONE progress-watchdog judgement of one unit's current in-flight move: admit a
+    /// sample into its ring and, when the window is full, decide on the calibrated criterion
+    /// (StallPolicy: the window of this clock, Vrf:StallMoveMeters). Factored out of
+    /// MaybeCheckStalls on 2026-09-25 so the ENGAGE FALLBACK can ask the SAME judge for its verdict
+    /// at the moment it fires (JudgeStallAtFallback) - one criterion, not two.
+    /// Returns 0 = no sample admitted, 1 = sampled but not judgeable yet, 2 = judged (see d).
+    /// </summary>
+    private int SampleAndJudgeStall(string name, InFlightTracker.InFlight rec,
+                                    Dictionary<string, (double Lat, double Lon)> positions, int total,
+                                    double clockNow, double window, bool usingSim, DateTime now,
+                                    out int ringCount, out StallPolicy.Decision d)
+    {
+        d = default;
+        var samples = _stallSamples.GetOrAdd(name, _ => new StallSamples());
+        var ring = samples.Ring;
+        // The watch opens at the first sample after the dispatch that cleared this unit's
+        // state, so StartClock is the dispatch anchor on the selected clock (within one
+        // StallCheckSeconds, plus however long the members took to reflect). StallPolicy.Admit
+        // owns the ring: it appends, REPLACES a sample that did not advance the clock (a
+        // paused scenario, or a status period coarser than the cadence), drops everything
+        // from an abandoned timeline on a snapshot rollback and re-arms the watch there, and
+        // then front-prunes to one sample at or before the window edge.
+        samples.StartClock = StallPolicy.Admit(ring, clockNow, positions, window, samples.StartClock);
+        // DEFENCE IN DEPTH AT THE CRASH POINT (pass-3 review P1). Admit REFUSES a non-finite
+        // clock, so on a unit's first check it can return with the ring still EMPTY - and
+        // 08146a2 indexed ring[0] on the very next line. The predicate above (UsingSimClock,
+        // which now requires double.IsFinite) is what makes that unreachable; this is the
+        // brace to that belt, because MaybeCheckStalls is called bare from TickLoop and an
+        // unhandled exception on the vrf-tick thread terminates the interface process.
+        ringCount = ring.Count;
+        if (ring.Count == 0) return 0;
+        var oldest = ring[0];
+        // Grace + full window on the selected clock, AND the floors that clock cannot supply
+        // (review findings 3 and 4): MinRingDepth samples inside the window - on BOTH clocks -
+        // and, on the WALL clock only, StallMinSecondsSinceDispatch of WALL time since THIS
+        // record's own dispatch (the anchor 51d78a5 used and 1616614 dropped). Never judge on
+        // a partial window: a unit 60 s into its watch has only 60 s of history, and 50 m over
+        // 60 s is a different (much stricter) test than 50 m over 240.
+        // The wall floor is NOT ANDed on the sim clock (pass-2 review F8): 360 sim s is ~58
+        // wall s at G5's 6.21x, so above ratio ~6x the floor - not the calibrated window - set
+        // the detection time (measured at 60x: wall 60 s / sim 3,600 s), negating the "fires
+        // EARLIER in wall time" property the 360 s default was chosen for. MinRingDepth, which
+        // 51d78a5 did not have, covers the two-sample case the floor incidentally guarded.
+        if (!StallPolicy.JudgeReady(clockNow, oldest.Clock, samples.StartClock, window,
+                                    _vrf.StallMinSecondsSinceDispatch, ring.Count,
+                                    (now - rec.DispatchedUtc).TotalSeconds,
+                                    applyWallFloor: !usingSim)) return 1;
+        var displacements = new List<double>();
+        foreach (var cur in positions)
+            if (oldest.P.TryGetValue(cur.Key, out var was))
+                displacements.Add(TerrainVertexAuthoring.DistMeters(was.Lat, was.Lon, cur.Value.Lat, cur.Value.Lon));
+        d = StallPolicy.Decide(displacements, total, _vrf.StallMoveMeters, _vrf.StallMinMembersWithData);
+        return 2;
+    }
+
+    /// <summary>TICK THREAD. The stall report for one unit-task: one TASKABRT (report-only) and its
+    /// follow-ons abandoned (D2). Shared by MaybeCheckStalls and the engage fallback.</summary>
+    private void ReportStall(string name, InFlightTracker.InFlight rec, double window, StallPolicy.Decision d,
+                             string clockLabel = null)
+    {
+        _stallReported[name] = rec.TaskUuid ?? "";
+        _log.LogInformation("STALL: unit {Name} task {Task}: no member moved more than {M:F0} m in the last {W} " +
+                            "{Clock} s (max {Max:F1} m); TASKABRT reported.",
+                            name, rec.TaskName, _vrf.StallMoveMeters, (int)window,
+                            clockLabel ?? (_stallClockMode == 1 ? "SIM" : "wall"), d.MaxMeters);
+        if (!_c2SimUuidByName.TryGetValue(name, out var taskeeUuid))
+        {
+            _log.LogWarning("STALL for '{Name}' but no C2SIM uuid known - no TASKABRT report sent.", name);
+            return;
+        }
+        // REPORT-ONLY for the task itself: it stays in flight, its armed end time is NOT cancelled
+        // (reportOnlyAbort), and a unit that later arrives still reports TASKCMPLT. Before the
+        // completion unit of 2026-09-25 this abort was usually SUPPRESSED - the Duration timer had
+        // already reported TASKCMPLT for the unarrived unit - and it released nothing.
+        PushTaskStatus(taskeeUuid, rec.TaskUuid ?? "", S.TaskStatusCodeType.TASKABRT,
+                       "STALLED (C16 progress watchdog) - report only: the task stays in flight, no " +
+                       "VR-Forces command is issued and nothing is re-tasked; its follow-on tasks are " +
+                       "abandoned", reportOnlyAbort: true);
+        // D2 (the owner, 2026-09-25, RL-20260925-01): the follow-ons of a unit reported STUCK are
+        // ABANDONED, each with its own TASKABRT, as every other abort does (supersede, back-end
+        // loss, vendor failure). Its chain is closed; its own task may still complete later.
+        _sequencer.NotifyAbandoned(rec.TaskUuid);
+    }
+
+    /// <summary>
+    /// TICK THREAD. The watchdog's verdict on a unit at the moment the engage fallback fires, from
+    /// the SAME judge and the SAME ring as MaybeCheckStalls (SampleAndJudgeStall). Unknown whenever
+    /// the periodic check itself could not judge: detection off, back end lost, clock not yet
+    /// selected, the sim clock unreadable or stale, no member positions, the record no longer this
+    /// move, or the window not yet full.
+    /// </summary>
+    private TimedCompletionPolicy.StallAtFallback JudgeStallAtFallback(string name, string moveTaskUuid,
+                                                                        out StallPolicy.Decision d, out double window)
+    {
+        d = default;
+        window = 0.0;
+        if (!_vrf.StallDetection || _backendLost || _stallClockMode == 0)
+            return TimedCompletionPolicy.StallAtFallback.Unknown;
+        if (!_inFlight.TryGetCurrent(name, out var rec) || rec.DestLat is null || rec.DestLon is null
+            || !string.Equals(rec.TaskUuid ?? "", moveTaskUuid ?? "", StringComparison.Ordinal))
+            return TimedCompletionPolicy.StallAtFallback.Unknown;
+        if (_arrivalReported.ContainsKey(name)) return TimedCompletionPolicy.StallAtFallback.Unknown;
+        var now = DateTime.UtcNow;
+        double wallNow = now.Ticks / (double)TimeSpan.TicksPerSecond;
+        bool usingSim = _stallClockMode == 1;
+        window = StallPolicy.ResolveWindowSeconds(_vrf.StallWindowSeconds, usingSim);
+        var simObs = _simClockLast;
+        if (usingSim && (!simObs.Readable || simObs.Stale)) return TimedCompletionPolicy.StallAtFallback.Unknown;
+        double clockNow = StallPolicy.SelectClock(usingSim, simObs.SimSeconds, wallNow);
+        if (!TryReadMemberPositions(name, out var positions, out int total))
+            return TimedCompletionPolicy.StallAtFallback.Unknown;
+        if (SampleAndJudgeStall(name, rec, positions, total, clockNow, window, usingSim, now, out _, out d) < 2)
+            return TimedCompletionPolicy.StallAtFallback.Unknown;
+        return d.Stalled ? TimedCompletionPolicy.StallAtFallback.Stalled : TimedCompletionPolicy.StallAtFallback.Moving;
+    }
+
+    /// <summary>
+    /// TICK THREAD. M3-2 (2026-09-25): THE STAYS-PUT TEST at the engage fallback, used only when the
+    /// watchdog has no verdict. Each member's displacement SINCE DISPATCH, from the dispatch baseline
+    /// MarkDispatched records for this very task (STP-837, the same baseline arrival evidence uses),
+    /// judged by TimedCompletionPolicy.StaysPutVerdict (StallPolicy.Decide at Vrf:StallMoveMeters).
+    /// Unknown when the back end is lost, the baseline is not this task's or has no member positions,
+    /// or no member position is readable now. RL-20260921-07: "abort in case the unit stays put".
+    /// </summary>
+    private TimedCompletionPolicy.StallAtFallback StaysPutAtFallback(string name, InFlightTracker.InFlight rec,
+                                                                      out StallPolicy.Decision d,
+                                                                      out double sinceDispatchSeconds)
+    {
+        d = default;
+        sinceDispatchSeconds = (DateTime.UtcNow - rec.DispatchedUtc).TotalSeconds;
+        if (_backendLost) return TimedCompletionPolicy.StallAtFallback.Unknown;
+        if (!_dispatchPositions.TryGetValue(name, out var baseline) || baseline.ByUuid is null
+            || !string.Equals(baseline.TaskUuid ?? "", rec.TaskUuid ?? "", StringComparison.Ordinal))
+            return TimedCompletionPolicy.StallAtFallback.Unknown;
+        if (!TryReadMemberPositions(name, out var positions, out int total))
+            return TimedCompletionPolicy.StallAtFallback.Unknown;
+        var displacements = new List<double>();
+        foreach (var cur in positions)
+            if (baseline.ByUuid.TryGetValue(cur.Key, out var was))
+                displacements.Add(TerrainVertexAuthoring.DistMeters(was.Lat, was.Lon, cur.Value.Lat, cur.Value.Lon));
+        var v = TimedCompletionPolicy.StaysPutVerdict(displacements, total, _vrf.StallMoveMeters,
+                                                      _vrf.StallMinMembersWithData);
+        if (v != TimedCompletionPolicy.StallAtFallback.Unknown)
+            d = StallPolicy.Decide(displacements, total, _vrf.StallMoveMeters, _vrf.StallMinMembersWithData);
+        return v;
     }
 
     private void MaybeCheckStalls()
@@ -7243,64 +7507,15 @@ public sealed class VrfC2SimService : BackgroundService
             if (_arrivalReported.ContainsKey(name)) continue;   // C15 already reported it complete
             if (!TryReadMemberPositions(name, out var positions, out int total)) continue;
 
-            var samples = _stallSamples.GetOrAdd(name, _ => new StallSamples());
-            var ring = samples.Ring;
-            // The watch opens at the first sample after the dispatch that cleared this unit's
-            // state, so StartClock is the dispatch anchor on the selected clock (within one
-            // StallCheckSeconds, plus however long the members took to reflect). StallPolicy.Admit
-            // owns the ring: it appends, REPLACES a sample that did not advance the clock (a
-            // paused scenario, or a status period coarser than the cadence), drops everything
-            // from an abandoned timeline on a snapshot rollback and re-arms the watch there, and
-            // then front-prunes to one sample at or before the window edge.
-            samples.StartClock = StallPolicy.Admit(ring, clockNow, positions, window, samples.StartClock);
-            // DEFENCE IN DEPTH AT THE CRASH POINT (pass-3 review P1). Admit REFUSES a non-finite
-            // clock, so on a unit's first check it can return with the ring still EMPTY - and
-            // 08146a2 indexed ring[0] on the very next line. The predicate above (UsingSimClock,
-            // which now requires double.IsFinite) is what makes that unreachable; this is the
-            // brace to that belt, because MaybeCheckStalls is called bare from TickLoop and an
-            // unhandled exception on the vrf-tick thread terminates the interface process.
-            if (ring.Count == 0) continue;
-            if (ring.Count > deepestRing) deepestRing = ring.Count;
+            int stage = SampleAndJudgeStall(name, rec, positions, total, clockNow, window, usingSim, now,
+                                            out int ringCount, out var d);
+            if (stage == 0) continue;                      // no sample could be admitted
+            if (ringCount > deepestRing) deepestRing = ringCount;
             anySampled = true;
-
-            var oldest = ring[0];
-            // Grace + full window on the selected clock, AND the floors that clock cannot supply
-            // (review findings 3 and 4): MinRingDepth samples inside the window - on BOTH clocks -
-            // and, on the WALL clock only, StallMinSecondsSinceDispatch of WALL time since THIS
-            // record's own dispatch (the anchor 51d78a5 used and 1616614 dropped). Never judge on
-            // a partial window: a unit 60 s into its watch has only 60 s of history, and 50 m over
-            // 60 s is a different (much stricter) test than 50 m over 240.
-            // The wall floor is NOT ANDed on the sim clock (pass-2 review F8): 360 sim s is ~58
-            // wall s at G5's 6.21x, so above ratio ~6x the floor - not the calibrated window - set
-            // the detection time (measured at 60x: wall 60 s / sim 3,600 s), negating the "fires
-            // EARLIER in wall time" property the 360 s default was chosen for. MinRingDepth, which
-            // 51d78a5 did not have, covers the two-sample case the floor incidentally guarded.
-            if (!StallPolicy.JudgeReady(clockNow, oldest.Clock, samples.StartClock, window,
-                                        _vrf.StallMinSecondsSinceDispatch, ring.Count,
-                                        (now - rec.DispatchedUtc).TotalSeconds,
-                                        applyWallFloor: !usingSim)) continue;
+            if (stage == 1) continue;                      // sampled, not judgeable yet
             anyJudgeable = true;   // at least one unit reached the gate - the watchdog is not dormant
-
-            var displacements = new List<double>();
-            foreach (var cur in positions)
-                if (oldest.P.TryGetValue(cur.Key, out var was))
-                    displacements.Add(TerrainVertexAuthoring.DistMeters(was.Lat, was.Lon, cur.Value.Lat, cur.Value.Lon));
-            var d = StallPolicy.Decide(displacements, total, _vrf.StallMoveMeters, _vrf.StallMinMembersWithData);
             if (!d.Stalled) continue;
-
-            _stallReported[name] = rec.TaskUuid ?? "";
-            _log.LogInformation("STALL: unit {Name} task {Task}: no member moved more than {M:F0} m in the last {W} " +
-                                "{Clock} s (max {Max:F1} m); TASKABRT reported.",
-                                name, rec.TaskName, _vrf.StallMoveMeters, (int)window,
-                                _stallClockMode == 1 ? "SIM" : "wall", d.MaxMeters);
-            if (!_c2SimUuidByName.TryGetValue(name, out var taskeeUuid))
-            {
-                _log.LogWarning("STALL for '{Name}' but no C2SIM uuid known - no TASKABRT report sent.", name);
-                continue;
-            }
-            PushTaskStatus(taskeeUuid, rec.TaskUuid ?? "", S.TaskStatusCodeType.TASKABRT,
-                           "STALLED (C16 progress watchdog) - report only: the task stays in flight, no " +
-                           "VR-Forces command is issued and nothing is re-tasked");
+            ReportStall(name, rec, window, d);
         }
         // SILENT DORMANCY, SAID OUT LOUD - ON THE CONDITION, NOT ON ONE CAUSE (pass-2 review F4b,
         // re-armed by pass-3 review P4). 08146a2 armed this line only when the cadence was already
@@ -7488,7 +7703,8 @@ public sealed class VrfC2SimService : BackgroundService
         // its progress window and its one-report flag under the UNIT's name. The R10 paths never
         // clear otherwise: OnVrfTaskCompleted keys its clear by e.UnitMarking, which under fan-out
         // is the MEMBER entity name. NOTE this is deliberately NOT a suppressor: a unit that has
-        // already reported TASKABRT and then arrives still sends TASKCMPLT (C16 ruling).
+        // already reported TASKABRT and then arrives still sends TASKCMPLT (abort-then-complete - a
+        // supervisor position (RL-20260914-01 covers the code only)).
         ClearStallState(name);
 
         if (!_c2SimUuidByName.TryGetValue(name, out var taskeeUuid))
@@ -7511,11 +7727,29 @@ public sealed class VrfC2SimService : BackgroundService
             _log.LogWarning("Task-complete for '{Name}' with NO in-flight task recorded - unattributed " +
                             "(report sent with empty task uuid).", name);
 
+        // THE TEMPORARY POSITION ON COMPLETION (RL-20260921-09): a SUCCESS on a task whose end time
+        // is armed is HELD until that end time (the timer then reports it and releases the
+        // follow-ons), or - if the task was already OVERDUE - reported complete NOW. A failure is
+        // never marked: it is an immediate TASKABRT whatever the timer says. With no armed timer
+        // (no Duration, Vrf:TimedCompletion off, or the task already ended) the verdict is
+        // NotTimed and everything below is exactly the evidence-only completion it was before.
+        var verdict = success && taskUuid != null
+                    ? _timed.MarkFinished(taskUuid) : TimedCompletionPolicy.FinishVerdict.NotTimed;
+        if (verdict == TimedCompletionPolicy.FinishVerdict.Hold)
+            _log.LogInformation("Unit {Name}: task '{Task}' FINISHED BEFORE ITS END TIME - the TASKCMPLT and the " +
+                                "release of its follow-on tasks are HELD until start time + Duration " +
+                                "(temporary position on completion, RL-20260921-09).",
+                                name, fin.TaskName ?? taskUuid);
+        else if (verdict == TimedCompletionPolicy.FinishVerdict.EmitNow)
+            _log.LogInformation("Unit {Name}: task '{Task}' was OVERDUE and the unit has now ARRIVED - reported " +
+                                "complete now, and its follow-on tasks are released (RL-20260921-09).",
+                                name, fin.TaskName ?? taskUuid);
+
         // Release any task gated on this one (parity: setTaskIsComplete unblocked the C++
         // busy-wait on getTaskIsComplete; here it completes the successor's await). Only
         // the ATTRIBUTED task's gate releases - a superseded task's gate stays closed.
-        if (success) _sequencer.CompleteTask(taskUuid);
-        else _sequencer.NotifyAbandoned(taskUuid);   // a FAILED task never completes: successors fail fast
+        if (TimedCompletionPolicy.ReleasesSuccessorsNow(success, verdict)) _sequencer.CompleteTask(taskUuid);
+        else if (!success) _sequencer.NotifyAbandoned(taskUuid);   // a FAILED task never completes: successors fail fast
 
         // P0.3: the move completed - issue the engage that was parked on it (advance the
         // axis / approach the obstacle, THEN engage/breach - now for real, not same-tick).
@@ -7537,12 +7771,23 @@ public sealed class VrfC2SimService : BackgroundService
             taskContinues = true;
         }
 
-        var code = TaskStatusPolicy.CodeForCompletion(success, taskContinues);
+        // THE CODE, from the same helper the offline flow uses (--rulings-selftest t10). Held: the
+        // move half of an advance-then-engage task still says TASKINPRG, anything else says nothing
+        // until the end time. Overdue and now arrived: TASKCMPLT - and for an ATTACK / BREACH the
+        // parked engage above has STILL been issued (the owner's decision of 2026-09-25,
+        // RL-20260925-01).
+        var maybeCode = TimedCompletionPolicy.CompletionCode(success, taskContinues, verdict);
+        if (maybeCode is not S.TaskStatusCodeType code) return;
         PushTaskStatus(taskeeUuid, taskUuid ?? "", code,
                        !success ? $"unit {name}: VR-Forces reported the task FAILED (success=false) - it is no " +
                                   "longer being processed"
+                       : verdict == TimedCompletionPolicy.FinishVerdict.EmitNow
+                           ? $"unit {name} arrived after its task's end time (start time + Duration) - complete on " +
+                             "arrival" + (taskContinues ? "; the deferred engage has been issued" : "")
                        : taskContinues ? $"unit {name} completed the MOVE half of its task; the deferred engage " +
-                                         "is now in flight under the same task - TASKCMPLT follows when it ends"
+                                         "is now in flight under the same task - TASKCMPLT follows " +
+                                         (verdict == TimedCompletionPolicy.FinishVerdict.Hold
+                                              ? "at the task's end time (start time + Duration)" : "when it ends")
                        : $"unit {name} completed its task");
     }
 
@@ -7897,16 +8142,21 @@ public sealed class VrfC2SimService : BackgroundService
     /// that task's TASKCMPLT - logs what it sent (or why it did not), and pushes. Callable from
     /// any thread: the policy is thread-safe and the push is fire-and-forget.
     /// </summary>
-    private void PushTaskStatus(string taskeeUuid, string taskUuid, S.TaskStatusCodeType code, string why)
+    /// <param name="reportOnlyAbort">TRUE only for the progress watchdog's stall TASKABRT, which
+    /// leaves the task in flight in VR-Forces: it does NOT cancel the armed end time
+    /// (TimedCompletionPolicy.CancelsTimer), so a recovered unit is still held to its end time and
+    /// a late one still completes on arrival.</param>
+    private void PushTaskStatus(string taskeeUuid, string taskUuid, S.TaskStatusCodeType code, string why,
+                                bool reportOnlyAbort = false)
     {
-        // R4: any REAL end cancels the task's timed end, BEFORE anything else - a completion that
+        // Any TERMINAL end cancels the task's timed end, BEFORE anything else - a completion that
         // cannot be SENT has still happened, and a completion that is suppressed as a duplicate has
         // still happened; leaving the timer armed behind either would fire a second, later
         // TASKCMPLT for a task that is already over. (m5 of the cold-start review of 5c67d41: this
         // used to sit BELOW the taskee guard, which inverted its own argument - a status with no
         // taskee uuid left the timer running.) The timed completion itself arrives here with its
         // entry already removed; Cancel then returns false and says nothing.
-        if (TimedCompletionPolicy.CancelsTimer(code) && _timed.Cancel(taskUuid))
+        if (TimedCompletionPolicy.CancelsTimer(code, reportOnlyAbort) && _timed.Cancel(taskUuid))
             _log.LogInformation("TIMED COMPLETION: the end time armed for task {Task} is cancelled - " +
                                 "{Code} reached the reporting point first ({Why}).", taskUuid, code, why);
         if (string.IsNullOrEmpty(taskeeUuid))

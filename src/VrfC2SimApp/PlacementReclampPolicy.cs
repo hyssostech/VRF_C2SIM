@@ -5,7 +5,20 @@ namespace VrfC2SimApp;
 
 /// <summary>
 /// AN OBJECT PLACED ON THE FALLBACK IS RE-MEASURED AND CORRECTED, AND A TASKEE THE APP HAS MEASURED
-/// OFF THE TERRAIN IS NEVER TASKED SILENTLY.
+/// OFF THE TERRAIN IS NEVER TASKED SILENTLY - the measurement is LOGGED at dispatch.
+///
+/// *** 2026-09-25 (RL-20260921-06; the completion unit's scope, approved as RL-20260925-01): THE
+/// PLACEMENT STAYS, THE DISPATCH GATE AND THE FALSE TALLY GO. *** From 8aeb127 until then a taskee
+/// measured off the terrain was HELD as BOUND-BUT-NOT-ON-THE-GROUND until a read-back confirmed its
+/// correction, and refused with a TASKABRT if none did. MEASUREMENT (run 20260921T143243Z, n = 1):
+/// thirty-two objects were measured off the terrain and sent a setLocation, an independent trace
+/// shows them at the terrain height afterwards, the read-back never landed (why is undiagnosed),
+/// the summary said "0 RE-CLAMPED AND VERIFIED ... 32 NEVER MEASURED", and the gate ended two
+/// tasks. So now: nothing holds, refuses or abandons a task on a ground-contact verdict (the
+/// dispatch-time measurement is only logged, and no setLocation is sent at dispatch); an object
+/// that was corrected and whose read-back never landed is counted as exactly that
+/// (<see cref="Outcome.CorrectedNotVerified"/>), not as never measured. Where the text below says
+/// a task is held or refused, it describes the design before that date.
 ///
 /// WHAT HAPPENED (run 20260921T114910Z_run, Iron Storm cut A, MAK Earth streaming a cold Suwalki).
 /// The init's ONE terrain-profile query for all 36 create points went unanswered inside
@@ -34,9 +47,10 @@ namespace VrfC2SimApp;
 ///       entities are placed on the ground ... at the highest possible terrain intersection at the
 ///       location" (UG52 14.3.3; help vrf_newEntityPlacement.htm). An object at MSL 0 under 150 m
 ///       of terrain is not placed as the vendor documents, whatever that costs it.
-///   (2) NEVER TASK WHAT YOU HAVE MEASURED AS WRONG. The app already holds the measurement in its
-///       hand at dispatch (TerrainVertexAuthoring.cs:68-73). Acting on it is a reporting duty, not
-///       a theory.
+///   (2) NEVER TASK WHAT YOU HAVE MEASURED AS WRONG WITHOUT SAYING SO. The app already holds the
+///       measurement in its hand at dispatch (TerrainVertexAuthoring.cs:68-73). Reporting it is a
+///       duty, not a theory. (Until 2026-09-25 this read "NEVER TASK WHAT YOU HAVE MEASURED AS
+///       WRONG" and the gate held the task; see the banner above.)
 ///
 /// WHY THE CORRECTION IS ISSUED AFTER THE CREATES AND NOT INSTEAD OF THEM. MAK's own sample says
 /// creating objects is what makes a paging terrain page: "creating [entities] before the sim starts
@@ -63,29 +77,27 @@ public static class PlacementReclampPolicy
     /// <summary>The prefix an operator greps for.</summary>
     public const string Prefix = "PLACEMENT RE-CLAMP";
 
-    /// <summary>The readiness token the dispatch gate names. The brief's own wording.</summary>
-    public const string NotOnGroundToken = "BOUND-BUT-NOT-ON-THE-GROUND";
-
     /// <summary>The setting that bounds the whole re-clamp, named in the lines so it can be found.</summary>
     public const string BoundSettingKey = "Vrf:PlacementReclampSeconds";
 
-    /// <summary>The setting that sets N - the gap at which a taskee is not tasked.</summary>
+    /// <summary>The setting that sets N - the gap above which an object is MEASURED off the terrain
+    /// (a correction for an enrolled idle object, a logged line at dispatch; since 2026-09-25 it
+    /// holds no task).</summary>
     public const string ToleranceSettingKey = "Vrf:PlacementReclampToleranceMeters";
 
     /// <summary>
     /// WHAT THE APP KNOWS ABOUT ONE OBJECT'S GROUND CONTACT. The default is
-    /// <see cref="Unknown"/> and it is PERMISSIVE by construction: an object nobody has measured is
-    /// tasked exactly as it is today. Only a MEASUREMENT can hold a task.
+    /// <see cref="Unknown"/>. Since 2026-09-25 no value holds a task; the contact decides whether
+    /// the init sweep corrects an object and what the dispatch-time line says.
     /// </summary>
     public enum Contact
     {
         /// <summary>No usable terrain answer for this object yet - the state every object is in on a
-        /// run where the terrain query is never answered. Never holds anything.</summary>
+        /// run where the terrain query is never answered.</summary>
         Unknown = 0,
         /// <summary>Measured: live altitude within tolerance of the terrain under it.</summary>
         OnGround = 1,
-        /// <summary>Measured: live altitude further than the tolerance from the terrain under it.
-        /// This is the only value that holds a task.</summary>
+        /// <summary>Measured: live altitude further than the tolerance from the terrain under it.</summary>
         OffGround = 2,
     }
 
@@ -94,7 +106,8 @@ public static class PlacementReclampPolicy
     {
         /// <summary>Nothing to do (no answer yet, or already on the ground).</summary>
         None = 0,
-        /// <summary>Issue setAltitude(uuid, 0, aboveGroundLevel=TRUE) and wait for the read-back.</summary>
+        /// <summary>Issue the setLocation correction at the object's own live lat/lon and wait for
+        /// the read-back (see <see cref="CorrectionLocation"/> for why it is not a setAltitude).</summary>
         Correct = 1,
         /// <summary>A correction was already issued and the read-back still disagrees: stop
         /// correcting and let the verdict stand, loudly.</summary>
@@ -111,11 +124,57 @@ public static class PlacementReclampPolicy
         AlreadyOnGround = 1,
         /// <summary>A correction was issued AND the read-back confirmed it.</summary>
         Reclamped = 2,
-        /// <summary>A correction was issued and the read-back did NOT confirm it.</summary>
+        /// <summary>MEASURED off the terrain at the last read: a correction was issued and the
+        /// read-back did NOT confirm it, or (concluded at the bound) the object was measured off
+        /// the terrain while a task was in flight on it, so no correction was sent.</summary>
         StillOffGround = 3,
         /// <summary>The bound expired with no usable terrain answer for this object - nothing was
         /// measured, so nothing is claimed and nothing is held.</summary>
         NeverMeasured = 4,
+        /// <summary>2026-09-25. The object was measured off the terrain and a correction WAS
+        /// issued, and the bound expired with no read-back of it. Before this outcome existed these
+        /// objects were counted NEVER MEASURED - the "32 NEVER MEASURED" beside thirty-two
+        /// correction lines of run 20260921T143243Z (RL-20260921-06). Nothing is claimed about
+        /// whether the correction worked.</summary>
+        CorrectedNotVerified = 5,
+    }
+
+    /// <summary>
+    /// How an object STILL PENDING at the end of a window is concluded (the service's
+    /// ConcludePlacementReclamp). A correction with no read-back is <see cref="Outcome.CorrectedNotVerified"/>;
+    /// a measurement off the terrain with no correction (the unit had a task in flight) is
+    /// <see cref="Outcome.StillOffGround"/>; only an object with NO usable measurement at all is
+    /// <see cref="Outcome.NeverMeasured"/>. A settled outcome is returned unchanged.
+    /// </summary>
+    public static Outcome ConcludeAtBound(Outcome current, int correctionsIssued, Contact lastContact)
+        => current != Outcome.Pending ? current
+         : correctionsIssued > 0 ? Outcome.CorrectedNotVerified
+         : lastContact == Contact.OffGround ? Outcome.StillOffGround
+         : lastContact == Contact.OnGround ? Outcome.AlreadyOnGround
+         : Outcome.NeverMeasured;
+
+    /// <summary>The five counts the summary reports; they sum to the enrolled count.</summary>
+    public readonly record struct Counts(int OnGround, int Reclamped, int CorrectedNotVerified,
+                                         int StillOff, int NeverMeasured)
+    {
+        public int Total => OnGround + Reclamped + CorrectedNotVerified + StillOff + NeverMeasured;
+    }
+
+    /// <summary>A census of concluded outcomes. A still-Pending entry (none should reach here: the
+    /// service concludes them first) is counted as never measured, never silently dropped.</summary>
+    public static Counts Tally(IEnumerable<Outcome> outcomes)
+    {
+        int a = 0, r = 0, c = 0, s = 0, n = 0;
+        foreach (var o in outcomes)
+            switch (o)
+            {
+                case Outcome.AlreadyOnGround: a++; break;
+                case Outcome.Reclamped: r++; break;
+                case Outcome.CorrectedNotVerified: c++; break;
+                case Outcome.StillOffGround: s++; break;
+                default: n++; break;
+            }
+        return new Counts(a, r, c, s, n);
     }
 
     /// <summary>The verdict on one measurement. <paramref name="GapMeters"/> is 0 when unknown.</summary>
@@ -193,8 +252,7 @@ public static class PlacementReclampPolicy
     /// and nothing rests on a number the vendor says it discards.
     ///
     /// THE LAT/LON IS THE OBJECT'S OWN. Not a new position - this is a correction, not a move. The
-    /// enrolled entry carries the create point; the dispatch gate uses the taskee's own live
-    /// position. Sending anything else would teleport a unit to fix its altitude.
+    /// enrolled entry carries the create point; the sweep uses the object's own live position. Sending anything else would teleport a unit to fix its altitude.
     /// </summary>
     public static Geodetic CorrectionLocation(double latDeg, double lonDeg, double terrainMeters,
                                               double createClearanceMeters)
@@ -377,10 +435,9 @@ public static class PlacementReclampPolicy
              + "none adjudicated here: the clamp needs a terrain page this point still lacks; the "
              + "read is of a reflected state that has not caught up; or the request was rejected. "
              + "NO FURTHER REQUEST IS ISSUED for this object - one correction, then the "
-             + "measurement speaks. A task on this unit is HELD as [{5}] and abandoned rather than "
-             + "driven from under the ground, and the verdict is RE-MEASURED whenever a new task "
-             + "asks about this unit, so a late terrain page clears it.",
-               Prefix, name, m.LiveAltMeters, m.TerrainMeters, m.GapMeters, NotOnGroundToken);
+             + "measurement speaks. The verdict is RE-MEASURED whenever a new task asks about this "
+             + "unit, so a late terrain page clears it; it does not hold or refuse any task.",
+               Prefix, name, m.LiveAltMeters, m.TerrainMeters, m.GapMeters);
 
     /// <summary>
     /// SF-2 (cold-start review). ONE short line per ground dispatch that the gate PASSES, so a
@@ -394,50 +451,30 @@ public static class PlacementReclampPolicy
              + "(gap {4:F1} m, tolerance {5:F0} m). Dispatching.",
                Prefix, unitName, m.LiveAltMeters, m.TerrainMeters, m.GapMeters, toleranceMeters);
 
-    /// <summary>THE LINE A PREREG SCORES. One per run, when the re-clamp finishes or expires.</summary>
-    public static string SummaryLine(int alreadyOnGround, int reclamped, int stillOff, int neverMeasured,
-                                     double wallSeconds)
+    /// <summary>THE LINE A PREREG SCORES. One per window, when the re-clamp finishes or expires.
+    /// FIVE counts that sum to the enrolled count (2026-09-25: the third is new, and the old
+    /// "the third is held and abandoned" clause is gone - nothing is held on a verdict any more).</summary>
+    public static string SummaryLine(Counts c, double wallSeconds)
         => string.Format(CultureInfo.InvariantCulture,
                "{0} summary: {1} object(s) measured ON the terrain, {2} RE-CLAMPED AND VERIFIED, "
-             + "{3} STILL OFF the terrain, {4} NEVER MEASURED (no terrain answer within {5}), after "
-             + "{6:F1} s. Only the first two are safe to task; the third is held and abandoned; the "
-             + "fourth is tasked exactly as it is today, because nothing was measured and nothing is "
-             + "claimed.",
-               Prefix, alreadyOnGround, reclamped, stillOff, neverMeasured, BoundSettingKey, wallSeconds);
+             + "{3} CORRECTED, READ-BACK NOT RECEIVED, {4} STILL OFF the terrain, {5} NEVER MEASURED "
+             + "(no terrain answer within {6}), after {7:F1} s ({8} enrolled). Only a read-back is "
+             + "evidence that a correction worked; none of these holds or refuses a task.",
+               Prefix, c.OnGround, c.Reclamped, c.CorrectedNotVerified, c.StillOff, c.NeverMeasured,
+               BoundSettingKey, wallSeconds, c.Total);
 
     /// <summary>
-    /// The line the DISPATCH gate prints when it refuses to task on the vertex-0 measurement. This
-    /// is the measurement the app already made and then ignored (`app:1135`, `app:1939`).
+    /// The line the DISPATCH-TIME measurement prints for a taskee measured OFF the terrain
+    /// (2026-09-25: it replaces the "NOT DISPATCHED YET" hold line and the REFUSED abort reason).
+    /// The task is dispatched; the line is the record.
     /// </summary>
-    public static string DispatchGateHeldLine(string taskName, string unitName, double liveAltMeters,
-                                              double terrainMeters, double gapMeters, double toleranceMeters)
+    public static string DispatchGateOffTerrainLine(string taskName, string unitName, Measurement m,
+                                                    double toleranceMeters)
         => string.Format(CultureInfo.InvariantCulture,
-               "{0}: task '{1}' is NOT DISPATCHED YET - the route's own terrain reply puts {2} at "
-             + "live {3:F1} m against terrain {4:F1} m under vertex 0 (gap {5:F0} m, tolerance "
-             + "{6:F0} m / {7}). Until 2026-09-21 this was logged and the task was dispatched anyway "
-             + "(\"authoring from terrain anyway\"), which is how run 20260921T114910Z tasked two "
-             + "platforms measured 145 m and 156 m off the terrain. The correction is issued now and "
-             + "the task is HELD as [{8}] until the altitude READS BACK on the terrain, bounded by "
-             + "{9}; on expiry the task is abandoned with that state named.",
-               Prefix, taskName, unitName, liveAltMeters, terrainMeters, gapMeters, toleranceMeters,
-               ToleranceSettingKey, NotOnGroundToken, DispatchReadiness.TimeoutSettingKey);
-
-    /// <summary>
-    /// The TASKABRT reason when a task comes back to the gate a SECOND time and the taskee is STILL
-    /// off the terrain. Bounded by construction: the gate defers each task at most once, so a
-    /// re-clamp that does not take costs one extra round trip and not a loop.
-    /// </summary>
-    public static string DispatchGateRefusalReason(string taskName, string unitName, double liveAltMeters,
-                                                   double terrainMeters, double gapMeters,
-                                                   double toleranceMeters)
-        => string.Format(CultureInfo.InvariantCulture,
-               "REFUSED [{0}]: task '{1}' is not dispatched because unit {2} is STILL measured off "
-             + "the terrain after a correction and a re-measure - live {3:F1} m against terrain "
-             + "{4:F1} m under vertex 0 (gap {5:F0} m, tolerance {6:F0} m / {7}). The interface "
-             + "will not task a unit it has itself measured off the ground the vendor documents it "
-             + "should be placed on (UG52 14.3.3). This is a PLACEMENT failure, not a task failure: "
-             + "check the {8} lines above and whether the terrain under this AO had streamed when "
-             + "the initialization's creates went out.",
-               NotOnGroundToken, taskName, unitName, liveAltMeters, terrainMeters, gapMeters,
-               toleranceMeters, ToleranceSettingKey, Prefix);
+               "{0} gate: {1} measured OFF the terrain at dispatch - live {2:F1} m vs terrain {3:F1} m "
+             + "under vertex 0 (gap {4:F0} m, tolerance {5:F0} m / {6}) - dispatching task '{7}'. The "
+             + "measurement is recorded, no correction is sent at dispatch, and the task is not "
+             + "held: an unconfirmed read-back ended legitimate tasks in run 20260921T143243Z.",
+               Prefix, unitName, m.LiveAltMeters, m.TerrainMeters, m.GapMeters, toleranceMeters,
+               ToleranceSettingKey, taskName);
 }

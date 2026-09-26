@@ -402,6 +402,12 @@ public class VrfSettings
     // Math.Max(1, StallWindowSeconds), so 0 meant a ONE-SECOND window. StallDetection ships OFF
     // and no deployed appsettings sets either, so the blast radius is nil, but a config file
     // carrying an explicit 0 behaves completely differently here than it did.
+    // SHIPPED DEFAULT: OFF here and in appsettings.json; ON in the DEMO profile
+    // (appsettings.Demo.json), the owner's decision of 2026-09-25 (RL-20260925-01). Since the
+    // completion unit of that date the Duration timer no longer ends a task whose unit has not
+    // arrived (RL-20260921-09), so with this OFF a STUCK unit gets no terminal report at all and its
+    // follow-on tasks wait until Vrf:TaskChainBackstopSeconds; with it ON the stall TASKABRT is sent
+    // (RL-20260914-01) and the stuck unit's follow-ons are abandoned with their own aborts.
     public bool StallDetection { get; set; } = false;
     // NOTE (M2 of the cold-start review of 5c67d41): StallClock governs THE PROGRESS WATCHDOG AND
     // NOTHING ELSE. It used to pick the clock the R4 timed completion served its Durations on too,
@@ -667,12 +673,19 @@ public class VrfSettings
     // Golden orders carry no temporal deps, so this never fires there (parity-neutral).
     public string PredecessorTimeoutPolicy { get; set; } = "skip";
 
-    // R4 (user ruling 2026-09-14): "completion is given by the end time". A dispatched task whose
-    // C2SIM Duration has elapsed is reported TASKCMPLT, once, through the single emit point, and
-    // its STREND successors dispatch (TimedCompletionPolicy). ON by default: without it the
-    // hold-type half of a real order - SECURE/OCCUPY/DEFEND/RETAIN/BLOCK/FIX/SCREEN/GUARD, fires
-    // and air defence - has no completion at all and every successor chain dies at the
-    // predecessor timeout (run G6: 9 of 42 tasks dispatched, 0 completed).
+    // COMPLETION ON START TIME + DURATION - the owner's TEMPORARY position (RL-20260921-09),
+    // implemented 2026-09-25 (scope approved as RL-20260925-01; TimedCompletionPolicy has the
+    // rule). A task with a C2SIM Duration ends at dispatch + Duration x Vrf:DurationScale: an
+    // EARLIER finish is held until then; a task WITH a destination whose unit is still travelling
+    // then is reported TASKCMPLT the moment it arrives (not at the end time), and its follow-ons
+    // wait for it; a task with NO destination ends at its end time. A stuck unit is the stall
+    // watchdog's TASKABRT (Vrf:StallDetection). Each reports once, through the single emit point.
+    // (Until 2026-09-25 every task was reported TASKCMPLT at its end time whether or not its unit
+    // had arrived - read from the 2026-09-14 answer "4 given by the end time", which was about
+    // SECURE / OCCUPY / DEFEND; docs/CORRECTIONS_LOG.md F-1 withdrew that reading.)
+    // ON by default: without it the hold-type half of a real order - SECURE/OCCUPY/DEFEND/RETAIN/
+    // BLOCK/FIX/SCREEN/GUARD, fires and air defence - has no completion at all and every successor
+    // chain dies at the predecessor timeout (run G6: 9 of 42 tasks dispatched, 0 completed).
     // Set false to go back to evidence-only completion (arrival / the vendor's own report).
     public bool TimedCompletion { get; set; } = true;
 
@@ -855,6 +868,12 @@ public class VrfSettings
     public bool PlacementAglSet { get; set; } = true;
 
     // ===== PLACEMENT RE-CLAMP (2026-09-21, run 20260921T114910Z - Iron Storm cut A) ==============
+    // *** 2026-09-25 (RL-20260921-06; scope approved as RL-20260925-01): THE PLACEMENT STAYS, THE
+    // DISPATCH GATE AND THE FALSE TALLY GO. A taskee measured off the terrain at dispatch is now
+    // LOGGED and dispatched - no hold as BOUND-BUT-NOT-ON-THE-GROUND, no refusal, no setLocation at
+    // dispatch - and a correction whose read-back never landed is counted "corrected, read-back not
+    // received", not NEVER MEASURED. Run 20260921T143243Z: the read-back never landed (undiagnosed)
+    // and the gate ended two tasks on units an independent trace shows on the terrain. ***
     // WHAT IT FIXES. On a STREAMING terrain (MAK Earth) over a cold AO the init's terrain-profile
     // query goes unanswered, every object takes the FALLBACK arm of PlacementPolicy (create
     // altitude 0, absolute) and NOTHING places it: the create clamp needs a polygon
@@ -869,8 +888,8 @@ public class VrfSettings
     // .md sec 5 + sec 7: "BIRTH ALTITUDE IS NOT THE FREEZE DISCRIMINATOR ... A statement of the
     // form 'born buried, therefore never moves' is ROT. It has re-entered this project at least
     // twice after being falsified." The justification here is the PLACEMENT CONTRACT (UG52 14.3.3:
-    // ground entities are placed on the ground) and the reporting duty not to task a unit the app
-    // has itself measured off the terrain - both independent of what burial does to movement.
+    // ground entities are placed on the ground) and the reporting duty to SAY SO when the app tasks a
+    // unit it has itself measured off the terrain - both independent of what burial does to movement.
     //
     // THE CORRECTION IS A setLocation, NOT A setAltitude, AND THE VENDOR HEADERS DECIDE THAT:
     // setAltitudeRequest.h:23-25 "It is ignored if the vehicle is not an air-going vehicle";
@@ -901,7 +920,8 @@ public class VrfSettings
     // COST ON A HEALTHY RUN: NONE. The re-clamp arms only when at least one LAND object was placed
     // on the FALLBACK; when the terrain answers (the D10/R9 shape, "N of N ... from the TERRAIN
     // QUERY") the list is empty, the tick phase is skipped by its own guard, and no query, no
-    // native read and no line is added. The dispatch gate fires only on a measured gap.
+    // native read and no line is added. The dispatch-time measurement adds one line per ground
+    // dispatch whose route terrain reply answers vertex 0; it holds and refuses nothing.
     // false = the pre-2026-09-21 behaviour exactly, and the fail-first arm of
     // `VrfC2SimApp --placement-reclamp-selftest --disabled`.
     public bool PlacementReclamp { get; set; } = true;
@@ -926,10 +946,13 @@ public class VrfSettings
     // once the terrain is sampleable the cadence is the retry interval alone.
     public double PlacementReclampRetrySeconds { get; set; } = 5.0;
 
-    // N - THE GAP AT WHICH A UNIT IS NOT TASKED, in metres, between the live altitude and the back
-    // end's own terrain height under the same point (both MAK-convention MSL = the WGS-84
-    // ellipsoid, docs/VRF_ALTITUDE_FRAMES.md "UNITS"). DERIVED, not picked: the two refusals in the
-    // motivating run would be 145 m and 156 m; a healthy create sits at terrain + CreateClearance-
+    // N - THE GAP ABOVE WHICH AN OBJECT IS MEASURED OFF THE TERRAIN, in metres, between the live
+    // altitude and the back end's own terrain height under the same point (both MAK-convention MSL =
+    // the WGS-84 ellipsoid, docs/VRF_ALTITUDE_FRAMES.md "UNITS"). An enrolled idle object over it is
+    // corrected by the init sweep; a taskee over it at dispatch is logged. (Until 2026-09-25 it was
+    // "the gap at which a unit is not tasked" - the gate held and refused; RL-20260921-06.)
+    // DERIVED, not picked: the two gaps measured in the motivating run are 145 m and 156 m; a
+    // healthy create sits at terrain + CreateClearance-
     // Meters = 1.0 m (`app:786`). Two legitimate effects widen the honest tolerance above "metres":
     // an AGGREGATE's published Z is a derived bounding-box quantity whose rule is NOT DOCUMENTED
     // (VRF_ALTITUDE_FRAMES sec 1a - "verifying 'on the ground' means reading the MEMBERS, never the
@@ -938,7 +961,7 @@ public class VrfSettings
     // C16 already calls "no movement worth the name".
     // *** THIS IS NOT the vertex-0 NOTE threshold. *** TerrainVertexAuthoring.DefaultVertex0Note-
     // ThresholdMeters stays at 100 m so the diagnostic line a harvest greps does not move; this is
-    // the separate, lower bar at which the interface REFUSES to task.
+    // the separate, lower bar at which the interface calls an object off the terrain.
     public double PlacementReclampToleranceMeters { get; set; } = 50.0;
 
     // B2 (2026-09-14): a TaskStatus report is emitted ONCE per task per outcome and nothing
