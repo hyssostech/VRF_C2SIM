@@ -87,4 +87,71 @@ of every failing sector; report the remainder (water?), stop, no Part 2. A2 miss
 
 ## Result (written after the harvest, never from a live read)
 
-(pending)
+Registered by commit f3b5548 (2026-09-26T21:57:14Z). Two arms ran, both NULL, on the vendor terrain:
+
+| Box | Arm | Start | Exit | Wall |
+|---|---|---|---|---|
+| A | IS_A_null | 21:57:22Z | 0 | 91.7 s |
+| B | IS_B_null | 22:08:26Z | 0 | 47.6 s |
+
+The first try at box B was refused by the busy-check while another lane's RunnerTurnaround suite ran; it started when
+that suite ended. Logs: C:\C2SIM\vrf-nav\work\log\gen-IS_{A,B}_null-2026-09-26.log. Areas and runtime configs: under
+C:\C2SIM\vrf-nav\navData\MAK Earth (online) (kept as the controls for any re-registration).
+
+- **B0 HIGH: HIT.** Box A extent (-1419,-1419 .. 1419,1419) and box B (-946,-1419 .. 946,1419). Each box offset lies
+  0.01 m from the predicted parent cell edge (A cells -58.000 / -68.000; B 74.000 / 20.000). There are 36 and 24
+  sectors. The grid method is exact.
+- **N1 HIGH: MISS, on 2 of 7.** Five of the seven corridor sectors reproduce within +/- 0.03 and stay below 0.9. Two
+  rise above 0.9 in NULL. Both deviations are inside +/- 0.04, but the registration makes a NULL reading >= 0.9 a
+  miss.
+
+| Box | Sector | Baseline | NULL | Scored |
+|---|---|---|---|---|
+| A | (14,13) | 0.8947 | **0.9298** | MISS (>= 0.9) |
+| A | (16,14) | 0.8868 | 0.8868 | reproduced |
+| A | (17,15) | 0.8800 | 0.8800 | reproduced |
+| B | (27,22) | 0.8475 | 0.8644 | reproduced |
+| B | (27,23) | 0.8868 | **0.9057** | MISS (>= 0.9) |
+| B | (28,21) | 0.8182 | 0.8235 | reproduced |
+| B | (28,22) | 0.8571 | 0.8857 | reproduced |
+
+- Largest in-box deviation from the baseline: A 0.0453, B 0.0467.
+- M1, A1, A2, A3: NOT MEASURED. As registered, the N1 miss is a STOP: neither L1a nor L1b was started, and no Part 2
+  runs.
+
+What the NULL arms measure. With the grid exact, a box still does not reproduce the full area's ratios closely enough
+to tell a sector just under 0.9 from one just over it. Three observations, all [V]:
+
+- (a) **Identical mesh input, different ratio.** (28,22) has the same input triangles (139,434) and the same NavData
+  size (69 kB) as the baseline, yet reads 0.8857 against 0.8571. So the abstract graph depends on more than the
+  sector's own mesh: the transition points on the box boundary differ from the full area's. The mechanism is [A].
+- (b) **Box-edge sectors take extra input.** Sectors on a box's outer column and row carry 8-18 % MORE input triangles
+  than in the full area, e.g. (18,17) 173,061 vs 145,693 and (29,25) 167,407 vs 141,592. The margin ring kept every
+  corridor sector interior, and interior sectors match to within 0.5 %.
+- (c) **The deviation band repeats Mojave's.** Deviations of up to 0.045-0.047 match the up to 0.04 that
+  PREREG_NAVEDGE_JST measured.
+
+Design implication, stated separately.
+
+- A box can still test the tree lever on the sectors its own NULL keeps below 0.9. Those are box A (16,14), (17,15),
+  (14,15) 0.8654, (15,15) 0.8305, (18,13) 0.8125, (18,16) 0.8696 and box B (27,22), (28,21), (28,22), (27,21) 0.8929.
+  Scoring each edited arm against its own box NULL is the Mojave N10 "Registration 2" pattern, which needs owner
+  approval.
+- Two corridor sectors, (14,13) and (27,23), cannot be tested in a box, because the box NULL already passes them. Only
+  a full-area run can settle them.
+- A cheaper route to the same answer is one full-area regeneration of L1a (about 60 min). It has no box artefact, and
+  its NULL is the baseline itself.
+
+Owner / seat decision needed. The options:
+
+- (i) Register a box Registration 2 against the box NULLs, knowing (14,13) and (27,23) stay untested.
+- (ii) Skip the boxes: run a full L1a and a full L1b generation, each against the baseline, about 1 h each.
+- (iii) Stop.
+
+Side effects:
+
+- Under C:\MAK, 0 files were written or touched since the registration.
+- The two shadows C:\C2SIM\vrf-nav\shadow_is04_{notrees,maple} and the terrain copies (main checkout)
+  tools\navdata\out\MAK Earth (online) + IS04_{notrees,maple}.mtf are prepared and unused. They are kept for the
+  decision.
+- The 60 NavDataDebug intermediates (518,104,260 B) were deleted.
