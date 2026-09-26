@@ -2,24 +2,12 @@
 # Format: RL-YYYYMMDD-NN | date the owner answered | status. Q = the question AS PUT. A = the OWNER'S OWN WORDS.
 # status VERBATIM = Q and A both located, A inside a genuine owner-typed record. UNVERIFIED = searched, not found.
 # Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl; S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl (entry -09);
-#   P<n> = session 5fc25950-1a10-4ade-9a7b-68cb5c1daf05.jsonl (entries RL-20260925-01, RL-20260926-01). RL-20260921-08 moved to the
-#   archive 2026-09-26 to make room (cap).
+#   P<n> = session 5fc25950-1a10-4ade-9a7b-68cb5c1daf05.jsonl (entries RL-20260925-01, RL-20260926-01). -08, 0914-02: archive (cap), 2026-09-26.
 #   All are the 1-based PHYSICAL line `rg -n` prints; the record shape is named where it is not a plain type=user record.
 # Owner text is EXACTLY as typed, misspellings included. Only transliteration: U+2019 -> ' and U+00EA -> [e^].
 # "[...]" elides; the operative clause is never cut. A "supervisor reading:" line is scope only and binds nobody.
 # A selected AskUserQuestion label is the SEAT's wording, recorded as a selection, never as the owner's words.
 # Cap 120 lines / 160 chars. Overflow -> RULINGS_ARCHIVE.md, same format, no cap. Index of ids at the archive head.
-
-RL-20260914-02 | 2026-09-14 | status VERBATIM
-  Q (as put, L28092): "4. R4, when a hold ends. SECURE, OCCUPY and DEFEND have no natural completion in VR-Forces. Decide
-    whether they complete on arrival, after a duration, or only when a later order supersedes them." Items 1-3 of the same
-    message put R1 (finding the objective), R2 (tasks with no geometry) and R3 (who the enemy is).
-  A (owner, L28191): "1 if that is real, that is a defect of the stp export. Map graphics should be included. Perhaps the
-    wrong configuration was used and an embedded location was placed inside the task. Check, let me know. 2 another stp
-    issue if real. Some tasks will only have the geometry of the who unit. 3 the target is the objective in doctrinal
-    terms. Enemies may happen to be in there. Not what vrf wants? 4 given by the end time"
-  supervisor reading: item 4 answers a question about HOLD-type tasks. The message contains no word about MOVE tasks.
-  pointer: TASK_VOCABULARY_ASSESSMENT 7.1 (R1-R4); RUNBOOK 11. Read with RL-20260921-05 and -08. R5/R6: see the archive.
 
 RL-20260921-05 | 2026-09-21 | status VERBATIM
   Q (as put): none - unprompted correction. The seat's immediately preceding messages are L45432 and L45454.
@@ -90,31 +78,43 @@ RL-20260925-01 | 2026-09-25 | status VERBATIM - four SELECTIONS of the seat's la
   supervisor reading: these settle the four open implementation questions of the next code unit under RL-20260921-09; nothing here alters -09.
   pointer: scratchpad u3\laneP_next_unit_scope.md (session scratch); the code unit: branch feat/completion-temporary-position (F-4).
 
-RL-20260926-01 | 2026-09-26 | status VERBATIM - P3272 (20:24:51Z): two SELECTIONS + one TYPED answer; P3645 (21:06:47Z): one SELECTION
-  Q1 (as put, P3271 AskUserQuestion; echoed in the P3272 tool_result, type=user): "ATTACK: an attack is an operation ending on the objective, not a
-    single fire task; STP always sends the performer as target plus the objective graphic ('the target is the objective' - your ruling). VR-Forces
-    has no entity-level attack task, and a unit cannot take Fire At. What should a unit ATTACK do beyond advancing to the objective?"
-    Options (the seat's labels): Advance + rules of engagement 'fire at will' (Recommended) / Advance only, as today / Suppressive Fire at a
-    named target when one exists.
+RL-20260926-01 | 2026-09-26 | status VERBATIM - P3272: 2 SELECTIONS + 1 TYPED; P3645: 1 SELECTION; P3694, P3775: 1 TYPED each
+  Q1 (as put, P3271 AskUserQuestion; echoed in the P3272 tool_result, type=user): "ATTACK: an attack is an operation ending on the objective, not a single
+    fire task; STP always sends the performer as target plus the objective graphic ('the target is the objective' - your ruling). VR-Forces has no
+    entity-level attack task, and a unit cannot take Fire At. What should a unit ATTACK do beyond advancing to the objective?" Options (the seat's labels):
+    Advance + rules of engagement 'fire at will' (Recommended) / Advance only, as today / Suppressive Fire at a named target when one exists.
   A1 (owner SELECTION of the seat's label, 2026-09-26): "Advance + rules of engagement 'fire at will' (Recommended)"
-  Q2 (as put, P3271): "Doctrine answer: BREACH is a combined-arms task against an OBSTACLE, normally at task-force level, needing engineers/plows
-    [...] The failing 'BREACH on a unit' only exists in our own synthetic test order (enemy company as target); STP never sends a target other than
-    the performer, and for that case the interface already just advances. [...] For STP's under-specified BREACH, what should the interface do?"
-    Options (the seat's labels): Advance, report 'breach not simulated', complete by time (Recommended) / Refuse with a clear status.
-  A2 (owner, P3272, TYPED in place of a selection): "As recommended, but open a Jira item on the STP project to fix the breach task according to
-    doctrine. But look into your synthetic order as well. I don't think it is doctrinal to latch on a unit as you are doing. Tasks are usually
-    against objectives, or reference other tgs instead of specific enemy units as far as I know. Why aren't you using the orders from iron Storm
-    narrative 1, generated by stps coa renderer?"
-  Q3 (as put, P3271): the STP export defect (unmapped tasks exported as ATTACK; follow and support probably one). A3 (owner SELECTION of the seat's
-    label): "Draft the Jira issue for me to review (Recommended)"
-  Q4 (as put, P3637 AskUserQuestion; echoed in the P3645 tool_result, type=user): "STP sends 'hold fire' (ROEHold) on every task: all 42 COA-STP1
-    tasks, all 23 Iron Storm tasks, all 5 in cut A. Your attack decision sets a unit's rules of engagement to fire at will, so for a unit ATTACK
-    the interface now overrides the order's hold-fire (the log names the override). STP's hold-fire looks like a default rather than a planner's
-    choice, but it is what the order says. Which wins for a unit ATTACK?" Options (the seat's labels): ATTACK means fire at will; override STP's
-    blanket hold-fire (Recommended) / The order's ROE wins; ATTACK just advances / Tight (return fire) as a middle ground.
+  Q2 (as put, P3271): "Doctrine answer: BREACH is a combined-arms task against an OBSTACLE, normally at task-force level, needing engineers/plows [...] The
+    failing 'BREACH on a unit' only exists in our own synthetic test order (enemy company as target); STP never sends a target other than the performer, and
+    for that case the interface already just advances. [...] For STP's under-specified BREACH, what should the interface do?" Options (the seat's labels):
+    Advance, report 'breach not simulated', complete by time (Recommended) / Refuse with a clear status.
+  A2 (owner, P3272, TYPED in place of a selection): "As recommended, but open a Jira item on the STP project to fix the breach task according to doctrine. But
+    look into your synthetic order as well. I don't think it is doctrinal to latch on a unit as you are doing. Tasks are usually against objectives, or
+    reference other tgs instead of specific enemy units as far as I know. Why aren't you using the orders from iron Storm narrative 1, generated by stps coa
+    renderer?"
+  Q3 (as put, P3271; echoed in P3272): "The research also found an STP export defect: any task STP cannot map is exported as ATTACK, and 'follow and support'
+    is probably one of them (a string mismatch: FOLLOW_AND_SUPPORT vs 'follow and support' in C2SimTask.cs). File it on the STP side (Jira)?" Options (the
+    seat's labels): Draft the Jira issue for me to review (Recommended) / Not now.
+  A3 (owner SELECTION of the seat's label, 2026-09-26): "Draft the Jira issue for me to review (Recommended)"
+  Q4 (as put, P3637 AskUserQuestion; echoed in the P3645 tool_result, type=user): "STP sends 'hold fire' (ROEHold) on every task: all 42 COA-STP1 tasks, all
+    23 Iron Storm tasks, all 5 in cut A. Your attack decision sets a unit's rules of engagement to fire at will, so for a unit ATTACK the interface now
+    overrides the order's hold-fire (the log names the override). STP's hold-fire looks like a default rather than a planner's choice, but it is what the
+    order says. Which wins for a unit ATTACK?" Options (the seat's labels): ATTACK means fire at will; override STP's blanket hold-fire (Recommended) / The
+    order's ROE wins; ATTACK just advances / Tight (return fire) as a middle ground.
   A4 (owner SELECTION of the seat's label, 2026-09-26): "ATTACK means fire at will; override STP's blanket hold-fire (Recommended)"
-  supervisor reading: a unit ATTACK advances with fire at will and never takes a Fire At; a BREACH advances, reports that the breach is not
-    simulated and completes by time (RL-20260921-09); test orders that aim a task at a unit are retired. The seat opened STP-865 for the BREACH
-    export. "enemy company" in Q2 was the seat's: 114.MechCoy is on the performer's own side in both inits that carry it. FOLSPT/FOLASS
-    advance-and-hold was added to the same code unit at the coordinator's direction; no owner record of it was located - it is not part of A1-A3.
-  pointer: code unit feat/engage-doctrine (TaskDispatchPolicy.ForEngage); docs\SEMANTIC_MAPPING.md sec 3; RUNBOOK sec 11; Jira STP-865.
+  Q5 (as put, P3691 AskUserQuestion, its second question; echoed in the P3694 tool_result, type=user): "Cut A's T01 and T13 are passage-of-lines tasks. STP
+    means them as CNFPSL (conduct forward passage of lines) but the same STP lower-case bug exports them as ExecutePlanPhase, which the interface runs as a
+    hold. The interface has no CNFPSL verb yet, and T02 and T14 are chained after them as holds. For the first run:" Options (the seat's labels): Leave as
+    ExecutePlanPhase for now; add to the STP ticket (Recommended) / Patch to CNFPSL and add a verb now.
+  A5 (owner, P3694, TYPED in place of a selection): "Patch + Jira"
+  Q6 (as put, P3773 AskUserQuestion; echoed in the P3775 tool_result, type=user): "How should the passage-of-lines verb (CNFPSL) behave? The order references
+    four graphics per task: start point, passage point, passage lane, release point, listed out of order; driving them in listed order produces the 30-40 km
+    zig-zag through water. Also T01 is '28 ID controls the division forward passage of lines' (a division HQ controlling, not passing), while T13 is '48 IBCT
+    completes forward passage of lines through passage lanes 1-5 and occupies initial attack positions' (the brigade passing)." Options (the seat's labels):
+    Route by graphic role; T01 stays a hold (Recommended) / Route by graphic role for both / Revert both to holds for the first run.
+  A6 (owner, P3775, TYPED in place of a selection): "Hold for 1st run plus jira item for coa renderer"
+  supervisor reading: a unit ATTACK advances with fire at will, never a Fire At; a BREACH advances, reports it is not simulated, completes by time
+    (RL-20260921-09); unit-targeted test orders are retired; STP-865 opened. Q2's "enemy company" was the seat's (114.MechCoy is same-side). FOLSPT/FOLASS
+    advance-and-hold is the coordinator's direction (no owner record, not in A1-A6). CNFPSL is held in place for now (A6 narrows A5); Jira STP-866.
+  supervisor reading: extended to the ATTACK family (ATTMN/ATTSPT/DESTRY/FIX/DISRPT/PENTRT) because they share the ATTACK path; not asked
+  pointer: feat/engage-doctrine + fix/engage-followup (TaskDispatchPolicy.ForEngage); SEMANTIC_MAPPING sec 3; RUNBOOK sec 11; STP-865, STP-866.

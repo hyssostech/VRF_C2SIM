@@ -94,8 +94,9 @@ degrade). This table is the single source of truth for the mapping.
 |-------------------------------------------------|-----------------|-------------------------------------------------------------|------|
 | MOVE                                            | Move            | CreateRoute + MoveAlongRoute (today's bare path)            | yes  |
 | BREACH                                          | Breach          | advance to the breach graphic / axis end + ONE ObservationReport "the breach action is not simulated ... (STP-865)"; NO DtBreachTask; completes by time (RL-20260926-01) | yes (2026-09-26), LIVE-pending |
-| ATTACK, ATTMN, ATTSPT, DESTRY, FIX, DISRPT, PENTRT | Attack       | UNIT: advance to the objective + rules of engagement fire at will, never a Fire At. PLATFORM: advance, then DtFireAtTargetTask only at a DISTINCT target, else advance only (RL-20260926-01) | yes (2026-09-26), LIVE-pending |
-| FOLSPT, FOLASS                                  | FollowAndSupport | advance along the task's graphic (MapGraphicID) to its end and hold; no engagement; ROE as ordered; completes by time | yes (2026-09-26), LIVE-pending |
+| ATTACK, ATTMN, ATTSPT, DESTRY, FIX, DISRPT, PENTRT | Attack       | UNIT: advance to the objective + rules of engagement fire at will, never a Fire At. PLATFORM: advance, then DtFireAtTargetTask only at a DISTINCT target, else advance only. The owner answered for ATTACK (RL-20260926-01); the other six codes follow it by the seat's reading (they share the ATTACK path; not asked) | yes (2026-09-26), LIVE-pending |
+| FOLSPT, FOLASS                                  | FollowAndSupport | advance along the task's graphic (MapGraphicID) to its end and hold; no engagement; ROE as ordered; completes by time. Coordinator's direction, not decided by the owner (RL-20260926-01 scope line) | yes (2026-09-26), LIVE-pending |
+| CNFPSL                                          | PassageOfLines  | HELD IN PLACE for now - the ExecutePlanPhase dispatch (no vendor task, no move, order's ROE, ends at its Duration) plus the line "CNFPSL (forward passage of lines): held in place for now - route by graphic role (start point -> passage point -> lane -> release point) is not implemented; see STP-866". The owner's answer (RL-20260926-01 A6): the order lists its four graphics out of doctrinal order (a 30-40 km zig-zag as listed). No doctrine record for passage of lines in the repo | yes (2026-09-26), LIVE-pending |
 | SECURE, OCCUPY, SEIZE, RETAIN, BLOCK, DEFEND, GUARD | HoldObjective | move-to + DtHoldUntilTask (+ scan sector)                   | no   |
 | SCREEN, SCOUT                                   | Reconnoiter     | DtPatrolRouteTask + spot reporting                          | unit5|
 | ESCRT                                           | Escort          | DtFollowEntityTask / convoy (needs the escorted entity)     | unit5|
@@ -103,10 +104,14 @@ degrade). This table is the single source of truth for the mapping.
 | (aggregate move, any verb, opt-in)              | MoveInFormation | DtMoveIntoFormationTask(setFormationName)                   | unit4|
 
 Notes:
-- ATTACK / BREACH / FOLLOW, 2026-09-26 (RL-20260926-01; one pure decision, `TaskDispatchPolicy.ForEngage`,
+- ATTACK / BREACH / FOLLOW / PASSAGE, 2026-09-26 (RL-20260926-01; one pure decision, `TaskDispatchPolicy.ForEngage`,
   checked by `--rulings-selftest`'s RL-20260926-01 section). A unit takes no Fire At (an entity-level unit
   has no weapon controller); its ATTACK sets the unit's rules of engagement to fire at will at dispatch,
-  overriding the order's ROE (STP sends ROEHold on every task). Vendor: a rules-of-engagement set on an
+  overriding the order's ROE (STP sends ROEHold on every task). SCOPE: the owner answered for "a unit ATTACK";
+  applying the same to ATTMN/ATTSPT/DESTRY/FIX/DISRPT/PENTRT is the seat's reading (shared ATTACK path; not
+  asked), and FOLSPT/FOLASS are the coordinator's direction - neither was decided by the owner. CNFPSL is
+  held in place for now by the owner's answer (RL-20260926-01 A6; STP-866). Every OTHER dispatch - including in-place and hold-in-place ones - sets the order's own ROE
+  (`TaskDispatchPolicy.RoeFor`, lane E2), so a follow-on does not inherit an ATTACK's fire at will. Vendor: a rules-of-engagement set on an
   aggregate "will apply to the entire aggregate" (`vrfcontrol/vrfRemoteController.h:1436-1438`); the
   pseudo-aggregate set controller handles it (`vrfmodel/pseudoAggregatedSetController.h:61-62`). That the
   members pick it up is NOT yet seen live. DtBreachTask is aggregate-level only (UG52 35.3.1 p719), so no

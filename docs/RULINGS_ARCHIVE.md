@@ -5,10 +5,10 @@
 #      RL-20260913-02, RL-20260913-03, RL-20260914-01, RL-20260914-03, RL-20260914-04, RL-20260914-05,
 #      RL-20260914-06, RL-20260915-01, RL-20260920-01, RL-20260920-02, RL-20260921-01, RL-20260921-02,
 #      RL-20260921-03, RL-20260921-04, RL-UNVERIFIED-DIGUY01, RL-UNVERIFIED-MAK01, RL-UNVERIFIED-NAV09,
-#      RL-20260907-01, RL-20260921-06, RL-20260921-07, RL-20260921-08.
+#      RL-20260907-01, RL-20260921-06, RL-20260921-07, RL-20260921-08, RL-20260914-02.
 # Sources: L<n> = session a7f6a276-7ebc-4507-ac9d-c6bd361bd64e.jsonl, the 1-based physical line `rg -n` prints.
 #   S<n> = session c3b364bd-a4ae-445a-b5c3-e585eaa5935c.jsonl, same line rule (RL-20260921-06 and -07; both moved here from RULINGS.md 2026-09-25;
-#   RL-20260921-08 moved here 2026-09-26, unchanged, to make room for RL-20260926-01).
+#   RL-20260921-08 and RL-20260914-02 moved here 2026-09-26, unchanged, to make room for RL-20260926-01).
 
 RL-20260902-01 | 2026-09-02 | status VERBATIM
   Q (as put, L4035): "Item 5 is a type-mapping question: what VR-Forces unit an echelon-F (battalion) C2SIM unit becomes
@@ -322,3 +322,14 @@ RL-20260921-08 | 2026-09-21 | status VERBATIM - COMPLETION SEMANTICS ARE UNDER H
   supervisor reading: "Seems to me" is tentative; nothing in this entry is a rule. Two standing instructions do follow from
     the S260 answer: use PLAIN WORDS in anything put to him (codes only in parentheses), and read the record before asking.
   pointer: RL-20260921-09; docs\experiments\TASK_COMPLETION_RESEARCH_2026-09-21.md, the per-verb table carrying the research he asked for.
+
+RL-20260914-02 | 2026-09-14 | status VERBATIM
+  Q (as put, L28092): "4. R4, when a hold ends. SECURE, OCCUPY and DEFEND have no natural completion in VR-Forces. Decide
+    whether they complete on arrival, after a duration, or only when a later order supersedes them." Items 1-3 of the same
+    message put R1 (finding the objective), R2 (tasks with no geometry) and R3 (who the enemy is).
+  A (owner, L28191): "1 if that is real, that is a defect of the stp export. Map graphics should be included. Perhaps the
+    wrong configuration was used and an embedded location was placed inside the task. Check, let me know. 2 another stp
+    issue if real. Some tasks will only have the geometry of the who unit. 3 the target is the objective in doctrinal
+    terms. Enemies may happen to be in there. Not what vrf wants? 4 given by the end time"
+  supervisor reading: item 4 answers a question about HOLD-type tasks. The message contains no word about MOVE tasks.
+  pointer: TASK_VOCABULARY_ASSESSMENT 7.1 (R1-R4); RUNBOOK 11. Read with RL-20260921-05 and -08. R5/R6: see the archive.
