@@ -78,7 +78,7 @@ def png_values(path):
     return rows
 
 
-def load_chain():
+def load_chain(lcmap=LCMAP):
     presets = dict(re.findall(r'<preset name="([^"]+)"[^>]*soiltype="([^"]+)"',
                               open(os.path.join(CAT, "presets.xml"), encoding="utf-8-sig").read()))
     maps = {}
@@ -90,7 +90,7 @@ def load_chain():
             m[int(a["value"])] = (a.get("desc", ""), a.get("soiltype") or presets.get(a.get("preset")))
         maps[lid] = m
     soil = {}
-    for line in open(LCMAP, encoding="utf-8-sig"):
+    for line in open(lcmap, encoding="utf-8-sig"):
         mm = re.match(r"\s*Match\s+(\S+)\s+(\S+)", line)
         if mm:
             soil[mm.group(1)] = mm.group(2).lower()
@@ -119,11 +119,12 @@ def main(argv=None):
     ap.add_argument("--tiles", required=True)
     ap.add_argument("--fetch", action="store_true")
     ap.add_argument("--levels", nargs="*", default=["154=12", "165=12", "188=10"])
+    ap.add_argument("--lcmap", default=LCMAP, help="land-cover -> soil map (default: the installed global one)")
     a = ap.parse_args(argv)
     levels = {int(k): int(v) for k, v in (x.split("=") for x in a.levels)}
     if a.fetch:
         print("fetch:", fetch(a.tiles, levels, AO20_BBOX))
-    maps, soilmap = load_chain()
+    maps, soilmap = load_chain(a.lcmap)
     frame = SectorFrame(a.log)
     grids = {}
     for lid, L in levels.items():

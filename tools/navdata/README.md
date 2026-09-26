@@ -29,6 +29,10 @@ Rules, each from a recorded failure:
   when the tool wrote the .navRuntimeConfig. The log said "DtReaderWriterFile::putSelf() : Could not open file ...
   for writing", and the run finished with NO runtime config. Leading explanation, not yet re-tested: the write does
   not create parent folders.
+- The .navRuntimeConfig FILE NAME follows the --config base name, not the --outputPath area name (2026-09-26: config
+  "...MojaveAO20.navGenConfig" + output "...MojaveAO20_bmland2sand" wrote "...MojaveAO20.navRuntimeConfig" whose
+  nav-data-path names the _bmland2sand folder). Name the .navGenConfig after the area, or pass --runtimeConfigPath.
+  With --navDataDir pre-created the file WAS written (it was not on 2026-09-25, when the folder did not exist yet).
 - Pass `--userDataDir C:\C2SIM\vrf-nav\userdata` (owner decision 2026-09-25). At the end of a run the tool MOVES every
   per-sector .ClientInput intermediate to <userData>\NavDataDebug. The default <userData> is ..\userData, i.e.
   C:\MAK\vrforces5.2d\userData. On 2026-09-25 that was 1,600 files / 10.8 GB for a 20 x 20 km area. During the run
@@ -72,3 +76,16 @@ Record: docs/experiments/FINDING_NAV_TAGS_OSM_REFUTED_2026-09-26.md.
 Same frame, for land cover: `python tools\navdata\landcover_sector_map.py --log <gen.log> --tiles <dir> [--fetch]`
 (global-geodetic PNG TMS 154 CA-FVEG / 165 NLCD / 188 Copernicus; the server serves curl, not Python's default
 user agent). Record: FINDING_NAV_TAGS_OSM_REFUTED_2026-09-26.md secs 7-8.
+
+## A terrain-specific land-cover map (make_landcover_map.py)
+
+Release Notes VRF-7074 (p64): a <terrain>.landCoverDataSurfChar.map overrides the global
+appData\settings\vrfSim\landCoverDataSurfChar.map for that terrain. To use one without writing under C:\MAK, work on a
+terrain COPY:
+
+    python tools\navdata\make_landcover_map.py --out "tools\navdata\out\<name>.mtf" --set BM_LAND=sand
+
+It copies the vendor .mtf and <terrain>.surfChar.map beside each other as <name>.*, and writes
+<name>.landCoverDataSurfChar.map = the installed global map with only the --set lines changed (each must hit exactly
+one Match line). Pass the copy to vrfNavGenerator --terrain. The derived map is not committed; the script is.
+Record: docs/experiments/PREREG_NAVMAP_BMLAND2SAND_2026-09-26.md.
