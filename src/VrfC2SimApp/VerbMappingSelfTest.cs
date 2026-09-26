@@ -81,9 +81,9 @@ public static class VerbMappingSelfTest
         // Layer-2 wiring status. Move/Attack/Breach/Reconnoiter/Escort are wired to real vrftasks;
         // HoldObjective (DtHoldUntilTask + scan) and Clear (composite) stay bare-move fallbacks.
         Check(ref failures, VerbMapping.Classify("MOVE").Implemented, "MOVE is implemented (bare move)");
-        Check(ref failures, VerbMapping.Classify("ATTACK").Implemented, "ATTACK is implemented (fires, unit 3)");
-        Check(ref failures, VerbMapping.Classify("DESTRY").Implemented, "DESTRY is implemented (fires)");
-        Check(ref failures, VerbMapping.Classify("BREACH").Implemented, "BREACH is implemented (unit 2, DtBreachTask)");
+        Check(ref failures, VerbMapping.Classify("ATTACK").Implemented, "ATTACK is implemented (RL-20260926-01: advance + fire at will / platform Fire At)");
+        Check(ref failures, VerbMapping.Classify("DESTRY").Implemented, "DESTRY is implemented (ATTACK family)");
+        Check(ref failures, VerbMapping.Classify("BREACH").Implemented, "BREACH is implemented (RL-20260926-01: advance + breach-not-simulated observation)");
         Check(ref failures, VerbMapping.Classify("SCREEN").Implemented, "SCREEN is implemented (Reconnoiter, patrol)");
         Check(ref failures, VerbMapping.Classify("ESCRT").Implemented, "ESCRT is implemented (Escort, follow)");
         Check(ref failures, !VerbMapping.Classify("SECURE").Implemented, "SECURE not yet wired (HoldObjective bare-move fallback)");

@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- NOT DOCTRINAL - retired 2026-09-26 (RL-20260926-01). Its ATTACK names an enemy unit (AD/7154) as the
+     target; tasks reference objectives or other graphics, not specific units. Kept as the record of run
+     NAV_STALL_FALLBACK-2026-09-26-1 (its prereg's byte count predates this header); do not reuse. -->
 <MessageBody xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.sisostds.org/schemas/C2SIM/1.1">
   <DomainMessageBody>
     <OrderBody>

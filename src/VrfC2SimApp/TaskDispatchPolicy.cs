@@ -3,10 +3,9 @@ namespace VrfC2SimApp;
 /// <summary>What a dispatch does with a task that carries NO geometry at all.</summary>
 public enum ZeroGeometryAction
 {
-    /// <summary>Fire at the resolved target where the unit stands (no move to make).</summary>
+    /// <summary>Fire at the resolved target where the PLATFORM stands (no move to make). Only a
+    /// platform performer with a distinct target reaches this (RL-20260926-01).</summary>
     EngageInPlace,
-    /// <summary>Breach the resolved obstacle where the unit stands.</summary>
-    BreachInPlace,
     /// <summary>R2: execute the task AT THE PERFORMING UNIT'S OWN POSITION - the unit holds
     /// where it is, no vendor move is issued, and the task ends at its end time.</summary>
     ExecuteInPlace,
@@ -18,7 +17,8 @@ public enum ZeroGeometryAction
 public enum TargetResolution
 {
     /// <summary>A DISTINCT object this interface created: the one case that can be named as a
-    /// VR-Forces target (DtFireAtTargetTask / DtBreachTask / DtFollowEntityTask).</summary>
+    /// VR-Forces target (DtFireAtTargetTask for a PLATFORM performer, DtFollowEntityTask). Since
+    /// RL-20260926-01 no unit takes a Fire At and nothing takes a DtBreachTask.</summary>
     DistinctEntity,
     /// <summary>The performing unit itself. R3: this is not an error and not "no target" - the
     /// task's GEOMETRY is the objective, and the objective is what the task is about.</summary>
@@ -29,18 +29,31 @@ public enum TargetResolution
     NoTarget,
 }
 
-/// <summary>What an ATTACK-family or BREACH task does (RL-20260926-01). TESTS-FIRST STUB: the
-/// values and <see cref="TaskDispatchPolicy.ForEngage"/> below encode the behaviour on main
-/// 8cdca96, so `--rulings-selftest` shows what the ruling changes before it is built.</summary>
+/// <summary>
+/// What an ATTACK-family or BREACH task does (RL-20260926-01, the owner's decisions of 2026-09-26).
+/// The movement half is the same for all of them: the unit advances to the task's geometry - the
+/// objective, the breach graphic or the axis end - exactly like any other task, and completes by
+/// the time rules (RL-20260921-09). What differs is what is added to that advance.
+/// </summary>
 public enum EngageDecision
 {
+    /// <summary>Not an ATTACK-family or BREACH verb: this decision does not apply.</summary>
     NotEngageVerb,
+    /// <summary>ATTACK on a UNIT: advance, and at dispatch set the unit's rules of engagement to
+    /// fire at will, so its members engage enemies they encounter. No Fire At: an entity-level unit
+    /// has no weapon controller and refuses one (research_attack_engage, VehicleAggregate.ope), and
+    /// "the target is the objective in doctrinal terms. Enemies may happen to be in there."
+    /// (RL-20260914-02 item 3).</summary>
     AdvanceFireAtWill,
+    /// <summary>ATTACK by a PLATFORM on a DISTINCT target: advance, then DtFireAtTargetTask at the
+    /// target when the move completes (P0.3). The only Fire At left.</summary>
     AdvanceThenFireAt,
+    /// <summary>ATTACK by a PLATFORM with no distinct target: advance only (unchanged).</summary>
     AdvanceOnly,
+    /// <summary>BREACH, any performer: advance to the breach location and send ONE observation that
+    /// the breach itself is not simulated (STP-865). No DtBreachTask: it is an aggregate-level task
+    /// and the entity-level model set has no breach controller.</summary>
     AdvanceBreachNotSimulated,
-    /// <summary>main 8cdca96: approach move, then DtBreachTask at the distinct target.</summary>
-    AdvanceThenBreach,
 }
 
 /// <summary>
@@ -65,37 +78,60 @@ public static class TaskDispatchPolicy
 
     /// <summary>
     /// What to do with a task that carries no geometry (R2). The order of the tests is the order
-    /// of certainty: no performer is the only thing that makes the task impossible; a resolved
-    /// target gives the task something concrete to do where the unit stands; otherwise the
-    /// performing unit's own position IS the geometry.
+    /// of certainty: no performer is the only thing that makes the task impossible; a platform
+    /// Fire At at a resolved target gives the task something concrete to do where it stands;
+    /// otherwise the performing unit's own position IS the geometry - which since RL-20260926-01
+    /// includes a unit ATTACK (fire at will, in place) and every BREACH (not simulated, in place).
     /// </summary>
     /// <param name="performerResolved">The taskee resolved to a VR-Forces object we can read.
     /// False only on the paths that already refuse before geometry is even looked at (the unit
     /// was never created, its name is not bound to an object, its position cannot be read).</param>
-    public static ZeroGeometryAction ForZeroGeometry(bool performerResolved, bool hasAttackTarget,
-                                                     bool hasBreachTarget)
+    /// <param name="firesAtTarget"><see cref="IssuesFireAt"/> of the task's
+    /// <see cref="ForEngage"/> decision.</param>
+    public static ZeroGeometryAction ForZeroGeometry(bool performerResolved, bool firesAtTarget)
     {
         if (!performerResolved) return ZeroGeometryAction.Refuse;
-        if (hasAttackTarget) return ZeroGeometryAction.EngageInPlace;
-        if (hasBreachTarget) return ZeroGeometryAction.BreachInPlace;
+        if (firesAtTarget) return ZeroGeometryAction.EngageInPlace;
         return ZeroGeometryAction.ExecuteInPlace;
     }
 
-    /// <summary>TESTS-FIRST STUB (main 8cdca96): a Fire At or a breach whenever the target is
-    /// distinct, whoever the performer is.</summary>
+    /// <summary>
+    /// RL-20260926-01: THE ONE DECISION for an ATTACK-family or BREACH task. The service acts on the
+    /// answer and decides nothing itself.
+    ///   ATTACK (ATTACK, ATTMN, ATTSPT, DESTRY, FIX, DISRPT, PENTRT) on a UNIT, any target -> advance +
+    ///     fire at will. No Fire At to a unit, ever.
+    ///   ATTACK by a PLATFORM with a DISTINCT target -> advance, then Fire At it.
+    ///   ATTACK by a PLATFORM otherwise (STP names the performer itself) -> advance only, unchanged.
+    ///   BREACH, any performer, any target -> advance + the not-simulated observation.
+    /// </summary>
+    /// <param name="performerIsUnit">The taskee was created as a unit (CreatedUnit.IsAggregate).</param>
     public static EngageDecision ForEngage(TaskIntent intent, bool performerIsUnit, TargetResolution target)
-        => intent == TaskIntent.Attack
-               ? (target == TargetResolution.DistinctEntity ? EngageDecision.AdvanceThenFireAt : EngageDecision.AdvanceOnly)
-         : intent == TaskIntent.Breach
-               ? (target == TargetResolution.DistinctEntity ? EngageDecision.AdvanceThenBreach : EngageDecision.AdvanceOnly)
-         : EngageDecision.NotEngageVerb;
+    {
+        if (intent == TaskIntent.Breach) return EngageDecision.AdvanceBreachNotSimulated;
+        if (intent != TaskIntent.Attack) return EngageDecision.NotEngageVerb;
+        if (performerIsUnit) return EngageDecision.AdvanceFireAtWill;
+        return target == TargetResolution.DistinctEntity ? EngageDecision.AdvanceThenFireAt
+                                                         : EngageDecision.AdvanceOnly;
+    }
 
+    /// <summary>Does the decision name a target to VR-Forces (DtFireAtTargetTask)? Only a platform
+    /// with a distinct target.</summary>
     public static bool IssuesFireAt(EngageDecision d) => d == EngageDecision.AdvanceThenFireAt;
-    public static bool SetsFireAtWill(EngageDecision d) => false;
-    public const string AttackFireAtWillLine = "";
-    public static string BreachNotSimulatedObservation(string unitName) => "";
-    public static ZeroGeometryAction ForZeroGeometry(bool performerResolved, bool hasAttackTarget)
-        => ForZeroGeometry(performerResolved, hasAttackTarget, hasBreachTarget: false);
+
+    /// <summary>Does the decision override the order's rules of engagement with fire at will?
+    /// Only a unit ATTACK. Every other task keeps the ROE the order carries.</summary>
+    public static bool SetsFireAtWill(EngageDecision d) => d == EngageDecision.AdvanceFireAtWill;
+
+    /// <summary>The unit ATTACK dispatch line, in the ruled plain words.</summary>
+    public const string AttackFireAtWillLine =
+        "ATTACK: advancing to the objective; rules of engagement set to fire at will - members " +
+        "engage enemies they encounter (RL-20260926-01)";
+
+    /// <summary>The ONE observation a BREACH sends to C2SIM at dispatch (STP-facing, plain).</summary>
+    public static string BreachNotSimulatedObservation(string unitName) =>
+        $"BREACH by {unitName}: the breach action is not simulated - the order carries no obstacle, " +
+        "lane or breach assets (STP-865); the unit advances to the breach location and the task " +
+        "completes by time.";
 
     /// <summary>Does this action mean the task will never run - i.e. must its successors be told
     /// to stop waiting (TaskSequencer.NotifyAbandoned) and STP told TASKABRT?</summary>
@@ -240,8 +276,10 @@ public static class TaskDispatchPolicy
     /// a NotifyAbandoned so the successors fail fast like every other refusal.
     ///
     /// SCOPE. Only the ExecuteInPlace kind - the one that issues no vendor task at all. A
-    /// zero-geometry ATTACK or BREACH has a resolved TARGET, so it has something to do and the
-    /// vendor reports when it is done; a MOVE has geometry and therefore arrival evidence. None
+    /// zero-geometry platform Fire At has a resolved TARGET, so it has something to do and the
+    /// vendor reports when it is done; a MOVE has geometry and therefore arrival evidence. Since
+    /// RL-20260926-01 a zero-geometry unit ATTACK and every zero-geometry BREACH issue no vendor
+    /// task, so they ARE ExecuteInPlace and a missing Duration refuses them like any other. None
     /// of COA-STP1's 42 tasks is malformed by this test: all 42 carry a Duration.
     /// </summary>
     public static bool IsMalformedZeroGeometryTask(ZeroGeometryAction action, long durationMs)

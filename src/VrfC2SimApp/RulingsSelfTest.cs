@@ -1790,26 +1790,22 @@ public static class RulingsSelfTest
         // (c1) A T9-SHAPED TASK - "T9_ProvideAirDefenseCoverage...", zero Locations, no distinct
         //      affected entity - is DISPATCHED IN PLACE, not refused. This is the exact task run
         //      G6 logged as "NO LOCATION GIVEN - CAN'T EXECUTE TASK".
-        var t9 = TaskDispatchPolicy.ForZeroGeometry(performerResolved: true, hasAttackTarget: false,
-                                                    hasBreachTarget: false);
+        var t9 = TaskDispatchPolicy.ForZeroGeometry(performerResolved: true, firesAtTarget: false);
         Check(ref failures, t9 == ZeroGeometryAction.ExecuteInPlace,
               $"a zero-geometry task executes at the performing unit's position (got {t9})");
         Check(ref failures, !TaskDispatchPolicy.Refuses(t9),
               "... and is NOT refused, so its STREND chain is not abandoned");
 
         // (c2) The ONLY refusal left is the one that was never about geometry.
-        var noUnit = TaskDispatchPolicy.ForZeroGeometry(performerResolved: false, hasAttackTarget: false,
-                                                        hasBreachTarget: false);
+        var noUnit = TaskDispatchPolicy.ForZeroGeometry(performerResolved: false, firesAtTarget: false);
         Check(ref failures, noUnit == ZeroGeometryAction.Refuse && TaskDispatchPolicy.Refuses(noUnit),
               "a task whose PERFORMER cannot be resolved is still refused");
 
-        // (c3) A resolved distinct target still engages in place (unchanged behaviour).
+        // (c3) A platform Fire At at a resolved distinct target still engages in place. Since
+        //      RL-20260926-01 nothing breaches in place (the rest is in the RL-20260926-01 section).
         Check(ref failures,
-              TaskDispatchPolicy.ForZeroGeometry(true, hasAttackTarget: true, hasBreachTarget: false)
-                  == ZeroGeometryAction.EngageInPlace
-              && TaskDispatchPolicy.ForZeroGeometry(true, hasAttackTarget: false, hasBreachTarget: true)
-                  == ZeroGeometryAction.BreachInPlace,
-              "a resolved attack / breach target still engages in place");
+              TaskDispatchPolicy.ForZeroGeometry(true, firesAtTarget: true) == ZeroGeometryAction.EngageInPlace,
+              "a platform Fire At at a resolved target still engages in place");
 
         // (c4) The derivation is REPORTED, in the ruling's own words.
         Check(ref failures,
@@ -1829,9 +1825,8 @@ public static class RulingsSelfTest
                   "Q4: a zero-geometry task with no Duration is MALFORMED; the same task WITH a Duration is not");
             Check(ref failures,
                   !TaskDispatchPolicy.IsMalformedZeroGeometryTask(ZeroGeometryAction.EngageInPlace, 0L)
-                  && !TaskDispatchPolicy.IsMalformedZeroGeometryTask(ZeroGeometryAction.BreachInPlace, 0L)
                   && !TaskDispatchPolicy.IsMalformedZeroGeometryTask(ZeroGeometryAction.Refuse, 0L),
-                  "Q4: an ENGAGE or BREACH in place is NOT malformed without a Duration - it has a resolved " +
+                  "Q4: a platform ENGAGE in place is NOT malformed without a Duration - it has a resolved " +
                   "target, so the vendor reports when it is done");
             Check(ref failures,
                   TaskDispatchPolicy.MalformedZeroGeometryRefusal
@@ -1926,8 +1921,7 @@ public static class RulingsSelfTest
         // (d3) A self-targeted ATTACK that ALSO carries no geometry executes in place (R2 + R3
         //      together) - the T9-T12 shape, which used to be a refusal AND a chain abandon.
         Check(ref failures,
-              TaskDispatchPolicy.ForZeroGeometry(performerResolved: true,
-                                                 hasAttackTarget: false, hasBreachTarget: false)
+              TaskDispatchPolicy.ForZeroGeometry(performerResolved: true, firesAtTarget: false)
                   == ZeroGeometryAction.ExecuteInPlace,
               "a self-targeted ATTACK with no geometry executes in place, not refused");
 
@@ -1935,7 +1929,8 @@ public static class RulingsSelfTest
         Check(ref failures,
               TaskDispatchPolicy.ForTarget(true, resolved: true, isSelf: false) == TargetResolution.DistinctEntity
               && !TaskDispatchPolicy.FallsBackToGeometry(TargetResolution.DistinctEntity),
-              "a DISTINCT resolved target is still engaged as an entity (FireAtTarget / Breach)");
+              "a DISTINCT resolved target is still resolved as an entity (a platform's FireAtTarget, " +
+              "an ESCRT's FollowEntity; RL-20260926-01 decides the rest)");
 
         // (d5) An out-of-scope or absent target routes to the location form at the objective
         //      rather than producing a degraded-capability warning about a missing entity.

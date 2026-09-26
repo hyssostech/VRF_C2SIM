@@ -759,7 +759,8 @@ public class VrfSettings
     // TaskDispatchPolicy.IsMalformedZeroGeometryTask is the whole rule. None of COA-STP1's 42
     // tasks is affected - all 42 carry a Duration.
 
-    // P0.3: an ATTACK/BREACH engage is issued when its approach move COMPLETES (previously
+    // P0.3: a PLATFORM's ATTACK Fire At (the only engage since RL-20260926-01 - a unit ATTACK and
+    // every BREACH park nothing) is issued when its approach move COMPLETES (previously
     // it was issued in the same tick as the move, which - VRF running one task at a time -
     // would REPLACE the move the moment both are real). If the move never completes, issue
     // the engage anyway after this many seconds (0 = never: engage strictly on completion).
