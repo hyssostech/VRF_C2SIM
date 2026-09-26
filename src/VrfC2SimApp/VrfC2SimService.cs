@@ -5227,13 +5227,16 @@ public sealed class VrfC2SimService : BackgroundService
     {
         try { await Task.Delay(TimeSpan.FromSeconds(_vrf.EngageFallbackSeconds), _stoppingToken); }
         catch (OperationCanceledException) { return; }
-        // Remove-if-still-this-engage: if the completion (or a supersede) already consumed
-        // it, this exact KeyValuePair no longer exists and TryRemove fails - no double fire.
-        if (_pendingEngage.TryRemove(new KeyValuePair<string, PendingEngage>(unitName, eng)))
-            // The decision reads the watchdog's state and its sample ring, which live on the tick
-            // thread; it is made there, BEFORE IssueEngage (whose queued ClearStallState would wipe the
-            // stall record this decision has to read).
-            _tickActions.Enqueue(() => EngageFallbackOnTick(unitName, eng));
+        // ONLY ENQUEUE (M4-1, 2026-09-25). The engage is taken off the pending list INSIDE the tick
+        // action, not here: the move's completion (SynthesizeUnitCompletion, run from the tick thread
+        // for vendor completions and arrival evidence) and a supersede (MarkDispatched) take it on
+        // that same thread, so exactly one of them - whichever runs first - wins it. Taking it here,
+        // on the pool thread, left a window of about one tick in which a unit that really ARRIVED
+        // found no engage and never got its action at the objective (D4 of RL-20260925-01), and the
+        // fallback then dropped it. The decision itself also reads the watchdog's state and sample
+        // ring, which live on the tick thread, BEFORE IssueEngage (whose queued ClearStallState would
+        // wipe the stall record this decision has to read).
+        _tickActions.Enqueue(() => EngageFallbackOnTick(unitName, eng));
     }
 
     /// <summary>
@@ -5271,8 +5274,18 @@ public sealed class VrfC2SimService : BackgroundService
     /// </summary>
     private void EngageFallbackOnTick(string unitName, PendingEngage eng)
     {
-        // M3-1: is the move still this unit's current task? If not it was superseded while this
-        // decision waited for the tick; its engage is dead and nothing is done for it.
+        // M4-1: take THIS engage off the pending list here, on the tick thread. Remove-if-still-this-
+        // engage: if the move's completion already issued it, or a supersede cancelled it, this exact
+        // KeyValuePair is gone and there is nothing to do - no double fire, no stale action.
+        if (!_pendingEngage.TryRemove(new KeyValuePair<string, PendingEngage>(unitName, eng)))
+        {
+            _log.LogInformation("Unit {Name}: the engage fallback for task '{Task}' finds nothing to do - its {Kind} was " +
+                                "already taken (the move completed and issued it, or a newer task cancelled it).",
+                                unitName, eng.TaskName, eng.Kind);
+            return;
+        }
+        // M3-1, now a backstop behind the TryRemove above: is the move still this unit's current
+        // task? If not, its engage is dead and nothing is done for it.
         bool moveIsCurrent = _inFlight.TryGetCurrent(unitName, out var current)
                              && string.Equals(current.TaskUuid ?? "", eng.MoveTaskUuid ?? "", StringComparison.Ordinal);
         // Read BEFORE anything below can clear it (IssueEngage queues a ClearStallState).

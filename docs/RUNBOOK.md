@@ -2634,7 +2634,7 @@ $env:Vrf__SupersededTaskCode              = "TASKABRT"  # DEFAULT. "TASKCMPLT" =
 no Duration and no geometry is malformed and is refused, not held (below).
 
 - **WHAT `Vrf:TimedCompletion` = true MEANS SINCE 2026-09-25** (the owner's TEMPORARY position,
-  RL-20260921-09; the completion unit (2026-09-25, scope approved as RL-20260925-01; commits 6a50653, 80b14e0, 8affbcb, f30c0c4 and the L2 follow-up on feat/completion-temporary-position); live confirmation owed; `TimedCompletionPolicy` has the rule). A task with a Duration ends
+  RL-20260921-09; the completion unit (2026-09-25, scope approved as RL-20260925-01; commits 2eb9c1d, 48a0fc2, e16b600, 294f2b8 and the L2 follow-up on feat/completion-temporary-position); live confirmation owed; `TimedCompletionPolicy` has the rule). A task with a Duration ends
   at dispatch + Duration x `Vrf:DurationScale`. An EARLIER finish (arrival evidence or a VR-Forces
   success) is HELD and reported TASKCMPLT at that end time. A task WITH a destination whose unit is
   still travelling then is NOT reported complete: one `TIMED COMPLETION: ... OVERDUE` line, nothing
@@ -2652,7 +2652,9 @@ no Duration and no geometry is malformed and is refused, not held (below).
   RL-20260921-07). A unit judged moving gets the engage and completes at its end time (at once if already
   overdue), with a WARNING naming the verdict. A fallback for a move that a newer task has replaced does
   nothing. RESIDUAL: a unit that MOVED after dispatch and stopped less than one watchdog window before the
-  fallback reads as moving; the live run measures displacement at each fallback to count these (F-4).
+  fallback reads as moving; so, with the watchdog off, does one that moved at all after dispatch, and so does
+  one with no dispatch-time member positions. The live run measures displacement at each fallback to count
+  these (F-4).
 
 - **`Vrf:TaskClock` is NOT `Vrf:StallClock`.** TaskClock carries ALL THREE C2SIM task times -
   the Duration that ends a task (R4), the StartTime/DelayTimeAmount delay that holds one back,
@@ -3379,7 +3381,7 @@ as a data problem.
 
 ### 11h. PLACEMENT ON A STREAMING TERRAIN - THE RE-CLAMP AND THE DISPATCH GROUND GATE (2026-09-21)
 
-> **UPDATE 2026-09-25 - THE DISPATCH GATE NO LONGER HOLDS OR REFUSES** (RL-20260921-06; the completion unit (2026-09-25, scope approved as RL-20260925-01; commits 6a50653, 80b14e0, 8affbcb, f30c0c4 and the L2 follow-up on feat/completion-temporary-position); live
+> **UPDATE 2026-09-25 - THE DISPATCH GATE NO LONGER HOLDS OR REFUSES** (RL-20260921-06; the completion unit (2026-09-25, scope approved as RL-20260925-01; commits 2eb9c1d, 48a0fc2, e16b600, 294f2b8 and the L2 follow-up on feat/completion-temporary-position); live
 > confirmation owed; `docs/CORRECTIONS_LOG.md` F-4). A taskee measured off the terrain at dispatch
 > is LOGGED - `PLACEMENT RE-CLAMP gate: <unit> measured OFF the terrain at dispatch - ... -
 > dispatching task '<T>'` - and dispatched. The state `BOUND-BUT-NOT-ON-THE-GROUND` no longer

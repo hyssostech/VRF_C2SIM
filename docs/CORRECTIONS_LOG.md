@@ -360,8 +360,8 @@ content of this entry whatever happens to the feature. ***
   owner's approval of this unit's scope and his four decisions, in docs/RULINGS.md.)
 
 This is not a refuted MEASUREMENT: both statements were accurate descriptions of main. They became false when
-the completion unit landed (branch `feat/completion-temporary-position`, commits 6a50653, 80b14e0, 8affbcb and
-f30c0c4 as rebased onto main f237418, docs in e60d889, and the "Completion U3 lane L2" and "lane L3" follow-ups).
+the completion unit landed (branch `feat/completion-temporary-position`, commits 2eb9c1d, 48a0fc2, e16b600 and
+294f2b8 as rebased onto main b14c257, docs in ecf1d54, and the "Completion U3 lane L2" to "L5" follow-ups).
 LIVE CONFIRMATION IS OWED (a pre-registered run, the seat's step).
 - WHAT CHANGED, completion (the owner's TEMPORARY position, RL-20260921-09): an early finish is HELD to start time
   + Duration; a task WITH a destination whose unit is still travelling at that time is logged OVERDUE, reports
@@ -371,7 +371,7 @@ LIVE CONFIRMATION IS OWED (a pre-registered run, the seat's step).
   the stuck unit's follow-ons (the owner's decision D2); a late ATTACK/BREACH move still gets its parked engage
   and reports TASKCMPLT on arrival (D4); stall detection is ON in `appsettings.Demo.json` and OFF by default (D3).
   Back-end loss also aborts tasks held after an early finish.
-- ADDED, outside the 12 approved items and recorded as such: (a) f30c0c4 - a supersede under the non-default
+- ADDED, outside the 12 approved items and recorded as such: (a) 294f2b8 - a supersede under the non-default
   `Vrf:SupersededTaskCode=TASKCMPLT` marks the old task FINISHED, so it still completes at its end time (at once
   if overdue) instead of waiting OVERDUE for an arrival a superseded task never gets (--rulings-selftest t14,
   t15); (b) the L2 follow-up (lane M review S1) - when the ATTACK/BREACH engage fallback replaces the approach
@@ -384,7 +384,10 @@ LIVE CONFIRMATION IS OWED (a pre-registered run, the seat's step).
   still moving: if the watchdog has already reported the move stuck, or judges it stuck at the fallback on the
   same ring and criterion, the task stays ABORTED (stall TASKABRT, follow-ons abandoned, D2), keeps its
   destination, the engage is NOT issued (it is parked again, so a real late arrival still gets it) and no
-  TASKCMPLT follows unless the unit really arrives (t16, t17, t19). L4 follow-up (lane M3 review): (M3-1) the
+  TASKCMPLT follows unless the unit really arrives (t16, t17, t19). L5 (lane M4 review, M4-1): the fallback now
+  takes the parked engage off the list on the TICK thread, so a real arrival processed in the ~1-tick window
+  before the fallback's action still gets its engage (D4) and the fallback then does nothing (t24).
+  L4 follow-up (lane M3 review): (M3-1) the
   fallback acts only if the move is still the unit's CURRENT task - a newer task that superseded it while the
   decision waited for the tick no longer gets the old engage fired over it (t20, t23); (M3-2) when the watchdog
   has NO verdict (Vrf:StallDetection off - the shipped default outside the demo profile - window not full, clock

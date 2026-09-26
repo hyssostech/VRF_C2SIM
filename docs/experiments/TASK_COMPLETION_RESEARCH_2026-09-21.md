@@ -5,7 +5,7 @@
 # It RECOMMENDS NOTHING and settles nothing. Produced 2026-09-21 by a read-only executor; nothing was
 # run (n/a live); the evidence is the citations on each line. Cited from RL-20260921-08 and -09.
 # UPDATE 2026-09-25 - THE "CODE TODAY" CELLS DESCRIBE main AT ac1ec58 / cad4ce9. From the completion unit
-# (2026-09-25, scope approved as RL-20260925-01; commits 6a50653, 80b14e0, 8affbcb, f30c0c4 and the L2 follow-up on branch
+# (2026-09-25, scope approved as RL-20260925-01; commits 2eb9c1d, 48a0fc2, e16b600, 294f2b8 and the L2 follow-up on branch
 # feat/completion-temporary-position; live confirmation owed) the code does this instead: every task with
 # a Duration ends at dispatch + Duration; an EARLIER finish is held until then; a task WITH a destination
 # whose unit is still travelling at that time is reported complete when it ARRIVES (one OVERDUE line, its

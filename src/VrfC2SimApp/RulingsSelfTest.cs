@@ -780,6 +780,7 @@ public static class RulingsSelfTest
         {
             var f = new CompletionFlow();
             f.Dispatch("ATTACK1", D, hasDestination: true);
+            f.ParkEngage("ATTACK1");
             var next = f.Seq.WaitForStartAsync("ATTACK1", 0, 0, D + 60.0, f.Clock.AsTaskClock(),
                                                CancellationToken.None, double.NaN, 86400.0);
             f.Tick(30.0);
@@ -800,6 +801,7 @@ public static class RulingsSelfTest
         {
             var f = new CompletionFlow();
             f.Dispatch("ATTACK2", D, hasDestination: true);
+            f.ParkEngage("ATTACK2");
             var next = f.Seq.WaitForStartAsync("ATTACK2", 0, 0, D + 60.0, f.Clock.AsTaskClock(),
                                                CancellationToken.None, double.NaN, 86400.0);
             f.Tick(D);                                            // overdue, move still running
@@ -848,6 +850,7 @@ public static class RulingsSelfTest
             const double LongD = 1000.0;
             var f = new CompletionFlow();
             f.Dispatch("STUCKATK", LongD, hasDestination: true);
+            f.ParkEngage("STUCKATK");
             var next = f.Seq.WaitForStartAsync("STUCKATK", 0, 0, LongD + 60.0, f.Clock.AsTaskClock(),
                                                CancellationToken.None, double.NaN, 86400.0);
             f.Tick(245.0);
@@ -874,6 +877,7 @@ public static class RulingsSelfTest
             const double LongD = 1000.0;
             var f = new CompletionFlow();
             f.Dispatch("STUCKB", LongD, hasDestination: true);
+            f.ParkEngage("STUCKB");
             var next = f.Seq.WaitForStartAsync("STUCKB", 0, 0, LongD + 60.0, f.Clock.AsTaskClock(),
                                                CancellationToken.None, double.NaN, 86400.0);
             f.Tick(300.0);
@@ -895,11 +899,13 @@ public static class RulingsSelfTest
             const double LongD = 1000.0;
             var f = new CompletionFlow();
             f.Dispatch("MOVINGATK", LongD, hasDestination: true);
+            f.ParkEngage("MOVINGATK");
             f.Tick(300.0);
             f.EngageFallback("MOVINGATK", TimedCompletionPolicy.StallAtFallback.Moving);
             f.Tick(LongD);
             var g = new CompletionFlow();
             g.Dispatch("UNKNATK", LongD, hasDestination: true);
+            g.ParkEngage("UNKNATK");
             g.Tick(300.0);
             g.EngageFallback("UNKNATK", TimedCompletionPolicy.StallAtFallback.Unknown);
             g.Tick(LongD);
@@ -933,9 +939,9 @@ public static class RulingsSelfTest
             const double LongD = 1000.0;
             var f = new CompletionFlow();
             f.Dispatch("OLDATK", LongD, hasDestination: true);
+            f.ParkEngage("OLDATK");
             f.Tick(300.0);
-            f.Push("OLDATK", S.TaskStatusCodeType.TASKABRT);      // superseded by a newer task
-            f.Seq.NotifyAbandoned("OLDATK");
+            f.SupersedeAbort("OLDATK");                           // superseded by a newer task
             f.EngageFallback("OLDATK", TimedCompletionPolicy.StallAtFallback.Unknown, moveIsCurrent: false);
             f.Tick(LongD * 3);
             Check(ref failures, !f.EngagesIssued.Contains("OLDATK")
@@ -951,6 +957,7 @@ public static class RulingsSelfTest
             const double LongD = 1000.0;
             var f = new CompletionFlow();
             f.Dispatch("PUTATK", LongD, hasDestination: true);
+            f.ParkEngage("PUTATK");
             var next = f.Seq.WaitForStartAsync("PUTATK", 0, 0, LongD + 60.0, f.Clock.AsTaskClock(),
                                                CancellationToken.None, double.NaN, 86400.0);
             f.Tick(300.0);
@@ -973,6 +980,7 @@ public static class RulingsSelfTest
             const double LongD = 1000.0;
             var f = new CompletionFlow();
             f.Dispatch("MOVEDATK", LongD, hasDestination: true);
+            f.ParkEngage("MOVEDATK");
             f.Tick(300.0);
             var moved = TimedCompletionPolicy.StaysPutVerdict(new[] { 20.0, 140.0, 95.0 }, 4, 50.0, 1);
             f.EngageFallback("MOVEDATK", TimedCompletionPolicy.StallAtFallback.Unknown, staysPut: moved);
@@ -1007,6 +1015,28 @@ public static class RulingsSelfTest
                                                            TimedCompletionPolicy.StallAtFallback.Stalled)
                   == TimedCompletionPolicy.StallAtFallback.Stalled,
               "(t23) the stays-put test is consulted ONLY when the watchdog has no verdict");
+
+        // (t24) M4-1 of the lane M4 review: A REAL ARRIVAL PROCESSED IN THE WINDOW BETWEEN THE FALLBACK
+        //       TIMER AND ITS TICK ACTION. The arrival path (tick thread) must still find the parked
+        //       engage and issue it (D4: "Issue it"), and the fallback's later tick action must then
+        //       find nothing to do - no second engage, no drop.
+        {
+            const double LongD = 1000.0;
+            var f = new CompletionFlow();
+            f.Dispatch("RACEATK", LongD, hasDestination: true);
+            f.ParkEngage("RACEATK");
+            f.Tick(300.0);
+            f.FallbackTimerFires("RACEATK");                      // pool thread: the delay ends
+            f.Arrive("RACEATK");                                  // tick: the unit's arrival is processed first
+            f.EngageFallback("RACEATK", TimedCompletionPolicy.StallAtFallback.Moving);   // then the queued action
+            f.Tick(LongD);
+            Check(ref failures, f.EngagesIssued.Count(t => t == "RACEATK") == 1
+                             && f.Count("RACEATK", S.TaskStatusCodeType.TASKCMPLT) == 1
+                             && f.Count("RACEATK", S.TaskStatusCodeType.TASKABRT) == 0
+                             && f.FallbackFoundNothing.Contains("RACEATK"),
+                  "(t24) an arrival processed between the fallback timer and its tick action still gets its engage (D4), " +
+                  "exactly once, and one TASKCMPLT at the end time - the fallback's action finds nothing to do");
+        }
 
         // (t15) The two policy calls t12-t14 rest on, called directly (no mirror).
         {
@@ -1127,21 +1157,61 @@ public static class RulingsSelfTest
         }
 
         public readonly HashSet<string> StallReported = new(StringComparer.Ordinal);
-        public readonly HashSet<string> EngagesIssued = new(StringComparer.Ordinal);
+        public readonly List<string> EngagesIssued = new();
+        public readonly HashSet<string> PendingEngages = new(StringComparer.Ordinal);
+        public readonly List<string> FallbackFoundNothing = new();
+
+        /// <summary>DeferEngageUntilMoveCompletes: the engage is parked on the move.</summary>
+        public void ParkEngage(string task) => PendingEngages.Add(task);
+
+        /// <summary>SynthesizeUnitCompletion for an ATTACK/BREACH move half: a parked engage still on
+        /// the list is taken and issued (re-recorded in flight under the same uuid).</summary>
+        public void Arrive(string task)
+        {
+            bool cont = PendingEngages.Remove(task);
+            Finish(task, true, cont);
+            if (cont) { EngagesIssued.Add(task); _inFlight.Add(task); }
+        }
+
+        /// <summary>MarkDispatched's supersede branch (default TASKABRT): abort, abandon, and the
+        /// engage parked on the old move is cancelled.</summary>
+        public void SupersedeAbort(string task)
+        {
+            _inFlight.Remove(task);
+            PendingEngages.Remove(task);
+            Push(task, S.TaskStatusCodeType.TASKABRT);
+            Seq.NotifyAbandoned(task);
+        }
+
+        /// <summary>The tick-thread start of EngageFallbackOnTick (M4-1): the fallback takes the engage
+        /// off the list HERE, on the tick thread; if the arrival path or a supersede took it first,
+        /// the fallback does nothing.</summary>
+        private bool FallbackTookEngage(string task)
+        {
+            if (PendingEngages.Remove(task)) return true;
+            FallbackFoundNothing.Add(task);
+            return false;
+        }
+
+        /// <summary>EngageFallbackAsync, the POOL-thread part, when the Vrf:EngageFallbackSeconds delay
+        /// ends: since M4-1 it only ENQUEUES the tick action - it takes nothing off the list.</summary>
+        public void FallbackTimerFires(string task) { }
 
         /// <summary>The service's EngageFallbackOnTick: the plan (the same static the service
         /// calls) decides between keeping a stuck unit aborted, reporting it stuck now, or - for a
         /// unit judged moving or not judgeable - issuing the engage and dropping the destination.</summary>
         public void EngageFallback(string task,
             TimedCompletionPolicy.StallAtFallback verdict = TimedCompletionPolicy.StallAtFallback.Moving,
-            bool moveIsCurrent = true,
+            bool? moveIsCurrent = null,
             TimedCompletionPolicy.StallAtFallback staysPut = TimedCompletionPolicy.StallAtFallback.Unknown)
         {
+            if (!FallbackTookEngage(task)) return;
             var combined = TimedCompletionPolicy.CombineWithStaysPut(verdict, staysPut);
-            var plan = TimedCompletionPolicy.PlanEngageFallback(moveIsCurrent, StallReported.Contains(task), combined);
+            var plan = TimedCompletionPolicy.PlanEngageFallback(moveIsCurrent ?? _inFlight.Contains(task),
+                                                                StallReported.Contains(task), combined);
             if (plan == TimedCompletionPolicy.EngageFallbackPlan.Superseded) return;
-            if (plan == TimedCompletionPolicy.EngageFallbackPlan.KeepStuck) return;
-            if (plan == TimedCompletionPolicy.EngageFallbackPlan.ReportStuckNow) { Stall(task); return; }
+            if (plan == TimedCompletionPolicy.EngageFallbackPlan.KeepStuck) { PendingEngages.Add(task); return; }
+            if (plan == TimedCompletionPolicy.EngageFallbackPlan.ReportStuckNow) { Stall(task); PendingEngages.Add(task); return; }
             EngagesIssued.Add(task);
             var v = Timed.DropDestination(task);
             if (v != TimedCompletionPolicy.FinishVerdict.EmitNow) return;
