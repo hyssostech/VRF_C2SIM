@@ -661,7 +661,7 @@ N distinct nav tags." means what its name says; that generation-time connectivit
 remains falsified. The generator is bit-stable given identical input (1,016 sectors reproduced exactly, zero ratio
 drift), so the cause is entirely on the input side, and the input that changed is the **per-sector surface
 classification**: 484 sectors gained a distinct nav tag, and those 484 contain all 189 fragmented sectors while the
-1,115 unchanged sectors contain none.
+1,115 unchanged sectors contain none. [CORRECTION 2026-09-26: an intervention removed the extra tag (BM_LAND -> sand map) from 451 sectors and left every sector's NavData size and connectivity ratio unchanged (189/1,600 still below 0.5) - the tag change is a correlate, not the mechanism; docs/experiments/PREREG_NAVMAP_BMLAND2SAND_2026-09-26.md Result.]
 
 Product consequence, sharpened: the connectivity-ratio gate (STP-803) stays mandatory, and it now has a cheap companion
 tripwire - **the output byte size and the per-sector tag count**. 166 MB on 2026-09-07 against 268.7 MB today for the

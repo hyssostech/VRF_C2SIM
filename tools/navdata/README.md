@@ -29,6 +29,10 @@ Rules, each from a recorded failure:
   when the tool wrote the .navRuntimeConfig. The log said "DtReaderWriterFile::putSelf() : Could not open file ...
   for writing", and the run finished with NO runtime config. Leading explanation, not yet re-tested: the write does
   not create parent folders.
+- The .navRuntimeConfig FILE NAME follows the --config base name, not the --outputPath area name (2026-09-26: config
+  "...MojaveAO20.navGenConfig" + output "...MojaveAO20_bmland2sand" wrote "...MojaveAO20.navRuntimeConfig" whose
+  nav-data-path names the _bmland2sand folder). Name the .navGenConfig after the area, or pass --runtimeConfigPath.
+  With --navDataDir pre-created the file WAS written (it was not on 2026-09-25, when the folder did not exist yet).
 - Pass `--userDataDir C:\C2SIM\vrf-nav\userdata` (owner decision 2026-09-25). At the end of a run the tool MOVES every
   per-sector .ClientInput intermediate to <userData>\NavDataDebug. The default <userData> is ..\userData, i.e.
   C:\MAK\vrforces5.2d\userData. On 2026-09-25 that was 1,600 files / 10.8 GB for a 20 x 20 km area. During the run

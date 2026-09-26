@@ -84,4 +84,62 @@ Registration only if EVERY sector passes 0.9: make_nav_terrain.py --terrain <the
 
 ## Result (written after the harvest, never from a live read)
 
-(to be written after the run)
+RUN: 2026-09-26 11:20:58Z -> 11:56:21Z (log last write), ~2,122 s wall; the generator's own "Generation time: 2076.82".
+Started after two consecutive clear polls (another lane's RunnerTurnaround suite was running at 11:18Z and was waited
+out). Stdout ends in the normal shutdown sequence; stderr empty. Exit code NOT captured (the process handle lived in an
+earlier shell call). Log C:\C2SIM\vrf-nav\work\log\gen-AO20-bmland2sand-2026-09-26.log, 5,430,571 B, sha256
+3eb5ca4f...f22e. Gate output saved beside it (nav_gate-AO20-bmland2sand-2026-09-26.txt / .json).
+
+| # | Verdict | Measured |
+|---|---|---|
+| P0 | HIT on every observed limb; exit code not captured | 1,600 "Sector (" rows; "Generation time: 2076.82"; extent (-10019,-9976)..(10062,9976); the .navRuntimeConfig WAS written into the pre-created --navDataDir (773 B). Its FILE NAME follows the --config base name, "NavArea-ground-platform MojaveAO20.navRuntimeConfig", not the --outputPath area name; its nav-data-path names ...\NavArea-ground-platform MojaveAO20_bmland2sand and its original-terrain names the terrain copy. Nothing new under C:\MAK (bin64, userData, SharedData, appData: 0 files newer than the start). The 1,600 .ClientInput intermediates (10,814,658,196 B) went to C:\C2SIM\vrf-nav\userdata\NavDataDebug as intended |
+| P1 | HIT (tool consistency only) | landcover_sector_map.py with the new map: 0 dryground sectors |
+| P2 | MISS | tags 1: 1,100 / 2: 485 / 3: 15 / 4: 0 - 1-tag sectors 1,100 < 1,500, and 15 sectors still carry 3 tags |
+| P3 | MISS | 189 sectors below 0.5, 314 below 0.9, 1,210 at 1.00, min 0.0185 at (13,36) - the SAME numbers and the same failing sectors as the 2026-09-25 run |
+| P4 | MISS on size, HIT on duration | 4,803 files, 268,703,128 B (268.7 MB; outside 150-190); 2,076.8 s (inside 1,300-2,500) |
+
+FALSIFIER FIRED (more than 20 fragmented sectors, and 3-tag sectors remain). STOP: nothing was registered, no fixture
+was touched.
+
+The override WAS read. Per sector, 2026-09-25 -> today: tags 1->1 in 1,050 sectors, 2->1 in 50, 2->2 in 92, 3->2 in
+393, 3->3 in 7, 4->3 in 8. Every change (451 sectors) is a loss of exactly one tag; 446 of the 451 are
+sectors where N4 found a dryground class (5 are not), and 88 dryground sectors kept their count.
+The generator log itself prints no line naming the terrain-specific map (the DLL string "Paging in terrain landCover
+characteristics file" never appears), so the proof is the tag change, as registered.
+
+The navigation data did NOT change. Against the 2026-09-25 area: per-sector input triangle counts identical in 1,600
+of 1,600 sectors; per-sector "NavData Size" identical in 1,600 of 1,600; 4,802 of the 4,803 files have the same size - the exception is Generator.GenIO, 3,004 vs 3,028 B, i.e. 2 x the
+12 characters of "_bmland2sand" in its recorded paths, which is also the whole 24 B difference of the area total (file
+names carry a different area suffix, uLxq vs rXUU; in a 1-in-40 sample the contents differ in 8-76 bytes in most
+files and in 100-2,100 bytes in the rest - not attributed); connectivity ratios identical sector for sector. The ClientInput total is identical to the byte (10,814,658,196 B).
+
+What this measures. Mapping BM_LAND to sand removes one distinct nav tag from 451 sectors and changes nothing else the
+generator writes: the NavMesh size, the abstract graphs and the fragmentation are the same to the byte count and to the
+ratio. The per-sector distinct-tag count is therefore not what fragments the abstract graphs on this area; the
+tag-change / fragmentation association of PREREG_NAVCONTROL_WEST20_2026-09-15.md:595-597 is a correlate, and its
+mechanism sentence (:662-664, "the input that changed is the per-sector surface classification") is not supported by
+this intervention.
+
+Design implication, stated separately: a land-cover soil remap (this lever) does not produce a passing area and is not
+pursued; nothing in this run was registered.
+
+Side effect, as a measurement: in the terrain copy's map, BM_LAND areas are sand for anything that reads the map,
+including the simulation if a scenario used this copy. No scenario does. On soil effects in 5.2 the record carries
+the Table 26 soil -> roughness mapping (UG52 p506) and the movement sysdef soil-list factors (UG52 p507); a 5.2 change
+to per-soil max-speed factors is referred to in the brief as CLAUDE.md sec 2 D7 - not re-read here, so not asserted.
+
+UNEXPLAINED, carried:
+1. What still carves the mesh along the same boundaries. The byte sizes say the polygon structure is unchanged, so the
+   regions that N4 located (CA-FVEG Desert Succulent Shrub / Desert Wash next to Desert Scrub) are still separated in
+   the mesh even though their soil tag is now the same. Candidates not tested: the CA-FVEG class attributes (dense,
+   lush, rugged, traits) through the vendor's biome / procedural vegetation (the run streamed "Biomes" and "Life-Map"
+   caches, lane N 2026-09-25), which would add geometry or no-go regions per class.
+2. Why 92 sectors that became sand-only keep 2 tags, and 15 keep 3.
+3. The 4,803 vs the record's 4,804 files (unchanged from 2026-09-25).
+
+Confounds registered before the run and still open: the terrain path/name (content byte-identical) and --userDataDir.
+Neither can explain an UNCHANGED mesh; they matter only if the tags had not changed.
+
+VERIFIED in passing (feeds FINDING_NAV_TAGS_OSM_REFUTED_2026-09-26.md sec 2): this run's .navRuntimeConfig gives the
+area offset (-2361540.715256, -4695377.073151, 3602563.309340); in the ENU frame about the adjusted-corner centroid it
+sits at (-21.50, 0.00) m, i.e. the +21.48 m east shift fitted by osm_sector_map.py is the true offset to 0.02 m.

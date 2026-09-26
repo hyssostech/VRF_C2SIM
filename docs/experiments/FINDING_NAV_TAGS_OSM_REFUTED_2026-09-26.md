@@ -38,6 +38,9 @@ FALSIFIER: extra-tag sectors that contain no highway way.
   corners land on the log's own "CalculateTransitionPointLocations extent" (-10019..10062, -9976..9976). The
   fitted shift is +21.48 m (half a cell); corner residuals after it are <= 0.05 m. The shift is fitted, so the
   offset is assumed; half a cell is 5 % of a 473 m sector.
+  VERIFIED 2026-09-26 (PREREG_NAVMAP_BMLAND2SAND_2026-09-26.md Result): the first .navRuntimeConfig written for this
+  box gives the offset, which lies at (-21.50, 0.00) m from the corner centroid - the fitted shift is the true
+  offset to 0.02 m.
 
 ## 3. Result
 
@@ -213,7 +216,7 @@ expected to remove these tags, because the soils that carry them are not on that
 measurement points at - a custom Coverage block without the CA-FVEG layer (the vendor's own note in
 biomes.landcover.coverage.online.xml:1-15 recommends custom blocks), or a terrain-specific land-cover map
 that sends the BM_LAND classes to sand (Release Notes VRF-7074) - are candidates for a new prereg, not
-recommendations; each changes the simulated soil as well as the nav tags.
+recommendations; each changes the simulated soil as well as the nav tags. [UPDATE 2026-09-26: the land-cover map lever was run (PREREG_NAVMAP_BMLAND2SAND_2026-09-26.md): it removed the tag but left the NavData and the fragmentation unchanged.]
 
 Open for the 2026-09-07 -> 2026-09-13 change (not tested here): the CA-FVEG layer is the only one of the three
 that is cached (cacheid="CA_FVEG_WHR_15m"; NLCD and Copernicus are cache_policy no_cache). If CA-FVEG was not
