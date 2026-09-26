@@ -3395,7 +3395,9 @@ join) are BURNED, not recycled. The run manifest records which were actually use
 
 - RESULT 2026-09-26 (lane R, COMPLETION_CONFIRM-2026-09-26-1, run 20260926T115957Z_run; manifest + rtiexec join count): 5103 CONSUMED (persistent holder RtiProbe pid 34096, HOLDER JOINED 11:59:11Z, left joined); 5104-5106 BURNED; 5107 (back end, JOINED - no create), 5109 (WatchVrf pre-check), 5110 (WatchVrf trace), 5111 (VrfC2SimApp), 5112 (Stage 2c RtiProbe), 5114 (Stage 2h holder attempt 1, pid 29904) CONSUMED; 5108 (-NoGui), 5113 (oracle gate passed), 5115-5117 BURNED. 7 consumed, 8 burned, as registered.
 
-*** NEXT FREE: 5118 *** (authoritative - the ONLY such marker in this file. Update this
+- 2026-09-26 NAV_STALL_FALLBACK-2026-09-26-1 CONTINGENCY PERSISTENT HOLDER (docs/experiments/PREREG_NAV_STALL_FALLBACK_2026-09-26.md sec 3 step D / sec 5; RUNBOOK 9c): scripts/StartFederationHolder52.ps1 -AppNumbers 5118,5119,5120,5121 -SettleSecs 28800, started ONLY if the launch starts after 19:10Z (lane R's holder 34096, appNo 5103, holds until ~19:59Z); otherwise all four are BURNED, never reused. The run's own runner block (5122-5132) is written by the runner at Stage 2. R2-CLAIMED (lane R2, before any launch).
+
+*** NEXT FREE: 5122 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
