@@ -93,6 +93,7 @@ public sealed class TaskSequencer
         public readonly TaskCompletionSource Completed = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public readonly TaskCompletionSource Dispatched = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public readonly TaskCompletionSource Abandoned = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public readonly TaskCompletionSource Overdue = new(TaskCreationOptions.RunContinuationsAsynchronously);
         // The TASK CLOCK reading at dispatch (NaN = never stamped), written before Dispatched
         // fires (happens-before via the await). It is a reading of the caller's monotone axis,
         // NOT a wall timestamp: phase 2 subtracts it from the same axis, so the window a
@@ -136,6 +137,19 @@ public sealed class TaskSequencer
     }
 
     /// <summary>
+    /// Signal that the task with this uuid reached its END TIME with its unit still travelling
+    /// (TimedCompletionPolicy.DueKind.OverdueAwaitingArrival). Under the owner's temporary position
+    /// (RL-20260921-09) such a task is reported complete when the unit ARRIVES, so its waiters must
+    /// keep waiting past their normal window - see the phase-2 extension in
+    /// <see cref="WaitForStartAsync"/>.
+    /// </summary>
+    public void NotifyOverdue(string taskUuid)
+    {
+        if (string.IsNullOrEmpty(taskUuid)) return;
+        State(taskUuid).Overdue.TrySetResult();
+    }
+
+    /// <summary>
     /// Wait at a task's start gate: first for its predecessor (two-phase, see class doc),
     /// then for its start delay. Returns <see cref="GateResult.Proceed"/> when the task
     /// should dispatch, or a Predecessor* result when it never became ready.
@@ -147,9 +161,13 @@ public sealed class TaskSequencer
     /// order is order receipt. NaN (the default) means "the same window as phase 2", the
     /// pre-A1 behaviour, kept so a caller that has no chain context is unchanged; the service
     /// passes TaskDispatchPolicy.PredecessorDispatchTimeoutSeconds.</param>
+    /// <param name="overdueBackstopSeconds">PHASE 2 EXTENSION (2026-09-25): when phase 2's window
+    /// expires on a predecessor that has been signalled OVERDUE (<see cref="NotifyOverdue"/>), keep
+    /// waiting until this many seconds after ITS dispatch. The service passes
+    /// Vrf:TaskChainBackstopSeconds. NaN (the default) = no extension.</param>
     public async Task<GateResult> WaitForStartAsync(string startAfterTaskUuid, long simulationStartMs,
         long relativeDelayMs, double predecessorTimeoutSeconds, TaskClock clock, CancellationToken ct,
-        double dispatchTimeoutSeconds = double.NaN)
+        double dispatchTimeoutSeconds = double.NaN, double overdueBackstopSeconds = double.NaN)
     {
         clock ??= TaskClock.Wall;
         double timeoutSeconds = Math.Max(0.0, predecessorTimeoutSeconds);
@@ -188,6 +206,25 @@ public sealed class TaskSequencer
                 await Task.WhenAny(pred.Completed.Task, pred.Abandoned.Task,
                                    clock.DelayAsync(remaining, cts2.Token)).ConfigureAwait(false);
                 cts2.Cancel();
+                // RL-20260921-09 (completion unit, 2026-09-25): A LATE UNIT HOLDS ITS TASK OPEN. The
+                // window above is the predecessor's end time + margin; a predecessor whose unit is
+                // still travelling at its end time is OVERDUE and is completed when it ARRIVES, so
+                // skipping its follow-on here would abort a chain the owner said is merely delayed
+                // ("follow on tasks are delayed by the slow progress on a leg"). Keep waiting on its
+                // completion or abandonment, bounded by the chain backstop measured from ITS
+                // dispatch. NaN (the default) = no extension, the pre-2026-09-25 behaviour.
+                if (!pred.Completed.Task.IsCompleted && !pred.Abandoned.Task.IsCompleted
+                    && pred.Overdue.Task.IsCompleted && double.IsFinite(overdueBackstopSeconds))
+                {
+                    ct.ThrowIfCancellationRequested();
+                    double servedNow = double.IsNaN(pred.DispatchedAtClock)
+                                     ? 0.0 : Math.Max(0.0, clock.Now() - pred.DispatchedAtClock);
+                    double more = Math.Max(0.0, Math.Max(0.0, overdueBackstopSeconds) - servedNow);
+                    using var cts3 = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                    await Task.WhenAny(pred.Completed.Task, pred.Abandoned.Task,
+                                       clock.DelayAsync(more, cts3.Token)).ConfigureAwait(false);
+                    cts3.Cancel();
+                }
                 if (!pred.Completed.Task.IsCompleted)
                 {
                     ct.ThrowIfCancellationRequested();

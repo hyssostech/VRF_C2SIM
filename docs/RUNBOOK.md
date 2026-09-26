@@ -2627,11 +2627,34 @@ $env:Vrf__DurationScale                   = "1.0"       # DEFAULT. 0.05 compress
 $env:Vrf__TaskPredecessorTimeoutSeconds   = "600"       # DEFAULT (7200 in the Demo overlay)
 $env:Vrf__TaskPredecessorEndMarginSeconds = "60"        # DEFAULT
 $env:Vrf__TaskChainBackstopSeconds        = "86400"     # DEFAULT. A1: the DISPATCH wait's backstop
-$env:Vrf__SupersededTaskCode              = "TASKABRT"  # DEFAULT. "TASKCMPLT" = the literal R4 reading
+$env:Vrf__SupersededTaskCode              = "TASKABRT"  # DEFAULT. "TASKCMPLT" = old task still completes at its end time (at once if overdue)
 ```
 
 `Vrf:DefaultHoldSeconds` existed between `06f8cf0` and the Q4 ruling and is GONE: a task with
 no Duration and no geometry is malformed and is refused, not held (below).
+
+- **WHAT `Vrf:TimedCompletion` = true MEANS SINCE 2026-09-25** (the owner's TEMPORARY position,
+  RL-20260921-09; the completion unit (2026-09-25, scope approved as RL-20260925-01; commits 2eb9c1d, 48a0fc2, e16b600, 294f2b8 and the L2 follow-up on feat/completion-temporary-position); live confirmation owed; `TimedCompletionPolicy` has the rule). A task with a Duration ends
+  at dispatch + Duration x `Vrf:DurationScale`. An EARLIER finish (arrival evidence or a VR-Forces
+  success) is HELD and reported TASKCMPLT at that end time. A task WITH a destination whose unit is
+  still travelling then is NOT reported complete: one `TIMED COMPLETION: ... OVERDUE` line, nothing
+  sent, its follow-ons keep waiting (their gate extends to `Vrf:TaskChainBackstopSeconds` from its
+  dispatch), and TASKCMPLT goes out the moment it arrives. A task with NO destination (hold in
+  place, fire, breach, follow, patrol) ends at its end time. Until 2026-09-25 every task was reported
+  TASKCMPLT at its end time whether or not its unit had arrived (746c091) - `docs/CORRECTIONS_LOG.md`
+  F-1 and F-4. `Vrf:StallDetection` is ON in the Demo overlay (the owner's decision of 2026-09-25,
+  RL-20260925-01) and OFF by default; its TASKABRT no longer cancels the end time and it abandons the
+  stuck unit's follow-ons. At the ATTACK/BREACH engage fallback (`Vrf:EngageFallbackSeconds`) the
+  watchdog is asked for its verdict: a unit already reported stuck, or judged stuck then, stays ABORTED
+  (no engage, no TASKCMPLT unless it really arrives). With NO watchdog verdict (detection off - the shipped
+  default outside the Demo overlay - window not full, clock unusable) a STAYS-PUT test decides: no member
+  moved `Vrf:StallMoveMeters` since dispatch -> the same stuck path ("abort in case the unit stays put",
+  RL-20260921-07). A unit judged moving gets the engage and completes at its end time (at once if already
+  overdue), with a WARNING naming the verdict. A fallback for a move that a newer task has replaced does
+  nothing. RESIDUAL: a unit that MOVED after dispatch and stopped less than one watchdog window before the
+  fallback reads as moving; so, with the watchdog off, does one that moved at all after dispatch, and so does
+  one with no dispatch-time member positions. The live run measures displacement at each fallback to count
+  these (F-4).
 
 - **`Vrf:TaskClock` is NOT `Vrf:StallClock`.** TaskClock carries ALL THREE C2SIM task times -
   the Duration that ends a task (R4), the StartTime/DelayTimeAmount delay that holds one back,
@@ -3358,9 +3381,22 @@ as a data problem.
 
 ### 11h. PLACEMENT ON A STREAMING TERRAIN - THE RE-CLAMP AND THE DISPATCH GROUND GATE (2026-09-21)
 
+> **UPDATE 2026-09-25 - THE DISPATCH GATE NO LONGER HOLDS OR REFUSES** (RL-20260921-06; the completion unit (2026-09-25, scope approved as RL-20260925-01; commits 2eb9c1d, 48a0fc2, e16b600, 294f2b8 and the L2 follow-up on feat/completion-temporary-position); live
+> confirmation owed; `docs/CORRECTIONS_LOG.md` F-4). A taskee measured off the terrain at dispatch
+> is LOGGED - `PLACEMENT RE-CLAMP gate: <unit> measured OFF the terrain at dispatch - ... -
+> dispatching task '<T>'` - and dispatched. The state `BOUND-BUT-NOT-ON-THE-GROUND` no longer
+> exists, no task is refused on a ground verdict, and NO `setLocation` is sent at dispatch (the move
+> follows at once; a correction into a running move is what the sweep's in-flight guard refuses).
+> The summary now has FIVE counts: a correction whose read-back never landed is
+> `CORRECTED, READ-BACK NOT RECEIVED`, not `NEVER MEASURED` (run 20260921T143243Z counted 32 such
+> objects as never measured). The init-time sweep - enrol, measure, correct, read back, the BL-2
+> re-measure - is unchanged. Wherever the text below says a task is HELD, REFUSED or aborted on a
+> ground verdict, it describes 8aeb127 up to 2026-09-25.
+
 `Vrf:PlacementReclamp` (true), `Vrf:PlacementReclampSeconds` (60, WALL),
-`Vrf:PlacementReclampRetrySeconds` (5), `Vrf:PlacementReclampToleranceMeters` (**50 - N, the gap at
-which a unit is not tasked**).
+`Vrf:PlacementReclampRetrySeconds` (5), `Vrf:PlacementReclampToleranceMeters` (**50 - N, the gap
+above which an object is measured off the terrain**; until 2026-09-25 "the gap at which a unit is not
+tasked").
 
 **WHAT IT FIXES.** Run `20260921T114910Z_run`, Iron Storm cut A, MAK Earth streaming a cold Suwalki
 AO. The init's one terrain-profile query for all 36 create points went unanswered
@@ -3379,11 +3415,11 @@ at 155.8 m - **and tasked both platforms anyway.**
 > *** THIS IS NOT A FREEZE FIX AND MUST NOT BE WRITTEN UP AS ONE. *** `docs/VRF_ALTITUDE_FRAMES.md`
 > sec 5: **birth altitude is NOT the freeze discriminator**, and sec 7 makes "buried" near
 > "never moves" a tripwire. The two justifications here are independent of that question: the
-> PLACEMENT CONTRACT (UG52 14.3.3 - ground entities are placed on the ground) and the duty not to
-> task a unit the interface has itself measured off the ground.
+> PLACEMENT CONTRACT (UG52 14.3.3 - ground entities are placed on the ground) and the duty to report
+> a unit the interface has itself measured off the ground.
 > SCOPE, restated 2026-09-21 after the claim re-entered a third time in this project's records:
-> burial is CURED HERE (a create off the terrain is measured and corrected before a task is
-> dispatched); freezing is a DIFFERENT QUESTION, unresolved by this section, per
+> burial is CURED HERE (a create off the terrain is measured and corrected by the init sweep; since
+> 2026-09-25 no task waits for that); freezing is a DIFFERENT QUESTION, unresolved by this section, per
 > `docs/VRF_ALTITUDE_FRAMES.md` sec 5.
 
 **WHY THE CREATES ARE NOT DELAYED, AND WHY `Vrf:TerrainProfileTimeoutSeconds` WAS NOT RAISED.** Two
@@ -3430,13 +3466,14 @@ although the header says that Z is discarded for a ground vehicle.
    **AGGREGATES**: the only altitude a sweep can read for a unit is its **published Z**, which
    `VRF_ALTITUDE_FRAMES.md` sec 1a forbids reading as ground contact - *"Verifying 'on the ground'
    means reading the MEMBERS, never the aggregate's Z"*. What covers an aggregate instead is the
-   DISPATCH GATE, which measures it on its **members' centroid** (`RouteOriginPolicy`) - the right
+   dispatch-time measurement, which measures it on its **members' centroid** (`RouteOriginPolicy`) - the right
    quantity, at the right time. **An aggregate's MEMBERS are never re-clamped**: they are created by
    VR-Forces as part of the template at order time and are not in the interface's plan list, so what
    places them is the vendor's own create clamp at that instant. On 2026-09-21 that happened to work
    (the materialization at `11:52:18Z` got terrain 130.1 m and the six members drove) **because the
    terrain had paged in by then - it is not guaranteed**, and an order pushed early on a cold AO can
-   still materialize members into an unpaged terrain. The dispatch gate is their only protection.
+   still materialize members into an unpaged terrain. The dispatch-time measurement is the only thing
+   that looks at them, and since 2026-09-25 it only logs.
 2. A tick sweep re-asks the terrain for those points, no faster than
    `Vrf:PlacementReclampRetrySeconds`, one query in flight, for up to `Vrf:PlacementReclampSeconds`.
    (An **unanswered** query holds the in-flight flag for `Vrf:TerrainProfileTimeoutSeconds`, so the
@@ -3445,21 +3482,24 @@ although the header says that Z is discarded for a ground vehicle.
    **one** `setLocation` as above, and then **the altitude is READ BACK**. A correction that was
    issued is never recorded as a correction that worked: `VRF_ALTITUDE_FRAMES.md` sec 1b had the one
    prior "VERIFIED END TO END" on the altitude call **withdrawn** for exactly that reason.
-4. **THE DISPATCH GROUND GATE.** The route's own terrain reply carries the height under vertex 0 and
-   the taskee's live altitude - the measurement above. A gap over the tolerance now issues the
-   correction and **HOLDS** the task as `BOUND-BUT-NOT-ON-THE-GROUND`, a sixth `TaskeeReadiness`
-   state that is TRANSIENT, so the sec 11g hold machinery owns the wait and the existing timeout
-   TASKABRT names the state. When the gate PASSES it prints **one short line naming the measured
-   gap** - the only evidence any run carries for the 50-100 m band between the refusal bar and the
-   vertex-0 NOTE threshold.
+4. **THE DISPATCH-TIME MEASUREMENT** (until 2026-09-25 "the dispatch ground gate"). The route's own
+   terrain reply carries the height under vertex 0 and the taskee's live altitude - the measurement
+   above. Since 2026-09-25 a gap over the tolerance is LOGGED and the task is dispatched. (From
+   8aeb127 until then it issued the correction and HELD the task as `BOUND-BUT-NOT-ON-THE-GROUND`, a
+   TRANSIENT `TaskeeReadiness` state, so the sec 11g hold machinery owned the wait and its timeout
+   TASKABRT named the state.) On the terrain it prints **one short line naming the measured gap** -
+   the only evidence any run carries for the 50-100 m band between the tolerance and the vertex-0
+   NOTE threshold.
 5. **A VERDICT IS A MEASUREMENT, NOT A LABEL.** Every new task on a unit judged off the terrain
-   **re-opens its measurement** before the task is held (`ReMeasureGroundContactIfStale`), and a
+   **re-opens its measurement** when the new task arrives (`ReMeasureGroundContactIfStale`), and a
    unit later found ON the terrain is `CLEARED` with one line. No second correction is issued and
-   the give-up ERROR is printed once. Without this, one failed correction made a unit untaskable for
+   the give-up ERROR is printed once. (Before 2026-09-25, while the verdict held tasks:) without
+   this, one failed correction made a unit untaskable for
    the life of the process - every later task held its full `Vrf:DispatchReadinessTimeoutSeconds`
    and then aborted, with the terrain possibly long since streamed and nothing ever looking again.
 
-**PERMISSIVE WHEN IT KNOWS NOTHING.** Only a MEASUREMENT holds a task. No reply, no usable sample
+**PERMISSIVE WHEN IT KNOWS NOTHING.** Since 2026-09-25 nothing here holds a task; before that only a
+MEASUREMENT did. No reply, no usable sample
 for vertex 0, or the feature off, and every task dispatches exactly as it does today - so this can
 never wedge a run whose terrain query is simply never answered.
 
@@ -3484,10 +3524,12 @@ empties the Stage-7d warm/cold cache-state indicator - test 8x in
     PLACEMENT RE-CLAMP <unit>: RE-CLAMPED AND VERIFIED - live altitude read back at ...
     PLACEMENT RE-CLAMP <unit>: STILL OFF THE TERRAIN AFTER A CORRECTION - ...
     PLACEMENT RE-CLAMP <unit>: CLEARED - re-measured ON the terrain ...
-    PLACEMENT RE-CLAMP summary: A ON the terrain, B RE-CLAMPED AND VERIFIED, C STILL OFF, D NEVER MEASURED
+    PLACEMENT RE-CLAMP summary: A ON the terrain, B RE-CLAMPED AND VERIFIED, C CORRECTED, READ-BACK NOT RECEIVED,
+        D STILL OFF the terrain, E NEVER MEASURED (...), after <s> s (<n> enrolled)            (since 2026-09-25)
     PLACEMENT RE-CLAMP gate: <unit> is ON the terrain - live ... (gap <g> m, tolerance 50 m). Dispatching.
-    PLACEMENT RE-CLAMP: task '<T>' is NOT DISPATCHED YET - ... HELD as [BOUND-BUT-NOT-ON-THE-GROUND]
-    REFUSED [BOUND-BUT-NOT-ON-THE-GROUND]: task '<T>' is not dispatched because unit <U> is STILL ...
+    PLACEMENT RE-CLAMP gate: <unit> measured OFF the terrain at dispatch - ... - dispatching task '<T>'.
+    (until 2026-09-25 only:) PLACEMENT RE-CLAMP: task '<T>' is NOT DISPATCHED YET - ... HELD as
+        [BOUND-BUT-NOT-ON-THE-GROUND], and REFUSED [BOUND-BUT-NOT-ON-THE-GROUND]: task '<T>' is not dispatched ...
 
 **WHICH SUMMARY A PREREG SCORES: THE LAST ONE.** A re-measure opens a new window and each window
 closes with its own census of the whole map, so an early match is a mid-run state, not the verdict.
@@ -3510,8 +3552,11 @@ sent to stopped being a detail. Three rules enforce it:
   **1 m** horizontally is refused with an ERROR that says it should be unreachable. A unit is
   corrected **before** it is tasked, never during.
 
-**THE THREE SEQUENCES AN OPERATOR CAN SEE, WITH THEIR BOUNDS.** A held task does **not** always end
-in a TASKABRT - two of these three end in a dispatch:
+**THE THREE SEQUENCES AN OPERATOR COULD SEE UNTIL 2026-09-25, WITH THEIR BOUNDS.** Since then no task is
+held: in every world the task dispatches at once, rows 1 and 2 print the `measured OFF the terrain at
+dispatch` line instead of the hold, and neither ends in a TASKABRT. The table is kept as the record of
+the 8aeb127 design. A held task did **not** always end in a TASKABRT - two of these three ended in a
+dispatch:
 
 | # | world | what is printed, in order | bound | ends in |
 |---|---|---|---|---|
@@ -3519,7 +3564,7 @@ in a TASKABRT - two of these three end in a dispatch:
 | 2 | **the correction does not take** | same first two lines -> `STILL OFF THE TERRAIN AFTER A CORRECTION` (ERROR, once) -> `summary: 0 / 0 / 1 STILL OFF / 0` | the hold never releases; **exactly `Vrf:DispatchReadinessTimeoutSeconds` (60 s)** | **TASKABRT from `DispatchReadiness.TimeoutAbortReason`** naming `BOUND-BUT-NOT-ON-THE-GROUND`. The gate's own `REFUSED [...]` line is **NOT** emitted - it needs a hold that released. Every later task repeats the 60 s, re-measuring each time |
 | 3 | **the terrain never answers** | `Terrain profile request <id> for task 'PLACEMENT RE-CLAMP' got no reply within 10 s` x ~4 -> `summary: 0 / 0 / 0 / N NEVER MEASURED` | ~4 attempts at retry+timeout = 15 s inside `Vrf:PlacementReclampSeconds` | the contact is **removed**, so the unit classifies `Ready`, any held task **releases and dispatches**, and **no `gate:` line is printed** (it lives inside the measured branch) - permissive and silent, by design |
 
-**So grep the TOKEN `BOUND-BUT-NOT-ON-THE-GROUND`, not either refusal sentence**: the two TASKABRT
+**(Until 2026-09-25) grep the TOKEN `BOUND-BUT-NOT-ON-THE-GROUND`, not either refusal sentence**: the two TASKABRT
 paths produce different text and only one of them is the gate's.
 
 **WHAT THE DOCS PREDICT FOR THE CORRECTION, SO THE PREREG CANNOT SCORE A SURPRISE AS A SUCCESS.**
@@ -3538,7 +3583,8 @@ the TERRAIN QUERY`. Then the re-clamp never arms and none of the above appears.
 
 **OFFLINE PROOF, no network and nothing that joins an RTI:** `VrfC2SimApp
 --placement-reclamp-selftest` (the Iron Storm replay, the `setLocation`-not-`setAltitude` assertion,
-the gate held-then-tasked, the gate when the correction does not take, the BL-2 re-measure
+the dispatch-time measurement dispatching an off-terrain taskee with no TASKABRT (it held it until
+2026-09-25), the retired `BOUND-BUT-NOT-ON-THE-GROUND` state, the five-count tally, the BL-2 re-measure
 end-to-end - give up, the terrain pages in, a second task dispatches - the healthy init unchanged,
 the unmeasured-is-never-held invariant, the B1 inequality, the state names and the tripwire on the
 sentences) and `--placement-reclamp-selftest --disabled`, which runs the SAME assertions at
@@ -3562,7 +3608,10 @@ by the end time"*). **RULED 2026-09-21 (STP-857), NARROWING that rule for MOVE t
 (DEMO_READINESS row 19): a MOVE task that reaches its armed end with NO displacement reports
 TASKABRT, not TASKCMPLT - implementation is a later lane, not built here.~~ What this section does
 remove is the CAUSE of the instance recorded above: a unit measured 145 m off the terrain is no
-longer tasked, so no armed end is ever set for it. Ledger ids for the struck claims, added 2026-09-21
+longer tasked, so no armed end is ever set for it. (WITHDRAWN 2026-09-25: the gate no longer holds such
+a unit, so it IS tasked and its end time IS armed. What now stops the suppression is the completion
+unit: the Duration timer no longer reports TASKCMPLT for a unit that has not arrived, so the stall
+TASKABRT is sent - `docs/CORRECTIONS_LOG.md` F-4.) Ledger ids for the struck claims, added 2026-09-21
 (U2 lane D): RL-20260914-01 and RL-20260914-02 (both archive) for the two 2026-09-14 answers the
 struck text leaned on, and RL-20260921-03 (archive) for the withdrawn STP-857 label. The correction
 block below is the live text; the struck sentences are kept only so the refutation has its subject.
@@ -3613,7 +3662,8 @@ the target area or something like that?)."* So do NOT write "a MOVE completes on
 
 AS A SEPARATE STATEMENT ABOUT THE CODE: arming the Duration timer on every task with a Duration
 (746c091) is a code defect; the fix is gated on the owner's review of completion semantics (U1) and
-a PLAN gate. That is a design statement, separate from the measurement in the paragraph above, which
+a PLAN gate (DONE 2026-09-25 by the completion unit, to the owner's TEMPORARY position RL-20260921-09,
+scope approved as RL-20260925-01: `docs/CORRECTIONS_LOG.md` F-4). That is a design statement, separate from the measurement in the paragraph above, which
 stands unchanged. See `docs/CORRECTIONS_LOG.md` entry F-1.
 
 ## 12. THE ROUTE PRE-FLIGHT (OFF) AND ITS LATERAL SHIFT (ON BY DEFAULT) (STP-804/806)

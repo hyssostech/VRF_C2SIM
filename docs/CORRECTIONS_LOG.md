@@ -311,7 +311,8 @@ content of this entry whatever happens to the feature. ***
   reported instead: `src/VrfC2SimApp/DispatchReadiness.cs:202` emits the same wording in an
   OPERATOR-FACING log string ("The documented correction (setAltitude 0 m above ground level)
   has been issued"); it is a code string, not a comment, so changing it is a behaviour change
-  and belongs to the lane that re-cuts the re-clamp.
+  and belongs to the lane that re-cuts the re-clamp. (2026-09-25: GONE - the state and its sentence were
+  retired by the completion unit; see F-4.)
 - CLAIMED (same commit, `appsettings.Demo.json` `_PlacementReclamp`): the setting "IS THE
   DIFFERENCE BETWEEN A DEMO AND A STATIONARY VEHICLE", and without it a unit is "shown to an
   audience sitting still under the ground". This is the falsified burial-to-no-movement fusion
@@ -351,7 +352,71 @@ content of this entry whatever happens to the feature. ***
   "supervisor position 2026-09-13", with the same dated correction at :412 (RL-20260914-01, its scope note).
 - OWED to the next code unit (src comments still say "C16 ruling" - RL-20260914-01 does not cover
   it): `src/VrfC2SimApp/TaskStatusPolicy.cs`:28, `src/VrfC2SimApp/VrfC2SimService.cs`:164 and
-  :7491, `src/VrfC2SimApp/ReportSelfTest.cs`:97.
+  :7491, `src/VrfC2SimApp/ReportSelfTest.cs`:97. DONE 2026-09-25 by the completion unit: all four now
+  read "supervisor position (RL-20260914-01 covers the code only)" (F-4).
+
+## F-4: "a task completes at its Duration though not arrived" and "an off-terrain taskee is HELD" - true until 2026-09-25
+  (Ledger: RL-20260921-09 is the temporary position built here; RL-20260921-06 the re-clamp answer; RL-20260925-01 the
+  owner's approval of this unit's scope and his four decisions, in docs/RULINGS.md.)
+
+This is not a refuted MEASUREMENT: both statements were accurate descriptions of main. They became false when
+the completion unit landed (branch `feat/completion-temporary-position`, commits 2eb9c1d, 48a0fc2, e16b600 and
+294f2b8 as rebased onto main b14c257, docs in ecf1d54, and the "Completion U3 lane L2" to "L5" follow-ups).
+LIVE CONFIRMATION IS OWED (a pre-registered run, the seat's step).
+- WHAT CHANGED, completion (the owner's TEMPORARY position, RL-20260921-09): an early finish is HELD to start time
+  + Duration; a task WITH a destination whose unit is still travelling at that time is logged OVERDUE, reports
+  nothing, releases nothing, and is reported TASKCMPLT the moment the unit arrives (its follow-ons wait, up to
+  `Vrf:TaskChainBackstopSeconds` from its dispatch); a task with NO destination ends at its Duration as before.
+  The stall watchdog's TASKABRT is REPORT-ONLY for the task (it no longer cancels the end time) and now ABANDONS
+  the stuck unit's follow-ons (the owner's decision D2); a late ATTACK/BREACH move still gets its parked engage
+  and reports TASKCMPLT on arrival (D4); stall detection is ON in `appsettings.Demo.json` and OFF by default (D3).
+  Back-end loss also aborts tasks held after an early finish.
+- ADDED, outside the 12 approved items and recorded as such: (a) 294f2b8 - a supersede under the non-default
+  `Vrf:SupersededTaskCode=TASKCMPLT` marks the old task FINISHED, so it still completes at its end time (at once
+  if overdue) instead of waiting OVERDUE for an arrival a superseded task never gets (--rulings-selftest t14,
+  t15); (b) the L2 follow-up (lane M review S1) - when the ATTACK/BREACH engage fallback replaces the approach
+  move, the task is told it has NO destination any more (TimedCompletionPolicy.DropDestination), so it completes
+  at its end time, or at once if already overdue, instead of waiting for an engage completion VR-Forces may
+  never send (t12, t13, t15). CORRECTED by the L3 follow-up (lane M2 re-review NEW-1/NEW-2): the L2 text here
+  said a STUCK attacker whose fallback fires first is reported complete at its end time because "the temporary
+  position ignores the effect". That was wrong: the owner separates the effect (ignored) from being stuck, which
+  is never a completion (RL-20260921-05; RL-20260921-09 S569). Now the destination is dropped ONLY for a unit
+  still moving: if the watchdog has already reported the move stuck, or judges it stuck at the fallback on the
+  same ring and criterion, the task stays ABORTED (stall TASKABRT, follow-ons abandoned, D2), keeps its
+  destination, the engage is NOT issued (it is parked again, so a real late arrival still gets it) and no
+  TASKCMPLT follows unless the unit really arrives (t16, t17, t19). L5 (lane M4 review, M4-1): the fallback now
+  takes the parked engage off the list on the TICK thread, so a real arrival processed in the ~1-tick window
+  before the fallback's action still gets its engage (D4) and the fallback then does nothing (t24).
+  L4 follow-up (lane M3 review): (M3-1) the
+  fallback acts only if the move is still the unit's CURRENT task - a newer task that superseded it while the
+  decision waited for the tick no longer gets the old engage fired over it (t20, t23); (M3-2) when the watchdog
+  has NO verdict (Vrf:StallDetection off - the shipped default outside the demo profile - window not full, clock
+  unusable), a STAYS-PUT test decides: no member moved Vrf:StallMoveMeters since dispatch -> treated as stuck, the
+  same path (the owner's caveat "abort in case the unit stays put", RL-20260921-07; t21-t23). The stall line then
+  says "since dispatch; stays-put test". RESIDUAL, the only one left: a unit that MOVED after dispatch and stopped
+  less than one watchdog window before the fallback (with the watchdog off: that moved at all after dispatch)
+  is judged moving and completes at its end time - as is one with no dispatch-time member positions to test.
+  The live run measures displacement at every fallback from the WatchVrf trace to count these.
+- WHAT CHANGED, re-clamp (RL-20260921-06; D1, including dropping the dispatch-time setLocation): the dispatch gate
+  measures and LOGS only - no hold, no refusal, no setLocation at dispatch; `TaskeeReadiness.NotOnTheGround`
+  (BOUND-BUT-NOT-ON-THE-GROUND) is retired, and with it F-2's open item, the "setAltitude 0 m above ground
+  level" sentence at `DispatchReadiness.cs:202`; the summary has five counts, and a correction whose read-back
+  never landed is "CORRECTED, READ-BACK NOT RECEIVED", not NEVER MEASURED (the "32 NEVER MEASURED" of run
+  20260921T143243Z). Why the read-back never landed stays UNDIAGNOSED.
+- WHERE THE OLD DESCRIPTIONS WERE, corrected at every site in the same commit series: HANDOFF sec 1 (TASK
+  COMPLETION + re-clamp lines) and sec 1/6 status lines; DEMO_READINESS row 19 (UPDATE block) and new row 26;
+  RUNBOOK sec 11 (a TimedCompletion bullet) and sec 11h (UPDATE block + the gate, tolerance, lines-to-look-for,
+  sequences and offline-proof sites); TASK_COMPLETION_RESEARCH_2026-09-21 (banner, summary-table note, and an
+  UPDATE line in each "code today" cell whose statement changed); in src: the TimedCompletionPolicy header, the
+  VrfSettings TimedCompletion / StallDetection / re-clamp comments, the appsettings.Demo.json `_TimedCompletion`
+  and `_PlacementReclamp` texts and the appsettings.json `_PlacementReclamp` / `_PlacementReclampToleranceMeters`
+  texts (appsettings.json has no `_TimedCompletion` text), PlacementReclampPolicy,
+  DispatchReadiness, Program.cs, and the four "C16 ruling" comment sites, relabelled "supervisor position
+  (RL-20260914-01 covers the code only)".
+- NOT CHANGED, and stated so nobody assumes it: the runner scores a task by its FIRST terminal code
+  (`scripts/RunnerLib.ps1` terminalByTask), so a stall-then-arrive task is scored TASKABRT; with stall detection
+  OFF a stuck unit never goes terminal and a `-StopWhenComplete` window runs to its cap; tasks with no Duration
+  keep evidence-only completion; whether a desired effect was achieved is ignored (the research question).
 
 ## Process
 

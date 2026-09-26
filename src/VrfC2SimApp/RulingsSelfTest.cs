@@ -29,6 +29,8 @@ public static class RulingsSelfTest
         int failures = 0;
         Console.WriteLine("=== R4: completion is given by the end time ===");
         R4(ref failures);
+        Console.WriteLine("=== RL-20260921-09: completion on the temporary position (start time + Duration) ===");
+        TemporaryPosition(ref failures);
         Console.WriteLine("=== R2: a task without geometry uses the performing unit's position ===");
         R2(ref failures);
         Console.WriteLine("=== R3: the target IS the objective ===");
@@ -307,26 +309,42 @@ public static class RulingsSelfTest
                   "the timer is consumed - no second completion, ever");
         }
 
-        // (b2) An EARLIER arrival-evidence completion cancels the timer.
+        // (b2) REWRITTEN 2026-09-25 for RL-20260921-09 (the owner's temporary position: completion
+        //      is start time + Duration). It used to assert that an EARLIER arrival cancels the
+        //      timer and completes the task at once; under the temporary position an early finish
+        //      is HELD to the end time. What still cancels: the TASKCMPLT a LATE arrival sends,
+        //      which removes the overdue entry so it can never fire a second one.
         {
             var p = new TimedCompletionPolicy();
-            p.Register("T2", "taskee-2", "T2_Move", "1-35 AR", dur);
+            p.Register("T2", "taskee-2", "T2_Move", "1-35 AR", dur, hasDestination: true);
             p.Advance(0.0, usingSim: false);
             p.Advance(100.0, usingSim: false);
+            Check(ref failures, p.MarkFinished("T2") == TimedCompletionPolicy.FinishVerdict.Hold && p.Count == 1,
+                  "an EARLIER arrival is HELD to the end time - the timer stays armed (RL-20260921-09)");
+            Check(ref failures, p.Advance(dur - 1.0, usingSim: false).Count == 0,
+                  "... nothing is due before the end time");
+            var dueB2 = p.Advance(dur, usingSim: false);
+            Check(ref failures, dueB2.Count == 1 && dueB2[0].Kind == TimedCompletionPolicy.DueKind.CompleteNow,
+                  "... and at the end time it completes, exactly once");
             Check(ref failures, TimedCompletionPolicy.CancelsTimer(S.TaskStatusCodeType.TASKCMPLT),
-                  "a TASKCMPLT cancels the timed end (arrival evidence wins)");
-            Check(ref failures, p.Cancel("T2"), "the arrival completion removes the pending timer");
+                  "a TASKCMPLT still cancels the timed end (the late arrival's report removes the overdue entry)");
             Check(ref failures, p.Advance(100.0 + dur * 2, usingSim: false).Count == 0,
-                  "a cancelled timer never fires a second TASKCMPLT");
+                  "a consumed timer never fires a second TASKCMPLT");
         }
 
-        // (b3) A TASKABRT (stall watchdog, refusal, skipped successor) also cancels it.
+        // (b3) A TERMINAL TASKABRT (refusal, skipped successor, supersede, vendor failure, back-end
+        //      loss) cancels it. The progress watchdog's REPORT-ONLY stall abort does NOT (the
+        //      completion unit's scope, approved 2026-09-25, RL-20260925-01): a stuck unit that recovers and arrives must not complete
+        //      early, and one that arrives late still reports complete.
         {
             var p = new TimedCompletionPolicy();
             p.Register("T3", "taskee-3", "T3_Attack", "1-6 IN", dur);
             p.Advance(0.0, usingSim: false);
             Check(ref failures, TimedCompletionPolicy.CancelsTimer(S.TaskStatusCodeType.TASKABRT),
                   "a TASKABRT cancels the timed end (the task is not going to run)");
+            Check(ref failures, !TimedCompletionPolicy.CancelsTimer(S.TaskStatusCodeType.TASKABRT, reportOnlyAbort: true)
+                             && TimedCompletionPolicy.CancelsTimer(S.TaskStatusCodeType.TASKABRT, reportOnlyAbort: false),
+                  "the stall watchdog's REPORT-ONLY TASKABRT does NOT cancel it; a terminal one does");
             Check(ref failures, !TimedCompletionPolicy.CancelsTimer(S.TaskStatusCodeType.TASKSTRT)
                              && !TimedCompletionPolicy.CancelsTimer(S.TaskStatusCodeType.TASKINPRG),
                   "TASKSTRT / TASKINPRG do NOT cancel it (a start and a progress note are not an end)");
@@ -555,6 +573,678 @@ public static class RulingsSelfTest
             Check(ref failures, noStart.Tasks[0].AbsoluteStartUtc is null,
                   "... and a task with no StartTime has none (it dispatches when its gate opens)");
         }
+    }
+
+    // ------------------------------------------------ RL-20260921-09 ----
+    /// <summary>
+    /// THE OWNER'S TEMPORARY POSITION ON COMPLETION (RL-20260921-09), as scoped for the completion
+    /// unit and approved on 2026-09-25 (RL-20260925-01): every task with a Duration ends at its
+    /// dispatch time plus that Duration; an early finish is HELD until then; a unit still
+    /// travelling at that moment is reported complete when it ARRIVES; a stuck unit is the stall
+    /// abort (RL-20260914-01), which the timer no longer hides; each follow-on gets its full
+    /// Duration from its own start. One check per clause.
+    ///
+    /// <see cref="CompletionFlow"/> is the service's decision sequence (SynthesizeUnitCompletion,
+    /// MaybeCompleteTimedTasks, PushTaskStatus, MaybeCheckStalls, the back-end-loss branch) over the
+    /// REAL TimedCompletionPolicy, TaskStatusPolicy and TaskSequencer, and the codes it sends come
+    /// from the same static helpers the service calls - so the rule cannot change on one side only.
+    /// </summary>
+    private static void TemporaryPosition(ref int failures)
+    {
+        const double D = 100.0;
+
+        // (t1) A task with NO destination (hold, defend, fire ...) whose sim task ends early is
+        //      still reported complete at its end time, once.
+        {
+            var f = new CompletionFlow();
+            f.Dispatch("NODEST", D, hasDestination: false);
+            f.Tick(50.0);
+            f.Finish("NODEST");                                   // e.g. a fire task's vendor completion
+            Check(ref failures, f.Count("NODEST", S.TaskStatusCodeType.TASKCMPLT) == 0,
+                  "(t1) a no-destination task whose sim task ends EARLY is not reported complete early");
+            f.Tick(D - 1.0);
+            Check(ref failures, f.Count("NODEST", S.TaskStatusCodeType.TASKCMPLT) == 0,
+                  "(t1) ... nor one second before its end time");
+            f.Tick(D);
+            f.Tick(D * 3);
+            Check(ref failures, f.Count("NODEST", S.TaskStatusCodeType.TASKCMPLT) == 1,
+                  "(t1) ... and exactly ONE TASKCMPLT at its end time");
+        }
+
+        // (t2) A destination task that ARRIVES EARLY emits nothing until its end time, then exactly
+        //      one TASKCMPLT, and its follow-on is released only then.
+        {
+            var f = new CompletionFlow();
+            f.Dispatch("EARLY", D, hasDestination: true);
+            var next = f.Seq.WaitForStartAsync("EARLY", 0, 0, D + 60.0, f.Clock.AsTaskClock(),
+                                               CancellationToken.None, double.NaN, 86400.0);
+            f.Tick(30.0);
+            f.Finish("EARLY");                                    // arrival evidence at 30 s
+            f.Tick(D - 1.0);
+            Thread.Sleep(FakeClock.PollMs * 3);
+            Check(ref failures, f.Count("EARLY", S.TaskStatusCodeType.TASKCMPLT) == 0 && !next.IsCompleted,
+                  "(t2) an EARLY arrival sends no TASKCMPLT and does not release the follow-on before the end time");
+            f.Tick(D);
+            bool rel = next.Wait(TimeSpan.FromSeconds(3));
+            Check(ref failures, f.Count("EARLY", S.TaskStatusCodeType.TASKCMPLT) == 1
+                             && rel && next.Result == GateResult.Proceed,
+                  "(t2) ... at the end time exactly ONE TASKCMPLT, and the follow-on is released then");
+        }
+
+        // (t3) A destination task NOT FINISHED at its end time emits nothing and does NOT release its
+        //      follow-on, whose gate does NOT time out at end + margin; the late arrival emits one
+        //      TASKCMPLT at once and releases it. Real TaskSequencer on a fake clock, like (b8).
+        {
+            var f = new CompletionFlow();
+            f.Dispatch("LATE", D, hasDestination: true);
+            var next = f.Seq.WaitForStartAsync("LATE", 0, 0, D + 60.0, f.Clock.AsTaskClock(),
+                                               CancellationToken.None, double.NaN, 86400.0);
+            f.Tick(D);                                            // end time, unit still travelling
+            Check(ref failures, f.Count("LATE", S.TaskStatusCodeType.TASKCMPLT) == 0
+                             && f.OverdueLines.Contains("LATE") && f.Timed.Count == 1,
+                  "(t3) a unit still travelling at its end time is NOT reported complete - one OVERDUE line, " +
+                  "the timer entry stays");
+            f.Tick(D + 60.0 + 240.0);                             // well past end + margin
+            Thread.Sleep(FakeClock.PollMs * 5);
+            Check(ref failures, !next.IsCompleted,
+                  "(t3) ... and its follow-on's gate does NOT time out at end + margin while it waits");
+            f.Tick(D + 400.0);
+            f.Finish("LATE");                                     // arrives 400 s late
+            bool rel = next.Wait(TimeSpan.FromSeconds(3));
+            Check(ref failures, f.Count("LATE", S.TaskStatusCodeType.TASKCMPLT) == 1
+                             && rel && next.Result == GateResult.Proceed && f.Timed.Count == 0,
+                  "(t3) ... the LATE arrival sends exactly ONE TASKCMPLT at once and releases the follow-on");
+            f.Tick(D * 20);
+            Check(ref failures, f.Count("LATE", S.TaskStatusCodeType.TASKCMPLT) == 1,
+                  "(t3) ... and nothing fires again afterwards");
+        }
+
+        // (t4) A STALL abort on an overdue task is SENT, not suppressed, and a later arrival still
+        //      sends TASKCMPLT (abort-then-complete - a supervisor position, RL-20260914-01 covers the
+        //      stalled-unit CODE only).
+        {
+            var f = new CompletionFlow();
+            f.Dispatch("STUCK", D, hasDestination: true);
+            f.Tick(D);                                            // overdue
+            f.Tick(D + 360.0);
+            f.Stall("STUCK");
+            Check(ref failures, f.Count("STUCK", S.TaskStatusCodeType.TASKABRT) == 1
+                             && f.Count("STUCK", S.TaskStatusCodeType.TASKCMPLT) == 0,
+                  "(t4) the stall TASKABRT on an overdue task is SENT - no timed TASKCMPLT got there first");
+            f.Tick(D + 900.0);
+            f.Finish("STUCK");
+            Check(ref failures, f.Count("STUCK", S.TaskStatusCodeType.TASKCMPLT) == 1,
+                  "(t4) ... and the unit that later arrives still reports TASKCMPLT (abort-then-complete)");
+        }
+
+        // (t5) A stall abort does NOT cancel the timer: a unit that stalls, recovers and arrives
+        //      BEFORE its end time completes AT the end time, not early.
+        {
+            var f = new CompletionFlow();
+            f.Dispatch("RECOVER", D, hasDestination: true);
+            f.Tick(40.0);
+            f.Stall("RECOVER");
+            f.Tick(70.0);
+            f.Finish("RECOVER");
+            Check(ref failures, f.Count("RECOVER", S.TaskStatusCodeType.TASKCMPLT) == 0 && f.Timed.Count == 1,
+                  "(t5) a stall abort leaves the timer armed: the recovered unit's early arrival is HELD");
+            f.Tick(D);
+            Check(ref failures, f.Count("RECOVER", S.TaskStatusCodeType.TASKCMPLT) == 1,
+                  "(t5) ... and it completes AT its end time, once");
+        }
+
+        // (t6) D2 (RL-20260925-01): the stall abort ABANDONS the stuck unit's follow-ons, each with
+        //      its own abort, as every other abort does.
+        {
+            var f = new CompletionFlow();
+            f.Dispatch("STALLPRED", D, hasDestination: true);
+            var next = f.Seq.WaitForStartAsync("STALLPRED", 0, 0, D + 60.0, f.Clock.AsTaskClock(),
+                                               CancellationToken.None, double.NaN, 86400.0);
+            f.Tick(D);
+            f.Stall("STALLPRED");
+            bool done = next.Wait(TimeSpan.FromSeconds(3));
+            Check(ref failures, done && next.Result == GateResult.PredecessorAbandoned,
+                  "(t6) the follow-on of a unit reported STUCK is ABANDONED at once (it then sends its own TASKABRT)");
+        }
+
+        // (t7) The follow-on's timer is armed with its FULL Duration from its own (late) dispatch.
+        {
+            var p = new TimedCompletionPolicy();
+            p.Register("FOLLOW", "taskee-f", "T_Follow", "1-35 AR", D, hasDestination: false);
+            p.Advance(500.0, usingSim: true);                     // dispatched at 500, after a late predecessor
+            Check(ref failures, p.Advance(500.0 + D - 1.0, usingSim: true).Count == 0
+                             && p.Advance(500.0 + D, usingSim: true).Count == 1,
+                  "(t7) a follow-on dispatched late still serves its FULL Duration from its own dispatch");
+        }
+
+        // (t8) A VENDOR FAILURE is still an immediate TASKABRT, its follow-ons abandoned, and no
+        //      TASKCMPLT at the end time.
+        {
+            var f = new CompletionFlow();
+            f.Dispatch("FAILED", D, hasDestination: true);
+            var next = f.Seq.WaitForStartAsync("FAILED", 0, 0, D + 60.0, f.Clock.AsTaskClock(),
+                                               CancellationToken.None, double.NaN, 86400.0);
+            f.Tick(20.0);
+            f.Finish("FAILED", success: false);
+            bool done = next.Wait(TimeSpan.FromSeconds(3));
+            f.Tick(D * 3);
+            Check(ref failures, f.Count("FAILED", S.TaskStatusCodeType.TASKABRT) == 1
+                             && f.Count("FAILED", S.TaskStatusCodeType.TASKCMPLT) == 0
+                             && done && next.Result == GateResult.PredecessorAbandoned && f.Timed.Count == 0,
+                  "(t8) a vendor failure is an immediate TASKABRT, the follow-on is abandoned, no timed TASKCMPLT follows");
+        }
+
+        // (t9) BACK-END LOSS cancels the timers of tasks HELD after an early finish (they are no
+        //      longer in flight, so the in-flight snapshot misses them): each gets its TASKABRT and
+        //      no TASKCMPLT arrives at the Duration from a dead back end.
+        {
+            var f = new CompletionFlow();
+            f.Dispatch("HELD", D, hasDestination: true);
+            f.Tick(10.0);
+            f.Finish("HELD");                                     // arrived early, held
+            f.BackendLost();
+            f.Tick(D * 2);
+            Check(ref failures, f.Count("HELD", S.TaskStatusCodeType.TASKABRT) == 1
+                             && f.Count("HELD", S.TaskStatusCodeType.TASKCMPLT) == 0 && f.Timed.Count == 0,
+                  "(t9) back-end loss aborts a task HELD after an early finish and cancels its timer");
+        }
+
+        // (t10) D4 (RL-20260925-01): an ATTACK/BREACH whose move arrives AFTER its Duration still
+        //       gets its parked engage, and the task is reported complete on that arrival.
+        {
+            var v = TimedCompletionPolicy.FinishVerdict.EmitNow;
+            Check(ref failures,
+                  TimedCompletionPolicy.CompletionCode(true, taskContinues: true, v) == S.TaskStatusCodeType.TASKCMPLT
+                  && TimedCompletionPolicy.ReleasesSuccessorsNow(true, v),
+                  "(t10) a LATE move half of an attack reports TASKCMPLT (the engage is still issued) and releases the follow-on");
+            var h = TimedCompletionPolicy.FinishVerdict.Hold;
+            Check(ref failures,
+                  TimedCompletionPolicy.CompletionCode(true, taskContinues: true, h) == S.TaskStatusCodeType.TASKINPRG
+                  && TimedCompletionPolicy.CompletionCode(true, taskContinues: false, h) is null
+                  && !TimedCompletionPolicy.ReleasesSuccessorsNow(true, h),
+                  "(t10) an EARLY move half still reports TASKINPRG; an early plain finish reports nothing and releases nothing");
+            var n = TimedCompletionPolicy.FinishVerdict.NotTimed;
+            Check(ref failures,
+                  TimedCompletionPolicy.CompletionCode(true, taskContinues: false, n) == S.TaskStatusCodeType.TASKCMPLT
+                  && TimedCompletionPolicy.CompletionCode(true, taskContinues: true, n) == S.TaskStatusCodeType.TASKINPRG
+                  && TimedCompletionPolicy.CompletionCode(false, taskContinues: false, n) == S.TaskStatusCodeType.TASKABRT
+                  && TimedCompletionPolicy.ReleasesSuccessorsNow(true, n) && !TimedCompletionPolicy.ReleasesSuccessorsNow(false, n),
+                  "(t10) a task with NO armed timer keeps today's evidence-only codes (no Duration, or TimedCompletion off)");
+        }
+
+        // (t12) S1 of the lane M review: THE ENGAGE FALLBACK STOPS THE MOVE. After
+        //       Vrf:EngageFallbackSeconds the interface itself replaces an ATTACK/BREACH approach move
+        //       with the engage, so the unit is no longer travelling anywhere. Under RL-20260921-09 the
+        //       only exception to "ends at start time + Duration" is a unit STILL TRAVELLING, so the
+        //       task must end at its end time - not sit OVERDUE waiting for an arrival nothing watches.
+        {
+            var f = new CompletionFlow();
+            f.Dispatch("ATTACK1", D, hasDestination: true);
+            f.ParkEngage("ATTACK1");
+            var next = f.Seq.WaitForStartAsync("ATTACK1", 0, 0, D + 60.0, f.Clock.AsTaskClock(),
+                                               CancellationToken.None, double.NaN, 86400.0);
+            f.Tick(30.0);
+            f.EngageFallback("ATTACK1");                          // before the end time
+            Check(ref failures, f.Count("ATTACK1", S.TaskStatusCodeType.TASKCMPLT) == 0,
+                  "(t12) an engage fallback BEFORE the end time reports nothing early");
+            f.Tick(D);
+            bool rel = next.Wait(TimeSpan.FromSeconds(3));
+            Check(ref failures, f.Count("ATTACK1", S.TaskStatusCodeType.TASKCMPLT) == 1
+                             && !f.OverdueLines.Contains("ATTACK1") && f.Timed.Count == 0
+                             && rel && next.Result == GateResult.Proceed,
+                  "(t12) ... and the task completes AT its end time (no OVERDUE), releasing its follow-on - the move " +
+                  "was stopped by the interface, so the unit is not 'still travelling' (RL-20260921-09)");
+        }
+
+        // (t13) S1, the late half: the fallback fires AFTER the task already went OVERDUE (end time
+        //       shorter than the fallback): it completes at once.
+        {
+            var f = new CompletionFlow();
+            f.Dispatch("ATTACK2", D, hasDestination: true);
+            f.ParkEngage("ATTACK2");
+            var next = f.Seq.WaitForStartAsync("ATTACK2", 0, 0, D + 60.0, f.Clock.AsTaskClock(),
+                                               CancellationToken.None, double.NaN, 86400.0);
+            f.Tick(D);                                            // overdue, move still running
+            f.Tick(D + 200.0);
+            f.EngageFallback("ATTACK2");                          // the interface stops the move now
+            bool rel = next.Wait(TimeSpan.FromSeconds(3));
+            Check(ref failures, f.Count("ATTACK2", S.TaskStatusCodeType.TASKCMPLT) == 1
+                             && f.Timed.Count == 0 && rel && next.Result == GateResult.Proceed,
+                  "(t13) an engage fallback on an OVERDUE task completes it AT ONCE and releases its follow-on");
+            f.Tick(D * 10);
+            f.Finish("ATTACK2");                                  // the engage's own vendor completion, later
+            Check(ref failures, f.Count("ATTACK2", S.TaskStatusCodeType.TASKCMPLT) == 1,
+                  "(t13) ... and the engage's own later completion adds no second TASKCMPLT");
+        }
+
+        // (t14) S5: SUPERSEDE under the non-default Vrf:SupersededTaskCode=TASKCMPLT marks the old task
+        //       FINISHED (the service's supersede branch): before its end time it completes AT the end
+        //       time; once overdue it completes at once. Without it, a superseded task with a destination
+        //       would wait for an arrival that can never come.
+        {
+            var f = new CompletionFlow();
+            f.Dispatch("SUP1", D, hasDestination: true);
+            f.Tick(20.0);
+            f.SupersedeKeepCompletion("SUP1");
+            Check(ref failures, f.Count("SUP1", S.TaskStatusCodeType.TASKCMPLT) == 0,
+                  "(t14) superseded (TASKCMPLT setting) before its end time: nothing is sent at the supersede");
+            f.Tick(D);
+            Check(ref failures, f.Count("SUP1", S.TaskStatusCodeType.TASKCMPLT) == 1 && !f.OverdueLines.Contains("SUP1"),
+                  "(t14) ... it completes AT its end time and never goes OVERDUE");
+            var g = new CompletionFlow();
+            g.Dispatch("SUP2", D, hasDestination: true);
+            g.Tick(D);                                            // overdue
+            g.SupersedeKeepCompletion("SUP2");
+            Check(ref failures, g.Count("SUP2", S.TaskStatusCodeType.TASKCMPLT) == 1 && g.Timed.Count == 0,
+                  "(t14) superseded (TASKCMPLT setting) while OVERDUE: TASKCMPLT at once");
+        }
+
+        // (t16) NEW-1 of the lane M2 re-review, case (a) WATCHDOG FIRST: a STUCK attacker is judged by
+        //       the watchdog (stall TASKABRT, follow-ons abandoned, D2), THEN the engage fallback
+        //       fires. It must NOT be completed at its end time: "The notion that geting stuck midway
+        //       is a complete is completelly illogical" (RL-20260921-05); a unit that never arrives
+        //       is a stuck unit (RL-20260921-09 S569). Before this fix the fallback dropped the
+        //       destination and a TASKCMPLT followed at the end time - abort-then-complete on a unit
+        //       that never moved.
+        {
+            const double LongD = 1000.0;
+            var f = new CompletionFlow();
+            f.Dispatch("STUCKATK", LongD, hasDestination: true);
+            f.ParkEngage("STUCKATK");
+            var next = f.Seq.WaitForStartAsync("STUCKATK", 0, 0, LongD + 60.0, f.Clock.AsTaskClock(),
+                                               CancellationToken.None, double.NaN, 86400.0);
+            f.Tick(245.0);
+            f.Stall("STUCKATK");                                  // the watchdog judges first
+            f.Tick(300.0);
+            f.EngageFallback("STUCKATK", TimedCompletionPolicy.StallAtFallback.Unknown);
+            f.Tick(LongD);
+            f.Tick(LongD * 5);
+            bool done = next.Wait(TimeSpan.FromSeconds(3));
+            Check(ref failures, f.Count("STUCKATK", S.TaskStatusCodeType.TASKABRT) == 1
+                             && f.Count("STUCKATK", S.TaskStatusCodeType.TASKCMPLT) == 0
+                             && done && next.Result == GateResult.PredecessorAbandoned
+                             && !f.EngagesIssued.Contains("STUCKATK"),
+                  "(t16) watchdog first, then the engage fallback: the stuck attacker stays ABORTED - no TASKCMPLT at or " +
+                  "after its end time, its follow-on stays abandoned, and no engage is issued from where it is stuck");
+            f.Finish("STUCKATK");                                 // it does reach the objective after all
+            Check(ref failures, f.Count("STUCKATK", S.TaskStatusCodeType.TASKCMPLT) == 1,
+                  "(t16) ... and only a REAL later arrival completes it (abort-then-complete on an arrival)");
+        }
+
+        // (t17) NEW-1 case (b) FALLBACK FIRST, judged STALLED at the fallback: the stall path is taken
+        //       there and then (TASKABRT, D2 abandon), no engage, no TASKCMPLT at the end time.
+        {
+            const double LongD = 1000.0;
+            var f = new CompletionFlow();
+            f.Dispatch("STUCKB", LongD, hasDestination: true);
+            f.ParkEngage("STUCKB");
+            var next = f.Seq.WaitForStartAsync("STUCKB", 0, 0, LongD + 60.0, f.Clock.AsTaskClock(),
+                                               CancellationToken.None, double.NaN, 86400.0);
+            f.Tick(300.0);
+            f.EngageFallback("STUCKB", TimedCompletionPolicy.StallAtFallback.Stalled);
+            f.Tick(LongD);
+            f.Tick(LongD * 5);
+            bool done = next.Wait(TimeSpan.FromSeconds(3));
+            Check(ref failures, f.Count("STUCKB", S.TaskStatusCodeType.TASKABRT) == 1
+                             && f.Count("STUCKB", S.TaskStatusCodeType.TASKCMPLT) == 0
+                             && done && next.Result == GateResult.PredecessorAbandoned
+                             && !f.EngagesIssued.Contains("STUCKB"),
+                  "(t17) fallback first, judged STALLED at the fallback: TASKABRT, follow-on abandoned, no engage, and " +
+                  "no TASKCMPLT at its end time");
+        }
+
+        // (t18) A unit judged MOVING at the fallback (or not judgeable - the residual) is the one the
+        //       interface stopped while travelling: engage issued, completes at its end time (t12).
+        {
+            const double LongD = 1000.0;
+            var f = new CompletionFlow();
+            f.Dispatch("MOVINGATK", LongD, hasDestination: true);
+            f.ParkEngage("MOVINGATK");
+            f.Tick(300.0);
+            f.EngageFallback("MOVINGATK", TimedCompletionPolicy.StallAtFallback.Moving);
+            f.Tick(LongD);
+            var g = new CompletionFlow();
+            g.Dispatch("UNKNATK", LongD, hasDestination: true);
+            g.ParkEngage("UNKNATK");
+            g.Tick(300.0);
+            g.EngageFallback("UNKNATK", TimedCompletionPolicy.StallAtFallback.Unknown);
+            g.Tick(LongD);
+            Check(ref failures, f.Count("MOVINGATK", S.TaskStatusCodeType.TASKCMPLT) == 1 && f.EngagesIssued.Contains("MOVINGATK")
+                             && f.Count("MOVINGATK", S.TaskStatusCodeType.TASKABRT) == 0
+                             && g.Count("UNKNATK", S.TaskStatusCodeType.TASKCMPLT) == 1 && g.EngagesIssued.Contains("UNKNATK"),
+                  "(t18) judged MOVING (or no verdict possible) at the fallback: engage issued, one TASKCMPLT at the end time");
+        }
+
+        // (t19) The plan itself, called directly (the static the service calls).
+        Check(ref failures,
+              TimedCompletionPolicy.PlanEngageFallback(true, TimedCompletionPolicy.StallAtFallback.Unknown)
+                  == TimedCompletionPolicy.EngageFallbackPlan.KeepStuck
+              && TimedCompletionPolicy.PlanEngageFallback(true, TimedCompletionPolicy.StallAtFallback.Moving)
+                  == TimedCompletionPolicy.EngageFallbackPlan.KeepStuck
+              && TimedCompletionPolicy.PlanEngageFallback(false, TimedCompletionPolicy.StallAtFallback.Stalled)
+                  == TimedCompletionPolicy.EngageFallbackPlan.ReportStuckNow
+              && TimedCompletionPolicy.PlanEngageFallback(false, TimedCompletionPolicy.StallAtFallback.Moving)
+                  == TimedCompletionPolicy.EngageFallbackPlan.DropAndEngage
+              && TimedCompletionPolicy.PlanEngageFallback(false, TimedCompletionPolicy.StallAtFallback.Unknown)
+                  == TimedCompletionPolicy.EngageFallbackPlan.DropAndEngage,
+              "(t19) the fallback plan: already reported stuck -> keep it stuck; judged stalled now -> report stuck; " +
+              "judged moving or no verdict -> engage and drop the destination");
+
+        // (t20) M3-1 of the lane M3 re-review: A SUPERSEDE BETWEEN THE FALLBACK TIMER AND THE TICK.
+        //       The pending engage is removed on the pool thread and the decision waits for the next
+        //       tick; a newer task dispatched in between (the default Vrf:SupersededTaskCode=TASKABRT
+        //       aborts the old one) must not get the OLD engage fired over it, and the old task must
+        //       get no destination drop and no TASKCMPLT.
+        {
+            const double LongD = 1000.0;
+            var f = new CompletionFlow();
+            f.Dispatch("OLDATK", LongD, hasDestination: true);
+            f.ParkEngage("OLDATK");
+            f.Tick(300.0);
+            f.SupersedeAbort("OLDATK");                           // superseded by a newer task
+            f.EngageFallback("OLDATK", TimedCompletionPolicy.StallAtFallback.Unknown, moveIsCurrent: false);
+            f.Tick(LongD * 3);
+            Check(ref failures, !f.EngagesIssued.Contains("OLDATK")
+                             && f.Count("OLDATK", S.TaskStatusCodeType.TASKCMPLT) == 0,
+                  "(t20) a supersede between the fallback timer and the tick: the OLD engage is NOT issued over the newer " +
+                  "task, no destination is dropped and no TASKCMPLT follows for the old task");
+        }
+
+        // (t21) M3-2: STALL DETECTION OFF (no watchdog verdict possible) and the unit STAYED PUT since
+        //       dispatch (no member moved Vrf:StallMoveMeters): the owner's caveat, "abort in case the
+        //       unit stays put" (RL-20260921-07) -> the stuck path, not a completion.
+        {
+            const double LongD = 1000.0;
+            var f = new CompletionFlow();
+            f.Dispatch("PUTATK", LongD, hasDestination: true);
+            f.ParkEngage("PUTATK");
+            var next = f.Seq.WaitForStartAsync("PUTATK", 0, 0, LongD + 60.0, f.Clock.AsTaskClock(),
+                                               CancellationToken.None, double.NaN, 86400.0);
+            f.Tick(300.0);
+            var put = TimedCompletionPolicy.StaysPutVerdict(new[] { 0.0, 3.5, 12.0 }, 4, 50.0, 1);
+            f.EngageFallback("PUTATK", TimedCompletionPolicy.StallAtFallback.Unknown, staysPut: put);
+            f.Tick(LongD);
+            f.Tick(LongD * 3);
+            bool done = next.Wait(TimeSpan.FromSeconds(3));
+            Check(ref failures, f.Count("PUTATK", S.TaskStatusCodeType.TASKABRT) == 1
+                             && f.Count("PUTATK", S.TaskStatusCodeType.TASKCMPLT) == 0
+                             && !f.EngagesIssued.Contains("PUTATK")
+                             && done && next.Result == GateResult.PredecessorAbandoned,
+                  "(t21) detection OFF, stayed put since dispatch: TASKABRT, follow-on abandoned, no engage, no TASKCMPLT " +
+                  "(RL-20260921-07: abort in case the unit stays put)");
+        }
+
+        // (t22) M3-2: detection OFF and the unit DID move since dispatch: the interface stops a
+        //       travelling unit - engage issued, completes at its end time.
+        {
+            const double LongD = 1000.0;
+            var f = new CompletionFlow();
+            f.Dispatch("MOVEDATK", LongD, hasDestination: true);
+            f.ParkEngage("MOVEDATK");
+            f.Tick(300.0);
+            var moved = TimedCompletionPolicy.StaysPutVerdict(new[] { 20.0, 140.0, 95.0 }, 4, 50.0, 1);
+            f.EngageFallback("MOVEDATK", TimedCompletionPolicy.StallAtFallback.Unknown, staysPut: moved);
+            f.Tick(LongD);
+            Check(ref failures, f.EngagesIssued.Contains("MOVEDATK")
+                             && f.Count("MOVEDATK", S.TaskStatusCodeType.TASKCMPLT) == 1
+                             && f.Count("MOVEDATK", S.TaskStatusCodeType.TASKABRT) == 0,
+                  "(t22) detection OFF, moved since dispatch: engage issued, one TASKCMPLT at the end time");
+        }
+
+        // (t23) The pure pieces t20-t22 rest on, called directly.
+        Check(ref failures,
+              TimedCompletionPolicy.PlanEngageFallback(false, false, TimedCompletionPolicy.StallAtFallback.Moving)
+                  == TimedCompletionPolicy.EngageFallbackPlan.Superseded
+              && TimedCompletionPolicy.PlanEngageFallback(false, true, TimedCompletionPolicy.StallAtFallback.Stalled)
+                  == TimedCompletionPolicy.EngageFallbackPlan.Superseded
+              && TimedCompletionPolicy.PlanEngageFallback(true, false, TimedCompletionPolicy.StallAtFallback.Moving)
+                  == TimedCompletionPolicy.EngageFallbackPlan.DropAndEngage,
+              "(t23) a move that is no longer the unit's current task gets NO fallback action at all");
+        Check(ref failures,
+              TimedCompletionPolicy.StaysPutVerdict(new[] { 0.0, 49.9 }, 2, 50.0, 1) == TimedCompletionPolicy.StallAtFallback.Stalled
+              && TimedCompletionPolicy.StaysPutVerdict(new[] { 0.0, 50.0 }, 2, 50.0, 1) == TimedCompletionPolicy.StallAtFallback.Moving
+              && TimedCompletionPolicy.StaysPutVerdict(Array.Empty<double>(), 2, 50.0, 1) == TimedCompletionPolicy.StallAtFallback.Unknown
+              && TimedCompletionPolicy.StaysPutVerdict(new[] { 0.0 }, 4, 50.0, 2) == TimedCompletionPolicy.StallAtFallback.Unknown,
+              "(t23) the stays-put test is StallPolicy.Decide on displacement SINCE DISPATCH at Vrf:StallMoveMeters: below it " +
+              "on every readable member = stayed put; at it = moved; no or too few readable members = no verdict");
+        Check(ref failures,
+              TimedCompletionPolicy.CombineWithStaysPut(TimedCompletionPolicy.StallAtFallback.Moving,
+                                                        TimedCompletionPolicy.StallAtFallback.Stalled)
+                  == TimedCompletionPolicy.StallAtFallback.Moving
+              && TimedCompletionPolicy.CombineWithStaysPut(TimedCompletionPolicy.StallAtFallback.Unknown,
+                                                           TimedCompletionPolicy.StallAtFallback.Stalled)
+                  == TimedCompletionPolicy.StallAtFallback.Stalled,
+              "(t23) the stays-put test is consulted ONLY when the watchdog has no verdict");
+
+        // (t24) M4-1 of the lane M4 review: A REAL ARRIVAL PROCESSED IN THE WINDOW BETWEEN THE FALLBACK
+        //       TIMER AND ITS TICK ACTION. The arrival path (tick thread) must still find the parked
+        //       engage and issue it (D4: "Issue it"), and the fallback's later tick action must then
+        //       find nothing to do - no second engage, no drop.
+        {
+            const double LongD = 1000.0;
+            var f = new CompletionFlow();
+            f.Dispatch("RACEATK", LongD, hasDestination: true);
+            f.ParkEngage("RACEATK");
+            f.Tick(300.0);
+            f.FallbackTimerFires("RACEATK");                      // pool thread: the delay ends
+            f.Arrive("RACEATK");                                  // tick: the unit's arrival is processed first
+            f.EngageFallback("RACEATK", TimedCompletionPolicy.StallAtFallback.Moving);   // then the queued action
+            f.Tick(LongD);
+            Check(ref failures, f.EngagesIssued.Count(t => t == "RACEATK") == 1
+                             && f.Count("RACEATK", S.TaskStatusCodeType.TASKCMPLT) == 1
+                             && f.Count("RACEATK", S.TaskStatusCodeType.TASKABRT) == 0
+                             && f.FallbackFoundNothing.Contains("RACEATK"),
+                  "(t24) an arrival processed between the fallback timer and its tick action still gets its engage (D4), " +
+                  "exactly once, and one TASKCMPLT at the end time - the fallback's action finds nothing to do");
+        }
+
+        // (t15) The two policy calls t12-t14 rest on, called directly (no mirror).
+        {
+            var p = new TimedCompletionPolicy();
+            p.Register("DD", "tk", "DD", "u", D, hasDestination: true);
+            p.Advance(0.0, usingSim: true);
+            var v1 = p.DropDestination("DD");
+            var due = p.Advance(D, usingSim: true);
+            Check(ref failures, v1 == TimedCompletionPolicy.FinishVerdict.Hold && due.Count == 1
+                             && due[0].Kind == TimedCompletionPolicy.DueKind.CompleteNow && p.Count == 0
+                             && p.HeldAfterFinish().Count == 0,
+                  "(t15) DropDestination before the end time: Hold, then CompleteNow at the end time (and it is NOT " +
+                  "listed as finished-early, because its engage is still in flight)");
+            var q = new TimedCompletionPolicy();
+            q.Register("MF", "tk", "MF", "u", D, hasDestination: true);
+            q.Advance(0.0, usingSim: true);
+            var od = q.Advance(D, usingSim: true);
+            Check(ref failures, od.Count == 1 && od[0].Kind == TimedCompletionPolicy.DueKind.OverdueAwaitingArrival
+                             && q.DropDestination("MF") == TimedCompletionPolicy.FinishVerdict.EmitNow && q.Count == 0
+                             && q.DropDestination("MF") == TimedCompletionPolicy.FinishVerdict.NotTimed,
+                  "(t15) DropDestination on an OVERDUE task: EmitNow once, the entry removed, then NotTimed");
+            var r = new TimedCompletionPolicy();
+            r.Register("SP", "tk", "SP", "u", D, hasDestination: true);
+            r.Advance(0.0, usingSim: true);
+            Check(ref failures, r.MarkFinished("SP") == TimedCompletionPolicy.FinishVerdict.Hold
+                             && r.Advance(D, usingSim: true).Count == 1 && r.Count == 0,
+                  "(t15) MarkFinished (the TASKCMPLT supersede) on a running task: Hold, then CompleteNow at the end time");
+        }
+
+        // (t11) FAIL-FIRST CONTROL for (t3)'s gate: a caller that passes NO overdue backstop gets the
+        //       pre-2026-09-25 behaviour - the follow-on of a late unit times out at end + margin.
+        {
+            var f = new CompletionFlow();
+            f.Dispatch("LATE2", D, hasDestination: true);
+            var next = f.Seq.WaitForStartAsync("LATE2", 0, 0, D + 60.0, f.Clock.AsTaskClock(),
+                                               CancellationToken.None);
+            f.Tick(D);
+            for (double t = D + 20.0; t <= D + 300.0 && !next.IsCompleted; t += 20.0)
+            {
+                f.Tick(t);
+                Thread.Sleep(FakeClock.PollMs * 2);
+            }
+            bool done = next.Wait(TimeSpan.FromSeconds(3));
+            Check(ref failures, done && next.Result == GateResult.PredecessorTimeout,
+                  "(t11) CONTROL: with no overdue backstop the late unit's follow-on is skipped at end + margin " +
+                  "(what the service did before this unit)");
+        }
+    }
+
+    /// <summary>
+    /// The service's completion decision sequence, one method per service site, over the REAL
+    /// policies and sequencer (see <see cref="TemporaryPosition"/>). Each method names the service
+    /// method it mirrors; the codes and the release decision come from the static helpers the
+    /// service itself calls.
+    /// </summary>
+    private sealed class CompletionFlow
+    {
+        public readonly FakeClock Clock = new();
+        public readonly TimedCompletionPolicy Timed = new();
+        public readonly TaskStatusPolicy Status = new();
+        public readonly TaskSequencer Seq = new();
+        public readonly List<(string Task, S.TaskStatusCodeType Code)> Sent = new();
+        public readonly List<string> OverdueLines = new();
+        private readonly HashSet<string> _inFlight = new(StringComparer.Ordinal);
+
+        /// <summary>MarkDispatched: record in flight, TASKSTRT, arm the end time (anchored now).</summary>
+        public void Dispatch(string task, double durationSeconds, bool hasDestination)
+        {
+            _inFlight.Add(task);
+            Seq.NotifyDispatched(task, Clock.Now);
+            Push(task, S.TaskStatusCodeType.TASKSTRT);
+            Timed.Register(task, "taskee-" + task, task, "unit-" + task, durationSeconds, hasDestination);
+            Timed.Advance(Clock.Now, usingSim: true);
+        }
+
+        /// <summary>PushTaskStatus: the timer cancel, then the emission rules.</summary>
+        public void Push(string task, S.TaskStatusCodeType code, bool reportOnlyAbort = false)
+        {
+            if (TimedCompletionPolicy.CancelsTimer(code, reportOnlyAbort)) Timed.Cancel(task);
+            if (Status.ShouldEmit(code, task)) Sent.Add((task, code));
+        }
+
+        /// <summary>SynthesizeUnitCompletion: every successful or failed completion.</summary>
+        public void Finish(string task, bool success = true, bool taskContinues = false)
+        {
+            _inFlight.Remove(task);
+            var verdict = success ? Timed.MarkFinished(task) : TimedCompletionPolicy.FinishVerdict.NotTimed;
+            if (TimedCompletionPolicy.ReleasesSuccessorsNow(success, verdict)) Seq.CompleteTask(task);
+            else if (!success) Seq.NotifyAbandoned(task);
+            var code = TimedCompletionPolicy.CompletionCode(success, taskContinues, verdict);
+            if (code is S.TaskStatusCodeType c) Push(task, c);
+        }
+
+        /// <summary>MaybeCompleteTimedTasks at this task-clock reading.</summary>
+        public void Tick(double clock)
+        {
+            double step = clock - Clock.Now;
+            if (step > 0) Clock.Advance(step);
+            foreach (var p in Timed.Advance(Clock.Now, usingSim: true))
+            {
+                if (p.Kind == TimedCompletionPolicy.DueKind.OverdueAwaitingArrival)
+                {
+                    OverdueLines.Add(p.TaskUuid);
+                    Seq.NotifyOverdue(p.TaskUuid);
+                    continue;
+                }
+                Push(p.TaskUuid, S.TaskStatusCodeType.TASKCMPLT);
+                Seq.CompleteTask(p.TaskUuid);
+            }
+        }
+
+        /// <summary>MaybeCheckStalls: the report-only abort, then (D2) the follow-ons abandoned.</summary>
+        public void Stall(string task)
+        {
+            StallReported.Add(task);
+            Push(task, S.TaskStatusCodeType.TASKABRT, reportOnlyAbort: true);
+            Seq.NotifyAbandoned(task);
+        }
+
+        public readonly HashSet<string> StallReported = new(StringComparer.Ordinal);
+        public readonly List<string> EngagesIssued = new();
+        public readonly HashSet<string> PendingEngages = new(StringComparer.Ordinal);
+        public readonly List<string> FallbackFoundNothing = new();
+
+        /// <summary>DeferEngageUntilMoveCompletes: the engage is parked on the move.</summary>
+        public void ParkEngage(string task) => PendingEngages.Add(task);
+
+        /// <summary>SynthesizeUnitCompletion for an ATTACK/BREACH move half: a parked engage still on
+        /// the list is taken and issued (re-recorded in flight under the same uuid).</summary>
+        public void Arrive(string task)
+        {
+            bool cont = PendingEngages.Remove(task);
+            Finish(task, true, cont);
+            if (cont) { EngagesIssued.Add(task); _inFlight.Add(task); }
+        }
+
+        /// <summary>MarkDispatched's supersede branch (default TASKABRT): abort, abandon, and the
+        /// engage parked on the old move is cancelled.</summary>
+        public void SupersedeAbort(string task)
+        {
+            _inFlight.Remove(task);
+            PendingEngages.Remove(task);
+            Push(task, S.TaskStatusCodeType.TASKABRT);
+            Seq.NotifyAbandoned(task);
+        }
+
+        /// <summary>The tick-thread start of EngageFallbackOnTick (M4-1): the fallback takes the engage
+        /// off the list HERE, on the tick thread; if the arrival path or a supersede took it first,
+        /// the fallback does nothing.</summary>
+        private bool FallbackTookEngage(string task)
+        {
+            if (PendingEngages.Remove(task)) return true;
+            FallbackFoundNothing.Add(task);
+            return false;
+        }
+
+        /// <summary>EngageFallbackAsync, the POOL-thread part, when the Vrf:EngageFallbackSeconds delay
+        /// ends: since M4-1 it only ENQUEUES the tick action - it takes nothing off the list.</summary>
+        public void FallbackTimerFires(string task) { }
+
+        /// <summary>The service's EngageFallbackOnTick: the plan (the same static the service
+        /// calls) decides between keeping a stuck unit aborted, reporting it stuck now, or - for a
+        /// unit judged moving or not judgeable - issuing the engage and dropping the destination.</summary>
+        public void EngageFallback(string task,
+            TimedCompletionPolicy.StallAtFallback verdict = TimedCompletionPolicy.StallAtFallback.Moving,
+            bool? moveIsCurrent = null,
+            TimedCompletionPolicy.StallAtFallback staysPut = TimedCompletionPolicy.StallAtFallback.Unknown)
+        {
+            if (!FallbackTookEngage(task)) return;
+            var combined = TimedCompletionPolicy.CombineWithStaysPut(verdict, staysPut);
+            var plan = TimedCompletionPolicy.PlanEngageFallback(moveIsCurrent ?? _inFlight.Contains(task),
+                                                                StallReported.Contains(task), combined);
+            if (plan == TimedCompletionPolicy.EngageFallbackPlan.Superseded) return;
+            if (plan == TimedCompletionPolicy.EngageFallbackPlan.KeepStuck) { PendingEngages.Add(task); return; }
+            if (plan == TimedCompletionPolicy.EngageFallbackPlan.ReportStuckNow) { Stall(task); PendingEngages.Add(task); return; }
+            EngagesIssued.Add(task);
+            var v = Timed.DropDestination(task);
+            if (v != TimedCompletionPolicy.FinishVerdict.EmitNow) return;
+            Seq.CompleteTask(task);
+            Push(task, S.TaskStatusCodeType.TASKCMPLT);
+        }
+
+        /// <summary>MarkDispatched's supersede branch under Vrf:SupersededTaskCode=TASKCMPLT.</summary>
+        public void SupersedeKeepCompletion(string task)
+        {
+            _inFlight.Remove(task);
+            if (Timed.MarkFinished(task) != TimedCompletionPolicy.FinishVerdict.EmitNow) return;
+            Seq.CompleteTask(task);
+            Push(task, S.TaskStatusCodeType.TASKCMPLT);
+        }
+
+        /// <summary>The back-end-loss branch: in-flight tasks AND tasks held after an early finish.</summary>
+        public void BackendLost()
+        {
+            foreach (var t in _inFlight.ToList())
+            {
+                Push(t, S.TaskStatusCodeType.TASKABRT);
+                Seq.NotifyAbandoned(t);
+            }
+            foreach (var h in Timed.HeldAfterFinish())
+            {
+                Push(h.TaskUuid, S.TaskStatusCodeType.TASKABRT);
+                Seq.NotifyAbandoned(h.TaskUuid);
+            }
+        }
+
+        public int Count(string task, S.TaskStatusCodeType code)
+            => Sent.Count(s => s.Task == task && s.Code == code);
     }
 
     /// <summary>A minimal, schema-shaped order carrying a Duration and, optionally, an ABSOLUTE
