@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- NOT DOCTRINAL - retired 2026-09-26 (RL-20260926-01). Its BREACH names a unit (114.MechCoy, the SAME
+     side as the performer in both inits) as the obstacle; a breach is against an obstacle, and tasks
+     reference objectives or other graphics, not specific units. Kept as the record of the 2026-07-14
+     run; do not reuse. -->
 <MessageBody xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.sisostds.org/schemas/C2SIM/1.1">
   <DomainMessageBody>
     <OrderBody>

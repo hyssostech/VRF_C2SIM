@@ -233,7 +233,9 @@ Three locations are in play:
   sec 6). AppNos next free: 3386.
   [RETRACTED 2026-07-22 - the REGION cause is FALSIFIED; see docs/CORRECTIONS_LOG.md.]
 - **SEMANTIC Units 2/5 Run 1 (2026-07-14, LIVE, apps 3368-3372) - SUCCESS**: task (c) from the
-  RESUME_PROMPT. Behavior-verified the two-layer semantic map's Unit 2 (BREACH -> DtBreachTask) +
+  RESUME_PROMPT. [CORRECTED 2026-09-26, docs/CORRECTIONS_LOG.md F-5: the BREACH half below is withdrawn -
+  its TASKCMPLT predates success-flag reading; since RL-20260926-01 no DtBreachTask is issued at all.]
+  Behavior-verified the two-layer semantic map's Unit 2 (BREACH -> DtBreachTask) +
   Unit 5 (SCREEN/Reconnoiter -> DtPatrolRouteTask; ESCRT/Escort -> DtFollowEntityTask) LIVE at the
   golden SWEDEN region via a synthetic distinct-target order (synthetic_semantic_sweden.xml) -
   because COA-STP1 self-targets every verb, these DISTINCT-AffectedEntity paths were never

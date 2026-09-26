@@ -10,7 +10,13 @@ DERIVED, not authored. They are produced by
 and reproduce byte for byte:
 
     data/IRONSTORM_CUTA_Initialization.xml             sha256 2000e856cb00314064ab6d40c7f7df64cea098b3466fe70d7614f3d26dc93eec
-    data/IRONSTORM_CUTA_Order.xml                      sha256 1cd89c40bcce5d66bfb9966a3e5933d2e1957563b636d660c0d8e12cc3956636
+    data/IRONSTORM_CUTA_Order.xml                      sha256 1ef43198caa192e72f3e0f395700ef04687c64eb00a52986505c404601c79429
+
+(2026-09-26, twice. First corrected: this line said 1cd89c40bcce5d66...3956636, a stale hash; the record
+does not say which derivation produced it. `derive_ironstorm_cuta.py --check` on main 8cdca96 reports
+5dbe8b0b...b980d1, the hash of the committed file and the one PREREG_IRONSTORM_DRIVE_2026-09-21.md:53 cites -
+that is the order BEFORE (f) and (g). Then changes (f) and (g) below were applied, and `--check` on the result
+reports 1ef43198...c79429. Any record that cites 5dbe8b0b describes the pre-(f)/(g) order.)
 
 Re-run the script after a re-export (`python tools/scenario/derive_ironstorm_cuta.py`),
 or `--check` to prove the files on disk still match the derivation. The script FAILS
@@ -26,8 +32,11 @@ opening phase of the narrative - the forward passage of lines - and nothing else
 Nothing outside this list is touched. Verified mechanically: with every `<Task>` block
 removed from both files, the remainder of the derived order is BYTE-IDENTICAL to the
 remainder of the export. All 33 order graphics and all 33 `Entity` blocks are kept. No
-coordinate is moved, no unit is renamed, no `TaskActionCode` is altered, no graphic is
-added or removed. Root element, namespace, declaration and CRLF line endings are the
+coordinate is moved, no unit is renamed, no graphic is added or removed. (Since
+2026-09-26 two exceptions to that sentence are on the list: (e) moves one coordinate and
+(f)/(g) alter three `TaskActionCode`s and add one `AffectedEntity`; with every `<Task>`
+block removed the remainder is still byte-identical, because all of those sit inside
+task blocks or the one nudged graphic vertex.) Root element, namespace, declaration and CRLF line endings are the
 export's.
 
 ### (a) Duration format - connector bug STP-848
@@ -169,6 +178,61 @@ the two worst-connected sectors it used to cross - (30,22) ratio 0.7736 and (31,
 **0 of 2,429 m in a sub-0.9 sector**, against 100 % of its old bad ground. Moving the
 route fixed both the water and the connectivity.
 
+### (f) APPLIED 2026-09-26 - T14 ATTACK -> FOLSPT, plus 116 ABCT as a second AffectedEntity
+
+**OWNER DIRECTION 2026-09-26: "hack the xml you are using to have the correct codes while
+stp itself is patched".** The STP source (`STP-IRON-STORM-SYNTHETIC_Narrative1.op`, task
+`FollowAndSupportFriendlyUnit`) gives T14 `what: 'FOLLOW_AND_SUPPORT'` and `supported:`
+116 ABCT (`884518d7-5b82-a455-98de-64aae833d633`).
+
+**STP DEFECT WORKED AROUND (STP-846 family):** `C2SimTask.MWTaskCode` switches on
+`What.ToLower()` (STP HEAD `BridgingAgents/C2SimBridge/C2SimBridge/C2SimTask.cs:131`) =
+`"follow_and_support"`, but its case label is `"follow and support"` (:297-299, which returns
+FOLSPT), so it falls through to `return TaskActionCodeType.ATTACK` (:670).
+
+- `<TaskActionCode>ATTACK</TaskActionCode>` -> `FOLSPT` (C2SIM order schema
+  `TaskActionCodeType`, `C2SIM_SMX_LOX_ASX_v1.0.1_Order_flat.xsd:1854`; in the SDK enum).
+- ONE line added right after the exported (self) `AffectedEntity`:
+  `<AffectedEntity>884518d7-...</AffectedEntity><!--116_ABCT/28ID ADDED BY CUT A (f)-->`.
+  `AffectedEntity` is maxOccurs unbounded (xsd:2759). The script asserts 116 ABCT is a unit
+  of the init (`--parse-init`: it is, in the 12-unit stack at 53.992385, 23.211255). The
+  self reference stays FIRST, and the interface reads only the first (`OrderParser.cs`
+  FirstOrEmpty), so the interface does not see 116 ABCT - it is carried for data fidelity.
+  No TaskFunctionalRelation is added.
+
+### (g) APPLIED 2026-09-26 - T01 and T13 ExecutePlanPhase -> CNFPSL
+
+**OWNER DECISION 2026-09-26: "Patch + Jira".** Both STP source tasks
+(`ConductFwdPassageOfLines`, 28ID and 48 IBCT) have `what: 'NOT_SPECIFIED'` and
+`how: 'PASSAGE_OF_LINES'`.
+
+**STP DEFECT WORKED AROUND (same class as (f)):** the connector switches on `How.ToLower()`
+(C2SimTask.cs:609), but the case label is the UPPER-case `"PASSAGE_OF_LINES"` (:645-646,
+which returns CNFPSL), so it never matches and falls to
+`return TaskActionCodeType.ExecutePlanPhase` (:668). CNFPSL is in `TaskActionCodeType`
+(`C2SIM_SMX_LOX_ASX_v1.0.1_Order_flat.xsd:1789`) and in the SDK enum.
+
+- `<TaskActionCode>ExecutePlanPhase</TaskActionCode>` -> `CNFPSL` in T01 and T13. Nothing
+  else in those blocks changes: Duration, MapGraphicIDs, AffectedEntity and relations are
+  as exported.
+- **NOT PATCHED: T02.** Its source task `ReceiveOrderableActivity` has `what: 'RECEIVE'`;
+  STP has no mapping (`//case "RECEIVE,` is commented out at :545) and the schema has no
+  receive code, so there is no agreed code to restore. It stays `ATTACK` (STP-846).
+- **T10** needs nothing: `CONSTITUTE_RESERVE` -> `CRESRV` in both the `.op` and the export.
+
+**CONSEQUENCE AT RUN TIME - read before any live run of this order.** On the interface as of
+this commit neither CNFPSL nor FOLSPT is in `VerbMapping` (`src/VrfC2SimApp/VerbMapping.cs`),
+and `Classify` sends an unlisted verb to the bare-move fallback with `Recognized: false`
+(:159-167). So:
+- T14 (FOLSPT) drives its route as a bare move, as it did under `ATTACK` minus the attack
+  path (which never fired - see STP-846 below).
+- **T01 and T13 (CNFPSL) STOP BEING HOLDS and would DRIVE their four-graphic assemblies** -
+  leg_check scores them at 40.1 km (T01) and 29.6 km (T13), with deep water on T01 leg 2
+  (16 samples) and on T13 legs 1 and 2 (32 each). The "never driven" paragraph under
+  *Geometry the interface will drive* below held for `ExecutePlanPhase` only.
+The CNFPSL verb is being added by another lane; until it lands and says what CNFPSL does,
+this order must not go to a live run as-is.
+
 --------------------------------------------------------------------------------
 ## STP-846 - T02 IS the ATTACK fallthrough, and here is exactly what it does
 
@@ -181,8 +245,8 @@ it really is:
 
 A "receive / transition to consolidation and security" task is exported as `ATTACK`.
 `ATTACK` is the connector's generic fallthrough for any task type it has no C2SIM verb
-for - T14 is a second instance, from `FollowAndSupportFriendlyUnit`. **The derived file
-keeps the code exactly as exported.**
+for - T14 was a second instance, from `FollowAndSupportFriendlyUnit`, and is now `FOLSPT`
+by change (f). **For T02 the derived file keeps the code exactly as exported.**
 
 **WHAT THE INTERFACE ACTUALLY DOES WITH IT - read from the code, not assumed:**
 
@@ -247,6 +311,8 @@ MapGraphic wins over the embedded `Location` (`TaskGeometryResolver.cs:170`), an
 T01 and T13 carry four MapGraphicIDs each, but `HoldInPlace` issues NO VR-Forces task
 (`VrfC2SimService.cs:3018-3031`) and logs that the geometry was not driven, so **their
 39-45 km of resolved zig-zag is never driven and never needs nav coverage.**
+**SUPERSEDED 2026-09-26 by change (g):** that held while they were `ExecutePlanPhase`.
+As `CNFPSL` they are unmapped today and take the bare-move fallback - see (g).
 
 ### Timeline
 `Vrf:DurationScale` scales the order's clock - both the Duration that ends a task and the

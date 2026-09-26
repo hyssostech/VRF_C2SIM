@@ -2692,7 +2692,21 @@ no Duration and no geometry is malformed and is refused, not held (below).
   nothing. RESIDUAL: a unit that MOVED after dispatch and stopped less than one watchdog window before the
   fallback reads as moving; so, with the watchdog off, does one that moved at all after dispatch, and so does
   one with no dispatch-time member positions. The live run measures displacement at each fallback to count
-  these (F-4).
+  these (F-4). SINCE 2026-09-26 (RL-20260926-01) the only engage left to fall back on is a PLATFORM's Fire At at a
+  distinct target: a unit ATTACK and every BREACH park nothing, and a stuck unit on them is the watchdog's, as for
+  any MOVE (see the next bullet).
+
+- **ATTACK, BREACH AND FOLLOW SINCE 2026-09-26** (RL-20260926-01; branch feat/engage-doctrine; `TaskDispatchPolicy.ForEngage`,
+  checked offline by `--rulings-selftest`). ATTACK / ATTMN / ATTSPT / DESTRY / FIX / DISRPT / PENTRT on a UNIT: the unit
+  advances to the objective and its rules of engagement are set to fire at will at dispatch, overriding the order's ROE
+  (STP sends ROEHold on every task); it never gets a Fire At. Line to look for: "ATTACK: advancing to the objective;
+  rules of engagement set to fire at will - members engage enemies they encounter (RL-20260926-01)". A PLATFORM with a
+  distinct target still advances and then gets a Fire At (the engage fallback above). BREACH, any performer: it advances
+  to the breach graphic / axis end, one ObservationReport says "BREACH by <unit>: the breach action is not simulated
+  ... (STP-865) ...", no DtBreachTask is issued, and it completes by time. FOLSPT / FOLASS: advance along the graphic to
+  its end and hold; no engagement; ROE as ordered. NOT YET SEEN LIVE: that the unit's fire-at-will reaches its members
+  (the vendor header says a set on an aggregate applies to the whole aggregate, `vrfRemoteController.h:1436-1438`) -
+  the next live run should show member fire events or a member console's ROE after an ATTACK dispatch.
 
 - **`Vrf:TaskClock` is NOT `Vrf:StallClock`.** TaskClock carries ALL THREE C2SIM task times -
   the Duration that ends a task (R4), the StartTime/DelayTimeAmount delay that holds one back,

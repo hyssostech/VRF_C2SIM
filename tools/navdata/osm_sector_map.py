@@ -12,6 +12,11 @@ INPUTS
   to CellSize"), the line "CalculateTransitionPointLocations extent = (xmin,ymin,z,xmax,ymax,z)",
   every "Sector (i,j): xMin: a yMin: b xMax: c yMax: d" row (inclusive CELL indices), and the
   "Generated N distinct nav tags." line that follows each sector row.
+  A log with NO "Sector (i,j):" rows (the IRONSTORM-CENTRE gen-1 console log, 2026-09-20, which
+  prints only "Sector ground-platform_<i>_<j>_<tag> has N triangles.") gets its cell ranges
+  SYNTHESISED from the extent line: cells round(min/43)..round(max/43) per axis, 11 cells per
+  sector, the last sector keeping the remainder (synth_cells). Checked 2026-09-26 against both
+  real 5.2d AO20 logs: the synthesis equals the logged rows for 1,600 of 1,600 sectors.
 - OSM vector tiles (--tiles DIR with subfolders osm/ and osm-highways/, files 14_<x>_<tmsy>.pbf):
   the two sources MAK Earth (online) reads - mbtiles/osm/ (land-cover roads,
   osm.features.xml TFSFeatures "data:osm-all-features") and mbtiles/osm-highways/ (the MAK_ROAD
@@ -45,7 +50,7 @@ import math
 import os
 import re
 import sys
-import urllib.request
+import subprocess
 
 A_WGS = 6378137.0
 F_WGS = 1 / 298.257223563
@@ -93,6 +98,7 @@ class SectorFrame(object):
                 self.corner_residuals[k] = (e - want[k][0], n - want[k][1])
         self.sectors = {}
         self.tags = {}
+        names = set()
         cur = None
         for line in text.splitlines():
             ms = re.match(r"Sector \((\d+),(\d+)\): xMin: (-?\d+) yMin: (-?\d+) xMax: (-?\d+) yMax: (-?\d+)", line)
@@ -100,9 +106,20 @@ class SectorFrame(object):
                 cur = (int(ms.group(1)), int(ms.group(2)))
                 self.sectors[cur] = tuple(int(g) for g in ms.groups()[2:])
                 continue
+            mn = NAME_ROW_RE.match(line)
+            if mn:
+                cur = (int(mn.group(1)), int(mn.group(2)))
+                names.add(cur)
+                continue
             mt = re.search(r"Generated (\d+) distinct nav tags", line)
             if mt and cur is not None:
                 self.tags[cur] = int(mt.group(1))
+        self.synthesised = False
+        if not self.sectors and names:
+            if not self.extent:
+                raise ValueError("name-only sector rows and no extent line: cannot place the sectors")
+            self.sectors = synth_cells(self.extent, names)
+            self.synthesised = True
         self._ix = sorted({(k[0], v[0], v[2]) for k, v in self.sectors.items()})
         self._iy = sorted({(k[1], v[1], v[3]) for k, v in self.sectors.items()})
 
@@ -127,6 +144,25 @@ class SectorFrame(object):
 
     def sector_of(self, lat, lon):
         return self.sector_of_enu(*self.enu(self.ecef(lat, lon)))
+
+
+NAME_ROW_RE = re.compile(r"Sector \S*?_(\d+)_(\d+)_[^_\s]+ has \d+ triangles")
+STRIDE = 11   # cells per sector (fitted on AO20R, SCR ironstorm\cuta\sector_map.py; re-checked by synth_cells)
+
+
+def synth_cells(extent, keys, stride=STRIDE):
+    """(i, j) -> (xMin, yMin, xMax, yMax) inclusive cell indices from the log's extent line
+    (xmin, ymin, xmax, ymax in metres): fixed stride, the last sector keeps the remainder."""
+    cx0, cy0 = int(round(extent[0] / CELL)), int(round(extent[1] / CELL))
+    cx1, cy1 = int(round(extent[2] / CELL)), int(round(extent[3] / CELL))
+    ni = max(k[0] for k in keys) + 1
+    nj = max(k[1] for k in keys) + 1
+    out = {}
+    for (i, j) in keys:
+        out[(i, j)] = (cx0 + stride * i, cy0 + stride * j,
+                       cx1 if i == ni - 1 else cx0 + stride * i + stride - 1,
+                       cy1 if j == nj - 1 else cy0 + stride * j + stride - 1)
+    return out
 
 
 # ---------------- MVT decoding ----------------
@@ -289,7 +325,7 @@ def classify_roadvol(gtype, props):
 
 # ---------------- tiles ----------------
 
-def fetch(tiles_dir, bbox, z=14):
+def fetch(tiles_dir, bbox, z=14, sets=("osm", "osm-highways")):
     lat_s, lat_n, lon_w, lon_e = bbox
     n = 2 ** z
 
@@ -300,21 +336,20 @@ def fetch(tiles_dir, bbox, z=14):
     x0, y_top = xy(lat_n, lon_w)
     x1, y_bot = xy(lat_s, lon_e)
     stats = collections.Counter()
-    for tset in ("osm", "osm-highways"):
+    for tset in sets:
         os.makedirs(os.path.join(tiles_dir, tset), exist_ok=True)
         for x in range(x0, x1 + 1):
             for yx in range(y_top, y_bot + 1):
                 tms = n - 1 - yx
                 url = "http://vr-theworld.com/vr-theworld/mbtiles/%s/%d/%d/%d.pbf" % (tset, z, x, tms)
                 out = os.path.join(tiles_dir, tset, "%d_%d_%d.pbf" % (z, x, tms))
-                try:
-                    with urllib.request.urlopen(url, timeout=30) as r:
-                        data = r.read()
-                    stats[(tset, 200)] += 1
-                except Exception as e:
-                    data = b""
-                    stats[(tset, getattr(e, "code", "err"))] += 1
-                open(out, "wb").write(data)
+                # curl, not urllib: on 2026-09-26 the server answered Python's default user agent
+                # with 403 on every tile (225 of 225, all three sets) while curl got 200/404.
+                code = subprocess.run(["curl", "-s", "-o", out, "-w", "%{http_code}", "--max-time", "30", url],
+                                      capture_output=True, text=True).stdout.strip() or "err"
+                if code != "200":
+                    open(out, "wb").write(b"")
+                stats[(tset, code)] += 1
     return dict(("%s %s" % k, v) for k, v in stats.items())
 
 
@@ -327,7 +362,7 @@ def rasterize(frame, tiles_dir, tset, classify, hits, step_m=3.0, buffer_m=6.0, 
         b = open(os.path.join(d, fn), "rb").read()
         if not b or b[:1] != b"\x1a":   # empty / 404 body
             continue
-        tile_m = 40075016.686 * math.cos(math.radians(34.6)) / 2 ** z
+        tile_m = 40075016.686 * math.cos(math.asin(frame._trig[0])) / 2 ** z   # sampling density only
         for lname, ext, feats in decode_mvt(b):
             for gtype, props, parts in feats:
                 r = classify(gtype, props)
@@ -360,14 +395,18 @@ def main(argv=None):
     ap.add_argument("--bbox", nargs=4, type=float, default=AO20_BBOX, metavar=("S", "N", "W", "E"))
     ap.add_argument("--json", help="write per-sector tags and hits to this file")
     ap.add_argument("--map", action="store_true", help="print the ASCII tag map (upper case = no way)")
+    ap.add_argument("--fetch-sets", nargs="*", default=["osm", "osm-highways"],
+                    help="tile sets --fetch downloads (osm-water is read by landcover_sector_map.py)")
     a = ap.parse_args(argv)
     frame = SectorFrame(a.log)
     print("frame: shift_east %.2f m; corner residuals (m) %s" % (
         frame.shift_east, {k: tuple(round(v, 2) for v in r) for k, r in sorted(frame.corner_residuals.items())}))
     print("sectors %d, with tag counts %d; tag histogram %s" % (
         len(frame.sectors), len(frame.tags), dict(sorted(collections.Counter(frame.tags.values()).items()))))
+    if frame.synthesised:
+        print("frame: sector cells SYNTHESISED from the extent line (no 'Sector (i,j):' rows in this log)")
     if a.fetch:
-        print("fetch:", fetch(a.tiles, a.bbox))
+        print("fetch:", fetch(a.tiles, a.bbox, sets=tuple(a.fetch_sets)))
     hits = collections.defaultdict(collections.Counter)
     ways = collections.Counter()
     rasterize(frame, a.tiles, "osm", classify_landcover, hits, counter=ways)

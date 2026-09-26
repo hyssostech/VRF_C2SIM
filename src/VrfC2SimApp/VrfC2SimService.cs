@@ -74,11 +74,13 @@ public sealed class VrfC2SimService : BackgroundService
     private readonly FanOutTracker _fanOut = new();
     private readonly ConcurrentDictionary<string, ConcurrentQueue<PendingRouteTask>> _pendingRouteTasks = new();
 
-    // Unit name -> the ATTACK/BREACH engage deferred until that unit's move COMPLETES
-    // (P0.3, NEXT_SESSION_GUIDANCE.md sec 2.5: issuing the engage in the same tick as the
-    // move would REPLACE the move - VRF runs one task at a time). Issued from
-    // OnVrfTaskCompleted when the matching move task uuid completes, or by the
-    // EngageFallbackSeconds timer if the move never completes.
+    // Taskee name -> the Fire At deferred until that taskee's move COMPLETES (P0.3,
+    // NEXT_SESSION_GUIDANCE.md sec 2.5: issuing the engage in the same tick as the move would
+    // REPLACE the move - VRF runs one task at a time). Issued from OnVrfTaskCompleted when the
+    // matching move task uuid completes, or by the EngageFallbackSeconds timer if the move never
+    // completes. Since RL-20260926-01 ONLY A PLATFORM performer with a distinct ATTACK target is
+    // ever parked here: a unit takes no Fire At and nothing takes a breach task
+    // (TaskDispatchPolicy.ForEngage). Kind is always "fire"; it stays a field for the log lines.
     private readonly record struct PendingEngage(string Kind, string TaskeeVrf, string TargetVrf,
                                                  string MoveTaskUuid, string TaskName);
     private readonly ConcurrentDictionary<string, PendingEngage> _pendingEngage = new();
@@ -4247,27 +4249,37 @@ public sealed class VrfC2SimService : BackgroundService
                                 "Layer-2 not yet wired - executing bare movement.",
                                 task.TaskName, verb.ActionCode, verb.Intent, verb.Composition);
 
-        // LAYER 2 - ATTACK-family (ATTACK/DESTRY/FIX/DISRPT/PENTRT): resolve the affected
-        // entity (a C2SIM uuid) to a VRF target for a DtFireAtTargetTask. Resolution uses the
-        // init-created maps (_unitByC2SimUuid -> _names) - the two-dict chain that
-        // dissolves the plan's uuid-resolution blocker (SEMANTIC_MAPPING.md sec 2b). The target
-        // must be an entity our clientId created at init. R3 (user ruling 2026-09-14) settled the
-        // SELF-TARGET case - STP names the taskee as the affected entity on all 42 COA-STP1 tasks,
-        // and that is the objective, not an error - while an AffectedEntity we did not create is
-        // still a scope/data gap and still warns (m3). Either way the task routes to its own
-        // geometry and is never refused. The fire itself is issued AFTER the move below (advance
-        // the axis, then engage); the move/fire task interaction in VRF is the live question.
+        // LAYER 2 - ATTACK-family (ATTACK/ATTMN/ATTSPT/DESTRY/FIX/DISRPT/PENTRT) and BREACH:
+        // RL-20260926-01, ONE decision (TaskDispatchPolicy.ForEngage). Every one of them ADVANCES to
+        // the task's own geometry below, like any other task, and completes by the time rules.
+        //   - a UNIT's ATTACK adds rules of engagement fire at will at dispatch (never a Fire At:
+        //     an entity-level unit has no weapon controller and refuses one);
+        //   - a PLATFORM's ATTACK at a DISTINCT target adds a Fire At after the move (P0.3);
+        //   - every BREACH adds one observation that the breach is not simulated (STP-865) and
+        //     issues NO DtBreachTask (aggregate-level only; no breach controller in EntityLevel).
+        // The affected entity is still resolved (R3 logging: self = the objective; m3: a target
+        // we did not create is a scope/data gap), because the platform Fire At needs it.
+        var engage = EngageDecision.NotEngageVerb;
         string attackTargetVrf = null;
-        if (verb.Intent == TaskIntent.Attack)
-            attackTargetVrf = ResolveAffectedTarget(task, vrfUuid, "ATTACK", "fire");
-
-        // LAYER 2 - BREACH (Unit 2): resolve the affected OBSTACLE to a VRF target for a
-        // DtBreachTask (approach move, then breach it). Same resolution as ATTACK; anything but a
-        // distinct entity routes to the task's geometry (R3), which for a breach is the obstacle's
-        // own location as the order drew it.
-        string breachTargetVrf = null;
-        if (verb.Intent == TaskIntent.Breach)
-            breachTargetVrf = ResolveAffectedTarget(task, vrfUuid, "BREACH", "breach");
+        if (verb.Intent == TaskIntent.FollowAndSupport)
+            engage = TaskDispatchPolicy.ForEngage(verb.Intent, unit.IsAggregate, TargetResolution.NoTarget);
+        if (verb.Intent == TaskIntent.Attack || verb.Intent == TaskIntent.Breach)
+        {
+            bool isAttack = verb.Intent == TaskIntent.Attack;
+            string named = ResolveAffectedTarget(task, vrfUuid, isAttack ? "ATTACK" : "BREACH",
+                                                 isAttack ? "fire" : "breach", out var targetRes);
+            engage = TaskDispatchPolicy.ForEngage(verb.Intent, unit.IsAggregate, targetRes);
+            if (TaskDispatchPolicy.IssuesFireAt(engage))
+                attackTargetVrf = named;
+            else if (named != null)
+                _log.LogInformation("{Verb} task '{Task}': the order names {Tgt} as the affected entity, but " +
+                                    "{Why} (RL-20260926-01). {Name} advances to the task's own geometry.",
+                                    verb.ActionCode, task.TaskName, named,
+                                    isAttack ? "a UNIT takes no Fire At - it attacks the objective with " +
+                                               "rules of engagement fire at will"
+                                             : "no breach task is issued - the breach itself is not simulated (STP-865)",
+                                    unit.Name);
+        }
 
         // LAYER 2 - ESCRT (Escort): follow the escorted entity (DtFollowEntityTask). Following is
         // DYNAMIC - no route or point-0 needed - so dispatch it here, before the movement logic
@@ -4276,7 +4288,7 @@ public sealed class VrfC2SimService : BackgroundService
         // below, and - when there is no geometry either - to R2's in-place execution.
         if (verb.Intent == TaskIntent.Escort)
         {
-            string follow = ResolveAffectedTarget(task, vrfUuid, "ESCRT", "escort");
+            string follow = ResolveAffectedTarget(task, vrfUuid, "ESCRT", "escort", out _);
             if (follow != null)
             {
                 Roe escortRoe = task.RuleOfEngagementCode == "ROEFree" ? Roe.FireAtWill
@@ -4463,10 +4475,10 @@ public sealed class VrfC2SimService : BackgroundService
         if (taskPoints.Count == 0)
         {
             var zeroGeometry = TaskDispatchPolicy.ForZeroGeometry(
-                performerResolved: true, hasAttackTarget: attackTargetVrf != null,
-                hasBreachTarget: breachTargetVrf != null);
-            // In-place engagements (no move to wait for) stay immediate - P0.3 gates only
-            // the advance-THEN-engage compositions.
+                performerResolved: true, firesAtTarget: attackTargetVrf != null);
+            // A platform's in-place Fire At (no move to wait for) stays immediate - P0.3 gates
+            // only the advance-THEN-engage composition. A unit ATTACK and every BREACH with no
+            // geometry are ExecuteInPlace below (RL-20260926-01).
             if (zeroGeometry == ZeroGeometryAction.EngageInPlace)
             {
                 MarkDispatched(task, unit, "fire");
@@ -4475,16 +4487,6 @@ public sealed class VrfC2SimService : BackgroundService
                 ClearStallState(unit.Name);
                 _log.LogInformation("ATTACK task '{Task}': no route points; FireAtTarget {Vrf} -> {Tgt} (engage in place).",
                                     task.TaskName, vrfUuid, attackTargetVrf);
-                return;
-            }
-            if (zeroGeometry == ZeroGeometryAction.BreachInPlace)
-            {
-                MarkDispatched(task, unit, "breach");
-                _bridge.Breach(vrfUuid, breachTargetVrf);
-                _arrivalReported.TryRemove(unit.Name, out _);
-                ClearStallState(unit.Name);
-                _log.LogInformation("BREACH task '{Task}': no route points; Breach {Vrf} -> {Tgt} (breach in place).",
-                                    task.TaskName, vrfUuid, breachTargetVrf);
                 return;
             }
             // Q4 (USER RULING 2026-09-14). NO DURATION **AND** NO GEOMETRY IS MALFORMED. R2 gives
@@ -4536,6 +4538,15 @@ public sealed class VrfC2SimService : BackgroundService
                         task.TaskeeUuid, unit.Name, unit.Name,
                         $"task '{task.TaskName}': {TaskDispatchPolicy.ZeroGeometryObservation}",
                         IsoNow(), NewReportId()), ReportKind.Observation);
+                // RL-20260926-01: a unit ATTACK still gets fire at will; a BREACH still says it is
+                // not simulated. Nothing else changes for them in place.
+                if (TaskDispatchPolicy.SetsFireAtWill(engage))
+                {
+                    _bridge.SetRulesOfEngagement(vrfUuid, Roe.FireAtWill);
+                    LogAttackFireAtWill(task, unit);
+                }
+                if (engage == EngageDecision.AdvanceBreachNotSimulated)
+                    ReportBreachNotSimulated(task, unit);
                 return;
             }
             // ZeroGeometryAction.Refuse IS NOT REACHABLE HERE and no branch pretends otherwise
@@ -4794,10 +4805,27 @@ public sealed class VrfC2SimService : BackgroundService
 
         // Rules of engagement (:2374-2379): ROEFree -> FireAtWill, ROEHold -> HoldFire,
         // everything else (incl. ROETight) -> FireWhenFiredUpon.
-        Roe roe = task.RuleOfEngagementCode == "ROEFree" ? Roe.FireAtWill
+        // RL-20260926-01: a UNIT's ATTACK is set to fire at will instead, whatever the order says
+        // (STP exports ROEHold on every task). The set goes to the UNIT: the vendor documents that a
+        // rules-of-engagement set on an aggregate applies to the entire aggregate
+        // (vrfcontrol/vrfRemoteController.h:1436-1438) and the pseudo-aggregate's own set controller
+        // handles it (vrfmodel/pseudoAggregatedSetController.h:61-62, with forwardToSubordinates,
+        // disaggregatedSetController.h:107-110). That the members pick it up is NOT yet seen live.
+        // This is the committed dispatch point - every deferral (route shift, terrain profile) has
+        // already returned and re-entered by now - so the BREACH observation below goes out once.
+        Roe roe = TaskDispatchPolicy.SetsFireAtWill(engage) ? Roe.FireAtWill
+                : task.RuleOfEngagementCode == "ROEFree" ? Roe.FireAtWill
                 : task.RuleOfEngagementCode == "ROEHold" ? Roe.HoldFire
                 : Roe.FireWhenFiredUpon;
         _bridge.SetRulesOfEngagement(vrfUuid, roe);
+        if (TaskDispatchPolicy.SetsFireAtWill(engage)) LogAttackFireAtWill(task, unit);
+        if (engage == EngageDecision.AdvanceBreachNotSimulated) ReportBreachNotSimulated(task, unit);
+        if (engage == EngageDecision.AdvanceAndHold)
+            _log.LogInformation("Task '{Task}' (verb {Code}, {Name}): advancing along the task's graphic to its end " +
+                                "and holding there - no engagement task, rules of engagement as ordered ('{Roe}'). " +
+                                "The supported unit is not in the order (STP sends the performer as the affected " +
+                                "entity), so nothing is followed.", task.TaskName, task.ActionCode, unit.Name,
+                                string.IsNullOrEmpty(task.RuleOfEngagementCode) ? "none" : task.RuleOfEngagementCode);
 
         // SetTarget - PARITY of the known bug (PORT.md sec 6, C2SIMinterface.cpp:2385):
         // the C++ passes the C2SIM taskee uuid where VRF expects a VRF uuid, plus the
@@ -4826,12 +4854,8 @@ public sealed class VrfC2SimService : BackgroundService
                                 "{Lat}/{Lon} formation '{Form}' hdg {Hdg:F0}deg (Unit 4; {N} route pts -> destination).",
                                 task.TaskName, unit.Name, vrfUuid, dest.LatDeg, dest.LonDeg,
                                 _vrf.MoveIntoFormation, headingDeg, routeGeo.Count);
-            // Preserve ATTACK/BREACH semantics on this early return - but COMPLETION-GATED
-            // (P0.3): issuing the engage now would REPLACE the formation move just issued.
-            if (attackTargetVrf != null)
-                DeferEngageUntilMoveCompletes(unit, task, "fire", vrfUuid, attackTargetVrf);
-            if (breachTargetVrf != null)
-                DeferEngageUntilMoveCompletes(unit, task, "breach", vrfUuid, breachTargetVrf);
+            // A platform Fire At is never on this aggregate-only branch (RL-20260926-01), so there
+            // is no engage to park here any more; a unit ATTACK / BREACH is the move itself.
             return;
         }
 
@@ -4851,10 +4875,7 @@ public sealed class VrfC2SimService : BackgroundService
             // Collapsed like the formation move above: PlanAndMoveTo drives to the final point.
             MarkDispatched(task, unit, "plan-move", routeGeo[^1],
                            new List<Geodetic> { routeGeo[0], routeGeo[^1] });
-            if (attackTargetVrf != null)
-                DeferEngageUntilMoveCompletes(unit, task, "fire", vrfUuid, attackTargetVrf);
-            if (breachTargetVrf != null)
-                DeferEngageUntilMoveCompletes(unit, task, "breach", vrfUuid, breachTargetVrf);
+            // Aggregate-only branch: no platform Fire At can reach it (RL-20260926-01).
             _bridge.CreateWaypoint(routeGeo[^1], wptName);
             _log.LogInformation("Task '{Task}': R11 CreateWaypoint '{Wpt}' for AGGREGATE {Name}; " +
                                 "PlanAndMoveTo deferred to waypoint-created ({N} route pts -> final point).",
@@ -4900,12 +4921,10 @@ public sealed class VrfC2SimService : BackgroundService
             ClearStallState(unit.Name);
             _log.LogInformation("Task '{Task}': MoveToLocation for {Name} ({Vrf}).",
                                 task.TaskName, unit.Name, vrfUuid);
-            // Layer 2 + P0.3: engage/breach AFTER the move COMPLETES (same-tick issue would
-            // replace the move - VRF runs one task at a time).
+            // Layer 2 + P0.3: a platform's Fire At AFTER the move COMPLETES (same-tick issue
+            // would replace the move - VRF runs one task at a time).
             if (attackTargetVrf != null)
-                DeferEngageUntilMoveCompletes(unit, task, "fire", vrfUuid, attackTargetVrf);
-            if (breachTargetVrf != null)
-                DeferEngageUntilMoveCompletes(unit, task, "breach", vrfUuid, breachTargetVrf);
+                DeferEngageUntilMoveCompletes(unit, task, vrfUuid, attackTargetVrf);
             return;
         }
 
@@ -4962,13 +4981,11 @@ public sealed class VrfC2SimService : BackgroundService
             if (_vrf.FanOutStragglerSeconds > 0)
                 _ = FanOutStragglerAsync(unit.Name, task.TaskUuid);
         }
-        // Layer 2 + P0.3: the ATTACK-family fire / BREACH is issued when the along-route
-        // move COMPLETES (advance the axis / approach the obstacle, THEN engage/breach) -
-        // no longer in the same tick as MoveAlongRoute, which would have replaced it.
+        // Layer 2 + P0.3: a platform's ATTACK-family Fire At is issued when the along-route move
+        // COMPLETES (advance the axis, THEN engage) - not in the same tick as MoveAlongRoute,
+        // which would have replaced it. Units and BREACH park nothing (RL-20260926-01).
         if (attackTargetVrf != null)
-            DeferEngageUntilMoveCompletes(unit, task, "fire", vrfUuid, attackTargetVrf);
-        if (breachTargetVrf != null)
-            DeferEngageUntilMoveCompletes(unit, task, "breach", vrfUuid, breachTargetVrf);
+            DeferEngageUntilMoveCompletes(unit, task, vrfUuid, attackTargetVrf);
         _bridge.CreateRoute(routeGeo, routeName);
         _log.LogInformation("Task '{Task}': CreateRoute '{Route}' ({Count} pts) for {Name}; {Action} deferred to route-created.",
                             task.TaskName, routeName, routeGeo.Count, unit.Name, patrol ? "patrol" : "move");
@@ -4997,14 +5014,17 @@ public sealed class VrfC2SimService : BackgroundService
     /// their parameter (company_seize, co_clear, company_breach, plt_attack_by_fire,
     /// unit-attack-to-objective) - never a named enemy entity.
     /// The decision table is TaskDispatchPolicy.ForTarget; this method only logs and returns.
+    /// RL-20260926-01: the caller also gets the resolution, because what an ATTACK / BREACH does
+    /// with a distinct target is TaskDispatchPolicy.ForEngage's decision, not this method's.
     /// </summary>
-    private string ResolveAffectedTarget(OrderTask task, string vrfUuid, string intentLabel, string engagement)
+    private string ResolveAffectedTarget(OrderTask task, string vrfUuid, string intentLabel, string engagement,
+                                         out TargetResolution resolution)
     {
         string tgt = null;
         bool has = !string.IsNullOrEmpty(task.AffectedEntity);
         bool resolved = has && TryResolveVrfUuid(task.AffectedEntity, out tgt);
         bool isSelf = resolved && string.Equals(tgt, vrfUuid, StringComparison.Ordinal);
-        var resolution = TaskDispatchPolicy.ForTarget(has, resolved, isSelf);
+        resolution = TaskDispatchPolicy.ForTarget(has, resolved, isSelf);
         if (resolution == TargetResolution.DistinctEntity) return tgt;
 
         // m3 (cold-start review of 5c67d41): R3 IS ABOUT SELF-TARGETING, and only SelfIsObjective
@@ -5214,18 +5234,25 @@ public sealed class VrfC2SimService : BackgroundService
     }
 
     /// <summary>
-    /// P0.3: park an ATTACK/BREACH engage until the unit's move task COMPLETES
-    /// (OnVrfTaskCompleted issues it). A configurable fallback timer covers moves that
-    /// never complete (Vrf:EngageFallbackSeconds; 0 disables the fallback).
+    /// P0.3: park a PLATFORM's ATTACK Fire At until its move task COMPLETES (OnVrfTaskCompleted
+    /// issues it). A configurable fallback timer covers moves that never complete
+    /// (Vrf:EngageFallbackSeconds; 0 disables the fallback). RL-20260926-01: the only caller is the
+    /// TaskDispatchPolicy.IssuesFireAt arm, which a unit never reaches; the guard below says so
+    /// loudly instead of parking a Fire At a unit would refuse.
     /// </summary>
-    private void DeferEngageUntilMoveCompletes(CreatedUnit unit, OrderTask task, string kind,
-                                               string taskeeVrf, string targetVrf)
+    private void DeferEngageUntilMoveCompletes(CreatedUnit unit, OrderTask task, string taskeeVrf, string targetVrf)
     {
-        var eng = new PendingEngage(kind, taskeeVrf, targetVrf, task.TaskUuid, task.TaskName);
+        if (unit.IsAggregate)
+        {
+            _log.LogError("Task '{Task}': a Fire At was about to be parked for the UNIT {Name} - a unit takes no " +
+                          "Fire At (RL-20260926-01). NOT parked; the unit's advance stands.", task.TaskName, unit.Name);
+            return;
+        }
+        var eng = new PendingEngage("fire", taskeeVrf, targetVrf, task.TaskUuid, task.TaskName);
         _pendingEngage[unit.Name] = eng;
         _log.LogInformation("Task '{Task}': {Kind} {Vrf} -> {Tgt} deferred until the move COMPLETES " +
                             "(completion-gated; fallback {S}s).",
-                            task.TaskName, kind, taskeeVrf, targetVrf, _vrf.EngageFallbackSeconds);
+                            task.TaskName, eng.Kind, taskeeVrf, targetVrf, _vrf.EngageFallbackSeconds);
         if (_vrf.EngageFallbackSeconds > 0)
             _ = EngageFallbackAsync(unit.Name, eng);
     }
@@ -5248,7 +5275,9 @@ public sealed class VrfC2SimService : BackgroundService
 
     /// <summary>
     /// TICK THREAD. THE ENGAGE FALLBACK'S DECISION (2026-09-25; lane M review S1, re-review NEW-1).
-    /// After Vrf:EngageFallbackSeconds the approach move of an ATTACK / BREACH has not completed.
+    /// After Vrf:EngageFallbackSeconds the approach move of a PLATFORM's ATTACK has not completed.
+    /// (Since RL-20260926-01 nothing else is ever parked: a unit ATTACK and every BREACH are the move
+    /// itself, and a stuck UNIT is handled like any MOVE - by the progress watchdog.)
     /// Two very different units reach this point, and the owner's words treat them differently:
     ///   - A unit still MOVING: the interface replaces its move with the engage and so STOPS it. Under
     ///     the temporary position (RL-20260921-09) a task ends at start time + Duration unless its unit
@@ -5405,24 +5434,44 @@ public sealed class VrfC2SimService : BackgroundService
         }
     }
 
-    /// <summary>Issue a parked engage on the tick thread, re-recording it as the unit's
-    /// in-flight task (same C2SIM task uuid, engage kind) so ITS completion attributes.</summary>
+    /// <summary>Issue a parked Fire At on the tick thread, re-recording it as the taskee's
+    /// in-flight task (same C2SIM task uuid, engage kind) so ITS completion attributes. A platform
+    /// only (RL-20260926-01): no breach task is ever issued.</summary>
     private void IssueEngage(string unitName, PendingEngage eng)
     {
         _inFlight.RecordDispatch(unitName,
             new InFlightTracker.InFlight(eng.MoveTaskUuid, eng.TaskName, eng.Kind, DateTime.UtcNow));
         _tickActions.Enqueue(() =>
         {
-            if (eng.Kind == "breach") _bridge.Breach(eng.TaskeeVrf, eng.TargetVrf);
-            else _bridge.FireAtTarget(eng.TaskeeVrf, eng.TargetVrf);
+            _bridge.FireAtTarget(eng.TaskeeVrf, eng.TargetVrf);
             // The engage replaces the move in VR-Forces: the next completion is the ENGAGE's and must
             // attribute (review wf_62e5bdf7) - drop any arrival-evidence swallow for this unit.
             _arrivalReported.TryRemove(unitName, out _);
             ClearStallState(unitName);
         });
-        _log.LogInformation("{Kind} {Vrf} -> {Tgt} issued (task '{Task}').",
-                            eng.Kind == "breach" ? "BREACH: Breach" : "ATTACK: FireAtTarget",
+        _log.LogInformation("ATTACK: FireAtTarget {Vrf} -> {Tgt} issued (task '{Task}'; platform).",
                             eng.TaskeeVrf, eng.TargetVrf, eng.TaskName);
+    }
+
+    /// <summary>RL-20260926-01: the unit ATTACK dispatch line, once per dispatch.</summary>
+    private void LogAttackFireAtWill(OrderTask task, CreatedUnit unit)
+        => _log.LogInformation("Task '{Task}' (verb {Code}, {Name}): {Line}. The order's own rules of engagement " +
+                               "('{Roe}') are overridden for this task.", task.TaskName, task.ActionCode, unit.Name,
+                               TaskDispatchPolicy.AttackFireAtWillLine,
+                               string.IsNullOrEmpty(task.RuleOfEngagementCode) ? "none" : task.RuleOfEngagementCode);
+
+    /// <summary>RL-20260926-01: the ONE observation a BREACH sends at dispatch (STP-865), on the same
+    /// ObservationReport / NameObservation channel as the R2 in-place observation. No DtBreachTask is
+    /// issued anywhere: it is an aggregate-level task, and the entity-level model set has no breach
+    /// controller. TODO(STP-865): a real breach needs what the order does not carry - an obstacle
+    /// (aggregate model set: DtBreachTask) or a lane line and plow/roller units (entity model set:
+    /// section_breach / company_breach). This code has no aggregate-level path to keep.</summary>
+    private void ReportBreachNotSimulated(OrderTask task, CreatedUnit unit)
+    {
+        string text = TaskDispatchPolicy.BreachNotSimulatedObservation(unit.Name);
+        _log.LogInformation("Task '{Task}': {Text}", task.TaskName, text);
+        _ = PushReportAsync(ReportBuilder.BuildTypeSubstitutionReport(
+                task.TaskeeUuid, unit.Name, unit.Name, text, IsoNow(), NewReportId()), ReportKind.Observation);
     }
 
     private void OnReport(object sender, C2SIMSDK.C2SIMNotificationEventParams e)
@@ -5591,7 +5640,7 @@ public sealed class VrfC2SimService : BackgroundService
         // i.e. the exact same path the taskee uuid already uses successfully. The C2SIM task
         // name stays in the log line and on the route OBJECT (CreateRoute's DtString is
         // unbounded); it is no longer what the task has to resolve.
-        // NOTE (P0.3): the ATTACK/BREACH engage is NO LONGER issued here - it now waits for
+        // NOTE (P0.3): a platform ATTACK's Fire At is NO LONGER issued here - it now waits for
         // the move to COMPLETE (OnVrfTaskCompleted), since a same-tick engage would replace
         // the move (NEXT_SESSION_GUIDANCE.md sec 2.5).
         if (!string.IsNullOrEmpty(name) && _pendingRouteTasks.TryGetValue(name, out var routeQueue)
@@ -7764,8 +7813,8 @@ public sealed class VrfC2SimService : BackgroundService
         if (TimedCompletionPolicy.ReleasesSuccessorsNow(success, verdict)) _sequencer.CompleteTask(taskUuid);
         else if (!success) _sequencer.NotifyAbandoned(taskUuid);   // a FAILED task never completes: successors fail fast
 
-        // P0.3: the move completed - issue the engage that was parked on it (advance the
-        // axis / approach the obstacle, THEN engage/breach - now for real, not same-tick).
+        // P0.3: the move completed - issue the Fire At that was parked on it (advance the axis,
+        // THEN engage - now for real, not same-tick). A platform only since RL-20260926-01.
         // taskUuid != null (not IsNullOrEmpty): an ATTRIBUTED task with an empty uuid must
         // still match its engage; only an UNATTRIBUTED completion (null) skips this.
         bool taskContinues = false;
@@ -7786,7 +7835,7 @@ public sealed class VrfC2SimService : BackgroundService
 
         // THE CODE, from the same helper the offline flow uses (--rulings-selftest t10). Held: the
         // move half of an advance-then-engage task still says TASKINPRG, anything else says nothing
-        // until the end time. Overdue and now arrived: TASKCMPLT - and for an ATTACK / BREACH the
+        // until the end time. Overdue and now arrived: TASKCMPLT - and for a platform ATTACK the
         // parked engage above has STILL been issued (the owner's decision of 2026-09-25,
         // RL-20260925-01).
         var maybeCode = TimedCompletionPolicy.CompletionCode(taskUuid != null, success, taskContinues, verdict);

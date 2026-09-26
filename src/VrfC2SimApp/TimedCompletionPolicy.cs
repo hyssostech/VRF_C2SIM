@@ -172,7 +172,8 @@ public sealed class TimedCompletionPolicy
     }
 
     /// <summary>
-    /// THE INTERFACE ITSELF STOPPED THIS TASK'S MOVE (the ATTACK / BREACH engage fallback replaces
+    /// THE INTERFACE ITSELF STOPPED THIS TASK'S MOVE (the engage fallback of a PLATFORM's ATTACK -
+    /// the only engage left since RL-20260926-01 - replaces
     /// the approach move with the engage after Vrf:EngageFallbackSeconds). The unit is then no
     /// longer travelling anywhere, and under RL-20260921-09 the only exception to "ends at start
     /// time + Duration" is a unit still travelling - so the task is treated as having NO
@@ -283,7 +284,7 @@ public sealed class TimedCompletionPolicy
     ///   - a FAILURE is TASKABRT, whatever the timer says;
     ///   - Hold: the move half of an advance-then-engage task still reports TASKINPRG (the engage
     ///     is issued); any other early finish sends nothing - the timer reports it at the end time;
-    ///   - EmitNow: TASKCMPLT, INCLUDING for the late move half of an ATTACK / BREACH - its parked
+    ///   - EmitNow: TASKCMPLT, INCLUDING for the late move half of a platform ATTACK - its parked
     ///     engage is still issued, and the task is reported complete on that arrival (the owner's
     ///     answer of 2026-09-25, RL-20260925-01);
     ///   - NotTimed: today's evidence-only codes (TaskStatusPolicy.CodeForCompletion);
