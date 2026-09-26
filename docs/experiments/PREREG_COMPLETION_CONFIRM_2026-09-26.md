@@ -492,5 +492,27 @@ RUN CONDITIONS (sec 7):
 APPNUMBERS: 5103-5117 claimed; CONSUMED 5103, 5107, 5109, 5110, 5111, 5112, 5114 (7); BURNED 5104-5106, 5108, 5113,
 5115-5117 (8) - as registered. Marker 5118 (Appendix B annotated).
 
-LEFT RUNNING FOR THE OWNER: vrfSimHLA1516e pid 47152 (appNo 5107, still a joined federate) - it HARD-BLOCKS the next
-LaunchVrf52 (DEMO_RUNBOOK sec 8 item 1); lane R did not kill it. The holder 34096 is left joined by design.
+LEFT RUNNING FOR THE OWNER (at harvest, 12:54Z): vrfSimHLA1516e pid 47152 (appNo 5107, still a joined federate); lane R did
+not kill it. Superseded by the TEARDOWN FINDING below. The holder 34096 is left joined by design.
+
+OWNER VERDICT 2026-09-26 (an AskUserQuestion SELECTION put by the seat; the labels are the seat's wording, not the owner's
+words). Selected, verbatim: "Force-stop pid 47152 only" and "Accept the measurements; teardown is a separate finding".
+- The run STAYS LABELLED VOID as registered (P10); nothing in the table above is re-scored.
+- Accepted as LIVE CONFIRMATION (n = 1, one runtime, one fixture): the completion rows P1, P1t, P2, P2t, P3, P3b, P6, P7,
+  P7t - early arrival held to its end time, late arrival OVERDUE then complete on arrival with its follow-on waiting,
+  no-destination tasks complete at their end times, a no-Duration task completes on evidence, one terminal report per task.
+- STILL OWED: the stall abort (P4 conditional limbs, M4 item 4; DEMO_READINESS row 26) and the attack/breach engage
+  fallback (P5, M4 item 5 (i)-(v)) - neither was exercised by this laydown.
+
+TEARDOWN FINDING (separate from the completion verdict). StopVrf52's graceful close request to the back end (taskkill
+without /F) was refused twice - the runner's teardown (StopVrf exit 3, 120 s) and lane R's re-run (exit 3, 180 s, no
+titled window owned by the process) - after the interface had resigned cleanly (exit 0). The three 2026-09-21 runs
+checked (052350Z, 094051Z, 143243Z) closed normally on the same request ("VR-Forces 5.2d is down"). CAUSE NOT CLAIMED.
+On the owner's order the seat force-stopped pid 47152 only (Stop-Process after an identity re-check; exact time not
+recorded by lane R - after 12:54Z, confirmed gone at 13:14:15Z); rtiexec 47980, rtiForwarder 50740, rtiAssistant 30240
+and the holder 34096 untouched and still up at 13:14:15Z.
+
+RUN CONDITION (restated for the record): another session ran `scripts\RunScenario.sh --dry-run` with the defaults at
+12:06:00Z and 12:06:35Z, inside this run's quiet period, and deleted runs\launch52\last-run-dir.txt (the wrapper's mtime
+fallback then found the right directory). Which session is NOT ESTABLISHED; the suite's dry-run checks (lane N6's prep or
+a suite run) are the likely source.

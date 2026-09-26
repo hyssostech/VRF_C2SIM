@@ -196,5 +196,5 @@ D-series and Iron Storm, the live carry-over. The full run-by-run narrative is a
   ends on 'no more enemy contacts detected' plus a give-up timeout (file:line evidence in the research doc); the sim can be asked through plan trigger
   conditions (DtCeEntDestroyed, DtCeEntInArea), which this repo does not use.
 - BUILT BUT NOT INSTALLED: the two PreToolUse hooks (docs/SESSION_HOOKS.md). Installing them edits a settings.json and is his call.
-- CODE UNIT MERGED a9d738f; live run COMPLETION_CONFIRM-2026-09-26-1 VOID+STOP on its P10 (back end 47152 did not exit on the graceful close, left up);
-  completion rows HIT as measured, stall path NOT exercised (row 26 owed). Then the units in the cold-start handoff, re-scoped by RL-20260921-08.
+- CODE UNIT MERGED a9d738f; live run COMPLETION_CONFIRM-2026-09-26-1 VOID on its P10 (teardown), but the owner ACCEPTED its completion rows
+  as live confirmation (n=1); stall abort + attack/breach fallback still OWED (row 26). Then the cold-start units, re-scoped by RL-20260921-08.
