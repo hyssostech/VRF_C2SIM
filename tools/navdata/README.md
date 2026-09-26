@@ -135,3 +135,10 @@ C:\C2SIM\vrf-nav\shadow_jst and area C:\C2SIM\vrf-nav\navData\MAK Earth (online)
 MojaveAO20_jst. Side effect: on that copy both the Desert Succulent Shrub and the Joshua Tree biomes place mesquite,
 not yucca palms / Joshua trees, for rendering and simulation alike. Record:
 docs/experiments/PREREG_NAVEDGE_JST_2026-09-26.md.
+
+IRONSTORM-CENTRE regenerated 2026-09-26 (lane I1) on the VENDOR terrain with the gen-1 config (572 B, sha256
+d0ef8f36...9943): every sector identical to 2026-09-20 in the log; area gate FAIL (lakes); CORRIDOR gate FAIL on the
+same 7 sectors (T02 3, T10 4; worst 0.8182 at (28,21)). NOT registered (owner: "No, fix the corridor first"). Area
+C:\C2SIM\vrf-nav\navData\MAK Earth (online)\NavArea-ground-platform IRONSTORM-CENTRE, log
+C:\C2SIM\vrf-nav\work\log\gen-IRONSTORM-CENTRE-2026-09-26.log. Record:
+docs/experiments/PREREG_IRONSTORM_NAV_REGEN_2026-09-26.md.
