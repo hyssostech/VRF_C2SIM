@@ -385,6 +385,37 @@ continuing after the last completion.
 - STP itself driving the interface: owed to a session with the owner at the box.
 - No claim that the temporary position is final: it is TEMPORARY by the owner's own word.
 
+## BUILD RECORD (steps B and C, 2026-09-26, committed BEFORE the holder and the run)
+
+CORRECTION (same day, before the run): the STATUS and DATE lines above read "2026-09-26T11:45Z"; that stamp was
+written ahead of the commit and is wrong. The registration commit b0ab078 is dated 2026-09-26T11:32:53Z [V: git log].
+The ordering claim is unchanged: registration preceded the build (below, from 11:34:33Z) and everything after it.
+
+B. BUILD + DEPLOY [V]. Main checkout at a9d738f, tree clean (untracked only: a .code-workspace, grep.exe.stackdump,
+tools/analysis/__pycache__). `dotnet build <csproj> -c Release -p:BridgeConfig=Release-5.2 -t:Rebuild` for the eleven
+consumers, 11:34:33Z-11:35:42Z: eleven "Build succeeded", 0 errors, VrfC2SimApp 6 warnings (4x CA2024, 2x CS8632 - the documented set), the
+other ten 0. OUTPUT TREE: all eleven `bin\Release-5.2\net10.0\win-x64\VrfBridge.dll` = 90272bc95297e330... (the pin),
+each consumer's own .dll freshly written 11:34:54Z-11:35:41Z. `dotnet build-server shutdown` done. No native rebuild
+(bridge source unchanged since 13e8c73). Deployed app, src\VrfC2SimApp\bin\Release-5.2\net10.0\win-x64:
+- VrfC2SimApp.dll sha256 7b3554a5fbf4da4c2dbb00d39ea855d527b173df8ede74cbc7de26bae97b8787, ProductVersion
+  1.0.0+git.a9d738f.Release-5.2 (no +DIRTY);
+- VrfC2SimApp.exe (apphost) sha256 acbb5095330ae565ef58ca3643ba66fa34dd1a3cf6ef65561f007296fd25bbb5, same version;
+- appsettings.json byte-identical to src (sha256 2ddbaba3...aae45a);
+- `DOTNET_ENVIRONMENT=Demo VrfC2SimApp.exe --runtime-check`: "VrfBridge loaded; native stack =
+  5.2|C:\MAK\vrforces5.2d\bin64\vrfcontrol.dll", "runtime-check: OK", exit 0.
+
+C. ORDER VALIDATION [V].
+- C1 `--parse-order` on the committed order: exit 0; "Tasks: 5"; durations 480000 / 300000 / 420000 / 360000 ms and
+  "(none)" for T_CC_PL1; T_CC_TK1H startAfter=c3...0001 and T_CC_CO1H startAfter=c3...0003; 3 Route shapes (578 / 557 /
+  578 m), 2 tasks with no geometry; 0 lines matching warn|schema|error.
+- C2 bytes: see sec 2 (each check gated on a dirty control first).
+- C3 one real push on the PRIVATE server, no interface running: PushInit exit 0 (RUNNING -> INITIALIZING -> "push
+  result : OK Message processed successfully" -> RUNNING; "QUERYINIT : 6 Units, SystemName=[STP]"); PushOrder exit 0
+  ("pushing order: ... (7503 chars)", "[11:37:27.069] ORDER (6580 chars)", "push result : OK Message processed
+  successfully", 1 bus message captured). The echo is the server's re-serialised OrderBody (no MessageBody wrapper,
+  2-space indent), so its character count differs from the file's by construction; it carries all 5 <Task> elements,
+  the 4 Durations, 2 STREND relations and ends with </OrderBody>. No BML reply (not exit 4), no truncated echo.
+
 ## Result (written after the harvest, never from a live read)
 
 (pending - to be written after the harvest)
