@@ -117,6 +117,34 @@ Every fixture this path builds is meant to be driven by multi-kilometre C2SIM or
 Fixtures carrying it are named with an `_AG` suffix: `R9_Mojave_Empty_52_AG`,
 `R9_Mojave_Empty_52_NavAO_AG`.
 
+`R9_Mojave_Empty_52_NavAO20_AG_jst` (2026-09-26, N11): the full MojaveAO20 nav area that
+PASSES the 0.9 connectivity gate (tools/navdata/README.md, N10), with this default SMS. Built
+into `frame_variants/`; for the sanctioned deploy, add
+`--out-dir "C:\MAK\vrforces5.2d\userData\scenarios"`:
+```
+python build_fixture.py --profile 5.2 --empty \
+       --frame-mode fixed-frame-run-to-complete --frame-time 0.033333 \
+       --scenario-name "R9 Mojave empty fixture (5.2, FFRTC, MojaveAO20_jst nav area, abstract-graph SMS)" \
+       --out-name R9_Mojave_Empty_52_NavAO20_AG_jst \
+       --terrain "<repo>\tools\navdata\out\MAK Earth (online) + MojaveAO20_jst_nav.mtf" \
+       --sms "C:\C2SIM\vrf-sms\C2SIM_EntityLevel_AbstractGraphs.sms"
+```
+`.scnx` sha256 2c5b7c3bff5c6525c39a93e80336678f5e1cab30bff3378fa4500de4448455b6 (rebuilds
+identically). `<repo>` is the MAIN checkout's absolute path, written verbatim into the `.scn`
+(the terrain copy is git-ignored and exists only there). Compared with `_NavAO20_AG_S2`,
+exactly three `.scn` settings differ: the terrain pair, the SMS (no Slope2) and the
+scenario-name.
+The terrain copy is NOT in git. Rebuild chain (tools/navdata; every step is recorded in
+docs/experiments/PREREG_NAVEDGE_JST_2026-09-26.md): `make_tree_control.py shadow --shadow
+C:\C2SIM\vrf-nav\shadow_jst --swap DSS:YuccaPalm=HoneyMesquiteShortSpring --swap
+JST:YuccaPalm=HoneyMesquiteShortSpring` (edited biome file sha256 ae5ddb26...647b, re-checked
+2026-09-26); `make_tree_control.py terrain` -> `... + MojaveAO20_jst.mtf`; a full AO20
+vrfNavGenerator run -> area `NavArea-ground-platform MojaveAO20_jst`; `make_nav_terrain.py`
+-> `MAK Earth (online) + MojaveAO20_jst_nav.mtf` (sha256 985592b7...ef03). On that terrain the
+Desert Succulent Shrub and Joshua Tree biomes place mesquite, not yucca palms / Joshua trees.
+Note: `--negative-controls` builds its NEG copies on the SHIPPED terrain even when `--terrain`
+is given. Validate them WITHOUT `--terrain`, so that each fails only on its intended check.
+
 `validate_fixture.py --empty-52` expects the same default, OPENS the derived SMS, and
 reports its include chain plus every vendor artefact it overrides: for a `.lua` under
 `scripts/`, the script id, the `useAbstractGraphs` value and the run-time proof line; for a

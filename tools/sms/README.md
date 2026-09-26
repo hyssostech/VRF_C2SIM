@@ -31,7 +31,7 @@ model-set directory `<Dest>\NAME\`.
 
 | NAME | overrides (under `<Dest>\NAME\`) | record |
 |---|---|---|
-| `C2SIM_EntityLevel_AbstractGraphs` | `scripts\ground-vehicle-move-to.lua` + `.xml` | G7b; fixtures `_AG`, `_NavAO_AG` |
+| `C2SIM_EntityLevel_AbstractGraphs` | `scripts\ground-vehicle-move-to.lua` + `.xml` | G7b; fixtures `_AG`, `_NavAO_AG`, `_NavAO20_AG_jst` |
 | `C2SIM_EntityLevel_AbstractGraphs_Slope2` | the same script + `vrfSim\systems\movement\ground-tracked.sysdef` | N2b; `_NavAO_AG_S2`, `_NavAO20_AG_S2` |
 | `C2SIM_EntityLevel_Corridor2000` | `vrfSim\platforms\Ground_Vehicle.ope` | N1; `_NavAO_C2K` |
 | `C2SIM_EntityLevel_Corridor2000_Slope2` | the same .ope + the same .sysdef | N2; `_NavAO_C2K_S2` |
