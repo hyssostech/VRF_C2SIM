@@ -184,3 +184,70 @@ FALSIFIER: any corridor sector < 0.9 -> F1 MISS -> no registration; per the seat
 run, report the sectors still < 0.9 with their forest / water shares, STOP.
 If F1 PASSES: P3 register (make_nav_terrain.py on a NEW terrain copy made from the IS04_maple .mtf, so the copy names
 the maple shadow .earth), P4 fixture build + validate + the sanctioned deploy, README, then STOP.
+
+### Part 2 result (full-area L1b, maple shadow) - CORRIDOR FAIL on 2 of 7; nothing registered
+
+Registered by commit 11d457d (2026-09-26T22:12:37Z). Run: pid 47520, 22:13:00Z -> 23:05:17Z, exit 0 from the held
+handle, wall 3,136.2 s. Log C:\C2SIM\vrf-nav\work\log\gen-IRONSTORM-CENTRE_maple-2026-09-26.log (5,432,241 B, sha256
+a26d8459...d917); it loaded c:\C2SIM\vrf-nav\shadow_is04_maple\...\MAK Earth (online).earth. Area
+...\navData\MAK Earth (online)\NavArea-ground-platform IRONSTORM-CENTRE_maple: 4,764 files, 287,120,328 B, manifest
+sha256 52392ce8...22ac; runtime config sha256 40b46032...ddfb. Gate outputs beside the log
+(nav_gate-/corridor_gate-IRONSTORM-CENTRE_maple-2026-09-26.{txt,json}).
+
+- F0 HIGH: HIT. Exit 0, 1,600 sectors, extent and 26,802 transition points as the baseline; the runtime config names
+  the _maple area and original-terrain = the IS04_maple .mtf. Unlike the two vendor-terrain logs, this log carries the
+  1,600 "Sector (i,j): xMin.." rows and 1,600 "^Generated: ground-platform" rows (cause of the format difference not
+  known); corridor_gate re-checked its grid formula against all 1,600 rows: 0 mismatches [V].
+- **F1 HIGH: MISS - CORRIDOR GATE FAIL, 2 of 29.** The five forest-led sectors pass; the two water-led T10 sectors
+  stay below 0.9:
+
+| Sector | Leg | Baseline | L1b | Forest share | Water share | NavData kB |
+|---|---|---|---|---|---|---|
+| (14,13) | T02 | 0.8947 | 1.0000 | 1.00 | 0.00 | 191 -> 167 |
+| (16,14) | T02 | 0.8868 | 1.0000 | 1.00 | 0.00 | 194 -> 169 |
+| (17,15) | T02 | 0.8800 | 0.9000 | 0.34 | 0.02 | 107 -> 105 |
+| (27,22) | T10 | 0.8475 | 0.9649 | 0.70 | 0.06 | 145 -> 137 |
+| (27,23) | T10 | 0.8868 | 1.0000 | 0.85 | 0.06 | 158 -> 150 |
+| **(28,21)** | T10 | 0.8182 | **0.8485** | 0.13 | 0.34 | 73 -> 76 |
+| **(28,22)** | T10 | 0.8571 | **0.8857** | 0.10 | 0.22 | 69 -> 69 |
+
+  Shares are lane I2's CLCplus forest + open forest and OSM/CLCplus water (scratch laneI2\corridor_table.json). T02 and
+  T14 are clean (T02 worst 0.9000 at (17,15) - exactly on the bar); T10 carries 895 route m in the two failing sectors.
+- F2 MEDIUM: HIT. Area-wide below 0.9: 280 -> 63 (nav_gate convention); ratio 1.00 in 1,212 sectors; paired over the
+  1,561 graphed sectors: up 1,174, down 25, unchanged 362. The 33 degenerate + 6 no-report sectors are unchanged.
+- F3 MEDIUM: (a) HIT - of 1,270 sectors whose NavData moved by > 1 %, 1,209 (95.2 %) have forest share >= 0.05.
+  (b) MISS - of the 232 sectors below 0.05, only 171 (73.7 %) kept NavData within 1 %. Unexplained [A candidates:
+  CLCplus under-reads tree-bearing ground there, or trees are placed on non-forest classes].
+- M2 HIGH: HIT. 74 of 1,600 sectors identical to the baseline; in the 674 sectors with forest share >= 0.9 the median
+  NavData falls 179.4 -> 167.6 kB while median input triangles rise 147,368 -> 151,395.
+
+Verdict per the registration: FALSIFIER FIRED (corridor sectors < 0.9). NOT registered, no fixture, no deploy. The
+maple lever cures every forest-led corridor sector and most of the area, but not the two T10 sectors where water
+(22-34 %) outweighs forest (10-13 %). Per the seat: one full-area L1a (no trees) run follows, with its own block
+below, then STOP. Side effects: 523 files under C:\MAK since the registration, all in appData\cache\vrfsim (new folder
+Biomes-c5dbb8ddab7da040, the maple shadow's content-keyed biome cache); 1,602 NavDataDebug intermediates
+(15,789,233,820 B) deleted.
+
+## Part 3 registration - FULL-AREA L1a (no biome-04 trees), lane I1c
+
+Seat: "If FAIL: prereg + one full-area L1a (no trees) run; report which sectors remain below 0.9 and their
+forest/water shares, then STOP (no registration)." Committed BEFORE the run.
+
+PREREG ID: ironstorm-trees-2026-09-26-3. Config ...\work\cfg\NavArea-ground-platform IRONSTORM-CENTRE_notrees
+.navGenConfig = byte copy of the baseline config (sha256 d0ef8f36...9943). Terrain <main checkout>\tools\navdata\out\
+MAK Earth (online) + IS04_notrees.mtf (sha256 3c680595...e18e -> shadow_is04_notrees, bioregions.xml sha256
+7c3cb641...ac06 = vendor minus :147-149). Control: the I1 baseline; L1b (Part 2) as the second comparison.
+ONE VARIABLE vs the baseline: biome 04 places no trees. Same traps.
+
+| # | Prediction | Confidence | What counts as a MISS | Measured |
+|---|---|---|---|---|
+| T0 | exit 0; 1,600 sectors; same extent / 26,802 transition points; runtime config _notrees written | HIGH | anything else -> STOP |
+| T1 | the five forest-led corridor sectors (14,13) (16,14) (17,15) (27,22) (27,23) read >= 0.9 | HIGH | any < 0.9 |
+| T2 | (28,21) and (28,22) stay below 0.9 (water-led: forest 0.13 / 0.10, water 0.34 / 0.22; L1b moved them only +0.03) | MEDIUM | either reads >= 0.9 -> the trees on their 10-13 % forest DO hold them, and the red maple is not narrow enough there |
+| T3 | area-wide below 0.9 <= L1b's 63 | MEDIUM | > 63 |
+| T4 | forest >= 0.9 sectors: median NavData falls below L1b's 167.6 kB | MEDIUM | >= 167.6 |
+
+CAUSE READING, stated before the data: T1 + T2 HIT = trees hold the forest sectors and water holds the two T10
+sectors - the corridor needs a water-side lever (route, or water handling), not a tree lever. T2 MISS = trees
+explain all seven, and a narrower asset than RedMapleSpring is the product lever to test next. Either way this run
+registers nothing (it removes every biome-04 tree).
