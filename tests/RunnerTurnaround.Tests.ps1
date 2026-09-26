@@ -2373,8 +2373,23 @@ Check '10d CloseMainWindow''s return value is CAPTURED and reported, not discard
 Check '10d NO click path exists in the code: no InvokePattern, no Invoke(), no SetForegroundWindow, no Toggle' (
     $sv52Code -notmatch 'InvokePattern' -and $sv52Code -notmatch 'TogglePattern' -and
     $sv52Code -notmatch 'SetForegroundWindow' -and $sv52Code -notmatch '\.Invoke\(\)')
-Check '10d NO Stop-Process anywhere in the code (RUNBOOK sec 0)' (
-    $sv52Code -notmatch 'Stop-Process')
+# A3 (lane A2, 2026-09-26): the ONE sanctioned force - the run's OWN back end, matched by pid AND
+# start time, after the graceful close was refused (owner's standing direction; RUNBOOK sec 0
+# exception). Exactly one Stop-Process call site, by -Id, behind Test-OwnBackendIdentity; never by name.
+$sv52StopCalls = @(Get-Content -LiteralPath $sv52Path |
+    Where-Object { $_.Trim() -notmatch '^#' -and $_ -match '^\s*Stop-Process\b' })
+Check '10d exactly ONE Stop-Process call site, by -Id, never by -Name (only the identity-matched own back end)' (
+    $sv52StopCalls.Count -eq 1 -and $sv52StopCalls[0] -match 'Stop-Process\s+-Id\s' -and $sv52StopCalls[0] -notmatch '-Name') ("call sites: " + $sv52StopCalls.Count)
+Check '10d the force is gated on Test-OwnBackendIdentity (pid + start time) and logs FORCED' (
+    $sv52Code -match 'Test-OwnBackendIdentity' -and
+    $sv52Code -match 'FORCED - graceful close refused \(see diagnostics\)' -and
+    $sv52Code -match 'ForceOwnBackendPid' -and $sv52Code -match 'ForceOwnBackendStartUtc')
+Check '10d a forced stop has its OWN exit code (6), distinct from 3 (refused, nothing killed) and 5 (error)' (
+    $sv52Code -match '(?m)^\s*exit 6\b' -and $sv52Text -match '6 = ')
+Check '10d the teardown DIAGNOSTICS (title, handle, console-host parentage) run BEFORE the close request' (
+    $sv52Code.IndexOf('Write-TeardownDiagnostic -Pids') -ge 0 -and
+    $sv52Code.IndexOf('Write-TeardownDiagnostic -Pids') -lt $sv52Code.IndexOf('& taskkill') -and
+    $sv52Code -match 'MainWindowHandle' -and $sv52Code -match 'OpenConsole' -and $sv52Code -match 'ParentProcessId')
 # taskkill appears twice in the code: the one INVOCATION and the log line that echoes what
 # was run. Only the invocation may be asserted on - the log line legitimately contains the
 # string "/F" in "(no /F)". So: find the call sites, insist there is exactly one, and
@@ -2386,13 +2401,50 @@ Check '10d exactly ONE taskkill call site, and it carries no /F (a force-killed 
     $sv52TaskkillCalls.Count -eq 1 -and $sv52TaskkillCalls[0] -notmatch '/F') ("call sites: " + $sv52TaskkillCalls.Count)
 Check '10d the UIA half degrades instead of failing the teardown when the types cannot be loaded' (
     $sv52Code -match '\$script:UiaOk\s*=\s*\$false' -and $sv52Code -match 'if \(-not \$script:UiaOk\)')
-$sv52Dry = (& $gqPwsh -NoProfile -NonInteractive -File $sv52Path -DryRun 2>&1 | Out-String)
-if ($sv52Dry -notmatch 'Dry run - what WOULD happen') {
-    Check '10d SKIPPED - no VR-Forces process is running, so StopVrf52 -DryRun exits at "nothing to do" before the plan' $true
-} else {
-    Check '10d the dry-run plan names the window diagnostic and the CloseMainWindow return value' (
-        $sv52Dry -match 'READ-ONLY WINDOW DIAGNOSTIC' -and $sv52Dry -match "would REPORT CloseMainWindow")
+# The dry-run PLAN is printed whether or not VR-Forces is running (lane A2): before, it exited at
+# "nothing to do" first, so on a machine with no simulator up this check could only SKIP.
+$sv52Dry = (& $gqPwsh -NoProfile -NonInteractive -File $sv52Path -DryRun -ForceOwnBackendPid 4242 -ForceOwnBackendStartUtc '2026-09-26T18:16:57.0000000Z' 2>&1 | Out-String)
+Check '10d the dry-run plan names the window diagnostic and the CloseMainWindow return value' (
+    $sv52Dry -match 'READ-ONLY WINDOW DIAGNOSTIC' -and $sv52Dry -match 'would REPORT CloseMainWindow')
+Check '10d the dry-run plan prints the new lines: teardown diagnostics, the console exit verdict, the identity-gated force' (
+    $sv52Dry -match 'would record TEARDOWN DIAGNOSTICS' -and
+    $sv52Dry -match 'console exit \(UG52 4\.6 p146' -and $sv52Dry -match 'NOT DELIVERABLE' -and
+    $sv52Dry -match 'would FORCE-STOP pid 4242 ONLY if' -and $sv52Dry -match 'exit 6')
+$sv52DryNoId = (& $gqPwsh -NoProfile -NonInteractive -File $sv52Path -DryRun 2>&1 | Out-String)
+Check '10d without the run''s own pid + start time the plan says NOTHING will be forced (the watchdog path)' (
+    $sv52DryNoId -match 'NO FORCE' -and $sv52DryNoId -notmatch 'would FORCE-STOP pid')
+$null = & $gqPwsh -NoProfile -NonInteractive -File $sv52Path -DryRun -ForceOwnBackendPid 4242 2>&1 | Out-String
+$sv52BadIdExit = $LASTEXITCODE
+Check '10d a pid without its start time is a bad argument (exit 2) - the pair is the identity, never the pid alone' (
+    $sv52BadIdExit -eq 2) ("exit=$sv52BadIdExit")
+
+Write-Host '=== 10f. A3: the own-back-end identity match (Test-OwnBackendIdentity, RunnerLib) ==='
+$hasOwnId = [bool](Get-Command Test-OwnBackendIdentity -ErrorAction SilentlyContinue)
+$t0 = [datetime]::SpecifyKind([datetime]'2026-09-26T18:16:57.1234567', [System.DateTimeKind]::Utc)
+function OwnId {
+    param($ep, $es, $ap, $as, $an)
+    if (-not $hasOwnId) { return $null }
+    return Test-OwnBackendIdentity -ExpectedPid $ep -ExpectedStartUtc $es -ActualPid $ap -ActualStartUtc $as -ActualName $an
 }
+$m1 = OwnId 40220 $t0 40220 $t0.AddMilliseconds(400) 'vrfSimHLA1516e'
+Check '10f MATCH: same pid, start time within tolerance, the back-end image' ($hasOwnId -and $m1.Match) $(if ($m1) { $m1.Why } else { 'Test-OwnBackendIdentity not defined' })
+$m2 = OwnId 40220 $t0 40220 $t0.AddHours(1) 'vrfSimHLA1516e'
+Check '10f REFUSE: the pid was REUSED by a later process (start time differs)' ($hasOwnId -and -not $m2.Match -and $m2.Why -match 'start')
+$m3 = OwnId 40220 $t0 40221 $t0 'vrfSimHLA1516e'
+Check '10f REFUSE: a different pid' ($hasOwnId -and -not $m3.Match)
+$m4ok = $hasOwnId
+foreach ($prot in @('rtiexec','rtiForwarder','rtiAssistant','RtiProbe','vrfGui')) {
+    $m4 = OwnId 40220 $t0 40220 $t0 $prot
+    if (-not $hasOwnId -or $m4.Match) { $m4ok = $false }
+}
+Check '10f REFUSE: never rtiexec / rtiForwarder / rtiAssistant / RtiProbe (the holder) / vrfGui, even on an exact pid+start match' $m4ok
+$m5 = OwnId 40220 $null 40220 $t0 'vrfSimHLA1516e'
+$m6 = OwnId 40220 $t0 40220 $null 'vrfSimHLA1516e'
+Check '10f REFUSE: an unknown start time on either side (no identity, no force)' ($hasOwnId -and -not $m5.Match -and -not $m6.Match)
+$rnText = Get-Content -LiteralPath (Join-Path $RepoRoot 'scripts\RunC2SimScenario.ps1') -Raw
+Check '10f the runner records the back end''s start time at launch and passes pid + start time to StopVrf52' (
+    $rnText -match '\$BackendStartUtc\s*=' -and $rnText -match "'-ForceOwnBackendPid'" -and $rnText -match "'-ForceOwnBackendStartUtc'")
+Check '10f the runner branches on StopVrf exit 6 (FORCED) apart from 3 and 5' ($rnText -match '(?m)^\s*6\s*\{[^\r\n]*FORCED')
 
 Write-Host '=== 10e. STP-844 LaunchVrf52 precheck: GUI-on only, advisory only, no StrictMode leak ==='
 Check '10e the precheck is gated on a front end actually being launched (-NoGui raises no dialog)' (

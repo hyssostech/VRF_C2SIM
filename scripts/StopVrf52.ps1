@@ -1,4 +1,28 @@
-# StopVrf52.ps1 - bring VR-Forces 5.2d down GRACEFULLY, unattended, killing nothing.
+# StopVrf52.ps1 - bring VR-Forces 5.2d down GRACEFULLY, unattended; force ONLY the run's own
+# back end, identified by pid + start time, and only after its graceful close was refused.
+#
+# A3 (lane A2, 2026-09-26) - WHAT CHANGED AND ON WHOSE AUTHORITY. Both live runs of 2026-09-26
+# (20260926T115957Z, 20260926T181639Z) ended at exit 3: `taskkill /PID` (no /F) said "SUCCESS"
+# and the back end ran on for the whole budget; the SEAT then force-stopped the run's own back end
+# by pid, twice, on the owner's standing "initiative" direction (feedback memory 2026-09-26).
+# This script now does exactly that, and nothing wider:
+#   (a) TEARDOWN DIAGNOSTICS before any close request: MainWindowTitle, MainWindowHandle, the
+#       Win32_Process parent and any conhost / OpenConsole / WindowsTerminal parent or child.
+#       Every run that closed on record shows window="...vrfSimHLA1516e.exe" (a console); both
+#       refusals show window="" (lane A report, A3) - these lines are the discriminator.
+#   (b) The vendor's own exit - "To exit a simulation engine from the console window, press Q
+#       and then Enter" (UG52 4.6 p146) - is NOT DELIVERABLE from here: LaunchVrf52.ps1 starts
+#       the back end with a plain Start-Process (no -RedirectStandardInput), so its console input
+#       is not ours to write. The close request stays taskkill WITHOUT /F.
+#   (c) If the back end is still up at the end of the budget AND the caller passed its recorded
+#       -ForceOwnBackendPid + -ForceOwnBackendStartUtc AND the live process matches BOTH
+#       (RunnerLib Test-OwnBackendIdentity), it is Stop-Process -Id -Force'd and the log says
+#       "FORCED - graceful close refused (see diagnostics)"; exit 6. rtiexec, rtiForwarder,
+#       rtiAssistant, RtiProbe (the holder) and vrfGui are NEVER forced. Without the pair (the
+#       RunnerWatchdog and manual path) nothing is forced and a refusal is still exit 3.
+# RESIDUAL RISK, stated: a force-stopped back end is a JOINED federate that did not resign, which
+# is what RUNBOOK sec 0 warns leaves a STALE FEDERATE in the long-lived rtiexec. The seat's two
+# force-stops are the only evidence so far; the next launch's join is the check.
 #
 # WHY A SEPARATE SCRIPT (2026-09-03): StopVrf.ps1 is written around the 5.0.2 COMBINED-MODE
 # shutdown - it closes vrfGui and then drives, through UI Automation, the two modals that
@@ -47,7 +71,7 @@
 # and its rtiexec/rtiForwarder are the federation's RENDEZVOUS, deliberately left up for the
 # next run (StartRtiExec52.ps1 finds them and starts nothing).
 #
-# Exit codes (same contract as StopVrf.ps1, so the runner's teardown branch is unchanged):
+# Exit codes (StopVrf.ps1's contract, plus 6):
 #   0 = down, or already down, or a dry run completed
 #   2 = bad arguments
 #   3 = still running after the budget - NOTHING was killed; inspect before the next launch
@@ -55,6 +79,8 @@
 #        This script drives no dialog, so it never returns 4 - the code is kept unused so
 #        the two scripts' contracts stay comparable.)
 #   5 = unexpected terminating error - VR-Forces MAY STILL BE RUNNING
+#   6 = FORCED: the graceful close was refused and the run's OWN back end (pid + start time
+#       matched) was force-stopped; nothing else of VR-Forces is left. A refused close, scoreable.
 # ASCII only.
 [CmdletBinding()]
 param(
@@ -63,6 +89,11 @@ param(
     # How long the front-end's own close is given BEFORE the back-end is asked to close.
     # 20 s per the 5.2 teardown procedure; the back-end is never asked earlier.
     [int]    $GraceSec               = 20,
+    # A3: the run's OWN back end, as the runner recorded it at launch. BOTH or neither: the pair is
+    # the identity (a pid alone can be reused). Given, a back end still up at the end of the budget
+    # is force-stopped if - and only if - it matches both (exit 6). Not given: nothing is forced.
+    [int]    $ForceOwnBackendPid     = 0,
+    [string] $ForceOwnBackendStartUtc = '',
     [switch] $DryRun
 )
 
@@ -83,15 +114,45 @@ if ($GraceSec -lt 1 -or $GraceSec -ge $TimeoutSec) {
     exit 2
 }
 
+$ownStartUtc = $null
+if (($ForceOwnBackendPid -gt 0) -xor (-not [string]::IsNullOrWhiteSpace($ForceOwnBackendStartUtc))) {
+    Say-Fail '-ForceOwnBackendPid and -ForceOwnBackendStartUtc go TOGETHER (the pair is the identity; a pid alone can be reused).'
+    exit 2
+}
+if ($ForceOwnBackendPid -gt 0) {
+    try {
+        $ownStartUtc = [datetime]::Parse($ForceOwnBackendStartUtc, [System.Globalization.CultureInfo]::InvariantCulture,
+                                         [System.Globalization.DateTimeStyles]::RoundtripKind).ToUniversalTime()
+    } catch {
+        Say-Fail ("-ForceOwnBackendStartUtc '{0}' is not an ISO-8601 instant." -f $ForceOwnBackendStartUtc)
+        exit 2
+    }
+}
+
 $procFrontend = 'vrfGui'
 $procBackend  = 'vrfSimHLA1516e'
 $procLauncher = 'vrfLauncher'
 $rtiNames     = @('rtiAssistant','rtiexec','rtiForwarder')
 
-Say '=== StopVrf52.ps1 - unattended VR-Forces 5.2d shutdown (graceful, nothing killed) ==='
+Say '=== StopVrf52.ps1 - unattended VR-Forces 5.2d shutdown (graceful; only the run''s own back end may be forced) ==='
 Say ('  TimeoutSec : {0} (total budget: front-end close + grace + back-end close)' -f $TimeoutSec)
 Say ('  GraceSec   : {0} (front-end only, before the back-end is asked)' -f $GraceSec)
 Say ('  DryRun     : {0}' -f [bool]$DryRun)
+if ($ForceOwnBackendPid -gt 0) {
+    Say ('  OwnBackend : pid {0} started {1:o} - force-stopped ONLY if the graceful close is refused and BOTH match' -f $ForceOwnBackendPid, $ownStartUtc)
+} else {
+    Say '  OwnBackend : (not given) - NO FORCE on any path'
+}
+
+# The identity match lives in RunnerLib (pure, unit-tested by the suite, 10f). A load failure must
+# never cost the graceful close: it only disables the force.
+$script:OwnIdOk = $false
+try {
+    . (Join-Path $PSScriptRoot 'RunnerLib.ps1')
+    $script:OwnIdOk = [bool](Get-Command Test-OwnBackendIdentity -ErrorAction SilentlyContinue)
+} catch {
+    Say-Warn ('RunnerLib.ps1 could not be loaded ({0}) - the identity match is unavailable, so NOTHING will be forced.' -f $_.Exception.Message)
+}
 
 try {
 
@@ -108,8 +169,9 @@ function Describe-Proc {
 # ---- READ-ONLY window diagnostic (STP-844) ------------------------------------
 # The half of StopVrf.ps1 that D1 needed and 5.2 did not have. EVERYTHING here READS:
 # EnumWindows + GetWindowText + IsWindowVisible + IsWindowEnabled, and UIA PROPERTY reads.
-# There is no InvokePattern, no click, no SetForegroundWindow, no Stop-Process anywhere in
-# this file - and there must not be. Why the bare MainWindowTitle was not enough: when a
+# There is no InvokePattern, no click and no SetForegroundWindow anywhere in this file - and
+# there must not be. (The one Stop-Process is section 3b's identity-gated force of the run's own
+# back end, A3; nothing in this diagnostic touches a process.) Why the bare MainWindowTitle was not enough: when a
 # modal is up, .NET's MainWindowTitle keeps reporting the MAIN window's title, so D1's
 # teardown logged the scenario name and named neither dialog (harvest sec 8, A-i).
 # The UIA half is optional: if UIAutomationClient cannot be loaded (no desktop, a stripped
@@ -294,6 +356,46 @@ function Write-WindowDiagnostic {
     & $Emit '  KNOWN (STP-844, D1): class makVrf::DtNeverAskAgainMessageBox named "Are You Sure?" is the UG52 4.6 exit prompt and "Session Status" is the session-ended / close-terrain prompt. Both are suppressed by CONFIGURATION (scripts\NewVrfAppData52.ps1 + LaunchVrf52 -AppDataDir), never by clicking them from here.'
 }
 
+# ---- A3 TEARDOWN DIAGNOSTICS - read-only, BEFORE the close request ---------------
+# What the 2026-09-26 refusals lacked in their own log: does the back end own a console window,
+# and who hosts its console? Every close on record had window="...vrfSimHLA1516e.exe"; both
+# refusals had window="" (lane A report, A3). Candidates for the change: the Windows Terminal
+# default-terminal handoff (the console hosted by OpenConsole under WindowsTerminal) or a harness
+# whose children get no classic conhost. Guarded end to end: a failure here costs one WARN line,
+# never the close request.
+function Write-TeardownDiagnostic {
+    param([int[]]$Pids)
+    foreach ($id in @($Pids)) {
+        try {
+            $p = Get-Process -Id $id -ErrorAction Stop
+            $st = try { $p.StartTime.ToUniversalTime().ToString('o') } catch { '(unreadable)' }
+            Say-Info ('TEARDOWN DIAGNOSTIC pid={0}: MainWindowTitle="{1}" MainWindowHandle={2} StartTime(UTC)={3}' -f $id, $p.MainWindowTitle, $p.MainWindowHandle, $st)
+        } catch {
+            Say-Warn ('TEARDOWN DIAGNOSTIC pid={0}: process not readable ({1})' -f $id, $_.Exception.Message)
+            continue
+        }
+        try {
+            $me = Get-CimInstance -ClassName Win32_Process -Filter ('ProcessId={0}' -f $id) -ErrorAction Stop
+            $parent = if ($me) { Get-CimInstance -ClassName Win32_Process -Filter ('ProcessId={0}' -f $me.ParentProcessId) -ErrorAction SilentlyContinue } else { $null }
+            $kids = @(Get-CimInstance -ClassName Win32_Process -Filter ('ParentProcessId={0}' -f $id) -ErrorAction SilentlyContinue)
+            $hostRx = '^(conhost|OpenConsole|WindowsTerminal)\.exe$'
+            Say-Info ('  parent: ParentProcessId={0} name={1}{2}' -f $(if ($me) { $me.ParentProcessId } else { '?' }),
+                      $(if ($parent) { $parent.Name } else { '(gone)' }),
+                      $(if ($parent -and $parent.Name -match $hostRx) { '  <- A CONSOLE HOST' } else { '' }))
+            $kidText = if ($kids.Count -eq 0) { '(none)' } else { ($kids | ForEach-Object { '{0}({1})' -f $_.Name, $_.ProcessId }) -join ', ' }
+            $kidHosts = @($kids | Where-Object { $_.Name -match $hostRx })
+            Say-Info ('  children: {0}  -> console host child: {1}' -f $kidText, $(if ($kidHosts.Count -gt 0) { 'YES' } else { 'NO' }))
+            $wt = @(Get-CimInstance -ClassName Win32_Process -Filter "Name='WindowsTerminal.exe' OR Name='OpenConsole.exe'" -ErrorAction SilentlyContinue)
+            Say-Info ('  WindowsTerminal/OpenConsole on this machine: {0}' -f $(if ($wt.Count -eq 0) { '(none)' } else { ($wt | ForEach-Object { '{0}({1}, parent {2})' -f $_.Name, $_.ProcessId, $_.ParentProcessId }) -join ', ' }))
+            if ([string]::IsNullOrEmpty($p.MainWindowTitle) -and $kidHosts.Count -eq 0) {
+                Say-Warn '  NO console window and NO console-host child: the 2026-09-26 refusal precondition (A3) is PRESENT - taskkill without /F may have nothing that ends this process.'
+            }
+        } catch {
+            Say-Warn ('  console-host parentage not readable ({0}) - the teardown continues.' -f $_.Exception.Message)
+        }
+    }
+}
+
 Say ''
 Say '=== Inventory ==='
 $fe = @(Get-Procs $procFrontend)
@@ -305,7 +407,9 @@ foreach ($n in $rtiNames) {
 }
 if ($fe.Count -eq 0 -and $be.Count -eq 0 -and $la.Count -eq 0) {
     Say-Ok 'no VR-Forces processes running - nothing to do.'
-    exit 0
+    # A dry run still prints its PLAN (lane A2): otherwise the plan can only be checked on a
+    # machine with a simulator up, and the suite's 10d could only ever SKIP.
+    if (-not $DryRun) { exit 0 }
 }
 
 if ($DryRun) {
@@ -317,6 +421,13 @@ if ($DryRun) {
     if ($be.Count -eq 0) { Say-Ok ('no {0} present, so no back-end close would be requested' -f $procBackend) }
     Say-Ok 'would REPORT CloseMainWindow()''s return value (STP-844: D1 discarded it, so "the prompt opened" could not be told from "the window was already disabled").'
     Say-Ok 'would run the READ-ONLY WINDOW DIAGNOSTIC after the grace and again at a timeout: every titled top-level window (title, visible, enabled) plus every nested ControlType=Window with its class, name and BUTTON NAMES.'
+    Say-Ok 'would record TEARDOWN DIAGNOSTICS before any close request: each back end''s MainWindowTitle and MainWindowHandle, its Win32_Process parent (ParentProcessId) and any conhost.exe / OpenConsole.exe / WindowsTerminal.exe parent or child - the A3 discriminator (window="" on both 2026-09-26 refusals).'
+    Say-Ok 'console exit (UG52 4.6 p146 "press Q and then Enter") is NOT DELIVERABLE headless: LaunchVrf52.ps1 starts the back end with a plain Start-Process (no -RedirectStandardInput), so its console input is not this script''s to write. The close request stays taskkill WITHOUT /F.'
+    if ($ForceOwnBackendPid -gt 0) {
+        Say-Ok ('would FORCE-STOP pid {0} ONLY if it is still up after the {1}s budget AND it is vrfSimHLA1516e started at {2:o} (Test-OwnBackendIdentity: pid + start time); logged "FORCED - graceful close refused (see diagnostics)", exit 6. rtiexec / rtiForwarder / rtiAssistant / RtiProbe / vrfGui: never.' -f $ForceOwnBackendPid, $TimeoutSec, $ownStartUtc)
+    } else {
+        Say-Ok 'NO FORCE: -ForceOwnBackendPid / -ForceOwnBackendStartUtc not given, so a refused close ends at exit 3 with nothing killed (the watchdog and manual path).'
+    }
     Say-Ok 'any window this script does not recognise would be LOGGED, never clicked. RTI processes untouched.'
     exit 0
 }
@@ -377,6 +488,15 @@ if ($stillUpAfterGrace.Count -gt 0) {
 
 # ---- 2. back-end: taskkill WITHOUT /F = a close REQUEST ------------------------
 Say ''
+Say '=== Teardown diagnostics (A3), read-only, BEFORE the close request ==='
+try {
+    Write-TeardownDiagnostic -Pids @(@(Get-Procs $procBackend) | ForEach-Object { $_.Id })
+} catch {
+    Say-Warn ('teardown diagnostics failed ({0}) - IGNORED, the close request follows.' -f $_.Exception.Message)
+}
+Say-Info 'console exit (UG52 4.6 p146 "press Q and then Enter") NOT DELIVERABLE: the runner does not own the back end''s console input (LaunchVrf52.ps1 plain Start-Process). Using taskkill without /F.'
+
+Say ''
 Say '=== Ask the back-end to close (taskkill, NO /F) ==='
 foreach ($p in @(Get-Procs $procBackend)) {
     try {
@@ -406,7 +526,56 @@ if ($left.Count -eq 0) {
     Say-Ok 'VR-Forces 5.2d is down (graceful; nothing was killed).'
     exit 0
 }
-Say-Fail ('still running after {0}s: {1}. NOTHING WAS FORCE-KILLED - a force-killed joined federate leaves a stale federate and the next join hangs (RUNBOOK sec 0).' -f $TimeoutSec, ($left -join ', '))
+
+# ---- 3b. A3: the graceful close was REFUSED - force the run's OWN back end, and nothing else ----
+$forced = @()
+if ($ForceOwnBackendPid -gt 0) {
+    try {
+        Write-WindowDiagnostic -Why ('TIMEOUT after ' + $TimeoutSec + 's, BEFORE any force') -Emit ${function:Say-Fail}
+    } catch {
+        Say-Fail ('the window diagnostic failed ({0}) - IGNORED.' -f $_.Exception.Message)
+    }
+    if (-not $script:OwnIdOk) {
+        Say-Fail 'the identity match is unavailable (RunnerLib.ps1 not loaded) - NOTHING is forced.'
+    } else {
+        foreach ($p in @(Get-Procs $procBackend)) {
+            $st = try { $p.StartTime.ToUniversalTime() } catch { $null }
+            # A failure of the MATCH is a refusal, never a force - and never a terminating error
+            # that would turn "refused, nothing killed" (3) into "unexpected error" (5).
+            $v = try {
+                Test-OwnBackendIdentity -ExpectedPid $ForceOwnBackendPid -ExpectedStartUtc $ownStartUtc `
+                    -ActualPid $p.Id -ActualStartUtc $st -ActualName $p.ProcessName
+            } catch {
+                [pscustomobject]@{ Match = $false; Why = ('the identity check failed ({0}) - refused' -f $_.Exception.Message) }
+            }
+            if (-not $v.Match) {
+                Say-Fail ('NOT forced: {0} pid={1} - {2}' -f $p.ProcessName, $p.Id, $v.Why)
+                continue
+            }
+            Say-Fail ('FORCED - graceful close refused (see diagnostics): Stop-Process -Id {0} -Force on {1} ({2}). A force-stopped JOINED federate may leave a STALE FEDERATE in rtiexec (RUNBOOK sec 0) - the next launch''s join is the check.' -f $p.Id, $p.ProcessName, $v.Why)
+            Stop-Process -Id $p.Id -Force -ErrorAction Continue
+            $forced += $p.Id
+        }
+    }
+    if ($forced.Count -gt 0) {
+        $forceDeadline = (Get-Date).AddSeconds(15)
+        while ((Get-Date) -lt $forceDeadline -and @($forced | Where-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue }).Count -gt 0) {
+            Start-Sleep -Seconds 1
+        }
+        $left = @()
+        foreach ($n in @($procFrontend, $procBackend, $procLauncher)) {
+            foreach ($p in @(Get-Procs $n)) { $left += ('{0}(pid {1})' -f $p.ProcessName, $p.Id) }
+        }
+        $rtiLeft = @()
+        foreach ($n in $rtiNames) { foreach ($p in @(Get-Procs $n)) { $rtiLeft += ('{0}(pid {1})' -f $p.ProcessName, $p.Id) } }
+        if ($rtiLeft.Count -gt 0) { Say-Ok ('RTI infrastructure preserved (correct): {0}' -f ($rtiLeft -join ', ')) }
+        if ($left.Count -eq 0) {
+            Say-Fail ('VR-Forces 5.2d is down ONLY BECAUSE the run''s own back end was FORCED (pid {0}) after its graceful close was refused. Exit 6.' -f ($forced -join ', '))
+            exit 6
+        }
+    }
+}
+Say-Fail ('still running after {0}s: {1}. {2}' -f $TimeoutSec, ($left -join ', '), $(if ($forced.Count -gt 0) { 'pid ' + ($forced -join ', ') + ' was FORCED; the processes listed are what is left.' } else { 'NOTHING WAS FORCE-KILLED - a force-killed joined federate leaves a stale federate and the next join hangs (RUNBOOK sec 0).' }))
 # THE DIAGNOSTIC D1 OWED AND DID NOT HAVE (STP-844). "Inspect the screen for a modal"
 # is not an artifact: on D1 it cost a separate, hand-run enumeration hours later to learn
 # which two dialogs were up. This produces that evidence in the run's own stopvrf log,

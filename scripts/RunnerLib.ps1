@@ -1624,3 +1624,44 @@ function Get-HolderPidLogLines {
     return $out
 }
 
+# ---- A3 (lane A2, 2026-09-26): IS THIS PROCESS THE RUN'S OWN BACK END? --------------
+# StopVrf52.ps1 may FORCE-STOP a back end whose graceful close was refused - the owner's standing
+# direction after the seat force-stopped the run's own back end twice on 2026-09-26 (runs
+# 20260926T115957Z and 20260926T181639Z; StopVrf exit 3 both times). The identity is the PAIR
+# (pid, start time) recorded by the runner at launch: a pid alone is not an identity, Windows
+# reuses pids. Refused, whatever the pid and start time say, for every process that is not the
+# back-end image - above all the RTI pair (rtiexec, rtiForwarder), rtiAssistant and the federation
+# holder (RtiProbe), which RUNBOOK sec 0 / 0.5.2 say are never touched, and the front end.
+# Pure: no process is read here; the caller passes what it read. Returns Match + Why.
+function Test-OwnBackendIdentity {
+    param(
+        [int]$ExpectedPid,
+        [Nullable[datetime]]$ExpectedStartUtc,
+        [int]$ActualPid,
+        [Nullable[datetime]]$ActualStartUtc,
+        [string]$ActualName,
+        [double]$ToleranceSec = 2.0
+    )
+    $protected = @('rtiexec', 'rtiForwarder', 'rtiAssistant', 'RtiProbe', 'vrfGui', 'vrfLauncher')
+    if ($protected -contains $ActualName) {
+        return [pscustomobject]@{ Match = $false; Why = ('{0} is protected - never force-stopped' -f $ActualName) }
+    }
+    if ($ActualName -ne 'vrfSimHLA1516e') {
+        return [pscustomobject]@{ Match = $false; Why = ('image "{0}" is not the back end vrfSimHLA1516e' -f $ActualName) }
+    }
+    if ($ExpectedPid -le 0 -or $ActualPid -ne $ExpectedPid) {
+        return [pscustomobject]@{ Match = $false; Why = ('pid {0} is not the recorded back-end pid {1}' -f $ActualPid, $ExpectedPid) }
+    }
+    if ($null -eq $ExpectedStartUtc -or $null -eq $ActualStartUtc) {
+        return [pscustomobject]@{ Match = $false; Why = 'start time unknown on one side - no identity, no force' }
+    }
+    # PowerShell hands a [Nullable[datetime]] parameter over as a plain [datetime] (no .Value) -
+    # caught by the stand-in exercise of the force path, not by reading.
+    $a = ([datetime]$ActualStartUtc).ToUniversalTime()
+    $e = ([datetime]$ExpectedStartUtc).ToUniversalTime()
+    $d = [math]::Abs(($a - $e).TotalSeconds)
+    if ($d -gt $ToleranceSec) {
+        return [pscustomobject]@{ Match = $false; Why = ('start time differs from the recorded one by {0:F1} s - the pid was REUSED by another process' -f $d) }
+    }
+    return [pscustomobject]@{ Match = $true; Why = ('pid {0} started {1:o} (within {2} s of the recorded start)' -f $ActualPid, $a, $ToleranceSec) }
+}

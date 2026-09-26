@@ -700,6 +700,36 @@ public static class PlacementReclampSelfTest
               && PlacementReclampPolicy.GaveUpLine("U", PlacementReclampPolicy.Measure(-0.0, 145.4, Tolerance))
                   .Contains("RE-MEASURED whenever a new task", StringComparison.Ordinal));
 
+        // ============ 7b. A4: A LATER PLACEMENT BATCH DOES NOT RE-ARM A CONCLUDED SWEEP ============
+        // Run NAV_STALL_FALLBACK-2026-09-26-1 (runs\20260926T181639Z_run): the init put ONE land platform
+        // on the FALLBACK (app log L865/L1545), its sweep concluded (L1553), and then each of the four
+        // order materializations - created from the TERRAIN QUERY ("1 of 1 ... TERRAIN QUERY, 0 from the
+        // FALLBACK", L1607/L1613/L1619/L1625) - printed "1 of 1 object(s) ... were created at the
+        // FALLBACK altitude" (L1609/L1615/L1621/L1627) and re-ran the sweep (second summary L204785),
+        // because the arm counted the whole map, concluded entries included. The model below is
+        // ArmPlacementReclamp's decision over the REAL PlacementReclampPolicy.ObjectsToArm.
+        {
+            var armed = new List<string>();
+            int mapCount = 0;
+            void Batch(int planned, int enrolledNow)
+            {
+                mapCount += enrolledNow;
+                int n = PlacementReclampPolicy.ObjectsToArm(enrolledNow, mapCount);
+                if (n > 0) armed.Add(PlacementReclampPolicy.ArmedLine(n, planned, Bound, Retry, Tolerance));
+            }
+            Batch(128, 1);                     // the init: one land platform on the FALLBACK
+            int afterInit = armed.Count;
+            for (int i = 0; i < 4; i++) Batch(1, 0);   // four materializations, all from the TERRAIN QUERY
+            Check("A4: a placement batch that put NOTHING on the FALLBACK does not re-arm the re-clamp - no "
+                  + "'created at the FALLBACK altitude' line and so no second sweep or summary "
+                  + "(run 20260926T181639Z: four such lines, L1609-L1627, and a second summary, L204785)",
+                  afterInit == 1 && armed.Count == 1);
+            Batch(2, 1);                       // a later batch that DOES put one on the FALLBACK
+            Check("A4: a later batch that does put a land platform on the FALLBACK still arms, and its line "
+                  + "counts THAT batch's objects (1 of 2), not the map's census",
+                  armed.Count == 2 && armed[1].Contains(": 1 of 2 object(s)", StringComparison.Ordinal));
+        }
+
         // ============ 8. THE D5d PROVENANCE THIRD CLAUSE ============================
         Check("STP-855: the provenance sentence now carries the D5d case - the replacement has not "
               + "been issued yet, so the registry still points at the deleted shell",

@@ -3188,6 +3188,7 @@ public sealed class VrfC2SimService : BackgroundService
     {
         var terrain = ResolvePlacementTerrain(points, samples);
         int fromTerrain = 0;
+        int reclampEnrolled = 0;   // land platforms THIS batch put on the FALLBACK (A4)
         for (int i = 0; i < plans.Count; i++)
         {
             double? th = terrain.TryGetValue(i, out double h) ? h : null;
@@ -3246,12 +3247,15 @@ public sealed class VrfC2SimService : BackgroundService
             // quantity, taken at the right time. Since 2026-09-25 it is logged, not acted on.
             if (_vrf.PlacementReclamp && !d.CreateAltFromTerrain && !p.IsAggregate
                 && input.Domain == PlacementPolicy.DomainLand && !string.IsNullOrEmpty(p.Name))
+            {
                 _reclamp[p.Name] = new ReclampEntry { Name = p.Name, Point = p.Pos };
+                reclampEnrolled++;
+            }
         }
         _log.LogInformation("PLACEMENT summary: {T} of {N} create altitude(s) came from the TERRAIN QUERY, " +
                             "{F} from the FALLBACK (WALL {Wall:yyyy-MM-ddTHH:mm:ss.fffZ}).",
                             fromTerrain, plans.Count, plans.Count - fromTerrain, DateTime.UtcNow);
-        ArmPlacementReclamp(plans.Count);
+        ArmPlacementReclamp(plans.Count, reclampEnrolled);
         EnqueueCreates(plans);
     }
 
@@ -3261,17 +3265,20 @@ public sealed class VrfC2SimService : BackgroundService
     /// nothing at all and prints nothing: `_reclamp` is empty, so the tick phase's own guard skips
     /// it forever and the R9/D10 shape is unchanged in lines and in timing.
     /// </summary>
-    private void ArmPlacementReclamp(int planned)
+    private void ArmPlacementReclamp(int planned, int enrolledThisBatch)
     {
-        if (_reclamp.IsEmpty) return;
+        int objects = PlacementReclampPolicy.ObjectsToArm(enrolledThisBatch, _reclamp.Count);
+        if (objects == 0) return;
         // A second init re-arms the window for whatever IT put in the map (the map is keyed by
-        // name, so a re-planned object replaces its own entry).
+        // name, so a re-planned object replaces its own entry). A batch that put NOTHING on the
+        // FALLBACK arms nothing (A4): the map outlives a concluded sweep on purpose (BL-2, the
+        // census summary), so its size is not this batch's business.
         _reclampArmedUtc = DateTime.UtcNow;
         _reclampLastQueryUtc = DateTime.MinValue;   // the first sweep may query at once
         _reclampQueryInFlight = false;
         _reclampConcluded = false;
         _log.LogWarning("{Line}", PlacementReclampPolicy.ArmedLine(
-            _reclamp.Count, planned, _vrf.PlacementReclampSeconds, _vrf.PlacementReclampRetrySeconds,
+            objects, planned, _vrf.PlacementReclampSeconds, _vrf.PlacementReclampRetrySeconds,
             _vrf.PlacementReclampToleranceMeters));
     }
 
@@ -7724,8 +7731,14 @@ public sealed class VrfC2SimService : BackgroundService
                                 name, vrfTaskTypeForLog, fin.ExpectedKind, fin.TaskName);
         }
         else
-            _log.LogWarning("Task-complete for '{Name}' with NO in-flight task recorded - unattributed " +
-                            "(report sent with empty task uuid).", name);
+            // A1 (run NAV_STALL_FALLBACK-2026-09-26-1, L1786311/L1786313): this used to send a
+            // TASKCMPLT/TASKABRT with an EMPTY task uuid. It is a VR-Forces task the interface no
+            // longer tracks (there: the approach move a refused engage never replaced, completing
+            // after its C2SIM task had already been aborted), so it reports NOTHING -
+            // TimedCompletionPolicy.CompletionCode returns null for an unattributed completion.
+            _log.LogWarning("Task-complete for '{Name}' ({VrfType}, success={Ok}) with NO in-flight task recorded - " +
+                            "unattributed, NOT reported (a TaskStatus with no task uuid names nothing STP can " +
+                            "attribute).", name, vrfTaskTypeForLog, success);
 
         // THE TEMPORARY POSITION ON COMPLETION (RL-20260921-09): a SUCCESS on a task whose end time
         // is armed is HELD until that end time (the timer then reports it and releases the
@@ -7776,7 +7789,7 @@ public sealed class VrfC2SimService : BackgroundService
         // until the end time. Overdue and now arrived: TASKCMPLT - and for an ATTACK / BREACH the
         // parked engage above has STILL been issued (the owner's decision of 2026-09-25,
         // RL-20260925-01).
-        var maybeCode = TimedCompletionPolicy.CompletionCode(success, taskContinues, verdict);
+        var maybeCode = TimedCompletionPolicy.CompletionCode(taskUuid != null, success, taskContinues, verdict);
         if (maybeCode is not S.TaskStatusCodeType code) return;
         PushTaskStatus(taskeeUuid, taskUuid ?? "", code,
                        !success ? $"unit {name}: VR-Forces reported the task FAILED (success=false) - it is no " +
