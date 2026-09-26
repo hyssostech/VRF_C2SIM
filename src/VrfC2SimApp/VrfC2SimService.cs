@@ -4261,6 +4261,8 @@ public sealed class VrfC2SimService : BackgroundService
         // we did not create is a scope/data gap), because the platform Fire At needs it.
         var engage = EngageDecision.NotEngageVerb;
         string attackTargetVrf = null;
+        if (verb.Intent == TaskIntent.FollowAndSupport)
+            engage = TaskDispatchPolicy.ForEngage(verb.Intent, unit.IsAggregate, TargetResolution.NoTarget);
         if (verb.Intent == TaskIntent.Attack || verb.Intent == TaskIntent.Breach)
         {
             bool isAttack = verb.Intent == TaskIntent.Attack;
@@ -4818,6 +4820,12 @@ public sealed class VrfC2SimService : BackgroundService
         _bridge.SetRulesOfEngagement(vrfUuid, roe);
         if (TaskDispatchPolicy.SetsFireAtWill(engage)) LogAttackFireAtWill(task, unit);
         if (engage == EngageDecision.AdvanceBreachNotSimulated) ReportBreachNotSimulated(task, unit);
+        if (engage == EngageDecision.AdvanceAndHold)
+            _log.LogInformation("Task '{Task}' (verb {Code}, {Name}): advancing along the task's graphic to its end " +
+                                "and holding there - no engagement task, rules of engagement as ordered ('{Roe}'). " +
+                                "The supported unit is not in the order (STP sends the performer as the affected " +
+                                "entity), so nothing is followed.", task.TaskName, task.ActionCode, unit.Name,
+                                string.IsNullOrEmpty(task.RuleOfEngagementCode) ? "none" : task.RuleOfEngagementCode);
 
         // SetTarget - PARITY of the known bug (PORT.md sec 6, C2SIMinterface.cpp:2385):
         // the C++ passes the C2SIM taskee uuid where VRF expects a VRF uuid, plus the

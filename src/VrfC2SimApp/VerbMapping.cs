@@ -55,7 +55,16 @@ public enum TaskIntent
     /// </summary>
     HoldInPlace,
 
-    /// <summary>FOLSPT / FOLASS. TESTS-FIRST STUB: declared, not yet mapped.</summary>
+    /// <summary>
+    /// FOLSPT (follow and support) / FOLASS (follow and assume): advance along the task's graphic
+    /// (the follow-and-support / follow-and-assume graphic the order references by MapGraphicID)
+    /// to its end and HOLD there - the ordinary route move, no engagement task, the order's rules
+    /// of engagement unchanged, completion by the time rules (RL-20260921-09). Doctrinally the task
+    /// names the unit it supports or may assume from; STP does not carry that unit (AffectedEntity
+    /// is the performer itself), so there is nothing to follow - only the graphic. Added to the
+    /// RL-20260926-01 unit at the coordinator's direction (owner discussion 2026-09-26); STP today
+    /// exports follow-and-support as ATTACK (an STP defect, ticket being drafted).
+    /// </summary>
     FollowAndSupport,
 }
 
@@ -94,6 +103,7 @@ public static class VerbMapping
         TaskIntent.Reconnoiter => true,   // DtPatrolRouteTask along the route (SCREEN/SCOUT)
         TaskIntent.Escort => true,        // DtFollowEntityTask on the escorted entity (ESCRT)
         TaskIntent.HoldInPlace => true,   // R2's in-place dispatch, reached by the verb (no vendor task)
+        TaskIntent.FollowAndSupport => true, // FOLSPT/FOLASS: the route move itself, then hold (no engagement)
         // HoldObjective (DtHoldUntilTask + scan) and Clear (composite) stay bare-move fallbacks;
         // MoveInFormation is config-driven (aggregate moves), not verb-classified.
         _ => false,
@@ -101,6 +111,8 @@ public static class VerbMapping
 
     private const string AttackComposition =
         "advance to the objective + ROE fire at will (unit); Fire At only for a platform with a distinct target";
+    private const string FollowComposition =
+        "advance along the task's graphic to its end and hold there; no engagement; ROE as ordered";
     private const string BreachComposition =
         "advance to the breach location + 'breach not simulated' observation (STP-865); no DtBreachTask";
 
@@ -131,6 +143,11 @@ public static class VerbMapping
             ["SCREEN"] = (TaskIntent.Reconnoiter,     "DtPatrolRouteTask + spot reporting"),
             ["SCOUT"]  = (TaskIntent.Reconnoiter,     "DtPatrolRouteTask + spot reporting"),
             ["ESCRT"]  = (TaskIntent.Escort,          "DtFollowEntityTask / convoy"),
+            // Follow and support / follow and assume (C2SIM_SMX_LOX_CWIX2024.xsd:3963-3964;
+            // docs/STP_TASK_VOCABULARY_2026-09-03.md:36). Not ESCRT: the supported unit is not in
+            // STP's order, so nothing is followed - the unit drives the graphic and holds at its end.
+            ["FOLSPT"] = (TaskIntent.FollowAndSupport, FollowComposition),
+            ["FOLASS"] = (TaskIntent.FollowAndSupport, FollowComposition),
             ["CLRLND"] = (TaskIntent.Clear,           "composite move + engage sweep"),
 
             // ---- THE TWO VERBS THE IRON STORM EXPORT ADDED (2026-09-20) ------------------------

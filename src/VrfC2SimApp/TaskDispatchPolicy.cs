@@ -54,7 +54,9 @@ public enum EngageDecision
     /// the breach itself is not simulated (STP-865). No DtBreachTask: it is an aggregate-level task
     /// and the entity-level model set has no breach controller.</summary>
     AdvanceBreachNotSimulated,
-    /// <summary>TESTS-FIRST STUB: declared, not yet decided.</summary>
+    /// <summary>FOLSPT / FOLASS, any performer: advance along the task's graphic to its end and hold
+    /// there. No engagement task and the order's rules of engagement unchanged; STP does not carry
+    /// the supported unit (AffectedEntity = the performer), so nothing is followed.</summary>
     AdvanceAndHold,
 }
 
@@ -105,11 +107,13 @@ public static class TaskDispatchPolicy
     ///   ATTACK by a PLATFORM with a DISTINCT target -> advance, then Fire At it.
     ///   ATTACK by a PLATFORM otherwise (STP names the performer itself) -> advance only, unchanged.
     ///   BREACH, any performer, any target -> advance + the not-simulated observation.
+    ///   FOLSPT / FOLASS, any performer, any target -> advance along the graphic and hold; nothing else.
     /// </summary>
     /// <param name="performerIsUnit">The taskee was created as a unit (CreatedUnit.IsAggregate).</param>
     public static EngageDecision ForEngage(TaskIntent intent, bool performerIsUnit, TargetResolution target)
     {
         if (intent == TaskIntent.Breach) return EngageDecision.AdvanceBreachNotSimulated;
+        if (intent == TaskIntent.FollowAndSupport) return EngageDecision.AdvanceAndHold;
         if (intent != TaskIntent.Attack) return EngageDecision.NotEngageVerb;
         if (performerIsUnit) return EngageDecision.AdvanceFireAtWill;
         return target == TargetResolution.DistinctEntity ? EngageDecision.AdvanceThenFireAt
