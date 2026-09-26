@@ -3374,7 +3374,28 @@ per the never-reuse non-negotiable. Annotate with results from the run manifest.
 NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
 join) are BURNED, not recycled. The run manifest records which were actually used.
 
-*** NEXT FREE: 5103 *** (authoritative - the ONLY such marker in this file. Update this
+- 2026-09-26 COMPLETION_CONFIRM-2026-09-26-1 PERSISTENT HOLDER (docs/experiments/PREREG_COMPLETION_CONFIRM_2026-09-26.md sec 4 step D / sec 5; STP-825 demo posture, RUNBOOK 9c): scripts/StartFederationHolder52.ps1 -AppNumbers 5103,5104,5105,5106 -SettleSecs 28800; one attempt per number until one joins; numbers not reached are BURNED, never reused. The run's own runner block (5107-5117) is written by the runner at Stage 2. CC-CLAIMED (lane R, before the holder).
+
+
+CLAIMED 2026-09-26 11:59 by scripts/RunC2SimScenario.ps1 (run 20260926T115957Z_run). Ledgered BEFORE any join,
+per the never-reuse non-negotiable. Annotate with results from the run manifest.
+- 5107: CLAIMED - LaunchVrf52.ps1 back-end (vrfSimHLA1516e), 5.2d independent mode
+- 5108: CLAIMED - LaunchVrf52.ps1 front-end (vrfGui), 5.2d independent mode (allocated even with -NoGui, then BURNED)
+- 5109: CLAIMED - WatchVrf ADVISORY pre-init oracle pre-check (RUNBOOK 0.5.7)
+- 5110: CLAIMED - WatchVrf MAIN run trace - the movement oracle / scoring input
+- 5111: CLAIMED - VrfC2SimApp Vrf__ApplicationNumber (the interface federate)
+- 5112: CLAIMED - tools/RtiProbe - STAGE 2c PRE-LAUNCH RTI READINESS GATE (C1). Throwaway create-or-join against the federation with internal retry+backoff, then clean resign, BEFORE the back-end launches (RTI_LAUNCH_HARDENING_DESIGN.md A2-A7 - the RUN-2 fix). CONSUMED on EVERY run (the gate always runs pre-launch). One number covers all internal retries - RtiProbe reuses this single appNumber across attempts by design.
+- 5113: CLAIMED - tools/CreateOne - STAGE 7b FAILURE-PATH DIAGNOSTIC ONLY (RUNBOOK 0.5.7 STRONGER CHECK). CONSUMED ONLY IF THE ORACLE GATE FAILS; on a healthy run it is NEVER JOINED and this number goes UNCONSUMED. Unconsumed numbers are BURNED, never recycled - see the NOTE below. Allocated here rather than mid-run because every number must be ledgered BEFORE any join.
+- 5114: CLAIMED - tools/RtiProbe - STAGE 2h FEDERATION HOLDER attempt 1 of 4 (STP-825): create-or-join MAK-ONE-2025 and STAY JOINED for 900s so the SIM never has to CREATE the federation (rtiexec 5.0.1 rejects creator FOM distribution intermittently; joins have never failed). CONSUMED ONLY IF attempt 1 is reached; an earlier success leaves the rest UNCONSUMED and BURNED.
+- 5115: CLAIMED - tools/RtiProbe - STAGE 2h FEDERATION HOLDER attempt 2 of 4 (STP-825): create-or-join MAK-ONE-2025 and STAY JOINED for 900s so the SIM never has to CREATE the federation (rtiexec 5.0.1 rejects creator FOM distribution intermittently; joins have never failed). CONSUMED ONLY IF attempt 2 is reached; an earlier success leaves the rest UNCONSUMED and BURNED.
+- 5116: CLAIMED - tools/RtiProbe - STAGE 2h FEDERATION HOLDER attempt 3 of 4 (STP-825): create-or-join MAK-ONE-2025 and STAY JOINED for 900s so the SIM never has to CREATE the federation (rtiexec 5.0.1 rejects creator FOM distribution intermittently; joins have never failed). CONSUMED ONLY IF attempt 3 is reached; an earlier success leaves the rest UNCONSUMED and BURNED.
+- 5117: CLAIMED - tools/RtiProbe - STAGE 2h FEDERATION HOLDER attempt 4 of 4 (STP-825): create-or-join MAK-ONE-2025 and STAY JOINED for 900s so the SIM never has to CREATE the federation (rtiexec 5.0.1 rejects creator FOM distribution intermittently; joins have never failed). CONSUMED ONLY IF attempt 4 is reached; an earlier success leaves the rest UNCONSUMED and BURNED.
+NOTE: numbers this runner allocates but does not consume (e.g. an abort before the
+join) are BURNED, not recycled. The run manifest records which were actually used.
+
+- RESULT 2026-09-26 (lane R, COMPLETION_CONFIRM-2026-09-26-1, run 20260926T115957Z_run; manifest + rtiexec join count): 5103 CONSUMED (persistent holder RtiProbe pid 34096, HOLDER JOINED 11:59:11Z, left joined); 5104-5106 BURNED; 5107 (back end, JOINED - no create), 5109 (WatchVrf pre-check), 5110 (WatchVrf trace), 5111 (VrfC2SimApp), 5112 (Stage 2c RtiProbe), 5114 (Stage 2h holder attempt 1, pid 29904) CONSUMED; 5108 (-NoGui), 5113 (oracle gate passed), 5115-5117 BURNED. 7 consumed, 8 burned, as registered.
+
+*** NEXT FREE: 5118 *** (authoritative - the ONLY such marker in this file. Update this
 line, and only this line, each time numbers are consumed.)
 NOTE: the 2026-07-18 CONTROL launch ("Test A", bare vrfLauncher
 --usePredefinedConnection with no --simArgs/--guiArgs) used the connection profile's OWN
