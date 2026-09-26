@@ -95,9 +95,12 @@ Record: docs/experiments/PREREG_NAVMAP_BMLAND2SAND_2026-09-26.md.
 The MAK Earth (online) .earth resolves its includes by RELATIVE path, so an edited copy of one catalog file needs a
 mirror, not absolute includes: `make_tree_control.py shadow` copies TerrainData\TerrainConfiguration to
 C:\C2SIM\vrf-nav\shadow and junctions every other SharedData\19\latest entry to the vendor folder, then applies
-one --swap BIOME:OLD=NEW asset edit; `terrain` writes a .mtf copy whose .earth <myFilename> names the shadow copy;
-`box` writes a .navGenConfig for sectors i0..i0+n-1 / j0..j0+n-1 of the AO20 grid (tile-count n keeps 11 cells
-per sector). Record: docs/experiments/PREREG_NAVTREES_YUCCA_2026-09-26.md.
+--swap BIOME:OLD=NEW asset edits (repeatable; they combine); `terrain` writes a .mtf copy whose .earth <myFilename>
+names the shadow copy; `box` writes a .navGenConfig for sectors i0..i0+n-1 / j0..j0+n-1 of the AO20 grid (tile-count
+n keeps 11 cells per sector), or with `--cells X0 X1 Y0 Y1 --tiles TX TY` for inclusive AO20 cells (e.g. the 38-cell
+remainder column). Record: docs/experiments/PREREG_NAVTREES_YUCCA_2026-09-26.md.
+The generator frames a box about its corners' centroid and extends each side to whole cells: EVEN cell counts on a
+box centred on an AO20 cell edge (plus a 3 m corner inset) land exactly on AO20's grid (2026-09-26, N9).
 The generator does NOT keep a sub-box on the parent grid: it widened 55 x 55 cells to 57 x 57, centred on its own
 offset, half a cell off AO20's (2026-09-26). Compare sub-box sectors with the parent's as ~91 % shared ground, or
 generate the unedited control on the SAME sub-box config - that is the like-for-like comparison.
@@ -105,3 +108,11 @@ generate the unedited control on the SAME sub-box config - that is the like-for-
 Full-area result on the shadow (DSS -> mesquite) terrain, 2026-09-26: 0 of 1,600 sectors below 0.5 (was 189) but the
 gate still FAILS on four remainder-column sectors (39,34/35/36/38) that hold class 62 Joshua Tree (JST biome, also
 YuccaPalm, not edited); nothing registered. Record: docs/experiments/PREREG_NAVAO20_MESQUITE_2026-09-26.md.
+
+REGISTERED 2026-09-26 (N10): full AO20 on the shadow_jst terrain (DSS :541 AND JST :521 YuccaPalm ->
+HoneyMesquiteShortSpring) passes the gate - 0 of 1,600 below 0.9, min 0.9245, 174.9 MB. Terrain copy
+tools\navdata\out\MAK Earth (online) + MojaveAO20_jst_nav.mtf (sha256 985592b7...ef03) names
+C:\C2SIM\vrf-nav\shadow_jst and area C:\C2SIM\vrf-nav\navData\MAK Earth (online)\NavArea-ground-platform
+MojaveAO20_jst. Side effect: on that copy both the Desert Succulent Shrub and the Joshua Tree biomes place mesquite,
+not yucca palms / Joshua trees, for rendering and simulation alike. Record:
+docs/experiments/PREREG_NAVEDGE_JST_2026-09-26.md.

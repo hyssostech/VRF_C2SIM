@@ -229,3 +229,41 @@ Registration (ONLY on a full Q2 pass): make_nav_terrain.py --terrain <the _jst c
 sha256 + bytes of the copy, the runtime config and the area folder; tools/navdata/README.md updated. Side-effect
 sentence to carry: on that copy both the Desert Succulent Shrub and the Joshua Tree biomes place mesquite, not
 Joshua trees / yucca palms, for rendering and simulation alike. No fixture is built or deployed. Intermediates deleted.
+
+## Result Part 2 (written after the harvest)
+
+RUN: 2026-09-26 14:24:47Z -> 15:04:29Z, 2,382.0 s wall ("Generation time: 2366.29"), EXIT CODE 0 (held handle,
+u3\n9_arm.ps1 -Arm jst; busy-check clear). Log C:\C2SIM\vrf-nav\work\log\gen-AO20-jst-2026-09-26.log (5,377,846 B,
+sha256 e12dc7a0...5435); gate output beside it (nav_gate-AO20-jst-2026-09-26.txt / .json). Runtime config
+C:\C2SIM\vrf-nav\navData\MAK Earth (online)\NavArea-ground-platform MojaveAO20_jst.navRuntimeConfig (757 B, sha256
+2e0215a9...0c92): extents and offset identical to N8's; original-terrain the _jst copy.
+
+| # | Verdict | Measured |
+|---|---|---|
+| Q0 HIGH | HIT | exit 0; 1,600 sectors (40 x 40); the log loads the shadow_jst .earth; runtime config written; extent (-10019,-9976)..(10062,9976) |
+| Q1 HIGH | HIT | 0 "YuccaPalm" lines (N8: 4) |
+| Q2 HIGH | HIT | 0 below 0.5, 0 below 0.9; min 0.9245 at (10,30) (unchanged from N8), 1,594 at 1.000 - GATE PASS (nav_gate exit 0) |
+| Q3 MED | HIT | all 11 class-62 sectors changed; of the 1,589 others, 1,586 identical to N8 in ratio, NavData size and input triangles, 3 changed ((38,34), (38,35), (38,36), column 39's west neighbours, all 1.000 -> 1.000, NavData +/- 1.3 kB) |
+| Q4 MED | HIT | 4,803 files, 174,860,816 B (174.9 MB; N8 176.9 MB); manifest sha256 7605bf16...d8d8 |
+
+Column 39 (N8 -> N10): (39,32) 0.970 -> 1.000, (39,33) 0.952 -> 1.000, (39,34) 0.859 -> 1.000, (39,35) 0.806 ->
+1.000, (39,36) 0.836 -> 1.000, (39,37) 0.917 -> 1.000, (39,38) 0.895 -> 1.000, (39,39) 0.984 -> 1.000. Route points
+destack (13,32), N2d (12,32), V0 (16,37) 1.000, byte-identical to N8. Distinct-tag histogram identical to N8
+(1:1,052 2:145 3:395 4:8).
+
+What this measures: with both the Desert Succulent Shrub (:541) and Joshua Tree (:521) biomes' YuccaPalm changed to
+HoneyMesquiteShortSpring, the full MojaveAO20 passes the row-21 gate (every sector >= 0.9); the change is confined to
+the 11 class-62 sectors plus three neighbours.
+
+REGISTERED (full Q2 pass): make_nav_terrain.py --terrain "...\MojaveAO20_jst.mtf" --runtime-config
+"...\NavArea-ground-platform MojaveAO20_jst.navRuntimeConfig" --out "tools\navdata\out\MAK Earth (online) +
+MojaveAO20_jst_nav.mtf" (the script refuses to overwrite its --terrain, so the registered copy is a new file; the
+.surfChar.map copied beside it). Copy: 3,007,740 B, sha256 985592b7...ef03, navData records 9 -> 10; it still names
+C:/C2SIM/vrf-nav/shadow_jst/TerrainData/TerrainConfiguration/MAK Earth (online).earth (1 match). The runtime config's
+original-terrain names the unregistered _jst copy, as in every earlier registration. No fixture built or deployed.
+Side effect for the terrain: on the _jst_nav copy both the Desert Succulent Shrub and the Joshua Tree biomes place
+mesquite (HoneyMesquiteShortSpring), not yucca palms / Joshua trees, for rendering and simulation alike.
+
+Other side effects: 370 new files (731,999 B) in the vendor tile cache
+C:\MAK\vrforces5.2d\appData\cache\vrfsim\Biomes-ccf789e273a44b78 (the shadow_jst biome configuration's own folder);
+1,600 NavDataDebug intermediates (10,655,046,676 B) deleted. Nothing else new under C:\MAK.
