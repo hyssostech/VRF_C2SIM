@@ -204,4 +204,49 @@ then measured as the difference between the arms, sector for sector, and said so
 
 ## RESULT N7 (written after the null run)
 
-(to be written after the null run)
+RUN: 2026-09-26 13:22:33Z -> 13:23:11Z (37 s wall; the generator's own "Generation time: 25.1174"), EXIT CODE 0
+(captured through the held process handle). No vrfSim / vrfGui / VrfC2SimApp / WatchVrf / test-suite process at the
+start. Log C:\C2SIM\vrf-nav\work\log\gen-AO20-null5x5-2026-09-26.log (90,201 B, sha256 6c7198c6...84f0); gate
+output beside it (nav_gate-AO20-null5x5-2026-09-26.txt / .json). The log loads the VENDOR .earth
+(c:\MAK\SharedData\19\latest\...\MAK Earth (online).earth). Nothing new under C:\MAK (bin64, userData, SharedData,
+appData: 0 files newer than the start - the Biomes cache for the vendor configuration already existed).
+
+| # | Verdict | Measured |
+|---|---|---|
+| N0 HIGH | HIT | exit 0; extent (-1204,-1204)..(1204,1204); offset -2362930.560903 -4690053.796939 3608567.968444, identical to the edited run; the 25 "Sector (i,j): xMin .. yMax" rows identical line for line - the two arms share every sector box exactly |
+| N1 HIGH | HIT | 21 of the 24 class-64 sectors below 0.5 (the same count as the full area on 2026-09-25); 24 of 25 sectors below 0.9, min 0.020 at (2,2); the clean sector 1.000 |
+| N2 HIGH | HIT | 4 "Sim model config: YuccaPalm not found." lines (log :73-76) |
+| N3 MED | HIT | 64-only NavData median 472.2 kB |
+| N4 | RECORDED: the P2 anomalies are a box/offset artefact | the null ALSO reads (13,36) -> 3 tags and (12,35) -> 2 tags. Null vs edited: tag counts identical in 25 of 25 sectors |
+
+FALSIFIER not met (21, not fewer than 10). THE TREE SWAP IS THE LEVER ON THIS BOX: same sector boxes, same terrain
+except one asset line - null 21 of 24 class-64 sectors below 0.5, edited 0 of 24; null 64-only NavData median 472 kB,
+edited 97.6 kB; tag counts identical 25 of 25.
+
+Re-scoring the edited run's P2 against the correct comparator: the P2 prediction ("tag counts UNCHANGED") was
+registered against the full-area AO20 sectors; against the null arm - the like-for-like comparator this block adds -
+the tag counts are unchanged in 25 of 25. The original P2 MISS stands as registered; its cause is the half-cell
+offset, which the null reproduces.
+
+NEW measurement, not predicted: the input triangle count changes with the asset. Null vs edited, the per-sector
+"Sector ... has N triangles." differs in 24 of 25 sectors - every class-64 sector has 3.5-11 % MORE input
+triangles with YuccaPalm than with the mesquite (10-11 % in the 64-only sectors, less where Desert Scrub shares the
+sector) (e.g. (2,2) 113,619 vs 102,637; (0,4) 131,221 vs 120,335) - and is
+identical only in the tree-free sector (4,4) (137,087 both). So the procedural trees enter the generator as input
+GEOMETRY. This corrects laneQ3's "not InputTriangles" (a cross-sector correlation, r = -0.11), which this
+intervention supersedes for this box.
+
+What this measures. On this 2.45 km box, replacing Desert Succulent Shrub's single asset YuccaPalm by
+HoneyMesquiteShortSpring - and nothing else - removes the abstract-graph fragmentation from every class-64 sector
+(21 -> 0 below 0.5), cuts their NavData to about a fifth and their input triangles by up to a tenth, and leaves the
+distinct-tag counts unchanged.
+
+Design implication, stated separately: the lever for a passing MojaveAO20 is the DSS asset line, delivered without
+writing under C:\MAK through the shadow terrain (tools/navdata/make_tree_control.py). A full AO20 regeneration on the
+shadow terrain, gated by nav_gate.py, is the next candidate - a new prereg, not enacted here. The side effect is a
+MEASUREMENT consequence for the simulation too: class-64 ground would carry mesquite instead of Joshua trees
+wherever that terrain copy is used.
+
+Still open: why YuccaPalm's geometry shatters the graph (its sim entry is -inf; the generator logs "not found";
+what geometry it then uses is not documented - MAK case Q6); the 2026-09-07 area's clean state (laneQ3: the tree
+term was absent then).
