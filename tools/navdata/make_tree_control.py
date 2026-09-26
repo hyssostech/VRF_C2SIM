@@ -86,17 +86,21 @@ def box(a):
 
     def to_ecef(e, n):
         return tuple(off[k] + e * E[k] + n * N[k] for k in range(3))
-    x0 = (-233 + 11 * a.i0) * CELL
-    x1 = (-233 + 11 * (a.i0 + a.n)) * CELL
-    y0 = (-232 + 11 * a.j0) * CELL
-    y1 = (-232 + 11 * (a.j0 + a.n)) * CELL
+    if a.cells:
+        cx0, cx1, cy0, cy1 = a.cells   # inclusive AO20 cell indices; edges at c0*43 and (c1+1)*43
+        x0, x1, y0, y1 = cx0 * CELL, (cx1 + 1) * CELL, cy0 * CELL, (cy1 + 1) * CELL
+    else:
+        x0 = (-233 + 11 * a.i0) * CELL
+        x1 = (-233 + 11 * (a.i0 + a.n)) * CELL
+        y0 = (-232 + 11 * a.j0) * CELL
+        y1 = (-232 + 11 * (a.j0 + a.n)) * CELL
+    tx, ty = a.tiles if a.tiles else (a.n, a.n)
     ins = a.inset
     pts = {"nw": (x0 + ins, y1 - ins), "ne": (x1 - ins, y1 - ins), "sw": (x0 + ins, y0 + ins), "se": (x1 - ins, y0 + ins)}
     lines = []
     print("offset %s -> lat %.9f lon %.9f" % (off, lat0, lon0))
-    print("sector block i %d..%d j %d..%d = cells x [%d, %d] y [%d, %d]; ENU edges x %.1f..%.1f y %.1f..%.1f (inset %.1f m)" % (
-        a.i0, a.i0 + a.n - 1, a.j0, a.j0 + a.n - 1, -233 + 11 * a.i0, -233 + 11 * (a.i0 + a.n) - 1,
-        -232 + 11 * a.j0, -232 + 11 * (a.j0 + a.n) - 1, x0, x1, y0, y1, ins))
+    print("box ENU edges x %.1f..%.1f y %.1f..%.1f = cells x [%d, %d] y [%d, %d]; tiles %d x %d (inset %.1f m)" % (
+        x0, x1, y0, y1, round(x0 / CELL), round(x1 / CELL) - 1, round(y0 / CELL), round(y1 / CELL) - 1, tx, ty, ins))
     for k in ("nw", "ne", "sw", "se"):
         lat, lon, _ = geodetic(to_ecef(*pts[k]))
         c = ecef(lat, lon, 700.0)
@@ -106,7 +110,7 @@ def box(a):
             "   (tile-count-x %d)\n   (tile-count-y %d)\n"
             "   (allow-abstract-data True)\n   (generate-full-terrain False)\n   (generate-transition-points True)\n"
             "   (prune-no-go-areas True)\n   (raster-precision 0.200000)\n   (cell-size 43)\n"
-            "   (profiles-to-generate \n      (ground-platform \"ground-platform\")\n   )\n)\n") % (a.n, a.n)
+            "   (profiles-to-generate \n      (ground-platform \"ground-platform\")\n   )\n)\n") % (tx, ty)
     data = body.replace("\n", "\r\n").encode("ascii")
     refuse_mak(a.cfg)
     os.makedirs(os.path.dirname(os.path.abspath(a.cfg)), exist_ok=True)
@@ -160,14 +164,17 @@ def shadow(a):
         shutil.copytree(os.path.join(LATEST, TC_REL), dst_tc)
     n_files = sum(len(f) for _, _, f in os.walk(dst_tc))
     print("shadow %s: %s; TerrainConfiguration copied (%d files)" % (root, made, n_files))
-    for spec in a.swap:
+    src_def = os.path.join(LATEST, TC_REL, BIOME_DEF)
+    dst_def = os.path.join(dst_tc, BIOME_DEF)
+    data = open(src_def, "rb").read()
+    for spec in a.swap:   # applied in sequence to the VENDOR text, so several swaps combine
         biome_id, rest = spec.split(":", 1)
         old, new = rest.split("=", 1)
-        src_def = os.path.join(LATEST, TC_REL, BIOME_DEF)
-        dst_def = os.path.join(dst_tc, BIOME_DEF)
-        data = swap_asset(open(src_def, "rb").read(), biome_id, old, new)
+        data = swap_asset(data, biome_id, old, new)
+        print("biome %s: %s -> %s" % (biome_id, old, new))
+    if a.swap:
         open(dst_def, "wb").write(data)
-        print("biome %s: %s -> %s in %s (vendor sha256 %s, copy sha256 %s)" % (biome_id, old, new, dst_def, sha(src_def), sha(dst_def)))
+        print("%s (vendor sha256 %s, copy sha256 %s)" % (dst_def, sha(src_def), sha(dst_def)))
     return 0
 
 
@@ -211,8 +218,11 @@ def main(argv=None):
     sub = ap.add_subparsers(dest="cmd")
     b = sub.add_parser("box")
     b.add_argument("--runtime-config", required=True)
-    b.add_argument("--i0", type=int, required=True)
-    b.add_argument("--j0", type=int, required=True)
+    b.add_argument("--i0", type=int, default=0)
+    b.add_argument("--j0", type=int, default=0)
+    b.add_argument("--cells", type=int, nargs=4, metavar=("X0", "X1", "Y0", "Y1"),
+                   help="inclusive AO20 cell indices instead of --i0/--j0/--n (e.g. the 38-cell remainder column)")
+    b.add_argument("--tiles", type=int, nargs=2, metavar=("TX", "TY"))
     b.add_argument("--n", type=int, default=5)
     b.add_argument("--inset", type=float, default=1.0)
     b.add_argument("--cfg", required=True)
